@@ -13,11 +13,11 @@ export const config: WebdriverIO.Config = {
   port: 4444,
   capabilities: [
     {
+      maxInstances: 1,
       // @ts-expect-error tauri-specific capability
       "tauri:options": {
         application: path.resolve(dirname, "../src-tauri/target/debug/crewhub2"),
       },
-      browserName: "wry",
     },
   ],
   framework: "mocha",
