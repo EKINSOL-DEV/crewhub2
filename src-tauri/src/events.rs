@@ -13,3 +13,7 @@ pub enum DomainEvent {
     TaskChanged { task_id: String },
     SettingChanged { key: String },
 }
+
+/// Wrapper event carrying provider-neutral engine events to the webview.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
+pub struct EngineEvent(pub crate::engine::types::SessionEvent);

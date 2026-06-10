@@ -6,6 +6,7 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 /** Commands */
 export const commands = {
 	appInfo: () => __TAURI_INVOKE<AppInfo>("app_info"),
+	listAllSessions: () => typedError<SessionMeta[], string>(__TAURI_INVOKE("list_all_sessions")),
 	listAgents: () => typedError<Agent[], string>(__TAURI_INVOKE("list_agents")),
 	createAgent: (input: NewAgent) => typedError<Agent, string>(__TAURI_INVOKE("create_agent", { input })),
 	updateAgent: (agent: Agent) => typedError<Agent, string>(__TAURI_INVOKE("update_agent", { agent })),
@@ -29,6 +30,7 @@ export const commands = {
 /** Events */
 export const events = {
 	domainEvent: makeEvent<DomainEvent>("domain-event"),
+	engineEvent: makeEvent<EngineEvent>("engine-event"),
 };
 
 /* Types */
@@ -75,6 +77,18 @@ export type DomainEvent = { type: "AgentCreated"; data: {
 	key: string,
 } };
 
+/**  Wrapper event carrying provider-neutral engine events to the webview. */
+export type EngineEvent = SessionEvent;
+
+export type HookSignal = {
+	/**  Provider-neutral event name: session-start | pre-tool | post-tool | stop | subagent-stop | notification */
+	event: string,
+	tool: string | null,
+	path: string | null,
+	payload_json: string | null,
+	ts: number,
+};
+
 export type NewAgent = {
 	name: string,
 	icon: string | null,
@@ -112,6 +126,13 @@ export type NewTask = {
 	created_by: string | null,
 };
 
+export type PermissionRequest = {
+	request_id: string,
+	tool: string,
+	input_json: string,
+	suggestions: string[],
+};
+
 export type Project = {
 	id: string,
 	name: string,
@@ -123,6 +144,15 @@ export type Project = {
 	status: string,
 	created_at: number,
 	updated_at: number,
+};
+
+export type QuestionRequest = {
+	request_id: string,
+	/**  "question" | "plan" */
+	kind: string,
+	text: string,
+	options: string[],
+	multi_select: boolean,
 };
 
 export type Room = {
@@ -138,6 +168,52 @@ export type Room = {
 	updated_at: number,
 };
 
+export type SessionEvent = { type: "Discovered"; data: {
+	meta: SessionMeta,
+} } | { type: "Updated"; data: {
+	meta: SessionMeta,
+} } | { type: "Removed"; data: {
+	id: SessionId,
+} } | { type: "Item"; data: {
+	id: SessionId,
+	item: TranscriptItem,
+	seq: number,
+} } | { type: "PermissionRequest"; data: {
+	id: SessionId,
+	request: PermissionRequest,
+} } | { type: "Question"; data: {
+	id: SessionId,
+	question: QuestionRequest,
+} } | { type: "Signal"; data: {
+	id: SessionId,
+	signal: HookSignal,
+} } | { type: "Conflict"; data: {
+	path: string,
+	sessions: SessionId[],
+} };
+
+export type SessionId = {
+	provider: string,
+	id: string,
+};
+
+export type SessionMeta = {
+	id: SessionId,
+	origin: SessionOrigin,
+	project_path: string,
+	model: string | null,
+	status: SessionStatus,
+	activity_detail: string | null,
+	parent: SessionId | null,
+	usage: UsageTotals,
+	git_branch: string | null,
+	last_activity_ms: number,
+};
+
+export type SessionOrigin = "Managed" | "External";
+
+export type SessionStatus = "Working" | "WaitingForInput" | "WaitingForPermission" | "Idle" | "Ended";
+
 export type Task = {
 	id: string,
 	project_id: string | null,
@@ -150,6 +226,53 @@ export type Task = {
 	created_by: string,
 	created_at: number,
 	updated_at: number,
+};
+
+/**
+ *  Provider-neutral transcript item. Provider-specific raw lines are MAPPED into this,
+ *  never exposed. `Unknown` preserves the raw type so the UI can render an
+ *  "unsupported item" placeholder and we never crash on format drift.
+ */
+export type TranscriptItem = { kind: "UserText"; data: {
+	text: string,
+	ts: number,
+} } | { kind: "AssistantText"; data: {
+	text: string,
+	ts: number,
+} } | { kind: "Thinking"; data: {
+	text: string | null,
+	redacted: boolean,
+	ts: number,
+} } | { kind: "ToolUse"; data: {
+	tool: string,
+	input_json: string,
+	tool_use_id: string,
+	ts: number,
+} } | { kind: "ToolResult"; data: {
+	tool_use_id: string,
+	output_preview: string,
+	is_error: boolean,
+	ts: number,
+} } | { kind: "Image"; data: {
+	media_type: string,
+	ts: number,
+} } | { kind: "SystemNote"; data: {
+	text: string,
+	ts: number,
+} } | { kind: "Usage"; data: {
+	input_tokens: number,
+	output_tokens: number,
+	cache_read: number,
+	ts: number,
+} } | { kind: "Unknown"; data: {
+	raw_type: string,
+	ts: number,
+} };
+
+export type UsageTotals = {
+	input_tokens: number,
+	output_tokens: number,
+	cache_read_tokens: number,
 };
 
 /* Tauri Specta runtime */

@@ -1,3 +1,4 @@
+pub mod engine;
 pub mod events;
 mod ipc;
 pub mod security;
@@ -7,6 +8,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new()
         .commands(tauri_specta::collect_commands![
             ipc::app_info::<tauri::Wry>,
+            ipc::list_all_sessions,
             ipc::list_agents,
             ipc::create_agent::<tauri::Wry>,
             ipc::update_agent::<tauri::Wry>,
@@ -26,7 +28,10 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             ipc::get_setting,
             ipc::set_setting::<tauri::Wry>,
         ])
-        .events(tauri_specta::collect_events![events::DomainEvent])
+        .events(tauri_specta::collect_events![
+            events::DomainEvent,
+            events::EngineEvent
+        ])
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -52,7 +57,28 @@ pub fn run() {
                 .join("crewhub.db");
             let store = store::Store::open(&db_path).expect("open store");
             app.manage(store);
+
+            // Provider registry: empty until ClaudeCodeProvider lands (M1 T9).
+            let registry = std::sync::Arc::new(engine::provider::ProviderRegistry::default());
+            app.manage(registry.clone());
+
             builder.mount_events(app);
+
+            // Bridge: engine fan-in -> typed webview event.
+            let handle = app.handle().clone();
+            let mut rx = registry.aggregate_events();
+            tauri::async_runtime::spawn(async move {
+                use tauri_specta::Event;
+                loop {
+                    match rx.recv().await {
+                        Ok(ev) => {
+                            let _ = events::EngineEvent(ev).emit(&handle);
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                    }
+                }
+            });
             Ok(())
         })
         .run(tauri::generate_context!())

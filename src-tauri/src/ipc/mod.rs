@@ -1,3 +1,5 @@
+use crate::engine::provider::ProviderRegistry;
+use crate::engine::types::SessionMeta;
 use crate::events::DomainEvent;
 use crate::store::agents::{Agent, NewAgent};
 use crate::store::projects::{NewProject, Project};
@@ -5,6 +7,7 @@ use crate::store::rooms::{NewRoom, Room};
 use crate::store::tasks::{NewTask, Task};
 use crate::store::Store;
 use serde::Serialize;
+use std::sync::Arc;
 use tauri::{AppHandle, Runtime, State};
 use tauri_specta::Event;
 
@@ -32,6 +35,16 @@ pub fn app_info<R: Runtime>(app: AppHandle<R>) -> AppInfo {
             .map(|p| p.display().to_string())
             .unwrap_or_default(),
     }
+}
+
+// ---- engine ----
+
+#[tauri::command]
+#[specta::specta]
+pub async fn list_all_sessions(
+    registry: State<'_, Arc<ProviderRegistry>>,
+) -> Result<Vec<SessionMeta>> {
+    Ok(registry.list_all_sessions().await)
 }
 
 // ---- agents ----
