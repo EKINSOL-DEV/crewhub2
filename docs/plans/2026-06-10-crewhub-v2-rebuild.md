@@ -32,66 +32,66 @@ Complete inventory of v1 capabilities and their fate in v2. Nothing is dropped s
 
 ### Keep (rebuild largely as-is, modernized internals)
 
-| v1 feature | v2 notes |
-|---|---|
-| Agents registry (fixed agents: name, icon, color, model, project path, permission mode, system prompt, pinning, auto-spawn) | Core entity. `source` field replaced by single runtime: Claude Code. |
-| Projects & Rooms (icons, colors, sort, HQ room, floor/wall styles) | Core entity. |
-| Task board / Kanban (statuses, priorities, assignee, project/room scoping, project history log) | Core entity. Now also writable by agents via MCP (see Reimagine). |
-| Room assignment rules (keyword / model / pattern / session-type routing) | Keep; operates on watched sessions. |
-| Session display names / aliases | Keep (SQLite, not localStorage). |
-| Session history & archive browser | Keep; reads JSONL transcripts directly, including full-text search. |
-| Chat with streaming, markdown, thinking blocks, tool call display, images/media, permission prompts | Keep; now driven by the control protocol instead of stdout marker parsing (`__TOOL__` markers are gone). |
-| Activity feed (real-time event stream) | Keep; fed by watcher + hooks instead of 5s polling. |
-| Handoff (open session's project in terminal / VS Code / copy path) | Keep; trivial in Tauri (shell plugin). |
-| Meetings (round-robin multi-agent discussions, synthesis, action items → tasks) & Standups | Keep; orchestrated over managed CC sessions. |
-| Theming (named themes, density, fonts), keyboard shortcuts, command palette | Keep. |
-| Onboarding wizard (detect CLI, scan projects, first crew) | Keep; much shorter since there is only one runtime to configure. |
-| Backup / restore | Keep (export/import SQLite + settings). |
-| Desktop notifications & tray | Keep; now hook-driven (instant) via Tauri notification plugin. |
-| Org chart / crew overview | Keep (low priority). |
-| 3D world (rooms, bots, animations, status glow, speech bubbles, first-person mode, task wall) | Keep — signature feature. Port to R3F v9; render data comes from the same stores as the 2D views. |
+| v1 feature                                                                                                                  | v2 notes                                                                                                 |
+| --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Agents registry (fixed agents: name, icon, color, model, project path, permission mode, system prompt, pinning, auto-spawn) | Core entity. `source` field replaced by single runtime: Claude Code.                                     |
+| Projects & Rooms (icons, colors, sort, HQ room, floor/wall styles)                                                          | Core entity.                                                                                             |
+| Task board / Kanban (statuses, priorities, assignee, project/room scoping, project history log)                             | Core entity. Now also writable by agents via MCP (see Reimagine).                                        |
+| Room assignment rules (keyword / model / pattern / session-type routing)                                                    | Keep; operates on watched sessions.                                                                      |
+| Session display names / aliases                                                                                             | Keep (SQLite, not localStorage).                                                                         |
+| Session history & archive browser                                                                                           | Keep; reads JSONL transcripts directly, including full-text search.                                      |
+| Chat with streaming, markdown, thinking blocks, tool call display, images/media, permission prompts                         | Keep; now driven by the control protocol instead of stdout marker parsing (`__TOOL__` markers are gone). |
+| Activity feed (real-time event stream)                                                                                      | Keep; fed by watcher + hooks instead of 5s polling.                                                      |
+| Handoff (open session's project in terminal / VS Code / copy path)                                                          | Keep; trivial in Tauri (shell plugin).                                                                   |
+| Meetings (round-robin multi-agent discussions, synthesis, action items → tasks) & Standups                                  | Keep; orchestrated over managed CC sessions.                                                             |
+| Theming (named themes, density, fonts), keyboard shortcuts, command palette                                                 | Keep.                                                                                                    |
+| Onboarding wizard (detect CLI, scan projects, first crew)                                                                   | Keep; much shorter since there is only one runtime to configure.                                         |
+| Backup / restore                                                                                                            | Keep (export/import SQLite + settings).                                                                  |
+| Desktop notifications & tray                                                                                                | Keep; now hook-driven (instant) via Tauri notification plugin.                                           |
+| Org chart / crew overview                                                                                                   | Keep (low priority).                                                                                     |
+| 3D world (rooms, bots, animations, status glow, speech bubbles, first-person mode, task wall)                               | Keep — signature feature. Port to R3F v9; render data comes from the same stores as the 2D views.        |
 
 ### Reimagine (same job, fundamentally better mechanism in v2)
 
-| v1 feature | v1 mechanism | v2 mechanism |
-|---|---|---|
-| Context injection ("context envelope": room/project/tasks stuffed into prompts) | String-built prompt prefix per message | `SessionStart` hook returns `additionalContext` with the room/project/task envelope; live data via CrewHub MCP tools (`get_my_tasks`, `get_room_context`). Context is current at session start *and* on demand, never stale, never bloating every message. |
-| Agents updating tasks | Agents couldn't; humans moved cards | CrewHub MCP server exposes `create_task`, `update_task_status`, `list_tasks`, `post_status_update` — agents move their own cards; the board becomes the shared source of truth between human and crew. |
-| Conflict detection (concurrent file edits) | Heuristic scanning of transcripts | `PreToolUse` hook on Edit/Write reports the target path to CrewHub before the write; CrewHub detects two sessions touching the same file in real time and can warn — or *block* (hook deny) — by user policy. |
-| Activity/status detection | 5-second polling loop over all connections | FS events on transcript files (`notify`/FSEvents) + hook signals (`PreToolUse`, `PostToolUse`, `Stop`, `Notification`). Sub-second updates, near-zero idle cost. |
-| Pipelines (multi-step agent workflows) | Custom step engine calling gateways | "Runs": scheduled or chained headless `claude -p` invocations with `--output-format stream-json`, plus first-class visualization of Claude Code's *native* subagents and teams (which replace most v1 pipeline use cases). |
-| Cron jobs | OpenClaw gateway payload cron | App-local scheduler (Rust, tokio) executing headless runs; results land in history + notifications. No gateway dependency. |
-| Personas (presets, behavior sliders, identity anchor, surface rules) | Prompt assembly server-side | Persona composer that materializes into Claude Code's own layers: per-agent system prompt (`--append-system-prompt`), per-project `CLAUDE.md` managed block, and/or custom agent definitions (`.claude/agents/`). Same UX (presets + sliders), native substrate. |
-| Permission prompts in chat | Parsed text markers | Control-protocol `can_use_tool` request/response — structured, reliable, supports allow-always rules persisted per agent. |
-| Group chat threads (multi-agent) | Custom thread router over gateways | Multi-agent chat built on managed sessions; broadcast/targeted routing preserved. Evaluate Claude Code teams as substrate where it fits. |
-| Prompt templates | DB-stored templates with variables | Keep templates, plus surface Claude Code skills/slash-commands of each project (read `.claude/skills`, plugins) so the library reflects what sessions can actually do. |
-| Session "adopt" of terminal sessions | History-load workaround | Watcher shows terminal sessions live (read-only); "Take over" = `--resume <session-id>` into a managed session when it's idle; "Peek" = full transcript view anytime. |
-| Zen mode (tmux-style panel workspace) | Separate full-screen mode with own CSS world | The panel/workspace system **becomes the main shell**: tabs, split panes, command palette, layout presets. The 3D world is one (special) view inside it, not a competing app. One UI system instead of three (main/zen/mobile). |
+| v1 feature                                                                      | v1 mechanism                                 | v2 mechanism                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Context injection ("context envelope": room/project/tasks stuffed into prompts) | String-built prompt prefix per message       | `SessionStart` hook returns `additionalContext` with the room/project/task envelope; live data via CrewHub MCP tools (`get_my_tasks`, `get_room_context`). Context is current at session start _and_ on demand, never stale, never bloating every message.       |
+| Agents updating tasks                                                           | Agents couldn't; humans moved cards          | CrewHub MCP server exposes `create_task`, `update_task_status`, `list_tasks`, `post_status_update` — agents move their own cards; the board becomes the shared source of truth between human and crew.                                                           |
+| Conflict detection (concurrent file edits)                                      | Heuristic scanning of transcripts            | `PreToolUse` hook on Edit/Write reports the target path to CrewHub before the write; CrewHub detects two sessions touching the same file in real time and can warn — or _block_ (hook deny) — by user policy.                                                    |
+| Activity/status detection                                                       | 5-second polling loop over all connections   | FS events on transcript files (`notify`/FSEvents) + hook signals (`PreToolUse`, `PostToolUse`, `Stop`, `Notification`). Sub-second updates, near-zero idle cost.                                                                                                 |
+| Pipelines (multi-step agent workflows)                                          | Custom step engine calling gateways          | "Runs": scheduled or chained headless `claude -p` invocations with `--output-format stream-json`, plus first-class visualization of Claude Code's _native_ subagents and teams (which replace most v1 pipeline use cases).                                       |
+| Cron jobs                                                                       | OpenClaw gateway payload cron                | App-local scheduler (Rust, tokio) executing headless runs; results land in history + notifications. No gateway dependency.                                                                                                                                       |
+| Personas (presets, behavior sliders, identity anchor, surface rules)            | Prompt assembly server-side                  | Persona composer that materializes into Claude Code's own layers: per-agent system prompt (`--append-system-prompt`), per-project `CLAUDE.md` managed block, and/or custom agent definitions (`.claude/agents/`). Same UX (presets + sliders), native substrate. |
+| Permission prompts in chat                                                      | Parsed text markers                          | Control-protocol `can_use_tool` request/response — structured, reliable, supports allow-always rules persisted per agent.                                                                                                                                        |
+| Group chat threads (multi-agent)                                                | Custom thread router over gateways           | Multi-agent chat built on managed sessions; broadcast/targeted routing preserved. Evaluate Claude Code teams as substrate where it fits.                                                                                                                         |
+| Prompt templates                                                                | DB-stored templates with variables           | Keep templates, plus surface Claude Code skills/slash-commands of each project (read `.claude/skills`, plugins) so the library reflects what sessions can actually do.                                                                                           |
+| Session "adopt" of terminal sessions                                            | History-load workaround                      | Watcher shows terminal sessions live (read-only); "Take over" = `--resume <session-id>` into a managed session when it's idle; "Peek" = full transcript view anytime.                                                                                            |
+| Zen mode (tmux-style panel workspace)                                           | Separate full-screen mode with own CSS world | The panel/workspace system **becomes the main shell**: tabs, split panes, command palette, layout presets. The 3D world is one (special) view inside it, not a competing app. One UI system instead of three (main/zen/mobile).                                  |
 
 ### Defer (explicitly post-v2.0, design must not preclude them)
 
-| Feature | Why deferred | Seam reserved |
-|---|---|---|
-| OpenClaw gateway support | v2.0 is Claude Code–focused; v1 keeps serving OpenClaw users meanwhile | `SessionProvider` trait in the Rust core (§4.3); all UI consumes provider-agnostic `SessionEvent`s |
-| Creator mode (AI prop generation, crossbreeding, style transfer, quality scoring) | Large, fun, not core to collaboration; v2 redesign should generate via headless `claude -p` instead of direct API calls (removes API-key storage entirely) | Prop registry format kept namespaced (`core:desk`) and JSON-importable from v1 blueprints |
-| Embedded browser panel | Webview-in-webview in Tauri needs its own security review | Panel registry accepts new panel types |
-| Mobile layout / Tauri mobile | Desktop first | Panel system is responsive by construction |
-| Agent file storage (per-agent uploads) | Low usage in v1 | Plain folder under app data dir when needed |
-| Voice recording / audio messages | Niche; revisit after chat core is solid | Chat input is pluggable |
-| Web app | Explicit non-goal for now | Core/UI split over typed IPC means a future server transport is possible without UI rewrite |
+| Feature                                                                           | Why deferred                                                                                                                                               | Seam reserved                                                                                      |
+| --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| OpenClaw gateway support                                                          | v2.0 is Claude Code–focused; v1 keeps serving OpenClaw users meanwhile                                                                                     | `SessionProvider` trait in the Rust core (§4.3); all UI consumes provider-agnostic `SessionEvent`s |
+| Creator mode (AI prop generation, crossbreeding, style transfer, quality scoring) | Large, fun, not core to collaboration; v2 redesign should generate via headless `claude -p` instead of direct API calls (removes API-key storage entirely) | Prop registry format kept namespaced (`core:desk`) and JSON-importable from v1 blueprints          |
+| Embedded browser panel                                                            | Webview-in-webview in Tauri needs its own security review                                                                                                  | Panel registry accepts new panel types                                                             |
+| Mobile layout / Tauri mobile                                                      | Desktop first                                                                                                                                              | Panel system is responsive by construction                                                         |
+| Agent file storage (per-agent uploads)                                            | Low usage in v1                                                                                                                                            | Plain folder under app data dir when needed                                                        |
+| Voice recording / audio messages                                                  | Niche; revisit after chat core is solid                                                                                                                    | Chat input is pluggable                                                                            |
+| Web app                                                                           | Explicit non-goal for now                                                                                                                                  | Core/UI split over typed IPC means a future server transport is possible without UI rewrite        |
 
 ### Drop (v2 makes them unnecessary)
 
-| v1 feature | Why it's gone |
-|---|---|
-| FastAPI HTTP server, REST API, SSE endpoints | Replaced by Tauri IPC + events. No port 8090, no CORS, no `0.0.0.0`. |
+| v1 feature                                                                                | Why it's gone                                                                                                      |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| FastAPI HTTP server, REST API, SSE endpoints                                              | Replaced by Tauri IPC + events. No port 8090, no CORS, no `0.0.0.0`.                                               |
 | API keys, scopes, rate limiting, audit log, device identity binding, local-bootstrap auth | Existed to secure the HTTP API. No HTTP API → no key management. (MCP server keeps a single per-launch token, §5.) |
-| Codex connection type | Out of scope; provider seam covers a future return. |
-| OpenClaw reply-tag stripping, gateway handshake, gateway status endpoints | OpenClaw deferred (see above). |
-| Python runtime, venv, `pip` toolchain | Entire backend is Rust inside the Tauri process. |
-| Discovery service (runtime scanning for Python/Node/.NET) | Only `claude` CLI needs detecting; folded into onboarding. |
-| Demo mode seeding | Replace with a "sample project" button in onboarding if needed. |
-| localStorage as a persistence layer | All durable state in SQLite; localStorage only for ephemeral UI state at most. |
+| Codex connection type                                                                     | Out of scope; provider seam covers a future return.                                                                |
+| OpenClaw reply-tag stripping, gateway handshake, gateway status endpoints                 | OpenClaw deferred (see above).                                                                                     |
+| Python runtime, venv, `pip` toolchain                                                     | Entire backend is Rust inside the Tauri process.                                                                   |
+| Discovery service (runtime scanning for Python/Node/.NET)                                 | Only `claude` CLI needs detecting; folded into onboarding.                                                         |
+| Demo mode seeding                                                                         | Replace with a "sample project" button in onboarding if needed.                                                    |
+| localStorage as a persistence layer                                                       | All durable state in SQLite; localStorage only for ephemeral UI state at most.                                     |
 
 ---
 
@@ -160,7 +160,7 @@ crewhub2/
 ### 4.2 Key decisions (with alternatives considered)
 
 **D1 — Drive the `claude` CLI directly from Rust via bidirectional `stream-json`, rather than embedding the Agent SDK in a Node sidecar.**
-The CLI's `--input-format stream-json --output-format stream-json` mode provides streaming output (text deltas, tool use, thinking), mid-run input, interrupts, and structured permission requests/responses over the control protocol — the same surface the Agent SDK wraps. Choosing the CLI directly means: zero bundled runtime (no Node sidecar binary to build/sign per-platform), the user's existing `claude` install/auth/version is the single source of truth, and one fewer process layer to supervise. *Alternative considered:* TypeScript Agent SDK in a sidecar — richer programmatic API (in-process hooks, `canUseTool` callback), but adds a second runtime to package and drifts from the user's installed Claude Code version. *Mitigation for the risk that the control protocol evolves:* isolate all protocol knowledge in `engine/claude/control.rs` + `transcript.rs` behind versioned tests with recorded fixtures; revisit the SDK-sidecar option at M1 exit if protocol coverage proves insufficient (decision checkpoint, Issue 5.1).
+The CLI's `--input-format stream-json --output-format stream-json` mode provides streaming output (text deltas, tool use, thinking), mid-run input, interrupts, and structured permission requests/responses over the control protocol — the same surface the Agent SDK wraps. Choosing the CLI directly means: zero bundled runtime (no Node sidecar binary to build/sign per-platform), the user's existing `claude` install/auth/version is the single source of truth, and one fewer process layer to supervise. _Alternative considered:_ TypeScript Agent SDK in a sidecar — richer programmatic API (in-process hooks, `canUseTool` callback), but adds a second runtime to package and drifts from the user's installed Claude Code version. _Mitigation for the risk that the control protocol evolves:_ isolate all protocol knowledge in `engine/claude/control.rs` + `transcript.rs` behind versioned tests with recorded fixtures; revisit the SDK-sidecar option at M1 exit if protocol coverage proves insufficient (decision checkpoint, Issue 5.1).
 
 **D2 — Transcript watching is the universal read path; the control protocol is the managed write path.**
 Everything CrewHub displays about a session (managed or terminal-spawned) comes from parsing its JSONL transcript, so there is exactly one parser and terminal sessions get full fidelity for free. Managed sessions additionally have stdin/control for sending messages, answering permissions, and interrupting.
@@ -230,13 +230,13 @@ pub struct SpawnSpec {
 
 SQLite tables (all `id` TEXT/UUID, timestamps INTEGER unix-ms):
 
-- `agents` — name, icon, color, avatar, default_model, project_path, permission_mode, system_prompt, persona_json, is_pinned, auto_spawn, bio. *(v1 `agents` minus source/session-key plumbing; persona tables folded into one JSON column — presets/sliders are UI concepts.)*
+- `agents` — name, icon, color, avatar, default*model, project_path, permission_mode, system_prompt, persona_json, is_pinned, auto_spawn, bio. *(v1 `agents` minus source/session-key plumbing; persona tables folded into one JSON column — presets/sliders are UI concepts.)\_
 - `projects` — name, description, icon, color, folder_path, docs_path, status.
 - `rooms` — project_id, name, icon, color, sort_order, is_hq, style_json (floor/wall/speed).
 - `room_rules` — room_id, rule_type (keyword|model|path_pattern|origin), rule_value, priority.
-- `session_bindings` — session_id (PK), agent_id, room_id, display_name, pinned. *(merges v1 session_room_assignments + session_display_names; transcripts themselves are never copied into the DB.)*
+- `session_bindings` — session*id (PK), agent_id, room_id, display_name, pinned. *(merges v1 session*room_assignments + session_display_names; transcripts themselves are never copied into the DB.)*
 - `tasks` — project_id, room_id, title, description, status (todo|in_progress|review|done|blocked), priority, assignee_agent_id, created_by (human|agent:<id>), created_at, updated_at.
-- `task_events` — task_id, event_type, actor, payload_json, created_at. *(v1 project_history.)*
+- `task_events` — task*id, event_type, actor, payload_json, created_at. *(v1 project*history.)*
 - `meetings`, `meeting_turns`, `meeting_action_items` — as v1, minus gateway fields; turns reference session_id + transcript offsets instead of copying full text.
 - `standups`, `standup_entries` — as v1.
 - `runs` — kind (scheduled|manual|pipeline_step), schedule_cron, spec_json (SpawnSpec for headless), enabled, last_run_at; `run_results` — run_id, session_id, status, summary, started/finished.
@@ -273,6 +273,7 @@ Each issue lists acceptance criteria (AC). Dependencies are noted; otherwise iss
 ### M0 — Foundation (target: usable dev environment, empty but secure app)
 
 #### Epic 1: Scaffold & Toolchain
+
 - **1.1 Scaffold Tauri v2 + React 19 + Vite + TS strict + Tailwind v4 + shadcn/ui** (M)
   AC: `pnpm tauri dev` opens a window; ESLint+Prettier+rustfmt+clippy configured; pre-commit hooks run fmt+lint.
 - **1.2 CI pipeline (GitHub Actions)** (M)
@@ -283,6 +284,7 @@ Each issue lists acceptance criteria (AC). Dependencies are noted; otherwise iss
   AC: one Playwright/WebDriver test boots the built app and asserts the shell renders; runs in CI (macOS).
 
 #### Epic 2: Security Baseline
+
 - **2.1 Capability files & CSP** (M)
   AC: main window capability grants only declared IPC + notification; CSP blocks remote scripts; `tauri.conf.json` reviewed against the checklist in §5; document each granted permission with a one-line justification in `src-tauri/capabilities/README.md`.
 - **2.2 Path policy module** (S)
@@ -291,6 +293,7 @@ Each issue lists acceptance criteria (AC). Dependencies are noted; otherwise iss
   AC: updater keys generated and stored outside repo; conf wired; documented release process.
 
 #### Epic 3: Data & Event Core
+
 - **3.1 SQLite store + migrations** (M)
   AC: schema from §4.4 created via rusqlite_migration; store modules expose typed CRUD for agents/projects/rooms/tasks/settings; unit tests for each; DB lives in app-data dir.
 - **3.2 Domain event bus** (S)
@@ -303,6 +306,7 @@ Each issue lists acceptance criteria (AC). Dependencies are noted; otherwise iss
 ### M1 — Claude Code Engine (target: full observe + control of sessions, no real UI yet beyond a debug panel)
 
 #### Epic 4: Transcript Watcher & Parser
+
 - **4.1 JSONL transcript parser** (L)
   AC: parses all known line types — user/assistant messages, text deltas, thinking (incl. encrypted thinking markers), tool_use/tool_result, subagent lineage (`parent=`), hook progress, errors, usage/token totals, summaries — into `TranscriptItem`; fixture-driven tests with recorded real transcripts (port v1's accumulated parsing knowledge: `claude_transcript_parser.py` is the spec); unknown line types are preserved as `Unknown` and never crash.
 - **4.2 Projects-dir watcher** (M)
@@ -313,6 +317,7 @@ Each issue lists acceptance criteria (AC). Dependencies are noted; otherwise iss
   AC: list past sessions per project with summary, dates, usage; full-text search across transcripts (SQLite FTS5 over an index built lazily, transcripts stay on disk); IPC commands + tests.
 
 #### Epic 5: Managed Session Lifecycle
+
 - **5.1 Spawn/manage `claude` in bidirectional stream-json mode** (L)
   AC: `SpawnSpec` → child process with `--input-format stream-json --output-format stream-json --permission-mode … [--resume id] [--model …] [--append-system-prompt …]`; stdout parsed by the Epic-4 parser; user messages sendable mid-run; clean shutdown on app exit; process supervision (crash → `Ended` + error surfaced). **Exit checkpoint for D1:** if any required capability (interrupt, permission round-trip, mid-run input) is not achievable via CLI control protocol, write an ADR and pivot Epic 5 to the Agent-SDK sidecar before M2 begins.
 - **5.2 Resume / fork / model switch** (M)
@@ -325,12 +330,14 @@ Each issue lists acceptance criteria (AC). Dependencies are noted; otherwise iss
   AC: `claude -p` one-shot runs with stream-json output captured into a `run_results` record + transcript link; used by scheduler (Epic 17) and meetings (Epic 16).
 
 #### Epic 6: Permissions & Control Protocol
+
 - **6.1 Permission request/response plumbing** (M)
   AC: `can_use_tool` control requests surface as `PermissionRequest` events with full tool name/input; responses (allow once / allow always / deny with message) delivered back; "allow always" persists a rule (agent + tool pattern) in settings; rules listable/revocable via IPC.
 - **6.2 AskUserQuestion / plan-approval handling** (M)
   AC: structured questions and ExitPlanMode approval requests are surfaced as typed events and answerable; covered by fixture tests.
 
 #### Epic 7: Hooks Bridge
+
 - **7.1 `crewhub-signal` helper + UDS receiver** (M)
   AC: tiny Rust binary (bundled as Tauri sidecar artifact) reads hook JSON from stdin, writes one line to the app's Unix socket, exits 0 in <50ms even if app is down; receiver translates to `HookSignal` events; integration test with fake hook payloads.
 - **7.2 Managed settings.json block installer** (M)
@@ -341,6 +348,7 @@ Each issue lists acceptance criteria (AC). Dependencies are noted; otherwise iss
   AC: `PreToolUse` signals on Edit/Write feed a per-path registry; two sessions touching the same path within a window → `conflict` event (and optional hook-deny "block mode" per settings); unit tests for overlap windows.
 
 #### Epic 8: CrewHub MCP Server
+
 - **8.1 MCP server core (rmcp, streamable HTTP, loopback + bearer token)** (M)
   AC: server starts with the app on random port; rejects missing/wrong token; exposes `list_crew` as the first tool; integration test via an MCP client.
 - **8.2 Task tools** (M)
@@ -355,6 +363,7 @@ Each issue lists acceptance criteria (AC). Dependencies are noted; otherwise iss
 ### M2 — Core UI (target: daily-drivable cockpit; replaces v1 for solo Claude Code use)
 
 #### Epic 9: Workspace Shell
+
 - **9.1 Panel/workspace system** (L)
   AC: tabs → split panes (h/v) → panels; drag to rearrange; maximize; close; layout presets save/restore (SQLite); keyboard shortcuts (v1 zen map as starting point); panel registry is data-driven so later panels (world3d, runs) plug in.
 - **9.2 Command palette** (M)
@@ -365,6 +374,7 @@ Each issue lists acceptance criteria (AC). Dependencies are noted; otherwise iss
   AC: selecting a project scopes all panels; persisted per workspace tab.
 
 #### Epic 10: Crew & Agents
+
 - **10.1 Agent CRUD + persona composer** (L)
   AC: create/edit agents (name, icon, color, project path picker, model, permission mode); persona presets + sliders (port v1 Executor/Advisor/Explorer + trait sliders) composing into a previewable system prompt; "materialize" writes `--append-system-prompt` config and/or offers to write a managed block in the project's `CLAUDE.md`.
 - **10.2 Crew bar & agent cards** (M)
@@ -373,6 +383,7 @@ Each issue lists acceptance criteria (AC). Dependencies are noted; otherwise iss
   AC: external sessions can be bound to an agent (manually or via room rules); bindings persist (`session_bindings`); display names editable inline.
 
 #### Epic 11: Chat Panel
+
 - **11.1 Transcript renderer** (L)
   AC: virtualized message list rendering all `TranscriptItem` types: markdown (code blocks w/ syntax highlight), thinking blocks (collapsed >500 chars, encrypted-thinking placeholder state), tool calls (foldable input/output, success/error), images (thumbnail + lightbox), subagent groups (collapsible, named — v1 lesson: readable names, not `parent=` labels); performance budget: 60fps scroll on a 5k-item transcript.
 - **11.2 Composer & streaming send** (M)
@@ -385,6 +396,7 @@ Each issue lists acceptance criteria (AC). Dependencies are noted; otherwise iss
   AC: where transcripts expose checkpoints, show markers; "rewind to checkpoint" issues the corresponding resume; degrade gracefully when unavailable.
 
 #### Epic 12: Sessions & Activity
+
 - **12.1 Sessions panel (live)** (M)
   AC: all active sessions (managed + external) with origin badge, status, activity detail, model, usage, room, agent; actions: open chat, bind, assign room, interrupt, kill, handoff.
 - **12.2 Activity feed panel** (M)
@@ -399,6 +411,7 @@ Each issue lists acceptance criteria (AC). Dependencies are noted; otherwise iss
 ### M3 — Workspace (target: human+crew share one board and one map of the work)
 
 #### Epic 13: Projects & Rooms
+
 - **13.1 Project CRUD + folder picker + docs path** (M)
   AC: register project folders (validated by path policy); auto-suggest from `~/.claude/projects` history; project cards show recent session/task stats.
 - **13.2 Rooms CRUD + assignment rules** (M)
@@ -407,6 +420,7 @@ Each issue lists acceptance criteria (AC). Dependencies are noted; otherwise iss
   AC: render project markdown docs (docs_path) with v1-grade markdown fidelity; file tree; images served via Rust command (path-policy-checked).
 
 #### Epic 14: Tasks
+
 - **14.1 Kanban board panel** (L)
   AC: columns todo/in_progress/review/done/blocked; drag-and-drop; filters (project/room/assignee/priority); task detail drawer with description (markdown) + event timeline; HQ view across projects.
 - **14.2 "Run with agent"** (M)
@@ -417,6 +431,7 @@ Each issue lists acceptance criteria (AC). Dependencies are noted; otherwise iss
   AC: notification rules for task moved/blocked/mention fire desktop notifications (Epic 22 integration point; basic toast in M3).
 
 #### Epic 15: Git & Code Awareness
+
 - **15.1 Project git status strip** (M)
   AC: per project/session: current branch, dirty-file count, ahead/behind; worktree listing (sessions running in worktrees are labeled); read-only via `git` CLI through Rust.
 - **15.2 Diff viewer panel** (M)
@@ -427,6 +442,7 @@ Each issue lists acceptance criteria (AC). Dependencies are noted; otherwise iss
 ### M4 — Orchestration (target: the crew works together, on schedule, visibly)
 
 #### Epic 16: Meetings & Standups
+
 - **16.1 Meeting engine on managed sessions** (L)
   AC: round-robin orchestration (state machine: gathering → rounds → synthesis → complete) over N agents, each turn a message into that agent's managed session (spawn if needed); turn timeout + 1 retry; transcript-offset references stored, not copied text; recovery on app restart (v1 lesson); SSE-era UI events become typed Tauri events.
 - **16.2 Meeting UI** (M)
@@ -437,6 +453,7 @@ Each issue lists acceptance criteria (AC). Dependencies are noted; otherwise iss
   AC: scheduled or manual standup collects yesterday/today/blockers from each crew agent via a short headless run against their recent transcript + tasks; history view.
 
 #### Epic 17: Automation (Runs & Schedules)
+
 - **17.1 Scheduler** (M)
   AC: cron-expression scheduler (app must be running; document this honestly) executing headless runs from `runs` specs; enable/disable/run-now; results in history + notifications.
 - **17.2 Run sequences (lightweight pipelines)** (M)
@@ -445,6 +462,7 @@ Each issue lists acceptance criteria (AC). Dependencies are noted; otherwise iss
   AC: CRUD templates with variables; insertable in composer and run specs; project-scoped skills/commands listed alongside (read from `.claude/`).
 
 #### Epic 18: Subagents & Teams Visualization
+
 - **18.1 Lineage model** (M)
   AC: parser + watcher resolve parent/child (subagent) and team relationships into a tree per root session; names humanized (v1 fix carried forward).
 - **18.2 Tree UI** (M)
@@ -455,6 +473,7 @@ Each issue lists acceptance criteria (AC). Dependencies are noted; otherwise iss
 ### M5 — 3D World (target: the soul of CrewHub, rebuilt lean)
 
 #### Epic 19: World Core
+
 - **19.1 R3F scene foundation** (L)
   AC: port v1's building/room/bot rendering to React Three Fiber v9 + drei on the new data stores (rooms from DB, bots from live `SessionEvent`s); instanced meshes; frameloop pauses when panel hidden; 60fps with 20 bots/8 rooms on a baseline MacBook.
 - **19.2 Bots = sessions** (M)
@@ -467,6 +486,7 @@ Each issue lists acceptance criteria (AC). Dependencies are noted; otherwise iss
   AC: world runs as a workspace panel or maximized; CPU/GPU idle budget enforced (suspend rendering when occluded); debug HUD behind a dev flag.
 
 #### Epic 20: Props & Polish (stretch within M5)
+
 - **20.1 Static prop registry + v1 blueprint import** (M)
   AC: namespaced prop registry; import v1 `custom_blueprints` JSON; props render in rooms; placement editor (move/rotate/scale, persisted).
 - **20.2 Creator mode (deferred decision)** (—)
@@ -477,18 +497,21 @@ Each issue lists acceptance criteria (AC). Dependencies are noted; otherwise iss
 ### M6 — Ship (target: installable, updatable, delightful first run)
 
 #### Epic 21: Onboarding
+
 - **21.1 First-run wizard** (M)
   AC: detect `claude` CLI (PATH + common locations) and `~/.claude`; if missing, guided install instructions; scan recent projects; create first project/room/agent; offer hooks-integration opt-in (clear explanation of what is written where) and MCP registration; finish lands in a working workspace; skippable, resumable.
 - **21.2 Sample crew (optional)** (S)
   AC: "Try with a sample project" creates a demo project + 2 agents with safe defaults.
 
 #### Epic 22: Notifications & Tray
+
 - **22.1 Notification engine** (M)
   AC: rule-driven (Epic 14.4 rules) desktop notifications via Tauri plugin: permission needed, session stopped/errored, meeting complete, task events, `Notification` hook passthrough; click focuses the relevant panel; per-rule mute.
 - **22.2 Tray & dock** (S)
   AC: tray icon with active/waiting counts; dock badge for pending permissions (the #1 "why is it stuck" signal).
 
 #### Epic 23: Distribution
+
 - **23.1 Release builds: macOS signed+notarized, Windows, Linux** (L)
   AC: CI produces signed artifacts for all three; macOS notarization green; smoke E2E against built artifact per platform (macOS is primary, others best-effort at v2.0).
 - **23.2 Auto-updater** (M)
@@ -497,6 +520,7 @@ Each issue lists acceptance criteria (AC). Dependencies are noted; otherwise iss
   AC: errors logged to a local ring-buffer file; "Report issue" packages logs+versions into a gist-able bundle (user-initiated only — no telemetry).
 
 #### Epic 24: v1 Migration
+
 - **24.1 Importer** (M)
   AC: one-shot import from `~/.crewhub/crewhub.db`: projects, rooms, agents (+personas → persona_json), tasks (+history), room rules, display names, prompt templates, prop blueprints; dry-run preview; idempotent; v1 left untouched.
 - **24.2 Parity checklist & sunset note** (S)
@@ -506,7 +530,7 @@ Each issue lists acceptance criteria (AC). Dependencies are noted; otherwise iss
 
 ## 7. Cross-Cutting Quality Plan
 
-- **Fixture-first engine testing.** The transcript parser, control protocol, and hooks bridge are tested against *recorded real artifacts* (sanitized JSONL transcripts, control messages, hook payloads) checked into `crates/transcript-parser/fixtures`. Every Claude Code release we support adds a fixture set; parser must never panic on unknown input.
+- **Fixture-first engine testing.** The transcript parser, control protocol, and hooks bridge are tested against _recorded real artifacts_ (sanitized JSONL transcripts, control messages, hook payloads) checked into `crates/transcript-parser/fixtures`. Every Claude Code release we support adds a fixture set; parser must never panic on unknown input.
 - **One stubbed-CLI integration layer.** A fake `claude` binary (Rust, reads a script of canned stream-json) lets Epic 5/6 run deterministic integration tests in CI without API access; one nightly job runs a real smoke test.
 - **E2E happy paths** (Playwright/WebDriver, built app): onboard → create agent → chat round-trip (against stub CLI) → permission prompt → task via MCP appears on board → 3D world renders. These are the release gates.
 - **Performance budgets as tests where feasible:** transcript parse throughput (≥50k lines/s), chat scroll fps probe, watcher latency (<1s from file write to UI event), idle CPU (<2% with 10 idle sessions watched).
@@ -514,17 +538,17 @@ Each issue lists acceptance criteria (AC). Dependencies are noted; otherwise iss
 
 ## 8. Risks & Open Questions
 
-| # | Risk / question | Mitigation / decision point |
-|---|---|---|
-| R1 | CLI stream-json control protocol coverage or stability gaps (permissions, interrupts) | Decision checkpoint at Issue 5.1 exit: pivot to Agent SDK sidecar; all protocol code isolated in two modules. |
-| R2 | Claude Code transcript format evolves between releases | Unknown-tolerant parser + fixture sets per CC version + CI canary that parses the dev machine's newest transcripts. |
-| R3 | Hooks installer touching `~/.claude/settings.json` alarms users or collides with their config | Opt-in with preview diff, fenced block, perfect uninstall, docs page; app fully functional (watcher-only, degraded latency) without hooks. |
-| R4 | Scope: §6 is ~70 issues; 3D world historically absorbs unbounded effort | Milestone gates: M2 must be a daily driver before M3 starts; Epic 20 is explicitly stretch; Creator mode stays deferred. |
-| R5 | Multi-agent meetings over managed sessions hit rate/concurrency limits | Serial turns by default (v1 behavior), configurable; headless runs for standups are short and bounded. |
-| R6 | Windows/Linux support for UDS + process handling | UDS → named pipe on Windows behind one abstraction; CI builds all platforms from M0, but macOS is the v2.0 release gate (others "beta"). |
-| Q1 | Should meetings use Claude Code *teams* instead of CrewHub's round-robin? | Spike during M4 (timeboxed, 1 day) before building 16.1; keep round-robin as the guaranteed path. |
-| Q2 | Multi-window (detachable chat windows) in v2.0? | Defer; panel system first. Tauri multi-window is additive later. |
-| Q3 | Linear: epics as parent issues vs labels? | Recommend parent issues (sub-issues inherit milestone/project); labels for areas: `engine`, `ui`, `world3d`, `security`, `mcp`, `hooks`. |
+| #   | Risk / question                                                                               | Mitigation / decision point                                                                                                                |
+| --- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| R1  | CLI stream-json control protocol coverage or stability gaps (permissions, interrupts)         | Decision checkpoint at Issue 5.1 exit: pivot to Agent SDK sidecar; all protocol code isolated in two modules.                              |
+| R2  | Claude Code transcript format evolves between releases                                        | Unknown-tolerant parser + fixture sets per CC version + CI canary that parses the dev machine's newest transcripts.                        |
+| R3  | Hooks installer touching `~/.claude/settings.json` alarms users or collides with their config | Opt-in with preview diff, fenced block, perfect uninstall, docs page; app fully functional (watcher-only, degraded latency) without hooks. |
+| R4  | Scope: §6 is ~70 issues; 3D world historically absorbs unbounded effort                       | Milestone gates: M2 must be a daily driver before M3 starts; Epic 20 is explicitly stretch; Creator mode stays deferred.                   |
+| R5  | Multi-agent meetings over managed sessions hit rate/concurrency limits                        | Serial turns by default (v1 behavior), configurable; headless runs for standups are short and bounded.                                     |
+| R6  | Windows/Linux support for UDS + process handling                                              | UDS → named pipe on Windows behind one abstraction; CI builds all platforms from M0, but macOS is the v2.0 release gate (others "beta").   |
+| Q1  | Should meetings use Claude Code _teams_ instead of CrewHub's round-robin?                     | Spike during M4 (timeboxed, 1 day) before building 16.1; keep round-robin as the guaranteed path.                                          |
+| Q2  | Multi-window (detachable chat windows) in v2.0?                                               | Defer; panel system first. Tauri multi-window is additive later.                                                                           |
+| Q3  | Linear: epics as parent issues vs labels?                                                     | Recommend parent issues (sub-issues inherit milestone/project); labels for areas: `engine`, `ui`, `world3d`, `security`, `mcp`, `hooks`.   |
 
 ## 9. Suggested Build Order (critical path)
 
@@ -538,4 +562,4 @@ First "dogfood moment" targeted at **end of M2**: CrewHub v2 replaces terminal t
 
 ---
 
-*Prepared 2026-06-10. Source material: full v1 feature inventory (backend routes/services/schema v25, frontend components/contexts/hooks), Claude Code integration surface review (Agent SDK, stream-json control protocol, hooks, MCP, transcript storage — verified against docs.claude.com, June 2026), and v1 docs (`docs/tauri-architecture-review.md`, `docs/claude-code-gap-analysis.md`, `docs/zen-standalone-architecture.md`).*
+_Prepared 2026-06-10. Source material: full v1 feature inventory (backend routes/services/schema v25, frontend components/contexts/hooks), Claude Code integration surface review (Agent SDK, stream-json control protocol, hooks, MCP, transcript storage — verified against docs.claude.com, June 2026), and v1 docs (`docs/tauri-architecture-review.md`, `docs/claude-code-gap-analysis.md`, `docs/zen-standalone-architecture.md`)._

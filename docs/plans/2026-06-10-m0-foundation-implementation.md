@@ -14,7 +14,7 @@
 
 **Diagram:** `docs/plans/2026-06-10-m0-foundation.drawio` — open with https://app.diagrams.net or the VS Code "Draw.io Integration" extension. Page 1 = M0 architecture; Page 2 = task dependency graph.
 
-**API-drift caveat (read once):** code blocks below are the plan's concrete best version against Tauri 2.x / tauri-specta 2.x as of June 2026. If a crate API has drifted at implementation time, the *step's test still defines done* — adjust the call site, not the acceptance criterion, and note the drift in the commit message.
+**API-drift caveat (read once):** code blocks below are the plan's concrete best version against Tauri 2.x / tauri-specta 2.x as of June 2026. If a crate API has drifted at implementation time, the _step's test still defines done_ — adjust the call site, not the acceptance criterion, and note the drift in the commit message.
 
 ---
 
@@ -229,7 +229,11 @@ export default tseslint.config(
   { ignores: ["dist", "src/ipc/bindings.ts", "src-tauri/target"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
-  { files: ["**/*.{ts,tsx}"], plugins: { "react-hooks": reactHooks }, rules: reactHooks.configs.recommended.rules },
+  {
+    files: ["**/*.{ts,tsx}"],
+    plugins: { "react-hooks": reactHooks },
+    rules: reactHooks.configs.recommended.rules,
+  },
 );
 ```
 
@@ -347,7 +351,9 @@ import { commands, type AppInfo } from "@/ipc/bindings";
 
 // inside component:
 const [info, setInfo] = useState<AppInfo | null>(null);
-useEffect(() => { commands.appInfo().then(setInfo); }, []);
+useEffect(() => {
+  commands.appInfo().then(setInfo);
+}, []);
 // render: <p data-testid="app-version">{info?.version}</p>
 ```
 
@@ -470,15 +476,21 @@ export const config: WebdriverIO.Config = {
   maxInstances: 1,
   hostname: "127.0.0.1",
   port: 4444,
-  capabilities: [{
-    // @ts-expect-error tauri-specific capability
-    "tauri:options": { application: path.resolve(__dirname, "../src-tauri/target/debug/crewhub2") },
-    browserName: "wry",
-  }],
+  capabilities: [
+    {
+      // @ts-expect-error tauri-specific capability
+      "tauri:options": { application: path.resolve(__dirname, "../src-tauri/target/debug/crewhub2") },
+      browserName: "wry",
+    },
+  ],
   framework: "mocha",
   reporters: ["spec"],
-  onPrepare: () => { tauriDriver = spawn("tauri-driver", [], { stdio: "inherit" }); },
-  onComplete: () => { tauriDriver?.kill(); },
+  onPrepare: () => {
+    tauriDriver = spawn("tauri-driver", [], { stdio: "inherit" });
+  },
+  onComplete: () => {
+    tauriDriver?.kill();
+  },
 };
 ```
 
@@ -506,25 +518,25 @@ describe("CrewHub shell", () => {
 Append to `ci.yml`:
 
 ```yaml
-  e2e-linux:
-    runs-on: ubuntu-latest
-    needs: [frontend, rust]
-    steps:
-      - uses: actions/checkout@v4
-      - name: System deps
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev webkit2gtk-driver xvfb
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: pnpm }
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with: { workspaces: src-tauri }
-      - run: pnpm install --frozen-lockfile
-      - run: cargo install tauri-driver --locked
-      - run: pnpm tauri build --debug --no-bundle
-      - run: xvfb-run pnpm e2e
+e2e-linux:
+  runs-on: ubuntu-latest
+  needs: [frontend, rust]
+  steps:
+    - uses: actions/checkout@v4
+    - name: System deps
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev webkit2gtk-driver xvfb
+    - uses: pnpm/action-setup@v4
+    - uses: actions/setup-node@v4
+      with: { node-version: 22, cache: pnpm }
+    - uses: dtolnay/rust-toolchain@stable
+    - uses: Swatinem/rust-cache@v2
+      with: { workspaces: src-tauri }
+    - run: pnpm install --frozen-lockfile
+    - run: cargo install tauri-driver --locked
+    - run: pnpm tauri build --debug --no-bundle
+    - run: xvfb-run pnpm e2e
 ```
 
 Expected: job green; spec output shows both assertions passing.
@@ -581,9 +593,9 @@ Verify devtools: `Cargo.toml` must NOT enable the `devtools` feature for release
 Every permission granted to a window MUST be listed here with a one-line justification.
 PR reviewers: reject any capability change that does not update this file.
 
-| Capability file | Window | Permission | Why |
-|---|---|---|---|
-| main.json | main | core:default | Event emit/listen for typed IPC events; window basics; app metadata for About. |
+| Capability file | Window | Permission   | Why                                                                            |
+| --------------- | ------ | ------------ | ------------------------------------------------------------------------------ |
+| main.json       | main   | core:default | Event emit/listen for typed IPC events; window basics; app metadata for About. |
 
 Forbidden without an ADR: `fs:*` to the webview (files go through Rust commands + path policy),
 `shell:*` (only via dedicated commands, M2 handoff), any remote URL in `app.windows[].url`.
@@ -723,7 +735,7 @@ Run: `cargo test --manifest-path src-tauri/Cargo.toml security` → 5 passed.
 
 - [ ] **Step 3: House rule + commit**
 
-Add to `security/mod.rs` doc comment: *"Every IPC command that takes a filesystem path MUST call `PathPolicy::validate` before touching disk. Reviewers reject violations."*
+Add to `security/mod.rs` doc comment: _"Every IPC command that takes a filesystem path MUST call `PathPolicy::validate` before touching disk. Reviewers reject violations."_
 
 ```bash
 git add -A && git commit -m "security: path policy with traversal/symlink/readonly tests"
@@ -1269,18 +1281,49 @@ IPC: `get_setting(key) -> Option<String>`, `set_setting(key, value)` (emits `Set
 
 ```ts
 export type ThemeName = "tokyo-night" | "nord" | "solarized-light";
-export interface Theme { name: ThemeName; dark: boolean; vars: Record<string, string>; }
+export interface Theme {
+  name: ThemeName;
+  dark: boolean;
+  vars: Record<string, string>;
+}
 
 export const THEMES: Record<ThemeName, Theme> = {
-  "tokyo-night": { name: "tokyo-night", dark: true, vars: {
-    "--background": "#1a1b26", "--foreground": "#c0caf5", "--card": "#16161e",
-    "--accent": "#7aa2f7", "--border": "#292e42", "--muted": "#414868" } },
-  "nord": { name: "nord", dark: true, vars: {
-    "--background": "#2e3440", "--foreground": "#eceff4", "--card": "#3b4252",
-    "--accent": "#88c0d0", "--border": "#434c5e", "--muted": "#4c566a" } },
-  "solarized-light": { name: "solarized-light", dark: false, vars: {
-    "--background": "#fdf6e3", "--foreground": "#657b83", "--card": "#eee8d5",
-    "--accent": "#268bd2", "--border": "#d3cbb7", "--muted": "#93a1a1" } },
+  "tokyo-night": {
+    name: "tokyo-night",
+    dark: true,
+    vars: {
+      "--background": "#1a1b26",
+      "--foreground": "#c0caf5",
+      "--card": "#16161e",
+      "--accent": "#7aa2f7",
+      "--border": "#292e42",
+      "--muted": "#414868",
+    },
+  },
+  nord: {
+    name: "nord",
+    dark: true,
+    vars: {
+      "--background": "#2e3440",
+      "--foreground": "#eceff4",
+      "--card": "#3b4252",
+      "--accent": "#88c0d0",
+      "--border": "#434c5e",
+      "--muted": "#4c566a",
+    },
+  },
+  "solarized-light": {
+    name: "solarized-light",
+    dark: false,
+    vars: {
+      "--background": "#fdf6e3",
+      "--foreground": "#657b83",
+      "--card": "#eee8d5",
+      "--accent": "#268bd2",
+      "--border": "#d3cbb7",
+      "--muted": "#93a1a1",
+    },
+  },
 };
 ```
 
@@ -1336,10 +1379,12 @@ export const useSettings = create<SettingsState>((set) => ({
   load: async () => {
     const stored = (await commands.getSetting("theme")) as ThemeName | null;
     const theme = stored ?? "tokyo-night";
-    applyTheme(theme); set({ theme });
+    applyTheme(theme);
+    set({ theme });
   },
   setTheme: async (theme) => {
-    applyTheme(theme); set({ theme });
+    applyTheme(theme);
+    set({ theme });
     await commands.setSetting("theme", theme);
   },
 }));

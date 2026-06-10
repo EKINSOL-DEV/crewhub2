@@ -1,0 +1,12 @@
+pre-commit:
+  parallel: true
+  commands:
+    prettier:
+      glob: "*.{ts,tsx,css,json,md}"
+      run: pnpm prettier --check {staged_files}
+    eslint:
+      glob: "*.{ts,tsx}"
+      run: pnpm eslint {staged_files}
+    rustfmt:
+      glob: "src-tauri/**/*.rs"
+      run: cargo fmt --check --manifest-path src-tauri/Cargo.toml
