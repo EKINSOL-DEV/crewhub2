@@ -1,4 +1,5 @@
 mod ipc;
+pub mod security;
 
 pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new()
