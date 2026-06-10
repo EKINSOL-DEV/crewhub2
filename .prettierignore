@@ -3,3 +3,4 @@ pnpm-lock.yaml
 src/ipc/bindings.ts
 src-tauri/target
 src/components/ui
+src-tauri/gen
