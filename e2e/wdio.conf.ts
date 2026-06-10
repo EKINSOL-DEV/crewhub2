@@ -1,5 +1,8 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 let tauriDriver: ChildProcess | undefined;
 
@@ -12,7 +15,7 @@ export const config: WebdriverIO.Config = {
     {
       // @ts-expect-error tauri-specific capability
       "tauri:options": {
-        application: path.resolve(__dirname, "../src-tauri/target/debug/crewhub2"),
+        application: path.resolve(dirname, "../src-tauri/target/debug/crewhub2"),
       },
       browserName: "wry",
     },
