@@ -16,7 +16,7 @@ export const config: WebdriverIO.Config = {
       maxInstances: 1,
       // @ts-expect-error tauri-specific capability
       "tauri:options": {
-        application: path.resolve(dirname, "../src-tauri/target/debug/crewhub2"),
+        application: path.resolve(dirname, "../target/debug/crewhub2"),
       },
     },
   ],
