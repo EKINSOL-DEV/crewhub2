@@ -11,5 +11,6 @@
 //!
 //! Adding a runtime (e.g. Codex) = implement [`provider::SessionProvider`] in a new
 //! submodule and register it in `lib.rs`. No core, IPC, or UI changes.
+pub mod claude;
 pub mod provider;
 pub mod types;
