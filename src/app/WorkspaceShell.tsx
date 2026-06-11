@@ -13,6 +13,7 @@ import { useWorkspace } from "@/stores/workspace";
 import { CommandPalette } from "./CommandPalette";
 import { matchKey, KEYMAP_HELP } from "./keymap";
 import { buildShellActions } from "./palette-actions";
+import { ProjectSwitcher } from "./project-filter";
 import { ShellDialogs } from "./ShellDialogs";
 import {
   dropEdgeAt,
@@ -418,6 +419,7 @@ export function WorkspaceShell() {
         <span className="select-none text-xs font-semibold">CrewHub</span>
         <TabBar />
         <span className="flex-1" />
+        <ProjectSwitcher />
         <span data-testid="app-version" className="font-mono text-[10px] text-muted-foreground">
           {version ? `v${version}` : "backend: connecting…"}
         </span>
