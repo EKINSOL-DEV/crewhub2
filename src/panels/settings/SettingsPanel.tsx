@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ModelPicker } from "@/components/ModelPicker";
 import { commands, type McpStatus, type PermissionRule } from "@/ipc/bindings";
 import { cn } from "@/lib/utils";
+import { NotificationRulesSection } from "@/panels/board/NotificationRulesSection";
 import { useSettings } from "@/stores/settings";
 import {
   DENSITIES,
@@ -222,6 +223,9 @@ export default function SettingsPanel() {
       <Appearance />
       <Models />
       <Permissions />
+      <Section title="Notifications">
+        <NotificationRulesSection />
+      </Section>
       <Integrations />
     </div>
   );
