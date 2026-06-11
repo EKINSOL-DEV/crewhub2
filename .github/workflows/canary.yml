@@ -1,0 +1,24 @@
+name: Format-drift canary
+on:
+  schedule:
+    - cron: "0 6 * * 1" # weekly, Monday 06:00 UTC
+  workflow_dispatch:
+
+jobs:
+  transcript-canary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tauri system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: .
+      - name: Fixture sweep (zero Unknown items tolerated)
+        run: cargo test --manifest-path src-tauri/Cargo.toml fixture_sweep_no_panics_no_unknowns
+      # Note: true drift detection against NEW Claude Code versions happens on the
+      # dev machine (fresh transcripts land as fixtures via scripts/collect-fixture.py).
+      # This job guards the committed contract weekly and is manually dispatchable.

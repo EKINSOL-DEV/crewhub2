@@ -32,3 +32,12 @@ behind versioned tests with recorded fixtures.
 At M1 exit (EKI-48): if any required capability (interrupt, permission round-trip,
 mid-run input) is not achievable via the CLI control protocol, write a follow-up ADR
 and pivot Epic 5 to the Agent SDK sidecar before M2 begins.
+
+## Resolution (2026-06-11, M1 exit — EKI-48)
+
+Checkpoint passed; **no pivot**. Verified live against CC 2.1.172:
+permission round-trip ✅ (requires undocumented `--permission-prompt-tool stdio`),
+mid-run input ✅, interrupt ✅ (control_request subtype; fake-CLI tested).
+Known limitation: AskUserQuestion answer-injection is not supported in print
+mode — answers relay via deny-with-message (see EKI-57). Full protocol notes:
+`docs/engine/claude-control-protocol.md`.
