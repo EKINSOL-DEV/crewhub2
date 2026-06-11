@@ -1,15 +1,20 @@
 //! Claude Code provider — the ONLY module allowed to know Claude Code specifics
 //! (transcript JSONL format, CLI flags, control protocol, hooks). See `engine/mod.rs`.
+pub mod commands;
 pub mod control;
 pub mod headless;
 pub mod history;
 pub mod lineage;
+pub mod persona;
 pub mod process;
 pub mod registration;
 pub mod transcript;
 pub mod watcher;
 
 pub const PROVIDER_ID: &str = "claude-code";
+
+/// The project context file the persona block is materialized into (G9).
+pub const CONTEXT_FILE: &str = "CLAUDE.md";
 
 use crate::engine::provider::{ProviderCaps, ProviderId, SessionProvider};
 use crate::engine::types::*;
@@ -207,6 +212,21 @@ impl SessionProvider for ClaudeCodeProvider {
     fn set_permission_rules(&self, rules: crate::engine::rules::PermissionRules) {
         self.processes.set_rules(rules);
     }
+
+    async fn list_slash_commands(&self, project_dir: &Path) -> anyhow::Result<Vec<SlashCommand>> {
+        Ok(commands::list_slash_commands(
+            project_dir,
+            self.user_claude_dir().as_deref(),
+        ))
+    }
+
+    async fn materialize_persona(&self, project_dir: &Path, content: &str) -> anyhow::Result<()> {
+        persona::materialize(&project_dir.join(CONTEXT_FILE), content)
+    }
+
+    async fn remove_persona(&self, project_dir: &Path) -> anyhow::Result<()> {
+        persona::remove(&project_dir.join(CONTEXT_FILE))
+    }
 }
 
 impl ClaudeCodeProvider {
@@ -220,5 +240,11 @@ impl ClaudeCodeProvider {
             cli_path: self.config.cli_path.clone(),
             extra_env: self.config.extra_env.clone(),
         }
+    }
+
+    /// The user-level `.claude` directory, derived from the configured
+    /// projects root (`<user .claude>/projects`) so tests can inject it.
+    fn user_claude_dir(&self) -> Option<std::path::PathBuf> {
+        self.config.root.parent().map(Path::to_path_buf)
     }
 }

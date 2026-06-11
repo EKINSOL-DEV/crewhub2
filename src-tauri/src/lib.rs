@@ -5,6 +5,7 @@ mod ipc;
 pub mod mcp;
 pub mod security;
 pub mod store;
+pub mod workspace;
 
 pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new()
@@ -43,6 +44,11 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             ipc::list_session_bindings,
             ipc::upsert_session_binding::<tauri::Wry>,
             ipc::delete_session_binding::<tauri::Wry>,
+            ipc::handoff,
+            ipc::handoff_targets,
+            ipc::list_slash_commands,
+            ipc::materialize_persona,
+            ipc::remove_materialized_persona,
             ipc::get_setting,
             ipc::set_setting::<tauri::Wry>,
             ipc::mcp_status,
@@ -68,6 +74,9 @@ pub fn run() {
         .expect("failed to export typescript bindings");
 
     tauri::Builder::default()
+        // Clipboard: webview gets write-text only (capabilities/main.json) for
+        // the handoff "copy path" / "copy resume command" actions (EKI-80).
+        .plugin(tauri_plugin_clipboard_manager::init())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             use tauri::Manager;

@@ -91,6 +91,23 @@ pub trait SessionProvider: Send + Sync + 'static {
     /// Install/replace the "allow always" permission rules (G4). No-op for
     /// providers without structured permissions ([`ProviderCaps::permissions`]).
     fn set_permission_rules(&self, _rules: PermissionRules) {}
+
+    /// Slash commands / skills the provider recognizes for a project (G8) —
+    /// composer hints, read-only.
+    async fn list_slash_commands(&self, _project_dir: &Path) -> anyhow::Result<Vec<SlashCommand>> {
+        anyhow::bail!("list_slash_commands: unsupported by this provider")
+    }
+
+    /// Write/update CrewHub's fenced persona block in the provider's project
+    /// context file (G9, EKI-32). Idempotent.
+    async fn materialize_persona(&self, _project_dir: &Path, _content: &str) -> anyhow::Result<()> {
+        anyhow::bail!("materialize_persona: unsupported by this provider")
+    }
+
+    /// Remove the fenced persona block, restoring user content byte-identical.
+    async fn remove_persona(&self, _project_dir: &Path) -> anyhow::Result<()> {
+        anyhow::bail!("remove_persona: unsupported by this provider")
+    }
 }
 
 /// Holds every registered provider and fans their event streams into one channel.

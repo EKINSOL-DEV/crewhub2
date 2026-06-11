@@ -595,3 +595,48 @@ async fn ask_user_question_surfaces_and_answer_is_relayed() {
     )
     .await;
 }
+
+/// G8/G9 through the provider seam: slash commands merge project + user-level
+/// dirs (user dir derived from the configured root), persona round-trips.
+#[tokio::test(flavor = "multi_thread")]
+async fn slash_commands_and_persona_route_through_the_provider() {
+    let dir = tempfile::tempdir().unwrap();
+    // root = <user .claude>/projects — the provider derives the user dir from it
+    let user_claude = dir.path().join("home/.claude");
+    std::fs::create_dir_all(user_claude.join("commands")).unwrap();
+    std::fs::write(
+        user_claude.join("commands/standup.md"),
+        "---\ndescription: Daily standup\n---\n",
+    )
+    .unwrap();
+    let project = dir.path().join("proj");
+    std::fs::create_dir_all(project.join(".claude/commands")).unwrap();
+    std::fs::write(project.join(".claude/commands/deploy.md"), "ship\n").unwrap();
+
+    let provider = ClaudeCodeProvider::start(
+        ClaudeConfig {
+            root: user_claude.join("projects"),
+            cli_path: env!("CARGO_BIN_EXE_fake-claude").into(),
+            idle_timeout_ms: 30 * 60 * 1000,
+            extra_env: vec![],
+        },
+        mem_store(),
+    )
+    .unwrap();
+
+    let cmds = provider.list_slash_commands(&project).await.unwrap();
+    let names: Vec<&str> = cmds.iter().map(|c| c.name.as_str()).collect();
+    assert_eq!(names, vec!["deploy", "standup"]);
+
+    let context_file = project.join("CLAUDE.md");
+    provider
+        .materialize_persona(&project, "Be meticulous.")
+        .await
+        .unwrap();
+    let text = std::fs::read_to_string(&context_file).unwrap();
+    assert!(text.contains("Be meticulous."));
+    assert!(text.contains("crewhub:persona:start"));
+
+    provider.remove_persona(&project).await.unwrap();
+    assert!(!context_file.exists(), "created file removed on uninstall");
+}

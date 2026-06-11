@@ -47,6 +47,25 @@ export const commands = {
 	listSessionBindings: () => typedError<SessionBinding[], string>(__TAURI_INVOKE("list_session_bindings")),
 	upsertSessionBinding: (input: NewSessionBinding) => typedError<SessionBinding, string>(__TAURI_INVOKE("upsert_session_binding", { input })),
 	deleteSessionBinding: (sessionId: string) => typedError<boolean, string>(__TAURI_INVOKE("delete_session_binding", { sessionId })),
+	/**
+	 *  Open the project in an external tool (EKI-80, D-M2-8): fixed argv mapped
+	 *  from a closed enum, executed Rust-side — the webview gets no shell.
+	 */
+	handoff: (projectPath: string, target: HandoffTarget) => typedError<null, string>(__TAURI_INVOKE("handoff", { projectPath, target })),
+	/**  Handoff targets installed on this machine. */
+	handoffTargets: () => typedError<HandoffTarget[], string>(__TAURI_INVOKE("handoff_targets")),
+	/**
+	 *  Composer hints: slash commands/skills any provider recognizes for the
+	 *  project (G8). Read-only, path-policy-checked.
+	 */
+	listSlashCommands: (projectPath: string) => typedError<SlashCommand[], string>(__TAURI_INVOKE("list_slash_commands", { projectPath })),
+	/**
+	 *  Write/update the fenced persona block in the project's context file
+	 *  (G9, EKI-32). Idempotent; uninstall is byte-identical (provider tests).
+	 */
+	materializePersona: (projectId: string, content: string) => typedError<null, string>(__TAURI_INVOKE("materialize_persona", { projectId, content })),
+	/**  Remove the fenced persona block, restoring user content byte-identical. */
+	removeMaterializedPersona: (projectId: string) => typedError<null, string>(__TAURI_INVOKE("remove_materialized_persona", { projectId })),
 	getSetting: (key: string) => typedError<string | null, string>(__TAURI_INVOKE("get_setting", { key })),
 	setSetting: (key: string, value: string) => typedError<null, string>(__TAURI_INVOKE("set_setting", { key, value })),
 	mcpStatus: () => typedError<McpStatus, string>(__TAURI_INVOKE("mcp_status")),
@@ -117,6 +136,8 @@ export type DomainEvent = { type: "AgentCreated"; data: {
 
 /**  Wrapper event carrying provider-neutral engine events to the webview. */
 export type EngineEvent = SessionEvent;
+
+export type HandoffTarget = "Terminal" | "Iterm" | "Warp" | "Vscode" | "RevealInFinder";
 
 export type HookSignal = {
 	/**  Provider-neutral event name: session-start | pre-tool | post-tool | stop | subagent-stop | notification */
@@ -338,6 +359,15 @@ export type SessionMeta = {
 export type SessionOrigin = "Managed" | "External";
 
 export type SessionStatus = "Working" | "WaitingForInput" | "WaitingForPermission" | "Idle" | "Ended";
+
+/**
+ *  A composer hint: a slash command or skill the provider recognizes for a
+ *  given project (G8, EKI-52).
+ */
+export type SlashCommand = {
+	name: string,
+	description: string | null,
+};
 
 export type SpawnSpec = {
 	project_path: string,

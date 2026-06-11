@@ -250,6 +250,14 @@ pub struct ArchivedSession {
     pub last_modified_ms: i64,
 }
 
+/// A composer hint: a slash command or skill the provider recognizes for a
+/// given project (G8, EKI-52).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+pub struct SlashCommand {
+    pub name: String,
+    pub description: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 pub struct SearchHit {
     pub session_id: SessionId,

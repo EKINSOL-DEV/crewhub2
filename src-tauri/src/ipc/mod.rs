@@ -2,15 +2,17 @@ use crate::engine::provider::{ProviderCaps, ProviderRegistry, SessionProvider};
 use crate::engine::rules::{PermissionRule, PermissionRules};
 use crate::engine::types::{
     ArchivedSession, PermissionResponse, QuestionResponse, SearchHit, SessionId, SessionMeta,
-    SpawnSpec, TranscriptPage, UserInput,
+    SlashCommand, SpawnSpec, TranscriptPage, UserInput,
 };
 use crate::events::DomainEvent;
+use crate::security::paths::{Access, PathPolicy};
 use crate::store::agents::{Agent, NewAgent};
 use crate::store::projects::{NewProject, Project};
 use crate::store::rooms::{NewRoom, Room};
 use crate::store::session_bindings::{NewSessionBinding, SessionBinding};
 use crate::store::tasks::{NewTask, Task};
 use crate::store::Store;
+use crate::workspace::handoff::HandoffTarget;
 use serde::Serialize;
 use std::sync::Arc;
 use tauri::{AppHandle, Runtime, State};
@@ -156,6 +158,125 @@ pub async fn kill_session(registry: State<'_, Arc<ProviderRegistry>>, id: Sessio
         .kill(&id)
         .await
         .map_err(err)
+}
+
+// ---- workspace: handoff, slash commands, persona (G5/G8/G9) ----
+
+/// House rule (security/mod.rs): every command taking a filesystem path
+/// validates it against the registered project roots before touching disk.
+fn project_policy(store: &Store) -> Result<PathPolicy> {
+    let mut policy = PathPolicy::default();
+    for project in store.list_projects().map_err(err)? {
+        policy.allow(&project.folder_path, Access::ReadWrite);
+    }
+    Ok(policy)
+}
+
+fn validate_project_path(store: &Store, path: &str, access: Access) -> Result<std::path::PathBuf> {
+    project_policy(store)?
+        .validate(std::path::Path::new(path), access)
+        .map_err(|e| e.to_string())
+}
+
+/// Open the project in an external tool (EKI-80, D-M2-8): fixed argv mapped
+/// from a closed enum, executed Rust-side — the webview gets no shell.
+#[tauri::command]
+#[specta::specta]
+pub fn handoff(
+    store: State<Arc<Store>>,
+    project_path: String,
+    target: HandoffTarget,
+) -> Result<()> {
+    let canon = validate_project_path(&store, &project_path, Access::Read)?;
+    crate::workspace::handoff::execute(target, &canon).map_err(err)
+}
+
+/// Handoff targets installed on this machine.
+#[tauri::command]
+#[specta::specta]
+pub fn handoff_targets() -> Result<Vec<HandoffTarget>> {
+    Ok(crate::workspace::handoff::detect_targets(
+        &crate::workspace::handoff::default_app_dirs(),
+    ))
+}
+
+/// Composer hints: slash commands/skills any provider recognizes for the
+/// project (G8). Read-only, path-policy-checked.
+#[tauri::command]
+#[specta::specta]
+pub async fn list_slash_commands(
+    store: State<'_, Arc<Store>>,
+    registry: State<'_, Arc<ProviderRegistry>>,
+    project_path: String,
+) -> Result<Vec<SlashCommand>> {
+    let canon = validate_project_path(&store, &project_path, Access::Read)?;
+    let mut out = Vec::new();
+    for p in registry.all() {
+        if let Ok(cmds) = p.list_slash_commands(&canon).await {
+            out.extend(cmds);
+        }
+    }
+    Ok(out)
+}
+
+/// Route to the first provider implementing the persona-file capability;
+/// `unsupported` defaults are skipped, real errors surface.
+async fn route_persona<F, Fut>(registry: &ProviderRegistry, call: F) -> Result<()>
+where
+    F: Fn(Arc<dyn SessionProvider>) -> Fut,
+    Fut: std::future::Future<Output = anyhow::Result<()>>,
+{
+    for p in registry.all() {
+        match call(p.clone()).await {
+            Ok(()) => return Ok(()),
+            Err(e) if e.to_string().contains("unsupported") => continue,
+            Err(e) => return Err(err(e)),
+        }
+    }
+    Err("no provider supports persona materialization".into())
+}
+
+/// Write/update the fenced persona block in the project's context file
+/// (G9, EKI-32). Idempotent; uninstall is byte-identical (provider tests).
+#[tauri::command]
+#[specta::specta]
+pub async fn materialize_persona(
+    store: State<'_, Arc<Store>>,
+    registry: State<'_, Arc<ProviderRegistry>>,
+    project_id: String,
+    content: String,
+) -> Result<()> {
+    let project = store
+        .get_project(&project_id)
+        .map_err(err)?
+        .ok_or_else(|| format!("unknown project: {project_id}"))?;
+    let canon = validate_project_path(&store, &project.folder_path, Access::ReadWrite)?;
+    route_persona(&registry, |p| {
+        let canon = canon.clone();
+        let content = content.clone();
+        async move { p.materialize_persona(&canon, &content).await }
+    })
+    .await
+}
+
+/// Remove the fenced persona block, restoring user content byte-identical.
+#[tauri::command]
+#[specta::specta]
+pub async fn remove_materialized_persona(
+    store: State<'_, Arc<Store>>,
+    registry: State<'_, Arc<ProviderRegistry>>,
+    project_id: String,
+) -> Result<()> {
+    let project = store
+        .get_project(&project_id)
+        .map_err(err)?
+        .ok_or_else(|| format!("unknown project: {project_id}"))?;
+    let canon = validate_project_path(&store, &project.folder_path, Access::ReadWrite)?;
+    route_persona(&registry, |p| {
+        let canon = canon.clone();
+        async move { p.remove_persona(&canon).await }
+    })
+    .await
 }
 
 // ---- permission rules (G4, EKI-20) ----
@@ -1035,6 +1156,100 @@ mod tests {
             .await
             .unwrap_err();
         assert!(err.contains("no provider supports"), "got: {err}");
+    }
+
+    fn register_project_at(app: &tauri::App<MockRuntime>, path: &str) {
+        create_project(
+            app.handle().clone(),
+            app.state(),
+            NewProject {
+                name: "P".into(),
+                description: None,
+                icon: None,
+                color: None,
+                folder_path: path.into(),
+                docs_path: None,
+            },
+        )
+        .unwrap();
+    }
+
+    /// G5 (D-M2-8): handoff only accepts paths inside registered projects —
+    /// `..` traversal and unregistered paths are rejected before any exec.
+    #[test]
+    fn handoff_rejects_paths_outside_registered_projects() {
+        let app = app();
+        let dir = tempfile::tempdir().unwrap();
+        let project = dir.path().join("proj");
+        std::fs::create_dir_all(&project).unwrap();
+        std::fs::write(dir.path().join("secret.txt"), "x").unwrap();
+        register_project_at(&app, project.to_str().unwrap());
+
+        let err = handoff(app.state(), "/etc".into(), HandoffTarget::Terminal).unwrap_err();
+        assert!(err.contains("outside"), "got: {err}");
+
+        let escape = format!("{}/../secret.txt", project.display());
+        let err = handoff(app.state(), escape, HandoffTarget::Vscode).unwrap_err();
+        assert!(err.contains("outside"), "got: {err}");
+    }
+
+    /// G8: slash commands are path-policy-checked and aggregate across
+    /// providers (StubProvider default contributes nothing).
+    #[tokio::test]
+    async fn list_slash_commands_validates_path_and_tolerates_unsupported() {
+        let app = app();
+        let mut registry = ProviderRegistry::default();
+        registry.register(Arc::new(StubProvider));
+        app.manage(Arc::new(registry));
+        let dir = tempfile::tempdir().unwrap();
+        register_project_at(&app, dir.path().to_str().unwrap());
+
+        let err = list_slash_commands(app.state(), app.state(), "/etc".into())
+            .await
+            .unwrap_err();
+        assert!(err.contains("outside"), "got: {err}");
+
+        let cmds = list_slash_commands(
+            app.state(),
+            app.state(),
+            dir.path().to_str().unwrap().into(),
+        )
+        .await
+        .unwrap();
+        assert!(cmds.is_empty());
+    }
+
+    /// G9: persona materialization routes by capability; with no implementing
+    /// provider the error is readable, and unknown projects are rejected.
+    #[tokio::test]
+    async fn materialize_persona_errors_are_readable() {
+        let app = app();
+        let mut registry = ProviderRegistry::default();
+        registry.register(Arc::new(StubProvider));
+        app.manage(Arc::new(registry));
+
+        let err = materialize_persona(app.state(), app.state(), "ghost".into(), "p".into())
+            .await
+            .unwrap_err();
+        assert!(err.contains("unknown project"), "got: {err}");
+
+        let dir = tempfile::tempdir().unwrap();
+        register_project_at(&app, dir.path().to_str().unwrap());
+        let projects = list_projects(app.state()).unwrap();
+        let err = materialize_persona(app.state(), app.state(), projects[0].id.clone(), "p".into())
+            .await
+            .unwrap_err();
+        assert!(
+            err.contains("no provider supports persona materialization"),
+            "got: {err}"
+        );
+        let err = remove_materialized_persona(app.state(), app.state(), projects[0].id.clone())
+            .await
+            .unwrap_err();
+        assert!(
+            err.contains("no provider supports persona materialization"),
+            "got: {err}"
+        );
     }
 
     #[test]
