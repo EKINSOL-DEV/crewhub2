@@ -1,0 +1,255 @@
+<mxfile host="app.diagrams.net" modified="2026-06-11T09:00:00.000Z" agent="CrewHub planning" version="24.0.0">
+  <diagram id="m2-arch" name="M2 UI Architecture">
+    <mxGraphModel dx="1500" dy="950" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1500" pageHeight="980" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="shell" value="src/app — WORKSPACE SHELL (Lane A) — one UI shell, D6: tabs → split tree → panels" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;verticalAlign=top;fontSize=12;fontStyle=1;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="1420" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="sh1" value="layout-tree.ts — pure split-tree model (leaf | split{dir,ratio,a,b}) — D-M2-1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="60" y="75" width="330" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="sh2" value="panel-registry.tsx — PanelDefinition: kind, emoji, keywords, lazy component, Quiet-Office empty state — D-M2-2 (consumed by palette, keymap, picker, renderer)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="410" y="75" width="400" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="sh3" value="WorkspaceShell.tsx — tabs, splitters, panel chrome, drag-rearrange, maximize" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="830" y="75" width="320" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="sh4" value="CommandPalette (cmdk, EKI-16) + keymap.ts (v1 zen map)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="1170" y="75" width="270" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="sh5" value="Shared seeds (src/components): ModelPicker (haiku-default + cost glyphs, D-M2-7) · StatusEmoji (Status Critters) · EmptyState · Markdown (react-markdown + shiki)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="132" width="750" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="sh6" value="Global project filter per tab (EKI-22) · CrewBar slot in sidebar" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="830" y="132" width="610" height="44" as="geometry" />
+        </mxCell>
+
+        <mxCell id="panels" value="src/panels — PANELS (registered into the registry)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;verticalAlign=top;fontSize=12;fontStyle=1;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="220" width="1420" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="p1" value="chat/ (Lane B, EKI-49/52/58/60/64): VirtualTranscript (TanStack Virtual, 60fps@5k) · items/* per TranscriptItem kind · Composer (slash hints, queue, interrupt) · prompts/{Permission, Question, PlanApproval} · history mode + take-over + checkpoint rewind" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="60" y="255" width="480" height="105" as="geometry" />
+        </mxCell>
+        <mxCell id="p2" value="sessions/ (C, EKI-74): live table, origin badge, Status Critters, bind/room/interrupt/kill/handoff" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="560" y="255" width="280" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="p3" value="activity/ (C, EKI-76): ring buffer feed, filters, click-through, stuck-loading regression" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="560" y="312" width="280" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="p4" value="history/ (C, EKI-78): archive browse + FTS search, opens read-only chat" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="860" y="255" width="280" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="p5" value="crew/ (C, EKI-32/36/40): AgentEditor + PersonaComposer (presets + sliders), CrewBar, binding UI" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="860" y="312" width="280" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="p6" value="settings/ (A, EKI-20): 9 themes, density, font, model defaults, permission rules — also a second Tauri window (own capability)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="1160" y="255" width="280" height="105" as="geometry" />
+        </mxCell>
+
+        <mxCell id="stores" value="src/stores — ZUSTAND STORES (fed by typed events; panels never invoke raw IPC for streams)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;verticalAlign=top;fontSize=12;fontStyle=1;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="410" width="1420" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="st1" value="transcripts.ts (B) — sparse Map&lt;seq, item&gt; per session; live Items + history pages merge by seq — D-M2-3 stitch" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="60" y="445" width="420" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="st2" value="sessions.ts + bindings.ts (C) — joins SessionMeta with session_bindings by id (agent, room, display name)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="500" y="445" width="380" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="st3" value="activity.ts (C) — bounded ring buffer" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="900" y="445" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="st4" value="workspace.ts + palette.ts + settings.ts (A) — persisted via settings KV (workspace.tabs, presets, theme, ui.*)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="1120" y="445" width="320" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ipc" value="src/ipc/bindings.ts — GENERATED, TYPED, THE ONLY UI↔CORE SURFACE (frozen after Lane 0)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="550" width="1420" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="rust" value="src-tauri — RUST CORE (M1 engine + Lane 0 additions)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;verticalAlign=top;fontSize=12;fontStyle=1;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="620" width="1420" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="r1" value="EXISTING (M1): spawn/send/interrupt/kill · respond_to_permission · search_transcripts · agents/projects/rooms/tasks/settings CRUD · mcp_status/enable/disable · EngineEvent + DomainEvent streams" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="60" y="655" width="540" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="r2" value="NEW T2: provider.read_transcript → get_session_transcript(id, offset, limit) — seq parity with watcher · TranscriptItem::Checkpoint (G2/G7)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="620" y="655" width="400" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="r3" value="NEW T3/T4: answer_question (G1) · permission-rule list/add/revoke (G4) · store/session_bindings.rs + CRUD IPC (G3)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="1040" y="655" width="400" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="r4" value="NEW T5: workspace/handoff.rs (shell Rust-side only, path-policy) · list_slash_commands · materialize_persona (fenced CLAUDE.md) (G5/G8/G9)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="60" y="735" width="540" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="r5" value="NEW T1 (EKI-109): history/MCP IPC routed via ProviderRegistry — ipc/mod.rs stays provider-neutral; list_archived_sessions gains project filter (G6)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="620" y="735" width="400" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="r6" value="capabilities/: main.json += new command ids + clipboard write (NO shell in webview, D-M2-8) · settings.json NEW for settings window · README justifications" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="1040" y="735" width="400" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend" value="Playfulness inventory (D-M2-6, closed set): Status Critters · Pop-in · Tool Chips · Quiet Office · Typing Bot · Confetti Hire · Palette wink — all respect prefers-reduced-motion" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;dashed=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="850" width="700" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="legend2" value="Dogfood gate (M2 exit): daily driver replaces terminal tabs — take-over works, prompts answered in-app, layout restores, 60fps@5k, idle CPU &lt; 2%" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;dashed=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="760" y="850" width="700" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="shell" target="panels">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" value="subscribe / select" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="panels" target="stores">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" value="typed commands ↓ · EngineEvent / DomainEvent ↑" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="stores" target="ipc">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="ipc" target="rust">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="m2-tasks" name="M2 Task Graph (lanes)">
+    <mxGraphModel dx="1600" dy="950" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1660" pageHeight="980" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="lane0" value="LANE 0 — IPC additions (serial, FIRST; owns src-tauri/** + bindings regen)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;verticalAlign=top;fontStyle=1;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="1580" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="t1" value="T1 (S) EKI-109&#10;provider-routed history/MCP + project filter" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="60" y="80" width="270" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="t2" value="T2 (M)&#10;get_session_transcript + Checkpoint item (G2/G7)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="370" y="80" width="270" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="t3" value="T3 (S)&#10;answer_question + perm-rule IPC (G1/G4)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="680" y="80" width="270" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="t4" value="T4 (S)&#10;session_bindings store + IPC (G3)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="990" y="80" width="270" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="t5" value="T5 (M)&#10;handoff + slash-commands + materialize_persona + capabilities (G5/G8/G9)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="80" width="300" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="laneA" value="LANE A — Shell · palette · theming · filter (owns src/app, stores/{workspace,palette}, theme, panels/settings, src/components seeds)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;verticalAlign=top;fontStyle=1;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="210" width="1580" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="t6" value="T6 (M) EKI-11 pt1&#10;layout tree + workspace store" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="60" y="250" width="230" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="t7" value="T7 (M) EKI-11 pt2&#10;panel registry + shell render" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="320" y="250" width="230" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="t8" value="T8 (M) completes EKI-11 (L)&#10;drag-rearrange + maximize + keymap" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="580" y="250" width="240" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="t9" value="T9 (M) EKI-16&#10;command palette (cmdk)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="850" y="250" width="220" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="t10" value="T10 (M) EKI-20&#10;theming + settings UI + settings window" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="250" width="240" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="t11" value="T11 (S) EKI-22&#10;global project filter" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="1370" y="250" width="230" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="laneB" value="LANE B — Chat panel (owns src/panels/chat, stores/transcripts, components/Markdown)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;verticalAlign=top;fontStyle=1;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="380" width="1580" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="t12" value="T12 (M) EKI-49 pt1&#10;transcript store — seq stitch buffer" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="60" y="420" width="240" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="t13" value="T13 completes EKI-49 (L)&#10;virtualized renderer + item renderers + perf probe" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="330" y="420" width="260" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="t14" value="T14 (M) EKI-52&#10;composer + streaming send + slash hints" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="620" y="420" width="240" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="t15" value="T15 (M) EKI-58&#10;permission / question / plan prompts" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="890" y="420" width="230" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="t16" value="T16 (M) EKI-60&#10;history mode + take-over + fork" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="1150" y="420" width="220" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="t17" value="T17 (S) EKI-64&#10;checkpoint / rewind markers" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="1400" y="420" width="200" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="laneC" value="LANE C — Crew · sessions · activity · history · handoff (owns src/panels/{crew,sessions,activity,history}, stores/{sessions,bindings,activity})" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;verticalAlign=top;fontStyle=1;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="550" width="1580" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="t18" value="T18 (S)&#10;sessions + bindings stores (join)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="60" y="590" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="t19" value="T19 (L) EKI-32&#10;agent CRUD + persona composer" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="290" y="590" width="210" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="t20" value="T20 (M) EKI-36&#10;crew bar + agent cards" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="530" y="590" width="190" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="t21" value="T21 (M) EKI-40&#10;session binding UI" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="750" y="590" width="180" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="t22" value="T22 (M) EKI-74&#10;sessions panel" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="960" y="590" width="170" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="t23" value="T23 (M) EKI-76&#10;activity feed (+ stuck-loading regression)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="1160" y="590" width="210" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="t24" value="T24 (M+S) EKI-78 + EKI-80&#10;history panel + handoff actions" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="1400" y="590" width="200" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="closing" value="CLOSING" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;verticalAlign=top;fontStyle=1;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="440" y="720" width="780" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="t25" value="T25 (S) delete src/panels/debug — shell becomes the app" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="470" y="760" width="330" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="t26" value="T26 — M2 exit review: DOGFOOD GATE (daily driver, replaces terminal tabs; M3 blocked until 1 week green)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="830" y="760" width="360" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="g1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t1" target="t2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t2" target="t3"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t3" target="t4"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t4" target="t5"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="g5" value="settings KV only" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;" edge="1" parent="1" source="t1" target="t6"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t6" target="t7"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t7" target="t8"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t8" target="t9"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t9" target="t10"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t10" target="t11"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="g11" value="needs T2+T3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;" edge="1" parent="1" source="t3" target="t12"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t12" target="t13"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t13" target="t14"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g14" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t14" target="t15"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g15" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t15" target="t16"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g16" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t16" target="t17"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="g17" value="needs T4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;" edge="1" parent="1" source="t4" target="t18"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g18" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t18" target="t19"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g19" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t19" target="t20"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g20" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t20" target="t21"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g21" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t21" target="t22"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g22" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t22" target="t23"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g23" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t23" target="t24"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g24" value="needs T5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;" edge="1" parent="1" source="t5" target="t24"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="g25" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t11" target="t25"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g26" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t17" target="t25"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g27" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t24" target="t25"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g28" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t25" target="t26"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
