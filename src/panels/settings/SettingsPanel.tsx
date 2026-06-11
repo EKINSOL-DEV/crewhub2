@@ -172,6 +172,40 @@ function Permissions() {
   );
 }
 
+function Setup() {
+  const [reset, setReset] = useState(false);
+  return (
+    <Section title="Setup">
+      <p className="text-xs text-muted-foreground">
+        Walk the first-run wizard again — CLI detection, projects, crew and integrations. It opens in the main
+        window.
+      </p>
+      <div>
+        <Button
+          size="sm"
+          variant="outline"
+          data-testid="rerun-wizard"
+          onClick={() => {
+            // Resets onboarding.state/step; the main window reconciles via
+            // SettingChanged (Appendix B) and shows the overlay.
+            void import("@/stores/onboarding").then(({ useOnboarding }) => {
+              useOnboarding.getState().rerun();
+              setReset(true);
+            });
+          }}
+        >
+          🧭 Re-run setup wizard
+        </Button>
+      </div>
+      {reset && (
+        <p className="text-xs text-muted-foreground" data-testid="rerun-wizard-done">
+          ✅ Wizard re-armed — it's waiting in the main window.
+        </p>
+      )}
+    </Section>
+  );
+}
+
 function Integrations() {
   const [mcp, setMcp] = useState<McpStatus | null>(null);
   useEffect(() => {
@@ -227,6 +261,7 @@ export default function SettingsPanel() {
         <NotificationRulesSection />
       </Section>
       <Integrations />
+      <Setup />
     </div>
   );
 }

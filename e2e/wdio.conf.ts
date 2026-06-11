@@ -7,7 +7,10 @@ const dirname = path.dirname(fileURLToPath(import.meta.url));
 let tauriDriver: ChildProcess | undefined;
 
 export const config: WebdriverIO.Config = {
-  specs: ["./smoke.spec.ts"],
+  // One grouped session, order matters: smoke asserts the shell exists under
+  // the wizard overlay; onboarding then walks the wizard on the same fresh
+  // profile (M6 T9 AC, EKI-86/88).
+  specs: [["./smoke.spec.ts", "./onboarding.spec.ts"]],
   maxInstances: 1,
   hostname: "127.0.0.1",
   port: 4444,
