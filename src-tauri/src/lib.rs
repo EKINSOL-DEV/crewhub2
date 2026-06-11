@@ -1,6 +1,7 @@
 pub mod engine;
 pub mod events;
 mod ipc;
+pub mod mcp;
 pub mod security;
 pub mod store;
 
