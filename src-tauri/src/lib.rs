@@ -83,6 +83,10 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             ipc::start_meeting,
             ipc::cancel_meeting,
             ipc::convert_action_item::<tauri::Wry>,
+            ipc::run_standup,
+            ipc::list_standups,
+            ipc::get_standup,
+            ipc::list_standup_entries,
         ])
         .events(tauri_specta::collect_events![
             events::DomainEvent,

@@ -9,6 +9,7 @@
 
 pub mod action_items;
 pub mod meeting;
+pub mod standup;
 pub mod substitute;
 
 use crate::engine::provider::ProviderRegistry;
@@ -212,6 +213,34 @@ impl Orchestrator {
     /// True while a driver task is registered for the meeting (test aid).
     pub fn is_driving(&self, meeting_id: &str) -> bool {
         self.drivers.lock().unwrap().contains_key(meeting_id)
+    }
+
+    /// Start a standup (16.4): create the row, fan out one bounded headless
+    /// gathering run per agent in the background (D-M4-7). `agent_ids = None`
+    /// means every agent.
+    pub fn start_standup(
+        self: &Arc<Self>,
+        agent_ids: Option<Vec<String>>,
+        title: Option<String>,
+    ) -> anyhow::Result<crate::store::standups::Standup> {
+        let all = self.store.list_agents()?;
+        let agents: Vec<_> = match &agent_ids {
+            Some(ids) => all.into_iter().filter(|a| ids.contains(&a.id)).collect(),
+            None => all,
+        };
+        anyhow::ensure!(!agents.is_empty(), "no agents to ask for a standup");
+        let standup = self
+            .store
+            .create_standup(title.as_deref().unwrap_or("Standup"), Some("human"))?;
+        let _ = self.notify.send(DomainEvent::StandupChanged {
+            standup_id: standup.id.clone(),
+        });
+        let ctx = self.ctx();
+        let standup_id = standup.id.clone();
+        tokio::spawn(async move {
+            standup::run_standup_fanout(ctx, standup_id, agents).await;
+        });
+        Ok(standup)
     }
 }
 

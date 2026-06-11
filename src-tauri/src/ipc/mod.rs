@@ -16,6 +16,7 @@ use crate::store::projects::{NewProject, Project};
 use crate::store::room_rules::{NewRoomRule, RoomRule};
 use crate::store::rooms::{NewRoom, Room};
 use crate::store::session_bindings::{NewSessionBinding, SessionBinding};
+use crate::store::standups::{Standup, StandupEntry};
 use crate::store::task_events::{TaskEvent, ACTOR_HUMAN};
 use crate::store::tasks::{NewTask, Task};
 use crate::store::Store;
@@ -1191,6 +1192,43 @@ pub fn list_meeting_turns(
 #[specta::specta]
 pub fn list_action_items(store: State<Arc<Store>>, meeting_id: String) -> Result<Vec<ActionItem>> {
     store.list_action_items(&meeting_id).map_err(err)
+}
+
+// ---- standups (M4 T4 — D-M4-7) ----
+
+/// Manual standup trigger: creates the row and fans out one bounded haiku
+/// gathering run per agent in the background; entries stream in via
+/// `StandupChanged`.
+#[tauri::command]
+#[specta::specta]
+pub async fn run_standup(
+    orchestrator: State<'_, Arc<Orchestrator>>,
+    agent_ids: Option<Vec<String>>,
+    title: Option<String>,
+) -> Result<Standup> {
+    orchestrator.start_standup(agent_ids, title).map_err(err)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_standups(store: State<Arc<Store>>) -> Result<Vec<Standup>> {
+    store.list_standups().map_err(err)
+}
+
+/// Single-standup refetch for `StandupChanged` reconciliation.
+#[tauri::command]
+#[specta::specta]
+pub fn get_standup(store: State<Arc<Store>>, id: String) -> Result<Option<Standup>> {
+    store.get_standup(&id).map_err(err)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_standup_entries(
+    store: State<Arc<Store>>,
+    standup_id: String,
+) -> Result<Vec<StandupEntry>> {
+    store.list_standup_entries(&standup_id).map_err(err)
 }
 
 #[cfg(test)]

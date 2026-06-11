@@ -168,6 +168,21 @@ export const commands = {
 	 *  on any board, so the UI must ask).
 	 */
 	convertActionItem: (itemId: string, roomId: string | null) => typedError<Task, string>(__TAURI_INVOKE("convert_action_item", { itemId, roomId })),
+	/**
+	 *  Manual standup trigger: creates the row and fans out one bounded haiku
+	 *  gathering run per agent in the background; entries stream in via
+	 *  `StandupChanged`.
+	 */
+	runStandup: (agentIds: string[] | null, title: string | null) => typedError<Standup, string>(__TAURI_INVOKE("run_standup", { agentIds, title })),
+	listStandups: () => typedError<Standup[], string>(__TAURI_INVOKE("list_standups")),
+	/**  Single-standup refetch for `StandupChanged` reconciliation. */
+	getStandup: (id: string) => typedError<{
+	id: string,
+	title: string,
+	created_by: string | null,
+	created_at: number,
+} | null, string>(__TAURI_INVOKE("get_standup", { id })),
+	listStandupEntries: (standupId: string) => typedError<StandupEntry[], string>(__TAURI_INVOKE("list_standup_entries", { standupId })),
 };
 
 /** Events */
@@ -611,6 +626,23 @@ export type SpawnSpec = {
 	fork: boolean,
 	append_system_prompt: string | null,
 	agent_id: string | null,
+};
+
+export type Standup = {
+	id: string,
+	title: string,
+	created_by: string | null,
+	created_at: number,
+};
+
+export type StandupEntry = {
+	id: string,
+	standup_id: string,
+	agent_id: string,
+	yesterday: string | null,
+	today: string | null,
+	blockers: string | null,
+	submitted_at: number,
 };
 
 /**

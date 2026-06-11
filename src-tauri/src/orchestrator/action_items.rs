@@ -41,7 +41,8 @@ pub fn parse(output: &str) -> (String, Vec<ParsedActionItem>) {
 }
 
 /// All fenced code blocks as `(fence_start_byte, after_fence_byte, body)`.
-fn fenced_blocks(text: &str) -> Vec<(usize, usize, &str)> {
+/// Shared with the standup reply parser (same tolerant family, D-M4-6/7).
+pub(crate) fn fenced_blocks(text: &str) -> Vec<(usize, usize, &str)> {
     let mut blocks = Vec::new();
     let mut offset = 0;
     let mut open: Option<(usize, usize)> = None; // (fence start, body start)
