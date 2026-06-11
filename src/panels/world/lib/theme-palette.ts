@@ -27,6 +27,8 @@ export interface WorldPalette {
   /** Nameplates / wall text + their outline. */
   text: string;
   textOutline: string;
+  /** The theme's primary accent — props (couch fabric, lamp shades, …) tint from it. */
+  accent: string;
 }
 
 /** The pre-Epic-20 hardcoded look — also the no-theme fallback. */
@@ -42,6 +44,7 @@ export const WORLD_PALETTE_FALLBACK: WorldPalette = {
   gridSection: "#3a4254",
   text: "#e7eaf2",
   textOutline: "#1a1d24",
+  accent: "#8b7cc8",
 };
 
 // ── Tiny pure hex utilities ──────────────────────────────────────────────────
@@ -120,5 +123,6 @@ export function worldPaletteFrom(read: CssVarReader): WorldPalette {
     gridSection: bg && primary ? mixHex(ground, primary, 0.22) : f.gridSection,
     text: fg ?? f.text,
     textOutline: bg ? shadeHex(bg, -0.45) : f.textOutline,
+    accent: primary ?? f.accent,
   };
 }
