@@ -99,15 +99,19 @@ export function CameraRig({
   mode,
   bounds,
   onExitFp,
+  orbitEnabled = true,
 }: {
   mode: CameraMode;
   bounds: WorldBounds;
   onExitFp: () => void;
+  /** Off while a prop drag is in flight (EKI-81) — the floor drag owns the pointer. */
+  orbitEnabled?: boolean;
 }) {
   if (mode === "fp") return <FirstPerson bounds={bounds} onExit={onExitFp} />;
   return (
     <OrbitControls
       makeDefault
+      enabled={orbitEnabled}
       maxPolarAngle={Math.PI / 2.1}
       minDistance={4}
       maxDistance={60}
