@@ -38,9 +38,7 @@
   "plugins": {
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDIzQjY5N0I1RTgwOUY1NjIKUldSaTlRbm90WmUySThnalZKc3NOd1g0bm00eCtHa1RrVFJNYTZtV292WEQ1UEpIVmY2dGFzMjIK",
-      "endpoints": [
-        "https://github.com/EKINSOL-DEV/crewhub2/releases/latest/download/latest.json"
-      ]
+      "endpoints": ["https://github.com/EKINSOL-DEV/crewhub2/releases/latest/download/latest.json"]
     }
   }
 }
