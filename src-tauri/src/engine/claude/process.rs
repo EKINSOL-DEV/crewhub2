@@ -13,6 +13,7 @@ use std::sync::{Arc, Mutex};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::{broadcast, mpsc};
 
+#[derive(Clone)]
 pub struct ProcessManager {
     cli_path: PathBuf,
     extra_env: Vec<(String, String)>,
@@ -21,6 +22,7 @@ pub struct ProcessManager {
 }
 
 struct Handle {
+    last_activity_ms: i64,
     stdin_tx: mpsc::UnboundedSender<String>,
     kill_tx: tokio::sync::watch::Sender<bool>,
     /// request_id -> original tool input (echoed back on allow)
@@ -114,6 +116,7 @@ impl ProcessManager {
             inner.insert(
                 session_uuid.clone(),
                 Handle {
+                    last_activity_ms: crate::store::Store::now_ms(),
                     stdin_tx,
                     kill_tx,
                     pending_permissions: HashMap::new(),
@@ -291,5 +294,37 @@ impl ProcessManager {
             .unwrap()
             .get(&id.id)
             .map(|h| h.project_path.clone())
+    }
+}
+
+impl ProcessManager {
+    /// Cheap handle for the background idle sweeper (shares inner state).
+    pub fn clone_for_sweep(&self) -> Self {
+        self.clone()
+    }
+
+    /// Kill managed sessions idle longer than `idle_timeout_ms`. Sessions stay
+    /// resumable afterwards (`--resume <id>`), matching v1's 30-minute behavior.
+    pub fn sweep_idle(&self, idle_timeout_ms: i64) -> Vec<SessionId> {
+        let now = crate::store::Store::now_ms();
+        let stale: Vec<String> = {
+            let inner = self.inner.lock().unwrap();
+            inner
+                .iter()
+                .filter(|(_, h)| now - h.last_activity_ms > idle_timeout_ms)
+                .map(|(k, _)| k.clone())
+                .collect()
+        };
+        let mut killed = Vec::new();
+        for sid in stale {
+            let id = SessionId {
+                provider: PROVIDER_ID.into(),
+                id: sid,
+            };
+            if self.kill(&id).is_ok() {
+                killed.push(id);
+            }
+        }
+        killed
     }
 }

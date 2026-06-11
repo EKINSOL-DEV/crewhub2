@@ -61,10 +61,48 @@ pub fn run() {
             let store = store::Store::open(&db_path).expect("open store");
             app.manage(store);
 
-            // Provider registry: empty until ClaudeCodeProvider lands (M1 T9).
-            let registry = std::sync::Arc::new(engine::provider::ProviderRegistry::default());
+            let claude_config = engine::claude::ClaudeConfig::default();
+            app.manage(claude_config.clone());
+            let registry = tauri::async_runtime::block_on(async {
+                let mut registry = engine::provider::ProviderRegistry::default();
+                match engine::claude::ClaudeCodeProvider::start(claude_config) {
+                    Ok(provider) => registry.register(std::sync::Arc::new(provider)),
+                    Err(e) => eprintln!("claude-code provider failed to start: {e}"),
+                }
+                std::sync::Arc::new(registry)
+            });
             app.manage(registry.clone());
-            app.manage(engine::claude::ClaudeConfig::default());
+
+            // T12: periodic idle sweep + auto-spawn of flagged agents.
+            let sweep_registry = registry.clone();
+            let store_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                use tauri::Manager;
+                // auto-spawn once at startup
+                if let Some(provider) = sweep_registry.get(engine::claude::PROVIDER_ID) {
+                    let agents = store_handle
+                        .state::<store::Store>()
+                        .list_agents()
+                        .unwrap_or_default();
+                    for agent in agents.into_iter().filter(|a| a.auto_spawn) {
+                        if let Some(path) = agent.project_path.clone() {
+                            let spec = engine::types::SpawnSpec {
+                                project_path: path,
+                                prompt: None,
+                                model: agent.default_model.clone(),
+                                permission_mode: engine::types::PermissionMode::Default,
+                                resume_session: None,
+                                fork: false,
+                                append_system_prompt: agent.system_prompt.clone(),
+                                agent_id: Some(agent.id.clone()),
+                            };
+                            if let Err(e) = provider.spawn(spec).await {
+                                eprintln!("auto-spawn failed for {}: {e}", agent.name);
+                            }
+                        }
+                    }
+                }
+            });
 
             builder.mount_events(app);
 

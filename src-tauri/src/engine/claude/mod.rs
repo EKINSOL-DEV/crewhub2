@@ -1,6 +1,7 @@
 //! Claude Code provider — the ONLY module allowed to know Claude Code specifics
 //! (transcript JSONL format, CLI flags, control protocol, hooks). See `engine/mod.rs`.
 pub mod control;
+pub mod headless;
 pub mod history;
 pub mod lineage;
 pub mod process;
@@ -20,6 +21,8 @@ use tokio::sync::broadcast;
 pub struct ClaudeConfig {
     pub root: std::path::PathBuf,
     pub cli_path: std::path::PathBuf,
+    /// Managed sessions idle longer than this get ended (still resumable). v1 default: 30 min.
+    pub idle_timeout_ms: i64,
     /// Extra env vars for spawned CLI processes (tests use this to feed
     /// fake-claude its scenario without process-global env mutation).
     pub extra_env: Vec<(String, String)>,
@@ -31,6 +34,7 @@ impl Default for ClaudeConfig {
         Self {
             root: home.join(".claude/projects"),
             cli_path: "claude".into(),
+            idle_timeout_ms: 30 * 60 * 1000,
             extra_env: Vec::new(),
         }
     }
@@ -83,12 +87,22 @@ impl ClaudeCodeProvider {
             }
         });
 
-        Ok(Self {
+        let this = Self {
             tx,
             processes,
             metas,
             _watcher: watcher,
-        })
+        };
+        // Idle sweep: provider-owned lifecycle policy (T12).
+        let sweeper = this.processes.clone_for_sweep();
+        let idle_ms = config.idle_timeout_ms;
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                let _ = sweeper.sweep_idle(idle_ms);
+            }
+        });
+        Ok(this)
     }
 }
 
@@ -152,5 +166,12 @@ impl SessionProvider for ClaudeCodeProvider {
 
     fn subscribe(&self) -> broadcast::Receiver<SessionEvent> {
         self.tx.subscribe()
+    }
+}
+
+impl ClaudeCodeProvider {
+    /// Test/scheduler access to process-level operations (idle sweep).
+    pub fn processes_for_test(&self) -> &process::ProcessManager {
+        &self.processes
     }
 }

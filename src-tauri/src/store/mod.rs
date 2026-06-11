@@ -10,7 +10,8 @@ use std::path::Path;
 use std::sync::Mutex;
 
 pub struct Store {
-    pub(crate) conn: Mutex<Connection>,
+    /// Public for integration tests and provider-internal SQL; app code goes through typed methods.
+    pub conn: Mutex<Connection>,
 }
 
 fn migrations() -> Migrations<'static> {
