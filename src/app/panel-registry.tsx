@@ -76,6 +76,16 @@ export const PANELS: Record<PanelKind, PanelDefinition> = {
     component: lazy(() => import("@/panels/crew/CrewPanel").then((m) => ({ default: m.CrewPanel }))),
     emptyState: { emoji: "🧑‍🚀", title: "Hire your first agent", hint: "A crew makes the ship go" },
   },
+  world: {
+    kind: "world",
+    label: "World",
+    emoji: "🌍",
+    description: "The 3D office — your crew, live, in one little world",
+    keywords: ["world", "3d", "office", "bots", "rooms", "map"],
+    shortcutHint: "w",
+    component: lazy(() => import("@/panels/world/WorldPanel")),
+    emptyState: { emoji: "🌍", title: "World loading", hint: "Bots are putting their badges on" },
+  },
   settings: {
     kind: "settings",
     label: "Settings",
