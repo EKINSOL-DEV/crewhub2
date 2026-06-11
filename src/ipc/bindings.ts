@@ -40,6 +40,10 @@ export const commands = {
 	createRoom: (input: NewRoom) => typedError<Room, string>(__TAURI_INVOKE("create_room", { input })),
 	updateRoom: (room: Room) => typedError<Room, string>(__TAURI_INVOKE("update_room", { room })),
 	deleteRoom: (id: string) => typedError<boolean, string>(__TAURI_INVOKE("delete_room", { id })),
+	listRoomRules: (roomId: string | null) => typedError<RoomRule[], string>(__TAURI_INVOKE("list_room_rules", { roomId })),
+	createRoomRule: (input: NewRoomRule) => typedError<RoomRule, string>(__TAURI_INVOKE("create_room_rule", { input })),
+	updateRoomRule: (rule: RoomRule) => typedError<RoomRule, string>(__TAURI_INVOKE("update_room_rule", { rule })),
+	deleteRoomRule: (id: string) => typedError<boolean, string>(__TAURI_INVOKE("delete_room_rule", { id })),
 	listTasks: () => typedError<Task[], string>(__TAURI_INVOKE("list_tasks")),
 	/**
 	 *  Single-task refetch for `TaskChanged` reconciliation (D-M3-2, G3):
@@ -223,6 +227,13 @@ export type NewRoom = {
 	is_hq: boolean | null,
 };
 
+export type NewRoomRule = {
+	room_id: string,
+	rule_type: string,
+	rule_value: string,
+	priority: number | null,
+};
+
 /**
  *  Upsert input: the full desired state for one session (no partial patch —
  *  the UI always knows the current binding it is editing).
@@ -325,6 +336,15 @@ export type Room = {
 	style_json: string | null,
 	created_at: number,
 	updated_at: number,
+};
+
+export type RoomRule = {
+	id: string,
+	room_id: string,
+	/**  keyword | model | path_pattern | origin */
+	rule_type: string,
+	rule_value: string,
+	priority: number,
 };
 
 export type SearchHit = {

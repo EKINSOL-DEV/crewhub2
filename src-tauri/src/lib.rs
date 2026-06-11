@@ -37,6 +37,10 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             ipc::create_room::<tauri::Wry>,
             ipc::update_room::<tauri::Wry>,
             ipc::delete_room::<tauri::Wry>,
+            ipc::list_room_rules,
+            ipc::create_room_rule::<tauri::Wry>,
+            ipc::update_room_rule::<tauri::Wry>,
+            ipc::delete_room_rule::<tauri::Wry>,
             ipc::list_tasks,
             ipc::get_task,
             ipc::create_task::<tauri::Wry>,
@@ -202,14 +206,36 @@ pub fn run() {
                 }
             });
 
-            // Bridge: engine fan-in -> typed webview event.
+            // Bridge: engine fan-in -> typed webview event. Discovery also
+            // feeds the room-rule auto-assign evaluator (M3 T2, D-M3-10):
+            // a binding is written only when no row exists for the session,
+            // so manual overrides stick by construction.
             let handle = app.handle().clone();
+            let assign_store = store.clone();
             let mut rx = registry.aggregate_events();
             tauri::async_runtime::spawn(async move {
                 use tauri_specta::Event;
                 loop {
                     match rx.recv().await {
                         Ok(ev) => {
+                            if let engine::types::SessionEvent::Discovered { meta }
+                            | engine::types::SessionEvent::Updated { meta } = &ev
+                            {
+                                match store::room_rules::auto_assign_session(
+                                    &assign_store,
+                                    meta,
+                                    None,
+                                ) {
+                                    Ok(Some(binding)) => {
+                                        let _ = events::DomainEvent::SessionBindingChanged {
+                                            session_id: binding.session_id,
+                                        }
+                                        .emit(&handle);
+                                    }
+                                    Ok(None) => {}
+                                    Err(e) => eprintln!("room auto-assign failed: {e}"),
+                                }
+                            }
                             let _ = events::EngineEvent(ev).emit(&handle);
                         }
                         Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,

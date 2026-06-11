@@ -8,6 +8,7 @@ use crate::events::DomainEvent;
 use crate::security::paths::{Access, PathPolicy};
 use crate::store::agents::{Agent, NewAgent};
 use crate::store::projects::{NewProject, Project};
+use crate::store::room_rules::{NewRoomRule, RoomRule};
 use crate::store::rooms::{NewRoom, Room};
 use crate::store::session_bindings::{NewSessionBinding, SessionBinding};
 use crate::store::task_events::{TaskEvent, ACTOR_HUMAN};
@@ -750,6 +751,73 @@ pub fn delete_task<R: Runtime>(
     Ok(deleted)
 }
 
+// ---- room rules (T2, D-M3-10/G2) ----
+// Mutations emit `RoomChanged { room_id }` — the rules editor refetches per
+// room; no dedicated DomainEvent variant (M3 freezes the event surface).
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_room_rules(store: State<Arc<Store>>, room_id: Option<String>) -> Result<Vec<RoomRule>> {
+    store.list_room_rules(room_id.as_deref()).map_err(err)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn create_room_rule<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    input: NewRoomRule,
+) -> Result<RoomRule> {
+    let rule = store.create_room_rule(input).map_err(err)?;
+    DomainEvent::RoomChanged {
+        room_id: rule.room_id.clone(),
+    }
+    .emit(&app)
+    .map_err(|e| e.to_string())?;
+    Ok(rule)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn update_room_rule<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    rule: RoomRule,
+) -> Result<RoomRule> {
+    let rule = store.update_room_rule(rule).map_err(err)?;
+    DomainEvent::RoomChanged {
+        room_id: rule.room_id.clone(),
+    }
+    .emit(&app)
+    .map_err(|e| e.to_string())?;
+    Ok(rule)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn delete_room_rule<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    id: String,
+) -> Result<bool> {
+    // fetch first so the RoomChanged event can name the room
+    let room_id = store
+        .list_room_rules(None)
+        .map_err(err)?
+        .into_iter()
+        .find(|r| r.id == id)
+        .map(|r| r.room_id);
+    let deleted = store.delete_room_rule(&id).map_err(err)?;
+    if deleted {
+        if let Some(room_id) = room_id {
+            DomainEvent::RoomChanged { room_id }
+                .emit(&app)
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(deleted)
+}
+
 // ---- session bindings (G3, EKI-36/40) ----
 
 #[tauri::command]
@@ -926,6 +994,61 @@ mod tests {
         let r = update_room(h.clone(), app.state(), r).unwrap();
         assert_eq!(r.sort_order, 3);
         assert!(delete_room(h, app.state(), r.id).unwrap());
+    }
+
+    /// T2 (G2): room-rule CRUD round-trips with rule_type validation; the
+    /// evaluator itself is unit-tested in `store::room_rules`.
+    #[test]
+    fn room_rule_commands_roundtrip() {
+        let app = app();
+        let h = app.handle().clone();
+        let room = create_room(
+            h.clone(),
+            app.state(),
+            NewRoom {
+                project_id: None,
+                name: "Lab".into(),
+                icon: None,
+                color: None,
+                is_hq: None,
+            },
+        )
+        .unwrap();
+
+        let err = create_room_rule(
+            h.clone(),
+            app.state(),
+            NewRoomRule {
+                room_id: room.id.clone(),
+                rule_type: "vibes".into(),
+                rule_value: "x".into(),
+                priority: None,
+            },
+        )
+        .unwrap_err();
+        assert!(err.contains("invalid rule_type"), "got: {err}");
+
+        let mut rule = create_room_rule(
+            h.clone(),
+            app.state(),
+            NewRoomRule {
+                room_id: room.id.clone(),
+                rule_type: "keyword".into(),
+                rule_value: "fox".into(),
+                priority: Some(3),
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            list_room_rules(app.state(), Some(room.id.clone())).unwrap(),
+            vec![rule.clone()]
+        );
+        rule.priority = 7;
+        let rule = update_room_rule(h.clone(), app.state(), rule).unwrap();
+        assert_eq!(list_room_rules(app.state(), None).unwrap()[0].priority, 7);
+        assert!(delete_room_rule(h.clone(), app.state(), rule.id.clone()).unwrap());
+        assert!(!delete_room_rule(h, app.state(), rule.id).unwrap());
+        assert!(list_room_rules(app.state(), None).unwrap().is_empty());
     }
 
     #[test]
