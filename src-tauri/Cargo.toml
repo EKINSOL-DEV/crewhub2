@@ -1,5 +1,6 @@
 [package]
 name = "crewhub2"
+default-run = "crewhub2"
 version = "0.1.0"
 description = "A Tauri App"
 authors = ["you"]
