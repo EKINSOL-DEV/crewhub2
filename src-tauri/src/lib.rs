@@ -100,6 +100,10 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             ipc::create_prompt_template::<tauri::Wry>,
             ipc::update_prompt_template::<tauri::Wry>,
             ipc::delete_prompt_template::<tauri::Wry>,
+            ipc::hooks_status,
+            ipc::preview_hooks_install,
+            ipc::install_hooks,
+            ipc::uninstall_hooks,
         ])
         .events(tauri_specta::collect_events![
             events::DomainEvent,
@@ -148,6 +152,36 @@ pub fn run() {
                 std::sync::Arc::new(registry)
             });
             app.manage(registry.clone());
+
+            // M6 T1 (D-M6-1/G1): boot the hooks UDS receiver. Signals flow
+            // into the registry fan-in (same stream as provider events);
+            // SessionStart gets the store-backed context envelope reply.
+            // Windows: skipped — UDS only; the app runs watcher-only there.
+            #[cfg(unix)]
+            {
+                let context_store = store.clone();
+                let context: hooks::receiver::ContextProvider = std::sync::Arc::new(move |cwd| {
+                    hooks::context::build_envelope(&context_store, cwd, None)
+                });
+                let receiver = tauri::async_runtime::block_on(async {
+                    hooks::receiver::HookReceiver::start_with_context(
+                        hooks::receiver::ReceiverConfig {
+                            socket_path: hooks::signal_socket_path(),
+                            ..Default::default()
+                        },
+                        registry.event_sender(),
+                        Some(context),
+                    )
+                });
+                match receiver {
+                    // keep it alive for the app's lifetime (Drop unbinds)
+                    Ok(receiver) => app.manage(receiver),
+                    Err(e) => {
+                        eprintln!("hooks receiver failed to start: {e}");
+                        true
+                    }
+                };
+            }
 
             // G4: the persisted "allow always" rules apply from the first spawn.
             let initial_rules = store

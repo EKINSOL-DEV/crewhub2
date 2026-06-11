@@ -93,11 +93,24 @@ fn send(_line: &str, _await_reply: bool) -> Option<Option<String>> {
     None
 }
 
+/// MUST mirror `hooks::signal_socket_path()` in src-tauri: env override,
+/// else the OS data dir + `CrewHub/signal.sock` (the receiver binds there).
 #[cfg(unix)]
 fn socket_path() -> Option<std::path::PathBuf> {
     if let Some(path) = std::env::var_os("CREWHUB_SIGNAL_SOCKET") {
         return Some(path.into());
     }
-    let home = std::env::var_os("HOME")?;
-    Some(std::path::Path::new(&home).join("Library/Application Support/CrewHub/signal.sock"))
+    #[cfg(target_os = "macos")]
+    {
+        let home = std::env::var_os("HOME")?;
+        Some(std::path::Path::new(&home).join("Library/Application Support/CrewHub/signal.sock"))
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let data_dir = match std::env::var_os("XDG_DATA_HOME") {
+            Some(d) if !d.is_empty() => std::path::PathBuf::from(d),
+            _ => std::path::Path::new(&std::env::var_os("HOME")?).join(".local/share"),
+        };
+        Some(data_dir.join("CrewHub/signal.sock"))
+    }
 }

@@ -210,6 +210,10 @@ export const commands = {
 	createPromptTemplate: (input: NewPromptTemplate) => typedError<PromptTemplate, string>(__TAURI_INVOKE("create_prompt_template", { input })),
 	updatePromptTemplate: (template: PromptTemplate) => typedError<PromptTemplate, string>(__TAURI_INVOKE("update_prompt_template", { template })),
 	deletePromptTemplate: (id: string) => typedError<boolean, string>(__TAURI_INVOKE("delete_prompt_template", { id })),
+	hooksStatus: () => typedError<HooksStatus, string>(__TAURI_INVOKE("hooks_status")),
+	previewHooksInstall: () => typedError<HooksPreview, string>(__TAURI_INVOKE("preview_hooks_install")),
+	installHooks: () => typedError<HooksStatus, string>(__TAURI_INVOKE("install_hooks")),
+	uninstallHooks: () => typedError<HooksStatus, string>(__TAURI_INVOKE("uninstall_hooks")),
 };
 
 /** Events */
@@ -356,6 +360,22 @@ export type HookSignal = {
 	path: string | null,
 	payload_json: string | null,
 	ts: number,
+};
+
+/**  Before/after settings text for the wizard's real preview diff. */
+export type HooksPreview = {
+	before: string,
+	after: string,
+};
+
+/**  Wire status of the hooks bridge (Appendix C `HooksStatus`). */
+export type HooksStatus = {
+	/**  False on Windows: the bridge is UDS-based; the app runs watcher-only. */
+	supported: boolean,
+	installed: boolean,
+	settings_path: string,
+	/**  The bundled `crewhub-signal` binary was found on disk. */
+	sidecar_ok: boolean,
 };
 
 /**

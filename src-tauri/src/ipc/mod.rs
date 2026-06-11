@@ -460,6 +460,35 @@ pub fn revoke_permission_rule<R: Runtime>(
     save_rules(&app, &store, &registry, rules)
 }
 
+// ---- hooks bridge (M6 T1, D-M6-1/G1) ----
+// Thin wrappers over `crate::hooks`: status, REAL preview diff text,
+// install/uninstall. Windows reports `supported: false` and the mutating
+// commands refuse (UDS bridge; watcher-only mode there).
+
+#[tauri::command]
+#[specta::specta]
+pub fn hooks_status() -> Result<crate::hooks::HooksStatus> {
+    Ok(crate::hooks::bridge_status())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn preview_hooks_install() -> Result<crate::hooks::HooksPreview> {
+    crate::hooks::bridge_preview().map_err(err)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn install_hooks() -> Result<crate::hooks::HooksStatus> {
+    crate::hooks::bridge_install().map_err(err)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn uninstall_hooks() -> Result<crate::hooks::HooksStatus> {
+    crate::hooks::bridge_uninstall().map_err(err)
+}
+
 // ---- mcp ----
 
 /// What the UI may know about the MCP server. The bearer token is
