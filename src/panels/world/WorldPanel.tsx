@@ -13,6 +13,7 @@ import { layoutWorld, type WorldZone } from "./lib/layout";
 import { BotActionsCard, RoomInfoCard } from "./overlays";
 import { useSpeechBubbles } from "./use-speech-bubbles";
 import { useWorldVisibility } from "./use-world-visibility";
+import { FpsProbe, WorldHudOverlay, worldDebugEnabled } from "./WorldHud";
 import { WorldScene } from "./WorldScene";
 
 type Selection = { kind: "bot"; key: string } | { kind: "zone"; id: string } | null;
@@ -37,6 +38,8 @@ export default function WorldPanel() {
   const [selection, setSelection] = useState<Selection>(null);
   const [cameraMode, setCameraMode] = useState<CameraMode>("orbit");
   const [webglFailed, setWebglFailed] = useState(false);
+  const debug = useMemo(() => worldDebugEnabled(), []);
+  const [fps, setFps] = useState(0);
 
   // Selections store keys, not objects — the cards always render live data.
   const selectedBot: WorldBot | null =
@@ -91,7 +94,12 @@ export default function WorldPanel() {
           onZoneClick={(zone) => setSelection({ kind: "zone", id: zone.id })}
         />
         <CameraRig mode={cameraMode} bounds={world.bounds} onExitFp={() => setCameraMode("orbit")} />
+        {debug && <FpsProbe onSample={setFps} />}
       </Canvas>
+
+      {debug && (
+        <WorldHudOverlay fps={fps} bots={bots.length} rooms={world.rooms.length - 1} frameloop={frameloop} />
+      )}
 
       {selectedBot && <BotActionsCard bot={selectedBot} onClose={() => setSelection(null)} />}
       {selectedZone && !selectedBot && (
