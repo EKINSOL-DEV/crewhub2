@@ -141,15 +141,12 @@ fn handle_line(
     conflicts: &Mutex<ConflictDetector>,
     context: Option<&ContextProvider>,
 ) -> Option<String> {
-    let Ok(value) = serde_json::from_str::<serde_json::Value>(line) else {
-        return None; // malformed line: skip, keep the stream alive
-    };
-    let Some(wire_event) = value.get("event").and_then(serde_json::Value::as_str) else {
-        return None;
-    };
-    let Some(session_id) = value.get("session_id").and_then(serde_json::Value::as_str) else {
-        return None;
-    };
+    // malformed lines: skip, keep the stream alive
+    let value = serde_json::from_str::<serde_json::Value>(line).ok()?;
+    let wire_event = value.get("event").and_then(serde_json::Value::as_str)?;
+    let session_id = value
+        .get("session_id")
+        .and_then(serde_json::Value::as_str)?;
     let event = map_event(wire_event);
     let payload = value.get("payload");
     let (tool, path) = if event == "pre-tool" {
