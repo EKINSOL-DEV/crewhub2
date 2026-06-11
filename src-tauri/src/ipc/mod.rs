@@ -1,5 +1,5 @@
-use crate::engine::provider::ProviderRegistry;
-use crate::engine::types::SessionMeta;
+use crate::engine::provider::{ProviderCaps, ProviderRegistry, SessionProvider};
+use crate::engine::types::{PermissionResponse, SessionId, SessionMeta, SpawnSpec, UserInput};
 use crate::events::DomainEvent;
 use crate::store::agents::{Agent, NewAgent};
 use crate::store::projects::{NewProject, Project};
@@ -45,6 +45,97 @@ pub async fn list_all_sessions(
     registry: State<'_, Arc<ProviderRegistry>>,
 ) -> Result<Vec<SessionMeta>> {
     Ok(registry.list_all_sessions().await)
+}
+
+/// `(provider id, caps)` pair — specta has no tuple-in-Vec ergonomics we want
+/// to expose, so this tiny named struct is the wire shape instead.
+#[derive(Serialize, specta::Type)]
+pub struct ProviderCapsEntry {
+    pub provider: String,
+    pub caps: ProviderCaps,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn provider_caps(registry: State<'_, Arc<ProviderRegistry>>) -> Result<Vec<ProviderCapsEntry>> {
+    Ok(registry
+        .all()
+        .iter()
+        .map(|p| ProviderCapsEntry {
+            provider: p.id().to_string(),
+            caps: p.caps(),
+        })
+        .collect())
+}
+
+fn provider<'a>(
+    registry: &'a ProviderRegistry,
+    id: &str,
+) -> std::result::Result<&'a Arc<dyn SessionProvider>, String> {
+    registry
+        .get(id)
+        .ok_or_else(|| format!("unknown provider: {id}"))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn spawn_session(
+    registry: State<'_, Arc<ProviderRegistry>>,
+    provider_id: String,
+    spec: SpawnSpec,
+) -> Result<SessionId> {
+    provider(&registry, &provider_id)?
+        .spawn(spec)
+        .await
+        .map_err(err)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn send_to_session(
+    registry: State<'_, Arc<ProviderRegistry>>,
+    id: SessionId,
+    text: String,
+) -> Result<()> {
+    provider(&registry, &id.provider)?
+        .send(&id, UserInput { text })
+        .await
+        .map_err(err)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn respond_to_permission(
+    registry: State<'_, Arc<ProviderRegistry>>,
+    id: SessionId,
+    request_id: String,
+    response: PermissionResponse,
+) -> Result<()> {
+    provider(&registry, &id.provider)?
+        .respond_permission(&id, &request_id, response)
+        .await
+        .map_err(err)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn interrupt_session(
+    registry: State<'_, Arc<ProviderRegistry>>,
+    id: SessionId,
+) -> Result<()> {
+    provider(&registry, &id.provider)?
+        .interrupt(&id)
+        .await
+        .map_err(err)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn kill_session(registry: State<'_, Arc<ProviderRegistry>>, id: SessionId) -> Result<()> {
+    provider(&registry, &id.provider)?
+        .kill(&id)
+        .await
+        .map_err(err)
 }
 
 // TODO(M1-T9): route history through ClaudeCodeProvider so this file stays provider-neutral.
@@ -431,6 +522,105 @@ mod tests {
             err.contains("CHECK"),
             "expected CHECK constraint error, got: {err}"
         );
+    }
+
+    /// Minimal provider: just enough for registry-routing commands.
+    struct StubProvider;
+
+    #[async_trait::async_trait]
+    impl SessionProvider for StubProvider {
+        fn id(&self) -> crate::engine::provider::ProviderId {
+            "stub"
+        }
+        fn caps(&self) -> ProviderCaps {
+            ProviderCaps {
+                spawn: true,
+                interrupt: true,
+                ..Default::default()
+            }
+        }
+        async fn list_sessions(&self) -> Vec<SessionMeta> {
+            Vec::new()
+        }
+        async fn spawn(&self, _spec: SpawnSpec) -> anyhow::Result<SessionId> {
+            Ok(SessionId {
+                provider: "stub".into(),
+                id: "s1".into(),
+            })
+        }
+        async fn send(&self, _id: &SessionId, _input: UserInput) -> anyhow::Result<()> {
+            Ok(())
+        }
+        async fn respond_permission(
+            &self,
+            _id: &SessionId,
+            _rid: &str,
+            _r: PermissionResponse,
+        ) -> anyhow::Result<()> {
+            Ok(())
+        }
+        async fn answer_question(
+            &self,
+            _id: &SessionId,
+            _r: crate::engine::types::QuestionResponse,
+        ) -> anyhow::Result<()> {
+            Ok(())
+        }
+        async fn interrupt(&self, _id: &SessionId) -> anyhow::Result<()> {
+            Ok(())
+        }
+        async fn kill(&self, _id: &SessionId) -> anyhow::Result<()> {
+            Ok(())
+        }
+        fn subscribe(
+            &self,
+        ) -> tokio::sync::broadcast::Receiver<crate::engine::types::SessionEvent> {
+            tokio::sync::broadcast::channel(1).1
+        }
+    }
+
+    #[tokio::test]
+    async fn provider_caps_lists_registered_providers_and_routes_by_id() {
+        let app = app();
+        let mut registry = ProviderRegistry::default();
+        registry.register(Arc::new(StubProvider));
+        app.manage(Arc::new(registry));
+
+        let caps = provider_caps(app.state()).unwrap();
+        assert_eq!(caps.len(), 1);
+        assert_eq!(caps[0].provider, "stub");
+        assert!(caps[0].caps.spawn);
+        assert!(!caps[0].caps.resume);
+
+        // routing: known provider succeeds, unknown is a readable error
+        let sid = spawn_session(
+            app.state(),
+            "stub".into(),
+            SpawnSpec {
+                project_path: "/tmp".into(),
+                prompt: None,
+                model: None,
+                permission_mode: crate::engine::types::PermissionMode::Default,
+                resume_session: None,
+                fork: false,
+                append_system_prompt: None,
+                agent_id: None,
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(sid.id, "s1");
+        interrupt_session(app.state(), sid.clone()).await.unwrap();
+        let err = kill_session(
+            app.state(),
+            SessionId {
+                provider: "codex".into(),
+                id: "x".into(),
+            },
+        )
+        .await
+        .unwrap_err();
+        assert!(err.contains("unknown provider"), "got: {err}");
     }
 
     #[test]

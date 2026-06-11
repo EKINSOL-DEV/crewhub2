@@ -11,6 +11,12 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         .commands(tauri_specta::collect_commands![
             ipc::app_info::<tauri::Wry>,
             ipc::list_all_sessions,
+            ipc::provider_caps,
+            ipc::spawn_session,
+            ipc::send_to_session,
+            ipc::respond_to_permission,
+            ipc::interrupt_session,
+            ipc::kill_session,
             ipc::list_archived_sessions,
             ipc::search_transcripts,
             ipc::list_agents,
