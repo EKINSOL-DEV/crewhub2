@@ -96,10 +96,13 @@ export function RoomInfoCard({
   zone,
   bots,
   onClose,
+  onImportBlueprint,
 }: {
   zone: WorldZone;
   bots: WorldBot[];
   onClose: () => void;
+  /** Opens the v1 blueprint paste-import for this room (EKI-81). */
+  onImportBlueprint?: (() => void) | undefined;
 }) {
   const [openTasks, setOpenTasks] = useState<number | null>(null);
 
@@ -146,6 +149,13 @@ export function RoomInfoCard({
         </ul>
       ) : (
         <p className="text-xs text-muted-foreground">Nobody home right now.</p>
+      )}
+      {zone.id !== LOBBY_ID && onImportBlueprint && (
+        <div className="mt-2 border-t pt-2">
+          <Button size="xs" variant="outline" onClick={onImportBlueprint}>
+            Import v1 blueprint
+          </Button>
+        </div>
       )}
     </CardShell>
   );

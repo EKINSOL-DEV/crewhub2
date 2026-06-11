@@ -13,6 +13,7 @@ import { useTasksStore } from "@/stores/tasks";
 import { CameraRig, type CameraMode } from "./CameraRig";
 import { toWorldBots, type WorldBot } from "./lib/bots";
 import { LOBBY_ID, ROOM_SIZE, layoutWorld, type WorldZone } from "./lib/layout";
+import { ImportBlueprintDialog } from "./props/ImportBlueprintDialog";
 import { useWorldProps } from "./props/store";
 import { summarizeWall, wallScopeFor, type WallSummary } from "./lib/taskwall";
 import { BotActionsCard, RoomInfoCard } from "./overlays";
@@ -65,6 +66,7 @@ export default function WorldPanel() {
   }, [tasksById, world]);
 
   const [selection, setSelection] = useState<Selection>(null);
+  const [importZoneId, setImportZoneId] = useState<string | null>(null);
   const [cameraMode, setCameraMode] = useState<CameraMode>("orbit");
   const [webglFailed, setWebglFailed] = useState(false);
   const debug = useMemo(() => worldDebugEnabled(), []);
@@ -75,6 +77,9 @@ export default function WorldPanel() {
     selection?.kind === "bot" ? (bots.find((b) => b.key === selection.key) ?? null) : null;
   const selectedZone: WorldZone | null =
     selection?.kind === "zone" ? (world.rooms.find((z) => z.id === selection.id) ?? null) : null;
+  const importZone: WorldZone | null = importZoneId
+    ? (world.rooms.find((z) => z.id === importZoneId) ?? null)
+    : null;
 
   // Static scenes (reduced motion) render on demand; hidden panels not at all.
   const frameloop = !visible ? "never" : reducedMotion ? "demand" : "always";
@@ -146,6 +151,15 @@ export default function WorldPanel() {
           zone={selectedZone}
           bots={bots.filter((b) => b.roomId === selectedZone.id)}
           onClose={() => setSelection(null)}
+          onImportBlueprint={() => setImportZoneId(selectedZone.id)}
+        />
+      )}
+
+      {importZone && (
+        <ImportBlueprintDialog
+          zone={importZone}
+          onApply={(props) => useWorldProps.getState().setRoomProps(importZone.id, props)}
+          onClose={() => setImportZoneId(null)}
         />
       )}
 
