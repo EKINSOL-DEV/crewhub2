@@ -97,6 +97,50 @@ mod tests {
         assert_eq!(substitute("plain text", &[]).unwrap(), "plain text");
     }
 
+    /// The Rust↔TS contract (T8, D-M4-8): both `substitute` and the TS
+    /// `renderTemplate` run against the SAME fixture file — drift = red.
+    #[test]
+    fn substitution_contract_fixture_holds() {
+        let raw = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("fixtures/substitution-contract.json"),
+        )
+        .unwrap();
+        let v: serde_json::Value = serde_json::from_str(&raw).unwrap();
+        let cases = v["cases"].as_array().unwrap();
+        assert!(cases.len() >= 8, "contract must stay meaningful");
+        for case in cases {
+            let name = case["name"].as_str().unwrap();
+            let template = case["template"].as_str().unwrap();
+            let vars: Vec<(String, String)> = case["vars"]
+                .as_object()
+                .unwrap()
+                .iter()
+                .map(|(k, v)| (k.clone(), v.as_str().unwrap().to_string()))
+                .collect();
+            let vars_ref: Vec<(&str, &str)> =
+                vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+            let result = substitute(template, &vars_ref);
+            match (case.get("expected"), case.get("error")) {
+                (Some(expected), _) => {
+                    assert_eq!(
+                        result.as_deref().ok(),
+                        expected.as_str(),
+                        "case failed: {name}"
+                    );
+                }
+                (None, Some(error)) => {
+                    assert_eq!(
+                        result.unwrap_err().to_string(),
+                        error.as_str().unwrap(),
+                        "case failed: {name}"
+                    );
+                }
+                _ => panic!("contract case {name} needs expected or error"),
+            }
+        }
+    }
+
     #[test]
     fn lists_referenced_variables_unique_in_order() {
         assert_eq!(

@@ -205,6 +205,11 @@ export const commands = {
 	runNow: (runId: string) => typedError<RunResult, string>(__TAURI_INVOKE("run_now", { runId })),
 	listRunResults: (runId: string) => typedError<RunResult[], string>(__TAURI_INVOKE("list_run_results", { runId })),
 	previewCron: (expr: string) => typedError<CronPreview, string>(__TAURI_INVOKE("preview_cron", { expr })),
+	/**  Global templates plus, when given, the project's own (D-M4-8). */
+	listPromptTemplates: (projectId: string | null) => typedError<PromptTemplate[], string>(__TAURI_INVOKE("list_prompt_templates", { projectId })),
+	createPromptTemplate: (input: NewPromptTemplate) => typedError<PromptTemplate, string>(__TAURI_INVOKE("create_prompt_template", { input })),
+	updatePromptTemplate: (template: PromptTemplate) => typedError<PromptTemplate, string>(__TAURI_INVOKE("update_prompt_template", { template })),
+	deletePromptTemplate: (id: string) => typedError<boolean, string>(__TAURI_INVOKE("delete_prompt_template", { id })),
 };
 
 /** Events */
@@ -421,6 +426,13 @@ export type NewProject = {
 	docs_path: string | null,
 };
 
+export type NewPromptTemplate = {
+	name: string,
+	template: string,
+	variables_json: string | null,
+	project_id: string | null,
+};
+
 export type NewRoom = {
 	project_id: string | null,
 	name: string,
@@ -514,6 +526,14 @@ export type Project = {
 	status: string,
 	created_at: number,
 	updated_at: number,
+};
+
+export type PromptTemplate = {
+	id: string,
+	name: string,
+	template: string,
+	variables_json: string | null,
+	project_id: string | null,
 };
 
 export type ProviderCaps = {

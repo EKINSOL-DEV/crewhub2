@@ -96,6 +96,10 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             ipc::run_now,
             ipc::list_run_results,
             ipc::preview_cron,
+            ipc::list_prompt_templates,
+            ipc::create_prompt_template::<tauri::Wry>,
+            ipc::update_prompt_template::<tauri::Wry>,
+            ipc::delete_prompt_template::<tauri::Wry>,
         ])
         .events(tauri_specta::collect_events![
             events::DomainEvent,

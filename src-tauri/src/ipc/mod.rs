@@ -13,6 +13,9 @@ use crate::store::notification_rules::{
     NewNotificationRule, NotificationRule, NOTIFICATION_RULES_SETTING_KEY,
 };
 use crate::store::projects::{NewProject, Project};
+use crate::store::prompt_templates::{
+    NewPromptTemplate, PromptTemplate, PROMPT_TEMPLATES_SETTING_KEY,
+};
 use crate::store::room_rules::{NewRoomRule, RoomRule};
 use crate::store::rooms::{NewRoom, Room};
 use crate::store::runs::{NewRun, Run, RunResult};
@@ -1380,6 +1383,93 @@ pub fn preview_cron(expr: String) -> Result<CronPreview> {
         desc,
         note: SCHEDULER_HONEST_COPY.into(),
     })
+}
+
+// ---- prompt templates (M4 T8 — D-M4-8) ----
+
+/// Validate `variables_json`: an array of `{name, default?}` objects.
+fn validate_variables_json(raw: Option<&str>) -> Result<()> {
+    let Some(raw) = raw else { return Ok(()) };
+    let v: serde_json::Value =
+        serde_json::from_str(raw).map_err(|e| format!("invalid variables_json: {e}"))?;
+    let arr = v
+        .as_array()
+        .ok_or_else(|| "variables_json must be an array".to_string())?;
+    for item in arr {
+        let name = item
+            .get("name")
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(|| "every variable needs a string name".to_string())?;
+        if name.trim().is_empty() {
+            return Err("variable names must not be empty".into());
+        }
+        if let Some(default) = item.get("default") {
+            if !default.is_string() && !default.is_null() {
+                return Err(format!("variable {name}: default must be a string"));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn emit_templates_changed<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
+    DomainEvent::SettingChanged {
+        key: PROMPT_TEMPLATES_SETTING_KEY.into(),
+    }
+    .emit(app)
+    .map_err(|e| e.to_string())
+}
+
+/// Global templates plus, when given, the project's own (D-M4-8).
+#[tauri::command]
+#[specta::specta]
+pub fn list_prompt_templates(
+    store: State<Arc<Store>>,
+    project_id: Option<String>,
+) -> Result<Vec<PromptTemplate>> {
+    store
+        .list_prompt_templates(project_id.as_deref())
+        .map_err(err)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn create_prompt_template<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    input: NewPromptTemplate,
+) -> Result<PromptTemplate> {
+    validate_variables_json(input.variables_json.as_deref())?;
+    let t = store.create_prompt_template(input).map_err(err)?;
+    emit_templates_changed(&app)?;
+    Ok(t)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn update_prompt_template<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    template: PromptTemplate,
+) -> Result<PromptTemplate> {
+    validate_variables_json(template.variables_json.as_deref())?;
+    let t = store.update_prompt_template(template).map_err(err)?;
+    emit_templates_changed(&app)?;
+    Ok(t)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn delete_prompt_template<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    id: String,
+) -> Result<bool> {
+    let deleted = store.delete_prompt_template(&id).map_err(err)?;
+    if deleted {
+        emit_templates_changed(&app)?;
+    }
+    Ok(deleted)
 }
 
 #[cfg(test)]
