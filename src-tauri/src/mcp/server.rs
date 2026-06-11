@@ -14,9 +14,10 @@ use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use rmcp::transport::streamable_http_server::session::never::NeverSessionManager;
 use rmcp::transport::streamable_http_server::{StreamableHttpServerConfig, StreamableHttpService};
-use tokio::sync::oneshot;
+use tokio::sync::{broadcast, oneshot};
 
 use super::tools::CrewHubMcp;
+use crate::events::DomainEvent;
 use crate::store::Store;
 
 /// Path the MCP endpoint is served under; registration (T23) points at it.
@@ -32,13 +33,20 @@ pub struct McpServer {
 impl McpServer {
     /// Binds `127.0.0.1` on an OS-assigned port, generates a fresh bearer
     /// token, and serves the CrewHub tools.
-    pub async fn start(store: Arc<Store>) -> anyhow::Result<Self> {
+    ///
+    /// `notify` is the internal `DomainEvent` channel: store mutations made by
+    /// MCP tools do not pass through the IPC layer's emit path, so they are
+    /// broadcast here instead and lib.rs forwards them to the webview.
+    pub async fn start(
+        store: Arc<Store>,
+        notify: broadcast::Sender<DomainEvent>,
+    ) -> anyhow::Result<Self> {
         let token = generate_token();
         let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0)).await?;
         let port = listener.local_addr()?.port();
 
         let service = StreamableHttpService::new(
-            move || Ok(CrewHubMcp::new(store.clone())),
+            move || Ok(CrewHubMcp::new(store.clone(), notify.clone())),
             Arc::new(NeverSessionManager::default()),
             StreamableHttpServerConfig::default()
                 .with_stateful_mode(false)

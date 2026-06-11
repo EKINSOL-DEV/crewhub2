@@ -5,6 +5,12 @@
 //! per-launch bearer token held only in memory. This is the single listening
 //! socket in the whole app; it exposes only the whitelisted CrewHub tools —
 //! never shell, filesystem, or IPC passthrough.
+//!
+//! Store mutations made through these tools bypass the IPC layer (which is
+//! where `DomainEvent`s are normally emitted), so [`server::McpServer`] takes
+//! an internal `tokio::sync::broadcast::Sender<DomainEvent>` at construction
+//! and every mutating tool broadcasts on it. The lib.rs wiring forwards that
+//! channel to the webview.
 
 pub mod server;
 pub mod tools;
