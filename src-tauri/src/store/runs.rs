@@ -182,6 +182,54 @@ impl Store {
         Ok(stmt.query_row([&id], row_to_result)?)
     }
 
+    /// Persist-then-act for executions (T6): the row exists (status
+    /// "running") BEFORE the process starts, so an app death mid-step leaves
+    /// honest evidence for [`Store::mark_interrupted_run_results`].
+    pub fn begin_run_result(
+        &self,
+        run_id: &str,
+        step_index: Option<i64>,
+    ) -> anyhow::Result<RunResult> {
+        self.add_run_result(NewRunResult {
+            run_id,
+            session_id: None,
+            status: "running",
+            summary: None,
+            step_index,
+            started_at: Self::now_ms(),
+            finished_at: 0,
+        })
+    }
+
+    pub fn finish_run_result(
+        &self,
+        id: &str,
+        status: &str,
+        summary: Option<&str>,
+        session_id: Option<&str>,
+    ) -> anyhow::Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let n = conn.execute(
+            "UPDATE run_results SET status=?2, summary=?3, session_id=?4, finished_at=?5 WHERE id=?1",
+            rusqlite::params![id, status, summary, session_id, Self::now_ms()],
+        )?;
+        anyhow::ensure!(n == 1, "run result not found: {id}");
+        Ok(())
+    }
+
+    /// Boot scan (§3.2): anything still "running" died with the app — mark it
+    /// interrupted. Sequences are atomic-or-stopped, NEVER auto-resumed.
+    pub fn mark_interrupted_run_results(&self) -> anyhow::Result<usize> {
+        let conn = self.conn.lock().unwrap();
+        let n = conn.execute(
+            "UPDATE run_results SET status='interrupted',
+             summary='interrupted: the app closed mid-execution', finished_at=?1
+             WHERE status='running'",
+            rusqlite::params![Self::now_ms()],
+        )?;
+        Ok(n)
+    }
+
     pub fn list_run_results(&self, run_id: &str) -> anyhow::Result<Vec<RunResult>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
@@ -242,6 +290,27 @@ mod tests {
         assert_eq!(s.get_run(&r.id).unwrap().unwrap().schedule_cron, None);
         assert!(s.delete_run(&r.id).unwrap());
         assert!(!s.delete_run(&r.id).unwrap());
+    }
+
+    #[test]
+    fn begin_finish_and_interrupted_marking() {
+        let s = Store::open_in_memory().unwrap();
+        let r = s.create_run(new_run("manual")).unwrap();
+        let a = s.begin_run_result(&r.id, Some(0)).unwrap();
+        assert_eq!(a.status, "running");
+        s.finish_run_result(&a.id, "success", Some("done"), Some("sess-9"))
+            .unwrap();
+        let b = s.begin_run_result(&r.id, Some(1)).unwrap();
+        // app "dies" here; boot scan marks the running row interrupted
+        assert_eq!(s.mark_interrupted_run_results().unwrap(), 1);
+        let rows = s.list_run_results(&r.id).unwrap();
+        let a_row = rows.iter().find(|x| x.id == a.id).unwrap();
+        let b_row = rows.iter().find(|x| x.id == b.id).unwrap();
+        assert_eq!(a_row.status, "success");
+        assert_eq!(a_row.session_id.as_deref(), Some("sess-9"));
+        assert_eq!(b_row.status, "interrupted");
+        // idempotent: nothing left to mark
+        assert_eq!(s.mark_interrupted_run_results().unwrap(), 0);
     }
 
     #[test]

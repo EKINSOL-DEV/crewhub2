@@ -119,7 +119,10 @@ pub(crate) async fn execute_run(ctx: &DriverCtx, run: &Run) {
 }
 
 /// One prompt execution recorded as one result row (the shared primitive for
-/// simple runs and sequence steps). Returns the exec for chaining.
+/// simple runs and sequence steps). Persist-then-act (T6/§3.2): the row is
+/// written as "running" BEFORE the process starts; an app death mid-step
+/// leaves it for the boot scan to mark `interrupted` — sequences are
+/// atomic-or-stopped, never auto-resumed. Returns the exec for chaining.
 async fn exec_prompt_step(
     ctx: &DriverCtx,
     run_id: &str,
@@ -139,28 +142,29 @@ async fn exec_prompt_step(
         );
         return None;
     };
+    let Ok(row) = ctx.store.begin_run_result(run_id, step_index) else {
+        return None;
+    };
     match runner
         .exec_headless(std::path::Path::new(project_path), prompt, model)
         .await
     {
         Ok(exec) => {
-            let _ = crate::engine::claude::headless::record_run_result(
-                &ctx.store,
-                run_id,
-                step_index,
-                &exec,
-                started,
-                Store::now_ms(),
+            let summary: String = exec.text.chars().take(500).collect();
+            let _ = ctx.store.finish_run_result(
+                &row.id,
+                &exec.status,
+                Some(&summary),
+                exec.session_id.as_deref(),
             );
             Some(exec)
         }
         Err(e) => {
-            record_error(
-                ctx,
-                run_id,
-                step_index,
-                &format!("exec failed: {e}"),
-                started,
+            let _ = ctx.store.finish_run_result(
+                &row.id,
+                "error",
+                Some(&format!("exec failed: {e}")),
+                None,
             );
             None
         }
