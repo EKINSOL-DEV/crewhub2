@@ -5,6 +5,15 @@ on:
     branches: [main]
 
 jobs:
+  guards:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: eprintln! guard (errlog only — D-M6-10, EKI-102)
+        run: python3 scripts/check-eprintln.py
+      - name: Version sync (tauri.conf.json == package.json — EKI-98)
+        run: node scripts/check-version-sync.mjs
+
   frontend:
     runs-on: ubuntu-latest
     steps:
