@@ -102,7 +102,7 @@ impl TranscriptWatcher {
                         for path in tracked {
                             state.process_path(&path);
                         }
-                        if tick % 10 == 0 {
+                        if tick.is_multiple_of(10) {
                             for path in find_transcripts(&state.config.root) {
                                 state.process_path(&path);
                             }
