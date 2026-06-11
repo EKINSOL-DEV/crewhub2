@@ -3,6 +3,7 @@
 // schedule editor and per-run history drawer. The "schedules run only while
 // CrewHub is open" copy is rendered prominently (D-M4-4 AC), never a tooltip.
 import { useEffect, useState } from "react";
+import { useProjectFilter } from "@/app/project-filter";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/EmptyState";
 import { usePrefersReducedMotion } from "@/components/use-reduced-motion";
@@ -13,6 +14,7 @@ import { describeCron } from "./cron-describe";
 import { parseRunSpec, specEmoji, specSummary } from "./run-spec";
 import { RunHistory } from "./RunHistory";
 import { ScheduleEditor } from "./ScheduleEditor";
+import { TemplateLibrary } from "./TemplateLibrary";
 import "./automation.css";
 
 /** The honest scheduler copy (mirrors `preview_cron`'s `note`, D-M4-4). */
@@ -162,9 +164,14 @@ export default function AutomationPanel({ params, setParams }: PanelProps) {
   const runsById = useAutomationStore((s) => s.runs);
   const loaded = useAutomationStore((s) => s.loaded);
   const storeError = useAutomationStore((s) => s.error);
+  const { project } = useProjectFilter();
   const [localEditor, setLocalEditor] = useState<EditorTarget | null>(null);
   const [historyFor, setHistoryFor] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  // Two views, param-persisted: runs (default) and the template library (T15).
+  const view: "runs" | "templates" = params.view === "templates" ? "templates" : "runs";
+  const setView = (v: "runs" | "templates") => setParams({ ...params, view: v });
 
   // Deep-link params open the editor DERIVED, board-panel style: the
   // palette's "New schedule" passes create=1, Lane G's standup "Schedule
@@ -206,64 +213,95 @@ export default function AutomationPanel({ params, setParams }: PanelProps) {
     <div data-testid="automation-panel" className="relative flex h-full flex-col gap-2 overflow-auto p-3">
       <div className="flex items-center gap-2">
         <h2 className="flex-1 text-sm font-semibold">⏰ Automation</h2>
-        <Button size="xs" data-testid="new-schedule" onClick={() => setEditor({ run: null })}>
-          ＋ New run
-        </Button>
+        <div role="tablist" aria-label="Automation views" className="flex gap-1">
+          <Button
+            size="xs"
+            role="tab"
+            aria-selected={view === "runs"}
+            variant={view === "runs" ? "default" : "ghost"}
+            onClick={() => setView("runs")}
+          >
+            ⏰ Runs
+          </Button>
+          <Button
+            size="xs"
+            role="tab"
+            aria-selected={view === "templates"}
+            variant={view === "templates" ? "default" : "ghost"}
+            data-testid="templates-tab"
+            onClick={() => setView("templates")}
+          >
+            📜 Templates
+          </Button>
+        </div>
+        {view === "runs" && (
+          <Button size="xs" data-testid="new-schedule" onClick={() => setEditor({ run: null })}>
+            ＋ New run
+          </Button>
+        )}
       </div>
-      {/* the honest copy, prominent — not a tooltip (D-M4-4 AC) */}
-      <p
-        data-testid="scheduler-honest-copy"
-        className="rounded border border-border bg-muted/40 px-2 py-1 text-xs text-muted-foreground"
-      >
-        ⏰ {SCHEDULER_HONEST_COPY} A missed occurrence fires once on the next launch.
-      </p>
 
-      {(storeError || actionError) && (
-        <p data-testid="automation-error" className="text-xs text-destructive">
-          {actionError ?? storeError}
-        </p>
+      {view === "templates" && <TemplateLibrary projectId={project?.id ?? null} />}
+
+      {view === "runs" && (
+        <>
+          {/* the honest copy, prominent — not a tooltip (D-M4-4 AC) */}
+          <p
+            data-testid="scheduler-honest-copy"
+            className="rounded border border-border bg-muted/40 px-2 py-1 text-xs text-muted-foreground"
+          >
+            ⏰ {SCHEDULER_HONEST_COPY} A missed occurrence fires once on the next launch.
+          </p>
+
+          {(storeError || actionError) && (
+            <p data-testid="automation-error" className="text-xs text-destructive">
+              {actionError ?? storeError}
+            </p>
+          )}
+
+          {loaded && runs.length === 0 && (
+            <EmptyState
+              emoji="⏰"
+              title="Nothing scheduled — the crew sleeps in"
+              hint="Create a run: a one-off prompt, a sequence, or a scheduled standup."
+              action={
+                <Button size="xs" variant="outline" onClick={() => setEditor({ run: null })}>
+                  ＋ New run
+                </Button>
+              }
+            />
+          )}
+
+          {runs.length > 0 && (
+            <table data-testid="runs-table" className="w-full border-collapse text-left text-xs">
+              <thead>
+                <tr className="border-b text-muted-foreground">
+                  <th className="px-2 py-1">kind</th>
+                  <th className="px-2 py-1">what</th>
+                  <th className="px-2 py-1">schedule</th>
+                  <th className="px-2 py-1">enabled</th>
+                  <th className="px-2 py-1">last result</th>
+                  <th className="px-2 py-1">actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {runs.map((r) => (
+                  <RunRow
+                    key={r.id}
+                    run={r}
+                    historyOpen={historyFor === r.id}
+                    onToggleHistory={() => setHistoryFor((h) => (h === r.id ? null : r.id))}
+                    onEdit={() => setEditor({ run: r })}
+                    onError={setActionError}
+                  />
+                ))}
+              </tbody>
+            </table>
+          )}
+        </>
       )}
 
-      {loaded && runs.length === 0 && (
-        <EmptyState
-          emoji="⏰"
-          title="Nothing scheduled — the crew sleeps in"
-          hint="Create a run: a one-off prompt, a sequence, or a scheduled standup."
-          action={
-            <Button size="xs" variant="outline" onClick={() => setEditor({ run: null })}>
-              ＋ New run
-            </Button>
-          }
-        />
-      )}
-
-      {runs.length > 0 && (
-        <table data-testid="runs-table" className="w-full border-collapse text-left text-xs">
-          <thead>
-            <tr className="border-b text-muted-foreground">
-              <th className="px-2 py-1">kind</th>
-              <th className="px-2 py-1">what</th>
-              <th className="px-2 py-1">schedule</th>
-              <th className="px-2 py-1">enabled</th>
-              <th className="px-2 py-1">last result</th>
-              <th className="px-2 py-1">actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {runs.map((r) => (
-              <RunRow
-                key={r.id}
-                run={r}
-                historyOpen={historyFor === r.id}
-                onToggleHistory={() => setHistoryFor((h) => (h === r.id ? null : r.id))}
-                onEdit={() => setEditor({ run: r })}
-                onError={setActionError}
-              />
-            ))}
-          </tbody>
-        </table>
-      )}
-
+      {/* outside the runs view so create deep-links work from either tab */}
       {editor && (
         <ScheduleEditor
           run={editor.run}

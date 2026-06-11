@@ -106,6 +106,15 @@ export function buildShellActions(): PaletteAction[] {
   });
 
   actions.push({
+    id: "automation.open-templates",
+    label: "Open templates",
+    emoji: "📜",
+    group: "Automation",
+    keywords: ["templates", "prompts", "library", "snippets"],
+    run: () => openAutomationPanel({ view: "templates" }),
+  });
+
+  actions.push({
     id: "settings.open",
     label: "Open settings",
     emoji: "⚙️",

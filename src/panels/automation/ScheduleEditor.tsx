@@ -13,6 +13,7 @@ import { useAgentsStore } from "@/stores/agents";
 import { useAutomationStore } from "@/stores/automation";
 import { parseRunSpec, type RunSpec } from "./run-spec";
 import { emptyStep, SequenceEditor, validateSteps, type DraftStep } from "./SequenceEditor";
+import { InsertTemplateButton } from "./TemplatePicker";
 
 type DraftAction = "prompt" | "sequence" | "standup" | "raw";
 
@@ -295,7 +296,14 @@ export function ScheduleEditor({ run, initialSpecJson, initialCron, onClose }: S
                 />
               </label>
               <label className="flex flex-col gap-1 text-xs">
-                prompt
+                <span className="flex items-center gap-1">
+                  prompt
+                  <InsertTemplateButton
+                    projectPath={draft.projectPath.trim() || null}
+                    popoverClassName="absolute top-full left-0 z-40 mt-1"
+                    onInsert={(text) => patch({ prompt: draft.prompt + text })}
+                  />
+                </span>
                 <textarea
                   aria-label="Run prompt"
                   className="min-h-20 rounded border bg-background px-2 py-1 text-xs"

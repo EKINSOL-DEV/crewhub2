@@ -8,6 +8,7 @@ import { useProjects } from "@/app/project-filter";
 import { Button } from "@/components/ui/button";
 import { DEFAULT_MODEL, ModelPicker } from "@/components/ModelPicker";
 import { PREVIOUS_OUTPUT_VAR, referencedVariables } from "@/lib/render-template";
+import { InsertTemplateButton } from "./TemplatePicker";
 
 export interface DraftStep {
   projectPath: string;
@@ -121,7 +122,14 @@ function StepCard({
         />
       </label>
       <label className="flex flex-col gap-1 text-xs">
-        prompt
+        <span className="flex items-center gap-1">
+          prompt
+          <InsertTemplateButton
+            projectPath={step.projectPath.trim() || null}
+            popoverClassName="absolute top-full left-0 z-40 mt-1"
+            onInsert={(text) => onPatch({ prompt: step.prompt + text })}
+          />
+        </span>
         <textarea
           ref={promptRef}
           aria-label={`Step ${index + 1} prompt`}
