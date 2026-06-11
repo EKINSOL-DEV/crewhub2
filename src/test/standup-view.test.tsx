@@ -148,13 +148,11 @@ test("history: clicking an older standup shows its notes", async () => {
   expect(screen.queryByTestId("standup-note-e-n")).toBeNull();
 });
 
-test("schedule-this: honest toast while Lane H's automation panel isn't registered", () => {
+test("schedule-this deep-links now that the automation panel is registered", () => {
   mockIPC(() => null);
   const ok = scheduleStandup(["a-1"], "Daily standup");
-  expect(ok).toBe(false); // PanelKind "automation" doesn't exist on this branch
-  const toasts = useToasts.getState().toasts;
-  expect(toasts).toHaveLength(1);
-  expect(toasts[0]!.text).toMatch(/automation panel isn't aboard yet/);
+  expect(ok).toBe(true); // PanelKind "automation" exists post-merge
+  expect(useToasts.getState().toasts).toHaveLength(0); // no fallback toast
 });
 
 test("schedule-this button is wired from the run form", () => {
@@ -164,7 +162,8 @@ test("schedule-this button is wired from the run form", () => {
   render(<StandupView onError={() => {}} />);
   fireEvent.click(screen.getByTestId("standup-agent-a-2"));
   fireEvent.click(screen.getByTestId("schedule-standup"));
-  expect(useToasts.getState().toasts).toHaveLength(1); // fallback path on this branch
+  // post-merge: deep-links to the automation panel, no fallback toast
+  expect(useToasts.getState().toasts).toHaveLength(0);
 });
 
 test("☕ empty state when no standup ever ran", () => {
