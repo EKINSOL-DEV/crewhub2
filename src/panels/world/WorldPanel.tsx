@@ -12,7 +12,8 @@ import { useSessionsStore, useSessionsView } from "@/stores/sessions";
 import { useTasksStore } from "@/stores/tasks";
 import { CameraRig, type CameraMode } from "./CameraRig";
 import { toWorldBots, type WorldBot } from "./lib/bots";
-import { LOBBY_ID, layoutWorld, type WorldZone } from "./lib/layout";
+import { LOBBY_ID, ROOM_SIZE, layoutWorld, type WorldZone } from "./lib/layout";
+import { useWorldProps } from "./props/store";
 import { summarizeWall, wallScopeFor, type WallSummary } from "./lib/taskwall";
 import { BotActionsCard, RoomInfoCard } from "./overlays";
 import { useSpeechBubbles } from "./use-speech-bubbles";
@@ -42,6 +43,14 @@ export default function WorldPanel() {
   const tasksById = useTasksStore((s) => s.byId);
   const world = useMemo(() => layoutWorld(rooms), [rooms]);
   const bots = useMemo(() => toWorldBots(views), [views]);
+
+  // Per-room props (EKI-81): persisted in the settings KV, starter set as the
+  // default. Loaded once per room id; renders catch up as each room arrives.
+  const roomProps = useWorldProps((s) => s.byRoom);
+  useEffect(() => {
+    const dims = { width: ROOM_SIZE, depth: ROOM_SIZE };
+    for (const room of rooms) void useWorldProps.getState().ensureLoaded(room.id, dims);
+  }, [rooms]);
 
   // Task walls (EKI-75): live mirror of the board fold — TaskChanged
   // reconciliations land in the store, this memo re-folds, the wall updates.
@@ -113,6 +122,7 @@ export default function WorldPanel() {
           reducedMotion={reducedMotion}
           speech={speech}
           walls={walls}
+          roomProps={roomProps}
           palette={palette}
           onBotClick={(bot) => setSelection({ kind: "bot", key: bot.key })}
           onZoneClick={(zone) => setSelection({ kind: "zone", id: zone.id })}

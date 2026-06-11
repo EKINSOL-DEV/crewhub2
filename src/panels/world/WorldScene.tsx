@@ -11,6 +11,8 @@ import { assignHomes, roomInnerBounds } from "./lib/positions";
 import type { SpeechMap } from "./lib/speech";
 import type { WallSummary } from "./lib/taskwall";
 import { WORLD_PALETTE_FALLBACK, type WorldPalette } from "./lib/theme-palette";
+import type { PlacedProp } from "./props/placement";
+import { RoomProps3D } from "./props/RoomProps3D";
 import { Rooms3D } from "./Rooms3D";
 import { TaskWall3D } from "./TaskWall3D";
 
@@ -21,6 +23,8 @@ export interface WorldSceneProps {
   speech?: SpeechMap | undefined;
   /** Per-zone task wall summaries (EKI-75); zones without one show no wall. */
   walls?: ReadonlyMap<string, WallSummary> | undefined;
+  /** Per-room placed props (EKI-81); rooms absent from the map stay bare. */
+  roomProps?: Record<string, PlacedProp[]> | undefined;
   /** Theme-derived colors (Epic 20); defaults to the classic look. */
   palette?: WorldPalette | undefined;
   onBotClick?: ((bot: WorldBot, e: ThreeEvent<MouseEvent>) => void) | undefined;
@@ -34,6 +38,7 @@ export function WorldScene({
   reducedMotion,
   speech,
   walls,
+  roomProps,
   palette = WORLD_PALETTE_FALLBACK,
   onBotClick,
   onZoneClick,
@@ -88,6 +93,11 @@ export function WorldScene({
       />
 
       <Rooms3D zones={world.rooms} palette={palette} onZoneClick={onZoneClick} />
+
+      {/* Furniture (EKI-81) — persisted per room, starter set otherwise */}
+      {roomProps && (
+        <RoomProps3D zones={world.rooms} byRoom={roomProps} palette={palette} reducedMotion={reducedMotion} />
+      )}
 
       {/* Task walls (EKI-75) — every room mirrors its kanban columns */}
       {world.rooms.map((zone) => {

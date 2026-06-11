@@ -9,10 +9,12 @@ vi.mock("@react-three/drei", async (importOriginal) => {
   return { ...real, Text: () => null, Html: () => null };
 });
 
+import { LOBBY_ID, type WorldZone } from "../lib/layout";
 import { WORLD_PALETTE_FALLBACK } from "../lib/theme-palette";
 import type { PlacedProp } from "./placement";
 import { Prop3D } from "./Prop3D";
 import { propColors, PROP_LIST } from "./registry";
+import { RoomProps3D } from "./RoomProps3D";
 
 const colors = propColors(WORLD_PALETTE_FALLBACK);
 
@@ -39,6 +41,28 @@ describe("Prop3D smoke", () => {
       <Prop3D placed={placed("mod:gold-throne")} position={[1, 0, 2]} colors={colors} />,
     );
     expect(renderer.scene.findAllByType("Mesh").length).toBeGreaterThan(0);
+  });
+
+  it("renders room props at zone offsets and keeps the lobby bare", async () => {
+    const zone = (id: string, center: [number, number]): WorldZone => ({
+      id,
+      name: id,
+      color: null,
+      isHq: false,
+      center,
+      size: 10,
+      width: 10,
+    });
+    const renderer = await ReactThreeTestRenderer.create(
+      <RoomProps3D
+        zones={[zone("r1", [5, 0]), zone(LOBBY_ID, [0, 12])]}
+        byRoom={{ r1: [placed("core:plant", { x: 1, z: -2 })], [LOBBY_ID]: [placed("core:lamp")] }}
+        palette={WORLD_PALETTE_FALLBACK}
+      />,
+    );
+    const meshes = renderer.scene.findAllByType("Mesh");
+    const plantParts = PROP_LIST.find((d) => d.id === "core:plant")!.parts.length;
+    expect(meshes.length).toBe(plantParts); // lobby lamp not rendered
   });
 
   it("shows a selection ring only when selected", async () => {
