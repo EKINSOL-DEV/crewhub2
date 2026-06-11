@@ -11,16 +11,7 @@ import { useSessionsStore, useSessionsView, type SessionView } from "@/stores/se
 import { BindingControls } from "./BindingControls";
 import { formatRelative, formatUsage } from "./format";
 import { requestOpenChat } from "./openChat";
-
-/** Clock for relative timestamps — refreshes every 30 s so "5m" stays honest. */
-function useNow(intervalMs = 30_000): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), intervalMs);
-    return () => clearInterval(t);
-  }, [intervalMs]);
-  return now;
-}
+import { useNow } from "./useNow";
 
 function OriginBadge({ origin }: { origin: SessionView["meta"]["origin"] }) {
   return (
