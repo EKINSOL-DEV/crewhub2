@@ -1,20 +1,20 @@
 // Global project filter (EKI-22): tab-scoped (WorkspaceTab.projectFilter),
 // exposed to every panel through useProjectFilter(). Pure predicate first.
+// The projects list itself lives in stores/projects.ts since M3 T7 (EKI-85):
+// one store, reconciled on ProjectChanged, so the switcher picks up newly
+// registered projects live. Re-exported here for the M2 import paths.
 import { useCallback, useEffect } from "react";
-import { create } from "zustand";
-import { commands, type Project } from "@/ipc/bindings";
+import type { Project } from "@/ipc/bindings";
+import { pathUnderRoot, resetProjectsForTests, useProjectsStore } from "@/stores/projects";
 import { usePalette, type PaletteAction } from "@/stores/palette";
 import { useWorkspace } from "@/stores/workspace";
 
-// ── Pure predicate ───────────────────────────────────────────────────────────
+export { pathUnderRoot, resetProjectsForTests };
 
-/** True when `path` equals `root` or sits underneath it (worktrees included). */
-export function pathUnderRoot(path: string, root: string): boolean {
-  const norm = (p: string) => (p.endsWith("/") ? p.slice(0, -1) : p);
-  const p = norm(path);
-  const r = norm(root);
-  return p === r || p.startsWith(`${r}/`);
-}
+/** The M2 name for the projects store — panels/tests import it as useProjects. */
+export const useProjects = useProjectsStore;
+
+// ── Pure predicate ───────────────────────────────────────────────────────────
 
 /**
  * No filter → everything matches. Filter set → the session's project_path
@@ -30,33 +30,6 @@ export function matchesProjectFilter(
   const project = projects.find((p) => p.id === projectId);
   if (!project) return true;
   return pathUnderRoot(projectPath, project.folder_path);
-}
-
-// ── Projects store (read-only list for the switcher + predicate) ─────────────
-
-interface ProjectsState {
-  projects: Project[];
-  loaded: boolean;
-  load: () => Promise<void>;
-}
-
-export const useProjects = create<ProjectsState>((set) => ({
-  projects: [],
-  loaded: false,
-  load: async () => {
-    try {
-      const res = await commands.listProjects();
-      if (res.status === "ok" && Array.isArray(res.data)) set({ projects: res.data, loaded: true });
-      else set({ loaded: true });
-    } catch {
-      set({ loaded: true });
-    }
-  },
-}));
-
-/** Test-only reset. */
-export function resetProjectsForTests() {
-  useProjects.setState({ projects: [], loaded: false });
 }
 
 // ── The hook every panel consumes ────────────────────────────────────────────

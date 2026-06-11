@@ -11,9 +11,13 @@ export type PanelKind =
   | "history"
   | "crew"
   | "world"
+  | "board"
+  | "projects"
+  | "docs"
   | "settings"
   | "welcome"
-  | "debug";
+  | "debug"
+  | "diff";
 
 export const PANEL_KINDS: readonly PanelKind[] = [
   "chat",
@@ -22,9 +26,13 @@ export const PANEL_KINDS: readonly PanelKind[] = [
   "history",
   "crew",
   "world",
+  "board",
+  "projects",
+  "docs",
   "settings",
   "welcome",
   "debug",
+  "diff",
 ];
 
 export type SplitDir = "row" | "col";

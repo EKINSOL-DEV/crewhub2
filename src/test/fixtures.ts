@@ -4,11 +4,14 @@ import { leaves, makeLeaf, type LeafNode } from "@/app/layout-tree";
 import type {
   Agent,
   ArchivedSession,
+  NotificationRule,
   Project,
   Room,
   SessionBinding,
   SessionId,
   SessionMeta,
+  Task,
+  TaskEvent,
 } from "@/ipc/bindings";
 import { resetWorkspaceForTests, useWorkspace } from "@/stores/workspace";
 
@@ -105,6 +108,43 @@ export function project(overrides: Partial<Project> & { id: string; folder_path:
     status: "active",
     created_at: 0,
     updated_at: 0,
+    ...overrides,
+  };
+}
+
+export function task(overrides: Partial<Task> & { id: string }): Task {
+  return {
+    project_id: null,
+    room_id: "room-1",
+    title: overrides.id,
+    description: null,
+    status: "todo",
+    priority: "medium",
+    assignee_agent_id: null,
+    created_by: "human",
+    created_at: 0,
+    updated_at: 0,
+    ...overrides,
+  };
+}
+
+export function taskEvent(overrides: Partial<TaskEvent> & { id: string; task_id: string }): TaskEvent {
+  return {
+    event_type: "created",
+    actor: "human",
+    payload_json: null,
+    created_at: 0,
+    ...overrides,
+  };
+}
+
+export function notificationRule(overrides: Partial<NotificationRule> & { id: string }): NotificationRule {
+  return {
+    scope: "global",
+    scope_id: null,
+    trigger: "task_moved",
+    config_json: null,
+    enabled: true,
     ...overrides,
   };
 }

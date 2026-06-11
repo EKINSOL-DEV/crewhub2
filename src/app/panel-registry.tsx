@@ -86,6 +86,50 @@ export const PANELS: Record<PanelKind, PanelDefinition> = {
     component: lazy(() => import("@/panels/world/WorldPanel")),
     emptyState: { emoji: "🌍", title: "World loading", hint: "Bots are putting their badges on" },
   },
+  board: {
+    kind: "board",
+    label: "Board",
+    emoji: "📋",
+    description: "Kanban board — humans and agents move the same cards",
+    keywords: ["board", "tasks", "kanban", "todo", "cards", "work"],
+    shortcutHint: "b",
+    component: lazy(() => import("@/panels/board/BoardPanel")),
+    emptyState: {
+      emoji: "🧹",
+      title: "Quiet board",
+      hint: "🧹 nothing to do — file a task or let an agent file one",
+    },
+  },
+  projects: {
+    kind: "projects",
+    label: "Projects",
+    emoji: "🗺️",
+    description: "Register projects — folders, docs, rooms and routing rules",
+    keywords: ["projects", "folders", "register", "rooms", "rules", "workspace"],
+    shortcutHint: "p",
+    component: lazy(() =>
+      import("@/panels/projects/ProjectsPanel").then((m) => ({ default: m.ProjectsPanel })),
+    ),
+    emptyState: {
+      emoji: "🗺️",
+      title: "Register your first project",
+      hint: "Point CrewHub at a folder — rooms, docs and boards hang off it",
+    },
+  },
+  docs: {
+    kind: "docs",
+    label: "Docs",
+    emoji: "📚",
+    description: "Read a project's docs — markdown and images, rendered",
+    keywords: ["docs", "documentation", "markdown", "readme", "notes", "read"],
+    shortcutHint: "o",
+    component: lazy(() => import("@/panels/docs/DocsPanel")),
+    emptyState: {
+      emoji: "📚",
+      title: "No docs yet",
+      hint: "Point me at a folder — set a docs path on a project",
+    },
+  },
   settings: {
     kind: "settings",
     label: "Settings",
@@ -114,6 +158,20 @@ export const PANELS: Record<PanelKind, PanelDefinition> = {
     shortcutHint: "d",
     component: lazy(() => import("@/panels/debug/DebugPanel").then((m) => ({ default: m.DebugPanel }))),
     emptyState: { emoji: "🐞", title: "Engine debug", hint: "Raw events for the curious" },
+  },
+  diff: {
+    kind: "diff",
+    label: "Diff",
+    emoji: "🔬",
+    description: "What changed — read-only git diff per project",
+    keywords: ["diff", "git", "changes", "patch", "review", "code"],
+    shortcutHint: "g",
+    component: lazy(() => import("@/panels/diff/DiffPanel")),
+    emptyState: {
+      emoji: "🧘",
+      title: "Working tree is clean",
+      hint: "Changes will show up here as they land",
+    },
   },
 };
 

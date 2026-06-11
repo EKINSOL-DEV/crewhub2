@@ -8,12 +8,34 @@ import { StatusEmoji } from "@/components/StatusEmoji";
 import { commands } from "@/ipc/bindings";
 import { useAgentsStore } from "@/stores/agents";
 import { useBindingsStore } from "@/stores/bindings";
+import { useRoomsStore } from "@/stores/rooms";
 import { useSessionsStore, useSessionsView, type SessionView } from "@/stores/sessions";
+import { explainAutoBinding, ruleLabel } from "@/panels/projects/room-rules";
+import type { RoomRule } from "@/ipc/bindings";
+import { GitStrip } from "@/panels/diff/GitStrip";
 import { BindingControls } from "./BindingControls";
 import { formatRelative, formatUsage } from "./format";
 import { HandoffMenu } from "./HandoffMenu";
 import { openChatPanel } from "@/app/open-chat";
 import { useNow } from "./useNow";
+
+/**
+ * `auto` chip (EKI-87, D-M3-10): a room that a rule (not a human) picked.
+ * Tooltip names the matching rule; any manual rebind clears it naturally.
+ */
+function AutoChip({ view, rules }: { view: SessionView; rules: RoomRule[] }) {
+  const rule = explainAutoBinding(view.binding, view.meta, rules);
+  if (!rule) return null;
+  return (
+    <span
+      data-testid={`auto-chip-${view.meta.id.id}`}
+      className="ml-1 rounded bg-accent/20 px-1 text-[10px] text-accent"
+      title={`Routed by rule — ${ruleLabel(rule)}`}
+    >
+      auto
+    </span>
+  );
+}
 
 function OriginBadge({ origin }: { origin: SessionView["meta"]["origin"] }) {
   return (
@@ -96,6 +118,7 @@ export function SessionsPanel() {
   const { project } = useProjectFilter();
   const loaded = useSessionsStore((s) => s.loaded);
   const views = useSessionsView(project?.folder_path ?? null);
+  const rules = useRoomsStore((s) => s.rules);
   const [mode, setMode] = useState<"table" | "cards">("table");
   const [bindingFor, setBindingFor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -105,6 +128,7 @@ export function SessionsPanel() {
     void useSessionsStore.getState().init();
     void useBindingsStore.getState().init();
     void useAgentsStore.getState().init();
+    void useRoomsStore.getState().load(); // rules for the `auto` chip (EKI-87)
   }, []);
 
   const bindingView = bindingFor ? (views.find((v) => v.key === bindingFor) ?? null) : null;
@@ -176,10 +200,19 @@ export function SessionsPanel() {
                   <OriginBadge origin={v.meta.origin} />
                 </td>
                 <td className="px-2 py-1">{v.agent ? `${v.agent.icon ?? "🤖"} ${v.agent.name}` : "—"}</td>
-                <td className="px-2 py-1">{v.room?.name ?? "—"}</td>
+                <td className="px-2 py-1">
+                  {v.room?.name ?? "—"}
+                  <AutoChip view={v} rules={rules} />
+                </td>
                 <td className="px-2 py-1 font-mono">{v.meta.model ?? "—"}</td>
                 <td className="px-2 py-1 font-mono">{formatUsage(v.meta.usage)}</td>
-                <td className="max-w-28 truncate px-2 py-1 font-mono">{v.meta.git_branch ?? "—"}</td>
+                <td className="max-w-48 truncate px-2 py-1">
+                  <GitStrip
+                    projectPath={v.meta.project_path}
+                    sessionPath={v.meta.project_path}
+                    fallbackBranch={v.meta.git_branch}
+                  />
+                </td>
                 <td className="px-2 py-1 whitespace-nowrap">
                   {formatRelative(v.meta.last_activity_ms, now)}
                 </td>
@@ -214,13 +247,18 @@ export function SessionsPanel() {
               </p>
               <p className="truncate font-mono text-muted-foreground">
                 {v.meta.model ?? "?"} · {formatUsage(v.meta.usage)}
-                {v.meta.git_branch ? ` · ${v.meta.git_branch}` : ""}
               </p>
+              <GitStrip
+                projectPath={v.meta.project_path}
+                sessionPath={v.meta.project_path}
+                fallbackBranch={v.meta.git_branch}
+              />
               {(v.agent || v.room) && (
                 <p className="truncate">
                   {v.agent ? `${v.agent.icon ?? "🤖"} ${v.agent.name}` : ""}
                   {v.agent && v.room ? " · " : ""}
                   {v.room ? `🚪 ${v.room.name}` : ""}
+                  <AutoChip view={v} rules={rules} />
                 </p>
               )}
               <RowActions

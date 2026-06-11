@@ -6,6 +6,7 @@ import { Maximize2, Minimize2, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/EmptyState";
 import { PopIn } from "@/components/PopIn";
+import { ToastCenter } from "@/components/ToastCenter";
 import { commands } from "@/ipc/bindings";
 import { cn } from "@/lib/utils";
 import { CrewBar } from "@/panels/crew/CrewBar";
@@ -462,6 +463,7 @@ export function WorkspaceShell() {
       {showHelp && <HelpSheet onClose={() => setShowHelp(false)} />}
       <CommandPalette />
       <ShellDialogs />
+      <ToastCenter />
     </div>
   );
 }
