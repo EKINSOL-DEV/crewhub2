@@ -11,17 +11,27 @@ pub mod orchestrator;
 pub mod security;
 pub mod store;
 pub mod tray;
+pub mod updater;
 pub mod workspace;
 
-/// Tray "Check for updates…" action (T5 menu → T7 IPC). Stub until the T7
-/// updater lands: brings the app forward so the user can use the settings
-/// entry; T7 replaces the body with a real check + notify.
+/// Tray "Check for updates…" action (T5 menu → T7 updater): brings the app
+/// forward and runs a check; a found update is recorded + announced via
+/// `SettingChanged` so the settings UI offers the install.
 pub(crate) fn updater_menu_check<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
     use tauri::Manager;
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
         let _ = window.set_focus();
     }
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let store = app.state::<std::sync::Arc<store::Store>>().inner().clone();
+        match updater::check(&app).await {
+            Ok(Some(info)) => updater::record_available(&app, &store, &info),
+            Ok(None) => {}
+            Err(e) => errlog::error("updater", format!("tray check failed: {e}")),
+        }
+    });
 }
 
 pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
@@ -127,6 +137,8 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             ipc::preview_v1_import,
             ipc::run_v1_import::<tauri::Wry>,
             ipc::build_error_report::<tauri::Wry>,
+            ipc::check_for_update,
+            ipc::install_update,
         ])
         .events(tauri_specta::collect_events![
             events::DomainEvent,
@@ -158,6 +170,10 @@ pub fn run() {
         // justified in capabilities/README.md. The dispatch point stays the
         // frontend rule matcher; this plugin is just the `sink: "os"` leg.
         .plugin(tauri_plugin_notification::init())
+        // Updater + relaunch (M6 T7, D-M6-7): Rust-side typed IPC only —
+        // no webview updater/process grant (capabilities/README.md note).
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             use tauri::Manager;
@@ -254,6 +270,14 @@ pub fn run() {
                 }
                 Err(e) => errlog::error("tray", format!("setup failed (continuing without): {e}")),
             }
+
+            // M6 T7 (D-M6-7): on-launch debounced update check, behind the
+            // updater.auto_check setting (default on). Offline/unsigned
+            // builds log-and-continue — the app never depends on this.
+            let updater_app = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                updater::auto_check(updater_app).await;
+            });
 
             // G4: the persisted "allow always" rules apply from the first spawn.
             let initial_rules = store

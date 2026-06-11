@@ -643,6 +643,29 @@ pub async fn run_v1_import<R: Runtime>(
     Ok(report)
 }
 
+// ---- updater (M6 T7, D-M6-7/G7) ----
+// Rust-side typed IPC: the webview holds no updater/process grant. Offline
+// or unsigned-dev builds get a readable error — never a broken app.
+
+#[tauri::command]
+#[specta::specta]
+pub async fn check_for_update(
+    app: AppHandle<tauri::Wry>,
+) -> Result<Option<crate::updater::UpdateInfo>> {
+    crate::updater::check(&app).await.map_err(err)
+}
+
+/// Download + verify + install, persisting `updater.pending_notes` for the
+/// What's-new dialog, then relaunch. Only returns on failure.
+#[tauri::command]
+#[specta::specta]
+pub async fn install_update(
+    app: AppHandle<tauri::Wry>,
+    store: State<'_, Arc<Store>>,
+) -> Result<()> {
+    crate::updater::install(&app, &store).await.map_err(err)
+}
+
 // ---- error report (M6 T6, D-M6-10/G8) ----
 
 /// Assemble the local report bundle (version, OS/arch, last error lines —

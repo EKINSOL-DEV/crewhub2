@@ -43,6 +43,13 @@ tauri-plugin-dialog = "2"
 base64 = "0.22"
 croner = "3.0.1"
 tauri-plugin-notification = "2"
+# native-tls (not the default rustls-no-provider) so the workspace-unified
+# reqwest keeps a working TLS default for the MCP integration tests.
+tauri-plugin-updater = { version = "2", default-features = false, features = [
+    "native-tls",
+    "zip",
+] }
+tauri-plugin-process = "2"
 
 [dev-dependencies]
 reqwest = { version = "0.13.4", default-features = false, features = ["json"] }

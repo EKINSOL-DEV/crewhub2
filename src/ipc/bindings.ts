@@ -247,6 +247,16 @@ export const commands = {
 	 *  the file path. Nothing leaves the machine.
 	 */
 	buildErrorReport: () => typedError<string, string>(__TAURI_INVOKE("build_error_report")),
+	checkForUpdate: () => typedError<{
+	version: string,
+	notes: string | null,
+	date: string | null,
+} | null, string>(__TAURI_INVOKE("check_for_update")),
+	/**
+	 *  Download + verify + install, persisting `updater.pending_notes` for the
+	 *  What's-new dialog, then relaunch. Only returns on failure.
+	 */
+	installUpdate: () => typedError<null, string>(__TAURI_INVOKE("install_update")),
 };
 
 /** Events */
@@ -969,6 +979,12 @@ export type TranscriptPage = {
 	items: SeqItem[],
 	/**  Items currently in the transcript file. */
 	total: number,
+};
+
+export type UpdateInfo = {
+	version: string,
+	notes: string | null,
+	date: string | null,
 };
 
 export type UsageTotals = {
