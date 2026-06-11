@@ -10,6 +10,7 @@ import { useBindingsStore } from "@/stores/bindings";
 import { useSessionsStore, useSessionsView, type SessionView } from "@/stores/sessions";
 import { BindingControls } from "./BindingControls";
 import { formatRelative, formatUsage } from "./format";
+import { HandoffMenu } from "./HandoffMenu";
 import { requestOpenChat } from "./openChat";
 import { useNow } from "./useNow";
 
@@ -83,6 +84,7 @@ function RowActions({
             Kill
           </Button>
         ))}
+      <HandoffMenu projectPath={view.meta.project_path} sessionId={view.meta.id.id} />
     </span>
   );
 }
