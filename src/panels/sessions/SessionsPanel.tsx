@@ -16,6 +16,7 @@ import { GitStrip } from "@/panels/diff/GitStrip";
 import { BindingControls } from "./BindingControls";
 import { formatRelative, formatUsage } from "./format";
 import { HandoffMenu } from "./HandoffMenu";
+import { SessionTree } from "./SessionTree";
 import { openChatPanel } from "@/app/open-chat";
 import { useNow } from "./useNow";
 
@@ -119,7 +120,9 @@ export function SessionsPanel() {
   const loaded = useSessionsStore((s) => s.loaded);
   const views = useSessionsView(project?.folder_path ?? null);
   const rules = useRoomsStore((s) => s.rules);
-  const [mode, setMode] = useState<"table" | "cards">("table");
+  const [mode, setMode] = useState<"table" | "cards" | "tree">("table");
+  // table → cards → tree → table; the button names what comes NEXT
+  const nextMode = mode === "table" ? "cards" : mode === "cards" ? "tree" : "table";
   const [bindingFor, setBindingFor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const now = useNow();
@@ -137,13 +140,8 @@ export function SessionsPanel() {
     <div data-testid="sessions-panel" className="flex h-full flex-col gap-2 overflow-auto p-3">
       <div className="flex items-center gap-2">
         <h2 className="flex-1 text-sm font-semibold">🖥️ Sessions</h2>
-        <Button
-          size="xs"
-          variant="outline"
-          data-testid="view-toggle"
-          onClick={() => setMode((m) => (m === "table" ? "cards" : "table"))}
-        >
-          {mode === "table" ? "Cards" : "Table"}
+        <Button size="xs" variant="outline" data-testid="view-toggle" onClick={() => setMode(nextMode)}>
+          {nextMode === "cards" ? "Cards" : nextMode === "tree" ? "Tree" : "Table"}
         </Button>
       </div>
 
@@ -229,6 +227,9 @@ export function SessionsPanel() {
           </tbody>
         </table>
       )}
+
+      {/* T16 (EKI-54): subagent & team forest — parent links made visible */}
+      {views.length > 0 && mode === "tree" && <SessionTree projectFilter={project?.folder_path ?? null} />}
 
       {views.length > 0 && mode === "cards" && (
         <div data-testid="sessions-cards" className="flex flex-wrap gap-2">

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { StatusEmoji } from "@/components/StatusEmoji";
 import { commands, type SessionId } from "@/ipc/bindings";
 import { GitStrip } from "@/panels/diff/GitStrip";
+import { SubagentStrip } from "@/panels/sessions/SessionTree";
 import { useAgentsStore } from "@/stores/agents";
 import { useBindingsStore } from "@/stores/bindings";
 import { useSessionsStore } from "@/stores/sessions";
@@ -83,6 +84,8 @@ export function MetaStrip({
           fallbackBranch={meta.git_branch}
         />
       )}
+      {/* T16 (EKI-54): compact subagent strip — this session's children */}
+      <SubagentStrip parentKey={key} />
       <span className="ml-auto" />
       {!historyMode && status === "Working" && (
         <button
