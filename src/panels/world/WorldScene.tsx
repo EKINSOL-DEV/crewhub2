@@ -1,6 +1,7 @@
 // Scene content (EKI-62): lights, ground, rooms, bots. Pure render — all data
 // arrives as props from WorldPanel; all math lives in lib/.
 import { useMemo } from "react";
+import { ContactShadows, Grid } from "@react-three/drei";
 import type { ThreeEvent } from "@react-three/fiber";
 import { Bot3D } from "./Bot3D";
 import type { WorldBot } from "./lib/bots";
@@ -9,6 +10,7 @@ import { LOBBY_ID } from "./lib/layout";
 import { assignHomes, roomInnerBounds } from "./lib/positions";
 import type { SpeechMap } from "./lib/speech";
 import type { WallSummary } from "./lib/taskwall";
+import { WORLD_PALETTE_FALLBACK, type WorldPalette } from "./lib/theme-palette";
 import { Rooms3D } from "./Rooms3D";
 import { TaskWall3D } from "./TaskWall3D";
 
@@ -19,6 +21,8 @@ export interface WorldSceneProps {
   speech?: SpeechMap | undefined;
   /** Per-zone task wall summaries (EKI-75); zones without one show no wall. */
   walls?: ReadonlyMap<string, WallSummary> | undefined;
+  /** Theme-derived colors (Epic 20); defaults to the classic look. */
+  palette?: WorldPalette | undefined;
   onBotClick?: ((bot: WorldBot, e: ThreeEvent<MouseEvent>) => void) | undefined;
   onZoneClick?: ((zone: WorldZone, e: ThreeEvent<MouseEvent>) => void) | undefined;
   onWallClick?: ((zone: WorldZone, e: ThreeEvent<MouseEvent>) => void) | undefined;
@@ -30,6 +34,7 @@ export function WorldScene({
   reducedMotion,
   speech,
   walls,
+  palette = WORLD_PALETTE_FALLBACK,
   onBotClick,
   onZoneClick,
   onWallClick,
@@ -43,24 +48,62 @@ export function WorldScene({
 
   return (
     <group>
-      <ambientLight intensity={0.65} />
-      <directionalLight position={[8, 14, 6]} intensity={1.1} />
-      <directionalLight position={[-6, 8, -8]} intensity={0.3} color="#aab8ff" />
+      {/* Soft key + cool fill, leveled for ACES filmic output (Epic 20). */}
+      <ambientLight intensity={0.75} />
+      <directionalLight position={[8, 14, 6]} intensity={1.7} />
+      <directionalLight position={[-6, 8, -8]} intensity={0.5} color="#aab8ff" />
 
       {/* Ground slab under everything */}
       <mesh position={[groundX, -0.2, groundZ]}>
         <boxGeometry args={[groundW, 0.1, groundD]} />
-        <meshStandardMaterial color="#22252e" roughness={1} />
+        <meshStandardMaterial color={palette.ground} roughness={1} />
       </mesh>
 
-      <Rooms3D zones={world.rooms} onZoneClick={onZoneClick} />
+      {/* Subtle grid that fades with distance — between the rooms, under the
+          floors. One shader plane, no per-cell geometry. */}
+      <Grid
+        position={[groundX, -0.142, groundZ]}
+        args={[groundW, groundD]}
+        cellSize={1}
+        cellThickness={0.6}
+        cellColor={palette.grid}
+        sectionSize={6.5}
+        sectionThickness={1}
+        sectionColor={palette.gridSection}
+        fadeDistance={52}
+        fadeStrength={1.6}
+        followCamera={false}
+        infiniteGrid={false}
+      />
+
+      {/* Cheap grounding: one blurred shadow catcher for the whole floor. */}
+      <ContactShadows
+        position={[groundX, 0.02, groundZ]}
+        scale={[groundW, groundD]}
+        opacity={0.38}
+        blur={2.2}
+        far={2.5}
+        resolution={256}
+        frames={reducedMotion ? 1 : Infinity}
+      />
+
+      <Rooms3D zones={world.rooms} palette={palette} onZoneClick={onZoneClick} />
 
       {/* Task walls (EKI-75) — every room mirrors its kanban columns */}
       {world.rooms.map((zone) => {
         if (zone.id === LOBBY_ID) return null;
         const summary = walls?.get(zone.id);
         if (!summary) return null;
-        return <TaskWall3D key={zone.id} zone={zone} summary={summary} onClick={onWallClick} />;
+        return (
+          <TaskWall3D
+            key={zone.id}
+            zone={zone}
+            summary={summary}
+            backColor={palette.ground}
+            textColor={palette.text}
+            onClick={onWallClick}
+          />
+        );
       })}
 
       {bots.map((bot) => {

@@ -3,6 +3,7 @@
 // frameloop hard-pauses while the panel is occluded or the window is hidden.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
+import { ACESFilmicToneMapping } from "three";
 import { usePrefersReducedMotion } from "@/components/use-reduced-motion";
 import { openBoardPanel } from "@/panels/board/open-board";
 import { useAgentsStore } from "@/stores/agents";
@@ -15,6 +16,7 @@ import { LOBBY_ID, layoutWorld, type WorldZone } from "./lib/layout";
 import { summarizeWall, wallScopeFor, type WallSummary } from "./lib/taskwall";
 import { BotActionsCard, RoomInfoCard } from "./overlays";
 import { useSpeechBubbles } from "./use-speech-bubbles";
+import { useWorldTheme } from "./use-world-theme";
 import { useWorldVisibility } from "./use-world-visibility";
 import { FpsProbe, WorldHudOverlay, worldDebugEnabled } from "./WorldHud";
 import { WorldScene } from "./WorldScene";
@@ -25,6 +27,7 @@ export default function WorldPanel() {
   const containerRef = useRef<HTMLDivElement>(null);
   const visible = useWorldVisibility(containerRef);
   const reducedMotion = usePrefersReducedMotion();
+  const palette = useWorldTheme();
 
   useEffect(() => {
     void useSessionsStore.getState().init();
@@ -94,20 +97,23 @@ export default function WorldPanel() {
         frameloop={frameloop}
         dpr={[1, 1.75]}
         camera={{ position: [0, 16, 22], fov: 45 }}
+        // ACES filmic output (Epic 20) — soft highlights, grounded colors.
+        gl={{ toneMapping: ACESFilmicToneMapping }}
         onCreated={({ gl }) => {
           gl.domElement.addEventListener("webglcontextlost", () => setWebglFailed(true));
         }}
         onPointerMissed={() => setSelection(null)}
         fallback={null}
       >
-        <color attach="background" args={["#15171e"]} />
-        <fog attach="fog" args={["#15171e", 45, 90]} />
+        <color attach="background" args={[palette.sky]} />
+        <fog attach="fog" args={[palette.fog, 45, 90]} />
         <WorldScene
           world={world}
           bots={bots}
           reducedMotion={reducedMotion}
           speech={speech}
           walls={walls}
+          palette={palette}
           onBotClick={(bot) => setSelection({ kind: "bot", key: bot.key })}
           onZoneClick={(zone) => setSelection({ kind: "zone", id: zone.id })}
           onWallClick={(zone) =>

@@ -14,6 +14,9 @@ vi.mock("@react-three/drei", async (importOriginal) => {
     Text: () => null,
     Html: () => null,
     Billboard: ({ children }: { children?: React.ReactNode }) => <group>{children}</group>,
+    // Render-target components need a real GL context — stub them too.
+    ContactShadows: () => null,
+    Grid: () => null,
   };
 });
 import type { Room, Task } from "@/ipc/bindings";
