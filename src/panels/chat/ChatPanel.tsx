@@ -47,6 +47,8 @@ function BoundChat({
 }) {
   const sid = useMemo(() => parseSessionKey(skey), [skey]);
   const historyMode = params.mode === "history";
+  // Activity/history click-through (EKI-76): scroll to + pulse this seq.
+  const anchorSeq = params.seq !== undefined ? Number.parseInt(params.seq, 10) : Number.NaN;
   const [rewindError, setRewindError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -112,7 +114,7 @@ function BoundChat({
           </div>
         )}
         <div className="min-h-0 flex-1">
-          <VirtualTranscript sid={sid} groups={groups} />
+          <VirtualTranscript sid={sid} groups={groups} {...(Number.isNaN(anchorSeq) ? {} : { anchorSeq })} />
         </div>
         {!historyMode && <PromptsArea sid={sid} />}
         {showTyping && <TypingBot />}

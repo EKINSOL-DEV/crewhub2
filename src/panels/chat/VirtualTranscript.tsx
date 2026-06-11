@@ -1,9 +1,13 @@
 // Virtualized transcript (D-M2-4): TanStack Virtual + measureElement for
 // dynamic markdown heights, stick-to-bottom while pinned, "⬇ new stuff" pill
 // otherwise, prepend-without-jump when older pages arrive on scroll-up.
+// `anchorSeq` (activity/history click-through) loads the page containing that
+// seq, scrolls to the row and pulses it briefly (reduced-motion-aware).
+import "./chat.css";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { EmptyState } from "@/components/EmptyState";
+import { usePrefersReducedMotion } from "@/components/use-reduced-motion";
 import type { SessionId } from "@/ipc/bindings";
 import { sessionKey, useTranscripts } from "@/stores/transcripts";
 import { EntryRenderer } from "./EntryRenderer";
@@ -11,18 +15,23 @@ import { buildRenderList, interleaveSubagents, type SubagentGroup } from "./rend
 
 const PIN_THRESHOLD_PX = 80;
 const LOAD_OLDER_THRESHOLD_PX = 120;
+const ANCHOR_PULSE_MS = 1600;
 
 export function VirtualTranscript({
   sid,
   groups,
+  anchorSeq,
 }: {
   sid: SessionId;
   /** Child-session groups, interleaved by timestamp (D-M2-5). */
   groups?: SubagentGroup[];
+  /** Transcript seq to scroll to and highlight on mount (SEAM 2). */
+  anchorSeq?: number;
 }) {
   const key = sessionKey(sid);
   const t = useTranscripts((s) => s.sessions[key]);
   const loadOlder = useTranscripts((s) => s.loadOlder);
+  const reducedMotion = usePrefersReducedMotion();
 
   const entries = useMemo(() => {
     if (!t) return [];
@@ -30,8 +39,26 @@ export function VirtualTranscript({
   }, [t, groups]);
 
   const parentRef = useRef<HTMLDivElement | null>(null);
-  const pinnedRef = useRef(true);
+  const pinnedRef = useRef(anchorSeq === undefined);
   const [unread, setUnread] = useState(false);
+
+  // seq-anchor: page the target seq into the buffer, then scroll + pulse once.
+  const [anchorKey, setAnchorKey] = useState<string | null>(null);
+  const anchorPendingRef = useRef(false);
+  const anchorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (anchorSeq === undefined) return;
+    anchorPendingRef.current = true;
+    pinnedRef.current = false; // anchoring beats stick-to-bottom
+    void useTranscripts.getState().ensureSeq(sid, anchorSeq);
+  }, [sid, anchorSeq]);
+
+  useEffect(
+    () => () => {
+      if (anchorTimerRef.current) clearTimeout(anchorTimerRef.current);
+    },
+    [],
+  );
 
   const virtualizer = useVirtualizer({
     count: entries.length,
@@ -41,6 +68,20 @@ export function VirtualTranscript({
     getItemKey: (i) => (entries[i] as { key: string }).key,
     initialRect: { width: 800, height: 600 },
   });
+
+  // Once the page containing the anchor seq landed (or nothing older exists),
+  // scroll to the row and pulse it briefly.
+  const lowestLoaded = t?.order[0];
+  useEffect(() => {
+    if (!anchorPendingRef.current || anchorSeq === undefined) return;
+    if (lowestLoaded === undefined || lowestLoaded > anchorSeq) return;
+    const idx = entries.findIndex((e) => e.type !== "subagent" && e.seq >= anchorSeq);
+    if (idx < 0) return;
+    anchorPendingRef.current = false;
+    virtualizer.scrollToIndex(idx, { align: "center" });
+    setAnchorKey((entries[idx] as { key: string }).key);
+    anchorTimerRef.current = setTimeout(() => setAnchorKey(null), ANCHOR_PULSE_MS);
+  }, [entries, anchorSeq, lowestLoaded, virtualizer]);
 
   // Stick-to-bottom: pin while the user is near the bottom; otherwise show
   // the pill instead of yanking the scroll position (D-M2-4).
@@ -110,11 +151,14 @@ export function VirtualTranscript({
           {virtualizer.getVirtualItems().map((vi) => {
             const entry = entries[vi.index];
             if (!entry) return null;
+            const anchored = anchorKey !== null && entry.key === anchorKey;
             return (
               <div
                 key={vi.key}
                 data-index={vi.index}
                 ref={virtualizer.measureElement}
+                {...(anchored ? { "data-testid": "anchored-row" } : {})}
+                className={anchored ? `ch-anchor${reducedMotion ? "" : " ch-anchor--pulse"}` : undefined}
                 style={{
                   position: "absolute",
                   top: 0,

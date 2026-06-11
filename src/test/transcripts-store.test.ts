@@ -160,6 +160,62 @@ describe("paging IPC", () => {
   });
 });
 
+describe("ensureSeq (seq-anchor, SEAM 2)", () => {
+  test("pages older until the page containing the target seq is loaded", async () => {
+    const calls: Array<{ offset: number; limit: number }> = [];
+    mockIPC((cmd, args) => {
+      if (cmd !== "get_session_transcript") return null;
+      const { offset, limit } = args as { offset: number; limit: number };
+      calls.push({ offset, limit });
+      return { items: seqItems(offset, offset + limit - 1), total: 500 };
+    });
+    useTranscripts.getState().ingestPage(SID, page(500, 400, 401));
+    await useTranscripts.getState().ensureSeq(SID, 150);
+    // 400 → [200,400) → lowest 200 → [0,200) → lowest 0 ≤ 150, done.
+    expect(calls).toEqual([
+      { offset: 400 - PAGE_SIZE, limit: PAGE_SIZE },
+      { offset: 0, limit: PAGE_SIZE },
+    ]);
+    expect(orderOf()[0]).toBeLessThanOrEqual(150);
+  });
+
+  test("no-op when the seq is already at or above the lowest loaded seq", async () => {
+    const calls: string[] = [];
+    mockIPC((cmd) => {
+      calls.push(cmd);
+      return { items: [], total: 5 };
+    });
+    useTranscripts.getState().ingestPage(SID, page(5, 1, 2, 3));
+    await useTranscripts.getState().ensureSeq(SID, 2);
+    expect(calls).toEqual([]);
+  });
+
+  test("bails out when paging makes no progress (no infinite loop)", async () => {
+    const calls: string[] = [];
+    mockIPC((cmd) => {
+      calls.push(cmd);
+      return { items: [], total: 500 }; // empty page: lowest never moves
+    });
+    useTranscripts.getState().ingestPage(SID, page(500, 400)); // opened, lowest 400
+    await useTranscripts.getState().ensureSeq(SID, 10);
+    expect(calls).toHaveLength(1);
+  });
+
+  test("opens the session first when nothing is loaded yet", async () => {
+    const calls: Array<{ offset: number; limit: number }> = [];
+    mockIPC((cmd, args) => {
+      if (cmd !== "get_session_transcript") return null;
+      const { offset, limit } = args as { offset: number; limit: number };
+      calls.push({ offset, limit });
+      if (limit === 0) return { items: [], total: 10 };
+      return { items: seqItems(offset, offset + 1), total: 10 };
+    });
+    await useTranscripts.getState().ensureSeq(SID, 5);
+    expect(calls[0]).toEqual({ offset: 0, limit: 0 }); // openSession probe
+    expect(useTranscripts.getState().sessions[KEY]?.opened).toBe(true);
+  });
+});
+
 describe("pending prompts (consumed by T15)", () => {
   test("permission/question events attach; resolving leaves a receipt", () => {
     const s = useTranscripts.getState();
