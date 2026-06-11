@@ -5,6 +5,7 @@ pub mod headless;
 pub mod history;
 pub mod lineage;
 pub mod process;
+pub mod registration;
 pub mod transcript;
 pub mod watcher;
 
@@ -12,7 +13,9 @@ pub const PROVIDER_ID: &str = "claude-code";
 
 use crate::engine::provider::{ProviderCaps, ProviderId, SessionProvider};
 use crate::engine::types::*;
+use crate::store::Store;
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tokio::sync::broadcast;
 
@@ -44,6 +47,9 @@ impl Default for ClaudeConfig {
 /// session (managed and terminal-spawned); [`process::ProcessManager`] = write
 /// path for managed ones.
 pub struct ClaudeCodeProvider {
+    config: ClaudeConfig,
+    /// History/search keep their FTS index in the app store (M1 T7).
+    store: Arc<Store>,
     tx: broadcast::Sender<SessionEvent>,
     processes: process::ProcessManager,
     metas: Arc<Mutex<HashMap<SessionId, SessionMeta>>>,
@@ -52,7 +58,7 @@ pub struct ClaudeCodeProvider {
 
 impl ClaudeCodeProvider {
     /// Must be called within a tokio runtime (watcher + cache tasks are spawned).
-    pub fn start(config: ClaudeConfig) -> anyhow::Result<Self> {
+    pub fn start(config: ClaudeConfig, store: Arc<Store>) -> anyhow::Result<Self> {
         let (tx, _) = broadcast::channel(1024);
         let watcher = watcher::TranscriptWatcher::start(
             watcher::WatcherConfig {
@@ -87,7 +93,10 @@ impl ClaudeCodeProvider {
             }
         });
 
+        let idle_ms = config.idle_timeout_ms;
         let this = Self {
+            config,
+            store,
             tx,
             processes,
             metas,
@@ -95,7 +104,6 @@ impl ClaudeCodeProvider {
         };
         // Idle sweep: provider-owned lifecycle policy (T12).
         let sweeper = this.processes.clone_for_sweep();
-        let idle_ms = config.idle_timeout_ms;
         tokio::spawn(async move {
             loop {
                 tokio::time::sleep(std::time::Duration::from_secs(60)).await;
@@ -163,6 +171,29 @@ impl SessionProvider for ClaudeCodeProvider {
     fn subscribe(&self) -> broadcast::Receiver<SessionEvent> {
         self.tx.subscribe()
     }
+
+    async fn list_archived(
+        &self,
+        project_path: Option<&str>,
+    ) -> anyhow::Result<Vec<ArchivedSession>> {
+        Ok(history::list_archived_sessions(
+            &self.config.root,
+            project_path,
+        ))
+    }
+
+    async fn search_transcripts(&self, query: &str) -> anyhow::Result<Vec<SearchHit>> {
+        history::search(&self.store, &self.config.root, query)
+    }
+
+    async fn register_mcp(&self, project_dir: &Path, port: u16, token: &str) -> anyhow::Result<()> {
+        // refresh (remove-then-add) so re-enabling after a token rotation works.
+        registration::refresh(&self.mcp_cli_config(), project_dir, port, token).await
+    }
+
+    async fn unregister_mcp(&self, project_dir: &Path) -> anyhow::Result<()> {
+        registration::unregister(&self.mcp_cli_config(), project_dir).await
+    }
 }
 
 impl ClaudeCodeProvider {
@@ -174,5 +205,12 @@ impl ClaudeCodeProvider {
     /// Install/replace the "allow always" permission rules (settings-backed by the app layer).
     pub fn set_permission_rules(&self, rules: crate::engine::rules::PermissionRules) {
         self.processes.set_rules(rules);
+    }
+
+    fn mcp_cli_config(&self) -> registration::McpCliConfig {
+        registration::McpCliConfig {
+            cli_path: self.config.cli_path.clone(),
+            extra_env: self.config.extra_env.clone(),
+        }
     }
 }

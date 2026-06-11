@@ -1,5 +1,7 @@
 use crate::engine::provider::{ProviderCaps, ProviderRegistry, SessionProvider};
-use crate::engine::types::{PermissionResponse, SessionId, SessionMeta, SpawnSpec, UserInput};
+use crate::engine::types::{
+    ArchivedSession, PermissionResponse, SearchHit, SessionId, SessionMeta, SpawnSpec, UserInput,
+};
 use crate::events::DomainEvent;
 use crate::store::agents::{Agent, NewAgent};
 use crate::store::projects::{NewProject, Project};
@@ -158,20 +160,20 @@ pub fn mcp_status(mcp: State<'_, crate::mcp::McpHandle>) -> Result<McpStatus> {
     })
 }
 
-fn mcp_cli_config(
-    cfg: &crate::engine::claude::ClaudeConfig,
-) -> crate::mcp::registration::McpCliConfig {
-    crate::mcp::registration::McpCliConfig {
-        cli_path: cfg.cli_path.clone(),
-        extra_env: cfg.extra_env.clone(),
-    }
+/// The provider that can register MCP for projects, by capability flag.
+fn mcp_registrar(
+    registry: &ProviderRegistry,
+) -> std::result::Result<Arc<dyn SessionProvider>, String> {
+    registry
+        .mcp_registrar()
+        .ok_or_else(|| "no provider supports MCP registration".to_string())
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn enable_mcp_for_project(
     store: State<'_, Arc<Store>>,
-    cfg: State<'_, crate::engine::claude::ClaudeConfig>,
+    registry: State<'_, Arc<ProviderRegistry>>,
     mcp: State<'_, crate::mcp::McpHandle>,
     project_id: String,
 ) -> Result<()> {
@@ -180,15 +182,14 @@ pub async fn enable_mcp_for_project(
         .map_err(err)?
         .ok_or_else(|| format!("unknown project: {project_id}"))?;
     let server = mcp.0.as_ref().ok_or("MCP server is not running")?;
-    // refresh (remove-then-add) so re-enabling after a token rotation works.
-    crate::mcp::registration::refresh(
-        &mcp_cli_config(&cfg),
-        std::path::Path::new(&project.folder_path),
-        server.port(),
-        server.token(),
-    )
-    .await
-    .map_err(err)?;
+    mcp_registrar(&registry)?
+        .register_mcp(
+            std::path::Path::new(&project.folder_path),
+            server.port(),
+            server.token(),
+        )
+        .await
+        .map_err(err)?;
     store
         .set_setting(&crate::mcp::enabled_setting_key(&project_id), "true")
         .map_err(err)
@@ -198,43 +199,40 @@ pub async fn enable_mcp_for_project(
 #[specta::specta]
 pub async fn disable_mcp_for_project(
     store: State<'_, Arc<Store>>,
-    cfg: State<'_, crate::engine::claude::ClaudeConfig>,
+    registry: State<'_, Arc<ProviderRegistry>>,
     project_id: String,
 ) -> Result<()> {
     let project = store
         .get_project(&project_id)
         .map_err(err)?
         .ok_or_else(|| format!("unknown project: {project_id}"))?;
-    crate::mcp::registration::unregister(
-        &mcp_cli_config(&cfg),
-        std::path::Path::new(&project.folder_path),
-    )
-    .await
-    .map_err(err)?;
+    mcp_registrar(&registry)?
+        .unregister_mcp(std::path::Path::new(&project.folder_path))
+        .await
+        .map_err(err)?;
     store
         .set_setting(&crate::mcp::enabled_setting_key(&project_id), "false")
         .map_err(err)
 }
 
-// TODO(M1-T9): route history through ClaudeCodeProvider so this file stays provider-neutral.
+// ---- history (provider-routed since EKI-109) ----
+
 #[tauri::command]
 #[specta::specta]
-pub fn list_archived_sessions(
-    cfg: State<crate::engine::claude::ClaudeConfig>,
-) -> Result<Vec<crate::engine::types::ArchivedSession>> {
-    Ok(crate::engine::claude::history::list_archived_sessions(
-        &cfg.root,
-    ))
+pub async fn list_archived_sessions(
+    registry: State<'_, Arc<ProviderRegistry>>,
+    project_path: Option<String>,
+) -> Result<Vec<ArchivedSession>> {
+    Ok(registry.list_archived_all(project_path.as_deref()).await)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn search_transcripts(
-    store: State<Arc<Store>>,
-    cfg: State<crate::engine::claude::ClaudeConfig>,
+pub async fn search_transcripts(
+    registry: State<'_, Arc<ProviderRegistry>>,
     query: String,
-) -> Result<Vec<crate::engine::types::SearchHit>> {
-    crate::engine::claude::history::search(&store, &cfg.root, &query).map_err(err)
+) -> Result<Vec<SearchHit>> {
+    Ok(registry.search_all(&query).await)
 }
 
 // ---- agents ----
@@ -723,6 +721,55 @@ mod tests {
         app.manage(crate::mcp::McpHandle(None));
         let err = mcp_status(app.state()).unwrap_err();
         assert!(err.contains("not running"), "got: {err}");
+    }
+
+    /// EKI-109: history commands route via the registry; providers without an
+    /// archive (StubProvider keeps the trait defaults) contribute nothing.
+    #[tokio::test]
+    async fn history_commands_route_via_registry_and_tolerate_unsupported() {
+        let app = app();
+        let mut registry = ProviderRegistry::default();
+        registry.register(Arc::new(StubProvider));
+        app.manage(Arc::new(registry));
+        assert!(list_archived_sessions(app.state(), Some("/p".into()))
+            .await
+            .unwrap()
+            .is_empty());
+        assert!(list_archived_sessions(app.state(), None)
+            .await
+            .unwrap()
+            .is_empty());
+        assert!(search_transcripts(app.state(), "fox".into())
+            .await
+            .unwrap()
+            .is_empty());
+    }
+
+    /// EKI-109: MCP registration routes by capability flag, never provider id.
+    #[tokio::test]
+    async fn mcp_registration_without_capable_provider_is_a_readable_error() {
+        let app = app();
+        let h = app.handle().clone();
+        let mut registry = ProviderRegistry::default();
+        registry.register(Arc::new(StubProvider)); // caps().mcp_registration == false
+        app.manage(Arc::new(registry));
+        let p = create_project(
+            h,
+            app.state(),
+            NewProject {
+                name: "P".into(),
+                description: None,
+                icon: None,
+                color: None,
+                folder_path: "/tmp/p".into(),
+                docs_path: None,
+            },
+        )
+        .unwrap();
+        let err = disable_mcp_for_project(app.state(), app.state(), p.id)
+            .await
+            .unwrap_err();
+        assert!(err.contains("no provider supports"), "got: {err}");
     }
 
     #[test]

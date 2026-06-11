@@ -10,9 +10,10 @@ use crate::engine::types::{ArchivedSession, SearchHit, SessionId};
 use crate::store::Store;
 use std::path::{Path, PathBuf};
 
-/// List past sessions (main transcripts only) with lightweight summaries.
+/// List past sessions (main transcripts only) with lightweight summaries,
+/// optionally filtered to a project root (exact path or any path under it).
 /// Cheap by design: header lines + first user text + file mtime; no full parse.
-pub fn list_archived_sessions(root: &Path) -> Vec<ArchivedSession> {
+pub fn list_archived_sessions(root: &Path, project_filter: Option<&str>) -> Vec<ArchivedSession> {
     let mut out = Vec::new();
     let Ok(projects) = std::fs::read_dir(root) else {
         return out;
@@ -31,12 +32,24 @@ pub fn list_archived_sessions(root: &Path) -> Vec<ArchivedSession> {
                 continue;
             }
             if let Some(s) = summarize(&path) {
-                out.push(s);
+                if project_filter.is_none_or(|f| matches_project(&s.project_path, f)) {
+                    out.push(s);
+                }
             }
         }
     }
     out.sort_by_key(|s| std::cmp::Reverse(s.last_modified_ms));
     out
+}
+
+/// `session_path` matches `filter` when equal or anywhere under it
+/// (worktrees under the project root match — M2 plan T11 predicate).
+fn matches_project(session_path: &str, filter: &str) -> bool {
+    let filter = filter.trim_end_matches('/');
+    session_path == filter
+        || session_path
+            .strip_prefix(filter)
+            .is_some_and(|rest| rest.starts_with('/'))
 }
 
 fn summarize(path: &Path) -> Option<ArchivedSession> {
@@ -134,7 +147,7 @@ pub fn index_session(store: &Store, session_id: &str, path: &Path) -> anyhow::Re
 
 /// Lazily index every transcript under `root`, then run the FTS query.
 pub fn search(store: &Store, root: &Path, query: &str) -> anyhow::Result<Vec<SearchHit>> {
-    for session in list_archived_sessions(root) {
+    for session in list_archived_sessions(root, None) {
         let path = transcript_path(root, &session)?;
         if let Some(p) = path {
             let _ = index_session(store, &session.id.id, &p);
@@ -196,11 +209,25 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         write_session(dir.path(), "proj-a", "s1", &["build the parser please"]);
         write_session(dir.path(), "proj-b", "s2", &["fix the login bug"]);
-        let list = list_archived_sessions(dir.path());
+        let list = list_archived_sessions(dir.path(), None);
         assert_eq!(list.len(), 2);
         let s1 = list.iter().find(|s| s.id.id == "s1").unwrap();
         assert_eq!(s1.summary, "build the parser please");
         assert_eq!(s1.project_path, "/p/proj-a");
+    }
+
+    #[test]
+    fn project_filter_matches_exact_and_subpaths_only() {
+        let dir = tempfile::tempdir().unwrap();
+        write_session(dir.path(), "proj-a", "s1", &["one"]); // cwd /p/proj-a
+        write_session(dir.path(), "proj-a-sibling", "s2", &["two"]); // cwd /p/proj-a-sibling
+        let list = list_archived_sessions(dir.path(), Some("/p/proj-a"));
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].id.id, "s1");
+        // trailing slash tolerated; worktree-style subpaths match
+        assert!(matches_project("/p/proj-a/worktrees/w1", "/p/proj-a/"));
+        assert!(!matches_project("/p/proj-a-sibling", "/p/proj-a"));
+        assert!(list_archived_sessions(dir.path(), Some("/elsewhere")).is_empty());
     }
 
     #[test]

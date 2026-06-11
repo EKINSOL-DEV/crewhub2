@@ -12,7 +12,6 @@
 //! and every mutating tool broadcasts on it. The lib.rs wiring forwards that
 //! channel to the webview.
 
-pub mod registration;
 pub mod server;
 pub mod tools;
 

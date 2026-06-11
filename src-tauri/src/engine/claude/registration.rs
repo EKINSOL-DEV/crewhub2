@@ -1,16 +1,18 @@
-//! Registers the CrewHub MCP server with the Claude Code CLI (T23, EKI-73).
+//! Registers the CrewHub MCP server with the Claude Code CLI (T23, EKI-73;
+//! moved behind the provider seam in M2, EKI-109).
 //!
 //! Runs `claude mcp add --transport http crewhub http://127.0.0.1:<port>/mcp
 //! --header "Authorization: Bearer <token>"` with the project directory as
 //! cwd, so the registration is scoped to that project. The bearer token
-//! rotates every app launch, which is why [`refresh`] exists: the lib.rs
-//! wiring is expected to call it for each MCP-enabled project at startup.
+//! rotates every app launch, which is why [`refresh`] exists:
+//! [`super::ClaudeCodeProvider::register_mcp`] uses it, so re-registering
+//! each MCP-enabled project at startup (and re-enabling from the UI) works.
 
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
 
-use super::server::MCP_PATH;
+use crate::mcp::server::MCP_PATH;
 
 /// Name the server is registered under in Claude Code.
 pub const SERVER_NAME: &str = "crewhub";

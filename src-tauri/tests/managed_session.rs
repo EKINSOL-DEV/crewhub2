@@ -5,6 +5,10 @@ use crewhub2_lib::engine::provider::SessionProvider;
 use crewhub2_lib::engine::types::*;
 use std::time::Duration;
 
+fn mem_store() -> std::sync::Arc<crewhub2_lib::store::Store> {
+    std::sync::Arc::new(crewhub2_lib::store::Store::open_in_memory().unwrap())
+}
+
 fn write_scenario(dir: &std::path::Path, body: &str) -> std::path::PathBuf {
     let path = dir.join("scenario.jsonl");
     std::fs::write(&path, body).unwrap();
@@ -59,15 +63,18 @@ async fn spawn_permission_roundtrip_and_exit() {
         ),
     );
 
-    let provider = ClaudeCodeProvider::start(ClaudeConfig {
-        root: dir.path().join("claude-projects"),
-        cli_path: env!("CARGO_BIN_EXE_fake-claude").into(),
-        idle_timeout_ms: 30 * 60 * 1000,
-        extra_env: vec![(
-            "FAKE_CLAUDE_SCENARIO".into(),
-            scenario.display().to_string(),
-        )],
-    })
+    let provider = ClaudeCodeProvider::start(
+        ClaudeConfig {
+            root: dir.path().join("claude-projects"),
+            cli_path: env!("CARGO_BIN_EXE_fake-claude").into(),
+            idle_timeout_ms: 30 * 60 * 1000,
+            extra_env: vec![(
+                "FAKE_CLAUDE_SCENARIO".into(),
+                scenario.display().to_string(),
+            )],
+        },
+        mem_store(),
+    )
     .unwrap();
     let mut rx = provider.subscribe();
 
@@ -144,15 +151,18 @@ async fn kill_terminates_managed_session() {
             "\n",
         ),
     );
-    let provider = ClaudeCodeProvider::start(ClaudeConfig {
-        root: dir.path().join("claude-projects"),
-        cli_path: env!("CARGO_BIN_EXE_fake-claude").into(),
-        idle_timeout_ms: 30 * 60 * 1000,
-        extra_env: vec![(
-            "FAKE_CLAUDE_SCENARIO".into(),
-            scenario.display().to_string(),
-        )],
-    })
+    let provider = ClaudeCodeProvider::start(
+        ClaudeConfig {
+            root: dir.path().join("claude-projects"),
+            cli_path: env!("CARGO_BIN_EXE_fake-claude").into(),
+            idle_timeout_ms: 30 * 60 * 1000,
+            extra_env: vec![(
+                "FAKE_CLAUDE_SCENARIO".into(),
+                scenario.display().to_string(),
+            )],
+        },
+        mem_store(),
+    )
     .unwrap();
     let mut rx = provider.subscribe();
 
@@ -208,15 +218,18 @@ async fn resume_fork_and_model_flags_reach_the_cli() {
         ),
     );
 
-    let provider = ClaudeCodeProvider::start(ClaudeConfig {
-        root: dir.path().join("claude-projects"),
-        cli_path: env!("CARGO_BIN_EXE_fake-claude").into(),
-        idle_timeout_ms: 30 * 60 * 1000,
-        extra_env: vec![(
-            "FAKE_CLAUDE_SCENARIO".into(),
-            scenario.display().to_string(),
-        )],
-    })
+    let provider = ClaudeCodeProvider::start(
+        ClaudeConfig {
+            root: dir.path().join("claude-projects"),
+            cli_path: env!("CARGO_BIN_EXE_fake-claude").into(),
+            idle_timeout_ms: 30 * 60 * 1000,
+            extra_env: vec![(
+                "FAKE_CLAUDE_SCENARIO".into(),
+                scenario.display().to_string(),
+            )],
+        },
+        mem_store(),
+    )
     .unwrap();
     let mut rx = provider.subscribe();
 
@@ -266,15 +279,18 @@ async fn interrupt_sends_control_request_on_stdin() {
         ),
     );
 
-    let provider = ClaudeCodeProvider::start(ClaudeConfig {
-        root: dir.path().join("claude-projects"),
-        cli_path: env!("CARGO_BIN_EXE_fake-claude").into(),
-        idle_timeout_ms: 30 * 60 * 1000,
-        extra_env: vec![(
-            "FAKE_CLAUDE_SCENARIO".into(),
-            scenario.display().to_string(),
-        )],
-    })
+    let provider = ClaudeCodeProvider::start(
+        ClaudeConfig {
+            root: dir.path().join("claude-projects"),
+            cli_path: env!("CARGO_BIN_EXE_fake-claude").into(),
+            idle_timeout_ms: 30 * 60 * 1000,
+            extra_env: vec![(
+                "FAKE_CLAUDE_SCENARIO".into(),
+                scenario.display().to_string(),
+            )],
+        },
+        mem_store(),
+    )
     .unwrap();
     let mut rx = provider.subscribe();
 
@@ -321,15 +337,18 @@ async fn idle_sweep_kills_only_stale_sessions() {
             "\n",
         ),
     );
-    let provider = ClaudeCodeProvider::start(ClaudeConfig {
-        root: dir.path().join("claude-projects"),
-        cli_path: env!("CARGO_BIN_EXE_fake-claude").into(),
-        idle_timeout_ms: 30 * 60 * 1000,
-        extra_env: vec![(
-            "FAKE_CLAUDE_SCENARIO".into(),
-            scenario.display().to_string(),
-        )],
-    })
+    let provider = ClaudeCodeProvider::start(
+        ClaudeConfig {
+            root: dir.path().join("claude-projects"),
+            cli_path: env!("CARGO_BIN_EXE_fake-claude").into(),
+            idle_timeout_ms: 30 * 60 * 1000,
+            extra_env: vec![(
+                "FAKE_CLAUDE_SCENARIO".into(),
+                scenario.display().to_string(),
+            )],
+        },
+        mem_store(),
+    )
     .unwrap();
     let mut rx = provider.subscribe();
     let id = provider
@@ -449,15 +468,18 @@ async fn allow_always_rule_auto_responds_without_surfacing() {
             "\n",
         ),
     );
-    let provider = ClaudeCodeProvider::start(ClaudeConfig {
-        root: dir.path().join("claude-projects"),
-        cli_path: env!("CARGO_BIN_EXE_fake-claude").into(),
-        idle_timeout_ms: 30 * 60 * 1000,
-        extra_env: vec![(
-            "FAKE_CLAUDE_SCENARIO".into(),
-            scenario.display().to_string(),
-        )],
-    })
+    let provider = ClaudeCodeProvider::start(
+        ClaudeConfig {
+            root: dir.path().join("claude-projects"),
+            cli_path: env!("CARGO_BIN_EXE_fake-claude").into(),
+            idle_timeout_ms: 30 * 60 * 1000,
+            extra_env: vec![(
+                "FAKE_CLAUDE_SCENARIO".into(),
+                scenario.display().to_string(),
+            )],
+        },
+        mem_store(),
+    )
     .unwrap();
     provider.set_permission_rules(PermissionRules {
         rules: vec![PermissionRule {
@@ -516,15 +538,18 @@ async fn ask_user_question_surfaces_and_answer_is_relayed() {
             "\n",
         ),
     );
-    let provider = ClaudeCodeProvider::start(ClaudeConfig {
-        root: dir.path().join("claude-projects"),
-        cli_path: env!("CARGO_BIN_EXE_fake-claude").into(),
-        idle_timeout_ms: 30 * 60 * 1000,
-        extra_env: vec![(
-            "FAKE_CLAUDE_SCENARIO".into(),
-            scenario.display().to_string(),
-        )],
-    })
+    let provider = ClaudeCodeProvider::start(
+        ClaudeConfig {
+            root: dir.path().join("claude-projects"),
+            cli_path: env!("CARGO_BIN_EXE_fake-claude").into(),
+            idle_timeout_ms: 30 * 60 * 1000,
+            extra_env: vec![(
+                "FAKE_CLAUDE_SCENARIO".into(),
+                scenario.display().to_string(),
+            )],
+        },
+        mem_store(),
+    )
     .unwrap();
     let mut rx = provider.subscribe();
     let id = provider

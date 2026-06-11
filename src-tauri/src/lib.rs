@@ -72,14 +72,10 @@ pub fn run() {
             app.manage(store.clone());
 
             let claude_config = engine::claude::ClaudeConfig::default();
-            app.manage(claude_config.clone());
-            let mcp_cli = mcp::registration::McpCliConfig {
-                cli_path: claude_config.cli_path.clone(),
-                extra_env: claude_config.extra_env.clone(),
-            };
+            let provider_store = store.clone();
             let registry = tauri::async_runtime::block_on(async {
                 let mut registry = engine::provider::ProviderRegistry::default();
-                match engine::claude::ClaudeCodeProvider::start(claude_config) {
+                match engine::claude::ClaudeCodeProvider::start(claude_config, provider_store) {
                     Ok(provider) => registry.register(std::sync::Arc::new(provider)),
                     Err(e) => eprintln!("claude-code provider failed to start: {e}"),
                 }
@@ -132,10 +128,10 @@ pub fn run() {
                     mcp::McpHandle(None)
                 }
             };
-            // Token rotates per launch: refresh registration for enabled projects.
-            if let Some(server) = &mcp_handle.0 {
+            // Token rotates per launch: refresh registration for enabled projects
+            // via whichever provider has the mcp_registration capability.
+            if let (Some(server), Some(registrar)) = (&mcp_handle.0, registry.mcp_registrar()) {
                 let (port, token) = (server.port(), server.token().to_string());
-                let cli = mcp_cli;
                 let refresh_store = store.clone();
                 tauri::async_runtime::spawn(async move {
                     let projects = refresh_store.list_projects().unwrap_or_default();
@@ -145,13 +141,9 @@ pub fn run() {
                             .ok()
                             .flatten();
                         if enabled.as_deref() == Some("true") {
-                            if let Err(e) = mcp::registration::refresh(
-                                &cli,
-                                std::path::Path::new(&p.folder_path),
-                                port,
-                                &token,
-                            )
-                            .await
+                            if let Err(e) = registrar
+                                .register_mcp(std::path::Path::new(&p.folder_path), port, &token)
+                                .await
                             {
                                 eprintln!("mcp registration refresh failed for {}: {e}", p.name);
                             }
