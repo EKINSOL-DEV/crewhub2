@@ -8,18 +8,32 @@ import type { WorldLayout, WorldZone } from "./lib/layout";
 import { LOBBY_ID } from "./lib/layout";
 import { assignHomes, roomInnerBounds } from "./lib/positions";
 import type { SpeechMap } from "./lib/speech";
+import type { WallSummary } from "./lib/taskwall";
 import { Rooms3D } from "./Rooms3D";
+import { TaskWall3D } from "./TaskWall3D";
 
 export interface WorldSceneProps {
   world: WorldLayout;
   bots: WorldBot[];
   reducedMotion: boolean;
   speech?: SpeechMap | undefined;
+  /** Per-zone task wall summaries (EKI-75); zones without one show no wall. */
+  walls?: ReadonlyMap<string, WallSummary> | undefined;
   onBotClick?: ((bot: WorldBot, e: ThreeEvent<MouseEvent>) => void) | undefined;
   onZoneClick?: ((zone: WorldZone, e: ThreeEvent<MouseEvent>) => void) | undefined;
+  onWallClick?: ((zone: WorldZone, e: ThreeEvent<MouseEvent>) => void) | undefined;
 }
 
-export function WorldScene({ world, bots, reducedMotion, speech, onBotClick, onZoneClick }: WorldSceneProps) {
+export function WorldScene({
+  world,
+  bots,
+  reducedMotion,
+  speech,
+  walls,
+  onBotClick,
+  onZoneClick,
+  onWallClick,
+}: WorldSceneProps) {
   const homes = useMemo(() => assignHomes(bots, world), [bots, world]);
   const zoneById = useMemo(() => new Map(world.rooms.map((z) => [z.id, z])), [world]);
   const groundW = world.bounds.maxX - world.bounds.minX + 8;
@@ -40,6 +54,14 @@ export function WorldScene({ world, bots, reducedMotion, speech, onBotClick, onZ
       </mesh>
 
       <Rooms3D zones={world.rooms} onZoneClick={onZoneClick} />
+
+      {/* Task walls (EKI-75) — every room mirrors its kanban columns */}
+      {world.rooms.map((zone) => {
+        if (zone.id === LOBBY_ID) return null;
+        const summary = walls?.get(zone.id);
+        if (!summary) return null;
+        return <TaskWall3D key={zone.id} zone={zone} summary={summary} onClick={onWallClick} />;
+      })}
 
       {bots.map((bot) => {
         const home = homes.get(bot.key);

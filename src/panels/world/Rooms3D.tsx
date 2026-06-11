@@ -77,7 +77,9 @@ export function Rooms3D({
           key={z.id}
           position={[
             z.center[0],
-            WALL_H + 0.7,
+            // Rooms float their name above the task wall (EKI-75); the open
+            // lobby keeps its low centered plate.
+            z.id === LOBBY_ID ? WALL_H + 0.7 : WALL_H + 1.5,
             z.center[1] - z.size / 2 + (z.id === LOBBY_ID ? z.size / 2 : 0),
           ]}
           fontSize={0.55}

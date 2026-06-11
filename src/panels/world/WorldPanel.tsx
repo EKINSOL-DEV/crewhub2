@@ -4,12 +4,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { usePrefersReducedMotion } from "@/components/use-reduced-motion";
+import { openBoardPanel } from "@/panels/board/open-board";
 import { useAgentsStore } from "@/stores/agents";
 import { useBindingsStore } from "@/stores/bindings";
 import { useSessionsStore, useSessionsView } from "@/stores/sessions";
+import { useTasksStore } from "@/stores/tasks";
 import { CameraRig, type CameraMode } from "./CameraRig";
 import { toWorldBots, type WorldBot } from "./lib/bots";
-import { layoutWorld, type WorldZone } from "./lib/layout";
+import { LOBBY_ID, layoutWorld, type WorldZone } from "./lib/layout";
+import { summarizeWall, wallScopeFor, type WallSummary } from "./lib/taskwall";
 import { BotActionsCard, RoomInfoCard } from "./overlays";
 import { useSpeechBubbles } from "./use-speech-bubbles";
 import { useWorldVisibility } from "./use-world-visibility";
@@ -27,13 +30,27 @@ export default function WorldPanel() {
     void useSessionsStore.getState().init();
     void useBindingsStore.getState().init();
     void useAgentsStore.getState().init();
+    void useTasksStore.getState().init();
   }, []);
 
   const rooms = useBindingsStore((s) => s.rooms);
   const views = useSessionsView();
   const speech = useSpeechBubbles();
+  const tasksById = useTasksStore((s) => s.byId);
   const world = useMemo(() => layoutWorld(rooms), [rooms]);
   const bots = useMemo(() => toWorldBots(views), [views]);
+
+  // Task walls (EKI-75): live mirror of the board fold — TaskChanged
+  // reconciliations land in the store, this memo re-folds, the wall updates.
+  const walls = useMemo(() => {
+    const tasks = [...tasksById.values()];
+    const byZone = new Map<string, WallSummary>();
+    for (const zone of world.rooms) {
+      if (zone.id === LOBBY_ID) continue;
+      byZone.set(zone.id, summarizeWall(tasks, wallScopeFor(zone)));
+    }
+    return byZone;
+  }, [tasksById, world]);
 
   const [selection, setSelection] = useState<Selection>(null);
   const [cameraMode, setCameraMode] = useState<CameraMode>("orbit");
@@ -90,8 +107,14 @@ export default function WorldPanel() {
           bots={bots}
           reducedMotion={reducedMotion}
           speech={speech}
+          walls={walls}
           onBotClick={(bot) => setSelection({ kind: "bot", key: bot.key })}
           onZoneClick={(zone) => setSelection({ kind: "zone", id: zone.id })}
+          onWallClick={(zone) =>
+            // Wall → the real board, scoped to the room (HQ = cross-project).
+            // Empty strings clear stale params on an already-open board.
+            openBoardPanel(zone.isHq ? { hq: "1", room: "" } : { hq: "", room: zone.id })
+          }
         />
         <CameraRig mode={cameraMode} bounds={world.bounds} onExitFp={() => setCameraMode("orbit")} />
         {debug && <FpsProbe onSample={setFps} />}
