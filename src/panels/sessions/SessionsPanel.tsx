@@ -12,6 +12,7 @@ import { useRoomsStore } from "@/stores/rooms";
 import { useSessionsStore, useSessionsView, type SessionView } from "@/stores/sessions";
 import { explainAutoBinding, ruleLabel } from "@/panels/projects/room-rules";
 import type { RoomRule } from "@/ipc/bindings";
+import { GitStrip } from "@/panels/diff/GitStrip";
 import { BindingControls } from "./BindingControls";
 import { formatRelative, formatUsage } from "./format";
 import { HandoffMenu } from "./HandoffMenu";
@@ -205,7 +206,13 @@ export function SessionsPanel() {
                 </td>
                 <td className="px-2 py-1 font-mono">{v.meta.model ?? "—"}</td>
                 <td className="px-2 py-1 font-mono">{formatUsage(v.meta.usage)}</td>
-                <td className="max-w-28 truncate px-2 py-1 font-mono">{v.meta.git_branch ?? "—"}</td>
+                <td className="max-w-48 truncate px-2 py-1">
+                  <GitStrip
+                    projectPath={v.meta.project_path}
+                    sessionPath={v.meta.project_path}
+                    fallbackBranch={v.meta.git_branch}
+                  />
+                </td>
                 <td className="px-2 py-1 whitespace-nowrap">
                   {formatRelative(v.meta.last_activity_ms, now)}
                 </td>
@@ -240,8 +247,12 @@ export function SessionsPanel() {
               </p>
               <p className="truncate font-mono text-muted-foreground">
                 {v.meta.model ?? "?"} · {formatUsage(v.meta.usage)}
-                {v.meta.git_branch ? ` · ${v.meta.git_branch}` : ""}
               </p>
+              <GitStrip
+                projectPath={v.meta.project_path}
+                sessionPath={v.meta.project_path}
+                fallbackBranch={v.meta.git_branch}
+              />
               {(v.agent || v.room) && (
                 <p className="truncate">
                   {v.agent ? `${v.agent.icon ?? "🤖"} ${v.agent.name}` : ""}

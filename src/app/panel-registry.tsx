@@ -159,6 +159,20 @@ export const PANELS: Record<PanelKind, PanelDefinition> = {
     component: lazy(() => import("@/panels/debug/DebugPanel").then((m) => ({ default: m.DebugPanel }))),
     emptyState: { emoji: "🐞", title: "Engine debug", hint: "Raw events for the curious" },
   },
+  diff: {
+    kind: "diff",
+    label: "Diff",
+    emoji: "🔬",
+    description: "What changed — read-only git diff per project",
+    keywords: ["diff", "git", "changes", "patch", "review", "code"],
+    shortcutHint: "g",
+    component: lazy(() => import("@/panels/diff/DiffPanel")),
+    emptyState: {
+      emoji: "🧘",
+      title: "Working tree is clean",
+      hint: "Changes will show up here as they land",
+    },
+  },
 };
 
 export const PANEL_LIST: PanelDefinition[] = Object.values(PANELS);
