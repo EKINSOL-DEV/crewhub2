@@ -6,6 +6,7 @@ import { parseSessionKey, sessionKey, startTranscriptStream, useTranscripts } fr
 import { Composer } from "./Composer";
 import { ChatContext, type ChatContextValue } from "./context";
 import { MetaStrip } from "./MetaStrip";
+import { PromptsArea } from "./prompts";
 import { SpawnFromChat } from "./SpawnFromChat";
 import type { PanelProps } from "./panel-contract";
 import { buildSubagentGroups } from "./subagents";
@@ -67,6 +68,7 @@ function BoundChat({
         <div className="min-h-0 flex-1">
           <VirtualTranscript sid={sid} groups={groups} />
         </div>
+        {!historyMode && <PromptsArea sid={sid} />}
         {showTyping && <TypingBot />}
         {!historyMode && <Composer sid={sid} />}
       </div>
