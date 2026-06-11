@@ -19,5 +19,6 @@ export const CREW_PANEL: PanelDefinition = {
 };
 
 export { CrewPanel } from "./CrewPanel";
+export { CrewBar } from "./CrewBar";
 export { AgentEditor } from "./AgentEditor";
 export { PersonaComposer } from "./PersonaComposer";

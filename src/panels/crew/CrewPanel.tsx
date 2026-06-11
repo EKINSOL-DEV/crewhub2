@@ -8,6 +8,7 @@ import { useBindingsStore } from "@/stores/bindings";
 import { useSessionsStore } from "@/stores/sessions";
 import { AgentEditor } from "./AgentEditor";
 import { ConfettiBurst } from "./ConfettiBurst";
+import { CrewBar } from "./CrewBar";
 
 // Takes no params today; still mounts as a registry panel (PanelProps-compatible).
 export function CrewPanel() {
@@ -58,21 +59,22 @@ export function CrewPanel() {
       )}
 
       {agents.length > 0 && (
-        <ul className="flex flex-col gap-1">
-          {agents.map((a) => (
-            <li key={a.id} className="flex items-center gap-2 rounded border p-2 text-sm">
-              <span aria-hidden>{a.icon ?? "🤖"}</span>
-              <span className="flex-1">{a.name}</span>
-              <span className="text-xs text-muted-foreground">{a.default_model ?? "haiku"}</span>
-              <Button size="xs" variant="outline" onClick={() => setEditing(a)}>
-                Edit
-              </Button>
-              <Button size="xs" variant="destructive" onClick={() => void remove(a.id)}>
-                Fire
-              </Button>
-            </li>
-          ))}
-        </ul>
+        <>
+          <CrewBar showUnpinned onEdit={(a) => setEditing(a)} />
+          {editing !== null && editing !== "new" && (
+            <Button
+              size="xs"
+              variant="destructive"
+              className="self-start"
+              onClick={() => {
+                void remove(editing.id);
+                setEditing(null);
+              }}
+            >
+              Fire {editing.name}
+            </Button>
+          )}
+        </>
       )}
     </div>
   );
