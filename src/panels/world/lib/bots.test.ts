@@ -14,6 +14,7 @@ function meta(id: string, over: Partial<SessionMeta> = {}): SessionMeta {
     status: "Working",
     activity_detail: null,
     parent: null,
+    team: null,
     usage: { input_tokens: 0, output_tokens: 0, cache_read_tokens: 0 },
     git_branch: null,
     last_activity_ms: 0,

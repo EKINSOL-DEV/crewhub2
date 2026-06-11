@@ -658,6 +658,8 @@ export type SessionMeta = {
 	status: SessionStatus,
 	activity_detail: string | null,
 	parent: SessionId | null,
+	/**  Present only when the provider detected team membership (D-M4-9). */
+	team: TeamInfo | null,
 	usage: UsageTotals,
 	git_branch: string | null,
 	last_activity_ms: number,
@@ -744,6 +746,18 @@ export type TaskEvent = {
 	actor: string,
 	payload_json: string | null,
 	created_at: number,
+};
+
+/**
+ *  Team membership (M4 D-M4-9, 18.1): provider-neutral and ADDITIVE — the UI
+ *  tolerates `None` by construction; detection is parse-tolerant (unknown
+ *  shapes = no team, never an error).
+ */
+export type TeamInfo = {
+	/**  Team name when resolvable; otherwise a stable group key. */
+	team_id: string,
+	/**  "lead" or the teammate's name. */
+	role: string,
 };
 
 /**

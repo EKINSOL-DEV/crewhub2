@@ -81,7 +81,8 @@ async fn scheduled_run_fires_and_records_result() {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
     let results = loop {
         let results = store.list_run_results(&run.id).unwrap();
-        if !results.is_empty() {
+        // rows begin as "running" (T6 persist-then-act) — wait for the finish
+        if results.iter().any(|r| r.status != "running") {
             break results;
         }
         assert!(

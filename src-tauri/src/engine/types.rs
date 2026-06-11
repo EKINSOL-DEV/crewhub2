@@ -32,6 +32,17 @@ pub struct UsageTotals {
     pub cache_read_tokens: i64,
 }
 
+/// Team membership (M4 D-M4-9, 18.1): provider-neutral and ADDITIVE — the UI
+/// tolerates `None` by construction; detection is parse-tolerant (unknown
+/// shapes = no team, never an error).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+pub struct TeamInfo {
+    /// Team name when resolvable; otherwise a stable group key.
+    pub team_id: String,
+    /// "lead" or the teammate's name.
+    pub role: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 pub struct SessionMeta {
     pub id: SessionId,
@@ -41,6 +52,8 @@ pub struct SessionMeta {
     pub status: SessionStatus,
     pub activity_detail: Option<String>,
     pub parent: Option<SessionId>,
+    /// Present only when the provider detected team membership (D-M4-9).
+    pub team: Option<TeamInfo>,
     pub usage: UsageTotals,
     pub git_branch: Option<String>,
     #[specta(type = Number)]
