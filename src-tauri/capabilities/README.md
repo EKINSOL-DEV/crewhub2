@@ -22,3 +22,8 @@ Note (D-M3-7/D-M3-5): the M3 docs panel (`list_doc_tree`/`read_doc_file`/`read_d
 and git commands (`git_status`/`git_diff`/`git_default_base`) likewise add NO capability —
 they are typed, read-only Rust commands behind the PathPolicy (whitelisted extensions,
 depth/count/size caps; fixed-argv `git` CLI).
+
+Note (M4 Lane 0): the orchestration surface (meetings/standups/runs/templates IPC,
+the scheduler loop and headless executions) adds NO capability — everything is typed
+app IPC routed through the invoke handler; child processes are spawned Rust-side only
+via the provider's configured CLI path, never from the webview.
