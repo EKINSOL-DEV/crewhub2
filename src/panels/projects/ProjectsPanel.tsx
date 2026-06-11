@@ -6,9 +6,11 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/EmptyState";
 import { commands, type ArchivedSession, type Project, type Task } from "@/ipc/bindings";
 import { projectStats, suggestProjects, useProjectsStore } from "@/stores/projects";
+import { useRoomsStore } from "@/stores/rooms";
 import { useNow } from "../sessions/useNow";
 import { ProjectCard } from "./ProjectCard";
 import { ProjectForm } from "./ProjectForm";
+import { RoomsManager } from "./RoomsManager";
 
 export function ProjectsPanel() {
   const { projects, loaded, remove } = useProjectsStore();
@@ -22,6 +24,7 @@ export function ProjectsPanel() {
 
   useEffect(() => {
     void useProjectsStore.getState().load();
+    void useRoomsStore.getState().load();
   }, []);
 
   // Stats + auto-suggest sources, refetched when the registered list changes
@@ -136,18 +139,23 @@ export function ProjectsPanel() {
       {visible.length > 0 && (
         <div data-testid="project-cards" className="flex flex-wrap gap-2">
           {visible.map((p) => (
-            <ProjectCard
-              key={p.id}
-              project={p}
-              stats={projectStats(p, archived, tasks)}
-              now={now}
-              onEdit={() => setEditing(p)}
-              onDelete={() => setConfirmDelete(p)}
-              onOpenDocs={null}
-            />
+            <div key={p.id} className="flex flex-col gap-1">
+              <ProjectCard
+                project={p}
+                stats={projectStats(p, archived, tasks)}
+                now={now}
+                onEdit={() => setEditing(p)}
+                onDelete={() => setConfirmDelete(p)}
+                onOpenDocs={null}
+              />
+              <RoomsManager projectId={p.id} projectName={p.name} />
+            </div>
           ))}
         </div>
       )}
+
+      {/* HQ & shared rooms (project_id = null) — the cross-project home base. */}
+      {loaded && projects.length > 0 && <RoomsManager projectId={null} projectName="HQ & shared" />}
 
       {suggestions.length > 0 && (
         <section data-testid="project-suggestions" className="flex flex-col gap-1">

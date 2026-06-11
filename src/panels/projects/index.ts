@@ -3,3 +3,6 @@
 export { ProjectsPanel } from "./ProjectsPanel";
 export { ProjectCard } from "./ProjectCard";
 export { ProjectForm } from "./ProjectForm";
+export { RoomsManager } from "./RoomsManager";
+export { RuleEditor } from "./RuleEditor";
+export * from "./room-rules";

@@ -2,7 +2,7 @@
 // DomainEvent::RoomChanged (room-rule CRUD also emits it — Lane 0 T2). Lane D
 // owns this store; other lanes consume read-only. Pure ordering helpers first.
 import { create } from "zustand";
-import { commands, type NewRoom, type Room } from "@/ipc/bindings";
+import { commands, type NewRoom, type NewRoomRule, type Room, type RoomRule } from "@/ipc/bindings";
 import { onDomainEvent } from "@/ipc/events";
 
 // ── Pure helpers ─────────────────────────────────────────────────────────────
@@ -44,9 +44,15 @@ export function reorderRooms(
 // ── Store ────────────────────────────────────────────────────────────────────
 
 export type RoomResult = { status: "ok"; data: Room } | { status: "error"; error: string };
+export type RuleResult = { status: "ok"; data: RoomRule } | { status: "error"; error: string };
 
 interface RoomsState {
   rooms: Room[];
+  /**
+   * ALL room rules in evaluator order (priority desc, oldest→newest within a
+   * priority — exactly what list_room_rules returns and assignRoom expects).
+   */
+  rules: RoomRule[];
   loaded: boolean;
   /** Seed + subscribe exactly once; later calls are no-ops. */
   load: () => Promise<void>;
@@ -56,17 +62,22 @@ interface RoomsState {
   remove: (id: string) => Promise<string | null>;
   /** Up/down move within the room's project section. */
   move: (id: string, delta: -1 | 1) => Promise<string | null>;
+  createRule: (input: NewRoomRule) => Promise<RuleResult>;
+  updateRule: (rule: RoomRule) => Promise<RuleResult>;
+  removeRule: (id: string) => Promise<string | null>;
 }
 
 let started = false;
 
 export const useRoomsStore = create<RoomsState>((set, get) => ({
   rooms: [],
+  rules: [],
   loaded: false,
   refresh: async () => {
     try {
-      const res = await commands.listRooms();
-      if (res.status === "ok" && Array.isArray(res.data)) set({ rooms: res.data });
+      const [roomsRes, rulesRes] = await Promise.all([commands.listRooms(), commands.listRoomRules(null)]);
+      if (roomsRes.status === "ok" && Array.isArray(roomsRes.data)) set({ rooms: roomsRes.data });
+      if (rulesRes.status === "ok" && Array.isArray(rulesRes.data)) set({ rules: rulesRes.data });
       set({ loaded: true });
     } catch {
       set({ loaded: true }); // backend unavailable (unit tests)
@@ -129,10 +140,38 @@ export const useRoomsStore = create<RoomsState>((set, get) => ({
     if (writes.length > 0) await get().refresh();
     return null;
   },
+  createRule: async (input) => {
+    try {
+      const res = await commands.createRoomRule(input);
+      if (res.status === "ok") await get().refresh();
+      return res;
+    } catch (e) {
+      return { status: "error", error: String(e) };
+    }
+  },
+  updateRule: async (rule) => {
+    try {
+      const res = await commands.updateRoomRule(rule);
+      if (res.status === "ok") await get().refresh();
+      return res;
+    } catch (e) {
+      return { status: "error", error: String(e) };
+    }
+  },
+  removeRule: async (id) => {
+    try {
+      const res = await commands.deleteRoomRule(id);
+      if (res.status === "error") return res.error;
+      await get().refresh();
+      return null;
+    } catch (e) {
+      return String(e);
+    }
+  },
 }));
 
 /** Test-only reset. */
 export function resetRoomsForTests() {
   started = false;
-  useRoomsStore.setState({ rooms: [], loaded: false });
+  useRoomsStore.setState({ rooms: [], rules: [], loaded: false });
 }
