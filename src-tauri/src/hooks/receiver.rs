@@ -15,9 +15,13 @@ use super::conflicts::ConflictDetector;
 use crate::engine::types::{HookSignal, SessionEvent, SessionId};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use tokio::io::AsyncBufReadExt;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
 use tokio::net::UnixListener;
 use tokio::sync::broadcast;
+
+/// Builds the SessionStart `additionalContext` envelope for a cwd, when the
+/// cwd belongs to a registered project (T18). `None` = no injection.
+pub type ContextProvider = Arc<dyn Fn(&str) -> Option<String> + Send + Sync>;
 
 #[derive(Debug, Clone)]
 pub struct ReceiverConfig {
@@ -76,6 +80,16 @@ impl HookReceiver {
         config: ReceiverConfig,
         tx: broadcast::Sender<SessionEvent>,
     ) -> anyhow::Result<Self> {
+        Self::start_with_context(config, tx, None)
+    }
+
+    /// Like [`Self::start`], but SessionStart lines get a one-line JSON-string
+    /// reply with the context envelope (consumed by `crewhub-signal`).
+    pub fn start_with_context(
+        config: ReceiverConfig,
+        tx: broadcast::Sender<SessionEvent>,
+        context: Option<ContextProvider>,
+    ) -> anyhow::Result<Self> {
         if let Some(parent) = config.socket_path.parent() {
             std::fs::create_dir_all(parent).ok();
         }
@@ -93,10 +107,21 @@ impl HookReceiver {
                 let tx = tx.clone();
                 let provider = provider.clone();
                 let conflicts = conflicts.clone();
+                let context = context.clone();
                 tokio::spawn(async move {
-                    let mut lines = tokio::io::BufReader::new(stream).lines();
+                    let (read, mut write) = stream.into_split();
+                    let mut lines = tokio::io::BufReader::new(read).lines();
                     while let Ok(Some(line)) = lines.next_line().await {
-                        handle_line(&provider, &line, &tx, &conflicts);
+                        if let Some(reply) =
+                            handle_line(&provider, &line, &tx, &conflicts, context.as_ref())
+                        {
+                            let _ = write
+                                .write_all(
+                                    format!("{}\n", serde_json::Value::String(reply)).as_bytes(),
+                                )
+                                .await;
+                            let _ = write.flush().await;
+                        }
                     }
                 });
             }
@@ -114,15 +139,16 @@ fn handle_line(
     line: &str,
     tx: &broadcast::Sender<SessionEvent>,
     conflicts: &Mutex<ConflictDetector>,
-) {
+    context: Option<&ContextProvider>,
+) -> Option<String> {
     let Ok(value) = serde_json::from_str::<serde_json::Value>(line) else {
-        return; // malformed line: skip, keep the stream alive
+        return None; // malformed line: skip, keep the stream alive
     };
     let Some(wire_event) = value.get("event").and_then(serde_json::Value::as_str) else {
-        return;
+        return None;
     };
     let Some(session_id) = value.get("session_id").and_then(serde_json::Value::as_str) else {
-        return;
+        return None;
     };
     let event = map_event(wire_event);
     let payload = value.get("payload");
@@ -164,6 +190,17 @@ fn handle_line(
             }
         }
     }
+
+    // T18: SessionStart with a registered-project cwd gets a context reply.
+    if event == "session-start" {
+        if let Some(provider) = context {
+            let cwd = payload
+                .and_then(|p| p.get("cwd"))
+                .and_then(serde_json::Value::as_str)?;
+            return provider(cwd);
+        }
+    }
+    None
 }
 
 #[cfg(test)]

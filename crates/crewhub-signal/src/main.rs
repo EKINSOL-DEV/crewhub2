@@ -14,6 +14,11 @@
 //! Contract: total budget <50ms and **always exit 0** — a session must never
 //! hang or fail because CrewHub is down. Any error (no socket, malformed
 //! stdin, write timeout) is swallowed silently.
+//!
+//! Exception (T18): for `SessionStart` the helper waits up to 300ms for one
+//! reply line (a JSON string) and, when present, prints
+//! `{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":…}}`
+//! to stdout so Claude Code injects CrewHub's room/project/task envelope.
 
 use std::io::Read;
 use std::time::Duration;
@@ -43,22 +48,48 @@ fn run() -> Option<()> {
         "session_id": session_id,
         "payload": payload,
     });
-    send(&format!("{line}\n"))
+    let reply = send(&format!("{line}\n"), event == "SessionStart")?;
+    if let Some(reply) = reply {
+        if let Ok(serde_json::Value::String(context)) = serde_json::from_str(&reply) {
+            if !context.is_empty() {
+                let out = serde_json::json!({
+                    "hookSpecificOutput": {
+                        "hookEventName": "SessionStart",
+                        "additionalContext": context,
+                    }
+                });
+                println!("{out}");
+            }
+        }
+    }
+    Some(())
 }
 
+/// Reply-wait budget for SessionStart context injection (T18).
+const REPLY_TIMEOUT: Duration = Duration::from_millis(300);
+
 #[cfg(unix)]
-fn send(line: &str) -> Option<()> {
-    use std::io::Write;
+fn send(line: &str, await_reply: bool) -> Option<Option<String>> {
+    use std::io::{BufRead, BufReader, Write};
     use std::os::unix::net::UnixStream;
     let mut stream = UnixStream::connect(socket_path()?).ok()?;
     stream.set_write_timeout(Some(SOCKET_TIMEOUT)).ok()?;
     stream.write_all(line.as_bytes()).ok()?;
-    Some(())
+    if !await_reply {
+        return Some(None);
+    }
+    stream.set_read_timeout(Some(REPLY_TIMEOUT)).ok()?;
+    let mut reply = String::new();
+    let mut reader = BufReader::new(stream);
+    match reader.read_line(&mut reply) {
+        Ok(n) if n > 0 => Some(Some(reply.trim_end().to_string())),
+        _ => Some(None),
+    }
 }
 
 /// Windows named-pipe transport is an M6 follow-up; until then this is a no-op.
 #[cfg(not(unix))]
-fn send(_line: &str) -> Option<()> {
+fn send(_line: &str, _await_reply: bool) -> Option<Option<String>> {
     None
 }
 

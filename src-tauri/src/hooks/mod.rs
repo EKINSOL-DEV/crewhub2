@@ -14,5 +14,6 @@
 //!
 //! [`SessionEvent`]: crate::engine::types::SessionEvent
 pub mod conflicts;
+pub mod context;
 pub mod installer;
 pub mod receiver;
