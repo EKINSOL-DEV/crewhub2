@@ -6,10 +6,15 @@
 //! [`crate::hooks`]); they are mapped here to the provider-neutral
 //! [`HookSignal`] names and emitted as [`SessionEvent::Signal`].
 //!
+//! `pre-tool` signals for file-mutating tools also feed the
+//! [`ConflictDetector`] (T19), emitting [`SessionEvent::Conflict`] on overlap.
+//!
 //! Malformed lines are skipped — the stream never crashes on bad input.
 
+use super::conflicts::ConflictDetector;
 use crate::engine::types::{HookSignal, SessionEvent, SessionId};
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 use tokio::io::AsyncBufReadExt;
 use tokio::net::UnixListener;
 use tokio::sync::broadcast;
@@ -20,6 +25,8 @@ pub struct ReceiverConfig {
     /// Provider tag stamped on emitted [`SessionId`]s. Defaults to the Claude
     /// Code provider — the only hook source in M1.
     pub provider: String,
+    /// Conflict-detection window; see [`super::conflicts`].
+    pub conflict_window_ms: i64,
 }
 
 impl Default for ReceiverConfig {
@@ -27,6 +34,7 @@ impl Default for ReceiverConfig {
         Self {
             socket_path: PathBuf::new(),
             provider: crate::engine::claude::PROVIDER_ID.into(),
+            conflict_window_ms: super::conflicts::DEFAULT_WINDOW_MS,
         }
     }
 }
@@ -44,6 +52,9 @@ fn map_event(wire: &str) -> &str {
         other => other,
     }
 }
+
+/// Tools whose `pre-tool` signals count as file touches for conflict detection.
+const MUTATING_TOOLS: &[&str] = &["Edit", "Write", "MultiEdit"];
 
 pub struct HookReceiver {
     socket_path: PathBuf,
@@ -72,6 +83,7 @@ impl HookReceiver {
         let listener = UnixListener::bind(&config.socket_path)?;
         let socket_path = config.socket_path.clone();
         let provider = config.provider;
+        let conflicts = Arc::new(Mutex::new(ConflictDetector::new(config.conflict_window_ms)));
 
         let accept_task = tokio::spawn(async move {
             loop {
@@ -80,10 +92,11 @@ impl HookReceiver {
                 };
                 let tx = tx.clone();
                 let provider = provider.clone();
+                let conflicts = conflicts.clone();
                 tokio::spawn(async move {
                     let mut lines = tokio::io::BufReader::new(stream).lines();
                     while let Ok(Some(line)) = lines.next_line().await {
-                        handle_line(&provider, &line, &tx);
+                        handle_line(&provider, &line, &tx, &conflicts);
                     }
                 });
             }
@@ -96,7 +109,12 @@ impl HookReceiver {
     }
 }
 
-fn handle_line(provider: &str, line: &str, tx: &broadcast::Sender<SessionEvent>) {
+fn handle_line(
+    provider: &str,
+    line: &str,
+    tx: &broadcast::Sender<SessionEvent>,
+    conflicts: &Mutex<ConflictDetector>,
+) {
     let Ok(value) = serde_json::from_str::<serde_json::Value>(line) else {
         return; // malformed line: skip, keep the stream alive
     };
@@ -121,20 +139,31 @@ fn handle_line(provider: &str, line: &str, tx: &broadcast::Sender<SessionEvent>)
         (None, None)
     };
 
+    let id = SessionId {
+        provider: provider.to_string(),
+        id: session_id.to_string(),
+    };
+    let now = crate::store::Store::now_ms();
     let signal = HookSignal {
         event: event.to_string(),
-        tool,
-        path,
+        tool: tool.clone(),
+        path: path.clone(),
         payload_json: payload.map(ToString::to_string),
-        ts: crate::store::Store::now_ms(),
+        ts: now,
     };
     let _ = tx.send(SessionEvent::Signal {
-        id: SessionId {
-            provider: provider.to_string(),
-            id: session_id.to_string(),
-        },
+        id: id.clone(),
         signal,
     });
+
+    if let (Some(tool), Some(path)) = (tool, path) {
+        if MUTATING_TOOLS.contains(&tool.as_str()) {
+            let conflict = conflicts.lock().unwrap().record(&path, id, now);
+            if let Some(event) = conflict {
+                let _ = tx.send(event);
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -292,5 +321,34 @@ mod tests {
         let (id, signal) = next_signal(next_event(&mut rx).await);
         assert_eq!(id.id, "e2e-1");
         assert_eq!(signal.event, "session-start");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn two_sessions_editing_same_path_emit_conflict() {
+        let socket = test_socket("conflict");
+        let (tx, mut rx) = broadcast::channel(64);
+        let _receiver = HookReceiver::start(test_config(&socket), tx).unwrap();
+
+        let extra = r#","tool_name":"Write","tool_input":{"file_path":"/tmp/proj/shared.rs"}"#;
+        // Separate connections, like two distinct hook invocations.
+        for session in ["sess-a", "sess-b"] {
+            let mut stream = UnixStream::connect(&socket).await.unwrap();
+            stream
+                .write_all(wire_line("PreToolUse", session, extra).as_bytes())
+                .await
+                .unwrap();
+        }
+
+        let mut conflict = None;
+        for _ in 0..3 {
+            if let SessionEvent::Conflict { path, sessions } = next_event(&mut rx).await {
+                conflict = Some((path, sessions));
+                break;
+            }
+        }
+        let (path, sessions) = conflict.expect("no Conflict event seen");
+        assert_eq!(path, "/tmp/proj/shared.rs");
+        let ids: Vec<&str> = sessions.iter().map(|s| s.id.as_str()).collect();
+        assert_eq!(ids, vec!["sess-a", "sess-b"]);
     }
 }
