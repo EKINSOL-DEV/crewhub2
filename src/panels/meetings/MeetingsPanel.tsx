@@ -24,12 +24,8 @@ import { useProjectsStore } from "@/stores/projects";
 import { useRoomsStore } from "@/stores/rooms";
 import { useSessionsStore } from "@/stores/sessions";
 import { MeetingDetail } from "./MeetingDetail";
+import { StandupView } from "./StandupView";
 import { StartMeetingDialog } from "./StartMeetingDialog";
-
-// T12 swaps this for the Coffee Standup view; until then the tab is honest.
-function StandupView() {
-  return <EmptyState emoji="☕" title="No standups yet" hint="☕ no standups yet — the crew sleeps in" />;
-}
 
 function MeetingRow({ meeting, onOpen }: { meeting: Meeting; onOpen: (id: string) => void }) {
   const badge = meetingStateBadge(meeting.state);
@@ -179,7 +175,7 @@ export default function MeetingsPanel({ params, setParams }: PanelProps) {
 
       <div className="relative min-h-0 flex-1 overflow-y-auto p-2">
         {view === "standups" ? (
-          <StandupView />
+          <StandupView onError={setError} />
         ) : openMeeting ? (
           <MeetingDetail meeting={openMeeting} onError={setError} />
         ) : loaded && filtered.length === 0 ? (

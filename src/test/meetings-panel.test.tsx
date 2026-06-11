@@ -359,11 +359,12 @@ test("clicking a turn chip reads the transcript at its offset; open-in-chat anch
   expect(chats[0]!.params!.mode).toBeUndefined();
 });
 
-// ── Standups tab placeholder (T12 replaces it) ───────────────────────────────
+// ── Standups tab (full view tested in standup-view.test.tsx) ─────────────────
 
-test("standups tab shows the honest empty state until T12 lands", async () => {
+test("standups tab shows the ☕ empty state when no standup ever ran", async () => {
   mockMeetingsIPC();
   render(<Host />);
   fireEvent.click(await screen.findByTestId("tab-standups"));
+  await screen.findByTestId("standup-view");
   expect(screen.getByText(/the crew sleeps in/)).toBeInTheDocument();
 });
