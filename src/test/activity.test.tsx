@@ -1,7 +1,6 @@
 import { render, screen, fireEvent, cleanup, act } from "@testing-library/react";
 import { mockIPC, clearMocks } from "@tauri-apps/api/mocks";
 import { ActivityPanel } from "@/panels/activity/ActivityPanel";
-import { OPEN_CHAT_EVENT, type OpenChatRequest } from "@/panels/sessions/openChat";
 import {
   foldActivity,
   groupActivity,
@@ -12,8 +11,10 @@ import {
 import { useAgentsStore } from "@/stores/agents";
 import { useBindingsStore } from "@/stores/bindings";
 import { useSessionsStore } from "@/stores/sessions";
-import { binding, meta, sid } from "./fixtures";
+import { resetWorkspaceForTests } from "@/stores/workspace";
+import { binding, chatLeaves, meta, seedWorkspace, sid } from "./fixtures";
 
+beforeEach(seedWorkspace);
 afterEach(() => {
   cleanup();
   clearMocks();
@@ -21,6 +22,7 @@ afterEach(() => {
   useAgentsStore.getState().reset();
   useSessionsStore.getState().reset();
   useBindingsStore.getState().reset();
+  resetWorkspaceForTests();
 });
 
 const NOW = Date.now();
@@ -164,15 +166,8 @@ test("entries stream in live, filter by session chip, click-through opens chat a
   expect(screen.getByText("from one")).toBeInTheDocument();
   expect(screen.queryByText("from two")).toBeNull();
 
-  const opened: OpenChatRequest[] = [];
-  const listener = (e: Event) => opened.push((e as CustomEvent<OpenChatRequest>).detail);
-  window.addEventListener(OPEN_CHAT_EVENT, listener);
-  try {
-    fireEvent.click(screen.getByText("from one"));
-    expect(opened[0]).toMatchObject({ id: "s-1", seq: 7 });
-  } finally {
-    window.removeEventListener(OPEN_CHAT_EVENT, listener);
-  }
+  fireEvent.click(screen.getByText("from one"));
+  expect(chatLeaves()[0]?.params).toMatchObject({ sessionId: "claude-code:s-1", seq: "7" });
 });
 
 test("conflicts render loud", async () => {

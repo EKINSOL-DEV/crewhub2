@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { commands, type Agent, type Project } from "@/ipc/bindings";
 import { useAgentsStore } from "@/stores/agents";
-import { ModelSelect, DEFAULT_MODEL } from "./ModelSelect";
+import { DEFAULT_MODEL, ModelPicker } from "@/components/ModelPicker";
 import { PersonaComposer } from "./PersonaComposer";
 import { composeSystemPrompt, defaultPersona, parsePersona, serializePersona } from "./persona";
 
@@ -167,7 +167,7 @@ export function AgentEditor({
 
       <label className="flex items-center gap-2 text-xs">
         <span className="w-24 shrink-0 text-muted-foreground">Model</span>
-        <ModelSelect value={model} onChange={setModel} />
+        <ModelPicker value={model} onChange={setModel} />
       </label>
 
       <label className="flex items-center gap-2 text-xs">

@@ -8,6 +8,8 @@ import { EmptyState } from "@/components/EmptyState";
 import { PopIn } from "@/components/PopIn";
 import { commands } from "@/ipc/bindings";
 import { cn } from "@/lib/utils";
+import { CrewBar } from "@/panels/crew/CrewBar";
+import { useAgentsStore } from "@/stores/agents";
 import { usePalette } from "@/stores/palette";
 import { useWorkspace } from "@/stores/workspace";
 import { CommandPalette } from "./CommandPalette";
@@ -327,6 +329,25 @@ function HelpSheet({ onClose }: { onClose: () => void }) {
   );
 }
 
+// ── Crew sidebar (T20 slot reserved in T7): pinned agents dock here ──────────
+
+function CrewSidebar() {
+  const hasPinned = useAgentsStore((s) => s.agents.some((a) => a.is_pinned));
+  useEffect(() => {
+    void useAgentsStore.getState().init();
+  }, []);
+  if (!hasPinned) return null;
+  return (
+    <aside
+      data-testid="shell-sidebar"
+      aria-label="Crew"
+      className="w-44 shrink-0 overflow-y-auto border-r p-1.5"
+    >
+      <CrewBar />
+    </aside>
+  );
+}
+
 // ── The shell ────────────────────────────────────────────────────────────────
 
 export function WorkspaceShell() {
@@ -424,17 +445,20 @@ export function WorkspaceShell() {
           {version ? `v${version}` : "backend: connecting…"}
         </span>
       </header>
-      <main className="min-h-0 flex-1 p-1.5">
-        {!loaded || !tab ? (
-          <EmptyState emoji="🛰️" title="Warming up" hint="Restoring your workspace…" />
-        ) : maximizedLeaf ? (
-          <PopIn key={`max-${maximizedLeaf.id}`} className="h-full w-full">
-            <PanelChrome leaf={maximizedLeaf} />
-          </PopIn>
-        ) : (
-          <NodeView node={tab.root} />
-        )}
-      </main>
+      <div className="flex min-h-0 flex-1">
+        <CrewSidebar />
+        <main className="min-h-0 min-w-0 flex-1 p-1.5">
+          {!loaded || !tab ? (
+            <EmptyState emoji="🛰️" title="Warming up" hint="Restoring your workspace…" />
+          ) : maximizedLeaf ? (
+            <PopIn key={`max-${maximizedLeaf.id}`} className="h-full w-full">
+              <PanelChrome leaf={maximizedLeaf} />
+            </PopIn>
+          ) : (
+            <NodeView node={tab.root} />
+          )}
+        </main>
+      </div>
       {showHelp && <HelpSheet onClose={() => setShowHelp(false)} />}
       <CommandPalette />
       <ShellDialogs />

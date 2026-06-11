@@ -2,18 +2,20 @@ import { render, screen, fireEvent, waitFor, cleanup, act } from "@testing-libra
 import { mockIPC, clearMocks } from "@tauri-apps/api/mocks";
 import { CrewBar } from "@/panels/crew/CrewBar";
 import { agentLiveSessions, agentStatus, agentSpawnSpec } from "@/panels/crew/crew-status";
-import { OPEN_CHAT_EVENT, type OpenChatRequest } from "@/panels/sessions/openChat";
 import { useAgentsStore } from "@/stores/agents";
 import { useBindingsStore } from "@/stores/bindings";
 import { joinSessionsView, sessionKey, useSessionsStore } from "@/stores/sessions";
-import { agent, binding, meta, sid } from "./fixtures";
+import { resetWorkspaceForTests } from "@/stores/workspace";
+import { agent, binding, chatLeaves, meta, seedWorkspace, sid } from "./fixtures";
 
+beforeEach(seedWorkspace);
 afterEach(() => {
   cleanup();
   clearMocks();
   useAgentsStore.getState().reset();
   useSessionsStore.getState().reset();
   useBindingsStore.getState().reset();
+  resetWorkspaceForTests();
 });
 
 const scout = agent({ id: "ag-1", name: "Scout", is_pinned: true, project_path: "/work/proj" });
@@ -87,27 +89,20 @@ test("spawn from the bar binds the new session to the agent and opens chat", asy
     if (cmd === "upsert_session_binding") return binding({ session_id: "s-new", agent_id: "ag-1" });
     return null;
   });
-  const opened: OpenChatRequest[] = [];
-  const listener = (e: Event) => opened.push((e as CustomEvent<OpenChatRequest>).detail);
-  window.addEventListener(OPEN_CHAT_EVENT, listener);
-  try {
-    render(<CrewBar />);
-    fireEvent.click(await screen.findByRole("button", { name: "Spawn" }));
-    await waitFor(() => expect(opened).toHaveLength(1));
-    expect(opened[0]).toMatchObject({ id: "s-new", provider: "claude-code" });
-    const spawn = calls.find((c) => c.cmd === "spawn_session")?.args as {
-      providerId: string;
-      spec: { model: string; agent_id: string };
-    };
-    expect(spawn.providerId).toBe("claude-code");
-    expect(spawn.spec.agent_id).toBe("ag-1");
-    const bound = calls.find((c) => c.cmd === "upsert_session_binding")?.args as {
-      input: { session_id: string; agent_id: string };
-    };
-    expect(bound.input).toMatchObject({ session_id: "s-new", agent_id: "ag-1" });
-  } finally {
-    window.removeEventListener(OPEN_CHAT_EVENT, listener);
-  }
+  render(<CrewBar />);
+  fireEvent.click(await screen.findByRole("button", { name: "Spawn" }));
+  await waitFor(() => expect(chatLeaves()).toHaveLength(1));
+  expect(chatLeaves()[0]?.params).toMatchObject({ sessionId: "claude-code:s-new" });
+  const spawn = calls.find((c) => c.cmd === "spawn_session")?.args as {
+    providerId: string;
+    spec: { model: string; agent_id: string };
+  };
+  expect(spawn.providerId).toBe("claude-code");
+  expect(spawn.spec.agent_id).toBe("ag-1");
+  const bound = calls.find((c) => c.cmd === "upsert_session_binding")?.args as {
+    input: { session_id: string; agent_id: string };
+  };
+  expect(bound.input).toMatchObject({ session_id: "s-new", agent_id: "ag-1" });
 });
 
 test("stop kills every live bound session", async () => {

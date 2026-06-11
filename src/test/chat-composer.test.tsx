@@ -6,10 +6,15 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { SessionMeta } from "@/ipc/bindings";
 import { useTranscripts } from "@/stores/transcripts";
+import { useSessionsStore } from "@/stores/sessions";
 import { Composer, slashToken } from "@/panels/chat/Composer";
 import { SpawnFromChat } from "@/panels/chat/SpawnFromChat";
-import { ingestMeta, useMetaStore } from "@/panels/chat/useSessionMeta";
 import { fuzzyFilter, fuzzyScore } from "@/panels/chat/fuzzy";
+
+/** Chat reads session meta from the shared sessions store (T18) post-merge. */
+function ingestMeta(m: SessionMeta): void {
+  useSessionsStore.getState().apply({ type: "Updated", data: { meta: m } });
+}
 
 function meta(status: SessionMeta["status"]): SessionMeta {
   return {
@@ -29,7 +34,7 @@ function meta(status: SessionMeta["status"]): SessionMeta {
 beforeEach(() => {
   mockReducedMotion(false);
   useTranscripts.setState({ sessions: {} });
-  useMetaStore.setState({ metas: {} });
+  useSessionsStore.getState().reset();
 });
 afterEach(clearMocks);
 

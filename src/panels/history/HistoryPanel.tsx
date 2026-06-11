@@ -1,16 +1,18 @@
 // History panel (T24, EKI-78): browse archived sessions grouped by date,
 // search transcripts with snippet hits, open read-only in chat history mode.
 import { useCallback, useEffect, useRef, useState } from "react";
+import { openChatPanel } from "@/app/open-chat";
+import { useProjectFilter } from "@/app/project-filter";
 import { EmptyState } from "@/components/EmptyState";
 import { commands, type ArchivedSession, type SearchHit } from "@/ipc/bindings";
-import { requestOpenChat } from "../sessions/openChat";
 import { useNow } from "../sessions/useNow";
 import { groupArchived, projectName } from "./group";
 
-// Accepts registry PanelProps; only `params.projectFilter` is read.
-// TODO(merge): take the filter from Lane A's useProjectFilter (EKI-22).
-export function HistoryPanel({ params }: { params?: Record<string, string> }) {
-  const projectFilter = params?.["projectFilter"] ?? null;
+// Mounts as a registry panel (PanelProps-compatible); the project scope comes
+// from the shell's tab-scoped global filter (EKI-22), not panel params.
+export function HistoryPanel() {
+  const { project } = useProjectFilter();
+  const projectFilter = project?.folder_path ?? null;
   const [archived, setArchived] = useState<ArchivedSession[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -63,7 +65,7 @@ export function HistoryPanel({ params }: { params?: Record<string, string> }) {
     debounce.current = setTimeout(() => void runSearch(q), 300);
   };
 
-  const open = (provider: string, id: string) => requestOpenChat({ provider, id, mode: "history" });
+  const open = (provider: string, id: string) => openChatPanel({ provider, id, mode: "history" });
   const groups = groupArchived(archived ?? [], now);
 
   return (

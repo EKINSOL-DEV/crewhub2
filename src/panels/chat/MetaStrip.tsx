@@ -4,10 +4,12 @@
 import { useState } from "react";
 import { StatusEmoji } from "@/components/StatusEmoji";
 import { commands, type SessionId } from "@/ipc/bindings";
+import { useAgentsStore } from "@/stores/agents";
+import { useBindingsStore } from "@/stores/bindings";
+import { useSessionsStore } from "@/stores/sessions";
 import { sessionKey, useTranscripts } from "@/stores/transcripts";
 import { humanizeId, shortId } from "./humanize";
 import { formatTokens, sumUsage } from "./render-list";
-import { useSessionMeta } from "./useSessionMeta";
 
 export function MetaStrip({
   sid,
@@ -20,7 +22,13 @@ export function MetaStrip({
   note?: string | undefined;
 }) {
   const key = sessionKey(sid);
-  const meta = useSessionMeta(key);
+  const meta = useSessionsStore((s) => s.sessions[key]);
+  // Display name from the T18 join: binding display_name ?? agent name ?? humanized id.
+  const binding = useBindingsStore((s) => s.bindings[sid.id]);
+  const agentName = useAgentsStore((s) =>
+    binding?.agent_id ? s.agents.find((a) => a.id === binding.agent_id)?.name : undefined,
+  );
+  const displayName = binding?.display_name ?? agentName ?? humanizeId(sid.id);
   const t = useTranscripts((s) => s.sessions[key]);
   const [interrupting, setInterrupting] = useState(false);
 
@@ -49,7 +57,7 @@ export function MetaStrip({
       className="flex items-center gap-2 border-b border-border px-3 py-1.5 text-xs"
     >
       <StatusEmoji status={status} />
-      <span className="font-medium">{humanizeId(sid.id)}</span>
+      <span className="font-medium">{displayName}</span>
       <span className="font-mono text-muted-foreground">{shortId(sid.id)}</span>
       {historyMode && (
         <span className="rounded border border-border px-1.5 py-0.5 text-muted-foreground">👀 history</span>

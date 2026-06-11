@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { commands, type SessionId, type SlashCommand } from "@/ipc/bindings";
 import { sessionKey, useTranscripts } from "@/stores/transcripts";
 import { fuzzyFilter } from "./fuzzy";
-import { useSessionMeta } from "./useSessionMeta";
+import { useSessionsStore } from "@/stores/sessions";
 
 interface QueuedSend {
   id: number;
@@ -39,7 +39,7 @@ export function slashToken(value: string): string | null {
 
 export function Composer({ sid }: { sid: SessionId }) {
   const key = sessionKey(sid);
-  const meta = useSessionMeta(key);
+  const meta = useSessionsStore((s) => s.sessions[key]);
   const transcript = useTranscripts((s) => s.sessions[key]);
   const [value, setValue] = useState("");
   const [queued, setQueued] = useState<QueuedSend[]>([]);

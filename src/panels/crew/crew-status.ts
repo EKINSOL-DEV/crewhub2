@@ -2,7 +2,7 @@
 import type { SessionStatus, SpawnSpec } from "@/ipc/bindings";
 import type { Agent } from "@/ipc/bindings";
 import type { SessionView } from "@/stores/sessions";
-import { DEFAULT_MODEL } from "./ModelSelect";
+import { DEFAULT_MODEL } from "@/components/ModelPicker";
 
 /** Most-attention-worthy first: 🙋 beats 🔨 beats 💬 beats 😴. */
 const STATUS_PRIORITY: SessionStatus[] = [

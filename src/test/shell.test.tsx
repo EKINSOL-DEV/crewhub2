@@ -19,12 +19,15 @@ async function loadDefaultWorkspace() {
 }
 
 describe("WorkspaceShell", () => {
-  test("renders the default cockpit preset with Quiet Office placeholders", async () => {
+  test("renders the default cockpit preset with the real panels' quiet states", async () => {
     await loadDefaultWorkspace();
     render(<WorkspaceShell />);
-    expect(await screen.findByText("Nobody's talking yet")).toBeInTheDocument();
-    expect(await screen.findByText("The office is quiet")).toBeInTheDocument();
-    expect(await screen.findByText("All calm")).toBeInTheDocument();
+    // unbound chat offers spawn-from-chat; sessions/activity show Quiet Office
+    // (generous timeout: the lazy chat chunk is the heaviest import in the suite)
+    expect(await screen.findByTestId("spawn-from-chat", {}, { timeout: 10_000 })).toBeInTheDocument();
+    expect(await screen.findByText(/Nobody's talking yet/)).toBeInTheDocument();
+    expect(await screen.findByText("The office is quiet", {}, { timeout: 10_000 })).toBeInTheDocument();
+    expect(await screen.findByText("All calm", {}, { timeout: 10_000 })).toBeInTheDocument();
   });
 
   test("renders splitters for each split node", async () => {

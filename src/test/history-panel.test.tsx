@@ -1,14 +1,18 @@
 import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
 import { mockIPC, clearMocks } from "@tauri-apps/api/mocks";
+import { resetProjectsForTests, useProjects } from "@/app/project-filter";
 import { dayLabel, groupArchived, projectName } from "@/panels/history/group";
 import { HistoryPanel } from "@/panels/history/HistoryPanel";
 import { HandoffMenu } from "@/panels/sessions/HandoffMenu";
-import { OPEN_CHAT_EVENT, type OpenChatRequest } from "@/panels/sessions/openChat";
-import { archived, sid } from "./fixtures";
+import { resetWorkspaceForTests, useWorkspace } from "@/stores/workspace";
+import { archived, chatLeaves, project, seedWorkspace, sid } from "./fixtures";
 
+beforeEach(seedWorkspace);
 afterEach(() => {
   cleanup();
   clearMocks();
+  resetProjectsForTests();
+  resetWorkspaceForTests();
 });
 
 const NOW = Date.now();
@@ -55,19 +59,17 @@ test("archived sessions list grouped, click opens chat in history mode", async (
     }
     return null;
   });
-  const opened: OpenChatRequest[] = [];
-  const listener = (e: Event) => opened.push((e as CustomEvent<OpenChatRequest>).detail);
-  window.addEventListener(OPEN_CHAT_EVENT, listener);
-  try {
-    render(<HistoryPanel params={{ projectFilter: "/work/proj" }} />);
-    fireEvent.click(await screen.findByText("fixed the flux capacitor"));
-    expect(opened[0]).toMatchObject({ id: "arch-1", mode: "history" });
-    expect(listed).toEqual(["/work/proj"]); // T1 filter forwarded
-    expect(screen.getByText("Today")).toBeInTheDocument();
-    expect(screen.getByText("proj")).toBeInTheDocument();
-  } finally {
-    window.removeEventListener(OPEN_CHAT_EVENT, listener);
-  }
+  useProjects.setState({ projects: [project({ id: "p-1", folder_path: "/work/proj" })], loaded: true });
+  useWorkspace.getState().setProjectFilter("p-1");
+  render(<HistoryPanel />);
+  fireEvent.click(await screen.findByText("fixed the flux capacitor"));
+  expect(chatLeaves()[0]?.params).toMatchObject({
+    sessionId: "claude-code:arch-1",
+    mode: "history",
+  });
+  expect(listed).toEqual(["/work/proj"]); // EKI-22 filter forwarded
+  expect(screen.getByText("Today")).toBeInTheDocument();
+  expect(screen.getByText("proj")).toBeInTheDocument();
 });
 
 test("search shows snippet hits and opens history mode", async () => {
@@ -81,20 +83,16 @@ test("search shows snippet hits and opens history mode", async () => {
     }
     return null;
   });
-  const opened: OpenChatRequest[] = [];
-  const listener = (e: Event) => opened.push((e as CustomEvent<OpenChatRequest>).detail);
-  window.addEventListener(OPEN_CHAT_EVENT, listener);
-  try {
-    render(<HistoryPanel />);
-    const input = await screen.findByLabelText("Search transcripts");
-    fireEvent.change(input, { target: { value: "capacitor" } });
-    fireEvent.keyDown(input, { key: "Enter" }); // bypass debounce
-    const hit = await screen.findByText("…the flux capacitor hums…");
-    fireEvent.click(hit);
-    expect(opened[0]).toMatchObject({ id: "arch-9", mode: "history" });
-  } finally {
-    window.removeEventListener(OPEN_CHAT_EVENT, listener);
-  }
+  render(<HistoryPanel />);
+  const input = await screen.findByLabelText("Search transcripts");
+  fireEvent.change(input, { target: { value: "capacitor" } });
+  fireEvent.keyDown(input, { key: "Enter" }); // bypass debounce
+  const hit = await screen.findByText("…the flux capacitor hums…");
+  fireEvent.click(hit);
+  expect(chatLeaves()[0]?.params).toMatchObject({
+    sessionId: "claude-code:arch-9",
+    mode: "history",
+  });
 });
 
 describe("handoff menu (EKI-80)", () => {

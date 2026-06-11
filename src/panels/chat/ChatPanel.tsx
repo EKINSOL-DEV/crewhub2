@@ -2,7 +2,12 @@
 // history mode. `params.sessionId` = "provider:id"; `params.mode = "history"`
 // renders read-only (EKI-60).
 import { useEffect, useMemo, useState } from "react";
+import { openChatPanel } from "@/app/open-chat";
 import { commands } from "@/ipc/bindings";
+import type { PanelProps } from "@/panels/registry";
+import { useAgentsStore } from "@/stores/agents";
+import { useBindingsStore } from "@/stores/bindings";
+import { useSessionsStore } from "@/stores/sessions";
 import { parseSessionKey, sessionKey, startTranscriptStream, useTranscripts } from "@/stores/transcripts";
 import { Composer } from "./Composer";
 import { ChatContext, type ChatContextValue } from "./context";
@@ -10,16 +15,17 @@ import { HistoryFooter } from "./HistoryFooter";
 import { MetaStrip } from "./MetaStrip";
 import { PromptsArea } from "./prompts";
 import { SpawnFromChat } from "./SpawnFromChat";
-import type { PanelProps } from "./panel-contract";
 import { buildSubagentGroups } from "./subagents";
 import { TypingBot } from "./TypingBot";
-import { startSessionMetaStream, useAllMetas, useSessionMeta } from "./useSessionMeta";
 import { VirtualTranscript } from "./VirtualTranscript";
 
 export function ChatPanel({ params, setParams }: PanelProps) {
   useEffect(() => {
     startTranscriptStream();
-    startSessionMetaStream();
+    // Session metadata + display names come from the shared stores (T18 join).
+    void useSessionsStore.getState().init();
+    void useBindingsStore.getState().init();
+    void useAgentsStore.getState().init();
   }, []);
 
   const skey = params.sessionId;
@@ -47,8 +53,8 @@ function BoundChat({
     void useTranscripts.getState().openSession(sid);
   }, [sid]);
 
-  const meta = useSessionMeta(skey);
-  const metas = useAllMetas();
+  const meta = useSessionsStore((s) => s.sessions[skey]);
+  const metas = useSessionsStore((s) => s.sessions);
   const sessions = useTranscripts((s) => s.sessions);
   const groups = useMemo(() => buildSubagentGroups(sessionKey(sid), metas, sessions), [sid, metas, sessions]);
 
@@ -58,7 +64,8 @@ function BoundChat({
   const showTyping = !historyMode && meta?.status === "Working" && lastItem?.kind !== "AssistantText";
 
   // Rewind = fork-from-checkpoint (EKI-64): the new session resumes this one
-  // as a fork; the original stays untouched. Annotated in the panel params.
+  // as a fork and opens in a NEW panel via the workspace store — the original
+  // stays untouched and visible. Annotated in the new panel's params.
   const projectPath = meta?.project_path ?? params.projectPath;
   const ctx = useMemo<ChatContextValue>(() => {
     const base: ChatContextValue = { sessionId: sid, readOnly: historyMode };
@@ -79,7 +86,11 @@ function BoundChat({
               agent_id: null,
             });
             if (res.status === "ok") {
-              setParams({ sessionId: sessionKey(res.data), note: `⏪ rewind @ ${checkpointId}` });
+              openChatPanel({
+                provider: res.data.provider,
+                id: res.data.id,
+                note: `⏪ rewind @ ${checkpointId}`,
+              });
             } else {
               setRewindError(res.error);
             }
@@ -89,7 +100,7 @@ function BoundChat({
         })();
       },
     };
-  }, [sid, historyMode, projectPath, setParams]);
+  }, [sid, historyMode, projectPath]);
 
   return (
     <ChatContext.Provider value={ctx}>
@@ -110,12 +121,13 @@ function BoundChat({
             sid={sid}
             projectPath={params.projectPath}
             onLive={(id, kind) => {
-              // Take-over swaps this panel live; forks open on the fork's id.
-              // TODO(merge): "Fork from here" should open a NEW panel via Lane
-              // A's workspace store — until merge it swaps in place.
-              const next: Record<string, string> = { sessionId: sessionKey(id) };
-              if (kind === "fork") next.note = `fork of ${skey}`;
-              setParams(next);
+              // Take-over swaps this panel live; forks open a NEW panel via the
+              // workspace store — the original history view stays put.
+              if (kind === "fork") {
+                openChatPanel({ provider: id.provider, id: id.id, note: `fork of ${skey}` });
+              } else {
+                setParams({ sessionId: sessionKey(id) });
+              }
             }}
           />
         ) : (

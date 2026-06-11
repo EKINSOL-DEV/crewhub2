@@ -6,7 +6,7 @@ import { commands, type Agent } from "@/ipc/bindings";
 import { useAgentsStore } from "@/stores/agents";
 import { useBindingsStore } from "@/stores/bindings";
 import type { SessionView } from "@/stores/sessions";
-import { requestOpenChat } from "../sessions/openChat";
+import { openChatPanel } from "@/app/open-chat";
 import { agentSpawnSpec, agentStatus } from "./crew-status";
 
 export function AgentCard({
@@ -46,7 +46,7 @@ export function AgentCard({
         display_name: null,
         pinned: false,
       });
-      requestOpenChat({ provider: res.data.provider, id: res.data.id });
+      openChatPanel({ provider: res.data.provider, id: res.data.id });
     } finally {
       setBusy(false);
     }
@@ -54,7 +54,7 @@ export function AgentCard({
 
   const open = () => {
     if (primary) {
-      requestOpenChat({ provider: primary.meta.id.provider, id: primary.meta.id.id });
+      openChatPanel({ provider: primary.meta.id.provider, id: primary.meta.id.id });
     } else {
       void spawn();
     }

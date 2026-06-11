@@ -3,19 +3,25 @@ import { mockReducedMotion, TEST_SID, user, checkpoint } from "./chat-helpers";
 import { mockIPC, clearMocks } from "@tauri-apps/api/mocks";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useSessionsStore } from "@/stores/sessions";
+import { resetWorkspaceForTests } from "@/stores/workspace";
 import { sessionKey, useTranscripts } from "@/stores/transcripts";
 import { ChatPanel } from "@/panels/chat";
 import { CheckpointMarker } from "@/panels/chat/items/Rows";
-import { useMetaStore } from "@/panels/chat/useSessionMeta";
+import { chatLeaves, seedWorkspace } from "./fixtures";
 
 const KEY = sessionKey(TEST_SID);
 
 beforeEach(() => {
   mockReducedMotion(false);
   useTranscripts.setState({ sessions: {} });
-  useMetaStore.setState({ metas: {} });
+  useSessionsStore.getState().reset();
+  seedWorkspace();
 });
-afterEach(clearMocks);
+afterEach(() => {
+  clearMocks();
+  resetWorkspaceForTests();
+});
 
 function mockPanelIpc(onSpawn: (spec: Record<string, unknown>) => void) {
   mockIPC((cmd, args) => {
@@ -48,12 +54,11 @@ test("checkpoint renders as a subtle timeline marker", async () => {
   expect(screen.getByTestId("checkpoint-marker")).toHaveTextContent("📍 checkpoint");
 });
 
-test("rewind: confirm dialog → spawnSession fork from this session, panel annotated", async () => {
+test("rewind: confirm dialog → spawnSession fork opens a NEW annotated panel", async () => {
   const specs: Array<Record<string, unknown>> = [];
   mockPanelIpc((s) => specs.push(s));
-  const setParams = vi.fn();
   render(
-    <ChatPanel leafId="l1" params={{ sessionId: KEY, projectPath: "/work/proj" }} setParams={setParams} />,
+    <ChatPanel leafId="l1" params={{ sessionId: KEY, projectPath: "/work/proj" }} setParams={vi.fn()} />,
   );
   await screen.findByTestId("checkpoint-rewind");
   await userEvent.click(screen.getByTestId("checkpoint-rewind"));
@@ -64,8 +69,9 @@ test("rewind: confirm dialog → spawnSession fork from this session, panel anno
   await waitFor(() => expect(specs).toHaveLength(1));
   expect(specs[0]?.resume_session).toBe(TEST_SID.id);
   expect(specs[0]?.fork).toBe(true);
+  // the fork lands in a new workspace chat panel, annotated (Lane B parked #3)
   await waitFor(() =>
-    expect(setParams).toHaveBeenCalledWith({
+    expect(chatLeaves()[0]?.params).toMatchObject({
       sessionId: "claude-code:rewound-1",
       note: "⏪ rewind @ ckpt-7",
     }),

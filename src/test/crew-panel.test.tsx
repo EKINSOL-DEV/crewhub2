@@ -34,8 +34,7 @@ beforeEach(() => mockMatchMedia(false));
 test("editor defaults the model to haiku for new agents (D-M2-7)", async () => {
   mockIPC(() => null);
   render(<AgentEditor onClose={() => {}} />);
-  const select = (await screen.findByTestId("model-select")) as HTMLSelectElement;
-  expect(select.value).toBe("haiku");
+  expect(await screen.findByTestId("model-haiku")).toHaveAttribute("aria-checked", "true");
 });
 
 test("hiring composes the persona into system_prompt and applies extras", async () => {

@@ -1,6 +1,7 @@
 // Sessions panel (T22, EKI-74): live table/cards of every managed + external
 // session, joined with bindings (T18) — open, bind, interrupt, kill, handoff.
 import { useEffect, useState } from "react";
+import { useProjectFilter } from "@/app/project-filter";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/EmptyState";
 import { StatusEmoji } from "@/components/StatusEmoji";
@@ -11,7 +12,7 @@ import { useSessionsStore, useSessionsView, type SessionView } from "@/stores/se
 import { BindingControls } from "./BindingControls";
 import { formatRelative, formatUsage } from "./format";
 import { HandoffMenu } from "./HandoffMenu";
-import { requestOpenChat } from "./openChat";
+import { openChatPanel } from "@/app/open-chat";
 import { useNow } from "./useNow";
 
 function OriginBadge({ origin }: { origin: SessionView["meta"]["origin"] }) {
@@ -50,7 +51,7 @@ function RowActions({
       <Button
         size="xs"
         variant="outline"
-        onClick={() => requestOpenChat({ provider: view.meta.id.provider, id: view.meta.id.id })}
+        onClick={() => openChatPanel({ provider: view.meta.id.provider, id: view.meta.id.id })}
       >
         Open
       </Button>
@@ -89,11 +90,12 @@ function RowActions({
   );
 }
 
-// Accepts registry PanelProps; only `params.projectFilter` is read.
-// TODO(merge): take the filter from Lane A's useProjectFilter (EKI-22).
-export function SessionsPanel({ params }: { params?: Record<string, string> }) {
+// Mounts as a registry panel (PanelProps-compatible); the project scope comes
+// from the shell's tab-scoped global filter (EKI-22), not panel params.
+export function SessionsPanel() {
+  const { project } = useProjectFilter();
   const loaded = useSessionsStore((s) => s.loaded);
-  const views = useSessionsView(params?.["projectFilter"] ?? null);
+  const views = useSessionsView(project?.folder_path ?? null);
   const [mode, setMode] = useState<"table" | "cards">("table");
   const [bindingFor, setBindingFor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

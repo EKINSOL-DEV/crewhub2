@@ -1,19 +1,23 @@
 import { render, screen, fireEvent, waitFor, cleanup, act, within } from "@testing-library/react";
 import { mockIPC, clearMocks } from "@tauri-apps/api/mocks";
+import { resetProjectsForTests, useProjects } from "@/app/project-filter";
 import { formatRelative, formatTokens, formatUsage } from "@/panels/sessions/format";
 import { SessionsPanel } from "@/panels/sessions/SessionsPanel";
-import { OPEN_CHAT_EVENT, type OpenChatRequest } from "@/panels/sessions/openChat";
 import { useAgentsStore } from "@/stores/agents";
 import { useBindingsStore } from "@/stores/bindings";
 import { useSessionsStore } from "@/stores/sessions";
-import { agent, binding, meta, sid } from "./fixtures";
+import { resetWorkspaceForTests, useWorkspace } from "@/stores/workspace";
+import { agent, binding, chatLeaves, meta, project, seedWorkspace, sid } from "./fixtures";
 
+beforeEach(seedWorkspace);
 afterEach(() => {
   cleanup();
   clearMocks();
   useAgentsStore.getState().reset();
   useSessionsStore.getState().reset();
   useBindingsStore.getState().reset();
+  resetProjectsForTests();
+  resetWorkspaceForTests();
 });
 
 describe("format helpers", () => {
@@ -96,14 +100,16 @@ test("lists managed + external with binding names, agent and origin badges", asy
   expect(screen.getByTestId("session-row-cccc-new")).toBeInTheDocument();
 });
 
-test("project filter from panel params scopes the list (EKI-22 hook point)", async () => {
+test("the tab-scoped global project filter scopes the list (EKI-22)", async () => {
   mockWorld();
-  render(<SessionsPanel params={{ projectFilter: "/work/proj" }} />);
+  useProjects.setState({ projects: [project({ id: "p-1", folder_path: "/work/proj" })], loaded: true });
+  useWorkspace.getState().setProjectFilter("p-1");
+  render(<SessionsPanel />);
   await screen.findByTestId("session-row-aaaa-managed");
   expect(screen.queryByTestId("session-row-bbbb-external")).toBeNull();
 });
 
-test("open dispatches the open-chat gesture; kill needs a confirm click", async () => {
+test("open routes through the workspace open-chat action; kill needs a confirm click", async () => {
   const killed: string[] = [];
   mockWorld((cmd, args) => {
     if (cmd === "kill_session") {
@@ -112,22 +118,15 @@ test("open dispatches the open-chat gesture; kill needs a confirm click", async 
     }
     return undefined;
   });
-  const opened: OpenChatRequest[] = [];
-  const listener = (e: Event) => opened.push((e as CustomEvent<OpenChatRequest>).detail);
-  window.addEventListener(OPEN_CHAT_EVENT, listener);
-  try {
-    render(<SessionsPanel />);
-    const row = await screen.findByTestId("session-row-aaaa-managed");
-    fireEvent.click(within(row).getByRole("button", { name: "Open" }));
-    expect(opened[0]).toMatchObject({ id: "aaaa-managed" });
+  render(<SessionsPanel />);
+  const row = await screen.findByTestId("session-row-aaaa-managed");
+  fireEvent.click(within(row).getByRole("button", { name: "Open" }));
+  expect(chatLeaves()[0]?.params).toMatchObject({ sessionId: "claude-code:aaaa-managed" });
 
-    fireEvent.click(within(row).getByRole("button", { name: "Kill" }));
-    expect(killed).toHaveLength(0); // not yet — needs confirm
-    fireEvent.click(within(row).getByRole("button", { name: "Sure?" }));
-    await waitFor(() => expect(killed).toEqual(["aaaa-managed"]));
-  } finally {
-    window.removeEventListener(OPEN_CHAT_EVENT, listener);
-  }
+  fireEvent.click(within(row).getByRole("button", { name: "Kill" }));
+  expect(killed).toHaveLength(0); // not yet — needs confirm
+  fireEvent.click(within(row).getByRole("button", { name: "Sure?" }));
+  await waitFor(() => expect(killed).toEqual(["aaaa-managed"]));
 });
 
 test("bind action opens the binding controls inline", async () => {

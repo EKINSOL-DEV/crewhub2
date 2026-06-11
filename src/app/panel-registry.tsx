@@ -29,7 +29,7 @@ export const PANELS: Record<PanelKind, PanelDefinition> = {
     description: "Talk to a session — full-fidelity transcript",
     keywords: ["conversation", "messages", "transcript", "talk", "session"],
     shortcutHint: "c",
-    component: lazy(() => import("./panel-placeholders").then((m) => ({ default: m.ChatPlaceholder }))),
+    component: lazy(() => import("@/panels/chat/ChatPanel")),
     emptyState: { emoji: "💤", title: "Nobody's talking yet", hint: "Summon a crew member to get started" },
   },
   sessions: {
@@ -39,7 +39,9 @@ export const PANELS: Record<PanelKind, PanelDefinition> = {
     description: "Live managed + external sessions",
     keywords: ["sessions", "live", "running", "agents", "list"],
     shortcutHint: "s",
-    component: lazy(() => import("./panel-placeholders").then((m) => ({ default: m.SessionsPlaceholder }))),
+    component: lazy(() =>
+      import("@/panels/sessions/SessionsPanel").then((m) => ({ default: m.SessionsPanel })),
+    ),
     emptyState: { emoji: "🏢", title: "The office is quiet", hint: "Spawn a session to liven the place up" },
   },
   activity: {
@@ -49,7 +51,9 @@ export const PANELS: Record<PanelKind, PanelDefinition> = {
     description: "Live activity feed across all sessions",
     keywords: ["activity", "feed", "events", "log", "stream"],
     shortcutHint: "a",
-    component: lazy(() => import("./panel-placeholders").then((m) => ({ default: m.ActivityPlaceholder }))),
+    component: lazy(() =>
+      import("@/panels/activity/ActivityPanel").then((m) => ({ default: m.ActivityPanel })),
+    ),
     emptyState: { emoji: "🍃", title: "All calm", hint: "Tool calls and signals will stream in here" },
   },
   history: {
@@ -59,7 +63,7 @@ export const PANELS: Record<PanelKind, PanelDefinition> = {
     description: "Browse and search archived sessions",
     keywords: ["history", "archive", "past", "search", "transcripts"],
     shortcutHint: "h",
-    component: lazy(() => import("./panel-placeholders").then((m) => ({ default: m.HistoryPlaceholder }))),
+    component: lazy(() => import("@/panels/history/HistoryPanel").then((m) => ({ default: m.HistoryPanel }))),
     emptyState: { emoji: "🗄️", title: "No past lives yet", hint: "Finished sessions will rest here" },
   },
   crew: {
@@ -69,7 +73,7 @@ export const PANELS: Record<PanelKind, PanelDefinition> = {
     description: "Manage agents — personas, models, pinning",
     keywords: ["crew", "agents", "team", "personas", "hire"],
     shortcutHint: "r",
-    component: lazy(() => import("./panel-placeholders").then((m) => ({ default: m.CrewPlaceholder }))),
+    component: lazy(() => import("@/panels/crew/CrewPanel").then((m) => ({ default: m.CrewPanel }))),
     emptyState: { emoji: "🧑‍🚀", title: "Hire your first agent", hint: "A crew makes the ship go" },
   },
   settings: {

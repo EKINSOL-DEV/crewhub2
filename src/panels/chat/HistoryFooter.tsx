@@ -5,7 +5,7 @@ import { useState } from "react";
 import { DEFAULT_SPAWN_MODEL, MODEL_TIERS, ModelPicker } from "@/components/ModelPicker";
 import { commands, type SessionId, type SessionMeta } from "@/ipc/bindings";
 import { sessionKey } from "@/stores/transcripts";
-import { useSessionMeta } from "./useSessionMeta";
+import { useSessionsStore } from "@/stores/sessions";
 
 /**
  * Take-over gate: enabled for archived sessions (no live meta) and for
@@ -28,7 +28,7 @@ export function HistoryFooter({
   /** Swap this panel onto the (new) live session id. */
   onLive: (id: SessionId, kind: "takeover" | "fork") => void;
 }) {
-  const meta = useSessionMeta(sessionKey(sid));
+  const meta = useSessionsStore((s) => s.sessions[sessionKey(sid)]);
   const [confirm, setConfirm] = useState<"takeover" | "fork" | null>(null);
   const sessionModel = meta?.model;
   const [model, setModel] = useState(

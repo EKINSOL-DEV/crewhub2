@@ -34,7 +34,8 @@ export const useAgentsStore = create<AgentsState>((set, get) => ({
   refresh: async () => {
     try {
       const res = await commands.listAgents();
-      if (res.status === "ok") set({ agents: res.data });
+      // Array.isArray also guards loosely-mocked IPC (null data) in tests.
+      if (res.status === "ok" && Array.isArray(res.data)) set({ agents: res.data });
       set({ loaded: true });
     } catch {
       set({ loaded: true }); // backend unavailable (unit tests)

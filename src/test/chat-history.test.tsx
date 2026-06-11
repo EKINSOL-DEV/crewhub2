@@ -4,12 +4,17 @@ import { mockIPC, clearMocks } from "@tauri-apps/api/mocks";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { SessionMeta } from "@/ipc/bindings";
+import { useSessionsStore } from "@/stores/sessions";
 import { sessionKey, useTranscripts } from "@/stores/transcripts";
 import { ChatPanel } from "@/panels/chat";
 import { canTakeOver, HistoryFooter } from "@/panels/chat/HistoryFooter";
-import { ingestMeta, useMetaStore } from "@/panels/chat/useSessionMeta";
 
 const KEY = sessionKey(TEST_SID);
+
+/** Chat reads session meta from the shared sessions store (T18) post-merge. */
+function ingestMeta(m: SessionMeta): void {
+  useSessionsStore.getState().apply({ type: "Updated", data: { meta: m } });
+}
 
 function meta(over: Partial<SessionMeta>): SessionMeta {
   return {
@@ -30,7 +35,7 @@ function meta(over: Partial<SessionMeta>): SessionMeta {
 beforeEach(() => {
   mockReducedMotion(false);
   useTranscripts.setState({ sessions: {} });
-  useMetaStore.setState({ metas: {} });
+  useSessionsStore.getState().reset();
 });
 afterEach(clearMocks);
 

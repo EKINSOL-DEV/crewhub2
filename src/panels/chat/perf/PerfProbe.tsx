@@ -1,7 +1,7 @@
 // `?perf` probe (D-M2-4 budget enforcement): mounts a 5k-item synthetic
 // transcript, auto-scrolls it, and reports frame-time percentiles on
 // `window.__CREWHUB_PERF__` + in the DOM (`data-testid="perf-result"`).
-// TODO(merge): Lane A mounts this behind the `?perf` query in the shell.
+// Mounted behind the `?perf` query in the shell entry (src/App.tsx).
 import { useEffect, useRef, useState } from "react";
 import type { SessionId } from "@/ipc/bindings";
 import { useTranscripts } from "@/stores/transcripts";

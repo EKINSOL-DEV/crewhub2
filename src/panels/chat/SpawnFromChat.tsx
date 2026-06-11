@@ -9,19 +9,20 @@ export function SpawnFromChat({ onSpawned }: { onSpawned: (id: SessionId) => voi
   const [projects, setProjects] = useState<Project[]>([]);
   const [agentId, setAgentId] = useState<string>("");
   const [projectPath, setProjectPath] = useState("");
-  const [model, setModel] = useState(DEFAULT_SPAWN_MODEL);
+  const [model, setModel] = useState<string>(DEFAULT_SPAWN_MODEL);
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Array.isArray also guards loosely-mocked IPC (null data) in tests.
     void commands
       .listAgents()
-      .then((r) => r.status === "ok" && setAgents(r.data))
+      .then((r) => r.status === "ok" && Array.isArray(r.data) && setAgents(r.data))
       .catch(() => {});
     void commands
       .listProjects()
-      .then((r) => r.status === "ok" && setProjects(r.data))
+      .then((r) => r.status === "ok" && Array.isArray(r.data) && setProjects(r.data))
       .catch(() => {});
   }, []);
 

@@ -6,7 +6,7 @@ import { useActivityStore, groupActivity, type ActivityEntry } from "@/stores/ac
 import { useAgentsStore } from "@/stores/agents";
 import { useBindingsStore } from "@/stores/bindings";
 import { useSessionsStore, useSessionsView } from "@/stores/sessions";
-import { requestOpenChat } from "../sessions/openChat";
+import { openChatPanel } from "@/app/open-chat";
 import { useNow } from "../sessions/useNow";
 
 function Chip({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
@@ -53,7 +53,7 @@ function Row({ entry, name }: { entry: ActivityEntry; name: string | null }) {
       className={`${className} hover:bg-accent/10`}
       title="Open this session's chat"
       onClick={() =>
-        requestOpenChat(
+        openChatPanel(
           entry.seq === undefined
             ? { provider: target.provider, id: target.id }
             : { provider: target.provider, id: target.id, seq: entry.seq },

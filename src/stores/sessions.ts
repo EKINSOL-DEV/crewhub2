@@ -50,7 +50,7 @@ export function applySessionEvent(
 /**
  * Project-filter predicate (EKI-22 shape): a session matches when its
  * project_path is the filter root or any path under it (worktrees included).
- * TODO(merge): consume Lane A's `useProjectFilter()` hook instead of a raw root path.
+ * Panels resolve the root from `useProjectFilter().project?.folder_path`.
  */
 export function matchesProjectFilter(sessionPath: string, filterRoot: string | null): boolean {
   if (!filterRoot) return true;
@@ -145,8 +145,8 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
 }));
 
 /**
- * The one selector every Lane C panel renders from.
- * TODO(merge): default the filter from Lane A's useProjectFilter (EKI-22).
+ * The one selector every Lane C panel renders from. Pass the active project's
+ * folder_path from `useProjectFilter()` (EKI-22) to scope it.
  */
 export function useSessionsView(projectFilter: string | null = null): SessionView[] {
   const sessions = useSessionsStore((s) => s.sessions);
