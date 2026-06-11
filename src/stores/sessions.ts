@@ -26,21 +26,28 @@ export function shortId(id: string): string {
   return id.length > 8 ? id.slice(0, 8) : id;
 }
 
+/**
+ * Stored session meta: `Removed` keeps a tombstone (meta retained, status
+ * forced Ended, flagged `removed`) so chat's MetaStrip keeps its model/branch
+ * chips after a session ends. Live surfaces filter tombstones out via
+ * {@link joinSessionsView}; rediscovery replaces the tombstone wholesale.
+ */
+export type StoredSessionMeta = SessionMeta & { removed?: true };
+
 /** Fold a SessionEvent into the sessions-by-key map. Non-meta events are no-ops. */
 export function applySessionEvent(
-  sessions: Record<string, SessionMeta>,
+  sessions: Record<string, StoredSessionMeta>,
   ev: SessionEvent,
-): Record<string, SessionMeta> {
+): Record<string, StoredSessionMeta> {
   switch (ev.type) {
     case "Discovered":
     case "Updated":
       return { ...sessions, [sessionKey(ev.data.meta.id)]: ev.data.meta };
     case "Removed": {
       const key = sessionKey(ev.data.id);
-      if (!(key in sessions)) return sessions;
-      const next = { ...sessions };
-      delete next[key];
-      return next;
+      const existing = sessions[key];
+      if (!existing) return sessions;
+      return { ...sessions, [key]: { ...existing, status: "Ended", removed: true } };
     }
     default:
       return sessions;
@@ -69,9 +76,9 @@ export interface SessionView {
   displayName: string;
 }
 
-/** Join sessions ↔ bindings ↔ agents/rooms; newest activity first. */
+/** Join sessions ↔ bindings ↔ agents/rooms; newest activity first. Tombstones excluded. */
 export function joinSessionsView(
-  sessions: Record<string, SessionMeta>,
+  sessions: Record<string, StoredSessionMeta>,
   bindings: Record<string, SessionBinding>,
   agents: Agent[],
   rooms: Room[],
@@ -80,7 +87,7 @@ export function joinSessionsView(
   const agentById = new Map(agents.map((a) => [a.id, a]));
   const roomById = new Map(rooms.map((r) => [r.id, r]));
   return Object.entries(sessions)
-    .filter(([, meta]) => matchesProjectFilter(meta.project_path, projectFilter))
+    .filter(([, meta]) => !meta.removed && matchesProjectFilter(meta.project_path, projectFilter))
     .map(([key, meta]) => {
       const binding = bindings[meta.id.id] ?? null;
       const agent = binding?.agent_id ? (agentById.get(binding.agent_id) ?? null) : null;
@@ -98,7 +105,7 @@ export function joinSessionsView(
 }
 
 interface SessionsState {
-  sessions: Record<string, SessionMeta>;
+  sessions: Record<string, StoredSessionMeta>;
   /** True once the initial list_all_sessions round-trip settled (ok or error). */
   loaded: boolean;
   error: string | null;

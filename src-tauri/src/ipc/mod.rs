@@ -749,6 +749,31 @@ pub fn set_setting<R: Runtime>(
     Ok(())
 }
 
+/// Open (or focus) the dedicated settings window (EKI-20, plan T10). The
+/// window has its own least-privilege capability file
+/// (`capabilities/settings.json`, core:default only); the webview renders the
+/// settings panel when launched with `?window=settings`. Cross-window state
+/// stays consistent via `SettingChanged` events (plan Appendix B): both
+/// windows write through the same IPC and reconcile on the event.
+#[tauri::command]
+#[specta::specta]
+pub fn open_settings_window<R: Runtime>(app: AppHandle<R>) -> Result<()> {
+    use tauri::Manager;
+    if let Some(existing) = app.get_webview_window("settings") {
+        return existing.set_focus().map_err(|e| e.to_string());
+    }
+    tauri::WebviewWindowBuilder::new(
+        &app,
+        "settings",
+        tauri::WebviewUrl::App("index.html?window=settings".into()),
+    )
+    .title("CrewHub Settings")
+    .inner_size(760.0, 560.0)
+    .build()
+    .map(|_| ())
+    .map_err(|e| e.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1286,6 +1311,25 @@ mod tests {
         assert_eq!(
             get_setting(app.state(), "theme".into()).unwrap(),
             Some("nord".into())
+        );
+    }
+
+    /// EKI-20: the settings window is created once with the "settings" label
+    /// (matching capabilities/settings.json); a second call focuses instead of
+    /// erroring or duplicating.
+    #[test]
+    fn open_settings_window_creates_once_then_focuses() {
+        let app = app();
+        assert!(app.get_webview_window("settings").is_none());
+        open_settings_window(app.handle().clone()).unwrap();
+        assert!(app.get_webview_window("settings").is_some());
+        open_settings_window(app.handle().clone()).unwrap();
+        assert_eq!(
+            app.webview_windows()
+                .keys()
+                .filter(|l| l.as_str() == "settings")
+                .count(),
+            1
         );
     }
 }

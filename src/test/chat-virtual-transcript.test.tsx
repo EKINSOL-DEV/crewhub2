@@ -2,7 +2,7 @@
 // scroll-up paging trigger. Frame-time behavior lives in the ?perf probe.
 import { mockReducedMotion, TEST_SID, user, assistant, toolUse, toolResult } from "./chat-helpers";
 import { mockIPC, clearMocks } from "@tauri-apps/api/mocks";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useTranscripts } from "@/stores/transcripts";
 import { VirtualTranscript } from "@/panels/chat/VirtualTranscript";
 
@@ -68,6 +68,67 @@ test("at seq 0 no further paging is requested", () => {
   render(<VirtualTranscript sid={TEST_SID} />);
   fireEvent.scroll(screen.getByTestId("virtual-transcript"), { target: { scrollTop: 0 } });
   expect(calls).toEqual([]);
+});
+
+describe("seq-anchor scroll (SEAM 2)", () => {
+  test("anchored row gets the highlight pulse when its seq is already loaded", async () => {
+    useTranscripts.getState().ingestPage(TEST_SID, {
+      items: [
+        { seq: 0, item: user("zero") },
+        { seq: 1, item: assistant("one") },
+        { seq: 2, item: assistant("two") },
+      ],
+      total: 3,
+    });
+    render(<VirtualTranscript sid={TEST_SID} anchorSeq={1} />);
+    await waitFor(() => expect(screen.getByTestId("anchored-row")).toBeInTheDocument());
+    const row = screen.getByTestId("anchored-row");
+    expect(row).toHaveTextContent("one");
+    expect(row.className).toContain("ch-anchor");
+    expect(row.className).toContain("ch-anchor--pulse"); // motion allowed
+  });
+
+  test("mounting with an unloaded anchor seq pages history until the seq is present", async () => {
+    const calls: Array<{ offset: number; limit: number }> = [];
+    mockIPC((cmd, args) => {
+      if (cmd !== "get_session_transcript") return null;
+      const { offset, limit } = args as { offset: number; limit: number };
+      calls.push({ offset, limit });
+      return { items: [{ seq: 150, item: user("anchored msg") }], total: 500 };
+    });
+    useTranscripts.getState().ingestPage(TEST_SID, {
+      items: [
+        { seq: 300, item: user("old") },
+        { seq: 301, item: assistant("new") },
+      ],
+      total: 500,
+    });
+    render(<VirtualTranscript sid={TEST_SID} anchorSeq={150} />);
+    await waitFor(() => expect(screen.getByTestId("anchored-row")).toHaveTextContent("anchored msg"));
+    expect(calls).toEqual([{ offset: 100, limit: 200 }]);
+  });
+
+  test("reduced motion renders the static highlight, no pulse animation class", async () => {
+    mockReducedMotion(true);
+    useTranscripts.getState().ingestPage(TEST_SID, {
+      items: [{ seq: 0, item: user("zero") }],
+      total: 1,
+    });
+    render(<VirtualTranscript sid={TEST_SID} anchorSeq={0} />);
+    await waitFor(() => expect(screen.getByTestId("anchored-row")).toBeInTheDocument());
+    const row = screen.getByTestId("anchored-row");
+    expect(row.className).toContain("ch-anchor");
+    expect(row.className).not.toContain("ch-anchor--pulse");
+  });
+
+  test("no anchorSeq → no anchored row, behavior unchanged", () => {
+    useTranscripts.getState().ingestPage(TEST_SID, {
+      items: [{ seq: 0, item: user("zero") }],
+      total: 1,
+    });
+    render(<VirtualTranscript sid={TEST_SID} />);
+    expect(screen.queryByTestId("anchored-row")).toBeNull();
+  });
 });
 
 test("subagent group renders collapsed with humanized name and expands", () => {

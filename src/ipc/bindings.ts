@@ -68,6 +68,15 @@ export const commands = {
 	removeMaterializedPersona: (projectId: string) => typedError<null, string>(__TAURI_INVOKE("remove_materialized_persona", { projectId })),
 	getSetting: (key: string) => typedError<string | null, string>(__TAURI_INVOKE("get_setting", { key })),
 	setSetting: (key: string, value: string) => typedError<null, string>(__TAURI_INVOKE("set_setting", { key, value })),
+	/**
+	 *  Open (or focus) the dedicated settings window (EKI-20, plan T10). The
+	 *  window has its own least-privilege capability file
+	 *  (`capabilities/settings.json`, core:default only); the webview renders the
+	 *  settings panel when launched with `?window=settings`. Cross-window state
+	 *  stays consistent via `SettingChanged` events (plan Appendix B): both
+	 *  windows write through the same IPC and reconcile on the event.
+	 */
+	openSettingsWindow: () => typedError<null, string>(__TAURI_INVOKE("open_settings_window")),
 	mcpStatus: () => typedError<McpStatus, string>(__TAURI_INVOKE("mcp_status")),
 	enableMcpForProject: (projectId: string) => typedError<null, string>(__TAURI_INVOKE("enable_mcp_for_project", { projectId })),
 	disableMcpForProject: (projectId: string) => typedError<null, string>(__TAURI_INVOKE("disable_mcp_for_project", { projectId })),

@@ -38,3 +38,30 @@
     opacity: 0.6;
   }
 }
+
+/* seq-anchor highlight (EKI-76 click-through): static tint while anchored;
+   the --pulse variant fades it out. JS removes the class after ~1.6 s, so the
+   reduced-motion variant is a brief static highlight, never an animation. */
+.ch-anchor {
+  background: color-mix(in oklab, var(--accent) 22%, transparent);
+  border-radius: 4px;
+}
+
+.ch-anchor--pulse {
+  animation: ch-anchor-fade 1.6s ease-out forwards;
+}
+
+@keyframes ch-anchor-fade {
+  from {
+    background: color-mix(in oklab, var(--accent) 38%, transparent);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ch-anchor--pulse {
+    animation: none;
+  }
+}

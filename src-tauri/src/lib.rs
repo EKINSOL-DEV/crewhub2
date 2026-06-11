@@ -51,6 +51,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             ipc::remove_materialized_persona,
             ipc::get_setting,
             ipc::set_setting::<tauri::Wry>,
+            ipc::open_settings_window::<tauri::Wry>,
             ipc::mcp_status,
             ipc::enable_mcp_for_project,
             ipc::disable_mcp_for_project,

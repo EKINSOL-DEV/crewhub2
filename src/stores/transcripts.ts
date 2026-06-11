@@ -94,6 +94,8 @@ interface TranscriptsState {
   openSession: (id: SessionId) => Promise<void>;
   /** Page the gap below the lowest loaded seq (scroll-up). */
   loadOlder: (id: SessionId) => Promise<void>;
+  /** Ensure the page containing `seq` is loaded (seq-anchor scroll, EKI-76 click-through). */
+  ensureSeq: (id: SessionId, seq: number) => Promise<void>;
   addPermission: (id: SessionId, req: PermissionRequest) => void;
   addQuestion: (id: SessionId, q: QuestionRequest) => void;
   /** Clear a pending prompt, leaving a one-line receipt. */
@@ -166,6 +168,18 @@ export const useTranscripts = create<TranscriptsState>((set, get) => {
         // transient — scroll-up will retry
       } finally {
         update(key, (s) => ({ ...s, loadingOlder: false }));
+      }
+    },
+
+    ensureSeq: async (id, seq) => {
+      await get().openSession(id);
+      const key = sessionKey(id);
+      for (;;) {
+        const lowest = get().sessions[key]?.order[0];
+        if (lowest === undefined || lowest <= seq) return;
+        await get().loadOlder(id);
+        const after = get().sessions[key]?.order[0];
+        if (after === undefined || after >= lowest) return; // no progress — bail
       }
     },
 

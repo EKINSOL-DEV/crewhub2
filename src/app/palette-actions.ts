@@ -1,5 +1,6 @@
 // Built-in palette action source (EKI-16): everything the shell itself can do.
 // Other lanes register their own sources via usePalette().registerActions.
+import { commands } from "@/ipc/bindings";
 import { usePalette, type PaletteAction } from "@/stores/palette";
 import { useSettings } from "@/stores/settings";
 import { useWorkspace } from "@/stores/workspace";
@@ -98,6 +99,15 @@ export function buildShellActions(): PaletteAction[] {
     group: "Settings",
     keywords: ["settings", "preferences", "config"],
     run: () => openPanel("settings"),
+  });
+
+  actions.push({
+    id: "settings.open-window",
+    label: "Open settings window",
+    emoji: "🪟",
+    group: "Settings",
+    keywords: ["settings", "preferences", "config", "window", "detach"],
+    run: () => void commands.openSettingsWindow().catch(() => undefined),
   });
 
   return actions;

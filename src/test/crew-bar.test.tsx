@@ -1,8 +1,9 @@
 import { render, screen, fireEvent, waitFor, cleanup, act } from "@testing-library/react";
 import { mockIPC, clearMocks } from "@tauri-apps/api/mocks";
+import type { ProviderCaps } from "@/ipc/bindings";
 import { CrewBar } from "@/panels/crew/CrewBar";
 import { agentLiveSessions, agentStatus, agentSpawnSpec } from "@/panels/crew/crew-status";
-import { useAgentsStore } from "@/stores/agents";
+import { pickSpawnProvider, useAgentsStore } from "@/stores/agents";
 import { useBindingsStore } from "@/stores/bindings";
 import { joinSessionsView, sessionKey, useSessionsStore } from "@/stores/sessions";
 import { resetWorkspaceForTests } from "@/stores/workspace";
@@ -51,6 +52,50 @@ describe("crew-status derivations", () => {
   });
 });
 
+describe("pickSpawnProvider (SEAM 4: capability-driven spawn)", () => {
+  const caps = (spawn: boolean): ProviderCaps => ({
+    spawn,
+    resume: false,
+    fork: false,
+    permissions: false,
+    interrupt: false,
+    thinking: false,
+    subagents: false,
+    headless_runs: false,
+    hooks: false,
+    mcp_registration: false,
+  });
+
+  test("picks the first provider with spawn: true", () => {
+    expect(
+      pickSpawnProvider([
+        { provider: "watch-only", caps: caps(false) },
+        { provider: "claude-code", caps: caps(true) },
+        { provider: "other", caps: caps(true) },
+      ]),
+    ).toBe("claude-code");
+  });
+
+  test("null when no provider can spawn (or the list is empty)", () => {
+    expect(pickSpawnProvider([{ provider: "watch-only", caps: caps(false) }])).toBeNull();
+    expect(pickSpawnProvider([])).toBeNull();
+  });
+
+  test("getSpawnProvider caches the provider_caps round-trip in the agents store", async () => {
+    let calls = 0;
+    mockIPC((cmd) => {
+      if (cmd === "provider_caps") {
+        calls++;
+        return [{ provider: "fancy", caps: caps(true) }];
+      }
+      return null;
+    });
+    expect(await useAgentsStore.getState().getSpawnProvider()).toBe("fancy");
+    expect(await useAgentsStore.getState().getSpawnProvider()).toBe("fancy");
+    expect(calls).toBe(1);
+  });
+});
+
 test("crew bar shows only pinned agents and flips critters live on engine events (EKI-36 AC)", async () => {
   mockIPC((cmd) => {
     if (cmd === "list_agents") return [scout, benched];
@@ -78,31 +123,51 @@ test("crew bar shows only pinned agents and flips critters live on engine events
   expect(screen.queryByTestId("status-emoji")).toBeNull(); // off duty
 });
 
-test("spawn from the bar binds the new session to the agent and opens chat", async () => {
+test("spawn from the bar uses the first spawn-capable provider, binds and opens chat", async () => {
   const calls: Array<{ cmd: string; args: unknown }> = [];
   mockIPC((cmd, args) => {
     calls.push({ cmd, args });
     if (cmd === "list_agents") return [scout];
     if (cmd === "list_all_sessions") return [];
     if (cmd === "list_session_bindings" || cmd === "list_rooms") return [];
-    if (cmd === "spawn_session") return sid("s-new");
+    if (cmd === "provider_caps")
+      return [
+        { provider: "watch-only", caps: { spawn: false } },
+        { provider: "fancy-provider", caps: { spawn: true } },
+      ];
+    if (cmd === "spawn_session") return sid("s-new", "fancy-provider");
     if (cmd === "upsert_session_binding") return binding({ session_id: "s-new", agent_id: "ag-1" });
     return null;
   });
   render(<CrewBar />);
   fireEvent.click(await screen.findByRole("button", { name: "Spawn" }));
   await waitFor(() => expect(chatLeaves()).toHaveLength(1));
-  expect(chatLeaves()[0]?.params).toMatchObject({ sessionId: "claude-code:s-new" });
+  expect(chatLeaves()[0]?.params).toMatchObject({ sessionId: "fancy-provider:s-new" });
   const spawn = calls.find((c) => c.cmd === "spawn_session")?.args as {
     providerId: string;
     spec: { model: string; agent_id: string };
   };
-  expect(spawn.providerId).toBe("claude-code");
+  expect(spawn.providerId).toBe("fancy-provider"); // capability-driven, not hardcoded
   expect(spawn.spec.agent_id).toBe("ag-1");
   const bound = calls.find((c) => c.cmd === "upsert_session_binding")?.args as {
     input: { session_id: string; agent_id: string };
   };
   expect(bound.input).toMatchObject({ session_id: "s-new", agent_id: "ag-1" });
+});
+
+test("spawn shows an error when no provider can spawn", async () => {
+  const calls: string[] = [];
+  mockIPC((cmd) => {
+    calls.push(cmd);
+    if (cmd === "list_agents") return [scout];
+    if (cmd === "list_all_sessions" || cmd === "list_session_bindings" || cmd === "list_rooms") return [];
+    if (cmd === "provider_caps") return [{ provider: "watch-only", caps: { spawn: false } }];
+    return null;
+  });
+  render(<CrewBar />);
+  fireEvent.click(await screen.findByRole("button", { name: "Spawn" }));
+  await waitFor(() => expect(screen.getByTestId("crew-error")).toHaveTextContent(/no.*provider/i));
+  expect(calls).not.toContain("spawn_session");
 });
 
 test("stop kills every live bound session", async () => {
