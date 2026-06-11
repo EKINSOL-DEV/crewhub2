@@ -86,6 +86,22 @@ export const PANELS: Record<PanelKind, PanelDefinition> = {
     component: lazy(() => import("@/panels/world/WorldPanel")),
     emptyState: { emoji: "🌍", title: "World loading", hint: "Bots are putting their badges on" },
   },
+  projects: {
+    kind: "projects",
+    label: "Projects",
+    emoji: "🗺️",
+    description: "Register projects — folders, docs, rooms and routing rules",
+    keywords: ["projects", "folders", "register", "rooms", "rules", "workspace"],
+    shortcutHint: "p",
+    component: lazy(() =>
+      import("@/panels/projects/ProjectsPanel").then((m) => ({ default: m.ProjectsPanel })),
+    ),
+    emptyState: {
+      emoji: "🗺️",
+      title: "Register your first project",
+      hint: "Point CrewHub at a folder — rooms, docs and boards hang off it",
+    },
+  },
   settings: {
     kind: "settings",
     label: "Settings",

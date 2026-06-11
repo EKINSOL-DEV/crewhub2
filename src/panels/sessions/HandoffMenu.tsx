@@ -14,7 +14,14 @@ export const HANDOFF_LABELS: Record<HandoffTarget, string> = {
   RevealInFinder: "Reveal in Finder",
 };
 
-export function HandoffMenu({ projectPath, sessionId }: { projectPath: string; sessionId: string }) {
+export function HandoffMenu({
+  projectPath,
+  sessionId,
+}: {
+  projectPath: string;
+  /** null = project-level handoff (no session to resume) — M3 project cards. */
+  sessionId: string | null;
+}) {
   const [open, setOpen] = useState(false);
   const [targets, setTargets] = useState<HandoffTarget[] | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -71,13 +78,15 @@ export function HandoffMenu({ projectPath, sessionId }: { projectPath: string; s
           >
             Copy path
           </button>
-          <button
-            type="button"
-            className="rounded px-2 py-1 text-left hover:bg-accent/10"
-            onClick={() => void copy(`claude --resume ${sessionId}`, "resume command")}
-          >
-            Copy `claude --resume`
-          </button>
+          {sessionId !== null && (
+            <button
+              type="button"
+              className="rounded px-2 py-1 text-left hover:bg-accent/10"
+              onClick={() => void copy(`claude --resume ${sessionId}`, "resume command")}
+            >
+              Copy `claude --resume`
+            </button>
+          )}
           {note && <p className="px-2 py-1 text-muted-foreground">{note}</p>}
         </div>
       )}
