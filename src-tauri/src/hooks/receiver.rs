@@ -16,6 +16,7 @@ use crate::engine::types::{HookSignal, SessionEvent, SessionId};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
+#[cfg(unix)]
 use tokio::net::UnixListener;
 use tokio::sync::broadcast;
 
@@ -85,6 +86,18 @@ impl HookReceiver {
 
     /// Like [`Self::start`], but SessionStart lines get a one-line JSON-string
     /// reply with the context envelope (consumed by `crewhub-signal`).
+    /// Windows: the UDS transport is an M6 follow-up (named pipes); hooks run
+    /// in degraded mode (watcher-only) there. Mirrors crewhub-signal's no-op.
+    #[cfg(not(unix))]
+    pub fn start_with_context(
+        _config: ReceiverConfig,
+        _tx: broadcast::Sender<SessionEvent>,
+        _context: Option<ContextProvider>,
+    ) -> anyhow::Result<Self> {
+        anyhow::bail!("hook signal transport is not supported on this platform yet")
+    }
+
+    #[cfg(unix)]
     pub fn start_with_context(
         config: ReceiverConfig,
         tx: broadcast::Sender<SessionEvent>,
