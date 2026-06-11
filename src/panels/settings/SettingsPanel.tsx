@@ -6,8 +6,10 @@ import { Button } from "@/components/ui/button";
 import { ModelPicker } from "@/components/ModelPicker";
 import { commands, type McpStatus, type PermissionRule } from "@/ipc/bindings";
 import { cn } from "@/lib/utils";
+import { ImportV1Dialog } from "@/onboarding/ImportDialog";
 import { NotificationRulesSection } from "@/panels/board/NotificationRulesSection";
 import { useSettings } from "@/stores/settings";
+import { useUpdater } from "@/stores/updater";
 import {
   DENSITIES,
   FONT_SIZES,
@@ -172,6 +174,128 @@ function Permissions() {
   );
 }
 
+function Setup() {
+  const [reset, setReset] = useState(false);
+  return (
+    <Section title="Setup">
+      <p className="text-xs text-muted-foreground">
+        Walk the first-run wizard again — CLI detection, projects, crew and integrations. It opens in the main
+        window.
+      </p>
+      <div>
+        <Button
+          size="sm"
+          variant="outline"
+          data-testid="rerun-wizard"
+          onClick={() => {
+            // Resets onboarding.state/step; the main window reconciles via
+            // SettingChanged (Appendix B) and shows the overlay.
+            void import("@/stores/onboarding").then(({ useOnboarding }) => {
+              useOnboarding.getState().rerun();
+              setReset(true);
+            });
+          }}
+        >
+          🧭 Re-run setup wizard
+        </Button>
+      </div>
+      {reset && (
+        <p className="text-xs text-muted-foreground" data-testid="rerun-wizard-done">
+          ✅ Wizard re-armed — it's waiting in the main window.
+        </p>
+      )}
+    </Section>
+  );
+}
+
+function Updates() {
+  const { checking, available, checkedAt, installing, error } = useUpdater();
+  const [version, setVersion] = useState<string | null>(null);
+  useEffect(() => {
+    commands
+      .appInfo()
+      .then((info) => setVersion(info.version))
+      .catch(() => setVersion(null));
+  }, []);
+  return (
+    <Section title="Updates">
+      <p className="text-xs text-muted-foreground">
+        Running {version ? `v${version}` : "…"} — updates download from CrewHub's releases and are
+        signature-verified before install.
+      </p>
+      <div className="flex items-center gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          data-testid="check-updates"
+          disabled={checking || installing}
+          onClick={() => void useUpdater.getState().check()}
+        >
+          {checking ? "Checking…" : "🔄 Check for updates"}
+        </Button>
+        {available && (
+          <Button
+            size="sm"
+            data-testid="install-update"
+            disabled={installing}
+            onClick={() => void useUpdater.getState().install()}
+          >
+            {installing
+              ? "⬇️ Downloading… (relaunches when done)"
+              : `⬆️ Install v${available.version} & relaunch`}
+          </Button>
+        )}
+      </div>
+      {checkedAt !== null && !checking && !available && !error && (
+        <p className="text-xs text-muted-foreground" data-testid="up-to-date">
+          ✅ You're on the freshest paint already.
+        </p>
+      )}
+      {available?.notes && (
+        <p className="line-clamp-3 text-xs text-muted-foreground" data-testid="update-notes">
+          {available.notes}
+        </p>
+      )}
+      {error && (
+        <p className="text-xs text-destructive" data-testid="update-error">
+          {error}
+        </p>
+      )}
+    </Section>
+  );
+}
+
+function ImportFromV1() {
+  const [open, setOpen] = useState(false);
+  const [dbPath, setDbPath] = useState<string | null>(null);
+  return (
+    <Section title="Import from v1">
+      <p className="text-xs text-muted-foreground">
+        One-shot import from a CrewHub v1 database (projects, rooms, agents, tasks, rules, templates,
+        blueprints). Dry-run preview first; your v1 file is never written. Safe to re-run.
+      </p>
+      <div>
+        <Button
+          size="sm"
+          variant="outline"
+          data-testid="open-v1-import"
+          onClick={() => {
+            // best-effort default path from the environment probe
+            commands
+              .detectEnvironment()
+              .then((res) => setDbPath(res.status === "ok" ? res.data.v1_db : null))
+              .catch(() => setDbPath(null))
+              .finally(() => setOpen(true));
+          }}
+        >
+          📦 Import from CrewHub v1…
+        </Button>
+      </div>
+      {open && <ImportV1Dialog defaultDbPath={dbPath} onClose={() => setOpen(false)} />}
+    </Section>
+  );
+}
+
 function Integrations() {
   const [mcp, setMcp] = useState<McpStatus | null>(null);
   useEffect(() => {
@@ -227,6 +351,9 @@ export default function SettingsPanel() {
         <NotificationRulesSection />
       </Section>
       <Integrations />
+      <Setup />
+      <ImportFromV1 />
+      <Updates />
     </div>
   );
 }

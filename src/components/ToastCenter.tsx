@@ -4,6 +4,7 @@
 // Lane E owns this file in M3; other lanes only consume.
 import "./toast.css";
 import { useEffect, useRef } from "react";
+import { openChatPanel } from "@/app/open-chat";
 import { focusBoardAtTask, useToasts, type Toast } from "@/stores/toasts";
 import { cn } from "@/lib/utils";
 import { usePrefersReducedMotion } from "./use-reduced-motion";
@@ -49,6 +50,12 @@ function ToastCard({ toast }: { toast: Toast }) {
         className="min-w-0 flex-1 cursor-pointer text-left"
         onClick={() => {
           if (toast.taskId) focusBoardAtTask(toast.taskId);
+          // attention toasts (M6 T11) keep precise click-to-panel routing:
+          // open the chat at the session the notification concerns.
+          else if (toast.sessionKey) {
+            const sep = toast.sessionKey.indexOf(":");
+            openChatPanel({ provider: toast.sessionKey.slice(0, sep), id: toast.sessionKey.slice(sep + 1) });
+          }
           dismiss(toast.id);
         }}
       >

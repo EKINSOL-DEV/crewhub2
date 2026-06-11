@@ -1,0 +1,20 @@
+/* Welcome Walk (D-M6-12): the bot walks the step rail and waves at the
+   active step. Reduced motion: the wave class is simply never applied and
+   the walker jumps (no left transition) — handled in Wizard.tsx. */
+@keyframes wizard-wave {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-12deg);
+  }
+  75% {
+    transform: rotate(12deg);
+  }
+}
+
+.wizard-walker-wave {
+  animation: wizard-wave 1.1s ease-in-out 2;
+  transform-origin: 70% 80%;
+}
