@@ -143,6 +143,8 @@ export interface Toast {
 
 const DEDUPE_WINDOW_MS = 5_000;
 const RULES_KEY = "notification_rules";
+/** MCP post_status_update's settings-key broadcast (T5) — the global feed. */
+const STATUS_UPDATE_KEY = "last_status_update";
 
 interface ToastsState {
   toasts: Toast[];
@@ -154,6 +156,8 @@ interface ToastsState {
   dismiss: (id: string) => void;
   /** Feed one board event through the matcher (also the test seam). */
   publish: (event: RuleEvent, actor?: { name: string; emoji: string } | null) => void;
+  /** T17: fold the newest `last_status_update` broadcast into the matcher. */
+  publishStatusUpdate: () => Promise<void>;
   reset: () => void;
 }
 
@@ -175,18 +179,22 @@ export function focusBoardAtTask(taskId: string): void {
   }
 }
 
+/** D-M3-4 actor string → display identity (honest copy: never "verified"). */
+function actorIdentity(actor: string): { name: string; emoji: string } {
+  if (actor === "human") return { name: "you", emoji: "🧑" };
+  if (actor.startsWith("agent:")) {
+    const agent = useAgentsStore.getState().agents.find((a) => a.id === actor.slice("agent:".length));
+    if (agent) return { name: agent.name, emoji: agent.icon ?? "🤖" };
+  }
+  return { name: "an agent", emoji: "🤖" };
+}
+
 /** Best-effort actor of the newest timeline entry (avatar + name for copy). */
 async function newestActor(taskId: string): Promise<{ name: string; emoji: string } | null> {
   try {
     const res = await commands.listTaskEvents(taskId);
     if (res.status !== "ok" || !Array.isArray(res.data) || res.data.length === 0) return null;
-    const actor = res.data[res.data.length - 1]!.actor;
-    if (actor === "human") return { name: "you", emoji: "🧑" };
-    if (actor.startsWith("agent:")) {
-      const agent = useAgentsStore.getState().agents.find((a) => a.id === actor.slice("agent:".length));
-      if (agent) return { name: agent.name, emoji: agent.icon ?? "🤖" };
-    }
-    return { name: "an agent", emoji: "🤖" };
+    return actorIdentity(res.data[res.data.length - 1]!.actor);
   } catch {
     return null;
   }
@@ -238,6 +246,29 @@ export const useToasts = create<ToastsState>((set, get) => ({
     }
   },
 
+  publishStatusUpdate: async () => {
+    try {
+      const res = await commands.getSetting(STATUS_UPDATE_KEY);
+      if (res.status !== "ok" || !res.data) return;
+      const v: unknown = JSON.parse(res.data);
+      if (typeof v !== "object" || v === null) return;
+      const { text, by, task_id } = v as { text?: unknown; by?: unknown; task_id?: unknown };
+      if (typeof text !== "string" || typeof task_id !== "string") return;
+      let task: Task | null = useTasksStore.getState().byId.get(task_id) ?? null;
+      if (!task) {
+        const t = await commands.getTask(task_id);
+        task = t.status === "ok" ? (t.data as Task | null) : null;
+      }
+      if (!task) return;
+      get().publish(
+        { type: "status_update", task, text },
+        actorIdentity(typeof by === "string" ? by : "mcp"),
+      );
+    } catch {
+      // best-effort: a malformed feed entry never breaks the toast center
+    }
+  },
+
   init: async () => {
     if (started) return;
     started = true;
@@ -245,6 +276,11 @@ export const useToasts = create<ToastsState>((set, get) => ({
     try {
       await onDomainEvent((e) => {
         if (e.type === "SettingChanged" && e.data.key === RULES_KEY) void get().refreshRules();
+        // status_update timeline events feed the matcher too (T17): mention
+        // rules fire on agent status updates posted via MCP.
+        if (e.type === "SettingChanged" && e.data.key === STATUS_UPDATE_KEY) {
+          void get().publishStatusUpdate();
+        }
       });
     } catch {
       // event bridge unavailable (unit tests)

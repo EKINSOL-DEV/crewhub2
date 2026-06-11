@@ -3,11 +3,14 @@
 // the shared store keeping the shell's project switcher live.
 import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
 import { mockIPC, clearMocks } from "@tauri-apps/api/mocks";
+import { leaves } from "@/app/layout-tree";
 import { resetProjectsForTests, useProjects } from "@/app/project-filter";
-import type { Project } from "@/ipc/bindings";
+import type { GitStatus, Project } from "@/ipc/bindings";
 import { ProjectsPanel } from "@/panels/projects/ProjectsPanel";
 import { taskSummary } from "@/panels/projects/ProjectCard";
+import { resetGitForTests } from "@/stores/git";
 import { resetRoomsForTests } from "@/stores/rooms";
+import { useTasksStore } from "@/stores/tasks";
 import { resetWorkspaceForTests, useWorkspace } from "@/stores/workspace";
 import { archived, project, seedWorkspace, sid } from "./fixtures";
 
@@ -18,6 +21,8 @@ afterEach(() => {
   resetProjectsForTests();
   resetRoomsForTests();
   resetWorkspaceForTests();
+  resetGitForTests();
+  useTasksStore.getState().reset();
 });
 
 /** Stateful project IPC: a tiny in-memory backend for the CRUD round-trip. */
@@ -191,4 +196,53 @@ test("workspace project filter can be set from a card (Focus)", async () => {
   await screen.findByTestId("project-card-p-1");
   fireEvent.click(screen.getByText("Focus"));
   expect(useWorkspace.getState().tabs[0]?.projectFilter).toBe("p-1");
+});
+
+test("Board action scopes the tab to the project and opens a board panel (T17)", async () => {
+  mockProjectBackend({ seed: [project({ id: "p-1", name: "Seen", folder_path: "/work/seen" })] });
+  render(<ProjectsPanel />);
+  await screen.findByTestId("project-card-p-1");
+  fireEvent.click(screen.getByText("Board"));
+  const s = useWorkspace.getState();
+  expect(s.tabs[0]?.projectFilter).toBe("p-1");
+  const tab = s.tabs.find((t) => t.id === s.activeTabId)!;
+  expect(leaves(tab.root).some((l) => l.kind === "board")).toBe(true);
+});
+
+test("git strip lives in the card slot; clicking it opens the diff panel (T17)", async () => {
+  const status: GitStatus = {
+    branch: "main",
+    ahead: 1,
+    behind: 0,
+    dirty: 2,
+    untracked: 0,
+    worktrees: [{ path: "/work/seen", branch: "main", is_current: true }],
+  };
+  const seeded = [project({ id: "p-1", name: "Seen", folder_path: "/work/seen" })];
+  mockIPC((cmd) => {
+    switch (cmd) {
+      case "list_projects":
+        return seeded;
+      case "git_status":
+        return status;
+      case "list_archived_sessions":
+      case "list_tasks":
+        return [];
+      default:
+        return null;
+    }
+  });
+  render(<ProjectsPanel />);
+  const card = await screen.findByTestId("project-card-p-1");
+  const strip = await waitFor(() => {
+    const el = card.querySelector("[data-testid=git-strip-slot] [data-testid=git-strip]");
+    if (!el) throw new Error("strip not mounted yet");
+    return el;
+  });
+  expect(strip.textContent).toContain("⎇ main");
+  fireEvent.click(strip);
+  const s = useWorkspace.getState();
+  const tab = s.tabs.find((t) => t.id === s.activeTabId)!;
+  const diff = leaves(tab.root).find((l) => l.kind === "diff");
+  expect(diff?.params?.projectPath).toBe("/work/seen");
 });

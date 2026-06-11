@@ -127,6 +127,29 @@ test("card click opens the drawer: timeline shows created/status_changed with ac
   expect(badges[1]).toHaveTextContent("via MCP 🔧"); // honest badge (D-M3-4)
 });
 
+test("create=1 panel param (palette New task, T17) opens the dialog and clears itself", async () => {
+  mockBoardIPC();
+  let current: Record<string, string> = { create: "1" };
+  function ParamHost() {
+    const [params, setParams] = useState<Record<string, string>>(current);
+    return (
+      <BoardPanel
+        leafId="leaf-1"
+        params={params}
+        setParams={(p) => {
+          current = p;
+          setParams(p);
+        }}
+      />
+    );
+  }
+  render(<ParamHost />);
+  await screen.findByTestId("create-task-dialog");
+  fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
+  await waitFor(() => expect(current.create).toBeUndefined()); // one-shot param
+  expect(screen.queryByTestId("create-task-dialog")).toBeNull();
+});
+
 test("create dialog refuses a roomless task (the v1 room_id lesson)", async () => {
   mockBoardIPC();
   render(<Host />);

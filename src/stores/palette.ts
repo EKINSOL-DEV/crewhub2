@@ -93,12 +93,10 @@ interface PaletteState {
   sources: Record<string, PaletteAction[]>;
   recents: string[];
   spawnDialogOpen: boolean;
-  taskDialogOpen: boolean;
 
   setOpen: (open: boolean) => void;
   toggle: () => void;
   setSpawnDialogOpen: (open: boolean) => void;
-  setTaskDialogOpen: (open: boolean) => void;
   registerActions: (sourceId: string, actions: PaletteAction[]) => () => void;
   unregisterActions: (sourceId: string) => void;
   allActions: () => PaletteAction[];
@@ -112,12 +110,10 @@ export const usePalette = create<PaletteState>((set, get) => ({
   sources: {},
   recents: [],
   spawnDialogOpen: false,
-  taskDialogOpen: false,
 
   setOpen: (open) => set({ open, openCount: open ? get().openCount + 1 : get().openCount }),
   toggle: () => get().setOpen(!get().open),
   setSpawnDialogOpen: (spawnDialogOpen) => set({ spawnDialogOpen }),
-  setTaskDialogOpen: (taskDialogOpen) => set({ taskDialogOpen }),
 
   registerActions: (sourceId, actions) => {
     set({ sources: { ...get().sources, [sourceId]: actions } });
@@ -159,6 +155,5 @@ export function resetPaletteForTests() {
     sources: {},
     recents: [],
     spawnDialogOpen: false,
-    taskDialogOpen: false,
   });
 }

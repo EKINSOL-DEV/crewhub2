@@ -1,13 +1,14 @@
 // Projects panel (M3 T7/T8, EKI-85/EKI-87): register projects via the native
 // folder picker, see per-project stats, auto-suggest projects found in session
 // history, and manage rooms + assignment rules per project (RoomsManager).
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { openPanel } from "@/app/palette-actions";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/EmptyState";
-import { commands, type ArchivedSession, type Project, type Task } from "@/ipc/bindings";
+import { commands, type ArchivedSession, type Project } from "@/ipc/bindings";
 import { projectStats, suggestProjects, useProjectsStore } from "@/stores/projects";
 import { useRoomsStore } from "@/stores/rooms";
+import { useTasksStore } from "@/stores/tasks";
 import { useNow } from "../sessions/useNow";
 import { ProjectCard } from "./ProjectCard";
 import { ProjectForm } from "./ProjectForm";
@@ -17,31 +18,30 @@ export function ProjectsPanel() {
   const { projects, loaded, remove } = useProjectsStore();
   const [editing, setEditing] = useState<Project | "new" | null>(null);
   const [archived, setArchived] = useState<ArchivedSession[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
   const [showArchived, setShowArchived] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<Project | null>(null);
   const [error, setError] = useState<string | null>(null);
   const now = useNow();
 
+  // Task counts come from Lane E's live tasks store (T17): seeded once,
+  // reconciled on TaskChanged — agent moves update the cards without polling.
+  const tasksById = useTasksStore((s) => s.byId);
+  const tasks = useMemo(() => [...tasksById.values()], [tasksById]);
+
   useEffect(() => {
     void useProjectsStore.getState().load();
     void useRoomsStore.getState().load();
+    void useTasksStore.getState().init();
   }, []);
 
-  // Stats + auto-suggest sources, refetched when the registered list changes
-  // (a freshly registered project should leave the suggestions immediately).
+  // Auto-suggest source, refetched when the registered list changes (a
+  // freshly registered project should leave the suggestions immediately).
   useEffect(() => {
     let cancelled = false;
     commands
       .listArchivedSessions(null)
       .then((res) => {
         if (!cancelled && res.status === "ok" && Array.isArray(res.data)) setArchived(res.data);
-      })
-      .catch(() => undefined);
-    commands
-      .listTasks()
-      .then((res) => {
-        if (!cancelled && res.status === "ok" && Array.isArray(res.data)) setTasks(res.data);
       })
       .catch(() => undefined);
     return () => {

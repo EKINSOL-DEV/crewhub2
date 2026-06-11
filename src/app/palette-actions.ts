@@ -1,6 +1,7 @@
 // Built-in palette action source (EKI-16): everything the shell itself can do.
 // Other lanes register their own sources via usePalette().registerActions.
 import { commands } from "@/ipc/bindings";
+import { openBoardPanel } from "@/panels/board/open-board";
 import { usePalette, type PaletteAction } from "@/stores/palette";
 import { useSettings } from "@/stores/settings";
 import { useWorkspace } from "@/stores/workspace";
@@ -88,8 +89,10 @@ export function buildShellActions(): PaletteAction[] {
     label: "New task",
     emoji: "📝",
     group: "Tasks",
-    keywords: ["task", "todo", "new", "create"],
-    run: () => usePalette.getState().setTaskDialogOpen(true),
+    keywords: ["task", "todo", "new", "create", "board"],
+    // T17: routes to the board's create dialog (room required — the v1
+    // room_id lesson) instead of the M2 placeholder dialog.
+    run: () => openBoardPanel({ create: "1" }),
   });
 
   actions.push({

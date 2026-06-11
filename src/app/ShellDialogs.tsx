@@ -1,5 +1,7 @@
 // Palette-launched dialogs (EKI-16): quick session spawn (haiku-default,
-// D-M2-7) and new task. Small, self-contained, no Radix.
+// D-M2-7). Small, self-contained, no Radix. The M2 "new task" placeholder
+// moved to the board's CreateTaskDialog (T17 — room is required there, the
+// v1 room_id lesson).
 import { useEffect, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { DEFAULT_MODEL, isModelTierId, ModelPicker } from "@/components/ModelPicker";
@@ -134,86 +136,7 @@ export function SpawnDialog() {
   );
 }
 
-export function TaskDialog() {
-  const setOpen = usePalette((s) => s.setTaskDialogOpen);
-  const projectFilter = useWorkspace((s) => s.tabs.find((t) => t.id === s.activeTabId)?.projectFilter);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function createTask() {
-    if (!title.trim()) {
-      setError("a task needs a title");
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await commands.createTask({
-        project_id: projectFilter ?? null,
-        room_id: null,
-        title: title.trim(),
-        description: description.trim() || null,
-        priority: null,
-        assignee_agent_id: null,
-        created_by: null,
-      });
-      if (res.status === "error") {
-        setError(res.error);
-        return;
-      }
-      setOpen(false);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Modal title="📝 New task" onClose={() => setOpen(false)}>
-      <div className="flex flex-col gap-3">
-        <label className="flex flex-col gap-1 text-xs">
-          title
-          <input
-            data-testid="task-title"
-            autoFocus
-            className="rounded border bg-background px-2 py-1 text-xs"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void createTask();
-            }}
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-xs">
-          description (optional)
-          <textarea
-            className="min-h-16 rounded border bg-background px-2 py-1 text-xs"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
-        </label>
-        {error && <p className="text-xs text-destructive">{error}</p>}
-        <div className="flex justify-end gap-2">
-          <Button size="sm" variant="outline" onClick={() => setOpen(false)}>
-            Cancel
-          </Button>
-          <Button size="sm" disabled={busy} onClick={() => void createTask()}>
-            {busy ? "Creating…" : "Create"}
-          </Button>
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
 export function ShellDialogs() {
   const spawnOpen = usePalette((s) => s.spawnDialogOpen);
-  const taskOpen = usePalette((s) => s.taskDialogOpen);
-  return (
-    <>
-      {spawnOpen && <SpawnDialog />}
-      {taskOpen && <TaskDialog />}
-    </>
-  );
+  return <>{spawnOpen && <SpawnDialog />}</>;
 }

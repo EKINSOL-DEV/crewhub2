@@ -1,9 +1,11 @@
 // Project card (M3 T7, EKI-85): icon/color, recent-session stats, open-task
-// counts, quick actions. The git status strip is Lane F's component
-// (panels/diff/GitStrip) — its slot here stays empty until F lands (T17 wires
-// it into the slot below).
+// counts, quick actions. The git status strip is Lane F's GitStrip
+// (panels/diff/GitStrip), mounted in the slot below (T17) — clicking it opens
+// the diff panel for the project (default base).
 import { Button } from "@/components/ui/button";
 import type { Project } from "@/ipc/bindings";
+import { GitStrip } from "@/panels/diff/GitStrip";
+import { openBoardPanel } from "@/panels/board/open-board";
 import { useWorkspace } from "@/stores/workspace";
 import { formatRelative } from "../sessions/format";
 import { HandoffMenu } from "../sessions/HandoffMenu";
@@ -70,8 +72,9 @@ export function ProjectCard({
         {tasks && ` · ${tasks}`}
       </p>
 
-      {/* Git strip slot — Lane F's <GitStrip projectPath={…}/> mounts here (T17). */}
-      <div data-testid="git-strip-slot" />
+      <div data-testid="git-strip-slot">
+        <GitStrip projectPath={project.folder_path} />
+      </div>
 
       <div className="flex flex-wrap items-center gap-1 border-t pt-1.5">
         <Button size="xs" variant="outline" onClick={onEdit}>
@@ -82,6 +85,17 @@ export function ProjectCard({
             Docs
           </Button>
         )}
+        <Button
+          size="xs"
+          variant="outline"
+          title="Open the board scoped to this project"
+          onClick={() => {
+            setProjectFilter(project.id);
+            openBoardPanel();
+          }}
+        >
+          Board
+        </Button>
         <Button
           size="xs"
           variant="outline"

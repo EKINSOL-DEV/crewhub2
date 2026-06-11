@@ -307,3 +307,20 @@ test("board deltas flow through rules into toasts end-to-end (agent move via rec
   await screen.findByTestId("toast-body");
   expect(screen.getByTestId("toast-body")).toHaveTextContent("moved “Fix it” → Review");
 });
+
+test("status_update feed (T17): mention rules fire on MCP status updates", async () => {
+  const t1 = task({ id: "t1", title: "Wire it" });
+  mockIPC((cmd) => {
+    if (cmd === "list_notification_rules") return [notificationRule({ id: "r1", trigger: "task_mention" })];
+    if (cmd === "get_setting")
+      return JSON.stringify({ text: "stuck — ping @Botje", by: "agent:ag-1", task_id: "t1", ts: 1 });
+    if (cmd === "get_task") return t1;
+    return [];
+  });
+  useAgentsStore.setState({ agents: [botje], loaded: true });
+  render(<ToastCenter />);
+  await waitFor(() => expect(useToasts.getState().loaded).toBe(true));
+  await act(() => useToasts.getState().publishStatusUpdate());
+  await screen.findByTestId("toast-body");
+  expect(screen.getByTestId("toast-body")).toHaveTextContent("Botje is mentioned on “Wire it”");
+});

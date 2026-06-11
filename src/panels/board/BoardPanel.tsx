@@ -92,6 +92,14 @@ export default function BoardPanel({ params, setParams }: PanelProps) {
     setParams(next);
   };
 
+  // T17: the palette's "New task" opens the board with `create=1` — the param
+  // shows the create dialog; closing it clears both the param and local state.
+  const showCreate = creating || params.create === "1";
+  const closeCreate = () => {
+    setCreating(false);
+    if (params.create) setParam("create", null);
+  };
+
   const filtered = useMemo(
     () => [...tasksById.values()].filter((t) => taskMatchesFilter(t, filter)),
     [tasksById, filter],
@@ -306,13 +314,13 @@ export default function BoardPanel({ params, setParams }: PanelProps) {
               />
             ) : null;
           })()}
-        {creating && (
+        {showCreate && (
           <CreateTaskDialog
             rooms={scopedRooms}
             agents={agents}
             defaultRoomId={params.room || null}
             projectId={hq ? null : projectId}
-            onClose={() => setCreating(false)}
+            onClose={closeCreate}
           />
         )}
       </div>
