@@ -202,6 +202,58 @@ pub fn handoff_targets() -> Result<Vec<HandoffTarget>> {
     ))
 }
 
+/// Native folder picker (T3, D-M3-7): `tauri-plugin-dialog` invoked
+/// RUST-SIDE only — the webview holds no `dialog:*` permission. Returns the
+/// canonicalized folder, or `null` when the user cancels.
+#[tauri::command]
+#[specta::specta]
+pub async fn pick_folder<R: Runtime>(app: AppHandle<R>) -> Result<Option<String>> {
+    crate::workspace::pick::pick_folder(&app).await.map_err(err)
+}
+
+// ---- docs panel reads (T3, D-M3-7/G5) ----
+// The docs root is the project's `docs_path`, falling back to `folder_path`;
+// every path resolves through PathPolicy inside `workspace::docs`.
+
+fn docs_root(store: &Store, project_id: &str) -> Result<std::path::PathBuf> {
+    let project = store
+        .get_project(project_id)
+        .map_err(err)?
+        .ok_or_else(|| format!("unknown project: {project_id}"))?;
+    Ok(std::path::PathBuf::from(
+        project.docs_path.unwrap_or(project.folder_path),
+    ))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_doc_tree(
+    store: State<Arc<Store>>,
+    project_id: String,
+) -> Result<Vec<crate::workspace::docs::DocEntry>> {
+    crate::workspace::docs::list_doc_tree(&docs_root(&store, &project_id)?).map_err(err)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn read_doc_file(
+    store: State<Arc<Store>>,
+    project_id: String,
+    rel_path: String,
+) -> Result<String> {
+    crate::workspace::docs::read_doc_file(&docs_root(&store, &project_id)?, &rel_path).map_err(err)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn read_doc_image(
+    store: State<Arc<Store>>,
+    project_id: String,
+    rel_path: String,
+) -> Result<crate::workspace::docs::DocImage> {
+    crate::workspace::docs::read_doc_image(&docs_root(&store, &project_id)?, &rel_path).map_err(err)
+}
+
 /// Composer hints: slash commands/skills any provider recognizes for the
 /// project (G8). Read-only, path-policy-checked.
 #[tauri::command]
@@ -528,6 +580,25 @@ pub fn list_projects(store: State<Arc<Store>>) -> Result<Vec<Project>> {
     store.list_projects().map_err(err)
 }
 
+/// T3 (D-M3-7): registering a project is what grants the runtime
+/// `PathPolicy` a new allowed root, so the folders must be real directories
+/// (the picker hands us canonicalized paths; typed paths get the same check).
+fn validate_project_folders(folder_path: &str, docs_path: Option<&str>) -> Result<()> {
+    if !std::path::Path::new(folder_path).is_dir() {
+        return Err(format!(
+            "project folder does not exist or is not a directory: {folder_path}"
+        ));
+    }
+    if let Some(docs) = docs_path {
+        if !std::path::Path::new(docs).is_dir() {
+            return Err(format!(
+                "docs folder does not exist or is not a directory: {docs}"
+            ));
+        }
+    }
+    Ok(())
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn create_project<R: Runtime>(
@@ -535,6 +606,7 @@ pub fn create_project<R: Runtime>(
     store: State<Arc<Store>>,
     input: NewProject,
 ) -> Result<Project> {
+    validate_project_folders(&input.folder_path, input.docs_path.as_deref())?;
     let p = store.create_project(input).map_err(err)?;
     DomainEvent::ProjectChanged {
         project_id: p.id.clone(),
@@ -551,6 +623,7 @@ pub fn update_project<R: Runtime>(
     store: State<Arc<Store>>,
     project: Project,
 ) -> Result<Project> {
+    validate_project_folders(&project.folder_path, project.docs_path.as_deref())?;
     let p = store.update_project(project).map_err(err)?;
     DomainEvent::ProjectChanged {
         project_id: p.id.clone(),
@@ -960,12 +1033,13 @@ mod tests {
     fn project_commands_roundtrip() {
         let app = app();
         let h = app.handle().clone();
+        let dir = tempfile::tempdir().unwrap();
         let input = NewProject {
             name: "P".into(),
             description: None,
             icon: None,
             color: None,
-            folder_path: "/tmp/p".into(),
+            folder_path: dir.path().display().to_string(),
             docs_path: None,
         };
         let mut p = create_project(h.clone(), app.state(), input).unwrap();
@@ -974,6 +1048,122 @@ mod tests {
         let p = update_project(h.clone(), app.state(), p).unwrap();
         assert_eq!(p.status, "archived");
         assert!(delete_project(h, app.state(), p.id).unwrap());
+    }
+
+    /// T3 (D-M3-7): project registration is the PathPolicy grant, so the
+    /// folders must exist — and a freshly registered root is allowed
+    /// immediately (the policy is rebuilt from the store per call).
+    #[test]
+    fn project_registration_validates_folders_and_extends_path_policy() {
+        let app = app();
+        let h = app.handle().clone();
+        let dir = tempfile::tempdir().unwrap();
+
+        let missing = NewProject {
+            name: "P".into(),
+            description: None,
+            icon: None,
+            color: None,
+            folder_path: dir.path().join("ghost").display().to_string(),
+            docs_path: None,
+        };
+        let err = create_project(h.clone(), app.state(), missing).unwrap_err();
+        assert!(err.contains("does not exist"), "got: {err}");
+
+        let bad_docs = NewProject {
+            name: "P".into(),
+            description: None,
+            icon: None,
+            color: None,
+            folder_path: dir.path().display().to_string(),
+            docs_path: Some(dir.path().join("nope").display().to_string()),
+        };
+        let err = create_project(h.clone(), app.state(), bad_docs).unwrap_err();
+        assert!(err.contains("docs folder"), "got: {err}");
+
+        // before registration the path is outside all roots…
+        assert!(validate_project_path(
+            &app.state::<Arc<Store>>(),
+            dir.path().to_str().unwrap(),
+            Access::Read
+        )
+        .is_err());
+        let p = create_project(
+            h,
+            app.state(),
+            NewProject {
+                name: "P".into(),
+                description: None,
+                icon: None,
+                color: None,
+                folder_path: dir.path().display().to_string(),
+                docs_path: None,
+            },
+        )
+        .unwrap();
+        // …and allowed right after: registration is the grant (M0 behavior).
+        assert!(validate_project_path(
+            &app.state::<Arc<Store>>(),
+            dir.path().to_str().unwrap(),
+            Access::ReadWrite
+        )
+        .is_ok());
+
+        // archived-status update keeps validating (folder still exists)
+        let mut p2 = p.clone();
+        p2.folder_path = dir.path().join("ghost").display().to_string();
+        let err = update_project(app.handle().clone(), app.state(), p2).unwrap_err();
+        assert!(err.contains("does not exist"), "got: {err}");
+    }
+
+    /// T3 (G5): docs commands route through the project's docs root and the
+    /// path policy; details are unit-tested in `workspace::docs`.
+    #[test]
+    fn doc_commands_read_through_docs_root_fallback() {
+        let app = app();
+        let h = app.handle().clone();
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("README.md"), "# docs").unwrap();
+        let docs = tempfile::tempdir().unwrap();
+        std::fs::write(docs.path().join("guide.md"), "guide").unwrap();
+        std::fs::write(docs.path().join("pic.png"), b"png").unwrap();
+
+        let err = list_doc_tree(app.state(), "ghost".into()).unwrap_err();
+        assert!(err.contains("unknown project"), "got: {err}");
+
+        // no docs_path -> folder_path fallback
+        let p = create_project(
+            h.clone(),
+            app.state(),
+            NewProject {
+                name: "P".into(),
+                description: None,
+                icon: None,
+                color: None,
+                folder_path: dir.path().display().to_string(),
+                docs_path: None,
+            },
+        )
+        .unwrap();
+        let tree = list_doc_tree(app.state(), p.id.clone()).unwrap();
+        assert_eq!(tree.len(), 1);
+        assert_eq!(
+            read_doc_file(app.state(), p.id.clone(), "README.md".into()).unwrap(),
+            "# docs"
+        );
+
+        // docs_path set -> reads switch roots; escapes are rejected
+        let mut p2 = p.clone();
+        p2.docs_path = Some(docs.path().display().to_string());
+        let p2 = update_project(h, app.state(), p2).unwrap();
+        assert_eq!(
+            read_doc_file(app.state(), p2.id.clone(), "guide.md".into()).unwrap(),
+            "guide"
+        );
+        let img = read_doc_image(app.state(), p2.id.clone(), "pic.png".into()).unwrap();
+        assert_eq!(img.media_type, "image/png");
+        let err = read_doc_file(app.state(), p2.id.clone(), "../escape.md".into()).unwrap_err();
+        assert!(err.contains("outside"), "got: {err}");
     }
 
     #[test]
@@ -1405,6 +1595,7 @@ mod tests {
         let mut registry = ProviderRegistry::default();
         registry.register(Arc::new(StubProvider)); // caps().mcp_registration == false
         app.manage(Arc::new(registry));
+        let dir = tempfile::tempdir().unwrap();
         let p = create_project(
             h,
             app.state(),
@@ -1413,7 +1604,7 @@ mod tests {
                 description: None,
                 icon: None,
                 color: None,
-                folder_path: "/tmp/p".into(),
+                folder_path: dir.path().display().to_string(),
                 docs_path: None,
             },
         )

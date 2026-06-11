@@ -89,6 +89,15 @@ export const commands = {
 	/**  Handoff targets installed on this machine. */
 	handoffTargets: () => typedError<HandoffTarget[], string>(__TAURI_INVOKE("handoff_targets")),
 	/**
+	 *  Native folder picker (T3, D-M3-7): `tauri-plugin-dialog` invoked
+	 *  RUST-SIDE only — the webview holds no `dialog:*` permission. Returns the
+	 *  canonicalized folder, or `null` when the user cancels.
+	 */
+	pickFolder: () => typedError<string | null, string>(__TAURI_INVOKE("pick_folder")),
+	listDocTree: (projectId: string) => typedError<DocEntry[], string>(__TAURI_INVOKE("list_doc_tree", { projectId })),
+	readDocFile: (projectId: string, relPath: string) => typedError<string, string>(__TAURI_INVOKE("read_doc_file", { projectId, relPath })),
+	readDocImage: (projectId: string, relPath: string) => typedError<DocImage, string>(__TAURI_INVOKE("read_doc_image", { projectId, relPath })),
+	/**
 	 *  Composer hints: slash commands/skills any provider recognizes for the
 	 *  project (G8). Read-only, path-policy-checked.
 	 */
@@ -151,6 +160,18 @@ export type ArchivedSession = {
 	project_path: string,
 	summary: string,
 	last_modified_ms: number,
+};
+
+export type DocEntry = {
+	/**  Path relative to the docs root, `/`-separated. */
+	rel_path: string,
+	name: string,
+	is_dir: boolean,
+};
+
+export type DocImage = {
+	media_type: string,
+	base64: string,
 };
 
 /**

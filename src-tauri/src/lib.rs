@@ -54,6 +54,10 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             ipc::delete_session_binding::<tauri::Wry>,
             ipc::handoff,
             ipc::handoff_targets,
+            ipc::pick_folder::<tauri::Wry>,
+            ipc::list_doc_tree,
+            ipc::read_doc_file,
+            ipc::read_doc_image,
             ipc::list_slash_commands,
             ipc::materialize_persona,
             ipc::remove_materialized_persona,
@@ -86,6 +90,9 @@ pub fn run() {
         // Clipboard: webview gets write-text only (capabilities/main.json) for
         // the handoff "copy path" / "copy resume command" actions (EKI-80).
         .plugin(tauri_plugin_clipboard_manager::init())
+        // Dialog: folder picker invoked Rust-side only via `pick_folder`
+        // (D-M3-7) — the webview gets NO dialog:* permission.
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             use tauri::Manager;
