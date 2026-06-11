@@ -1,0 +1,58 @@
+/* Status Critter motion (D-M2-6) — CSS one-liners, reduced-motion aware. */
+@keyframes critter-wiggle {
+  0%,
+  90%,
+  100% {
+    transform: rotate(0deg);
+  }
+  92% {
+    transform: rotate(-12deg);
+  }
+  96% {
+    transform: rotate(12deg);
+  }
+}
+
+@keyframes critter-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes pop-in {
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.critter-wiggle {
+  animation: critter-wiggle 1s ease-in-out infinite;
+}
+
+.critter-bounce {
+  animation: critter-bounce 0.8s ease-in-out infinite;
+}
+
+.pop-in {
+  animation: pop-in 250ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .critter-wiggle,
+  .critter-bounce,
+  .pop-in {
+    animation: none;
+  }
+}
