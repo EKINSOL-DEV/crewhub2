@@ -3,11 +3,21 @@
 //! Reads a scenario file (JSONL of directives) from `FAKE_CLAUDE_SCENARIO` and
 //! plays it back, so engine integration tests are deterministic and need no API.
 //!
+//! Per-spawn scenario selection (M4 G11): when `FAKE_CLAUDE_SCENARIO` is unset
+//! and `FAKE_CLAUDE_SCENARIO_DIR` is set, the scenario is picked PER PROCESS by
+//! scanning argv for a `[scenario:<name>]` marker (tests plant it in the spawn's
+//! `--append-system-prompt` persona) and playing `<dir>/<name>.jsonl`; without a
+//! marker, `<dir>/default.jsonl` plays. A multi-spawn test (3-participant
+//! meeting) therefore scripts each process independently. Exit 5 when no
+//! scenario resolves.
+//!
 //! Directives:
 //! - {"emit": {...}}                 -> print the JSON object as one stdout line
 //! - {"expect_stdin": {"contains": "s"}} -> read one stdin line, exit 9 if it lacks `s`
 //! - {"expect_arg": "s"}             -> exit 8 unless some argv element equals/contains `s`
-//! - {"write_transcript": {...}}     -> append JSON line to `FAKE_CLAUDE_TRANSCRIPT`
+//! - {"write_transcript": {...}}     -> append JSON line to `FAKE_CLAUDE_TRANSCRIPT`;
+//!   when that is unset, to `FAKE_CLAUDE_TRANSCRIPT_DIR/<--session-id argv>.jsonl`
+//!   (so each managed spawn writes the transcript the provider's read path finds)
 //! - {"sleep_ms": 50}                -> sleep
 //! - {"exit": 0}                     -> exit with code
 //! - {"mcp_call": {"name": "create_task", "arguments": {...},
@@ -173,11 +183,63 @@ fn mcp_call(spec: &Value, vars: &mut HashMap<String, String>) {
     }
 }
 
+/// G11: resolve the scenario for THIS process. `FAKE_CLAUDE_SCENARIO` wins
+/// (back-compat); otherwise `FAKE_CLAUDE_SCENARIO_DIR` + an argv
+/// `[scenario:<name>]` marker selects per spawn, `default.jsonl` without one.
+fn resolve_scenario(args: &[String]) -> String {
+    if let Ok(path) = std::env::var("FAKE_CLAUDE_SCENARIO") {
+        return path;
+    }
+    let Ok(dir) = std::env::var("FAKE_CLAUDE_SCENARIO_DIR") else {
+        eprintln!("neither FAKE_CLAUDE_SCENARIO nor FAKE_CLAUDE_SCENARIO_DIR set");
+        std::process::exit(5);
+    };
+    let name = args
+        .iter()
+        .find_map(|a| {
+            let start = a.find("[scenario:")?;
+            let rest = &a[start + "[scenario:".len()..];
+            let end = rest.find(']')?;
+            Some(rest[..end].to_string())
+        })
+        .unwrap_or_else(|| "default".to_string());
+    let path = std::path::Path::new(&dir).join(format!("{name}.jsonl"));
+    if !path.is_file() {
+        eprintln!("scenario not found: {}", path.display());
+        std::process::exit(5);
+    }
+    path.display().to_string()
+}
+
+/// Transcript path for `write_transcript`: explicit `FAKE_CLAUDE_TRANSCRIPT`,
+/// or `FAKE_CLAUDE_TRANSCRIPT_DIR/<--session-id>.jsonl` derived per spawn.
+fn transcript_path(args: &[String]) -> String {
+    if let Ok(path) = std::env::var("FAKE_CLAUDE_TRANSCRIPT") {
+        return path;
+    }
+    let dir = std::env::var("FAKE_CLAUDE_TRANSCRIPT_DIR")
+        .expect("FAKE_CLAUDE_TRANSCRIPT or FAKE_CLAUDE_TRANSCRIPT_DIR must be set");
+    // Prefer --session-id (fresh + forked spawns); fall back to --resume
+    // (resume-in-place keeps the original id).
+    let sid = ["--session-id", "--resume"]
+        .iter()
+        .find_map(|flag| {
+            args.iter()
+                .position(|a| a == flag)
+                .and_then(|i| args.get(i + 1))
+        })
+        .map(String::as_str)
+        .unwrap_or("unknown-session");
+    std::path::Path::new(&dir)
+        .join(format!("{sid}.jsonl"))
+        .display()
+        .to_string()
+}
+
 fn main() {
-    let scenario_path =
-        std::env::var("FAKE_CLAUDE_SCENARIO").expect("FAKE_CLAUDE_SCENARIO not set");
-    let scenario = std::fs::read_to_string(&scenario_path).expect("scenario unreadable");
     let args: Vec<String> = std::env::args().collect();
+    let scenario_path = resolve_scenario(&args);
+    let scenario = std::fs::read_to_string(&scenario_path).expect("scenario unreadable");
     let stdin = std::io::stdin();
     let mut stdin_lines = stdin.lock().lines();
     let mut stdout = std::io::stdout();
@@ -210,8 +272,7 @@ fn main() {
                 std::process::exit(8);
             }
         } else if let Some(line) = obj.get("write_transcript") {
-            let path =
-                std::env::var("FAKE_CLAUDE_TRANSCRIPT").expect("FAKE_CLAUDE_TRANSCRIPT not set");
+            let path = transcript_path(&args);
             let mut f = std::fs::OpenOptions::new()
                 .create(true)
                 .append(true)

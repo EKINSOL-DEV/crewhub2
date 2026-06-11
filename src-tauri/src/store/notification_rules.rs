@@ -9,12 +9,14 @@
 use super::Store;
 use serde::{Deserialize, Serialize};
 
-/// Closed trigger list for M3 (M3-R7: four task triggers only).
+/// Closed trigger list: four M3 task triggers + M4's `run_finished`
+/// (T5 — the automation toast rides the same matcher seam).
 pub const NOTIFICATION_TRIGGERS: &[&str] = &[
     "task_moved",
     "task_blocked",
     "task_assigned",
     "task_mention",
+    "run_finished",
 ];
 /// Closed scopes (mirrors the CHECK constraint in migration 001).
 pub const NOTIFICATION_SCOPES: &[&str] = &["agent", "project", "global"];

@@ -4,7 +4,7 @@
 //! Emits provider-neutral [`SessionEvent`]s: `Discovered` on first sight,
 //! `Item`+`Updated` for new lines, `Removed` when a session leaves the recency window.
 
-use super::lineage::extract_header;
+use super::lineage::{extract_header, read_subagent_meta, team_for_lead, TEAMMATE_MESSAGE_MARKER};
 use super::transcript::{parse_line, ParsedLine};
 use super::PROVIDER_ID;
 use crate::engine::status::{derive, StatusInput};
@@ -253,6 +253,7 @@ impl WatchState {
                     status: SessionStatus::Idle,
                     activity_detail: None,
                     parent: parent.clone(),
+                    team: None,
                     usage: UsageTotals::default(),
                     git_branch: None,
                     last_activity_ms: now,
@@ -305,6 +306,50 @@ impl WatchState {
         });
         entry.meta.status = status;
         entry.meta.activity_detail = detail;
+
+        // Team detection (M4 T7, D-M4-9 / ADR 0002): additive + parse-tolerant
+        // — absence of markers/configs simply means no team.
+        if entry.meta.team.is_none() {
+            let teams_dir = self.config.root.parent().map(|p| p.join("teams"));
+            match (&parent, teams_dir) {
+                (Some(parent_sid), teams_dir) => {
+                    // teammate probe: marker in user content + sidecar meta
+                    // WITHOUT toolUseId (Task subagents have one)
+                    let has_marker = parsed.iter().any(|line| {
+                        line.items.iter().any(|item| {
+                            matches!(item, TranscriptItem::UserText { text, .. }
+                                if text.contains(TEAMMATE_MESSAGE_MARKER))
+                        })
+                    });
+                    if has_marker {
+                        if let Some(sub) = read_subagent_meta(path) {
+                            if sub.tool_use_id.is_none() {
+                                let team_id = teams_dir
+                                    .and_then(|d| team_for_lead(&d, &parent_sid.id))
+                                    .unwrap_or_else(|| parent_sid.id.clone());
+                                entry.meta.team = Some(TeamInfo {
+                                    team_id,
+                                    role: sub
+                                        .agent_type
+                                        .or(sub.name)
+                                        .unwrap_or_else(|| "teammate".into()),
+                                });
+                            }
+                        }
+                    }
+                }
+                (None, Some(teams_dir)) if !entry.discovered => {
+                    // lead probe (once, on discovery): live teams only
+                    if let Some(name) = team_for_lead(&teams_dir, &id.id) {
+                        entry.meta.team = Some(TeamInfo {
+                            team_id: name,
+                            role: "lead".into(),
+                        });
+                    }
+                }
+                _ => {}
+            }
+        }
 
         let first_time = !entry.discovered;
         entry.discovered = true;
@@ -416,6 +461,80 @@ mod tests {
             poll_interval: Duration::from_millis(50),
             sweep_interval: Duration::from_secs(3600),
         }
+    }
+
+    /// M4 T7 (D-M4-9): team info flows into Discovered metas — lead via the
+    /// (live) team config, teammate via marker + sidecar meta. Sessions
+    /// without team artifacts keep `team: None` by construction.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn team_info_flows_into_discovered_metas() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("projects");
+        let project = root.join("proj-a");
+        std::fs::create_dir_all(&project).unwrap();
+        let now = chrono::Utc::now().to_rfc3339();
+
+        // lead session + live team config keyed by leadSessionId
+        std::fs::write(
+            project.join("lead-1.jsonl"),
+            user_line("kick off", &now) + "\n",
+        )
+        .unwrap();
+        let team_dir = dir.path().join("teams/demo-team");
+        std::fs::create_dir_all(&team_dir).unwrap();
+        std::fs::write(
+            team_dir.join("config.json"),
+            r#"{"name":"demo-team","leadSessionId":"lead-1","members":[]}"#,
+        )
+        .unwrap();
+
+        // teammate child: subagent layout + marker + sidecar meta WITHOUT toolUseId
+        let subs = project.join("lead-1/subagents");
+        std::fs::create_dir_all(&subs).unwrap();
+        let mate_line = format!(
+            r#"{{"type":"user","isSidechain":true,"agentId":"a9","timestamp":"{now}","cwd":"/tmp/proj","message":{{"content":"<teammate-message teammate_id=\"team-lead\" summary=\"Do the echo\">go</teammate-message>"}}}}"#
+        );
+        std::fs::write(subs.join("agent-a9.jsonl"), mate_line + "\n").unwrap();
+        std::fs::write(subs.join("agent-a9.meta.json"), r#"{"agentType":"echoer"}"#).unwrap();
+
+        // a teamless control session
+        std::fs::write(
+            project.join("solo-1.jsonl"),
+            user_line("alone", &now) + "\n",
+        )
+        .unwrap();
+
+        let (tx, mut rx) = broadcast::channel(64);
+        let _watcher = TranscriptWatcher::start(test_config(&root), tx).unwrap();
+
+        let mut seen: std::collections::HashMap<String, SessionMeta> = HashMap::new();
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+        while seen.len() < 3 && tokio::time::Instant::now() < deadline {
+            if let Ok(Ok(SessionEvent::Discovered { meta } | SessionEvent::Updated { meta })) =
+                tokio::time::timeout(Duration::from_millis(500), rx.recv()).await
+            {
+                seen.insert(meta.id.id.clone(), meta);
+            }
+        }
+        let lead = seen.get("lead-1").expect("lead discovered");
+        assert_eq!(
+            lead.team,
+            Some(TeamInfo {
+                team_id: "demo-team".into(),
+                role: "lead".into()
+            })
+        );
+        let mate = seen.get("agent-a9").expect("teammate discovered");
+        assert_eq!(mate.parent.as_ref().map(|p| p.id.as_str()), Some("lead-1"));
+        assert_eq!(
+            mate.team,
+            Some(TeamInfo {
+                team_id: "demo-team".into(),
+                role: "echoer".into()
+            })
+        );
+        let solo = seen.get("solo-1").expect("solo discovered");
+        assert_eq!(solo.team, None, "no team artifacts -> None by construction");
     }
 
     #[tokio::test(flavor = "multi_thread")]

@@ -1,0 +1,65 @@
+{
+  "_comment": "ONE {{var}} substitution contract, shared Rust <-> TS (M4 D-M4-8/T8). orchestrator/substitute.rs and src/lib/render-template.ts are BOTH tested against this exact file — drift = red on either side.",
+  "cases": [
+    {
+      "name": "plain text passes through",
+      "template": "no variables here",
+      "vars": {},
+      "expected": "no variables here"
+    },
+    {
+      "name": "single substitution",
+      "template": "Hello {{name}}!",
+      "vars": { "name": "alice" },
+      "expected": "Hello alice!"
+    },
+    {
+      "name": "multiple and repeated variables",
+      "template": "{{a}} {{b}} {{a}}",
+      "vars": { "a": "1", "b": "2" },
+      "expected": "1 2 1"
+    },
+    {
+      "name": "whitespace inside braces is tolerated",
+      "template": "x={{ x }}",
+      "vars": { "x": "9" },
+      "expected": "x=9"
+    },
+    {
+      "name": "previous_output is just a reserved variable name",
+      "template": "refine: {{previous_output}}",
+      "vars": { "previous_output": "draft text" },
+      "expected": "refine: draft text"
+    },
+    {
+      "name": "empty value substitutes to empty",
+      "template": "[{{v}}]",
+      "vars": { "v": "" },
+      "expected": "[]"
+    },
+    {
+      "name": "unterminated braces are literal",
+      "template": "a {{ b",
+      "vars": {},
+      "expected": "a {{ b"
+    },
+    {
+      "name": "loose closing braces are literal",
+      "template": "}} loose",
+      "vars": {},
+      "expected": "}} loose"
+    },
+    {
+      "name": "missing variable is a typed error, never silent empty",
+      "template": "run {{missing}}",
+      "vars": {},
+      "error": "unknown variable {{missing}}"
+    },
+    {
+      "name": "adjacent variables",
+      "template": "{{a}}{{b}}",
+      "vars": { "a": "x", "b": "y" },
+      "expected": "xy"
+    }
+  ]
+}

@@ -4,6 +4,7 @@ pub mod git;
 pub mod hooks;
 mod ipc;
 pub mod mcp;
+pub mod orchestrator;
 pub mod security;
 pub mod store;
 pub mod workspace;
@@ -75,6 +76,30 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             ipc::mcp_status,
             ipc::enable_mcp_for_project,
             ipc::disable_mcp_for_project,
+            ipc::list_meetings,
+            ipc::get_meeting,
+            ipc::list_meeting_turns,
+            ipc::list_action_items,
+            ipc::start_meeting,
+            ipc::cancel_meeting,
+            ipc::convert_action_item::<tauri::Wry>,
+            ipc::run_standup,
+            ipc::list_standups,
+            ipc::get_standup,
+            ipc::list_standup_entries,
+            ipc::list_runs,
+            ipc::get_run,
+            ipc::create_run::<tauri::Wry>,
+            ipc::update_run::<tauri::Wry>,
+            ipc::delete_run::<tauri::Wry>,
+            ipc::set_run_enabled::<tauri::Wry>,
+            ipc::run_now,
+            ipc::list_run_results,
+            ipc::preview_cron,
+            ipc::list_prompt_templates,
+            ipc::create_prompt_template::<tauri::Wry>,
+            ipc::update_prompt_template::<tauri::Wry>,
+            ipc::delete_prompt_template::<tauri::Wry>,
         ])
         .events(tauri_specta::collect_events![
             events::DomainEvent,
@@ -167,7 +192,26 @@ pub fn run() {
             // T20/T23: MCP server — single loopback socket, per-launch token.
             // Tool-driven store mutations broadcast DomainEvents on `mcp_notify`
             // (they bypass the IPC emit path); bridged to the webview below.
+            // The M4 orchestrator shares the same backend-events channel.
             let (mcp_notify, _) = tokio::sync::broadcast::channel::<events::DomainEvent>(256);
+
+            // M4: orchestration layer — meetings (T3) + boot recovery scan
+            // (D-M4-2: resume non-terminal meetings at their persisted position).
+            let orchestrator = orchestrator::Orchestrator::new(
+                store.clone(),
+                registry.clone(),
+                mcp_notify.clone(),
+            );
+            app.manage(orchestrator.clone());
+            let recover = orchestrator.clone();
+            tauri::async_runtime::spawn(async move {
+                let resumed = recover.recover_on_boot();
+                if resumed > 0 {
+                    eprintln!("orchestrator: resumed {resumed} in-flight meeting(s)");
+                }
+                // 17.1: the owned cron loop (honest scope: runs only while open)
+                recover.start_scheduler();
+            });
             let mcp_handle = match tauri::async_runtime::block_on(mcp::server::McpServer::start(
                 store.clone(),
                 mcp_notify.clone(),

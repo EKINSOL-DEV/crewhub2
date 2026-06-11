@@ -130,6 +130,86 @@ export const commands = {
 	mcpStatus: () => typedError<McpStatus, string>(__TAURI_INVOKE("mcp_status")),
 	enableMcpForProject: (projectId: string) => typedError<null, string>(__TAURI_INVOKE("enable_mcp_for_project", { projectId })),
 	disableMcpForProject: (projectId: string) => typedError<null, string>(__TAURI_INVOKE("disable_mcp_for_project", { projectId })),
+	listMeetings: (projectId: string | null) => typedError<Meeting[], string>(__TAURI_INVOKE("list_meetings", { projectId })),
+	/**  Single-meeting refetch for `MeetingChanged` reconciliation (D-M4-11). */
+	getMeeting: (id: string) => typedError<{
+	id: string,
+	title: string,
+	goal: string | null,
+	state: string,
+	room_id: string | null,
+	project_id: string | null,
+	config_json: string | null,
+	output_md: string | null,
+	output_path: string | null,
+	current_round: number | null,
+	current_turn: number | null,
+	started_at: number | null,
+	completed_at: number | null,
+	cancelled_at: number | null,
+	error_message: string | null,
+} | null, string>(__TAURI_INVOKE("get_meeting", { id })),
+	listMeetingTurns: (meetingId: string) => typedError<MeetingTurn[], string>(__TAURI_INVOKE("list_meeting_turns", { meetingId })),
+	listActionItems: (meetingId: string) => typedError<ActionItem[], string>(__TAURI_INVOKE("list_action_items", { meetingId })),
+	/**
+	 *  Start a meeting: persists the row + config, then the orchestrator drives
+	 *  it (gathering → rounds → synthesis) over dedicated managed sessions.
+	 */
+	startMeeting: (spec: StartMeetingSpec) => typedError<Meeting, string>(__TAURI_INVOKE("start_meeting", { spec })),
+	/**
+	 *  Cancel: terminal state persisted immediately; the in-flight turn (if any)
+	 *  is interrupted by the driver.
+	 */
+	cancelMeeting: (id: string) => typedError<Meeting, string>(__TAURI_INVOKE("cancel_meeting", { id })),
+	/**
+	 *  Convert an action item to a board task (16.3): one click on the existing
+	 *  M3 surface. `room_id` falls back to the meeting's room — without either,
+	 *  this errors (the standing room_id lesson: tasks without a room don't show
+	 *  on any board, so the UI must ask).
+	 */
+	convertActionItem: (itemId: string, roomId: string | null) => typedError<Task, string>(__TAURI_INVOKE("convert_action_item", { itemId, roomId })),
+	/**
+	 *  Manual standup trigger: creates the row and fans out one bounded haiku
+	 *  gathering run per agent in the background; entries stream in via
+	 *  `StandupChanged`.
+	 */
+	runStandup: (agentIds: string[] | null, title: string | null) => typedError<Standup, string>(__TAURI_INVOKE("run_standup", { agentIds, title })),
+	listStandups: () => typedError<Standup[], string>(__TAURI_INVOKE("list_standups")),
+	/**  Single-standup refetch for `StandupChanged` reconciliation. */
+	getStandup: (id: string) => typedError<{
+	id: string,
+	title: string,
+	created_by: string | null,
+	created_at: number,
+} | null, string>(__TAURI_INVOKE("get_standup", { id })),
+	listStandupEntries: (standupId: string) => typedError<StandupEntry[], string>(__TAURI_INVOKE("list_standup_entries", { standupId })),
+	listRuns: () => typedError<Run[], string>(__TAURI_INVOKE("list_runs")),
+	/**  Single-run refetch for `RunChanged` reconciliation. */
+	getRun: (id: string) => typedError<{
+	id: string,
+	kind: string,
+	schedule_cron: string | null,
+	spec_json: string,
+	enabled: boolean,
+	last_run_at: number | null,
+} | null, string>(__TAURI_INVOKE("get_run", { id })),
+	/**
+	 *  Create a run. `spec_json` is validated at write time against the tagged
+	 *  union (prompt | sequence | standup); the cron expression (if any) must parse.
+	 */
+	createRun: (input: NewRun) => typedError<Run, string>(__TAURI_INVOKE("create_run", { input })),
+	updateRun: (run: Run) => typedError<Run, string>(__TAURI_INVOKE("update_run", { run })),
+	deleteRun: (id: string) => typedError<boolean, string>(__TAURI_INVOKE("delete_run", { id })),
+	setRunEnabled: (id: string, enabled: boolean) => typedError<Run, string>(__TAURI_INVOKE("set_run_enabled", { id, enabled })),
+	/**  "Run now": the same dispatcher code path as a scheduled firing (D-M4-5). */
+	runNow: (runId: string) => typedError<RunResult, string>(__TAURI_INVOKE("run_now", { runId })),
+	listRunResults: (runId: string) => typedError<RunResult[], string>(__TAURI_INVOKE("list_run_results", { runId })),
+	previewCron: (expr: string) => typedError<CronPreview, string>(__TAURI_INVOKE("preview_cron", { expr })),
+	/**  Global templates plus, when given, the project's own (D-M4-8). */
+	listPromptTemplates: (projectId: string | null) => typedError<PromptTemplate[], string>(__TAURI_INVOKE("list_prompt_templates", { projectId })),
+	createPromptTemplate: (input: NewPromptTemplate) => typedError<PromptTemplate, string>(__TAURI_INVOKE("create_prompt_template", { input })),
+	updatePromptTemplate: (template: PromptTemplate) => typedError<PromptTemplate, string>(__TAURI_INVOKE("update_prompt_template", { template })),
+	deletePromptTemplate: (id: string) => typedError<boolean, string>(__TAURI_INVOKE("delete_prompt_template", { id })),
 };
 
 /** Events */
@@ -139,6 +219,18 @@ export const events = {
 };
 
 /* Types */
+export type ActionItem = {
+	id: string,
+	meeting_id: string,
+	text: string,
+	assignee_agent_id: string | null,
+	priority: string | null,
+	status: string,
+	task_id: string | null,
+	sort_order: number,
+	created_at: number,
+};
+
 export type Agent = {
 	id: string,
 	name: string,
@@ -167,6 +259,17 @@ export type ArchivedSession = {
 	project_path: string,
 	summary: string,
 	last_modified_ms: number,
+};
+
+/**
+ *  Cron preview for the schedule editor: next 3 occurrences + a human
+ *  description, plus the honest copy the panel must show (D-M4-4).
+ */
+export type CronPreview = {
+	next: number[],
+	desc: string | null,
+	/**  "Schedules run only while CrewHub is open." */
+	note: string,
 };
 
 export type DiffFile = {
@@ -212,6 +315,18 @@ export type DomainEvent = { type: "AgentCreated"; data: {
 /**  A session binding was created, updated or deleted (G3, EKI-40). */
 { type: "SessionBindingChanged"; data: {
 	session_id: string,
+} } | 
+/**  Meeting state/turn progress (M4 D-M4-11) — UI refetches the meeting + turns. */
+{ type: "MeetingChanged"; data: {
+	meeting_id: string,
+} } | 
+/**  A run was created/updated/fired or a result landed — UI refetches. */
+{ type: "RunChanged"; data: {
+	run_id: string,
+} } | 
+/**  A standup entry landed — UI refetches the standup + entries. */
+{ type: "StandupChanged"; data: {
+	standup_id: string,
 } };
 
 /**  Wrapper event carrying provider-neutral engine events to the webview. */
@@ -252,6 +367,38 @@ export type McpStatus = {
 	url: string,
 };
 
+export type Meeting = {
+	id: string,
+	title: string,
+	goal: string | null,
+	state: string,
+	room_id: string | null,
+	project_id: string | null,
+	config_json: string | null,
+	output_md: string | null,
+	output_path: string | null,
+	current_round: number | null,
+	current_turn: number | null,
+	started_at: number | null,
+	completed_at: number | null,
+	cancelled_at: number | null,
+	error_message: string | null,
+};
+
+export type MeetingTurn = {
+	id: string,
+	meeting_id: string,
+	round_num: number,
+	turn_index: number,
+	agent_id: string,
+	session_id: string | null,
+	/**  Item-sequence offset in the participant's transcript at turn start. */
+	transcript_offset: number | null,
+	started_at: number | null,
+	/**  NULL + meeting moved past it = the turn was skipped (💤). */
+	completed_at: number | null,
+};
+
 export type NewAgent = {
 	name: string,
 	icon: string | null,
@@ -279,6 +426,13 @@ export type NewProject = {
 	docs_path: string | null,
 };
 
+export type NewPromptTemplate = {
+	name: string,
+	template: string,
+	variables_json: string | null,
+	project_id: string | null,
+};
+
 export type NewRoom = {
 	project_id: string | null,
 	name: string,
@@ -292,6 +446,12 @@ export type NewRoomRule = {
 	rule_type: string,
 	rule_value: string,
 	priority: number | null,
+};
+
+export type NewRun = {
+	kind: string,
+	schedule_cron: string | null,
+	spec_json: string,
 };
 
 /**
@@ -328,6 +488,13 @@ export type NotificationRule = {
 	enabled: boolean,
 };
 
+export type ParticipantSpec = {
+	agent_id: string,
+	name: string,
+	/**  Persona carried via the session's appended system prompt. */
+	persona: string | null,
+};
+
 export type PermissionMode = "Default" | "AcceptEdits" | "Plan" | "BypassPermissions";
 
 export type PermissionRequest = {
@@ -359,6 +526,14 @@ export type Project = {
 	status: string,
 	created_at: number,
 	updated_at: number,
+};
+
+export type PromptTemplate = {
+	id: string,
+	name: string,
+	template: string,
+	variables_json: string | null,
+	project_id: string | null,
 };
 
 export type ProviderCaps = {
@@ -417,6 +592,27 @@ export type RoomRule = {
 	rule_type: string,
 	rule_value: string,
 	priority: number,
+};
+
+export type Run = {
+	id: string,
+	kind: string,
+	schedule_cron: string | null,
+	spec_json: string,
+	enabled: boolean,
+	last_run_at: number | null,
+};
+
+export type RunResult = {
+	id: string,
+	run_id: string,
+	session_id: string | null,
+	status: string,
+	summary: string | null,
+	/**  Position within a sequence (migration 003); NULL for simple runs. */
+	step_index: number | null,
+	started_at: number | null,
+	finished_at: number | null,
 };
 
 export type SearchHit = {
@@ -482,6 +678,8 @@ export type SessionMeta = {
 	status: SessionStatus,
 	activity_detail: string | null,
 	parent: SessionId | null,
+	/**  Present only when the provider detected team membership (D-M4-9). */
+	team: TeamInfo | null,
 	usage: UsageTotals,
 	git_branch: string | null,
 	last_activity_ms: number,
@@ -512,6 +710,41 @@ export type SpawnSpec = {
 	agent_id: string | null,
 };
 
+export type Standup = {
+	id: string,
+	title: string,
+	created_by: string | null,
+	created_at: number,
+};
+
+export type StandupEntry = {
+	id: string,
+	standup_id: string,
+	agent_id: string,
+	yesterday: string | null,
+	today: string | null,
+	blockers: string | null,
+	submitted_at: number,
+};
+
+/**
+ *  IPC-facing spec for `start_meeting` (models default from the policy keys;
+ *  the dialog pre-fills and may override per meeting — D-M4-3).
+ */
+export type StartMeetingSpec = {
+	title: string,
+	goal: string | null,
+	room_id: string | null,
+	project_id: string | null,
+	project_path: string,
+	participants: ParticipantSpec[],
+	rounds: number | null,
+	turn_timeout_ms: number | null,
+	participant_model: string | null,
+	synthesis_model: string | null,
+	context_docs: string[] | null,
+};
+
 export type Task = {
 	id: string,
 	project_id: string | null,
@@ -533,6 +766,18 @@ export type TaskEvent = {
 	actor: string,
 	payload_json: string | null,
 	created_at: number,
+};
+
+/**
+ *  Team membership (M4 D-M4-9, 18.1): provider-neutral and ADDITIVE — the UI
+ *  tolerates `None` by construction; detection is parse-tolerant (unknown
+ *  shapes = no team, never an error).
+ */
+export type TeamInfo = {
+	/**  Team name when resolvable; otherwise a stable group key. */
+	team_id: string,
+	/**  "lead" or the teammate's name. */
+	role: string,
 };
 
 /**

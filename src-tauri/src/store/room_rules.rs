@@ -233,6 +233,7 @@ mod tests {
             status: SessionStatus::Idle,
             activity_detail: None,
             parent: None,
+            team: None,
             usage: UsageTotals::default(),
             git_branch: None,
             last_activity_ms: 0,

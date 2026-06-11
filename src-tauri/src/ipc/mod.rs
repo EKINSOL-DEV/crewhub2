@@ -5,15 +5,22 @@ use crate::engine::types::{
     SlashCommand, SpawnSpec, TranscriptPage, UserInput,
 };
 use crate::events::DomainEvent;
+use crate::orchestrator::{Orchestrator, StartMeetingSpec};
 use crate::security::paths::{Access, PathPolicy};
 use crate::store::agents::{Agent, NewAgent};
+use crate::store::meetings::{ActionItem, Meeting, MeetingTurn};
 use crate::store::notification_rules::{
     NewNotificationRule, NotificationRule, NOTIFICATION_RULES_SETTING_KEY,
 };
 use crate::store::projects::{NewProject, Project};
+use crate::store::prompt_templates::{
+    NewPromptTemplate, PromptTemplate, PROMPT_TEMPLATES_SETTING_KEY,
+};
 use crate::store::room_rules::{NewRoomRule, RoomRule};
 use crate::store::rooms::{NewRoom, Room};
+use crate::store::runs::{NewRun, Run, RunResult};
 use crate::store::session_bindings::{NewSessionBinding, SessionBinding};
+use crate::store::standups::{Standup, StandupEntry};
 use crate::store::task_events::{TaskEvent, ACTOR_HUMAN};
 use crate::store::tasks::{NewTask, Task};
 use crate::store::Store;
@@ -1081,6 +1088,388 @@ pub fn open_settings_window<R: Runtime>(app: AppHandle<R>) -> Result<()> {
     .build()
     .map(|_| ())
     .map_err(|e| e.to_string())
+}
+
+// ---- meetings (M4 T2 read surface + T3 engine commands) ----
+
+/// Start a meeting: persists the row + config, then the orchestrator drives
+/// it (gathering → rounds → synthesis) over dedicated managed sessions.
+#[tauri::command]
+#[specta::specta]
+pub async fn start_meeting(
+    orchestrator: State<'_, Arc<Orchestrator>>,
+    spec: StartMeetingSpec,
+) -> Result<Meeting> {
+    orchestrator.start_meeting(spec).map_err(err)
+}
+
+/// Cancel: terminal state persisted immediately; the in-flight turn (if any)
+/// is interrupted by the driver.
+#[tauri::command]
+#[specta::specta]
+pub async fn cancel_meeting(
+    orchestrator: State<'_, Arc<Orchestrator>>,
+    id: String,
+) -> Result<Meeting> {
+    orchestrator.cancel_meeting(&id).map_err(err)
+}
+
+/// Convert an action item to a board task (16.3): one click on the existing
+/// M3 surface. `room_id` falls back to the meeting's room — without either,
+/// this errors (the standing room_id lesson: tasks without a room don't show
+/// on any board, so the UI must ask).
+#[tauri::command]
+#[specta::specta]
+pub fn convert_action_item<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    item_id: String,
+    room_id: Option<String>,
+) -> Result<Task> {
+    let item = store
+        .get_action_item(&item_id)
+        .map_err(err)?
+        .ok_or_else(|| format!("no action item {item_id}"))?;
+    let meeting = store
+        .get_meeting(&item.meeting_id)
+        .map_err(err)?
+        .ok_or_else(|| "meeting vanished".to_string())?;
+    let room_id = room_id.or(meeting.room_id.clone()).ok_or_else(|| {
+        "room_id required: the meeting has no room — pick one in the convert dialog".to_string()
+    })?;
+    let task = store
+        .create_task_as(
+            NewTask {
+                project_id: meeting.project_id.clone(),
+                room_id: Some(room_id),
+                title: item.text.clone(),
+                description: Some(format!(
+                    "Action item from meeting “{}” (meeting:{})",
+                    meeting.title, meeting.id
+                )),
+                priority: item.priority.clone(),
+                assignee_agent_id: item.assignee_agent_id.clone(),
+                created_by: None,
+            },
+            ACTOR_HUMAN,
+        )
+        .map_err(err)?;
+    store
+        .set_action_item_task(&item_id, &task.id)
+        .map_err(err)?;
+    DomainEvent::TaskChanged {
+        task_id: task.id.clone(),
+    }
+    .emit(&app)
+    .map_err(|e| e.to_string())?;
+    DomainEvent::MeetingChanged {
+        meeting_id: meeting.id,
+    }
+    .emit(&app)
+    .map_err(|e| e.to_string())?;
+    Ok(task)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_meetings(store: State<Arc<Store>>, project_id: Option<String>) -> Result<Vec<Meeting>> {
+    store.list_meetings(project_id.as_deref()).map_err(err)
+}
+
+/// Single-meeting refetch for `MeetingChanged` reconciliation (D-M4-11).
+#[tauri::command]
+#[specta::specta]
+pub fn get_meeting(store: State<Arc<Store>>, id: String) -> Result<Option<Meeting>> {
+    store.get_meeting(&id).map_err(err)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_meeting_turns(
+    store: State<Arc<Store>>,
+    meeting_id: String,
+) -> Result<Vec<MeetingTurn>> {
+    store.list_meeting_turns(&meeting_id).map_err(err)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_action_items(store: State<Arc<Store>>, meeting_id: String) -> Result<Vec<ActionItem>> {
+    store.list_action_items(&meeting_id).map_err(err)
+}
+
+// ---- standups (M4 T4 — D-M4-7) ----
+
+/// Manual standup trigger: creates the row and fans out one bounded haiku
+/// gathering run per agent in the background; entries stream in via
+/// `StandupChanged`.
+#[tauri::command]
+#[specta::specta]
+pub async fn run_standup(
+    orchestrator: State<'_, Arc<Orchestrator>>,
+    agent_ids: Option<Vec<String>>,
+    title: Option<String>,
+) -> Result<Standup> {
+    orchestrator.start_standup(agent_ids, title).map_err(err)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_standups(store: State<Arc<Store>>) -> Result<Vec<Standup>> {
+    store.list_standups().map_err(err)
+}
+
+/// Single-standup refetch for `StandupChanged` reconciliation.
+#[tauri::command]
+#[specta::specta]
+pub fn get_standup(store: State<Arc<Store>>, id: String) -> Result<Option<Standup>> {
+    store.get_standup(&id).map_err(err)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_standup_entries(
+    store: State<Arc<Store>>,
+    standup_id: String,
+) -> Result<Vec<StandupEntry>> {
+    store.list_standup_entries(&standup_id).map_err(err)
+}
+
+// ---- runs & scheduler (M4 T5 — D-M4-4/5) ----
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_runs(store: State<Arc<Store>>) -> Result<Vec<Run>> {
+    store.list_runs().map_err(err)
+}
+
+/// Single-run refetch for `RunChanged` reconciliation.
+#[tauri::command]
+#[specta::specta]
+pub fn get_run(store: State<Arc<Store>>, id: String) -> Result<Option<Run>> {
+    store.get_run(&id).map_err(err)
+}
+
+/// Create a run. `spec_json` is validated at write time against the tagged
+/// union (prompt | sequence | standup); the cron expression (if any) must parse.
+#[tauri::command]
+#[specta::specta]
+pub fn create_run<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    input: NewRun,
+) -> Result<Run> {
+    crate::orchestrator::dispatch::validate_spec(&input.spec_json).map_err(err)?;
+    if let Some(cron) = input.schedule_cron.as_deref() {
+        if crate::orchestrator::scheduler::next_fire(cron, Store::now_ms()).is_none() {
+            return Err(format!("unparsable cron expression: {cron}"));
+        }
+    }
+    let run = store.create_run(input).map_err(err)?;
+    DomainEvent::RunChanged {
+        run_id: run.id.clone(),
+    }
+    .emit(&app)
+    .map_err(|e| e.to_string())?;
+    Ok(run)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn update_run<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    run: Run,
+) -> Result<Run> {
+    crate::orchestrator::dispatch::validate_spec(&run.spec_json).map_err(err)?;
+    if let Some(cron) = run.schedule_cron.as_deref() {
+        if crate::orchestrator::scheduler::next_fire(cron, Store::now_ms()).is_none() {
+            return Err(format!("unparsable cron expression: {cron}"));
+        }
+    }
+    let run = store.update_run(run).map_err(err)?;
+    DomainEvent::RunChanged {
+        run_id: run.id.clone(),
+    }
+    .emit(&app)
+    .map_err(|e| e.to_string())?;
+    Ok(run)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn delete_run<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    id: String,
+) -> Result<bool> {
+    let deleted = store.delete_run(&id).map_err(err)?;
+    if deleted {
+        DomainEvent::RunChanged { run_id: id }
+            .emit(&app)
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(deleted)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn set_run_enabled<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    id: String,
+    enabled: bool,
+) -> Result<Run> {
+    store.set_run_enabled(&id, enabled).map_err(err)?;
+    DomainEvent::RunChanged { run_id: id.clone() }
+        .emit(&app)
+        .map_err(|e| e.to_string())?;
+    store
+        .get_run(&id)
+        .map_err(err)?
+        .ok_or_else(|| format!("no run {id}"))
+}
+
+/// "Run now": the same dispatcher code path as a scheduled firing (D-M4-5).
+#[tauri::command]
+#[specta::specta]
+pub async fn run_now(
+    orchestrator: State<'_, Arc<Orchestrator>>,
+    run_id: String,
+) -> Result<RunResult> {
+    orchestrator.run_now(&run_id).await.map_err(err)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_run_results(store: State<Arc<Store>>, run_id: String) -> Result<Vec<RunResult>> {
+    store.list_run_results(&run_id).map_err(err)
+}
+
+/// Cron preview for the schedule editor: next 3 occurrences + a human
+/// description, plus the honest copy the panel must show (D-M4-4).
+#[derive(Serialize, specta::Type)]
+pub struct CronPreview {
+    #[specta(type = Vec<specta_typescript::Number>)]
+    pub next: Vec<i64>,
+    pub desc: Option<String>,
+    /// "Schedules run only while CrewHub is open."
+    pub note: String,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn preview_cron(expr: String) -> Result<CronPreview> {
+    use crate::orchestrator::scheduler::{next_fire, SCHEDULER_HONEST_COPY};
+    let mut next = Vec::new();
+    let mut after = Store::now_ms();
+    for _ in 0..3 {
+        match next_fire(&expr, after) {
+            Some(t) => {
+                next.push(t);
+                after = t;
+            }
+            None => break,
+        }
+    }
+    if next.is_empty() {
+        return Err(format!("unparsable cron expression: {expr}"));
+    }
+    let desc = std::str::FromStr::from_str(expr.as_str())
+        .ok()
+        .map(|c: croner::Cron| c.describe());
+    Ok(CronPreview {
+        next,
+        desc,
+        note: SCHEDULER_HONEST_COPY.into(),
+    })
+}
+
+// ---- prompt templates (M4 T8 — D-M4-8) ----
+
+/// Validate `variables_json`: an array of `{name, default?}` objects.
+fn validate_variables_json(raw: Option<&str>) -> Result<()> {
+    let Some(raw) = raw else { return Ok(()) };
+    let v: serde_json::Value =
+        serde_json::from_str(raw).map_err(|e| format!("invalid variables_json: {e}"))?;
+    let arr = v
+        .as_array()
+        .ok_or_else(|| "variables_json must be an array".to_string())?;
+    for item in arr {
+        let name = item
+            .get("name")
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(|| "every variable needs a string name".to_string())?;
+        if name.trim().is_empty() {
+            return Err("variable names must not be empty".into());
+        }
+        if let Some(default) = item.get("default") {
+            if !default.is_string() && !default.is_null() {
+                return Err(format!("variable {name}: default must be a string"));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn emit_templates_changed<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
+    DomainEvent::SettingChanged {
+        key: PROMPT_TEMPLATES_SETTING_KEY.into(),
+    }
+    .emit(app)
+    .map_err(|e| e.to_string())
+}
+
+/// Global templates plus, when given, the project's own (D-M4-8).
+#[tauri::command]
+#[specta::specta]
+pub fn list_prompt_templates(
+    store: State<Arc<Store>>,
+    project_id: Option<String>,
+) -> Result<Vec<PromptTemplate>> {
+    store
+        .list_prompt_templates(project_id.as_deref())
+        .map_err(err)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn create_prompt_template<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    input: NewPromptTemplate,
+) -> Result<PromptTemplate> {
+    validate_variables_json(input.variables_json.as_deref())?;
+    let t = store.create_prompt_template(input).map_err(err)?;
+    emit_templates_changed(&app)?;
+    Ok(t)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn update_prompt_template<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    template: PromptTemplate,
+) -> Result<PromptTemplate> {
+    validate_variables_json(template.variables_json.as_deref())?;
+    let t = store.update_prompt_template(template).map_err(err)?;
+    emit_templates_changed(&app)?;
+    Ok(t)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn delete_prompt_template<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    id: String,
+) -> Result<bool> {
+    let deleted = store.delete_prompt_template(&id).map_err(err)?;
+    if deleted {
+        emit_templates_changed(&app)?;
+    }
+    Ok(deleted)
 }
 
 #[cfg(test)]

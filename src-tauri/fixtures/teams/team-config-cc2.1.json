@@ -1,0 +1,32 @@
+{
+  "name": "fixture-team",
+  "description": "Fixture team recorded from the T1 spike (claude 2.1.173)",
+  "createdAt": 1772895035664,
+  "leadAgentId": "team-lead@fixture-team",
+  "leadSessionId": "79eb425c-363b-4f2f-b46c-148ab7c66c3c",
+  "members": [
+    {
+      "agentId": "team-lead@fixture-team",
+      "name": "team-lead",
+      "agentType": "team-lead",
+      "model": "claude-haiku-4-5-20251001",
+      "joinedAt": 1772895035664,
+      "tmuxPaneId": "",
+      "cwd": "/private/tmp/teams-fixture",
+      "subscriptions": []
+    },
+    {
+      "agentId": "echoer@fixture-team",
+      "name": "echoer",
+      "model": "claude-haiku-4-5-20251001",
+      "prompt": "You are the 'echoer' teammate. Send 'pong' back to the team lead.",
+      "color": "yellow",
+      "planModeRequired": false,
+      "joinedAt": 1772895117141,
+      "tmuxPaneId": "in-process",
+      "cwd": "/private/tmp/teams-fixture",
+      "subscriptions": [],
+      "backendType": "in-process"
+    }
+  ]
+}
