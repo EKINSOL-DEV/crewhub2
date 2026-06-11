@@ -33,6 +33,7 @@ rusqlite_migration = "2.6.0"
 async-trait = "0.1.89"
 tokio = { version = "1.47", features = ["rt", "sync", "macros", "time"] }
 chrono = "0.4.45"
+notify = "8.2.0"
 
 [dev-dependencies]
 tauri = { version = "2", features = ["test"] }

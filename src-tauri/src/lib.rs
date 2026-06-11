@@ -9,6 +9,8 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         .commands(tauri_specta::collect_commands![
             ipc::app_info::<tauri::Wry>,
             ipc::list_all_sessions,
+            ipc::list_archived_sessions,
+            ipc::search_transcripts,
             ipc::list_agents,
             ipc::create_agent::<tauri::Wry>,
             ipc::update_agent::<tauri::Wry>,
@@ -61,6 +63,7 @@ pub fn run() {
             // Provider registry: empty until ClaudeCodeProvider lands (M1 T9).
             let registry = std::sync::Arc::new(engine::provider::ProviderRegistry::default());
             app.manage(registry.clone());
+            app.manage(engine::claude::ClaudeConfig::default());
 
             builder.mount_events(app);
 

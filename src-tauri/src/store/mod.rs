@@ -14,7 +14,10 @@ pub struct Store {
 }
 
 fn migrations() -> Migrations<'static> {
-    Migrations::new(vec![M::up(include_str!("../../migrations/001_init.sql"))])
+    Migrations::new(vec![
+        M::up(include_str!("../../migrations/001_init.sql")),
+        M::up(include_str!("../../migrations/002_history_fts.sql")),
+    ])
 }
 
 impl Store {
@@ -72,6 +75,22 @@ mod tests {
             )
             .unwrap();
         assert!(n >= 17, "expected >= 17 tables, got {n}");
+    }
+
+    #[test]
+    fn bundled_sqlite_has_fts5() {
+        let s = Store::open_in_memory().unwrap();
+        let n: i64 = s
+            .conn
+            .lock()
+            .unwrap()
+            .query_row(
+                "SELECT count(*) FROM pragma_compile_options WHERE compile_options LIKE '%FTS5%'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert!(n >= 1, "bundled sqlite must have FTS5 enabled");
     }
 
     #[test]

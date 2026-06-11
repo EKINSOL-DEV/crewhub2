@@ -47,6 +47,27 @@ pub async fn list_all_sessions(
     Ok(registry.list_all_sessions().await)
 }
 
+// TODO(M1-T9): route history through ClaudeCodeProvider so this file stays provider-neutral.
+#[tauri::command]
+#[specta::specta]
+pub fn list_archived_sessions(
+    cfg: State<crate::engine::claude::ClaudeConfig>,
+) -> Result<Vec<crate::engine::types::ArchivedSession>> {
+    Ok(crate::engine::claude::history::list_archived_sessions(
+        &cfg.root,
+    ))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn search_transcripts(
+    store: State<Store>,
+    cfg: State<crate::engine::claude::ClaudeConfig>,
+    query: String,
+) -> Result<Vec<crate::engine::types::SearchHit>> {
+    crate::engine::claude::history::search(&store, &cfg.root, &query).map_err(err)
+}
+
 // ---- agents ----
 
 #[tauri::command]

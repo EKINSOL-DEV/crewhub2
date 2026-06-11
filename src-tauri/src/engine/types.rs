@@ -214,3 +214,21 @@ pub enum SessionEvent {
         sessions: Vec<SessionId>,
     },
 }
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
+pub struct ArchivedSession {
+    pub id: SessionId,
+    pub project_path: String,
+    pub summary: String,
+    #[specta(type = Number)]
+    pub last_modified_ms: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
+pub struct SearchHit {
+    pub session_id: SessionId,
+    #[specta(type = Number)]
+    pub ts: i64,
+    pub role: String,
+    pub snippet: String,
+}

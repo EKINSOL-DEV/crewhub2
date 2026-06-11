@@ -7,6 +7,8 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 export const commands = {
 	appInfo: () => __TAURI_INVOKE<AppInfo>("app_info"),
 	listAllSessions: () => typedError<SessionMeta[], string>(__TAURI_INVOKE("list_all_sessions")),
+	listArchivedSessions: () => typedError<ArchivedSession[], string>(__TAURI_INVOKE("list_archived_sessions")),
+	searchTranscripts: (query: string) => typedError<SearchHit[], string>(__TAURI_INVOKE("search_transcripts", { query })),
 	listAgents: () => typedError<Agent[], string>(__TAURI_INVOKE("list_agents")),
 	createAgent: (input: NewAgent) => typedError<Agent, string>(__TAURI_INVOKE("create_agent", { input })),
 	updateAgent: (agent: Agent) => typedError<Agent, string>(__TAURI_INVOKE("update_agent", { agent })),
@@ -55,6 +57,13 @@ export type Agent = {
 export type AppInfo = {
 	version: string,
 	data_dir: string,
+};
+
+export type ArchivedSession = {
+	id: SessionId,
+	project_path: string,
+	summary: string,
+	last_modified_ms: number,
 };
 
 /**
@@ -166,6 +175,13 @@ export type Room = {
 	style_json: string | null,
 	created_at: number,
 	updated_at: number,
+};
+
+export type SearchHit = {
+	session_id: SessionId,
+	ts: number,
+	role: string,
+	snippet: string,
 };
 
 export type SessionEvent = { type: "Discovered"; data: {
