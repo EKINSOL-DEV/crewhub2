@@ -186,6 +186,15 @@ impl SessionProvider for ClaudeCodeProvider {
         history::search(&self.store, &self.config.root, query)
     }
 
+    async fn read_transcript(
+        &self,
+        id: &SessionId,
+        offset: u64,
+        limit: u32,
+    ) -> anyhow::Result<TranscriptPage> {
+        history::read_transcript_page(&self.config.root, &id.id, offset, limit)
+    }
+
     async fn register_mcp(&self, project_dir: &Path, port: u16, token: &str) -> anyhow::Result<()> {
         // refresh (remove-then-add) so re-enabling after a token rotation works.
         registration::refresh(&self.mcp_cli_config(), project_dir, port, token).await

@@ -57,6 +57,19 @@ pub trait SessionProvider: Send + Sync + 'static {
         anyhow::bail!("search_transcripts: unsupported by this provider")
     }
 
+    /// Read a page of a session's transcript from disk: items
+    /// `[offset, offset+limit)` plus the current total, numbered exactly like
+    /// live [`SessionEvent::Item`] `seq` (M2 plan D-M2-3 stitch contract —
+    /// one parser, one numbering; parity is pinned by an engine test).
+    async fn read_transcript(
+        &self,
+        _id: &SessionId,
+        _offset: u64,
+        _limit: u32,
+    ) -> anyhow::Result<TranscriptPage> {
+        anyhow::bail!("read_transcript: unsupported by this provider")
+    }
+
     /// Register CrewHub's MCP server with the provider's runtime for the
     /// project at `project_dir` (idempotent: refreshes a stale registration).
     /// Gated by [`ProviderCaps::mcp_registration`].

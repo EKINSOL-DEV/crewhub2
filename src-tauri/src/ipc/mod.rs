@@ -1,6 +1,7 @@
 use crate::engine::provider::{ProviderCaps, ProviderRegistry, SessionProvider};
 use crate::engine::types::{
-    ArchivedSession, PermissionResponse, SearchHit, SessionId, SessionMeta, SpawnSpec, UserInput,
+    ArchivedSession, PermissionResponse, SearchHit, SessionId, SessionMeta, SpawnSpec,
+    TranscriptPage, UserInput,
 };
 use crate::events::DomainEvent;
 use crate::store::agents::{Agent, NewAgent};
@@ -212,6 +213,22 @@ pub async fn disable_mcp_for_project(
         .map_err(err)?;
     store
         .set_setting(&crate::mcp::enabled_setting_key(&project_id), "false")
+        .map_err(err)
+}
+
+/// One page of a session's transcript, numbered like live `Item.seq`
+/// (D-M2-3): chat opens with the newest page and pages older on scroll-up.
+#[tauri::command]
+#[specta::specta]
+pub async fn get_session_transcript(
+    registry: State<'_, Arc<ProviderRegistry>>,
+    id: SessionId,
+    offset: u32,
+    limit: u32,
+) -> Result<TranscriptPage> {
+    provider(&registry, &id.provider)?
+        .read_transcript(&id, offset as u64, limit)
+        .await
         .map_err(err)
 }
 
@@ -743,6 +760,40 @@ mod tests {
             .await
             .unwrap()
             .is_empty());
+    }
+
+    /// G2: transcript pages route to the session's provider; a provider
+    /// without `read_transcript` (StubProvider default) errors readably.
+    #[tokio::test]
+    async fn get_session_transcript_routes_and_surfaces_unsupported() {
+        let app = app();
+        let mut registry = ProviderRegistry::default();
+        registry.register(Arc::new(StubProvider));
+        app.manage(Arc::new(registry));
+        let err = get_session_transcript(
+            app.state(),
+            SessionId {
+                provider: "stub".into(),
+                id: "s1".into(),
+            },
+            0,
+            200,
+        )
+        .await
+        .unwrap_err();
+        assert!(err.contains("unsupported"), "got: {err}");
+        let err = get_session_transcript(
+            app.state(),
+            SessionId {
+                provider: "codex".into(),
+                id: "x".into(),
+            },
+            0,
+            200,
+        )
+        .await
+        .unwrap_err();
+        assert!(err.contains("unknown provider"), "got: {err}");
     }
 
     /// EKI-109: MCP registration routes by capability flag, never provider id.

@@ -103,11 +103,37 @@ pub enum TranscriptItem {
         #[specta(type = Number)]
         ts: i64,
     },
+    /// A provider-made restore point (e.g. a file-history snapshot) the user
+    /// can rewind to by forking from here (EKI-64).
+    Checkpoint {
+        id: String,
+        #[specta(type = Number)]
+        ts: i64,
+    },
     Unknown {
         raw_type: String,
         #[specta(type = Number)]
         ts: Option<i64>,
     },
+}
+
+/// A transcript item paired with its absolute position in the session's
+/// transcript — the SAME numbering as live [`SessionEvent::Item`] `seq`
+/// (M2 plan D-M2-3: one parser, one numbering).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
+pub struct SeqItem {
+    #[specta(type = Number)]
+    pub seq: u64,
+    pub item: TranscriptItem,
+}
+
+/// One page of an on-disk transcript: items `[offset, offset+limit)`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
+pub struct TranscriptPage {
+    pub items: Vec<SeqItem>,
+    /// Items currently in the transcript file.
+    #[specta(type = Number)]
+    pub total: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]

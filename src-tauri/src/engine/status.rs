@@ -39,6 +39,7 @@ pub fn derive(input: &StatusInput) -> (SessionStatus, Option<String>) {
         match item {
             TranscriptItem::Usage { .. }
             | TranscriptItem::SystemNote { .. }
+            | TranscriptItem::Checkpoint { .. }
             | TranscriptItem::Unknown { .. } => continue,
             TranscriptItem::ToolUse {
                 tool, input_json, ..

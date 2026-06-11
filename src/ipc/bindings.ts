@@ -13,6 +13,11 @@ export const commands = {
 	respondToPermission: (id: SessionId, requestId: string, response: PermissionResponse) => typedError<null, string>(__TAURI_INVOKE("respond_to_permission", { id, requestId, response })),
 	interruptSession: (id: SessionId) => typedError<null, string>(__TAURI_INVOKE("interrupt_session", { id })),
 	killSession: (id: SessionId) => typedError<null, string>(__TAURI_INVOKE("kill_session", { id })),
+	/**
+	 *  One page of a session's transcript, numbered like live `Item.seq`
+	 *  (D-M2-3): chat opens with the newest page and pages older on scroll-up.
+	 */
+	getSessionTranscript: (id: SessionId, offset: number, limit: number) => typedError<TranscriptPage, string>(__TAURI_INVOKE("get_session_transcript", { id, offset, limit })),
 	listArchivedSessions: (projectPath: string | null) => typedError<ArchivedSession[], string>(__TAURI_INVOKE("list_archived_sessions", { projectPath })),
 	searchTranscripts: (query: string) => typedError<SearchHit[], string>(__TAURI_INVOKE("search_transcripts", { query })),
 	listAgents: () => typedError<Agent[], string>(__TAURI_INVOKE("list_agents")),
@@ -230,6 +235,16 @@ export type SearchHit = {
 	snippet: string,
 };
 
+/**
+ *  A transcript item paired with its absolute position in the session's
+ *  transcript — the SAME numbering as live [`SessionEvent::Item`] `seq`
+ *  (M2 plan D-M2-3: one parser, one numbering).
+ */
+export type SeqItem = {
+	seq: number,
+	item: TranscriptItem,
+};
+
 export type SessionEvent = { type: "Discovered"; data: {
 	meta: SessionMeta,
 } } | { type: "Updated"; data: {
@@ -338,10 +353,25 @@ export type TranscriptItem = { kind: "UserText"; data: {
 	output_tokens: number,
 	cache_read: number,
 	ts: number,
+} } | 
+/**
+ *  A provider-made restore point (e.g. a file-history snapshot) the user
+ *  can rewind to by forking from here (EKI-64).
+ */
+{ kind: "Checkpoint"; data: {
+	id: string,
+	ts: number,
 } } | { kind: "Unknown"; data: {
 	raw_type: string,
 	ts: number,
 } };
+
+/**  One page of an on-disk transcript: items `[offset, offset+limit)`. */
+export type TranscriptPage = {
+	items: SeqItem[],
+	/**  Items currently in the transcript file. */
+	total: number,
+};
 
 export type UsageTotals = {
 	input_tokens: number,

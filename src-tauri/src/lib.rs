@@ -17,6 +17,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             ipc::respond_to_permission,
             ipc::interrupt_session,
             ipc::kill_session,
+            ipc::get_session_transcript,
             ipc::list_archived_sessions,
             ipc::search_transcripts,
             ipc::list_agents,
