@@ -1,9 +1,11 @@
-//! MCP server integration (T20–T22): bearer auth, MCP handshake over raw
-//! streamable HTTP, and tool calls mutating the store + emitting DomainEvents.
+//! MCP server integration (T20–T23): bearer auth, MCP handshake over raw
+//! streamable HTTP, tool calls mutating the store + emitting DomainEvents,
+//! and `claude mcp add/remove` registration against the fake CLI.
 
 use std::sync::Arc;
 
 use crewhub2_lib::events::DomainEvent;
+use crewhub2_lib::mcp::registration::{self, McpCliConfig};
 use crewhub2_lib::mcp::server::McpServer;
 use crewhub2_lib::store::rooms::NewRoom;
 use crewhub2_lib::store::Store;
@@ -220,4 +222,73 @@ async fn get_room_context_returns_envelope() {
     assert_eq!(envelope["room"]["id"], room_id.as_str());
     assert!(envelope["project"].is_null());
     assert_eq!(envelope["open_tasks"].as_array().unwrap().len(), 1);
+}
+
+// ---- registration (T23) against the fake CLI ----
+
+fn fake_cli(dir: &std::path::Path, scenario: &str) -> McpCliConfig {
+    let path = dir.join("scenario.jsonl");
+    std::fs::write(&path, scenario).unwrap();
+    McpCliConfig {
+        cli_path: env!("CARGO_BIN_EXE_fake-claude").into(),
+        extra_env: vec![("FAKE_CLAUDE_SCENARIO".into(), path.display().to_string())],
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn register_passes_exact_argv_to_cli() {
+    let dir = tempfile::tempdir().unwrap();
+    let cfg = fake_cli(
+        dir.path(),
+        concat!(
+            r#"{"expect_arg":"add"}"#,
+            "\n",
+            r#"{"expect_arg":"--transport"}"#,
+            "\n",
+            r#"{"expect_arg":"http://127.0.0.1:43210/mcp"}"#,
+            "\n",
+            r#"{"expect_arg":"Authorization: Bearer secret-token"}"#,
+            "\n",
+            r#"{"expect_arg":"crewhub"}"#,
+            "\n",
+            r#"{"exit":0}"#,
+            "\n",
+        ),
+    );
+    registration::register(&cfg, dir.path(), 43210, "secret-token")
+        .await
+        .unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn unregister_failure_surfaces_as_error() {
+    let dir = tempfile::tempdir().unwrap();
+    // remove argv has no --transport flag, so the fake CLI exits 8.
+    let cfg = fake_cli(dir.path(), "{\"expect_arg\":\"--transport\"}\n");
+    let err = registration::unregister(&cfg, dir.path())
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("mcp remove"), "got: {err}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn refresh_reregisters_even_when_remove_fails() {
+    let dir = tempfile::tempdir().unwrap();
+    // The fake CLI replays the same scenario for both invocations: the remove
+    // call lacks "--transport" and fails (exit 8), the add call passes — so a
+    // successful refresh proves remove failures are tolerated.
+    let cfg = fake_cli(
+        dir.path(),
+        concat!(
+            r#"{"expect_arg":"--transport"}"#,
+            "\n",
+            r#"{"expect_arg":"Authorization: Bearer t2"}"#,
+            "\n",
+            r#"{"exit":0}"#,
+            "\n",
+        ),
+    );
+    registration::refresh(&cfg, dir.path(), 50000, "t2")
+        .await
+        .unwrap();
 }
