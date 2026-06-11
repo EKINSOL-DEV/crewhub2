@@ -22,6 +22,8 @@ export interface TaskCardProps {
   link: TaskRunLink | null;
   onOpen: (taskId: string) => void;
   onMove: (taskId: string, status: TaskStatus) => void;
+  /** T12 entry point: "Run with agent…" in the ⋯ menu (card-level entry). */
+  onRun?: (taskId: string) => void;
   /** dnd-kit seam (T11): the sortable wrapper passes ref/style/listeners in. */
   innerRef?: (node: HTMLElement | null) => void;
   style?: React.CSSProperties;
@@ -30,7 +32,15 @@ export interface TaskCardProps {
   dragging?: boolean;
 }
 
-function QuickMoveMenu({ task, onMove }: { task: Task; onMove: TaskCardProps["onMove"] }) {
+function QuickMoveMenu({
+  task,
+  onMove,
+  onRun,
+}: {
+  task: Task;
+  onMove: TaskCardProps["onMove"];
+  onRun?: TaskCardProps["onRun"];
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -66,6 +76,24 @@ function QuickMoveMenu({ task, onMove }: { task: Task; onMove: TaskCardProps["on
           data-testid="quick-move-menu"
           className="absolute right-0 z-20 mt-1 w-44 rounded-md border bg-card py-1 shadow-lg"
         >
+          {onRun && (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                className="flex w-full items-center gap-2 px-2 py-1 text-left text-xs font-medium hover:bg-muted"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setOpen(false);
+                  onRun(task.id);
+                }}
+              >
+                <span aria-hidden>🤝</span>
+                Run with agent…
+              </button>
+              <div className="my-1 border-t" />
+            </>
+          )}
           {options.map((o, i) => (
             <div key={o.status}>
               {i > 0 && options[i - 1]!.quick && !o.quick && <div className="my-1 border-t" />}
@@ -134,6 +162,7 @@ export function TaskCard({
   link,
   onOpen,
   onMove,
+  onRun,
   innerRef,
   style,
   dragProps,
@@ -171,7 +200,7 @@ export function TaskCard({
             <RunCritter link={link} />
           </span>
         )}
-        <QuickMoveMenu task={task} onMove={onMove} />
+        <QuickMoveMenu task={task} onMove={onMove} onRun={onRun} />
       </div>
       <div className="flex flex-wrap items-center gap-1 text-[10px] text-muted-foreground">
         {priority && (

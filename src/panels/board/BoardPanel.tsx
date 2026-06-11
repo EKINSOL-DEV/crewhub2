@@ -29,6 +29,7 @@ import { useSessionsStore } from "@/stores/sessions";
 import { groupByStatus, taskMatchesFilter, useTasksStore, type BoardFilter } from "@/stores/tasks";
 import { Column } from "./Column";
 import { CreateTaskDialog } from "./CreateTaskDialog";
+import { RunWithAgentDialog } from "./RunWithAgentDialog";
 import { SortableTaskCard, TaskCard } from "./TaskCard";
 import { TaskDrawer } from "./TaskDrawer";
 import {
@@ -48,6 +49,7 @@ export default function BoardPanel({ params, setParams }: PanelProps) {
   const rooms = useBindingsStore((s) => s.rooms);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [runTaskId, setRunTaskId] = useState<string | null>(null);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [celebrate, setCelebrate] = useState(false);
   const reduced = usePrefersReducedMotion();
@@ -249,6 +251,7 @@ export default function BoardPanel({ params, setParams }: PanelProps) {
                       link={links[t.id] ?? null}
                       onOpen={openDrawer}
                       onMove={move}
+                      onRun={setRunTaskId}
                     />
                   ))}
                 </SortableContext>
@@ -287,9 +290,22 @@ export default function BoardPanel({ params, setParams }: PanelProps) {
             taskId={params.task}
             rooms={scopedRooms}
             onClose={() => setParam("task", null)}
+            onRunWithAgent={(t) => setRunTaskId(t.id)}
             onError={(msg) => setError(msg)}
           />
         )}
+        {runTaskId &&
+          (() => {
+            const t = tasksById.get(runTaskId);
+            return t ? (
+              <RunWithAgentDialog
+                task={t}
+                room={t.room_id ? (roomById.get(t.room_id) ?? null) : null}
+                onClose={() => setRunTaskId(null)}
+                onError={(msg) => setError(msg)}
+              />
+            ) : null;
+          })()}
         {creating && (
           <CreateTaskDialog
             rooms={scopedRooms}
