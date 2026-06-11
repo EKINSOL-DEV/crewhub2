@@ -5,8 +5,10 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { Billboard, Text } from "@react-three/drei";
 import * as THREE from "three";
+import { BotBubbles } from "./BotBubbles";
 import type { WorldBot } from "./lib/bots";
 import type { WorldBounds } from "./lib/layout";
+import { statusGlow } from "./lib/status";
 import { initialWander, wanderStep, type WanderState } from "./lib/wander";
 
 const BODY_Y = 0.5; // capsule center height — feet on the floor
@@ -33,14 +35,18 @@ export interface Bot3DProps {
   /** Wander area (inner bounds of the bot's room). */
   bounds: WorldBounds;
   reducedMotion: boolean;
+  /** Fresh AssistantText to show in a speech bubble (null = quiet). */
+  speech?: string | null | undefined;
   onClick?: ((bot: WorldBot, e: ThreeEvent<MouseEvent>) => void) | undefined;
 }
 
-export function Bot3D({ bot, home, bounds, reducedMotion, onClick }: Bot3DProps) {
+export function Bot3D({ bot, home, bounds, reducedMotion, speech, onClick }: Bot3DProps) {
   const group = useRef<THREE.Group>(null);
   const body = useRef<THREE.Group>(null);
+  const glowMat = useRef<THREE.MeshBasicMaterial>(null);
   const wander = useRef<WanderState>(initialWander(home[0], home[1]));
   const phase = useMemo(() => phaseOf(bot.key), [bot.key]);
+  const glow = statusGlow(bot.status);
 
   // Room/binding changed → walk to the new home instead of teleporting.
   useEffect(() => {
@@ -71,7 +77,13 @@ export function Bot3D({ bot, home, bounds, reducedMotion, onClick }: Bot3DProps)
     wander.current = next;
 
     const t = state.clock.elapsedTime + phase;
-    const bob = next.moving ? Math.abs(Math.sin(t * 8)) * 0.05 : Math.sin(t * 1.6) * 0.02;
+    // WaitingForPermission hops for attention (the 3D cousin of the 🙋 critter).
+    const bob =
+      glow.anim === "bounce"
+        ? Math.abs(Math.sin(t * 5)) * 0.14
+        : next.moving
+          ? Math.abs(Math.sin(t * 8)) * 0.05
+          : Math.sin(t * 1.6) * 0.02;
     g.position.set(next.x, BODY_Y + bob, next.z);
 
     if (next.moving) easeRotationY(g, next.heading);
@@ -79,6 +91,12 @@ export function Bot3D({ bot, home, bounds, reducedMotion, onClick }: Bot3DProps)
 
     // Working bots do a tiny eager wiggle — the 3D cousin of the 🔨 critter.
     if (body.current) body.current.rotation.z = bot.status === "Working" ? Math.sin(t * 12) * 0.04 : 0;
+
+    // Working glow breathes; everything else holds steady.
+    if (glowMat.current) {
+      const base = glow.intensity * 0.55;
+      glowMat.current.opacity = glow.anim === "pulse" ? base * (0.7 + 0.3 * Math.sin(t * 4)) : base;
+    }
   });
 
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
@@ -114,7 +132,34 @@ export function Bot3D({ bot, home, bounds, reducedMotion, onClick }: Bot3DProps)
           <torusGeometry args={[0.05, 0.012, 6, 12, Math.PI]} />
           <meshStandardMaterial color="#222831" roughness={0.5} />
         </mesh>
+        {/* Antenna with a status-colored bulb — readable from across the room */}
+        <mesh position={[0, 0.48, 0]}>
+          <cylinderGeometry args={[0.012, 0.012, 0.14, 6]} />
+          <meshStandardMaterial color="#222831" roughness={0.5} />
+        </mesh>
+        <mesh position={[0, 0.58, 0]}>
+          <sphereGeometry args={[0.045, 10, 10]} />
+          <meshStandardMaterial
+            color={glow.color}
+            emissive={glow.color}
+            emissiveIntensity={glow.intensity * 1.5}
+          />
+        </mesh>
       </group>
+
+      {/* Status glow ring at the feet */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -BODY_Y + 0.08, 0]}>
+        <ringGeometry args={[0.3, 0.46, 24]} />
+        <meshBasicMaterial
+          ref={glowMat}
+          color={glow.color}
+          transparent
+          opacity={glow.intensity * 0.55}
+          depthWrite={false}
+        />
+      </mesh>
+
+      <BotBubbles bot={bot} speech={speech ?? null} />
 
       {/* Name — always camera-facing, subagents get smaller type */}
       <Billboard position={[0, 0.85, 0]}>

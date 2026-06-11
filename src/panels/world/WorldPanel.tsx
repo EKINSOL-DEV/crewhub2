@@ -10,6 +10,7 @@ import { useBindingsStore } from "@/stores/bindings";
 import { useSessionsStore, useSessionsView } from "@/stores/sessions";
 import { toWorldBots } from "./lib/bots";
 import { layoutWorld } from "./lib/layout";
+import { useSpeechBubbles } from "./use-speech-bubbles";
 import { useWorldVisibility } from "./use-world-visibility";
 import { WorldScene } from "./WorldScene";
 
@@ -26,6 +27,7 @@ export default function WorldPanel() {
 
   const rooms = useBindingsStore((s) => s.rooms);
   const views = useSessionsView();
+  const speech = useSpeechBubbles();
   const world = useMemo(() => layoutWorld(rooms), [rooms]);
   const bots = useMemo(() => toWorldBots(views), [views]);
   const [webglFailed, setWebglFailed] = useState(false);
@@ -51,7 +53,7 @@ export default function WorldPanel() {
         >
           <color attach="background" args={["#15171e"]} />
           <fog attach="fog" args={["#15171e", 45, 90]} />
-          <WorldScene world={world} bots={bots} reducedMotion={reducedMotion} />
+          <WorldScene world={world} bots={bots} reducedMotion={reducedMotion} speech={speech} />
           <OrbitControls makeDefault maxPolarAngle={Math.PI / 2.1} minDistance={4} maxDistance={60} />
         </Canvas>
       )}

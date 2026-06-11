@@ -7,17 +7,19 @@ import type { WorldBot } from "./lib/bots";
 import type { WorldLayout, WorldZone } from "./lib/layout";
 import { LOBBY_ID } from "./lib/layout";
 import { assignHomes, roomInnerBounds } from "./lib/positions";
+import type { SpeechMap } from "./lib/speech";
 import { Rooms3D } from "./Rooms3D";
 
 export interface WorldSceneProps {
   world: WorldLayout;
   bots: WorldBot[];
   reducedMotion: boolean;
+  speech?: SpeechMap | undefined;
   onBotClick?: ((bot: WorldBot, e: ThreeEvent<MouseEvent>) => void) | undefined;
   onZoneClick?: ((zone: WorldZone, e: ThreeEvent<MouseEvent>) => void) | undefined;
 }
 
-export function WorldScene({ world, bots, reducedMotion, onBotClick, onZoneClick }: WorldSceneProps) {
+export function WorldScene({ world, bots, reducedMotion, speech, onBotClick, onZoneClick }: WorldSceneProps) {
   const homes = useMemo(() => assignHomes(bots, world), [bots, world]);
   const zoneById = useMemo(() => new Map(world.rooms.map((z) => [z.id, z])), [world]);
   const groundW = world.bounds.maxX - world.bounds.minX + 8;
@@ -50,6 +52,7 @@ export function WorldScene({ world, bots, reducedMotion, onBotClick, onZoneClick
             home={home}
             bounds={roomInnerBounds(zone)}
             reducedMotion={reducedMotion}
+            speech={speech?.[bot.key]?.text ?? null}
             onClick={onBotClick}
           />
         );
