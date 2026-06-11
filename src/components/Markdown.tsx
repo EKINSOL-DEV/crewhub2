@@ -4,7 +4,7 @@
 // resolves, a plain <pre> renders so nothing ever blocks on the highlighter.
 import "./markdown.css";
 import { useEffect, useState } from "react";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 
@@ -47,12 +47,26 @@ function CodeBlock({ code, lang }: { code: string; lang: string }) {
   );
 }
 
-export function Markdown({ text, className }: { text: string; className?: string }) {
+export function Markdown({
+  text,
+  className,
+  components,
+}: {
+  text: string;
+  className?: string;
+  /**
+   * Per-surface element overrides merged over the defaults (M3 T9, D-M3-7):
+   * the docs panel resolves relative `img`/`a` references through its own
+   * components; chat keeps the plain defaults.
+   */
+  components?: Components;
+}) {
   return (
     <div className={cn("ch-markdown", className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
+          ...components,
           code(props) {
             const { children, className: cls, node, ...rest } = props;
             void node;

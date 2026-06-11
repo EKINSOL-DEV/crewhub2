@@ -2,6 +2,7 @@
 // folder picker, see per-project stats, auto-suggest projects found in session
 // history, and manage rooms + assignment rules per project (RoomsManager).
 import { useEffect, useState } from "react";
+import { openPanel } from "@/app/palette-actions";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/EmptyState";
 import { commands, type ArchivedSession, type Project, type Task } from "@/ipc/bindings";
@@ -146,7 +147,7 @@ export function ProjectsPanel() {
                 now={now}
                 onEdit={() => setEditing(p)}
                 onDelete={() => setConfirmDelete(p)}
-                onOpenDocs={null}
+                onOpenDocs={() => openPanel("docs", { projectId: p.id })}
               />
               <RoomsManager projectId={p.id} projectName={p.name} />
             </div>

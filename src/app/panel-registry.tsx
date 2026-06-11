@@ -102,6 +102,20 @@ export const PANELS: Record<PanelKind, PanelDefinition> = {
       hint: "Point CrewHub at a folder — rooms, docs and boards hang off it",
     },
   },
+  docs: {
+    kind: "docs",
+    label: "Docs",
+    emoji: "📚",
+    description: "Read a project's docs — markdown and images, rendered",
+    keywords: ["docs", "documentation", "markdown", "readme", "notes", "read"],
+    shortcutHint: "o",
+    component: lazy(() => import("@/panels/docs/DocsPanel")),
+    emptyState: {
+      emoji: "📚",
+      title: "No docs yet",
+      hint: "Point me at a folder — set a docs path on a project",
+    },
+  },
   settings: {
     kind: "settings",
     label: "Settings",
