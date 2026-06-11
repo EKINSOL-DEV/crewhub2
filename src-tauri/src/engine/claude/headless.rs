@@ -10,6 +10,7 @@
 //! standing product directive — callers upgrade explicitly when the task
 //! demands it.
 
+use crate::engine::types::HeadlessRun;
 use crate::store::runs::NewRunResult;
 use crate::store::Store;
 use serde_json::Value;
@@ -19,16 +20,6 @@ pub const DEFAULT_HEADLESS_MODEL: &str = "haiku";
 
 /// Max characters of result text persisted into `run_results.summary`.
 const SUMMARY_CAP: usize = 500;
-
-/// Outcome of a pure headless execution (no persistence attached).
-#[derive(Debug, Clone, PartialEq)]
-pub struct HeadlessExec {
-    pub session_id: Option<String>,
-    pub status: String, // "success" | "error"
-    /// Full result text (callers cap as needed; summary capping happens
-    /// only when recording).
-    pub text: String,
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct HeadlessOutcome {
@@ -46,7 +37,7 @@ pub async fn exec_headless(
     project_path: &Path,
     prompt: &str,
     model: Option<&str>,
-) -> anyhow::Result<HeadlessExec> {
+) -> anyhow::Result<HeadlessRun> {
     let model = model.unwrap_or(DEFAULT_HEADLESS_MODEL);
     let mut cmd = tokio::process::Command::new(cli_path);
     cmd.arg("--print")
@@ -90,7 +81,7 @@ pub async fn exec_headless(
                 .to_string();
         }
     }
-    Ok(HeadlessExec {
+    Ok(HeadlessRun {
         session_id,
         status,
         text,
@@ -103,7 +94,7 @@ pub fn record_run_result(
     store: &Store,
     run_id: &str,
     step_index: Option<i64>,
-    exec: &HeadlessExec,
+    exec: &HeadlessRun,
     started_at: i64,
     finished_at: i64,
 ) -> anyhow::Result<String> {

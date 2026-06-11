@@ -200,6 +200,22 @@ impl SessionProvider for ClaudeCodeProvider {
         history::read_transcript_page(&self.config.root, &id.id, offset, limit)
     }
 
+    async fn exec_headless(
+        &self,
+        project_dir: &Path,
+        prompt: &str,
+        model: Option<&str>,
+    ) -> anyhow::Result<HeadlessRun> {
+        headless::exec_headless(
+            &self.config.cli_path,
+            &self.config.extra_env,
+            project_dir,
+            prompt,
+            model,
+        )
+        .await
+    }
+
     async fn register_mcp(&self, project_dir: &Path, port: u16, token: &str) -> anyhow::Result<()> {
         // refresh (remove-then-add) so re-enabling after a token rotation works.
         registration::refresh(&self.mcp_cli_config(), project_dir, port, token).await

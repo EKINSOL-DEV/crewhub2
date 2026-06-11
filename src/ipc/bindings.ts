@@ -151,6 +151,23 @@ export const commands = {
 } | null, string>(__TAURI_INVOKE("get_meeting", { id })),
 	listMeetingTurns: (meetingId: string) => typedError<MeetingTurn[], string>(__TAURI_INVOKE("list_meeting_turns", { meetingId })),
 	listActionItems: (meetingId: string) => typedError<ActionItem[], string>(__TAURI_INVOKE("list_action_items", { meetingId })),
+	/**
+	 *  Start a meeting: persists the row + config, then the orchestrator drives
+	 *  it (gathering → rounds → synthesis) over dedicated managed sessions.
+	 */
+	startMeeting: (spec: StartMeetingSpec) => typedError<Meeting, string>(__TAURI_INVOKE("start_meeting", { spec })),
+	/**
+	 *  Cancel: terminal state persisted immediately; the in-flight turn (if any)
+	 *  is interrupted by the driver.
+	 */
+	cancelMeeting: (id: string) => typedError<Meeting, string>(__TAURI_INVOKE("cancel_meeting", { id })),
+	/**
+	 *  Convert an action item to a board task (16.3): one click on the existing
+	 *  M3 surface. `room_id` falls back to the meeting's room — without either,
+	 *  this errors (the standing room_id lesson: tasks without a room don't show
+	 *  on any board, so the UI must ask).
+	 */
+	convertActionItem: (itemId: string, roomId: string | null) => typedError<Task, string>(__TAURI_INVOKE("convert_action_item", { itemId, roomId })),
 };
 
 /** Events */
@@ -405,6 +422,13 @@ export type NotificationRule = {
 	enabled: boolean,
 };
 
+export type ParticipantSpec = {
+	agent_id: string,
+	name: string,
+	/**  Persona carried via the session's appended system prompt. */
+	persona: string | null,
+};
+
 export type PermissionMode = "Default" | "AcceptEdits" | "Plan" | "BypassPermissions";
 
 export type PermissionRequest = {
@@ -587,6 +611,24 @@ export type SpawnSpec = {
 	fork: boolean,
 	append_system_prompt: string | null,
 	agent_id: string | null,
+};
+
+/**
+ *  IPC-facing spec for `start_meeting` (models default from the policy keys;
+ *  the dialog pre-fills and may override per meeting — D-M4-3).
+ */
+export type StartMeetingSpec = {
+	title: string,
+	goal: string | null,
+	room_id: string | null,
+	project_id: string | null,
+	project_path: string,
+	participants: ParticipantSpec[],
+	rounds: number | null,
+	turn_timeout_ms: number | null,
+	participant_model: string | null,
+	synthesis_model: string | null,
+	context_docs: string[] | null,
 };
 
 export type Task = {

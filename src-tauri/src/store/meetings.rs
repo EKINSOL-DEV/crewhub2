@@ -308,6 +308,23 @@ impl Store {
         }
     }
 
+    /// Force-update a turn's session/offset (a respawned participant after an
+    /// app restart gets a fresh session id; the row must follow).
+    pub fn set_meeting_turn_session(
+        &self,
+        turn_id: &str,
+        session_id: &str,
+        transcript_offset: i64,
+    ) -> anyhow::Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let n = conn.execute(
+            "UPDATE meeting_turns SET session_id=?2, transcript_offset=?3 WHERE id=?1",
+            rusqlite::params![turn_id, session_id, transcript_offset],
+        )?;
+        anyhow::ensure!(n == 1, "turn not found: {turn_id}");
+        Ok(())
+    }
+
     /// Mark a turn done. Skipped turns never get this call — `completed_at`
     /// stays NULL and the UI derives 💤 from the meeting position.
     pub fn finish_meeting_turn(&self, turn_id: &str) -> anyhow::Result<()> {

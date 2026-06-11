@@ -5,6 +5,7 @@ use crate::engine::types::{
     SlashCommand, SpawnSpec, TranscriptPage, UserInput,
 };
 use crate::events::DomainEvent;
+use crate::orchestrator::{Orchestrator, StartMeetingSpec};
 use crate::security::paths::{Access, PathPolicy};
 use crate::store::agents::{Agent, NewAgent};
 use crate::store::meetings::{ActionItem, Meeting, MeetingTurn};
@@ -1084,7 +1085,85 @@ pub fn open_settings_window<R: Runtime>(app: AppHandle<R>) -> Result<()> {
     .map_err(|e| e.to_string())
 }
 
-// ---- meetings (M4 T2 — read surface; start/cancel land with the engine, T3) ----
+// ---- meetings (M4 T2 read surface + T3 engine commands) ----
+
+/// Start a meeting: persists the row + config, then the orchestrator drives
+/// it (gathering → rounds → synthesis) over dedicated managed sessions.
+#[tauri::command]
+#[specta::specta]
+pub async fn start_meeting(
+    orchestrator: State<'_, Arc<Orchestrator>>,
+    spec: StartMeetingSpec,
+) -> Result<Meeting> {
+    orchestrator.start_meeting(spec).map_err(err)
+}
+
+/// Cancel: terminal state persisted immediately; the in-flight turn (if any)
+/// is interrupted by the driver.
+#[tauri::command]
+#[specta::specta]
+pub async fn cancel_meeting(
+    orchestrator: State<'_, Arc<Orchestrator>>,
+    id: String,
+) -> Result<Meeting> {
+    orchestrator.cancel_meeting(&id).map_err(err)
+}
+
+/// Convert an action item to a board task (16.3): one click on the existing
+/// M3 surface. `room_id` falls back to the meeting's room — without either,
+/// this errors (the standing room_id lesson: tasks without a room don't show
+/// on any board, so the UI must ask).
+#[tauri::command]
+#[specta::specta]
+pub fn convert_action_item<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    item_id: String,
+    room_id: Option<String>,
+) -> Result<Task> {
+    let item = store
+        .get_action_item(&item_id)
+        .map_err(err)?
+        .ok_or_else(|| format!("no action item {item_id}"))?;
+    let meeting = store
+        .get_meeting(&item.meeting_id)
+        .map_err(err)?
+        .ok_or_else(|| "meeting vanished".to_string())?;
+    let room_id = room_id.or(meeting.room_id.clone()).ok_or_else(|| {
+        "room_id required: the meeting has no room — pick one in the convert dialog".to_string()
+    })?;
+    let task = store
+        .create_task_as(
+            NewTask {
+                project_id: meeting.project_id.clone(),
+                room_id: Some(room_id),
+                title: item.text.clone(),
+                description: Some(format!(
+                    "Action item from meeting “{}” (meeting:{})",
+                    meeting.title, meeting.id
+                )),
+                priority: item.priority.clone(),
+                assignee_agent_id: item.assignee_agent_id.clone(),
+                created_by: None,
+            },
+            ACTOR_HUMAN,
+        )
+        .map_err(err)?;
+    store
+        .set_action_item_task(&item_id, &task.id)
+        .map_err(err)?;
+    DomainEvent::TaskChanged {
+        task_id: task.id.clone(),
+    }
+    .emit(&app)
+    .map_err(|e| e.to_string())?;
+    DomainEvent::MeetingChanged {
+        meeting_id: meeting.id,
+    }
+    .emit(&app)
+    .map_err(|e| e.to_string())?;
+    Ok(task)
+}
 
 #[tauri::command]
 #[specta::specta]

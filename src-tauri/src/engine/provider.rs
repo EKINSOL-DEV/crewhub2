@@ -71,6 +71,18 @@ pub trait SessionProvider: Send + Sync + 'static {
         anyhow::bail!("read_transcript: unsupported by this provider")
     }
 
+    /// Execute ONE headless (non-interactive) run and return its result
+    /// (M4 D-M4-5). Gated by [`ProviderCaps::headless_runs`]. `model = None`
+    /// means the provider's cheapest capable default.
+    async fn exec_headless(
+        &self,
+        _project_dir: &Path,
+        _prompt: &str,
+        _model: Option<&str>,
+    ) -> anyhow::Result<HeadlessRun> {
+        anyhow::bail!("exec_headless: unsupported by this provider")
+    }
+
     /// Register CrewHub's MCP server with the provider's runtime for the
     /// project at `project_dir` (idempotent: refreshes a stale registration).
     /// Gated by [`ProviderCaps::mcp_registration`].
@@ -197,6 +209,21 @@ impl ProviderRegistry {
         self.providers
             .iter()
             .find(|p| p.caps().mcp_registration)
+            .cloned()
+    }
+
+    /// The provider that can spawn managed sessions (capability-flag routing;
+    /// the M4 orchestrator drives meeting turns through this).
+    pub fn spawner(&self) -> Option<Arc<dyn SessionProvider>> {
+        self.providers.iter().find(|p| p.caps().spawn).cloned()
+    }
+
+    /// The provider that can execute headless runs (meetings synthesis,
+    /// standups, scheduler — M4).
+    pub fn headless_runner(&self) -> Option<Arc<dyn SessionProvider>> {
+        self.providers
+            .iter()
+            .find(|p| p.caps().headless_runs)
             .cloned()
     }
 

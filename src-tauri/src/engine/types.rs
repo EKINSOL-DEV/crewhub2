@@ -266,3 +266,14 @@ pub struct SearchHit {
     pub role: String,
     pub snippet: String,
 }
+
+/// Result of one provider-executed headless run (M4 D-M4-5): pure execution,
+/// no persistence attached — `record_run_result` is the separate writer.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
+pub struct HeadlessRun {
+    pub session_id: Option<String>,
+    /// "success" | "error"
+    pub status: String,
+    /// Full result text (callers cap as needed).
+    pub text: String,
+}
