@@ -17,7 +17,8 @@ export type PanelKind =
   | "settings"
   | "welcome"
   | "debug"
-  | "diff";
+  | "diff"
+  | "meetings";
 
 export const PANEL_KINDS: readonly PanelKind[] = [
   "chat",
@@ -33,6 +34,7 @@ export const PANEL_KINDS: readonly PanelKind[] = [
   "welcome",
   "debug",
   "diff",
+  "meetings",
 ];
 
 export type SplitDir = "row" | "col";
