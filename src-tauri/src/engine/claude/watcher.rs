@@ -79,6 +79,7 @@ impl TranscriptWatcher {
             let mut state = WatchState::new(config, tx);
             state.initial_scan();
             let mut last_sweep = std::time::Instant::now();
+            let mut tick: u64 = 0;
             loop {
                 // stop on explicit signal OR when the watcher handle was dropped
                 if *shutdown_rx.borrow_and_update() || shutdown_rx.has_changed().is_err() {
@@ -91,7 +92,22 @@ impl TranscriptWatcher {
                         }
                     }
                     Ok(Err(_)) => {}
-                    Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+                    Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                        // Deterministic fallback: notify backends can coalesce or miss
+                        // rapid appends, so stat tracked files every tick and rescan
+                        // for new files every ~1s. Cheap at transcript-dir scale.
+                        tick += 1;
+                        let tracked: Vec<std::path::PathBuf> =
+                            state.tails.keys().cloned().collect();
+                        for path in tracked {
+                            state.process_path(&path);
+                        }
+                        if tick % 10 == 0 {
+                            for path in find_transcripts(&state.config.root) {
+                                state.process_path(&path);
+                            }
+                        }
+                    }
                     Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
                 }
                 if last_sweep.elapsed() >= state.config.sweep_interval {
