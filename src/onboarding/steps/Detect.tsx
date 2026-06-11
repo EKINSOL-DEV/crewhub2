@@ -2,10 +2,12 @@
 // path + version, persisted backend-side so the provider picks it up.
 // Missing ⇒ a first-class screen (never an error toast): guided install
 // copy + a manual path field that re-probes through `set_cli_path`.
+// The v1-database banner (T10's importer entry point) also lives here.
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { commands } from "@/ipc/bindings";
 import { useOnboarding } from "@/stores/onboarding";
+import { ImportV1Dialog } from "../ImportDialog";
 
 function StatusLine({ ok, children }: { ok: boolean; children: React.ReactNode }) {
   return (
@@ -77,6 +79,7 @@ function ManualPathPicker() {
 export function DetectStep() {
   const env = useOnboarding((s) => s.env);
   const detecting = useOnboarding((s) => s.detecting);
+  const [importOpen, setImportOpen] = useState(false);
 
   useEffect(() => {
     if (!useOnboarding.getState().env) void useOnboarding.getState().detect();
@@ -144,6 +147,21 @@ export function DetectStep() {
               : "No transcripts yet — you'll pick project folders by hand"}
           </StatusLine>
         </div>
+      )}
+
+      {env?.v1_db && (
+        <div
+          data-testid="v1-banner"
+          className="flex items-center gap-2 rounded-md border bg-muted/40 p-2.5 text-sm"
+        >
+          <span className="min-w-0 flex-1">📦 CrewHub v1 found on this machine — bring your crew?</span>
+          <Button size="sm" data-testid="v1-import-open" onClick={() => setImportOpen(true)}>
+            Preview import
+          </Button>
+        </div>
+      )}
+      {importOpen && env?.v1_db && (
+        <ImportV1Dialog defaultDbPath={env.v1_db} onClose={() => setImportOpen(false)} />
       )}
     </div>
   );

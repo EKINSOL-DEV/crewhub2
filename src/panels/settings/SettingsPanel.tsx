@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ModelPicker } from "@/components/ModelPicker";
 import { commands, type McpStatus, type PermissionRule } from "@/ipc/bindings";
 import { cn } from "@/lib/utils";
+import { ImportV1Dialog } from "@/onboarding/ImportDialog";
 import { NotificationRulesSection } from "@/panels/board/NotificationRulesSection";
 import { useSettings } from "@/stores/settings";
 import {
@@ -206,6 +207,37 @@ function Setup() {
   );
 }
 
+function ImportFromV1() {
+  const [open, setOpen] = useState(false);
+  const [dbPath, setDbPath] = useState<string | null>(null);
+  return (
+    <Section title="Import from v1">
+      <p className="text-xs text-muted-foreground">
+        One-shot import from a CrewHub v1 database (projects, rooms, agents, tasks, rules, templates,
+        blueprints). Dry-run preview first; your v1 file is never written. Safe to re-run.
+      </p>
+      <div>
+        <Button
+          size="sm"
+          variant="outline"
+          data-testid="open-v1-import"
+          onClick={() => {
+            // best-effort default path from the environment probe
+            commands
+              .detectEnvironment()
+              .then((res) => setDbPath(res.status === "ok" ? res.data.v1_db : null))
+              .catch(() => setDbPath(null))
+              .finally(() => setOpen(true));
+          }}
+        >
+          📦 Import from CrewHub v1…
+        </Button>
+      </div>
+      {open && <ImportV1Dialog defaultDbPath={dbPath} onClose={() => setOpen(false)} />}
+    </Section>
+  );
+}
+
 function Integrations() {
   const [mcp, setMcp] = useState<McpStatus | null>(null);
   useEffect(() => {
@@ -262,6 +294,7 @@ export default function SettingsPanel() {
       </Section>
       <Integrations />
       <Setup />
+      <ImportFromV1 />
     </div>
   );
 }
