@@ -8,6 +8,7 @@ use crate::events::DomainEvent;
 use crate::store::agents::{Agent, NewAgent};
 use crate::store::projects::{NewProject, Project};
 use crate::store::rooms::{NewRoom, Room};
+use crate::store::session_bindings::{NewSessionBinding, SessionBinding};
 use crate::store::tasks::{NewTask, Task};
 use crate::store::Store;
 use serde::Serialize;
@@ -564,6 +565,46 @@ pub fn delete_task<R: Runtime>(
     Ok(deleted)
 }
 
+// ---- session bindings (G3, EKI-36/40) ----
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_session_bindings(store: State<Arc<Store>>) -> Result<Vec<SessionBinding>> {
+    store.list_session_bindings().map_err(err)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn upsert_session_binding<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    input: NewSessionBinding,
+) -> Result<SessionBinding> {
+    let b = store.upsert_session_binding(input).map_err(err)?;
+    DomainEvent::SessionBindingChanged {
+        session_id: b.session_id.clone(),
+    }
+    .emit(&app)
+    .map_err(|e| e.to_string())?;
+    Ok(b)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn delete_session_binding<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    session_id: String,
+) -> Result<bool> {
+    let deleted = store.delete_session_binding(&session_id).map_err(err)?;
+    if deleted {
+        DomainEvent::SessionBindingChanged { session_id }
+            .emit(&app)
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(deleted)
+}
+
 // ---- settings ----
 
 #[tauri::command]
@@ -994,6 +1035,31 @@ mod tests {
             .await
             .unwrap_err();
         assert!(err.contains("no provider supports"), "got: {err}");
+    }
+
+    #[test]
+    fn session_binding_commands_roundtrip() {
+        let app = app();
+        let h = app.handle().clone();
+        assert!(list_session_bindings(app.state()).unwrap().is_empty());
+        let b = upsert_session_binding(
+            h.clone(),
+            app.state(),
+            NewSessionBinding {
+                session_id: "sess-1".into(),
+                agent_id: None,
+                room_id: None,
+                display_name: Some("Scout".into()),
+                pinned: true,
+            },
+        )
+        .unwrap();
+        assert_eq!(b.display_name.as_deref(), Some("Scout"));
+        assert!(b.pinned);
+        assert_eq!(list_session_bindings(app.state()).unwrap(), vec![b]);
+        assert!(delete_session_binding(h.clone(), app.state(), "sess-1".into()).unwrap());
+        assert!(!delete_session_binding(h, app.state(), "sess-1".into()).unwrap());
+        assert!(list_session_bindings(app.state()).unwrap().is_empty());
     }
 
     #[test]

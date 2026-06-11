@@ -5,13 +5,31 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, tauri_specta::Event)]
 #[serde(tag = "type", content = "data")]
 pub enum DomainEvent {
-    AgentCreated { agent_id: String },
-    AgentUpdated { agent_id: String },
-    AgentDeleted { agent_id: String },
-    ProjectChanged { project_id: String },
-    RoomChanged { room_id: String },
-    TaskChanged { task_id: String },
-    SettingChanged { key: String },
+    AgentCreated {
+        agent_id: String,
+    },
+    AgentUpdated {
+        agent_id: String,
+    },
+    AgentDeleted {
+        agent_id: String,
+    },
+    ProjectChanged {
+        project_id: String,
+    },
+    RoomChanged {
+        room_id: String,
+    },
+    TaskChanged {
+        task_id: String,
+    },
+    SettingChanged {
+        key: String,
+    },
+    /// A session binding was created, updated or deleted (G3, EKI-40).
+    SessionBindingChanged {
+        session_id: String,
+    },
 }
 
 /// Wrapper event carrying provider-neutral engine events to the webview.

@@ -44,6 +44,9 @@ export const commands = {
 	createTask: (input: NewTask) => typedError<Task, string>(__TAURI_INVOKE("create_task", { input })),
 	updateTask: (task: Task) => typedError<Task, string>(__TAURI_INVOKE("update_task", { task })),
 	deleteTask: (id: string) => typedError<boolean, string>(__TAURI_INVOKE("delete_task", { id })),
+	listSessionBindings: () => typedError<SessionBinding[], string>(__TAURI_INVOKE("list_session_bindings")),
+	upsertSessionBinding: (input: NewSessionBinding) => typedError<SessionBinding, string>(__TAURI_INVOKE("upsert_session_binding", { input })),
+	deleteSessionBinding: (sessionId: string) => typedError<boolean, string>(__TAURI_INVOKE("delete_session_binding", { sessionId })),
 	getSetting: (key: string) => typedError<string | null, string>(__TAURI_INVOKE("get_setting", { key })),
 	setSetting: (key: string, value: string) => typedError<null, string>(__TAURI_INVOKE("set_setting", { key, value })),
 	mcpStatus: () => typedError<McpStatus, string>(__TAURI_INVOKE("mcp_status")),
@@ -106,6 +109,10 @@ export type DomainEvent = { type: "AgentCreated"; data: {
 	task_id: string,
 } } | { type: "SettingChanged"; data: {
 	key: string,
+} } | 
+/**  A session binding was created, updated or deleted (G3, EKI-40). */
+{ type: "SessionBindingChanged"; data: {
+	session_id: string,
 } };
 
 /**  Wrapper event carrying provider-neutral engine events to the webview. */
@@ -154,6 +161,18 @@ export type NewRoom = {
 	icon: string | null,
 	color: string | null,
 	is_hq: boolean | null,
+};
+
+/**
+ *  Upsert input: the full desired state for one session (no partial patch —
+ *  the UI always knows the current binding it is editing).
+ */
+export type NewSessionBinding = {
+	session_id: string,
+	agent_id: string | null,
+	room_id: string | null,
+	display_name: string | null,
+	pinned: boolean,
 };
 
 export type NewTask = {
@@ -263,6 +282,15 @@ export type SearchHit = {
 export type SeqItem = {
 	seq: number,
 	item: TranscriptItem,
+};
+
+export type SessionBinding = {
+	session_id: string,
+	agent_id: string | null,
+	room_id: string | null,
+	display_name: string | null,
+	pinned: boolean,
+	updated_at: number,
 };
 
 export type SessionEvent = { type: "Discovered"; data: {
