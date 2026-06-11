@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { ImportV1Dialog } from "@/onboarding/ImportDialog";
 import { NotificationRulesSection } from "@/panels/board/NotificationRulesSection";
 import { useSettings } from "@/stores/settings";
+import { useUpdater } from "@/stores/updater";
 import {
   DENSITIES,
   FONT_SIZES,
@@ -207,6 +208,63 @@ function Setup() {
   );
 }
 
+function Updates() {
+  const { checking, available, checkedAt, installing, error } = useUpdater();
+  const [version, setVersion] = useState<string | null>(null);
+  useEffect(() => {
+    commands
+      .appInfo()
+      .then((info) => setVersion(info.version))
+      .catch(() => setVersion(null));
+  }, []);
+  return (
+    <Section title="Updates">
+      <p className="text-xs text-muted-foreground">
+        Running {version ? `v${version}` : "…"} — updates download from CrewHub's releases and are
+        signature-verified before install.
+      </p>
+      <div className="flex items-center gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          data-testid="check-updates"
+          disabled={checking || installing}
+          onClick={() => void useUpdater.getState().check()}
+        >
+          {checking ? "Checking…" : "🔄 Check for updates"}
+        </Button>
+        {available && (
+          <Button
+            size="sm"
+            data-testid="install-update"
+            disabled={installing}
+            onClick={() => void useUpdater.getState().install()}
+          >
+            {installing
+              ? "⬇️ Downloading… (relaunches when done)"
+              : `⬆️ Install v${available.version} & relaunch`}
+          </Button>
+        )}
+      </div>
+      {checkedAt !== null && !checking && !available && !error && (
+        <p className="text-xs text-muted-foreground" data-testid="up-to-date">
+          ✅ You're on the freshest paint already.
+        </p>
+      )}
+      {available?.notes && (
+        <p className="line-clamp-3 text-xs text-muted-foreground" data-testid="update-notes">
+          {available.notes}
+        </p>
+      )}
+      {error && (
+        <p className="text-xs text-destructive" data-testid="update-error">
+          {error}
+        </p>
+      )}
+    </Section>
+  );
+}
+
 function ImportFromV1() {
   const [open, setOpen] = useState(false);
   const [dbPath, setDbPath] = useState<string | null>(null);
@@ -295,6 +353,7 @@ export default function SettingsPanel() {
       <Integrations />
       <Setup />
       <ImportFromV1 />
+      <Updates />
     </div>
   );
 }

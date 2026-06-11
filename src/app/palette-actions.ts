@@ -132,5 +132,30 @@ export function buildShellActions(): PaletteAction[] {
     run: () => void commands.openSettingsWindow().catch(() => undefined),
   });
 
+  // M6 T11 (EKI-100): palette-side updater check — same store as the
+  // settings Updates section; the outcome lands as a toast.
+  actions.push({
+    id: "updater.check",
+    label: "Check for updates",
+    emoji: "⬆️",
+    group: "Settings",
+    keywords: ["update", "upgrade", "version", "check", "new"],
+    run: () => {
+      void import("@/stores/updater").then(async ({ useUpdater }) => {
+        const info = await useUpdater.getState().check();
+        const { useToasts } = await import("@/stores/toasts");
+        useToasts.getState().push({
+          emoji: info ? "⬆️" : "✅",
+          text: info
+            ? `v${info.version} is available — install it from Settings → Updates`
+            : (useUpdater.getState().error ?? "You're on the freshest paint already."),
+          taskId: null,
+          shake: false,
+          action: null,
+        });
+      });
+    },
+  });
+
   return actions;
 }

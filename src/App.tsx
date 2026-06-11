@@ -13,6 +13,10 @@ const SettingsPanel = lazy(() => import("@/panels/settings/SettingsPanel"));
 const OnboardingWizard = lazy(() =>
   import("@/onboarding/Wizard").then((m) => ({ default: m.OnboardingWizard })),
 );
+// "What's new" dialog from updater.pending_notes (M6 T11, D-M6-7).
+const WhatsNewDialog = lazy(() =>
+  import("@/components/WhatsNewDialog").then((m) => ({ default: m.WhatsNewDialog })),
+);
 
 function App() {
   const loadSettings = useSettings((s) => s.load);
@@ -49,6 +53,7 @@ function App() {
       <WorkspaceShell />
       <Suspense fallback={null}>
         <OnboardingWizard />
+        <WhatsNewDialog />
       </Suspense>
     </>
   );
