@@ -2,12 +2,16 @@ import { describe, expect, it } from "vitest";
 import {
   clampScale,
   clampToRoom,
+  editProp,
   normalizeRot,
   parseStoredRoomProps,
   propsSettingKey,
+  removeProp,
   ROT_STEP,
+  rotateProp,
   SCALE_MAX,
   SCALE_MIN,
+  scaleProp,
   serializeRoomProps,
   type PlacedProp,
 } from "./placement";
@@ -57,6 +61,35 @@ describe("normalizeRot", () => {
   });
   it("rotation step divides a quarter turn evenly", () => {
     expect((Math.PI / 2) % ROT_STEP).toBeCloseTo(0);
+  });
+});
+
+describe("editor steps", () => {
+  it("rotateProp steps by ROT_STEP and wraps", () => {
+    expect(rotateProp(prop(), 1).rot).toBeCloseTo(ROT_STEP);
+    expect(rotateProp(prop(), -1).rot).toBeCloseTo(-ROT_STEP);
+    let p = prop({ rot: Math.PI - ROT_STEP / 2 });
+    p = rotateProp(p, 1);
+    expect(p.rot).toBeLessThanOrEqual(Math.PI);
+  });
+
+  it("scaleProp steps multiplicatively within clamps", () => {
+    expect(scaleProp(prop(), 1).scale).toBeCloseTo(1.1);
+    expect(scaleProp(prop({ scale: SCALE_MAX }), 1).scale).toBe(SCALE_MAX);
+    expect(scaleProp(prop({ scale: SCALE_MIN }), -1).scale).toBe(SCALE_MIN);
+  });
+
+  it("editProp patches only the matching instance", () => {
+    const list = [prop(), prop({ id: "p2" })];
+    const out = editProp(list, "p2", (p) => ({ ...p, x: 9 }));
+    expect(out[0]!.x).toBe(0);
+    expect(out[1]!.x).toBe(9);
+    expect(editProp(list, "nope", (p) => ({ ...p, x: 9 }))).toEqual(list);
+  });
+
+  it("removeProp drops the matching instance", () => {
+    const list = [prop(), prop({ id: "p2" })];
+    expect(removeProp(list, "p1").map((p) => p.id)).toEqual(["p2"]);
   });
 });
 

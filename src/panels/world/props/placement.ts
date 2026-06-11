@@ -58,6 +58,31 @@ export function normalizeRot(r: number): number {
   return out;
 }
 
+// ── Editor steps (EKI-81 placement editor) ──────────────────────────────────
+
+/** One `[`/`]` tap: rotate by ±ROT_STEP, wrapped. */
+export function rotateProp(p: PlacedProp, dir: 1 | -1): PlacedProp {
+  return { ...p, rot: normalizeRot(p.rot + dir * ROT_STEP) };
+}
+
+/** One `+`/`-` tap: multiplicative scale step, clamped. */
+export function scaleProp(p: PlacedProp, dir: 1 | -1): PlacedProp {
+  return { ...p, scale: clampScale(p.scale * (dir === 1 ? 1.1 : 1 / 1.1)) };
+}
+
+/** Replace one prop (by instance id) via `fn`; untouched list if absent. */
+export function editProp(
+  props: readonly PlacedProp[],
+  id: string,
+  fn: (p: PlacedProp) => PlacedProp,
+): PlacedProp[] {
+  return props.map((p) => (p.id === id ? fn(p) : p));
+}
+
+export function removeProp(props: readonly PlacedProp[], id: string): PlacedProp[] {
+  return props.filter((p) => p.id !== id);
+}
+
 /** Settings-KV key for a room's props. */
 export function propsSettingKey(roomId: string): string {
   return `world.props:${roomId}`;
