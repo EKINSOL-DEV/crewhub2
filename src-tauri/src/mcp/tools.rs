@@ -19,12 +19,11 @@ use crate::store::rooms::Room;
 use crate::store::tasks::NewTask;
 use crate::store::Store;
 
-/// Valid task statuses (mirrors the CHECK constraint in migration 001).
-pub const TASK_STATUSES: &[&str] = &["todo", "in_progress", "review", "done", "blocked"];
-/// Valid task priorities (mirrors the CHECK constraint in migration 001).
-pub const TASK_PRIORITIES: &[&str] = &["low", "medium", "high", "urgent"];
-/// Attribution recorded on rows created through the MCP server.
-pub const MCP_ACTOR: &str = "agent:mcp";
+/// Closed status/priority vocabularies — single source in the store layer.
+pub use crate::store::tasks::{TASK_PRIORITIES, TASK_STATUSES};
+/// Attribution fallback for tool calls without a validated `acting_as`
+/// (D-M3-4): the closed actor vocabulary's `mcp`.
+pub const MCP_ACTOR: &str = crate::store::task_events::ACTOR_MCP;
 
 /// The MCP service: one instance is constructed per request (stateless mode),
 /// all sharing the same store and notify channel.
@@ -59,6 +58,10 @@ pub struct CreateTaskParams {
     /// low | medium | high | urgent (default: medium).
     #[serde(default)]
     pub priority: Option<String>,
+    /// Your CrewHub agent id, so the action is attributed to you on the
+    /// board. Must be a known agent id.
+    #[serde(default)]
+    pub acting_as: Option<String>,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -67,12 +70,26 @@ pub struct UpdateTaskStatusParams {
     pub task_id: String,
     /// New status: todo | in_progress | review | done | blocked.
     pub status: String,
+    /// Assign the task to this agent id while moving it.
+    #[serde(default)]
+    pub assignee_agent_id: Option<String>,
+    /// Your CrewHub agent id, so the action is attributed to you on the
+    /// board. Must be a known agent id.
+    #[serde(default)]
+    pub acting_as: Option<String>,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub struct PostStatusUpdateParams {
     /// The status update text.
     pub text: String,
+    /// Attach the update to this task's timeline.
+    #[serde(default)]
+    pub task_id: Option<String>,
+    /// Your CrewHub agent id, so the update is attributed to you. Must be a
+    /// known agent id.
+    #[serde(default)]
+    pub acting_as: Option<String>,
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -99,6 +116,36 @@ impl CrewHubMcp {
     fn emit(&self, event: DomainEvent) {
         // No subscribers (e.g. headless tests) is fine.
         let _ = self.notify.send(event);
+    }
+
+    /// D-M3-4: self-reported attribution, VALIDATED against the agents table.
+    /// `Ok(actor)` is `agent:<id>` or the `mcp` fallback; `Err(tool_error)`
+    /// names the valid ids so the calling model can correct itself.
+    fn resolve_actor(
+        &self,
+        acting_as: Option<&str>,
+    ) -> Result<std::result::Result<String, CallToolResult>, ErrorData> {
+        let Some(id) = acting_as else {
+            return Ok(Ok(MCP_ACTOR.into()));
+        };
+        if self.store.get_agent(id).map_err(internal)?.is_some() {
+            return Ok(Ok(crate::store::task_events::agent_actor(id)));
+        }
+        let valid: Vec<String> = self
+            .store
+            .list_agents()
+            .map_err(internal)?
+            .into_iter()
+            .map(|a| a.id)
+            .collect();
+        Ok(Err(tool_error(format!(
+            "unknown acting_as agent: {id} (valid agent ids: {})",
+            if valid.is_empty() {
+                "none registered".to_string()
+            } else {
+                valid.join(", ")
+            }
+        ))))
     }
 
     #[tool(description = "List all CrewHub crew members (agents).")]
@@ -149,20 +196,29 @@ impl CrewHubMcp {
                 return Ok(invalid_value_error("priority", priority, TASK_PRIORITIES));
             }
         }
+        let actor = match self.resolve_actor(p.acting_as.as_deref())? {
+            Ok(actor) => actor,
+            Err(tool_err) => return Ok(tool_err),
+        };
         let Some(room) = self.store.get_room(&p.room_id).map_err(internal)? else {
             return Ok(tool_error(format!("room not found: {}", p.room_id)));
         };
+        // The `_as` wrapper writes the `created` timeline event — same code
+        // path as human IPC (D-M3-3).
         let task = self
             .store
-            .create_task(NewTask {
-                project_id: room.project_id,
-                room_id: Some(room.id),
-                title: p.title,
-                description: p.description,
-                priority: p.priority,
-                assignee_agent_id: None,
-                created_by: Some(MCP_ACTOR.into()),
-            })
+            .create_task_as(
+                NewTask {
+                    project_id: room.project_id,
+                    room_id: Some(room.id),
+                    title: p.title,
+                    description: p.description,
+                    priority: p.priority,
+                    assignee_agent_id: None,
+                    created_by: Some(actor.clone()),
+                },
+                &actor,
+            )
             .map_err(internal)?;
         self.emit(DomainEvent::TaskChanged {
             task_id: task.id.clone(),
@@ -170,7 +226,9 @@ impl CrewHubMcp {
         Ok(CallToolResult::structured(json!({ "task": task })))
     }
 
-    #[tool(description = "Move a task to a new status on the board.")]
+    #[tool(
+        description = "Move a task to a new status on the board, optionally assigning it to an agent."
+    )]
     fn update_task_status(
         &self,
         Parameters(p): Parameters<UpdateTaskStatusParams>,
@@ -178,23 +236,60 @@ impl CrewHubMcp {
         if !TASK_STATUSES.contains(&p.status.as_str()) {
             return Ok(invalid_value_error("status", &p.status, TASK_STATUSES));
         }
+        let actor = match self.resolve_actor(p.acting_as.as_deref())? {
+            Ok(actor) => actor,
+            Err(tool_err) => return Ok(tool_err),
+        };
+        if let Some(assignee) = &p.assignee_agent_id {
+            if self.store.get_agent(assignee).map_err(internal)?.is_none() {
+                return Ok(tool_error(format!("agent not found: {assignee}")));
+            }
+        }
         let Some(mut task) = self.store.get_task(&p.task_id).map_err(internal)? else {
             return Ok(tool_error(format!("task not found: {}", p.task_id)));
         };
         task.status = p.status;
-        let task = self.store.update_task(task).map_err(internal)?;
+        if let Some(assignee) = p.assignee_agent_id {
+            task.assignee_agent_id = Some(assignee);
+        }
+        // `_as` wrapper: status_changed / assigned timeline events (D-M3-3).
+        let task = self.store.update_task_as(task, &actor).map_err(internal)?;
         self.emit(DomainEvent::TaskChanged {
             task_id: task.id.clone(),
         });
         Ok(CallToolResult::structured(json!({ "task": task })))
     }
 
-    #[tool(description = "Post a short status update visible to the CrewHub user.")]
+    #[tool(
+        description = "Post a short status update visible to the CrewHub user; with task_id it also lands on that task's timeline."
+    )]
     fn post_status_update(
         &self,
         Parameters(p): Parameters<PostStatusUpdateParams>,
     ) -> Result<CallToolResult, ErrorData> {
-        let update = json!({ "text": p.text, "by": MCP_ACTOR, "ts": Store::now_ms() });
+        let actor = match self.resolve_actor(p.acting_as.as_deref())? {
+            Ok(actor) => actor,
+            Err(tool_err) => return Ok(tool_err),
+        };
+        if let Some(task_id) = &p.task_id {
+            if self.store.get_task(task_id).map_err(internal)?.is_none() {
+                return Ok(tool_error(format!("task not found: {task_id}")));
+            }
+            self.store
+                .record_task_event(
+                    task_id,
+                    "status_update",
+                    &actor,
+                    Some(json!({"text": p.text})),
+                )
+                .map_err(internal)?;
+            self.emit(DomainEvent::TaskChanged {
+                task_id: task_id.clone(),
+            });
+        }
+        // The settings-key broadcast feeds the global feed either way.
+        let update =
+            json!({ "text": p.text, "by": actor, "task_id": p.task_id, "ts": Store::now_ms() });
         self.store
             .set_setting("last_status_update", &update.to_string())
             .map_err(internal)?;
@@ -398,6 +493,7 @@ mod tests {
                 room_id: "nope".into(),
                 description: None,
                 priority: None,
+                acting_as: None,
             }))
             .unwrap();
         assert!(is_tool_error(&missing));
@@ -409,6 +505,7 @@ mod tests {
                 room_id: room.id.clone(),
                 description: Some("desc".into()),
                 priority: Some("high".into()),
+                acting_as: None,
             }))
             .unwrap();
         let task = &structured(&result)["task"];
@@ -432,6 +529,7 @@ mod tests {
                 room_id: room.id,
                 description: None,
                 priority: Some("asap".into()),
+                acting_as: None,
             }))
             .unwrap();
         assert!(is_tool_error(&result));
@@ -467,6 +565,7 @@ mod tests {
                 room_id: room.id,
                 description: None,
                 priority: None,
+                acting_as: None,
             }))
             .unwrap();
         assert_eq!(structured(&result)["task"]["project_id"], project.id);
@@ -482,6 +581,7 @@ mod tests {
                 room_id: room.id,
                 description: None,
                 priority: None,
+                acting_as: None,
             }))
             .unwrap();
         let task_id = structured(&created)["task"]["id"]
@@ -494,6 +594,8 @@ mod tests {
             .update_task_status(Parameters(UpdateTaskStatusParams {
                 task_id: task_id.clone(),
                 status: "nonsense".into(),
+                assignee_agent_id: None,
+                acting_as: None,
             }))
             .unwrap();
         assert!(is_tool_error(&bad));
@@ -503,6 +605,8 @@ mod tests {
             .update_task_status(Parameters(UpdateTaskStatusParams {
                 task_id: "nope".into(),
                 status: "done".into(),
+                assignee_agent_id: None,
+                acting_as: None,
             }))
             .unwrap();
         assert!(is_tool_error(&missing));
@@ -511,6 +615,8 @@ mod tests {
             .update_task_status(Parameters(UpdateTaskStatusParams {
                 task_id: task_id.clone(),
                 status: "in_progress".into(),
+                assignee_agent_id: None,
+                acting_as: None,
             }))
             .unwrap();
         assert_eq!(structured(&ok)["task"]["status"], "in_progress");
@@ -521,6 +627,183 @@ mod tests {
         assert!(
             matches!(rx.try_recv(), Ok(DomainEvent::TaskChanged { task_id: id }) if id == task_id)
         );
+    }
+
+    fn agent(mcp: &CrewHubMcp, name: &str) -> crate::store::agents::Agent {
+        mcp.store
+            .create_agent(NewAgent {
+                name: name.into(),
+                icon: None,
+                color: None,
+                default_model: None,
+                project_path: None,
+                permission_mode: None,
+                system_prompt: None,
+            })
+            .unwrap()
+    }
+
+    /// T5 (D-M3-4/G8): `acting_as` is validated against the agents table and
+    /// recorded as `agent:<id>` on rows AND timeline events; the fallback is
+    /// the closed vocabulary's `mcp`.
+    #[test]
+    fn acting_as_is_validated_and_attributed_through_the_timeline() {
+        let (mcp, _rx) = mcp();
+        let room = room(&mcp, "Lab");
+        let bot = agent(&mcp, "Botje");
+
+        // unknown acting_as -> tool error naming the valid ids
+        let bad = mcp
+            .create_task(Parameters(CreateTaskParams {
+                title: "X".into(),
+                room_id: room.id.clone(),
+                description: None,
+                priority: None,
+                acting_as: Some("ghost".into()),
+            }))
+            .unwrap();
+        assert!(is_tool_error(&bad));
+        let text = format!("{bad:?}");
+        assert!(
+            text.contains(&bot.id),
+            "error should list valid ids: {text}"
+        );
+
+        // valid acting_as -> created_by + timeline actor are agent:<id>
+        let created = mcp
+            .create_task(Parameters(CreateTaskParams {
+                title: "Attributed".into(),
+                room_id: room.id.clone(),
+                description: None,
+                priority: None,
+                acting_as: Some(bot.id.clone()),
+            }))
+            .unwrap();
+        let task = &structured(&created)["task"];
+        let actor = format!("agent:{}", bot.id);
+        assert_eq!(task["created_by"], actor.as_str());
+        let task_id = task["id"].as_str().unwrap().to_string();
+        let events = mcp.store.list_task_events(&task_id).unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].event_type, "created");
+        assert_eq!(events[0].actor, actor);
+
+        // no acting_as -> the honest mcp fallback
+        let plain = mcp
+            .create_task(Parameters(CreateTaskParams {
+                title: "Plain".into(),
+                room_id: room.id,
+                description: None,
+                priority: None,
+                acting_as: None,
+            }))
+            .unwrap();
+        assert_eq!(structured(&plain)["task"]["created_by"], "mcp");
+    }
+
+    /// T5 (G8): `update_task_status` can set the assignee; both moves land on
+    /// the timeline via the shared `_as` write path.
+    #[test]
+    fn update_task_status_sets_assignee_and_writes_timeline() {
+        let (mcp, _rx) = mcp();
+        let room = room(&mcp, "Lab");
+        let bot = agent(&mcp, "Botje");
+        let created = mcp
+            .create_task(Parameters(CreateTaskParams {
+                title: "X".into(),
+                room_id: room.id,
+                description: None,
+                priority: None,
+                acting_as: None,
+            }))
+            .unwrap();
+        let task_id = structured(&created)["task"]["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+
+        let bad = mcp
+            .update_task_status(Parameters(UpdateTaskStatusParams {
+                task_id: task_id.clone(),
+                status: "in_progress".into(),
+                assignee_agent_id: Some("ghost".into()),
+                acting_as: None,
+            }))
+            .unwrap();
+        assert!(is_tool_error(&bad));
+
+        let ok = mcp
+            .update_task_status(Parameters(UpdateTaskStatusParams {
+                task_id: task_id.clone(),
+                status: "in_progress".into(),
+                assignee_agent_id: Some(bot.id.clone()),
+                acting_as: Some(bot.id.clone()),
+            }))
+            .unwrap();
+        let task = &structured(&ok)["task"];
+        assert_eq!(task["status"], "in_progress");
+        assert_eq!(task["assignee_agent_id"], bot.id.as_str());
+
+        let events = mcp.store.list_task_events(&task_id).unwrap();
+        let types: Vec<_> = events.iter().map(|e| e.event_type.as_str()).collect();
+        assert_eq!(types, vec!["created", "status_changed", "assigned"]);
+        assert!(events[1..]
+            .iter()
+            .all(|e| e.actor == format!("agent:{}", bot.id)));
+    }
+
+    /// T5 (G8): a status update with a task_id lands on that task's timeline
+    /// while keeping the settings-key broadcast for the global feed.
+    #[test]
+    fn post_status_update_with_task_id_records_timeline_event() {
+        let (mcp, mut rx) = mcp();
+        let room = room(&mcp, "Lab");
+        let created = mcp
+            .create_task(Parameters(CreateTaskParams {
+                title: "X".into(),
+                room_id: room.id,
+                description: None,
+                priority: None,
+                acting_as: None,
+            }))
+            .unwrap();
+        let task_id = structured(&created)["task"]["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let _ = rx.try_recv(); // drain create event
+
+        let missing = mcp
+            .post_status_update(Parameters(PostStatusUpdateParams {
+                text: "hi".into(),
+                task_id: Some("ghost".into()),
+                acting_as: None,
+            }))
+            .unwrap();
+        assert!(is_tool_error(&missing));
+
+        let ok = mcp
+            .post_status_update(Parameters(PostStatusUpdateParams {
+                text: "halfway".into(),
+                task_id: Some(task_id.clone()),
+                acting_as: None,
+            }))
+            .unwrap();
+        assert_eq!(structured(&ok)["posted"]["task_id"], task_id.as_str());
+        let events = mcp.store.list_task_events(&task_id).unwrap();
+        let last = events.last().unwrap();
+        assert_eq!(last.event_type, "status_update");
+        assert_eq!(last.actor, "mcp");
+        assert!(last.payload_json.as_deref().unwrap().contains("halfway"));
+        // both the TaskChanged and the SettingChanged broadcasts fire
+        assert!(matches!(
+            rx.try_recv(),
+            Ok(DomainEvent::TaskChanged { task_id: id }) if id == task_id
+        ));
+        assert!(matches!(
+            rx.try_recv(),
+            Ok(DomainEvent::SettingChanged { key }) if key == "last_status_update"
+        ));
     }
 
     #[test]
@@ -534,6 +817,7 @@ mod tests {
                 room_id: room_id.clone(),
                 description: None,
                 priority: None,
+                acting_as: None,
             }))
             .unwrap();
         }
@@ -562,6 +846,8 @@ mod tests {
         let result = mcp
             .post_status_update(Parameters(PostStatusUpdateParams {
                 text: "halfway there".into(),
+                task_id: None,
+                acting_as: None,
             }))
             .unwrap();
         assert_eq!(structured(&result)["posted"]["text"], "halfway there");
@@ -598,6 +884,7 @@ mod tests {
             room_id: lab.id.clone(),
             description: None,
             priority: None,
+            acting_as: None,
         }))
         .unwrap();
         let done = mcp
@@ -606,11 +893,14 @@ mod tests {
                 room_id: lab.id.clone(),
                 description: None,
                 priority: None,
+                acting_as: None,
             }))
             .unwrap();
         mcp.update_task_status(Parameters(UpdateTaskStatusParams {
             task_id: structured(&done)["task"]["id"].as_str().unwrap().into(),
             status: "done".into(),
+            assignee_agent_id: None,
+            acting_as: None,
         }))
         .unwrap();
 

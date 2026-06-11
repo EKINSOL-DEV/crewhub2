@@ -153,7 +153,7 @@ async fn create_task_persists_row_and_emits_domain_event() {
 
     let task = &result["structuredContent"]["task"];
     let task_id = task["id"].as_str().unwrap();
-    assert_eq!(task["created_by"], "agent:mcp");
+    assert_eq!(task["created_by"], "mcp");
 
     let row = store.get_task(task_id).unwrap().expect("task row exists");
     assert_eq!(row.title, "From MCP");
@@ -222,6 +222,108 @@ async fn get_room_context_returns_envelope() {
     assert_eq!(envelope["room"]["id"], room_id.as_str());
     assert!(envelope["project"].is_null());
     assert_eq!(envelope["open_tasks"].as_array().unwrap().len(), 1);
+}
+
+// ---- M3 T5: acting_as attribution + timeline writes over real HTTP (§3.3a) ----
+
+#[tokio::test(flavor = "multi_thread")]
+async fn acting_as_attributes_actions_and_unknown_ids_error() {
+    let (server, store, mut rx) = boot().await;
+    let room_id = create_room(&store, "Lab");
+    let bot = store
+        .create_agent(crewhub2_lib::store::agents::NewAgent {
+            name: "Botje".into(),
+            icon: None,
+            color: None,
+            default_model: None,
+            project_path: None,
+            permission_mode: None,
+            system_prompt: None,
+        })
+        .unwrap();
+
+    // unknown acting_as -> tool error listing valid ids, nothing written
+    let result = call_tool(
+        &server,
+        "create_task",
+        json!({ "title": "X", "room_id": room_id, "acting_as": "ghost" }),
+    )
+    .await;
+    assert_eq!(result["isError"], true, "expected tool error: {result}");
+    let text = result["content"][0]["text"].as_str().unwrap();
+    assert!(text.contains(&bot.id), "should list valid ids: {text}");
+    assert!(rx.try_recv().is_err(), "rejected call must not emit");
+
+    // attributed create + move + assign: rows and timeline carry agent:<id>
+    let actor = format!("agent:{}", bot.id);
+    let created = call_tool(
+        &server,
+        "create_task",
+        json!({ "title": "Board demo", "room_id": room_id, "acting_as": bot.id }),
+    )
+    .await;
+    assert_ne!(created["isError"], true, "unexpected error: {created}");
+    let task = &created["structuredContent"]["task"];
+    assert_eq!(task["created_by"], actor.as_str());
+    let task_id = task["id"].as_str().unwrap().to_string();
+    assert!(matches!(rx.try_recv(), Ok(DomainEvent::TaskChanged { task_id: id }) if id == task_id));
+
+    let moved = call_tool(
+        &server,
+        "update_task_status",
+        json!({ "task_id": task_id, "status": "review",
+                "assignee_agent_id": bot.id, "acting_as": bot.id }),
+    )
+    .await;
+    assert_ne!(moved["isError"], true, "unexpected error: {moved}");
+    assert_eq!(
+        moved["structuredContent"]["task"]["assignee_agent_id"],
+        bot.id.as_str()
+    );
+    assert!(matches!(rx.try_recv(), Ok(DomainEvent::TaskChanged { task_id: id }) if id == task_id));
+
+    let events = store.list_task_events(&task_id).unwrap();
+    let summary: Vec<(&str, &str)> = events
+        .iter()
+        .map(|e| (e.event_type.as_str(), e.actor.as_str()))
+        .collect();
+    assert_eq!(
+        summary,
+        vec![
+            ("created", actor.as_str()),
+            ("status_changed", actor.as_str()),
+            ("assigned", actor.as_str()),
+        ]
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn post_status_update_with_task_id_lands_on_the_timeline() {
+    let (server, store, _rx) = boot().await;
+    let room_id = create_room(&store, "Lab");
+    let created = call_tool(
+        &server,
+        "create_task",
+        json!({ "title": "X", "room_id": room_id }),
+    )
+    .await;
+    let task_id = created["structuredContent"]["task"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let posted = call_tool(
+        &server,
+        "post_status_update",
+        json!({ "text": "halfway there", "task_id": task_id }),
+    )
+    .await;
+    assert_ne!(posted["isError"], true, "unexpected error: {posted}");
+
+    let events = store.list_task_events(&task_id).unwrap();
+    let last = events.last().unwrap();
+    assert_eq!(last.event_type, "status_update");
+    assert_eq!(last.actor, "mcp");
 }
 
 // ---- registration (T23) against the fake CLI ----

@@ -39,6 +39,8 @@ rmcp = { version = "1.7.0", features = ["server", "transport-streamable-http-ser
 axum = "0.8.9"
 schemars = "1.2.1"
 tauri-plugin-clipboard-manager = "2"
+tauri-plugin-dialog = "2"
+base64 = "0.22"
 
 [dev-dependencies]
 reqwest = { version = "0.13.4", default-features = false, features = ["json"] }

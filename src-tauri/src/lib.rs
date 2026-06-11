@@ -1,5 +1,6 @@
 pub mod engine;
 pub mod events;
+pub mod git;
 pub mod hooks;
 mod ipc;
 pub mod mcp;
@@ -37,18 +38,37 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             ipc::create_room::<tauri::Wry>,
             ipc::update_room::<tauri::Wry>,
             ipc::delete_room::<tauri::Wry>,
+            ipc::list_room_rules,
+            ipc::create_room_rule::<tauri::Wry>,
+            ipc::update_room_rule::<tauri::Wry>,
+            ipc::delete_room_rule::<tauri::Wry>,
             ipc::list_tasks,
+            ipc::get_task,
             ipc::create_task::<tauri::Wry>,
             ipc::update_task::<tauri::Wry>,
             ipc::delete_task::<tauri::Wry>,
+            ipc::list_task_events,
+            ipc::record_task_run_started::<tauri::Wry>,
+            ipc::record_task_run_finished::<tauri::Wry>,
             ipc::list_session_bindings,
             ipc::upsert_session_binding::<tauri::Wry>,
             ipc::delete_session_binding::<tauri::Wry>,
             ipc::handoff,
             ipc::handoff_targets,
+            ipc::pick_folder::<tauri::Wry>,
+            ipc::list_doc_tree,
+            ipc::read_doc_file,
+            ipc::read_doc_image,
+            ipc::git_status,
+            ipc::git_diff,
+            ipc::git_default_base,
             ipc::list_slash_commands,
             ipc::materialize_persona,
             ipc::remove_materialized_persona,
+            ipc::list_notification_rules,
+            ipc::create_notification_rule::<tauri::Wry>,
+            ipc::update_notification_rule::<tauri::Wry>,
+            ipc::delete_notification_rule::<tauri::Wry>,
             ipc::get_setting,
             ipc::set_setting::<tauri::Wry>,
             ipc::open_settings_window::<tauri::Wry>,
@@ -78,6 +98,9 @@ pub fn run() {
         // Clipboard: webview gets write-text only (capabilities/main.json) for
         // the handoff "copy path" / "copy resume command" actions (EKI-80).
         .plugin(tauri_plugin_clipboard_manager::init())
+        // Dialog: folder picker invoked Rust-side only via `pick_folder`
+        // (D-M3-7) — the webview gets NO dialog:* permission.
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             use tauri::Manager;
@@ -198,14 +221,36 @@ pub fn run() {
                 }
             });
 
-            // Bridge: engine fan-in -> typed webview event.
+            // Bridge: engine fan-in -> typed webview event. Discovery also
+            // feeds the room-rule auto-assign evaluator (M3 T2, D-M3-10):
+            // a binding is written only when no row exists for the session,
+            // so manual overrides stick by construction.
             let handle = app.handle().clone();
+            let assign_store = store.clone();
             let mut rx = registry.aggregate_events();
             tauri::async_runtime::spawn(async move {
                 use tauri_specta::Event;
                 loop {
                     match rx.recv().await {
                         Ok(ev) => {
+                            if let engine::types::SessionEvent::Discovered { meta }
+                            | engine::types::SessionEvent::Updated { meta } = &ev
+                            {
+                                match store::room_rules::auto_assign_session(
+                                    &assign_store,
+                                    meta,
+                                    None,
+                                ) {
+                                    Ok(Some(binding)) => {
+                                        let _ = events::DomainEvent::SessionBindingChanged {
+                                            session_id: binding.session_id,
+                                        }
+                                        .emit(&handle);
+                                    }
+                                    Ok(None) => {}
+                                    Err(e) => eprintln!("room auto-assign failed: {e}"),
+                                }
+                            }
                             let _ = events::EngineEvent(ev).emit(&handle);
                         }
                         Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,

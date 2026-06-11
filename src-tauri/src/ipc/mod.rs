@@ -7,9 +7,14 @@ use crate::engine::types::{
 use crate::events::DomainEvent;
 use crate::security::paths::{Access, PathPolicy};
 use crate::store::agents::{Agent, NewAgent};
+use crate::store::notification_rules::{
+    NewNotificationRule, NotificationRule, NOTIFICATION_RULES_SETTING_KEY,
+};
 use crate::store::projects::{NewProject, Project};
+use crate::store::room_rules::{NewRoomRule, RoomRule};
 use crate::store::rooms::{NewRoom, Room};
 use crate::store::session_bindings::{NewSessionBinding, SessionBinding};
+use crate::store::task_events::{TaskEvent, ACTOR_HUMAN};
 use crate::store::tasks::{NewTask, Task};
 use crate::store::Store;
 use crate::workspace::handoff::HandoffTarget;
@@ -198,6 +203,103 @@ pub fn handoff_targets() -> Result<Vec<HandoffTarget>> {
     Ok(crate::workspace::handoff::detect_targets(
         &crate::workspace::handoff::default_app_dirs(),
     ))
+}
+
+/// Native folder picker (T3, D-M3-7): `tauri-plugin-dialog` invoked
+/// RUST-SIDE only — the webview holds no `dialog:*` permission. Returns the
+/// canonicalized folder, or `null` when the user cancels.
+#[tauri::command]
+#[specta::specta]
+pub async fn pick_folder<R: Runtime>(app: AppHandle<R>) -> Result<Option<String>> {
+    crate::workspace::pick::pick_folder(&app).await.map_err(err)
+}
+
+// ---- docs panel reads (T3, D-M3-7/G5) ----
+// The docs root is the project's `docs_path`, falling back to `folder_path`;
+// every path resolves through PathPolicy inside `workspace::docs`.
+
+fn docs_root(store: &Store, project_id: &str) -> Result<std::path::PathBuf> {
+    let project = store
+        .get_project(project_id)
+        .map_err(err)?
+        .ok_or_else(|| format!("unknown project: {project_id}"))?;
+    Ok(std::path::PathBuf::from(
+        project.docs_path.unwrap_or(project.folder_path),
+    ))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_doc_tree(
+    store: State<Arc<Store>>,
+    project_id: String,
+) -> Result<Vec<crate::workspace::docs::DocEntry>> {
+    crate::workspace::docs::list_doc_tree(&docs_root(&store, &project_id)?).map_err(err)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn read_doc_file(
+    store: State<Arc<Store>>,
+    project_id: String,
+    rel_path: String,
+) -> Result<String> {
+    crate::workspace::docs::read_doc_file(&docs_root(&store, &project_id)?, &rel_path).map_err(err)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn read_doc_image(
+    store: State<Arc<Store>>,
+    project_id: String,
+    rel_path: String,
+) -> Result<crate::workspace::docs::DocImage> {
+    crate::workspace::docs::read_doc_image(&docs_root(&store, &project_id)?, &rel_path).map_err(err)
+}
+
+// ---- git awareness (T4, D-M3-5/G6) ----
+// Read-only, fixed-argv `git` CLI; `project_path` is path-policy-validated
+// and only ever used as the process CWD. Errors prefixed `GitUnavailable:`
+// mean "no git info here" — panels hide the strip instead of erroring.
+
+#[tauri::command]
+#[specta::specta]
+pub async fn git_status(
+    store: State<'_, Arc<Store>>,
+    project_path: String,
+) -> Result<crate::git::GitStatus> {
+    let canon = validate_project_path(&store, &project_path, Access::Read)?;
+    tauri::async_runtime::spawn_blocking(move || crate::git::git_status(&canon))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn git_diff(
+    store: State<'_, Arc<Store>>,
+    project_path: String,
+    base: Option<String>,
+) -> Result<crate::git::GitDiff> {
+    let canon = validate_project_path(&store, &project_path, Access::Read)?;
+    tauri::async_runtime::spawn_blocking(move || crate::git::git_diff(&canon, base.as_deref()))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn git_default_base(
+    store: State<'_, Arc<Store>>,
+    project_path: String,
+) -> Result<Option<String>> {
+    let canon = validate_project_path(&store, &project_path, Access::Read)?;
+    tauri::async_runtime::spawn_blocking(move || crate::git::git_default_base(&canon))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())
 }
 
 /// Composer hints: slash commands/skills any provider recognizes for the
@@ -526,6 +628,25 @@ pub fn list_projects(store: State<Arc<Store>>) -> Result<Vec<Project>> {
     store.list_projects().map_err(err)
 }
 
+/// T3 (D-M3-7): registering a project is what grants the runtime
+/// `PathPolicy` a new allowed root, so the folders must be real directories
+/// (the picker hands us canonicalized paths; typed paths get the same check).
+fn validate_project_folders(folder_path: &str, docs_path: Option<&str>) -> Result<()> {
+    if !std::path::Path::new(folder_path).is_dir() {
+        return Err(format!(
+            "project folder does not exist or is not a directory: {folder_path}"
+        ));
+    }
+    if let Some(docs) = docs_path {
+        if !std::path::Path::new(docs).is_dir() {
+            return Err(format!(
+                "docs folder does not exist or is not a directory: {docs}"
+            ));
+        }
+    }
+    Ok(())
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn create_project<R: Runtime>(
@@ -533,6 +654,7 @@ pub fn create_project<R: Runtime>(
     store: State<Arc<Store>>,
     input: NewProject,
 ) -> Result<Project> {
+    validate_project_folders(&input.folder_path, input.docs_path.as_deref())?;
     let p = store.create_project(input).map_err(err)?;
     DomainEvent::ProjectChanged {
         project_id: p.id.clone(),
@@ -549,6 +671,7 @@ pub fn update_project<R: Runtime>(
     store: State<Arc<Store>>,
     project: Project,
 ) -> Result<Project> {
+    validate_project_folders(&project.folder_path, project.docs_path.as_deref())?;
     let p = store.update_project(project).map_err(err)?;
     DomainEvent::ProjectChanged {
         project_id: p.id.clone(),
@@ -638,6 +761,14 @@ pub fn list_tasks(store: State<Arc<Store>>) -> Result<Vec<Task>> {
     store.list_tasks().map_err(err)
 }
 
+/// Single-task refetch for `TaskChanged` reconciliation (D-M3-2, G3):
+/// `null` means the task was deleted — the store drops it.
+#[tauri::command]
+#[specta::specta]
+pub fn get_task(store: State<Arc<Store>>, id: String) -> Result<Option<Task>> {
+    store.get_task(&id).map_err(err)
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn create_task<R: Runtime>(
@@ -645,7 +776,7 @@ pub fn create_task<R: Runtime>(
     store: State<Arc<Store>>,
     input: NewTask,
 ) -> Result<Task> {
-    let t = store.create_task(input).map_err(err)?;
+    let t = store.create_task_as(input, ACTOR_HUMAN).map_err(err)?;
     DomainEvent::TaskChanged {
         task_id: t.id.clone(),
     }
@@ -661,13 +792,68 @@ pub fn update_task<R: Runtime>(
     store: State<Arc<Store>>,
     task: Task,
 ) -> Result<Task> {
-    let t = store.update_task(task).map_err(err)?;
+    let t = store.update_task_as(task, ACTOR_HUMAN).map_err(err)?;
     DomainEvent::TaskChanged {
         task_id: t.id.clone(),
     }
     .emit(&app)
     .map_err(|e| e.to_string())?;
     Ok(t)
+}
+
+// ---- task events (T1, D-M3-3/G1) ----
+
+/// A task's timeline, oldest first: the drawer timeline, run linkage and
+/// notification source all read from here.
+#[tauri::command]
+#[specta::specta]
+pub fn list_task_events(store: State<Arc<Store>>, task_id: String) -> Result<Vec<TaskEvent>> {
+    store.list_task_events(&task_id).map_err(err)
+}
+
+/// Run-with-agent linkage (T12 writes through here): records a `run_started`
+/// timeline event. A card's linked session = newest `run_started` without a
+/// matching `run_finished`.
+#[tauri::command]
+#[specta::specta]
+pub fn record_task_run_started<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    task_id: String,
+    session_id: SessionId,
+    agent_id: Option<String>,
+) -> Result<TaskEvent> {
+    let event = store
+        .record_task_run_started(
+            &task_id,
+            &session_id.provider,
+            &session_id.id,
+            agent_id.as_deref(),
+        )
+        .map_err(err)?;
+    DomainEvent::TaskChanged { task_id }
+        .emit(&app)
+        .map_err(|e| e.to_string())?;
+    Ok(event)
+}
+
+/// The matching close of [`record_task_run_started`].
+#[tauri::command]
+#[specta::specta]
+pub fn record_task_run_finished<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    task_id: String,
+    session_id: SessionId,
+    outcome: String,
+) -> Result<TaskEvent> {
+    let event = store
+        .record_task_run_finished(&task_id, &session_id.id, &outcome)
+        .map_err(err)?;
+    DomainEvent::TaskChanged { task_id }
+        .emit(&app)
+        .map_err(|e| e.to_string())?;
+    Ok(event)
 }
 
 #[tauri::command]
@@ -682,6 +868,73 @@ pub fn delete_task<R: Runtime>(
         DomainEvent::TaskChanged { task_id: id }
             .emit(&app)
             .map_err(|e| e.to_string())?;
+    }
+    Ok(deleted)
+}
+
+// ---- room rules (T2, D-M3-10/G2) ----
+// Mutations emit `RoomChanged { room_id }` — the rules editor refetches per
+// room; no dedicated DomainEvent variant (M3 freezes the event surface).
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_room_rules(store: State<Arc<Store>>, room_id: Option<String>) -> Result<Vec<RoomRule>> {
+    store.list_room_rules(room_id.as_deref()).map_err(err)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn create_room_rule<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    input: NewRoomRule,
+) -> Result<RoomRule> {
+    let rule = store.create_room_rule(input).map_err(err)?;
+    DomainEvent::RoomChanged {
+        room_id: rule.room_id.clone(),
+    }
+    .emit(&app)
+    .map_err(|e| e.to_string())?;
+    Ok(rule)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn update_room_rule<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    rule: RoomRule,
+) -> Result<RoomRule> {
+    let rule = store.update_room_rule(rule).map_err(err)?;
+    DomainEvent::RoomChanged {
+        room_id: rule.room_id.clone(),
+    }
+    .emit(&app)
+    .map_err(|e| e.to_string())?;
+    Ok(rule)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn delete_room_rule<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    id: String,
+) -> Result<bool> {
+    // fetch first so the RoomChanged event can name the room
+    let room_id = store
+        .list_room_rules(None)
+        .map_err(err)?
+        .into_iter()
+        .find(|r| r.id == id)
+        .map(|r| r.room_id);
+    let deleted = store.delete_room_rule(&id).map_err(err)?;
+    if deleted {
+        if let Some(room_id) = room_id {
+            DomainEvent::RoomChanged { room_id }
+                .emit(&app)
+                .map_err(|e| e.to_string())?;
+        }
     }
     Ok(deleted)
 }
@@ -722,6 +975,62 @@ pub fn delete_session_binding<R: Runtime>(
         DomainEvent::SessionBindingChanged { session_id }
             .emit(&app)
             .map_err(|e| e.to_string())?;
+    }
+    Ok(deleted)
+}
+
+// ---- notification rules (T5, D-M3-9/G7) ----
+// Mutations announce themselves via `SettingChanged { key: "notification_rules" }`
+// — the cheap invalidation signal; the matcher is a pure frontend function.
+
+fn emit_notification_rules_changed<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
+    DomainEvent::SettingChanged {
+        key: NOTIFICATION_RULES_SETTING_KEY.into(),
+    }
+    .emit(app)
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_notification_rules(store: State<Arc<Store>>) -> Result<Vec<NotificationRule>> {
+    store.list_notification_rules().map_err(err)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn create_notification_rule<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    input: NewNotificationRule,
+) -> Result<NotificationRule> {
+    let rule = store.create_notification_rule(input).map_err(err)?;
+    emit_notification_rules_changed(&app)?;
+    Ok(rule)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn update_notification_rule<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    rule: NotificationRule,
+) -> Result<NotificationRule> {
+    let rule = store.update_notification_rule(rule).map_err(err)?;
+    emit_notification_rules_changed(&app)?;
+    Ok(rule)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn delete_notification_rule<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    id: String,
+) -> Result<bool> {
+    let deleted = store.delete_notification_rule(&id).map_err(err)?;
+    if deleted {
+        emit_notification_rules_changed(&app)?;
     }
     Ok(deleted)
 }
@@ -828,12 +1137,13 @@ mod tests {
     fn project_commands_roundtrip() {
         let app = app();
         let h = app.handle().clone();
+        let dir = tempfile::tempdir().unwrap();
         let input = NewProject {
             name: "P".into(),
             description: None,
             icon: None,
             color: None,
-            folder_path: "/tmp/p".into(),
+            folder_path: dir.path().display().to_string(),
             docs_path: None,
         };
         let mut p = create_project(h.clone(), app.state(), input).unwrap();
@@ -842,6 +1152,122 @@ mod tests {
         let p = update_project(h.clone(), app.state(), p).unwrap();
         assert_eq!(p.status, "archived");
         assert!(delete_project(h, app.state(), p.id).unwrap());
+    }
+
+    /// T3 (D-M3-7): project registration is the PathPolicy grant, so the
+    /// folders must exist — and a freshly registered root is allowed
+    /// immediately (the policy is rebuilt from the store per call).
+    #[test]
+    fn project_registration_validates_folders_and_extends_path_policy() {
+        let app = app();
+        let h = app.handle().clone();
+        let dir = tempfile::tempdir().unwrap();
+
+        let missing = NewProject {
+            name: "P".into(),
+            description: None,
+            icon: None,
+            color: None,
+            folder_path: dir.path().join("ghost").display().to_string(),
+            docs_path: None,
+        };
+        let err = create_project(h.clone(), app.state(), missing).unwrap_err();
+        assert!(err.contains("does not exist"), "got: {err}");
+
+        let bad_docs = NewProject {
+            name: "P".into(),
+            description: None,
+            icon: None,
+            color: None,
+            folder_path: dir.path().display().to_string(),
+            docs_path: Some(dir.path().join("nope").display().to_string()),
+        };
+        let err = create_project(h.clone(), app.state(), bad_docs).unwrap_err();
+        assert!(err.contains("docs folder"), "got: {err}");
+
+        // before registration the path is outside all roots…
+        assert!(validate_project_path(
+            &app.state::<Arc<Store>>(),
+            dir.path().to_str().unwrap(),
+            Access::Read
+        )
+        .is_err());
+        let p = create_project(
+            h,
+            app.state(),
+            NewProject {
+                name: "P".into(),
+                description: None,
+                icon: None,
+                color: None,
+                folder_path: dir.path().display().to_string(),
+                docs_path: None,
+            },
+        )
+        .unwrap();
+        // …and allowed right after: registration is the grant (M0 behavior).
+        assert!(validate_project_path(
+            &app.state::<Arc<Store>>(),
+            dir.path().to_str().unwrap(),
+            Access::ReadWrite
+        )
+        .is_ok());
+
+        // archived-status update keeps validating (folder still exists)
+        let mut p2 = p.clone();
+        p2.folder_path = dir.path().join("ghost").display().to_string();
+        let err = update_project(app.handle().clone(), app.state(), p2).unwrap_err();
+        assert!(err.contains("does not exist"), "got: {err}");
+    }
+
+    /// T3 (G5): docs commands route through the project's docs root and the
+    /// path policy; details are unit-tested in `workspace::docs`.
+    #[test]
+    fn doc_commands_read_through_docs_root_fallback() {
+        let app = app();
+        let h = app.handle().clone();
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("README.md"), "# docs").unwrap();
+        let docs = tempfile::tempdir().unwrap();
+        std::fs::write(docs.path().join("guide.md"), "guide").unwrap();
+        std::fs::write(docs.path().join("pic.png"), b"png").unwrap();
+
+        let err = list_doc_tree(app.state(), "ghost".into()).unwrap_err();
+        assert!(err.contains("unknown project"), "got: {err}");
+
+        // no docs_path -> folder_path fallback
+        let p = create_project(
+            h.clone(),
+            app.state(),
+            NewProject {
+                name: "P".into(),
+                description: None,
+                icon: None,
+                color: None,
+                folder_path: dir.path().display().to_string(),
+                docs_path: None,
+            },
+        )
+        .unwrap();
+        let tree = list_doc_tree(app.state(), p.id.clone()).unwrap();
+        assert_eq!(tree.len(), 1);
+        assert_eq!(
+            read_doc_file(app.state(), p.id.clone(), "README.md".into()).unwrap(),
+            "# docs"
+        );
+
+        // docs_path set -> reads switch roots; escapes are rejected
+        let mut p2 = p.clone();
+        p2.docs_path = Some(docs.path().display().to_string());
+        let p2 = update_project(h, app.state(), p2).unwrap();
+        assert_eq!(
+            read_doc_file(app.state(), p2.id.clone(), "guide.md".into()).unwrap(),
+            "guide"
+        );
+        let img = read_doc_image(app.state(), p2.id.clone(), "pic.png".into()).unwrap();
+        assert_eq!(img.media_type, "image/png");
+        let err = read_doc_file(app.state(), p2.id.clone(), "../escape.md".into()).unwrap_err();
+        assert!(err.contains("outside"), "got: {err}");
     }
 
     #[test]
@@ -864,6 +1290,61 @@ mod tests {
         assert!(delete_room(h, app.state(), r.id).unwrap());
     }
 
+    /// T2 (G2): room-rule CRUD round-trips with rule_type validation; the
+    /// evaluator itself is unit-tested in `store::room_rules`.
+    #[test]
+    fn room_rule_commands_roundtrip() {
+        let app = app();
+        let h = app.handle().clone();
+        let room = create_room(
+            h.clone(),
+            app.state(),
+            NewRoom {
+                project_id: None,
+                name: "Lab".into(),
+                icon: None,
+                color: None,
+                is_hq: None,
+            },
+        )
+        .unwrap();
+
+        let err = create_room_rule(
+            h.clone(),
+            app.state(),
+            NewRoomRule {
+                room_id: room.id.clone(),
+                rule_type: "vibes".into(),
+                rule_value: "x".into(),
+                priority: None,
+            },
+        )
+        .unwrap_err();
+        assert!(err.contains("invalid rule_type"), "got: {err}");
+
+        let mut rule = create_room_rule(
+            h.clone(),
+            app.state(),
+            NewRoomRule {
+                room_id: room.id.clone(),
+                rule_type: "keyword".into(),
+                rule_value: "fox".into(),
+                priority: Some(3),
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            list_room_rules(app.state(), Some(room.id.clone())).unwrap(),
+            vec![rule.clone()]
+        );
+        rule.priority = 7;
+        let rule = update_room_rule(h.clone(), app.state(), rule).unwrap();
+        assert_eq!(list_room_rules(app.state(), None).unwrap()[0].priority, 7);
+        assert!(delete_room_rule(h.clone(), app.state(), rule.id.clone()).unwrap());
+        assert!(!delete_room_rule(h, app.state(), rule.id).unwrap());
+        assert!(list_room_rules(app.state(), None).unwrap().is_empty());
+    }
+
     #[test]
     fn task_commands_roundtrip() {
         let app = app();
@@ -884,6 +1365,60 @@ mod tests {
         let t = update_task(h.clone(), app.state(), t).unwrap();
         assert_eq!(t.status, "in_progress");
         assert!(delete_task(h, app.state(), t.id).unwrap());
+    }
+
+    /// T1 (G1/G3): human IPC edits write the timeline through the `_as`
+    /// wrappers, `get_task` exposes single-task refetch, and the run-linkage
+    /// pair records through the same closed vocabulary.
+    #[test]
+    fn task_event_commands_write_and_list_the_timeline() {
+        let app = app();
+        let h = app.handle().clone();
+        let input = NewTask {
+            project_id: None,
+            room_id: None,
+            title: "Do".into(),
+            description: None,
+            priority: None,
+            assignee_agent_id: None,
+            created_by: None,
+        };
+        let mut t = create_task(h.clone(), app.state(), input).unwrap();
+        assert_eq!(
+            get_task(app.state(), t.id.clone()).unwrap(),
+            Some(t.clone())
+        );
+        assert_eq!(get_task(app.state(), "ghost".into()).unwrap(), None);
+
+        t.status = "in_progress".into();
+        let t = update_task(h.clone(), app.state(), t).unwrap();
+
+        let sid = SessionId {
+            provider: "claude-code".into(),
+            id: "sess-1".into(),
+        };
+        record_task_run_started(
+            h.clone(),
+            app.state(),
+            t.id.clone(),
+            sid.clone(),
+            Some("agent-1".into()),
+        )
+        .unwrap();
+        record_task_run_finished(h.clone(), app.state(), t.id.clone(), sid, "review".into())
+            .unwrap();
+
+        let events = list_task_events(app.state(), t.id.clone()).unwrap();
+        let types: Vec<_> = events.iter().map(|e| e.event_type.as_str()).collect();
+        assert_eq!(
+            types,
+            vec!["created", "status_changed", "run_started", "run_finished"]
+        );
+        assert!(events.iter().all(|e| e.actor == "human"));
+
+        // deleting the task cascades its timeline (G9)
+        assert!(delete_task(h, app.state(), t.id.clone()).unwrap());
+        assert!(list_task_events(app.state(), t.id).unwrap().is_empty());
     }
 
     #[test]
@@ -1164,6 +1699,7 @@ mod tests {
         let mut registry = ProviderRegistry::default();
         registry.register(Arc::new(StubProvider)); // caps().mcp_registration == false
         app.manage(Arc::new(registry));
+        let dir = tempfile::tempdir().unwrap();
         let p = create_project(
             h,
             app.state(),
@@ -1172,7 +1708,7 @@ mod tests {
                 description: None,
                 icon: None,
                 color: None,
-                folder_path: "/tmp/p".into(),
+                folder_path: dir.path().display().to_string(),
                 docs_path: None,
             },
         )
@@ -1277,6 +1813,32 @@ mod tests {
         );
     }
 
+    /// T4 (G6): git commands are path-policy-gated and surface the
+    /// `GitUnavailable:` prefix for non-repos; details live in `crate::git`.
+    #[tokio::test]
+    async fn git_commands_validate_paths_and_degrade_gracefully() {
+        let app = app();
+        let dir = tempfile::tempdir().unwrap();
+        register_project_at(&app, dir.path().to_str().unwrap());
+
+        let err = git_status(app.state(), "/etc".into()).await.unwrap_err();
+        assert!(err.contains("outside"), "got: {err}");
+
+        // registered but not a repo -> the graceful variant
+        let err = git_status(app.state(), dir.path().display().to_string())
+            .await
+            .unwrap_err();
+        assert!(err.starts_with("GitUnavailable:"), "got: {err}");
+        let err = git_diff(app.state(), dir.path().display().to_string(), None)
+            .await
+            .unwrap_err();
+        assert!(err.starts_with("GitUnavailable:"), "got: {err}");
+        let err = git_default_base(app.state(), dir.path().display().to_string())
+            .await
+            .unwrap_err();
+        assert!(err.starts_with("GitUnavailable:"), "got: {err}");
+    }
+
     #[test]
     fn session_binding_commands_roundtrip() {
         let app = app();
@@ -1300,6 +1862,48 @@ mod tests {
         assert!(delete_session_binding(h.clone(), app.state(), "sess-1".into()).unwrap());
         assert!(!delete_session_binding(h, app.state(), "sess-1".into()).unwrap());
         assert!(list_session_bindings(app.state()).unwrap().is_empty());
+    }
+
+    /// T5 (G7): notification-rule CRUD round-trips with scope/trigger
+    /// validation; the matcher lives in the frontend (D-M3-9).
+    #[test]
+    fn notification_rule_commands_roundtrip() {
+        let app = app();
+        let h = app.handle().clone();
+        assert!(list_notification_rules(app.state()).unwrap().is_empty());
+
+        let err = create_notification_rule(
+            h.clone(),
+            app.state(),
+            NewNotificationRule {
+                scope: "global".into(),
+                scope_id: None,
+                trigger: "task_vibed".into(),
+                config_json: None,
+                enabled: None,
+            },
+        )
+        .unwrap_err();
+        assert!(err.contains("invalid trigger"), "got: {err}");
+
+        let mut rule = create_notification_rule(
+            h.clone(),
+            app.state(),
+            NewNotificationRule {
+                scope: "global".into(),
+                scope_id: None,
+                trigger: "task_blocked".into(),
+                config_json: None,
+                enabled: None,
+            },
+        )
+        .unwrap();
+        assert!(rule.enabled);
+        rule.enabled = false; // per-rule mute
+        let rule = update_notification_rule(h.clone(), app.state(), rule).unwrap();
+        assert!(!list_notification_rules(app.state()).unwrap()[0].enabled);
+        assert!(delete_notification_rule(h.clone(), app.state(), rule.id.clone()).unwrap());
+        assert!(!delete_notification_rule(h, app.state(), rule.id).unwrap());
     }
 
     #[test]

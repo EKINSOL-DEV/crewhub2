@@ -40,10 +40,44 @@ export const commands = {
 	createRoom: (input: NewRoom) => typedError<Room, string>(__TAURI_INVOKE("create_room", { input })),
 	updateRoom: (room: Room) => typedError<Room, string>(__TAURI_INVOKE("update_room", { room })),
 	deleteRoom: (id: string) => typedError<boolean, string>(__TAURI_INVOKE("delete_room", { id })),
+	listRoomRules: (roomId: string | null) => typedError<RoomRule[], string>(__TAURI_INVOKE("list_room_rules", { roomId })),
+	createRoomRule: (input: NewRoomRule) => typedError<RoomRule, string>(__TAURI_INVOKE("create_room_rule", { input })),
+	updateRoomRule: (rule: RoomRule) => typedError<RoomRule, string>(__TAURI_INVOKE("update_room_rule", { rule })),
+	deleteRoomRule: (id: string) => typedError<boolean, string>(__TAURI_INVOKE("delete_room_rule", { id })),
 	listTasks: () => typedError<Task[], string>(__TAURI_INVOKE("list_tasks")),
+	/**
+	 *  Single-task refetch for `TaskChanged` reconciliation (D-M3-2, G3):
+	 *  `null` means the task was deleted — the store drops it.
+	 */
+	getTask: (id: string) => typedError<{
+	id: string,
+	project_id: string | null,
+	room_id: string | null,
+	title: string,
+	description: string | null,
+	status: string,
+	priority: string,
+	assignee_agent_id: string | null,
+	created_by: string,
+	created_at: number,
+	updated_at: number,
+} | null, string>(__TAURI_INVOKE("get_task", { id })),
 	createTask: (input: NewTask) => typedError<Task, string>(__TAURI_INVOKE("create_task", { input })),
 	updateTask: (task: Task) => typedError<Task, string>(__TAURI_INVOKE("update_task", { task })),
 	deleteTask: (id: string) => typedError<boolean, string>(__TAURI_INVOKE("delete_task", { id })),
+	/**
+	 *  A task's timeline, oldest first: the drawer timeline, run linkage and
+	 *  notification source all read from here.
+	 */
+	listTaskEvents: (taskId: string) => typedError<TaskEvent[], string>(__TAURI_INVOKE("list_task_events", { taskId })),
+	/**
+	 *  Run-with-agent linkage (T12 writes through here): records a `run_started`
+	 *  timeline event. A card's linked session = newest `run_started` without a
+	 *  matching `run_finished`.
+	 */
+	recordTaskRunStarted: (taskId: string, sessionId: SessionId, agentId: string | null) => typedError<TaskEvent, string>(__TAURI_INVOKE("record_task_run_started", { taskId, sessionId, agentId })),
+	/**  The matching close of [`record_task_run_started`]. */
+	recordTaskRunFinished: (taskId: string, sessionId: SessionId, outcome: string) => typedError<TaskEvent, string>(__TAURI_INVOKE("record_task_run_finished", { taskId, sessionId, outcome })),
 	listSessionBindings: () => typedError<SessionBinding[], string>(__TAURI_INVOKE("list_session_bindings")),
 	upsertSessionBinding: (input: NewSessionBinding) => typedError<SessionBinding, string>(__TAURI_INVOKE("upsert_session_binding", { input })),
 	deleteSessionBinding: (sessionId: string) => typedError<boolean, string>(__TAURI_INVOKE("delete_session_binding", { sessionId })),
@@ -54,6 +88,18 @@ export const commands = {
 	handoff: (projectPath: string, target: HandoffTarget) => typedError<null, string>(__TAURI_INVOKE("handoff", { projectPath, target })),
 	/**  Handoff targets installed on this machine. */
 	handoffTargets: () => typedError<HandoffTarget[], string>(__TAURI_INVOKE("handoff_targets")),
+	/**
+	 *  Native folder picker (T3, D-M3-7): `tauri-plugin-dialog` invoked
+	 *  RUST-SIDE only — the webview holds no `dialog:*` permission. Returns the
+	 *  canonicalized folder, or `null` when the user cancels.
+	 */
+	pickFolder: () => typedError<string | null, string>(__TAURI_INVOKE("pick_folder")),
+	listDocTree: (projectId: string) => typedError<DocEntry[], string>(__TAURI_INVOKE("list_doc_tree", { projectId })),
+	readDocFile: (projectId: string, relPath: string) => typedError<string, string>(__TAURI_INVOKE("read_doc_file", { projectId, relPath })),
+	readDocImage: (projectId: string, relPath: string) => typedError<DocImage, string>(__TAURI_INVOKE("read_doc_image", { projectId, relPath })),
+	gitStatus: (projectPath: string) => typedError<GitStatus, string>(__TAURI_INVOKE("git_status", { projectPath })),
+	gitDiff: (projectPath: string, base: string | null) => typedError<GitDiff, string>(__TAURI_INVOKE("git_diff", { projectPath, base })),
+	gitDefaultBase: (projectPath: string) => typedError<string | null, string>(__TAURI_INVOKE("git_default_base", { projectPath })),
 	/**
 	 *  Composer hints: slash commands/skills any provider recognizes for the
 	 *  project (G8). Read-only, path-policy-checked.
@@ -66,6 +112,10 @@ export const commands = {
 	materializePersona: (projectId: string, content: string) => typedError<null, string>(__TAURI_INVOKE("materialize_persona", { projectId, content })),
 	/**  Remove the fenced persona block, restoring user content byte-identical. */
 	removeMaterializedPersona: (projectId: string) => typedError<null, string>(__TAURI_INVOKE("remove_materialized_persona", { projectId })),
+	listNotificationRules: () => typedError<NotificationRule[], string>(__TAURI_INVOKE("list_notification_rules")),
+	createNotificationRule: (input: NewNotificationRule) => typedError<NotificationRule, string>(__TAURI_INVOKE("create_notification_rule", { input })),
+	updateNotificationRule: (rule: NotificationRule) => typedError<NotificationRule, string>(__TAURI_INVOKE("update_notification_rule", { rule })),
+	deleteNotificationRule: (id: string) => typedError<boolean, string>(__TAURI_INVOKE("delete_notification_rule", { id })),
 	getSetting: (key: string) => typedError<string | null, string>(__TAURI_INVOKE("get_setting", { key })),
 	setSetting: (key: string, value: string) => typedError<null, string>(__TAURI_INVOKE("set_setting", { key, value })),
 	/**
@@ -119,6 +169,27 @@ export type ArchivedSession = {
 	last_modified_ms: number,
 };
 
+export type DiffFile = {
+	path: string,
+	/**  One-letter porcelain status: A/M/D/R/C/T/U, or "B" for binary. */
+	status: string,
+	additions: number,
+	deletions: number,
+	patch: string,
+};
+
+export type DocEntry = {
+	/**  Path relative to the docs root, `/`-separated. */
+	rel_path: string,
+	name: string,
+	is_dir: boolean,
+};
+
+export type DocImage = {
+	media_type: string,
+	base64: string,
+};
+
 /**
  *  The single typed event stream the webview subscribes to.
  *  Every store mutation emits exactly one variant.
@@ -145,6 +216,21 @@ export type DomainEvent = { type: "AgentCreated"; data: {
 
 /**  Wrapper event carrying provider-neutral engine events to the webview. */
 export type EngineEvent = SessionEvent;
+
+export type GitDiff = {
+	files: DiffFile[],
+	truncated: boolean,
+};
+
+export type GitStatus = {
+	branch: string,
+	ahead: number,
+	behind: number,
+	/**  Tracked entries with changes (staged, unstaged or unmerged). */
+	dirty: number,
+	untracked: number,
+	worktrees: Worktree[],
+};
 
 export type HandoffTarget = "Terminal" | "Iterm" | "Warp" | "Vscode" | "RevealInFinder";
 
@@ -176,6 +262,14 @@ export type NewAgent = {
 	system_prompt: string | null,
 };
 
+export type NewNotificationRule = {
+	scope: string,
+	scope_id: string | null,
+	trigger: string,
+	config_json: string | null,
+	enabled: boolean | null,
+};
+
 export type NewProject = {
 	name: string,
 	description: string | null,
@@ -191,6 +285,13 @@ export type NewRoom = {
 	icon: string | null,
 	color: string | null,
 	is_hq: boolean | null,
+};
+
+export type NewRoomRule = {
+	room_id: string,
+	rule_type: string,
+	rule_value: string,
+	priority: number | null,
 };
 
 /**
@@ -213,6 +314,18 @@ export type NewTask = {
 	priority: string | null,
 	assignee_agent_id: string | null,
 	created_by: string | null,
+};
+
+export type NotificationRule = {
+	id: string,
+	/**  agent | project | global */
+	scope: string,
+	/**  The agent/project id when scope is not global. */
+	scope_id: string | null,
+	/**  task_moved | task_blocked | task_assigned | task_mention */
+	trigger: string,
+	config_json: string | null,
+	enabled: boolean,
 };
 
 export type PermissionMode = "Default" | "AcceptEdits" | "Plan" | "BypassPermissions";
@@ -295,6 +408,15 @@ export type Room = {
 	style_json: string | null,
 	created_at: number,
 	updated_at: number,
+};
+
+export type RoomRule = {
+	id: string,
+	room_id: string,
+	/**  keyword | model | path_pattern | origin */
+	rule_type: string,
+	rule_value: string,
+	priority: number,
 };
 
 export type SearchHit = {
@@ -404,6 +526,15 @@ export type Task = {
 	updated_at: number,
 };
 
+export type TaskEvent = {
+	id: string,
+	task_id: string,
+	event_type: string,
+	actor: string,
+	payload_json: string | null,
+	created_at: number,
+};
+
 /**
  *  Provider-neutral transcript item. Provider-specific raw lines are MAPPED into this,
  *  never exposed. `Unknown` preserves the raw type so the UI can render an
@@ -464,6 +595,12 @@ export type UsageTotals = {
 	input_tokens: number,
 	output_tokens: number,
 	cache_read_tokens: number,
+};
+
+export type Worktree = {
+	path: string,
+	branch: string | null,
+	is_current: boolean,
 };
 
 /* Tauri Specta runtime */
