@@ -214,6 +214,26 @@ export const commands = {
 	previewHooksInstall: () => typedError<HooksPreview, string>(__TAURI_INVOKE("preview_hooks_install")),
 	installHooks: () => typedError<HooksStatus, string>(__TAURI_INVOKE("install_hooks")),
 	uninstallHooks: () => typedError<HooksStatus, string>(__TAURI_INVOKE("uninstall_hooks")),
+	/**
+	 *  Probe the machine for the wizard's detect step; a found CLI path is
+	 *  persisted so the provider config picks it up on next launch.
+	 */
+	detectEnvironment: () => typedError<EnvReport, string>(__TAURI_INVOKE("detect_environment")),
+	/**
+	 *  Manual CLI path picker re-probe (D-M6-3): persists the path and returns
+	 *  the probed version line when the binary answers.
+	 */
+	setCliPath: (path: string) => typedError<string | null, string>(__TAURI_INVOKE("set_cli_path", { path })),
+	/**
+	 *  Recent unique project paths from the watcher meta cache, ranked by last
+	 *  activity; already-registered project paths filtered out. No new scanner.
+	 */
+	scanRecentProjects: () => typedError<RecentProject[], string>(__TAURI_INVOKE("scan_recent_projects")),
+	/**
+	 *  Materialize the sample crew (D-M6-9) and announce it with the existing
+	 *  coarse DomainEvents.
+	 */
+	createSampleCrew: () => typedError<SampleCrewResult, string>(__TAURI_INVOKE("create_sample_crew")),
 };
 
 /** Events */
@@ -335,6 +355,20 @@ export type DomainEvent = { type: "AgentCreated"; data: {
 
 /**  Wrapper event carrying provider-neutral engine events to the webview. */
 export type EngineEvent = SessionEvent;
+
+/**  Appendix C `EnvReport`. */
+export type EnvReport = {
+	/**  Resolved CLI path (persisted to the cli-path setting when found). */
+	cli_path: string | null,
+	/**  First line of `--version`, when the probe answered in time. */
+	cli_version: string | null,
+	/**  The agent runtime's user dir exists (it has been used on this machine). */
+	claude_dir: boolean,
+	/**  Its transcripts dir exists (recent-project scan will have material). */
+	claude_projects: boolean,
+	/**  Path to a CrewHub v1 database, when present (the importer hook). */
+	v1_db: string | null,
+};
 
 export type GitDiff = {
 	files: DiffFile[],
@@ -592,6 +626,12 @@ export type QuestionResponse = {
 	answers: string[],
 };
 
+/**  One ranked entry from the recent-project scan (Appendix C). */
+export type RecentProject = {
+	path: string,
+	last_active_ms: number,
+};
+
 export type Room = {
 	id: string,
 	project_id: string | null,
@@ -633,6 +673,13 @@ export type RunResult = {
 	step_index: number | null,
 	started_at: number | null,
 	finished_at: number | null,
+};
+
+export type SampleCrewResult = {
+	project_id: string,
+	room_ids: string[],
+	agent_ids: string[],
+	task_ids: string[],
 };
 
 export type SearchHit = {

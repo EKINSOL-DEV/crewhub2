@@ -4,6 +4,7 @@ pub mod git;
 pub mod hooks;
 mod ipc;
 pub mod mcp;
+pub mod onboarding;
 pub mod orchestrator;
 pub mod security;
 pub mod store;
@@ -104,6 +105,10 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             ipc::preview_hooks_install,
             ipc::install_hooks,
             ipc::uninstall_hooks,
+            ipc::detect_environment,
+            ipc::set_cli_path,
+            ipc::scan_recent_projects,
+            ipc::create_sample_crew::<tauri::Wry>,
         ])
         .events(tauri_specta::collect_events![
             events::DomainEvent,
@@ -141,7 +146,30 @@ pub fn run() {
             let store = std::sync::Arc::new(store::Store::open(&db_path).expect("open store"));
             app.manage(store.clone());
 
-            let claude_config = engine::claude::ClaudeConfig::default();
+            // M6 T2 (D-M6-2): existing installs never see the wizard.
+            if let Err(e) = onboarding::mark_existing_install_done(&store) {
+                eprintln!("onboarding fresh-install check failed: {e}");
+            }
+
+            // M6 T2 (G2): no persisted CLI path yet — best-effort probe so a
+            // non-PATH install works even before the wizard's detect step.
+            if store
+                .get_setting(engine::claude::detect::CLI_PATH_SETTING)
+                .ok()
+                .flatten()
+                .is_none()
+            {
+                if let Some(found) = engine::claude::detect::find_cli(
+                    std::env::var_os("PATH").as_deref(),
+                    &dirs::home_dir().unwrap_or_default(),
+                ) {
+                    let _ = store.set_setting(
+                        engine::claude::detect::CLI_PATH_SETTING,
+                        &found.display().to_string(),
+                    );
+                }
+            }
+            let claude_config = engine::claude::ClaudeConfig::from_settings(&store);
             let provider_store = store.clone();
             let registry = tauri::async_runtime::block_on(async {
                 let mut registry = engine::provider::ProviderRegistry::default();

@@ -2,6 +2,7 @@
 //! (transcript JSONL format, CLI flags, control protocol, hooks). See `engine/mod.rs`.
 pub mod commands;
 pub mod control;
+pub mod detect;
 pub mod headless;
 pub mod history;
 pub mod lineage;
@@ -45,6 +46,22 @@ impl Default for ClaudeConfig {
             idle_timeout_ms: 30 * 60 * 1000,
             extra_env: Vec::new(),
         }
+    }
+}
+
+impl ClaudeConfig {
+    /// Default config, with `cli_path` taken from the persisted
+    /// [`detect::CLI_PATH_SETTING`] when present (M6 T2, G2): a detected or
+    /// hand-picked non-PATH install survives restarts. Fallback unchanged
+    /// (`"claude"` on PATH).
+    pub fn from_settings(store: &Store) -> Self {
+        let mut config = Self::default();
+        if let Ok(Some(path)) = store.get_setting(detect::CLI_PATH_SETTING) {
+            if !path.trim().is_empty() {
+                config.cli_path = path.into();
+            }
+        }
+        config
     }
 }
 
