@@ -3,5 +3,5 @@
   "identifier": "main-window",
   "description": "Least-privilege capability for the main CrewHub window",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "clipboard-manager:allow-write-text"]
 }

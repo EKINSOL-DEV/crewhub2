@@ -1,6 +1,7 @@
 pub mod agents;
 pub mod projects;
 pub mod rooms;
+pub mod session_bindings;
 pub mod settings;
 pub mod tasks;
 

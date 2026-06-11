@@ -4,8 +4,8 @@
 
 use std::sync::Arc;
 
+use crewhub2_lib::engine::claude::registration::{self, McpCliConfig};
 use crewhub2_lib::events::DomainEvent;
-use crewhub2_lib::mcp::registration::{self, McpCliConfig};
 use crewhub2_lib::mcp::server::McpServer;
 use crewhub2_lib::store::rooms::NewRoom;
 use crewhub2_lib::store::Store;

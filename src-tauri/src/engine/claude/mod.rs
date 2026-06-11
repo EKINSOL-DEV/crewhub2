@@ -1,18 +1,26 @@
 //! Claude Code provider — the ONLY module allowed to know Claude Code specifics
 //! (transcript JSONL format, CLI flags, control protocol, hooks). See `engine/mod.rs`.
+pub mod commands;
 pub mod control;
 pub mod headless;
 pub mod history;
 pub mod lineage;
+pub mod persona;
 pub mod process;
+pub mod registration;
 pub mod transcript;
 pub mod watcher;
 
 pub const PROVIDER_ID: &str = "claude-code";
 
+/// The project context file the persona block is materialized into (G9).
+pub const CONTEXT_FILE: &str = "CLAUDE.md";
+
 use crate::engine::provider::{ProviderCaps, ProviderId, SessionProvider};
 use crate::engine::types::*;
+use crate::store::Store;
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tokio::sync::broadcast;
 
@@ -44,6 +52,9 @@ impl Default for ClaudeConfig {
 /// session (managed and terminal-spawned); [`process::ProcessManager`] = write
 /// path for managed ones.
 pub struct ClaudeCodeProvider {
+    config: ClaudeConfig,
+    /// History/search keep their FTS index in the app store (M1 T7).
+    store: Arc<Store>,
     tx: broadcast::Sender<SessionEvent>,
     processes: process::ProcessManager,
     metas: Arc<Mutex<HashMap<SessionId, SessionMeta>>>,
@@ -52,7 +63,7 @@ pub struct ClaudeCodeProvider {
 
 impl ClaudeCodeProvider {
     /// Must be called within a tokio runtime (watcher + cache tasks are spawned).
-    pub fn start(config: ClaudeConfig) -> anyhow::Result<Self> {
+    pub fn start(config: ClaudeConfig, store: Arc<Store>) -> anyhow::Result<Self> {
         let (tx, _) = broadcast::channel(1024);
         let watcher = watcher::TranscriptWatcher::start(
             watcher::WatcherConfig {
@@ -87,7 +98,10 @@ impl ClaudeCodeProvider {
             }
         });
 
+        let idle_ms = config.idle_timeout_ms;
         let this = Self {
+            config,
+            store,
             tx,
             processes,
             metas,
@@ -95,7 +109,6 @@ impl ClaudeCodeProvider {
         };
         // Idle sweep: provider-owned lifecycle policy (T12).
         let sweeper = this.processes.clone_for_sweep();
-        let idle_ms = config.idle_timeout_ms;
         tokio::spawn(async move {
             loop {
                 tokio::time::sleep(std::time::Duration::from_secs(60)).await;
@@ -163,6 +176,57 @@ impl SessionProvider for ClaudeCodeProvider {
     fn subscribe(&self) -> broadcast::Receiver<SessionEvent> {
         self.tx.subscribe()
     }
+
+    async fn list_archived(
+        &self,
+        project_path: Option<&str>,
+    ) -> anyhow::Result<Vec<ArchivedSession>> {
+        Ok(history::list_archived_sessions(
+            &self.config.root,
+            project_path,
+        ))
+    }
+
+    async fn search_transcripts(&self, query: &str) -> anyhow::Result<Vec<SearchHit>> {
+        history::search(&self.store, &self.config.root, query)
+    }
+
+    async fn read_transcript(
+        &self,
+        id: &SessionId,
+        offset: u64,
+        limit: u32,
+    ) -> anyhow::Result<TranscriptPage> {
+        history::read_transcript_page(&self.config.root, &id.id, offset, limit)
+    }
+
+    async fn register_mcp(&self, project_dir: &Path, port: u16, token: &str) -> anyhow::Result<()> {
+        // refresh (remove-then-add) so re-enabling after a token rotation works.
+        registration::refresh(&self.mcp_cli_config(), project_dir, port, token).await
+    }
+
+    async fn unregister_mcp(&self, project_dir: &Path) -> anyhow::Result<()> {
+        registration::unregister(&self.mcp_cli_config(), project_dir).await
+    }
+
+    fn set_permission_rules(&self, rules: crate::engine::rules::PermissionRules) {
+        self.processes.set_rules(rules);
+    }
+
+    async fn list_slash_commands(&self, project_dir: &Path) -> anyhow::Result<Vec<SlashCommand>> {
+        Ok(commands::list_slash_commands(
+            project_dir,
+            self.user_claude_dir().as_deref(),
+        ))
+    }
+
+    async fn materialize_persona(&self, project_dir: &Path, content: &str) -> anyhow::Result<()> {
+        persona::materialize(&project_dir.join(CONTEXT_FILE), content)
+    }
+
+    async fn remove_persona(&self, project_dir: &Path) -> anyhow::Result<()> {
+        persona::remove(&project_dir.join(CONTEXT_FILE))
+    }
 }
 
 impl ClaudeCodeProvider {
@@ -171,8 +235,16 @@ impl ClaudeCodeProvider {
         &self.processes
     }
 
-    /// Install/replace the "allow always" permission rules (settings-backed by the app layer).
-    pub fn set_permission_rules(&self, rules: crate::engine::rules::PermissionRules) {
-        self.processes.set_rules(rules);
+    fn mcp_cli_config(&self) -> registration::McpCliConfig {
+        registration::McpCliConfig {
+            cli_path: self.config.cli_path.clone(),
+            extra_env: self.config.extra_env.clone(),
+        }
+    }
+
+    /// The user-level `.claude` directory, derived from the configured
+    /// projects root (`<user .claude>/projects`) so tests can inject it.
+    fn user_claude_dir(&self) -> Option<std::path::PathBuf> {
+        self.config.root.parent().map(Path::to_path_buf)
     }
 }

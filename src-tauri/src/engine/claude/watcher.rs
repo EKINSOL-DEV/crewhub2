@@ -482,6 +482,85 @@ mod tests {
         watcher.stop();
     }
 
+    /// D-M2-3 stitch contract: live `Item.seq` from the watcher and
+    /// `read_transcript_page` numbering are the SAME absolute index —
+    /// the chat panel merges live events and history pages with zero dedup.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn live_item_seqs_match_read_transcript_page_numbering() {
+        let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("fixtures/transcripts/thinking-images-cc2.1.jsonl");
+        let content = std::fs::read_to_string(&fixture).unwrap();
+        let lines: Vec<&str> = content.lines().collect();
+        let items_of = |line: &str| parse_line(line).map_or(0, |p| p.items.len() as u64);
+        let expected_total: u64 = lines.iter().map(|l| items_of(l)).sum();
+        let suppressed: u64 = items_of(lines[0]);
+        assert!(expected_total > suppressed, "fixture too small");
+
+        let dir = tempfile::tempdir().unwrap();
+        let project = dir.path().join("proj-x");
+        std::fs::create_dir_all(&project).unwrap();
+        let file = project.join("fix-1.jsonl");
+        // First line exists before the watcher starts: its items are the
+        // suppressed history (discovery emits meta only, but seq counts them).
+        std::fs::write(&file, format!("{}\n", lines[0])).unwrap();
+
+        let (tx, mut rx) = broadcast::channel(8192);
+        let watcher = TranscriptWatcher::start(test_config(dir.path()), tx).unwrap();
+        loop {
+            if let SessionEvent::Discovered { meta } = next_event(&mut rx).await {
+                if meta.id.id == "fix-1" {
+                    break;
+                }
+            }
+        }
+
+        {
+            let mut f = std::fs::OpenOptions::new()
+                .append(true)
+                .open(&file)
+                .unwrap();
+            for l in &lines[1..] {
+                f.write_all(l.as_bytes()).unwrap();
+                f.write_all(b"\n").unwrap();
+            }
+        }
+
+        let mut live: Vec<(u64, TranscriptItem)> = Vec::new();
+        while (live.len() as u64) < expected_total - suppressed {
+            if let SessionEvent::Item { id, item, seq } = next_event(&mut rx).await {
+                if id.id == "fix-1" {
+                    live.push((seq, item));
+                }
+            }
+        }
+        watcher.stop();
+
+        let page =
+            super::super::history::read_transcript_page(dir.path(), "fix-1", 0, u32::MAX).unwrap();
+        assert_eq!(page.total, expected_total);
+        assert_eq!(
+            live.first().unwrap().0,
+            suppressed,
+            "live items start right after the suppressed history"
+        );
+        for (seq, item) in &live {
+            let from_page = page
+                .items
+                .iter()
+                .find(|si| si.seq == *seq)
+                .unwrap_or_else(|| panic!("page missing seq {seq}"));
+            assert_eq!(&from_page.item, item, "item at seq {seq} diverged");
+        }
+        // this fixture carries file-history snapshots — checkpoints are part
+        // of the shared numbering (EKI-64)
+        assert!(
+            page.items
+                .iter()
+                .any(|si| matches!(si.item, TranscriptItem::Checkpoint { .. })),
+            "expected checkpoint items in fixture page"
+        );
+    }
+
     #[tokio::test(flavor = "multi_thread")]
     async fn subagent_files_get_parent_lineage() {
         let dir = tempfile::tempdir().unwrap();

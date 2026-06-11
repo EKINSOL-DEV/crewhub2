@@ -6,13 +6,14 @@
 use super::lineage::extract_header;
 use super::transcript::parse_line;
 use super::PROVIDER_ID;
-use crate::engine::types::{ArchivedSession, SearchHit, SessionId};
+use crate::engine::types::{ArchivedSession, SearchHit, SeqItem, SessionId, TranscriptPage};
 use crate::store::Store;
 use std::path::{Path, PathBuf};
 
-/// List past sessions (main transcripts only) with lightweight summaries.
+/// List past sessions (main transcripts only) with lightweight summaries,
+/// optionally filtered to a project root (exact path or any path under it).
 /// Cheap by design: header lines + first user text + file mtime; no full parse.
-pub fn list_archived_sessions(root: &Path) -> Vec<ArchivedSession> {
+pub fn list_archived_sessions(root: &Path, project_filter: Option<&str>) -> Vec<ArchivedSession> {
     let mut out = Vec::new();
     let Ok(projects) = std::fs::read_dir(root) else {
         return out;
@@ -31,12 +32,24 @@ pub fn list_archived_sessions(root: &Path) -> Vec<ArchivedSession> {
                 continue;
             }
             if let Some(s) = summarize(&path) {
-                out.push(s);
+                if project_filter.is_none_or(|f| matches_project(&s.project_path, f)) {
+                    out.push(s);
+                }
             }
         }
     }
     out.sort_by_key(|s| std::cmp::Reverse(s.last_modified_ms));
     out
+}
+
+/// `session_path` matches `filter` when equal or anywhere under it
+/// (worktrees under the project root match — M2 plan T11 predicate).
+fn matches_project(session_path: &str, filter: &str) -> bool {
+    let filter = filter.trim_end_matches('/');
+    session_path == filter
+        || session_path
+            .strip_prefix(filter)
+            .is_some_and(|rest| rest.starts_with('/'))
 }
 
 fn summarize(path: &Path) -> Option<ArchivedSession> {
@@ -134,7 +147,7 @@ pub fn index_session(store: &Store, session_id: &str, path: &Path) -> anyhow::Re
 
 /// Lazily index every transcript under `root`, then run the FTS query.
 pub fn search(store: &Store, root: &Path, query: &str) -> anyhow::Result<Vec<SearchHit>> {
-    for session in list_archived_sessions(root) {
+    for session in list_archived_sessions(root, None) {
         let path = transcript_path(root, &session)?;
         if let Some(p) = path {
             let _ = index_session(store, &session.id.id, &p);
@@ -160,16 +173,72 @@ pub fn search(store: &Store, root: &Path, query: &str) -> anyhow::Result<Vec<Sea
 }
 
 fn transcript_path(root: &Path, session: &ArchivedSession) -> anyhow::Result<Option<PathBuf>> {
-    let Ok(projects) = std::fs::read_dir(root) else {
-        return Ok(None);
-    };
+    Ok(find_transcript(root, &session.id.id))
+}
+
+/// Locate a session's transcript file under `root`: either a main transcript
+/// (`<project>/<sid>.jsonl`) or a subagent one
+/// (`<project>/<main-sid>/subagents/<sid>.jsonl` — the watcher's layout).
+fn find_transcript(root: &Path, session_id: &str) -> Option<PathBuf> {
+    let file_name = format!("{session_id}.jsonl");
+    let projects = std::fs::read_dir(root).ok()?;
     for project in projects.flatten() {
-        let candidate = project.path().join(format!("{}.jsonl", session.id.id));
+        let pdir = project.path();
+        if !pdir.is_dir() {
+            continue;
+        }
+        let candidate = pdir.join(&file_name);
         if candidate.is_file() {
-            return Ok(Some(candidate));
+            return Some(candidate);
+        }
+        let Ok(entries) = std::fs::read_dir(&pdir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let sub = entry.path().join("subagents").join(&file_name);
+            if sub.is_file() {
+                return Some(sub);
+            }
         }
     }
-    Ok(None)
+    None
+}
+
+/// Read items `[offset, offset+limit)` of a transcript, numbered exactly like
+/// the watcher numbers live `Item` events (D-M2-3: one parser, one numbering):
+/// only complete (newline-terminated) lines count — the watcher buffers a
+/// trailing partial line, so we ignore it too — and every parsed line
+/// contributes its items in order; metadata lines contribute none.
+pub fn read_transcript_page(
+    root: &Path,
+    session_id: &str,
+    offset: u64,
+    limit: u32,
+) -> anyhow::Result<TranscriptPage> {
+    let path = find_transcript(root, session_id)
+        .ok_or_else(|| anyhow::anyhow!("no transcript found for session {session_id}"))?;
+    let bytes = std::fs::read(&path)?;
+    let data = String::from_utf8_lossy(&bytes);
+    let mut lines: Vec<&str> = data.split('\n').collect();
+    // Final element is either "" (file ends with newline) or a partial line
+    // the watcher has not processed yet; both are out of the numbering.
+    lines.pop();
+
+    let end = offset.saturating_add(limit as u64);
+    let mut seq: u64 = 0;
+    let mut items: Vec<SeqItem> = Vec::new();
+    for line in lines {
+        let Some(parsed) = parse_line(line) else {
+            continue;
+        };
+        for item in parsed.items {
+            if seq >= offset && seq < end {
+                items.push(SeqItem { seq, item });
+            }
+            seq += 1;
+        }
+    }
+    Ok(TranscriptPage { items, total: seq })
 }
 
 #[cfg(test)]
@@ -196,11 +265,25 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         write_session(dir.path(), "proj-a", "s1", &["build the parser please"]);
         write_session(dir.path(), "proj-b", "s2", &["fix the login bug"]);
-        let list = list_archived_sessions(dir.path());
+        let list = list_archived_sessions(dir.path(), None);
         assert_eq!(list.len(), 2);
         let s1 = list.iter().find(|s| s.id.id == "s1").unwrap();
         assert_eq!(s1.summary, "build the parser please");
         assert_eq!(s1.project_path, "/p/proj-a");
+    }
+
+    #[test]
+    fn project_filter_matches_exact_and_subpaths_only() {
+        let dir = tempfile::tempdir().unwrap();
+        write_session(dir.path(), "proj-a", "s1", &["one"]); // cwd /p/proj-a
+        write_session(dir.path(), "proj-a-sibling", "s2", &["two"]); // cwd /p/proj-a-sibling
+        let list = list_archived_sessions(dir.path(), Some("/p/proj-a"));
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].id.id, "s1");
+        // trailing slash tolerated; worktree-style subpaths match
+        assert!(matches_project("/p/proj-a/worktrees/w1", "/p/proj-a/"));
+        assert!(!matches_project("/p/proj-a-sibling", "/p/proj-a"));
+        assert!(list_archived_sessions(dir.path(), Some("/elsewhere")).is_empty());
     }
 
     #[test]
@@ -228,6 +311,65 @@ mod tests {
 
         let hits = search(&store, dir.path(), "fox").unwrap();
         assert_eq!(hits.len(), 2);
+    }
+
+    #[test]
+    fn read_transcript_page_windows_by_absolute_seq() {
+        let dir = tempfile::tempdir().unwrap();
+        write_session(dir.path(), "proj-a", "s1", &["a", "b", "c", "d", "e"]);
+
+        let all = read_transcript_page(dir.path(), "s1", 0, 100).unwrap();
+        assert_eq!(all.total, 5);
+        assert_eq!(all.items.len(), 5);
+        assert_eq!(all.items[0].seq, 0);
+        assert_eq!(all.items[4].seq, 4);
+
+        let mid = read_transcript_page(dir.path(), "s1", 1, 2).unwrap();
+        assert_eq!(mid.total, 5);
+        assert_eq!(
+            mid.items.iter().map(|i| i.seq).collect::<Vec<_>>(),
+            vec![1, 2]
+        );
+        assert!(matches!(
+            &mid.items[0].item,
+            crate::engine::types::TranscriptItem::UserText { text, .. } if text == "b"
+        ));
+
+        // offset beyond the end -> empty page, total still reported
+        let past = read_transcript_page(dir.path(), "s1", 99, 10).unwrap();
+        assert!(past.items.is_empty());
+        assert_eq!(past.total, 5);
+
+        let err = read_transcript_page(dir.path(), "nope", 0, 10).unwrap_err();
+        assert!(err.to_string().contains("no transcript"), "got: {err}");
+    }
+
+    #[test]
+    fn read_transcript_page_ignores_partial_trailing_line_and_finds_subagents() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = write_session(dir.path(), "proj-a", "s1", &["one"]);
+        // trailing partial line (no newline) — the watcher buffers it, so do we
+        let mut body = std::fs::read_to_string(&path).unwrap();
+        body.push_str(r#"{"type":"user","sessionId":"s1","message":{"content":"part"#);
+        std::fs::write(&path, body).unwrap();
+        let page = read_transcript_page(dir.path(), "s1", 0, 10).unwrap();
+        assert_eq!(page.total, 1);
+
+        // subagent layout: <project>/<main>/subagents/<sid>.jsonl
+        let subs = dir.path().join("proj-a/s1/subagents");
+        std::fs::create_dir_all(&subs).unwrap();
+        std::fs::write(
+            subs.join("agent-x.jsonl"),
+            r#"{"type":"user","sessionId":"agent-x","message":{"content":"child"}}"#.to_string()
+                + "\n",
+        )
+        .unwrap();
+        let page = read_transcript_page(dir.path(), "agent-x", 0, 10).unwrap();
+        assert_eq!(page.total, 1);
+        assert!(matches!(
+            &page.items[0].item,
+            crate::engine::types::TranscriptItem::UserText { text, .. } if text == "child"
+        ));
     }
 
     #[test]

@@ -5,6 +5,7 @@ mod ipc;
 pub mod mcp;
 pub mod security;
 pub mod store;
+pub mod workspace;
 
 pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new()
@@ -15,8 +16,13 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             ipc::spawn_session,
             ipc::send_to_session,
             ipc::respond_to_permission,
+            ipc::answer_question,
             ipc::interrupt_session,
             ipc::kill_session,
+            ipc::list_permission_rules,
+            ipc::add_permission_rule::<tauri::Wry>,
+            ipc::revoke_permission_rule::<tauri::Wry>,
+            ipc::get_session_transcript,
             ipc::list_archived_sessions,
             ipc::search_transcripts,
             ipc::list_agents,
@@ -35,6 +41,14 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             ipc::create_task::<tauri::Wry>,
             ipc::update_task::<tauri::Wry>,
             ipc::delete_task::<tauri::Wry>,
+            ipc::list_session_bindings,
+            ipc::upsert_session_binding::<tauri::Wry>,
+            ipc::delete_session_binding::<tauri::Wry>,
+            ipc::handoff,
+            ipc::handoff_targets,
+            ipc::list_slash_commands,
+            ipc::materialize_persona,
+            ipc::remove_materialized_persona,
             ipc::get_setting,
             ipc::set_setting::<tauri::Wry>,
             ipc::mcp_status,
@@ -60,6 +74,9 @@ pub fn run() {
         .expect("failed to export typescript bindings");
 
     tauri::Builder::default()
+        // Clipboard: webview gets write-text only (capabilities/main.json) for
+        // the handoff "copy path" / "copy resume command" actions (EKI-80).
+        .plugin(tauri_plugin_clipboard_manager::init())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             use tauri::Manager;
@@ -72,20 +89,25 @@ pub fn run() {
             app.manage(store.clone());
 
             let claude_config = engine::claude::ClaudeConfig::default();
-            app.manage(claude_config.clone());
-            let mcp_cli = mcp::registration::McpCliConfig {
-                cli_path: claude_config.cli_path.clone(),
-                extra_env: claude_config.extra_env.clone(),
-            };
+            let provider_store = store.clone();
             let registry = tauri::async_runtime::block_on(async {
                 let mut registry = engine::provider::ProviderRegistry::default();
-                match engine::claude::ClaudeCodeProvider::start(claude_config) {
+                match engine::claude::ClaudeCodeProvider::start(claude_config, provider_store) {
                     Ok(provider) => registry.register(std::sync::Arc::new(provider)),
                     Err(e) => eprintln!("claude-code provider failed to start: {e}"),
                 }
                 std::sync::Arc::new(registry)
             });
             app.manage(registry.clone());
+
+            // G4: the persisted "allow always" rules apply from the first spawn.
+            let initial_rules = store
+                .get_setting(engine::rules::SETTINGS_KEY)
+                .ok()
+                .flatten()
+                .map(|json| engine::rules::PermissionRules::from_json(&json))
+                .unwrap_or_default();
+            registry.push_permission_rules(&initial_rules);
 
             // T12: periodic idle sweep + auto-spawn of flagged agents.
             let sweep_registry = registry.clone();
@@ -132,10 +154,10 @@ pub fn run() {
                     mcp::McpHandle(None)
                 }
             };
-            // Token rotates per launch: refresh registration for enabled projects.
-            if let Some(server) = &mcp_handle.0 {
+            // Token rotates per launch: refresh registration for enabled projects
+            // via whichever provider has the mcp_registration capability.
+            if let (Some(server), Some(registrar)) = (&mcp_handle.0, registry.mcp_registrar()) {
                 let (port, token) = (server.port(), server.token().to_string());
-                let cli = mcp_cli;
                 let refresh_store = store.clone();
                 tauri::async_runtime::spawn(async move {
                     let projects = refresh_store.list_projects().unwrap_or_default();
@@ -145,13 +167,9 @@ pub fn run() {
                             .ok()
                             .flatten();
                         if enabled.as_deref() == Some("true") {
-                            if let Err(e) = mcp::registration::refresh(
-                                &cli,
-                                std::path::Path::new(&p.folder_path),
-                                port,
-                                &token,
-                            )
-                            .await
+                            if let Err(e) = registrar
+                                .register_mcp(std::path::Path::new(&p.folder_path), port, &token)
+                                .await
                             {
                                 eprintln!("mcp registration refresh failed for {}: {e}", p.name);
                             }

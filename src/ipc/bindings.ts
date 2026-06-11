@@ -11,9 +11,22 @@ export const commands = {
 	spawnSession: (providerId: string, spec: SpawnSpec) => typedError<SessionId, string>(__TAURI_INVOKE("spawn_session", { providerId, spec })),
 	sendToSession: (id: SessionId, text: string) => typedError<null, string>(__TAURI_INVOKE("send_to_session", { id, text })),
 	respondToPermission: (id: SessionId, requestId: string, response: PermissionResponse) => typedError<null, string>(__TAURI_INVOKE("respond_to_permission", { id, requestId, response })),
+	/**
+	 *  Answer an `AskUserQuestion`-style question or plan approval surfaced as a
+	 *  `SessionEvent::Question` (G1, EKI-58).
+	 */
+	answerQuestion: (id: SessionId, response: QuestionResponse) => typedError<null, string>(__TAURI_INVOKE("answer_question", { id, response })),
 	interruptSession: (id: SessionId) => typedError<null, string>(__TAURI_INVOKE("interrupt_session", { id })),
 	killSession: (id: SessionId) => typedError<null, string>(__TAURI_INVOKE("kill_session", { id })),
-	listArchivedSessions: () => typedError<ArchivedSession[], string>(__TAURI_INVOKE("list_archived_sessions")),
+	listPermissionRules: () => typedError<PermissionRule[], string>(__TAURI_INVOKE("list_permission_rules")),
+	addPermissionRule: (rule: PermissionRule) => typedError<PermissionRule[], string>(__TAURI_INVOKE("add_permission_rule", { rule })),
+	revokePermissionRule: (index: number) => typedError<PermissionRule[], string>(__TAURI_INVOKE("revoke_permission_rule", { index })),
+	/**
+	 *  One page of a session's transcript, numbered like live `Item.seq`
+	 *  (D-M2-3): chat opens with the newest page and pages older on scroll-up.
+	 */
+	getSessionTranscript: (id: SessionId, offset: number, limit: number) => typedError<TranscriptPage, string>(__TAURI_INVOKE("get_session_transcript", { id, offset, limit })),
+	listArchivedSessions: (projectPath: string | null) => typedError<ArchivedSession[], string>(__TAURI_INVOKE("list_archived_sessions", { projectPath })),
 	searchTranscripts: (query: string) => typedError<SearchHit[], string>(__TAURI_INVOKE("search_transcripts", { query })),
 	listAgents: () => typedError<Agent[], string>(__TAURI_INVOKE("list_agents")),
 	createAgent: (input: NewAgent) => typedError<Agent, string>(__TAURI_INVOKE("create_agent", { input })),
@@ -31,6 +44,28 @@ export const commands = {
 	createTask: (input: NewTask) => typedError<Task, string>(__TAURI_INVOKE("create_task", { input })),
 	updateTask: (task: Task) => typedError<Task, string>(__TAURI_INVOKE("update_task", { task })),
 	deleteTask: (id: string) => typedError<boolean, string>(__TAURI_INVOKE("delete_task", { id })),
+	listSessionBindings: () => typedError<SessionBinding[], string>(__TAURI_INVOKE("list_session_bindings")),
+	upsertSessionBinding: (input: NewSessionBinding) => typedError<SessionBinding, string>(__TAURI_INVOKE("upsert_session_binding", { input })),
+	deleteSessionBinding: (sessionId: string) => typedError<boolean, string>(__TAURI_INVOKE("delete_session_binding", { sessionId })),
+	/**
+	 *  Open the project in an external tool (EKI-80, D-M2-8): fixed argv mapped
+	 *  from a closed enum, executed Rust-side — the webview gets no shell.
+	 */
+	handoff: (projectPath: string, target: HandoffTarget) => typedError<null, string>(__TAURI_INVOKE("handoff", { projectPath, target })),
+	/**  Handoff targets installed on this machine. */
+	handoffTargets: () => typedError<HandoffTarget[], string>(__TAURI_INVOKE("handoff_targets")),
+	/**
+	 *  Composer hints: slash commands/skills any provider recognizes for the
+	 *  project (G8). Read-only, path-policy-checked.
+	 */
+	listSlashCommands: (projectPath: string) => typedError<SlashCommand[], string>(__TAURI_INVOKE("list_slash_commands", { projectPath })),
+	/**
+	 *  Write/update the fenced persona block in the project's context file
+	 *  (G9, EKI-32). Idempotent; uninstall is byte-identical (provider tests).
+	 */
+	materializePersona: (projectId: string, content: string) => typedError<null, string>(__TAURI_INVOKE("materialize_persona", { projectId, content })),
+	/**  Remove the fenced persona block, restoring user content byte-identical. */
+	removeMaterializedPersona: (projectId: string) => typedError<null, string>(__TAURI_INVOKE("remove_materialized_persona", { projectId })),
 	getSetting: (key: string) => typedError<string | null, string>(__TAURI_INVOKE("get_setting", { key })),
 	setSetting: (key: string, value: string) => typedError<null, string>(__TAURI_INVOKE("set_setting", { key, value })),
 	mcpStatus: () => typedError<McpStatus, string>(__TAURI_INVOKE("mcp_status")),
@@ -93,10 +128,16 @@ export type DomainEvent = { type: "AgentCreated"; data: {
 	task_id: string,
 } } | { type: "SettingChanged"; data: {
 	key: string,
+} } | 
+/**  A session binding was created, updated or deleted (G3, EKI-40). */
+{ type: "SessionBindingChanged"; data: {
+	session_id: string,
 } };
 
 /**  Wrapper event carrying provider-neutral engine events to the webview. */
 export type EngineEvent = SessionEvent;
+
+export type HandoffTarget = "Terminal" | "Iterm" | "Warp" | "Vscode" | "RevealInFinder";
 
 export type HookSignal = {
 	/**  Provider-neutral event name: session-start | pre-tool | post-tool | stop | subagent-stop | notification */
@@ -143,6 +184,18 @@ export type NewRoom = {
 	is_hq: boolean | null,
 };
 
+/**
+ *  Upsert input: the full desired state for one session (no partial patch —
+ *  the UI always knows the current binding it is editing).
+ */
+export type NewSessionBinding = {
+	session_id: string,
+	agent_id: string | null,
+	room_id: string | null,
+	display_name: string | null,
+	pinned: boolean,
+};
+
 export type NewTask = {
 	project_id: string | null,
 	room_id: string | null,
@@ -165,6 +218,13 @@ export type PermissionRequest = {
 export type PermissionResponse = { kind: "AllowOnce" } | { kind: "AllowAlways" } | { kind: "Deny"; data: {
 	message: string | null,
 } };
+
+export type PermissionRule = {
+	/**  None = applies to every agent. */
+	agent_id: string | null,
+	/**  Tool pattern: exact name, or prefix ending in `*` (e.g. `mcp__crewhub__*`). */
+	tool_pattern: string,
+};
 
 export type Project = {
 	id: string,
@@ -210,6 +270,11 @@ export type QuestionRequest = {
 	multi_select: boolean,
 };
 
+export type QuestionResponse = {
+	request_id: string,
+	answers: string[],
+};
+
 export type Room = {
 	id: string,
 	project_id: string | null,
@@ -228,6 +293,25 @@ export type SearchHit = {
 	ts: number,
 	role: string,
 	snippet: string,
+};
+
+/**
+ *  A transcript item paired with its absolute position in the session's
+ *  transcript — the SAME numbering as live [`SessionEvent::Item`] `seq`
+ *  (M2 plan D-M2-3: one parser, one numbering).
+ */
+export type SeqItem = {
+	seq: number,
+	item: TranscriptItem,
+};
+
+export type SessionBinding = {
+	session_id: string,
+	agent_id: string | null,
+	room_id: string | null,
+	display_name: string | null,
+	pinned: boolean,
+	updated_at: number,
 };
 
 export type SessionEvent = { type: "Discovered"; data: {
@@ -275,6 +359,15 @@ export type SessionMeta = {
 export type SessionOrigin = "Managed" | "External";
 
 export type SessionStatus = "Working" | "WaitingForInput" | "WaitingForPermission" | "Idle" | "Ended";
+
+/**
+ *  A composer hint: a slash command or skill the provider recognizes for a
+ *  given project (G8, EKI-52).
+ */
+export type SlashCommand = {
+	name: string,
+	description: string | null,
+};
 
 export type SpawnSpec = {
 	project_path: string,
@@ -338,10 +431,25 @@ export type TranscriptItem = { kind: "UserText"; data: {
 	output_tokens: number,
 	cache_read: number,
 	ts: number,
+} } | 
+/**
+ *  A provider-made restore point (e.g. a file-history snapshot) the user
+ *  can rewind to by forking from here (EKI-64).
+ */
+{ kind: "Checkpoint"; data: {
+	id: string,
+	ts: number,
 } } | { kind: "Unknown"; data: {
 	raw_type: string,
 	ts: number,
 } };
+
+/**  One page of an on-disk transcript: items `[offset, offset+limit)`. */
+export type TranscriptPage = {
+	items: SeqItem[],
+	/**  Items currently in the transcript file. */
+	total: number,
+};
 
 export type UsageTotals = {
 	input_tokens: number,

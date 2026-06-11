@@ -9,13 +9,16 @@
 //! 3. **One event stream**: all providers emit [`types::SessionEvent`] through the registry fan-in.
 //! 4. **Provider-scoped ids**: [`types::SessionId`] pairs `{provider, id}` so providers never collide.
 //!
-//! ## Accepted firewall exceptions (M1 exit audit, 2026-06-11)
+//! ## Accepted firewall exceptions (M1 exit audit, 2026-06-11; EKI-109 update)
 //!
 //! - `lib.rs`: provider registration + ClaudeConfig wiring (allowed by rule).
-//! - `ipc/mod.rs`: history/search + MCP-registration commands take
-//!   `State<ClaudeConfig>` directly — tracked as an M2 chore (route through the
-//!   provider registry) in Linear.
 //! - `hooks/receiver.rs`: default provider tag (injectable, documented).
+//!
+//! The M1 `ipc/mod.rs` exception (history/search + MCP registration taking
+//! `State<ClaudeConfig>`) was resolved by EKI-109: those commands now route
+//! through [`provider::ProviderRegistry`] via `SessionProvider::{list_archived,
+//! search_transcripts, register_mcp, unregister_mcp}` (defaults: unsupported),
+//! and the CLI registration helper moved to `engine/claude/registration.rs`.
 //!
 //! Adding a runtime (e.g. Codex) = implement [`provider::SessionProvider`] in a new
 //! submodule and register it in `lib.rs`. No core, IPC, or UI changes.

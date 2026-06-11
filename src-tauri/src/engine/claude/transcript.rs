@@ -36,7 +36,6 @@ const SKIP_TYPES: &[&str] = &[
     "last-prompt",
     "queue-operation",
     "attachment",
-    "file-history-snapshot",
     "worktree-state",
 ];
 
@@ -55,6 +54,7 @@ pub fn parse_line(line: &str) -> Option<ParsedLine> {
         match raw_type.as_str() {
             "user" => user_items(obj, ts),
             "assistant" => assistant_items(obj, ts),
+            "file-history-snapshot" => checkpoint_items(obj),
             "system" => vec![TranscriptItem::SystemNote {
                 text: obj
                     .get("subtype")
@@ -233,6 +233,36 @@ fn assistant_block(block: &Value, ts: i64) -> Option<TranscriptItem> {
     }
 }
 
+/// `file-history-snapshot` → [`TranscriptItem::Checkpoint`] (EKI-64).
+/// Snapshot *updates* re-describe an existing checkpoint (same messageId), so
+/// only the creating line yields an item — updates are skipped like metadata.
+fn checkpoint_items(obj: &serde_json::Map<String, Value>) -> Vec<TranscriptItem> {
+    if obj
+        .get("isSnapshotUpdate")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        return Vec::new();
+    }
+    let snapshot = obj.get("snapshot").and_then(Value::as_object);
+    let id = obj
+        .get("messageId")
+        .and_then(Value::as_str)
+        .or_else(|| {
+            snapshot
+                .and_then(|s| s.get("messageId"))
+                .and_then(Value::as_str)
+        })
+        .unwrap_or_default()
+        .to_string();
+    let ts = snapshot
+        .and_then(|s| s.get("timestamp"))
+        .and_then(Value::as_str)
+        .and_then(parse_ts)
+        .unwrap_or(0);
+    vec![TranscriptItem::Checkpoint { id, ts }]
+}
+
 fn image_item(obj: &serde_json::Map<String, Value>, ts: i64) -> TranscriptItem {
     let media_type = obj
         .get("source")
@@ -324,6 +354,38 @@ mod tests {
             let p = parse_line(&line).unwrap();
             assert!(p.items.is_empty(), "{t} should be skipped");
         }
+    }
+
+    #[test]
+    fn file_history_snapshot_maps_to_checkpoint() {
+        let line = r#"{"type":"file-history-snapshot","messageId":"m-1","snapshot":{"messageId":"m-1","trackedFileBackups":{},"timestamp":"2026-05-29T22:37:52.747Z"},"isSnapshotUpdate":false}"#;
+        let p = parse_line(line).unwrap();
+        let expected_ts = chrono::DateTime::parse_from_rfc3339("2026-05-29T22:37:52.747Z")
+            .unwrap()
+            .timestamp_millis();
+        assert_eq!(
+            p.items,
+            vec![TranscriptItem::Checkpoint {
+                id: "m-1".into(),
+                ts: expected_ts
+            }]
+        );
+    }
+
+    #[test]
+    fn snapshot_updates_are_skipped_and_malformed_snapshots_tolerated() {
+        // update of an existing checkpoint -> no duplicate marker
+        let update = r#"{"type":"file-history-snapshot","messageId":"m-1","snapshot":{"messageId":"m-1","trackedFileBackups":{},"timestamp":"2026-05-29T22:46:24.332Z"},"isSnapshotUpdate":true}"#;
+        assert!(parse_line(update).unwrap().items.is_empty());
+        // missing snapshot/messageId -> still a checkpoint, never a panic
+        let bare = r#"{"type":"file-history-snapshot"}"#;
+        assert_eq!(
+            parse_line(bare).unwrap().items,
+            vec![TranscriptItem::Checkpoint {
+                id: String::new(),
+                ts: 0
+            }]
+        );
     }
 
     #[test]

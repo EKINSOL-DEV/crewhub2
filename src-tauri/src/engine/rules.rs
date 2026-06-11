@@ -5,6 +5,10 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Settings key the rules are persisted under (single source of truth;
+/// written ONLY through the typed IPC commands — M2 Appendix B).
+pub const SETTINGS_KEY: &str = "perm.rules";
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 pub struct PermissionRule {
     /// None = applies to every agent.

@@ -1,11 +1,18 @@
 use crate::engine::provider::{ProviderCaps, ProviderRegistry, SessionProvider};
-use crate::engine::types::{PermissionResponse, SessionId, SessionMeta, SpawnSpec, UserInput};
+use crate::engine::rules::{PermissionRule, PermissionRules};
+use crate::engine::types::{
+    ArchivedSession, PermissionResponse, QuestionResponse, SearchHit, SessionId, SessionMeta,
+    SlashCommand, SpawnSpec, TranscriptPage, UserInput,
+};
 use crate::events::DomainEvent;
+use crate::security::paths::{Access, PathPolicy};
 use crate::store::agents::{Agent, NewAgent};
 use crate::store::projects::{NewProject, Project};
 use crate::store::rooms::{NewRoom, Room};
+use crate::store::session_bindings::{NewSessionBinding, SessionBinding};
 use crate::store::tasks::{NewTask, Task};
 use crate::store::Store;
+use crate::workspace::handoff::HandoffTarget;
 use serde::Serialize;
 use std::sync::Arc;
 use tauri::{AppHandle, Runtime, State};
@@ -117,6 +124,21 @@ pub async fn respond_to_permission(
         .map_err(err)
 }
 
+/// Answer an `AskUserQuestion`-style question or plan approval surfaced as a
+/// `SessionEvent::Question` (G1, EKI-58).
+#[tauri::command]
+#[specta::specta]
+pub async fn answer_question(
+    registry: State<'_, Arc<ProviderRegistry>>,
+    id: SessionId,
+    response: QuestionResponse,
+) -> Result<()> {
+    provider(&registry, &id.provider)?
+        .answer_question(&id, response)
+        .await
+        .map_err(err)
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn interrupt_session(
@@ -136,6 +158,197 @@ pub async fn kill_session(registry: State<'_, Arc<ProviderRegistry>>, id: Sessio
         .kill(&id)
         .await
         .map_err(err)
+}
+
+// ---- workspace: handoff, slash commands, persona (G5/G8/G9) ----
+
+/// House rule (security/mod.rs): every command taking a filesystem path
+/// validates it against the registered project roots before touching disk.
+fn project_policy(store: &Store) -> Result<PathPolicy> {
+    let mut policy = PathPolicy::default();
+    for project in store.list_projects().map_err(err)? {
+        policy.allow(&project.folder_path, Access::ReadWrite);
+    }
+    Ok(policy)
+}
+
+fn validate_project_path(store: &Store, path: &str, access: Access) -> Result<std::path::PathBuf> {
+    project_policy(store)?
+        .validate(std::path::Path::new(path), access)
+        .map_err(|e| e.to_string())
+}
+
+/// Open the project in an external tool (EKI-80, D-M2-8): fixed argv mapped
+/// from a closed enum, executed Rust-side — the webview gets no shell.
+#[tauri::command]
+#[specta::specta]
+pub fn handoff(
+    store: State<Arc<Store>>,
+    project_path: String,
+    target: HandoffTarget,
+) -> Result<()> {
+    let canon = validate_project_path(&store, &project_path, Access::Read)?;
+    crate::workspace::handoff::execute(target, &canon).map_err(err)
+}
+
+/// Handoff targets installed on this machine.
+#[tauri::command]
+#[specta::specta]
+pub fn handoff_targets() -> Result<Vec<HandoffTarget>> {
+    Ok(crate::workspace::handoff::detect_targets(
+        &crate::workspace::handoff::default_app_dirs(),
+    ))
+}
+
+/// Composer hints: slash commands/skills any provider recognizes for the
+/// project (G8). Read-only, path-policy-checked.
+#[tauri::command]
+#[specta::specta]
+pub async fn list_slash_commands(
+    store: State<'_, Arc<Store>>,
+    registry: State<'_, Arc<ProviderRegistry>>,
+    project_path: String,
+) -> Result<Vec<SlashCommand>> {
+    let canon = validate_project_path(&store, &project_path, Access::Read)?;
+    let mut out = Vec::new();
+    for p in registry.all() {
+        if let Ok(cmds) = p.list_slash_commands(&canon).await {
+            out.extend(cmds);
+        }
+    }
+    Ok(out)
+}
+
+/// Route to the first provider implementing the persona-file capability;
+/// `unsupported` defaults are skipped, real errors surface.
+async fn route_persona<F, Fut>(registry: &ProviderRegistry, call: F) -> Result<()>
+where
+    F: Fn(Arc<dyn SessionProvider>) -> Fut,
+    Fut: std::future::Future<Output = anyhow::Result<()>>,
+{
+    for p in registry.all() {
+        match call(p.clone()).await {
+            Ok(()) => return Ok(()),
+            Err(e) if e.to_string().contains("unsupported") => continue,
+            Err(e) => return Err(err(e)),
+        }
+    }
+    Err("no provider supports persona materialization".into())
+}
+
+/// Write/update the fenced persona block in the project's context file
+/// (G9, EKI-32). Idempotent; uninstall is byte-identical (provider tests).
+#[tauri::command]
+#[specta::specta]
+pub async fn materialize_persona(
+    store: State<'_, Arc<Store>>,
+    registry: State<'_, Arc<ProviderRegistry>>,
+    project_id: String,
+    content: String,
+) -> Result<()> {
+    let project = store
+        .get_project(&project_id)
+        .map_err(err)?
+        .ok_or_else(|| format!("unknown project: {project_id}"))?;
+    let canon = validate_project_path(&store, &project.folder_path, Access::ReadWrite)?;
+    route_persona(&registry, |p| {
+        let canon = canon.clone();
+        let content = content.clone();
+        async move { p.materialize_persona(&canon, &content).await }
+    })
+    .await
+}
+
+/// Remove the fenced persona block, restoring user content byte-identical.
+#[tauri::command]
+#[specta::specta]
+pub async fn remove_materialized_persona(
+    store: State<'_, Arc<Store>>,
+    registry: State<'_, Arc<ProviderRegistry>>,
+    project_id: String,
+) -> Result<()> {
+    let project = store
+        .get_project(&project_id)
+        .map_err(err)?
+        .ok_or_else(|| format!("unknown project: {project_id}"))?;
+    let canon = validate_project_path(&store, &project.folder_path, Access::ReadWrite)?;
+    route_persona(&registry, |p| {
+        let canon = canon.clone();
+        async move { p.remove_persona(&canon).await }
+    })
+    .await
+}
+
+// ---- permission rules (G4, EKI-20) ----
+// Typed wrapper around the `perm.rules` setting: the settings row is the
+// source of truth, every change is pushed into the providers and announced
+// with a `SettingChanged` event.
+
+fn load_rules(store: &Store) -> Result<PermissionRules> {
+    Ok(store
+        .get_setting(crate::engine::rules::SETTINGS_KEY)
+        .map_err(err)?
+        .map(|json| PermissionRules::from_json(&json))
+        .unwrap_or_default())
+}
+
+fn save_rules<R: Runtime>(
+    app: &AppHandle<R>,
+    store: &Store,
+    registry: &ProviderRegistry,
+    rules: PermissionRules,
+) -> Result<Vec<PermissionRule>> {
+    store
+        .set_setting(crate::engine::rules::SETTINGS_KEY, &rules.to_json())
+        .map_err(err)?;
+    registry.push_permission_rules(&rules);
+    DomainEvent::SettingChanged {
+        key: crate::engine::rules::SETTINGS_KEY.into(),
+    }
+    .emit(app)
+    .map_err(|e| e.to_string())?;
+    Ok(rules.rules)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_permission_rules(store: State<Arc<Store>>) -> Result<Vec<PermissionRule>> {
+    Ok(load_rules(&store)?.rules)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn add_permission_rule<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    registry: State<Arc<ProviderRegistry>>,
+    rule: PermissionRule,
+) -> Result<Vec<PermissionRule>> {
+    if rule.tool_pattern.trim().is_empty() {
+        return Err("permission rule needs a non-empty tool pattern".into());
+    }
+    let mut rules = load_rules(&store)?;
+    rules.rules.push(rule);
+    save_rules(&app, &store, &registry, rules)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn revoke_permission_rule<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    registry: State<Arc<ProviderRegistry>>,
+    index: u32,
+) -> Result<Vec<PermissionRule>> {
+    let mut rules = load_rules(&store)?;
+    if (index as usize) >= rules.rules.len() {
+        return Err(format!(
+            "no permission rule at index {index} (have {})",
+            rules.rules.len()
+        ));
+    }
+    rules.rules.remove(index as usize);
+    save_rules(&app, &store, &registry, rules)
 }
 
 // ---- mcp ----
@@ -158,20 +371,20 @@ pub fn mcp_status(mcp: State<'_, crate::mcp::McpHandle>) -> Result<McpStatus> {
     })
 }
 
-fn mcp_cli_config(
-    cfg: &crate::engine::claude::ClaudeConfig,
-) -> crate::mcp::registration::McpCliConfig {
-    crate::mcp::registration::McpCliConfig {
-        cli_path: cfg.cli_path.clone(),
-        extra_env: cfg.extra_env.clone(),
-    }
+/// The provider that can register MCP for projects, by capability flag.
+fn mcp_registrar(
+    registry: &ProviderRegistry,
+) -> std::result::Result<Arc<dyn SessionProvider>, String> {
+    registry
+        .mcp_registrar()
+        .ok_or_else(|| "no provider supports MCP registration".to_string())
 }
 
 #[tauri::command]
 #[specta::specta]
 pub async fn enable_mcp_for_project(
     store: State<'_, Arc<Store>>,
-    cfg: State<'_, crate::engine::claude::ClaudeConfig>,
+    registry: State<'_, Arc<ProviderRegistry>>,
     mcp: State<'_, crate::mcp::McpHandle>,
     project_id: String,
 ) -> Result<()> {
@@ -180,15 +393,14 @@ pub async fn enable_mcp_for_project(
         .map_err(err)?
         .ok_or_else(|| format!("unknown project: {project_id}"))?;
     let server = mcp.0.as_ref().ok_or("MCP server is not running")?;
-    // refresh (remove-then-add) so re-enabling after a token rotation works.
-    crate::mcp::registration::refresh(
-        &mcp_cli_config(&cfg),
-        std::path::Path::new(&project.folder_path),
-        server.port(),
-        server.token(),
-    )
-    .await
-    .map_err(err)?;
+    mcp_registrar(&registry)?
+        .register_mcp(
+            std::path::Path::new(&project.folder_path),
+            server.port(),
+            server.token(),
+        )
+        .await
+        .map_err(err)?;
     store
         .set_setting(&crate::mcp::enabled_setting_key(&project_id), "true")
         .map_err(err)
@@ -198,43 +410,56 @@ pub async fn enable_mcp_for_project(
 #[specta::specta]
 pub async fn disable_mcp_for_project(
     store: State<'_, Arc<Store>>,
-    cfg: State<'_, crate::engine::claude::ClaudeConfig>,
+    registry: State<'_, Arc<ProviderRegistry>>,
     project_id: String,
 ) -> Result<()> {
     let project = store
         .get_project(&project_id)
         .map_err(err)?
         .ok_or_else(|| format!("unknown project: {project_id}"))?;
-    crate::mcp::registration::unregister(
-        &mcp_cli_config(&cfg),
-        std::path::Path::new(&project.folder_path),
-    )
-    .await
-    .map_err(err)?;
+    mcp_registrar(&registry)?
+        .unregister_mcp(std::path::Path::new(&project.folder_path))
+        .await
+        .map_err(err)?;
     store
         .set_setting(&crate::mcp::enabled_setting_key(&project_id), "false")
         .map_err(err)
 }
 
-// TODO(M1-T9): route history through ClaudeCodeProvider so this file stays provider-neutral.
+/// One page of a session's transcript, numbered like live `Item.seq`
+/// (D-M2-3): chat opens with the newest page and pages older on scroll-up.
 #[tauri::command]
 #[specta::specta]
-pub fn list_archived_sessions(
-    cfg: State<crate::engine::claude::ClaudeConfig>,
-) -> Result<Vec<crate::engine::types::ArchivedSession>> {
-    Ok(crate::engine::claude::history::list_archived_sessions(
-        &cfg.root,
-    ))
+pub async fn get_session_transcript(
+    registry: State<'_, Arc<ProviderRegistry>>,
+    id: SessionId,
+    offset: u32,
+    limit: u32,
+) -> Result<TranscriptPage> {
+    provider(&registry, &id.provider)?
+        .read_transcript(&id, offset as u64, limit)
+        .await
+        .map_err(err)
+}
+
+// ---- history (provider-routed since EKI-109) ----
+
+#[tauri::command]
+#[specta::specta]
+pub async fn list_archived_sessions(
+    registry: State<'_, Arc<ProviderRegistry>>,
+    project_path: Option<String>,
+) -> Result<Vec<ArchivedSession>> {
+    Ok(registry.list_archived_all(project_path.as_deref()).await)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn search_transcripts(
-    store: State<Arc<Store>>,
-    cfg: State<crate::engine::claude::ClaudeConfig>,
+pub async fn search_transcripts(
+    registry: State<'_, Arc<ProviderRegistry>>,
     query: String,
-) -> Result<Vec<crate::engine::types::SearchHit>> {
-    crate::engine::claude::history::search(&store, &cfg.root, &query).map_err(err)
+) -> Result<Vec<SearchHit>> {
+    Ok(registry.search_all(&query).await)
 }
 
 // ---- agents ----
@@ -455,6 +680,46 @@ pub fn delete_task<R: Runtime>(
     let deleted = store.delete_task(&id).map_err(err)?;
     if deleted {
         DomainEvent::TaskChanged { task_id: id }
+            .emit(&app)
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(deleted)
+}
+
+// ---- session bindings (G3, EKI-36/40) ----
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_session_bindings(store: State<Arc<Store>>) -> Result<Vec<SessionBinding>> {
+    store.list_session_bindings().map_err(err)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn upsert_session_binding<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    input: NewSessionBinding,
+) -> Result<SessionBinding> {
+    let b = store.upsert_session_binding(input).map_err(err)?;
+    DomainEvent::SessionBindingChanged {
+        session_id: b.session_id.clone(),
+    }
+    .emit(&app)
+    .map_err(|e| e.to_string())?;
+    Ok(b)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn delete_session_binding<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    session_id: String,
+) -> Result<bool> {
+    let deleted = store.delete_session_binding(&session_id).map_err(err)?;
+    if deleted {
+        DomainEvent::SessionBindingChanged { session_id }
             .emit(&app)
             .map_err(|e| e.to_string())?;
     }
@@ -723,6 +988,293 @@ mod tests {
         app.manage(crate::mcp::McpHandle(None));
         let err = mcp_status(app.state()).unwrap_err();
         assert!(err.contains("not running"), "got: {err}");
+    }
+
+    /// EKI-109: history commands route via the registry; providers without an
+    /// archive (StubProvider keeps the trait defaults) contribute nothing.
+    #[tokio::test]
+    async fn history_commands_route_via_registry_and_tolerate_unsupported() {
+        let app = app();
+        let mut registry = ProviderRegistry::default();
+        registry.register(Arc::new(StubProvider));
+        app.manage(Arc::new(registry));
+        assert!(list_archived_sessions(app.state(), Some("/p".into()))
+            .await
+            .unwrap()
+            .is_empty());
+        assert!(list_archived_sessions(app.state(), None)
+            .await
+            .unwrap()
+            .is_empty());
+        assert!(search_transcripts(app.state(), "fox".into())
+            .await
+            .unwrap()
+            .is_empty());
+    }
+
+    /// G1: questions/plan approvals are answerable through the registry.
+    #[tokio::test]
+    async fn answer_question_routes_by_provider_id() {
+        let app = app();
+        let mut registry = ProviderRegistry::default();
+        registry.register(Arc::new(StubProvider));
+        app.manage(Arc::new(registry));
+        let response = QuestionResponse {
+            request_id: "q1".into(),
+            answers: vec!["approve".into()],
+        };
+        answer_question(
+            app.state(),
+            SessionId {
+                provider: "stub".into(),
+                id: "s1".into(),
+            },
+            response.clone(),
+        )
+        .await
+        .unwrap();
+        let err = answer_question(
+            app.state(),
+            SessionId {
+                provider: "codex".into(),
+                id: "x".into(),
+            },
+            response,
+        )
+        .await
+        .unwrap_err();
+        assert!(err.contains("unknown provider"), "got: {err}");
+    }
+
+    /// G4: typed wrapper over the `perm.rules` setting — add/list/revoke with
+    /// validation; the raw setting stays in sync (single source of truth).
+    #[tokio::test]
+    async fn permission_rule_commands_roundtrip_with_validation() {
+        let app = app();
+        let h = app.handle().clone();
+        let mut registry = ProviderRegistry::default();
+        registry.register(Arc::new(StubProvider));
+        app.manage(Arc::new(registry));
+
+        assert!(list_permission_rules(app.state()).unwrap().is_empty());
+
+        let err = add_permission_rule(
+            h.clone(),
+            app.state(),
+            app.state(),
+            PermissionRule {
+                agent_id: None,
+                tool_pattern: "   ".into(),
+            },
+        )
+        .unwrap_err();
+        assert!(err.contains("non-empty"), "got: {err}");
+
+        let rules = add_permission_rule(
+            h.clone(),
+            app.state(),
+            app.state(),
+            PermissionRule {
+                agent_id: Some("bot-1".into()),
+                tool_pattern: "mcp__crewhub__*".into(),
+            },
+        )
+        .unwrap();
+        assert_eq!(rules.len(), 1);
+        assert_eq!(list_permission_rules(app.state()).unwrap(), rules);
+
+        // the raw setting mirrors the typed view
+        let raw = get_setting(app.state(), crate::engine::rules::SETTINGS_KEY.into())
+            .unwrap()
+            .unwrap();
+        assert!(raw.contains("mcp__crewhub__*"), "got: {raw}");
+
+        let err = revoke_permission_rule(h.clone(), app.state(), app.state(), 5).unwrap_err();
+        assert!(err.contains("no permission rule at index 5"), "got: {err}");
+
+        let rules = revoke_permission_rule(h, app.state(), app.state(), 0).unwrap();
+        assert!(rules.is_empty());
+        assert!(list_permission_rules(app.state()).unwrap().is_empty());
+    }
+
+    /// G2: transcript pages route to the session's provider; a provider
+    /// without `read_transcript` (StubProvider default) errors readably.
+    #[tokio::test]
+    async fn get_session_transcript_routes_and_surfaces_unsupported() {
+        let app = app();
+        let mut registry = ProviderRegistry::default();
+        registry.register(Arc::new(StubProvider));
+        app.manage(Arc::new(registry));
+        let err = get_session_transcript(
+            app.state(),
+            SessionId {
+                provider: "stub".into(),
+                id: "s1".into(),
+            },
+            0,
+            200,
+        )
+        .await
+        .unwrap_err();
+        assert!(err.contains("unsupported"), "got: {err}");
+        let err = get_session_transcript(
+            app.state(),
+            SessionId {
+                provider: "codex".into(),
+                id: "x".into(),
+            },
+            0,
+            200,
+        )
+        .await
+        .unwrap_err();
+        assert!(err.contains("unknown provider"), "got: {err}");
+    }
+
+    /// EKI-109: MCP registration routes by capability flag, never provider id.
+    #[tokio::test]
+    async fn mcp_registration_without_capable_provider_is_a_readable_error() {
+        let app = app();
+        let h = app.handle().clone();
+        let mut registry = ProviderRegistry::default();
+        registry.register(Arc::new(StubProvider)); // caps().mcp_registration == false
+        app.manage(Arc::new(registry));
+        let p = create_project(
+            h,
+            app.state(),
+            NewProject {
+                name: "P".into(),
+                description: None,
+                icon: None,
+                color: None,
+                folder_path: "/tmp/p".into(),
+                docs_path: None,
+            },
+        )
+        .unwrap();
+        let err = disable_mcp_for_project(app.state(), app.state(), p.id)
+            .await
+            .unwrap_err();
+        assert!(err.contains("no provider supports"), "got: {err}");
+    }
+
+    fn register_project_at(app: &tauri::App<MockRuntime>, path: &str) {
+        create_project(
+            app.handle().clone(),
+            app.state(),
+            NewProject {
+                name: "P".into(),
+                description: None,
+                icon: None,
+                color: None,
+                folder_path: path.into(),
+                docs_path: None,
+            },
+        )
+        .unwrap();
+    }
+
+    /// G5 (D-M2-8): handoff only accepts paths inside registered projects —
+    /// `..` traversal and unregistered paths are rejected before any exec.
+    #[test]
+    fn handoff_rejects_paths_outside_registered_projects() {
+        let app = app();
+        let dir = tempfile::tempdir().unwrap();
+        let project = dir.path().join("proj");
+        std::fs::create_dir_all(&project).unwrap();
+        std::fs::write(dir.path().join("secret.txt"), "x").unwrap();
+        register_project_at(&app, project.to_str().unwrap());
+
+        let err = handoff(app.state(), "/etc".into(), HandoffTarget::Terminal).unwrap_err();
+        assert!(err.contains("outside"), "got: {err}");
+
+        let escape = format!("{}/../secret.txt", project.display());
+        let err = handoff(app.state(), escape, HandoffTarget::Vscode).unwrap_err();
+        assert!(err.contains("outside"), "got: {err}");
+    }
+
+    /// G8: slash commands are path-policy-checked and aggregate across
+    /// providers (StubProvider default contributes nothing).
+    #[tokio::test]
+    async fn list_slash_commands_validates_path_and_tolerates_unsupported() {
+        let app = app();
+        let mut registry = ProviderRegistry::default();
+        registry.register(Arc::new(StubProvider));
+        app.manage(Arc::new(registry));
+        let dir = tempfile::tempdir().unwrap();
+        register_project_at(&app, dir.path().to_str().unwrap());
+
+        let err = list_slash_commands(app.state(), app.state(), "/etc".into())
+            .await
+            .unwrap_err();
+        assert!(err.contains("outside"), "got: {err}");
+
+        let cmds = list_slash_commands(
+            app.state(),
+            app.state(),
+            dir.path().to_str().unwrap().into(),
+        )
+        .await
+        .unwrap();
+        assert!(cmds.is_empty());
+    }
+
+    /// G9: persona materialization routes by capability; with no implementing
+    /// provider the error is readable, and unknown projects are rejected.
+    #[tokio::test]
+    async fn materialize_persona_errors_are_readable() {
+        let app = app();
+        let mut registry = ProviderRegistry::default();
+        registry.register(Arc::new(StubProvider));
+        app.manage(Arc::new(registry));
+
+        let err = materialize_persona(app.state(), app.state(), "ghost".into(), "p".into())
+            .await
+            .unwrap_err();
+        assert!(err.contains("unknown project"), "got: {err}");
+
+        let dir = tempfile::tempdir().unwrap();
+        register_project_at(&app, dir.path().to_str().unwrap());
+        let projects = list_projects(app.state()).unwrap();
+        let err = materialize_persona(app.state(), app.state(), projects[0].id.clone(), "p".into())
+            .await
+            .unwrap_err();
+        assert!(
+            err.contains("no provider supports persona materialization"),
+            "got: {err}"
+        );
+        let err = remove_materialized_persona(app.state(), app.state(), projects[0].id.clone())
+            .await
+            .unwrap_err();
+        assert!(
+            err.contains("no provider supports persona materialization"),
+            "got: {err}"
+        );
+    }
+
+    #[test]
+    fn session_binding_commands_roundtrip() {
+        let app = app();
+        let h = app.handle().clone();
+        assert!(list_session_bindings(app.state()).unwrap().is_empty());
+        let b = upsert_session_binding(
+            h.clone(),
+            app.state(),
+            NewSessionBinding {
+                session_id: "sess-1".into(),
+                agent_id: None,
+                room_id: None,
+                display_name: Some("Scout".into()),
+                pinned: true,
+            },
+        )
+        .unwrap();
+        assert_eq!(b.display_name.as_deref(), Some("Scout"));
+        assert!(b.pinned);
+        assert_eq!(list_session_bindings(app.state()).unwrap(), vec![b]);
+        assert!(delete_session_binding(h.clone(), app.state(), "sess-1".into()).unwrap());
+        assert!(!delete_session_binding(h, app.state(), "sess-1".into()).unwrap());
+        assert!(list_session_bindings(app.state()).unwrap().is_empty());
     }
 
     #[test]
