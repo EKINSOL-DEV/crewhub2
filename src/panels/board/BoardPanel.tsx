@@ -1,0 +1,201 @@
+// Kanban board panel (T10/T11, EKI-93): five columns folded live from the
+// tasks store — human edits and agent MCP edits are indistinguishable to this
+// rendering layer (D-M3-2), distinguishable in the drawer's timeline (D-M3-4).
+// Filters: project from the tab's useProjectFilter(), room/assignee/priority
+// local (persisted in panel params), HQ = explicit cross-project view.
+import "./board.css";
+import { useEffect, useMemo, useState } from "react";
+import type { PanelProps } from "@/app/panel-registry";
+import { useProjectFilter } from "@/app/project-filter";
+import { Button } from "@/components/ui/button";
+import { useAgentsStore } from "@/stores/agents";
+import { useBindingsStore } from "@/stores/bindings";
+import { useSessionsStore } from "@/stores/sessions";
+import { groupByStatus, taskMatchesFilter, useTasksStore, type BoardFilter } from "@/stores/tasks";
+import { Column } from "./Column";
+import { CreateTaskDialog } from "./CreateTaskDialog";
+import { TaskCard } from "./TaskCard";
+import { TaskDrawer } from "./TaskDrawer";
+import { PRIORITY_CONFIG, TASK_PRIORITIES, TASK_STATUSES, type TaskStatus } from "./task-constants";
+
+export default function BoardPanel({ params, setParams }: PanelProps) {
+  const { projectId, project, projects } = useProjectFilter();
+  const tasksById = useTasksStore((s) => s.byId);
+  const links = useTasksStore((s) => s.links);
+  const loaded = useTasksStore((s) => s.loaded);
+  const agents = useAgentsStore((s) => s.agents);
+  const rooms = useBindingsStore((s) => s.rooms);
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void useTasksStore.getState().init();
+    void useAgentsStore.getState().init();
+    void useBindingsStore.getState().init();
+    void useSessionsStore.getState().init();
+  }, []);
+
+  const hq = params.hq === "1";
+  const filter: BoardFilter = useMemo(
+    () => ({
+      projectId,
+      hq,
+      roomId: params.room || null,
+      assigneeId: params.assignee || null,
+      priority: params.priority || null,
+    }),
+    [projectId, hq, params.room, params.assignee, params.priority],
+  );
+
+  const setParam = (key: string, value: string | null) => {
+    const next = { ...params };
+    if (value) next[key] = value;
+    else delete next[key];
+    setParams(next);
+  };
+
+  const filtered = useMemo(
+    () => [...tasksById.values()].filter((t) => taskMatchesFilter(t, filter)),
+    [tasksById, filter],
+  );
+  const groups = useMemo(() => groupByStatus(filtered), [filtered]);
+  const boardEmpty = loaded && filtered.length === 0;
+
+  const roomById = useMemo(() => new Map(rooms.map((r) => [r.id, r])), [rooms]);
+  const agentById = useMemo(() => new Map(agents.map((a) => [a.id, a])), [agents]);
+  const projectById = useMemo(() => new Map(projects.map((p) => [p.id, p])), [projects]);
+
+  // Rooms offered in filters/create: scoped to the project unless HQ/all.
+  const scopedRooms = useMemo(
+    () =>
+      !hq && projectId ? rooms.filter((r) => r.project_id === projectId || r.project_id === null) : rooms,
+    [rooms, hq, projectId],
+  );
+
+  const move = (taskId: string, status: TaskStatus) => {
+    void useTasksStore
+      .getState()
+      .move(taskId, status)
+      .then((err) => {
+        if (err) setError(`😬 couldn't move that — put it back (${err})`);
+      });
+  };
+
+  const openDrawer = (taskId: string) => setParam("task", taskId);
+
+  return (
+    <div className="flex h-full min-h-0 flex-col" data-testid="board-panel">
+      <div className="flex flex-wrap items-center gap-2 border-b px-2 py-1.5 text-xs">
+        <button
+          type="button"
+          data-testid="hq-toggle"
+          aria-pressed={hq}
+          title="HQ view: every project on one board"
+          className={`rounded-full border px-2 py-0.5 ${hq ? "border-ring bg-muted font-medium" : "text-muted-foreground"}`}
+          onClick={() => setParam("hq", hq ? null : "1")}
+        >
+          {hq ? "🌐 all projects" : project ? `${project.icon ?? "📁"} ${project.name}` : "🌐 all projects"}
+        </button>
+        <label className="flex items-center gap-1">
+          room
+          <select
+            aria-label="Room filter"
+            className="rounded border bg-background px-1 py-0.5 text-xs"
+            value={params.room ?? ""}
+            onChange={(e) => setParam("room", e.target.value || null)}
+          >
+            <option value="">all</option>
+            {scopedRooms.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.icon ?? "🚪"} {r.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex items-center gap-1">
+          assignee
+          <select
+            aria-label="Assignee filter"
+            className="rounded border bg-background px-1 py-0.5 text-xs"
+            value={params.assignee ?? ""}
+            onChange={(e) => setParam("assignee", e.target.value || null)}
+          >
+            <option value="">anyone</option>
+            {agents.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.icon ?? "🤖"} {a.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex items-center gap-1">
+          priority
+          <select
+            aria-label="Priority filter"
+            className="rounded border bg-background px-1 py-0.5 text-xs"
+            value={params.priority ?? ""}
+            onChange={(e) => setParam("priority", e.target.value || null)}
+          >
+            <option value="">any</option>
+            {TASK_PRIORITIES.map((p) => (
+              <option key={p} value={p}>
+                {PRIORITY_CONFIG[p].emoji} {p}
+              </option>
+            ))}
+          </select>
+        </label>
+        <span className="flex-1" />
+        <Button size="xs" data-testid="new-task" onClick={() => setCreating(true)}>
+          📝 New task
+        </Button>
+      </div>
+
+      {error && (
+        <div className="flex items-center gap-2 border-b bg-destructive/10 px-2 py-1 text-xs text-destructive">
+          <span className="min-w-0 flex-1">{error}</span>
+          <button type="button" aria-label="Dismiss error" onClick={() => setError(null)}>
+            ✕
+          </button>
+        </div>
+      )}
+
+      <div className="relative flex min-h-0 flex-1">
+        <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto p-2">
+          {TASK_STATUSES.map((status) => (
+            <Column key={status} status={status} count={groups[status].length} boardEmpty={boardEmpty}>
+              {groups[status].map((t) => (
+                <TaskCard
+                  key={t.id}
+                  task={t}
+                  room={t.room_id ? (roomById.get(t.room_id) ?? null) : null}
+                  assignee={t.assignee_agent_id ? (agentById.get(t.assignee_agent_id) ?? null) : null}
+                  project={hq && t.project_id ? (projectById.get(t.project_id) ?? null) : null}
+                  link={links[t.id] ?? null}
+                  onOpen={openDrawer}
+                  onMove={move}
+                />
+              ))}
+            </Column>
+          ))}
+        </div>
+        {params.task && (
+          <TaskDrawer
+            taskId={params.task}
+            rooms={scopedRooms}
+            onClose={() => setParam("task", null)}
+            onError={(msg) => setError(msg)}
+          />
+        )}
+        {creating && (
+          <CreateTaskDialog
+            rooms={scopedRooms}
+            agents={agents}
+            defaultRoomId={params.room || null}
+            projectId={hq ? null : projectId}
+            onClose={() => setCreating(false)}
+          />
+        )}
+      </div>
+    </div>
+  );
+}

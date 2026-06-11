@@ -86,6 +86,20 @@ export const PANELS: Record<PanelKind, PanelDefinition> = {
     component: lazy(() => import("@/panels/world/WorldPanel")),
     emptyState: { emoji: "🌍", title: "World loading", hint: "Bots are putting their badges on" },
   },
+  board: {
+    kind: "board",
+    label: "Board",
+    emoji: "📋",
+    description: "Kanban board — humans and agents move the same cards",
+    keywords: ["board", "tasks", "kanban", "todo", "cards", "work"],
+    shortcutHint: "b",
+    component: lazy(() => import("@/panels/board/BoardPanel")),
+    emptyState: {
+      emoji: "🧹",
+      title: "Quiet board",
+      hint: "🧹 nothing to do — file a task or let an agent file one",
+    },
+  },
   settings: {
     kind: "settings",
     label: "Settings",
