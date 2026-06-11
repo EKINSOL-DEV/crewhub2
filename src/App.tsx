@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { commands, type AppInfo } from "@/ipc/bindings";
+import { DebugPanel } from "@/panels/debug/DebugPanel";
 import { useSettings } from "@/stores/settings";
 import { THEME_NAMES, type ThemeName } from "@/theme/themes";
 
 function App() {
   const [info, setInfo] = useState<AppInfo | null>(null);
+  const [showDebug, setShowDebug] = useState(false);
   const { theme, setTheme, load } = useSettings();
 
   useEffect(() => {
@@ -23,7 +25,16 @@ function App() {
       <p data-testid="app-version" className="font-mono text-xs text-muted-foreground">
         {info ? `v${info.version}` : "backend: connecting…"}
       </p>
-      <Button variant="outline">It works</Button>
+      <div className="flex gap-2">
+        <Button variant="outline">It works</Button>
+        <Button
+          data-testid="debug-toggle"
+          variant={showDebug ? "default" : "outline"}
+          onClick={() => setShowDebug((v) => !v)}
+        >
+          Engine Debug
+        </Button>
+      </div>
       <select
         data-testid="theme-select"
         className="rounded border bg-card px-2 py-1 text-sm"
@@ -36,6 +47,7 @@ function App() {
           </option>
         ))}
       </select>
+      {showDebug && <DebugPanel />}
     </main>
   );
 }
