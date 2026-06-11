@@ -203,17 +203,16 @@ impl SessionProvider for ClaudeCodeProvider {
     async fn unregister_mcp(&self, project_dir: &Path) -> anyhow::Result<()> {
         registration::unregister(&self.mcp_cli_config(), project_dir).await
     }
+
+    fn set_permission_rules(&self, rules: crate::engine::rules::PermissionRules) {
+        self.processes.set_rules(rules);
+    }
 }
 
 impl ClaudeCodeProvider {
     /// Test/scheduler access to process-level operations (idle sweep).
     pub fn processes_for_test(&self) -> &process::ProcessManager {
         &self.processes
-    }
-
-    /// Install/replace the "allow always" permission rules (settings-backed by the app layer).
-    pub fn set_permission_rules(&self, rules: crate::engine::rules::PermissionRules) {
-        self.processes.set_rules(rules);
     }
 
     fn mcp_cli_config(&self) -> registration::McpCliConfig {

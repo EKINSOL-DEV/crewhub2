@@ -1,3 +1,4 @@
+use super::rules::PermissionRules;
 use super::types::*;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -86,6 +87,10 @@ pub trait SessionProvider: Send + Sync + 'static {
     async fn unregister_mcp(&self, _project_dir: &Path) -> anyhow::Result<()> {
         anyhow::bail!("unregister_mcp: unsupported by this provider")
     }
+
+    /// Install/replace the "allow always" permission rules (G4). No-op for
+    /// providers without structured permissions ([`ProviderCaps::permissions`]).
+    fn set_permission_rules(&self, _rules: PermissionRules) {}
 }
 
 /// Holds every registered provider and fans their event streams into one channel.
@@ -177,6 +182,14 @@ impl ProviderRegistry {
             .find(|p| p.caps().mcp_registration)
             .cloned()
     }
+
+    /// Push the current "allow always" rules into every provider (G4: the
+    /// `perm.rules` setting is the source of truth, providers hold a copy).
+    pub fn push_permission_rules(&self, rules: &PermissionRules) {
+        for p in &self.providers {
+            p.set_permission_rules(rules.clone());
+        }
+    }
 }
 
 #[cfg(test)]
@@ -186,12 +199,16 @@ mod tests {
     /// Proves the trait is implementable without `engine/claude` — the Codex-readiness test.
     struct TestProvider {
         tx: broadcast::Sender<SessionEvent>,
+        rules_seen: std::sync::Mutex<Option<PermissionRules>>,
     }
 
     impl TestProvider {
         fn new() -> Self {
             let (tx, _) = broadcast::channel(16);
-            Self { tx }
+            Self {
+                tx,
+                rules_seen: std::sync::Mutex::new(None),
+            }
         }
 
         fn meta(&self) -> SessionMeta {
@@ -257,6 +274,24 @@ mod tests {
         fn subscribe(&self) -> broadcast::Receiver<SessionEvent> {
             self.tx.subscribe()
         }
+        fn set_permission_rules(&self, rules: PermissionRules) {
+            *self.rules_seen.lock().unwrap() = Some(rules);
+        }
+    }
+
+    #[tokio::test]
+    async fn push_permission_rules_reaches_every_provider() {
+        let provider = Arc::new(TestProvider::new());
+        let mut registry = ProviderRegistry::default();
+        registry.register(provider.clone());
+        let rules = PermissionRules {
+            rules: vec![crate::engine::rules::PermissionRule {
+                agent_id: None,
+                tool_pattern: "Bash".into(),
+            }],
+        };
+        registry.push_permission_rules(&rules);
+        assert_eq!(provider.rules_seen.lock().unwrap().clone(), Some(rules));
     }
 
     #[tokio::test]

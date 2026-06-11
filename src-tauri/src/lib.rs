@@ -15,8 +15,12 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             ipc::spawn_session,
             ipc::send_to_session,
             ipc::respond_to_permission,
+            ipc::answer_question,
             ipc::interrupt_session,
             ipc::kill_session,
+            ipc::list_permission_rules,
+            ipc::add_permission_rule::<tauri::Wry>,
+            ipc::revoke_permission_rule::<tauri::Wry>,
             ipc::get_session_transcript,
             ipc::list_archived_sessions,
             ipc::search_transcripts,
@@ -83,6 +87,15 @@ pub fn run() {
                 std::sync::Arc::new(registry)
             });
             app.manage(registry.clone());
+
+            // G4: the persisted "allow always" rules apply from the first spawn.
+            let initial_rules = store
+                .get_setting(engine::rules::SETTINGS_KEY)
+                .ok()
+                .flatten()
+                .map(|json| engine::rules::PermissionRules::from_json(&json))
+                .unwrap_or_default();
+            registry.push_permission_rules(&initial_rules);
 
             // T12: periodic idle sweep + auto-spawn of flagged agents.
             let sweep_registry = registry.clone();

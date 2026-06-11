@@ -1,7 +1,8 @@
 use crate::engine::provider::{ProviderCaps, ProviderRegistry, SessionProvider};
+use crate::engine::rules::{PermissionRule, PermissionRules};
 use crate::engine::types::{
-    ArchivedSession, PermissionResponse, SearchHit, SessionId, SessionMeta, SpawnSpec,
-    TranscriptPage, UserInput,
+    ArchivedSession, PermissionResponse, QuestionResponse, SearchHit, SessionId, SessionMeta,
+    SpawnSpec, TranscriptPage, UserInput,
 };
 use crate::events::DomainEvent;
 use crate::store::agents::{Agent, NewAgent};
@@ -120,6 +121,21 @@ pub async fn respond_to_permission(
         .map_err(err)
 }
 
+/// Answer an `AskUserQuestion`-style question or plan approval surfaced as a
+/// `SessionEvent::Question` (G1, EKI-58).
+#[tauri::command]
+#[specta::specta]
+pub async fn answer_question(
+    registry: State<'_, Arc<ProviderRegistry>>,
+    id: SessionId,
+    response: QuestionResponse,
+) -> Result<()> {
+    provider(&registry, &id.provider)?
+        .answer_question(&id, response)
+        .await
+        .map_err(err)
+}
+
 #[tauri::command]
 #[specta::specta]
 pub async fn interrupt_session(
@@ -139,6 +155,78 @@ pub async fn kill_session(registry: State<'_, Arc<ProviderRegistry>>, id: Sessio
         .kill(&id)
         .await
         .map_err(err)
+}
+
+// ---- permission rules (G4, EKI-20) ----
+// Typed wrapper around the `perm.rules` setting: the settings row is the
+// source of truth, every change is pushed into the providers and announced
+// with a `SettingChanged` event.
+
+fn load_rules(store: &Store) -> Result<PermissionRules> {
+    Ok(store
+        .get_setting(crate::engine::rules::SETTINGS_KEY)
+        .map_err(err)?
+        .map(|json| PermissionRules::from_json(&json))
+        .unwrap_or_default())
+}
+
+fn save_rules<R: Runtime>(
+    app: &AppHandle<R>,
+    store: &Store,
+    registry: &ProviderRegistry,
+    rules: PermissionRules,
+) -> Result<Vec<PermissionRule>> {
+    store
+        .set_setting(crate::engine::rules::SETTINGS_KEY, &rules.to_json())
+        .map_err(err)?;
+    registry.push_permission_rules(&rules);
+    DomainEvent::SettingChanged {
+        key: crate::engine::rules::SETTINGS_KEY.into(),
+    }
+    .emit(app)
+    .map_err(|e| e.to_string())?;
+    Ok(rules.rules)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_permission_rules(store: State<Arc<Store>>) -> Result<Vec<PermissionRule>> {
+    Ok(load_rules(&store)?.rules)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn add_permission_rule<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    registry: State<Arc<ProviderRegistry>>,
+    rule: PermissionRule,
+) -> Result<Vec<PermissionRule>> {
+    if rule.tool_pattern.trim().is_empty() {
+        return Err("permission rule needs a non-empty tool pattern".into());
+    }
+    let mut rules = load_rules(&store)?;
+    rules.rules.push(rule);
+    save_rules(&app, &store, &registry, rules)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn revoke_permission_rule<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    registry: State<Arc<ProviderRegistry>>,
+    index: u32,
+) -> Result<Vec<PermissionRule>> {
+    let mut rules = load_rules(&store)?;
+    if (index as usize) >= rules.rules.len() {
+        return Err(format!(
+            "no permission rule at index {index} (have {})",
+            rules.rules.len()
+        ));
+    }
+    rules.rules.remove(index as usize);
+    save_rules(&app, &store, &registry, rules)
 }
 
 // ---- mcp ----
@@ -760,6 +848,91 @@ mod tests {
             .await
             .unwrap()
             .is_empty());
+    }
+
+    /// G1: questions/plan approvals are answerable through the registry.
+    #[tokio::test]
+    async fn answer_question_routes_by_provider_id() {
+        let app = app();
+        let mut registry = ProviderRegistry::default();
+        registry.register(Arc::new(StubProvider));
+        app.manage(Arc::new(registry));
+        let response = QuestionResponse {
+            request_id: "q1".into(),
+            answers: vec!["approve".into()],
+        };
+        answer_question(
+            app.state(),
+            SessionId {
+                provider: "stub".into(),
+                id: "s1".into(),
+            },
+            response.clone(),
+        )
+        .await
+        .unwrap();
+        let err = answer_question(
+            app.state(),
+            SessionId {
+                provider: "codex".into(),
+                id: "x".into(),
+            },
+            response,
+        )
+        .await
+        .unwrap_err();
+        assert!(err.contains("unknown provider"), "got: {err}");
+    }
+
+    /// G4: typed wrapper over the `perm.rules` setting — add/list/revoke with
+    /// validation; the raw setting stays in sync (single source of truth).
+    #[tokio::test]
+    async fn permission_rule_commands_roundtrip_with_validation() {
+        let app = app();
+        let h = app.handle().clone();
+        let mut registry = ProviderRegistry::default();
+        registry.register(Arc::new(StubProvider));
+        app.manage(Arc::new(registry));
+
+        assert!(list_permission_rules(app.state()).unwrap().is_empty());
+
+        let err = add_permission_rule(
+            h.clone(),
+            app.state(),
+            app.state(),
+            PermissionRule {
+                agent_id: None,
+                tool_pattern: "   ".into(),
+            },
+        )
+        .unwrap_err();
+        assert!(err.contains("non-empty"), "got: {err}");
+
+        let rules = add_permission_rule(
+            h.clone(),
+            app.state(),
+            app.state(),
+            PermissionRule {
+                agent_id: Some("bot-1".into()),
+                tool_pattern: "mcp__crewhub__*".into(),
+            },
+        )
+        .unwrap();
+        assert_eq!(rules.len(), 1);
+        assert_eq!(list_permission_rules(app.state()).unwrap(), rules);
+
+        // the raw setting mirrors the typed view
+        let raw = get_setting(app.state(), crate::engine::rules::SETTINGS_KEY.into())
+            .unwrap()
+            .unwrap();
+        assert!(raw.contains("mcp__crewhub__*"), "got: {raw}");
+
+        let err = revoke_permission_rule(h.clone(), app.state(), app.state(), 5).unwrap_err();
+        assert!(err.contains("no permission rule at index 5"), "got: {err}");
+
+        let rules = revoke_permission_rule(h, app.state(), app.state(), 0).unwrap();
+        assert!(rules.is_empty());
+        assert!(list_permission_rules(app.state()).unwrap().is_empty());
     }
 
     /// G2: transcript pages route to the session's provider; a provider

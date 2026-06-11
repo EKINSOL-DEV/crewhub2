@@ -11,8 +11,16 @@ export const commands = {
 	spawnSession: (providerId: string, spec: SpawnSpec) => typedError<SessionId, string>(__TAURI_INVOKE("spawn_session", { providerId, spec })),
 	sendToSession: (id: SessionId, text: string) => typedError<null, string>(__TAURI_INVOKE("send_to_session", { id, text })),
 	respondToPermission: (id: SessionId, requestId: string, response: PermissionResponse) => typedError<null, string>(__TAURI_INVOKE("respond_to_permission", { id, requestId, response })),
+	/**
+	 *  Answer an `AskUserQuestion`-style question or plan approval surfaced as a
+	 *  `SessionEvent::Question` (G1, EKI-58).
+	 */
+	answerQuestion: (id: SessionId, response: QuestionResponse) => typedError<null, string>(__TAURI_INVOKE("answer_question", { id, response })),
 	interruptSession: (id: SessionId) => typedError<null, string>(__TAURI_INVOKE("interrupt_session", { id })),
 	killSession: (id: SessionId) => typedError<null, string>(__TAURI_INVOKE("kill_session", { id })),
+	listPermissionRules: () => typedError<PermissionRule[], string>(__TAURI_INVOKE("list_permission_rules")),
+	addPermissionRule: (rule: PermissionRule) => typedError<PermissionRule[], string>(__TAURI_INVOKE("add_permission_rule", { rule })),
+	revokePermissionRule: (index: number) => typedError<PermissionRule[], string>(__TAURI_INVOKE("revoke_permission_rule", { index })),
 	/**
 	 *  One page of a session's transcript, numbered like live `Item.seq`
 	 *  (D-M2-3): chat opens with the newest page and pages older on scroll-up.
@@ -171,6 +179,13 @@ export type PermissionResponse = { kind: "AllowOnce" } | { kind: "AllowAlways" }
 	message: string | null,
 } };
 
+export type PermissionRule = {
+	/**  None = applies to every agent. */
+	agent_id: string | null,
+	/**  Tool pattern: exact name, or prefix ending in `*` (e.g. `mcp__crewhub__*`). */
+	tool_pattern: string,
+};
+
 export type Project = {
 	id: string,
 	name: string,
@@ -213,6 +228,11 @@ export type QuestionRequest = {
 	text: string,
 	options: string[],
 	multi_select: boolean,
+};
+
+export type QuestionResponse = {
+	request_id: string,
+	answers: string[],
 };
 
 export type Room = {
