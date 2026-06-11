@@ -312,10 +312,13 @@ test("excerptFromItems folds only text items and truncates honestly", () => {
 });
 
 test("clicking a turn chip reads the transcript at its offset; open-in-chat anchors the seq", async () => {
+  // Live meeting: the Round Table owns the chips (terminal meetings drill
+  // down through MeetingOutput instead — covered in meeting-output tests).
   const m = meeting({
     id: "m-1",
-    state: "complete",
-    completed_at: 9_000,
+    state: "round",
+    current_round: 1,
+    current_turn: 0,
     config_json: meetingConfigJson(TWO),
   });
   const t0 = turn({
@@ -351,7 +354,9 @@ test("clicking a turn chip reads the transcript at its offset; open-in-chat anch
   fireEvent.click(screen.getByTestId("turn-open-chat-t-0"));
   const chats = chatLeaves();
   expect(chats).toHaveLength(1);
-  expect(chats[0]!.params).toMatchObject({ sessionId: "claude-code:sess-77", seq: "42", mode: "history" });
+  // Live meeting → live chat at the seq anchor (history mode is for terminal).
+  expect(chats[0]!.params).toMatchObject({ sessionId: "claude-code:sess-77", seq: "42" });
+  expect(chats[0]!.params!.mode).toBeUndefined();
 });
 
 // ── Standups tab placeholder (T12 replaces it) ───────────────────────────────
