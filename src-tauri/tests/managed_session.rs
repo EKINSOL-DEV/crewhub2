@@ -426,3 +426,147 @@ async fn headless_run_records_result_with_haiku_default() {
         .unwrap();
     assert_eq!(n, 1);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn allow_always_rule_auto_responds_without_surfacing() {
+    use crewhub2_lib::engine::rules::{PermissionRule, PermissionRules};
+
+    let dir = tempfile::tempdir().unwrap();
+    let project = dir.path().join("proj");
+    std::fs::create_dir_all(&project).unwrap();
+    let scenario = write_scenario(
+        dir.path(),
+        concat!(
+            r#"{"expect_stdin":{"contains":"initialize"}}"#,
+            "\n",
+            r#"{"emit":{"type":"control_request","request_id":"p1","request":{"subtype":"can_use_tool","tool_name":"Bash","input":{"command":"ls"}}}}"#,
+            "\n",
+            r#"{"expect_stdin":{"contains":"allow"}}"#,
+            "\n",
+            r#"{"emit":{"type":"result","subtype":"success","is_error":false,"result":"done"}}"#,
+            "\n",
+            r#"{"exit":0}"#,
+            "\n",
+        ),
+    );
+    let provider = ClaudeCodeProvider::start(ClaudeConfig {
+        root: dir.path().join("claude-projects"),
+        cli_path: env!("CARGO_BIN_EXE_fake-claude").into(),
+        idle_timeout_ms: 30 * 60 * 1000,
+        extra_env: vec![(
+            "FAKE_CLAUDE_SCENARIO".into(),
+            scenario.display().to_string(),
+        )],
+    })
+    .unwrap();
+    provider.set_permission_rules(PermissionRules {
+        rules: vec![PermissionRule {
+            agent_id: None,
+            tool_pattern: "Bash".into(),
+        }],
+    });
+    let mut rx = provider.subscribe();
+    provider
+        .spawn(SpawnSpec {
+            project_path: project.display().to_string(),
+            prompt: None,
+            model: None,
+            permission_mode: PermissionMode::Default,
+            resume_session: None,
+            fork: false,
+            append_system_prompt: None,
+            agent_id: None,
+        })
+        .await
+        .unwrap();
+
+    // We must see the auto-allow signal and NEVER a PermissionRequest.
+    let mut saw_auto = false;
+    loop {
+        match wait_for(&mut rx, "events until Ended", |_| true).await {
+            SessionEvent::PermissionRequest { .. } => panic!("rule should have auto-answered"),
+            SessionEvent::Signal { signal, .. } if signal.event == "permission-auto-allowed" => {
+                assert_eq!(signal.tool.as_deref(), Some("Bash"));
+                saw_auto = true;
+            }
+            SessionEvent::Updated { meta } if meta.status == SessionStatus::Ended => break,
+            _ => {}
+        }
+    }
+    assert!(saw_auto);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn ask_user_question_surfaces_and_answer_is_relayed() {
+    let dir = tempfile::tempdir().unwrap();
+    let project = dir.path().join("proj");
+    std::fs::create_dir_all(&project).unwrap();
+    let scenario = write_scenario(
+        dir.path(),
+        concat!(
+            r#"{"expect_stdin":{"contains":"initialize"}}"#,
+            "\n",
+            r#"{"emit":{"type":"control_request","request_id":"q1","request":{"subtype":"can_use_tool","tool_name":"AskUserQuestion","input":{"questions":[{"question":"Alpha or Beta?","header":"Pref","options":[{"label":"Alpha"},{"label":"Beta"}],"multiSelect":false}]}}}}"#,
+            "\n",
+            r#"{"expect_stdin":{"contains":"User selected: Beta"}}"#,
+            "\n",
+            r#"{"emit":{"type":"result","subtype":"success","is_error":false,"result":"ok"}}"#,
+            "\n",
+            r#"{"exit":0}"#,
+            "\n",
+        ),
+    );
+    let provider = ClaudeCodeProvider::start(ClaudeConfig {
+        root: dir.path().join("claude-projects"),
+        cli_path: env!("CARGO_BIN_EXE_fake-claude").into(),
+        idle_timeout_ms: 30 * 60 * 1000,
+        extra_env: vec![(
+            "FAKE_CLAUDE_SCENARIO".into(),
+            scenario.display().to_string(),
+        )],
+    })
+    .unwrap();
+    let mut rx = provider.subscribe();
+    let id = provider
+        .spawn(SpawnSpec {
+            project_path: project.display().to_string(),
+            prompt: None,
+            model: None,
+            permission_mode: PermissionMode::Default,
+            resume_session: None,
+            fork: false,
+            append_system_prompt: None,
+            agent_id: None,
+        })
+        .await
+        .unwrap();
+
+    let ev = wait_for(&mut rx, "Question event", |e| {
+        matches!(e, SessionEvent::Question { .. })
+    })
+    .await;
+    let SessionEvent::Question { question, .. } = ev else {
+        unreachable!()
+    };
+    assert_eq!(question.kind, "question");
+    assert_eq!(question.text, "Alpha or Beta?");
+    assert_eq!(question.options, vec!["Alpha", "Beta"]);
+
+    provider
+        .answer_question(
+            &id,
+            QuestionResponse {
+                request_id: question.request_id,
+                answers: vec!["Beta".into()],
+            },
+        )
+        .await
+        .unwrap();
+
+    wait_for(
+        &mut rx,
+        "turn-complete after answer",
+        |e| matches!(e, SessionEvent::Signal { signal, .. } if signal.event == "turn-complete"),
+    )
+    .await;
+}

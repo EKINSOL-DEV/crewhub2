@@ -1,7 +1,7 @@
 //! Stream-json control protocol (verified against CC 2.1.172 — see
 //! `docs/engine/claude-control-protocol.md` and `fixtures/control/`).
 
-use crate::engine::types::{PermissionRequest, PermissionResponse};
+use crate::engine::types::{PermissionRequest, PermissionResponse, QuestionRequest};
 use serde_json::{json, Value};
 
 /// Events the process manager cares about; conversation content itself is read
@@ -62,6 +62,53 @@ pub fn parse_cli_line(line: &str) -> Option<CliEvent> {
                 .collect(),
         }),
         _ => Some(CliEvent::Other),
+    }
+}
+
+/// Map an interactive-tool permission request (AskUserQuestion / ExitPlanMode)
+/// into a provider-neutral question.
+pub fn question_from_permission(req: &PermissionRequest) -> QuestionRequest {
+    let input: Value = serde_json::from_str(&req.input_json).unwrap_or_default();
+    if req.tool == "ExitPlanMode" {
+        return QuestionRequest {
+            request_id: req.request_id.clone(),
+            kind: "plan".into(),
+            text: input
+                .get("plan")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string(),
+            options: vec!["approve".into(), "reject".into()],
+            multi_select: false,
+        };
+    }
+    let q0 = input
+        .get("questions")
+        .and_then(Value::as_array)
+        .and_then(|a| a.first())
+        .cloned()
+        .unwrap_or_default();
+    QuestionRequest {
+        request_id: req.request_id.clone(),
+        kind: "question".into(),
+        text: q0
+            .get("question")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        options: q0
+            .get("options")
+            .and_then(Value::as_array)
+            .map(|opts| {
+                opts.iter()
+                    .filter_map(|o| o.get("label").and_then(Value::as_str).map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default(),
+        multi_select: q0
+            .get("multiSelect")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
     }
 }
 

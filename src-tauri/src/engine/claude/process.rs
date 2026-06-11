@@ -5,6 +5,7 @@
 
 use super::control::{self, CliEvent};
 use super::PROVIDER_ID;
+use crate::engine::rules::PermissionRules;
 use crate::engine::types::*;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -19,14 +20,22 @@ pub struct ProcessManager {
     extra_env: Vec<(String, String)>,
     tx: broadcast::Sender<SessionEvent>,
     inner: Arc<Mutex<HashMap<String, Handle>>>,
+    /// "Allow always" rules consulted before surfacing permission requests.
+    rules: Arc<Mutex<PermissionRules>>,
+}
+
+struct Pending {
+    input_json: String,
+    tool: String,
 }
 
 struct Handle {
     last_activity_ms: i64,
+    agent_id: Option<String>,
     stdin_tx: mpsc::UnboundedSender<String>,
     kill_tx: tokio::sync::watch::Sender<bool>,
-    /// request_id -> original tool input (echoed back on allow)
-    pending_permissions: HashMap<String, String>,
+    /// request_id -> original tool request (input echoed back on allow)
+    pending_permissions: HashMap<String, Pending>,
     project_path: String,
 }
 
@@ -41,7 +50,12 @@ impl ProcessManager {
             extra_env,
             tx,
             inner: Arc::new(Mutex::new(HashMap::new())),
+            rules: Arc::new(Mutex::new(PermissionRules::default())),
         }
+    }
+
+    pub fn set_rules(&self, rules: PermissionRules) {
+        *self.rules.lock().unwrap() = rules;
     }
 
     fn permission_mode_flag(mode: PermissionMode) -> &'static str {
@@ -117,6 +131,7 @@ impl ProcessManager {
                 session_uuid.clone(),
                 Handle {
                     last_activity_ms: crate::store::Store::now_ms(),
+                    agent_id: spec.agent_id.clone(),
                     stdin_tx,
                     kill_tx,
                     pending_permissions: HashMap::new(),
@@ -155,6 +170,7 @@ impl ProcessManager {
         // stdout reader + supervision
         let tx = self.tx.clone();
         let inner = self.inner.clone();
+        let rules = self.rules.clone();
         let reader_id = id.clone();
         tokio::spawn(async move {
             let mut lines = BufReader::new(stdout).lines();
@@ -167,7 +183,7 @@ impl ProcessManager {
                     line = lines.next_line() => {
                         match line {
                             Ok(Some(line)) => {
-                                Self::handle_line(&tx, &inner, &reader_id, &line);
+                                Self::handle_line(&tx, &inner, &rules, &reader_id, &line);
                             }
                             _ => break, // EOF or error -> process gone
                         }
@@ -198,16 +214,56 @@ impl ProcessManager {
     fn handle_line(
         tx: &broadcast::Sender<SessionEvent>,
         inner: &Arc<Mutex<HashMap<String, Handle>>>,
+        rules: &Arc<Mutex<PermissionRules>>,
         id: &SessionId,
         line: &str,
     ) {
         match control::parse_cli_line(line) {
             Some(CliEvent::Permission(request)) => {
-                if let Some(handle) = inner.lock().unwrap().get_mut(&id.id) {
-                    handle
-                        .pending_permissions
-                        .insert(request.request_id.clone(), request.input_json.clone());
+                let mut guard = inner.lock().unwrap();
+                let Some(handle) = guard.get_mut(&id.id) else {
+                    return;
+                };
+                handle.last_activity_ms = crate::store::Store::now_ms();
+
+                // 1) "Allow always" rules: auto-respond, surface only a signal.
+                let agent = handle.agent_id.as_deref();
+                if rules.lock().unwrap().allows(agent, &request.tool) {
+                    let _ = handle.stdin_tx.send(control::permission_response_line(
+                        &request.request_id,
+                        &PermissionResponse::AllowOnce,
+                        &request.input_json,
+                    ));
+                    let _ = tx.send(SessionEvent::Signal {
+                        id: id.clone(),
+                        signal: HookSignal {
+                            event: "permission-auto-allowed".into(),
+                            tool: Some(request.tool.clone()),
+                            path: None,
+                            payload_json: None,
+                            ts: crate::store::Store::now_ms(),
+                        },
+                    });
+                    return;
                 }
+
+                handle.pending_permissions.insert(
+                    request.request_id.clone(),
+                    Pending {
+                        input_json: request.input_json.clone(),
+                        tool: request.tool.clone(),
+                    },
+                );
+
+                // 2) Interactive tools surface as questions, not raw permissions.
+                if request.tool == "AskUserQuestion" || request.tool == "ExitPlanMode" {
+                    let _ = tx.send(SessionEvent::Question {
+                        id: id.clone(),
+                        question: control::question_from_permission(&request),
+                    });
+                    return;
+                }
+
                 let _ = tx.send(SessionEvent::PermissionRequest {
                     id: id.clone(),
                     request,
@@ -259,8 +315,53 @@ impl ProcessManager {
             .remove(request_id)
             .ok_or_else(|| anyhow::anyhow!("no pending permission {request_id}"))?;
         handle.stdin_tx.send(control::permission_response_line(
-            request_id, resp, &original,
+            request_id,
+            resp,
+            &original.input_json,
         ))?;
+        Ok(())
+    }
+
+    /// Answer an AskUserQuestion / plan-approval surfaced as a Question event.
+    ///
+    /// AskUserQuestion: Claude Code's print mode cannot inject answers into the
+    /// tool (verified by spike 2026-06-11), so we deny with a message carrying
+    /// the user's choice — the model continues with that information.
+    /// ExitPlanMode: approve = allow; reject = deny with feedback.
+    pub fn answer_question(&self, id: &SessionId, resp: &QuestionResponse) -> anyhow::Result<()> {
+        let mut inner = self.inner.lock().unwrap();
+        let handle = inner
+            .get_mut(&id.id)
+            .ok_or_else(|| anyhow::anyhow!("no managed session {}", id.id))?;
+        let pending = handle
+            .pending_permissions
+            .remove(&resp.request_id)
+            .ok_or_else(|| anyhow::anyhow!("no pending question {}", resp.request_id))?;
+        let approve = resp.answers.first().map(String::as_str) == Some("approve");
+        let line = if pending.tool == "ExitPlanMode" && approve {
+            control::permission_response_line(
+                &resp.request_id,
+                &PermissionResponse::AllowOnce,
+                &pending.input_json,
+            )
+        } else if pending.tool == "ExitPlanMode" {
+            control::permission_response_line(
+                &resp.request_id,
+                &PermissionResponse::Deny {
+                    message: Some(format!("Plan rejected: {}", resp.answers.join("; "))),
+                },
+                &pending.input_json,
+            )
+        } else {
+            control::permission_response_line(
+                &resp.request_id,
+                &PermissionResponse::Deny {
+                    message: Some(format!("User selected: {}", resp.answers.join("; "))),
+                },
+                &pending.input_json,
+            )
+        };
+        handle.stdin_tx.send(line)?;
         Ok(())
     }
 

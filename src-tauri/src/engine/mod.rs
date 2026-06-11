@@ -13,5 +13,6 @@
 //! submodule and register it in `lib.rs`. No core, IPC, or UI changes.
 pub mod claude;
 pub mod provider;
+pub mod rules;
 pub mod status;
 pub mod types;

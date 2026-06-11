@@ -148,12 +148,8 @@ impl SessionProvider for ClaudeCodeProvider {
         self.processes.respond_permission(id, request_id, &resp)
     }
 
-    async fn answer_question(
-        &self,
-        _id: &SessionId,
-        _resp: QuestionResponse,
-    ) -> anyhow::Result<()> {
-        anyhow::bail!("questions land in M1 T15")
+    async fn answer_question(&self, id: &SessionId, resp: QuestionResponse) -> anyhow::Result<()> {
+        self.processes.answer_question(id, &resp)
     }
 
     async fn interrupt(&self, id: &SessionId) -> anyhow::Result<()> {
@@ -173,5 +169,10 @@ impl ClaudeCodeProvider {
     /// Test/scheduler access to process-level operations (idle sweep).
     pub fn processes_for_test(&self) -> &process::ProcessManager {
         &self.processes
+    }
+
+    /// Install/replace the "allow always" permission rules (settings-backed by the app layer).
+    pub fn set_permission_rules(&self, rules: crate::engine::rules::PermissionRules) {
+        self.processes.set_rules(rules);
     }
 }
