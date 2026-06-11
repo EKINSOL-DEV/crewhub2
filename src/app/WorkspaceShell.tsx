@@ -8,8 +8,12 @@ import { EmptyState } from "@/components/EmptyState";
 import { PopIn } from "@/components/PopIn";
 import { commands } from "@/ipc/bindings";
 import { cn } from "@/lib/utils";
+import { usePalette } from "@/stores/palette";
 import { useWorkspace } from "@/stores/workspace";
+import { CommandPalette } from "./CommandPalette";
 import { matchKey, KEYMAP_HELP } from "./keymap";
+import { buildShellActions } from "./palette-actions";
+import { ShellDialogs } from "./ShellDialogs";
 import {
   dropEdgeAt,
   findLeaf,
@@ -339,6 +343,12 @@ export function WorkspaceShell() {
   }, []);
 
   useEffect(() => {
+    const unregister = usePalette.getState().registerActions("shell", buildShellActions());
+    void usePalette.getState().load();
+    return unregister;
+  }, []);
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const action = matchKey({
         key: e.key,
@@ -351,7 +361,8 @@ export function WorkspaceShell() {
       const s = useWorkspace.getState();
       switch (action.type) {
         case "palette":
-          // wired to the command palette store in T9 (EKI-16)
+          e.preventDefault();
+          usePalette.getState().toggle();
           break;
         case "newTab":
           e.preventDefault();
@@ -423,6 +434,8 @@ export function WorkspaceShell() {
         )}
       </main>
       {showHelp && <HelpSheet onClose={() => setShowHelp(false)} />}
+      <CommandPalette />
+      <ShellDialogs />
     </div>
   );
 }
