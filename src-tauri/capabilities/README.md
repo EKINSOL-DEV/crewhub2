@@ -3,11 +3,11 @@
 Every permission granted to a window MUST be listed here with a one-line justification.
 PR reviewers: reject any capability change that does not update this file.
 
-| Capability file | Window   | Permission                         | Why                                                                                                         |
-| --------------- | -------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| main.json       | main     | core:default                       | Event emit/listen for typed IPC events; window basics; app metadata for About.                              |
-| main.json       | main     | clipboard-manager:allow-write-text | Handoff "Copy path" / "Copy resume command" (EKI-80). Write-only: the webview may never READ the clipboard. |
-| settings.json   | settings | core:default                       | Settings window (EKI-20): event listen for `SettingChanged` reconciliation + typed IPC. Nothing else.       |
+| Capability file | Window   | Permission                         | Why                                                                                                                                                                                                    |
+| --------------- | -------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| main.json       | main     | core:default                       | Event emit/listen for typed IPC events; window basics; app metadata for About.                                                                                                                         |
+| main.json       | main     | clipboard-manager:allow-write-text | Handoff "Copy path" / "Copy resume command" (EKI-80). Write-only: the webview may never READ the clipboard.                                                                                            |
+| settings.json   | settings | core:default                       | Settings window (EKI-20): event listen for `SettingChanged` reconciliation + typed IPC. Nothing else.                                                                                                  |
 | —               | —        | tauri-plugin-dialog (no grant)     | Folder picker (EKI-85, D-M3-7). Plugin registered in the builder, invoked Rust-side only via the `pick_folder` command; no capability file grants `dialog:*` — the webview cannot open dialogs itself. |
 
 Forbidden without an ADR: `fs:*` to the webview (files go through Rust commands + path policy),
