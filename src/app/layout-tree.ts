@@ -11,6 +11,7 @@ export type PanelKind =
   | "history"
   | "crew"
   | "world"
+  | "board"
   | "projects"
   | "docs"
   | "settings"
@@ -24,6 +25,7 @@ export const PANEL_KINDS: readonly PanelKind[] = [
   "history",
   "crew",
   "world",
+  "board",
   "projects",
   "docs",
   "settings",

@@ -1,0 +1,29 @@
+/* Toast Critters (D-M3-8): blocked toasts get a gentle shake. */
+@keyframes ch-toast-shake {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  20% {
+    translate: -3px 0;
+  }
+  40% {
+    translate: 3px 0;
+  }
+  60% {
+    translate: -2px 0;
+  }
+  80% {
+    translate: 2px 0;
+  }
+}
+
+.ch-toast-shake {
+  animation: ch-toast-shake 0.5s ease-in-out 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ch-toast-shake {
+    animation: none;
+  }
+}
