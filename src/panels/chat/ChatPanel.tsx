@@ -1,7 +1,8 @@
 // The chat panel (Epic 11): seq-stitched transcript, composer, prompts,
 // history mode. `params.sessionId` = "provider:id"; `params.mode = "history"`
 // renders read-only (EKI-60).
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { commands } from "@/ipc/bindings";
 import { parseSessionKey, sessionKey, startTranscriptStream, useTranscripts } from "@/stores/transcripts";
 import { Composer } from "./Composer";
 import { ChatContext, type ChatContextValue } from "./context";
@@ -38,10 +39,9 @@ function BoundChat({
   params: Record<string, string>;
   setParams: (p: Record<string, string>) => void;
 }) {
-  void params;
-  void setParams;
   const sid = useMemo(() => parseSessionKey(skey), [skey]);
   const historyMode = params.mode === "history";
+  const [rewindError, setRewindError] = useState<string | null>(null);
 
   useEffect(() => {
     void useTranscripts.getState().openSession(sid);
@@ -57,15 +57,49 @@ function BoundChat({
   const lastItem = lastSeq !== undefined ? t?.items.get(lastSeq) : undefined;
   const showTyping = !historyMode && meta?.status === "Working" && lastItem?.kind !== "AssistantText";
 
-  const ctx = useMemo<ChatContextValue>(
-    () => ({ sessionId: sid, readOnly: historyMode }),
-    [sid, historyMode],
-  );
+  // Rewind = fork-from-checkpoint (EKI-64): the new session resumes this one
+  // as a fork; the original stays untouched. Annotated in the panel params.
+  const projectPath = meta?.project_path ?? params.projectPath;
+  const ctx = useMemo<ChatContextValue>(() => {
+    const base: ChatContextValue = { sessionId: sid, readOnly: historyMode };
+    if (!projectPath) return base; // no path → no rewind affordance, no residue
+    return {
+      ...base,
+      rewindTo: (checkpointId: string) => {
+        void (async () => {
+          try {
+            const res = await commands.spawnSession(sid.provider, {
+              project_path: projectPath,
+              prompt: null,
+              model: null,
+              permission_mode: "Default",
+              resume_session: sid.id,
+              fork: true,
+              append_system_prompt: null,
+              agent_id: null,
+            });
+            if (res.status === "ok") {
+              setParams({ sessionId: sessionKey(res.data), note: `⏪ rewind @ ${checkpointId}` });
+            } else {
+              setRewindError(res.error);
+            }
+          } catch (e) {
+            setRewindError(String(e));
+          }
+        })();
+      },
+    };
+  }, [sid, historyMode, projectPath, setParams]);
 
   return (
     <ChatContext.Provider value={ctx}>
       <div className="flex h-full min-h-0 flex-col" data-testid="chat-panel">
-        <MetaStrip sid={sid} historyMode={historyMode} />
+        <MetaStrip sid={sid} historyMode={historyMode} note={params.note} />
+        {rewindError && (
+          <div className="px-3 py-1 text-xs text-destructive" data-testid="rewind-error">
+            rewind failed: {rewindError}
+          </div>
+        )}
         <div className="min-h-0 flex-1">
           <VirtualTranscript sid={sid} groups={groups} />
         </div>

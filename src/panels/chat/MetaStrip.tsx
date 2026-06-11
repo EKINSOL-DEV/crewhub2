@@ -9,7 +9,16 @@ import { humanizeId, shortId } from "./humanize";
 import { formatTokens, sumUsage } from "./render-list";
 import { useSessionMeta } from "./useSessionMeta";
 
-export function MetaStrip({ sid, historyMode }: { sid: SessionId; historyMode?: boolean }) {
+export function MetaStrip({
+  sid,
+  historyMode,
+  note,
+}: {
+  sid: SessionId;
+  historyMode?: boolean;
+  /** Panel annotation, e.g. "⏪ rewind @ ckpt-3" after a checkpoint fork. */
+  note?: string | undefined;
+}) {
   const key = sessionKey(sid);
   const meta = useSessionMeta(key);
   const t = useTranscripts((s) => s.sessions[key]);
@@ -44,6 +53,15 @@ export function MetaStrip({ sid, historyMode }: { sid: SessionId; historyMode?: 
       <span className="font-mono text-muted-foreground">{shortId(sid.id)}</span>
       {historyMode && (
         <span className="rounded border border-border px-1.5 py-0.5 text-muted-foreground">👀 history</span>
+      )}
+      {note && (
+        <span
+          data-testid="panel-note"
+          className="truncate rounded border border-border px-1.5 py-0.5 text-muted-foreground"
+          title={note}
+        >
+          {note}
+        </span>
       )}
       {meta?.model && <span className="rounded bg-accent/15 px-1.5 py-0.5">{meta.model}</span>}
       <span className="text-muted-foreground" title="input ▸ output tokens" data-testid="usage-totals">
