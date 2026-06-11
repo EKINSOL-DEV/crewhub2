@@ -567,6 +567,82 @@ pub fn create_sample_crew<R: Runtime>(
     Ok(result)
 }
 
+// ---- v1 import (M6 T3, D-M6-8/G9) ----
+// Preview and run share one plan builder in `import::v1`; both default the
+// db path to the standard v1 location. Run emits the existing coarse
+// DomainEvents batched after commit (Appendix C: no new variants).
+
+fn v1_db_path(db_path: Option<String>) -> std::path::PathBuf {
+    db_path
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(crate::onboarding::default_v1_db_path)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn preview_v1_import(
+    store: State<'_, Arc<Store>>,
+    db_path: Option<String>,
+) -> Result<crate::import::v1::ImportReport> {
+    let store = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::import::v1::preview(&store, &v1_db_path(db_path), &Default::default())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(err)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn run_v1_import<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<'_, Arc<Store>>,
+    db_path: Option<String>,
+    options: crate::import::v1::ImportOptions,
+) -> Result<crate::import::v1::ImportReport> {
+    let blocking_store = store.inner().clone();
+    let report = tauri::async_runtime::spawn_blocking(move || {
+        crate::import::v1::apply(&blocking_store, &v1_db_path(db_path), &options)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(err)?;
+
+    let emit = |e: DomainEvent| e.emit(&app).map_err(|e| e.to_string());
+    for id in &report.imported.projects {
+        emit(DomainEvent::ProjectChanged {
+            project_id: id.clone(),
+        })?;
+    }
+    for id in &report.imported.rooms {
+        emit(DomainEvent::RoomChanged {
+            room_id: id.clone(),
+        })?;
+    }
+    for id in &report.imported.agents {
+        emit(DomainEvent::AgentCreated {
+            agent_id: id.clone(),
+        })?;
+    }
+    for id in &report.imported.tasks {
+        emit(DomainEvent::TaskChanged {
+            task_id: id.clone(),
+        })?;
+    }
+    for id in &report.imported.bindings {
+        emit(DomainEvent::SessionBindingChanged {
+            session_id: id.clone(),
+        })?;
+    }
+    if !report.imported.templates.is_empty() {
+        emit(DomainEvent::SettingChanged {
+            key: PROMPT_TEMPLATES_SETTING_KEY.into(),
+        })?;
+    }
+    Ok(report)
+}
+
 // ---- mcp ----
 
 /// What the UI may know about the MCP server. The bearer token is

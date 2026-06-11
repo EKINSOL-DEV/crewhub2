@@ -2,6 +2,7 @@ pub mod engine;
 pub mod events;
 pub mod git;
 pub mod hooks;
+pub mod import;
 mod ipc;
 pub mod mcp;
 pub mod onboarding;
@@ -109,6 +110,8 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             ipc::set_cli_path,
             ipc::scan_recent_projects,
             ipc::create_sample_crew::<tauri::Wry>,
+            ipc::preview_v1_import,
+            ipc::run_v1_import::<tauri::Wry>,
         ])
         .events(tauri_specta::collect_events![
             events::DomainEvent,

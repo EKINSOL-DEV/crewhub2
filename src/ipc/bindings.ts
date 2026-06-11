@@ -234,6 +234,8 @@ export const commands = {
 	 *  coarse DomainEvents.
 	 */
 	createSampleCrew: () => typedError<SampleCrewResult, string>(__TAURI_INVOKE("create_sample_crew")),
+	previewV1Import: (dbPath: string | null) => typedError<ImportReport, string>(__TAURI_INVOKE("preview_v1_import", { dbPath })),
+	runV1Import: (dbPath: string | null, options: ImportOptions) => typedError<ImportReport, string>(__TAURI_INVOKE("run_v1_import", { dbPath, options })),
 };
 
 /** Events */
@@ -283,6 +285,14 @@ export type ArchivedSession = {
 	project_path: string,
 	summary: string,
 	last_modified_ms: number,
+};
+
+/**  A raw v1 blueprint row for the frontend conversion leg (D-M6-8). */
+export type BlueprintRow = {
+	id: string,
+	name: string,
+	room_id: string | null,
+	blueprint_json: string,
 };
 
 /**
@@ -410,6 +420,40 @@ export type HooksStatus = {
 	settings_path: string,
 	/**  The bundled `crewhub-signal` binary was found on disk. */
 	sidecar_ok: boolean,
+};
+
+export type ImportOptions = {
+	/**
+	 *  v1 project id → folder path, for v1 projects without `folder_path`
+	 *  (NOT NULL in v2). Projects without an override are skipped (counted).
+	 */
+	folder_overrides?: { [key in string]: string },
+};
+
+export type ImportReport = {
+	db_path: string,
+	/**  True for previews: nothing was written. */
+	dry_run: boolean,
+	tables: TableReport[],
+	/**  Row-level warnings (lossy folds, flagged conversions). */
+	warnings: string[],
+	/**  v1 tables present but deliberately not imported (master plan §4.4). */
+	not_imported: string[],
+	blueprints: BlueprintRow[],
+	imported: ImportedIds,
+};
+
+/**
+ *  Ids that landed in v2 — the IPC layer fans these out as the existing
+ *  coarse DomainEvents after commit (no new event variants, Appendix C).
+ */
+export type ImportedIds = {
+	projects: string[],
+	rooms: string[],
+	agents: string[],
+	tasks: string[],
+	bindings: string[],
+	templates: string[],
 };
 
 /**
@@ -756,6 +800,11 @@ export type SessionOrigin = "Managed" | "External";
 
 export type SessionStatus = "Working" | "WaitingForInput" | "WaitingForPermission" | "Idle" | "Ended";
 
+export type SkipCount = {
+	reason: string,
+	count: number,
+};
+
 /**
  *  A composer hint: a slash command or skill the provider recognizes for a
  *  given project (G8, EKI-52).
@@ -810,6 +859,14 @@ export type StartMeetingSpec = {
 	participant_model: string | null,
 	synthesis_model: string | null,
 	context_docs: string[] | null,
+};
+
+export type TableReport = {
+	table: string,
+	found: number,
+	will_import: number,
+	/**  Row skips AND named field-level drops, both counted (never silent). */
+	skipped: SkipCount[],
 };
 
 export type Task = {
