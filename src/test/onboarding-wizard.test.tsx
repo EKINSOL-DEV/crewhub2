@@ -161,3 +161,34 @@ test("rerun() re-arms the wizard at welcome (settings-panel button path)", async
   useOnboarding.getState().rerun();
   expect(await screen.findByTestId("wizard-step-welcome")).toBeInTheDocument();
 });
+
+test("Welcome Walk: the walker waves and slides — static under reduced motion (D-M6-12)", async () => {
+  const mockMatchMedia = (reduced: boolean) => {
+    window.matchMedia = ((query: string) => ({
+      matches: reduced && query.includes("prefers-reduced-motion"),
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      onchange: null,
+      dispatchEvent: () => true,
+    })) as unknown as typeof window.matchMedia;
+  };
+
+  mockMatchMedia(false);
+  mockBackend();
+  render(<OnboardingWizard />);
+  let walker = await screen.findByTestId("wizard-walker");
+  expect(walker).toHaveClass("wizard-walker-wave");
+  expect(walker.style.transition).toContain("left");
+
+  cleanup();
+  useOnboarding.getState().reset();
+  mockMatchMedia(true);
+  mockBackend();
+  render(<OnboardingWizard />);
+  walker = await screen.findByTestId("wizard-walker");
+  expect(walker).not.toHaveClass("wizard-walker-wave");
+  expect(walker.style.transition).toBe("none");
+});
