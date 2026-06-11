@@ -87,6 +87,15 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             ipc::list_standups,
             ipc::get_standup,
             ipc::list_standup_entries,
+            ipc::list_runs,
+            ipc::get_run,
+            ipc::create_run::<tauri::Wry>,
+            ipc::update_run::<tauri::Wry>,
+            ipc::delete_run::<tauri::Wry>,
+            ipc::set_run_enabled::<tauri::Wry>,
+            ipc::run_now,
+            ipc::list_run_results,
+            ipc::preview_cron,
         ])
         .events(tauri_specta::collect_events![
             events::DomainEvent,
@@ -196,6 +205,8 @@ pub fn run() {
                 if resumed > 0 {
                     eprintln!("orchestrator: resumed {resumed} in-flight meeting(s)");
                 }
+                // 17.1: the owned cron loop (honest scope: runs only while open)
+                recover.start_scheduler();
             });
             let mcp_handle = match tauri::async_runtime::block_on(mcp::server::McpServer::start(
                 store.clone(),

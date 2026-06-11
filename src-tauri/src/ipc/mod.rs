@@ -15,6 +15,7 @@ use crate::store::notification_rules::{
 use crate::store::projects::{NewProject, Project};
 use crate::store::room_rules::{NewRoomRule, RoomRule};
 use crate::store::rooms::{NewRoom, Room};
+use crate::store::runs::{NewRun, Run, RunResult};
 use crate::store::session_bindings::{NewSessionBinding, SessionBinding};
 use crate::store::standups::{Standup, StandupEntry};
 use crate::store::task_events::{TaskEvent, ACTOR_HUMAN};
@@ -1229,6 +1230,156 @@ pub fn list_standup_entries(
     standup_id: String,
 ) -> Result<Vec<StandupEntry>> {
     store.list_standup_entries(&standup_id).map_err(err)
+}
+
+// ---- runs & scheduler (M4 T5 — D-M4-4/5) ----
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_runs(store: State<Arc<Store>>) -> Result<Vec<Run>> {
+    store.list_runs().map_err(err)
+}
+
+/// Single-run refetch for `RunChanged` reconciliation.
+#[tauri::command]
+#[specta::specta]
+pub fn get_run(store: State<Arc<Store>>, id: String) -> Result<Option<Run>> {
+    store.get_run(&id).map_err(err)
+}
+
+/// Create a run. `spec_json` is validated at write time against the tagged
+/// union (prompt | sequence | standup); the cron expression (if any) must parse.
+#[tauri::command]
+#[specta::specta]
+pub fn create_run<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    input: NewRun,
+) -> Result<Run> {
+    crate::orchestrator::dispatch::validate_spec(&input.spec_json).map_err(err)?;
+    if let Some(cron) = input.schedule_cron.as_deref() {
+        if crate::orchestrator::scheduler::next_fire(cron, Store::now_ms()).is_none() {
+            return Err(format!("unparsable cron expression: {cron}"));
+        }
+    }
+    let run = store.create_run(input).map_err(err)?;
+    DomainEvent::RunChanged {
+        run_id: run.id.clone(),
+    }
+    .emit(&app)
+    .map_err(|e| e.to_string())?;
+    Ok(run)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn update_run<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    run: Run,
+) -> Result<Run> {
+    crate::orchestrator::dispatch::validate_spec(&run.spec_json).map_err(err)?;
+    if let Some(cron) = run.schedule_cron.as_deref() {
+        if crate::orchestrator::scheduler::next_fire(cron, Store::now_ms()).is_none() {
+            return Err(format!("unparsable cron expression: {cron}"));
+        }
+    }
+    let run = store.update_run(run).map_err(err)?;
+    DomainEvent::RunChanged {
+        run_id: run.id.clone(),
+    }
+    .emit(&app)
+    .map_err(|e| e.to_string())?;
+    Ok(run)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn delete_run<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    id: String,
+) -> Result<bool> {
+    let deleted = store.delete_run(&id).map_err(err)?;
+    if deleted {
+        DomainEvent::RunChanged { run_id: id }
+            .emit(&app)
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(deleted)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn set_run_enabled<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    id: String,
+    enabled: bool,
+) -> Result<Run> {
+    store.set_run_enabled(&id, enabled).map_err(err)?;
+    DomainEvent::RunChanged { run_id: id.clone() }
+        .emit(&app)
+        .map_err(|e| e.to_string())?;
+    store
+        .get_run(&id)
+        .map_err(err)?
+        .ok_or_else(|| format!("no run {id}"))
+}
+
+/// "Run now": the same dispatcher code path as a scheduled firing (D-M4-5).
+#[tauri::command]
+#[specta::specta]
+pub async fn run_now(
+    orchestrator: State<'_, Arc<Orchestrator>>,
+    run_id: String,
+) -> Result<RunResult> {
+    orchestrator.run_now(&run_id).await.map_err(err)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_run_results(store: State<Arc<Store>>, run_id: String) -> Result<Vec<RunResult>> {
+    store.list_run_results(&run_id).map_err(err)
+}
+
+/// Cron preview for the schedule editor: next 3 occurrences + a human
+/// description, plus the honest copy the panel must show (D-M4-4).
+#[derive(Serialize, specta::Type)]
+pub struct CronPreview {
+    #[specta(type = Vec<specta_typescript::Number>)]
+    pub next: Vec<i64>,
+    pub desc: Option<String>,
+    /// "Schedules run only while CrewHub is open."
+    pub note: String,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn preview_cron(expr: String) -> Result<CronPreview> {
+    use crate::orchestrator::scheduler::{next_fire, SCHEDULER_HONEST_COPY};
+    let mut next = Vec::new();
+    let mut after = Store::now_ms();
+    for _ in 0..3 {
+        match next_fire(&expr, after) {
+            Some(t) => {
+                next.push(t);
+                after = t;
+            }
+            None => break,
+        }
+    }
+    if next.is_empty() {
+        return Err(format!("unparsable cron expression: {expr}"));
+    }
+    let desc = std::str::FromStr::from_str(expr.as_str())
+        .ok()
+        .map(|c: croner::Cron| c.describe());
+    Ok(CronPreview {
+        next,
+        desc,
+        note: SCHEDULER_HONEST_COPY.into(),
+    })
 }
 
 #[cfg(test)]

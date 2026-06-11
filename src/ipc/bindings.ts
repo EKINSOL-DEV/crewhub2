@@ -183,6 +183,28 @@ export const commands = {
 	created_at: number,
 } | null, string>(__TAURI_INVOKE("get_standup", { id })),
 	listStandupEntries: (standupId: string) => typedError<StandupEntry[], string>(__TAURI_INVOKE("list_standup_entries", { standupId })),
+	listRuns: () => typedError<Run[], string>(__TAURI_INVOKE("list_runs")),
+	/**  Single-run refetch for `RunChanged` reconciliation. */
+	getRun: (id: string) => typedError<{
+	id: string,
+	kind: string,
+	schedule_cron: string | null,
+	spec_json: string,
+	enabled: boolean,
+	last_run_at: number | null,
+} | null, string>(__TAURI_INVOKE("get_run", { id })),
+	/**
+	 *  Create a run. `spec_json` is validated at write time against the tagged
+	 *  union (prompt | sequence | standup); the cron expression (if any) must parse.
+	 */
+	createRun: (input: NewRun) => typedError<Run, string>(__TAURI_INVOKE("create_run", { input })),
+	updateRun: (run: Run) => typedError<Run, string>(__TAURI_INVOKE("update_run", { run })),
+	deleteRun: (id: string) => typedError<boolean, string>(__TAURI_INVOKE("delete_run", { id })),
+	setRunEnabled: (id: string, enabled: boolean) => typedError<Run, string>(__TAURI_INVOKE("set_run_enabled", { id, enabled })),
+	/**  "Run now": the same dispatcher code path as a scheduled firing (D-M4-5). */
+	runNow: (runId: string) => typedError<RunResult, string>(__TAURI_INVOKE("run_now", { runId })),
+	listRunResults: (runId: string) => typedError<RunResult[], string>(__TAURI_INVOKE("list_run_results", { runId })),
+	previewCron: (expr: string) => typedError<CronPreview, string>(__TAURI_INVOKE("preview_cron", { expr })),
 };
 
 /** Events */
@@ -232,6 +254,17 @@ export type ArchivedSession = {
 	project_path: string,
 	summary: string,
 	last_modified_ms: number,
+};
+
+/**
+ *  Cron preview for the schedule editor: next 3 occurrences + a human
+ *  description, plus the honest copy the panel must show (D-M4-4).
+ */
+export type CronPreview = {
+	next: number[],
+	desc: string | null,
+	/**  "Schedules run only while CrewHub is open." */
+	note: string,
 };
 
 export type DiffFile = {
@@ -403,6 +436,12 @@ export type NewRoomRule = {
 	priority: number | null,
 };
 
+export type NewRun = {
+	kind: string,
+	schedule_cron: string | null,
+	spec_json: string,
+};
+
 /**
  *  Upsert input: the full desired state for one session (no partial patch —
  *  the UI always knows the current binding it is editing).
@@ -533,6 +572,27 @@ export type RoomRule = {
 	rule_type: string,
 	rule_value: string,
 	priority: number,
+};
+
+export type Run = {
+	id: string,
+	kind: string,
+	schedule_cron: string | null,
+	spec_json: string,
+	enabled: boolean,
+	last_run_at: number | null,
+};
+
+export type RunResult = {
+	id: string,
+	run_id: string,
+	session_id: string | null,
+	status: string,
+	summary: string | null,
+	/**  Position within a sequence (migration 003); NULL for simple runs. */
+	step_index: number | null,
+	started_at: number | null,
+	finished_at: number | null,
 };
 
 export type SearchHit = {

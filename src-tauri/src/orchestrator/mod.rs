@@ -8,7 +8,9 @@
 //! resumes them at the persisted position.
 
 pub mod action_items;
+pub mod dispatch;
 pub mod meeting;
+pub mod scheduler;
 pub mod standup;
 pub mod substitute;
 
@@ -213,6 +215,39 @@ impl Orchestrator {
     /// True while a driver task is registered for the meeting (test aid).
     pub fn is_driving(&self, meeting_id: &str) -> bool {
         self.drivers.lock().unwrap().contains_key(meeting_id)
+    }
+
+    /// Start the owned scheduler loop (17.1, D-M4-4). Call once at boot,
+    /// within a tokio runtime.
+    pub fn start_scheduler(self: &Arc<Self>) {
+        let ctx = self.ctx();
+        tokio::spawn(async move {
+            let store = ctx.store.clone();
+            scheduler::scheduler_loop(store, scheduler::TICK_CAP_MS, move |run| {
+                let ctx = ctx.clone();
+                async move {
+                    dispatch::execute_run(&ctx, &run).await;
+                }
+            })
+            .await;
+        });
+    }
+
+    /// "Run now": genuinely the same code path as a scheduled firing
+    /// (D-M4-5). Returns the newest result row for this firing.
+    pub async fn run_now(&self, run_id: &str) -> anyhow::Result<crate::store::runs::RunResult> {
+        let run = self
+            .store
+            .get_run(run_id)?
+            .ok_or_else(|| anyhow::anyhow!("no run {run_id}"))?;
+        self.store.set_run_last_run_at(run_id, Store::now_ms())?;
+        let ctx = self.ctx();
+        dispatch::execute_run(&ctx, &run).await;
+        self.store
+            .list_run_results(run_id)?
+            .into_iter()
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("run produced no result row"))
     }
 
     /// Start a standup (16.4): create the row, fan out one bounded headless
