@@ -1,0 +1,184 @@
+<mxfile host="app.diagrams.net" modified="2026-06-11T21:00:00.000Z" agent="CrewHub planning" version="24.0.0">
+  <diagram id="m6-arch" name="M6 Ship Architecture">
+    <mxGraphModel dx="1500" dy="950" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1500" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="title" value="M6 SHIP — finishing seams left open by M0–M5 (hooks bridge, notification sink, updater pubkey, v1 blueprint parser)" style="text;html=1;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="10" width="1100" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="wizard" value="ONBOARDING (Lane I, EKI-86/88) — overlay over the untouched WorkspaceShell, gated on onboarding.state" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;verticalAlign=top;fontSize=12;fontStyle=1;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="50" width="700" height="190" as="geometry" />
+        </mxCell>
+        <mxCell id="w1" value="step-machine.ts (pure): welcome → detect → projects → crew → integrations → finish · skip everywhere · resume via onboarding.step · Welcome Walk + Crew Cheer" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="60" y="85" width="320" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="w2" value="Detect: detect_environment (PATH + known locations + --version) → claude.cli_path setting · missing-CLI = guided screen, not a toast · v1 DB banner → ImportDialog" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="400" y="85" width="160" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="w3" value="Integrations: hooks opt-in renders REAL preview diff (preview_hooks_install) · MCP toggle per project · notifications opt-in · each declinable · sample crew (2 haiku agents, safe defaults)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="580" y="85" width="140" height="140" as="geometry" />
+        </mxCell>
+
+        <mxCell id="notif" value="NOTIFICATIONS &amp; TRAY (EKI-92/94) — M3 matcher unchanged, sink swapped" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;verticalAlign=top;fontSize=12;fontStyle=1;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="760" y="50" width="700" height="190" as="geometry" />
+        </mxCell>
+        <mxCell id="n1" value="stores/toasts.ts: matchRules (pure, M3) + EngineEvent fold → 5 new triggers: permission_needed · session_stopped · session_error · meeting_complete · hook_notification (closed list, Rust-validated, NO migration)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="780" y="85" width="310" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="n2" value="sink router: config_json.sink = toast | os | both · OS via tauri-plugin-notification (the ONLY new webview grant: notification:default + README row) · per-rule mute = enabled" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="1110" y="85" width="170" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="n3" value="tray.rs (Rust-only): Tray Mood icon + counts tooltip + menu · set_badge_count = pending permissions (the 'why is it stuck' signal) · debounced 500ms" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="85" width="140" height="140" as="geometry" />
+        </mxCell>
+
+        <mxCell id="rust" value="src-tauri — NEW LANE-0 SURFACE (typed IPC only; zero webview grants except notification:default)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;verticalAlign=top;fontSize=12;fontStyle=1;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="270" width="1420" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="r1" value="hooks wiring COMPLETION (T1, dormant since M1): crewhub-signal → bundle.externalBin sidecar · UDS receiver booted in lib.rs (signal.sock) · IPC: hooks_status / preview_hooks_install / install / uninstall · Windows: hidden (UDS, R6)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="60" y="305" width="330" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="r2" value="onboarding.rs (T2): detect_environment · scan_recent_projects (folds existing watcher meta cache — NO new scanner) · create_sample_crew (haiku, default permissions, auto_spawn off)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="410" y="305" width="250" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="r3" value="import/v1.rs (T3): rusqlite READ-ONLY on ~/.crewhub/crewhub.db · build_plan shared by preview + run · idempotent via preserved v1 ids · personas+surfaces → persona_json · session keys → agent ids · blueprints returned raw → frontend parse-v1.ts → world.props:&lt;room_id&gt; KV" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="680" y="305" width="330" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="r4" value="errlog.rs (T6): JSONL ring (last 500) · panic hook · replaces 23 eprintln! sites (CI grep guard) · build_error_report → local markdown, reveal, NO telemetry" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="1030" y="305" width="200" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="r5" value="updater.rs (T7): plugin + RELEASING.md pubkey PINNED in tauri.conf.json · endpoint = releases/latest/download/latest.json · install persists updater.pending_notes → What's new on next boot · bindings FREEZE after T7" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="1250" y="305" width="190" height="150" as="geometry" />
+        </mxCell>
+
+        <mxCell id="dist" value="DISTRIBUTION (Lane J, EKI-98/100) — CI yaml + docs only; runs with ZERO secrets (degrades to unsigned)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;verticalAlign=top;fontSize=12;fontStyle=1;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="500" width="1420" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="d1" value="release.yml: tag v* + workflow_dispatch → plan job (secret-presence flags) → tauri-action matrix: macOS universal (REQUIRED gate) · Windows NSIS · Linux AppImage+deb (best-effort, continue-on-error)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="60" y="535" width="400" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="d2" value="degradation: no TAURI_SIGNING_* → createUpdaterArtifacts:false overlay, -unsigned names, prerelease stays · no APPLE_* → skip codesign/notarize · secrets land = signing flips on, zero code change (parked-not-blocked)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="480" y="535" width="380" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="d3" value="version-sync (tag == tauri.conf == package.json) · artifact smoke per platform (launch bundled app, assert app_info) · draft release; PUBLISH = updater go-live = staged-rollout lever · runbook in RELEASING.md" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="880" y="535" width="320" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="d4" value="Secrets (Nicky): TAURI_SIGNING_PRIVATE_KEY(+_PASSWORD) · APPLE_CERTIFICATE(+_PASSWORD) · APPLE_ID · APPLE_TEAM_ID · APPLE_PASSWORD" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="1220" y="535" width="220" height="130" as="geometry" />
+        </mxCell>
+
+        <mxCell id="seams" value="EXISTING SEAMS CONSUMED (built M0–M5, unchanged): pure matchRules + ToastCenter (M3) · HookInstaller + receiver + crewhub-signal (M1) · MCP enable/disable IPC (M1/M2) · settings KV + SettingChanged reconciliation (M2) · pick_folder (M3) · parse-v1.ts + world.props KV (M5) · app_info (M0) · updater pubkey in RELEASING.md (M0)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;verticalAlign=top;fontSize=12;fontStyle=1;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="710" width="1420" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="wizard" target="rust">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.75;entryY=0;" edge="1" parent="1" source="notif" target="rust">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="rust" target="dist">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="dist" target="seams">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="m6-tasks" name="M6 Task Graph">
+    <mxGraphModel dx="1500" dy="950" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1500" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="lane0" value="LANE 0 — backend (serial, FIRST; owns src-tauri/** + bindings.ts; freeze after T7)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;verticalAlign=top;fontStyle=1;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="1420" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="t1" value="T1 hooks wiring (M)&#10;sidecar + receiver boot&#10;+ preview/install IPC&#10;EKI-86/92 substrate" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="60" y="75" width="180" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="t2" value="T2 onboarding backend (M)&#10;detect / scan / sample crew&#10;EKI-86/88" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="260" y="75" width="180" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="t3" value="T3 v1 importer (M)&#10;read-only · idempotent&#10;dry-run = same plan&#10;EKI-106 centerpiece" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="460" y="75" width="180" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="t4" value="T4 triggers + OS sink plumbing (S)&#10;+5 triggers · plugin · capability row&#10;EKI-92" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="660" y="75" width="190" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="t5" value="T5 tray &amp; dock (S)&#10;counts + badge&#10;EKI-94" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="870" y="75" width="150" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="t6" value="T6 errlog + report bundle (S)&#10;ring · panic hook · 23 eprintln&#10;EKI-102" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="1040" y="75" width="180" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="t7" value="T7 updater (M)&#10;pubkey pinned · What's-new notes&#10;EKI-100 — FREEZE" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1240" y="75" width="200" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="lanei" value="LANE I — wizard, import &amp; notification UI (owns src/onboarding/**, toasts, settings panel, e2e/onboarding)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;verticalAlign=top;fontStyle=1;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="230" width="900" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="t8" value="T8 wizard shell + step machine (M)&#10;overlay · skip/resume · detect step&#10;EKI-86" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="60" y="265" width="200" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="t9" value="T9 steps: projects/crew/integrations/finish + sample crew (M+S)&#10;hooks preview diff · MCP toggle&#10;EKI-86/88" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="280" y="265" width="210" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="t10" value="T10 import UI (M)&#10;Moving Day preview · folder overrides · blueprint leg via parse-v1.ts&#10;EKI-106" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="510" y="265" width="200" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="t11" value="T11 sink swap + settings UI + What's new (M)&#10;EngineEvent fold · per-rule mute&#10;EKI-92/100" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="730" y="265" width="190" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="lanej" value="LANE J — distribution (CI yaml + docs ONLY; starts immediately, no bindings dependency)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;verticalAlign=top;fontStyle=1;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="960" y="230" width="500" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="t12" value="T12 release.yml + runbook (L)&#10;secrets degradation · version-sync&#10;EKI-98" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="980" y="265" width="220" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="t13" value="T13 artifact smoke + CI guards (M)&#10;built-app launch test · eprintln/xmllint guards&#10;EKI-98" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="1220" y="265" width="220" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="closing" value="CLOSING (main lane, after merge)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;verticalAlign=top;fontStyle=1;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="420" width="1420" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="t14" value="T14 integration sweep (S)&#10;import↔world · tray↔engine · playfulness ACs · capability register · naming firewall" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="60" y="455" width="420" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="t15" value="T15 parity checklist &amp; sunset note (S, EKI-107)&#10;triage table re-walked on BUILT artifact → release-notes/v2.0.md · v1 README PR (OpenClaw preserved)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="500" y="455" width="460" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="t16" value="T16 exit review&#10;signed+notarized macOS artifact (parked on Appendix-D secrets) · importer round-trip · update vX→vX+1 · close EKI-84/90/96/104" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="980" y="455" width="460" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend" value="Dependencies: T8←T1+T2 · T9←T2(+T4 rules) · T10←T3 · T11←T4+T7 · T12←T7 (conf block) · T5 menu stub until T7. Secrets path: T12 unsigned rehearsal → secrets land → same workflow signs (zero code change) → T16 gate." style="text;html=1;whiteSpace=wrap;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="590" width="1420" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="g1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t1" target="t2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t2" target="t3"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t3" target="t4"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t4" target="t5"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t5" target="t6"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t6" target="t7"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.25;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="t1" target="t8"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="t3" target="t10"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="t7" target="t11"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.75;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="t7" target="t12"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g11" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t12" target="t13"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="t9" target="t14"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.25;entryY=0;" edge="1" parent="1" source="t13" target="t16"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g14" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t14" target="t15"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="g15" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t15" target="t16"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
