@@ -159,6 +159,20 @@ export const PANELS: Record<PanelKind, PanelDefinition> = {
     component: lazy(() => import("@/panels/debug/DebugPanel").then((m) => ({ default: m.DebugPanel }))),
     emptyState: { emoji: "🐞", title: "Engine debug", hint: "Raw events for the curious" },
   },
+  meetings: {
+    kind: "meetings",
+    label: "Meetings",
+    emoji: "🎻",
+    description: "Round-table meetings and coffee standups for the crew",
+    keywords: ["meetings", "standup", "round table", "discussion", "synthesis", "action items"],
+    shortcutHint: "m",
+    component: lazy(() => import("@/panels/meetings/MeetingsPanel")),
+    emptyState: {
+      emoji: "🎻",
+      title: "No meetings yet",
+      hint: "🎻 no meetings yet — gather the crew",
+    },
+  },
   diff: {
     kind: "diff",
     label: "Diff",
