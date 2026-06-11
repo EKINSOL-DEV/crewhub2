@@ -1,4 +1,4 @@
-//! MCP server integration (T20–T21): bearer auth, MCP handshake over raw
+//! MCP server integration (T20–T22): bearer auth, MCP handshake over raw
 //! streamable HTTP, and tool calls mutating the store + emitting DomainEvents.
 
 use std::sync::Arc;
@@ -79,7 +79,7 @@ async fn rejects_missing_or_wrong_token_with_401() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn initialize_and_tools_list_expose_task_tools() {
+async fn initialize_and_tools_list_expose_all_seven_tools() {
     let (server, _store, _rx) = boot().await;
 
     let reply = rpc(
@@ -104,9 +104,11 @@ async fn initialize_and_tools_list_expose_task_tools() {
         names,
         vec![
             "create_task",
+            "get_room_context",
             "list_crew",
             "list_tasks",
             "post_status_update",
+            "send_message_to_agent",
             "update_task_status",
         ]
     );
@@ -199,4 +201,23 @@ async fn update_task_status_with_invalid_status_is_tool_error() {
         store.get_task(&task_id).unwrap().unwrap().status,
         "in_progress"
     );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn get_room_context_returns_envelope() {
+    let (server, store, _rx) = boot().await;
+    let room_id = create_room(&store, "Lab");
+    call_tool(
+        &server,
+        "create_task",
+        json!({ "title": "Open one", "room_id": room_id }),
+    )
+    .await;
+
+    let result = call_tool(&server, "get_room_context", json!({ "room_id": room_id })).await;
+    assert_ne!(result["isError"], true, "unexpected tool error: {result}");
+    let envelope = &result["structuredContent"];
+    assert_eq!(envelope["room"]["id"], room_id.as_str());
+    assert!(envelope["project"].is_null());
+    assert_eq!(envelope["open_tasks"].as_array().unwrap().len(), 1);
 }

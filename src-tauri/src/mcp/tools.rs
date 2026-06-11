@@ -1,5 +1,4 @@
-//! CrewHub MCP tools (T20 `list_crew`, T21 task tools; T22 adds context &
-//! messaging).
+//! CrewHub MCP tools (T20 `list_crew`, T21 task tools, T22 context & messaging).
 //!
 //! Domain failures (unknown ids, invalid enum values) come back as MCP *tool
 //! errors* (`isError: true`) so the calling model can read and correct them;
@@ -16,6 +15,7 @@ use serde_json::json;
 use tokio::sync::broadcast;
 
 use crate::events::DomainEvent;
+use crate::store::rooms::Room;
 use crate::store::tasks::NewTask;
 use crate::store::Store;
 
@@ -72,6 +72,21 @@ pub struct UpdateTaskStatusParams {
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 pub struct PostStatusUpdateParams {
     /// The status update text.
+    pub text: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub struct GetRoomContextParams {
+    /// Room to fetch context for; defaults to the HQ room when omitted.
+    #[serde(default)]
+    pub room_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+pub struct SendMessageParams {
+    /// Id of the agent to message.
+    pub agent_id: String,
+    /// Message text.
     pub text: String,
 }
 
@@ -188,6 +203,76 @@ impl CrewHubMcp {
         });
         Ok(CallToolResult::structured(json!({ "posted": update })))
     }
+
+    #[tool(
+        description = "Get the context envelope for a room: the room itself, its project and its open tasks. Defaults to the HQ room when room_id is omitted."
+    )]
+    fn get_room_context(
+        &self,
+        Parameters(p): Parameters<GetRoomContextParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let room = match &p.room_id {
+            Some(id) => self.store.get_room(id).map_err(internal)?,
+            None => default_room(&self.store.list_rooms().map_err(internal)?),
+        };
+        let Some(room) = room else {
+            return Ok(tool_error(match p.room_id {
+                Some(id) => format!("room not found: {id}"),
+                None => "no rooms exist yet".into(),
+            }));
+        };
+        let project = match &room.project_id {
+            Some(id) => self.store.get_project(id).map_err(internal)?,
+            None => None,
+        };
+        let open_tasks: Vec<_> = self
+            .store
+            .list_tasks()
+            .map_err(internal)?
+            .into_iter()
+            .filter(|t| t.room_id.as_deref() == Some(&room.id) && t.status != "done")
+            .collect();
+        Ok(CallToolResult::structured(json!({
+            "room": room,
+            "project": project,
+            "open_tasks": open_tasks,
+        })))
+    }
+
+    // TODO(T22 follow-up): once lib.rs wires the engine ProviderRegistry to the
+    // MCP server, route to the target agent's managed session via provider
+    // `send`; until then messages land in a settings-backed inbox the UI can
+    // poll/display.
+    #[tool(
+        description = "Send a message to another crew member (agent). Delivered to the agent's CrewHub inbox."
+    )]
+    fn send_message_to_agent(
+        &self,
+        Parameters(p): Parameters<SendMessageParams>,
+    ) -> Result<CallToolResult, ErrorData> {
+        if self
+            .store
+            .get_agent(&p.agent_id)
+            .map_err(internal)?
+            .is_none()
+        {
+            return Ok(tool_error(format!("agent not found: {}", p.agent_id)));
+        }
+        let key = format!("agent_inbox:{}", p.agent_id);
+        let mut inbox: Vec<serde_json::Value> = self
+            .store
+            .get_setting(&key)
+            .map_err(internal)?
+            .and_then(|raw| serde_json::from_str(&raw).ok())
+            .unwrap_or_default();
+        let message = json!({ "text": p.text, "from": MCP_ACTOR, "ts": Store::now_ms() });
+        inbox.push(message.clone());
+        self.store
+            .set_setting(&key, &serde_json::to_string(&inbox).map_err(internal)?)
+            .map_err(internal)?;
+        self.emit(DomainEvent::SettingChanged { key });
+        Ok(CallToolResult::structured(json!({ "delivered": message })))
+    }
 }
 
 #[tool_handler]
@@ -202,6 +287,15 @@ impl ServerHandler for CrewHubMcp {
         );
         info
     }
+}
+
+/// HQ room if one exists, otherwise the first room by board order.
+fn default_room(rooms: &[Room]) -> Option<Room> {
+    rooms
+        .iter()
+        .find(|r| r.is_hq)
+        .or_else(|| rooms.first())
+        .cloned()
 }
 
 fn internal(e: impl std::fmt::Display) -> ErrorData {
@@ -224,7 +318,7 @@ fn invalid_value_error(field: &str, got: &str, valid: &[&str]) -> CallToolResult
 mod tests {
     use super::*;
     use crate::store::agents::NewAgent;
-    use crate::store::rooms::{NewRoom, Room};
+    use crate::store::rooms::NewRoom;
 
     fn mcp() -> (CrewHubMcp, broadcast::Receiver<DomainEvent>) {
         let store = Arc::new(Store::open_in_memory().unwrap());
@@ -254,7 +348,7 @@ mod tests {
     }
 
     #[test]
-    fn router_exposes_task_tools() {
+    fn router_exposes_all_seven_tools() {
         let mut names: Vec<_> = CrewHubMcp::tool_router()
             .list_all()
             .into_iter()
@@ -265,9 +359,11 @@ mod tests {
             names,
             vec![
                 "create_task",
+                "get_room_context",
                 "list_crew",
                 "list_tasks",
                 "post_status_update",
+                "send_message_to_agent",
                 "update_task_status",
             ]
         );
@@ -480,6 +576,112 @@ mod tests {
         assert!(matches!(
             rx.try_recv(),
             Ok(DomainEvent::SettingChanged { key }) if key == "last_status_update"
+        ));
+    }
+
+    #[test]
+    fn get_room_context_builds_envelope_and_defaults_to_hq() {
+        let (mcp, _rx) = mcp();
+        let lab = room(&mcp, "Lab");
+        let hq = mcp
+            .store
+            .create_room(NewRoom {
+                project_id: None,
+                name: "HQ".into(),
+                icon: None,
+                color: None,
+                is_hq: Some(true),
+            })
+            .unwrap();
+        mcp.create_task(Parameters(CreateTaskParams {
+            title: "open".into(),
+            room_id: lab.id.clone(),
+            description: None,
+            priority: None,
+        }))
+        .unwrap();
+        let done = mcp
+            .create_task(Parameters(CreateTaskParams {
+                title: "done".into(),
+                room_id: lab.id.clone(),
+                description: None,
+                priority: None,
+            }))
+            .unwrap();
+        mcp.update_task_status(Parameters(UpdateTaskStatusParams {
+            task_id: structured(&done)["task"]["id"].as_str().unwrap().into(),
+            status: "done".into(),
+        }))
+        .unwrap();
+
+        let ctx = mcp
+            .get_room_context(Parameters(GetRoomContextParams {
+                room_id: Some(lab.id.clone()),
+            }))
+            .unwrap();
+        let envelope = structured(&ctx);
+        assert_eq!(envelope["room"]["id"], lab.id.as_str());
+        assert!(envelope["project"].is_null());
+        let open = envelope["open_tasks"].as_array().unwrap();
+        assert_eq!(open.len(), 1);
+        assert_eq!(open[0]["title"], "open");
+
+        let default = mcp
+            .get_room_context(Parameters(GetRoomContextParams { room_id: None }))
+            .unwrap();
+        assert_eq!(structured(&default)["room"]["id"], hq.id.as_str());
+    }
+
+    #[test]
+    fn get_room_context_with_no_rooms_is_tool_error() {
+        let (mcp, _rx) = mcp();
+        let result = mcp
+            .get_room_context(Parameters(GetRoomContextParams { room_id: None }))
+            .unwrap();
+        assert!(is_tool_error(&result));
+    }
+
+    #[test]
+    fn send_message_appends_to_inbox_and_emits() {
+        let (mcp, mut rx) = mcp();
+        let missing = mcp
+            .send_message_to_agent(Parameters(SendMessageParams {
+                agent_id: "nope".into(),
+                text: "hi".into(),
+            }))
+            .unwrap();
+        assert!(is_tool_error(&missing));
+
+        let agent = mcp
+            .store
+            .create_agent(NewAgent {
+                name: "Botje".into(),
+                icon: None,
+                color: None,
+                default_model: None,
+                project_path: None,
+                permission_mode: None,
+                system_prompt: None,
+            })
+            .unwrap();
+        for text in ["first", "second"] {
+            let result = mcp
+                .send_message_to_agent(Parameters(SendMessageParams {
+                    agent_id: agent.id.clone(),
+                    text: text.into(),
+                }))
+                .unwrap();
+            assert_eq!(structured(&result)["delivered"]["text"], text);
+        }
+        let key = format!("agent_inbox:{}", agent.id);
+        let inbox: Vec<serde_json::Value> =
+            serde_json::from_str(&mcp.store.get_setting(&key).unwrap().unwrap()).unwrap();
+        assert_eq!(inbox.len(), 2);
+        assert_eq!(inbox[0]["text"], "first");
+        assert_eq!(inbox[1]["text"], "second");
+        assert!(matches!(
+            rx.try_recv(),
+            Ok(DomainEvent::SettingChanged { key: k }) if k == key
         ));
     }
 }
