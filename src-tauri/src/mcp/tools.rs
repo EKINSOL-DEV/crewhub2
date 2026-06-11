@@ -19,10 +19,8 @@ use crate::store::rooms::Room;
 use crate::store::tasks::NewTask;
 use crate::store::Store;
 
-/// Valid task statuses (mirrors the CHECK constraint in migration 001).
-pub const TASK_STATUSES: &[&str] = &["todo", "in_progress", "review", "done", "blocked"];
-/// Valid task priorities (mirrors the CHECK constraint in migration 001).
-pub const TASK_PRIORITIES: &[&str] = &["low", "medium", "high", "urgent"];
+/// Closed status/priority vocabularies — single source in the store layer.
+pub use crate::store::tasks::{TASK_PRIORITIES, TASK_STATUSES};
 /// Attribution recorded on rows created through the MCP server.
 pub const MCP_ACTOR: &str = "agent:mcp";
 

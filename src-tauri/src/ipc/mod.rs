@@ -10,6 +10,7 @@ use crate::store::agents::{Agent, NewAgent};
 use crate::store::projects::{NewProject, Project};
 use crate::store::rooms::{NewRoom, Room};
 use crate::store::session_bindings::{NewSessionBinding, SessionBinding};
+use crate::store::task_events::{TaskEvent, ACTOR_HUMAN};
 use crate::store::tasks::{NewTask, Task};
 use crate::store::Store;
 use crate::workspace::handoff::HandoffTarget;
@@ -638,6 +639,14 @@ pub fn list_tasks(store: State<Arc<Store>>) -> Result<Vec<Task>> {
     store.list_tasks().map_err(err)
 }
 
+/// Single-task refetch for `TaskChanged` reconciliation (D-M3-2, G3):
+/// `null` means the task was deleted — the store drops it.
+#[tauri::command]
+#[specta::specta]
+pub fn get_task(store: State<Arc<Store>>, id: String) -> Result<Option<Task>> {
+    store.get_task(&id).map_err(err)
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn create_task<R: Runtime>(
@@ -645,7 +654,7 @@ pub fn create_task<R: Runtime>(
     store: State<Arc<Store>>,
     input: NewTask,
 ) -> Result<Task> {
-    let t = store.create_task(input).map_err(err)?;
+    let t = store.create_task_as(input, ACTOR_HUMAN).map_err(err)?;
     DomainEvent::TaskChanged {
         task_id: t.id.clone(),
     }
@@ -661,13 +670,68 @@ pub fn update_task<R: Runtime>(
     store: State<Arc<Store>>,
     task: Task,
 ) -> Result<Task> {
-    let t = store.update_task(task).map_err(err)?;
+    let t = store.update_task_as(task, ACTOR_HUMAN).map_err(err)?;
     DomainEvent::TaskChanged {
         task_id: t.id.clone(),
     }
     .emit(&app)
     .map_err(|e| e.to_string())?;
     Ok(t)
+}
+
+// ---- task events (T1, D-M3-3/G1) ----
+
+/// A task's timeline, oldest first: the drawer timeline, run linkage and
+/// notification source all read from here.
+#[tauri::command]
+#[specta::specta]
+pub fn list_task_events(store: State<Arc<Store>>, task_id: String) -> Result<Vec<TaskEvent>> {
+    store.list_task_events(&task_id).map_err(err)
+}
+
+/// Run-with-agent linkage (T12 writes through here): records a `run_started`
+/// timeline event. A card's linked session = newest `run_started` without a
+/// matching `run_finished`.
+#[tauri::command]
+#[specta::specta]
+pub fn record_task_run_started<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    task_id: String,
+    session_id: SessionId,
+    agent_id: Option<String>,
+) -> Result<TaskEvent> {
+    let event = store
+        .record_task_run_started(
+            &task_id,
+            &session_id.provider,
+            &session_id.id,
+            agent_id.as_deref(),
+        )
+        .map_err(err)?;
+    DomainEvent::TaskChanged { task_id }
+        .emit(&app)
+        .map_err(|e| e.to_string())?;
+    Ok(event)
+}
+
+/// The matching close of [`record_task_run_started`].
+#[tauri::command]
+#[specta::specta]
+pub fn record_task_run_finished<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    task_id: String,
+    session_id: SessionId,
+    outcome: String,
+) -> Result<TaskEvent> {
+    let event = store
+        .record_task_run_finished(&task_id, &session_id.id, &outcome)
+        .map_err(err)?;
+    DomainEvent::TaskChanged { task_id }
+        .emit(&app)
+        .map_err(|e| e.to_string())?;
+    Ok(event)
 }
 
 #[tauri::command]
@@ -884,6 +948,60 @@ mod tests {
         let t = update_task(h.clone(), app.state(), t).unwrap();
         assert_eq!(t.status, "in_progress");
         assert!(delete_task(h, app.state(), t.id).unwrap());
+    }
+
+    /// T1 (G1/G3): human IPC edits write the timeline through the `_as`
+    /// wrappers, `get_task` exposes single-task refetch, and the run-linkage
+    /// pair records through the same closed vocabulary.
+    #[test]
+    fn task_event_commands_write_and_list_the_timeline() {
+        let app = app();
+        let h = app.handle().clone();
+        let input = NewTask {
+            project_id: None,
+            room_id: None,
+            title: "Do".into(),
+            description: None,
+            priority: None,
+            assignee_agent_id: None,
+            created_by: None,
+        };
+        let mut t = create_task(h.clone(), app.state(), input).unwrap();
+        assert_eq!(
+            get_task(app.state(), t.id.clone()).unwrap(),
+            Some(t.clone())
+        );
+        assert_eq!(get_task(app.state(), "ghost".into()).unwrap(), None);
+
+        t.status = "in_progress".into();
+        let t = update_task(h.clone(), app.state(), t).unwrap();
+
+        let sid = SessionId {
+            provider: "claude-code".into(),
+            id: "sess-1".into(),
+        };
+        record_task_run_started(
+            h.clone(),
+            app.state(),
+            t.id.clone(),
+            sid.clone(),
+            Some("agent-1".into()),
+        )
+        .unwrap();
+        record_task_run_finished(h.clone(), app.state(), t.id.clone(), sid, "review".into())
+            .unwrap();
+
+        let events = list_task_events(app.state(), t.id.clone()).unwrap();
+        let types: Vec<_> = events.iter().map(|e| e.event_type.as_str()).collect();
+        assert_eq!(
+            types,
+            vec!["created", "status_changed", "run_started", "run_finished"]
+        );
+        assert!(events.iter().all(|e| e.actor == "human"));
+
+        // deleting the task cascades its timeline (G9)
+        assert!(delete_task(h, app.state(), t.id.clone()).unwrap());
+        assert!(list_task_events(app.state(), t.id).unwrap().is_empty());
     }
 
     #[test]

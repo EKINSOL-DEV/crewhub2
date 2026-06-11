@@ -1,6 +1,12 @@
 use super::Store;
 use serde::{Deserialize, Serialize};
 
+/// Valid task statuses (mirrors the CHECK constraint in migration 001).
+/// Single source of truth (the v1 lesson) — MCP re-exports these.
+pub const TASK_STATUSES: &[&str] = &["todo", "in_progress", "review", "done", "blocked"];
+/// Valid task priorities (mirrors the CHECK constraint in migration 001).
+pub const TASK_PRIORITIES: &[&str] = &["low", "medium", "high", "urgent"];
+
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq)]
 pub struct Task {
     pub id: String,

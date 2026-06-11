@@ -41,9 +41,39 @@ export const commands = {
 	updateRoom: (room: Room) => typedError<Room, string>(__TAURI_INVOKE("update_room", { room })),
 	deleteRoom: (id: string) => typedError<boolean, string>(__TAURI_INVOKE("delete_room", { id })),
 	listTasks: () => typedError<Task[], string>(__TAURI_INVOKE("list_tasks")),
+	/**
+	 *  Single-task refetch for `TaskChanged` reconciliation (D-M3-2, G3):
+	 *  `null` means the task was deleted — the store drops it.
+	 */
+	getTask: (id: string) => typedError<{
+	id: string,
+	project_id: string | null,
+	room_id: string | null,
+	title: string,
+	description: string | null,
+	status: string,
+	priority: string,
+	assignee_agent_id: string | null,
+	created_by: string,
+	created_at: number,
+	updated_at: number,
+} | null, string>(__TAURI_INVOKE("get_task", { id })),
 	createTask: (input: NewTask) => typedError<Task, string>(__TAURI_INVOKE("create_task", { input })),
 	updateTask: (task: Task) => typedError<Task, string>(__TAURI_INVOKE("update_task", { task })),
 	deleteTask: (id: string) => typedError<boolean, string>(__TAURI_INVOKE("delete_task", { id })),
+	/**
+	 *  A task's timeline, oldest first: the drawer timeline, run linkage and
+	 *  notification source all read from here.
+	 */
+	listTaskEvents: (taskId: string) => typedError<TaskEvent[], string>(__TAURI_INVOKE("list_task_events", { taskId })),
+	/**
+	 *  Run-with-agent linkage (T12 writes through here): records a `run_started`
+	 *  timeline event. A card's linked session = newest `run_started` without a
+	 *  matching `run_finished`.
+	 */
+	recordTaskRunStarted: (taskId: string, sessionId: SessionId, agentId: string | null) => typedError<TaskEvent, string>(__TAURI_INVOKE("record_task_run_started", { taskId, sessionId, agentId })),
+	/**  The matching close of [`record_task_run_started`]. */
+	recordTaskRunFinished: (taskId: string, sessionId: SessionId, outcome: string) => typedError<TaskEvent, string>(__TAURI_INVOKE("record_task_run_finished", { taskId, sessionId, outcome })),
 	listSessionBindings: () => typedError<SessionBinding[], string>(__TAURI_INVOKE("list_session_bindings")),
 	upsertSessionBinding: (input: NewSessionBinding) => typedError<SessionBinding, string>(__TAURI_INVOKE("upsert_session_binding", { input })),
 	deleteSessionBinding: (sessionId: string) => typedError<boolean, string>(__TAURI_INVOKE("delete_session_binding", { sessionId })),
@@ -402,6 +432,15 @@ export type Task = {
 	created_by: string,
 	created_at: number,
 	updated_at: number,
+};
+
+export type TaskEvent = {
+	id: string,
+	task_id: string,
+	event_type: string,
+	actor: string,
+	payload_json: string | null,
+	created_at: number,
 };
 
 /**
