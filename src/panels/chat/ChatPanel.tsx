@@ -2,10 +2,11 @@
 // history mode. `params.sessionId` = "provider:id"; `params.mode = "history"`
 // renders read-only (EKI-60).
 import { useEffect, useMemo } from "react";
-import { EmptyState } from "@/components/EmptyState";
 import { parseSessionKey, sessionKey, startTranscriptStream, useTranscripts } from "@/stores/transcripts";
+import { Composer } from "./Composer";
 import { ChatContext, type ChatContextValue } from "./context";
 import { MetaStrip } from "./MetaStrip";
+import { SpawnFromChat } from "./SpawnFromChat";
 import type { PanelProps } from "./panel-contract";
 import { buildSubagentGroups } from "./subagents";
 import { TypingBot } from "./TypingBot";
@@ -20,8 +21,8 @@ export function ChatPanel({ params, setParams }: PanelProps) {
 
   const skey = params.sessionId;
   if (!skey) {
-    // Unbound chat: spawn-from-chat lands with the composer task (EKI-52).
-    return <EmptyState emoji="💤" title="Nobody's talking yet" hint="Summon a crew member" />;
+    // Unbound chat: summon a crew member right here (EKI-52, D-M2-7).
+    return <SpawnFromChat onSpawned={(id) => setParams({ ...params, sessionId: sessionKey(id) })} />;
   }
   return <BoundChat key={skey} skey={skey} params={params} setParams={setParams} />;
 }
@@ -67,6 +68,7 @@ function BoundChat({
           <VirtualTranscript sid={sid} groups={groups} />
         </div>
         {showTyping && <TypingBot />}
+        {!historyMode && <Composer sid={sid} />}
       </div>
     </ChatContext.Provider>
   );
