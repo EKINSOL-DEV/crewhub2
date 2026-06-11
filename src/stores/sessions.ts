@@ -104,6 +104,104 @@ export function joinSessionsView(
     .sort((a, b) => b.meta.last_activity_ms - a.meta.last_activity_ms);
 }
 
+// ── Session forest (M4 T16, EKI-47/54 — pure, additive) ─────────────────────
+//
+// Roots resolution + forest assembly from `SessionMeta.parent` links
+// (D-M4-9a): sessions whose parent is unknown/gone become roots themselves
+// (orphan tolerance), every sibling list is sorted by recency, and team
+// grouping (D-M4-9b) lights up only when the provider supplied `team` —
+// the UI tolerates `null` by construction.
+
+export interface SessionTreeNode {
+  key: string;
+  meta: SessionMeta;
+  children: SessionTreeNode[];
+}
+
+/** A sibling list, with team members folded into bracketed groups (👥). */
+export type ForestEntry =
+  | { kind: "session"; node: SessionTreeNode }
+  | { kind: "team"; teamId: string; nodes: SessionTreeNode[] };
+
+function newestActivity(node: SessionTreeNode): number {
+  let max = node.meta.last_activity_ms;
+  for (const c of node.children) max = Math.max(max, newestActivity(c));
+  return max;
+}
+
+/**
+ * Assemble the forest. Tombstoned (`removed`) sessions are excluded — same
+ * rule as {@link joinSessionsView}. A parent link that would create a cycle
+ * (malformed metadata) is dropped: the child becomes a root instead of the
+ * whole subtree silently vanishing — orphan tolerance over purity.
+ */
+export function buildSessionForest(sessions: Record<string, StoredSessionMeta>): SessionTreeNode[] {
+  const nodes = new Map<string, SessionTreeNode>();
+  for (const [key, meta] of Object.entries(sessions)) {
+    if (meta.removed) continue;
+    nodes.set(key, { key, meta, children: [] });
+  }
+
+  const roots: SessionTreeNode[] = [];
+  for (const node of nodes.values()) {
+    const parentKey = node.meta.parent ? sessionKey(node.meta.parent) : null;
+    const parent = parentKey ? nodes.get(parentKey) : undefined;
+    if (!parent || parent === node) {
+      roots.push(node); // no parent, or parent unknown/gone — root (orphan tolerance)
+      continue;
+    }
+    // cycle guard: if `node` already sits on the parent's ancestor chain,
+    // attaching would orphan the loop entirely — promote to root instead.
+    let ancestor: SessionTreeNode | undefined = parent;
+    const seen = new Set<string>([node.key]);
+    let cycles = false;
+    while (ancestor) {
+      if (seen.has(ancestor.key)) {
+        cycles = true;
+        break;
+      }
+      seen.add(ancestor.key);
+      const up: string | null = ancestor.meta.parent ? sessionKey(ancestor.meta.parent) : null;
+      ancestor = up ? nodes.get(up) : undefined;
+    }
+    if (cycles) roots.push(node);
+    else parent.children.push(node);
+  }
+
+  const sortRec = (list: SessionTreeNode[]) => {
+    list.sort((a, b) => newestActivity(b) - newestActivity(a));
+    for (const n of list) sortRec(n.children);
+  };
+  sortRec(roots);
+  return roots;
+}
+
+/**
+ * Fold one sibling list into render entries: consecutive-or-not members of
+ * the same team collapse into one bracketed group placed at the position of
+ * its most recent member; everything else stays a plain session entry.
+ */
+export function groupSiblingsByTeam(siblings: SessionTreeNode[]): ForestEntry[] {
+  const out: ForestEntry[] = [];
+  const teamAt = new Map<string, ForestEntry & { kind: "team" }>();
+  for (const node of siblings) {
+    const teamId = node.meta.team?.team_id;
+    if (!teamId) {
+      out.push({ kind: "session", node });
+      continue;
+    }
+    const existing = teamAt.get(teamId);
+    if (existing) {
+      existing.nodes.push(node); // recency order preserved within the group
+    } else {
+      const entry = { kind: "team" as const, teamId, nodes: [node] };
+      teamAt.set(teamId, entry);
+      out.push(entry);
+    }
+  }
+  return out;
+}
+
 interface SessionsState {
   sessions: Record<string, StoredSessionMeta>;
   /** True once the initial list_all_sessions round-trip settled (ok or error). */

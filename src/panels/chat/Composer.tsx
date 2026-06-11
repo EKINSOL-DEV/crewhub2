@@ -4,6 +4,7 @@
 // hints from list_slash_commands, interrupt.
 import { useEffect, useRef, useState } from "react";
 import { commands, type SessionId, type SlashCommand } from "@/ipc/bindings";
+import { InsertTemplateButton } from "@/panels/automation/TemplatePicker";
 import { sessionKey, useTranscripts } from "@/stores/transcripts";
 import { fuzzyFilter } from "./fuzzy";
 import { useSessionsStore } from "@/stores/sessions";
@@ -182,6 +183,14 @@ export function Composer({ sid }: { sid: SessionId }) {
         </div>
       )}
       <div className="flex items-end gap-2 p-3">
+        {/* T15 (EKI-39): the one coordinated chat-panel mount — template/skill insert */}
+        <InsertTemplateButton
+          projectPath={projectPath ?? null}
+          onInsert={(text) => {
+            setValue((v) => v + text);
+            taRef.current?.focus();
+          }}
+        />
         <textarea
           ref={taRef}
           data-testid="composer-input"
