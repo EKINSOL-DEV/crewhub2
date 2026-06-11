@@ -3,31 +3,65 @@ import { useSettings } from "../stores/settings";
 
 afterEach(clearMocks);
 
-test("load applies stored theme from backend", async () => {
-  mockIPC((cmd) => {
-    if (cmd === "get_setting") return "nord";
+function mockSettings(kv: Record<string, string>) {
+  const writes: Array<{ key: string; value: string }> = [];
+  mockIPC((cmd, args) => {
+    const a = args as { key: string; value?: string };
+    if (cmd === "get_setting") return kv[a.key] ?? null;
+    if (cmd === "set_setting") {
+      writes.push({ key: a.key, value: a.value ?? "" });
+      return null;
+    }
     return null;
   });
+  return writes;
+}
+
+test("load applies stored theme, density, font size and spawn model", async () => {
+  mockSettings({
+    theme: "nord",
+    "ui.density": "compact",
+    "ui.font_size": "l",
+    "model.default_spawn": "sonnet",
+  });
   await useSettings.getState().load();
-  expect(useSettings.getState().theme).toBe("nord");
-  expect(useSettings.getState().loaded).toBe(true);
+  const s = useSettings.getState();
+  expect(s.theme).toBe("nord");
+  expect(s.density).toBe("compact");
+  expect(s.fontSize).toBe("l");
+  expect(s.defaultSpawnModel).toBe("sonnet");
+  expect(s.loaded).toBe(true);
   expect(document.documentElement.dataset.theme).toBe("nord");
+  expect(document.documentElement.dataset.density).toBe("compact");
+  expect(document.documentElement.style.fontSize).toBe("18px");
 });
 
-test("load falls back to default on unknown stored value", async () => {
-  mockIPC((cmd) => (cmd === "get_setting" ? "not-a-theme" : null));
+test("load falls back to defaults on unknown stored values", async () => {
+  mockSettings({ theme: "not-a-theme", "ui.density": "cozy", "ui.font_size": "xxl" });
   await useSettings.getState().load();
-  expect(useSettings.getState().theme).toBe("tokyo-night");
+  const s = useSettings.getState();
+  expect(s.theme).toBe("tokyo-night");
+  expect(s.density).toBe("comfortable");
+  expect(s.fontSize).toBe("m");
+  expect(s.defaultSpawnModel).toBe("haiku"); // haiku-default, D-M2-7
 });
 
 test("setTheme applies immediately and persists via backend", async () => {
-  const calls: Array<{ cmd: string; args: unknown }> = [];
-  mockIPC((cmd, args) => {
-    calls.push({ cmd, args });
-    return null;
-  });
+  const writes = mockSettings({});
   await useSettings.getState().setTheme("solarized-light");
   expect(useSettings.getState().theme).toBe("solarized-light");
   expect(document.documentElement.classList.contains("dark")).toBe(false);
-  expect(calls.some((c) => c.cmd === "set_setting")).toBe(true);
+  expect(writes).toContainEqual({ key: "theme", value: "solarized-light" });
+});
+
+test("setDensity / setFontSize / setDefaultSpawnModel persist their keys", async () => {
+  const writes = mockSettings({});
+  await useSettings.getState().setDensity("compact");
+  await useSettings.getState().setFontSize("s");
+  await useSettings.getState().setDefaultSpawnModel("opus");
+  expect(writes).toContainEqual({ key: "ui.density", value: "compact" });
+  expect(writes).toContainEqual({ key: "ui.font_size", value: "s" });
+  expect(writes).toContainEqual({ key: "model.default_spawn", value: "opus" });
+  expect(document.documentElement.style.getPropertyValue("--spacing")).toBe("0.2rem");
+  expect(document.documentElement.style.fontSize).toBe("14px");
 });
