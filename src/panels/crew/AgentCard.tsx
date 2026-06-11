@@ -33,7 +33,13 @@ export function AgentCard({
     }
     setBusy(true);
     try {
-      const res = await commands.spawnSession("claude-code", spec);
+      // Capability-driven provider pick (SEAM 4): no hardcoded provider id.
+      const provider = await useAgentsStore.getState().getSpawnProvider();
+      if (!provider) {
+        onError?.("No spawn-capable provider is available — is the engine running?");
+        return;
+      }
+      const res = await commands.spawnSession(provider, spec);
       if (res.status === "error") {
         onError?.(res.error);
         return;

@@ -3,8 +3,17 @@
 // create command does not accept (persona, pin, auto-spawn) and applies them
 // with a follow-up update — one logical "hire" from the UI's point of view.
 import { create } from "zustand";
-import { commands, type Agent, type NewAgent } from "@/ipc/bindings";
+import { commands, type Agent, type NewAgent, type ProviderCapsEntry } from "@/ipc/bindings";
 import { onDomainEvent } from "@/ipc/events";
+
+/**
+ * First provider advertising `spawn: true` (SEAM 4): crew spawns are
+ * capability-driven instead of hardcoding a provider id. Null when nothing
+ * registered can spawn (watch-only engines).
+ */
+export function pickSpawnProvider(entries: readonly ProviderCapsEntry[]): string | null {
+  return entries.find((e) => e.caps.spawn)?.provider ?? null;
+}
 
 export interface AgentExtras {
   persona_json?: string | null;
@@ -18,8 +27,12 @@ export type AgentResult = { status: "ok"; data: Agent } | { status: "error"; err
 interface AgentsState {
   agents: Agent[];
   loaded: boolean;
+  /** Cached spawn-capable provider id (undefined = not fetched yet). */
+  spawnProvider: string | null | undefined;
   init: () => Promise<void>;
   refresh: () => Promise<void>;
+  /** Resolve (and cache) the provider crew spawns go to; null when none can spawn. */
+  getSpawnProvider: () => Promise<string | null>;
   create: (input: NewAgent, extras?: AgentExtras) => Promise<AgentResult>;
   update: (agent: Agent) => Promise<AgentResult>;
   remove: (id: string) => Promise<string | null>;
@@ -31,6 +44,19 @@ let started = false;
 export const useAgentsStore = create<AgentsState>((set, get) => ({
   agents: [],
   loaded: false,
+  spawnProvider: undefined,
+  getSpawnProvider: async () => {
+    const cached = get().spawnProvider;
+    if (cached !== undefined) return cached;
+    try {
+      const res = await commands.providerCaps();
+      const picked = res.status === "ok" && Array.isArray(res.data) ? pickSpawnProvider(res.data) : null;
+      set({ spawnProvider: picked });
+      return picked;
+    } catch {
+      return null; // backend unavailable — not cached, retried on next spawn
+    }
+  },
   refresh: async () => {
     try {
       const res = await commands.listAgents();
@@ -92,6 +118,6 @@ export const useAgentsStore = create<AgentsState>((set, get) => ({
   },
   reset: () => {
     started = false;
-    set({ agents: [], loaded: false });
+    set({ agents: [], loaded: false, spawnProvider: undefined });
   },
 }));
