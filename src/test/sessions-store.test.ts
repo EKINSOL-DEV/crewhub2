@@ -18,14 +18,33 @@ const A = meta({ id: sid("aaaaaaaa-1111"), last_activity_ms: 100 });
 const B = meta({ id: sid("bbbbbbbb-2222"), last_activity_ms: 200, project_path: "/work/other" });
 
 describe("applySessionEvent", () => {
-  test("Discovered and Updated upsert by key; Removed deletes", () => {
+  test("Discovered and Updated upsert by key; Removed tombstones (meta retained)", () => {
     let s = applySessionEvent({}, { type: "Discovered", data: { meta: A } });
     expect(Object.keys(s)).toEqual([sessionKey(A.id)]);
     const updated = { ...A, status: "Working" as const };
     s = applySessionEvent(s, { type: "Updated", data: { meta: updated } });
     expect(s[sessionKey(A.id)]?.status).toBe("Working");
     s = applySessionEvent(s, { type: "Removed", data: { id: A.id } });
-    expect(s).toEqual({});
+    // SEAM 1: ended-session meta survives for chat's MetaStrip — model/branch
+    // chips keep rendering after the session goes away.
+    const tomb = s[sessionKey(A.id)];
+    expect(tomb).toBeDefined();
+    expect(tomb?.removed).toBe(true);
+    expect(tomb?.status).toBe("Ended");
+    expect(tomb?.model).toBe(A.model);
+    expect(tomb?.project_path).toBe(A.project_path);
+  });
+
+  test("Removed for an unknown key is a no-op (same reference)", () => {
+    const s = { [sessionKey(A.id)]: A };
+    expect(applySessionEvent(s, { type: "Removed", data: { id: B.id } })).toBe(s);
+  });
+
+  test("rediscovery revives a tombstone (removed flag cleared)", () => {
+    let s = applySessionEvent({ [sessionKey(A.id)]: A }, { type: "Removed", data: { id: A.id } });
+    s = applySessionEvent(s, { type: "Discovered", data: { meta: { ...A, status: "Idle" } } });
+    expect(s[sessionKey(A.id)]?.removed).toBeUndefined();
+    expect(s[sessionKey(A.id)]?.status).toBe("Idle");
   });
 
   test("non-meta events are no-ops (same reference)", () => {
@@ -85,6 +104,12 @@ describe("joinSessionsView", () => {
     const views = joinSessionsView(sessions, {}, [], [], "/work/proj");
     expect(views.map((v) => v.key)).toEqual([sessionKey(A.id)]);
   });
+
+  test("tombstoned sessions are excluded from the live view (SEAM 1)", () => {
+    const withTomb = applySessionEvent(sessions, { type: "Removed", data: { id: A.id } });
+    const views = joinSessionsView(withTomb, {}, [], []);
+    expect(views.map((v) => v.key)).toEqual([sessionKey(B.id)]);
+  });
 });
 
 describe("useSessionsStore", () => {
@@ -100,7 +125,9 @@ describe("useSessionsStore", () => {
     useSessionsStore.getState().apply({ type: "Discovered", data: { meta: B } });
     expect(Object.keys(useSessionsStore.getState().sessions)).toHaveLength(2);
     useSessionsStore.getState().apply({ type: "Removed", data: { id: A.id } });
-    expect(Object.keys(useSessionsStore.getState().sessions)).toEqual([sessionKey(B.id)]);
+    const after = useSessionsStore.getState().sessions;
+    expect(Object.keys(after)).toHaveLength(2); // tombstone retained for chat meta
+    expect(after[sessionKey(A.id)]?.removed).toBe(true);
   });
 
   test("init records the backend error but still settles loaded", async () => {
