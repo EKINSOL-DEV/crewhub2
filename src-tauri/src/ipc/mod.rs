@@ -643,6 +643,20 @@ pub async fn run_v1_import<R: Runtime>(
     Ok(report)
 }
 
+// ---- error report (M6 T6, D-M6-10/G8) ----
+
+/// Assemble the local report bundle (version, OS/arch, last error lines —
+/// NO transcript/settings content) and reveal it next to the user. Returns
+/// the file path. Nothing leaves the machine.
+#[tauri::command]
+#[specta::specta]
+pub fn build_error_report<R: Runtime>(app: AppHandle<R>) -> Result<String> {
+    let version = app.package_info().version.to_string();
+    let path = crate::errlog::build_report(&version).map_err(err)?;
+    crate::errlog::reveal(&path);
+    Ok(path.display().to_string())
+}
+
 // ---- mcp ----
 
 /// What the UI may know about the MCP server. The bearer token is

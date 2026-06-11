@@ -241,6 +241,12 @@ export const commands = {
 	createSampleCrew: () => typedError<SampleCrewResult, string>(__TAURI_INVOKE("create_sample_crew")),
 	previewV1Import: (dbPath: string | null) => typedError<ImportReport, string>(__TAURI_INVOKE("preview_v1_import", { dbPath })),
 	runV1Import: (dbPath: string | null, options: ImportOptions) => typedError<ImportReport, string>(__TAURI_INVOKE("run_v1_import", { dbPath, options })),
+	/**
+	 *  Assemble the local report bundle (version, OS/arch, last error lines —
+	 *  NO transcript/settings content) and reveal it next to the user. Returns
+	 *  the file path. Nothing leaves the machine.
+	 */
+	buildErrorReport: () => typedError<string, string>(__TAURI_INVOKE("build_error_report")),
 };
 
 /** Events */

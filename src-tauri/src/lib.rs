@@ -1,4 +1,5 @@
 pub mod engine;
+pub mod errlog;
 pub mod events;
 pub mod git;
 pub mod hooks;
@@ -125,6 +126,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             ipc::create_sample_crew::<tauri::Wry>,
             ipc::preview_v1_import,
             ipc::run_v1_import::<tauri::Wry>,
+            ipc::build_error_report::<tauri::Wry>,
         ])
         .events(tauri_specta::collect_events![
             events::DomainEvent,
@@ -159,17 +161,22 @@ pub fn run() {
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             use tauri::Manager;
-            let db_path = app
-                .path()
-                .app_data_dir()
-                .expect("app data dir")
-                .join("crewhub.db");
+            let data_dir = app.path().app_data_dir().expect("app data dir");
+
+            // M6 T6 (D-M6-10): error ring + panic hook, before anything that
+            // can fail — errors must never vanish with the terminal again.
+            errlog::init(
+                data_dir.join(errlog::LOG_FILE_NAME),
+                &app.package_info().version.to_string(),
+            );
+
+            let db_path = data_dir.join("crewhub.db");
             let store = std::sync::Arc::new(store::Store::open(&db_path).expect("open store"));
             app.manage(store.clone());
 
             // M6 T2 (D-M6-2): existing installs never see the wizard.
             if let Err(e) = onboarding::mark_existing_install_done(&store) {
-                eprintln!("onboarding fresh-install check failed: {e}");
+                errlog::error("onboarding", format!("fresh-install check failed: {e}"));
             }
 
             // M6 T2 (G2): no persisted CLI path yet — best-effort probe so a
@@ -196,7 +203,10 @@ pub fn run() {
                 let mut registry = engine::provider::ProviderRegistry::default();
                 match engine::claude::ClaudeCodeProvider::start(claude_config, provider_store) {
                     Ok(provider) => registry.register(std::sync::Arc::new(provider)),
-                    Err(e) => eprintln!("claude-code provider failed to start: {e}"),
+                    Err(e) => errlog::error(
+                        "engine",
+                        format!("claude-code provider failed to start: {e}"),
+                    ),
                 }
                 std::sync::Arc::new(registry)
             });
@@ -226,7 +236,7 @@ pub fn run() {
                     // keep it alive for the app's lifetime (Drop unbinds)
                     Ok(receiver) => app.manage(receiver),
                     Err(e) => {
-                        eprintln!("hooks receiver failed to start: {e}");
+                        errlog::error("hooks", format!("receiver failed to start: {e}"));
                         true
                     }
                 };
@@ -242,7 +252,7 @@ pub fn run() {
                         tray::watch(tray_app, tray_registry).await;
                     });
                 }
-                Err(e) => eprintln!("tray setup failed (continuing without): {e}"),
+                Err(e) => errlog::error("tray", format!("setup failed (continuing without): {e}")),
             }
 
             // G4: the persisted "allow always" rules apply from the first spawn.
@@ -278,7 +288,10 @@ pub fn run() {
                                 agent_id: Some(agent.id.clone()),
                             };
                             if let Err(e) = provider.spawn(spec).await {
-                                eprintln!("auto-spawn failed for {}: {e}", agent.name);
+                                errlog::error(
+                                    "engine",
+                                    format!("auto-spawn failed for {}: {e}", agent.name),
+                                );
                             }
                         }
                     }
@@ -303,7 +316,10 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 let resumed = recover.recover_on_boot();
                 if resumed > 0 {
-                    eprintln!("orchestrator: resumed {resumed} in-flight meeting(s)");
+                    errlog::error(
+                        "orchestrator",
+                        format!("resumed {resumed} in-flight meeting(s)"),
+                    );
                 }
                 // 17.1: the owned cron loop (honest scope: runs only while open)
                 recover.start_scheduler();
@@ -314,7 +330,7 @@ pub fn run() {
             )) {
                 Ok(server) => mcp::McpHandle(Some(server)),
                 Err(e) => {
-                    eprintln!("mcp server failed to start: {e}");
+                    errlog::error("mcp", format!("server failed to start: {e}"));
                     mcp::McpHandle(None)
                 }
             };
@@ -335,7 +351,10 @@ pub fn run() {
                                 .register_mcp(std::path::Path::new(&p.folder_path), port, &token)
                                 .await
                             {
-                                eprintln!("mcp registration refresh failed for {}: {e}", p.name);
+                                errlog::error(
+                                    "mcp",
+                                    format!("registration refresh failed for {}: {e}", p.name),
+                                );
                             }
                         }
                     }
@@ -388,7 +407,9 @@ pub fn run() {
                                         .emit(&handle);
                                     }
                                     Ok(None) => {}
-                                    Err(e) => eprintln!("room auto-assign failed: {e}"),
+                                    Err(e) => {
+                                        errlog::error("rooms", format!("auto-assign failed: {e}"))
+                                    }
                                 }
                             }
                             let _ = events::EngineEvent(ev).emit(&handle);
