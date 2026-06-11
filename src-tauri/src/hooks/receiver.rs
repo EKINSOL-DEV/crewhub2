@@ -364,14 +364,26 @@ mod tests {
         let _receiver = HookReceiver::start(test_config(&socket), tx).unwrap();
 
         let extra = r#","tool_name":"Write","tool_input":{"file_path":"/tmp/proj/shared.rs"}"#;
-        // Separate connections, like two distinct hook invocations.
-        for session in ["sess-a", "sess-b"] {
-            let mut stream = UnixStream::connect(&socket).await.unwrap();
-            stream
-                .write_all(wire_line("PreToolUse", session, extra).as_bytes())
-                .await
-                .unwrap();
+        // Separate connections, like two distinct hook invocations. Each
+        // connection is served by its own task, so processing order across
+        // connections is not guaranteed — await sess-a's Signal before
+        // sending sess-b to make first-touch order deterministic.
+        let mut stream_a = UnixStream::connect(&socket).await.unwrap();
+        stream_a
+            .write_all(wire_line("PreToolUse", "sess-a", extra).as_bytes())
+            .await
+            .unwrap();
+        loop {
+            if let SessionEvent::Signal { id, .. } = next_event(&mut rx).await {
+                assert_eq!(id.id, "sess-a");
+                break;
+            }
         }
+        let mut stream_b = UnixStream::connect(&socket).await.unwrap();
+        stream_b
+            .write_all(wire_line("PreToolUse", "sess-b", extra).as_bytes())
+            .await
+            .unwrap();
 
         let mut conflict = None;
         for _ in 0..3 {
