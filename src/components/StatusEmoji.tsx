@@ -1,4 +1,6 @@
-// Status Critters (D-M2-6) — shared seed, Lane A owns post-merge.
+// Status Critters (D-M2-6): Working 🔨 wiggles, WaitingForPermission 🙋
+// bounces ("look at me"). Animation is disabled under prefers-reduced-motion
+// both in JS (static variant) and CSS (belt-and-suspenders).
 import "./critters.css";
 import type { SessionStatus } from "@/ipc/bindings";
 import { cn } from "@/lib/utils";
@@ -18,7 +20,40 @@ export const STATUS_CRITTERS: Record<SessionStatus, Critter> = {
   Ended: { emoji: "🪦", label: "ended" },
 };
 
-export function StatusEmoji({ status, className }: { status: SessionStatus; className?: string }) {
+export function statusCritter(status: SessionStatus): string {
+  return STATUS_CRITTERS[status].emoji;
+}
+
+/** Tool Chips (D-M2-6): per-tool emoji, shared by chat tool cards and the activity feed. */
+export function toolEmoji(tool: string): string {
+  if (tool.startsWith("mcp__crewhub")) return "🏠";
+  switch (tool) {
+    case "Read":
+      return "📖";
+    case "Edit":
+    case "Write":
+      return "✏️";
+    case "Bash":
+      return "💻";
+    case "Grep":
+    case "Glob":
+      return "🔎";
+    case "WebFetch":
+      return "🌐";
+    default:
+      return "🛠️";
+  }
+}
+
+export function StatusEmoji({
+  status,
+  title,
+  className,
+}: {
+  status: SessionStatus;
+  title?: string;
+  className?: string;
+}) {
   const reduced = usePrefersReducedMotion();
   const critter = STATUS_CRITTERS[status];
   return (
@@ -26,7 +61,7 @@ export function StatusEmoji({ status, className }: { status: SessionStatus; clas
       data-testid="status-emoji"
       data-status={status}
       role="img"
-      title={critter.label}
+      title={title ?? critter.label}
       aria-label={critter.label}
       className={cn(!reduced && critter.anim ? `ch-anim-${critter.anim}` : undefined, className)}
     >

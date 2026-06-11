@@ -33,10 +33,31 @@
   animation: ch-bounce 0.8s ease-in-out infinite;
 }
 
+/* Pop-in mount animation (D-M2-6) for list rows/cards (table rows can't wrap
+   in a motion.div, so this stays CSS-only). */
+@keyframes pop-in {
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.pop-in {
+  animation: pop-in 250ms ease-out;
+}
+
 /* Belt-and-suspenders: the JS hook already renders static variants. */
 @media (prefers-reduced-motion: reduce) {
   .ch-anim-wiggle,
-  .ch-anim-bounce {
+  .ch-anim-bounce,
+  .pop-in {
     animation: none;
   }
 }
