@@ -1,6 +1,6 @@
 // Settings panel (EKI-20): Appearance / Models / Permissions / Integrations.
-// Lives in the registry like every panel; a dedicated settings window is
-// deferred until its capability file can ship (see plan M2-R7).
+// Lives in the registry like every panel AND in the dedicated settings window
+// (`?window=settings`, capability file capabilities/settings.json).
 import { useEffect, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { ModelPicker } from "@/components/ModelPicker";
@@ -201,8 +201,24 @@ function Integrations() {
 }
 
 export default function SettingsPanel() {
+  // Inside the dedicated window the pop-out button would just focus itself.
+  const inSettingsWindow = new URLSearchParams(window.location.search).get("window") === "settings";
   return (
     <div data-testid="settings-panel" className="flex flex-col gap-6 p-4">
+      <div className="flex items-center gap-2">
+        <h2 className="flex-1 text-sm font-semibold">⚙️ Settings</h2>
+        {!inSettingsWindow && (
+          <Button
+            size="xs"
+            variant="outline"
+            data-testid="open-settings-window"
+            title="Open settings in its own window"
+            onClick={() => void commands.openSettingsWindow().catch(() => undefined)}
+          >
+            🪟 Open in window
+          </Button>
+        )}
+      </div>
       <Appearance />
       <Models />
       <Permissions />

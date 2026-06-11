@@ -3,10 +3,11 @@
 Every permission granted to a window MUST be listed here with a one-line justification.
 PR reviewers: reject any capability change that does not update this file.
 
-| Capability file | Window | Permission                         | Why                                                                                                         |
-| --------------- | ------ | ---------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| main.json       | main   | core:default                       | Event emit/listen for typed IPC events; window basics; app metadata for About.                              |
-| main.json       | main   | clipboard-manager:allow-write-text | Handoff "Copy path" / "Copy resume command" (EKI-80). Write-only: the webview may never READ the clipboard. |
+| Capability file | Window   | Permission                         | Why                                                                                                         |
+| --------------- | -------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| main.json       | main     | core:default                       | Event emit/listen for typed IPC events; window basics; app metadata for About.                              |
+| main.json       | main     | clipboard-manager:allow-write-text | Handoff "Copy path" / "Copy resume command" (EKI-80). Write-only: the webview may never READ the clipboard. |
+| settings.json   | settings | core:default                       | Settings window (EKI-20): event listen for `SettingChanged` reconciliation + typed IPC. Nothing else.       |
 
 Forbidden without an ADR: `fs:*` to the webview (files go through Rust commands + path policy),
 `shell:*` (only via dedicated commands, M2 handoff), any remote URL in `app.windows[].url`.

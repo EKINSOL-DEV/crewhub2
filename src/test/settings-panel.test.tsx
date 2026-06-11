@@ -38,6 +38,28 @@ test("renders all four sections", async () => {
   expect(await screen.findByTestId("mcp-url")).toHaveTextContent("http://127.0.0.1:4242/mcp");
 });
 
+test("header button opens the dedicated settings window (EKI-20)", async () => {
+  const calls: string[] = [];
+  mockIPC((cmd) => {
+    calls.push(cmd);
+    if (cmd === "list_permission_rules") return [];
+    return null;
+  });
+  render(<SettingsPanel />);
+  fireEvent.click(screen.getByTestId("open-settings-window"));
+  await waitFor(() => expect(calls).toContain("open_settings_window"));
+});
+
+test("inside the settings window the pop-out button is hidden", () => {
+  window.history.replaceState(null, "", "/?window=settings");
+  try {
+    render(<SettingsPanel />);
+    expect(screen.queryByTestId("open-settings-window")).toBeNull();
+  } finally {
+    window.history.replaceState(null, "", "/");
+  }
+});
+
 test("theme picker shows all 9 swatches and applies + persists on click", async () => {
   render(<SettingsPanel />);
   expect(screen.getAllByTestId(/^theme-swatch-/)).toHaveLength(9);

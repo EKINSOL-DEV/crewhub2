@@ -1,5 +1,5 @@
 import { mockIPC, clearMocks } from "@tauri-apps/api/mocks";
-import { useSettings } from "../stores/settings";
+import { applySettingChange, useSettings } from "../stores/settings";
 
 afterEach(clearMocks);
 
@@ -52,6 +52,48 @@ test("setTheme applies immediately and persists via backend", async () => {
   expect(useSettings.getState().theme).toBe("solarized-light");
   expect(document.documentElement.classList.contains("dark")).toBe(false);
   expect(writes).toContainEqual({ key: "theme", value: "solarized-light" });
+});
+
+// Plan Appendix B: stores own the in-memory truth; `SettingChanged` events
+// reconcile cross-window (settings window ↔ main window).
+describe("event-driven refresh (SettingChanged)", () => {
+  test("a watched key is re-read and applied", async () => {
+    mockSettings({ theme: "dracula", "ui.density": "compact" });
+    useSettings.setState({ theme: "nord", density: "comfortable" });
+    await applySettingChange("theme");
+    await applySettingChange("ui.density");
+    expect(useSettings.getState().theme).toBe("dracula");
+    expect(useSettings.getState().density).toBe("compact");
+    expect(document.documentElement.dataset.theme).toBe("dracula");
+    expect(document.documentElement.dataset.density).toBe("compact");
+  });
+
+  test("font size and spawn model reconcile too", async () => {
+    mockSettings({ "ui.font_size": "s", "model.default_spawn": "opus" });
+    useSettings.setState({ fontSize: "m", defaultSpawnModel: "haiku" });
+    await applySettingChange("ui.font_size");
+    await applySettingChange("model.default_spawn");
+    expect(useSettings.getState().fontSize).toBe("s");
+    expect(useSettings.getState().defaultSpawnModel).toBe("opus");
+  });
+
+  test("unwatched keys are ignored without an IPC read", async () => {
+    const reads: string[] = [];
+    mockIPC((cmd, args) => {
+      if (cmd === "get_setting") reads.push((args as { key: string }).key);
+      return null;
+    });
+    await applySettingChange("perm.rules");
+    await applySettingChange("workspace.tabs");
+    expect(reads).toEqual([]);
+  });
+
+  test("an invalid broadcast value leaves current state untouched", async () => {
+    mockSettings({ theme: "not-a-theme" });
+    useSettings.setState({ theme: "nord" });
+    await applySettingChange("theme");
+    expect(useSettings.getState().theme).toBe("nord");
+  });
 });
 
 test("setDensity / setFontSize / setDefaultSpawnModel persist their keys", async () => {

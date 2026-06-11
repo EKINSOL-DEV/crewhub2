@@ -22,3 +22,14 @@ test("App renders the workspace shell", async () => {
   expect(screen.getByTestId("panel-activity")).toBeInTheDocument();
   expect(await screen.findByText("v9.9.9")).toBeInTheDocument();
 });
+
+test("?window=settings renders only the settings panel (EKI-20 settings window)", async () => {
+  window.history.replaceState(null, "", "/?window=settings");
+  try {
+    render(<App />);
+    expect(await screen.findByTestId("settings-panel")).toBeInTheDocument();
+    expect(screen.queryByTestId("app-root")).toBeNull(); // no workspace shell
+  } finally {
+    window.history.replaceState(null, "", "/");
+  }
+});
