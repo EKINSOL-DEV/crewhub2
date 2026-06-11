@@ -112,6 +112,10 @@ export const commands = {
 	materializePersona: (projectId: string, content: string) => typedError<null, string>(__TAURI_INVOKE("materialize_persona", { projectId, content })),
 	/**  Remove the fenced persona block, restoring user content byte-identical. */
 	removeMaterializedPersona: (projectId: string) => typedError<null, string>(__TAURI_INVOKE("remove_materialized_persona", { projectId })),
+	listNotificationRules: () => typedError<NotificationRule[], string>(__TAURI_INVOKE("list_notification_rules")),
+	createNotificationRule: (input: NewNotificationRule) => typedError<NotificationRule, string>(__TAURI_INVOKE("create_notification_rule", { input })),
+	updateNotificationRule: (rule: NotificationRule) => typedError<NotificationRule, string>(__TAURI_INVOKE("update_notification_rule", { rule })),
+	deleteNotificationRule: (id: string) => typedError<boolean, string>(__TAURI_INVOKE("delete_notification_rule", { id })),
 	getSetting: (key: string) => typedError<string | null, string>(__TAURI_INVOKE("get_setting", { key })),
 	setSetting: (key: string, value: string) => typedError<null, string>(__TAURI_INVOKE("set_setting", { key, value })),
 	/**
@@ -258,6 +262,14 @@ export type NewAgent = {
 	system_prompt: string | null,
 };
 
+export type NewNotificationRule = {
+	scope: string,
+	scope_id: string | null,
+	trigger: string,
+	config_json: string | null,
+	enabled: boolean | null,
+};
+
 export type NewProject = {
 	name: string,
 	description: string | null,
@@ -302,6 +314,18 @@ export type NewTask = {
 	priority: string | null,
 	assignee_agent_id: string | null,
 	created_by: string | null,
+};
+
+export type NotificationRule = {
+	id: string,
+	/**  agent | project | global */
+	scope: string,
+	/**  The agent/project id when scope is not global. */
+	scope_id: string | null,
+	/**  task_moved | task_blocked | task_assigned | task_mention */
+	trigger: string,
+	config_json: string | null,
+	enabled: boolean,
 };
 
 export type PermissionMode = "Default" | "AcceptEdits" | "Plan" | "BypassPermissions";

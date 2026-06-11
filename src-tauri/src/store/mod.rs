@@ -1,4 +1,5 @@
 pub mod agents;
+pub mod notification_rules;
 pub mod projects;
 pub mod room_rules;
 pub mod rooms;

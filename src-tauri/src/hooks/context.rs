@@ -2,11 +2,15 @@
 //! gets injected into a session as `additionalContext` — only when the
 //! session's cwd maps to a registered project.
 
+use crate::store::agents::Agent;
 use crate::store::Store;
 
 /// Build the envelope for a session starting in `cwd`. Returns `None` when the
 /// cwd does not belong to a registered project (no context injection then).
-pub fn build_envelope(store: &Store, cwd: &str) -> Option<String> {
+/// When the session is bound to an `agent`, the envelope tells it who it is
+/// and instructs it to pass `acting_as` on CrewHub MCP tool calls (D-M3-4 —
+/// self-reported, server-validated attribution).
+pub fn build_envelope(store: &Store, cwd: &str, agent: Option<&Agent>) -> Option<String> {
     let projects = store.list_projects().ok()?;
     let project = projects
         .into_iter()
@@ -48,6 +52,13 @@ pub fn build_envelope(store: &Store, cwd: &str) -> Option<String> {
                 t.status, t.title, t.priority
             ));
         }
+    }
+    if let Some(agent) = agent {
+        out.push_str(&format!(
+            "\nYou are **{}** (agent id `{}`). Pass acting_as=\"{}\" on every \
+             CrewHub MCP tool call so the board attributes your actions to you.\n",
+            agent.name, agent.id, agent.id
+        ));
     }
     Some(out)
 }
@@ -96,7 +107,7 @@ mod tests {
     #[test]
     fn envelope_for_registered_project_lists_room_and_tasks() {
         let (s, _) = seeded();
-        let env = build_envelope(&s, "/work/alpha/src").unwrap();
+        let env = build_envelope(&s, "/work/alpha/src", None).unwrap();
         assert!(env.contains("Project: **Alpha**"));
         assert!(env.contains("Room: Lab"));
         assert!(env.contains("Fix the flux capacitor"));
@@ -105,9 +116,30 @@ mod tests {
     #[test]
     fn no_envelope_outside_registered_projects() {
         let (s, _) = seeded();
-        assert!(build_envelope(&s, "/somewhere/else").is_none());
+        assert!(build_envelope(&s, "/somewhere/else", None).is_none());
         // prefix trap: /work/alphabet must NOT match /work/alpha
-        assert!(build_envelope(&s, "/work/alphabet").is_none());
+        assert!(build_envelope(&s, "/work/alphabet", None).is_none());
+    }
+
+    /// D-M3-4 (M3 T5): a bound agent is told who it is and to pass
+    /// `acting_as` on CrewHub MCP tool calls.
+    #[test]
+    fn bound_agent_gets_acting_as_instruction() {
+        let (s, _) = seeded();
+        let agent = s
+            .create_agent(crate::store::agents::NewAgent {
+                name: "Botje".into(),
+                icon: None,
+                color: None,
+                default_model: None,
+                project_path: None,
+                permission_mode: None,
+                system_prompt: None,
+            })
+            .unwrap();
+        let env = build_envelope(&s, "/work/alpha", Some(&agent)).unwrap();
+        assert!(env.contains("You are **Botje**"));
+        assert!(env.contains(&format!("acting_as=\"{}\"", agent.id)));
     }
 
     #[test]
@@ -117,7 +149,7 @@ mod tests {
         assert_eq!(t.project_id.as_deref(), Some(pid.as_str()));
         t.status = "done".into();
         s.update_task(t).unwrap();
-        let env = build_envelope(&s, "/work/alpha").unwrap();
+        let env = build_envelope(&s, "/work/alpha", None).unwrap();
         assert!(env.contains("No open tasks"));
     }
 }

@@ -40,7 +40,7 @@ async fn session_start_gets_additional_context_for_registered_project() {
 
     let ctx_store = store.clone();
     let provider: ContextProvider =
-        Arc::new(move |cwd| crewhub2_lib::hooks::context::build_envelope(&ctx_store, cwd));
+        Arc::new(move |cwd| crewhub2_lib::hooks::context::build_envelope(&ctx_store, cwd, None));
 
     let (tx, _rx) = tokio::sync::broadcast::channel(16);
     let _receiver = HookReceiver::start_with_context(

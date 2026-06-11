@@ -7,6 +7,9 @@ use crate::engine::types::{
 use crate::events::DomainEvent;
 use crate::security::paths::{Access, PathPolicy};
 use crate::store::agents::{Agent, NewAgent};
+use crate::store::notification_rules::{
+    NewNotificationRule, NotificationRule, NOTIFICATION_RULES_SETTING_KEY,
+};
 use crate::store::projects::{NewProject, Project};
 use crate::store::room_rules::{NewRoomRule, RoomRule};
 use crate::store::rooms::{NewRoom, Room};
@@ -976,6 +979,62 @@ pub fn delete_session_binding<R: Runtime>(
     Ok(deleted)
 }
 
+// ---- notification rules (T5, D-M3-9/G7) ----
+// Mutations announce themselves via `SettingChanged { key: "notification_rules" }`
+// — the cheap invalidation signal; the matcher is a pure frontend function.
+
+fn emit_notification_rules_changed<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
+    DomainEvent::SettingChanged {
+        key: NOTIFICATION_RULES_SETTING_KEY.into(),
+    }
+    .emit(app)
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_notification_rules(store: State<Arc<Store>>) -> Result<Vec<NotificationRule>> {
+    store.list_notification_rules().map_err(err)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn create_notification_rule<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    input: NewNotificationRule,
+) -> Result<NotificationRule> {
+    let rule = store.create_notification_rule(input).map_err(err)?;
+    emit_notification_rules_changed(&app)?;
+    Ok(rule)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn update_notification_rule<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    rule: NotificationRule,
+) -> Result<NotificationRule> {
+    let rule = store.update_notification_rule(rule).map_err(err)?;
+    emit_notification_rules_changed(&app)?;
+    Ok(rule)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn delete_notification_rule<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+    id: String,
+) -> Result<bool> {
+    let deleted = store.delete_notification_rule(&id).map_err(err)?;
+    if deleted {
+        emit_notification_rules_changed(&app)?;
+    }
+    Ok(deleted)
+}
+
 // ---- settings ----
 
 #[tauri::command]
@@ -1803,6 +1862,48 @@ mod tests {
         assert!(delete_session_binding(h.clone(), app.state(), "sess-1".into()).unwrap());
         assert!(!delete_session_binding(h, app.state(), "sess-1".into()).unwrap());
         assert!(list_session_bindings(app.state()).unwrap().is_empty());
+    }
+
+    /// T5 (G7): notification-rule CRUD round-trips with scope/trigger
+    /// validation; the matcher lives in the frontend (D-M3-9).
+    #[test]
+    fn notification_rule_commands_roundtrip() {
+        let app = app();
+        let h = app.handle().clone();
+        assert!(list_notification_rules(app.state()).unwrap().is_empty());
+
+        let err = create_notification_rule(
+            h.clone(),
+            app.state(),
+            NewNotificationRule {
+                scope: "global".into(),
+                scope_id: None,
+                trigger: "task_vibed".into(),
+                config_json: None,
+                enabled: None,
+            },
+        )
+        .unwrap_err();
+        assert!(err.contains("invalid trigger"), "got: {err}");
+
+        let mut rule = create_notification_rule(
+            h.clone(),
+            app.state(),
+            NewNotificationRule {
+                scope: "global".into(),
+                scope_id: None,
+                trigger: "task_blocked".into(),
+                config_json: None,
+                enabled: None,
+            },
+        )
+        .unwrap();
+        assert!(rule.enabled);
+        rule.enabled = false; // per-rule mute
+        let rule = update_notification_rule(h.clone(), app.state(), rule).unwrap();
+        assert!(!list_notification_rules(app.state()).unwrap()[0].enabled);
+        assert!(delete_notification_rule(h.clone(), app.state(), rule.id.clone()).unwrap());
+        assert!(!delete_notification_rule(h, app.state(), rule.id).unwrap());
     }
 
     #[test]
