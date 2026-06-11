@@ -1,13 +1,38 @@
 pub mod engine;
+pub mod errlog;
 pub mod events;
 pub mod git;
 pub mod hooks;
+pub mod import;
 mod ipc;
 pub mod mcp;
+pub mod onboarding;
 pub mod orchestrator;
 pub mod security;
 pub mod store;
+pub mod tray;
+pub mod updater;
 pub mod workspace;
+
+/// Tray "Check for updates…" action (T5 menu → T7 updater): brings the app
+/// forward and runs a check; a found update is recorded + announced via
+/// `SettingChanged` so the settings UI offers the install.
+pub(crate) fn updater_menu_check<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
+    use tauri::Manager;
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let store = app.state::<std::sync::Arc<store::Store>>().inner().clone();
+        match updater::check(&app).await {
+            Ok(Some(info)) => updater::record_available(&app, &store, &info),
+            Ok(None) => {}
+            Err(e) => errlog::error("updater", format!("tray check failed: {e}")),
+        }
+    });
+}
 
 pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new()
@@ -70,6 +95,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             ipc::create_notification_rule::<tauri::Wry>,
             ipc::update_notification_rule::<tauri::Wry>,
             ipc::delete_notification_rule::<tauri::Wry>,
+            ipc::seed_default_notification_rules::<tauri::Wry>,
             ipc::get_setting,
             ipc::set_setting::<tauri::Wry>,
             ipc::open_settings_window::<tauri::Wry>,
@@ -100,6 +126,19 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             ipc::create_prompt_template::<tauri::Wry>,
             ipc::update_prompt_template::<tauri::Wry>,
             ipc::delete_prompt_template::<tauri::Wry>,
+            ipc::hooks_status,
+            ipc::preview_hooks_install,
+            ipc::install_hooks,
+            ipc::uninstall_hooks,
+            ipc::detect_environment,
+            ipc::set_cli_path,
+            ipc::scan_recent_projects,
+            ipc::create_sample_crew::<tauri::Wry>,
+            ipc::preview_v1_import,
+            ipc::run_v1_import::<tauri::Wry>,
+            ipc::build_error_report::<tauri::Wry>,
+            ipc::check_for_update,
+            ipc::install_update,
         ])
         .events(tauri_specta::collect_events![
             events::DomainEvent,
@@ -126,28 +165,119 @@ pub fn run() {
         // Dialog: folder picker invoked Rust-side only via `pick_folder`
         // (D-M3-7) — the webview gets NO dialog:* permission.
         .plugin(tauri_plugin_dialog::init())
+        // OS notification sink (M6 T4, D-M6-4/5): the milestone's ONLY new
+        // webview grant — `notification:default` in capabilities/main.json,
+        // justified in capabilities/README.md. The dispatch point stays the
+        // frontend rule matcher; this plugin is just the `sink: "os"` leg.
+        .plugin(tauri_plugin_notification::init())
+        // Updater + relaunch (M6 T7, D-M6-7): Rust-side typed IPC only —
+        // no webview updater/process grant (capabilities/README.md note).
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             use tauri::Manager;
-            let db_path = app
-                .path()
-                .app_data_dir()
-                .expect("app data dir")
-                .join("crewhub.db");
+            let data_dir = app.path().app_data_dir().expect("app data dir");
+
+            // M6 T6 (D-M6-10): error ring + panic hook, before anything that
+            // can fail — errors must never vanish with the terminal again.
+            errlog::init(
+                data_dir.join(errlog::LOG_FILE_NAME),
+                &app.package_info().version.to_string(),
+            );
+
+            let db_path = data_dir.join("crewhub.db");
             let store = std::sync::Arc::new(store::Store::open(&db_path).expect("open store"));
             app.manage(store.clone());
 
-            let claude_config = engine::claude::ClaudeConfig::default();
+            // M6 T2 (D-M6-2): existing installs never see the wizard.
+            if let Err(e) = onboarding::mark_existing_install_done(&store) {
+                errlog::error("onboarding", format!("fresh-install check failed: {e}"));
+            }
+
+            // M6 T2 (G2): no persisted CLI path yet — best-effort probe so a
+            // non-PATH install works even before the wizard's detect step.
+            if store
+                .get_setting(engine::claude::detect::CLI_PATH_SETTING)
+                .ok()
+                .flatten()
+                .is_none()
+            {
+                if let Some(found) = engine::claude::detect::find_cli(
+                    std::env::var_os("PATH").as_deref(),
+                    &dirs::home_dir().unwrap_or_default(),
+                ) {
+                    let _ = store.set_setting(
+                        engine::claude::detect::CLI_PATH_SETTING,
+                        &found.display().to_string(),
+                    );
+                }
+            }
+            let claude_config = engine::claude::ClaudeConfig::from_settings(&store);
             let provider_store = store.clone();
             let registry = tauri::async_runtime::block_on(async {
                 let mut registry = engine::provider::ProviderRegistry::default();
                 match engine::claude::ClaudeCodeProvider::start(claude_config, provider_store) {
                     Ok(provider) => registry.register(std::sync::Arc::new(provider)),
-                    Err(e) => eprintln!("claude-code provider failed to start: {e}"),
+                    Err(e) => errlog::error(
+                        "engine",
+                        format!("claude-code provider failed to start: {e}"),
+                    ),
                 }
                 std::sync::Arc::new(registry)
             });
             app.manage(registry.clone());
+
+            // M6 T1 (D-M6-1/G1): boot the hooks UDS receiver. Signals flow
+            // into the registry fan-in (same stream as provider events);
+            // SessionStart gets the store-backed context envelope reply.
+            // Windows: skipped — UDS only; the app runs watcher-only there.
+            #[cfg(unix)]
+            {
+                let context_store = store.clone();
+                let context: hooks::receiver::ContextProvider = std::sync::Arc::new(move |cwd| {
+                    hooks::context::build_envelope(&context_store, cwd, None)
+                });
+                let receiver = tauri::async_runtime::block_on(async {
+                    hooks::receiver::HookReceiver::start_with_context(
+                        hooks::receiver::ReceiverConfig {
+                            socket_path: hooks::signal_socket_path(),
+                            ..Default::default()
+                        },
+                        registry.event_sender(),
+                        Some(context),
+                    )
+                });
+                match receiver {
+                    // keep it alive for the app's lifetime (Drop unbinds)
+                    Ok(receiver) => app.manage(receiver),
+                    Err(e) => {
+                        errlog::error("hooks", format!("receiver failed to start: {e}"));
+                        true
+                    }
+                };
+            }
+
+            // M6 T5 (D-M6-5): tray icon + dock badge, entirely Rust-side.
+            // Failure to create a tray (odd Linux setups) degrades to none.
+            match tray::setup(app.handle()) {
+                Ok(()) => {
+                    let tray_app = app.handle().clone();
+                    let tray_registry = registry.clone();
+                    tauri::async_runtime::spawn(async move {
+                        tray::watch(tray_app, tray_registry).await;
+                    });
+                }
+                Err(e) => errlog::error("tray", format!("setup failed (continuing without): {e}")),
+            }
+
+            // M6 T7 (D-M6-7): on-launch debounced update check, behind the
+            // updater.auto_check setting (default on). Offline/unsigned
+            // builds log-and-continue — the app never depends on this.
+            let updater_app = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                updater::auto_check(updater_app).await;
+            });
 
             // G4: the persisted "allow always" rules apply from the first spawn.
             let initial_rules = store
@@ -182,7 +312,10 @@ pub fn run() {
                                 agent_id: Some(agent.id.clone()),
                             };
                             if let Err(e) = provider.spawn(spec).await {
-                                eprintln!("auto-spawn failed for {}: {e}", agent.name);
+                                errlog::error(
+                                    "engine",
+                                    format!("auto-spawn failed for {}: {e}", agent.name),
+                                );
                             }
                         }
                     }
@@ -207,7 +340,10 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 let resumed = recover.recover_on_boot();
                 if resumed > 0 {
-                    eprintln!("orchestrator: resumed {resumed} in-flight meeting(s)");
+                    errlog::error(
+                        "orchestrator",
+                        format!("resumed {resumed} in-flight meeting(s)"),
+                    );
                 }
                 // 17.1: the owned cron loop (honest scope: runs only while open)
                 recover.start_scheduler();
@@ -218,7 +354,7 @@ pub fn run() {
             )) {
                 Ok(server) => mcp::McpHandle(Some(server)),
                 Err(e) => {
-                    eprintln!("mcp server failed to start: {e}");
+                    errlog::error("mcp", format!("server failed to start: {e}"));
                     mcp::McpHandle(None)
                 }
             };
@@ -239,7 +375,10 @@ pub fn run() {
                                 .register_mcp(std::path::Path::new(&p.folder_path), port, &token)
                                 .await
                             {
-                                eprintln!("mcp registration refresh failed for {}: {e}", p.name);
+                                errlog::error(
+                                    "mcp",
+                                    format!("registration refresh failed for {}: {e}", p.name),
+                                );
                             }
                         }
                     }
@@ -292,7 +431,9 @@ pub fn run() {
                                         .emit(&handle);
                                     }
                                     Ok(None) => {}
-                                    Err(e) => eprintln!("room auto-assign failed: {e}"),
+                                    Err(e) => {
+                                        errlog::error("rooms", format!("auto-assign failed: {e}"))
+                                    }
                                 }
                             }
                             let _ = events::EngineEvent(ev).emit(&handle);

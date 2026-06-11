@@ -116,6 +116,11 @@ export const commands = {
 	createNotificationRule: (input: NewNotificationRule) => typedError<NotificationRule, string>(__TAURI_INVOKE("create_notification_rule", { input })),
 	updateNotificationRule: (rule: NotificationRule) => typedError<NotificationRule, string>(__TAURI_INVOKE("update_notification_rule", { rule })),
 	deleteNotificationRule: (id: string) => typedError<boolean, string>(__TAURI_INVOKE("delete_notification_rule", { id })),
+	/**
+	 *  Seed the M6 default attention rules (D-M6-4) — called by the wizard's
+	 *  notifications opt-in. Idempotent; returns only newly created rules.
+	 */
+	seedDefaultNotificationRules: () => typedError<NotificationRule[], string>(__TAURI_INVOKE("seed_default_notification_rules")),
 	getSetting: (key: string) => typedError<string | null, string>(__TAURI_INVOKE("get_setting", { key })),
 	setSetting: (key: string, value: string) => typedError<null, string>(__TAURI_INVOKE("set_setting", { key, value })),
 	/**
@@ -210,6 +215,48 @@ export const commands = {
 	createPromptTemplate: (input: NewPromptTemplate) => typedError<PromptTemplate, string>(__TAURI_INVOKE("create_prompt_template", { input })),
 	updatePromptTemplate: (template: PromptTemplate) => typedError<PromptTemplate, string>(__TAURI_INVOKE("update_prompt_template", { template })),
 	deletePromptTemplate: (id: string) => typedError<boolean, string>(__TAURI_INVOKE("delete_prompt_template", { id })),
+	hooksStatus: () => typedError<HooksStatus, string>(__TAURI_INVOKE("hooks_status")),
+	previewHooksInstall: () => typedError<HooksPreview, string>(__TAURI_INVOKE("preview_hooks_install")),
+	installHooks: () => typedError<HooksStatus, string>(__TAURI_INVOKE("install_hooks")),
+	uninstallHooks: () => typedError<HooksStatus, string>(__TAURI_INVOKE("uninstall_hooks")),
+	/**
+	 *  Probe the machine for the wizard's detect step; a found CLI path is
+	 *  persisted so the provider config picks it up on next launch.
+	 */
+	detectEnvironment: () => typedError<EnvReport, string>(__TAURI_INVOKE("detect_environment")),
+	/**
+	 *  Manual CLI path picker re-probe (D-M6-3): persists the path and returns
+	 *  the probed version line when the binary answers.
+	 */
+	setCliPath: (path: string) => typedError<string | null, string>(__TAURI_INVOKE("set_cli_path", { path })),
+	/**
+	 *  Recent unique project paths from the watcher meta cache, ranked by last
+	 *  activity; already-registered project paths filtered out. No new scanner.
+	 */
+	scanRecentProjects: () => typedError<RecentProject[], string>(__TAURI_INVOKE("scan_recent_projects")),
+	/**
+	 *  Materialize the sample crew (D-M6-9) and announce it with the existing
+	 *  coarse DomainEvents.
+	 */
+	createSampleCrew: () => typedError<SampleCrewResult, string>(__TAURI_INVOKE("create_sample_crew")),
+	previewV1Import: (dbPath: string | null) => typedError<ImportReport, string>(__TAURI_INVOKE("preview_v1_import", { dbPath })),
+	runV1Import: (dbPath: string | null, options: ImportOptions) => typedError<ImportReport, string>(__TAURI_INVOKE("run_v1_import", { dbPath, options })),
+	/**
+	 *  Assemble the local report bundle (version, OS/arch, last error lines —
+	 *  NO transcript/settings content) and reveal it next to the user. Returns
+	 *  the file path. Nothing leaves the machine.
+	 */
+	buildErrorReport: () => typedError<string, string>(__TAURI_INVOKE("build_error_report")),
+	checkForUpdate: () => typedError<{
+	version: string,
+	notes: string | null,
+	date: string | null,
+} | null, string>(__TAURI_INVOKE("check_for_update")),
+	/**
+	 *  Download + verify + install, persisting `updater.pending_notes` for the
+	 *  What's-new dialog, then relaunch. Only returns on failure.
+	 */
+	installUpdate: () => typedError<null, string>(__TAURI_INVOKE("install_update")),
 };
 
 /** Events */
@@ -259,6 +306,14 @@ export type ArchivedSession = {
 	project_path: string,
 	summary: string,
 	last_modified_ms: number,
+};
+
+/**  A raw v1 blueprint row for the frontend conversion leg (D-M6-8). */
+export type BlueprintRow = {
+	id: string,
+	name: string,
+	room_id: string | null,
+	blueprint_json: string,
 };
 
 /**
@@ -332,6 +387,20 @@ export type DomainEvent = { type: "AgentCreated"; data: {
 /**  Wrapper event carrying provider-neutral engine events to the webview. */
 export type EngineEvent = SessionEvent;
 
+/**  Appendix C `EnvReport`. */
+export type EnvReport = {
+	/**  Resolved CLI path (persisted to the cli-path setting when found). */
+	cli_path: string | null,
+	/**  First line of `--version`, when the probe answered in time. */
+	cli_version: string | null,
+	/**  The agent runtime's user dir exists (it has been used on this machine). */
+	claude_dir: boolean,
+	/**  Its transcripts dir exists (recent-project scan will have material). */
+	claude_projects: boolean,
+	/**  Path to a CrewHub v1 database, when present (the importer hook). */
+	v1_db: string | null,
+};
+
 export type GitDiff = {
 	files: DiffFile[],
 	truncated: boolean,
@@ -356,6 +425,56 @@ export type HookSignal = {
 	path: string | null,
 	payload_json: string | null,
 	ts: number,
+};
+
+/**  Before/after settings text for the wizard's real preview diff. */
+export type HooksPreview = {
+	before: string,
+	after: string,
+};
+
+/**  Wire status of the hooks bridge (Appendix C `HooksStatus`). */
+export type HooksStatus = {
+	/**  False on Windows: the bridge is UDS-based; the app runs watcher-only. */
+	supported: boolean,
+	installed: boolean,
+	settings_path: string,
+	/**  The bundled `crewhub-signal` binary was found on disk. */
+	sidecar_ok: boolean,
+};
+
+export type ImportOptions = {
+	/**
+	 *  v1 project id → folder path, for v1 projects without `folder_path`
+	 *  (NOT NULL in v2). Projects without an override are skipped (counted).
+	 */
+	folder_overrides?: { [key in string]: string },
+};
+
+export type ImportReport = {
+	db_path: string,
+	/**  True for previews: nothing was written. */
+	dry_run: boolean,
+	tables: TableReport[],
+	/**  Row-level warnings (lossy folds, flagged conversions). */
+	warnings: string[],
+	/**  v1 tables present but deliberately not imported (master plan §4.4). */
+	not_imported: string[],
+	blueprints: BlueprintRow[],
+	imported: ImportedIds,
+};
+
+/**
+ *  Ids that landed in v2 — the IPC layer fans these out as the existing
+ *  coarse DomainEvents after commit (no new event variants, Appendix C).
+ */
+export type ImportedIds = {
+	projects: string[],
+	rooms: string[],
+	agents: string[],
+	tasks: string[],
+	bindings: string[],
+	templates: string[],
 };
 
 /**
@@ -572,6 +691,12 @@ export type QuestionResponse = {
 	answers: string[],
 };
 
+/**  One ranked entry from the recent-project scan (Appendix C). */
+export type RecentProject = {
+	path: string,
+	last_active_ms: number,
+};
+
 export type Room = {
 	id: string,
 	project_id: string | null,
@@ -613,6 +738,13 @@ export type RunResult = {
 	step_index: number | null,
 	started_at: number | null,
 	finished_at: number | null,
+};
+
+export type SampleCrewResult = {
+	project_id: string,
+	room_ids: string[],
+	agent_ids: string[],
+	task_ids: string[],
 };
 
 export type SearchHit = {
@@ -689,6 +821,11 @@ export type SessionOrigin = "Managed" | "External";
 
 export type SessionStatus = "Working" | "WaitingForInput" | "WaitingForPermission" | "Idle" | "Ended";
 
+export type SkipCount = {
+	reason: string,
+	count: number,
+};
+
 /**
  *  A composer hint: a slash command or skill the provider recognizes for a
  *  given project (G8, EKI-52).
@@ -743,6 +880,14 @@ export type StartMeetingSpec = {
 	participant_model: string | null,
 	synthesis_model: string | null,
 	context_docs: string[] | null,
+};
+
+export type TableReport = {
+	table: string,
+	found: number,
+	will_import: number,
+	/**  Row skips AND named field-level drops, both counted (never silent). */
+	skipped: SkipCount[],
 };
 
 export type Task = {
@@ -834,6 +979,12 @@ export type TranscriptPage = {
 	items: SeqItem[],
 	/**  Items currently in the transcript file. */
 	total: number,
+};
+
+export type UpdateInfo = {
+	version: string,
+	notes: string | null,
+	date: string | null,
 };
 
 export type UsageTotals = {

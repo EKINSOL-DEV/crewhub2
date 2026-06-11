@@ -25,6 +25,8 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "externalBin": ["binaries/crewhub-signal"],
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -32,5 +34,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDIzQjY5N0I1RTgwOUY1NjIKUldSaTlRbm90WmUySThnalZKc3NOd1g0bm00eCtHa1RrVFJNYTZtV292WEQ1UEpIVmY2dGFzMjIK",
+      "endpoints": [
+        "https://github.com/EKINSOL-DEV/crewhub2/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

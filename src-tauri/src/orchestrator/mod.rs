@@ -112,7 +112,10 @@ impl Orchestrator {
         // §3.2: executions that died with the app are marked, never resumed —
         // sequences are atomic-or-stopped.
         match self.store.mark_interrupted_run_results() {
-            Ok(n) if n > 0 => eprintln!("orchestrator: marked {n} interrupted run result(s)"),
+            Ok(n) if n > 0 => crate::errlog::error(
+                "orchestrator",
+                format!("marked {n} interrupted run result(s)"),
+            ),
             _ => {}
         }
         let meetings = self.store.list_non_terminal_meetings().unwrap_or_default();

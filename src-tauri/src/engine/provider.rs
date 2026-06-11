@@ -172,6 +172,13 @@ impl ProviderRegistry {
         self.tx.subscribe()
     }
 
+    /// Sender side of the fan-in, for non-provider event sources that feed
+    /// the same stream (M6 T1: the hooks UDS receiver — the seam
+    /// `engine/mod.rs` documents).
+    pub fn event_sender(&self) -> broadcast::Sender<SessionEvent> {
+        self.tx.clone()
+    }
+
     pub async fn list_all_sessions(&self) -> Vec<SessionMeta> {
         let mut out = Vec::new();
         for p in &self.providers {

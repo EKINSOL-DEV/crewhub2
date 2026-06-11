@@ -460,6 +460,226 @@ pub fn revoke_permission_rule<R: Runtime>(
     save_rules(&app, &store, &registry, rules)
 }
 
+// ---- hooks bridge (M6 T1, D-M6-1/G1) ----
+// Thin wrappers over `crate::hooks`: status, REAL preview diff text,
+// install/uninstall. Windows reports `supported: false` and the mutating
+// commands refuse (UDS bridge; watcher-only mode there).
+
+#[tauri::command]
+#[specta::specta]
+pub fn hooks_status() -> Result<crate::hooks::HooksStatus> {
+    Ok(crate::hooks::bridge_status())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn preview_hooks_install() -> Result<crate::hooks::HooksPreview> {
+    crate::hooks::bridge_preview().map_err(err)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn install_hooks() -> Result<crate::hooks::HooksStatus> {
+    crate::hooks::bridge_install().map_err(err)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn uninstall_hooks() -> Result<crate::hooks::HooksStatus> {
+    crate::hooks::bridge_uninstall().map_err(err)
+}
+
+// ---- onboarding (M6 T2, D-M6-3/D-M6-9, G2/G3) ----
+
+/// Probe the machine for the wizard's detect step; a found CLI path is
+/// persisted so the provider config picks it up on next launch.
+#[tauri::command]
+#[specta::specta]
+pub async fn detect_environment(
+    store: State<'_, Arc<Store>>,
+) -> Result<crate::onboarding::EnvReport> {
+    let store = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || crate::onboarding::detect_environment(&store))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(err)
+}
+
+/// Manual CLI path picker re-probe (D-M6-3): persists the path and returns
+/// the probed version line when the binary answers.
+#[tauri::command]
+#[specta::specta]
+pub async fn set_cli_path(store: State<'_, Arc<Store>>, path: String) -> Result<Option<String>> {
+    let store = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || crate::onboarding::set_cli_path(&store, &path))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(err)
+}
+
+/// Recent unique project paths from the watcher meta cache, ranked by last
+/// activity; already-registered project paths filtered out. No new scanner.
+#[tauri::command]
+#[specta::specta]
+pub async fn scan_recent_projects(
+    store: State<'_, Arc<Store>>,
+    registry: State<'_, Arc<ProviderRegistry>>,
+) -> Result<Vec<crate::onboarding::RecentProject>> {
+    let metas = registry.list_all_sessions().await;
+    let existing: Vec<String> = store
+        .list_projects()
+        .map_err(err)?
+        .into_iter()
+        .map(|p| p.folder_path)
+        .collect();
+    Ok(crate::onboarding::rank_recent_projects(&metas, &existing))
+}
+
+/// Materialize the sample crew (D-M6-9) and announce it with the existing
+/// coarse DomainEvents.
+#[tauri::command]
+#[specta::specta]
+pub fn create_sample_crew<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+) -> Result<crate::onboarding::SampleCrewResult> {
+    let home = dirs::home_dir().ok_or("no home directory")?;
+    let result = crate::onboarding::create_sample_crew(&store, &home).map_err(err)?;
+    let emit = |e: DomainEvent| e.emit(&app).map_err(|e| e.to_string());
+    emit(DomainEvent::ProjectChanged {
+        project_id: result.project_id.clone(),
+    })?;
+    for room_id in &result.room_ids {
+        emit(DomainEvent::RoomChanged {
+            room_id: room_id.clone(),
+        })?;
+    }
+    for agent_id in &result.agent_ids {
+        emit(DomainEvent::AgentCreated {
+            agent_id: agent_id.clone(),
+        })?;
+    }
+    for task_id in &result.task_ids {
+        emit(DomainEvent::TaskChanged {
+            task_id: task_id.clone(),
+        })?;
+    }
+    Ok(result)
+}
+
+// ---- v1 import (M6 T3, D-M6-8/G9) ----
+// Preview and run share one plan builder in `import::v1`; both default the
+// db path to the standard v1 location. Run emits the existing coarse
+// DomainEvents batched after commit (Appendix C: no new variants).
+
+fn v1_db_path(db_path: Option<String>) -> std::path::PathBuf {
+    db_path
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(crate::onboarding::default_v1_db_path)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn preview_v1_import(
+    store: State<'_, Arc<Store>>,
+    db_path: Option<String>,
+) -> Result<crate::import::v1::ImportReport> {
+    let store = store.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::import::v1::preview(&store, &v1_db_path(db_path), &Default::default())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(err)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn run_v1_import<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<'_, Arc<Store>>,
+    db_path: Option<String>,
+    options: crate::import::v1::ImportOptions,
+) -> Result<crate::import::v1::ImportReport> {
+    let blocking_store = store.inner().clone();
+    let report = tauri::async_runtime::spawn_blocking(move || {
+        crate::import::v1::apply(&blocking_store, &v1_db_path(db_path), &options)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(err)?;
+
+    let emit = |e: DomainEvent| e.emit(&app).map_err(|e| e.to_string());
+    for id in &report.imported.projects {
+        emit(DomainEvent::ProjectChanged {
+            project_id: id.clone(),
+        })?;
+    }
+    for id in &report.imported.rooms {
+        emit(DomainEvent::RoomChanged {
+            room_id: id.clone(),
+        })?;
+    }
+    for id in &report.imported.agents {
+        emit(DomainEvent::AgentCreated {
+            agent_id: id.clone(),
+        })?;
+    }
+    for id in &report.imported.tasks {
+        emit(DomainEvent::TaskChanged {
+            task_id: id.clone(),
+        })?;
+    }
+    for id in &report.imported.bindings {
+        emit(DomainEvent::SessionBindingChanged {
+            session_id: id.clone(),
+        })?;
+    }
+    if !report.imported.templates.is_empty() {
+        emit(DomainEvent::SettingChanged {
+            key: PROMPT_TEMPLATES_SETTING_KEY.into(),
+        })?;
+    }
+    Ok(report)
+}
+
+// ---- updater (M6 T7, D-M6-7/G7) ----
+// Rust-side typed IPC: the webview holds no updater/process grant. Offline
+// or unsigned-dev builds get a readable error — never a broken app.
+
+#[tauri::command]
+#[specta::specta]
+pub async fn check_for_update(
+    app: AppHandle<tauri::Wry>,
+) -> Result<Option<crate::updater::UpdateInfo>> {
+    crate::updater::check(&app).await.map_err(err)
+}
+
+/// Download + verify + install, persisting `updater.pending_notes` for the
+/// What's-new dialog, then relaunch. Only returns on failure.
+#[tauri::command]
+#[specta::specta]
+pub async fn install_update(
+    app: AppHandle<tauri::Wry>,
+    store: State<'_, Arc<Store>>,
+) -> Result<()> {
+    crate::updater::install(&app, &store).await.map_err(err)
+}
+
+// ---- error report (M6 T6, D-M6-10/G8) ----
+
+/// Assemble the local report bundle (version, OS/arch, last error lines —
+/// NO transcript/settings content) and reveal it next to the user. Returns
+/// the file path. Nothing leaves the machine.
+#[tauri::command]
+#[specta::specta]
+pub fn build_error_report<R: Runtime>(app: AppHandle<R>) -> Result<String> {
+    let version = app.package_info().version.to_string();
+    let path = crate::errlog::build_report(&version).map_err(err)?;
+    crate::errlog::reveal(&path);
+    Ok(path.display().to_string())
+}
+
 // ---- mcp ----
 
 /// What the UI may know about the MCP server. The bearer token is
@@ -1040,6 +1260,21 @@ pub fn delete_notification_rule<R: Runtime>(
         emit_notification_rules_changed(&app)?;
     }
     Ok(deleted)
+}
+
+/// Seed the M6 default attention rules (D-M6-4) — called by the wizard's
+/// notifications opt-in. Idempotent; returns only newly created rules.
+#[tauri::command]
+#[specta::specta]
+pub fn seed_default_notification_rules<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+) -> Result<Vec<NotificationRule>> {
+    let created = store.seed_default_notification_rules().map_err(err)?;
+    if !created.is_empty() {
+        emit_notification_rules_changed(&app)?;
+    }
+    Ok(created)
 }
 
 // ---- settings ----

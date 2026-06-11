@@ -52,7 +52,32 @@ impl HookInstaller {
     /// a byte-level no-op. Missing file → minimal one is created. Corrupted
     /// JSON → error, file untouched.
     pub fn install(&self) -> anyhow::Result<()> {
-        let mut root = self.read_settings()?.unwrap_or_default();
+        let root = self.read_settings()?.unwrap_or_default();
+        let root = self.installed_form(root)?;
+        self.write(&root)
+    }
+
+    /// Pure preview (M6 T1, D-M6-1): `(before, after)` — the settings file's
+    /// current text and the exact text `install` would write. Touches nothing
+    /// on disk; the wizard renders a real diff from this. Corrupted JSON →
+    /// error, same refusal as `install`.
+    pub fn preview(&self) -> anyhow::Result<(String, String)> {
+        let before = match std::fs::read_to_string(&self.settings_path) {
+            Ok(text) => text,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+            Err(e) => {
+                return Err(e).with_context(|| format!("reading {}", self.settings_path.display()))
+            }
+        };
+        let root = self.read_settings()?.unwrap_or_default();
+        let after = to_canonical(&self.installed_form(root)?);
+        Ok((before, after))
+    }
+
+    /// The post-install settings map: strip any prior managed entries, then
+    /// add ours fresh. Shared by [`Self::install`] and [`Self::preview`] so
+    /// the preview is byte-exact by construction.
+    fn installed_form(&self, mut root: Map<String, Value>) -> anyhow::Result<Map<String, Value>> {
         let prefixes = self.signal_prefixes(&root);
         strip_managed(&mut root, &prefixes);
 
@@ -96,7 +121,7 @@ impl HookInstaller {
                 "created": { "hooks_key": created_hooks_key, "events": created_events },
             }),
         );
-        self.write(&root)
+        Ok(root)
     }
 
     /// Remove exactly our entries. No-op when nothing of ours is present.
@@ -380,6 +405,47 @@ mod tests {
         installer.uninstall().unwrap();
         assert_eq!(read(&settings_path(&dir)), original);
         assert!(!installer.is_installed().unwrap());
+    }
+
+    /// M6 T1 (D-M6-1): preview returns the exact before/after text — `after`
+    /// is byte-equal to what install writes — and never touches the file.
+    #[test]
+    fn preview_matches_install_output_and_writes_nothing() {
+        let (dir, installer) = setup();
+        let original = canonical(user_settings_with_hooks());
+        std::fs::write(settings_path(&dir), &original).unwrap();
+
+        let (before, after) = installer.preview().unwrap();
+        assert_eq!(before, original);
+        assert_eq!(
+            read(&settings_path(&dir)),
+            original,
+            "preview must not write"
+        );
+
+        installer.install().unwrap();
+        assert_eq!(
+            read(&settings_path(&dir)),
+            after,
+            "preview's after = install's bytes"
+        );
+    }
+
+    #[test]
+    fn preview_on_missing_file_has_empty_before() {
+        let (dir, installer) = setup();
+        let (before, after) = installer.preview().unwrap();
+        assert!(before.is_empty());
+        assert!(!settings_path(&dir).exists());
+        installer.install().unwrap();
+        assert_eq!(read(&settings_path(&dir)), after);
+    }
+
+    #[test]
+    fn preview_refuses_corrupted_json() {
+        let (dir, installer) = setup();
+        std::fs::write(settings_path(&dir), "{ nope").unwrap();
+        assert!(installer.preview().is_err());
     }
 
     #[test]
