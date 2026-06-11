@@ -1,0 +1,271 @@
+# Release pipeline (M6 Lane J — EKI-98/EKI-100, D-M6-6/D-M6-7).
+#
+# Triggered by `v*` tags and manually (`workflow_dispatch`) so the whole
+# pipeline is rehearsable before any secret exists. Secret-presence
+# degradation (computed once in the `plan` job, Appendix D of the M6 plan):
+#
+#   no TAURI_SIGNING_PRIVATE_KEY  -> updater artifacts disabled via a --config
+#                                    overlay, bundles uploaded as workflow
+#                                    artifacts named `…-unsigned`, NO GitHub
+#                                    release is created
+#   no APPLE_CERTIFICATE[_PASSWORD] -> macOS app is not codesigned
+#   no APPLE_ID/APPLE_TEAM_ID/APPLE_PASSWORD -> notarization skipped
+#
+# With the updater key present AND a tag: tauri-action creates/updates a DRAFT
+# GitHub release with all platform bundles + `latest.json` (updater manifest).
+# Publishing the draft is the manual "go" — and the staged-rollout lever,
+# since the updater endpoint only sees published assets (docs/RELEASING.md).
+#
+# macOS ships as two single-arch builds (aarch64 + x86_64) instead of one
+# universal binary: the crewhub-signal sidecar is produced per target triple
+# by src-tauri/build.rs, and the updater manifest serves each platform its own
+# artifact anyway. macOS jobs are required; Windows/Linux are best-effort at
+# v2.0 (master plan R6).
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      has_updater_key: ${{ steps.flags.outputs.has_updater_key }}
+      has_apple_cert: ${{ steps.flags.outputs.has_apple_cert }}
+      has_apple_notary: ${{ steps.flags.outputs.has_apple_notary }}
+      publish_release: ${{ steps.flags.outputs.publish_release }}
+      unsigned_suffix: ${{ steps.flags.outputs.unsigned_suffix }}
+      notes: ${{ steps.notes.outputs.notes }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute secret-presence flags (D-M6-6 degradation)
+        id: flags
+        env:
+          TAURI_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          APPLE_CERT: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+        run: |
+          has_updater_key=false
+          [ -n "$TAURI_KEY" ] && has_updater_key=true
+          has_apple_cert=false
+          [ -n "$APPLE_CERT" ] && [ -n "$APPLE_CERT_PASSWORD" ] && has_apple_cert=true
+          has_apple_notary=false
+          [ -n "$APPLE_ID" ] && [ -n "$APPLE_TEAM_ID" ] && [ -n "$APPLE_PASSWORD" ] && has_apple_notary=true
+
+          # A draft GitHub release (+ latest.json) only exists when we can sign
+          # updater artifacts AND we were started from a tag.
+          publish_release=false
+          if [ "$has_updater_key" = "true" ] && [ "${{ github.ref_type }}" = "tag" ]; then
+            publish_release=true
+          fi
+
+          unsigned_suffix=""
+          [ "$has_updater_key" = "true" ] || unsigned_suffix="-unsigned"
+
+          {
+            echo "has_updater_key=$has_updater_key"
+            echo "has_apple_cert=$has_apple_cert"
+            echo "has_apple_notary=$has_apple_notary"
+            echo "publish_release=$publish_release"
+            echo "unsigned_suffix=$unsigned_suffix"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### Release plan"
+            echo "- updater signing key: $has_updater_key"
+            echo "- Apple codesign certificate: $has_apple_cert"
+            echo "- Apple notarization credentials: $has_apple_notary"
+            echo "- draft GitHub release + latest.json: $publish_release"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Version sync (tag == tauri.conf.json == package.json)
+        run: node scripts/check-version-sync.mjs ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+
+      - name: Release notes from CHANGELOG.md
+        id: notes
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            FLAG=""
+          else
+            FLAG="--allow-unreleased"
+          fi
+          {
+            echo "notes<<CREWHUB_NOTES_EOF"
+            node scripts/extract-release-notes.mjs "$VERSION" $FLAG
+            echo "CREWHUB_NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: plan
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS is the required platform (M6 exit gate); two single-arch
+          # builds — see the header comment for why not universal.
+          - name: macos-aarch64
+            os: macos-latest
+            args: --target aarch64-apple-darwin
+            rust-targets: aarch64-apple-darwin
+            required: true
+          - name: macos-x86_64
+            os: macos-latest
+            args: --target x86_64-apple-darwin
+            rust-targets: x86_64-apple-darwin
+            required: true
+          # Windows (NSIS + MSI) and Linux (AppImage/deb/rpm): best-effort at
+          # v2.0 (master plan R6). ubuntu-22.04 for broad glibc compatibility.
+          - name: windows-x86_64
+            os: windows-latest
+            args: ""
+            rust-targets: ""
+            required: false
+          - name: linux-x86_64
+            os: ubuntu-22.04
+            args: ""
+            rust-targets: ""
+            required: false
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ !matrix.required }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tauri system deps (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libgtk-3-dev
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-targets }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: .
+      - run: pnpm install --frozen-lockfile
+
+      # --- Degradation switches (D-M6-6) -------------------------------
+      # Signing env is exported via GITHUB_ENV only when the secrets exist;
+      # empty-but-set env vars would make tauri/notarytool attempt to use
+      # them and fail, so absence must mean truly-unset.
+
+      - name: Enable updater artifact signing
+        if: needs.plan.outputs.has_updater_key == 'true'
+        shell: bash
+        env:
+          TAURI_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          {
+            echo "TAURI_SIGNING_PRIVATE_KEY<<CREWHUB_SECRET_EOF"
+            echo "$TAURI_KEY"
+            echo "CREWHUB_SECRET_EOF"
+            echo "TAURI_SIGNING_PRIVATE_KEY_PASSWORD<<CREWHUB_SECRET_EOF"
+            echo "$TAURI_KEY_PASSWORD"
+            echo "CREWHUB_SECRET_EOF"
+          } >> "$GITHUB_ENV"
+
+      - name: Enable macOS codesigning
+        if: runner.os == 'macOS' && needs.plan.outputs.has_apple_cert == 'true'
+        shell: bash
+        env:
+          APPLE_CERT: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          {
+            echo "APPLE_CERTIFICATE<<CREWHUB_SECRET_EOF"
+            echo "$APPLE_CERT"
+            echo "CREWHUB_SECRET_EOF"
+            echo "APPLE_CERTIFICATE_PASSWORD<<CREWHUB_SECRET_EOF"
+            echo "$APPLE_CERT_PASSWORD"
+            echo "CREWHUB_SECRET_EOF"
+          } >> "$GITHUB_ENV"
+
+      - name: Enable macOS notarization
+        if: runner.os == 'macOS' && needs.plan.outputs.has_apple_notary == 'true'
+        shell: bash
+        env:
+          NOTARY_APPLE_ID: ${{ secrets.APPLE_ID }}
+          NOTARY_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          NOTARY_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+        run: |
+          {
+            echo "APPLE_ID<<CREWHUB_SECRET_EOF"
+            echo "$NOTARY_APPLE_ID"
+            echo "CREWHUB_SECRET_EOF"
+            echo "APPLE_TEAM_ID<<CREWHUB_SECRET_EOF"
+            echo "$NOTARY_TEAM_ID"
+            echo "CREWHUB_SECRET_EOF"
+            echo "APPLE_PASSWORD<<CREWHUB_SECRET_EOF"
+            echo "$NOTARY_PASSWORD"
+            echo "CREWHUB_SECRET_EOF"
+          } >> "$GITHUB_ENV"
+
+      - name: Compose build args
+        id: args
+        shell: bash
+        run: |
+          ARGS="${{ matrix.args }}"
+          if [ "${{ needs.plan.outputs.has_updater_key }}" != "true" ]; then
+            # No signing key: updater artifacts cannot be signed, so disable
+            # them via a config overlay (base config keeps them on, T7).
+            printf '%s' '{"bundle":{"createUpdaterArtifacts":false}}' > updater-off.json
+            ARGS="$ARGS --config updater-off.json"
+          fi
+          echo "value=$ARGS" >> "$GITHUB_OUTPUT"
+
+      # --- Build ---------------------------------------------------------
+
+      - name: Build and upload to draft release (signed)
+        if: needs.plan.outputs.publish_release == 'true'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: CrewHub ${{ github.ref_name }}
+          releaseBody: ${{ needs.plan.outputs.notes }}
+          releaseDraft: true
+          prerelease: false
+          includeUpdaterJson: true
+          args: ${{ steps.args.outputs.value }}
+
+      - name: Build only (unsigned and/or rehearsal — no release)
+        if: needs.plan.outputs.publish_release != 'true'
+        uses: tauri-apps/tauri-action@v0
+        with:
+          includeUpdaterJson: false
+          args: ${{ steps.args.outputs.value }}
+
+      - name: Upload bundles as workflow artifacts
+        if: needs.plan.outputs.publish_release != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: crewhub-${{ matrix.name }}${{ needs.plan.outputs.unsigned_suffix }}
+          if-no-files-found: error
+          path: |
+            src-tauri/target/**/release/bundle/dmg/*.dmg
+            src-tauri/target/**/release/bundle/macos/*.app.tar.gz
+            src-tauri/target/**/release/bundle/macos/*.app.tar.gz.sig
+            src-tauri/target/**/release/bundle/nsis/*
+            src-tauri/target/**/release/bundle/msi/*
+            src-tauri/target/**/release/bundle/deb/*.deb
+            src-tauri/target/**/release/bundle/rpm/*.rpm
+            src-tauri/target/**/release/bundle/appimage/*.AppImage
+            src-tauri/target/**/release/bundle/appimage/*.AppImage.sig
