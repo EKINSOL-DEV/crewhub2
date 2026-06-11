@@ -443,6 +443,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "crewhub-signal"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+]
+
+[[package]]
 name = "crewhub2"
 version = "0.1.0"
 dependencies = [

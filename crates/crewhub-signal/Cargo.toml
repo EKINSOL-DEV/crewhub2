@@ -1,0 +1,8 @@
+[package]
+name = "crewhub-signal"
+version = "0.1.0"
+edition = "2021"
+description = "Hook helper binary: forwards agent-runtime hook payloads to CrewHub over a unix socket"
+
+[dependencies]
+serde_json = "1"

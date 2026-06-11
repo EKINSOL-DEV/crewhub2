@@ -1,5 +1,6 @@
 pub mod engine;
 pub mod events;
+pub mod hooks;
 mod ipc;
 pub mod security;
 pub mod store;
