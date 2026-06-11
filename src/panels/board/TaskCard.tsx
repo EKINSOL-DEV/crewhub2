@@ -11,7 +11,13 @@ import { useSessionsStore } from "@/stores/sessions";
 import { sessionKey } from "@/stores/sessions";
 import type { TaskRunLink } from "@/stores/tasks";
 import { quickMoveMenu } from "./quick-move";
-import { isTaskStatus, PRIORITY_CONFIG, type TaskPriority, type TaskStatus } from "./task-constants";
+import {
+  isTaskStatus,
+  parseActor,
+  PRIORITY_CONFIG,
+  type TaskPriority,
+  type TaskStatus,
+} from "./task-constants";
 
 export interface TaskCardProps {
   task: Task;
@@ -118,6 +124,24 @@ function QuickMoveMenu({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Card-level attribution (T13, D-M3-4): tasks filed by an agent through MCP
+ * carry an honest chip — self-reported identity, never claimed as verified.
+ */
+function CreatorChip({ createdBy }: { createdBy: string }) {
+  const parsed = parseActor(createdBy);
+  if (parsed.kind === "human") return null;
+  return (
+    <span
+      data-testid="creator-chip"
+      title={parsed.kind === "agent" ? `filed by ${parsed.agentId} via MCP (self-reported)` : "filed via MCP"}
+      className="rounded bg-muted px-1"
+    >
+      {parsed.kind === "agent" ? "🔧" : "🤖🔧"}
+    </span>
   );
 }
 
@@ -231,6 +255,7 @@ export function TaskCard({
             {project.icon ?? "📁"} {project.name}
           </span>
         )}
+        <CreatorChip createdBy={task.created_by} />
         {task.updated_at > task.created_at && (
           <span aria-hidden title="has history" data-testid="activity-dot" className="ml-auto">
             •
