@@ -72,6 +72,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             ipc::create_notification_rule::<tauri::Wry>,
             ipc::update_notification_rule::<tauri::Wry>,
             ipc::delete_notification_rule::<tauri::Wry>,
+            ipc::seed_default_notification_rules::<tauri::Wry>,
             ipc::get_setting,
             ipc::set_setting::<tauri::Wry>,
             ipc::open_settings_window::<tauri::Wry>,
@@ -138,6 +139,11 @@ pub fn run() {
         // Dialog: folder picker invoked Rust-side only via `pick_folder`
         // (D-M3-7) — the webview gets NO dialog:* permission.
         .plugin(tauri_plugin_dialog::init())
+        // OS notification sink (M6 T4, D-M6-4/5): the milestone's ONLY new
+        // webview grant — `notification:default` in capabilities/main.json,
+        // justified in capabilities/README.md. The dispatch point stays the
+        // frontend rule matcher; this plugin is just the `sink: "os"` leg.
+        .plugin(tauri_plugin_notification::init())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             use tauri::Manager;

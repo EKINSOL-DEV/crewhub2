@@ -1225,6 +1225,21 @@ pub fn delete_notification_rule<R: Runtime>(
     Ok(deleted)
 }
 
+/// Seed the M6 default attention rules (D-M6-4) — called by the wizard's
+/// notifications opt-in. Idempotent; returns only newly created rules.
+#[tauri::command]
+#[specta::specta]
+pub fn seed_default_notification_rules<R: Runtime>(
+    app: AppHandle<R>,
+    store: State<Arc<Store>>,
+) -> Result<Vec<NotificationRule>> {
+    let created = store.seed_default_notification_rules().map_err(err)?;
+    if !created.is_empty() {
+        emit_notification_rules_changed(&app)?;
+    }
+    Ok(created)
+}
+
 // ---- settings ----
 
 #[tauri::command]

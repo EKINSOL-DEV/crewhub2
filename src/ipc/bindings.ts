@@ -116,6 +116,11 @@ export const commands = {
 	createNotificationRule: (input: NewNotificationRule) => typedError<NotificationRule, string>(__TAURI_INVOKE("create_notification_rule", { input })),
 	updateNotificationRule: (rule: NotificationRule) => typedError<NotificationRule, string>(__TAURI_INVOKE("update_notification_rule", { rule })),
 	deleteNotificationRule: (id: string) => typedError<boolean, string>(__TAURI_INVOKE("delete_notification_rule", { id })),
+	/**
+	 *  Seed the M6 default attention rules (D-M6-4) — called by the wizard's
+	 *  notifications opt-in. Idempotent; returns only newly created rules.
+	 */
+	seedDefaultNotificationRules: () => typedError<NotificationRule[], string>(__TAURI_INVOKE("seed_default_notification_rules")),
 	getSetting: (key: string) => typedError<string | null, string>(__TAURI_INVOKE("get_setting", { key })),
 	setSetting: (key: string, value: string) => typedError<null, string>(__TAURI_INVOKE("set_setting", { key, value })),
 	/**
