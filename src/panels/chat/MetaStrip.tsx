@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { StatusEmoji } from "@/components/StatusEmoji";
 import { commands, type SessionId } from "@/ipc/bindings";
+import { GitStrip } from "@/panels/diff/GitStrip";
 import { useAgentsStore } from "@/stores/agents";
 import { useBindingsStore } from "@/stores/bindings";
 import { useSessionsStore } from "@/stores/sessions";
@@ -75,10 +76,12 @@ export function MetaStrip({
       <span className="text-muted-foreground" title="input ▸ output tokens" data-testid="usage-totals">
         {formatTokens(usage.input_tokens)} ▸ {formatTokens(usage.output_tokens)}
       </span>
-      {meta?.git_branch && (
-        <span className="truncate text-muted-foreground" title="git branch">
-          🌿 {meta.git_branch}
-        </span>
+      {meta && (
+        <GitStrip
+          projectPath={meta.project_path}
+          sessionPath={meta.project_path}
+          fallbackBranch={meta.git_branch}
+        />
       )}
       <span className="ml-auto" />
       {!historyMode && status === "Working" && (
