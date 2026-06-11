@@ -7,6 +7,7 @@ import { commands, type Project } from "@/ipc/bindings";
 import { usePalette } from "@/stores/palette";
 import { useWorkspace } from "@/stores/workspace";
 import { openPanel } from "./palette-actions";
+import { useAgentsStore } from "@/stores/agents";
 
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   return (
@@ -66,7 +67,9 @@ export function SpawnDialog() {
     setBusy(true);
     setError(null);
     try {
-      const res = await commands.spawnSession("claude-code", {
+      const provider = await useAgentsStore.getState().getSpawnProvider();
+      if (!provider) throw new Error("No provider can spawn sessions");
+      const res = await commands.spawnSession(provider, {
         project_path: projectPath.trim(),
         prompt: prompt.trim() || null,
         model,

@@ -128,6 +128,7 @@ describe("SpawnFromChat (haiku default, D-M2-7)", () => {
     const specs: Array<Record<string, unknown>> = [];
     mockIPC((cmd, args) => {
       if (cmd === "list_agents" || cmd === "list_projects") return [];
+      if (cmd === "provider_caps") return [{ provider: "claude-code", caps: { spawn: true } }];
       if (cmd === "spawn_session") {
         specs.push((args as { spec: Record<string, unknown> }).spec);
         return { provider: "claude-code", id: "new-session-1" };

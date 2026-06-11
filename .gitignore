@@ -28,3 +28,6 @@ src-tauri/lcov.info
 src-tauri/clippy-report.json
 
 /target
+
+.claude/
+.worktrees/

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { DEFAULT_SPAWN_MODEL, ModelPicker } from "@/components/ModelPicker";
 import { commands, type Agent, type Project, type SessionId } from "@/ipc/bindings";
+import { useAgentsStore } from "@/stores/agents";
 
 export function SpawnFromChat({ onSpawned }: { onSpawned: (id: SessionId) => void }) {
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -43,7 +44,9 @@ export function SpawnFromChat({ onSpawned }: { onSpawned: (id: SessionId) => voi
     setError(null);
     try {
       const agent = agents.find((a) => a.id === agentId);
-      const res = await commands.spawnSession("claude-code", {
+      const provider = await useAgentsStore.getState().getSpawnProvider();
+      if (!provider) throw new Error("No provider can spawn sessions");
+      const res = await commands.spawnSession(provider, {
         project_path: path,
         prompt: prompt.trim() ? prompt.trim() : null,
         model,
