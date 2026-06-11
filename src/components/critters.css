@@ -1,0 +1,42 @@
+/* Status Critters (D-M2-6): Working wiggles, WaitingForPermission bounces. */
+
+@keyframes ch-wiggle {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-12deg);
+  }
+  75% {
+    transform: rotate(12deg);
+  }
+}
+
+@keyframes ch-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+.ch-anim-wiggle {
+  display: inline-block;
+  animation: ch-wiggle 1s ease-in-out infinite;
+}
+
+.ch-anim-bounce {
+  display: inline-block;
+  animation: ch-bounce 0.8s ease-in-out infinite;
+}
+
+/* Belt-and-suspenders: the JS hook already renders static variants. */
+@media (prefers-reduced-motion: reduce) {
+  .ch-anim-wiggle,
+  .ch-anim-bounce {
+    animation: none;
+  }
+}
