@@ -7,6 +7,12 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 export const commands = {
 	appInfo: () => __TAURI_INVOKE<AppInfo>("app_info"),
 	listAllSessions: () => typedError<SessionMeta[], string>(__TAURI_INVOKE("list_all_sessions")),
+	providerCaps: () => typedError<ProviderCapsEntry[], string>(__TAURI_INVOKE("provider_caps")),
+	spawnSession: (providerId: string, spec: SpawnSpec) => typedError<SessionId, string>(__TAURI_INVOKE("spawn_session", { providerId, spec })),
+	sendToSession: (id: SessionId, text: string) => typedError<null, string>(__TAURI_INVOKE("send_to_session", { id, text })),
+	respondToPermission: (id: SessionId, requestId: string, response: PermissionResponse) => typedError<null, string>(__TAURI_INVOKE("respond_to_permission", { id, requestId, response })),
+	interruptSession: (id: SessionId) => typedError<null, string>(__TAURI_INVOKE("interrupt_session", { id })),
+	killSession: (id: SessionId) => typedError<null, string>(__TAURI_INVOKE("kill_session", { id })),
 	listArchivedSessions: () => typedError<ArchivedSession[], string>(__TAURI_INVOKE("list_archived_sessions")),
 	searchTranscripts: (query: string) => typedError<SearchHit[], string>(__TAURI_INVOKE("search_transcripts", { query })),
 	listAgents: () => typedError<Agent[], string>(__TAURI_INVOKE("list_agents")),
@@ -27,6 +33,9 @@ export const commands = {
 	deleteTask: (id: string) => typedError<boolean, string>(__TAURI_INVOKE("delete_task", { id })),
 	getSetting: (key: string) => typedError<string | null, string>(__TAURI_INVOKE("get_setting", { key })),
 	setSetting: (key: string, value: string) => typedError<null, string>(__TAURI_INVOKE("set_setting", { key, value })),
+	mcpStatus: () => typedError<McpStatus, string>(__TAURI_INVOKE("mcp_status")),
+	enableMcpForProject: (projectId: string) => typedError<null, string>(__TAURI_INVOKE("enable_mcp_for_project", { projectId })),
+	disableMcpForProject: (projectId: string) => typedError<null, string>(__TAURI_INVOKE("disable_mcp_for_project", { projectId })),
 };
 
 /** Events */
@@ -98,6 +107,15 @@ export type HookSignal = {
 	ts: number,
 };
 
+/**
+ *  What the UI may know about the MCP server. The bearer token is
+ *  deliberately absent: it never crosses into the webview.
+ */
+export type McpStatus = {
+	port: number,
+	url: string,
+};
+
 export type NewAgent = {
 	name: string,
 	icon: string | null,
@@ -135,12 +153,18 @@ export type NewTask = {
 	created_by: string | null,
 };
 
+export type PermissionMode = "Default" | "AcceptEdits" | "Plan" | "BypassPermissions";
+
 export type PermissionRequest = {
 	request_id: string,
 	tool: string,
 	input_json: string,
 	suggestions: string[],
 };
+
+export type PermissionResponse = { kind: "AllowOnce" } | { kind: "AllowAlways" } | { kind: "Deny"; data: {
+	message: string | null,
+} };
 
 export type Project = {
 	id: string,
@@ -153,6 +177,28 @@ export type Project = {
 	status: string,
 	created_at: number,
 	updated_at: number,
+};
+
+export type ProviderCaps = {
+	spawn: boolean,
+	resume: boolean,
+	fork: boolean,
+	permissions: boolean,
+	interrupt: boolean,
+	thinking: boolean,
+	subagents: boolean,
+	headless_runs: boolean,
+	hooks: boolean,
+	mcp_registration: boolean,
+};
+
+/**
+ *  `(provider id, caps)` pair — specta has no tuple-in-Vec ergonomics we want
+ *  to expose, so this tiny named struct is the wire shape instead.
+ */
+export type ProviderCapsEntry = {
+	provider: string,
+	caps: ProviderCaps,
 };
 
 export type QuestionRequest = {
@@ -229,6 +275,18 @@ export type SessionMeta = {
 export type SessionOrigin = "Managed" | "External";
 
 export type SessionStatus = "Working" | "WaitingForInput" | "WaitingForPermission" | "Idle" | "Ended";
+
+export type SpawnSpec = {
+	project_path: string,
+	prompt: string | null,
+	model: string | null,
+	permission_mode: PermissionMode,
+	/**  Resume this session id; with `fork: true` the original stays untouched. */
+	resume_session: string | null,
+	fork: boolean,
+	append_system_prompt: string | null,
+	agent_id: string | null,
+};
 
 export type Task = {
 	id: string,

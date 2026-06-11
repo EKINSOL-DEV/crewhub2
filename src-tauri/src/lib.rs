@@ -11,6 +11,12 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         .commands(tauri_specta::collect_commands![
             ipc::app_info::<tauri::Wry>,
             ipc::list_all_sessions,
+            ipc::provider_caps,
+            ipc::spawn_session,
+            ipc::send_to_session,
+            ipc::respond_to_permission,
+            ipc::interrupt_session,
+            ipc::kill_session,
             ipc::list_archived_sessions,
             ipc::search_transcripts,
             ipc::list_agents,
@@ -31,6 +37,9 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             ipc::delete_task::<tauri::Wry>,
             ipc::get_setting,
             ipc::set_setting::<tauri::Wry>,
+            ipc::mcp_status,
+            ipc::enable_mcp_for_project,
+            ipc::disable_mcp_for_project,
         ])
         .events(tauri_specta::collect_events![
             events::DomainEvent,
@@ -59,11 +68,15 @@ pub fn run() {
                 .app_data_dir()
                 .expect("app data dir")
                 .join("crewhub.db");
-            let store = store::Store::open(&db_path).expect("open store");
-            app.manage(store);
+            let store = std::sync::Arc::new(store::Store::open(&db_path).expect("open store"));
+            app.manage(store.clone());
 
             let claude_config = engine::claude::ClaudeConfig::default();
             app.manage(claude_config.clone());
+            let mcp_cli = mcp::registration::McpCliConfig {
+                cli_path: claude_config.cli_path.clone(),
+                extra_env: claude_config.extra_env.clone(),
+            };
             let registry = tauri::async_runtime::block_on(async {
                 let mut registry = engine::provider::ProviderRegistry::default();
                 match engine::claude::ClaudeCodeProvider::start(claude_config) {
@@ -82,7 +95,7 @@ pub fn run() {
                 // auto-spawn once at startup
                 if let Some(provider) = sweep_registry.get(engine::claude::PROVIDER_ID) {
                     let agents = store_handle
-                        .state::<store::Store>()
+                        .state::<std::sync::Arc<store::Store>>()
                         .list_agents()
                         .unwrap_or_default();
                     for agent in agents.into_iter().filter(|a| a.auto_spawn) {
@@ -105,7 +118,66 @@ pub fn run() {
                 }
             });
 
+            // T20/T23: MCP server — single loopback socket, per-launch token.
+            // Tool-driven store mutations broadcast DomainEvents on `mcp_notify`
+            // (they bypass the IPC emit path); bridged to the webview below.
+            let (mcp_notify, _) = tokio::sync::broadcast::channel::<events::DomainEvent>(256);
+            let mcp_handle = match tauri::async_runtime::block_on(mcp::server::McpServer::start(
+                store.clone(),
+                mcp_notify.clone(),
+            )) {
+                Ok(server) => mcp::McpHandle(Some(server)),
+                Err(e) => {
+                    eprintln!("mcp server failed to start: {e}");
+                    mcp::McpHandle(None)
+                }
+            };
+            // Token rotates per launch: refresh registration for enabled projects.
+            if let Some(server) = &mcp_handle.0 {
+                let (port, token) = (server.port(), server.token().to_string());
+                let cli = mcp_cli;
+                let refresh_store = store.clone();
+                tauri::async_runtime::spawn(async move {
+                    let projects = refresh_store.list_projects().unwrap_or_default();
+                    for p in projects {
+                        let enabled = refresh_store
+                            .get_setting(&mcp::enabled_setting_key(&p.id))
+                            .ok()
+                            .flatten();
+                        if enabled.as_deref() == Some("true") {
+                            if let Err(e) = mcp::registration::refresh(
+                                &cli,
+                                std::path::Path::new(&p.folder_path),
+                                port,
+                                &token,
+                            )
+                            .await
+                            {
+                                eprintln!("mcp registration refresh failed for {}: {e}", p.name);
+                            }
+                        }
+                    }
+                });
+            }
+            app.manage(mcp_handle);
+
             builder.mount_events(app);
+
+            // Bridge: MCP tool mutations -> typed webview DomainEvent.
+            let mcp_event_handle = app.handle().clone();
+            let mut mcp_rx = mcp_notify.subscribe();
+            tauri::async_runtime::spawn(async move {
+                use tauri_specta::Event;
+                loop {
+                    match mcp_rx.recv().await {
+                        Ok(ev) => {
+                            let _ = ev.emit(&mcp_event_handle);
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                    }
+                }
+            });
 
             // Bridge: engine fan-in -> typed webview event.
             let handle = app.handle().clone();

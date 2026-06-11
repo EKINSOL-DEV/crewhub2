@@ -15,3 +15,16 @@
 pub mod registration;
 pub mod server;
 pub mod tools;
+
+/// Managed Tauri state for the (possibly not running) MCP server.
+///
+/// `None` when startup failed — IPC commands surface that as a readable
+/// error instead of panicking on missing state.
+pub struct McpHandle(pub Option<server::McpServer>);
+
+/// Settings key marking a project as MCP-enabled ("true"/"false").
+/// Registration is refreshed for enabled projects at every launch because
+/// the bearer token rotates per launch.
+pub fn enabled_setting_key(project_id: &str) -> String {
+    format!("mcp_enabled:{project_id}")
+}
