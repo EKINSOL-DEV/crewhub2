@@ -1,15 +1,32 @@
 // The workspace shell (EKI-11): tabs → binary split tree → panels.
 // Renders the active tab's layout tree, with drag-to-resize splitters,
-// per-panel chrome + error boundary, and the welcome picker for empty leaves.
+// drag-rearrange (edge drop-zones), keymap, per-panel chrome + error boundary.
 import { Component, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { Maximize2, Minimize2, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/EmptyState";
+import { PopIn } from "@/components/PopIn";
 import { commands } from "@/ipc/bindings";
 import { cn } from "@/lib/utils";
 import { useWorkspace } from "@/stores/workspace";
-import { findLeaf, type LeafNode, type SplitNode, type LayoutNode } from "./layout-tree";
-import { PANELS } from "./panel-registry";
+import { matchKey, KEYMAP_HELP } from "./keymap";
+import {
+  dropEdgeAt,
+  findLeaf,
+  type DropEdge,
+  type LeafNode,
+  type SplitNode,
+  type LayoutNode,
+} from "./layout-tree";
+import { PANELS, PANEL_LIST } from "./panel-registry";
+
+const LEAF_DRAG_MIME = "text/crewhub-leaf";
+
+function isEditable(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLElement && target.closest("input, textarea, select, [contenteditable]") !== null
+  );
+}
 
 // ── Error boundary: a crashing panel never takes the shell down ─────────────
 
@@ -41,11 +58,37 @@ export class PanelErrorBoundary extends Component<{ children: ReactNode }, { cra
 
 // ── Panel chrome ─────────────────────────────────────────────────────────────
 
+const DROP_HINT_CLASS: Record<DropEdge, string> = {
+  n: "inset-x-0 top-0 h-1/2",
+  s: "inset-x-0 bottom-0 h-1/2",
+  w: "inset-y-0 left-0 w-1/2",
+  e: "inset-y-0 right-0 w-1/2",
+  center: "inset-0",
+};
+
 function PanelChrome({ leaf }: { leaf: LeafNode }) {
   const def = PANELS[leaf.kind];
   const focused = useWorkspace((s) => s.focusedLeafId === leaf.id);
   const maximized = useWorkspace((s) => s.maximizedLeafId === leaf.id);
-  const { focusLeaf, toggleMaximize, closePanel, setPanelParams } = useWorkspace.getState();
+  const { focusLeaf, toggleMaximize, closePanel, setPanelParams, movePanel } = useWorkspace.getState();
+  const [dropEdge, setDropEdge] = useState<DropEdge | null>(null);
+
+  function onDragOver(e: React.DragEvent) {
+    if (!e.dataTransfer.types.includes(LEAF_DRAG_MIME)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / (rect.width || 1);
+    const y = (e.clientY - rect.top) / (rect.height || 1);
+    setDropEdge(dropEdgeAt(x, y));
+  }
+
+  function onDrop(e: React.DragEvent) {
+    const src = e.dataTransfer.getData(LEAF_DRAG_MIME);
+    e.preventDefault();
+    if (src && dropEdge) movePanel(src, leaf.id, dropEdge);
+    setDropEdge(null);
+  }
 
   return (
     <section
@@ -53,18 +96,32 @@ function PanelChrome({ leaf }: { leaf: LeafNode }) {
       data-leaf-id={leaf.id}
       data-focused={focused || undefined}
       onMouseDownCapture={() => focusLeaf(leaf.id)}
+      onDragOver={onDragOver}
+      onDragLeave={(e) => {
+        if (e.currentTarget === e.target) setDropEdge(null);
+      }}
+      onDrop={onDrop}
       className={cn(
-        "flex h-full w-full min-h-0 min-w-0 flex-col overflow-hidden rounded-md border bg-card",
+        "relative flex h-full w-full min-h-0 min-w-0 flex-col overflow-hidden rounded-md border bg-card",
         focused && "ring-1 ring-ring",
       )}
     >
-      <header className="flex select-none items-center gap-1.5 border-b px-2 py-1 text-xs">
+      <header
+        draggable
+        data-testid={`panel-handle-${leaf.kind}`}
+        onDragStart={(e) => {
+          e.dataTransfer.setData(LEAF_DRAG_MIME, leaf.id);
+          e.dataTransfer.effectAllowed = "move";
+        }}
+        onDragEnd={() => setDropEdge(null)}
+        className="flex cursor-grab select-none items-center gap-1.5 border-b px-2 py-1 text-xs active:cursor-grabbing"
+      >
         <span aria-hidden>{def.emoji}</span>
         <span className="font-medium">{def.label}</span>
         <span className="flex-1" />
         <button
           type="button"
-          title={maximized ? "Restore" : "Maximize"}
+          title={maximized ? "Restore (⌘⇧M)" : "Maximize (⌘⇧M)"}
           aria-label={maximized ? "Restore panel" : "Maximize panel"}
           className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
           onClick={() => toggleMaximize(leaf.id)}
@@ -73,7 +130,7 @@ function PanelChrome({ leaf }: { leaf: LeafNode }) {
         </button>
         <button
           type="button"
-          title="Close panel"
+          title="Close panel (⌘⇧W)"
           aria-label="Close panel"
           className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
           onClick={() => closePanel(leaf.id)}
@@ -92,6 +149,15 @@ function PanelChrome({ leaf }: { leaf: LeafNode }) {
           </Suspense>
         </PanelErrorBoundary>
       </div>
+      {dropEdge && (
+        <div
+          data-testid={`drop-hint-${dropEdge}`}
+          className={cn(
+            "pointer-events-none absolute z-10 rounded-md border-2 border-ring bg-ring/15",
+            DROP_HINT_CLASS[dropEdge],
+          )}
+        />
+      )}
     </section>
   );
 }
@@ -149,7 +215,14 @@ function SplitView({ node }: { node: SplitNode }) {
 }
 
 function NodeView({ node }: { node: LayoutNode }) {
-  return node.type === "leaf" ? <PanelChrome leaf={node} /> : <SplitView node={node} />;
+  if (node.type === "leaf") {
+    return (
+      <PopIn key={node.id} className="h-full w-full min-h-0 min-w-0">
+        <PanelChrome leaf={node} />
+      </PopIn>
+    );
+  }
+  return <SplitView node={node} />;
 }
 
 // ── Tab bar ──────────────────────────────────────────────────────────────────
@@ -219,6 +292,36 @@ function TabBar() {
   );
 }
 
+// ── Shortcut help sheet (⌘/) — registry-generated ────────────────────────────
+
+function HelpSheet({ onClose }: { onClose: () => void }) {
+  const pickerHints = PANEL_LIST.filter((d) => d.shortcutHint)
+    .map((d) => `${d.shortcutHint} ${d.label.toLowerCase()}`)
+    .join(" · ");
+  return (
+    <div
+      data-testid="help-sheet"
+      className="absolute inset-0 z-50 flex items-center justify-center bg-background/70"
+      onClick={onClose}
+    >
+      <div className="w-96 rounded-lg border bg-card p-4 shadow-lg" onClick={(e) => e.stopPropagation()}>
+        <h2 className="mb-3 text-sm font-semibold">⌨️ Shortcuts</h2>
+        <table className="w-full text-xs">
+          <tbody>
+            {KEYMAP_HELP.map((row) => (
+              <tr key={row.keys}>
+                <td className="py-0.5 pr-3 font-mono text-muted-foreground">{row.keys}</td>
+                <td className="py-0.5">{row.action}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="mt-3 text-[10px] text-muted-foreground">Inside a new panel: {pickerHints}</p>
+      </div>
+    </div>
+  );
+}
+
 // ── The shell ────────────────────────────────────────────────────────────────
 
 export function WorkspaceShell() {
@@ -226,6 +329,7 @@ export function WorkspaceShell() {
   const tab = useWorkspace((s) => s.tabs.find((t) => t.id === s.activeTabId) ?? null);
   const maximizedLeafId = useWorkspace((s) => s.maximizedLeafId);
   const [version, setVersion] = useState<string | null>(null);
+  const [showHelp, setShowHelp] = useState(false);
 
   useEffect(() => {
     commands
@@ -234,10 +338,71 @@ export function WorkspaceShell() {
       .catch(() => setVersion(null));
   }, []);
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const action = matchKey({
+        key: e.key,
+        mod: e.metaKey || e.ctrlKey,
+        shift: e.shiftKey,
+        alt: e.altKey,
+        inEditable: isEditable(e.target),
+      });
+      if (!action) return;
+      const s = useWorkspace.getState();
+      switch (action.type) {
+        case "palette":
+          // wired to the command palette store in T9 (EKI-16)
+          break;
+        case "newTab":
+          e.preventDefault();
+          s.addTab();
+          break;
+        case "closeTab":
+          e.preventDefault();
+          s.closeTab(s.activeTabId);
+          break;
+        case "focusPanel":
+          e.preventDefault();
+          s.focusByIndex(action.index);
+          break;
+        case "cycleFocus":
+          e.preventDefault();
+          s.cycleFocus(action.dir);
+          break;
+        case "split":
+          e.preventDefault();
+          if (s.focusedLeafId) s.split(s.focusedLeafId, action.dir);
+          break;
+        case "closePanel":
+          e.preventDefault();
+          if (s.focusedLeafId) s.closePanel(s.focusedLeafId);
+          break;
+        case "maximize":
+          e.preventDefault();
+          s.toggleMaximize();
+          break;
+        case "resize":
+          e.preventDefault();
+          s.resizeFocused(action.axis, action.delta);
+          break;
+        case "help":
+          e.preventDefault();
+          setShowHelp((v) => !v);
+          break;
+        case "escape":
+          if (showHelp) setShowHelp(false);
+          else if (s.maximizedLeafId) s.toggleMaximize(s.maximizedLeafId);
+          break;
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showHelp]);
+
   const maximizedLeaf = tab && maximizedLeafId ? findLeaf(tab.root, maximizedLeafId) : null;
 
   return (
-    <div data-testid="app-root" className="flex h-screen flex-col bg-background text-foreground">
+    <div data-testid="app-root" className="relative flex h-screen flex-col bg-background text-foreground">
       <header className="flex items-center gap-3 border-b px-2 py-1.5">
         <span className="select-none text-xs font-semibold">CrewHub</span>
         <TabBar />
@@ -250,11 +415,14 @@ export function WorkspaceShell() {
         {!loaded || !tab ? (
           <EmptyState emoji="🛰️" title="Warming up" hint="Restoring your workspace…" />
         ) : maximizedLeaf ? (
-          <PanelChrome leaf={maximizedLeaf} />
+          <PopIn key={`max-${maximizedLeaf.id}`} className="h-full w-full">
+            <PanelChrome leaf={maximizedLeaf} />
+          </PopIn>
         ) : (
           <NodeView node={tab.root} />
         )}
       </main>
+      {showHelp && <HelpSheet onClose={() => setShowHelp(false)} />}
     </div>
   );
 }

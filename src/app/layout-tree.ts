@@ -188,6 +188,18 @@ export function moveLeaf(root: LayoutNode, srcId: string, dstId: string, edge: D
   }));
 }
 
+/**
+ * Map a pointer position (normalized 0..1 within the target panel) to a drop
+ * edge: outer 25% bands split toward that edge, the middle swaps.
+ */
+export function dropEdgeAt(x: number, y: number): DropEdge {
+  if (x < 0.25) return "w";
+  if (x > 0.75) return "e";
+  if (y < 0.25) return "n";
+  if (y > 0.75) return "s";
+  return "center";
+}
+
 // ── Presets (D-M2-1: ship focus / cockpit / monitor) ─────────────────────────
 
 export type PresetName = "focus" | "cockpit" | "monitor";

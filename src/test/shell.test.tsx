@@ -131,6 +131,103 @@ describe("PanelErrorBoundary", () => {
   });
 });
 
+describe("keymap integration (T8)", () => {
+  beforeEach(async () => {
+    await loadDefaultWorkspace();
+  });
+
+  test("⌘T adds a tab, ⌘W closes it", async () => {
+    render(<WorkspaceShell />);
+    await screen.findByTestId("panel-chat");
+    fireEvent.keyDown(window, { key: "t", metaKey: true });
+    expect(useWorkspace.getState().tabs).toHaveLength(2);
+    fireEvent.keyDown(window, { key: "w", metaKey: true });
+    expect(useWorkspace.getState().tabs).toHaveLength(1);
+  });
+
+  test("⌘2 focuses panel 2; Tab cycles focus", async () => {
+    render(<WorkspaceShell />);
+    await screen.findByTestId("panel-chat");
+    const ls = leaves(useWorkspace.getState().activeTab()!.root);
+    fireEvent.keyDown(window, { key: "2", metaKey: true });
+    expect(useWorkspace.getState().focusedLeafId).toBe(ls[1]!.id);
+    fireEvent.keyDown(window, { key: "Tab" });
+    expect(useWorkspace.getState().focusedLeafId).toBe(ls[2]!.id);
+    fireEvent.keyDown(window, { key: "Tab", shiftKey: true });
+    expect(useWorkspace.getState().focusedLeafId).toBe(ls[1]!.id);
+  });
+
+  test("⌘\\ splits the focused panel; ⌘⇧W closes it", async () => {
+    render(<WorkspaceShell />);
+    await screen.findByTestId("panel-chat");
+    useWorkspace.getState().applyPreset("focus");
+    fireEvent.keyDown(window, { key: "\\", metaKey: true });
+    expect(leaves(useWorkspace.getState().activeTab()!.root).map((l) => l.kind)).toEqual(["chat", "welcome"]);
+    fireEvent.keyDown(window, { key: "W", metaKey: true, shiftKey: true });
+    expect(leaves(useWorkspace.getState().activeTab()!.root).map((l) => l.kind)).toEqual(["chat"]);
+  });
+
+  test("⌘⇧M maximizes the focused panel; Esc restores", async () => {
+    render(<WorkspaceShell />);
+    await screen.findByTestId("panel-chat");
+    fireEvent.keyDown(window, { key: "M", metaKey: true, shiftKey: true });
+    expect(useWorkspace.getState().maximizedLeafId).not.toBeNull();
+    expect(screen.queryByTestId("panel-sessions")).not.toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(useWorkspace.getState().maximizedLeafId).toBeNull();
+  });
+
+  test("⌘⇧→ resizes the focused row split", async () => {
+    render(<WorkspaceShell />);
+    await screen.findByTestId("panel-chat");
+    fireEvent.keyDown(window, { key: "ArrowRight", metaKey: true, shiftKey: true });
+    const root = useWorkspace.getState().activeTab()!.root;
+    if (root.type !== "split") throw new Error("expected split");
+    expect(root.ratio).toBeCloseTo(0.65);
+  });
+
+  test("⌘/ toggles the help sheet; Esc closes it", async () => {
+    render(<WorkspaceShell />);
+    await screen.findByTestId("panel-chat");
+    fireEvent.keyDown(window, { key: "/", metaKey: true });
+    expect(screen.getByTestId("help-sheet")).toBeInTheDocument();
+    expect(screen.getByText("Command palette")).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByTestId("help-sheet")).not.toBeInTheDocument();
+  });
+});
+
+describe("drag-rearrange (T8)", () => {
+  test("dragging a panel header onto another panel swaps them (center drop)", async () => {
+    await loadDefaultWorkspace();
+    render(<WorkspaceShell />);
+    await screen.findByTestId("panel-chat");
+    const before = leaves(useWorkspace.getState().activeTab()!.root);
+    const dataTransfer = {
+      data: new Map<string, string>(),
+      types: ["text/crewhub-leaf"],
+      effectAllowed: "",
+      dropEffect: "",
+      setData(type: string, val: string) {
+        this.data.set(type, val);
+      },
+      getData(type: string) {
+        return this.data.get(type) ?? "";
+      },
+    };
+    fireEvent.dragStart(screen.getByTestId("panel-handle-chat"), { dataTransfer });
+    const sessions = screen.getByTestId("panel-sessions");
+    fireEvent.dragOver(sessions, { dataTransfer, clientX: 0, clientY: 0 });
+    // jsdom rects are zero-sized → normalized position is center
+    expect(screen.getByTestId("drop-hint-center")).toBeInTheDocument();
+    fireEvent.drop(sessions, { dataTransfer });
+    const after = leaves(useWorkspace.getState().activeTab()!.root);
+    expect(after[0]!.id).toBe(before[1]!.id);
+    expect(after[1]!.id).toBe(before[0]!.id);
+    expect(screen.queryByTestId("drop-hint-center")).not.toBeInTheDocument();
+  });
+});
+
 describe("focus", () => {
   test("mouse-down on a panel focuses its leaf", async () => {
     await loadDefaultWorkspace();

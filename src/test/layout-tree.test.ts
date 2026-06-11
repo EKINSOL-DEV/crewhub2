@@ -2,6 +2,7 @@ import {
   buildPreset,
   clampRatio,
   closeLeaf,
+  dropEdgeAt,
   findAncestorSplit,
   findLeaf,
   findSplit,
@@ -306,6 +307,21 @@ describe("moveLeaf", () => {
     expect(next.dir).toBe("col");
     expect(next.a.id).toBe(sessions.id);
     expect(next.b.id).toBe(chat.id);
+  });
+});
+
+describe("dropEdgeAt", () => {
+  test("outer bands map to edges, middle swaps", () => {
+    expect(dropEdgeAt(0.1, 0.5)).toBe("w");
+    expect(dropEdgeAt(0.9, 0.5)).toBe("e");
+    expect(dropEdgeAt(0.5, 0.1)).toBe("n");
+    expect(dropEdgeAt(0.5, 0.9)).toBe("s");
+    expect(dropEdgeAt(0.5, 0.5)).toBe("center");
+  });
+
+  test("horizontal bands win over vertical at corners", () => {
+    expect(dropEdgeAt(0.1, 0.1)).toBe("w");
+    expect(dropEdgeAt(0.9, 0.9)).toBe("e");
   });
 });
 
