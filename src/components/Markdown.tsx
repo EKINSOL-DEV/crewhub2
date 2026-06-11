@@ -17,7 +17,8 @@ async function highlight(code: string, lang: string): Promise<string | null> {
   return codeToHtml(code, { lang, theme: "github-dark-default" });
 }
 
-function CodeBlock({ code, lang }: { code: string; lang: string }) {
+/** Shared shiki code block (exported for the diff panel — same lazy loader). */
+export function CodeBlock({ code, lang }: { code: string; lang: string }) {
   const [highlighted, setHighlighted] = useState<{ code: string; lang: string; html: string } | null>(null);
   useEffect(() => {
     let live = true;
