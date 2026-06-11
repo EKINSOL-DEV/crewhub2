@@ -22,6 +22,12 @@ CrewHub v1 proved the concept: a spatial, ambient, multi-agent workspace is a ge
 
 3. **Observe everything, own nothing.** CrewHub never wraps or proxies Claude Code's state. Transcripts stay in `~/.claude/projects` (Claude Code owns them); CrewHub reads them. Sessions started in a terminal are first-class citizens via the watcher + hooks. CrewHub's own database stores only CrewHub concepts: agents, rooms, projects, tasks, meetings, settings.
 
+**Standing design principles (added 2026-06-11):**
+
+4. **Playfulness is a core product value.** The world's charm — bots, animations, speech bubbles, easter eggs — is why CrewHub beats N terminal tabs. Weigh playfulness in every UI/UX decision, not just the 3D world (M5).
+
+5. **Default to Haiku; be model-adaptive.** Every LLM-powered feature declares a model tier; low-stakes work (bot behavior flavor, summaries, standup gathering, name generation, meeting gathering rounds) defaults to the cheapest capable model (haiku). Features adapt to the model actually required — configurable per feature, never hardcoded expensive. Engine surface: `SpawnSpec.model` + a `model_policy` per feature (M4 runs/meetings, M5 world flavor).
+
 **Non-goals for v2.0:** web app, mobile app, OpenClaw runtime support (see §8 — the adapter seam is reserved, v1 remains available for OpenClaw users), multi-user/team sync, cloud anything.
 
 ---

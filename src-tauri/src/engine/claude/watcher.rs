@@ -53,6 +53,12 @@ pub struct TranscriptWatcher {
     shutdown: tokio::sync::watch::Sender<bool>,
 }
 
+impl Drop for TranscriptWatcher {
+    fn drop(&mut self) {
+        let _ = self.shutdown.send(true);
+    }
+}
+
 impl TranscriptWatcher {
     /// Spawns the watcher loop; events flow into `tx`. Must be called within a tokio runtime.
     pub fn start(
@@ -74,7 +80,8 @@ impl TranscriptWatcher {
             state.initial_scan();
             let mut last_sweep = std::time::Instant::now();
             loop {
-                if *shutdown_rx.borrow_and_update() {
+                // stop on explicit signal OR when the watcher handle was dropped
+                if *shutdown_rx.borrow_and_update() || shutdown_rx.has_changed().is_err() {
                     break;
                 }
                 match fs_rx.recv_timeout(Duration::from_millis(100)) {

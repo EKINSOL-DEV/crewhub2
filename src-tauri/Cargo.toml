@@ -31,7 +31,7 @@ uuid = { version = "1.23.3", features = ["v4"] }
 rusqlite = { version = "0.40.1", features = ["bundled"] }
 rusqlite_migration = "2.6.0"
 async-trait = "0.1.89"
-tokio = { version = "1.47", features = ["rt", "sync", "macros", "time"] }
+tokio = { version = "1.47", features = ["rt", "sync", "macros", "time", "process", "io-util"] }
 chrono = "0.4.45"
 notify = "8.2.0"
 

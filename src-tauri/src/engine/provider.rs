@@ -29,6 +29,7 @@ pub trait SessionProvider: Send + Sync + 'static {
     async fn respond_permission(
         &self,
         id: &SessionId,
+        request_id: &str,
         resp: PermissionResponse,
     ) -> anyhow::Result<()>;
     async fn answer_question(&self, id: &SessionId, resp: QuestionResponse) -> anyhow::Result<()>;
@@ -153,6 +154,7 @@ mod tests {
         async fn respond_permission(
             &self,
             _id: &SessionId,
+            _rid: &str,
             _r: PermissionResponse,
         ) -> anyhow::Result<()> {
             Ok(())

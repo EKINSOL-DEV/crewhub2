@@ -1,4 +1,4 @@
 [workspace]
 resolver = "2"
-members = ["src-tauri", "crates/fake-claude"]
+members = ["src-tauri"]
 # future members: "crates/crewhub-signal" (M1 T16)
