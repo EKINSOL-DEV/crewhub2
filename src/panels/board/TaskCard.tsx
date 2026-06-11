@@ -2,6 +2,8 @@
 // chip (+ project chip in HQ view), quick-move menu (⋯ — the always-available
 // non-drag path, D-M3-1) and the Board Critter when a run is linked (D-M3-8).
 import { useEffect, useRef, useState } from "react";
+import type React from "react";
+import { useSortable } from "@dnd-kit/sortable";
 import { StatusEmoji } from "@/components/StatusEmoji";
 import type { Agent, Project, Room, Task } from "@/ipc/bindings";
 import { cn } from "@/lib/utils";
@@ -20,6 +22,12 @@ export interface TaskCardProps {
   link: TaskRunLink | null;
   onOpen: (taskId: string) => void;
   onMove: (taskId: string, status: TaskStatus) => void;
+  /** dnd-kit seam (T11): the sortable wrapper passes ref/style/listeners in. */
+  innerRef?: (node: HTMLElement | null) => void;
+  style?: React.CSSProperties;
+  dragProps?: Record<string, unknown>;
+  /** The original card while its clone rides the DragOverlay. */
+  dragging?: boolean;
 }
 
 function QuickMoveMenu({ task, onMove }: { task: Task; onMove: TaskCardProps["onMove"] }) {
@@ -96,18 +104,62 @@ function RunCritter({ link }: { link: TaskRunLink }) {
   );
 }
 
-export function TaskCard({ task, room, assignee, project, link, onOpen, onMove }: TaskCardProps) {
+/** dnd-kit sortable wrapper (T11): pointer + keyboard drag, board only. */
+export function SortableTaskCard(
+  props: Omit<TaskCardProps, "innerRef" | "style" | "dragProps" | "dragging">,
+) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: props.task.id,
+  });
+  const style: React.CSSProperties = {
+    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+    transition,
+  };
+  return (
+    <TaskCard
+      {...props}
+      innerRef={setNodeRef}
+      style={style}
+      dragProps={{ ...attributes, ...listeners }}
+      dragging={isDragging}
+    />
+  );
+}
+
+export function TaskCard({
+  task,
+  room,
+  assignee,
+  project,
+  link,
+  onOpen,
+  onMove,
+  innerRef,
+  style,
+  dragProps,
+  dragging,
+}: TaskCardProps) {
   const priority = PRIORITY_CONFIG[task.priority as TaskPriority];
+  const sortableKeyDown = dragProps?.onKeyDown as React.KeyboardEventHandler | undefined;
   return (
     <div
+      ref={innerRef}
+      style={style}
+      {...dragProps}
       data-testid={`task-card-${task.id}`}
       role="button"
       tabIndex={0}
       onClick={() => onOpen(task.id)}
       onKeyDown={(e) => {
-        if (e.key === "Enter") onOpen(task.id);
+        // The sortable lift (Space, D-M3-1 keyboard DnD) goes first; Enter
+        // stays ours and opens the drawer.
+        sortableKeyDown?.(e);
+        if (e.key === "Enter" && !e.defaultPrevented) onOpen(task.id);
       }}
-      className="flex cursor-pointer flex-col gap-1 rounded-md border bg-background p-2 text-left shadow-sm hover:border-ring"
+      className={cn(
+        "flex cursor-pointer flex-col gap-1 rounded-md border bg-background p-2 text-left shadow-sm hover:border-ring",
+        dragging && "opacity-40",
+      )}
     >
       <div className="flex items-start gap-1">
         <span className="min-w-0 flex-1 text-xs font-medium leading-snug">{task.title}</span>
