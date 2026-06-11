@@ -7,6 +7,7 @@ use crate::engine::types::{
 use crate::events::DomainEvent;
 use crate::security::paths::{Access, PathPolicy};
 use crate::store::agents::{Agent, NewAgent};
+use crate::store::meetings::{ActionItem, Meeting, MeetingTurn};
 use crate::store::notification_rules::{
     NewNotificationRule, NotificationRule, NOTIFICATION_RULES_SETTING_KEY,
 };
@@ -1081,6 +1082,36 @@ pub fn open_settings_window<R: Runtime>(app: AppHandle<R>) -> Result<()> {
     .build()
     .map(|_| ())
     .map_err(|e| e.to_string())
+}
+
+// ---- meetings (M4 T2 — read surface; start/cancel land with the engine, T3) ----
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_meetings(store: State<Arc<Store>>, project_id: Option<String>) -> Result<Vec<Meeting>> {
+    store.list_meetings(project_id.as_deref()).map_err(err)
+}
+
+/// Single-meeting refetch for `MeetingChanged` reconciliation (D-M4-11).
+#[tauri::command]
+#[specta::specta]
+pub fn get_meeting(store: State<Arc<Store>>, id: String) -> Result<Option<Meeting>> {
+    store.get_meeting(&id).map_err(err)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_meeting_turns(
+    store: State<Arc<Store>>,
+    meeting_id: String,
+) -> Result<Vec<MeetingTurn>> {
+    store.list_meeting_turns(&meeting_id).map_err(err)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn list_action_items(store: State<Arc<Store>>, meeting_id: String) -> Result<Vec<ActionItem>> {
+    store.list_action_items(&meeting_id).map_err(err)
 }
 
 #[cfg(test)]

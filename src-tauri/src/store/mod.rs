@@ -1,10 +1,14 @@
 pub mod agents;
+pub mod meetings;
 pub mod notification_rules;
 pub mod projects;
+pub mod prompt_templates;
 pub mod room_rules;
 pub mod rooms;
+pub mod runs;
 pub mod session_bindings;
 pub mod settings;
+pub mod standups;
 pub mod task_events;
 pub mod tasks;
 
@@ -22,6 +26,7 @@ fn migrations() -> Migrations<'static> {
     Migrations::new(vec![
         M::up(include_str!("../../migrations/001_init.sql")),
         M::up(include_str!("../../migrations/002_history_fts.sql")),
+        M::up(include_str!("../../migrations/003_orchestration.sql")),
     ])
 }
 

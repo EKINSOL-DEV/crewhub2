@@ -75,6 +75,10 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             ipc::mcp_status,
             ipc::enable_mcp_for_project,
             ipc::disable_mcp_for_project,
+            ipc::list_meetings,
+            ipc::get_meeting,
+            ipc::list_meeting_turns,
+            ipc::list_action_items,
         ])
         .events(tauri_specta::collect_events![
             events::DomainEvent,

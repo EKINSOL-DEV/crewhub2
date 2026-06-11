@@ -130,6 +130,27 @@ export const commands = {
 	mcpStatus: () => typedError<McpStatus, string>(__TAURI_INVOKE("mcp_status")),
 	enableMcpForProject: (projectId: string) => typedError<null, string>(__TAURI_INVOKE("enable_mcp_for_project", { projectId })),
 	disableMcpForProject: (projectId: string) => typedError<null, string>(__TAURI_INVOKE("disable_mcp_for_project", { projectId })),
+	listMeetings: (projectId: string | null) => typedError<Meeting[], string>(__TAURI_INVOKE("list_meetings", { projectId })),
+	/**  Single-meeting refetch for `MeetingChanged` reconciliation (D-M4-11). */
+	getMeeting: (id: string) => typedError<{
+	id: string,
+	title: string,
+	goal: string | null,
+	state: string,
+	room_id: string | null,
+	project_id: string | null,
+	config_json: string | null,
+	output_md: string | null,
+	output_path: string | null,
+	current_round: number | null,
+	current_turn: number | null,
+	started_at: number | null,
+	completed_at: number | null,
+	cancelled_at: number | null,
+	error_message: string | null,
+} | null, string>(__TAURI_INVOKE("get_meeting", { id })),
+	listMeetingTurns: (meetingId: string) => typedError<MeetingTurn[], string>(__TAURI_INVOKE("list_meeting_turns", { meetingId })),
+	listActionItems: (meetingId: string) => typedError<ActionItem[], string>(__TAURI_INVOKE("list_action_items", { meetingId })),
 };
 
 /** Events */
@@ -139,6 +160,18 @@ export const events = {
 };
 
 /* Types */
+export type ActionItem = {
+	id: string,
+	meeting_id: string,
+	text: string,
+	assignee_agent_id: string | null,
+	priority: string | null,
+	status: string,
+	task_id: string | null,
+	sort_order: number,
+	created_at: number,
+};
+
 export type Agent = {
 	id: string,
 	name: string,
@@ -212,6 +245,18 @@ export type DomainEvent = { type: "AgentCreated"; data: {
 /**  A session binding was created, updated or deleted (G3, EKI-40). */
 { type: "SessionBindingChanged"; data: {
 	session_id: string,
+} } | 
+/**  Meeting state/turn progress (M4 D-M4-11) — UI refetches the meeting + turns. */
+{ type: "MeetingChanged"; data: {
+	meeting_id: string,
+} } | 
+/**  A run was created/updated/fired or a result landed — UI refetches. */
+{ type: "RunChanged"; data: {
+	run_id: string,
+} } | 
+/**  A standup entry landed — UI refetches the standup + entries. */
+{ type: "StandupChanged"; data: {
+	standup_id: string,
 } };
 
 /**  Wrapper event carrying provider-neutral engine events to the webview. */
@@ -250,6 +295,38 @@ export type HookSignal = {
 export type McpStatus = {
 	port: number,
 	url: string,
+};
+
+export type Meeting = {
+	id: string,
+	title: string,
+	goal: string | null,
+	state: string,
+	room_id: string | null,
+	project_id: string | null,
+	config_json: string | null,
+	output_md: string | null,
+	output_path: string | null,
+	current_round: number | null,
+	current_turn: number | null,
+	started_at: number | null,
+	completed_at: number | null,
+	cancelled_at: number | null,
+	error_message: string | null,
+};
+
+export type MeetingTurn = {
+	id: string,
+	meeting_id: string,
+	round_num: number,
+	turn_index: number,
+	agent_id: string,
+	session_id: string | null,
+	/**  Item-sequence offset in the participant's transcript at turn start. */
+	transcript_offset: number | null,
+	started_at: number | null,
+	/**  NULL + meeting moved past it = the turn was skipped (💤). */
+	completed_at: number | null,
 };
 
 export type NewAgent = {

@@ -30,6 +30,18 @@ pub enum DomainEvent {
     SessionBindingChanged {
         session_id: String,
     },
+    /// Meeting state/turn progress (M4 D-M4-11) — UI refetches the meeting + turns.
+    MeetingChanged {
+        meeting_id: String,
+    },
+    /// A run was created/updated/fired or a result landed — UI refetches.
+    RunChanged {
+        run_id: String,
+    },
+    /// A standup entry landed — UI refetches the standup + entries.
+    StandupChanged {
+        standup_id: String,
+    },
 }
 
 /// Wrapper event carrying provider-neutral engine events to the webview.
