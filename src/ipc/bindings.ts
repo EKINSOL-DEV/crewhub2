@@ -33,6 +33,9 @@ export const commands = {
 	deleteTask: (id: string) => typedError<boolean, string>(__TAURI_INVOKE("delete_task", { id })),
 	getSetting: (key: string) => typedError<string | null, string>(__TAURI_INVOKE("get_setting", { key })),
 	setSetting: (key: string, value: string) => typedError<null, string>(__TAURI_INVOKE("set_setting", { key, value })),
+	mcpStatus: () => typedError<McpStatus, string>(__TAURI_INVOKE("mcp_status")),
+	enableMcpForProject: (projectId: string) => typedError<null, string>(__TAURI_INVOKE("enable_mcp_for_project", { projectId })),
+	disableMcpForProject: (projectId: string) => typedError<null, string>(__TAURI_INVOKE("disable_mcp_for_project", { projectId })),
 };
 
 /** Events */
@@ -102,6 +105,15 @@ export type HookSignal = {
 	path: string | null,
 	payload_json: string | null,
 	ts: number,
+};
+
+/**
+ *  What the UI may know about the MCP server. The bearer token is
+ *  deliberately absent: it never crosses into the webview.
+ */
+export type McpStatus = {
+	port: number,
+	url: string,
 };
 
 export type NewAgent = {
