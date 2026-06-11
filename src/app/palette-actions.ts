@@ -1,6 +1,7 @@
 // Built-in palette action source (EKI-16): everything the shell itself can do.
 // Other lanes register their own sources via usePalette().registerActions.
 import { commands } from "@/ipc/bindings";
+import { openAutomationPanel } from "@/panels/automation/open-automation";
 import { openBoardPanel } from "@/panels/board/open-board";
 import { usePalette, type PaletteAction } from "@/stores/palette";
 import { useSettings } from "@/stores/settings";
@@ -93,6 +94,15 @@ export function buildShellActions(): PaletteAction[] {
     // T17: routes to the board's create dialog (room required — the v1
     // room_id lesson) instead of the M2 placeholder dialog.
     run: () => openBoardPanel({ create: "1" }),
+  });
+
+  actions.push({
+    id: "automation.new-schedule",
+    label: "New schedule",
+    emoji: "⏰",
+    group: "Automation",
+    keywords: ["schedule", "cron", "run", "automation", "new"],
+    run: () => openAutomationPanel({ create: "1" }),
   });
 
   actions.push({

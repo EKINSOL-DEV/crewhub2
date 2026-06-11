@@ -173,6 +173,20 @@ export const PANELS: Record<PanelKind, PanelDefinition> = {
       hint: "Changes will show up here as they land",
     },
   },
+  automation: {
+    kind: "automation",
+    label: "Automation",
+    emoji: "⏰",
+    description: "Scheduled runs, sequences and the prompt template library",
+    keywords: ["automation", "schedule", "cron", "runs", "sequences", "templates"],
+    shortcutHint: "u",
+    component: lazy(() => import("@/panels/automation/AutomationPanel")),
+    emptyState: {
+      emoji: "⏰",
+      title: "Nothing scheduled — the crew sleeps in",
+      hint: "Create a run: a one-off prompt, a sequence, or a scheduled standup",
+    },
+  },
 };
 
 export const PANEL_LIST: PanelDefinition[] = Object.values(PANELS);
