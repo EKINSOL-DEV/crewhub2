@@ -12,14 +12,16 @@ import { commands, type CronPreview, type Run } from "@/ipc/bindings";
 import { useAgentsStore } from "@/stores/agents";
 import { useAutomationStore } from "@/stores/automation";
 import { parseRunSpec, type RunSpec } from "./run-spec";
+import { emptyStep, SequenceEditor, validateSteps, type DraftStep } from "./SequenceEditor";
 
-type DraftAction = "prompt" | "standup" | "raw";
+type DraftAction = "prompt" | "sequence" | "standup" | "raw";
 
 interface Draft {
   action: DraftAction;
   projectPath: string;
   prompt: string;
   model: string;
+  steps: DraftStep[];
   standupTitle: string;
   standupAgents: string[]; // empty = all non-archived agents
   rawSpec: string;
@@ -33,6 +35,7 @@ function draftFrom(run: Run | null, initialSpecJson?: string, initialCron?: stri
     projectPath: "",
     prompt: "",
     model: DEFAULT_MODEL,
+    steps: [emptyStep()],
     standupTitle: "",
     standupAgents: [],
     rawSpec: "",
@@ -52,6 +55,16 @@ function draftFrom(run: Run | null, initialSpecJson?: string, initialCron?: stri
         prompt: spec.prompt,
         model: spec.model && isModelTierId(spec.model) ? spec.model : DEFAULT_MODEL,
       };
+    case "sequence":
+      return {
+        ...base,
+        action: "sequence",
+        steps: spec.steps.map((s) => ({
+          projectPath: s.project_path,
+          prompt: s.prompt,
+          model: s.model && isModelTierId(s.model) ? s.model : DEFAULT_MODEL,
+        })),
+      };
     case "standup":
       return {
         ...base,
@@ -60,7 +73,7 @@ function draftFrom(run: Run | null, initialSpecJson?: string, initialCron?: stri
         standupAgents: spec.agent_ids ?? [],
       };
     default:
-      // sequence (edited via the sequence editor) or unreadable — raw JSON
+      // unreadable / future shapes — raw JSON, still editable
       return { ...base, action: "raw", rawSpec: specJson };
   }
 }
@@ -75,6 +88,19 @@ function buildSpecJson(d: Draft): { spec: string } | { error: string } {
         project_path: d.projectPath.trim(),
         prompt: d.prompt,
         model: d.model,
+      };
+      return { spec: JSON.stringify(spec) };
+    }
+    case "sequence": {
+      const invalid = validateSteps(d.steps);
+      if (invalid) return { error: invalid };
+      const spec: RunSpec = {
+        action: "sequence",
+        steps: d.steps.map((s) => ({
+          project_path: s.projectPath.trim(),
+          prompt: s.prompt,
+          model: s.model,
+        })),
       };
       return { spec: JSON.stringify(spec) };
     }
@@ -179,6 +205,7 @@ export function ScheduleEditor({ run, initialSpecJson, initialCron, onClose }: S
   const actionChoices = useMemo<{ id: DraftAction; label: string }[]>(() => {
     const base: { id: DraftAction; label: string }[] = [
       { id: "prompt", label: "💬 prompt" },
+      { id: "sequence", label: "⛓️ sequence" },
       { id: "standup", label: "☕ standup" },
     ];
     if (draft.action === "raw") base.push({ id: "raw", label: "🧾 raw spec" });
@@ -246,6 +273,15 @@ export function ScheduleEditor({ run, initialSpecJson, initialCron, onClose }: S
             </select>
           </label>
 
+          {/* shared by the prompt form and every sequence step */}
+          <datalist id="automation-project-paths">
+            {projects.map((p) => (
+              <option key={p.id} value={p.folder_path}>
+                {p.name}
+              </option>
+            ))}
+          </datalist>
+
           {draft.action === "prompt" && (
             <>
               <label className="flex flex-col gap-1 text-xs">
@@ -257,13 +293,6 @@ export function ScheduleEditor({ run, initialSpecJson, initialCron, onClose }: S
                   value={draft.projectPath}
                   onChange={(e) => patch({ projectPath: e.target.value })}
                 />
-                <datalist id="automation-project-paths">
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.folder_path}>
-                      {p.name}
-                    </option>
-                  ))}
-                </datalist>
               </label>
               <label className="flex flex-col gap-1 text-xs">
                 prompt
@@ -277,6 +306,10 @@ export function ScheduleEditor({ run, initialSpecJson, initialCron, onClose }: S
               {/* haiku default — never a hardcoded expensive model (D-M4-3) */}
               <ModelPicker value={draft.model} onChange={(m) => patch({ model: m })} />
             </>
+          )}
+
+          {draft.action === "sequence" && (
+            <SequenceEditor steps={draft.steps} onChange={(steps) => patch({ steps })} />
           )}
 
           {draft.action === "standup" && (
