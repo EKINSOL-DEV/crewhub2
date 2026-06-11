@@ -26,7 +26,7 @@ export function startSessionMetaStream(): void {
   void commands
     .listAllSessions()
     .then((res) => {
-      if (res.status === "ok") for (const m of res.data) ingestMeta(m);
+      if (res.status === "ok" && Array.isArray(res.data)) for (const m of res.data) ingestMeta(m);
     })
     .catch(() => {
       /* backend unavailable (tests) */

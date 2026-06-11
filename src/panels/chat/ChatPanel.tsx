@@ -5,6 +5,7 @@ import { useEffect, useMemo } from "react";
 import { parseSessionKey, sessionKey, startTranscriptStream, useTranscripts } from "@/stores/transcripts";
 import { Composer } from "./Composer";
 import { ChatContext, type ChatContextValue } from "./context";
+import { HistoryFooter } from "./HistoryFooter";
 import { MetaStrip } from "./MetaStrip";
 import { PromptsArea } from "./prompts";
 import { SpawnFromChat } from "./SpawnFromChat";
@@ -70,7 +71,22 @@ function BoundChat({
         </div>
         {!historyMode && <PromptsArea sid={sid} />}
         {showTyping && <TypingBot />}
-        {!historyMode && <Composer sid={sid} />}
+        {historyMode ? (
+          <HistoryFooter
+            sid={sid}
+            projectPath={params.projectPath}
+            onLive={(id, kind) => {
+              // Take-over swaps this panel live; forks open on the fork's id.
+              // TODO(merge): "Fork from here" should open a NEW panel via Lane
+              // A's workspace store — until merge it swaps in place.
+              const next: Record<string, string> = { sessionId: sessionKey(id) };
+              if (kind === "fork") next.note = `fork of ${skey}`;
+              setParams(next);
+            }}
+          />
+        ) : (
+          <Composer sid={sid} />
+        )}
       </div>
     </ChatContext.Provider>
   );
