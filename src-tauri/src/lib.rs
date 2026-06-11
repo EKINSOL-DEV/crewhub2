@@ -9,7 +9,19 @@ pub mod onboarding;
 pub mod orchestrator;
 pub mod security;
 pub mod store;
+pub mod tray;
 pub mod workspace;
+
+/// Tray "Check for updates…" action (T5 menu → T7 IPC). Stub until the T7
+/// updater lands: brings the app forward so the user can use the settings
+/// entry; T7 replaces the body with a real check + notify.
+pub(crate) fn updater_menu_check<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
+    use tauri::Manager;
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
 
 pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new()
@@ -218,6 +230,19 @@ pub fn run() {
                         true
                     }
                 };
+            }
+
+            // M6 T5 (D-M6-5): tray icon + dock badge, entirely Rust-side.
+            // Failure to create a tray (odd Linux setups) degrades to none.
+            match tray::setup(app.handle()) {
+                Ok(()) => {
+                    let tray_app = app.handle().clone();
+                    let tray_registry = registry.clone();
+                    tauri::async_runtime::spawn(async move {
+                        tray::watch(tray_app, tray_registry).await;
+                    });
+                }
+                Err(e) => eprintln!("tray setup failed (continuing without): {e}"),
             }
 
             // G4: the persisted "allow always" rules apply from the first spawn.
