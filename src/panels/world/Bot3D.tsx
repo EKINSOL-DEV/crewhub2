@@ -1,6 +1,7 @@
 // One bot = one live session (EKI-62/66). v1's visual DNA, rewritten lean:
 // rounded capsule body, simple face, gentle bobbing, idle wander. All motion
-// folds the pure wanderStep — and is skipped entirely under reduced motion.
+// folds pure step functions (wanderStep/springStep/squashStretch/blinkScale)
+// — and is skipped entirely under reduced motion (static variants).
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { Billboard, Text } from "@react-three/drei";
@@ -8,11 +9,15 @@ import * as THREE from "three";
 import { BotBubbles } from "./BotBubbles";
 import type { WorldBot } from "./lib/bots";
 import type { WorldBounds } from "./lib/layout";
+import { blinkScale, squashStretch } from "./lib/motion";
+import { springStep, type Spring1D } from "./lib/spring";
 import { statusGlow } from "./lib/status";
 import { initialWander, wanderStep, type WanderState } from "./lib/wander";
 
 const BODY_Y = 0.5; // capsule center height — feet on the floor
 const HOME_SPEED = 1.6; // hustle back to the desk faster than a stroll
+const MOVE_OMEGA = 7; // spring snappiness — eased starts/stops, no overshoot
+const HOP_AMPLITUDE = 0.14;
 
 function phaseOf(key: string): number {
   let h = 0;
@@ -43,8 +48,12 @@ export interface Bot3DProps {
 export function Bot3D({ bot, home, bounds, reducedMotion, speech, onClick }: Bot3DProps) {
   const group = useRef<THREE.Group>(null);
   const body = useRef<THREE.Group>(null);
+  const eyes = useRef<THREE.Group>(null);
   const glowMat = useRef<THREE.MeshBasicMaterial>(null);
   const wander = useRef<WanderState>(initialWander(home[0], home[1]));
+  // Rendered position springs toward the wander target — eased starts/stops.
+  const springX = useRef<Spring1D>({ x: home[0], v: 0 });
+  const springZ = useRef<Spring1D>({ x: home[1], v: 0 });
   const phase = useMemo(() => phaseOf(bot.key), [bot.key]);
   const glow = statusGlow(bot.status);
 
@@ -59,6 +68,10 @@ export function Bot3D({ bot, home, bounds, reducedMotion, speech, onClick }: Bot
     if (reducedMotion) {
       g.position.set(home[0], BODY_Y, home[1]);
       g.rotation.y = 0;
+      if (body.current) body.current.scale.set(1, 1, 1);
+      if (eyes.current) eyes.current.scale.set(1, 1, 1);
+      springX.current = { x: home[0], v: 0 };
+      springZ.current = { x: home[1], v: 0 };
       return;
     }
 
@@ -76,21 +89,38 @@ export function Bot3D({ bot, home, bounds, reducedMotion, speech, onClick }: Bot
           );
     wander.current = next;
 
+    // Spring-ease the rendered position toward the wander step (Epic 20):
+    // critically damped, so departures lean in and arrivals settle softly.
+    springX.current = springStep(springX.current, next.x, MOVE_OMEGA, dt);
+    springZ.current = springStep(springZ.current, next.z, MOVE_OMEGA, dt);
+
     const t = state.clock.elapsedTime + phase;
     // WaitingForPermission hops for attention (the 3D cousin of the 🙋 critter).
     const bob =
       glow.anim === "bounce"
-        ? Math.abs(Math.sin(t * 5)) * 0.14
+        ? Math.abs(Math.sin(t * 5)) * HOP_AMPLITUDE
         : next.moving
           ? Math.abs(Math.sin(t * 8)) * 0.05
           : Math.sin(t * 1.6) * 0.02;
-    g.position.set(next.x, BODY_Y + bob, next.z);
+    g.position.set(springX.current.x, BODY_Y + bob, springZ.current.x);
 
     if (next.moving) easeRotationY(g, next.heading);
     else easeRotationY(g, 0, 0.05); // settle facing the camera side
 
-    // Working bots do a tiny eager wiggle — the 3D cousin of the 🔨 critter.
-    if (body.current) body.current.rotation.z = bot.status === "Working" ? Math.sin(t * 12) * 0.04 : 0;
+    if (body.current) {
+      // Working bots do a tiny eager wiggle — the 3D cousin of the 🔨 critter.
+      body.current.rotation.z = bot.status === "Working" ? Math.sin(t * 12) * 0.04 : 0;
+      // The hop gets cartoon squash-and-stretch; everyone else stands firm.
+      if (glow.anim === "bounce") {
+        const s = squashStretch(bob / HOP_AMPLITUDE);
+        body.current.scale.set(s.xz, s.y, s.xz);
+      } else {
+        body.current.scale.set(1, 1, 1);
+      }
+    }
+
+    // Occasional blink — deterministic, phase-desynchronized across bots.
+    if (eyes.current) eyes.current.scale.y = blinkScale(state.clock.elapsedTime, phase);
 
     // Working glow breathes; everything else holds steady.
     if (glowMat.current) {
@@ -114,19 +144,22 @@ export function Bot3D({ bot, home, bounds, reducedMotion, speech, onClick }: Bot
           <capsuleGeometry args={[0.24, 0.4, 6, 16]} />
           <meshStandardMaterial color={bot.color} roughness={0.55} />
         </mesh>
-        {/* Eyes — white sclera + pupil, embedded in the head front */}
-        {[-0.09, 0.09].map((x) => (
-          <group key={x} position={[x, 0.18, 0.17]}>
-            <mesh>
-              <sphereGeometry args={[0.055, 12, 12]} />
-              <meshStandardMaterial color="#ffffff" roughness={0.3} />
-            </mesh>
-            <mesh position={[0, 0, 0.038]}>
-              <sphereGeometry args={[0.026, 10, 10]} />
-              <meshStandardMaterial color="#1a1a1a" roughness={0.4} />
-            </mesh>
-          </group>
-        ))}
+        {/* Eyes — white sclera + pupil; the wrapper sits at eye height so a
+            blink (scale.y dip) squints in place instead of sliding down */}
+        <group ref={eyes} position={[0, 0.18, 0.17]}>
+          {[-0.09, 0.09].map((x) => (
+            <group key={x} position={[x, 0, 0]}>
+              <mesh>
+                <sphereGeometry args={[0.055, 12, 12]} />
+                <meshStandardMaterial color="#ffffff" roughness={0.3} />
+              </mesh>
+              <mesh position={[0, 0, 0.038]}>
+                <sphereGeometry args={[0.026, 10, 10]} />
+                <meshStandardMaterial color="#1a1a1a" roughness={0.4} />
+              </mesh>
+            </group>
+          ))}
+        </group>
         {/* Smile */}
         <mesh position={[0, 0.06, 0.215]} rotation={[0, 0, Math.PI]}>
           <torusGeometry args={[0.05, 0.012, 6, 12, Math.PI]} />
