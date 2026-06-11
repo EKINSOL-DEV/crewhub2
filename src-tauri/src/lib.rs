@@ -1,5 +1,6 @@
 pub mod engine;
 pub mod events;
+pub mod git;
 pub mod hooks;
 mod ipc;
 pub mod mcp;
@@ -58,6 +59,9 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             ipc::list_doc_tree,
             ipc::read_doc_file,
             ipc::read_doc_image,
+            ipc::git_status,
+            ipc::git_diff,
+            ipc::git_default_base,
             ipc::list_slash_commands,
             ipc::materialize_persona,
             ipc::remove_materialized_persona,

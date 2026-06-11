@@ -97,6 +97,9 @@ export const commands = {
 	listDocTree: (projectId: string) => typedError<DocEntry[], string>(__TAURI_INVOKE("list_doc_tree", { projectId })),
 	readDocFile: (projectId: string, relPath: string) => typedError<string, string>(__TAURI_INVOKE("read_doc_file", { projectId, relPath })),
 	readDocImage: (projectId: string, relPath: string) => typedError<DocImage, string>(__TAURI_INVOKE("read_doc_image", { projectId, relPath })),
+	gitStatus: (projectPath: string) => typedError<GitStatus, string>(__TAURI_INVOKE("git_status", { projectPath })),
+	gitDiff: (projectPath: string, base: string | null) => typedError<GitDiff, string>(__TAURI_INVOKE("git_diff", { projectPath, base })),
+	gitDefaultBase: (projectPath: string) => typedError<string | null, string>(__TAURI_INVOKE("git_default_base", { projectPath })),
 	/**
 	 *  Composer hints: slash commands/skills any provider recognizes for the
 	 *  project (G8). Read-only, path-policy-checked.
@@ -162,6 +165,15 @@ export type ArchivedSession = {
 	last_modified_ms: number,
 };
 
+export type DiffFile = {
+	path: string,
+	/**  One-letter porcelain status: A/M/D/R/C/T/U, or "B" for binary. */
+	status: string,
+	additions: number,
+	deletions: number,
+	patch: string,
+};
+
 export type DocEntry = {
 	/**  Path relative to the docs root, `/`-separated. */
 	rel_path: string,
@@ -200,6 +212,21 @@ export type DomainEvent = { type: "AgentCreated"; data: {
 
 /**  Wrapper event carrying provider-neutral engine events to the webview. */
 export type EngineEvent = SessionEvent;
+
+export type GitDiff = {
+	files: DiffFile[],
+	truncated: boolean,
+};
+
+export type GitStatus = {
+	branch: string,
+	ahead: number,
+	behind: number,
+	/**  Tracked entries with changes (staged, unstaged or unmerged). */
+	dirty: number,
+	untracked: number,
+	worktrees: Worktree[],
+};
 
 export type HandoffTarget = "Terminal" | "Iterm" | "Warp" | "Vscode" | "RevealInFinder";
 
@@ -544,6 +571,12 @@ export type UsageTotals = {
 	input_tokens: number,
 	output_tokens: number,
 	cache_read_tokens: number,
+};
+
+export type Worktree = {
+	path: string,
+	branch: string | null,
+	is_current: boolean,
 };
 
 /* Tauri Specta runtime */

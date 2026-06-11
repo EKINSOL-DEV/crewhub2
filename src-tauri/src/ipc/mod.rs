@@ -254,6 +254,51 @@ pub fn read_doc_image(
     crate::workspace::docs::read_doc_image(&docs_root(&store, &project_id)?, &rel_path).map_err(err)
 }
 
+// ---- git awareness (T4, D-M3-5/G6) ----
+// Read-only, fixed-argv `git` CLI; `project_path` is path-policy-validated
+// and only ever used as the process CWD. Errors prefixed `GitUnavailable:`
+// mean "no git info here" — panels hide the strip instead of erroring.
+
+#[tauri::command]
+#[specta::specta]
+pub async fn git_status(
+    store: State<'_, Arc<Store>>,
+    project_path: String,
+) -> Result<crate::git::GitStatus> {
+    let canon = validate_project_path(&store, &project_path, Access::Read)?;
+    tauri::async_runtime::spawn_blocking(move || crate::git::git_status(&canon))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn git_diff(
+    store: State<'_, Arc<Store>>,
+    project_path: String,
+    base: Option<String>,
+) -> Result<crate::git::GitDiff> {
+    let canon = validate_project_path(&store, &project_path, Access::Read)?;
+    tauri::async_runtime::spawn_blocking(move || crate::git::git_diff(&canon, base.as_deref()))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn git_default_base(
+    store: State<'_, Arc<Store>>,
+    project_path: String,
+) -> Result<Option<String>> {
+    let canon = validate_project_path(&store, &project_path, Access::Read)?;
+    tauri::async_runtime::spawn_blocking(move || crate::git::git_default_base(&canon))
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())
+}
+
 /// Composer hints: slash commands/skills any provider recognizes for the
 /// project (G8). Read-only, path-policy-checked.
 #[tauri::command]
@@ -1707,6 +1752,32 @@ mod tests {
             err.contains("no provider supports persona materialization"),
             "got: {err}"
         );
+    }
+
+    /// T4 (G6): git commands are path-policy-gated and surface the
+    /// `GitUnavailable:` prefix for non-repos; details live in `crate::git`.
+    #[tokio::test]
+    async fn git_commands_validate_paths_and_degrade_gracefully() {
+        let app = app();
+        let dir = tempfile::tempdir().unwrap();
+        register_project_at(&app, dir.path().to_str().unwrap());
+
+        let err = git_status(app.state(), "/etc".into()).await.unwrap_err();
+        assert!(err.contains("outside"), "got: {err}");
+
+        // registered but not a repo -> the graceful variant
+        let err = git_status(app.state(), dir.path().display().to_string())
+            .await
+            .unwrap_err();
+        assert!(err.starts_with("GitUnavailable:"), "got: {err}");
+        let err = git_diff(app.state(), dir.path().display().to_string(), None)
+            .await
+            .unwrap_err();
+        assert!(err.starts_with("GitUnavailable:"), "got: {err}");
+        let err = git_default_base(app.state(), dir.path().display().to_string())
+            .await
+            .unwrap_err();
+        assert!(err.starts_with("GitUnavailable:"), "got: {err}");
     }
 
     #[test]
