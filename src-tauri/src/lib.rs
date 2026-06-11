@@ -2,6 +2,7 @@ pub mod engine;
 pub mod events;
 pub mod hooks;
 mod ipc;
+pub mod mcp;
 pub mod security;
 pub mod store;
 

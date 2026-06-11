@@ -34,8 +34,12 @@ async-trait = "0.1.89"
 tokio = { version = "1.47", features = ["rt", "sync", "macros", "time", "process", "io-util", "net"] }
 chrono = "0.4.45"
 notify = "8.2.0"
+rmcp = { version = "1.7.0", features = ["server", "transport-streamable-http-server", "schemars"] }
+axum = "0.8.9"
+schemars = "1.2.1"
 
 [dev-dependencies]
+reqwest = { version = "0.13.4", default-features = false, features = ["json"] }
 tauri = { version = "2", features = ["test"] }
 tempfile = "3.27.0"
 
