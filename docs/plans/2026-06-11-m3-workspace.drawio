@@ -1,0 +1,255 @@
+<mxfile host="app.diagrams.net" modified="2026-06-11T18:00:00.000Z" agent="CrewHub planning" version="24.0.0">
+  <diagram id="m3-arch" name="M3 Workspace Architecture">
+    <mxGraphModel dx="1500" dy="950" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1500" pageHeight="1050" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="panels" value="src/panels — NEW M3 PANELS (4 registry entries, zero shell changes — D-M2-2 paid off)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;verticalAlign=top;fontSize=12;fontStyle=1;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="1420" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="p1" value="board/ (Lane E, EKI-93/95/97/99): Columns todo→blocked · dnd-kit drag (Drag Tilt, Confetti Done) · quick-move menu (v1 lesson) · TaskDrawer + event timeline · RunWithAgentDialog (haiku default) · HQ cross-project view · Board Critters on linked runs" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="60" y="75" width="450" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="p2" value="projects/ (Lane D, EKI-85/87): ProjectCard stats + git strip slot · folder picker (pick_folder) · docs_path · auto-suggest from history · RoomsManager + RuleEditor (auto chip, manual override sticks)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="530" y="75" width="320" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="p3" value="docs/ (Lane D, EKI-89): DocTree · shared Markdown.tsx (chat-grade fidelity) · images via read_doc_image + object-URL cache · in-tree link nav" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="870" y="75" width="280" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="p4" value="diff/ (Lane F, EKI-103/105): GitStrip (branch · ↑↓ · dirty · worktree label) · DiffPanel (diff-parse.ts + shiki diff blocks, base switcher, truncation banner) · read-only" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="1170" y="75" width="270" height="115" as="geometry" />
+        </mxCell>
+
+        <mxCell id="stores" value="src/stores — UI STORES (fold DomainEvent/EngineEvent; agent and human writes are indistinguishable to render)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;verticalAlign=top;fontSize=12;fontStyle=1;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="240" width="1420" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="s1" value="tasks.ts (E) — pure reducer: seed · optimistic(+pendingVersion) · rollback · reconcile via TaskChanged→get_task — D-M3-2; run-linkage watch of EngineEvent (stop ⇒ suggest review)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="60" y="275" width="450" height="75" as="geometry" />
+        </mxCell>
+        <mxCell id="s2" value="notifications.ts (E) — matchRules(rules,event) pure · ToastCenter sink (M6 swaps in OS sink) — D-M3-9" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="530" y="275" width="320" height="75" as="geometry" />
+        </mxCell>
+        <mxCell id="s3" value="projects.ts / rooms.ts (D) — seed + ProjectChanged/RoomChanged folds" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="870" y="275" width="280" height="75" as="geometry" />
+        </mxCell>
+        <mxCell id="s4" value="git.ts (F) — per-project GitStatus cache: focus + 30s + post-Edit/Write signal refresh; GitUnavailable ⇒ hide" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="1170" y="275" width="270" height="75" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ipc" value="TYPED IPC (tauri-specta bindings — Lane 0 owns, FROZEN after T5)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;verticalAlign=top;fontSize=12;fontStyle=1;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="400" width="1420" height="105 " as="geometry" />
+        </mxCell>
+        <mxCell id="i1" value="get_task · list_task_events · record_task_run_started/finished (T1) — room rules CRUD (T2) — pick_folder · list_doc_tree · read_doc_file · read_doc_image (T3) — git_status · git_diff · git_default_base (T4) — notification rules CRUD (T5) — existing: tasks/rooms/projects CRUD, spawnSession, listArchivedSessions(filter), DomainEvent + EngineEvent streams" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="60" y="430" width="1380" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="rust" value="src-tauri — RUST CORE ADDITIONS (Lane 0) — all privileged work; webview gets no fs / shell / dialog permission" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;verticalAlign=top;fontSize=12;fontStyle=1;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="540" width="1000" height="230" as="geometry" />
+        </mxCell>
+        <mxCell id="r1" value="store/task_events.rs (T1): timeline + run linkage — written in store layer via create_task_as/update_task_as so IPC (human) and MCP (agent:&lt;id&gt;/mcp) share one path — D-M3-3" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="60" y="575" width="310" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="r2" value="store/room_rules.rs (T2): CRUD + pure assign_room evaluator — runs on Discovered, writes binding ONLY if no row exists (manual override sticks) — D-M3-10" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="390" y="575" width="310" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="r3" value="workspace/docs.rs + pick.rs (T3): doc tree/file/image reads — every path PathPolicy::validate(Read); caps: depth 6, 2MB md, 8MB img; tauri-plugin-dialog Rust-side only — D-M3-7" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="720" y="575" width="300" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="r4" value="git/mod.rs (T4): fixed-argv git CLI (handoff.rs precedent), porcelain v2 + worktrees, 2s timeout, size caps, GitUnavailable graceful — no libgit2 — D-M3-5" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="60" y="670" width="310" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="r5" value="store/notification_rules.rs (T5): CRUD over existing table; matching stays frontend (pure fn) until M6" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="390" y="670" width="310" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="r6" value="mcp/tools.rs (T5): + acting_as (validated vs agents table, honest 'via MCP' badge) · task_events writes · assignee on update — D-M3-4" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="720" y="670" width="300" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="loop" value="THE AGENT→BOARD LOOP (EKI-97)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;verticalAlign=top;fontSize=12;fontStyle=1;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="540" width="400" height="230" as="geometry" />
+        </mxCell>
+        <mxCell id="l1" value="Claude Code session (managed or headless fake-claude mcp-board scenario)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="575" width="360" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="l2" value="MCP HTTP (127.0.0.1 + bearer): create_task / update_task_status (acting_as)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="630" width="360" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="l3" value="store mutation + task_events row → DomainEvent::TaskChanged → tasks.ts reconcile (get_task) → card moves live, actor badged" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="685" width="360" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="le1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="l1" target="l2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="le2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="l2" target="l3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e_p_s" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="panels" target="stores">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_s_i" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="stores" target="ipc">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_i_r" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.4;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="ipc" target="rust">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_loop_i" value="DomainEvent" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=0;entryX=0.85;entryY=1;dashed=1;" edge="1" parent="1" source="loop" target="ipc">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="note" value="Standing principles: playfulness inventory D-M3-8 (Confetti Done · Drag Tilt · Board Critters · Quiet Board · Toast Critters, all reduced-motion-aware) · haiku-default/model-adaptive (Run-with-agent one-offs default haiku; agents use their default_model). EXECUTION GATE: starts only after the M2 dogfood gate is green-lit or waived." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;dashed=1;align=left;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="40" y="800" width="1420" height="60" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="m3-tasks" name="M3 Task Graph (lanes)">
+    <mxGraphModel dx="1600" dy="950" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1660" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="lane0" value="LANE 0 — Backend gaps (serial, FIRST; owns src-tauri/** + bindings regen — frozen after T5)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;verticalAlign=top;fontStyle=1;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="1580" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="t1" value="T1 (M) G1/G3&#10;task_events store + writes + get_task + run-event IPC" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="60" y="80" width="280" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="t2" value="T2 (M) G2&#10;room_rules CRUD + assign_room evaluator on Discovered" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="370" y="80" width="280" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="t3" value="T3 (M) G4/G5&#10;docs read cmds (PathPolicy) + pick_folder (dialog plugin, Rust-side)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="680" y="80" width="280" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="t4" value="T4 (M) G6&#10;git module: status/diff/worktrees, fixed argv, caps" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="990" y="80" width="280" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="t5" value="T5 (M) G7/G8&#10;notification_rules CRUD + MCP acting_as + task_events writes → BINDINGS FREEZE" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#b85450;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="80" width="300" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="laneM" value="MAIN LANE — registry pre-seed (then src/app/** frozen for M3)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;verticalAlign=top;fontStyle=1;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="200" width="500" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="t6" value="T6 (S)&#10;+4 PanelKinds (board/projects/docs/diff), registry stubs w/ Quiet Board empty states, palette actions — D/E/F fork here" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="60" y="235" width="460" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="laneD" value="LANE D — Projects · Rooms · Docs (owns src/panels/{projects,docs}, stores/{projects,rooms})" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;verticalAlign=top;fontStyle=1;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="350" width="1580" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="t7" value="T7 (M) EKI-85&#10;projects panel: CRUD + folder picker + docs_path + auto-suggest + stat cards" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="60" y="390" width="300" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="t8" value="T8 (M) EKI-87&#10;rooms manager + rule editor + auto-assign UX (auto chip; override sticks)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="390" y="390" width="300" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="t9" value="T9 (M) EKI-89&#10;docs panel: tree + markdown + images via Rust cmds + link nav" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="720" y="390" width="300" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="laneE" value="LANE E — Board · Run-with-agent · Notifications (owns src/panels/board, stores/{tasks,notifications}, ToastCenter, e2e/board)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;verticalAlign=top;fontStyle=1;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="510" width="1580" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="t10" value="T10 (M) EKI-93 pt1&#10;tasks store (optimistic+reconcile) + columns + quick-move + drawer/timeline" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="60" y="550" width="290" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="t11" value="T11 completes EKI-93 (L)&#10;dnd-kit drag + keyboard DnD + filters + HQ view + Confetti Done / Board Critters" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="380" y="550" width="290" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="t12" value="T12 (M) EKI-95&#10;Run with agent: prompt envelope, auto in_progress, stop ⇒ suggest review" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="700" y="550" width="290" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="t13" value="T13 (M) EKI-97&#10;agent-driven board e2e: rmcp client + component fold + fake-claude mcp-board" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="550" width="290" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="t14" value="T14 (S) EKI-99&#10;notification rules + ToastCenter + click-through + per-rule mute" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="1340" y="550" width="260" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="laneF" value="LANE F — Git UI (main lane, parallel to D/E; owns src/panels/diff, stores/git; backend landed in T4)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;verticalAlign=top;fontStyle=1;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="670" width="1580" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="t15" value="T15 (M) EKI-103&#10;git status strip: branch/ahead-behind/dirty + worktree labels on sessions + project cards" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="60" y="710" width="320" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="t16" value="T16 (M) EKI-105&#10;diff viewer panel: diff-parse.ts + shiki diff blocks, base switcher, entries from chat/sessions/strip" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="410" y="710" width="320" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="laneX" value="CLOSING (after all lanes merge)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;verticalAlign=top;fontStyle=1;spacingTop=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="830" width="1580" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="t17" value="T17 (S)&#10;integration sweep: stub swaps, click-through routes, playfulness ACs, naming-firewall grep, E2E green" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="60" y="870" width="400" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="t18" value="T18&#10;M3 exit review: CI gates, Linear AC walk (EKI-85..105), exit criteria incl. full shared-board loop demo + dogfood week on the board itself" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="490" y="870" width="430" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t1" target="t2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e23" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t2" target="t3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e34" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t3" target="t4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e45" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t4" target="t5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e56" value="bindings frozen" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0;exitY=1;entryX=1;entryY=0.5;dashed=1;" edge="1" parent="1" source="t5" target="t6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6D" value="fork" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.25;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="t6" target="t7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6E" value="fork" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="t6" target="t10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6F" value="fork" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.75;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="t6" target="t15">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e78" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t7" target="t8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e89" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t8" target="t9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e1011" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t10" target="t11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e1112" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t11" target="t12">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e1213" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t12" target="t13">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e1314" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t13" target="t14">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e1516" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t15" target="t16">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e917" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.25;entryY=0;dashed=1;" edge="1" parent="1" source="t9" target="t17">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e1417" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.6;entryY=0;dashed=1;" edge="1" parent="1" source="t14" target="t17">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e1617" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.4;entryY=0;dashed=1;" edge="1" parent="1" source="t16" target="t17">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e1718" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;" edge="1" parent="1" source="t17" target="t18">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="deps" value="Cross-lane deps: T7←T3 (picker) · T8←T2 · T9←T3 · T10←T1 · T12←T1 (run-event IPC) · T13←T5 (acting_as) · T14←T5 · T15/T16←T4+T6. Shared files (panel-registry, layout-tree, palette-actions) written once in T6; each lane's final diff only swaps its stub import (T17 verifies)." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;dashed=1;align=left;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="950" y="830" width="670" height="130" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
