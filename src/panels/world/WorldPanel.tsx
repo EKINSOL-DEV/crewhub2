@@ -78,7 +78,14 @@ export default function WorldPanel() {
   // pauses mid-drag so the floor drag owns the pointer.
   const [editMode, setEditMode] = useState(false);
   const [propDragging, setPropDragging] = useState(false);
-  const [webglFailed, setWebglFailed] = useState(false);
+  // True unavailability is probed once; context-lost events only count when
+  // they come from the CURRENT canvas (StrictMode disposes a first canvas whose
+  // late contextlost event must not poison the live one — seen in dev).
+  const [webglFailed, setWebglFailed] = useState(() => {
+    const probe = document.createElement("canvas");
+    return !(probe.getContext("webgl2") ?? probe.getContext("webgl"));
+  });
+  const activeCanvas = useRef<HTMLCanvasElement | null>(null);
   const debug = useMemo(() => worldDebugEnabled(), []);
   const [fps, setFps] = useState(0);
 
@@ -211,7 +218,12 @@ export default function WorldPanel() {
         // ACES filmic output (Epic 20) — soft highlights, grounded colors.
         gl={{ toneMapping: ACESFilmicToneMapping }}
         onCreated={({ gl }) => {
-          gl.domElement.addEventListener("webglcontextlost", () => setWebglFailed(true));
+          activeCanvas.current = gl.domElement;
+          setWebglFailed(false);
+          gl.domElement.addEventListener("webglcontextlost", (e) => {
+            if (e.target === activeCanvas.current) setWebglFailed(true);
+          });
+          gl.domElement.addEventListener("webglcontextrestored", () => setWebglFailed(false));
         }}
         onPointerMissed={() => setSelection(null)}
         fallback={null}
