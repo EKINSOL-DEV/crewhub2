@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useWorkspace } from "@/stores/workspace";
 import { PANEL_LIST, type PanelProps } from "./panel-registry";
 
-const PICKABLE = PANEL_LIST.filter((d) => d.kind !== "welcome");
+const PICKABLE = PANEL_LIST.filter((d) => d.kind !== "welcome" && !d.hiddenFromPicker);
 
 function isEditable(target: EventTarget | null): boolean {
   return (

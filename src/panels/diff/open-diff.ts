@@ -3,12 +3,17 @@
 // logic as open-chat: focus an existing diff on the project, else adopt an
 // unbound diff or welcome leaf, else split the focused leaf.
 import { leaves } from "@/app/layout-tree";
+import { useAppView } from "@/stores/appView";
 import { useWorkspace } from "@/stores/workspace";
 
 export function openDiffPanel(projectPath: string, base?: string): void {
   const s = useWorkspace.getState();
   const tab = s.tabs.find((t) => t.id === s.activeTabId);
   if (!tab) return; // workspace not loaded yet — nothing sane to do
+
+  // World-primary shell: diffs live in the workspace view — switch over first
+  // (no-op when already there). ⌘1 goes back.
+  useAppView.getState().setView("workspace");
 
   const params: Record<string, string> = { projectPath };
   if (base) params.base = base;
