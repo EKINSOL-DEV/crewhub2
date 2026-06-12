@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import type { Agent, Room, SessionMeta } from "@/ipc/bindings";
 import type { SessionView } from "@/stores/sessions";
-import { botColor, humanizeSubagentName, toWorldBots } from "./bots";
+import { ACTIVE_WINDOW_MS, botColor, humanizeSubagentName, toWorldBots } from "./bots";
 import { LOBBY_ID } from "./layout";
 
 function meta(id: string, over: Partial<SessionMeta> = {}): SessionMeta {
@@ -67,7 +67,7 @@ const den: Room = {
 
 describe("toWorldBots", () => {
   it("maps a bound session to its room and agent color", () => {
-    const bots = toWorldBots([view("s1", { agent: aqua, room: den, displayName: "Aqua" })]);
+    const bots = toWorldBots([view("s1", { agent: aqua, room: den, displayName: "Aqua" })], { nowMs: 0 });
     expect(bots).toHaveLength(1);
     expect(bots[0]).toMatchObject({
       key: "claude:s1",
@@ -80,17 +80,17 @@ describe("toWorldBots", () => {
   });
 
   it("drops Ended sessions — tombstones have no body", () => {
-    expect(toWorldBots([view("s1", {}, { status: "Ended" })])).toHaveLength(0);
+    expect(toWorldBots([view("s1", {}, { status: "Ended" })], { nowMs: 0 })).toHaveLength(0);
   });
 
   it("sends unbound sessions to the lobby", () => {
-    expect(toWorldBots([view("s1")])[0]!.roomId).toBe(LOBBY_ID);
+    expect(toWorldBots([view("s1")], { nowMs: 0 })[0]!.roomId).toBe(LOBBY_ID);
   });
 
   it("clusters subagents into the parent's room with a parentKey", () => {
     const parent = view("p1", { room: den });
     const child = view("c1", {}, { parent: { provider: "claude", id: "p1" } });
-    const bots = toWorldBots([parent, child]);
+    const bots = toWorldBots([parent, child], { nowMs: 0 });
     const sub = bots.find((b) => b.key === "claude:c1")!;
     expect(sub.isSubagent).toBe(true);
     expect(sub.parentKey).toBe("claude:p1");
@@ -107,7 +107,7 @@ describe("toWorldBots", () => {
         activity_detail: "Editing config.py",
       },
     );
-    const bots = toWorldBots([parent, child]);
+    const bots = toWorldBots([parent, child], { nowMs: 0 });
     expect(bots.find((b) => b.isSubagent)!.name).toBe("Editing config.py");
   });
 
@@ -127,7 +127,56 @@ describe("toWorldBots", () => {
       },
       { parent: { provider: "claude", id: "p1" } },
     );
-    expect(toWorldBots([view("p1"), child]).find((b) => b.isSubagent)!.name).toBe("Scout");
+    expect(toWorldBots([view("p1"), child], { nowMs: 0 }).find((b) => b.isSubagent)!.name).toBe("Scout");
+  });
+
+  // ── EKI-110: recency window + crew resting at HQ ───────────────────────────
+
+  it("hides sessions idle longer than the 5-minute window (external ones too)", () => {
+    const now = 1_000_000_000;
+    const fresh = view("fresh", {}, { last_activity_ms: now - ACTIVE_WINDOW_MS });
+    const stale = view("stale", {}, { last_activity_ms: now - ACTIVE_WINDOW_MS - 1, origin: "External" });
+    const keys = toWorldBots([fresh, stale], { nowMs: now }).map((b) => b.key);
+    expect(keys).toEqual(["claude:fresh"]);
+  });
+
+  it("a fresh subagent still resolves the room of its stale parent", () => {
+    const now = 1_000_000_000;
+    const parent = view("p1", { room: den }, { last_activity_ms: 0 });
+    const child = view("c1", {}, { parent: { provider: "claude", id: "p1" }, last_activity_ms: now });
+    const bots = toWorldBots([parent, child], { nowMs: now });
+    expect(bots.map((b) => b.key)).toEqual(["claude:c1"]);
+    expect(bots[0]!.roomId).toBe("room1");
+  });
+
+  it("crew agents without a live session rest idle at HQ", () => {
+    const bots = toWorldBots([], { agents: [aqua], hqId: "hq1" });
+    expect(bots).toHaveLength(1);
+    expect(bots[0]).toMatchObject({
+      key: "agent:ag1",
+      name: "Aqua",
+      status: "Idle",
+      roomId: "hq1",
+      color: "#22ccaa",
+      agentId: "ag1",
+    });
+  });
+
+  it("an agent out working a live session gets no HQ rest bot", () => {
+    const live = view("s1", { agent: aqua }, { last_activity_ms: 0 });
+    const bots = toWorldBots([live], { agents: [aqua], hqId: "hq1", nowMs: 0 });
+    expect(bots.map((b) => b.key)).toEqual(["claude:s1"]);
+  });
+
+  it("an agent whose only session went stale returns to HQ", () => {
+    const now = 1_000_000_000;
+    const stale = view("s1", { agent: aqua }, { last_activity_ms: 0 });
+    const bots = toWorldBots([stale], { agents: [aqua], hqId: "hq1", nowMs: now });
+    expect(bots.map((b) => b.key)).toEqual(["agent:ag1"]);
+  });
+
+  it("rest bots fall back to the lobby when no HQ room exists", () => {
+    expect(toWorldBots([], { agents: [aqua] })[0]!.roomId).toBe(LOBBY_ID);
   });
 });
 

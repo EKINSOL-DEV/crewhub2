@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { openChatPanel } from "@/app/open-chat";
+import { openPanel } from "@/app/palette-actions";
 import { StatusEmoji } from "@/components/StatusEmoji";
 import { Button } from "@/components/ui/button";
 import { commands } from "@/ipc/bindings";
+import { useAgentsStore } from "@/stores/agents";
 import type { WorldBot } from "./lib/bots";
 import { LOBBY_ID, type WorldZone } from "./lib/layout";
 import { statusGlow } from "./lib/status";
@@ -88,6 +90,40 @@ export function BotActionsCard({ bot, onClose }: { bot: WorldBot; onClose: () =>
         </Button>
       </div>
       {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
+    </CardShell>
+  );
+}
+
+/**
+ * Crew member resting at HQ (EKI-110): there is no session behind this bot,
+ * so no session actions — just who they are and the door to the crew panel.
+ */
+export function CrewRestCard({ bot, onClose }: { bot: WorldBot; onClose: () => void }) {
+  const agent = useAgentsStore((s) => s.agents.find((a) => a.id === bot.agentId));
+  return (
+    <CardShell
+      title={
+        <>
+          {agent?.icon ? `${agent.icon} ` : "🤖 "}
+          {bot.name}
+        </>
+      }
+      onClose={onClose}
+    >
+      <p className="mb-2 text-xs text-muted-foreground">
+        {agent?.bio?.trim() || "Resting at headquarters — ready when you are."}
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        <Button
+          size="xs"
+          onClick={() => {
+            openPanel("crew");
+            onClose();
+          }}
+        >
+          Manage crew
+        </Button>
+      </div>
     </CardShell>
   );
 }

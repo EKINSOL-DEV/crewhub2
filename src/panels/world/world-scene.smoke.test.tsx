@@ -49,6 +49,7 @@ function bot(key: string, over: Partial<WorldBot> = {}): WorldBot {
     roomId: "r1",
     parentKey: null,
     isSubagent: false,
+    agentId: null,
     ...over,
   };
 }

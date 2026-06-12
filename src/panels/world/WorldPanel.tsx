@@ -23,7 +23,7 @@ import type { PropDefinition } from "./props/registry";
 import type { PropsEditApi } from "./props/RoomProps3D";
 import { useWorldProps } from "./props/store";
 import { summarizeWall, wallScopeFor, type WallSummary } from "./lib/taskwall";
-import { BotActionsCard, RoomInfoCard } from "./overlays";
+import { BotActionsCard, CrewRestCard, RoomInfoCard } from "./overlays";
 import { useSpeechBubbles } from "./use-speech-bubbles";
 import { useWorldTheme } from "./use-world-theme";
 import { useWorldVisibility } from "./use-world-visibility";
@@ -52,10 +52,21 @@ export default function WorldPanel() {
 
   const rooms = useBindingsStore((s) => s.rooms);
   const views = useSessionsView();
+  const agents = useAgentsStore((s) => s.agents);
   const speech = useSpeechBubbles();
   const tasksById = useTasksStore((s) => s.byId);
   const world = useMemo(() => layoutWorld(rooms), [rooms]);
-  const bots = useMemo(() => toWorldBots(views), [views]);
+
+  // EKI-110: stale sessions leave the world even without new data — re-prune
+  // on a slow tick (half the 5-min activity window is plenty of resolution).
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+
+  const hqId = useMemo(() => world.rooms.find((z) => z.isHq)?.id, [world]);
+  const bots = useMemo(() => toWorldBots(views, { agents, hqId, nowMs }), [views, agents, hqId, nowMs]);
 
   // Per-room props (EKI-81): persisted in the settings KV, starter set as the
   // default. Loaded once per room id; renders catch up as each room arrives.
@@ -289,7 +300,12 @@ export default function WorldPanel() {
         <WorldHudOverlay fps={fps} bots={bots.length} rooms={world.rooms.length - 1} frameloop={frameloop} />
       )}
 
-      {selectedBot && <BotActionsCard bot={selectedBot} onClose={() => setSelection(null)} />}
+      {selectedBot &&
+        (selectedBot.agentId ? (
+          <CrewRestCard bot={selectedBot} onClose={() => setSelection(null)} />
+        ) : (
+          <BotActionsCard bot={selectedBot} onClose={() => setSelection(null)} />
+        ))}
       {selectedZone && !selectedBot && (
         <RoomInfoCard
           zone={selectedZone}
