@@ -10,7 +10,9 @@ import { StatusEmoji } from "@/components/StatusEmoji";
 import { Button } from "@/components/ui/button";
 import { commands, type SeqItem } from "@/ipc/bindings";
 import { onEngineEvent } from "@/ipc/events";
+import { agentSpawnSpec } from "@/panels/crew/crew-status";
 import { useAgentsStore } from "@/stores/agents";
+import { useBindingsStore } from "@/stores/bindings";
 import { sessionKey } from "@/stores/sessions";
 import type { WorldBot } from "./lib/bots";
 import { LOBBY_ID, type WorldZone } from "./lib/layout";
@@ -233,11 +235,61 @@ export function BotActionsCard({ bot, onClose }: { bot: WorldBot; onClose: () =>
 }
 
 /**
- * Crew member resting at HQ (EKI-110): there is no session behind this bot,
- * so no session actions — just who they are and the door to the crew panel.
+ * Crew member resting at HQ (EKI-110): there is no session behind this bot —
+ * but a message wakes them (EKI-116): spawn the agent's session with the text
+ * as its first prompt, bind it to this room, and hand the selection over so
+ * the camera follows the freshly woken bot.
  */
-export function CrewRestCard({ bot, onClose }: { bot: WorldBot; onClose: () => void }) {
+export function CrewRestCard({
+  bot,
+  onClose,
+  onSpawned,
+}: {
+  bot: WorldBot;
+  onClose: () => void;
+  /** Receives the new session bot's key — caller moves the selection there. */
+  onSpawned?: ((key: string) => void) | undefined;
+}) {
   const agent = useAgentsStore((s) => s.agents.find((a) => a.id === bot.agentId));
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const wake = async () => {
+    const text = draft.trim();
+    if (!agent || !text || busy) return;
+    const spec = agentSpawnSpec(agent);
+    if ("error" in spec) {
+      setError(spec.error);
+      return;
+    }
+    setBusy(true);
+    try {
+      const provider = await useAgentsStore.getState().getSpawnProvider();
+      if (!provider) {
+        setError("No spawn-capable provider is available — is the engine running?");
+        return;
+      }
+      const res = await commands.spawnSession(provider, { ...spec, prompt: text });
+      if (res.status === "error") {
+        setError(res.error);
+        return;
+      }
+      // Binding makes the session "crew" (T18) and seats it in this room.
+      await useBindingsStore.getState().upsert({
+        session_id: res.data.id,
+        agent_id: agent.id,
+        room_id: bot.roomId === LOBBY_ID ? null : bot.roomId,
+        display_name: null,
+        pinned: false,
+      });
+      setDraft("");
+      onSpawned?.(sessionKey(res.data));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <CardShell
       title={
@@ -247,13 +299,32 @@ export function CrewRestCard({ bot, onClose }: { bot: WorldBot; onClose: () => v
         </>
       }
       onClose={onClose}
+      className="w-80"
     >
       <p className="mb-2 text-xs text-muted-foreground">
         {agent?.bio?.trim() || "Resting at headquarters — ready when you are."}
       </p>
+      <div className="mb-2 flex gap-1">
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          // The world panel listens for F/E/Esc — typing must not reach it.
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            if (e.key === "Enter") void wake();
+          }}
+          placeholder={`Wake ${bot.name} with a message…`}
+          disabled={busy}
+          className="h-7 min-w-0 flex-1 rounded border bg-background px-2 text-xs outline-none focus:border-primary"
+        />
+        <Button size="xs" onClick={() => void wake()} disabled={busy || !draft.trim()}>
+          {busy ? "Waking…" : "Send"}
+        </Button>
+      </div>
       <div className="flex flex-wrap gap-1.5">
         <Button
           size="xs"
+          variant="outline"
           onClick={() => {
             openPanel("crew");
             onClose();
@@ -262,6 +333,7 @@ export function CrewRestCard({ bot, onClose }: { bot: WorldBot; onClose: () => v
           Manage crew
         </Button>
       </div>
+      {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
     </CardShell>
   );
 }

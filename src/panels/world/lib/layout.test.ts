@@ -69,6 +69,16 @@ describe("layoutWorld", () => {
     }
   });
 
+  it("treats a room literally named Headquarters/HQ as HQ (EKI-116)", () => {
+    // Rooms created before the flag existed still get crew-rest + the star.
+    const w = layoutWorld([room("a", { name: "Dev Room" }), room("h", { name: "Headquarters" })]);
+    expect(w.rooms.find((r) => r.id === "h")?.isHq).toBe(true);
+    expect(w.rooms.find((r) => r.id === "a")?.isHq).toBe(false);
+    // …but only literal names: a room that merely mentions HQ stays normal.
+    const w2 = layoutWorld([room("x", { name: "HQ annex" })]);
+    expect(w2.rooms.find((r) => r.id === "x")?.isHq).toBe(false);
+  });
+
   it("is deterministic for the same input", () => {
     const rs = [room("a"), room("b"), room("c")];
     expect(layoutWorld(rs)).toEqual(layoutWorld(rs));

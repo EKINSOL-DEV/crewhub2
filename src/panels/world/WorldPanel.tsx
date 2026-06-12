@@ -333,7 +333,12 @@ export default function WorldPanel() {
 
       {selectedBot &&
         (selectedBot.agentId ? (
-          <CrewRestCard bot={selectedBot} onClose={() => setSelection(null)} />
+          <CrewRestCard
+            bot={selectedBot}
+            onClose={() => setSelection(null)}
+            // Waking spawns a session bot — follow it as it comes online.
+            onSpawned={(key) => setSelection({ kind: "bot", key })}
+          />
         ) : (
           // Keyed per bot: the mini chat's state must never cross bots.
           <BotActionsCard key={selectedBot.key} bot={selectedBot} onClose={() => setSelection(null)} />

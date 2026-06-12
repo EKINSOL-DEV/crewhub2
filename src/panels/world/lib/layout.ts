@@ -35,8 +35,19 @@ export interface WorldLayout {
   bounds: WorldBounds;
 }
 
+/**
+ * Effective HQ flag (EKI-116 review): rooms created before the flag existed —
+ * or by users who never opened the room editor — still read as HQ when they
+ * are literally named that way. Crew rest, the ★, and the platform dress-up
+ * must all agree on one answer.
+ */
+export function isHqRoom(room: Pick<Room, "is_hq" | "name">): boolean {
+  return room.is_hq || /^(hq|headquarters?)$/i.test(room.name.trim());
+}
+
 function roomOrder(a: Room, b: Room): number {
-  if (a.is_hq !== b.is_hq) return a.is_hq ? -1 : 1;
+  const [ha, hb] = [isHqRoom(a), isHqRoom(b)];
+  if (ha !== hb) return ha ? -1 : 1;
   if (a.sort_order !== b.sort_order) return a.sort_order - b.sort_order;
   return a.name.localeCompare(b.name);
 }
@@ -62,7 +73,7 @@ export function layoutWorld(rooms: Room[]): WorldLayout {
     id: room.id,
     name: room.name,
     color: room.color,
-    isHq: room.is_hq,
+    isHq: isHqRoom(room),
     center: [originX + (i % cols) * pitch, originZ + Math.floor(i / cols) * pitch],
     size: ROOM_SIZE,
     width: ROOM_SIZE,

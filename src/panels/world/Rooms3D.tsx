@@ -38,20 +38,26 @@ function zoneColor(zone: WorldZone, index: number, palette: WorldPalette): strin
   return palette.floors[index % palette.floors.length]!;
 }
 
-/** The four wall segments around a zone footprint (lobby stays open: no walls). */
+/** Door width in the south wall — v1's opening onto the plaza (EKI-116). */
+const DOOR_W = 2.6;
+
+/** Wall segments around a zone footprint: closed north/west/east, the south
+ *  wall split around a centered door opening (lobby stays open: no walls). */
 function wallSegments(z: WorldZone): { pos: [number, number, number]; scale: [number, number, number] }[] {
   const [cx, cz] = z.center;
   const hw = z.width / 2;
   const hd = z.size / 2;
+  const jambW = (z.width - DOOR_W) / 2; // each side of the door
   return [
     { pos: [cx, WALL_H / 2, cz - hd], scale: [z.width + WALL_T, WALL_H, WALL_T] }, // north
-    { pos: [cx, WALL_H / 2, cz + hd], scale: [z.width + WALL_T, WALL_H, WALL_T] }, // south
+    { pos: [cx - (DOOR_W + jambW) / 2, WALL_H / 2, cz + hd], scale: [jambW, WALL_H, WALL_T] }, // south-left
+    { pos: [cx + (DOOR_W + jambW) / 2, WALL_H / 2, cz + hd], scale: [jambW, WALL_H, WALL_T] }, // south-right
     { pos: [cx - hw, WALL_H / 2, cz], scale: [WALL_T, WALL_H, z.size + WALL_T] }, // west
     { pos: [cx + hw, WALL_H / 2, cz], scale: [WALL_T, WALL_H, z.size + WALL_T] }, // east
   ];
 }
 
-/** The four wall-corner positions where the rounded posts stand. */
+/** Rounded posts: the four wall corners plus the two door jambs. */
 function cornerPosts(z: WorldZone): [number, number, number][] {
   const [cx, cz] = z.center;
   const hw = z.width / 2;
@@ -61,6 +67,8 @@ function cornerPosts(z: WorldZone): [number, number, number][] {
     [cx + hw, POST_H / 2, cz - hd],
     [cx - hw, POST_H / 2, cz + hd],
     [cx + hw, POST_H / 2, cz + hd],
+    [cx - DOOR_W / 2, POST_H / 2, cz + hd],
+    [cx + DOOR_W / 2, POST_H / 2, cz + hd],
   ];
 }
 
