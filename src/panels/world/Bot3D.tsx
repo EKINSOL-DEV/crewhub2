@@ -8,6 +8,7 @@ import { Billboard, Text } from "@react-three/drei";
 import * as THREE from "three";
 import { BotBubbles } from "./BotBubbles";
 import { BotModel } from "./BotModel";
+import { dropBotPose, publishBotPose } from "./lib/bot-pose";
 import type { WorldBot } from "./lib/bots";
 import type { WorldBounds } from "./lib/layout";
 import { blinkScale, squashStretch } from "./lib/motion";
@@ -63,9 +64,13 @@ export function Bot3D({ bot, home, bounds, reducedMotion, speech, onClick }: Bot
     wander.current = { ...wander.current, targetX: home[0], targetZ: home[1], waitS: 0 };
   }, [home]);
 
+  // The camera-follow registry (EKI-116) must forget us when we unmount.
+  useEffect(() => () => dropBotPose(bot.key), [bot.key]);
+
   useFrame((state, delta) => {
     const g = group.current;
     if (!g) return;
+    publishBotPose(bot.key, g.position.x, g.position.y, g.position.z);
     if (reducedMotion) {
       g.position.set(home[0], BODY_Y, home[1]);
       g.rotation.y = 0;

@@ -256,7 +256,12 @@ impl WatchState {
                     team: None,
                     usage: UsageTotals::default(),
                     git_branch: None,
-                    last_activity_ms: now,
+                    // 0 = "no activity seen yet": real timestamps come from the
+                    // parsed lines below, with the file mtime as the fallback.
+                    // Seeding `now` here made every transcript discovered at
+                    // startup look freshly active — the world's lobby flooded
+                    // with long-finished sessions wearing live bubbles (EKI-115).
+                    last_activity_ms: 0,
                 },
                 tail_items: Vec::new(),
                 seq: 0,
@@ -290,6 +295,11 @@ impl WatchState {
                 }
                 new_items.push(item.clone());
             }
+        }
+        if last_ts == 0 {
+            // No line carried a timestamp — trust the file's mtime over "now"
+            // so historical transcripts keep reading as historical (EKI-115).
+            last_ts = mtime_ms(path).unwrap_or(now);
         }
         entry.meta.last_activity_ms = last_ts;
         entry.tail_items.extend(new_items.iter().cloned());
@@ -393,6 +403,14 @@ impl WatchState {
             self.remove_session(&id);
         }
     }
+}
+
+/// File mtime in epoch ms — the discovery fallback when a transcript's lines
+/// carry no parseable timestamps (EKI-115).
+fn mtime_ms(path: &Path) -> Option<i64> {
+    let modified = std::fs::metadata(path).ok()?.modified().ok()?;
+    let dur = modified.duration_since(std::time::UNIX_EPOCH).ok()?;
+    i64::try_from(dur.as_millis()).ok()
 }
 
 fn read_from(path: &Path, from: u64, to: u64) -> std::io::Result<String> {
@@ -535,6 +553,36 @@ mod tests {
         );
         let solo = seen.get("solo-1").expect("solo discovered");
         assert_eq!(solo.team, None, "no team artifacts -> None by construction");
+    }
+
+    /// EKI-115: a transcript last touched a week ago must not read as live —
+    /// seeding discovery with "now" flooded the world's lobby with
+    /// long-finished sessions wearing fresh activity bubbles.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn discovery_keeps_historical_timestamps_historical() {
+        let dir = tempfile::tempdir().unwrap();
+        let project = dir.path().join("proj-a");
+        std::fs::create_dir_all(&project).unwrap();
+        let old = chrono::Utc::now() - chrono::Duration::days(7);
+        std::fs::write(
+            project.join("old-1.jsonl"),
+            user_line("done long ago", &old.to_rfc3339()) + "\n",
+        )
+        .unwrap();
+
+        let (tx, mut rx) = broadcast::channel(64);
+        let _watcher = TranscriptWatcher::start(test_config(dir.path()), tx).unwrap();
+
+        match next_event(&mut rx).await {
+            SessionEvent::Discovered { meta } => {
+                let age = crate::store::Store::now_ms() - meta.last_activity_ms;
+                assert!(
+                    age > 6 * 24 * 3600 * 1000,
+                    "expected ~a week of age, got {age}ms"
+                );
+            }
+            other => panic!("expected Discovered, got {other:?}"),
+        }
     }
 
     #[tokio::test(flavor = "multi_thread")]

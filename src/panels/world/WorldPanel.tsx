@@ -11,7 +11,7 @@ import { useAgentsStore } from "@/stores/agents";
 import { useBindingsStore } from "@/stores/bindings";
 import { useSessionsStore, useSessionsView } from "@/stores/sessions";
 import { useTasksStore } from "@/stores/tasks";
-import { CameraRig, type CameraMode } from "./CameraRig";
+import { CameraRig, type CameraFocus, type CameraMode } from "./CameraRig";
 import { environmentById, nextEnvironmentId } from "./environments/registry";
 import { useEnvironmentStore } from "./environments/store";
 import { applyEnvironment } from "./environments/types";
@@ -129,6 +129,17 @@ export default function WorldPanel() {
   const creatorZone: WorldZone | null = creatorZoneId
     ? (world.rooms.find((z) => z.id === creatorZoneId) ?? null)
     : null;
+
+  // Camera focus (EKI-116): a selected room frames it; a selected bot is
+  // followed while it wanders. The lobby is wide — frame on its long edge.
+  const cameraFocus = useMemo<CameraFocus | null>(() => {
+    if (selection?.kind === "bot") return { kind: "bot", key: selection.key };
+    if (selection?.kind === "zone") {
+      const z = world.rooms.find((r) => r.id === selection.id);
+      return z ? { kind: "zone", center: z.center, size: Math.max(z.size, z.width * 0.55) } : null;
+    }
+    return null;
+  }, [selection, world]);
 
   // Creator mode (EKI-83): remember the dreamed definition, drop an instance
   // at the room center, and flip into edit mode so it can be nudged into place.
@@ -256,6 +267,11 @@ export default function WorldPanel() {
           return;
         }
         if (handleEditKey(e.key)) e.preventDefault();
+        // Esc outside edit mode: deselect → the camera flies back to overview.
+        if (!editMode && e.key === "Escape" && selection) {
+          setSelection(null);
+          e.preventDefault();
+        }
       }}
     >
       <Canvas
@@ -305,6 +321,8 @@ export default function WorldPanel() {
           bounds={world.bounds}
           onExitFp={() => setCameraMode("orbit")}
           orbitEnabled={!propDragging}
+          focus={cameraFocus}
+          reducedMotion={reducedMotion}
         />
         {debug && <FpsProbe onSample={setFps} />}
       </Canvas>
@@ -317,7 +335,8 @@ export default function WorldPanel() {
         (selectedBot.agentId ? (
           <CrewRestCard bot={selectedBot} onClose={() => setSelection(null)} />
         ) : (
-          <BotActionsCard bot={selectedBot} onClose={() => setSelection(null)} />
+          // Keyed per bot: the mini chat's state must never cross bots.
+          <BotActionsCard key={selectedBot.key} bot={selectedBot} onClose={() => setSelection(null)} />
         ))}
       {selectedZone && !selectedBot && (
         <RoomInfoCard
