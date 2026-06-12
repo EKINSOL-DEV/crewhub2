@@ -1325,6 +1325,32 @@ pub fn open_settings_window<R: Runtime>(app: AppHandle<R>) -> Result<()> {
     .map_err(|e| e.to_string())
 }
 
+/// Open (or focus) a dedicated workspace window (world-primary shell): the
+/// panels in their own window, while the main window keeps the ONE 3D world.
+/// Mirrors `open_settings_window` — own least-privilege capability file
+/// (`capabilities/workspace.json`, core:default only); the webview renders
+/// WorkspaceShell only when launched with `?window=workspace` (no world, no
+/// wizard). Cross-window state stays consistent the same way: both windows
+/// write through the same IPC and reconcile on domain events.
+#[tauri::command]
+#[specta::specta]
+pub fn open_workspace_window<R: Runtime>(app: AppHandle<R>) -> Result<()> {
+    use tauri::Manager;
+    if let Some(existing) = app.get_webview_window("workspace") {
+        return existing.set_focus().map_err(|e| e.to_string());
+    }
+    tauri::WebviewWindowBuilder::new(
+        &app,
+        "workspace",
+        tauri::WebviewUrl::App("index.html?window=workspace".into()),
+    )
+    .title("CrewHub Workspace")
+    .inner_size(1100.0, 720.0)
+    .build()
+    .map(|_| ())
+    .map_err(|e| e.to_string())
+}
+
 // ---- meetings (M4 T2 read surface + T3 engine commands) ----
 
 /// Start a meeting: persists the row + config, then the orchestrator drives
@@ -2556,6 +2582,25 @@ mod tests {
             app.webview_windows()
                 .keys()
                 .filter(|l| l.as_str() == "settings")
+                .count(),
+            1
+        );
+    }
+
+    /// World-primary shell: the workspace window is created once with the
+    /// "workspace" label (matching capabilities/workspace.json); a second call
+    /// focuses instead of erroring or duplicating — there's never a second one.
+    #[test]
+    fn open_workspace_window_creates_once_then_focuses() {
+        let app = app();
+        assert!(app.get_webview_window("workspace").is_none());
+        open_workspace_window(app.handle().clone()).unwrap();
+        assert!(app.get_webview_window("workspace").is_some());
+        open_workspace_window(app.handle().clone()).unwrap();
+        assert_eq!(
+            app.webview_windows()
+                .keys()
+                .filter(|l| l.as_str() == "workspace")
                 .count(),
             1
         );

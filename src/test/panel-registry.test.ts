@@ -43,4 +43,5 @@ test("world-primary: palette offers view switches instead of a world panel", () 
   expect(ids).not.toContain("panel.open.world");
   expect(ids).toContain("view.world");
   expect(ids).toContain("view.workspace");
+  expect(ids).toContain("workspace.open-window"); // panels in their own window
 });

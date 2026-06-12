@@ -61,8 +61,12 @@ export function WorldView() {
         <button
           type="button"
           data-testid="to-workspace"
-          title="Workspace (⌘2)"
-          onClick={() => useAppView.getState().setView("workspace")}
+          title="Workspace (⌘2) — ⇧click: open in a new window"
+          onClick={(e) => {
+            // ⇧click: panels in their own window, the world keeps the stage.
+            if (e.shiftKey) void commands.openWorkspaceWindow().catch(() => undefined);
+            else useAppView.getState().setView("workspace");
+          }}
           className="rounded-md bg-black/40 px-2.5 py-1 text-xs font-medium text-white/90 backdrop-blur-sm hover:bg-black/60"
         >
           🧰 Workspace

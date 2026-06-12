@@ -75,6 +75,20 @@ test("an active onboarding wizard wins: the classic shell sits underneath it", a
   expect(await screen.findByTestId("world-view")).toBeInTheDocument();
 });
 
+test("?window=workspace renders only the shell — no world, no wizard, no World button", async () => {
+  window.history.replaceState(null, "", "/?window=workspace");
+  try {
+    render(<App />);
+    expect(await screen.findByTestId("app-root")).toBeInTheDocument();
+    expect(await screen.findByTestId("panel-chat")).toBeInTheDocument();
+    expect(screen.queryByTestId("world-view")).toBeNull(); // exactly ONE world — main window only
+    expect(screen.queryByTestId("to-world")).toBeNull(); // secondary: no way to summon another
+    expect(screen.queryByTestId("onboarding-wizard")).toBeNull();
+  } finally {
+    window.history.replaceState(null, "", "/");
+  }
+});
+
 test("?window=settings renders only the settings panel (EKI-20 settings window)", async () => {
   window.history.replaceState(null, "", "/?window=settings");
   try {

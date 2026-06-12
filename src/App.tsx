@@ -89,6 +89,13 @@ function App() {
     );
   }
 
+  // `?window=workspace` (world-primary shell): panels in their own window —
+  // WorkspaceShell only. No world (there is exactly ONE, in the main window),
+  // no wizard, no view switching.
+  if (windowRoute === "workspace") {
+    return <WorkspaceShell secondary />;
+  }
+
   if (search.has("perf")) {
     return (
       <Suspense fallback={null}>

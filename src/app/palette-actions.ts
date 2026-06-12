@@ -148,6 +148,15 @@ export function buildShellActions(): PaletteAction[] {
   });
 
   actions.push({
+    id: "workspace.open-window",
+    label: "Open workspace in new window",
+    emoji: "🪟",
+    group: "Views",
+    keywords: ["workspace", "window", "detach", "panels", "second", "monitor"],
+    run: () => void commands.openWorkspaceWindow().catch(() => undefined),
+  });
+
+  actions.push({
     id: "settings.open-window",
     label: "Open settings window",
     emoji: "🪟",

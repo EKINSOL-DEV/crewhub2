@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "workspace-window",
+  "description": "Least-privilege capability for the dedicated workspace window (world-primary shell)",
+  "windows": ["workspace"],
+  "permissions": ["core:default"]
+}
