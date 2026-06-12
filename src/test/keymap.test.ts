@@ -1,4 +1,4 @@
-import { matchKey, KEYMAP_HELP, type KeyAction, type KeyStroke } from "../app/keymap";
+import { matchKey, matchViewKey, KEYMAP_HELP, type KeyAction, type KeyStroke } from "../app/keymap";
 
 function stroke(partial: Partial<KeyStroke> & { key: string }): KeyStroke {
   return { mod: false, shift: false, alt: false, inEditable: false, ...partial };
@@ -56,4 +56,28 @@ describe("matchKey — the Appendix A table", () => {
 test("help sheet covers every Appendix A row", () => {
   expect(KEYMAP_HELP.length).toBeGreaterThanOrEqual(10);
   expect(KEYMAP_HELP.some((r) => r.action.includes("Command palette"))).toBe(true);
+});
+
+describe("matchViewKey — world-primary view switching", () => {
+  const cases: Array<[string, KeyStroke, "world" | "workspace" | null]> = [
+    ["⌘1 goes to the world", stroke({ key: "1", mod: true }), "world"],
+    ["⌘2 goes to the workspace", stroke({ key: "2", mod: true }), "workspace"],
+    [
+      "⌘1 works inside inputs (global view switch)",
+      stroke({ key: "1", mod: true, inEditable: true }),
+      "world",
+    ],
+    ["plain 1 is unmapped", stroke({ key: "1" }), null],
+    ["⌘⇧1 is unmapped (shift reserved)", stroke({ key: "1", mod: true, shift: true }), null],
+    ["⌘⌥1 is unmapped (alt reserved)", stroke({ key: "1", mod: true, alt: true }), null],
+    ["⌘3 is not a view", stroke({ key: "3", mod: true }), null],
+  ];
+
+  test.each(cases)("%s", (_name, input, expected) => {
+    expect(matchViewKey(input)).toBe(expected);
+  });
+
+  test("the help sheet advertises the view shortcuts", () => {
+    expect(KEYMAP_HELP.some((r) => r.keys === "⌘1 / ⌘2" && /World \/ Workspace/.test(r.action))).toBe(true);
+  });
 });

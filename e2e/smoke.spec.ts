@@ -2,6 +2,11 @@ import { expect, $, $$ } from "@wdio/globals";
 
 describe("CrewHub shell", () => {
   it("boots and exposes backend version via IPC", async () => {
+    // World-primary shell: the app boots into the fullscreen world — visit
+    // the workspace first. (When the onboarding wizard is active instead,
+    // the classic shell already sits underneath it and the button is absent.)
+    const toWorkspace = await $('[data-testid="to-workspace"]');
+    if (await toWorkspace.isExisting()) await toWorkspace.click();
     const root = await $('[data-testid="app-root"]');
     await expect(root).toBeExisting();
     const version = await $('[data-testid="app-version"]');

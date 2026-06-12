@@ -3,6 +3,7 @@
 import { commands } from "@/ipc/bindings";
 import { openAutomationPanel } from "@/panels/automation/open-automation";
 import { openBoardPanel } from "@/panels/board/open-board";
+import { useAppView } from "@/stores/appView";
 import { usePalette, type PaletteAction } from "@/stores/palette";
 import { useSettings } from "@/stores/settings";
 import { useWorkspace } from "@/stores/workspace";
@@ -21,6 +22,9 @@ export function openPanel(kind: PanelKind, params?: Record<string, string>) {
   const focused = s.focusedLeafId ? leaves(tab.root).find((l) => l.id === s.focusedLeafId) : undefined;
   const target = focused ?? leaves(tab.root)[0];
   if (!target) return;
+  // Panels live in the workspace — opening one from the world view switches
+  // over first (no-op when already there); ⌘1 is the way back.
+  useAppView.getState().setView("workspace");
   if (target.kind === "welcome") {
     s.replacePanel(target.id, kind, params);
     s.focusLeaf(target.id);
@@ -33,7 +37,27 @@ export function openPanel(kind: PanelKind, params?: Record<string, string>) {
 export function buildShellActions(): PaletteAction[] {
   const actions: PaletteAction[] = [];
 
-  for (const def of PANEL_LIST.filter((d) => d.kind !== "welcome")) {
+  // Top-level views (world-primary shell): the world is NOT a panel anymore.
+  actions.push({
+    id: "view.world",
+    label: "Go to the World",
+    emoji: "🌍",
+    group: "Views",
+    keywords: ["world", "3d", "office", "view", "primary", "bots"],
+    hint: "⌘1",
+    run: () => useAppView.getState().setView("world"),
+  });
+  actions.push({
+    id: "view.workspace",
+    label: "Go to the Workspace",
+    emoji: "🧰",
+    group: "Views",
+    keywords: ["workspace", "panels", "shell", "view", "tabs"],
+    hint: "⌘2",
+    run: () => useAppView.getState().setView("workspace"),
+  });
+
+  for (const def of PANEL_LIST.filter((d) => d.kind !== "welcome" && !d.hiddenFromPicker)) {
     actions.push({
       id: `panel.open.${def.kind}`,
       label: `Open ${def.label} panel`,
@@ -121,6 +145,15 @@ export function buildShellActions(): PaletteAction[] {
     group: "Settings",
     keywords: ["settings", "preferences", "config"],
     run: () => openPanel("settings"),
+  });
+
+  actions.push({
+    id: "workspace.open-window",
+    label: "Open workspace in new window",
+    emoji: "🪟",
+    group: "Views",
+    keywords: ["workspace", "window", "detach", "panels", "second", "monitor"],
+    run: () => void commands.openWorkspaceWindow().catch(() => undefined),
   });
 
   actions.push({

@@ -132,6 +132,16 @@ export const commands = {
 	 *  windows write through the same IPC and reconcile on the event.
 	 */
 	openSettingsWindow: () => typedError<null, string>(__TAURI_INVOKE("open_settings_window")),
+	/**
+	 *  Open (or focus) a dedicated workspace window (world-primary shell): the
+	 *  panels in their own window, while the main window keeps the ONE 3D world.
+	 *  Mirrors `open_settings_window` — own least-privilege capability file
+	 *  (`capabilities/workspace.json`, core:default only); the webview renders
+	 *  WorkspaceShell only when launched with `?window=workspace` (no world, no
+	 *  wizard). Cross-window state stays consistent the same way: both windows
+	 *  write through the same IPC and reconcile on domain events.
+	 */
+	openWorkspaceWindow: () => typedError<null, string>(__TAURI_INVOKE("open_workspace_window")),
 	mcpStatus: () => typedError<McpStatus, string>(__TAURI_INVOKE("mcp_status")),
 	enableMcpForProject: (projectId: string) => typedError<null, string>(__TAURI_INVOKE("enable_mcp_for_project", { projectId })),
 	disableMcpForProject: (projectId: string) => typedError<null, string>(__TAURI_INVOKE("disable_mcp_for_project", { projectId })),

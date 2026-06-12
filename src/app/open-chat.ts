@@ -3,6 +3,7 @@
 // pre-merge `crewhub:open-chat` DOM event with a direct workspace-store call:
 // focus an existing chat on the session, else adopt an unbound chat or welcome
 // leaf, else split the focused leaf.
+import { useAppView } from "@/stores/appView";
 import { useWorkspace } from "@/stores/workspace";
 import { leaves } from "./layout-tree";
 
@@ -21,6 +22,10 @@ export function openChatPanel(req: OpenChatRequest): void {
   const s = useWorkspace.getState();
   const tab = s.tabs.find((t) => t.id === s.activeTabId);
   if (!tab) return; // workspace not loaded yet — nothing sane to do
+
+  // World-primary shell: chat panels live in the workspace view — a bot click
+  // in the world switches over first (no-op when already there). ⌘1 goes back.
+  useAppView.getState().setView("workspace");
 
   const key = `${req.provider}:${req.id}`;
   const params: Record<string, string> = { sessionId: key };

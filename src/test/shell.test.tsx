@@ -2,6 +2,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { mockIPC, clearMocks } from "@tauri-apps/api/mocks";
 import { WorkspaceShell, PanelErrorBoundary } from "../app/WorkspaceShell";
 import { leaves, makeLeaf } from "../app/layout-tree";
+import { resetAppViewForTests, useAppView } from "../stores/appView";
 import { resetWorkspaceForTests, useWorkspace } from "../stores/workspace";
 
 beforeEach(() => {
@@ -96,6 +97,50 @@ describe("WorkspaceShell", () => {
     await screen.findByTestId("panel-welcome");
     fireEvent.keyDown(window, { key: "s" });
     expect(leaves(useWorkspace.getState().activeTab()!.root)[0]!.kind).toBe("sessions");
+  });
+});
+
+describe("world-primary shell (ONE world)", () => {
+  afterEach(resetAppViewForTests);
+
+  test("a legacy persisted world leaf renders the 'world moved' signpost, not a second world", async () => {
+    const root = makeLeaf("world");
+    useWorkspace.setState({
+      tabs: [{ id: "t-old", name: "Old Layout", root, projectFilter: null }],
+      activeTabId: "t-old",
+      focusedLeafId: root.id,
+      maximizedLeafId: null,
+      loaded: true,
+    });
+    render(<WorkspaceShell />);
+    expect(await screen.findByText("The world moved")).toBeInTheDocument();
+    expect(screen.queryByTestId("world-view")).toBeNull();
+    fireEvent.click(screen.getByTestId("goto-world"));
+    expect(useAppView.getState().view).toBe("world");
+  });
+
+  test("the picker no longer offers a world panel (kind survives, picker hides it)", async () => {
+    await loadDefaultWorkspace();
+    useWorkspace.getState().addTab(); // welcome tab
+    render(<WorkspaceShell />);
+    await screen.findByTestId("panel-welcome");
+    expect(screen.queryByTestId("picker-world")).toBeNull();
+    // world's old single-key hint "w" must be a no-op on a focused welcome leaf
+    fireEvent.keyDown(window, { key: "w" });
+    expect(leaves(useWorkspace.getState().activeTab()!.root)[0]!.kind).toBe("welcome");
+  });
+
+  test("the header 🌍 World button switches the view; secondary windows hide it", async () => {
+    await loadDefaultWorkspace();
+    useAppView.getState().setView("workspace");
+    const first = render(<WorkspaceShell />);
+    await screen.findByTestId("panel-chat");
+    fireEvent.click(screen.getByTestId("to-world"));
+    expect(useAppView.getState().view).toBe("world");
+    first.unmount();
+    render(<WorkspaceShell secondary />);
+    expect(await screen.findByTestId("app-root")).toBeInTheDocument();
+    expect(screen.queryByTestId("to-world")).toBeNull();
   });
 });
 

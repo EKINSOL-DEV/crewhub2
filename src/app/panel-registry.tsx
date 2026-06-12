@@ -17,6 +17,9 @@ export interface PanelDefinition {
   description: string;
   keywords: string[]; // palette fuzzy search
   shortcutHint?: string; // single key inside the empty-panel picker
+  /** Hidden from the picker grid and the palette's "Open X panel" actions —
+   * the kind only survives for persisted layouts (world-primary shell). */
+  hiddenFromPicker?: boolean;
   component: React.LazyExoticComponent<React.ComponentType<PanelProps>>;
   emptyState: { emoji: string; title: string; hint: string }; // D-M2-6 names
 }
@@ -76,15 +79,22 @@ export const PANELS: Record<PanelKind, PanelDefinition> = {
     component: lazy(() => import("@/panels/crew/CrewPanel").then((m) => ({ default: m.CrewPanel }))),
     emptyState: { emoji: "🧑‍🚀", title: "Hire your first agent", hint: "A crew makes the ship go" },
   },
+  // The world left the panels (world-primary shell): the kind survives so
+  // persisted layouts with world leaves still parse, but those leaves now
+  // render a signpost to the primary view instead of a second world.
   world: {
     kind: "world",
     label: "World",
     emoji: "🌍",
-    description: "The 3D office — your crew, live, in one little world",
+    description: "The 3D office — it moved! It's the primary view now (⌘1)",
     keywords: ["world", "3d", "office", "bots", "rooms", "map"],
-    shortcutHint: "w",
-    component: lazy(() => import("@/panels/world/WorldPanel")),
-    emptyState: { emoji: "🌍", title: "World loading", hint: "Bots are putting their badges on" },
+    hiddenFromPicker: true,
+    component: lazy(() => import("@/panels/world/WorldMovedPanel")),
+    emptyState: {
+      emoji: "🌍",
+      title: "The world moved",
+      hint: "Press ⌘1 — the world is the primary view now",
+    },
   },
   board: {
     kind: "board",

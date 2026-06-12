@@ -1,4 +1,5 @@
 import { PANEL_KINDS } from "../app/layout-tree";
+import { buildShellActions } from "../app/palette-actions";
 import { PANELS, PANEL_LIST } from "../app/panel-registry";
 
 test("every panel kind has a complete registry entry", () => {
@@ -29,4 +30,18 @@ test("shortcutHint keys are unique single letters", () => {
   const hints = PANEL_LIST.flatMap((d) => (d.shortcutHint ? [d.shortcutHint] : []));
   expect(new Set(hints).size).toBe(hints.length);
   for (const h of hints) expect(h).toMatch(/^[a-z]$/);
+});
+
+test("world-primary: the world kind survives for persisted layouts but hides from pickers", () => {
+  expect(PANELS.world.hiddenFromPicker).toBe(true);
+  expect(PANELS.world.shortcutHint).toBeUndefined(); // no single-key spawn either
+  expect(PANEL_KINDS).toContain("world"); // old layout trees still parse
+});
+
+test("world-primary: palette offers view switches instead of a world panel", () => {
+  const ids = buildShellActions().map((a) => a.id);
+  expect(ids).not.toContain("panel.open.world");
+  expect(ids).toContain("view.world");
+  expect(ids).toContain("view.workspace");
+  expect(ids).toContain("workspace.open-window"); // panels in their own window
 });
