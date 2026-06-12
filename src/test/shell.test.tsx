@@ -2,7 +2,6 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { mockIPC, clearMocks } from "@tauri-apps/api/mocks";
 import { WorkspaceShell, PanelErrorBoundary } from "../app/WorkspaceShell";
 import { leaves, makeLeaf } from "../app/layout-tree";
-import { resetAppViewForTests, useAppView } from "../stores/appView";
 import { resetWorkspaceForTests, useWorkspace } from "../stores/workspace";
 
 beforeEach(() => {
@@ -101,8 +100,6 @@ describe("WorkspaceShell", () => {
 });
 
 describe("world-primary shell (ONE world)", () => {
-  afterEach(resetAppViewForTests);
-
   test("a legacy persisted world leaf renders the 'world moved' signpost, not a second world", async () => {
     const root = makeLeaf("world");
     useWorkspace.setState({
@@ -115,8 +112,6 @@ describe("world-primary shell (ONE world)", () => {
     render(<WorkspaceShell />);
     expect(await screen.findByText("The world moved")).toBeInTheDocument();
     expect(screen.queryByTestId("world-view")).toBeNull();
-    fireEvent.click(screen.getByTestId("goto-world"));
-    expect(useAppView.getState().view).toBe("world");
   });
 
   test("the picker no longer offers a world panel (kind survives, picker hides it)", async () => {
@@ -130,16 +125,10 @@ describe("world-primary shell (ONE world)", () => {
     expect(leaves(useWorkspace.getState().activeTab()!.root)[0]!.kind).toBe("welcome");
   });
 
-  test("the header 🌍 World button switches the view; secondary windows hide it", async () => {
+  test("the panel grid renders without a world button (EKI-121: the world IS the main window)", async () => {
     await loadDefaultWorkspace();
-    useAppView.getState().setView("workspace");
-    const first = render(<WorkspaceShell />);
+    render(<WorkspaceShell />);
     await screen.findByTestId("panel-chat");
-    fireEvent.click(screen.getByTestId("to-world"));
-    expect(useAppView.getState().view).toBe("world");
-    first.unmount();
-    render(<WorkspaceShell secondary />);
-    expect(await screen.findByTestId("app-root")).toBeInTheDocument();
     expect(screen.queryByTestId("to-world")).toBeNull();
   });
 });

@@ -17,6 +17,11 @@ import { useSessionsStore } from "@/stores/sessions";
 import { agent, chatLeaves, project, room, seedWorkspace } from "./fixtures";
 import { meeting, meetingConfigJson, participant, turn } from "./meetings-fixtures";
 
+// EKI-121: deep links adopt workspace leaves only in `?window=` routes — this
+// suite exercises that classic path (the main window opens overlays instead).
+beforeEach(() => window.history.replaceState(null, "", "/?window=workspace"));
+afterEach(() => window.history.replaceState(null, "", "/"));
+
 function mockMatchMedia(matches: boolean) {
   vi.stubGlobal(
     "matchMedia",

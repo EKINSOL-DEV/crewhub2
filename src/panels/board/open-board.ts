@@ -3,17 +3,19 @@
 // logic as open-chat/open-diff: focus an existing board (merging params),
 // else adopt a fresh welcome leaf, else split the focused leaf.
 import { leaves } from "@/app/layout-tree";
-import { useAppView } from "@/stores/appView";
+import { isPanelWindow, useOverlays } from "@/app/overlays";
 import { useWorkspace } from "@/stores/workspace";
 
 export function openBoardPanel(params?: Record<string, string>): void {
+  // Main window: the panel is a drawer over the world (EKI-121).
+  if (!isPanelWindow()) {
+    useOverlays.getState().open("board", params);
+    return;
+  }
+
   const s = useWorkspace.getState();
   const tab = s.tabs.find((t) => t.id === s.activeTabId);
   if (!tab) return; // workspace not loaded yet — nothing sane to do
-
-  // World-primary shell: the board lives in the workspace view — a wall click
-  // in the world switches over first (no-op when already there). ⌘1 goes back.
-  useAppView.getState().setView("workspace");
 
   const ls = leaves(tab.root);
 

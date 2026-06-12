@@ -3,17 +3,19 @@
 // adoption logic as open-board: focus an existing automation panel (merging
 // params), else adopt a fresh welcome leaf, else split the focused leaf.
 import { leaves } from "@/app/layout-tree";
-import { useAppView } from "@/stores/appView";
+import { isPanelWindow, useOverlays } from "@/app/overlays";
 import { useWorkspace } from "@/stores/workspace";
 
 export function openAutomationPanel(params?: Record<string, string>): void {
+  // Main window: the panel is a drawer over the world (EKI-121).
+  if (!isPanelWindow()) {
+    useOverlays.getState().open("automation", params);
+    return;
+  }
+
   const s = useWorkspace.getState();
   const tab = s.tabs.find((t) => t.id === s.activeTabId);
   if (!tab) return; // workspace not loaded yet — nothing sane to do
-
-  // World-primary shell: automation lives in the workspace view — switch over
-  // first (no-op when already there). ⌘1 goes back.
-  useAppView.getState().setView("workspace");
 
   const ls = leaves(tab.root);
 

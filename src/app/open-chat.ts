@@ -1,11 +1,12 @@
 // Cross-panel "open this session in a chat panel" action (D-M2-2): sessions,
-// activity, history and the crew bar all funnel through here. Replaces the
-// pre-merge `crewhub:open-chat` DOM event with a direct workspace-store call:
-// focus an existing chat on the session, else adopt an unbound chat or welcome
-// leaf, else split the focused leaf.
-import { useAppView } from "@/stores/appView";
+// activity, history and the crew bar all funnel through here.
+//
+// EKI-121 (game-HUD shell): in the main window the chat opens as a drawer
+// over the world — the workspace tree only survives in `?window=` routes,
+// where the classic focus/adopt/split adoption still applies.
 import { useWorkspace } from "@/stores/workspace";
 import { leaves } from "./layout-tree";
+import { isPanelWindow, useOverlays } from "./overlays";
 
 export interface OpenChatRequest {
   provider: string;
@@ -19,19 +20,21 @@ export interface OpenChatRequest {
 }
 
 export function openChatPanel(req: OpenChatRequest): void {
-  const s = useWorkspace.getState();
-  const tab = s.tabs.find((t) => t.id === s.activeTabId);
-  if (!tab) return; // workspace not loaded yet — nothing sane to do
-
-  // World-primary shell: chat panels live in the workspace view — a bot click
-  // in the world switches over first (no-op when already there). ⌘1 goes back.
-  useAppView.getState().setView("workspace");
-
   const key = `${req.provider}:${req.id}`;
   const params: Record<string, string> = { sessionId: key };
   if (req.mode === "history") params.mode = "history";
   if (req.seq !== undefined) params.seq = String(req.seq);
   if (req.note) params.note = req.note;
+
+  // Main window: the chat is a drawer over the world (EKI-121).
+  if (!isPanelWindow()) {
+    useOverlays.getState().open("chat", params);
+    return;
+  }
+
+  const s = useWorkspace.getState();
+  const tab = s.tabs.find((t) => t.id === s.activeTabId);
+  if (!tab) return; // workspace not loaded yet — nothing sane to do
 
   const ls = leaves(tab.root);
 
