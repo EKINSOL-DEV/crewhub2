@@ -1,39 +1,36 @@
-// DOM overlays for in-world clicks (EKI-71): bot quick actions and the room
-// info card. Plain panels in the corner — no 3D-anchored popovers to fight.
-// The bot card carries a mini chat (EKI-116) so a quick exchange never needs
-// the workspace: transcript tail + live items + a send box.
-import { useEffect, useRef, useState } from "react";
+// Side panels for in-world selection (EKI-71 → EKI-118): v1's right-hand
+// room/bot panels, reborn lean — a full-height sidebar with stats, occupants,
+// project context and actions. Conversations live in the floating chat
+// window (WorldChatWindow); the workspace chat stays the power tool.
+import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { openChatPanel } from "@/app/open-chat";
 import { openPanel } from "@/app/palette-actions";
 import { StatusEmoji } from "@/components/StatusEmoji";
 import { Button } from "@/components/ui/button";
-import { commands, type SeqItem } from "@/ipc/bindings";
-import { onEngineEvent } from "@/ipc/events";
+import { commands } from "@/ipc/bindings";
 import { agentSpawnSpec } from "@/panels/crew/crew-status";
 import { useAgentsStore } from "@/stores/agents";
 import { useBindingsStore } from "@/stores/bindings";
+import { useProjectsStore } from "@/stores/projects";
 import { sessionKey } from "@/stores/sessions";
 import type { WorldBot } from "./lib/bots";
 import { LOBBY_ID, type WorldZone } from "./lib/layout";
 import { statusGlow } from "./lib/status";
+import { useBotChat } from "./use-bot-chat";
 
-function CardShell({
+function SideShell({
   title,
   onClose,
   children,
-  className = "w-64",
 }: {
   title: React.ReactNode;
   onClose: () => void;
   children: React.ReactNode;
-  className?: string;
 }) {
   return (
-    <div
-      className={`pointer-events-auto absolute right-2 top-2 z-10 rounded-md border bg-card/95 p-3 text-sm shadow-lg backdrop-blur ${className}`}
-    >
-      <div className="mb-2 flex items-center gap-2">
+    <div className="pointer-events-auto absolute bottom-9 right-2 top-2 z-10 flex w-72 flex-col rounded-md border bg-card/95 text-sm shadow-lg backdrop-blur">
+      <div className="flex items-center gap-2 border-b px-3 py-2.5">
         <span className="min-w-0 flex-1 truncate font-medium">{title}</span>
         <button
           type="button"
@@ -44,163 +41,70 @@ function CardShell({
           <X size={14} />
         </button>
       </div>
-      {children}
+      <div className="flex-1 overflow-y-auto p-3">{children}</div>
     </div>
   );
 }
 
-interface ChatLine {
-  who: "user" | "bot";
-  text: string;
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="mb-1.5 mt-4 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground first:mt-0">
+      {children}
+    </p>
+  );
 }
 
-const CHAT_TAIL_FETCH = 80; // transcript items to pull (most are tool noise)
-const CHAT_LINES_MAX = 12;
-const CHAT_LINE_CHARS = 280;
-
-function chatLine(who: ChatLine["who"], text: string): ChatLine | null {
-  const flat = text.replace(/\s+/g, " ").trim();
-  if (!flat) return null;
-  return { who, text: flat.length > CHAT_LINE_CHARS ? `${flat.slice(0, CHAT_LINE_CHARS - 1)}…` : flat };
+function StatRow({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="flex items-center justify-between py-0.5 text-xs">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-medium tabular-nums">{value}</span>
+    </div>
+  );
 }
 
-function linesFromItems(items: SeqItem[]): ChatLine[] {
-  const out: ChatLine[] = [];
-  for (const { item } of items) {
-    if (item.kind === "UserText") {
-      const l = chatLine("user", item.data.text);
-      if (l) out.push(l);
-    } else if (item.kind === "AssistantText") {
-      const l = chatLine("bot", item.data.text);
-      if (l) out.push(l);
-    }
-  }
-  return out.slice(-CHAT_LINES_MAX);
-}
-
-/**
- * Mini in-world conversation (EKI-116): tail on mount, live items after.
- * Callers must remount per bot (key={bot.key}) — state never crosses bots.
- */
-function useBotChat(bot: WorldBot): { lines: ChatLine[]; push: (l: ChatLine | null) => void } {
-  const [lines, setLines] = useState<ChatLine[]>([]);
-  const push = (l: ChatLine | null) => {
-    if (l) setLines((prev) => [...prev, l].slice(-CHAT_LINES_MAX));
-  };
-
-  useEffect(() => {
-    let live = true;
-    void (async () => {
-      try {
-        const probe = await commands.getSessionTranscript(bot.id, 0, 1);
-        if (!live || probe.status !== "ok") return;
-        const offset = Math.max(0, probe.data.total - CHAT_TAIL_FETCH);
-        const page = await commands.getSessionTranscript(bot.id, offset, CHAT_TAIL_FETCH);
-        if (!live || page.status !== "ok") return;
-        setLines((prev) => (prev.length ? prev : linesFromItems(page.data.items)));
-      } catch {
-        // transcript unavailable — the input still works
-      }
-    })();
-
-    let unlisten: (() => void) | null = null;
-    onEngineEvent((ev) => {
-      if (ev.type !== "Item" || sessionKey(ev.data.id) !== bot.key) return;
-      const item = ev.data.item;
-      if (item.kind === "AssistantText") push(chatLine("bot", item.data.text));
-      else if (item.kind === "UserText") push(chatLine("user", item.data.text));
-    })
-      .then((un) => {
-        if (live) unlisten = un;
-        else un();
-      })
-      .catch(() => undefined);
-
-    return () => {
-      live = false;
-      unlisten?.();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- bot.key covers bot.id
-  }, [bot.key]);
-
-  return { lines, push };
-}
-
-export function BotActionsCard({ bot, onClose }: { bot: WorldBot; onClose: () => void }) {
+export function BotActionsCard({
+  bot,
+  onClose,
+  onOpenChat,
+}: {
+  bot: WorldBot;
+  onClose: () => void;
+  /** Opens the floating in-world chat window for this bot (EKI-118). */
+  onOpenChat?: (() => void) | undefined;
+}) {
   const [error, setError] = useState<string | null>(null);
   const [confirmKill, setConfirmKill] = useState(false);
-  const [draft, setDraft] = useState("");
-  const { lines, push } = useBotChat(bot);
-  const scroller = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const el = scroller.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [lines]);
+  const { lines } = useBotChat(bot);
 
   const run = async (p: Promise<{ status: "ok" } | { status: "error"; error: string }>) => {
     const res = await p;
     if (res.status === "error") setError(res.error);
   };
 
-  const send = () => {
-    const text = draft.trim();
-    if (!text) return;
-    setDraft("");
-    push(chatLine("user", text));
-    void run(commands.sendToSession(bot.id, text));
-  };
-
   return (
-    <CardShell
+    <SideShell
       title={
         <>
           <StatusEmoji status={bot.status} className="mr-1" /> {bot.name}
         </>
       }
       onClose={onClose}
-      className="w-80"
     >
-      <p className="mb-2 truncate text-xs text-muted-foreground">
+      <SectionLabel>Status</SectionLabel>
+      <p className="text-xs">
         {statusGlow(bot.status).label}
-        {bot.activity ? ` — ${bot.activity}` : ""}
+        {bot.model ? <span className="text-muted-foreground"> · {bot.model}</span> : null}
       </p>
+      {bot.activity && <p className="mt-1 text-xs text-muted-foreground">{bot.activity}</p>}
 
-      {/* Mini chat (EKI-116) — quick exchanges without leaving the world */}
-      {lines.length > 0 && (
-        <div ref={scroller} className="mb-2 flex max-h-44 flex-col gap-1 overflow-y-auto pr-0.5">
-          {lines.map((l, i) => (
-            <div
-              key={i}
-              className={
-                l.who === "bot"
-                  ? "max-w-[85%] self-start rounded-lg rounded-bl-sm bg-muted px-2 py-1 text-xs"
-                  : "max-w-[85%] self-end rounded-lg rounded-br-sm bg-primary/15 px-2 py-1 text-xs"
-              }
-            >
-              {l.text}
-            </div>
-          ))}
-        </div>
-      )}
-      <div className="mb-2 flex gap-1">
-        <input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          // The world panel listens for F/E/Esc — typing must not reach it.
-          onKeyDown={(e) => {
-            e.stopPropagation();
-            if (e.key === "Enter") send();
-          }}
-          placeholder={`Message ${bot.name}…`}
-          className="h-7 min-w-0 flex-1 rounded border bg-background px-2 text-xs outline-none focus:border-primary"
-        />
-        <Button size="xs" onClick={send} disabled={!draft.trim()}>
-          Send
-        </Button>
-      </div>
-
+      <SectionLabel>Actions</SectionLabel>
       <div className="flex flex-wrap gap-1.5">
+        {onOpenChat && (
+          <Button size="xs" onClick={onOpenChat}>
+            💬 Chat
+          </Button>
+        )}
         <Button
           size="xs"
           variant="outline"
@@ -229,16 +133,38 @@ export function BotActionsCard({ bot, onClose }: { bot: WorldBot; onClose: () =>
           {confirmKill ? "Really kill?" : "Kill"}
         </Button>
       </div>
-      {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
-    </CardShell>
+
+      {lines.length > 0 && (
+        <>
+          <SectionLabel>Recent activity</SectionLabel>
+          <div className="flex flex-col gap-1">
+            {lines.slice(-6).map((l, i) => (
+              <div
+                key={i}
+                className={
+                  l.who === "bot"
+                    ? "max-w-[90%] self-start rounded-lg rounded-bl-sm bg-muted px-2 py-1 text-xs leading-snug"
+                    : "max-w-[90%] self-end rounded-lg rounded-br-sm bg-primary/15 px-2 py-1 text-xs leading-snug"
+                }
+              >
+                {l.text.length > 160 ? `${l.text.slice(0, 159)}…` : l.text}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {error && <p className="mt-3 text-xs text-destructive">{error}</p>}
+    </SideShell>
   );
 }
 
 /**
  * Crew member resting at HQ (EKI-110): there is no session behind this bot —
  * but a message wakes them (EKI-116): spawn the agent's session with the text
- * as its first prompt, bind it to this room, and hand the selection over so
- * the camera follows the freshly woken bot.
+ * as its first prompt, bind it to this room, and hand the selection over.
+ * Agents without a home project borrow the room's project (EKI-118); only
+ * when neither exists do we point at the crew editor.
  */
 export function CrewRestCard({
   bot,
@@ -251,14 +177,22 @@ export function CrewRestCard({
   onSpawned?: ((key: string) => void) | undefined;
 }) {
   const agent = useAgentsStore((s) => s.agents.find((a) => a.id === bot.agentId));
+  const rooms = useBindingsStore((s) => s.rooms);
+  const projects = useProjectsStore((s) => s.projects);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // The room's project is the fallback workplace for homeless agents.
+  const room = rooms.find((r) => r.id === bot.roomId) ?? null;
+  const roomProject = room?.project_id ? (projects.find((p) => p.id === room.project_id) ?? null) : null;
+
   const wake = async () => {
     const text = draft.trim();
     if (!agent || !text || busy) return;
-    const spec = agentSpawnSpec(agent);
+    const effective =
+      agent.project_path || !roomProject ? agent : { ...agent, project_path: roomProject.folder_path };
+    const spec = agentSpawnSpec(effective);
     if ("error" in spec) {
       setError(spec.error);
       return;
@@ -291,7 +225,7 @@ export function CrewRestCard({
   };
 
   return (
-    <CardShell
+    <SideShell
       title={
         <>
           {agent?.icon ? `${agent.icon} ` : "🤖 "}
@@ -299,12 +233,13 @@ export function CrewRestCard({
         </>
       }
       onClose={onClose}
-      className="w-80"
     >
-      <p className="mb-2 text-xs text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         {agent?.bio?.trim() || "Resting at headquarters — ready when you are."}
       </p>
-      <div className="mb-2 flex gap-1">
+
+      <SectionLabel>Wake up</SectionLabel>
+      <div className="flex gap-1">
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
@@ -321,6 +256,14 @@ export function CrewRestCard({
           {busy ? "Waking…" : "Send"}
         </Button>
       </div>
+      {!agent?.project_path && roomProject && (
+        <p className="mt-1 text-[10px] text-muted-foreground">
+          Will work in {roomProject.icon ? `${roomProject.icon} ` : ""}
+          {roomProject.name} (this room's project).
+        </p>
+      )}
+
+      <SectionLabel>Crew</SectionLabel>
       <div className="flex flex-wrap gap-1.5">
         <Button
           size="xs"
@@ -333,8 +276,25 @@ export function CrewRestCard({
           Manage crew
         </Button>
       </div>
-      {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
-    </CardShell>
+
+      {error && (
+        <div className="mt-3">
+          <p className="text-xs text-destructive">{error}</p>
+          <Button
+            size="xs"
+            variant="outline"
+            className="mt-1.5"
+            onClick={() => {
+              // The agent editor lives in the crew panel (pencil on the card).
+              openPanel("crew");
+              onClose();
+            }}
+          >
+            Open agent editor
+          </Button>
+        </div>
+      )}
+    </SideShell>
   );
 }
 
@@ -344,6 +304,7 @@ export function RoomInfoCard({
   onClose,
   onImportBlueprint,
   onCreateProp,
+  onSelectBot,
 }: {
   zone: WorldZone;
   bots: WorldBot[];
@@ -352,8 +313,14 @@ export function RoomInfoCard({
   onImportBlueprint?: (() => void) | undefined;
   /** Opens creator mode for this room (EKI-83): dream up a prop with AI. */
   onCreateProp?: (() => void) | undefined;
+  /** Selecting an occupant moves the world selection (camera follows). */
+  onSelectBot?: ((bot: WorldBot) => void) | undefined;
 }) {
   const [openTasks, setOpenTasks] = useState<number | null>(null);
+  const projects = useProjectsStore((s) => s.projects);
+  const rooms = useBindingsStore((s) => s.rooms);
+  const room = rooms.find((r) => r.id === zone.id) ?? null;
+  const project = room?.project_id ? (projects.find((p) => p.id === room.project_id) ?? null) : null;
 
   useEffect(() => {
     if (zone.id === LOBBY_ID) return;
@@ -367,31 +334,52 @@ export function RoomInfoCard({
     };
   }, [zone.id]);
 
+  const working = bots.filter((b) => b.status === "Working").length;
+  const waiting = bots.filter(
+    (b) => b.status === "WaitingForPermission" || b.status === "WaitingForInput",
+  ).length;
+  const idle = bots.filter((b) => b.status === "Idle").length;
+
   return (
-    <CardShell title={zone.isHq ? `★ ${zone.name}` : zone.name} onClose={onClose}>
-      <p className="mb-2 text-xs text-muted-foreground">
-        {bots.length} session{bots.length === 1 ? "" : "s"}
-        {zone.id !== LOBBY_ID && openTasks !== null && (
-          <>
-            {" · "}
-            {openTasks} open task{openTasks === 1 ? "" : "s"}
-          </>
-        )}
-      </p>
+    <SideShell title={zone.isHq ? `★ ${zone.name}` : zone.name} onClose={onClose}>
+      <SectionLabel>Room stats</SectionLabel>
+      <StatRow label="Total agents" value={bots.length} />
+      <StatRow label="Working" value={working} />
+      <StatRow label="Needs you" value={waiting} />
+      <StatRow label="Idle" value={idle} />
+      {zone.id !== LOBBY_ID && openTasks !== null && <StatRow label="Open tasks" value={openTasks} />}
+
+      {zone.id !== LOBBY_ID && (
+        <>
+          <SectionLabel>Project</SectionLabel>
+          <p className="text-xs">
+            {project ? (
+              <>
+                {project.icon ? `${project.icon} ` : ""}
+                {project.name}
+              </>
+            ) : (
+              <span className="text-muted-foreground">No project assigned</span>
+            )}
+          </p>
+        </>
+      )}
+
+      <SectionLabel>Agents in room</SectionLabel>
       {bots.length > 0 ? (
-        <ul className="max-h-40 space-y-1 overflow-auto">
+        <ul className="space-y-1">
           {bots.map((b) => (
-            <li key={b.key} className="flex items-center gap-1.5 text-xs">
-              <StatusEmoji status={b.status} />
+            <li key={b.key}>
               <button
                 type="button"
-                className="min-w-0 truncate text-left hover:underline"
-                onClick={() => {
-                  openChatPanel({ provider: b.id.provider, id: b.id.id });
-                  onClose();
-                }}
+                className="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left text-xs hover:bg-muted"
+                onClick={() => onSelectBot?.(b)}
               >
-                {b.name}
+                <StatusEmoji status={b.status} />
+                <span className="min-w-0 flex-1 truncate">{b.name}</span>
+                <span className="shrink-0 text-[10px] text-muted-foreground">
+                  {statusGlow(b.status).label}
+                </span>
               </button>
             </li>
           ))}
@@ -399,20 +387,24 @@ export function RoomInfoCard({
       ) : (
         <p className="text-xs text-muted-foreground">Nobody home right now.</p>
       )}
+
       {zone.id !== LOBBY_ID && (onImportBlueprint || onCreateProp) && (
-        <div className="mt-2 flex gap-1.5 border-t pt-2">
-          {onCreateProp && (
-            <Button size="xs" variant="outline" onClick={onCreateProp}>
-              ✨ Dream up a prop
-            </Button>
-          )}
-          {onImportBlueprint && (
-            <Button size="xs" variant="outline" onClick={onImportBlueprint}>
-              Import v1 blueprint
-            </Button>
-          )}
-        </div>
+        <>
+          <SectionLabel>Room</SectionLabel>
+          <div className="flex flex-wrap gap-1.5">
+            {onCreateProp && (
+              <Button size="xs" variant="outline" onClick={onCreateProp}>
+                ✨ Dream up a prop
+              </Button>
+            )}
+            {onImportBlueprint && (
+              <Button size="xs" variant="outline" onClick={onImportBlueprint}>
+                Import v1 blueprint
+              </Button>
+            )}
+          </div>
+        </>
       )}
-    </CardShell>
+    </SideShell>
   );
 }

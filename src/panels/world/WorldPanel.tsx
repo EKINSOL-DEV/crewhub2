@@ -9,6 +9,7 @@ import { usePrefersReducedMotion } from "@/components/use-reduced-motion";
 import { openBoardPanel } from "@/panels/board/open-board";
 import { useAgentsStore } from "@/stores/agents";
 import { useBindingsStore } from "@/stores/bindings";
+import { useProjectsStore } from "@/stores/projects";
 import { useSessionsStore, useSessionsView } from "@/stores/sessions";
 import { useTasksStore } from "@/stores/tasks";
 import { CameraRig, type CameraFocus, type CameraMode } from "./CameraRig";
@@ -29,6 +30,7 @@ import { summarizeWall, wallScopeFor, type WallSummary } from "./lib/taskwall";
 import { BotActionsCard, CrewRestCard, RoomInfoCard } from "./overlays";
 import { useSpeechBubbles } from "./use-speech-bubbles";
 import { useWorldTheme } from "./use-world-theme";
+import { WorldChatWindow } from "./WorldChatWindow";
 import { useWorldVisibility } from "./use-world-visibility";
 import { FpsProbe, WorldHudOverlay, worldDebugEnabled } from "./WorldHud";
 import { WorldScene } from "./WorldScene";
@@ -52,6 +54,7 @@ export default function WorldPanel() {
     void useTasksStore.getState().init();
     void useCustomProps.getState().init();
     void useEnvironmentStore.getState().init();
+    void useProjectsStore.getState().load();
   }, []);
 
   // Environment (EKI-111): biome colors override the theme palette; the
@@ -99,6 +102,9 @@ export default function WorldPanel() {
   }, [tasksById, world]);
 
   const [selection, setSelection] = useState<Selection>(null);
+  // Floating chat (EKI-118): independent of the selection so you can keep
+  // talking while clicking around; minimizes to a bubble.
+  const [chat, setChat] = useState<{ key: string; min: boolean } | null>(null);
   const [importZoneId, setImportZoneId] = useState<string | null>(null);
   const [creatorZoneId, setCreatorZoneId] = useState<string | null>(null);
   const [cameraMode, setCameraMode] = useState<CameraMode>("orbit");
@@ -336,12 +342,20 @@ export default function WorldPanel() {
           <CrewRestCard
             bot={selectedBot}
             onClose={() => setSelection(null)}
-            // Waking spawns a session bot — follow it as it comes online.
-            onSpawned={(key) => setSelection({ kind: "bot", key })}
+            // Waking spawns a session bot — follow it and open its chat.
+            onSpawned={(key) => {
+              setSelection({ kind: "bot", key });
+              setChat({ key, min: false });
+            }}
           />
         ) : (
-          // Keyed per bot: the mini chat's state must never cross bots.
-          <BotActionsCard key={selectedBot.key} bot={selectedBot} onClose={() => setSelection(null)} />
+          // Keyed per bot: the activity feed's state must never cross bots.
+          <BotActionsCard
+            key={selectedBot.key}
+            bot={selectedBot}
+            onClose={() => setSelection(null)}
+            onOpenChat={() => setChat({ key: selectedBot.key, min: false })}
+          />
         ))}
       {selectedZone && !selectedBot && (
         <RoomInfoCard
@@ -350,8 +364,25 @@ export default function WorldPanel() {
           onClose={() => setSelection(null)}
           onImportBlueprint={() => setImportZoneId(selectedZone.id)}
           onCreateProp={() => setCreatorZoneId(selectedZone.id)}
+          onSelectBot={(b) => setSelection({ kind: "bot", key: b.key })}
         />
       )}
+
+      {/* Floating chat (EKI-118) — keyed per bot so history never crosses. */}
+      {chat &&
+        (() => {
+          const target = bots.find((b) => b.key === chat.key);
+          if (!target) return null;
+          return (
+            <WorldChatWindow
+              key={chat.key}
+              bot={target}
+              minimized={chat.min}
+              onMinimize={(min) => setChat({ key: chat.key, min })}
+              onClose={() => setChat(null)}
+            />
+          );
+        })()}
 
       {creatorZone && (
         <CreatorDialog
