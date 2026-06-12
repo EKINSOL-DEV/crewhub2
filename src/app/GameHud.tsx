@@ -8,8 +8,8 @@ import type { PanelKind } from "./layout-tree";
 import { PANELS } from "./panel-registry";
 import { useOverlays } from "./overlays";
 
-/** The dock lineup — every entry is a registered panel. */
-const DOCK: PanelKind[] = [
+/** The dock lineup — every entry is a registered panel; digit N toggles it. */
+export const DOCK: PanelKind[] = [
   "sessions",
   "board",
   "crew",
@@ -74,7 +74,7 @@ export function WorldDock() {
       data-testid="hud-dock"
       className="pointer-events-auto absolute bottom-3 left-1/2 z-40 flex -translate-x-1/2 items-end gap-1.5 rounded-full border bg-card/85 px-2.5 py-1.5 shadow-lg backdrop-blur"
     >
-      {DOCK.map((kind) => {
+      {DOCK.map((kind, i) => {
         const def = PANELS[kind];
         const isActive = active === kind;
         const badge = kind === "sessions" ? waiting : 0;
@@ -82,15 +82,18 @@ export function WorldDock() {
           <button
             key={kind}
             type="button"
-            title={def.label}
             aria-label={`${def.label} panel`}
             data-testid={`dock-${kind}`}
             onClick={() => useOverlays.getState().toggle(kind)}
-            className={`relative flex h-10 w-10 items-center justify-center rounded-full text-xl transition-transform hover:-translate-y-1 hover:scale-110 active:scale-95 ${
+            className={`group relative flex h-10 w-10 items-center justify-center rounded-full text-xl transition-transform hover:-translate-y-1 hover:scale-110 active:scale-95 ${
               isActive ? "bg-primary/20 ring-2 ring-primary" : "hover:bg-muted"
             }`}
           >
             {def.emoji}
+            {/* Hover label with its digit shortcut — management-game tooltips. */}
+            <span className="pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 scale-75 whitespace-nowrap rounded-full border bg-card px-2.5 py-1 text-[10px] font-semibold opacity-0 shadow-lg transition-all group-hover:scale-100 group-hover:opacity-100">
+              {def.label} · {i + 1}
+            </span>
             {badge > 0 && (
               <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-white">
                 {badge}

@@ -4,7 +4,7 @@
 // decor components and WorldScene.
 import type { ComponentType } from "react";
 import type { WorldBounds } from "../lib/layout";
-import type { WorldPalette } from "../lib/theme-palette";
+import { mixHex, shadeHex, type WorldPalette } from "../lib/theme-palette";
 
 export interface EnvironmentLighting {
   ambient: { color: string; intensity: number };
@@ -44,4 +44,54 @@ export function applyEnvironment(palette: WorldPalette, env: WorldEnvironment): 
     ...env.colors,
     fog: env.colors.fog ?? env.colors.sky ?? palette.fog,
   };
+}
+
+/** The night sky every biome dims toward. */
+const NIGHT_SKY = "#10182b";
+
+/**
+ * Night mode (EKI-122): a pure transform over an environment — same biome,
+ * lights out. Sky and ground sink toward a deep navy, the sun becomes a cool
+ * moon at a fraction of the intensity. The `theme` environment (no lighting
+ * rig, no color overrides) passes through untouched.
+ */
+export function applyNight(env: WorldEnvironment): WorldEnvironment {
+  const colors: WorldEnvironment["colors"] = { ...env.colors };
+  if (colors.sky) colors.sky = mixHex(colors.sky, NIGHT_SKY, 0.88);
+  if (colors.fog) colors.fog = mixHex(colors.fog, NIGHT_SKY, 0.88);
+  if (colors.ground) colors.ground = mixHex(shadeHex(colors.ground, -0.55), NIGHT_SKY, 0.25);
+  if (colors.lobby) colors.lobby = mixHex(shadeHex(colors.lobby, -0.55), NIGHT_SKY, 0.25);
+  if (colors.floors) colors.floors = colors.floors.map((f) => shadeHex(f, -0.35));
+
+  const lighting = env.lighting
+    ? {
+        ambient: { color: "#5d6d96", intensity: env.lighting.ambient.intensity * 0.55 },
+        ...(env.lighting.hemisphere
+          ? {
+              hemisphere: {
+                sky: NIGHT_SKY,
+                ground: "#2a3046",
+                intensity: env.lighting.hemisphere.intensity * 0.6,
+              },
+            }
+          : {}),
+        // The sun clocks out; the moon is cooler and far dimmer.
+        sun: {
+          position: env.lighting.sun.position,
+          color: "#bcd0ff",
+          intensity: env.lighting.sun.intensity * 0.4,
+        },
+        ...(env.lighting.fill
+          ? {
+              fill: {
+                position: env.lighting.fill.position,
+                color: "#4a5a85",
+                intensity: env.lighting.fill.intensity * 0.5,
+              },
+            }
+          : {}),
+      }
+    : null;
+
+  return { ...env, colors, lighting };
 }

@@ -12,7 +12,8 @@ import { Settings } from "lucide-react";
 import { ToastCenter } from "@/components/ToastCenter";
 import { usePalette } from "@/stores/palette";
 import { CommandPalette } from "./CommandPalette";
-import { WorldDock, WorldHudStrip } from "./GameHud";
+import { DOCK, WorldDock, WorldHudStrip } from "./GameHud";
+import { useOverlays } from "./overlays";
 import { openPanel, buildShellActions } from "./palette-actions";
 import { ShellDialogs } from "./ShellDialogs";
 import { WorldOverlayHost } from "./WorldOverlayHost";
@@ -27,13 +28,23 @@ export function WorldView() {
     return unregister;
   }, []);
 
-  // ⌘K must work in BOTH views; the world has no shell keymap, so it brings
-  // its own tiny listener. Everything else (F/E/etc.) stays inside WorldPanel.
+  // The world has no shell keymap, so the HUD brings its own tiny listener:
+  // ⌘K = palette, plain digits 1-8 toggle the dock panels (game-style),
+  // never inside inputs. Everything else (F/E/etc.) stays inside WorldPanel.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "k") {
         e.preventDefault();
         usePalette.getState().toggle();
+        return;
+      }
+      if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
+      const slot = Number.parseInt(e.key, 10) - 1;
+      if (Number.isInteger(slot) && slot >= 0 && slot < DOCK.length) {
+        e.preventDefault();
+        useOverlays.getState().toggle(DOCK[slot]!);
       }
     };
     window.addEventListener("keydown", onKey);

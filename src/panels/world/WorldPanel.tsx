@@ -15,7 +15,7 @@ import { useTasksStore } from "@/stores/tasks";
 import { CameraRig, type CameraFocus, type CameraMode } from "./CameraRig";
 import { environmentById, nextEnvironmentId } from "./environments/registry";
 import { useEnvironmentStore } from "./environments/store";
-import { applyEnvironment } from "./environments/types";
+import { applyEnvironment, applyNight } from "./environments/types";
 import { toWorldBots, type WorldBot } from "./lib/bots";
 import { LOBBY_ID, ROOM_SIZE, layoutWorld, type WorldZone } from "./lib/layout";
 import { attachContextGuard, probeWebgl } from "./lib/webgl-guard";
@@ -61,7 +61,11 @@ export default function WorldPanel() {
   // Environment (EKI-111): biome colors override the theme palette; the
   // `theme` environment keeps the pure theme-derived look.
   const envId = useEnvironmentStore((s) => s.id);
-  const environment = useMemo(() => environmentById(envId), [envId]);
+  const night = useEnvironmentStore((s) => s.night);
+  const environment = useMemo(() => {
+    const env = environmentById(envId);
+    return night ? applyNight(env) : env;
+  }, [envId, night]);
   const worldPalette = useMemo(() => applyEnvironment(palette, environment), [palette, environment]);
 
   const rooms = useBindingsStore((s) => s.rooms);
@@ -386,11 +390,8 @@ export default function WorldPanel() {
           <CrewRestCard
             bot={selectedBot}
             onClose={() => setSelection(null)}
-            // Waking spawns a session bot — follow it and open its chat.
-            onSpawned={(key) => {
-              setSelection({ kind: "bot", key });
-              openChat(key);
-            }}
+            // The chat window wakes them on the first message (EKI-122).
+            onOpenChat={() => openChat(selectedBot.key)}
           />
         ) : (
           // Keyed per bot: the activity feed's state must never cross bots.
@@ -451,7 +452,7 @@ export default function WorldPanel() {
         />
       )}
 
-      <div className="pointer-events-none absolute bottom-2 left-2 rounded bg-black/40 px-2 py-1 text-[10px] text-white/70">
+      <div className="pointer-events-none absolute bottom-3 left-3 rounded-full border bg-card/85 px-3 py-1.5 text-[10px] text-muted-foreground shadow-lg backdrop-blur">
         {editMode ? (
           selection?.kind === "prop" ? (
             <>drag to move · [ ] rotate · + − scale · del remove · esc deselect</>
@@ -468,10 +469,10 @@ export default function WorldPanel() {
       </div>
 
       {cameraMode !== "fp" && (
-        <div className="absolute bottom-2 right-2 flex gap-1.5">
+        <div className="absolute bottom-3 right-3 flex gap-1.5">
           <button
             type="button"
-            className="rounded bg-black/40 px-2 py-1 text-[10px] text-white/80 hover:bg-black/60"
+            className="rounded-full border bg-card/85 px-3 py-1.5 text-[10px] font-medium shadow-lg backdrop-blur transition-transform hover:scale-105"
             title="Switch environment"
             onClick={() => useEnvironmentStore.getState().setEnvironment(nextEnvironmentId(environment.id))}
           >
@@ -479,7 +480,15 @@ export default function WorldPanel() {
           </button>
           <button
             type="button"
-            className="rounded bg-black/40 px-2 py-1 text-[10px] text-white/80 hover:bg-black/60"
+            className="rounded-full border bg-card/85 px-3 py-1.5 text-[10px] font-medium shadow-lg backdrop-blur transition-transform hover:scale-105"
+            title="Toggle day / night"
+            onClick={() => useEnvironmentStore.getState().toggleNight()}
+          >
+            {night ? "🌙 Night" : "☀️ Day"}
+          </button>
+          <button
+            type="button"
+            className="rounded-full border bg-card/85 px-3 py-1.5 text-[10px] font-medium shadow-lg backdrop-blur transition-transform hover:scale-105"
             onClick={() => {
               containerRef.current?.focus();
               toggleEditMode();

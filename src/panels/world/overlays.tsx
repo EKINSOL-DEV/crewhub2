@@ -9,11 +9,9 @@ import { openPanel } from "@/app/palette-actions";
 import { StatusEmoji } from "@/components/StatusEmoji";
 import { Button } from "@/components/ui/button";
 import { commands } from "@/ipc/bindings";
-import { agentSpawnSpec } from "@/panels/crew/crew-status";
 import { useAgentsStore } from "@/stores/agents";
 import { useBindingsStore } from "@/stores/bindings";
 import { useProjectsStore } from "@/stores/projects";
-import { sessionKey } from "@/stores/sessions";
 import type { WorldBot } from "./lib/bots";
 import { LOBBY_ID, type WorldZone } from "./lib/layout";
 import { statusGlow } from "./lib/status";
@@ -160,69 +158,21 @@ export function BotActionsCard({
 }
 
 /**
- * Crew member resting at HQ (EKI-110): there is no session behind this bot —
- * but a message wakes them (EKI-116): spawn the agent's session with the text
- * as its first prompt, bind it to this room, and hand the selection over.
- * Agents without a home project borrow the room's project (EKI-118); only
- * when neither exists do we point at the crew editor.
+ * Crew member resting at HQ (EKI-110/122): no session behind this bot — the
+ * chat window wakes them (first message spawns the session), so this card is
+ * just who they are and the door in.
  */
 export function CrewRestCard({
   bot,
   onClose,
-  onSpawned,
+  onOpenChat,
 }: {
   bot: WorldBot;
   onClose: () => void;
-  /** Receives the new session bot's key — caller moves the selection there. */
-  onSpawned?: ((key: string) => void) | undefined;
+  /** Opens the floating in-world chat window (which wakes on first send). */
+  onOpenChat?: (() => void) | undefined;
 }) {
   const agent = useAgentsStore((s) => s.agents.find((a) => a.id === bot.agentId));
-  const rooms = useBindingsStore((s) => s.rooms);
-  const projects = useProjectsStore((s) => s.projects);
-  const [draft, setDraft] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // The room's project is the fallback workplace for homeless agents.
-  const room = rooms.find((r) => r.id === bot.roomId) ?? null;
-  const roomProject = room?.project_id ? (projects.find((p) => p.id === room.project_id) ?? null) : null;
-
-  const wake = async () => {
-    const text = draft.trim();
-    if (!agent || !text || busy) return;
-    const effective =
-      agent.project_path || !roomProject ? agent : { ...agent, project_path: roomProject.folder_path };
-    const spec = agentSpawnSpec(effective);
-    if ("error" in spec) {
-      setError(spec.error);
-      return;
-    }
-    setBusy(true);
-    try {
-      const provider = await useAgentsStore.getState().getSpawnProvider();
-      if (!provider) {
-        setError("No spawn-capable provider is available — is the engine running?");
-        return;
-      }
-      const res = await commands.spawnSession(provider, { ...spec, prompt: text });
-      if (res.status === "error") {
-        setError(res.error);
-        return;
-      }
-      // Binding makes the session "crew" (T18) and seats it in this room.
-      await useBindingsStore.getState().upsert({
-        session_id: res.data.id,
-        agent_id: agent.id,
-        room_id: bot.roomId === LOBBY_ID ? null : bot.roomId,
-        display_name: null,
-        pinned: false,
-      });
-      setDraft("");
-      onSpawned?.(sessionKey(res.data));
-    } finally {
-      setBusy(false);
-    }
-  };
 
   return (
     <SideShell
@@ -238,33 +188,13 @@ export function CrewRestCard({
         {agent?.bio?.trim() || "Resting at headquarters — ready when you are."}
       </p>
 
-      <SectionLabel>Wake up</SectionLabel>
-      <div className="flex gap-1">
-        <input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          // The world panel listens for F/E/Esc — typing must not reach it.
-          onKeyDown={(e) => {
-            e.stopPropagation();
-            if (e.key === "Enter") void wake();
-          }}
-          placeholder={`Wake ${bot.name} with a message…`}
-          disabled={busy}
-          className="h-7 min-w-0 flex-1 rounded border bg-background px-2 text-xs outline-none focus:border-primary"
-        />
-        <Button size="xs" onClick={() => void wake()} disabled={busy || !draft.trim()}>
-          {busy ? "Waking…" : "Send"}
-        </Button>
-      </div>
-      {!agent?.project_path && roomProject && (
-        <p className="mt-1 text-[10px] text-muted-foreground">
-          Will work in {roomProject.icon ? `${roomProject.icon} ` : ""}
-          {roomProject.name} (this room's project).
-        </p>
-      )}
-
-      <SectionLabel>Crew</SectionLabel>
+      <SectionLabel>Actions</SectionLabel>
       <div className="flex flex-wrap gap-1.5">
+        {onOpenChat && (
+          <Button size="xs" onClick={onOpenChat}>
+            💬 Chat
+          </Button>
+        )}
         <Button
           size="xs"
           variant="outline"
@@ -276,24 +206,6 @@ export function CrewRestCard({
           Manage crew
         </Button>
       </div>
-
-      {error && (
-        <div className="mt-3">
-          <p className="text-xs text-destructive">{error}</p>
-          <Button
-            size="xs"
-            variant="outline"
-            className="mt-1.5"
-            onClick={() => {
-              // The agent editor lives in the crew panel (pencil on the card).
-              openPanel("crew");
-              onClose();
-            }}
-          >
-            Open agent editor
-          </Button>
-        </div>
-      )}
     </SideShell>
   );
 }

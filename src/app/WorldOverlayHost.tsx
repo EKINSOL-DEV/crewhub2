@@ -30,9 +30,15 @@ export function WorldOverlayHost() {
       data-testid="world-overlay"
       className="pointer-events-auto flex h-full w-full flex-col overflow-hidden rounded-2xl border-2 bg-card/95 shadow-2xl outline-none backdrop-blur"
       onKeyDown={(e) => {
-        // The world listens for F/E/Esc — typing in a panel must not reach it.
-        e.stopPropagation();
-        if (e.key === "Escape") useOverlays.getState().close();
+        if (e.key === "Escape") {
+          e.stopPropagation();
+          useOverlays.getState().close();
+          return;
+        }
+        // Typing in a panel input must not reach the HUD's digit shortcuts;
+        // keys on non-editable panel chrome may bubble (digit-toggles work).
+        const t = e.target as HTMLElement | null;
+        if (t?.closest('input, textarea, select, [contenteditable="true"]')) e.stopPropagation();
       }}
     >
       <div className="flex items-center gap-2.5 border-b bg-muted/40 px-3.5 py-2.5">
@@ -52,7 +58,7 @@ export function WorldOverlayHost() {
           <X size={15} />
         </button>
       </div>
-      <div className="min-h-0 flex-1 overflow-hidden">
+      <div className="world-drawer min-h-0 flex-1 overflow-y-auto">
         <Suspense
           fallback={
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">

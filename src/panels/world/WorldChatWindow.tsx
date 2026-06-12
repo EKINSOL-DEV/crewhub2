@@ -6,12 +6,19 @@ import { useEffect, useRef, useState } from "react";
 import { Minus, Send, X } from "lucide-react";
 import { StatusEmoji } from "@/components/StatusEmoji";
 import { commands } from "@/ipc/bindings";
+import { agentSpawnSpec } from "@/panels/crew/crew-status";
+import { useAgentsStore } from "@/stores/agents";
+import { useBindingsStore } from "@/stores/bindings";
+import { useProjectsStore } from "@/stores/projects";
+import { sessionKey } from "@/stores/sessions";
 import type { WorldBot } from "./lib/bots";
+import { LOBBY_ID } from "./lib/layout";
 import { statusGlow } from "./lib/status";
 import { chatLine, useBotChat } from "./use-bot-chat";
+import { useWorldChats } from "./use-world-chats";
 
-/** Horizontal pitch between minimized bubbles (fixed-width, truncated). */
-const BUBBLE_PITCH = 152;
+/** Vertical pitch between minimized bubbles on the right edge (EKI-122). */
+const BUBBLE_PITCH = 52;
 
 export interface WorldChatWindowProps {
   bot: WorldBot;
@@ -60,10 +67,57 @@ export function WorldChatWindow({
     if (el) el.scrollTop = el.scrollHeight;
   }, [lines, minimized]);
 
+  // Crew bots have no session yet (EKI-122): the FIRST message wakes them —
+  // spawn with the text as the prompt (home project, else the room's project)
+  // and re-key this chat onto the fresh session.
+  const wakeAndSend = async (text: string) => {
+    const agent = useAgentsStore.getState().agents.find((a) => a.id === bot.agentId);
+    if (!agent) {
+      setError("This crew member is gone — check the crew panel.");
+      return;
+    }
+    const room = useBindingsStore.getState().rooms.find((r) => r.id === bot.roomId) ?? null;
+    const roomProject = room?.project_id
+      ? (useProjectsStore.getState().projects.find((p) => p.id === room.project_id) ?? null)
+      : null;
+    const effective =
+      agent.project_path || !roomProject ? agent : { ...agent, project_path: roomProject.folder_path };
+    const spec = agentSpawnSpec(effective);
+    if ("error" in spec) {
+      setError(`${spec.error} (Manage crew → ✏️)`);
+      return;
+    }
+    const provider = await useAgentsStore.getState().getSpawnProvider();
+    if (!provider) {
+      setError("No spawn-capable provider is available — is the engine running?");
+      return;
+    }
+    const res = await commands.spawnSession(provider, { ...spec, prompt: text });
+    if (res.status === "error") {
+      setError(res.error);
+      return;
+    }
+    await useBindingsStore.getState().upsert({
+      session_id: res.data.id,
+      agent_id: agent.id,
+      room_id: bot.roomId === LOBBY_ID ? null : bot.roomId,
+      display_name: null,
+      pinned: false,
+    });
+    const fresh = sessionKey(res.data);
+    useWorldChats.getState().close(bot.key);
+    useWorldChats.getState().open(fresh);
+  };
+
   const send = () => {
     const text = draft.trim();
     if (!text) return;
     setDraft("");
+    if (bot.agentId) {
+      push(chatLine("user", text));
+      void wakeAndSend(text);
+      return;
+    }
     push(chatLine("user", text));
     void commands.sendToSession(bot.id, text).then((res) => {
       if (res.status === "error") setError(res.error);
@@ -75,8 +129,8 @@ export function WorldChatWindow({
       <button
         type="button"
         onClick={() => onMinimize(false)}
-        className="pointer-events-auto absolute bottom-10 z-20 flex w-36 items-center gap-2 rounded-full border bg-card/95 py-2 pl-3 pr-4 text-xs shadow-lg backdrop-blur hover:bg-card"
-        style={{ right: 8 + bubbleIndex * BUBBLE_PITCH }}
+        className="pointer-events-auto absolute z-20 flex w-40 items-center gap-2 rounded-full border bg-card/90 py-2 pl-3 pr-4 text-xs shadow-lg backdrop-blur transition-transform hover:scale-105 hover:bg-card"
+        style={{ right: 12, bottom: 96 + bubbleIndex * BUBBLE_PITCH }}
         title={`Chat with ${bot.name}`}
       >
         <span className="relative text-base leading-none">
@@ -143,7 +197,11 @@ export function WorldChatWindow({
       {/* Conversation */}
       <div ref={scroller} className="flex min-h-32 flex-1 flex-col gap-1.5 overflow-y-auto p-3">
         {lines.length === 0 && (
-          <p className="m-auto text-xs text-muted-foreground">Nothing said yet — say hi! 👋</p>
+          <p className="m-auto px-6 text-center text-xs text-muted-foreground">
+            {bot.agentId
+              ? `💤 ${bot.name} is resting — your first message wakes them up.`
+              : "Nothing said yet — say hi! 👋"}
+          </p>
         )}
         {lines.map((l, i) => (
           <div

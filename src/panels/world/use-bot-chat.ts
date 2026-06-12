@@ -66,7 +66,18 @@ export function useBotChat(bot: WorldBot): { lines: ChatLine[]; push: (l: ChatLi
       if (ev.type !== "Item" || sessionKey(ev.data.id) !== bot.key) return;
       const item = ev.data.item;
       if (item.kind === "AssistantText") push(chatLine("bot", item.data.text));
-      else if (item.kind === "UserText") push(chatLine("user", item.data.text));
+      else if (item.kind === "UserText") {
+        const l = chatLine("user", item.data.text);
+        if (!l) return;
+        // The composer pushes optimistically; the engine echoes the same
+        // UserText moments later — drop the echo, not honest repeats
+        // (every send is optimistic-first, so repeats still pair up).
+        setLines((prev) => {
+          const last = prev[prev.length - 1];
+          if (last && last.who === "user" && last.text === l.text) return prev;
+          return [...prev, l].slice(-CHAT_LINES_MAX);
+        });
+      }
     })
       .then((un) => {
         if (live) unlisten = un;
