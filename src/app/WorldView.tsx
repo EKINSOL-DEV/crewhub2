@@ -69,7 +69,10 @@ export function WorldView() {
       {/* Game HUD (EKI-121): status strip, dock, and the drawer host. */}
       <WorldHudStrip />
       <WorldDock />
-      <div className="absolute right-3 top-3 z-40">
+      {/* z-20: drawers (z-30) cover the gear — its close button must win
+          the corner. The dock keeps z-40 because panel-switching mid-drawer
+          is a feature; a second settings button is not. */}
+      <div className="absolute right-3 top-3 z-20">
         <button
           type="button"
           aria-label="Open settings"
