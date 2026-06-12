@@ -1,7 +1,7 @@
 // Floating in-world chat (EKI-118) — v1's beloved chat window, reborn: a
 // draggable card hovering over the 3D world, minimizable to a chat bubble
-// with an unread badge. Lives entirely inside the world panel; the workspace
-// chat panel stays the power tool.
+// with an unread badge. Several can hover at once, messenger-style: windows
+// stagger on open, bubbles line up bottom-right, clicking brings to front.
 import { useEffect, useRef, useState } from "react";
 import { Minus, Send, X } from "lucide-react";
 import { StatusEmoji } from "@/components/StatusEmoji";
@@ -10,20 +10,41 @@ import type { WorldBot } from "./lib/bots";
 import { statusGlow } from "./lib/status";
 import { chatLine, useBotChat } from "./use-bot-chat";
 
+/** Horizontal pitch between minimized bubbles (fixed-width, truncated). */
+const BUBBLE_PITCH = 152;
+
 export interface WorldChatWindowProps {
   bot: WorldBot;
   minimized: boolean;
   onMinimize: (min: boolean) => void;
   onClose: () => void;
+  /** Slot among the minimized bubbles (0 = rightmost). */
+  bubbleIndex?: number;
+  /** Slot among all open chats — staggers the spawn position. */
+  stagger?: number;
+  /** Stacking order; the panel raises the last-touched window. */
+  zIndex?: number;
+  /** Header touched — bring this window to the front. */
+  onFocus?: (() => void) | undefined;
 }
 
-export function WorldChatWindow({ bot, minimized, onMinimize, onClose }: WorldChatWindowProps) {
+export function WorldChatWindow({
+  bot,
+  minimized,
+  onMinimize,
+  onClose,
+  bubbleIndex = 0,
+  stagger = 0,
+  zIndex = 20,
+  onFocus,
+}: WorldChatWindowProps) {
   const { lines, push } = useBotChat(bot);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
   // Window position: top-left offset within the world panel; dragged via the
-  // header. Starts hovering left-of-center so the side panel stays visible.
-  const [pos, setPos] = useState({ x: 24, y: 48 });
+  // header. Staggered per open chat so windows never spawn on top of each
+  // other; hovering left-of-center keeps the side panel visible.
+  const [pos, setPos] = useState({ x: 24 + stagger * 36, y: 48 + stagger * 30 });
   const drag = useRef<{ dx: number; dy: number } | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   // Unread badge: lines that arrived after the minimize click.
@@ -54,7 +75,8 @@ export function WorldChatWindow({ bot, minimized, onMinimize, onClose }: WorldCh
       <button
         type="button"
         onClick={() => onMinimize(false)}
-        className="pointer-events-auto absolute bottom-10 right-2 z-20 flex items-center gap-2 rounded-full border bg-card/95 py-2 pl-3 pr-4 text-xs shadow-lg backdrop-blur hover:bg-card"
+        className="pointer-events-auto absolute bottom-10 z-20 flex w-36 items-center gap-2 rounded-full border bg-card/95 py-2 pl-3 pr-4 text-xs shadow-lg backdrop-blur hover:bg-card"
+        style={{ right: 8 + bubbleIndex * BUBBLE_PITCH }}
         title={`Chat with ${bot.name}`}
       >
         <span className="relative text-base leading-none">
@@ -65,20 +87,22 @@ export function WorldChatWindow({ bot, minimized, onMinimize, onClose }: WorldCh
             </span>
           )}
         </span>
-        <span className="max-w-28 truncate font-medium">{bot.name}</span>
+        <span className="min-w-0 flex-1 truncate text-left font-medium">{bot.name}</span>
       </button>
     );
   }
 
   return (
     <div
-      className="pointer-events-auto absolute z-20 flex max-h-[70%] w-96 flex-col rounded-xl border bg-card/95 shadow-xl backdrop-blur"
-      style={{ left: pos.x, top: pos.y }}
+      className="pointer-events-auto absolute flex max-h-[70%] w-96 flex-col rounded-xl border bg-card/95 shadow-xl backdrop-blur"
+      style={{ left: pos.x, top: pos.y, zIndex }}
+      onPointerDown={onFocus}
     >
       {/* Drag handle / header */}
       <div
         className="flex cursor-grab items-center gap-2 rounded-t-xl border-b bg-muted/40 px-3 py-2 active:cursor-grabbing"
         onPointerDown={(e) => {
+          onFocus?.();
           drag.current = { dx: e.clientX - pos.x, dy: e.clientY - pos.y };
           (e.target as HTMLElement).setPointerCapture(e.pointerId);
         }}

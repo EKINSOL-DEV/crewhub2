@@ -29,6 +29,7 @@ import { useWorldProps } from "./props/store";
 import { summarizeWall, wallScopeFor, type WallSummary } from "./lib/taskwall";
 import { BotActionsCard, CrewRestCard, RoomInfoCard } from "./overlays";
 import { useSpeechBubbles } from "./use-speech-bubbles";
+import { useWorldChats } from "./use-world-chats";
 import { useWorldTheme } from "./use-world-theme";
 import { WorldChatWindow } from "./WorldChatWindow";
 import { useWorldVisibility } from "./use-world-visibility";
@@ -102,9 +103,11 @@ export default function WorldPanel() {
   }, [tasksById, world]);
 
   const [selection, setSelection] = useState<Selection>(null);
-  // Floating chat (EKI-118): independent of the selection so you can keep
-  // talking while clicking around; minimizes to a bubble.
-  const [chat, setChat] = useState<{ key: string; min: boolean } | null>(null);
+  // Floating chats (EKI-118/119): independent of the selection, several at
+  // once messenger-style, held in a module store so open conversations
+  // survive view switches and panel remounts.
+  const chats = useWorldChats((s) => s.chats);
+  const openChat = useWorldChats((s) => s.open);
   const [importZoneId, setImportZoneId] = useState<string | null>(null);
   const [creatorZoneId, setCreatorZoneId] = useState<string | null>(null);
   const [cameraMode, setCameraMode] = useState<CameraMode>("orbit");
@@ -345,7 +348,7 @@ export default function WorldPanel() {
             // Waking spawns a session bot — follow it and open its chat.
             onSpawned={(key) => {
               setSelection({ kind: "bot", key });
-              setChat({ key, min: false });
+              openChat(key);
             }}
           />
         ) : (
@@ -354,7 +357,7 @@ export default function WorldPanel() {
             key={selectedBot.key}
             bot={selectedBot}
             onClose={() => setSelection(null)}
-            onOpenChat={() => setChat({ key: selectedBot.key, min: false })}
+            onOpenChat={() => openChat(selectedBot.key)}
           />
         ))}
       {selectedZone && !selectedBot && (
@@ -368,21 +371,29 @@ export default function WorldPanel() {
         />
       )}
 
-      {/* Floating chat (EKI-118) — keyed per bot so history never crosses. */}
-      {chat &&
-        (() => {
-          const target = bots.find((b) => b.key === chat.key);
+      {/* Floating chats (EKI-118/119) — keyed per bot so history never
+          crosses; minimized ones line up as bubbles bottom-right. */}
+      {(() => {
+        let bubbleSlot = 0;
+        return chats.map((c, i) => {
+          const target = bots.find((b) => b.key === c.key);
           if (!target) return null;
+          const bubbleIndex = c.min ? bubbleSlot++ : 0;
           return (
             <WorldChatWindow
-              key={chat.key}
+              key={c.key}
               bot={target}
-              minimized={chat.min}
-              onMinimize={(min) => setChat({ key: chat.key, min })}
-              onClose={() => setChat(null)}
+              minimized={c.min}
+              bubbleIndex={bubbleIndex}
+              stagger={i}
+              zIndex={20 + i}
+              onFocus={() => useWorldChats.getState().raise(c.key)}
+              onMinimize={(min) => useWorldChats.getState().setMin(c.key, min)}
+              onClose={() => useWorldChats.getState().close(c.key)}
             />
           );
-        })()}
+        });
+      })()}
 
       {creatorZone && (
         <CreatorDialog
