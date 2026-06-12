@@ -149,9 +149,11 @@ function startGitSignals(): void {
   if (signalsStarted) return;
   signalsStarted = true;
   try {
-    void onEngineEvent((ev) => void handleGitEngineEvent(ev));
+    onEngineEvent((ev) => void handleGitEngineEvent(ev)).catch(() => {
+      // event bridge unavailable (unit tests) — handleGitEngineEvent stays callable
+    });
   } catch {
-    // event bridge unavailable (unit tests) — handleGitEngineEvent stays callable
+    // bridge module threw synchronously (no Tauri runtime at all)
   }
 }
 

@@ -68,8 +68,15 @@ export interface WorkspaceTab {
 
 export type DropEdge = "n" | "s" | "e" | "w" | "center";
 
+// Fallback for environments without crypto.randomUUID: layout ids only need
+// uniqueness (they're persisted layout keys, never secrets), so a
+// timestamp+counter suffices — no randomness required.
+let uidFallbackCounter = 0;
 export function uid(): string {
-  return globalThis.crypto?.randomUUID?.() ?? `id-${Math.random().toString(36).slice(2)}`;
+  return (
+    globalThis.crypto?.randomUUID?.() ??
+    `id-${Date.now().toString(36)}-${(uidFallbackCounter++).toString(36)}`
+  );
 }
 
 export function makeLeaf(kind: PanelKind, params?: Record<string, string>): LeafNode {

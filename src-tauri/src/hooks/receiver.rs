@@ -180,25 +180,25 @@ fn handle_line(
         id: session_id.to_string(),
     };
     let now = crate::store::Store::now_ms();
+    // Record the file touch BEFORE emitting the Signal: consumers (and tests)
+    // use the Signal as a "this line was fully processed" barrier, so the
+    // detector must already reflect it when the Signal lands.
+    let conflict = match (&tool, &path) {
+        (Some(tool), Some(path)) if MUTATING_TOOLS.contains(&tool.as_str()) => {
+            conflicts.lock().unwrap().record(path, id.clone(), now)
+        }
+        _ => None,
+    };
     let signal = HookSignal {
         event: event.to_string(),
-        tool: tool.clone(),
-        path: path.clone(),
+        tool,
+        path,
         payload_json: payload.map(ToString::to_string),
         ts: now,
     };
-    let _ = tx.send(SessionEvent::Signal {
-        id: id.clone(),
-        signal,
-    });
-
-    if let (Some(tool), Some(path)) = (tool, path) {
-        if MUTATING_TOOLS.contains(&tool.as_str()) {
-            let conflict = conflicts.lock().unwrap().record(&path, id, now);
-            if let Some(event) = conflict {
-                let _ = tx.send(event);
-            }
-        }
+    let _ = tx.send(SessionEvent::Signal { id, signal });
+    if let Some(event) = conflict {
+        let _ = tx.send(event);
     }
 
     // T18: SessionStart with a registered-project cwd gets a context reply.

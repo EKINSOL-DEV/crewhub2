@@ -310,10 +310,19 @@ function HelpSheet({ onClose }: { onClose: () => void }) {
   return (
     <div
       data-testid="help-sheet"
+      role="presentation"
       className="absolute inset-0 z-50 flex items-center justify-center bg-background/70"
       onClick={onClose}
+      onKeyDown={(e) => e.key === "Escape" && onClose()}
     >
-      <div className="w-96 rounded-lg border bg-card p-4 shadow-lg" onClick={(e) => e.stopPropagation()}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Keyboard shortcuts"
+        className="w-96 rounded-lg border bg-card p-4 shadow-lg"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+      >
         <h2 className="mb-3 text-sm font-semibold">⌨️ Shortcuts</h2>
         <table className="w-full text-xs">
           <tbody>

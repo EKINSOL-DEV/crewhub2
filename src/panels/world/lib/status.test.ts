@@ -29,6 +29,7 @@ describe("statusGlow", () => {
   });
 
   it("exposes the full table for legend UIs", () => {
-    expect(Object.keys(STATUS_GLOWS).sort()).toEqual([...ALL].sort());
+    const byName = (a: string, b: string) => a.localeCompare(b);
+    expect(Object.keys(STATUS_GLOWS).sort(byName)).toEqual([...ALL].sort(byName));
   });
 });
