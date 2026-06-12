@@ -3,7 +3,7 @@
 // frameloop hard-pauses while the panel is occluded or the window is hidden.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
-import { ACESFilmicToneMapping } from "three";
+import { ACESFilmicToneMapping, PCFShadowMap } from "three";
 import { Button } from "@/components/ui/button";
 import { usePrefersReducedMotion } from "@/components/use-reduced-motion";
 import { openBoardPanel } from "@/panels/board/open-board";
@@ -12,6 +12,9 @@ import { useBindingsStore } from "@/stores/bindings";
 import { useSessionsStore, useSessionsView } from "@/stores/sessions";
 import { useTasksStore } from "@/stores/tasks";
 import { CameraRig, type CameraMode } from "./CameraRig";
+import { environmentById, nextEnvironmentId } from "./environments/registry";
+import { useEnvironmentStore } from "./environments/store";
+import { applyEnvironment } from "./environments/types";
 import { toWorldBots, type WorldBot } from "./lib/bots";
 import { LOBBY_ID, ROOM_SIZE, layoutWorld, type WorldZone } from "./lib/layout";
 import { attachContextGuard, probeWebgl } from "./lib/webgl-guard";
@@ -48,7 +51,14 @@ export default function WorldPanel() {
     void useAgentsStore.getState().init();
     void useTasksStore.getState().init();
     void useCustomProps.getState().init();
+    void useEnvironmentStore.getState().init();
   }, []);
+
+  // Environment (EKI-111): biome colors override the theme palette; the
+  // `theme` environment keeps the pure theme-derived look.
+  const envId = useEnvironmentStore((s) => s.id);
+  const environment = useMemo(() => environmentById(envId), [envId]);
+  const worldPalette = useMemo(() => applyEnvironment(palette, environment), [palette, environment]);
 
   const rooms = useBindingsStore((s) => s.rooms);
   const views = useSessionsView();
@@ -251,6 +261,8 @@ export default function WorldPanel() {
       <Canvas
         frameloop={frameloop}
         dpr={[1, 1.75]}
+        // PCFSoft is deprecated in this three release — plain PCF, no warning.
+        shadows={{ type: PCFShadowMap }}
         camera={{ position: [0, 16, 22], fov: 45 }}
         // ACES filmic output (Epic 20) — soft highlights, grounded colors.
         gl={{ toneMapping: ACESFilmicToneMapping }}
@@ -268,8 +280,8 @@ export default function WorldPanel() {
         onPointerMissed={() => setSelection(null)}
         fallback={null}
       >
-        <color attach="background" args={[palette.sky]} />
-        <fog attach="fog" args={[palette.fog, 45, 90]} />
+        <color attach="background" args={[worldPalette.sky]} />
+        <fog attach="fog" args={[worldPalette.fog, 45, 90]} />
         <WorldScene
           world={world}
           bots={bots}
@@ -278,7 +290,8 @@ export default function WorldPanel() {
           walls={walls}
           roomProps={roomProps}
           propsEdit={propsEdit}
-          palette={palette}
+          palette={worldPalette}
+          environment={environment}
           onBotClick={(bot) => setSelection({ kind: "bot", key: bot.key })}
           onZoneClick={(zone) => setSelection({ kind: "zone", id: zone.id })}
           onWallClick={(zone) =>
@@ -348,16 +361,26 @@ export default function WorldPanel() {
       </div>
 
       {cameraMode !== "fp" && (
-        <button
-          type="button"
-          className="absolute bottom-2 right-2 rounded bg-black/40 px-2 py-1 text-[10px] text-white/80 hover:bg-black/60"
-          onClick={() => {
-            containerRef.current?.focus();
-            toggleEditMode();
-          }}
-        >
-          {editMode ? "✓ Done editing" : "🛠 Edit props"}
-        </button>
+        <div className="absolute bottom-2 right-2 flex gap-1.5">
+          <button
+            type="button"
+            className="rounded bg-black/40 px-2 py-1 text-[10px] text-white/80 hover:bg-black/60"
+            title="Switch environment"
+            onClick={() => useEnvironmentStore.getState().setEnvironment(nextEnvironmentId(environment.id))}
+          >
+            {environment.emoji} {environment.name}
+          </button>
+          <button
+            type="button"
+            className="rounded bg-black/40 px-2 py-1 text-[10px] text-white/80 hover:bg-black/60"
+            onClick={() => {
+              containerRef.current?.focus();
+              toggleEditMode();
+            }}
+          >
+            {editMode ? "✓ Done editing" : "🛠 Edit props"}
+          </button>
+        </div>
       )}
     </div>
   );

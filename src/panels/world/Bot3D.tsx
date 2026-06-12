@@ -1,12 +1,13 @@
-// One bot = one live session (EKI-62/66). v1's visual DNA, rewritten lean:
-// rounded capsule body, simple face, gentle bobbing, idle wander. All motion
-// folds pure step functions (wanderStep/springStep/squashStretch/blinkScale)
-// — and is skipped entirely under reduced motion (static variants).
+// One bot = one live session (EKI-62/66). v1's visual DNA, now fully restored
+// (EKI-113): the boxy robot body lives in BotModel; this file owns the motion.
+// All of it folds pure step functions (wanderStep/springStep/squashStretch/
+// blinkScale) — and is skipped entirely under reduced motion (static variants).
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { Billboard, Text } from "@react-three/drei";
 import * as THREE from "three";
 import { BotBubbles } from "./BotBubbles";
+import { BotModel } from "./BotModel";
 import type { WorldBot } from "./lib/bots";
 import type { WorldBounds } from "./lib/layout";
 import { blinkScale, squashStretch } from "./lib/motion";
@@ -14,7 +15,7 @@ import { springStep, type Spring1D } from "./lib/spring";
 import { statusGlow } from "./lib/status";
 import { initialWander, wanderStep, type WanderState } from "./lib/wander";
 
-const BODY_Y = 0.5; // capsule center height — feet on the floor
+const BODY_Y = 0.5; // robot group origin height — BotModel puts feet on the floor
 const HOME_SPEED = 1.6; // hustle back to the desk faster than a stroll
 const MOVE_OMEGA = 7; // spring snappiness — eased starts/stops, no overshoot
 const HOP_AMPLITUDE = 0.14;
@@ -139,45 +140,13 @@ export function Bot3D({ bot, home, bounds, reducedMotion, speech, onClick }: Bot
   return (
     <group ref={group} position={[home[0], BODY_Y, home[1]]} scale={scale}>
       <group ref={body} onClick={handleClick}>
-        {/* Rounded capsule body */}
-        <mesh>
-          <capsuleGeometry args={[0.24, 0.4, 6, 16]} />
-          <meshStandardMaterial color={bot.color} roughness={0.55} />
-        </mesh>
-        {/* Eyes — white sclera + pupil; the wrapper sits at eye height so a
-            blink (scale.y dip) squints in place instead of sliding down */}
-        <group ref={eyes} position={[0, 0.18, 0.17]}>
-          {[-0.09, 0.09].map((x) => (
-            <group key={x} position={[x, 0, 0]}>
-              <mesh>
-                <sphereGeometry args={[0.055, 12, 12]} />
-                <meshStandardMaterial color="#ffffff" roughness={0.3} />
-              </mesh>
-              <mesh position={[0, 0, 0.038]}>
-                <sphereGeometry args={[0.026, 10, 10]} />
-                <meshStandardMaterial color="#1a1a1a" roughness={0.4} />
-              </mesh>
-            </group>
-          ))}
-        </group>
-        {/* Smile */}
-        <mesh position={[0, 0.06, 0.215]} rotation={[0, 0, Math.PI]}>
-          <torusGeometry args={[0.05, 0.012, 6, 12, Math.PI]} />
-          <meshStandardMaterial color="#222831" roughness={0.5} />
-        </mesh>
-        {/* Antenna with a status-colored bulb — readable from across the room */}
-        <mesh position={[0, 0.48, 0]}>
-          <cylinderGeometry args={[0.012, 0.012, 0.14, 6]} />
-          <meshStandardMaterial color="#222831" roughness={0.5} />
-        </mesh>
-        <mesh position={[0, 0.58, 0]}>
-          <sphereGeometry args={[0.045, 10, 10]} />
-          <meshStandardMaterial
-            color={glow.color}
-            emissive={glow.color}
-            emissiveIntensity={glow.intensity * 1.5}
-          />
-        </mesh>
+        {/* The boxy robot — static body; squash/wiggle scale this wrapper */}
+        <BotModel
+          color={bot.color}
+          eyesRef={eyes}
+          bulbColor={glow.color}
+          bulbIntensity={glow.intensity * 1.5}
+        />
       </group>
 
       {/* Status glow ring at the feet */}
