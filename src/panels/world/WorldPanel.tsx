@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { ACESFilmicToneMapping } from "three";
+import { Button } from "@/components/ui/button";
 import { usePrefersReducedMotion } from "@/components/use-reduced-motion";
 import { openBoardPanel } from "@/panels/board/open-board";
 import { useAgentsStore } from "@/stores/agents";
@@ -13,6 +14,7 @@ import { useTasksStore } from "@/stores/tasks";
 import { CameraRig, type CameraMode } from "./CameraRig";
 import { toWorldBots, type WorldBot } from "./lib/bots";
 import { LOBBY_ID, ROOM_SIZE, layoutWorld, type WorldZone } from "./lib/layout";
+import { attachContextGuard, probeWebgl } from "./lib/webgl-guard";
 import { CreatorDialog } from "./props/CreatorDialog";
 import { useCustomProps } from "./props/custom";
 import { ImportBlueprintDialog } from "./props/ImportBlueprintDialog";
@@ -83,14 +85,15 @@ export default function WorldPanel() {
   // pauses mid-drag so the floor drag owns the pointer.
   const [editMode, setEditMode] = useState(false);
   const [propDragging, setPropDragging] = useState(false);
-  // True unavailability is probed once; context-lost events only count when
-  // they come from the CURRENT canvas (StrictMode disposes a first canvas whose
-  // late contextlost event must not poison the live one — seen in dev).
-  const [webglFailed, setWebglFailed] = useState(() => {
-    const probe = document.createElement("canvas");
-    return !(probe.getContext("webgl2") ?? probe.getContext("webgl"));
-  });
+  // True unavailability is probed once (probe context released — they're a
+  // scarce budget). Later context-lost events go through the grace-period
+  // guard: StrictMode's twin disposal and WebKit's budget reclaims fire
+  // transient losses on the LIVE canvas element that three.js restores by
+  // itself — failing eagerly here unmounted the canvas and made every
+  // transient loss look like "no WebGL" (seen in dev, a few seconds in).
+  const [webglFailed, setWebglFailed] = useState(() => !probeWebgl());
   const activeCanvas = useRef<HTMLCanvasElement | null>(null);
+  const detachGuard = useRef<(() => void) | null>(null);
   const debug = useMemo(() => worldDebugEnabled(), []);
   const [fps, setFps] = useState(0);
 
@@ -202,8 +205,11 @@ export default function WorldPanel() {
 
   if (webglFailed) {
     return (
-      <div className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
-        🌍 The world needs WebGL — it appears to be unavailable here.
+      <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm text-muted-foreground">
+        <p>🌍 The world lost its WebGL spark — it appears to be unavailable here.</p>
+        <Button size="xs" variant="outline" onClick={() => setWebglFailed(false)}>
+          ✨ Wake the world again
+        </Button>
       </div>
     );
   }
@@ -240,10 +246,13 @@ export default function WorldPanel() {
         onCreated={({ gl }) => {
           activeCanvas.current = gl.domElement;
           setWebglFailed(false);
-          gl.domElement.addEventListener("webglcontextlost", (e) => {
-            if (e.target === activeCanvas.current) setWebglFailed(true);
+          detachGuard.current?.();
+          detachGuard.current = attachContextGuard({
+            canvas: gl.domElement,
+            isActive: () => activeCanvas.current === gl.domElement,
+            isLost: () => gl.getContext().isContextLost(),
+            onVerdict: setWebglFailed,
           });
-          gl.domElement.addEventListener("webglcontextrestored", () => setWebglFailed(false));
         }}
         onPointerMissed={() => setSelection(null)}
         fallback={null}
