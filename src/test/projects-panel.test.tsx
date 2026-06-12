@@ -115,6 +115,8 @@ test("path-policy rejection renders a friendly error, not an error wall", async 
 test("auto-suggest lists unregistered history paths; one-click register uses dir name", async () => {
   const { calls } = mockProjectBackend();
   render(<ProjectsPanel />);
+  // EKI-124: suggestions live behind a collapsed toggle now — expand first.
+  fireEvent.click(await screen.findByTestId("toggle-suggestions"));
   await screen.findByText("/work/seen");
   expect(screen.getByText("2 sessions")).toBeInTheDocument();
 

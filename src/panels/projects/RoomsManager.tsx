@@ -44,7 +44,7 @@ function RoomForm({
   };
 
   return (
-    <div data-testid="room-form" className="flex flex-col gap-1.5 rounded border p-2 text-xs">
+    <div data-testid="room-form" className="flex flex-col gap-1.5 rounded-xl border bg-card p-2 text-xs">
       <div className="flex items-center gap-1">
         <input
           aria-label="Room name"
@@ -220,10 +220,10 @@ export function RoomsManager({
   return (
     <section
       data-testid={`rooms-manager-${projectId ?? "hq"}`}
-      className="flex w-72 flex-col gap-1 rounded border border-dashed p-2"
+      className="flex w-full max-w-xl flex-col gap-1.5 rounded-2xl border bg-card/60 p-3 shadow-sm"
     >
       <div className="flex items-center gap-1">
-        <h4 className="flex-1 text-xs font-medium text-muted-foreground">🚪 Rooms · {projectName}</h4>
+        <h4 className="flex-1 truncate text-xs font-semibold">{projectName}</h4>
         {editing === null && (
           <Button
             size="xs"
@@ -231,7 +231,7 @@ export function RoomsManager({
             data-testid={`add-room-${projectId ?? "hq"}`}
             onClick={() => setEditing("new")}
           >
-            ＋ room
+            ➕ Add room
           </Button>
         )}
       </div>
@@ -252,10 +252,18 @@ export function RoomsManager({
         <div key={room.id} className="flex flex-col gap-1">
           <div
             data-testid={`room-row-${room.id}`}
-            className="flex items-center gap-1 rounded px-1 py-0.5 text-xs hover:bg-accent/10"
-            style={{ borderLeft: `2px solid ${room.color ?? "transparent"}` }}
+            className="flex items-center gap-1.5 rounded-xl px-1.5 py-1 text-xs hover:bg-muted/60"
           >
-            <span aria-hidden>{room.icon ?? "🚪"}</span>
+            <span
+              aria-hidden
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-sm"
+              style={{
+                backgroundColor: `${room.color ?? "#8884"}33`,
+                boxShadow: `inset 0 0 0 1.5px ${room.color ?? "transparent"}`,
+              }}
+            >
+              {room.icon ?? "🚪"}
+            </span>
             <span className="flex-1 truncate font-medium">{room.name}</span>
             {room.is_hq && (
               <span
