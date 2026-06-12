@@ -124,6 +124,24 @@ export default function WorldPanel() {
   const [webglFailed, setWebglFailed] = useState(() => !probeWebgl());
   const activeCanvas = useRef<HTMLCanvasElement | null>(null);
   const detachGuard = useRef<(() => void) | null>(null);
+  // Self-revival (EKI-120): a verified persistent loss first gets automatic
+  // remounts (fresh canvas element → fresh context) before the "wake the
+  // world" card ever appears — nobody should click that on a normal launch.
+  const [canvasEpoch, setCanvasEpoch] = useState(0);
+  const revives = useRef(0);
+  const handleVerdict = (failed: boolean) => {
+    if (!failed) {
+      setWebglFailed(false);
+      revives.current = 0;
+      return;
+    }
+    if (revives.current < 2) {
+      revives.current += 1;
+      setCanvasEpoch((e) => e + 1);
+    } else {
+      setWebglFailed(true);
+    }
+  };
   const debug = useMemo(() => worldDebugEnabled(), []);
   const [fps, setFps] = useState(0);
 
@@ -248,7 +266,16 @@ export default function WorldPanel() {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm text-muted-foreground">
         <p>🌍 The world lost its WebGL spark — it appears to be unavailable here.</p>
-        <Button size="xs" variant="outline" onClick={() => setWebglFailed(false)}>
+        <Button
+          size="xs"
+          variant="outline"
+          onClick={() => {
+            // Fresh start: new canvas element, new revive budget.
+            revives.current = 0;
+            setCanvasEpoch((e) => e + 1);
+            setWebglFailed(false);
+          }}
+        >
           ✨ Wake the world again
         </Button>
       </div>
@@ -284,6 +311,7 @@ export default function WorldPanel() {
       }}
     >
       <Canvas
+        key={canvasEpoch}
         frameloop={frameloop}
         dpr={[1, 1.75]}
         // PCFSoft is deprecated in this three release — plain PCF, no warning.
@@ -294,12 +322,25 @@ export default function WorldPanel() {
         onCreated={({ gl }) => {
           activeCanvas.current = gl.domElement;
           setWebglFailed(false);
+          // StrictMode's twin disposal force-loses the context the second
+          // renderer INHERITS (same canvas → same context object), so every
+          // dev launch died into the wake card (EKI-120). A loseContext()-
+          // style loss is restorable — ask the browser to bring it back;
+          // three reinitializes on `webglcontextrestored`.
+          const ctx = gl.getContext();
+          if (ctx.isContextLost()) {
+            try {
+              ctx.getExtension("WEBGL_lose_context")?.restoreContext();
+            } catch {
+              // not restorable this way — the guard + revive path takes over
+            }
+          }
           detachGuard.current?.();
           detachGuard.current = attachContextGuard({
             canvas: gl.domElement,
             isActive: () => activeCanvas.current === gl.domElement,
             isLost: () => gl.getContext().isContextLost(),
-            onVerdict: setWebglFailed,
+            onVerdict: handleVerdict,
           });
         }}
         onPointerMissed={() => setSelection(null)}
