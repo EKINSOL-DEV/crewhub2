@@ -219,6 +219,7 @@ export const commands = {
 	/**  "Run now": the same dispatcher code path as a scheduled firing (D-M4-5). */
 	runNow: (runId: string) => typedError<RunResult, string>(__TAURI_INVOKE("run_now", { runId })),
 	listRunResults: (runId: string) => typedError<RunResult[], string>(__TAURI_INVOKE("list_run_results", { runId })),
+	worldGenerateProp: (prompt: string, model: string | null) => typedError<HeadlessRun, string>(__TAURI_INVOKE("world_generate_prop", { prompt, model })),
 	previewCron: (expr: string) => typedError<CronPreview, string>(__TAURI_INVOKE("preview_cron", { expr })),
 	/**  Global templates plus, when given, the project's own (D-M4-8). */
 	listPromptTemplates: (projectId: string | null) => typedError<PromptTemplate[], string>(__TAURI_INVOKE("list_prompt_templates", { projectId })),
@@ -427,6 +428,18 @@ export type GitStatus = {
 };
 
 export type HandoffTarget = "Terminal" | "Iterm" | "Warp" | "Vscode" | "RevealInFinder";
+
+/**
+ *  Result of one provider-executed headless run (M4 D-M4-5): pure execution,
+ *  no persistence attached — `record_run_result` is the separate writer.
+ */
+export type HeadlessRun = {
+	session_id: string | null,
+	/**  "success" | "error" */
+	status: string,
+	/**  Full result text (callers cap as needed). */
+	text: string,
+};
 
 export type HookSignal = {
 	/**  Provider-neutral event name: session-start | pre-tool | post-tool | stop | subagent-stop | notification */

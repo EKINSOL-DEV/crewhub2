@@ -97,12 +97,15 @@ export function RoomInfoCard({
   bots,
   onClose,
   onImportBlueprint,
+  onCreateProp,
 }: {
   zone: WorldZone;
   bots: WorldBot[];
   onClose: () => void;
   /** Opens the v1 blueprint paste-import for this room (EKI-81). */
   onImportBlueprint?: (() => void) | undefined;
+  /** Opens creator mode for this room (EKI-83): dream up a prop with AI. */
+  onCreateProp?: (() => void) | undefined;
 }) {
   const [openTasks, setOpenTasks] = useState<number | null>(null);
 
@@ -150,11 +153,18 @@ export function RoomInfoCard({
       ) : (
         <p className="text-xs text-muted-foreground">Nobody home right now.</p>
       )}
-      {zone.id !== LOBBY_ID && onImportBlueprint && (
-        <div className="mt-2 border-t pt-2">
-          <Button size="xs" variant="outline" onClick={onImportBlueprint}>
-            Import v1 blueprint
-          </Button>
+      {zone.id !== LOBBY_ID && (onImportBlueprint || onCreateProp) && (
+        <div className="mt-2 flex gap-1.5 border-t pt-2">
+          {onCreateProp && (
+            <Button size="xs" variant="outline" onClick={onCreateProp}>
+              ✨ Dream up a prop
+            </Button>
+          )}
+          {onImportBlueprint && (
+            <Button size="xs" variant="outline" onClick={onImportBlueprint}>
+              Import v1 blueprint
+            </Button>
+          )}
         </div>
       )}
     </CardShell>

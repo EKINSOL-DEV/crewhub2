@@ -6,6 +6,7 @@
 // Visual DNA comes from v1's frontend/src/components/world3d/props/* (boxes,
 // cylinders, spheres and cones in charming arrangements), rebuilt as data.
 import { mixHex, shadeHex, type WorldPalette } from "../lib/theme-palette";
+import { useCustomProps } from "./custom";
 
 export type PropPrimitive = "box" | "cylinder" | "sphere" | "cone";
 
@@ -255,9 +256,12 @@ export const CORE_PROPS: Readonly<Record<string, PropDefinition>> = Object.fromE
 /** Unknown prop ids render as this (with a 📦 marker overhead). */
 export const FALLBACK_PROP_ID = "core:crate";
 
-/** Look up a definition; unknown ids fall back to the crate. */
+/**
+ * Look up a definition: creator-made props first (EKI-83), then the core set;
+ * unknown ids fall back to the crate.
+ */
 export function resolveProp(propId: string): PropDefinition {
-  return CORE_PROPS[propId] ?? CORE_PROPS[FALLBACK_PROP_ID]!;
+  return useCustomProps.getState().defs[propId] ?? CORE_PROPS[propId] ?? CORE_PROPS[FALLBACK_PROP_ID]!;
 }
 
 /**

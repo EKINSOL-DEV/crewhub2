@@ -4,7 +4,7 @@ pub mod events;
 pub mod git;
 pub mod hooks;
 pub mod import;
-mod ipc;
+pub mod ipc;
 pub mod mcp;
 pub mod onboarding;
 pub mod orchestrator;
@@ -122,6 +122,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             ipc::set_run_enabled::<tauri::Wry>,
             ipc::run_now,
             ipc::list_run_results,
+            ipc::world_generate_prop,
             ipc::preview_cron,
             ipc::list_prompt_templates,
             ipc::create_prompt_template::<tauri::Wry>,

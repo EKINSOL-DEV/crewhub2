@@ -1,8 +1,8 @@
 use crate::engine::provider::{ProviderCaps, ProviderRegistry, SessionProvider};
 use crate::engine::rules::{PermissionRule, PermissionRules};
 use crate::engine::types::{
-    ArchivedSession, PermissionResponse, QuestionResponse, SearchHit, SessionId, SessionMeta,
-    SlashCommand, SpawnSpec, TranscriptPage, UserInput,
+    ArchivedSession, HeadlessRun, PermissionResponse, QuestionResponse, SearchHit, SessionId,
+    SessionMeta, SlashCommand, SpawnSpec, TranscriptPage, UserInput,
 };
 use crate::events::DomainEvent;
 use crate::orchestrator::{Orchestrator, StartMeetingSpec};
@@ -1605,6 +1605,47 @@ pub async fn run_now(
 #[specta::specta]
 pub fn list_run_results(store: State<Arc<Store>>, run_id: String) -> Result<Vec<RunResult>> {
     store.list_run_results(&run_id).map_err(err)
+}
+
+// ── Creator mode (EKI-83): AI-dreamed world props ────────────────────────────
+
+/// Generous ceiling so a hung CLI can't leave the creator dialog spinning forever.
+const GENERATE_PROP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(120);
+
+/// One headless run that dreams up a 3D prop. The frontend owns the prompt
+/// and parses/validates the returned JSON; this is only the provider-neutral
+/// execution seam (model defaults to haiku inside the provider).
+pub async fn generate_prop_inner(
+    registry: &ProviderRegistry,
+    prompt: &str,
+    model: Option<&str>,
+) -> anyhow::Result<HeadlessRun> {
+    let runner = registry
+        .headless_runner()
+        .ok_or_else(|| anyhow::anyhow!("no provider supports headless runs"))?;
+    // Prop generation needs no project context — run from a neutral cwd.
+    let cwd = std::env::temp_dir();
+    match tokio::time::timeout(
+        GENERATE_PROP_TIMEOUT,
+        runner.exec_headless(&cwd, prompt, model),
+    )
+    .await
+    {
+        Ok(res) => res,
+        Err(_) => anyhow::bail!("prop generation timed out"),
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn world_generate_prop(
+    registry: State<'_, Arc<ProviderRegistry>>,
+    prompt: String,
+    model: Option<String>,
+) -> Result<HeadlessRun> {
+    generate_prop_inner(&registry, &prompt, model.as_deref())
+        .await
+        .map_err(err)
 }
 
 /// Cron preview for the schedule editor: next 3 occurrences + a human

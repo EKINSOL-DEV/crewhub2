@@ -13,8 +13,11 @@ import { useTasksStore } from "@/stores/tasks";
 import { CameraRig, type CameraMode } from "./CameraRig";
 import { toWorldBots, type WorldBot } from "./lib/bots";
 import { LOBBY_ID, ROOM_SIZE, layoutWorld, type WorldZone } from "./lib/layout";
+import { CreatorDialog } from "./props/CreatorDialog";
+import { useCustomProps } from "./props/custom";
 import { ImportBlueprintDialog } from "./props/ImportBlueprintDialog";
 import { editProp, removeProp, rotateProp, scaleProp } from "./props/placement";
+import type { PropDefinition } from "./props/registry";
 import type { PropsEditApi } from "./props/RoomProps3D";
 import { useWorldProps } from "./props/store";
 import { summarizeWall, wallScopeFor, type WallSummary } from "./lib/taskwall";
@@ -42,6 +45,7 @@ export default function WorldPanel() {
     void useBindingsStore.getState().init();
     void useAgentsStore.getState().init();
     void useTasksStore.getState().init();
+    void useCustomProps.getState().init();
   }, []);
 
   const rooms = useBindingsStore((s) => s.rooms);
@@ -73,6 +77,7 @@ export default function WorldPanel() {
 
   const [selection, setSelection] = useState<Selection>(null);
   const [importZoneId, setImportZoneId] = useState<string | null>(null);
+  const [creatorZoneId, setCreatorZoneId] = useState<string | null>(null);
   const [cameraMode, setCameraMode] = useState<CameraMode>("orbit");
   // Placement editor (EKI-81): E toggles while the world has focus; orbit
   // pauses mid-drag so the floor drag owns the pointer.
@@ -97,6 +102,21 @@ export default function WorldPanel() {
   const importZone: WorldZone | null = importZoneId
     ? (world.rooms.find((z) => z.id === importZoneId) ?? null)
     : null;
+  const creatorZone: WorldZone | null = creatorZoneId
+    ? (world.rooms.find((z) => z.id === creatorZoneId) ?? null)
+    : null;
+
+  // Creator mode (EKI-83): remember the dreamed definition, drop an instance
+  // at the room center, and flip into edit mode so it can be nudged into place.
+  const placeCreatorProp = (roomId: string, def: PropDefinition) => {
+    useCustomProps.getState().addDef(def);
+    const st = useWorldProps.getState();
+    st.setRoomProps(roomId, [
+      ...(st.byRoom[roomId] ?? []),
+      { id: `c-${Date.now().toString(36)}`, propId: def.id, x: 0, z: 0, rot: 0, scale: 1 },
+    ]);
+    setEditMode(true);
+  };
 
   const toggleEditMode = () => {
     setEditMode((on) => {
@@ -267,9 +287,17 @@ export default function WorldPanel() {
           bots={bots.filter((b) => b.roomId === selectedZone.id)}
           onClose={() => setSelection(null)}
           onImportBlueprint={() => setImportZoneId(selectedZone.id)}
+          onCreateProp={() => setCreatorZoneId(selectedZone.id)}
         />
       )}
 
+      {creatorZone && (
+        <CreatorDialog
+          zone={creatorZone}
+          onPlace={(def) => placeCreatorProp(creatorZone.id, def)}
+          onClose={() => setCreatorZoneId(null)}
+        />
+      )}
       {importZone && (
         <ImportBlueprintDialog
           zone={importZone}
