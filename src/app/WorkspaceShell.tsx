@@ -11,7 +11,6 @@ import { commands } from "@/ipc/bindings";
 import { cn } from "@/lib/utils";
 import { CrewBar } from "@/panels/crew/CrewBar";
 import { useAgentsStore } from "@/stores/agents";
-import { useAppView } from "@/stores/appView";
 import { usePalette } from "@/stores/palette";
 import { useWorkspace } from "@/stores/workspace";
 import { CommandPalette } from "./CommandPalette";
@@ -360,10 +359,10 @@ function CrewSidebar() {
 }
 
 // ── The shell ────────────────────────────────────────────────────────────────
-// `secondary` marks a `?window=workspace` window: it hides the 🌍 World button
-// because there is exactly ONE world and it lives in the main window.
+// Panel grid for the `?window=workspace` window (EKI-121): the main window is
+// the world + HUD; this detached grid is the power view for second monitors.
 
-export function WorkspaceShell({ secondary = false }: { secondary?: boolean } = {}) {
+export function WorkspaceShell() {
   const loaded = useWorkspace((s) => s.loaded);
   const tab = useWorkspace((s) => s.tabs.find((t) => t.id === s.activeTabId) ?? null);
   const maximizedLeafId = useWorkspace((s) => s.maximizedLeafId);
@@ -453,17 +452,6 @@ export function WorkspaceShell({ secondary = false }: { secondary?: boolean } = 
         <span className="select-none text-xs font-semibold">CrewHub</span>
         <TabBar />
         <span className="flex-1" />
-        {!secondary && (
-          <button
-            type="button"
-            data-testid="to-world"
-            title="World (⌘1)"
-            onClick={() => useAppView.getState().setView("world")}
-            className="rounded-md border px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            🌍 World
-          </button>
-        )}
         <ProjectSwitcher />
         <span data-testid="app-version" className="font-mono text-[10px] text-muted-foreground">
           {version ? `v${version}` : "backend: connecting…"}

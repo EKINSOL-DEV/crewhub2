@@ -4,7 +4,6 @@
 // live shell. Reduced motion: ConfettiBurst renders nothing by itself.
 import { leaves } from "@/app/layout-tree";
 import { ConfettiBurst } from "@/panels/crew/ConfettiBurst";
-import { useAppView } from "@/stores/appView";
 import { useOnboarding } from "@/stores/onboarding";
 import { useWorkspace } from "@/stores/workspace";
 
@@ -13,13 +12,10 @@ import { useWorkspace } from "@/stores/workspace";
  * split. Best-effort — when the workspace isn't loaded (shouldn't happen
  * behind the overlay) finishing simply lands on whatever is there.
  *
- * World-primary shell: the wizard forces the workspace view underneath it, but
- * the appView store still says "world" — switch explicitly (like every
- * deep-link does) so the overlay dissolves into the panels the wizard just
- * promised. The world stays primary on every later start.
+ * Game-HUD shell (EKI-121): finishing lands in the world; the seeded
+ * chat+board split waits in the detached panel window for whoever opens it.
  */
 export function enterWorkspace(): void {
-  useAppView.getState().setView("workspace");
   const s = useWorkspace.getState();
   const tab = s.activeTab();
   if (!tab) return;

@@ -15,6 +15,11 @@ import { useTranscripts } from "@/stores/transcripts";
 import { resetWorkspaceForTests } from "@/stores/workspace";
 import { binding, chatLeaves, meta, seedWorkspace, sid } from "./fixtures";
 
+// EKI-121: deep links adopt workspace leaves only in `?window=` routes — this
+// suite exercises that classic path (the main window opens overlays instead).
+beforeEach(() => window.history.replaceState(null, "", "/?window=workspace"));
+afterEach(() => window.history.replaceState(null, "", "/"));
+
 function ingest(...metas: Parameters<typeof meta>[0][]) {
   for (const m of metas) {
     useSessionsStore.getState().apply({ type: "Updated", data: { meta: meta(m) } });

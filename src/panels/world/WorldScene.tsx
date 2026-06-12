@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { ContactShadows, Grid } from "@react-three/drei";
 import type { ThreeEvent } from "@react-three/fiber";
 import { Bot3D } from "./Bot3D";
+import type { WorldEnvironment } from "./environments/types";
 import type { WorldBot } from "./lib/bots";
 import type { WorldLayout, WorldZone } from "./lib/layout";
 import { LOBBY_ID } from "./lib/layout";
@@ -29,6 +30,8 @@ export interface WorldSceneProps {
   propsEdit?: PropsEditApi | undefined;
   /** Theme-derived colors (Epic 20); defaults to the classic look. */
   palette?: WorldPalette | undefined;
+  /** Active environment (EKI-111); absent = the theme look, default rig. */
+  environment?: WorldEnvironment | undefined;
   onBotClick?: ((bot: WorldBot, e: ThreeEvent<MouseEvent>) => void) | undefined;
   onZoneClick?: ((zone: WorldZone, e: ThreeEvent<MouseEvent>) => void) | undefined;
   onWallClick?: ((zone: WorldZone, e: ThreeEvent<MouseEvent>) => void) | undefined;
@@ -43,6 +46,7 @@ export function WorldScene({
   roomProps,
   propsEdit,
   palette = WORLD_PALETTE_FALLBACK,
+  environment,
   onBotClick,
   onZoneClick,
   onWallClick,
@@ -53,36 +57,89 @@ export function WorldScene({
   const groundD = world.bounds.maxZ - world.bounds.minZ + 8;
   const groundX = (world.bounds.minX + world.bounds.maxX) / 2;
   const groundZ = (world.bounds.minZ + world.bounds.maxZ) / 2;
+  const lighting = environment?.lighting ?? null;
+  // The sun's shadow frustum hugs the whole building, wherever it grew to.
+  const shadowExtent =
+    Math.max(
+      Math.abs(world.bounds.minX),
+      Math.abs(world.bounds.maxX),
+      Math.abs(world.bounds.minZ),
+      Math.abs(world.bounds.maxZ),
+    ) + 6;
+  const Decor = environment?.Decor ?? null;
 
   return (
     <group>
-      {/* Soft key + cool fill, leveled for ACES filmic output (Epic 20). */}
-      <ambientLight intensity={0.75} />
-      <directionalLight position={[8, 14, 6]} intensity={1.7} />
-      <directionalLight position={[-6, 8, -8]} intensity={0.5} color="#aab8ff" />
+      {lighting ? (
+        // Per-biome rig (EKI-111/114): every environment brings its own light.
+        <>
+          <ambientLight color={lighting.ambient.color} intensity={lighting.ambient.intensity} />
+          {lighting.hemisphere && (
+            <hemisphereLight
+              color={lighting.hemisphere.sky}
+              groundColor={lighting.hemisphere.ground}
+              intensity={lighting.hemisphere.intensity}
+            />
+          )}
+          <directionalLight
+            position={lighting.sun.position}
+            color={lighting.sun.color}
+            intensity={lighting.sun.intensity}
+            castShadow
+            shadow-mapSize={[2048, 2048]}
+            shadow-camera-left={-shadowExtent}
+            shadow-camera-right={shadowExtent}
+            shadow-camera-top={shadowExtent}
+            shadow-camera-bottom={-shadowExtent}
+            shadow-camera-near={1}
+            shadow-camera-far={80}
+            shadow-bias={-0.0004}
+          />
+          {lighting.fill && (
+            <directionalLight
+              position={lighting.fill.position}
+              color={lighting.fill.color}
+              intensity={lighting.fill.intensity}
+            />
+          )}
+        </>
+      ) : (
+        // The `theme` look — soft key + cool fill, leveled for ACES (Epic 20).
+        <>
+          <ambientLight intensity={0.75} />
+          <directionalLight position={[8, 14, 6]} intensity={1.7} />
+          <directionalLight position={[-6, 8, -8]} intensity={0.5} color="#aab8ff" />
+        </>
+      )}
 
       {/* Ground slab under everything */}
-      <mesh position={[groundX, -0.2, groundZ]}>
+      <mesh position={[groundX, -0.2, groundZ]} receiveShadow>
         <boxGeometry args={[groundW, 0.1, groundD]} />
         <meshStandardMaterial color={palette.ground} roughness={1} />
       </mesh>
 
+      {/* Procedural scenery around the building (EKI-111). */}
+      {Decor && <Decor bounds={world.bounds} reducedMotion={reducedMotion} />}
+
       {/* Subtle grid that fades with distance — between the rooms, under the
-          floors. One shader plane, no per-cell geometry. */}
-      <Grid
-        position={[groundX, -0.142, groundZ]}
-        args={[groundW, groundD]}
-        cellSize={1}
-        cellThickness={0.6}
-        cellColor={palette.grid}
-        sectionSize={6.5}
-        sectionThickness={1}
-        sectionColor={palette.gridSection}
-        fadeDistance={52}
-        fadeStrength={1.6}
-        followCamera={false}
-        infiniteGrid={false}
-      />
+          floors. One shader plane, no per-cell geometry. Natural biomes hide
+          the blueprint look entirely. */}
+      {(environment?.showGrid ?? true) && (
+        <Grid
+          position={[groundX, -0.142, groundZ]}
+          args={[groundW, groundD]}
+          cellSize={1}
+          cellThickness={0.6}
+          cellColor={palette.grid}
+          sectionSize={6.5}
+          sectionThickness={1}
+          sectionColor={palette.gridSection}
+          fadeDistance={52}
+          fadeStrength={1.6}
+          followCamera={false}
+          infiniteGrid={false}
+        />
+      )}
 
       {/* Cheap grounding: one blurred shadow catcher for the whole floor. */}
       <ContactShadows
