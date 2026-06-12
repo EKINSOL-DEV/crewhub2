@@ -13,6 +13,7 @@ import { FinishStep, enterWorkspace } from "@/onboarding/steps/Finish";
 import { IntegrationsStep } from "@/onboarding/steps/Integrations";
 import { ProjectsStep } from "@/onboarding/steps/Projects";
 import { useAgentsStore } from "@/stores/agents";
+import { resetAppViewForTests, useAppView } from "@/stores/appView";
 import { useOnboarding } from "@/stores/onboarding";
 import { resetProjectsForTests } from "@/stores/projects";
 import { useWorkspace } from "@/stores/workspace";
@@ -244,6 +245,17 @@ test("finish: enterWorkspace seeds the chat+board two-panel layout", () => {
   enterWorkspace();
   const ls = leaves(useWorkspace.getState().tabs[0]!.root);
   expect(ls.map((l) => l.kind).sort()).toEqual(["board", "chat"]);
+});
+
+test("finish: enterWorkspace switches the world-primary view to the workspace", () => {
+  // The wizard only FORCES the workspace view while it shows; the store still
+  // says "world". Finishing must switch explicitly or the overlay dissolves
+  // into the world and the promised panels never appear (caught by e2e).
+  mockIPC(() => null);
+  seedWorkspace();
+  resetAppViewForTests();
+  enterWorkspace();
+  expect(useAppView.getState().view).toBe("workspace");
 });
 
 test("finish: Crew Cheer confetti renders — and not under reduced motion", () => {
