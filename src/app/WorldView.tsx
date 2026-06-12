@@ -75,7 +75,7 @@ export function WorldView() {
           aria-label="Open settings"
           title="Settings"
           onClick={() => openPanel("settings")}
-          className="rounded-full bg-black/40 p-2 text-white/90 backdrop-blur-sm transition-transform hover:scale-110 hover:bg-black/60"
+          className="rounded-full border bg-card/85 p-2.5 text-foreground shadow-lg backdrop-blur transition-transform hover:scale-110"
         >
           <Settings size={14} />
         </button>

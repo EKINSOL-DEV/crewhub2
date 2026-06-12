@@ -3,7 +3,7 @@
 // with an unread badge. Several can hover at once, messenger-style: windows
 // stagger on open, bubbles line up bottom-right, clicking brings to front.
 import { useEffect, useRef, useState } from "react";
-import { Minus, Send, X } from "lucide-react";
+import { Minus, Scaling, Send, X } from "lucide-react";
 import { StatusEmoji } from "@/components/StatusEmoji";
 import { commands } from "@/ipc/bindings";
 import { agentSpawnSpec } from "@/panels/crew/crew-status";
@@ -17,7 +17,7 @@ import { statusGlow } from "./lib/status";
 import { chatLine, useBotChat } from "./use-bot-chat";
 import { useWorldChats } from "./use-world-chats";
 
-/** Vertical pitch between minimized bubbles on the right edge (EKI-122). */
+/** Vertical pitch between minimized bubbles on the left edge (EKI-123). */
 const BUBBLE_PITCH = 52;
 
 export interface WorldChatWindowProps {
@@ -52,8 +52,19 @@ export function WorldChatWindow({
   // header. Staggered per open chat so windows never spawn on top of each
   // other; hovering left-of-center keeps the side panel visible.
   const [pos, setPos] = useState({ x: 24 + stagger * 36, y: 48 + stagger * 30 });
+  // Resizable (EKI-123): corner grip adjusts both axes, clamped sane.
+  const [size, setSize] = useState({ w: 384, h: 440 });
   const drag = useRef<{ dx: number; dy: number } | null>(null);
+  const resize = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
+
+  // A seed line carries the user's wake message across the crew→session
+  // re-key (EKI-123) — consume it exactly once on mount.
+  useEffect(() => {
+    const seed = useWorldChats.getState().takeSeed(bot.key);
+    if (seed) push(seed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only
+  }, []);
   // Unread badge: lines that arrived after the minimize click.
   const [seenAtMinimize, setSeenAtMinimize] = useState(0);
   const unread = minimized ? Math.max(0, lines.length - seenAtMinimize) : 0;
@@ -106,7 +117,9 @@ export function WorldChatWindow({
     });
     const fresh = sessionKey(res.data);
     useWorldChats.getState().close(bot.key);
-    useWorldChats.getState().open(fresh);
+    // Seed the re-keyed window with the message that woke them — the engine
+    // echo lands later and dedupes against it.
+    useWorldChats.getState().open(fresh, chatLine("user", text) ?? undefined);
   };
 
   const send = () => {
@@ -130,7 +143,7 @@ export function WorldChatWindow({
         type="button"
         onClick={() => onMinimize(false)}
         className="pointer-events-auto absolute z-20 flex w-40 items-center gap-2 rounded-full border bg-card/90 py-2 pl-3 pr-4 text-xs shadow-lg backdrop-blur transition-transform hover:scale-105 hover:bg-card"
-        style={{ right: 12, bottom: 96 + bubbleIndex * BUBBLE_PITCH }}
+        style={{ left: 12, bottom: 96 + bubbleIndex * BUBBLE_PITCH }}
         title={`Chat with ${bot.name}`}
       >
         <span className="relative text-base leading-none">
@@ -148,8 +161,8 @@ export function WorldChatWindow({
 
   return (
     <div
-      className="pointer-events-auto absolute flex max-h-[70%] w-96 flex-col rounded-xl border bg-card/95 shadow-xl backdrop-blur"
-      style={{ left: pos.x, top: pos.y, zIndex }}
+      className="pointer-events-auto absolute flex max-h-[85vh] select-none flex-col rounded-xl border bg-card/95 shadow-xl backdrop-blur"
+      style={{ left: pos.x, top: pos.y, width: size.w, height: size.h, zIndex }}
       onPointerDown={onFocus}
     >
       {/* Drag handle / header */}
@@ -241,6 +254,30 @@ export function WorldChatWindow({
         </button>
       </div>
       {error && <p className="px-3 pb-2 text-xs text-destructive">{error}</p>}
+
+      {/* Corner grip — drag to resize (EKI-123). */}
+      <div
+        role="presentation"
+        aria-label="Resize chat"
+        className="absolute -bottom-1 -right-1 flex h-5 w-5 cursor-nwse-resize items-center justify-center text-muted-foreground/60 hover:text-foreground"
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          resize.current = { x: e.clientX, y: e.clientY, w: size.w, h: size.h };
+          (e.target as HTMLElement).setPointerCapture(e.pointerId);
+        }}
+        onPointerMove={(e) => {
+          if (!resize.current) return;
+          setSize({
+            w: Math.min(720, Math.max(300, resize.current.w + (e.clientX - resize.current.x))),
+            h: Math.min(820, Math.max(260, resize.current.h + (e.clientY - resize.current.y))),
+          });
+        }}
+        onPointerUp={() => {
+          resize.current = null;
+        }}
+      >
+        <Scaling size={11} />
+      </div>
     </div>
   );
 }

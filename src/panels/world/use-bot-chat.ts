@@ -55,7 +55,17 @@ export function useBotChat(bot: WorldBot): { lines: ChatLine[]; push: (l: ChatLi
         const offset = Math.max(0, probe.data.total - CHAT_TAIL_FETCH);
         const page = await commands.getSessionTranscript(bot.id, offset, CHAT_TAIL_FETCH);
         if (!live || page.status !== "ok") return;
-        setLines((prev) => (prev.length ? prev : linesFromItems(page.data.items)));
+        // Optimistic lines may already be on screen (a fast first message) —
+        // the tail goes UNDER them, dropping any user line the tail already
+        // ends with (the engine echo). Never discard what the user typed.
+        setLines((prev) => {
+          const tail = linesFromItems(page.data.items);
+          if (prev.length === 0) return tail;
+          const fresh = prev.filter(
+            (l) => !(l.who === "user" && tail.some((t) => t.who === "user" && t.text === l.text)),
+          );
+          return [...tail, ...fresh].slice(-CHAT_LINES_MAX);
+        });
       } catch {
         // transcript unavailable — the input still works
       }
