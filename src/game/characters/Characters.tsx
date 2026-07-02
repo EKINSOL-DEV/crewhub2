@@ -9,6 +9,8 @@ import { Billboard, Text } from "@react-three/drei";
 import * as THREE from "three";
 import type { SessionStatus } from "@/ipc/bindings";
 import type { Character } from "@/game/sim/characters";
+import { SpeechBubble } from "@/game/chat/SpeechBubble";
+import { useGameSpeechBubbles } from "@/game/chat/use-speech-bubbles";
 import { Robot, type RobotHandles } from "./Robot";
 import { pose } from "./pose";
 import { useSim, type CharacterInfo } from "./use-sim";
@@ -46,6 +48,7 @@ function CharacterActor({
   name,
   color,
   status,
+  speechText,
   actorsRef,
 }: {
   botKey: string;
@@ -55,6 +58,7 @@ function CharacterActor({
   name: string;
   color: string;
   status: SessionStatus;
+  speechText: string | undefined;
   actorsRef: MutableRefObject<Map<string, ActorRefs>>;
 }) {
   const groupRef = useRef<THREE.Group>(null);
@@ -96,6 +100,12 @@ function CharacterActor({
           </Text>
         </Billboard>
       </Suspense>
+      {/* Own boundary, same reasoning as the name label above. */}
+      {speechText && (
+        <Suspense fallback={null}>
+          <SpeechBubble text={speechText} />
+        </Suspense>
+      )}
     </group>
   );
 }
@@ -110,6 +120,7 @@ export function Characters({
 }) {
   const { sim, version, infoRef } = useSim(override);
   const actorsRef = useRef<Map<string, ActorRefs>>(new Map());
+  const speech = useGameSpeechBubbles();
 
   useFrame((_state, delta) => {
     const dt = Math.min(delta, 0.1);
@@ -169,6 +180,7 @@ export function Characters({
           name={info?.name ?? key}
           color={info?.color ?? FALLBACK_COLOR}
           status={info?.status ?? "Idle"}
+          speechText={speech[key]?.text}
           actorsRef={actorsRef}
         />
       ))}
