@@ -38,13 +38,19 @@ export interface ChatSessionResult {
   send: (text: string) => Promise<void>;
 }
 
+/** `demo:*` keys are fake robots (see sim/demo.ts) — there is no session behind them. */
+function isDemoKey(key: string): boolean {
+  return key.startsWith("demo:");
+}
+
 export function useChatSession(key: string): ChatSessionResult {
   const sid = useMemo(() => parseSessionKey(key), [key]);
 
   useEffect(() => {
+    if (isDemoKey(key)) return;
     startTranscriptStream();
     void useTranscripts.getState().openSession(sid);
-  }, [sid]);
+  }, [key, sid]);
 
   const transcript = useTranscripts((s) => s.sessions[key]);
   const status = useSessionsView().find((v) => v.key === key)?.meta.status;
@@ -62,6 +68,7 @@ export function useChatSession(key: string): ChatSessionResult {
   );
 
   const send = async (text: string) => {
+    if (isDemoKey(key)) return; // no session to send to — ChatWindow disables the composer anyway
     const trimmed = text.trim();
     if (!trimmed) return;
     await commands.sendToSession(sid, trimmed);

@@ -180,6 +180,19 @@ describe("ChatWindow", () => {
     expect(screen.queryByTestId("chat-window-input")).not.toBeInTheDocument();
   });
 
+  it("demo mode shows the note, disables the composer, and never opens a session", () => {
+    render(<ChatWindow {...WINDOW_PROPS} chatKey="demo:ada" name="Ada" demo />);
+    expect(screen.getByTestId("chat-window-demo-note")).toHaveTextContent(
+      "demo thread — hire a real robot to chat",
+    );
+    const input = screen.getByTestId("chat-window-input") as HTMLInputElement;
+    expect(input).toBeDisabled();
+    expect(input.placeholder).toBe("demo thread");
+    expect(screen.getByTestId("chat-window-send")).toBeDisabled();
+    expect(openSessionSpy).not.toHaveBeenCalled();
+    expect(startTranscriptStreamSpy).not.toHaveBeenCalled();
+  });
+
   it("wires pending permissions and questions into PermissionCard/QuestionCard", () => {
     transcripts.sessions["claude:s1"] = transcript([], [], {
       pendingPermissions: [PENDING_PERMISSION],

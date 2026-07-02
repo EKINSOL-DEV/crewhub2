@@ -104,14 +104,22 @@ describe("Characters smoke", () => {
     // 2 robots * >=14 meshes each (see robot.smoke.test.tsx) — comfortably 28.
     expect(meshes.length).toBeGreaterThanOrEqual(28);
 
-    const bulbColors = new Set(
-      renderer.scene
+    // Per-bot, not "any material anywhere": each actor is the CharacterActor
+    // root <group> (the same one the click test below isolates by its onClick
+    // prop), and within it the bulb is the only MeshToonMaterial that sets
+    // `emissive` — body/head/arm materials never do — so it can't collide
+    // with a character's body color.
+    const actors = renderer.scene.findAll((node) => typeof node.props.onClick === "function");
+    expect(actors).toHaveLength(VIEWS.length);
+    const bulbColors = actors.map((actor) => {
+      const bulb = actor
         .findAllByType("MeshToonMaterial")
-        .map((m) => (m.instance as unknown as { color?: { getHex: () => number } }).color?.getHex())
-        .filter((c): c is number => c === hex(BULB.Working) || c === hex(BULB.WaitingForPermission)),
-    );
-    expect(bulbColors.has(hex(BULB.Working))).toBe(true);
-    expect(bulbColors.has(hex(BULB.WaitingForPermission))).toBe(true);
+        .map((m) => m.instance as unknown as { emissiveIntensity: number; color: { getHex: () => number } })
+        .find((m) => m.emissiveIntensity === 0.7);
+      return bulb?.color.getHex();
+    });
+    expect(bulbColors[0]).toBe(hex(BULB.Working)); // VIEWS[0] is the "working" bot
+    expect(bulbColors[1]).toBe(hex(BULB.WaitingForPermission)); // VIEWS[1] is "waiting"
 
     await renderer.unmount();
   });

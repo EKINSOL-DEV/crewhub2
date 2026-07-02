@@ -61,7 +61,7 @@ function CharacterActor({
   status: SessionStatus;
   speechText: string | undefined;
   actorsRef: MutableRefObject<Map<string, ActorRefs>>;
-  onSelect: ((key: string) => void) | undefined;
+  onSelect: ((key: string, pos: { x: number; z: number }) => void) | undefined;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const handlesRef = useRef<RobotHandles | null>(null);
@@ -88,7 +88,11 @@ function CharacterActor({
       rotation={[0, facing, 0]}
       onClick={(e: ThreeEvent<MouseEvent>) => {
         e.stopPropagation();
-        onSelect?.(botKey);
+        // groupRef's position is the live, per-frame-damped sim position —
+        // more accurate than the `x`/`z` props, which only refresh when the
+        // bot set itself changes (see the `version` comment below).
+        const p = groupRef.current?.position;
+        onSelect?.(botKey, { x: p?.x ?? x, z: p?.z ?? z });
       }}
     >
       <Robot color={color} bulbColor={BULB[status]} handles={handlesRef} />
@@ -128,8 +132,8 @@ export function Characters({
   override?: Character[] | undefined;
   /** Live bot-set size, refreshed alongside `version` — the HUD roster chip's feed. */
   onCount?: ((n: number) => void) | undefined;
-  /** Robot clicked — key is a session key ("provider:id") or "agent:<id>" for resting crew. */
-  onSelect?: ((key: string) => void) | undefined;
+  /** Robot clicked — key is a session key ("provider:id") or "agent:<id>" for resting crew; pos is its live sim position. */
+  onSelect?: ((key: string, pos: { x: number; z: number }) => void) | undefined;
 }) {
   const { sim, version, infoRef } = useSim(override);
   const actorsRef = useRef<Map<string, ActorRefs>>(new Map());

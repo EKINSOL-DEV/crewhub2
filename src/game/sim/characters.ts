@@ -4,6 +4,7 @@
 // decides who's on screen, what they're called, and what color they wear.
 import type { Agent, SessionStatus } from "@/ipc/bindings";
 import type { SessionView } from "@/stores/sessions";
+import { hashCode } from "./rand";
 
 /** Sessions idle longer than this leave the sim (they stay in panels). */
 export const ACTIVE_WINDOW_MS = 5 * 60_000;
@@ -41,12 +42,6 @@ export const CHARACTER_PALETTE = [
   "#86efac", // green
   "#a5b4fc", // indigo
 ] as const;
-
-function hashCode(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
-  return Math.abs(h);
-}
 
 /** Agent color when set; otherwise a stable soft color hashed from the key. */
 export function characterColor(key: string, agentColor: string | null | undefined): string {

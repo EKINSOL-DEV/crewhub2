@@ -7,6 +7,7 @@ import type { Motion } from "@/game/characters/pose";
 import type { Building, Desk } from "@/game/world/campus/buildings";
 import type { Character } from "./characters";
 import { findPath, type NavGrid } from "./grid";
+import { hashCode, mulberry32 } from "./rand";
 
 export const WALK_SPEED = 2.2; // units/s
 
@@ -53,24 +54,11 @@ interface BotMeta {
   pauseUntil: number;
 }
 
-/** mulberry32 — same tiny seeded PRNG as campus/layout.ts; the sim must replay identically forever. */
-function rng(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
+/** Local alias — same tiny seeded PRNG as campus/layout.ts; the sim must replay identically forever. */
+const rng = mulberry32;
 
-/** Stable per-key hash, same shape as characters.ts's — used to place a bot deterministically on a ring. */
-function hashKey(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
-  return Math.abs(h);
-}
+/** Local alias, same hash characters.ts uses — places a bot deterministically on a ring. */
+const hashKey = hashCode;
 
 /** A point on a ring around the plaza (world origin), angle hashed from the bot's key. */
 function ringPoint(key: string, radius: number): { x: number; z: number } {

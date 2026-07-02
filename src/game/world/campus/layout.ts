@@ -1,6 +1,7 @@
 // Campus ground truth (M0 T8) — pure, seeded, three.js-free. One quad, a
 // plaza at the origin, four path arms to the edges, four building plots
 // (M1+ buildings land there), and seeded nature scatter everywhere else.
+import { mulberry32 } from "@/game/sim/rand";
 
 export const CAMPUS = { half: 40, plazaRadius: 7, pathHalfWidth: 1.1 } as const;
 
@@ -41,17 +42,8 @@ export interface CampusLayout {
   props: Record<PropKind, Placement[]>;
 }
 
-/** mulberry32 — tiny seeded PRNG; the world must render identically forever. */
-function rng(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
+/** Local alias — tiny seeded PRNG; the world must render identically forever. */
+const rng = mulberry32;
 
 export function insidePlaza(x: number, z: number, margin: number): boolean {
   return Math.hypot(x, z) < CAMPUS.plazaRadius + margin;

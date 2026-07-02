@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest";
 import type { Agent, SessionMeta } from "@/ipc/bindings";
 import type { SessionView } from "@/stores/sessions";
-import { toCharacters } from "./characters";
+import { ACTIVE_WINDOW_MS, toCharacters } from "./characters";
 
 const NOW = 1_000_000;
 
@@ -94,6 +94,21 @@ describe("toCharacters", () => {
     expect(sub.isSubagent).toBe(true);
     expect(sub.parentKey).toBe("claude:p1");
     expect(sub.name).toBe("Editing config.py");
+  });
+
+  it("a fresh subagent still resolves its stale parent's displayName in its humanized name", () => {
+    const now = 1_000_000_000;
+    const parent = view("p1", { displayName: "Aqua" }, { last_activity_ms: now - ACTIVE_WINDOW_MS - 1 });
+    const child = view(
+      "c1",
+      {},
+      // Blank project_path so humanizeSubagentName falls through to the
+      // parent-name rung of the ladder instead of the basename one.
+      { parent: { provider: "claude", id: "p1" }, project_path: "", last_activity_ms: now },
+    );
+    const chars = toCharacters([parent, child], { nowMs: now });
+    expect(chars.map((c) => c.key)).toEqual(["claude:c1"]);
+    expect(chars[0]!.name).toBe("Subagent of Aqua");
   });
 
   it("an agent out working a live session gets no resting crew entry", () => {

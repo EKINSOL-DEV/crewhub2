@@ -31,6 +31,8 @@ export interface ChatWindowProps {
   minimized: boolean;
   /** Position in the open stack — 0 sits at the edge, higher pushes left. */
   stackIndex: number;
+  /** `?demo` fake robot — no session behind it, so the composer is a dead end. */
+  demo?: boolean;
   onClose: () => void;
   onMinimize: (min: boolean) => void;
   onFocusChat: () => void;
@@ -77,6 +79,7 @@ export function ChatWindow({
   color,
   minimized,
   stackIndex,
+  demo = false,
   onClose,
   onMinimize,
   onFocusChat,
@@ -96,6 +99,7 @@ export function ChatWindow({
 
   const right = STACK_RIGHT + stackIndex * STACK_GAP;
   const ended = status === "Ended";
+  const composerDisabled = ended || demo;
 
   const submit = () => {
     const text = draft;
@@ -157,7 +161,16 @@ export function ChatWindow({
       </div>
 
       <div ref={scroller} className="flex-1 space-y-2 overflow-y-auto px-3 py-2">
-        {lines.map((l) => lineBubble(l, color))}
+        {demo ? (
+          <div
+            data-testid="chat-window-demo-note"
+            className="flex h-full items-center justify-center px-6 text-center text-sm text-slate-500"
+          >
+            demo thread — hire a real robot to chat
+          </div>
+        ) : (
+          lines.map((l) => lineBubble(l, color))
+        )}
       </div>
 
       {pendingCount > 0 && (
@@ -179,11 +192,11 @@ export function ChatWindow({
           onKeyDown={(e) => {
             if (e.key === "Enter") submit();
           }}
-          disabled={ended}
-          placeholder={ended ? "session ended" : `Message ${name}…`}
+          disabled={composerDisabled}
+          placeholder={demo ? "demo thread" : ended ? "session ended" : `Message ${name}…`}
           className="h-9 min-w-0 flex-1 rounded-full border-2 border-slate-900/10 bg-white px-3 text-sm outline-none disabled:opacity-50"
         />
-        <Button data-testid="chat-window-send" onClick={submit} disabled={ended}>
+        <Button data-testid="chat-window-send" onClick={submit} disabled={composerDisabled}>
           Send
         </Button>
       </div>

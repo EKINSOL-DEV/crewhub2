@@ -34,6 +34,7 @@ export default function GameShell() {
   const [botCount, setBotCount] = useState(0);
   const [hireOpen, setHireOpen] = useState(false);
   const [hireAgentId, setHireAgentId] = useState<string | undefined>(undefined);
+  const [focus, setFocus] = useState<{ x: number; z: number; seq: number } | null>(null);
   const envId = useGameEnvironment((s) => s.id);
   const env = environmentById(envId);
 
@@ -57,7 +58,7 @@ export default function GameShell() {
           <Characters
             override={DEMO_CHARACTERS}
             onCount={setBotCount}
-            onSelect={(k) => {
+            onSelect={(k, pos) => {
               // "agent:" keys are resting crew with no session yet — clicking
               // them opens the hire dialog, preselected to that agent.
               if (k.startsWith("agent:")) {
@@ -65,11 +66,12 @@ export default function GameShell() {
                 setHireOpen(true);
               } else {
                 useGameChats.getState().open(k);
+                setFocus((f) => ({ x: pos.x, z: pos.z, seq: (f?.seq ?? 0) + 1 }));
               }
             }}
           />
         </Suspense>
-        <GameCameraRig bounds={CAMERA_BOUNDS} />
+        <GameCameraRig bounds={CAMERA_BOUNDS} focus={focus} />
         <Effects />
         <FpsProbe onSample={setFps} />
       </GameCanvas>

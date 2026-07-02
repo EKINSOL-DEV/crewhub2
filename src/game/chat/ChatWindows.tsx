@@ -29,6 +29,7 @@ export function ChatWindows() {
             color={color}
             minimized={chat.min}
             stackIndex={i}
+            demo={chat.key.startsWith("demo:")}
             onClose={() => useGameChats.getState().close(chat.key)}
             onMinimize={(min) => useGameChats.getState().setMin(chat.key, min)}
             onFocusChat={() => useGameChats.getState().raise(chat.key)}
