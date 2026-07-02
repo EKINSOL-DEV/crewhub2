@@ -1,0 +1,4 @@
+Models in this directory are optimized builds of CC0 asset packs by Kenney (kenney.nl):
+- Nature Kit — https://kenney.nl/assets/nature-kit
+- Fantasy Town Kit — https://kenney.nl/assets/fantasy-town-kit
+License: Creative Commons Zero (CC0). Attribution appreciated, not required.
