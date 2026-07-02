@@ -5,11 +5,13 @@
 // Reference only: src/panels/world/WorldChatWindow.tsx (v1's drag/resize
 // panel window) — its bubble-alignment and composer semantics are echoed
 // here, minus dragging/resizing/optimistic echo (see use-chat-session.ts).
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { SessionStatus } from "@/ipc/bindings";
 import type { ChatLine } from "./lines";
-import { useChatSession } from "./use-chat-session";
+import { PermissionCard } from "./PermissionCard";
+import { QuestionCard } from "./QuestionCard";
+import { parseSessionKey, useChatSession } from "./use-chat-session";
 
 const STATUS_GLYPH: Record<SessionStatus, string> = {
   Working: "🟢",
@@ -79,7 +81,9 @@ export function ChatWindow({
   onMinimize,
   onFocusChat,
 }: ChatWindowProps) {
-  const { lines, status, send } = useChatSession(chatKey);
+  const { lines, status, pending, send } = useChatSession(chatKey);
+  const sid = useMemo(() => parseSessionKey(chatKey), [chatKey]);
+  const pendingCount = pending.permissions.length + pending.questions.length;
   const [draft, setDraft] = useState("");
   const scroller = useRef<HTMLDivElement>(null);
 
@@ -112,6 +116,13 @@ export function ChatWindow({
         style={{ right, backgroundColor: color }}
       >
         {name.charAt(0).toUpperCase()}
+        {pendingCount > 0 && (
+          <span
+            aria-hidden="true"
+            data-testid="chat-chip-ping"
+            className="absolute -right-0.5 -top-0.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-red-500"
+          />
+        )}
       </button>
     );
   }
@@ -148,6 +159,17 @@ export function ChatWindow({
       <div ref={scroller} className="flex-1 space-y-2 overflow-y-auto px-3 py-2">
         {lines.map((l) => lineBubble(l, color))}
       </div>
+
+      {pendingCount > 0 && (
+        <div className="max-h-52 shrink-0 space-y-1.5 overflow-y-auto border-t-2 border-slate-900/10 px-3 py-2">
+          {pending.permissions.map((req) => (
+            <PermissionCard key={req.request_id} sid={sid} name={name} color={color} req={req} />
+          ))}
+          {pending.questions.map((req) => (
+            <QuestionCard key={req.request_id} sid={sid} name={name} color={color} req={req} />
+          ))}
+        </div>
+      )}
 
       <div className="flex gap-2 border-t-2 border-slate-900/10 p-2">
         <input
