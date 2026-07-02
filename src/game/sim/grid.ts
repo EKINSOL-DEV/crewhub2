@@ -179,7 +179,15 @@ function aStar(grid: NavGrid, startIdx: number, goalIdx: number): number[] | nul
   return null;
 }
 
-/** Integer line walk (Bresenham) — true when no cell on the straight line between a and b is blocked. */
+/**
+ * Supercover line walk — true when no cell touched by the *continuous*
+ * segment between a and b is blocked. Built on the integer Bresenham walk,
+ * but a plain Bresenham jumps corner-to-corner on a diagonal step and
+ * skips the two orthogonally-adjacent cells the real geometric line still
+ * grazes; a "clear" diagonal could then cut through a blocked corner (e.g.
+ * clip the fountain disc). So on every diagonal step we also check those
+ * two intermediate cells before taking it.
+ */
 function hasLineOfSight(grid: NavGrid, a: { x: number; z: number }, b: { x: number; z: number }): boolean {
   let x0 = clampCell(worldToCell(a.x, grid), grid);
   let z0 = clampCell(worldToCell(a.z, grid), grid);
@@ -196,11 +204,20 @@ function hasLineOfSight(grid: NavGrid, a: { x: number; z: number }, b: { x: numb
     if (grid.blocked[idxOf(x0, z0, grid)] !== 0) return false;
     if (x0 === x1 && z0 === z1) return true;
     const e2 = err * 2;
-    if (e2 > -dz) {
+    const stepX = e2 > -dz;
+    const stepZ = e2 < dx;
+    if (stepX && stepZ) {
+      // Diagonal step: (x0,z0) -> (x0+sx,z0+sz) skips (x0+sx,z0) and
+      // (x0,z0+sz). Both stay in bounds — x0 and z0 move monotonically
+      // toward the in-bounds x1/z1, so a single step can't overshoot them.
+      if (grid.blocked[idxOf(x0 + sx, z0, grid)] !== 0) return false;
+      if (grid.blocked[idxOf(x0, z0 + sz, grid)] !== 0) return false;
+    }
+    if (stepX) {
       err -= dz;
       x0 += sx;
     }
-    if (e2 < dx) {
+    if (stepZ) {
       err += dx;
       z0 += sz;
     }
