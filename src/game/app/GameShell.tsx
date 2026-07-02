@@ -1,6 +1,7 @@
 // Game shell (M0): environment-driven sky/fog/lights around the selected
 // World, RTS camera, quality-aware canvas. The HUD overlay lands in T12.
 import { Suspense, useEffect, useState } from "react";
+import { Characters } from "@/game/characters/Characters";
 import { GameCanvas } from "@/game/engine/GameCanvas";
 import { Lights } from "@/game/engine/Lights";
 import { GameCameraRig } from "@/game/engine/camera/GameCameraRig";
@@ -37,6 +38,7 @@ export default function GameShell() {
         <Lights env={env} />
         <Suspense fallback={null}>
           <env.World />
+          <Characters />
         </Suspense>
         <GameCameraRig bounds={CAMERA_BOUNDS} />
         <Effects />
