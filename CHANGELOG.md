@@ -18,6 +18,11 @@ How releases consume this file (M6, EKI-98/EKI-100):
 
 ### Added
 
+- M3 "Build it" — lay out your own campus (EKI-157): 🔨 Build mode with a tool palette, snap-grid
+  decor placement with ghost preview, building footprints that auto-generate desks (optionally
+  linked to a Room, color-tinted), select/move/rotate/delete; robots re-plan onto placed desks
+  without respawning; everything persists. Plus a 2.4x render CPU cut (frame limiter, halfRes AO,
+  30Hz shadows, frozen static matrices) after the M2 fan-noise report
 - M2 "Talk to them" — conversations inside the game (EKI-149): click a robot for a game-styled
   chat window over the live transcript (real send), speech bubbles for assistant replies,
   permission/question prompts as "the robot asks you" cards (allow/always/deny, single/multi
