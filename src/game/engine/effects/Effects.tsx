@@ -13,7 +13,9 @@ export function Effects() {
   if (cfg.ssao) {
     return (
       <EffectComposer multisampling={cfg.multisampling}>
-        <N8AO aoRadius={1.4} intensity={2.2} distanceFalloff={1} />
+        {/* halfRes: AO at half resolution is visually indistinguishable on
+            this flat-toon art and roughly quarters the AO pass cost. */}
+        <N8AO aoRadius={1.4} intensity={2.2} distanceFalloff={1} halfRes />
         <primitive object={outline} />
         <Vignette eskil={false} offset={0.22} darkness={0.5} />
       </EffectComposer>
