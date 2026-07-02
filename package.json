@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "e2e": "wdio run e2e/wdio.conf.ts",
-    "version:check": "node scripts/check-version-sync.mjs"
+    "version:check": "node scripts/check-version-sync.mjs",
+    "assets:fetch": "node scripts/assets/fetch-kits.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

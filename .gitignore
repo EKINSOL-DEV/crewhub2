@@ -31,3 +31,4 @@ src-tauri/clippy-report.json
 
 .claude/
 .worktrees/
+assets-src/
