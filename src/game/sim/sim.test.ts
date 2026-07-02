@@ -336,6 +336,47 @@ describe("Sim.updateWorld", () => {
     expect(bot.motion).toBe("sit-type"); // overflow still reads as "seated" at the plaza edge
     expect(Math.hypot(bot.x, bot.z)).toBeCloseTo(8, 0);
   });
+
+  it("keeps a WaitingForInput bot's desk claim across a no-op updateWorld (that branch only ever reads deskId, never re-requests)", () => {
+    const { grid, buildings } = fakeWorld();
+    const sim = createSim(grid, buildings, SEED);
+    sim.sync([char("a", "Working")]);
+    const bot = sim.world.bots.get("a")!;
+    tickUntil(sim, 0.5, 500, () => bot.motion === "sit-type" && bot.path.length === 0);
+    const deskId = bot.deskId!;
+
+    sim.sync([char("a", "WaitingForInput")]);
+    tickUntil(sim, 0.5, 500, () => bot.path.length === 0);
+    expect(bot.deskId).toBe(deskId); // still holds it while thinking
+
+    sim.updateWorld(grid, buildings); // identical grid/buildings — a no-op edit
+    expect(bot.deskId).toBe(deskId);
+    expect(sim.world.deskOwners.get(deskId)).toBe("a");
+  });
+
+  it("releases a WaitingForInput bot's desk claim only when the edit actually removes it, then lets it re-contend once back to Working", () => {
+    const { grid, buildings } = fakeWorld(); // one 4-desk building
+    const second = secondFakeBuilding();
+    const sim = createSim(grid, [...buildings, second], SEED);
+    sim.sync([char("a", "Working")]);
+    const bot = sim.world.bots.get("a")!;
+    tickUntil(sim, 0.5, 500, () => bot.motion === "sit-type" && bot.path.length === 0);
+    const oldDeskId = bot.deskId!;
+    expect(buildings[0]!.desks.some((d) => d.id === oldDeskId)).toBe(true); // seated in the first building
+
+    sim.sync([char("a", "WaitingForInput")]);
+    tickUntil(sim, 0.5, 500, () => bot.path.length === 0);
+    expect(bot.deskId).toBe(oldDeskId); // still holds it while thinking
+
+    sim.updateWorld(grid, [second]); // first building (and the held desk) is gone
+    expect(bot.deskId).toBeNull();
+    expect(sim.world.deskOwners.size).toBe(0);
+
+    sim.sync([char("a", "Working")]); // back to work — re-contends fresh
+    expect(bot.deskId).not.toBeNull();
+    expect(second.desks.some((d) => d.id === bot.deskId)).toBe(true);
+    expect(sim.world.deskOwners.get(bot.deskId!)).toBe("a");
+  });
 });
 
 describe("createSim — real campus grid (integration)", () => {

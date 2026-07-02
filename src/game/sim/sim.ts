@@ -303,13 +303,18 @@ export function createSim(grid: NavGrid, buildings: Building[], seed: number): S
   }
 
   /**
-   * Swap in a new grid + buildings without respawning anyone: every desk
-   * reservation is released (a removed building's desk goes free, and a
-   * previously-overflowing bot may now win one from the new pool), then
-   * every bot re-plans from its current (x, z) via the same per-status
-   * `replan` that sync() uses on a status change. Nobody teleports here —
-   * replan only ever assigns a path or a stable desk seat; walking is left
-   * to tick().
+   * Swap in a new grid + buildings without respawning anyone: a desk
+   * reservation survives the edit iff its desk still exists in the new pool
+   * (a removed building's desk goes free instead, and a previously-
+   * overflowing bot may now win one from the new pool); every bot then
+   * re-plans from its current (x, z) via the same per-status `replan` that
+   * sync() uses on a status change. Claims must be resolved *before* that
+   * replan pass — WaitingForPermission/WaitingForInput's branches only ever
+   * *read* bot.deskId, they never re-request one, so nulling every deskId
+   * unconditionally here would silently strip a still-valid reservation
+   * from a bot that's mid-wave or mid-think (see the "stays reserved" note
+   * on WaitingForPermission above). Nobody teleports here — replan only
+   * ever assigns a path or a stable desk seat; walking is left to tick().
    */
   function updateWorld(newGrid: NavGrid, newBuildings: Building[]): void {
     grid = newGrid;
@@ -317,7 +322,11 @@ export function createSim(grid: NavGrid, buildings: Building[], seed: number): S
     deskList = newBuildings.flatMap((building) => building.desks.map((desk) => ({ desk, building })));
     world.deskOwners.clear();
     for (const [key, bot] of world.bots) {
-      bot.deskId = null;
+      if (bot.deskId && deskById(bot.deskId)) {
+        world.deskOwners.set(bot.deskId, key); // desk survived the edit — keep the claim
+      } else {
+        bot.deskId = null; // desk removed (or bot never had one) — release/stay unclaimed
+      }
       bot.path = [];
       const m = meta.get(key)!;
       replan(bot, m, m.status);
