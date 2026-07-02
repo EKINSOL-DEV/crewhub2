@@ -47,6 +47,17 @@ function groundPlane(instance: ReactThreeTest.ReactThreeTestInstance): ReactThre
   return matches[0]!;
 }
 
+/** A placed item/building's pick proxy: onPointerDown only, no onPointerMove
+ *  (only the ground plane carries both — see groundPlane above). */
+function pickProxy(instance: ReactThreeTest.ReactThreeTestInstance): ReactThreeTest.ReactThreeTestInstance {
+  const matches = instance.findAll(
+    (node) =>
+      typeof node.props.onPointerDown === "function" && typeof node.props.onPointerMove !== "function",
+  );
+  expect(matches).toHaveLength(1);
+  return matches[0]!;
+}
+
 describe("BuildControls smoke", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -120,6 +131,34 @@ describe("BuildControls smoke", () => {
     // and this click just started a fresh (uncommitted) one instead.
     await renderer.fireEvent(ground, "pointerDown", { point: { x: 8, y: 0, z: 26 }, button: 0 });
     expect(useCampusEdits.getState().edits.buildings).toHaveLength(0);
+
+    await renderer.unmount();
+  });
+
+  it("select-tool drag calls moveItem only on an actual cell change, snapped and validity-gated", async () => {
+    useCampusEdits.getState().addItem("bush", 10, 10, 0);
+    const id = useCampusEdits.getState().edits.items[0]!.id;
+    // Spied before mount so BuildControls' `useCampusEdits((s) => s.moveItem)`
+    // selector picks up the wrapped function — it still calls through, so
+    // the store updates for real.
+    const moveItemSpy = vi.spyOn(useCampusEdits.getState(), "moveItem");
+
+    useBuildMode.setState({ active: true, tool: { kind: "select" } });
+    const renderer = await ReactThreeTestRenderer.create(<BuildControls />);
+    const proxy = pickProxy(renderer.scene);
+    const ground = groundPlane(renderer.scene);
+
+    await renderer.fireEvent(proxy, "pointerDown", { button: 0 }); // select + start drag
+
+    // Moving onto the item's own current cell is a no-op — no write.
+    await renderer.fireEvent(ground, "pointerMove", { point: { x: 10, y: 0, z: 10 } });
+    expect(moveItemSpy).not.toHaveBeenCalled();
+
+    // Moving to a new, valid cell writes the snapped coordinates.
+    await renderer.fireEvent(ground, "pointerMove", { point: { x: 15.4, y: 0, z: 12.6 } });
+    expect(moveItemSpy).toHaveBeenCalledWith(id, 15, 13);
+    expect(moveItemSpy).toHaveBeenCalledTimes(1);
+    expect(useCampusEdits.getState().edits.items[0]).toMatchObject({ x: 15, z: 13 });
 
     await renderer.unmount();
   });

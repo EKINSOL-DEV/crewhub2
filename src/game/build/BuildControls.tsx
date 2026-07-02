@@ -176,7 +176,15 @@ export function BuildControls() {
     const z = snap(e.point.z);
     hover.current = { x, z };
     if (tool.kind === "select" && dragging.current && selection?.kind === "item") {
-      if (canPlaceItem(withoutItem(edits, selection.id), layout, x, z)) moveItem(selection.id, x, z);
+      // Every pointermove sample is a store write + persist() KV call + a
+      // remount of all placed InstancedModel groups (CampusWorld keys them
+      // by version) — only fire it on an actual grid-cell transition, not
+      // every sub-pixel jiggle within the same cell.
+      const current = edits.items.find((i) => i.id === selection.id);
+      const moved = current && (current.x !== x || current.z !== z);
+      if (moved && canPlaceItem(withoutItem(edits, selection.id), layout, x, z)) {
+        moveItem(selection.id, x, z);
+      }
     }
   }
 
