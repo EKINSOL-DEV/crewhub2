@@ -44,6 +44,7 @@ export interface Sim {
   world: SimWorld;
   sync(characters: Character[]): void;
   tick(dt: number): void;
+  updateWorld(grid: NavGrid, buildings: Building[]): void;
 }
 
 /** Bookkeeping the renderer never sees — kept off SimBot to keep that type a clean wire contract. */
@@ -89,7 +90,10 @@ export function createSim(grid: NavGrid, buildings: Building[], seed: number): S
   const rand = rng(seed);
   const world: SimWorld = { bots: new Map(), deskOwners: new Map() };
   const meta = new Map<string, BotMeta>();
-  const deskList: DeskEntry[] = buildings.flatMap((building) =>
+  // `grid`/`buildings` are reassigned wholesale by updateWorld() below, so every
+  // helper that closes over them (deskById, pathToDesk, pickWanderPath, ...)
+  // reads the current world on its next call — no bot re-plan logic to duplicate.
+  let deskList: DeskEntry[] = buildings.flatMap((building) =>
     building.desks.map((desk) => ({ desk, building })),
   );
 
@@ -298,5 +302,27 @@ export function createSim(grid: NavGrid, buildings: Building[], seed: number): S
     }
   }
 
-  return { world, sync, tick };
+  /**
+   * Swap in a new grid + buildings without respawning anyone: every desk
+   * reservation is released (a removed building's desk goes free, and a
+   * previously-overflowing bot may now win one from the new pool), then
+   * every bot re-plans from its current (x, z) via the same per-status
+   * `replan` that sync() uses on a status change. Nobody teleports here —
+   * replan only ever assigns a path or a stable desk seat; walking is left
+   * to tick().
+   */
+  function updateWorld(newGrid: NavGrid, newBuildings: Building[]): void {
+    grid = newGrid;
+    buildings = newBuildings;
+    deskList = newBuildings.flatMap((building) => building.desks.map((desk) => ({ desk, building })));
+    world.deskOwners.clear();
+    for (const [key, bot] of world.bots) {
+      bot.deskId = null;
+      bot.path = [];
+      const m = meta.get(key)!;
+      replan(bot, m, m.status);
+    }
+  }
+
+  return { world, sync, tick, updateWorld };
 }
