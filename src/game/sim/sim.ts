@@ -313,20 +313,35 @@ export function createSim(grid: NavGrid, buildings: Building[], seed: number): S
    * *read* bot.deskId, they never re-request one, so nulling every deskId
    * unconditionally here would silently strip a still-valid reservation
    * from a bot that's mid-wave or mid-think (see the "stays reserved" note
-   * on WaitingForPermission above). Nobody teleports here — replan only
-   * ever assigns a path or a stable desk seat; walking is left to tick().
+   * on WaitingForPermission above).
+   *
+   * Two full passes, not one interleaved loop: if a deskless bot's replan
+   * (pass 2) ran before every surviving claim was back in deskOwners, its
+   * findFreeDesk() could grab a desk a not-yet-visited bot still holds —
+   * both bots would then think they own it (one via the untouched
+   * bot.deskId this pass never got to, the other via the fresh grab),
+   * while deskOwners.get(desk) can only point at one of them. Restoring
+   * every claim first closes that race. Nobody teleports here — replan
+   * only ever assigns a path or a stable desk seat; walking is left to
+   * tick().
    */
   function updateWorld(newGrid: NavGrid, newBuildings: Building[]): void {
     grid = newGrid;
     buildings = newBuildings;
     deskList = newBuildings.flatMap((building) => building.desks.map((desk) => ({ desk, building })));
     world.deskOwners.clear();
+
+    // Pass 1: restore every surviving claim before anyone can contend for a desk.
     for (const [key, bot] of world.bots) {
       if (bot.deskId && deskById(bot.deskId)) {
         world.deskOwners.set(bot.deskId, key); // desk survived the edit — keep the claim
       } else {
         bot.deskId = null; // desk removed (or bot never had one) — release/stay unclaimed
       }
+    }
+
+    // Pass 2: now that deskOwners reflects every retained claim, replan freely.
+    for (const [key, bot] of world.bots) {
       bot.path = [];
       const m = meta.get(key)!;
       replan(bot, m, m.status);

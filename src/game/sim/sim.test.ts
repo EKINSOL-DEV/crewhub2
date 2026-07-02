@@ -65,6 +65,15 @@ function extraCampusBuilding(plotIndex: number): Building {
   return { plotIndex, rect, desks: buildingDesks(placed), door: nearestEdgeDoor(rect) };
 }
 
+/** A single-desk pavilion — narrows updateWorld's "who can grab the one free desk" race down to two bots. */
+function oneDeskWorld(): { grid: NavGrid; buildings: Building[] } {
+  const size = 100;
+  const grid: NavGrid = { size, cell: 1, blocked: new Uint8Array(size * size) };
+  const desks: Desk[] = [{ id: "d0", x: 2, z: 2, rot: Math.PI, plotIndex: 0 }];
+  const building: Building = { plotIndex: 0, rect: { x: 0, z: 0, w: 8, d: 8 }, desks, door: { x: 0, z: -4 } };
+  return { grid, buildings: [building] };
+}
+
 describe("createSim", () => {
   it("seats a new Working character: paths in, sits at the desk's seat point, faces the desk", () => {
     const { grid, buildings } = fakeWorld();
@@ -376,6 +385,36 @@ describe("Sim.updateWorld", () => {
     expect(bot.deskId).not.toBeNull();
     expect(second.desks.some((d) => d.id === bot.deskId)).toBe(true);
     expect(sim.world.deskOwners.get(bot.deskId!)).toBe("a");
+  });
+
+  it("doesn't let a deskless bot's replan race a still-held claim into a ghost double-seat", () => {
+    const { grid, buildings } = oneDeskWorld(); // exactly one desk: "d0"
+    const sim = createSim(grid, buildings, SEED);
+
+    // "y" appears first in the array (inserted into world.bots first, no
+    // desk); "x" appears second and grabs the only desk.
+    sim.sync([char("y", "Idle"), char("x", "Working")]);
+    const x = sim.world.bots.get("x")!;
+    const y = sim.world.bots.get("y")!;
+    tickUntil(sim, 0.5, 500, () => x.motion === "sit-type" && x.path.length === 0);
+    expect(x.deskId).toBe("d0");
+
+    sim.sync([char("y", "Working"), char("x", "Working")]); // flip y to Working too — overflow, no desk
+    expect(y.deskId).toBeNull();
+
+    sim.updateWorld(grid, buildings); // identical grid/buildings — a no-op edit
+
+    // If a deskless bot's replan ran before every surviving claim was
+    // restored, "y" (iterated first) could grab "d0" out from under "x"
+    // (iterated second) — both would then read deskId "d0" while
+    // deskOwners can only point at one of them.
+    expect(x.deskId).toBe("d0");
+    expect(sim.world.deskOwners.get("d0")).toBe("x");
+    expect(y.deskId).toBeNull();
+
+    tickUntil(sim, 0.5, 500, () => y.path.length === 0);
+    expect(y.motion).toBe("sit-type"); // still overflow, seated at the plaza edge
+    expect(Math.hypot(y.x, y.z)).toBeCloseTo(8, 0);
   });
 });
 
