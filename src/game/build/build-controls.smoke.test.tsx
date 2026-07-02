@@ -1,0 +1,126 @@
+// R3F render smoke (M3 T4): @react-three/test-renderer builds the three.js
+// scene graph without a real WebGL context (jsdom), same setup as
+// campus-world.smoke.test.tsx — the ghost preview needs a model to clone,
+// so useGLTF is stubbed the same way.
+//
+// Coverage split (per dispatch): the ground-plane pointer path (hover ->
+// place, tool-gated validity) is exercised here through the real R3F event
+// system via fireEvent, since that's the part @/game/build/mode.test.ts and
+// store.test.ts can't reach. Select-tool rotate/delete just call
+// useCampusEdits' rotateItem/removeItem directly — already covered by
+// store.test.ts — so they aren't re-verified through a synthetic click on a
+// tiny pick-cylinder mesh here, which would be brittle for no extra signal.
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import ReactThreeTestRenderer, { type ReactThreeTest } from "@react-three/test-renderer";
+import * as THREE from "three";
+
+vi.mock("@/ipc/bindings", () => ({
+  commands: {
+    getSetting: vi.fn(async () => ({ status: "ok", data: null })),
+    setSetting: vi.fn(async () => ({ status: "ok", data: null })),
+  },
+}));
+
+vi.mock("@react-three/drei", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@react-three/drei")>();
+  const fakeGltf = () => {
+    const scene = new THREE.Group();
+    scene.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial()));
+    return { scene };
+  };
+  const useGLTF = Object.assign(vi.fn(fakeGltf), { preload: vi.fn(), clear: vi.fn() });
+  return { ...real, useGLTF };
+});
+
+import { BuildControls } from "./BuildControls";
+import { useBuildMode } from "./mode";
+import { resetCampusEditsForTests, useCampusEdits } from "./store";
+
+/** The ground-pick plane is the only mesh wired for both events — item/
+ *  building pick proxies (select tool only) never carry onPointerMove. */
+function groundPlane(instance: ReactThreeTest.ReactThreeTestInstance): ReactThreeTest.ReactThreeTestInstance {
+  const matches = instance.findAll(
+    (node) =>
+      typeof node.props.onPointerMove === "function" && typeof node.props.onPointerDown === "function",
+  );
+  expect(matches).toHaveLength(1);
+  return matches[0]!;
+}
+
+describe("BuildControls smoke", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetCampusEditsForTests();
+    useBuildMode.setState({ active: true, tool: { kind: "item", item: "bush" } });
+  });
+
+  it("places on a valid spot, snapped to the grid", async () => {
+    const renderer = await ReactThreeTestRenderer.create(<BuildControls />);
+    const ground = groundPlane(renderer.scene);
+
+    await renderer.fireEvent(ground, "pointerMove", { point: { x: 10.4, y: 0, z: 4.6 } });
+    await renderer.fireEvent(ground, "pointerDown", { point: { x: 10.4, y: 0, z: 4.6 }, button: 0 });
+
+    const items = useCampusEdits.getState().edits.items;
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ kind: "bush", x: 10, z: 5, rot: 0 });
+
+    await renderer.unmount();
+  });
+
+  it("does not place on an invalid spot (inside the plaza)", async () => {
+    const renderer = await ReactThreeTestRenderer.create(<BuildControls />);
+    const ground = groundPlane(renderer.scene);
+
+    await renderer.fireEvent(ground, "pointerDown", { point: { x: 0, y: 0, z: 0 }, button: 0 });
+
+    expect(useCampusEdits.getState().edits.items).toHaveLength(0);
+    await renderer.unmount();
+  });
+
+  it("ignores a right-click on the ground plane", async () => {
+    const renderer = await ReactThreeTestRenderer.create(<BuildControls />);
+    const ground = groundPlane(renderer.scene);
+
+    await renderer.fireEvent(ground, "pointerDown", { point: { x: 10, y: 0, z: 5 }, button: 2 });
+
+    expect(useCampusEdits.getState().edits.items).toHaveLength(0);
+    await renderer.unmount();
+  });
+
+  it("the building tool anchors on the first click and commits a valid rect on the second", async () => {
+    useBuildMode.setState({ active: true, tool: { kind: "building" } });
+    const renderer = await ReactThreeTestRenderer.create(<BuildControls />);
+    const ground = groundPlane(renderer.scene);
+
+    await renderer.fireEvent(ground, "pointerDown", { point: { x: 0, y: 0, z: 27 }, button: 0 });
+    expect(useCampusEdits.getState().edits.buildings).toHaveLength(0); // anchor only, no commit yet
+
+    await renderer.fireEvent(ground, "pointerDown", { point: { x: 6, y: 0, z: 33 }, button: 0 });
+    const buildings = useCampusEdits.getState().edits.buildings;
+    expect(buildings).toHaveLength(1);
+    expect(buildings[0]).toMatchObject({ x: 3, z: 30, w: 6, d: 6 });
+
+    await renderer.unmount();
+  });
+
+  it("a second building click on an invalid rect cancels the anchor instead of leaving it dangling", async () => {
+    useBuildMode.setState({ active: true, tool: { kind: "building" } });
+    const renderer = await ReactThreeTestRenderer.create(<BuildControls />);
+    const ground = groundPlane(renderer.scene);
+
+    // Anchor, then close a rect below the 6x5 minimum — rejected.
+    await renderer.fireEvent(ground, "pointerDown", { point: { x: 0, y: 0, z: 20 }, button: 0 });
+    await renderer.fireEvent(ground, "pointerDown", { point: { x: 1, y: 0, z: 21 }, button: 0 });
+    expect(useCampusEdits.getState().edits.buildings).toHaveLength(0);
+
+    // If the anchor were left dangling at (0, 20) instead of cleared, this
+    // click would pair with it into a perfectly valid 8x6 rect and commit a
+    // building — so a still-empty list here proves the anchor was reset,
+    // and this click just started a fresh (uncommitted) one instead.
+    await renderer.fireEvent(ground, "pointerDown", { point: { x: 8, y: 0, z: 26 }, button: 0 });
+    expect(useCampusEdits.getState().edits.buildings).toHaveLength(0);
+
+    await renderer.unmount();
+  });
+});

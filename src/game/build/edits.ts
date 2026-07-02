@@ -7,6 +7,7 @@ import { nearestEdgeDoor } from "@/game/world/campus/buildings";
 import {
   CAMPUS,
   insidePlaza,
+  insidePlot,
   type CampusLayout,
   type Placement,
   type Rect,
@@ -67,12 +68,18 @@ function tooCloseToItem(edits: CampusEdits, x: number, z: number): boolean {
   return edits.items.some((i) => Math.hypot(i.x - x, i.z - z) < 1);
 }
 
-// `layout` isn't consulted yet — items only check the plaza/other items today;
-// it's kept in the signature since a future plot/building check will need it.
-export function canPlaceItem(edits: CampusEdits, _layout: CampusLayout, x: number, z: number): boolean {
+function insidePlacedBuilding(edits: CampusEdits, x: number, z: number, margin: number): boolean {
+  return edits.buildings.some(
+    (b) => Math.abs(x - b.x) < b.w / 2 + margin && Math.abs(z - b.z) < b.d / 2 + margin,
+  );
+}
+
+export function canPlaceItem(edits: CampusEdits, layout: CampusLayout, x: number, z: number): boolean {
   const bound = CAMPUS.half - 1;
   if (Math.abs(x) > bound || Math.abs(z) > bound) return false;
   if (insidePlaza(x, z, 1)) return false;
+  if (insidePlot(x, z, layout.plots, 1)) return false;
+  if (insidePlacedBuilding(edits, x, z, 1)) return false;
   if (tooCloseToItem(edits, x, z)) return false;
   return true;
 }

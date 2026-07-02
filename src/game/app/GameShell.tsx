@@ -5,6 +5,7 @@ import { Characters } from "@/game/characters/Characters";
 import { ChatWindows } from "@/game/chat/ChatWindows";
 import { HireDialog } from "@/game/chat/HireDialog";
 import { useGameChats } from "@/game/chat/store";
+import { BuildControls } from "@/game/build/BuildControls";
 import { BuildPalette } from "@/game/build/BuildPalette";
 import { useBuildMode } from "@/game/build/mode";
 import { GameCanvas } from "@/game/engine/GameCanvas";
@@ -40,6 +41,7 @@ export default function GameShell() {
   const envId = useGameEnvironment((s) => s.id);
   const env = environmentById(envId);
   const buildActive = useBuildMode((s) => s.active);
+  const buildTool = useBuildMode((s) => s.tool);
 
   useEffect(() => {
     void useGameEnvironment.getState().init();
@@ -74,7 +76,18 @@ export default function GameShell() {
             }}
           />
         </Suspense>
-        <GameCameraRig bounds={CAMERA_BOUNDS} focus={focus} />
+        <GameCameraRig
+          bounds={CAMERA_BOUNDS}
+          focus={focus}
+          enabled={!buildActive || buildTool.kind === "select"}
+        />
+        {/* Own boundary: the ghost model's useModel() can suspend on first
+            pick, and build mode must never blank the campus underneath it. */}
+        {buildActive && (
+          <Suspense fallback={null}>
+            <BuildControls />
+          </Suspense>
+        )}
         <Effects />
         <FpsProbe onSample={setFps} />
       </GameCanvas>

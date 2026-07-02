@@ -3,11 +3,13 @@
 import { useEffect, useMemo, useRef } from "react";
 import type * as THREE from "three";
 import type { ModelId } from "@/game/assets/manifest";
+import { type PlaceableKind } from "@/game/build/edits";
+import { useCampusEdits } from "@/game/build/store";
 import { CloudPuffs } from "@/game/world/CloudPuffs";
 import { Fountain } from "./Fountain";
 import { InstancedModel } from "./InstancedModel";
 import { Terrain } from "./Terrain";
-import { campusLayout, type ScatterKind } from "./layout";
+import { campusLayout, type Placement, type ScatterKind } from "./layout";
 import { campusBuildings } from "./buildings";
 import { Pavilion } from "./Pavilion";
 
@@ -68,6 +70,26 @@ export function CampusWorld() {
   const layout = useMemo(() => campusLayout(), []);
   const buildings = useMemo(() => campusBuildings(layout.plots), [layout]);
   const staticRef = useStaticMatrices();
+
+  // Player-placed decor (M3 T4): grouped by kind for InstancedModel, keyed
+  // by `version` so a fresh edit remounts the group instead of trying to
+  // animate its frozen (frames={1}) instance matrices. Kept OUTSIDE the
+  // static-matrix group below — these placements change at runtime, so
+  // freezing them would just mean re-running useStaticMatrices on every
+  // edit; a cheap remount of a few dozen meshes is simpler.
+  const edits = useCampusEdits((s) => s.edits);
+  const version = useCampusEdits((s) => s.version);
+  const placedByKind = useMemo(() => {
+    const map: Partial<Record<PlaceableKind, Placement[]>> = {};
+    for (const item of edits.items) {
+      const list = map[item.kind] ?? [];
+      // Scale 1.4 matches applyEdits' convention for placed decor.
+      list.push({ x: item.x, z: item.z, rot: item.rot, scale: 1.4 });
+      map[item.kind] = list;
+    }
+    return map;
+  }, [edits]);
+
   return (
     <group>
       {/* Animated residents (fountain water, clouds) stay auto-updating. */}
@@ -93,6 +115,9 @@ export function CampusWorld() {
           <Pavilion key={b.plotIndex} building={b} />
         ))}
       </group>
+      {(Object.keys(placedByKind) as PlaceableKind[]).map((kind) => (
+        <InstancedModel key={`${kind}-${version}`} id={kind} placements={placedByKind[kind]!} />
+      ))}
     </group>
   );
 }

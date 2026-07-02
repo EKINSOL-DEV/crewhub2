@@ -1,7 +1,11 @@
-// Build tool palette (M3 T3): right-edge vertical game card, mounted by
+// Build tool palette (M3 T3): left-edge vertical game card, mounted by
 // GameShell only while build mode is active (mode.ts). Picking a tool just
 // updates the store — placement itself (drag, ghost preview, ESC) is
 // Task 4 scope.
+// Left, not right (T4 review fold-in): chat windows dock bottom-right and
+// the palette's original right-edge placement overlapped them. The HUD
+// chips sit bottom-left but stop well short of vertical-center, so the
+// palette is clear there too.
 import { PLACEABLE_KINDS, type PlaceableKind } from "./edits";
 import { useBuildMode, type BuildTool } from "./mode";
 
@@ -37,7 +41,7 @@ export function BuildPalette() {
   const deactivate = useBuildMode((s) => s.deactivate);
 
   return (
-    <div className="pointer-events-none fixed right-4 top-1/2 flex -translate-y-1/2 flex-col gap-1.5 rounded-3xl border-2 border-white/60 bg-white/70 p-2 shadow-2xl backdrop-blur">
+    <div className="pointer-events-none fixed left-4 top-1/2 flex -translate-y-1/2 flex-col gap-1.5 rounded-3xl border-2 border-white/60 bg-white/70 p-2 shadow-2xl backdrop-blur">
       {PLACEABLE_KINDS.map((kind) => {
         const { emoji, label } = ITEM_LABELS[kind];
         const t: BuildTool = { kind: "item", item: kind };

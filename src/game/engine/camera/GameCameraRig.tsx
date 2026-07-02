@@ -25,10 +25,17 @@ const DRAG_ROT = 0.005;
 export function GameCameraRig({
   bounds,
   focus,
+  enabled = true,
 }: {
   bounds: RtsBounds;
   /** A robot to center on — `seq` bumps to refocus the same spot again. Not a lock: the next pan/rotate/zoom just overwrites the goal as usual. */
   focus?: { x: number; z: number; seq: number } | null;
+  /**
+   * Gates drag-to-pan/rotate only (M3 T4: build mode owns the pointer while
+   * placing) — wheel zoom and WASD/edge-scroll keep working either way, so
+   * the player is never stuck unable to see the campus.
+   */
+  enabled?: boolean;
 }) {
   const camera = useThree((s) => s.camera);
   const gl = useThree((s) => s.gl);
@@ -76,9 +83,11 @@ export function GameCameraRig({
     const keyup = (e: KeyboardEvent) => keys.current.delete(e.code);
     const leave = () => (pointer.current = null);
 
-    el.addEventListener("pointerdown", down);
+    if (enabled) {
+      el.addEventListener("pointerdown", down);
+      window.addEventListener("pointermove", move);
+    }
     el.addEventListener("pointermove", hover);
-    window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
     el.addEventListener("wheel", wheel, { passive: false });
     el.addEventListener("contextmenu", ctx);
@@ -86,9 +95,11 @@ export function GameCameraRig({
     window.addEventListener("keyup", keyup);
     el.addEventListener("pointerleave", leave);
     return () => {
-      el.removeEventListener("pointerdown", down);
+      if (enabled) {
+        el.removeEventListener("pointerdown", down);
+        window.removeEventListener("pointermove", move);
+      }
       el.removeEventListener("pointermove", hover);
-      window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       el.removeEventListener("wheel", wheel);
       el.removeEventListener("contextmenu", ctx);
@@ -96,7 +107,7 @@ export function GameCameraRig({
       window.removeEventListener("keyup", keyup);
       el.removeEventListener("pointerleave", leave);
     };
-  }, [gl, bounds]);
+  }, [gl, bounds, enabled]);
 
   useFrame((_, dt) => {
     const k = keys.current;

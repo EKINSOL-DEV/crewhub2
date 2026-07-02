@@ -42,6 +42,18 @@ describe("canPlaceItem", () => {
     expect(canPlaceItem(edits, layout, 10.5, 10)).toBe(false);
     expect(canPlaceItem(edits, layout, 13, 13)).toBe(true);
   });
+
+  it("rejects points inside a default building plot", () => {
+    const plot = layout.plots[0]!;
+    expect(canPlaceItem(EMPTY_EDITS, layout, plot.x, plot.z)).toBe(false);
+  });
+
+  it("rejects points inside a placed building", () => {
+    const placed: PlacedBuilding = { id: "e0", x: 0, z: 30, w: 6, d: 5, roomId: null };
+    const edits: CampusEdits = { ...EMPTY_EDITS, buildings: [placed] };
+    expect(canPlaceItem(edits, layout, 0, 30)).toBe(false);
+    expect(canPlaceItem(edits, layout, 10, 30)).toBe(true);
+  });
 });
 
 describe("canPlaceBuilding", () => {
