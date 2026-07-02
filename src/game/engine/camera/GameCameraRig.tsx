@@ -10,6 +10,7 @@ const KEY_ROT = 1.9; // rad per second
 const EDGE_PX = 14;
 const EDGE_PAN_PX = 480;
 const DAMP_RATE = 9;
+const DRAG_ROT = 0.005;
 
 export function GameCameraRig({ bounds }: { bounds: RtsBounds }) {
   const camera = useThree((s) => s.camera);
@@ -29,18 +30,21 @@ export function GameCameraRig({ bounds }: { bounds: RtsBounds }) {
       }
     };
     const move = (e: PointerEvent) => {
-      pointer.current = { x: e.clientX, y: e.clientY };
       if (!drag.current) return;
       const dx = e.clientX - drag.current.x;
       const dy = e.clientY - drag.current.y;
       drag.current = { ...drag.current, x: e.clientX, y: e.clientY };
       goal.current =
-        drag.current.button === 0 ? pan(goal.current, dx, dy, bounds) : rotate(goal.current, dx * 0.005);
+        drag.current.button === 0 ? pan(goal.current, dx, dy, bounds) : rotate(goal.current, dx * DRAG_ROT);
+    };
+    const hover = (e: PointerEvent) => {
+      pointer.current = { x: e.clientX, y: e.clientY };
     };
     const up = () => (drag.current = null);
     const wheel = (e: WheelEvent) => {
       e.preventDefault();
-      goal.current = zoom(goal.current, e.deltaY, bounds);
+      const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+      goal.current = zoom(goal.current, dy, bounds);
     };
     const ctx = (e: Event) => e.preventDefault();
     const keydown = (e: KeyboardEvent) => keys.current.add(e.code);
@@ -48,6 +52,7 @@ export function GameCameraRig({ bounds }: { bounds: RtsBounds }) {
     const leave = () => (pointer.current = null);
 
     el.addEventListener("pointerdown", down);
+    el.addEventListener("pointermove", hover);
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
     el.addEventListener("wheel", wheel, { passive: false });
@@ -57,6 +62,7 @@ export function GameCameraRig({ bounds }: { bounds: RtsBounds }) {
     el.addEventListener("pointerleave", leave);
     return () => {
       el.removeEventListener("pointerdown", down);
+      el.removeEventListener("pointermove", hover);
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       el.removeEventListener("wheel", wheel);
