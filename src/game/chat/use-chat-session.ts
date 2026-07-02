@@ -31,11 +31,13 @@ export interface ChatSessionPending {
   questions: QuestionRequest[];
 }
 
+export type ChatSendResult = { ok: true } | { ok: false; error: string };
+
 export interface ChatSessionResult {
   lines: ChatLine[];
   status: SessionStatus | undefined;
   pending: ChatSessionPending;
-  send: (text: string) => Promise<void>;
+  send: (text: string) => Promise<ChatSendResult>;
 }
 
 /** `demo:*` keys are fake robots (see sim/demo.ts) — there is no session behind them. */
@@ -67,11 +69,17 @@ export function useChatSession(key: string): ChatSessionResult {
     [transcript],
   );
 
-  const send = async (text: string) => {
-    if (isDemoKey(key)) return; // no session to send to — ChatWindow disables the composer anyway
+  const send = async (text: string): Promise<ChatSendResult> => {
+    if (isDemoKey(key)) return { ok: true }; // no session to send to — ChatWindow disables the composer anyway
     const trimmed = text.trim();
-    if (!trimmed) return;
-    await commands.sendToSession(sid, trimmed);
+    if (!trimmed) return { ok: true };
+    try {
+      const res = await commands.sendToSession(sid, trimmed);
+      if (res.status === "error") return { ok: false, error: res.error };
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
   };
 
   return { lines, status, pending, send };

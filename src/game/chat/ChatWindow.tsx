@@ -88,6 +88,7 @@ export function ChatWindow({
   const sid = useMemo(() => parseSessionKey(chatKey), [chatKey]);
   const pendingCount = pending.permissions.length + pending.questions.length;
   const [draft, setDraft] = useState("");
+  const [sendError, setSendError] = useState<string | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
 
   // Imperative scroll-to-bottom stays in an effect (react-compiler rule) —
@@ -102,9 +103,17 @@ export function ChatWindow({
   const composerDisabled = ended || demo;
 
   const submit = () => {
-    const text = draft;
+    const text = draft.trim();
+    if (!text) return; // whitespace-only: leave the draft alone, don't send
     setDraft("");
-    void send(text);
+    setSendError(null);
+    void send(text).then((res) => {
+      if (res.ok) return;
+      setSendError(res.error);
+      // Restore the eaten message — but only if the user hasn't started
+      // typing something new in the meantime.
+      setDraft((cur) => (cur === "" ? text : cur));
+    });
   };
 
   if (minimized) {
@@ -184,11 +193,20 @@ export function ChatWindow({
         </div>
       )}
 
+      {sendError && (
+        <div data-testid="chat-window-error" className="px-3 pt-1 text-xs text-red-500">
+          {sendError}
+        </div>
+      )}
+
       <div className="flex gap-2 border-t-2 border-slate-900/10 p-2">
         <input
           data-testid="chat-window-input"
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            if (sendError) setSendError(null);
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter") submit();
           }}

@@ -9,11 +9,13 @@ import type { PermissionRequest, QuestionRequest, SessionMeta } from "@/ipc/bind
 import type { SessionTranscript } from "@/stores/transcripts";
 import type { SessionView } from "@/stores/sessions";
 
+type SendResult = { status: "ok"; data: null } | { status: "error"; error: string };
+
 const { transcripts, openSessionSpy, startTranscriptStreamSpy, sendToSessionSpy, views } = vi.hoisted(() => ({
   transcripts: { sessions: {} as Record<string, SessionTranscript> },
   openSessionSpy: vi.fn(),
   startTranscriptStreamSpy: vi.fn(),
-  sendToSessionSpy: vi.fn(async () => ({ status: "ok" as const, data: null })),
+  sendToSessionSpy: vi.fn(async (): Promise<SendResult> => ({ status: "ok", data: null })),
   views: { current: [] as SessionView[] },
 }));
 
@@ -149,16 +151,52 @@ describe("ChatWindow", () => {
     expect(input.value).toBe("");
   });
 
-  it("ignores empty/whitespace-only input", () => {
+  it("ignores empty/whitespace-only input and leaves the draft untouched", () => {
     render(<ChatWindow {...WINDOW_PROPS} />);
     const input = screen.getByTestId("chat-window-input") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "   " } });
     fireEvent.keyDown(input, { key: "Enter" });
     expect(sendToSessionSpy).not.toHaveBeenCalled();
+    expect(input.value).toBe("   ");
 
     fireEvent.change(input, { target: { value: "" } });
     fireEvent.keyDown(input, { key: "Enter" });
     expect(sendToSessionSpy).not.toHaveBeenCalled();
+    expect(input.value).toBe("");
+  });
+
+  it("clears the draft optimistically and shows no error on a successful send", async () => {
+    render(<ChatWindow {...WINDOW_PROPS} />);
+    const input = screen.getByTestId("chat-window-input") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "hello there" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(input.value).toBe("");
+    await vi.waitFor(() => expect(sendToSessionSpy).toHaveBeenCalledTimes(1));
+    expect(screen.queryByTestId("chat-window-error")).not.toBeInTheDocument();
+  });
+
+  it("shows an inline error and restores the draft when sendToSession fails", async () => {
+    sendToSessionSpy.mockResolvedValueOnce({ status: "error" as const, error: "boom" });
+    render(<ChatWindow {...WINDOW_PROPS} />);
+    const input = screen.getByTestId("chat-window-input") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "hello there" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(input.value).toBe("");
+
+    expect(await screen.findByTestId("chat-window-error")).toHaveTextContent("boom");
+    expect(input.value).toBe("hello there");
+  });
+
+  it("dismisses the send error once the draft changes", async () => {
+    sendToSessionSpy.mockResolvedValueOnce({ status: "error" as const, error: "boom" });
+    render(<ChatWindow {...WINDOW_PROPS} />);
+    const input = screen.getByTestId("chat-window-input") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "hello there" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(await screen.findByTestId("chat-window-error")).toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: "hello there!" } });
+    expect(screen.queryByTestId("chat-window-error")).not.toBeInTheDocument();
   });
 
   it("disables the composer once the session has Ended", () => {
