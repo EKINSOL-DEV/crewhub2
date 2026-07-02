@@ -1,6 +1,6 @@
 # CrewHub 3.0 — "The Campus" Game-First Rebuild
 
-**Date:** 2026-07-02 · **Status:** DRAFT — awaiting Nicky's review · **Supersedes the visual/world direction of** `docs/plans/2026-06-12-world-beauty-restoration.md`
+**Date:** 2026-07-02 · **Status:** APPROVED DIRECTION — decisions D1–D4 confirmed by Nicky 2026-07-02 · **Supersedes the visual/world direction of** `docs/plans/2026-06-12-world-beauty-restoration.md`
 
 ## Problem
 
@@ -20,12 +20,12 @@ Rebuild the visual/world experience as a game — a stylized campus where robot 
 - **Store layer** `src-tauri/src/store/**` + SQLite migrations; MCP server `src-tauri/src/mcp/**`; orchestrator; hooks installer.
 - **Typed IPC contract** (`src/ipc/bindings.ts`, `src/ipc/events.ts`) and **Zustand stores** (`src/stores/*`) — the seam the new game consumes.
 - Existing model-tier infra: `SpawnSpec.model`, per-feature `model_policy` settings, haiku-default headless runs.
-- The 2D workspace window (`?window=workspace`) survives as a second-monitor power tool (decision D4, default: keep).
 
 ## What we delete and rebuild
 
 - `src/panels/world/**` (all R3F rendering, procedural bots/props/environments, world chat windows).
 - The HUD shell: `src/app/WorldView.tsx`, `GameHud.tsx`, `WorldOverlayHost.tsx`, `WorldMovedPanel.tsx`.
+- **The 2D workspace window** (`?window=workspace`, `WorkspaceShell.tsx`) and eventually the 2D panels (D4: the game is the only UI). Timing: panels stay as a debugging surface through M0–M2, then are removed once game-native equivalents exist (chat/permissions in M2; final cleanup in M4). Non-visual internals (transcript virtualization, markdown/tool-card rendering, composer logic) are salvaged as hooks/components for the diegetic chat.
 
 ## Core concept — Characters with two brains
 
@@ -85,7 +85,7 @@ During the rebuild, extract the spawn/model logic currently living in `WorldChat
 | M1  | **Robots alive** — rigged robots, sim loop, status→behavior from live sessions                                | Real Claude Code threads walk around as robots        |
 | M2  | **Talk to them** — diegetic chat, bubbles, permission cards, hire/link/adopt flow, voice-model picker         | Full conversations without leaving the game idiom     |
 | M3  | **Build it** — build mode, rooms, furniture, persistence, characters use furniture                            | Lay out your own campus                               |
-| M4  | **It breathes** — Haiku flavor bubbles, day/night, sound, "new campus" onboarding                             | Feels like a game you want to leave open              |
+| M4  | **It breathes** — Haiku flavor bubbles, day/night, sound, "new campus" onboarding, remove 2D workspace/panels | Feels like a game you want to leave open              |
 
 M0+M1 are the proof point before any build-mode investment. Each milestone gets its own implementation plan (superpowers:writing-plans) when picked up.
 
@@ -103,12 +103,12 @@ M0+M1 are the proof point before any build-mode investment. Each milestone gets 
 - E2E boot test (WebdriverIO) — campus renders, roster shows a fake-claude session.
 - Performance budget: ≥60fps with demo dataset; instancing for all repeated geometry.
 
-## Open decisions (Nicky to confirm)
+## Decisions (all confirmed by Nicky, 2026-07-02)
 
-1. ~~**D1 Art source**~~ — **DECIDED: CC0 kits + custom robots** (Nicky, 2026-07-02).
-2. **D2 Robot look** — evolve the boxy v1 robots into rigged versions (recommended, continuity) vs. fresh design.
-3. **D3 Flavor brain default** — on with strict budget + visible cost meter (recommended) vs. opt-in.
-4. **D4 2D workspace window** — keep as-is (recommended) vs. eventually remove.
+1. **D1 Art source** — CC0 kits (Kenney/Quaternius/Poly Pizza) + custom rigged robots.
+2. **D2 Robot look** — evolve the boxy v1 robots (boxy head/body, big eyes, blush, antenna status bulb) into rigged, animated glTF characters.
+3. **D3 Flavor brain** — on by default with a strict throttle and a visible cost indicator.
+4. **D4 2D workspace** — **removed**; the game is the only UI (panels linger as a debug surface until M2 game-native equivalents, deleted by M4).
 
 ## Non-goals
 
