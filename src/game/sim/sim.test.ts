@@ -161,6 +161,71 @@ describe("createSim", () => {
     expect(bot.x !== start.x || bot.z !== start.z).toBe(true);
   });
 
+  it("an Idle session character's wander legs stay within radius 12 of where they were planned", () => {
+    const { grid, buildings } = fakeWorld();
+    const sim = createSim(grid, buildings, SEED);
+    sim.sync([char("a", "Idle")]);
+    const bot = sim.world.bots.get("a")!;
+
+    const dt = 0.1;
+    const tolerance = 1; // grid-snap slack, same as the radius-9 crew test below
+    let sawNewPath = false;
+    for (let i = 0; i < 600; i++) {
+      // 60 sim-seconds
+      const from = { x: bot.x, z: bot.z };
+      const hadPath = bot.path.length > 0;
+      sim.tick(dt);
+      // A path that went empty -> non-empty this tick was just planned from
+      // `from` (advance() never touches an already-empty path in the same
+      // tick it's replanned, so bot.x/z hasn't moved yet).
+      if (!hadPath && bot.path.length > 0) {
+        sawNewPath = true;
+        for (const wp of bot.path) {
+          expect(Math.hypot(wp.x - from.x, wp.z - from.z)).toBeLessThanOrEqual(12 + tolerance);
+        }
+      }
+    }
+    expect(sawNewPath).toBe(true); // sanity: the loop actually exercised replanning
+  });
+
+  it("an Idle session character pauses 2-4s between wander legs", () => {
+    const { grid, buildings } = fakeWorld();
+    const sim = createSim(grid, buildings, SEED);
+    sim.sync([char("a", "Idle")]);
+    const bot = sim.world.bots.get("a")!;
+
+    const dt = 0.1;
+    const tolerance = dt; // one tick of slack
+    let sawFirstWalk = false;
+    let inPause = false;
+    let standTicks = 0;
+    const pauses: number[] = [];
+    for (let i = 0; i < 600; i++) {
+      // 60 sim-seconds
+      sim.tick(dt);
+      if (bot.motion === "walk") {
+        sawFirstWalk = true;
+        if (inPause) {
+          pauses.push(standTicks * dt);
+          inPause = false;
+          standTicks = 0;
+        }
+      } else if (bot.motion === "stand" && sawFirstWalk) {
+        // Skip the leading stand streak (if any) before the first walk —
+        // it's not a pause "between" legs, and the very first Idle leg
+        // starts with pauseUntil == age (no wait) per replan().
+        inPause = true;
+        standTicks++;
+      }
+    }
+
+    expect(pauses.length).toBeGreaterThan(0); // sanity: saw at least one completed pause
+    for (const pause of pauses) {
+      expect(pause).toBeGreaterThanOrEqual(2 - tolerance);
+      expect(pause).toBeLessThanOrEqual(4 + tolerance);
+    }
+  });
+
   it("an Idle crew character (agentId set) only wanders within radius 9 of the plaza", () => {
     const { grid, buildings } = fakeWorld();
     const sim = createSim(grid, buildings, SEED);
