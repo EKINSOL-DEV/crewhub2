@@ -9,8 +9,21 @@ import { useModel } from "@/game/assets/use-model";
 import type { ModelId } from "@/game/assets/manifest";
 import type { Placement } from "./layout";
 
-export function InstancedModel({ id, placements }: { id: ModelId; placements: Placement[] }) {
-  const scene = useModel(id);
+export function InstancedModel({
+  id,
+  placements,
+  foliage = false,
+  tilt = 0,
+}: {
+  id: ModelId;
+  placements: Placement[];
+  /** Apply the toon foliage hue fix (plants only — see engine/toon.ts). */
+  foliage?: boolean;
+  /** Max organic lean in radians, deterministic per placement (trees sway,
+   *  lanterns stand at attention). */
+  tilt?: number;
+}) {
+  const scene = useModel(id, { foliageHueFix: foliage });
   const meshes = useMemo(() => collectMeshes(scene), [scene]);
   if (placements.length === 0) return null;
   return (
@@ -18,7 +31,13 @@ export function InstancedModel({ id, placements }: { id: ModelId; placements: Pl
       {(...Parts: ComponentType[]) => (
         <>
           {placements.map((p, i) => (
-            <group key={i} position={[p.x, 0, p.z]} rotation-y={p.rot} scale={p.scale}>
+            <group
+              key={i}
+              position={[p.x, 0, p.z]}
+              // Deterministic pseudo-lean from the index — no Math.random().
+              rotation={[Math.sin(i * 127.1) * tilt, p.rot, Math.cos(i * 311.7) * tilt]}
+              scale={p.scale}
+            >
               {Parts.map((Part, j) => (
                 <Part key={j} />
               ))}

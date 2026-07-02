@@ -4,16 +4,17 @@
 import { useMemo } from "react";
 import { useGLTF } from "@react-three/drei";
 import type * as THREE from "three";
-import { toonify } from "@/game/engine/toon";
+import { toonify, type ToonifyOptions } from "@/game/engine/toon";
 import { MODEL_IDS, modelUrl, type ModelId } from "./manifest";
 
-export function useModel(id: ModelId): THREE.Group {
+export function useModel(id: ModelId, opts?: ToonifyOptions): THREE.Group {
   const gltf = useGLTF(modelUrl(id));
+  const foliageHueFix = opts?.foliageHueFix ?? false;
   return useMemo(() => {
     const scene = gltf.scene.clone(true) as THREE.Group;
-    toonify(scene);
+    toonify(scene, { foliageHueFix });
     return scene;
-  }, [gltf.scene]);
+  }, [gltf.scene, foliageHueFix]);
 }
 
 /** Kick off background loads for everything in the manifest. */

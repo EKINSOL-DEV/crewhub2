@@ -105,28 +105,55 @@ export function campusLayout(): CampusLayout {
   ];
 
   const taken: { x: number; z: number; r: number }[] = [];
-  const place = (count: number, minR: number, scaleLo: number, scaleHi: number): Placement[] => {
+  const free = (x: number, z: number, minR: number): boolean =>
+    Math.abs(x) <= half - 2 &&
+    Math.abs(z) <= half - 2 &&
+    !insidePlaza(x, z, 2) &&
+    !nearPath(x, z, 1.5) &&
+    !insidePlot(x, z, plots, 1) &&
+    !taken.some((t) => Math.hypot(t.x - x, t.z - z) < Math.max(t.r, minR));
+  const place = (
+    count: number,
+    minR: number,
+    scaleLo: number,
+    scaleHi: number,
+    /** Chance that an accepted placement spawns a grove companion nearby. */
+    cluster = 0,
+  ): Placement[] => {
     const out: Placement[] = [];
     let guard = 0;
     while (out.length < count && guard++ < count * 60) {
       const x = (rand() * 2 - 1) * (half - 2);
       const z = (rand() * 2 - 1) * (half - 2);
-      if (insidePlaza(x, z, 2)) continue;
-      if (nearPath(x, z, 1.5)) continue;
-      if (insidePlot(x, z, plots, 1)) continue;
-      if (taken.some((t) => Math.hypot(t.x - x, t.z - z) < Math.max(t.r, minR))) continue;
+      if (!free(x, z, minR)) continue;
       taken.push({ x, z, r: minR });
       out.push({ x, z, rot: rand() * Math.PI * 2, scale: scaleLo + rand() * (scaleHi - scaleLo) });
+      // Groves read like a designed park; lone even sprinkle reads random.
+      if (out.length < count && rand() < cluster) {
+        const a = rand() * Math.PI * 2;
+        const d = minR * (0.8 + rand() * 0.4);
+        const cx = x + Math.sin(a) * d;
+        const cz = z + Math.cos(a) * d;
+        if (free(cx, cz, minR * 0.7)) {
+          taken.push({ x: cx, z: cz, r: minR * 0.7 });
+          out.push({
+            x: cx,
+            z: cz,
+            rot: rand() * Math.PI * 2,
+            scale: scaleLo + rand() * (scaleHi - scaleLo) * 0.8,
+          });
+        }
+      }
     }
     return out;
   };
 
   const scatter: Record<ScatterKind, Placement[]> = {
-    treeDefault: place(16, 3, 1.6, 2.4),
-    treeOak: place(12, 3, 1.6, 2.4),
-    treeDetailed: place(10, 3, 1.6, 2.2),
-    treeFat: place(8, 3, 1.6, 2.2),
-    treePine: place(10, 3, 1.8, 2.6),
+    treeDefault: place(20, 3.4, 2.0, 3.1, 0.55),
+    treeOak: place(15, 3.4, 2.0, 3.1, 0.55),
+    treeDetailed: place(12, 3.4, 2.0, 2.9, 0.5),
+    treeFat: place(10, 3.4, 2.0, 2.9, 0.5),
+    treePine: place(12, 3.4, 2.4, 3.6, 0.6),
     rockLarge: place(8, 2.5, 1.2, 2),
     rockSmall: place(14, 1, 0.8, 1.4),
     flowerRed: place(14, 0.6, 1, 1.6),
