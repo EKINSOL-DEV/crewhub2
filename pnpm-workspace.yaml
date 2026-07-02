@@ -3,3 +3,6 @@ allowBuilds:
   lefthook: true
   edgedriver: false
   geckodriver: false
+  # sharp comes with @gltf-transform/cli (texture ops). Asset builds run
+  # locally and our models are untextured — the native binary is unneeded.
+  sharp: false
