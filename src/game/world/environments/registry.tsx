@@ -11,7 +11,10 @@ const campus: GameEnvironment = {
   fog: { color: "#c9ecf9", near: 60, far: 160 },
   ambient: { color: "#ffffff", intensity: 0.55 },
   hemisphere: { sky: "#bfe6ff", ground: "#9ed98a", intensity: 0.5 },
-  sun: { position: [28, 42, 18], color: "#fff3d6", intensity: 2.6 },
+  // Sun sits on the default camera's side (+X/+Z) so the faces the player
+  // sees are the lit ones — with it behind, every canopy showed its shadow
+  // side and read as a dark box.
+  sun: { position: [30, 44, 34], color: "#fff3d6", intensity: 2.6 },
   World: CampusWorld,
 };
 

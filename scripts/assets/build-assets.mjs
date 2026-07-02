@@ -25,7 +25,11 @@ for (const [id, { kit, file }] of Object.entries(manifest.models)) {
     continue;
   }
   const out = path.join(OUT, `${id}.glb`);
-  execSync(`pnpm exec gltf-transform optimize "${src}" "${out}" --compress meshopt`, { stdio: "pipe" });
+  // --simplify false: meshopt simplification crushes these already-minimal
+  // low-poly models (tree canopies collapse into boxes — M0 tree fix).
+  execSync(`pnpm exec gltf-transform optimize "${src}" "${out}" --compress meshopt --simplify false`, {
+    stdio: "pipe",
+  });
   console.log(`✓ ${id}.glb`);
 }
 if (failed) process.exit(1);
