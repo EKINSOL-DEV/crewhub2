@@ -35,6 +35,9 @@ export interface UseSimResult {
   infoRef: MutableRefObject<Map<string, CharacterInfo>>;
 }
 
+/** Demo fast-forward: open mid-life (robots seated/raising hands), not at spawn. */
+const DEMO_WARMUP_TICKS = 300; // 30s of sim time, deterministic, <10ms of work
+
 export function useSim(override?: Character[]): UseSimResult {
   useEffect(() => {
     void useSessionsStore.getState().init();
@@ -74,11 +77,17 @@ export function useSim(override?: Character[]): UseSimResult {
   // name/color drift alone shouldn't re-sync it, so key the effect narrowly.
   const syncKey = useMemo(() => characters.map((c) => `${c.key}:${c.status}`).join(","), [characters]);
 
+  const warmedRef = useRef(false);
   useEffect(() => {
     sim.sync(characters);
     infoRef.current = new Map(
       characters.map((c) => [c.key, { name: c.name, color: c.color, status: c.status }]),
     );
+    // Demo scenes open on arrived robots instead of a spawn-point conga line.
+    if (override && !warmedRef.current) {
+      warmedRef.current = true;
+      for (let i = 0; i < DEMO_WARMUP_TICKS; i++) sim.tick(TICK_S);
+    }
 
     const keys = new Set(sim.world.bots.keys());
     const changed = keys.size !== keysRef.current.size || [...keys].some((k) => !keysRef.current.has(k));

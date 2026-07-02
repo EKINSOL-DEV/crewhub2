@@ -46,6 +46,9 @@ export default function GameShell() {
         <Lights env={env} />
         <Suspense fallback={null}>
           <env.World />
+        </Suspense>
+        {/* Own boundary: a suspending nameplate font must never hide the campus. */}
+        <Suspense fallback={null}>
           <Characters override={DEMO_CHARACTERS} onCount={setBotCount} />
         </Suspense>
         <GameCameraRig bounds={CAMERA_BOUNDS} />

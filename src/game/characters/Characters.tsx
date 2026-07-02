@@ -3,7 +3,7 @@
 // useFrame loop below owns all per-frame math (damped follow, T3's `pose`,
 // status bulb) and writes it straight into three.js objects collected from
 // the actors — no per-frame React state, no per-frame allocation of note.
-import { useEffect, useRef, useState, type MutableRefObject } from "react";
+import { Suspense, useEffect, useRef, useState, type MutableRefObject } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Billboard, Text } from "@react-three/drei";
 import * as THREE from "three";
@@ -78,19 +78,24 @@ function CharacterActor({
   return (
     <group ref={groupRef} position={[x, 0, z]} rotation={[0, facing, 0]}>
       <Robot color={color} bulbColor={BULB[status]} handles={handlesRef} />
-      <Billboard position={[0, NAME_Y, 0]}>
-        <Text
-          fontSize={0.32}
-          color="#eef1f8"
-          outlineWidth={0.02}
-          outlineColor="#15171c"
-          anchorX="center"
-          anchorY="bottom"
-          maxWidth={3}
-        >
-          {name}
-        </Text>
-      </Billboard>
+      {/* drei's Text SUSPENDS on troika font preload — its own boundary so a
+          slow/stalled font never hides the robot (or, via a shared boundary,
+          the whole campus). */}
+      <Suspense fallback={null}>
+        <Billboard position={[0, NAME_Y, 0]}>
+          <Text
+            fontSize={0.32}
+            color="#eef1f8"
+            outlineWidth={0.02}
+            outlineColor="#15171c"
+            anchorX="center"
+            anchorY="bottom"
+            maxWidth={3}
+          >
+            {name}
+          </Text>
+        </Billboard>
+      </Suspense>
     </group>
   );
 }
