@@ -4,6 +4,7 @@ import { Suspense, useEffect } from "react";
 import { GameCanvas } from "@/game/engine/GameCanvas";
 import { Lights } from "@/game/engine/Lights";
 import { GameCameraRig } from "@/game/engine/camera/GameCameraRig";
+import { Effects } from "@/game/engine/effects/Effects";
 import { preloadModels } from "@/game/assets/use-model";
 import { CAMPUS } from "@/game/world/campus/layout";
 import { environmentById } from "@/game/world/environments/registry";
@@ -30,6 +31,7 @@ export default function GameShell() {
           <env.World />
         </Suspense>
         <GameCameraRig bounds={{ half: CAMPUS.half, minDistance: 8, maxDistance: 60 }} />
+        <Effects />
       </GameCanvas>
     </div>
   );
