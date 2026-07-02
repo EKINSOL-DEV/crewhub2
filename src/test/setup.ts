@@ -11,3 +11,19 @@ if (typeof globalThis.ResizeObserver === "undefined") {
     disconnect() {}
   };
 }
+
+// @tauri-apps/api's event.unlisten() calls
+// window.__TAURI_EVENT_PLUGIN_INTERNALS__.unregisterListener. mockIPC()
+// installs it, but clearMocks() DELETES it in afterEach — any component
+// unmount cleanup whose async unlisten lands after clearMocks throws an
+// unhandled TypeError that fails CI. A Proxy keeps mockIPC's real functions
+// when present and falls back to a no-op once they're cleared.
+// Both globals get the same treatment (mockIPC assigns onto the existing
+// object, so the Proxies survive). Fallback functions return undefined —
+// awaited fire-and-forget cleanups tolerate that fine.
+for (const key of ["__TAURI_EVENT_PLUGIN_INTERNALS__", "__TAURI_INTERNALS__"]) {
+  const target: Record<PropertyKey, unknown> = {};
+  (window as unknown as Record<string, unknown>)[key] = new Proxy(target, {
+    get: (t, p) => (p in t ? t[p] : () => {}),
+  });
+}
