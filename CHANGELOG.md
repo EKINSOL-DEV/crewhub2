@@ -18,6 +18,11 @@ How releases consume this file (M6, EKI-98/EKI-100):
 
 ### Added
 
+- M2 "Talk to them" — conversations inside the game (EKI-149): click a robot for a game-styled
+  chat window over the live transcript (real send), speech bubbles for assistant replies,
+  permission/question prompts as "the robot asks you" cards (allow/always/deny, single/multi
+  answers, plan approval), `+ Hire` dialog (spawn crew agents with a voice-model picker, adopt
+  or fork existing sessions), camera focus on chat open
 - M1 "Robots alive" — session-driven boxy robots on the campus (EKI-138): pavilions with desks
   on the four plots, pure-TS sim (grid A\* + 10Hz deterministic state machine), status-driven
   behavior (work at desk, raise hand at the plaza, think, wander, crew rests), animated mascot
