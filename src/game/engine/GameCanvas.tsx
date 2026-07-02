@@ -4,12 +4,14 @@
 import type { ReactNode } from "react";
 import { Canvas } from "@react-three/fiber";
 import { ACESFilmicToneMapping, PCFShadowMap } from "three";
+import { useQuality, QUALITY } from "@/game/engine/quality";
 
 export function GameCanvas({ children }: { children: ReactNode }) {
+  const tier = useQuality((s) => s.tier);
   return (
     <Canvas
       shadows={{ type: PCFShadowMap }}
-      dpr={[1, 1.5]}
+      dpr={[1, QUALITY[tier].dprMax]}
       camera={{ position: [18, 20, 26], fov: 40, near: 0.5, far: 300 }}
       gl={{ toneMapping: ACESFilmicToneMapping, antialias: false }}
       fallback={null}

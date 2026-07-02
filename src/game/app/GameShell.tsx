@@ -1,24 +1,35 @@
-// Game shell (M0 T1): the campus world IS the screen. Lights + placeholder
-// atmosphere until the environment-driven shell (T10) takes over.
-import { Suspense } from "react";
-import { GameCameraRig } from "@/game/engine/camera/GameCameraRig";
-import type { RtsBounds } from "@/game/engine/camera/rts-camera";
+// Game shell (M0): environment-driven sky/fog/lights around the selected
+// World, RTS camera, quality-aware canvas. The HUD overlay lands in T12.
+import { Suspense, useEffect } from "react";
 import { GameCanvas } from "@/game/engine/GameCanvas";
-import { CampusWorld } from "@/game/world/campus/CampusWorld";
-
-const CAMERA_BOUNDS: RtsBounds = { half: 40, minDistance: 8, maxDistance: 60 };
+import { Lights } from "@/game/engine/Lights";
+import { GameCameraRig } from "@/game/engine/camera/GameCameraRig";
+import { preloadModels } from "@/game/assets/use-model";
+import { CAMPUS } from "@/game/world/campus/layout";
+import { environmentById } from "@/game/world/environments/registry";
+import { useGameEnvironment } from "@/game/world/environments/store";
+import { useQuality } from "@/game/engine/quality";
 
 export default function GameShell() {
+  const envId = useGameEnvironment((s) => s.id);
+  const env = environmentById(envId);
+
+  useEffect(() => {
+    void useGameEnvironment.getState().init();
+    void useQuality.getState().init();
+    preloadModels();
+  }, []);
+
   return (
     <div className="relative h-screen w-screen overflow-hidden" data-testid="game-shell">
       <GameCanvas>
-        <GameCameraRig bounds={CAMERA_BOUNDS} />
-        <color attach="background" args={["#bfe3f2"]} />
-        <ambientLight intensity={0.7} />
-        <directionalLight position={[20, 30, 10]} intensity={1.4} castShadow />
+        <color attach="background" args={[env.sky]} />
+        <fog attach="fog" args={[env.fog.color, env.fog.near, env.fog.far]} />
+        <Lights env={env} />
         <Suspense fallback={null}>
-          <CampusWorld />
+          <env.World />
         </Suspense>
+        <GameCameraRig bounds={{ half: CAMPUS.half, minDistance: 8, maxDistance: 60 }} />
       </GameCanvas>
     </div>
   );

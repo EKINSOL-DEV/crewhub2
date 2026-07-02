@@ -2,6 +2,8 @@
 // plaza props. Lights live in GameShell (per-environment rig), not here.
 import { useMemo } from "react";
 import type { ModelId } from "@/game/assets/manifest";
+import { CloudPuffs } from "@/game/world/CloudPuffs";
+import { Fountain } from "./Fountain";
 import { InstancedModel } from "./InstancedModel";
 import { Terrain } from "./Terrain";
 import { campusLayout, type ScatterKind } from "./layout";
@@ -26,6 +28,8 @@ export function CampusWorld() {
   return (
     <group>
       <Terrain />
+      <Fountain />
+      <CloudPuffs />
       <InstancedModel id="path-stone" placements={layout.pathTiles} />
       {(Object.keys(SCATTER_MODEL) as ScatterKind[]).map((kind) => (
         <InstancedModel key={kind} id={SCATTER_MODEL[kind]} placements={layout.scatter[kind]} />
