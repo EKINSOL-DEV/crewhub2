@@ -5,7 +5,7 @@
 // job already).
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import type { SessionMeta } from "@/ipc/bindings";
+import type { PermissionRequest, QuestionRequest, SessionMeta } from "@/ipc/bindings";
 import type { SessionTranscript } from "@/stores/transcripts";
 import type { SessionView } from "@/stores/sessions";
 
@@ -38,6 +38,7 @@ import { ChatWindow } from "./ChatWindow";
 function transcript(
   items: [number, { kind: string; data: Record<string, unknown> }][],
   order: number[],
+  pending: Partial<Pick<SessionTranscript, "pendingPermissions" | "pendingQuestions">> = {},
 ): SessionTranscript {
   return {
     items: new Map(items as never),
@@ -48,6 +49,7 @@ function transcript(
     pendingPermissions: [],
     pendingQuestions: [],
     receipts: [],
+    ...pending,
   };
 }
 
@@ -71,6 +73,21 @@ function meta(over: Partial<SessionMeta> = {}): SessionMeta {
 function view(over: Partial<SessionMeta> = {}): SessionView {
   return { key: "claude:s1", meta: meta(over), binding: null, agent: null, room: null, displayName: "Rex" };
 }
+
+const PENDING_PERMISSION: PermissionRequest = {
+  request_id: "r1",
+  tool: "Bash",
+  input_json: "{}",
+  suggestions: [],
+};
+
+const PENDING_QUESTION: QuestionRequest = {
+  request_id: "q1",
+  kind: "question",
+  text: "Pick one",
+  options: ["a", "b"],
+  multi_select: false,
+};
 
 const WINDOW_PROPS = {
   chatKey: "claude:s1",
@@ -161,5 +178,24 @@ describe("ChatWindow", () => {
     expect(onMinimize).toHaveBeenCalledWith(false);
     expect(onFocusChat).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("chat-window-input")).not.toBeInTheDocument();
+  });
+
+  it("wires pending permissions and questions into PermissionCard/QuestionCard", () => {
+    transcripts.sessions["claude:s1"] = transcript([], [], {
+      pendingPermissions: [PENDING_PERMISSION],
+      pendingQuestions: [PENDING_QUESTION],
+    });
+    render(<ChatWindow {...WINDOW_PROPS} />);
+    expect(screen.getByText("Bash")).toBeInTheDocument();
+    expect(screen.getByText("Pick one")).toBeInTheDocument();
+  });
+
+  it("shows the minimized chip's ping dot when prompts are pending", () => {
+    transcripts.sessions["claude:s1"] = transcript([], [], {
+      pendingPermissions: [PENDING_PERMISSION],
+      pendingQuestions: [PENDING_QUESTION],
+    });
+    render(<ChatWindow {...WINDOW_PROPS} minimized />);
+    expect(screen.getByTestId("chat-chip-ping")).toBeInTheDocument();
   });
 });
