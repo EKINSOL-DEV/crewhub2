@@ -2,6 +2,8 @@
 // World, RTS camera, quality-aware canvas. The HUD overlay lands in T12.
 import { Suspense, useEffect, useState } from "react";
 import { Characters } from "@/game/characters/Characters";
+import { ChatWindows } from "@/game/chat/ChatWindows";
+import { useGameChats } from "@/game/chat/store";
 import { GameCanvas } from "@/game/engine/GameCanvas";
 import { Lights } from "@/game/engine/Lights";
 import { GameCameraRig } from "@/game/engine/camera/GameCameraRig";
@@ -49,13 +51,22 @@ export default function GameShell() {
         </Suspense>
         {/* Own boundary: a suspending nameplate font must never hide the campus. */}
         <Suspense fallback={null}>
-          <Characters override={DEMO_CHARACTERS} onCount={setBotCount} />
+          <Characters
+            override={DEMO_CHARACTERS}
+            onCount={setBotCount}
+            onSelect={(k) => {
+              // "agent:" keys are resting crew with no session yet — clicking
+              // them opens the hire dialog once Task 5 lands; a no-op today.
+              if (!k.startsWith("agent:")) useGameChats.getState().open(k);
+            }}
+          />
         </Suspense>
         <GameCameraRig bounds={CAMERA_BOUNDS} />
         <Effects />
         <FpsProbe onSample={setFps} />
       </GameCanvas>
       <HudOverlay fps={fps} bots={botCount} />
+      <ChatWindows />
     </div>
   );
 }

@@ -4,7 +4,7 @@
 // status bulb) and writes it straight into three.js objects collected from
 // the actors — no per-frame React state, no per-frame allocation of note.
 import { Suspense, useEffect, useRef, useState, type MutableRefObject } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { Billboard, Text } from "@react-three/drei";
 import * as THREE from "three";
 import type { SessionStatus } from "@/ipc/bindings";
@@ -50,6 +50,7 @@ function CharacterActor({
   status,
   speechText,
   actorsRef,
+  onSelect,
 }: {
   botKey: string;
   x: number;
@@ -60,6 +61,7 @@ function CharacterActor({
   status: SessionStatus;
   speechText: string | undefined;
   actorsRef: MutableRefObject<Map<string, ActorRefs>>;
+  onSelect: ((key: string) => void) | undefined;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const handlesRef = useRef<RobotHandles | null>(null);
@@ -80,7 +82,15 @@ function CharacterActor({
   }, [botKey, actorsRef]);
 
   return (
-    <group ref={groupRef} position={[x, 0, z]} rotation={[0, facing, 0]}>
+    <group
+      ref={groupRef}
+      position={[x, 0, z]}
+      rotation={[0, facing, 0]}
+      onClick={(e: ThreeEvent<MouseEvent>) => {
+        e.stopPropagation();
+        onSelect?.(botKey);
+      }}
+    >
       <Robot color={color} bulbColor={BULB[status]} handles={handlesRef} />
       {/* drei's Text SUSPENDS on troika font preload — its own boundary so a
           slow/stalled font never hides the robot (or, via a shared boundary,
@@ -113,10 +123,13 @@ function CharacterActor({
 export function Characters({
   override,
   onCount,
+  onSelect,
 }: {
   override?: Character[] | undefined;
   /** Live bot-set size, refreshed alongside `version` — the HUD roster chip's feed. */
   onCount?: ((n: number) => void) | undefined;
+  /** Robot clicked — key is a session key ("provider:id") or "agent:<id>" for resting crew. */
+  onSelect?: ((key: string) => void) | undefined;
 }) {
   const { sim, version, infoRef } = useSim(override);
   const actorsRef = useRef<Map<string, ActorRefs>>(new Map());
@@ -182,6 +195,7 @@ export function Characters({
           status={info?.status ?? "Idle"}
           speechText={speech[key]?.text}
           actorsRef={actorsRef}
+          onSelect={onSelect}
         />
       ))}
     </group>

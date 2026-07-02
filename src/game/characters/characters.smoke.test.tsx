@@ -147,4 +147,27 @@ describe("Characters smoke", () => {
 
     await renderer.unmount();
   });
+
+  // M2 T3: robot click -> onSelect(botKey). @react-three/test-renderer has
+  // no real raycaster, but it does expose `fireEvent(instance, "click")`,
+  // which invokes whatever `onClick` prop it finds on the target instance —
+  // exactly CharacterActor's root <group>. Only that group carries an
+  // onClick (Robot's internal body/head/arm groups don't), so filtering on
+  // the prop isolates one instance per bot without needing a testid.
+  it("clicking a robot's root group calls onSelect with its key", async () => {
+    const onSelect = vi.fn();
+    const renderer = await ReactThreeTestRenderer.create(<Characters onSelect={onSelect} />);
+    await ReactThreeTestRenderer.act(async () => {
+      await renderer.advanceFrames(20, 0.1);
+    });
+
+    const clickable = renderer.scene.findAll((node) => typeof node.props.onClick === "function");
+    expect(clickable).toHaveLength(VIEWS.length);
+
+    await renderer.fireEvent(clickable[0]!, "click");
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(VIEWS.map((v) => v.key)).toContain(onSelect.mock.calls[0]?.[0]);
+
+    await renderer.unmount();
+  });
 });
