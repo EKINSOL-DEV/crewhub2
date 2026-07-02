@@ -1,6 +1,6 @@
 // Game shell (M0): environment-driven sky/fog/lights around the selected
 // World, RTS camera, quality-aware canvas. The HUD overlay lands in T12.
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { GameCanvas } from "@/game/engine/GameCanvas";
 import { Lights } from "@/game/engine/Lights";
 import { GameCameraRig } from "@/game/engine/camera/GameCameraRig";
@@ -10,8 +10,11 @@ import { CAMPUS } from "@/game/world/campus/layout";
 import { environmentById } from "@/game/world/environments/registry";
 import { useGameEnvironment } from "@/game/world/environments/store";
 import { useQuality } from "@/game/engine/quality";
+import { FpsProbe } from "@/game/hud/FpsProbe";
+import { HudOverlay } from "@/game/hud/HudOverlay";
 
 export default function GameShell() {
+  const [fps, setFps] = useState(0);
   const envId = useGameEnvironment((s) => s.id);
   const env = environmentById(envId);
 
@@ -32,7 +35,9 @@ export default function GameShell() {
         </Suspense>
         <GameCameraRig bounds={{ half: CAMPUS.half, minDistance: 8, maxDistance: 60 }} />
         <Effects />
+        <FpsProbe onSample={setFps} />
       </GameCanvas>
+      <HudOverlay fps={fps} />
     </div>
   );
 }
