@@ -95,7 +95,14 @@ function CharacterActor({
   );
 }
 
-export function Characters({ override }: { override?: Character[] }) {
+export function Characters({
+  override,
+  onCount,
+}: {
+  override?: Character[] | undefined;
+  /** Live bot-set size, refreshed alongside `version` — the HUD roster chip's feed. */
+  onCount?: ((n: number) => void) | undefined;
+}) {
   const { sim, version, infoRef } = useSim(override);
   const actorsRef = useRef<Map<string, ActorRefs>>(new Map());
 
@@ -134,16 +141,16 @@ export function Characters({ override }: { override?: Character[] }) {
     { key: string; x: number; z: number; facing: number; info: CharacterInfo | undefined }[]
   >([]);
   useEffect(() => {
-    setBots(
-      Array.from(sim.world.bots.entries()).map(([key, bot]) => ({
-        key,
-        x: bot.x,
-        z: bot.z,
-        facing: bot.facing,
-        info: infoRef.current.get(key),
-      })),
-    );
-  }, [sim, version, infoRef]);
+    const next = Array.from(sim.world.bots.entries()).map(([key, bot]) => ({
+      key,
+      x: bot.x,
+      z: bot.z,
+      facing: bot.facing,
+      info: infoRef.current.get(key),
+    }));
+    setBots(next);
+    onCount?.(next.length);
+  }, [sim, version, infoRef, onCount]);
 
   return (
     <group>
