@@ -31,12 +31,11 @@ export function campusBuildings(plots: Rect[]): Building[] {
       { id: `desk-${plotIndex}-2`, x: rect.x - dx, z: rect.z + dz, rot: 0, plotIndex },
       { id: `desk-${plotIndex}-3`, x: rect.x + dx, z: rect.z + dz, rot: 0, plotIndex },
     ];
-    // Door: middle of the edge nearest the origin (plots sit on diagonals,
-    // so pick the shorter-|coordinate| axis edge toward the center).
-    const door =
-      Math.abs(rect.x) > Math.abs(rect.z)
-        ? { x: rect.x - Math.sign(rect.x) * (rect.w / 2), z: rect.z }
-        : { x: rect.x, z: rect.z - Math.sign(rect.z) * (rect.d / 2) };
+    // Door: middle of the edge nearest the origin. Compute both candidate
+    // edge midpoints and pick the one with the smaller distance to origin.
+    const xEdge = { x: rect.x - Math.sign(rect.x) * (rect.w / 2), z: rect.z };
+    const zEdge = { x: rect.x, z: rect.z - Math.sign(rect.z) * (rect.d / 2) };
+    const door = Math.hypot(xEdge.x, xEdge.z) <= Math.hypot(zEdge.x, zEdge.z) ? xEdge : zEdge;
     return { plotIndex, rect, desks, door };
   });
 }

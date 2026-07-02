@@ -23,6 +23,15 @@ describe("campusBuildings", () => {
     for (const b of buildings) {
       // Door is strictly closer to the origin than the plot center.
       expect(Math.hypot(b.door.x, b.door.z)).toBeLessThan(Math.hypot(b.rect.x, b.rect.z));
+      // Door is the nearer of the two candidate edge midpoints.
+      const xEdge = { x: b.rect.x - Math.sign(b.rect.x) * (b.rect.w / 2), z: b.rect.z };
+      const zEdge = { x: b.rect.x, z: b.rect.z - Math.sign(b.rect.z) * (b.rect.d / 2) };
+      const doorDist = Math.hypot(b.door.x, b.door.z);
+      const otherEdgeDist =
+        doorDist === Math.hypot(xEdge.x, xEdge.z)
+          ? Math.hypot(zEdge.x, zEdge.z)
+          : Math.hypot(xEdge.x, xEdge.z);
+      expect(doorDist).toBeLessThanOrEqual(otherEdgeDist);
     }
   });
 });
