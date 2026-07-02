@@ -47,7 +47,8 @@ Rationale vs. "two threads per character": LLM-driven movement would be slow, ex
 - **Unification:** toon shading (3-step gradient) + **ink outline post-process**, soft shadows, SSAO, ACES tone mapping, optional subtle tilt-shift.
 - **Palette:** locked saturated pastels (Two Point greens/creams/coral roofs).
 - **Camera:** game camera — pan/rotate/zoom with limits, edge scrolling, smooth focus-on-character.
-- **Environment:** an open campus — grass quad, paths, trees, fountain. Buildings on plots; existing room entities live inside buildings with **cutaway walls** facing the camera.
+- **Environments (multiple, v1-style):** the world supports selectable environments, like v1's biomes. An environment owns everything _around_ the buildings — terrain, skybox, lighting rig, fog, decor set (trees vs. cacti vs. palms vs. clouds), and palette accents. Buildings, rooms, furniture, and robots are identical across environments. **Campus** (grass quad, paths, trees, fountain) ships first; **Desert** 🏜️ (v1's beloved default), **Island** 🏝️, and **Sky** ✨ follow in M4. Registry-driven (`game/world/environments/`), persisted via the existing `world.environment` settings key, switchable from the HUD.
+- **Buildings & rooms:** buildings on plots; existing room entities live inside buildings with **cutaway walls** facing the camera — unchanged regardless of environment.
 - **Sound:** CC0 UI pops, footsteps, ambient birdsong.
 - **Diegetic UI:** click a robot → chunky game-styled dialog (transcript + composer + permission/question cards as "the robot asks you"). Short replies double as speech bubbles. HUD = game bar: roster with status portraits, build button, day/night, notifications.
 - **Build mode (Two Point core loop):** grid overlay → drag room footprint onto a plot → place furniture from a kit palette → characters use what you place.
@@ -60,7 +61,8 @@ src/game/
   assets/      manifest + glTF pipeline (draco/meshopt); binaries in public/assets/
   sim/         PURE TS, three.js-free: character state machines, pathfinding,
                desk assignment, day cycle — fully unit-tested
-  world/       campus scene, terrain, buildings, cutaway rooms
+  world/       environment registry (campus/desert/island/sky), terrain,
+               buildings, cutaway rooms
   characters/  robot models, animation controller, expressions, bubbles
   build/       build mode: room + furniture placement, grid editor
   chat/        diegetic chat window, composer, permission/question cards
@@ -79,13 +81,13 @@ During the rebuild, extract the spawn/model logic currently living in `WorldChat
 
 ## Milestones
 
-| #   | Milestone                                                                                                     | Exit criteria                                         |
-| --- | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| M0  | **Gorgeous empty campus** — asset pipeline, toon+outline renderer, terrain, trees, game camera, quality tiers | Fly around an empty campus; it already looks stunning |
-| M1  | **Robots alive** — rigged robots, sim loop, status→behavior from live sessions                                | Real Claude Code threads walk around as robots        |
-| M2  | **Talk to them** — diegetic chat, bubbles, permission cards, hire/link/adopt flow, voice-model picker         | Full conversations without leaving the game idiom     |
-| M3  | **Build it** — build mode, rooms, furniture, persistence, characters use furniture                            | Lay out your own campus                               |
-| M4  | **It breathes** — Haiku flavor bubbles, day/night, sound, "new campus" onboarding, remove 2D workspace/panels | Feels like a game you want to leave open              |
+| #   | Milestone                                                                                                                                                    | Exit criteria                                         |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------- |
+| M0  | **Gorgeous empty campus** — asset pipeline, toon+outline renderer, environment system (registry; Campus env), terrain, trees, game camera, quality tiers     | Fly around an empty campus; it already looks stunning |
+| M1  | **Robots alive** — rigged robots, sim loop, status→behavior from live sessions                                                                               | Real Claude Code threads walk around as robots        |
+| M2  | **Talk to them** — diegetic chat, bubbles, permission cards, hire/link/adopt flow, voice-model picker                                                        | Full conversations without leaving the game idiom     |
+| M3  | **Build it** — build mode, rooms, furniture, persistence, characters use furniture                                                                           | Lay out your own campus                               |
+| M4  | **It breathes** — Haiku flavor bubbles, day/night, sound, Desert/Island/Sky environments + HUD switcher, "new campus" onboarding, remove 2D workspace/panels | Feels like a game you want to leave open              |
 
 M0+M1 are the proof point before any build-mode investment. Each milestone gets its own implementation plan (superpowers:writing-plans) when picked up.
 
