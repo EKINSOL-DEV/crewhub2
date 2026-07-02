@@ -13,7 +13,7 @@ export function Fountain() {
   });
   return (
     <group>
-      <primitive object={model} scale={4} />
+      <primitive object={model} scale={3} />
       <mesh ref={water} position-y={0.55} rotation-x={-Math.PI / 2}>
         <circleGeometry args={[1.7, 24]} />
         <meshToonMaterial color="#7fd4f2" transparent opacity={0.85} />

@@ -72,13 +72,17 @@ export function campusLayout(): CampusLayout {
   const rand = rng(SEED);
   const { half, plazaRadius } = CAMPUS;
 
-  // Path arms: stone tiles every 2 units from the plaza edge to the border.
+  // Path arms: the solid path silhouette comes from Terrain's cream strips
+  // (M0 visual pass); these stone tiles scatter on top as accents, rotated
+  // deterministically so the pattern never visibly repeats.
   const pathTiles: Placement[] = [];
-  for (let d = plazaRadius + 1; d <= half - 2; d += 2) {
-    pathTiles.push({ x: d, z: 0, rot: 0, scale: 2 });
-    pathTiles.push({ x: -d, z: 0, rot: 0, scale: 2 });
-    pathTiles.push({ x: 0, z: d, rot: Math.PI / 2, scale: 2 });
-    pathTiles.push({ x: 0, z: -d, rot: Math.PI / 2, scale: 2 });
+  let armIdx = 0;
+  for (let d = plazaRadius + 1.5; d <= half - 2; d += 2.6) {
+    const rot = ((armIdx++ % 4) * Math.PI) / 2 + d * 0.7;
+    pathTiles.push({ x: d, z: 0, rot, scale: 1.8 });
+    pathTiles.push({ x: -d, z: 0, rot: rot + Math.PI / 2, scale: 1.8 });
+    pathTiles.push({ x: 0, z: d, rot: rot + Math.PI, scale: 1.8 });
+    pathTiles.push({ x: 0, z: -d, rot: rot - Math.PI / 2, scale: 1.8 });
   }
   // Plaza ring: tiles laid tangentially around the fountain.
   const RING = 16;
@@ -147,7 +151,7 @@ export function campusLayout(): CampusLayout {
   // Benches on the plaza diagonals, rotated to face the fountain.
   const bench: Placement[] = [45, 135, 225, 315].map((deg) => {
     const a = (deg / 180) * Math.PI;
-    const r = plazaRadius - 2.6;
+    const r = plazaRadius - 1.6; // outside the fountain plinth, on the plaza plate
     return { x: Math.sin(a) * r, z: Math.cos(a) * r, rot: a + Math.PI, scale: 1.3 };
   });
 

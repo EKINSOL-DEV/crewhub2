@@ -52,12 +52,13 @@ describe("CampusWorld smoke", () => {
       layout.pathTiles.length +
       Object.values(layout.scatter).reduce((n, arr) => n + arr.length, 0) +
       Object.values(layout.props).reduce((n, arr) => n + arr.length, 0);
-    // 2 terrain planes + one stamped mesh per placement (see Merged stub above)
-    // + Fountain (1 mocked-model mesh + 1 water disc) + CloudPuffs (7 puffs *
-    // 3 spheres each).
+    // 5 terrain meshes (apron + grass + 2 path strips + plaza plate) + one
+    // stamped mesh per placement (see Merged stub above) + Fountain (1
+    // mocked-model mesh + 1 water disc) + CloudPuffs (7 puffs * 3 spheres).
+    const TERRAIN_MESHES = 5;
     const FOUNTAIN_MESHES = 2;
     const CLOUD_MESHES = 7 * 3;
-    expect(meshes.length).toBe(totalPlacements + 2 + FOUNTAIN_MESHES + CLOUD_MESHES);
+    expect(meshes.length).toBe(totalPlacements + TERRAIN_MESHES + FOUNTAIN_MESHES + CLOUD_MESHES);
     await renderer.unmount();
   });
 });
