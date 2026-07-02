@@ -5,6 +5,11 @@ import { leaves } from "../app/layout-tree";
 import { resetPaletteForTests, usePalette, WINK_HINTS } from "../stores/palette";
 import { resetWorkspaceForTests, useWorkspace } from "../stores/workspace";
 
+// EKI-121: deep links adopt workspace leaves only in `?window=` routes — this
+// suite exercises that classic path (the main window opens overlays instead).
+beforeEach(() => window.history.replaceState(null, "", "/?window=workspace"));
+afterEach(() => window.history.replaceState(null, "", "/"));
+
 beforeEach(async () => {
   resetWorkspaceForTests();
   resetPaletteForTests();

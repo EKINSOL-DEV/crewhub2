@@ -18,6 +18,10 @@ How releases consume this file (M6, EKI-98/EKI-100):
 
 ### Added
 
+- M0 "Gorgeous empty campus" — new game frontend behind `?game` (EKI-124): CC0 asset pipeline
+  (Kenney Nature + Fantasy Town kits, meshopt-optimized), toon + ink-outline rendering with N8AO
+  and vignette, RTS game camera with edge scrolling, environment system with Campus as the first
+  environment, quality tiers (low/medium/high), plaza with animated fountain, drifting clouds
 - First-run environment detection (Claude CLI probe, recent-project scan) and sample crew (EKI-86, EKI-88)
 - Hooks bridge live end-to-end: signal sidecar bundled, install preview + byte-identical uninstall (EKI-86)
 - OS notification sink, five new notification triggers, tray icon + pending-permission dock badge (EKI-92, EKI-94)

@@ -30,6 +30,8 @@ export interface WorldBot {
   isSubagent: boolean;
   /** Set for crew bots resting at HQ — there is no session behind them. */
   agentId: string | null;
+  /** Session model (or the agent's default) — side-panel garnish. */
+  model?: string | null;
 }
 
 export interface WorldBotsOpts {
@@ -118,6 +120,7 @@ export function toWorldBots(views: SessionView[], opts: WorldBotsOpts = {}): Wor
       parentKey: parent ? parentKey : null,
       isSubagent,
       agentId: null,
+      model: v.meta.model,
     };
   });
 
@@ -136,6 +139,7 @@ export function toWorldBots(views: SessionView[], opts: WorldBotsOpts = {}): Wor
       parentKey: null,
       isSubagent: false,
       agentId: a.id,
+      model: a.default_model,
     }));
 
   return [...sessionBots, ...restingBots];

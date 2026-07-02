@@ -1,22 +1,22 @@
-// The primary view (world-primary shell): the ONE 3D world, fullscreen, no
-// panel chrome and no tabs. The workspace is a place you VISIT (⌘2 or the
-// 🧰 button) — deep links from world interactions switch over automatically
-// and ⌘1 is the one-keystroke way back.
+// The app (EKI-121, game-HUD shell): the ONE 3D world, fullscreen — and a
+// management-game HUD painted over it. Status strip up top, a dock of chunky
+// emoji buttons along the bottom, and every panel as a drawer over the world
+// (WorldOverlayHost). There is no workspace to visit; panels in their own
+// window (`?window=workspace`) stay available for second monitors.
 //
 // The world internals are untouched: this reuses WorldPanel (lazy, so three.js
 // still only loads when the world actually renders — i.e. not in the
-// `?window=` routes). Palette, dialogs and toasts mount here too, because the
-// views are mutually exclusive — exactly one of WorldView/WorkspaceShell owns
-// the "shell" action source at a time.
+// `?window=` routes).
 import { lazy, Suspense, useEffect } from "react";
 import { Settings } from "lucide-react";
 import { ToastCenter } from "@/components/ToastCenter";
-import { commands } from "@/ipc/bindings";
-import { useAppView } from "@/stores/appView";
 import { usePalette } from "@/stores/palette";
 import { CommandPalette } from "./CommandPalette";
-import { buildShellActions } from "./palette-actions";
+import { DOCK, WorldDock, WorldHudStrip } from "./GameHud";
+import { useOverlays } from "./overlays";
+import { openPanel, buildShellActions } from "./palette-actions";
 import { ShellDialogs } from "./ShellDialogs";
+import { WorldOverlayHost } from "./WorldOverlayHost";
 
 const WorldPanel = lazy(() => import("@/panels/world/WorldPanel"));
 
@@ -28,13 +28,23 @@ export function WorldView() {
     return unregister;
   }, []);
 
-  // ⌘K must work in BOTH views; the world has no shell keymap, so it brings
-  // its own tiny listener. Everything else (F/E/etc.) stays inside WorldPanel.
+  // The world has no shell keymap, so the HUD brings its own tiny listener:
+  // ⌘K = palette, plain digits 1-8 toggle the dock panels (game-style),
+  // never inside inputs. Everything else (F/E/etc.) stays inside WorldPanel.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "k") {
         e.preventDefault();
         usePalette.getState().toggle();
+        return;
+      }
+      if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
+      const slot = Number.parseInt(e.key, 10) - 1;
+      if (Number.isInteger(slot) && slot >= 0 && slot < DOCK.length) {
+        e.preventDefault();
+        useOverlays.getState().toggle(DOCK[slot]!);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -56,32 +66,25 @@ export function WorldView() {
         <WorldPanel />
       </Suspense>
 
-      {/* Minimal floating cluster — the only chrome the primary view gets. */}
-      <div className="absolute right-3 top-3 z-20 flex items-center gap-1.5">
-        <button
-          type="button"
-          data-testid="to-workspace"
-          title="Workspace (⌘2) — ⇧click: open in a new window"
-          onClick={(e) => {
-            // ⇧click: panels in their own window, the world keeps the stage.
-            if (e.shiftKey) void commands.openWorkspaceWindow().catch(() => undefined);
-            else useAppView.getState().setView("workspace");
-          }}
-          className="rounded-md bg-black/40 px-2.5 py-1 text-xs font-medium text-white/90 backdrop-blur-sm hover:bg-black/60"
-        >
-          🧰 Workspace
-        </button>
+      {/* Game HUD (EKI-121): status strip, dock, and the drawer host. */}
+      <WorldHudStrip />
+      <WorldDock />
+      {/* z-20: drawers (z-30) cover the gear — its close button must win
+          the corner. The dock keeps z-40 because panel-switching mid-drawer
+          is a feature; a second settings button is not. */}
+      <div className="absolute right-3 top-3 z-20">
         <button
           type="button"
           aria-label="Open settings"
           title="Settings"
-          onClick={() => void commands.openSettingsWindow().catch(() => undefined)}
-          className="rounded-md bg-black/40 p-1.5 text-white/90 backdrop-blur-sm hover:bg-black/60"
+          onClick={() => openPanel("settings")}
+          className="rounded-full border bg-card/85 p-2.5 text-foreground shadow-lg backdrop-blur transition-transform hover:scale-110"
         >
           <Settings size={14} />
         </button>
       </div>
 
+      <WorldOverlayHost />
       <CommandPalette />
       <ShellDialogs />
       <ToastCenter />

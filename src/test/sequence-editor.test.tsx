@@ -11,6 +11,11 @@ import { useToasts } from "@/stores/toasts";
 import { resetWorkspaceForTests } from "@/stores/workspace";
 import { chatLeaves, seedWorkspace } from "./fixtures";
 
+// EKI-121: deep links adopt workspace leaves only in `?window=` routes — this
+// suite exercises that classic path (the main window opens overlays instead).
+beforeEach(() => window.history.replaceState(null, "", "/?window=workspace"));
+afterEach(() => window.history.replaceState(null, "", "/"));
+
 const noop = () => {};
 
 function run(overrides: Partial<Run> & { id: string }): Run {

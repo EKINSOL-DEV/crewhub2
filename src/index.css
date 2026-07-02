@@ -147,3 +147,17 @@
     animation: none;
   }
 }
+
+/* Game-HUD drawers (EKI-122): panels inherit a slightly rounder, softer look
+   inside the world drawer without touching their own markup. */
+.world-drawer :is(.rounded, .rounded-md, .rounded-lg) {
+  border-radius: 0.85rem;
+}
+.world-drawer button {
+  transition:
+    transform 120ms ease,
+    background-color 120ms ease;
+}
+.world-drawer button:active {
+  transform: scale(0.97);
+}

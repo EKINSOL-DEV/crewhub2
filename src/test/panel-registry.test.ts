@@ -38,10 +38,10 @@ test("world-primary: the world kind survives for persisted layouts but hides fro
   expect(PANEL_KINDS).toContain("world"); // old layout trees still parse
 });
 
-test("world-primary: palette offers view switches instead of a world panel", () => {
+test("game-HUD shell (EKI-121): no view switches, no world panel — drawers instead", () => {
   const ids = buildShellActions().map((a) => a.id);
   expect(ids).not.toContain("panel.open.world");
-  expect(ids).toContain("view.world");
-  expect(ids).toContain("view.workspace");
-  expect(ids).toContain("workspace.open-window"); // panels in their own window
+  expect(ids).not.toContain("view.world"); // there is nowhere else to go
+  expect(ids).not.toContain("view.workspace");
+  expect(ids).toContain("workspace.open-window"); // panel grid in its own window
 });

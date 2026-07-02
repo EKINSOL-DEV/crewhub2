@@ -10,6 +10,11 @@ import { ChatPanel } from "@/panels/chat";
 import { CheckpointMarker } from "@/panels/chat/items/Rows";
 import { chatLeaves, seedWorkspace } from "./fixtures";
 
+// EKI-121: deep links adopt workspace leaves only in `?window=` routes — this
+// suite exercises that classic path (the main window opens overlays instead).
+beforeEach(() => window.history.replaceState(null, "", "/?window=workspace"));
+afterEach(() => window.history.replaceState(null, "", "/"));
+
 const KEY = sessionKey(TEST_SID);
 
 beforeEach(() => {

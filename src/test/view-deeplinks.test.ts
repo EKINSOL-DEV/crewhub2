@@ -1,52 +1,65 @@
-// World-primary shell: deep links out of the world (bot-click chat, wall-click
-// board, room-card / git-strip diff, palette "open panel") must land the user
-// in the workspace view — adoption itself is covered by the open-* suites.
+// Game-HUD shell (EKI-121): deep links out of the world (bot-click chat,
+// wall-click board, git-strip diff, palette "open panel") open a drawer OVER
+// the world — never a view switch. The classic workspace-tree adoption only
+// applies in `?window=` routes (covered by the open-chat suite).
 import { openChatPanel } from "@/app/open-chat";
+import { useOverlays } from "@/app/overlays";
 import { openPanel } from "@/app/palette-actions";
 import { openAutomationPanel } from "@/panels/automation/open-automation";
 import { openBoardPanel } from "@/panels/board/open-board";
 import { openDiffPanel } from "@/panels/diff/open-diff";
-import { resetAppViewForTests, useAppView } from "@/stores/appView";
 import { resetWorkspaceForTests } from "@/stores/workspace";
 import { seedWorkspace } from "./fixtures";
 
-beforeEach(() => {
-  seedWorkspace();
-  resetAppViewForTests(); // boot state: the world
+beforeEach(() => useOverlays.setState({ overlay: null }));
+afterEach(() => useOverlays.setState({ overlay: null }));
+
+test("bot-click chat: openChatPanel opens the chat drawer on the session", () => {
+  openChatPanel({ provider: "claude-code", id: "s-1", seq: 7 });
+  expect(useOverlays.getState().overlay).toMatchObject({
+    kind: "chat",
+    params: { sessionId: "claude-code:s-1", seq: "7" },
+  });
 });
 
-afterEach(() => {
-  resetWorkspaceForTests();
-  resetAppViewForTests();
-});
-
-test("bot-click chat: openChatPanel switches the view to workspace", () => {
-  openChatPanel({ provider: "claude-code", id: "s-1" });
-  expect(useAppView.getState().view).toBe("workspace");
-});
-
-test("wall-click board: openBoardPanel switches the view to workspace", () => {
+test("wall-click board: openBoardPanel opens the board drawer with its scope", () => {
   openBoardPanel({ room: "room-1", hq: "" });
-  expect(useAppView.getState().view).toBe("workspace");
+  expect(useOverlays.getState().overlay).toMatchObject({ kind: "board", params: { room: "room-1" } });
 });
 
-test("openDiffPanel switches the view to workspace", () => {
-  openDiffPanel("/work/proj");
-  expect(useAppView.getState().view).toBe("workspace");
+test("openDiffPanel opens the diff drawer on the project", () => {
+  openDiffPanel("/work/proj", "main");
+  expect(useOverlays.getState().overlay).toMatchObject({
+    kind: "diff",
+    params: { projectPath: "/work/proj", base: "main" },
+  });
 });
 
-test("openAutomationPanel switches the view to workspace", () => {
+test("openAutomationPanel opens the automation drawer", () => {
   openAutomationPanel({ create: "1" });
-  expect(useAppView.getState().view).toBe("workspace");
+  expect(useOverlays.getState().overlay).toMatchObject({ kind: "automation", params: { create: "1" } });
 });
 
-test("palette openPanel switches the view to workspace", () => {
+test("palette openPanel opens any panel as a drawer", () => {
   openPanel("sessions");
-  expect(useAppView.getState().view).toBe("workspace");
+  expect(useOverlays.getState().overlay).toMatchObject({ kind: "sessions" });
 });
 
-test("no workspace loaded → deep link stays a silent no-op and the world keeps the stage", () => {
-  resetWorkspaceForTests(); // tabs gone
-  expect(() => openChatPanel({ provider: "claude-code", id: "s-1" })).not.toThrow();
-  expect(useAppView.getState().view).toBe("world");
+test("toggle closes an already-open panel (the dock buttons)", () => {
+  useOverlays.getState().toggle("crew");
+  expect(useOverlays.getState().overlay?.kind).toBe("crew");
+  useOverlays.getState().toggle("crew");
+  expect(useOverlays.getState().overlay).toBeNull();
+});
+
+test("`?window=` routes keep the classic workspace adoption instead", () => {
+  window.history.replaceState(null, "", "/?window=workspace");
+  try {
+    seedWorkspace();
+    openChatPanel({ provider: "claude-code", id: "s-1" });
+    expect(useOverlays.getState().overlay).toBeNull(); // no drawer in the grid window
+  } finally {
+    window.history.replaceState(null, "", "/");
+    resetWorkspaceForTests();
+  }
 });

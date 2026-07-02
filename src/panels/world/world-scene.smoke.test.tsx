@@ -20,6 +20,7 @@ vi.mock("@react-three/drei", async (importOriginal) => {
   };
 });
 import type { Room, Task } from "@/ipc/bindings";
+import { ENVIRONMENTS } from "./environments/registry";
 import type { WorldBot } from "./lib/bots";
 import { layoutWorld } from "./lib/layout";
 import { summarizeWall, wallScopeFor } from "./lib/taskwall";
@@ -64,15 +65,28 @@ describe("WorldScene smoke", () => {
         reducedMotion={true}
       />,
     );
-    // ground + capsule bodies + eyes/smiles/antennae + glow rings…
+    // ground + boxy robot bodies + faces/feet/antennae + glow rings…
     const meshes = renderer.scene.findAllByType("Mesh");
     expect(meshes.length).toBeGreaterThan(10);
-    // …and the bot capsules carry their soft colors.
+    // …and each robot mounts its pair of stubby capsule arms (EKI-113).
     const capsules = meshes.filter(
       (m) => (m.instance as unknown as { geometry: { type: string } }).geometry?.type === "CapsuleGeometry",
     );
-    expect(capsules).toHaveLength(2);
+    expect(capsules).toHaveLength(4);
     await renderer.unmount();
+  });
+
+  it("mounts the scene in every environment, decor and all (EKI-111)", async () => {
+    const world = layoutWorld([room]);
+    for (const env of ENVIRONMENTS) {
+      const renderer = await ReactThreeTestRenderer.create(
+        <WorldScene world={world} bots={[bot("a")]} reducedMotion={true} environment={env} />,
+      );
+      const meshes = renderer.scene.findAllByType("Mesh");
+      // Biomes add decor on top of the bare scene; `theme` stays bare.
+      expect(meshes.length, env.id).toBeGreaterThan(env.Decor ? 12 : 8);
+      await renderer.unmount();
+    }
   });
 
   it("mounts a clickable task wall per room and routes its click (EKI-75)", async () => {

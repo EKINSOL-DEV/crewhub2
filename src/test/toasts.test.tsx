@@ -12,6 +12,11 @@ import { focusBoardAtTask, matchRules, mentionedAgents, toastCopy, useToasts } f
 import { useWorkspace } from "@/stores/workspace";
 import { agent, notificationRule, seedWorkspace, sid, task } from "./fixtures";
 
+// EKI-121: deep links adopt workspace leaves only in `?window=` routes — this
+// suite exercises that classic path (the main window opens overlays instead).
+beforeEach(() => window.history.replaceState(null, "", "/?window=workspace"));
+afterEach(() => window.history.replaceState(null, "", "/"));
+
 function mockMatchMedia(reduced: boolean) {
   window.matchMedia = ((query: string) => ({
     matches: reduced && query.includes("prefers-reduced-motion"),

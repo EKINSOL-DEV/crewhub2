@@ -3,15 +3,19 @@
 // frameloop hard-pauses while the panel is occluded or the window is hidden.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas } from "@react-three/fiber";
-import { ACESFilmicToneMapping } from "three";
+import { ACESFilmicToneMapping, PCFShadowMap } from "three";
 import { Button } from "@/components/ui/button";
 import { usePrefersReducedMotion } from "@/components/use-reduced-motion";
 import { openBoardPanel } from "@/panels/board/open-board";
 import { useAgentsStore } from "@/stores/agents";
 import { useBindingsStore } from "@/stores/bindings";
+import { useProjectsStore } from "@/stores/projects";
 import { useSessionsStore, useSessionsView } from "@/stores/sessions";
 import { useTasksStore } from "@/stores/tasks";
-import { CameraRig, type CameraMode } from "./CameraRig";
+import { CameraRig, type CameraFocus, type CameraMode } from "./CameraRig";
+import { environmentById, nextEnvironmentId } from "./environments/registry";
+import { useEnvironmentStore } from "./environments/store";
+import { applyEnvironment, applyNight } from "./environments/types";
 import { toWorldBots, type WorldBot } from "./lib/bots";
 import { LOBBY_ID, ROOM_SIZE, layoutWorld, type WorldZone } from "./lib/layout";
 import { attachContextGuard, probeWebgl } from "./lib/webgl-guard";
@@ -25,7 +29,9 @@ import { useWorldProps } from "./props/store";
 import { summarizeWall, wallScopeFor, type WallSummary } from "./lib/taskwall";
 import { BotActionsCard, CrewRestCard, RoomInfoCard } from "./overlays";
 import { useSpeechBubbles } from "./use-speech-bubbles";
+import { useWorldChats } from "./use-world-chats";
 import { useWorldTheme } from "./use-world-theme";
+import { WorldChatWindow } from "./WorldChatWindow";
 import { useWorldVisibility } from "./use-world-visibility";
 import { FpsProbe, WorldHudOverlay, worldDebugEnabled } from "./WorldHud";
 import { WorldScene } from "./WorldScene";
@@ -48,7 +54,19 @@ export default function WorldPanel() {
     void useAgentsStore.getState().init();
     void useTasksStore.getState().init();
     void useCustomProps.getState().init();
+    void useEnvironmentStore.getState().init();
+    void useProjectsStore.getState().load();
   }, []);
+
+  // Environment (EKI-111): biome colors override the theme palette; the
+  // `theme` environment keeps the pure theme-derived look.
+  const envId = useEnvironmentStore((s) => s.id);
+  const night = useEnvironmentStore((s) => s.night);
+  const environment = useMemo(() => {
+    const env = environmentById(envId);
+    return night ? applyNight(env) : env;
+  }, [envId, night]);
+  const worldPalette = useMemo(() => applyEnvironment(palette, environment), [palette, environment]);
 
   const rooms = useBindingsStore((s) => s.rooms);
   const views = useSessionsView();
@@ -89,6 +107,11 @@ export default function WorldPanel() {
   }, [tasksById, world]);
 
   const [selection, setSelection] = useState<Selection>(null);
+  // Floating chats (EKI-118/119): independent of the selection, several at
+  // once messenger-style, held in a module store so open conversations
+  // survive view switches and panel remounts.
+  const chats = useWorldChats((s) => s.chats);
+  const openChat = useWorldChats((s) => s.open);
   const [importZoneId, setImportZoneId] = useState<string | null>(null);
   const [creatorZoneId, setCreatorZoneId] = useState<string | null>(null);
   const [cameraMode, setCameraMode] = useState<CameraMode>("orbit");
@@ -105,6 +128,24 @@ export default function WorldPanel() {
   const [webglFailed, setWebglFailed] = useState(() => !probeWebgl());
   const activeCanvas = useRef<HTMLCanvasElement | null>(null);
   const detachGuard = useRef<(() => void) | null>(null);
+  // Self-revival (EKI-120): a verified persistent loss first gets automatic
+  // remounts (fresh canvas element → fresh context) before the "wake the
+  // world" card ever appears — nobody should click that on a normal launch.
+  const [canvasEpoch, setCanvasEpoch] = useState(0);
+  const revives = useRef(0);
+  const handleVerdict = (failed: boolean) => {
+    if (!failed) {
+      setWebglFailed(false);
+      revives.current = 0;
+      return;
+    }
+    if (revives.current < 2) {
+      revives.current += 1;
+      setCanvasEpoch((e) => e + 1);
+    } else {
+      setWebglFailed(true);
+    }
+  };
   const debug = useMemo(() => worldDebugEnabled(), []);
   const [fps, setFps] = useState(0);
 
@@ -119,6 +160,17 @@ export default function WorldPanel() {
   const creatorZone: WorldZone | null = creatorZoneId
     ? (world.rooms.find((z) => z.id === creatorZoneId) ?? null)
     : null;
+
+  // Camera focus (EKI-116): a selected room frames it; a selected bot is
+  // followed while it wanders. The lobby is wide — frame on its long edge.
+  const cameraFocus = useMemo<CameraFocus | null>(() => {
+    if (selection?.kind === "bot") return { kind: "bot", key: selection.key };
+    if (selection?.kind === "zone") {
+      const z = world.rooms.find((r) => r.id === selection.id);
+      return z ? { kind: "zone", center: z.center, size: Math.max(z.size, z.width * 0.55) } : null;
+    }
+    return null;
+  }, [selection, world]);
 
   // Creator mode (EKI-83): remember the dreamed definition, drop an instance
   // at the room center, and flip into edit mode so it can be nudged into place.
@@ -218,7 +270,16 @@ export default function WorldPanel() {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm text-muted-foreground">
         <p>🌍 The world lost its WebGL spark — it appears to be unavailable here.</p>
-        <Button size="xs" variant="outline" onClick={() => setWebglFailed(false)}>
+        <Button
+          size="xs"
+          variant="outline"
+          onClick={() => {
+            // Fresh start: new canvas element, new revive budget.
+            revives.current = 0;
+            setCanvasEpoch((e) => e + 1);
+            setWebglFailed(false);
+          }}
+        >
           ✨ Wake the world again
         </Button>
       </div>
@@ -246,30 +307,51 @@ export default function WorldPanel() {
           return;
         }
         if (handleEditKey(e.key)) e.preventDefault();
+        // Esc outside edit mode: deselect → the camera flies back to overview.
+        if (!editMode && e.key === "Escape" && selection) {
+          setSelection(null);
+          e.preventDefault();
+        }
       }}
     >
       <Canvas
+        key={canvasEpoch}
         frameloop={frameloop}
         dpr={[1, 1.75]}
+        // PCFSoft is deprecated in this three release — plain PCF, no warning.
+        shadows={{ type: PCFShadowMap }}
         camera={{ position: [0, 16, 22], fov: 45 }}
         // ACES filmic output (Epic 20) — soft highlights, grounded colors.
         gl={{ toneMapping: ACESFilmicToneMapping }}
         onCreated={({ gl }) => {
           activeCanvas.current = gl.domElement;
           setWebglFailed(false);
+          // StrictMode's twin disposal force-loses the context the second
+          // renderer INHERITS (same canvas → same context object), so every
+          // dev launch died into the wake card (EKI-120). A loseContext()-
+          // style loss is restorable — ask the browser to bring it back;
+          // three reinitializes on `webglcontextrestored`.
+          const ctx = gl.getContext();
+          if (ctx.isContextLost()) {
+            try {
+              ctx.getExtension("WEBGL_lose_context")?.restoreContext();
+            } catch {
+              // not restorable this way — the guard + revive path takes over
+            }
+          }
           detachGuard.current?.();
           detachGuard.current = attachContextGuard({
             canvas: gl.domElement,
             isActive: () => activeCanvas.current === gl.domElement,
             isLost: () => gl.getContext().isContextLost(),
-            onVerdict: setWebglFailed,
+            onVerdict: handleVerdict,
           });
         }}
         onPointerMissed={() => setSelection(null)}
         fallback={null}
       >
-        <color attach="background" args={[palette.sky]} />
-        <fog attach="fog" args={[palette.fog, 45, 90]} />
+        <color attach="background" args={[worldPalette.sky]} />
+        <fog attach="fog" args={[worldPalette.fog, 45, 90]} />
         <WorldScene
           world={world}
           bots={bots}
@@ -278,7 +360,8 @@ export default function WorldPanel() {
           walls={walls}
           roomProps={roomProps}
           propsEdit={propsEdit}
-          palette={palette}
+          palette={worldPalette}
+          environment={environment}
           onBotClick={(bot) => setSelection({ kind: "bot", key: bot.key })}
           onZoneClick={(zone) => setSelection({ kind: "zone", id: zone.id })}
           onWallClick={(zone) =>
@@ -292,6 +375,8 @@ export default function WorldPanel() {
           bounds={world.bounds}
           onExitFp={() => setCameraMode("orbit")}
           orbitEnabled={!propDragging}
+          focus={cameraFocus}
+          reducedMotion={reducedMotion}
         />
         {debug && <FpsProbe onSample={setFps} />}
       </Canvas>
@@ -302,9 +387,20 @@ export default function WorldPanel() {
 
       {selectedBot &&
         (selectedBot.agentId ? (
-          <CrewRestCard bot={selectedBot} onClose={() => setSelection(null)} />
+          <CrewRestCard
+            bot={selectedBot}
+            onClose={() => setSelection(null)}
+            // The chat window wakes them on the first message (EKI-122).
+            onOpenChat={() => openChat(selectedBot.key)}
+          />
         ) : (
-          <BotActionsCard bot={selectedBot} onClose={() => setSelection(null)} />
+          // Keyed per bot: the activity feed's state must never cross bots.
+          <BotActionsCard
+            key={selectedBot.key}
+            bot={selectedBot}
+            onClose={() => setSelection(null)}
+            onOpenChat={() => openChat(selectedBot.key)}
+          />
         ))}
       {selectedZone && !selectedBot && (
         <RoomInfoCard
@@ -313,8 +409,33 @@ export default function WorldPanel() {
           onClose={() => setSelection(null)}
           onImportBlueprint={() => setImportZoneId(selectedZone.id)}
           onCreateProp={() => setCreatorZoneId(selectedZone.id)}
+          onSelectBot={(b) => setSelection({ kind: "bot", key: b.key })}
         />
       )}
+
+      {/* Floating chats (EKI-118/119) — keyed per bot so history never
+          crosses; minimized ones line up as bubbles bottom-right. */}
+      {(() => {
+        let bubbleSlot = 0;
+        return chats.map((c, i) => {
+          const target = bots.find((b) => b.key === c.key);
+          if (!target) return null;
+          const bubbleIndex = c.min ? bubbleSlot++ : 0;
+          return (
+            <WorldChatWindow
+              key={c.key}
+              bot={target}
+              minimized={c.min}
+              bubbleIndex={bubbleIndex}
+              stagger={i}
+              zIndex={20 + i}
+              onFocus={() => useWorldChats.getState().raise(c.key)}
+              onMinimize={(min) => useWorldChats.getState().setMin(c.key, min)}
+              onClose={() => useWorldChats.getState().close(c.key)}
+            />
+          );
+        });
+      })()}
 
       {creatorZone && (
         <CreatorDialog
@@ -331,7 +452,7 @@ export default function WorldPanel() {
         />
       )}
 
-      <div className="pointer-events-none absolute bottom-2 left-2 rounded bg-black/40 px-2 py-1 text-[10px] text-white/70">
+      <div className="pointer-events-none absolute bottom-3 left-3 rounded-full border bg-card/85 px-3 py-1.5 text-[10px] text-muted-foreground shadow-lg backdrop-blur">
         {editMode ? (
           selection?.kind === "prop" ? (
             <>drag to move · [ ] rotate · + − scale · del remove · esc deselect</>
@@ -348,16 +469,34 @@ export default function WorldPanel() {
       </div>
 
       {cameraMode !== "fp" && (
-        <button
-          type="button"
-          className="absolute bottom-2 right-2 rounded bg-black/40 px-2 py-1 text-[10px] text-white/80 hover:bg-black/60"
-          onClick={() => {
-            containerRef.current?.focus();
-            toggleEditMode();
-          }}
-        >
-          {editMode ? "✓ Done editing" : "🛠 Edit props"}
-        </button>
+        <div className="absolute bottom-3 right-3 flex gap-1.5">
+          <button
+            type="button"
+            className="rounded-full border bg-card/85 px-3 py-1.5 text-[10px] font-medium shadow-lg backdrop-blur transition-transform hover:scale-105"
+            title="Switch environment"
+            onClick={() => useEnvironmentStore.getState().setEnvironment(nextEnvironmentId(environment.id))}
+          >
+            {environment.emoji} {environment.name}
+          </button>
+          <button
+            type="button"
+            className="rounded-full border bg-card/85 px-3 py-1.5 text-[10px] font-medium shadow-lg backdrop-blur transition-transform hover:scale-105"
+            title="Toggle day / night"
+            onClick={() => useEnvironmentStore.getState().toggleNight()}
+          >
+            {night ? "🌙 Night" : "☀️ Day"}
+          </button>
+          <button
+            type="button"
+            className="rounded-full border bg-card/85 px-3 py-1.5 text-[10px] font-medium shadow-lg backdrop-blur transition-transform hover:scale-105"
+            onClick={() => {
+              containerRef.current?.focus();
+              toggleEditMode();
+            }}
+          >
+            {editMode ? "✓ Done editing" : "🛠 Edit props"}
+          </button>
+        </div>
       )}
     </div>
   );

@@ -5,7 +5,14 @@ import { openChatPanel } from "@/app/open-chat";
 import { resetWorkspaceForTests, useWorkspace } from "@/stores/workspace";
 import { chatLeaves, seedWorkspace } from "./fixtures";
 
-afterEach(resetWorkspaceForTests);
+// EKI-121: the workspace tree only exists in `?window=` routes — the main
+// window opens chats as world overlays (covered by view-deeplinks).
+beforeEach(() => window.history.replaceState(null, "", "/?window=workspace"));
+
+afterEach(() => {
+  window.history.replaceState(null, "", "/");
+  resetWorkspaceForTests();
+});
 
 test("no workspace yet → a silent no-op", () => {
   resetWorkspaceForTests();

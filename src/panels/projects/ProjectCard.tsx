@@ -40,8 +40,8 @@ export function ProjectCard({
   return (
     <div
       data-testid={`project-card-${project.id}`}
-      className="pop-in flex w-72 flex-col gap-1.5 rounded border p-2 text-xs"
-      style={{ borderLeft: `3px solid ${project.color ?? "var(--border)"}` }}
+      className="pop-in flex w-72 flex-col gap-1.5 rounded-2xl border bg-card/60 p-3 text-xs shadow-sm transition-shadow hover:shadow-md"
+      style={{ borderTop: `3px solid ${project.color ?? "var(--border)"}` }}
     >
       <div className="flex items-center gap-1.5">
         <span aria-hidden className="text-base">

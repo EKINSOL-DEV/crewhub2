@@ -27,6 +27,11 @@ import { meta, notificationRule, seedWorkspace, sid } from "./fixtures";
 vi.mock("@/stores/os-notification", () => ({ sendOsNotification: vi.fn(() => Promise.resolve()) }));
 import { sendOsNotification } from "@/stores/os-notification";
 
+// EKI-121: deep links adopt workspace leaves only in `?window=` routes — this
+// suite exercises that classic path (the main window opens overlays instead).
+beforeEach(() => window.history.replaceState(null, "", "/?window=workspace"));
+afterEach(() => window.history.replaceState(null, "", "/"));
+
 const osSink = vi.mocked(sendOsNotification);
 
 afterEach(() => {

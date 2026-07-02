@@ -14,6 +14,11 @@ import { useTasksStore } from "@/stores/tasks";
 import { resetWorkspaceForTests, useWorkspace } from "@/stores/workspace";
 import { archived, project, seedWorkspace, sid } from "./fixtures";
 
+// EKI-121: deep links adopt workspace leaves only in `?window=` routes — this
+// suite exercises that classic path (the main window opens overlays instead).
+beforeEach(() => window.history.replaceState(null, "", "/?window=workspace"));
+afterEach(() => window.history.replaceState(null, "", "/"));
+
 beforeEach(seedWorkspace);
 afterEach(() => {
   cleanup();
@@ -110,6 +115,8 @@ test("path-policy rejection renders a friendly error, not an error wall", async 
 test("auto-suggest lists unregistered history paths; one-click register uses dir name", async () => {
   const { calls } = mockProjectBackend();
   render(<ProjectsPanel />);
+  // EKI-124: suggestions live behind a collapsed toggle now — expand first.
+  fireEvent.click(await screen.findByTestId("toggle-suggestions"));
   await screen.findByText("/work/seen");
   expect(screen.getByText("2 sessions")).toBeInTheDocument();
 

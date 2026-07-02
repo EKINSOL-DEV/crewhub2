@@ -74,19 +74,8 @@ export function matchKey(s: KeyStroke): KeyAction | null {
 // but only when it actually changes the view — so inside the workspace, ⌘2
 // (and ⌘3…9) still fall through to focusPanel. Only ⌘1-as-focus is sacrificed.
 
-export type ViewKey = "world" | "workspace";
-
-/** Match the top-level view shortcuts. Pure, like matchKey. */
-export function matchViewKey(s: KeyStroke): ViewKey | null {
-  if (!s.mod || s.shift || s.alt) return null;
-  if (s.key === "1") return "world";
-  if (s.key === "2") return "workspace";
-  return null;
-}
-
 /** Registry-generated rows for the ⌘/ shortcut help sheet. */
 export const KEYMAP_HELP: ReadonlyArray<{ keys: string; action: string }> = [
-  { keys: "⌘1 / ⌘2", action: "World / Workspace view" },
   { keys: "⌘K", action: "Command palette" },
   { keys: "⌘T / ⌘W", action: "New workspace tab / close tab" },
   { keys: "⌘2…9", action: "Focus panel N (visual order)" },

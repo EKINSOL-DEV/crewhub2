@@ -1,5 +1,7 @@
-// DOM overlays for in-world clicks (EKI-71): bot quick actions and the room
-// info card. Plain panels in the corner — no 3D-anchored popovers to fight.
+// Side panels for in-world selection (EKI-71 → EKI-118): v1's right-hand
+// room/bot panels, reborn lean — a full-height sidebar with stats, occupants,
+// project context and actions. Conversations live in the floating chat
+// window (WorldChatWindow); the workspace chat stays the power tool.
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { openChatPanel } from "@/app/open-chat";
@@ -8,11 +10,14 @@ import { StatusEmoji } from "@/components/StatusEmoji";
 import { Button } from "@/components/ui/button";
 import { commands } from "@/ipc/bindings";
 import { useAgentsStore } from "@/stores/agents";
+import { useBindingsStore } from "@/stores/bindings";
+import { useProjectsStore } from "@/stores/projects";
 import type { WorldBot } from "./lib/bots";
 import { LOBBY_ID, type WorldZone } from "./lib/layout";
 import { statusGlow } from "./lib/status";
+import { useBotChat } from "./use-bot-chat";
 
-function CardShell({
+function SideShell({
   title,
   onClose,
   children,
@@ -22,8 +27,8 @@ function CardShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="pointer-events-auto absolute right-2 top-2 z-10 w-64 rounded-md border bg-card/95 p-3 text-sm shadow-lg backdrop-blur">
-      <div className="mb-2 flex items-center gap-2">
+    <div className="pointer-events-auto absolute bottom-9 right-2 top-2 z-10 flex w-72 flex-col rounded-md border bg-card/95 text-sm shadow-lg backdrop-blur">
+      <div className="flex items-center gap-2 border-b px-3 py-2.5">
         <span className="min-w-0 flex-1 truncate font-medium">{title}</span>
         <button
           type="button"
@@ -34,14 +39,41 @@ function CardShell({
           <X size={14} />
         </button>
       </div>
-      {children}
+      <div className="flex-1 overflow-y-auto p-3">{children}</div>
     </div>
   );
 }
 
-export function BotActionsCard({ bot, onClose }: { bot: WorldBot; onClose: () => void }) {
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="mb-1.5 mt-4 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground first:mt-0">
+      {children}
+    </p>
+  );
+}
+
+function StatRow({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="flex items-center justify-between py-0.5 text-xs">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-medium tabular-nums">{value}</span>
+    </div>
+  );
+}
+
+export function BotActionsCard({
+  bot,
+  onClose,
+  onOpenChat,
+}: {
+  bot: WorldBot;
+  onClose: () => void;
+  /** Opens the floating in-world chat window for this bot (EKI-118). */
+  onOpenChat?: (() => void) | undefined;
+}) {
   const [error, setError] = useState<string | null>(null);
   const [confirmKill, setConfirmKill] = useState(false);
+  const { lines } = useBotChat(bot);
 
   const run = async (p: Promise<{ status: "ok" } | { status: "error"; error: string }>) => {
     const res = await p;
@@ -49,7 +81,7 @@ export function BotActionsCard({ bot, onClose }: { bot: WorldBot; onClose: () =>
   };
 
   return (
-    <CardShell
+    <SideShell
       title={
         <>
           <StatusEmoji status={bot.status} className="mr-1" /> {bot.name}
@@ -57,19 +89,29 @@ export function BotActionsCard({ bot, onClose }: { bot: WorldBot; onClose: () =>
       }
       onClose={onClose}
     >
-      <p className="mb-2 truncate text-xs text-muted-foreground">
+      <SectionLabel>Status</SectionLabel>
+      <p className="text-xs">
         {statusGlow(bot.status).label}
-        {bot.activity ? ` — ${bot.activity}` : ""}
+        {bot.model ? <span className="text-muted-foreground"> · {bot.model}</span> : null}
       </p>
+      {bot.activity && <p className="mt-1 text-xs text-muted-foreground">{bot.activity}</p>}
+
+      <SectionLabel>Actions</SectionLabel>
       <div className="flex flex-wrap gap-1.5">
+        {onOpenChat && (
+          <Button size="xs" onClick={onOpenChat}>
+            💬 Chat
+          </Button>
+        )}
         <Button
           size="xs"
+          variant="outline"
           onClick={() => {
             openChatPanel({ provider: bot.id.provider, id: bot.id.id });
             onClose();
           }}
         >
-          Open chat
+          Full chat
         </Button>
         <Button size="xs" variant="outline" onClick={() => void run(commands.interruptSession(bot.id))}>
           Interrupt
@@ -89,19 +131,51 @@ export function BotActionsCard({ bot, onClose }: { bot: WorldBot; onClose: () =>
           {confirmKill ? "Really kill?" : "Kill"}
         </Button>
       </div>
-      {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
-    </CardShell>
+
+      {lines.length > 0 && (
+        <>
+          <SectionLabel>Recent activity</SectionLabel>
+          <div className="flex flex-col gap-1">
+            {lines.slice(-6).map((l, i) => (
+              <div
+                key={i}
+                className={
+                  l.who === "bot"
+                    ? "max-w-[90%] self-start rounded-lg rounded-bl-sm bg-muted px-2 py-1 text-xs leading-snug"
+                    : "max-w-[90%] self-end rounded-lg rounded-br-sm bg-primary/15 px-2 py-1 text-xs leading-snug"
+                }
+              >
+                {l.text.length > 160 ? `${l.text.slice(0, 159)}…` : l.text}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {error && <p className="mt-3 text-xs text-destructive">{error}</p>}
+    </SideShell>
   );
 }
 
 /**
- * Crew member resting at HQ (EKI-110): there is no session behind this bot,
- * so no session actions — just who they are and the door to the crew panel.
+ * Crew member resting at HQ (EKI-110/122): no session behind this bot — the
+ * chat window wakes them (first message spawns the session), so this card is
+ * just who they are and the door in.
  */
-export function CrewRestCard({ bot, onClose }: { bot: WorldBot; onClose: () => void }) {
+export function CrewRestCard({
+  bot,
+  onClose,
+  onOpenChat,
+}: {
+  bot: WorldBot;
+  onClose: () => void;
+  /** Opens the floating in-world chat window (which wakes on first send). */
+  onOpenChat?: (() => void) | undefined;
+}) {
   const agent = useAgentsStore((s) => s.agents.find((a) => a.id === bot.agentId));
+
   return (
-    <CardShell
+    <SideShell
       title={
         <>
           {agent?.icon ? `${agent.icon} ` : "🤖 "}
@@ -110,12 +184,20 @@ export function CrewRestCard({ bot, onClose }: { bot: WorldBot; onClose: () => v
       }
       onClose={onClose}
     >
-      <p className="mb-2 text-xs text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         {agent?.bio?.trim() || "Resting at headquarters — ready when you are."}
       </p>
+
+      <SectionLabel>Actions</SectionLabel>
       <div className="flex flex-wrap gap-1.5">
+        {onOpenChat && (
+          <Button size="xs" onClick={onOpenChat}>
+            💬 Chat
+          </Button>
+        )}
         <Button
           size="xs"
+          variant="outline"
           onClick={() => {
             openPanel("crew");
             onClose();
@@ -124,7 +206,7 @@ export function CrewRestCard({ bot, onClose }: { bot: WorldBot; onClose: () => v
           Manage crew
         </Button>
       </div>
-    </CardShell>
+    </SideShell>
   );
 }
 
@@ -134,6 +216,7 @@ export function RoomInfoCard({
   onClose,
   onImportBlueprint,
   onCreateProp,
+  onSelectBot,
 }: {
   zone: WorldZone;
   bots: WorldBot[];
@@ -142,8 +225,14 @@ export function RoomInfoCard({
   onImportBlueprint?: (() => void) | undefined;
   /** Opens creator mode for this room (EKI-83): dream up a prop with AI. */
   onCreateProp?: (() => void) | undefined;
+  /** Selecting an occupant moves the world selection (camera follows). */
+  onSelectBot?: ((bot: WorldBot) => void) | undefined;
 }) {
   const [openTasks, setOpenTasks] = useState<number | null>(null);
+  const projects = useProjectsStore((s) => s.projects);
+  const rooms = useBindingsStore((s) => s.rooms);
+  const room = rooms.find((r) => r.id === zone.id) ?? null;
+  const project = room?.project_id ? (projects.find((p) => p.id === room.project_id) ?? null) : null;
 
   useEffect(() => {
     if (zone.id === LOBBY_ID) return;
@@ -157,31 +246,52 @@ export function RoomInfoCard({
     };
   }, [zone.id]);
 
+  const working = bots.filter((b) => b.status === "Working").length;
+  const waiting = bots.filter(
+    (b) => b.status === "WaitingForPermission" || b.status === "WaitingForInput",
+  ).length;
+  const idle = bots.filter((b) => b.status === "Idle").length;
+
   return (
-    <CardShell title={zone.isHq ? `★ ${zone.name}` : zone.name} onClose={onClose}>
-      <p className="mb-2 text-xs text-muted-foreground">
-        {bots.length} session{bots.length === 1 ? "" : "s"}
-        {zone.id !== LOBBY_ID && openTasks !== null && (
-          <>
-            {" · "}
-            {openTasks} open task{openTasks === 1 ? "" : "s"}
-          </>
-        )}
-      </p>
+    <SideShell title={zone.isHq ? `★ ${zone.name}` : zone.name} onClose={onClose}>
+      <SectionLabel>Room stats</SectionLabel>
+      <StatRow label="Total agents" value={bots.length} />
+      <StatRow label="Working" value={working} />
+      <StatRow label="Needs you" value={waiting} />
+      <StatRow label="Idle" value={idle} />
+      {zone.id !== LOBBY_ID && openTasks !== null && <StatRow label="Open tasks" value={openTasks} />}
+
+      {zone.id !== LOBBY_ID && (
+        <>
+          <SectionLabel>Project</SectionLabel>
+          <p className="text-xs">
+            {project ? (
+              <>
+                {project.icon ? `${project.icon} ` : ""}
+                {project.name}
+              </>
+            ) : (
+              <span className="text-muted-foreground">No project assigned</span>
+            )}
+          </p>
+        </>
+      )}
+
+      <SectionLabel>Agents in room</SectionLabel>
       {bots.length > 0 ? (
-        <ul className="max-h-40 space-y-1 overflow-auto">
+        <ul className="space-y-1">
           {bots.map((b) => (
-            <li key={b.key} className="flex items-center gap-1.5 text-xs">
-              <StatusEmoji status={b.status} />
+            <li key={b.key}>
               <button
                 type="button"
-                className="min-w-0 truncate text-left hover:underline"
-                onClick={() => {
-                  openChatPanel({ provider: b.id.provider, id: b.id.id });
-                  onClose();
-                }}
+                className="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left text-xs hover:bg-muted"
+                onClick={() => onSelectBot?.(b)}
               >
-                {b.name}
+                <StatusEmoji status={b.status} />
+                <span className="min-w-0 flex-1 truncate">{b.name}</span>
+                <span className="shrink-0 text-[10px] text-muted-foreground">
+                  {statusGlow(b.status).label}
+                </span>
               </button>
             </li>
           ))}
@@ -189,20 +299,24 @@ export function RoomInfoCard({
       ) : (
         <p className="text-xs text-muted-foreground">Nobody home right now.</p>
       )}
+
       {zone.id !== LOBBY_ID && (onImportBlueprint || onCreateProp) && (
-        <div className="mt-2 flex gap-1.5 border-t pt-2">
-          {onCreateProp && (
-            <Button size="xs" variant="outline" onClick={onCreateProp}>
-              ✨ Dream up a prop
-            </Button>
-          )}
-          {onImportBlueprint && (
-            <Button size="xs" variant="outline" onClick={onImportBlueprint}>
-              Import v1 blueprint
-            </Button>
-          )}
-        </div>
+        <>
+          <SectionLabel>Room</SectionLabel>
+          <div className="flex flex-wrap gap-1.5">
+            {onCreateProp && (
+              <Button size="xs" variant="outline" onClick={onCreateProp}>
+                ✨ Dream up a prop
+              </Button>
+            )}
+            {onImportBlueprint && (
+              <Button size="xs" variant="outline" onClick={onImportBlueprint}>
+                Import v1 blueprint
+              </Button>
+            )}
+          </div>
+        </>
       )}
-    </CardShell>
+    </SideShell>
   );
 }
