@@ -12,6 +12,11 @@ import { useGameEnvironment } from "@/game/world/environments/store";
 import { useQuality } from "@/game/engine/quality";
 import { FpsProbe } from "@/game/hud/FpsProbe";
 import { HudOverlay } from "@/game/hud/HudOverlay";
+import type { RtsBounds } from "@/game/engine/camera/rts-camera";
+
+// Module-level so the fps-driven re-render (1/s) never churns the camera
+// rig's listeners (its effect deps include `bounds`).
+const CAMERA_BOUNDS: RtsBounds = { half: CAMPUS.half, minDistance: 8, maxDistance: 60 };
 
 export default function GameShell() {
   const [fps, setFps] = useState(0);
@@ -33,7 +38,7 @@ export default function GameShell() {
         <Suspense fallback={null}>
           <env.World />
         </Suspense>
-        <GameCameraRig bounds={{ half: CAMPUS.half, minDistance: 8, maxDistance: 60 }} />
+        <GameCameraRig bounds={CAMERA_BOUNDS} />
         <Effects />
         <FpsProbe onSample={setFps} />
       </GameCanvas>
