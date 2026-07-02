@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef } from "react";
 import type * as THREE from "three";
 import type { ModelId } from "@/game/assets/manifest";
 import { type PlaceableKind } from "@/game/build/edits";
+import { PlacedBuildings } from "@/game/build/PlacedBuildings";
 import { useCampusEdits } from "@/game/build/store";
 import { CloudPuffs } from "@/game/world/CloudPuffs";
 import { Fountain } from "./Fountain";
@@ -115,6 +116,10 @@ export function CampusWorld() {
           <Pavilion key={b.plotIndex} building={b} />
         ))}
       </group>
+      {/* Placed pavilions (M3 T5): a disjoint set from the seeded four above,
+          so no dedup needed — see PlacedBuildings' header for why this stays
+          outside the frozen static-matrix group. */}
+      <PlacedBuildings />
       {(Object.keys(placedByKind) as PlaceableKind[]).map((kind) => (
         <InstancedModel key={`${kind}-${version}`} id={kind} placements={placedByKind[kind]!} />
       ))}

@@ -7,6 +7,7 @@ import { HireDialog } from "@/game/chat/HireDialog";
 import { useGameChats } from "@/game/chat/store";
 import { BuildControls } from "@/game/build/BuildControls";
 import { BuildPalette } from "@/game/build/BuildPalette";
+import { RoomLinkDialog } from "@/game/build/RoomLinkDialog";
 import { useBuildMode } from "@/game/build/mode";
 import { GameCanvas } from "@/game/engine/GameCanvas";
 import { Lights } from "@/game/engine/Lights";
@@ -42,6 +43,8 @@ export default function GameShell() {
   const env = environmentById(envId);
   const buildActive = useBuildMode((s) => s.active);
   const buildTool = useBuildMode((s) => s.tool);
+  const pendingRoomLink = useBuildMode((s) => s.pendingRoomLink);
+  const closeRoomLink = useBuildMode((s) => s.closeRoomLink);
 
   useEffect(() => {
     void useGameEnvironment.getState().init();
@@ -101,6 +104,7 @@ export default function GameShell() {
       />
       <ChatWindows />
       {buildActive && <BuildPalette />}
+      {pendingRoomLink && <RoomLinkDialog buildingId={pendingRoomLink} onClose={closeRoomLink} />}
       <HireDialog open={hireOpen} initialAgentId={hireAgentId} onClose={() => setHireOpen(false)} />
     </div>
   );

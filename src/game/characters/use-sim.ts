@@ -10,6 +10,8 @@ import { useAgentsStore } from "@/stores/agents";
 import { useBindingsStore } from "@/stores/bindings";
 import { useProjectsStore } from "@/stores/projects";
 import { useSessionsStore, useSessionsView } from "@/stores/sessions";
+import { applyEdits } from "@/game/build/edits";
+import { useCampusEdits } from "@/game/build/store";
 import { buildNavGrid } from "@/game/sim/grid";
 import { createSim, type Sim } from "@/game/sim/sim";
 import { toCharacters, type Character } from "@/game/sim/characters";
@@ -44,6 +46,7 @@ export function useSim(override?: Character[]): UseSimResult {
     void useBindingsStore.getState().init();
     void useAgentsStore.getState().init();
     void useProjectsStore.getState().load();
+    void useCampusEdits.getState().init();
   }, []);
 
   const views = useSessionsView();
@@ -57,12 +60,38 @@ export function useSim(override?: Character[]): UseSimResult {
     return () => clearInterval(t);
   }, []);
 
-  const sim = useMemo(() => {
+  // Seeded layout + base four buildings, held once — edits are layered on
+  // top below, never baked in here, so `sim` (built off just the base) only
+  // has to be created once for the component's whole lifetime.
+  const campus = useMemo(() => {
     const layout = campusLayout();
     const buildings = campusBuildings(layout.plots);
-    const grid = buildNavGrid(layout, buildings);
-    return createSim(grid, buildings, SIM_SEED);
+    return { layout, buildings };
   }, []);
+
+  const sim = useMemo(() => {
+    const grid = buildNavGrid(campus.layout, campus.buildings);
+    return createSim(grid, campus.buildings, SIM_SEED);
+  }, [campus]);
+
+  // Build-mode edits (M3 T5): a placed pavilion or piece of decor changes
+  // what robots can walk through and where they can sit, so re-derive the
+  // nav grid + building pool and hand them to the once-built sim via
+  // updateWorld() — never a fresh createSim(), that would respawn everyone.
+  // `editsVersion` starts at 0 and only becomes >0 once the store has
+  // actually loaded/mutated (see build/store.ts); skip it here so a fresh
+  // mount (or a backend-less test) never fires a redundant updateWorld call
+  // against the identical base grid `sim` was just built from.
+  const edits = useCampusEdits((s) => s.edits);
+  const editsVersion = useCampusEdits((s) => s.version);
+  useEffect(() => {
+    if (editsVersion === 0) return;
+    const { buildings: allBuildings } = applyEdits(campus.layout, campus.buildings, edits);
+    const grid = buildNavGrid(campus.layout, allBuildings, {
+      items: edits.items.map((i) => ({ x: i.x, z: i.z })),
+    });
+    sim.updateWorld(grid, allBuildings);
+  }, [sim, campus, edits, editsVersion]);
 
   const characters = useMemo(
     () => override ?? toCharacters(views, { agents, nowMs }),

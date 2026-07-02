@@ -89,3 +89,39 @@ describe("findPath", () => {
     }
   });
 });
+
+describe("buildNavGrid extras (M3 T5 — placed decor blocks pathing)", () => {
+  // (3, 22) sits in open field, clear of scatter/plots/buildings for this
+  // seed — confirmed unblocked in the base grid before asserting the extra
+  // blocks it.
+  const spot = { x: 3, z: 22 };
+
+  function cellIndexFor(g: ReturnType<typeof buildNavGrid>, x: number, z: number): number {
+    const cx = Math.floor(x + g.size / 2);
+    const cz = Math.floor(z + g.size / 2);
+    return cz * g.size + cx;
+  }
+
+  it("leaves the spot walkable without extras", () => {
+    expect(grid.blocked[cellIndexFor(grid, spot.x, spot.z)]).toBe(0);
+  });
+
+  it("blocks exactly the placed item's cell", () => {
+    const withItem = buildNavGrid(layout, buildings, { items: [spot] });
+    expect(withItem.blocked[cellIndexFor(withItem, spot.x, spot.z)]).toBe(1);
+  });
+
+  it("routes a path around a placed item blocking the direct line", () => {
+    const withItem = buildNavGrid(layout, buildings, { items: [spot] });
+    const path = findPath(withItem, { x: spot.x - 4, z: spot.z }, { x: spot.x + 4, z: spot.z });
+    expect(path.length).toBeGreaterThan(0);
+    for (const p of path) {
+      expect(Math.hypot(p.x - spot.x, p.z - spot.z)).toBeGreaterThan(0.4);
+    }
+  });
+
+  it("is backward compatible — omitting extras behaves exactly as before", () => {
+    const withoutExtras = buildNavGrid(layout, buildings);
+    expect(withoutExtras.blocked).toEqual(grid.blocked);
+  });
+});

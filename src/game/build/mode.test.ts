@@ -32,4 +32,19 @@ describe("useBuildMode", () => {
     expect(useBuildMode.getState().active).toBe(false);
     expect(useBuildMode.getState().tool).toEqual({ kind: "select" });
   });
+
+  it("openRoomLink/closeRoomLink set and clear pendingRoomLink", () => {
+    expect(useBuildMode.getState().pendingRoomLink).toBeNull();
+    useBuildMode.getState().openRoomLink("b1");
+    expect(useBuildMode.getState().pendingRoomLink).toBe("b1");
+    useBuildMode.getState().closeRoomLink();
+    expect(useBuildMode.getState().pendingRoomLink).toBeNull();
+  });
+
+  it("deactivate also dismisses a dangling room-link prompt", () => {
+    useBuildMode.getState().activate();
+    useBuildMode.getState().openRoomLink("b1");
+    useBuildMode.getState().deactivate();
+    expect(useBuildMode.getState().pendingRoomLink).toBeNull();
+  });
 });

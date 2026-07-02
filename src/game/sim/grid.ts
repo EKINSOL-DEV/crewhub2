@@ -50,7 +50,11 @@ function idxOf(cx: number, cz: number, grid: NavGrid): number {
   return cz * grid.size + cx;
 }
 
-export function buildNavGrid(layout: CampusLayout, buildings: Building[]): NavGrid {
+export function buildNavGrid(
+  layout: CampusLayout,
+  buildings: Building[],
+  extras?: { items?: { x: number; z: number }[] },
+): NavGrid {
   const size = CAMPUS.half * 2;
   const grid: NavGrid = { size, cell: 1, blocked: new Uint8Array(size * size) };
 
@@ -83,6 +87,11 @@ export function buildNavGrid(layout: CampusLayout, buildings: Building[]): NavGr
     block(x + w / 2, z + d / 2);
     for (const desk of b.desks) block(desk.x, desk.z);
   }
+
+  // Player-placed decor (M3 T5) blocks one cell each, same coarse treatment
+  // as the seeded scatter above — a bench or lantern is just as solid to a
+  // robot's pathing as a tree.
+  for (const item of extras?.items ?? []) block(item.x, item.z);
 
   return grid;
 }

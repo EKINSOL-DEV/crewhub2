@@ -62,7 +62,7 @@ describe("BuildControls smoke", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetCampusEditsForTests();
-    useBuildMode.setState({ active: true, tool: { kind: "item", item: "bush" } });
+    useBuildMode.setState({ active: true, tool: { kind: "item", item: "bush" }, pendingRoomLink: null });
   });
 
   it("places on a valid spot, snapped to the grid", async () => {
@@ -111,6 +111,8 @@ describe("BuildControls smoke", () => {
     const buildings = useCampusEdits.getState().edits.buildings;
     expect(buildings).toHaveLength(1);
     expect(buildings[0]).toMatchObject({ x: 3, z: 30, w: 6, d: 6 });
+    // A commit opens RoomLinkDialog (GameShell mounts it off this field) targeting the new building.
+    expect(useBuildMode.getState().pendingRoomLink).toBe(buildings[0]!.id);
 
     await renderer.unmount();
   });

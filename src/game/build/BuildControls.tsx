@@ -51,6 +51,7 @@ export function BuildControls() {
   const removeItem = useCampusEdits((s) => s.removeItem);
   const addBuilding = useCampusEdits((s) => s.addBuilding);
   const removeBuilding = useCampusEdits((s) => s.removeBuilding);
+  const openRoomLink = useBuildMode((s) => s.openRoomLink);
 
   // Pure and seeded — cheap enough to recompute once per mount. CampusWorld
   // computes its own copy independently; both are the same deterministic
@@ -199,7 +200,10 @@ export function BuildControls() {
         anchor.current = { x, z };
       } else {
         const rect = normalizeRect(anchor.current, { x, z });
-        if (canPlaceBuilding(edits, layout, rect)) addBuilding(rect, null);
+        // roomId starts null — RoomLinkDialog (mounted by GameShell, keyed
+        // off mode.ts's pendingRoomLink) offers the player a room right
+        // after placement instead of forcing the pick mid-drag here.
+        if (canPlaceBuilding(edits, layout, rect)) openRoomLink(addBuilding(rect, null));
         anchor.current = null;
       }
     } else {

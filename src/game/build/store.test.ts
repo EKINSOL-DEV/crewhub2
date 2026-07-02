@@ -49,12 +49,26 @@ describe("useCampusEdits", () => {
     expect(useCampusEdits.getState().edits.items.find((i) => i.id === id)).toBeUndefined();
   });
 
-  it("addBuilding appends a snapped building and removeBuilding drops it", () => {
-    useCampusEdits.getState().addBuilding({ x: 10.4, z: 20.6, w: 6, d: 5 }, "room-1");
+  it("addBuilding appends a snapped building, returns its id, and removeBuilding drops it", () => {
+    const id = useCampusEdits.getState().addBuilding({ x: 10.4, z: 20.6, w: 6, d: 5 }, "room-1");
     const b = useCampusEdits.getState().edits.buildings[0]!;
     expect(b).toMatchObject({ x: 10, z: 21, w: 6, d: 5, roomId: "room-1" });
+    expect(id).toBe(b.id);
     useCampusEdits.getState().removeBuilding(b.id);
     expect(useCampusEdits.getState().edits.buildings).toHaveLength(0);
+  });
+
+  it("setBuildingRoom updates only the targeted building's roomId and bumps version", () => {
+    const idA = useCampusEdits.getState().addBuilding({ x: 10, z: 20, w: 6, d: 5 }, null);
+    const idB = useCampusEdits.getState().addBuilding({ x: -10, z: 20, w: 6, d: 5 }, null);
+    const before = useCampusEdits.getState().version;
+
+    useCampusEdits.getState().setBuildingRoom(idA, "room-9");
+
+    const buildings = useCampusEdits.getState().edits.buildings;
+    expect(buildings.find((b) => b.id === idA)!.roomId).toBe("room-9");
+    expect(buildings.find((b) => b.id === idB)!.roomId).toBeNull();
+    expect(useCampusEdits.getState().version).toBe(before + 1);
   });
 
   it("assigns ids from a monotonic counter, not Date.now/Math.random", () => {
