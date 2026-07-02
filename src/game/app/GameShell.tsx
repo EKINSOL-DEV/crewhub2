@@ -5,6 +5,8 @@ import { Characters } from "@/game/characters/Characters";
 import { ChatWindows } from "@/game/chat/ChatWindows";
 import { HireDialog } from "@/game/chat/HireDialog";
 import { useGameChats } from "@/game/chat/store";
+import { BuildPalette } from "@/game/build/BuildPalette";
+import { useBuildMode } from "@/game/build/mode";
 import { GameCanvas } from "@/game/engine/GameCanvas";
 import { Lights } from "@/game/engine/Lights";
 import { GameCameraRig } from "@/game/engine/camera/GameCameraRig";
@@ -37,6 +39,7 @@ export default function GameShell() {
   const [focus, setFocus] = useState<{ x: number; z: number; seq: number } | null>(null);
   const envId = useGameEnvironment((s) => s.id);
   const env = environmentById(envId);
+  const buildActive = useBuildMode((s) => s.active);
 
   useEffect(() => {
     void useGameEnvironment.getState().init();
@@ -84,6 +87,7 @@ export default function GameShell() {
         }}
       />
       <ChatWindows />
+      {buildActive && <BuildPalette />}
       <HireDialog open={hireOpen} initialAgentId={hireAgentId} onClose={() => setHireOpen(false)} />
     </div>
   );

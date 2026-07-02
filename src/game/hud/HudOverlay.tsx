@@ -3,6 +3,7 @@
 import { ENVIRONMENTS, environmentById } from "@/game/world/environments/registry";
 import { useGameEnvironment } from "@/game/world/environments/store";
 import { useQuality, type QualityTier } from "@/game/engine/quality";
+import { useBuildMode } from "@/game/build/mode";
 
 const NEXT_TIER: Record<QualityTier, QualityTier> = { low: "medium", medium: "high", high: "low" };
 
@@ -12,6 +13,9 @@ export function HudOverlay({ fps, bots, onHire }: { fps: number; bots: number; o
   const tier = useQuality((s) => s.tier);
   const setTier = useQuality((s) => s.setTier);
   const setEnvironment = useGameEnvironment((s) => s.setEnvironment);
+  const buildActive = useBuildMode((s) => s.active);
+  const activateBuild = useBuildMode((s) => s.activate);
+  const deactivateBuild = useBuildMode((s) => s.deactivate);
   const idx = ENVIRONMENTS.findIndex((e) => e.id === env.id);
   const next = ENVIRONMENTS[(idx + 1) % ENVIRONMENTS.length]!;
 
@@ -40,6 +44,17 @@ export function HudOverlay({ fps, bots, onHire }: { fps: number; bots: number; o
         onClick={onHire}
       >
         + Hire
+      </button>
+      <button
+        type="button"
+        aria-pressed={buildActive}
+        className={`pointer-events-auto rounded-full border-2 px-4 py-2 text-sm font-bold shadow-xl backdrop-blur transition-transform hover:scale-105 ${
+          buildActive ? "border-white bg-amber-500 text-white" : "border-white/60 bg-amber-700/80 text-white"
+        }`}
+        title="Toggle build mode"
+        onClick={() => (buildActive ? deactivateBuild() : activateBuild())}
+      >
+        🔨 Build
       </button>
       <span className="rounded-full bg-black/50 px-3 py-1.5 text-xs font-semibold text-white/90">
         {fps} fps
