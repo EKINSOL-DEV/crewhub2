@@ -6,7 +6,7 @@ import { useQuality, type QualityTier } from "@/game/engine/quality";
 
 const NEXT_TIER: Record<QualityTier, QualityTier> = { low: "medium", medium: "high", high: "low" };
 
-export function HudOverlay({ fps, bots }: { fps: number; bots: number }) {
+export function HudOverlay({ fps, bots, onHire }: { fps: number; bots: number; onHire: () => void }) {
   const envId = useGameEnvironment((s) => s.id);
   const env = environmentById(envId);
   const tier = useQuality((s) => s.tier);
@@ -32,6 +32,14 @@ export function HudOverlay({ fps, bots }: { fps: number; bots: number }) {
         onClick={() => setTier(NEXT_TIER[tier])}
       >
         ✨ {tier}
+      </button>
+      <button
+        type="button"
+        className="pointer-events-auto rounded-full border-2 border-white/60 bg-emerald-700/80 px-4 py-2 text-sm font-bold text-white shadow-xl backdrop-blur transition-transform hover:scale-105"
+        title="Hire, link, or adopt a crew member"
+        onClick={onHire}
+      >
+        + Hire
       </button>
       <span className="rounded-full bg-black/50 px-3 py-1.5 text-xs font-semibold text-white/90">
         {fps} fps

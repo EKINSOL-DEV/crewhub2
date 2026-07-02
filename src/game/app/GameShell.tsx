@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { Characters } from "@/game/characters/Characters";
 import { ChatWindows } from "@/game/chat/ChatWindows";
+import { HireDialog } from "@/game/chat/HireDialog";
 import { useGameChats } from "@/game/chat/store";
 import { GameCanvas } from "@/game/engine/GameCanvas";
 import { Lights } from "@/game/engine/Lights";
@@ -31,6 +32,8 @@ const DEMO_CHARACTERS = DEMO_MODE ? demoCharacters(Date.now()) : undefined;
 export default function GameShell() {
   const [fps, setFps] = useState(0);
   const [botCount, setBotCount] = useState(0);
+  const [hireOpen, setHireOpen] = useState(false);
+  const [hireAgentId, setHireAgentId] = useState<string | undefined>(undefined);
   const envId = useGameEnvironment((s) => s.id);
   const env = environmentById(envId);
 
@@ -56,8 +59,13 @@ export default function GameShell() {
             onCount={setBotCount}
             onSelect={(k) => {
               // "agent:" keys are resting crew with no session yet — clicking
-              // them opens the hire dialog once Task 5 lands; a no-op today.
-              if (!k.startsWith("agent:")) useGameChats.getState().open(k);
+              // them opens the hire dialog, preselected to that agent.
+              if (k.startsWith("agent:")) {
+                setHireAgentId(k.slice("agent:".length));
+                setHireOpen(true);
+              } else {
+                useGameChats.getState().open(k);
+              }
             }}
           />
         </Suspense>
@@ -65,8 +73,16 @@ export default function GameShell() {
         <Effects />
         <FpsProbe onSample={setFps} />
       </GameCanvas>
-      <HudOverlay fps={fps} bots={botCount} />
+      <HudOverlay
+        fps={fps}
+        bots={botCount}
+        onHire={() => {
+          setHireAgentId(undefined);
+          setHireOpen(true);
+        }}
+      />
       <ChatWindows />
+      <HireDialog open={hireOpen} initialAgentId={hireAgentId} onClose={() => setHireOpen(false)} />
     </div>
   );
 }
