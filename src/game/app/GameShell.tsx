@@ -1,6 +1,6 @@
 // Game shell (M0): environment-driven sky/fog/lights around the selected
 // World, RTS camera, quality-aware canvas. The HUD overlay lands in T12.
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { Characters } from "@/game/characters/Characters";
 import { ChatWindows } from "@/game/chat/ChatWindows";
 import { HireDialog } from "@/game/chat/HireDialog";
@@ -56,6 +56,39 @@ export function shouldExitCameraOnEscape(
   return !hasOpenCard && !buildActive && !cameraFree;
 }
 
+/**
+ * Bot-click composition (M8 T3), pulled out of Characters' onSelect prop for
+ * the same testability reason as shouldExitCameraOnEscape above — GameCanvas
+ * never mounts under jsdom (no WebGL), so this handler never runs in a
+ * rendered GameShell test; game-shell-select.test.tsx exercises it directly
+ * instead. followBot() always fires — a clicked robot is always something
+ * worth looking at, whether resting crew (agent:-prefixed, no session yet)
+ * or a live session — alongside whichever of hire/chat the key routes to,
+ * same routing as before this task. Build-mode item-tool clicks never reach
+ * here at all (Characters.tsx's own guard suppresses onSelect entirely), so
+ * there's no separate build-mode guard to test in this function.
+ */
+export function selectCharacter(
+  key: string,
+  pos: { x: number; z: number },
+  deps: {
+    setHireAgentId: Dispatch<SetStateAction<string | undefined>>;
+    setHireOpen: Dispatch<SetStateAction<boolean>>;
+    setFocus: Dispatch<SetStateAction<{ x: number; z: number; seq: number } | null>>;
+  },
+): void {
+  useCameraDirector.getState().followBot(key);
+  // "agent:" keys are resting crew with no session yet — clicking them
+  // opens the hire dialog, preselected to that agent.
+  if (key.startsWith("agent:")) {
+    deps.setHireAgentId(key.slice("agent:".length));
+    deps.setHireOpen(true);
+  } else {
+    useGameChats.getState().open(key);
+    deps.setFocus((f) => ({ x: pos.x, z: pos.z, seq: (f?.seq ?? 0) + 1 }));
+  }
+}
+
 export default function GameShell() {
   const [fps, setFps] = useState(0);
   const [botCount, setBotCount] = useState(0);
@@ -89,16 +122,20 @@ export default function GameShell() {
   // request into the same `open`/`onClose` HireDialog already takes.
   const hireRequested = roomCard?.kind === "hire";
 
-  // Escape precedence (M8 T2): dialogs/cards close first (HqCard, RoomCard,
-  // RoomLinkDialog, ProjectsDialog, HireDialog each own their own Escape
-  // listener, mounted only while open), then the build-mode ladder
-  // (BuildControls' own listener, mounted only while build is active) —
-  // both of those are independent `window.addEventListener("keydown", ...)`
-  // calls that never stopPropagation, so this handler can't literally sit
-  // "after" them in a bubble chain. Precedence here means this handler's own
-  // guard: it no-ops whenever a card is open or build mode is active,
-  // leaving those to react to THIS SAME Escape press, and only exits a
-  // focus/follow camera shot once a later press finds both clear.
+  // Escape precedence (M8 T2): HqCard, RoomCard, RoomLinkDialog and
+  // ProjectsDialog each own their own Escape listener, mounted only while
+  // open. HireDialog does NOT (M8 T3 fix: this comment used to claim it
+  // did) — its `hasOpenCard` guard below still blocks camera-exit while
+  // it's open, so an Escape press while hiring is simply a no-op until the
+  // dialog closes some other way (✕/backdrop click). Then the build-mode
+  // ladder (BuildControls' own listener, mounted only while build is
+  // active) — all of those are independent
+  // `window.addEventListener("keydown", ...)` calls that never
+  // stopPropagation, so this handler can't literally sit "after" them in a
+  // bubble chain. Precedence here means this handler's own guard: it
+  // no-ops whenever a card is open or build mode is active, leaving those
+  // to react to THIS SAME Escape press, and only exits a focus/follow
+  // camera shot once a later press finds both clear.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
@@ -131,17 +168,7 @@ export default function GameShell() {
           <Characters
             override={DEMO_CHARACTERS}
             onCount={setBotCount}
-            onSelect={(k, pos) => {
-              // "agent:" keys are resting crew with no session yet — clicking
-              // them opens the hire dialog, preselected to that agent.
-              if (k.startsWith("agent:")) {
-                setHireAgentId(k.slice("agent:".length));
-                setHireOpen(true);
-              } else {
-                useGameChats.getState().open(k);
-                setFocus((f) => ({ x: pos.x, z: pos.z, seq: (f?.seq ?? 0) + 1 }));
-              }
-            }}
+            onSelect={(k, pos) => selectCharacter(k, pos, { setHireAgentId, setHireOpen, setFocus })}
           />
         </Suspense>
         <GameCameraRig

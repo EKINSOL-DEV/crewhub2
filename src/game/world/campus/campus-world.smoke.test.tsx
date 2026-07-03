@@ -71,14 +71,27 @@ vi.mock("@/game/app/windows", () => ({
   openSettingsWindow: vi.fn(),
 }));
 
+// M8 T3: the rig's live yaw (see live-camera.ts) is mocked here so a test
+// can prove the click handler actually threads its return value into
+// focusBuilding, rather than always seeding 0 — real math for
+// focusForBuilding's own door-selection logic is director.test.ts's job.
+vi.mock("@/game/engine/camera/live-camera", () => ({
+  getLiveYaw: vi.fn(() => 0),
+  setLiveYaw: vi.fn(),
+}));
+
 import { openWorkspaceWindow } from "@/game/app/windows";
 import { CampusWorld } from "./CampusWorld";
 import { campusLayout } from "./layout";
 import { resetCampusEditsForTests, useCampusEdits } from "@/game/build/store";
 import { useBuildMode } from "@/game/build/mode";
+import { useCameraDirector } from "@/game/engine/camera/director";
+import { getLiveYaw } from "@/game/engine/camera/live-camera";
 import { resetProjectsForTests, useProjectsStore } from "@/stores/projects";
 import { BIOMES } from "@/game/world/biome";
 import type { ReactThreeTest } from "@react-three/test-renderer";
+
+const HALF_PI = Math.PI / 2;
 
 /**
  * The `<group>` CampusWorld wraps around each building's `<Pavilion>`/
@@ -102,6 +115,8 @@ describe("CampusWorld smoke", () => {
     vi.clearAllMocks();
     resetCampusEditsForTests();
     resetProjectsForTests();
+    useCameraDirector.setState({ mode: { kind: "free" } });
+    vi.mocked(getLiveYaw).mockReturnValue(0);
   });
 
   it("mounts terrain and one mesh per decor/prop placement into a scene graph", async () => {
@@ -174,8 +189,64 @@ describe("CampusWorld smoke", () => {
     const hq = pavilionWrapper(renderer.scene, -1);
     await renderer.fireEvent(hq, "pointerDown", { button: 0 });
     expect(useBuildMode.getState().roomCard).toBeNull();
+    expect(useCameraDirector.getState().mode).toEqual({ kind: "free" });
 
     useBuildMode.setState({ active: false });
+    await renderer.unmount();
+  });
+
+  // M8 T3: the same pavilion click that opens RoomCard/HqCard also frames
+  // the building with the camera director.
+  it("HQ click also focuses the camera director, centered on HQ's rect", async () => {
+    useBuildMode.setState({ roomCard: null });
+    const renderer = await ReactThreeTestRenderer.create(<CampusWorld />);
+
+    const hq = pavilionWrapper(renderer.scene, -1);
+    await renderer.fireEvent(hq, "pointerDown", { button: 0 });
+
+    const mode = useCameraDirector.getState().mode;
+    expect(mode.kind).toBe("focus");
+    expect(mode.kind === "focus" && mode.target).toEqual({ x: 0, z: 0 });
+
+    await renderer.unmount();
+  });
+
+  it("a plot pavilion click also focuses the camera director, centered on its rect", async () => {
+    useBuildMode.setState({ roomCard: null });
+    const renderer = await ReactThreeTestRenderer.create(<CampusWorld />);
+    const layout = campusLayout();
+
+    const plot0 = pavilionWrapper(renderer.scene, 0);
+    await renderer.fireEvent(plot0, "pointerDown", { button: 0 });
+
+    const mode = useCameraDirector.getState().mode;
+    expect(mode.kind).toBe("focus");
+    expect(mode.kind === "focus" && mode.target).toEqual({ x: layout.plots[0]!.x, z: layout.plots[0]!.z });
+
+    await renderer.unmount();
+  });
+
+  // M8 T3: proves the click handler threads the rig's LIVE yaw through to
+  // focusBuilding (rather than always seeding 0) — HQ's 4-door pick is the
+  // only building where currentYaw changes the outcome (director.test.ts
+  // covers focusForBuilding's own door-selection math in full; this only
+  // needs to prove the wiring reaches it).
+  it("threads the rig's live yaw into focusBuilding — HQ picks the door nearest it", async () => {
+    vi.mocked(getLiveYaw).mockReturnValue(HALF_PI - 0.1);
+    useBuildMode.setState({ roomCard: null });
+
+    const renderer = await ReactThreeTestRenderer.create(<CampusWorld />);
+    const hq = pavilionWrapper(renderer.scene, -1);
+    await renderer.fireEvent(hq, "pointerDown", { button: 0 });
+
+    const mode = useCameraDirector.getState().mode;
+    expect(mode.kind).toBe("focus");
+    // currentYaw near the east door (π/2) — with the stock currentYaw of 0
+    // used by every other test in this file, this would pick the south
+    // door (yaw 0) instead, so landing on π/2 proves the mocked getter's
+    // value made it all the way to focusForBuilding.
+    expect(mode.kind === "focus" && mode.yaw).toBeCloseTo(HALF_PI, 10);
+
     await renderer.unmount();
   });
 
