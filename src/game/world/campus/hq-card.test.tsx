@@ -204,10 +204,13 @@ describe("HqCard", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("backdrop click closes", () => {
+  // Docked side panel (side-panel conversion): there's no backdrop left to
+  // click — closing is ✕ (GamePanel's own contract, see game-panel.test.tsx)
+  // or Escape (above).
+  it("the ✕ button closes", () => {
     const onClose = vi.fn();
     render(<HqCard onClose={onClose} />);
-    fireEvent.click(screen.getByTestId("hq-card").parentElement!);
+    fireEvent.click(screen.getByTestId("game-panel-close"));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

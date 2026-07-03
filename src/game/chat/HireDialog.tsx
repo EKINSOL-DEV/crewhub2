@@ -1,7 +1,12 @@
 // Hire / adopt overlay (M2 T5): the front door for turning an idle agent
 // or a settled/external session into a live chat window. Restyled per
-// ChatWindow's chunky white/slate game look — a centered Card over a
-// blurred backdrop, not a shadcn side panel.
+// ChatWindow's chunky white/slate game look.
+//
+// Docked side panel (side-panel conversion): was a centered Card over a
+// blurred backdrop, now GamePanel's shared docked-panel chrome (see its own
+// header comment) — no backdrop, closing is ✕ or Escape. The hire/adopt
+// tabs are `sticky top-0` inside the panel's one scrollable body, so they
+// stay reachable while a long agent/session list scrolls under them.
 //
 // State resets by mounting, not by effects: the outer component only
 // mounts <HireDialogInner> while `open`, so closing/reopening always
@@ -10,6 +15,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ModelPicker, isModelTierId, type ModelTierId } from "@/components/ModelPicker";
 import { playSfx } from "@/game/audio/sfx";
+import { GamePanel } from "@/game/hud/GamePanel";
 import { commands, type Agent, type SessionMeta } from "@/ipc/bindings";
 import { useAgentsStore } from "@/stores/agents";
 import { useSessionsView, type SessionView } from "@/stores/sessions";
@@ -141,28 +147,9 @@ function HireDialogInner({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        data-testid="hire-dialog"
-        className="flex max-h-[80vh] w-[440px] flex-col rounded-3xl border-2 border-white/60 bg-white/90 text-slate-900 shadow-2xl backdrop-blur"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center gap-2 rounded-t-3xl border-b-2 border-slate-900/10 px-4 py-3">
-          <span className="flex-1 font-bold">👥 Crew</span>
-          <button
-            type="button"
-            aria-label="Close"
-            className="rounded-full px-1.5 py-0.5 font-bold hover:bg-slate-900/10"
-            onClick={onClose}
-          >
-            ✕
-          </button>
-        </div>
-
-        <div className="flex gap-1 border-b-2 border-slate-900/10 px-3 pt-2">
+    <GamePanel title={<span className="flex-1 font-bold">👥 Crew</span>} onClose={onClose}>
+      <div data-testid="hire-dialog" className="flex flex-col">
+        <div className="sticky top-0 z-10 flex gap-1 border-b-2 border-slate-900/10 bg-white/90 px-3 pt-2 backdrop-blur">
           <button
             type="button"
             data-testid="hire-tab-hire"
@@ -194,7 +181,7 @@ function HireDialogInner({
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto p-3">
+        <div className="p-3">
           {tab === "hire" ? (
             <div className="flex flex-col gap-3">
               <ul className="flex flex-col gap-1" data-testid="hire-agent-list">
@@ -294,7 +281,7 @@ function HireDialogInner({
           )}
         </div>
       </div>
-    </div>
+    </GamePanel>
   );
 }
 

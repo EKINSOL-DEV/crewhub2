@@ -1,8 +1,8 @@
-// Header-drag mechanics for a floating game window (chat windows today —
-// the upcoming bot-info panel is expected to grow its own draggable header
-// and reuse this same hook, which is why it's store-agnostic: callers own
-// where the resulting position lives (useGameChats' per-chat `pos` for chat
-// windows) and how it's rendered, this hook only turns pointer events into a
+// Header-drag mechanics for a floating game window — chat windows only now
+// (the bot dossier card used this too until the side-panel conversion
+// docked it into GamePanel's uniform, non-draggable chrome). Store-agnostic:
+// callers own where the resulting position lives (useGameChats' per-chat
+// `pos`) and how it's rendered, this hook only turns pointer events into a
 // clamped {x,y}. Pattern ported from the deleted v1 WorldChatWindow's drag
 // handlers (git show <sha>^:src/panels/world/WorldChatWindow.tsx), minus
 // resize — v1 always had a numeric pos; here pos starts `null` (default

@@ -188,10 +188,13 @@ describe("RoomCard", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("backdrop click closes", () => {
+  // Docked side panel (side-panel conversion): there's no backdrop left to
+  // click — closing is ✕ (GamePanel's own contract, see game-panel.test.tsx)
+  // or Escape (above).
+  it("the ✕ button closes", () => {
     const onClose = vi.fn();
     render(<RoomCard target={{ kind: "plot", plotIndex: 0 }} onClose={onClose} />);
-    fireEvent.click(screen.getByTestId("room-card").parentElement!);
+    fireEvent.click(screen.getByTestId("game-panel-close"));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

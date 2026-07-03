@@ -80,10 +80,13 @@ describe("RoomLinkDialog", () => {
     expect(useCampusEdits.getState().edits.buildings[0]!.projectId).toBeNull();
   });
 
-  it("clicking the backdrop closes without touching projectId", () => {
+  // Docked side panel (side-panel conversion): there's no backdrop left to
+  // click — GamePanel gives this dialog a ✕ uniformly now (it previously had
+  // none, relying on backdrop-click/Escape only).
+  it("the ✕ button closes without touching projectId", () => {
     const onClose = vi.fn();
     render(<RoomLinkDialog buildingId={buildingId} onClose={onClose} />);
-    fireEvent.click(screen.getByTestId("room-link-dialog").parentElement!);
+    fireEvent.click(screen.getByTestId("game-panel-close"));
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(useCampusEdits.getState().edits.buildings[0]!.projectId).toBeNull();
   });
