@@ -4,17 +4,32 @@
 // (T7) can read straight off `Sim.world` every frame.
 import type { SessionStatus } from "@/ipc/bindings";
 import type { Motion } from "@/game/characters/pose";
-import type { Building, Desk } from "@/game/world/campus/buildings";
+import { HQ_RECT, type Building, type Desk } from "@/game/world/campus/buildings";
 import type { Character } from "./characters";
 import { findPath, type NavGrid } from "./grid";
 import { hashCode, mulberry32 } from "./rand";
 
 export const WALK_SPEED = 2.2; // units/s
 
-const PERMISSION_RING_RADIUS = 11;
-const OVERFLOW_RING_RADIUS = 8; // just outside the plaza's fountain — "any free plaza spot"
+/**
+ * Plaza ring outside HQ's walls (M6 T2): HQ's footprint is 14x12 (halves 7
+ * and 6), so the farthest corner sits at sqrt(7^2+6^2) ≈ 9.2 — 9.5 clears it
+ * on every approach angle (see the door-lane math below the ring helpers).
+ * WaitingForPermission and Working-overflow both wait here now, visible from
+ * outside instead of hidden inside HQ's walls.
+ */
+const OUTSIDE_RING_RADIUS = 9.5;
+/** Half-width of the "in front of a door" lane a ring point must clear (M6 T2). */
+const DOOR_LANE_HALF_WIDTH = 1.5;
+/** Angle nudge (rad) applied, repeatedly, to rotate a ring point off a door lane. */
+const DOOR_LANE_ROTATE_STEP = 0.35;
+/** Each door lane spans well under one rotate step's worth of angle — this is
+ *  generous headroom, never actually exhausted. */
+const DOOR_LANE_MAX_TRIES = 20;
 const SESSION_WANDER_RADIUS = 12; // around the bot's current position
-const CREW_WANDER_RADIUS = 9; // around the plaza (world origin)
+/** Crew rest inside HQ (M6 T2): a small disc around the origin, comfortably
+ *  inside HQ's walls (halves 7 and 6) — "hanging out at headquarters". */
+const CREW_WANDER_RADIUS = 3.5;
 const DESK_SEAT_OFFSET = 0.8;
 const WANDER_PAUSE_MIN = 2;
 const WANDER_PAUSE_RANGE = 2; // pause is WANDER_PAUSE_MIN..+RANGE seconds
@@ -71,9 +86,48 @@ function ringPoint(key: string, radius: number): { x: number; z: number } {
   return { x: Math.sin(angle) * radius, z: Math.cos(angle) * radius };
 }
 
-/** Spawn near the campus edge path arm at (0, 34), jittered so new bots don't stack. */
+/** True when (x, z) sits in the ±1.5u lane directly in front of a door: HQ's
+ *  north/south doors sit on the z axis (x≈0), its east/west doors on the x
+ *  axis (z≈0) — see `hqBuilding()`. Exported so sim.test.ts can verify the
+ *  ring geometry directly, without the extra noise of grid-snapping a real
+ *  pathfound position onto the nav grid's 1-unit cells. */
+export function inDoorLane(x: number, z: number): boolean {
+  return Math.abs(x) <= DOOR_LANE_HALF_WIDTH || Math.abs(z) <= DOOR_LANE_HALF_WIDTH;
+}
+
+/**
+ * A point on the plaza ring outside HQ's walls (M6 T2), angle hashed from the
+ * bot's key like `ringPoint` — but rotated off any door's approach lane in
+ * fixed, deterministic steps, so a waiting/overflowing bot never plants
+ * itself in (or hides behind) a doorway. The lane check depends only on
+ * fixed world coordinates (HQ's doors never move), not on which buildings
+ * happen to be passed in, so this is safe to use verbatim for both
+ * WaitingForPermission and Working-overflow. Exported for the same direct-
+ * geometry testing reason as `inDoorLane`.
+ */
+export function outsideRingPoint(key: string): { x: number; z: number } {
+  const base = ringPoint(key, OUTSIDE_RING_RADIUS);
+  if (!inDoorLane(base.x, base.z)) return base;
+  let angle = (hashKey(key) % 360) * (Math.PI / 180);
+  for (let i = 0; i < DOOR_LANE_MAX_TRIES; i++) {
+    angle += DOOR_LANE_ROTATE_STEP;
+    const point = { x: Math.sin(angle) * OUTSIDE_RING_RADIUS, z: Math.cos(angle) * OUTSIDE_RING_RADIUS };
+    if (!inDoorLane(point.x, point.z)) return point;
+  }
+  return base; // unreachable given the lane geometry above, but never strand a bot
+}
+
+/**
+ * New bots appear inside HQ (M6 T2), jittered clear of the 2-unit wall/props
+ * band so they never spawn inside a wall. Nothing paths them out on purpose —
+ * their first replan (in `sync`) just asks the nav grid for a route to
+ * wherever their status sends them, and the grid's only way out of HQ is
+ * through one of its four doors.
+ */
 function spawnPoint(rand: () => number): { x: number; z: number } {
-  return { x: (rand() - 0.5) * 4, z: 34 + (rand() - 0.5) * 4 };
+  const hw = HQ_RECT.w / 2 - 2; // 5
+  const hd = HQ_RECT.d / 2 - 2; // 4
+  return { x: (rand() - 0.5) * 2 * hw, z: (rand() - 0.5) * 2 * hd };
 }
 
 /** Seat point + facing for a desk: 0.8 units off-center on the "-facing" side, looking at the desk. */
@@ -147,9 +201,15 @@ export function createSim(grid: NavGrid, buildings: Building[], seed: number): S
   /** Pick a reachable seeded wander target and return the path to it, or null after a few misses. */
   function pickWanderPath(bot: SimBot, isCrew: boolean): { x: number; z: number }[] | null {
     const maxRadius = isCrew ? CREW_WANDER_RADIUS : SESSION_WANDER_RADIUS;
-    // Crew wander around the plaza (world origin); sessions wander around their current spot.
+    // Crew rest around HQ (world origin, M6 T2); sessions wander around their current spot.
     const centerX = isCrew ? 0 : bot.x;
     const centerZ = isCrew ? 0 : bot.z;
+    // Crew belongs inside HQ — exempt it from the M5 "stay out of every
+    // building" wander rule so their small rest disc (which sits entirely
+    // inside HQ's walls) isn't rejected on every try. Session bots keep the
+    // full exclusion, HQ included, same as any other room they have no
+    // business entering.
+    const wanderBuildings = isCrew ? buildings.filter((b) => b.kind !== "hq") : buildings;
     for (let i = 0; i < WANDER_TARGET_TRIES; i++) {
       const angle = rand() * Math.PI * 2;
       const radius = rand() * maxRadius;
@@ -157,7 +217,7 @@ export function createSim(grid: NavGrid, buildings: Building[], seed: number): S
       // M5 T2: no wanderer (Idle, or an unmatched Working/WaitingForInput
       // bot borrowing the wander loop below) ever paths *into* a room —
       // matched/seated bots reach their desk via pathToDesk, never this fn.
-      if (insideAnyBuildingRect(target.x, target.z, buildings, WANDER_BUILDING_MARGIN)) continue;
+      if (insideAnyBuildingRect(target.x, target.z, wanderBuildings, WANDER_BUILDING_MARGIN)) continue;
       const path = findPath(grid, { x: bot.x, z: bot.z }, target);
       if (path.length > 0) return path;
     }
@@ -209,9 +269,9 @@ export function createSim(grid: NavGrid, buildings: Building[], seed: number): S
           bot.path = pathToDesk({ x: bot.x, z: bot.z }, entry);
         } else {
           // Desks exhausted (17th+ concurrent worker in this project) — sit
-          // at the plaza edge instead of crashing. Overflow always stays at
-          // the plaza, even for a matched bot; only unmatched bots wander.
-          pathOrTeleport(bot, ringPoint(bot.key, OVERFLOW_RING_RADIUS));
+          // on the plaza ring outside HQ instead of crashing. Overflow always
+          // waits there, even for a matched bot; only unmatched bots wander.
+          pathOrTeleport(bot, outsideRingPoint(bot.key));
         }
         break;
       }
@@ -220,7 +280,7 @@ export function createSim(grid: NavGrid, buildings: Building[], seed: number): S
         // it's just stepped away to wave. Freed only when sync() drops it.
         // Unchanged for matched *and* unmatched bots (an unmatched bot never
         // holds a desk to begin with).
-        pathOrTeleport(bot, ringPoint(bot.key, PERMISSION_RING_RADIUS));
+        pathOrTeleport(bot, outsideRingPoint(bot.key));
         break;
       case "WaitingForInput": {
         if (!isMatched(m.groupKey)) {
