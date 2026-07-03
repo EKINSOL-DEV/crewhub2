@@ -18,6 +18,12 @@ How releases consume this file (M6, EKI-98/EKI-100):
 
 ### Added
 
+- M6 "Headquarters" — the campus has a heart (EKI-181): a permanent 4-door HQ at the center
+  (never deletable, never project-linked) where new robots spawn and walk out through the door,
+  crew rests inside, and waiting/overflow bots gather on a ring outside its walls; three
+  interactive props inside — 📋 opens a full in-game Projects manager (create/edit/delete),
+  👥 hires crew, 🧰 opens the workspace; clicking the HQ shows the crew roster; the fountain
+  moved into the build palette as placeable animated decor
 - M5 "Project rooms" — buildings mean something (EKI-174): every pavilion/building links to a
   project (the folder it lives in) via a click-to-open room card or the post-placement dialog;
   robots whose session/agent works in that folder take desks INSIDE their project's room, and
