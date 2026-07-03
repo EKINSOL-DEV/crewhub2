@@ -25,10 +25,3 @@ export function registerLiveBots(map: Map<string, SimBot> | null): void {
 export function getLiveBot(key: string): SimBot | undefined {
   return bots?.get(key);
 }
-
-/** Test-only reset — mirrors command-bus.ts having no reset (its queue is
- *  self-draining) but this registry persists across a component's lifetime,
- *  so tests need an explicit way back to "nothing registered". */
-export function resetLiveBotsForTests(): void {
-  bots = null;
-}

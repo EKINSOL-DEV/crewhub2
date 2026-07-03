@@ -55,7 +55,7 @@ describe("GameShell Escape precedence (mounted)", () => {
   beforeEach(() => {
     mockIPC(() => null);
     useBuildMode.setState({ active: false, tool: { kind: "select" }, pendingRoomLink: null, roomCard: null });
-    useCameraDirector.setState({ mode: { kind: "free" }, savedGoal: null });
+    useCameraDirector.setState({ mode: { kind: "free" } });
   });
 
   afterEach(() => clearMocks());

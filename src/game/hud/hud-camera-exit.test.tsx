@@ -16,7 +16,7 @@ vi.mock("@/game/audio/sfx", async (importOriginal) => {
 import { playSfx } from "@/game/audio/sfx";
 
 beforeEach(() => {
-  useCameraDirector.setState({ mode: { kind: "free" }, savedGoal: null });
+  useCameraDirector.setState({ mode: { kind: "free" } });
   vi.mocked(playSfx).mockClear();
 });
 

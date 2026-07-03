@@ -98,34 +98,20 @@ export type CameraMode =
 
 interface CameraDirectorState {
   mode: CameraMode;
-  /**
-   * Opaque snapshot of the rig's pre-cinematic goal (rts-camera.ts's
-   * RtsCamera — the director doesn't need to know the shape). Written by the
-   * rig via setSavedGoal(), meaningfully only once per cinematic session:
-   * right after it observes a free -> (focus|follow) transition. Neither
-   * focusBuilding() nor followBot() touch savedGoal themselves, so switching
-   * between the two cinematic modes mid-session (focus <-> follow) keeps the
-   * ORIGINAL saved goal intact — exit() is what finally restores-and-clears
-   * it, once there's nothing left worth saving.
-   */
-  savedGoal: unknown | null;
   /** Enter (or retarget while already in) focus mode on a building. Replaces follow. */
   focusBuilding: (b: Building, currentYaw: number) => void;
   /** Enter (or retarget) follow mode on a bot. Replaces focus. */
   followBot: (key: string) => void;
-  /** Back to free roam. Doesn't restore the camera itself — the rig reads
-   *  savedGoal (if present) and applies it before this call clears it. */
+  /** Back to free roam. Doesn't restore the camera itself — GameCameraRig
+   *  owns the pre-cinematic snapshot (its own `restoreGoalRef`, the single
+   *  source of truth as of M8 T3 — see that file's doc comment) and flies
+   *  back to it on this same free-transition. */
   exit: () => void;
-  /** Rig-owned: stash a goal snapshot. Only meaningful right after a
-   *  free -> cinematic transition — see savedGoal's doc comment above. */
-  setSavedGoal: (g: unknown) => void;
 }
 
 export const useCameraDirector = create<CameraDirectorState>((set) => ({
   mode: { kind: "free" },
-  savedGoal: null,
   focusBuilding: (b, currentYaw) => set({ mode: { kind: "focus", ...focusForBuilding(b, currentYaw) } }),
   followBot: (key) => set({ mode: { kind: "follow", botKey: key } }),
-  exit: () => set({ mode: { kind: "free" }, savedGoal: null }),
-  setSavedGoal: (g) => set({ savedGoal: g }),
+  exit: () => set({ mode: { kind: "free" } }),
 }));

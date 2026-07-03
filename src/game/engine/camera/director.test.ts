@@ -164,11 +164,10 @@ describe("focusForBuilding", () => {
 });
 
 describe("useCameraDirector", () => {
-  beforeEach(() => useCameraDirector.setState({ mode: { kind: "free" }, savedGoal: null }));
+  beforeEach(() => useCameraDirector.setState({ mode: { kind: "free" } }));
 
-  it("starts in free mode with no saved goal", () => {
+  it("starts in free mode", () => {
     expect(useCameraDirector.getState().mode).toEqual({ kind: "free" });
-    expect(useCameraDirector.getState().savedGoal).toBeNull();
   });
 
   it("focusBuilding enters focus mode with the computed goal", () => {
@@ -206,37 +205,18 @@ describe("useCameraDirector", () => {
     expect(useCameraDirector.getState().mode).toEqual({ kind: "free" });
   });
 
-  it("setSavedGoal stores an opaque snapshot verbatim", () => {
-    const goal = { targetX: 1, targetZ: 2, yaw: 3, distance: 4 };
-    useCameraDirector.getState().setSavedGoal(goal);
-    expect(useCameraDirector.getState().savedGoal).toBe(goal);
-  });
-
-  it("exit clears the saved goal (it's been consumed by the rig)", () => {
-    useCameraDirector.getState().setSavedGoal({ any: "goal" });
-    useCameraDirector.getState().exit();
-    expect(useCameraDirector.getState().savedGoal).toBeNull();
-  });
-
-  it("switching focus <-> follow mid-session keeps the ORIGINAL saved goal", () => {
-    const original = { targetX: 0, targetZ: 0, yaw: 0.6, distance: 34 };
-    // Rig's contract: setSavedGoal is called once, right after the first
-    // free -> cinematic transition.
+  it("switching focus <-> follow mid-session doesn't touch mode's kind unexpectedly", () => {
+    // The pre-cinematic snapshot itself lives entirely in GameCameraRig's
+    // own restoreGoalRef (M8 T3 — see GameCameraRig.tsx's doc comment); the
+    // store only needs to prove focus<->follow switching still composes.
     useCameraDirector.getState().followBot("bot-1");
-    useCameraDirector.getState().setSavedGoal(original);
-
-    // Switching to focus (follow -> focus) must not touch savedGoal, even
-    // though the rig does NOT call setSavedGoal again here.
     useCameraDirector.getState().focusBuilding(room(), 0);
-    expect(useCameraDirector.getState().savedGoal).toBe(original);
+    expect(useCameraDirector.getState().mode.kind).toBe("focus");
 
-    // And back to follow again — still untouched.
     useCameraDirector.getState().followBot("bot-2");
-    expect(useCameraDirector.getState().savedGoal).toBe(original);
+    expect(useCameraDirector.getState().mode).toEqual({ kind: "follow", botKey: "bot-2" });
 
-    // Only exit() consumes it, restoring the true pre-cinematic view.
     useCameraDirector.getState().exit();
     expect(useCameraDirector.getState().mode).toEqual({ kind: "free" });
-    expect(useCameraDirector.getState().savedGoal).toBeNull();
   });
 });

@@ -4,6 +4,7 @@ import {
   chaseFollow,
   chaseRestore,
   dampK,
+  edgeScrollActive,
   FOCUS_ADJUST_IDENTITY,
   isRestored,
   rotateFocusAdjust,
@@ -144,5 +145,25 @@ describe("zoomFocusAdjust", () => {
     const once = adjust.distanceFactor;
     adjust = zoomFocusAdjust(adjust, -50, 20, BOUNDS);
     expect(adjust.distanceFactor).toBeLessThan(once);
+  });
+});
+
+describe("edgeScrollActive", () => {
+  it("is active in free-roam steady state (not restoring)", () => {
+    expect(edgeScrollActive("free", false)).toBe(true);
+  });
+
+  it("is inactive while free but mid flight-home restore", () => {
+    expect(edgeScrollActive("free", true)).toBe(false);
+  });
+
+  it("is inactive while focused on a building, restoring or not", () => {
+    expect(edgeScrollActive("focus", false)).toBe(false);
+    expect(edgeScrollActive("focus", true)).toBe(false);
+  });
+
+  it("is inactive while following a bot, restoring or not", () => {
+    expect(edgeScrollActive("follow", false)).toBe(false);
+    expect(edgeScrollActive("follow", true)).toBe(false);
   });
 });

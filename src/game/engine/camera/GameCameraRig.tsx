@@ -24,17 +24,27 @@
 //     same as a deliberate HUD/Escape exit.
 //
 // Entry/exit bookkeeping: on a free -> focus|follow edge, the rig snapshots
-// goal.current both into the store (`setSavedGoal`, satisfying director.ts's
-// documented one-shot contract) and into its own `restoreGoalRef` — the
-// store's copy doesn't survive to be read back, because `exit()` clears
-// `savedGoal` in the same synchronous action that flips `mode` to free, so
-// this rig's own ref is what the restore lerp actually reads afterward.
+// goal.current into its own `restoreGoalRef` — the single source of truth
+// for "what to fly back to" (M8 T3 dropped director.ts's parallel
+// `savedGoal` mirror: nothing outside this rig ever read it back).
 //
-// PAN intent (drag-pan, WASD/arrows, edge-scroll) while focus/follow is a
-// takeover: it calls `exit()` itself and sets `takeoverRef`, so the restore
-// lerp is skipped entirely and the camera just keeps whatever view the
-// player grabbed. Wheel-zoom and rotate (Q/E, right-drag) never exit, in any
-// mode — see the per-mode branches above/below for where they land.
+// PAN intent (drag-pan, WASD/arrows) while focus/follow is a takeover: it
+// calls `exit()` itself and sets `takeoverRef`, so the restore lerp is
+// skipped entirely and the camera just keeps whatever view the player
+// grabbed. Wheel-zoom and rotate (Q/E, right-drag) never exit, in any mode —
+// see the per-mode branches above/below for where they land. Edge-scroll is
+// NOT pan intent (M8 T3 controller ruling, camera-math.ts's
+// `edgeScrollActive`): an ambient pointer resting near the viewport edge
+// isn't a deliberate "give me back control" the way a drag or a held key
+// is, so it's excluded entirely while focus/follow is framing a shot and
+// while flight-home is restoring — only a drag or WASD/arrows takes the
+// camera back in those modes.
+//
+// Every frame also mirrors the damped `current.current.yaw` into
+// live-camera.ts's module-level `setLiveYaw` — CampusWorld/PlacedBuildings'
+// building-click handlers (M8 T3) read it back via `getLiveYaw()` to seed
+// focusBuilding()'s currentYaw, since this rig's own goal/current state is
+// otherwise private to this file (see the top of this comment).
 import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import {
@@ -42,6 +52,7 @@ import {
   chaseFollow,
   chaseRestore,
   dampK,
+  edgeScrollActive,
   FOCUS_ADJUST_IDENTITY,
   isRestored,
   rotateFocusAdjust,
@@ -49,6 +60,7 @@ import {
   type FocusAdjust,
 } from "./camera-math";
 import { useCameraDirector, type CameraMode } from "./director";
+import { setLiveYaw } from "./live-camera";
 import {
   DEFAULT_CAMERA,
   damp,
@@ -208,20 +220,17 @@ export function GameCameraRig({
     const prevKind = prevModeKind.current;
 
     if (prevKind === "free" && mode.kind !== "free") {
-      // Entry edge: snapshot once, per director.ts's documented contract —
-      // see the file doc comment for why a second, rig-local copy exists.
-      const snapshot = { ...goal.current };
-      director.setSavedGoal(snapshot);
-      restoreGoalRef.current = snapshot;
+      // Entry edge: snapshot once — restoreGoalRef is the only copy (see
+      // the file doc comment for why director.ts no longer mirrors this).
+      restoreGoalRef.current = { ...goal.current };
       restoring.current = false;
     }
     if (prevKind !== "focus" && mode.kind === "focus") {
       // Freshly framing a building (from free OR straight from follow) always
       // starts from a clean shot — a switch between the two cinematic modes
       // must not carry over a rotate/zoom the player dialed into the *other*
-      // one (director.ts's savedGoal doc comment covers the parallel rule
-      // for the snapshot above: only a free-entry re-snapshots, but a
-      // focus<->follow switch still deserves its own fresh framing here).
+      // one: only a free-entry re-snapshots restoreGoalRef above, but a
+      // focus<->follow switch still deserves its own fresh framing here.
       focusAdjust.current = FOCUS_ADJUST_IDENTITY;
     }
     if (prevKind !== "free" && mode.kind === "free") {
@@ -236,9 +245,9 @@ export function GameCameraRig({
     }
     prevModeKind.current = mode.kind;
 
-    // WASD/arrows + edge-scroll pan intent, computed once regardless of
-    // mode — every mode branch below either applies it (free/restoring) or
-    // treats its mere presence as a takeover (focus/follow).
+    // WASD/arrows pan intent, computed once regardless of mode — every mode
+    // branch below either applies it (free/restoring) or treats its mere
+    // presence as a takeover (focus/follow).
     const k = keys.current;
     const px = KEY_PAN_PX * dt;
     let dx = 0;
@@ -247,9 +256,11 @@ export function GameCameraRig({
     if (k.has("KeyS") || k.has("ArrowDown")) dy -= px;
     if (k.has("KeyA") || k.has("ArrowLeft")) dx += px;
     if (k.has("KeyD") || k.has("ArrowRight")) dx -= px;
-    // Edge scroll only while the pointer is over the canvas and not dragging.
+    // Edge scroll only while the pointer is over the canvas, not dragging,
+    // and (M8 T3) only in free-roam steady state — see camera-math.ts's
+    // edgeScrollActive for why focus/follow/restoring exclude it entirely.
     const p = pointer.current;
-    if (p && !drag.current && document.hasFocus()) {
+    if (edgeScrollActive(mode.kind, restoring.current) && p && !drag.current && document.hasFocus()) {
       const r = gl.domElement.getBoundingClientRect();
       const e = EDGE_PAN_PX * dt;
       if (p.x - r.left < EDGE_PX) dx += e;
@@ -310,6 +321,7 @@ export function GameCameraRig({
     }
 
     current.current = damp(current.current, goal.current, DAMP_RATE, dt);
+    setLiveYaw(current.current.yaw);
     const { position, lookAt } = pose(current.current);
     camera.position.set(...position);
     camera.lookAt(...lookAt);

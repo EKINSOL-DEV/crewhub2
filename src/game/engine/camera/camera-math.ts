@@ -4,7 +4,7 @@
 // without a rig test harness — no r3f useFrame test exists in this repo
 // (see GameCameraRig.tsx's doc comment on that gap), but this module needs
 // none of that machinery to exercise.
-import { shortestArcDelta, shortestArcLerp } from "./director";
+import { shortestArcDelta, shortestArcLerp, type CameraMode } from "./director";
 import { zoom, type RtsBounds, type RtsCamera } from "./rts-camera";
 
 /** Exponential-damp fraction for a frame of length `dt` at the given rate —
@@ -87,6 +87,19 @@ export function chaseFollow(current: RtsCamera, botX: number, botZ: number, k: n
     targetX: current.targetX + (botX - current.targetX) * k,
     targetZ: current.targetZ + (botZ - current.targetZ) * k,
   };
+}
+
+/**
+ * Whether edge-scroll pan should contribute this frame (M8 T3 controller
+ * ruling): only in free-roam steady state. A pointer merely resting near
+ * the viewport edge isn't deliberate "give me back control" — unlike a
+ * drag or a held WASD/arrow key, it doesn't require the player to be doing
+ * anything — so it's excluded from GameCameraRig's pan intent entirely
+ * while focus/follow is framing a shot, AND while flight-home is
+ * restoring: only a drag or WASD/arrows should cancel either of those.
+ */
+export function edgeScrollActive(modeKind: CameraMode["kind"], restoring: boolean): boolean {
+  return modeKind === "free" && !restoring;
 }
 
 /** Flight-home restore: chase every field back toward the pre-cinematic snapshot taken on entry. */
