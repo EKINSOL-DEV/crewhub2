@@ -79,7 +79,16 @@ export function GameCameraRig({
       goal.current = zoom(goal.current, dy, bounds);
     };
     const ctx = (e: Event) => e.preventDefault();
-    const keydown = (e: KeyboardEvent) => keys.current.add(e.code);
+    // Typing in a chat composer (or any field) must not scroll the camera —
+    // keyup still clears unconditionally so a key held across a focus change
+    // can't stick.
+    const typing = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      return !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
+    };
+    const keydown = (e: KeyboardEvent) => {
+      if (!typing(e)) keys.current.add(e.code);
+    };
     const keyup = (e: KeyboardEvent) => keys.current.delete(e.code);
     const leave = () => (pointer.current = null);
 

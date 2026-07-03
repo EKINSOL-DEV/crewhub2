@@ -7,10 +7,10 @@
 // mounts <HireDialogInner> while `open`, so closing/reopening always
 // starts fresh; picking a different agent remounts <HireForm> via
 // `key={agent.id}` so its model/prompt reset too. No setState-in-effect.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ModelPicker, isModelTierId, type ModelTierId } from "@/components/ModelPicker";
 import { playSfx } from "@/game/audio/sfx";
-import type { Agent, SessionMeta } from "@/ipc/bindings";
+import { commands, type Agent, type SessionMeta } from "@/ipc/bindings";
 import { useAgentsStore } from "@/stores/agents";
 import { useSessionsView, type SessionView } from "@/stores/sessions";
 import { adoptSession, canTakeOver, hireAgent } from "./hire";
@@ -18,6 +18,16 @@ import { useGameChats } from "./store";
 
 const FALLBACK_COLOR = "#94a3b8";
 const RECENT_LIMIT = 15;
+
+/** "5m ago" / "3h ago" / "2d ago" — enough context to pick between sessions. */
+export function relativeTime(ms: number, nowMs: number): string {
+  const mins = Math.max(0, Math.round((nowMs - ms) / 60_000));
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
+}
 
 /** Live enough to just open a chat: still running, and either not tracked by
  * CrewHub (External) or not yet bound to a game window. */
@@ -60,6 +70,34 @@ function HireDialogInner({
         .slice(0, RECENT_LIMIT),
     [views],
   );
+
+  // Session titles (live feedback): bare id prefixes are unusable. The CLI
+  // already writes a summary line per session — listArchivedSessions surfaces
+  // it, so no extra model call is needed; join by "provider:id" key.
+  const [summaries, setSummaries] = useState<Map<string, string>>(new Map());
+  // Captured once at mount — the dialog is short-lived, so "5m ago" drifting
+  // by the seconds it stays open is fine (and render stays pure).
+  const [nowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (tab !== "adopt") return;
+    let cancelled = false;
+    commands
+      .listArchivedSessions(null)
+      .then((res) => {
+        if (cancelled || res.status !== "ok") return;
+        const map = new Map<string, string>();
+        for (const s of res.data) {
+          if (s.summary) map.set(`${s.id.provider}:${s.id.id}`, s.summary);
+        }
+        setSummaries(map);
+      })
+      .catch(() => {
+        // best-effort: rows fall back to displayName
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tab]);
 
   const hire = async (agent: Agent, model: ModelTierId, prompt: string | null) => {
     setBusy(true);
@@ -206,7 +244,18 @@ function HireDialogInner({
                     className="h-3 w-3 shrink-0 rounded-full"
                     style={{ backgroundColor: v.agent?.color ?? FALLBACK_COLOR }}
                   />
-                  <span className="min-w-0 flex-1 truncate">{v.displayName}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate">
+                      {v.agent || v.binding?.display_name
+                        ? v.displayName
+                        : (summaries.get(v.key) ?? v.displayName)}
+                    </span>
+                    <span className="block truncate text-xs text-slate-500">
+                      {relativeTime(v.meta.last_activity_ms, nowMs)}
+                      {" · "}
+                      {v.meta.project_path.split("/").pop()}
+                    </span>
+                  </span>
                   {isLive(v) && (
                     <button
                       type="button"

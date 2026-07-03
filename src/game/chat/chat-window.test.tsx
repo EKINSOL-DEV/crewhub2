@@ -14,6 +14,7 @@ type SendResult = { status: "ok"; data: null } | { status: "error"; error: strin
 const {
   transcripts,
   openSessionSpy,
+  loadOlderSpy,
   startTranscriptStreamSpy,
   sendToSessionSpy,
   spawnSessionSpy,
@@ -23,6 +24,7 @@ const {
 } = vi.hoisted(() => ({
   transcripts: { sessions: {} as Record<string, SessionTranscript> },
   openSessionSpy: vi.fn(),
+  loadOlderSpy: vi.fn(),
   startTranscriptStreamSpy: vi.fn(),
   sendToSessionSpy: vi.fn(async (): Promise<SendResult> => ({ status: "ok", data: null })),
   spawnSessionSpy: vi.fn(),
@@ -33,7 +35,7 @@ const {
 
 vi.mock("@/stores/transcripts", () => ({
   useTranscripts: Object.assign((selector: (s: typeof transcripts) => unknown) => selector(transcripts), {
-    getState: () => ({ ...transcripts, openSession: openSessionSpy }),
+    getState: () => ({ ...transcripts, openSession: openSessionSpy, loadOlder: loadOlderSpy }),
   }),
   startTranscriptStream: startTranscriptStreamSpy,
   // hire.ts's sessionKey — real logic, not a spy; "provider:id" is what
@@ -156,6 +158,7 @@ beforeEach(() => {
   transcripts.sessions = {};
   views.current = [];
   openSessionSpy.mockClear();
+  loadOlderSpy.mockClear();
   startTranscriptStreamSpy.mockClear();
   sendToSessionSpy.mockClear();
   spawnSessionSpy.mockReset();
@@ -194,6 +197,26 @@ describe("ChatWindow", () => {
     render(<ChatWindow {...WINDOW_PROPS} />);
     expect(startTranscriptStreamSpy).toHaveBeenCalledTimes(1);
     expect(openSessionSpy).toHaveBeenCalledWith({ provider: "claude", id: "s1" });
+  });
+
+  it("backfills the transcript head when the lowest loaded seq is above 0 (fresh-spawn race)", () => {
+    // The spawn prompt (seq 0) can be written before the watcher attaches; a
+    // live-only buffer then starts at seq 1 and the first message never shows.
+    transcripts.sessions["claude:s1"] = transcript(
+      [[1, { kind: "AssistantText", data: { text: "hello", ts: 2 } }]],
+      [1],
+    );
+    render(<ChatWindow {...WINDOW_PROPS} />);
+    expect(loadOlderSpy).toHaveBeenCalledWith({ provider: "claude", id: "s1" });
+  });
+
+  it("does not backfill when seq 0 is already loaded", () => {
+    transcripts.sessions["claude:s1"] = transcript(
+      [[0, { kind: "UserText", data: { text: "hi", ts: 1 } }]],
+      [0],
+    );
+    render(<ChatWindow {...WINDOW_PROPS} />);
+    expect(loadOlderSpy).not.toHaveBeenCalled();
   });
 
   it("Enter sends the trimmed draft via sendToSession(parsed id) and clears the input", () => {

@@ -3,7 +3,7 @@
 // the engine echoes `UserText` back into the transcript within ~100ms (see
 // stores/transcripts.ts), so unlike the old panel's use-bot-chat.ts this
 // needs no local push-then-dedupe dance.
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   commands,
   type Agent,
@@ -58,6 +58,22 @@ export function useChatSession(key: string): ChatSessionResult {
   }, [key, sid]);
 
   const transcript = useTranscripts((s) => s.sessions[key]);
+
+  // Fresh-spawn race (reported live): the open-time probe can run before the
+  // CLI has written the first transcript line, and the watcher tails from the
+  // file's end — so the spawn prompt (seq 0) never arrives as a live event.
+  // Self-heal: whenever the lowest loaded seq is above 0, page the gap in
+  // from disk. `loadOlder` already no-ops while a fetch is in flight; the ref
+  // stops us re-requesting the same lowest seq when the file genuinely
+  // starts above 0 (truncated transcript).
+  const lowest = transcript?.order[0];
+  const backfillAttempted = useRef<number | null>(null);
+  useEffect(() => {
+    if (isDemoKey(key) || lowest === undefined || lowest === 0) return;
+    if (backfillAttempted.current === lowest) return;
+    backfillAttempted.current = lowest;
+    void useTranscripts.getState().loadOlder(sid);
+  }, [key, sid, lowest]);
   const view = useSessionsView().find((v) => v.key === key);
   const status = view?.meta.status;
   const agent = view?.agent ?? null;
