@@ -1,8 +1,54 @@
-// Camera rig (M0 T6): input → goal state → damped actual state → camera.
-// Left-drag pans, right-drag rotates, wheel zooms, WASD/arrows pan, Q/E
-// rotate, pointer at viewport edges scrolls (the RTS staple).
+// Camera rig (M0 T6, M8 T2): input → goal state → damped actual state →
+// camera. Left-drag pans, right-drag rotates, wheel zooms, WASD/arrows pan,
+// Q/E rotate, pointer at viewport edges scrolls (the RTS staple).
+//
+// M8 T2 layers the camera director (director.ts) on top: `useCameraDirector`
+// is read imperatively via `.getState()` every frame (never subscribed —
+// this rig must not re-render on mode changes, only useFrame reacts), and
+// drives three modes:
+//   - free: exactly the M0 behavior below, unchanged.
+//   - focus: goal.targetX/Z/yaw/distance damp toward the mode's framed shot
+//     (yaw via shortestArcLerp — the shortest-arc seam-safe lerp from
+//     director.ts). A live wheel/Q/E input during focus doesn't fight that
+//     damp: it accumulates into `focusAdjust` (camera-math.ts) instead of
+//     mutating goal.current directly, and the damp target becomes
+//     `mode.yaw + adjust.yaw` / `mode.distance * adjust.distanceFactor` — so
+//     the shot re-centers under player control rather than snapping back to
+//     the raw framed values every frame.
+//   - follow: goal.targetX/Z damp toward the bot's *live* position, read
+//     off live-bots.ts's registry (see that file for why: Sim lives inside
+//     Characters, a sibling of this rig, with no prop path between them).
+//     yaw/distance are left alone — wheel/Q/E write straight to
+//     goal.current in follow, same as free roam. A despawned bot
+//     (`getLiveBot` returns undefined) calls `exit()` — the restore path,
+//     same as a deliberate HUD/Escape exit.
+//
+// Entry/exit bookkeeping: on a free -> focus|follow edge, the rig snapshots
+// goal.current both into the store (`setSavedGoal`, satisfying director.ts's
+// documented one-shot contract) and into its own `restoreGoalRef` — the
+// store's copy doesn't survive to be read back, because `exit()` clears
+// `savedGoal` in the same synchronous action that flips `mode` to free, so
+// this rig's own ref is what the restore lerp actually reads afterward.
+//
+// PAN intent (drag-pan, WASD/arrows, edge-scroll) while focus/follow is a
+// takeover: it calls `exit()` itself and sets `takeoverRef`, so the restore
+// lerp is skipped entirely and the camera just keeps whatever view the
+// player grabbed. Wheel-zoom and rotate (Q/E, right-drag) never exit, in any
+// mode — see the per-mode branches above/below for where they land.
 import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
+import {
+  chaseFocus,
+  chaseFollow,
+  chaseRestore,
+  dampK,
+  FOCUS_ADJUST_IDENTITY,
+  isRestored,
+  rotateFocusAdjust,
+  zoomFocusAdjust,
+  type FocusAdjust,
+} from "./camera-math";
+import { useCameraDirector, type CameraMode } from "./director";
 import {
   DEFAULT_CAMERA,
   damp,
@@ -14,13 +60,17 @@ import {
   type RtsBounds,
   type RtsCamera,
 } from "./rts-camera";
+import { getLiveBot } from "@/game/sim/live-bots";
 
 const KEY_PAN_PX = 640; // px-equivalent per second held
 const KEY_ROT = 1.9; // rad per second
 const EDGE_PX = 14;
 const EDGE_PAN_PX = 480;
-const DAMP_RATE = 9;
+const DAMP_RATE = 9; // current -> goal (existing M0 smoothing, unchanged)
 const DRAG_ROT = 0.005;
+/** goal -> cinematic target (focus/follow/restore) — slower than DAMP_RATE
+ *  so a focus/follow shot reads as a deliberate camera move, not a snap. */
+const CINEMATIC_RATE = 3;
 
 export function GameCameraRig({
   bounds,
@@ -45,6 +95,13 @@ export function GameCameraRig({
   const pointer = useRef<{ x: number; y: number } | null>(null);
   const drag = useRef<{ button: number; x: number; y: number } | null>(null);
 
+  // M8 T2 cinematic bookkeeping — see the file doc comment above.
+  const prevModeKind = useRef<CameraMode["kind"]>("free");
+  const restoreGoalRef = useRef<RtsCamera | null>(null);
+  const restoring = useRef(false);
+  const takeoverRef = useRef(false);
+  const focusAdjust = useRef<FocusAdjust>(FOCUS_ADJUST_IDENTITY);
+
   useEffect(() => {
     if (!focus) return;
     goal.current = focusOn(goal.current, focus.x, focus.z);
@@ -66,8 +123,29 @@ export function GameCameraRig({
       const dx = e.clientX - drag.current.x;
       const dy = e.clientY - drag.current.y;
       drag.current = { ...drag.current, x: e.clientX, y: e.clientY };
-      goal.current =
-        drag.current.button === 0 ? pan(goal.current, dx, dy, bounds) : rotate(goal.current, dx * DRAG_ROT);
+      if (drag.current.button === 0) {
+        // Left-drag pan is PAN intent — takeover rule applies.
+        const director = useCameraDirector.getState();
+        if (director.mode.kind !== "free") {
+          takeoverRef.current = true;
+          director.exit();
+        } else if (restoring.current) {
+          // Mid flight-home: grabbing the camera cancels the restore too.
+          restoring.current = false;
+          restoreGoalRef.current = null;
+          goal.current = pan(goal.current, dx, dy, bounds);
+        } else {
+          goal.current = pan(goal.current, dx, dy, bounds);
+        }
+      } else {
+        // Right-drag rotate never exits — same focus-adjust rule as Q/E.
+        const mode = useCameraDirector.getState().mode;
+        if (mode.kind === "focus") {
+          focusAdjust.current = rotateFocusAdjust(focusAdjust.current, dx * DRAG_ROT);
+        } else {
+          goal.current = rotate(goal.current, dx * DRAG_ROT);
+        }
+      }
     };
     const hover = (e: PointerEvent) => {
       pointer.current = { x: e.clientX, y: e.clientY };
@@ -76,7 +154,13 @@ export function GameCameraRig({
     const wheel = (e: WheelEvent) => {
       e.preventDefault();
       const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
-      goal.current = zoom(goal.current, dy, bounds);
+      // Wheel-zoom never exits, in any mode.
+      const mode = useCameraDirector.getState().mode;
+      if (mode.kind === "focus") {
+        focusAdjust.current = zoomFocusAdjust(focusAdjust.current, dy, mode.distance, bounds);
+      } else {
+        goal.current = zoom(goal.current, dy, bounds);
+      }
     };
     const ctx = (e: Event) => e.preventDefault();
     // Typing in a chat composer (or any field) must not scroll the camera —
@@ -119,6 +203,42 @@ export function GameCameraRig({
   }, [gl, bounds, enabled]);
 
   useFrame((_, dt) => {
+    const director = useCameraDirector.getState();
+    const mode = director.mode;
+    const prevKind = prevModeKind.current;
+
+    if (prevKind === "free" && mode.kind !== "free") {
+      // Entry edge: snapshot once, per director.ts's documented contract —
+      // see the file doc comment for why a second, rig-local copy exists.
+      const snapshot = { ...goal.current };
+      director.setSavedGoal(snapshot);
+      restoreGoalRef.current = snapshot;
+      restoring.current = false;
+    }
+    if (prevKind !== "focus" && mode.kind === "focus") {
+      // Freshly framing a building (from free OR straight from follow) always
+      // starts from a clean shot — a switch between the two cinematic modes
+      // must not carry over a rotate/zoom the player dialed into the *other*
+      // one (director.ts's savedGoal doc comment covers the parallel rule
+      // for the snapshot above: only a free-entry re-snapshots, but a
+      // focus<->follow switch still deserves its own fresh framing here).
+      focusAdjust.current = FOCUS_ADJUST_IDENTITY;
+    }
+    if (prevKind !== "free" && mode.kind === "free") {
+      // Exit edge.
+      if (takeoverRef.current) {
+        takeoverRef.current = false;
+        restoreGoalRef.current = null;
+        restoring.current = false;
+      } else {
+        restoring.current = restoreGoalRef.current !== null;
+      }
+    }
+    prevModeKind.current = mode.kind;
+
+    // WASD/arrows + edge-scroll pan intent, computed once regardless of
+    // mode — every mode branch below either applies it (free/restoring) or
+    // treats its mere presence as a takeover (focus/follow).
     const k = keys.current;
     const px = KEY_PAN_PX * dt;
     let dx = 0;
@@ -127,9 +247,6 @@ export function GameCameraRig({
     if (k.has("KeyS") || k.has("ArrowDown")) dy -= px;
     if (k.has("KeyA") || k.has("ArrowLeft")) dx += px;
     if (k.has("KeyD") || k.has("ArrowRight")) dx -= px;
-    if (k.has("KeyQ")) goal.current = rotate(goal.current, -KEY_ROT * dt);
-    if (k.has("KeyE")) goal.current = rotate(goal.current, KEY_ROT * dt);
-
     // Edge scroll only while the pointer is over the canvas and not dragging.
     const p = pointer.current;
     if (p && !drag.current && document.hasFocus()) {
@@ -140,7 +257,57 @@ export function GameCameraRig({
       if (p.y - r.top < EDGE_PX) dy += e;
       if (r.bottom - p.y < EDGE_PX) dy -= e;
     }
-    if (dx !== 0 || dy !== 0) goal.current = pan(goal.current, dx, dy, bounds);
+    const panIntent = dx !== 0 || dy !== 0;
+
+    // Q/E rotate never exits, in any mode — lands on focusAdjust while
+    // focused (same rule as wheel/right-drag above), goal.current otherwise.
+    const rotDelta = (k.has("KeyQ") ? -KEY_ROT : 0) + (k.has("KeyE") ? KEY_ROT : 0);
+    if (rotDelta !== 0) {
+      const rotDt = rotDelta * dt;
+      if (mode.kind === "focus") {
+        focusAdjust.current = rotateFocusAdjust(focusAdjust.current, rotDt);
+      } else {
+        goal.current = rotate(goal.current, rotDt);
+      }
+    }
+
+    if (mode.kind === "focus") {
+      if (panIntent) {
+        takeoverRef.current = true;
+        director.exit();
+      } else {
+        goal.current = chaseFocus(goal.current, mode, focusAdjust.current, dampK(CINEMATIC_RATE, dt));
+      }
+    } else if (mode.kind === "follow") {
+      if (panIntent) {
+        takeoverRef.current = true;
+        director.exit();
+      } else {
+        const bot = getLiveBot(mode.botKey);
+        if (!bot) {
+          director.exit(); // despawned mid-follow — restore path, not a takeover
+        } else {
+          goal.current = chaseFollow(goal.current, bot.x, bot.z, dampK(CINEMATIC_RATE, dt));
+        }
+      }
+    } else if (restoring.current && restoreGoalRef.current) {
+      if (panIntent) {
+        // Grabbing the wheel mid flight-home cancels the restore, same as
+        // during focus/follow — keep the player's view, drop the snapshot.
+        restoring.current = false;
+        restoreGoalRef.current = null;
+        goal.current = pan(goal.current, dx, dy, bounds);
+      } else {
+        goal.current = chaseRestore(goal.current, restoreGoalRef.current, dampK(CINEMATIC_RATE, dt));
+        if (isRestored(goal.current, restoreGoalRef.current)) {
+          restoring.current = false;
+          restoreGoalRef.current = null;
+        }
+      }
+    } else if (panIntent) {
+      // Free roam, steady state — the original M0 WASD/edge-scroll pan.
+      goal.current = pan(goal.current, dx, dy, bounds);
+    }
 
     current.current = damp(current.current, goal.current, DAMP_RATE, dt);
     const { position, lookAt } = pose(current.current);

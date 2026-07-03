@@ -16,6 +16,7 @@ import { useAudio } from "@/game/audio/sfx";
 import { GameCanvas } from "@/game/engine/GameCanvas";
 import { Lights } from "@/game/engine/Lights";
 import { GameCameraRig } from "@/game/engine/camera/GameCameraRig";
+import { useCameraDirector } from "@/game/engine/camera/director";
 import { Effects } from "@/game/engine/effects/Effects";
 import { preloadModels } from "@/game/assets/use-model";
 import { useFlavor } from "@/game/flavor/engine";
@@ -39,6 +40,21 @@ const CAMERA_BOUNDS: RtsBounds = { half: CAMPUS.half, minDistance: 8, maxDistanc
 // is required to toggle `?demo` anyway, so there's nothing to react to.
 const DEMO_MODE = new URLSearchParams(window.location.search).has("demo");
 const DEMO_CHARACTERS = DEMO_MODE ? demoCharacters(Date.now()) : undefined;
+
+/**
+ * Pure Escape-precedence rule (M8 T2), pulled out of the handler so it's
+ * unit-testable without mounting GameShell (which needs a real R3F canvas —
+ * see game-shell-escape.test.tsx). `false` at every step of the ladder means
+ * "something else already owns this Escape press"; only once every step is
+ * clear AND the camera isn't already free does it return `true`.
+ */
+export function shouldExitCameraOnEscape(
+  hasOpenCard: boolean,
+  buildActive: boolean,
+  cameraFree: boolean,
+): boolean {
+  return !hasOpenCard && !buildActive && !cameraFree;
+}
 
 export default function GameShell() {
   const [fps, setFps] = useState(0);
@@ -72,6 +88,30 @@ export default function GameShell() {
   // render for no benefit here): `hireRequested` just ORs the card-slot
   // request into the same `open`/`onClose` HireDialog already takes.
   const hireRequested = roomCard?.kind === "hire";
+
+  // Escape precedence (M8 T2): dialogs/cards close first (HqCard, RoomCard,
+  // RoomLinkDialog, ProjectsDialog, HireDialog each own their own Escape
+  // listener, mounted only while open), then the build-mode ladder
+  // (BuildControls' own listener, mounted only while build is active) —
+  // both of those are independent `window.addEventListener("keydown", ...)`
+  // calls that never stopPropagation, so this handler can't literally sit
+  // "after" them in a bubble chain. Precedence here means this handler's own
+  // guard: it no-ops whenever a card is open or build mode is active,
+  // leaving those to react to THIS SAME Escape press, and only exits a
+  // focus/follow camera shot once a later press finds both clear.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      const hasOpenCard = roomCard !== null || hireOpen || hireRequested;
+      const build = useBuildMode.getState();
+      const cameraFree = useCameraDirector.getState().mode.kind === "free";
+      if (shouldExitCameraOnEscape(hasOpenCard, build.active, cameraFree)) {
+        useCameraDirector.getState().exit();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [roomCard, hireOpen, hireRequested]);
 
   return (
     <div className="relative h-screen w-screen overflow-hidden" data-testid="game-shell">
