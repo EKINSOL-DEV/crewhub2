@@ -169,6 +169,13 @@ export function CampusWorld({ biome = BIOMES.campus }: { biome?: Biome }) {
             {b.kind === "hq" ? <Headquarters building={b} /> : <Pavilion building={b} />}
           </group>
         ))}
+        {/* HQ's interactive prop stands (M9 polish): unlike the old
+            Billboard-icon HqProps, these are plain toon geometry with no
+            per-frame rotation, so they live inside the frozen static-matrix
+            group right alongside <Headquarters> — their onPointerDown still
+            fires off the one-time-baked matrixWorld useStaticMatrices
+            computes above, same as every pavilion-wrapper click. */}
+        <HqProps />
       </group>
       {/* Placed pavilions (M3 T5): a disjoint set from the seeded four above,
           so no dedup needed — see PlacedBuildings' header for why this stays
@@ -212,11 +219,6 @@ export function CampusWorld({ biome = BIOMES.campus }: { biome?: Biome }) {
           />
         ))}
       <HeadquartersPlate position={[0, HQ_PLATE_Y, 0]} />
-      {/* HQ's interactive prop stands (M6 T4) — same outside-the-frozen-group
-          placement as the plate above, and for the same reason: their icon
-          plates are Billboards that must keep facing the camera every
-          frame. */}
-      <HqProps />
     </group>
   );
 }
