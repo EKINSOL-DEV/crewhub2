@@ -13,6 +13,7 @@ import { useSessionsStore, useSessionsView } from "@/stores/sessions";
 import { applyEdits } from "@/game/build/edits";
 import { useCampusEdits } from "@/game/build/store";
 import { useFlavorTicker } from "@/game/flavor/use-flavor-ticker";
+import { drainCommands } from "@/game/sim/command-bus";
 import { buildNavGrid } from "@/game/sim/grid";
 import { createSim, type Sim } from "@/game/sim/sim";
 import { DEMO_GROUP } from "@/game/sim/demo";
@@ -269,6 +270,12 @@ export function useSim(override?: Character[]): UseSimResult {
 
   const accRef = useRef(0);
   useFrame((_state, delta) => {
+    // M7 T3: drain chat-posted commands BEFORE ticking — ChatWindow lives
+    // outside <Canvas> and can't reach `sim` directly (see command-bus.ts),
+    // so a "go to HQ"/"dance" typed this frame must land on the sim before
+    // its next step, not a frame late.
+    for (const { key, cmd } of drainCommands()) sim.command(key, cmd);
+
     // Tab-back frame spikes shouldn't fast-forward the sim for minutes.
     accRef.current += Math.min(delta, 0.25);
     while (accRef.current >= TICK_S) {

@@ -11,6 +11,16 @@ import { hashCode, mulberry32 } from "./rand";
 
 export const WALK_SPEED = 2.2; // units/s
 
+/** Seconds per "tick" in SimCommand's holdTicks/durTicks (M7 T2): 100 ticks
+ *  = 10s hold, 30 ticks = 3s emote. Ticks are just a friendlier unit for the
+ *  command's caller — the sim itself only ever thinks in seconds. */
+const TICK_SECONDS = 0.1;
+/** How close (world units) an emote-resuming bot must be to its held desk's
+ *  seat point to count as "never left" (M7 T2 fix round 1) — well under a
+ *  full grid cell, generous slack above float noise from an untouched
+ *  position. See tickOverride's emote-resume branch. */
+const SEATED_RESUME_EPSILON = 0.3;
+
 /**
  * Plaza ring outside HQ's walls (M6 T2): HQ's footprint is 14x12 (halves 7
  * and 6), so the farthest corner sits at sqrt(7^2+6^2) ≈ 9.2 — 9.5 clears it
@@ -57,12 +67,36 @@ export interface SimWorld {
   deskOwners: Map<string, string>;
 }
 
+/**
+ * "Say the word" commands (M7 T2) — external inputs to a bot, same standing
+ * as sync(): deterministic, no rng. `goto` overrides the bot's current
+ * behavior to walk somewhere and hold; `emote` plays a motion in place. A
+ * second command (of either kind) always replaces whichever is active.
+ */
+export type SimCommand =
+  | { kind: "goto"; x: number; z: number; holdTicks?: number } // default 100 (10s)
+  | { kind: "emote"; emote: "dance" | "spin" | "cheer" | "wave"; durTicks?: number }; // default 30 (3s)
+
 export interface Sim {
   world: SimWorld;
   sync(characters: Character[]): void;
   tick(dt: number): void;
   updateWorld(grid: NavGrid, buildings: Building[]): void;
+  command(key: string, cmd: SimCommand): void;
 }
+
+/** The emote half of SimCommand, pulled out for reuse below. */
+type Emote = Extract<SimCommand, { kind: "emote" }>["emote"];
+
+/**
+ * A goto/emote command in flight for one bot (M7 T2). `null` on BotMeta means
+ * "no override — follow normal status behavior", the only state before this
+ * milestone. See `tickOverride` for the per-tick state machine both variants
+ * run through.
+ */
+type Override =
+  | { kind: "goto"; phase: "walk" | "hold"; holdSeconds: number; holdUntil: number }
+  | { kind: "emote"; emote: Emote; startAge: number; endAge: number; startFacing: number };
 
 /** Bookkeeping the renderer never sees — kept off SimBot to keep that type a clean wire contract. */
 interface BotMeta {
@@ -72,6 +106,8 @@ interface BotMeta {
   pauseUntil: number;
   /** Desk-claim eligibility key (M5 T2), normalized to null; see `isMatched`. */
   groupKey: string | null;
+  /** Active Sim.command() override (M7 T2), or null when none is running. */
+  override: Override | null;
 }
 
 /** Local alias — same tiny seeded PRNG as campus/layout.ts; the sim must replay identically forever. */
@@ -397,6 +433,7 @@ export function createSim(grid: NavGrid, buildings: Building[], seed: number): S
           agentId: c.agentId,
           pauseUntil: 0,
           groupKey: c.groupKey ?? null,
+          override: null,
         };
         world.bots.set(c.key, bot);
         meta.set(c.key, m);
@@ -411,8 +448,16 @@ export function createSim(grid: NavGrid, buildings: Building[], seed: number): S
       if (m.status !== c.status || m.groupKey !== groupKey) {
         m.status = c.status;
         m.groupKey = groupKey;
-        releaseIfGroupMismatch(existing, groupKey);
-        replan(existing, m, c.status);
+        // M7 T2: a status change mid-command is recorded (above) but its
+        // desk release + replan wait — a running goto/emote wins until it
+        // completes; tickOverride() applies the recorded status then. The
+        // one exception, "the bot disappearing from sync", isn't handled
+        // here at all — the removal loop below deletes it unconditionally,
+        // override or not.
+        if (!m.override) {
+          releaseIfGroupMismatch(existing, groupKey);
+          replan(existing, m, c.status);
+        }
       }
     }
 
@@ -425,10 +470,80 @@ export function createSim(grid: NavGrid, buildings: Building[], seed: number): S
     }
   }
 
+  /**
+   * Per-tick state machine for an active Sim.command() override (M7 T2).
+   * `goto`: walk (advance() drives it, same as any other path) until the
+   * path empties, then hold in place for holdSeconds. `emote`: hold the
+   * emote's Motion in place for its duration; `spin` additionally drives
+   * bot.facing itself (2 full turns over the duration) — pose() only draws
+   * the arm silhouette, it has no yaw of its own to spin with. Either kind,
+   * once done, clears the override and applies whatever status/groupKey
+   * sync() recorded while it was running — same replan() a live status
+   * change triggers outside an override.
+   */
+  function tickOverride(bot: SimBot, m: BotMeta, dt: number): void {
+    const ov = m.override!;
+    if (ov.kind === "goto" && ov.phase === "walk") {
+      advance(bot, dt);
+      if (bot.path.length > 0) {
+        bot.motion = "walk";
+        return;
+      }
+      ov.phase = "hold";
+      ov.holdUntil = bot.age + ov.holdSeconds;
+      bot.motion = "stand";
+      return;
+    }
+
+    const done = ov.kind === "goto" ? bot.age >= ov.holdUntil : bot.age >= ov.endAge;
+    if (!done) {
+      if (ov.kind === "goto") {
+        bot.motion = "stand";
+      } else {
+        if (ov.emote === "spin") {
+          const span = ov.endAge - ov.startAge;
+          const progress = span > 0 ? (bot.age - ov.startAge) / span : 1;
+          bot.facing = ov.startFacing + progress * Math.PI * 4; // 2 full turns
+        }
+        bot.motion = ov.emote;
+      }
+      return;
+    }
+
+    m.override = null;
+    releaseIfGroupMismatch(bot, m.groupKey);
+    // An emote never moves the bot — if it's still sitting exactly where its
+    // (still-held, post-release-check) desk claim seats it, settle() alone
+    // restores the right seated motion in place. Skip replan()'s pathToDesk,
+    // which routes through the door unconditionally (correct for a goto,
+    // which really did walk away, but a needless "walk out and back" detour
+    // for a bot that never left its seat). A bot that moved during the
+    // override (goto) or lost its seat (deskId null, or too far from it —
+    // e.g. an unseated status like WaitingForPermission/Idle) still falls
+    // through to the normal replan() below.
+    if (ov.kind === "emote" && bot.deskId) {
+      const entry = deskById(bot.deskId);
+      if (entry) {
+        const seat = deskSeat(entry.desk);
+        if (Math.hypot(bot.x - seat.x, bot.z - seat.z) <= SEATED_RESUME_EPSILON) {
+          settle(bot, m);
+          return;
+        }
+      }
+    }
+    replan(bot, m, m.status);
+  }
+
   function tick(dt: number): void {
     for (const [key, bot] of world.bots) {
       const m = meta.get(key)!;
       bot.age += dt;
+
+      if (m.override) {
+        tickOverride(bot, m, dt);
+        continue;
+      }
+
       const wasMoving = bot.path.length > 0;
       if (wasMoving) advance(bot, dt);
       if (bot.path.length > 0) {
@@ -441,6 +556,51 @@ export function createSim(grid: NavGrid, buildings: Building[], seed: number): S
       }
       settle(bot, m);
     }
+  }
+
+  /**
+   * External command entry point (M7 T2) — same standing as sync(): a
+   * deterministic input, no rng. Unknown/departed keys are a silent no-op
+   * (a bot can leave between a caller deciding to command it and the call
+   * landing). A second command of either kind always replaces whichever
+   * override is active, by simply overwriting bot.path/motion and
+   * m.override below — nothing needs to explicitly "cancel" the old one.
+   */
+  function command(key: string, cmd: SimCommand): void {
+    const bot = world.bots.get(key);
+    const m = meta.get(key);
+    if (!bot || !m) return;
+
+    if (cmd.kind === "goto") {
+      const holdSeconds = (cmd.holdTicks ?? 100) * TICK_SECONDS;
+      const path = findPath(grid, { x: bot.x, z: bot.z }, { x: cmd.x, z: cmd.z });
+      if (path.length > 0) {
+        bot.path = path;
+        bot.motion = "walk";
+        m.override = { kind: "goto", phase: "walk", holdSeconds, holdUntil: 0 };
+      } else {
+        // Ungrantable point (off-grid, or an isolated pocket the nav grid
+        // can't route to) — same "never strand a bot" fallback pathOrTeleport
+        // uses elsewhere: land there anyway and hold.
+        bot.x = cmd.x;
+        bot.z = cmd.z;
+        bot.path = [];
+        bot.motion = "stand";
+        m.override = { kind: "goto", phase: "hold", holdSeconds, holdUntil: bot.age + holdSeconds };
+      }
+      return;
+    }
+
+    const durSeconds = (cmd.durTicks ?? 30) * TICK_SECONDS;
+    bot.path = [];
+    bot.motion = cmd.emote;
+    m.override = {
+      kind: "emote",
+      emote: cmd.emote,
+      startAge: bot.age,
+      endAge: bot.age + durSeconds,
+      startFacing: bot.facing,
+    };
   }
 
   /**
@@ -494,9 +654,13 @@ export function createSim(grid: NavGrid, buildings: Building[], seed: number): S
     for (const [key, bot] of world.bots) {
       bot.path = [];
       const m = meta.get(key)!;
+      // M7 T2: a grid/building edit invalidates whatever a running goto/emote
+      // assumed about the world (its path, its hold point) — drop it rather
+      // than let a stale override fight this fresh replan next tick.
+      m.override = null;
       replan(bot, m, m.status);
     }
   }
 
-  return { world, sync, tick, updateWorld };
+  return { world, sync, tick, updateWorld, command };
 }

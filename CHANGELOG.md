@@ -18,6 +18,12 @@ How releases consume this file (M6, EKI-98/EKI-100):
 
 ### Added
 
+- M7 "Say the word" — the chat is location-aware (EKI-182): tell any robot "go to HQ",
+  "go to <room>" or "dance / spin / cheer / wave" and it obeys — a free deterministic parser
+  handles the commands (never touching your real session's context), a Haiku fallback interprets
+  everything else for session-less bots, so asking a resting crew member for a joke answers in
+  its speech bubble; command confirmations appear as chat notes + bubbles, and the composer
+  hints at what to try
 - M6 "Headquarters" — the campus has a heart (EKI-181): a permanent 4-door HQ at the center
   (never deletable, never project-linked) where new robots spawn and walk out through the door,
   crew rests inside, and waiting/overflow bots gather on a ring outside its walls; three

@@ -802,6 +802,272 @@ describe("Sim — M5 T2 project rooms (groupKey desk-pool matching)", () => {
   });
 });
 
+describe("Sim.command — goto (M7 T2)", () => {
+  it("walks a Working bot to the point, holds, then resumes and re-seats at its (retained) desk", () => {
+    const { grid, buildings } = fakeWorld();
+    const sim = createSim(grid, buildings, SEED);
+    sim.sync([char("a", "Working", { groupKey: "g1" })]);
+    const bot = sim.world.bots.get("a")!;
+    tickUntil(sim, 0.5, 500, () => bot.motion === "sit-type" && bot.path.length === 0);
+    const deskId = bot.deskId!;
+    const seat = { x: bot.x, z: bot.z };
+
+    sim.command("a", { kind: "goto", x: 10, z: 10, holdTicks: 5 }); // 0.5s hold
+    expect(bot.path.length).toBeGreaterThan(0); // walks away from the desk
+    expect(bot.deskId).toBe(deskId); // desk claim kept — the bot returns
+    expect(sim.world.deskOwners.get(deskId)).toBe("a");
+
+    tickUntil(sim, 0.1, 500, () => bot.motion === "stand" && bot.path.length === 0);
+    // "Near" not "at": the goto point re-quantizes onto the nav grid's 1-unit
+    // cells (same cell-snap slack the existing desk-return tests use).
+    expect(Math.hypot(bot.x - 10, bot.z - 10)).toBeLessThan(1.5);
+
+    // Still holding — status behavior hasn't resumed yet.
+    sim.tick(0.2);
+    expect(bot.motion).toBe("stand");
+    expect(bot.deskId).toBe(deskId);
+
+    // Hold elapses (0.5s total) — resumes normal Working behavior: walks
+    // back and re-seats at the same, still-owned desk.
+    tickUntil(sim, 0.5, 500, () => bot.motion === "sit-type" && bot.path.length === 0);
+    expect(bot.x).toBeCloseTo(seat.x, 1);
+    expect(bot.z).toBeCloseTo(seat.z, 1);
+    expect(bot.deskId).toBe(deskId);
+    expect(sim.world.deskOwners.get(deskId)).toBe("a");
+  });
+
+  it("a second goto replaces the first mid-walk", () => {
+    const { grid, buildings } = fakeWorld();
+    const sim = createSim(grid, buildings, SEED);
+    sim.sync([char("a", "Idle")]);
+    const bot = sim.world.bots.get("a")!;
+
+    sim.command("a", { kind: "goto", x: -30, z: -30, holdTicks: 10000 }); // long hold — never completes in this test
+    sim.tick(0.3);
+    expect(bot.path.length).toBeGreaterThan(0);
+
+    sim.command("a", { kind: "goto", x: 10, z: 5, holdTicks: 10000 }); // replaces it
+    tickUntil(sim, 0.5, 500, () => bot.path.length === 0);
+    expect(Math.hypot(bot.x - 10, bot.z - 5)).toBeLessThan(1.5); // near the replacement point, not the first one
+  });
+
+  it("teleports and holds when the point is unreachable, instead of throwing", () => {
+    const { grid, buildings } = fakeWorld();
+    const sim = createSim(grid, buildings, SEED);
+    sim.sync([char("a", "Idle")]);
+    const bot = sim.world.bots.get("a")!;
+
+    expect(() => sim.command("a", { kind: "goto", x: 9999, z: 9999, holdTicks: 5 })).not.toThrow();
+    expect(bot.x).toBe(9999);
+    expect(bot.z).toBe(9999);
+    expect(bot.motion).toBe("stand");
+  });
+
+  it("is a no-op for an unknown or departed bot key", () => {
+    const { grid, buildings } = fakeWorld();
+    const sim = createSim(grid, buildings, SEED);
+    sim.sync([char("a", "Idle")]);
+    sim.sync([]); // "a" leaves
+    expect(() => sim.command("a", { kind: "goto", x: 1, z: 1 })).not.toThrow();
+    expect(() => sim.command("ghost", { kind: "emote", emote: "wave" })).not.toThrow();
+  });
+});
+
+describe("Sim.command — emote (M7 T2)", () => {
+  it("sets the emote's Motion for durTicks, then resumes the bot's prior (Idle wander) behavior", () => {
+    const { grid, buildings } = fakeWorld();
+    const sim = createSim(grid, buildings, SEED);
+    sim.sync([char("a", "Idle")]);
+    const bot = sim.world.bots.get("a")!;
+    sim.tick(1); // let it settle into ordinary Idle wander/pause first
+
+    sim.command("a", { kind: "emote", emote: "dance", durTicks: 5 }); // 0.5s
+    expect(bot.motion).toBe("dance");
+    expect(bot.path).toHaveLength(0);
+
+    sim.tick(0.3);
+    expect(bot.motion).toBe("dance"); // still mid-emote
+
+    // Crossing the 0.5s duration clears the override and replans on this
+    // tick; like any other replan, the settled motion catches up within a
+    // tick or two (same lag the existing status-change tests tolerate via
+    // tickUntil) rather than being valid to read off immediately.
+    tickUntil(sim, 0.1, 50, () => bot.motion !== "dance");
+    expect(bot.motion).not.toBe("dance"); // resumed — back to normal Idle motion
+  });
+
+  it("each emote kind sets its own distinct Motion", () => {
+    const { grid, buildings } = fakeWorld();
+    const sim = createSim(grid, buildings, SEED);
+    for (const emote of ["dance", "spin", "cheer", "wave"] as const) {
+      sim.sync([char("a", "Idle")]);
+      sim.command("a", { kind: "emote", emote, durTicks: 5 });
+      expect(sim.world.bots.get("a")!.motion).toBe(emote);
+      sim.sync([]); // reset for the next kind
+    }
+  });
+
+  it("spin turns the bot's facing 2 full turns over the emote's duration", () => {
+    const { grid, buildings } = fakeWorld();
+    const sim = createSim(grid, buildings, SEED);
+    sim.sync([char("a", "Idle")]);
+    const bot = sim.world.bots.get("a")!;
+    const startFacing = bot.facing;
+
+    sim.command("a", { kind: "emote", emote: "spin", durTicks: 10 }); // 1s
+    sim.tick(0.5); // halfway
+    expect(bot.facing).toBeCloseTo(startFacing + Math.PI * 2, 5); // one full turn so far
+  });
+
+  it("a seated (Working) bot stands to emote in place, then sits back down immediately — no door detour", () => {
+    // Fix round 1: resuming a seated emote used to go through the full
+    // replan()/pathToDesk, so a bot that never left its seat would walk out
+    // through the room's door and back in (a multi-second, very visible
+    // detour) before re-settling. It should instead just sit back down.
+    const { grid, buildings } = fakeWorld();
+    const sim = createSim(grid, buildings, SEED);
+    sim.sync([char("a", "Working", { groupKey: "g1" })]);
+    const bot = sim.world.bots.get("a")!;
+    tickUntil(sim, 0.5, 500, () => bot.motion === "sit-type" && bot.path.length === 0);
+    const deskId = bot.deskId!;
+    const seat = { x: bot.x, z: bot.z, facing: bot.facing };
+
+    sim.command("a", { kind: "emote", emote: "wave", durTicks: 5 }); // 0.5s
+    expect(bot.motion).toBe("wave"); // stood up to wave, not sitting anymore
+    expect(bot.x).toBeCloseTo(seat.x, 5); // never left the seat spot
+    expect(bot.z).toBeCloseTo(seat.z, 5);
+    expect(bot.deskId).toBe(deskId); // desk claim untouched throughout
+
+    // Path must never leave empty across the whole emote — no detour ever gets planned.
+    for (let i = 0; i < 6; i++) {
+      sim.tick(0.1);
+      expect(bot.path).toHaveLength(0);
+    }
+
+    // Resumed within the very tick the emote ended (no replan → no lag waiting for a path to walk).
+    expect(bot.motion).toBe("sit-type");
+    expect(bot.x).toBeCloseTo(seat.x, 5);
+    expect(bot.z).toBeCloseTo(seat.z, 5);
+    expect(bot.facing).toBeCloseTo(seat.facing, 5);
+    expect(bot.deskId).toBe(deskId);
+    expect(sim.world.deskOwners.get(deskId)).toBe("a");
+  });
+
+  it("a status change during an emote is recorded but only takes effect once the emote ends", () => {
+    const { grid, buildings } = fakeWorld();
+    const sim = createSim(grid, buildings, SEED);
+    sim.sync([char("a", "Working", { groupKey: "g1" })]);
+    const bot = sim.world.bots.get("a")!;
+    tickUntil(sim, 0.5, 500, () => bot.motion === "sit-type" && bot.path.length === 0);
+    const deskId = bot.deskId!;
+
+    sim.command("a", { kind: "emote", emote: "cheer", durTicks: 10 }); // 1s
+    sim.tick(0.2);
+    sim.sync([char("a", "WaitingForInput", { groupKey: "g1" })]); // status flips mid-emote
+    expect(bot.motion).toBe("cheer"); // override still wins — no immediate replan
+    expect(bot.deskId).toBe(deskId); // desk not released yet either
+
+    // Wait for the resumed WaitingForInput behavior to fully settle — the
+    // override-end replan can shuffle the bot a hair to re-quantize onto its
+    // seat's grid cell (a brief "walk"), same tolerance as the existing
+    // desk-return test; the settled motion itself also lags a tick behind
+    // the replan, like any other status-change resettle in this suite.
+    tickUntil(sim, 0.1, 500, () => bot.motion === "stand" || bot.motion === "think");
+    expect(["stand", "think"]).toContain(bot.motion); // no more cheering
+    expect(bot.deskId).toBe(deskId); // desk claim intact
+  });
+
+  it("the bot disappearing from sync during an emote still removes it immediately (normal removal wins)", () => {
+    const { grid, buildings } = fakeWorld();
+    const sim = createSim(grid, buildings, SEED);
+    sim.sync([char("a", "Working", { groupKey: "g1" })]);
+    const bot = sim.world.bots.get("a")!;
+    tickUntil(sim, 0.5, 500, () => bot.motion === "sit-type" && bot.path.length === 0);
+    const deskId = bot.deskId!;
+
+    sim.command("a", { kind: "emote", emote: "wave", durTicks: 10000 }); // never completes on its own
+    sim.sync([]); // session ends mid-emote
+
+    expect(sim.world.bots.has("a")).toBe(false);
+    expect(sim.world.deskOwners.has(deskId)).toBe(false);
+  });
+});
+
+describe("Sim.command — determinism (M7 T2)", () => {
+  it("is deterministic across interleaved goto/emote commands: identical seed + identical command/sync/tick sequence ⇒ identical worlds", () => {
+    const { grid, buildings } = fakeWorld();
+
+    const script = (sim: Sim): void => {
+      sim.sync([
+        char("a", "Working", { groupKey: "g1" }),
+        char("b", "Idle"),
+        char("c", "WaitingForPermission"),
+      ]);
+      for (let i = 0; i < 10; i++) sim.tick(0.3);
+      sim.command("a", { kind: "goto", x: 3, z: -3, holdTicks: 8 });
+      sim.command("b", { kind: "emote", emote: "spin", durTicks: 6 });
+      for (let i = 0; i < 15; i++) sim.tick(0.2);
+      sim.sync([char("a", "WaitingForInput", { groupKey: "g1" }), char("c", "WaitingForPermission")]);
+      sim.command("c", { kind: "emote", emote: "cheer" });
+      for (let i = 0; i < 20; i++) sim.tick(0.37);
+    };
+
+    const snapshot = (sim: Sim): unknown => ({
+      bots: [...sim.world.bots.entries()].sort(([k1], [k2]) => k1.localeCompare(k2)),
+      deskOwners: [...sim.world.deskOwners.entries()].sort(([k1], [k2]) => k1.localeCompare(k2)),
+    });
+
+    const simA = createSim(grid, buildings, SEED);
+    const simB = createSim(grid, buildings, SEED);
+    script(simA);
+    script(simB);
+
+    expect(snapshot(simA)).toEqual(snapshot(simB));
+  });
+
+  it("a grid/building edit mid-override clears it deterministically, and the freed bots resume normal behavior (not stuck holding forever)", () => {
+    // Two-bot scaffold, same shape as the "ghost double-seat" race test
+    // above: one bot with a desk claim, one without, both mid-override when
+    // the edit lands.
+    const { grid, buildings } = oneDeskWorld(); // exactly one desk: "d0"
+
+    const script = (sim: Sim): void => {
+      sim.sync([char("x", "Working", { groupKey: "g1" }), char("y", "Idle")]);
+      const x = sim.world.bots.get("x")!;
+      tickUntil(sim, 0.5, 500, () => x.motion === "sit-type" && x.path.length === 0);
+
+      sim.command("x", { kind: "goto", x: 3, z: 3, holdTicks: 10000 }); // long hold, still active at the edit
+      sim.command("y", { kind: "emote", emote: "spin", durTicks: 10000 }); // long emote, still active at the edit
+      sim.tick(0.3);
+
+      sim.updateWorld(grid, buildings); // identical grid/buildings — a no-op edit, but must still clear both overrides
+
+      for (let i = 0; i < 30; i++) sim.tick(0.3);
+    };
+
+    const snapshot = (sim: Sim): unknown => ({
+      bots: [...sim.world.bots.entries()].sort(([k1], [k2]) => k1.localeCompare(k2)),
+      deskOwners: [...sim.world.deskOwners.entries()].sort(([k1], [k2]) => k1.localeCompare(k2)),
+    });
+
+    const simA = createSim(grid, buildings, SEED);
+    const simB = createSim(grid, buildings, SEED);
+    script(simA);
+    script(simB);
+
+    expect(snapshot(simA)).toEqual(snapshot(simB));
+
+    // Not just identically stuck across both sims — genuinely freed: "x"
+    // resumed Working (back at its desk) instead of holding at (3, 3)
+    // forever, and "y" resumed Idle wander instead of spinning forever.
+    const x = simA.world.bots.get("x")!;
+    const y = simA.world.bots.get("y")!;
+    expect(x.deskId).toBe("d0");
+    expect(x.motion).toBe("sit-type");
+    expect(y.motion).not.toBe("spin");
+  });
+});
+
 describe("outsideRingPoint (M6 T2 — plaza ring outside HQ, door lanes skipped)", () => {
   it("always lands exactly on the radius-9.5 ring, for many keys", () => {
     for (let i = 0; i < 500; i++) {

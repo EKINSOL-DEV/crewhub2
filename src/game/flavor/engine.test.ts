@@ -12,7 +12,16 @@ vi.mock("@/ipc/bindings", () => ({
 
 import { commands } from "@/ipc/bindings";
 import type { Character } from "@/game/sim/characters";
-import { FLAVOR_MODEL_KEY, FLAVOR_SETTING_KEY, resetFlavorForTests, thoughtFor, useFlavor } from "./engine";
+import {
+  FLAVOR_MODEL_KEY,
+  FLAVOR_SETTING_KEY,
+  bumpFlavorRuns,
+  flavorEnabled,
+  flavorModel,
+  resetFlavorForTests,
+  thoughtFor,
+  useFlavor,
+} from "./engine";
 
 function character(overrides: Partial<Character> = {}): Character {
   return {
@@ -159,6 +168,40 @@ describe("useFlavor", () => {
     await new Promise((r) => setTimeout(r, 0));
     expect(useFlavor.getState().runs).toBe(0);
     expect(useFlavor.getState().thoughts["claude:abc"]).toBeUndefined();
+  });
+});
+
+describe("flavorEnabled / flavorModel / bumpFlavorRuns", () => {
+  beforeEach(() => {
+    resetFlavorForTests();
+    vi.mocked(commands.getSetting)
+      .mockReset()
+      .mockResolvedValue({ status: "ok", data: null } as never);
+  });
+
+  it("surface the cached enabled/model settings after init", async () => {
+    vi.mocked(commands.getSetting).mockImplementation(async (key: string) => {
+      if (key === FLAVOR_SETTING_KEY) return { status: "ok", data: "0" };
+      if (key === FLAVOR_MODEL_KEY) return { status: "ok", data: "sonnet" };
+      return { status: "ok", data: null };
+    });
+    await useFlavor.getState().init();
+    expect(flavorEnabled()).toBe(false);
+    expect(flavorModel()).toBe("sonnet");
+  });
+
+  it("default to enabled=true and model='haiku' when settings are absent", async () => {
+    await useFlavor.getState().init();
+    expect(flavorEnabled()).toBe(true);
+    expect(flavorModel()).toBe("haiku");
+  });
+
+  it("bumpFlavorRuns increments the store's runs counter", () => {
+    expect(useFlavor.getState().runs).toBe(0);
+    bumpFlavorRuns();
+    expect(useFlavor.getState().runs).toBe(1);
+    bumpFlavorRuns();
+    expect(useFlavor.getState().runs).toBe(2);
   });
 });
 

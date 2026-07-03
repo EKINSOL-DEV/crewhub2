@@ -99,6 +99,26 @@ export function thoughtFor(key: string, nowMs: number): Thought | null {
   return t;
 }
 
+// --- M7 T1 exports: the intent interpreter (interpret.ts) needs the same
+// enabled/model settings this store already caches after init(), plus a way
+// to record a successful run without duplicating the throttle machinery
+// above. These are thin reads/writes over existing state — no new IPC.
+
+/** Cached `enabled` flag — same value `init()` populated, no extra round-trip. */
+export function flavorEnabled(): boolean {
+  return useFlavor.getState().enabled;
+}
+
+/** Cached resolved model string — module-level like `model` above, set by `init()`. */
+export function flavorModel(): string {
+  return model;
+}
+
+/** Records a successful Haiku-backed interpretation as a flavor run. */
+export function bumpFlavorRuns(): void {
+  useFlavor.setState((state) => ({ runs: state.runs + 1 }));
+}
+
 /** Test hook: rerun init after a reset, and clear cooldown/in-flight plumbing. */
 export function resetFlavorForTests(): void {
   initRequested = false;

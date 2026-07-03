@@ -4,8 +4,8 @@
 // integration test of the store stitch (that's lines.test.ts/store.test.ts's
 // job already).
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
-import type { Agent, PermissionRequest, QuestionRequest, SessionMeta } from "@/ipc/bindings";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import type { Agent, PermissionRequest, Project, QuestionRequest, SessionMeta } from "@/ipc/bindings";
 import type { SessionTranscript } from "@/stores/transcripts";
 import type { SessionView } from "@/stores/sessions";
 
@@ -66,9 +66,35 @@ vi.mock("@/ipc/bindings", () => ({
   commands: { sendToSession: sendToSessionSpy, spawnSession: spawnSessionSpy },
 }));
 
-import { parseSessionKey } from "./use-chat-session";
+// M7 T3: the intent/command plumbing is exercised through its real, pure
+// modules (parseIntent, linkedRoomsFromCampus's own layout/buildings reads) —
+// only the far side of each boundary is mocked: the sim (outside <Canvas>,
+// same cross-boundary reason command-bus.ts exists), the speech-bubble store
+// (asserted on directly rather than re-deriving bubble state here), the
+// Haiku fallback (its own wiring is interpret.test.ts's job), and sfx.
+vi.mock("@/game/sim/command-bus", () => ({ postCommand: vi.fn() }));
+vi.mock("./use-speech-bubbles", () => ({ pushLocalBubble: vi.fn() }));
+vi.mock("@/game/intents/interpret", () => ({ interpretIntent: vi.fn(async () => null) }));
+vi.mock("@/game/audio/sfx", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/game/audio/sfx")>();
+  return { ...actual, playSfx: vi.fn() };
+});
+
+import { interpretIntent } from "@/game/intents/interpret";
+import { playSfx } from "@/game/audio/sfx";
+import { EMPTY_EDITS } from "@/game/build/edits";
+import { resetCampusEditsForTests, useCampusEdits } from "@/game/build/store";
+import { resetProjectsForTests, useProjectsStore } from "@/stores/projects";
+import { postCommand } from "@/game/sim/command-bus";
+import {
+  linkedRoomsFromCampus,
+  parseSessionKey,
+  useChatSession,
+  type ChatSessionResult,
+} from "./use-chat-session";
 import { ChatWindow } from "./ChatWindow";
 import { useGameChats } from "./store";
+import { pushLocalBubble } from "./use-speech-bubbles";
 
 function transcript(
   items: [number, { kind: string; data: Record<string, unknown> }][],
@@ -164,7 +190,13 @@ beforeEach(() => {
   spawnSessionSpy.mockReset();
   getSpawnProviderSpy.mockReset();
   upsertSpy.mockReset();
-  useGameChats.setState({ chats: [] });
+  useGameChats.setState({ chats: [], localLines: {} });
+  vi.mocked(postCommand).mockClear();
+  vi.mocked(pushLocalBubble).mockClear();
+  vi.mocked(interpretIntent).mockReset().mockResolvedValue(null);
+  vi.mocked(playSfx).mockClear();
+  resetCampusEditsForTests();
+  resetProjectsForTests();
 });
 
 describe("parseSessionKey", () => {
@@ -295,15 +327,18 @@ describe("ChatWindow", () => {
     expect(screen.queryByTestId("chat-window-input")).not.toBeInTheDocument();
   });
 
-  it("demo mode shows the note, disables the composer, and never opens a session", () => {
+  it("demo mode shows a command hint (not disabled) and never opens a session", () => {
     render(<ChatWindow {...WINDOW_PROPS} chatKey="demo:ada" name="Ada" demo />);
     expect(screen.getByTestId("chat-window-demo-note")).toHaveTextContent(
-      "demo thread — hire a real robot to chat",
+      'demo thread — try "go to hq" or "dance"',
     );
+    // M7 T3: the demo composer is no longer a hard dead end — a typed
+    // command still reaches the real sim (see the "M7 T3 chat wiring"
+    // describe block below) — so unlike the pre-M7 behavior, it's enabled.
     const input = screen.getByTestId("chat-window-input") as HTMLInputElement;
-    expect(input).toBeDisabled();
-    expect(input.placeholder).toBe("demo thread");
-    expect(screen.getByTestId("chat-window-send")).toBeDisabled();
+    expect(input).not.toBeDisabled();
+    expect(input.placeholder).toContain("go to HQ");
+    expect(screen.getByTestId("chat-window-send")).not.toBeDisabled();
     expect(openSessionSpy).not.toHaveBeenCalled();
     expect(startTranscriptStreamSpy).not.toHaveBeenCalled();
   });
@@ -411,5 +446,248 @@ describe("ChatWindow", () => {
       expect(screen.queryByTestId("chat-window-wake")).not.toBeInTheDocument();
       expect(screen.getByTestId("chat-window-send")).toBeDisabled();
     });
+  });
+});
+
+function fakeProject(overrides: Partial<Project> & { id: string }): Project {
+  return {
+    name: "Untitled",
+    description: null,
+    icon: null,
+    color: null,
+    folder_path: "/repo/untitled",
+    docs_path: null,
+    status: "active",
+    created_at: 0,
+    updated_at: 0,
+    ...overrides,
+  };
+}
+
+describe("linkedRoomsFromCampus", () => {
+  it("returns nothing when no plot or placed pavilion is linked", () => {
+    expect(linkedRoomsFromCampus(EMPTY_EDITS, [])).toEqual([]);
+  });
+
+  it("joins a linked plot to its project's name under a 'plot:N' buildingKey", () => {
+    const edits = { ...EMPTY_EDITS, plotProjects: { 0: "proj-1" } };
+    const rooms = linkedRoomsFromCampus(edits, [fakeProject({ id: "proj-1", name: "Website Redesign" })]);
+    expect(rooms).toEqual([{ buildingKey: "plot:0", name: "Website Redesign", door: expect.any(Object) }]);
+  });
+
+  it("joins a linked player-built pavilion under its own id as buildingKey", () => {
+    const edits = {
+      ...EMPTY_EDITS,
+      buildings: [{ id: "e3", x: 10, z: -20, w: 8, d: 6, roomId: null, projectId: "proj-2" }],
+    };
+    const rooms = linkedRoomsFromCampus(edits, [fakeProject({ id: "proj-2", name: "Mobile App" })]);
+    expect(rooms).toEqual([{ buildingKey: "e3", name: "Mobile App", door: expect.any(Object) }]);
+  });
+
+  it("skips a plot/building link whose project id isn't in the projects list (stale link)", () => {
+    const edits = { ...EMPTY_EDITS, plotProjects: { 0: "gone" } };
+    expect(linkedRoomsFromCampus(edits, [])).toEqual([]);
+  });
+
+  it("skips an unlinked player-built pavilion (projectId null)", () => {
+    const edits = {
+      ...EMPTY_EDITS,
+      buildings: [{ id: "e1", x: 0, z: -20, w: 8, d: 6, roomId: null, projectId: null }],
+    };
+    expect(linkedRoomsFromCampus(edits, [fakeProject({ id: "proj-1", name: "X" })])).toEqual([]);
+  });
+});
+
+// M7 T3 — the interception matrix the brief calls out: a recognized command
+// always short-circuits to the sim (live or not); prose only ever reaches
+// sendToSession when there's a live session; a session-less bot (demo,
+// resting crew, or Ended) asks the Haiku fallback instead of leaving the
+// message stranded (Fix round 1: demo bots used to skip that fallback
+// entirely as a special case — reverted, since interpretIntent works from
+// demo mode too in the real app, and degrades to the same "scratches head"
+// note as everyone else when it can't).
+describe("M7 T3 chat wiring", () => {
+  it("a recognized command posts to the sim and never touches sendToSession, even with a live session", () => {
+    views.current = [view({ status: "Working" })];
+    render(<ChatWindow {...WINDOW_PROPS} />);
+    const input = screen.getByTestId("chat-window-input") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "go to hq" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(postCommand).toHaveBeenCalledWith("claude:s1", { kind: "goto", x: 0, z: 0 });
+    expect(sendToSessionSpy).not.toHaveBeenCalled();
+    expect(pushLocalBubble).toHaveBeenCalledWith("claude:s1", "On my way! 🏃");
+    expect(playSfx).toHaveBeenCalledWith("send");
+    expect(screen.getByText("🏃 heading to HQ").dataset.who).toBe("note");
+  });
+
+  it("ordinary prose with a live session still goes through sendToSession, unchanged", () => {
+    // Covered end-to-end already by the plain "Enter sends..." test above —
+    // "hello there" doesn't match any command pattern, so it falls all the
+    // way through to the pre-existing sendToSession path untouched.
+    views.current = [view({ status: "Working" })];
+    render(<ChatWindow {...WINDOW_PROPS} />);
+    const input = screen.getByTestId("chat-window-input");
+    fireEvent.change(input, { target: { value: "let's go to production" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(sendToSessionSpy).toHaveBeenCalledWith({ provider: "claude", id: "s1" }, "let's go to production");
+    expect(postCommand).not.toHaveBeenCalled();
+    expect(interpretIntent).not.toHaveBeenCalled();
+  });
+
+  it("a demo bot still runs commands — the sim is real even for a fake bot", () => {
+    render(<ChatWindow {...WINDOW_PROPS} chatKey="demo:ada" name="Ada" demo />);
+    const input = screen.getByTestId("chat-window-input") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "dance" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(postCommand).toHaveBeenCalledWith("demo:ada", { kind: "emote", emote: "dance" });
+    expect(pushLocalBubble).toHaveBeenCalledWith("demo:ada", "💃");
+    expect(screen.getByText("💃 dance").dataset.who).toBe("note");
+    expect(sendToSessionSpy).not.toHaveBeenCalled();
+  });
+
+  it("a demo bot's non-command chatter asks the Haiku fallback, same as resting crew — a 'say' reply gets a bubble + bot line", async () => {
+    vi.mocked(interpretIntent).mockResolvedValueOnce({ kind: "say", text: "Beep boop, nice weather!" });
+    render(<ChatWindow {...WINDOW_PROPS} chatKey="demo:ada" name="Ada" demo />);
+    const input = screen.getByTestId("chat-window-input") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "hello there" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await vi.waitFor(() => expect(interpretIntent).toHaveBeenCalledWith("hello there", { rooms: [] }));
+    expect(sendToSessionSpy).not.toHaveBeenCalled();
+    expect(postCommand).not.toHaveBeenCalled();
+    expect(await screen.findByText("Beep boop, nice weather!")).toHaveProperty("dataset.who", "bot");
+    expect(pushLocalBubble).toHaveBeenCalledWith("demo:ada", "Beep boop, nice weather!");
+  });
+
+  it("a demo bot's non-command chatter with no recognizable intent gets the scratches-head note", async () => {
+    vi.mocked(interpretIntent).mockResolvedValueOnce(null);
+    render(<ChatWindow {...WINDOW_PROPS} chatKey="demo:ada" name="Ada" demo />);
+    const input = screen.getByTestId("chat-window-input") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "what's the weather like" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(await screen.findByText("🤖 …scratches head…")).toHaveProperty("dataset.who", "note");
+    expect(sendToSessionSpy).not.toHaveBeenCalled();
+    expect(postCommand).not.toHaveBeenCalled();
+  });
+
+  function SessionProbe({
+    chatKey,
+    onSession,
+  }: {
+    chatKey: string;
+    onSession: (r: ChatSessionResult) => void;
+  }) {
+    const session = useChatSession(chatKey);
+    onSession(session);
+    return null;
+  }
+
+  it("a session-less crew member ('agent:*' key, no live session) with a 'say' reply gets a bubble + bot line", async () => {
+    vi.mocked(interpretIntent).mockResolvedValueOnce({ kind: "say", text: "Ask me after lunch!" });
+    let session: ChatSessionResult | null = null;
+    render(<SessionProbe chatKey="agent:scout" onSession={(s) => (session = s)} />);
+
+    await act(async () => {
+      await session!.send("tell me a joke");
+    });
+
+    expect(sendToSessionSpy).not.toHaveBeenCalled();
+    expect(interpretIntent).toHaveBeenCalledWith("tell me a joke", { rooms: [] });
+    expect(pushLocalBubble).toHaveBeenCalledWith("agent:scout", "Ask me after lunch!");
+    expect(useGameChats.getState().localLines["agent:scout"]).toEqual([
+      expect.objectContaining({ who: "bot", text: "Ask me after lunch!" }),
+    ]);
+  });
+
+  it("a session-less bot with no recognizable intent gets the scratches-head note", async () => {
+    vi.mocked(interpretIntent).mockResolvedValueOnce(null);
+    let session: ChatSessionResult | null = null;
+    render(<SessionProbe chatKey="agent:scout" onSession={(s) => (session = s)} />);
+
+    await act(async () => {
+      await session!.send("what's the weather like");
+    });
+
+    expect(useGameChats.getState().localLines["agent:scout"]).toEqual([
+      expect.objectContaining({ who: "note", text: "🤖 …scratches head…" }),
+    ]);
+  });
+
+  it("an Ended session also falls back to interpretIntent instead of sendToSession", async () => {
+    views.current = [view({ status: "Ended" })];
+    vi.mocked(interpretIntent).mockResolvedValueOnce({ kind: "emote", emote: "wave" });
+    let session: ChatSessionResult | null = null;
+    render(<SessionProbe chatKey="claude:s1" onSession={(s) => (session = s)} />);
+
+    await act(async () => {
+      await session!.send("say hi");
+    });
+
+    expect(sendToSessionSpy).not.toHaveBeenCalled();
+    expect(postCommand).toHaveBeenCalledWith("claude:s1", { kind: "emote", emote: "wave" });
+  });
+
+  it("merges local lines after transcript lines, in the order the commands were sent", () => {
+    transcripts.sessions["claude:s1"] = transcript(
+      [
+        [1, { kind: "UserText", data: { text: "hi", ts: 1 } }],
+        [2, { kind: "AssistantText", data: { text: "hello", ts: 2 } }],
+      ],
+      [1, 2],
+    );
+    views.current = [view({ status: "Working" })];
+    const { container } = render(<ChatWindow {...WINDOW_PROPS} />);
+    const input = screen.getByTestId("chat-window-input");
+    fireEvent.change(input, { target: { value: "go to hq" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.change(input, { target: { value: "dance" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    const order = [...container.querySelectorAll("[data-who]")].map((el) => el.textContent);
+    expect(order).toEqual(["hi", "hello", "🏃 heading to HQ", "💃 dance"]);
+  });
+
+  it("resolves a linked room target end-to-end: 'go to <project>' posts a goto to that room's door", () => {
+    useCampusEdits.setState((s) => ({ edits: { ...s.edits, plotProjects: { 0: "proj-1" } } }));
+    useProjectsStore.setState({
+      projects: [
+        {
+          id: "proj-1",
+          name: "Website Redesign",
+          description: null,
+          icon: null,
+          color: null,
+          folder_path: "/repo/website",
+          docs_path: null,
+          status: "active",
+          created_at: 0,
+          updated_at: 0,
+        },
+      ],
+    });
+    const room = linkedRoomsFromCampus(
+      useCampusEdits.getState().edits,
+      useProjectsStore.getState().projects,
+    )[0]!;
+
+    views.current = [view({ status: "Working" })];
+    render(<ChatWindow {...WINDOW_PROPS} />);
+    const input = screen.getByTestId("chat-window-input");
+    fireEvent.change(input, { target: { value: "go to Website Redesign" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(postCommand).toHaveBeenCalledWith("claude:s1", { kind: "goto", x: room.door.x, z: room.door.z });
+    expect(screen.getByText("🏃 heading to Website Redesign").dataset.who).toBe("note");
+  });
+
+  it("shows the composer hint for a normal (non-Ended, non-wake) chat", () => {
+    render(<ChatWindow {...WINDOW_PROPS} />);
+    expect((screen.getByTestId("chat-window-input") as HTMLInputElement).placeholder).toBe(
+      'Message Rex… (try "go to HQ" or "dance")',
+    );
   });
 });
