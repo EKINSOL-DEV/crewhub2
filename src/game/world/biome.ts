@@ -68,3 +68,19 @@ export const BIOMES: Record<Biome["id"], Biome> = {
     clouds: 14,
   },
 };
+
+// Stable reference (not a fresh `[]` per call) so consumers that put this in
+// a React dependency array — use-sim.ts's nav-grid effect — don't re-fire
+// every render for biomes with no `skip` list.
+const NO_SKIP: ScatterKind[] = [];
+
+/**
+ * A biome's `skip` list, or NO_SKIP for one with none (campus/island) or an
+ * unrecognized id (stale persisted `world.environment` KV) — same
+ * unknown-id fallback convention as environments/registry.ts's
+ * `environmentById`. buildNavGrid's blocking pass must never see a skip a
+ * biome doesn't actually skip, or vice versa — see grid.ts's `skipKinds`.
+ */
+export function biomeSkipFor(id: string): ScatterKind[] {
+  return (BIOMES as Record<string, Biome>)[id]?.skip ?? NO_SKIP;
+}

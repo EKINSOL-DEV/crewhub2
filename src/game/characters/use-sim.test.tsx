@@ -37,8 +37,18 @@ vi.mock("@/stores/bindings", () => ({
 vi.mock("@/stores/projects", () => ({
   useProjectsStore: { getState: () => ({ load: vi.fn() }) },
 }));
+// Spy on the real buildNavGrid (kept fully functional) so the biome-skip
+// tests below can assert what `extras` each call site passed it, without
+// reaching into useSim's internals.
+vi.mock("@/game/sim/grid", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/game/sim/grid")>();
+  return { ...real, buildNavGrid: vi.fn(real.buildNavGrid) };
+});
 
 import { useSim, type CharacterInfo } from "./use-sim";
+import { buildNavGrid } from "@/game/sim/grid";
+import { biomeSkipFor } from "@/game/world/biome";
+import { resetGameEnvironmentForTests, useGameEnvironment } from "@/game/world/environments/store";
 
 function workingBot(i: number): Character {
   return {
@@ -106,6 +116,51 @@ describe("useSim build-edits wiring", () => {
     // running off the base building pool (not silently empty/broken) even
     // though no edit was ever made this test.
     expect(sim!.world.bots.get("bot-0")!.deskId).toBe("desk-0-0");
+
+    await renderer.unmount();
+  });
+});
+
+describe("useSim biome skip (M4 debt sweep — sky-biome invisible walls)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetCampusEditsForTests();
+    resetGameEnvironmentForTests();
+  });
+
+  it("passes the sky biome's skip list into buildNavGrid, even with no build edits", async () => {
+    useGameEnvironment.setState({ id: "sky" });
+    const renderer = await ReactThreeTestRenderer.create(
+      <Probe characters={[workingBot(0)]} onSim={() => {}} />,
+    );
+    await ReactThreeTestRenderer.act(async () => {
+      await renderer.advanceFrames(3, 0.1);
+    });
+
+    const skySkip = biomeSkipFor("sky");
+    expect(skySkip.length).toBeGreaterThan(0); // sanity: sky really does skip some kinds
+
+    // The base-sim creation call passes no extras at all; the biome-aware
+    // effect (which must fire even though editsVersion is still 0 here) is
+    // the one that passes skipKinds.
+    const skyCall = vi.mocked(buildNavGrid).mock.calls.find((c) => c[2]?.skipKinds !== undefined);
+    expect(skyCall?.[2]?.skipKinds).toEqual(skySkip);
+
+    await renderer.unmount();
+  });
+
+  it("passes no skipKinds on the default campus environment", async () => {
+    const renderer = await ReactThreeTestRenderer.create(
+      <Probe characters={[workingBot(0)]} onSim={() => {}} />,
+    );
+    await ReactThreeTestRenderer.act(async () => {
+      await renderer.advanceFrames(3, 0.1);
+    });
+
+    // Matches the "version-0 guard" test above: no edits + no biome skip
+    // means the biome-aware effect never fires, so buildNavGrid is only
+    // ever called once, for the base sim, with no extras.
+    expect(vi.mocked(buildNavGrid).mock.calls).toEqual([[expect.anything(), expect.anything()]]);
 
     await renderer.unmount();
   });

@@ -16,8 +16,10 @@ import { useFlavorTicker } from "@/game/flavor/use-flavor-ticker";
 import { buildNavGrid } from "@/game/sim/grid";
 import { createSim, type Sim } from "@/game/sim/sim";
 import { toCharacters, type Character } from "@/game/sim/characters";
+import { biomeSkipFor } from "@/game/world/biome";
 import { campusBuildings } from "@/game/world/campus/buildings";
 import { campusLayout } from "@/game/world/campus/layout";
+import { useGameEnvironment } from "@/game/world/environments/store";
 
 /** Same seed forever — the sim must replay identically across sessions. */
 const SIM_SEED = 0x51d0;
@@ -48,6 +50,7 @@ export function useSim(override?: Character[]): UseSimResult {
     void useAgentsStore.getState().init();
     void useProjectsStore.getState().load();
     void useCampusEdits.getState().init();
+    void useGameEnvironment.getState().init();
   }, []);
 
   const views = useSessionsView();
@@ -80,19 +83,34 @@ export function useSim(override?: Character[]): UseSimResult {
   // nav grid + building pool and hand them to the once-built sim via
   // updateWorld() — never a fresh createSim(), that would respawn everyone.
   // `editsVersion` starts at 0 and only becomes >0 once the store has
-  // actually loaded/mutated (see build/store.ts); skip it here so a fresh
-  // mount (or a backend-less test) never fires a redundant updateWorld call
-  // against the identical base grid `sim` was just built from.
+  // actually loaded/mutated (see build/store.ts).
+  //
+  // Sky-biome invisible walls (M4 debt sweep): buildNavGrid blocks every
+  // BLOCKING_SCATTER kind regardless of biome, but sky doesn't *render*
+  // rockLarge/treePine/treeDetailed (biome.ts's `skip`) — a robot would
+  // path around a wall it can't see. `skipKinds` (grid.ts) fixes the
+  // blocking; the base `sim` above is still built ignorant of biome (it's
+  // created once, before we'd know which environment is even active), so
+  // this effect is what actually applies the current biome's skip list —
+  // including on first mount, if the player starts on a non-campus biome.
+  // That's why the guard below can no longer be "skip when editsVersion===0":
+  // a fresh sky-biome mount has editsVersion 0 too, and still needs this to
+  // run once to unblock its skipped kinds. Run whenever either is true; skip
+  // only the genuinely redundant case (no edits AND no biome skip), which is
+  // the original campus-mount guard.
   const edits = useCampusEdits((s) => s.edits);
   const editsVersion = useCampusEdits((s) => s.version);
+  const envId = useGameEnvironment((s) => s.id);
+  const biomeSkip = biomeSkipFor(envId);
   useEffect(() => {
-    if (editsVersion === 0) return;
+    if (editsVersion === 0 && biomeSkip.length === 0) return;
     const { buildings: allBuildings } = applyEdits(campus.layout, campus.buildings, edits);
     const grid = buildNavGrid(campus.layout, allBuildings, {
       items: edits.items.map((i) => ({ x: i.x, z: i.z })),
+      skipKinds: biomeSkip,
     });
     sim.updateWorld(grid, allBuildings);
-  }, [sim, campus, edits, editsVersion]);
+  }, [sim, campus, edits, editsVersion, biomeSkip]);
 
   const characters = useMemo(
     () => override ?? toCharacters(views, { agents, nowMs }),
