@@ -18,6 +18,12 @@ How releases consume this file (M6, EKI-98/EKI-100):
 
 ### Added
 
+- M4 "It breathes" — the campus IS the app (EKI-164): the game is now the main window (the old
+  2D world panel is gone; the workspace lives in its own window via the 🧰 chip), robots think
+  out loud with Haiku-powered thought bubbles (budget-capped, 💭 run counter, kill switch in
+  settings KV), three new environments — Desert 🏜️, Island 🏝️, Sky ✨ — day/night toggle with
+  moonlit lighting, CC0 UI sound effects (mutable), and a first-run welcome card
+
 - M3 "Build it" — lay out your own campus (EKI-157): 🔨 Build mode with a tool palette, snap-grid
   decor placement with ghost preview, building footprints that auto-generate desks (optionally
   linked to a Room, color-tinted), select/move/rotate/delete; robots re-plan onto placed desks
@@ -44,3 +50,11 @@ How releases consume this file (M6, EKI-98/EKI-100):
 - Local-only error log (`errors.jsonl` ring) and user-initiated "Report issue" bundle (EKI-102)
 - CI release pipeline: tag-triggered multi-platform builds with signing/notarization that degrade
   gracefully to unsigned artifacts when secrets are absent (EKI-98)
+
+### Fixed
+
+- Debt sweep (EKI-171): editing one decor kind no longer remounts the others; robot clicks no
+  longer place decor beneath them; ended sessions with an agent can be woken from the chat
+  composer; the sky environment no longer leaves invisible walls; e2e boot specs rewritten
+  against the game shell (EKI-148); nameplate renames refresh live; fountain water no longer
+  slowly tips vertical
