@@ -99,10 +99,9 @@ interface CampusEditsState {
   moveItem: (id: string, x: number, z: number) => void;
   rotateItem: (id: string, step: number) => void;
   removeItem: (id: string) => void;
-  /** Returns the new building's id — RoomLinkDialog needs it right away to target `setBuildingRoom`. */
+  /** Returns the new building's id — RoomLinkDialog needs it right away to target `setBuildingProject`. */
   addBuilding: (rect: Rect, roomId: string | null) => string;
   removeBuilding: (id: string) => void;
-  setBuildingRoom: (id: string, roomId: string | null) => void;
   /** Link (or unlink, with null) plotIndex's default pavilion to a project (M5). */
   setPlotProject: (plotIndex: number, projectId: string | null) => void;
   /** Link (or unlink, with null) a specific player-built pavilion to a project (M5). */
@@ -198,15 +197,6 @@ export const useCampusEdits = create<CampusEditsState>((set, get) => ({
     const edits: CampusEdits = {
       ...get().edits,
       buildings: get().edits.buildings.filter((b) => b.id !== id),
-    };
-    persist(edits);
-    set((s) => ({ edits, version: s.version + 1 }));
-  },
-
-  setBuildingRoom: (id, roomId) => {
-    const edits: CampusEdits = {
-      ...get().edits,
-      buildings: get().edits.buildings.map((b) => (b.id === id ? { ...b, roomId } : b)),
     };
     persist(edits);
     set((s) => ({ edits, version: s.version + 1 }));

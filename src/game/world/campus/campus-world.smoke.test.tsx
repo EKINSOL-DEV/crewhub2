@@ -8,6 +8,16 @@
 // all. Stub it here with the same render-prop contract but each Part
 // renders a plain <mesh> instead of an instance, and assert on Mesh counts
 // instead — layout, hierarchy and the rest of drei are still the real thing.
+//
+// Text/Billboard (RoofPlate, M5 T4) are also stubbed here: the real drei
+// <Text> suspends forever in jsdom (no font can load, per the M1 lesson),
+// which is fine for a "does it mount" count (its Suspense fallback just
+// stays null, contributing zero meshes) but useless for the "does the plate
+// text actually update live" test below, which needs to read the label
+// synchronously. Same convention as flavor-ui.test.tsx's SpeechBubble/
+// ThoughtBubble stubs: render a `<group name="plate:...">` marker instead of
+// real text — a `group`, not a `mesh`, so it never perturbs the exact
+// mesh-count assertions elsewhere in this file.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ReactThreeTestRenderer from "@react-three/test-renderer";
 import * as THREE from "three";
@@ -36,7 +46,15 @@ vi.mock("@react-three/drei", async (importOriginal) => {
     );
     return <>{children(...Parts)}</>;
   };
-  return { ...real, useGLTF, Merged };
+  const Text = ({ children }: { children?: React.ReactNode }) => <group name={`plate:${String(children)}`} />;
+  const Billboard = ({
+    children,
+    position,
+  }: {
+    children?: React.ReactNode;
+    position?: [number, number, number];
+  }) => <group position={position ?? [0, 0, 0]}>{children}</group>;
+  return { ...real, useGLTF, Merged, Text, Billboard };
 });
 
 vi.mock("@/ipc/bindings", () => ({
@@ -116,9 +134,7 @@ describe("CampusWorld smoke", () => {
     const baseCount = before.scene.findAllByType("Mesh").length;
     await before.unmount();
 
-    // RoofPlate's own Text suspends forever in jsdom (no font can load) —
-    // per the M1 lesson, that's fine: its Suspense boundary just keeps
-    // showing its null fallback, contributing zero meshes, so only the
+    // The stubbed Text above renders a `group`, not a `mesh` — only the
     // color-dot mesh shows up in this count.
     useProjectsStore.setState({
       projects: [
@@ -141,5 +157,49 @@ describe("CampusWorld smoke", () => {
     const after = await ReactThreeTestRenderer.create(<CampusWorld />);
     expect(after.scene.findAllByType("Mesh").length).toBe(baseCount + 1);
     await after.unmount();
+  });
+
+  // Fix round 1 (review finding): the tests above only prove mount-time
+  // correctness (link the project, *then* mount) — they can't catch a
+  // RoofPlate that only reads its project at mount and never reacts to a
+  // link made after the fact. This mounts once, asserts no plate, links the
+  // plot live, and asserts the plate's label actually appears — same
+  // mutate-while-mounted + act()/advanceFrames() pattern as
+  // use-sim.test.tsx. Only covers the base-pavilion path (CampusWorld); the
+  // placed-building path (PlacedBuildings.tsx) mounts the exact same
+  // RoofPlate component off the exact same useProjectsStore subscription,
+  // just fed `edits.buildings[].projectId` instead of `edits.plotProjects`,
+  // so this same reactivity is already exercised — not duplicated there.
+  it("shows a base pavilion's roof plate live once its plot is linked mid-mount, not just at mount time", async () => {
+    useProjectsStore.setState({
+      projects: [
+        {
+          id: "proj-1",
+          name: "Acme",
+          description: null,
+          icon: "🚀",
+          color: "#22c55e",
+          folder_path: "/work/acme",
+          docs_path: null,
+          status: "active",
+          created_at: 0,
+          updated_at: 0,
+        },
+      ],
+    });
+
+    const renderer = await ReactThreeTestRenderer.create(<CampusWorld />);
+    const plateLabel = () => renderer.scene.findAll((n) => n.props.name === "plate:🚀 Acme");
+
+    expect(plateLabel()).toHaveLength(0);
+
+    await ReactThreeTestRenderer.act(async () => {
+      useCampusEdits.getState().setPlotProject(0, "proj-1");
+      await renderer.advanceFrames(1, 0.1);
+    });
+
+    expect(plateLabel()).toHaveLength(1);
+
+    await renderer.unmount();
   });
 });

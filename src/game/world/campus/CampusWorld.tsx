@@ -22,8 +22,11 @@ import { campusBuildings } from "./buildings";
 import { Pavilion, WALL_HEIGHT } from "./Pavilion";
 import { RoofPlate } from "./RoofPlate";
 
-/** Roof-nameplate height — matches PlacedBuildings' convention. */
-const PLATE_Y = WALL_HEIGHT + 1.6;
+/** Roof-nameplate height — matches PlacedBuildings' convention. Must clear
+ *  Pavilion.tsx's roof beams, which peak at y=3.94 (centered at 3.85, height
+ *  0.18) — `+1.6` (3.6) sat inside/below them; `+2.5` (4.5) floats safely
+ *  above the roofline. */
+const PLATE_Y = WALL_HEIGHT + 2.5;
 
 const SCATTER_MODEL: Record<ScatterKind, ModelId> = {
   treeDefault: "tree-default",

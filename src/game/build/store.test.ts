@@ -63,19 +63,6 @@ describe("useCampusEdits", () => {
     expect(useCampusEdits.getState().edits.buildings).toHaveLength(0);
   });
 
-  it("setBuildingRoom updates only the targeted building's roomId and bumps version", () => {
-    const idA = useCampusEdits.getState().addBuilding({ x: 10, z: 20, w: 6, d: 5 }, null);
-    const idB = useCampusEdits.getState().addBuilding({ x: -10, z: 20, w: 6, d: 5 }, null);
-    const before = useCampusEdits.getState().version;
-
-    useCampusEdits.getState().setBuildingRoom(idA, "room-9");
-
-    const buildings = useCampusEdits.getState().edits.buildings;
-    expect(buildings.find((b) => b.id === idA)!.roomId).toBe("room-9");
-    expect(buildings.find((b) => b.id === idB)!.roomId).toBeNull();
-    expect(useCampusEdits.getState().version).toBe(before + 1);
-  });
-
   it("assigns ids from a monotonic counter, not Date.now/Math.random", () => {
     useCampusEdits.getState().addItem("bush", 1, 1, 0);
     useCampusEdits.getState().addItem("bush", 2, 2, 0);
@@ -223,7 +210,7 @@ describe("versionByKind (M4 debt sweep — per-kind edit versions)", () => {
   it("building mutations bump only the global version, never versionByKind", () => {
     const id = useCampusEdits.getState().addBuilding({ x: 10, z: 20, w: 6, d: 5 }, null);
     expect(useCampusEdits.getState().versionByKind).toEqual({});
-    useCampusEdits.getState().setBuildingRoom(id, "room-1");
+    useCampusEdits.getState().setBuildingProject(id, "proj-1");
     expect(useCampusEdits.getState().versionByKind).toEqual({});
     useCampusEdits.getState().removeBuilding(id);
     expect(useCampusEdits.getState().versionByKind).toEqual({});
