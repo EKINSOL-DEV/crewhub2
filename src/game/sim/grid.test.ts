@@ -9,6 +9,12 @@ const layout = campusLayout();
 const buildings = campusBuildings(layout.plots);
 const grid = buildNavGrid(layout, buildings);
 
+function cellIndexFor(g: ReturnType<typeof buildNavGrid>, x: number, z: number): number {
+  const cx = Math.floor(x + g.size / 2);
+  const cz = Math.floor(z + g.size / 2);
+  return cz * g.size + cx;
+}
+
 describe("findPath", () => {
   it("routes around the fountain", () => {
     const path = findPath(grid, { x: -10, z: 0 }, { x: 10, z: 0 });
@@ -96,12 +102,6 @@ describe("buildNavGrid extras (M3 T5 — placed decor blocks pathing)", () => {
   // blocks it.
   const spot = { x: 3, z: 22 };
 
-  function cellIndexFor(g: ReturnType<typeof buildNavGrid>, x: number, z: number): number {
-    const cx = Math.floor(x + g.size / 2);
-    const cz = Math.floor(z + g.size / 2);
-    return cz * g.size + cx;
-  }
-
   it("leaves the spot walkable without extras", () => {
     expect(grid.blocked[cellIndexFor(grid, spot.x, spot.z)]).toBe(0);
   });
@@ -123,5 +123,57 @@ describe("buildNavGrid extras (M3 T5 — placed decor blocks pathing)", () => {
   it("is backward compatible — omitting extras behaves exactly as before", () => {
     const withoutExtras = buildNavGrid(layout, buildings);
     expect(withoutExtras.blocked).toEqual(grid.blocked);
+  });
+});
+
+describe("buildNavGrid skipKinds (M4 debt sweep — sky-biome invisible walls)", () => {
+  // Campus renders (and blocks) treePine; sky doesn't render it at all
+  // (biome.ts's `skip`) but buildNavGrid blocked the cell regardless —
+  // an invisible wall a robot could never see coming.
+  const pine = layout.scatter.treePine[0]!;
+
+  it("campus (no skipKinds) blocks a pine cell", () => {
+    expect(grid.blocked[cellIndexFor(grid, pine.x, pine.z)]).toBe(1);
+  });
+
+  it("skipping treePine unblocks exactly that pine cell", () => {
+    const sky = buildNavGrid(layout, buildings, { skipKinds: ["treePine"] });
+    expect(sky.blocked[cellIndexFor(sky, pine.x, pine.z)]).toBe(0);
+  });
+
+  it("a path no longer detours around a pine cell once its kind is skipped", () => {
+    const from = { x: pine.x - 4, z: pine.z };
+    const to = { x: pine.x + 4, z: pine.z };
+    const sky = buildNavGrid(layout, buildings, { skipKinds: ["treePine"] });
+
+    const pathLength = (points: { x: number; z: number }[]) => {
+      let total = 0;
+      let prev = from;
+      for (const p of points) {
+        total += Math.hypot(p.x - prev.x, p.z - prev.z);
+        prev = p;
+      }
+      return total;
+    };
+    const straight = Math.hypot(to.x - from.x, to.z - from.z);
+    const blockedLength = pathLength(findPath(grid, from, to));
+    const skyLength = pathLength(findPath(sky, from, to));
+
+    // Cell-quantized pathing isn't pixel-exact to the straight line, but the
+    // skipped-kind path stays close to it — well short of the campus
+    // (still-blocking) detour around the same cell.
+    expect(skyLength).toBeLessThan(straight + 1);
+    expect(blockedLength).toBeGreaterThan(skyLength);
+  });
+
+  it("leaves every other blocking kind blocked — skipKinds is per-kind, not all-or-nothing", () => {
+    const rock = layout.scatter.rockLarge[0]!;
+    const sky = buildNavGrid(layout, buildings, { skipKinds: ["treePine"] });
+    expect(sky.blocked[cellIndexFor(sky, rock.x, rock.z)]).toBe(1);
+  });
+
+  it("is backward compatible — extras without skipKinds still blocks every kind", () => {
+    const withItemsOnly = buildNavGrid(layout, buildings, { items: [] });
+    expect(withItemsOnly.blocked).toEqual(grid.blocked);
   });
 });

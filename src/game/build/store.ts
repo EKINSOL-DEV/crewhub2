@@ -8,6 +8,7 @@ import { commands } from "@/ipc/bindings";
 import type { Rect } from "@/game/world/campus/layout";
 import {
   EMPTY_EDITS,
+  ROT_STEP,
   snap,
   type CampusEdits,
   type PlaceableKind,
@@ -18,8 +19,6 @@ import {
 export const EDITS_SETTING_KEY = "game.campus.edits";
 
 const STORE_VERSION = 1;
-/** One rotate step = 15°, same convention as the props placement editor. */
-const ROT_STEP = Math.PI / 12;
 
 interface StoredBlob {
   counter: number;
@@ -57,9 +56,23 @@ function normalizeRot(r: number): number {
   return out;
 }
 
+/** Bump only `kind`'s counter — CampusWorld keys each kind's InstancedModel
+ *  off this so moving one tree remounts just the tree group, not every
+ *  placed kind (bench, lantern, hedge, …) on the campus. */
+function bumpKind(map: Record<string, number>, kind: PlaceableKind | undefined): Record<string, number> {
+  if (!kind) return map;
+  return { ...map, [kind]: (map[kind] ?? 0) + 1 };
+}
+
 interface CampusEditsState {
   edits: CampusEdits;
   version: number;
+  /** Per-kind counterpart to `version`, bumped only for the mutated item's
+   *  kind (buildings keep just the global `version` — PlacedBuildings has
+   *  no InstancedModel keying to spare). Item add/move/rotate/remove bump
+   *  both: `version` still drives the nav-grid re-derive in use-sim.ts
+   *  (every kind can block pathing), `versionByKind` drives the render key. */
+  versionByKind: Record<string, number>;
   /** Load persisted edits once. Idempotent. */
   init: () => Promise<void>;
   addItem: (kind: PlaceableKind, x: number, z: number, rot: number) => void;
@@ -86,6 +99,7 @@ function persist(edits: CampusEdits): void {
 export const useCampusEdits = create<CampusEditsState>((set, get) => ({
   edits: EMPTY_EDITS,
   version: 0,
+  versionByKind: {},
 
   init: async () => {
     if (requested) return;
@@ -108,19 +122,21 @@ export const useCampusEdits = create<CampusEditsState>((set, get) => ({
     const item: PlacedItem = { id: nextId(), kind, x: snap(x), z: snap(z), rot };
     const edits: CampusEdits = { ...get().edits, items: [...get().edits.items, item] };
     persist(edits);
-    set((s) => ({ edits, version: s.version + 1 }));
+    set((s) => ({ edits, version: s.version + 1, versionByKind: bumpKind(s.versionByKind, kind) }));
   },
 
   moveItem: (id, x, z) => {
+    const kind = get().edits.items.find((i) => i.id === id)?.kind;
     const edits: CampusEdits = {
       ...get().edits,
       items: get().edits.items.map((i) => (i.id === id ? { ...i, x: snap(x), z: snap(z) } : i)),
     };
     persist(edits);
-    set((s) => ({ edits, version: s.version + 1 }));
+    set((s) => ({ edits, version: s.version + 1, versionByKind: bumpKind(s.versionByKind, kind) }));
   },
 
   rotateItem: (id, step) => {
+    const kind = get().edits.items.find((i) => i.id === id)?.kind;
     const edits: CampusEdits = {
       ...get().edits,
       items: get().edits.items.map((i) =>
@@ -128,13 +144,14 @@ export const useCampusEdits = create<CampusEditsState>((set, get) => ({
       ),
     };
     persist(edits);
-    set((s) => ({ edits, version: s.version + 1 }));
+    set((s) => ({ edits, version: s.version + 1, versionByKind: bumpKind(s.versionByKind, kind) }));
   },
 
   removeItem: (id) => {
+    const kind = get().edits.items.find((i) => i.id === id)?.kind;
     const edits: CampusEdits = { ...get().edits, items: get().edits.items.filter((i) => i.id !== id) };
     persist(edits);
-    set((s) => ({ edits, version: s.version + 1 }));
+    set((s) => ({ edits, version: s.version + 1, versionByKind: bumpKind(s.versionByKind, kind) }));
   },
 
   addBuilding: (rect, roomId) => {
@@ -175,5 +192,5 @@ export const useCampusEdits = create<CampusEditsState>((set, get) => ({
 export function resetCampusEditsForTests(): void {
   counter = 0;
   requested = false;
-  useCampusEdits.setState({ edits: EMPTY_EDITS, version: 0 });
+  useCampusEdits.setState({ edits: EMPTY_EDITS, version: 0, versionByKind: {} });
 }

@@ -49,6 +49,7 @@ vi.mock("@/ipc/bindings", () => ({
 import { CampusWorld } from "./CampusWorld";
 import { campusLayout } from "./layout";
 import { resetCampusEditsForTests, useCampusEdits } from "@/game/build/store";
+import { BIOMES } from "@/game/world/biome";
 
 describe("CampusWorld smoke", () => {
   beforeEach(() => {
@@ -95,4 +96,15 @@ describe("CampusWorld smoke", () => {
     expect(after.scene.findAllByType("Mesh").length).toBe(baseCount + 2);
     await after.unmount();
   });
+
+  it.each(["desert", "island", "sky"] as const)(
+    "mounts the %s biome without a campus regression",
+    async (id) => {
+      const renderer = await ReactThreeTestRenderer.create(<CampusWorld biome={BIOMES[id]} />);
+      // Not an exact count (skip lists change the total) — just proves the
+      // biome mounts a real, non-trivial scene through the same code path.
+      expect(renderer.scene.findAllByType("Mesh").length).toBeGreaterThan(100);
+      await renderer.unmount();
+    },
+  );
 });

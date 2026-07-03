@@ -7,10 +7,14 @@
 // here, minus dragging/resizing/optimistic echo (see use-chat-session.ts).
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { isModelTierId } from "@/components/ModelPicker";
+import { playSfx } from "@/game/audio/sfx";
 import type { SessionStatus } from "@/ipc/bindings";
+import { hireAgent } from "./hire";
 import type { ChatLine } from "./lines";
 import { PermissionCard } from "./PermissionCard";
 import { QuestionCard } from "./QuestionCard";
+import { useGameChats } from "./store";
 import { parseSessionKey, useChatSession } from "./use-chat-session";
 
 const STATUS_GLYPH: Record<SessionStatus, string> = {
@@ -84,7 +88,7 @@ export function ChatWindow({
   onMinimize,
   onFocusChat,
 }: ChatWindowProps) {
-  const { lines, status, pending, send } = useChatSession(chatKey);
+  const { lines, status, agent, pending, send } = useChatSession(chatKey);
   const sid = useMemo(() => parseSessionKey(chatKey), [chatKey]);
   const pendingCount = pending.permissions.length + pending.questions.length;
   const [draft, setDraft] = useState("");
@@ -100,20 +104,54 @@ export function ChatWindow({
 
   const right = STACK_RIGHT + stackIndex * STACK_GAP;
   const ended = status === "Ended";
-  const composerDisabled = ended || demo;
+  // An Ended session with a bound crew agent can be woken back up (M4 debt
+  // sweep, ported from the deleted world's WorldChatWindow.wakeAndSend) —
+  // its composer stays live so the draft becomes the wake-up prompt. An
+  // Ended session with no agent binding (e.g. a taken-over External
+  // session) has no spawn path back, so it stays a dead end.
+  const canWake = ended && agent !== null;
+  const composerDisabled = (ended && !canWake) || demo;
 
   const submit = () => {
     const text = draft.trim();
     if (!text) return; // whitespace-only: leave the draft alone, don't send
+    if (canWake) {
+      void wakeUp(text);
+      return;
+    }
     setDraft("");
     setSendError(null);
     void send(text).then((res) => {
-      if (res.ok) return;
+      if (res.ok) {
+        playSfx("send");
+        return;
+      }
       setSendError(res.error);
       // Restore the eaten message — but only if the user hasn't started
       // typing something new in the meantime.
       setDraft((cur) => (cur === "" ? text : cur));
     });
+  };
+
+  // Port of WorldChatWindow.wakeAndSend (src/panels/world/WorldChatWindow.tsx,
+  // deleted M4 T6): spawn a fresh session for the bound agent with the draft
+  // as its first prompt, bind it, then swap this window onto the new chat
+  // key. The engine echoes the prompt into the fresh transcript itself (see
+  // use-chat-session.ts) — no seed line to thread through, unlike v1.
+  const wakeUp = async (text: string) => {
+    if (!agent) return;
+    setDraft("");
+    setSendError(null);
+    const model = isModelTierId(agent.default_model) ? agent.default_model : "sonnet";
+    const result = await hireAgent(agent, { model, prompt: text });
+    if ("error" in result) {
+      setSendError(result.error);
+      setDraft((cur) => (cur === "" ? text : cur));
+      return;
+    }
+    playSfx("hire");
+    useGameChats.getState().close(chatKey);
+    useGameChats.getState().open(result.key);
   };
 
   if (minimized) {
@@ -211,12 +249,26 @@ export function ChatWindow({
             if (e.key === "Enter") submit();
           }}
           disabled={composerDisabled}
-          placeholder={demo ? "demo thread" : ended ? "session ended" : `Message ${name}…`}
+          placeholder={
+            demo
+              ? "demo thread"
+              : canWake
+                ? `Wake ${name} with…`
+                : ended
+                  ? "session ended"
+                  : `Message ${name}…`
+          }
           className="h-9 min-w-0 flex-1 rounded-full border-2 border-slate-900/10 bg-white px-3 text-sm outline-none disabled:opacity-50"
         />
-        <Button data-testid="chat-window-send" onClick={submit} disabled={composerDisabled}>
-          Send
-        </Button>
+        {canWake ? (
+          <Button data-testid="chat-window-wake" onClick={submit} disabled={!draft.trim()}>
+            ⏰ Wake up
+          </Button>
+        ) : (
+          <Button data-testid="chat-window-send" onClick={submit} disabled={composerDisabled}>
+            Send
+          </Button>
+        )}
       </div>
     </div>
   );

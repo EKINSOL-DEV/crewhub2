@@ -10,6 +10,7 @@ import path from "node:path";
 const KITS = [
   { slug: "nature-kit", page: "https://kenney.nl/assets/nature-kit" },
   { slug: "fantasy-town-kit", page: "https://kenney.nl/assets/fantasy-town-kit" },
+  { slug: "interface-sounds", page: "https://kenney.nl/assets/interface-sounds" },
 ];
 
 const ROOT = path.resolve(import.meta.dirname, "../..");

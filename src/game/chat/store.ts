@@ -4,6 +4,7 @@
 // world can now open many bots' chats: opening a 4th closes the oldest.
 // Array order = stacking order (last = on top).
 import { create } from "zustand";
+import { playSfx } from "@/game/audio/sfx";
 
 export interface OpenChat {
   key: string;
@@ -24,12 +25,14 @@ interface GameChatsState {
 
 export const useGameChats = create<GameChatsState>((set) => ({
   chats: [],
-  open: (key) =>
+  open: (key) => {
+    playSfx("chat-open");
     set((s) => {
       const rest = s.chats.filter((c) => c.key !== key);
       const kept = rest.length < MAX_OPEN ? rest : rest.slice(rest.length - (MAX_OPEN - 1));
       return { chats: [...kept, { key, min: false }] };
-    }),
+    });
+  },
   raise: (key) =>
     set((s) => {
       if (s.chats[s.chats.length - 1]?.key === key) return s;

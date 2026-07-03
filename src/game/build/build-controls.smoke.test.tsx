@@ -164,4 +164,36 @@ describe("BuildControls smoke", () => {
 
     await renderer.unmount();
   });
+
+  it("throttles a held `]` key to at most one rotateItem call per 250ms", async () => {
+    vi.useFakeTimers();
+    try {
+      useCampusEdits.getState().addItem("bush", 10, 10, 0);
+      const id = useCampusEdits.getState().edits.items[0]!.id;
+      const rotateItemSpy = vi.spyOn(useCampusEdits.getState(), "rotateItem");
+
+      useBuildMode.setState({ active: true, tool: { kind: "select" } });
+      const renderer = await ReactThreeTestRenderer.create(<BuildControls />);
+      const proxy = pickProxy(renderer.scene);
+      await renderer.fireEvent(proxy, "pointerDown", { button: 0 }); // select the item
+
+      // Browser auto-repeat fires far faster than 4/s — 20 keydowns 10ms
+      // apart (190ms total), well inside the 250ms throttle window.
+      for (let i = 0; i < 20; i++) {
+        window.dispatchEvent(new KeyboardEvent("keydown", { key: "]" }));
+        vi.advanceTimersByTime(10);
+      }
+      expect(rotateItemSpy).toHaveBeenCalledTimes(1);
+      expect(rotateItemSpy).toHaveBeenCalledWith(id, 1);
+
+      // Past the 250ms window, the next keydown is allowed through again.
+      vi.advanceTimersByTime(100); // ~290ms since the first call
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "]" }));
+      expect(rotateItemSpy).toHaveBeenCalledTimes(2);
+
+      await renderer.unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

@@ -27,4 +27,26 @@ describe("useGameEnvironment", () => {
     useGameEnvironment.getState().setEnvironment("campus");
     expect(commands.setSetting).toHaveBeenCalledWith("world.environment", "campus");
   });
+
+  it("defaults to day", () => {
+    expect(useGameEnvironment.getState().night).toBe(false);
+  });
+
+  it("loads a persisted night flag", async () => {
+    vi.mocked(commands.getSetting).mockImplementation(async (key: string) =>
+      key === "world.night" ? { status: "ok", data: "1" } : { status: "ok", data: null },
+    );
+    await useGameEnvironment.getState().init();
+    expect(useGameEnvironment.getState().night).toBe(true);
+  });
+
+  it("toggleNight flips the flag and writes the KV round-trip", () => {
+    useGameEnvironment.getState().toggleNight();
+    expect(useGameEnvironment.getState().night).toBe(true);
+    expect(commands.setSetting).toHaveBeenCalledWith("world.night", "1");
+
+    useGameEnvironment.getState().toggleNight();
+    expect(useGameEnvironment.getState().night).toBe(false);
+    expect(commands.setSetting).toHaveBeenCalledWith("world.night", "0");
+  });
 });

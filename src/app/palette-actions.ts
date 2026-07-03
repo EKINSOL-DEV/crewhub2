@@ -16,7 +16,10 @@ import { PANEL_LIST } from "./panel-registry";
  * in place, anything else splits the focused (or first) leaf.
  */
 export function openPanel(kind: PanelKind, params?: Record<string, string>) {
-  // Main window (EKI-121): every panel is a drawer over the world.
+  // Main window: nothing currently renders `useOverlays` (the old world-HUD
+  // drawer host died with the world — M4 T6, partial-D4). This branch is a
+  // no-op there until the game shell grows its own panel-drawer bridge;
+  // `?window=workspace` is the only route that actually opens a panel today.
   if (!isPanelWindow()) {
     useOverlays.getState().open(kind, params);
     return;

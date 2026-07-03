@@ -8,9 +8,12 @@ import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { Billboard, Text } from "@react-three/drei";
 import * as THREE from "three";
 import type { SessionStatus } from "@/ipc/bindings";
+import { useBuildMode } from "@/game/build/mode";
 import type { Character } from "@/game/sim/characters";
 import { SpeechBubble } from "@/game/chat/SpeechBubble";
 import { useGameSpeechBubbles } from "@/game/chat/use-speech-bubbles";
+import { thoughtFor, useFlavor } from "@/game/flavor/engine";
+import { ThoughtBubble } from "@/game/flavor/ThoughtBubble";
 import { Robot, type RobotHandles } from "./Robot";
 import { pose } from "./pose";
 import { useSim, type CharacterInfo } from "./use-sim";
@@ -27,6 +30,12 @@ export const BULB: Record<SessionStatus, string> = {
 const DAMP_RATE = 8; // exponential damp rate for position/facing follow
 const NAME_Y = 2.1;
 const FALLBACK_COLOR = "#94a3b8";
+// How often thought expiry is re-checked absent a new thought arriving —
+// `thoughtFor` is a pure read (engine.ts doesn't prune the store), so
+// nothing else forces a re-render once a thought's TTL passes. Coarse on
+// purpose: a thought may linger up to this long past its TTL before the
+// next tick hides it, unnoticeable at a 5s grain.
+const NOW_TICK_MS = 5_000;
 
 /** Shortest-arc exponential damp — same shape as THREE.MathUtils.damp, angle-aware. */
 function dampAngle(current: number, target: number, rate: number, dt: number): number {
@@ -49,6 +58,7 @@ function CharacterActor({
   color,
   status,
   speechText,
+  thoughtText,
   actorsRef,
   onSelect,
 }: {
@@ -60,6 +70,7 @@ function CharacterActor({
   color: string;
   status: SessionStatus;
   speechText: string | undefined;
+  thoughtText: string | undefined;
   actorsRef: MutableRefObject<Map<string, ActorRefs>>;
   onSelect: ((key: string, pos: { x: number; z: number }) => void) | undefined;
 }) {
@@ -86,8 +97,22 @@ function CharacterActor({
       ref={groupRef}
       position={[x, 0, z]}
       rotation={[0, facing, 0]}
+      // R3F fires pointerdown and click as independent synthetic events —
+      // stopPropagation on one doesn't stop the other (see onClick below).
+      // BuildControls' ground-pick plane listens for onPointerDown to place
+      // decor, so without this, clicking a robot standing over an open spot
+      // while the item tool is active both selects the robot AND places an
+      // item underneath it. Stop it here, unconditionally — a robot should
+      // never double as ground.
+      onPointerDown={(e: ThreeEvent<PointerEvent>) => e.stopPropagation()}
       onClick={(e: ThreeEvent<MouseEvent>) => {
         e.stopPropagation();
+        // The click itself isn't blocked by the pointerdown stop above, so
+        // it still reaches here even mid-placement — guard it separately:
+        // while actively placing decor, a robot click must open neither its
+        // chat window nor the hire dialog (onSelect below drives both).
+        const buildMode = useBuildMode.getState();
+        if (buildMode.active && buildMode.tool.kind === "item") return;
         // groupRef's position is the live, per-frame-damped sim position —
         // more accurate than the `x`/`z` props, which only refresh when the
         // bot set itself changes (see the `version` comment below).
@@ -114,11 +139,18 @@ function CharacterActor({
           </Text>
         </Billboard>
       </Suspense>
-      {/* Own boundary, same reasoning as the name label above. */}
-      {speechText && (
+      {/* Own boundary, same reasoning as the name label above. Speech wins —
+          a thought is decorative flavor, a reply to the human is not. */}
+      {speechText ? (
         <Suspense fallback={null}>
           <SpeechBubble text={speechText} />
         </Suspense>
+      ) : (
+        thoughtText && (
+          <Suspense fallback={null}>
+            <ThoughtBubble text={thoughtText} />
+          </Suspense>
+        )
       )}
     </group>
   );
@@ -138,6 +170,15 @@ export function Characters({
   const { sim, version, infoRef } = useSim(override);
   const actorsRef = useRef<Map<string, ActorRefs>>(new Map());
   const speech = useGameSpeechBubbles();
+  // Subscribed (return value unused) so a fresh thought shows immediately;
+  // `nowMs` below covers the other half — hiding one once its TTL passes
+  // with no new thought arriving to trigger a re-render on its own.
+  useFlavor((s) => s.thoughts);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNowMs(Date.now()), NOW_TICK_MS);
+    return () => clearInterval(t);
+  }, []);
 
   useFrame((_state, delta) => {
     const dt = Math.min(delta, 0.1);
@@ -187,21 +228,25 @@ export function Characters({
 
   return (
     <group>
-      {bots.map(({ key, x, z, facing, info }) => (
-        <CharacterActor
-          key={key}
-          botKey={key}
-          x={x}
-          z={z}
-          facing={facing}
-          name={info?.name ?? key}
-          color={info?.color ?? FALLBACK_COLOR}
-          status={info?.status ?? "Idle"}
-          speechText={speech[key]?.text}
-          actorsRef={actorsRef}
-          onSelect={onSelect}
-        />
-      ))}
+      {bots.map(({ key, x, z, facing, info }) => {
+        const thoughtText = thoughtFor(key, nowMs)?.text;
+        return (
+          <CharacterActor
+            key={key}
+            botKey={key}
+            x={x}
+            z={z}
+            facing={facing}
+            name={info?.name ?? key}
+            color={info?.color ?? FALLBACK_COLOR}
+            status={info?.status ?? "Idle"}
+            speechText={speech[key]?.text}
+            thoughtText={thoughtText}
+            actorsRef={actorsRef}
+            onSelect={onSelect}
+          />
+        );
+      })}
     </group>
   );
 }

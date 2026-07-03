@@ -1,7 +1,9 @@
-// World overlays (EKI-121): the workspace is no longer a place you VISIT —
-// every panel renders as a game-HUD drawer over the 3D world. This store is
-// the single source for which panel is up; the openers (open-chat/board/
-// automation/diff and openPanel) all funnel through here in the main window.
+// World overlays (EKI-121): the workspace was no longer a place you VISIT —
+// every panel rendered as a game-HUD drawer over the 3D world, via this
+// store. The world is gone and its drawer host with it (M4 T6, partial-D4),
+// so nothing currently renders `overlay` — the openers (open-chat/board/
+// automation/diff and openPanel) still write into it, harmlessly, until the
+// game shell grows its own drawer bridge.
 //
 // Secondary `?window=…` routes keep the classic workspace tree — panels in
 // their own window are a power feature, not a destination.

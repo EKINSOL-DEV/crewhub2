@@ -6,6 +6,7 @@
 import { useEffect, useMemo } from "react";
 import {
   commands,
+  type Agent,
   type PermissionRequest,
   type QuestionRequest,
   type SessionId,
@@ -36,6 +37,8 @@ export type ChatSendResult = { ok: true } | { ok: false; error: string };
 export interface ChatSessionResult {
   lines: ChatLine[];
   status: SessionStatus | undefined;
+  /** The session's bound crew agent, or null if it has none (or isn't tracked). */
+  agent: Agent | null;
   pending: ChatSessionPending;
   send: (text: string) => Promise<ChatSendResult>;
 }
@@ -55,7 +58,9 @@ export function useChatSession(key: string): ChatSessionResult {
   }, [key, sid]);
 
   const transcript = useTranscripts((s) => s.sessions[key]);
-  const status = useSessionsView().find((v) => v.key === key)?.meta.status;
+  const view = useSessionsView().find((v) => v.key === key);
+  const status = view?.meta.status;
+  const agent = view?.agent ?? null;
 
   const lines = useMemo(
     () => chatLinesFrom(transcript?.items ?? new Map(), transcript?.order ?? []),
@@ -82,5 +87,5 @@ export function useChatSession(key: string): ChatSessionResult {
     }
   };
 
-  return { lines, status, pending, send };
+  return { lines, status, agent, pending, send };
 }

@@ -79,21 +79,22 @@ export const PANELS: Record<PanelKind, PanelDefinition> = {
     component: lazy(() => import("@/panels/crew/CrewPanel").then((m) => ({ default: m.CrewPanel }))),
     emptyState: { emoji: "🧑‍🚀", title: "Hire your first agent", hint: "A crew makes the ship go" },
   },
-  // The world left the panels (world-primary shell): the kind survives so
-  // persisted layouts with world leaves still parse, but those leaves now
-  // render a signpost to the primary view instead of a second world.
+  // The world left the panels (world-primary shell, then M4 T6 — the old 3D
+  // world was deleted and the game shell became the main window): the kind
+  // survives so persisted layouts with world leaves still parse, but those
+  // leaves now render a signpost instead of a second world/game.
   world: {
     kind: "world",
     label: "World",
     emoji: "🌍",
-    description: "The 3D office — it moved! It's the primary view now (⌘1)",
+    description: "The old 3D office — it became the campus, the main window now",
     keywords: ["world", "3d", "office", "bots", "rooms", "map"],
     hiddenFromPicker: true,
-    component: lazy(() => import("@/panels/world/WorldMovedPanel")),
+    component: lazy(() => import("@/app/WorldMovedPanel")),
     emptyState: {
       emoji: "🌍",
       title: "The world moved",
-      hint: "Press ⌘1 — the world is the primary view now",
+      hint: "It became the campus — the main window now, not a panel",
     },
   },
   board: {

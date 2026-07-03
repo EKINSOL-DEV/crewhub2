@@ -12,18 +12,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
+import { playSfx } from "@/game/audio/sfx";
 import { useModel } from "@/game/assets/use-model";
 import { CAMPUS, campusLayout, type Rect } from "@/game/world/campus/layout";
-import { canPlaceBuilding, canPlaceItem, PLACEABLE_KINDS, snap, type CampusEdits } from "./edits";
+import { canPlaceBuilding, canPlaceItem, PLACEABLE_KINDS, ROT_STEP, snap, type CampusEdits } from "./edits";
 import { useBuildMode } from "./mode";
 import { useCampusEdits } from "./store";
 
 const VALID_COLOR = new THREE.Color("#22c55e");
 const INVALID_COLOR = new THREE.Color("#ef4444");
 const RING_COLOR = "#fbbf24";
-// Matches store.ts's ROT_STEP (15°/step) — kept in sync by convention, not
-// import, since store.ts doesn't export it.
-const ROT_STEP = Math.PI / 12;
 // Ghost/pick meshes render at full item scale (matches applyEdits' 1.4).
 const ITEM_SCALE = 1.4;
 
@@ -72,6 +70,12 @@ export function BuildControls() {
   const pendingRot = useRef(0);
   const anchor = useRef<Point | null>(null);
   const dragging = useRef(false);
+  // Browser keydown auto-repeat fires far faster than 4/s while `[`/`]` is
+  // held — each rotateItem call is a store write + persist() KV call, so a
+  // held key would otherwise spam the backend. Gate to ≤4/s (250ms between
+  // calls); the item-tool ghost-rotation branch below is a plain ref
+  // mutation with no I/O, so it stays unthrottled.
+  const lastRotateAt = useRef(0);
 
   const ghostGroupRef = useRef<THREE.Group>(null);
   const ghostDiscRef = useRef<THREE.MeshBasicMaterial>(null);
@@ -117,6 +121,9 @@ export function BuildControls() {
         if (tool.kind === "item") {
           pendingRot.current += dir * ROT_STEP;
         } else if (tool.kind === "select" && selection?.kind === "item") {
+          const now = Date.now();
+          if (now - lastRotateAt.current < 250) return;
+          lastRotateAt.current = now;
           rotateItem(selection.id, dir);
         }
         return;
@@ -126,6 +133,7 @@ export function BuildControls() {
           if (selection.kind === "item") removeItem(selection.id);
           else removeBuilding(selection.id);
           setSelection(null);
+          playSfx("remove");
         }
         return;
       }
@@ -194,7 +202,10 @@ export function BuildControls() {
     const x = snap(e.point.x);
     const z = snap(e.point.z);
     if (tool.kind === "item") {
-      if (canPlaceItem(edits, layout, x, z)) addItem(tool.item, x, z, pendingRot.current);
+      if (canPlaceItem(edits, layout, x, z)) {
+        addItem(tool.item, x, z, pendingRot.current);
+        playSfx("place");
+      }
     } else if (tool.kind === "building") {
       if (!anchor.current) {
         anchor.current = { x, z };
@@ -203,7 +214,10 @@ export function BuildControls() {
         // roomId starts null — RoomLinkDialog (mounted by GameShell, keyed
         // off mode.ts's pendingRoomLink) offers the player a room right
         // after placement instead of forcing the pick mid-drag here.
-        if (canPlaceBuilding(edits, layout, rect)) openRoomLink(addBuilding(rect, null));
+        if (canPlaceBuilding(edits, layout, rect)) {
+          openRoomLink(addBuilding(rect, null));
+          playSfx("place");
+        }
         anchor.current = null;
       }
     } else {

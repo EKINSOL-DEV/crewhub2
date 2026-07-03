@@ -1,16 +1,21 @@
 // The Campus environment's World (M0 T9/T10): terrain, paths, nature scatter,
 // plaza props. Lights live in GameShell (per-environment rig), not here.
+//
+// Biomes (M4 T3): Desert/Island/Sky are the same layout repainted and
+// re-scattered — see biome.ts. `biome` defaults to campus so every existing
+// call site (and test) keeps rendering the original world unchanged.
 import { useEffect, useMemo, useRef } from "react";
 import type * as THREE from "three";
 import type { ModelId } from "@/game/assets/manifest";
-import { type PlaceableKind } from "@/game/build/edits";
+import { placedItemPlacements, type PlaceableKind } from "@/game/build/edits";
 import { PlacedBuildings } from "@/game/build/PlacedBuildings";
 import { useCampusEdits } from "@/game/build/store";
 import { CloudPuffs } from "@/game/world/CloudPuffs";
+import { BIOMES, type Biome } from "@/game/world/biome";
 import { Fountain } from "./Fountain";
 import { InstancedModel } from "./InstancedModel";
 import { Terrain } from "./Terrain";
-import { campusLayout, type Placement, type ScatterKind } from "./layout";
+import { campusLayout, type ScatterKind } from "./layout";
 import { campusBuildings } from "./buildings";
 import { Pavilion } from "./Pavilion";
 
@@ -67,43 +72,43 @@ function useStaticMatrices(): React.RefObject<THREE.Group | null> {
   return ref;
 }
 
-export function CampusWorld() {
+export function CampusWorld({ biome = BIOMES.campus }: { biome?: Biome }) {
   const layout = useMemo(() => campusLayout(), []);
   const buildings = useMemo(() => campusBuildings(layout.plots), [layout]);
   const staticRef = useStaticMatrices();
+  const skip = biome.skip ?? [];
+  const scatterKinds = (Object.keys(SCATTER_MODEL) as ScatterKind[]).filter((k) => !skip.includes(k));
 
   // Player-placed decor (M3 T4): grouped by kind for InstancedModel, keyed
-  // by `version` so a fresh edit remounts the group instead of trying to
-  // animate its frozen (frames={1}) instance matrices. Kept OUTSIDE the
-  // static-matrix group below — these placements change at runtime, so
-  // freezing them would just mean re-running useStaticMatrices on every
-  // edit; a cheap remount of a few dozen meshes is simpler.
+  // by `versionByKind[kind]` (M4 debt sweep) so a fresh edit remounts only
+  // its own kind's group instead of trying to animate its frozen
+  // (frames={1}) instance matrices — moving one tree no longer remounts
+  // every placed kind's InstancedModel. Kept OUTSIDE the static-matrix
+  // group below — these placements change at runtime, so freezing them
+  // would just mean re-running useStaticMatrices on every edit; a cheap
+  // remount of one kind's meshes is simpler.
   const edits = useCampusEdits((s) => s.edits);
-  const version = useCampusEdits((s) => s.version);
-  const placedByKind = useMemo(() => {
-    const map: Partial<Record<PlaceableKind, Placement[]>> = {};
-    for (const item of edits.items) {
-      const list = map[item.kind] ?? [];
-      // Scale 1.4 matches applyEdits' convention for placed decor.
-      list.push({ x: item.x, z: item.z, rot: item.rot, scale: 1.4 });
-      map[item.kind] = list;
-    }
-    return map;
-  }, [edits]);
+  const versionByKind = useCampusEdits((s) => s.versionByKind);
+  // Shared with applyEdits (build/edits.ts) — one item->Placement mapping,
+  // including the scale-1.4 convention, so CampusWorld's render pass and
+  // applyEdits' merge pass can't drift apart.
+  const placedByKind = useMemo(() => placedItemPlacements(edits.items), [edits]);
 
   return (
     <group>
       {/* Animated residents (fountain water, clouds) stay auto-updating. */}
       <Fountain />
-      <CloudPuffs />
+      <CloudPuffs count={biome.clouds} />
       <group ref={staticRef}>
-        <Terrain />
+        <Terrain grass={biome.grass} apron={biome.apron} path={biome.path} />
         <InstancedModel id="path-stone" placements={layout.pathTiles} />
-        {(Object.keys(SCATTER_MODEL) as ScatterKind[]).map((kind) => (
+        {scatterKinds.map((kind) => (
           <InstancedModel
             key={kind}
-            id={SCATTER_MODEL[kind]}
+            id={biome.scatter[kind] ?? SCATTER_MODEL[kind]}
             placements={layout.scatter[kind]}
+            // Cyan-band hue shift only touches campus greens/blues; safe for
+            // cacti and palms too, so the foliage flag stays keyed on kind.
             foliage={FOLIAGE.has(kind)}
             tilt={kind.startsWith("tree") ? 0.05 : kind === "bush" || kind === "grassTuft" ? 0.09 : 0}
           />
@@ -121,7 +126,11 @@ export function CampusWorld() {
           outside the frozen static-matrix group. */}
       <PlacedBuildings />
       {(Object.keys(placedByKind) as PlaceableKind[]).map((kind) => (
-        <InstancedModel key={`${kind}-${version}`} id={kind} placements={placedByKind[kind]!} />
+        <InstancedModel
+          key={`${kind}-${versionByKind[kind] ?? 0}`}
+          id={kind}
+          placements={placedByKind[kind]!}
+        />
       ))}
     </group>
   );

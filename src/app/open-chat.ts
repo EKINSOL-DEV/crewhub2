@@ -1,9 +1,12 @@
 // Cross-panel "open this session in a chat panel" action (D-M2-2): sessions,
 // activity, history and the crew bar all funnel through here.
 //
-// EKI-121 (game-HUD shell): in the main window the chat opens as a drawer
-// over the world — the workspace tree only survives in `?window=` routes,
-// where the classic focus/adopt/split adoption still applies.
+// EKI-121 (game-HUD shell): in the main window this opened a drawer over the
+// world. The world is gone (M4 T6, partial-D4) and the game shell has its
+// own chat system (game/chat) that doesn't route through here, so this
+// branch is presently unreachable from the main window — the workspace tree
+// in `?window=` routes, with the classic focus/adopt/split adoption, is the
+// only live path.
 import { useWorkspace } from "@/stores/workspace";
 import { leaves } from "./layout-tree";
 import { isPanelWindow, useOverlays } from "./overlays";

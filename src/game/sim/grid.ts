@@ -53,7 +53,7 @@ function idxOf(cx: number, cz: number, grid: NavGrid): number {
 export function buildNavGrid(
   layout: CampusLayout,
   buildings: Building[],
-  extras?: { items?: { x: number; z: number }[] },
+  extras?: { items?: { x: number; z: number }[]; skipKinds?: ScatterKind[] },
 ): NavGrid {
   const size = CAMPUS.half * 2;
   const grid: NavGrid = { size, cell: 1, blocked: new Uint8Array(size * size) };
@@ -74,7 +74,13 @@ export function buildNavGrid(
   }
 
   // Trees and large rocks — one blocked cell per placement, coarse is fine.
+  // `skipKinds` (M4 debt sweep) opts a kind out entirely: some biomes don't
+  // render every blocking kind (sky drops rockLarge/treePine/treeDetailed —
+  // see biome.ts's `skip`), and blocking a cell campus renders as a tree
+  // but sky renders as nothing was an invisible wall.
+  const skipKinds = new Set(extras?.skipKinds ?? []);
   for (const kind of BLOCKING_SCATTER) {
+    if (skipKinds.has(kind)) continue;
     for (const p of layout.scatter[kind]) block(p.x, p.z);
   }
 

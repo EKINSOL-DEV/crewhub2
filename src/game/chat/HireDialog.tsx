@@ -9,6 +9,7 @@
 // `key={agent.id}` so its model/prompt reset too. No setState-in-effect.
 import { useMemo, useState } from "react";
 import { ModelPicker, isModelTierId, type ModelTierId } from "@/components/ModelPicker";
+import { playSfx } from "@/game/audio/sfx";
 import type { Agent, SessionMeta } from "@/ipc/bindings";
 import { useAgentsStore } from "@/stores/agents";
 import { useSessionsView, type SessionView } from "@/stores/sessions";
@@ -69,6 +70,10 @@ function HireDialogInner({
         setError(result.error);
         return;
       }
+      // Accepted debt: open() below also plays "chat-open", so a hire fires
+      // two short cues back-to-back. Deliberate — a combined cue isn't worth
+      // special-casing the store.
+      playSfx("hire");
       useGameChats.getState().open(result.key);
       onClose();
     } finally {
