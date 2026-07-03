@@ -15,9 +15,10 @@ import { useCampusEdits } from "@/game/build/store";
 import { useFlavorTicker } from "@/game/flavor/use-flavor-ticker";
 import { buildNavGrid } from "@/game/sim/grid";
 import { createSim, type Sim } from "@/game/sim/sim";
-import { toCharacters, type Character } from "@/game/sim/characters";
+import { DEMO_GROUP } from "@/game/sim/demo";
+import { normalizeFolder, toCharacters, type Character } from "@/game/sim/characters";
 import { biomeSkipFor } from "@/game/world/biome";
-import { campusBuildings } from "@/game/world/campus/buildings";
+import { campusBuildings, type Building } from "@/game/world/campus/buildings";
 import { campusLayout } from "@/game/world/campus/layout";
 import { useGameEnvironment } from "@/game/world/environments/store";
 
@@ -43,7 +44,34 @@ export interface UseSimResult {
 /** Demo fast-forward: open mid-life (robots seated/raising hands), not at spawn. */
 const DEMO_WARMUP_TICKS = 300; // 30s of sim time, deterministic, <10ms of work
 
+/**
+ * Annotate `Building.groupKey` from a project link (M5 T5, the React
+ * boundary): a building's `projectId` only means something once it's
+ * resolved to the *folder* the sim actually matches bots on — that join
+ * lives here, not in sim.ts (pure, no store access) or buildings.ts (pure
+ * layout). Unlinked buildings (`projectId` null, or a stale id no longer in
+ * `folderByProjectId`) get `groupKey: null` — same "no claims" meaning the
+ * sim already gives undefined/null.
+ */
+function withProjectGroupKeys(buildings: Building[], folderByProjectId: Map<string, string>): Building[] {
+  return buildings.map((b) => ({
+    ...b,
+    groupKey: b.projectId ? (folderByProjectId.get(b.projectId) ?? null) : null,
+  }));
+}
+
+/** Demo override (M5 T5): every building shares `DEMO_GROUP`, real project
+ *  links included — see demo.ts's DEMO_GROUP doc comment for why. */
+function withDemoGroupKeys(buildings: Building[]): Building[] {
+  return buildings.map((b) => ({ ...b, groupKey: DEMO_GROUP }));
+}
+
 export function useSim(override?: Character[]): UseSimResult {
+  // Stable for the component's whole lifetime (GameShell picks demo vs. live
+  // once, via `?demo`; tests that pass `override` do so for the mount and
+  // never toggle it) — safe to read straight off the arg rather than a ref.
+  const isDemo = override !== undefined;
+
   useEffect(() => {
     void useSessionsStore.getState().init();
     void useBindingsStore.getState().init();
@@ -55,6 +83,12 @@ export function useSim(override?: Character[]): UseSimResult {
 
   const views = useSessionsView();
   const agents = useAgentsStore((s) => s.agents);
+  const projects = useProjectsStore((s) => s.projects);
+  const folderByProjectId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of projects) map.set(p.id, normalizeFolder(p.folder_path));
+    return map;
+  }, [projects]);
 
   // Same slow-prune pattern as WorldPanel (EKI-110): Date.now() is fine
   // here, this is React land feeding the pure sim, not the sim itself.
@@ -73,10 +107,19 @@ export function useSim(override?: Character[]): UseSimResult {
     return { layout, buildings };
   }, []);
 
+  // M5 T5: at mount, `edits.plotProjects` hasn't loaded yet (its store's
+  // `init()` above is async, and even once loaded it arrives via the effect
+  // below, not synchronously here) — so a real (non-demo) mount seeds the
+  // sim with bare, unlinked buildings, exactly as before M5. Demo mode is
+  // the one case that doesn't need to wait: it never joins real project
+  // links, so `isDemo` alone (already known at mount) is enough to stamp
+  // every building with DEMO_GROUP right away — no "arrives one tick late"
+  // gap where demo bots spawn unmatched before their first sync.
   const sim = useMemo(() => {
-    const grid = buildNavGrid(campus.layout, campus.buildings);
-    return createSim(grid, campus.buildings, SIM_SEED);
-  }, [campus]);
+    const buildings = isDemo ? withDemoGroupKeys(campus.buildings) : campus.buildings;
+    const grid = buildNavGrid(campus.layout, buildings);
+    return createSim(grid, buildings, SIM_SEED);
+  }, [campus, isDemo]);
 
   // Build-mode edits (M3 T5): a placed pavilion or piece of decor changes
   // what robots can walk through and where they can sit, so re-derive the
@@ -96,6 +139,16 @@ export function useSim(override?: Character[]): UseSimResult {
   // That's why the guard below can no longer be "skip when editsVersion===0":
   // a fresh sky-biome mount has editsVersion 0 too, and still needs this to
   // run once to unblock its skipped kinds.
+  //
+  // M5 T5: this effect is also the one and only place that (re-)resolves
+  // `plotProjects`/`projectId` into real `groupKey`s — `campus.buildings`
+  // itself is never rebuilt with the link baked in (kept as the frozen
+  // mount-time base, per the comment above), so every run rebuilds the
+  // *plot* pavilions fresh via `campusBuildings(..., edits.plotProjects)`
+  // rather than reusing `campus.buildings` before merging in `edits`'s
+  // player-built pavilions. Desk ids stay identical across rebuilds
+  // (`desk-${plotIndex}-N` is a pure function of position), so this doesn't
+  // disturb any in-progress claim bookkeeping in sim.ts.
   const edits = useCampusEdits((s) => s.edits);
   const editsVersion = useCampusEdits((s) => s.version);
   const envId = useGameEnvironment((s) => s.id);
@@ -109,23 +162,52 @@ export function useSim(override?: Character[]): UseSimResult {
   // biome actually renders. Only skip when there's nothing to apply AND
   // nothing was ever applied before (the pure campus-mount case, where the
   // base `sim` above is already exactly right).
+  //
+  // M5 T5 fix round 2: `editsVersion > 0` alone isn't quite the right proxy
+  // for "there's a project link to resolve" — in the real app the two are
+  // in lockstep (setPlotProject/setBuildingProject always bump version), but
+  // a `plotProjects`/`projectId` entry can in principle be present with
+  // version still 0 (e.g. state seeded directly, tests). `hasProjectLinks`
+  // covers that directly off the edits themselves rather than trusting the
+  // version counter as a stand-in. Demo mode needs no such check: its
+  // groupKeys are fully resolved at mount (see the `sim` useMemo above), so
+  // `isDemo` deliberately does NOT join `hasWorkToApply` — the "passes no
+  // skipKinds on the default campus environment" test's exactly-one-call
+  // invariant only holds for a demo mount that also has zero edits/biome
+  // work, and that's exactly the case where this effect staying silent is
+  // still correct (mount already applied DEMO_GROUP to every building).
   const appliedRef = useRef(false);
   useEffect(() => {
-    const hasWorkToApply = editsVersion > 0 || biomeSkip.length > 0;
+    const hasProjectLinks =
+      Object.keys(edits.plotProjects).length > 0 || edits.buildings.some((b) => Boolean(b.projectId));
+    const hasWorkToApply = editsVersion > 0 || biomeSkip.length > 0 || hasProjectLinks;
     if (!hasWorkToApply && !appliedRef.current) return;
     appliedRef.current = hasWorkToApply;
-    const { buildings: allBuildings } = applyEdits(campus.layout, campus.buildings, edits);
-    const grid = buildNavGrid(campus.layout, allBuildings, {
+    const plotBuildings = campusBuildings(campus.layout.plots, edits.plotProjects);
+    const { buildings: mergedBuildings } = applyEdits(campus.layout, plotBuildings, edits);
+    const buildings = isDemo
+      ? withDemoGroupKeys(mergedBuildings)
+      : withProjectGroupKeys(mergedBuildings, folderByProjectId);
+    const grid = buildNavGrid(campus.layout, buildings, {
       items: edits.items.map((i) => ({ x: i.x, z: i.z })),
       skipKinds: biomeSkip,
     });
-    sim.updateWorld(grid, allBuildings);
-  }, [sim, campus, edits, editsVersion, biomeSkip]);
+    sim.updateWorld(grid, buildings);
+  }, [sim, campus, edits, editsVersion, biomeSkip, isDemo, folderByProjectId]);
 
-  const characters = useMemo(
-    () => override ?? toCharacters(views, { agents, nowMs }),
-    [override, views, agents, nowMs],
-  );
+  // M5 T5: override characters (demo scenes, and tests standing in for the
+  // store join) already carry whatever groupKey they need — demo.ts's
+  // literals set DEMO_GROUP directly. Only the real store-joined path needs
+  // annotating here, mirroring the building join above: `projectPath` is
+  // already normalized by toCharacters(), so this is a defensive re-apply
+  // (idempotent) rather than a second source of truth.
+  const characters = useMemo(() => {
+    if (override) return override;
+    return toCharacters(views, { agents, nowMs }).map((c) => ({
+      ...c,
+      groupKey: c.projectPath ? normalizeFolder(c.projectPath) : null,
+    }));
+  }, [override, views, agents, nowMs]);
 
   // M4 T2: the ticker needs live Character[] (agentId, activity) — which
   // Characters.tsx never sees, it only reads the sim-derived x/z/facing/info
@@ -138,14 +220,17 @@ export function useSim(override?: Character[]): UseSimResult {
   const keysRef = useRef<Set<string>>(new Set());
   const [version, setVersion] = useState(0);
 
-  // The sim only cares about identity + status (that's what drives replan()),
-  // but this same effect also rebuilds `infoRef` (name/color/status for the
-  // renderer's nameplates) — so a rename/recolor with no status change must
-  // still re-run it, or `infoRef` goes stale and the nameplate keeps
-  // showing the old name. Status-only churn dominates in practice, so this
-  // stays cheap even with name/color folded in.
+  // The sim only cares about identity + status + groupKey (that's what
+  // drives replan(), per sim.ts's sync() — M5 T2 added the groupKey half:
+  // a project relink with no status change still has to reach the sim, or
+  // a bot keeps sitting in a room it's no longer linked to), but this same
+  // effect also rebuilds `infoRef` (name/color/status for the renderer's
+  // nameplates) — so a rename/recolor with no status change must still
+  // re-run it, or `infoRef` goes stale and the nameplate keeps showing the
+  // old name. Status-only churn dominates in practice, so this stays cheap
+  // even with name/color/groupKey folded in.
   const syncKey = useMemo(
-    () => characters.map((c) => `${c.key}:${c.status}:${c.name}:${c.color}`).join(","),
+    () => characters.map((c) => `${c.key}:${c.status}:${c.name}:${c.color}:${c.groupKey}`).join(","),
     [characters],
   );
 

@@ -82,7 +82,13 @@ vi.mock("@/stores/bindings", () => ({
   useBindingsStore: { getState: () => ({ init: vi.fn() }) },
 }));
 vi.mock("@/stores/projects", () => ({
-  useProjectsStore: { getState: () => ({ load: vi.fn() }) },
+  // M5 T5: use-sim.ts now reads useProjectsStore(selector) (folderByProjectId
+  // join), not just .getState() — mirrors the useAgentsStore mock above.
+  useProjectsStore: Object.assign(
+    (selector: (s: { projects: import("@/ipc/bindings").Project[] }) => unknown) =>
+      selector({ projects: [] }),
+    { getState: () => ({ load: vi.fn() }) },
+  ),
 }));
 
 import { Characters, BULB } from "./Characters";

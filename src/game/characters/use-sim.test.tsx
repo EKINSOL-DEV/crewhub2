@@ -22,10 +22,17 @@ vi.mock("@/ipc/bindings", () => ({
     setSetting: vi.fn(async () => ({ status: "ok", data: null })),
   },
 }));
-vi.mock("@/stores/sessions", () => ({
-  useSessionsView: () => [],
-  useSessionsStore: { getState: () => ({ init: vi.fn() }) },
-}));
+vi.mock("@/stores/sessions", async () => {
+  const { vi: vitest } = await import("vitest");
+  type SessionView = import("@/stores/sessions").SessionView;
+  return {
+    // A vi.fn() (not a bare arrow) so the project-annotation tests below can
+    // override its return value per-test via mockReturnValue — every other
+    // test in this file relies on the default empty array.
+    useSessionsView: vitest.fn((): SessionView[] => []),
+    useSessionsStore: { getState: () => ({ init: vi.fn() }) },
+  };
+});
 vi.mock("@/stores/agents", () => ({
   useAgentsStore: Object.assign((selector: (s: { agents: Agent[] }) => unknown) => selector({ agents: [] }), {
     getState: () => ({ init: vi.fn() }),
@@ -34,9 +41,20 @@ vi.mock("@/stores/agents", () => ({
 vi.mock("@/stores/bindings", () => ({
   useBindingsStore: { getState: () => ({ init: vi.fn() }) },
 }));
-vi.mock("@/stores/projects", () => ({
-  useProjectsStore: { getState: () => ({ load: vi.fn() }) },
-}));
+// A real zustand store (not a bare object stub) so tests can `.setState()`
+// projects mid-test — the "effect fires once projects load" tests below
+// need that, the same way `useCampusEdits`'s real store lets them call
+// `addBuilding()` mid-test further down this file.
+vi.mock("@/stores/projects", async () => {
+  const { create } = await import("zustand");
+  const { vi: vitest } = await import("vitest");
+  type Project = import("@/ipc/bindings").Project;
+  const useProjectsStore = create<{ projects: Project[]; load: () => void }>(() => ({
+    projects: [],
+    load: vitest.fn(),
+  }));
+  return { useProjectsStore };
+});
 // Spy on the real buildNavGrid (kept fully functional) so the biome-skip
 // tests below can assert what `extras` each call site passed it, without
 // reaching into useSim's internals.
@@ -47,10 +65,22 @@ vi.mock("@/game/sim/grid", async (importOriginal) => {
 
 import { useSim, type CharacterInfo } from "./use-sim";
 import { buildNavGrid } from "@/game/sim/grid";
+import { DEMO_GROUP } from "@/game/sim/demo";
 import { biomeSkipFor } from "@/game/world/biome";
 import { campusLayout } from "@/game/world/campus/layout";
 import { resetGameEnvironmentForTests, useGameEnvironment } from "@/game/world/environments/store";
+import { useSessionsView, type SessionView } from "@/stores/sessions";
+import { useProjectsStore } from "@/stores/projects";
+import type { Project } from "@/ipc/bindings";
 
+// M5 T5: every test in this file passes its characters as `override` (the
+// same `useSim` param demo scenes use to bypass the store join) — which
+// means use-sim.ts's `isDemo` branch is live here too, stamping every
+// building with `DEMO_GROUP` (see use-sim.ts's `withDemoGroupKeys`). Prior
+// to M5 T2 any Working bot claimed any free desk in any building (one
+// global pool); now a bot only ever claims a desk in a building sharing its
+// `groupKey`, so these fixtures need the matching demo-style shared key to
+// keep exercising that same "one shared pool" seating behavior.
 function workingBot(i: number): Character {
   return {
     key: `bot-${i}`,
@@ -61,6 +91,7 @@ function workingBot(i: number): Character {
     isSubagent: false,
     parentKey: null,
     agentId: null,
+    groupKey: DEMO_GROUP,
   };
 }
 
@@ -243,6 +274,184 @@ describe("useSim infoRef sync (nameplate staleness)", () => {
     // Same status ("Working"), only name/color changed — the old narrow
     // `${key}:${status}` syncKey would have skipped this re-sync entirely.
     expect(infoRef!.current.get("bot-0")).toMatchObject({ name: "Renamed Bot", color: "#f472b6" });
+
+    await renderer.unmount();
+  });
+});
+
+function RealProbe({ onSim }: { onSim: (sim: Sim) => void }) {
+  const { sim } = useSim();
+  onSim(sim);
+  return null;
+}
+
+function fakeProject(overrides: Partial<Project>): Project {
+  return {
+    id: "proj-1",
+    name: "Foo",
+    description: null,
+    icon: null,
+    color: null,
+    folder_path: "/repo/foo",
+    docs_path: null,
+    status: "active",
+    created_at: 0,
+    updated_at: 0,
+    ...overrides,
+  };
+}
+
+function fakeSessionView(overrides: { key: string; projectPath: string }): SessionView {
+  return {
+    key: overrides.key,
+    meta: {
+      id: { provider: "claude-code", id: overrides.key },
+      origin: "Managed",
+      project_path: overrides.projectPath,
+      model: null,
+      status: "Working",
+      activity_detail: null,
+      parent: null,
+      team: null,
+      usage: { input_tokens: 0, output_tokens: 0, cache_read_tokens: 0 },
+      git_branch: null,
+      last_activity_ms: Date.now(),
+    },
+    binding: null,
+    agent: null,
+    room: null,
+    displayName: overrides.key,
+  };
+}
+
+describe("useSim project-room groupKey annotation (M5 T5)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetCampusEditsForTests();
+    useProjectsStore.setState({ projects: [] });
+    vi.mocked(useSessionsView).mockReturnValue([]);
+  });
+
+  it("joins a session's project_path through plotProjects -> projects store -> groupKey so it claims a desk in its linked pavilion", async () => {
+    useProjectsStore.setState({ projects: [fakeProject({ id: "proj-1", folder_path: "/repo/foo/" })] });
+    useCampusEdits.getState().setPlotProject(0, "proj-1");
+    // Trailing-slash mismatch vs. the store's folder_path is deliberate —
+    // normalizeFolder must reconcile both sides of the join, not just
+    // happen to line up because the fixture strings already match.
+    vi.mocked(useSessionsView).mockReturnValue([
+      fakeSessionView({ key: "sess-a", projectPath: "/repo/foo" }),
+    ]);
+
+    let sim: Sim | null = null;
+    const renderer = await ReactThreeTestRenderer.create(<RealProbe onSim={(s) => (sim = s)} />);
+    await ReactThreeTestRenderer.act(async () => {
+      await renderer.advanceFrames(5, 0.1);
+    });
+
+    expect(sim!.world.bots.get("sess-a")!.deskId).toMatch(/^desk-0-/);
+
+    await renderer.unmount();
+  });
+
+  it("leaves a session's bot unmatched (never claims a desk) when its project has no plot link", async () => {
+    useProjectsStore.setState({ projects: [fakeProject({ id: "proj-1", folder_path: "/repo/foo" })] });
+    // No setPlotProject call — proj-1 is registered but not linked to any pavilion.
+    vi.mocked(useSessionsView).mockReturnValue([
+      fakeSessionView({ key: "sess-a", projectPath: "/repo/foo" }),
+    ]);
+
+    let sim: Sim | null = null;
+    const renderer = await ReactThreeTestRenderer.create(<RealProbe onSim={(s) => (sim = s)} />);
+    await ReactThreeTestRenderer.act(async () => {
+      await renderer.advanceFrames(20, 0.1);
+    });
+
+    expect(sim!.world.bots.get("sess-a")!.deskId).toBeNull();
+
+    await renderer.unmount();
+  });
+
+  it("demo override: annotates every building (including one linked to a real project) with DEMO_GROUP, ignoring project joins entirely", async () => {
+    // Plot 0 is linked to a real project that no demo bot's groupKey could
+    // ever match — proving demo mode doesn't consult plotProjects at all,
+    // rather than merely "happening" to also match by coincidence.
+    useCampusEdits.getState().setPlotProject(0, "some-real-project-not-in-any-store");
+    const bots = Array.from({ length: 16 }, (_, i) => workingBot(i)); // 4 buildings * 4 desks
+
+    let sim: Sim | null = null;
+    const renderer = await ReactThreeTestRenderer.create(
+      <Probe characters={bots} onSim={(s) => (sim = s)} />,
+    );
+    await ReactThreeTestRenderer.act(async () => {
+      await renderer.advanceFrames(5, 0.1);
+    });
+
+    for (const bot of bots) {
+      expect(sim!.world.bots.get(bot.key)!.deskId).not.toBeNull();
+    }
+    // Specifically the linked plot's desks, not just "16 desks somewhere":
+    const seatedInLinkedPlot = [...sim!.world.bots.values()].filter((b) => b.deskId?.startsWith("desk-0-"));
+    expect(seatedInLinkedPlot).toHaveLength(4);
+
+    await renderer.unmount();
+  });
+});
+
+describe("useSim: effect fires on projects load even at editsVersion 0 (M5 T5)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetCampusEditsForTests();
+    useProjectsStore.setState({ projects: [] });
+    vi.mocked(useSessionsView).mockReturnValue([]);
+  });
+
+  it("re-derives groupKeys once the projects store loads, even though a directly-seeded plotProjects link never bumped editsVersion", async () => {
+    // Simulates state arriving out of the normal setPlotProject() path (e.g.
+    // a persisted blob loaded before the projects store has anything to
+    // join against) — plotProjects has a link, but version stays 0.
+    useCampusEdits.setState((s) => ({ edits: { ...s.edits, plotProjects: { 0: "proj-1" } } }));
+    expect(useCampusEdits.getState().version).toBe(0);
+    vi.mocked(useSessionsView).mockReturnValue([
+      fakeSessionView({ key: "sess-a", projectPath: "/repo/foo" }),
+    ]);
+
+    let sim: Sim | null = null;
+    const renderer = await ReactThreeTestRenderer.create(<RealProbe onSim={(s) => (sim = s)} />);
+    await ReactThreeTestRenderer.act(async () => {
+      await renderer.advanceFrames(3, 0.1);
+    });
+    // Projects store hasn't loaded yet: folderByProjectId is empty, so the
+    // link can't resolve to a folder — the bot stays unmatched for now.
+    expect(sim!.world.bots.get("sess-a")!.deskId).toBeNull();
+
+    // Projects load (async, after mount) — this bumps neither editsVersion
+    // nor biomeSkip, so only the hasProjectLinks branch can explain a
+    // re-derive here.
+    await ReactThreeTestRenderer.act(async () => {
+      useProjectsStore.setState({ projects: [fakeProject({ id: "proj-1", folder_path: "/repo/foo" })] });
+      await renderer.advanceFrames(1, 0.1);
+    });
+
+    expect(sim!.world.bots.get("sess-a")!.deskId).toMatch(/^desk-0-/);
+
+    await renderer.unmount();
+  });
+
+  it("stays silent (no extra buildNavGrid call) when projects load but nothing is linked", async () => {
+    const renderer = await ReactThreeTestRenderer.create(<RealProbe onSim={() => {}} />);
+    await ReactThreeTestRenderer.act(async () => {
+      await renderer.advanceFrames(3, 0.1);
+    });
+
+    await ReactThreeTestRenderer.act(async () => {
+      useProjectsStore.setState({ projects: [fakeProject({ id: "proj-1", folder_path: "/repo/foo" })] });
+      await renderer.advanceFrames(1, 0.1);
+    });
+
+    // Same invariant as the "passes no skipKinds" test: with zero edits,
+    // zero project links, and zero biome skip, buildNavGrid is only ever
+    // called once — for the base sim's mount, never from the update effect.
+    expect(vi.mocked(buildNavGrid).mock.calls).toEqual([[expect.anything(), expect.anything()]]);
 
     await renderer.unmount();
   });
