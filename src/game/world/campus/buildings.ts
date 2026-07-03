@@ -16,8 +16,18 @@ export interface Building {
   plotIndex: number;
   rect: Rect;
   desks: Desk[];
-  /** Walk-in point on the plot edge nearest the campus center. */
+  /** Walk-in point on the plot edge nearest the campus center — the PRIMARY
+   *  door when a building has more than one. */
   door: { x: number; z: number };
+  /**
+   * Every walk-in point (M6): HQ has one per wall (4); a plain pavilion has
+   * just the one. Optional — nav (grid.ts) and render fall back to `[door]`
+   * so every pre-M6 Building literal across the app keeps compiling.
+   */
+  doors?: { x: number; z: number }[];
+  /** Building flavor (M6); default "room" — a project pavilion with desks.
+   *  "hq" marks the one permanent, deskless headquarters at the origin. */
+  kind?: "hq" | "room";
   /**
    * Project this pavilion is linked to (M5); null when unassigned. Optional
    * so the many pre-M5 Building literals across the app (demo world, render
@@ -46,8 +56,30 @@ export function nearestEdgeDoor(rect: Rect): { x: number; z: number } {
   return Math.hypot(xEdge.x, xEdge.z) <= Math.hypot(zEdge.x, zEdge.z) ? xEdge : zEdge;
 }
 
+/**
+ * The permanent headquarters footprint (M6) — sits at the campus origin,
+ * where only the fountain plaza used to stand. plotIndex -1 and no desks:
+ * nobody works in HQ.
+ */
+export const HQ_RECT: Rect = { x: 0, z: 0, w: 14, d: 12 };
+
+/**
+ * HQ, world M6: one door per wall (a plot pavilion only ever gets one). The
+ * PRIMARY `door` is the south-edge midpoint (+z) — the face toward the
+ * default camera (see rts-camera.ts's DEFAULT_CAMERA: yaw=0.6 puts the lens
+ * in the +X/+Z octant looking back at the origin, so +z is the side the
+ * player sees first).
+ */
+export function hqBuilding(): Building {
+  const hw = HQ_RECT.w / 2;
+  const hd = HQ_RECT.d / 2;
+  const south = { x: 0, z: hd };
+  const doors = [south, { x: 0, z: -hd }, { x: hw, z: 0 }, { x: -hw, z: 0 }];
+  return { plotIndex: -1, rect: HQ_RECT, desks: [], door: south, doors, kind: "hq" };
+}
+
 export function campusBuildings(plots: Rect[], plotProjects?: Record<number, string>): Building[] {
-  return plots.map((rect, plotIndex) => {
+  const pavilions = plots.map((rect, plotIndex) => {
     // Two rows of two desks, facing each other across a center aisle.
     const dx = rect.w / 4;
     const dz = rect.d / 4.5;
@@ -60,4 +92,7 @@ export function campusBuildings(plots: Rect[], plotProjects?: Record<number, str
     const projectId = plotProjects?.[plotIndex] ?? null;
     return { plotIndex, rect, desks, door: nearestEdgeDoor(rect), projectId };
   });
+  // HQ is prepended so every consumer (nav, render, sim) sees it — it's not
+  // a plot, it's permanent furniture of the campus itself.
+  return [hqBuilding(), ...pavilions];
 }

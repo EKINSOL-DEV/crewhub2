@@ -64,14 +64,42 @@ vi.mock("@/ipc/bindings", () => ({
   },
 }));
 
+// HqProps' 🧰 stand (M6 T4) opens a native window rather than touching the
+// card slot — same mock convention as hud-windows.test.tsx.
+vi.mock("@/game/app/windows", () => ({
+  openWorkspaceWindow: vi.fn(),
+  openSettingsWindow: vi.fn(),
+}));
+
+import { openWorkspaceWindow } from "@/game/app/windows";
 import { CampusWorld } from "./CampusWorld";
 import { campusLayout } from "./layout";
 import { resetCampusEditsForTests, useCampusEdits } from "@/game/build/store";
+import { useBuildMode } from "@/game/build/mode";
 import { resetProjectsForTests, useProjectsStore } from "@/stores/projects";
 import { BIOMES } from "@/game/world/biome";
+import type { ReactThreeTest } from "@react-three/test-renderer";
+
+/**
+ * The `<group>` CampusWorld wraps around each building's `<Pavilion>`/
+ * `<Headquarters>`, identified by its `name` marker (same convention the
+ * stubbed RoofPlate `<Text>` above uses) rather than position — every
+ * wrapper carries an `onPointerDown` now (M6 T4: HQ's click opens its own
+ * card, same gesture as a plot pavilion opening RoomCard), so a
+ * prop-presence check would find it on every wrapper regardless of kind.
+ */
+function pavilionWrapper(
+  scene: ReactThreeTest.ReactThreeTestInstance,
+  plotIndex: number,
+): ReactThreeTest.ReactThreeTestInstance {
+  const matches = scene.findAll((node) => node.props.name === `pavilion-wrapper-${plotIndex}`);
+  expect(matches).toHaveLength(1);
+  return matches[0]!;
+}
 
 describe("CampusWorld smoke", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     resetCampusEditsForTests();
     resetProjectsForTests();
   });
@@ -86,22 +114,107 @@ describe("CampusWorld smoke", () => {
       Object.values(layout.scatter).reduce((n, arr) => n + arr.length, 0) +
       Object.values(layout.props).reduce((n, arr) => n + arr.length, 0);
     // 5 terrain meshes (apron + grass + 2 path strips + plaza plate) + one
-    // stamped mesh per placement (see Merged stub above) + Fountain (1
-    // mocked-model mesh + 1 water disc) + CloudPuffs (7 puffs * 3 spheres) +
-    // Pavilions (M1 T1, walls M5 T3): each pavilion = 1 slab + 4 pillars +
-    // 3 beams + walls (3 full sides + 2 segments on the door-side wall) +
-    // 4 desks × (1 top + 2 legs + 1 screen) = 29 meshes; 4 pavilions = 116.
-    // Player-placed decor (M3 T4) renders through the same InstancedModel
-    // path, grouped by kind — with the default EMPTY_EDITS state (no
-    // player edits) that group renders nothing, so the formula below is
-    // untouched; the next test proves placed decor DOES add meshes.
+    // stamped mesh per placement (see Merged stub above) + CloudPuffs (7
+    // puffs * 3 spheres) + Pavilions (M1 T1, walls M5 T3): each of the 4
+    // project pavilions = 1 slab + 4 pillars + 3 beams + walls (3 full sides
+    // + 2 segments on the door-side wall) + 4 desks × (1 top + 2 legs + 1
+    // screen) = 29 meshes; 4 pavilions = 116.
+    // M6: campusBuildings() prepends the permanent HQ building, which
+    // CampusWorld now renders through Headquarters.tsx (not Pavilion) — see
+    // headquarters.smoke.test.tsx for that component's own formula: apron +
+    // slab (2) + 4 pillars + 4 perimeter beams + walls (4 sides x 2
+    // segments, since every side carries its own door) + steps (4 doors x 2
+    // flanking meshes) + podium (1) + 3 prop pads + 2 banners (1
+    // mocked-model mesh each) = 32, plus its own permanent plate (1 backdrop
+    // mesh, HeadquartersPlate — mounted outside the frozen group, see below)
+    // and its M6 T4 prop stands (HqProps, also outside the frozen group):
+    // 3 stands x (1 mocked-model mesh + 1 icon-plate backdrop mesh) = 6.
+    // The fixed plaza-center Fountain is gone (M6 moved it to placed decor,
+    // where it renders zero meshes with the default EMPTY_EDITS state — see
+    // the placed-fountain test further down).
     const TERRAIN_MESHES = 5;
-    const FOUNTAIN_MESHES = 2;
     const CLOUD_MESHES = 7 * 3;
+    const HQ_MESHES = 32;
+    const HQ_PLATE_MESHES = 1;
+    const HQ_PROPS_MESHES = 3 * 2;
     const PAVILION_MESHES = 4 * 29;
     expect(meshes.length).toBe(
-      totalPlacements + TERRAIN_MESHES + FOUNTAIN_MESHES + CLOUD_MESHES + PAVILION_MESHES,
+      totalPlacements +
+        TERRAIN_MESHES +
+        CLOUD_MESHES +
+        PAVILION_MESHES +
+        HQ_MESHES +
+        HQ_PLATE_MESHES +
+        HQ_PROPS_MESHES,
     );
+    await renderer.unmount();
+  });
+
+  it("HQ is clickable too (M6 T4) — it opens the hq card, not a RoomCard", async () => {
+    useBuildMode.setState({ roomCard: null });
+    const renderer = await ReactThreeTestRenderer.create(<CampusWorld />);
+
+    const hq = pavilionWrapper(renderer.scene, -1);
+    expect(typeof hq.props.onPointerDown).toBe("function");
+    await renderer.fireEvent(hq, "pointerDown", { button: 0 });
+    expect(useBuildMode.getState().roomCard).toEqual({ kind: "hq" });
+
+    const plot0 = pavilionWrapper(renderer.scene, 0);
+    expect(typeof plot0.props.onPointerDown).toBe("function");
+    await renderer.fireEvent(plot0, "pointerDown", { button: 0 });
+    expect(useBuildMode.getState().roomCard).toEqual({ kind: "plot", plotIndex: 0 });
+
+    await renderer.unmount();
+  });
+
+  it("HQ click is inert in build mode, same guard as plot pavilions", async () => {
+    useBuildMode.setState({ roomCard: null, active: true });
+    const renderer = await ReactThreeTestRenderer.create(<CampusWorld />);
+
+    const hq = pavilionWrapper(renderer.scene, -1);
+    await renderer.fireEvent(hq, "pointerDown", { button: 0 });
+    expect(useBuildMode.getState().roomCard).toBeNull();
+
+    useBuildMode.setState({ active: false });
+    await renderer.unmount();
+  });
+
+  it("HQ's 📋/👥 prop stands (M6 T4) route clicks to the projects/hire cards", async () => {
+    useBuildMode.setState({ roomCard: null });
+    const renderer = await ReactThreeTestRenderer.create(<CampusWorld />);
+
+    const projectsProp = renderer.scene.findAll((n) => n.props.name === "hq-prop-projects")[0]!;
+    await renderer.fireEvent(projectsProp, "pointerDown", { button: 0 });
+    expect(useBuildMode.getState().roomCard).toEqual({ kind: "projects" });
+
+    const hireProp = renderer.scene.findAll((n) => n.props.name === "hq-prop-hire")[0]!;
+    await renderer.fireEvent(hireProp, "pointerDown", { button: 0 });
+    expect(useBuildMode.getState().roomCard).toEqual({ kind: "hire" });
+
+    await renderer.unmount();
+  });
+
+  it("HQ's 🧰 prop stand opens the workspace window instead of touching the card slot", async () => {
+    useBuildMode.setState({ roomCard: null });
+    const renderer = await ReactThreeTestRenderer.create(<CampusWorld />);
+
+    const workspaceProp = renderer.scene.findAll((n) => n.props.name === "hq-prop-workspace")[0]!;
+    await renderer.fireEvent(workspaceProp, "pointerDown", { button: 0 });
+    expect(useBuildMode.getState().roomCard).toBeNull();
+    expect(openWorkspaceWindow).toHaveBeenCalledTimes(1);
+
+    await renderer.unmount();
+  });
+
+  it("HQ's prop stands are inert in build mode, same guard as the HQ/pavilion clicks", async () => {
+    useBuildMode.setState({ roomCard: null, active: true });
+    const renderer = await ReactThreeTestRenderer.create(<CampusWorld />);
+
+    const projectsProp = renderer.scene.findAll((n) => n.props.name === "hq-prop-projects")[0]!;
+    await renderer.fireEvent(projectsProp, "pointerDown", { button: 0 });
+    expect(useBuildMode.getState().roomCard).toBeNull();
+
+    useBuildMode.setState({ active: false });
     await renderer.unmount();
   });
 
@@ -115,6 +228,22 @@ describe("CampusWorld smoke", () => {
 
     const after = await ReactThreeTestRenderer.create(<CampusWorld />);
     expect(after.scene.findAllByType("Mesh").length).toBe(baseCount + 2);
+    await after.unmount();
+  });
+
+  it("renders a placed fountain as its own animated <Fountain> (2 meshes: model + water disc), not instanced through InstancedModel (1 mesh per placement like every other kind)", async () => {
+    const before = await ReactThreeTestRenderer.create(<CampusWorld />);
+    const baseCount = before.scene.findAllByType("Mesh").length;
+    await before.unmount();
+
+    useCampusEdits.getState().addItem("fountain", 10, 10, 0);
+    useCampusEdits.getState().addItem("bench", -10, -10, 0);
+
+    const after = await ReactThreeTestRenderer.create(<CampusWorld />);
+    // +2 for the fountain (model + water disc, Fountain's own signature —
+    // see Fountain.tsx) and +1 for the bench (InstancedModel, one stamped
+    // mesh per placement) confirms the fountain took the different path.
+    expect(after.scene.findAllByType("Mesh").length).toBe(baseCount + 3);
     await after.unmount();
   });
 
@@ -156,6 +285,38 @@ describe("CampusWorld smoke", () => {
 
     const after = await ReactThreeTestRenderer.create(<CampusWorld />);
     expect(after.scene.findAllByType("Mesh").length).toBe(baseCount + 1);
+    await after.unmount();
+  });
+
+  it("never renders a roof plate for HQ, even if plotProjects somehow carries its plotIndex (-1) (M6 fast-follow)", async () => {
+    const before = await ReactThreeTestRenderer.create(<CampusWorld />);
+    const baseCount = before.scene.findAllByType("Mesh").length;
+    await before.unmount();
+
+    useProjectsStore.setState({
+      projects: [
+        {
+          id: "proj-1",
+          name: "Acme",
+          description: null,
+          icon: "🚀",
+          color: "#22c55e",
+          folder_path: "/work/acme",
+          docs_path: null,
+          status: "active",
+          created_at: 0,
+          updated_at: 0,
+        },
+      ],
+    });
+    // HQ's plotIndex is -1 — not a real plot, but plotProjects is just a
+    // Record<number, string>, so nothing stops a stray -1 entry from
+    // existing. CampusWorld's RoofPlate mapping filters HQ out entirely, so
+    // this must add zero meshes (not the +1 a linked plot would add).
+    useCampusEdits.getState().setPlotProject(-1, "proj-1");
+
+    const after = await ReactThreeTestRenderer.create(<CampusWorld />);
+    expect(after.scene.findAllByType("Mesh").length).toBe(baseCount);
     await after.unmount();
   });
 

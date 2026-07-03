@@ -6,12 +6,12 @@
 import { describe, expect, it } from "vitest";
 import type { SessionStatus } from "@/ipc/bindings";
 import { buildingDesks, type PlacedBuilding } from "@/game/build/edits";
-import { campusBuildings, nearestEdgeDoor } from "@/game/world/campus/buildings";
+import { campusBuildings, hqBuilding, HQ_RECT, nearestEdgeDoor } from "@/game/world/campus/buildings";
 import type { Building, Desk } from "@/game/world/campus/buildings";
 import { campusLayout } from "@/game/world/campus/layout";
 import type { Character } from "./characters";
 import { buildNavGrid, type NavGrid } from "./grid";
-import { createSim, insideAnyBuildingRect, WALK_SPEED, type Sim } from "./sim";
+import { createSim, inDoorLane, insideAnyBuildingRect, outsideRingPoint, WALK_SPEED, type Sim } from "./sim";
 
 const SEED = 0xc0ffee;
 
@@ -30,10 +30,12 @@ function char(key: string, status: SessionStatus, over: Partial<Character> = {})
 }
 
 /**
- * A single 4-desk pavilion on an obstacle-free grid, wide enough to include
- * the (0, 34) spawn arm. Defaults its `groupKey` to "g1" (M5 T2) — most
- * pre-M5 tests just need a Working/WaitingForInput char sharing that key to
- * keep claiming a desk under the new project-scoped matching rule.
+ * A single 4-desk pavilion on an obstacle-free grid (M6 T2: bots now spawn
+ * inside HQ, a few units from the origin, so "wide enough" no longer needs
+ * to reach any particular spawn arm — an obstacle-free 100x100 grid is just
+ * generous headroom). Defaults its `groupKey` to "g1" (M5 T2) — most pre-M5
+ * tests just need a Working/WaitingForInput char sharing that key to keep
+ * claiming a desk under the new project-scoped matching rule.
  */
 function fakeWorld(groupKey: string | null = "g1"): { grid: NavGrid; buildings: Building[] } {
   const size = 100;
@@ -74,6 +76,19 @@ function extraCampusBuilding(plotIndex: number, groupKey: string | null = "campu
   const placed: PlacedBuilding = { id: "extra", x: 0, z: -20, w: 10, d: 8, roomId: null };
   const rect = { x: placed.x, z: placed.z, w: placed.w, d: placed.d };
   return { plotIndex, rect, desks: buildingDesks(placed), door: nearestEdgeDoor(rect), groupKey };
+}
+
+/**
+ * Just HQ, on an obstacle-free grid (M6 T2): no plot pavilion competing for
+ * the origin, so crew's small rest disc has nothing to be rejected by except
+ * HQ itself — which `pickWanderPath` exempts for crew. The grid has no
+ * blocked cells, so this fixture is for behavior (spawn, rest, exclusion),
+ * not wall/door pathing — that's covered on the real campus grid below.
+ */
+function hqOnlyWorld(): { grid: NavGrid; buildings: Building[] } {
+  const size = 100;
+  const grid: NavGrid = { size, cell: 1, blocked: new Uint8Array(size * size) };
+  return { grid, buildings: [hqBuilding()] };
 }
 
 /** A single-desk pavilion — narrows updateWorld's "who can grab the one free desk" race down to two bots. */
@@ -122,7 +137,9 @@ describe("createSim", () => {
     expect(sim.world.bots.get("a")!.deskId).toBe(deskId);
   });
 
-  it("walks a WaitingForPermission character to the plaza ring (radius 11) and raises its hand", () => {
+  it("walks a WaitingForPermission character to the plaza ring outside HQ's walls (radius 9.5) and raises its hand", () => {
+    // M6 T2: the ring moved from 11 to 9.5 — just outside HQ's walls (halves
+    // 7 and 6, farthest corner ~9.2) instead of an arbitrary plaza radius.
     const { grid, buildings } = fakeWorld();
     const sim = createSim(grid, buildings, SEED);
     sim.sync([char("a", "WaitingForPermission")]);
@@ -131,7 +148,7 @@ describe("createSim", () => {
     tickUntil(sim, 0.5, 500, () => bot.motion === "raise-hand");
 
     expect(bot.path).toHaveLength(0);
-    expect(Math.hypot(bot.x, bot.z)).toBeCloseTo(11, 0); // within a cell of the ring
+    expect(Math.hypot(bot.x, bot.z)).toBeCloseTo(9.5, 0); // within a cell of the ring
     expect(bot.motion).toBe("raise-hand");
   });
 
@@ -275,21 +292,29 @@ describe("createSim", () => {
     }
   });
 
-  it("an Idle crew character (agentId set) only wanders within radius 9 of the plaza", () => {
-    const { grid, buildings } = fakeWorld();
+  it("an Idle crew character (agentId set) rests inside HQ, within radius 3.5 of the origin (M6 T2)", () => {
+    // M6 T2: crew's rest disc shrank from radius 9 (bare plaza) to 3.5
+    // (HQ's interior) — and now that HQ is a real "building" for the M5
+    // wander-exclusion rule, this test needs HQ actually present (not
+    // fakeWorld()'s unrelated 8x8 pavilion) to prove crew is exempted from
+    // it and can still find a valid wander target at all.
+    const { grid, buildings } = hqOnlyWorld();
     const sim = createSim(grid, buildings, SEED);
     sim.sync([char("a", "Idle", { agentId: "agent-1" })]);
     const bot = sim.world.bots.get("a")!;
 
-    // Warm up well past the spawn -> plaza leg (spawns ~34 units out, at
-    // 2.2 u/s that's ~16s even with a detour) before sampling the
-    // steady-state wander loop, which is the part the radius rule governs.
-    for (let i = 0; i < 400; i++) sim.tick(0.5);
+    // Spawn is already inside HQ now (no long spawn -> plaza leg to outlast)
+    // — just enough warmup to get past the very first pause.
+    for (let i = 0; i < 20; i++) sim.tick(0.5);
 
+    let sawWalk = false;
     for (let i = 0; i < 200; i++) {
       sim.tick(0.25);
-      expect(Math.hypot(bot.x, bot.z)).toBeLessThan(9 + 1.5); // +cell-snap slack
+      if (bot.motion === "walk") sawWalk = true;
+      expect(Math.hypot(bot.x, bot.z)).toBeLessThan(3.5 + 1.5); // +cell-snap slack
+      expect(insideAnyBuildingRect(bot.x, bot.z, buildings, 0)).toBe(true); // never leaves HQ
     }
+    expect(sawWalk).toBe(true); // sanity: crew actually wanders, not stuck standing at spawn
   });
 
   it("removes a bot (and frees its desk) when its character drops out of sync", () => {
@@ -378,8 +403,8 @@ describe("Sim.updateWorld", () => {
 
     tickUntil(sim, 0.5, 500, () => bot.path.length === 0);
     expect(bot.deskId).toBeNull();
-    expect(bot.motion).toBe("sit-type"); // overflow still reads as "seated" at the plaza edge
-    expect(Math.hypot(bot.x, bot.z)).toBeCloseTo(8, 0);
+    expect(bot.motion).toBe("sit-type"); // overflow still reads as "seated", now on the outside ring
+    expect(Math.hypot(bot.x, bot.z)).toBeCloseTo(9.5, 0); // M6 T2: ring moved from 8 to 9.5
   });
 
   it("keeps a WaitingForInput bot's desk claim across a no-op updateWorld (that branch only ever reads deskId, never re-requests)", () => {
@@ -450,8 +475,8 @@ describe("Sim.updateWorld", () => {
     expect(y.deskId).toBeNull();
 
     tickUntil(sim, 0.5, 500, () => y.path.length === 0);
-    expect(y.motion).toBe("sit-type"); // still overflow, seated at the plaza edge
-    expect(Math.hypot(y.x, y.z)).toBeCloseTo(8, 0);
+    expect(y.motion).toBe("sit-type"); // still overflow, seated on the outside ring
+    expect(Math.hypot(y.x, y.z)).toBeCloseTo(9.5, 0); // M6 T2: ring moved from 8 to 9.5
   });
 });
 
@@ -475,7 +500,50 @@ describe("createSim — real campus grid (integration)", () => {
     expect(allDeskIds).toContain(bot.deskId);
   });
 
-  it("sends the 17th simultaneous Working character to the plaza edge instead of crashing", () => {
+  /** Shortest distance from `p` to the segment `a`-`b` — for checking a path's whole
+   *  polyline, not just its vertices, against a doorway (smoothing can drop a vertex
+   *  that would otherwise land right on the door). */
+  function distToSegment(
+    p: { x: number; z: number },
+    a: { x: number; z: number },
+    b: { x: number; z: number },
+  ): number {
+    const dx = b.x - a.x;
+    const dz = b.z - a.z;
+    const lenSq = dx * dx + dz * dz;
+    if (lenSq === 0) return Math.hypot(p.x - a.x, p.z - a.z);
+    const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.z - a.z) * dz) / lenSq));
+    return Math.hypot(p.x - (a.x + t * dx), p.z - (a.z + t * dz));
+  }
+
+  it("spawns every new bot inside HQ, clear of the wall band, across many seeds", () => {
+    for (let seed = 0; seed < 25; seed++) {
+      const sim = createSim(grid, buildings, seed);
+      sim.sync([char("a", "Idle")]);
+      const bot = sim.world.bots.get("a")!;
+      expect(Math.abs(bot.x)).toBeLessThanOrEqual(HQ_RECT.w / 2 - 2);
+      expect(Math.abs(bot.z)).toBeLessThanOrEqual(HQ_RECT.d / 2 - 2);
+    }
+  });
+
+  it("a freshly spawned bot's first leg exits HQ through one of its four doors (nav routes it there, no special-casing)", () => {
+    const hqDoors = buildings[0]!.doors!;
+    expect(hqDoors).toHaveLength(4);
+    for (let seed = 0; seed < 25; seed++) {
+      const sim = createSim(grid, buildings, seed);
+      sim.sync([char("a", "Working", { groupKey: "campus" })]); // matched -> a real desk in a plot, outside HQ
+      const bot = sim.world.bots.get("a")!;
+      expect(bot.path.length).toBeGreaterThan(0); // spawns inside HQ, desk is elsewhere — must walk
+
+      const poly = [{ x: bot.x, z: bot.z }, ...bot.path];
+      const crossesADoor = hqDoors.some((door) =>
+        poly.slice(1).some((p, i) => distToSegment(door, poly[i]!, p) <= 1.2),
+      );
+      expect(crossesADoor).toBe(true);
+    }
+  });
+
+  it("sends the 17th simultaneous Working character to the outside ring instead of crashing", () => {
     const sim = createSim(grid, buildings, SEED);
     const characters = Array.from({ length: 17 }, (_, i) => char(`w${i}`, "Working", { groupKey: "campus" }));
     expect(() => sim.sync(characters)).not.toThrow();
@@ -495,7 +563,24 @@ describe("createSim — real campus grid (integration)", () => {
 
     const overflowBot = sim.world.bots.get(overflow[0]!.key)!;
     expect(overflowBot.motion).toBe("sit-type");
-    expect(Math.hypot(overflowBot.x, overflowBot.z)).toBeCloseTo(8, 0);
+    expect(Math.hypot(overflowBot.x, overflowBot.z)).toBeCloseTo(9.5, 0); // M6 T2: ring moved from 8 to 9.5
+    expect(insideAnyBuildingRect(overflowBot.x, overflowBot.z, [buildings[0]!], 0)).toBe(false); // outside HQ
+  });
+
+  it("waits WaitingForPermission bots on the outside ring, for many keys", () => {
+    const sim = createSim(grid, buildings, SEED);
+    const characters = Array.from({ length: 40 }, (_, i) => char(`p${i}`, "WaitingForPermission"));
+    sim.sync(characters);
+    tickUntil(sim, 0.5, 1200, () =>
+      characters.every((c) => sim.world.bots.get(c.key)!.motion === "raise-hand"),
+    );
+
+    for (const c of characters) {
+      const bot = sim.world.bots.get(c.key)!;
+      const r = Math.hypot(bot.x, bot.z);
+      expect(Math.abs(r - 9.5)).toBeLessThan(1.5); // grid-snap slack, same as the overflow ring above
+      expect(insideAnyBuildingRect(bot.x, bot.z, [buildings[0]!], 0)).toBe(false); // outside HQ's walls
+    }
   });
 
   it("updateWorld with an extra building gives the 17th (overflow) Working bot a real desk", () => {
@@ -673,8 +758,9 @@ describe("Sim — M5 T2 project rooms (groupKey desk-pool matching)", () => {
     expect(overflowBot.motion).toBe("sit-type"); // overflow ring reads as seated, not a wanderer
     // "Near" not "at": the ring target re-quantizes onto the nav grid's
     // 1-unit cells (same cell-snap slack as the WaitingForInput desk-return
-    // test above), so allow just over half a cell of drift from radius 8.
-    expect(Math.abs(Math.hypot(overflowBot.x, overflowBot.z) - 8)).toBeLessThan(1);
+    // test above), so allow a bit over a cell of drift from radius 9.5 (M6
+    // T2: ring moved from 8 to 9.5, outside HQ's walls).
+    expect(Math.abs(Math.hypot(overflowBot.x, overflowBot.z) - 9.5)).toBeLessThan(1.5);
   });
 
   it("updateWorld relinking a building's group releases the old holder's desk (who then wanders) while an untouched building's claim survives (M3 invariant)", () => {
@@ -712,6 +798,38 @@ describe("Sim — M5 T2 project rooms (groupKey desk-pool matching)", () => {
     expect(botA.path.length).toBeGreaterThan(0);
     for (const wp of botA.path) {
       expect(insideAnyBuildingRect(wp.x, wp.z, [relinked, second], -0.5)).toBe(false);
+    }
+  });
+});
+
+describe("outsideRingPoint (M6 T2 — plaza ring outside HQ, door lanes skipped)", () => {
+  it("always lands exactly on the radius-9.5 ring, for many keys", () => {
+    for (let i = 0; i < 500; i++) {
+      const { x, z } = outsideRingPoint(`key-${i}`);
+      expect(Math.hypot(x, z)).toBeCloseTo(9.5, 10); // rotation only changes angle, never radius
+    }
+  });
+
+  it("never lands in a door's approach lane, for many keys", () => {
+    for (let i = 0; i < 500; i++) {
+      const point = outsideRingPoint(`key-${i}`);
+      expect(inDoorLane(point.x, point.z)).toBe(false);
+    }
+  });
+
+  it("radius 9.5 never falls inside HQ's rect, for any angle (the ring geometry the whole contract rests on)", () => {
+    for (let deg = 0; deg < 360; deg++) {
+      const angle = deg * (Math.PI / 180);
+      const x = Math.sin(angle) * 9.5;
+      const z = Math.cos(angle) * 9.5;
+      expect(Math.abs(x) <= HQ_RECT.w / 2 && Math.abs(z) <= HQ_RECT.d / 2).toBe(false);
+    }
+  });
+
+  it("is deterministic: same key -> same point, every call", () => {
+    for (let i = 0; i < 20; i++) {
+      const key = `stable-${i}`;
+      expect(outsideRingPoint(key)).toEqual(outsideRingPoint(key));
     }
   });
 });

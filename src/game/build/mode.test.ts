@@ -66,4 +66,27 @@ describe("useBuildMode", () => {
     useBuildMode.getState().activate();
     expect(useBuildMode.getState().roomCard).toBeNull();
   });
+
+  it("openRoomCard also accepts the M6 T4 hq/projects/hire arms", () => {
+    useBuildMode.getState().openRoomCard({ kind: "hq" });
+    expect(useBuildMode.getState().roomCard).toEqual({ kind: "hq" });
+    useBuildMode.getState().openRoomCard({ kind: "projects" });
+    expect(useBuildMode.getState().roomCard).toEqual({ kind: "projects" });
+    useBuildMode.getState().openRoomCard({ kind: "hire" });
+    expect(useBuildMode.getState().roomCard).toEqual({ kind: "hire" });
+  });
+
+  it("single-open: opening any card replaces whatever card was already open", () => {
+    useBuildMode.getState().openRoomCard({ kind: "plot", plotIndex: 0 });
+    useBuildMode.getState().openRoomCard({ kind: "hq" });
+    expect(useBuildMode.getState().roomCard).toEqual({ kind: "hq" });
+    useBuildMode.getState().openRoomCard({ kind: "projects" });
+    expect(useBuildMode.getState().roomCard).toEqual({ kind: "projects" });
+  });
+
+  it("activate dismisses a dangling hq/projects/hire card too", () => {
+    useBuildMode.getState().openRoomCard({ kind: "hq" });
+    useBuildMode.getState().activate();
+    expect(useBuildMode.getState().roomCard).toBeNull();
+  });
 });

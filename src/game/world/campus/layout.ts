@@ -167,12 +167,26 @@ export function campusLayout(): CampusLayout {
     side = -side;
   }
 
-  // Benches on the plaza diagonals, rotated to face the fountain.
-  const bench: Placement[] = [45, 135, 225, 315].map((deg) => {
-    const a = (deg / 180) * Math.PI;
-    const r = plazaRadius - 1.6; // outside the fountain plinth, on the plaza plate
-    return { x: Math.sin(a) * r, z: Math.cos(a) * r, rot: a + Math.PI, scale: 1.3 };
-  });
+  // Benches ring HQ from outside its walls (M6 — HQ now stands where the
+  // fountain used to be the plaza's only centerpiece). Candidates sit on the
+  // 8 compass points at r=10, which clears HQ_RECT's farthest corner
+  // (hypot(7,6)=9.22); the four cardinal ones fall in a door's walk-in lane
+  // (within 1.5u of the x=0 or z=0 axis a door opens onto) and are filtered
+  // out, leaving the same four diagonal spots as before M6, just relocated
+  // outside HQ's wingspan instead of the old fountain plinth.
+  const BENCH_RING_RADIUS = 10;
+  const DOOR_LANE_HALF_WIDTH = 1.5;
+  const bench: Placement[] = [0, 45, 90, 135, 180, 225, 270, 315]
+    .map((deg) => {
+      const a = (deg / 180) * Math.PI;
+      return {
+        x: Math.sin(a) * BENCH_RING_RADIUS,
+        z: Math.cos(a) * BENCH_RING_RADIUS,
+        rot: a + Math.PI,
+        scale: 1.3,
+      };
+    })
+    .filter((p) => Math.abs(p.x) > DOOR_LANE_HALF_WIDTH && Math.abs(p.z) > DOOR_LANE_HALF_WIDTH);
 
   // Hedge arcs between the plaza exits.
   const hedge: Placement[] = [];

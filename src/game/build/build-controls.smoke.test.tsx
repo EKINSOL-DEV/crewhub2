@@ -14,6 +14,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import ReactThreeTestRenderer, { type ReactThreeTest } from "@react-three/test-renderer";
 import * as THREE from "three";
 
+/** #rrggbb -> 0xrrggbb, matching how three.js normalizes `Color.set()` input. */
+function hex(color: string): number {
+  return parseInt(color.slice(1), 16);
+}
+
 vi.mock("@/ipc/bindings", () => ({
   commands: {
     getSetting: vi.fn(async () => ({ status: "ok", data: null })),
@@ -133,6 +138,68 @@ describe("BuildControls smoke", () => {
     // and this click just started a fresh (uncommitted) one instead.
     await renderer.fireEvent(ground, "pointerDown", { point: { x: 8, y: 0, z: 26 }, button: 0 });
     expect(useCampusEdits.getState().edits.buildings).toHaveLength(0);
+
+    await renderer.unmount();
+  });
+
+  it("the building ghost turns invalid (red) over HQ's footprint at the origin (M6 T5)", async () => {
+    useBuildMode.setState({ active: true, tool: { kind: "building" } });
+    const renderer = await ReactThreeTestRenderer.create(<BuildControls />);
+    const ground = groundPlane(renderer.scene);
+
+    // Anchor + hover a rect straddling the origin — well above the 6x5
+    // minimum (so the size guard doesn't confound the assertion), still
+    // squarely over HQ's 14x12 footprint. canPlaceBuilding (edits.ts) already
+    // has a unit test pinning `{x:0,z:0,w:6,d:5}` as rejected; this is the
+    // same invariant, exercised through the actual ghost-preview material the
+    // player sees rather than the pure predicate.
+    await renderer.fireEvent(ground, "pointerDown", { point: { x: -4, y: 0, z: -3 }, button: 0 });
+    await renderer.fireEvent(ground, "pointerMove", { point: { x: 4, y: 0, z: 3 } });
+    await ReactThreeTestRenderer.act(async () => {
+      await renderer.advanceFrames(1, 0.1);
+    });
+
+    // The item ghost's fake-GLTF stub (top of file) is also an always-mounted
+    // BoxGeometry mesh (1x1x1, hidden while a non-item tool is active) — the
+    // rect preview's distinctive `boxGeometry args={[1, 0.2, 1]}` (a flat
+    // slab) is what tells the two apart here.
+    const previewMeshes = renderer.scene.findAllByType("Mesh").filter((m) => {
+      const geo = (m.instance as unknown as THREE.Mesh).geometry as THREE.BoxGeometry;
+      return geo.type === "BoxGeometry" && geo.parameters.height === 0.2;
+    });
+    expect(previewMeshes).toHaveLength(1);
+    const material = (previewMeshes[0]!.instance as unknown as THREE.Mesh)
+      .material as THREE.MeshBasicMaterial;
+    expect(material.color.getHex()).toBe(hex("#ef4444"));
+    // Never committed — an invalid rect must not silently place a building.
+    expect(useCampusEdits.getState().edits.buildings).toHaveLength(0);
+
+    await renderer.unmount();
+  });
+
+  it("select tool never renders a pick proxy for HQ — proxies only ever come from edits.buildings, which HQ is never a member of", async () => {
+    // HQ is baked into campusBuildings() (the seeded, non-edit layout) and
+    // canPlaceBuilding rejects any player-built rect overlapping its
+    // footprint (edits.test.ts), so edits.buildings can never contain an HQ
+    // entry — this is a documentation/regression pin on that invariant
+    // rather than new coverage: with zero placed buildings, zero building
+    // pick proxies exist, full stop.
+    useBuildMode.setState({ active: true, tool: { kind: "select" } });
+    const renderer = await ReactThreeTestRenderer.create(<BuildControls />);
+
+    // Building pick proxies (unlike the always-mounted, normally-hidden
+    // building-rect preview mesh) carry onPointerDown and a box geometry
+    // sized to the building's own w/d — that combination is what
+    // distinguishes a real proxy from the preview mesh, which has neither a
+    // handler nor HQ's dimensions.
+    const buildingProxies = renderer.scene
+      .findAllByType("Mesh")
+      .filter(
+        (m) =>
+          typeof m.props.onPointerDown === "function" &&
+          (m.instance as unknown as THREE.Mesh).geometry.type === "BoxGeometry",
+      );
+    expect(buildingProxies).toHaveLength(0);
 
     await renderer.unmount();
   });

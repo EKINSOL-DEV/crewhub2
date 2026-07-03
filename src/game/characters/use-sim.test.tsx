@@ -431,6 +431,47 @@ describe("useSim project-room groupKey annotation (M5 T5)", () => {
   });
 });
 
+describe("useSim HQ groupKey defensive annotation (M6 T5)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetCampusEditsForTests();
+    useProjectsStore.setState({ projects: [] });
+    vi.mocked(useSessionsView).mockReturnValue([]);
+  });
+
+  it("keeps HQ's groupKey null even with a corrupt plotProjects[-1] entry", async () => {
+    // plotProjects is keyed by real plot index (0-3) in normal use — HQ is
+    // prepended by campusBuildings() outside the `plots.map()` loop that
+    // reads plotProjects, so a "-1" key is dead data today. This pins the
+    // defensive kind==="hq" guard in withProjectGroupKeys anyway: even
+    // handed a project link under that bogus key, HQ must never resolve to
+    // a real groupKey (there are no desks in it to seat anyone at, but a
+    // stray groupKey would still be a lurking foot-gun for future code that
+    // assumes any building with a groupKey has claimable desks).
+    useProjectsStore.setState({ projects: [fakeProject({ id: "proj-1", folder_path: "/repo/foo" })] });
+    useCampusEdits.setState((s) => ({
+      edits: { ...s.edits, plotProjects: { ...s.edits.plotProjects, [-1]: "proj-1" } },
+    }));
+
+    const renderer = await ReactThreeTestRenderer.create(<RealProbe onSim={() => {}} />);
+    await ReactThreeTestRenderer.act(async () => {
+      await renderer.advanceFrames(3, 0.1);
+    });
+
+    // The update effect's call passes the annotated buildings as its 2nd
+    // arg — find the one carrying HQ and check its groupKey directly,
+    // rather than inferring it indirectly through seating (HQ has no desks
+    // to seat anyone at either way).
+    const calls = vi.mocked(buildNavGrid).mock.calls;
+    const hqCall = calls.find((c) => c[1].some((b) => b.kind === "hq"));
+    const hq = hqCall?.[1].find((b) => b.kind === "hq");
+    expect(hq).toBeDefined();
+    expect(hq?.groupKey ?? null).toBeNull();
+
+    await renderer.unmount();
+  });
+});
+
 describe("useSim: effect fires on projects load even at editsVersion 0 (M5 T5)", () => {
   beforeEach(() => {
     vi.clearAllMocks();

@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { campusLayout } from "@/game/world/campus/layout";
+import { HQ_RECT } from "@/game/world/campus/buildings";
+import { CAMPUS, campusLayout, insidePlaza } from "@/game/world/campus/layout";
 import {
   applyEdits,
   buildingDesks,
   canPlaceBuilding,
   canPlaceItem,
   EMPTY_EDITS,
+  PLACEABLE_KINDS,
   placedItemPlacements,
   ROT_STEP,
   snap,
@@ -15,6 +17,12 @@ import {
 } from "./edits";
 
 const layout = campusLayout();
+
+describe("PLACEABLE_KINDS", () => {
+  it("includes fountain — M6 relocates it from the fixed plaza disc to placeable decor", () => {
+    expect(PLACEABLE_KINDS).toContain("fountain");
+  });
+});
 
 describe("snap", () => {
   it("rounds to the nearest 1-unit grid cell", () => {
@@ -56,6 +64,18 @@ describe("canPlaceItem", () => {
     expect(canPlaceItem(edits, layout, 0, 30)).toBe(false);
     expect(canPlaceItem(edits, layout, 10, 30)).toBe(true);
   });
+
+  it("rejects points inside HQ's footprint, even beyond the plaza's circular margin (M6)", () => {
+    // (8, 5): hypot ~9.43, clear of the plaza's radius-8 circular margin —
+    // but still inside HQ_RECT's margin-2 rect (|8|<7+2 and |5|<6+2), so
+    // only the new HQ-specific check catches it.
+    const x = HQ_RECT.w / 2 + 1;
+    const z = HQ_RECT.d / 2 - 1;
+    expect(insidePlaza(x, z, 1)).toBe(false);
+    expect(canPlaceItem(EMPTY_EDITS, layout, x, z)).toBe(false);
+    // Comfortably clear of HQ's margin too.
+    expect(canPlaceItem(EMPTY_EDITS, layout, HQ_RECT.w / 2 + 5, z)).toBe(true);
+  });
 });
 
 describe("canPlaceBuilding", () => {
@@ -77,6 +97,20 @@ describe("canPlaceBuilding", () => {
 
   it("rejects rects overlapping the plaza margin", () => {
     expect(canPlaceBuilding(EMPTY_EDITS, layout, { x: 0, z: 0, w: 6, d: 5 })).toBe(false);
+  });
+
+  it("rejects rects overlapping HQ's footprint, even clear of the plaza's circular margin (M6)", () => {
+    // Rect near HQ's NE corner: its closest point to the origin is (8, 5.5)
+    // — x clamped to the rect's near edge (11 - w/2 = 8), z clamped to the
+    // rect's near edge (8 - d/2 = 5.5) — hypot ~9.71, outside the plaza's
+    // radius-9 circle (CAMPUS.plazaRadius + 2), so the plaza check alone
+    // would NOT catch this; only HQ_RECT's own margin-2 rect does.
+    const nearHqCorner = { x: 11, z: 8, w: 6, d: 5 };
+    const closest = { x: nearHqCorner.x - nearHqCorner.w / 2, z: nearHqCorner.z - nearHqCorner.d / 2 };
+    expect(Math.hypot(closest.x, closest.z)).toBeGreaterThan(CAMPUS.plazaRadius + 2);
+    expect(canPlaceBuilding(EMPTY_EDITS, layout, nearHqCorner)).toBe(false);
+    // Clear of HQ (and everything else) further out along the same path arm.
+    expect(canPlaceBuilding(EMPTY_EDITS, layout, { x: 0, z: 20, w: 6, d: 5 })).toBe(true);
   });
 
   it("rejects rects overlapping a default plot", () => {

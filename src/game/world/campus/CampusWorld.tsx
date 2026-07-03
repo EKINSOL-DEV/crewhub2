@@ -9,18 +9,23 @@ import type { ThreeEvent } from "@react-three/fiber";
 import type * as THREE from "three";
 import type { ModelId } from "@/game/assets/manifest";
 import { placedItemPlacements, type PlaceableKind } from "@/game/build/edits";
-import { useBuildMode } from "@/game/build/mode";
+import { useBuildMode, type CardTarget } from "@/game/build/mode";
 import { PlacedBuildings } from "@/game/build/PlacedBuildings";
 import { useCampusEdits } from "@/game/build/store";
 import { CloudPuffs } from "@/game/world/CloudPuffs";
 import { BIOMES, type Biome } from "@/game/world/biome";
 import { Fountain } from "./Fountain";
+import { Headquarters, HeadquartersPlate, HQ_PLATE_Y } from "./Headquarters";
+import { HqProps } from "./HqProps";
 import { InstancedModel } from "./InstancedModel";
 import { Terrain } from "./Terrain";
 import { campusLayout, type ScatterKind } from "./layout";
 import { campusBuildings } from "./buildings";
 import { Pavilion, WALL_HEIGHT } from "./Pavilion";
 import { RoofPlate } from "./RoofPlate";
+
+/** Placed fountains keep the lantern/bench/hedge decor convention (M3 T4). */
+const PLACED_FOUNTAIN_SCALE = 1.4;
 
 /** Roof-nameplate height — matches PlacedBuildings' convention. Must clear
  *  Pavilion.tsx's roof beams, which peak at y=3.94 (centered at 3.85, height
@@ -107,17 +112,21 @@ export function CampusWorld({ biome = BIOMES.campus }: { biome?: Biome }) {
   // Clicking a base pavilion outside build mode opens its RoomCard (M5 T4);
   // in build mode this steps aside for BuildControls' own tools (item/
   // building placement, the select-tool proxies over *placed* buildings).
-  function handlePavilionPointerDown(e: ThreeEvent<PointerEvent>, plotIndex: number) {
+  // HQ (M6, plotIndex -1) gets the same gesture but a different card (M6
+  // T4): it isn't a plot and has no project to link, so it opens HqCard
+  // instead of RoomCard — see mode.ts's CardTarget union and GameShell's
+  // rendering switch.
+  function handlePavilionPointerDown(e: ThreeEvent<PointerEvent>, target: CardTarget) {
     if (e.button !== 0) return;
     if (useBuildMode.getState().active) return;
     e.stopPropagation();
-    openRoomCard({ kind: "plot", plotIndex });
+    openRoomCard(target);
   }
 
   return (
     <group>
-      {/* Animated residents (fountain water, clouds) stay auto-updating. */}
-      <Fountain />
+      {/* Animated residents (clouds) stay auto-updating. The plaza-center
+          fountain moved to placed decor (M6) — HQ now stands where it did. */}
       <CloudPuffs count={biome.clouds} />
       <group ref={staticRef}>
         <Terrain grass={biome.grass} apron={biome.apron} path={biome.path} />
@@ -138,8 +147,17 @@ export function CampusWorld({ biome = BIOMES.campus }: { biome?: Biome }) {
         <InstancedModel id="hedge" placements={layout.props.hedge} />
         <InstancedModel id="banner-green" placements={layout.props.banner} />
         {buildings.map((b) => (
-          <group key={b.plotIndex} onPointerDown={(e) => handlePavilionPointerDown(e, b.plotIndex)}>
-            <Pavilion building={b} />
+          <group
+            key={b.plotIndex}
+            name={`pavilion-wrapper-${b.plotIndex}`}
+            onPointerDown={(e: ThreeEvent<PointerEvent>) =>
+              handlePavilionPointerDown(
+                e,
+                b.kind === "hq" ? { kind: "hq" } : { kind: "plot", plotIndex: b.plotIndex },
+              )
+            }
+          >
+            {b.kind === "hq" ? <Headquarters building={b} /> : <Pavilion building={b} />}
           </group>
         ))}
       </group>
@@ -147,24 +165,49 @@ export function CampusWorld({ biome = BIOMES.campus }: { biome?: Biome }) {
           so no dedup needed — see PlacedBuildings' header for why this stays
           outside the frozen static-matrix group. */}
       <PlacedBuildings />
-      {(Object.keys(placedByKind) as PlaceableKind[]).map((kind) => (
-        <InstancedModel
-          key={`${kind}-${versionByKind[kind] ?? 0}`}
-          id={kind}
-          placements={placedByKind[kind]!}
-        />
-      ))}
+      {/* "fountain" is excluded here — placed fountains render as live
+          <Fountain> components below (animated water disc) instead of
+          joining this frozen InstancedModel/Merged group. */}
+      {(Object.keys(placedByKind) as PlaceableKind[])
+        .filter((kind) => kind !== "fountain")
+        .map((kind) => (
+          <InstancedModel
+            key={`${kind}-${versionByKind[kind] ?? 0}`}
+            id={kind}
+            placements={placedByKind[kind]!}
+          />
+        ))}
+      {edits.items
+        .filter((item) => item.kind === "fountain")
+        .map((item) => (
+          <Fountain
+            key={item.id}
+            position={[item.x, 0, item.z]}
+            rotationY={item.rot}
+            scale={PLACED_FOUNTAIN_SCALE}
+          />
+        ))}
       {/* Base pavilions' roof nameplates (M5 T4): kept outside the frozen
           static-matrix group above — unlike the terrain/pavilion geometry,
           a plot's project link changes at runtime, and RoofPlate needs to
-          react to that. */}
-      {buildings.map((b) => (
-        <RoofPlate
-          key={`plate-${b.plotIndex}`}
-          projectId={edits.plotProjects[b.plotIndex] ?? null}
-          position={[b.rect.x, PLATE_Y, b.rect.z]}
-        />
-      ))}
+          react to that. HQ (M6) is excluded — it has no project to name,
+          and its plotIndex (-1) isn't a real key into plotProjects; it gets
+          its own permanent, project-independent plate instead. */}
+      {buildings
+        .filter((b) => b.kind !== "hq")
+        .map((b) => (
+          <RoofPlate
+            key={`plate-${b.plotIndex}`}
+            projectId={edits.plotProjects[b.plotIndex] ?? null}
+            position={[b.rect.x, PLATE_Y, b.rect.z]}
+          />
+        ))}
+      <HeadquartersPlate position={[0, HQ_PLATE_Y, 0]} />
+      {/* HQ's interactive prop stands (M6 T4) — same outside-the-frozen-group
+          placement as the plate above, and for the same reason: their icon
+          plates are Billboards that must keep facing the camera every
+          frame. */}
+      <HqProps />
     </group>
   );
 }

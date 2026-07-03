@@ -9,6 +9,8 @@ import { BuildControls } from "@/game/build/BuildControls";
 import { BuildPalette } from "@/game/build/BuildPalette";
 import { RoomLinkDialog } from "@/game/build/RoomLinkDialog";
 import { useBuildMode } from "@/game/build/mode";
+import { ProjectsDialog } from "@/game/hud/ProjectsDialog";
+import { HqCard } from "@/game/world/campus/HqCard";
 import { RoomCard } from "@/game/world/campus/RoomCard";
 import { useAudio } from "@/game/audio/sfx";
 import { GameCanvas } from "@/game/engine/GameCanvas";
@@ -61,6 +63,15 @@ export default function GameShell() {
     void useAudio.getState().init();
     preloadModels();
   }, []);
+
+  // HQ's 👥 prop stand / HqCard shortcut route through mode.ts's single-open
+  // card slot (M6 T4) rather than a prop-drilled callback — but the hire
+  // dialog itself still owns its open/close state locally (it's also
+  // reachable from the HUD and character clicks). Derived at render time,
+  // not synced via an effect's setState (that pattern cascades an extra
+  // render for no benefit here): `hireRequested` just ORs the card-slot
+  // request into the same `open`/`onClose` HireDialog already takes.
+  const hireRequested = roomCard?.kind === "hire";
 
   return (
     <div className="relative h-screen w-screen overflow-hidden" data-testid="game-shell">
@@ -120,8 +131,19 @@ export default function GameShell() {
       <ChatWindows />
       {buildActive && <BuildPalette />}
       {pendingRoomLink && <RoomLinkDialog buildingId={pendingRoomLink} onClose={closeRoomLink} />}
-      {roomCard && <RoomCard target={roomCard} onClose={closeRoomCard} />}
-      <HireDialog open={hireOpen} initialAgentId={hireAgentId} onClose={() => setHireOpen(false)} />
+      {roomCard?.kind === "plot" || roomCard?.kind === "placed" ? (
+        <RoomCard target={roomCard} onClose={closeRoomCard} />
+      ) : null}
+      {roomCard?.kind === "hq" && <HqCard onClose={closeRoomCard} />}
+      {roomCard?.kind === "projects" && <ProjectsDialog onClose={closeRoomCard} />}
+      <HireDialog
+        open={hireOpen || hireRequested}
+        initialAgentId={hireRequested ? undefined : hireAgentId}
+        onClose={() => {
+          setHireOpen(false);
+          if (hireRequested) closeRoomCard();
+        }}
+      />
       <WelcomeCard />
     </div>
   );

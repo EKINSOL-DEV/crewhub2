@@ -2,13 +2,16 @@
 // layout, feeds the character mover in later tasks.
 import { describe, expect, it } from "vitest";
 import { buildingDesks } from "@/game/build/edits";
-import { campusBuildings, nearestEdgeDoor } from "@/game/world/campus/buildings";
+import { campusBuildings, HQ_RECT, nearestEdgeDoor } from "@/game/world/campus/buildings";
 import { campusLayout } from "@/game/world/campus/layout";
-import { buildNavGrid, findPath } from "./grid";
+import { buildNavGrid, DOOR_GAP_RADIUS, findPath } from "./grid";
 
 const layout = campusLayout();
+// M6: campusBuildings() now prepends the permanent HQ building, so
+// buildings[0] is HQ and the four plot pavilions shift to indices 1-4.
 const buildings = campusBuildings(layout.plots);
 const grid = buildNavGrid(layout, buildings);
+const hq = buildings[0]!;
 
 function cellIndexFor(g: ReturnType<typeof buildNavGrid>, x: number, z: number): number {
   const cx = Math.floor(x + g.size / 2);
@@ -38,13 +41,42 @@ function sampleAlongPath(
   return points;
 }
 
+/**
+ * True when (x, z) sits unambiguously inside HQ's blocked wall band (not the
+ * walkable floor, not a doorway) — the M6 replacement for the old "is this
+ * inside the fountain disc" check. MARGIN mirrors the half-cell slack the
+ * pre-M6 fountain check tolerated: `buildNavGrid` blocks by *cell center*,
+ * so a continuous point can sit up to half a cell inside a nominally-blocked
+ * band's boundary (or half a cell short of a door's true edge) while the
+ * cell it falls in is still walkable.
+ */
+function clearlyInsideHqWallBand(x: number, z: number): boolean {
+  const hw = HQ_RECT.w / 2;
+  const hd = HQ_RECT.d / 2;
+  const MARGIN = 0.5;
+  const distToEdge = Math.min(hw - Math.abs(x), hd - Math.abs(z));
+  if (distToEdge < MARGIN || distToEdge >= 1 - MARGIN) return false;
+  const nearestDoor = Math.min(...hq.doors!.map((d) => Math.hypot(x - d.x, z - d.z)));
+  return nearestDoor > DOOR_GAP_RADIUS + MARGIN;
+}
+
 describe("findPath", () => {
-  it("routes around the fountain", () => {
-    const path = findPath(grid, { x: -10, z: 0 }, { x: 10, z: 0 });
+  it("takes the HQ shortcut: a path from the north arm to the south arm cuts straight through, not around", () => {
+    // Both the north and south doors sit on x=0 (see hqBuilding), so a
+    // straight line at x=0 threads both without any detour around the
+    // wall ring — HQ is a shortcut, not an obstacle, on this axis.
+    const from = { x: 0, z: -20 };
+    const to = { x: 0, z: 20 };
+    const path = findPath(grid, from, to);
     expect(path.length).toBeGreaterThan(0);
+    let total = 0;
+    let prev = from;
     for (const p of path) {
-      expect(Math.hypot(p.x, p.z)).toBeGreaterThanOrEqual(5);
+      total += Math.hypot(p.x - prev.x, p.z - prev.z);
+      prev = p;
     }
+    const straight = Math.hypot(to.x - from.x, to.z - from.z);
+    expect(total).toBeLessThan(straight + 2); // detouring around HQ's wall ring would add far more than 2u
   });
 
   it("returns [] for a target outside the grid bounds", () => {
@@ -52,7 +84,8 @@ describe("findPath", () => {
   });
 
   it("snaps a blocked target (a desk cell) to its nearest walkable neighbor", () => {
-    const desk = buildings[0]!.desks[0]!;
+    const plot0 = buildings.find((b) => b.plotIndex === 0)!;
+    const desk = plot0.desks[0]!;
     const path = findPath(grid, { x: 0, z: 0 }, { x: desk.x, z: desk.z });
     expect(path.length).toBeGreaterThan(0);
     const last = path[path.length - 1]!;
@@ -60,8 +93,9 @@ describe("findPath", () => {
   });
 
   it("smooths an open-field path down to a handful of waypoints", () => {
-    // (-20,-20) -> (20,20): clear of scatter for the fixed layout seed.
-    const path = findPath(grid, { x: -20, z: -20 }, { x: 20, z: 20 });
+    // (-20,-13) -> (20,13): clear of scatter for the fixed layout seed and
+    // clear of HQ (the straight line's z stays outside HQ's ±6 z-span).
+    const path = findPath(grid, { x: -20, z: -13 }, { x: 20, z: 13 });
     expect(path.length).toBeGreaterThan(0);
     expect(path.length).toBeLessThanOrEqual(6);
   });
@@ -72,10 +106,12 @@ describe("findPath", () => {
     expect(a).toEqual(b);
   });
 
-  it("never clips the fountain along CONTINUOUS path segments (supercover regression)", () => {
+  it("never clips HQ's wall band along CONTINUOUS path segments (supercover regression)", () => {
     // A plain Bresenham line-of-sight skipped corner cells on diagonal
-    // steps, so smoothing could keep a segment whose true line crossed the
-    // fountain disc (review repro below hit min distance 4.85 < 5).
+    // steps, so smoothing could keep a segment whose true line crossed a
+    // blocked obstacle (originally the fountain disc; M6 replaces the
+    // fixed disc with HQ's wall ring, so the regression check moves with
+    // it — same algorithm, same risk, new obstacle shape).
     const sampleSegments = (path: { x: number; z: number }[], from: { x: number; z: number }) => {
       let prev = from;
       for (const p of path) {
@@ -84,21 +120,19 @@ describe("findPath", () => {
         for (let i = 0; i <= steps; i++) {
           const x = prev.x + ((p.x - prev.x) * i) / steps;
           const z = prev.z + ((p.z - prev.z) * i) / steps;
-          // Half-a-cell tolerance: blocking is cell-quantized, and a sample
-          // may graze a walkable cell whose center sits just outside r=5.
-          expect(Math.hypot(x, z)).toBeGreaterThanOrEqual(5 - 0.75);
+          expect(clearlyInsideHqWallBand(x, z)).toBe(false);
         }
         prev = p;
       }
     };
 
-    // Reviewer's exact reproduction pair.
+    // Reviewer's exact reproduction pair (originally clipped the fountain).
     const from = { x: 12.18, z: 5.08 };
     const path = findPath(grid, from, { x: -18.32, z: -1.98 });
     expect(path.length).toBeGreaterThan(0);
     sampleSegments(path, from);
 
-    // Seeded fuzz around the fountain — mulberry32, no Math.random().
+    // Seeded fuzz around HQ — mulberry32, no Math.random().
     let s = 0xc0ffee ^ 0;
     const rand = () => {
       s |= 0;
@@ -119,8 +153,28 @@ describe("findPath", () => {
   });
 });
 
+describe("HQ (M6 — permanent headquarters replaces the fixed fountain disc)", () => {
+  it("HQ's interior is walkable — no fountain disc block remains", () => {
+    expect(grid.blocked[cellIndexFor(grid, 0, 0)]).toBe(0);
+    expect(grid.blocked[cellIndexFor(grid, 3, 3)]).toBe(0); // inside the old r=5 fountain disc, inside HQ's floor
+  });
+
+  it("blocks HQ's wall ring away from any door", () => {
+    expect(grid.blocked[cellIndexFor(grid, 6.5, 5.5)]).toBe(1); // near a corner, far from every door
+  });
+
+  it("opens a walkable gap at each of HQ's four doors", () => {
+    for (const door of hq.doors!) {
+      expect(grid.blocked[cellIndexFor(grid, door.x, door.z)]).toBe(0);
+    }
+  });
+});
+
 describe("buildNavGrid walls (M5 T3 — rooms have walls, bots use the door)", () => {
-  const b0 = buildings[0]!; // rect {x:22,z:22,w:14,d:12}; door lands on the west edge, facing the plaza.
+  // M6: buildings[0] is now HQ, so the plot-0 pavilion (rect
+  // {x:22,z:22,w:14,d:12}; door on the west edge, facing the plaza) is found
+  // by plotIndex instead of assumed at a fixed array slot.
+  const b0 = buildings.find((b) => b.plotIndex === 0)!;
   const desk = b0.desks[0]!;
 
   it("a path from the plaza side to a desk sweeps through the door gap", () => {
