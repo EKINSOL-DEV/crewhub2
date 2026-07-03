@@ -12,8 +12,15 @@
 // the commands.*Project calls with the store's refresh()-on-success and
 // try/catch-to-ProjectResult error normalization — reimplementing that
 // here would just be a second copy of the same logic.
+//
+// Docked side panel (side-panel conversion), not a centered modal — see
+// GamePanel's own header comment. Closing is Close-button or Escape now;
+// there's no backdrop left to click. The Add button rides along in the
+// title slot (GamePanel's header row is just the title then its own ✕),
+// same as it sat next to ✕ before.
 import { useEffect, useState } from "react";
 import { playSfx } from "@/game/audio/sfx";
+import { GamePanel } from "@/game/hud/GamePanel";
 import type { Project } from "@/ipc/bindings";
 import { useProjectsStore } from "@/stores/projects";
 
@@ -82,16 +89,9 @@ export function ProjectsDialog({ onClose }: { onClose: () => void }) {
   const confirmTarget = confirmDeleteId ? (projects.find((p) => p.id === confirmDeleteId) ?? null) : null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        data-testid="projects-dialog"
-        className="flex max-h-[80vh] w-[400px] flex-col rounded-3xl border-2 border-white/60 bg-white/90 text-slate-900 shadow-2xl backdrop-blur"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center gap-2 rounded-t-3xl border-b-2 border-slate-900/10 px-4 py-3">
+    <GamePanel
+      title={
+        <>
           <span className="flex-1 font-bold">📋 Projects</span>
           {view.kind === "list" && (
             <button
@@ -104,16 +104,11 @@ export function ProjectsDialog({ onClose }: { onClose: () => void }) {
               ➕
             </button>
           )}
-          <button
-            type="button"
-            aria-label="Close"
-            className="rounded-full px-1.5 py-0.5 font-bold hover:bg-slate-900/10"
-            onClick={onClose}
-          >
-            ✕
-          </button>
-        </div>
-
+        </>
+      }
+      onClose={onClose}
+    >
+      <div data-testid="projects-dialog" className="flex flex-col">
         {error && (
           <div
             className="mx-3 mt-2 rounded-lg bg-red-100 px-3 py-1.5 text-xs text-red-700"
@@ -123,7 +118,7 @@ export function ProjectsDialog({ onClose }: { onClose: () => void }) {
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto p-3">
+        <div className="p-3">
           {view.kind === "list" && (
             <ul className="flex flex-col gap-1" data-testid="projects-dialog-list">
               {projects.length === 0 && <li className="text-sm text-slate-500">No projects yet.</li>}
@@ -211,7 +206,7 @@ export function ProjectsDialog({ onClose }: { onClose: () => void }) {
           )}
         </div>
       </div>
-    </div>
+    </GamePanel>
   );
 }
 

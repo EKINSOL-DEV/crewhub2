@@ -3,6 +3,12 @@
 // Workspace/Settings chips (M4 T6 fix round 1) are the one exception: not
 // debug, but the only way out of the main window now that WorldView's gear
 // button and dock are gone — see src/game/app/windows.ts.
+//
+// M8 T2's own 🎥✕ camera-exit chip used to live here, bottom-left among the
+// other small mode-toggle chips — round 2's own user feedback called it out
+// as unclear (buried in a row of six other buttons). Moved to
+// CameraExitPill.tsx: a standalone, prominent, centered pill mounted as a
+// GameShell sibling instead, not a member of this row.
 import { ENVIRONMENTS, environmentById } from "@/game/world/environments/registry";
 import { useGameEnvironment } from "@/game/world/environments/store";
 import { useAudio } from "@/game/audio/sfx";

@@ -61,7 +61,7 @@ export function nearestEdgeDoor(rect: Rect): { x: number; z: number } {
  * where only the fountain plaza used to stand. plotIndex -1 and no desks:
  * nobody works in HQ.
  */
-export const HQ_RECT: Rect = { x: 0, z: 0, w: 14, d: 12 };
+export const HQ_RECT: Rect = { x: 0, z: 0, w: 18, d: 14 };
 
 /**
  * HQ, world M6: one door per wall (a plot pavilion only ever gets one). The

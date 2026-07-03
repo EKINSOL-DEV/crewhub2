@@ -15,6 +15,8 @@
 // already uses for placed decor's InstancedModel groups.
 import { useMemo } from "react";
 import type { ThreeEvent } from "@react-three/fiber";
+import { useCameraDirector } from "@/game/engine/camera/director";
+import { getLiveYaw } from "@/game/engine/camera/live-camera";
 import { nearestEdgeDoor, type Building } from "@/game/world/campus/buildings";
 import type { Rect } from "@/game/world/campus/layout";
 import { Pavilion, WALL_HEIGHT } from "@/game/world/campus/Pavilion";
@@ -73,12 +75,15 @@ export function PlacedBuildings() {
   // Clicking a placed pavilion outside build mode opens its RoomCard (M5
   // T4); build mode keeps its own select-tool pick proxies (BuildControls),
   // untouched — this handler steps aside whenever build mode is active so
-  // the two gestures never collide over the same pavilion.
-  function handlePointerDown(e: ThreeEvent<PointerEvent>, id: string) {
+  // the two gestures never collide over the same pavilion. M8 T3: the same
+  // click also frames the building with the camera director — same
+  // live-yaw seed as CampusWorld's base-pavilion handler.
+  function handlePointerDown(e: ThreeEvent<PointerEvent>, id: string, building: Building) {
     if (e.button !== 0) return;
     if (useBuildMode.getState().active) return;
     e.stopPropagation();
     openRoomCard({ kind: "placed", id });
+    useCameraDirector.getState().focusBuilding(building, getLiveYaw());
   }
 
   return (
@@ -94,7 +99,7 @@ export function PlacedBuildings() {
         const color = b.projectId ? (colorByProjectId.get(b.projectId) ?? NEUTRAL_EDGE) : NEUTRAL_EDGE;
         return (
           <group key={`${b.id}-${version}`}>
-            <group onPointerDown={(e) => handlePointerDown(e, b.id)}>
+            <group onPointerDown={(e) => handlePointerDown(e, b.id, building)}>
               <Pavilion building={building} />
             </group>
             <RoomEdge rect={rect} color={color} />

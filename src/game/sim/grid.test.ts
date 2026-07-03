@@ -160,7 +160,12 @@ describe("HQ (M6 — permanent headquarters replaces the fixed fountain disc)", 
   });
 
   it("blocks HQ's wall ring away from any door", () => {
-    expect(grid.blocked[cellIndexFor(grid, 6.5, 5.5)]).toBe(1); // near a corner, far from every door
+    // A cell just inside HQ_RECT's corner (half-extent minus 0.5) — far from
+    // every door (all sit on the x=0 or z=0 axis), squarely in the ~1-unit
+    // wall band buildNavGrid blocks around a building's footprint.
+    const cornerX = HQ_RECT.w / 2 - 0.5;
+    const cornerZ = HQ_RECT.d / 2 - 0.5;
+    expect(grid.blocked[cellIndexFor(grid, cornerX, cornerZ)]).toBe(1);
   });
 
   it("opens a walkable gap at each of HQ's four doors", () => {

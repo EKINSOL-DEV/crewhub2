@@ -3,7 +3,10 @@
 // (M1+ buildings land there), and seeded nature scatter everywhere else.
 import { mulberry32 } from "@/game/sim/rand";
 
-export const CAMPUS = { half: 40, plazaRadius: 7, pathHalfWidth: 1.1 } as const;
+// plazaRadius grew with HQ (M9 polish): HQ_RECT's farthest corner is now
+// hypot(9, 7) ≈ 11.4 (see buildings.ts) — 11 keeps the circular path ring
+// surrounding HQ with breathing room instead of clipping its walls.
+export const CAMPUS = { half: 40, plazaRadius: 11, pathHalfWidth: 1.1 } as const;
 
 export interface Placement {
   x: number;
@@ -168,13 +171,13 @@ export function campusLayout(): CampusLayout {
   }
 
   // Benches ring HQ from outside its walls (M6 — HQ now stands where the
-  // fountain used to be the plaza's only centerpiece). Candidates sit on the
-  // 8 compass points at r=10, which clears HQ_RECT's farthest corner
-  // (hypot(7,6)=9.22); the four cardinal ones fall in a door's walk-in lane
-  // (within 1.5u of the x=0 or z=0 axis a door opens onto) and are filtered
-  // out, leaving the same four diagonal spots as before M6, just relocated
-  // outside HQ's wingspan instead of the old fountain plinth.
-  const BENCH_RING_RADIUS = 10;
+  // fountain used to be the plaza's only centerpiece; M9 regrew HQ itself).
+  // Candidates sit on the 8 compass points at r=13, which clears HQ_RECT's
+  // farthest corner (hypot(9,7)≈11.40); the four cardinal ones fall in a
+  // door's walk-in lane (within 1.5u of the x=0 or z=0 axis a door opens
+  // onto) and are filtered out, leaving the same four diagonal spots as
+  // before M6, just relocated outside HQ's (now wider) wingspan.
+  const BENCH_RING_RADIUS = 13;
   const DOOR_LANE_HALF_WIDTH = 1.5;
   const bench: Placement[] = [0, 45, 90, 135, 180, 225, 270, 315]
     .map((deg) => {

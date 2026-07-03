@@ -18,6 +18,17 @@ How releases consume this file (M6, EKI-98/EKI-100):
 
 ### Added
 
+- M9 "Bot dossier" — meet your robots (EKI-184): an ℹ️ button in every chat header (and the HQ
+  crew roster) opens a draggable dossier card — a Haiku-written two-sentence bio (cached per
+  bot, 🔄 to regenerate, honors the flavor kill switch) plus the live facts: model, project +
+  folder, room, git branch, activity, token usage, origin, fork lineage (clickable), crew role,
+  what it's doing right now, and how long it's been at it; footer shortcuts to Chat (or Hire,
+  for resting crew) and Follow
+- M8 "Camera director" — the camera plays along (EKI-183): click a room or the HQ and the
+  camera flies to frame it (shortest rotation, approaching multi-door buildings via the door
+  nearest your current angle); click a robot and the camera follows it around; Escape or the
+  🎥✕ chip flies you back to where you were, while grabbing the camera (drag/WASD) simply
+  hands control back; wheel-zoom and rotate keep working mid-shot
 - M7 "Say the word" — the chat is location-aware (EKI-182): tell any robot "go to HQ",
   "go to <room>" or "dance / spin / cheer / wave" and it obeys — a free deterministic parser
   handles the commands (never touching your real session's context), a Haiku fallback interprets

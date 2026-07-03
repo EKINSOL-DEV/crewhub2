@@ -33,6 +33,7 @@ vi.mock("@/stores/sessions", () => ({
 }));
 
 import { resetCampusEditsForTests, useCampusEdits } from "@/game/build/store";
+import { useCameraDirector } from "@/game/engine/camera/director";
 import { resetProjectsForTests, useProjectsStore } from "@/stores/projects";
 import { RoomCard } from "./RoomCard";
 
@@ -103,6 +104,7 @@ describe("RoomCard", () => {
     resetCampusEditsForTests();
     resetProjectsForTests();
     useProjectsStore.setState({ projects: [ENGINEERING, DESIGN], loaded: true });
+    useCameraDirector.setState({ mode: { kind: "free" } });
     agents.current = [];
     views.current = [];
   });
@@ -188,10 +190,31 @@ describe("RoomCard", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("backdrop click closes", () => {
+  // Docked side panel (side-panel conversion): there's no backdrop left to
+  // click — closing is ✕ (GamePanel's own contract, see game-panel.test.tsx)
+  // or Escape (above).
+  it("the ✕ button closes", () => {
     const onClose = vi.fn();
     render(<RoomCard target={{ kind: "plot", plotIndex: 0 }} onClose={onClose} />);
-    fireEvent.click(screen.getByTestId("room-card").parentElement!);
+    fireEvent.click(screen.getByTestId("game-panel-close"));
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  // Round 2: the shared "🎥 Exit zoom" header action (GamePanel.tsx's
+  // ExitZoomButton), only present while the camera is focused/following.
+  describe("🎥 Exit zoom header action", () => {
+    it("is absent while the camera is free", () => {
+      render(<RoomCard target={{ kind: "plot", plotIndex: 0 }} onClose={vi.fn()} />);
+      expect(screen.queryByTestId("game-panel-exit-zoom")).not.toBeInTheDocument();
+    });
+
+    it("appears while focused, and clicking it exits the camera", () => {
+      useCameraDirector.setState({
+        mode: { kind: "focus", target: { x: 0, z: 0 }, yaw: 0, distance: 20 },
+      });
+      render(<RoomCard target={{ kind: "plot", plotIndex: 0 }} onClose={vi.fn()} />);
+      fireEvent.click(screen.getByTestId("game-panel-exit-zoom"));
+      expect(useCameraDirector.getState().mode).toEqual({ kind: "free" });
+    });
   });
 });

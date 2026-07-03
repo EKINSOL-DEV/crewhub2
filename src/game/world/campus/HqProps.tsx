@@ -1,26 +1,25 @@
-// HQ's interactive prop stands (M6 T4): three small furniture pieces inside
-// the headquarters, one per HQ_PROP_PADS pad — 📋 Projects, 👥 Crew,
-// 🧰 Workspace. Mounted OUTSIDE CampusWorld's frozen static-matrix group
-// (like RoofPlate/HeadquartersPlate) since each stand's icon plate is a
-// Billboard that recomputes its rotation every frame to face the camera;
-// freezing matrixAutoUpdate on that subtree would leave it facing whatever
-// direction it happened to mount in. HQ_RECT is fixed at the campus origin
-// (buildings.ts), so — same convention CampusWorld already uses for
-// HeadquartersPlate — the pads' local coordinates double as world
-// coordinates without any rect-offset plumbing.
-import { Suspense } from "react";
-import { Billboard, Text } from "@react-three/drei";
+// HQ's wall-anchored function props (M9 polish round): three procedural toon
+// props, each built from primitives and set against an interior wall,
+// shaped to evoke its function — a cork notice board (Projects), a
+// reception desk (Crew), a workbench (Workspace). Replaces the earlier
+// floating lantern-stand + Billboard-icon convention entirely (user
+// feedback: "die iconen die er zweven zijn overbodig — gewoon een prop
+// tegen de muur die de functie oproept, een prop die past bij de functie").
+//
+// No Billboard/Text/useModel anywhere in this file anymore, so in principle
+// these props need no per-frame rotation and could join CampusWorld's frozen
+// static-matrix group right alongside <Headquarters> — but don't: a
+// controller bisect (2026-07-04) found that mounting them inside that frozen
+// subtree blacks the entire first WebGL render in a real browser (world +
+// robots gone, no console error) for a reason still unresolved. See
+// CampusWorld.tsx's comment above where <HqProps /> actually mounts (outside
+// the frozen group, next to HeadquartersPlate) before moving this back in.
 import type { ThreeEvent } from "@react-three/fiber";
 import { openWorkspaceWindow } from "@/game/app/windows";
-import { useModel } from "@/game/assets/use-model";
 import { playSfx } from "@/game/audio/sfx";
 import { useBuildMode } from "@/game/build/mode";
-import { HQ_PROP_PADS } from "./Headquarters";
-
-/** Above the stand's lantern base, low enough to still read as "this
- *  stand's icon" rather than a floating unrelated marker. */
-const ICON_Y = 2.2;
-const BASE_SCALE = 0.9;
+import { toonGradientMap } from "@/game/engine/toon";
+import { HQ_RECT } from "./buildings";
 
 /** The two card-opening props route through mode.ts's single-open card
  *  slot; "workspace" isn't a card at all (it opens a native window), so it
@@ -28,53 +27,192 @@ const BASE_SCALE = 0.9;
 type CardProp = "projects" | "hire";
 type PropKind = CardProp | "workspace";
 
-const PROPS: { kind: PropKind; icon: string }[] = [
-  { kind: "projects", icon: "📋" },
-  { kind: "hire", icon: "👥" },
-  { kind: "workspace", icon: "🧰" },
-];
+const HW = HQ_RECT.w / 2;
+const HD = HQ_RECT.d / 2;
+/** How far in from the raw rect edge a prop's anchor sits — clears the wall
+ *  (Headquarters.tsx's wall centerline sits at half-extent minus ~0.25, its
+ *  own inner face closer still) and the corner posts with room to spare. */
+const WALL_INSET = 0.9;
 
-function PropStand({
-  kind,
-  x,
-  z,
-  icon,
-  onActivate,
-}: {
-  kind: PropKind;
-  x: number;
-  z: number;
-  icon: string;
-  onActivate: () => void;
-}) {
-  const model = useModel("lantern");
+/** Generous invisible click target over each prop's visible geometry (per
+ *  spec: ~2.2 wide x 2 tall) — the procedural shapes below are thin and
+ *  gappy in places, so raycasting against just their own meshes alone would
+ *  miss too easily. */
+const HIT_WIDTH = 2.2;
+const HIT_HEIGHT = 2;
+const HIT_DEPTH = 1;
 
-  const handlePointerDown = (e: ThreeEvent<PointerEvent>) => {
+/** A prop's hit box, oriented by which local axis runs "along the wall" —
+ *  north-wall props span x (thin in z), east/west-wall props span z (thin
+ *  in x). */
+function HitBox({ alongWall, y }: { alongWall: "x" | "z"; y: number }) {
+  const args: [number, number, number] =
+    alongWall === "x" ? [HIT_WIDTH, HIT_HEIGHT, HIT_DEPTH] : [HIT_DEPTH, HIT_HEIGHT, HIT_WIDTH];
+  return (
+    <mesh position={[0, y, 0]}>
+      <boxGeometry args={args} />
+      <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+    </mesh>
+  );
+}
+
+/** Build mode has its own select/place gestures over the same geometry —
+ *  same guard CampusWorld/PlacedBuildings use for pavilion clicks. */
+function guardedPointerDown(onActivate: () => void) {
+  return (e: ThreeEvent<PointerEvent>) => {
     if (e.button !== 0) return;
-    // Build mode has its own select/place gestures over the same geometry —
-    // same guard CampusWorld/PlacedBuildings use for pavilion clicks.
     if (useBuildMode.getState().active) return;
     e.stopPropagation();
     onActivate();
   };
+}
 
+// --- Notice board (Projects), north wall ------------------------------
+
+const NOTICE_X = 4.5; // east of the north door's walk-in lane (|x|<=1.1)
+const NOTICE_Z = -HD + WALL_INSET;
+
+/** Five "pinned paper" quads at varied offsets/rotations, each with its own
+ *  colored pin dot — deliberately un-aligned, like a real notice board. */
+const PAPERS: { dx: number; dy: number; rot: number; color: string }[] = [
+  { dx: -0.6, dy: 0.25, rot: -0.08, color: "#e2574c" },
+  { dx: -0.18, dy: 0.05, rot: 0.05, color: "#3f8fd1" },
+  { dx: 0.2, dy: 0.32, rot: -0.04, color: "#f2c14e" },
+  { dx: 0.55, dy: -0.08, rot: 0.07, color: "#5cb85c" },
+  { dx: 0.05, dy: -0.32, rot: 0.04, color: "#f2994a" },
+];
+
+function NoticeBoard({ onActivate }: { onActivate: () => void }) {
   return (
-    <group position={[x, 0, z]} name={`hq-prop-${kind}`} onPointerDown={handlePointerDown}>
-      <primitive object={model} scale={BASE_SCALE} />
-      <Billboard position={[0, ICON_Y, 0]}>
-        <mesh position={[0, 0, -0.01]}>
-          <planeGeometry args={[0.6, 0.6]} />
-          <meshBasicMaterial color="#1f2430" transparent opacity={0.35} />
+    <group
+      name="hq-prop-projects"
+      position={[NOTICE_X, 0, NOTICE_Z]}
+      onPointerDown={guardedPointerDown(onActivate)}
+    >
+      {[-0.7, 0.7].map((x, i) => (
+        <mesh key={i} position={[x, 0.8, 0]} castShadow>
+          <boxGeometry args={[0.1, 1.6, 0.1]} />
+          <meshToonMaterial color="#7c5a3a" gradientMap={toonGradientMap()} />
         </mesh>
-        {/* Own boundary, same troika-font lesson as RoofPlate/
-            HeadquartersPlate: a still-loading font must never blank the
-            stand underneath it. */}
-        <Suspense fallback={null}>
-          <Text fontSize={0.4} color="#f5efe0" anchorX="center" anchorY="middle">
-            {icon}
-          </Text>
-        </Suspense>
-      </Billboard>
+      ))}
+      <mesh position={[0, 1.5, 0.05]} castShadow>
+        <boxGeometry args={[1.8, 1.2, 0.08]} />
+        <meshToonMaterial color="#caa06c" gradientMap={toonGradientMap()} />
+      </mesh>
+      {PAPERS.map((p, i) => (
+        <group key={i} position={[p.dx, 1.5 + p.dy, 0.1]} rotation={[0, 0, p.rot]}>
+          <mesh castShadow>
+            <boxGeometry args={[0.28, 0.22, 0.02]} />
+            <meshToonMaterial color="#f7f2e4" gradientMap={toonGradientMap()} />
+          </mesh>
+          <mesh position={[0, 0.09, 0.02]}>
+            <sphereGeometry args={[0.03, 8, 8]} />
+            <meshToonMaterial color={p.color} gradientMap={toonGradientMap()} />
+          </mesh>
+        </group>
+      ))}
+      <HitBox alongWall="x" y={1} />
+    </group>
+  );
+}
+
+// --- Reception desk (Crew), east wall ---------------------------------
+
+const RECEPTION_X = HW - WALL_INSET;
+const RECEPTION_Z = 3.5; // south of the east door's walk-in lane (|z|<=1.1), toward the entrance
+
+function ReceptionDesk({ onActivate }: { onActivate: () => void }) {
+  return (
+    <group
+      name="hq-prop-hire"
+      position={[RECEPTION_X, 0, RECEPTION_Z]}
+      onPointerDown={guardedPointerDown(onActivate)}
+    >
+      {/* Desk slab + its room-facing front panel. */}
+      <mesh position={[-0.35, 0.75, 0]} castShadow>
+        <boxGeometry args={[0.7, 0.06, 1.6]} />
+        <meshToonMaterial color="#b98a5e" gradientMap={toonGradientMap()} />
+      </mesh>
+      <mesh position={[-0.62, 0.38, 0]} castShadow>
+        <boxGeometry args={[0.08, 0.76, 1.5]} />
+        <meshToonMaterial color="#8a6640" gradientMap={toonGradientMap()} />
+      </mesh>
+      {/* A small bell on the counter. */}
+      <mesh position={[-0.35, 0.82, 0.35]} castShadow>
+        <cylinderGeometry args={[0.05, 0.06, 0.05, 12]} />
+        <meshToonMaterial color="#d4af37" gradientMap={toonGradientMap()} />
+      </mesh>
+      <mesh position={[-0.35, 0.9, 0.35]} castShadow>
+        <sphereGeometry args={[0.06, 10, 10]} />
+        <meshToonMaterial color="#d4af37" gradientMap={toonGradientMap()} />
+      </mesh>
+      {/* A standing sign board next to the desk. */}
+      <mesh position={[-0.5, 0.9, -0.75]} castShadow>
+        <boxGeometry args={[0.08, 1.8, 0.08]} />
+        <meshToonMaterial color="#7c5a3a" gradientMap={toonGradientMap()} />
+      </mesh>
+      <mesh position={[-0.5, 1.55, -0.75]} castShadow>
+        <boxGeometry args={[0.5, 0.35, 0.06]} />
+        <meshToonMaterial color="#3f8fd1" gradientMap={toonGradientMap()} />
+      </mesh>
+      <HitBox alongWall="z" y={1} />
+    </group>
+  );
+}
+
+// --- Workbench (Workspace), west wall ----------------------------------
+
+const WORKBENCH_X = -HW + WALL_INSET;
+const WORKBENCH_Z = -3.5; // north of the west door's walk-in lane (|z|<=1.1)
+
+const LEG_OFFSETS: [number, number][] = [
+  [0.06, 0.7],
+  [0.64, 0.7],
+  [0.06, -0.7],
+  [0.64, -0.7],
+];
+
+function Workbench({ onActivate }: { onActivate: () => void }) {
+  return (
+    <group
+      name="hq-prop-workspace"
+      position={[WORKBENCH_X, 0, WORKBENCH_Z]}
+      onPointerDown={guardedPointerDown(onActivate)}
+    >
+      <mesh position={[0.35, 0.8, 0]} castShadow>
+        <boxGeometry args={[0.7, 0.07, 1.6]} />
+        <meshToonMaterial color="#8a6640" gradientMap={toonGradientMap()} />
+      </mesh>
+      {LEG_OFFSETS.map(([x, z], i) => (
+        <mesh key={i} position={[x, 0.38, z]} castShadow>
+          <boxGeometry args={[0.08, 0.76, 0.08]} />
+          <meshToonMaterial color="#5c4632" gradientMap={toonGradientMap()} />
+        </mesh>
+      ))}
+      {/* Hammer: a cylindrical handle plus a crossways head. */}
+      <mesh position={[0.28, 0.87, 0.5]} rotation={[0, 0, Math.PI / 2]} castShadow>
+        <cylinderGeometry args={[0.025, 0.025, 0.5, 8]} />
+        <meshToonMaterial color="#7c5a3a" gradientMap={toonGradientMap()} />
+      </mesh>
+      <mesh position={[0.53, 0.87, 0.5]} castShadow>
+        <boxGeometry args={[0.16, 0.08, 0.08]} />
+        <meshToonMaterial color="#8f8f8f" gradientMap={toonGradientMap()} />
+      </mesh>
+      {/* Wrench: a flat handle plus a perpendicular jaw (an "L" in plan). */}
+      <mesh position={[0.3, 0.85, 0]} castShadow>
+        <boxGeometry args={[0.32, 0.03, 0.07]} />
+        <meshToonMaterial color="#5b6b73" gradientMap={toonGradientMap()} />
+      </mesh>
+      <mesh position={[0.44, 0.85, 0.08]} castShadow>
+        <boxGeometry args={[0.06, 0.03, 0.16]} />
+        <meshToonMaterial color="#5b6b73" gradientMap={toonGradientMap()} />
+      </mesh>
+      {/* Paint can. */}
+      <mesh position={[0.35, 0.9, -0.5]} castShadow>
+        <cylinderGeometry args={[0.12, 0.12, 0.2, 12]} />
+        <meshToonMaterial color="#c0392b" gradientMap={toonGradientMap()} />
+      </mesh>
+      <HitBox alongWall="z" y={0.85} />
     </group>
   );
 }
@@ -93,19 +231,9 @@ export function HqProps() {
 
   return (
     <>
-      {PROPS.map((p, i) => {
-        const pad = HQ_PROP_PADS[i]!;
-        return (
-          <PropStand
-            key={p.kind}
-            kind={p.kind}
-            x={pad.x}
-            z={pad.z}
-            icon={p.icon}
-            onActivate={() => activate(p.kind)}
-          />
-        );
-      })}
+      <NoticeBoard onActivate={() => activate("projects")} />
+      <ReceptionDesk onActivate={() => activate("hire")} />
+      <Workbench onActivate={() => activate("workspace")} />
     </>
   );
 }

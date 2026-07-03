@@ -74,12 +74,14 @@ describe("BuildControls smoke", () => {
     const renderer = await ReactThreeTestRenderer.create(<BuildControls />);
     const ground = groundPlane(renderer.scene);
 
-    await renderer.fireEvent(ground, "pointerMove", { point: { x: 10.4, y: 0, z: 4.6 } });
-    await renderer.fireEvent(ground, "pointerDown", { point: { x: 10.4, y: 0, z: 4.6 }, button: 0 });
+    // (16.4, 4.6): hypot ≈16.76, clear of the plaza's (grown alongside HQ,
+    // M9) radius-11 circular margin.
+    await renderer.fireEvent(ground, "pointerMove", { point: { x: 16.4, y: 0, z: 4.6 } });
+    await renderer.fireEvent(ground, "pointerDown", { point: { x: 16.4, y: 0, z: 4.6 }, button: 0 });
 
     const items = useCampusEdits.getState().edits.items;
     expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({ kind: "bush", x: 10, z: 5, rot: 0 });
+    expect(items[0]).toMatchObject({ kind: "bush", x: 16, z: 5, rot: 0 });
 
     await renderer.unmount();
   });
@@ -149,7 +151,7 @@ describe("BuildControls smoke", () => {
 
     // Anchor + hover a rect straddling the origin — well above the 6x5
     // minimum (so the size guard doesn't confound the assertion), still
-    // squarely over HQ's 14x12 footprint. canPlaceBuilding (edits.ts) already
+    // squarely over HQ's 18x14 footprint. canPlaceBuilding (edits.ts) already
     // has a unit test pinning `{x:0,z:0,w:6,d:5}` as rejected; this is the
     // same invariant, exercised through the actual ghost-preview material the
     // player sees rather than the pure predicate.

@@ -22,23 +22,25 @@ const TICK_SECONDS = 0.1;
 const SEATED_RESUME_EPSILON = 0.3;
 
 /**
- * Plaza ring outside HQ's walls (M6 T2): HQ's footprint is 14x12 (halves 7
- * and 6), so the farthest corner sits at sqrt(7^2+6^2) ≈ 9.2 — 9.5 clears it
- * on every approach angle (see the door-lane math below the ring helpers).
- * WaitingForPermission and Working-overflow both wait here now, visible from
- * outside instead of hidden inside HQ's walls.
+ * Plaza ring outside HQ's walls (M6 T2; HQ regrown M9): HQ's footprint is
+ * 18x14 (halves 9 and 7), so the farthest corner sits at sqrt(9^2+7^2) ≈
+ * 11.4 — 12 clears it on every approach angle (see the door-lane math below
+ * the ring helpers). WaitingForPermission and Working-overflow both wait
+ * here now, visible from outside instead of hidden inside HQ's walls.
  */
-const OUTSIDE_RING_RADIUS = 9.5;
+const OUTSIDE_RING_RADIUS = 12;
 /** Half-width of the "in front of a door" lane a ring point must clear (M6 T2). */
 const DOOR_LANE_HALF_WIDTH = 1.5;
 /** Angle nudge (rad) applied, repeatedly, to rotate a ring point off a door lane. */
 const DOOR_LANE_ROTATE_STEP = 0.35;
-/** Each door lane spans well under one rotate step's worth of angle — this is
- *  generous headroom, never actually exhausted. */
+/** Each door lane, seen from the ring, spans 2*asin(DOOR_LANE_HALF_WIDTH /
+ *  OUTSIDE_RING_RADIUS) ≈ 2*asin(1.5/12) ≈ 14.4° of arc — comfortably under
+ *  one DOOR_LANE_ROTATE_STEP (0.35rad ≈ 20.05°), so a single nudge always
+ *  clears a lane it just entered; this bound is never actually exhausted. */
 const DOOR_LANE_MAX_TRIES = 20;
 const SESSION_WANDER_RADIUS = 12; // around the bot's current position
 /** Crew rest inside HQ (M6 T2): a small disc around the origin, comfortably
- *  inside HQ's walls (halves 7 and 6) — "hanging out at headquarters". */
+ *  inside HQ's walls (halves 9 and 7) — "hanging out at headquarters". */
 const CREW_WANDER_RADIUS = 3.5;
 const DESK_SEAT_OFFSET = 0.8;
 const WANDER_PAUSE_MIN = 2;
@@ -161,8 +163,8 @@ export function outsideRingPoint(key: string): { x: number; z: number } {
  * through one of its four doors.
  */
 function spawnPoint(rand: () => number): { x: number; z: number } {
-  const hw = HQ_RECT.w / 2 - 2; // 5
-  const hd = HQ_RECT.d / 2 - 2; // 4
+  const hw = HQ_RECT.w / 2 - 2; // 7
+  const hd = HQ_RECT.d / 2 - 2; // 5
   return { x: (rand() - 0.5) * 2 * hw, z: (rand() - 0.5) * 2 * hd };
 }
 

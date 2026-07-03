@@ -26,7 +26,7 @@ vi.mock("@react-three/drei", async (importOriginal) => {
   return { ...real, useGLTF, Text, Billboard };
 });
 
-import { Headquarters, HeadquartersPlate, HQ_PROP_PADS } from "./Headquarters";
+import { Headquarters, HeadquartersPlate } from "./Headquarters";
 import { hqBuilding, type Building } from "./buildings";
 
 describe("Headquarters smoke", () => {
@@ -37,15 +37,16 @@ describe("Headquarters smoke", () => {
     // apron + slab (2) + 4 pillars (the beam ring was cut on user feedback)
     // + walls (4 sides x 2 segments, since every side carries its own door —
     // building.doors has one per wall) + steps (4 doors x 2 flanking meshes)
-    // + podium (1) + 3 prop pads + 2 banners (1 mesh each, per the fake-GLTF
-    // mock above).
+    // + podium (1) + 2 banners (1 mesh each, per the fake-GLTF mock above).
+    // No prop pads anymore (M9 polish): the interactive Projects/Crew/
+    // Workspace furniture moved off floor pads and onto the interior walls —
+    // see HqProps.tsx, mounted separately by CampusWorld.
     const STRUCTURE = 2 + 4;
     const WALLS = 4 * 2;
     const STEPS = 4 * 2;
     const PODIUM = 1;
-    const PADS = HQ_PROP_PADS.length;
     const BANNERS = 2;
-    expect(meshes.length).toBe(STRUCTURE + WALLS + STEPS + PODIUM + PADS + BANNERS);
+    expect(meshes.length).toBe(STRUCTURE + WALLS + STEPS + PODIUM + BANNERS);
     await renderer.unmount();
   });
 
@@ -77,10 +78,6 @@ describe("Headquarters smoke", () => {
     // segments) = 5 wall meshes, plus that one door's 2 steps = 7. The
     // 9-mesh gap is exactly what cutting three extra doors adds.
     expect(fullCount - singleCount).toBe(9);
-  });
-
-  it("exports exactly 3 prop-pad seeds for Task 4 to mount interactive props on", () => {
-    expect(HQ_PROP_PADS).toHaveLength(3);
   });
 
   it("the permanent plate renders its own backdrop mesh and fixed label, independent of any project store", async () => {

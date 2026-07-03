@@ -136,12 +136,12 @@ export function linkedRoomsFromCampus(edits: CampusEdits, projects: Project[]): 
  * Plaza ring point outside HQ's walls (M7 T3): a fixed south-side spot
  * rather than sim.ts's per-bot-hashed `outsideRingPoint` — chat commands
  * don't need every bot fanned out around the ring, just "outside, in the
- * open". 9.5 mirrors sim.ts's (unexported) OUTSIDE_RING_RADIUS constant,
+ * open". 12 mirrors sim.ts's (unexported) OUTSIDE_RING_RADIUS constant (M9 polish: HQ grew, ring moved out),
  * which clears HQ's farthest corner on every approach angle; kept as its own
  * literal here rather than importing a private constant across that module
  * boundary.
  */
-const PLAZA_POINT = { x: 0, z: 9.5 };
+const PLAZA_POINT = { x: 0, z: 12 };
 
 /** HQ's interior — dead center, well clear of its walls either way. */
 const HQ_POINT = { x: 0, z: 0 };

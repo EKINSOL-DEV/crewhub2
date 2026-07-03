@@ -14,6 +14,7 @@ import { SpeechBubble } from "@/game/chat/SpeechBubble";
 import { useGameSpeechBubbles } from "@/game/chat/use-speech-bubbles";
 import { thoughtFor, useFlavor } from "@/game/flavor/engine";
 import { ThoughtBubble } from "@/game/flavor/ThoughtBubble";
+import { registerLiveBots } from "@/game/sim/live-bots";
 import { Robot, type RobotHandles } from "./Robot";
 import { pose } from "./pose";
 import { useSim, type CharacterInfo } from "./use-sim";
@@ -168,6 +169,13 @@ export function Characters({
   onSelect?: ((key: string, pos: { x: number; z: number }) => void) | undefined;
 }) {
   const { sim, version, infoRef } = useSim(override);
+  // M8 T2: GameCameraRig's "follow" mode reads bot positions off this same
+  // live Map — see live-bots.ts for why a module-level registry is the seam
+  // rather than a prop (the rig is a sibling, not a child, of Characters).
+  useEffect(() => {
+    registerLiveBots(sim.world.bots);
+    return () => registerLiveBots(null);
+  }, [sim]);
   const actorsRef = useRef<Map<string, ActorRefs>>(new Map());
   const speech = useGameSpeechBubbles();
   // Subscribed (return value unused) so a fresh thought shows immediately;

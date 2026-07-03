@@ -4,11 +4,16 @@
 // chrome, not campus geometry, so it floats over the canvas rather than
 // living in it (RoofPlate is the in-canvas nameplate; this is the
 // interactive follow-up opened by clicking that same pavilion).
+//
+// Docked side panel (side-panel conversion), not a centered modal — see
+// GamePanel's own header comment. Closing is ✕ or Escape now; there's no
+// backdrop left to click.
 import { useEffect, useMemo, useState } from "react";
 import type { RoomCardTarget } from "@/game/build/mode";
 import { useCampusEdits } from "@/game/build/store";
 import { BULB } from "@/game/characters/Characters";
 import { playSfx } from "@/game/audio/sfx";
+import { ExitZoomButton, GamePanel } from "@/game/hud/GamePanel";
 import { normalizeFolder, toCharacters } from "@/game/sim/characters";
 import { useAgentsStore } from "@/stores/agents";
 import { useProjectsStore } from "@/stores/projects";
@@ -62,105 +67,88 @@ export function RoomCard({ target, onClose }: { target: RoomCardTarget; onClose:
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-      onClick={onClose}
+    <GamePanel
+      title={<span className="flex-1 font-bold">🏷️ Room</span>}
+      onClose={onClose}
+      headerAction={<ExitZoomButton />}
     >
-      <div
-        data-testid="room-card"
-        className="flex max-h-[80vh] w-[360px] flex-col rounded-3xl border-2 border-white/60 bg-white/90 text-slate-900 shadow-2xl backdrop-blur"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center gap-2 rounded-t-3xl border-b-2 border-slate-900/10 px-4 py-3">
-          <span className="flex-1 font-bold">🏷️ Room</span>
-          <button
-            type="button"
-            aria-label="Close"
-            className="rounded-full px-1.5 py-0.5 font-bold hover:bg-slate-900/10"
-            onClick={onClose}
-          >
-            ✕
-          </button>
+      <div data-testid="room-card" className="flex flex-col gap-3 p-3">
+        <div
+          data-testid="room-card-current"
+          className="flex items-center gap-2 rounded-lg bg-slate-900/5 px-3 py-2 text-sm"
+        >
+          {currentProject ? (
+            <>
+              <span
+                className="h-3 w-3 shrink-0 rounded-full"
+                style={{ backgroundColor: currentProject.color ?? FALLBACK_COLOR }}
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium">
+                  {currentProject.icon ?? FALLBACK_ICON} {currentProject.name}
+                </span>
+                <span className="block truncate text-xs text-slate-500">{currentProject.folder_path}</span>
+              </span>
+            </>
+          ) : (
+            <span className="text-slate-500">Unassigned</span>
+          )}
         </div>
 
-        <div className="flex flex-col gap-3 p-3">
-          <div
-            data-testid="room-card-current"
-            className="flex items-center gap-2 rounded-lg bg-slate-900/5 px-3 py-2 text-sm"
-          >
-            {currentProject ? (
-              <>
+        <div>
+          <div className="mb-1 text-xs font-semibold text-slate-500 uppercase">Crew here</div>
+          <ul className="flex flex-col gap-1" data-testid="room-card-bots">
+            {bots.length === 0 && <li className="text-sm text-slate-500">No bots here yet.</li>}
+            {bots.map((c) => (
+              <li
+                key={c.key}
+                data-testid={`room-card-bot-${c.key}`}
+                className="flex items-center gap-2 text-sm"
+              >
                 <span
-                  className="h-3 w-3 shrink-0 rounded-full"
-                  style={{ backgroundColor: currentProject.color ?? FALLBACK_COLOR }}
+                  className="h-2.5 w-2.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: BULB[c.status] }}
                 />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-medium">
-                    {currentProject.icon ?? FALLBACK_ICON} {currentProject.name}
-                  </span>
-                  <span className="block truncate text-xs text-slate-500">{currentProject.folder_path}</span>
-                </span>
-              </>
-            ) : (
-              <span className="text-slate-500">Unassigned</span>
-            )}
-          </div>
+                {c.name}
+              </li>
+            ))}
+          </ul>
+        </div>
 
-          <div>
-            <div className="mb-1 text-xs font-semibold text-slate-500 uppercase">Crew here</div>
-            <ul className="flex flex-col gap-1" data-testid="room-card-bots">
-              {bots.length === 0 && <li className="text-sm text-slate-500">No bots here yet.</li>}
-              {bots.map((c) => (
-                <li
-                  key={c.key}
-                  data-testid={`room-card-bot-${c.key}`}
-                  className="flex items-center gap-2 text-sm"
-                >
-                  <span
-                    className="h-2.5 w-2.5 shrink-0 rounded-full"
-                    style={{ backgroundColor: BULB[c.status] }}
-                  />
-                  {c.name}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div>
-            <div className="mb-1 text-xs font-semibold text-slate-500 uppercase">Assign to</div>
-            <ul className="flex max-h-40 flex-col gap-1 overflow-y-auto" data-testid="room-card-project-list">
-              {projects.map((project) => (
-                <li key={project.id}>
-                  <button
-                    type="button"
-                    data-testid={`room-card-project-${project.id}`}
-                    onClick={() => pick(project.id)}
-                    className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm ${
-                      currentProjectId === project.id ? "bg-slate-900/10 font-medium" : "hover:bg-slate-900/5"
-                    }`}
-                  >
-                    <span
-                      className="h-3 w-3 shrink-0 rounded-full"
-                      style={{ backgroundColor: project.color ?? FALLBACK_COLOR }}
-                    />
-                    {project.icon ?? FALLBACK_ICON} {project.name}
-                  </button>
-                </li>
-              ))}
-              <li>
+        <div>
+          <div className="mb-1 text-xs font-semibold text-slate-500 uppercase">Assign to</div>
+          <ul className="flex max-h-40 flex-col gap-1 overflow-y-auto" data-testid="room-card-project-list">
+            {projects.map((project) => (
+              <li key={project.id}>
                 <button
                   type="button"
-                  data-testid="room-card-none"
-                  onClick={() => pick(null)}
-                  className="w-full rounded-full border-2 border-slate-900/10 px-3 py-1.5 text-left text-sm hover:bg-slate-900/5"
+                  data-testid={`room-card-project-${project.id}`}
+                  onClick={() => pick(project.id)}
+                  className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm ${
+                    currentProjectId === project.id ? "bg-slate-900/10 font-medium" : "hover:bg-slate-900/5"
+                  }`}
                 >
-                  No project
+                  <span
+                    className="h-3 w-3 shrink-0 rounded-full"
+                    style={{ backgroundColor: project.color ?? FALLBACK_COLOR }}
+                  />
+                  {project.icon ?? FALLBACK_ICON} {project.name}
                 </button>
               </li>
-            </ul>
-          </div>
+            ))}
+            <li>
+              <button
+                type="button"
+                data-testid="room-card-none"
+                onClick={() => pick(null)}
+                className="w-full rounded-full border-2 border-slate-900/10 px-3 py-1.5 text-left text-sm hover:bg-slate-900/5"
+              >
+                No project
+              </button>
+            </li>
+          </ul>
         </div>
       </div>
-    </div>
+    </GamePanel>
   );
 }

@@ -4,12 +4,19 @@
 // whole crew roster plus the same three shortcuts as HqProps' prop stands
 // (so a player who never spots the tiny furniture can still reach them).
 // HTML overlay like RoomCard/HireDialog — this is UI chrome, not campus
-// geometry.
+// geometry. M9 T2: each roster row is now a button that opens that
+// character's bot dossier (mode.ts's single-open card slot, keyed by the
+// character's own key — a live session's or a resting agent's).
+//
+// Docked side panel (side-panel conversion), not a centered modal — see
+// GamePanel's own header comment. Closing is ✕ or Escape now; there's no
+// backdrop left to click.
 import { useEffect, useMemo, useState } from "react";
 import { openWorkspaceWindow } from "@/game/app/windows";
 import { playSfx } from "@/game/audio/sfx";
 import { useBuildMode } from "@/game/build/mode";
 import { BULB } from "@/game/characters/Characters";
+import { ExitZoomButton, GamePanel } from "@/game/hud/GamePanel";
 import { normalizeFolder, toCharacters } from "@/game/sim/characters";
 import { useAgentsStore } from "@/stores/agents";
 import { useProjectsStore } from "@/stores/projects";
@@ -50,39 +57,25 @@ export function HqCard({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-      onClick={onClose}
+    <GamePanel
+      title={<span className="flex-1 font-bold">🏛 Headquarters</span>}
+      onClose={onClose}
+      headerAction={<ExitZoomButton />}
     >
-      <div
-        data-testid="hq-card"
-        className="flex max-h-[80vh] w-[360px] flex-col rounded-3xl border-2 border-white/60 bg-white/90 text-slate-900 shadow-2xl backdrop-blur"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center gap-2 rounded-t-3xl border-b-2 border-slate-900/10 px-4 py-3">
-          <span className="flex-1 font-bold">🏛 Headquarters</span>
-          <button
-            type="button"
-            aria-label="Close"
-            className="rounded-full px-1.5 py-0.5 font-bold hover:bg-slate-900/10"
-            onClick={onClose}
-          >
-            ✕
-          </button>
-        </div>
-
-        <div className="flex flex-col gap-3 p-3">
-          <div>
-            <div className="mb-1 text-xs font-semibold text-slate-500 uppercase">Crew</div>
-            <ul className="flex max-h-52 flex-col gap-1 overflow-y-auto" data-testid="hq-card-roster">
-              {characters.length === 0 && <li className="text-sm text-slate-500">No crew yet.</li>}
-              {characters.map((c) => {
-                const projectName = c.projectPath ? projectNameByFolder.get(c.projectPath) : undefined;
-                return (
-                  <li
-                    key={c.key}
+      <div data-testid="hq-card" className="flex flex-col gap-3 p-3">
+        <div>
+          <div className="mb-1 text-xs font-semibold text-slate-500 uppercase">Crew</div>
+          <ul className="flex max-h-52 flex-col gap-1 overflow-y-auto" data-testid="hq-card-roster">
+            {characters.length === 0 && <li className="text-sm text-slate-500">No crew yet.</li>}
+            {characters.map((c) => {
+              const projectName = c.projectPath ? projectNameByFolder.get(c.projectPath) : undefined;
+              return (
+                <li key={c.key}>
+                  <button
+                    type="button"
                     data-testid={`hq-card-roster-${c.key}`}
-                    className="flex items-center gap-2 text-sm"
+                    onClick={() => openRoomCard({ kind: "dossier", key: c.key })}
+                    className="flex w-full items-center gap-2 rounded-lg px-1 py-1 text-left text-sm hover:bg-slate-900/5"
                   >
                     <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: c.color }} />
                     <span className="min-w-0 flex-1 truncate">{c.name}</span>
@@ -93,40 +86,40 @@ export function HqCard({ onClose }: { onClose: () => void }) {
                       className="h-2.5 w-2.5 shrink-0 rounded-full"
                       style={{ backgroundColor: BULB[c.status] }}
                     />
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
 
-          <div className="flex flex-col gap-2 border-t-2 border-slate-900/10 pt-3">
-            <button
-              type="button"
-              data-testid="hq-card-projects"
-              onClick={() => openRoomCard({ kind: "projects" })}
-              className="rounded-full border-2 border-slate-900/10 px-3 py-1.5 text-left text-sm hover:bg-slate-900/5"
-            >
-              📋 Projects
-            </button>
-            <button
-              type="button"
-              data-testid="hq-card-hire"
-              onClick={() => openRoomCard({ kind: "hire" })}
-              className="rounded-full border-2 border-slate-900/10 px-3 py-1.5 text-left text-sm hover:bg-slate-900/5"
-            >
-              👥 Hire crew
-            </button>
-            <button
-              type="button"
-              data-testid="hq-card-workspace"
-              onClick={openWorkspace}
-              className="rounded-full border-2 border-slate-900/10 px-3 py-1.5 text-left text-sm hover:bg-slate-900/5"
-            >
-              🧰 Workspace
-            </button>
-          </div>
+        <div className="flex flex-col gap-2 border-t-2 border-slate-900/10 pt-3">
+          <button
+            type="button"
+            data-testid="hq-card-projects"
+            onClick={() => openRoomCard({ kind: "projects" })}
+            className="rounded-full border-2 border-slate-900/10 px-3 py-1.5 text-left text-sm hover:bg-slate-900/5"
+          >
+            📋 Projects
+          </button>
+          <button
+            type="button"
+            data-testid="hq-card-hire"
+            onClick={() => openRoomCard({ kind: "hire" })}
+            className="rounded-full border-2 border-slate-900/10 px-3 py-1.5 text-left text-sm hover:bg-slate-900/5"
+          >
+            👥 Hire crew
+          </button>
+          <button
+            type="button"
+            data-testid="hq-card-workspace"
+            onClick={openWorkspace}
+            className="rounded-full border-2 border-slate-900/10 px-3 py-1.5 text-left text-sm hover:bg-slate-900/5"
+          >
+            🧰 Workspace
+          </button>
         </div>
       </div>
-    </div>
+    </GamePanel>
   );
 }
