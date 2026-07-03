@@ -15,7 +15,7 @@ beforeEach(() => {
 });
 
 describe("BuildPalette", () => {
-  it("renders all 10 item buttons plus the building/select/done tool buttons", () => {
+  it("renders all item buttons plus the building/select/done tool buttons", () => {
     render(<BuildPalette />);
     for (const kind of PLACEABLE_KINDS) {
       expect(screen.getAllByRole("button").some((b) => b.title === kindLabel(kind))).toBe(true);
@@ -83,6 +83,7 @@ const ITEM_TITLES: Record<(typeof PLACEABLE_KINDS)[number], string> = {
   lantern: "Lantern",
   bench: "Bench",
   hedge: "Hedge",
+  fountain: "Fountain", // M6: PLACEABLE_KINDS gains fountain (see edits.ts).
 };
 
 function kindLabel(kind: (typeof PLACEABLE_KINDS)[number]): string {

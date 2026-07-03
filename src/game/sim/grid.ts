@@ -1,7 +1,8 @@
 // Sim nav grid + A* pathfinding (M1 T5) — pure TS, no three.js, no clock,
-// no RNG. Blocks a coarse 1-unit cell per obstacle placement (fountain,
-// trees, rocks, pavilion pillars, desks) and finds smoothed walking routes
-// for the campus sim's characters.
+// no RNG. Blocks a coarse 1-unit cell per obstacle placement (trees, rocks,
+// pavilion/HQ pillars+walls, desks, placed decor) and finds smoothed walking
+// routes for the campus sim's characters. The fountain is placeable decor
+// (M6) now, not a fixed disc — HQ's own wall ring is what guards the origin.
 import type { Building } from "@/game/world/campus/buildings";
 import { CAMPUS, type CampusLayout, type ScatterKind } from "@/game/world/campus/layout";
 
@@ -24,12 +25,12 @@ const BLOCKING_SCATTER: ScatterKind[] = [
   "rockLarge",
 ];
 
-const FOUNTAIN_RADIUS = 5;
-
 /** Half-width of the walkable gap `buildNavGrid` leaves in a building's wall
- *  ring at its door — matches the 2.2-unit visual gap Pavilion.tsx cuts into
- *  the door-side wall (see Pavilion.tsx's DOOR_GAP). */
-const DOOR_GAP_RADIUS = 1.1;
+ *  ring at each door — matches the 2.2-unit visual gap Pavilion.tsx cuts into
+ *  the door-side wall (see Pavilion.tsx's DOOR_GAP). Exported for grid.test.ts's
+ *  supercover regression, which needs the same radius HQ's wall-band check
+ *  uses to know what counts as "the doorway". */
+export const DOOR_GAP_RADIUS = 1.1;
 
 function worldToCell(v: number, grid: NavGrid): number {
   return Math.floor(v / grid.cell + grid.size / 2);
@@ -69,15 +70,6 @@ export function buildNavGrid(
     grid.blocked[idxOf(cx, cz, grid)] = 1;
   };
 
-  // Fountain disc at the plaza center.
-  for (let cz = 0; cz < size; cz++) {
-    for (let cx = 0; cx < size; cx++) {
-      const x = cellToWorld(cx, grid);
-      const z = cellToWorld(cz, grid);
-      if (Math.hypot(x, z) < FOUNTAIN_RADIUS) grid.blocked[idxOf(cx, cz, grid)] = 1;
-    }
-  }
-
   // Trees and large rocks — one blocked cell per placement, coarse is fine.
   // `skipKinds` (M4 debt sweep) opts a kind out entirely: some biomes don't
   // render every blocking kind (sky drops rockLarge/treePine/treeDetailed —
@@ -99,13 +91,16 @@ export function buildNavGrid(
     for (const desk of b.desks) block(desk.x, desk.z);
   }
 
-  // Pavilion walls (M5 T3): block the building's outermost ring of cells —
-  // where Pavilion.tsx's perimeter wall meshes actually stand — except a
-  // door-sized gap so bots can still walk in. Cells strictly inside that
-  // ring stay walkable (the room's floor); cells outside the rect are left
-  // alone entirely.
+  // Pavilion/HQ walls (M5 T3, multi-door M6): block the building's outermost
+  // ring of cells — where Pavilion.tsx's perimeter wall meshes actually
+  // stand — except a gap at every door so bots can still walk in. HQ has
+  // four (one per wall); a plain pavilion falls back to its single `door`.
+  // Cells strictly inside that ring stay walkable (the room's floor,
+  // including HQ's interior — no special-casing needed, it's the same rule
+  // as any other room); cells outside the rect are left alone entirely.
   for (const b of buildings) {
     const { x, z, w, d } = b.rect;
+    const doors = b.doors ?? [b.door];
     const cxMin = clampCell(worldToCell(x - w / 2, grid), grid);
     const cxMax = clampCell(worldToCell(x + w / 2, grid), grid);
     const czMin = clampCell(worldToCell(z - d / 2, grid), grid);
@@ -116,7 +111,7 @@ export function buildNavGrid(
         const wz = cellToWorld(cz, grid);
         const distToEdge = Math.min(w / 2 - Math.abs(wx - x), d / 2 - Math.abs(wz - z));
         if (distToEdge < 0 || distToEdge >= 1) continue; // outside the footprint, or a floor cell
-        if (Math.hypot(wx - b.door.x, wz - b.door.z) <= DOOR_GAP_RADIUS) continue; // the doorway
+        if (doors.some((door) => Math.hypot(wx - door.x, wz - door.z) <= DOOR_GAP_RADIUS)) continue; // a doorway
         grid.blocked[idxOf(cx, cz, grid)] = 1;
       }
     }

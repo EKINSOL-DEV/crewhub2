@@ -3,7 +3,7 @@
 // seeded CampusLayout/campusBuildings; applyEdits merges the two for render.
 import type { ModelId } from "@/game/assets/manifest";
 import type { Building, Desk } from "@/game/world/campus/buildings";
-import { nearestEdgeDoor } from "@/game/world/campus/buildings";
+import { HQ_RECT, nearestEdgeDoor } from "@/game/world/campus/buildings";
 import {
   CAMPUS,
   insidePlaza,
@@ -25,6 +25,7 @@ export const PLACEABLE_KINDS = [
   "lantern",
   "bench",
   "hedge",
+  "fountain", // M6: the fountain leaves the fixed plaza-center disc and becomes placeable decor.
 ] as const satisfies readonly ModelId[];
 
 export type PlaceableKind = (typeof PLACEABLE_KINDS)[number];
@@ -98,6 +99,7 @@ export function canPlaceItem(edits: CampusEdits, layout: CampusLayout, x: number
   if (Math.abs(x) > bound || Math.abs(z) > bound) return false;
   if (insidePlaza(x, z, 1)) return false;
   if (insidePlot(x, z, layout.plots, 1)) return false;
+  if (insidePlot(x, z, [HQ_RECT], 2)) return false;
   if (insidePlacedBuilding(edits, x, z, 1)) return false;
   if (tooCloseToItem(edits, x, z)) return false;
   return true;
@@ -127,6 +129,7 @@ export function canPlaceBuilding(edits: CampusEdits, layout: CampusLayout, rect:
   const bound = CAMPUS.half - 1;
   if (Math.abs(rect.x) + rect.w / 2 > bound || Math.abs(rect.z) + rect.d / 2 > bound) return false;
   if (overlapsCircle(rect, 0, 0, CAMPUS.plazaRadius + 2)) return false;
+  if (rectsOverlap(rect, HQ_RECT, 2)) return false;
   if (layout.plots.some((p) => rectsOverlap(rect, p, 1))) return false;
   if (edits.buildings.some((b) => rectsOverlap(rect, { x: b.x, z: b.z, w: b.w, d: b.d }, 1))) return false;
   return true;

@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { campusLayout } from "@/game/world/campus/layout";
+import { HQ_RECT } from "@/game/world/campus/buildings";
+import { campusLayout, insidePlaza } from "@/game/world/campus/layout";
 import {
   applyEdits,
   buildingDesks,
   canPlaceBuilding,
   canPlaceItem,
   EMPTY_EDITS,
+  PLACEABLE_KINDS,
   placedItemPlacements,
   ROT_STEP,
   snap,
@@ -15,6 +17,12 @@ import {
 } from "./edits";
 
 const layout = campusLayout();
+
+describe("PLACEABLE_KINDS", () => {
+  it("includes fountain — M6 relocates it from the fixed plaza disc to placeable decor", () => {
+    expect(PLACEABLE_KINDS).toContain("fountain");
+  });
+});
 
 describe("snap", () => {
   it("rounds to the nearest 1-unit grid cell", () => {
@@ -56,6 +64,18 @@ describe("canPlaceItem", () => {
     expect(canPlaceItem(edits, layout, 0, 30)).toBe(false);
     expect(canPlaceItem(edits, layout, 10, 30)).toBe(true);
   });
+
+  it("rejects points inside HQ's footprint, even beyond the plaza's circular margin (M6)", () => {
+    // (8, 5): hypot ~9.43, clear of the plaza's radius-8 circular margin —
+    // but still inside HQ_RECT's margin-2 rect (|8|<7+2 and |5|<6+2), so
+    // only the new HQ-specific check catches it.
+    const x = HQ_RECT.w / 2 + 1;
+    const z = HQ_RECT.d / 2 - 1;
+    expect(insidePlaza(x, z, 1)).toBe(false);
+    expect(canPlaceItem(EMPTY_EDITS, layout, x, z)).toBe(false);
+    // Comfortably clear of HQ's margin too.
+    expect(canPlaceItem(EMPTY_EDITS, layout, HQ_RECT.w / 2 + 5, z)).toBe(true);
+  });
 });
 
 describe("canPlaceBuilding", () => {
@@ -77,6 +97,16 @@ describe("canPlaceBuilding", () => {
 
   it("rejects rects overlapping the plaza margin", () => {
     expect(canPlaceBuilding(EMPTY_EDITS, layout, { x: 0, z: 0, w: 6, d: 5 })).toBe(false);
+  });
+
+  it("rejects rects overlapping HQ's footprint (M6)", () => {
+    // Straddles HQ's south wall (z = HQ_RECT.d/2 = 6): rejected regardless
+    // of the plaza circle check, since HQ_RECT's own margin-2 rect now
+    // covers it too.
+    const straddling = { x: 0, z: HQ_RECT.d / 2 + 2.5, w: 6, d: 5 };
+    expect(canPlaceBuilding(EMPTY_EDITS, layout, straddling)).toBe(false);
+    // Clear of HQ (and the plaza) once far enough out.
+    expect(canPlaceBuilding(EMPTY_EDITS, layout, { ...straddling, z: 15 })).toBe(true);
   });
 
   it("rejects rects overlapping a default plot", () => {

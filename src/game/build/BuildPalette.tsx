@@ -21,6 +21,10 @@ const ITEM_LABELS: Record<PlaceableKind, { emoji: string; label: string }> = {
   lantern: { emoji: "🏮", label: "Lantern" },
   bench: { emoji: "🪑", label: "Bench" },
   hedge: { emoji: "🧱", label: "Hedge" },
+  // M6: fountain leaves the fixed plaza disc and joins PLACEABLE_KINDS
+  // (src/game/build/edits.ts) — this Record is keyed by PlaceableKind, so
+  // every kind needs an entry or the palette throws on render.
+  fountain: { emoji: "⛲", label: "Fountain" },
 };
 
 function sameTool(a: BuildTool, b: BuildTool): boolean {

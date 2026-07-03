@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { HQ_RECT } from "@/game/world/campus/buildings";
 import { CAMPUS, campusLayout, insidePlaza, insidePlot, nearPath } from "./layout";
 
 describe("campusLayout", () => {
@@ -46,10 +47,20 @@ describe("campusLayout", () => {
     }
   });
 
-  it("places plaza props: benches face the fountain, lanterns line the paths", () => {
+  it("places plaza props: benches face HQ, lanterns line the paths", () => {
     expect(layout.props.bench).toHaveLength(4);
     expect(layout.props.lantern.length).toBeGreaterThanOrEqual(8);
     expect(layout.props.banner).toHaveLength(4);
     expect(layout.props.hedge.length).toBeGreaterThan(4);
+  });
+
+  it("rings the bench seats outside HQ's walls, clear of every door's walk-in lane (M6)", () => {
+    const hqCorner = Math.hypot(HQ_RECT.w / 2, HQ_RECT.d / 2);
+    for (const b of layout.props.bench) {
+      expect(Math.hypot(b.x, b.z)).toBeGreaterThan(hqCorner);
+      // Neither coordinate sits within 1.5u of the x=0/z=0 axes a door opens onto.
+      expect(Math.abs(b.x)).toBeGreaterThan(1.5);
+      expect(Math.abs(b.z)).toBeGreaterThan(1.5);
+    }
   });
 });

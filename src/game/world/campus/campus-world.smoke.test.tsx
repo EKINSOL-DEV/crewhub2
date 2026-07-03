@@ -91,6 +91,11 @@ describe("CampusWorld smoke", () => {
     // Pavilions (M1 T1, walls M5 T3): each pavilion = 1 slab + 4 pillars +
     // 3 beams + walls (3 full sides + 2 segments on the door-side wall) +
     // 4 desks × (1 top + 2 legs + 1 screen) = 29 meshes; 4 pavilions = 116.
+    // M6: campusBuildings() prepends the permanent HQ building, which
+    // CampusWorld renders through the same Pavilion component — but HQ has
+    // no desks, so it's 1 slab + 4 pillars + 3 beams + walls (5, same as any
+    // other single-door pavilion — Pavilion.tsx doesn't yet know about
+    // Building.doors, so it only cuts a gap for the primary `door`) = 13.
     // Player-placed decor (M3 T4) renders through the same InstancedModel
     // path, grouped by kind — with the default EMPTY_EDITS state (no
     // player edits) that group renders nothing, so the formula below is
@@ -98,7 +103,8 @@ describe("CampusWorld smoke", () => {
     const TERRAIN_MESHES = 5;
     const FOUNTAIN_MESHES = 2;
     const CLOUD_MESHES = 7 * 3;
-    const PAVILION_MESHES = 4 * 29;
+    const HQ_MESHES = 13;
+    const PAVILION_MESHES = 4 * 29 + HQ_MESHES;
     expect(meshes.length).toBe(
       totalPlacements + TERRAIN_MESHES + FOUNTAIN_MESHES + CLOUD_MESHES + PAVILION_MESHES,
     );
