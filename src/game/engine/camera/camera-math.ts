@@ -102,6 +102,25 @@ export function edgeScrollActive(modeKind: CameraMode["kind"], restoring: boolea
   return modeKind === "free" && !restoring;
 }
 
+/** Below this cumulative pixel distance from a drag's pointerdown origin,
+ *  movement reads as a click's natural wobble rather than deliberate drag
+ *  intent — see `dragArmed`'s doc comment for why this matters. */
+const DRAG_DEAD_ZONE_PX = 4;
+
+/**
+ * Whether cumulative pointer movement since a left/right-drag's pointerdown
+ * origin is enough to count as deliberate drag intent (M8 T3 fix): without
+ * this, GameCameraRig treated ANY left-drag movement, even a 1px wobble
+ * between a building click and pointerup, as pan intent — which immediately
+ * took over (and exited) the focus/follow session that same click had just
+ * entered. Below the dead zone, the rig does nothing at all (no pan, no
+ * rotate, no takeover); once armed, ordinary per-frame deltas resume as
+ * before this fix.
+ */
+export function dragArmed(totalDx: number, totalDy: number): boolean {
+  return Math.hypot(totalDx, totalDy) >= DRAG_DEAD_ZONE_PX;
+}
+
 /** Flight-home restore: chase every field back toward the pre-cinematic snapshot taken on entry. */
 export function chaseRestore(current: RtsCamera, saved: RtsCamera, k: number): RtsCamera {
   return {

@@ -38,13 +38,27 @@
 // isn't a deliberate "give me back control" the way a drag or a held key
 // is, so it's excluded entirely while focus/follow is framing a shot and
 // while flight-home is restoring — only a drag or WASD/arrows takes the
-// camera back in those modes.
+// camera back in those modes. A left/right-drag only counts as that once it
+// clears camera-math.ts's `dragArmed` dead zone (M8 T3 fix): without it, the
+// pointer's natural sub-pixel wobble between a building click and its
+// pointerup registered as drag pan and immediately took over the
+// focus/follow the SAME click had just entered.
 //
 // Every frame also mirrors the damped `current.current.yaw` into
 // live-camera.ts's module-level `setLiveYaw` — CampusWorld/PlacedBuildings'
 // building-click handlers (M8 T3) read it back via `getLiveYaw()` to seed
 // focusBuilding()'s currentYaw, since this rig's own goal/current state is
 // otherwise private to this file (see the top of this comment).
+//
+// M8 T3 also removed the M4-era `focus` prop (a one-shot goal snap fired
+// from GameShell's onSelect on every robot click): followBot() now owns
+// that job — it both frames the bot immediately AND keeps tracking it every
+// frame after, which the old prop never did. Keeping both around raced: the
+// prop's effect ran synchronously during React's event flush, BEFORE this
+// component's next useFrame — so it snapped goal.current to the bot's
+// position before the free -> follow entry edge below had a chance to
+// snapshot the PLAYER's pre-cinematic view, corrupting restoreGoalRef with
+// the bot's position instead.
 import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import {
@@ -52,6 +66,7 @@ import {
   chaseFollow,
   chaseRestore,
   dampK,
+  dragArmed,
   edgeScrollActive,
   FOCUS_ADJUST_IDENTITY,
   isRestored,
@@ -61,17 +76,7 @@ import {
 } from "./camera-math";
 import { useCameraDirector, type CameraMode } from "./director";
 import { setLiveYaw } from "./live-camera";
-import {
-  DEFAULT_CAMERA,
-  damp,
-  focusOn,
-  pan,
-  pose,
-  rotate,
-  zoom,
-  type RtsBounds,
-  type RtsCamera,
-} from "./rts-camera";
+import { DEFAULT_CAMERA, damp, pan, pose, rotate, zoom, type RtsBounds, type RtsCamera } from "./rts-camera";
 import { getLiveBot } from "@/game/sim/live-bots";
 
 const KEY_PAN_PX = 640; // px-equivalent per second held
@@ -86,12 +91,9 @@ const CINEMATIC_RATE = 3;
 
 export function GameCameraRig({
   bounds,
-  focus,
   enabled = true,
 }: {
   bounds: RtsBounds;
-  /** A robot to center on — `seq` bumps to refocus the same spot again. Not a lock: the next pan/rotate/zoom just overwrites the goal as usual. */
-  focus?: { x: number; z: number; seq: number } | null;
   /**
    * Gates drag-to-pan/rotate only (M3 T4: build mode owns the pointer while
    * placing) — wheel zoom and WASD/edge-scroll keep working either way, so
@@ -105,7 +107,19 @@ export function GameCameraRig({
   const current = useRef<RtsCamera>({ ...DEFAULT_CAMERA });
   const keys = useRef(new Set<string>());
   const pointer = useRef<{ x: number; y: number } | null>(null);
-  const drag = useRef<{ button: number; x: number; y: number } | null>(null);
+  // `originX/Y` is the pointerdown position (never updated) — dragArmed
+  // measures cumulative movement against it, M8 T3's dead-zone fix.
+  // `armed` latches true once that's cleared once, so later per-frame
+  // deltas (`x`/`y`, updated every move) resume as ordinary drag/rotate
+  // input rather than being re-measured against the origin every time.
+  const drag = useRef<{
+    button: number;
+    x: number;
+    y: number;
+    originX: number;
+    originY: number;
+    armed: boolean;
+  } | null>(null);
 
   // M8 T2 cinematic bookkeeping — see the file doc comment above.
   const prevModeKind = useRef<CameraMode["kind"]>("free");
@@ -115,23 +129,33 @@ export function GameCameraRig({
   const focusAdjust = useRef<FocusAdjust>(FOCUS_ADJUST_IDENTITY);
 
   useEffect(() => {
-    if (!focus) return;
-    goal.current = focusOn(goal.current, focus.x, focus.z);
-    // Refiring on `seq` alone (not x/z) is deliberate — clicking the same
-    // robot again should refocus even though its position hasn't changed.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focus?.seq]);
-
-  useEffect(() => {
     const el = gl.domElement;
     const down = (e: PointerEvent) => {
       if (e.button === 0 || e.button === 2) {
-        drag.current = { button: e.button, x: e.clientX, y: e.clientY };
+        drag.current = {
+          button: e.button,
+          x: e.clientX,
+          y: e.clientY,
+          originX: e.clientX,
+          originY: e.clientY,
+          armed: false,
+        };
         el.setPointerCapture(e.pointerId);
       }
     };
     const move = (e: PointerEvent) => {
       if (!drag.current) return;
+      if (!drag.current.armed) {
+        if (!dragArmed(e.clientX - drag.current.originX, e.clientY - drag.current.originY)) {
+          // Still inside the dead zone — a click's natural pointer wobble,
+          // not drag intent yet (M8 T3 fix). Track the latest position so
+          // that once armed, the first real delta is measured from here,
+          // not a jump all the way back to the pointerdown origin.
+          drag.current = { ...drag.current, x: e.clientX, y: e.clientY };
+          return;
+        }
+        drag.current = { ...drag.current, armed: true };
+      }
       const dx = e.clientX - drag.current.x;
       const dy = e.clientY - drag.current.y;
       drag.current = { ...drag.current, x: e.clientX, y: e.clientY };
@@ -222,8 +246,16 @@ export function GameCameraRig({
     if (prevKind === "free" && mode.kind !== "free") {
       // Entry edge: snapshot once — restoreGoalRef is the only copy (see
       // the file doc comment for why director.ts no longer mirrors this).
+      // Also clear a stale takeoverRef (M8 T3 fix): left over true from an
+      // earlier session it wasn't cleared for, it would falsely treat THIS
+      // session's later, legitimate exit as a takeover too and skip the
+      // restore it deserves — a brand new cinematic session always starts
+      // with a clean slate. Untested at the rig level (no r3f useFrame
+      // harness exists in this repo for GameCameraRig itself — see
+      // camera-math.ts's file doc comment on that gap).
       restoreGoalRef.current = { ...goal.current };
       restoring.current = false;
+      takeoverRef.current = false;
     }
     if (prevKind !== "focus" && mode.kind === "focus") {
       // Freshly framing a building (from free OR straight from follow) always

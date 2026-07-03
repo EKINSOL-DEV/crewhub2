@@ -67,14 +67,21 @@ export function shouldExitCameraOnEscape(
  * same routing as before this task. Build-mode item-tool clicks never reach
  * here at all (Characters.tsx's own guard suppresses onSelect entirely), so
  * there's no separate build-mode guard to test in this function.
+ *
+ * No longer takes the bot's click-time position: that used to also drive a
+ * one-shot `setFocus` snap on GameCameraRig's now-removed M4-era `focus`
+ * prop, dropped in the same fix wave that removed that prop (see
+ * GameCameraRig.tsx's file doc comment) — followBot() already frames the
+ * bot on entry AND keeps tracking it every frame after, which the old
+ * snap-only prop never did, and the two racing corrupted the rig's restore
+ * snapshot. Characters' onSelect still passes a position (its own contract,
+ * used nowhere else) — the call site below just no longer forwards it.
  */
 export function selectCharacter(
   key: string,
-  pos: { x: number; z: number },
   deps: {
     setHireAgentId: Dispatch<SetStateAction<string | undefined>>;
     setHireOpen: Dispatch<SetStateAction<boolean>>;
-    setFocus: Dispatch<SetStateAction<{ x: number; z: number; seq: number } | null>>;
   },
 ): void {
   useCameraDirector.getState().followBot(key);
@@ -85,7 +92,6 @@ export function selectCharacter(
     deps.setHireOpen(true);
   } else {
     useGameChats.getState().open(key);
-    deps.setFocus((f) => ({ x: pos.x, z: pos.z, seq: (f?.seq ?? 0) + 1 }));
   }
 }
 
@@ -94,7 +100,6 @@ export default function GameShell() {
   const [botCount, setBotCount] = useState(0);
   const [hireOpen, setHireOpen] = useState(false);
   const [hireAgentId, setHireAgentId] = useState<string | undefined>(undefined);
-  const [focus, setFocus] = useState<{ x: number; z: number; seq: number } | null>(null);
   const envId = useGameEnvironment((s) => s.id);
   const env = environmentById(envId);
   const night = useGameEnvironment((s) => s.night);
@@ -168,14 +173,10 @@ export default function GameShell() {
           <Characters
             override={DEMO_CHARACTERS}
             onCount={setBotCount}
-            onSelect={(k, pos) => selectCharacter(k, pos, { setHireAgentId, setHireOpen, setFocus })}
+            onSelect={(k) => selectCharacter(k, { setHireAgentId, setHireOpen })}
           />
         </Suspense>
-        <GameCameraRig
-          bounds={CAMERA_BOUNDS}
-          focus={focus}
-          enabled={!buildActive || buildTool.kind === "select"}
-        />
+        <GameCameraRig bounds={CAMERA_BOUNDS} enabled={!buildActive || buildTool.kind === "select"} />
         {/* Own boundary: the ghost model's useModel() can suspend on first
             pick, and build mode must never blank the campus underneath it. */}
         {buildActive && (

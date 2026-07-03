@@ -4,6 +4,7 @@ import {
   chaseFollow,
   chaseRestore,
   dampK,
+  dragArmed,
   edgeScrollActive,
   FOCUS_ADJUST_IDENTITY,
   isRestored,
@@ -165,5 +166,28 @@ describe("edgeScrollActive", () => {
   it("is inactive while following a bot, restoring or not", () => {
     expect(edgeScrollActive("follow", false)).toBe(false);
     expect(edgeScrollActive("follow", true)).toBe(false);
+  });
+});
+
+describe("dragArmed", () => {
+  it("is not armed for zero movement (the pointerdown instant itself)", () => {
+    expect(dragArmed(0, 0)).toBe(false);
+  });
+
+  it("is not armed for a sub-pixel-scale wobble below the dead zone", () => {
+    expect(dragArmed(1, 0)).toBe(false);
+    expect(dragArmed(0, -2)).toBe(false);
+    expect(dragArmed(2, 2)).toBe(false); // hypot ~2.83, still under 4
+  });
+
+  it("is armed once cumulative movement reaches the dead zone, on either axis or combined", () => {
+    expect(dragArmed(4, 0)).toBe(true);
+    expect(dragArmed(0, -4)).toBe(true);
+    expect(dragArmed(3, 3)).toBe(true); // hypot ~4.24
+  });
+
+  it("is armed for any movement well past the dead zone, in any direction", () => {
+    expect(dragArmed(100, 0)).toBe(true);
+    expect(dragArmed(-50, -50)).toBe(true);
   });
 });
