@@ -70,6 +70,9 @@ function HireDialogInner({
         setError(result.error);
         return;
       }
+      // Accepted debt: open() below also plays "chat-open", so a hire fires
+      // two short cues back-to-back. Deliberate — a combined cue isn't worth
+      // special-casing the store.
       playSfx("hire");
       useGameChats.getState().open(result.key);
       onClose();

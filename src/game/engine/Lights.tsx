@@ -35,6 +35,9 @@ export function Lights({ env }: { env: GameEnvironment }) {
   const [initial] = useState(() => (night ? nightRig(env) : dayRig(env)));
 
   useFrame((_, dt) => {
+    // Accepted debt: this allocates a fresh rig object every frame with no
+    // convergence gate. Object literals at 60fps are negligible GC pressure;
+    // revisit only if profiling ever says otherwise.
     const target = night ? nightRig(env) : dayRig(env);
     const k = 1 - Math.exp(-DAMP_RATE * dt);
     const scratch = scratchColor.current;

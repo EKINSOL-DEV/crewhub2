@@ -110,7 +110,7 @@ M0+M1 are the proof point before any build-mode investment. Each milestone gets 
 1. **D1 Art source** — CC0 kits (Kenney/Quaternius/Poly Pizza) + custom rigged robots.
 2. **D2 Robot look** — evolve the boxy v1 robots (boxy head/body, big eyes, blush, antenna status bulb) into rigged, animated glTF characters.
 3. **D3 Flavor brain** — on by default with a strict throttle and a visible cost indicator.
-4. **D4 2D workspace** — **removed**; the game is the only UI (panels linger as a debug surface until M2 game-native equivalents, deleted by M4).
+4. **D4 2D workspace** — **partial as of M4**: the game is the main window and the old 3D world panel is deleted, but the workspace window (`?window=workspace`) and its panels are retained until game-native equivalents exist (board/crew/sessions/settings reachable via HUD chips).
 
 ## Non-goals
 
