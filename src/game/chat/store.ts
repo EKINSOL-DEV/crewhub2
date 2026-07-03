@@ -22,6 +22,11 @@ export interface OpenChat {
 }
 
 const MAX_OPEN = 3;
+/** Per-chat local-line cap (review follow-up) — a long-running demo bot or a
+ *  chatty session-less crew member can otherwise grow this unboundedly since
+ *  nothing else ever prunes it (see the doc comment below). Oldest lines
+ *  drop first, same "keep the newest" spirit as MAX_OPEN above. */
+const LOCAL_LINES_MAX = 200;
 
 // M7 T3: synthetic seqs for locally-added lines, strictly decreasing so they
 // can never collide with a real (always >= 0) transcript seq.
@@ -42,7 +47,9 @@ interface GameChatsState {
    * newest thing that happened, so appending (rather than sorting by the
    * synthetic seq) is both correct and cheaper. Kept across chat close/
    * reopen — losing "on my way!" feedback the moment a window closes would
-   * be a surprising, and the data's tiny, so there's no reason to prune it.
+   * be a surprising, and the data's tiny — capped at LOCAL_LINES_MAX per
+   * key (oldest dropped first) rather than pruned outright, so a
+   * long-lived chat can't grow this without bound.
    */
   localLines: Record<string, ChatLine[]>;
   /** Open (or un-minimize and raise) the chat for this bot. */
@@ -63,18 +70,21 @@ export const useGameChats = create<GameChatsState>((set) => ({
   chats: [],
   localLines: {},
   addLocalLine: (key, who, text, opts) =>
-    set((s) => ({
-      localLines: {
-        ...s.localLines,
-        [key]: [
-          ...(s.localLines[key] ?? []),
-          // exactOptionalPropertyTypes: only include `echo` at all when true,
-          // rather than assigning `opts?.echo` (which would widen it to
-          // `boolean | undefined` on the object literal itself).
-          { seq: nextLocalSeq(), who, text, ts: Date.now(), ...(opts?.echo ? { echo: true } : {}) },
-        ],
-      },
-    })),
+    set((s) => {
+      const next = [
+        ...(s.localLines[key] ?? []),
+        // exactOptionalPropertyTypes: only include `echo` at all when true,
+        // rather than assigning `opts?.echo` (which would widen it to
+        // `boolean | undefined` on the object literal itself).
+        { seq: nextLocalSeq(), who, text, ts: Date.now(), ...(opts?.echo ? { echo: true } : {}) },
+      ];
+      return {
+        localLines: {
+          ...s.localLines,
+          [key]: next.length > LOCAL_LINES_MAX ? next.slice(next.length - LOCAL_LINES_MAX) : next,
+        },
+      };
+    }),
   open: (key) => {
     playSfx("chat-open");
     set((s) => {

@@ -156,5 +156,13 @@ describe("useGameChats", () => {
       expect(note!.echo).toBeFalsy();
       expect(user!.echo).toBeFalsy();
     });
+
+    it("caps a chat's local lines at 200, dropping the oldest first", () => {
+      for (let i = 0; i < 205; i++) useGameChats.getState().addLocalLine("a", "note", `line ${i}`);
+      const lines = useGameChats.getState().localLines.a!;
+      expect(lines).toHaveLength(200);
+      expect(lines[0]!.text).toBe("line 5"); // the first 5 (0-4) were dropped
+      expect(lines[lines.length - 1]!.text).toBe("line 204");
+    });
   });
 });
