@@ -65,12 +65,14 @@ describe("canPlaceItem", () => {
     expect(canPlaceItem(edits, layout, 10, 30)).toBe(true);
   });
 
-  it("rejects points inside HQ's footprint, even beyond the plaza's circular margin (M6)", () => {
-    // (8, 5): hypot ~9.43, clear of the plaza's radius-8 circular margin —
-    // but still inside HQ_RECT's margin-2 rect (|8|<7+2 and |5|<6+2), so
-    // only the new HQ-specific check catches it.
-    const x = HQ_RECT.w / 2 + 1;
-    const z = HQ_RECT.d / 2 - 1;
+  it("rejects points inside HQ's footprint, even beyond the plaza's circular margin (M9 HQ regrowth)", () => {
+    // Offset 1.5u into HQ_RECT's margin-2 rect on both axes — always inside
+    // it regardless of HQ_RECT's own size (1.5 < the 2u margin) — but far
+    // enough from the origin (hypot ≈13.5) to clear the plaza's (grown
+    // alongside HQ) radius-11 circular margin, so only the HQ-specific rect
+    // check catches it.
+    const x = HQ_RECT.w / 2 + 1.5;
+    const z = HQ_RECT.d / 2 + 1.5;
     expect(insidePlaza(x, z, 1)).toBe(false);
     expect(canPlaceItem(EMPTY_EDITS, layout, x, z)).toBe(false);
     // Comfortably clear of HQ's margin too.
@@ -99,13 +101,15 @@ describe("canPlaceBuilding", () => {
     expect(canPlaceBuilding(EMPTY_EDITS, layout, { x: 0, z: 0, w: 6, d: 5 })).toBe(false);
   });
 
-  it("rejects rects overlapping HQ's footprint, even clear of the plaza's circular margin (M6)", () => {
-    // Rect near HQ's NE corner: its closest point to the origin is (8, 5.5)
-    // — x clamped to the rect's near edge (11 - w/2 = 8), z clamped to the
-    // rect's near edge (8 - d/2 = 5.5) — hypot ~9.71, outside the plaza's
-    // radius-9 circle (CAMPUS.plazaRadius + 2), so the plaza check alone
-    // would NOT catch this; only HQ_RECT's own margin-2 rect does.
-    const nearHqCorner = { x: 11, z: 8, w: 6, d: 5 };
+  it("rejects rects overlapping HQ's footprint, even clear of the plaza's circular margin (M9 HQ regrowth)", () => {
+    // Rect near HQ's NE corner, offset from HQ_RECT's own half-extents so
+    // this keeps working if HQ_RECT's size changes again: its closest point
+    // to the origin clears the plaza's (grown alongside HQ) radius-13
+    // circle (CAMPUS.plazaRadius + 2), so the plaza check alone would NOT
+    // catch this — but it still overlaps HQ_RECT's own margin-2 rect.
+    const hw = HQ_RECT.w / 2;
+    const hd = HQ_RECT.d / 2;
+    const nearHqCorner = { x: hw + 4.8, z: hd + 3.8, w: 6, d: 5 };
     const closest = { x: nearHqCorner.x - nearHqCorner.w / 2, z: nearHqCorner.z - nearHqCorner.d / 2 };
     expect(Math.hypot(closest.x, closest.z)).toBeGreaterThan(CAMPUS.plazaRadius + 2);
     expect(canPlaceBuilding(EMPTY_EDITS, layout, nearHqCorner)).toBe(false);

@@ -170,6 +170,13 @@ export function CampusWorld({ biome = BIOMES.campus }: { biome?: Biome }) {
           </group>
         ))}
       </group>
+      {/* HQ's interactive prop stands (M9 polish). Deliberately OUTSIDE the
+          frozen static-matrix group: mounting them inside it blacked the
+          entire first WebGL render (world + robots gone, no console error —
+          controller bisect 2026-07-04). Root cause unresolved; the cost of
+          leaving these ~40 matrices auto-updating is negligible, so they
+          live here with the plate/placed decor. */}
+      <HqProps />
       {/* Placed pavilions (M3 T5): a disjoint set from the seeded four above,
           so no dedup needed — see PlacedBuildings' header for why this stays
           outside the frozen static-matrix group. */}
@@ -212,11 +219,6 @@ export function CampusWorld({ biome = BIOMES.campus }: { biome?: Biome }) {
           />
         ))}
       <HeadquartersPlate position={[0, HQ_PLATE_Y, 0]} />
-      {/* HQ's interactive prop stands (M6 T4) — same outside-the-frozen-group
-          placement as the plate above, and for the same reason: their icon
-          plates are Billboards that must keep facing the camera every
-          frame. */}
-      <HqProps />
     </group>
   );
 }

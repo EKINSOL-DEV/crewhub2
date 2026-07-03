@@ -137,9 +137,10 @@ describe("createSim", () => {
     expect(sim.world.bots.get("a")!.deskId).toBe(deskId);
   });
 
-  it("walks a WaitingForPermission character to the plaza ring outside HQ's walls (radius 9.5) and raises its hand", () => {
-    // M6 T2: the ring moved from 11 to 9.5 — just outside HQ's walls (halves
-    // 7 and 6, farthest corner ~9.2) instead of an arbitrary plaza radius.
+  it("walks a WaitingForPermission character to the plaza ring outside HQ's walls (radius 12) and raises its hand", () => {
+    // M6 T2: the ring moved from 11 to 9.5, just outside HQ's walls; M9 grew
+    // HQ itself (halves 9 and 7, farthest corner ~11.4), so the ring grew
+    // with it to 12.
     const { grid, buildings } = fakeWorld();
     const sim = createSim(grid, buildings, SEED);
     sim.sync([char("a", "WaitingForPermission")]);
@@ -148,7 +149,7 @@ describe("createSim", () => {
     tickUntil(sim, 0.5, 500, () => bot.motion === "raise-hand");
 
     expect(bot.path).toHaveLength(0);
-    expect(Math.hypot(bot.x, bot.z)).toBeCloseTo(9.5, 0); // within a cell of the ring
+    expect(Math.hypot(bot.x, bot.z)).toBeCloseTo(12, 0); // within a cell of the ring
     expect(bot.motion).toBe("raise-hand");
   });
 
@@ -404,7 +405,7 @@ describe("Sim.updateWorld", () => {
     tickUntil(sim, 0.5, 500, () => bot.path.length === 0);
     expect(bot.deskId).toBeNull();
     expect(bot.motion).toBe("sit-type"); // overflow still reads as "seated", now on the outside ring
-    expect(Math.hypot(bot.x, bot.z)).toBeCloseTo(9.5, 0); // M6 T2: ring moved from 8 to 9.5
+    expect(Math.hypot(bot.x, bot.z)).toBeCloseTo(12, 0); // M9: ring grew to 12 alongside HQ
   });
 
   it("keeps a WaitingForInput bot's desk claim across a no-op updateWorld (that branch only ever reads deskId, never re-requests)", () => {
@@ -476,7 +477,7 @@ describe("Sim.updateWorld", () => {
 
     tickUntil(sim, 0.5, 500, () => y.path.length === 0);
     expect(y.motion).toBe("sit-type"); // still overflow, seated on the outside ring
-    expect(Math.hypot(y.x, y.z)).toBeCloseTo(9.5, 0); // M6 T2: ring moved from 8 to 9.5
+    expect(Math.hypot(y.x, y.z)).toBeCloseTo(12, 0); // M9: ring grew to 12 alongside HQ
   });
 });
 
@@ -563,7 +564,7 @@ describe("createSim — real campus grid (integration)", () => {
 
     const overflowBot = sim.world.bots.get(overflow[0]!.key)!;
     expect(overflowBot.motion).toBe("sit-type");
-    expect(Math.hypot(overflowBot.x, overflowBot.z)).toBeCloseTo(9.5, 0); // M6 T2: ring moved from 8 to 9.5
+    expect(Math.hypot(overflowBot.x, overflowBot.z)).toBeCloseTo(12, 0); // M9: ring grew to 12 alongside HQ
     expect(insideAnyBuildingRect(overflowBot.x, overflowBot.z, [buildings[0]!], 0)).toBe(false); // outside HQ
   });
 
@@ -578,7 +579,7 @@ describe("createSim — real campus grid (integration)", () => {
     for (const c of characters) {
       const bot = sim.world.bots.get(c.key)!;
       const r = Math.hypot(bot.x, bot.z);
-      expect(Math.abs(r - 9.5)).toBeLessThan(1.5); // grid-snap slack, same as the overflow ring above
+      expect(Math.abs(r - 12)).toBeLessThan(1.5); // grid-snap slack, same as the overflow ring above
       expect(insideAnyBuildingRect(bot.x, bot.z, [buildings[0]!], 0)).toBe(false); // outside HQ's walls
     }
   });
@@ -758,9 +759,9 @@ describe("Sim — M5 T2 project rooms (groupKey desk-pool matching)", () => {
     expect(overflowBot.motion).toBe("sit-type"); // overflow ring reads as seated, not a wanderer
     // "Near" not "at": the ring target re-quantizes onto the nav grid's
     // 1-unit cells (same cell-snap slack as the WaitingForInput desk-return
-    // test above), so allow a bit over a cell of drift from radius 9.5 (M6
-    // T2: ring moved from 8 to 9.5, outside HQ's walls).
-    expect(Math.abs(Math.hypot(overflowBot.x, overflowBot.z) - 9.5)).toBeLessThan(1.5);
+    // test above), so allow a bit over a cell of drift from radius 12 (M9:
+    // ring grew to 12 alongside HQ, outside its walls).
+    expect(Math.abs(Math.hypot(overflowBot.x, overflowBot.z) - 12)).toBeLessThan(1.5);
   });
 
   it("updateWorld relinking a building's group releases the old holder's desk (who then wanders) while an untouched building's claim survives (M3 invariant)", () => {
@@ -1069,10 +1070,10 @@ describe("Sim.command — determinism (M7 T2)", () => {
 });
 
 describe("outsideRingPoint (M6 T2 — plaza ring outside HQ, door lanes skipped)", () => {
-  it("always lands exactly on the radius-9.5 ring, for many keys", () => {
+  it("always lands exactly on the radius-12 ring, for many keys", () => {
     for (let i = 0; i < 500; i++) {
       const { x, z } = outsideRingPoint(`key-${i}`);
-      expect(Math.hypot(x, z)).toBeCloseTo(9.5, 10); // rotation only changes angle, never radius
+      expect(Math.hypot(x, z)).toBeCloseTo(12, 10); // rotation only changes angle, never radius
     }
   });
 
@@ -1083,11 +1084,11 @@ describe("outsideRingPoint (M6 T2 — plaza ring outside HQ, door lanes skipped)
     }
   });
 
-  it("radius 9.5 never falls inside HQ's rect, for any angle (the ring geometry the whole contract rests on)", () => {
+  it("radius 12 never falls inside HQ's rect, for any angle (the ring geometry the whole contract rests on)", () => {
     for (let deg = 0; deg < 360; deg++) {
       const angle = deg * (Math.PI / 180);
-      const x = Math.sin(angle) * 9.5;
-      const z = Math.cos(angle) * 9.5;
+      const x = Math.sin(angle) * 12;
+      const z = Math.cos(angle) * 12;
       expect(Math.abs(x) <= HQ_RECT.w / 2 && Math.abs(z) <= HQ_RECT.d / 2).toBe(false);
     }
   });

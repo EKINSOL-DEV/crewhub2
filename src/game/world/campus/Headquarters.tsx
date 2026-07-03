@@ -1,11 +1,13 @@
 // The permanent headquarters building (M6 T3): distinct from the plain
 // project pavilions — taller walls, a contrasting stone apron, a spawn
-// podium at the center (the sim's spawn pad, M6 T2), three prop pads for
-// Task 4's interactive furniture, and two entrance banners flanking the
-// south corners. Corner posts cap the walls (its roof beams — once an open
-// perimeter ring, unlike the pavilions' parallel rafters — were cut on user
-// feedback; see the corner-posts comment below), so the interior stays
-// visible from above.
+// podium at the center (the sim's spawn pad, M6 T2), and two entrance
+// banners flanking the south corners. Corner posts cap the walls (its roof
+// beams — once an open perimeter ring, unlike the pavilions' parallel
+// rafters — were cut on user feedback; see the corner-posts comment below),
+// so the interior stays visible from above. The interactive Projects/Crew/
+// Workspace furniture (M9 polish: floating icon plates replaced with props
+// that evoke their function) lives against the interior walls in
+// HqProps.tsx, not here — see that file's own header.
 //
 // Every wall in `building.doors` gets its own gap — Pavilion.tsx only ever
 // cuts the primary door (M6 T1's progress note flagged this), and HQ has
@@ -24,7 +26,6 @@ const APRON = "#a9855c";
 const PILLAR = "#7c5a3a";
 const STEP = "#c7ac7c";
 const PODIUM = "#f0e4c4";
-const PAD = "#d8c393";
 
 /** Lighten a `#rrggbb` hex color by adding `amt` to each channel (clamped).
  *  A local copy of Pavilion.tsx's helper of the same name — Pavilion.tsx is
@@ -57,28 +58,6 @@ const STEP_HEIGHT = 0.12;
 /** Spawn podium (M6 T2 wires the sim to appear here). */
 const PODIUM_RADIUS = 1.6;
 const PODIUM_HEIGHT = 0.25;
-
-/**
- * Interior floor markings for Task 4's interactive props — diagonal
- * (NW/NE/SW-quadrant) positions, well clear of the podium's own footprint
- * (r=1.6), the walls (≥1.5 clearance), and EVERY door's walk-in lane
- * (±1.5 either side of that door's centerline). Fix round 1 (M6 T4 carried
- * fix): the original west/north/east positions sat at {-3,0}/{0,-3}/{3,0}
- * — each one dead-center in its own door's walk-in lane (west door's lane
- * is the z≈0 strip, north door's is the x≈0 strip, and so on), so a player
- * walking straight in would collide with the prop stand. Moving off both
- * axes into the quadrants between doors clears every lane at once. South
- * is left propless; that's the primary door's sightline into the building
- * (see buildings.ts' `hqBuilding` comment on why south is the primary
- * face).
- */
-export const HQ_PROP_PADS: { x: number; z: number }[] = [
-  { x: -3.5, z: -2.5 }, // NW quadrant
-  { x: 3.5, z: -2.5 }, // NE quadrant
-  { x: -3.5, z: 2.5 }, // SW quadrant
-];
-const PAD_RADIUS = 0.8;
-const PAD_HEIGHT = 0.06;
 
 /**
  * Permanent roof-plate height: pillars top out at PILLAR_HEIGHT (3.0) — `5`
@@ -261,12 +240,6 @@ export function Headquarters({ building }: { building: Building }) {
         <cylinderGeometry args={[PODIUM_RADIUS, PODIUM_RADIUS, PODIUM_HEIGHT, 20]} />
         <meshToonMaterial color={PODIUM} gradientMap={toonGradientMap()} />
       </mesh>
-      {HQ_PROP_PADS.map((p, i) => (
-        <mesh key={i} position={[p.x, PAD_HEIGHT / 2 + 0.14, p.z]} receiveShadow>
-          <cylinderGeometry args={[PAD_RADIUS, PAD_RADIUS, PAD_HEIGHT, 16]} />
-          <meshToonMaterial color={PAD} gradientMap={toonGradientMap()} />
-        </mesh>
-      ))}
       {/* Entrance banners flanking the south corners (the primary/default-
           camera-facing side — see hqBuilding's comment in buildings.ts). */}
       <Banner x={px} z={hd + 0.1} />

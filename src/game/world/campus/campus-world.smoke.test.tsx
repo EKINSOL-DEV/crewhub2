@@ -139,19 +139,27 @@ describe("CampusWorld smoke", () => {
     // headquarters.smoke.test.tsx for that component's own formula: apron +
     // slab (2) + 4 pillars (beam ring cut on user feedback) + walls (4
     // sides x 2 segments, since every side carries its own door) + steps
-    // (4 doors x 2 flanking meshes) + podium (1) + 3 prop pads + 2 banners
-    // (1 mocked-model mesh each) = 28, plus its own permanent plate (1 backdrop
-    // mesh, HeadquartersPlate — mounted outside the frozen group, see below)
-    // and its M6 T4 prop stands (HqProps, also outside the frozen group):
-    // 3 stands x (1 mocked-model mesh + 1 icon-plate backdrop mesh) = 6.
+    // (4 doors x 2 flanking meshes) + podium (1) + 2 banners (1
+    // mocked-model mesh each) = 25, plus its own permanent plate (1 backdrop
+    // mesh, HeadquartersPlate — mounted outside the frozen group, since its
+    // Billboard must keep facing the camera every frame) and its wall-
+    // anchored function props (HqProps.tsx, M9 polish — also mounted
+    // outside the frozen group, alongside the plate: despite using no
+    // Billboard, mounting these inside useStaticMatrices' frozen subtree
+    // blacked the entire first WebGL render in a real browser — root cause
+    // unresolved, see CampusWorld.tsx's comment above <HqProps />):
+    // a notice board (2 posts + 1 backboard + 5 papers + 5 pin dots + 1
+    // hitbox = 14), a reception desk (slab + front panel + bell (2) + sign
+    // (2) + 1 hitbox = 7), and a workbench (top + 4 legs + hammer (2) +
+    // wrench (2) + paint can + 1 hitbox = 11) = 32 total.
     // The fixed plaza-center Fountain is gone (M6 moved it to placed decor,
     // where it renders zero meshes with the default EMPTY_EDITS state — see
     // the placed-fountain test further down).
     const TERRAIN_MESHES = 5;
     const CLOUD_MESHES = 7 * 3;
-    const HQ_MESHES = 28;
+    const HQ_MESHES = 25;
     const HQ_PLATE_MESHES = 1;
-    const HQ_PROPS_MESHES = 3 * 2;
+    const HQ_PROPS_MESHES = 32;
     const PAVILION_MESHES = 4 * 26; // beams cut on user feedback (was 29)
     expect(meshes.length).toBe(
       totalPlacements +
