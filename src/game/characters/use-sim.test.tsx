@@ -48,6 +48,7 @@ vi.mock("@/game/sim/grid", async (importOriginal) => {
 import { useSim, type CharacterInfo } from "./use-sim";
 import { buildNavGrid } from "@/game/sim/grid";
 import { biomeSkipFor } from "@/game/world/biome";
+import { campusLayout } from "@/game/world/campus/layout";
 import { resetGameEnvironmentForTests, useGameEnvironment } from "@/game/world/environments/store";
 
 function workingBot(i: number): Character {
@@ -161,6 +162,45 @@ describe("useSim biome skip (M4 debt sweep — sky-biome invisible walls)", () =
     // means the biome-aware effect never fires, so buildNavGrid is only
     // ever called once, for the base sim, with no extras.
     expect(vi.mocked(buildNavGrid).mock.calls).toEqual([[expect.anything(), expect.anything()]]);
+
+    await renderer.unmount();
+  });
+
+  // Fix round 1 (review finding): the original guard was
+  // `editsVersion === 0 && biomeSkip.length === 0` — true again once you
+  // leave sky for campus (or island) with zero build edits throughout, so
+  // the effect wrongly skipped re-deriving the grid. The live sim was left
+  // stuck with sky's unblocked cells even though campus renders real trees
+  // over them — an invisible-wall bug in reverse (a robot could walk
+  // straight through a tree it can now see).
+  it("re-applies the full block list when leaving a skip biome, even with zero build edits throughout", async () => {
+    useGameEnvironment.setState({ id: "sky" });
+    const renderer = await ReactThreeTestRenderer.create(
+      <Probe characters={[workingBot(0)]} onSim={() => {}} />,
+    );
+    await ReactThreeTestRenderer.act(async () => {
+      await renderer.advanceFrames(3, 0.1);
+    });
+
+    await ReactThreeTestRenderer.act(async () => {
+      useGameEnvironment.setState({ id: "campus" });
+      await renderer.advanceFrames(3, 0.1);
+    });
+
+    const calls = vi.mocked(buildNavGrid).mock.calls;
+    const results = vi.mocked(buildNavGrid).mock.results;
+    const lastIdx = calls.length - 1;
+    // The campus switch must have fired a fresh call with no skip list —
+    // proves the guard didn't just skip the transition.
+    expect(calls[lastIdx]?.[2]?.skipKinds).toEqual([]);
+
+    // And the grid it actually produced blocks a real seeded pine cell
+    // again (the reviewer's exact repro), not just "was called".
+    const pine = campusLayout().scatter.treePine[0]!;
+    const lastGrid = results[lastIdx]!.value as ReturnType<typeof buildNavGrid>;
+    const cx = Math.floor(pine.x + lastGrid.size / 2);
+    const cz = Math.floor(pine.z + lastGrid.size / 2);
+    expect(lastGrid.blocked[cz * lastGrid.size + cx]).toBe(1);
 
     await renderer.unmount();
   });

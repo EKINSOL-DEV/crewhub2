@@ -95,15 +95,25 @@ export function useSim(override?: Character[]): UseSimResult {
   // including on first mount, if the player starts on a non-campus biome.
   // That's why the guard below can no longer be "skip when editsVersion===0":
   // a fresh sky-biome mount has editsVersion 0 too, and still needs this to
-  // run once to unblock its skipped kinds. Run whenever either is true; skip
-  // only the genuinely redundant case (no edits AND no biome skip), which is
-  // the original campus-mount guard.
+  // run once to unblock its skipped kinds.
   const edits = useCampusEdits((s) => s.edits);
   const editsVersion = useCampusEdits((s) => s.version);
   const envId = useGameEnvironment((s) => s.id);
   const biomeSkip = biomeSkipFor(envId);
+  // Fix round 1: whether this effect has ever actually applied a non-default
+  // world (edits and/or a biome skip list) to the live sim. `hasWorkToApply
+  // === false` isn't enough to skip on its own — switching FROM sky (skip
+  // applied, appliedRef true) TO campus/island (skip empty again) still has
+  // `editsVersion === 0 && biomeSkip.length === 0`, but the sim's grid is
+  // still sky's, with those cells left unblocked under trees/rocks the new
+  // biome actually renders. Only skip when there's nothing to apply AND
+  // nothing was ever applied before (the pure campus-mount case, where the
+  // base `sim` above is already exactly right).
+  const appliedRef = useRef(false);
   useEffect(() => {
-    if (editsVersion === 0 && biomeSkip.length === 0) return;
+    const hasWorkToApply = editsVersion > 0 || biomeSkip.length > 0;
+    if (!hasWorkToApply && !appliedRef.current) return;
+    appliedRef.current = hasWorkToApply;
     const { buildings: allBuildings } = applyEdits(campus.layout, campus.buildings, edits);
     const grid = buildNavGrid(campus.layout, allBuildings, {
       items: edits.items.map((i) => ({ x: i.x, z: i.z })),
