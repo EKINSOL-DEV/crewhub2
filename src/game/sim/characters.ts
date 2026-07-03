@@ -22,6 +22,24 @@ export interface Character {
   parentKey: string | null;
   /** Set for crew characters resting idle — there is no session behind them. */
   agentId: string | null;
+  /**
+   * Normalized project folder (session's meta.project_path or crew agent's
+   * project_path); null when unset. Optional so pre-M5 Character literals
+   * across the app (demo world, sim/flavor tests) keep compiling untouched —
+   * toCharacters() always populates it explicitly.
+   */
+  projectPath?: string | null;
+  /**
+   * Sim desk-claim eligibility key (M5 T2), mirrors Building.groupKey and is
+   * annotated at the same React boundary — see src/game/characters/use-sim.ts.
+   * Optional for the same pre-M5-literal reason as projectPath.
+   */
+  groupKey?: string | null;
+}
+
+/** Strip a single trailing "/" so folder paths compare equal regardless of it. */
+export function normalizeFolder(p: string): string {
+  return p.length > 1 && p.endsWith("/") ? p.slice(0, -1) : p;
 }
 
 export interface ToCharactersOpts {
@@ -97,6 +115,7 @@ export function toCharacters(views: SessionView[], opts: ToCharactersOpts): Char
       isSubagent,
       parentKey: parent ? parentKey : null,
       agentId: null,
+      projectPath: v.meta.project_path ? normalizeFolder(v.meta.project_path) : null,
     };
   });
 
@@ -113,6 +132,7 @@ export function toCharacters(views: SessionView[], opts: ToCharactersOpts): Char
       isSubagent: false,
       parentKey: null,
       agentId: a.id,
+      projectPath: a.project_path ? normalizeFolder(a.project_path) : null,
     }));
 
   return [...sessionCharacters, ...restingCharacters];

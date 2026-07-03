@@ -43,7 +43,15 @@ export interface PlacedBuilding {
   z: number;
   w: number;
   d: number;
+  /** @deprecated Superseded by projectId (M5) — kept only for blob back-compat; the room-color tint moves to project color in T4. */
   roomId: string | null;
+  /**
+   * Project this player-built pavilion is linked to; null when unassigned.
+   * Optional so pre-M5 PlacedBuilding literals across the app (sim tests,
+   * render smoke tests) keep compiling untouched — the edits store
+   * (addBuilding/setBuildingProject) always populates it explicitly.
+   */
+  projectId?: string | null;
 }
 
 export interface CampusEdits {
@@ -55,9 +63,16 @@ export interface CampusEdits {
    * M4 scope; for now applyEdits always returns every default untouched.
    */
   removedDefaults: string[];
+  /** Plot index -> linked project id (M5). Plots without an entry are unassigned. */
+  plotProjects: Record<number, string>;
 }
 
-export const EMPTY_EDITS: CampusEdits = { items: [], buildings: [], removedDefaults: [] };
+export const EMPTY_EDITS: CampusEdits = {
+  items: [],
+  buildings: [],
+  removedDefaults: [],
+  plotProjects: {},
+};
 
 /** Snap a world coordinate to the 1-unit build grid. */
 export function snap(v: number): number {
@@ -179,7 +194,13 @@ export function applyEdits(
 
   const placedBuildings: Building[] = edits.buildings.map((b, i) => {
     const rect: Rect = { x: b.x, z: b.z, w: b.w, d: b.d };
-    return { plotIndex: base.length + i, rect, desks: buildingDesks(b), door: nearestEdgeDoor(rect) };
+    return {
+      plotIndex: base.length + i,
+      rect,
+      desks: buildingDesks(b),
+      door: nearestEdgeDoor(rect),
+      projectId: b.projectId ?? null,
+    };
   });
 
   return { placements, buildings: [...base, ...placedBuildings] };

@@ -9,6 +9,7 @@ import { BuildControls } from "@/game/build/BuildControls";
 import { BuildPalette } from "@/game/build/BuildPalette";
 import { RoomLinkDialog } from "@/game/build/RoomLinkDialog";
 import { useBuildMode } from "@/game/build/mode";
+import { RoomCard } from "@/game/world/campus/RoomCard";
 import { useAudio } from "@/game/audio/sfx";
 import { GameCanvas } from "@/game/engine/GameCanvas";
 import { Lights } from "@/game/engine/Lights";
@@ -50,6 +51,8 @@ export default function GameShell() {
   const buildTool = useBuildMode((s) => s.tool);
   const pendingRoomLink = useBuildMode((s) => s.pendingRoomLink);
   const closeRoomLink = useBuildMode((s) => s.closeRoomLink);
+  const roomCard = useBuildMode((s) => s.roomCard);
+  const closeRoomCard = useBuildMode((s) => s.closeRoomCard);
   const flavorRuns = useFlavor((s) => s.runs);
 
   useEffect(() => {
@@ -117,6 +120,7 @@ export default function GameShell() {
       <ChatWindows />
       {buildActive && <BuildPalette />}
       {pendingRoomLink && <RoomLinkDialog buildingId={pendingRoomLink} onClose={closeRoomLink} />}
+      {roomCard && <RoomCard target={roomCard} onClose={closeRoomCard} />}
       <HireDialog open={hireOpen} initialAgentId={hireAgentId} onClose={() => setHireOpen(false)} />
       <WelcomeCard />
     </div>

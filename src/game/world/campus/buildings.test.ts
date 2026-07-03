@@ -34,4 +34,16 @@ describe("campusBuildings", () => {
       expect(doorDist).toBeLessThanOrEqual(otherEdgeDist);
     }
   });
+
+  it("defaults every plot's projectId to null when no plotProjects map is given", () => {
+    for (const b of buildings) expect(b.projectId).toBeNull();
+  });
+
+  it("assigns projectId from the plotProjects map, defaulting unmapped plots to null", () => {
+    const withProjects = campusBuildings(campusLayout().plots, { 0: "proj-a", 2: "proj-b" });
+    expect(withProjects[0]!.projectId).toBe("proj-a");
+    expect(withProjects[1]!.projectId).toBeNull();
+    expect(withProjects[2]!.projectId).toBe("proj-b");
+    expect(withProjects[3]!.projectId).toBeNull();
+  });
 });

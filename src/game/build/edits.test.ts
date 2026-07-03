@@ -178,4 +178,24 @@ describe("applyEdits", () => {
     expect(buildings).toHaveLength(1);
     expect(buildings[0]).toEqual(base[0]);
   });
+
+  it("carries a placed building's projectId through to the merged Building", () => {
+    const placed: PlacedBuilding = { id: "e0", x: 0, z: 30, w: 6, d: 5, roomId: null, projectId: "proj-9" };
+    const edits: CampusEdits = { ...EMPTY_EDITS, buildings: [placed] };
+    const { buildings } = applyEdits(layout, [], edits);
+    expect(buildings[0]!.projectId).toBe("proj-9");
+  });
+
+  it("defaults a placed building's projectId to null when unset", () => {
+    const placed: PlacedBuilding = { id: "e0", x: 0, z: 30, w: 6, d: 5, roomId: null };
+    const edits: CampusEdits = { ...EMPTY_EDITS, buildings: [placed] };
+    const { buildings } = applyEdits(layout, [], edits);
+    expect(buildings[0]!.projectId).toBeNull();
+  });
+});
+
+describe("EMPTY_EDITS", () => {
+  it("carries an empty plotProjects map", () => {
+    expect(EMPTY_EDITS.plotProjects).toEqual({});
+  });
 });

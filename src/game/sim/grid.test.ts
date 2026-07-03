@@ -1,7 +1,8 @@
 // Sim nav grid + A* pathfinding (M1 T5) — pure TS, seeded off the M0 campus
 // layout, feeds the character mover in later tasks.
 import { describe, expect, it } from "vitest";
-import { campusBuildings } from "@/game/world/campus/buildings";
+import { buildingDesks } from "@/game/build/edits";
+import { campusBuildings, nearestEdgeDoor } from "@/game/world/campus/buildings";
 import { campusLayout } from "@/game/world/campus/layout";
 import { buildNavGrid, findPath } from "./grid";
 
@@ -13,6 +14,28 @@ function cellIndexFor(g: ReturnType<typeof buildNavGrid>, x: number, z: number):
   const cx = Math.floor(x + g.size / 2);
   const cz = Math.floor(z + g.size / 2);
   return cz * g.size + cx;
+}
+
+/** Sample points at ~0.1u resolution along the *continuous* route (`from`
+ *  plus every segment of `path`) — checking only the smoothed waypoints can
+ *  miss a required pass-through point (a nearly-straight route that already
+ *  threads a doorway needs no corner there at all, so no waypoint sits near
+ *  it even though the route clearly passed through). */
+function sampleAlongPath(
+  path: { x: number; z: number }[],
+  from: { x: number; z: number },
+): { x: number; z: number }[] {
+  const points: { x: number; z: number }[] = [from];
+  let prev = from;
+  for (const p of path) {
+    const len = Math.hypot(p.x - prev.x, p.z - prev.z);
+    const steps = Math.max(1, Math.ceil(len / 0.1));
+    for (let i = 1; i <= steps; i++) {
+      points.push({ x: prev.x + ((p.x - prev.x) * i) / steps, z: prev.z + ((p.z - prev.z) * i) / steps });
+    }
+    prev = p;
+  }
+  return points;
 }
 
 describe("findPath", () => {
@@ -96,6 +119,70 @@ describe("findPath", () => {
   });
 });
 
+describe("buildNavGrid walls (M5 T3 — rooms have walls, bots use the door)", () => {
+  const b0 = buildings[0]!; // rect {x:22,z:22,w:14,d:12}; door lands on the west edge, facing the plaza.
+  const desk = b0.desks[0]!;
+
+  it("a path from the plaza side to a desk sweeps through the door gap", () => {
+    const outside = { x: 0, z: 22 };
+    const path = findPath(grid, outside, { x: desk.x, z: desk.z });
+    expect(path.length).toBeGreaterThan(0);
+    const swept = sampleAlongPath(path, outside);
+    const minDistToDoor = Math.min(...swept.map((p) => Math.hypot(p.x - b0.door.x, p.z - b0.door.z)));
+    expect(minDistToDoor).toBeLessThanOrEqual(1.2);
+  });
+
+  it("a path from the building's far side still detours all the way around to the door", () => {
+    const farSide = { x: 35, z: 22 }; // east of the building — opposite its west-side door.
+    const path = findPath(grid, farSide, { x: desk.x, z: desk.z });
+    expect(path.length).toBeGreaterThan(0);
+    const swept = sampleAlongPath(path, farSide);
+    const minDistToDoor = Math.min(...swept.map((p) => Math.hypot(p.x - b0.door.x, p.z - b0.door.z)));
+    expect(minDistToDoor).toBeLessThanOrEqual(1.2);
+
+    // Confirm it's a real detour, not a lucky short route: walking all the
+    // way around outside to the door dwarfs the straight-line distance a
+    // wall-free path would have taken.
+    let total = 0;
+    let prev = farSide;
+    for (const p of path) {
+      total += Math.hypot(p.x - prev.x, p.z - prev.z);
+      prev = p;
+    }
+    const straight = Math.hypot(desk.x - farSide.x, desk.z - farSide.z);
+    expect(total).toBeGreaterThan(straight * 1.5);
+  });
+
+  it("a path flanking the building from outside routes around it, never cutting through the room", () => {
+    const north = { x: 22, z: 5 };
+    const south = { x: 22, z: 39 };
+    const path = findPath(grid, north, south);
+    expect(path.length).toBeGreaterThan(0);
+    const swept = sampleAlongPath(path, north);
+    // Shrunk by 1 unit on every side — comfortably inside the wall ring, so
+    // any sample landing here means the route actually cut through the
+    // room's interior instead of detouring around the building.
+    const shrunk = { x: b0.rect.x, z: b0.rect.z, w: b0.rect.w - 2, d: b0.rect.d - 2 };
+    for (const p of swept) {
+      const inside = Math.abs(p.x - shrunk.x) < shrunk.w / 2 && Math.abs(p.z - shrunk.z) < shrunk.d / 2;
+      expect(inside).toBe(false);
+    }
+  });
+
+  it("a small (6x5, minimum placeable) building's single desk stays reachable through its door", () => {
+    const rect = { x: 0, z: 32, w: 6, d: 5 }; // clear of the seeded plots and scatter for this seed.
+    const desks = buildingDesks({ id: "small", x: rect.x, z: rect.z, w: rect.w, d: rect.d, roomId: null });
+    expect(desks).toHaveLength(1); // floor((6-2)/3.5)=1 col * floor((5-2)/3)=1 row
+    const small = { plotIndex: 99, rect, desks, door: nearestEdgeDoor(rect) };
+    const smallGrid = buildNavGrid(layout, [...buildings, small]);
+
+    const path = findPath(smallGrid, { x: 0, z: 15 }, { x: desks[0]!.x, z: desks[0]!.z });
+    expect(path.length).toBeGreaterThan(0);
+    const last = path[path.length - 1]!;
+    expect(Math.hypot(last.x - desks[0]!.x, last.z - desks[0]!.z)).toBeLessThanOrEqual(2);
+  });
+});
+
 describe("buildNavGrid extras (M3 T5 — placed decor blocks pathing)", () => {
   // (3, 22) sits in open field, clear of scatter/plots/buildings for this
   // seed — confirmed unblocked in the base grid before asserting the extra
@@ -142,8 +229,14 @@ describe("buildNavGrid skipKinds (M4 debt sweep — sky-biome invisible walls)",
   });
 
   it("a path no longer detours around a pine cell once its kind is skipped", () => {
-    const from = { x: pine.x - 4, z: pine.z };
-    const to = { x: pine.x + 4, z: pine.z };
+    // pine[0] sits inside plot 0's footprint for this seed (M5 T3: buildings
+    // now have walls) — its ±4 probe points would route through the door
+    // instead of taking a small pine-only detour, which isn't what this test
+    // is about. pine[1] is confirmed clear of every plot (and its immediate
+    // straight-line path is otherwise obstacle-free for this seed).
+    const openFieldPine = layout.scatter.treePine[1]!;
+    const from = { x: openFieldPine.x - 4, z: openFieldPine.z };
+    const to = { x: openFieldPine.x + 4, z: openFieldPine.z };
     const sky = buildNavGrid(layout, buildings, { skipKinds: ["treePine"] });
 
     const pathLength = (points: { x: number; z: number }[]) => {

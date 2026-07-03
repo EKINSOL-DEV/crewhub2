@@ -1,7 +1,7 @@
 // M1 T8: demoCharacters covers every status the sim can render, with a
 // resting-crew entry, so `?demo` is a reliable smoke test without live data.
 import { describe, expect, it } from "vitest";
-import { demoCharacters } from "./demo";
+import { DEMO_GROUP, demoCharacters } from "./demo";
 
 describe("demoCharacters", () => {
   it("returns exactly six characters", () => {
@@ -30,5 +30,15 @@ describe("demoCharacters", () => {
 
   it("is deterministic", () => {
     expect(demoCharacters(123)).toEqual(demoCharacters(123));
+  });
+
+  // M5 T5: every demo character shares DEMO_GROUP so use-sim.ts's demo
+  // override (which stamps DEMO_GROUP on every building, ignoring real
+  // project links entirely) actually seats them — see use-sim.test.tsx's
+  // "demo override" test for the sim-level proof.
+  it("gives every character the shared DEMO_GROUP so the sim's project-room matching still seats them", () => {
+    for (const c of demoCharacters(0)) {
+      expect(c.groupKey).toBe(DEMO_GROUP);
+    }
   });
 });

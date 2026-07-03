@@ -18,6 +18,12 @@ How releases consume this file (M6, EKI-98/EKI-100):
 
 ### Added
 
+- M5 "Project rooms" — buildings mean something (EKI-174): every pavilion/building links to a
+  project (the folder it lives in) via a click-to-open room card or the post-placement dialog;
+  robots whose session/agent works in that folder take desks INSIDE their project's room, and
+  bots without a room wander the campus outside; rooms grew real walls with an open door
+  (pathfinding enforced — robots walk in through the doorway), roof nameplates with the project
+  icon and name, and project-colored trim
 - M4 "It breathes" — the campus IS the app (EKI-164): the game is now the main window (the old
   2D world panel is gone; the workspace lives in its own window via the 🧰 chip), robots think
   out loud with Haiku-powered thought bubbles (budget-capped, 💭 run counter, kill switch in

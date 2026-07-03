@@ -1,11 +1,11 @@
-// R3F render smoke (M3 T5): PlacedBuildings renders one Pavilion + one
-// room-edge outline per placed building, and tints that outline with the
-// linked room's color (falling back to neutral when unlinked or the room
-// was since deleted).
+// R3F render smoke (M3 T5, project-based M5 T4): PlacedBuildings renders one
+// Pavilion + one room-edge outline (+ a roof-plate color dot when linked)
+// per placed building, tinting the outline with the linked project's color
+// (falling back to neutral when unlinked or the project was since deleted).
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ReactThreeTestRenderer from "@react-three/test-renderer";
 import * as THREE from "three";
-import type { Room } from "@/ipc/bindings";
+import type { Project } from "@/ipc/bindings";
 
 vi.mock("@/ipc/bindings", () => ({
   commands: {
@@ -14,30 +14,23 @@ vi.mock("@/ipc/bindings", () => ({
   },
 }));
 
-function room(over: Partial<Room> & { id: string; name: string }): Room {
+function project(over: Partial<Project> & { id: string; name: string; folder_path: string }): Project {
   return {
-    project_id: null,
+    description: null,
     icon: null,
     color: "#22c55e",
-    sort_order: 0,
-    is_hq: false,
-    style_json: null,
+    docs_path: null,
+    status: "active",
     created_at: 0,
     updated_at: 0,
     ...over,
   };
 }
 
-const ROOMS: Room[] = [room({ id: "r1", name: "Engineering", color: "#22c55e" })];
-
-vi.mock("@/stores/bindings", () => ({
-  useBindingsStore: Object.assign(
-    (selector: (s: { rooms: Room[] }) => unknown) => selector({ rooms: ROOMS }),
-    { getState: () => ({ rooms: ROOMS }) },
-  ),
-}));
+const PROJECTS: Project[] = [project({ id: "p1", name: "Engineering", folder_path: "/work/eng" })];
 
 import { resetCampusEditsForTests, useCampusEdits } from "./store";
+import { resetProjectsForTests, useProjectsStore } from "@/stores/projects";
 import { PlacedBuildings } from "./PlacedBuildings";
 
 /** #rrggbb -> 0xrrggbb, matching how three.js normalizes `Color.set()` input. */
@@ -49,6 +42,7 @@ describe("PlacedBuildings smoke", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetCampusEditsForTests();
+    resetProjectsForTests();
   });
 
   it("renders nothing with no placed buildings", async () => {
@@ -59,21 +53,26 @@ describe("PlacedBuildings smoke", () => {
 
   it("renders a Pavilion + a 4-mesh room-edge outline per placed building", async () => {
     useCampusEdits.getState().addBuilding({ x: 0, z: 20, w: 10, d: 8 }, null);
-    useCampusEdits.getState().addBuilding({ x: -20, z: 20, w: 6, d: 5 }, "r1");
+    useCampusEdits.getState().addBuilding({ x: -20, z: 20, w: 6, d: 5 }, null);
 
     const renderer = await ReactThreeTestRenderer.create(<PlacedBuildings />);
     const meshes = renderer.scene.findAllByType("Mesh");
-    // Pavilion mesh counts from pavilion.smoke.test.tsx's formula (1+4+3 +
-    // desks*4) plus 4 room-edge meshes per building.
+    // Pavilion mesh counts from pavilion.smoke.test.tsx's formula (1+4+3
+    // structure + walls (3 full sides + 2 segments on the door-side wall,
+    // M5 T3) + desks*4) plus 4 room-edge meshes per building. Both buildings
+    // stay unlinked, so neither gets a RoofPlate mesh (see the next test).
+    const WALL_MESHES = 5;
     const building1Desks = 2 * 2; // 10x8 -> floor(8/3.5)=2 cols * floor(6/3)=2 rows
     const building2Desks = 1 * 1; // 6x5 -> floor(4/3.5)=1 col * floor(3/3)=1 row
-    const expected = 8 + building1Desks * 4 + 4 + (8 + building2Desks * 4 + 4);
+    const expected = 8 + WALL_MESHES + building1Desks * 4 + 4 + (8 + WALL_MESHES + building2Desks * 4 + 4);
     expect(meshes.length).toBe(expected);
     await renderer.unmount();
   });
 
-  it("tints the room edge with the linked room's color, neutral when unlinked", async () => {
-    useCampusEdits.getState().addBuilding({ x: 0, z: 20, w: 10, d: 8 }, "r1");
+  it("tints the room edge with the linked project's color, neutral when unlinked", async () => {
+    useProjectsStore.setState({ projects: PROJECTS });
+    const idA = useCampusEdits.getState().addBuilding({ x: 0, z: 20, w: 10, d: 8 }, null);
+    useCampusEdits.getState().setBuildingProject(idA, "p1");
     useCampusEdits.getState().addBuilding({ x: -20, z: 20, w: 6, d: 5 }, null);
 
     const renderer = await ReactThreeTestRenderer.create(<PlacedBuildings />);
@@ -85,8 +84,9 @@ describe("PlacedBuildings smoke", () => {
     await renderer.unmount();
   });
 
-  it("falls back to neutral if the linked room no longer exists", async () => {
-    useCampusEdits.getState().addBuilding({ x: 0, z: 20, w: 10, d: 8 }, "ghost-room");
+  it("falls back to neutral if the linked project no longer exists", async () => {
+    const id = useCampusEdits.getState().addBuilding({ x: 0, z: 20, w: 10, d: 8 }, null);
+    useCampusEdits.getState().setBuildingProject(id, "ghost-project");
 
     const renderer = await ReactThreeTestRenderer.create(<PlacedBuildings />);
     const materials = renderer.scene
@@ -94,5 +94,20 @@ describe("PlacedBuildings smoke", () => {
       .map((m) => m.instance as unknown as THREE.MeshBasicMaterial);
     expect(materials.every((m) => m.color.getHex() === hex("#9ca3af"))).toBe(true);
     await renderer.unmount();
+  });
+
+  it("adds one roof-plate mesh (the color dot) per linked building, none when unlinked", async () => {
+    useProjectsStore.setState({ projects: PROJECTS });
+    const idA = useCampusEdits.getState().addBuilding({ x: 0, z: 20, w: 10, d: 8 }, null);
+    useCampusEdits.getState().addBuilding({ x: -20, z: 20, w: 6, d: 5 }, null); // stays unlinked
+
+    const before = await ReactThreeTestRenderer.create(<PlacedBuildings />);
+    const baseCount = before.scene.findAllByType("Mesh").length;
+    await before.unmount();
+
+    useCampusEdits.getState().setBuildingProject(idA, "p1");
+    const after = await ReactThreeTestRenderer.create(<PlacedBuildings />);
+    expect(after.scene.findAllByType("Mesh").length).toBe(baseCount + 1);
+    await after.unmount();
   });
 });

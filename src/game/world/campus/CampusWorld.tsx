@@ -5,9 +5,11 @@
 // re-scattered — see biome.ts. `biome` defaults to campus so every existing
 // call site (and test) keeps rendering the original world unchanged.
 import { useEffect, useMemo, useRef } from "react";
+import type { ThreeEvent } from "@react-three/fiber";
 import type * as THREE from "three";
 import type { ModelId } from "@/game/assets/manifest";
 import { placedItemPlacements, type PlaceableKind } from "@/game/build/edits";
+import { useBuildMode } from "@/game/build/mode";
 import { PlacedBuildings } from "@/game/build/PlacedBuildings";
 import { useCampusEdits } from "@/game/build/store";
 import { CloudPuffs } from "@/game/world/CloudPuffs";
@@ -17,7 +19,14 @@ import { InstancedModel } from "./InstancedModel";
 import { Terrain } from "./Terrain";
 import { campusLayout, type ScatterKind } from "./layout";
 import { campusBuildings } from "./buildings";
-import { Pavilion } from "./Pavilion";
+import { Pavilion, WALL_HEIGHT } from "./Pavilion";
+import { RoofPlate } from "./RoofPlate";
+
+/** Roof-nameplate height — matches PlacedBuildings' convention. Must clear
+ *  Pavilion.tsx's roof beams, which peak at y=3.94 (centered at 3.85, height
+ *  0.18) — `+1.6` (3.6) sat inside/below them; `+2.5` (4.5) floats safely
+ *  above the roofline. */
+const PLATE_Y = WALL_HEIGHT + 2.5;
 
 const SCATTER_MODEL: Record<ScatterKind, ModelId> = {
   treeDefault: "tree-default",
@@ -94,6 +103,17 @@ export function CampusWorld({ biome = BIOMES.campus }: { biome?: Biome }) {
   // applyEdits' merge pass can't drift apart.
   const placedByKind = useMemo(() => placedItemPlacements(edits.items), [edits]);
 
+  const openRoomCard = useBuildMode((s) => s.openRoomCard);
+  // Clicking a base pavilion outside build mode opens its RoomCard (M5 T4);
+  // in build mode this steps aside for BuildControls' own tools (item/
+  // building placement, the select-tool proxies over *placed* buildings).
+  function handlePavilionPointerDown(e: ThreeEvent<PointerEvent>, plotIndex: number) {
+    if (e.button !== 0) return;
+    if (useBuildMode.getState().active) return;
+    e.stopPropagation();
+    openRoomCard({ kind: "plot", plotIndex });
+  }
+
   return (
     <group>
       {/* Animated residents (fountain water, clouds) stay auto-updating. */}
@@ -118,7 +138,9 @@ export function CampusWorld({ biome = BIOMES.campus }: { biome?: Biome }) {
         <InstancedModel id="hedge" placements={layout.props.hedge} />
         <InstancedModel id="banner-green" placements={layout.props.banner} />
         {buildings.map((b) => (
-          <Pavilion key={b.plotIndex} building={b} />
+          <group key={b.plotIndex} onPointerDown={(e) => handlePavilionPointerDown(e, b.plotIndex)}>
+            <Pavilion building={b} />
+          </group>
         ))}
       </group>
       {/* Placed pavilions (M3 T5): a disjoint set from the seeded four above,
@@ -130,6 +152,17 @@ export function CampusWorld({ biome = BIOMES.campus }: { biome?: Biome }) {
           key={`${kind}-${versionByKind[kind] ?? 0}`}
           id={kind}
           placements={placedByKind[kind]!}
+        />
+      ))}
+      {/* Base pavilions' roof nameplates (M5 T4): kept outside the frozen
+          static-matrix group above — unlike the terrain/pavilion geometry,
+          a plot's project link changes at runtime, and RoofPlate needs to
+          react to that. */}
+      {buildings.map((b) => (
+        <RoofPlate
+          key={`plate-${b.plotIndex}`}
+          projectId={edits.plotProjects[b.plotIndex] ?? null}
+          position={[b.rect.x, PLATE_Y, b.rect.z]}
         />
       ))}
     </group>
