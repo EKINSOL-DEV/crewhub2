@@ -42,17 +42,26 @@ interface GameChatsState {
   setMin: (key: string, min: boolean) => void;
   /** Raise to the top of the stack without changing minimized state. */
   raise: (key: string) => void;
-  addLocalLine: (key: string, who: "note" | "bot", text: string) => void;
+  /** `opts.echo` marks a "user" line as the instant-send stand-in for the
+   *  engine's own transcript echo (use-chat-session.ts dedupes it once that
+   *  echo lands) — never set for "note"/"bot" lines. */
+  addLocalLine: (key: string, who: "note" | "bot" | "user", text: string, opts?: { echo?: boolean }) => void;
 }
 
 export const useGameChats = create<GameChatsState>((set) => ({
   chats: [],
   localLines: {},
-  addLocalLine: (key, who, text) =>
+  addLocalLine: (key, who, text, opts) =>
     set((s) => ({
       localLines: {
         ...s.localLines,
-        [key]: [...(s.localLines[key] ?? []), { seq: nextLocalSeq(), who, text, ts: Date.now() }],
+        [key]: [
+          ...(s.localLines[key] ?? []),
+          // exactOptionalPropertyTypes: only include `echo` at all when true,
+          // rather than assigning `opts?.echo` (which would widen it to
+          // `boolean | undefined` on the object literal itself).
+          { seq: nextLocalSeq(), who, text, ts: Date.now(), ...(opts?.echo ? { echo: true } : {}) },
+        ],
       },
     })),
   open: (key) => {

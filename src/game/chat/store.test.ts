@@ -97,5 +97,19 @@ describe("useGameChats", () => {
       useGameChats.getState().close("a");
       expect(useGameChats.getState().localLines.a).toHaveLength(1);
     });
+
+    it("marks a 'user' line with echo:true when opts.echo is set (the optimistic send echo)", () => {
+      useGameChats.getState().addLocalLine("a", "user", "hi there", { echo: true });
+      const [line] = useGameChats.getState().localLines.a!;
+      expect(line).toMatchObject({ who: "user", text: "hi there", echo: true });
+    });
+
+    it("leaves echo unset (falsy) for a plain note/bot line, or a 'user' line with no opts", () => {
+      useGameChats.getState().addLocalLine("a", "note", "no echo here");
+      useGameChats.getState().addLocalLine("a", "user", "plain user line");
+      const [note, user] = useGameChats.getState().localLines.a!;
+      expect(note!.echo).toBeFalsy();
+      expect(user!.echo).toBeFalsy();
+    });
   });
 });

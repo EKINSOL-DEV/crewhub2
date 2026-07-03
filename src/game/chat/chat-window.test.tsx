@@ -691,3 +691,92 @@ describe("M7 T3 chat wiring", () => {
     );
   });
 });
+
+// Live-feedback fix: a live send used to sit invisible until the engine's
+// own UserText line landed in the transcript. Now send() drops an
+// echo-flagged local "user" line the instant sendToSession resolves ok, and
+// the `lines` merge in use-chat-session.ts dedupes it once the real
+// transcript line for the same (normalized) text arrives.
+describe("optimistic user echo", () => {
+  it("shows the sent line immediately, before any transcript echo arrives", async () => {
+    views.current = [view({ status: "Working" })];
+    render(<ChatWindow {...WINDOW_PROPS} />);
+    const input = screen.getByTestId("chat-window-input");
+    fireEvent.change(input, { target: { value: "hello there" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await vi.waitFor(() => expect(sendToSessionSpy).toHaveBeenCalledTimes(1));
+    expect(screen.getByText("hello there").dataset.who).toBe("user");
+  });
+
+  it("dedupes to exactly one line once the transcript's own UserText echo lands", async () => {
+    views.current = [view({ status: "Working" })];
+    const { rerender } = render(<ChatWindow {...WINDOW_PROPS} />);
+    const input = screen.getByTestId("chat-window-input");
+    fireEvent.change(input, { target: { value: "hello there" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await vi.waitFor(() => expect(sendToSessionSpy).toHaveBeenCalledTimes(1));
+    expect(screen.getAllByText("hello there")).toHaveLength(1);
+
+    transcripts.sessions["claude:s1"] = transcript(
+      [[1, { kind: "UserText", data: { text: "hello there", ts: 1 } }]],
+      [1],
+    );
+    rerender(<ChatWindow {...WINDOW_PROPS} />);
+    expect(screen.getAllByText("hello there")).toHaveLength(1);
+  });
+
+  it("keeps two echoes for two identical sends until each gets its own transcript match", async () => {
+    views.current = [view({ status: "Working" })];
+    const { rerender } = render(<ChatWindow {...WINDOW_PROPS} />);
+    const input = screen.getByTestId("chat-window-input");
+
+    fireEvent.change(input, { target: { value: "hi" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await vi.waitFor(() => expect(sendToSessionSpy).toHaveBeenCalledTimes(1));
+    fireEvent.change(input, { target: { value: "hi" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await vi.waitFor(() => expect(sendToSessionSpy).toHaveBeenCalledTimes(2));
+    expect(screen.getAllByText("hi")).toHaveLength(2);
+
+    // One transcript echo lands — one local echo is consumed, one remains.
+    transcripts.sessions["claude:s1"] = transcript(
+      [[1, { kind: "UserText", data: { text: "hi", ts: 1 } }]],
+      [1],
+    );
+    rerender(<ChatWindow {...WINDOW_PROPS} />);
+    expect(screen.getAllByText("hi")).toHaveLength(2);
+
+    // The second transcript echo lands — no local echoes left, both lines
+    // are now the real transcript ones.
+    transcripts.sessions["claude:s1"] = transcript(
+      [
+        [1, { kind: "UserText", data: { text: "hi", ts: 1 } }],
+        [2, { kind: "UserText", data: { text: "hi", ts: 2 } }],
+      ],
+      [1, 2],
+    );
+    rerender(<ChatWindow {...WINDOW_PROPS} />);
+    expect(screen.getAllByText("hi")).toHaveLength(2);
+  });
+
+  it("never dedupes a plain note/bot local line (M7 T3) — only echo-flagged 'user' lines are eligible", async () => {
+    // A recognized command's local note ("🏃 heading to HQ") is never
+    // echo-flagged, so even a transcript UserText line with that exact text
+    // (unlikely, but the dedupe must key off `echo`, not just text/who)
+    // would never remove it.
+    views.current = [view({ status: "Working" })];
+    const { rerender } = render(<ChatWindow {...WINDOW_PROPS} />);
+    const input = screen.getByTestId("chat-window-input");
+    fireEvent.change(input, { target: { value: "go to hq" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(screen.getByText("🏃 heading to HQ").dataset.who).toBe("note");
+
+    transcripts.sessions["claude:s1"] = transcript(
+      [[1, { kind: "UserText", data: { text: "🏃 heading to HQ", ts: 1 } }]],
+      [1],
+    );
+    rerender(<ChatWindow {...WINDOW_PROPS} />);
+    expect(screen.getAllByText("🏃 heading to HQ")).toHaveLength(2);
+  });
+});
