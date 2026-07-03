@@ -12,6 +12,8 @@ import { placedItemPlacements, type PlaceableKind } from "@/game/build/edits";
 import { useBuildMode, type CardTarget } from "@/game/build/mode";
 import { PlacedBuildings } from "@/game/build/PlacedBuildings";
 import { useCampusEdits } from "@/game/build/store";
+import { useCameraDirector } from "@/game/engine/camera/director";
+import { getLiveYaw } from "@/game/engine/camera/live-camera";
 import { CloudPuffs } from "@/game/world/CloudPuffs";
 import { BIOMES, type Biome } from "@/game/world/biome";
 import { Fountain } from "./Fountain";
@@ -20,7 +22,7 @@ import { HqProps } from "./HqProps";
 import { InstancedModel } from "./InstancedModel";
 import { Terrain } from "./Terrain";
 import { campusLayout, type ScatterKind } from "./layout";
-import { campusBuildings } from "./buildings";
+import { campusBuildings, type Building } from "./buildings";
 import { Pavilion, WALL_HEIGHT } from "./Pavilion";
 import { RoofPlate } from "./RoofPlate";
 
@@ -116,12 +118,17 @@ export function CampusWorld({ biome = BIOMES.campus }: { biome?: Biome }) {
   // HQ (M6, plotIndex -1) gets the same gesture but a different card (M6
   // T4): it isn't a plot and has no project to link, so it opens HqCard
   // instead of RoomCard — see mode.ts's CardTarget union and GameShell's
-  // rendering switch.
-  function handlePavilionPointerDown(e: ThreeEvent<PointerEvent>, target: CardTarget) {
+  // rendering switch. M8 T3: the same click also frames the building with
+  // the camera director, seeded with the rig's live yaw (live-camera.ts —
+  // the rig's own goal/current state is otherwise private to it) so a
+  // multi-door building (HQ) picks whichever door reads angularly closest
+  // to however the player is currently looking.
+  function handlePavilionPointerDown(e: ThreeEvent<PointerEvent>, target: CardTarget, building: Building) {
     if (e.button !== 0) return;
     if (useBuildMode.getState().active) return;
     e.stopPropagation();
     openRoomCard(target);
+    useCameraDirector.getState().focusBuilding(building, getLiveYaw());
   }
 
   return (
@@ -155,6 +162,7 @@ export function CampusWorld({ biome = BIOMES.campus }: { biome?: Biome }) {
               handlePavilionPointerDown(
                 e,
                 b.kind === "hq" ? { kind: "hq" } : { kind: "plot", plotIndex: b.plotIndex },
+                b,
               )
             }
           >

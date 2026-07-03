@@ -14,6 +14,13 @@ vi.mock("@/ipc/bindings", () => ({
   },
 }));
 
+// M8 T3: same live-yaw mock as campus-world.smoke.test.tsx — see that
+// file's comment for why.
+vi.mock("@/game/engine/camera/live-camera", () => ({
+  getLiveYaw: vi.fn(() => 0),
+  setLiveYaw: vi.fn(),
+}));
+
 function project(over: Partial<Project> & { id: string; name: string; folder_path: string }): Project {
   return {
     description: null,
@@ -30,8 +37,12 @@ function project(over: Partial<Project> & { id: string; name: string; folder_pat
 const PROJECTS: Project[] = [project({ id: "p1", name: "Engineering", folder_path: "/work/eng" })];
 
 import { resetCampusEditsForTests, useCampusEdits } from "./store";
+import { useBuildMode } from "./mode";
+import { useCameraDirector } from "@/game/engine/camera/director";
+import { getLiveYaw } from "@/game/engine/camera/live-camera";
 import { resetProjectsForTests, useProjectsStore } from "@/stores/projects";
 import { PlacedBuildings } from "./PlacedBuildings";
+import type { ReactThreeTest } from "@react-three/test-renderer";
 
 /** #rrggbb -> 0xrrggbb, matching how three.js normalizes `Color.set()` input. */
 function hex(color: string): number {
@@ -43,12 +54,73 @@ describe("PlacedBuildings smoke", () => {
     vi.clearAllMocks();
     resetCampusEditsForTests();
     resetProjectsForTests();
+    useBuildMode.setState({ active: false, roomCard: null });
+    useCameraDirector.setState({ mode: { kind: "free" } });
+    vi.mocked(getLiveYaw).mockReturnValue(0);
   });
 
   it("renders nothing with no placed buildings", async () => {
     const renderer = await ReactThreeTestRenderer.create(<PlacedBuildings />);
     expect(renderer.scene.findAllByType("Mesh")).toHaveLength(0);
     await renderer.unmount();
+  });
+
+  // M8 T3: the same click that opens RoomCard for a placed building also
+  // frames it with the camera director, threading the rig's live yaw
+  // through (mocked above) into focusBuilding's currentYaw argument.
+  describe("clicking a placed pavilion", () => {
+    function placedGroup(scene: ReactThreeTest.ReactThreeTestInstance) {
+      const matches = scene.findAll((n) => typeof n.props.onPointerDown === "function");
+      expect(matches).toHaveLength(1);
+      return matches[0]!;
+    }
+
+    it("opens its RoomCard and focuses the camera director on its rect, centered", async () => {
+      useCampusEdits.getState().addBuilding({ x: 3, z: 20, w: 10, d: 8 }, null);
+      const renderer = await ReactThreeTestRenderer.create(<PlacedBuildings />);
+
+      await renderer.fireEvent(placedGroup(renderer.scene), "pointerDown", { button: 0 });
+
+      const roomCard = useBuildMode.getState().roomCard;
+      expect(roomCard?.kind).toBe("placed");
+
+      const mode = useCameraDirector.getState().mode;
+      expect(mode.kind).toBe("focus");
+      expect(mode.kind === "focus" && mode.target).toEqual({ x: 3, z: 20 });
+
+      await renderer.unmount();
+    });
+
+    it("threads the rig's live yaw into focusBuilding's currentYaw argument", async () => {
+      vi.mocked(getLiveYaw).mockReturnValue(1.23);
+      const focusSpy = vi.spyOn(useCameraDirector.getState(), "focusBuilding");
+      useCampusEdits.getState().addBuilding({ x: 3, z: 20, w: 10, d: 8 }, null);
+      const renderer = await ReactThreeTestRenderer.create(<PlacedBuildings />);
+
+      await renderer.fireEvent(placedGroup(renderer.scene), "pointerDown", { button: 0 });
+
+      expect(focusSpy).toHaveBeenCalledTimes(1);
+      expect(focusSpy.mock.calls[0]![1]).toBe(1.23);
+      expect(focusSpy.mock.calls[0]![0]).toEqual(
+        expect.objectContaining({ rect: { x: 3, z: 20, w: 10, d: 8 } }),
+      );
+
+      await renderer.unmount();
+    });
+
+    it("is inert in build mode — no RoomCard, camera stays free", async () => {
+      useCampusEdits.getState().addBuilding({ x: 3, z: 20, w: 10, d: 8 }, null);
+      useBuildMode.setState({ active: true });
+      const renderer = await ReactThreeTestRenderer.create(<PlacedBuildings />);
+
+      await renderer.fireEvent(placedGroup(renderer.scene), "pointerDown", { button: 0 });
+
+      expect(useBuildMode.getState().roomCard).toBeNull();
+      expect(useCameraDirector.getState().mode).toEqual({ kind: "free" });
+
+      useBuildMode.setState({ active: false });
+      await renderer.unmount();
+    });
   });
 
   it("renders a Pavilion + a 4-mesh room-edge outline per placed building", async () => {
