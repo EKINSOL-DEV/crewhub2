@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { useGameChats } from "./store";
 
 describe("useGameChats", () => {
-  beforeEach(() => useGameChats.setState({ chats: [] }));
+  beforeEach(() => useGameChats.setState({ chats: [], localLines: {} }));
 
   it("opens a chat, un-minimized", () => {
     useGameChats.getState().open("a");
@@ -61,5 +61,41 @@ describe("useGameChats", () => {
     useGameChats.getState().open("b");
     useGameChats.getState().raise("b");
     expect(useGameChats.getState().chats.map((c) => c.key)).toEqual(["a", "b"]);
+  });
+
+  describe("addLocalLine", () => {
+    it("appends a line for a key, with a who/text and a wall-clock ts", () => {
+      useGameChats.getState().addLocalLine("a", "note", "🏃 heading to HQ");
+      const [line] = useGameChats.getState().localLines.a!;
+      expect(line).toMatchObject({ who: "note", text: "🏃 heading to HQ" });
+      expect(typeof line!.ts).toBe("number");
+    });
+
+    it("keeps per-key lines separate — one chat's lines never leak into another's", () => {
+      useGameChats.getState().addLocalLine("a", "note", "for a");
+      useGameChats.getState().addLocalLine("b", "bot", "for b");
+      expect(useGameChats.getState().localLines.a).toHaveLength(1);
+      expect(useGameChats.getState().localLines.b).toHaveLength(1);
+      expect(useGameChats.getState().localLines.a![0]!.text).toBe("for a");
+      expect(useGameChats.getState().localLines.b![0]!.text).toBe("for b");
+    });
+
+    it("appends in call order and assigns each line a distinct seq (no key collisions to worry about downstream)", () => {
+      useGameChats.getState().addLocalLine("a", "note", "first");
+      useGameChats.getState().addLocalLine("a", "bot", "second");
+      const lines = useGameChats.getState().localLines.a!;
+      expect(lines.map((l) => l.text)).toEqual(["first", "second"]);
+      expect(new Set(lines.map((l) => l.seq)).size).toBe(2);
+      // Synthetic seqs are negative — never able to collide with a real
+      // (always >= 0) transcript seq once merged in use-chat-session.ts.
+      for (const l of lines) expect(l.seq).toBeLessThan(0);
+    });
+
+    it("survives being read again later (no auto-clear) — cheap and avoids losing feedback on reopen", () => {
+      useGameChats.getState().addLocalLine("a", "note", "still here");
+      useGameChats.getState().open("a");
+      useGameChats.getState().close("a");
+      expect(useGameChats.getState().localLines.a).toHaveLength(1);
+    });
   });
 });

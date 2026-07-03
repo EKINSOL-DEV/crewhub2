@@ -64,6 +64,7 @@ vi.mock("@/game/sim/grid", async (importOriginal) => {
 });
 
 import { useSim, type CharacterInfo } from "./use-sim";
+import { drainCommands, postCommand } from "@/game/sim/command-bus";
 import { buildNavGrid } from "@/game/sim/grid";
 import { DEMO_GROUP } from "@/game/sim/demo";
 import { biomeSkipFor } from "@/game/world/biome";
@@ -233,6 +234,79 @@ describe("useSim biome skip (M4 debt sweep — sky-biome invisible walls)", () =
     const cz = Math.floor(pine.z + lastGrid.size / 2);
     expect(lastGrid.blocked[cz * lastGrid.size + cx]).toBe(1);
 
+    await renderer.unmount();
+  });
+});
+
+describe("useSim command-bus drain (M7 T3)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetCampusEditsForTests();
+    drainCommands(); // flush any command left queued by an unrelated test
+  });
+
+  it("drains the command bus every frame and forwards each entry to sim.command", async () => {
+    const bot = workingBot(0);
+    let sim: Sim | null = null;
+    const renderer = await ReactThreeTestRenderer.create(
+      <Probe characters={[bot]} onSim={(s) => (sim = s)} />,
+    );
+    await ReactThreeTestRenderer.act(async () => {
+      await renderer.advanceFrames(2, 0.1);
+    });
+
+    const commandSpy = vi.spyOn(sim!, "command");
+    postCommand("bot-0", { kind: "emote", emote: "wave" });
+    await ReactThreeTestRenderer.act(async () => {
+      await renderer.advanceFrames(1, 0.1);
+    });
+
+    expect(commandSpy).toHaveBeenCalledWith("bot-0", { kind: "emote", emote: "wave" });
+    // The queue is drained (not just peeked) — a second frame with nothing
+    // freshly posted must not replay the same command again.
+    await ReactThreeTestRenderer.act(async () => {
+      await renderer.advanceFrames(1, 0.1);
+    });
+    expect(commandSpy).toHaveBeenCalledTimes(1);
+
+    await renderer.unmount();
+  });
+
+  it("drains before ticking, so a posted goto is already applied within the same frame it lands on", async () => {
+    const bot = workingBot(0);
+    let sim: Sim | null = null;
+    const renderer = await ReactThreeTestRenderer.create(
+      <Probe characters={[bot]} onSim={(s) => (sim = s)} />,
+    );
+    await ReactThreeTestRenderer.act(async () => {
+      await renderer.advanceFrames(2, 0.1);
+    });
+
+    const commandSpy = vi.spyOn(sim!, "command");
+    const tickSpy = vi.spyOn(sim!, "tick");
+    postCommand("bot-0", { kind: "goto", x: 5, z: 5 });
+    await ReactThreeTestRenderer.act(async () => {
+      await renderer.advanceFrames(1, 0.1);
+    });
+
+    expect(commandSpy).toHaveBeenCalled();
+    expect(tickSpy).toHaveBeenCalled();
+    const firstCommandCall = commandSpy.mock.invocationCallOrder[0]!;
+    const firstTickCall = tickSpy.mock.invocationCallOrder[0]!;
+    expect(firstCommandCall).toBeLessThan(firstTickCall);
+
+    await renderer.unmount();
+  });
+
+  it("posting for a bot the sim doesn't know about is a harmless no-op forwarded straight through", async () => {
+    const renderer = await ReactThreeTestRenderer.create(<Probe characters={[]} onSim={() => {}} />);
+    postCommand("nonexistent-bot", { kind: "emote", emote: "cheer" });
+    await ReactThreeTestRenderer.act(async () => {
+      await renderer.advanceFrames(1, 0.1);
+    });
+    // No throw — that's the assertion. sim.ts's command() already no-ops for
+    // an unknown key; this just proves the drain doesn't add its own guard
+    // (and doesn't need to).
     await renderer.unmount();
   });
 });

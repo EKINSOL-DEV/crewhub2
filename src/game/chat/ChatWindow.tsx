@@ -28,6 +28,10 @@ const STATUS_GLYPH: Record<SessionStatus, string> = {
 const STACK_RIGHT = 16;
 const STACK_GAP = 370;
 
+/** M7 T3: every live composer hints at the command grammar (parse.ts) — the
+ *  one thing that still works even with no session/LLM behind a bot. */
+const COMPOSER_HINT = ' (try "go to HQ" or "dance")';
+
 export interface ChatWindowProps {
   chatKey: string;
   name: string;
@@ -110,7 +114,12 @@ export function ChatWindow({
   // Ended session with no agent binding (e.g. a taken-over External
   // session) has no spawn path back, so it stays a dead end.
   const canWake = ended && agent !== null;
-  const composerDisabled = (ended && !canWake) || demo;
+  // M7 T3: demo bots used to be a hard dead end (composer fully disabled) —
+  // now a typed command ("go to hq", "dance") reaches the real sim even for
+  // a demo bot (use-chat-session.ts's send intercepts it before any session
+  // routing), so the composer stays live; ordinary chatter to a demo bot is
+  // a silent no-op there, not a disabled input here.
+  const composerDisabled = ended && !canWake;
 
   const submit = () => {
     const text = draft.trim();
@@ -121,11 +130,13 @@ export function ChatWindow({
     }
     setDraft("");
     setSendError(null);
+    // Success feedback (sfx, local notes/bubbles) is owned entirely by
+    // send() now (M7 T3) — it fires "send" for every path that actually put
+    // the message somewhere (a live session, a posted command), and skips it
+    // for the ones that don't (a session-less "say"/shrug reply, or a
+    // demo bot's non-command chatter).
     void send(text).then((res) => {
-      if (res.ok) {
-        playSfx("send");
-        return;
-      }
+      if (res.ok) return;
       setSendError(res.error);
       // Restore the eaten message — but only if the user hasn't started
       // typing something new in the meantime.
@@ -208,12 +219,15 @@ export function ChatWindow({
       </div>
 
       <div ref={scroller} className="flex-1 space-y-2 overflow-y-auto px-3 py-2">
-        {demo ? (
+        {demo && lines.length === 0 ? (
+          // A fresh demo thread has no transcript at all (there's no session
+          // behind it) — until a command leaves its own local note/bubble
+          // behind (use-chat-session.ts), show a hint instead of a blank pane.
           <div
             data-testid="chat-window-demo-note"
             className="flex h-full items-center justify-center px-6 text-center text-sm text-slate-500"
           >
-            demo thread — hire a real robot to chat
+            demo thread — try "go to hq" or "dance"
           </div>
         ) : (
           lines.map((l) => lineBubble(l, color))
@@ -250,13 +264,7 @@ export function ChatWindow({
           }}
           disabled={composerDisabled}
           placeholder={
-            demo
-              ? "demo thread"
-              : canWake
-                ? `Wake ${name} with…`
-                : ended
-                  ? "session ended"
-                  : `Message ${name}…`
+            canWake ? `Wake ${name} with…` : ended ? "session ended" : `Message ${name}…${COMPOSER_HINT}`
           }
           className="h-9 min-w-0 flex-1 rounded-full border-2 border-slate-900/10 bg-white px-3 text-sm outline-none disabled:opacity-50"
         />
