@@ -56,7 +56,15 @@ const DEMO_WARMUP_TICKS = 300; // 30s of sim time, deterministic, <10ms of work
 function withProjectGroupKeys(buildings: Building[], folderByProjectId: Map<string, string>): Building[] {
   return buildings.map((b) => ({
     ...b,
-    groupKey: b.projectId ? (folderByProjectId.get(b.projectId) ?? null) : null,
+    // Defensive (M6 T5): HQ never claims a groupKey, full stop. It's dead
+    // data today either way — campusBuildings() only ever maps
+    // `plotProjects` over the four real plot indices, HQ is prepended
+    // separately and never carries a `projectId` — but an explicit
+    // kind==="hq" check here means a corrupt persisted blob (say, a stray
+    // `plotProjects[-1]` entry) can never accidentally seat HQ into a
+    // project's desk pool, rather than that safety being an accident of
+    // where campusBuildings() happens to read from.
+    groupKey: b.kind === "hq" ? null : b.projectId ? (folderByProjectId.get(b.projectId) ?? null) : null,
   }));
 }
 
