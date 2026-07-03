@@ -19,7 +19,8 @@ function lighten(hex: string, amt: number): string {
 }
 const WALL = lighten(SLAB, 24);
 
-const WALL_HEIGHT = 2.0;
+/** Exported for RoofPlate (M5 T4) — its nameplate sits `+1.6` above this. */
+export const WALL_HEIGHT = 2.0;
 const WALL_THICK = 0.3;
 const WALL_INSET = 0.1;
 const DOOR_GAP = 2.2;

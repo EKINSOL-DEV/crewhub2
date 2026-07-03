@@ -3,7 +3,7 @@ import { useBuildMode } from "./mode";
 
 describe("useBuildMode", () => {
   beforeEach(() => {
-    useBuildMode.setState({ active: false, tool: { kind: "select" } });
+    useBuildMode.setState({ active: false, tool: { kind: "select" }, pendingRoomLink: null, roomCard: null });
   });
 
   it("starts inactive on the select tool", () => {
@@ -46,5 +46,24 @@ describe("useBuildMode", () => {
     useBuildMode.getState().openRoomLink("b1");
     useBuildMode.getState().deactivate();
     expect(useBuildMode.getState().pendingRoomLink).toBeNull();
+  });
+
+  it("openRoomCard/closeRoomCard set and clear the roomCard target", () => {
+    expect(useBuildMode.getState().roomCard).toBeNull();
+    useBuildMode.getState().openRoomCard({ kind: "plot", plotIndex: 2 });
+    expect(useBuildMode.getState().roomCard).toEqual({ kind: "plot", plotIndex: 2 });
+    useBuildMode.getState().closeRoomCard();
+    expect(useBuildMode.getState().roomCard).toBeNull();
+  });
+
+  it("openRoomCard also works for a placed building target", () => {
+    useBuildMode.getState().openRoomCard({ kind: "placed", id: "b1" });
+    expect(useBuildMode.getState().roomCard).toEqual({ kind: "placed", id: "b1" });
+  });
+
+  it("activate dismisses a dangling room card", () => {
+    useBuildMode.getState().openRoomCard({ kind: "placed", id: "b1" });
+    useBuildMode.getState().activate();
+    expect(useBuildMode.getState().roomCard).toBeNull();
   });
 });

@@ -49,11 +49,13 @@ vi.mock("@/ipc/bindings", () => ({
 import { CampusWorld } from "./CampusWorld";
 import { campusLayout } from "./layout";
 import { resetCampusEditsForTests, useCampusEdits } from "@/game/build/store";
+import { resetProjectsForTests, useProjectsStore } from "@/stores/projects";
 import { BIOMES } from "@/game/world/biome";
 
 describe("CampusWorld smoke", () => {
   beforeEach(() => {
     resetCampusEditsForTests();
+    resetProjectsForTests();
   });
 
   it("mounts terrain and one mesh per decor/prop placement into a scene graph", async () => {
@@ -108,4 +110,36 @@ describe("CampusWorld smoke", () => {
       await renderer.unmount();
     },
   );
+
+  it("adds one roof-plate mesh (the color dot) per base pavilion linked to a project, none when unlinked", async () => {
+    const before = await ReactThreeTestRenderer.create(<CampusWorld />);
+    const baseCount = before.scene.findAllByType("Mesh").length;
+    await before.unmount();
+
+    // RoofPlate's own Text suspends forever in jsdom (no font can load) —
+    // per the M1 lesson, that's fine: its Suspense boundary just keeps
+    // showing its null fallback, contributing zero meshes, so only the
+    // color-dot mesh shows up in this count.
+    useProjectsStore.setState({
+      projects: [
+        {
+          id: "proj-1",
+          name: "Acme",
+          description: null,
+          icon: "🚀",
+          color: "#22c55e",
+          folder_path: "/work/acme",
+          docs_path: null,
+          status: "active",
+          created_at: 0,
+          updated_at: 0,
+        },
+      ],
+    });
+    useCampusEdits.getState().setPlotProject(0, "proj-1");
+
+    const after = await ReactThreeTestRenderer.create(<CampusWorld />);
+    expect(after.scene.findAllByType("Mesh").length).toBe(baseCount + 1);
+    await after.unmount();
+  });
 });
