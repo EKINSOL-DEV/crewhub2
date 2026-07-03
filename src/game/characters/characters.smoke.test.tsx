@@ -6,10 +6,11 @@
 // way world-scene.smoke.test.tsx stubs them. Stores are mocked wholesale:
 // this test only cares that two sim bots (one Working, one
 // WaitingForPermission) turn into two robots with the right status bulb.
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ReactThreeTestRenderer from "@react-three/test-renderer";
 import type { Agent, SessionEvent, SessionMeta } from "@/ipc/bindings";
 import type { SessionView } from "@/stores/sessions";
+import { useBuildMode } from "@/game/build/mode";
 
 vi.mock("@react-three/drei", async (importOriginal) => {
   const real = await importOriginal<typeof import("@react-three/drei")>();
@@ -177,5 +178,80 @@ describe("Characters smoke", () => {
     expect(VIEWS.map((v) => v.key)).toContain(onSelect.mock.calls[0]?.[0]);
 
     await renderer.unmount();
+  });
+
+  // M4 debt sweep: robot-click vs item tool. A robot standing over open
+  // ground sits in front of BuildControls' ground-pick plane along the
+  // raycast — without a guard, clicking it while placing decor would also
+  // place an item underneath (pointerdown reaching the plane behind it)
+  // and open its chat/hire dialog (onSelect), neither of which the player
+  // wants mid-placement.
+  describe("robot click vs. the item build tool", () => {
+    beforeEach(() => {
+      useBuildMode.setState({ active: false, tool: { kind: "select" }, pendingRoomLink: null });
+    });
+    afterEach(() => {
+      useBuildMode.setState({ active: false, tool: { kind: "select" }, pendingRoomLink: null });
+    });
+
+    it("stops pointerdown from reaching the ground plane beneath the robot", async () => {
+      const renderer = await ReactThreeTestRenderer.create(<Characters />);
+      await ReactThreeTestRenderer.act(async () => {
+        await renderer.advanceFrames(20, 0.1);
+      });
+
+      const actor = renderer.scene.findAll((node) => typeof node.props.onClick === "function")[0]!;
+      const stopPropagation = vi.fn();
+      await renderer.fireEvent(actor, "pointerDown", { stopPropagation });
+      expect(stopPropagation).toHaveBeenCalledTimes(1);
+
+      await renderer.unmount();
+    });
+
+    it("suppresses onSelect on click while the item tool is actively placing decor", async () => {
+      useBuildMode.setState({ active: true, tool: { kind: "item", item: "bush" }, pendingRoomLink: null });
+      const onSelect = vi.fn();
+      const renderer = await ReactThreeTestRenderer.create(<Characters onSelect={onSelect} />);
+      await ReactThreeTestRenderer.act(async () => {
+        await renderer.advanceFrames(20, 0.1);
+      });
+
+      const actor = renderer.scene.findAll((node) => typeof node.props.onClick === "function")[0]!;
+      await renderer.fireEvent(actor, "click");
+      expect(onSelect).not.toHaveBeenCalled();
+
+      await renderer.unmount();
+    });
+
+    it("still selects normally once build mode is inactive again", async () => {
+      useBuildMode.setState({ active: true, tool: { kind: "item", item: "bush" }, pendingRoomLink: null });
+      const onSelect = vi.fn();
+      const renderer = await ReactThreeTestRenderer.create(<Characters onSelect={onSelect} />);
+      await ReactThreeTestRenderer.act(async () => {
+        await renderer.advanceFrames(20, 0.1);
+      });
+      useBuildMode.setState({ active: false, tool: { kind: "select" }, pendingRoomLink: null });
+
+      const actor = renderer.scene.findAll((node) => typeof node.props.onClick === "function")[0]!;
+      await renderer.fireEvent(actor, "click");
+      expect(onSelect).toHaveBeenCalledTimes(1);
+
+      await renderer.unmount();
+    });
+
+    it("still selects normally on the select tool while build mode is active", async () => {
+      useBuildMode.setState({ active: true, tool: { kind: "select" }, pendingRoomLink: null });
+      const onSelect = vi.fn();
+      const renderer = await ReactThreeTestRenderer.create(<Characters onSelect={onSelect} />);
+      await ReactThreeTestRenderer.act(async () => {
+        await renderer.advanceFrames(20, 0.1);
+      });
+
+      const actor = renderer.scene.findAll((node) => typeof node.props.onClick === "function")[0]!;
+      await renderer.fireEvent(actor, "click");
+      expect(onSelect).toHaveBeenCalledTimes(1);
+
+      await renderer.unmount();
+    });
   });
 });

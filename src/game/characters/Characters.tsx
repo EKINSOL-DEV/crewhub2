@@ -8,6 +8,7 @@ import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { Billboard, Text } from "@react-three/drei";
 import * as THREE from "three";
 import type { SessionStatus } from "@/ipc/bindings";
+import { useBuildMode } from "@/game/build/mode";
 import type { Character } from "@/game/sim/characters";
 import { SpeechBubble } from "@/game/chat/SpeechBubble";
 import { useGameSpeechBubbles } from "@/game/chat/use-speech-bubbles";
@@ -96,8 +97,22 @@ function CharacterActor({
       ref={groupRef}
       position={[x, 0, z]}
       rotation={[0, facing, 0]}
+      // R3F fires pointerdown and click as independent synthetic events —
+      // stopPropagation on one doesn't stop the other (see onClick below).
+      // BuildControls' ground-pick plane listens for onPointerDown to place
+      // decor, so without this, clicking a robot standing over an open spot
+      // while the item tool is active both selects the robot AND places an
+      // item underneath it. Stop it here, unconditionally — a robot should
+      // never double as ground.
+      onPointerDown={(e: ThreeEvent<PointerEvent>) => e.stopPropagation()}
       onClick={(e: ThreeEvent<MouseEvent>) => {
         e.stopPropagation();
+        // The click itself isn't blocked by the pointerdown stop above, so
+        // it still reaches here even mid-placement — guard it separately:
+        // while actively placing decor, a robot click must open neither its
+        // chat window nor the hire dialog (onSelect below drives both).
+        const buildMode = useBuildMode.getState();
+        if (buildMode.active && buildMode.tool.kind === "item") return;
         // groupRef's position is the live, per-frame-damped sim position —
         // more accurate than the `x`/`z` props, which only refresh when the
         // bot set itself changes (see the `version` comment below).
