@@ -64,6 +64,14 @@ vi.mock("@/ipc/bindings", () => ({
   },
 }));
 
+// HqProps' 🧰 stand (M6 T4) opens a native window rather than touching the
+// card slot — same mock convention as hud-windows.test.tsx.
+vi.mock("@/game/app/windows", () => ({
+  openWorkspaceWindow: vi.fn(),
+  openSettingsWindow: vi.fn(),
+}));
+
+import { openWorkspaceWindow } from "@/game/app/windows";
 import { CampusWorld } from "./CampusWorld";
 import { campusLayout } from "./layout";
 import { resetCampusEditsForTests, useCampusEdits } from "@/game/build/store";
@@ -73,12 +81,12 @@ import { BIOMES } from "@/game/world/biome";
 import type { ReactThreeTest } from "@react-three/test-renderer";
 
 /**
- * The `<group>` CampusWorld wraps around each building's `<Pavilion>`,
- * identified by its `name` marker (same convention the stubbed RoofPlate
- * `<Text>` above uses) rather than position or the `onPointerDown` prop —
- * HQ's wrapper omits that prop entirely (conditional spread, not
- * `onPointerDown={undefined}`, since exactOptionalPropertyTypes rejects an
- * explicit `undefined` for it), so a prop-presence check can't find it.
+ * The `<group>` CampusWorld wraps around each building's `<Pavilion>`/
+ * `<Headquarters>`, identified by its `name` marker (same convention the
+ * stubbed RoofPlate `<Text>` above uses) rather than position — every
+ * wrapper carries an `onPointerDown` now (M6 T4: HQ's click opens its own
+ * card, same gesture as a plot pavilion opening RoomCard), so a
+ * prop-presence check would find it on every wrapper regardless of kind.
  */
 function pavilionWrapper(
   scene: ReactThreeTest.ReactThreeTestInstance,
@@ -91,6 +99,7 @@ function pavilionWrapper(
 
 describe("CampusWorld smoke", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     resetCampusEditsForTests();
     resetProjectsForTests();
   });
@@ -117,7 +126,9 @@ describe("CampusWorld smoke", () => {
     // segments, since every side carries its own door) + steps (4 doors x 2
     // flanking meshes) + podium (1) + 3 prop pads + 2 banners (1
     // mocked-model mesh each) = 32, plus its own permanent plate (1 backdrop
-    // mesh, HeadquartersPlate — mounted outside the frozen group, see below).
+    // mesh, HeadquartersPlate — mounted outside the frozen group, see below)
+    // and its M6 T4 prop stands (HqProps, also outside the frozen group):
+    // 3 stands x (1 mocked-model mesh + 1 icon-plate backdrop mesh) = 6.
     // The fixed plaza-center Fountain is gone (M6 moved it to placed decor,
     // where it renders zero meshes with the default EMPTY_EDITS state — see
     // the placed-fountain test further down).
@@ -125,27 +136,85 @@ describe("CampusWorld smoke", () => {
     const CLOUD_MESHES = 7 * 3;
     const HQ_MESHES = 32;
     const HQ_PLATE_MESHES = 1;
+    const HQ_PROPS_MESHES = 3 * 2;
     const PAVILION_MESHES = 4 * 29;
     expect(meshes.length).toBe(
-      totalPlacements + TERRAIN_MESHES + CLOUD_MESHES + PAVILION_MESHES + HQ_MESHES + HQ_PLATE_MESHES,
+      totalPlacements +
+        TERRAIN_MESHES +
+        CLOUD_MESHES +
+        PAVILION_MESHES +
+        HQ_MESHES +
+        HQ_PLATE_MESHES +
+        HQ_PROPS_MESHES,
     );
     await renderer.unmount();
   });
 
-  it("HQ is not clickable to open a RoomCard — only plot pavilions are (M6 fast-follow)", async () => {
+  it("HQ is clickable too (M6 T4) — it opens the hq card, not a RoomCard", async () => {
     useBuildMode.setState({ roomCard: null });
     const renderer = await ReactThreeTestRenderer.create(<CampusWorld />);
 
     const hq = pavilionWrapper(renderer.scene, -1);
-    expect(typeof hq.props.onPointerDown).not.toBe("function");
+    expect(typeof hq.props.onPointerDown).toBe("function");
     await renderer.fireEvent(hq, "pointerDown", { button: 0 });
-    expect(useBuildMode.getState().roomCard).toBeNull();
+    expect(useBuildMode.getState().roomCard).toEqual({ kind: "hq" });
 
     const plot0 = pavilionWrapper(renderer.scene, 0);
     expect(typeof plot0.props.onPointerDown).toBe("function");
     await renderer.fireEvent(plot0, "pointerDown", { button: 0 });
     expect(useBuildMode.getState().roomCard).toEqual({ kind: "plot", plotIndex: 0 });
 
+    await renderer.unmount();
+  });
+
+  it("HQ click is inert in build mode, same guard as plot pavilions", async () => {
+    useBuildMode.setState({ roomCard: null, active: true });
+    const renderer = await ReactThreeTestRenderer.create(<CampusWorld />);
+
+    const hq = pavilionWrapper(renderer.scene, -1);
+    await renderer.fireEvent(hq, "pointerDown", { button: 0 });
+    expect(useBuildMode.getState().roomCard).toBeNull();
+
+    useBuildMode.setState({ active: false });
+    await renderer.unmount();
+  });
+
+  it("HQ's 📋/👥 prop stands (M6 T4) route clicks to the projects/hire cards", async () => {
+    useBuildMode.setState({ roomCard: null });
+    const renderer = await ReactThreeTestRenderer.create(<CampusWorld />);
+
+    const projectsProp = renderer.scene.findAll((n) => n.props.name === "hq-prop-projects")[0]!;
+    await renderer.fireEvent(projectsProp, "pointerDown", { button: 0 });
+    expect(useBuildMode.getState().roomCard).toEqual({ kind: "projects" });
+
+    const hireProp = renderer.scene.findAll((n) => n.props.name === "hq-prop-hire")[0]!;
+    await renderer.fireEvent(hireProp, "pointerDown", { button: 0 });
+    expect(useBuildMode.getState().roomCard).toEqual({ kind: "hire" });
+
+    await renderer.unmount();
+  });
+
+  it("HQ's 🧰 prop stand opens the workspace window instead of touching the card slot", async () => {
+    useBuildMode.setState({ roomCard: null });
+    const renderer = await ReactThreeTestRenderer.create(<CampusWorld />);
+
+    const workspaceProp = renderer.scene.findAll((n) => n.props.name === "hq-prop-workspace")[0]!;
+    await renderer.fireEvent(workspaceProp, "pointerDown", { button: 0 });
+    expect(useBuildMode.getState().roomCard).toBeNull();
+    expect(openWorkspaceWindow).toHaveBeenCalledTimes(1);
+
+    await renderer.unmount();
+  });
+
+  it("HQ's prop stands are inert in build mode, same guard as the HQ/pavilion clicks", async () => {
+    useBuildMode.setState({ roomCard: null, active: true });
+    const renderer = await ReactThreeTestRenderer.create(<CampusWorld />);
+
+    const projectsProp = renderer.scene.findAll((n) => n.props.name === "hq-prop-projects")[0]!;
+    await renderer.fireEvent(projectsProp, "pointerDown", { button: 0 });
+    expect(useBuildMode.getState().roomCard).toBeNull();
+
+    useBuildMode.setState({ active: false });
     await renderer.unmount();
   });
 

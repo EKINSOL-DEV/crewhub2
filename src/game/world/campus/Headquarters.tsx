@@ -60,16 +60,23 @@ const PODIUM_RADIUS = 1.6;
 const PODIUM_HEIGHT = 0.25;
 
 /**
- * Interior floor markings for Task 4's interactive props — west/north/east
- * of the podium, well clear of both the podium's own footprint and the
- * walls/door gaps. South is left open; that's the primary door's sightline
- * into the building (see buildings.ts' `hqBuilding` comment on why south is
- * the primary face).
+ * Interior floor markings for Task 4's interactive props — diagonal
+ * (NW/NE/SW-quadrant) positions, well clear of the podium's own footprint
+ * (r=1.6), the walls (≥1.5 clearance), and EVERY door's walk-in lane
+ * (±1.5 either side of that door's centerline). Fix round 1 (M6 T4 carried
+ * fix): the original west/north/east positions sat at {-3,0}/{0,-3}/{3,0}
+ * — each one dead-center in its own door's walk-in lane (west door's lane
+ * is the z≈0 strip, north door's is the x≈0 strip, and so on), so a player
+ * walking straight in would collide with the prop stand. Moving off both
+ * axes into the quadrants between doors clears every lane at once. South
+ * is left propless; that's the primary door's sightline into the building
+ * (see buildings.ts' `hqBuilding` comment on why south is the primary
+ * face).
  */
 export const HQ_PROP_PADS: { x: number; z: number }[] = [
-  { x: -3, z: 0 }, // west
-  { x: 0, z: -3 }, // north
-  { x: 3, z: 0 }, // east
+  { x: -3.5, z: -2.5 }, // NW quadrant
+  { x: 3.5, z: -2.5 }, // NE quadrant
+  { x: -3.5, z: 2.5 }, // SW quadrant
 ];
 const PAD_RADIUS = 0.8;
 const PAD_HEIGHT = 0.06;

@@ -9,13 +9,14 @@ import type { ThreeEvent } from "@react-three/fiber";
 import type * as THREE from "three";
 import type { ModelId } from "@/game/assets/manifest";
 import { placedItemPlacements, type PlaceableKind } from "@/game/build/edits";
-import { useBuildMode } from "@/game/build/mode";
+import { useBuildMode, type CardTarget } from "@/game/build/mode";
 import { PlacedBuildings } from "@/game/build/PlacedBuildings";
 import { useCampusEdits } from "@/game/build/store";
 import { CloudPuffs } from "@/game/world/CloudPuffs";
 import { BIOMES, type Biome } from "@/game/world/biome";
 import { Fountain } from "./Fountain";
 import { Headquarters, HeadquartersPlate, HQ_PLATE_Y } from "./Headquarters";
+import { HqProps } from "./HqProps";
 import { InstancedModel } from "./InstancedModel";
 import { Terrain } from "./Terrain";
 import { campusLayout, type ScatterKind } from "./layout";
@@ -111,14 +112,15 @@ export function CampusWorld({ biome = BIOMES.campus }: { biome?: Biome }) {
   // Clicking a base pavilion outside build mode opens its RoomCard (M5 T4);
   // in build mode this steps aside for BuildControls' own tools (item/
   // building placement, the select-tool proxies over *placed* buildings).
-  // HQ (M6, plotIndex -1) is excluded from this wiring entirely — it isn't
-  // a plot and has no project to link; it gets its own card in a later
-  // task. This is the stopgap so the live app can't link HQ meanwhile.
-  function handlePavilionPointerDown(e: ThreeEvent<PointerEvent>, plotIndex: number) {
+  // HQ (M6, plotIndex -1) gets the same gesture but a different card (M6
+  // T4): it isn't a plot and has no project to link, so it opens HqCard
+  // instead of RoomCard — see mode.ts's CardTarget union and GameShell's
+  // rendering switch.
+  function handlePavilionPointerDown(e: ThreeEvent<PointerEvent>, target: CardTarget) {
     if (e.button !== 0) return;
     if (useBuildMode.getState().active) return;
     e.stopPropagation();
-    openRoomCard({ kind: "plot", plotIndex });
+    openRoomCard(target);
   }
 
   return (
@@ -148,11 +150,12 @@ export function CampusWorld({ biome = BIOMES.campus }: { biome?: Biome }) {
           <group
             key={b.plotIndex}
             name={`pavilion-wrapper-${b.plotIndex}`}
-            {...(b.kind === "hq"
-              ? {}
-              : {
-                  onPointerDown: (e: ThreeEvent<PointerEvent>) => handlePavilionPointerDown(e, b.plotIndex),
-                })}
+            onPointerDown={(e: ThreeEvent<PointerEvent>) =>
+              handlePavilionPointerDown(
+                e,
+                b.kind === "hq" ? { kind: "hq" } : { kind: "plot", plotIndex: b.plotIndex },
+              )
+            }
           >
             {b.kind === "hq" ? <Headquarters building={b} /> : <Pavilion building={b} />}
           </group>
@@ -200,6 +203,11 @@ export function CampusWorld({ biome = BIOMES.campus }: { biome?: Biome }) {
           />
         ))}
       <HeadquartersPlate position={[0, HQ_PLATE_Y, 0]} />
+      {/* HQ's interactive prop stands (M6 T4) — same outside-the-frozen-group
+          placement as the plate above, and for the same reason: their icon
+          plates are Billboards that must keep facing the camera every
+          frame. */}
+      <HqProps />
     </group>
   );
 }

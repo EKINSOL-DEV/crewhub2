@@ -12,6 +12,22 @@ const SELECT_TOOL: BuildTool = { kind: "select" };
  *  into the seeded layout) or a player-built pavilion (by its edits id). */
 export type RoomCardTarget = { kind: "plot"; plotIndex: number } | { kind: "placed"; id: string };
 
+/**
+ * Every kind of single-open "card" the game HUD can show (M6 T4 adds the
+ * last three arms): a plot/placed RoomCard, HQ's own card (no project to
+ * link, so it isn't a RoomCardTarget), the in-game Projects dialog, and a
+ * request to open the hire dialog. Kept on the SAME `roomCard` field/
+ * opener rather than a parallel state slot — only one card should ever be
+ * on screen, and reusing the field that already enforces that (every open
+ * replaces whatever was there, `activate()` clears it) gets single-open
+ * semantics for the new cards for free instead of re-deriving "close the
+ * others" across two fields. The "hire" arm carries no payload of its
+ * own: GameShell notices it and defers to its existing HireDialog open/
+ * close state, since that dialog is also reachable from the HUD and
+ * character clicks and needs to keep owning its own boolean.
+ */
+export type CardTarget = RoomCardTarget | { kind: "hq" } | { kind: "projects" } | { kind: "hire" };
+
 interface BuildModeState {
   active: boolean;
   tool: BuildTool;
@@ -21,12 +37,12 @@ interface BuildModeState {
    *  happens inside it, and threading a prop across that boundary would
    *  mean plumbing it through GameShell for no benefit over this. */
   pendingRoomLink: string | null;
-  /** Pavilion a RoomCard is open for outside build mode, or null (M5 T4).
-   *  Same store-field-over-prop rationale as `pendingRoomLink` — the click
-   *  that opens it happens deep inside the Canvas (CampusWorld/
-   *  PlacedBuildings), the card itself mounts as an HTML sibling in
-   *  GameShell. */
-  roomCard: RoomCardTarget | null;
+  /** The single open card outside build mode, or null (M5 T4; M6 T4 widened
+   *  the type — see `CardTarget`). Same store-field-over-prop rationale as
+   *  `pendingRoomLink` — the click that opens it happens deep inside the
+   *  Canvas (CampusWorld/PlacedBuildings/HqProps), the card itself mounts
+   *  as an HTML sibling in GameShell. */
+  roomCard: CardTarget | null;
   /** Enter build mode, always starting on the select/move tool. Also
    *  dismisses any open RoomCard — build mode's own selection/inspection UI
    *  takes over the same "click a pavilion" gesture, so the two must not be
@@ -37,7 +53,7 @@ interface BuildModeState {
   setTool: (tool: BuildTool) => void;
   openRoomLink: (buildingId: string) => void;
   closeRoomLink: () => void;
-  openRoomCard: (target: RoomCardTarget) => void;
+  openRoomCard: (target: CardTarget) => void;
   closeRoomCard: () => void;
 }
 
