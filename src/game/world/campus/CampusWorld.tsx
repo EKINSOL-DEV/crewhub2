@@ -1,5 +1,9 @@
 // The Campus environment's World (M0 T9/T10): terrain, paths, nature scatter,
 // plaza props. Lights live in GameShell (per-environment rig), not here.
+//
+// Biomes (M4 T3): Desert/Island/Sky are the same layout repainted and
+// re-scattered — see biome.ts. `biome` defaults to campus so every existing
+// call site (and test) keeps rendering the original world unchanged.
 import { useEffect, useMemo, useRef } from "react";
 import type * as THREE from "three";
 import type { ModelId } from "@/game/assets/manifest";
@@ -7,6 +11,7 @@ import { type PlaceableKind } from "@/game/build/edits";
 import { PlacedBuildings } from "@/game/build/PlacedBuildings";
 import { useCampusEdits } from "@/game/build/store";
 import { CloudPuffs } from "@/game/world/CloudPuffs";
+import { BIOMES, type Biome } from "@/game/world/biome";
 import { Fountain } from "./Fountain";
 import { InstancedModel } from "./InstancedModel";
 import { Terrain } from "./Terrain";
@@ -67,10 +72,12 @@ function useStaticMatrices(): React.RefObject<THREE.Group | null> {
   return ref;
 }
 
-export function CampusWorld() {
+export function CampusWorld({ biome = BIOMES.campus }: { biome?: Biome }) {
   const layout = useMemo(() => campusLayout(), []);
   const buildings = useMemo(() => campusBuildings(layout.plots), [layout]);
   const staticRef = useStaticMatrices();
+  const skip = biome.skip ?? [];
+  const scatterKinds = (Object.keys(SCATTER_MODEL) as ScatterKind[]).filter((k) => !skip.includes(k));
 
   // Player-placed decor (M3 T4): grouped by kind for InstancedModel, keyed
   // by `version` so a fresh edit remounts the group instead of trying to
@@ -95,15 +102,17 @@ export function CampusWorld() {
     <group>
       {/* Animated residents (fountain water, clouds) stay auto-updating. */}
       <Fountain />
-      <CloudPuffs />
+      <CloudPuffs count={biome.clouds} />
       <group ref={staticRef}>
-        <Terrain />
+        <Terrain grass={biome.grass} apron={biome.apron} path={biome.path} />
         <InstancedModel id="path-stone" placements={layout.pathTiles} />
-        {(Object.keys(SCATTER_MODEL) as ScatterKind[]).map((kind) => (
+        {scatterKinds.map((kind) => (
           <InstancedModel
             key={kind}
-            id={SCATTER_MODEL[kind]}
+            id={biome.scatter[kind] ?? SCATTER_MODEL[kind]}
             placements={layout.scatter[kind]}
+            // Cyan-band hue shift only touches campus greens/blues; safe for
+            // cacti and palms too, so the foliage flag stays keyed on kind.
             foliage={FOLIAGE.has(kind)}
             tilt={kind.startsWith("tree") ? 0.05 : kind === "bush" || kind === "grassTuft" ? 0.09 : 0}
           />
