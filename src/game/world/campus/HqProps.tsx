@@ -6,15 +6,14 @@
 // feedback: "die iconen die er zweven zijn overbodig — gewoon een prop
 // tegen de muur die de functie oproept, een prop die past bij de functie").
 //
-// No Billboard/Text/useModel anywhere in this file anymore — unlike the old
-// HqProps, these props need no per-frame rotation, so (unlike
-// HeadquartersPlate, which still needs one) they're mounted INSIDE
-// CampusWorld's frozen static-matrix group, right alongside <Headquarters>.
-// That's safe for the same reason a pavilion-wrapper's onPointerDown still
-// fires from inside that frozen subtree: useStaticMatrices bakes
-// matrixWorld once before flipping off matrixAutoUpdate, and raycasting
-// tests against the (never-stale, since nothing here ever moves) baked
-// matrixWorld, not against matrixAutoUpdate.
+// No Billboard/Text/useModel anywhere in this file anymore, so in principle
+// these props need no per-frame rotation and could join CampusWorld's frozen
+// static-matrix group right alongside <Headquarters> — but don't: a
+// controller bisect (2026-07-04) found that mounting them inside that frozen
+// subtree blacks the entire first WebGL render in a real browser (world +
+// robots gone, no console error) for a reason still unresolved. See
+// CampusWorld.tsx's comment above where <HqProps /> actually mounts (outside
+// the frozen group, next to HeadquartersPlate) before moving this back in.
 import type { ThreeEvent } from "@react-three/fiber";
 import { openWorkspaceWindow } from "@/game/app/windows";
 import { playSfx } from "@/game/audio/sfx";

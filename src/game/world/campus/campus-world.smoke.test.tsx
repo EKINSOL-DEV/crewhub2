@@ -143,8 +143,11 @@ describe("CampusWorld smoke", () => {
     // mocked-model mesh each) = 25, plus its own permanent plate (1 backdrop
     // mesh, HeadquartersPlate — mounted outside the frozen group, since its
     // Billboard must keep facing the camera every frame) and its wall-
-    // anchored function props (HqProps.tsx, M9 polish — mounted INSIDE the
-    // frozen group, unlike the plate, since none of these use Billboard):
+    // anchored function props (HqProps.tsx, M9 polish — also mounted
+    // outside the frozen group, alongside the plate: despite using no
+    // Billboard, mounting these inside useStaticMatrices' frozen subtree
+    // blacked the entire first WebGL render in a real browser — root cause
+    // unresolved, see CampusWorld.tsx's comment above <HqProps />):
     // a notice board (2 posts + 1 backboard + 5 papers + 5 pin dots + 1
     // hitbox = 14), a reception desk (slab + front panel + bell (2) + sign
     // (2) + 1 hitbox = 7), and a workbench (top + 4 legs + hammer (2) +
