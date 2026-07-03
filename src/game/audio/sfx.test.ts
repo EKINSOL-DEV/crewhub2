@@ -14,6 +14,7 @@ import { MUTED_SETTING_KEY, playSfx, resetAudioForTests, useAudio } from "./sfx"
 // exercised below with this minimal stub, installed per-test.
 class FakeAudioContext {
   destination = {};
+  state: AudioContextState = "running";
   createBufferSource() {
     return { buffer: null, start: vi.fn(), connect: (dest: unknown) => dest };
   }
@@ -22,6 +23,21 @@ class FakeAudioContext {
   }
   decodeAudioData(): Promise<unknown> {
     return Promise.resolve({});
+  }
+  resume(): Promise<void> {
+    this.state = "running";
+    return Promise.resolve();
+  }
+}
+
+// WebKit/WKWebView constructs AudioContext already suspended, even from
+// inside a gesture handler — a distinct stub so its resume() call can be
+// spied on the prototype without disturbing the "running" default above.
+class SuspendedFakeAudioContext extends FakeAudioContext {
+  override state: AudioContextState = "suspended";
+  override resume(): Promise<void> {
+    this.state = "running";
+    return Promise.resolve();
   }
 }
 
@@ -90,5 +106,20 @@ describe("playSfx", () => {
     expect(() => playSfx("hire")).not.toThrow();
     await Promise.resolve();
     await Promise.resolve();
+  });
+
+  it("resumes a suspended context before scheduling playback (WebKit ships AudioContext suspended even inside a gesture handler)", async () => {
+    const resumeSpy = vi.spyOn(SuspendedFakeAudioContext.prototype, "resume");
+    vi.stubGlobal("AudioContext", SuspendedFakeAudioContext);
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(new ArrayBuffer(8), { status: 200 }));
+
+    playSfx("click");
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(resumeSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledWith("/assets/sfx/click.ogg");
   });
 });

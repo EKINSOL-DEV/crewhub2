@@ -78,6 +78,12 @@ export function playSfx(name: SfxName): void {
   if (useAudio.getState().muted) return;
   const audioCtx = getContext();
   if (!audioCtx) return;
+  // WebKit/WKWebView (what Tauri ships on macOS) constructs a new
+  // AudioContext already suspended, even from inside a gesture handler —
+  // resume() must be called explicitly or source.start() silently never
+  // plays. Fire-and-forget: resume() and playback scheduling can race
+  // harmlessly, the context just buffers until it's running.
+  if (audioCtx.state === "suspended") void audioCtx.resume();
   void loadBuffer(name, audioCtx).then((buffer) => {
     if (!buffer) return;
     const source = audioCtx.createBufferSource();
