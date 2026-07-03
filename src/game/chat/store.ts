@@ -10,6 +10,15 @@ import type { ChatLine } from "./lines";
 export interface OpenChat {
   key: string;
   min: boolean;
+  /** Drag position (M8 T-drag): null keeps the window in the default
+   *  bottom-right stack (STACK_RIGHT/STACK_GAP math in ChatWindow.tsx); once
+   *  dragged it holds an absolute {x,y} and leaves the stack, so the
+   *  remaining null-pos windows compact together (ChatWindows.tsx assigns
+   *  stackIndex only among null-pos windows). Session-only — never persisted
+   *  to KV, so a restart resets every window back to its stack slot; that's
+   *  an accepted trade-off, not an oversight.
+   */
+  pos: { x: number; y: number } | null;
 }
 
 const MAX_OPEN = 3;
@@ -46,6 +55,8 @@ interface GameChatsState {
    *  engine's own transcript echo (use-chat-session.ts dedupes it once that
    *  echo lands) — never set for "note"/"bot" lines. */
   addLocalLine: (key: string, who: "note" | "bot" | "user", text: string, opts?: { echo?: boolean }) => void;
+  /** Set (or clear, with null) a window's drag position. */
+  setPos: (key: string, pos: { x: number; y: number } | null) => void;
 }
 
 export const useGameChats = create<GameChatsState>((set) => ({
@@ -67,11 +78,16 @@ export const useGameChats = create<GameChatsState>((set) => ({
   open: (key) => {
     playSfx("chat-open");
     set((s) => {
+      // Re-opening a chat that's already in the stack (un-minimize + raise)
+      // must not snap a dragged window back to its stack slot — carry its
+      // pos across, same as raise()/setMin() already do implicitly via spread.
+      const existingPos = s.chats.find((c) => c.key === key)?.pos ?? null;
       const rest = s.chats.filter((c) => c.key !== key);
       const kept = rest.length < MAX_OPEN ? rest : rest.slice(rest.length - (MAX_OPEN - 1));
-      return { chats: [...kept, { key, min: false }] };
+      return { chats: [...kept, { key, min: false, pos: existingPos }] };
     });
   },
+  setPos: (key, pos) => set((s) => ({ chats: s.chats.map((c) => (c.key === key ? { ...c, pos } : c)) })),
   raise: (key) =>
     set((s) => {
       if (s.chats[s.chats.length - 1]?.key === key) return s;

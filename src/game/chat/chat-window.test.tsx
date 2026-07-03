@@ -175,6 +175,8 @@ const WINDOW_PROPS = {
   color: "#22c55e",
   minimized: false,
   stackIndex: 0,
+  pos: null,
+  onDrag: () => {},
   onClose: () => {},
   onMinimize: () => {},
   onFocusChat: () => {},
@@ -778,5 +780,74 @@ describe("optimistic user echo", () => {
     );
     rerender(<ChatWindow {...WINDOW_PROPS} />);
     expect(screen.getAllByText("🏃 heading to HQ")).toHaveLength(2);
+  });
+});
+
+// Draggable windows: the bottom-right stack now supports dragging by the
+// header, sharing use-drag-position.ts with the (future) bot-info panel.
+describe("draggable windows", () => {
+  it("positions via the stack's `right` offset when pos is null", () => {
+    const { getByTestId } = render(<ChatWindow {...WINDOW_PROPS} stackIndex={1} pos={null} />);
+    const win = getByTestId("chat-window");
+    expect(win.style.right).toBe("386px"); // STACK_RIGHT(16) + 1 * STACK_GAP(370)
+    expect(win.style.left).toBe("");
+  });
+
+  it("positions via an absolute left/top, clearing right/bottom, once pos is set", () => {
+    const { getByTestId } = render(<ChatWindow {...WINDOW_PROPS} pos={{ x: 120, y: 80 }} />);
+    const win = getByTestId("chat-window");
+    expect(win.style.left).toBe("120px");
+    expect(win.style.top).toBe("80px");
+    expect(win.style.right).toBe("auto");
+    expect(win.style.bottom).toBe("auto");
+  });
+
+  it("dragging the header calls onDrag with a clamped position", () => {
+    const onDrag = vi.fn();
+    render(<ChatWindow {...WINDOW_PROPS} pos={null} onDrag={onDrag} />);
+    const header = screen.getByTestId("chat-window-header");
+
+    fireEvent.pointerDown(header, { clientX: 100, clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(header, { clientX: 120, clientY: 130, pointerId: 1 });
+
+    // jsdom's getBoundingClientRect defaults to an all-zero rect, so the
+    // drag starts from {x:0,y:0} and the raw delta (20, 30) clamps up to the
+    // 40px-minimum-visible floor on both axes.
+    expect(onDrag).toHaveBeenCalledWith({ x: 40, y: 40 });
+  });
+
+  it("dragging far past the viewport edge clamps to the max-visible ceiling", () => {
+    const onDrag = vi.fn();
+    render(<ChatWindow {...WINDOW_PROPS} pos={null} onDrag={onDrag} />);
+    const header = screen.getByTestId("chat-window-header");
+
+    fireEvent.pointerDown(header, { clientX: 0, clientY: 0, pointerId: 1 });
+    fireEvent.pointerMove(header, { clientX: 5000, clientY: 5000, pointerId: 1 });
+
+    expect(onDrag).toHaveBeenCalledWith({ x: window.innerWidth - 40, y: window.innerHeight - 40 });
+  });
+
+  it("stops updating pos after pointerup", () => {
+    const onDrag = vi.fn();
+    render(<ChatWindow {...WINDOW_PROPS} pos={null} onDrag={onDrag} />);
+    const header = screen.getByTestId("chat-window-header");
+
+    fireEvent.pointerDown(header, { clientX: 100, clientY: 100, pointerId: 1 });
+    fireEvent.pointerUp(header, { clientX: 120, clientY: 130, pointerId: 1 });
+    onDrag.mockClear();
+    fireEvent.pointerMove(header, { clientX: 200, clientY: 200, pointerId: 1 });
+
+    expect(onDrag).not.toHaveBeenCalled();
+  });
+
+  it("moving the pointer without a prior pointerdown is a no-op", () => {
+    const onDrag = vi.fn();
+    render(<ChatWindow {...WINDOW_PROPS} pos={null} onDrag={onDrag} />);
+    fireEvent.pointerMove(screen.getByTestId("chat-window-header"), {
+      clientX: 50,
+      clientY: 50,
+      pointerId: 1,
+    });
+    expect(onDrag).not.toHaveBeenCalled();
   });
 });

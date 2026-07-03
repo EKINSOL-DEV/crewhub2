@@ -6,7 +6,7 @@ describe("useGameChats", () => {
 
   it("opens a chat, un-minimized", () => {
     useGameChats.getState().open("a");
-    expect(useGameChats.getState().chats).toEqual([{ key: "a", min: false }]);
+    expect(useGameChats.getState().chats).toEqual([{ key: "a", min: false, pos: null }]);
   });
 
   it("re-opening an already-open chat dedupes, un-minimizes, and raises it", () => {
@@ -15,9 +15,16 @@ describe("useGameChats", () => {
     useGameChats.getState().setMin("a", true);
     useGameChats.getState().open("a");
     expect(useGameChats.getState().chats).toEqual([
-      { key: "b", min: false },
-      { key: "a", min: false },
+      { key: "b", min: false, pos: null },
+      { key: "a", min: false, pos: null },
     ]);
+  });
+
+  it("re-opening an already-open, already-dragged chat keeps its position", () => {
+    useGameChats.getState().open("a");
+    useGameChats.getState().setPos("a", { x: 10, y: 20 });
+    useGameChats.getState().open("a");
+    expect(useGameChats.getState().chats).toEqual([{ key: "a", min: false, pos: { x: 10, y: 20 } }]);
   });
 
   it("caps at 3 open chats, evicting the oldest", () => {
@@ -32,7 +39,7 @@ describe("useGameChats", () => {
     useGameChats.getState().open("a");
     useGameChats.getState().open("b");
     useGameChats.getState().close("a");
-    expect(useGameChats.getState().chats).toEqual([{ key: "b", min: false }]);
+    expect(useGameChats.getState().chats).toEqual([{ key: "b", min: false, pos: null }]);
   });
 
   it("setMin toggles minimized state without reordering", () => {
@@ -40,8 +47,8 @@ describe("useGameChats", () => {
     useGameChats.getState().open("b");
     useGameChats.getState().setMin("a", true);
     expect(useGameChats.getState().chats).toEqual([
-      { key: "a", min: true },
-      { key: "b", min: false },
+      { key: "a", min: true, pos: null },
+      { key: "b", min: false, pos: null },
     ]);
   });
 
@@ -51,9 +58,47 @@ describe("useGameChats", () => {
     useGameChats.getState().setMin("a", true);
     useGameChats.getState().raise("a");
     expect(useGameChats.getState().chats).toEqual([
-      { key: "b", min: false },
-      { key: "a", min: true },
+      { key: "b", min: false, pos: null },
+      { key: "a", min: true, pos: null },
     ]);
+  });
+
+  describe("setPos", () => {
+    it("sets a chat's drag position", () => {
+      useGameChats.getState().open("a");
+      useGameChats.getState().setPos("a", { x: 50, y: 60 });
+      expect(useGameChats.getState().chats).toEqual([{ key: "a", min: false, pos: { x: 50, y: 60 } }]);
+    });
+
+    it("clears a position back to null (rejoins the default stack)", () => {
+      useGameChats.getState().open("a");
+      useGameChats.getState().setPos("a", { x: 50, y: 60 });
+      useGameChats.getState().setPos("a", null);
+      expect(useGameChats.getState().chats).toEqual([{ key: "a", min: false, pos: null }]);
+    });
+
+    it("only touches the targeted key — other chats' positions are untouched", () => {
+      useGameChats.getState().open("a");
+      useGameChats.getState().open("b");
+      useGameChats.getState().setPos("a", { x: 1, y: 2 });
+      expect(useGameChats.getState().chats).toEqual([
+        { key: "a", min: false, pos: { x: 1, y: 2 } },
+        { key: "b", min: false, pos: null },
+      ]);
+    });
+
+    it("survives an unrelated chat opening or closing (drag position isn't tied to stack membership)", () => {
+      useGameChats.getState().open("a");
+      useGameChats.getState().open("b");
+      useGameChats.getState().setPos("a", { x: 1, y: 2 });
+      useGameChats.getState().open("c");
+      useGameChats.getState().close("b");
+      expect(useGameChats.getState().chats.find((c) => c.key === "a")).toEqual({
+        key: "a",
+        min: false,
+        pos: { x: 1, y: 2 },
+      });
+    });
   });
 
   it("raise is a no-op when the chat is already on top", () => {

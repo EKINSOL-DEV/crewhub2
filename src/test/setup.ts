@@ -12,6 +12,18 @@ if (typeof globalThis.ResizeObserver === "undefined") {
   };
 }
 
+// jsdom has no real pointer capture (used by draggable headers, e.g.
+// game/chat/use-drag-position.ts, and by several Radix components).
+if (!Element.prototype.setPointerCapture) {
+  Element.prototype.setPointerCapture = () => {};
+}
+if (!Element.prototype.releasePointerCapture) {
+  Element.prototype.releasePointerCapture = () => {};
+}
+if (!Element.prototype.hasPointerCapture) {
+  Element.prototype.hasPointerCapture = () => false;
+}
+
 // @tauri-apps/api's event.unlisten() calls
 // window.__TAURI_EVENT_PLUGIN_INTERNALS__.unregisterListener. mockIPC()
 // installs it, but clearMocks() DELETES it in afterEach — any component
