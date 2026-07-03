@@ -45,11 +45,8 @@ const DOOR_GAP = 2.2;
 const WALL_OFFSET = WALL_INSET + WALL_THICK / 2;
 
 const PILLAR_SIZE = 0.5;
-const PILLAR_HEIGHT = 3.4;
-const BEAM_THICK = 0.3;
-const BEAM_HEIGHT = 0.22;
+const PILLAR_HEIGHT = 3.0;
 /** Just above the pillar tops, same "+0.05 clearance" convention Pavilion.tsx uses. */
-const BEAM_Y = PILLAR_HEIGHT + BEAM_HEIGHT / 2 + 0.05;
 
 const STEP_WIDTH = 0.6;
 const STEP_DEPTH = 0.5;
@@ -82,10 +79,9 @@ const PAD_RADIUS = 0.8;
 const PAD_HEIGHT = 0.06;
 
 /**
- * Permanent roof-plate height. Beams peak at BEAM_Y + BEAM_HEIGHT/2 ≈ 3.67 —
- * `5` floats safely above the roofline with clean headroom (same
- * above-the-beams convention CampusWorld/PlacedBuildings use for RoofPlate,
- * just with more clearance since HQ's structure is taller).
+ * Permanent roof-plate height: pillars top out at PILLAR_HEIGHT (3.0) — `5`
+ * floats safely above with clean headroom (the beam ring the old comment
+ * referenced was removed on user feedback).
  */
 export const HQ_PLATE_Y = 5;
 
@@ -247,30 +243,15 @@ export function Headquarters({ building }: { building: Building }) {
         <boxGeometry args={[rect.w, 0.14, rect.d]} />
         <meshToonMaterial color={SLAB} gradientMap={toonGradientMap()} />
       </mesh>
+      {/* Corner posts capping the walls — the perimeter beam ring was cut on
+          user feedback ("die houten balken brengen niets bij"); the posts now
+          just crown the wall corners. */}
       {corners.map(([x, z], i) => (
         <mesh key={i} position={[x, PILLAR_HEIGHT / 2, z]} castShadow>
           <boxGeometry args={[PILLAR_SIZE, PILLAR_HEIGHT, PILLAR_SIZE]} />
           <meshToonMaterial color={PILLAR} gradientMap={toonGradientMap()} />
         </mesh>
       ))}
-      {/* Perimeter beam ring — unlike the pavilions' parallel rafters, the
-          center stays open so the interior is visible from above. */}
-      <mesh position={[0, BEAM_Y, -pz]} castShadow>
-        <boxGeometry args={[2 * px, BEAM_HEIGHT, BEAM_THICK]} />
-        <meshToonMaterial color={PILLAR} gradientMap={toonGradientMap()} />
-      </mesh>
-      <mesh position={[0, BEAM_Y, pz]} castShadow>
-        <boxGeometry args={[2 * px, BEAM_HEIGHT, BEAM_THICK]} />
-        <meshToonMaterial color={PILLAR} gradientMap={toonGradientMap()} />
-      </mesh>
-      <mesh position={[-px, BEAM_Y, 0]} castShadow>
-        <boxGeometry args={[BEAM_THICK, BEAM_HEIGHT, 2 * pz]} />
-        <meshToonMaterial color={PILLAR} gradientMap={toonGradientMap()} />
-      </mesh>
-      <mesh position={[px, BEAM_Y, 0]} castShadow>
-        <boxGeometry args={[BEAM_THICK, BEAM_HEIGHT, 2 * pz]} />
-        <meshToonMaterial color={PILLAR} gradientMap={toonGradientMap()} />
-      </mesh>
       {walls}
       {steps}
       {/* Spawn podium — the sim's spawn pad (M6 T2). */}

@@ -34,12 +34,12 @@ describe("Headquarters smoke", () => {
     const building = hqBuilding();
     const renderer = await ReactThreeTestRenderer.create(<Headquarters building={building} />);
     const meshes = renderer.scene.findAllByType("Mesh");
-    // apron + slab (2) + 4 pillars + 4 perimeter beams (a ring, not the
-    // pavilions' parallel rafters) + walls (4 sides x 2 segments, since
-    // every side carries its own door — building.doors has one per wall) +
-    // steps (4 doors x 2 flanking meshes) + podium (1) + 3 prop pads + 2
-    // banners (1 mesh each, per the fake-GLTF mock above).
-    const STRUCTURE = 2 + 4 + 4;
+    // apron + slab (2) + 4 pillars (the beam ring was cut on user feedback)
+    // + walls (4 sides x 2 segments, since every side carries its own door —
+    // building.doors has one per wall) + steps (4 doors x 2 flanking meshes)
+    // + podium (1) + 3 prop pads + 2 banners (1 mesh each, per the fake-GLTF
+    // mock above).
+    const STRUCTURE = 2 + 4;
     const WALLS = 4 * 2;
     const STEPS = 4 * 2;
     const PODIUM = 1;

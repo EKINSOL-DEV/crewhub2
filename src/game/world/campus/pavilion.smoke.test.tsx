@@ -2,7 +2,7 @@
 // fully parametric off `Building.rect` — no dimension hardcoded to the
 // seeded 14x12 campus plots — by rendering player-built-shaped pavilions and
 // checking the mesh-count formula from campus-world.smoke.test.tsx still
-// holds: 1 slab + 4 pillars + 3 beams + WALL_MESHES + desks * (1 top + 2 legs
+// holds: 1 slab + 4 pillars + WALL_MESHES + desks * (1 top + 2 legs
 // + 1 screen). WALL_MESHES is 3 full-length walls (one per non-door side)
 // plus 2 segments on the door-side wall split by its gap — true for every
 // size in [6,20]x[5,16] (the placeable range), since the 2.2-unit door gap
@@ -25,7 +25,7 @@ describe("Pavilion parametric smoke", () => {
 
     const renderer = await ReactThreeTestRenderer.create(<Pavilion building={building} />);
     const meshes = renderer.scene.findAllByType("Mesh");
-    const STRUCTURE_MESHES = 1 + 4 + 3 + WALL_MESHES; // slab + 4 pillars + 3 beams + walls
+    const STRUCTURE_MESHES = 1 + 4 + WALL_MESHES; // slab + 4 pillars + walls (beams cut on user feedback)
     const DESK_MESHES = desks.length * 4; // top + 2 legs + screen
     expect(meshes.length).toBe(STRUCTURE_MESHES + DESK_MESHES);
     await renderer.unmount();
@@ -38,7 +38,7 @@ describe("Pavilion parametric smoke", () => {
 
     const renderer = await ReactThreeTestRenderer.create(<Pavilion building={building} />);
     const meshes = renderer.scene.findAllByType("Mesh");
-    expect(meshes.length).toBe(1 + 4 + 3 + WALL_MESHES + desks.length * 4);
+    expect(meshes.length).toBe(1 + 4 + WALL_MESHES + desks.length * 4);
     await renderer.unmount();
   });
 
@@ -49,7 +49,7 @@ describe("Pavilion parametric smoke", () => {
 
     const renderer = await ReactThreeTestRenderer.create(<Pavilion building={building} />);
     const meshes = renderer.scene.findAllByType("Mesh");
-    expect(meshes.length).toBe(1 + 4 + 3 + WALL_MESHES + desks.length * 4);
+    expect(meshes.length).toBe(1 + 4 + WALL_MESHES + desks.length * 4);
     await renderer.unmount();
   });
 });

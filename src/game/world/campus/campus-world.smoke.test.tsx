@@ -122,10 +122,10 @@ describe("CampusWorld smoke", () => {
     // M6: campusBuildings() prepends the permanent HQ building, which
     // CampusWorld now renders through Headquarters.tsx (not Pavilion) — see
     // headquarters.smoke.test.tsx for that component's own formula: apron +
-    // slab (2) + 4 pillars + 4 perimeter beams + walls (4 sides x 2
-    // segments, since every side carries its own door) + steps (4 doors x 2
-    // flanking meshes) + podium (1) + 3 prop pads + 2 banners (1
-    // mocked-model mesh each) = 32, plus its own permanent plate (1 backdrop
+    // slab (2) + 4 pillars (beam ring cut on user feedback) + walls (4
+    // sides x 2 segments, since every side carries its own door) + steps
+    // (4 doors x 2 flanking meshes) + podium (1) + 3 prop pads + 2 banners
+    // (1 mocked-model mesh each) = 28, plus its own permanent plate (1 backdrop
     // mesh, HeadquartersPlate — mounted outside the frozen group, see below)
     // and its M6 T4 prop stands (HqProps, also outside the frozen group):
     // 3 stands x (1 mocked-model mesh + 1 icon-plate backdrop mesh) = 6.
@@ -134,10 +134,10 @@ describe("CampusWorld smoke", () => {
     // the placed-fountain test further down).
     const TERRAIN_MESHES = 5;
     const CLOUD_MESHES = 7 * 3;
-    const HQ_MESHES = 32;
+    const HQ_MESHES = 28;
     const HQ_PLATE_MESHES = 1;
     const HQ_PROPS_MESHES = 3 * 2;
-    const PAVILION_MESHES = 4 * 29;
+    const PAVILION_MESHES = 4 * 26; // beams cut on user feedback (was 29)
     expect(meshes.length).toBe(
       totalPlacements +
         TERRAIN_MESHES +
