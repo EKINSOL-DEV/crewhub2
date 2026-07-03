@@ -72,6 +72,25 @@ test("an active onboarding wizard overlays the game — the game stays underneat
   expect(screen.queryByTestId("onboarding-wizard")).toBeNull();
 });
 
+test("z-order tie-break (M4 debt sweep): a fresh wizard is mounted after — and so paints over — WelcomeCard", async () => {
+  render(<App />);
+  await screen.findByTestId("game-shell", {}, GAME_SHELL_TIMEOUT);
+  // Neither the wizard's nor the welcome ceremony's KV flags are set by
+  // this suite's mockIPC (only onboarding.state="done" is special-cased),
+  // so on a doubly-fresh profile both overlays are visible at once —
+  // exactly the tie App.tsx's MainWindow comment documents.
+  await waitFor(() => expect(useOnboarding.getState().loaded).toBe(true));
+  act(() => {
+    useOnboarding.setState({ show: true });
+  });
+  const wizard = await screen.findByTestId("onboarding-wizard");
+  const welcomeCard = await screen.findByTestId("welcome-card");
+  // Both share z-50 (WelcomeCard.tsx) — with no z-index difference, later
+  // in the DOM wins the paint order. DOCUMENT_POSITION_PRECEDING means
+  // welcomeCard comes before wizard, i.e. the wizard is mounted after.
+  expect(wizard.compareDocumentPosition(welcomeCard) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+});
+
 test("?window=workspace renders only the panel grid — no game, no wizard", async () => {
   window.history.replaceState(null, "", "/?window=workspace");
   try {

@@ -15,6 +15,10 @@ export function WelcomeCard() {
   if (!loaded || welcomed) return null;
 
   return (
+    // z-50 matches OnboardingWizard's (src/onboarding/Wizard.tsx) — on a
+    // doubly-fresh profile both can render at once, and the tie is broken
+    // by DOM order (App.tsx's MainWindow mounts the wizard after GameShell,
+    // so it wins). See App.tsx's MainWindow comment before changing either.
     <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div
         data-testid="welcome-card"

@@ -32,6 +32,14 @@ const WhatsNewDialog = lazy(() =>
 // chips (src/game/hud/HudOverlay.tsx, src/game/app/windows.ts) open-or-focus
 // the detached `?window=workspace` / `?window=settings` windows, so nothing
 // is stranded — a follow-up task can still grow the game-native drawer.
+// Z-order (M4 debt sweep): a doubly-fresh profile shows both overlays at
+// once — OnboardingWizard (its own KV) and GameShell's WelcomeCard
+// (game.welcomed) are independent one-shot flags, neither cleared by the
+// other. Both use z-50 (WelcomeCard.tsx), so the tie is broken by DOM
+// order: OnboardingWizard, mounted after GameShell, always paints on top —
+// intentional (the wizard is the primary first-run flow; the campus
+// welcome card can wait). Keep OnboardingWizard last, or bump one z-index
+// explicitly, if this ordering ever needs to change.
 function MainWindow() {
   return (
     <Suspense fallback={null}>
