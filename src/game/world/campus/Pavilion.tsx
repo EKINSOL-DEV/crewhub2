@@ -1,5 +1,7 @@
-// One plot pavilion (M1 T1): raised slab, corner pillars, beams, four desks.
+// One plot pavilion (M1 T1): raised slab, trimmed corner posts, four desks.
 // Everything procedural toon — robots need somewhere to work, not a palace.
+// (Roof beams were part of the original design but got cut on user feedback —
+// see the corner-posts comment below.)
 import { toonGradientMap } from "@/game/engine/toon";
 import type { Building } from "./buildings";
 
@@ -126,21 +128,18 @@ export function Pavilion({ building }: { building: Building }) {
         <boxGeometry args={[rect.w, 0.14, rect.d]} />
         <meshToonMaterial color={SLAB} gradientMap={toonGradientMap()} />
       </mesh>
+      {/* Corner posts, trimmed to just above the walls — the old tall pillars
+          carried roof rafters; user feedback (M7 era) cut the beams entirely
+          ("die houten balken brengen niets bij"), so the posts now simply cap
+          the wall corners. */}
       {[
         [-px, -pz],
         [px, -pz],
         [-px, pz],
         [px, pz],
       ].map(([x, z], i) => (
-        <mesh key={i} position={[x!, 1.9, z!]} castShadow>
-          <boxGeometry args={[0.35, 3.8, 0.35]} />
-          <meshToonMaterial color={PILLAR} gradientMap={toonGradientMap()} />
-        </mesh>
-      ))}
-      {/* Three open beams instead of a roof — structure without occlusion. */}
-      {[-pz, 0, pz].map((z, i) => (
-        <mesh key={i} position={[0, 3.85, z]} castShadow>
-          <boxGeometry args={[rect.w, 0.18, 0.3]} />
+        <mesh key={i} position={[x!, 1.15, z!]} castShadow>
+          <boxGeometry args={[0.35, 2.3, 0.35]} />
           <meshToonMaterial color={PILLAR} gradientMap={toonGradientMap()} />
         </mesh>
       ))}

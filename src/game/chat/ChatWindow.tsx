@@ -4,8 +4,10 @@
 // panel. Minimized state collapses to a round chip in the same stack.
 // Reference only: src/panels/world/WorldChatWindow.tsx (v1's drag/resize
 // panel window) — its bubble-alignment and composer semantics are echoed
-// here, minus dragging/resizing/optimistic echo (see use-chat-session.ts).
-import { useEffect, useMemo, useRef, useState } from "react";
+// here. Resizing is still out of scope; dragging (by the header) and the
+// optimistic send echo are both ported now — see use-drag-position.ts and
+// use-chat-session.ts respectively.
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Button } from "@/components/ui/button";
 import { isModelTierId } from "@/components/ModelPicker";
 import { playSfx } from "@/game/audio/sfx";
@@ -16,6 +18,7 @@ import { PermissionCard } from "./PermissionCard";
 import { QuestionCard } from "./QuestionCard";
 import { useGameChats } from "./store";
 import { parseSessionKey, useChatSession } from "./use-chat-session";
+import { useDragPosition } from "./use-drag-position";
 
 const STATUS_GLYPH: Record<SessionStatus, string> = {
   Working: "🟢",
@@ -37,8 +40,15 @@ export interface ChatWindowProps {
   name: string;
   color: string;
   minimized: boolean;
-  /** Position in the open stack — 0 sits at the edge, higher pushes left. */
+  /** Position in the open stack — 0 sits at the edge, higher pushes left.
+   *  Unused once `pos` is set (a dragged window has left the stack). */
   stackIndex: number;
+  /** Drag position from useGameChats' per-chat `pos` — null keeps this
+   *  window in its default stack slot (`stackIndex` above). */
+  pos: { x: number; y: number } | null;
+  /** Fired on every pointer move while the header is being dragged; the
+   *  caller (ChatWindows.tsx) persists it via useGameChats' setPos. */
+  onDrag: (pos: { x: number; y: number }) => void;
   /** `?demo` fake robot — no session behind it, so the composer is a dead end. */
   demo?: boolean;
   onClose: () => void;
@@ -87,6 +97,8 @@ export function ChatWindow({
   color,
   minimized,
   stackIndex,
+  pos,
+  onDrag,
   demo = false,
   onClose,
   onMinimize,
@@ -98,6 +110,8 @@ export function ChatWindow({
   const [draft, setDraft] = useState("");
   const [sendError, setSendError] = useState<string | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
+  const container = useRef<HTMLDivElement>(null);
+  const drag = useDragPosition({ containerRef: container, pos, onChange: onDrag });
 
   // Imperative scroll-to-bottom stays in an effect (react-compiler rule) —
   // never touched from render or the send handler directly.
@@ -189,14 +203,27 @@ export function ChatWindow({
     );
   }
 
+  // A dragged window (pos set) positions from an absolute left/top instead
+  // of the stack's right/bottom — both explicitly cleared so the two never
+  // fight (see ChatWindow's file comment / use-drag-position.ts).
+  const style: CSSProperties = pos ? { left: pos.x, top: pos.y, right: "auto", bottom: "auto" } : { right };
+
   return (
     <div
+      ref={container}
       data-testid="chat-window"
       className="pointer-events-auto absolute bottom-4 flex h-[440px] w-[350px] flex-col rounded-3xl border-2 border-white/60 bg-white/90 text-slate-900 shadow-2xl backdrop-blur"
-      style={{ right }}
+      style={style}
       onPointerDown={onFocusChat}
     >
-      <div className="flex items-center gap-2 rounded-t-3xl border-b-2 border-slate-900/10 px-4 py-3">
+      <div
+        data-testid="chat-window-header"
+        className="flex cursor-grab items-center gap-2 rounded-t-3xl border-b-2 border-slate-900/10 px-4 py-3 active:cursor-grabbing"
+        onPointerDown={drag.onPointerDown}
+        onPointerMove={drag.onPointerMove}
+        onPointerUp={drag.onPointerUp}
+        onPointerCancel={drag.onPointerUp}
+      >
         <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: color }} />
         <span className="min-w-0 flex-1 truncate font-bold">{name}</span>
         <span title={status ?? "Idle"}>{STATUS_GLYPH[status ?? "Idle"]}</span>

@@ -1,8 +1,14 @@
 // Chat session hook (M2 T3): projects one open chat's transcript + live
-// status into what `ChatWindow` renders, plus a `send`. No optimistic echo —
-// the engine echoes `UserText` back into the transcript within ~100ms (see
-// stores/transcripts.ts), so unlike the old panel's use-bot-chat.ts this
-// needs no local push-then-dedupe dance.
+// status into what `ChatWindow` renders, plus a `send`.
+//
+// Optimistic echo (live-feedback fix): a live send used to sit invisible
+// until the engine's own `UserText` line landed in the transcript (~100ms,
+// see stores/transcripts.ts) — a send() success now also drops an
+// echo-flagged local "user" line (store.ts's addLocalLine) immediately, and
+// `lines` below dedupes it the moment the real transcript line for the same
+// text arrives. One transcript UserText line ever consumes one echo, so two
+// identical sends need two separate transcript lines before both echoes
+// clear — see the dedupe loop in the `lines` useMemo.
 //
 // M7 T3 ("say the word" chat wiring): `send` now intercepts a typed message
 // BEFORE it ever reaches a real session. A deterministic command
@@ -43,7 +49,7 @@ import { campusLayout } from "@/game/world/campus/layout";
 import { useProjectsStore } from "@/stores/projects";
 import { useSessionsView } from "@/stores/sessions";
 import { startTranscriptStream, useTranscripts } from "@/stores/transcripts";
-import { chatLinesFrom, type ChatLine } from "./lines";
+import { chatLinesFrom, normalize, type ChatLine } from "./lines";
 import { pushLocalBubble } from "./use-speech-bubbles";
 import { useGameChats } from "./store";
 
@@ -217,10 +223,25 @@ export function useChatSession(key: string): ChatSessionResult {
   const localLines = useGameChats((s) => s.localLines[key] ?? EMPTY_LOCAL_LINES);
   const lines = useMemo(() => {
     const transcriptLines = chatLinesFrom(transcript?.items ?? new Map(), transcript?.order ?? []);
+    // Echo dedupe: walk the transcript's own UserText lines (already
+    // normalized by chatLinesFrom) and match each one against the first
+    // not-yet-consumed echo-flagged local line with the same normalized
+    // text — first-match, one-for-one, so N identical sends need N
+    // transcript echoes before every local echo disappears. Non-echo local
+    // lines (notes/bot replies, M7 T3) are never touched here.
+    const consumed = new Set<number>();
+    for (const line of transcriptLines) {
+      if (line.who !== "user") continue;
+      const idx = localLines.findIndex(
+        (l, i) => l.echo === true && !consumed.has(i) && normalize(l.text) === line.text,
+      );
+      if (idx !== -1) consumed.add(idx);
+    }
+    const liveLocalLines = consumed.size === 0 ? localLines : localLines.filter((_, i) => !consumed.has(i));
     // Local lines are always appended, never merged/sorted by seq — they're
     // synthesized in the order they happened and are always the newest thing
     // in the chat (see store.ts's addLocalLine doc comment).
-    return [...transcriptLines, ...localLines];
+    return [...transcriptLines, ...liveLocalLines];
   }, [transcript, localLines]);
   const pending = useMemo<ChatSessionPending>(
     () => ({
@@ -267,6 +288,9 @@ export function useChatSession(key: string): ChatSessionResult {
       try {
         const res = await commands.sendToSession(sid, trimmed);
         if (res.status === "error") return { ok: false, error: res.error };
+        // Instant echo — the real transcript line lands moments later and
+        // dedupes against this one in the `lines` useMemo above.
+        useGameChats.getState().addLocalLine(key, "user", trimmed, { echo: true });
         playSfx("send");
         return { ok: true };
       } catch (err) {

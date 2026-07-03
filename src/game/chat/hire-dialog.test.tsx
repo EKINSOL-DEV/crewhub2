@@ -124,7 +124,7 @@ describe("HireDialog", () => {
     expect(upsert).toHaveBeenCalledWith(
       expect.objectContaining({ session_id: "s-new", agent_id: "a-scout" }),
     );
-    expect(useGameChats.getState().chats).toEqual([{ key: "claude-code:s-new", min: false }]);
+    expect(useGameChats.getState().chats).toEqual([{ key: "claude-code:s-new", min: false, pos: null }]);
   });
 
   it("shows an inline error and stays open when spawning fails", async () => {
@@ -207,7 +207,7 @@ describe("HireDialog", () => {
       "claude",
       expect.objectContaining({ resume_session: "ended-1", fork: false }),
     );
-    expect(useGameChats.getState().chats).toEqual([{ key: "claude:s-resumed", min: false }]);
+    expect(useGameChats.getState().chats).toEqual([{ key: "claude:s-resumed", min: false, pos: null }]);
   });
 
   it("open chat on a live session just opens it, without spawning", () => {
@@ -229,6 +229,6 @@ describe("HireDialog", () => {
 
     expect(spawnSession).not.toHaveBeenCalled();
     expect(onClose).toHaveBeenCalled();
-    expect(useGameChats.getState().chats).toEqual([{ key: "claude:live-1", min: false }]);
+    expect(useGameChats.getState().chats).toEqual([{ key: "claude:live-1", min: false, pos: null }]);
   });
 });

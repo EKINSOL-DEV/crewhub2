@@ -30,9 +30,10 @@ const EDGE_HEIGHT = 0.06;
 /** Just above the slab's top surface (slab: 0.14 thick, centered at y=0.07). */
 const EDGE_Y = 0.145;
 /** Roof-nameplate height — matches CampusWorld's convention. Must clear
- *  Pavilion.tsx's roof beams, which peak at y=3.94 (centered at 3.85, height
- *  0.18) — `+1.6` (3.6) sat inside/below them; `+2.5` (4.5) floats safely
- *  above the roofline. */
+ *  Pavilion.tsx's corner posts, which peak at y=2.3 (centered at 1.15,
+ *  height 2.3) — the roof beams this margin originally cleared (peaking at
+ *  y=3.94) are long gone (cut on user feedback), but `+2.5` (4.5) still
+ *  comfortably floats above the posts, so the constant stays as-is. */
 const PLATE_Y = WALL_HEIGHT + 2.5;
 
 function RoomEdge({ rect, color }: { rect: Rect; color: string }) {

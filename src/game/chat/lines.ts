@@ -10,11 +10,17 @@ export interface ChatLine {
   who: "user" | "bot" | "note";
   text: string;
   ts: number | null;
+  /** Set on a locally-added user line that's standing in for the engine's
+   *  own echo of the same send (store.ts's addLocalLine, use-chat-session.ts's
+   *  merge) — never set on a transcript-derived line. */
+  echo?: boolean;
 }
 
 const CHAT_LINE_CHARS = 600;
 
-function normalize(text: string): string | null {
+/** Exported so use-chat-session.ts's echo-dedupe compares local/transcript
+ *  text under the exact same flatten+clamp rules as chatLinesFrom below. */
+export function normalize(text: string): string | null {
   const flat = text.replace(/\s+/g, " ").trim();
   if (!flat) return null;
   return flat.length > CHAT_LINE_CHARS ? `${flat.slice(0, CHAT_LINE_CHARS - 1)}…` : flat;

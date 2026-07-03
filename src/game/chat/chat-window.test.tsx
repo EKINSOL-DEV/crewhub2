@@ -175,6 +175,8 @@ const WINDOW_PROPS = {
   color: "#22c55e",
   minimized: false,
   stackIndex: 0,
+  pos: null,
+  onDrag: () => {},
   onClose: () => {},
   onMinimize: () => {},
   onFocusChat: () => {},
@@ -689,5 +691,274 @@ describe("M7 T3 chat wiring", () => {
     expect((screen.getByTestId("chat-window-input") as HTMLInputElement).placeholder).toBe(
       'Message Rex… (try "go to HQ" or "dance")',
     );
+  });
+});
+
+// Live-feedback fix: a live send used to sit invisible until the engine's
+// own UserText line landed in the transcript. Now send() drops an
+// echo-flagged local "user" line the instant sendToSession resolves ok, and
+// the `lines` merge in use-chat-session.ts dedupes it once the real
+// transcript line for the same (normalized) text arrives.
+describe("optimistic user echo", () => {
+  it("shows the sent line immediately, before any transcript echo arrives", async () => {
+    views.current = [view({ status: "Working" })];
+    render(<ChatWindow {...WINDOW_PROPS} />);
+    const input = screen.getByTestId("chat-window-input");
+    fireEvent.change(input, { target: { value: "hello there" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await vi.waitFor(() => expect(sendToSessionSpy).toHaveBeenCalledTimes(1));
+    expect(screen.getByText("hello there").dataset.who).toBe("user");
+  });
+
+  it("dedupes to exactly one line once the transcript's own UserText echo lands", async () => {
+    views.current = [view({ status: "Working" })];
+    const { rerender } = render(<ChatWindow {...WINDOW_PROPS} />);
+    const input = screen.getByTestId("chat-window-input");
+    fireEvent.change(input, { target: { value: "hello there" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await vi.waitFor(() => expect(sendToSessionSpy).toHaveBeenCalledTimes(1));
+    expect(screen.getAllByText("hello there")).toHaveLength(1);
+
+    transcripts.sessions["claude:s1"] = transcript(
+      [[1, { kind: "UserText", data: { text: "hello there", ts: 1 } }]],
+      [1],
+    );
+    rerender(<ChatWindow {...WINDOW_PROPS} />);
+    expect(screen.getAllByText("hello there")).toHaveLength(1);
+  });
+
+  it("keeps two echoes for two identical sends until each gets its own transcript match", async () => {
+    views.current = [view({ status: "Working" })];
+    const { rerender } = render(<ChatWindow {...WINDOW_PROPS} />);
+    const input = screen.getByTestId("chat-window-input");
+
+    fireEvent.change(input, { target: { value: "hi" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await vi.waitFor(() => expect(sendToSessionSpy).toHaveBeenCalledTimes(1));
+    fireEvent.change(input, { target: { value: "hi" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await vi.waitFor(() => expect(sendToSessionSpy).toHaveBeenCalledTimes(2));
+    expect(screen.getAllByText("hi")).toHaveLength(2);
+
+    // One transcript echo lands — one local echo is consumed, one remains.
+    transcripts.sessions["claude:s1"] = transcript(
+      [[1, { kind: "UserText", data: { text: "hi", ts: 1 } }]],
+      [1],
+    );
+    rerender(<ChatWindow {...WINDOW_PROPS} />);
+    expect(screen.getAllByText("hi")).toHaveLength(2);
+
+    // The second transcript echo lands — no local echoes left, both lines
+    // are now the real transcript ones.
+    transcripts.sessions["claude:s1"] = transcript(
+      [
+        [1, { kind: "UserText", data: { text: "hi", ts: 1 } }],
+        [2, { kind: "UserText", data: { text: "hi", ts: 2 } }],
+      ],
+      [1, 2],
+    );
+    rerender(<ChatWindow {...WINDOW_PROPS} />);
+    expect(screen.getAllByText("hi")).toHaveLength(2);
+  });
+
+  it("never dedupes a plain note/bot local line (M7 T3) — only echo-flagged 'user' lines are eligible", async () => {
+    // A recognized command's local note ("🏃 heading to HQ") is never
+    // echo-flagged, so even a transcript UserText line with that exact text
+    // (unlikely, but the dedupe must key off `echo`, not just text/who)
+    // would never remove it.
+    views.current = [view({ status: "Working" })];
+    const { rerender } = render(<ChatWindow {...WINDOW_PROPS} />);
+    const input = screen.getByTestId("chat-window-input");
+    fireEvent.change(input, { target: { value: "go to hq" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(screen.getByText("🏃 heading to HQ").dataset.who).toBe("note");
+
+    transcripts.sessions["claude:s1"] = transcript(
+      [[1, { kind: "UserText", data: { text: "🏃 heading to HQ", ts: 1 } }]],
+      [1],
+    );
+    rerender(<ChatWindow {...WINDOW_PROPS} />);
+    expect(screen.getAllByText("🏃 heading to HQ")).toHaveLength(2);
+  });
+});
+
+// Draggable windows: the bottom-right stack now supports dragging by the
+// header, sharing use-drag-position.ts with the (future) bot-info panel.
+describe("draggable windows", () => {
+  it("positions via the stack's `right` offset when pos is null", () => {
+    const { getByTestId } = render(<ChatWindow {...WINDOW_PROPS} stackIndex={1} pos={null} />);
+    const win = getByTestId("chat-window");
+    expect(win.style.right).toBe("386px"); // STACK_RIGHT(16) + 1 * STACK_GAP(370)
+    expect(win.style.left).toBe("");
+  });
+
+  it("positions via an absolute left/top, clearing right/bottom, once pos is set", () => {
+    const { getByTestId } = render(<ChatWindow {...WINDOW_PROPS} pos={{ x: 120, y: 80 }} />);
+    const win = getByTestId("chat-window");
+    expect(win.style.left).toBe("120px");
+    expect(win.style.top).toBe("80px");
+    expect(win.style.right).toBe("auto");
+    expect(win.style.bottom).toBe("auto");
+  });
+
+  it("dragging the header calls onDrag with a clamped position", () => {
+    const onDrag = vi.fn();
+    render(<ChatWindow {...WINDOW_PROPS} pos={null} onDrag={onDrag} />);
+    const header = screen.getByTestId("chat-window-header");
+
+    fireEvent.pointerDown(header, { clientX: 100, clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(header, { clientX: 120, clientY: 130, pointerId: 1 });
+
+    // jsdom's getBoundingClientRect defaults to an all-zero rect, so the
+    // drag starts from {x:0,y:0}. The raw x delta (20) clamps up to the
+    // 40px-minimum-visible floor; the raw y delta (30) needs no clamping at
+    // all — it's already >= the top edge's 0 floor (see below).
+    expect(onDrag).toHaveBeenCalledWith({ x: 40, y: 30 });
+  });
+
+  it("dragging far past the bottom/right viewport edge clamps to the 40px-sliver ceiling", () => {
+    const onDrag = vi.fn();
+    render(<ChatWindow {...WINDOW_PROPS} pos={null} onDrag={onDrag} />);
+    const header = screen.getByTestId("chat-window-header");
+
+    fireEvent.pointerDown(header, { clientX: 0, clientY: 0, pointerId: 1 });
+    fireEvent.pointerMove(header, { clientX: 5000, clientY: 5000, pointerId: 1 });
+
+    expect(onDrag).toHaveBeenCalledWith({ x: window.innerWidth - 40, y: window.innerHeight - 40 });
+  });
+
+  it("dragging far past the left viewport edge clamps to the same 40px-sliver rule", () => {
+    const onDrag = vi.fn();
+    render(<ChatWindow {...WINDOW_PROPS} pos={null} onDrag={onDrag} />);
+    const header = screen.getByTestId("chat-window-header");
+
+    // Keep y's delta modest (no clamping there) so this isolates the x edge.
+    fireEvent.pointerDown(header, { clientX: 0, clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(header, { clientX: -5000, clientY: 150, pointerId: 1 });
+
+    expect(onDrag).toHaveBeenCalledWith({ x: 40, y: 50 });
+  });
+
+  // The header is both the only drag handle AND where Minimize/Close live —
+  // if it could be dragged off the TOP of the screen the window would become
+  // unrecoverable (nothing left to grab or close it with). Unlike the other
+  // three edges, which only need a 40px sliver to stay reachable, the top
+  // edge has a hard floor at y=0: the header can never go above the
+  // viewport at all.
+  it("dragging far above the viewport clamps y to 0, not just a 40px sliver", () => {
+    const onDrag = vi.fn();
+    render(<ChatWindow {...WINDOW_PROPS} pos={null} onDrag={onDrag} />);
+    const header = screen.getByTestId("chat-window-header");
+
+    // x's delta (500) is chosen to land inside the valid range unclamped, so
+    // this isolates the y edge.
+    fireEvent.pointerDown(header, { clientX: 100, clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(header, { clientX: 600, clientY: -9999, pointerId: 1 });
+
+    expect(onDrag).toHaveBeenCalledWith({ x: 500, y: 0 });
+  });
+
+  it("stops updating pos after pointerup", () => {
+    const onDrag = vi.fn();
+    render(<ChatWindow {...WINDOW_PROPS} pos={null} onDrag={onDrag} />);
+    const header = screen.getByTestId("chat-window-header");
+
+    fireEvent.pointerDown(header, { clientX: 100, clientY: 100, pointerId: 1 });
+    fireEvent.pointerUp(header, { clientX: 120, clientY: 130, pointerId: 1 });
+    onDrag.mockClear();
+    fireEvent.pointerMove(header, { clientX: 200, clientY: 200, pointerId: 1 });
+
+    expect(onDrag).not.toHaveBeenCalled();
+  });
+
+  it("stops updating pos after pointercancel (an OS-level gesture interrupt), same as pointerup", () => {
+    const onDrag = vi.fn();
+    render(<ChatWindow {...WINDOW_PROPS} pos={null} onDrag={onDrag} />);
+    const header = screen.getByTestId("chat-window-header");
+
+    fireEvent.pointerDown(header, { clientX: 100, clientY: 100, pointerId: 1 });
+    fireEvent.pointerCancel(header, { pointerId: 1 });
+    onDrag.mockClear();
+    // Without the cancel handler, this next move would resume the stale drag.
+    fireEvent.pointerMove(header, { clientX: 200, clientY: 200, pointerId: 1 });
+
+    expect(onDrag).not.toHaveBeenCalled();
+  });
+
+  it("moving the pointer without a prior pointerdown is a no-op", () => {
+    const onDrag = vi.fn();
+    render(<ChatWindow {...WINDOW_PROPS} pos={null} onDrag={onDrag} />);
+    fireEvent.pointerMove(screen.getByTestId("chat-window-header"), {
+      clientX: 50,
+      clientY: 50,
+      pointerId: 1,
+    });
+    expect(onDrag).not.toHaveBeenCalled();
+  });
+
+  it("ignores a pointerdown that starts on a header button — Minimize/Close aren't drag targets", () => {
+    const onDrag = vi.fn();
+    render(<ChatWindow {...WINDOW_PROPS} pos={null} onDrag={onDrag} />);
+    const header = screen.getByTestId("chat-window-header");
+    const closeButton = screen.getByRole("button", { name: "Close" });
+
+    fireEvent.pointerDown(closeButton, { clientX: 300, clientY: 20, pointerId: 1 });
+    fireEvent.pointerMove(header, { clientX: 340, clientY: 60, pointerId: 1 });
+
+    expect(onDrag).not.toHaveBeenCalled();
+  });
+
+  describe("viewport re-clamp (window resize / mount)", () => {
+    function withMockedViewport(width: number, height: number, run: () => void) {
+      const originalWidth = window.innerWidth;
+      const originalHeight = window.innerHeight;
+      Object.defineProperty(window, "innerWidth", { writable: true, configurable: true, value: width });
+      Object.defineProperty(window, "innerHeight", { writable: true, configurable: true, value: height });
+      try {
+        run();
+      } finally {
+        Object.defineProperty(window, "innerWidth", {
+          writable: true,
+          configurable: true,
+          value: originalWidth,
+        });
+        Object.defineProperty(window, "innerHeight", {
+          writable: true,
+          configurable: true,
+          value: originalHeight,
+        });
+      }
+    }
+
+    it("re-clamps an already-out-of-bounds pos immediately on mount", () => {
+      withMockedViewport(300, 200, () => {
+        const onDrag = vi.fn();
+        render(<ChatWindow {...WINDOW_PROPS} pos={{ x: 900, y: 700 }} onDrag={onDrag} />);
+        expect(onDrag).toHaveBeenCalledWith({ x: 260, y: 160 });
+      });
+    });
+
+    it("re-clamps a stored pos when the viewport shrinks (window resize)", () => {
+      const onDrag = vi.fn();
+      // Starts within the default (large) jsdom viewport, so mount does not
+      // fire onDrag — isolates the resize path from the mount-time one above.
+      render(<ChatWindow {...WINDOW_PROPS} pos={{ x: 900, y: 700 }} onDrag={onDrag} />);
+      expect(onDrag).not.toHaveBeenCalled();
+
+      withMockedViewport(300, 200, () => {
+        fireEvent(window, new Event("resize"));
+        expect(onDrag).toHaveBeenCalledWith({ x: 260, y: 160 });
+      });
+    });
+
+    it("does not re-clamp (or call onDrag) while pos is still null — a stack-slotted window isn't this hook's concern", () => {
+      const onDrag = vi.fn();
+      withMockedViewport(300, 200, () => {
+        render(<ChatWindow {...WINDOW_PROPS} pos={null} onDrag={onDrag} />);
+        fireEvent(window, new Event("resize"));
+        expect(onDrag).not.toHaveBeenCalled();
+      });
+    });
   });
 });

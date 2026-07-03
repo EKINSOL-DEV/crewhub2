@@ -15,6 +15,12 @@ export function ChatWindows() {
   const views = useSessionsView();
   const openable = chats.filter((c) => !c.key.startsWith("agent:"));
 
+  // Draggable windows (pos set) leave the bottom-right stack entirely — only
+  // the still-stacked (pos === null) windows get a compacting stackIndex, so
+  // the rest of the stack closes the gap a dragged-away window leaves behind.
+  let nextStackIndex = 0;
+  const stackIndices = openable.map((c) => (c.pos === null ? nextStackIndex++ : -1));
+
   return (
     <>
       {openable.map((chat, i) => {
@@ -28,7 +34,9 @@ export function ChatWindows() {
             name={name}
             color={color}
             minimized={chat.min}
-            stackIndex={i}
+            stackIndex={stackIndices[i]!}
+            pos={chat.pos}
+            onDrag={(pos) => useGameChats.getState().setPos(chat.key, pos)}
             demo={chat.key.startsWith("demo:")}
             onClose={() => useGameChats.getState().close(chat.key)}
             onMinimize={(min) => useGameChats.getState().setMin(chat.key, min)}
