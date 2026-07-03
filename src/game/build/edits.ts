@@ -64,6 +64,10 @@ export function snap(v: number): number {
   return Math.round(v);
 }
 
+/** One rotate step = 15° — the single source of truth (was duplicated in
+ *  store.ts and BuildControls.tsx, kept in sync only "by convention"). */
+export const ROT_STEP = Math.PI / 12;
+
 function tooCloseToItem(edits: CampusEdits, x: number, z: number): boolean {
   return edits.items.some((i) => Math.hypot(i.x - x, i.z - z) < 1);
 }
@@ -144,6 +148,23 @@ export function buildingDesks(b: PlacedBuilding): Desk[] {
 }
 
 /**
+ * Placed decor grouped by kind, ready for InstancedModel — the item->
+ * Placement mapping applyEdits needs for render and CampusWorld needs for
+ * its own (edits-only, no seeded layout) placed-decor pass. One helper so
+ * the two call sites (and the scale-1.4 convention) can't drift apart.
+ */
+export function placedItemPlacements(items: PlacedItem[]): Partial<Record<PlaceableKind, Placement[]>> {
+  const placements: Partial<Record<PlaceableKind, Placement[]>> = {};
+  for (const item of items) {
+    const list = placements[item.kind] ?? [];
+    // Scale 1.4 matches the seeded lantern/bench/hedge props — feels consistent.
+    list.push({ x: item.x, z: item.z, rot: item.rot, scale: 1.4 });
+    placements[item.kind] = list;
+  }
+  return placements;
+}
+
+/**
  * Merge edits onto the seeded layout for render: placed decor joins the
  * per-kind scatter/prop placements, placed pavilions join the base
  * buildings. `layout` is threaded through for the removedDefaults filtering
@@ -154,13 +175,7 @@ export function applyEdits(
   base: Building[],
   edits: CampusEdits,
 ): { placements: Partial<Record<PlaceableKind, Placement[]>>; buildings: Building[] } {
-  const placements: Partial<Record<PlaceableKind, Placement[]>> = {};
-  for (const item of edits.items) {
-    const list = placements[item.kind] ?? [];
-    // Scale 1.4 matches the seeded lantern/bench/hedge props — feels consistent.
-    list.push({ x: item.x, z: item.z, rot: item.rot, scale: 1.4 });
-    placements[item.kind] = list;
-  }
+  const placements = placedItemPlacements(edits.items);
 
   const placedBuildings: Building[] = edits.buildings.map((b, i) => {
     const rect: Rect = { x: b.x, z: b.z, w: b.w, d: b.d };

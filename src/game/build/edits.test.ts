@@ -6,6 +6,8 @@ import {
   canPlaceBuilding,
   canPlaceItem,
   EMPTY_EDITS,
+  placedItemPlacements,
+  ROT_STEP,
   snap,
   type CampusEdits,
   type PlacedBuilding,
@@ -111,12 +113,48 @@ describe("buildingDesks", () => {
   });
 });
 
+describe("ROT_STEP", () => {
+  it("is 15 degrees — the single source of truth store.ts/BuildControls.tsx both import", () => {
+    expect(ROT_STEP).toBeCloseTo(Math.PI / 12);
+  });
+});
+
+describe("placedItemPlacements", () => {
+  it("groups items by kind, scaled like seeded decor", () => {
+    const items: PlacedItem[] = [
+      { id: "e0", kind: "bush", x: 10, z: 10, rot: 1 },
+      { id: "e1", kind: "bush", x: 2, z: 2, rot: 0 },
+      { id: "e2", kind: "bench", x: 5, z: 5, rot: 0.5 },
+    ];
+    const placements = placedItemPlacements(items);
+    expect(placements.bush).toEqual([
+      { x: 10, z: 10, rot: 1, scale: 1.4 },
+      { x: 2, z: 2, rot: 0, scale: 1.4 },
+    ]);
+    expect(placements.bench).toEqual([{ x: 5, z: 5, rot: 0.5, scale: 1.4 }]);
+  });
+
+  it("returns an empty object for no items", () => {
+    expect(placedItemPlacements([])).toEqual({});
+  });
+});
+
 describe("applyEdits", () => {
   it("merges placed items into placements by kind, scaled like seeded decor", () => {
     const item: PlacedItem = { id: "e0", kind: "bush", x: 10, z: 10, rot: 1 };
     const edits: CampusEdits = { ...EMPTY_EDITS, items: [item] };
     const { placements } = applyEdits(layout, [], edits);
     expect(placements.bush).toEqual([{ x: 10, z: 10, rot: 1, scale: 1.4 }]);
+  });
+
+  it("delegates item->placement mapping to placedItemPlacements (no drift)", () => {
+    const items: PlacedItem[] = [
+      { id: "e0", kind: "bush", x: 10, z: 10, rot: 1 },
+      { id: "e1", kind: "lantern", x: 3, z: 4, rot: 0 },
+    ];
+    const edits: CampusEdits = { ...EMPTY_EDITS, items };
+    const { placements } = applyEdits(layout, [], edits);
+    expect(placements).toEqual(placedItemPlacements(items));
   });
 
   it("merges placed buildings after the base buildings, with desks and a door", () => {

@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import type * as THREE from "three";
 import type { ModelId } from "@/game/assets/manifest";
-import { type PlaceableKind } from "@/game/build/edits";
+import { placedItemPlacements, type PlaceableKind } from "@/game/build/edits";
 import { PlacedBuildings } from "@/game/build/PlacedBuildings";
 import { useCampusEdits } from "@/game/build/store";
 import { CloudPuffs } from "@/game/world/CloudPuffs";
@@ -15,7 +15,7 @@ import { BIOMES, type Biome } from "@/game/world/biome";
 import { Fountain } from "./Fountain";
 import { InstancedModel } from "./InstancedModel";
 import { Terrain } from "./Terrain";
-import { campusLayout, type Placement, type ScatterKind } from "./layout";
+import { campusLayout, type ScatterKind } from "./layout";
 import { campusBuildings } from "./buildings";
 import { Pavilion } from "./Pavilion";
 
@@ -87,16 +87,10 @@ export function CampusWorld({ biome = BIOMES.campus }: { biome?: Biome }) {
   // edit; a cheap remount of a few dozen meshes is simpler.
   const edits = useCampusEdits((s) => s.edits);
   const version = useCampusEdits((s) => s.version);
-  const placedByKind = useMemo(() => {
-    const map: Partial<Record<PlaceableKind, Placement[]>> = {};
-    for (const item of edits.items) {
-      const list = map[item.kind] ?? [];
-      // Scale 1.4 matches applyEdits' convention for placed decor.
-      list.push({ x: item.x, z: item.z, rot: item.rot, scale: 1.4 });
-      map[item.kind] = list;
-    }
-    return map;
-  }, [edits]);
+  // Shared with applyEdits (build/edits.ts) — one item->Placement mapping,
+  // including the scale-1.4 convention, so CampusWorld's render pass and
+  // applyEdits' merge pass can't drift apart.
+  const placedByKind = useMemo(() => placedItemPlacements(edits.items), [edits]);
 
   return (
     <group>

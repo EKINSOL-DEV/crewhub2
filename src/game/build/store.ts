@@ -8,6 +8,7 @@ import { commands } from "@/ipc/bindings";
 import type { Rect } from "@/game/world/campus/layout";
 import {
   EMPTY_EDITS,
+  ROT_STEP,
   snap,
   type CampusEdits,
   type PlaceableKind,
@@ -18,8 +19,6 @@ import {
 export const EDITS_SETTING_KEY = "game.campus.edits";
 
 const STORE_VERSION = 1;
-/** One rotate step = 15°, same convention as the props placement editor. */
-const ROT_STEP = Math.PI / 12;
 
 interface StoredBlob {
   counter: number;

@@ -15,16 +15,13 @@ import * as THREE from "three";
 import { playSfx } from "@/game/audio/sfx";
 import { useModel } from "@/game/assets/use-model";
 import { CAMPUS, campusLayout, type Rect } from "@/game/world/campus/layout";
-import { canPlaceBuilding, canPlaceItem, PLACEABLE_KINDS, snap, type CampusEdits } from "./edits";
+import { canPlaceBuilding, canPlaceItem, PLACEABLE_KINDS, ROT_STEP, snap, type CampusEdits } from "./edits";
 import { useBuildMode } from "./mode";
 import { useCampusEdits } from "./store";
 
 const VALID_COLOR = new THREE.Color("#22c55e");
 const INVALID_COLOR = new THREE.Color("#ef4444");
 const RING_COLOR = "#fbbf24";
-// Matches store.ts's ROT_STEP (15°/step) — kept in sync by convention, not
-// import, since store.ts doesn't export it.
-const ROT_STEP = Math.PI / 12;
 // Ghost/pick meshes render at full item scale (matches applyEdits' 1.4).
 const ITEM_SCALE = 1.4;
 
