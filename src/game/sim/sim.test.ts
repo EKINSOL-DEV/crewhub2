@@ -919,7 +919,11 @@ describe("Sim.command — emote (M7 T2)", () => {
     expect(bot.facing).toBeCloseTo(startFacing + Math.PI * 2, 5); // one full turn so far
   });
 
-  it("a seated (Working) bot stands to emote, in place, then sits back at the same desk", () => {
+  it("a seated (Working) bot stands to emote in place, then sits back down immediately — no door detour", () => {
+    // Fix round 1: resuming a seated emote used to go through the full
+    // replan()/pathToDesk, so a bot that never left its seat would walk out
+    // through the room's door and back in (a multi-second, very visible
+    // detour) before re-settling. It should instead just sit back down.
     const { grid, buildings } = fakeWorld();
     const sim = createSim(grid, buildings, SEED);
     sim.sync([char("a", "Working", { groupKey: "g1" })]);
@@ -934,9 +938,16 @@ describe("Sim.command — emote (M7 T2)", () => {
     expect(bot.z).toBeCloseTo(seat.z, 5);
     expect(bot.deskId).toBe(deskId); // desk claim untouched throughout
 
-    tickUntil(sim, 0.1, 500, () => bot.motion === "sit-type" && bot.path.length === 0);
-    expect(bot.x).toBeCloseTo(seat.x, 1);
-    expect(bot.z).toBeCloseTo(seat.z, 1);
+    // Path must never leave empty across the whole emote — no detour ever gets planned.
+    for (let i = 0; i < 6; i++) {
+      sim.tick(0.1);
+      expect(bot.path).toHaveLength(0);
+    }
+
+    // Resumed within the very tick the emote ended (no replan → no lag waiting for a path to walk).
+    expect(bot.motion).toBe("sit-type");
+    expect(bot.x).toBeCloseTo(seat.x, 5);
+    expect(bot.z).toBeCloseTo(seat.z, 5);
     expect(bot.facing).toBeCloseTo(seat.facing, 5);
     expect(bot.deskId).toBe(deskId);
     expect(sim.world.deskOwners.get(deskId)).toBe("a");
@@ -1012,6 +1023,48 @@ describe("Sim.command — determinism (M7 T2)", () => {
     script(simB);
 
     expect(snapshot(simA)).toEqual(snapshot(simB));
+  });
+
+  it("a grid/building edit mid-override clears it deterministically, and the freed bots resume normal behavior (not stuck holding forever)", () => {
+    // Two-bot scaffold, same shape as the "ghost double-seat" race test
+    // above: one bot with a desk claim, one without, both mid-override when
+    // the edit lands.
+    const { grid, buildings } = oneDeskWorld(); // exactly one desk: "d0"
+
+    const script = (sim: Sim): void => {
+      sim.sync([char("x", "Working", { groupKey: "g1" }), char("y", "Idle")]);
+      const x = sim.world.bots.get("x")!;
+      tickUntil(sim, 0.5, 500, () => x.motion === "sit-type" && x.path.length === 0);
+
+      sim.command("x", { kind: "goto", x: 3, z: 3, holdTicks: 10000 }); // long hold, still active at the edit
+      sim.command("y", { kind: "emote", emote: "spin", durTicks: 10000 }); // long emote, still active at the edit
+      sim.tick(0.3);
+
+      sim.updateWorld(grid, buildings); // identical grid/buildings — a no-op edit, but must still clear both overrides
+
+      for (let i = 0; i < 30; i++) sim.tick(0.3);
+    };
+
+    const snapshot = (sim: Sim): unknown => ({
+      bots: [...sim.world.bots.entries()].sort(([k1], [k2]) => k1.localeCompare(k2)),
+      deskOwners: [...sim.world.deskOwners.entries()].sort(([k1], [k2]) => k1.localeCompare(k2)),
+    });
+
+    const simA = createSim(grid, buildings, SEED);
+    const simB = createSim(grid, buildings, SEED);
+    script(simA);
+    script(simB);
+
+    expect(snapshot(simA)).toEqual(snapshot(simB));
+
+    // Not just identically stuck across both sims — genuinely freed: "x"
+    // resumed Working (back at its desk) instead of holding at (3, 3)
+    // forever, and "y" resumed Idle wander instead of spinning forever.
+    const x = simA.world.bots.get("x")!;
+    const y = simA.world.bots.get("y")!;
+    expect(x.deskId).toBe("d0");
+    expect(x.motion).toBe("sit-type");
+    expect(y.motion).not.toBe("spin");
   });
 });
 

@@ -15,6 +15,11 @@ export const WALK_SPEED = 2.2; // units/s
  *  = 10s hold, 30 ticks = 3s emote. Ticks are just a friendlier unit for the
  *  command's caller — the sim itself only ever thinks in seconds. */
 const TICK_SECONDS = 0.1;
+/** How close (world units) an emote-resuming bot must be to its held desk's
+ *  seat point to count as "never left" (M7 T2 fix round 1) — well under a
+ *  full grid cell, generous slack above float noise from an untouched
+ *  position. See tickOverride's emote-resume branch. */
+const SEATED_RESUME_EPSILON = 0.3;
 
 /**
  * Plaza ring outside HQ's walls (M6 T2): HQ's footprint is 14x12 (halves 7
@@ -507,6 +512,25 @@ export function createSim(grid: NavGrid, buildings: Building[], seed: number): S
 
     m.override = null;
     releaseIfGroupMismatch(bot, m.groupKey);
+    // An emote never moves the bot — if it's still sitting exactly where its
+    // (still-held, post-release-check) desk claim seats it, settle() alone
+    // restores the right seated motion in place. Skip replan()'s pathToDesk,
+    // which routes through the door unconditionally (correct for a goto,
+    // which really did walk away, but a needless "walk out and back" detour
+    // for a bot that never left its seat). A bot that moved during the
+    // override (goto) or lost its seat (deskId null, or too far from it —
+    // e.g. an unseated status like WaitingForPermission/Idle) still falls
+    // through to the normal replan() below.
+    if (ov.kind === "emote" && bot.deskId) {
+      const entry = deskById(bot.deskId);
+      if (entry) {
+        const seat = deskSeat(entry.desk);
+        if (Math.hypot(bot.x - seat.x, bot.z - seat.z) <= SEATED_RESUME_EPSILON) {
+          settle(bot, m);
+          return;
+        }
+      }
+    }
     replan(bot, m, m.status);
   }
 
