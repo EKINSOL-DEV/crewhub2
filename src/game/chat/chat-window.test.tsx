@@ -94,7 +94,7 @@ import {
   type ChatSessionResult,
 } from "./use-chat-session";
 import { ChatWindow } from "./ChatWindow";
-import { useGameChats } from "./store";
+import { resetGameChatsForTests, useGameChats } from "./store";
 import { pushLocalBubble } from "./use-speech-bubbles";
 
 function transcript(
@@ -155,6 +155,24 @@ function agent(over: Partial<Agent> & { id: string; name: string }): Agent {
   };
 }
 
+/** Shared by both the drag and resize viewport-reclamp describe blocks below. */
+function withMockedViewport(width: number, height: number, run: () => void) {
+  const originalWidth = window.innerWidth;
+  const originalHeight = window.innerHeight;
+  Object.defineProperty(window, "innerWidth", { writable: true, configurable: true, value: width });
+  Object.defineProperty(window, "innerHeight", { writable: true, configurable: true, value: height });
+  try {
+    run();
+  } finally {
+    Object.defineProperty(window, "innerWidth", { writable: true, configurable: true, value: originalWidth });
+    Object.defineProperty(window, "innerHeight", {
+      writable: true,
+      configurable: true,
+      value: originalHeight,
+    });
+  }
+}
+
 const PENDING_PERMISSION: PermissionRequest = {
   request_id: "r1",
   tool: "Bash",
@@ -178,6 +196,8 @@ const WINDOW_PROPS = {
   stackIndex: 0,
   pos: null,
   onDrag: () => {},
+  size: null,
+  onResize: () => {},
   onClose: () => {},
   onMinimize: () => {},
   onFocusChat: () => {},
@@ -193,7 +213,7 @@ beforeEach(() => {
   spawnSessionSpy.mockReset();
   getSpawnProviderSpy.mockReset();
   upsertSpy.mockReset();
-  useGameChats.setState({ chats: [], localLines: {} });
+  resetGameChatsForTests();
   useBuildMode.setState({ roomCard: null });
   vi.mocked(postCommand).mockClear();
   vi.mocked(pushLocalBubble).mockClear();
@@ -921,27 +941,6 @@ describe("draggable windows", () => {
   });
 
   describe("viewport re-clamp (window resize / mount)", () => {
-    function withMockedViewport(width: number, height: number, run: () => void) {
-      const originalWidth = window.innerWidth;
-      const originalHeight = window.innerHeight;
-      Object.defineProperty(window, "innerWidth", { writable: true, configurable: true, value: width });
-      Object.defineProperty(window, "innerHeight", { writable: true, configurable: true, value: height });
-      try {
-        run();
-      } finally {
-        Object.defineProperty(window, "innerWidth", {
-          writable: true,
-          configurable: true,
-          value: originalWidth,
-        });
-        Object.defineProperty(window, "innerHeight", {
-          writable: true,
-          configurable: true,
-          value: originalHeight,
-        });
-      }
-    }
-
     it("re-clamps an already-out-of-bounds pos immediately on mount", () => {
       withMockedViewport(300, 200, () => {
         const onDrag = vi.fn();
@@ -969,6 +968,183 @@ describe("draggable windows", () => {
         render(<ChatWindow {...WINDOW_PROPS} pos={null} onDrag={onDrag} />);
         fireEvent(window, new Event("resize"));
         expect(onDrag).not.toHaveBeenCalled();
+      });
+    });
+  });
+});
+
+// Resizable windows (EKI resize follow-up): a corner grip, outside the
+// header, drags size — same pointer-capture/cancel hygiene as the header
+// drag, sharing window-clamp.ts's clamp math.
+describe("resizable windows", () => {
+  it("renders at the default 350×440 box when size is null", () => {
+    const { getByTestId } = render(<ChatWindow {...WINDOW_PROPS} size={null} />);
+    const win = getByTestId("chat-window");
+    expect(win.style.width).toBe("350px");
+    expect(win.style.height).toBe("440px");
+  });
+
+  it("renders at the stored size once resized", () => {
+    const { getByTestId } = render(<ChatWindow {...WINDOW_PROPS} size={{ w: 500, h: 600 }} />);
+    const win = getByTestId("chat-window");
+    expect(win.style.width).toBe("500px");
+    expect(win.style.height).toBe("600px");
+  });
+
+  it("hides the grip on a minimized window", () => {
+    render(<ChatWindow {...WINDOW_PROPS} minimized />);
+    expect(screen.queryByTestId("chat-resize-grip")).not.toBeInTheDocument();
+  });
+
+  it("restoring an un-minimized window applies the remembered size", () => {
+    const { rerender, getByTestId } = render(
+      <ChatWindow {...WINDOW_PROPS} size={{ w: 500, h: 600 }} minimized />,
+    );
+    expect(screen.queryByTestId("chat-window")).not.toBeInTheDocument();
+
+    rerender(<ChatWindow {...WINDOW_PROPS} size={{ w: 500, h: 600 }} minimized={false} />);
+    const win = getByTestId("chat-window");
+    expect(win.style.width).toBe("500px");
+    expect(win.style.height).toBe("600px");
+  });
+
+  it("dragging the corner grip calls onResize with the size deltas applied", () => {
+    const onResize = vi.fn();
+    render(<ChatWindow {...WINDOW_PROPS} size={{ w: 400, h: 500 }} onResize={onResize} />);
+    const grip = screen.getByTestId("chat-resize-grip");
+
+    fireEvent.pointerDown(grip, { clientX: 100, clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(grip, { clientX: 150, clientY: 130, pointerId: 1 });
+
+    expect(onResize).toHaveBeenCalledWith({ w: 450, h: 530 });
+  });
+
+  it("clamps width to [300, 640]", () => {
+    const onResize = vi.fn();
+    render(<ChatWindow {...WINDOW_PROPS} size={{ w: 400, h: 500 }} onResize={onResize} />);
+    const grip = screen.getByTestId("chat-resize-grip");
+
+    fireEvent.pointerDown(grip, { clientX: 0, clientY: 0, pointerId: 1 });
+    fireEvent.pointerMove(grip, { clientX: -5000, clientY: 0, pointerId: 1 });
+    expect(onResize).toHaveBeenCalledWith({ w: 300, h: 500 });
+
+    onResize.mockClear();
+    fireEvent.pointerMove(grip, { clientX: 5000, clientY: 0, pointerId: 1 });
+    expect(onResize).toHaveBeenCalledWith({ w: 640, h: 500 });
+  });
+
+  it("clamps height to [320, viewport height - 40]", () => {
+    const onResize = vi.fn();
+    withMockedViewport(1600, 1000, () => {
+      render(<ChatWindow {...WINDOW_PROPS} size={{ w: 400, h: 500 }} onResize={onResize} />);
+      const grip = screen.getByTestId("chat-resize-grip");
+
+      fireEvent.pointerDown(grip, { clientX: 0, clientY: 0, pointerId: 1 });
+      fireEvent.pointerMove(grip, { clientX: 0, clientY: -5000, pointerId: 1 });
+      expect(onResize).toHaveBeenCalledWith({ w: 400, h: 320 });
+
+      onResize.mockClear();
+      fireEvent.pointerMove(grip, { clientX: 0, clientY: 5000, pointerId: 1 });
+      expect(onResize).toHaveBeenCalledWith({ w: 400, h: 1000 - 40 });
+    });
+  });
+
+  it("stops updating size after pointerup", () => {
+    const onResize = vi.fn();
+    render(<ChatWindow {...WINDOW_PROPS} size={{ w: 400, h: 500 }} onResize={onResize} />);
+    const grip = screen.getByTestId("chat-resize-grip");
+
+    fireEvent.pointerDown(grip, { clientX: 100, clientY: 100, pointerId: 1 });
+    fireEvent.pointerUp(grip, { clientX: 150, clientY: 150, pointerId: 1 });
+    onResize.mockClear();
+    fireEvent.pointerMove(grip, { clientX: 300, clientY: 300, pointerId: 1 });
+
+    expect(onResize).not.toHaveBeenCalled();
+  });
+
+  it("stops updating size after pointercancel (an OS-level gesture interrupt), same as pointerup", () => {
+    const onResize = vi.fn();
+    render(<ChatWindow {...WINDOW_PROPS} size={{ w: 400, h: 500 }} onResize={onResize} />);
+    const grip = screen.getByTestId("chat-resize-grip");
+
+    fireEvent.pointerDown(grip, { clientX: 100, clientY: 100, pointerId: 1 });
+    fireEvent.pointerCancel(grip, { pointerId: 1 });
+    onResize.mockClear();
+    fireEvent.pointerMove(grip, { clientX: 300, clientY: 300, pointerId: 1 });
+
+    expect(onResize).not.toHaveBeenCalled();
+  });
+
+  it("dragging the grip never triggers the header's onDrag — resize and drag are fully separate handlers", () => {
+    const onDrag = vi.fn();
+    render(<ChatWindow {...WINDOW_PROPS} pos={null} onDrag={onDrag} size={{ w: 400, h: 500 }} />);
+    const grip = screen.getByTestId("chat-resize-grip");
+
+    fireEvent.pointerDown(grip, { clientX: 10, clientY: 10, pointerId: 1 });
+    fireEvent.pointerMove(grip, { clientX: 60, clientY: 60, pointerId: 1 });
+
+    expect(onDrag).not.toHaveBeenCalled();
+  });
+
+  it("the grip lives outside the header element", () => {
+    render(<ChatWindow {...WINDOW_PROPS} size={{ w: 400, h: 500 }} />);
+    const header = screen.getByTestId("chat-window-header");
+    const grip = screen.getByTestId("chat-resize-grip");
+    expect(header.contains(grip)).toBe(false);
+  });
+
+  describe("viewport re-clamp (window resize / mount)", () => {
+    it("re-clamps an already-oversized stored size immediately on mount", () => {
+      withMockedViewport(1600, 300, () => {
+        const onResize = vi.fn();
+        render(<ChatWindow {...WINDOW_PROPS} size={{ w: 600, h: 800 }} onResize={onResize} />);
+        // maxH = max(MIN_H(320), 300 - 40) = 320.
+        expect(onResize).toHaveBeenCalledWith({ w: 600, h: 320 });
+      });
+    });
+
+    it("re-clamps a stored size when the viewport shrinks (window resize)", () => {
+      const onResize = vi.fn();
+      // h:700 (not 800) stays within jsdom's default 1024×768 viewport
+      // (maxH = 768-40 = 728) so mount does not fire onResize — isolates the
+      // resize path from the mount-time one above.
+      render(<ChatWindow {...WINDOW_PROPS} size={{ w: 600, h: 700 }} onResize={onResize} />);
+      expect(onResize).not.toHaveBeenCalled();
+
+      withMockedViewport(1600, 300, () => {
+        fireEvent(window, new Event("resize"));
+        expect(onResize).toHaveBeenCalledWith({ w: 600, h: 320 });
+      });
+    });
+
+    it("does not re-clamp (or call onResize) while size is still null — a default-box window isn't this hook's concern", () => {
+      const onResize = vi.fn();
+      withMockedViewport(300, 200, () => {
+        render(<ChatWindow {...WINDOW_PROPS} size={null} onResize={onResize} />);
+        fireEvent(window, new Event("resize"));
+        expect(onResize).not.toHaveBeenCalled();
+      });
+    });
+
+    it("a viewport shrink clamps a stored size AND a stored pos together, in the same resize event", () => {
+      const onDrag = vi.fn();
+      const onResize = vi.fn();
+      render(
+        <ChatWindow
+          {...WINDOW_PROPS}
+          pos={{ x: 900, y: 700 }}
+          size={{ w: 600, h: 700 }}
+          onDrag={onDrag}
+          onResize={onResize}
+        />,
+      );
+      expect(onDrag).not.toHaveBeenCalled();
+      expect(onResize).not.toHaveBeenCalled();
+
+      withMockedViewport(300, 200, () => {
+        fireEvent(window, new Event("resize"));
+        expect(onResize).toHaveBeenCalledWith({ w: 600, h: 320 });
+        expect(onDrag).toHaveBeenCalledWith({ x: 260, y: 160 });
       });
     });
   });
