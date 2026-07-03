@@ -27,6 +27,7 @@ import { environmentById } from "@/game/world/environments/registry";
 import { useGameEnvironment } from "@/game/world/environments/store";
 import { nightSky } from "@/game/world/night";
 import { useQuality } from "@/game/engine/quality";
+import { CameraExitPill } from "@/game/hud/CameraExitPill";
 import { FpsProbe } from "@/game/hud/FpsProbe";
 import { HudOverlay } from "@/game/hud/HudOverlay";
 import type { RtsBounds } from "@/game/engine/camera/rts-camera";
@@ -141,7 +142,7 @@ export default function GameShell() {
   const flavorRuns = useFlavor((s) => s.runs);
   // Subscribed (not .getState()) — this drives the focus-coupled effect
   // below, which must react to the camera BECOMING free, same reason
-  // HudOverlay subscribes for its own 🎥✕ chip's visibility.
+  // CameraExitPill subscribes for its own visibility.
   const cameraFree = useCameraDirector((s) => s.mode.kind === "free");
 
   useEffect(() => {
@@ -263,6 +264,7 @@ export default function GameShell() {
           setHireOpen(true);
         }}
       />
+      <CameraExitPill />
       <ChatWindows />
       {buildActive && <BuildPalette />}
       {pendingRoomLink && <RoomLinkDialog buildingId={pendingRoomLink} onClose={closeRoomLink} />}

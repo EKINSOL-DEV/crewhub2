@@ -1,6 +1,6 @@
 // M8 T3: bot-click composition — a clicked robot always calls followBot()
 // (the camera director's real store, exercised directly rather than mocked
-// — same tolerance as game-shell-escape.test.tsx and hud-camera-exit.test.tsx)
+// — same tolerance as game-shell-escape.test.tsx and camera-exit-pill.test.tsx)
 // alongside whichever of hire/chat its key routes to. selectCharacter is
 // pulled out of GameShell's onSelect prop specifically so this can run
 // without a real R3F canvas — see its own doc comment in GameShell.tsx.
