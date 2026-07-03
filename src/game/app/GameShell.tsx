@@ -19,6 +19,7 @@ import { demoCharacters } from "@/game/sim/demo";
 import { CAMPUS } from "@/game/world/campus/layout";
 import { environmentById } from "@/game/world/environments/registry";
 import { useGameEnvironment } from "@/game/world/environments/store";
+import { nightSky } from "@/game/world/night";
 import { useQuality } from "@/game/engine/quality";
 import { FpsProbe } from "@/game/hud/FpsProbe";
 import { HudOverlay } from "@/game/hud/HudOverlay";
@@ -42,6 +43,7 @@ export default function GameShell() {
   const [focus, setFocus] = useState<{ x: number; z: number; seq: number } | null>(null);
   const envId = useGameEnvironment((s) => s.id);
   const env = environmentById(envId);
+  const night = useGameEnvironment((s) => s.night);
   const buildActive = useBuildMode((s) => s.active);
   const buildTool = useBuildMode((s) => s.tool);
   const pendingRoomLink = useBuildMode((s) => s.pendingRoomLink);
@@ -57,8 +59,12 @@ export default function GameShell() {
   return (
     <div className="relative h-screen w-screen overflow-hidden" data-testid="game-shell">
       <GameCanvas>
-        <color attach="background" args={[env.sky]} />
-        <fog attach="fog" args={[env.fog.color, env.fog.near, env.fog.far]} />
+        {/* Sky/fog swap instantly on night toggle — no lerp here (the fog
+            color at every distance would visibly step). Lights.tsx carries
+            the mood: its intensities/colors damp over ~1s, so the swap
+            reads as "lights dim" rather than "sky snaps." */}
+        <color attach="background" args={[night ? nightSky(env).sky : env.sky]} />
+        <fog attach="fog" args={[night ? nightSky(env).fog : env.fog.color, env.fog.near, env.fog.far]} />
         <Lights env={env} />
         <Suspense fallback={null}>
           <env.World />

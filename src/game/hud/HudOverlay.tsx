@@ -21,9 +21,11 @@ export function HudOverlay({
 }) {
   const envId = useGameEnvironment((s) => s.id);
   const env = environmentById(envId);
+  const night = useGameEnvironment((s) => s.night);
   const tier = useQuality((s) => s.tier);
   const setTier = useQuality((s) => s.setTier);
   const setEnvironment = useGameEnvironment((s) => s.setEnvironment);
+  const toggleNight = useGameEnvironment((s) => s.toggleNight);
   const buildActive = useBuildMode((s) => s.active);
   const activateBuild = useBuildMode((s) => s.activate);
   const deactivateBuild = useBuildMode((s) => s.deactivate);
@@ -39,6 +41,14 @@ export function HudOverlay({
         onClick={() => setEnvironment(next.id)}
       >
         {env.emoji} {env.name}
+      </button>
+      <button
+        type="button"
+        className="pointer-events-auto rounded-full border-2 border-white/60 bg-indigo-700/80 px-4 py-2 text-sm font-bold text-white shadow-xl backdrop-blur transition-transform hover:scale-105"
+        title="Toggle day / night"
+        onClick={toggleNight}
+      >
+        {night ? "🌙 Night" : "☀️ Day"}
       </button>
       <button
         type="button"
