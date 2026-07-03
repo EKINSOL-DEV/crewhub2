@@ -4,9 +4,9 @@
 // panel. Minimized state collapses to a round chip in the same stack.
 // Reference only: src/panels/world/WorldChatWindow.tsx (v1's drag/resize
 // panel window) — its bubble-alignment and composer semantics are echoed
-// here. Resizing is still out of scope; dragging (by the header) and the
-// optimistic send echo are both ported now — see use-drag-position.ts and
-// use-chat-session.ts respectively.
+// here. Dragging (by the header), resizing (by the corner grip, EKI resize
+// follow-up) and the optimistic send echo are all ported now — see
+// use-drag-position.ts, use-resize.ts and use-chat-session.ts respectively.
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Button } from "@/components/ui/button";
 import { isModelTierId } from "@/components/ModelPicker";
@@ -19,6 +19,8 @@ import { QuestionCard } from "./QuestionCard";
 import { useGameChats } from "./store";
 import { parseSessionKey, useChatSession } from "./use-chat-session";
 import { useDragPosition } from "./use-drag-position";
+import { useResize } from "./use-resize";
+import { DEFAULT_SIZE, type Size } from "./window-clamp";
 
 const STATUS_GLYPH: Record<SessionStatus, string> = {
   Working: "🟢",
@@ -29,6 +31,13 @@ const STATUS_GLYPH: Record<SessionStatus, string> = {
 };
 
 const STACK_RIGHT = 16;
+// Fixed spacing tuned for the default 350px-wide box (window-clamp.ts's
+// DEFAULT_SIZE.w). A still-stacked (pos===null) window that's been widened
+// past that via the corner grip can visually overlap its stack neighbor —
+// a known, accepted trade-off (not an oversight): resizing while stacked is
+// an edge case, dragging a widened window clear of the stack sidesteps it
+// entirely, and a compacting, size-aware stack is real complexity this pass
+// doesn't need yet.
 const STACK_GAP = 370;
 
 /** M7 T3: every live composer hints at the command grammar (parse.ts) — the
@@ -43,12 +52,18 @@ export interface ChatWindowProps {
   /** Position in the open stack — 0 sits at the edge, higher pushes left.
    *  Unused once `pos` is set (a dragged window has left the stack). */
   stackIndex: number;
-  /** Drag position from useGameChats' per-chat `pos` — null keeps this
+  /** Drag position from useGameChats' per-chat layout — null keeps this
    *  window in its default stack slot (`stackIndex` above). */
   pos: { x: number; y: number } | null;
   /** Fired on every pointer move while the header is being dragged; the
    *  caller (ChatWindows.tsx) persists it via useGameChats' setPos. */
   onDrag: (pos: { x: number; y: number }) => void;
+  /** Resized size from useGameChats' per-chat layout (EKI resize follow-up)
+   *  — null keeps this window at its default 350×440 box (DEFAULT_SIZE). */
+  size: Size | null;
+  /** Fired on every pointer move while the corner grip is being dragged; the
+   *  caller (ChatWindows.tsx) persists it via useGameChats' setSize. */
+  onResize: (size: Size) => void;
   /** `?demo` fake robot — no session behind it, so the composer is a dead end. */
   demo?: boolean;
   onClose: () => void;
@@ -99,6 +114,8 @@ export function ChatWindow({
   stackIndex,
   pos,
   onDrag,
+  size,
+  onResize,
   demo = false,
   onClose,
   onMinimize,
@@ -112,6 +129,7 @@ export function ChatWindow({
   const scroller = useRef<HTMLDivElement>(null);
   const container = useRef<HTMLDivElement>(null);
   const drag = useDragPosition({ containerRef: container, pos, onChange: onDrag });
+  const resize = useResize({ containerRef: container, size, onChange: onResize });
 
   // Imperative scroll-to-bottom stays in an effect (react-compiler rule) —
   // never touched from render or the send handler directly.
@@ -205,14 +223,23 @@ export function ChatWindow({
 
   // A dragged window (pos set) positions from an absolute left/top instead
   // of the stack's right/bottom — both explicitly cleared so the two never
-  // fight (see ChatWindow's file comment / use-drag-position.ts).
-  const style: CSSProperties = pos ? { left: pos.x, top: pos.y, right: "auto", bottom: "auto" } : { right };
+  // fight (see ChatWindow's file comment / use-drag-position.ts). Width/
+  // height are always explicit inline dims now (EKI resize follow-up) —
+  // `size` when the window's been resized, DEFAULT_SIZE (the old fixed
+  // Tailwind box) otherwise — since a resized-but-not-dragged window still
+  // needs to grow/shrink from its stack slot.
+  const dims = size ?? DEFAULT_SIZE;
+  const style: CSSProperties = {
+    ...(pos ? { left: pos.x, top: pos.y, right: "auto", bottom: "auto" } : { right }),
+    width: dims.w,
+    height: dims.h,
+  };
 
   return (
     <div
       ref={container}
       data-testid="chat-window"
-      className="pointer-events-auto absolute bottom-4 flex h-[440px] w-[350px] flex-col rounded-3xl border-2 border-white/60 bg-white/90 text-slate-900 shadow-2xl backdrop-blur"
+      className="pointer-events-auto absolute bottom-4 flex flex-col rounded-3xl border-2 border-white/60 bg-white/90 text-slate-900 shadow-2xl backdrop-blur"
       style={style}
       onPointerDown={onFocusChat}
     >
@@ -305,6 +332,27 @@ export function ChatWindow({
           </Button>
         )}
       </div>
+
+      {/* Corner grip — drag to resize (EKI resize follow-up), port of v1's
+          WorldChatWindow corner grip. Lives outside the header on purpose
+          (see ChatWindowProps.onResize's doc comment / use-resize.ts) so a
+          resize drag can never be mistaken for a header drag. Only rendered
+          in this non-minimized branch, so it's naturally hidden once the
+          window collapses to a chip. */}
+      <div
+        data-testid="chat-resize-grip"
+        role="presentation"
+        aria-label={`Resize chat with ${name}`}
+        className="absolute bottom-0 right-0 h-[18px] w-[18px] cursor-nwse-resize rounded-br-3xl opacity-60 hover:opacity-100"
+        style={{
+          backgroundImage:
+            "repeating-linear-gradient(135deg, rgba(15,23,42,0.5) 0px, rgba(15,23,42,0.5) 1.5px, transparent 1.5px, transparent 5px)",
+        }}
+        onPointerDown={resize.onPointerDown}
+        onPointerMove={resize.onPointerMove}
+        onPointerUp={resize.onPointerUp}
+        onPointerCancel={resize.onPointerUp}
+      />
     </div>
   );
 }

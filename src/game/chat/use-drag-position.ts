@@ -10,6 +10,7 @@
 // actual on-screen box instead.
 import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
 import { useEffect, useRef } from "react";
+import { clampPos } from "./window-clamp";
 
 export interface DragPoint {
   x: number;
@@ -54,18 +55,14 @@ export interface UseDragPositionResult {
 /** The one clamp rule, shared by every place a position needs to respect the
  *  viewport: an active drag (onPointerMove) and a re-clamp of an
  *  already-committed `pos` (the mount/resize effect below, for a window
- *  whose viewport shrank while it wasn't being dragged). Top edge floors at
- *  0 (see UseDragPositionOptions.minVisible); the other three edges keep a
- *  `minVisible`-px sliver. */
+ *  whose viewport shrank while it wasn't being dragged). Delegates to
+ *  window-clamp.ts's clampPos (EKI resize follow-up) — that module is now
+ *  the single shared source of truth for pos/size clamp math, also used by
+ *  use-resize.ts (size) and store.ts (a persisted layout, on load). Top edge
+ *  floors at 0 (see UseDragPositionOptions.minVisible); the other three
+ *  edges keep a `minVisible`-px sliver. */
 function clampToViewport(p: DragPoint, rect: { width: number } | undefined, minVisible: number): DragPoint {
-  const w = rect?.width ?? 0;
-  const minX = minVisible - w;
-  const maxX = window.innerWidth - minVisible;
-  const maxY = window.innerHeight - minVisible;
-  return {
-    x: Math.min(maxX, Math.max(minX, p.x)),
-    y: Math.min(maxY, Math.max(0, p.y)),
-  };
+  return clampPos(p, rect?.width ?? 0, minVisible);
 }
 
 /** Turns pointer events on a handle element into a clamped drag position for

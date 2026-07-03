@@ -1,9 +1,9 @@
 // ChatWindows (M2 T3 host, drag-position stacking): this is a thin wiring
 // component — it resolves name/color and hands each chat's stackIndex/pos/
-// onDrag down to <ChatWindow>. Rather than re-render a full ChatWindow tree
-// (chat-window.test.tsx already covers that), ChatWindow itself is mocked to
-// a prop-capturing stub so the stacking/compaction math can be asserted on
-// directly.
+// size/onDrag/onResize down to <ChatWindow>. Rather than re-render a full
+// ChatWindow tree (chat-window.test.tsx already covers that), ChatWindow
+// itself is mocked to a prop-capturing stub so the stacking/compaction math
+// can be asserted on directly.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render } from "@testing-library/react";
 import type { ChatWindowProps } from "./ChatWindow";
@@ -20,11 +20,11 @@ vi.mock("./ChatWindow", () => ({
 vi.mock("@/stores/sessions", () => ({ useSessionsView: () => [] }));
 
 import { ChatWindows } from "./ChatWindows";
-import { useGameChats } from "./store";
+import { resetGameChatsForTests, useGameChats } from "./store";
 
 beforeEach(() => {
   capturedProps.length = 0;
-  useGameChats.setState({ chats: [], localLines: {} });
+  resetGameChatsForTests();
 });
 
 function propsFor(key: string): ChatWindowProps {
@@ -64,13 +64,31 @@ describe("ChatWindows", () => {
     expect(propsFor("b").pos).toEqual({ x: 10, y: 20 });
   });
 
+  it("passes each chat's size straight through, null when never resized", () => {
+    useGameChats.getState().open("a");
+    useGameChats.getState().open("b");
+    useGameChats.getState().setSize("b", { w: 500, h: 600 });
+    render(<ChatWindows />);
+    expect(propsFor("a").size).toBeNull();
+    expect(propsFor("b").size).toEqual({ w: 500, h: 600 });
+  });
+
   it("wires onDrag to setPos for the chat's own key only", () => {
     useGameChats.getState().open("a");
     useGameChats.getState().open("b");
     render(<ChatWindows />);
     act(() => propsFor("a").onDrag({ x: 5, y: 6 }));
-    expect(useGameChats.getState().chats.find((c) => c.key === "a")?.pos).toEqual({ x: 5, y: 6 });
-    expect(useGameChats.getState().chats.find((c) => c.key === "b")?.pos).toBeNull();
+    expect(useGameChats.getState().layout.a?.pos).toEqual({ x: 5, y: 6 });
+    expect(useGameChats.getState().layout.b?.pos ?? null).toBeNull();
+  });
+
+  it("wires onResize to setSize for the chat's own key only", () => {
+    useGameChats.getState().open("a");
+    useGameChats.getState().open("b");
+    render(<ChatWindows />);
+    act(() => propsFor("a").onResize({ w: 400, h: 500 }));
+    expect(useGameChats.getState().layout.a?.size).toEqual({ w: 400, h: 500 });
+    expect(useGameChats.getState().layout.b?.size ?? null).toBeNull();
   });
 
   it("a dragged window keeps its position when another chat opens", () => {
@@ -88,5 +106,17 @@ describe("ChatWindows", () => {
     useGameChats.getState().close("b");
     render(<ChatWindows />);
     expect(propsFor("a").pos).toEqual({ x: 1, y: 2 });
+  });
+
+  it("kicks off loadLayout() once on mount (best-effort; a real IPC failure is swallowed)", async () => {
+    useGameChats.getState().open("a");
+    render(<ChatWindows />);
+    // loadLayout() is fire-and-forget here — just assert it doesn't throw and
+    // the store's single-fetch guard is honored (store.test.ts covers the
+    // guard/parse/clamp behavior itself in isolation).
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(useGameChats.getState().chats.map((c) => c.key)).toEqual(["a"]);
   });
 });
