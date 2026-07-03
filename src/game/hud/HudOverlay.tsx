@@ -1,10 +1,14 @@
 // Minimal M0 HUD: environment badge + quality cycler + fps. The real game
 // bar (roster, build, day/night) is M1/M2 scope — this is the debug face.
+// Workspace/Settings chips (M4 T6 fix round 1) are the one exception: not
+// debug, but the only way out of the main window now that WorldView's gear
+// button and dock are gone — see src/game/app/windows.ts.
 import { ENVIRONMENTS, environmentById } from "@/game/world/environments/registry";
 import { useGameEnvironment } from "@/game/world/environments/store";
 import { useAudio } from "@/game/audio/sfx";
 import { useQuality, type QualityTier } from "@/game/engine/quality";
 import { useBuildMode } from "@/game/build/mode";
+import { openSettingsWindow, openWorkspaceWindow } from "@/game/app/windows";
 
 const NEXT_TIER: Record<QualityTier, QualityTier> = { low: "medium", medium: "high", high: "low" };
 
@@ -88,6 +92,22 @@ export function HudOverlay({
         onClick={() => (buildActive ? deactivateBuild() : activateBuild())}
       >
         🔨 Build
+      </button>
+      <button
+        type="button"
+        className="pointer-events-auto rounded-full border-2 border-white/60 bg-zinc-700/80 px-4 py-2 text-sm font-bold text-white shadow-xl backdrop-blur transition-transform hover:scale-105"
+        title="Open the panel grid (board, crew, sessions, docs…) in its own window"
+        onClick={openWorkspaceWindow}
+      >
+        🧰 Workspace
+      </button>
+      <button
+        type="button"
+        className="pointer-events-auto rounded-full border-2 border-white/60 bg-zinc-700/80 px-4 py-2 text-sm font-bold text-white shadow-xl backdrop-blur transition-transform hover:scale-105"
+        title="Open settings"
+        onClick={openSettingsWindow}
+      >
+        ⚙️ Settings
       </button>
       <span className="rounded-full bg-black/50 px-3 py-1.5 text-xs font-semibold text-white/90">
         {fps} fps

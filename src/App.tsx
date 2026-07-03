@@ -26,9 +26,12 @@ const WhatsNewDialog = lazy(() =>
 // The first-run wizard and the what's-new dialog overlay it, same as before.
 //
 // Partial-D4: the game shell has no panel-drawer bridge yet (the world's
-// WorldOverlayHost died with it), so board/crew/sessions/settings/etc. are
-// only reachable via the detached `?window=workspace` window for now — a
-// follow-up task grows the game-native equivalent.
+// WorldOverlayHost died with it) — board/crew/sessions/etc. aren't drawers
+// over the campus the way they were drawers over the world. Reachability is
+// restored (fix round 1, EKI-M4T6): the HUD's 🧰 Workspace / ⚙️ Settings
+// chips (src/game/hud/HudOverlay.tsx, src/game/app/windows.ts) open-or-focus
+// the detached `?window=workspace` / `?window=settings` windows, so nothing
+// is stranded — a follow-up task can still grow the game-native drawer.
 function MainWindow() {
   return (
     <Suspense fallback={null}>
