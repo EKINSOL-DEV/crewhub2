@@ -7,6 +7,8 @@ import { Fountain } from "./Fountain";
 import { InstancedModel } from "./InstancedModel";
 import { Terrain } from "./Terrain";
 import { campusLayout, type ScatterKind } from "./layout";
+import { campusBuildings } from "./buildings";
+import { Pavilion } from "./Pavilion";
 
 const SCATTER_MODEL: Record<ScatterKind, ModelId> = {
   treeDefault: "tree-default",
@@ -39,6 +41,7 @@ const FOLIAGE: Set<ScatterKind> = new Set([
 
 export function CampusWorld() {
   const layout = useMemo(() => campusLayout(), []);
+  const buildings = useMemo(() => campusBuildings(layout.plots), [layout]);
   return (
     <group>
       <Terrain />
@@ -58,6 +61,9 @@ export function CampusWorld() {
       <InstancedModel id="bench" placements={layout.props.bench} />
       <InstancedModel id="hedge" placements={layout.props.hedge} />
       <InstancedModel id="banner-green" placements={layout.props.banner} />
+      {buildings.map((b) => (
+        <Pavilion key={b.plotIndex} building={b} />
+      ))}
     </group>
   );
 }

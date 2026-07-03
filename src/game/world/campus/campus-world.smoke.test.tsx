@@ -54,11 +54,16 @@ describe("CampusWorld smoke", () => {
       Object.values(layout.props).reduce((n, arr) => n + arr.length, 0);
     // 5 terrain meshes (apron + grass + 2 path strips + plaza plate) + one
     // stamped mesh per placement (see Merged stub above) + Fountain (1
-    // mocked-model mesh + 1 water disc) + CloudPuffs (7 puffs * 3 spheres).
+    // mocked-model mesh + 1 water disc) + CloudPuffs (7 puffs * 3 spheres) +
+    // Pavilions (M1 T1): each pavilion = 1 slab + 4 pillars + 3 beams +
+    // 4 desks × (1 top + 2 legs + 1 screen) = 24 meshes; 4 pavilions = 96.
     const TERRAIN_MESHES = 5;
     const FOUNTAIN_MESHES = 2;
     const CLOUD_MESHES = 7 * 3;
-    expect(meshes.length).toBe(totalPlacements + TERRAIN_MESHES + FOUNTAIN_MESHES + CLOUD_MESHES);
+    const PAVILION_MESHES = 4 * 24;
+    expect(meshes.length).toBe(
+      totalPlacements + TERRAIN_MESHES + FOUNTAIN_MESHES + CLOUD_MESHES + PAVILION_MESHES,
+    );
     await renderer.unmount();
   });
 });

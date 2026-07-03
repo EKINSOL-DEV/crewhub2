@@ -6,7 +6,7 @@ import { useQuality, type QualityTier } from "@/game/engine/quality";
 
 const NEXT_TIER: Record<QualityTier, QualityTier> = { low: "medium", medium: "high", high: "low" };
 
-export function HudOverlay({ fps }: { fps: number }) {
+export function HudOverlay({ fps, bots }: { fps: number; bots: number }) {
   const envId = useGameEnvironment((s) => s.id);
   const env = environmentById(envId);
   const tier = useQuality((s) => s.tier);
@@ -35,6 +35,9 @@ export function HudOverlay({ fps }: { fps: number }) {
       </button>
       <span className="rounded-full bg-black/50 px-3 py-1.5 text-xs font-semibold text-white/90">
         {fps} fps
+      </span>
+      <span className="rounded-full bg-black/50 px-3 py-1.5 text-xs font-semibold text-white/90">
+        🤖 {bots}
       </span>
     </div>
   );

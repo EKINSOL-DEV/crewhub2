@@ -18,6 +18,10 @@ How releases consume this file (M6, EKI-98/EKI-100):
 
 ### Added
 
+- M1 "Robots alive" — session-driven boxy robots on the campus (EKI-138): pavilions with desks
+  on the four plots, pure-TS sim (grid A\* + 10Hz deterministic state machine), status-driven
+  behavior (work at desk, raise hand at the plaza, think, wander, crew rests), animated mascot
+  with nameplates and status bulbs, `?game&demo` scene, HUD roster count
 - M0 "Gorgeous empty campus" — new game frontend behind `?game` (EKI-124): CC0 asset pipeline
   (Kenney Nature + Fantasy Town kits, meshopt-optimized), toon + ink-outline rendering with N8AO
   and vignette, RTS game camera with edge scrolling, environment system with Campus as the first
