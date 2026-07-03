@@ -209,9 +209,22 @@ afterEach(() => {
 });
 
 describe("DossierCard", () => {
-  it("renders nothing when the key resolves to no data", () => {
-    const { container } = render(<DossierCard dossierKey="claude:ghost" onClose={vi.fn()} />);
+  it("renders nothing when the key resolves to no data, and auto-closes instead of trapping the slot", () => {
+    const onClose = vi.fn();
+    const { container } = render(<DossierCard dossierKey="claude:ghost" onClose={onClose} />);
     expect(container).toBeEmptyDOMElement();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  // M9 fix round 1: a "Forked from" click can land on a key with no data at
+  // all (an unknown/ended parent no longer in the live sessions map) — the
+  // card must not sit open-but-invisible forever. Wired through the real
+  // mode.ts store (like GameShell does) so "closes" means the single-open
+  // slot itself actually clears, not just that a callback fired.
+  it("retargeting to an unknown key closes the card and clears mode.ts's single-open slot", () => {
+    useBuildMode.getState().openRoomCard({ kind: "dossier", key: "claude:ghost" });
+    render(<DossierCard dossierKey="claude:ghost" onClose={() => useBuildMode.getState().closeRoomCard()} />);
+    expect(useBuildMode.getState().roomCard).toBeNull();
   });
 
   it("renders every joined field for a fully-populated bot, and hides rows with no data", () => {
@@ -319,11 +332,48 @@ describe("DossierCard", () => {
     expect(screen.getByTestId("dossier-card-bio-regenerate")).toBeDisabled();
   });
 
+  it("a live session dossier shows Chat, not Hire", () => {
+    sessionsState.current = { "claude:s1": meta("s1") };
+    render(<DossierCard dossierKey="claude:s1" onClose={vi.fn()} />);
+    expect(screen.getByTestId("dossier-card-chat")).toBeInTheDocument();
+    expect(screen.queryByTestId("dossier-card-hire")).not.toBeInTheDocument();
+  });
+
   it("the Chat footer button opens the chat for this bot's key", () => {
     sessionsState.current = { "claude:s1": meta("s1") };
     render(<DossierCard dossierKey="claude:s1" onClose={vi.fn()} />);
     fireEvent.click(screen.getByTestId("dossier-card-chat"));
     expect(openSpy).toHaveBeenCalledWith("claude:s1");
+  });
+
+  // M9 fix round 1: 💬 Chat is a dead button for resting crew (ChatWindows.tsx
+  // filters `agent:`-keyed chats out of its own render), so their dossier
+  // shows 👥 Hire instead, preselected to the same agent — the same
+  // destination a resting-crew character click already routes to
+  // (GameShell.selectCharacter).
+  describe("resting crew (agent:-keyed dossier)", () => {
+    it("shows Hire, not Chat", () => {
+      agentsState.current = [agent("ag1", { name: "Turing" })];
+      render(<DossierCard dossierKey="agent:ag1" onClose={vi.fn()} />);
+      expect(screen.getByTestId("dossier-card-hire")).toBeInTheDocument();
+      expect(screen.queryByTestId("dossier-card-chat")).not.toBeInTheDocument();
+    });
+
+    it("clicking Hire opens the hire arm preselected to this agent, and plays a cue", () => {
+      agentsState.current = [agent("ag1", { name: "Turing" })];
+      render(<DossierCard dossierKey="agent:ag1" onClose={vi.fn()} />);
+      fireEvent.click(screen.getByTestId("dossier-card-hire"));
+      expect(useBuildMode.getState().roomCard).toEqual({ kind: "hire", agentId: "ag1" });
+      expect(playSfx).toHaveBeenCalledWith("click");
+    });
+
+    it("does not close the card", () => {
+      agentsState.current = [agent("ag1", { name: "Turing" })];
+      const onClose = vi.fn();
+      render(<DossierCard dossierKey="agent:ag1" onClose={onClose} />);
+      fireEvent.click(screen.getByTestId("dossier-card-hire"));
+      expect(onClose).not.toHaveBeenCalled();
+    });
   });
 
   it("the Follow footer button follows this bot's key and plays a cue", () => {

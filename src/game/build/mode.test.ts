@@ -114,4 +114,9 @@ describe("useBuildMode", () => {
     useBuildMode.getState().activate();
     expect(useBuildMode.getState().roomCard).toBeNull();
   });
+
+  it("openRoomCard also accepts the M9 fix-round-1 hire arm's optional agentId", () => {
+    useBuildMode.getState().openRoomCard({ kind: "hire", agentId: "ag1" });
+    expect(useBuildMode.getState().roomCard).toEqual({ kind: "hire", agentId: "ag1" });
+  });
 });

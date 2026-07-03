@@ -135,6 +135,16 @@ export function DossierCard({ dossierKey, onClose }: DossierCardProps) {
     if (info) ensure(info);
   }, [info?.key, ensure]); // eslint-disable-line react-hooks/exhaustive-deps -- `info` itself is intentionally not a dep (see comment)
 
+  // M9 fix round 1: a dangling "open" card whose key resolves to nothing
+  // (e.g. a "Forked from" click landing on an unknown/ended parent no
+  // longer in the live sessions map) used to just render null forever —
+  // invisible, but still "open" in mode.ts, trapping the single-open slot.
+  // Auto-close instead. Dep is the boolean, not `info` itself (a fresh
+  // reference every render), so this only fires once per null transition.
+  useEffect(() => {
+    if (info === null) onClose();
+  }, [info === null, onClose]); // eslint-disable-line react-hooks/exhaustive-deps -- `info` object itself intentionally not a dep (see comment)
+
   if (!info) return null;
 
   const bioKey = bioKeyFor(info);
@@ -220,14 +230,34 @@ export function DossierCard({ dossierKey, onClose }: DossierCardProps) {
       </div>
 
       <div className="flex gap-2 border-t-2 border-slate-900/10 p-2">
-        <button
-          type="button"
-          data-testid="dossier-card-chat"
-          onClick={() => useGameChats.getState().open(info.key)}
-          className="flex-1 rounded-full border-2 border-slate-900/10 px-3 py-1.5 text-sm font-medium hover:bg-slate-900/5"
-        >
-          💬 Chat
-        </button>
+        {info.key.startsWith("agent:") ? (
+          // Resting crew has no live session to chat with — 💬 Chat would be
+          // a dead button (ChatWindows.tsx filters `agent:`-keyed chats out
+          // of its own render entirely), so this opens the hire dialog
+          // preselected to the same agent instead (M9 fix round 1), the same
+          // destination a resting-crew character click already routes to.
+          <button
+            type="button"
+            data-testid="dossier-card-hire"
+            onClick={() => {
+              const agentId = info.agentId;
+              useBuildMode.getState().openRoomCard(agentId ? { kind: "hire", agentId } : { kind: "hire" });
+              playSfx("click");
+            }}
+            className="flex-1 rounded-full border-2 border-slate-900/10 px-3 py-1.5 text-sm font-medium hover:bg-slate-900/5"
+          >
+            👥 Hire
+          </button>
+        ) : (
+          <button
+            type="button"
+            data-testid="dossier-card-chat"
+            onClick={() => useGameChats.getState().open(info.key)}
+            className="flex-1 rounded-full border-2 border-slate-900/10 px-3 py-1.5 text-sm font-medium hover:bg-slate-900/5"
+          >
+            💬 Chat
+          </button>
+        )}
         <button
           type="button"
           data-testid="dossier-card-follow"

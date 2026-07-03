@@ -127,14 +127,18 @@ export default function GameShell() {
     preloadModels();
   }, []);
 
-  // HQ's 👥 prop stand / HqCard shortcut route through mode.ts's single-open
-  // card slot (M6 T4) rather than a prop-drilled callback — but the hire
-  // dialog itself still owns its open/close state locally (it's also
-  // reachable from the HUD and character clicks). Derived at render time,
-  // not synced via an effect's setState (that pattern cascades an extra
-  // render for no benefit here): `hireRequested` just ORs the card-slot
-  // request into the same `open`/`onClose` HireDialog already takes.
-  const hireRequested = roomCard?.kind === "hire";
+  // HQ's 👥 prop stand / HqCard shortcut / DossierCard's Hire button (M9 fix
+  // round 1, for a resting-crew dossier) all route through mode.ts's
+  // single-open card slot (M6 T4) rather than a prop-drilled callback — but
+  // the hire dialog itself still owns its open/close state locally (it's
+  // also reachable from the HUD and character clicks). Derived at render
+  // time, not synced via an effect's setState (that pattern cascades an
+  // extra render for no benefit here): `hireRequest` just ORs the card-slot
+  // request into the same `open`/`onClose` HireDialog already takes, and
+  // its optional `agentId` (present only from a resting-crew dossier's Hire
+  // button) preselects the same way a resting-crew character click already
+  // does via the local `hireAgentId` state below.
+  const hireRequest = roomCard?.kind === "hire" ? roomCard : null;
 
   // Escape precedence (M8 T2): HqCard, RoomCard, RoomLinkDialog and
   // ProjectsDialog each own their own Escape listener, mounted only while
@@ -153,7 +157,7 @@ export default function GameShell() {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      const hasOpenCard = roomCard !== null || hireOpen || hireRequested;
+      const hasOpenCard = roomCard !== null || hireOpen || hireRequest !== null;
       const build = useBuildMode.getState();
       const cameraFree = useCameraDirector.getState().mode.kind === "free";
       if (shouldExitCameraOnEscape(hasOpenCard, build.active, cameraFree)) {
@@ -162,7 +166,7 @@ export default function GameShell() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [roomCard, hireOpen, hireRequested]);
+  }, [roomCard, hireOpen, hireRequest]);
 
   return (
     <div className="relative h-screen w-screen overflow-hidden" data-testid="game-shell">
@@ -217,11 +221,11 @@ export default function GameShell() {
         <DossierCard key={roomCard.key} dossierKey={roomCard.key} onClose={closeRoomCard} />
       )}
       <HireDialog
-        open={hireOpen || hireRequested}
-        initialAgentId={hireRequested ? undefined : hireAgentId}
+        open={hireOpen || hireRequest !== null}
+        initialAgentId={hireRequest ? hireRequest.agentId : hireAgentId}
         onClose={() => {
           setHireOpen(false);
-          if (hireRequested) closeRoomCard();
+          if (hireRequest) closeRoomCard();
         }}
       />
       <WelcomeCard />
