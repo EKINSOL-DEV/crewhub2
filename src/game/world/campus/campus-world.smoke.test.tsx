@@ -67,8 +67,27 @@ vi.mock("@/ipc/bindings", () => ({
 import { CampusWorld } from "./CampusWorld";
 import { campusLayout } from "./layout";
 import { resetCampusEditsForTests, useCampusEdits } from "@/game/build/store";
+import { useBuildMode } from "@/game/build/mode";
 import { resetProjectsForTests, useProjectsStore } from "@/stores/projects";
 import { BIOMES } from "@/game/world/biome";
+import type { ReactThreeTest } from "@react-three/test-renderer";
+
+/**
+ * The `<group>` CampusWorld wraps around each building's `<Pavilion>`,
+ * identified by its `name` marker (same convention the stubbed RoofPlate
+ * `<Text>` above uses) rather than position or the `onPointerDown` prop —
+ * HQ's wrapper omits that prop entirely (conditional spread, not
+ * `onPointerDown={undefined}`, since exactOptionalPropertyTypes rejects an
+ * explicit `undefined` for it), so a prop-presence check can't find it.
+ */
+function pavilionWrapper(
+  scene: ReactThreeTest.ReactThreeTestInstance,
+  plotIndex: number,
+): ReactThreeTest.ReactThreeTestInstance {
+  const matches = scene.findAll((node) => node.props.name === `pavilion-wrapper-${plotIndex}`);
+  expect(matches).toHaveLength(1);
+  return matches[0]!;
+}
 
 describe("CampusWorld smoke", () => {
   beforeEach(() => {
@@ -108,6 +127,23 @@ describe("CampusWorld smoke", () => {
     expect(meshes.length).toBe(
       totalPlacements + TERRAIN_MESHES + FOUNTAIN_MESHES + CLOUD_MESHES + PAVILION_MESHES,
     );
+    await renderer.unmount();
+  });
+
+  it("HQ is not clickable to open a RoomCard — only plot pavilions are (M6 fast-follow)", async () => {
+    useBuildMode.setState({ roomCard: null });
+    const renderer = await ReactThreeTestRenderer.create(<CampusWorld />);
+
+    const hq = pavilionWrapper(renderer.scene, -1);
+    expect(typeof hq.props.onPointerDown).not.toBe("function");
+    await renderer.fireEvent(hq, "pointerDown", { button: 0 });
+    expect(useBuildMode.getState().roomCard).toBeNull();
+
+    const plot0 = pavilionWrapper(renderer.scene, 0);
+    expect(typeof plot0.props.onPointerDown).toBe("function");
+    await renderer.fireEvent(plot0, "pointerDown", { button: 0 });
+    expect(useBuildMode.getState().roomCard).toEqual({ kind: "plot", plotIndex: 0 });
+
     await renderer.unmount();
   });
 
@@ -162,6 +198,38 @@ describe("CampusWorld smoke", () => {
 
     const after = await ReactThreeTestRenderer.create(<CampusWorld />);
     expect(after.scene.findAllByType("Mesh").length).toBe(baseCount + 1);
+    await after.unmount();
+  });
+
+  it("never renders a roof plate for HQ, even if plotProjects somehow carries its plotIndex (-1) (M6 fast-follow)", async () => {
+    const before = await ReactThreeTestRenderer.create(<CampusWorld />);
+    const baseCount = before.scene.findAllByType("Mesh").length;
+    await before.unmount();
+
+    useProjectsStore.setState({
+      projects: [
+        {
+          id: "proj-1",
+          name: "Acme",
+          description: null,
+          icon: "🚀",
+          color: "#22c55e",
+          folder_path: "/work/acme",
+          docs_path: null,
+          status: "active",
+          created_at: 0,
+          updated_at: 0,
+        },
+      ],
+    });
+    // HQ's plotIndex is -1 — not a real plot, but plotProjects is just a
+    // Record<number, string>, so nothing stops a stray -1 entry from
+    // existing. CampusWorld's RoofPlate mapping filters HQ out entirely, so
+    // this must add zero meshes (not the +1 a linked plot would add).
+    useCampusEdits.getState().setPlotProject(-1, "proj-1");
+
+    const after = await ReactThreeTestRenderer.create(<CampusWorld />);
+    expect(after.scene.findAllByType("Mesh").length).toBe(baseCount);
     await after.unmount();
   });
 

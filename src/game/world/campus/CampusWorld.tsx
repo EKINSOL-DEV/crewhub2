@@ -107,6 +107,9 @@ export function CampusWorld({ biome = BIOMES.campus }: { biome?: Biome }) {
   // Clicking a base pavilion outside build mode opens its RoomCard (M5 T4);
   // in build mode this steps aside for BuildControls' own tools (item/
   // building placement, the select-tool proxies over *placed* buildings).
+  // HQ (M6, plotIndex -1) is excluded from this wiring entirely — it isn't
+  // a plot and has no project to link; it gets its own card in a later
+  // task. This is the stopgap so the live app can't link HQ meanwhile.
   function handlePavilionPointerDown(e: ThreeEvent<PointerEvent>, plotIndex: number) {
     if (e.button !== 0) return;
     if (useBuildMode.getState().active) return;
@@ -138,7 +141,15 @@ export function CampusWorld({ biome = BIOMES.campus }: { biome?: Biome }) {
         <InstancedModel id="hedge" placements={layout.props.hedge} />
         <InstancedModel id="banner-green" placements={layout.props.banner} />
         {buildings.map((b) => (
-          <group key={b.plotIndex} onPointerDown={(e) => handlePavilionPointerDown(e, b.plotIndex)}>
+          <group
+            key={b.plotIndex}
+            name={`pavilion-wrapper-${b.plotIndex}`}
+            {...(b.kind === "hq"
+              ? {}
+              : {
+                  onPointerDown: (e: ThreeEvent<PointerEvent>) => handlePavilionPointerDown(e, b.plotIndex),
+                })}
+          >
             <Pavilion building={b} />
           </group>
         ))}
@@ -157,14 +168,17 @@ export function CampusWorld({ biome = BIOMES.campus }: { biome?: Biome }) {
       {/* Base pavilions' roof nameplates (M5 T4): kept outside the frozen
           static-matrix group above — unlike the terrain/pavilion geometry,
           a plot's project link changes at runtime, and RoofPlate needs to
-          react to that. */}
-      {buildings.map((b) => (
-        <RoofPlate
-          key={`plate-${b.plotIndex}`}
-          projectId={edits.plotProjects[b.plotIndex] ?? null}
-          position={[b.rect.x, PLATE_Y, b.rect.z]}
-        />
-      ))}
+          react to that. HQ (M6) is excluded — it has no project to name,
+          and its plotIndex (-1) isn't a real key into plotProjects. */}
+      {buildings
+        .filter((b) => b.kind !== "hq")
+        .map((b) => (
+          <RoofPlate
+            key={`plate-${b.plotIndex}`}
+            projectId={edits.plotProjects[b.plotIndex] ?? null}
+            position={[b.rect.x, PLATE_Y, b.rect.z]}
+          />
+        ))}
     </group>
   );
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { HQ_RECT } from "@/game/world/campus/buildings";
-import { campusLayout, insidePlaza } from "@/game/world/campus/layout";
+import { CAMPUS, campusLayout, insidePlaza } from "@/game/world/campus/layout";
 import {
   applyEdits,
   buildingDesks,
@@ -99,14 +99,18 @@ describe("canPlaceBuilding", () => {
     expect(canPlaceBuilding(EMPTY_EDITS, layout, { x: 0, z: 0, w: 6, d: 5 })).toBe(false);
   });
 
-  it("rejects rects overlapping HQ's footprint (M6)", () => {
-    // Straddles HQ's south wall (z = HQ_RECT.d/2 = 6): rejected regardless
-    // of the plaza circle check, since HQ_RECT's own margin-2 rect now
-    // covers it too.
-    const straddling = { x: 0, z: HQ_RECT.d / 2 + 2.5, w: 6, d: 5 };
-    expect(canPlaceBuilding(EMPTY_EDITS, layout, straddling)).toBe(false);
-    // Clear of HQ (and the plaza) once far enough out.
-    expect(canPlaceBuilding(EMPTY_EDITS, layout, { ...straddling, z: 15 })).toBe(true);
+  it("rejects rects overlapping HQ's footprint, even clear of the plaza's circular margin (M6)", () => {
+    // Rect near HQ's NE corner: its closest point to the origin is (8, 5.5)
+    // — x clamped to the rect's near edge (11 - w/2 = 8), z clamped to the
+    // rect's near edge (8 - d/2 = 5.5) — hypot ~9.71, outside the plaza's
+    // radius-9 circle (CAMPUS.plazaRadius + 2), so the plaza check alone
+    // would NOT catch this; only HQ_RECT's own margin-2 rect does.
+    const nearHqCorner = { x: 11, z: 8, w: 6, d: 5 };
+    const closest = { x: nearHqCorner.x - nearHqCorner.w / 2, z: nearHqCorner.z - nearHqCorner.d / 2 };
+    expect(Math.hypot(closest.x, closest.z)).toBeGreaterThan(CAMPUS.plazaRadius + 2);
+    expect(canPlaceBuilding(EMPTY_EDITS, layout, nearHqCorner)).toBe(false);
+    // Clear of HQ (and everything else) further out along the same path arm.
+    expect(canPlaceBuilding(EMPTY_EDITS, layout, { x: 0, z: 20, w: 6, d: 5 })).toBe(true);
   });
 
   it("rejects rects overlapping a default plot", () => {
