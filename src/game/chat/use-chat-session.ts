@@ -13,8 +13,9 @@
 // the old sendToSession path — and only when there IS a live session. A
 // session-less bot (demo, or a resting/Ended crew member with no live
 // session) instead asks the cheap Haiku fallback (interpretIntent) what the
-// user meant; demo bots are the one exception — see the `isDemoKey` branch
-// below for why they skip that fallback entirely.
+// user meant — demo bots included: interpretIntent still reaches the real
+// backend in demo mode, and degrades to the same "scratches head" note as
+// everyone else when it can't (see the `isLive` check below).
 import { useEffect, useMemo, useRef } from "react";
 import {
   commands,
@@ -246,18 +247,22 @@ export function useChatSession(key: string): ChatSessionResult {
       return { ok: true };
     }
 
-    // Demo bots aren't real agents — there's no LLM behind them to ask what
-    // ordinary chatter might mean, so a non-command message to one is a
-    // deliberate no-op rather than a wasted (and misleading) interpretIntent
-    // round trip.
-    if (isDemoKey(key)) return { ok: true };
-
     // "agent:*" keys are resting crew (sim/characters.ts's toCharacters) —
     // there's no session behind them at all, not merely one whose view
     // hasn't loaded yet, so they're always session-less regardless of
     // `status` (which reads undefined for them, same as an unloaded view).
+    // Invariant shared with sim/characters.ts's toCharacters() and this
+    // file's own isDemoKey — if either key format ever changes, this branch
+    // must change too.
     const isRestingCrew = key.startsWith("agent:");
-    const isLive = !isRestingCrew && status !== "Ended";
+    // Demo bots aren't real sessions either, so they fall into the exact
+    // same session-less path below as resting crew (Fix round 1: a demo
+    // bot's ordinary prose used to be a hard no-op here — but in the real
+    // Tauri app interpretIntent still reaches the backend for real even in
+    // demo mode, and in a plain browser it silently resolves to null, which
+    // already lands on the "scratches head" note. That's the designed
+    // degradation; a demo-only special case was never needed).
+    const isLive = !isDemoKey(key) && !isRestingCrew && status !== "Ended";
     if (isLive) {
       try {
         const res = await commands.sendToSession(sid, trimmed);
@@ -269,10 +274,10 @@ export function useChatSession(key: string): ChatSessionResult {
       }
     }
 
-    // Session-less (resting crew, or Ended with no live session) — ask the
-    // cheap fallback interpreter rather than leaving the message stranded.
-    // interpretIntent never throws (silent null on any failure), so a miss
-    // and an outright failure land on the exact same note.
+    // Session-less (demo, resting crew, or Ended with no live session) —
+    // ask the cheap fallback interpreter rather than leaving the message
+    // stranded. interpretIntent never throws (silent null on any failure),
+    // so a miss and an outright failure land on the exact same note.
     const fallback = await interpretIntent(trimmed, ctx);
     if (fallback === null) {
       useGameChats.getState().addLocalLine(key, "note", SCRATCHES_HEAD_NOTE);

@@ -500,10 +500,12 @@ describe("linkedRoomsFromCampus", () => {
 
 // M7 T3 — the interception matrix the brief calls out: a recognized command
 // always short-circuits to the sim (live or not); prose only ever reaches
-// sendToSession when there's a live session; a session-less bot (resting
-// crew, or Ended) asks the Haiku fallback instead of leaving the message
-// stranded; a demo bot's non-command chatter is a deliberate no-op (it isn't
-// a real agent — see use-chat-session.ts's isDemoKey branch).
+// sendToSession when there's a live session; a session-less bot (demo,
+// resting crew, or Ended) asks the Haiku fallback instead of leaving the
+// message stranded (Fix round 1: demo bots used to skip that fallback
+// entirely as a special case — reverted, since interpretIntent works from
+// demo mode too in the real app, and degrades to the same "scratches head"
+// note as everyone else when it can't).
 describe("M7 T3 chat wiring", () => {
   it("a recognized command posts to the sim and never touches sendToSession, even with a live session", () => {
     views.current = [view({ status: "Working" })];
@@ -546,17 +548,30 @@ describe("M7 T3 chat wiring", () => {
     expect(sendToSessionSpy).not.toHaveBeenCalled();
   });
 
-  it("a demo bot's non-command chatter is a silent no-op — no interpretIntent, no sendToSession", () => {
+  it("a demo bot's non-command chatter asks the Haiku fallback, same as resting crew — a 'say' reply gets a bubble + bot line", async () => {
+    vi.mocked(interpretIntent).mockResolvedValueOnce({ kind: "say", text: "Beep boop, nice weather!" });
     render(<ChatWindow {...WINDOW_PROPS} chatKey="demo:ada" name="Ada" demo />);
     const input = screen.getByTestId("chat-window-input") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "hello there" } });
     fireEvent.keyDown(input, { key: "Enter" });
 
-    expect(interpretIntent).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(interpretIntent).toHaveBeenCalledWith("hello there", { rooms: [] }));
     expect(sendToSessionSpy).not.toHaveBeenCalled();
     expect(postCommand).not.toHaveBeenCalled();
-    // Still shows the empty-thread hint — nothing was added to the chat.
-    expect(screen.getByTestId("chat-window-demo-note")).toBeInTheDocument();
+    expect(await screen.findByText("Beep boop, nice weather!")).toHaveProperty("dataset.who", "bot");
+    expect(pushLocalBubble).toHaveBeenCalledWith("demo:ada", "Beep boop, nice weather!");
+  });
+
+  it("a demo bot's non-command chatter with no recognizable intent gets the scratches-head note", async () => {
+    vi.mocked(interpretIntent).mockResolvedValueOnce(null);
+    render(<ChatWindow {...WINDOW_PROPS} chatKey="demo:ada" name="Ada" demo />);
+    const input = screen.getByTestId("chat-window-input") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "what's the weather like" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(await screen.findByText("🤖 …scratches head…")).toHaveProperty("dataset.who", "note");
+    expect(sendToSessionSpy).not.toHaveBeenCalled();
+    expect(postCommand).not.toHaveBeenCalled();
   });
 
   function SessionProbe({
