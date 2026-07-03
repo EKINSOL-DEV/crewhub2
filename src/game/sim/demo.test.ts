@@ -6,6 +6,7 @@ import { campusLayout } from "@/game/world/campus/layout";
 import { buildNavGrid } from "./grid";
 import { createSim } from "./sim";
 import { DEMO_GROUP, demoCharacters } from "./demo";
+import { DEMO_WARMUP_TICKS } from "@/game/characters/use-sim";
 
 describe("demoCharacters", () => {
   it("returns exactly six characters", () => {
@@ -59,7 +60,7 @@ describe("demoCharacters", () => {
 describe("demo warmup settles bots inside the world (M6 T5)", () => {
   const SEED = 0x51d0;
   const TICK_S = 0.1;
-  const WARMUP_TICKS = 300; // matches use-sim.ts's DEMO_WARMUP_TICKS
+  const WARMUP_TICKS = DEMO_WARMUP_TICKS;
 
   function demoWorld(): { grid: ReturnType<typeof buildNavGrid>; buildings: Building[] } {
     const layout = campusLayout();

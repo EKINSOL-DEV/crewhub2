@@ -42,7 +42,7 @@ export interface UseSimResult {
 }
 
 /** Demo fast-forward: open mid-life (robots seated/raising hands), not at spawn. */
-const DEMO_WARMUP_TICKS = 300; // 30s of sim time, deterministic, <10ms of work
+export const DEMO_WARMUP_TICKS = 300; // 30s of sim time, deterministic, <10ms of work
 
 /**
  * Annotate `Building.groupKey` from a project link (M5 T5, the React
@@ -71,7 +71,9 @@ function withProjectGroupKeys(buildings: Building[], folderByProjectId: Map<stri
 /** Demo override (M5 T5): every building shares `DEMO_GROUP`, real project
  *  links included — see demo.ts's DEMO_GROUP doc comment for why. */
 function withDemoGroupKeys(buildings: Building[]): Building[] {
-  return buildings.map((b) => ({ ...b, groupKey: DEMO_GROUP }));
+  // HQ stays keyless even in demo — same invariant withProjectGroupKeys
+  // defends above: nothing ever seats or matches against the headquarters.
+  return buildings.map((b) => (b.kind === "hq" ? { ...b, groupKey: null } : { ...b, groupKey: DEMO_GROUP }));
 }
 
 export function useSim(override?: Character[]): UseSimResult {

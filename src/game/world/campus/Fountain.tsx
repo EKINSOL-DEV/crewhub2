@@ -29,9 +29,13 @@ export function Fountain({
     // vertical. Spin local z to swirl in the basin plane.
     if (water.current) water.current.rotation.z += dt * 0.4;
   });
+  // The disc's radius/height were tuned against the original fixed scale 3;
+  // scale the whole group by scale/3 (primitive stays at 3) so basin and
+  // water shrink together at any placed-decor scale.
+  const k = scale / 3;
   return (
-    <group position={position as [number, number, number]} rotation-y={rotationY}>
-      <primitive object={model} scale={scale} />
+    <group position={position as [number, number, number]} rotation-y={rotationY} scale={k}>
+      <primitive object={model} scale={3} />
       <mesh ref={water} position-y={0.55} rotation-x={-Math.PI / 2}>
         <circleGeometry args={[1.7, 24]} />
         <meshToonMaterial color="#7fd4f2" transparent opacity={0.85} />
