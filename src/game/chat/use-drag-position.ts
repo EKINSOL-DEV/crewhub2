@@ -27,8 +27,12 @@ export interface UseDragPositionOptions {
   /** Called with the next (already-clamped) position on every pointer move
    *  while dragging. */
   onChange: (pos: DragPoint) => void;
-  /** Px of the window's own box that must stay inside the viewport on every
-   *  edge — keeps a dragged-away window always reachable again. Default 40. */
+  /** Px of the window's own box that must stay inside the viewport on the
+   *  left/right/bottom edges — keeps a dragged-away window always reachable
+   *  again. Default 40. The top edge is stricter (see onPointerMove): it
+   *  clamps to 0, not this sliver, since the header — the only drag handle
+   *  and the Minimize/Close buttons' home — lives at the very top of the
+   *  window and must never go off-screen. */
   minVisible?: number;
 }
 
@@ -65,12 +69,19 @@ export function useDragPosition({
     if (!drag.current) return;
     const rect = containerRef.current?.getBoundingClientRect();
     const w = rect?.width ?? 0;
-    const h = rect?.height ?? 0;
     const nextX = e.clientX - drag.current.dx;
     const nextY = e.clientY - drag.current.dy;
     const minX = minVisible - w;
     const maxX = window.innerWidth - minVisible;
-    const minY = minVisible - h;
+    // The top edge is special-cased to a hard floor of 0, not the same
+    // 40px-sliver rule as the other three edges: the header — the ONLY drag
+    // handle, and also where Minimize/Close live — sits at the very top of
+    // the window. Letting y go negative (the sliver rule's `minVisible - h`)
+    // would push the header itself above the viewport, leaving only the
+    // composer visible at the top edge — unrecoverable, since there's
+    // nothing left to grab or close it with. Off the bottom/left/right the
+    // header stays put and fully reachable, so the sliver rule is fine there.
+    const minY = 0;
     const maxY = window.innerHeight - minVisible;
     onChange({
       x: Math.min(maxX, Math.max(minX, nextX)),

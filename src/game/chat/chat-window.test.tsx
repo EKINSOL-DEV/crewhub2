@@ -811,12 +811,13 @@ describe("draggable windows", () => {
     fireEvent.pointerMove(header, { clientX: 120, clientY: 130, pointerId: 1 });
 
     // jsdom's getBoundingClientRect defaults to an all-zero rect, so the
-    // drag starts from {x:0,y:0} and the raw delta (20, 30) clamps up to the
-    // 40px-minimum-visible floor on both axes.
-    expect(onDrag).toHaveBeenCalledWith({ x: 40, y: 40 });
+    // drag starts from {x:0,y:0}. The raw x delta (20) clamps up to the
+    // 40px-minimum-visible floor; the raw y delta (30) needs no clamping at
+    // all — it's already >= the top edge's 0 floor (see below).
+    expect(onDrag).toHaveBeenCalledWith({ x: 40, y: 30 });
   });
 
-  it("dragging far past the viewport edge clamps to the max-visible ceiling", () => {
+  it("dragging far past the bottom/right viewport edge clamps to the 40px-sliver ceiling", () => {
     const onDrag = vi.fn();
     render(<ChatWindow {...WINDOW_PROPS} pos={null} onDrag={onDrag} />);
     const header = screen.getByTestId("chat-window-header");
@@ -825,6 +826,37 @@ describe("draggable windows", () => {
     fireEvent.pointerMove(header, { clientX: 5000, clientY: 5000, pointerId: 1 });
 
     expect(onDrag).toHaveBeenCalledWith({ x: window.innerWidth - 40, y: window.innerHeight - 40 });
+  });
+
+  it("dragging far past the left viewport edge clamps to the same 40px-sliver rule", () => {
+    const onDrag = vi.fn();
+    render(<ChatWindow {...WINDOW_PROPS} pos={null} onDrag={onDrag} />);
+    const header = screen.getByTestId("chat-window-header");
+
+    // Keep y's delta modest (no clamping there) so this isolates the x edge.
+    fireEvent.pointerDown(header, { clientX: 0, clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(header, { clientX: -5000, clientY: 150, pointerId: 1 });
+
+    expect(onDrag).toHaveBeenCalledWith({ x: 40, y: 50 });
+  });
+
+  // The header is both the only drag handle AND where Minimize/Close live —
+  // if it could be dragged off the TOP of the screen the window would become
+  // unrecoverable (nothing left to grab or close it with). Unlike the other
+  // three edges, which only need a 40px sliver to stay reachable, the top
+  // edge has a hard floor at y=0: the header can never go above the
+  // viewport at all.
+  it("dragging far above the viewport clamps y to 0, not just a 40px sliver", () => {
+    const onDrag = vi.fn();
+    render(<ChatWindow {...WINDOW_PROPS} pos={null} onDrag={onDrag} />);
+    const header = screen.getByTestId("chat-window-header");
+
+    // x's delta (500) is chosen to land inside the valid range unclamped, so
+    // this isolates the y edge.
+    fireEvent.pointerDown(header, { clientX: 100, clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(header, { clientX: 600, clientY: -9999, pointerId: 1 });
+
+    expect(onDrag).toHaveBeenCalledWith({ x: 500, y: 0 });
   });
 
   it("stops updating pos after pointerup", () => {
