@@ -353,6 +353,40 @@ describe("useSim project-room groupKey annotation (M5 T5)", () => {
     await renderer.unmount();
   });
 
+  // This guard class (a stale annotation surviving a state transition
+  // instead of re-deriving) has burned us twice before, in the M4 biome-exit
+  // bug ("re-applies the full block list when leaving a skip biome" above) —
+  // pinning the M5 analogue: unlinking a pavilion must release any bot
+  // that was only seated because of that link, not leave it claiming a desk
+  // in a room it no longer belongs to.
+  it("releases a bot's desk when its pavilion is unlinked from its project (link -> unlink)", async () => {
+    useProjectsStore.setState({ projects: [fakeProject({ id: "proj-1", folder_path: "/repo/foo" })] });
+    useCampusEdits.getState().setPlotProject(0, "proj-1");
+    vi.mocked(useSessionsView).mockReturnValue([
+      fakeSessionView({ key: "sess-a", projectPath: "/repo/foo" }),
+    ]);
+
+    let sim: Sim | null = null;
+    const renderer = await ReactThreeTestRenderer.create(<RealProbe onSim={(s) => (sim = s)} />);
+    await ReactThreeTestRenderer.act(async () => {
+      await renderer.advanceFrames(5, 0.1);
+    });
+    expect(sim!.world.bots.get("sess-a")!.deskId).toMatch(/^desk-0-/);
+
+    const callsBeforeUnlink = vi.mocked(buildNavGrid).mock.calls.length;
+    await ReactThreeTestRenderer.act(async () => {
+      useCampusEdits.getState().setPlotProject(0, null);
+      await renderer.advanceFrames(5, 0.1);
+    });
+
+    // The effect actually re-fired (fresh grid/buildings from the update
+    // effect), not just "the bot happened to still read as unmatched".
+    expect(vi.mocked(buildNavGrid).mock.calls.length).toBeGreaterThan(callsBeforeUnlink);
+    expect(sim!.world.bots.get("sess-a")!.deskId).toBeNull();
+
+    await renderer.unmount();
+  });
+
   it("leaves a session's bot unmatched (never claims a desk) when its project has no plot link", async () => {
     useProjectsStore.setState({ projects: [fakeProject({ id: "proj-1", folder_path: "/repo/foo" })] });
     // No setPlotProject call — proj-1 is registered but not linked to any pavilion.
