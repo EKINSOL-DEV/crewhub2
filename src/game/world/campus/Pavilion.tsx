@@ -1,5 +1,7 @@
-// One plot pavilion (M1 T1): raised slab, corner pillars, beams, four desks.
+// One plot pavilion (M1 T1): raised slab, trimmed corner posts, four desks.
 // Everything procedural toon — robots need somewhere to work, not a palace.
+// (Roof beams were part of the original design but got cut on user feedback —
+// see the corner-posts comment below.)
 import { toonGradientMap } from "@/game/engine/toon";
 import type { Building } from "./buildings";
 

@@ -2,8 +2,10 @@
 // project pavilions — taller walls, a contrasting stone apron, a spawn
 // podium at the center (the sim's spawn pad, M6 T2), three prop pads for
 // Task 4's interactive furniture, and two entrance banners flanking the
-// south corners. Roof beams form an open perimeter ring (not the pavilions'
-// parallel rafters) so the interior stays visible from above.
+// south corners. Corner posts cap the walls (its roof beams — once an open
+// perimeter ring, unlike the pavilions' parallel rafters — were cut on user
+// feedback; see the corner-posts comment below), so the interior stays
+// visible from above.
 //
 // Every wall in `building.doors` gets its own gap — Pavilion.tsx only ever
 // cuts the primary door (M6 T1's progress note flagged this), and HQ has
