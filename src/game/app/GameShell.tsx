@@ -25,6 +25,7 @@ import { useQuality } from "@/game/engine/quality";
 import { FpsProbe } from "@/game/hud/FpsProbe";
 import { HudOverlay } from "@/game/hud/HudOverlay";
 import type { RtsBounds } from "@/game/engine/camera/rts-camera";
+import { WelcomeCard } from "./WelcomeCard";
 
 // Module-level so the fps-driven re-render (1/s) never churns the camera
 // rig's listeners (its effect deps include `bounds`).
@@ -117,6 +118,7 @@ export default function GameShell() {
       {buildActive && <BuildPalette />}
       {pendingRoomLink && <RoomLinkDialog buildingId={pendingRoomLink} onClose={closeRoomLink} />}
       <HireDialog open={hireOpen} initialAgentId={hireAgentId} onClose={() => setHireOpen(false)} />
+      <WelcomeCard />
     </div>
   );
 }
