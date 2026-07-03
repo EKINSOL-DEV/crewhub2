@@ -69,10 +69,10 @@ export function matchKey(s: KeyStroke): KeyAction | null {
   return null;
 }
 
-// ── Top-level view switching (world-primary shell) ───────────────────────────
-// ⌘1 = world, ⌘2 = workspace. Matched at the App level in the CAPTURE phase,
-// but only when it actually changes the view — so inside the workspace, ⌘2
-// (and ⌘3…9) still fall through to focusPanel. Only ⌘1-as-focus is sacrificed.
+// ── Top-level view switching (game-shell main window, M4 T6) ────────────────
+// The main window is the game shell, full stop — there's no ⌘1/⌘2 view
+// switch to sacrifice a digit for anymore. ⌘1…9 inside a `?window=workspace`
+// grid still means focusPanel, matched here unconditionally.
 
 /** Registry-generated rows for the ⌘/ shortcut help sheet. */
 export const KEYMAP_HELP: ReadonlyArray<{ keys: string; action: string }> = [
