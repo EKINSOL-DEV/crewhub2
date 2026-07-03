@@ -110,9 +110,16 @@ export function useSim(override?: Character[]): UseSimResult {
   const keysRef = useRef<Set<string>>(new Set());
   const [version, setVersion] = useState(0);
 
-  // The sim only cares about identity + status (that's what drives replan());
-  // name/color drift alone shouldn't re-sync it, so key the effect narrowly.
-  const syncKey = useMemo(() => characters.map((c) => `${c.key}:${c.status}`).join(","), [characters]);
+  // The sim only cares about identity + status (that's what drives replan()),
+  // but this same effect also rebuilds `infoRef` (name/color/status for the
+  // renderer's nameplates) — so a rename/recolor with no status change must
+  // still re-run it, or `infoRef` goes stale and the nameplate keeps
+  // showing the old name. Status-only churn dominates in practice, so this
+  // stays cheap even with name/color folded in.
+  const syncKey = useMemo(
+    () => characters.map((c) => `${c.key}:${c.status}:${c.name}:${c.color}`).join(","),
+    [characters],
+  );
 
   const warmedRef = useRef(false);
   useEffect(() => {

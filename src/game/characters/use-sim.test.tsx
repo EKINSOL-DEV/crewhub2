@@ -10,6 +10,7 @@
 // position/pathfinding geometry.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ReactThreeTestRenderer from "@react-three/test-renderer";
+import type { MutableRefObject } from "react";
 import type { Agent } from "@/ipc/bindings";
 import type { Character } from "@/game/sim/characters";
 import type { Sim } from "@/game/sim/sim";
@@ -37,7 +38,7 @@ vi.mock("@/stores/projects", () => ({
   useProjectsStore: { getState: () => ({ load: vi.fn() }) },
 }));
 
-import { useSim } from "./use-sim";
+import { useSim, type CharacterInfo } from "./use-sim";
 
 function workingBot(i: number): Character {
   return {
@@ -105,6 +106,48 @@ describe("useSim build-edits wiring", () => {
     // running off the base building pool (not silently empty/broken) even
     // though no edit was ever made this test.
     expect(sim!.world.bots.get("bot-0")!.deskId).toBe("desk-0-0");
+
+    await renderer.unmount();
+  });
+});
+
+function InfoProbe({
+  characters,
+  onInfoRef,
+}: {
+  characters: Character[];
+  onInfoRef: (ref: MutableRefObject<Map<string, CharacterInfo>>) => void;
+}) {
+  const { infoRef } = useSim(characters);
+  onInfoRef(infoRef);
+  return null;
+}
+
+describe("useSim infoRef sync (nameplate staleness)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetCampusEditsForTests();
+  });
+
+  it("refreshes infoRef on a rename/recolor even though status stays the same", async () => {
+    let infoRef: MutableRefObject<Map<string, CharacterInfo>> | null = null;
+    const bot = workingBot(0);
+    const renderer = await ReactThreeTestRenderer.create(
+      <InfoProbe characters={[bot]} onInfoRef={(r) => (infoRef = r)} />,
+    );
+    await ReactThreeTestRenderer.act(async () => {
+      await renderer.advanceFrames(2, 0.1);
+    });
+    expect(infoRef!.current.get("bot-0")).toMatchObject({ name: "Bot 0", color: "#7dd3fc" });
+
+    const renamed: Character = { ...bot, name: "Renamed Bot", color: "#f472b6" };
+    await ReactThreeTestRenderer.act(async () => {
+      await renderer.update(<InfoProbe characters={[renamed]} onInfoRef={(r) => (infoRef = r)} />);
+      await renderer.advanceFrames(1, 0.1);
+    });
+    // Same status ("Working"), only name/color changed — the old narrow
+    // `${key}:${status}` syncKey would have skipped this re-sync entirely.
+    expect(infoRef!.current.get("bot-0")).toMatchObject({ name: "Renamed Bot", color: "#f472b6" });
 
     await renderer.unmount();
   });
