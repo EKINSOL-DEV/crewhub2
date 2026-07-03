@@ -29,10 +29,30 @@ function serialize(edits: CampusEdits, counter: number): string {
   return JSON.stringify({ v: STORE_VERSION, counter, edits });
 }
 
-function isCampusEdits(v: unknown): v is CampusEdits {
+function isCampusEditsShape(v: unknown): v is Record<string, unknown> {
   if (typeof v !== "object" || v === null) return false;
   const o = v as Record<string, unknown>;
   return Array.isArray(o.items) && Array.isArray(o.buildings) && Array.isArray(o.removedDefaults);
+}
+
+function isPlainRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+/**
+ * Pre-M5 blobs lack `plotProjects` and their buildings lack `projectId` —
+ * fill defaults here (rather than rejecting the whole blob in isCampusEditsShape)
+ * so old saves keep loading cleanly.
+ */
+function normalizeEdits(o: Record<string, unknown>): CampusEdits {
+  const buildings = (o.buildings as PlacedBuilding[]).map((b) => ({ ...b, projectId: b.projectId ?? null }));
+  const plotProjects = isPlainRecord(o.plotProjects) ? (o.plotProjects as Record<number, string>) : {};
+  return {
+    items: o.items as PlacedItem[],
+    buildings,
+    removedDefaults: o.removedDefaults as string[],
+    plotProjects,
+  };
 }
 
 /** Defensive parse: any structural mismatch (bad JSON, wrong version) → null, caller falls back to EMPTY_EDITS. */
@@ -45,8 +65,8 @@ function parse(text: string): StoredBlob | null {
   }
   if (typeof raw !== "object" || raw === null) return null;
   const o = raw as Record<string, unknown>;
-  if (o.v !== STORE_VERSION || typeof o.counter !== "number" || !isCampusEdits(o.edits)) return null;
-  return { counter: o.counter, edits: o.edits };
+  if (o.v !== STORE_VERSION || typeof o.counter !== "number" || !isCampusEditsShape(o.edits)) return null;
+  return { counter: o.counter, edits: normalizeEdits(o.edits) };
 }
 
 function normalizeRot(r: number): number {
@@ -83,6 +103,10 @@ interface CampusEditsState {
   addBuilding: (rect: Rect, roomId: string | null) => string;
   removeBuilding: (id: string) => void;
   setBuildingRoom: (id: string, roomId: string | null) => void;
+  /** Link (or unlink, with null) plotIndex's default pavilion to a project (M5). */
+  setPlotProject: (plotIndex: number, projectId: string | null) => void;
+  /** Link (or unlink, with null) a specific player-built pavilion to a project (M5). */
+  setBuildingProject: (id: string, projectId: string | null) => void;
 }
 
 let counter = 0;
@@ -162,6 +186,7 @@ export const useCampusEdits = create<CampusEditsState>((set, get) => ({
       w: snap(rect.w),
       d: snap(rect.d),
       roomId,
+      projectId: null,
     };
     const edits: CampusEdits = { ...get().edits, buildings: [...get().edits.buildings, building] };
     persist(edits);
@@ -182,6 +207,24 @@ export const useCampusEdits = create<CampusEditsState>((set, get) => ({
     const edits: CampusEdits = {
       ...get().edits,
       buildings: get().edits.buildings.map((b) => (b.id === id ? { ...b, roomId } : b)),
+    };
+    persist(edits);
+    set((s) => ({ edits, version: s.version + 1 }));
+  },
+
+  setPlotProject: (plotIndex, projectId) => {
+    const plotProjects = { ...get().edits.plotProjects };
+    if (projectId === null) delete plotProjects[plotIndex];
+    else plotProjects[plotIndex] = projectId;
+    const edits: CampusEdits = { ...get().edits, plotProjects };
+    persist(edits);
+    set((s) => ({ edits, version: s.version + 1 }));
+  },
+
+  setBuildingProject: (id, projectId) => {
+    const edits: CampusEdits = {
+      ...get().edits,
+      buildings: get().edits.buildings.map((b) => (b.id === id ? { ...b, projectId } : b)),
     };
     persist(edits);
     set((s) => ({ edits, version: s.version + 1 }));

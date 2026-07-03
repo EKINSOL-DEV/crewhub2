@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest";
 import type { Agent, SessionMeta } from "@/ipc/bindings";
 import type { SessionView } from "@/stores/sessions";
-import { ACTIVE_WINDOW_MS, toCharacters } from "./characters";
+import { ACTIVE_WINDOW_MS, normalizeFolder, toCharacters } from "./characters";
 
 const NOW = 1_000_000;
 
@@ -115,5 +115,48 @@ describe("toCharacters", () => {
     const live = view("s1", { agent: robo }, { last_activity_ms: NOW });
     const chars = toCharacters([live], { nowMs: NOW, agents: [robo] });
     expect(chars.map((c) => c.key)).toEqual(["claude:s1"]);
+  });
+
+  it("gives a session character its normalized project folder", () => {
+    const chars = toCharacters([view("a", {}, { project_path: "/tmp/proj/" })], { nowMs: NOW });
+    expect(chars[0]!.projectPath).toBe("/tmp/proj");
+  });
+
+  it("gives a session with a blank project_path a null projectPath", () => {
+    const chars = toCharacters([view("a", {}, { project_path: "" })], { nowMs: NOW });
+    expect(chars[0]!.projectPath).toBeNull();
+  });
+
+  it("gives a resting crew character its agent's normalized project folder", () => {
+    const withProject: Agent = { ...robo, project_path: "/tmp/crew/" };
+    const chars = toCharacters([], { nowMs: NOW, agents: [withProject] });
+    expect(chars[0]!.projectPath).toBe("/tmp/crew");
+  });
+
+  it("resting crew without a project folder gets a null projectPath", () => {
+    const chars = toCharacters([], { nowMs: NOW, agents: [robo] });
+    expect(chars[0]!.projectPath).toBeNull();
+  });
+});
+
+describe("normalizeFolder", () => {
+  it("strips a single trailing slash", () => {
+    expect(normalizeFolder("/tmp/proj/")).toBe("/tmp/proj");
+  });
+
+  it("leaves a path without a trailing slash untouched", () => {
+    expect(normalizeFolder("/tmp/proj")).toBe("/tmp/proj");
+  });
+
+  it("leaves the empty string untouched", () => {
+    expect(normalizeFolder("")).toBe("");
+  });
+
+  it("leaves the lone root slash untouched", () => {
+    expect(normalizeFolder("/")).toBe("/");
+  });
+
+  it("only strips one trailing slash, not repeats", () => {
+    expect(normalizeFolder("/tmp/proj//")).toBe("/tmp/proj/");
   });
 });

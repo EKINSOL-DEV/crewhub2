@@ -18,6 +18,13 @@ export interface Building {
   desks: Desk[];
   /** Walk-in point on the plot edge nearest the campus center. */
   door: { x: number; z: number };
+  /**
+   * Project this pavilion is linked to (M5); null when unassigned. Optional
+   * so the many pre-M5 Building literals across the app (demo world, render
+   * components, sim tests) keep compiling untouched — campusBuildings() and
+   * applyEdits() (src/game/build/edits.ts) always populate it explicitly.
+   */
+  projectId?: string | null;
 }
 
 /**
@@ -32,7 +39,7 @@ export function nearestEdgeDoor(rect: Rect): { x: number; z: number } {
   return Math.hypot(xEdge.x, xEdge.z) <= Math.hypot(zEdge.x, zEdge.z) ? xEdge : zEdge;
 }
 
-export function campusBuildings(plots: Rect[]): Building[] {
+export function campusBuildings(plots: Rect[], plotProjects?: Record<number, string>): Building[] {
   return plots.map((rect, plotIndex) => {
     // Two rows of two desks, facing each other across a center aisle.
     const dx = rect.w / 4;
@@ -43,6 +50,7 @@ export function campusBuildings(plots: Rect[]): Building[] {
       { id: `desk-${plotIndex}-2`, x: rect.x - dx, z: rect.z + dz, rot: 0, plotIndex },
       { id: `desk-${plotIndex}-3`, x: rect.x + dx, z: rect.z + dz, rot: 0, plotIndex },
     ];
-    return { plotIndex, rect, desks, door: nearestEdgeDoor(rect) };
+    const projectId = plotProjects?.[plotIndex] ?? null;
+    return { plotIndex, rect, desks, door: nearestEdgeDoor(rect), projectId };
   });
 }

@@ -17,7 +17,12 @@ describe("useCampusEdits", () => {
   });
 
   it("starts empty", () => {
-    expect(useCampusEdits.getState().edits).toEqual({ items: [], buildings: [], removedDefaults: [] });
+    expect(useCampusEdits.getState().edits).toEqual({
+      items: [],
+      buildings: [],
+      removedDefaults: [],
+      plotProjects: {},
+    });
     expect(useCampusEdits.getState().version).toBe(0);
   });
 
@@ -103,13 +108,71 @@ describe("useCampusEdits", () => {
   it("init tolerates junk JSON and falls back to empty edits", async () => {
     vi.mocked(commands.getSetting).mockResolvedValueOnce({ status: "ok", data: "not json{{{" } as never);
     await useCampusEdits.getState().init();
-    expect(useCampusEdits.getState().edits).toEqual({ items: [], buildings: [], removedDefaults: [] });
+    expect(useCampusEdits.getState().edits).toEqual({
+      items: [],
+      buildings: [],
+      removedDefaults: [],
+      plotProjects: {},
+    });
   });
 
   it("init only fetches once", async () => {
     await useCampusEdits.getState().init();
     await useCampusEdits.getState().init();
     expect(commands.getSetting).toHaveBeenCalledTimes(1);
+  });
+
+  it("loads a pre-M5 blob missing plotProjects, filling {} for it and null for each building's projectId", async () => {
+    vi.mocked(commands.getSetting).mockResolvedValueOnce({
+      status: "ok",
+      data: JSON.stringify({
+        v: 1,
+        counter: 2,
+        edits: {
+          items: [],
+          buildings: [{ id: "e0", x: 1, z: 1, w: 6, d: 5, roomId: null }],
+          removedDefaults: [],
+        },
+      }),
+    } as never);
+    await useCampusEdits.getState().init();
+    const { edits } = useCampusEdits.getState();
+    expect(edits.plotProjects).toEqual({});
+    expect(edits.buildings[0]!.projectId).toBeNull();
+  });
+});
+
+describe("setPlotProject / setBuildingProject", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetCampusEditsForTests();
+  });
+
+  it("setPlotProject assigns a plot's project, persists, and bumps version", () => {
+    useCampusEdits.getState().setPlotProject(1, "proj-a");
+    expect(useCampusEdits.getState().edits.plotProjects).toEqual({ 1: "proj-a" });
+    expect(useCampusEdits.getState().version).toBe(1);
+    expect(commands.setSetting).toHaveBeenCalledWith(EDITS_SETTING_KEY, expect.any(String));
+  });
+
+  it("setPlotProject(null) clears a previously assigned plot", () => {
+    useCampusEdits.getState().setPlotProject(1, "proj-a");
+    useCampusEdits.getState().setPlotProject(1, null);
+    expect(useCampusEdits.getState().edits.plotProjects).toEqual({});
+    expect(useCampusEdits.getState().version).toBe(2);
+  });
+
+  it("setBuildingProject updates only the targeted building's projectId and bumps version", () => {
+    const idA = useCampusEdits.getState().addBuilding({ x: 10, z: 20, w: 6, d: 5 }, null);
+    const idB = useCampusEdits.getState().addBuilding({ x: -10, z: 20, w: 6, d: 5 }, null);
+    const before = useCampusEdits.getState().version;
+
+    useCampusEdits.getState().setBuildingProject(idA, "proj-9");
+
+    const buildings = useCampusEdits.getState().edits.buildings;
+    expect(buildings.find((b) => b.id === idA)!.projectId).toBe("proj-9");
+    expect(buildings.find((b) => b.id === idB)!.projectId).toBeNull();
+    expect(useCampusEdits.getState().version).toBe(before + 1);
   });
 });
 
