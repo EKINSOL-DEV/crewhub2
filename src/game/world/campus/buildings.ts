@@ -25,6 +25,13 @@ export interface Building {
    * applyEdits() (src/game/build/edits.ts) always populate it explicitly.
    */
   projectId?: string | null;
+  /**
+   * Sim desk-claim eligibility key (M5 T2), annotated at the React boundary
+   * from the linked project's folder — see src/game/characters/use-sim.ts.
+   * Optional for the same pre-M5-literal reason as projectId; the sim
+   * (src/game/sim/sim.ts) treats null/undefined as "unlinked, no claims."
+   */
+  groupKey?: string | null;
 }
 
 /**

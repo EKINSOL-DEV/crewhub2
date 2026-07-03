@@ -20,6 +20,8 @@ const WANDER_PAUSE_MIN = 2;
 const WANDER_PAUSE_RANGE = 2; // pause is WANDER_PAUSE_MIN..+RANGE seconds
 const THINK_FLIP_SECONDS = 4;
 const WANDER_TARGET_TRIES = 8;
+/** Wander targets this close to (or inside) a building rect are rejected (M5 T2). */
+const WANDER_BUILDING_MARGIN = 1;
 
 export interface SimBot {
   key: string;
@@ -53,6 +55,8 @@ interface BotMeta {
   agentId: string | null;
   /** Idle wander: bot.age at which the next leg (or first retry) may start. */
   pauseUntil: number;
+  /** Desk-claim eligibility key (M5 T2), normalized to null; see `isMatched`. */
+  groupKey: string | null;
 }
 
 /** Local alias — same tiny seeded PRNG as campus/layout.ts; the sim must replay identically forever. */
@@ -86,6 +90,20 @@ interface DeskEntry {
   building: Building;
 }
 
+/**
+ * True when (x, z) is inside — or within `margin` units of — any building's
+ * footprint rect (M5 T2). Used to keep wander targets for unmatched bots
+ * (and every Idle/crew wanderer, matched or not — Idle never holds a desk)
+ * out of rooms they have no business standing in.
+ */
+export function insideAnyBuildingRect(x: number, z: number, buildings: Building[], margin: number): boolean {
+  for (const b of buildings) {
+    const { x: bx, z: bz, w, d } = b.rect;
+    if (Math.abs(x - bx) <= w / 2 + margin && Math.abs(z - bz) <= d / 2 + margin) return true;
+  }
+  return false;
+}
+
 export function createSim(grid: NavGrid, buildings: Building[], seed: number): Sim {
   const rand = rng(seed);
   const world: SimWorld = { bots: new Map(), deskOwners: new Map() };
@@ -98,7 +116,14 @@ export function createSim(grid: NavGrid, buildings: Building[], seed: number): S
   );
 
   const deskById = (id: string): DeskEntry | undefined => deskList.find((e) => e.desk.id === id);
-  const findFreeDesk = (): DeskEntry | undefined => deskList.find((e) => !world.deskOwners.has(e.desk.id));
+  /** Only a building sharing the bot's groupKey is ever a candidate — no squatting in unlinked/other rooms. */
+  const findFreeDesk = (groupKey: string | null): DeskEntry | undefined =>
+    groupKey === null
+      ? undefined
+      : deskList.find((e) => (e.building.groupKey ?? null) === groupKey && !world.deskOwners.has(e.desk.id));
+  /** "Matched" = has a real desk pool to claim from at all (room may still be full — that's overflow, not wander). */
+  const isMatched = (groupKey: string | null): boolean =>
+    groupKey !== null && buildings.some((b) => (b.groupKey ?? null) === groupKey);
 
   /** Path from `from` all the way to a desk's seat, routed via the building's door. */
   function pathToDesk(from: { x: number; z: number }, entry: DeskEntry): { x: number; z: number }[] {
@@ -129,20 +154,53 @@ export function createSim(grid: NavGrid, buildings: Building[], seed: number): S
       const angle = rand() * Math.PI * 2;
       const radius = rand() * maxRadius;
       const target = { x: centerX + Math.sin(angle) * radius, z: centerZ + Math.cos(angle) * radius };
+      // M5 T2: no wanderer (Idle, or an unmatched Working/WaitingForInput
+      // bot borrowing the wander loop below) ever paths *into* a room —
+      // matched/seated bots reach their desk via pathToDesk, never this fn.
+      if (insideAnyBuildingRect(target.x, target.z, buildings, WANDER_BUILDING_MARGIN)) continue;
       const path = findPath(grid, { x: bot.x, z: bot.z }, target);
       if (path.length > 0) return path;
     }
     return null;
   }
 
+  /** Idle wander, and the outside-wander borrowed by unmatched Working/WaitingForInput bots — starts next tick. */
+  function startWander(bot: SimBot, m: BotMeta): void {
+    bot.path = [];
+    m.pauseUntil = bot.age;
+  }
+
+  /** True while `m` should run the wander loop instead of its status's normal desk/ring behavior. */
+  function isWanderer(m: BotMeta): boolean {
+    if (m.status === "Idle") return true;
+    if (m.status === "Working" || m.status === "WaitingForInput") return !isMatched(m.groupKey);
+    return false;
+  }
+
+  /** Drop a held desk when it no longer belongs to the bot's (possibly just-changed) group. */
+  function releaseIfGroupMismatch(bot: SimBot, groupKey: string | null): void {
+    if (!bot.deskId) return;
+    const entry = deskById(bot.deskId);
+    if (!entry || groupKey === null || (entry.building.groupKey ?? null) !== groupKey) {
+      world.deskOwners.delete(bot.deskId);
+      bot.deskId = null;
+    }
+  }
+
   /** Re-derive a bot's path/desk from a (possibly newly seen) status. Called on creation and status change. */
   function replan(bot: SimBot, m: BotMeta, status: SessionStatus): void {
     switch (status) {
       case "Working": {
+        if (!isMatched(m.groupKey)) {
+          // No room to work in (null groupKey, or no building shares it) —
+          // borrow the wander loop; the status bulb still reads "Working".
+          startWander(bot, m);
+          break;
+        }
         // A desk assigned earlier stays assigned for the life of the session
         // (see the status-change note below) — only look for a free one the
         // first time a bot goes to work.
-        const entry = bot.deskId ? deskById(bot.deskId) : findFreeDesk();
+        const entry = bot.deskId ? deskById(bot.deskId) : findFreeDesk(m.groupKey);
         if (entry) {
           if (!bot.deskId) {
             bot.deskId = entry.desk.id;
@@ -150,7 +208,9 @@ export function createSim(grid: NavGrid, buildings: Building[], seed: number): S
           }
           bot.path = pathToDesk({ x: bot.x, z: bot.z }, entry);
         } else {
-          // Desks exhausted (17th+ concurrent worker) — sit at the plaza edge instead of crashing.
+          // Desks exhausted (17th+ concurrent worker in this project) — sit
+          // at the plaza edge instead of crashing. Overflow always stays at
+          // the plaza, even for a matched bot; only unmatched bots wander.
           pathOrTeleport(bot, ringPoint(bot.key, OVERFLOW_RING_RADIUS));
         }
         break;
@@ -158,16 +218,23 @@ export function createSim(grid: NavGrid, buildings: Building[], seed: number): S
       case "WaitingForPermission":
         // Desk (if any) stays reserved — a session mid-approval hasn't ended,
         // it's just stepped away to wave. Freed only when sync() drops it.
+        // Unchanged for matched *and* unmatched bots (an unmatched bot never
+        // holds a desk to begin with).
         pathOrTeleport(bot, ringPoint(bot.key, PERMISSION_RING_RADIUS));
         break;
       case "WaitingForInput": {
+        if (!isMatched(m.groupKey)) {
+          startWander(bot, m);
+          break;
+        }
         const entry = bot.deskId ? deskById(bot.deskId) : undefined;
         bot.path = entry ? findPath(grid, { x: bot.x, z: bot.z }, deskSeat(entry.desk)) : [];
         break;
       }
       case "Idle":
-        bot.path = [];
-        m.pauseUntil = bot.age; // wander starts on the very next tick
+        // Idle never claims a desk regardless of groupKey — always the
+        // wander loop, matched or not.
+        startWander(bot, m);
         break;
       case "Ended":
       default:
@@ -203,6 +270,28 @@ export function createSim(grid: NavGrid, buildings: Building[], seed: number): S
 
   /** Set motion (and, for seated bots, snap position/facing) once a bot's path is empty. */
   function settle(bot: SimBot, m: BotMeta): void {
+    // Idle always, and an unmatched Working/WaitingForInput bot: same wander
+    // loop as Idle — walk a leg, pause, repeat — regardless of the status
+    // bulb it still shows.
+    if (isWanderer(m)) {
+      if (bot.age < m.pauseUntil) {
+        bot.motion = "stand";
+        return;
+      }
+      const path = pickWanderPath(bot, m.agentId !== null);
+      if (path) {
+        bot.path = path;
+        bot.motion = "walk";
+        const first = path[0]!;
+        bot.facing = Math.atan2(first.x - bot.x, first.z - bot.z);
+      } else {
+        // No reachable target this attempt — stand and retry shortly rather than spinning every tick.
+        bot.motion = "stand";
+        m.pauseUntil = bot.age + WANDER_PAUSE_MIN + rand() * WANDER_PAUSE_RANGE;
+      }
+      return;
+    }
+
     switch (m.status) {
       case "Working": {
         bot.motion = "sit-type";
@@ -221,24 +310,6 @@ export function createSim(grid: NavGrid, buildings: Building[], seed: number): S
       case "WaitingForInput":
         bot.motion = Math.floor(bot.age / THINK_FLIP_SECONDS) % 2 === 0 ? "stand" : "think";
         break;
-      case "Idle": {
-        if (bot.age < m.pauseUntil) {
-          bot.motion = "stand";
-          break;
-        }
-        const path = pickWanderPath(bot, m.agentId !== null);
-        if (path) {
-          bot.path = path;
-          bot.motion = "walk";
-          const first = path[0]!;
-          bot.facing = Math.atan2(first.x - bot.x, first.z - bot.z);
-        } else {
-          // No reachable target this attempt — stand and retry shortly rather than spinning every tick.
-          bot.motion = "stand";
-          m.pauseUntil = bot.age + WANDER_PAUSE_MIN + rand() * WANDER_PAUSE_RANGE;
-        }
-        break;
-      }
       default:
         bot.motion = "stand";
     }
@@ -261,7 +332,12 @@ export function createSim(grid: NavGrid, buildings: Building[], seed: number): S
           path: [],
           age: 0,
         };
-        const m: BotMeta = { status: c.status, agentId: c.agentId, pauseUntil: 0 };
+        const m: BotMeta = {
+          status: c.status,
+          agentId: c.agentId,
+          pauseUntil: 0,
+          groupKey: c.groupKey ?? null,
+        };
         world.bots.set(c.key, bot);
         meta.set(c.key, m);
         replan(bot, m, c.status);
@@ -269,8 +345,13 @@ export function createSim(grid: NavGrid, buildings: Building[], seed: number): S
       }
       const m = meta.get(c.key)!;
       m.agentId = c.agentId;
-      if (m.status !== c.status) {
+      const groupKey = c.groupKey ?? null;
+      // M5 T2: a session's linked project changing (rare) is handled exactly
+      // like a status change — release a now-mismatched desk, then replan.
+      if (m.status !== c.status || m.groupKey !== groupKey) {
         m.status = c.status;
+        m.groupKey = groupKey;
+        releaseIfGroupMismatch(existing, groupKey);
         replan(existing, m, c.status);
       }
     }
@@ -295,7 +376,7 @@ export function createSim(grid: NavGrid, buildings: Building[], seed: number): S
         continue;
       }
       // A wander leg just finished — rest before picking the next one.
-      if (wasMoving && m.status === "Idle") {
+      if (wasMoving && isWanderer(m)) {
         m.pauseUntil = bot.age + WANDER_PAUSE_MIN + rand() * WANDER_PAUSE_RANGE;
       }
       settle(bot, m);
@@ -324,6 +405,13 @@ export function createSim(grid: NavGrid, buildings: Building[], seed: number): S
    * every claim first closes that race. Nobody teleports here — replan
    * only ever assigns a path or a stable desk seat; walking is left to
    * tick().
+   *
+   * M5 T2 addendum: a desk id surviving the edit isn't enough on its own —
+   * if the edit relinked its building to a different project, the id is
+   * technically still in `deskList` but the holder no longer belongs there.
+   * Pass 1 below compares the desk's (possibly new) building groupKey
+   * against the holder's groupKey, not just desk existence, before
+   * restoring the claim.
    */
   function updateWorld(newGrid: NavGrid, newBuildings: Building[]): void {
     grid = newGrid;
@@ -331,12 +419,14 @@ export function createSim(grid: NavGrid, buildings: Building[], seed: number): S
     deskList = newBuildings.flatMap((building) => building.desks.map((desk) => ({ desk, building })));
     world.deskOwners.clear();
 
-    // Pass 1: restore every surviving claim before anyone can contend for a desk.
+    // Pass 1: restore every surviving, still-matching claim before anyone can contend for a desk.
     for (const [key, bot] of world.bots) {
-      if (bot.deskId && deskById(bot.deskId)) {
-        world.deskOwners.set(bot.deskId, key); // desk survived the edit — keep the claim
+      const m = meta.get(key)!;
+      const entry = bot.deskId ? deskById(bot.deskId) : undefined;
+      if (entry && (entry.building.groupKey ?? null) === m.groupKey) {
+        world.deskOwners.set(bot.deskId!, key); // desk survived the edit, still in-group — keep the claim
       } else {
-        bot.deskId = null; // desk removed (or bot never had one) — release/stay unclaimed
+        bot.deskId = null; // desk removed, or its building's group no longer matches — release
       }
     }
 

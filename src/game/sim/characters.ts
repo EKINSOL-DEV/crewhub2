@@ -29,6 +29,12 @@ export interface Character {
    * toCharacters() always populates it explicitly.
    */
   projectPath?: string | null;
+  /**
+   * Sim desk-claim eligibility key (M5 T2), mirrors Building.groupKey and is
+   * annotated at the same React boundary — see src/game/characters/use-sim.ts.
+   * Optional for the same pre-M5-literal reason as projectPath.
+   */
+  groupKey?: string | null;
 }
 
 /** Strip a single trailing "/" so folder paths compare equal regardless of it. */
