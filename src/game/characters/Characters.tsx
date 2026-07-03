@@ -11,6 +11,8 @@ import type { SessionStatus } from "@/ipc/bindings";
 import type { Character } from "@/game/sim/characters";
 import { SpeechBubble } from "@/game/chat/SpeechBubble";
 import { useGameSpeechBubbles } from "@/game/chat/use-speech-bubbles";
+import { useFlavor } from "@/game/flavor/engine";
+import { ThoughtBubble } from "@/game/flavor/ThoughtBubble";
 import { Robot, type RobotHandles } from "./Robot";
 import { pose } from "./pose";
 import { useSim, type CharacterInfo } from "./use-sim";
@@ -27,6 +29,14 @@ export const BULB: Record<SessionStatus, string> = {
 const DAMP_RATE = 8; // exponential damp rate for position/facing follow
 const NAME_Y = 2.1;
 const FALLBACK_COLOR = "#94a3b8";
+// Mirrors flavor/engine.ts's THOUGHT_TTL_MS (not exported there — the store
+// only exposes the imperative `thoughtFor` read, and this component needs to
+// re-render on a plain interval anyway to notice expiry, see NOW_TICK_MS).
+const THOUGHT_TTL_MS = 30_000;
+// How often thought expiry is re-checked absent a new thought arriving —
+// coarse on purpose, a thought may linger up to this long past its TTL
+// before the next tick hides it; unnoticeable at a 5s grain.
+const NOW_TICK_MS = 5_000;
 
 /** Shortest-arc exponential damp — same shape as THREE.MathUtils.damp, angle-aware. */
 function dampAngle(current: number, target: number, rate: number, dt: number): number {
@@ -49,6 +59,7 @@ function CharacterActor({
   color,
   status,
   speechText,
+  thoughtText,
   actorsRef,
   onSelect,
 }: {
@@ -60,6 +71,7 @@ function CharacterActor({
   color: string;
   status: SessionStatus;
   speechText: string | undefined;
+  thoughtText: string | undefined;
   actorsRef: MutableRefObject<Map<string, ActorRefs>>;
   onSelect: ((key: string, pos: { x: number; z: number }) => void) | undefined;
 }) {
@@ -114,11 +126,18 @@ function CharacterActor({
           </Text>
         </Billboard>
       </Suspense>
-      {/* Own boundary, same reasoning as the name label above. */}
-      {speechText && (
+      {/* Own boundary, same reasoning as the name label above. Speech wins —
+          a thought is decorative flavor, a reply to the human is not. */}
+      {speechText ? (
         <Suspense fallback={null}>
           <SpeechBubble text={speechText} />
         </Suspense>
+      ) : (
+        thoughtText && (
+          <Suspense fallback={null}>
+            <ThoughtBubble text={thoughtText} />
+          </Suspense>
+        )
       )}
     </group>
   );
@@ -138,6 +157,15 @@ export function Characters({
   const { sim, version, infoRef } = useSim(override);
   const actorsRef = useRef<Map<string, ActorRefs>>(new Map());
   const speech = useGameSpeechBubbles();
+  // Subscribes so a fresh thought shows immediately; `nowMs` below covers the
+  // other half — hiding one once its TTL passes with no new thought to
+  // trigger a re-render on its own.
+  const thoughts = useFlavor((s) => s.thoughts);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNowMs(Date.now()), NOW_TICK_MS);
+    return () => clearInterval(t);
+  }, []);
 
   useFrame((_state, delta) => {
     const dt = Math.min(delta, 0.1);
@@ -187,21 +215,26 @@ export function Characters({
 
   return (
     <group>
-      {bots.map(({ key, x, z, facing, info }) => (
-        <CharacterActor
-          key={key}
-          botKey={key}
-          x={x}
-          z={z}
-          facing={facing}
-          name={info?.name ?? key}
-          color={info?.color ?? FALLBACK_COLOR}
-          status={info?.status ?? "Idle"}
-          speechText={speech[key]?.text}
-          actorsRef={actorsRef}
-          onSelect={onSelect}
-        />
-      ))}
+      {bots.map(({ key, x, z, facing, info }) => {
+        const thought = thoughts[key];
+        const thoughtText = thought && nowMs - thought.ts <= THOUGHT_TTL_MS ? thought.text : undefined;
+        return (
+          <CharacterActor
+            key={key}
+            botKey={key}
+            x={x}
+            z={z}
+            facing={facing}
+            name={info?.name ?? key}
+            color={info?.color ?? FALLBACK_COLOR}
+            status={info?.status ?? "Idle"}
+            speechText={speech[key]?.text}
+            thoughtText={thoughtText}
+            actorsRef={actorsRef}
+            onSelect={onSelect}
+          />
+        );
+      })}
     </group>
   );
 }

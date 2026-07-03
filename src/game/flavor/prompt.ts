@@ -28,10 +28,20 @@ function stripWrappers(text: string): string {
   return s;
 }
 
+/** Clamp caps — token cost discipline, not display truncation: a runaway
+ * session/activity name shouldn't blow up the (already cheap) Haiku prompt. */
+const MAX_NAME_LEN = 60;
+const MAX_ACTIVITY_LEN = 200;
+
+function clamp(s: string, max: number): string {
+  return s.length > max ? s.slice(0, max) : s;
+}
+
 /** Instruction for one cheap headless run — kept short, the model is Haiku. */
 export function flavorPrompt(c: { name: string; status: SessionStatus; activity: string | null }): string {
-  const topic = c.activity ?? c.status;
-  return `You are ${c.name}, a robot working on a software campus. Reply with ONE playful thought (<=12 words) about: ${topic}. No quotes.`;
+  const name = clamp(c.name, MAX_NAME_LEN);
+  const topic = clamp(c.activity ?? c.status, MAX_ACTIVITY_LEN);
+  return `You are ${name}, a robot working on a software campus. Reply with ONE playful thought (<=12 words) about: ${topic}. No quotes.`;
 }
 
 /**

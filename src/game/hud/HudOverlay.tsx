@@ -7,7 +7,18 @@ import { useBuildMode } from "@/game/build/mode";
 
 const NEXT_TIER: Record<QualityTier, QualityTier> = { low: "medium", medium: "high", high: "low" };
 
-export function HudOverlay({ fps, bots, onHire }: { fps: number; bots: number; onHire: () => void }) {
+export function HudOverlay({
+  fps,
+  bots,
+  runs = 0,
+  onHire,
+}: {
+  fps: number;
+  bots: number;
+  /** Flavor-engine run count (M4 T2) — optional so pre-M4 callers still typecheck. */
+  runs?: number;
+  onHire: () => void;
+}) {
   const envId = useGameEnvironment((s) => s.id);
   const env = environmentById(envId);
   const tier = useQuality((s) => s.tier);
@@ -62,6 +73,11 @@ export function HudOverlay({ fps, bots, onHire }: { fps: number; bots: number; o
       <span className="rounded-full bg-black/50 px-3 py-1.5 text-xs font-semibold text-white/90">
         🤖 {bots}
       </span>
+      {runs > 0 && (
+        <span className="rounded-full bg-violet-700/60 px-3 py-1.5 text-xs font-semibold text-violet-100">
+          💭 {runs}
+        </span>
+      )}
     </div>
   );
 }

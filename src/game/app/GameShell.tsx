@@ -14,6 +14,7 @@ import { Lights } from "@/game/engine/Lights";
 import { GameCameraRig } from "@/game/engine/camera/GameCameraRig";
 import { Effects } from "@/game/engine/effects/Effects";
 import { preloadModels } from "@/game/assets/use-model";
+import { useFlavor } from "@/game/flavor/engine";
 import { demoCharacters } from "@/game/sim/demo";
 import { CAMPUS } from "@/game/world/campus/layout";
 import { environmentById } from "@/game/world/environments/registry";
@@ -45,6 +46,7 @@ export default function GameShell() {
   const buildTool = useBuildMode((s) => s.tool);
   const pendingRoomLink = useBuildMode((s) => s.pendingRoomLink);
   const closeRoomLink = useBuildMode((s) => s.closeRoomLink);
+  const flavorRuns = useFlavor((s) => s.runs);
 
   useEffect(() => {
     void useGameEnvironment.getState().init();
@@ -97,6 +99,7 @@ export default function GameShell() {
       <HudOverlay
         fps={fps}
         bots={botCount}
+        runs={flavorRuns}
         onHire={() => {
           setHireAgentId(undefined);
           setHireOpen(true);

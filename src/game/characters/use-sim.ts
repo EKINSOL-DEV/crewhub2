@@ -12,6 +12,7 @@ import { useProjectsStore } from "@/stores/projects";
 import { useSessionsStore, useSessionsView } from "@/stores/sessions";
 import { applyEdits } from "@/game/build/edits";
 import { useCampusEdits } from "@/game/build/store";
+import { useFlavorTicker } from "@/game/flavor/use-flavor-ticker";
 import { buildNavGrid } from "@/game/sim/grid";
 import { createSim, type Sim } from "@/game/sim/sim";
 import { toCharacters, type Character } from "@/game/sim/characters";
@@ -97,6 +98,13 @@ export function useSim(override?: Character[]): UseSimResult {
     () => override ?? toCharacters(views, { agents, nowMs }),
     [override, views, agents, nowMs],
   );
+
+  // M4 T2: the ticker needs live Character[] (agentId, activity) — which
+  // Characters.tsx never sees, it only reads the sim-derived x/z/facing/info
+  // — so it's wired here rather than threading a second prop through the
+  // renderer. Demo scenes (`override` set) skip it: there's no session
+  // behind a demo bot to think about.
+  useFlavorTicker(characters, override === undefined);
 
   const infoRef = useRef<Map<string, CharacterInfo>>(new Map());
   const keysRef = useRef<Set<string>>(new Set());

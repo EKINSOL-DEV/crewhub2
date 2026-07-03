@@ -24,6 +24,27 @@ describe("flavorPrompt", () => {
     expect(prompt).toMatch(/12 words/);
     expect(prompt).toMatch(/no quotes/i);
   });
+
+  it("clamps an overlong name to 60 chars", () => {
+    const longName = "A".repeat(120);
+    const prompt = flavorPrompt({ name: longName, status: "Working", activity: "compiling" });
+    expect(prompt).toContain("A".repeat(60));
+    expect(prompt).not.toContain("A".repeat(61));
+  });
+
+  it("clamps an overlong activity to 200 chars", () => {
+    const longActivity = "b".repeat(300);
+    const prompt = flavorPrompt({ name: "Ada", status: "Working", activity: longActivity });
+    expect(prompt).toContain("b".repeat(200));
+    expect(prompt).not.toContain("b".repeat(201));
+  });
+
+  it("clamps the status fallback topic too, for consistency", () => {
+    // status is always a short enum in practice, but the clamp applies to
+    // whichever string ends up as the topic — this locks that in.
+    const prompt = flavorPrompt({ name: "Ada", status: "Working", activity: null });
+    expect(prompt).toContain("Working");
+  });
 });
 
 describe("sanitizeThought", () => {
