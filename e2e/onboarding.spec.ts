@@ -49,12 +49,18 @@ describe("First-run wizard", () => {
     // decline everything: no clicks, just continue
   });
 
-  it("finish lands in a working two-panel workspace", async () => {
+  it("finish lands back in the game shell", async () => {
     await next();
     await expect($('[data-testid="wizard-step-finish"]')).toBeExisting();
     await next(); // "Enter your workspace 🎉"
     await expect($('[data-testid="onboarding-wizard"]')).not.toBeExisting();
-    await expect($('[data-testid="panel-chat"]')).toBeExisting();
-    await expect($('[data-testid="panel-board"]')).toBeExisting();
+    // `panel-chat`/`panel-board` (EKI-148 rewrite, M4 debt sweep) were dead:
+    // those testids only render inside WorkspaceShell leaves, which the
+    // wizard's finish step never auto-opens post-switch (M4 T6) — the main
+    // window is the campus game shell, not a panel grid. game-shell is
+    // always mounted underneath the wizard (see smoke.spec.ts), so the only
+    // real assertion here is that the wizard itself is gone and the shell
+    // is what's left.
+    await expect($('[data-testid="game-shell"]')).toBeExisting();
   });
 });

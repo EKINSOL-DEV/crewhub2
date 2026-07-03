@@ -43,6 +43,7 @@ export function HudOverlay({
     <div className="pointer-events-none absolute bottom-4 left-4 flex items-center gap-2">
       <button
         type="button"
+        data-testid="hud-environment"
         className="pointer-events-auto rounded-full border-2 border-white/60 bg-emerald-700/80 px-4 py-2 text-sm font-bold text-white shadow-xl backdrop-blur transition-transform hover:scale-105"
         title="Switch environment"
         onClick={() => setEnvironment(next.id)}
@@ -51,6 +52,7 @@ export function HudOverlay({
       </button>
       <button
         type="button"
+        data-testid="hud-night"
         className="pointer-events-auto rounded-full border-2 border-white/60 bg-indigo-700/80 px-4 py-2 text-sm font-bold text-white shadow-xl backdrop-blur transition-transform hover:scale-105"
         title="Toggle day / night"
         onClick={toggleNight}
@@ -59,6 +61,7 @@ export function HudOverlay({
       </button>
       <button
         type="button"
+        data-testid="hud-quality"
         className="pointer-events-auto rounded-full border-2 border-white/60 bg-sky-700/80 px-4 py-2 text-sm font-bold text-white shadow-xl backdrop-blur transition-transform hover:scale-105"
         title="Cycle quality tier"
         onClick={() => setTier(NEXT_TIER[tier])}
@@ -68,6 +71,7 @@ export function HudOverlay({
       <button
         type="button"
         aria-pressed={muted}
+        data-testid="hud-mute"
         className="pointer-events-auto rounded-full border-2 border-white/60 bg-slate-700/80 px-4 py-2 text-sm font-bold text-white shadow-xl backdrop-blur transition-transform hover:scale-105"
         title={muted ? "Unmute" : "Mute"}
         onClick={toggleMuted}
@@ -76,6 +80,7 @@ export function HudOverlay({
       </button>
       <button
         type="button"
+        data-testid="hud-hire"
         className="pointer-events-auto rounded-full border-2 border-white/60 bg-emerald-700/80 px-4 py-2 text-sm font-bold text-white shadow-xl backdrop-blur transition-transform hover:scale-105"
         title="Hire, link, or adopt a crew member"
         onClick={onHire}
@@ -85,6 +90,7 @@ export function HudOverlay({
       <button
         type="button"
         aria-pressed={buildActive}
+        data-testid="hud-build"
         className={`pointer-events-auto rounded-full border-2 px-4 py-2 text-sm font-bold shadow-xl backdrop-blur transition-transform hover:scale-105 ${
           buildActive ? "border-white bg-amber-500 text-white" : "border-white/60 bg-amber-700/80 text-white"
         }`}
@@ -95,6 +101,7 @@ export function HudOverlay({
       </button>
       <button
         type="button"
+        data-testid="hud-workspace"
         className="pointer-events-auto rounded-full border-2 border-white/60 bg-zinc-700/80 px-4 py-2 text-sm font-bold text-white shadow-xl backdrop-blur transition-transform hover:scale-105"
         title="Open the panel grid (board, crew, sessions, docs…) in its own window"
         onClick={openWorkspaceWindow}
@@ -103,16 +110,23 @@ export function HudOverlay({
       </button>
       <button
         type="button"
+        data-testid="hud-settings"
         className="pointer-events-auto rounded-full border-2 border-white/60 bg-zinc-700/80 px-4 py-2 text-sm font-bold text-white shadow-xl backdrop-blur transition-transform hover:scale-105"
         title="Open settings"
         onClick={openSettingsWindow}
       >
         ⚙️ Settings
       </button>
-      <span className="rounded-full bg-black/50 px-3 py-1.5 text-xs font-semibold text-white/90">
+      <span
+        data-testid="hud-fps"
+        className="rounded-full bg-black/50 px-3 py-1.5 text-xs font-semibold text-white/90"
+      >
         {fps} fps
       </span>
-      <span className="rounded-full bg-black/50 px-3 py-1.5 text-xs font-semibold text-white/90">
+      <span
+        data-testid="hud-bots"
+        className="rounded-full bg-black/50 px-3 py-1.5 text-xs font-semibold text-white/90"
+      >
         🤖 {bots}
       </span>
       {runs > 0 && (
