@@ -9,6 +9,7 @@ import { BuildControls } from "@/game/build/BuildControls";
 import { BuildPalette } from "@/game/build/BuildPalette";
 import { RoomLinkDialog } from "@/game/build/RoomLinkDialog";
 import { useBuildMode } from "@/game/build/mode";
+import { DossierCard } from "@/game/dossier/DossierCard";
 import { ProjectsDialog } from "@/game/hud/ProjectsDialog";
 import { HqCard } from "@/game/world/campus/HqCard";
 import { RoomCard } from "@/game/world/campus/RoomCard";
@@ -76,6 +77,14 @@ export function shouldExitCameraOnEscape(
  * snap-only prop never did, and the two racing corrupted the rig's restore
  * snapshot. Characters' onSelect still passes a position (its own contract,
  * used nowhere else) — the call site below just no longer forwards it.
+ *
+ * M9 T2: a robot click deliberately does NOT also open its dossier — chat +
+ * follow + dossier all firing off one click would be noisy (three cards/
+ * cameras competing for attention over a single tap). The dossier instead
+ * has its own two entry points, both a deliberate second action: the ℹ️
+ * button in a ChatWindow's header (once you're already looking at a bot's
+ * chat, one more click for its full profile), and HqCard's crew roster rows
+ * (browsing the roster, not yet committed to a chat/follow).
  */
 export function selectCharacter(
   key: string,
@@ -118,14 +127,18 @@ export default function GameShell() {
     preloadModels();
   }, []);
 
-  // HQ's 👥 prop stand / HqCard shortcut route through mode.ts's single-open
-  // card slot (M6 T4) rather than a prop-drilled callback — but the hire
-  // dialog itself still owns its open/close state locally (it's also
-  // reachable from the HUD and character clicks). Derived at render time,
-  // not synced via an effect's setState (that pattern cascades an extra
-  // render for no benefit here): `hireRequested` just ORs the card-slot
-  // request into the same `open`/`onClose` HireDialog already takes.
-  const hireRequested = roomCard?.kind === "hire";
+  // HQ's 👥 prop stand / HqCard shortcut / DossierCard's Hire button (M9 fix
+  // round 1, for a resting-crew dossier) all route through mode.ts's
+  // single-open card slot (M6 T4) rather than a prop-drilled callback — but
+  // the hire dialog itself still owns its open/close state locally (it's
+  // also reachable from the HUD and character clicks). Derived at render
+  // time, not synced via an effect's setState (that pattern cascades an
+  // extra render for no benefit here): `hireRequest` just ORs the card-slot
+  // request into the same `open`/`onClose` HireDialog already takes, and
+  // its optional `agentId` (present only from a resting-crew dossier's Hire
+  // button) preselects the same way a resting-crew character click already
+  // does via the local `hireAgentId` state below.
+  const hireRequest = roomCard?.kind === "hire" ? roomCard : null;
 
   // Escape precedence (M8 T2): HqCard, RoomCard, RoomLinkDialog and
   // ProjectsDialog each own their own Escape listener, mounted only while
@@ -144,7 +157,7 @@ export default function GameShell() {
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      const hasOpenCard = roomCard !== null || hireOpen || hireRequested;
+      const hasOpenCard = roomCard !== null || hireOpen || hireRequest !== null;
       const build = useBuildMode.getState();
       const cameraFree = useCameraDirector.getState().mode.kind === "free";
       if (shouldExitCameraOnEscape(hasOpenCard, build.active, cameraFree)) {
@@ -153,7 +166,7 @@ export default function GameShell() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [roomCard, hireOpen, hireRequested]);
+  }, [roomCard, hireOpen, hireRequest]);
 
   return (
     <div className="relative h-screen w-screen overflow-hidden" data-testid="game-shell">
@@ -204,12 +217,15 @@ export default function GameShell() {
       ) : null}
       {roomCard?.kind === "hq" && <HqCard onClose={closeRoomCard} />}
       {roomCard?.kind === "projects" && <ProjectsDialog onClose={closeRoomCard} />}
+      {roomCard?.kind === "dossier" && (
+        <DossierCard key={roomCard.key} dossierKey={roomCard.key} onClose={closeRoomCard} />
+      )}
       <HireDialog
-        open={hireOpen || hireRequested}
-        initialAgentId={hireRequested ? undefined : hireAgentId}
+        open={hireOpen || hireRequest !== null}
+        initialAgentId={hireRequest ? hireRequest.agentId : hireAgentId}
         onClose={() => {
           setHireOpen(false);
-          if (hireRequested) closeRoomCard();
+          if (hireRequest) closeRoomCard();
         }}
       />
       <WelcomeCard />

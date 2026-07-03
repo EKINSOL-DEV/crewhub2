@@ -4,7 +4,9 @@
 // whole crew roster plus the same three shortcuts as HqProps' prop stands
 // (so a player who never spots the tiny furniture can still reach them).
 // HTML overlay like RoomCard/HireDialog — this is UI chrome, not campus
-// geometry.
+// geometry. M9 T2: each roster row is now a button that opens that
+// character's bot dossier (mode.ts's single-open card slot, keyed by the
+// character's own key — a live session's or a resting agent's).
 import { useEffect, useMemo, useState } from "react";
 import { openWorkspaceWindow } from "@/game/app/windows";
 import { playSfx } from "@/game/audio/sfx";
@@ -79,20 +81,23 @@ export function HqCard({ onClose }: { onClose: () => void }) {
               {characters.map((c) => {
                 const projectName = c.projectPath ? projectNameByFolder.get(c.projectPath) : undefined;
                 return (
-                  <li
-                    key={c.key}
-                    data-testid={`hq-card-roster-${c.key}`}
-                    className="flex items-center gap-2 text-sm"
-                  >
-                    <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: c.color }} />
-                    <span className="min-w-0 flex-1 truncate">{c.name}</span>
-                    {projectName && (
-                      <span className="shrink-0 truncate text-xs text-slate-500">{projectName}</span>
-                    )}
-                    <span
-                      className="h-2.5 w-2.5 shrink-0 rounded-full"
-                      style={{ backgroundColor: BULB[c.status] }}
-                    />
+                  <li key={c.key}>
+                    <button
+                      type="button"
+                      data-testid={`hq-card-roster-${c.key}`}
+                      onClick={() => openRoomCard({ kind: "dossier", key: c.key })}
+                      className="flex w-full items-center gap-2 rounded-lg px-1 py-1 text-left text-sm hover:bg-slate-900/5"
+                    >
+                      <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: c.color }} />
+                      <span className="min-w-0 flex-1 truncate">{c.name}</span>
+                      {projectName && (
+                        <span className="shrink-0 truncate text-xs text-slate-500">{projectName}</span>
+                      )}
+                      <span
+                        className="h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{ backgroundColor: BULB[c.status] }}
+                      />
+                    </button>
                   </li>
                 );
               })}

@@ -11,6 +11,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { Button } from "@/components/ui/button";
 import { isModelTierId } from "@/components/ModelPicker";
 import { playSfx } from "@/game/audio/sfx";
+import { useBuildMode } from "@/game/build/mode";
 import type { SessionStatus } from "@/ipc/bindings";
 import { hireAgent } from "./hire";
 import type { ChatLine } from "./lines";
@@ -227,6 +228,18 @@ export function ChatWindow({
         <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: color }} />
         <span className="min-w-0 flex-1 truncate font-bold">{name}</span>
         <span title={status ?? "Idle"}>{STATUS_GLYPH[status ?? "Idle"]}</span>
+        {/* No dossier for demo bots — buildDossier resolves them to null and
+            the card would just auto-close (M9 final-review finding). */}
+        {!demo && (
+          <button
+            type="button"
+            aria-label="Bot info"
+            className="rounded-full px-1.5 py-0.5 font-bold hover:bg-slate-900/10"
+            onClick={() => useBuildMode.getState().openRoomCard({ kind: "dossier", key: chatKey })}
+          >
+            ℹ️
+          </button>
+        )}
         <button
           type="button"
           aria-label="Minimize"
