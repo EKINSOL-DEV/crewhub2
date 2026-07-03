@@ -2,6 +2,7 @@
 // bar (roster, build, day/night) is M1/M2 scope — this is the debug face.
 import { ENVIRONMENTS, environmentById } from "@/game/world/environments/registry";
 import { useGameEnvironment } from "@/game/world/environments/store";
+import { useAudio } from "@/game/audio/sfx";
 import { useQuality, type QualityTier } from "@/game/engine/quality";
 import { useBuildMode } from "@/game/build/mode";
 
@@ -29,6 +30,8 @@ export function HudOverlay({
   const buildActive = useBuildMode((s) => s.active);
   const activateBuild = useBuildMode((s) => s.activate);
   const deactivateBuild = useBuildMode((s) => s.deactivate);
+  const muted = useAudio((s) => s.muted);
+  const toggleMuted = useAudio((s) => s.toggleMuted);
   const idx = ENVIRONMENTS.findIndex((e) => e.id === env.id);
   const next = ENVIRONMENTS[(idx + 1) % ENVIRONMENTS.length]!;
 
@@ -57,6 +60,15 @@ export function HudOverlay({
         onClick={() => setTier(NEXT_TIER[tier])}
       >
         ✨ {tier}
+      </button>
+      <button
+        type="button"
+        aria-pressed={muted}
+        className="pointer-events-auto rounded-full border-2 border-white/60 bg-slate-700/80 px-4 py-2 text-sm font-bold text-white shadow-xl backdrop-blur transition-transform hover:scale-105"
+        title={muted ? "Unmute" : "Mute"}
+        onClick={toggleMuted}
+      >
+        {muted ? "🔇" : "🔊"}
       </button>
       <button
         type="button"

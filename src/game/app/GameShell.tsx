@@ -9,6 +9,7 @@ import { BuildControls } from "@/game/build/BuildControls";
 import { BuildPalette } from "@/game/build/BuildPalette";
 import { RoomLinkDialog } from "@/game/build/RoomLinkDialog";
 import { useBuildMode } from "@/game/build/mode";
+import { useAudio } from "@/game/audio/sfx";
 import { GameCanvas } from "@/game/engine/GameCanvas";
 import { Lights } from "@/game/engine/Lights";
 import { GameCameraRig } from "@/game/engine/camera/GameCameraRig";
@@ -53,6 +54,7 @@ export default function GameShell() {
   useEffect(() => {
     void useGameEnvironment.getState().init();
     void useQuality.getState().init();
+    void useAudio.getState().init();
     preloadModels();
   }, []);
 

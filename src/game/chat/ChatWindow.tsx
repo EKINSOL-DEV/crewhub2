@@ -7,6 +7,7 @@
 // here, minus dragging/resizing/optimistic echo (see use-chat-session.ts).
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { playSfx } from "@/game/audio/sfx";
 import type { SessionStatus } from "@/ipc/bindings";
 import type { ChatLine } from "./lines";
 import { PermissionCard } from "./PermissionCard";
@@ -108,7 +109,10 @@ export function ChatWindow({
     setDraft("");
     setSendError(null);
     void send(text).then((res) => {
-      if (res.ok) return;
+      if (res.ok) {
+        playSfx("send");
+        return;
+      }
       setSendError(res.error);
       // Restore the eaten message — but only if the user hasn't started
       // typing something new in the meantime.

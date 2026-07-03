@@ -6,6 +6,7 @@
 // the palette's original right-edge placement overlapped them. The HUD
 // chips sit bottom-left but stop well short of vertical-center, so the
 // palette is clear there too.
+import { playSfx } from "@/game/audio/sfx";
 import { PLACEABLE_KINDS, type PlaceableKind } from "./edits";
 import { useBuildMode, type BuildTool } from "./mode";
 
@@ -53,7 +54,10 @@ export function BuildPalette() {
             aria-pressed={active}
             title={label}
             className={toolButtonClass(active)}
-            onClick={() => setTool(t)}
+            onClick={() => {
+              playSfx("click");
+              setTool(t);
+            }}
           >
             {emoji} {label}
           </button>
@@ -64,7 +68,10 @@ export function BuildPalette() {
         type="button"
         aria-pressed={sameTool(tool, { kind: "building" })}
         className={toolButtonClass(sameTool(tool, { kind: "building" }))}
-        onClick={() => setTool({ kind: "building" })}
+        onClick={() => {
+          playSfx("click");
+          setTool({ kind: "building" });
+        }}
       >
         🏠 Building
       </button>
@@ -72,7 +79,10 @@ export function BuildPalette() {
         type="button"
         aria-pressed={sameTool(tool, { kind: "select" })}
         className={toolButtonClass(sameTool(tool, { kind: "select" }))}
-        onClick={() => setTool({ kind: "select" })}
+        onClick={() => {
+          playSfx("click");
+          setTool({ kind: "select" });
+        }}
       >
         👆 Select
       </button>

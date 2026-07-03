@@ -12,6 +12,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
+import { playSfx } from "@/game/audio/sfx";
 import { useModel } from "@/game/assets/use-model";
 import { CAMPUS, campusLayout, type Rect } from "@/game/world/campus/layout";
 import { canPlaceBuilding, canPlaceItem, PLACEABLE_KINDS, snap, type CampusEdits } from "./edits";
@@ -126,6 +127,7 @@ export function BuildControls() {
           if (selection.kind === "item") removeItem(selection.id);
           else removeBuilding(selection.id);
           setSelection(null);
+          playSfx("remove");
         }
         return;
       }
@@ -194,7 +196,10 @@ export function BuildControls() {
     const x = snap(e.point.x);
     const z = snap(e.point.z);
     if (tool.kind === "item") {
-      if (canPlaceItem(edits, layout, x, z)) addItem(tool.item, x, z, pendingRot.current);
+      if (canPlaceItem(edits, layout, x, z)) {
+        addItem(tool.item, x, z, pendingRot.current);
+        playSfx("place");
+      }
     } else if (tool.kind === "building") {
       if (!anchor.current) {
         anchor.current = { x, z };
@@ -203,7 +208,10 @@ export function BuildControls() {
         // roomId starts null — RoomLinkDialog (mounted by GameShell, keyed
         // off mode.ts's pendingRoomLink) offers the player a room right
         // after placement instead of forcing the pick mid-drag here.
-        if (canPlaceBuilding(edits, layout, rect)) openRoomLink(addBuilding(rect, null));
+        if (canPlaceBuilding(edits, layout, rect)) {
+          openRoomLink(addBuilding(rect, null));
+          playSfx("place");
+        }
         anchor.current = null;
       }
     } else {
