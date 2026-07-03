@@ -18,10 +18,17 @@
 //   - follow: goal.targetX/Z damp toward the bot's *live* position, read
 //     off live-bots.ts's registry (see that file for why: Sim lives inside
 //     Characters, a sibling of this rig, with no prop path between them).
-//     yaw/distance are left alone — wheel/Q/E write straight to
-//     goal.current in follow, same as free roam. A despawned bot
-//     (`getLiveBot` returns undefined) calls `exit()` — the restore path,
-//     same as a deliberate HUD/Escape exit.
+//     yaw is left alone — Q/E write straight to goal.current in follow,
+//     same as free roam. Distance gets a ONE-TIME entry zoom-in (round 2):
+//     on the free|focus -> follow edge, `followDistanceTarget` snapshots
+//     `followEntryDistance(goal.current.distance)` (camera-math.ts) and the
+//     follow branch chases toward it until reached (or the player wheels,
+//     canceling it early — see the wheel handler), at which point it's
+//     cleared and wheel-zoom goes back to writing goal.current directly, no
+//     ceiling, exactly like free roam. NOT a per-frame clamp: once cleared,
+//     nothing re-imposes the cap until the next fresh follow entry. A
+//     despawned bot (`getLiveBot` returns undefined) calls `exit()` — the
+//     restore path, same as a deliberate HUD/Escape exit.
 //
 // Entry/exit bookkeeping: on a free -> focus|follow edge, the rig snapshots
 // goal.current into its own `restoreGoalRef` — the single source of truth
@@ -69,6 +76,7 @@ import {
   dragArmed,
   edgeScrollActive,
   FOCUS_ADJUST_IDENTITY,
+  followEntryDistance,
   isRestored,
   rotateFocusAdjust,
   zoomFocusAdjust,
@@ -88,6 +96,11 @@ const DRAG_ROT = 0.005;
 /** goal -> cinematic target (focus/follow/restore) — slower than DAMP_RATE
  *  so a focus/follow shot reads as a deliberate camera move, not a snap. */
 const CINEMATIC_RATE = 3;
+/** Close enough to the follow-entry zoom target that the one-time chase can
+ *  stop and hand distance back to the player — same idea as camera-math.ts's
+ *  RESTORE_EPSILON_DISTANCE, kept local since nothing outside this rig needs
+ *  to know when the entry zoom is "done" (see the file doc comment). */
+const FOLLOW_ZOOM_EPSILON = 0.05;
 
 export function GameCameraRig({
   bounds,
@@ -127,6 +140,10 @@ export function GameCameraRig({
   const restoring = useRef(false);
   const takeoverRef = useRef(false);
   const focusAdjust = useRef<FocusAdjust>(FOCUS_ADJUST_IDENTITY);
+  // Round 2: one-time follow-entry zoom target, null once reached (or
+  // canceled by a mid-transition wheel — see the wheel handler below) —
+  // see the file doc comment's follow bullet.
+  const followDistanceTarget = useRef<number | null>(null);
 
   useEffect(() => {
     const el = gl.domElement;
@@ -195,6 +212,10 @@ export function GameCameraRig({
       if (mode.kind === "focus") {
         focusAdjust.current = zoomFocusAdjust(focusAdjust.current, dy, mode.distance, bounds);
       } else {
+        // A manual zoom mid follow-entry is the player taking distance back
+        // over early — round 2's one-time cap must not then fight it next
+        // frame by chasing back toward the target it just wheeled away from.
+        if (mode.kind === "follow") followDistanceTarget.current = null;
         goal.current = zoom(goal.current, dy, bounds);
       }
     };
@@ -265,6 +286,20 @@ export function GameCameraRig({
       // focus<->follow switch still deserves its own fresh framing here.
       focusAdjust.current = FOCUS_ADJUST_IDENTITY;
     }
+    if (prevKind !== "follow" && mode.kind === "follow") {
+      // Round 2: a fresh follow entry (from free OR straight from focus)
+      // deserves its own one-time zoom-in target — re-targeting to a
+      // DIFFERENT bot while already following (prevKind stays "follow")
+      // does NOT recompute this; it's an entry-edge thing, not a per-bot
+      // thing. Computed from goal.current.distance at this exact point in
+      // the frame — always BEFORE this same branch's chaseFollow call
+      // below has a chance to start moving it, and (when entering from
+      // free) always AFTER the restoreGoalRef snapshot above, which is
+      // exactly why that snapshot captures the pre-zoom distance rather
+      // than this cap — see this file's doc comment and camera-math.ts's
+      // followEntryDistance doc comment.
+      followDistanceTarget.current = followEntryDistance(goal.current.distance);
+    }
     if (prevKind !== "free" && mode.kind === "free") {
       // Exit edge.
       if (takeoverRef.current) {
@@ -330,7 +365,21 @@ export function GameCameraRig({
         if (!bot) {
           director.exit(); // despawned mid-follow — restore path, not a takeover
         } else {
-          goal.current = chaseFollow(goal.current, bot.x, bot.z, dampK(CINEMATIC_RATE, dt));
+          goal.current = chaseFollow(
+            goal.current,
+            bot.x,
+            bot.z,
+            dampK(CINEMATIC_RATE, dt),
+            followDistanceTarget.current ?? undefined,
+          );
+          if (
+            followDistanceTarget.current !== null &&
+            Math.abs(goal.current.distance - followDistanceTarget.current) < FOLLOW_ZOOM_EPSILON
+          ) {
+            // One-time entry zoom done — hand distance back to the player,
+            // same as free roam, until the next fresh follow entry.
+            followDistanceTarget.current = null;
+          }
         }
       }
     } else if (restoring.current && restoreGoalRef.current) {

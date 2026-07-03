@@ -4,6 +4,12 @@
 // alongside whichever of hire/chat its key routes to. selectCharacter is
 // pulled out of GameShell's onSelect prop specifically so this can run
 // without a real R3F canvas — see its own doc comment in GameShell.tsx.
+//
+// Round 2: selectCharacter no longer takes a `deps` param — a click always
+// opens the dossier dock (mode.ts's real, unmocked roomCard slot) alongside
+// follow, and no longer force-opens the hire dialog directly for resting
+// (`agent:`) crew (that would stack it on top of the dossier the same click
+// just opened — see the file's own doc comment).
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@react-three/drei", async (importOriginal) => {
@@ -18,34 +24,37 @@ vi.mock("@/game/audio/sfx", async (importOriginal) => {
 });
 
 import { selectCharacter } from "./GameShell";
+import { useBuildMode } from "@/game/build/mode";
 import { useCameraDirector } from "@/game/engine/camera/director";
 import { useGameChats } from "@/game/chat/store";
-
-function deps() {
-  return {
-    setHireAgentId: vi.fn(),
-    setHireOpen: vi.fn(),
-  };
-}
 
 describe("selectCharacter", () => {
   beforeEach(() => {
     useCameraDirector.setState({ mode: { kind: "free" } });
     useGameChats.setState({ chats: [] });
+    useBuildMode.setState({ roomCard: null });
   });
 
   it("follows the bot with the camera regardless of which branch the key takes", () => {
-    selectCharacter("claude:1", deps());
+    selectCharacter("claude:1");
     expect(useCameraDirector.getState().mode).toEqual({ kind: "follow", botKey: "claude:1" });
   });
 
-  it("an agent: key opens the hire dialog preselected to that agent, and does not open a chat", () => {
-    const d = deps();
-    selectCharacter("agent:robo-1", d);
+  it("always opens the bot's dossier dock, live session or resting crew alike", () => {
+    selectCharacter("claude:1");
+    expect(useBuildMode.getState().roomCard).toEqual({ kind: "dossier", key: "claude:1" });
 
-    expect(d.setHireAgentId).toHaveBeenCalledWith("robo-1");
-    expect(d.setHireOpen).toHaveBeenCalledWith(true);
+    selectCharacter("agent:robo-1");
+    expect(useBuildMode.getState().roomCard).toEqual({ kind: "dossier", key: "agent:robo-1" });
+  });
+
+  it("an agent: key does not open a chat, and does not touch the hire dialog directly", () => {
+    selectCharacter("agent:robo-1");
+
     expect(useGameChats.getState().chats).toHaveLength(0);
+    // The dossier's own "👥 Hire" button (DossierCard) is the route to hire
+    // now, not a direct force-open — see the roomCard assertion above.
+    expect(useBuildMode.getState().roomCard?.kind).toBe("dossier");
     expect(useCameraDirector.getState().mode).toEqual({ kind: "follow", botKey: "agent:robo-1" });
   });
 
@@ -54,18 +63,17 @@ describe("selectCharacter", () => {
   // the old prop's synchronous snap raced the rig's free -> follow entry
   // edge, corrupting the restore snapshot (see GameCameraRig.tsx's doc
   // comment on the removed `focus` prop).
-  it("a session key opens its chat, without touching hire state", () => {
-    const d = deps();
-    selectCharacter("claude:1", d);
+  it("a session key opens its chat, alongside the dossier", () => {
+    selectCharacter("claude:1");
 
     expect(useGameChats.getState().chats.map((c) => c.key)).toEqual(["claude:1"]);
-    expect(d.setHireAgentId).not.toHaveBeenCalled();
-    expect(d.setHireOpen).not.toHaveBeenCalled();
+    expect(useBuildMode.getState().roomCard).toEqual({ kind: "dossier", key: "claude:1" });
   });
 
-  it("clicking a second bot re-follows the new one (follow replaces follow)", () => {
-    selectCharacter("claude:1", deps());
-    selectCharacter("claude:2", deps());
+  it("clicking a second bot re-follows the new one (follow replaces follow) and re-targets the dossier", () => {
+    selectCharacter("claude:1");
+    selectCharacter("claude:2");
     expect(useCameraDirector.getState().mode).toEqual({ kind: "follow", botKey: "claude:2" });
+    expect(useBuildMode.getState().roomCard).toEqual({ kind: "dossier", key: "claude:2" });
   });
 });

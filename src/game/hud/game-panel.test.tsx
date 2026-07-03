@@ -55,4 +55,28 @@ describe("GamePanel", () => {
     expect(panel.className).not.toContain("inset-0");
     expect(panel.className).not.toContain("items-center justify-center");
   });
+
+  // Round 2: the optional header action slot (RoomCard/HqCard/DossierCard's
+  // "🎥 Exit zoom" chip rides here).
+  it("renders an optional header action between the title and ✕ when given", () => {
+    render(
+      <GamePanel
+        title="Title"
+        onClose={vi.fn()}
+        headerAction={<button data-testid="header-action">🎥 Exit zoom</button>}
+      >
+        Body
+      </GamePanel>,
+    );
+    expect(screen.getByTestId("header-action")).toBeInTheDocument();
+  });
+
+  it("renders nothing extra in the header when headerAction is omitted", () => {
+    render(
+      <GamePanel title="Title" onClose={vi.fn()}>
+        Body
+      </GamePanel>,
+    );
+    expect(screen.queryByTestId("header-action")).toBeNull();
+  });
 });

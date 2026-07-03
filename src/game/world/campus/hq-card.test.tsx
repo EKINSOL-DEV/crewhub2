@@ -45,6 +45,7 @@ vi.mock("@/stores/sessions", () => ({
 import { openWorkspaceWindow } from "@/game/app/windows";
 import { playSfx } from "@/game/audio/sfx";
 import { useBuildMode } from "@/game/build/mode";
+import { useCameraDirector } from "@/game/engine/camera/director";
 import { resetProjectsForTests, useProjectsStore } from "@/stores/projects";
 import { HqCard } from "./HqCard";
 
@@ -113,6 +114,7 @@ describe("HqCard", () => {
     vi.clearAllMocks();
     resetProjectsForTests();
     useBuildMode.setState({ roomCard: null });
+    useCameraDirector.setState({ mode: { kind: "free" } });
     agents.current = [];
     views.current = [];
   });
@@ -212,5 +214,21 @@ describe("HqCard", () => {
     render(<HqCard onClose={onClose} />);
     fireEvent.click(screen.getByTestId("game-panel-close"));
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  // Round 2: the shared "🎥 Exit zoom" header action (GamePanel.tsx's
+  // ExitZoomButton), only present while the camera is focused/following.
+  describe("🎥 Exit zoom header action", () => {
+    it("is absent while the camera is free", () => {
+      render(<HqCard onClose={vi.fn()} />);
+      expect(screen.queryByTestId("game-panel-exit-zoom")).not.toBeInTheDocument();
+    });
+
+    it("appears while following, and clicking it exits the camera", () => {
+      useCameraDirector.setState({ mode: { kind: "follow", botKey: "agent:a1" } });
+      render(<HqCard onClose={vi.fn()} />);
+      fireEvent.click(screen.getByTestId("game-panel-exit-zoom"));
+      expect(useCameraDirector.getState().mode).toEqual({ kind: "free" });
+    });
   });
 });

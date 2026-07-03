@@ -1,6 +1,6 @@
 // Game shell (M0): environment-driven sky/fog/lights around the selected
 // World, RTS camera, quality-aware canvas. The HUD overlay lands in T12.
-import { Suspense, useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Characters } from "@/game/characters/Characters";
 import { ChatWindows } from "@/game/chat/ChatWindows";
 import { HireDialog } from "@/game/chat/HireDialog";
@@ -8,7 +8,7 @@ import { useGameChats } from "@/game/chat/store";
 import { BuildControls } from "@/game/build/BuildControls";
 import { BuildPalette } from "@/game/build/BuildPalette";
 import { RoomLinkDialog } from "@/game/build/RoomLinkDialog";
-import { useBuildMode } from "@/game/build/mode";
+import { useBuildMode, type CardTarget } from "@/game/build/mode";
 import { DossierCard } from "@/game/dossier/DossierCard";
 import { ProjectsDialog } from "@/game/hud/ProjectsDialog";
 import { HqCard } from "@/game/world/campus/HqCard";
@@ -78,30 +78,50 @@ export function shouldExitCameraOnEscape(
  * snapshot. Characters' onSelect still passes a position (its own contract,
  * used nowhere else) — the call site below just no longer forwards it.
  *
- * M9 T2: a robot click deliberately does NOT also open its dossier — chat +
- * follow + dossier all firing off one click would be noisy (three cards/
- * cameras competing for attention over a single tap). The dossier instead
- * has its own two entry points, both a deliberate second action: the ℹ️
- * button in a ChatWindow's header (once you're already looking at a bot's
- * chat, one more click for its full profile), and HqCard's crew roster rows
- * (browsing the roster, not yet committed to a chat/follow).
+ * Round 2 reverses M9 T2's "a robot click deliberately does NOT also open
+ * its dossier" call: a click now always opens the dossier dock alongside
+ * follow (single-open — mode.ts's own `openRoomCard` replaces whatever else
+ * was showing). No `deps` parameter anymore either: the "agent:" (resting
+ * crew) branch used to force-open the hire dialog directly via locally-owned
+ * component state, which — now that the dossier ALSO opens on the same
+ * click — would stack two docked GamePanels on top of each other at once.
+ * DossierCard already offers an equivalent "👥 Hire" shortcut for an
+ * `agent:`-keyed dossier (M9 fix round 1, wired through this same roomCard
+ * slot), the same way HqCard's roster rows route a resting-crew click
+ * through the dossier rather than straight to hire — so a resting-crew
+ * character click now behaves the same way. Live sessions still open their
+ * chat window immediately, unchanged — a chat window docks bottom-right, a
+ * different slot than the dossier's, so there's no collision to avoid there.
  */
-export function selectCharacter(
-  key: string,
-  deps: {
-    setHireAgentId: Dispatch<SetStateAction<string | undefined>>;
-    setHireOpen: Dispatch<SetStateAction<boolean>>;
-  },
-): void {
+export function selectCharacter(key: string): void {
   useCameraDirector.getState().followBot(key);
-  // "agent:" keys are resting crew with no session yet — clicking them
-  // opens the hire dialog, preselected to that agent.
-  if (key.startsWith("agent:")) {
-    deps.setHireAgentId(key.slice("agent:".length));
-    deps.setHireOpen(true);
-  } else {
+  useBuildMode.getState().openRoomCard({ kind: "dossier", key });
+  if (!key.startsWith("agent:")) {
     useGameChats.getState().open(key);
   }
+}
+
+/**
+ * Whether an open card kind is "focus-coupled" (round 2): room/HQ/dossier
+ * panels each frame a specific building or bot — the panel and the camera
+ * shot are the same idea shown two ways, so they share one lifetime. Closing
+ * one of these (✕/Escape/🎥 Exit zoom) also exits camera focus/follow (the
+ * `exitAndCloseRoomCard` wrapper below, passed as their `onClose` instead of
+ * plain `closeRoomCard`), and exiting the camera some other way (HUD's 🎥✕
+ * chip, a pan takeover, a despawned followed bot) also closes whichever of
+ * these three is open (the effect below). Projects/hire/room-link never
+ * touch the camera at all — opening or closing THEM must never affect
+ * whatever shot the player already had going, so they're excluded here and
+ * keep using plain `closeRoomCard`/`closeRoomLink`.
+ *
+ * Kind-based, not causally tracked: a dossier can be open with the camera in
+ * any state at all (e.g. HqCard's roster rows open one without ever calling
+ * followBot) — this couples on WHAT'S open, not on whether that specific
+ * open call is what engaged the camera, which keeps the rule simple and
+ * matches the brief.
+ */
+export function isFocusCoupledCard(kind: CardTarget["kind"] | undefined): boolean {
+  return kind === "plot" || kind === "placed" || kind === "hq" || kind === "dossier";
 }
 
 export default function GameShell() {
@@ -119,6 +139,10 @@ export default function GameShell() {
   const roomCard = useBuildMode((s) => s.roomCard);
   const closeRoomCard = useBuildMode((s) => s.closeRoomCard);
   const flavorRuns = useFlavor((s) => s.runs);
+  // Subscribed (not .getState()) — this drives the focus-coupled effect
+  // below, which must react to the camera BECOMING free, same reason
+  // HudOverlay subscribes for its own 🎥✕ chip's visibility.
+  const cameraFree = useCameraDirector((s) => s.mode.kind === "free");
 
   useEffect(() => {
     void useGameEnvironment.getState().init();
@@ -126,6 +150,40 @@ export default function GameShell() {
     void useAudio.getState().init();
     preloadModels();
   }, []);
+
+  // Focus-coupled dock lifetime, direction 2 of 2 (round 2 — direction 1 is
+  // `exitAndCloseRoomCard` below, passed as onClose to the three coupled
+  // panels): the camera exiting SOME OTHER WAY than one of those panels'
+  // own close (the HUD's 🎥✕ chip, a pan takeover, a despawned followed
+  // bot) closes whichever of room/HQ/dossier is open, if any — see
+  // isFocusCoupledCard's own doc comment for why this is kind-based, not
+  // causally tracked. Dep is deliberately just `cameraFree`, not `roomCard`:
+  // reading the room card imperatively means opening one of these three
+  // while the camera is ALREADY free (HqCard's roster rows never engage it)
+  // isn't immediately undone by this same effect — only a fresh
+  // free-TRANSITION reacts. No loop with direction 1: by the time THIS
+  // effect runs, a panel that closed itself (calling exit() first) has
+  // already cleared roomCard, so the imperative read below finds nothing
+  // coupled left to close.
+  useEffect(() => {
+    if (!cameraFree) return;
+    if (isFocusCoupledCard(useBuildMode.getState().roomCard?.kind)) {
+      closeRoomCard();
+    }
+  }, [cameraFree, closeRoomCard]);
+
+  // Focus-coupled dock lifetime, direction 1 of 2: closing one of
+  // room/HQ/dossier also exits the camera, on the SAME Escape press or
+  // click — GameShell's own Escape-precedence effect below can't do this
+  // itself (its `roomCard`/`hasOpenCard` closure is stale until the next
+  // render, which hasn't happened yet within the same keydown dispatch), so
+  // it has to happen inside the panel's own onClose instead, synchronously,
+  // before that same press's event finishes dispatching. exit() when
+  // already free is a no-op, so this is always safe to call unconditionally.
+  const exitAndCloseRoomCard = () => {
+    useCameraDirector.getState().exit();
+    closeRoomCard();
+  };
 
   // HQ's 👥 prop stand / HqCard shortcut / DossierCard's Hire button (M9 fix
   // round 1, for a resting-crew dossier) all route through mode.ts's
@@ -183,11 +241,7 @@ export default function GameShell() {
         </Suspense>
         {/* Own boundary: a suspending nameplate font must never hide the campus. */}
         <Suspense fallback={null}>
-          <Characters
-            override={DEMO_CHARACTERS}
-            onCount={setBotCount}
-            onSelect={(k) => selectCharacter(k, { setHireAgentId, setHireOpen })}
-          />
+          <Characters override={DEMO_CHARACTERS} onCount={setBotCount} onSelect={selectCharacter} />
         </Suspense>
         <GameCameraRig bounds={CAMERA_BOUNDS} enabled={!buildActive || buildTool.kind === "select"} />
         {/* Own boundary: the ghost model's useModel() can suspend on first
@@ -213,12 +267,12 @@ export default function GameShell() {
       {buildActive && <BuildPalette />}
       {pendingRoomLink && <RoomLinkDialog buildingId={pendingRoomLink} onClose={closeRoomLink} />}
       {roomCard?.kind === "plot" || roomCard?.kind === "placed" ? (
-        <RoomCard target={roomCard} onClose={closeRoomCard} />
+        <RoomCard target={roomCard} onClose={exitAndCloseRoomCard} />
       ) : null}
-      {roomCard?.kind === "hq" && <HqCard onClose={closeRoomCard} />}
+      {roomCard?.kind === "hq" && <HqCard onClose={exitAndCloseRoomCard} />}
       {roomCard?.kind === "projects" && <ProjectsDialog onClose={closeRoomCard} />}
       {roomCard?.kind === "dossier" && (
-        <DossierCard key={roomCard.key} dossierKey={roomCard.key} onClose={closeRoomCard} />
+        <DossierCard key={roomCard.key} dossierKey={roomCard.key} onClose={exitAndCloseRoomCard} />
       )}
       <HireDialog
         open={hireOpen || hireRequest !== null}

@@ -24,7 +24,7 @@ import { playSfx } from "@/game/audio/sfx";
 import { useBuildMode } from "@/game/build/mode";
 import { useGameChats } from "@/game/chat/store";
 import { useCameraDirector } from "@/game/engine/camera/director";
-import { GamePanel } from "@/game/hud/GamePanel";
+import { ExitZoomButton, GamePanel } from "@/game/hud/GamePanel";
 import type { SessionStatus } from "@/ipc/bindings";
 import { useAgentsStore } from "@/stores/agents";
 import { useBindingsStore } from "@/stores/bindings";
@@ -169,6 +169,7 @@ export function DossierCard({ dossierKey, onClose }: DossierCardProps) {
         </div>
       }
       onClose={onClose}
+      headerAction={<ExitZoomButton />}
     >
       <div className="sticky top-0 z-10 flex items-start gap-2 border-b-2 border-slate-900/10 bg-white/90 px-4 py-3 backdrop-blur">
         <p data-testid="dossier-card-bio" className="min-w-0 flex-1 text-sm text-slate-600 italic">

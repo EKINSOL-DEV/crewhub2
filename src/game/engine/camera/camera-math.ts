@@ -77,16 +77,46 @@ export function chaseFocus(
 
 /**
  * Follow mode's per-frame goal chase: target recenters on the bot's live
- * position; yaw/distance are left completely untouched — they're the
- * player's to adjust (wheel/rotate already write straight to goal.current
- * in follow, same as free roam), and follow itself never reframes them.
+ * position; yaw is left completely untouched — it's the player's to adjust
+ * (rotate already writes straight to goal.current in follow, same as free
+ * roam), and follow itself never reframes it. Distance is the same UNLESS
+ * `distanceTarget` is given (round 2's follow-entry zoom-in, see
+ * `followEntryDistance`), in which case it chases that instead of staying
+ * put — still the player's afterward once GameCameraRig drops the target
+ * (see that file's doc comment on why this is a one-time thing, not a
+ * per-frame clamp).
  */
-export function chaseFollow(current: RtsCamera, botX: number, botZ: number, k: number): RtsCamera {
+export function chaseFollow(
+  current: RtsCamera,
+  botX: number,
+  botZ: number,
+  k: number,
+  distanceTarget?: number,
+): RtsCamera {
   return {
-    ...current,
     targetX: current.targetX + (botX - current.targetX) * k,
     targetZ: current.targetZ + (botZ - current.targetZ) * k,
+    yaw: current.yaw,
+    distance:
+      distanceTarget === undefined
+        ? current.distance
+        : current.distance + (distanceTarget - current.distance) * k,
   };
+}
+
+/** Follow mode's entry-zoom cap (round 2): a followed bot deserves an
+ *  over-the-shoulder framing, not whatever distance free roam (or a still-
+ *  live prior focus/follow session) happened to leave the camera at. Only
+ *  ever pulls IN — a player already zoomed in tighter than the cap keeps
+ *  their own framing, this never pushes back out. GameCameraRig calls this
+ *  ONCE, on the free|focus -> follow entry edge (same idiom as its own
+ *  restoreGoalRef snapshot, taken on the same edge, earlier in the same
+ *  frame — see that file's doc comment for why the ordering there matters:
+ *  the restore snapshot must capture the PRE-zoom distance, not this cap). */
+export const FOLLOW_DISTANCE = 16;
+
+export function followEntryDistance(currentDistance: number): number {
+  return Math.min(currentDistance, FOLLOW_DISTANCE);
 }
 
 /**

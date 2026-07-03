@@ -16,7 +16,7 @@ import { openWorkspaceWindow } from "@/game/app/windows";
 import { playSfx } from "@/game/audio/sfx";
 import { useBuildMode } from "@/game/build/mode";
 import { BULB } from "@/game/characters/Characters";
-import { GamePanel } from "@/game/hud/GamePanel";
+import { ExitZoomButton, GamePanel } from "@/game/hud/GamePanel";
 import { normalizeFolder, toCharacters } from "@/game/sim/characters";
 import { useAgentsStore } from "@/stores/agents";
 import { useProjectsStore } from "@/stores/projects";
@@ -57,7 +57,11 @@ export function HqCard({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <GamePanel title={<span className="flex-1 font-bold">🏛 Headquarters</span>} onClose={onClose}>
+    <GamePanel
+      title={<span className="flex-1 font-bold">🏛 Headquarters</span>}
+      onClose={onClose}
+      headerAction={<ExitZoomButton />}
+    >
       <div data-testid="hq-card" className="flex flex-col gap-3 p-3">
         <div>
           <div className="mb-1 text-xs font-semibold text-slate-500 uppercase">Crew</div>

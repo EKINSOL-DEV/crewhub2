@@ -13,7 +13,7 @@ import type { RoomCardTarget } from "@/game/build/mode";
 import { useCampusEdits } from "@/game/build/store";
 import { BULB } from "@/game/characters/Characters";
 import { playSfx } from "@/game/audio/sfx";
-import { GamePanel } from "@/game/hud/GamePanel";
+import { ExitZoomButton, GamePanel } from "@/game/hud/GamePanel";
 import { normalizeFolder, toCharacters } from "@/game/sim/characters";
 import { useAgentsStore } from "@/stores/agents";
 import { useProjectsStore } from "@/stores/projects";
@@ -67,7 +67,11 @@ export function RoomCard({ target, onClose }: { target: RoomCardTarget; onClose:
   };
 
   return (
-    <GamePanel title={<span className="flex-1 font-bold">🏷️ Room</span>} onClose={onClose}>
+    <GamePanel
+      title={<span className="flex-1 font-bold">🏷️ Room</span>}
+      onClose={onClose}
+      headerAction={<ExitZoomButton />}
+    >
       <div data-testid="room-card" className="flex flex-col gap-3 p-3">
         <div
           data-testid="room-card-current"
