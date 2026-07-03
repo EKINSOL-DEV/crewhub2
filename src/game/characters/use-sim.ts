@@ -10,11 +10,16 @@ import { useAgentsStore } from "@/stores/agents";
 import { useBindingsStore } from "@/stores/bindings";
 import { useProjectsStore } from "@/stores/projects";
 import { useSessionsStore, useSessionsView } from "@/stores/sessions";
+import { applyEdits } from "@/game/build/edits";
+import { useCampusEdits } from "@/game/build/store";
+import { useFlavorTicker } from "@/game/flavor/use-flavor-ticker";
 import { buildNavGrid } from "@/game/sim/grid";
 import { createSim, type Sim } from "@/game/sim/sim";
 import { toCharacters, type Character } from "@/game/sim/characters";
+import { biomeSkipFor } from "@/game/world/biome";
 import { campusBuildings } from "@/game/world/campus/buildings";
 import { campusLayout } from "@/game/world/campus/layout";
+import { useGameEnvironment } from "@/game/world/environments/store";
 
 /** Same seed forever — the sim must replay identically across sessions. */
 const SIM_SEED = 0x51d0;
@@ -44,6 +49,8 @@ export function useSim(override?: Character[]): UseSimResult {
     void useBindingsStore.getState().init();
     void useAgentsStore.getState().init();
     void useProjectsStore.getState().load();
+    void useCampusEdits.getState().init();
+    void useGameEnvironment.getState().init();
   }, []);
 
   const views = useSessionsView();
@@ -57,25 +64,90 @@ export function useSim(override?: Character[]): UseSimResult {
     return () => clearInterval(t);
   }, []);
 
-  const sim = useMemo(() => {
+  // Seeded layout + base four buildings, held once — edits are layered on
+  // top below, never baked in here, so `sim` (built off just the base) only
+  // has to be created once for the component's whole lifetime.
+  const campus = useMemo(() => {
     const layout = campusLayout();
     const buildings = campusBuildings(layout.plots);
-    const grid = buildNavGrid(layout, buildings);
-    return createSim(grid, buildings, SIM_SEED);
+    return { layout, buildings };
   }, []);
+
+  const sim = useMemo(() => {
+    const grid = buildNavGrid(campus.layout, campus.buildings);
+    return createSim(grid, campus.buildings, SIM_SEED);
+  }, [campus]);
+
+  // Build-mode edits (M3 T5): a placed pavilion or piece of decor changes
+  // what robots can walk through and where they can sit, so re-derive the
+  // nav grid + building pool and hand them to the once-built sim via
+  // updateWorld() — never a fresh createSim(), that would respawn everyone.
+  // `editsVersion` starts at 0 and only becomes >0 once the store has
+  // actually loaded/mutated (see build/store.ts).
+  //
+  // Sky-biome invisible walls (M4 debt sweep): buildNavGrid blocks every
+  // BLOCKING_SCATTER kind regardless of biome, but sky doesn't *render*
+  // rockLarge/treePine/treeDetailed (biome.ts's `skip`) — a robot would
+  // path around a wall it can't see. `skipKinds` (grid.ts) fixes the
+  // blocking; the base `sim` above is still built ignorant of biome (it's
+  // created once, before we'd know which environment is even active), so
+  // this effect is what actually applies the current biome's skip list —
+  // including on first mount, if the player starts on a non-campus biome.
+  // That's why the guard below can no longer be "skip when editsVersion===0":
+  // a fresh sky-biome mount has editsVersion 0 too, and still needs this to
+  // run once to unblock its skipped kinds.
+  const edits = useCampusEdits((s) => s.edits);
+  const editsVersion = useCampusEdits((s) => s.version);
+  const envId = useGameEnvironment((s) => s.id);
+  const biomeSkip = biomeSkipFor(envId);
+  // Fix round 1: whether this effect has ever actually applied a non-default
+  // world (edits and/or a biome skip list) to the live sim. `hasWorkToApply
+  // === false` isn't enough to skip on its own — switching FROM sky (skip
+  // applied, appliedRef true) TO campus/island (skip empty again) still has
+  // `editsVersion === 0 && biomeSkip.length === 0`, but the sim's grid is
+  // still sky's, with those cells left unblocked under trees/rocks the new
+  // biome actually renders. Only skip when there's nothing to apply AND
+  // nothing was ever applied before (the pure campus-mount case, where the
+  // base `sim` above is already exactly right).
+  const appliedRef = useRef(false);
+  useEffect(() => {
+    const hasWorkToApply = editsVersion > 0 || biomeSkip.length > 0;
+    if (!hasWorkToApply && !appliedRef.current) return;
+    appliedRef.current = hasWorkToApply;
+    const { buildings: allBuildings } = applyEdits(campus.layout, campus.buildings, edits);
+    const grid = buildNavGrid(campus.layout, allBuildings, {
+      items: edits.items.map((i) => ({ x: i.x, z: i.z })),
+      skipKinds: biomeSkip,
+    });
+    sim.updateWorld(grid, allBuildings);
+  }, [sim, campus, edits, editsVersion, biomeSkip]);
 
   const characters = useMemo(
     () => override ?? toCharacters(views, { agents, nowMs }),
     [override, views, agents, nowMs],
   );
 
+  // M4 T2: the ticker needs live Character[] (agentId, activity) — which
+  // Characters.tsx never sees, it only reads the sim-derived x/z/facing/info
+  // — so it's wired here rather than threading a second prop through the
+  // renderer. Demo scenes (`override` set) skip it: there's no session
+  // behind a demo bot to think about.
+  useFlavorTicker(characters, override === undefined);
+
   const infoRef = useRef<Map<string, CharacterInfo>>(new Map());
   const keysRef = useRef<Set<string>>(new Set());
   const [version, setVersion] = useState(0);
 
-  // The sim only cares about identity + status (that's what drives replan());
-  // name/color drift alone shouldn't re-sync it, so key the effect narrowly.
-  const syncKey = useMemo(() => characters.map((c) => `${c.key}:${c.status}`).join(","), [characters]);
+  // The sim only cares about identity + status (that's what drives replan()),
+  // but this same effect also rebuilds `infoRef` (name/color/status for the
+  // renderer's nameplates) — so a rename/recolor with no status change must
+  // still re-run it, or `infoRef` goes stale and the nameplate keeps
+  // showing the old name. Status-only churn dominates in practice, so this
+  // stays cheap even with name/color folded in.
+  const syncKey = useMemo(
+    () => characters.map((c) => `${c.key}:${c.status}:${c.name}:${c.color}`).join(","),
+    [characters],
+  );
 
   const warmedRef = useRef(false);
   useEffect(() => {

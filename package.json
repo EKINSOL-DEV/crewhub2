@@ -11,7 +11,8 @@
     "e2e": "wdio run e2e/wdio.conf.ts",
     "version:check": "node scripts/check-version-sync.mjs",
     "assets:fetch": "node scripts/assets/fetch-kits.mjs",
-    "assets:build": "node scripts/assets/build-assets.mjs"
+    "assets:build": "node scripts/assets/build-assets.mjs",
+    "assets:sfx": "node scripts/assets/build-sfx.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

@@ -1,14 +1,12 @@
 import { lazy, Suspense, useEffect } from "react";
 import { WorkspaceShell } from "@/app/WorkspaceShell";
-import { WorldView } from "@/app/WorldView";
 import { useSettings } from "@/stores/settings";
 import { useWorkspace } from "@/stores/workspace";
 
 // `?perf` mounts the chat perf probe (D-M2-4) instead of the shell — a 5k-item
 // synthetic transcript that reports frame percentiles on window.__CREWHUB_PERF__.
 const PerfProbe = lazy(() => import("@/panels/chat/perf/PerfProbe").then((m) => ({ default: m.PerfProbe })));
-// `?game` mounts the new campus game shell (M0) — developed alongside the
-// current world until M1 swaps it in as the primary view.
+// The campus game shell (M0-M4) — now the main window (M4 T6, the switch).
 const GameShell = lazy(() => import("@/game/app/GameShell"));
 // `?window=settings` is the dedicated settings window (EKI-20): same React
 // bundle, settings panel only, own capability file (capabilities/settings.json).
@@ -22,19 +20,33 @@ const WhatsNewDialog = lazy(() =>
   import("@/components/WhatsNewDialog").then((m) => ({ default: m.WhatsNewDialog })),
 );
 
-// ── Main window (EKI-121, game-HUD shell): the ONE 3D world IS the app ──────
-// There is no second view anymore — every panel renders as a drawer over the
-// world (WorldOverlayHost inside WorldView). The first-run wizard and the
-// what's-new dialog overlay the world like everything else.
+// ── Main window (M4 T6, "the switch"): the game IS the app ──────────────────
+// The old 3D world (WorldView/WorldOverlayHost/GameHud, panels/world/**) is
+// deleted — the campus game shell replaces it outright as the main window.
+// The first-run wizard and the what's-new dialog overlay it, same as before.
+//
+// Partial-D4: the game shell has no panel-drawer bridge yet (the world's
+// WorldOverlayHost died with it) — board/crew/sessions/etc. aren't drawers
+// over the campus the way they were drawers over the world. Reachability is
+// restored (fix round 1, EKI-M4T6): the HUD's 🧰 Workspace / ⚙️ Settings
+// chips (src/game/hud/HudOverlay.tsx, src/game/app/windows.ts) open-or-focus
+// the detached `?window=workspace` / `?window=settings` windows, so nothing
+// is stranded — a follow-up task can still grow the game-native drawer.
+// Z-order (M4 debt sweep): a doubly-fresh profile shows both overlays at
+// once — OnboardingWizard (its own KV) and GameShell's WelcomeCard
+// (game.welcomed) are independent one-shot flags, neither cleared by the
+// other. Both use z-50 (WelcomeCard.tsx), so the tie is broken by DOM
+// order: OnboardingWizard, mounted after GameShell, always paints on top —
+// intentional (the wizard is the primary first-run flow; the campus
+// welcome card can wait). Keep OnboardingWizard last, or bump one z-index
+// explicitly, if this ordering ever needs to change.
 function MainWindow() {
   return (
-    <>
-      <WorldView />
-      <Suspense fallback={null}>
-        <OnboardingWizard />
-        <WhatsNewDialog />
-      </Suspense>
-    </>
+    <Suspense fallback={null}>
+      <GameShell />
+      <OnboardingWizard />
+      <WhatsNewDialog />
+    </Suspense>
   );
 }
 
@@ -60,19 +72,10 @@ function App() {
     );
   }
 
-  // `?window=workspace` (world-primary shell): panels in their own window —
-  // WorkspaceShell only. No world (there is exactly ONE, in the main window),
-  // no wizard, no view switching.
+  // `?window=workspace`: panels in their own window — WorkspaceShell only.
+  // No game (there is exactly ONE, in the main window), no wizard.
   if (windowRoute === "workspace") {
     return <WorkspaceShell />;
-  }
-
-  if (search.has("game")) {
-    return (
-      <Suspense fallback={null}>
-        <GameShell />
-      </Suspense>
-    );
   }
 
   if (search.has("perf")) {
@@ -83,6 +86,8 @@ function App() {
     );
   }
 
+  // `?game` is a redundant alias now — MainWindow already is the game shell,
+  // so it falls straight through to the same return below.
   return <MainWindow />;
 }
 

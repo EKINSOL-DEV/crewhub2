@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_CAMERA, damp, pan, pose, rotate, zoom, type RtsBounds } from "./rts-camera";
+import { DEFAULT_CAMERA, damp, focusOn, pan, pose, rotate, zoom, type RtsBounds } from "./rts-camera";
 
 const B: RtsBounds = { half: 40, minDistance: 8, maxDistance: 60 };
 
@@ -24,6 +24,16 @@ describe("pan", () => {
     for (let i = 0; i < 100; i++) cam = pan(cam, -10000, 0, B);
     expect(Math.abs(cam.targetX)).toBeLessThanOrEqual(B.half);
     expect(Math.abs(cam.targetZ)).toBeLessThanOrEqual(B.half);
+  });
+});
+
+describe("focusOn", () => {
+  it("moves the target to (x, z), leaving yaw and distance untouched", () => {
+    const cam = focusOn({ ...DEFAULT_CAMERA, yaw: 1.2, distance: 25 }, 7, -13);
+    expect(cam.targetX).toBe(7);
+    expect(cam.targetZ).toBe(-13);
+    expect(cam.yaw).toBe(1.2);
+    expect(cam.distance).toBe(25);
   });
 });
 

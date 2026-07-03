@@ -44,6 +44,11 @@ export function rotate(cam: RtsCamera, dYaw: number): RtsCamera {
   return { ...cam, yaw: cam.yaw + dYaw };
 }
 
+/** Move the target straight to (x, z) — pure; the rig re-clamps to bounds on the next pan. */
+export function focusOn(cam: RtsCamera, x: number, z: number): RtsCamera {
+  return { ...cam, targetX: x, targetZ: z };
+}
+
 export function zoom(cam: RtsCamera, wheelDelta: number, bounds: RtsBounds): RtsCamera {
   return {
     ...cam,

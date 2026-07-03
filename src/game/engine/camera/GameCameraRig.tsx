@@ -3,7 +3,17 @@
 // rotate, pointer at viewport edges scrolls (the RTS staple).
 import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { DEFAULT_CAMERA, damp, pan, pose, rotate, zoom, type RtsBounds, type RtsCamera } from "./rts-camera";
+import {
+  DEFAULT_CAMERA,
+  damp,
+  focusOn,
+  pan,
+  pose,
+  rotate,
+  zoom,
+  type RtsBounds,
+  type RtsCamera,
+} from "./rts-camera";
 
 const KEY_PAN_PX = 640; // px-equivalent per second held
 const KEY_ROT = 1.9; // rad per second
@@ -12,7 +22,21 @@ const EDGE_PAN_PX = 480;
 const DAMP_RATE = 9;
 const DRAG_ROT = 0.005;
 
-export function GameCameraRig({ bounds }: { bounds: RtsBounds }) {
+export function GameCameraRig({
+  bounds,
+  focus,
+  enabled = true,
+}: {
+  bounds: RtsBounds;
+  /** A robot to center on — `seq` bumps to refocus the same spot again. Not a lock: the next pan/rotate/zoom just overwrites the goal as usual. */
+  focus?: { x: number; z: number; seq: number } | null;
+  /**
+   * Gates drag-to-pan/rotate only (M3 T4: build mode owns the pointer while
+   * placing) — wheel zoom and WASD/edge-scroll keep working either way, so
+   * the player is never stuck unable to see the campus.
+   */
+  enabled?: boolean;
+}) {
   const camera = useThree((s) => s.camera);
   const gl = useThree((s) => s.gl);
   const goal = useRef<RtsCamera>({ ...DEFAULT_CAMERA });
@@ -20,6 +44,14 @@ export function GameCameraRig({ bounds }: { bounds: RtsBounds }) {
   const keys = useRef(new Set<string>());
   const pointer = useRef<{ x: number; y: number } | null>(null);
   const drag = useRef<{ button: number; x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    if (!focus) return;
+    goal.current = focusOn(goal.current, focus.x, focus.z);
+    // Refiring on `seq` alone (not x/z) is deliberate — clicking the same
+    // robot again should refocus even though its position hasn't changed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus?.seq]);
 
   useEffect(() => {
     const el = gl.domElement;
@@ -51,9 +83,11 @@ export function GameCameraRig({ bounds }: { bounds: RtsBounds }) {
     const keyup = (e: KeyboardEvent) => keys.current.delete(e.code);
     const leave = () => (pointer.current = null);
 
-    el.addEventListener("pointerdown", down);
+    if (enabled) {
+      el.addEventListener("pointerdown", down);
+      window.addEventListener("pointermove", move);
+    }
     el.addEventListener("pointermove", hover);
-    window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
     el.addEventListener("wheel", wheel, { passive: false });
     el.addEventListener("contextmenu", ctx);
@@ -61,9 +95,11 @@ export function GameCameraRig({ bounds }: { bounds: RtsBounds }) {
     window.addEventListener("keyup", keyup);
     el.addEventListener("pointerleave", leave);
     return () => {
-      el.removeEventListener("pointerdown", down);
+      if (enabled) {
+        el.removeEventListener("pointerdown", down);
+        window.removeEventListener("pointermove", move);
+      }
       el.removeEventListener("pointermove", hover);
-      window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       el.removeEventListener("wheel", wheel);
       el.removeEventListener("contextmenu", ctx);
@@ -71,7 +107,7 @@ export function GameCameraRig({ bounds }: { bounds: RtsBounds }) {
       window.removeEventListener("keyup", keyup);
       el.removeEventListener("pointerleave", leave);
     };
-  }, [gl, bounds]);
+  }, [gl, bounds, enabled]);
 
   useFrame((_, dt) => {
     const k = keys.current;

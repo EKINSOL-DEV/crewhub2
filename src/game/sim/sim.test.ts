@@ -5,7 +5,8 @@
 // campus grid, per the brief's "at least 2 integration tests" ask.
 import { describe, expect, it } from "vitest";
 import type { SessionStatus } from "@/ipc/bindings";
-import { campusBuildings } from "@/game/world/campus/buildings";
+import { buildingDesks, type PlacedBuilding } from "@/game/build/edits";
+import { campusBuildings, nearestEdgeDoor } from "@/game/world/campus/buildings";
 import type { Building, Desk } from "@/game/world/campus/buildings";
 import { campusLayout } from "@/game/world/campus/layout";
 import type { Character } from "./characters";
@@ -44,6 +45,33 @@ function fakeWorld(): { grid: NavGrid; buildings: Building[] } {
 
 function tickUntil(sim: Sim, dt: number, maxTicks: number, pred: () => boolean): void {
   for (let i = 0; i < maxTicks && !pred(); i++) sim.tick(dt);
+}
+
+/** A second 4-desk pavilion, positioned clear of `fakeWorld`'s. */
+function secondFakeBuilding(): Building {
+  const desks: Desk[] = [
+    { id: "e0", x: 22, z: 2, rot: Math.PI, plotIndex: 1 },
+    { id: "e1", x: 18, z: 2, rot: Math.PI, plotIndex: 1 },
+    { id: "e2", x: 22, z: -2, rot: 0, plotIndex: 1 },
+    { id: "e3", x: 18, z: -2, rot: 0, plotIndex: 1 },
+  ];
+  return { plotIndex: 1, rect: { x: 20, z: 0, w: 8, d: 8 }, desks, door: { x: 20, z: -4 } };
+}
+
+/** A player-built pavilion (4 desks) on the real campus grid, clear of the plaza/plots/path arms. */
+function extraCampusBuilding(plotIndex: number): Building {
+  const placed: PlacedBuilding = { id: "extra", x: 0, z: -20, w: 10, d: 8, roomId: null };
+  const rect = { x: placed.x, z: placed.z, w: placed.w, d: placed.d };
+  return { plotIndex, rect, desks: buildingDesks(placed), door: nearestEdgeDoor(rect) };
+}
+
+/** A single-desk pavilion — narrows updateWorld's "who can grab the one free desk" race down to two bots. */
+function oneDeskWorld(): { grid: NavGrid; buildings: Building[] } {
+  const size = 100;
+  const grid: NavGrid = { size, cell: 1, blocked: new Uint8Array(size * size) };
+  const desks: Desk[] = [{ id: "d0", x: 2, z: 2, rot: Math.PI, plotIndex: 0 }];
+  const building: Building = { plotIndex: 0, rect: { x: 0, z: 0, w: 8, d: 8 }, desks, door: { x: 0, z: -4 } };
+  return { grid, buildings: [building] };
 }
 
 describe("createSim", () => {
@@ -266,6 +294,130 @@ describe("createSim", () => {
   });
 });
 
+describe("Sim.updateWorld", () => {
+  it("doesn't move any bot's position at the swap tick, even though every path/desk is re-planned", () => {
+    const { grid, buildings } = fakeWorld();
+    const sim = createSim(grid, buildings, SEED);
+    sim.sync([char("a", "Working"), char("b", "Idle"), char("c", "WaitingForPermission")]);
+    for (let i = 0; i < 20; i++) sim.tick(0.3);
+
+    const before = new Map([...sim.world.bots].map(([k, b]) => [k, { x: b.x, z: b.z }]));
+    sim.updateWorld(grid, buildings); // same grid/buildings — still exercises the full re-plan path
+    const after = new Map([...sim.world.bots].map(([k, b]) => [k, { x: b.x, z: b.z }]));
+
+    expect(after).toEqual(before);
+  });
+
+  it("releases a removed building's desk and re-seats its sitter at another building's free desk", () => {
+    const { grid, buildings } = fakeWorld(); // one 4-desk building at the origin
+    const second = secondFakeBuilding();
+    const sim = createSim(grid, [...buildings, second], SEED);
+    sim.sync([char("a", "Working")]);
+    const bot = sim.world.bots.get("a")!;
+    tickUntil(sim, 0.5, 500, () => bot.motion === "sit-type" && bot.path.length === 0);
+    const oldDeskId = bot.deskId!;
+    expect(buildings[0]!.desks.some((d) => d.id === oldDeskId)).toBe(true); // seated in the first building
+
+    sim.updateWorld(grid, [second]); // first building (and its desk) is gone
+    expect(sim.world.deskOwners.has(oldDeskId)).toBe(false);
+    expect(bot.deskId).not.toBe(oldDeskId);
+
+    tickUntil(sim, 0.5, 500, () => bot.motion === "sit-type" && bot.path.length === 0);
+    expect(bot.deskId).not.toBeNull();
+    expect(second.desks.some((d) => d.id === bot.deskId)).toBe(true);
+    expect(sim.world.deskOwners.get(bot.deskId!)).toBe("a");
+  });
+
+  it("sends a Working bot to the overflow ring when updateWorld leaves no desks at all", () => {
+    const { grid, buildings } = fakeWorld();
+    const sim = createSim(grid, buildings, SEED);
+    sim.sync([char("a", "Working")]);
+    const bot = sim.world.bots.get("a")!;
+    tickUntil(sim, 0.5, 500, () => bot.motion === "sit-type" && bot.path.length === 0);
+    expect(bot.deskId).not.toBeNull();
+
+    sim.updateWorld(grid, []); // every building gone
+    expect(sim.world.deskOwners.size).toBe(0);
+    expect(bot.deskId).toBeNull();
+
+    tickUntil(sim, 0.5, 500, () => bot.path.length === 0);
+    expect(bot.deskId).toBeNull();
+    expect(bot.motion).toBe("sit-type"); // overflow still reads as "seated" at the plaza edge
+    expect(Math.hypot(bot.x, bot.z)).toBeCloseTo(8, 0);
+  });
+
+  it("keeps a WaitingForInput bot's desk claim across a no-op updateWorld (that branch only ever reads deskId, never re-requests)", () => {
+    const { grid, buildings } = fakeWorld();
+    const sim = createSim(grid, buildings, SEED);
+    sim.sync([char("a", "Working")]);
+    const bot = sim.world.bots.get("a")!;
+    tickUntil(sim, 0.5, 500, () => bot.motion === "sit-type" && bot.path.length === 0);
+    const deskId = bot.deskId!;
+
+    sim.sync([char("a", "WaitingForInput")]);
+    tickUntil(sim, 0.5, 500, () => bot.path.length === 0);
+    expect(bot.deskId).toBe(deskId); // still holds it while thinking
+
+    sim.updateWorld(grid, buildings); // identical grid/buildings — a no-op edit
+    expect(bot.deskId).toBe(deskId);
+    expect(sim.world.deskOwners.get(deskId)).toBe("a");
+  });
+
+  it("releases a WaitingForInput bot's desk claim only when the edit actually removes it, then lets it re-contend once back to Working", () => {
+    const { grid, buildings } = fakeWorld(); // one 4-desk building
+    const second = secondFakeBuilding();
+    const sim = createSim(grid, [...buildings, second], SEED);
+    sim.sync([char("a", "Working")]);
+    const bot = sim.world.bots.get("a")!;
+    tickUntil(sim, 0.5, 500, () => bot.motion === "sit-type" && bot.path.length === 0);
+    const oldDeskId = bot.deskId!;
+    expect(buildings[0]!.desks.some((d) => d.id === oldDeskId)).toBe(true); // seated in the first building
+
+    sim.sync([char("a", "WaitingForInput")]);
+    tickUntil(sim, 0.5, 500, () => bot.path.length === 0);
+    expect(bot.deskId).toBe(oldDeskId); // still holds it while thinking
+
+    sim.updateWorld(grid, [second]); // first building (and the held desk) is gone
+    expect(bot.deskId).toBeNull();
+    expect(sim.world.deskOwners.size).toBe(0);
+
+    sim.sync([char("a", "Working")]); // back to work — re-contends fresh
+    expect(bot.deskId).not.toBeNull();
+    expect(second.desks.some((d) => d.id === bot.deskId)).toBe(true);
+    expect(sim.world.deskOwners.get(bot.deskId!)).toBe("a");
+  });
+
+  it("doesn't let a deskless bot's replan race a still-held claim into a ghost double-seat", () => {
+    const { grid, buildings } = oneDeskWorld(); // exactly one desk: "d0"
+    const sim = createSim(grid, buildings, SEED);
+
+    // "y" appears first in the array (inserted into world.bots first, no
+    // desk); "x" appears second and grabs the only desk.
+    sim.sync([char("y", "Idle"), char("x", "Working")]);
+    const x = sim.world.bots.get("x")!;
+    const y = sim.world.bots.get("y")!;
+    tickUntil(sim, 0.5, 500, () => x.motion === "sit-type" && x.path.length === 0);
+    expect(x.deskId).toBe("d0");
+
+    sim.sync([char("y", "Working"), char("x", "Working")]); // flip y to Working too — overflow, no desk
+    expect(y.deskId).toBeNull();
+
+    sim.updateWorld(grid, buildings); // identical grid/buildings — a no-op edit
+
+    // If a deskless bot's replan ran before every surviving claim was
+    // restored, "y" (iterated first) could grab "d0" out from under "x"
+    // (iterated second) — both would then read deskId "d0" while
+    // deskOwners can only point at one of them.
+    expect(x.deskId).toBe("d0");
+    expect(sim.world.deskOwners.get("d0")).toBe("x");
+    expect(y.deskId).toBeNull();
+
+    tickUntil(sim, 0.5, 500, () => y.path.length === 0);
+    expect(y.motion).toBe("sit-type"); // still overflow, seated at the plaza edge
+    expect(Math.hypot(y.x, y.z)).toBeCloseTo(8, 0);
+  });
+});
+
 describe("createSim — real campus grid (integration)", () => {
   const layout = campusLayout();
   const buildings = campusBuildings(layout.plots);
@@ -305,6 +457,26 @@ describe("createSim — real campus grid (integration)", () => {
     expect(Math.hypot(overflowBot.x, overflowBot.z)).toBeCloseTo(8, 0);
   });
 
+  it("updateWorld with an extra building gives the 17th (overflow) Working bot a real desk", () => {
+    const sim = createSim(grid, buildings, SEED);
+    const characters = Array.from({ length: 17 }, (_, i) => char(`w${i}`, "Working"));
+    sim.sync(characters);
+    tickUntil(sim, 0.5, 1200, () => characters.every((c) => sim.world.bots.get(c.key)!.path.length === 0));
+    expect(sim.world.deskOwners.size).toBe(16);
+
+    const extra = extraCampusBuilding(buildings.length);
+    const newBuildings = [...buildings, extra];
+    const newGrid = buildNavGrid(layout, newBuildings);
+    sim.updateWorld(newGrid, newBuildings);
+
+    tickUntil(sim, 0.5, 1200, () => characters.every((c) => sim.world.bots.get(c.key)!.path.length === 0));
+
+    expect(sim.world.deskOwners.size).toBe(17);
+    for (const c of characters) {
+      expect(sim.world.bots.get(c.key)!.deskId).not.toBeNull();
+    }
+  });
+
   it("is deterministic: identical seed + identical sync/tick sequence ⇒ identical worlds", () => {
     const script = (sim: Sim): void => {
       sim.sync([
@@ -317,6 +489,43 @@ describe("createSim — real campus grid (integration)", () => {
       sim.sync([char("a", "Idle"), char("c", "Idle"), char("d", "Idle", { agentId: "agent-1" })]);
       for (let i = 0; i < 30; i++) sim.tick(0.29);
       sim.sync([char("c", "Idle"), char("e", "Working")]);
+      for (let i = 0; i < 20; i++) sim.tick(0.5);
+    };
+
+    const snapshot = (sim: Sim): unknown => ({
+      bots: [...sim.world.bots.entries()].sort(([k1], [k2]) => k1.localeCompare(k2)),
+      deskOwners: [...sim.world.deskOwners.entries()].sort(([k1], [k2]) => k1.localeCompare(k2)),
+    });
+
+    const simA = createSim(grid, buildings, SEED);
+    const simB = createSim(grid, buildings, SEED);
+    script(simA);
+    script(simB);
+
+    expect(snapshot(simA)).toEqual(snapshot(simB));
+  });
+
+  it("is deterministic across updateWorld: identical seed + identical sync/tick/updateWorld sequence ⇒ identical worlds", () => {
+    const extra = extraCampusBuilding(buildings.length);
+    const newBuildings = [...buildings, extra];
+    const newGrid = buildNavGrid(layout, newBuildings);
+
+    const script = (sim: Sim): void => {
+      sim.sync([
+        char("a", "Working"),
+        char("b", "WaitingForPermission"),
+        char("c", "Idle"),
+        char("d", "Idle", { agentId: "agent-1" }),
+      ]);
+      for (let i = 0; i < 20; i++) sim.tick(0.37);
+      sim.updateWorld(newGrid, newBuildings);
+      for (let i = 0; i < 30; i++) sim.tick(0.29);
+      sim.sync([
+        char("a", "Idle"),
+        char("c", "Idle"),
+        char("d", "Idle", { agentId: "agent-1" }),
+        char("e", "Working"),
+      ]);
       for (let i = 0; i < 20; i++) sim.tick(0.5);
     };
 

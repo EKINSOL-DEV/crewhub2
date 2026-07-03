@@ -12,8 +12,9 @@ import { useWorkspace } from "@/stores/workspace";
  * split. Best-effort — when the workspace isn't loaded (shouldn't happen
  * behind the overlay) finishing simply lands on whatever is there.
  *
- * Game-HUD shell (EKI-121): finishing lands in the world; the seeded
- * chat+board split waits in the detached panel window for whoever opens it.
+ * Game-HUD shell (EKI-121, then M4 T6): finishing lands in the campus (the
+ * main window); the seeded chat+board split waits in the detached panel
+ * window for whoever opens it.
  */
 export function enterWorkspace(): void {
   const s = useWorkspace.getState();
@@ -36,8 +37,8 @@ export function FinishStep() {
         for later:
       </p>
       <ul className="flex flex-col gap-1.5 text-sm text-muted-foreground">
-        <li>⌘K opens the command palette — every panel and action lives there</li>
-        <li>🌍 the World panel shows your rooms in 3D (your agents wander them)</li>
+        <li>🤖 your crew walks the campus as robots — click one to talk</li>
+        <li>🔨 Build mode lets you place rooms and buildings of your own</li>
         <li>⚙️ Settings has everything you skipped — including "Re-run setup wizard"</li>
         {sampleCrew && <li>🧹 done with the sample crew? Delete its project like any other</li>}
       </ul>

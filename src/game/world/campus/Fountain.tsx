@@ -9,7 +9,10 @@ export function Fountain() {
   const model = useModel("fountain");
   const water = useRef<THREE.Mesh>(null);
   useFrame((_, dt) => {
-    if (water.current) water.current.rotation.y += dt * 0.4;
+    // The disc is laid flat via rotation-x=-π/2, so its LOCAL z-axis points
+    // world-up — spinning local y (as M0 shipped) slowly tipped the water
+    // vertical. Spin local z to swirl in the basin plane.
+    if (water.current) water.current.rotation.z += dt * 0.4;
   });
   return (
     <group>

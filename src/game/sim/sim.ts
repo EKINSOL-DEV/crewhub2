@@ -7,6 +7,7 @@ import type { Motion } from "@/game/characters/pose";
 import type { Building, Desk } from "@/game/world/campus/buildings";
 import type { Character } from "./characters";
 import { findPath, type NavGrid } from "./grid";
+import { hashCode, mulberry32 } from "./rand";
 
 export const WALK_SPEED = 2.2; // units/s
 
@@ -43,6 +44,7 @@ export interface Sim {
   world: SimWorld;
   sync(characters: Character[]): void;
   tick(dt: number): void;
+  updateWorld(grid: NavGrid, buildings: Building[]): void;
 }
 
 /** Bookkeeping the renderer never sees — kept off SimBot to keep that type a clean wire contract. */
@@ -53,24 +55,11 @@ interface BotMeta {
   pauseUntil: number;
 }
 
-/** mulberry32 — same tiny seeded PRNG as campus/layout.ts; the sim must replay identically forever. */
-function rng(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
+/** Local alias — same tiny seeded PRNG as campus/layout.ts; the sim must replay identically forever. */
+const rng = mulberry32;
 
-/** Stable per-key hash, same shape as characters.ts's — used to place a bot deterministically on a ring. */
-function hashKey(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
-  return Math.abs(h);
-}
+/** Local alias, same hash characters.ts uses — places a bot deterministically on a ring. */
+const hashKey = hashCode;
 
 /** A point on a ring around the plaza (world origin), angle hashed from the bot's key. */
 function ringPoint(key: string, radius: number): { x: number; z: number } {
@@ -101,7 +90,10 @@ export function createSim(grid: NavGrid, buildings: Building[], seed: number): S
   const rand = rng(seed);
   const world: SimWorld = { bots: new Map(), deskOwners: new Map() };
   const meta = new Map<string, BotMeta>();
-  const deskList: DeskEntry[] = buildings.flatMap((building) =>
+  // `grid`/`buildings` are reassigned wholesale by updateWorld() below, so every
+  // helper that closes over them (deskById, pathToDesk, pickWanderPath, ...)
+  // reads the current world on its next call — no bot re-plan logic to duplicate.
+  let deskList: DeskEntry[] = buildings.flatMap((building) =>
     building.desks.map((desk) => ({ desk, building })),
   );
 
@@ -310,5 +302,51 @@ export function createSim(grid: NavGrid, buildings: Building[], seed: number): S
     }
   }
 
-  return { world, sync, tick };
+  /**
+   * Swap in a new grid + buildings without respawning anyone: a desk
+   * reservation survives the edit iff its desk still exists in the new pool
+   * (a removed building's desk goes free instead, and a previously-
+   * overflowing bot may now win one from the new pool); every bot then
+   * re-plans from its current (x, z) via the same per-status `replan` that
+   * sync() uses on a status change. Claims must be resolved *before* that
+   * replan pass — WaitingForPermission/WaitingForInput's branches only ever
+   * *read* bot.deskId, they never re-request one, so nulling every deskId
+   * unconditionally here would silently strip a still-valid reservation
+   * from a bot that's mid-wave or mid-think (see the "stays reserved" note
+   * on WaitingForPermission above).
+   *
+   * Two full passes, not one interleaved loop: if a deskless bot's replan
+   * (pass 2) ran before every surviving claim was back in deskOwners, its
+   * findFreeDesk() could grab a desk a not-yet-visited bot still holds —
+   * both bots would then think they own it (one via the untouched
+   * bot.deskId this pass never got to, the other via the fresh grab),
+   * while deskOwners.get(desk) can only point at one of them. Restoring
+   * every claim first closes that race. Nobody teleports here — replan
+   * only ever assigns a path or a stable desk seat; walking is left to
+   * tick().
+   */
+  function updateWorld(newGrid: NavGrid, newBuildings: Building[]): void {
+    grid = newGrid;
+    buildings = newBuildings;
+    deskList = newBuildings.flatMap((building) => building.desks.map((desk) => ({ desk, building })));
+    world.deskOwners.clear();
+
+    // Pass 1: restore every surviving claim before anyone can contend for a desk.
+    for (const [key, bot] of world.bots) {
+      if (bot.deskId && deskById(bot.deskId)) {
+        world.deskOwners.set(bot.deskId, key); // desk survived the edit — keep the claim
+      } else {
+        bot.deskId = null; // desk removed (or bot never had one) — release/stay unclaimed
+      }
+    }
+
+    // Pass 2: now that deskOwners reflects every retained claim, replan freely.
+    for (const [key, bot] of world.bots) {
+      bot.path = [];
+      const m = meta.get(key)!;
+      replan(bot, m, m.status);
+    }
+  }
+
+  return { world, sync, tick, updateWorld };
 }

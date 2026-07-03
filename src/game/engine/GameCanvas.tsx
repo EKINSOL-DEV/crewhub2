@@ -4,18 +4,23 @@
 import type { ReactNode } from "react";
 import { Canvas } from "@react-three/fiber";
 import { ACESFilmicToneMapping, PCFShadowMap } from "three";
+import { FrameLimiter } from "@/game/engine/FrameLimiter";
 import { useQuality, QUALITY } from "@/game/engine/quality";
 
 export function GameCanvas({ children }: { children: ReactNode }) {
   const tier = useQuality((s) => s.tier);
   return (
     <Canvas
+      // "demand" + FrameLimiter: frames happen at 60fps (15 unfocused), not
+      // at the display's refresh rate — see FrameLimiter for the why.
+      frameloop="demand"
       shadows={{ type: PCFShadowMap }}
       dpr={[1, QUALITY[tier].dprMax]}
       camera={{ position: [18, 20, 26], fov: 40, near: 0.5, far: 300 }}
       gl={{ toneMapping: ACESFilmicToneMapping, antialias: false }}
       fallback={null}
     >
+      <FrameLimiter />
       {children}
     </Canvas>
   );

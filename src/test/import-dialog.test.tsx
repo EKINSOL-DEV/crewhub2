@@ -7,7 +7,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import type { ImportReport } from "@/ipc/bindings";
 import { applyBlueprints, ImportV1Dialog } from "@/onboarding/ImportDialog";
-import { parseStoredRoomProps } from "@/panels/world/props/placement";
+import { parseStoredRoomProps } from "@/onboarding/v1-blueprint";
 
 afterEach(() => {
   cleanup();

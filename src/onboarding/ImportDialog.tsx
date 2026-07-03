@@ -9,9 +9,7 @@ import { useState } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { commands, type ImportReport, type TableReport } from "@/ipc/bindings";
-import { ROOM_SIZE } from "@/panels/world/lib/layout";
-import { parseV1Blueprint } from "@/panels/world/props/parse-v1";
-import { propsSettingKey, serializeRoomProps } from "@/panels/world/props/placement";
+import { parseV1Blueprint, propsSettingKey, ROOM_SIZE, serializeRoomProps } from "./v1-blueprint";
 
 // ── Pure: blueprint conversion leg (§3.2 round-trip, frontend half) ─────────
 
@@ -219,7 +217,8 @@ export function ImportV1Dialog({
         )}
         {phase === "done" && (
           <p className="text-xs" data-testid="import-done">
-            ✅ Done — your v1 file was left untouched. Rooms and props show up in the World panel.
+            ✅ Done — your v1 file was left untouched. Rooms and props are saved and waiting for a room-scoped
+            view to show them again.
           </p>
         )}
         {error && (

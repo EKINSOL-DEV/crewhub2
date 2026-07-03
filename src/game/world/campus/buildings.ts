@@ -20,6 +20,18 @@ export interface Building {
   door: { x: number; z: number };
 }
 
+/**
+ * Door: middle of the edge nearest the origin. Compute both candidate edge
+ * midpoints and pick the one with the smaller distance to origin. Shared
+ * with player-built pavilions (src/game/build/edits.ts) so the walk-in
+ * convention stays identical for every building on campus.
+ */
+export function nearestEdgeDoor(rect: Rect): { x: number; z: number } {
+  const xEdge = { x: rect.x - Math.sign(rect.x) * (rect.w / 2), z: rect.z };
+  const zEdge = { x: rect.x, z: rect.z - Math.sign(rect.z) * (rect.d / 2) };
+  return Math.hypot(xEdge.x, xEdge.z) <= Math.hypot(zEdge.x, zEdge.z) ? xEdge : zEdge;
+}
+
 export function campusBuildings(plots: Rect[]): Building[] {
   return plots.map((rect, plotIndex) => {
     // Two rows of two desks, facing each other across a center aisle.
@@ -31,11 +43,6 @@ export function campusBuildings(plots: Rect[]): Building[] {
       { id: `desk-${plotIndex}-2`, x: rect.x - dx, z: rect.z + dz, rot: 0, plotIndex },
       { id: `desk-${plotIndex}-3`, x: rect.x + dx, z: rect.z + dz, rot: 0, plotIndex },
     ];
-    // Door: middle of the edge nearest the origin. Compute both candidate
-    // edge midpoints and pick the one with the smaller distance to origin.
-    const xEdge = { x: rect.x - Math.sign(rect.x) * (rect.w / 2), z: rect.z };
-    const zEdge = { x: rect.x, z: rect.z - Math.sign(rect.z) * (rect.d / 2) };
-    const door = Math.hypot(xEdge.x, xEdge.z) <= Math.hypot(zEdge.x, zEdge.z) ? xEdge : zEdge;
-    return { plotIndex, rect, desks, door };
+    return { plotIndex, rect, desks, door: nearestEdgeDoor(rect) };
   });
 }

@@ -5,22 +5,22 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { usePrefersReducedMotion } from "@/components/use-reduced-motion";
 
-const COUNT = 7;
+const DEFAULT_COUNT = 7;
 const ALT = 26;
 const RANGE = 70;
 
-export function CloudPuffs() {
+export function CloudPuffs({ count = DEFAULT_COUNT }: { count?: number | undefined }) {
   const reducedMotion = usePrefersReducedMotion();
   const group = useRef<THREE.Group>(null);
   const seeds = useMemo(() => {
     // Fixed table, not Math.random(): identical sky every launch.
-    return Array.from({ length: COUNT }, (_, i) => ({
+    return Array.from({ length: count }, (_, i) => ({
       x: ((i * 37) % RANGE) - RANGE / 2,
       z: ((i * 53) % RANGE) - RANGE / 2,
       s: 2.2 + (i % 3) * 0.9,
       v: 0.4 + (i % 4) * 0.15,
     }));
-  }, []);
+  }, [count]);
 
   useFrame((_, dt) => {
     if (reducedMotion || !group.current) return;

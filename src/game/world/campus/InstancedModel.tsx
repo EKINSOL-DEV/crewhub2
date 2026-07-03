@@ -27,7 +27,10 @@ export function InstancedModel({
   const meshes = useMemo(() => collectMeshes(scene), [scene]);
   if (placements.length === 0) return null;
   return (
-    <Merged meshes={meshes} castShadow receiveShadow>
+    // frames={1}: placements never move, so drei recomputing every instance
+    // matrix per frame (~300 across the campus) is pure CPU waste — compute
+    // once on mount, then freeze (perf loop iter 4).
+    <Merged meshes={meshes} castShadow receiveShadow frames={1}>
       {(...Parts: ComponentType[]) => (
         <>
           {placements.map((p, i) => (
