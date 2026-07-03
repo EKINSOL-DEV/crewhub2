@@ -169,14 +169,14 @@ export function CampusWorld({ biome = BIOMES.campus }: { biome?: Biome }) {
             {b.kind === "hq" ? <Headquarters building={b} /> : <Pavilion building={b} />}
           </group>
         ))}
-        {/* HQ's interactive prop stands (M9 polish): unlike the old
-            Billboard-icon HqProps, these are plain toon geometry with no
-            per-frame rotation, so they live inside the frozen static-matrix
-            group right alongside <Headquarters> — their onPointerDown still
-            fires off the one-time-baked matrixWorld useStaticMatrices
-            computes above, same as every pavilion-wrapper click. */}
-        <HqProps />
       </group>
+      {/* HQ's interactive prop stands (M9 polish). Deliberately OUTSIDE the
+          frozen static-matrix group: mounting them inside it blacked the
+          entire first WebGL render (world + robots gone, no console error —
+          controller bisect 2026-07-04). Root cause unresolved; the cost of
+          leaving these ~40 matrices auto-updating is negligible, so they
+          live here with the plate/placed decor. */}
+      <HqProps />
       {/* Placed pavilions (M3 T5): a disjoint set from the seeded four above,
           so no dedup needed — see PlacedBuildings' header for why this stays
           outside the frozen static-matrix group. */}
