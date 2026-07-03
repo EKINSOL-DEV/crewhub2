@@ -222,6 +222,7 @@ export function ChatWindow({
         onPointerDown={drag.onPointerDown}
         onPointerMove={drag.onPointerMove}
         onPointerUp={drag.onPointerUp}
+        onPointerCancel={drag.onPointerUp}
       >
         <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: color }} />
         <span className="min-w-0 flex-1 truncate font-bold">{name}</span>

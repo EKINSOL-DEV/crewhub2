@@ -872,6 +872,20 @@ describe("draggable windows", () => {
     expect(onDrag).not.toHaveBeenCalled();
   });
 
+  it("stops updating pos after pointercancel (an OS-level gesture interrupt), same as pointerup", () => {
+    const onDrag = vi.fn();
+    render(<ChatWindow {...WINDOW_PROPS} pos={null} onDrag={onDrag} />);
+    const header = screen.getByTestId("chat-window-header");
+
+    fireEvent.pointerDown(header, { clientX: 100, clientY: 100, pointerId: 1 });
+    fireEvent.pointerCancel(header, { pointerId: 1 });
+    onDrag.mockClear();
+    // Without the cancel handler, this next move would resume the stale drag.
+    fireEvent.pointerMove(header, { clientX: 200, clientY: 200, pointerId: 1 });
+
+    expect(onDrag).not.toHaveBeenCalled();
+  });
+
   it("moving the pointer without a prior pointerdown is a no-op", () => {
     const onDrag = vi.fn();
     render(<ChatWindow {...WINDOW_PROPS} pos={null} onDrag={onDrag} />);
@@ -881,5 +895,70 @@ describe("draggable windows", () => {
       pointerId: 1,
     });
     expect(onDrag).not.toHaveBeenCalled();
+  });
+
+  it("ignores a pointerdown that starts on a header button — Minimize/Close aren't drag targets", () => {
+    const onDrag = vi.fn();
+    render(<ChatWindow {...WINDOW_PROPS} pos={null} onDrag={onDrag} />);
+    const header = screen.getByTestId("chat-window-header");
+    const closeButton = screen.getByRole("button", { name: "Close" });
+
+    fireEvent.pointerDown(closeButton, { clientX: 300, clientY: 20, pointerId: 1 });
+    fireEvent.pointerMove(header, { clientX: 340, clientY: 60, pointerId: 1 });
+
+    expect(onDrag).not.toHaveBeenCalled();
+  });
+
+  describe("viewport re-clamp (window resize / mount)", () => {
+    function withMockedViewport(width: number, height: number, run: () => void) {
+      const originalWidth = window.innerWidth;
+      const originalHeight = window.innerHeight;
+      Object.defineProperty(window, "innerWidth", { writable: true, configurable: true, value: width });
+      Object.defineProperty(window, "innerHeight", { writable: true, configurable: true, value: height });
+      try {
+        run();
+      } finally {
+        Object.defineProperty(window, "innerWidth", {
+          writable: true,
+          configurable: true,
+          value: originalWidth,
+        });
+        Object.defineProperty(window, "innerHeight", {
+          writable: true,
+          configurable: true,
+          value: originalHeight,
+        });
+      }
+    }
+
+    it("re-clamps an already-out-of-bounds pos immediately on mount", () => {
+      withMockedViewport(300, 200, () => {
+        const onDrag = vi.fn();
+        render(<ChatWindow {...WINDOW_PROPS} pos={{ x: 900, y: 700 }} onDrag={onDrag} />);
+        expect(onDrag).toHaveBeenCalledWith({ x: 260, y: 160 });
+      });
+    });
+
+    it("re-clamps a stored pos when the viewport shrinks (window resize)", () => {
+      const onDrag = vi.fn();
+      // Starts within the default (large) jsdom viewport, so mount does not
+      // fire onDrag — isolates the resize path from the mount-time one above.
+      render(<ChatWindow {...WINDOW_PROPS} pos={{ x: 900, y: 700 }} onDrag={onDrag} />);
+      expect(onDrag).not.toHaveBeenCalled();
+
+      withMockedViewport(300, 200, () => {
+        fireEvent(window, new Event("resize"));
+        expect(onDrag).toHaveBeenCalledWith({ x: 260, y: 160 });
+      });
+    });
+
+    it("does not re-clamp (or call onDrag) while pos is still null — a stack-slotted window isn't this hook's concern", () => {
+      const onDrag = vi.fn();
+      withMockedViewport(300, 200, () => {
+        render(<ChatWindow {...WINDOW_PROPS} pos={null} onDrag={onDrag} />);
+        fireEvent(window, new Event("resize"));
+        expect(onDrag).not.toHaveBeenCalled();
+      });
+    });
   });
 });

@@ -9,7 +9,7 @@
 // stack layout) until the first drag, so the drag start reads the window's
 // actual on-screen box instead.
 import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 
 export interface DragPoint {
   x: number;
@@ -25,11 +25,13 @@ export interface UseDragPositionOptions {
    *  own default layout applies then). */
   pos: DragPoint | null;
   /** Called with the next (already-clamped) position on every pointer move
-   *  while dragging. */
+   *  while dragging, and also (see the mount/resize effect below) whenever an
+   *  already-committed `pos` needs re-clamping to a viewport that shrank
+   *  since it was set. */
   onChange: (pos: DragPoint) => void;
   /** Px of the window's own box that must stay inside the viewport on the
    *  left/right/bottom edges — keeps a dragged-away window always reachable
-   *  again. Default 40. The top edge is stricter (see onPointerMove): it
+   *  again. Default 40. The top edge is stricter (see `clampToViewport`): it
    *  clamps to 0, not this sliver, since the header — the only drag handle
    *  and the Minimize/Close buttons' home — lives at the very top of the
    *  window and must never go off-screen. */
@@ -41,8 +43,29 @@ export interface UseDragPositionResult {
   onPointerDown: (e: ReactPointerEvent<HTMLElement>) => void;
   /** Wire to the same element's onPointerMove. */
   onPointerMove: (e: ReactPointerEvent<HTMLElement>) => void;
-  /** Wire to the same element's onPointerUp (and ideally onPointerCancel). */
+  /** Wire to the same element's onPointerUp AND onPointerCancel — an OS-level
+   *  gesture interrupt (e.g. a swipe-to-switch-app) fires cancel, not up, and
+   *  without this a stale `drag.current` would make the NEXT unrelated
+   *  pointermove (over the same element, pointer capture released or not)
+   *  resume the old drag. */
   onPointerUp: (e: ReactPointerEvent<HTMLElement>) => void;
+}
+
+/** The one clamp rule, shared by every place a position needs to respect the
+ *  viewport: an active drag (onPointerMove) and a re-clamp of an
+ *  already-committed `pos` (the mount/resize effect below, for a window
+ *  whose viewport shrank while it wasn't being dragged). Top edge floors at
+ *  0 (see UseDragPositionOptions.minVisible); the other three edges keep a
+ *  `minVisible`-px sliver. */
+function clampToViewport(p: DragPoint, rect: { width: number } | undefined, minVisible: number): DragPoint {
+  const w = rect?.width ?? 0;
+  const minX = minVisible - w;
+  const maxX = window.innerWidth - minVisible;
+  const maxY = window.innerHeight - minVisible;
+  return {
+    x: Math.min(maxX, Math.max(minX, p.x)),
+    y: Math.min(maxY, Math.max(0, p.y)),
+  };
 }
 
 /** Turns pointer events on a handle element into a clamped drag position for
@@ -58,6 +81,12 @@ export function useDragPosition({
   const drag = useRef<{ dx: number; dy: number } | null>(null);
 
   const onPointerDown = (e: ReactPointerEvent<HTMLElement>) => {
+    // The header hosts Minimize/Close (and will host more buttons once the
+    // bot-info panel reuses this hook) — a pointerdown that started on one of
+    // those must never begin a drag, or clicking Close nudges the window a
+    // few px before it closes (and, worse, retargets pointer capture onto the
+    // header instead of the button).
+    if (e.target instanceof HTMLElement && e.target.closest("button")) return;
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
     const start = pos ?? { x: rect.left, y: rect.top };
@@ -68,30 +97,32 @@ export function useDragPosition({
   const onPointerMove = (e: ReactPointerEvent<HTMLElement>) => {
     if (!drag.current) return;
     const rect = containerRef.current?.getBoundingClientRect();
-    const w = rect?.width ?? 0;
     const nextX = e.clientX - drag.current.dx;
     const nextY = e.clientY - drag.current.dy;
-    const minX = minVisible - w;
-    const maxX = window.innerWidth - minVisible;
-    // The top edge is special-cased to a hard floor of 0, not the same
-    // 40px-sliver rule as the other three edges: the header — the ONLY drag
-    // handle, and also where Minimize/Close live — sits at the very top of
-    // the window. Letting y go negative (the sliver rule's `minVisible - h`)
-    // would push the header itself above the viewport, leaving only the
-    // composer visible at the top edge — unrecoverable, since there's
-    // nothing left to grab or close it with. Off the bottom/left/right the
-    // header stays put and fully reachable, so the sliver rule is fine there.
-    const minY = 0;
-    const maxY = window.innerHeight - minVisible;
-    onChange({
-      x: Math.min(maxX, Math.max(minX, nextX)),
-      y: Math.min(maxY, Math.max(minY, nextY)),
-    });
+    onChange(clampToViewport({ x: nextX, y: nextY }, rect, minVisible));
   };
 
   const onPointerUp = () => {
     drag.current = null;
   };
+
+  // Re-clamp an already-committed `pos` to the viewport on mount (it may
+  // have been set on a larger screen in an earlier session — irrelevant
+  // in-memory-only today, but this also covers a window whose viewport
+  // shrinks while it's closed/unmounted) and on every subsequent browser
+  // resize. A still-stack-positioned window (`pos === null`) has nothing to
+  // re-clamp — its `right`-offset stack slot isn't this hook's concern.
+  useEffect(() => {
+    if (!pos) return;
+    const reclamp = () => {
+      const rect = containerRef.current?.getBoundingClientRect();
+      const clamped = clampToViewport(pos, rect, minVisible);
+      if (clamped.x !== pos.x || clamped.y !== pos.y) onChange(clamped);
+    };
+    reclamp();
+    window.addEventListener("resize", reclamp);
+    return () => window.removeEventListener("resize", reclamp);
+  }, [pos, onChange, containerRef, minVisible]);
 
   return { onPointerDown, onPointerMove, onPointerUp };
 }
