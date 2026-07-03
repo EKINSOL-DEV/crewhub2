@@ -1,7 +1,7 @@
 // M1 T8: demoCharacters covers every status the sim can render, with a
 // resting-crew entry, so `?demo` is a reliable smoke test without live data.
 import { describe, expect, it } from "vitest";
-import { campusBuildings, HQ_RECT, type Building } from "@/game/world/campus/buildings";
+import { campusBuildings, type Building } from "@/game/world/campus/buildings";
 import { campusLayout } from "@/game/world/campus/layout";
 import { buildNavGrid } from "./grid";
 import { createSim } from "./sim";
@@ -71,7 +71,7 @@ describe("demo warmup settles bots inside the world (M6 T5)", () => {
     return { grid: buildNavGrid(layout, buildings), buildings };
   }
 
-  it("seats every Working demo bot at a real desk and rests the demo crew bot inside HQ", () => {
+  it("seats every Working demo bot at a real desk and rests the demo crew bot in its home room", () => {
     const { grid, buildings } = demoWorld();
     const sim = createSim(grid, buildings, SEED);
     const characters = demoCharacters(0);
@@ -82,9 +82,13 @@ describe("demo warmup settles bots inside the world (M6 T5)", () => {
       expect(sim.world.bots.get(c.key)!.deskId).toMatch(/^desk-/);
     }
 
+    // Assigned crew rests in its HOME room now (live feedback 2026-07-04) —
+    // and in demo mode every building shares DEMO_GROUP, so the crew bot's
+    // home is the first non-HQ pavilion, not the HQ rest disc.
     const crew = characters.find((c) => c.agentId !== null)!;
     const crewBot = sim.world.bots.get(crew.key)!;
-    expect(Math.abs(crewBot.x)).toBeLessThan(HQ_RECT.w / 2);
-    expect(Math.abs(crewBot.z)).toBeLessThan(HQ_RECT.d / 2);
+    const home = buildings.find((b) => b.kind !== "hq")!;
+    expect(Math.abs(crewBot.x - home.rect.x)).toBeLessThan(home.rect.w / 2 + 1.5);
+    expect(Math.abs(crewBot.z - home.rect.z)).toBeLessThan(home.rect.d / 2 + 1.5);
   });
 });

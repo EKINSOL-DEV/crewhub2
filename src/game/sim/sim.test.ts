@@ -318,6 +318,43 @@ describe("createSim", () => {
     expect(sawWalk).toBe(true); // sanity: crew actually wanders, not stuck standing at spawn
   });
 
+  it("an Idle crew character ASSIGNED to a linked room rests inside that room, not HQ (live feedback)", () => {
+    // "Waarom zit CrewHub Lead Dev in de headquarters terwijl hij toegewezen
+    // is aan de CrewHub room?" — assigned crew now rests in its own room;
+    // only unassigned crew keeps the M6 HQ rest disc (test above).
+    const size = 100;
+    const grid: NavGrid = { size, cell: 1, blocked: new Uint8Array(size * size) };
+    const room: Building = {
+      plotIndex: 0,
+      rect: { x: 22, z: 22, w: 14, d: 12 },
+      desks: [{ id: "d0", x: 22, z: 22, rot: 0, plotIndex: 0 }],
+      door: { x: 22, z: 16 },
+      groupKey: "g1",
+    };
+    const buildings = [hqBuilding(), room];
+    const sim = createSim(grid, buildings, SEED);
+    sim.sync([char("a", "Idle", { agentId: "agent-1", groupKey: "g1" })]);
+    const bot = sim.world.bots.get("a")!;
+
+    // Let it walk from the HQ spawn to its home room first.
+    tickUntil(
+      sim,
+      0.25,
+      600,
+      () => Math.abs(bot.x - 22) < 7 + 1.5 && Math.abs(bot.z - 22) < 6 + 1.5 && bot.path.length === 0,
+    );
+
+    let sawWalk = false;
+    for (let i = 0; i < 200; i++) {
+      sim.tick(0.25);
+      if (bot.motion === "walk") sawWalk = true;
+      // Rest disc radius: max(1, min(14,12)/2 - 2) = 4, around the room
+      // center (+ cell-snap slack) — never back at HQ.
+      expect(Math.hypot(bot.x - 22, bot.z - 22)).toBeLessThan(4 + 1.5);
+    }
+    expect(sawWalk).toBe(true);
+  });
+
   it("removes a bot (and frees its desk) when its character drops out of sync", () => {
     const { grid, buildings } = fakeWorld();
     const sim = createSim(grid, buildings, SEED);
