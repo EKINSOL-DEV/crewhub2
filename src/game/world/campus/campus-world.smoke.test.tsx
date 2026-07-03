@@ -105,27 +105,29 @@ describe("CampusWorld smoke", () => {
       Object.values(layout.scatter).reduce((n, arr) => n + arr.length, 0) +
       Object.values(layout.props).reduce((n, arr) => n + arr.length, 0);
     // 5 terrain meshes (apron + grass + 2 path strips + plaza plate) + one
-    // stamped mesh per placement (see Merged stub above) + Fountain (1
-    // mocked-model mesh + 1 water disc) + CloudPuffs (7 puffs * 3 spheres) +
-    // Pavilions (M1 T1, walls M5 T3): each pavilion = 1 slab + 4 pillars +
-    // 3 beams + walls (3 full sides + 2 segments on the door-side wall) +
-    // 4 desks × (1 top + 2 legs + 1 screen) = 29 meshes; 4 pavilions = 116.
+    // stamped mesh per placement (see Merged stub above) + CloudPuffs (7
+    // puffs * 3 spheres) + Pavilions (M1 T1, walls M5 T3): each of the 4
+    // project pavilions = 1 slab + 4 pillars + 3 beams + walls (3 full sides
+    // + 2 segments on the door-side wall) + 4 desks × (1 top + 2 legs + 1
+    // screen) = 29 meshes; 4 pavilions = 116.
     // M6: campusBuildings() prepends the permanent HQ building, which
-    // CampusWorld renders through the same Pavilion component — but HQ has
-    // no desks, so it's 1 slab + 4 pillars + 3 beams + walls (5, same as any
-    // other single-door pavilion — Pavilion.tsx doesn't yet know about
-    // Building.doors, so it only cuts a gap for the primary `door`) = 13.
-    // Player-placed decor (M3 T4) renders through the same InstancedModel
-    // path, grouped by kind — with the default EMPTY_EDITS state (no
-    // player edits) that group renders nothing, so the formula below is
-    // untouched; the next test proves placed decor DOES add meshes.
+    // CampusWorld now renders through Headquarters.tsx (not Pavilion) — see
+    // headquarters.smoke.test.tsx for that component's own formula: apron +
+    // slab (2) + 4 pillars + 4 perimeter beams + walls (4 sides x 2
+    // segments, since every side carries its own door) + steps (4 doors x 2
+    // flanking meshes) + podium (1) + 3 prop pads + 2 banners (1
+    // mocked-model mesh each) = 32, plus its own permanent plate (1 backdrop
+    // mesh, HeadquartersPlate — mounted outside the frozen group, see below).
+    // The fixed plaza-center Fountain is gone (M6 moved it to placed decor,
+    // where it renders zero meshes with the default EMPTY_EDITS state — see
+    // the placed-fountain test further down).
     const TERRAIN_MESHES = 5;
-    const FOUNTAIN_MESHES = 2;
     const CLOUD_MESHES = 7 * 3;
-    const HQ_MESHES = 13;
-    const PAVILION_MESHES = 4 * 29 + HQ_MESHES;
+    const HQ_MESHES = 32;
+    const HQ_PLATE_MESHES = 1;
+    const PAVILION_MESHES = 4 * 29;
     expect(meshes.length).toBe(
-      totalPlacements + TERRAIN_MESHES + FOUNTAIN_MESHES + CLOUD_MESHES + PAVILION_MESHES,
+      totalPlacements + TERRAIN_MESHES + CLOUD_MESHES + PAVILION_MESHES + HQ_MESHES + HQ_PLATE_MESHES,
     );
     await renderer.unmount();
   });
@@ -157,6 +159,22 @@ describe("CampusWorld smoke", () => {
 
     const after = await ReactThreeTestRenderer.create(<CampusWorld />);
     expect(after.scene.findAllByType("Mesh").length).toBe(baseCount + 2);
+    await after.unmount();
+  });
+
+  it("renders a placed fountain as its own animated <Fountain> (2 meshes: model + water disc), not instanced through InstancedModel (1 mesh per placement like every other kind)", async () => {
+    const before = await ReactThreeTestRenderer.create(<CampusWorld />);
+    const baseCount = before.scene.findAllByType("Mesh").length;
+    await before.unmount();
+
+    useCampusEdits.getState().addItem("fountain", 10, 10, 0);
+    useCampusEdits.getState().addItem("bench", -10, -10, 0);
+
+    const after = await ReactThreeTestRenderer.create(<CampusWorld />);
+    // +2 for the fountain (model + water disc, Fountain's own signature —
+    // see Fountain.tsx) and +1 for the bench (InstancedModel, one stamped
+    // mesh per placement) confirms the fountain took the different path.
+    expect(after.scene.findAllByType("Mesh").length).toBe(baseCount + 3);
     await after.unmount();
   });
 

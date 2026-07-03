@@ -15,12 +15,16 @@ import { useCampusEdits } from "@/game/build/store";
 import { CloudPuffs } from "@/game/world/CloudPuffs";
 import { BIOMES, type Biome } from "@/game/world/biome";
 import { Fountain } from "./Fountain";
+import { Headquarters, HeadquartersPlate, HQ_PLATE_Y } from "./Headquarters";
 import { InstancedModel } from "./InstancedModel";
 import { Terrain } from "./Terrain";
 import { campusLayout, type ScatterKind } from "./layout";
 import { campusBuildings } from "./buildings";
 import { Pavilion, WALL_HEIGHT } from "./Pavilion";
 import { RoofPlate } from "./RoofPlate";
+
+/** Placed fountains keep the lantern/bench/hedge decor convention (M3 T4). */
+const PLACED_FOUNTAIN_SCALE = 1.4;
 
 /** Roof-nameplate height — matches PlacedBuildings' convention. Must clear
  *  Pavilion.tsx's roof beams, which peak at y=3.94 (centered at 3.85, height
@@ -119,8 +123,8 @@ export function CampusWorld({ biome = BIOMES.campus }: { biome?: Biome }) {
 
   return (
     <group>
-      {/* Animated residents (fountain water, clouds) stay auto-updating. */}
-      <Fountain />
+      {/* Animated residents (clouds) stay auto-updating. The plaza-center
+          fountain moved to placed decor (M6) — HQ now stands where it did. */}
       <CloudPuffs count={biome.clouds} />
       <group ref={staticRef}>
         <Terrain grass={biome.grass} apron={biome.apron} path={biome.path} />
@@ -150,7 +154,7 @@ export function CampusWorld({ biome = BIOMES.campus }: { biome?: Biome }) {
                   onPointerDown: (e: ThreeEvent<PointerEvent>) => handlePavilionPointerDown(e, b.plotIndex),
                 })}
           >
-            <Pavilion building={b} />
+            {b.kind === "hq" ? <Headquarters building={b} /> : <Pavilion building={b} />}
           </group>
         ))}
       </group>
@@ -158,18 +162,34 @@ export function CampusWorld({ biome = BIOMES.campus }: { biome?: Biome }) {
           so no dedup needed — see PlacedBuildings' header for why this stays
           outside the frozen static-matrix group. */}
       <PlacedBuildings />
-      {(Object.keys(placedByKind) as PlaceableKind[]).map((kind) => (
-        <InstancedModel
-          key={`${kind}-${versionByKind[kind] ?? 0}`}
-          id={kind}
-          placements={placedByKind[kind]!}
-        />
-      ))}
+      {/* "fountain" is excluded here — placed fountains render as live
+          <Fountain> components below (animated water disc) instead of
+          joining this frozen InstancedModel/Merged group. */}
+      {(Object.keys(placedByKind) as PlaceableKind[])
+        .filter((kind) => kind !== "fountain")
+        .map((kind) => (
+          <InstancedModel
+            key={`${kind}-${versionByKind[kind] ?? 0}`}
+            id={kind}
+            placements={placedByKind[kind]!}
+          />
+        ))}
+      {edits.items
+        .filter((item) => item.kind === "fountain")
+        .map((item) => (
+          <Fountain
+            key={item.id}
+            position={[item.x, 0, item.z]}
+            rotationY={item.rot}
+            scale={PLACED_FOUNTAIN_SCALE}
+          />
+        ))}
       {/* Base pavilions' roof nameplates (M5 T4): kept outside the frozen
           static-matrix group above — unlike the terrain/pavilion geometry,
           a plot's project link changes at runtime, and RoofPlate needs to
           react to that. HQ (M6) is excluded — it has no project to name,
-          and its plotIndex (-1) isn't a real key into plotProjects. */}
+          and its plotIndex (-1) isn't a real key into plotProjects; it gets
+          its own permanent, project-independent plate instead. */}
       {buildings
         .filter((b) => b.kind !== "hq")
         .map((b) => (
@@ -179,6 +199,7 @@ export function CampusWorld({ biome = BIOMES.campus }: { biome?: Biome }) {
             position={[b.rect.x, PLATE_Y, b.rect.z]}
           />
         ))}
+      <HeadquartersPlate position={[0, HQ_PLATE_Y, 0]} />
     </group>
   );
 }
