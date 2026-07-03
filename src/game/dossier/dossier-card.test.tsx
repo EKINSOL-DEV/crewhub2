@@ -23,8 +23,10 @@ const {
   agentsState,
   projectsState,
   biosState,
+  cameraModeState,
   openSpy,
   followBotSpy,
+  exitSpy,
   ensureSpy,
   regenerateSpy,
 } = vi.hoisted(() => ({
@@ -34,8 +36,12 @@ const {
   agentsState: { current: [] as Agent[] },
   projectsState: { current: [] as Project[] },
   biosState: { bios: {} as Record<string, string>, loading: null as string | null },
+  // Round 2: ExitZoomButton (GamePanel.tsx) subscribes to camera mode — real
+  // mode shape isn't needed here, just enough to drive "active or not".
+  cameraModeState: { current: { kind: "free" } as { kind: string } },
   openSpy: vi.fn(),
   followBotSpy: vi.fn(),
+  exitSpy: vi.fn(),
   ensureSpy: vi.fn(),
   regenerateSpy: vi.fn(),
 }));
@@ -97,8 +103,14 @@ vi.mock("@/game/chat/store", () => ({
   useGameChats: { getState: () => ({ open: openSpy }) },
 }));
 
+// Callable (ExitZoomButton's subscription) AND .getState() (the Follow
+// footer button, and ExitZoomButton's own exit() call) — same
+// Object.assign convention as every other store mock in this file.
 vi.mock("@/game/engine/camera/director", () => ({
-  useCameraDirector: { getState: () => ({ followBot: followBotSpy }) },
+  useCameraDirector: Object.assign(
+    (selector: (s: { mode: { kind: string } }) => unknown) => selector({ mode: cameraModeState.current }),
+    { getState: () => ({ followBot: followBotSpy, exit: exitSpy, mode: cameraModeState.current }) },
+  ),
 }));
 
 import { playSfx } from "@/game/audio/sfx";
@@ -195,10 +207,12 @@ beforeEach(() => {
   projectsState.current = [];
   biosState.bios = {};
   biosState.loading = null;
+  cameraModeState.current = { kind: "free" };
   useBuildMode.setState({ roomCard: null });
   vi.mocked(playSfx).mockClear();
   openSpy.mockClear();
   followBotSpy.mockClear();
+  exitSpy.mockClear();
   ensureSpy.mockClear();
   regenerateSpy.mockClear();
 });
@@ -416,6 +430,30 @@ describe("DossierCard", () => {
     render(<DossierCard dossierKey="claude:s1" onClose={onClose} />);
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  // Round 2: the shared "🎥 Exit zoom" header action (GamePanel.tsx's
+  // ExitZoomButton), only present while the camera is focused/following.
+  describe("🎥 Exit zoom header action", () => {
+    it("is absent while the camera is free", () => {
+      sessionsState.current = { "claude:s1": meta("s1") };
+      render(<DossierCard dossierKey="claude:s1" onClose={vi.fn()} />);
+      expect(screen.queryByTestId("game-panel-exit-zoom")).not.toBeInTheDocument();
+    });
+
+    it("appears while following, and clicking it calls exit() without closing the card itself", () => {
+      cameraModeState.current = { kind: "follow" };
+      sessionsState.current = { "claude:s1": meta("s1") };
+      const onClose = vi.fn();
+      render(<DossierCard dossierKey="claude:s1" onClose={onClose} />);
+      const button = screen.getByTestId("game-panel-exit-zoom");
+      fireEvent.click(button);
+      expect(exitSpy).toHaveBeenCalledTimes(1);
+      // GameShell's own focus-coupled effect is what closes the card in the
+      // real app (see GameShell.tsx) — this unit test only proves the
+      // button's own contract: it calls exit(), nothing more.
+      expect(onClose).not.toHaveBeenCalled();
+    });
   });
 
   it("resting crew (agent:-keyed, no live session) render a Resting status chip", () => {

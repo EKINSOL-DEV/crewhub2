@@ -3,12 +3,17 @@
 // Workspace/Settings chips (M4 T6 fix round 1) are the one exception: not
 // debug, but the only way out of the main window now that WorldView's gear
 // button and dock are gone — see src/game/app/windows.ts.
+//
+// M8 T2's own 🎥✕ camera-exit chip used to live here, bottom-left among the
+// other small mode-toggle chips — round 2's own user feedback called it out
+// as unclear (buried in a row of six other buttons). Moved to
+// CameraExitPill.tsx: a standalone, prominent, centered pill mounted as a
+// GameShell sibling instead, not a member of this row.
 import { ENVIRONMENTS, environmentById } from "@/game/world/environments/registry";
 import { useGameEnvironment } from "@/game/world/environments/store";
-import { playSfx, useAudio } from "@/game/audio/sfx";
+import { useAudio } from "@/game/audio/sfx";
 import { useQuality, type QualityTier } from "@/game/engine/quality";
 import { useBuildMode } from "@/game/build/mode";
-import { useCameraDirector } from "@/game/engine/camera/director";
 import { openSettingsWindow, openWorkspaceWindow } from "@/game/app/windows";
 
 const NEXT_TIER: Record<QualityTier, QualityTier> = { low: "medium", medium: "high", high: "low" };
@@ -37,29 +42,11 @@ export function HudOverlay({
   const deactivateBuild = useBuildMode((s) => s.deactivate);
   const muted = useAudio((s) => s.muted);
   const toggleMuted = useAudio((s) => s.toggleMuted);
-  // M8 T2: the only way out of a focus/follow camera shot besides Escape —
-  // subscribed (not .getState()) since this chip's very visibility is the
-  // render that must react to mode changing.
-  const cameraActive = useCameraDirector((s) => s.mode.kind !== "free");
   const idx = ENVIRONMENTS.findIndex((e) => e.id === env.id);
   const next = ENVIRONMENTS[(idx + 1) % ENVIRONMENTS.length]!;
 
   return (
     <div className="pointer-events-none absolute bottom-4 left-4 flex items-center gap-2">
-      {cameraActive && (
-        <button
-          type="button"
-          data-testid="hud-camera-exit"
-          className="pointer-events-auto rounded-full border-2 border-white/60 bg-rose-700/80 px-4 py-2 text-sm font-bold text-white shadow-xl backdrop-blur transition-transform hover:scale-105"
-          title="Exit camera shot"
-          onClick={() => {
-            useCameraDirector.getState().exit();
-            playSfx("click");
-          }}
-        >
-          🎥 ✕
-        </button>
-      )}
       <button
         type="button"
         data-testid="hud-environment"

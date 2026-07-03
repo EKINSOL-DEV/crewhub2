@@ -1,24 +1,30 @@
 // Bot dossier card (M9 T2): the "who is this bot, really" panel. Styled like
-// HireDialog/HqCard (chunky white/slate game-card look) but positioned and
-// dragged like ChatWindow — a floating panel anchored center-right by
-// default, not a centered modal over a blurred backdrop — so it can sit
-// alongside an open chat window instead of blacking out the world behind
-// it. Reached from a ChatWindow header's ℹ️ button and from HqCard's roster
-// rows, both of which just call `useBuildMode.getState().openRoomCard({
-// kind: "dossier", key })` — the single-open card slot mode.ts already
-// enforces (see its own doc comment) does the rest, including closing this
-// card when anything else opens.
+// HireDialog/HqCard (chunky white/slate game-card look). Reached from a
+// ChatWindow header's ℹ️ button and from HqCard's roster rows, both of which
+// just call `useBuildMode.getState().openRoomCard({ kind: "dossier", key })`
+// — the single-open card slot mode.ts already enforces (see its own doc
+// comment) does the rest, including closing this card when anything else
+// opens.
+//
+// Docked side panel (side-panel conversion): this used to be the one card
+// with its own floating/draggable behavior (ChatWindow-style, anchored
+// center-right, repositionable via useDragPosition) rather than a centered
+// modal. Now it's the same uniform docked GamePanel every other card uses —
+// drag stays a chat-window-only affordance. Its bio strip and footer
+// buttons are `sticky top-0` / `sticky bottom-0` inside the panel's one
+// scrollable body, so they stay put while the info grid between them
+// scrolls.
 //
 // Data comes from `buildDossier` (data.ts, M9 T1) — this file only wires
 // that pure join to the live stores (useDossier below) and renders the
 // result; the bio text comes from useBios (bio.ts, M9 T1), also read-only
 // from this file's perspective.
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { playSfx } from "@/game/audio/sfx";
 import { useBuildMode } from "@/game/build/mode";
 import { useGameChats } from "@/game/chat/store";
-import { useDragPosition, type DragPoint } from "@/game/chat/use-drag-position";
 import { useCameraDirector } from "@/game/engine/camera/director";
+import { ExitZoomButton, GamePanel } from "@/game/hud/GamePanel";
 import type { SessionStatus } from "@/ipc/bindings";
 import { useAgentsStore } from "@/stores/agents";
 import { useBindingsStore } from "@/stores/bindings";
@@ -115,9 +121,6 @@ export function DossierCard({ dossierKey, onClose }: DossierCardProps) {
   const loading = useBios((s) => s.loading);
   const ensure = useBios((s) => s.ensure);
   const regenerate = useBios((s) => s.regenerate);
-  const container = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<DragPoint | null>(null);
-  const drag = useDragPosition({ containerRef: container, pos, onChange: setPos });
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -151,44 +154,24 @@ export function DossierCard({ dossierKey, onClose }: DossierCardProps) {
   const cached = bios[bioKey];
   const bioText = cached === undefined ? "🤖 …" : cached === BIO_DISABLED_PLACEHOLDER ? "—" : cached;
 
-  const style: CSSProperties = pos
-    ? { left: pos.x, top: pos.y, right: "auto", bottom: "auto" }
-    : { top: "50%", right: 16, transform: "translateY(-50%)" };
-
   return (
-    <div
-      ref={container}
-      data-testid="dossier-card"
-      className="pointer-events-auto absolute flex max-h-[70vh] w-[380px] flex-col rounded-3xl border-2 border-white/60 bg-white/90 text-slate-900 shadow-2xl backdrop-blur"
-      style={style}
+    <GamePanel
+      title={
+        <div data-testid="dossier-card-header" className="flex flex-1 items-center gap-2">
+          <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: info.color }} />
+          <span className="min-w-0 flex-1 truncate font-bold">{info.name}</span>
+          <span
+            data-testid="dossier-card-status"
+            className="shrink-0 rounded-full bg-slate-900/5 px-2 py-0.5 text-xs"
+          >
+            {STATUS_LABEL[info.status]}
+          </span>
+        </div>
+      }
+      onClose={onClose}
+      headerAction={<ExitZoomButton />}
     >
-      <div
-        data-testid="dossier-card-header"
-        className="flex cursor-grab items-center gap-2 rounded-t-3xl border-b-2 border-slate-900/10 px-4 py-3 active:cursor-grabbing"
-        onPointerDown={drag.onPointerDown}
-        onPointerMove={drag.onPointerMove}
-        onPointerUp={drag.onPointerUp}
-        onPointerCancel={drag.onPointerUp}
-      >
-        <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: info.color }} />
-        <span className="min-w-0 flex-1 truncate font-bold">{info.name}</span>
-        <span
-          data-testid="dossier-card-status"
-          className="shrink-0 rounded-full bg-slate-900/5 px-2 py-0.5 text-xs"
-        >
-          {STATUS_LABEL[info.status]}
-        </span>
-        <button
-          type="button"
-          aria-label="Close"
-          className="rounded-full px-1.5 py-0.5 font-bold hover:bg-slate-900/10"
-          onClick={onClose}
-        >
-          ✕
-        </button>
-      </div>
-
-      <div className="flex items-start gap-2 border-b-2 border-slate-900/10 px-4 py-3">
+      <div className="sticky top-0 z-10 flex items-start gap-2 border-b-2 border-slate-900/10 bg-white/90 px-4 py-3 backdrop-blur">
         <p data-testid="dossier-card-bio" className="min-w-0 flex-1 text-sm text-slate-600 italic">
           {bioText}
         </p>
@@ -204,7 +187,7 @@ export function DossierCard({ dossierKey, onClose }: DossierCardProps) {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-3" data-testid="dossier-card-grid">
+      <div className="px-4 py-3" data-testid="dossier-card-grid">
         {rowsFor(info, nowMs).map((row) => (
           <div key={row.label} className="flex items-start justify-between gap-3 py-1 text-sm">
             <span className="shrink-0 text-slate-500">{row.label}</span>
@@ -229,7 +212,7 @@ export function DossierCard({ dossierKey, onClose }: DossierCardProps) {
         ))}
       </div>
 
-      <div className="flex gap-2 border-t-2 border-slate-900/10 p-2">
+      <div className="sticky bottom-0 z-10 flex gap-2 border-t-2 border-slate-900/10 bg-white/90 p-2 backdrop-blur">
         {info.key.startsWith("agent:") ? (
           // Resting crew has no live session to chat with — 💬 Chat would be
           // a dead button (ChatWindows.tsx filters `agent:`-keyed chats out
@@ -270,6 +253,6 @@ export function DossierCard({ dossierKey, onClose }: DossierCardProps) {
           🎥 Follow
         </button>
       </div>
-    </div>
+    </GamePanel>
   );
 }

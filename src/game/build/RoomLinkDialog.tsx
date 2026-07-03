@@ -1,13 +1,19 @@
 // Room-link prompt (M3 T5, project-based M5 T4): shown right after a
 // building is placed, mounted by GameShell whenever mode.ts's
 // `pendingRoomLink` is set. Restyled per HireDialog/ChatWindow's chunky
-// white/slate game-card look — a centered Card over a blurred backdrop, DOM
-// not three.js (this is UI chrome, not campus geometry). Picking a project
-// (or "No project") writes `projectId` onto the building via the edits
-// store, which PlacedBuildings reads for both the slab-edge tint and the
-// roof nameplate; skipping leaves it null, a fully valid state.
+// white/slate game-card look — a docked side panel, DOM not three.js (this
+// is UI chrome, not campus geometry). Picking a project (or "No project")
+// writes `projectId` onto the building via the edits store, which
+// PlacedBuildings reads for both the slab-edge tint and the roof nameplate;
+// skipping leaves it null, a fully valid state.
+//
+// Docked side panel (side-panel conversion), not a centered modal — see
+// GamePanel's own header comment. It previously had no ✕ (only Escape/
+// backdrop-click skipped it); GamePanel gives it one uniformly now that
+// there's no backdrop left to click.
 import { useEffect } from "react";
 import { playSfx } from "@/game/audio/sfx";
+import { GamePanel } from "@/game/hud/GamePanel";
 import { useProjectsStore } from "@/stores/projects";
 import { useCampusEdits } from "./store";
 
@@ -18,9 +24,9 @@ export function RoomLinkDialog({ buildingId, onClose }: { buildingId: string; on
   const projects = useProjectsStore((s) => s.projects);
   const setBuildingProject = useCampusEdits((s) => s.setBuildingProject);
 
-  // Escape skips, same convention as HireDialog's backdrop click and
-  // BuildControls' own Escape handling — this dialog floats over the canvas
-  // for a beat, it shouldn't trap the player.
+  // Escape skips, same convention as BuildControls' own Escape handling —
+  // this dialog floats over the canvas for a beat, it shouldn't trap the
+  // player.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -36,16 +42,8 @@ export function RoomLinkDialog({ buildingId, onClose }: { buildingId: string; on
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        data-testid="room-link-dialog"
-        className="flex w-[320px] flex-col gap-2 rounded-3xl border-2 border-white/60 bg-white/90 p-4 text-slate-900 shadow-2xl backdrop-blur"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="font-bold">🏷️ Link a project?</div>
+    <GamePanel title={<span className="flex-1 font-bold">🏷️ Link a project?</span>} onClose={onClose}>
+      <div data-testid="room-link-dialog" className="flex flex-col gap-2 p-3">
         <ul className="flex max-h-60 flex-col gap-1 overflow-y-auto" data-testid="room-link-list">
           {projects.length === 0 && <li className="text-sm text-slate-500">No projects yet.</li>}
           {projects.map((project) => (
@@ -79,6 +77,6 @@ export function RoomLinkDialog({ buildingId, onClose }: { buildingId: string; on
           No project
         </button>
       </div>
-    </div>
+    </GamePanel>
   );
 }

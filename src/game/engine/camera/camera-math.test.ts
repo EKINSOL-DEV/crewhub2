@@ -7,6 +7,8 @@ import {
   dragArmed,
   edgeScrollActive,
   FOCUS_ADJUST_IDENTITY,
+  FOLLOW_DISTANCE,
+  followEntryDistance,
   isRestored,
   rotateFocusAdjust,
   zoomFocusAdjust,
@@ -68,7 +70,7 @@ describe("chaseFocus", () => {
 });
 
 describe("chaseFollow", () => {
-  it("chases target x/z but leaves yaw/distance untouched, even at k=1", () => {
+  it("chases target x/z but leaves yaw/distance untouched when no distanceTarget is given, even at k=1", () => {
     const current = cam({ targetX: 0, targetZ: 0, yaw: 1.23, distance: 45 });
     const next = chaseFollow(current, 7, -3, 1);
     expect(next.targetX).toBeCloseTo(7, 10);
@@ -80,6 +82,31 @@ describe("chaseFollow", () => {
   it("k=0 is a no-op", () => {
     const current = cam({ targetX: 1, targetZ: 2 });
     expect(chaseFollow(current, 99, 99, 0)).toEqual(current);
+  });
+
+  // Round 2: the one-time follow-entry zoom-in.
+  it("chases distance toward an explicit distanceTarget when given, still leaving yaw alone", () => {
+    const current = cam({ yaw: 1.23, distance: 45 });
+    const next = chaseFollow(current, 0, 0, 1, 16);
+    expect(next.yaw).toBe(1.23);
+    expect(next.distance).toBeCloseTo(16, 10);
+  });
+
+  it("a distanceTarget of undefined (the default) behaves identically to omitting it", () => {
+    const current = cam({ distance: 45 });
+    expect(chaseFollow(current, 1, 1, 0.5, undefined)).toEqual(chaseFollow(current, 1, 1, 0.5));
+  });
+});
+
+describe("followEntryDistance", () => {
+  it("caps a farther-than-FOLLOW_DISTANCE current distance down to the cap", () => {
+    expect(followEntryDistance(45)).toBe(FOLLOW_DISTANCE);
+    expect(followEntryDistance(FOLLOW_DISTANCE + 0.01)).toBe(FOLLOW_DISTANCE);
+  });
+
+  it("leaves an already-closer-than-the-cap distance alone (never pushes back out)", () => {
+    expect(followEntryDistance(10)).toBe(10);
+    expect(followEntryDistance(FOLLOW_DISTANCE)).toBe(FOLLOW_DISTANCE);
   });
 });
 
@@ -111,6 +138,22 @@ describe("chaseRestore + isRestored", () => {
     }
     expect(steps).toBeGreaterThan(0);
     expect(steps).toBeLessThan(1000);
+  });
+
+  // Bug-fix acceptance criterion (round 2): exiting focus/follow must zoom
+  // back OUT to the pre-focus view, not sit at whatever distance the
+  // focus/follow shot (or round 2's follow-entry zoom-in cap) left the
+  // camera at. This is the property that makes that true at the pure-math
+  // level: chaseRestore always chases toward the SAVED snapshot's distance,
+  // regardless of how far `current` is from it — a zoomed-in follow
+  // distance (16, the FOLLOW_DISTANCE cap) restoring to a much farther
+  // pre-focus snapshot (40) must chase toward 40, not linger near 16.
+  it("restores to the pre-focus snapshot's distance even from a zoomed-in follow distance, not the follow distance itself", () => {
+    const zoomedInFollow = cam({ distance: 16 });
+    const preFocusSnapshot = cam({ distance: 40 });
+    const next = chaseRestore(zoomedInFollow, preFocusSnapshot, 1);
+    expect(next.distance).toBeCloseTo(40, 10);
+    expect(next.distance).not.toBeCloseTo(16, 0);
   });
 });
 
