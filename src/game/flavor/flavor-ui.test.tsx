@@ -18,6 +18,8 @@ const { mockInit, mockMaybeThink, mockThoughts } = vi.hoisted(() => ({
   mockThoughts: {} as Record<string, { text: string; ts: number }>,
 }));
 
+const MOCK_THOUGHT_TTL_MS = 30_000;
+
 vi.mock("@/game/flavor/engine", () => ({
   useFlavor: Object.assign(
     (selector: (s: { thoughts: Record<string, { text: string; ts: number }> }) => unknown) =>
@@ -32,6 +34,13 @@ vi.mock("@/game/flavor/engine", () => ({
       }),
     },
   ),
+  // Mirrors engine.ts's real thoughtFor closely enough for the precedence
+  // test below — a pure TTL-filtered read off the same mocked thoughts map.
+  thoughtFor: (key: string, nowMs: number) => {
+    const t = mockThoughts[key];
+    if (!t || nowMs - t.ts > MOCK_THOUGHT_TTL_MS) return null;
+    return t;
+  },
 }));
 
 function character(overrides: Partial<Character> = {}): Character {
@@ -91,6 +100,28 @@ describe("useFlavorTicker", () => {
     unmount();
     act(() => vi.advanceTimersByTime(30_000));
     expect(mockMaybeThink).not.toHaveBeenCalled();
+  });
+
+  it("keeps the 15s interval running across characters reference changes (regression)", () => {
+    // The sessions store replaces its state (and so `characters`' array
+    // identity) sub-second while a session is actively Working — this
+    // reproduces that by handing the hook a brand-new array, same content,
+    // on every rerender, well inside the 15s window.
+    const { rerender } = renderHook(({ chars }: { chars: Character[] }) => useFlavorTicker(chars, true), {
+      initialProps: { chars: [character()] },
+    });
+
+    for (let i = 0; i < 5; i++) {
+      act(() => vi.advanceTimersByTime(2_000));
+      rerender({ chars: [character()] });
+    }
+    // 10s have elapsed in 2s slices, each followed by a fresh array
+    // reference — if the interval reset on every reference change (the
+    // bug), it would never fire.
+    expect(mockMaybeThink).not.toHaveBeenCalled();
+
+    act(() => vi.advanceTimersByTime(5_000)); // crosses the 15s mark
+    expect(mockMaybeThink).toHaveBeenCalledTimes(1);
   });
 });
 

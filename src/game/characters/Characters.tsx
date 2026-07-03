@@ -11,7 +11,7 @@ import type { SessionStatus } from "@/ipc/bindings";
 import type { Character } from "@/game/sim/characters";
 import { SpeechBubble } from "@/game/chat/SpeechBubble";
 import { useGameSpeechBubbles } from "@/game/chat/use-speech-bubbles";
-import { useFlavor } from "@/game/flavor/engine";
+import { thoughtFor, useFlavor } from "@/game/flavor/engine";
 import { ThoughtBubble } from "@/game/flavor/ThoughtBubble";
 import { Robot, type RobotHandles } from "./Robot";
 import { pose } from "./pose";
@@ -29,13 +29,11 @@ export const BULB: Record<SessionStatus, string> = {
 const DAMP_RATE = 8; // exponential damp rate for position/facing follow
 const NAME_Y = 2.1;
 const FALLBACK_COLOR = "#94a3b8";
-// Mirrors flavor/engine.ts's THOUGHT_TTL_MS (not exported there — the store
-// only exposes the imperative `thoughtFor` read, and this component needs to
-// re-render on a plain interval anyway to notice expiry, see NOW_TICK_MS).
-const THOUGHT_TTL_MS = 30_000;
 // How often thought expiry is re-checked absent a new thought arriving —
-// coarse on purpose, a thought may linger up to this long past its TTL
-// before the next tick hides it; unnoticeable at a 5s grain.
+// `thoughtFor` is a pure read (engine.ts doesn't prune the store), so
+// nothing else forces a re-render once a thought's TTL passes. Coarse on
+// purpose: a thought may linger up to this long past its TTL before the
+// next tick hides it, unnoticeable at a 5s grain.
 const NOW_TICK_MS = 5_000;
 
 /** Shortest-arc exponential damp — same shape as THREE.MathUtils.damp, angle-aware. */
@@ -157,10 +155,10 @@ export function Characters({
   const { sim, version, infoRef } = useSim(override);
   const actorsRef = useRef<Map<string, ActorRefs>>(new Map());
   const speech = useGameSpeechBubbles();
-  // Subscribes so a fresh thought shows immediately; `nowMs` below covers the
-  // other half — hiding one once its TTL passes with no new thought to
-  // trigger a re-render on its own.
-  const thoughts = useFlavor((s) => s.thoughts);
+  // Subscribed (return value unused) so a fresh thought shows immediately;
+  // `nowMs` below covers the other half — hiding one once its TTL passes
+  // with no new thought arriving to trigger a re-render on its own.
+  useFlavor((s) => s.thoughts);
   const [nowMs, setNowMs] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setNowMs(Date.now()), NOW_TICK_MS);
@@ -216,8 +214,7 @@ export function Characters({
   return (
     <group>
       {bots.map(({ key, x, z, facing, info }) => {
-        const thought = thoughts[key];
-        const thoughtText = thought && nowMs - thought.ts <= THOUGHT_TTL_MS ? thought.text : undefined;
+        const thoughtText = thoughtFor(key, nowMs)?.text;
         return (
           <CharacterActor
             key={key}
