@@ -80,13 +80,15 @@ export function CampusWorld({ biome = BIOMES.campus }: { biome?: Biome }) {
   const scatterKinds = (Object.keys(SCATTER_MODEL) as ScatterKind[]).filter((k) => !skip.includes(k));
 
   // Player-placed decor (M3 T4): grouped by kind for InstancedModel, keyed
-  // by `version` so a fresh edit remounts the group instead of trying to
-  // animate its frozen (frames={1}) instance matrices. Kept OUTSIDE the
-  // static-matrix group below — these placements change at runtime, so
-  // freezing them would just mean re-running useStaticMatrices on every
-  // edit; a cheap remount of a few dozen meshes is simpler.
+  // by `versionByKind[kind]` (M4 debt sweep) so a fresh edit remounts only
+  // its own kind's group instead of trying to animate its frozen
+  // (frames={1}) instance matrices — moving one tree no longer remounts
+  // every placed kind's InstancedModel. Kept OUTSIDE the static-matrix
+  // group below — these placements change at runtime, so freezing them
+  // would just mean re-running useStaticMatrices on every edit; a cheap
+  // remount of one kind's meshes is simpler.
   const edits = useCampusEdits((s) => s.edits);
-  const version = useCampusEdits((s) => s.version);
+  const versionByKind = useCampusEdits((s) => s.versionByKind);
   // Shared with applyEdits (build/edits.ts) — one item->Placement mapping,
   // including the scale-1.4 convention, so CampusWorld's render pass and
   // applyEdits' merge pass can't drift apart.
@@ -124,7 +126,11 @@ export function CampusWorld({ biome = BIOMES.campus }: { biome?: Biome }) {
           outside the frozen static-matrix group. */}
       <PlacedBuildings />
       {(Object.keys(placedByKind) as PlaceableKind[]).map((kind) => (
-        <InstancedModel key={`${kind}-${version}`} id={kind} placements={placedByKind[kind]!} />
+        <InstancedModel
+          key={`${kind}-${versionByKind[kind] ?? 0}`}
+          id={kind}
+          placements={placedByKind[kind]!}
+        />
       ))}
     </group>
   );

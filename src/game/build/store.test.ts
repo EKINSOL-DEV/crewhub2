@@ -112,3 +112,57 @@ describe("useCampusEdits", () => {
     expect(commands.getSetting).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("versionByKind (M4 debt sweep — per-kind edit versions)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetCampusEditsForTests();
+  });
+
+  it("starts empty", () => {
+    expect(useCampusEdits.getState().versionByKind).toEqual({});
+  });
+
+  it("addItem bumps only the placed item's kind", () => {
+    useCampusEdits.getState().addItem("bush", 1, 1, 0);
+    expect(useCampusEdits.getState().versionByKind).toEqual({ bush: 1 });
+    useCampusEdits.getState().addItem("bench", 2, 2, 0);
+    expect(useCampusEdits.getState().versionByKind).toEqual({ bush: 1, bench: 1 });
+    useCampusEdits.getState().addItem("bush", 3, 3, 0);
+    expect(useCampusEdits.getState().versionByKind).toEqual({ bush: 2, bench: 1 });
+  });
+
+  it("moveItem/rotateItem/removeItem all bump only that item's kind, leaving other kinds untouched", () => {
+    useCampusEdits.getState().addItem("bush", 1, 1, 0);
+    useCampusEdits.getState().addItem("bench", 2, 2, 0);
+    const bushId = useCampusEdits.getState().edits.items[0]!.id;
+    const before = useCampusEdits.getState().versionByKind;
+    expect(before).toEqual({ bush: 1, bench: 1 });
+
+    useCampusEdits.getState().moveItem(bushId, 5, 5);
+    expect(useCampusEdits.getState().versionByKind).toEqual({ bush: 2, bench: 1 });
+
+    useCampusEdits.getState().rotateItem(bushId, 1);
+    expect(useCampusEdits.getState().versionByKind).toEqual({ bush: 3, bench: 1 });
+
+    useCampusEdits.getState().removeItem(bushId);
+    expect(useCampusEdits.getState().versionByKind).toEqual({ bush: 4, bench: 1 });
+  });
+
+  it("still bumps the global version on every item mutation (nav-grid re-derive still fires)", () => {
+    useCampusEdits.getState().addItem("bush", 1, 1, 0);
+    const before = useCampusEdits.getState().version;
+    const id = useCampusEdits.getState().edits.items[0]!.id;
+    useCampusEdits.getState().moveItem(id, 2, 2);
+    expect(useCampusEdits.getState().version).toBe(before + 1);
+  });
+
+  it("building mutations bump only the global version, never versionByKind", () => {
+    const id = useCampusEdits.getState().addBuilding({ x: 10, z: 20, w: 6, d: 5 }, null);
+    expect(useCampusEdits.getState().versionByKind).toEqual({});
+    useCampusEdits.getState().setBuildingRoom(id, "room-1");
+    expect(useCampusEdits.getState().versionByKind).toEqual({});
+    useCampusEdits.getState().removeBuilding(id);
+    expect(useCampusEdits.getState().versionByKind).toEqual({});
+  });
+});

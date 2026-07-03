@@ -70,6 +70,12 @@ export function BuildControls() {
   const pendingRot = useRef(0);
   const anchor = useRef<Point | null>(null);
   const dragging = useRef(false);
+  // Browser keydown auto-repeat fires far faster than 4/s while `[`/`]` is
+  // held — each rotateItem call is a store write + persist() KV call, so a
+  // held key would otherwise spam the backend. Gate to ≤4/s (250ms between
+  // calls); the item-tool ghost-rotation branch below is a plain ref
+  // mutation with no I/O, so it stays unthrottled.
+  const lastRotateAt = useRef(0);
 
   const ghostGroupRef = useRef<THREE.Group>(null);
   const ghostDiscRef = useRef<THREE.MeshBasicMaterial>(null);
@@ -115,6 +121,9 @@ export function BuildControls() {
         if (tool.kind === "item") {
           pendingRot.current += dir * ROT_STEP;
         } else if (tool.kind === "select" && selection?.kind === "item") {
+          const now = Date.now();
+          if (now - lastRotateAt.current < 250) return;
+          lastRotateAt.current = now;
           rotateItem(selection.id, dir);
         }
         return;
