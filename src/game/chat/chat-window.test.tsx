@@ -83,6 +83,7 @@ vi.mock("@/game/audio/sfx", async (importOriginal) => {
 import { interpretIntent } from "@/game/intents/interpret";
 import { playSfx } from "@/game/audio/sfx";
 import { EMPTY_EDITS } from "@/game/build/edits";
+import { useBuildMode } from "@/game/build/mode";
 import { resetCampusEditsForTests, useCampusEdits } from "@/game/build/store";
 import { resetProjectsForTests, useProjectsStore } from "@/stores/projects";
 import { postCommand } from "@/game/sim/command-bus";
@@ -193,6 +194,7 @@ beforeEach(() => {
   getSpawnProviderSpy.mockReset();
   upsertSpy.mockReset();
   useGameChats.setState({ chats: [], localLines: {} });
+  useBuildMode.setState({ roomCard: null });
   vi.mocked(postCommand).mockClear();
   vi.mocked(pushLocalBubble).mockClear();
   vi.mocked(interpretIntent).mockReset().mockResolvedValue(null);
@@ -327,6 +329,15 @@ describe("ChatWindow", () => {
     expect(onMinimize).toHaveBeenCalledWith(false);
     expect(onFocusChat).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("chat-window-input")).not.toBeInTheDocument();
+  });
+
+  // M9 T2: one of the bot dossier's two entry points — the other is HqCard's
+  // roster rows (hq-card.test.tsx). Both just call mode.ts's single-open
+  // card opener, keyed by this chat's own key.
+  it("the ℹ️ button opens the bot dossier for this chat's key", () => {
+    render(<ChatWindow {...WINDOW_PROPS} />);
+    fireEvent.click(screen.getByRole("button", { name: "Bot info" }));
+    expect(useBuildMode.getState().roomCard).toEqual({ kind: "dossier", key: "claude:s1" });
   });
 
   it("demo mode shows a command hint (not disabled) and never opens a session", () => {

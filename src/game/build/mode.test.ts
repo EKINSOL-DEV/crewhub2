@@ -89,4 +89,29 @@ describe("useBuildMode", () => {
     useBuildMode.getState().activate();
     expect(useBuildMode.getState().roomCard).toBeNull();
   });
+
+  it("openRoomCard also accepts the M9 T2 dossier arm, keyed by bot", () => {
+    useBuildMode.getState().openRoomCard({ kind: "dossier", key: "claude:s1" });
+    expect(useBuildMode.getState().roomCard).toEqual({ kind: "dossier", key: "claude:s1" });
+  });
+
+  it("single-open: opening the dossier replaces whatever card was open, and vice versa", () => {
+    useBuildMode.getState().openRoomCard({ kind: "hq" });
+    useBuildMode.getState().openRoomCard({ kind: "dossier", key: "claude:s1" });
+    expect(useBuildMode.getState().roomCard).toEqual({ kind: "dossier", key: "claude:s1" });
+    useBuildMode.getState().openRoomCard({ kind: "projects" });
+    expect(useBuildMode.getState().roomCard).toEqual({ kind: "projects" });
+  });
+
+  it("re-targeting the dossier to a different key (e.g. a 'Forked from' click) still replaces the field", () => {
+    useBuildMode.getState().openRoomCard({ kind: "dossier", key: "claude:child" });
+    useBuildMode.getState().openRoomCard({ kind: "dossier", key: "claude:parent" });
+    expect(useBuildMode.getState().roomCard).toEqual({ kind: "dossier", key: "claude:parent" });
+  });
+
+  it("activate dismisses a dangling dossier card too", () => {
+    useBuildMode.getState().openRoomCard({ kind: "dossier", key: "claude:s1" });
+    useBuildMode.getState().activate();
+    expect(useBuildMode.getState().roomCard).toBeNull();
+  });
 });

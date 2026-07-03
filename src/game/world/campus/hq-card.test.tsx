@@ -155,6 +155,27 @@ describe("HqCard", () => {
     expect(screen.getByTestId("hq-card-roster-claude:s1")).not.toHaveTextContent("Engineering");
   });
 
+  // M9 T2: the other of the bot dossier's two entry points — the other is
+  // ChatWindow's ℹ️ header button (chat-window.test.tsx).
+  it("a roster row opens that character's bot dossier via mode.ts", () => {
+    agents.current = [agent({ id: "a1", name: "Ada", color: "#123456" })];
+    render(<HqCard onClose={vi.fn()} />);
+    fireEvent.click(screen.getByTestId("hq-card-roster-agent:a1"));
+    expect(useBuildMode.getState().roomCard).toEqual({ kind: "dossier", key: "agent:a1" });
+  });
+
+  it("a live session's roster row opens the dossier keyed by its session key, not an agent: key", () => {
+    views.current = [
+      view({
+        key: "claude:s1",
+        meta: meta({ id: { provider: "claude", id: "s1" }, project_path: "/work/eng" }),
+      }),
+    ];
+    render(<HqCard onClose={vi.fn()} />);
+    fireEvent.click(screen.getByTestId("hq-card-roster-claude:s1"));
+    expect(useBuildMode.getState().roomCard).toEqual({ kind: "dossier", key: "claude:s1" });
+  });
+
   it("the Projects shortcut opens the in-game Projects dialog via mode.ts", () => {
     render(<HqCard onClose={vi.fn()} />);
     fireEvent.click(screen.getByTestId("hq-card-projects"));

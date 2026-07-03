@@ -9,6 +9,7 @@ import { BuildControls } from "@/game/build/BuildControls";
 import { BuildPalette } from "@/game/build/BuildPalette";
 import { RoomLinkDialog } from "@/game/build/RoomLinkDialog";
 import { useBuildMode } from "@/game/build/mode";
+import { DossierCard } from "@/game/dossier/DossierCard";
 import { ProjectsDialog } from "@/game/hud/ProjectsDialog";
 import { HqCard } from "@/game/world/campus/HqCard";
 import { RoomCard } from "@/game/world/campus/RoomCard";
@@ -76,6 +77,14 @@ export function shouldExitCameraOnEscape(
  * snap-only prop never did, and the two racing corrupted the rig's restore
  * snapshot. Characters' onSelect still passes a position (its own contract,
  * used nowhere else) — the call site below just no longer forwards it.
+ *
+ * M9 T2: a robot click deliberately does NOT also open its dossier — chat +
+ * follow + dossier all firing off one click would be noisy (three cards/
+ * cameras competing for attention over a single tap). The dossier instead
+ * has its own two entry points, both a deliberate second action: the ℹ️
+ * button in a ChatWindow's header (once you're already looking at a bot's
+ * chat, one more click for its full profile), and HqCard's crew roster rows
+ * (browsing the roster, not yet committed to a chat/follow).
  */
 export function selectCharacter(
   key: string,
@@ -204,6 +213,9 @@ export default function GameShell() {
       ) : null}
       {roomCard?.kind === "hq" && <HqCard onClose={closeRoomCard} />}
       {roomCard?.kind === "projects" && <ProjectsDialog onClose={closeRoomCard} />}
+      {roomCard?.kind === "dossier" && (
+        <DossierCard key={roomCard.key} dossierKey={roomCard.key} onClose={closeRoomCard} />
+      )}
       <HireDialog
         open={hireOpen || hireRequested}
         initialAgentId={hireRequested ? undefined : hireAgentId}
