@@ -68,8 +68,9 @@ describe("CampusWorld smoke", () => {
     // 5 terrain meshes (apron + grass + 2 path strips + plaza plate) + one
     // stamped mesh per placement (see Merged stub above) + Fountain (1
     // mocked-model mesh + 1 water disc) + CloudPuffs (7 puffs * 3 spheres) +
-    // Pavilions (M1 T1): each pavilion = 1 slab + 4 pillars + 3 beams +
-    // 4 desks × (1 top + 2 legs + 1 screen) = 24 meshes; 4 pavilions = 96.
+    // Pavilions (M1 T1, walls M5 T3): each pavilion = 1 slab + 4 pillars +
+    // 3 beams + walls (3 full sides + 2 segments on the door-side wall) +
+    // 4 desks × (1 top + 2 legs + 1 screen) = 29 meshes; 4 pavilions = 116.
     // Player-placed decor (M3 T4) renders through the same InstancedModel
     // path, grouped by kind — with the default EMPTY_EDITS state (no
     // player edits) that group renders nothing, so the formula below is
@@ -77,7 +78,7 @@ describe("CampusWorld smoke", () => {
     const TERRAIN_MESHES = 5;
     const FOUNTAIN_MESHES = 2;
     const CLOUD_MESHES = 7 * 3;
-    const PAVILION_MESHES = 4 * 24;
+    const PAVILION_MESHES = 4 * 29;
     expect(meshes.length).toBe(
       totalPlacements + TERRAIN_MESHES + FOUNTAIN_MESHES + CLOUD_MESHES + PAVILION_MESHES,
     );

@@ -26,6 +26,11 @@ const BLOCKING_SCATTER: ScatterKind[] = [
 
 const FOUNTAIN_RADIUS = 5;
 
+/** Half-width of the walkable gap `buildNavGrid` leaves in a building's wall
+ *  ring at its door — matches the 2.2-unit visual gap Pavilion.tsx cuts into
+ *  the door-side wall (see Pavilion.tsx's DOOR_GAP). */
+const DOOR_GAP_RADIUS = 1.1;
+
 function worldToCell(v: number, grid: NavGrid): number {
   return Math.floor(v / grid.cell + grid.size / 2);
 }
@@ -92,6 +97,29 @@ export function buildNavGrid(
     block(x - w / 2, z + d / 2);
     block(x + w / 2, z + d / 2);
     for (const desk of b.desks) block(desk.x, desk.z);
+  }
+
+  // Pavilion walls (M5 T3): block the building's outermost ring of cells —
+  // where Pavilion.tsx's perimeter wall meshes actually stand — except a
+  // door-sized gap so bots can still walk in. Cells strictly inside that
+  // ring stay walkable (the room's floor); cells outside the rect are left
+  // alone entirely.
+  for (const b of buildings) {
+    const { x, z, w, d } = b.rect;
+    const cxMin = clampCell(worldToCell(x - w / 2, grid), grid);
+    const cxMax = clampCell(worldToCell(x + w / 2, grid), grid);
+    const czMin = clampCell(worldToCell(z - d / 2, grid), grid);
+    const czMax = clampCell(worldToCell(z + d / 2, grid), grid);
+    for (let cz = czMin; cz <= czMax; cz++) {
+      for (let cx = cxMin; cx <= cxMax; cx++) {
+        const wx = cellToWorld(cx, grid);
+        const wz = cellToWorld(cz, grid);
+        const distToEdge = Math.min(w / 2 - Math.abs(wx - x), d / 2 - Math.abs(wz - z));
+        if (distToEdge < 0 || distToEdge >= 1) continue; // outside the footprint, or a floor cell
+        if (Math.hypot(wx - b.door.x, wz - b.door.z) <= DOOR_GAP_RADIUS) continue; // the doorway
+        grid.blocked[idxOf(cx, cz, grid)] = 1;
+      }
+    }
   }
 
   // Player-placed decor (M3 T5) blocks one cell each, same coarse treatment

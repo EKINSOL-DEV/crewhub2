@@ -63,11 +63,13 @@ describe("PlacedBuildings smoke", () => {
 
     const renderer = await ReactThreeTestRenderer.create(<PlacedBuildings />);
     const meshes = renderer.scene.findAllByType("Mesh");
-    // Pavilion mesh counts from pavilion.smoke.test.tsx's formula (1+4+3 +
-    // desks*4) plus 4 room-edge meshes per building.
+    // Pavilion mesh counts from pavilion.smoke.test.tsx's formula (1+4+3
+    // structure + walls (3 full sides + 2 segments on the door-side wall,
+    // M5 T3) + desks*4) plus 4 room-edge meshes per building.
+    const WALL_MESHES = 5;
     const building1Desks = 2 * 2; // 10x8 -> floor(8/3.5)=2 cols * floor(6/3)=2 rows
     const building2Desks = 1 * 1; // 6x5 -> floor(4/3.5)=1 col * floor(3/3)=1 row
-    const expected = 8 + building1Desks * 4 + 4 + (8 + building2Desks * 4 + 4);
+    const expected = 8 + WALL_MESHES + building1Desks * 4 + 4 + (8 + WALL_MESHES + building2Desks * 4 + 4);
     expect(meshes.length).toBe(expected);
     await renderer.unmount();
   });
