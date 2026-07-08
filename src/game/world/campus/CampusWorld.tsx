@@ -174,11 +174,16 @@ export function CampusWorld({ biome = BIOMES.campus }: { biome?: Biome }) {
         ))}
       </group>
       {/* HQ's interactive prop stands (M9 polish). Deliberately OUTSIDE the
-          frozen static-matrix group: mounting them inside it blacked the
-          entire first WebGL render (world + robots gone, no console error —
-          controller bisect 2026-07-04). Root cause unresolved; the cost of
-          leaving these ~40 matrices auto-updating is negligible, so they
-          live here with the plate/placed decor. */}
+          frozen static-matrix group. Investigated 2026-07-08 (see
+          .superpowers/sdd/blackcanvas-findings.md): the "black first render"
+          when mounted inside was NOT a three.js/matrix defect but a
+          cold-start scheduling race — useStaticMatrices' one big synchronous
+          traverse can starve R3F's renderer-constructing effect on a cold
+          dev-server first load, and ~32 extra meshes in that traverse
+          measurably tipped the odds (~45% black cold vs 0% outside). The
+          outside mount stays: strictly cheaper, and it keeps the traverse
+          lean. If cold-start robustness ever matters more, chunk that
+          traverse across a rAF instead. */}
       <HqProps />
       {/* Placed pavilions (M3 T5): a disjoint set from the seeded four above,
           so no dedup needed — see PlacedBuildings' header for why this stays

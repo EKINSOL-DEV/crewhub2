@@ -249,6 +249,10 @@ export function DossierCard({ dossierKey, onClose }: DossierCardProps) {
           data-testid="dossier-card-follow"
           onClick={() => {
             useCameraDirector.getState().followBot(info.key);
+            // The camera is now engaged BY this card (debt-sweep follow-up):
+            // re-open through the coupled path so a later camera exit closes
+            // this dossier too, same as a robot-click-opened one.
+            useBuildMode.getState().openCameraCoupledCard({ kind: "dossier", key: info.key });
             playSfx("click");
           }}
           className="flex-1 rounded-full border-2 border-slate-900/10 px-3 py-1.5 text-sm font-medium hover:bg-slate-900/5"
