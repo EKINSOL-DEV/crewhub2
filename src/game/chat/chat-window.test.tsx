@@ -194,6 +194,7 @@ const WINDOW_PROPS = {
   color: "#22c55e",
   minimized: false,
   stackIndex: 0,
+  stackOffset: 0,
   pos: null,
   onDrag: () => {},
   size: null,
@@ -871,8 +872,19 @@ describe("draggable windows", () => {
   it("positions via the stack's `right` offset when pos is null", () => {
     const { getByTestId } = render(<ChatWindow {...WINDOW_PROPS} stackIndex={1} pos={null} />);
     const win = getByTestId("chat-window");
-    expect(win.style.right).toBe("386px"); // STACK_RIGHT(16) + 1 * STACK_GAP(370)
+    expect(win.style.right).toBe("32px"); // STACK_RIGHT(16) + stackOffset(0) + 1 * STACK_GAP(16)
     expect(win.style.left).toBe("");
+  });
+
+  it("adds `stackOffset` (the cumulative width of earlier stacked windows) to the `right` offset", () => {
+    // ChatWindows.tsx computes this from the actual widths of every stacked
+    // window before this one — a widened predecessor must push this window
+    // out by the real delta, not a fixed per-slot gap (see ChatWindows.tsx).
+    const { getByTestId } = render(
+      <ChatWindow {...WINDOW_PROPS} stackIndex={1} stackOffset={500} pos={null} />,
+    );
+    const win = getByTestId("chat-window");
+    expect(win.style.right).toBe("532px"); // STACK_RIGHT(16) + stackOffset(500) + 1 * STACK_GAP(16)
   });
 
   it("positions via an absolute left/top, clearing right/bottom, once pos is set", () => {

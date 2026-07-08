@@ -73,6 +73,40 @@ describe("ChatWindows", () => {
     expect(propsFor("b").size).toEqual({ w: 500, h: 600 });
   });
 
+  it("widening an earlier stacked window pushes a later one's stackOffset out by the real delta", () => {
+    useGameChats.getState().open("a");
+    useGameChats.getState().open("b");
+    render(<ChatWindows />);
+    // Both windows still at the 350px default box (window-clamp.ts's
+    // DEFAULT_SIZE.w) — "a" is first in the stack, so nothing precedes it;
+    // "b" is pushed out by exactly "a"'s (default) width.
+    expect(propsFor("a").stackOffset).toBe(0);
+    expect(propsFor("b").stackOffset).toBe(350);
+
+    // Widen "a" via its resize grip (use-resize.ts's onChange -> setSize) —
+    // the already-mounted <ChatWindows> re-renders off the store update, and
+    // "b"'s offset must grow by the same delta, not stay pinned to a fixed
+    // per-slot gap.
+    capturedProps.length = 0;
+    act(() => useGameChats.getState().setSize("a", { w: 500, h: 440 }));
+    expect(propsFor("b").stackOffset).toBe(500);
+  });
+
+  it("a dragged window contributes no width to a stacked window's cumulative offset", () => {
+    useGameChats.getState().open("a");
+    useGameChats.getState().open("b");
+    useGameChats.getState().open("c");
+    // "b" is dragged (and widened) — it leaves the stack entirely, so "c"
+    // (now compacted into slot 1, right after "a") must not count "b"'s
+    // width at all, and "b"'s own dragged position stays untouched.
+    useGameChats.getState().setPos("b", { x: 10, y: 20 });
+    useGameChats.getState().setSize("b", { w: 600, h: 700 });
+    render(<ChatWindows />);
+    expect(propsFor("a").stackOffset).toBe(0);
+    expect(propsFor("c").stackOffset).toBe(350); // just "a"'s default width
+    expect(propsFor("b").pos).toEqual({ x: 10, y: 20 });
+  });
+
   it("wires onDrag to setPos for the chat's own key only", () => {
     useGameChats.getState().open("a");
     useGameChats.getState().open("b");

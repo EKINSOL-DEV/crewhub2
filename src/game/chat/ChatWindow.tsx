@@ -32,14 +32,12 @@ const STATUS_GLYPH: Record<SessionStatus, string> = {
 };
 
 const STACK_RIGHT = 16;
-// Fixed spacing tuned for the default 350px-wide box (window-clamp.ts's
-// DEFAULT_SIZE.w). A still-stacked (pos===null) window that's been widened
-// past that via the corner grip can visually overlap its stack neighbor —
-// a known, accepted trade-off (not an oversight): resizing while stacked is
-// an edge case, dragging a widened window clear of the stack sidesteps it
-// entirely, and a compacting, size-aware stack is real complexity this pass
-// doesn't need yet.
-const STACK_GAP = 370;
+// Fixed breathing room between adjacent stacked windows' boxes — NOT a
+// per-slot width. The width part of a slot's offset comes from `stackOffset`
+// (ChatWindows.tsx's cumulative sum of the actual widths of every stacked
+// window before this one), so a widened window correctly pushes the next
+// one further right instead of the two overlapping.
+const STACK_GAP = 16;
 
 /** M7 T3: every live composer hints at the command grammar (parse.ts) — the
  *  one thing that still works even with no session/LLM behind a bot. */
@@ -53,6 +51,12 @@ export interface ChatWindowProps {
   /** Position in the open stack — 0 sits at the edge, higher pushes left.
    *  Unused once `pos` is set (a dragged window has left the stack). */
   stackIndex: number;
+  /** Cumulative width (px) of every stacked window before this one, in stack
+   *  order (ChatWindows.tsx sums each one's live `size.w` — or DEFAULT_SIZE.w
+   *  when never resized). Combined with `stackIndex` and STACK_GAP below to
+   *  place this window right after its widest-so-far neighbors instead of at
+   *  a fixed per-slot distance. Unused once `pos` is set. */
+  stackOffset: number;
   /** Drag position from useGameChats' per-chat layout — null keeps this
    *  window in its default stack slot (`stackIndex` above). */
   pos: { x: number; y: number } | null;
@@ -113,6 +117,7 @@ export function ChatWindow({
   color,
   minimized,
   stackIndex,
+  stackOffset,
   pos,
   onDrag,
   size,
@@ -139,7 +144,7 @@ export function ChatWindow({
     if (el) el.scrollTop = el.scrollHeight;
   }, [lines]);
 
-  const right = STACK_RIGHT + stackIndex * STACK_GAP;
+  const right = STACK_RIGHT + stackOffset + stackIndex * STACK_GAP;
   const ended = status === "Ended";
   // An Ended session with a bound crew agent can be woken back up (M4 debt
   // sweep, ported from the deleted world's WorldChatWindow.wakeAndSend) —
