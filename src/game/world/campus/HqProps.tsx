@@ -20,6 +20,7 @@ import { playSfx } from "@/game/audio/sfx";
 import { useBuildMode } from "@/game/build/mode";
 import { toonGradientMap } from "@/game/engine/toon";
 import { HQ_RECT } from "./buildings";
+import { HQ_WALL_OFFSET, HQ_WALL_THICK } from "./wall-utils";
 
 /** The two card-opening props route through mode.ts's single-open card
  *  slot; "workspace" isn't a card at all (it opens a native window), so it
@@ -29,10 +30,16 @@ type PropKind = CardProp | "workspace";
 
 const HW = HQ_RECT.w / 2;
 const HD = HQ_RECT.d / 2;
-/** How far in from the raw rect edge a prop's anchor sits — clears the wall
- *  (Headquarters.tsx's wall centerline sits at half-extent minus ~0.25, its
- *  own inner face closer still) and the corner posts with room to spare. */
-const WALL_INSET = 0.9;
+/** How far a wall's interior face sits in from the raw rect edge — derived
+ *  from Headquarters.tsx's actual wall geometry (via wall-utils.ts) so this
+ *  never drifts out of sync with it. */
+const WALL_INNER_FACE = HQ_WALL_OFFSET + HQ_WALL_THICK / 2;
+/** Extra clearance past the wall's inner face for a prop's own anchor — room
+ *  to spare past the corner posts (HqProps' own margin, not Headquarters'
+ *  geometry, so it stays a local constant). */
+const PROP_WALL_CLEARANCE = 0.5;
+/** How far in from the raw rect edge a prop's anchor sits. */
+const WALL_INSET = WALL_INNER_FACE + PROP_WALL_CLEARANCE;
 
 /** Generous invisible click target over each prop's visible geometry (per
  *  spec: ~2.2 wide x 2 tall) — the procedural shapes below are thin and
