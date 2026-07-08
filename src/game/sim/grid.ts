@@ -81,6 +81,16 @@ export function buildNavGrid(
     for (const p of layout.scatter[kind]) block(p.x, p.z);
   }
 
+  // Seeded campus props (debt sweep): benches and hedges are solid
+  // enough that a waiting/standing bot shouldn't be placed inside their
+  // mesh, so block one cell per placement — same coarse treatment as the
+  // scatter above. Lanterns are deliberately left unblocked: they're a
+  // thin post/light with almost no real footprint, so a blocked cell there
+  // would read as an invisible wall around basically nothing — not worth
+  // the false obstacle. Banners aren't part of this sweep (out of scope).
+  for (const p of layout.props.bench) block(p.x, p.z);
+  for (const p of layout.props.hedge) block(p.x, p.z);
+
   // Pavilion corner pillars and every desk.
   for (const b of buildings) {
     const { x, z, w, d } = b.rect;
