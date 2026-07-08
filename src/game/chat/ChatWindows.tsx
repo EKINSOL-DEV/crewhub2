@@ -38,6 +38,9 @@ export function ChatWindows() {
   // later stacked window further right/left by the real delta, instead of
   // the old fixed-per-slot gap silently letting them overlap (ChatWindow.tsx
   // combines this with STACK_RIGHT/STACK_GAP into the final `right` style).
+  // A minimized window's chip is 48px (h-12 w-12 in ChatWindow.tsx) — count
+  // that, not the full box width, so the stack packs tight around chips.
+  const MIN_CHIP_WIDTH = 48;
   let nextStackIndex = 0;
   let cumulativeWidth = 0;
   const stackIndices: number[] = [];
@@ -46,7 +49,10 @@ export function ChatWindows() {
     if ((layout[c.key]?.pos ?? null) === null) {
       stackIndices.push(nextStackIndex++);
       stackOffsets.push(cumulativeWidth);
-      cumulativeWidth += layout[c.key]?.size?.w ?? DEFAULT_SIZE.w;
+      // A minimized window renders as a small chip, not its full box — count
+      // it at chip width so the stack packs tight around it (debt-sweep
+      // review catch).
+      cumulativeWidth += c.min ? MIN_CHIP_WIDTH : (layout[c.key]?.size?.w ?? DEFAULT_SIZE.w);
     } else {
       stackIndices.push(-1);
       stackOffsets.push(0);

@@ -8,12 +8,13 @@
 //
 // No Billboard/Text/useModel anywhere in this file anymore, so in principle
 // these props need no per-frame rotation and could join CampusWorld's frozen
-// static-matrix group right alongside <Headquarters> — but don't: a
-// controller bisect (2026-07-04) found that mounting them inside that frozen
-// subtree blacks the entire first WebGL render in a real browser (world +
-// robots gone, no console error) for a reason still unresolved. See
-// CampusWorld.tsx's comment above where <HqProps /> actually mounts (outside
-// the frozen group, next to HeadquartersPlate) before moving this back in.
+// static-matrix group — but don't: the 2026-07-08 investigation
+// (.superpowers/sdd/blackcanvas-findings.md) showed that growing that
+// group's one big synchronous useStaticMatrices traverse measurably tips a
+// cold-start scheduling race that can starve R3F's renderer-constructing
+// effect (black first render, ~45% odds on a cold dev server). Not a
+// three.js/matrix defect — just keep the traverse lean; see CampusWorld.tsx
+// where <HqProps /> actually mounts (outside, next to HeadquartersPlate).
 import type { ThreeEvent } from "@react-three/fiber";
 import { openWorkspaceWindow } from "@/game/app/windows";
 import { playSfx } from "@/game/audio/sfx";

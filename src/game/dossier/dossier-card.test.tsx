@@ -412,6 +412,18 @@ describe("DossierCard", () => {
     expect(playSfx).toHaveBeenCalledWith("click");
   });
 
+  it("the Follow footer button couples this card to the camera (debt-sweep follow-up)", () => {
+    // A dossier opened WITHOUT engaging the camera (e.g. HQ roster row) must
+    // become camera-coupled once its own Follow button engages it — so the
+    // later camera exit closes THIS card too.
+    sessionsState.current = { "claude:s1": meta("s1") };
+    useBuildMode.setState({ cameraCoupledCard: null }); // isolate from earlier tests
+    render(<DossierCard dossierKey="claude:s1" onClose={vi.fn()} />);
+    expect(useBuildMode.getState().cameraCoupledCard).toBeNull();
+    fireEvent.click(screen.getByTestId("dossier-card-follow"));
+    expect(useBuildMode.getState().cameraCoupledCard).toEqual({ kind: "dossier", key: "claude:s1" });
+  });
+
   it("neither footer button closes the card", () => {
     sessionsState.current = { "claude:s1": meta("s1") };
     const onClose = vi.fn();
