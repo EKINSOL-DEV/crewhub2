@@ -301,6 +301,16 @@ function HireForm({
     isModelTierId(agent.default_model) ? agent.default_model : "sonnet",
   );
   const [prompt, setPrompt] = useState("");
+  // Auto-spawn (live feedback: "dat blijft niet onthouden tussen restarts?")
+  // — the backend already respawns auto_spawn agents once at every app
+  // start (lib.rs' startup sweep); this just surfaces the existing flag in
+  // the game's hire flow. Persisted immediately via the agents store, same
+  // as the workspace AgentCard toggle.
+  const [autoSpawn, setAutoSpawn] = useState(agent.auto_spawn ?? false);
+  const toggleAutoSpawn = (next: boolean) => {
+    setAutoSpawn(next);
+    void useAgentsStore.getState().update({ ...agent, auto_spawn: next });
+  };
 
   return (
     <div className="flex flex-col gap-2 border-t-2 border-slate-900/10 pt-3">
@@ -312,6 +322,15 @@ function HireForm({
         placeholder="First message (optional)…"
         className="h-9 rounded-full border-2 border-slate-900/10 bg-white px-3 text-sm outline-none"
       />
+      <label className="flex items-center gap-2 text-sm text-slate-700">
+        <input
+          type="checkbox"
+          data-testid="hire-auto-spawn"
+          checked={autoSpawn}
+          onChange={(e) => toggleAutoSpawn(e.target.checked)}
+        />
+        🔁 Hire automatically on every app start
+      </label>
       <button
         type="button"
         data-testid="hire-go"

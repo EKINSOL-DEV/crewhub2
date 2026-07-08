@@ -236,18 +236,38 @@ export function createSim(grid: NavGrid, buildings: Building[], seed: number): S
     }
   }
 
+  /** The building a crew bot calls home: the first room whose project link
+   *  matches its group key (same matching desks use). Null for unassigned
+   *  crew — they rest at HQ instead (M6 T2 default). */
+  function homeBuilding(groupKey: string | null): Building | null {
+    if (!isMatched(groupKey)) return null;
+    return buildings.find((b) => b.kind !== "hq" && (b.groupKey ?? null) === groupKey) ?? null;
+  }
+
   /** Pick a reachable seeded wander target and return the path to it, or null after a few misses. */
-  function pickWanderPath(bot: SimBot, isCrew: boolean): { x: number; z: number }[] | null {
-    const maxRadius = isCrew ? CREW_WANDER_RADIUS : SESSION_WANDER_RADIUS;
-    // Crew rest around HQ (world origin, M6 T2); sessions wander around their current spot.
-    const centerX = isCrew ? 0 : bot.x;
-    const centerZ = isCrew ? 0 : bot.z;
-    // Crew belongs inside HQ — exempt it from the M5 "stay out of every
-    // building" wander rule so their small rest disc (which sits entirely
-    // inside HQ's walls) isn't rejected on every try. Session bots keep the
-    // full exclusion, HQ included, same as any other room they have no
-    // business entering.
-    const wanderBuildings = isCrew ? buildings.filter((b) => b.kind !== "hq") : buildings;
+  function pickWanderPath(bot: SimBot, m: BotMeta): { x: number; z: number }[] | null {
+    const isCrew = m.agentId !== null;
+    // Assigned crew rests in its OWN room (live feedback 2026-07-04: "hij is
+    // toegewezen aan de CrewHub room" — resting at HQ read as a bug);
+    // unassigned crew keeps the HQ rest disc (M6 T2); sessions wander around
+    // their current spot.
+    const home = isCrew ? homeBuilding(m.groupKey) : null;
+    const maxRadius = home
+      ? Math.max(1, Math.min(home.rect.w, home.rect.d) / 2 - 2)
+      : isCrew
+        ? CREW_WANDER_RADIUS
+        : SESSION_WANDER_RADIUS;
+    const centerX = home ? home.rect.x : isCrew ? 0 : bot.x;
+    const centerZ = home ? home.rect.z : isCrew ? 0 : bot.z;
+    // Crew belongs inside its rest building (its home room, or HQ) — exempt
+    // that ONE building from the M5 "stay out of every building" wander rule
+    // so the rest disc inside its walls isn't rejected on every try. Session
+    // bots keep the full exclusion, HQ included, same as any other room they
+    // have no business entering.
+    const restId = home ?? null;
+    const wanderBuildings = isCrew
+      ? buildings.filter((b) => (restId ? b !== restId : b.kind !== "hq"))
+      : buildings;
     for (let i = 0; i < WANDER_TARGET_TRIES; i++) {
       const angle = rand() * Math.PI * 2;
       const radius = rand() * maxRadius;
@@ -376,7 +396,7 @@ export function createSim(grid: NavGrid, buildings: Building[], seed: number): S
         bot.motion = "stand";
         return;
       }
-      const path = pickWanderPath(bot, m.agentId !== null);
+      const path = pickWanderPath(bot, m);
       if (path) {
         bot.path = path;
         bot.motion = "walk";
