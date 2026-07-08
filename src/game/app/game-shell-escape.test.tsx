@@ -71,7 +71,13 @@ function pressEscape() {
 describe("GameShell Escape precedence (mounted)", () => {
   beforeEach(() => {
     mockIPC(() => null);
-    useBuildMode.setState({ active: false, tool: { kind: "select" }, pendingRoomLink: null, roomCard: null });
+    useBuildMode.setState({
+      active: false,
+      tool: { kind: "select" },
+      pendingRoomLink: null,
+      roomCard: null,
+      cameraCoupledCard: null,
+    });
     useCameraDirector.setState({ mode: { kind: "free" } });
   });
 
@@ -138,10 +144,23 @@ describe("GameShell Escape precedence (mounted)", () => {
 // through a REAL mounted GameShell (real HqCard/RoomLinkDialog Escape
 // listeners, real mode.ts/director.ts stores), same tolerance as the
 // precedence suite above.
+//
+// Round 3: closing "whichever coupled card is open" on a free-transition
+// used to be unconditional on kind alone — openCameraCoupledCard (used
+// below wherever a test means "this open ALSO engaged the camera, same
+// click") is the real store action selectCharacter/CampusWorld/
+// PlacedBuildings now call instead of plain openRoomCard in that situation;
+// see mode.ts's own doc comment on `cameraCoupledCard`.
 describe("GameShell focus-coupled dock lifetime (round 2, mounted)", () => {
   beforeEach(() => {
     mockIPC(() => null);
-    useBuildMode.setState({ active: false, tool: { kind: "select" }, pendingRoomLink: null, roomCard: null });
+    useBuildMode.setState({
+      active: false,
+      tool: { kind: "select" },
+      pendingRoomLink: null,
+      roomCard: null,
+      cameraCoupledCard: null,
+    });
     useCameraDirector.setState({ mode: { kind: "free" } });
   });
 
@@ -150,7 +169,7 @@ describe("GameShell focus-coupled dock lifetime (round 2, mounted)", () => {
   it("ONE Escape press on a focus-coupled card (HQ) both closes it and exits the camera — no two-press dance", () => {
     render(<GameShell />);
     act(() => useCameraDirector.getState().followBot("bot:a"));
-    act(() => useBuildMode.getState().openRoomCard({ kind: "hq" }));
+    act(() => useBuildMode.getState().openCameraCoupledCard({ kind: "hq" }));
 
     pressEscape();
 
@@ -161,7 +180,7 @@ describe("GameShell focus-coupled dock lifetime (round 2, mounted)", () => {
   it("ONE Escape press on a focus-coupled room card (a plot) both closes it and exits the camera", () => {
     render(<GameShell />);
     act(() => useCameraDirector.getState().followBot("bot:a"));
-    act(() => useBuildMode.getState().openRoomCard({ kind: "plot", plotIndex: 0 }));
+    act(() => useBuildMode.getState().openCameraCoupledCard({ kind: "plot", plotIndex: 0 }));
 
     pressEscape();
 
@@ -172,7 +191,7 @@ describe("GameShell focus-coupled dock lifetime (round 2, mounted)", () => {
   it("exiting the camera some other way (not via the panel's own close) also closes a focus-coupled card", () => {
     render(<GameShell />);
     act(() => useCameraDirector.getState().followBot("bot:a"));
-    act(() => useBuildMode.getState().openRoomCard({ kind: "hq" }));
+    act(() => useBuildMode.getState().openCameraCoupledCard({ kind: "hq" }));
 
     // Stands in for the HUD's 🎥✕ chip / a drag-pan takeover / a despawned
     // followed bot — all of them just call director.exit() directly,
@@ -214,5 +233,49 @@ describe("GameShell focus-coupled dock lifetime (round 2, mounted)", () => {
 
     expect(useBuildMode.getState().roomCard).toBeNull();
     expect(useCameraDirector.getState().mode.kind).toBe("free");
+  });
+
+  // Round 3 fix: the mode->free effect used to close ANY open focus-coupled
+  // KIND, even one that never itself engaged the camera. Concrete bug this
+  // reproduces (kinds swapped to HQ/plot rather than two dossiers, purely so
+  // this mounted suite doesn't also need real dossier data for a fake
+  // "bot:a"/"bot:b" key — DossierCard auto-closes itself when a key
+  // resolves to nothing, which would confound this test with a second,
+  // unrelated close path; the identity check under test doesn't care what
+  // kind either card is): following bot A frames a building with the camera
+  // and opens ITS card (camera-coupled, via openCameraCoupledCard — what
+  // CampusWorld/PlacedBuildings/selectCharacter really call); the player
+  // then opens a second, unrelated card the HqCard-roster way (plain
+  // openRoomCard, no camera call), which replaces A's card in the
+  // single-open slot while the camera keeps its focus on A's building in
+  // the background. When that focus later ends, only A's own card should
+  // have been eligible to auto-close — but it's not open anymore, and the
+  // second card, despite sharing a focus-coupled kind, was never the
+  // camera's card.
+  it("a card opened WITHOUT engaging the camera survives some other card's focus ending (the A/B bug)", () => {
+    render(<GameShell />);
+    act(() => useCameraDirector.getState().followBot("bot:a"));
+    act(() => useBuildMode.getState().openCameraCoupledCard({ kind: "hq" }));
+
+    // The second card, opened the HqCard-roster way — never touches the
+    // camera, just replaces whatever card was showing.
+    act(() => useBuildMode.getState().openRoomCard({ kind: "plot", plotIndex: 0 }));
+    expect(useCameraDirector.getState().mode).toEqual({ kind: "follow", botKey: "bot:a" });
+
+    // A's follow ends some other way than a panel's own close (a despawn,
+    // the HUD's 🎥✕ chip, ...) — the camera goes free.
+    act(() => useCameraDirector.getState().exit());
+
+    expect(useBuildMode.getState().roomCard).toEqual({ kind: "plot", plotIndex: 0 });
+  });
+
+  it("...whereas the SAME camera exit would have closed the first card, had it still been open", () => {
+    render(<GameShell />);
+    act(() => useCameraDirector.getState().followBot("bot:a"));
+    act(() => useBuildMode.getState().openCameraCoupledCard({ kind: "hq" }));
+
+    act(() => useCameraDirector.getState().exit());
+
+    expect(useBuildMode.getState().roomCard).toBeNull();
   });
 });

@@ -66,7 +66,7 @@ export function PlacedBuildings() {
   const buildings = useCampusEdits((s) => s.edits.buildings);
   const version = useCampusEdits((s) => s.version);
   const projects = useProjectsStore((s) => s.projects);
-  const openRoomCard = useBuildMode((s) => s.openRoomCard);
+  const openCameraCoupledCard = useBuildMode((s) => s.openCameraCoupledCard);
   const colorByProjectId = useMemo(
     () => new Map(projects.map((p) => [p.id, p.color ?? NEUTRAL_EDGE])),
     [projects],
@@ -78,11 +78,15 @@ export function PlacedBuildings() {
   // the two gestures never collide over the same pavilion. M8 T3: the same
   // click also frames the building with the camera director — same
   // live-yaw seed as CampusWorld's base-pavilion handler.
+  // openCameraCoupledCard, not plain openRoomCard (round 3 fix): this same
+  // click also frames the camera below, so this card is the one GameShell's
+  // mode->free effect is allowed to auto-close later — see mode.ts's
+  // `cameraCoupledCard` doc.
   function handlePointerDown(e: ThreeEvent<PointerEvent>, id: string, building: Building) {
     if (e.button !== 0) return;
     if (useBuildMode.getState().active) return;
     e.stopPropagation();
-    openRoomCard({ kind: "placed", id });
+    openCameraCoupledCard({ kind: "placed", id });
     useCameraDirector.getState().focusBuilding(building, getLiveYaw());
   }
 

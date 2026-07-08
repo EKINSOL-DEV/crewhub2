@@ -96,7 +96,11 @@ export function shouldExitCameraOnEscape(
  */
 export function selectCharacter(key: string): void {
   useCameraDirector.getState().followBot(key);
-  useBuildMode.getState().openRoomCard({ kind: "dossier", key });
+  // openCameraCoupledCard, not plain openRoomCard: this same click also
+  // follows the bot above, so this dossier is the one the camera's
+  // mode->free effect below is allowed to auto-close later — see
+  // mode.ts's own doc comment on `cameraCoupledCard`.
+  useBuildMode.getState().openCameraCoupledCard({ kind: "dossier", key });
   if (!key.startsWith("agent:")) {
     useGameChats.getState().open(key);
   }
@@ -115,11 +119,13 @@ export function selectCharacter(key: string): void {
  * whatever shot the player already had going, so they're excluded here and
  * keep using plain `closeRoomCard`/`closeRoomLink`.
  *
- * Kind-based, not causally tracked: a dossier can be open with the camera in
- * any state at all (e.g. HqCard's roster rows open one without ever calling
- * followBot) — this couples on WHAT'S open, not on whether that specific
- * open call is what engaged the camera, which keeps the rule simple and
- * matches the brief.
+ * Kind-based only as a first filter, not the whole rule (round 3 fix): a
+ * dossier can be open with the camera in any state at all (e.g. HqCard's
+ * roster rows open one without ever calling followBot), so the mode->free
+ * effect below ALSO checks `cameraCoupledCard` before closing — this
+ * function alone just says which kinds are ever eligible to be the camera's
+ * coupled card in the first place (room/HQ/dossier can be; Projects/hire
+ * never are, so they're excluded here regardless of that check).
  */
 export function isFocusCoupledCard(kind: CardTarget["kind"] | undefined): boolean {
   return kind === "plot" || kind === "placed" || kind === "hq" || kind === "dossier";
@@ -156,19 +162,27 @@ export default function GameShell() {
   // `exitAndCloseRoomCard` below, passed as onClose to the three coupled
   // panels): the camera exiting SOME OTHER WAY than one of those panels'
   // own close (the HUD's 🎥✕ chip, a pan takeover, a despawned followed
-  // bot) closes whichever of room/HQ/dossier is open, if any — see
-  // isFocusCoupledCard's own doc comment for why this is kind-based, not
-  // causally tracked. Dep is deliberately just `cameraFree`, not `roomCard`:
-  // reading the room card imperatively means opening one of these three
-  // while the camera is ALREADY free (HqCard's roster rows never engage it)
-  // isn't immediately undone by this same effect — only a fresh
-  // free-TRANSITION reacts. No loop with direction 1: by the time THIS
-  // effect runs, a panel that closed itself (calling exit() first) has
-  // already cleared roomCard, so the imperative read below finds nothing
-  // coupled left to close.
+  // bot) closes whichever of room/HQ/dossier is open — but ONLY if it's the
+  // specific card whose OWN click also engaged the camera (round 3 fix: the
+  // `roomCard === cameraCoupledCard` reference check). Kind alone isn't
+  // enough — a dossier can be open with the camera in any state at all (see
+  // isFocusCoupledCard's own doc comment); without the identity check, e.g.
+  // following bot A (opening A's dossier, camera-coupled) and then opening
+  // bot B's dossier from the HQ roster (never touches the camera) would have
+  // this effect close B's card too once A's follow ends, even though B's
+  // card never had anything to do with the camera. Dep is deliberately just
+  // `cameraFree`, not `roomCard`/`cameraCoupledCard`: reading both
+  // imperatively means opening a coupled card while the camera is ALREADY
+  // free (HqCard's roster rows never engage it) isn't immediately undone by
+  // this same effect — only a fresh free-TRANSITION reacts. No loop with
+  // direction 1: by the time THIS effect runs, a panel that closed itself
+  // (calling exit() first) has already cleared roomCard (and
+  // cameraCoupledCard along with it — see mode.ts's closeRoomCard), so the
+  // imperative read below finds nothing coupled left to close.
   useEffect(() => {
     if (!cameraFree) return;
-    if (isFocusCoupledCard(useBuildMode.getState().roomCard?.kind)) {
+    const state = useBuildMode.getState();
+    if (isFocusCoupledCard(state.roomCard?.kind) && state.roomCard === state.cameraCoupledCard) {
       closeRoomCard();
     }
   }, [cameraFree, closeRoomCard]);

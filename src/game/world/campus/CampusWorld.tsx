@@ -111,7 +111,7 @@ export function CampusWorld({ biome = BIOMES.campus }: { biome?: Biome }) {
   // applyEdits' merge pass can't drift apart.
   const placedByKind = useMemo(() => placedItemPlacements(edits.items), [edits]);
 
-  const openRoomCard = useBuildMode((s) => s.openRoomCard);
+  const openCameraCoupledCard = useBuildMode((s) => s.openCameraCoupledCard);
   // Clicking a base pavilion outside build mode opens its RoomCard (M5 T4);
   // in build mode this steps aside for BuildControls' own tools (item/
   // building placement, the select-tool proxies over *placed* buildings).
@@ -122,12 +122,15 @@ export function CampusWorld({ biome = BIOMES.campus }: { biome?: Biome }) {
   // the camera director, seeded with the rig's live yaw (live-camera.ts —
   // the rig's own goal/current state is otherwise private to it) so a
   // multi-door building (HQ) picks whichever door reads angularly closest
-  // to however the player is currently looking.
+  // to however the player is currently looking. openCameraCoupledCard, not
+  // plain openRoomCard (round 3 fix): this same click also frames the
+  // camera below, so this card is the one GameShell's mode->free effect is
+  // allowed to auto-close later — see mode.ts's `cameraCoupledCard` doc.
   function handlePavilionPointerDown(e: ThreeEvent<PointerEvent>, target: CardTarget, building: Building) {
     if (e.button !== 0) return;
     if (useBuildMode.getState().active) return;
     e.stopPropagation();
-    openRoomCard(target);
+    openCameraCoupledCard(target);
     useCameraDirector.getState().focusBuilding(building, getLiveYaw());
   }
 
