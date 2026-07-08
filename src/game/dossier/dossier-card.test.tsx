@@ -115,6 +115,7 @@ vi.mock("@/game/engine/camera/director", () => ({
 
 import { playSfx } from "@/game/audio/sfx";
 import { useBuildMode } from "@/game/build/mode";
+import { useFlavor } from "@/game/flavor/engine";
 import { DossierCard } from "./DossierCard";
 
 function meta(id: string, over: Partial<SessionMeta> = {}): SessionMeta {
@@ -209,6 +210,7 @@ beforeEach(() => {
   biosState.loading = null;
   cameraModeState.current = { kind: "free" };
   useBuildMode.setState({ roomCard: null });
+  useFlavor.setState({ enabled: true });
   vi.mocked(playSfx).mockClear();
   openSpy.mockClear();
   followBotSpy.mockClear();
@@ -342,6 +344,18 @@ describe("DossierCard", () => {
     sessionsState.current = { "claude:s1": meta("s1") };
     biosState.bios = { "claude:s1": "stale bio" };
     biosState.loading = "claude:s1";
+    render(<DossierCard dossierKey="claude:s1" onClose={vi.fn()} />);
+    expect(screen.getByTestId("dossier-card-bio-regenerate")).toBeDisabled();
+  });
+
+  // A regenerate click while flavor is off is a no-op in bio.ts (it must
+  // never overwrite a real cached bio with the disabled placeholder) — the
+  // button itself is disabled too, so the user can't even trigger a click
+  // that would silently do nothing.
+  it("disables the 🔄 button when flavor is off", () => {
+    sessionsState.current = { "claude:s1": meta("s1") };
+    biosState.bios = { "claude:s1": "stale bio" };
+    useFlavor.setState({ enabled: false });
     render(<DossierCard dossierKey="claude:s1" onClose={vi.fn()} />);
     expect(screen.getByTestId("dossier-card-bio-regenerate")).toBeDisabled();
   });

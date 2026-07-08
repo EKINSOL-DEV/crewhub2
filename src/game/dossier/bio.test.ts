@@ -190,6 +190,46 @@ describe("useBios", () => {
     expect(useBios.getState().bios["claude:s1"]).toBeUndefined();
   });
 
+  it("generates on a genuine KV miss (ok status, no data)", async () => {
+    vi.mocked(commands.getSetting).mockResolvedValue({ status: "ok", data: null } as never);
+    useBios.getState().ensure(info());
+    await vi.waitFor(() =>
+      expect(useBios.getState().bios["claude:s1"]).toBe("Ada debugs by moonlight and swears by semicolons."),
+    );
+    expect(commands.worldGenerateProp).toHaveBeenCalled();
+  });
+
+  it("does not generate on a KV read error (typed error result) — leaves the bio unset for a later retry", async () => {
+    vi.mocked(commands.getSetting).mockResolvedValue({ status: "error", error: "kv unavailable" } as never);
+    useBios.getState().ensure(info());
+    await vi.waitFor(() => expect(commands.getSetting).toHaveBeenCalled());
+    // Give any (incorrect) fall-through generation a chance to run before asserting its absence.
+    await new Promise((r) => setTimeout(r, 0));
+    expect(useBios.getState().bios["claude:s1"]).toBeUndefined();
+    expect(commands.worldGenerateProp).not.toHaveBeenCalled();
+    expect(commands.setSetting).not.toHaveBeenCalled();
+  });
+
+  it("does not generate on a thrown KV error — leaves the bio unset for a later retry", async () => {
+    vi.mocked(commands.getSetting).mockRejectedValue(new Error("transport down"));
+    useBios.getState().ensure(info());
+    await vi.waitFor(() => expect(commands.getSetting).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 0));
+    expect(useBios.getState().bios["claude:s1"]).toBeUndefined();
+    expect(commands.worldGenerateProp).not.toHaveBeenCalled();
+    expect(commands.setSetting).not.toHaveBeenCalled();
+  });
+
+  it("does not overwrite an already-cached real bio when regenerate() is called while flavor is off", async () => {
+    useBios.setState({ bios: { "claude:s1": "a real cached bio" } });
+    vi.mocked(flavorEnabled).mockReturnValue(false);
+    useBios.getState().regenerate(info());
+    await new Promise((r) => setTimeout(r, 0));
+    expect(useBios.getState().bios["claude:s1"]).toBe("a real cached bio");
+    expect(commands.worldGenerateProp).not.toHaveBeenCalled();
+    expect(commands.setSetting).not.toHaveBeenCalled();
+  });
+
   it("only ever runs one generation at a time, cluster-wide", async () => {
     let resolveFirst!: (v: Awaited<ReturnType<typeof commands.worldGenerateProp>>) => void;
     vi.mocked(commands.worldGenerateProp).mockImplementationOnce(

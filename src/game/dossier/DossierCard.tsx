@@ -24,6 +24,7 @@ import { playSfx } from "@/game/audio/sfx";
 import { useBuildMode } from "@/game/build/mode";
 import { useGameChats } from "@/game/chat/store";
 import { useCameraDirector } from "@/game/engine/camera/director";
+import { useFlavor } from "@/game/flavor/engine";
 import { ExitZoomButton, GamePanel } from "@/game/hud/GamePanel";
 import type { SessionStatus } from "@/ipc/bindings";
 import { formatTokens } from "@/lib/format";
@@ -122,6 +123,7 @@ export function DossierCard({ dossierKey, onClose }: DossierCardProps) {
   const loading = useBios((s) => s.loading);
   const ensure = useBios((s) => s.ensure);
   const regenerate = useBios((s) => s.regenerate);
+  const flavorOn = useFlavor((s) => s.enabled);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -180,7 +182,7 @@ export function DossierCard({ dossierKey, onClose }: DossierCardProps) {
           type="button"
           aria-label="Regenerate bio"
           data-testid="dossier-card-bio-regenerate"
-          disabled={loading !== null}
+          disabled={loading !== null || !flavorOn}
           onClick={() => regenerate(info)}
           className="shrink-0 rounded-full px-1.5 py-0.5 hover:bg-slate-900/10 disabled:opacity-50"
         >
