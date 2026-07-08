@@ -684,6 +684,57 @@ describe("M7 T3 chat wiring", () => {
     expect(order).toEqual(["hi", "hello", "🏃 heading to HQ", "💃 dance"]);
   });
 
+  // Local-note ordering fix: a local note used to always render after every
+  // transcript line, regardless of when it actually happened, so an old note
+  // could sink below (i.e. render "above" in read order, since it stayed
+  // last) newer transcript messages that arrived later. It's now interleaved
+  // by timestamp (lines.ts's mergeChatLines).
+  it("interleaves a local note by timestamp: it lands strictly between an earlier and a later transcript message, not after both", () => {
+    views.current = [view({ status: "Working" })];
+    const dateNowSpy = vi.spyOn(Date, "now").mockReturnValue(1_000);
+    const { container, rerender } = render(<ChatWindow {...WINDOW_PROPS} />);
+    const input = screen.getByTestId("chat-window-input");
+    fireEvent.change(input, { target: { value: "go to hq" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    dateNowSpy.mockRestore();
+    expect(screen.getByText("🏃 heading to HQ").dataset.who).toBe("note");
+
+    // One transcript message timestamped before the note's ts (1000), one
+    // after — arriving together, as a live transcript update would.
+    transcripts.sessions["claude:s1"] = transcript(
+      [
+        [1, { kind: "AssistantText", data: { text: "before the note", ts: 500 } }],
+        [2, { kind: "AssistantText", data: { text: "after the note", ts: 1500 } }],
+      ],
+      [1, 2],
+    );
+    rerender(<ChatWindow {...WINDOW_PROPS} />);
+
+    const order = [...container.querySelectorAll("[data-who]")].map((el) => el.textContent);
+    expect(order).toEqual(["before the note", "🏃 heading to HQ", "after the note"]);
+  });
+
+  // Ties resolve deterministically — the transcript line wins, never the
+  // local one — rather than depending on incidental array/sort order.
+  it("breaks an exact-ts tie in the transcript line's favor", () => {
+    views.current = [view({ status: "Working" })];
+    const dateNowSpy = vi.spyOn(Date, "now").mockReturnValue(1_000);
+    const { container, rerender } = render(<ChatWindow {...WINDOW_PROPS} />);
+    const input = screen.getByTestId("chat-window-input");
+    fireEvent.change(input, { target: { value: "go to hq" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    dateNowSpy.mockRestore();
+
+    transcripts.sessions["claude:s1"] = transcript(
+      [[1, { kind: "AssistantText", data: { text: "same instant", ts: 1_000 } }]],
+      [1],
+    );
+    rerender(<ChatWindow {...WINDOW_PROPS} />);
+
+    const order = [...container.querySelectorAll("[data-who]")].map((el) => el.textContent);
+    expect(order).toEqual(["same instant", "🏃 heading to HQ"]);
+  });
+
   it("resolves a linked room target end-to-end: 'go to <project>' posts a goto to that room's door", () => {
     useCampusEdits.setState((s) => ({ edits: { ...s.edits, plotProjects: { 0: "proj-1" } } }));
     useProjectsStore.setState({

@@ -44,3 +44,38 @@ export function chatLinesFrom(items: Map<number, TranscriptItem>, order: number[
   }
   return out;
 }
+
+/**
+ * Interleave a chat's two line sources into one chronological list (local-
+ * note ordering fix): `transcriptLines` and `localLines` are each already in
+ * ascending-`ts` order on their own (seq order for the former, insertion
+ * order — store.ts's addLocalLine stamps `Date.now()` at push time — for the
+ * latter), so a single two-pointer merge produces the fully-interleaved,
+ * ascending-`ts` result in O(n+m) without a full re-sort. Exactly-equal
+ * timestamps are a real possibility (two events in the same millisecond) —
+ * the `<=` below resolves every tie in the transcript line's favor, a
+ * deterministic choice callers can rely on rather than an accident of sort
+ * stability. A null `ts` (never actually produced today — every
+ * TranscriptItem carries one and addLocalLine always stamps one — but still
+ * part of ChatLine's type) sorts as if infinitely late, so a line that
+ * somehow lacks a timestamp lands at the end instead of jumping the queue.
+ */
+export function mergeChatLines(transcriptLines: ChatLine[], localLines: ChatLine[]): ChatLine[] {
+  const merged: ChatLine[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < transcriptLines.length && j < localLines.length) {
+    const t = transcriptLines[i]!;
+    const l = localLines[j]!;
+    if ((t.ts ?? Infinity) <= (l.ts ?? Infinity)) {
+      merged.push(t);
+      i++;
+    } else {
+      merged.push(l);
+      j++;
+    }
+  }
+  while (i < transcriptLines.length) merged.push(transcriptLines[i++]!);
+  while (j < localLines.length) merged.push(localLines[j++]!);
+  return merged;
+}
