@@ -3,6 +3,10 @@
 // interleave by timestamp. No React in this file — exhaustively unit-tested.
 import type { TranscriptItem } from "@/ipc/bindings";
 
+// Re-exported so existing importers (MetaStrip.tsx, this module's own tests)
+// don't need to change — the implementation itself lives in one place only.
+export { formatTokens } from "@/lib/format";
+
 export type ToolUseData = Extract<TranscriptItem, { kind: "ToolUse" }>["data"];
 export type ToolResultData = Extract<TranscriptItem, { kind: "ToolResult" }>["data"];
 export type UsageData = Extract<TranscriptItem, { kind: "Usage" }>["data"];
@@ -125,11 +129,4 @@ export function sumUsage(items: ReadonlyMap<number, TranscriptItem>, order: read
     sums.cache_read += item.data.cache_read;
   }
   return sums;
-}
-
-/** Compact token count: 12300 → "12.3k", 999 → "999" (plan EKI-74 shape). */
-export function formatTokens(n: number): string {
-  if (n < 1000) return String(n);
-  if (n < 1_000_000) return `${(n / 1000).toFixed(n < 100_000 ? 1 : 0).replace(/\.0$/, "")}k`;
-  return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
 }

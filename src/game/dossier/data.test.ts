@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { Agent, Project, Room, SessionBinding, SessionMeta } from "@/ipc/bindings";
 import { registerLiveBots } from "@/game/sim/live-bots";
 import type { SimBot } from "@/game/sim/sim";
-import { abbrevTokens, buildDossier, type DossierSnapshot, humanizeDuration } from "./data";
+import { buildDossier, type DossierSnapshot, humanizeDuration } from "./data";
 
 const NOW = 1_000_000;
 
@@ -271,23 +271,6 @@ describe("humanizeDuration", () => {
   });
 });
 
-describe("abbrevTokens", () => {
-  it("leaves small counts as-is", () => {
-    expect(abbrevTokens(0)).toBe("0");
-    expect(abbrevTokens(950)).toBe("950");
-  });
-
-  it("compacts thousands with one decimal below 100k", () => {
-    expect(abbrevTokens(12_345)).toBe("12.3k");
-    expect(abbrevTokens(4_100)).toBe("4.1k");
-  });
-
-  it("drops the decimal at and above 100k", () => {
-    expect(abbrevTokens(150_000)).toBe("150k");
-  });
-
-  it("compacts millions with one decimal", () => {
-    expect(abbrevTokens(2_000_000)).toBe("2M");
-    expect(abbrevTokens(2_500_000)).toBe("2.5M");
-  });
-});
+// abbrevTokens moved to src/lib/format.ts as formatTokens (de-duplicated
+// alongside panels/chat/render-list.ts and panels/sessions/format.ts) —
+// see src/lib/format.test.ts for the thorough boundary-case coverage.

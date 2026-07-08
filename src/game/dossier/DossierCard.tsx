@@ -26,12 +26,13 @@ import { useGameChats } from "@/game/chat/store";
 import { useCameraDirector } from "@/game/engine/camera/director";
 import { ExitZoomButton, GamePanel } from "@/game/hud/GamePanel";
 import type { SessionStatus } from "@/ipc/bindings";
+import { formatTokens } from "@/lib/format";
 import { useAgentsStore } from "@/stores/agents";
 import { useBindingsStore } from "@/stores/bindings";
 import { useProjectsStore } from "@/stores/projects";
 import { useSessionsStore } from "@/stores/sessions";
 import { BIO_DISABLED_PLACEHOLDER, useBios } from "./bio";
-import { abbrevTokens, buildDossier, humanizeDuration, type DossierInfo } from "./data";
+import { buildDossier, humanizeDuration, type DossierInfo } from "./data";
 
 const STATUS_LABEL: Record<SessionStatus | "resting", string> = {
   Working: "🟢 Working",
@@ -90,7 +91,7 @@ function rowsFor(info: DossierInfo, nowMs: number): InfoRow[] {
   if (info.usage) {
     rows.push({
       label: "Usage",
-      value: `${abbrevTokens(info.usage.inputTokens)} in · ${abbrevTokens(info.usage.outputTokens)} out`,
+      value: `${formatTokens(info.usage.inputTokens)} in · ${formatTokens(info.usage.outputTokens)} out`,
     });
   }
   if (info.origin) rows.push({ label: "Origin", value: info.origin });

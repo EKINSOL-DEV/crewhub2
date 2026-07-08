@@ -1,17 +1,10 @@
 // Pure formatting helpers for the sessions panel (T22, EKI-74).
 import type { UsageTotals } from "@/ipc/bindings";
+import { formatTokens } from "@/lib/format";
 
-/** 950 → "950", 12_345 → "12.3k", 4_100_000 → "4.1M". */
-export function formatTokens(n: number): string {
-  if (n < 1000) return String(n);
-  if (n < 1_000_000) return `${trim1(n / 1000)}k`;
-  return `${trim1(n / 1_000_000)}M`;
-}
-
-function trim1(v: number): string {
-  const s = v.toFixed(1);
-  return s.endsWith(".0") ? s.slice(0, -2) : s;
-}
+// Re-exported so existing importers (SessionsPanel.tsx et al., this module's
+// own tests) don't need to change — the implementation lives in one place.
+export { formatTokens };
 
 /** Compact usage strip: `12.3k ▸ 4.1k` (in ▸ out). */
 export function formatUsage(u: UsageTotals): string {
