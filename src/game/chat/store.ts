@@ -100,13 +100,16 @@ interface GameChatsState {
    * Per-chat overlay of note/bot lines that never touch the engine-backed
    * transcripts store (M7 T3) — say-intent replies and command feedback for
    * demo bots and session-less crew, neither of which has a real transcript
-   * to write into. use-chat-session.ts merges these AFTER a chat's
-   * transcript lines, in the order they were added: they're always the
-   * newest thing that happened, so appending (rather than sorting by the
-   * synthetic seq) is both correct and cheaper. Kept across chat close/
-   * reopen — losing "on my way!" feedback the moment a window closes would
-   * be a surprising, and the data's tiny — capped at LOCAL_LINES_MAX per
-   * key (oldest dropped first) rather than pruned outright, so a
+   * to write into. Each line is stamped with a wall-clock `ts` (Date.now())
+   * the moment it's pushed below — this is the store/effect boundary, so a
+   * real Date.now() call here is fine (see data.ts's pure-module/nowMs
+   * discipline for the counterpart rule: no Date.now() in pure code).
+   * use-chat-session.ts's `lines` merges these into a chat's transcript
+   * lines by that `ts` (lines.ts's mergeChatLines), so an old note no longer
+   * sinks below newer real messages that arrive after it. Kept across chat
+   * close/reopen — losing "on my way!" feedback the moment a window closes
+   * would be a surprising, and the data's tiny — capped at LOCAL_LINES_MAX
+   * per key (oldest dropped first) rather than pruned outright, so a
    * long-lived chat can't grow this without bound.
    */
   localLines: Record<string, ChatLine[]>;

@@ -49,7 +49,7 @@ describe("parseIntent — goto plaza", () => {
 });
 
 describe("parseIntent — goto room", () => {
-  it("matches a room by case-insensitive substring", () => {
+  it("matches a room by case-insensitive whole-name prefix", () => {
     const ctx = ctxWith("Website Redesign");
     expect(parseIntent("go to website redesign", ctx)).toEqual({
       kind: "goto",
@@ -57,7 +57,7 @@ describe("parseIntent — goto room", () => {
     });
   });
 
-  it("matches on a partial substring", () => {
+  it("matches a room by a word-prefix of its second word", () => {
     const ctx = ctxWith("Website Redesign");
     expect(parseIntent("go to the redesign", ctx)).toEqual({
       kind: "goto",
@@ -77,6 +77,31 @@ describe("parseIntent — goto room", () => {
 
   it("returns null with no rooms configured", () => {
     expect(parseIntent("go to the store", noRooms)).toBeNull();
+  });
+
+  it("matches a word-prefix of a room's first word (CrewHub)", () => {
+    const ctx = ctxWith("CrewHub Docs");
+    expect(parseIntent("go to crew", ctx)).toEqual({
+      kind: "goto",
+      target: { type: "room", buildingKey: "b0" },
+    });
+  });
+
+  it("does not match a mid-word substring across a word boundary", () => {
+    // "main" is a substring of "Domain" but not a prefix of it or of
+    // "Migration" — must not match, unlike the old includes()-based check.
+    const ctx = ctxWith("Domain Migration");
+    expect(parseIntent("go to main", ctx)).toBeNull();
+  });
+
+  it("still resolves a genuine word-prefix match when a substring trap room is also present", () => {
+    // "Domain Migration" is a decoy that must NOT match "main"; "Main Campus"
+    // is the real, unambiguous word-prefix match and must still resolve.
+    const ctx = ctxWith("Domain Migration", "Main Campus");
+    expect(parseIntent("go to main", ctx)).toEqual({
+      kind: "goto",
+      target: { type: "room", buildingKey: "b1" },
+    });
   });
 });
 

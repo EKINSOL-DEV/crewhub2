@@ -49,7 +49,7 @@ import { campusLayout } from "@/game/world/campus/layout";
 import { useProjectsStore } from "@/stores/projects";
 import { useSessionsView } from "@/stores/sessions";
 import { startTranscriptStream, useTranscripts } from "@/stores/transcripts";
-import { chatLinesFrom, normalize, type ChatLine } from "./lines";
+import { chatLinesFrom, mergeChatLines, normalize, type ChatLine } from "./lines";
 import { pushLocalBubble } from "./use-speech-bubbles";
 import { useGameChats } from "./store";
 
@@ -238,10 +238,15 @@ export function useChatSession(key: string): ChatSessionResult {
       if (idx !== -1) consumed.add(idx);
     }
     const liveLocalLines = consumed.size === 0 ? localLines : localLines.filter((_, i) => !consumed.has(i));
-    // Local lines are always appended, never merged/sorted by seq — they're
-    // synthesized in the order they happened and are always the newest thing
-    // in the chat (see store.ts's addLocalLine doc comment).
-    return [...transcriptLines, ...liveLocalLines];
+    // Local-note ordering fix: a long-running chat used to sink every local
+    // note (command feedback, echoes) below ALL transcript lines regardless
+    // of when it actually happened, so an old note could end up "above" (in
+    // read order) real messages that arrived after it. lines.ts's
+    // mergeChatLines interleaves both sources by `ts` ascending instead —
+    // transcript lines win exact ties (see its doc comment) — so a note's
+    // position reflects when it was added relative to the transcript, not
+    // just "always last".
+    return mergeChatLines(transcriptLines, liveLocalLines);
   }, [transcript, localLines]);
   const pending = useMemo<ChatSessionPending>(
     () => ({

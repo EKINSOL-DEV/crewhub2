@@ -11,15 +11,16 @@
 //
 // Every wall in `building.doors` gets its own gap — Pavilion.tsx only ever
 // cuts the primary door (M6 T1's progress note flagged this), and HQ has
-// one door per side, so it needs its own wall builder. Deliberately not
-// shared with Pavilion.tsx (out of scope for this task): `lighten()` and
-// `wallSegments()` below are small, intentional local copies of Pavilion's
-// same-named helpers.
+// one door per side, so it needs its own wall builder. `lighten()` and
+// `wallSegments()` below are shared with Pavilion.tsx via wall-utils.ts;
+// HQ's wall-inset/thickness constants live there too, as the canonical
+// source HqProps.tsx derives its prop-clearance offset from.
 import { Suspense } from "react";
 import { Billboard, Text } from "@react-three/drei";
 import { useModel } from "@/game/assets/use-model";
 import { toonGradientMap } from "@/game/engine/toon";
 import type { Building } from "./buildings";
+import { HQ_WALL_OFFSET, HQ_WALL_THICK, lighten, wallSegments } from "./wall-utils";
 
 const SLAB = "#e6d8b8";
 const APRON = "#a9855c";
@@ -27,25 +28,13 @@ const PILLAR = "#7c5a3a";
 const STEP = "#c7ac7c";
 const PODIUM = "#f0e4c4";
 
-/** Lighten a `#rrggbb` hex color by adding `amt` to each channel (clamped).
- *  A local copy of Pavilion.tsx's helper of the same name — Pavilion.tsx is
- *  out of scope for this task, so its `lighten()` isn't importable. */
-function lighten(hex: string, amt: number): string {
-  const n = parseInt(hex.slice(1), 16);
-  const clamp = (c: number) => Math.min(255, c + amt);
-  const r = clamp((n >> 16) & 0xff);
-  const g = clamp((n >> 8) & 0xff);
-  const b = clamp(n & 0xff);
-  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
-}
 const WALL = lighten(SLAB, 20);
 
 const WALL_HEIGHT = 2.6;
-const WALL_THICK = 0.3;
-const WALL_INSET = 0.1;
+const WALL_THICK = HQ_WALL_THICK;
 const DOOR_GAP = 2.2;
 /** Wall centerline offset in from the raw rect edge (inset + half thickness). */
-const WALL_OFFSET = WALL_INSET + WALL_THICK / 2;
+const WALL_OFFSET = HQ_WALL_OFFSET;
 
 const PILLAR_SIZE = 0.5;
 const PILLAR_HEIGHT = 3.0;
@@ -75,24 +64,6 @@ type Side = "front" | "back" | "left" | "right";
 function classifySide(rect: { w: number; d: number }, dx: number, dz: number): Side {
   const onXEdge = rect.w / 2 - Math.abs(dx) < rect.d / 2 - Math.abs(dz);
   return onXEdge ? (dx > 0 ? "right" : "left") : dz > 0 ? "back" : "front";
-}
-
-/** Split a wall's span into one or two segments, cutting a `gapWidth` hole
- *  centered on `gapCenter` when given; drops any segment that would end up
- *  with zero or negative length. */
-function wallSegments(
-  from: number,
-  to: number,
-  gapCenter: number | null,
-  gapWidth: number,
-): { center: number; length: number }[] {
-  if (gapCenter === null) return [{ center: (from + to) / 2, length: to - from }];
-  const segments: { center: number; length: number }[] = [];
-  const gapLo = gapCenter - gapWidth / 2;
-  const gapHi = gapCenter + gapWidth / 2;
-  if (gapLo > from) segments.push({ center: (from + gapLo) / 2, length: gapLo - from });
-  if (to > gapHi) segments.push({ center: (gapHi + to) / 2, length: to - gapHi });
-  return segments;
 }
 
 function Wall({

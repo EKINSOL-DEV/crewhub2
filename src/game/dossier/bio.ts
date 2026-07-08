@@ -125,15 +125,27 @@ export const useBios = create<BiosState>((set, get) => {
   }
 
   async function loadOrGenerate(key: string, info: DossierInfo): Promise<void> {
+    let res: Awaited<ReturnType<typeof commands.getSetting>>;
     try {
-      const res = await commands.getSetting(BIO_KEY_PREFIX + key);
-      if (res.status === "ok" && res.data) {
-        set((s) => ({ bios: { ...s.bios, [key]: res.data! } }));
-        return;
-      }
+      res = await commands.getSetting(BIO_KEY_PREFIX + key);
     } catch {
-      // KV unavailable — fall through to generation
+      // KV transport error (thrown, not a typed Result) — leave the bio
+      // unset so the UI keeps showing its placeholder; do NOT generate, or
+      // a genuine backend hiccup would silently mint (and persist) a fresh
+      // bio as if there'd simply never been one cached. A later ensure()
+      // call (e.g. the card reopening) retries the KV read.
+      return;
     }
+    if (res.status !== "ok") {
+      // Typed IPC-level error result — same "don't paper over it" reasoning
+      // as the catch above.
+      return;
+    }
+    if (res.data) {
+      set((s) => ({ bios: { ...s.bios, [key]: res.data! } }));
+      return;
+    }
+    // Genuine miss: the call succeeded and there's simply no cached bio yet.
     await generate(key, info);
   }
 
@@ -148,6 +160,14 @@ export const useBios = create<BiosState>((set, get) => {
       void loadOrGenerate(key, info).finally(() => pending.delete(key));
     },
     regenerate: (info) => {
+      // Flavor being off must never blow away an already-cached REAL bio —
+      // generate()'s own flavor-off branch (relied on by ensure()/
+      // loadOrGenerate for a brand-new key, where writing the placeholder
+      // IS correct) would otherwise stomp it the moment a user hits 🔄.
+      // The card's own button is also disabled while flavor is off, but
+      // this is the state-level guarantee: an explicit user action must
+      // still be a true no-op, not just a UI nicety.
+      if (!flavorEnabled()) return;
       const key = stableKey(info);
       if (pending.has(key)) return;
       pending.add(key);

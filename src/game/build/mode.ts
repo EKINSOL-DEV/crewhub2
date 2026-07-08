@@ -58,6 +58,24 @@ interface BuildModeState {
    *  Canvas (CampusWorld/PlacedBuildings/HqProps), the card itself mounts
    *  as an HTML sibling in GameShell. */
   roomCard: CardTarget | null;
+  /** Which currently-open `roomCard` (by reference), if any, is the one
+   *  whose OWN click also engaged the camera (focusBuilding/followBot) in
+   *  the same handler — GameShell round-3 fix. `openCameraCoupledCard`
+   *  below sets this to the exact same object it puts in `roomCard`; plain
+   *  `openRoomCard` never touches it. GameShell's camera-mode->free effect
+   *  reads this to decide whether the card that's open right now is the one
+   *  allowed to auto-close, instead of closing any card that merely SHARES
+   *  A KIND with a focus-coupled panel (the old rule — see GameShell.tsx's
+   *  isFocusCoupledCard doc comment) even when that specific open never
+   *  touched the camera (e.g. HqCard's roster rows, ChatWindow's ℹ️ button,
+   *  a dossier's "Forked from" row all open a dossier without following
+   *  anything).
+   *
+   *  Left stale on purpose rather than cleared by every call site that ever
+   *  replaces/closes `roomCard`: a fresh object literal never `===`s an old
+   *  one, so a dangling reference to a since-closed card can never falsely
+   *  match whatever opens next — no cleanup bookkeeping required. */
+  cameraCoupledCard: CardTarget | null;
   /** Enter build mode, always starting on the select/move tool. Also
    *  dismisses any open RoomCard — build mode's own selection/inspection UI
    *  takes over the same "click a pavilion" gesture, so the two must not be
@@ -69,6 +87,12 @@ interface BuildModeState {
   openRoomLink: (buildingId: string) => void;
   closeRoomLink: () => void;
   openRoomCard: (target: CardTarget) => void;
+  /** Same as `openRoomCard`, for the handlers that ALSO call
+   *  focusBuilding/followBot in the same click (CampusWorld's and
+   *  PlacedBuildings' pavilion handlers, GameShell's selectCharacter) — also
+   *  marks `target` as the card the camera's mode->free effect is allowed to
+   *  auto-close. */
+  openCameraCoupledCard: (target: CardTarget) => void;
   closeRoomCard: () => void;
 }
 
@@ -77,11 +101,13 @@ export const useBuildMode = create<BuildModeState>((set) => ({
   tool: SELECT_TOOL,
   pendingRoomLink: null,
   roomCard: null,
-  activate: () => set({ active: true, tool: SELECT_TOOL, roomCard: null }),
+  cameraCoupledCard: null,
+  activate: () => set({ active: true, tool: SELECT_TOOL, roomCard: null, cameraCoupledCard: null }),
   deactivate: () => set({ active: false, tool: SELECT_TOOL, pendingRoomLink: null }),
   setTool: (tool) => set({ tool }),
   openRoomLink: (buildingId) => set({ pendingRoomLink: buildingId }),
   closeRoomLink: () => set({ pendingRoomLink: null }),
   openRoomCard: (target) => set({ roomCard: target }),
-  closeRoomCard: () => set({ roomCard: null }),
+  openCameraCoupledCard: (target) => set({ roomCard: target, cameraCoupledCard: target }),
+  closeRoomCard: () => set({ roomCard: null, cameraCoupledCard: null }),
 }));

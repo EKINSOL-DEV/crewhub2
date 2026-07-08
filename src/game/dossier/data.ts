@@ -163,10 +163,3 @@ export function humanizeDuration(ms: number): string {
   const remHours = totalHours % 24;
   return remHours > 0 ? `${days}d ${remHours}h` : `${days}d`;
 }
-
-/** Compact token count: 12300 → "12.3k", 999 → "999" — same formula as panels/chat/render-list.ts's formatTokens. */
-export function abbrevTokens(n: number): string {
-  if (n < 1000) return String(n);
-  if (n < 1_000_000) return `${(n / 1000).toFixed(n < 100_000 ? 1 : 0).replace(/\.0$/, "")}k`;
-  return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
-}

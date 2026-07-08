@@ -1,9 +1,15 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { useBuildMode } from "./mode";
+import { useBuildMode, type CardTarget } from "./mode";
 
 describe("useBuildMode", () => {
   beforeEach(() => {
-    useBuildMode.setState({ active: false, tool: { kind: "select" }, pendingRoomLink: null, roomCard: null });
+    useBuildMode.setState({
+      active: false,
+      tool: { kind: "select" },
+      pendingRoomLink: null,
+      roomCard: null,
+      cameraCoupledCard: null,
+    });
   });
 
   it("starts inactive on the select tool", () => {
@@ -118,5 +124,42 @@ describe("useBuildMode", () => {
   it("openRoomCard also accepts the M9 fix-round-1 hire arm's optional agentId", () => {
     useBuildMode.getState().openRoomCard({ kind: "hire", agentId: "ag1" });
     expect(useBuildMode.getState().roomCard).toEqual({ kind: "hire", agentId: "ag1" });
+  });
+
+  // Round 3 fix: `cameraCoupledCard` tracks WHICH open action also engaged
+  // the camera, so GameShell's mode->free effect can close only that
+  // specific card instead of any card that merely shares a kind with it.
+  it("plain openRoomCard never sets cameraCoupledCard", () => {
+    useBuildMode.getState().openRoomCard({ kind: "dossier", key: "claude:s1" });
+    expect(useBuildMode.getState().cameraCoupledCard).toBeNull();
+  });
+
+  it("openCameraCoupledCard sets both roomCard and cameraCoupledCard to the same target", () => {
+    const target: CardTarget = { kind: "dossier", key: "claude:s1" };
+    useBuildMode.getState().openCameraCoupledCard(target);
+    expect(useBuildMode.getState().roomCard).toEqual(target);
+    expect(useBuildMode.getState().cameraCoupledCard).toBe(useBuildMode.getState().roomCard);
+  });
+
+  it("closeRoomCard clears cameraCoupledCard along with roomCard", () => {
+    useBuildMode.getState().openCameraCoupledCard({ kind: "hq" });
+    useBuildMode.getState().closeRoomCard();
+    expect(useBuildMode.getState().roomCard).toBeNull();
+    expect(useBuildMode.getState().cameraCoupledCard).toBeNull();
+  });
+
+  it("activate clears cameraCoupledCard along with roomCard", () => {
+    useBuildMode.getState().openCameraCoupledCard({ kind: "placed", id: "b1" });
+    useBuildMode.getState().activate();
+    expect(useBuildMode.getState().cameraCoupledCard).toBeNull();
+  });
+
+  it("opening an uncoupled card over a camera-coupled one leaves a stale (non-matching) cameraCoupledCard, not the new one", () => {
+    useBuildMode.getState().openCameraCoupledCard({ kind: "dossier", key: "bot:a" });
+    useBuildMode.getState().openRoomCard({ kind: "dossier", key: "bot:b" });
+    expect(useBuildMode.getState().roomCard).toEqual({ kind: "dossier", key: "bot:b" });
+    // Reference-inequality is exactly the point: bot:b's own open was never
+    // camera-coupled, so it must never accidentally match.
+    expect(useBuildMode.getState().cameraCoupledCard).not.toBe(useBuildMode.getState().roomCard);
   });
 });

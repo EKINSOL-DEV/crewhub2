@@ -115,6 +115,7 @@ vi.mock("@/game/engine/camera/director", () => ({
 
 import { playSfx } from "@/game/audio/sfx";
 import { useBuildMode } from "@/game/build/mode";
+import { useFlavor } from "@/game/flavor/engine";
 import { DossierCard } from "./DossierCard";
 
 function meta(id: string, over: Partial<SessionMeta> = {}): SessionMeta {
@@ -209,6 +210,7 @@ beforeEach(() => {
   biosState.loading = null;
   cameraModeState.current = { kind: "free" };
   useBuildMode.setState({ roomCard: null });
+  useFlavor.setState({ enabled: true });
   vi.mocked(playSfx).mockClear();
   openSpy.mockClear();
   followBotSpy.mockClear();
@@ -346,6 +348,18 @@ describe("DossierCard", () => {
     expect(screen.getByTestId("dossier-card-bio-regenerate")).toBeDisabled();
   });
 
+  // A regenerate click while flavor is off is a no-op in bio.ts (it must
+  // never overwrite a real cached bio with the disabled placeholder) — the
+  // button itself is disabled too, so the user can't even trigger a click
+  // that would silently do nothing.
+  it("disables the 🔄 button when flavor is off", () => {
+    sessionsState.current = { "claude:s1": meta("s1") };
+    biosState.bios = { "claude:s1": "stale bio" };
+    useFlavor.setState({ enabled: false });
+    render(<DossierCard dossierKey="claude:s1" onClose={vi.fn()} />);
+    expect(screen.getByTestId("dossier-card-bio-regenerate")).toBeDisabled();
+  });
+
   it("a live session dossier shows Chat, not Hire", () => {
     sessionsState.current = { "claude:s1": meta("s1") };
     render(<DossierCard dossierKey="claude:s1" onClose={vi.fn()} />);
@@ -396,6 +410,18 @@ describe("DossierCard", () => {
     fireEvent.click(screen.getByTestId("dossier-card-follow"));
     expect(followBotSpy).toHaveBeenCalledWith("claude:s1");
     expect(playSfx).toHaveBeenCalledWith("click");
+  });
+
+  it("the Follow footer button couples this card to the camera (debt-sweep follow-up)", () => {
+    // A dossier opened WITHOUT engaging the camera (e.g. HQ roster row) must
+    // become camera-coupled once its own Follow button engages it — so the
+    // later camera exit closes THIS card too.
+    sessionsState.current = { "claude:s1": meta("s1") };
+    useBuildMode.setState({ cameraCoupledCard: null }); // isolate from earlier tests
+    render(<DossierCard dossierKey="claude:s1" onClose={vi.fn()} />);
+    expect(useBuildMode.getState().cameraCoupledCard).toBeNull();
+    fireEvent.click(screen.getByTestId("dossier-card-follow"));
+    expect(useBuildMode.getState().cameraCoupledCard).toEqual({ kind: "dossier", key: "claude:s1" });
   });
 
   it("neither footer button closes the card", () => {

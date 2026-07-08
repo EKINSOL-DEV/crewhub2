@@ -24,14 +24,16 @@ import { playSfx } from "@/game/audio/sfx";
 import { useBuildMode } from "@/game/build/mode";
 import { useGameChats } from "@/game/chat/store";
 import { useCameraDirector } from "@/game/engine/camera/director";
+import { useFlavor } from "@/game/flavor/engine";
 import { ExitZoomButton, GamePanel } from "@/game/hud/GamePanel";
 import type { SessionStatus } from "@/ipc/bindings";
+import { formatTokens } from "@/lib/format";
 import { useAgentsStore } from "@/stores/agents";
 import { useBindingsStore } from "@/stores/bindings";
 import { useProjectsStore } from "@/stores/projects";
 import { useSessionsStore } from "@/stores/sessions";
 import { BIO_DISABLED_PLACEHOLDER, useBios } from "./bio";
-import { abbrevTokens, buildDossier, humanizeDuration, type DossierInfo } from "./data";
+import { buildDossier, humanizeDuration, type DossierInfo } from "./data";
 
 const STATUS_LABEL: Record<SessionStatus | "resting", string> = {
   Working: "🟢 Working",
@@ -90,7 +92,7 @@ function rowsFor(info: DossierInfo, nowMs: number): InfoRow[] {
   if (info.usage) {
     rows.push({
       label: "Usage",
-      value: `${abbrevTokens(info.usage.inputTokens)} in · ${abbrevTokens(info.usage.outputTokens)} out`,
+      value: `${formatTokens(info.usage.inputTokens)} in · ${formatTokens(info.usage.outputTokens)} out`,
     });
   }
   if (info.origin) rows.push({ label: "Origin", value: info.origin });
@@ -121,6 +123,7 @@ export function DossierCard({ dossierKey, onClose }: DossierCardProps) {
   const loading = useBios((s) => s.loading);
   const ensure = useBios((s) => s.ensure);
   const regenerate = useBios((s) => s.regenerate);
+  const flavorOn = useFlavor((s) => s.enabled);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -179,7 +182,7 @@ export function DossierCard({ dossierKey, onClose }: DossierCardProps) {
           type="button"
           aria-label="Regenerate bio"
           data-testid="dossier-card-bio-regenerate"
-          disabled={loading !== null}
+          disabled={loading !== null || !flavorOn}
           onClick={() => regenerate(info)}
           className="shrink-0 rounded-full px-1.5 py-0.5 hover:bg-slate-900/10 disabled:opacity-50"
         >
@@ -246,6 +249,10 @@ export function DossierCard({ dossierKey, onClose }: DossierCardProps) {
           data-testid="dossier-card-follow"
           onClick={() => {
             useCameraDirector.getState().followBot(info.key);
+            // The camera is now engaged BY this card (debt-sweep follow-up):
+            // re-open through the coupled path so a later camera exit closes
+            // this dossier too, same as a robot-click-opened one.
+            useBuildMode.getState().openCameraCoupledCard({ kind: "dossier", key: info.key });
             playSfx("click");
           }}
           className="flex-1 rounded-full border-2 border-slate-900/10 px-3 py-1.5 text-sm font-medium hover:bg-slate-900/5"

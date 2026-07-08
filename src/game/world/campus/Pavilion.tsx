@@ -4,21 +4,13 @@
 // see the corner-posts comment below.)
 import { toonGradientMap } from "@/game/engine/toon";
 import type { Building } from "./buildings";
+import { lighten, wallSegments } from "./wall-utils";
 
 const SLAB = "#d9c9a3";
 const PILLAR = "#a98b6b";
 const DESK = "#8b6f52";
 const SCREEN = "#3fd1e0";
 
-/** Lighten a `#rrggbb` hex color by adding `amt` to each channel (clamped). */
-function lighten(hex: string, amt: number): string {
-  const n = parseInt(hex.slice(1), 16);
-  const clamp = (c: number) => Math.min(255, c + amt);
-  const r = clamp((n >> 16) & 0xff);
-  const g = clamp((n >> 8) & 0xff);
-  const b = clamp(n & 0xff);
-  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
-}
 const WALL = lighten(SLAB, 24);
 
 /** Exported for RoofPlate (M5 T4) — its nameplate sits `+1.6` above this. */
@@ -30,24 +22,6 @@ const DOOR_GAP = 2.2;
 const WALL_OFFSET = WALL_INSET + WALL_THICK / 2;
 
 type WallAxis = "x" | "z";
-
-/** Split a wall's span into one or two segments, cutting a `gapWidth` hole
- *  centered on `gapCenter` when given; drops any segment that would end up
- *  with zero or negative length. */
-function wallSegments(
-  from: number,
-  to: number,
-  gapCenter: number | null,
-  gapWidth: number,
-): { center: number; length: number }[] {
-  if (gapCenter === null) return [{ center: (from + to) / 2, length: to - from }];
-  const segments: { center: number; length: number }[] = [];
-  const gapLo = gapCenter - gapWidth / 2;
-  const gapHi = gapCenter + gapWidth / 2;
-  if (gapLo > from) segments.push({ center: (from + gapLo) / 2, length: gapLo - from });
-  if (to > gapHi) segments.push({ center: (gapHi + to) / 2, length: to - gapHi });
-  return segments;
-}
 
 function Wall({
   axis,

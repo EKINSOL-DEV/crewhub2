@@ -32,7 +32,7 @@ describe("selectCharacter", () => {
   beforeEach(() => {
     useCameraDirector.setState({ mode: { kind: "free" } });
     useGameChats.setState({ chats: [] });
-    useBuildMode.setState({ roomCard: null });
+    useBuildMode.setState({ roomCard: null, cameraCoupledCard: null });
   });
 
   it("follows the bot with the camera regardless of which branch the key takes", () => {
@@ -75,5 +75,15 @@ describe("selectCharacter", () => {
     selectCharacter("claude:2");
     expect(useCameraDirector.getState().mode).toEqual({ kind: "follow", botKey: "claude:2" });
     expect(useBuildMode.getState().roomCard).toEqual({ kind: "dossier", key: "claude:2" });
+  });
+
+  // Round 3 fix: selectCharacter's own dossier open is the one GameShell's
+  // mode->free effect is allowed to auto-close later, since this same click
+  // also follows the bot — see mode.ts's `cameraCoupledCard` doc comment
+  // and game-shell-escape.test.tsx's "focus-coupled dock lifetime" suite for
+  // the effect side of this same contract.
+  it("marks its own dossier open as the one coupled to the camera, by reference", () => {
+    selectCharacter("claude:1");
+    expect(useBuildMode.getState().cameraCoupledCard).toBe(useBuildMode.getState().roomCard);
   });
 });

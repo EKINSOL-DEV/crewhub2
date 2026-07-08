@@ -8,18 +8,20 @@
 //
 // No Billboard/Text/useModel anywhere in this file anymore, so in principle
 // these props need no per-frame rotation and could join CampusWorld's frozen
-// static-matrix group right alongside <Headquarters> — but don't: a
-// controller bisect (2026-07-04) found that mounting them inside that frozen
-// subtree blacks the entire first WebGL render in a real browser (world +
-// robots gone, no console error) for a reason still unresolved. See
-// CampusWorld.tsx's comment above where <HqProps /> actually mounts (outside
-// the frozen group, next to HeadquartersPlate) before moving this back in.
+// static-matrix group — but don't: the 2026-07-08 investigation
+// (.superpowers/sdd/blackcanvas-findings.md) showed that growing that
+// group's one big synchronous useStaticMatrices traverse measurably tips a
+// cold-start scheduling race that can starve R3F's renderer-constructing
+// effect (black first render, ~45% odds on a cold dev server). Not a
+// three.js/matrix defect — just keep the traverse lean; see CampusWorld.tsx
+// where <HqProps /> actually mounts (outside, next to HeadquartersPlate).
 import type { ThreeEvent } from "@react-three/fiber";
 import { openWorkspaceWindow } from "@/game/app/windows";
 import { playSfx } from "@/game/audio/sfx";
 import { useBuildMode } from "@/game/build/mode";
 import { toonGradientMap } from "@/game/engine/toon";
 import { HQ_RECT } from "./buildings";
+import { HQ_WALL_OFFSET, HQ_WALL_THICK } from "./wall-utils";
 
 /** The two card-opening props route through mode.ts's single-open card
  *  slot; "workspace" isn't a card at all (it opens a native window), so it
@@ -29,10 +31,16 @@ type PropKind = CardProp | "workspace";
 
 const HW = HQ_RECT.w / 2;
 const HD = HQ_RECT.d / 2;
-/** How far in from the raw rect edge a prop's anchor sits — clears the wall
- *  (Headquarters.tsx's wall centerline sits at half-extent minus ~0.25, its
- *  own inner face closer still) and the corner posts with room to spare. */
-const WALL_INSET = 0.9;
+/** How far a wall's interior face sits in from the raw rect edge — derived
+ *  from Headquarters.tsx's actual wall geometry (via wall-utils.ts) so this
+ *  never drifts out of sync with it. */
+const WALL_INNER_FACE = HQ_WALL_OFFSET + HQ_WALL_THICK / 2;
+/** Extra clearance past the wall's inner face for a prop's own anchor — room
+ *  to spare past the corner posts (HqProps' own margin, not Headquarters'
+ *  geometry, so it stays a local constant). */
+const PROP_WALL_CLEARANCE = 0.5;
+/** How far in from the raw rect edge a prop's anchor sits. */
+const WALL_INSET = WALL_INNER_FACE + PROP_WALL_CLEARANCE;
 
 /** Generous invisible click target over each prop's visible geometry (per
  *  spec: ~2.2 wide x 2 tall) — the procedural shapes below are thin and

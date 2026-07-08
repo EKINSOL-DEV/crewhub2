@@ -329,3 +329,50 @@ describe("buildNavGrid skipKinds (M4 debt sweep — sky-biome invisible walls)",
     expect(withItemsOnly.blocked).toEqual(grid.blocked);
   });
 });
+
+describe("buildNavGrid props (debt sweep — benches/hedges block, lanterns don't)", () => {
+  it("blocks a cell for every seeded bench placement", () => {
+    expect(layout.props.bench.length).toBeGreaterThan(0);
+    for (const p of layout.props.bench) {
+      expect(grid.blocked[cellIndexFor(grid, p.x, p.z)]).toBe(1);
+    }
+  });
+
+  it("blocks a cell for every seeded hedge placement", () => {
+    expect(layout.props.hedge.length).toBeGreaterThan(0);
+    for (const p of layout.props.hedge) {
+      expect(grid.blocked[cellIndexFor(grid, p.x, p.z)]).toBe(1);
+    }
+  });
+
+  it("leaves every lantern cell walkable — lanterns are thin/cosmetic, exempt by design (see buildNavGrid's comment)", () => {
+    expect(layout.props.lantern.length).toBeGreaterThan(0);
+    for (const p of layout.props.lantern) {
+      expect(grid.blocked[cellIndexFor(grid, p.x, p.z)]).toBe(0);
+    }
+  });
+
+  it("routes a path around a bench blocking the direct line, same as any other obstacle", () => {
+    const bench = layout.props.bench[0]!;
+    const from = { x: bench.x - 4, z: bench.z };
+    const to = { x: bench.x + 4, z: bench.z };
+    const path = findPath(grid, from, to);
+    expect(path.length).toBeGreaterThan(0);
+    for (const p of path) {
+      expect(Math.hypot(p.x - bench.x, p.z - bench.z)).toBeGreaterThan(0.4);
+    }
+  });
+
+  it("ring-snap fallout: a waiting/overflow ring point that lands on a bench cell snaps to the nearest walkable neighbor instead of standing inside it (sim.ts's OUTSIDE_RING_RADIUS=12 sits close to layout.ts's BENCH_RING_RADIUS=13 — this is the shared nearestWalkable machinery findPath already relies on for any blocked target, exercised here directly against a real bench cell)", () => {
+    const bench = layout.props.bench[0]!;
+    // Standing exactly on the bench's world coordinate is what a naive ring
+    // point would do pre-fix; walk in from just outside it.
+    const from = { x: bench.x + 3, z: bench.z + 3 };
+    const path = findPath(grid, from, { x: bench.x, z: bench.z });
+    expect(path.length).toBeGreaterThan(0);
+    const last = path[path.length - 1]!;
+    // Snapped off the bench's own (now-blocked) cell onto a walkable neighbor.
+    expect(grid.blocked[cellIndexFor(grid, last.x, last.z)]).toBe(0);
+    expect(Math.hypot(last.x - bench.x, last.z - bench.z)).toBeLessThanOrEqual(2);
+  });
+});
