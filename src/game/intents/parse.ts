@@ -34,14 +34,31 @@ const EMOTE_RE = /^(?:do a )?(dance|spin|cheer|wave)(?: for me)?!?$/i;
 const ROOM_RE = /^go to (?:the )?(.+?)!?$/i;
 
 /**
- * Case-insensitive substring match of `needle` against each room's name.
- * Returns the sole match's buildingKey, or null when there is no match or
- * more than one (ambiguous — we never guess between two rooms).
+ * Case-insensitive WORD-BOUNDARY prefix match of `needle` (already lowercased
+ * and trimmed) against a room `name`. The room name is split into words on
+ * whitespace; the needle must be a prefix of the phrase formed by some
+ * contiguous run of words starting at a word boundary and running to the end
+ * of the name (e.g. "redesign" matches "Website Redesign" via its second
+ * word, "website redesign" matches via both words, and "crew" matches
+ * "CrewHub Docs" as a prefix of its first word). This deliberately rejects
+ * mid-word matches — "main" must never match "Domain" just because "main" is
+ * a substring of it.
+ */
+function matchesRoomName(name: string, needle: string): boolean {
+  const words = name.trim().split(/\s+/);
+  return words.some((_, i) => words.slice(i).join(" ").toLowerCase().startsWith(needle));
+}
+
+/**
+ * Resolves `needle` against each room's name using word-boundary prefix
+ * matching (see `matchesRoomName`). Returns the sole match's buildingKey, or
+ * null when there is no match or more than one (ambiguous — we never guess
+ * between two rooms).
  */
 function resolveRoom(needle: string, rooms: IntentContext["rooms"]): string | null {
   const target = needle.trim().toLowerCase();
   if (!target) return null;
-  const matches = rooms.filter((r) => r.name.toLowerCase().includes(target));
+  const matches = rooms.filter((r) => matchesRoomName(r.name, target));
   const [only] = matches;
   return matches.length === 1 && only ? only.buildingKey : null;
 }
