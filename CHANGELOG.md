@@ -16,6 +16,8 @@ How releases consume this file (M6, EKI-98/EKI-100):
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-09
+
 ### Added
 
 - M9 "Bot dossier" — meet your robots (EKI-184): an ℹ️ button in every chat header (and the HQ
