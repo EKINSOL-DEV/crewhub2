@@ -337,13 +337,13 @@ describe("CampusWorld smoke", () => {
     },
   );
 
-  it("adds one roof-plate mesh (the color dot) per base pavilion linked to a project, none when unlinked", async () => {
+  it("adds two roof-plate meshes (measured plate + color dot) per linked base pavilion, none when unlinked", async () => {
     const before = await ReactThreeTestRenderer.create(<CampusWorld />);
     const baseCount = before.scene.findAllByType("Mesh").length;
     await before.unmount();
 
-    // The stubbed Text above renders a `group`, not a `mesh` — only the
-    // color-dot mesh shows up in this count.
+    // The stubbed Text above renders a `group`, not a `mesh` — the measured
+    // RoundedBox backdrop + the color dot are the two meshes counted below.
     useProjectsStore.setState({
       projects: [
         {
@@ -363,7 +363,7 @@ describe("CampusWorld smoke", () => {
     useCampusEdits.getState().setPlotProject(0, "proj-1");
 
     const after = await ReactThreeTestRenderer.create(<CampusWorld />);
-    expect(after.scene.findAllByType("Mesh").length).toBe(baseCount + 1);
+    expect(after.scene.findAllByType("Mesh").length).toBe(baseCount + 2);
     await after.unmount();
   });
 

@@ -1,5 +1,5 @@
 // R3F render smoke (M3 T5, project-based M5 T4): PlacedBuildings renders one
-// Pavilion + one room-edge outline (+ a roof-plate color dot when linked)
+// Pavilion + one room-edge outline (+ a measured roof plate [backdrop+dot] when linked)
 // per placed building, tinting the outline with the linked project's color
 // (falling back to neutral when unlinked or the project was since deleted).
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -169,7 +169,7 @@ describe("PlacedBuildings smoke", () => {
     await renderer.unmount();
   });
 
-  it("adds one roof-plate mesh (the color dot) per linked building, none when unlinked", async () => {
+  it("adds two roof-plate meshes (measured plate + color dot) per linked building, none when unlinked", async () => {
     useProjectsStore.setState({ projects: PROJECTS });
     const idA = useCampusEdits.getState().addBuilding({ x: 0, z: 20, w: 10, d: 8 }, null);
     useCampusEdits.getState().addBuilding({ x: -20, z: 20, w: 6, d: 5 }, null); // stays unlinked
@@ -180,7 +180,9 @@ describe("PlacedBuildings smoke", () => {
 
     useCampusEdits.getState().setBuildingProject(idA, "p1");
     const after = await ReactThreeTestRenderer.create(<PlacedBuildings />);
-    expect(after.scene.findAllByType("Mesh").length).toBe(baseCount + 1);
+    // Signage live-fix: a linked plate is now a measured RoundedBox backdrop
+    // PLUS the color dot = 2 meshes (the stubbed Text stays a group).
+    expect(after.scene.findAllByType("Mesh").length).toBe(baseCount + 2);
     await after.unmount();
   });
 });
