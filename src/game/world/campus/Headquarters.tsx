@@ -15,11 +15,10 @@
 // `wallSegments()` below are shared with Pavilion.tsx via wall-utils.ts;
 // HQ's wall-inset/thickness constants live there too, as the canonical
 // source HqProps.tsx derives its prop-clearance offset from.
-import { Suspense } from "react";
-import { Billboard, Text } from "@react-three/drei";
 import { useModel } from "@/game/assets/use-model";
 import { toonGradientMap } from "@/game/engine/toon";
 import type { Building } from "./buildings";
+import { Signage } from "./Signage";
 import { HQ_WALL_OFFSET, HQ_WALL_THICK, lighten, wallSegments } from "./wall-utils";
 
 const SLAB = "#e6d8b8";
@@ -234,17 +233,7 @@ const PLATE_TEXT = "🏛 Headquarters";
  * Billboard recomputes its rotation every frame to face the camera.
  */
 export function HeadquartersPlate({ position }: { position: readonly [number, number, number] }) {
-  return (
-    <Billboard position={position as [number, number, number]}>
-      <mesh position={[0, 0, -0.01]}>
-        <planeGeometry args={[2.6, 0.5]} />
-        <meshBasicMaterial color="#1f2430" transparent opacity={0.55} />
-      </mesh>
-      <Suspense fallback={null}>
-        <Text fontSize={0.36} color="#f5efe0" anchorX="center" anchorY="middle">
-          {PLATE_TEXT}
-        </Text>
-      </Suspense>
-    </Billboard>
-  );
+  // Measured signage (live-fix): the old fixed 2.6-wide plane was narrower
+  // than the text, so "Headquarters" spilled past its own plate.
+  return <Signage position={position} text={PLATE_TEXT} fontSize={0.36} />;
 }
