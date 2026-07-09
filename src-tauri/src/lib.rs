@@ -313,11 +313,41 @@ pub fn run() {
                                 append_system_prompt: agent.system_prompt.clone(),
                                 agent_id: Some(agent.id.clone()),
                             };
-                            if let Err(e) = provider.spawn(spec).await {
-                                errlog::error(
-                                    "engine",
-                                    format!("auto-spawn failed for {}: {e}", agent.name),
-                                );
+                            match provider.spawn(spec).await {
+                                Ok(session_id) => {
+                                    // Bind the session to its agent, same as the
+                                    // manual hire flow (game hire.ts / crew bar)
+                                    // does client-side — without this row the
+                                    // frontend joins the session as anonymous and
+                                    // the agent keeps showing "resting", so the
+                                    // user re-hires every launch (live feedback
+                                    // 2026-07-09).
+                                    let bind = store::session_bindings::NewSessionBinding {
+                                        session_id: session_id.id.clone(),
+                                        agent_id: Some(agent.id.clone()),
+                                        room_id: None,
+                                        display_name: None,
+                                        pinned: false,
+                                    };
+                                    if let Err(e) = store_handle
+                                        .state::<std::sync::Arc<store::Store>>()
+                                        .upsert_session_binding(bind)
+                                    {
+                                        errlog::error(
+                                            "engine",
+                                            format!(
+                                                "auto-spawn bind failed for {}: {e}",
+                                                agent.name
+                                            ),
+                                        );
+                                    }
+                                }
+                                Err(e) => {
+                                    errlog::error(
+                                        "engine",
+                                        format!("auto-spawn failed for {}: {e}", agent.name),
+                                    );
+                                }
                             }
                         }
                     }
