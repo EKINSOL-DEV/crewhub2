@@ -1,3 +1,0 @@
-Sounds in this directory are picks from Kenney's Interface Sounds pack (kenney.nl):
-- Interface Sounds — https://kenney.nl/assets/interface-sounds
-License: Creative Commons Zero (CC0). Attribution appreciated, not required.
