@@ -2,7 +2,7 @@
 
 Milestones are deliberately small. They are not commitments to dates or estimates.
 
-## M0 — Bootstrap (this branch)
+## M0 — Bootstrap (merged)
 
 Included: preserved desktop archive, clean workspace, runnable browser fixture,
 mock session contract, English instructions and design documents, type checking,
@@ -12,12 +12,17 @@ Exit: `npm ci` and `npm run check` pass; the fixture runs in a browser; the arch
 points to the original commit; the change is reviewable without rewriting history.
 Report CI separately from local checks. Creating a workflow is not a passing CI run.
 
-## M1 — One excellent room (next)
+## M1 — One excellent room (implemented; visual acceptance pending)
 
-Build the visual experience from [the Astra handoff](ASTRA_HANDOFF.md): one room,
-three expressive characters, deterministic status scenarios, selection/focus,
-activity inspection, keyboard and touch support, reduced motion, and graphics
-fallback. Add only the rendering dependencies actually used.
+The Greenhouse implements one room, three procedural characters, four deterministic
+scenarios, selection/focus, activity inspection, keyboard and touch controls,
+reduced motion, and graphics fallback. It also establishes the requested grid
+foundation: rectangular footprints, rotation, placement, pathfinding, movement
+reservations, and semantic snapshots. Three.js is the only rendering engine.
+
+Local checks are passing. Browser security policy blocked interactive preview,
+so browser rendering, animation feel, touch behavior, shader compilation, and
+hardware performance remain unverified. See [ROOM_REVIEW.md](ROOM_REVIEW.md).
 
 Exit: cohesive visual direction, useful behavior, browser inspection, interaction
 recording where available, documented performance, and zero model calls. The user

@@ -6,8 +6,8 @@ Build CrewHub as a delightful browser world connected to existing agent runtimes
 through a reusable bridge. The user requested a clean start because the previous
 version's appearance and feel were unsatisfactory.
 
-The current delivery is bootstrap and documentation. For the next visual build,
-start with [docs/ASTRA_HANDOFF.md](docs/ASTRA_HANDOFF.md). Implement the scope the
+The first room is implemented as a local simulation. For its design and review
+status, start with [docs/ASTRA_HANDOFF.md](docs/ASTRA_HANDOFF.md). Implement the scope the
 user actually assigns; do not silently expand a room prototype into a platform.
 
 ## Language
@@ -37,6 +37,9 @@ proposals, and implemented behavior.
   to port the old desktop application before a bridge is needed.
 - `packages/protocol` stays free of React, Three.js, Tauri, and runtime dependencies.
   Its bootstrap types are provisional; add actual wire validation before live use.
+- `packages/world-engine` owns grid coordinates, footprints, placement, movement,
+  and semantic world descriptions. Keep it free of rendering and provider code.
+  Register geometry separately from prop semantics; never infer collision from meshes.
 - Herdr comes first. Add direct runtime adapters only for a concrete missing need.
 - Keep mock activity explicitly labeled. Never imply that fixture data describes
   a real running session or that an unimplemented control works.
@@ -46,9 +49,10 @@ proposals, and implemented behavior.
 
 ## Visual work
 
-Replace the temporary fixture freely. It is not a design system or layout target.
-Retain creative freedom for art direction, characters, room layout, and camera
-language. Deliver one cohesive, polished room before growing the feature count.
+The Greenhouse establishes the first art direction: a botanical miniature studio,
+soft robots, orthographic overview, and optional free orbit. Preserve clear status
+and grid semantics while refining its look and feel. Review the actual room before
+growing the feature count. See [grid architecture](docs/GRID_ENGINE.md).
 
 Inspect the rendered result, including animation and interaction, in a real
 browser. A successful build or screenshot alone does not establish good feel.

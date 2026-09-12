@@ -6,8 +6,8 @@ Keep the visual experience browser-first and the machine bridge independently
 usable. Tauri is an optional packaging and desktop-integration layer. It does not
 own the visual design or define the public bridge API.
 
-The bootstrap implements only the browser fixture and draft shared types. The
-following diagram is the intended architecture, not a list of running services.
+The browser room, headless grid engine, and draft session types are implemented.
+The following diagram describes future live integration, not running services.
 
 ```mermaid
 flowchart TD
@@ -25,15 +25,19 @@ flowchart TD
 | Layer | Owns | Must stay independent of |
 | --- | --- | --- |
 | World | Scene, characters, input, view state, accessible alternatives | Tauri APIs, process control, provider credentials |
+| World engine | Grid, footprints, placement, pathfinding, movement, semantics | React, Three.js, bridge and runtime details |
 | Bridge | Discovery, normalized events, explicit command routing, local pairing | A particular UI or desktop window |
 | Adapter | One runtime's discovery and control interface | Rendering decisions |
 | Protocol | Versioned snapshots, events, capabilities, command outcomes | React, Three.js, Rust implementation details |
 | Tauri companion | Installation, lifecycle, tray, notifications, optional window | Exclusive ownership of bridge functionality |
 
-React, TypeScript, and Vite are used for the browser bootstrap. Three.js with React
-Three Fiber is a candidate for the first room, not an installed dependency or a
-mandatory renderer. Decide during the visual milestone based on the chosen
-direction and measured behavior. Rust is the intended bridge starting point; its
+React, TypeScript, and Vite host the browser app. Three.js is lazy-loaded for the
+room; an imperative scene controller owns frame updates outside React. React owns
+the accessible controls and oversight panel. The renderer consumes the same grid
+used for prop placement and navigation; see [GRID_ENGINE.md](GRID_ENGINE.md).
+No React Three Fiber or physics engine is needed for this slice.
+
+Rust is the intended bridge starting point; its
 crate structure and server library remain undecided until the bridge milestone.
 
 ## Integration order

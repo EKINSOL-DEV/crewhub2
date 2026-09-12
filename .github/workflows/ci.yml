@@ -1,4 +1,4 @@
-name: Bootstrap checks
+name: World checks
 
 on:
   push:

@@ -7,8 +7,9 @@ The owner is unhappy with the previous version's appearance and feel and wants a
 new, modern, playful visual environment. Astra is the intended visual author;
 use the available configured model, and do not invent or hardcode a model API ID.
 
-This document is the brief for the next implementation session. The current
-bootstrap task does not include implementing this entire room.
+The first implementation now exists as The Greenhouse. The next visual session
+should inspect and refine this room using [ROOM_REVIEW.md](ROOM_REVIEW.md), before
+adding live integrations. This brief preserves its intended scope and quality bar.
 
 Read [AGENTS.md](../AGENTS.md), [vision](VISION.md),
 [visual direction](VISUAL_DIRECTION.md), [architecture](ARCHITECTURE.md), and
@@ -17,7 +18,9 @@ Read [AGENTS.md](../AGENTS.md), [vision](VISION.md),
 ## Starting point
 
 - `apps/world` runs with `npm ci` then `npm run dev` from the repository root.
-- The visible screen is a disposable fixture, not a reference design.
+- The room is a botanical miniature studio with three soft robot companions.
+- `packages/world-engine` defines renderer-free placement and navigation. Read
+  [GRID_ENGINE.md](GRID_ENGINE.md) before changing coordinates or prop footprints.
 - `packages/protocol` has provisional renderer-independent session types.
 - `apps/bridge` is reserved; no live bridge or Tauri integration exists yet.
 - The desktop version is archived. Consult it only for a specific useful idea;
@@ -26,7 +29,7 @@ Read [AGENTS.md](../AGENTS.md), [vision](VISION.md),
 
 ## Deliver one vertical slice
 
-Choose and implement a cohesive art direction for a complete room with three
+Review and refine the cohesive art direction for a complete room with three
 distinct characters. Provide overview, selection, focus, and return interactions.
 Make idle, working, needs-input, and completion feel visibly different and
 understandable. Give the user a compact activity view for the selected character.
@@ -37,9 +40,9 @@ view replaceable by live session data later. Normal animation must use ordinary
 code and must never trigger model calls.
 
 Use tasteful motion, lighting, materials, and environmental detail. The exact
-character species, geometry, camera style, palette, and rendering technique are
-open. React Three Fiber / Three.js is a candidate if it serves the chosen visual
-direction; a rendering library alone is not the design.
+character geometry, palette, and materials can evolve. Preserve the isometric
+home and optional camera freedom requested by the user. Three.js currently renders
+the room; a rendering library alone is not the design.
 
 Implement keyboard selection, visible focus, useful text status, touch handling,
 reduced motion, and a fallback when graphics fail. Avoid unnecessary settings,
