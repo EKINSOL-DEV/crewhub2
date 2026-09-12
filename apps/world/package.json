@@ -10,8 +10,11 @@
   },
   "dependencies": {
     "@crewhub/protocol": "0.0.0",
+    "lucide-react": "1.31.0",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "three": "0.186.0",
+    "@crewhub/world-engine": "0.0.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "6.0.5",

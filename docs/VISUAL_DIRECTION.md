@@ -7,10 +7,12 @@ cohesive, crafted miniature world with expressive inhabitants and tactile
 interaction. Choose a strong art direction and carry it through geometry,
 materials, lighting, motion, interface, typography, and sound if later added.
 
-Astra has creative freedom. The old world, its assets, and the current fixture
-must not become accidental design constraints. The fixture's colors and layout
-are disposable. Explore a few small sketches or scene variations, choose a
-direction, and spend the implementation effort making one room excellent.
+Astra has creative freedom. The old world and its assets are not design constraints.
+The first implementation is The Greenhouse: an ivory and sage miniature studio,
+warm timber, glass architecture, botanical details, and three soft robots in sage,
+apricot, and lavender. Georgia headings lend warmth to a compact, readable UI.
+The orthographic isometric home keeps spatial relationships stable; free orbit,
+focus, and automatic wall fading provide visibility when needed.
 
 ## First room
 
@@ -49,8 +51,8 @@ by default. If graphics are unavailable, provide a simple readable session view.
 
 ## Performance and evidence
 
-Treat 60 fps on a documented desktop setup and 30 fps on a documented tablet as
-initial targets, not existing guarantees. Record browser, hardware, viewport,
+The first slice deliberately caps presentation at 30 fps to control idle graphics
+cost. This is a code limit, not a measured performance guarantee. Record browser, hardware, viewport,
 device pixel ratio, and scene size when measuring. Start with three characters;
 also check a busier scene before increasing scope.
 
