@@ -1,0 +1,39 @@
+:root {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  color: #242d29;
+  background: #f5f3ec;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { max-width: 980px; margin: auto; padding: 32px clamp(20px, 5vw, 64px); }
+header { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+.wordmark { font-size: 24px; font-weight: 750; letter-spacing: -1px; }
+.badge { padding: 7px 11px; border: 1px solid #b7c5bc; border-radius: 20px; font-size: 12px; }
+.intro { padding-block: 70px 36px; }
+.eyebrow { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; }
+h1 { max-width: 680px; margin: 20px 0; font-size: clamp(40px, 7vw, 68px); line-height: 1.05; letter-spacing: -2px; }
+.lead { max-width: 590px; font-size: 19px; line-height: 1.6; }
+.note { max-width: 620px; color: #536159; font-size: 14px; line-height: 1.6; }
+.fixture { padding: 26px; border: 1px solid #ccd4cb; border-radius: 16px; background: #ffffffa8; }
+h2 { margin: 0; font-size: 18px; }
+.fixture p { line-height: 1.5; }
+.session { display: flex; align-items: center; gap: 14px; margin-block: 26px; min-height: 56px; }
+.session strong, .session span:not(.indicator) { display: block; }
+.session strong { margin-bottom: 5px; }
+.session span:not(.indicator) { font-size: 14px; color: #536159; }
+.indicator { flex: 0 0 16px; width: 16px; height: 16px; border-radius: 50%; background: #7b8d81; }
+.indicator[data-status="working"] { background: #2965ad; }
+.indicator[data-status="needs-input"] { background: #ba751a; }
+.indicator[data-status="completed"] { background: #297549; }
+button { min-height: 44px; padding: 12px 18px; border: 0; border-radius: 8px; color: white; background: #294f40; font: inherit; font-weight: 600; cursor: pointer; }
+button:hover { background: #1a3c2f; }
+button:focus-visible { outline: 3px solid #2965ad; outline-offset: 4px; }
+footer { padding-top: 32px; color: #536159; font-size: 13px; overflow-wrap: anywhere; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; }
+}
