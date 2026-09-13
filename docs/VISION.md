@@ -8,8 +8,9 @@ in Astra demonstrations. This is permission to rethink the entire presentation,
 not a request to reproduce those demonstrations or claim a guaranteed result.
 
 Keep the same repository and preserve the former version on an archive branch.
-The current task is a clean bootstrap and useful English documents. The full
-visual environment is the next implementation milestone.
+The bootstrap and first room are merged. The user has accepted the room's visual
+direction and requested a plan for growing it into a town. UI refinement will use
+the user's forthcoming design system. See [the town plan](TOWN_PLAN.md).
 
 ## Product promise
 
@@ -28,6 +29,10 @@ interaction. Delight is a core product requirement.
 - Give the new visual work freedom over layout, style, characters, and motion.
 - Keep an honest connection between real events and what the world communicates.
 - Build one excellent room before expanding into a campus or feature catalog.
+- Use a CrewHub town as a work context, with persistent rooms and capacity that
+  grows with usable workstations. Herdr can supply the initial hierarchy.
+- Allow Claude Code and Codex sessions to join directly and share rooms, with one
+  canonical identity when the same conversation is discovered through two sources.
 
 ## First meaningful experience
 

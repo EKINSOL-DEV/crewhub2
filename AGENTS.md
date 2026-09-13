@@ -9,6 +9,11 @@ version's appearance and feel were unsatisfactory.
 The first room is implemented as a local simulation. For its design and review
 status, start with [docs/ASTRA_HANDOFF.md](docs/ASTRA_HANDOFF.md). Implement the scope the
 user actually assigns; do not silently expand a room prototype into a platform.
+The user has now accepted the room's visual direction and requested a town plan:
+[docs/TOWN_PLAN.md](docs/TOWN_PLAN.md). M2 onward is proposed implementation work.
+The current planning change does not implement those milestones. Further UI design
+should use the user's forthcoming design system; model/engine work can proceed
+with provisional controls when assigned.
 
 ## Language
 

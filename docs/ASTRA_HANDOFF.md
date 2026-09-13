@@ -7,9 +7,11 @@ The owner is unhappy with the previous version's appearance and feel and wants a
 new, modern, playful visual environment. Astra is the intended visual author;
 use the available configured model, and do not invent or hardcode a model API ID.
 
-The first implementation now exists as The Greenhouse. The next visual session
-should inspect and refine this room using [ROOM_REVIEW.md](ROOM_REVIEW.md), before
-adding live integrations. This brief preserves its intended scope and quality bar.
+The first implementation now exists as The Greenhouse. The user has reviewed it
+positively and accepted the room's visual direction; UI refinement will follow
+their forthcoming design system. The next implementation sequence is in
+[TOWN_PLAN.md](TOWN_PLAN.md). Keep [ROOM_REVIEW.md](ROOM_REVIEW.md) for outstanding
+technical browser/device checks. This brief preserves the first room's quality bar.
 
 Read [AGENTS.md](../AGENTS.md), [vision](VISION.md),
 [visual direction](VISUAL_DIRECTION.md), [architecture](ARCHITECTURE.md), and

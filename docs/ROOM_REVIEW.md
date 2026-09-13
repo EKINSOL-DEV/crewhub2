@@ -1,5 +1,10 @@
 # The Greenhouse: implementation and review
 
+After the initial PR, the user reviewed the room positively and accepted its visual
+direction. They will provide a design system for UI refinement. The technical
+verification limits below remain unchanged; the next sequence is in
+[TOWN_PLAN.md](TOWN_PLAN.md).
+
 ## Design rationale
 
 The room is a small botanical studio: warm timber workstations, a glass rear wall,
@@ -31,7 +36,7 @@ image generation is required at runtime.
 - The Three.js scene loads in a separate chunk; text-first mode does not need it.
 - Procedural assets reuse geometry and materials, including instanced plant leaves.
 
-**Interactive visual review is still pending.** The available cloud browser
+**The cloud agent's technical browser/device review is still pending.** The available cloud browser
 rejected local preview navigation under its security policy. No alternate browser
 or policy workaround was used. No screenshots, shader compilation results, GPU
 frame-rate measurements, browser interaction pass, or touch-device pass are

@@ -1,5 +1,8 @@
 # Grid engine and world semantics
 
+This document describes the implemented single-room engine. Planned town plots,
+stable room growth, and portal adjacency are specified in [TOWN_PLAN.md](TOWN_PLAN.md).
+
 ## Implemented contract
 
 `packages/world-engine` is independent of presentation and session providers. The

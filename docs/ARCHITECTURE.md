@@ -7,6 +7,10 @@ usable. Tauri is an optional packaging and desktop-integration layer. It does no
 own the visual design or define the public bridge API.
 
 The browser room, headless grid engine, and draft session types are implemented.
+The accepted next direction adds CrewHub-owned towns, dynamic rooms, and bindings
+to runtime sessions. See [the town plan](TOWN_PLAN.md) and
+[the identity decision](decisions/0003-towns-and-session-bindings.md). Those additions
+remain planned. The user's forthcoming design system will guide UI refinement.
 The following diagram describes future live integration, not running services.
 
 ```mermaid
@@ -42,11 +46,12 @@ crate structure and server library remain undecided until the bridge milestone.
 
 ## Integration order
 
-1. Deterministic mock snapshots for the visual prototype.
+1. Normalize mock identities and bindings; build growing rooms and a mock town.
 2. Herdr observation: discover existing sessions and follow status events.
-3. Herdr interaction: inspect output and send an explicit prompt when supported.
-4. Direct Codex or Claude Code adapters where they supply needed structured data.
-5. Optional Tauri packaging and other clients, including a future MCP surface.
+3. Direct Claude Code and Codex observation, each gated by proof of existing-session
+   visibility through supported interfaces.
+4. Explicit supported interactions with one verified target and command route.
+5. Optional Tauri packaging, remote access, and other clients.
 
 Browser clients cannot directly open Herdr's Unix domain socket or Windows named
 pipe. The bridge provides that local access. Its initial browser interface is

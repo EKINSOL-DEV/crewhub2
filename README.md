@@ -22,9 +22,9 @@ This branch contains **The Greenhouse**, the first interactive room:
 
 All activity is simulated locally. No credentials, running agents, Rust toolchain,
 or paid services are needed. The Herdr adapter, bridge, and Tauri companion are
-future work. Visual acceptance is still pending: the cloud browser blocked preview
-navigation, so no browser, GPU, or touch-device verification is claimed. See the
-[review notes](docs/ROOM_REVIEW.md) for evidence and remaining checks.
+future work. The user has accepted the room's visual direction. The cloud agent's
+browser preview was blocked, so technical browser, GPU, and touch-device checks
+remain outstanding. See the [review notes](docs/ROOM_REVIEW.md) for the distinction.
 
 ## Start locally
 
@@ -53,7 +53,7 @@ Run commands from the repository root. Build output is `apps/world/dist`.
 
 | Path | Responsibility | Status |
 | --- | --- | --- |
-| [apps/world](apps/world/README.md) | Browser room and mock session presentation | Implemented; visual review pending |
+| [apps/world](apps/world/README.md) | Browser room and mock session presentation | Implemented; visual direction accepted |
 | [packages/world-engine](packages/world-engine/README.md) | Grid, placement, routes, semantic snapshots | Implemented and tested |
 | [apps/bridge](apps/bridge/README.md) | Independent local runtime bridge | Reserved; no executable yet |
 | [packages/protocol](packages/protocol/README.md) | Renderer-independent session types | Draft, mock use only |
@@ -62,8 +62,10 @@ Run commands from the repository root. Build output is `apps/world/dist`.
 ## Start the next build
 
 Read [AGENTS.md](AGENTS.md), then [the Astra handoff](docs/ASTRA_HANDOFF.md).
-The next step is to run and review the room on desktop and a touch device, then
-refine its visual quality and feel before connecting live agents.
+The next sequence is described in [the town implementation plan](docs/TOWN_PLAN.md):
+shared identities, growing rooms, a mock town, Herdr observation, direct Claude Code
+and Codex adapters, then explicit interaction. The user's forthcoming design system
+guides UI refinement. This sequence is planned, not yet implemented.
 
 ## Previous version
 
