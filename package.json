@@ -19,7 +19,8 @@
     "preview": "npm run preview --workspace @crewhub/world",
     "typecheck": "tsc --noEmit",
     "check:docs": "node scripts/check-docs.mjs",
-    "check": "npm run typecheck && npm test && npm run check:docs && npm run build",
+    "check:design": "node scripts/check-design-system.mjs",
+    "check": "npm run typecheck && npm test && npm run check:docs && npm run check:design && npm run build",
     "test": "node --test packages/world-engine/test/*.test.ts"
   },
   "devDependencies": {

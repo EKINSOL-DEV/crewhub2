@@ -51,6 +51,11 @@ Run commands from the repository root. Build output is `apps/world/dist`.
 
 ## Workspace
 
+The [design system](docs/DESIGN_SYSTEM.md) has an interactive light/dark field guide
+at <http://127.0.0.1:5173/design-system>. It includes reusable CSS tokens, component
+specimens, and town UI patterns based on the user's visual reference. This is a
+design-system draft for review; the original Greenhouse remains at `/`.
+
 | Path | Responsibility | Status |
 | --- | --- | --- |
 | [apps/world](apps/world/README.md) | Browser room and mock session presentation | Implemented; visual direction accepted |
@@ -64,8 +69,8 @@ Run commands from the repository root. Build output is `apps/world/dist`.
 Read [AGENTS.md](AGENTS.md), then [the Astra handoff](docs/ASTRA_HANDOFF.md).
 The next sequence is described in [the town implementation plan](docs/TOWN_PLAN.md):
 shared identities, growing rooms, a mock town, Herdr observation, direct Claude Code
-and Codex adapters, then explicit interaction. The user's forthcoming design system
-guides UI refinement. This sequence is planned, not yet implemented.
+and Codex adapters, then explicit interaction. The reference-based design-system
+draft guides UI refinement. The town sequence is planned, not yet implemented.
 
 ## Previous version
 

@@ -1,0 +1,121 @@
+/* CrewHub semantic tokens. Scope themes to a shell or a specimen. */
+[data-crew-theme] {
+  --ch-font-sans:
+    Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  --ch-font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --ch-text-xs: 12px;
+  --ch-text-sm: 13px;
+  --ch-text-md: 14px;
+  --ch-text-lg: 16px;
+  --ch-text-title: 24px;
+  --ch-text-display: clamp(36px, 4vw, 56px);
+  --ch-space-1: 4px;
+  --ch-space-2: 8px;
+  --ch-space-3: 12px;
+  --ch-space-4: 16px;
+  --ch-space-5: 20px;
+  --ch-space-6: 24px;
+  --ch-space-8: 32px;
+  --ch-space-12: 48px;
+  --ch-space-16: 64px;
+  --ch-radius-sm: 8px;
+  --ch-radius-md: 12px;
+  --ch-radius-lg: 18px;
+  --ch-radius-xl: 24px;
+  --ch-radius-pill: 999px;
+  --ch-control: 44px;
+  --ch-motion-fast: 120ms;
+  --ch-motion-normal: 180ms;
+  --ch-motion-scene: 320ms;
+  --ch-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --ch-z-base: 0;
+  --ch-z-panel: 10;
+  --ch-z-navigation: 20;
+  --ch-z-overlay: 30;
+  --ch-z-notice: 40;
+}
+
+[data-crew-theme="light"] {
+  color-scheme: light;
+  --ch-canvas: #f5f3ef;
+  --ch-surface: #fffdfa;
+  --ch-surface-muted: #eeebe6;
+  --ch-surface-hover: #e7e3dd;
+  --ch-glass: #fffdfaf0;
+  --ch-ink: #292725;
+  --ch-ink-secondary: #605c57;
+  --ch-ink-muted: #68635d;
+  --ch-border: #ddd7cf;
+  --ch-border-control: #82786e;
+  --ch-accent: #44413e;
+  --ch-accent-hover: #302d2a;
+  --ch-on-accent: #ffffff;
+  --ch-selection: #eae6e0;
+  --ch-focus: #57514b;
+  --ch-working: #485461;
+  --ch-working-bg: #e8ecf0;
+  --ch-attention: #805715;
+  --ch-attention-bg: #f9edcf;
+  --ch-complete: #615184;
+  --ch-complete-bg: #eee8f6;
+  --ch-danger: #a04034;
+  --ch-danger-bg: #f8e7e0;
+  --ch-neutral: #605c57;
+  --ch-neutral-bg: #ede9e3;
+  --ch-scene-foliage: #52684b;
+  --ch-scene-ground: #dde4d3;
+  --ch-scene-wall: #eee8dc;
+  --ch-scene-wood: #b69b75;
+  --ch-scene-water: #94b5b0;
+  --ch-scene-light: #f8ddb0;
+  --ch-shadow-sm: 0 2px 4px #302b2606, 0 5px 14px #302b2605;
+  --ch-shadow-panel: 0 2px 6px #302b2605, 0 16px 48px #302b260c;
+  --ch-shadow-float: 0 3px 8px #302b2608, 0 18px 50px #302b2616;
+}
+
+[data-crew-theme="dark"] {
+  color-scheme: dark;
+  --ch-canvas: #1c1b1a;
+  --ch-surface: #272523;
+  --ch-surface-muted: #302d2a;
+  --ch-surface-hover: #3c3732;
+  --ch-glass: #272523f0;
+  --ch-ink: #f3f0ec;
+  --ch-ink-secondary: #c9c2b9;
+  --ch-ink-muted: #b8afa5;
+  --ch-border: #48413b;
+  --ch-border-control: #93887c;
+  --ch-accent: #d6d1ca;
+  --ch-accent-hover: #e6e1da;
+  --ch-on-accent: #272421;
+  --ch-selection: #403b35;
+  --ch-focus: #d6cec4;
+  --ch-working: #c0cbd6;
+  --ch-working-bg: #30383f;
+  --ch-attention: #edc37e;
+  --ch-attention-bg: #453923;
+  --ch-complete: #cfbde9;
+  --ch-complete-bg: #383043;
+  --ch-danger: #f0aa98;
+  --ch-danger-bg: #4a302a;
+  --ch-neutral: #c9c2b9;
+  --ch-neutral-bg: #37332f;
+  --ch-scene-foliage: #a9bc95;
+  --ch-scene-ground: #293a2f;
+  --ch-scene-wall: #657064;
+  --ch-scene-wood: #958267;
+  --ch-scene-water: #3c6766;
+  --ch-scene-light: #e9bc79;
+  --ch-shadow-sm: 0 2px 4px #00000018, 0 5px 14px #00000012;
+  --ch-shadow-panel: 0 2px 6px #00000018, 0 16px 48px #00000026;
+  --ch-shadow-float: 0 3px 8px #00000024, 0 18px 50px #00000040;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-crew-theme] {
+    --ch-motion-fast: 0ms;
+    --ch-motion-normal: 0ms;
+    --ch-motion-scene: 0ms;
+  }
+}

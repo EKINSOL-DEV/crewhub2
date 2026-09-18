@@ -153,6 +153,11 @@ local A* inside each room. Continuous town-wide crowd simulation is deferred.
 
 ## 5. Camera, oversight, and the design system
 
+Update: the user supplied a town reference and requested light/dark modes. A
+[v0.1 design-system kit](DESIGN_SYSTEM.md) now exists for review at `/design-system`.
+It supplies tokens and component specimens, not town functionality or scene-lighting
+integration. The implementation sequence below remains unchanged.
+
 Support three scopes: town overview, room overview, and focused character. Each
 has an orthographic home framing; optional free orbit remains available. Preserve
 selection and a return location when moving between scopes. Compute bounds from
@@ -318,7 +323,7 @@ are part of this plan. Existing agent work retains its normal provider costs.
 | --- | --- | --- |
 | Room module sizes and spare capacity | Template configuration; prototype 4 × 4 modules | M3 layout and readability review |
 | Town plot limits and maximum detailed crew | Conservative plots; one detailed room | M4 measurements and 100-session oversight fixture |
-| Final UI components | Nicky's forthcoming design system | M4 UI integration |
+| Final UI components | Reference-based design-system draft; visual review pending | M4 UI integration |
 | Bridge server/storage libraries | Minimal standalone Rust service | M5 implementation, after protocol definition |
 | Direct runtime visibility and control | Observation only until proven; capabilities explicit | Separate M6 feasibility checks |
 | Cross-device persistence and remote access | Local browser profile and local bridge | Separate later scope |

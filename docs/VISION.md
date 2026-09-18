@@ -9,8 +9,9 @@ not a request to reproduce those demonstrations or claim a guaranteed result.
 
 Keep the same repository and preserve the former version on an archive branch.
 The bootstrap and first room are merged. The user has accepted the room's visual
-direction and requested a plan for growing it into a town. UI refinement will use
-the user's forthcoming design system. See [the town plan](TOWN_PLAN.md).
+direction and requested a plan for growing it into a town. The user then supplied
+a visual reference for a light/dark design system. Its [first kit](DESIGN_SYSTEM.md)
+is implemented for review. See [the town plan](TOWN_PLAN.md).
 
 ## Product promise
 
