@@ -112,7 +112,7 @@ export function workdesk(kit: Kit, seed = 0): THREE.Group {
 export function leadDesk(kit: Kit): THREE.Group {
   const g = new THREE.Group();
   const d = desk(kit, 1);
-  d.scale.setScalar(0.95);
+  d.scale.setScalar(0.7);
   g.add(d);
   const tray = new THREE.Group();
   put(tray, kit.box(0.36, 0.03, 0.28, "timber-trim", 0.01), 0, 0, 0);
@@ -123,6 +123,6 @@ export function leadDesk(kit: Kit): THREE.Group {
     [0.17, 0, 0.02, 0.28],
   ] as const)
     put(tray, kit.box(w, 0.06, dd, "timber-trim", 0.005), x, 0.03, z);
-  put(g, tray, -0.52, 0.895, 0.2);
+  put(g, tray, -0.45, 0.645, 0.18);
   return g;
 }

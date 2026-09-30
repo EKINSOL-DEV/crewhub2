@@ -190,6 +190,8 @@ function describeRoom(building: Building, room: Room, add: Add): void {
 function placeWords(place: TransitPlace): string {
   if (place === "truck") return "the truck";
   const label = roomLabel(place);
+  // "the planning room", "the lead's office"; Storage, Dispatch and the Lobby are names.
+  if (!/room$|office$/.test(label)) return place === "lobby" ? "the lobby" : label;
   return `the ${label.charAt(0).toLowerCase()}${label.slice(1)}`;
 }
 

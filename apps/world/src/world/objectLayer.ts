@@ -9,8 +9,9 @@ import { BUILDING_CELL } from "./buildingTemplate";
 import type { ObjectLayout, Placement, Surface } from "./interiorLayout";
 
 /** Ticket objects are a little smaller than the Greenhouse props they sit on. */
-const OBJECT_SCALE = 0.8;
+const OBJECT_SCALE = 0.9;
 const RESTACK_S = 0.35;
+const DRONE_SCALE = 1.6;
 const HOP_S = 1.1;
 const MILESTONE_ACCENTS: readonly PaletteName[] = ["sage", "tangerine", "circle", "brass", "leaf", "coral"];
 const STICKER_ACCENTS: readonly PaletteName[] = ["coral", "tangerine", "circle", "sage", "brass", "leaf", "mist"];
@@ -199,7 +200,10 @@ export class ObjectLayer {
       state.flight.until = transit.until;
     }
     if (!state.drone) {
-      state.drone = this.#ctx.style.model("drone");
+      // The style's drone inside a holder: the materialise effect scales the drone, the holder sizes it for the room.
+      state.drone = new THREE.Group();
+      state.drone.add(this.#ctx.style.model("drone"));
+      state.drone.scale.setScalar(DRONE_SCALE);
       this.group.add(state.drone);
     }
   }
@@ -248,8 +252,8 @@ export class ObjectLayer {
       if (reduced) {
         // A short fade: the drone shows at the package, the package is set down at the slot halfway.
         pos.copy(t < 0.5 ? f.from : f.to);
-        drone.position.copy(pos).setY(pos.y + 0.55);
-        this.#ctx.style.materialise(drone, t < 0.5 ? Math.min(1, t * 6) : Math.min(1, (1 - t) * 6));
+        drone.position.copy(pos).setY(pos.y + 0.03);
+        this.#ctx.style.materialise(drone.children[0]!, t < 0.5 ? Math.min(1, t * 6) : Math.min(1, (1 - t) * 6));
       } else {
         // Descend and hook (first 15 %), arc over the walls, set down (last 15 %).
         const lift = f.retargetAt === f.startedAt ? 0.15 : 0;
@@ -258,10 +262,11 @@ export class ObjectLayer {
         pos.lerpVectors(f.from, f.to, eased);
         const height = 1.1 + f.from.distanceTo(f.to) * 0.12;
         pos.y += Math.sin(Math.PI * eased) * height + (t < lift ? 0 : t > 0.85 ? 0 : 0.06);
-        drone.position.copy(pos).setY(pos.y + 0.48 + (t < lift ? (1 - t / lift) * 0.8 : 0) + (t > 0.85 ? ((t - 0.85) / 0.15) * 0.8 : 0));
+        drone.position.copy(pos).setY(pos.y + 0.03 + (t < lift ? (1 - t / lift) * 0.8 : 0) + (t > 0.85 ? ((t - 0.85) / 0.15) * 0.8 : 0));
         const fade = whole < 0.1 ? whole / 0.1 : t > 0.9 ? (1 - t) / 0.1 : 1;
-        this.#ctx.style.materialise(drone, fade);
-        (drone.userData.animate as ((s: number) => void) | undefined)?.(seconds);
+        const body = drone.children[0]!;
+        this.#ctx.style.materialise(body, fade);
+        (body.userData.animate as ((s: number) => void) | undefined)?.(seconds);
       }
     } else if (state.rest) {
       if (state.ease) {

@@ -187,7 +187,7 @@ export function placeObjects(building: Building, template: BuildingTemplate, des
     const key = inbox ? "inbox" : `desk:${slot.agentKey}`;
     const level = stackCount.get(key) ?? 0;
     stackCount.set(key, level + 1);
-    const x = inbox ? slot.desk.x + 0.9 : slot.desk.x + (slot.definitionId === "lead-desk" ? -0.6 : 0.35);
+    const x = inbox ? slot.desk.x + 0.75 : slot.desk.x + (slot.definitionId === "lead-desk" ? -0.5 : 0.35);
     return { room: slot.room, x, z: slot.desk.z, surface: slot.definitionId === "lead-desk" ? "lead-desk" : "desk", level, slot: key };
   };
 

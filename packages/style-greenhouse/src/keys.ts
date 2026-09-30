@@ -47,6 +47,6 @@ export const CODE_KEYS: readonly ModelKey[] = [
 /** Top surface heights (m) where objects are set down, for models whose bounding box is taller than the top. */
 export const SURFACES: Partial<Record<ModelKey, number>> = {
   "furniture.workdesk": 0.565,
-  "furniture.lead-desk": 0.87,
+  "furniture.lead-desk": 0.635,
   "furniture.desk": 0.92,
 };
