@@ -329,3 +329,7 @@ tonight. No second style is needed now.
   current style with only one option for now. A test asserts that no module
   outside the style package imports the Greenhouse models.
 - Do not build a second style, a style editor, or per-building styles tonight.
+- Leave the door open for a style **per project**: renderers resolve the style
+  through the building they draw (plot style id, falling back to the town
+  default), never through a global singleton. Tonight every plot resolves to
+  Greenhouse; the per-plot field exists but has no UI.
