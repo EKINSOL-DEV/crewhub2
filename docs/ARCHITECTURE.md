@@ -10,7 +10,7 @@ The browser room, headless grid engine, and draft session types are implemented.
 The accepted next direction adds CrewHub-owned towns, dynamic rooms, and bindings
 to runtime sessions. See [the town plan](TOWN_PLAN.md) and
 [the identity decision](decisions/0003-towns-and-session-bindings.md). Those additions
-remain planned. The [design-system draft](DESIGN_SYSTEM.md) supplies scoped UI
+remain planned. The [design system](DESIGN_SYSTEM.md) supplies the UI
 tokens and components; it does not change world, protocol, or bridge behavior.
 The following diagram describes future live integration, not running services.
 

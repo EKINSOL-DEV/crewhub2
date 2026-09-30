@@ -11,10 +11,11 @@ status, start with [docs/ASTRA_HANDOFF.md](docs/ASTRA_HANDOFF.md). Implement the
 user actually assigns; do not silently expand a room prototype into a platform.
 The user has now accepted the room's visual direction and requested a town plan:
 [docs/TOWN_PLAN.md](docs/TOWN_PLAN.md). M2 onward is proposed implementation work.
-The planning change does not implement those milestones. A reference-based light
-and dark design-system draft is now available in [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md).
-Use its tokens and components for assigned UI work; final visual acceptance remains
-pending. Model/engine work can proceed with provisional controls when assigned.
+The planning change does not implement those milestones. All 2D UI uses the
+crewhub-loops design system, described in [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md).
+Colours come only from `tokens.css` variables, with no hex outside it; reuse the
+primitives and add variants, not new components. Visual review of the migrated room
+is pending. Model/engine work can proceed with provisional controls when assigned.
 
 ## Language
 
@@ -55,9 +56,10 @@ proposals, and implemented behavior.
 
 ## Visual work
 
-The Greenhouse establishes the first art direction: a botanical miniature studio,
-soft robots, orthographic overview, and optional free orbit. Preserve clear status
-and grid semantics while refining its look and feel. Review the actual room before
+The Greenhouse establishes the art direction of the 3D scene: a botanical miniature
+studio, soft robots, orthographic overview, and optional free orbit. Preserve clear
+status and grid semantics while refining its look and feel. 2D UI around the scene
+follows the crewhub-loops design system, not the scene's materials. Review the actual room before
 growing the feature count. See [grid architecture](docs/GRID_ENGINE.md).
 
 Inspect the rendered result, including animation and interaction, in a real
