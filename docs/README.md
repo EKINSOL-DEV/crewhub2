@@ -6,7 +6,7 @@ These are the active documents for the browser-world rebuild. All are in English
 | --- | --- |
 | [VISION.md](VISION.md) | User goals, product principles, and success criteria |
 | [VISUAL_DIRECTION.md](VISUAL_DIRECTION.md) | Art direction, interactions, and visual quality bar |
-| [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) | Reference-based light/dark tokens, component kit, usage and review status |
+| [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) | The crewhub-loops design system: tokens, primitives, theme, status mapping and checks |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Browser, bridge, adapters, and protocol boundaries |
 | [GRID_ENGINE.md](GRID_ENGINE.md) | Coordinates, footprints, placement, navigation, and semantic world contract |
 | [ROOM_REVIEW.md](ROOM_REVIEW.md) | First-room design, verification evidence, and pending browser acceptance |
@@ -18,6 +18,8 @@ These are the active documents for the browser-world rebuild. All are in English
 | [decisions/0001-browser-world.md](decisions/0001-browser-world.md) | Recorded browser-first architecture decision |
 | [decisions/0002-grid-world.md](decisions/0002-grid-world.md) | Grid semantics and rendering separation |
 | [decisions/0003-towns-and-session-bindings.md](decisions/0003-towns-and-session-bindings.md) | Provider-independent towns and canonical session bindings |
+| [decisions/0004-loops-design-system.md](decisions/0004-loops-design-system.md) | One design language with crewhub-loops for all 2D UI |
+| [superpowers/specs/2026-09-30-loops-design-system-design.md](superpowers/specs/2026-09-30-loops-design-system-design.md) | Accepted spec for the loops design-system migration |
 | [LOOPS_INTEGRATION_PLAN.md](LOOPS_INTEGRATION_PLAN.md) | Proposed: CrewHub World as a thin 3D client of crewhub-loops |
 | [decisions/0005-crewhub-world-on-loops.md](decisions/0005-crewhub-world-on-loops.md) | Proposed decision record for the crewhub-loops integration |
 

@@ -1,0 +1,1114 @@
+/* Source: crewhub-loops design/kit.css @ 79ecfa0. Copied verbatim; do not edit here, change the source and re-copy. */
+/* ============================================================================
+   crewhub-loops kit: a thin, class-based component layer on top of tokens.css.
+   Rules for this file:
+   - Every colour, radius, shadow, size comes from a token. No hex values here.
+   - Components are plain classes (.btn, .chip, .avatar ...). Variants are extra
+     classes (.btn-primary) or data attributes that mirror domain values
+     (data-status="progress", data-priority="high", data-link="linear").
+   - State lives in ARIA where possible (aria-current, aria-selected,
+     aria-pressed, aria-expanded), so styling and accessibility cannot drift.
+   Sections: base, shell, page, buttons, forms, chips, avatars, cards, lists,
+   tabs, toolbar and editor, menu, toast, empty state, prose, thread, feed,
+   quick-ask, chat and bubbles, board, milestones, utilities.
+   ========================================================================== */
+
+/* ── Base ──────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; overflow-x: clip; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-body);
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'ss01' on;
+  overflow-x: clip;
+}
+h1, h2, h3, h4 { margin: 0; line-height: var(--leading-tight); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-title); }
+p { margin: 0; }
+button, input, select, textarea { font: inherit; color: inherit; }
+img, svg { display: block; max-width: 100%; }
+a { color: var(--accent-text); text-underline-offset: 2px; }
+a:hover { text-decoration-thickness: 2px; }
+::selection { background: var(--selection); color: var(--text); }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-xs); }
+[hidden] { display: none !important; }
+hr { border: 0; border-top: 1px solid var(--border); margin: var(--space-4) 0; }
+
+.icon { width: 1rem; height: 1rem; flex: none; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.icon-sm { width: 0.875rem; height: 0.875rem; }
+.icon-lg { width: 1.25rem; height: 1.25rem; }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.skip-link {
+  position: absolute; left: var(--space-2); top: -3rem; z-index: var(--z-toast);
+  padding: var(--space-2) var(--space-3); background: var(--primary); color: var(--on-primary);
+  border-radius: var(--radius-sm); text-decoration: none;
+}
+.skip-link:focus { top: var(--space-2); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0ms !important; animation-duration: 0ms !important; }
+}
+
+/* ── App shell: sidebar + top bar + main ───────────────────────────────── */
+.app {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  grid-template-rows: var(--topbar-height) minmax(0, 1fr);
+  grid-template-areas: "sidebar topbar" "sidebar main";
+  min-height: 100vh;
+}
+/* The sidebar column's surface and edge run the full page height; the sidebar itself is one viewport tall, sticky, and
+   scrolls on its own, so a long page never shows the canvas under it (DESIGN-11). */
+.app::before { content: ""; grid-area: sidebar; background: var(--surface); border-right: 1px solid var(--border); }
+.sidebar {
+  grid-area: sidebar;
+  position: sticky; top: 0;
+  height: 100vh; height: 100dvh;
+  display: flex; flex-direction: column;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+.sidebar-brand {
+  display: flex; align-items: center; gap: var(--space-2);
+  height: var(--topbar-height);
+  padding: 0 var(--space-4);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-title);
+  color: var(--text);
+  text-decoration: none;
+  flex: none;
+}
+.brand-mark {
+  width: 1.375rem; height: 1.375rem; border-radius: var(--radius-pill);
+  background: linear-gradient(150deg, var(--tangerine), var(--coral));
+  flex: none;
+}
+.sidebar-section { padding: var(--space-2) var(--space-2); }
+.sidebar-section + .sidebar-section { border-top: 1px solid var(--border); }
+.sidebar-label {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--space-2) var(--space-2) var(--space-1);
+  font-size: var(--text-2xs); font-weight: var(--weight-semibold);
+  text-transform: uppercase; letter-spacing: var(--tracking-meta);
+  color: var(--text-subtle);
+}
+.sidebar-foot { margin-top: auto; padding: var(--space-3) var(--space-4); border-top: 1px solid var(--border); display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); }
+.nav { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+.nav-item {
+  position: relative;
+  display: flex; align-items: center; gap: var(--space-2);
+  min-height: 2rem;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: var(--text-base);
+  min-width: 0;
+}
+.nav-item:hover { background: var(--surface-sunken); color: var(--text); }
+.nav-item[aria-current="page"] { background: var(--surface-sunken); color: var(--text); font-weight: var(--weight-medium); }
+.nav-item[aria-current="page"]::before {
+  content: ""; position: absolute; left: calc(-1 * var(--space-2)); top: 6px; bottom: 6px;
+  width: 3px; border-radius: 0 3px 3px 0; background: var(--accent);
+}
+/* Touch: a navigation link is at least the 40px hit area (sidebar, settings section menu). */
+@media (pointer: coarse) { .nav-item { min-height: var(--control-h-touch); } }
+.nav-item .nav-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav-item .nav-meta { font-size: var(--text-xs); color: var(--text-subtle); font-variant-numeric: tabular-nums; }
+.nav-item .nav-lead { font-size: var(--text-xs); color: var(--text-subtle); white-space: nowrap; }
+.project-dot {
+  width: 0.625rem; height: 0.625rem; border-radius: 3px; flex: none;
+  background: var(--project-color, var(--mist-text));
+}
+
+.topbar {
+  grid-area: topbar;
+  position: sticky; top: 0; z-index: var(--z-sticky);
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: 0 var(--gutter);
+  background: color-mix(in oklab, var(--bg) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+.topbar .topbar-menu { display: none; }
+.topbar-search { position: relative; flex: 1; max-width: 26rem; }
+.topbar-search .icon { position: absolute; left: var(--space-3); top: 50%; transform: translateY(-50%); color: var(--text-subtle); pointer-events: none; }
+.topbar-search .input { padding-left: var(--space-8); height: var(--control-h-sm); background: var(--surface); }
+.topbar-actions { margin-left: auto; display: flex; align-items: center; gap: var(--space-1); }
+.main { grid-area: main; min-width: 0; }
+.scrim { display: none; }
+
+/* Mobile: the sidebar becomes a drawer opened from the top bar. */
+@media (max-width: 899px) {
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-areas: "topbar" "main"; }
+  .app::before { display: none; }
+  .sidebar {
+    position: fixed; inset: 0 auto 0 0; z-index: var(--z-drawer);
+    height: auto; /* top and bottom 0: the visible viewport, also under a phone's collapsing toolbar */
+    width: min(var(--sidebar-width), 85vw);
+    transform: translateX(-100%);
+    transition: transform var(--duration-base) var(--ease);
+    box-shadow: var(--shadow-lg);
+  }
+  .app[data-nav-open] .sidebar { transform: none; }
+  .app[data-nav-open] .scrim { display: block; position: fixed; inset: 0; z-index: calc(var(--z-drawer) - 1); background: var(--scrim); }
+  .topbar { padding: 0 var(--space-4); }
+  .topbar .topbar-menu { display: inline-flex; }
+  .topbar-search { max-width: none; }
+}
+@media (max-width: 559px) {
+  .topbar-search { display: none; }
+  :root { --gutter: var(--space-4); }
+}
+
+/* ── Page ──────────────────────────────────────────────────────────────── */
+.page { max-width: var(--content-max); margin: 0 auto; padding: var(--space-6) var(--gutter) var(--space-12); }
+.page-header { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; margin-bottom: var(--space-6); }
+.page-title { font-size: var(--text-2xl); }
+.page-sub { color: var(--text-muted); margin-top: var(--space-1); }
+.eyebrow { font-size: var(--text-2xs); font-weight: var(--weight-semibold); text-transform: uppercase; letter-spacing: var(--tracking-meta); color: var(--text-subtle); }
+.breadcrumb { display: flex; align-items: center; gap: var(--space-1); flex-wrap: wrap; font-size: var(--text-sm); color: var(--text-muted); list-style: none; margin: 0 0 var(--space-3); padding: 0; }
+.breadcrumb a { color: inherit; text-decoration: none; }
+.breadcrumb a:hover { color: var(--text); text-decoration: underline; }
+.breadcrumb li + li::before { content: "/"; margin-right: var(--space-1); color: var(--text-subtle); }
+.section-title { font-size: var(--text-lg); }
+@media (max-width: 559px) { .page-title { font-size: var(--text-xl); } .page { padding-top: var(--space-4); } }
+
+/* ── Buttons ───────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+  height: var(--control-h);
+  padding: 0 var(--control-pad-x);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--control-text); font-weight: var(--weight-medium);
+  line-height: 1; white-space: nowrap; text-decoration: none;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease), border-color var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease);
+}
+.btn:hover { border-color: var(--border-hover); background: var(--surface-sunken); }
+.btn:focus-visible { outline: 0; box-shadow: var(--focus-ring); }
+.btn:disabled, .btn[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
+.btn-sm { height: var(--control-h-sm); padding: 0 var(--control-pad-x-sm); gap: var(--space-1); }
+.btn-primary { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+.btn-primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
+/* The accent button is rare: one per screen at most (quick-ask send, comment send). */
+.btn-accent { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.btn-accent:hover { background: color-mix(in oklab, var(--accent) 88%, var(--ink)); border-color: transparent; }
+.btn-ghost { background: transparent; border-color: transparent; color: var(--text-muted); }
+.btn-ghost:hover { background: var(--surface-sunken); border-color: transparent; color: var(--text); }
+.btn-danger { color: var(--danger); border-color: color-mix(in oklab, var(--danger) 40%, var(--border-strong)); }
+.btn-danger:hover { background: var(--danger-soft); border-color: var(--danger); }
+/* Active filter: a button whose filter has a value. */
+.btn[data-active] { border-color: var(--accent-strong); }
+/* Link: a navigation action that reads as an inline text link (a toast's action). Still a .btn: focus ring, hit area. */
+.btn-link, .btn-link.btn-sm { height: auto; min-height: var(--control-h-sm); padding: 0; background: transparent; border-color: transparent; color: var(--accent-text); text-decoration: underline; text-underline-offset: 2px; }
+.btn-link:hover { background: transparent; border-color: transparent; text-decoration-thickness: 2px; }
+.btn-icon { width: var(--control-h); padding: 0; }
+.btn-icon.btn-sm { width: var(--control-h-sm); }
+.btn-kbd { margin-left: var(--space-1); font-size: var(--text-2xs); opacity: 0.7; }
+/* Variant `segmented` (CL-37): one of two or three choices that switch a view in place (the milestone breakdown's
+   Assignees | Labels). A toggle group, not tabs: Buttons with aria-pressed in a `.segmented` group (role="group" with an
+   aria-label), equal widths, exactly one pressed; pressing the pressed one does nothing (it stays pressed). The pressed one
+   is filled, semibold and has the darker edge, so it does not read by colour alone; an unpressed one on hover keeps the
+   plain --surface fill (only its edge and text darken), so hovering never looks pressed. */
+.segmented { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: var(--space-2); }
+.btn-segmented { min-width: 0; color: var(--text-muted); }
+.btn-segmented[aria-pressed="false"]:hover { background: var(--surface); color: var(--text); }
+.btn-segmented[aria-pressed="true"] { background: var(--surface-sunken); border-color: var(--border-hover); color: var(--text); font-weight: var(--weight-semibold); }
+
+/* ── Forms ─────────────────────────────────────────────────────────────── */
+.field { display: flex; flex-direction: column; gap: var(--space-1); }
+.label { font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--text); }
+.hint { font-size: var(--text-xs); color: var(--text-subtle); }
+/* Form row: fields side by side, wrapping when they do not fit. The row is one grid and every field takes its three rows
+   (label, control, hint) from it through subgrid, so labels, controls and hints line up across the columns whatever the
+   length of a hint or a label (T76). A control without a label (the submit Button) goes in a `.form-row-action`, which puts
+   it on the control row. A row without any hint has no hint row. */
+.form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(10rem, 100%), 1fr)); gap: var(--space-3); }
+.form-row > * { grid-row: span 3; min-width: 0; }
+.form-row:not(:has(.hint)) > * { grid-row: span 2; }
+.form-row > .field, .form-row > .form-row-action { display: grid; grid-template-rows: subgrid; row-gap: var(--space-1); }
+.form-row > .field > .label { grid-row: 1; }
+.form-row > .field > :not(.label, .hint, .sr-only), .form-row > .form-row-action > * { grid-row: 2; }
+.form-row > .field > .hint { grid-row: 3; }
+.form-row > .form-row-action > * { justify-self: start; }
+/* Field control="checkbox": the label wraps the box. */
+.label-option { display: flex; align-items: center; gap: var(--space-2); cursor: pointer; }
+/* Field checkbox: the semantic input keeps native keyboard/label behavior. */
+.label-option input[type="checkbox"] {
+  appearance: none; flex: none; width: var(--space-4); height: var(--space-4); margin: 0;
+  border: 1px solid var(--text-subtle); border-radius: var(--radius-xs);
+  background: var(--surface); color: var(--surface); cursor: pointer;
+}
+.label-option input[type="checkbox"]:checked {
+  background-color: var(--accent-strong); border-color: var(--accent-strong);
+  background-image: linear-gradient(45deg, transparent 42%, currentColor 42%, currentColor 58%, transparent 58%),
+    linear-gradient(-45deg, transparent 42%, currentColor 42%, currentColor 58%, transparent 58%);
+  background-size: 35% 40%, 55% 65%; background-position: 25% 58%, 70% 42%; background-repeat: no-repeat;
+}
+.label-option input[type="checkbox"]:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.label-option input[type="checkbox"]:disabled { cursor: not-allowed; }
+.label-option:has(input[type="checkbox"]:disabled) { color: var(--text-subtle); cursor: not-allowed; }
+.label-option input[type="checkbox"][aria-invalid="true"] { border-color: var(--danger); }
+/* The Field's edge is --border-input: at least 3:1 on every surface (WCAG 1.4.11, T73); hover darkens it, focus and
+   error recolour it. The editor and quick-ask frames are typed in too, so they take the same edge. */
+.input, .select, .textarea {
+  width: 100%;
+  height: var(--control-h);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--control-text);
+  transition: border-color var(--duration-fast) var(--ease);
+}
+.input::placeholder, .textarea::placeholder { color: var(--text-subtle); }
+.input:hover, .select:hover, .textarea:hover { border-color: var(--border-input-hover); }
+.input:focus-visible, .select:focus-visible, .textarea:focus-visible { outline: 0; border-color: var(--focus); box-shadow: 0 0 0 3px color-mix(in oklab, var(--focus) 25%, transparent); }
+.input[aria-invalid="true"], .select[aria-invalid="true"], .textarea[aria-invalid="true"] { border-color: var(--danger); }
+.input:disabled, .select:disabled, .textarea:disabled { opacity: 0.5; border-color: var(--border-input); background-color: var(--surface-sunken); cursor: not-allowed; }
+.textarea { height: auto; min-height: 5rem; padding: var(--space-2) var(--space-3); line-height: var(--leading-body); resize: vertical; }
+/* Field textarea auto-grow (a message box): one control tall at rest, grows with its content to five lines, and only
+   then scrolls. The Field sets the height and marks data-overflow; until then no scrollbar is drawn. */
+.textarea-grow { min-height: var(--control-h); max-height: calc(5lh + 2 * var(--space-2) + 2px); resize: none; overflow-y: hidden; }
+.textarea-grow[data-overflow] { overflow-y: auto; }
+/* Field file: the browser picker is styled with the Button and Field tokens. */
+.input-file { padding: 0; min-width: 0; cursor: pointer; }
+.input-file::file-selector-button {
+  height: 100%; margin-right: var(--space-3); padding: 0 var(--control-pad-x);
+  border: 0; border-right: 1px solid var(--border-strong); background: var(--surface-sunken);
+  color: var(--text); font: inherit; cursor: pointer;
+}
+.input-file:hover::file-selector-button { background: var(--surface-sunken); }
+.input-file:disabled::file-selector-button { cursor: not-allowed; }
+/* The native select draws the Menu's chevron (.menu-caret): two 1.5px strokes, --text-subtle, 12px from the edge. */
+.select {
+  appearance: none;
+  padding-right: var(--space-8);
+  background-image:
+    linear-gradient(45deg, transparent calc(50% - 0.75px), var(--text-subtle) calc(50% - 0.75px), var(--text-subtle) calc(50% + 0.75px), transparent calc(50% + 0.75px)),
+    linear-gradient(-45deg, transparent calc(50% - 0.75px), var(--text-subtle) calc(50% - 0.75px), var(--text-subtle) calc(50% + 0.75px), transparent calc(50% + 0.75px));
+  background-position: right 18px top 50%, right 12px top 50%;
+  background-size: 6px 6px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+.select-sm, .input-sm { height: var(--control-h-sm); }
+
+/* ── Chips and badges ──────────────────────────────────────────────────── */
+/* Text in a chip is always --text or --text-muted (AA); colour lives in the icon/dot. */
+.chip {
+  display: inline-flex; align-items: center; gap: 0.3125rem;
+  height: var(--chip-h); max-width: 100%;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: var(--text-xs); font-weight: var(--weight-medium);
+  line-height: 1; white-space: nowrap; text-decoration: none;
+  vertical-align: middle;
+}
+.chip > span:not(.avatar) { overflow: hidden; text-overflow: ellipsis; }
+.chip .icon { width: 0.8125rem; height: 0.8125rem; }
+a.chip:hover, button.chip:hover { border-color: var(--border-hover); color: var(--text); }
+button.chip { cursor: pointer; }
+.chip:focus-visible { outline: 0; box-shadow: var(--focus-ring); }
+/* Touch: a compact anchor chip keeps its size but gets a 40px hit area. */
+@media (pointer: coarse) {
+  a.chip:not(.chip-link) { position: relative; }
+  a.chip:not(.chip-link)::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: var(--control-h-touch); transform: translateY(-50%); }
+}
+
+/* A static chip that carries a person or an agent (the project's lead): 4px taller than a fact chip, so the avatar is inset
+   and an agent's mark (the dot and its 2px ring stick out 4px) stays inside the border; 18px avatar, 4px above and below. */
+.chip-person { height: calc(var(--chip-h) + var(--space-1)); gap: var(--space-2); padding: 0 var(--space-3) 0 var(--space-2); }
+.chip-person > .avatar { --size: 1.125rem; }
+/* A long name ellipsizes instead of widening the chip past its column (the label span may shrink). */
+.chip-person > span:not(.avatar) { min-width: 0; }
+
+/* Milestones (CL-37). The milestone a ticket is in: its state diamond (.milestone-icon) and the key in mono, "CL-M3";
+   the title is its tooltip. */
+.chip-milestone { font-family: var(--font-mono); }
+/* Prepared: a held ticket, no agent is told until the hand-off. Quiet: sunken fill on a solid border-strong edge. */
+.chip-prepared { background: var(--surface-sunken); border-color: var(--border-strong); }
+.chip-prepared .icon { color: var(--text-subtle); }
+/* Warn: a fact that needs a look (an overdue target date, "2 open tickets" on a done milestone). Tangerine tint, the
+   icon in --warm, the text --text. */
+.chip-warn { background: var(--warm-soft); border-color: transparent; color: var(--text); }
+.chip-warn .icon { color: var(--warm); }
+/* Delivery: the postman's state of one handed-off ticket (data-state = the delivery state). Each state has its own icon. */
+.chip-delivery .icon { color: var(--text-subtle); }
+.chip-delivery[data-state="claimed"]    { color: var(--text); }
+.chip-delivery[data-state="claimed"] .icon { color: var(--status-progress); }
+.chip-delivery[data-state="forwarded"]  { background: var(--status-done-soft); border-color: transparent; color: var(--text); }
+.chip-delivery[data-state="forwarded"] .icon { color: var(--status-done); }
+.chip-delivery[data-state="uncertain"]  { background: var(--warm-soft); border-color: transparent; color: var(--text); }
+.chip-delivery[data-state="uncertain"] .icon { color: var(--warm); }
+.chip-delivery[data-state="unroutable"] { background: var(--danger-soft); border-color: transparent; color: var(--text); }
+.chip-delivery[data-state="unroutable"] .icon { color: var(--danger); }
+.chip-delivery[data-state="obsolete"]   { border-style: dashed; border-color: var(--border-strong); }
+.chip-delivery[data-state="obsolete"] > span { text-decoration: line-through; }
+/* Chat (CL-48): a message the agent answered, "Answered": the reply arrow in --status-done, no fill. A chat message shows queued
+   (pending), delivered (forwarded) or answered; each of the three has its own icon, so the state reads without colour. */
+.chip-delivery[data-state="answered"] { color: var(--text); }
+.chip-delivery[data-state="answered"] .icon { color: var(--status-done); }
+
+/* Status: icon shape + colour + soft fill. Values mirror the ticket status. */
+.chip-status { border-color: transparent; color: var(--text); }
+.chip-status .icon { color: var(--sc); stroke-width: 2; }
+.chip-status[data-status="backlog"]  { --sc: var(--status-backlog);  background: var(--status-backlog-soft); }
+.chip-status[data-status="planned"]  { --sc: var(--status-planned);  background: var(--status-planned-soft); }
+.chip-status[data-status="progress"] { --sc: var(--status-progress); background: var(--status-progress-soft); }
+.chip-status[data-status="review"]   { --sc: var(--status-review);   background: var(--status-review-soft); }
+.chip-status[data-status="done"]     { --sc: var(--status-done);     background: var(--status-done-soft); }
+.status-icon { color: var(--sc); }
+[data-status="backlog"]  { --sc: var(--status-backlog); }
+[data-status="planned"]  { --sc: var(--status-planned); }
+[data-status="progress"] { --sc: var(--status-progress); }
+[data-status="review"]   { --sc: var(--status-review); }
+[data-status="done"]     { --sc: var(--status-done); }
+
+/* Priority: bars icon, colour reinforces. Usable as a chip or bare icon. */
+.priority { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--pc); }
+[data-priority="urgent"] { --pc: var(--priority-urgent); }
+[data-priority="high"]   { --pc: var(--priority-high); }
+[data-priority="medium"] { --pc: var(--priority-medium); }
+[data-priority="low"]    { --pc: var(--priority-low); }
+.chip-priority { color: var(--text-muted); }
+.chip-priority .icon { color: var(--pc); fill: currentColor; stroke: none; }
+.priority .icon { fill: currentColor; stroke: none; }
+/* A shown label on the bare form reads like the chip's: the colour stays on the glyph (--pc fails 4.5:1 as text). */
+.priority > :not(.icon) { color: var(--text-muted); }
+
+/* Labels: neutral chip with a palette dot. Tones: neutral, coral, tangerine, circle, ink. */
+.chip-label::before { content: ""; width: 0.5rem; height: 0.5rem; border-radius: var(--radius-pill); background: var(--lc, var(--mist-text)); flex: none; }
+.chip-label[data-tone="coral"]     { --lc: var(--coral); }
+.chip-label[data-tone="tangerine"] { --lc: var(--tangerine); }
+.chip-label[data-tone="circle"]    { --lc: var(--circle); }
+.chip-label[data-tone="ink"]       { --lc: var(--text); }
+.chip-label[data-tone="mist"]      { --lc: var(--mist); }
+/* Mist is 1.4:1 on paper: its dot gets a --border-hover ring (the global awaiting-deploy label, CL-27). */
+.chip-label[data-tone="mist"]::before { box-shadow: inset 0 0 0 1px var(--border-hover); }
+/* Waiting: who a ticket waits on, danger-tinted. */
+.chip-waiting { margin-top: var(--space-2); color: var(--danger); background: var(--danger-soft); border-color: transparent; }
+/* Waiting on a person who is not you (CL-27, data-human): tangerine. data-me wins when both are set. */
+.chip-waiting[data-human]:not([data-me]) { color: var(--status-waiting-human); background: var(--status-waiting-human-soft); }
+/* Watchdog states (CL-27). Stalled: muted, a dashed --status-stalled border like the card's dashed edge ("Stalled 41 min").
+   Needs attention: coral with a solid border (an agent waits on an approval dialog). Both lead with an icon. */
+.chip-stalled { color: var(--status-stalled); background: var(--status-stalled-soft); border-style: dashed; border-color: var(--status-stalled); }
+.chip-attention { color: var(--status-attention); background: var(--status-attention-soft); border-color: var(--status-attention); }
+/* Blocked by another ticket until it reaches Review (CL-44): muted like Stalled, a solid border and a clock icon. */
+.chip-blocked { color: var(--status-stalled); background: var(--status-stalled-soft); border-color: var(--status-stalled); }
+/* A trailing secondary part of a chip (CL-48): the observed model's age ("3 min"), "for Nicky" on an acting person. Sans,
+   regular, --text-subtle (AA on every chip fill), after a thin --border rule; a descendant, so it may sit inside the label span. */
+.chip .chip-meta { font-family: var(--font-sans); font-weight: var(--weight-regular); color: var(--text-subtle); padding-left: var(--space-2); border-left: 1px solid var(--border); white-space: nowrap; }
+/* Model (CL-48, the agents table and the crewhub lead card): a model id in mono, "claude-fable-5-1". Configured and observed are
+   two chips; the observed one carries its age as .chip-meta. data-unknown: the model was never observed: "unknown" in sans,
+   --text-subtle, on a dashed --border-strong edge (dashed = not a fact yet, as the obsolete delivery and the system avatar).
+   Drift between configured and observed: the observed chip also takes .chip-warn (the tangerine tint and the alert icon). */
+.chip-model { font-family: var(--font-mono); }
+.chip-model[data-unknown] { font-family: var(--font-sans); color: var(--text-subtle); border-style: dashed; border-color: var(--border-strong); }
+/* Acting (CL-48): a person chip for an agent that acts for the owner, "crewhub-lead | for Nicky", wherever an actor shows (the
+   confirmation notice, the agents table, an audit line). The delegation is a fact to see, so this .chip-meta is --text-muted,
+   not subtle. The words come through i18n; CSS never writes them. */
+.chip-acting .chip-meta { color: var(--text-muted); }
+/* Progress kind on a ticket's Progress tab (start, update, done, question). */
+.chip-progress { border-color: transparent; color: var(--text); }
+.chip-progress[data-kind="start"]    { background: var(--status-progress-soft); }
+.chip-progress[data-kind="done"]     { background: var(--status-done-soft); }
+.chip-progress[data-kind="question"] { background: var(--danger-soft); }
+
+/* Chip menu: a chip that opens its choices (Menu's chip trigger: status, priority, kind, assignee, waiting on).
+   It is a control, so it takes the control height, text and a visible border; the status tint stays.
+   An avatar sits inside with an 8px inset so an agent's spark shows; one chevron (.menu-caret) closes every chip menu. */
+.chip-menu {
+  height: var(--control-h);
+  padding: 0 var(--space-2) 0 var(--control-pad-x-sm);
+  gap: var(--space-2);
+  border-color: var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: var(--control-text);
+}
+.chip-menu.chip-status { border-color: transparent; }
+.chip-menu .icon { width: 1rem; height: 1rem; }
+.chip-menu > .avatar { --size: var(--chip-avatar); margin-left: calc(-1 * var(--space-1)); }
+.chip-menu > span:not(.avatar) { min-width: 0; }
+.chip-menu[aria-expanded="true"] { border-color: var(--border-hover); }
+.chip-menu[aria-disabled="true"] { opacity: 0.6; cursor: progress; }
+.menu-caret, .chip.chip-menu .menu-caret { width: 1rem; height: 1rem; color: var(--text-subtle); fill: none; stroke: currentColor; stroke-width: 1.75; }
+
+/* Link chips: one per link plugin (data-link = plugin id). Icon + key + title + optional state. */
+.chip-link {
+  height: auto; min-height: var(--control-h-sm);
+  padding: var(--space-1) var(--space-2);
+  gap: var(--space-2);
+  color: var(--text);
+  font-weight: var(--weight-regular);
+  font-size: var(--text-sm);
+}
+.chip-link .link-type { display: inline-grid; place-items: center; width: 1.25rem; height: 1.25rem; border-radius: var(--radius-xs); background: var(--surface-sunken); color: var(--text-muted); flex: none; }
+.chip-link .link-key { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text-muted); flex: none; }
+.chip-link .link-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.chip-link .link-state { font-size: var(--text-xs); color: var(--text-subtle); flex: none; }
+.chip-link[data-link="linear"] .link-type { color: var(--text); }
+.chip-link[data-link="github"] .link-type { color: var(--text); }
+.chip-link[data-link="outline"] .link-type { color: var(--warm); }
+.chip-link[data-link="url"] .link-type { color: var(--text-subtle); }
+.link-list { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); list-style: none; margin: 0; padding: 0; }
+.link-list li, .link-list .chip-link { max-width: 100%; }
+.link-list .chip-link .link-state { overflow: hidden; text-overflow: ellipsis; min-width: 0; flex-shrink: 1; }
+
+.badge {
+  display: inline-grid; place-items: center;
+  min-width: 1.25rem; height: 1.25rem; padding: 0 0.375rem;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken); color: var(--text-muted);
+  font-size: var(--text-2xs); font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums;
+}
+.badge-accent { background: var(--accent); color: var(--on-accent); }
+.chip-row { display: flex; flex-wrap: wrap; gap: var(--space-1); align-items: center; }
+
+/* ── Avatars: people are round, agents are square with a spark, system is an outline ─ */
+.avatar {
+  --size: 1.75rem;
+  position: relative;
+  display: inline-grid; place-items: center;
+  width: var(--size); height: var(--size); flex: none;
+  border-radius: var(--radius-pill);
+  background: var(--avatar-person-bg); color: var(--avatar-person-fg);
+  font-size: calc(var(--size) * 0.4); font-weight: var(--weight-semibold);
+  line-height: 1; text-transform: uppercase; user-select: none;
+}
+.avatar-agent {
+  border-radius: calc(var(--size) * 0.24);
+  background: var(--avatar-agent-bg); color: var(--avatar-agent-fg);
+  font-family: var(--font-mono); font-weight: var(--weight-bold); text-transform: lowercase;
+  letter-spacing: -0.02em;
+}
+.avatar-agent::after {
+  content: ""; position: absolute; right: -2px; top: -2px;
+  width: calc(var(--size) * 0.32); height: calc(var(--size) * 0.32);
+  border-radius: var(--radius-pill); background: var(--avatar-agent-mark);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+.avatar-system { background: transparent; color: var(--system-fg); border: 1px dashed var(--border-strong); border-radius: calc(var(--size) * 0.24); }
+.avatar-system .icon { width: 55%; height: 55%; }
+.avatar-xs { --size: 1.25rem; }
+.avatar-sm { --size: 1.5rem; }
+.avatar-lg { --size: 2.25rem; }
+.avatar-stack { display: inline-flex; }
+.avatar-stack .avatar { box-shadow: 0 0 0 2px var(--surface); }
+.avatar-stack .avatar + .avatar { margin-left: -0.375rem; }
+.actor { display: inline-flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.actor-name { font-weight: var(--weight-medium); color: var(--text); white-space: nowrap; }
+.actor-tag { font-size: var(--text-2xs); font-weight: var(--weight-semibold); text-transform: uppercase; letter-spacing: var(--tracking-meta); color: var(--text-subtle); border: 1px solid var(--border); border-radius: var(--radius-xs); padding: 1px 4px; }
+
+/* ── Cards ─────────────────────────────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  min-width: 0;
+}
+.card-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border); }
+.card-title { font-size: var(--text-base); font-weight: var(--weight-semibold); display: flex; align-items: center; gap: var(--space-2); }
+.card-body { padding: var(--space-4); }
+.card-footer { padding: var(--space-2) var(--space-4); border-top: 1px solid var(--border); font-size: var(--text-sm); }
+/* Card variant `card-dialog`: the modal shell. A native <dialog class="card-dialog"> around a .card; the browser
+   traps focus, makes the page behind inert, closes on Escape and returns the focus. */
+.card-dialog {
+  padding: 0; border: 0; background: transparent; color: var(--text);
+  width: min(38rem, calc(100vw - 2 * var(--space-4))); max-height: calc(100dvh - 2 * var(--space-4));
+  overflow: visible;
+}
+.card-dialog::backdrop { background: var(--scrim); }
+.card-dialog > .card { max-height: calc(100dvh - 2 * var(--space-4)); display: flex; flex-direction: column; }
+.card-dialog .card-body { overflow-y: auto; }
+/* Card variant `card-float`: a transient floating panel that is not a dialog (the shortcut hint): fixed at the top centre,
+   above the page, and it never takes the pointer or the focus. */
+.card-float {
+  position: fixed; top: var(--space-4); left: 50%; transform: translateX(-50%);
+  z-index: var(--z-toast); width: min(22rem, calc(100vw - 2 * var(--space-4)));
+  overflow: hidden; pointer-events: none; box-shadow: var(--shadow-lg);
+}
+/* Variant `notice` (CL-27): a body-only card above a ticket's content that states a condition. A title line (with the
+   state chip), a muted hint or a row of facts, at most one sm Button on the right that wraps below on a phone.
+   data-state tints it: stalled (dashed --status-stalled border, stalled tint), attention (solid coral border, attention tint). */
+.card-notice { box-shadow: none; }
+.card-notice .card-body { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); padding: var(--space-3) var(--space-4); }
+.notice-text { flex: 1 1 16rem; min-width: 0; margin: 0; display: flex; flex-direction: column; gap: var(--space-1); }
+.notice-title { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); font-weight: var(--weight-semibold); }
+.notice-hint { color: var(--text-muted); font-size: var(--text-sm); }
+.notice-facts { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); margin: 0; font-size: var(--text-sm); }
+.notice-facts > div { display: flex; gap: var(--space-1); min-width: 0; }
+.notice-facts dt { color: var(--text-muted); }
+.notice-facts dd { margin: 0; color: var(--text); font-variant-numeric: tabular-nums; }
+.card-notice[data-state="stalled"] { background: var(--status-stalled-soft); border-style: dashed; border-color: var(--status-stalled); }
+.card-notice[data-state="attention"] { background: var(--status-attention-soft); border-color: var(--status-attention); }
+/* State request (CL-48, AG9b): a bound action that waits on the owner's click, "crewhub-lead asks to restart cl-lead, for
+   Nicky". The coral family of waiting on you: a solid --accent-strong edge on --accent-soft (the edge is at least 3:1 on the
+   tint in both themes), the action's facts in .notice-facts, and two sm Buttons in .notice-actions, Confirm (primary) and
+   Decline (default): the one notice with two Buttons. It is told apart from attention by its content, a person chip and the
+   two Buttons, not by its tint alone. On a phone the actions wrap under the text. */
+.card-notice[data-state="request"] { background: var(--accent-soft); border-color: var(--accent-strong); }
+.notice-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+/* ── Lists and tables ──────────────────────────────────────────────────── */
+.list { list-style: none; margin: 0; padding: 0; }
+.row {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+  align-items: center; gap: var(--space-3);
+  min-height: var(--row-height);
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  color: var(--text); text-decoration: none;
+  position: relative;
+}
+.list > li:last-child .row { border-bottom: 0; }
+.row:hover { background: var(--surface-sunken); }
+.row:focus-visible { outline: 0; box-shadow: inset 3px 0 0 var(--focus); background: var(--surface-sunken); border-radius: 0; }
+.row-id { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text-subtle); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.row-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--weight-medium); }
+.row-sub { display: block; font-size: var(--text-xs); font-weight: var(--weight-regular); color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; }
+.row-meta { font-size: var(--text-xs); color: var(--text-subtle); white-space: nowrap; font-variant-numeric: tabular-nums; }
+@media (max-width: 559px) {
+  .row { grid-template-columns: auto minmax(0, 1fr) auto; row-gap: var(--space-1); }
+  .row .row-id { grid-column: 2; grid-row: 2; }
+  .row .row-hide-sm { display: none; }
+  .row .row-title { white-space: normal; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+  .row .row-sub { white-space: nowrap; }
+}
+
+.table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+.table th { text-align: left; font-size: var(--text-2xs); font-weight: var(--weight-semibold); text-transform: uppercase; letter-spacing: var(--tracking-meta); color: var(--text-subtle); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border); }
+.table td { padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border); vertical-align: middle; }
+.table tbody tr:hover td { background: var(--surface-sunken); }
+/* Name link: a link in a cell names the row's thing (a project, a ticket, a release), so it reads as a name: the text
+   colour, underlined on hover and focus only, never the accent body link (T76). Chips and Buttons keep their own look.
+   :where() keeps it at one class, so a table's own class can still restyle its link. */
+.table :where(td a:not(.btn, .chip)) { color: var(--text); font-weight: var(--weight-medium); text-decoration: none; }
+.table :where(td a:not(.btn, .chip)):is(:hover, :focus-visible) { text-decoration: underline; }
+
+/* ── Tabs ──────────────────────────────────────────────────────────────── */
+.tabs { display: flex; gap: var(--space-1); border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
+.tab {
+  position: relative;
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  height: var(--control-h); padding: 0 var(--space-3);
+  border: 0; background: none; color: var(--text-muted);
+  font-size: var(--control-text); font-weight: var(--weight-medium);
+  cursor: pointer; white-space: nowrap;
+}
+a.tab { text-decoration: none; }
+.tab:hover { color: var(--text); }
+.tab[aria-selected="true"] { color: var(--text); }
+.tab[aria-selected="true"]::after { content: ""; position: absolute; left: var(--space-2); right: var(--space-2); bottom: -1px; height: 2px; border-radius: 2px; background: var(--accent); }
+/* A tab that is a route link (NavLink): aria-current in place of aria-selected. */
+.tab[aria-current="page"] { color: var(--text); }
+.tab[aria-current="page"]::after { content: ""; position: absolute; left: var(--space-2); right: var(--space-2); bottom: -1px; height: 2px; border-radius: 2px; background: var(--accent); }
+.tab:focus-visible { outline: 0; box-shadow: inset var(--focus-ring); border-radius: var(--radius-sm); }
+
+/* ── Toolbar and editor (TipTap-shaped) ────────────────────────────────── */
+.toolbar { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; }
+.toolbar-btn {
+  display: inline-grid; place-items: center;
+  width: var(--control-h-sm); height: var(--control-h-sm);
+  border: 0; border-radius: var(--radius-sm);
+  background: none; color: var(--text-muted); cursor: pointer;
+}
+.toolbar-btn:hover { background: var(--surface-sunken); color: var(--text); }
+.toolbar-btn[aria-pressed="true"] { background: var(--surface-sunken); color: var(--text); box-shadow: inset 0 0 0 1px var(--border-strong); }
+.toolbar-btn:focus-visible { outline: 0; box-shadow: var(--focus-ring); }
+.toolbar-sep { width: 1px; height: 1.125rem; margin: 0 var(--space-1); background: var(--border); }
+
+.editor {
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  transition: border-color var(--duration-fast) var(--ease);
+}
+.editor:focus-within { border-color: var(--focus); box-shadow: 0 0 0 3px color-mix(in oklab, var(--focus) 22%, transparent); }
+.editor .toolbar { padding: var(--space-1) var(--space-2); border-bottom: 1px solid var(--border); }
+.editor-content { min-height: 6rem; padding: var(--space-3) var(--space-4); outline: 0; }
+.editor-content:focus-visible { outline: 0; }
+.editor-content .placeholder { color: var(--text-subtle); }
+.editor-footer { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); flex-wrap: wrap; padding: var(--space-2) var(--space-3); border-top: 1px solid var(--border); }
+.editor-attachments { display: flex; gap: var(--space-2); flex-wrap: wrap; padding: 0 var(--space-4) var(--space-3); }
+.upload-pill { display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-2); border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); font-size: var(--text-xs); color: var(--text-muted); }
+.progress { width: 3rem; height: 3px; border-radius: 3px; background: var(--border); overflow: hidden; }
+.progress > span { display: block; height: 100%; background: var(--accent); }
+
+/* ── Dropdown / menu ───────────────────────────────────────────────────── */
+.menu-wrap { position: relative; display: inline-block; }
+.menu {
+  position: absolute; z-index: var(--z-menu);
+  top: calc(100% + 4px); left: 0;
+  min-width: 13rem; max-width: min(20rem, 90vw);
+  padding: var(--space-1);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  list-style: none; margin: 0;
+}
+.menu[hidden] { display: none; }
+.menu-end { left: auto; right: 0; }
+.menu-label { padding: var(--space-2) var(--space-2) var(--space-1); font-size: var(--text-2xs); font-weight: var(--weight-semibold); text-transform: uppercase; letter-spacing: var(--tracking-meta); color: var(--text-subtle); }
+.menu-item {
+  display: flex; align-items: center; gap: var(--space-2);
+  width: 100%; min-height: var(--control-h); padding: var(--space-1) var(--space-2);
+  border: 0; border-radius: var(--radius-sm);
+  background: none; color: var(--text); text-align: left; text-decoration: none;
+  font-size: var(--control-text); cursor: pointer;
+}
+.menu-item:hover, .menu-item:focus-visible { background: var(--surface-sunken); outline: 0; }
+.menu-item[aria-checked="true"]::after { content: "✓"; margin-left: auto; color: var(--accent-strong); font-weight: var(--weight-bold); }
+.menu-item .menu-hint { margin-left: auto; font-size: var(--text-xs); color: var(--text-subtle); }
+.menu-item.is-danger { color: var(--danger); }
+.menu-sep { height: 1px; margin: var(--space-1) 0; background: var(--border); }
+/* Context variant (trigger "context"): opens at the pointer, fixed in the viewport. A submenu unfolds under its row. */
+.menu-context { position: fixed; top: 0; left: 0; max-height: calc(100vh - var(--space-4)); overflow-y: auto; }
+.menu-item[aria-haspopup="menu"]::after { content: ""; margin-left: auto; width: 0.5rem; height: 0.5rem; border: solid var(--text-subtle); border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); }
+.menu-item[aria-haspopup="menu"][aria-expanded="true"]::after { transform: rotate(-135deg); }
+.menu-sub { list-style: none; margin: 0 0 var(--space-1) var(--space-3); padding: 0 0 0 var(--space-1); border-left: 1px solid var(--border); }
+.menu-sub[hidden] { display: none; }
+.menu-context > ul { list-style: none; margin: 0; padding: 0; }
+.menu-field { display: flex; gap: var(--space-1); align-items: flex-end; margin-top: var(--space-1); padding: var(--space-2) var(--space-2) var(--space-1); border-top: 1px solid var(--border); }
+.menu-field .field { flex: 1; min-width: 0; }
+/* Combobox variant (trigger "combobox"): the list hangs under a Field, as wide as the field. A row is a key or name
+   (.menu-text), its title (.menu-hint, ellipsized) and a chip; the active row is the one Enter chooses. */
+.menu-combobox { display: block; min-width: 0; }
+.menu-combobox > .menu { right: 0; min-width: 0; max-width: none; max-height: 20rem; overflow-y: auto; }
+.menu-combobox .menu-item[data-active] { background: var(--surface-sunken); }
+/* The rows of the previous text, while the answer to this one is on its way: shown, not to be chosen. */
+.menu-combobox .menu-item[aria-disabled="true"] { opacity: 0.55; cursor: progress; }
+.menu-combobox .menu-item[aria-disabled="true"]:hover { background: none; }
+.menu-combobox .menu-text { flex: none; font-weight: var(--weight-medium); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.menu-combobox .menu-item .menu-hint { flex: 1; min-width: 0; margin-left: 0; font-size: var(--text-sm); color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menu-combobox .menu-item > .chip { flex: none; }
+.menu-combobox .menu-item[data-checked]::after { content: "✓"; color: var(--accent-strong); font-weight: var(--weight-bold); }
+.menu-note { padding: var(--space-2) var(--space-3); font-size: var(--text-sm); color: var(--text-muted); }
+
+/* ── Toast ─────────────────────────────────────────────────────────────── */
+.toast-region { position: fixed; z-index: var(--z-toast); right: var(--space-4); bottom: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); max-width: min(24rem, calc(100vw - 2rem)); }
+.toast {
+  display: flex; align-items: flex-start; gap: var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  background: var(--surface-inverse); color: var(--text-inverse);
+  border-radius: var(--radius-md); box-shadow: var(--shadow-lg);
+  font-size: var(--text-sm);
+  animation: toast-in var(--duration-base) var(--ease);
+}
+.toast .toast-body { flex: 1; min-width: 0; }
+.toast .toast-title { font-weight: var(--weight-semibold); }
+.toast .btn-ghost { color: inherit; opacity: 0.75; height: 1.5rem; width: 1.5rem; }
+.toast .btn-ghost:hover { background: color-mix(in oklab, var(--text-inverse) 12%, transparent); opacity: 1; color: inherit; }
+.toast .toast-action { color: inherit; font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+.toast-mark { width: 3px; align-self: stretch; border-radius: 3px; background: var(--accent); flex: none; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* ── Empty state ───────────────────────────────────────────────────────── */
+.empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: var(--space-2); padding: var(--space-8) var(--space-4); color: var(--text-muted); }
+.empty-icon { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; border-radius: var(--radius-pill); background: var(--surface-sunken); color: var(--text-subtle); margin-bottom: var(--space-1); }
+.empty-title { color: var(--text); font-weight: var(--weight-semibold); }
+.empty-text { font-size: var(--text-sm); max-width: 22rem; }
+
+/* ── Prose: ticket body and comments (the TipTap output) ───────────────── */
+.prose { font-size: var(--text-md); line-height: var(--leading-prose); color: var(--text); max-width: var(--prose-max); overflow-wrap: anywhere; }
+.prose > * + * { margin-top: var(--space-3); }
+.prose h2 { font-size: var(--text-lg); margin-top: var(--space-6); }
+.prose h3 { font-size: var(--text-md); margin-top: var(--space-5); }
+.prose ul, .prose ol { padding-left: var(--space-6); margin-bottom: 0; }
+.prose li + li { margin-top: var(--space-1); }
+.prose code { font-family: var(--font-mono); font-size: 0.875em; padding: 0.1em 0.35em; border-radius: var(--radius-xs); background: var(--surface-sunken); border: 1px solid var(--border); }
+.prose pre { font-family: var(--font-mono); font-size: var(--text-sm); line-height: var(--leading-body); padding: var(--space-3) var(--space-4); border-radius: var(--radius-sm); background: var(--surface-sunken); border: 1px solid var(--border); overflow-x: auto; }
+.prose pre code { padding: 0; border: 0; background: none; font-size: inherit; }
+.prose blockquote { margin-left: 0; padding-left: var(--space-4); border-left: 3px solid var(--border-strong); color: var(--text-muted); }
+.prose figure { margin-left: 0; margin-right: 0; }
+/* An image is shown at its own size, never stretched to the column: no `width` here, so the width attribute (the pixels the upload
+   measured) applies, `max-width` keeps a big one inside the column and `height: auto` keeps the ratio (the attributes also reserve
+   the space before the file arrives). Nothing is cropped: no overflow on the figure. */
+.prose figure img, .prose figure svg { display: block; max-width: 100%; height: auto; border-radius: var(--radius-sm); border: 1px solid var(--border); }
+.prose figure a { display: block; width: fit-content; max-width: 100%; }
+.prose figcaption { margin-top: var(--space-1); font-size: var(--text-xs); color: var(--text-subtle); }
+.prose-sm { font-size: var(--text-base); }
+.task-list { list-style: none; padding-left: var(--space-1) !important; }
+.task-list li { display: flex; gap: var(--space-2); align-items: flex-start; }
+.task-list input { margin-top: 0.35em; accent-color: var(--accent-strong); width: 1rem; height: 1rem; flex: none; }
+.task-list li[data-checked="true"] > span { color: var(--text-subtle); text-decoration: line-through; }
+
+/* ── Attachments ───────────────────────────────────────────────────────── */
+.attachment {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--text); text-decoration: none; min-width: 0;
+}
+.attachment:hover { border-color: var(--border-hover); }
+.attachment-icon { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: var(--radius-sm); background: var(--surface-sunken); color: var(--text-muted); flex: none; }
+.attachment-name { font-size: var(--text-sm); font-weight: var(--weight-medium); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attachment-meta { font-size: var(--text-xs); color: var(--text-subtle); }
+
+/* ── Thread: comments, replies, system lines, events ───────────────────── */
+.thread { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-4); }
+.comment { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-3); }
+.comment-main { min-width: 0; }
+.comment-head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-1); font-size: var(--text-sm); }
+.comment-time { color: var(--text-subtle); font-size: var(--text-xs); }
+.comment-body { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); }
+.comment[data-actor="agent"] > .comment-main > .comment-body { background: color-mix(in oklab, var(--surface-sunken) 60%, var(--surface)); }
+.comment-actions { display: flex; gap: var(--space-1); margin-top: var(--space-1); }
+.comment-actions .btn { height: var(--control-h-sm); padding: 0 var(--control-pad-x-sm); font-size: var(--control-text); }
+.replies { list-style: none; margin: var(--space-3) 0 0; padding: 0 0 0 var(--space-4); border-left: 2px solid var(--border); display: flex; flex-direction: column; gap: var(--space-3); }
+.replies .comment-body { padding: var(--space-2) var(--space-3); }
+.system-line, .event-line {
+  display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;
+  font-size: var(--text-sm); color: var(--system-fg);
+  padding-left: calc(1.75rem + var(--space-3) - 1.25rem);
+}
+.event-line > span { min-width: 0; overflow-wrap: anywhere; }
+.system-line strong, .event-line strong { color: var(--text-muted); font-weight: var(--weight-medium); }
+.system-line code { font-family: var(--font-mono); font-size: var(--text-xs); }
+@media (max-width: 559px) { .replies { padding-left: var(--space-3); } .comment { gap: var(--space-2); } }
+
+/* ── Activity feed ─────────────────────────────────────────────────────── */
+.feed { list-style: none; margin: 0; padding: var(--space-2) 0; }
+.feed-item { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-3); padding: var(--space-2) var(--space-4); font-size: var(--text-sm); }
+.feed-text { color: var(--text-muted); min-width: 0; }
+.feed-text strong { color: var(--text); font-weight: var(--weight-medium); }
+.feed-text a { color: var(--text); text-decoration: none; font-weight: var(--weight-medium); }
+.feed-text a:hover { text-decoration: underline; }
+.feed-time { display: block; font-size: var(--text-xs); color: var(--text-subtle); margin-top: 1px; }
+.feed-day { padding: var(--space-3) var(--space-4) var(--space-1); }
+/* New since you last looked (CL-25): a faint tint (--feed-new) and a 3px accent bar on the leading edge, the bar is the main cue. */
+.feed-item[data-new] { background: var(--feed-new); box-shadow: inset 3px 0 0 var(--accent); }
+
+/* ── Quick-ask ─────────────────────────────────────────────────────────── */
+.quickask {
+  background: var(--surface);
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  transition: border-color var(--duration-fast) var(--ease), box-shadow var(--duration-fast) var(--ease);
+}
+.quickask:focus-within { border-color: var(--focus); box-shadow: var(--shadow-md), 0 0 0 3px color-mix(in oklab, var(--focus) 20%, transparent); }
+.quickask-input { display: block; width: 100%; min-height: 4.5rem; padding: var(--space-4) var(--space-4) var(--space-2); border: 0; background: none; resize: none; font-size: var(--text-md); line-height: var(--leading-body); }
+.quickask-input:focus-visible { outline: 0; }
+.quickask-input::placeholder { color: var(--text-subtle); }
+.quickask-bar { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3); }
+.quickask-to { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); color: var(--text-muted); }
+.quickask-to .select { width: auto; min-width: 10rem; }
+.resolved { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); color: var(--text-muted); }
+.resolved .icon { color: var(--text-subtle); }
+.quickask-send { margin-left: auto; }
+
+/* ── Chat and bubbles (CL-48) ──────────────────────────────────────────── */
+/* The dock (layout `dock`, AG10b): fixed at the right edge, above the page (--z-drawer: under menus and toasts), a pill on
+   --surface. Each bubble is a Button `avatar` (.avatar-toggle with an lg avatar) in a .dock-bubble: at full opacity here (the
+   ring of aria-pressed marks the open chat, in --accent-strong here: on the dock the ring alone says which chat is open, so
+   it is at least 3:1 on --surface, where the filter bar's avatars also change their opacity and keep --accent), with a
+   presence mark at its bottom right (.dock-dot: a hollow --text-subtle ring for offline, a filled --text-muted dot for idle,
+   the kit's .spinner for working, so the three differ in shape, each at least 3:1 on --surface, and the name says it in the
+   tooltip) and the person's unread count at its top left (.dock-badge on a .badge.badge-accent; the top right is the
+   agent's spark). Last comes the "…" Menu (Pin an agent): its list opens to the left, bottom-aligned, so it stays in the
+   viewport. The chat window sits left of the dock; the offset is the dock's width (an lg avatar, 2 × 8px padding, the border:
+   3.375rem) plus the gap on each side. Below 900px there is no dock: the app puts one Button in the top bar and opens the chat
+   as a card-dialog. */
+.dock {
+  position: fixed; right: var(--space-3); bottom: var(--space-4); z-index: var(--z-drawer);
+  display: flex; flex-direction: column; align-items: center; gap: var(--space-2);
+  padding: var(--space-2);
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-md);
+}
+.dock-bubble { position: relative; display: block; }
+.dock .avatar-toggle { display: block; opacity: 1; }
+.dock .avatar-toggle[aria-pressed="true"] .avatar { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent-strong); }
+.dock .avatar-toggle[aria-pressed="false"]:hover .avatar { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--border-hover); }
+.dock-dot { position: absolute; right: -2px; bottom: -2px; width: 0.75rem; height: 0.75rem; border-radius: var(--radius-pill); background: var(--text-muted); box-shadow: 0 0 0 2px var(--surface); pointer-events: none; }
+.dock-dot[data-presence="offline"] { background: var(--surface); border: 2px solid var(--text-subtle); }
+.dock-dot.spinner { background: var(--surface); }
+@media (prefers-reduced-motion: reduce) { .dock-dot.spinner { background: var(--accent-strong); } }
+.dock-badge { position: absolute; left: -0.375rem; top: -0.375rem; box-shadow: 0 0 0 2px var(--surface); pointer-events: none; }
+.dock > .menu-wrap > .menu { top: auto; bottom: 0; left: auto; right: calc(100% + var(--space-2)); }
+
+/* The chat window (Card variant `card-chat`, AG10b): a Card fixed above the page, left of the dock, that takes the focus and
+   is not modal (role="dialog", aria-modal="false", named by its header; Escape closes it and the page behind stays live). A
+   column: the header (the agent's person chip and the "…" Menu: Pin, Unpin, Agent settings), the .chat-summary line (what the
+   agent is on, one line, ellipsized), the body with the .thread (one .comment per message, the agent's tinted by data-actor,
+   and on each message you sent a chip-delivery: queued, delivered, answered), and .chat-compose, a form with an auto-grow Field textarea
+   and the one accent Button of the screen. Only the body scrolls. At most 24rem wide and 36rem tall, less on a small viewport. */
+.card-chat {
+  position: fixed; right: calc(2 * var(--space-3) + 3.375rem); bottom: var(--space-4); z-index: var(--z-drawer);
+  width: min(24rem, calc(100vw - 3.375rem - 4 * var(--space-3)));
+  max-height: min(36rem, calc(100dvh - 2 * var(--space-4)));
+  display: flex; flex-direction: column;
+  box-shadow: var(--shadow-lg);
+}
+.card-chat:focus-visible { outline: 0; box-shadow: var(--shadow-lg), var(--focus-ring); }
+.card-chat > .card-header { padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3); }
+.chat-summary { margin: 0; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border); background: var(--surface-sunken); font-size: var(--text-sm); color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card-chat > .card-body { flex: 1 1 auto; min-height: 8rem; padding: var(--space-3); overflow-y: auto; overscroll-behavior: contain; }
+.card-chat .thread { gap: var(--space-3); }
+.card-chat .comment { gap: var(--space-2); }
+.card-chat .comment-body { padding: var(--space-2) var(--space-3); }
+.chat-compose { display: flex; align-items: flex-end; gap: var(--space-2); margin: 0; padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3); border-top: 1px solid var(--border); }
+.chat-compose .field { flex: 1; min-width: 0; }
+@media (max-width: 899px) {
+  .dock { display: none; }
+  .card-chat { right: var(--space-4); width: calc(100vw - 2 * var(--space-4)); }
+}
+
+/* ── Kanban board ──────────────────────────────────────────────────────── */
+.filter-bar { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-4); }
+.filter-bar .input { width: 14rem; }
+.filter-group { display: inline-flex; align-items: center; gap: var(--space-1); }
+.filter-group + .filter-group { padding-left: var(--space-2); border-left: 1px solid var(--border); }
+.filter-count { margin-left: auto; font-size: var(--text-sm); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.avatar-toggle { padding: 0; border: 0; background: none; border-radius: var(--radius-pill); cursor: pointer; opacity: 0.55; transition: opacity var(--duration-fast) var(--ease); }
+.avatar-toggle .avatar-agent { border-radius: calc(var(--size) * 0.24); }
+.avatar-toggle[aria-pressed="true"] { opacity: 1; }
+.avatar-toggle[aria-pressed="true"] .avatar { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent); }
+.avatar-toggle:hover { opacity: 1; }
+.avatar-toggle:focus-visible { outline: 0; box-shadow: var(--focus-ring); }
+/* Touch: a 40px hit area around the avatar (24px in the filter bar); neighbours move 12px apart so the areas do not overlap. */
+@media (pointer: coarse) {
+  .avatar-toggle { position: relative; }
+  .avatar-toggle::after { content: ""; position: absolute; left: 50%; top: 50%; width: var(--control-h-touch); height: var(--control-h-touch); transform: translate(-50%, -50%); }
+  .avatar-toggle + .avatar-toggle { margin-left: var(--space-3); }
+}
+
+.board {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(13.5rem, 1fr);
+  gap: var(--space-3);
+  overflow-x: auto;
+  padding-bottom: var(--space-4);
+  scroll-snap-type: x proximity;
+  scroll-padding: 0 var(--gutter);
+}
+.column {
+  display: flex; flex-direction: column; min-width: 0;
+  background: color-mix(in oklab, var(--surface-sunken) 70%, var(--bg));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  scroll-snap-align: start;
+  max-height: calc(100vh - 13rem); min-height: 12rem;
+}
+.column-header { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-3) var(--space-2); font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+.column-header .badge { background: var(--surface); }
+.column-header .btn { margin-left: auto; }
+.column-cards { list-style: none; margin: 0; padding: var(--space-1) var(--space-2) var(--space-2); display: flex; flex-direction: column; gap: var(--space-2); overflow-y: auto; flex: 1; min-height: 3rem; border-radius: 0 0 var(--radius-md) var(--radius-md); }
+.column-cards.is-over { background: var(--accent-soft); box-shadow: inset 0 0 0 2px color-mix(in oklab, var(--accent) 45%, transparent); }
+.kcard {
+  display: block;
+  padding: var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+  color: var(--text); text-decoration: none;
+  cursor: grab;
+  position: relative; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
+}
+.kcard:hover { border-color: var(--border-hover); }
+.kcard:focus-visible { outline: 0; box-shadow: var(--focus-ring); }
+.kcard.is-dragging { opacity: 0.45; cursor: grabbing; }
+.kcard-top { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-1); }
+.kcard-id { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text-subtle); }
+/* Two-line clamp. */
+.kcard-title { font-size: var(--text-base); font-weight: var(--weight-medium); line-height: var(--leading-snug); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.kcard-foot { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-3); }
+.kcard-foot .chip-row { flex: 1; min-width: 0; }
+.kcard-meta { display: inline-flex; align-items: center; gap: 3px; font-size: var(--text-xs); color: var(--text-subtle); }
+/* Watchdog chips stack in a row under the title, most important first (CL-27). */
+.kcard-states { margin-top: var(--space-2); }
+.chip-row > .chip-waiting { margin-top: 0; }
+/* One leading edge per card, the first that applies wins: waiting on you (coral, solid) > waiting on a person
+   (tangerine, solid) > stalled (muted, dashed). Needs attention and awaiting deploy have no edge, only their chip.
+   Attention outranks waiting-human but has no edge; they are mutually exclusive by plan §1.4 (the watchdog skips a
+   ticket that waits on a person, and its state is stalled or attention, never both).
+   Edges are non-text and at least 3:1 on --surface in both themes (--accent-strong, --warm, --status-stalled).
+   Later rules win, so the order below is the priority, lowest first. */
+.kcard[data-stalled]::before {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; pointer-events: none;
+  border-radius: calc(var(--radius-sm) - 1px) 0 0 calc(var(--radius-sm) - 1px);
+  background: repeating-linear-gradient(to bottom, var(--status-stalled) 0 6px, transparent 6px 10px);
+}
+.kcard[data-waiting-human] { box-shadow: inset 3px 0 0 var(--warm), var(--shadow-sm); }
+.kcard[data-waiting] { box-shadow: inset 3px 0 0 var(--accent-strong), var(--shadow-sm); }
+.kcard:is([data-waiting], [data-waiting-human])::before { content: none; }
+/* A solid edge keeps the focus ring. */
+.kcard[data-waiting-human]:focus-visible { box-shadow: inset 3px 0 0 var(--warm), var(--focus-ring); }
+.kcard[data-waiting]:focus-visible { box-shadow: inset 3px 0 0 var(--accent-strong), var(--focus-ring); }
+
+/* ── Milestones (CL-37) ────────────────────────────────────────────────── */
+/* State glyph: one diamond per milestone state, the shape first (outline planned, half active, filled done, struck
+   cancelled, dashed "No milestone"), the colour second. On the svg itself: `.icon.milestone-icon[data-state]`. */
+.milestone-icon { color: var(--mc, var(--text-subtle)); }
+.milestone-icon[data-state="planned"]   { --mc: var(--status-planned); }
+.milestone-icon[data-state="active"]    { --mc: var(--status-progress); }
+.milestone-icon[data-state="done"]      { --mc: var(--status-done); }
+.milestone-icon[data-state="cancelled"] { --mc: var(--text-subtle); }
+.milestone-icon[data-state="none"]      { --mc: var(--text-subtle); }
+
+/* Progress: completed of scope, "80% of 5". `.progress-meter` is the one element with role="progressbar"
+   (aria-valuenow, aria-valuemin 0, aria-valuemax 100, aria-valuetext "80% of 5"); inside it a 4px `.progress-bar` or a
+   16px `.progress-ring`, and the `.progress-text`, so the number is always written out. Both read --progress (0-100,
+   unitless, set inline by the caller). The fill is --status-progress while open and --status-done with `-done` (100 %,
+   or a done milestone), on a --border-strong track. The ring is an svg (viewBox 0 0 16 16) with two circles,
+   `.ring-track` and `.ring-fill` (cx 8, cy 8, r 6), each with pathLength="100": the dash array counts in percent. */
+.progress-meter { display: inline-flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.progress-bar { position: relative; display: block; flex: 1 1 4rem; min-width: 2.5rem; height: 4px; border-radius: var(--radius-pill); background: var(--border-strong); overflow: hidden; }
+.progress-bar::before { content: ""; position: absolute; inset: 0 auto 0 0; width: calc(var(--progress, 0) * 1%); border-radius: inherit; background: var(--status-progress); }
+.progress-bar-done::before { background: var(--status-done); }
+.progress-ring { flex: none; width: 1rem; height: 1rem; transform: rotate(-90deg); }
+.progress-ring circle { fill: none; stroke-width: 2.5; }
+.progress-ring .ring-track { stroke: var(--border-strong); }
+.progress-ring .ring-fill { stroke: var(--status-progress); stroke-dasharray: var(--progress, 0) 100; }
+.progress-ring-done .ring-fill { stroke: var(--status-done); }
+.progress-text { font-size: var(--text-sm); color: var(--text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.progress-text strong { color: var(--text); font-weight: var(--weight-semibold); }
+
+/* A list row with a trailing control (the milestone list): the li is the box, the rule and the hover; the `.row` link
+   fills it and the row's Menu trigger sits after the link, never inside it. */
+.row-split { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; border-bottom: 1px solid var(--border); }
+.list > li.row-split:last-child { border-bottom: 0; }
+.row-split > .row { border-bottom: 0; }
+.row-split:hover { background: var(--surface-sunken); }
+.row-split:hover > .row { background: transparent; }
+.row-split > .menu-wrap { padding-right: var(--space-2); }
+/* Milestone row: state glyph, key, title, target date chip, progress, owner chip. On a phone: glyph, title and the
+   progress text, the key under the title; the date and the owner (`.row-hide-sm`) are on the milestone's page. */
+.row-milestone { grid-template-columns: auto auto minmax(0, 1fr) auto minmax(8.5rem, 11rem) auto; }
+.row-milestone .progress-meter { width: 100%; }
+/* The last row, "No milestone · See tickets": quiet, on the sunken fill. */
+.row-none { grid-template-columns: auto minmax(0, 1fr) auto; background: var(--surface-sunken); color: var(--text-muted); }
+.row-none .row-meta { color: var(--text); font-size: var(--text-sm); font-weight: var(--weight-medium); }
+@media (max-width: 559px) {
+  .row-milestone { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .row-milestone .progress-meter { width: auto; }
+  .row-milestone .progress-bar { display: none; }
+}
+
+/* Figures: the counts card and the chart legend. A `dl`: each `dt` a label (with a `.chart-key` in the legend), each `dd`
+   the number. `.stat-lead` is the counts card's first line: the percent, large, and what it counts. */
+.stat-list { display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-6); margin: 0; }
+.stat-list > div { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
+.stat-list dt { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); color: var(--text-muted); }
+.stat-list dd { margin: 0; font-size: var(--text-lg); font-weight: var(--weight-semibold); line-height: var(--leading-tight); color: var(--text); font-variant-numeric: tabular-nums; }
+.stat-lead { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-2); }
+.stat-big { font-size: var(--text-2xl); font-weight: var(--weight-semibold); line-height: var(--leading-tight); letter-spacing: var(--tracking-title); font-variant-numeric: tabular-nums; }
+.stat-lead + .progress-meter { display: flex; }
+
+/* Card variant `card-chart`: the burn-up. In the body: the legend (a `.stat-list` with `.chart-key` swatches), the plot
+   (an inline SVG, viewBox 0 0 100 100 stretched to the box with strokes that do not scale, role="img" with <title> and
+   <desc>), the marker strip, the axis dates and a visually hidden table of the last 14 days (all four in a `.chart`). Series: scope (thin solid
+   line), started or done (dashed line), completed (a filled area under a line, a dot on today). Only on a Card's --surface
+   (the scope line is below 3:1 on --bg); --chart-bg is the ground the dot's ring and the target diamond cut out of, and a
+   chart on another surface sets it there. */
+.card-chart .card-body { display: flex; flex-direction: column; gap: var(--space-3); }
+.chart-key { display: inline-block; flex: none; width: 0.875rem; height: 0; border-top: 2px solid var(--chart-scope); }
+.chart-key[data-series="started"] { border-top-style: dashed; border-top-color: var(--chart-started); }
+.chart-key[data-series="completed"] { height: 0.625rem; border-top-color: var(--chart-completed); background: var(--chart-completed-fill); }
+.chart { display: flex; flex-direction: column; gap: var(--space-1); }
+.chart-plot { position: relative; height: 10rem; border-bottom: 1px solid var(--border-strong); }
+.chart-plot > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.chart-plot path, .chart-plot line { vector-effect: non-scaling-stroke; }
+.chart-gridline { stroke: var(--chart-grid); stroke-width: 1; }
+.chart-area { fill: var(--chart-completed-fill); stroke: none; }
+.chart-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart-line[data-series="scope"] { stroke: var(--chart-scope); stroke-width: 1.5; }
+.chart-line[data-series="started"] { stroke: var(--chart-started); stroke-dasharray: 5 4; stroke-linecap: butt; }
+.chart-line[data-series="completed"] { stroke: var(--chart-completed); }
+.chart-target-line { stroke: var(--chart-target); stroke-width: 1; stroke-dasharray: 2 3; }
+.chart-dot { position: absolute; left: calc(var(--x, 100) * 1%); top: calc((100 - var(--y, 0)) * 1%); width: 0.5rem; height: 0.5rem; margin: -0.25rem 0 0 -0.25rem; border-radius: var(--radius-pill); background: var(--chart-completed); box-shadow: 0 0 0 2px var(--chart-bg, var(--surface)); }
+.chart-markers { position: relative; height: 0.625rem; }
+.chart-marker { position: absolute; top: 0; left: calc(var(--x, 0) * 1%); width: 0.5rem; height: 0.5rem; margin-left: -0.25rem; transform: rotate(45deg); background: var(--chart-handoff); }
+.chart-marker[data-kind="target"] { background: var(--chart-bg, var(--surface)); box-shadow: inset 0 0 0 1.5px var(--chart-target); }
+.chart-axis { display: flex; justify-content: space-between; gap: var(--space-2); font-size: var(--text-xs); color: var(--text-subtle); font-variant-numeric: tabular-nums; }
+.chart-marker-key { display: inline-flex; align-items: center; gap: var(--space-1); }
+.chart-marker-key .chart-marker { position: static; margin: 0 var(--space-1); }
+
+/* Breakdown: one row per assignee or per label (current scope only): who or what on the left (an `.actor`, a label
+   chip), the progress on the right, a ring and "93% of 30". A `.segmented` Assignees | Labels switch above it. */
+.breakdown-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-1); }
+.breakdown-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-height: var(--control-h); }
+.breakdown-row > :first-child { min-width: 0; }
+
+/* Hand-off: the preview (in a `card-dialog`) lists what goes and what stays with its reason; the Hand-offs card lists
+   each hand-off with one delivery chip per ticket. A group is a `.handoff-list` under an `.eyebrow` heading. */
+.handoff-list { list-style: none; margin: 0; padding: 0; display: grid; }
+.handoff-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-1) var(--space-3); min-height: var(--control-h); border-bottom: 1px solid var(--border); font-size: var(--text-sm); }
+.handoff-item:last-child { border-bottom: 0; }
+.handoff-item .row-title { font-weight: var(--weight-regular); }
+.handoff-reason { font-size: var(--text-xs); color: var(--text-muted); white-space: nowrap; }
+.handoff-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) var(--space-3); }
+@media (max-width: 559px) {
+  .handoff-item { grid-template-columns: auto minmax(0, 1fr); padding-block: var(--space-1); }
+  .handoff-item > :last-child { grid-column: 2; justify-self: start; }
+}
+
+/* ── Utilities ─────────────────────────────────────────────────────────── */
+.stack { display: flex; flex-direction: column; gap: var(--gap, var(--space-4)); }
+.cluster { display: flex; flex-wrap: wrap; align-items: center; gap: var(--gap, var(--space-2)); }
+.grow { flex: 1; min-width: 0; }
+.muted { color: var(--text-muted); }
+.subtle { color: var(--text-subtle); }
+.mono { font-family: var(--font-mono); }
+.tnum { font-variant-numeric: tabular-nums; }
+.text-sm { font-size: var(--text-sm); }
+.text-xs { font-size: var(--text-xs); }
+.kbd { font-family: var(--font-mono); font-size: var(--text-2xs); padding: 1px 5px; border: 1px solid var(--border-strong); border-bottom-width: 2px; border-radius: var(--radius-xs); color: var(--text-muted); }
+.dot { width: 0.5rem; height: 0.5rem; border-radius: var(--radius-pill); background: var(--accent); flex: none; display: inline-block; }
+/* Spinner: the subtle "an agent is working on this" marker; a visual only, never interactive.
+   Reduced motion: a static dot instead of the turning arc. */
+.spinner { width: 0.75rem; height: 0.75rem; flex: none; display: inline-block; box-sizing: border-box; border-radius: var(--radius-pill); border: 2px solid var(--border-strong); border-top-color: var(--accent-strong); animation: spinner-turn 0.9s linear infinite; }
+@keyframes spinner-turn { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none; width: 0.5rem; height: 0.5rem; border: 0; background: var(--accent-strong); } }
+/* Property list: each label sits on the centre line of the first control in its value (a chip menu is --control-h). */
+.meta-list { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr); gap: var(--space-2) var(--space-3); margin: 0; align-items: start; font-size: var(--text-sm); }
+.meta-list dt { color: var(--text-subtle); min-height: var(--control-h); display: flex; align-items: center; }
+.meta-list dd { margin: 0; min-width: 0; min-height: var(--control-h); display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: var(--space-2); }
+.meta-list dd > .chip-row:first-child { min-height: var(--control-h); }
+/* A value that is itself a chip row (the prototype's labels) keeps the row layout of .chip-row. */
+.meta-list dd.chip-row { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: var(--space-1); }
+/* Long names: a chip menu never grows past its column; its label ellipsizes. */
+.meta-list dd > .menu-wrap { max-width: 100%; }
+.project-mark {
+  display: inline-grid; place-items: center;
+  width: 1.25rem; height: 1.25rem; flex: none;
+  border-radius: var(--radius-xs);
+  background: var(--surface-sunken); color: var(--text-muted);
+  border: 1px solid var(--border);
+  font-size: 0.5625rem; font-weight: var(--weight-bold); letter-spacing: 0.02em; text-transform: uppercase;
+}
+/* Project colour and icon (CL-26): the mark takes a tint of the project's palette colour, in its fill and its border; the letters stay
+   --text (AA), the colour never carries the meaning alone (the name is next to it). An icon fills most of the mark. */
+.project-mark[data-tone] { --pm: var(--mist); background: color-mix(in oklab, var(--pm) 28%, var(--surface)); border-color: color-mix(in oklab, var(--pm) 70%, var(--border)); color: var(--text); }
+.project-mark[data-tone="coral"] { --pm: var(--coral); }
+.project-mark[data-tone="tangerine"] { --pm: var(--tangerine); }
+.project-mark[data-tone="circle"] { --pm: var(--circle); }
+.project-mark[data-tone="mist"] { --pm: var(--mist); border-color: var(--border-hover); }
+.project-mark[data-tone="ink"] { --pm: var(--text); }
+.project-mark .icon { width: 68%; height: 68%; }
+.nav-item[aria-current="page"] .project-mark { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }

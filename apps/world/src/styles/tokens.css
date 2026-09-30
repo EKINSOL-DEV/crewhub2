@@ -1,0 +1,392 @@
+/* Source: crewhub-loops design/tokens.css @ 79ecfa0. Copied verbatim; do not edit here, change the source and re-copy. */
+/* ============================================================================
+   crewhub-loops design tokens
+   One palette, identical to the ekinsol website (ekinsol-web-2026 global.css,
+   BRIEFING §10). No colour outside it; tints and shades are color-mix() of
+   palette colours only.
+
+   Font: 'Archivo Variable'. In the app: `@fontsource-variable/archivo` (npm).
+   In the static prototypes: the same package from the jsDelivr CDN, linked in
+   the HTML <head>.
+
+   Theme: light by default, dark via prefers-color-scheme, and an explicit
+   override with <html data-theme="light|dark">. Components only ever use the
+   semantic aliases (--bg, --surface, --text, ...), never the raw palette.
+
+   Contrast (WCAG 2.x, computed from the hex values; mixes approximated in sRGB)
+   Light
+     --text      ink       on --surface paper   15.3:1
+     --text      ink       on --bg      canvas  ~14.0:1
+     --text-muted mist-dark on paper             8.2:1   (on canvas ~7.5)
+     --text-subtle mist-text 70% + ink on paper  5.1:1   (on canvas 4.6; placeholders, meta)
+     --accent-text coral-text 75% + ink on paper 5.7:1   (links, active labels)
+     --on-accent  ink on coral (accent button)   5.5:1
+     --on-primary paper on ink (primary button) 15.3:1
+     --focus      coral-text vs paper            4.0:1   (non-text, needs 3:1)
+   Dark
+     --text      paper     on --bg ink          15.3:1
+     --text      paper     on --surface ink-soft 13.6:1, on --raised ink-card 12.3:1
+     --text-muted mist 80% + mist-text on ink    ~9.6:1  (on ink-card ~7.7)
+     --text-subtle mist-text 60% + mist on ink    6.8:1  (on ink-soft 6.0, on ink-card 5.4, on the
+                  accent/warm tints 4.7; CL-21: every text use, not placeholders only)
+     --accent-text coral 85% + paper on ink      ~6.3:1  (on ink-card ~5.1)
+     --on-primary ink on paper                   15.3:1
+     --focus      coral vs ink                    5.5:1
+   Watchdog states (CL-27): text on surface / bg / sunken / raised, then the lowest on the three -soft tints
+     Light --status-stalled       mist-text 60% + ink    6.2 / 5.7 / 5.8        tints >= 5.4
+           --status-attention     coral-text 70% + ink   6.1 / 5.6 / 5.7        tints >= 5.3
+           --status-waiting-human tangerine 50% + ink    5.8 / 5.3 / 5.5        tints >= 5.0
+     Dark  --status-stalled       mist-text 50% + mist   6.6 / 7.4 / 7.1 / 5.9  tints >= 5.1
+           --status-attention     coral 75% + paper      6.4 / 7.2 / 6.9 / 5.8  tints >= 5.0
+           --status-waiting-human tangerine 85% + paper  7.0 / 7.9 / 7.5 / 6.3  tints >= 5.4
+     On the tints --text-muted stays >= 6.5:1 and --text-subtle >= 4.5:1 (light attention tint 4.54, the lowest).
+   Milestone charts (CL-37): lines and marks, so 3:1 on --surface (WCAG 1.4.11); told apart by lightness and by form.
+     Charts sit only on a Card's --surface: the light scope line is 3.06 on --surface-sunken and 2.98 on --bg (below 3:1).
+     Light --chart-scope mist-text 3.3 (thin solid line) · --chart-started warm 4.3 (dashed) · --chart-completed ink 15.3
+           (line over its area) · --chart-handoff coral-text 4.0 · --chart-target mist-dark 8.2
+     Dark  --chart-scope mist-text 4.2 · --chart-started tangerine 6.1 · --chart-completed paper 13.6 ·
+           --chart-handoff coral 4.9 · --chart-target text-muted 8.4
+     The progress fill (--status-progress open, --status-done full) on its --border-strong track: light 3.1 / 11.1,
+     dark 3.7 / 8.2; on --surface light 4.3 / 15.3, dark 6.1 / 13.6. Milestone diamonds on a hovered row (--surface-sunken)
+     light >= 4.0 (active), dark >= 6.4.
+   Field edge (CL-48, T73): a component boundary, so 3:1 (WCAG 1.4.11) on every surface a Field sits on:
+     --surface / --bg / --surface-sunken / --surface-raised.
+     Light --border-input mist-text 90% + ink  3.8 / 3.4 / 3.5 / 3.8 · --border-input-hover mist-dark 8.2 / 7.5 / 7.7 / 8.2
+     Dark  --border-input mist-text            4.1 / 4.7 / 4.4 / 3.8 · --border-input-hover mist-text 60% + mist 6.0 / 6.8 / 6.4 / 5.4
+     --border-strong (1.4 light, 1.6 dark on --surface) is for dividers and tracks only, never the edge of a control you type in.
+   Raw palette colours that FAIL 4.5:1 as small text and are therefore only used
+   as fills, icons, dots or large type: coral on paper 2.8, tangerine on paper 2.2,
+   mist-text on paper 3.3, coral-text on paper 4.0, circle on paper 3.9.
+   ========================================================================== */
+
+:root {
+  /* --- Palette (raw, never used directly by components) --- */
+  --ink: #232323;
+  --ink-soft: #2c2c2c;
+  --ink-card: #333333;
+  --paper: #fcfcfc;
+  --mist: #d9d9d9;
+  --mist-dark: #4d4d4d;
+  --mist-text: #8c8c8c;
+  --coral: #fe676e;
+  --coral-text: #e0454d;
+  --tangerine: #fd8f52;
+  --circle: #d5565e;
+
+  /* --- Font --- */
+  --font-sans: 'Archivo Variable', 'Archivo', 'Helvetica Neue', system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SFMono-Regular', 'JetBrains Mono', Menlo, Consolas, monospace;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* --- Type scale (dense app UI; 14px body) --- */
+  --text-2xs: 0.6875rem;  /* 11px uppercase meta labels, counts */
+  --text-xs: 0.75rem;     /* 12px captions, chips, timestamps */
+  --text-sm: 0.8125rem;   /* 13px table rows, secondary copy */
+  --text-base: 0.875rem;  /* 14px body */
+  --text-md: 1rem;        /* 16px ticket body, card titles */
+  --text-lg: 1.125rem;    /* 18px section titles */
+  --text-xl: 1.375rem;    /* 22px page titles on mobile */
+  --text-2xl: 1.75rem;    /* 28px page titles, ticket title */
+  --leading-tight: 1.2;
+  --leading-snug: 1.35;
+  --leading-body: 1.5;
+  --leading-prose: 1.6;
+  --tracking-meta: 0.08em;
+  --tracking-title: -0.01em;
+
+  /* --- Spacing (4px grid) --- */
+  --space-0: 0;
+  --space-1: 0.25rem;  /* 4 */
+  --space-2: 0.5rem;   /* 8 */
+  --space-3: 0.75rem;  /* 12 */
+  --space-4: 1rem;     /* 16 */
+  --space-5: 1.25rem;  /* 20 */
+  --space-6: 1.5rem;   /* 24 */
+  --space-8: 2rem;     /* 32 */
+  --space-10: 2.5rem;  /* 40 */
+  --space-12: 3rem;    /* 48 */
+
+  /* --- Radius --- */
+  --radius-xs: 4px;    /* chips, code */
+  --radius-sm: 6px;    /* inputs, buttons, agent avatars */
+  --radius-md: 10px;   /* cards, menus */
+  --radius-lg: 14px;   /* panels, quick-ask */
+  --radius-pill: 999px;
+
+  /* --- Controls (CL-12: one step taller and touch-friendly; the sizes table is in the design system README) --- */
+  --control-h-sm: 2rem;       /* 32px dense: btn-sm, toolbar, filter and menu triggers, input-sm */
+  --control-h: 2.25rem;       /* 36px default: buttons, inputs, selects, tabs, chip menus, menu rows */
+  --control-h-lg: 2.75rem;    /* 44px large: prominent actions, list rows */
+  --control-h-touch: 2.5rem;  /* 40px: the minimum hit area on coarse pointers */
+  --control-pad-x: var(--space-4);     /* 16px inline padding, default */
+  --control-pad-x-sm: var(--space-3);  /* 12px inline padding, dense and chip menus */
+  --control-text: var(--text-base);    /* 14px: every control's label, dense ones too */
+  --chip-h: 1.5rem;           /* 24px static chips (facts, not controls) */
+  --chip-avatar: 1.5rem;      /* 24px avatar inside a chip menu, inset so the agent spark shows */
+  --row-height: var(--control-h-lg);  /* list rows */
+
+  /* --- Layout --- */
+  --sidebar-width: 15.5rem;
+  --topbar-height: 3.25rem;
+  --content-max: 80rem;
+  --prose-max: 46rem;
+  --gutter: var(--space-6);
+
+  /* --- Motion --- */
+  --ease: cubic-bezier(0.2, 0.8, 0.3, 1);
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+
+  /* --- Stacking --- */
+  --z-sticky: 10;
+  --z-drawer: 50;
+  --z-menu: 60;
+  --z-toast: 80;
+
+  color-scheme: light;
+
+  /* ======================= Semantic aliases: light ======================= */
+  --bg: color-mix(in oklab, var(--mist) 30%, var(--paper));        /* canvas behind panels */
+  --surface: var(--paper);                                          /* cards, sidebar, panels */
+  --surface-sunken: color-mix(in oklab, var(--mist) 22%, var(--paper)); /* inputs, hovered rows, code */
+  --surface-raised: var(--paper);                                   /* menus, toasts, dialogs */
+  --surface-inverse: var(--ink);
+
+  --text: var(--ink);
+  --text-muted: var(--mist-dark);
+  --text-subtle: color-mix(in oklab, var(--mist-text) 70%, var(--ink));
+  --text-inverse: var(--paper);
+
+  --border: color-mix(in oklab, var(--mist) 70%, var(--paper));     /* panel edges, row rules */
+  --border-strong: var(--mist);                                     /* dividers, tracks, quiet control edges */
+  --border-hover: var(--mist-text);
+  --border-input: color-mix(in oklab, var(--mist-text) 90%, var(--ink)); /* the Field's edge: 3:1 on every surface */
+  --border-input-hover: var(--mist-dark);
+
+  --primary: var(--ink);                   /* primary button fill: calm ink, not coral */
+  --primary-hover: var(--ink-card);
+  --on-primary: var(--paper);
+
+  --accent: var(--coral);                  /* the one accent: fills, markers, the send action */
+  --accent-strong: var(--coral-text);      /* icons and 3:1 non-text on light */
+  --accent-text: color-mix(in oklab, var(--coral-text) 75%, var(--ink)); /* small accent text */
+  --accent-soft: color-mix(in oklab, var(--coral) 12%, var(--paper));
+  --feed-new: color-mix(in srgb, var(--coral) 5%, var(--surface)); /* row new since last seen: subtle, the bar is the cue */
+  --on-accent: var(--ink);
+
+  --warm: color-mix(in oklab, var(--tangerine) 65%, var(--ink));   /* tangerine readable as an icon on light */
+  --warm-soft: color-mix(in oklab, var(--tangerine) 14%, var(--paper));
+
+  --focus: var(--coral-text);
+  --focus-ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--focus);
+  --selection: color-mix(in oklab, var(--coral) 30%, var(--paper));
+  --scrim: color-mix(in oklab, var(--ink) 45%, transparent);
+
+  --shadow-sm: 0 1px 2px color-mix(in oklab, var(--ink) 8%, transparent);
+  --shadow-md: 0 4px 12px -4px color-mix(in oklab, var(--ink) 14%, transparent),
+               0 1px 2px color-mix(in oklab, var(--ink) 6%, transparent);
+  --shadow-lg: 0 16px 40px -16px color-mix(in oklab, var(--ink) 30%, transparent),
+               0 2px 6px color-mix(in oklab, var(--ink) 8%, transparent);
+
+  /* --- Status (= kanban columns). Colour is a second cue; every status also has its own icon shape. --- */
+  --status-backlog: var(--mist-text);
+  --status-planned: var(--mist-dark);
+  --status-progress: var(--warm);
+  --status-review: var(--accent-strong);
+  --status-done: var(--ink);
+  --status-backlog-soft: var(--surface-sunken);
+  --status-planned-soft: var(--surface-sunken);
+  --status-progress-soft: var(--warm-soft);
+  --status-review-soft: var(--accent-soft);
+  --status-done-soft: color-mix(in oklab, var(--mist) 45%, var(--paper));
+
+  /* --- Watchdog states (CL-27). Text colours: at least 4.5:1 on every surface and on each of the three tints. --- */
+  --status-stalled: color-mix(in oklab, var(--mist-text) 60%, var(--ink));          /* quiet: chip text, the dashed card edge */
+  --status-stalled-soft: color-mix(in oklab, var(--mist) 35%, var(--paper));
+  --status-attention: color-mix(in oklab, var(--coral-text) 70%, var(--ink));       /* an agent blocked on a dialog */
+  --status-attention-soft: color-mix(in oklab, var(--coral) 16%, var(--paper));
+  --status-waiting-human: color-mix(in oklab, var(--tangerine) 50%, var(--ink));    /* waits on a person (not you) */
+  --status-waiting-human-soft: color-mix(in oklab, var(--tangerine) 16%, var(--paper));
+
+  /* --- Milestone charts (CL-37). Each series at least 3:1 on --surface; scope, started and completed also differ in
+     lightness and in form (thin line, dashed line, filled area), never in hue alone. --- */
+  --chart-scope: var(--mist-text);                                      /* scope line */
+  --chart-started: var(--warm);                                         /* "started or done" line, dashed */
+  --chart-completed: var(--ink);                                        /* completed line, the end dot */
+  --chart-completed-fill: color-mix(in oklab, var(--ink) 9%, transparent); /* the area under completed */
+  --chart-grid: var(--border);                                          /* grid lines: decorative */
+  --chart-handoff: var(--accent-strong);                                /* hand-off day marker (filled diamond) */
+  --chart-target: var(--text-muted);                                    /* target date marker and its dashed line */
+
+  /* --- Priority. Bars icon carries the level; colour reinforces. --- */
+  --priority-urgent: var(--accent-strong);
+  --priority-high: var(--warm);
+  --priority-medium: var(--mist-dark);
+  --priority-low: var(--mist-text);
+
+  /* --- Actors --- */
+  --avatar-person-bg: color-mix(in oklab, var(--mist) 60%, var(--paper));
+  --avatar-person-fg: var(--ink);
+  --avatar-agent-bg: var(--ink);
+  --avatar-agent-fg: var(--paper);
+  --avatar-agent-mark: var(--tangerine);   /* the spark on an agent avatar */
+  --system-fg: var(--text-subtle);
+
+  --danger: var(--accent-text);            /* destructive = the coral family, darkened; no red outside the palette */
+  --danger-soft: var(--accent-soft);
+}
+
+/* Touch: on a coarse pointer no control is shorter than the 40px hit area. */
+@media (pointer: coarse) {
+  :root {
+    --control-h-sm: var(--control-h-touch);
+    --control-h: var(--control-h-touch);
+  }
+}
+
+/* ========================= Semantic aliases: dark ========================= */
+/* Written twice (system preference, explicit override); keep both blocks identical. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: var(--ink);
+    --surface: var(--ink-soft);
+    --surface-sunken: color-mix(in oklab, var(--ink) 60%, var(--ink-soft));
+    --surface-raised: var(--ink-card);
+    --surface-inverse: var(--paper);
+    --text: var(--paper);
+    --text-muted: color-mix(in oklab, var(--mist) 80%, var(--mist-text));
+    --text-subtle: color-mix(in oklab, var(--mist-text) 60%, var(--mist));
+    --text-inverse: var(--ink);
+    --border: color-mix(in oklab, var(--mist-dark) 55%, var(--ink-soft));
+    --border-strong: var(--mist-dark);
+    --border-hover: var(--mist-text);
+    --border-input: var(--mist-text);
+    --border-input-hover: color-mix(in oklab, var(--mist-text) 60%, var(--mist));
+    --primary: var(--paper);
+    --primary-hover: var(--mist);
+    --on-primary: var(--ink);
+    --accent: var(--coral);
+    --accent-strong: var(--coral);
+    --accent-text: color-mix(in oklab, var(--coral) 85%, var(--paper));
+    --accent-soft: color-mix(in oklab, var(--coral) 16%, var(--ink-soft));
+    --feed-new: color-mix(in srgb, var(--coral) 8%, var(--surface));
+    --on-accent: var(--ink);
+    --warm: var(--tangerine);
+    --warm-soft: color-mix(in oklab, var(--tangerine) 15%, var(--ink-soft));
+    --focus: var(--coral);
+    --selection: color-mix(in oklab, var(--coral) 40%, var(--ink));
+    --scrim: color-mix(in oklab, var(--ink) 70%, transparent);
+    --shadow-sm: 0 1px 2px color-mix(in oklab, black 30%, transparent);
+    --shadow-md: 0 6px 16px -6px color-mix(in oklab, black 50%, transparent);
+    --shadow-lg: 0 20px 48px -16px color-mix(in oklab, black 65%, transparent);
+    --status-backlog: var(--mist-text);
+    --status-planned: var(--mist);
+    --status-progress: var(--tangerine);
+    --status-review: var(--coral);
+    --status-done: var(--paper);
+    --status-backlog-soft: var(--surface-sunken);
+    --status-planned-soft: var(--surface-sunken);
+    --status-progress-soft: var(--warm-soft);
+    --status-review-soft: var(--accent-soft);
+    --status-done-soft: color-mix(in oklab, var(--mist-dark) 45%, var(--ink-soft));
+    --status-stalled: color-mix(in oklab, var(--mist-text) 50%, var(--mist));
+    --status-stalled-soft: color-mix(in oklab, var(--mist-dark) 40%, var(--ink-soft));
+    --status-attention: color-mix(in oklab, var(--coral) 75%, var(--paper));
+    --status-attention-soft: color-mix(in oklab, var(--coral) 16%, var(--ink-soft));
+    --status-waiting-human: color-mix(in oklab, var(--tangerine) 85%, var(--paper));
+    --status-waiting-human-soft: color-mix(in oklab, var(--tangerine) 15%, var(--ink-soft));
+    --chart-scope: var(--mist-text);
+    --chart-started: var(--tangerine);
+    --chart-completed: var(--paper);
+    --chart-completed-fill: color-mix(in oklab, var(--paper) 12%, transparent);
+    --chart-grid: var(--border);
+    --chart-handoff: var(--coral);
+    --chart-target: var(--text-muted);
+    --priority-urgent: var(--coral);
+    --priority-high: var(--tangerine);
+    --priority-medium: var(--mist);
+    --priority-low: var(--mist-text);
+    --avatar-person-bg: var(--mist-dark);
+    --avatar-person-fg: var(--paper);
+    --avatar-agent-bg: var(--paper);
+    --avatar-agent-fg: var(--ink);
+    --avatar-agent-mark: var(--tangerine);
+    --system-fg: var(--text-subtle);
+    --danger: var(--accent-text);
+    --danger-soft: var(--accent-soft);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: var(--ink);
+  --surface: var(--ink-soft);
+  --surface-sunken: color-mix(in oklab, var(--ink) 60%, var(--ink-soft));
+  --surface-raised: var(--ink-card);
+  --surface-inverse: var(--paper);
+  --text: var(--paper);
+  --text-muted: color-mix(in oklab, var(--mist) 80%, var(--mist-text));
+  --text-subtle: color-mix(in oklab, var(--mist-text) 60%, var(--mist));
+  --text-inverse: var(--ink);
+  --border: color-mix(in oklab, var(--mist-dark) 55%, var(--ink-soft));
+  --border-strong: var(--mist-dark);
+  --border-hover: var(--mist-text);
+  --border-input: var(--mist-text);
+  --border-input-hover: color-mix(in oklab, var(--mist-text) 60%, var(--mist));
+  --primary: var(--paper);
+  --primary-hover: var(--mist);
+  --on-primary: var(--ink);
+  --accent: var(--coral);
+  --accent-strong: var(--coral);
+  --accent-text: color-mix(in oklab, var(--coral) 85%, var(--paper));
+  --accent-soft: color-mix(in oklab, var(--coral) 16%, var(--ink-soft));
+  --feed-new: color-mix(in srgb, var(--coral) 8%, var(--surface));
+  --on-accent: var(--ink);
+  --warm: var(--tangerine);
+  --warm-soft: color-mix(in oklab, var(--tangerine) 15%, var(--ink-soft));
+  --focus: var(--coral);
+  --selection: color-mix(in oklab, var(--coral) 40%, var(--ink));
+  --scrim: color-mix(in oklab, var(--ink) 70%, transparent);
+  --shadow-sm: 0 1px 2px color-mix(in oklab, black 30%, transparent);
+  --shadow-md: 0 6px 16px -6px color-mix(in oklab, black 50%, transparent);
+  --shadow-lg: 0 20px 48px -16px color-mix(in oklab, black 65%, transparent);
+  --status-backlog: var(--mist-text);
+  --status-planned: var(--mist);
+  --status-progress: var(--tangerine);
+  --status-review: var(--coral);
+  --status-done: var(--paper);
+  --status-backlog-soft: var(--surface-sunken);
+  --status-planned-soft: var(--surface-sunken);
+  --status-progress-soft: var(--warm-soft);
+  --status-review-soft: var(--accent-soft);
+  --status-done-soft: color-mix(in oklab, var(--mist-dark) 45%, var(--ink-soft));
+  --status-stalled: color-mix(in oklab, var(--mist-text) 50%, var(--mist));
+  --status-stalled-soft: color-mix(in oklab, var(--mist-dark) 40%, var(--ink-soft));
+  --status-attention: color-mix(in oklab, var(--coral) 75%, var(--paper));
+  --status-attention-soft: color-mix(in oklab, var(--coral) 16%, var(--ink-soft));
+  --status-waiting-human: color-mix(in oklab, var(--tangerine) 85%, var(--paper));
+  --status-waiting-human-soft: color-mix(in oklab, var(--tangerine) 15%, var(--ink-soft));
+  --chart-scope: var(--mist-text);
+  --chart-started: var(--tangerine);
+  --chart-completed: var(--paper);
+  --chart-completed-fill: color-mix(in oklab, var(--paper) 12%, transparent);
+  --chart-grid: var(--border);
+  --chart-handoff: var(--coral);
+  --chart-target: var(--text-muted);
+  --priority-urgent: var(--coral);
+  --priority-high: var(--tangerine);
+  --priority-medium: var(--mist);
+  --priority-low: var(--mist-text);
+  --avatar-person-bg: var(--mist-dark);
+  --avatar-person-fg: var(--paper);
+  --avatar-agent-bg: var(--paper);
+  --avatar-agent-fg: var(--ink);
+  --avatar-agent-mark: var(--tangerine);
+  --system-fg: var(--text-subtle);
+  --danger: var(--accent-text);
+  --danger-soft: var(--accent-soft);
+}

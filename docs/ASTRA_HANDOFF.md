@@ -9,8 +9,9 @@ use the available configured model, and do not invent or hardcode a model API ID
 
 The first implementation now exists as The Greenhouse. The user has reviewed it
 positively and accepted the room's visual direction. The user then requested a
-reference-based light/dark design system; its [v0.1 kit](DESIGN_SYSTEM.md) is now
-implemented for review at `/design-system`. The next town implementation sequence is in
+reference-based light/dark design system. It was later replaced by the crewhub-loops
+[design system](DESIGN_SYSTEM.md), adopted for all 2D UI; visual review of the
+migrated room is pending. The next town implementation sequence is in
 [TOWN_PLAN.md](TOWN_PLAN.md). Keep [ROOM_REVIEW.md](ROOM_REVIEW.md) for outstanding
 technical browser/device checks. This brief preserves the first room's quality bar.
 
