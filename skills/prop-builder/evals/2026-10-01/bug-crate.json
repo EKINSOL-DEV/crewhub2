@@ -1,0 +1,312 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "user:bug-crate",
+  "name": "Bug crate",
+  "description": "An open clay crate with timber corners and slats, full of ticket cards, with a red ladybug on the rim.",
+  "category": "storage",
+  "tags": [
+    "crate",
+    "bugs",
+    "tickets"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [
+    {
+      "x": 0,
+      "z": 1
+    }
+  ],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.56,
+        0.04,
+        0.56
+      ],
+      "position": [
+        0,
+        0.02,
+        0
+      ],
+      "material": "timber-light"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.56,
+        0.4,
+        0.03
+      ],
+      "position": [
+        0,
+        0.24,
+        -0.265
+      ],
+      "material": "clay"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.56,
+        0.4,
+        0.03
+      ],
+      "position": [
+        0,
+        0.24,
+        0.265
+      ],
+      "material": "clay"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.03,
+        0.4,
+        0.56
+      ],
+      "position": [
+        -0.265,
+        0.24,
+        0
+      ],
+      "material": "clay"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.03,
+        0.4,
+        0.56
+      ],
+      "position": [
+        0.265,
+        0.24,
+        0
+      ],
+      "material": "clay"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        0.46,
+        0.06
+      ],
+      "position": [
+        -0.27,
+        0.23,
+        -0.27
+      ],
+      "material": "timber"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        0.46,
+        0.06
+      ],
+      "position": [
+        -0.27,
+        0.23,
+        0.27
+      ],
+      "material": "timber"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        0.46,
+        0.06
+      ],
+      "position": [
+        0.27,
+        0.23,
+        -0.27
+      ],
+      "material": "timber"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        0.46,
+        0.06
+      ],
+      "position": [
+        0.27,
+        0.23,
+        0.27
+      ],
+      "material": "timber"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.46,
+        0.03,
+        0.012
+      ],
+      "position": [
+        0,
+        0.14,
+        0.292
+      ],
+      "material": "timber-light",
+      "radius": 0.005
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.46,
+        0.03,
+        0.012
+      ],
+      "position": [
+        0,
+        0.34,
+        0.292
+      ],
+      "material": "timber-light",
+      "radius": 0.005
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.2,
+        0.1,
+        0.012
+      ],
+      "position": [
+        0,
+        0.24,
+        0.296
+      ],
+      "material": "paper",
+      "radius": 0.004
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.022,
+        0.022,
+        0.022
+      ],
+      "position": [
+        0,
+        0.24,
+        0.306
+      ],
+      "material": "circle"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.14,
+        0.22,
+        0.012
+      ],
+      "position": [
+        -0.12,
+        0.52,
+        0.02
+      ],
+      "rotation": [
+        0,
+        0,
+        -12
+      ],
+      "material": "paper",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.14,
+        0.22,
+        0.012
+      ],
+      "position": [
+        0.08,
+        0.54,
+        -0.08
+      ],
+      "rotation": [
+        0,
+        15,
+        8
+      ],
+      "material": "cream",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.14,
+        0.2,
+        0.012
+      ],
+      "position": [
+        0.14,
+        0.5,
+        0.1
+      ],
+      "rotation": [
+        0,
+        -10,
+        -6
+      ],
+      "material": "mist",
+      "radius": 0.004
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.022,
+        0.022,
+        0.022
+      ],
+      "position": [
+        -0.12,
+        0.56,
+        0.032
+      ],
+      "material": "circle"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.05,
+        0.035,
+        0.05
+      ],
+      "position": [
+        0.15,
+        0.47,
+        0.25
+      ],
+      "material": "circle"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.022,
+        0.022,
+        0.022
+      ],
+      "position": [
+        0.15,
+        0.47,
+        0.305
+      ],
+      "material": "ink"
+    }
+  ]
+}
