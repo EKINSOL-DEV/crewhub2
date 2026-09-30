@@ -214,3 +214,38 @@ export function createSimulation() {
     crew.map((c) => ({ id: c.id, cell: c.cell })),
   );
 }
+
+// ---- Prop materials (crewhub-prop/1). Appended block: the named materials of the parts format and their colours,
+// taken from the Greenhouse models (models.ts, Scene.ts) and the loops project colours (tokens.css).
+import type { PropMaterial } from "@crewhub/world-engine";
+export const propMaterialColors: Readonly<Record<PropMaterial, string>> = {
+  timber: "#bf9873", // desk top
+  "timber-light": "#d6b58e", // desk top inlay
+  chalk: "#e8e4d1", // walls
+  cream: "#f2ecdc", // plinth rim
+  paper: "#e6dfcf", // desk paper
+  sage: "#a5b38e", // sofa
+  moss: "#49634f", // bench legs
+  leaf: "#7e9c61",
+  "leaf-dark": "#486e54",
+  soil: "#514c35",
+  terracotta: "#d5b9a0", // plant pot
+  clay: "#e0d4ba", // coffee table base
+  brass: "#a38f61", // lamp pole
+  slate: "#455b4c", // desk legs
+  graphite: "#34453e", // monitor
+  glass: "#b8d8bd", // screen
+  "lamp-glow": "#fff6ce", // lamp bulb
+  coral: "#fe676e",
+  tangerine: "#fd8f52",
+  circle: "#d5565e",
+  mist: "#d9d9d9",
+  ink: "#232323",
+};
+/** The room's light rig (Scene.ts), for pages that show props outside the room. */
+export const propStudioLights = {
+  sky: "#f7f5df",
+  ground: "#8c9c8b",
+  sun: "#fff0cf",
+  fill: "#e1efff",
+} as const;
