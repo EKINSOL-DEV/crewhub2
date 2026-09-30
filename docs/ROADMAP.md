@@ -23,9 +23,10 @@ foundation: rectangular footprints, rotation, placement, pathfinding, movement
 reservations, and semantic snapshots. Three.js is the only rendering engine.
 
 The user reviewed the room positively and accepted its visual direction. A
-[reference-based design-system kit](DESIGN_SYSTEM.md) now provides light/dark
-tokens, components, and a local field guide for review. Migrating the original room
-and 3D lighting to the kit remains separate work. Automated checks pass;
+reference-based design-system kit was replaced by the crewhub-loops
+[design system](DESIGN_SYSTEM.md), which now provides light/dark tokens and
+primitives for the 2D UI. The 3D scene keeps its own materials; visual review of the
+migrated room is pending. Automated checks pass;
 the cloud agent's browser preview was blocked, so technical browser/device and
 performance verification remains outstanding. See [ROOM_REVIEW.md](ROOM_REVIEW.md).
 

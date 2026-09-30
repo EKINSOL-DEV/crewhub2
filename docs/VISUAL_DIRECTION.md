@@ -10,19 +10,15 @@ materials, lighting, motion, interface, typography, and sound if later added.
 Astra has creative freedom. The old world and its assets are not design constraints.
 The first implementation is The Greenhouse: an ivory and sage miniature studio,
 warm timber, glass architecture, botanical details, and three soft robots in sage,
-apricot, and lavender. Georgia headings lend warmth to a compact, readable UI.
+apricot, and lavender.
 The orthographic isometric home keeps spatial relationships stable; free orbit,
 focus, and automatic wall fading provide visibility when needed.
 
 ## First room
 
-The user subsequently supplied a town reference and requested a light/dark design
-system. [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) records the implemented v0.1 kit,
-neutral system-sans UI, semantic palette, and material guidance. The kit is a
-reviewable draft; its 3D lighting guidance is not applied to the original room.
-The user's subsequent UI feedback removes green interface tints and the thick
-left selection edge. Use warm neutral surfaces, graphite accents and even thin
-selection borders in the kit; keep botanical scene materials separate.
+2D UI uses the crewhub-loops design system: Archivo and the Ekinsol palette, in
+light and dark. [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) records it. The botanical
+scene keeps its own materials and lighting, independent of the UI palette.
 
 - One complete room with three distinguishable characters and meaningful places
   for them to work, wait, and present a result.

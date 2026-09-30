@@ -1,4 +1,3 @@
-import "./styles.css";
 import {
   lazy,
   Suspense,
@@ -12,16 +11,18 @@ import {
   ArrowDownToLine,
   ArrowUpRight,
   Box,
-  Check,
-  ChevronDown,
   CircleHelp,
   Compass,
+  FlaskConical,
   Focus,
   Footprints,
   Grid2X2,
   Home,
   Layers2,
   Maximize,
+  Minus,
+  Monitor,
+  Moon,
   Move,
   Pause,
   Play,
@@ -30,6 +31,7 @@ import {
   RotateCw,
   Settings2,
   Sprout,
+  Sun,
   Users,
   Wifi,
   WifiOff,
@@ -38,7 +40,9 @@ import {
 import type { SessionStatus } from "@crewhub/protocol";
 import type { Rotation } from "@crewhub/world-engine";
 import { Avatar } from "./components/Avatar";
+import { Button, Card, Chip, Field } from "./components/primitives";
 import { SceneBoundary } from "./components/SceneBoundary";
+import { useTheme } from "./state/theme";
 import {
   createSimulation,
   crew,
@@ -49,13 +53,18 @@ import {
   type CrewId,
 } from "./world/data";
 import type { CameraAction, PlacementTool, SceneView } from "./world/Scene";
+import { sessionChip, statusIcon } from "./world/status";
 
 const WorldCanvas = lazy(() => import("./components/WorldCanvas"));
 const prefersReducedMotion = () =>
   typeof window !== "undefined" &&
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+const THEME_ICON = { system: Monitor, light: Sun, dark: Moon } as const;
+const NEXT_THEME = { system: "light", light: "dark", dark: "system" } as const;
+
 export function App() {
+  const { theme, cycle } = useTheme();
   const [simulation, setSimulation] = useState(createSimulation);
   const [selectedId, setSelectedId] = useState<CrewId>("moss");
   const [scenario, setScenario] = useState(0);
@@ -265,76 +274,93 @@ export function App() {
           ? "Room to take a breath"
           : selected.task;
 
+  const ThemeIcon = THEME_ICON[theme];
+  const nextTheme = NEXT_THEME[theme];
+  const themeLabel = `Theme: ${theme}. Switch to ${nextTheme}.`;
+
   return (
     <div className={`app-shell ${reducedMotion ? "reduce-motion" : ""}`}>
+      <a className="skip-link" href="#main-content">
+        Skip to the room
+      </a>
       <header className="app-header">
         <a href="#room-title" className="brand" aria-label="CrewHub home">
-          <span className="brand-mark">
-            <Layers2 size={22} strokeWidth={1.7} />
-          </span>
-          CrewHub<span className="brand-period">.</span>
+          <span className="brand-mark" aria-hidden="true" />
+          CrewHub
         </a>
-        <span className="header-divider" />
         <span className="workspace-name">
-          <Sprout size={15} /> Your little corner
+          <Sprout className="icon icon-sm" /> Your little corner
         </span>
         <div className="header-actions">
-          <span className="demo-badge">
-            <i /> Simulated room
-          </span>
-          <button className="export-button" onClick={exportLayout}>
-            <ArrowDownToLine size={15} />
-            <span>Export room</span>
-          </button>
-          <span className="user-avatar" aria-label="Local workspace">
+          <Chip icon={<FlaskConical className="icon" />}>Simulated room</Chip>
+          <Button
+            icon={<ArrowDownToLine className="icon" />}
+            onClick={exportLayout}
+          >
+            Export room
+          </Button>
+          <Button
+            variant="ghost"
+            iconOnly
+            aria-label={themeLabel}
+            title={themeLabel}
+            onClick={cycle}
+            icon={<ThemeIcon className="icon" />}
+          />
+          <span className="avatar" role="img" aria-label="Local workspace">
             N
           </span>
         </div>
       </header>
-      <main className="workspace">
+      <main className="workspace" id="main-content" tabIndex={-1}>
         <nav className="side-rail" aria-label="Room tools">
-          <button
+          <Button
+            variant="ghost"
+            iconOnly
             title="Observe the room"
             aria-label="Observe the room"
-            aria-pressed={mode === "observe"}
+            pressed={mode === "observe"}
             onClick={cancel}
-          >
-            <Home size={20} />
-          </button>
-          <button
+            icon={<Home className="icon icon-lg" />}
+          />
+          <Button
+            variant="ghost"
+            iconOnly
             title="Arrange props"
             aria-label="Arrange props"
-            aria-pressed={mode === "arrange"}
+            pressed={mode === "arrange"}
             disabled={fallback}
             onClick={() => enterMode("arrange")}
-          >
-            <Box size={20} />
-          </button>
-          <button
+            icon={<Box className="icon icon-lg" />}
+          />
+          <Button
+            variant="ghost"
+            iconOnly
             title="Walk an agent"
             aria-label="Walk an agent"
-            aria-pressed={mode === "walk"}
+            pressed={mode === "walk"}
             disabled={fallback || disconnected}
             onClick={() => enterMode("walk")}
-          >
-            <Footprints size={20} />
-          </button>
+            icon={<Footprints className="icon icon-lg" />}
+          />
           <span className="rail-spacer" />
-          <button
+          <Button
+            variant="ghost"
+            iconOnly
             title="Room preferences"
             aria-label="Room preferences"
-            aria-expanded={settings}
+            expanded={settings}
             onClick={() => setSettings(!settings)}
-          >
-            <Settings2 size={19} />
-          </button>
-          <button
+            icon={<Settings2 className="icon icon-lg" />}
+          />
+          <Button
+            variant="ghost"
+            iconOnly
             title="Room guide"
             aria-label="Room guide"
             onClick={() => help.current?.showModal()}
-          >
-            <CircleHelp size={19} />
-          </button>
+            icon={<CircleHelp className="icon icon-lg" />}
+          />
         </nav>
         <section className="room-area" aria-labelledby="room-title">
           <div className="room-heading">
@@ -344,29 +370,34 @@ export function App() {
             </h1>
             <p>A little space for big ideas.</p>
           </div>
-          <button
+          <Button
             className="mobile-crew-toggle"
+            iconOnly
             aria-label="Toggle crew overview"
-            aria-expanded={mobileCrew}
+            expanded={mobileCrew}
             onClick={() => setMobileCrew(!mobileCrew)}
-          >
-            <Users size={18} />
-            {counts.attention > 0 && <i>{counts.attention}</i>}
-          </button>
+            icon={
+              <>
+                <Users className="icon icon-lg" />
+                {counts.attention > 0 && (
+                  <span className="badge badge-accent">{counts.attention}</span>
+                )}
+              </>
+            }
+          />
           <div className="scene-summary" aria-label="Crew status summary">
             {disconnected ? (
-              <span className="summary-chip">
-                <WifiOff size={13} />
-                Disconnected · last known states
-              </span>
+              <Chip.Stalled>Disconnected · last known states</Chip.Stalled>
             ) : (
               <>
-                <span className="summary-chip">
-                  <i className="status-dot" data-status="working" />
-                  {counts.working} in the flow
-                </span>
-                <button
-                  className="summary-chip attention"
+                <Chip.Status
+                  value="progress"
+                  label={`${counts.working} in the flow`}
+                  icon={statusIcon.working}
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
                   disabled={!counts.attention}
                   onClick={() => {
                     select(
@@ -376,13 +407,13 @@ export function App() {
                     setMobileCrew(true);
                   }}
                 >
-                  <CircleHelp size={13} />
-                  {counts.attention} needs you
-                </button>
-                <span className="summary-chip">
-                  <Check size={13} />
-                  {counts.done} wrapped up
-                </span>
+                  <Chip.Attention>{counts.attention} needs you</Chip.Attention>
+                </Button>
+                <Chip.Status
+                  value="done"
+                  label={`${counts.done} wrapped up`}
+                  icon={statusIcon.done}
+                />
               </>
             )}
           </div>
@@ -397,28 +428,28 @@ export function App() {
                     : "A quieter view of your little world."}
                 </p>
                 {crew.map((c, i) => (
-                  <button
+                  <Card
+                    as="button"
                     key={c.id}
+                    type="button"
+                    className="crew-card"
                     onClick={() => {
                       select(c.id);
                       setMobileCrew(true);
                     }}
                   >
                     <Avatar color={c.color} />
-                    <span>
+                    <span className="crew-card-copy">
                       <strong>{c.name}</strong>
-                      <small>{statusLabel[snapshot.sessions[i]!.status]}</small>
+                      {sessionChip(snapshot.sessions[i]!.status, disconnected)}
                     </span>
-                    <ArrowUpRight size={17} />
-                  </button>
+                    <ArrowUpRight className="icon" />
+                  </Card>
                 ))}
                 {!graphicsFailed && (
-                  <button
-                    className="text-link"
-                    onClick={() => setListView(false)}
-                  >
-                    Return to the room <ArrowUpRight size={14} />
-                  </button>
+                  <Button variant="link" onClick={() => setListView(false)}>
+                    Return to the room <ArrowUpRight className="icon icon-sm" />
+                  </Button>
                 )}
               </div>
             ) : (
@@ -465,211 +496,252 @@ export function App() {
                 role="toolbar"
                 aria-label="Camera and display"
               >
-                <button
-                  className={!freeCamera ? "active" : ""}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={<Layers2 className="icon" />}
                   title="Isometric home (H)"
                   aria-label="Isometric home"
+                  pressed={!freeCamera}
                   onClick={() => {
                     setFreeCamera(false);
                     camera("home");
                   }}
                 >
-                  <Layers2 size={17} />
-                  <span>Isometric</span>
-                </button>
-                <button
-                  className={freeCamera ? "active" : ""}
+                  Isometric
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  iconOnly
                   title="Free orbit: drag to look around"
                   aria-label="Free orbit"
-                  aria-pressed={freeCamera}
+                  pressed={freeCamera}
                   onClick={() => setFreeCamera(!freeCamera)}
-                >
-                  <Compass size={18} />
-                </button>
-                <i />
-                <button
+                  icon={<Compass className="icon" />}
+                />
+                <span className="toolbar-divider" aria-hidden="true" />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  iconOnly
                   title="Rotate left"
                   aria-label="Rotate left"
                   onClick={() => camera("rotate-left")}
-                >
-                  <RotateCcw size={16} />
-                </button>
-                <button
+                  icon={<RotateCcw className="icon" />}
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  iconOnly
                   title="Rotate right"
                   aria-label="Rotate right"
                   onClick={() => camera("rotate-right")}
-                >
-                  <RotateCw size={16} />
-                </button>
-                <button
+                  icon={<RotateCw className="icon" />}
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  iconOnly
                   title="Zoom out"
                   aria-label="Zoom out"
                   onClick={() => camera("zoom-out")}
-                >
-                  <span className="zoom-sign">−</span>
-                </button>
-                <button
+                  icon={<Minus className="icon" />}
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  iconOnly
                   title="Zoom in"
                   aria-label="Zoom in"
                   onClick={() => camera("zoom-in")}
-                >
-                  <Plus size={16} />
-                </button>
-                <i />
-                <button
+                  icon={<Plus className="icon" />}
+                />
+                <span className="toolbar-divider" aria-hidden="true" />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  iconOnly
                   title="Show grid (G)"
                   aria-label="Show grid"
-                  aria-pressed={grid}
+                  pressed={grid}
                   onClick={() => setGrid(!grid)}
-                >
-                  <Grid2X2 size={17} />
-                </button>
-                <button
+                  icon={<Grid2X2 className="icon" />}
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  iconOnly
                   title="See-through walls"
                   aria-label="See-through walls"
-                  aria-pressed={cutaway}
+                  pressed={cutaway}
                   onClick={() => setCutaway(!cutaway)}
-                >
-                  <Layers2 size={17} strokeDasharray="3 2" />
-                </button>
+                  icon={<Layers2 className="icon" strokeDasharray="3 2" />}
+                />
               </div>
             </>
           )}
           {mode === "arrange" && !fallback && (
-            <div className="action-tray">
-              <div className="tray-heading">
-                <span>
-                  <Box size={16} />
-                  Make yourself at home
-                </span>
-                <button aria-label="Close arrangement tools" onClick={cancel}>
-                  <X size={16} />
-                </button>
-              </div>
-              <p>
-                {placement
-                  ? `Place ${definitions[placement.definitionId]!.label.toLowerCase()}. Green fits; terracotta needs more room.`
-                  : "Add a little something, or select a prop to move it."}
-              </p>
-              <div className="prop-palette">
-                {[
-                  ["plant", "Plant", "1 × 1"],
-                  ["bench", "Bench", "3 × 1"],
-                  ["lamp", "Lamp", "1 × 1"],
-                ].map(([id, name, size]) => (
-                  <button
-                    key={id}
-                    aria-pressed={placement?.definitionId === id}
-                    onClick={() => addProp(id!)}
-                  >
-                    <Plus size={14} />
-                    <strong>{name}</strong>
-                    <small>{size}</small>
-                  </button>
-                ))}
-              </div>
-              <div className="tray-row">
-                <label className="sr-only" htmlFor="existing-prop">
-                  Move an existing prop
-                </label>
-                <select
-                  id="existing-prop"
-                  value={
-                    simulation.layout.props.some((p) => p.id === placement?.id)
-                      ? placement!.id
-                      : ""
-                  }
-                  onChange={(e) => editProp(e.target.value)}
-                >
-                  <option value="">Move an existing prop…</option>
-                  {simulation.layout.props.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {definitions[p.definitionId]!.label} · {p.id}
-                    </option>
+            <Card className="floating-panel action-tray">
+              <Card.Header
+                title={
+                  <>
+                    <Box className="icon" />
+                    Make yourself at home
+                  </>
+                }
+                action={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    iconOnly
+                    aria-label="Close arrangement tools"
+                    onClick={cancel}
+                    icon={<X className="icon" />}
+                  />
+                }
+              />
+              <Card.Body className="panel-stack">
+                <p>
+                  {placement
+                    ? `Place ${definitions[placement.definitionId]!.label.toLowerCase()}. Green fits; terracotta needs more room.`
+                    : "Add a little something, or select a prop to move it."}
+                </p>
+                <div className="prop-palette">
+                  {[
+                    ["plant", "Plant", "1 × 1"],
+                    ["bench", "Bench", "3 × 1"],
+                    ["lamp", "Lamp", "1 × 1"],
+                  ].map(([id, name, size]) => (
+                    <Button
+                      key={id}
+                      size="sm"
+                      icon={<Plus className="icon icon-sm" />}
+                      pressed={placement?.definitionId === id}
+                      onClick={() => addProp(id!)}
+                    >
+                      <strong>{name}</strong>
+                      <small>{size}</small>
+                    </Button>
                   ))}
-                </select>
-                <button
-                  disabled={!placement}
-                  title="Rotate prop (R)"
-                  aria-label="Rotate prop"
-                  onClick={rotateProp}
-                >
-                  <RotateCw size={16} />
-                </button>
-              </div>
-              <small>Click to place · R to rotate · Esc to finish</small>
-            </div>
+                </div>
+                <div className="tray-row">
+                  <Field
+                    control="select"
+                    size="sm"
+                    hideLabel
+                    inline
+                    label="Move an existing prop"
+                    id="existing-prop"
+                    value={
+                      simulation.layout.props.some(
+                        (p) => p.id === placement?.id,
+                      )
+                        ? placement!.id
+                        : ""
+                    }
+                    onChange={(e) => editProp(e.target.value)}
+                  >
+                    <option value="">Move an existing prop…</option>
+                    {simulation.layout.props.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {definitions[p.definitionId]!.label} · {p.id}
+                      </option>
+                    ))}
+                  </Field>
+                  <Button
+                    size="sm"
+                    iconOnly
+                    disabled={!placement}
+                    title="Rotate prop (R)"
+                    aria-label="Rotate prop"
+                    onClick={rotateProp}
+                    icon={<RotateCw className="icon" />}
+                  />
+                </div>
+                <small className="hint">
+                  Click to place · R to rotate · Esc to finish
+                </small>
+              </Card.Body>
+            </Card>
           )}
           {mode === "walk" && !fallback && (
-            <div className="action-tray walk-tray">
-              <div className="tray-heading">
-                <span>
-                  <Footprints size={16} />A little wander with {selected.name}
-                </span>
-                <button aria-label="Finish walking" onClick={cancel}>
-                  <X size={16} />
-                </button>
-              </div>
-              <p>Choose an open cell. Your crew will find a clear path.</p>
-              <small>Or focus the room, use arrow keys, then Enter.</small>
-            </div>
+            <Card className="floating-panel action-tray">
+              <Card.Header
+                title={
+                  <>
+                    <Footprints className="icon" />A little wander with{" "}
+                    {selected.name}
+                  </>
+                }
+                action={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    iconOnly
+                    aria-label="Finish walking"
+                    onClick={cancel}
+                    icon={<X className="icon" />}
+                  />
+                }
+              />
+              <Card.Body className="panel-stack">
+                <p>Choose an open cell. Your crew will find a clear path.</p>
+                <small className="hint">
+                  Or focus the room, use arrow keys, then Enter.
+                </small>
+              </Card.Body>
+            </Card>
           )}
           {settings && (
-            <div className="preferences">
-              <div className="tray-heading">
-                <span>Room preferences</span>
-                <button
-                  aria-label="Close preferences"
-                  onClick={() => setSettings(false)}
-                >
-                  <X size={16} />
-                </button>
-              </div>
-              <label>
-                <input
-                  type="checkbox"
+            <Card className="floating-panel preferences">
+              <Card.Header
+                title="Room preferences"
+                action={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    iconOnly
+                    aria-label="Close preferences"
+                    onClick={() => setSettings(false)}
+                    icon={<X className="icon" />}
+                  />
+                }
+              />
+              <Card.Body className="panel-stack">
+                <Field
+                  control="checkbox"
+                  label="Gentle motion only"
                   checked={reducedMotion}
                   onChange={(e) => setReducedMotion(e.target.checked)}
                 />
-                Gentle motion only
-              </label>
-              <label>
-                <input
-                  type="checkbox"
+                <Field
+                  control="checkbox"
+                  label="Lighter graphics"
                   checked={lowQuality}
                   onChange={(e) => setLowQuality(e.target.checked)}
                 />
-                Lighter graphics
-              </label>
-              <label>
-                <input
-                  type="checkbox"
+                <Field
+                  control="checkbox"
+                  label="Text-first overview"
                   checked={listView}
                   onChange={(e) => {
                     setListView(e.target.checked);
                     cancel();
                   }}
                 />
-                Text-first overview
-              </label>
-              <button className="text-link" onClick={reset}>
-                <RotateCcw size={14} />
-                Reset room layout
-              </button>
-              <p>Layouts live in this visit. Export yours to keep it.</p>
-            </div>
-          )}
-          {notice && (
-            <div className="toast" role="status">
-              <Check size={15} />
-              <span>{notice}</span>
-              <button
-                aria-label="Dismiss message"
-                onClick={() => setNotice("")}
-              >
-                <X size={14} />
-              </button>
-            </div>
+                <Button
+                  variant="link"
+                  icon={<RotateCcw className="icon icon-sm" />}
+                  onClick={reset}
+                >
+                  Reset room layout
+                </Button>
+                <p className="hint">
+                  Layouts live in this visit. Export yours to keep it.
+                </p>
+              </Card.Body>
+            </Card>
           )}
         </section>
         <aside
@@ -678,132 +750,141 @@ export function App() {
         >
           <div className="panel-heading">
             <h2>
-              Your crew <span>03</span>
+              Your crew <span className="badge">03</span>
             </h2>
-            <button
+            <Button
               className="mobile-panel-close"
+              variant="ghost"
+              iconOnly
               aria-label="Close crew overview"
               onClick={() => setMobileCrew(false)}
-            >
-              <X size={18} />
-            </button>
-            <span className="panel-spark">
-              <Sprout size={20} />
-            </span>
+              icon={<X className="icon icon-lg" />}
+            />
           </div>
           <p className="panel-subtitle">Good company. Great possibilities.</p>
           <div className="crew-list">
             {crew.map((c, i) => (
-              <button
+              <Card
+                as="button"
                 key={c.id}
-                className={`crew-card ${selectedId === c.id ? "selected" : ""}`}
+                type="button"
+                className="crew-card"
                 aria-pressed={selectedId === c.id}
                 onClick={() => select(c.id)}
               >
                 <Avatar color={c.color} />
                 <span className="crew-card-copy">
                   <strong>{c.name}</strong>
-                  <small>
-                    <i
-                      className="status-dot"
-                      data-status={snapshot.sessions[i]!.status}
-                    />
-                    {statusLabel[snapshot.sessions[i]!.status]}
-                  </small>
+                  {sessionChip(snapshot.sessions[i]!.status, disconnected)}
                 </span>
-                {snapshot.sessions[i]!.status === "needs-input" ? (
-                  <span className="needs-badge">1</span>
-                ) : (
-                  <ArrowUpRight size={15} className="card-arrow" />
-                )}
-              </button>
+                <ArrowUpRight className="icon card-arrow" />
+              </Card>
             ))}
           </div>
-          <section
+          <Card
+            as="section"
             className="agent-detail"
             aria-label={`${selected.name} details`}
           >
-            <div className="detail-eyebrow">
-              <span>A CLOSER LOOK</span>
-              <button
-                title="Find in room (F)"
-                aria-label={`Find ${selected.name} in the room`}
-                disabled={fallback}
-                onClick={() => camera("focus")}
-              >
-                <Focus size={16} />
-              </button>
-            </div>
-            <div className="agent-identity">
-              <Avatar color={selected.color} size={57} />
-              <div>
-                <h3>{selected.name}</h3>
-                <span>{selected.role}</span>
-              </div>
-            </div>
-            <p className="agent-description">{selected.description}</p>
-            <div className="task-card">
-              <span className="task-label">SIMULATED ACTIVITY</span>
-              <h4>{taskTitle}</h4>
-              <p>
-                <i className="status-dot" data-status={session.status} />
-                {disconnected ? "Last known: " : ""}
-                {statusLabel[session.status]}
-              </p>
-              {session.status === "needs-input" ? (
-                <button
-                  className="primary-button"
-                  disabled={disconnected}
-                  onClick={() => {
-                    setOverrides((o) => ({ ...o, [selectedId]: "working" }));
-                    notify(
-                      `${selected.name} is back in the flow. This was a simulated reply.`,
-                    );
-                  }}
-                >
-                  Simulate a reply <ArrowUpRight size={14} />
-                </button>
-              ) : session.status === "completed" ? (
-                <button
-                  className="primary-button"
-                  aria-expanded={sampleResult}
-                  onClick={() => setSampleResult(!sampleResult)}
-                >
-                  {sampleResult ? "Close sample result" : "View sample result"}
-                  <ArrowUpRight size={14} />
-                </button>
-              ) : (
-                <button
-                  className="text-link"
+            <Card.Header
+              headingLevel={3}
+              title="A closer look"
+              action={
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  iconOnly
+                  title="Find in room (F)"
+                  aria-label={`Find ${selected.name} in the room`}
                   disabled={fallback}
                   onClick={() => camera("focus")}
-                >
-                  Find {selected.name} in the room <Focus size={14} />
-                </button>
-              )}
-              {sampleResult && session.status === "completed" && (
-                <div className="sample-result">
-                  <strong>A small win, ready to share.</strong>
-                  <p>
-                    Sample result: the room has three workstations, clear
-                    walkways, and a cozy place to pause. This is demo content.
-                  </p>
+                  icon={<Focus className="icon" />}
+                />
+              }
+            />
+            <Card.Body className="panel-stack">
+              <div className="agent-identity">
+                <Avatar color={selected.color} size={57} />
+                <div>
+                  <h4>{selected.name}</h4>
+                  <span>{selected.role}</span>
                 </div>
-              )}
-            </div>
-            <div className="session-meta">
-              <span>Mock session</span>
-              <span>Cell {cells[selectedIndex]}</span>
-            </div>
-          </section>
-          <div className="demo-controls">
-            <div className="demo-control-label">
-              <span>SET THE SCENE</span>
-              <span>DEMO</span>
-            </div>
-            <label className="scenario-select">
-              <span className="sr-only">Demo scenario</span>
-              <select
+              </div>
+              <p className="agent-description">{selected.description}</p>
+              <Card className="task-card">
+                <Card.Body className="panel-stack">
+                  <span className="eyebrow">SIMULATED ACTIVITY</span>
+                  <p className="task-title">{taskTitle}</p>
+                  <div>{sessionChip(session.status, disconnected)}</div>
+                  {session.status === "needs-input" ? (
+                    <Button
+                      variant="primary"
+                      disabled={disconnected}
+                      icon={<ArrowUpRight className="icon icon-sm" />}
+                      onClick={() => {
+                        setOverrides((o) => ({
+                          ...o,
+                          [selectedId]: "working",
+                        }));
+                        notify(
+                          `${selected.name} is back in the flow. This was a simulated reply.`,
+                        );
+                      }}
+                    >
+                      Simulate a reply
+                    </Button>
+                  ) : session.status === "completed" ? (
+                    <Button
+                      variant="primary"
+                      expanded={sampleResult}
+                      icon={<ArrowUpRight className="icon icon-sm" />}
+                      onClick={() => setSampleResult(!sampleResult)}
+                    >
+                      {sampleResult
+                        ? "Close sample result"
+                        : "View sample result"}
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="link"
+                      disabled={fallback}
+                      onClick={() => camera("focus")}
+                    >
+                      Find {selected.name} in the room{" "}
+                      <Focus className="icon icon-sm" />
+                    </Button>
+                  )}
+                  {sampleResult && session.status === "completed" && (
+                    <Card className="sample-result">
+                      <Card.Body>
+                        <strong>A small win, ready to share.</strong>
+                        <p>
+                          Sample result: the room has three workstations, clear
+                          walkways, and a cozy place to pause. This is demo
+                          content.
+                        </p>
+                      </Card.Body>
+                    </Card>
+                  )}
+                </Card.Body>
+              </Card>
+              <div className="session-meta">
+                <span>Mock session</span>
+                <span>Cell {cells[selectedIndex]}</span>
+              </div>
+            </Card.Body>
+          </Card>
+          <Card className="demo-controls">
+            <Card.Header
+              headingLevel={3}
+              title="SET THE SCENE"
+              action={<Chip>DEMO</Chip>}
+            />
+            <Card.Body className="panel-stack">
+              <Field
+                control="select"
+                hideLabel
+                label="Demo scenario"
                 value={scenario}
                 disabled={disconnected}
                 onChange={(e) => {
@@ -817,33 +898,52 @@ export function App() {
                     {s.name}
                   </option>
                 ))}
-              </select>
-              <ChevronDown size={15} />
-            </label>
-            <div className="demo-buttons">
-              <button aria-pressed={paused} onClick={() => setPaused(!paused)}>
-                {paused ? <Play size={13} /> : <Pause size={13} />}
-                {paused ? "Resume" : "Pause"}
-              </button>
-              <button
-                aria-pressed={disconnected}
-                onClick={() => setDisconnected(!disconnected)}
-              >
-                {disconnected ? <WifiOff size={13} /> : <Wifi size={13} />}
-                {disconnected ? "Reconnect" : "Disconnect"}
-              </button>
-            </div>
-            <p>
-              <Sprout size={12} />
-              Just imagination. Zero model calls.
-            </p>
-          </div>
+              </Field>
+              <div className="demo-buttons">
+                <Button
+                  size="sm"
+                  pressed={paused}
+                  icon={
+                    paused ? (
+                      <Play className="icon icon-sm" />
+                    ) : (
+                      <Pause className="icon icon-sm" />
+                    )
+                  }
+                  onClick={() => setPaused(!paused)}
+                >
+                  {paused ? "Resume" : "Pause"}
+                </Button>
+                <Button
+                  size="sm"
+                  pressed={disconnected}
+                  icon={
+                    disconnected ? (
+                      <WifiOff className="icon icon-sm" />
+                    ) : (
+                      <Wifi className="icon icon-sm" />
+                    )
+                  }
+                  onClick={() => setDisconnected(!disconnected)}
+                >
+                  {disconnected ? "Reconnect" : "Disconnect"}
+                </Button>
+              </div>
+              <p className="hint demo-note">
+                <Sprout className="icon icon-sm" />
+                Just imagination. Zero model calls.
+              </p>
+            </Card.Body>
+          </Card>
         </aside>
       </main>
       <footer className="status-bar">
         <span>
-          <i className={`connection-dot ${disconnected ? "offline" : ""}`} />
-          {disconnected ? "Demo disconnected" : "Local demo"}
+          {disconnected ? (
+            <Chip.Stalled>Demo disconnected</Chip.Stalled>
+          ) : (
+            <Chip icon={<Wifi className="icon" />}>Local demo</Chip>
+          )}
           <b>/</b>The Greenhouse
         </span>
         <span className="grid-meta">
@@ -851,68 +951,97 @@ export function App() {
           {simulation.layout.props.length} props{" "}
           {layoutVersion > 0 && <em>· Layout edited</em>}
         </span>
-        <button
-          aria-pressed={paths}
+        <Button
+          variant="ghost"
+          size="sm"
+          pressed={paths}
           disabled={fallback}
+          icon={<Footprints className="icon icon-sm" />}
           onClick={() => setPaths(!paths)}
         >
-          <Footprints size={12} />
           {paths ? "Hide paths" : "Show paths"}
-        </button>
+        </Button>
       </footer>
-      <dialog ref={help} className="help-dialog">
-        <button
-          className="dialog-close"
-          aria-label="Close room guide"
-          onClick={() => help.current?.close()}
-        >
-          <X size={20} />
-        </button>
-        <Sprout size={30} />
-        <p className="eyebrow">A LITTLE FIELD GUIDE</p>
-        <h2>Make room for your crew.</h2>
-        <p>
-          Select a companion to see what they are up to. The room and panel show
-          the same simulated states.
-        </p>
-        <dl>
-          <dt>
-            <Move size={16} />
-            Explore
-          </dt>
-          <dd>
-            Scroll to zoom. Right-drag or use two fingers to pan. Enable free
-            orbit to rotate with a drag.
-          </dd>
-          <dt>
-            <Box size={16} />
-            Arrange
-          </dt>
-          <dd>
-            Choose a prop, then a cell. Green fits; terracotta marks a blocked
-            footprint. R rotates. Paths and workstations must stay accessible.
-          </dd>
-          <dt>
-            <Maximize size={16} />
-            Shortcuts
-          </dt>
-          <dd>
-            1 / 2 / 3 select crew. F focuses. H returns home. G shows the grid.
-            Escape finishes editing. In the focused canvas, arrow keys move the
-            cursor and Enter confirms.
-          </dd>
-        </dl>
-        <div className="guide-note">
-          Everything here is a local simulation. No live sessions, messages, or
-          model calls. Use the crew panel or text-first view for an accessible
-          overview.
-        </div>
-        <button
-          className="primary-button"
-          onClick={() => help.current?.close()}
-        >
-          Let's settle in <ArrowUpRight size={15} />
-        </button>
+      <div className="toast-region" role="status" aria-live="polite">
+        {notice && (
+          <div className="toast">
+            <span className="toast-mark" aria-hidden="true" />
+            <div className="toast-body">{notice}</div>
+            <Button
+              variant="ghost"
+              size="sm"
+              iconOnly
+              aria-label="Dismiss message"
+              onClick={() => setNotice("")}
+              icon={<X className="icon icon-sm" />}
+            />
+          </div>
+        )}
+      </div>
+      <dialog ref={help} className="card-dialog" aria-labelledby="guide-title">
+        <Card>
+          <Card.Header
+            title="Make room for your crew."
+            titleId="guide-title"
+            action={
+              <Button
+                variant="ghost"
+                size="sm"
+                iconOnly
+                aria-label="Close room guide"
+                onClick={() => help.current?.close()}
+                icon={<X className="icon" />}
+              />
+            }
+          />
+          <Card.Body className="panel-stack">
+            <p className="eyebrow">A LITTLE FIELD GUIDE</p>
+            <p>
+              Select a companion to see what they are up to. The room and panel
+              show the same simulated states.
+            </p>
+            <dl className="guide-list">
+              <dt>
+                <Move className="icon" />
+                Explore
+              </dt>
+              <dd>
+                Scroll to zoom. Right-drag or use two fingers to pan. Enable
+                free orbit to rotate with a drag.
+              </dd>
+              <dt>
+                <Box className="icon" />
+                Arrange
+              </dt>
+              <dd>
+                Choose a prop, then a cell. Green fits; terracotta marks a
+                blocked footprint. R rotates. Paths and workstations must stay
+                accessible.
+              </dd>
+              <dt>
+                <Maximize className="icon" />
+                Shortcuts
+              </dt>
+              <dd>
+                1 / 2 / 3 select crew. F focuses. H returns home. G shows the
+                grid. Escape finishes editing. In the focused canvas, arrow keys
+                move the cursor and Enter confirms.
+              </dd>
+            </dl>
+            <p className="hint guide-note">
+              Everything here is a local simulation. No live sessions, messages,
+              or model calls. Use the crew panel or text-first view for an
+              accessible overview.
+            </p>
+            <Button
+              variant="primary"
+              icon={<ArrowUpRight className="icon" />}
+              onClick={() => help.current?.close()}
+            >
+              Let's settle in
+            </Button>
+          </Card.Body>
+        </Card>
       </dialog>
     </div>
   );
