@@ -26,3 +26,25 @@ export {
   WORLD_EVENT_TYPES,
   isWorldEventType,
 } from "./types.ts";
+export type { Result, Shape, Validator } from "./validate.ts";
+export {
+  toWorldEvent,
+  validateAgents,
+  validateBoardResponse,
+  validateCommentsResponse,
+  validateDeliveryOut,
+  validateDmMessagesResponse,
+  validateDmThreadsResponse,
+  validateEnvelope,
+  validateLoopsSnapshot,
+  validateMilestonesResponse,
+  validatePrincipals,
+  validateProgressResponse,
+  validateProjectOut,
+  validateProjectsResponse,
+  validateReleasesResponse,
+  validateTeamSnapshot,
+  validateTicket,
+  validateTicketSummary,
+  validateWatchdogResponse,
+} from "./validate.ts";
