@@ -8,7 +8,8 @@ import { useWorld } from "../state/world";
 export function WhereForm() {
   const { model } = useWorld();
   const [chosen, setChosen] = useState("");
-  const answerId = useId();
+  const answerId = useId(),
+    titleId = useId();
   const agents = useMemo(() => {
     const all: AgentPlacement[] = [...model.buildings.flatMap((b) => b.agents), ...model.townHall, ...model.postOffice];
     const byKey = new Map<string, AgentPlacement>();
@@ -17,8 +18,8 @@ export function WhereForm() {
   }, [model]);
   const selected = agents.some((a) => a.key === chosen) ? chosen : (agents[0]?.key ?? "");
   return (
-    <form className="where-form" onSubmit={(e) => e.preventDefault()} aria-label="Where is an agent">
-      <h3>Where is …?</h3>
+    <form className="where-form" onSubmit={(e) => e.preventDefault()} aria-labelledby={titleId}>
+      <h3 id={titleId}>Where is …?</h3>
       <Field control="select" size="sm" label="Agent" value={selected} aria-describedby={answerId} onChange={(e) => setChosen(e.currentTarget.value)}>
         {agents.map((a) => (
           <option key={a.key} value={a.key}>
