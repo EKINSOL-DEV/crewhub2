@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { propCells, validateLayout, type Rotation } from "@crewhub/world-engine";
-import { builtinIds, createCatalogue, emptyTownDocument, type Building, type PlacedProp, type RoomKind, type TownDocument } from "@crewhub/world-model";
+import { createCatalogue, emptyTownDocument, type Building, type PlacedProp, type RoomKind, type TownDocument } from "@crewhub/world-model";
 import { buildingTemplate } from "../src/world/buildingTemplate.ts";
 import { definitions as builtins } from "../src/world/definitions.ts";
 import { cellAt, checkGhost, footprintPose, freeCellIn, placementDefinitions, resolveBuildingPlacements, roomSite } from "../src/world/placements.ts";
