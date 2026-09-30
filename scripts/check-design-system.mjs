@@ -11,7 +11,6 @@ const HEX_ALLOWED = new Set([
   // The palette itself.
   "apps/world/src/styles/tokens.css",
   // Robot and material colours of the Three.js scene, not UI palette (the scene is out of scope of the design system).
-  "apps/world/src/world/Scene.ts",
   "apps/world/src/world/models.ts",
   "apps/world/src/world/shaders.ts",
   "apps/world/src/world/data.ts",

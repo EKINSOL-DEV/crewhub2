@@ -1,13 +1,42 @@
-import {
-  WorldSimulation,
-  type Definitions,
-  type WorldLayout,
-} from "@crewhub/world-engine";
-import {
-  PROTOCOL_VERSION,
-  type SessionSnapshot,
-  type SessionStatus,
-} from "@crewhub/protocol";
+import type { Definitions } from "@crewhub/world-engine";
+
+/* The scene palette: the Greenhouse materials, lighting and robot colours, reused for the whole town. This file and
+   models.ts are the only scene files that hold colours (hex guard exception); project colours come from the design
+   tokens at runtime (see TownScene). */
+export const palette = {
+  hemisphereSky: "#f7f5df",
+  hemisphereGround: "#8c9c8b",
+  sun: "#fff0cf",
+  fill: "#e1efff",
+  plinth: "#c7c7af",
+  rim: "#f2ecdc",
+  street: "#dad8c2",
+  lawn: "#b8c4a2",
+  lawnEdge: "#a4ae81",
+  step: "#dad8c2",
+  chalk: "#e8e4d1",
+  /** Boarded-up walls of an archived project. */
+  chalkDim: "#aaa596",
+  visor: "#283f36",
+  eye: "#efffdc",
+  ledge: "#c4c7ac",
+  skirt: "#b8bfa4",
+  mullion: "#728c76",
+  timber: "#baa47b",
+  pendantCable: "#839079",
+  pendantShade: "#d9cbb0",
+  pendantGlow: "#fff4cd",
+  rug: "#d6cdb3",
+  plank: "#9c7b58",
+  pole: "#839079",
+  emblemPlinth: "#f2ecdc",
+  focusRing: "#528b65",
+  hoverRing: "#5b8167",
+  /** Worker robots: sage, apricot, lavender (the Greenhouse crew). Leads wear their project colour. */
+  bots: ["#83a995", "#e6ac7c", "#b5a5d3"],
+  /** A project without a loops colour. */
+  noProjectColor: "#a5b38e",
+} as const;
 
 export const definitions: Definitions = {
   desk: {
@@ -67,150 +96,3 @@ export const definitions: Definitions = {
     approaches: [{ x: 1, z: 1 }],
   },
 };
-export const initialLayout: WorldLayout = {
-  version: 1,
-  grid: { width: 18, depth: 14, cellSize: 0.6 },
-  entrance: { x: 10, z: 13 },
-  props: [
-    {
-      id: "desk-moss",
-      definitionId: "desk",
-      cell: { x: 2, z: 2 },
-      rotation: 0,
-    },
-    { id: "desk-pip", definitionId: "desk", cell: { x: 7, z: 2 }, rotation: 0 },
-    {
-      id: "desk-orbit",
-      definitionId: "desk",
-      cell: { x: 12, z: 2 },
-      rotation: 0,
-    },
-    { id: "plant-1", definitionId: "plant", cell: { x: 0, z: 0 }, rotation: 0 },
-    {
-      id: "plant-2",
-      definitionId: "plant",
-      cell: { x: 17, z: 0 },
-      rotation: 0,
-    },
-    {
-      id: "plant-3",
-      definitionId: "plant",
-      cell: { x: 17, z: 7 },
-      rotation: 0,
-    },
-    {
-      id: "plant-4",
-      definitionId: "plant",
-      cell: { x: 1, z: 12 },
-      rotation: 0,
-    },
-    {
-      id: "plant-5",
-      definitionId: "plant",
-      cell: { x: 14, z: 11 },
-      rotation: 0,
-    },
-    { id: "library", definitionId: "shelf", cell: { x: 0, z: 5 }, rotation: 0 },
-    { id: "lounge", definitionId: "sofa", cell: { x: 3, z: 10 }, rotation: 0 },
-    { id: "coffee", definitionId: "table", cell: { x: 4, z: 7 }, rotation: 0 },
-    {
-      id: "bench-1",
-      definitionId: "bench",
-      cell: { x: 12, z: 8 },
-      rotation: 0,
-    },
-    { id: "lamp-1", definitionId: "lamp", cell: { x: 1, z: 9 }, rotation: 0 },
-  ],
-};
-export const crew = [
-  {
-    id: "moss",
-    name: "Moss",
-    role: "The builder",
-    color: "#83a995",
-    accent: "#396851",
-    tint: "#e2ebe1",
-    cell: { x: 3, z: 5 },
-    initials: "M",
-    task: "Bringing the first room to life",
-    description: "Shaping the space, one thoughtful detail at a time.",
-    tool: "Designing the room layout",
-    skills: ["Build", "Explore"],
-  },
-  {
-    id: "pip",
-    name: "Pip",
-    role: "The curious one",
-    color: "#e6ac7c",
-    accent: "#a86632",
-    tint: "#f7e9d8",
-    cell: { x: 8, z: 5 },
-    initials: "P",
-    task: "A little direction, please",
-    description: "Ready to continue once you choose a direction.",
-    tool: "Waiting for your input",
-    skills: ["Ask", "Refine"],
-  },
-  {
-    id: "orbit",
-    name: "Orbit",
-    role: "The detail keeper",
-    color: "#b5a5d3",
-    accent: "#796395",
-    tint: "#ede7f5",
-    cell: { x: 13, z: 5 },
-    initials: "O",
-    task: "The finishing touches",
-    description: "A fresh set of eyes on the details that matter.",
-    tool: "A review is ready",
-    skills: ["Review", "Polish"],
-  },
-] as const;
-export type CrewId = (typeof crew)[number]["id"];
-export const statusLabel: Record<SessionStatus, string> = {
-  idle: "Taking a breath",
-  working: "In the flow",
-  "needs-input": "Needs you",
-  completed: "All wrapped up",
-  unknown: "Status unknown",
-};
-export const scenarios = [
-  {
-    name: "A working morning",
-    statuses: ["working", "needs-input", "completed"],
-  },
-  { name: "Deep focus", statuses: ["working", "working", "working"] },
-  { name: "A quiet moment", statuses: ["idle", "idle", "idle"] },
-  {
-    name: "Ready for review",
-    statuses: ["completed", "completed", "completed"],
-  },
-] as const;
-export function demoSnapshot(
-  scenario: number,
-  disconnected: boolean,
-): SessionSnapshot {
-  const s = scenarios[scenario % scenarios.length]!;
-  return {
-    protocolVersion: PROTOCOL_VERSION,
-    bridgeId: "greenhouse-demo",
-    source: "mock",
-    connection: disconnected ? "disconnected" : "connected",
-    sessions: crew.map((c, i) => ({
-      id: c.id,
-      providerId: "mock",
-      displayName: c.name,
-      projectName: "The Greenhouse",
-      status: s.statuses[i]!,
-      activity: statusLabel[s.statuses[i]!],
-      capabilities: { readOutput: false, sendPrompt: false, interrupt: false },
-    })),
-  };
-}
-export function createSimulation() {
-  return new WorldSimulation(
-    initialLayout,
-    definitions,
-    crew.map((c) => ({ id: c.id, cell: c.cell })),
-  );
-}

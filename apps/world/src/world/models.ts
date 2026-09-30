@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import type { GridSpec, WorldProp } from "@crewhub/world-engine";
-import { definitions, crew } from "./data";
+import { definitions, palette } from "./data";
 import { haloMaterial } from "./shaders";
 
 /** Shared geometry/material ownership keeps props small and disposal predictable. */
@@ -149,7 +149,7 @@ function desk(assets: Assets, index: number) {
   add(g, assets.box(0.48, 0.027, 0.17, "#e6dfcf"), 0, 0.938, 0.19);
   add(
     g,
-    assets.cylinder(0.055, 0.05, 0.12, crew[index % 3]!.color),
+    assets.cylinder(0.055, 0.05, 0.12, palette.bots[index % 3]!),
     0.61,
     0.973,
     0.07,

@@ -56,10 +56,10 @@ the Ekinsol palette, and light/dark themes. The 3D scene keeps its own materials
 
 | Path | Responsibility | Status |
 | --- | --- | --- |
-| [apps/world](apps/world/README.md) | Browser room and mock session presentation | Implemented; visual direction accepted |
+| [apps/world](apps/world/README.md) | The browser world: town, buildings, UI | Demo mode only |
 | [packages/world-engine](packages/world-engine/README.md) | Grid, placement, routes, semantic snapshots | Implemented and tested |
-| [apps/bridge](apps/bridge/README.md) | Independent local runtime bridge | Reserved; no executable yet |
-| [packages/protocol](packages/protocol/README.md) | Renderer-independent session types | Draft, mock use only |
+| [packages/loops-client](packages/loops-client/README.md) | crewhub-loops types, validators, the `WorldSource` seam | Implemented and tested |
+| [packages/world-model](packages/world-model/README.md) | Projection, world reducer, text description | Implemented and tested |
 | [docs](docs/README.md) | Current decisions and next build brief | Authoritative for this rebuild |
 
 ## Start the next build
