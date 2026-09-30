@@ -127,12 +127,11 @@ export class NavSimulation {
     this.stats = stats;
     this.#syncTopology();
     for (const input of actors) {
-      const room = graph.room(input.location.room);
       const c = input.location.cell;
       if (
         !input.id ||
         this.#byId.has(input.id) ||
-        !room ||
+        !graph.room(input.location.room) ||
         !this.#open(input.location.room, c) ||
         this.#holder(input.location.room, c) !== -1 ||
         this.#groupOf.has(locationKey(input.location.room, c))
@@ -140,32 +139,123 @@ export class NavSimulation {
         throw new Error(
           "Actors need unique IDs and open, unoccupied, non-door cells.",
         );
-      const actor: SimActor = {
-        id: input.id,
-        index: this.#actors.length,
-        priority: input.priority ?? 0,
-        room: input.location.room,
-        cell: { ...c },
-        next: null,
-        segment: 1,
-        progress: 0,
-        crossing: false,
-        destination: null,
-        unreachable: false,
-        legs: [],
-        path: [],
-        aside: false,
-        wait: 0,
-        best: Infinity,
-        replanned: false,
-        moved: false,
-        blocker: null,
-        queuedOn: -1,
-      };
-      this.#actors.push(actor);
-      this.#byId.set(actor.id, actor);
-      this.#setHolder(actor.room, actor.cell, actor.index);
+      this.#insert(input, c);
     }
+  }
+
+  /**
+   * Adds an actor at runtime on the free, non-door cell nearest to `input.location`
+   * (a worker walking in, a room rebuilt around its actors).
+   */
+  addActor(input: NavActorInput): Placement {
+    if (!input.id || this.#byId.has(input.id))
+      return { ok: false, reason: "Actors need unique IDs." };
+    this.#syncTopology();
+    const landing = this.#landing(input.location);
+    if (!landing) return { ok: false, reason: "No free cell in that room." };
+    this.#insert({ ...input, location: { room: input.location.room, cell: landing } }, landing);
+    return { ok: true };
+  }
+
+  /** Removes an actor and frees its cells, door lock and queue place. */
+  removeActor(id: string): boolean {
+    const a = this.#byId.get(id);
+    if (!a) return false;
+    this.#leaveQueue(a);
+    this.#setHolder(a.room, a.cell, -1);
+    if (a.next) this.#setHolder(a.next.room, a.next.cell, -1);
+    const gone = a.index;
+    const shift = (i: number) => (i > gone ? i - 1 : i);
+    this.#actors.splice(gone, 1);
+    this.#byId.delete(id);
+    // Indices are positions in #actors: renumber every reference past the removed one.
+    for (const holders of this.#holders.values())
+      for (let i = 0; i < holders.length; i++)
+        if (holders[i]! > gone) holders[i]!--;
+    for (const g of this.#groups) {
+      g.holder = g.holder === gone ? -1 : shift(g.holder);
+      g.queue = g.queue.filter((i) => i !== gone).map(shift);
+    }
+    this.#actors.forEach((b, i) => {
+      b.index = i;
+      if (b.blocker && "actor" in b.blocker)
+        b.blocker = b.blocker.actor === gone ? null : { actor: shift(b.blocker.actor) };
+    });
+    const pending = [...this.#pending];
+    this.#pending.clear();
+    for (const [i, kind] of pending) if (i !== gone) this.#pending.set(shift(i), kind);
+    return true;
+  }
+
+  /**
+   * Moves an actor at once to the free, non-door cell nearest to `location` (a reset,
+   * reduced motion, a swap between offscreen buildings). A set destination replans.
+   */
+  place(id: string, location: Location): Placement {
+    const a = this.#byId.get(id);
+    if (!a) return { ok: false, reason: "Unknown actor." };
+    this.#syncTopology();
+    const landing = this.#landing(location, a.index);
+    if (!landing) return { ok: false, reason: "No free cell in that room." };
+    this.#leaveQueue(a);
+    const old: Location[] = [{ room: a.room, cell: a.cell }];
+    if (a.next) old.push(a.next);
+    for (const l of old) this.#setHolder(l.room, l.cell, -1);
+    a.room = location.room;
+    a.cell = landing;
+    a.next = null;
+    a.progress = 0;
+    a.crossing = false;
+    a.legs = [];
+    a.path = [];
+    a.aside = false;
+    a.wait = 0;
+    a.best = Infinity;
+    a.replanned = false;
+    for (const l of old) this.#releaseGroup(l, a);
+    this.#setHolder(a.room, a.cell, a.index);
+    if (a.destination) this.#request(a.index, "route");
+    return { ok: true };
+  }
+
+  #insert(input: NavActorInput, c: Cell): void {
+    const actor: SimActor = {
+      id: input.id,
+      index: this.#actors.length,
+      priority: input.priority ?? 0,
+      room: input.location.room,
+      cell: { ...c },
+      next: null,
+      segment: 1,
+      progress: 0,
+      crossing: false,
+      destination: null,
+      unreachable: false,
+      legs: [],
+      path: [],
+      aside: false,
+      wait: 0,
+      best: Infinity,
+      replanned: false,
+      moved: false,
+      blocker: null,
+      queuedOn: -1,
+    };
+    this.#actors.push(actor);
+    this.#byId.set(actor.id, actor);
+    this.#setHolder(actor.room, actor.cell, actor.index);
+  }
+
+  /** The free, non-door cell nearest to a location, its cell clamped into the room. */
+  #landing(location: Location, self = -1): Cell | null {
+    const room = this.graph.room(location.room);
+    if (!room) return null;
+    const { width, depth } = room.layout.grid;
+    const cell = {
+      x: Math.min(width - 1, Math.max(0, Math.round(location.cell.x))),
+      z: Math.min(depth - 1, Math.max(0, Math.round(location.cell.z))),
+    };
+    return this.#nearestFree(location.room, cell, self);
   }
 
   /**
@@ -330,7 +420,9 @@ export class NavSimulation {
         id,
         new Int32Array(room.layout.grid.width * room.layout.grid.depth).fill(-1),
       );
-      if (!this.#known.has(id))
+      // A room re-added under the same ID (rebuilt with another size) starts a fresh diff.
+      const known = this.#known.get(id);
+      if (!known || known.blocked.length !== room.blocked.length)
         this.#known.set(id, { revision: room.revision, blocked: room.blocked });
     }
     for (const a of this.#actors) {

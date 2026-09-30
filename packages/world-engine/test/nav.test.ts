@@ -296,3 +296,48 @@ test("the same inputs and ticks give the same snapshots", () => {
   };
   assert.deepEqual(run(), run());
 });
+
+test("actors join, leave and jump at runtime without breaking the others' reservations", () => {
+  const graph = threeRooms();
+  const sim = new NavSimulation(graph, [
+    { id: "a", location: at("A", 0, 0) },
+    { id: "b", location: at("A", 1, 0) },
+    { id: "c", location: at("B", 2, 0) },
+  ]);
+  // A late joiner asked onto a taken cell lands on the nearest free one, never on a door.
+  assert.deepEqual(sim.addActor({ id: "d", location: at("A", 0, 0) }), { ok: true });
+  const d = sim.actor("d")!.location;
+  assert.equal(d.room, "A");
+  assert.ok(!(d.cell.x === 0 && d.cell.z === 0) && !(d.cell.x === 1 && d.cell.z === 0));
+  assert.equal(sim.addActor({ id: "d", location: at("A", 3, 3) }).ok, false);
+  sim.setDestination("a", at("C", 3, 3));
+  sim.setDestination("c", at("A", 3, 1));
+  sim.setDestination("d", at("B", 1, 4));
+  for (let i = 0; i < 20; i++) sim.tick(1 / 30);
+  // Removing an actor mid-walk renumbers everyone else; the rest still arrive without sharing a cell.
+  assert.ok(sim.removeActor("b"));
+  assert.equal(sim.actor("b"), undefined);
+  assert.ok(!sim.removeActor("b"));
+  assert.deepEqual(sim.place("d", at("B", 4, 4)), { ok: true });
+  assert.deepEqual(sim.actor("d")!.location, at("B", 4, 4));
+  for (let i = 0; i < 30 * 30; i++) {
+    sim.tick(1 / 30);
+    const cells = new Set<string>();
+    for (const a of sim.snapshot().actors)
+      for (const l of a.next ? [a.location, a.next] : [a.location]) {
+        const key = `${l.room}|${l.cell.x},${l.cell.z}`;
+        assert.ok(!cells.has(key), `two actors share ${key}`);
+        cells.add(key);
+      }
+    if (sim.snapshot().actors.every((a) => a.status === "arrived")) break;
+  }
+  assert.deepEqual(
+    sim.snapshot().actors.map((a) => [a.id, a.status, a.location.room]),
+    [
+      ["a", "arrived", "C"],
+      ["c", "arrived", "A"],
+      ["d", "arrived", "B"],
+    ],
+  );
+  assert.ok(sim.snapshot().doors.every((door) => door.holder === null && door.queue.length === 0));
+});
