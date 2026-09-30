@@ -37,14 +37,14 @@ export function requestedProp(thing: string): Record<string, unknown> {
     id: `user:${slug}`,
     name: thing.charAt(0).toUpperCase() + thing.slice(1),
     description: `Demo placeholder for "${thing}", built by the scripted prop flow.`,
-    category: "decor",
+    category: "decoration",
     tags: ["demo", "requested"],
     footprint: { width: 1, depth: 1 },
     blocksMovement: true,
     approaches: [],
     parts: [
       { shape: "box", size: [0.8, 0.6, 0.8], position: [0, 0.3, 0], material: "timber" },
-      { shape: "box", size: [0.85, 0.08, 0.85], position: [0, 0.64, 0], material: "chalk" },
+      { shape: "box", size: [0.8, 0.08, 0.8], position: [0, 0.64, 0], material: "chalk" },
       { shape: "sphere", size: [0.3, 0.3, 0.3], position: [0, 0.83, 0], material: "leaf" },
     ],
   };

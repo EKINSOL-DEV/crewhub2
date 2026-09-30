@@ -92,6 +92,9 @@ The world has a settled style, the "Greenhouse" style: a botanical miniature stu
    body says what the thing is and sometimes where it goes. Read it with `crewhub ticket show <REF> --json` (and
    `crewhub ticket comments <REF> --json` for follow-ups). If you were asked directly, the request is the message.
    Where a request is vague, choose sensibly and say what you chose in your comment; do not stop to ask.
+   The world places the prop where the request names it, by a `place:` line in the ticket body (`place: lobby`,
+   `place: review room`, `place: desk of cr-dev-2`) or else a room after "for", "in" or "at" in the title
+   (`Prop: a tall fern for the lobby`), and otherwise in the building's storage, so keep that line or phrase intact.
 2. **Decide the footprint and category.** How many cells does the real object need (a stool: 1 × 1, a bookshelf:
    2 × 1, a workbench: 3 × 2)? Does it block movement (almost always yes)? Where does someone stand to use it
    (approach cells, usually `z = depth`)? Decorations and plants usually have no approaches.
