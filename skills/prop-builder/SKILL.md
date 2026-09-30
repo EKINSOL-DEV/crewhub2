@@ -44,6 +44,12 @@ The world has a settled style, the "Greenhouse" style: a botanical miniature stu
 - **Few parts, well placed, beat many.** A good lamp is 5 parts, a good bookshelf about 25. Aim for the one or two
   details that make the object readable at a glance (the shade on a lamp, the books on a shelf, a handle on a
   drawer). The limit is 64 parts; you will rarely need 30.
+- **Thin details still have a thickness of at least 0.01.** Paper, sticky notes, scribbles, labels and screens are
+  thin boxes of 0.01 to 0.02, never 0.004: every used size is at least 0.01.
+- **Composite props are fine** (a chair with a lamp, a bench with a plant): one prop, one footprint that covers
+  both, parts for each object. Pick the category of the main object.
+- **Category for appliances and machines**: `gather` for things people meet around (coffee machine, kettle, water
+  cooler), `work` for work equipment (server rack, printer, whiteboard), `storage` for containers.
 - **Glow sparingly**: a bulb or a screen gets `"emissive": true`, usually with `lamp-glow` or `glass`.
 - Colours are **only** the named materials. Never write a hex colour: the validator rejects it.
 
@@ -54,7 +60,8 @@ The world has a settled style, the "Greenhouse" style: a botanical miniature stu
 - The prop's origin is the **centre of the footprint on the floor**. y is up. `position` is the **centre** of each
   part, so a box of height 0.8 standing on the floor has `position[1] = 0.4`.
 - **The front faces +z.** Put the working side (drawers, a seat, the side you use) toward +z, and approach cells at
-  `z = depth` (the row just in front).
+  `z = depth` (the row just in front). For things with a front and a back of their own, +z is the side a person
+  uses: a chair's seat edge, a vehicle's loading door (its cab or nose then points to -z).
 - Real-world scale helps: a table top is about 0.75 to 0.85 high, a seat about 0.45 to 0.55, a door-height shelf
   about 1.8, a floor lamp about 1.9. A robot is about 1.1 tall.
 - Sizes per shape: box `[w, h, d]`; cylinder `[radiusTop, height, radiusBottom]`; sphere `[rx, ry, rz]` (radii,
@@ -62,6 +69,12 @@ The world has a settled style, the "Greenhouse" style: a botanical miniature stu
   0.01 and 3; unused values are 0.
 - Rotations are degrees in XYZ order. Rotation changes a part's bounds: a tilted leg may dip below the floor, so
   lift it a little.
+- **Leaning a part** (a frond, a tilted leg, an arm of a cactus): use `rotation: [0, azimuth, lean]`. A positive
+  `lean` tips the top toward -x; the `azimuth` then turns that direction around the vertical (azimuth 90 tips it
+  toward +z, 180 toward +x). The part's `position` is its base point plus half its length along the tilted
+  direction.
+- **Big props** (a truck, a long bench): the limits are a footprint of at most 6 × 6 cells, every part size at most
+  3, and the whole prop between y = 0 and y = 3. Large props usually block movement (`blocksMovement: true`).
 
 ## Naming
 
