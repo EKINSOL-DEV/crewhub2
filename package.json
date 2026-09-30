@@ -10,6 +10,7 @@
   },
   "workspaces": [
     "apps/world",
+    "packages/demo",
     "packages/loops-client",
     "packages/protocol",
     "packages/world-engine",
