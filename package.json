@@ -11,7 +11,8 @@
   "workspaces": [
     "apps/world",
     "packages/protocol",
-    "packages/world-engine"
+    "packages/world-engine",
+    "packages/world-model"
   ],
   "scripts": {
     "dev": "npm run dev --workspace @crewhub/world",

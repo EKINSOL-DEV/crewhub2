@@ -23,6 +23,7 @@
     "apps/world/vite.config.ts",
     "packages/protocol/src",
     "packages/world-engine/src",
-    "packages/world-engine/test"
+    "packages/world-engine/test",
+    "packages/world-model/src"
   ]
 }
