@@ -591,6 +591,12 @@ cell; atomic placement with reachability checks; replanning of every actor after
 placement; and semantic snapshots. It has no doors, no multi-room or town routing,
 no heap and no deadlock handling.
 
+**Update (2026-10-01, phase 4 engine work):** the paragraph above describes the
+engine before phase 4. Items 1 to 5 below are now implemented headlessly in
+`packages/world-engine` (`nav.ts`, `navSim.ts`), with a stress fixture and
+measured numbers; see [GRID_ENGINE.md](GRID_ENGINE.md#rooms-doors-and-the-town).
+Rendering and the postman's delivery events are separate work.
+
 **What dynamic pathfinding needs, in order:**
 
 1. **Room graph per building.** Each room keeps its own interior grid, with
