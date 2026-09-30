@@ -274,3 +274,36 @@ and every prop-builder example are made in that style. The crewhub-loops kit
 governs the 2D interface only. Removing the Greenhouse *room* in phase 1 does
 not mean removing its models, materials or lighting: reuse them, and grow the
 catalogue from them.
+
+## Addendum (2026-10-01, from the user): the ticket drone
+
+When a ticket changes status, its object does not teleport or slide: **a small
+drone appears out of nowhere, flies in, picks up the package, carries it to the
+room the new status maps to, and drops it there**, then leaves the way it came.
+
+- Trigger: every `ticket.moved` where `from != to` (a reorder inside a column is
+  not a flight), plus archive (to the truck) and unarchive (from the truck).
+- The drone is in the Greenhouse item style: a soft, rounded body, a quiet
+  rotor blur, a small carrying hook; the Dev Lead decides the exact look. It
+  materialises above the package with the same materialise effect as props,
+  descends, hooks the object (a short lift animation), flies a smooth arc
+  through the building (doors are not needed for a drone, it goes over the
+  walls), lands, releases the package into its slot (desk, table, pile,
+  dispatch, truck), and de-materialises.
+- Timing: the whole flight lasts about 2 to 4 seconds at 1x demo speed and
+  scales with the speed control; at 16x flights still complete, but several
+  may be in the air at once. Under reduced motion the drone still appears and
+  the package is placed, but the flight is a short fade instead of an arc.
+- Movement is deterministic and cosmetic: it needs no pathfinding and no AI.
+  The world model updates when the drone drops the package, not when it picks
+  it up, so a text-view reader sees the new room at the same moment the drop
+  happens. During the flight the object is marked "in transit" in the text view.
+- Between buildings (a ticket moved to another project is not a loops
+  operation today, so this stays inside one building). The postman keeps
+  carrying deliveries on foot; the drone only carries tickets.
+- Interruptions: if a second status change arrives while a package is in the
+  air, the drone changes destination mid-flight; it never drops a package on the
+  floor.
+
+This belongs to phase 3 (interiors and ticket flow) and reuses the phase 5
+materialise effect; if phase 5 lands later, a simple fade stands in.
