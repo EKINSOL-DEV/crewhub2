@@ -262,3 +262,15 @@ the world consumes.
 Sequencing: the skill and its validator belong to the foundation (their format
 is the prop model of phase 5, so define the format early and let phase 5 build
 on it); the flow itself is part of phases 3 and 5.
+
+## Addendum (2026-10-01, from the user): keep the existing 3D item style
+
+The user: "the style of the items that were already there is very nice." The
+Greenhouse's art direction for 3D items stays the art direction of the town:
+the soft toon materials, warm timber, chalk walls, framed glass, planted
+details and the soft robots in `apps/world/src/world/` (`models.ts`, `Scene.ts`,
+`shaders.ts`). Buildings, rooms, furniture, ticket objects, the postman's cart
+and every prop-builder example are made in that style. The crewhub-loops kit
+governs the 2D interface only. Removing the Greenhouse *room* in phase 1 does
+not mean removing its models, materials or lighting: reuse them, and grow the
+catalogue from them.
