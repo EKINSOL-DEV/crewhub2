@@ -302,7 +302,7 @@ test("a stall counts its nudges and the text view names them, the dimmed lamp an
     boards: {
       "crewhub-loops": board([
         card("t9", "CL-9", "in_progress", { assignee: agentRef("cl-lead") }),
-        card("t10", "CL-10", "review", { labels: [{ id: "l1", name: "prop", color: null }] }),
+        card("t10", "CL-10", "review", { labels: [{ id: "l1", name: "prop", color: "mist" }] }),
         card("t11", "CL-11", "review"),
       ]),
     },
