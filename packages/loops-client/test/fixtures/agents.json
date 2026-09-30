@@ -1,0 +1,6 @@
+{
+  "agents": [
+    { "id": "cl-lead", "displayName": "CL lead", "role": "lead", "herdrSession": "ekinsol", "disabled": false, "lastSeenAt": "2026-09-30T21:10:00Z", "keys": null, "isCrewhubLead": true, "projects": ["crewhub-loops"] },
+    { "id": "postman", "displayName": "Postman", "role": "router", "herdrSession": "ekinsol", "disabled": false, "lastSeenAt": null, "keys": null }
+  ]
+}

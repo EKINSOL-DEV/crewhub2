@@ -1,12 +1,9 @@
 {
-  "name": "@crewhub/world-model",
+  "name": "@crewhub/loops-client",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
-  },
-  "dependencies": {
-    "@crewhub/loops-client": "0.0.0"
   }
 }

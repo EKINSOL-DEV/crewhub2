@@ -21,9 +21,12 @@
   "include": [
     "apps/world/src",
     "apps/world/vite.config.ts",
+    "packages/loops-client/src",
+    "packages/loops-client/test",
     "packages/protocol/src",
     "packages/world-engine/src",
     "packages/world-engine/test",
-    "packages/world-model/src"
+    "packages/world-model/src",
+    "packages/world-model/test"
   ]
 }
