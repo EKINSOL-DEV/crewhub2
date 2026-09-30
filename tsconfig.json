@@ -29,6 +29,7 @@
     "packages/world-engine/src",
     "packages/world-engine/test",
     "packages/world-model/src",
-    "packages/world-model/test"
+    "packages/world-model/test",
+    "scripts/prop-validate.ts"
   ]
 }
