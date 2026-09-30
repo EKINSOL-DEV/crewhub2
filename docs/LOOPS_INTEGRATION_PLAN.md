@@ -1,33 +1,57 @@
 # CrewHub World on crewhub-loops: integration plan
 
-Status: proposal for Nicky's review (2026-09-30). This document changes no code.
-The accepted direction it answers is Nicky's instruction of 2026-09-30; the
+Status: proposal, revised the same day after Nicky's answers to the first
+round of open questions (2026-09-30). This document changes no code. The
 decision record is [ADR 0005](decisions/0005-crewhub-world-on-loops.md).
 
 Citations: `loops:<path>` is a file in the crewhub-loops repository at commit
-`79ecfa0`; `v1:<path>` is a file in the CrewHub v1 repository (`crewhub`); plain
-paths are in this repository. `loops:.../` abbreviates
-`loops:services/api/src/crewhub_loops/`. The loops files are cited as code spans, not links,
-because they live in another repository.
+`79ecfa0`. `loops:.../` abbreviates `loops:services/api/src/crewhub_loops/`.
+`v1:<path>` is a file in the CrewHub v1 repository (`crewhub`). Plain paths are
+in this repository. The loops and v1 files are cited as code spans, not links,
+because they live in other repositories.
 
 ## 1. Summary and decision
 
 crewhub-loops becomes the system of record and the driver for everything about
 projects, tickets, agents, how agents work, how they talk to each other and how
-people talk to them. CrewHub becomes **CrewHub World**: a browser client that reads
-crewhub-loops and expresses what happens there as a 3D town. Every project is a
-building, its lead agent sits at the centre of it, and tickets moving through
-their statuses move agents between rooms. CrewHub keeps three jobs of its own:
-dynamic pathfinding on the grid engine, a faithful visual language for every
-fact crewhub-loops publishes, and props, including props people make themselves.
-The bridge, the adapters, the session protocol and the Herdr-first direction are
-removed. The world talks to crewhub-loops over its existing REST API and NDJSON
-event stream, with the signed-in person's session and from the same origin. It
-does not run a local relay around the `crewhub` CLI. The CLI remains the agents'
-integration surface. The world observes the effects of CLI use through events
-and uses the CLI itself for fixtures, tests and a later optional director lane.
-Everything that makes the world move is deterministic by default. Optional
-cheap-model behaviour is off unless it is switched on and has a budget.
+people talk to them. CrewHub becomes **CrewHub World**. It has two parts:
+
+- **The CrewHub host** (`apps/host`), one small process next to crewhub-loops.
+  - It reads crewhub-loops over its Unix socket with its own read-only agent key,
+    using the same HTTP contract the `crewhub` CLI uses.
+  - It keeps the world's own database.
+  - It serves the world to the browser.
+- **The browser world**, which renders everything and runs the movement.
+
+The world model:
+
+- Every project is a building.
+- Inside a building, people and work have separate rooms:
+  - Agents sit in rooms by role, from a predefined catalogue: the lead's office
+    at the centre, then a workers room, an analyst room and a design room.
+  - Tickets are physical objects (folders, boxes, crates, envelopes by `kind`)
+    that move through rooms by status, so the review room visibly piles up.
+- An agent that belongs to several buildings is one real avatar in the building
+  where it works now, with visible proxies everywhere else.
+
+CrewHub's own work is dynamic pathfinding, a faithful visual language for every
+crewhub-loops fact, and props, including props people make themselves. The
+bridge, the adapters, the session protocol and the Herdr-first direction are
+removed.
+
+Presentation is deterministic by default. A dedicated Haiku director lane,
+built on the postman pattern, may plan idle movement every 5 minutes and after
+events. It is switchable and capped, and its usage is monitored.
+
+### Decisions taken (Nicky, 2026-09-30)
+
+| Question | Answer | Where it lands |
+| --- | --- | --- |
+| Serve the world from crewhub-loops (`/world/`)? | No. Use the CLI and socket path instead; nothing is served by crewhub-loops. | Section 3 |
+| Rooms by ticket status or by milestone? | First answer: rooms by agent role (lead's office, workers, analyst, design) from a predefined catalogue. Follow-up ideas: ticket kind as a source, or a room per status with boxes and files that pile up. The plan combines them: people by role, work objects by status, kind as the object's look. **Please confirm.** | Section 4.2 |
+| Local-only layout storage for now? | A proper local database holds all world information. | Sections 3 and 6 |
+| Can one agent belong to several buildings? | Yes. Either clone it visually, or keep one real agent with proxies, the real one where it is actively working. The plan takes the second. | Section 4.4 |
+| AI movement? | Yes, on Haiku or another very cheap model, planning every 5 minutes or after actions. Measure the cost of one Haiku and adapt. Postman suggested as its home. | Section 7 |
 
 ## 2. What crewhub-loops is today
 
@@ -78,7 +102,7 @@ agents' Herdr panes.
   should poll it at least every 30 s (`loops:docs/team.md`).
 - The loops web app already implements a follower in TypeScript: NDJSON parser,
   reconnect with `after`, 410 resync and a polling fallback
-  (`loops:apps/web/src/api/stream.ts`). CrewHub World copies that pattern.
+  (`loops:apps/web/src/api/stream.ts`). The CrewHub host copies that pattern.
 
 ### 2.3 Auth, transports and the CLI
 
@@ -114,6 +138,8 @@ agents' Herdr panes.
 
 ### 2.4 What a viewer needs
 
+The host reads as an agent (section 3.5); "any principal" includes it.
+
 | World need | Endpoint (initial load) | Events (live) | Who may read |
 | --- | --- | --- | --- |
 | Buildings | `GET /api/projects` | `project.created/updated/archived/restored/reordered` | any principal |
@@ -123,190 +149,319 @@ agents' Herdr panes.
 | Presence and posture | `GET /api/team` | `team.updated` (payload-free), plus polling every 30 s | any principal |
 | Stalls | card `stall`, `GET /api/watchdog` | `ticket.stalled`, `ticket.resumed` | watchdog route: admin or agent |
 | Deliveries | none for a person (`GET /api/deliveries` is router/operator only) | `delivery.created/updated` with `recipientIds` | any principal (envelope only) |
-| DMs | `GET /api/dm/threads` | `dm.created`, `dm.answered` | admin or the thread's agent |
+| DMs | `GET /api/dm/threads` | `dm.created`, `dm.answered` | admin or the thread's agent, so **not** the host's viewer key |
 | Milestones, releases | `GET /api/projects/{slug}/milestones`, `/releases` | `milestone.*`, `release.*` | any principal, feature on |
+
 
 ## 3. Target architecture
 
 ```mermaid
 flowchart LR
-  Agents["Agent lanes (Herdr)"] -- "crewhub CLI over the socket" --> Loops["crewhub-loops API"]
+  Agents["Agent lanes (Herdr)"] -- "crewhub CLI, socket" --> Loops["crewhub-loops API"]
   Probe["team-probe"] -- "PUT /api/team/snapshot" --> Loops
   Postman["postman lane"] -- "deliver next" --> Loops
-  People["Nicky in the loops web app"] --> Loops
-  World["CrewHub World (browser)"] -- "REST + NDJSON, session cookie, same origin" --> Loops
-  World --> Local["IndexedDB: layout and presentation only"]
+  People["Nicky, loops web app"] --> Loops
+  Host["CrewHub host (apps/host)"] -- "socket, read-only key: REST + NDJSON" --> Loops
+  Host --- DB[("World database (SQLite)")]
+  Browser["CrewHub World (browser)"] -- "HTTPS via Tailscale Serve: snapshot + SSE" --> Host
+  Director["world-director lane (Haiku)"] -- "crewhub-world CLI, host socket" --> Host
 ```
 
-**Source of truth.** crewhub-loops owns every fact: projects, tickets, agents,
-presence, deliveries, messages and watchdog states. CrewHub World owns only where
-things stand and how they look: building plots, room modules, prop placements,
-prop definitions made by the user, camera and presentation preferences, and the
-AI-presence settings. It never stores ticket text, comments, messages or
-credentials. It never writes a copy of a fact that it could read again.
+### 3.1 Does crewhub-loops need to serve `/world/`?
 
-**Data flow.**
+No. A browser cannot open a Unix socket or run the CLI, so the socket path
+needs a process on the crewhub-loops machine. The requirement for a proper
+local world database needs a process anyway. Once that process exists, reading
+crewhub-loops through it costs little, and it removes every crewhub-loops change
+that the direct-browser option needed.
 
-1. Initial load, stream first. Open `GET /api/events/stream` without `after`, which
-   starts live at the tail (`loops:.../api/routers/events.py`, `current_tail`), and
-   buffer what arrives. Then read `/api/projects`, `/api/team` and one
-   `/api/board/{slug}` per non-archived project, in parallel. Then apply the
-   buffered events. Nothing that happens during the load is lost, and applying an
-   event is idempotent, so an event the load already reflected does no harm.
-   The cursor is the seq of the last line received (an event or a heartbeat).
-   `GET /api/events` is not usable for taking a cursor: with a full page, its
-   `lastSeq` is the last row, not the tail.
-2. Live: `GET /api/events/stream?after=<lastSeq>`. Each envelope patches a
-   normalised store keyed by loops ids (`tk_…`, principal id, slug). Where the
-   payload is too thin (for example `ticket.updated` names the changed fields but
-   not their values), the client re-reads that one ticket, coalescing bursts
-   within 250 ms. On `team.updated`, and every 30 s, it re-reads `/api/team`.
-3. Reconnect: after the server's 300 s end, reconnect at once with the last seq
-   (a heartbeat's seq counts). A stream that ended before its first line gives no
-   cursor: reload. After an error, back off from 1 s to 30 s. On a 410,
-   discard the store and reload. On a 401, show "signed out" and offer the loops
-   sign-in, keeping the last state visibly stale. One tab per browser holds the
-   stream and shares it with the other tabs over `BroadcastChannel`, which stays
-   within the 4-streams-per-principal cap.
-4. Rendering never waits on the network. The store emits one coalesced change
-   per frame budget, and the scene reads it.
-
-**Auth for the browser.** The world uses the person's own loops session. It is
-served from the same origin as the loops web app (for example `/world/` behind
-the loops nginx or a Tailscale Serve path), so the `chl_session` cookie is sent,
-the Origin guard passes and no CORS is needed. In development, Vite proxies `/api`
-to a local loops (`make dev` or `make up` in crewhub-loops); the dev origin
-`127.0.0.1:5173` is already on the dev allowlist. Agent keys never enter the
-browser. That follows loops' own rule (a key never appears in argv, a URL, env or
-a log; `loops:docs/events.md` "CLI") and this repository's rule against secrets in
-browser storage ([ARCHITECTURE.md](ARCHITECTURE.md), "Local access and reuse").
-Visibility then equals what the person may see in the loops web app, DMs included.
-
-**Why not a local relay around the CLI.** Nicky asked for an honest comparison
-of two options: (A) a small host process that uses the CLI or the socket and
-relays to the browser, and (B) the browser reading crewhub-loops directly.
-
-| Question | A: host relay over CLI or socket | B: browser reads loops directly (recommended) |
+| Question | Host over the socket (chosen) | Browser reads loops directly (dropped) |
 | --- | --- | --- |
-| Where it runs | On the loops host, because the socket (`/run/crewhub-loops/api.sock`) and the key files are there. Nicky's browser runs on a different machine, so the relay needs its own HTTP listener, TLS or Tailscale exposure, Origin checks and pairing: the bridge again, under a new name. | Nothing new runs. The static bundle is served next to the loops web app. |
-| Identity | The relay is an agent (a key file of its own). Everything it does is attributed to that agent, not to Nicky. It can see what agents see, including chat it should not show a person, unless it re-implements loops' visibility rules. | The person's session. loops applies its own visibility (DMs, agent actions) and attributes any later write to the person. |
-| CLI fit | The CLI is agent-shaped (`me`, `queue`, `--for me`) and has no command for projects, the board, the team or agents. The relay would bypass it and call the socket anyway, so "using the CLI" would be nominal. `watch --json` fits well. | Uses the same REST and stream contracts the CLI uses underneath. |
-| Latency | One extra hop and a second stream. Negligible on one host, but the relay's own reconnect and fan-out add failure modes. | One hop through nginx, which is already unbuffered for the stream (`loops:infra/nginx.conf:18-31`). |
-| Shell size | A new service to build, deploy, secure, monitor and keep in sync with the loops API. This contradicts "keep the shell as small as possible". | Only a TypeScript client module inside `apps/world`. |
-| What loops must change | Nothing on the API. A key, a role and a systemd unit for the relay. | A same-origin mount (or CORS) and a sign-in `next` path; see section 9. |
+| crewhub-loops changes | None to serve or sign in. A read-only role (L1) before production. | A `/world/` mount, a sign-in `next` path, and world storage on the server. |
+| Credentials | One key file on the host, 0400, read per call like the CLI (`loops:clients/crewhub.py:114-123`). Never in the browser. | The person's session cookie. |
+| Streams | One loops stream for every browser tab and the director (loops caps each principal at 4; `loops:docs/events.md`). | One stream per browser, shared across tabs. |
+| World database, director, agent awareness | Live in the host. | Would need world storage and an endpoint in crewhub-loops. |
+| Identity | The host is an agent. It sees what agents see, so no DM content and no DM events (`loops:.../api/stream.py:142-180`). Human actions go to the loops web app through deep links. | The person: DMs visible, writes possible in the world. |
+| Cost to CrewHub | A small service to run as a user unit on the loops machine, with its own pairing for the browser. | None beyond a client module. |
+| Latency | Socket on the host (sub-millisecond) plus SSE over the tailnet. Comparable. | nginx plus the tailnet. |
 
-Recommendation: B. The CLI stays first-class for what it is for. Agents change
-the world by using it: every `crewhub ticket move`, `progress`, `comment`,
-`wait` and `done` becomes an event that the world animates. The world layer uses
-the CLI in three places, none of them at runtime in the browser:
+### 3.2 The host: the whole CrewHub shell
 
-| CLI command | Used by the world layer for |
+The host is Node 24 and TypeScript in this npm workspace. It shares
+`packages/world-engine`, so layout edits and director intents are validated by
+the same code the browser runs, and it shares `packages/loops-client` (the loops
+types and runtime validation). It stores data in SQLite through Node's built-in
+`node:sqlite`; its stability on Node 24 is checked in phase 1, with
+`better-sqlite3` as the fallback.
+
+| Responsibility | Detail |
 | --- | --- |
-| `crewhub watch --json --label world-fixture [--project SLUG] [--types …]` | Recording real, redacted event fixtures for the replay demo and for tests (the cursor file makes recordings resumable). |
-| `crewhub ticket new/move/assign/wait/done/progress/comment`, `crewhub milestone ticket new` | Driving a dev loops instance in acceptance tests and demo scripts, so what the world shows is caused by the real agent path. |
-| `crewhub project show SLUG --json`, `crewhub milestone list --json`, `crewhub ticket show REF --json` | Cross-checking fixtures against the API while testing. |
-| Proposed `crewhub world …` (section 7, phase 6) | The optional director lane and agents' own awareness, both through the CLI with their own keys. |
+| Read crewhub-loops | Unix socket in production, TCP in development; `Authorization: Bearer` with key file checks like the CLI's (regular file, owned by the user, mode 0400, `O_NOFOLLOW`). The host does not shell out to `crewhub`, because the CLI has no command for the project list, the board, the team snapshot or the agent list (section 2.3). |
+| Keep facts in memory only | A normalised projection keyed by loops ids. It is never written to the world database, and it is rebuilt on every host start. crewhub-loops remains the only truth. |
+| Keep the world database | World data only: see 3.4. |
+| Serve the browser | The static bundle; `GET /world-api/snapshot` (facts projection, world state, host seq); `GET /world-api/stream` (SSE with the host seq, `Last-Event-ID` resume from a ring buffer of 2,000 deltas, otherwise a new snapshot); world edits with revision compare-and-swap; an allowlisted read-only passthrough for one ticket's detail (`/api/tickets/{ref}`, `/comments`, `/progress`), fetched only when a person opens it. |
+| Serve local tools | A Unix socket of its own (0600) for the `crewhub-world` CLI: `where` (agent awareness), `plan-input`, `plan-submit` and `usage` (director), `pair` (browser pairing). |
+
+The host has no Herdr access, no process control, no provider credentials, no
+model calls, no rendering and no movement simulation.
+
+### 3.3 Data flow
+
+1. **Start: the stream first.** The host opens `GET /api/events/stream` without
+   `after`, which starts live at the tail (`loops:.../api/routers/events.py`,
+   `current_tail`), and buffers what arrives. It then reads `/api/projects`,
+   `/api/team`, `/api/agents` and one `/api/board/{slug}` per non-archived
+   project, and then applies the buffered events. Applying an event is
+   idempotent. `GET /api/events` cannot be used to take a cursor: with a full
+   page, its `lastSeq` is the last row, not the tail.
+2. **Live.** Each envelope patches the projection. Thin payloads (for example
+   `ticket.updated` names fields but not values) trigger one coalesced re-read
+   per ticket within 250 ms. The host re-reads `/api/team` on `team.updated` and
+   every 30 s (`loops:docs/team.md`). Each change goes to the browsers as a delta
+   with a host seq.
+3. **Reconnect to loops.**
+   - After the server's 300 s end, reconnect at once with the last seq; a
+     heartbeat's seq counts.
+   - No line received yet: reload.
+   - After an error, back off from 1 s to 30 s.
+   - On a 410: reload.
+   - On a 401 or 403: mark every fact stale, tell the browsers, and retry slowly.
+     The world keeps showing the last state, labelled stale.
+4. **Browser.** On connect it takes a snapshot and then the SSE deltas. The
+   browser runs the grid engine and the renderer. Rendering never waits on the
+   network.
+
+### 3.4 The world database
+
+SQLite on the host, with migrations, a daily online backup (the loops pattern,
+`loops:docs/deploy.md`), export and import of the whole world as JSON, and an undo
+history for layout edits. It holds:
+
+- towns, building plots and room modules
+- prop definitions, user-made props and placements
+- the role catalogue and per-agent role overrides
+- presentation settings and AI-presence settings
+- director plans and their usage log
+- browser pairings
+
+It never holds ticket text, comments, messages or loops credentials.
+Everything in it is CrewHub's own. Identifiers that point into crewhub-loops are
+stored as references: principal ids, slugs and ticket ids.
+
+### 3.5 Auth
+
+- **Host to crewhub-loops.** An agent `crewhub-world` with a read-only key. The
+  `probe` role works today: it allows safe methods only, plus three team PUTs
+  that the host never calls (`loops:.../auth/deps.py:139-172`). L1 replaces it
+  with a proper `viewer` role.
+- **Browser to host.**
+  - The host binds `127.0.0.1`. Tailscale Serve exposes it on its own HTTPS port
+    on the loops machine, as crewhub-loops is exposed on 9443
+    (`loops:docs/deploy.md`).
+  - `crewhub-world pair` prints a one-time code, valid for 10 minutes. The
+    browser exchanges it for an HttpOnly, Secure, `SameSite=Strict` cookie.
+  - The host checks that the Origin is its own.
+  - No loops credential ever reaches the browser.
+- **Development.** The host runs against a local crewhub-loops (`make dev` in
+  that repository). Vite proxies `/world-api` to the host.
+- **Human actions.** A person comments, replies to a DM or asks a lead in the
+  loops web app. The world links straight to the page (`/t/<KEY>` and the thread
+  URLs that loops already uses; `loops:docs/agents.md`, "When postman writes to
+  you"). CrewHub never writes to crewhub-loops.
+
+### 3.6 Where the CLI is used
+
+| Command | Used for |
+| --- | --- |
+| `crewhub` by agent lanes (unchanged) | Every `ticket move`, `progress`, `comment`, `wait` and `done` becomes an event the world animates. |
+| `crewhub watch --json --label world-fixture [--project SLUG]` | Recording real, redacted event fixtures for the replay demo and for tests. |
+| `crewhub ticket new/move/assign/wait/done/progress/comment` | Driving a dev crewhub-loops in acceptance tests, so what the world shows is caused by the real agent path. |
+| `crewhub-world where` (new, CrewHub's own) | An agent asks where it is in the world (section 7). |
+| `crewhub-world plan-input`, `plan-submit`, `usage` (new) | The director lane's whole interface (section 7). |
+| `crewhub-world pair` (new) | Pairing a browser with the host. |
 
 ## 4. The world mapping
 
 ### 4.1 Town and buildings
 
-- **Town:** one per crewhub-loops installation. Plot order follows the loops
-  project order (`project.reordered`). The user can move plots, and that change
-  stays local.
-- **Building:** one per non-archived project. The sign shows `name` and `key`;
-  the loops `color` and `icon` choose the facade trim and the emblem. An archived
-  project's building is boarded up (`project.archived`). It stays in place
-  until the user removes it, and comes back on `project.restored`.
-- **Town square and post office:** shared places. The post office is the
-  postman's home and the starting point of every delivery walk. Registered
-  agents that lead no project (in the seed: `analyst`, `ux-lead`, `gads-lead`,
-  `fm-lead`, `tools-lead`, `ted`; compare `loops:config/agents.yaml` with
-  `loops:config/projects.yaml`) work from a "town hall" (a cosmetic placement;
-  see 4.5). The seed files only bootstrap; the database is the truth.
+- **Town.** One per crewhub-loops installation. Plot order follows the loops
+  project order (`project.reordered`). The user may move plots, and that change
+  is stored in the world database.
+- **Building.** One per non-archived project.
+  - The sign shows `name` and `key`. The loops `color` and `icon` choose the
+    facade trim and the emblem.
+  - An archived project's building is boarded up (`project.archived`). It stays
+    until the user removes it, and it comes back on `project.restored`.
+- **Shared places.**
+  - The post office is the postman's home and the start of every delivery walk.
+  - The town hall is where registered agents stay while they are active in no
+    building. In the seed these are `analyst`, `ux-lead`, `gads-lead`,
+    `fm-lead`, `tools-lead` and `ted` (compare `loops:config/agents.yaml` with
+    `loops:config/projects.yaml`). The seed files only bootstrap; the database is
+    the truth.
 
-### 4.2 Room conventions per building
+### 4.2 Rooms: people by role, work by status
 
-Rooms follow the ticket workflow, because every project has that workflow and
-it changes constantly. Milestones are an optional per-project feature, so they
-group work within rooms instead of creating rooms of their own.
+The building has two kinds of room. People sit in rooms by role (Nicky's
+answer). Work is a physical object that moves between rooms by status, so load
+becomes visible as piles; the review room filling up is the clearest example
+(Nicky's second idea). The ticket's `kind` decides what the object looks like,
+not where it goes. A kind rarely changes, so rooms by kind would show a stock of
+work but no movement.
 
-| Room | Exists when | Contents (facts) | Grows with |
+**Role rooms.** crewhub-loops knows only three agent roles, `lead`, `router` and
+`probe` (`loops:.../contracts/common.py:18`). The world's roles are a CrewHub
+catalogue, predefined and stored in the world database:
+
+| Role | Room | Default rule (applied in order) | Room exists |
 | --- | --- | --- | --- |
-| Lobby | always | project sign, counts per status (`counts`), the mailbox (deliveries to this project's agents), a waiting bench for people named in `waitingOn` | never |
-| Lead's office | always, at the centre of the building | the lead's desk, its current in-progress tickets as folders, a DM phone (admins only) | never |
-| Planning room | always | wall board with `planned` tickets (next up), `backlog` as a shelf of crates; `held` milestone tickets as sealed crates | board length with planned count |
-| Workshop | always | one workstation per `in_progress` ticket; the assignee, or the lead and its workers, work there; a `blocked` ticket's station is roped off | 4 × 4 modules per extra group of workstations (the [TOWN_PLAN](TOWN_PLAN.md) capacity rules) |
-| Review room | always | `review` tickets on a long table; tickets `waitingOnHuman` get a lit "waiting on <person>" lamp | table length |
-| Meeting room | on first use | see 4.3; empty otherwise | never |
-| Release hall | `releases` feature on | release drafts, the carrier ticket, a banner on `release.published` | never |
-| Archive | first archived ticket | shelves with archive batches (`batchId`, counts only) | shelf modules |
+| lead | Lead's office, at the centre of the building | The project's `lead` (a fact) | always |
+| design | Design room | A worker named `<stem>-design-<n>` | once a design agent has been present |
+| analyst | Analyst room | The registered agent `analyst`, or a worker `<stem>-analyst-<n>` | once an analyst has been present |
+| worker | Workers room | A worker `<stem>-dev-<n>`, and any worker that no earlier rule matched | once a worker has been present |
 
-Milestones: when the feature is on, each active milestone gets a coloured
-banner, and its workstations and planning-board slots take that colour. A
-milestone never moves a ticket to another room. Done tickets leave the workshop.
-They stay visible as small "done" trays in the review room until they are
-archived. **Done is set by a person** (`loops:docs/agents.md`, "Finishing a
-ticket"), so the completion celebration plays only on `ticket.moved` to `done`
-with a person as actor.
+- **Where the rules come from.** Worker naming comes from crewhub-loops
+  (`cl-dev-2`, `cl-design-7` in `loops:docs/agents.md`), and a worker's lead
+  comes from the `lead` field of `/api/team` (`loops:.../contracts/team.py`).
+- **Inferred roles are labelled.** A role derived from a name is an inference
+  and the agent card says so. A person can override it per agent, and the
+  override is stored in the world database.
+- **Adding roles.** A new role is a catalogue row plus a room template.
+- **Growth.** A role room grows in 4 × 4 modules as desks are needed, following
+  the capacity rules of [TOWN_PLAN.md](TOWN_PLAN.md) section 4. An empty role
+  room stays, dimmed and labelled "no design agents active". Only an explicit
+  layout operation removes it.
 
-### 4.3 Where agents are and how they move
+**Status rooms.** Every loops status except `in_progress` has a room. In-progress
+work is always on somebody's desk in a role room.
 
-The lead is always in its building, and its home cell is the office desk. The
-seed config gives each lead one project (`loops:config/projects.yaml`), so a lead
-has one building. If a lead ever leads several projects, its avatar lives in the
-building of its most recent activity, and the other buildings show its office
-with a lit "away at <building>" placard (open question Q4).
+| Status | Room | What the objects do |
+| --- | --- | --- |
+| `backlog` | Storage | Objects on racks. `held` milestone tickets are sealed. |
+| `planned` | Planning room | Objects queue on a long table in board order (`position`): next up is at the front. |
+| `in_progress` | the agent's desk | On the desk of the agent working on it: the assignee, or a worker whose status line carries the key (an inference until L3). Without an agent it lies in the lead's inbox tray. |
+| `review` | Review room | The pile. Objects wait for a person; one waiting on a person carries a name tag ("Nicky"). |
+| `done` | Dispatch | Objects on pallets until they are archived or released; then a truck takes the batch away (`ticket.archived`, `release.created`). |
+
+**Work objects.** Only loops fields decide how an object looks:
+
+| Fact | Look |
+| --- | --- |
+| `kind`: task, feature, bug, question | folder, cardboard box, crate with a bug stamp, envelope with a question mark |
+| `priority`: urgent, high | a red or orange tag and a small flag; normal and low have none |
+| `blocked` | strapped shut |
+| stall (`stalled`) | dust and a quiet-clock, at the desk |
+| `milestone` | a coloured band |
+| labels | small stickers; rule props from section 6.3 (for example a rocket for `awaiting-deploy`) |
+
+- **Piles.** Piles stack up to a fixed height per room and then turn into a
+  pallet with a count ("52"). Large boards (the crewhub-loops board in Nicky's screenshot had 52 Done
+  tickets on 2026-09-30) stay readable and cheap to draw, with instanced
+  meshes.
+- **No growth from piles.** Status rooms do not grow with their piles, so a
+  burst of tickets never forces a layout change.
+
+**Shared spaces.**
+
+- **Lobby.** The entrance and the project sign. The mailbox holds deliveries
+  to this building's agents. The bench shows people who are waited on
+  ("waiting on Nicky (3)").
+- **Meeting room.** Built on first use (see 4.3).
+
+**Which agents are in a building:**
+
+- the project's lead
+- workers whose `lead` is that lead
+- registered agents that hold an in-progress ticket of that project
+- project members, when crewhub-loops has `agents_admin` on
+  (`loops:.../contracts/agents.py:57`)
+
+When an agent qualifies for several buildings, section 4.4 applies.
+Completion is celebrated only on `ticket.moved` to `done` by a person, because
+Done is a person's decision (`loops:docs/agents.md`, "Finishing a ticket").
+
+### 4.3 How agents move
 
 | Trigger (fact) | Movement or posture (presentation) |
 | --- | --- |
-| `ticket.moved` to `in_progress`, assignee is an agent | The assignee walks from its office or the planning board to a free workstation and sits. |
-| `team.updated`: agent `working` | Focused work animation at its station, or at the office desk if it holds no in-progress ticket. |
-| agent `idle` or `done` | Relaxed posture at its home place. Herdr's `done` is never shown as task success. |
-| agent `blocked` | A raised-hand posture and a text label "blocked". |
+| `ticket.created` | The object appears in the room of its status (usually Storage). |
+| `ticket.moved` to `planned` by a person | The object rides from Storage to the Planning table. |
+| `ticket.moved` to `in_progress`, assignee is an agent | The agent fetches the object from the Planning room and carries it to its desk in its role room. |
+| `team.updated`: agent `working` | Focused work at its desk (the office desk for the lead). |
+| agent `idle` or `done` | Relaxed posture. Herdr's `done` is never shown as task success. |
+| agent `blocked` | Raised hand and a text label "blocked". |
 | agent `unknown`, or the snapshot older than 5 minutes | Greyed out, labelled "status unknown" or "stale since <time>". |
-| worker `<stem>-x` appears in the snapshot (`lead` field) | A small helper spawns at the lobby door and walks to its lead's station, or to the station whose key is in its `contextLine`. It leaves when it disappears from the snapshot. |
-| `ticket.moved` to `review` | The worker carries a folder to the review table and returns. |
-| `ticket.moved` from `review` to `in_progress` with `reason: review_reply` | The person's comment pulls the folder back to the workstation. |
-| `ticket.progress` | A short caption above the agent (the line itself, at most 200 characters, `kind` as an icon), fading after 20 s; `question` stays until the next line. |
-| `comment.created` | A speech mark (without text: payloads carry no bodies) over the author, or over the waiting bench if the author is a person. Selecting it opens the thread, fetched with the person's session. |
-| Two or more principals comment on one ticket within 10 minutes, or a lead and a worker both report its key | Inference: they meet in the meeting room with the ticket on the table. Labelled "discussing CL-12". |
-| `delivery.created` | The postman avatar (the real `postman` agent) walks a letter from the post office to the recipient's building mailbox. On `delivery.updated` → `forwarded` it is handed over. `uncertain` or `unroutable` leave a red-flagged letter at the mailbox. |
-| `dm.created` / `dm.answered` (admins only) | The lead's DM phone rings; answered clears it. |
-| `ticket.stalled` (`stalled`) | The station's lamp dims and a quiet-clock shows "quiet 47 min"; nudges increment a small counter. |
+| a worker appears in or leaves the snapshot | It enters through the lobby and walks to a desk in its role room, or walks out. |
+| `ticket.moved` to `review` | The agent carries the object to the Review room pile and returns. |
+| `ticket.moved` to `done` by a person | The object goes from the pile to Dispatch, with the small celebration. |
+| `ticket.moved` from `review` to `in_progress` with `reason: review_reply` (`loops:.../domain/comments.py:137-145`) | The agent takes the object off the pile and back to its desk. |
+| `ticket.progress` | A caption above the agent: the line itself (at most 200 characters), with `kind` as an icon. It fades after 20 s; a `question` stays until the next line. |
+| `comment.created` | A speech mark without text (payloads carry no bodies) over the author, or at the bench if the author is a person. Selecting it fetches the thread through the host. |
+| Two or more principals comment on one ticket within 10 minutes, or a lead and a worker report the same key | Inference: they meet in the meeting room, labelled "discussing CL-12". |
+| `delivery.created`, then `delivery.updated` | The postman avatar (the real `postman` agent) walks a letter from the post office to the recipient's building. `forwarded` hands it over; `uncertain` or `unroutable` leave a flagged letter at the mailbox. |
+| `ticket.stalled` (`stalled`) | The desk lamp dims and a clock shows "quiet 47 min"; nudges show as a counter. |
 | `ticket.stalled` (`attention`) | An amber beacon over the lead's office: "attention: cl-dev-3 blocked 12 min". |
-| `ticket.resumed` | Lamp and beacon clear; the resolution (`activity`, `attending`, …) shows once as a toast. |
-| `release.published` | A short banner and confetti in the release hall. |
+| `ticket.resumed` | Lamp and beacon clear; the resolution shows once as a toast. |
+| `ticket.archived` (a batch shares `batchId`) | A truck takes those objects out of Dispatch; the lobby keeps the count. |
+| `release.published` | A banner in the lobby and a trophy on the lead's desk. |
 
-Offscreen buildings keep semantic state and move actors straight to their
-destination without cosmetic walking ([TOWN_PLAN.md](TOWN_PLAN.md), section 9).
+A status may retarget movement only after it has held for two snapshots, or for
+45 s (see section 7). Offscreen buildings keep their state and move actors
+straight to their destination, without cosmetic walking.
 
-### 4.4 People
+### 4.4 One real agent, proxies elsewhere
 
-People are not avatars that wander. A person appears as a visitor at a
-building's lobby when a ticket there waits on them (`waitingOn` of kind `user`),
-labelled "waiting on Nicky (3)". When a person acts (a comment or a move), a
-brief visitor animation plays at the relevant room. The world never shows
-whether a person is online, because loops does not publish that.
+Every agent has exactly one real avatar. A registered agent is identified by its
+loops principal id; a worker is identified by its session and name, as in
+`/api/team`.
 
-### 4.5 Facts versus inferences
+- **Real location.** The building of the agent's current active work: the
+  project of the most recent of these facts:
+  - its `ticket.progress` line
+  - a move of its assigned ticket into `in_progress`
+  - a `working` status whose status line carries a ticket key
 
-The rules in [VISUAL_DIRECTION.md](VISUAL_DIRECTION.md) apply unchanged: no
+  After 30 quiet minutes it stays where it was. This choice is an inference, and
+  it is labelled as one.
+- **Proxy.** In every other building it belongs to, the agent appears as a
+  translucent echo at its home place (the office desk for a lead), labelled
+  "working in <building>".
+  - A proxy does not walk and does not play ticket animations.
+  - It does show the facts of its own building: a stall or a waiting ticket
+    there lights up on the proxy.
+  - Selecting a proxy offers "go to <agent>".
+- **Switch.** When the real location changes, the old avatar fades into a proxy
+  and the new proxy becomes solid. In town view both are visible, so a short walk
+  along the town path shows the move. For offscreen buildings the swap is instant.
+
+Visual cloning was considered and rejected: two solid copies would claim the same
+agent works in two places at once.
+
+### 4.5 People
+
+People are not wandering avatars. A person appears on a building's lobby bench
+while a ticket there waits on them (`waitingOn` of kind `user`), labelled
+"waiting on Nicky (3)". When a person acts (a comment or a move), a short visitor
+animation plays. crewhub-loops does not publish whether a person is online, so
+neither does the world.
+
+### 4.6 Facts versus inferences
+
+The rules of [VISUAL_DIRECTION.md](VISUAL_DIRECTION.md) apply unchanged: no
 invented tool calls, progress percentages or results, and idle is not success.
 
 | Shown | Kind | Basis |
 | --- | --- | --- |
-| Ticket in a room, stall, attention, waiting on a person, blocked, delivery state | fact | loops fields and events |
-| Agent working/idle/blocked | fact with a freshness | team snapshot, 30 s cadence; stale after 5 minutes |
-| Which workstation a worker uses | inference, labelled | key in `contextLine`, same rule loops uses for progress (`loops:docs/agents.md`) |
-| Meeting | inference, labelled | the comment/worker co-activity rule in 4.3 |
-| Walking paths, idle wandering, where an idle agent sits | cosmetic | engine and optional AI behaviour (section 7); never presented as work |
-| Town hall residents | cosmetic placement | agents that lead no project |
+| Buildings, leads, work objects (room, look, pile size), stall, attention, waiting on a person, blocked, delivery state | fact | loops fields and events |
+| Agent working, idle or blocked | fact with a freshness | team snapshot, 30 s cadence, stale after 5 minutes |
+| An agent's role and room | inference, labelled; a person can override it | name rules in the role catalogue |
+| A worker's desk ticket, an agent's real building | inference, labelled | ticket key in the status line and recent events |
+| Meeting | inference, labelled | the co-activity rule in 4.3 |
+| Walks, idle actions, director intents | cosmetic | engine, deterministic idle variety, optional director; never presented as work |
 
-Every fact shown in the scene is also available as text: a building summary
-panel, a selected agent's card and an accessible list view. None of them is
-signalled by colour alone. The colours are the loops status tokens chosen by the
-design-system work (`progress`, `attention`, `done`, `stalled`, `planned`).
+Every fact in the scene is also available as text: a building summary, an agent
+card and an accessible list view. None of them relies on colour alone. The colours
+come from the loops status tokens adopted by the design-system work.
 
 ## 5. Pathfinding and the grid engine
 
@@ -391,9 +546,8 @@ And what to avoid:
   Changing the visual never changes navigation.
 - **Catalogue.** Built-ins ship with the app, grouped by category and tags
   (work, rest, gather, storage, greenery, light, decoration). User props sit in
-  the same catalogue under "Mine". They are stored in the local `TownDocument`
-  and can be exported and imported as JSON. They move to crewhub-loops only if
-  L7 is accepted.
+  the same catalogue under "Mine".
+  and can be exported and imported as JSON. They are stored in the world database.
 - **Making props.** The primary route is a deterministic in-app parts editor:
   add a primitive, move, rotate and scale it on a grid snapped to the cell size,
   pick a material from a fixed palette, and declare the footprint. It costs
@@ -414,65 +568,111 @@ A placed prop may carry an attachment: `{kind: "room" | "agent" | "ticket" |
 | --- | --- |
 | Room or project | Ordinary furniture; the default. |
 | Agent | A personal item, placed at the agent's home place (office desk for a lead) or carried as a footprint-free accessory. It follows the agent to another building. |
-| Ticket | Occupies a decoration slot of the workstation or review-table place that holds the ticket, and moves with it between rooms. When no slot is free, it waits on a lobby shelf with a text label. |
+| Ticket | Rides on the ticket's work object: a sticker or a small figure on the folder or box. It follows the object from room to room, including into a pile, and it never takes a footprint. |
 
 Rule props are attachments made automatically from facts, and they are shown as
 such. Examples: a rocket crate for the `awaiting-deploy` label, a jar for `bug`
 tickets, a trophy on the lead's desk per published release. They are
-deterministic and editable in a rules table. Workstation templates reserve
-decoration slots, so an attached prop never makes a placement invalid.
+deterministic and editable in a rules table. Desk templates reserve decoration slots
+for agent props, so an attached prop never makes a placement invalid.
+
 
 ## 7. Agent presence and AI-driven behaviour
 
-**Deterministic layer (always on, zero cost).**
-- The place and posture of every agent follow from facts, as in 4.3.
-- Before a status may retarget movement, it must hold for two consecutive
-  snapshots, or for 45 s. v1 removed its desk-walking because flickering status
-  kept resetting targets and caused jitter
+### 7.1 The deterministic layer (always on, zero cost)
+
+- Place and posture follow facts, as in section 4.3.
+- A status must hold for two consecutive snapshots, or for 45 s, before it may
+  retarget movement. v1 removed its desk walking because flickering status kept
+  resetting targets and caused jitter
   (`v1:frontend/src/components/world3d/JITTER_ANALYSIS.md`).
 - An agent at rest gets small idle variety from a seeded choice of prop-tagged
-  actions (look at the board, water a plant, stretch, visit the kitchen), keyed
-  by agent id and time bucket. Reload shows the same behaviour.
+  actions: look at the board, water a plant, stretch, get a coffee. The choice is
+  keyed by agent id and time bucket, so a reload shows the same behaviour.
 - This layer respects reduced motion and pauses in hidden tabs.
 
-**Agent awareness (no pushed calls).** An agent can learn that it is "there"
-without any extra prompt. The proposed `crewhub world where` (L8) answers in
-about 40 tokens: "You are in the Workshop of crewhub-loops at the CL-12 station;
-nearby: cl-dev-3; the lobby has 2 letters for you." It uses zone labels, not
-coordinates, as v1's unbuilt spatial-awareness design suggested
-(`v1:docs/features/3d-world/spatial-awareness/spatial-awareness-design.md`).
-Agents run it only if they choose to. One optional line in the loops briefing
-snippet tells them it exists. Nothing is ever sent into a lane.
+### 7.2 Agent awareness (no pushed calls)
 
-**Optional AI layer: the director (off by default).** A dedicated Claude Code
-lane on the cheapest model, following the postman pattern: Haiku 4.5
-(`claude-haiku-4-5-20251001`) at low effort, with its own agent key under the
-`viewer` role (L6) and a write scope for world intents only (L7).
-- **Input.** On a timer, it reads a compact world summary through the CLI:
-  rooms, the tags of reachable props, and the idle agents with their zone. It
-  never reads ticket bodies, comments or DMs.
-- **Output.** It chooses from a closed list of cosmetic actions per idle agent:
-  go to a prop by tag, visit an agent, stay. The engine validates each choice.
-  An invalid choice is dropped.
-- **Limits.** It never moves a working, blocked, stalled or waiting agent, and it
-  never produces free text that appears as an agent's speech.
+An agent can learn that it is "there" without any extra prompt.
+`crewhub-world where` (section 3.6) answers in about 40 tokens, for example:
+"You are in the Design room of crewhub-loops at the CL-12 desk; nearby: cl-dev-3;
+the lobby has 2 letters for you."
+
+It uses zone labels, not coordinates, as v1's unbuilt spatial-awareness design
+suggested (`v1:docs/features/3d-world/spatial-awareness/spatial-awareness-design.md`).
+Agents run it only if they choose to. Nothing is ever sent into a lane.
+
+The command reads `CREWHUB_AGENT` to know who is asking. That name is only a
+claim, which is acceptable because the socket is same-uid (every lane runs as
+the same user; `loops:docs/events.md`) and the answer is presentation data only.
+
+### 7.3 The director: a Haiku lane on the postman pattern
+
+**What it does.**
+
+- **Scheduled plan.** Every 5 minutes for each building that has idle agents,
+  while a world tab is open.
+- **Quick plan.** After movement-relevant facts: a ticket move, a status change,
+  or a real-location switch. Quick plans are debounced by 20 s and limited to
+  one per building per minute.
+- **Input.** `crewhub-world plan-input` returns compact JSON of at most 1,500
+  tokens: zone labels, the tags of reachable props, and per agent its role,
+  state and place. It contains no ticket titles, bodies, comments or messages.
+- **Output.** `crewhub-world plan-submit` accepts up to 8 intents per building,
+  chosen from a closed list:
+  - go to a prop by tag in a named room
+  - visit an agent
+  - gather idle agents in the meeting room
+  - stay
+
+  Each intent has a time-to-live. The host validates it with the world engine
+  (reachability) and the state rules; the browsers play it.
+- **Limits.** It never moves a working, blocked, stalled or waiting agent. It
+  never produces text that appears as an agent's speech.
+
+**Why a separate lane, not the postman lane itself.** The postman's first prompt
+allows exactly one command, `crewhub deliver next`, and forbids everything else
+(`loops:docs/postman-briefing.md`). It is the delivery path, and DMs go through it
+within seconds (CL-80). Planning turns in the same lane would share its context,
+could delay deliveries, and would widen the scope of a least-privilege router.
+
+The postman *pattern* fits well, and the director reuses it:
+- Claude Code on Haiku 4.5 (`claude-haiku-4-5-20251001`) at low effort.
+- A watcher (in the host) that prompts the lane with one line such as
+  `world: plan due crewhub-loops`.
+- A lane that runs only its own CLI.
+
+A second lane costs nothing extra per call, and it has its own off switch.
+
+**Measuring cost.**
+
+- The host logs every plan: trigger, building, input size, intents accepted and
+  rejected. The world shows the counters.
+- A Claude Code lane's real token usage is not visible to the host. For the first
+  week, read it from the lane's account.
+- If the lane's per-turn overhead (its own system prompt and growing context)
+  dominates, keep the same `plan-input`/`plan-submit` contract and switch the
+  caller to a direct Haiku API call from the host. That call has exact token
+  accounting and a `max_tokens` bound, and it needs one API key file on the host.
+- Other very cheap models can be configured on the same contract. The director
+  never escalates to a larger model.
 
 | Setting | Default | Bound |
 | --- | --- | --- |
-| `presence.ambient` (deterministic idle variety) | on | off / reduced / on |
-| `presence.director.enabled` | **off** | global kill switch in the world settings and the lane's own stop |
-| `presence.director.model` | `claude-haiku-4-5-20251001` | never escalates to a larger model |
-| Interval per building | 10 min | minimum 5 min; only buildings with idle agents |
-| Calls per hour / per day | 6 / 60 | hard stop at the cap; the counter is visible in the world |
-| Input / output tokens per call | 1,500 / 150 | truncate input and refuse over-length output |
-| Runs only while watched | yes | a world tab has sent a heartbeat within 2 minutes (L7) |
+| `presence.ambient` (deterministic idle variety) | on | off, reduced or on |
+| `presence.director.enabled` | **off** until Nicky switches it on | a kill switch in the world settings, plus stopping the lane |
+| `presence.director.model` | `claude-haiku-4-5-20251001` | cheap models only; no escalation |
+| Scheduled plan interval | 5 min | minimum 2 min |
+| Quick plans | on | 1 per building per minute, 20 s debounce |
+| Plans per hour / per day (all buildings) | 40 / 400 | a hard stop at the cap, shown in the world |
+| Input / output per plan | 1,500 / 200 tokens | input truncated, longer output rejected |
+| Runs only while watched | yes | a browser has been connected within the last 2 minutes |
 
-At the defaults the ceiling is 60 × 1,650 ≈ 100k tokens a day. The currency
-cost is shown only once real pricing and usage are available, as
-[COST_POLICY.md](COST_POLICY.md) requires. The trigger, cache key (building
-revision plus idle set), cancellation (the kill switch, or stopping the lane)
-and usage report are defined before phase 6 starts. With the director off, the
-world is fully functional.
+At the defaults, the ceiling is 400 × 1,700 ≈ 680k tokens a day, plus the lane
+overhead that phase 6 measures. One busy building watched for 8 hours at the
+5-minute cadence is about 96 scheduled plans. The currency cost is shown only once
+real pricing and usage are known, as [COST_POLICY.md](COST_POLICY.md) requires.
+With the director off, the world is fully functional.
 
 ## 8. What is removed and what stays
 
@@ -480,80 +680,90 @@ world is fully functional.
 
 | Item | Reason |
 | --- | --- |
-| `apps/bridge` (README only) | crewhub-loops is the service; nothing in the world needs machine access. |
-| `packages/protocol` (`SessionSummary`, `SessionSnapshot`, `SessionStatus`) | Replaced by a `packages/loops-client` with the loops read models, the envelope and runtime validation. |
-| Mock crew, scenarios and `demoSnapshot` in `apps/world/src/world/data.ts`, and the "simulated reply" UI in `App.tsx` | They pretend to be a runtime. Replaced by a clearly labelled **replay** mode that plays recorded, redacted loops event fixtures, so demo mode still needs no account (a [VISION.md](VISION.md) requirement). |
-| Herdr, Claude Code and Codex adapter milestones (M5 to M7 in [ROADMAP.md](ROADMAP.md) and [TOWN_PLAN.md](TOWN_PLAN.md) section 7) | Herdr stays behind crewhub-loops (probe, postman, agentctl). The world never talks to it. |
-| Canonical runtime sessions, source observations and command routes ([ADR 0003](decisions/0003-towns-and-session-bindings.md), [TOWN_PLAN.md](TOWN_PLAN.md) section 3) | Identity is the loops principal id; a worker is identified by session and Herdr name, as in `/api/team`. |
-| Tauri companion plans | No local machine access is needed. |
+| `apps/bridge` (README only) | The bridge's job, reaching agents on the machine, belongs to crewhub-loops. |
+| `packages/protocol` (`SessionSummary`, `SessionSnapshot`, `SessionStatus`) | Replaced by `packages/loops-client`: the loops read models, the envelope and runtime validation, shared by the host and the browser. |
+| Mock crew, scenarios and `demoSnapshot` in `apps/world/src/world/data.ts`, and the "simulated reply" UI in `App.tsx` | They pretend to be a runtime. Replaced by a clearly labelled **replay** of recorded, redacted loops events, so demo mode still needs no account (a [VISION.md](VISION.md) requirement). |
+| Herdr, Claude Code and Codex adapter milestones (M5 to M7 in [ROADMAP.md](ROADMAP.md), [TOWN_PLAN.md](TOWN_PLAN.md) section 7) | Herdr stays behind crewhub-loops (probe, postman, agentctl). CrewHub never talks to it. |
+| Canonical runtime sessions and command routes ([ADR 0003](decisions/0003-towns-and-session-bindings.md), [TOWN_PLAN.md](TOWN_PLAN.md) section 3) | Identity is the loops principal id; a worker's identity is its session and name. |
+| Tauri companion plans; IndexedDB as the layout store ([TOWN_PLAN.md](TOWN_PLAN.md) section 6) | The host and its world database replace both. |
 
-**Stays:** `packages/world-engine` (extended as in section 5); the renderer,
-models and shaders in `apps/world/src/world` and `WorldCanvas`; the Greenhouse
-art direction for interiors; town plots, two grids, stable growth and detail
-levels from [TOWN_PLAN.md](TOWN_PLAN.md) sections 4, 5 and 9; the cost policy; and
-the crewhub-loops design system and kit adopted by ADR 0004
-(`docs/decisions/0004-loops-design-system.md` on the `feat/loops-design-system`
-branch). The world UI uses its tokens and its five primitives, and follows its
-status mapping.
+**New:** `apps/host` (section 3.2). It is deliberately not a bridge:
+- It talks to exactly one service, crewhub-loops, with a read-only key.
+- It owns only world data.
+- It never controls a process or holds a provider secret.
+
+**Stays:**
+- `packages/world-engine`, extended as in section 5.
+- The renderer, models and shaders in `apps/world/src/world` and `WorldCanvas`.
+- The Greenhouse art direction for interiors.
+- Town plots, the two grids, stable growth and detail levels from
+  [TOWN_PLAN.md](TOWN_PLAN.md) sections 4, 5 and 9.
+- The cost policy.
+- The crewhub-loops design system adopted by ADR 0004
+  (`docs/decisions/0004-loops-design-system.md` on the `feat/loops-design-system`
+  branch): its tokens, its five primitives and its status mapping.
 
 ## 9. Proposals for crewhub-loops
 
 Each item is a proposal for the crewhub-loops repository, in priority order.
+None of them blocks phase 1.
 
 | # | Proposal | Reason | Needed by |
 | --- | --- | --- | --- |
-| L1 | Serve CrewHub World from the loops origin: an nginx `location /world/` for a static bundle (or a Tailscale Serve path mount), plus the world origin in `CHL_ALLOWED_ORIGINS` if it ends up on its own origin | The session cookie and Origin guard work unchanged; no CORS layer, no keys in the browser. | Phase 1 in production (dev works through the Vite proxy) |
-| L2 | Sign-in accepts a same-origin `next` path (`/login?next=/world/`) | Today the login page returns only to a router-state `from` (`loops:apps/web/src/pages/Login.tsx:17`), so a world outside the SPA cannot send the user back. | Phase 1 |
-| L3 | Publish JSON Schemas (or generated TypeScript types) for `Envelope`, `ProjectOut`, `TicketCard`, `BoardResponse`, `TeamSnapshot`, `MilestoneSummary`, as already done for `team.schema.json`, with a drift test | OpenAPI is disabled (`loops:.../api/main.py:123-125`); the world must validate network input at runtime ([AGENTS.md](../AGENTS.md), protocol rule). | Phase 1 (hand-written validators until then) |
-| L4 | `TeamAgent.ticketKey` (derived, nullable): the in-progress ticket a lane or worker is on, using the server's existing key rule | The server already credits workers to tickets (`loops:.../domain/progress.py`); re-parsing `contextLine` in the browser duplicates a rule that can drift. | Phase 2 |
-| L5 | `ticket.updated` payload: include new `assigneeId` and `waitingOnId` when those changed | Saves a ticket re-fetch for the two changes that move agents. | Phase 2 (optional) |
-| L6 | A read-only agent role `viewer`: safe methods only, no writes at all, no DM or agent-action visibility | For a wall display or kiosk without a person's session, and for the director lane in phase 6. Today only `probe` is read-mostly, and it may write the team snapshot. | Phase 6, or a kiosk |
-| L7 | Server-side world document: `GET/PUT /api/world/layout` (one JSON document, revision compare-and-swap, size cap, no facts inside) and a `world.updated` event | Only if Nicky wants layouts to follow him across devices, or several people to share one town, or the director lane to publish intents. Local IndexedDB is enough before that. | Phase 4b or 6 |
-| L8 | `crewhub world where|intents` CLI commands on top of L6/L7 | The agent-facing half of section 7: an agent or the director reads where it "is" through its normal tool. | Phase 6 |
+| L1 | A read-only agent role `viewer`: safe methods only, no writes at all | The host's key today must be `probe`, which can write the team snapshot (`loops:.../auth/deps.py:139-172`), or a `lead`, which can write tickets. A viewer should be unable to write anything. | Before production |
+| L2 | Publish JSON Schemas (or generated TypeScript types) for `Envelope`, `ProjectOut`, `TicketCard`, `BoardResponse`, `TeamSnapshot`, `AgentOut`, with a drift test, as already done for `team.schema.json` | OpenAPI is disabled (`loops:.../api/main.py:123-125`). The host must validate every response at runtime and should not hand-maintain the schemas. | Phase 1 (hand-written validators until then) |
+| L3 | `TeamAgent.ticketKey` (derived, nullable): the in-progress ticket a lane or worker is on, using the server's existing key rule | The server already credits workers to tickets (`loops:.../domain/progress.py`). Re-parsing `contextLine` in CrewHub duplicates a rule that can drift. | Phase 2 |
+| L4 | `ticket.updated` payload: the new `assigneeId` and `waitingOnId` when those changed | Saves a ticket re-read for the two changes that move agents and objects. | Phase 2 (optional) |
+| L5 | Payload-free DM envelopes (`dm.created`, `dm.answered`: agent id and thread id only) visible to the `viewer` role | Without it, the world shows no DM activity (`loops:.../api/stream.py:175-180`). | Optional |
+| L6 | An explicit role attribute on agents, or a convention such as a profile, that the world can read | Rooms by role then rest on a fact instead of a name rule. | Optional |
+| L7 | One line in `loops:docs/agents-briefing-snippet.md` pointing to `crewhub-world where` | Agents learn that they can look themselves up. | Phase 6 |
 
-Not needed: new event types for ordinary work (the 49 existing types cover it),
-CORS (with L1), and any change to postman or agentctl.
+Not needed any more: a `/world/` mount, CORS, a sign-in `next` path, and
+server-side world storage. There are also no new event types, and no change to
+postman or agentctl.
 
 ## 10. Phases
 
-Each phase is usable on its own. All phases keep `npm run check` green and make
-zero model calls unless phase 6 is switched on.
+Each phase is usable on its own. Every phase keeps `npm run check` green and
+makes zero model calls, except phase 6 once it is switched on.
 
 | Phase | Deliverable | Acceptance criteria |
 | --- | --- | --- |
-| 1. First light | `packages/loops-client` (typed fetch, runtime validation, stream follower with `lastSeq`, 410/401 handling, BroadcastChannel sharing); Vite proxy to a local loops; the town shows one plain building per project with name, key and status counts, and each lead standing in its building with its team status | With crewhub-loops `make dev` and its seed, `crewhub ticket move CL-1 in_progress` (as `cl-lead`) changes that building's counts within 2 s; stopping and restarting the loops API recovers without a reload; a 300 s stream end reconnects without replaying seen events; nothing is written to loops; the old mock remains available behind a "replay" toggle |
-| 2. Building interiors | The room conventions of 4.2; workstations per in-progress ticket; agent and worker movement from 4.3 inside one building; stall, attention, waiting-on-human, progress captions; text panels for every fact. Remove `apps/bridge`, `packages/protocol`, the mock crew and scenarios; add recorded replay fixtures | A scripted run of CLI commands (new, move, progress, wait, done, comment) produces the expected sequence of rooms and postures in a recorded test; a stale snapshot is shown as stale; every scene state has a text equivalent |
-| 3. Town and dynamic pathfinding | Portal graph, doors, town paths, postman deliveries between buildings, wait budget and step-aside, heap A*, detail levels with one detailed interior at a time | 12 buildings and 100 agents from a replay fixture stay within the 33 ms frame budget on the reference device; no actor waits more than 5 s in the corridor stress test; offscreen buildings do no cosmetic routing |
-| 4. Layout and props | Local `TownDocument` in IndexedDB (plots, modules, placements, user props), export/import and undo; prop catalogue, prop editor and attachments (section 6) | Reload restores the same town; an invalid import leaves the previous revision intact; a user-made prop blocks exactly its declared footprint; attached props follow their ticket between rooms |
-| 5. Talking through loops | From the world, with the person's session: open a ticket in the loops web app, comment on a ticket, reply in a DM thread (admins), quick-ask a building's lead | Every write goes to a loops endpoint and appears as its normal event; nothing is sent to Herdr from the world; a failed write is shown and never retried blindly |
-| 6. Optional AI presence | The director lane and settings of section 7, with L6 to L8 in crewhub-loops | Off by default; with it on, calls stay within the configured budget; a usage counter is visible; switching it off stops calls within one interval |
+| 1. First light | `apps/host`: key file, socket client, stream-first projection, SSE, pairing, static bundle. `packages/loops-client`. The browser shows one plain building per project with name, key and counts per status, and each lead in its building with its team status. | Against crewhub-loops `make dev` and its seed: `crewhub ticket move CL-1 in_progress` changes the counts within 2 s. A restart of the loops API and a restart of the host both recover without a page reload. Two browser tabs share one loops stream. Nothing is written to crewhub-loops. The key appears in no bundle, log or response. |
+| 2. Buildings | World database with migrations and backup; role catalogue with overrides; lead's office, role rooms, status rooms, work objects and piles, lobby; the movement table of 4.3; the real agent with proxies; stall, attention, waiting-on-person and progress captions; text panels. Remove `apps/bridge`, `packages/protocol`, the mock crew and scenarios; add replay fixtures recorded with `crewhub watch --json`. | A scripted run of CLI commands (new, move, progress, wait, done, comment) produces the expected rooms, objects and postures in a recorded test. A lead of two projects shows one solid avatar and one proxy. A stale snapshot is shown as stale. Every scene state has a text equivalent. |
+| 3. Town and dynamic pathfinding | Portal graph, doors, town paths, postman walks between buildings, wait budget and step-aside, heap A*, detail levels with one detailed interior at a time | 12 buildings and 100 agents from a replay stay within the 33 ms frame budget on the reference device. No actor waits more than 5 s in the corridor stress test. Offscreen buildings do no cosmetic routing. |
+| 4. Layout and props | Layout editing, the prop catalogue, the parts editor, parts-JSON import and attachments (section 6), all in the world database with undo and export/import | A host restart restores the same town. An invalid import leaves the previous revision intact. A user-made prop blocks exactly its declared footprint. A ticket-attached sticker follows its object into the review pile. |
+| 5. Links into loops | Every selectable fact offers "open in crewhub-loops": the ticket, its thread, the DM thread, the project | Each link opens the right loops page. The world never writes to crewhub-loops. |
+| 6. Director and awareness | The `crewhub-world` CLI (`where`, `plan-input`, `plan-submit`, `usage`), the host's watcher, the `world-director` Haiku lane, the settings and counters of section 7, and L7 | Off by default. When on, plans stay within the caps and the counters are visible. The kill switch stops prompts within one interval. Rejected intents are logged, not played. After a week the measured cost is recorded here. |
 
 ## 11. Risks and open questions
 
 Risks:
 
-- **Stream and team cadence.** Presence is at best 30 s fresh, so the world
-  moves in steps, not continuously. Mitigation: ease transitions and label
-  freshness; never animate "working" from a stale snapshot.
-- **Thin payloads.** Some events need a re-fetch. Coalescing bounds the load,
-  but a release archive of 200 tickets is 200 events (one per ticket, shared
-  `batchId`, `loops:docs/events.md`). Fold batches client-side.
-- **Two repos, one contract.** Until L3 lands, the world validates against
-  hand-written schemas that can drift. Pin a loops commit in the client and
-  run a fixture test against it.
+- **A service to run.** The host is a new user unit on the loops machine,
+  next to `team-probe`, with its own backup and pairing. Keep it small, and
+  never let it grow into a second loops.
+- **Agent identity.** The host sees what an agent sees. DMs stay invisible
+  unless L5 is added, and human actions always happen in the loops web app.
+- **Presence cadence.** The team snapshot is at best 30 s fresh. Ease
+  transitions and label freshness; never animate "working" from a stale snapshot.
+- **Director overhead.** A Claude Code lane carries its own prompt and a growing
+  context, so its per-plan cost may exceed the input size. Measure it in phase 6,
+  and switch to a direct Haiku call if needed.
+- **Name-based roles.** A worker named outside the conventions lands in the
+  workers room. L6 removes the guess.
 
 Open questions for Nicky:
 
-- Q1. Should the world be served under the loops origin (`/world/`, L1)? That is
-  the recommendation. The alternative is a separate origin with CORS.
-- Q2. Rooms by ticket status (recommended) or rooms by milestone? Milestones are
-  a per-project feature and off by default.
-- Q3. Is local-only layout storage acceptable for now (phase 4), with the
-  server-side world document (L7) only when you want it on several devices?
-- Q4. May a lead ever lead several projects? If so, confirm the "away at"
-  placard rule in 4.3.
-- Q5. For phase 6: is a dedicated Haiku director lane (like postman) the right
-  home for AI movement, and what monthly budget is acceptable?
+- Q1. Confirm the combined room model of 4.2: people by role, work objects by
+  status, kind as the object's look.
+- Q2. Does the host run on the crewhub-loops machine as a user unit, reached
+  over Tailscale Serve on its own port?
+- Q3. Is the four-role catalogue complete (lead, workers, analyst, design), and
+  are the name rules right?
+- Q4. Are no DMs in the world acceptable, or should L5 be proposed?
+- Q5. Should the director run as its own Haiku lane (recommended), or inside the
+  postman lane after all?
 
 ## 12. Sentences to change once this plan is accepted
 
@@ -568,8 +778,8 @@ parts of `VISUAL_DIRECTION.md`. Neither of those overlaps with the list below.
 | --- | --- | --- |
 | 5-6 | "Build CrewHub as a delightful browser world connected to existing agent runtimes through a reusable bridge." | A delightful browser world that shows what happens in crewhub-loops. |
 | 12-13 | "The user has now accepted the room's visual direction and requested a town plan: … M2 onward is proposed implementation work." | Points to this plan and its phases. |
-| 39-40 | "Keep Tauri APIs, filesystem access, process execution, provider credentials, and runtime-specific control logic out of it." | Keep credentials, keys and machine access out of it; all data comes from crewhub-loops through `packages/loops-client`. |
-| 41-43 | "`apps/bridge` is the future independent service. … Rust is the intended starting point, …" | Removed. |
+| 39-40 | "Keep Tauri APIs, filesystem access, process execution, provider credentials, and runtime-specific control logic out of it." | Keep credentials, keys and machine access out of it; all data comes from the CrewHub host. |
+| 41-43 | "`apps/bridge` is the future independent service. … Rust is the intended starting point, …" | `apps/host` is CrewHub's only process: it reads crewhub-loops over its socket with a read-only key, owns the world database and serves the world. It never controls agents or holds provider secrets. |
 | 44-45 | "`packages/protocol` stays free of React, Three.js, Tauri, and runtime dependencies. Its bootstrap types are provisional; …" | The same rule for `packages/loops-client`, with runtime validation of every loops response. |
 | 49 | "Herdr comes first. Add direct runtime adapters only for a concrete missing need." | crewhub-loops is the only source of facts; the world never talks to Herdr or to a runtime. |
 | 50-51 | "Keep mock activity explicitly labeled. Never imply that fixture data describes a real running session …" | The same rule for replay fixtures of recorded loops events. |
@@ -579,8 +789,8 @@ parts of `VISUAL_DIRECTION.md`. Neither of those overlaps with the list below.
 | Line | Current sentence | Becomes |
 | --- | --- | --- |
 | 27 | "Reuse existing sessions and harnesses, beginning with Herdr." | Show the crew as crewhub-loops knows it. |
-| 28 | "Put machine access in an independent bridge that other applications can use." | crewhub-loops is the service; CrewHub World is a client of it. |
-| 33-34 | "Use a CrewHub town as a work context, with persistent rooms and capacity that grows with usable workstations. Herdr can supply the initial hierarchy." | Every project is a building; rooms follow the ticket workflow and grow with the work. |
+| 28 | "Put machine access in an independent bridge that other applications can use." | crewhub-loops is the service; the CrewHub host reads it and serves the world. |
+| 33-34 | "Use a CrewHub town as a work context, with persistent rooms and capacity that grows with usable workstations. Herdr can supply the initial hierarchy." | Every project is a building; agents sit in rooms by role and work objects move through rooms by status. |
 | 35-36 | "Allow Claude Code and Codex sessions to join directly and share rooms, with one canonical identity …" | Removed: identity is the loops principal. |
 | 44-45 | "For the first visual milestone, all activity is simulated … Later, one live Herdr session drives the same experience." | A live crewhub-loops drives the world; a labelled replay works without an account. |
 | 51-52 | "A subsequent live adapter can replace the mock source without redesigning the world." | Removed (done by phase 1 and 2). |
@@ -589,19 +799,20 @@ parts of `VISUAL_DIRECTION.md`. Neither of those overlaps with the list below.
 
 | Line | Current sentence | Becomes |
 | --- | --- | --- |
-| 5-7 | "Keep the visual experience browser-first and the machine bridge independently usable. Tauri is an optional packaging and desktop-integration layer. …" | Browser-first client of crewhub-loops; no bridge, no Tauri. |
+| 5-7 | "Keep the visual experience browser-first and the machine bridge independently usable. Tauri is an optional packaging and desktop-integration layer. …" | A browser world served by a small CrewHub host that reads crewhub-loops; no bridge, no Tauri. |
 | 10-12 | "The accepted next direction adds CrewHub-owned towns, dynamic rooms, and bindings to runtime sessions." | Towns and rooms are CrewHub's; every fact is crewhub-loops'. |
 | 17-26 | The diagram with Bridge, Herdr adapter and direct adapters | The diagram of section 3. |
-| 30-37 | Table rows "Bridge", "Adapter", "Protocol", "Tauri companion" | Rows "loops client" and "crewhub-loops (external)". |
+| 30-37 | Table rows "Bridge", "Adapter", "Protocol", "Tauri companion" | Rows "Host", "loops client" and "crewhub-loops (external)". |
 | 45-46 | "Rust is the intended bridge starting point; …" | Removed. |
 | 50-55 | Integration order 1-5 | The phases of section 10. |
-| 57-60 | "Browser clients cannot directly open Herdr's Unix domain socket … The bridge provides that local access. …" | The same-origin session access of section 3, and why not a CLI relay. |
-| 64-76 | Session identity and command ownership | Identity is the loops principal id; commands are loops writes with the person's session (phase 5). |
+| 57-60 | "Browser clients cannot directly open Herdr's Unix domain socket … The bridge provides that local access. …" | The host reaches crewhub-loops over its Unix socket; browsers reach the host (section 3). |
+| 64-76 | Session identity and command ownership | Identity is the loops principal id; CrewHub sends no commands; human actions open the loops web app. |
 | 80-88 | Events and reconnection against Herdr | The loops stream contract: `lastSeq`, 300 s end, heartbeats, 410 resync. |
-| 92-100 | Loopback pairing, remote access across Tailscale | Session auth, Origin guard and Tailscale Serve, all as deployed by crewhub-loops. |
+| 92-100 | Loopback pairing, remote access across Tailscale | Host pairing code, HttpOnly cookie, Origin check, Tailscale Serve on the host's own port. |
 | 104-108 | Primary references (Herdr, Tauri, Codex App Server, Claude SDK, MCP) | `loops:docs/events.md`, `loops:docs/team.md`, `loops:docs/agents.md`. |
 
 Other documents that this plan supersedes in part, and that should say so at
 the top once it is accepted: [ROADMAP.md](ROADMAP.md) (M5 to M7), [TOWN_PLAN.md](TOWN_PLAN.md)
 (sections 2, 3, 7 and 8), [ADR 0003](decisions/0003-towns-and-session-bindings.md)
-(the runtime bindings), and the ARCHITECTURE row of [docs/README.md](README.md).
+(the runtime bindings), [TOWN_PLAN.md](TOWN_PLAN.md) section 6 (IndexedDB becomes the host's world
+database), and the ARCHITECTURE row of [docs/README.md](README.md).

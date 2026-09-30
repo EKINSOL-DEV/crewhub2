@@ -1,48 +1,63 @@
-# 0005: CrewHub World is a thin 3D client of crewhub-loops
+# 0005: CrewHub World is a thin 3D layer on crewhub-loops
 
-Status: proposed (2026-09-30); awaiting Nicky's acceptance. Number 0005 because
-0004 is taken by the design-system decision on the `feat/loops-design-system`
-branch.
+Status: proposed (2026-09-30), revised after Nicky's first answers; awaiting
+acceptance. Number 0005 because 0004 is taken by the design-system decision on
+the `feat/loops-design-system` branch.
 
 ## Context
 
 crewhub-loops now holds projects, tickets, agents, deliveries, messages, team
-presence and stall states, and it publishes them through a REST API, an NDJSON
-event stream and an agent CLI. CrewHub was planned as a world with its own
-bridge, Herdr-first adapters and a session model. That duplicated what
-crewhub-loops already does and put a runtime inside the 3D application. On
-2026-09-30 Nicky directed that crewhub-loops becomes the driving service and
-that CrewHub keeps only the 3D world.
+presence and stall states. It publishes them through a REST API and an NDJSON
+event stream on a Unix socket and TCP, and agents use it through the `crewhub`
+CLI.
+
+CrewHub was planned as a world with its own bridge, Herdr-first adapters and a
+session model. That duplicated crewhub-loops and put a runtime inside the 3D
+application. On 2026-09-30 Nicky directed that crewhub-loops becomes the
+driving service and that CrewHub keeps only the 3D world, with a proper local
+database for world information.
 
 ## Decision
 
-- crewhub-loops is the only source of facts. CrewHub World reads it with the
-  signed-in person's session, from the same origin as the loops web app: initial
-  REST reads plus the event stream with `lastSeq` replay.
-- CrewHub stores only layout and presentation state, locally at first.
-- Every project is a building. Rooms follow the ticket workflow, and the lead is
-  at the centre of its building.
-- CrewHub's own work is dynamic pathfinding, the visual expression of
+- **Source of facts.** crewhub-loops is the only source of facts. A small
+  CrewHub host process runs next to it. The host:
+  - reads crewhub-loops over its socket with a read-only agent key
+  - keeps facts in memory only
+  - owns a SQLite world database with layout, props, roles, settings and
+    director plans
+  - serves the browser world after pairing
+
+  The browser renders the world and runs the movement. Nothing is served by
+  crewhub-loops, and no loops credential reaches the browser.
+- **Buildings and rooms.** Every project is a building.
+  - Agents sit in rooms by role, from a predefined catalogue, with the lead's
+    office at the centre.
+  - Tickets are physical work objects that move through rooms by status, and
+    their look follows their kind.
+  - An agent in several buildings is one real avatar where it works now, with
+    proxies elsewhere.
+- **CrewHub's own work.** Dynamic pathfinding, the visual expression of
   crewhub-loops facts, and props (a catalogue and user-made parts props).
-- The bridge, `packages/protocol`, the simulated crew and the Herdr, Claude Code
-  and Codex adapter plans are removed.
-- The world does not run a relay around the `crewhub` CLI. The CLI stays the
-  agents' surface, and the world uses it for fixtures, tests and an optional
-  director lane.
-- Presentation is deterministic by default. AI-driven behaviour is optional,
-  off by default and budgeted under the cost policy.
+- **Removed.** The bridge, `packages/protocol`, the simulated crew and the
+  Herdr, Claude Code and Codex adapter plans.
+- **Behaviour.** Presentation is deterministic by default. An optional
+  `world-director` lane on Haiku, built on the postman pattern, plans idle
+  movement every 5 minutes and after events. It is capped, off until switched
+  on, and its usage is measured.
 
 The full plan is [LOOPS_INTEGRATION_PLAN.md](../LOOPS_INTEGRATION_PLAN.md).
 
 ## Consequences
 
-- CrewHub no longer needs machine access, pairing, Tauri or its own protocol.
-  Its shell shrinks to a client module, the engine and the renderer.
-- CrewHub depends on the crewhub-loops contracts. It must validate them at
-  runtime and pin the loops commit it was tested against.
-- crewhub-loops needs a same-origin mount and a sign-in `next` path. It should
-  also publish schemas. A viewer role and server-side world storage are needed
-  only for later phases.
+- CrewHub's shell is one host process, a client package, the engine and the
+  renderer. It needs no Tauri, no pairing with runtimes and no protocol of its
+  own.
+- The host acts as an agent. It sees no DM content, and human actions happen in
+  the loops web app, which the world links to.
+- CrewHub depends on the crewhub-loops contracts. It validates them at runtime
+  and pins the loops commit it was tested against.
+- crewhub-loops should add a read-only `viewer` role and published schemas. The
+  other proposals are optional.
 - Demo mode without an account becomes a labelled replay of recorded loops
   events.
 - This supersedes the runtime-binding parts of
