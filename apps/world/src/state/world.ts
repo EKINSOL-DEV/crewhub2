@@ -33,7 +33,8 @@ class WorldRuntime {
   #frame = 0;
 
   constructor() {
-    this.source = createDemoSource({ scheduler: browserScheduler() });
+    // The script starts at the minute the page opened, so the copied chat's relative times read naturally.
+    this.source = createDemoSource({ scheduler: browserScheduler(), epochMs: Math.floor(Date.now() / 60_000) * 60_000 });
     this.projection = new Projection(this.source);
     this.source.start((message) => this.projection.apply(message));
     this.projection.onChange(() => this.#schedule());

@@ -54,6 +54,11 @@ export interface DemoSourceOptions {
   startAt?: number;
   /** Initial speed. Default 1. */
   speed?: PlaybackSpeed;
+  /**
+   * Demo time of the script start, ms since the epoch. Default DEMO_EPOCH_MS, which keeps tests byte-identical;
+   * the world passes the minute the page opened, so relative times ("2 min ago") read naturally.
+   */
+  epochMs?: number;
 }
 
 export interface DemoSource extends WorldSource {
@@ -106,7 +111,8 @@ export function createDemoSource(options: DemoSourceOptions): DemoSource {
   const listeners = new Set<(message: SourceMessage) => void>();
   const changeListeners = new Set<() => void>();
 
-  const base = () => DEMO_EPOCH_MS + loop * SCRIPT_DURATION_MS;
+  const epoch = options.epochMs ?? DEMO_EPOCH_MS;
+  const base = () => epoch + loop * SCRIPT_DURATION_MS;
   const send = (message: SourceMessage) => {
     for (const listener of [...listeners]) listener(message);
   };
