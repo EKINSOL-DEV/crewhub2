@@ -30,6 +30,7 @@
     "packages/world-engine/test",
     "packages/world-model/src",
     "packages/world-model/test",
-    "scripts/prop-validate.ts"
+    "scripts/prop-validate.ts",
+    "scripts/scan-model-calls.ts"
   ]
 }
