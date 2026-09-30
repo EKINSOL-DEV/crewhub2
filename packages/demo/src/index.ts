@@ -1,0 +1,10 @@
+export { createDemoSource } from "./source.ts";
+export type { DemoSource, DemoSourceOptions } from "./source.ts";
+export { DEMO_SEED, PROBE_SILENCE, SCRIPT_DURATION_MS, buildScript } from "./script.ts";
+export type { ScriptEntry } from "./script.ts";
+export type { Action } from "./actions.ts";
+export { browserScheduler, createManualScheduler } from "./scheduler.ts";
+export type { ManualScheduler, Scheduler } from "./scheduler.ts";
+export { DEMO_EPOCH_MS } from "./time.ts";
+export { DEMO_PROPS, propComment } from "./props.ts";
+export * as DEMO_CONTENT from "./content.ts";

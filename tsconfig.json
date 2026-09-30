@@ -24,6 +24,8 @@
     "apps/world/vite.config.ts",
     "packages/loops-client/src",
     "packages/loops-client/test",
+    "packages/demo/src",
+    "packages/demo/test",
     "packages/world-engine/src",
     "packages/world-engine/test",
     "packages/world-model/src",

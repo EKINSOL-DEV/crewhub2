@@ -9,6 +9,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@crewhub/demo": "0.0.0",
+    "@crewhub/loops-client": "0.0.0",
     "@crewhub/world-engine": "0.0.0",
     "@crewhub/world-model": "0.0.0",
     "@fontsource-variable/archivo": "5.3.0",

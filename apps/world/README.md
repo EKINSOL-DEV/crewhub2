@@ -5,7 +5,8 @@ Start it from the repository root with `npm run dev`.
 
 The renderer reads only the `WorldModel` contract from `packages/world-model`.
 `src/state/world.ts` (`useWorld`) is the one seam between data and presentation; it
-currently returns a static, clearly labelled demo fixture (`src/state/fixtureWorld.ts`).
+runs the scripted demo source (`@crewhub/demo`) through the projection, `reduceWorld` and
+`describeWorld`. Nothing reaches the network, and everything is labelled as demo.
 `src/world/TownScene.ts` owns the Three.js town, camera, picking and on-demand frame
 loop, built from the Greenhouse models, materials and lighting (`models.ts`,
 `shaders.ts`, and the scene palette in `data.ts`). `src/world/townLayout.ts` holds the
