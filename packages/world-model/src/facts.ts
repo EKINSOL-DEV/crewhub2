@@ -71,6 +71,17 @@ export interface MoveFact {
   reason: string | null;
 }
 
+/** A `ticket.archived` (the truck) or `ticket.unarchived` (back from the truck), for the ticket drone. */
+export interface ArchiveFact {
+  seq: number;
+  ts: number;
+  slug: string | null;
+  ticketId: string;
+  ticketKey: string;
+  /** The card as it was when archived; null when the world never had it, or for an unarchive. */
+  card: TicketCard | null;
+}
+
 export interface DeliveryFact {
   deliveryId: string;
   /** From `delivery.created`; null when only a `delivery.updated` was seen. */
@@ -117,6 +128,11 @@ export interface Facts {
   /** Recent lines, oldest first, capped. */
   progress: ProgressFact[];
   comments: CommentFact[];
+  /** Recent `ticket.archived` and `ticket.unarchived`, oldest first, capped. */
+  archives: ArchiveFact[];
+  unarchives: ArchiveFact[];
+  /** Counts loaded snapshots (a seek or a new loop is a snapshot): flights end there. */
+  snapshots: number;
   /** The last `ticket.moved` per ticket id. */
   lastMoves: Record<string, MoveFact>;
   deliveries: Record<string, DeliveryFact>;
@@ -148,6 +164,9 @@ export function emptyFacts(): Facts {
     archivedTickets: {},
     progress: [],
     comments: [],
+    archives: [],
+    unarchives: [],
+    snapshots: 0,
     lastMoves: {},
     deliveries: {},
     invalidEvents: 0,

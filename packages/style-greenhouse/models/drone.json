@@ -1,0 +1,282 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-drone",
+  "name": "Ticket drone",
+  "description": "The small drone that carries tickets between rooms: a soft body, four quiet rotors and a hook.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "sphere",
+      "size": [
+        0.14,
+        0.07,
+        0.14
+      ],
+      "position": [
+        0,
+        0.42,
+        0
+      ],
+      "material": "sage"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.1,
+        0.05,
+        0.1
+      ],
+      "position": [
+        0,
+        0.47,
+        0
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.03,
+        0.03,
+        0.03
+      ],
+      "position": [
+        0,
+        0.42,
+        0.13
+      ],
+      "material": "lamp-glow",
+      "emissive": true
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.2,
+        0.02,
+        0.03
+      ],
+      "position": [
+        0.0601,
+        0.44,
+        0.0601
+      ],
+      "material": "slate",
+      "rotation": [
+        0,
+        -45,
+        0
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.02,
+        0.04,
+        0.02
+      ],
+      "position": [
+        0.1202,
+        0.46,
+        0.1202
+      ],
+      "material": "slate"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.085,
+        0.01,
+        0.085
+      ],
+      "position": [
+        0.1202,
+        0.485,
+        0.1202
+      ],
+      "material": "glass"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.2,
+        0.02,
+        0.03
+      ],
+      "position": [
+        -0.0601,
+        0.44,
+        0.0601
+      ],
+      "material": "slate",
+      "rotation": [
+        0,
+        -135,
+        0
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.02,
+        0.04,
+        0.02
+      ],
+      "position": [
+        -0.1202,
+        0.46,
+        0.1202
+      ],
+      "material": "slate"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.085,
+        0.01,
+        0.085
+      ],
+      "position": [
+        -0.1202,
+        0.485,
+        0.1202
+      ],
+      "material": "glass"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.2,
+        0.02,
+        0.03
+      ],
+      "position": [
+        -0.0601,
+        0.44,
+        -0.0601
+      ],
+      "material": "slate",
+      "rotation": [
+        0,
+        -225,
+        0
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.02,
+        0.04,
+        0.02
+      ],
+      "position": [
+        -0.1202,
+        0.46,
+        -0.1202
+      ],
+      "material": "slate"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.085,
+        0.01,
+        0.085
+      ],
+      "position": [
+        -0.1202,
+        0.485,
+        -0.1202
+      ],
+      "material": "glass"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.2,
+        0.02,
+        0.03
+      ],
+      "position": [
+        0.0601,
+        0.44,
+        -0.0601
+      ],
+      "material": "slate",
+      "rotation": [
+        0,
+        -315,
+        0
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.02,
+        0.04,
+        0.02
+      ],
+      "position": [
+        0.1202,
+        0.46,
+        -0.1202
+      ],
+      "material": "slate"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.085,
+        0.01,
+        0.085
+      ],
+      "position": [
+        0.1202,
+        0.485,
+        -0.1202
+      ],
+      "material": "glass"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.01,
+        0.24,
+        0.01
+      ],
+      "position": [
+        0,
+        0.24,
+        0
+      ],
+      "material": "slate"
+    },
+    {
+      "shape": "torus",
+      "size": [
+        0.025,
+        0.01,
+        0
+      ],
+      "position": [
+        0,
+        0.11,
+        0
+      ],
+      "material": "brass",
+      "rotation": [
+        90,
+        0,
+        0
+      ]
+    }
+  ]
+}

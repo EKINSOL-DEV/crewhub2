@@ -1,0 +1,63 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-ticket-feature",
+  "name": "Cardboard box",
+  "description": "A feature ticket: a taped cardboard box.",
+  "category": "storage",
+  "tags": [
+    "greenhouse"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.28,
+        0.2,
+        0.24
+      ],
+      "position": [
+        0,
+        0.1,
+        0
+      ],
+      "material": "terracotta",
+      "radius": 0.012
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        0.01,
+        0.245
+      ],
+      "position": [
+        0,
+        0.201,
+        0
+      ],
+      "material": "cream",
+      "radius": 0.002
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.285,
+        0.01,
+        0.01
+      ],
+      "position": [
+        0,
+        0.201,
+        0
+      ],
+      "material": "clay",
+      "radius": 0.002
+    }
+  ]
+}

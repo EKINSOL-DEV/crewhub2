@@ -5,9 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { PROP_LIMITS, validatePropModel, type PropIssue, type PropModel } from "@crewhub/world-engine";
 import { Button, Card } from "./components/primitives";
-import { Assets } from "./world/models";
-import { partsModel } from "./world/partsModel";
-import { propMaterialColors, propStudioLights } from "./world/data";
+import { DEFAULT_STYLE_ID, styleRegistry } from "./world/style";
 
 const files = import.meta.glob<unknown>("../../../skills/prop-builder/references/examples/*.json", {
   eager: true,
@@ -92,25 +90,16 @@ function PreviewCanvas({ angle }: { angle: number }) {
     renderer.setClearColor(0x000000, 0);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFShadowMap;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.18;
     renderer.domElement.setAttribute("aria-hidden", "true");
     el.prepend(renderer.domElement);
 
-    const assets = new Assets();
+    // The town default style draws the props, with its day light rig.
+    const style = styleRegistry.getStyle(DEFAULT_STYLE_ID);
     const scene = new THREE.Scene();
     const lines: THREE.Line[] = [];
-    const lineMaterial = new THREE.LineBasicMaterial({ color: propMaterialColors.coral });
-    const approachMaterial = new THREE.LineBasicMaterial({ color: propMaterialColors.slate });
-    scene.add(new THREE.HemisphereLight(propStudioLights.sky, propStudioLights.ground, 2.2));
-    const sun = new THREE.DirectionalLight(propStudioLights.sun, 3.3);
-    sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
-    sun.shadow.normalBias = 0.035;
-    sun.shadow.radius = 3;
-    scene.add(sun, sun.target);
-    const fill = new THREE.DirectionalLight(propStudioLights.fill, 0.8);
-    scene.add(fill);
+    const lineMaterial = new THREE.LineBasicMaterial({ color: style.color("coral", "day") });
+    const approachMaterial = new THREE.LineBasicMaterial({ color: style.color("slate", "day") });
+    const environment = style.environment(scene, renderer, "day");
 
     const models = valid.map((e) => e.model);
     // Narrow screens get narrower rows, so the props stay large enough to judge.
@@ -123,8 +112,8 @@ function PreviewCanvas({ angle }: { angle: number }) {
         d = m.footprint.depth * CELL;
       const tile = new THREE.Group();
       tile.position.set(spot.x, 0, spot.z);
-      const plinth = assets.box(w + 0.3, 0.12, d + 0.3, propMaterialColors.chalk, 0.05);
-      plinth.position.y = -0.035;
+      const plinth = style.model("path", { size: { width: w + 0.3, height: 0.04, depth: d + 0.3 } });
+      plinth.position.y = -0.02;
       tile.add(plinth);
       const border = outline(w, d, lineMaterial);
       lines.push(border);
@@ -135,7 +124,7 @@ function PreviewCanvas({ angle }: { angle: number }) {
         lines.push(mark);
         tile.add(mark);
       }
-      const prop = partsModel(m, assets);
+      const prop = style.parts(m);
       prop.position.y = 0.025;
       tile.add(prop);
       content.add(tile);
@@ -146,10 +135,7 @@ function PreviewCanvas({ angle }: { angle: number }) {
     content.position.sub(new THREE.Vector3(centre.x, 0, centre.z));
     anchors.forEach((a) => a.point.sub(new THREE.Vector3(centre.x, 0, centre.z)));
     scene.add(content);
-    const radius = box.getSize(new THREE.Vector3()).length() / 2;
-    sun.position.set(-4, 10, -6);
-    fill.position.set(6, 5, 7);
-    Object.assign(sun.shadow.camera, { left: -radius, right: radius, top: radius, bottom: -radius, far: 40 });
+    environment.setShadowReach(box.getSize(new THREE.Vector3()).length() / 2);
 
     const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
     const azimuth = (angle * Math.PI) / 180;
@@ -199,7 +185,7 @@ function PreviewCanvas({ angle }: { angle: number }) {
       lines.forEach((l) => l.geometry.dispose());
       lineMaterial.dispose();
       approachMaterial.dispose();
-      assets.dispose();
+      environment.dispose();
       renderer.dispose();
       renderer.domElement.remove();
     };

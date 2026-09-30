@@ -294,3 +294,46 @@ test("describeWorld has a line for every building, object and agent", () => {
   assert.match(text, /OS\) is boarded up/);
   assert.ok(lines.some((l) => l.kind === "inference" && l.text.includes("cl-dev-1")));
 });
+
+test("a stall counts its nudges and the text view names them, the dimmed lamp and the room's pile", () => {
+  const { reduce, event } = world({
+    projects: [CL],
+    agents: [registered("cl-lead")],
+    boards: {
+      "crewhub-loops": board([
+        card("t9", "CL-9", "in_progress", { assignee: agentRef("cl-lead") }),
+        card("t10", "CL-10", "review", { labels: [{ id: "l1", name: "prop", color: "mist" }] }),
+        card("t11", "CL-11", "review"),
+      ]),
+    },
+    team: team(T0, [lane("cl-lead", "idle")]),
+  });
+  const stalled = (seq: number, nudge: unknown) =>
+    envelope(
+      "ticket.stalled",
+      {
+        ticket: "CL-9",
+        agent: "cl-lead",
+        episode: 1,
+        reason: "stalled",
+        quietSince: new Date(T0 - 47 * 60_000).toISOString(),
+        quietMinutes: 47,
+        members: [{ name: "cl-lead", status: "idle" }],
+        nudge,
+      },
+      { seq },
+    );
+  event(stalled(101, 1));
+  event(stalled(102, 2));
+  const model = reduce();
+  assert.deepEqual(building(model).objects.find((o) => o.key === "CL-9")?.stall, {
+    state: "stalled",
+    quietSince: new Date(T0 - 47 * 60_000).toISOString(),
+    quietMinutes: 47,
+    nudges: 2,
+  });
+  const text = describeWorld(model).map((l) => l.text).join("\n");
+  assert.match(text, /CL-9 .*stalled, quiet 47 min, nudged 2 times, the desk lamp dimmed/);
+  assert.match(text, /Review room: 2 tickets in the pile\./);
+  assert.match(text, /CL-10 .*a star sticker: a prop request/);
+});

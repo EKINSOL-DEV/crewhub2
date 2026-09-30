@@ -1,25 +1,14 @@
+/* Greenhouse shaders, moved from apps/world/src/world/shaders.ts. Colours are passed in (from style.json). */
 import * as THREE from "three";
 
-export function floorMaterial(width: number, depth: number) {
-  const material = new THREE.MeshStandardMaterial({
-    color: "#efe9db",
-    roughness: 0.93,
-  });
-  const grid = { value: 0.0 };
+/** The studio floor: a faint grid, a checker and sun shafts, on a standard material. UVs are in cells. */
+export function floorShader(material: THREE.MeshStandardMaterial): THREE.MeshStandardMaterial {
+  material.roughness = 0.93;
   material.onBeforeCompile = (shader) => {
-    shader.uniforms.uGrid = grid;
     shader.vertexShader =
-      "varying vec2 vFloor;\n" +
-      shader.vertexShader.replace(
-        "#include <begin_vertex>",
-        "#include <begin_vertex>\nvFloor = uv * vec2(" +
-          width.toFixed(1) +
-          "," +
-          depth.toFixed(1) +
-          ");",
-      );
+      "varying vec2 vFloor;\n" + shader.vertexShader.replace("#include <begin_vertex>", "#include <begin_vertex>\nvFloor = uv;");
     shader.fragmentShader =
-      "varying vec2 vFloor; uniform float uGrid;\n" +
+      "varying vec2 vFloor;\n" +
       shader.fragmentShader.replace(
         "#include <color_fragment>",
         `#include <color_fragment>
@@ -27,23 +16,19 @@ export function floorMaterial(width: number, depth: number) {
       float line = 1.0 - min(min(edge.x, edge.y), 1.0);
       float checker = mod(floor(vFloor.x) + floor(vFloor.y), 2.0);
       diffuseColor.rgb *= 1.0 - checker * 0.018;
-      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.33, 0.48, 0.39), line * mix(0.035, 0.45, uGrid));
+      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.33, 0.48, 0.39), line * 0.05);
       float diagonal = vFloor.x + vFloor.y * 0.64;
       float shafts = smoothstep(0.1, 0.2, fract(diagonal / 3.0)) * (1.0 - smoothstep(0.82, 0.91, fract(diagonal / 3.0)));
-      float sun = shafts * (1.0 - smoothstep(8.0, 14.0, vFloor.y)) * smoothstep(2.0, 4.0, vFloor.x);
-      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0, 0.91, 0.66), sun * 0.12);
+      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0, 0.91, 0.66), shafts * 0.06);
     `,
       );
   };
-  return { material, grid };
+  return material;
 }
 
-export function glassMaterial() {
+export function glassMaterial(color: string, opacity: number) {
   return new THREE.ShaderMaterial({
-    uniforms: {
-      uOpacity: { value: 0.22 },
-      uColor: { value: new THREE.Color("#c0dccd") },
-    },
+    uniforms: { uOpacity: { value: opacity }, uColor: { value: new THREE.Color(color) } },
     transparent: true,
     depthWrite: false,
     side: THREE.DoubleSide,
@@ -61,11 +46,7 @@ export function glassMaterial() {
 
 export function haloMaterial(color: string) {
   return new THREE.ShaderMaterial({
-    uniforms: {
-      uColor: { value: new THREE.Color(color) },
-      uTime: { value: 0 },
-      uActive: { value: 0 },
-    },
+    uniforms: { uColor: { value: new THREE.Color(color) }, uTime: { value: 0 }, uActive: { value: 0 } },
     transparent: true,
     depthWrite: false,
     vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,

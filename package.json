@@ -12,8 +12,10 @@
     "apps/world",
     "packages/demo",
     "packages/loops-client",
+    "packages/style-greenhouse",
     "packages/world-engine",
-    "packages/world-model"
+    "packages/world-model",
+    "packages/world-style"
   ],
   "scripts": {
     "dev": "npm run dev --workspace @crewhub/world",

@@ -8,3 +8,4 @@ export { emptyMemory } from "./memory.ts";
 export { Projection } from "./projection.ts";
 export { freshnessOf, reduceWorld } from "./reducer.ts";
 export { describeWorld } from "./describe.ts";
+export { flightMs, FLIGHT_MAX_MS, FLIGHT_MIN_MS } from "./flights.ts";
