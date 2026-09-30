@@ -11,6 +11,9 @@ export { describeWorld } from "./describe.ts";
 export type * from "./townDocument.ts";
 export type * from "./history.ts";
 export type * from "./catalogue.ts";
+export type * from "./propRequests.ts";
+export type * from "./ruleProps.ts";
+export type { InvalidPropRequest } from "./describeTown.ts";
 export {
   ATTACHMENT_KINDS,
   DEFAULT_STYLE_ID,
@@ -37,3 +40,15 @@ export {
   undoHistory,
 } from "./history.ts";
 export { builtinIds, createCatalogue, findFreeCell, sameSite, siteLayout, takesFootprint } from "./catalogue.ts";
+export {
+  PROP_LABEL,
+  extractPropRequest,
+  importedPropId,
+  jsonBlocks,
+  placeFor,
+  propRequestsFromFacts,
+  richJsonBlocks,
+  ticketBodyText,
+} from "./propRequests.ts";
+export { AWAITING_DEPLOY_LABEL, ruleProps } from "./ruleProps.ts";
+export { describeTownDocument } from "./describeTown.ts";
