@@ -7,10 +7,19 @@ import { PROP_LIMITS, validatePropModel, type PropIssue, type PropModel } from "
 import { Button, Card } from "./components/primitives";
 import { DEFAULT_STYLE_ID, styleRegistry } from "./world/style";
 
-const files = import.meta.glob<unknown>("../../../skills/prop-builder/references/examples/*.json", {
-  eager: true,
-  import: "default",
-});
+/* Three groups: the skill's examples, the skill's eval runs, and the demo world's prop tickets (its broken sign shows
+   as an invalid card, on purpose). `?group=eval` or `?group=demo` narrows the page to one group. */
+const groups: Record<string, Record<string, unknown>> = {
+  examples: import.meta.glob<unknown>("../../../skills/prop-builder/references/examples/*.json", { eager: true, import: "default" }),
+  eval: import.meta.glob<unknown>("../../../skills/prop-builder/evals/*/*.json", { eager: true, import: "default" }),
+  demo: import.meta.glob<unknown>("../../../packages/demo/src/props/*.json", { eager: true, import: "default" }),
+};
+const only = typeof location !== "undefined" ? new URLSearchParams(location.search).get("group") : null;
+const files: Record<string, unknown> = Object.fromEntries(
+  Object.entries(groups)
+    .filter(([group]) => !only || group === only)
+    .flatMap(([group, found]) => Object.entries(found).map(([path, json]) => [`${group}/${path.split("/").pop() ?? path}`, json])),
+);
 
 type Entry =
   | { file: string; ok: true; model: PropModel; warnings: PropIssue[] }
@@ -19,7 +28,7 @@ type Entry =
 const entries: Entry[] = Object.entries(files)
   .sort(([a], [b]) => a.localeCompare(b))
   .map(([path, json]) => {
-    const file = path.split("/").pop() ?? path;
+    const file = path;
     const result = validatePropModel(json);
     return result.ok
       ? { file, ok: true, model: result.value, warnings: result.warnings }
@@ -230,7 +239,7 @@ export default function PropsPreview() {
         <Button onClick={() => setAngle((a) => a + 45)}>Turn right</Button>
       </header>
       <p style={{ marginTop: 0, color: "var(--text-muted)" }}>
-        {valid.length} of {entries.length} prop-builder examples valid. The coloured outline is the footprint the grid
+        {valid.length} of {entries.length} props valid (examples, eval runs and demo props; the demo's broken sign is invalid on purpose). The coloured outline is the footprint the grid
         engine uses; grey squares are approach cells.
       </p>
       <PreviewCanvas angle={angle} />
