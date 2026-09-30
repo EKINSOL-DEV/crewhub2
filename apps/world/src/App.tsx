@@ -1,8 +1,12 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type Ref } from "react";
-import { ArrowLeft, FlaskConical, Minus, Monitor, Moon, Pause, Plus, RotateCcw, RotateCw, Scan, Settings, Sprout, Sun, X } from "lucide-react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type Ref } from "react";
+import { ArrowLeft, FlaskConical, MessageCircle, Minus, Monitor, Moon, Pause, Plus, RotateCcw, RotateCw, Scan, Settings, Sprout, Sun, X } from "lucide-react";
+import { QueryClientProvider } from "@tanstack/react-query";
 import type { PlaybackControls, PlaybackSpeed, TextLine } from "@crewhub/world-model";
+import { Bubbles } from "./components/bubbles/Bubbles";
+import { IconSprite } from "./components/Icon";
 import { Button, Card, Chip } from "./components/primitives";
 import { SceneBoundary } from "./components/SceneBoundary";
+import { createChatQueryClient, useChatEvents, useChatNavigation, useChatView } from "./state/chat";
 import { useTheme } from "./state/theme";
 import { useWorld } from "./state/world";
 import type { CameraAction } from "./world/TownScene";
@@ -13,11 +17,34 @@ const WorldCanvas = lazy(() => import("./components/WorldCanvas"));
 const THEME_ICON = { system: Monitor, light: Sun, dark: Moon } as const;
 const NEXT_THEME = { system: "light", light: "dark", dark: "system" } as const;
 
+/* Below this width the chat is loops' narrow mode: a "Agent chats" menu in the corner and the chat as a full-screen dialog. */
+const NARROW = "(max-width: 899px)";
+const useNarrow = () =>
+  useSyncExternalStore(
+    (listener) => {
+      const media = window.matchMedia(NARROW);
+      media.addEventListener("change", listener);
+      return () => media.removeEventListener("change", listener);
+    },
+    () => window.matchMedia(NARROW).matches,
+  );
+
 const prefersReducedMotion = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const typing = (target: EventTarget | null) => target instanceof HTMLElement && (target.matches("input, select, textarea") || target.isContentEditable);
 
 export function App() {
+  const [queryClient] = useState(createChatQueryClient);
+  return (
+    <QueryClientProvider client={queryClient}>
+      <World />
+    </QueryClientProvider>
+  );
+}
+
+function World() {
   const { model, text, playback } = useWorld();
+  const narrow = useNarrow();
+  const dockHeight = useDockHeight();
   const { theme, cycle } = useTheme();
   const [entered, setEntered] = useState<string | null>(null);
   const [focused, setFocused] = useState(0);
@@ -81,6 +108,9 @@ export function App() {
   useEffect(() => {
     if (textOpen) textRegion.current?.focus();
   }, [textOpen]);
+  useChatEvents();
+  useChatView(inside?.lead.id ?? null);
+  useChatNavigation(openSettings);
   useEffect(() => {
     if (settingsOpen) settingsCard.current?.querySelector<HTMLElement>("button")?.focus();
   }, [settingsOpen]);
@@ -153,7 +183,12 @@ export function App() {
   const demo = model.mode === "demo";
 
   return (
-    <div className="world-shell">
+    <div
+      className="world-shell"
+      data-dock={dockHeight === null ? undefined : ""}
+      style={dockHeight === null ? undefined : ({ "--dock-height": `${dockHeight}px` } as CSSProperties)}
+    >
+      <IconSprite />
       <a className="skip-link" href="#text-view" onClick={(e) => (e.preventDefault(), openText())}>
         Open the text view (T)
       </a>
@@ -231,7 +266,7 @@ export function App() {
             action={<Button variant="ghost" size="sm" iconOnly aria-label="Close settings" icon={<X className="icon" aria-hidden="true" />} onClick={closeSettings} />}
           />
           <Card.Body>
-            <p className="sign-muted">Nothing to set yet.</p>
+            <p className="sign-muted">Nothing to set yet. Agent settings live in the crewhub-loops web app; the demo has none.</p>
           </Card.Body>
         </Card>
       )}
@@ -246,12 +281,49 @@ export function App() {
         </div>
       )}
 
+      <div className="world-chat">
+        <Bubbles narrow={narrow} />
+        {demo && (
+          <Chip className="demo-chat-chip" icon={<MessageCircle className="icon" aria-hidden="true" />}>
+            Demo: replies are scripted
+          </Chip>
+        )}
+      </div>
+
       {playback && <PlaybackBar playback={playback} />}
 
       {(textOpen || graphicsFailed) && <TextView ref={textRegion} lines={text} fallback={graphicsFailed} onClose={graphicsFailed ? null : closeText} />}
     </div>
   );
 }
+
+/* The copied dock renders itself into <body>. Its height goes on the shell (`--dock-height`, `data-dock`) so the demo note and
+   the camera toolbar can stack above it; without a dock (the narrow "Agent chats" menu) they keep their own places. */
+function useDockHeight(): number | null {
+  const [height, setHeight] = useState<number | null>(null);
+  useEffect(() => {
+    let dock: Element | null = null;
+    const measure = () => setHeight(dock ? dock.getBoundingClientRect().height : null);
+    const resize = new ResizeObserver(measure);
+    const find = () => {
+      const found = document.querySelector("body > aside.dock");
+      if (found === dock) return;
+      if (dock) resize.unobserve(dock);
+      dock = found;
+      if (dock) resize.observe(dock);
+      measure();
+    };
+    const children = new MutationObserver(find);
+    children.observe(document.body, { childList: true });
+    find();
+    return () => {
+      children.disconnect();
+      resize.disconnect();
+    };
+  }, []);
+  return height;
+}
+
 
 const SPEEDS: readonly { speed: PlaybackSpeed; label: string }[] = [
   { speed: 0, label: "Pause" },
