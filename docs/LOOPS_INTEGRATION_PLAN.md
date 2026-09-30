@@ -30,7 +30,7 @@ people talk to them. CrewHub becomes **CrewHub World**. It has two parts:
 The world model:
 
 - Every project is a building.
-- Inside a building, people and work have separate rooms:
+- Inside a building, agents and work have separate rooms:
   - Agents sit in rooms by role, from a predefined catalogue: the lead's office
     at the centre, then a workers room, an analyst room and a design room.
   - Tickets are physical objects (folders, boxes, crates, envelopes by `kind`)
@@ -52,13 +52,16 @@ events. It is switchable and capped, and its usage is monitored.
 | Question | Answer | Where it lands |
 | --- | --- | --- |
 | Serve the world from crewhub-loops (`/world/`)? | No. Use the CLI and socket path instead; nothing is served by crewhub-loops. | Section 3 |
-| Rooms by ticket status or by milestone? | First answer: rooms by agent role (lead's office, workers, analyst, design) from a predefined catalogue. Follow-up ideas: ticket kind as a source, or a room per status with boxes and files that pile up. The plan combines them: people by role, work objects by status, kind as the object's look. **Please confirm.** | Section 4.2 |
+| Rooms by ticket status or by milestone? | Rooms by agent role (lead's office, workers, analyst, design) from a predefined catalogue, combined with a room per status where boxes and files move and pile up; the ticket kind sets the object's look. Confirmed. | Section 4.2 |
+| Are people shown? | No. The world shows only agent avatars for now. A person appears only as a name on the boxes that wait for them. | Sections 4.2 and 4.5 |
+| Role catalogue and name rules? | Accepted; recheck once crewhub-loops documents agent roles. | Section 4.2 |
+| Which agent is "the main agent"? | The agent flagged `is_crewhub_lead`. crewhub-loops already pins it by default (`loops:.../domain/dm.py:357-371`). | Section 4.7 |
 | Local-only layout storage for now? | A proper local database holds all world information. | Sections 3 and 6 |
 | Can one agent belong to several buildings? | Yes. Either clone it visually, or keep one real agent with proxies, the real one where it is actively working. The plan takes the second. | Section 4.4 |
 | AI movement? | Yes, on Haiku or another very cheap model, planning every 5 minutes or after actions. Measure the cost of one Haiku and adapt. Postman suggested as its home. | Section 7 |
 | Deployment? | By default crewhub-loops and CrewHub run on the same machine. Tailscale is always optional. | Section 3.5 |
 | A world without DMs (the host reads as an agent)? | Accepted for the scene; superseded for chat by the next row. L5 stays optional. | Sections 3.1 and 9 |
-| How much UI? | As little as possible; let the 3D world be the 3D world. Initially only: the chat bubbles, an exact mirror of the loops chat (a hard requirement; by default just the main agent), navigation of the world and its buildings, and a minimal build mode for placing props. Details are looked up in the loops web app. | Sections 3.5 and 4.7 |
+| How much UI? | As little as possible; let the 3D world be the 3D world. Initially only: the chat bubbles, an exact mirror of the loops chat (a hard requirement; by default just the `is_crewhub_lead` agent), navigation of the world and its buildings, and a minimal build mode for placing props. Details are looked up in the loops web app. | Sections 3.5 and 4.7 |
 | The director in its own Haiku lane rather than inside postman? | Agreed: a dedicated `world-director` lane on the postman pattern. | Section 7.3 |
 
 ## 2. What crewhub-loops is today
@@ -351,9 +354,9 @@ public URL.
     `loops:config/projects.yaml`). The seed files only bootstrap; the database is
     the truth.
 
-### 4.2 Rooms: people by role, work by status
+### 4.2 Rooms: agents by role, work by status
 
-The building has two kinds of room. People sit in rooms by role (Nicky's
+The building has two kinds of room. Agents sit in rooms by role (Nicky's
 answer). Work is a physical object that moves between rooms by status, so load
 becomes visible as piles; the review room filling up is the clearest example
 (Nicky's second idea). The ticket's `kind` decides what the object looks like,
@@ -378,6 +381,8 @@ catalogue, predefined and stored in the world database:
   and its nameplate says so ("design, from its name"). A person can override it per agent, and the
   override is stored in the world database.
 - **Adding roles.** A new role is a catalogue row plus a room template.
+- **Recheck.** Nicky accepted the four roles and their rules. Recheck them
+  once crewhub-loops documents agent roles; see also L6.
 - **Growth.** A role room grows in 4 × 4 modules as desks are needed, following
   the capacity rules of [TOWN_PLAN.md](TOWN_PLAN.md) section 4. An empty role
   room stays, dimmed and labelled "no design agents active". Only an explicit
@@ -415,8 +420,7 @@ work is always on somebody's desk in a role room.
 **Shared spaces.**
 
 - **Lobby.** The entrance and the project sign. The mailbox holds deliveries
-  to this building's agents. The bench shows people who are waited on
-  ("waiting on Nicky (3)").
+  to this building's agents.
 - **Meeting room.** Built on first use (see 4.3).
 
 **Which agents are in a building:**
@@ -447,7 +451,7 @@ Done is a person's decision (`loops:docs/agents.md`, "Finishing a ticket").
 | `ticket.moved` to `done` by a person | The object goes from the pile to Dispatch, with the small celebration. |
 | `ticket.moved` from `review` to `in_progress` with `reason: review_reply` (`loops:.../domain/comments.py:137-145`) | The agent takes the object off the pile and back to its desk. |
 | `ticket.progress` | A caption above the agent: the line itself (at most 200 characters), with `kind` as an icon. It fades after 20 s; a `question` stays until the next line. |
-| `comment.created` | A speech mark without text (payloads carry no bodies) over the author, or at the bench if the author is a person. Selecting it opens the thread in the loops web app. |
+| `comment.created` | A speech mark without text (payloads carry no bodies) over the agent who wrote it; a person's comment shows as a speech mark on the ticket's box. Selecting it opens the thread in the loops web app. |
 | Two or more principals comment on one ticket within 10 minutes, or a lead and a worker report the same key | Inference: they meet in the meeting room, labelled "discussing CL-12". |
 | `delivery.created`, then `delivery.updated` | The postman avatar (the real `postman` agent) walks a letter from the post office to the recipient's building. `forwarded` hands it over; `uncertain` or `unroutable` leave a flagged letter at the mailbox. |
 | `ticket.stalled` (`stalled`) | The desk lamp dims and a clock shows "quiet 47 min"; nudges show as a counter. |
@@ -490,11 +494,13 @@ agent works in two places at once.
 
 ### 4.5 People
 
-People are not wandering avatars. A person appears on a building's lobby bench
-while a ticket there waits on them (`waitingOn` of kind `user`), labelled
-"waiting on Nicky (3)". When a person acts (a comment or a move), a short visitor
-animation plays. crewhub-loops does not publish whether a person is online, so
-neither does the world.
+For now the world shows only agent avatars. People have no avatar, no visitor
+animation and no bench. A person appears only as a name on the boxes that
+concern them: a ticket waiting on them (`waitingOn` of kind `user`) carries a
+name tag ("Nicky") wherever its box is, most often in the review pile. A
+person's move or comment shows only through its effect on the boxes.
+crewhub-loops does not publish whether a person is online, so neither does the
+world.
 
 ### 4.6 Facts versus inferences
 
@@ -547,7 +553,10 @@ Let the 3D world be the 3D world. The initial visible UI has exactly three parts
    - **Dependencies:** the copy brings `@tanstack/react-query` and the kit's
      `Menu` primitive, which the design-system branch left out until a need
      appeared.
-   - **Default:** with no pins, only the main agent's head shows (Q3).
+   - **Default:** with no pins, only the main agent's head shows: the agent
+     flagged `is_crewhub_lead`. crewhub-loops already returns it as the
+     default pin (`loops:.../domain/dm.py:357-371`), so the verbatim copy
+     behaves the same as loops without any adapter.
 2. **Navigation.**
    - Town overview, a building, a room: select a building to enter it, and use
      one "back" control.
@@ -869,12 +878,8 @@ Risks:
 
 Open questions for Nicky:
 
-- Q1. Confirm the combined room model of 4.2: people by role, work objects by
-  status, kind as the object's look.
-- Q2. Is the four-role catalogue complete (lead, workers, analyst, design), and
-  are the name rules right?
-- Q3. Who is "the main agent" whose bubble shows by default: the agent flagged
-  `is_crewhub_lead` in loops (`loops:docs/crewhub-lead.md`), or `g-man`?
+None are open. To recheck later: the role catalogue and its name rules,
+against the crewhub-loops docs on agent roles once they exist.
 
 ## 12. Sentences to change once this plan is accepted
 

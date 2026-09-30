@@ -35,7 +35,8 @@ database for world information.
   crewhub-loops, and no loops credential reaches the browser.
 - **Buildings and rooms.** Every project is a building.
   - Agents sit in rooms by role, from a predefined catalogue, with the lead's
-    office at the centre.
+    office at the centre. For now the world shows only agent avatars; people
+    appear only as names on the boxes that wait for them.
   - Tickets are physical work objects that move through rooms by status, and
     their look follows their kind.
   - An agent in several buildings is one real avatar where it works now, with
