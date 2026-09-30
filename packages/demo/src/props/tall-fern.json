@@ -1,17 +1,361 @@
 {
   "format": "crewhub-prop/1",
   "id": "user:tall-fern",
-  "name": "Tall fern for the lobby",
-  "description": "A terracotta pot with a tall, arching fern.",
-  "category": "plant",
-  "tags": ["plant", "lobby"],
-  "footprint": { "width": 1, "depth": 1 },
+  "name": "Tall fern",
+  "description": "A tall leafy fern in a terracotta pot, with arching fronds in two greens fanning out from a central stem.",
+  "category": "greenery",
+  "tags": [
+    "fern",
+    "plant",
+    "lobby"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
   "blocksMovement": true,
   "approaches": [],
   "parts": [
-    { "shape": "cylinder", "size": [0.5, 0.45, 0.5], "position": [0, 0.225, 0], "material": "timber" },
-    { "shape": "sphere", "size": [0.7, 0.9, 0.7], "position": [0, 0.95, 0], "material": "leaf" },
-    { "shape": "cone", "size": [0.25, 0.7, 0.25], "position": [0.2, 1.3, 0.1], "rotation": [0, 0, -0.5], "material": "leaf" },
-    { "shape": "cone", "size": [0.25, 0.7, 0.25], "position": [-0.2, 1.3, -0.1], "rotation": [0, 0, 0.5], "material": "leaf" }
+    {
+      "shape": "cylinder",
+      "size": [
+        0.21,
+        0.34,
+        0.15
+      ],
+      "position": [
+        0,
+        0.17,
+        0
+      ],
+      "material": "terracotta"
+    },
+    {
+      "shape": "torus",
+      "size": [
+        0.205,
+        0.022,
+        0
+      ],
+      "position": [
+        0,
+        0.335,
+        0
+      ],
+      "material": "terracotta"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.19,
+        0.03,
+        0.19
+      ],
+      "position": [
+        0,
+        0.34,
+        0
+      ],
+      "material": "soil"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.02,
+        0.85,
+        0.028
+      ],
+      "position": [
+        0,
+        0.78,
+        0
+      ],
+      "material": "moss"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.17,
+        0.02
+      ],
+      "position": [
+        -0.101,
+        0.474,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        48
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.17,
+        0.02
+      ],
+      "position": [
+        -0.016,
+        0.474,
+        0.12
+      ],
+      "rotation": [
+        0,
+        72,
+        48
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.17,
+        0.02
+      ],
+      "position": [
+        0.091,
+        0.474,
+        0.074
+      ],
+      "rotation": [
+        0,
+        144,
+        48
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.17,
+        0.02
+      ],
+      "position": [
+        0.072,
+        0.474,
+        -0.074
+      ],
+      "rotation": [
+        0,
+        216,
+        48
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.17,
+        0.02
+      ],
+      "position": [
+        -0.047,
+        0.474,
+        -0.12
+      ],
+      "rotation": [
+        0,
+        288,
+        48
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.24,
+        0.02
+      ],
+      "position": [
+        -0.079,
+        0.799,
+        0.079
+      ],
+      "rotation": [
+        0,
+        36,
+        34
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.24,
+        0.02
+      ],
+      "position": [
+        0.049,
+        0.799,
+        0.128
+      ],
+      "rotation": [
+        0,
+        108,
+        34
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.24,
+        0.02
+      ],
+      "position": [
+        0.109,
+        0.799,
+        0
+      ],
+      "rotation": [
+        0,
+        180,
+        34
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.24,
+        0.02
+      ],
+      "position": [
+        0.018,
+        0.799,
+        -0.128
+      ],
+      "rotation": [
+        0,
+        252,
+        34
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.24,
+        0.02
+      ],
+      "position": [
+        -0.098,
+        0.799,
+        -0.079
+      ],
+      "rotation": [
+        0,
+        324,
+        34
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.26,
+        0.02
+      ],
+      "position": [
+        -0.062,
+        1.141,
+        0.033
+      ],
+      "rotation": [
+        0,
+        20,
+        22
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.26,
+        0.02
+      ],
+      "position": [
+        0.04,
+        1.141,
+        0.092
+      ],
+      "rotation": [
+        0,
+        110,
+        22
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.26,
+        0.02
+      ],
+      "position": [
+        0.062,
+        1.141,
+        -0.033
+      ],
+      "rotation": [
+        0,
+        200,
+        22
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.26,
+        0.02
+      ],
+      "position": [
+        -0.04,
+        1.141,
+        -0.092
+      ],
+      "rotation": [
+        0,
+        290,
+        22
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.3,
+        0.02
+      ],
+      "position": [
+        0.025,
+        1.45,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "material": "leaf-dark"
+    }
   ]
 }

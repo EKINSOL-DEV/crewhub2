@@ -1,20 +1,233 @@
 {
   "format": "crewhub-prop/1",
   "id": "user:reading-nook",
-  "name": "Reading nook with a lamp",
-  "description": "A low armchair on a round rug with a standing lamp behind it.",
-  "category": "furniture",
-  "tags": ["seat", "lamp", "cosy"],
-  "footprint": { "width": 2, "depth": 2 },
+  "name": "Reading nook",
+  "description": "A small sage armchair with a cream cushion beside a brass floor lamp with a glowing bulb.",
+  "category": "rest",
+  "tags": [
+    "chair",
+    "lamp",
+    "lobby"
+  ],
+  "footprint": {
+    "width": 2,
+    "depth": 1
+  },
   "blocksMovement": true,
-  "approaches": [],
+  "approaches": [
+    {
+      "x": 0,
+      "z": 1
+    }
+  ],
   "parts": [
-    { "shape": "cylinder", "size": [1.8, 0.04, 1.8], "position": [0, 0.02, 0], "material": "leaf" },
-    { "shape": "box", "size": [0.9, 0.4, 0.8], "position": [-0.2, 0.25, 0], "material": "timber" },
-    { "shape": "box", "size": [0.9, 0.6, 0.15], "position": [-0.2, 0.7, -0.35], "material": "timber" },
-    { "shape": "box", "size": [0.15, 0.3, 0.8], "position": [-0.6, 0.55, 0], "material": "timber" },
-    { "shape": "box", "size": [0.15, 0.3, 0.8], "position": [0.2, 0.55, 0], "material": "timber" },
-    { "shape": "cylinder", "size": [0.05, 1.5, 0.05], "position": [0.7, 0.75, -0.6], "material": "chalk" },
-    { "shape": "cone", "size": [0.35, 0.3, 0.35], "position": [0.7, 1.55, -0.6], "material": "chalk", "emissive": 0.6 }
+    {
+      "shape": "box",
+      "size": [
+        0.05,
+        0.1,
+        0.05
+      ],
+      "position": [
+        -0.5,
+        0.05,
+        -0.2
+      ],
+      "material": "timber"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.05,
+        0.1,
+        0.05
+      ],
+      "position": [
+        -0.5,
+        0.05,
+        0.2
+      ],
+      "material": "timber"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.05,
+        0.1,
+        0.05
+      ],
+      "position": [
+        0,
+        0.05,
+        -0.2
+      ],
+      "material": "timber"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.05,
+        0.1,
+        0.05
+      ],
+      "position": [
+        0,
+        0.05,
+        0.2
+      ],
+      "material": "timber"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.56,
+        0.14,
+        0.5
+      ],
+      "position": [
+        -0.25,
+        0.17,
+        0
+      ],
+      "material": "sage",
+      "radius": 0.05
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.56,
+        0.5,
+        0.1
+      ],
+      "position": [
+        -0.25,
+        0.42,
+        -0.2
+      ],
+      "material": "sage",
+      "radius": 0.05
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.08,
+        0.26,
+        0.5
+      ],
+      "position": [
+        -0.5,
+        0.3,
+        0
+      ],
+      "material": "sage",
+      "radius": 0.035
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.08,
+        0.26,
+        0.5
+      ],
+      "position": [
+        0,
+        0.3,
+        0
+      ],
+      "material": "sage",
+      "radius": 0.035
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.38,
+        0.07,
+        0.36
+      ],
+      "position": [
+        -0.25,
+        0.27,
+        0.05
+      ],
+      "material": "cream",
+      "radius": 0.03
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.3,
+        0.04,
+        0.2
+      ],
+      "position": [
+        -0.25,
+        0.3,
+        -0.12
+      ],
+      "rotation": [
+        -18,
+        0,
+        0
+      ],
+      "material": "cream",
+      "radius": 0.02
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.12,
+        0.04,
+        0.13
+      ],
+      "position": [
+        0.4,
+        0.02,
+        -0.05
+      ],
+      "material": "moss"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.022,
+        1.6,
+        0.022
+      ],
+      "position": [
+        0.4,
+        0.84,
+        -0.05
+      ],
+      "material": "brass"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.06,
+        0.06,
+        0.06
+      ],
+      "position": [
+        0.4,
+        1.5,
+        -0.05
+      ],
+      "material": "lamp-glow",
+      "emissive": true
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.1,
+        0.3,
+        0.2
+      ],
+      "position": [
+        0.4,
+        1.65,
+        -0.05
+      ],
+      "material": "cream"
+    }
   ]
 }
