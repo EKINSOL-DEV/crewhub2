@@ -22,6 +22,8 @@ export interface WorldState {
 
 /** Captions, speech marks and the posture debounce are timed against the source clock, so re-reduce this often. */
 const TIME_TICK_MS = 1000;
+/** While a ticket drone is in the air, re-reduce faster so the model lands the package on time at 16x. */
+const FLIGHT_TICK_MS = 250;
 
 class WorldRuntime {
   readonly source: DemoSource;
@@ -31,6 +33,8 @@ class WorldRuntime {
   #state: WorldState;
   #listeners = new Set<() => void>();
   #frame = 0;
+  #lastReduce = 0;
+  #inFlight = false;
 
   constructor() {
     this.source = createDemoSource({ scheduler: browserScheduler() });
@@ -38,8 +42,9 @@ class WorldRuntime {
     this.source.start((message) => this.projection.apply(message));
     this.projection.onChange(() => this.#schedule());
     globalThis.setInterval(() => {
-      if (!document.hidden) this.#schedule();
-    }, TIME_TICK_MS);
+      if (document.hidden) return;
+      if (this.#inFlight || performance.now() - this.#lastReduce >= TIME_TICK_MS) this.#schedule();
+    }, FLIGHT_TICK_MS);
     this.#state = this.#reduce();
   }
 
@@ -74,6 +79,8 @@ class WorldRuntime {
       roleOverrides: this.#roleOverrides,
     });
     this.#memory = result.memory;
+    this.#lastReduce = performance.now();
+    this.#inFlight = result.model.buildings.some((b) => b.objects.some((o) => o.transit));
     return { model: result.model, text: describeWorld(result.model), playback: this.source.playback };
   }
 }

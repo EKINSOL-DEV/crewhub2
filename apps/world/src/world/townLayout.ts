@@ -8,8 +8,8 @@ export const TOWN_ROWS = 3;
 /** Room for 12 buildings; plots past this are not drawn (the text view still lists every building). */
 export const TOWN_CAPACITY = TOWN_COLUMNS * TOWN_ROWS;
 /** Side of a square plot and the street between plots, in world units. */
-export const PLOT_SIZE = 6;
-export const STREET = 2;
+export const PLOT_SIZE = 15;
+export const STREET = 2.5;
 export const PITCH = PLOT_SIZE + STREET;
 
 export interface PlotSpot {

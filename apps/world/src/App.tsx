@@ -1,10 +1,16 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type Ref } from "react";
 import { ArrowLeft, FlaskConical, Minus, Monitor, Moon, Pause, Plus, RotateCcw, RotateCw, Scan, Settings, Sprout, Sun, X } from "lucide-react";
-import type { PlaybackControls, PlaybackSpeed, TextLine } from "@crewhub/world-model";
-import { Button, Card, Chip } from "./components/primitives";
+import type { AgentPlacement, PlaybackControls, PlaybackSpeed, RoleId, RoomKind, TextLine, WorldModel } from "@crewhub/world-model";
+import { Button, Card, Chip, Field } from "./components/primitives";
 import { SceneBoundary } from "./components/SceneBoundary";
+import type { Selection } from "./components/WorldCanvas";
+import { readRoleOverrides, writeRoleOverrides } from "./state/roleOverrides";
 import { useTheme } from "./state/theme";
-import { useWorld } from "./state/world";
+import { useWorld, worldRuntime } from "./state/world";
+import { buildingTemplate } from "./world/buildingTemplate";
+import type { Pick } from "./world/buildingView";
+import { firstRoom, roomName, roomNeighbor, roomSummary } from "./world/interiorLayout";
+import { DEFAULT_STYLE_ID, styleRegistry } from "./world/style";
 import type { CameraAction } from "./world/TownScene";
 import { countsLine, laneWords, mmss, moveFocus, TOWN_CAPACITY } from "./world/townLayout";
 
@@ -28,6 +34,14 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const [action, setAction] = useState<{ id: number; type: CameraAction }>({ id: 0, type: "home" });
+  const [room, setRoom] = useState<RoomKind | null>(null);
+  const [zoomed, setZoomed] = useState<RoomKind | null>(null);
+  const [selection, setSelection] = useState<Selection>({ hover: null, selected: null });
+  const [overrides, setOverrides] = useState<Record<string, RoleId>>(readRoleOverrides);
+  useEffect(() => {
+    writeRoleOverrides(overrides);
+    worldRuntime().setRoleOverrides(overrides);
+  }, [overrides]);
   const returnFocus = useRef<HTMLElement | null>(null);
   const textRegion = useRef<HTMLElement>(null),
     settingsCard = useRef<HTMLDivElement>(null);
@@ -53,14 +67,46 @@ export function App() {
       if (!b) return;
       setEntered(slug);
       setFocused(index);
+      setRoom(null);
+      setZoomed(null);
+      setSelection({ hover: null, selected: null });
       setAnnouncement(`Inside ${b.name} (${b.key}). ${b.agents.filter((a) => a.presence === "real").length} agents here. Escape or Backspace returns to the town.`);
     },
     [buildings],
   );
   const back = useCallback(() => {
     setEntered(null);
+    setRoom(null);
+    setZoomed(null);
+    setSelection({ hover: null, selected: null });
     setAnnouncement(`The town. ${describe(focused)}`);
   }, [describe, focused]);
+  const summary = useCallback(
+    (kind: RoomKind) => (inside ? roomSummary(inside, kind, (a: AgentPlacement) => laneWords(a.laneStatus, model.freshness)) : ""),
+    [inside, model.freshness],
+  );
+  const focusRoom = useCallback(
+    (kind: RoomKind, zoom: boolean) => {
+      setRoom(kind);
+      if (zoom) setZoomed(kind);
+      setAnnouncement(`${zoom ? "Zoomed to the " : ""}${summary(kind)}${zoom ? " Escape goes back to the building." : ""}`);
+    },
+    [summary],
+  );
+  const pick = useCallback(
+    (target: Pick | null, hover: boolean) => {
+      if (hover) {
+        setSelection((s) => ({ ...s, hover: target }));
+        return;
+      }
+      if (target?.kind === "room") {
+        focusRoom(target.room, true);
+        return;
+      }
+      setSelection((s) => ({ hover: s.hover, selected: target && JSON.stringify(target) !== JSON.stringify(s.selected) ? target : null }));
+    },
+    [focusRoom],
+  );
 
   const openText = useCallback(() => {
     returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -99,7 +145,11 @@ export function App() {
       if (e.key === "Escape") {
         if (settingsOpen) closeSettings();
         else if (textOpen) closeText();
-        else if (entered) back();
+        else if (selection.selected) setSelection((s) => ({ ...s, selected: null }));
+        else if (zoomed) {
+          setZoomed(null);
+          setAnnouncement(`Inside ${inside?.name ?? "the building"}. Arrow keys move between rooms.`);
+        } else if (entered) back();
         else return;
         e.preventDefault();
         return;
@@ -125,11 +175,24 @@ export function App() {
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [back, camera, closeSettings, closeText, entered, graphicsFailed, openText, settingsOpen, textOpen]);
+  }, [back, camera, closeSettings, closeText, entered, graphicsFailed, inside, openText, selection.selected, settingsOpen, textOpen, zoomed]);
 
   // Arrow keys and Enter move the focus ring between plots while the scene has keyboard focus.
   const sceneKey = (e: ReactKeyboardEvent) => {
-    if (entered || typing(e.target) || e.altKey || e.ctrlKey || e.metaKey) return;
+    if (typing(e.target) || e.altKey || e.ctrlKey || e.metaKey) return;
+    if (inside) {
+      // Inside a building: arrow keys move the focus ring between rooms, Enter zooms to the focused room.
+      const onCanvas = e.target === e.currentTarget.querySelector("canvas");
+      if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
+        e.preventDefault();
+        const template = buildingTemplate(inside);
+        focusRoom(room ? roomNeighbor(template, room, e.key) : firstRoom(template), false);
+      } else if (e.key === "Enter" && onCanvas) {
+        e.preventDefault();
+        focusRoom(room ?? firstRoom(buildingTemplate(inside)), true);
+      }
+      return;
+    }
     if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(e.key)) {
       e.preventDefault();
       const next = ringVisible ? moveFocus(focused, e.key, buildings.length) : focused;
@@ -177,6 +240,10 @@ export function App() {
                 entered={entered}
                 focused={focused}
                 ringVisible={ringVisible}
+                room={room}
+                zoomed={zoomed}
+                selection={selection}
+                onPick={pick}
                 reducedMotion={reducedMotion}
                 action={action}
                 onEnter={enter}
@@ -205,9 +272,14 @@ export function App() {
                 <Button size="sm" icon={<ArrowLeft className="icon" aria-hidden="true" />} onClick={back} kbd="Esc">
                   Town
                 </Button>
-                <span className="crumb-current" aria-current="location">
+                <span className="crumb-current" aria-current={zoomed ? undefined : "location"}>
                   {inside.name}
                 </span>
+                {zoomed && (
+                  <span className="crumb-current" aria-current="location">
+                    {roomName(inside, zoomed)}
+                  </span>
+                )}
               </>
             ) : (
               <span className="crumb-current" aria-current="location">
@@ -231,7 +303,8 @@ export function App() {
             action={<Button variant="ghost" size="sm" iconOnly aria-label="Close settings" icon={<X className="icon" aria-hidden="true" />} onClick={closeSettings} />}
           />
           <Card.Body>
-            <p className="sign-muted">Nothing to set yet.</p>
+            <RoleSettings model={model} overrides={overrides} onChange={setOverrides} />
+            <p className="settings-style">Style: {styleRegistry.getStyle(DEFAULT_STYLE_ID).manifest.name}</p>
           </Card.Body>
         </Card>
       )}
@@ -250,6 +323,49 @@ export function App() {
 
       {(textOpen || graphicsFailed) && <TextView ref={textRegion} lines={text} fallback={graphicsFailed} onClose={graphicsFailed ? null : closeText} />}
     </div>
+  );
+}
+
+const ROLE_CHOICES: readonly RoleId[] = ["lead", "worker", "analyst", "design"];
+
+/** Role overrides (plan 4.2): one select per agent; "from the rules" removes the override. */
+function RoleSettings({ model, overrides, onChange }: { model: WorldModel; overrides: Record<string, RoleId>; onChange: (next: Record<string, RoleId>) => void }) {
+  const agents = new Map<string, AgentPlacement>();
+  for (const a of [...model.buildings.flatMap((b) => b.agents), ...model.townHall]) if (!agents.has(a.key)) agents.set(a.key, a);
+  const list = [...agents.values()].sort((a, b) => a.displayName.localeCompare(b.displayName));
+  if (!list.length) return <p className="sign-muted">No agents yet.</p>;
+  return (
+    <fieldset className="role-settings">
+      <legend className="label">Roles</legend>
+      <p className="hint">A role decides an agent's room. Kept in this browser only.</p>
+      <ul>
+        {list.map((a) => (
+          <li key={a.key}>
+            <Field
+              control="select"
+              size="sm"
+              label={a.displayName}
+              inline
+              value={overrides[a.key] ?? ""}
+              onChange={(e) => {
+                const next = { ...overrides };
+                const value = e.currentTarget.value as RoleId | "";
+                if (value) next[a.key] = value;
+                else delete next[a.key];
+                onChange(next);
+              }}
+            >
+              <option value="">{a.roleSource === "override" ? "From the rules" : `${a.role}, ${a.roleSource === "fact" ? "a fact" : "from its name"}`}</option>
+              {ROLE_CHOICES.map((role) => (
+                <option key={role} value={role}>
+                  {role}, set by you
+                </option>
+              ))}
+            </Field>
+          </li>
+        ))}
+      </ul>
+    </fieldset>
   );
 }
 
