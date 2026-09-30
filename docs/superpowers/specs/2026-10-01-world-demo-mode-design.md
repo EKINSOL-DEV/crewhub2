@@ -307,3 +307,25 @@ room the new status maps to, and drops it there**, then leaves the way it came.
 
 This belongs to phase 3 (interiors and ticket flow) and reuses the phase 5
 materialise effect; if phase 5 lands later, a simple fade stands in.
+
+## Addendum (2026-10-01, from the user): Greenhouse is one style of several
+
+The Greenhouse look is the first **style**, not the only one. Build the world
+so that a style is a swappable package, but build only the Greenhouse style
+tonight. No second style is needed now.
+
+- Introduce one seam, for example `WorldStyle`, that owns everything a look
+  consists of: materials and their parameters, the model set for buildings,
+  rooms, furniture, ticket objects, the drone and the postman's cart, lighting
+  per theme (day and lamplight), the environment (ground, sky, planting), and
+  the character look of the robots. Semantics (what a desk is, what a review
+  pile is, footprints, room roles) stay in the world model and the grid engine
+  and know nothing about style.
+- Renderers ask the style for a mesh by semantic key (`desk`, `ticket.bug`,
+  `drone`, `wall`, `door`) and never import a Greenhouse model directly.
+- Props from the prop builder carry their own parts and colours, but colours
+  are palette names that the style resolves, so a prop survives a style change.
+- The style id is stored with the town document; the settings panel shows the
+  current style with only one option for now. A test asserts that no module
+  outside the style package imports the Greenhouse models.
+- Do not build a second style, a style editor, or per-building styles tonight.
