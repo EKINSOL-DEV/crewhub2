@@ -8,7 +8,7 @@ import type { PresentationMemory } from "../src/memory.ts";
 import type { WorldModel } from "../src/model.ts";
 import { Projection } from "../src/projection.ts";
 import { reduceWorld } from "../src/reducer.ts";
-import { FakeSource, ManualScheduler, T0, agentRef, board, card, envelope, lane, project, registered, snapshot, team } from "./helpers.ts";
+import { FakeSource, ManualScheduler, T0, board, card, envelope, lane, project, registered, snapshot, team } from "./helpers.ts";
 
 const CL = project("crewhub-loops", "CL", "cl-lead");
 const input = () => ({
