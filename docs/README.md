@@ -19,6 +19,7 @@ These are the active documents for the browser-world rebuild. All are in English
 | [decisions/0002-grid-world.md](decisions/0002-grid-world.md) | Grid semantics and rendering separation |
 | [decisions/0003-towns-and-session-bindings.md](decisions/0003-towns-and-session-bindings.md) | Provider-independent towns and canonical session bindings |
 | [decisions/0004-loops-design-system.md](decisions/0004-loops-design-system.md) | One design language with crewhub-loops for all 2D UI |
+| [superpowers/specs/2026-09-30-loops-design-system-design.md](superpowers/specs/2026-09-30-loops-design-system-design.md) | Accepted spec for the loops design-system migration |
 
 Read [AGENTS.md](../AGENTS.md) before implementation. Historical plans are retained
 in the archive and Git history; they do not constrain the new visual experience.

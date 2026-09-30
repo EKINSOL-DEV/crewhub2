@@ -2,7 +2,9 @@
 
 Status: the crewhub-loops design system is adopted for all 2D UI in `apps/world`.
 Visual review of the migrated room is pending the user's PR review. The decision
-is recorded in [0004](decisions/0004-loops-design-system.md). The 3D scene is not
+is recorded in [0004](decisions/0004-loops-design-system.md), and the accepted
+[migration spec](superpowers/specs/2026-09-30-loops-design-system-design.md) lists
+what was brought in, removed and checked. The 3D scene is not
 part of this system.
 
 ## Source and sync rule
