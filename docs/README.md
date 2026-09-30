@@ -18,6 +18,8 @@ These are the active documents for the browser-world rebuild. All are in English
 | [decisions/0001-browser-world.md](decisions/0001-browser-world.md) | Recorded browser-first architecture decision |
 | [decisions/0002-grid-world.md](decisions/0002-grid-world.md) | Grid semantics and rendering separation |
 | [decisions/0003-towns-and-session-bindings.md](decisions/0003-towns-and-session-bindings.md) | Provider-independent towns and canonical session bindings |
+| [LOOPS_INTEGRATION_PLAN.md](LOOPS_INTEGRATION_PLAN.md) | Proposed: CrewHub World as a thin 3D client of crewhub-loops |
+| [decisions/0005-crewhub-world-on-loops.md](decisions/0005-crewhub-world-on-loops.md) | Proposed decision record for the crewhub-loops integration |
 
 Read [AGENTS.md](../AGENTS.md) before implementation. Historical plans are retained
 in the archive and Git history; they do not constrain the new visual experience.
