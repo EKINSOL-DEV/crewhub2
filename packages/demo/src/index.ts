@@ -8,3 +8,5 @@ export type { ManualScheduler, Scheduler } from "./scheduler.ts";
 export { DEMO_EPOCH_MS } from "./time.ts";
 export { DEMO_PROPS, propComment } from "./props.ts";
 export * as DEMO_CONTENT from "./content.ts";
+export { DEMO_ROOM_PROPS, QUICK_DEBOUNCE_MS, QUICK_MIN_GAP_MS, createDirectorFeed, demoPropTags, movementSignals, scriptPlan } from "./director.ts";
+export type { DirectorFeed, DirectorFeedOptions, FeedUsage, PlanRecord, PlanTrigger } from "./director.ts";
