@@ -480,6 +480,7 @@ export class TownScene {
       view.tick(dt);
       if (view.animating) moving = true;
     }
+    const ticked = performance.now();
     this.controls.update();
     // Keep panning inside the town.
     const b = townBounds(),
@@ -494,7 +495,11 @@ export class TownScene {
       this.callbacks.error();
       return;
     }
-    if (this.#perf) this.#measure(performance.now() - started);
+    if (this.#perf) {
+      const total = performance.now() - started;
+      if (total > 100) console.info(`[perf] slow frame: tick ${(ticked - started).toFixed(1)} ms, render ${(performance.now() - ticked).toFixed(1)} ms, programs ${this.renderer.info.programs?.length ?? 0}`);
+      this.#measure(total);
+    }
     this.#dirtyFrames--;
     if (!this.#raf && (this.#tween || moving || this.#dirtyFrames > 0)) this.#raf = requestAnimationFrame(this.animate);
   };

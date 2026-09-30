@@ -556,6 +556,10 @@
   .caption {
     max-width: 9rem;
   }
+  /* On a phone the building sign already says "stale since"; one tag per head would bury the room. */
+  .status-tag.stale {
+    display: none;
+  }
   .town-sign:not(.expanded) {
     padding: var(--space-1) var(--space-2);
   }

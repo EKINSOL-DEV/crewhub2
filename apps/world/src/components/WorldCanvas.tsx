@@ -318,7 +318,7 @@ function AgentLabel({ slug, agent, building, model, workingIn, plate }: { slug: 
         ) : (
           <>
             {tag && (
-              <span className={`status-tag${tag === "blocked" ? " blocked" : ""}${agent.presence === "proxy" ? " proxy" : ""}`}>
+              <span className={`status-tag${tag === "blocked" ? " blocked" : ""}${agent.presence === "proxy" ? " proxy" : ""}${model.freshness.stale ? " stale" : ""}`}>
                 {tag === "blocked" && <Hand className="icon icon-sm" aria-hidden="true" />}
                 {tag}
               </span>

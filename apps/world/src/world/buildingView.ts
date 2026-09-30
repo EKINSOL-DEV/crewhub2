@@ -8,6 +8,7 @@ import type { AgentPlacement, Building, RoomKind } from "@crewhub/world-model";
 import type { EmblemName, ModelKey, PaletteName, ResolvedStyle, RobotHandle, RobotPosture } from "@crewhub/world-style";
 import { BUILDING_CELL as CELL, buildingTemplate, DEPTH, MAX_WIDTH, roomOf, STATUS_ROOMS, wallRuns, type BuildingTemplate } from "./buildingTemplate";
 import { assignDesks, placeObjects, roomCentre, type DeskSlot, type ObjectLayout, type Surface } from "./interiorLayout";
+import { mergeStatic } from "./mergeStatic";
 import { ObjectLayer } from "./objectLayer";
 import type { Bounds } from "./townLayout";
 
@@ -66,6 +67,10 @@ export class BuildingView {
   layout: ObjectLayout = { placements: new Map(), targets: new Map(), pallets: [] };
   detailed = false;
   #shell = new THREE.Group();
+  /** The static parts of the shell (walls, flag, emblem, signs), batched per material. */
+  #shellStatic = new THREE.Group();
+  #merged: THREE.BufferGeometry[] = [];
+  #furnitureMerged: THREE.BufferGeometry[] = [];
   #furniture: THREE.Group | null = null;
   #piles = new THREE.Group();
   #signals = new THREE.Group();
@@ -96,7 +101,7 @@ export class BuildingView {
       truck: this.#truckTarget,
       surface: (s) => surfacesOf(ctx.style)[s],
     });
-    this.group.add(this.#shell, this.#piles, this.#agents, this.#signals, this.#objects.group);
+    this.group.add(this.#shell, this.#shellStatic, this.#piles, this.#agents, this.#signals, this.#objects.group);
   }
 
   /** Building cells to building-local world units. */
@@ -143,6 +148,8 @@ export class BuildingView {
   #buildShell() {
     const { style } = this.ctx;
     this.#shell.clear();
+    this.#shellStatic.clear();
+    for (const g of this.#merged) g.dispose();
     const b = this.building;
     const accent = (b.color ?? null) as PaletteName | null;
     const variant = b.archived ? "archived" : undefined;
@@ -157,7 +164,7 @@ export class BuildingView {
       const sign = style.model("room.sign");
       const at = this.#signSpot(room.kind);
       sign.position.copy(this.local(at.x, at.z, 0.02));
-      this.#shell.add(sign);
+      this.#shellStatic.add(sign);
       this.anchors.set(`r:${b.slug}:${room.kind}`, this.world(at.x, at.z, 0.35));
     }
     for (const run of wallRuns(this.template)) {
@@ -168,26 +175,26 @@ export class BuildingView {
       const wall = style.model(key, opt({ size: { width: length + WALL, height, depth: WALL }, accent: run.side === "inner" ? null : accent }));
       wall.position.copy(this.local((run.x1 + run.x2) / 2, (run.z1 + run.z2) / 2));
       if (!horizontal) wall.rotation.y = Math.PI / 2;
-      this.#shell.add(wall);
+      this.#shellStatic.add(wall);
     }
     const entrance = this.template.doors.find((d) => d.b.room === "town");
     if (entrance) {
       const step = style.model("door", { size: { width: 1.2, height: 0.06, depth: 0.5 } });
       step.position.copy(this.local(entrance.b.cell.x + 0.5, DEPTH + 0.4));
-      this.#shell.add(step);
+      this.#shellStatic.add(step);
       if (b.archived) {
         const planks = style.model("building.planks", { size: { width: 0.8, height: 0.4, depth: 0.05 } });
         planks.position.copy(this.local(entrance.b.cell.x + 0.5, DEPTH));
-        this.#shell.add(planks);
+        this.#shellStatic.add(planks);
       }
     }
     const flag = style.model("building.flag", opt({ accent }));
     flag.position.copy(this.local(-0.6, -0.6));
-    this.#shell.add(flag);
+    this.#shellStatic.add(flag);
     if (b.icon) {
       const emblem = style.model(`emblem.${b.icon as EmblemName}`, { accent });
       emblem.position.copy(this.local(17, DEPTH + 1.3));
-      this.#shell.add(emblem);
+      this.#shellStatic.add(emblem);
     }
     // The truck parks in front of Dispatch, nose to the west, ready to drive off the plot.
     if (!b.archived) {
@@ -200,6 +207,7 @@ export class BuildingView {
       this.#truckTarget.copy(this.#truckHome).setY(0.55);
     } else this.#truck = null;
     this.anchors.set(`truck:${b.slug}`, this.world(3, DEPTH + 1.6, 1));
+    this.#merged = mergeStatic(this.#shellStatic);
     this.#applyFocus();
   }
 
@@ -228,6 +236,8 @@ export class BuildingView {
       }
     this.#furniture = g;
     this.group.add(g);
+    for (const geometry of this.#furnitureMerged) geometry.dispose();
+    this.#furnitureMerged = mergeStatic(g);
   }
 
   /* ── Agents ─────────────────────────────────────────────────────────────── */
@@ -474,6 +484,7 @@ export class BuildingView {
     for (const robot of this.#robots.values()) robot.handle.dispose();
     this.#robots.clear();
     this.#objects.dispose();
+    for (const geometry of [...this.#merged, ...this.#furnitureMerged]) geometry.dispose();
     this.group.removeFromParent();
   }
 }

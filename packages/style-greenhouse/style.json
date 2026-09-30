@@ -160,13 +160,13 @@
     "tyre": "#34453e"
   },
   "lamplightSwatches": {
-    "plinth": "#6d6a5c",
-    "street": "#8f8b77",
-    "lawn": "#5f6b50",
-    "lawn-edge": "#53603f",
-    "step": "#8f8b77",
-    "floor": "#d8cdb4",
-    "floor-dim": "#9a927f",
+    "plinth": "#7a7666",
+    "street": "#9a957f",
+    "lawn": "#6f7b5c",
+    "lawn-edge": "#5f6b4b",
+    "step": "#9a957f",
+    "floor": "#e2d7bf",
+    "floor-dim": "#a39b88",
     "window": "#ffd98a",
     "lamp-glow": "#ffe7a0",
     "screen-glow": "#a8d4ae",
@@ -197,24 +197,24 @@
     },
     "lamplight": {
       "background": null,
-      "sky": "#8a7f6a",
-      "ground": "#2e3129",
-      "hemisphere": 1.1,
-      "key": "#ffc98a",
-      "keyIntensity": 1.7,
+      "sky": "#b3a889",
+      "ground": "#3b4034",
+      "hemisphere": 1.6,
+      "key": "#ffd49c",
+      "keyIntensity": 2.3,
       "keyPosition": [
         -14,
         22,
         -10
       ],
-      "fill": "#6f86b8",
-      "fillIntensity": 0.45,
+      "fill": "#8ea3d1",
+      "fillIntensity": 0.55,
       "fillPosition": [
         18,
         15,
         21
       ],
-      "exposure": 1.05,
+      "exposure": 1.08,
       "shadowOpacity": 0.3
     }
   }
