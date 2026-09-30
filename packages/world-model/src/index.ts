@@ -1,1 +1,10 @@
 export type * from "./model.ts";
+export type * from "./facts.ts";
+export type { PresentationMemory, LaneMemory } from "./memory.ts";
+export type { ProjectionOptions, ProjectionSource, Scheduler } from "./projection.ts";
+export type { ReduceOptions, ReduceResult } from "./reducer.ts";
+export { emptyFacts } from "./facts.ts";
+export { emptyMemory } from "./memory.ts";
+export { Projection } from "./projection.ts";
+export { freshnessOf, reduceWorld } from "./reducer.ts";
+export { describeWorld } from "./describe.ts";
