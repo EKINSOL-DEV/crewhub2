@@ -8,3 +8,7 @@ export type { ManualScheduler, Scheduler } from "./scheduler.ts";
 export { DEMO_EPOCH_MS } from "./time.ts";
 export { DEMO_PROPS, propComment } from "./props.ts";
 export * as DEMO_CONTENT from "./content.ts";
+export { createDemoApi } from "./api.ts";
+export type { DemoApi, DemoApiOptions, DemoApiResponse, DemoChatSource, DemoView } from "./api.ts";
+export { DEMO_PERSON } from "./store.ts";
+export type { AgentSummary } from "./store.ts";

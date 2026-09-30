@@ -411,3 +411,55 @@
     top: 3.75rem;
   }
 }
+
+/* ── Chat bubbles: the copied loops dock and chat (components/bubbles) ───────
+   The dock and the chat card place themselves (kit.css, bubbles.css): the dock at the bottom right, the chat above it.
+   While there is a dock (App measures it into --dock-height and sets data-dock on the shell), the demo note and then the
+   camera toolbar stack above it. Without one (below 900px), .world-chat is a row under the top-right corner: loops'
+   narrow "Agent chats" menu, then the demo note. */
+.world-chat {
+  position: absolute;
+  z-index: 6;
+  right: var(--space-4);
+  top: calc(var(--space-4) + var(--control-h) + 2 * var(--space-1) + var(--space-2));
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: var(--space-2);
+}
+.world-chat > .menu-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+.world-chat > .menu-wrap > .menu {
+  left: auto;
+  right: 0;
+}
+.demo-chat-chip {
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+.world-shell[data-dock] .demo-chat-chip {
+  position: fixed;
+  right: var(--space-3);
+  bottom: calc(var(--space-4) + var(--dock-height) + var(--space-2));
+}
+.world-shell[data-dock] .camera-toolbar {
+  right: calc(var(--space-3) + 0.375rem);
+  bottom: calc(var(--space-4) + var(--dock-height) + 2 * var(--space-2) + 1.5rem);
+}
+/* Phones: the left corner is two rows (brand, breadcrumb), so the chat row goes under both. */
+@media (max-width: 600px) {
+  .world-chat {
+    right: var(--space-3);
+    top: calc(var(--space-3) + 2 * (var(--control-h) + 2 * var(--space-1)) + 2 * var(--space-2));
+  }
+}
+/* The chat header's "…" menu opens to the right of its trigger and is cut off at the viewport edge (the copy does not
+   pass align="end"; the same happens in crewhub-loops, reported there). Until the source changes, open it leftwards. */
+.bubble-chat-actions > .menu-wrap > .menu {
+  left: auto;
+  right: 0;
+}

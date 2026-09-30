@@ -5,6 +5,7 @@
  * after 15 s of silence, and team re-reads. Wall time comes from the injected scheduler.
  */
 import type {
+  AgentOut,
   BoardResponse,
   CommentOut,
   DeliveryOut,
@@ -23,9 +24,17 @@ import type {
 } from "@crewhub/loops-client";
 import { applyAction } from "./actions.ts";
 import { DEMO_BASE_CURSOR, DEMO_SEQ_STRIDE } from "./content.ts";
-import { type ScriptEntry, DEMO_SEED, SCRIPT_DURATION_MS, buildPropRequest, buildScript } from "./script.ts";
+import {
+  type ScriptEntry,
+  DEMO_SEED,
+  DM_ENTRY_STRIDE,
+  SCRIPT_DURATION_MS,
+  buildDmExchange,
+  buildPropRequest,
+  buildScript,
+} from "./script.ts";
 import type { Scheduler } from "./scheduler.ts";
-import { type DemoState, DemoReads, initialState } from "./store.ts";
+import { type AgentSummary, type DemoState, DEMO_PERSON, DemoReads, initialState } from "./store.ts";
 import { DEMO_EPOCH_MS, SECOND, iso } from "./time.ts";
 
 const HEARTBEAT_MS = 15 * SECOND;
@@ -34,6 +43,8 @@ const TICK_MS = 100;
 const MAX_WALL_STEP_MS = 5 * SECOND;
 /** Ids of on-demand actions start here, far above the script's. */
 const EXTRA_FIRST_ID = 100_000;
+/** Ids of the person's chat actions start here and are never reused, so they survive a loop. */
+const CHAT_FIRST_ID = 500_000;
 
 export interface DemoSourceOptions {
   /** Seeds the timing jitter. Same seed, byte-identical envelopes. Default DEMO_SEED. */
@@ -59,6 +70,19 @@ export interface DemoSource extends WorldSource {
   getDmMessages(agentId: string): Promise<DmMessage[]>;
   /** `GET /api/deliveries` as the router or an admin sees it. */
   getDeliveries(): Promise<DeliveryOut[]>;
+  /** `GET /api/agents` (the agents_admin shape). */
+  getAgents(): Promise<AgentOut[]>;
+  /** `GET /api/agents/{name}/summary`; `baseUrl` stands for loops' public URL in the links. */
+  getAgentSummary(agentId: string, baseUrl: string): Promise<AgentSummary>;
+  /**
+   * The demo person sends `text` to `agentId` now (`POST /api/dm/threads/{agent}/messages`):
+   * `dm.created` and a `dm` delivery at once, the postman claims and forwards it, and a scripted
+   * "(demo reply)" follows a few demo seconds later with `dm.answered`. The same `clientId` twice
+   * returns the first message. The exchange survives seeks and carries into the next loop.
+   */
+  sendDm(agentId: string, text: string, clientId: string): DmMessage;
+  /** The demo person has read `agentId`'s thread up to the message with `clientId` (never backwards). */
+  markDmRead(agentId: string, clientId: string): void;
 }
 
 export function createDemoSource(options: DemoSourceOptions): DemoSource {
@@ -78,6 +102,7 @@ export function createDemoSource(options: DemoSourceOptions): DemoSource {
   let lastWall = scheduler.now();
   let interval: unknown = null;
   let nextExtraId = EXTRA_FIRST_ID;
+  let nextChatId = CHAT_FIRST_ID;
   const listeners = new Set<(message: SourceMessage) => void>();
   const changeListeners = new Set<() => void>();
 
@@ -113,6 +138,26 @@ export function createDemoSource(options: DemoSourceOptions): DemoSource {
     send({ type: "snapshot", snapshot: current().snapshot() });
   }
 
+  /** Applies one entry at its time and sends what it produced. */
+  function play(entry: ScriptEntry): void {
+    for (const out of applyAction(state, entry.action, entry.id)) {
+      if (out.type === "event") {
+        lastLineAt = entry.at;
+        send({ type: "event", envelope: structuredClone(out.envelope) });
+      } else {
+        send({ type: "team", team: out.team });
+      }
+    }
+  }
+
+  /** Puts `entry` (at the current position) after the played part of the timeline and plays it now. */
+  function playNow(entry: ScriptEntry): void {
+    timeline = [...timeline.slice(0, next), entry, ...timeline.slice(next)];
+    next += 1;
+    state.now = base() + position;
+    play(entry);
+  }
+
   /** Plays forward to `target` (may pass the loop end), sending every line on the way. */
   function playTo(target: number): void {
     for (;;) {
@@ -124,14 +169,7 @@ export function createDemoSource(options: DemoSourceOptions): DemoSource {
         state.now = base() + entry.at;
         position = entry.at;
         next += 1;
-        for (const out of applyAction(state, entry.action, entry.id)) {
-          if (out.type === "event") {
-            lastLineAt = entry.at;
-            send({ type: "event", envelope: structuredClone(out.envelope) });
-          } else {
-            send({ type: "team", team: out.team });
-          }
-        }
+        play(entry);
       } else if (due === heartbeatAt) {
         lastLineAt = heartbeatAt;
         position = heartbeatAt;
@@ -139,7 +177,7 @@ export function createDemoSource(options: DemoSourceOptions): DemoSource {
       } else {
         target -= SCRIPT_DURATION_MS;
         loop += 1;
-        timeline = script;
+        timeline = merge(script, carryChat(timeline));
         nextExtraId = EXTRA_FIRST_ID;
         rebuild(0);
         sendSnapshot();
@@ -214,6 +252,35 @@ export function createDemoSource(options: DemoSourceOptions): DemoSource {
     getDmThreads: () => answer(current().dmThreads()),
     getDmMessages: (agentId) => answer(current().dmMessages(agentId)),
     getDeliveries: () => answer(current().deliveries()),
+    getAgents: () => answer(current().agents()),
+    getAgentSummary: (agentId, baseUrl) => answer(current().agentSummary(agentId, baseUrl)),
+    sendDm(agentId, text, clientId) {
+      const mine = () =>
+        current()
+          .dmMessages(agentId)
+          .find((m) => m.clientId === clientId && m.author.id === DEMO_PERSON);
+      const existing = mine();
+      if (existing !== undefined) return existing;
+      const replies = current()
+        .dmMessages(agentId)
+        .filter((m) => m.author.id === DEMO_PERSON).length;
+      const [now, ...later] = buildDmExchange({ agent: agentId, from: DEMO_PERSON, text, clientId, replies }, position, nextChatId);
+      nextChatId += DM_ENTRY_STRIDE;
+      playNow(now as ScriptEntry);
+      timeline = [...timeline.slice(0, next), ...merge(timeline.slice(next), later)];
+      return mine() as DmMessage;
+    },
+    markDmRead(agentId, clientId) {
+      const thread = state.dmThreads.find((t) => t.agentId === agentId);
+      if (thread === undefined) return;
+      const before = state.dmReads[thread.id];
+      const entry: ScriptEntry = { id: nextChatId, at: position, action: { type: "dmRead", agent: agentId, clientId } };
+      applyAction(state, entry.action, entry.id);
+      if (state.dmReads[thread.id] === before) return;
+      nextChatId += 1;
+      timeline = [...timeline.slice(0, next), entry, ...timeline.slice(next)];
+      next += 1;
+    },
     createPropRequest(thing) {
       const text = thing.trim().replace(/\s+/g, " ").slice(0, 80) || "a small crate";
       const entries = buildPropRequest(text, position, nextExtraId, seed);
@@ -224,6 +291,20 @@ export function createDemoSource(options: DemoSourceOptions): DemoSource {
       return { title: `Prop: ${text}`, startsAtMs: entries[0]?.at ?? position };
     },
   };
+}
+
+function merge(a: ScriptEntry[], b: ScriptEntry[]): ScriptEntry[] {
+  return [...a, ...b].sort((x, y) => x.at - y.at || x.id - y.id);
+}
+
+/**
+ * The person's chat actions of the loop that ends, for the next loop: what was played lands at
+ * its start (in the same order), what was still due keeps its distance past the loop end.
+ */
+function carryChat(timeline: ScriptEntry[]): ScriptEntry[] {
+  return timeline
+    .filter((entry) => entry.id >= CHAT_FIRST_ID)
+    .map((entry) => ({ ...entry, at: Math.max(0, entry.at - SCRIPT_DURATION_MS) }));
 }
 
 function clampPosition(ms: number): number {

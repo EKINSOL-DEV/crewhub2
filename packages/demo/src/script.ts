@@ -154,12 +154,12 @@ function storyline(s: ScriptBuilder): void {
   s.add("3:34", { type: "progress", ticket: "CL-40", agent: "analyst", kind: "update", text: "deliveries and DMs mapped to the postman" });
   s.add("3:40", { type: "lane", name: "cl-dev-3", status: "working", contextLine: "CL-44: tests for the tail recipe" });
   s.add("3:44", { type: "comment", by: "cl-lead", ticket: "CL-44", text: "cl-dev-3 joins for the tests." });
-  s.post("3:52", { type: "dm", from: "nicky", agent: "g-man", text: "Morning! How is the town looking?" });
+  const morning = s.post("3:52", { type: "dm", from: "nicky", agent: "g-man", text: "Morning! How is the town looking?" });
 
   // 4:00 to 6:00: the fern; OPS comes back; a review reply.
   propFlow(s, at("3:48"), { ticket: "CR-35", json: DEMO_PROPS.tallFern, worker: "cr-dev-1", doneAfter: 230 });
   s.add("4:10", { type: "progress", ticket: "CL-44", agent: "cl-lead", worker: "cl-dev-3", kind: "start", text: "writing tests for the tail recipe" });
-  s.add("4:21", { type: "dmReply", agent: "g-man", text: "Busy and calm. CR finished the reading nook, CL is closing the integrator docs, and CR-24 has been quiet for a while." });
+  s.add("4:21", { type: "dmReply", agent: "g-man", replyToClientId: `demo-a${morning}`, text: "Busy and calm. CR finished the reading nook, CL is closing the integrator docs, and CR-24 has been quiet for a while." });
   s.add("4:25", { type: "lane", name: "cr-dev-1", status: "working", contextLine: "CR-35: building the prop" });
   s.add("4:30", { type: "lane", name: "cr-dev-2", status: "done", contextLine: "CR-22: pallets merged into the branch" });
   s.add("4:50", { type: "move", by: "cl-lead", ticket: "CL-81", to: "review" });
@@ -339,4 +339,50 @@ export function buildPropRequest(thing: string, fromMs: number, firstId: number,
   const flowStart = fromMs + SECOND;
   propFlow(s, flowStart, { title: `Prop: ${thing}`, json: requestedProp(thing), doneAfter: 130 });
   return finish(s.drafts, mulberry32(seed ^ firstId), fromMs).filter((e) => e.at < SCRIPT_DURATION_MS);
+}
+
+/** Ids one chat exchange uses (the message, the postman's claim and forward, the reply). */
+export const DM_ENTRY_STRIDE = 4;
+
+/** What an agent answers in the demo: always labelled, picked by how many messages the person already sent. */
+const DEMO_REPLIES: Record<string, readonly string[]> = {
+  "g-man": [
+    "(demo reply) Noted. I'll pass it to the right lead and report back here.",
+    "(demo reply) The town runs on a script tonight, so nothing real moves yet. The leads would pick this up.",
+    "(demo reply) Thanks. I'll keep an eye on it and write when something changes.",
+  ],
+};
+const GENERIC_REPLIES: readonly string[] = [
+  "(demo reply) Got it. I'll pick it up after the ticket I'm on.",
+  "(demo reply) Thanks, noted on my board. This chat is scripted in the demo.",
+  "(demo reply) Understood. I'll post progress on the ticket when there is some.",
+];
+
+export function demoReply(agent: string, index: number): string {
+  const set = DEMO_REPLIES[agent] ?? GENERIC_REPLIES;
+  return set[index % set.length] as string;
+}
+
+/**
+ * A chat message the person sends now, and what follows it in demo time: the postman claims the
+ * `dm` delivery after 2 s and forwards it after 5 s, and the agent's scripted reply comes after 8 s.
+ * `replies` is how many messages the person had already sent in the thread (it picks the reply).
+ * The entries are not cut at the loop end; the source carries them into the next loop.
+ */
+export function buildDmExchange(
+  exchange: { agent: string; from: string; text: string; clientId: string; replies: number },
+  fromMs: number,
+  firstId: number,
+): ScriptEntry[] {
+  const { agent, from, text, clientId } = exchange;
+  return [
+    { id: firstId, at: fromMs, action: { type: "dm", from, agent, text, clientId } },
+    { id: firstId + 1, at: fromMs + 2 * SECOND, action: { type: "postman", source: firstId, state: "claimed" } },
+    { id: firstId + 2, at: fromMs + 5 * SECOND, action: { type: "postman", source: firstId, state: "forwarded" } },
+    {
+      id: firstId + 3,
+      at: fromMs + 8 * SECOND,
+      action: { type: "dmReply", agent, text: demoReply(agent, exchange.replies), replyToClientId: clientId },
+    },
+  ];
 }

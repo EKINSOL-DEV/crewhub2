@@ -183,6 +183,8 @@ export interface DemoState {
   actionTickets: Record<number, string>;
   dmThreads: DmThread[];
   dmMessages: DmMessage[];
+  /** The demo person's read cursor per thread id: the last message they have read. */
+  dmReads: Record<string, string>;
   lanes: StoredLane[];
   team: TeamSnapshot;
   events: Envelope[];
@@ -238,6 +240,7 @@ export function initialState(base: number, cursor: number): DemoState {
     actionTickets: {},
     dmThreads: [],
     dmMessages: [],
+    dmReads: {},
     lanes: LANES.map((l, index) => ({
       name: l.name,
       status: l.status,
@@ -341,6 +344,7 @@ export function initialState(base: number, cursor: number): DemoState {
       message.state = "delivered";
     }
     thread.lastMessageAt = iso(at);
+    state.dmReads[thread.id] = message.id;
   }
   state.team = uploadSnapshot(state, base - 12 * SECOND);
   return state;
@@ -394,6 +398,15 @@ export function labelByName(state: DemoState, name: string): LabelOut {
   const found = state.labels.find((l) => l.name === name);
   if (found === undefined) throw new Error(`Unknown label ${name}`);
   return found;
+}
+
+/** The person the demo's chat acts as: the admin whose pins, read cursors and messages these are. */
+export const DEMO_PERSON = "nicky";
+
+/** `AgentSummaryResponse` of loops' web contract (not in read-model.md). */
+export interface AgentSummary {
+  comments: { id: string; text: string; createdAt: string; ticketKey: string; url: string }[];
+  tickets: { id: string; key: string; title: string; status: TicketStatus; url: string }[];
 }
 
 const PRINCIPALS: PrincipalOut[] = [
@@ -480,6 +493,7 @@ export function dmMessage(
   text: string,
   at: number,
   replyTo: string | null,
+  clientId?: string,
 ): DmMessage {
   const id = nextId(state, "dm");
   const message: DmMessage = {
@@ -490,7 +504,7 @@ export function dmMessage(
     bodyMarkdown: text,
     bodyText: text,
     replyTo,
-    clientId: `demo-${id}`,
+    clientId: clientId ?? `demo-${id}`,
     createdAt: iso(at),
     deliveryId: null,
     deliveryState: null,
@@ -500,6 +514,17 @@ export function dmMessage(
   };
   state.dmMessages.push(message);
   return message;
+}
+
+/** Messages in the thread not written by the demo person, after their read cursor. */
+export function unreadCount(state: DemoState, threadId: string): number {
+  const messages = state.dmMessages.filter((m) => m.threadId === threadId);
+  const cursor = messages.findIndex((m) => m.id === state.dmReads[threadId]);
+  return messages.slice(cursor + 1).filter((m) => m.author.id !== DEMO_PERSON).length;
+}
+
+function clip(text: string, max: number): string {
+  return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
 }
 
 /** The snapshot the probe would upload now: the live lanes, `lead` added by the stem rule. */
@@ -846,8 +871,37 @@ export class DemoReads {
       .reverse();
   }
 
+  /** As the demo person sees them: newest first, `unreadCount` from their read cursor (dm.py `list_threads`). */
   dmThreads(): DmThread[] {
-    return structuredClone(this.state.dmThreads);
+    return this.state.dmThreads
+      .map((thread) => ({ ...thread, unreadCount: unreadCount(this.state, thread.id) }))
+      .sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt) || a.id.localeCompare(b.id));
+  }
+
+  /**
+   * `GET /api/agents/{name}/summary` (dm.py `summary`): the agent's five newest normal comments
+   * and its open tickets in active projects, newest update first. `baseUrl` stands for loops' public URL.
+   */
+  agentSummary(agentId: string, baseUrl: string): AgentSummary {
+    const base = baseUrl.replace(/\/+$/, "");
+    const keyOf = (ticketId: string) => this.state.tickets.find((t) => t.id === ticketId)?.key ?? "";
+    const comments = this.state.comments
+      .filter((c) => c.author.id === agentId && c.kind === "normal" && !c.deletedAt)
+      .slice(-5)
+      .reverse()
+      .map((c) => ({
+        id: c.id,
+        text: clip(c.bodyMarkdown ?? "", 140),
+        createdAt: c.createdAt,
+        ticketKey: keyOf(c.ticketId),
+        url: `${base}/t/${keyOf(c.ticketId)}#c-${c.id}`,
+      }));
+    const archived = new Set(this.state.projects.filter((p) => p.archivedAt !== null).map((p) => p.slug));
+    const tickets = this.state.tickets
+      .filter((t) => t.assigneeId === agentId && t.status !== "done" && t.archivedAt === null && !archived.has(t.project))
+      .sort((a, b) => b.updatedAt - a.updatedAt || a.id.localeCompare(b.id))
+      .map((t) => ({ id: t.id, key: t.key, title: t.title, status: t.status, url: `${base}/t/${t.key}` }));
+    return { comments, tickets };
   }
 
   /** Oldest first. */

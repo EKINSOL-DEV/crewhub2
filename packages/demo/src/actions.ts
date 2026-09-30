@@ -6,6 +6,7 @@
  */
 import type {
   DeliveryOut,
+  DmMessage,
   DeliveryReason,
   DeliveryState,
   Envelope,
@@ -69,8 +70,11 @@ export type Action =
   | { type: "probe" }
   | { type: "poll" }
   | { type: "postman"; source: number; state: DeliveryState; detail?: string }
-  | { type: "dm"; from: string; agent: string; text: string }
-  | { type: "dmReply"; agent: string; text: string }
+  | { type: "dm"; from: string; agent: string; text: string; clientId?: string }
+  /** Answers the message with `replyToClientId`, else the thread's last message from a person. */
+  | { type: "dmReply"; agent: string; text: string; replyToClientId?: string }
+  /** The demo person reads a thread up to the message with `clientId` (a read cursor only moves forward). */
+  | { type: "dmRead"; agent: string; clientId: string }
   | { type: "milestoneCreate"; by: string; project: string; title: string; targetDate: string | null }
   | { type: "milestoneAttach"; by: string; milestone: string; tickets: string[] }
   | { type: "milestoneState"; by: string; milestone: string; state: MilestoneState }
@@ -576,7 +580,7 @@ const HANDLERS: Handlers = {
   dm(ctx, a) {
     const { state } = ctx;
     const thread = dmThread(state, a.agent, state.now);
-    const message = dmMessage(state, thread, a.from, a.text, state.now, null);
+    const message = dmMessage(state, thread, a.from, a.text, state.now, null, a.clientId ?? `demo-a${ctx.actionId}`);
     thread.lastMessageAt = message.createdAt;
     const payload = { threadId: thread.id, messageId: message.id, agentId: a.agent };
     const event = emit(ctx, "dm.created", a.from, { project: null }, payload);
@@ -588,16 +592,29 @@ const HANDLERS: Handlers = {
   dmReply(ctx, a) {
     const { state } = ctx;
     const thread = dmThread(state, a.agent, state.now);
-    const parent = state.dmMessages.filter((m) => m.threadId === thread.id && m.author.kind === "user").at(-1);
+    const fromPeople = state.dmMessages.filter((m) => m.threadId === thread.id && m.author.kind === "user");
+    const parent =
+      a.replyToClientId === undefined ? fromPeople.at(-1) : fromPeople.find((m) => m.clientId === a.replyToClientId);
     if (parent === undefined) throw new Error(`Nothing to answer in ${thread.id}`);
-    const reply = dmMessage(state, thread, a.agent, a.text, state.now, parent.id);
+    const reply = dmMessage(state, thread, a.agent, a.text, state.now, parent.id, `demo-a${ctx.actionId}`);
     reply.state = "delivered";
     parent.state = "answered";
-    parent.answeredAt = iso(state.now);
+    parent.answeredAt ??= iso(state.now);
     thread.lastMessageAt = reply.createdAt;
-    thread.unreadCount += 1;
     emit(ctx, "dm.created", a.agent, { project: null }, { threadId: thread.id, messageId: reply.id, agentId: a.agent });
     emit(ctx, "dm.answered", a.agent, { project: null }, { threadId: thread.id, messageId: parent.id, agentId: a.agent });
+  },
+
+  dmRead(ctx, a) {
+    const { state } = ctx;
+    const thread = state.dmThreads.find((t) => t.agentId === a.agent);
+    if (thread === undefined) return;
+    const messages = state.dmMessages.filter((m) => m.threadId === thread.id);
+    const target = messages.findIndex((m) => m.clientId === a.clientId);
+    // A read carried into the next loop can name a scripted message that does not exist yet.
+    if (target === -1) return;
+    const cursor = messages.findIndex((m) => m.id === state.dmReads[thread.id]);
+    if (target > cursor) state.dmReads[thread.id] = (messages[target] as DmMessage).id;
   },
 
   milestoneCreate(ctx, a) {
