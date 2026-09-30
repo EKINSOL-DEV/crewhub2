@@ -20,6 +20,7 @@ import {
   Home,
   Layers2,
   Maximize,
+  Minus,
   Monitor,
   Moon,
   Move,
@@ -304,9 +305,8 @@ export function App() {
             aria-label={themeLabel}
             title={themeLabel}
             onClick={cycle}
-          >
-            <ThemeIcon className="icon" />
-          </Button>
+            icon={<ThemeIcon className="icon" />}
+          />
           <span className="avatar" role="img" aria-label="Local workspace">
             N
           </span>
@@ -321,9 +321,8 @@ export function App() {
             aria-label="Observe the room"
             pressed={mode === "observe"}
             onClick={cancel}
-          >
-            <Home className="icon icon-lg" />
-          </Button>
+            icon={<Home className="icon icon-lg" />}
+          />
           <Button
             variant="ghost"
             iconOnly
@@ -332,9 +331,8 @@ export function App() {
             pressed={mode === "arrange"}
             disabled={fallback}
             onClick={() => enterMode("arrange")}
-          >
-            <Box className="icon icon-lg" />
-          </Button>
+            icon={<Box className="icon icon-lg" />}
+          />
           <Button
             variant="ghost"
             iconOnly
@@ -343,9 +341,8 @@ export function App() {
             pressed={mode === "walk"}
             disabled={fallback || disconnected}
             onClick={() => enterMode("walk")}
-          >
-            <Footprints className="icon icon-lg" />
-          </Button>
+            icon={<Footprints className="icon icon-lg" />}
+          />
           <span className="rail-spacer" />
           <Button
             variant="ghost"
@@ -354,18 +351,16 @@ export function App() {
             aria-label="Room preferences"
             expanded={settings}
             onClick={() => setSettings(!settings)}
-          >
-            <Settings2 className="icon icon-lg" />
-          </Button>
+            icon={<Settings2 className="icon icon-lg" />}
+          />
           <Button
             variant="ghost"
             iconOnly
             title="Room guide"
             aria-label="Room guide"
             onClick={() => help.current?.showModal()}
-          >
-            <CircleHelp className="icon icon-lg" />
-          </Button>
+            icon={<CircleHelp className="icon icon-lg" />}
+          />
         </nav>
         <section className="room-area" aria-labelledby="room-title">
           <div className="room-heading">
@@ -381,12 +376,15 @@ export function App() {
             aria-label="Toggle crew overview"
             expanded={mobileCrew}
             onClick={() => setMobileCrew(!mobileCrew)}
-          >
-            <Users className="icon icon-lg" />
-            {counts.attention > 0 && (
-              <span className="badge badge-accent">{counts.attention}</span>
-            )}
-          </Button>
+            icon={
+              <>
+                <Users className="icon icon-lg" />
+                {counts.attention > 0 && (
+                  <span className="badge badge-accent">{counts.attention}</span>
+                )}
+              </>
+            }
+          />
           <div className="scene-summary" aria-label="Crew status summary">
             {disconnected ? (
               <Chip.Stalled>Disconnected · last known states</Chip.Stalled>
@@ -520,9 +518,8 @@ export function App() {
                   aria-label="Free orbit"
                   pressed={freeCamera}
                   onClick={() => setFreeCamera(!freeCamera)}
-                >
-                  <Compass className="icon" />
-                </Button>
+                  icon={<Compass className="icon" />}
+                />
                 <span className="toolbar-divider" aria-hidden="true" />
                 <Button
                   variant="ghost"
@@ -531,9 +528,8 @@ export function App() {
                   title="Rotate left"
                   aria-label="Rotate left"
                   onClick={() => camera("rotate-left")}
-                >
-                  <RotateCcw className="icon" />
-                </Button>
+                  icon={<RotateCcw className="icon" />}
+                />
                 <Button
                   variant="ghost"
                   size="sm"
@@ -541,9 +537,8 @@ export function App() {
                   title="Rotate right"
                   aria-label="Rotate right"
                   onClick={() => camera("rotate-right")}
-                >
-                  <RotateCw className="icon" />
-                </Button>
+                  icon={<RotateCw className="icon" />}
+                />
                 <Button
                   variant="ghost"
                   size="sm"
@@ -551,9 +546,8 @@ export function App() {
                   title="Zoom out"
                   aria-label="Zoom out"
                   onClick={() => camera("zoom-out")}
-                >
-                  <span aria-hidden="true">−</span>
-                </Button>
+                  icon={<Minus className="icon" />}
+                />
                 <Button
                   variant="ghost"
                   size="sm"
@@ -561,9 +555,8 @@ export function App() {
                   title="Zoom in"
                   aria-label="Zoom in"
                   onClick={() => camera("zoom-in")}
-                >
-                  <Plus className="icon" />
-                </Button>
+                  icon={<Plus className="icon" />}
+                />
                 <span className="toolbar-divider" aria-hidden="true" />
                 <Button
                   variant="ghost"
@@ -573,9 +566,8 @@ export function App() {
                   aria-label="Show grid"
                   pressed={grid}
                   onClick={() => setGrid(!grid)}
-                >
-                  <Grid2X2 className="icon" />
-                </Button>
+                  icon={<Grid2X2 className="icon" />}
+                />
                 <Button
                   variant="ghost"
                   size="sm"
@@ -584,9 +576,8 @@ export function App() {
                   aria-label="See-through walls"
                   pressed={cutaway}
                   onClick={() => setCutaway(!cutaway)}
-                >
-                  <Layers2 className="icon" strokeDasharray="3 2" />
-                </Button>
+                  icon={<Layers2 className="icon" strokeDasharray="3 2" />}
+                />
               </div>
             </>
           )}
@@ -606,9 +597,8 @@ export function App() {
                     iconOnly
                     aria-label="Close arrangement tools"
                     onClick={cancel}
-                  >
-                    <X className="icon" />
-                  </Button>
+                    icon={<X className="icon" />}
+                  />
                 }
               />
               <Card.Body className="panel-stack">
@@ -666,9 +656,8 @@ export function App() {
                     title="Rotate prop (R)"
                     aria-label="Rotate prop"
                     onClick={rotateProp}
-                  >
-                    <RotateCw className="icon" />
-                  </Button>
+                    icon={<RotateCw className="icon" />}
+                  />
                 </div>
                 <small className="hint">
                   Click to place · R to rotate · Esc to finish
@@ -692,9 +681,8 @@ export function App() {
                     iconOnly
                     aria-label="Finish walking"
                     onClick={cancel}
-                  >
-                    <X className="icon" />
-                  </Button>
+                    icon={<X className="icon" />}
+                  />
                 }
               />
               <Card.Body className="panel-stack">
@@ -716,9 +704,8 @@ export function App() {
                     iconOnly
                     aria-label="Close preferences"
                     onClick={() => setSettings(false)}
-                  >
-                    <X className="icon" />
-                  </Button>
+                    icon={<X className="icon" />}
+                  />
                 }
               />
               <Card.Body className="panel-stack">
@@ -771,9 +758,8 @@ export function App() {
               iconOnly
               aria-label="Close crew overview"
               onClick={() => setMobileCrew(false)}
-            >
-              <X className="icon icon-lg" />
-            </Button>
+              icon={<X className="icon icon-lg" />}
+            />
           </div>
           <p className="panel-subtitle">Good company. Great possibilities.</p>
           <div className="crew-list">
@@ -812,9 +798,8 @@ export function App() {
                   aria-label={`Find ${selected.name} in the room`}
                   disabled={fallback}
                   onClick={() => camera("focus")}
-                >
-                  <Focus className="icon" />
-                </Button>
+                  icon={<Focus className="icon" />}
+                />
               }
             />
             <Card.Body className="panel-stack">
@@ -988,9 +973,8 @@ export function App() {
               iconOnly
               aria-label="Dismiss message"
               onClick={() => setNotice("")}
-            >
-              <X className="icon icon-sm" />
-            </Button>
+              icon={<X className="icon icon-sm" />}
+            />
           </div>
         )}
       </div>
@@ -1006,9 +990,8 @@ export function App() {
                 iconOnly
                 aria-label="Close room guide"
                 onClick={() => help.current?.close()}
-              >
-                <X className="icon" />
-              </Button>
+                icon={<X className="icon" />}
+              />
             }
           />
           <Card.Body className="panel-stack">

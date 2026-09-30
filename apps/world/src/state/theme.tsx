@@ -24,11 +24,16 @@ function writeLocal(theme: Theme) {
   }
 }
 
-/* Keep the browser chrome colour in step with the resolved --bg. */
+/* Keep the browser chrome colour in step with the resolved --bg. The token can be a color-mix(), which a
+   theme-color meta may not understand, so paint it once and write the resulting rgb(). */
 function syncThemeColor() {
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (!meta) return;
-  meta.setAttribute("content", getComputedStyle(document.documentElement).getPropertyValue("--bg").trim());
+  const ctx = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
+  if (!meta || !ctx) return;
+  ctx.fillStyle = getComputedStyle(document.body).backgroundColor;
+  ctx.fillRect(0, 0, 1, 1);
+  const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+  meta.setAttribute("content", `rgb(${r}, ${g}, ${b})`);
 }
 
 interface ThemeState {

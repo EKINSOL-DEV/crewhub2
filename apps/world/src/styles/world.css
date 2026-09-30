@@ -323,7 +323,8 @@
 /* The text-first overview replaces the canvas. */
 .text-overview {
   position: absolute;
-  top: 0;
+  /* Below the status chips, which overlap the top of the stage. */
+  top: 4rem;
   left: 50%;
   transform: translateX(-50%);
   width: min(22rem, calc(100% - 2 * var(--space-5)));
@@ -692,6 +693,6 @@
     left: var(--space-2);
   }
   .text-overview {
-    top: 0;
+    top: 6rem;
   }
 }

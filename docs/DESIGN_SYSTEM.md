@@ -94,7 +94,8 @@ appears. Screens compose these primitives; a new need is a variant first.
 - Stored in `localStorage` under `crewhub-theme`, in this browser only. There is
   no server round trip.
 - Applied as `data-theme` on `<html>`. `system` follows `prefers-color-scheme`.
-- `<meta name="theme-color">` is set from the computed `--bg`.
+- `<meta name="theme-color">` is set from the resolved `--bg`, written as `rgb()`
+  because the token may be a `color-mix()`.
 - A theme toggle Button in the app header cycles system, light, dark.
 
 ## Status mapping
@@ -123,7 +124,8 @@ appears outside `tokens.css`. The exceptions are the 3D scene material files
    `apps/world/index.html`, except `tokens.css` and the scene files above (listed
    explicitly in the script).
 2. Dark-token parity: the `prefers-color-scheme: dark` block and
-   `:root[data-theme="dark"]` in `tokens.css` define the same tokens.
+   `:root[data-theme="dark"]` in `tokens.css` declare the same tokens with
+   identical values.
 
 The script does not compute contrast. loops records the ratios in the `tokens.css`
 header, and its colours are `color-mix()` values that a plain script cannot
