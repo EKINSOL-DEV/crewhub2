@@ -105,6 +105,21 @@ export interface Room {
 
 export type ObjectLook = "folder" | "box" | "bug-crate" | "envelope";
 
+/** Where the ticket drone lifts a package from or drops it: a room, or the truck (archive and unarchive). */
+export type TransitPlace = RoomKind | "truck";
+
+/**
+ * The ticket drone's flight (cosmetic, deterministic): source-time ms. While it is set, `room` and `deskOf` keep the
+ * old place; at `until` they become the new place and `transit` is null (the model updates on the drop).
+ */
+export interface Transit {
+  fromRoom: TransitPlace;
+  toRoom: TransitPlace;
+  toDeskOf: AgentKey | null;
+  startedAt: number;
+  until: number;
+}
+
 export interface WorkObject {
   ticketId: string;
   key: string;
@@ -135,6 +150,8 @@ export interface WorkObject {
   speechMarkUntil: number | null;
   /** `ticket.moved` to done by a person just happened: play the small celebration once. */
   celebrateUntil: number | null;
+  /** The ticket drone carries it right now (a status change, archive or unarchive). */
+  transit: Transit | null;
 }
 
 export type Posture = "focused" | "relaxed" | "raised-hand" | "greyed";

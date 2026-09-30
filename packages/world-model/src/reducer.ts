@@ -31,6 +31,7 @@ import type {
   RoleId,
   WorldModel,
 } from "./model.ts";
+import { finishFlights, flyObjects, startFlights } from "./flights.ts";
 import { buildObjects } from "./objects.ts";
 import type { BuiltObject, DeskHolder } from "./objects.ts";
 import { buildRooms, meetingKey } from "./rooms.ts";
@@ -79,6 +80,7 @@ export function reduceWorld(facts: Readonly<Facts>, memory: PresentationMemory, 
     roleOverrides: options.roleOverrides,
   };
 
+  startFlights(ctx);
   const entities = listAgents(facts);
   const states = new Map<AgentKey, AgentState>();
   for (const entity of entities) {
@@ -101,6 +103,8 @@ export function reduceWorld(facts: Readonly<Facts>, memory: PresentationMemory, 
     const project = facts.projects[slug];
     if (project) buildings.push(archivedBuilding(project, ctx));
   }
+
+  finishFlights(ctx);
 
   const townHall: AgentPlacement[] = [];
   const postOffice: AgentPlacement[] = [];
@@ -178,7 +182,8 @@ function activeBuilding(
     .filter((fact) => fact.slug === slug)
     .map((fact) => fact.card);
   const built = buildObjects(project, cards, desks, ctx);
-  const objects = built.map((b) => b.object);
+  const toTruck = flyObjects(slug, built, (card) => buildObjects(project, [card], desks, ctx)[0]!, ctx);
+  const objects = [...built, ...toTruck].map((b) => b.object);
 
   for (const agent of agents) {
     const own = built.filter((b) => b.object.deskOf === agent.key || (agent.registered && b.assigneeId === agent.key));

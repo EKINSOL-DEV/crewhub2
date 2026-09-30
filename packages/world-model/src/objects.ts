@@ -134,5 +134,6 @@ function toObject(
     labels: (card.labels ?? []).map((label) => label.name),
     speechMarkUntil,
     celebrateUntil,
+    transit: null,
   };
 }

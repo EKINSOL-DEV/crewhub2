@@ -133,6 +133,7 @@ export class Projection {
     facts.team = snapshot.team;
     facts.teamReceivedAt = this.source.now();
     facts.teamRevision = this.state.teamRevision + 1;
+    facts.snapshots = this.state.snapshots + 1;
     facts.agents = snapshot.agents;
     facts.principals = snapshot.principals;
     facts.watchdog = snapshot.watchdog;
@@ -216,6 +217,9 @@ export class Projection {
         if (event.type === "ticket.unarchived" && slug) {
           facts.archivedTickets[slug] = Math.max(0, (facts.archivedTickets[slug] ?? 0) - 1);
         }
+        if (event.type === "ticket.unarchived" && event.ticket) {
+          pushCapped(facts.unarchives, { seq: event.seq, ts, slug, ticketId: event.ticket.id, ticketKey: event.ticket.key, card: null });
+        }
         if (event.ticket) this.refetchTicket(event.ticket.id);
         return;
       }
@@ -274,6 +278,7 @@ export class Projection {
           this.recount(fact.slug);
         }
         if (owner) facts.archivedTickets[owner] = (facts.archivedTickets[owner] ?? 0) + 1;
+        pushCapped(facts.archives, { seq: event.seq, ts, slug: owner, ticketId: event.ticket.id, ticketKey: event.ticket.key, card: fact?.card ?? null });
         return;
       }
       case "ticket.progress": {

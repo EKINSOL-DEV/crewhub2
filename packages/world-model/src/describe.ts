@@ -13,6 +13,7 @@ import type {
   Room,
   TextLine,
   TicketStatus,
+  TransitPlace,
   WorkObject,
   WorldModel,
 } from "./model.ts";
@@ -186,6 +187,12 @@ function describeRoom(building: Building, room: Room, add: Add): void {
   for (const object of objects) describeObject(section, object, building, add);
 }
 
+function placeWords(place: TransitPlace): string {
+  if (place === "truck") return "the truck";
+  const label = roomLabel(place);
+  return `the ${label.charAt(0).toLowerCase()}${label.slice(1)}`;
+}
+
 function describeObject(section: string, object: WorkObject, building: Building, add: Add): void {
   const parts = [`${object.key} "${object.title}": ${object.kind} as a ${LOOK_WORDS[object.look]}, ${STATUS_WORDS[object.status]}`];
   if (object.priorityTag) parts.push(`${object.priorityTag} priority tag`);
@@ -216,4 +223,7 @@ function describeObject(section: string, object: WorkObject, building: Building,
   if (object.deskInferred) add(section, `${object.key} is on that desk because the agent's status line names it: an inference.`, "inference");
   if (object.speechMarkUntil !== null) add(section, `${object.key} has a new comment (speech mark until ${clock(object.speechMarkUntil)}).`);
   if (object.celebrateUntil !== null) add(section, `${object.key} was just moved to done by a person.`);
+  if (object.transit) {
+    add(section, `${object.key} is in transit from ${placeWords(object.transit.fromRoom)} to ${placeWords(object.transit.toRoom)}: the ticket drone carries it.`, "cosmetic");
+  }
 }
