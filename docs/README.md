@@ -6,6 +6,7 @@ These are the active documents for the browser-world rebuild. All are in English
 | --- | --- |
 | [VISION.md](VISION.md) | User goals, product principles, and success criteria |
 | [VISUAL_DIRECTION.md](VISUAL_DIRECTION.md) | Art direction, interactions, and visual quality bar |
+| [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) | Reference-based light/dark tokens, component kit, usage and review status |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Browser, bridge, adapters, and protocol boundaries |
 | [GRID_ENGINE.md](GRID_ENGINE.md) | Coordinates, footprints, placement, navigation, and semantic world contract |
 | [ROOM_REVIEW.md](ROOM_REVIEW.md) | First-room design, verification evidence, and pending browser acceptance |

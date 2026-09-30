@@ -22,8 +22,10 @@ reduced motion, and graphics fallback. It also establishes the requested grid
 foundation: rectangular footprints, rotation, placement, pathfinding, movement
 reservations, and semantic snapshots. Three.js is the only rendering engine.
 
-The user reviewed the room positively and accepted its visual direction. The UI
-will be refined after the user establishes a design system. Automated checks pass;
+The user reviewed the room positively and accepted its visual direction. A
+[reference-based design-system kit](DESIGN_SYSTEM.md) now provides light/dark
+tokens, components, and a local field guide for review. Migrating the original room
+and 3D lighting to the kit remains separate work. Automated checks pass;
 the cloud agent's browser preview was blocked, so technical browser/device and
 performance verification remains outstanding. See [ROOM_REVIEW.md](ROOM_REVIEW.md).
 

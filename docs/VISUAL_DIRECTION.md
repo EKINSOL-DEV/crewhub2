@@ -16,6 +16,14 @@ focus, and automatic wall fading provide visibility when needed.
 
 ## First room
 
+The user subsequently supplied a town reference and requested a light/dark design
+system. [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) records the implemented v0.1 kit,
+neutral system-sans UI, semantic palette, and material guidance. The kit is a
+reviewable draft; its 3D lighting guidance is not applied to the original room.
+The user's subsequent UI feedback removes green interface tints and the thick
+left selection edge. Use warm neutral surfaces, graphite accents and even thin
+selection borders in the kit; keep botanical scene materials separate.
+
 - One complete room with three distinguishable characters and meaningful places
   for them to work, wait, and present a result.
 - A clear overview camera and a satisfying focus/return interaction. Motion must
