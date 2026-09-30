@@ -333,3 +333,16 @@ tonight. No second style is needed now.
   through the building they draw (plot style id, falling back to the town
   default), never through a global singleton. Tonight every plot resolves to
   Greenhouse; the per-plot field exists but has no UI.
+- Direction, not tonight's scope: a style should become a **plugin or
+  extension that people can add or adapt themselves**. What that asks of
+  tonight's seam: `WorldStyle` is a documented contract (a manifest with id,
+  name, version and the semantic keys it covers; a resolver from semantic key
+  to model and material; palette resolution; lighting presets per theme;
+  environment), registered in a style registry, with Greenhouse as the first
+  registered style and nothing special-cased for it. Prefer data (JSON
+  manifests, parts-JSON models, palette names) over code wherever the
+  Greenhouse style allows it, so a future style can be authored without
+  TypeScript. Write `docs/WORLD_STYLES.md`: the contract, how Greenhouse
+  implements it, and what a third-party style would have to provide. Loading
+  styles from outside the bundle, a style marketplace or an editor are not
+  tonight's work.
