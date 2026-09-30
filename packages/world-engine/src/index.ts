@@ -461,3 +461,6 @@ export class WorldSimulation {
     };
   }
 }
+export { MinHeap } from "./heap.ts";
+export * from "./nav.ts";
+export * from "./navSim.ts";
