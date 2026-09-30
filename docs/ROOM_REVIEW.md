@@ -1,5 +1,7 @@
 # The Greenhouse: implementation and review
 
+Status: historical. The Greenhouse room described here was replaced by the town of project buildings ([ADR 0005](decisions/0005-crewhub-world-on-loops.md)); its models, materials and lighting live on as the 3D style. Its open browser and device checks are not carried forward.
+
 After the initial PR, the user reviewed the room positively and accepted its visual
 direction. They will provide a design system for UI refinement. The technical
 verification limits below remain unchanged; the next sequence is in
