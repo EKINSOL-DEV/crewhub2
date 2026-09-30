@@ -29,6 +29,7 @@
     "packages/loops-client/test",
     "packages/demo/src",
     "packages/demo/test",
+    "packages/world-engine/bench",
     "packages/world-engine/src",
     "packages/world-engine/test",
     "packages/world-model/src",

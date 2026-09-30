@@ -1,4 +1,5 @@
 /** Headless grid model. No renderer, timers, sockets, or AI. */
+import { MinHeap } from "./heap.ts";
 export interface Cell {
   x: number;
   z: number;
@@ -92,13 +93,44 @@ export function occupancy(l: WorldLayout, defs: Definitions): Int32Array {
   });
   return cells;
 }
-/** Deterministic 4-neighbor A*, with no diagonal corner cutting. Includes both ends. */
+/**
+ * Deterministic 4-neighbor A*, with no diagonal corner cutting. Includes both ends.
+ * Reserved cells are forbidden. Uses a binary heap; ties in f break by the order in
+ * which cells were first discovered, which reproduces the original open-list scan.
+ */
 export function findPath(
   g: GridSpec,
   blocked: Int32Array,
   start: Cell,
   goal: Cell,
-  reserved = new Set<string>(),
+  reserved: ReadonlySet<string> = new Set<string>(),
+): Cell[] | null {
+  if (reserved.has(cellKey(goal))) return null;
+  return search(g, blocked, start, goal, (c) =>
+    reserved.size && reserved.has(cellKey(c)) ? null : 1,
+  );
+}
+/**
+ * A* where `costOf(cell)` is the cost of entering a cell: `null` forbids it and
+ * values below 1 count as 1, so the Manhattan heuristic stays admissible. Used
+ * for "reserved cells are expensive" replans. Same tie order as `findPath`.
+ */
+export function findPathWeighted(
+  g: GridSpec,
+  blocked: Int32Array,
+  start: Cell,
+  goal: Cell,
+  costOf: (cell: Cell) => number | null,
+): Cell[] | null {
+  if (inBounds(g, goal) && costOf(goal) === null) return null;
+  return search(g, blocked, start, goal, costOf);
+}
+function search(
+  g: GridSpec,
+  blocked: Int32Array,
+  start: Cell,
+  goal: Cell,
+  costOf: (cell: Cell) => number | null,
 ): Cell[] | null {
   if (
     !inBounds(g, start) ||
@@ -109,26 +141,23 @@ export function findPath(
   const index = (c: Cell) => c.z * g.width + c.x;
   const s = index(start),
     end = index(goal);
-  if (blocked[s] !== -1 || blocked[end] !== -1 || reserved.has(cellKey(goal)))
-    return null;
+  if (blocked[s] !== -1 || blocked[end] !== -1) return null;
   if (s === end) return [{ ...start }];
   const cost = new Float64Array(blocked.length).fill(Infinity),
-    previous = new Int32Array(blocked.length).fill(-1);
-  const closed = new Uint8Array(blocked.length),
-    inOpen = new Uint8Array(blocked.length),
-    open = [s];
-  cost[s] = 0;
-  inOpen[s] = 1;
+    previous = new Int32Array(blocked.length).fill(-1),
+    order = new Int32Array(blocked.length).fill(-1),
+    closed = new Uint8Array(blocked.length),
+    open = new MinHeap();
   const h = (id: number) =>
     Math.abs((id % g.width) - goal.x) +
     Math.abs(Math.floor(id / g.width) - goal.z);
-  while (open.length) {
-    let best = 0;
-    for (let i = 1; i < open.length; i++)
-      if (cost[open[i]!]! + h(open[i]!) < cost[open[best]!]! + h(open[best]!))
-        best = i;
-    const current = open.splice(best, 1)[0]!;
-    inOpen[current] = 0;
+  let discovered = 0;
+  cost[s] = 0;
+  order[s] = discovered++;
+  open.push(h(s), order[s]!, s);
+  while (open.size) {
+    const current = open.pop();
+    if (closed[current]) continue;
     if (current === end) {
       const result: Cell[] = [];
       for (let id = end; id !== -1; id = previous[id]!)
@@ -144,16 +173,18 @@ export function findPath(
       { x, z: z + 1 },
       { x: x - 1, z },
     ]) {
-      if (!inBounds(g, c) || reserved.has(cellKey(c))) continue;
+      if (!inBounds(g, c)) continue;
       const n = index(c);
-      if (blocked[n] !== -1 || closed[n] || cost[current]! + 1 >= cost[n]!)
-        continue;
-      cost[n] = cost[current]! + 1;
+      if (blocked[n] !== -1 || closed[n]) continue;
+      const step = costOf(c);
+      if (step === null) continue;
+      const next = cost[current]! + Math.max(1, step);
+      if (next >= cost[n]!) continue;
+      cost[n] = next;
       previous[n] = current;
-      if (!inOpen[n]) {
-        open.push(n);
-        inOpen[n] = 1;
-      }
+      if (order[n] === -1) order[n] = discovered++;
+      // Lazy decrease-key: a stale entry is skipped once the cell is closed.
+      open.push(next + h(n), order[n]!, n);
     }
   }
   return null;
@@ -432,3 +463,6 @@ export class WorldSimulation {
 }
 
 export * from "./props.ts";
+export { MinHeap } from "./heap.ts";
+export * from "./nav.ts";
+export * from "./navSim.ts";
