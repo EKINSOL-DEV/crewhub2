@@ -54,6 +54,8 @@ events. It is switchable and capped, and its usage is monitored.
 | Can one agent belong to several buildings? | Yes. Either clone it visually, or keep one real agent with proxies, the real one where it is actively working. The plan takes the second. | Section 4.4 |
 | AI movement? | Yes, on Haiku or another very cheap model, planning every 5 minutes or after actions. Measure the cost of one Haiku and adapt. Postman suggested as its home. | Section 7 |
 | Deployment? | By default crewhub-loops and CrewHub run on the same machine. Tailscale is always optional. | Section 3.5 |
+| A world without DMs (the host reads as an agent)? | Accepted. L5 stays an optional proposal. | Sections 3.1 and 9 |
+| The director in its own Haiku lane rather than inside postman? | Agreed: a dedicated `world-director` lane on the postman pattern. | Section 7.3 |
 
 ## 2. What crewhub-loops is today
 
@@ -648,7 +650,7 @@ the same user; `loops:docs/events.md`) and the answer is presentation data only.
 - **Limits.** It never moves a working, blocked, stalled or waiting agent. It
   never produces text that appears as an agent's speech.
 
-**Why a separate lane, not the postman lane itself.** The postman's first prompt
+**Why a separate lane, not the postman lane itself (agreed by Nicky).** The postman's first prompt
 allows exactly one command, `crewhub deliver next`, and forbids everything else
 (`loops:docs/postman-briefing.md`). It is the delivery path, and DMs go through it
 within seconds (CL-80). Planning turns in the same lane would share its context,
@@ -732,7 +734,7 @@ None of them blocks phase 1.
 | L2 | Publish JSON Schemas (or generated TypeScript types) for `Envelope`, `ProjectOut`, `TicketCard`, `BoardResponse`, `TeamSnapshot`, `AgentOut`, with a drift test, as already done for `team.schema.json` | OpenAPI is disabled (`loops:.../api/main.py:123-125`). The host must validate every response at runtime and should not hand-maintain the schemas. | Phase 1 (hand-written validators until then) |
 | L3 | `TeamAgent.ticketKey` (derived, nullable): the in-progress ticket a lane or worker is on, using the server's existing key rule | The server already credits workers to tickets (`loops:.../domain/progress.py`). Re-parsing `contextLine` in CrewHub duplicates a rule that can drift. | Phase 2 |
 | L4 | `ticket.updated` payload: the new `assigneeId` and `waitingOnId` when those changed | Saves a ticket re-read for the two changes that move agents and objects. | Phase 2 (optional) |
-| L5 | Payload-free DM envelopes (`dm.created`, `dm.answered`: agent id and thread id only) visible to the `viewer` role | Without it, the world shows no DM activity (`loops:.../api/stream.py:175-180`). | Optional |
+| L5 | Payload-free DM envelopes (`dm.created`, `dm.answered`: agent id and thread id only) visible to the `viewer` role | Without it, the world shows no DM activity (`loops:.../api/stream.py:175-180`). Nicky accepted a world without DMs, so this is not needed now. | Optional |
 | L6 | An explicit role attribute on agents, or a convention such as a profile, that the world can read | Rooms by role then rest on a fact instead of a name rule. | Optional |
 | L7 | One line in `loops:docs/agents-briefing-snippet.md` pointing to `crewhub-world where` | Agents learn that they can look themselves up. | Phase 6 |
 
@@ -777,9 +779,6 @@ Open questions for Nicky:
   status, kind as the object's look.
 - Q2. Is the four-role catalogue complete (lead, workers, analyst, design), and
   are the name rules right?
-- Q3. Are no DMs in the world acceptable, or should L5 be proposed?
-- Q4. Should the director run as its own Haiku lane (recommended), or inside the
-  postman lane after all?
 
 ## 12. Sentences to change once this plan is accepted
 

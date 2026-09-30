@@ -56,8 +56,8 @@ The full plan is [LOOPS_INTEGRATION_PLAN.md](../LOOPS_INTEGRATION_PLAN.md).
 - CrewHub's shell is one host process, a client package, the engine and the
   renderer. It needs no Tauri, no pairing with runtimes and no protocol of its
   own.
-- The host acts as an agent. It sees no DM content, and human actions happen in
-  the loops web app, which the world links to.
+- The host acts as an agent. It sees no DMs, which Nicky accepted, and human
+  actions happen in the loops web app, which the world links to.
 - CrewHub depends on the crewhub-loops contracts. It validates them at runtime
   and pins the loops commit it was tested against.
 - crewhub-loops should add a read-only `viewer` role and published schemas. The
