@@ -1,0 +1,90 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-beacon",
+  "name": "Attention beacon",
+  "description": "An amber beacon on a brass pole over the lead's office.",
+  "category": "light",
+  "tags": [
+    "greenhouse"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "cylinder",
+      "size": [
+        0.02,
+        0.9,
+        0.025
+      ],
+      "position": [
+        0,
+        0.45,
+        0
+      ],
+      "material": "brass"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.16,
+        0.03,
+        0.16
+      ],
+      "position": [
+        0,
+        0.9,
+        0
+      ],
+      "material": "slate",
+      "radius": 0.01
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.1,
+        0.12,
+        0.1
+      ],
+      "position": [
+        0,
+        1.0,
+        0
+      ],
+      "material": "tangerine",
+      "emissive": true
+    },
+    {
+      "shape": "torus",
+      "size": [
+        0.1,
+        0.012,
+        0
+      ],
+      "position": [
+        0,
+        1.0,
+        0
+      ],
+      "material": "slate"
+    },
+    {
+      "shape": "cone",
+      "size": [
+        0.08,
+        0.06,
+        0
+      ],
+      "position": [
+        0,
+        1.14,
+        0
+      ],
+      "material": "slate"
+    }
+  ]
+}

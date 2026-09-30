@@ -1,0 +1,297 @@
+/* Greenhouse pieces that stretch or need code: the town ground, walls, floors, emblems, the civic buildings and the
+   ticket decorations that renderers scale per instance. Moved from TownScene. Origins: a piece's footprint centre on
+   the floor; walls run along x. */
+import * as THREE from "three";
+import type { EmblemName, ModelOptions } from "@crewhub/world-style";
+import { put, type Kit, type Swatch } from "./kit.ts";
+import { lamp, plant } from "./furniture.ts";
+import { floorShader, glassMaterial } from "./shaders.ts";
+
+type Size = { width: number; height: number; depth: number };
+const size = (o: ModelOptions, fallback: Size): Size => o.size ?? fallback;
+const accent = (o: ModelOptions): Swatch => o.accent ?? "no-project";
+
+export function ground(kit: Kit, o: ModelOptions): THREE.Group {
+  const { width, depth } = size(o, { width: 20, height: 0.5, depth: 20 });
+  const g = new THREE.Group();
+  put(g, kit.box(width + 0.6, 0.5, depth + 0.6, "plinth", 0.2), 0, -0.3, 0);
+  put(g, kit.box(width, 0.1, depth, "street", 0.04), 0, -0.03, 0);
+  return g;
+}
+
+export function plot(kit: Kit, o: ModelOptions): THREE.Group {
+  const { width, depth } = size(o, { width: 6, height: 0.16, depth: 6 });
+  const g = new THREE.Group();
+  put(g, kit.box(width, 0.16, depth, "lawn-edge", 0.06), 0, 0.06, 0);
+  put(g, kit.box(width - 0.2, 0.04, depth - 0.2, "lawn", 0.015), 0, 0.15, 0);
+  return g;
+}
+
+export function path(kit: Kit, o: ModelOptions): THREE.Object3D {
+  const { width, depth } = size(o, { width: 1, height: 0.04, depth: 1 });
+  const mesh = kit.box(width, 0.04, depth, "step", 0.015);
+  mesh.position.y = 0.02;
+  return mesh;
+}
+
+export function streetLamp(kit: Kit): THREE.Group {
+  const g = lamp(kit);
+  g.scale.setScalar(0.8);
+  const outer = new THREE.Group();
+  outer.add(g);
+  return outer;
+}
+
+export function planting(kit: Kit, o: ModelOptions): THREE.Group {
+  return plant(kit, o.seed ?? 0);
+}
+
+/** A tall chalk wall with a skirt and a trim in the accent colour; "archived" dims it. */
+export function wall(kit: Kit, o: ModelOptions, low = false): THREE.Group {
+  const { width, height, depth } = size(o, { width: 1, height: low ? 0.3 : 1.35, depth: 0.12 });
+  const color = o.variant === "archived" ? "chalk-dim" : "chalk";
+  const g = new THREE.Group();
+  put(g, kit.box(width, height, depth, color, 0.03), 0, height / 2, 0);
+  if (!low) put(g, kit.box(Math.max(0.05, width - 0.1), 0.12, depth + 0.04, "skirt", 0.02), 0, 0.08, 0);
+  put(g, kit.box(width + 0.02, 0.06, depth + 0.05, o.accent ? accent(o) : "ledge", 0.02), 0, height + 0.03, 0);
+  return g;
+}
+
+/** Framed glass between mullions: the Greenhouse's glass wall. Windows glow under lamplight. */
+export function glassWall(kit: Kit, o: ModelOptions, glass: THREE.ShaderMaterial): THREE.Group {
+  const { width, height, depth } = size(o, { width: 4, height: 1.35, depth: 0.12 });
+  const g = new THREE.Group();
+  const panes = Math.max(1, Math.round(width / 1.3));
+  const pane = kit.geometry(`pane:${(width / panes).toFixed(3)},${height}`, () => new THREE.PlaneGeometry(width / panes - 0.08, height - 0.2));
+  for (let i = 0; i < panes; i++) {
+    const offset = -width / 2 + ((i + 0.5) * width) / panes;
+    put(g, new THREE.Mesh(pane, glass), offset, height / 2, 0);
+    put(g, kit.box(0.05, height, depth * 0.6, "mullion", 0.01), offset - width / panes / 2, height / 2, 0);
+  }
+  put(g, kit.box(0.05, height, depth * 0.6, "mullion", 0.01), width / 2, height / 2, 0);
+  put(g, kit.box(width, 0.1, depth, "mullion", 0.02), 0, 0.05, 0);
+  put(g, kit.box(width + 0.04, 0.06, depth + 0.05, o.accent ? accent(o) : "ledge", 0.02), 0, height + 0.03, 0);
+  return g;
+}
+
+export function door(kit: Kit, o: ModelOptions): THREE.Object3D {
+  const { width, depth } = size(o, { width: 1.2, height: 0.06, depth: 0.5 });
+  const step = kit.box(width, 0.06, depth, "step", 0.02);
+  step.position.y = 0.03;
+  return step;
+}
+
+/** A room floor: the Greenhouse floor shader, UVs in 0.6 m cells; "dim" is an empty room's floor. */
+export function floor(kit: Kit, o: ModelOptions): THREE.Mesh {
+  const { width, depth } = size(o, { width: 3, height: 0, depth: 3 });
+  const geo = kit.geometry(`floor:${width},${depth}`, () => {
+    const plane = new THREE.PlaneGeometry(width, depth);
+    const uv = plane.attributes.uv!;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, (uv.getX(i) * width) / 0.6, (uv.getY(i) * depth) / 0.6);
+    return plane.rotateX(-Math.PI / 2);
+  });
+  const material = kit.material(o.variant === "dim" ? "floor-dim" : "floor");
+  if (!material.userData.floor) {
+    floorShader(material);
+    material.userData.floor = true;
+  }
+  const mesh = new THREE.Mesh(geo, material);
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+/** A small plaque on the floor where the room's label stands. */
+export function roomSign(kit: Kit): THREE.Group {
+  const g = new THREE.Group();
+  put(g, kit.box(0.46, 0.035, 0.2, "timber-trim", 0.012), 0, 0.02, 0);
+  put(g, kit.box(0.4, 0.01, 0.14, "cream", 0.004), 0, 0.042, 0);
+  return g;
+}
+
+export function flag(kit: Kit, o: ModelOptions): THREE.Group {
+  const g = new THREE.Group();
+  put(g, kit.cylinder(0.03, 0.03, 2.4, "pole"), 0, 1.2, 0);
+  // An archived project's flag hangs at half-mast.
+  put(g, kit.box(0.75, 0.46, 0.03, accent(o), 0.01), 0.39, o.variant === "archived" ? 1.35 : 2.12, 0);
+  return g;
+}
+
+export function planks(kit: Kit, o: ModelOptions): THREE.Group {
+  const { width } = size(o, { width: 1.3, height: 0.4, depth: 0.05 });
+  const g = new THREE.Group();
+  for (const [y, tilt] of [
+    [0.18, 0.18],
+    [0.36, -0.14],
+  ] as const)
+    put(g, kit.box(width + 0.2, 0.09, 0.05, "plank", 0.015), 0, y, 0).rotation.z = tilt;
+  return g;
+}
+
+/** The loops `icon` as a small sculpture on a plinth. */
+export function emblem(kit: Kit, icon: EmblemName, o: ModelOptions): THREE.Group {
+  const color = accent(o);
+  const g = new THREE.Group();
+  put(g, kit.box(0.62, 0.3, 0.62, "emblem-plinth", 0.05), 0, 0.15, 0);
+  const material = kit.material(color);
+  const shape = (key: string, create: () => THREE.BufferGeometry, x: number, y: number, z: number) =>
+    put(g, kit.mesh(kit.geometry(key, create), material), x, y, z);
+  const top = 0.3;
+  switch (icon) {
+    case "home":
+      put(g, kit.box(0.36, 0.26, 0.36, color, 0.03), 0, top + 0.13, 0);
+      shape("emblem:roof", () => new THREE.ConeGeometry(0.34, 0.24, 4, 1).rotateY(Math.PI / 4), 0, top + 0.38, 0);
+      break;
+    case "inbox":
+      put(g, kit.box(0.46, 0.06, 0.36, color, 0.02), 0, top + 0.03, 0);
+      for (const [x, z, w, d] of [
+        [0, -0.17, 0.46, 0.04],
+        [0, 0.17, 0.46, 0.04],
+        [-0.21, 0, 0.04, 0.36],
+        [0.21, 0, 0.04, 0.36],
+      ] as const)
+        put(g, kit.box(w, 0.12, d, color, 0.01), x, top + 0.09, z);
+      break;
+    case "bot":
+      put(g, kit.box(0.42, 0.32, 0.32, color, 0.08), 0, top + 0.18, 0);
+      put(g, kit.box(0.32, 0.13, 0.03, "visor", 0.04), 0, top + 0.19, 0.165);
+      for (const x of [-0.07, 0.07]) put(g, kit.box(0.04, 0.06, 0.02, "eye", 0.015), x, top + 0.19, 0.185);
+      put(g, kit.sphere(0.045, color), 0, top + 0.43, 0);
+      break;
+    case "spark":
+      shape("emblem:spark", () => new THREE.OctahedronGeometry(0.2), 0, top + 0.28, 0).scale.set(0.8, 1.5, 0.8);
+      break;
+    case "users":
+      for (const [x, s] of [
+        [-0.1, 1],
+        [0.12, 0.85],
+      ] as const) {
+        put(g, kit.cylinder(0.08 * s, 0.12 * s, 0.22 * s, color), x, top + 0.11 * s, 0);
+        put(g, kit.sphere(0.075 * s, color), x, top + 0.3 * s, 0);
+      }
+      break;
+    case "star":
+      shape("emblem:star", () => starGeometry(0.26, 0.11, 0.08), 0, top + 0.26, 0).rotation.y = Math.PI / 5;
+      break;
+    case "folder":
+      put(g, kit.box(0.46, 0.34, 0.07, color, 0.02), 0, top + 0.17, 0);
+      put(g, kit.box(0.18, 0.06, 0.07, color, 0.02), -0.14, top + 0.36, 0);
+      break;
+  }
+  return g;
+}
+
+const TALL = 1.35,
+  LOW = 0.45,
+  THICK = 0.14;
+
+/** The post office: a small chalk house with a timber counter and a mailbox. */
+export function postOffice(kit: Kit): THREE.Group {
+  const office = new THREE.Group();
+  for (const [x, z, w, d, h] of [
+    [0, -1.2, 3.2, THICK, TALL],
+    [-1.6, 0, THICK, 2.4, TALL],
+    [1.6, 0, THICK, 2.4, LOW],
+  ] as const) {
+    put(office, kit.box(w, h, d, "chalk", 0.03), x, h / 2, z);
+    put(office, kit.box(w + 0.04, 0.08, d + 0.04, "ledge", 0.02), x, h + 0.04, z);
+  }
+  put(office, kit.box(2, 0.7, 0.4, "timber-trim", 0.04), 0, 0.35, 0.2);
+  put(office, kit.box(0.4, 0.5, 0.34, "timber-trim", 0.05), 1.9, 0.25, 1.9);
+  return office;
+}
+
+/** The town hall: columns on a stepped base, a bench in front. */
+export function townHall(kit: Kit): THREE.Group {
+  const hall = new THREE.Group();
+  for (let i = 0; i < 2; i++) put(hall, kit.box(4.2 - i * 0.3, 0.12, 2.6 - i * 0.3, "step", 0.03), 0, 0.06 + i * 0.12, 0);
+  put(hall, kit.box(3.9, TALL, THICK, "chalk", 0.03), 0, TALL / 2 + 0.24, -1.1);
+  for (let i = 0; i < 5; i++) put(hall, kit.cylinder(0.1, 0.12, TALL, "chalk"), -1.6 + i * 0.8, TALL / 2 + 0.24, 1);
+  put(hall, kit.box(4, 0.14, 0.4, "ledge", 0.03), 0, TALL + 0.3, 1);
+  return hall;
+}
+
+/** A stretchable band around a ticket: straps (blocked), tape (held), the milestone band. */
+export function band(kit: Kit, o: ModelOptions, color: Swatch): THREE.Group {
+  const { width, height, depth } = size(o, { width: 0.3, height: 0.2, depth: 0.25 });
+  const g = new THREE.Group();
+  put(g, kit.box(width, height, depth, color, 0.004), 0, height / 2, 0);
+  return g;
+}
+
+/** Two dark straps crossing a ticket: blocked. */
+export function straps(kit: Kit, o: ModelOptions): THREE.Group {
+  const { width, height, depth } = size(o, { width: 0.3, height: 0.2, depth: 0.25 });
+  const g = new THREE.Group();
+  for (const x of [-width * 0.25, width * 0.25]) put(g, kit.box(0.03, height + 0.01, depth + 0.012, "strap", 0.004), x, height / 2, 0);
+  put(g, kit.box(width + 0.012, height * 0.25, depth + 0.012, "strap", 0.004), 0, height / 2, 0);
+  return g;
+}
+
+export function sticker(kit: Kit, o: ModelOptions): THREE.Object3D {
+  if (o.variant === "star") {
+    const star = kit.mesh(kit.geometry("sticker:star", () => starGeometry(0.045, 0.02, 0.01).rotateX(-Math.PI / 2)), kit.material("brass", { glow: 0.25 }));
+    star.position.y = 0.006;
+    return star;
+  }
+  const mesh = kit.box(0.05, 0.01, 0.05, accent(o), 0.004);
+  mesh.position.y = 0.005;
+  return mesh;
+}
+
+export function speech(kit: Kit): THREE.Group {
+  const g = new THREE.Group();
+  put(g, kit.sphere(0.07, "speech"), 0, 0.09, 0).scale.set(1.3, 0.85, 0.6);
+  const tail = put(g, kit.mesh(kit.geometry("speech:tail", () => new THREE.ConeGeometry(0.025, 0.06, 8)), kit.material("speech")), -0.04, 0.03, 0);
+  tail.rotation.z = Math.PI + 0.4;
+  return g;
+}
+
+export function sparkle(kit: Kit): THREE.Group {
+  const g = new THREE.Group();
+  const material = kit.material("sparkle", { glow: 0.9 });
+  const geo = kit.geometry("sparkle", () => new THREE.OctahedronGeometry(0.05));
+  for (const [x, y, s] of [
+    [0, 0.12, 1],
+    [0.1, 0.05, 0.6],
+    [-0.09, 0.07, 0.7],
+  ] as const) {
+    const m = put(g, new THREE.Mesh(geo, material), x, y, 0);
+    m.scale.set(0.4 * s, 1.2 * s, 0.4 * s);
+  }
+  return g;
+}
+
+/** A thin frame around a room floor: the keyboard focus. */
+export function focusRing(kit: Kit, o: ModelOptions): THREE.Group {
+  const { width, depth } = size(o, { width: 3, height: 0, depth: 3 });
+  const g = new THREE.Group();
+  const t = 0.07;
+  const material = kit.material("focus-ring", { glow: 0.6 });
+  for (const [x, z, w, d] of [
+    [0, -depth / 2, width, t],
+    [0, depth / 2, width, t],
+    [-width / 2, 0, t, depth],
+    [width / 2, 0, t, depth],
+  ] as const) {
+    const m = new THREE.Mesh(kit.geometry(`ring:${w},${d}`, () => new THREE.BoxGeometry(w, 0.02, d)), material);
+    put(g, m, x, 0.02, z);
+  }
+  return g;
+}
+
+function starGeometry(outer: number, inner: number, depth: number): THREE.BufferGeometry {
+  const shape = new THREE.Shape();
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 ? inner : outer,
+      angle = (i / 10) * Math.PI * 2 + Math.PI / 2;
+    const x = Math.cos(angle) * r,
+      y = Math.sin(angle) * r;
+    if (i) shape.lineTo(x, y);
+    else shape.moveTo(x, y);
+  }
+  return new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false }).translate(0, 0, -depth / 2);
+}
+
+export function glass(kit: Kit): THREE.ShaderMaterial {
+  return glassMaterial(kit.hex("window"), 0.32);
+}

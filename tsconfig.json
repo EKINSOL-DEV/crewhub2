@@ -30,6 +30,9 @@
     "packages/world-engine/test",
     "packages/world-model/src",
     "packages/world-model/test",
+    "packages/world-style/src",
+    "packages/style-greenhouse/src",
+    "packages/style-greenhouse/test",
     "scripts/prop-validate.ts"
   ]
 }

@@ -1,0 +1,63 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-ticket-task",
+  "name": "Folder",
+  "description": "A task ticket: a manila folder lying flat, a sheet peeking out.",
+  "category": "storage",
+  "tags": [
+    "greenhouse"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.3,
+        0.04,
+        0.22
+      ],
+      "position": [
+        0,
+        0.02,
+        0
+      ],
+      "material": "timber-light",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.27,
+        0.012,
+        0.2
+      ],
+      "position": [
+        0.01,
+        0.045,
+        0.005
+      ],
+      "material": "paper",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.1,
+        0.03,
+        0.035
+      ],
+      "position": [
+        -0.08,
+        0.03,
+        -0.125
+      ],
+      "material": "timber-light",
+      "radius": 0.008
+    }
+  ]
+}
