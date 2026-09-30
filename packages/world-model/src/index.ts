@@ -8,3 +8,32 @@ export { emptyMemory } from "./memory.ts";
 export { Projection } from "./projection.ts";
 export { freshnessOf, reduceWorld } from "./reducer.ts";
 export { describeWorld } from "./describe.ts";
+export type * from "./townDocument.ts";
+export type * from "./history.ts";
+export type * from "./catalogue.ts";
+export {
+  ATTACHMENT_KINDS,
+  DEFAULT_STYLE_ID,
+  ROOM_KINDS,
+  RULE_IDS,
+  TOWN_FORMAT,
+  TOWN_LIMITS,
+  applyEdit,
+  emptyTownDocument,
+  exportTownDocument,
+  formatTownIssue,
+  importTownDocument,
+  validateTownDocument,
+} from "./townDocument.ts";
+export {
+  HISTORY_LIMIT,
+  canRedo,
+  canUndo,
+  commitHistory,
+  createHistory,
+  currentDocument,
+  redoHistory,
+  restoreHistory,
+  undoHistory,
+} from "./history.ts";
+export { builtinIds, createCatalogue, findFreeCell, sameSite, siteLayout, takesFootprint } from "./catalogue.ts";
