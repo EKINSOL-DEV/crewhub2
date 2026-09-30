@@ -586,6 +586,21 @@
   .world-label {
     min-height: var(--control-h-touch);
   }
+  /* Compact controls keep their look and get an invisible 40px hit area, as the kit does for chips. */
+  .brand,
+  .scene-summary .btn {
+    position: relative;
+  }
+  .brand::after,
+  .scene-summary .btn::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: var(--control-h-touch);
+    transform: translateY(-50%);
+  }
 }
 
 /* ── Wide screens: a roomier rail and panel ──────────────────────────── */
@@ -667,8 +682,13 @@
   }
   .camera-toolbar {
     bottom: var(--space-3);
+    width: max-content;
     max-width: calc(100% - var(--space-4));
-    overflow-x: auto;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .camera-toolbar .btn {
+    flex: none;
   }
   .header-actions .btn:not(.btn-icon) {
     padding: 0 var(--space-2);
