@@ -1,0 +1,37 @@
+{
+  "columns": [
+    { "status": "backlog", "tickets": [] },
+    { "status": "planned", "tickets": [] },
+    {
+      "status": "in_progress",
+      "tickets": [
+        {
+          "id": "tk_000000000085",
+          "key": "CL-85",
+          "title": "Write the integrator docs",
+          "kind": "task",
+          "status": "in_progress",
+          "priority": "high",
+          "position": 1.5,
+          "version": 4,
+          "assignee": { "id": "cl-lead", "kind": "agent", "displayName": "CL lead" },
+          "waitingOn": null,
+          "labels": [{ "id": "lb_docs", "projectId": null, "name": "docs", "color": "mist" }],
+          "commentCount": 2,
+          "attachmentCount": 0,
+          "agentWorking": true,
+          "stall": null,
+          "waitingOnHuman": false,
+          "milestone": { "id": "ms_0001", "key": "CL-M3", "number": 3, "title": "Integrators", "state": "active" },
+          "held": false,
+          "blocked": false,
+          "updatedAt": "2026-09-30T21:13:18.591Z",
+          "statusChangedAt": "2026-09-30T21:13:18.591Z",
+          "links": [{ "type": "github_pr", "ref": "ekinsol/crewhub-loops#12", "title": null, "status": "open" }]
+        }
+      ]
+    },
+    { "status": "review", "tickets": [] },
+    { "status": "done", "tickets": [] }
+  ]
+}

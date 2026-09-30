@@ -1,0 +1,37 @@
+{
+  "comments": {
+    "nextCursor": null,
+    "comments": [
+      {
+        "id": "cm_1",
+        "ticketId": "tk_000000000085",
+        "parentId": null,
+        "rootId": "cm_1",
+        "author": { "id": "nicky", "kind": "user", "displayName": "Nicky" },
+        "kind": "normal",
+        "systemCode": null,
+        "deliveryId": null,
+        "body": { "v": "1", "doc": { "type": "doc", "content": [] } },
+        "bodyMarkdown": "Looks good.",
+        "attachments": [],
+        "createdAt": "2026-09-30T21:05:00Z",
+        "editedAt": null,
+        "deletedAt": null
+      }
+    ]
+  },
+  "progress": {
+    "nextCursor": null,
+    "progress": [
+      {
+        "id": 311,
+        "agent": { "id": "cl-lead", "kind": "agent", "displayName": "CL lead" },
+        "kind": "update",
+        "text": "cl-dev-2: writing the events table",
+        "worker": "cl-dev-2",
+        "source": "herdr",
+        "createdAt": "2026-09-30T21:10:00Z"
+      }
+    ]
+  }
+}
