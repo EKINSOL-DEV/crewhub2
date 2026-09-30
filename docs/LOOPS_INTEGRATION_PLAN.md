@@ -8,7 +8,8 @@ Citations: `loops:<path>` is a file in the crewhub-loops repository at commit
 `79ecfa0`. `loops:.../` abbreviates `loops:services/api/src/crewhub_loops/`.
 `v1:<path>` is a file in the CrewHub v1 repository (`crewhub`). Plain paths are
 in this repository. The loops and v1 files are cited as code spans, not links,
-because they live in other repositories.
+because they live in other repositories. This repository (crewhub2) will be
+renamed crewhub later; the plan says CrewHub throughout.
 
 ## 1. Summary and decision
 
@@ -52,6 +53,7 @@ events. It is switchable and capped, and its usage is monitored.
 | Local-only layout storage for now? | A proper local database holds all world information. | Sections 3 and 6 |
 | Can one agent belong to several buildings? | Yes. Either clone it visually, or keep one real agent with proxies, the real one where it is actively working. The plan takes the second. | Section 4.4 |
 | AI movement? | Yes, on Haiku or another very cheap model, planning every 5 minutes or after actions. Measure the cost of one Haiku and adapt. Postman suggested as its home. | Section 7 |
+| Deployment? | By default crewhub-loops and CrewHub run on the same machine. Tailscale is always optional. | Section 3.5 |
 
 ## 2. What crewhub-loops is today
 
@@ -107,7 +109,7 @@ agents' Herdr panes.
 ### 2.3 Auth, transports and the CLI
 
 - One app, two listeners: a Unix socket (mode 0600) and TCP. TCP is exposed only
-  through nginx at `127.0.0.1:8091/api`, and in production behind Tailscale Serve
+  through nginx at `127.0.0.1:8091/api`, and, in the current omarchy deploy, optionally behind Tailscale Serve
   on port 9443 (`loops:docs/events.md`, `docs/deploy.md`).
 - Principals come from the `chl_session` cookie (people; `SameSite=Lax`, path `/`)
   or `Authorization: Bearer chl_…` (agents). A valid key together with a cookie is
@@ -163,14 +165,14 @@ flowchart LR
   People["Nicky, loops web app"] --> Loops
   Host["CrewHub host (apps/host)"] -- "socket, read-only key: REST + NDJSON" --> Loops
   Host --- DB[("World database (SQLite)")]
-  Browser["CrewHub World (browser)"] -- "HTTPS via Tailscale Serve: snapshot + SSE" --> Host
+  Browser["CrewHub World (browser)"] -- "loopback HTTP: snapshot + SSE (Tailscale optional)" --> Host
   Director["world-director lane (Haiku)"] -- "crewhub-world CLI, host socket" --> Host
 ```
 
 ### 3.1 Does crewhub-loops need to serve `/world/`?
 
 No. A browser cannot open a Unix socket or run the CLI, so the socket path
-needs a process on the crewhub-loops machine. The requirement for a proper
+needs a process on the same machine as crewhub-loops. The requirement for a proper
 local world database needs a process anyway. Once that process exists, reading
 crewhub-loops through it costs little, and it removes every crewhub-loops change
 that the direct-browser option needed.
@@ -182,8 +184,8 @@ that the direct-browser option needed.
 | Streams | One loops stream for every browser tab and the director (loops caps each principal at 4; `loops:docs/events.md`). | One stream per browser, shared across tabs. |
 | World database, director, agent awareness | Live in the host. | Would need world storage and an endpoint in crewhub-loops. |
 | Identity | The host is an agent. It sees what agents see, so no DM content and no DM events (`loops:.../api/stream.py:142-180`). Human actions go to the loops web app through deep links. | The person: DMs visible, writes possible in the world. |
-| Cost to CrewHub | A small service to run as a user unit on the loops machine, with its own pairing for the browser. | None beyond a client module. |
-| Latency | Socket on the host (sub-millisecond) plus SSE over the tailnet. Comparable. | nginx plus the tailnet. |
+| Cost to CrewHub | A small service to run next to crewhub-loops, with its own pairing for the browser. | None beyond a client module. |
+| Latency | Socket on the host (sub-millisecond) plus SSE on loopback. Comparable. | nginx on loopback. |
 
 ### 3.2 The host: the whole CrewHub shell
 
@@ -196,11 +198,11 @@ types and runtime validation). It stores data in SQLite through Node's built-in
 
 | Responsibility | Detail |
 | --- | --- |
-| Read crewhub-loops | Unix socket in production, TCP in development; `Authorization: Bearer` with key file checks like the CLI's (regular file, owned by the user, mode 0400, `O_NOFOLLOW`). The host does not shell out to `crewhub`, because the CLI has no command for the project list, the board, the team snapshot or the agent list (section 2.3). |
+| Read crewhub-loops | The Unix socket by default; loopback TCP (`127.0.0.1:8091/api` through the loops nginx, or `127.0.0.1:8000` under `make dev`) where the socket is not reachable, for example when a container runtime does not share Unix sockets with the host. Both transports need `Authorization: Bearer` the key, with key file checks like the CLI's (regular file, owned by the user, mode 0400, `O_NOFOLLOW`). The host does not shell out to `crewhub`, because the CLI has no command for the project list, the board, the team snapshot or the agent list (section 2.3). |
 | Keep facts in memory only | A normalised projection keyed by loops ids. It is never written to the world database, and it is rebuilt on every host start. crewhub-loops remains the only truth. |
 | Keep the world database | World data only: see 3.4. |
 | Serve the browser | The static bundle; `GET /world-api/snapshot` (facts projection, world state, host seq); `GET /world-api/stream` (SSE with the host seq, `Last-Event-ID` resume from a ring buffer of 2,000 deltas, otherwise a new snapshot); world edits with revision compare-and-swap; an allowlisted read-only passthrough for one ticket's detail (`/api/tickets/{ref}`, `/comments`, `/progress`), fetched only when a person opens it. |
-| Serve local tools | A Unix socket of its own (0600) for the `crewhub-world` CLI: `where` (agent awareness), `plan-input`, `plan-submit` and `usage` (director), `pair` (browser pairing). |
+| Serve local tools | A Unix socket of its own (0600) for the `crewhub-world` CLI: `where` (agent awareness), `plan-input`, `plan-submit` and `usage` (director), `open` (browser pairing). |
 
 The host has no Herdr access, no process control, no provider credentials, no
 model calls, no rendering and no movement simulation.
@@ -248,19 +250,35 @@ It never holds ticket text, comments, messages or loops credentials.
 Everything in it is CrewHub's own. Identifiers that point into crewhub-loops are
 stored as references: principal ids, slugs and ticket ids.
 
-### 3.5 Auth
+### 3.5 Deployment and auth
+
+**Default: one machine, no Tailscale.** crewhub-loops and CrewHub run on the
+same machine, which is either Nicky's workstation or the host where the agents
+run. The browser opens the world at `http://127.0.0.1:<port>`. Nothing depends
+on Tailscale, and a machine without it gets the whole world.
+
+**Optional: remote access.** To reach the world from another device, put
+Tailscale Serve (or any TLS reverse proxy) in front of the host's loopback port,
+the way crewhub-loops is exposed on 9443 (`loops:docs/deploy.md`). The host does
+not change; only the allowed Origins and the cookie's `Secure` flag follow the
+public URL.
+
 
 - **Host to crewhub-loops.** An agent `crewhub-world` with a read-only key. The
   `probe` role works today: it allows safe methods only, plus three team PUTs
   that the host never calls (`loops:.../auth/deps.py:139-172`). L1 replaces it
   with a proper `viewer` role.
 - **Browser to host.**
-  - The host binds `127.0.0.1`. Tailscale Serve exposes it on its own HTTPS port
-    on the loops machine, as crewhub-loops is exposed on 9443
-    (`loops:docs/deploy.md`).
-  - `crewhub-world pair` prints a one-time code, valid for 10 minutes. The
-    browser exchanges it for an HttpOnly, Secure, `SameSite=Strict` cookie.
-  - The host checks that the Origin is its own.
+  - The host binds `127.0.0.1` only.
+  - `crewhub-world open` prints, or opens, a one-time link, valid for 10
+    minutes. The browser exchanges it for an HttpOnly, `SameSite=Strict`
+    cookie, which is `Secure` behind TLS.
+  - Pairing is still required on loopback, because any web page in the same
+    browser can send requests to `127.0.0.1`.
+  - The host checks both the Host and the Origin header against an allowlist:
+    by default `127.0.0.1:<port>` and `localhost:<port>`, plus the optional
+    public URL. This blocks DNS rebinding, the same guard crewhub-loops applies
+    (`loops:.../api/security.py:56-81`).
   - No loops credential ever reaches the browser.
 - **Development.** The host runs against a local crewhub-loops (`make dev` in
   that repository). Vite proxies `/world-api` to the host.
@@ -278,7 +296,7 @@ stored as references: principal ids, slugs and ticket ids.
 | `crewhub ticket new/move/assign/wait/done/progress/comment` | Driving a dev crewhub-loops in acceptance tests, so what the world shows is caused by the real agent path. |
 | `crewhub-world where` (new, CrewHub's own) | An agent asks where it is in the world (section 7). |
 | `crewhub-world plan-input`, `plan-submit`, `usage` (new) | The director lane's whole interface (section 7). |
-| `crewhub-world pair` (new) | Pairing a browser with the host. |
+| `crewhub-world open` (new) | Pairing a browser with the host through a one-time link. |
 
 ## 4. The world mapping
 
@@ -729,7 +747,7 @@ makes zero model calls, except phase 6 once it is switched on.
 
 | Phase | Deliverable | Acceptance criteria |
 | --- | --- | --- |
-| 1. First light | `apps/host`: key file, socket client, stream-first projection, SSE, pairing, static bundle. `packages/loops-client`. The browser shows one plain building per project with name, key and counts per status, and each lead in its building with its team status. | Against crewhub-loops `make dev` and its seed: `crewhub ticket move CL-1 in_progress` changes the counts within 2 s. A restart of the loops API and a restart of the host both recover without a page reload. Two browser tabs share one loops stream. Nothing is written to crewhub-loops. The key appears in no bundle, log or response. |
+| 1. First light | `apps/host`: key file, socket client, stream-first projection, SSE, pairing, static bundle. `packages/loops-client`. The browser shows one plain building per project with name, key and counts per status, and each lead in its building with its team status. | On one machine without Tailscale, against crewhub-loops `make dev` and its seed: `crewhub ticket move CL-1 in_progress` changes the counts within 2 s. A restart of the loops API and a restart of the host both recover without a page reload. Two browser tabs share one loops stream. Nothing is written to crewhub-loops. The key appears in no bundle, log or response. |
 | 2. Buildings | World database with migrations and backup; role catalogue with overrides; lead's office, role rooms, status rooms, work objects and piles, lobby; the movement table of 4.3; the real agent with proxies; stall, attention, waiting-on-person and progress captions; text panels. Remove `apps/bridge`, `packages/protocol`, the mock crew and scenarios; add replay fixtures recorded with `crewhub watch --json`. | A scripted run of CLI commands (new, move, progress, wait, done, comment) produces the expected rooms, objects and postures in a recorded test. A lead of two projects shows one solid avatar and one proxy. A stale snapshot is shown as stale. Every scene state has a text equivalent. |
 | 3. Town and dynamic pathfinding | Portal graph, doors, town paths, postman walks between buildings, wait budget and step-aside, heap A*, detail levels with one detailed interior at a time | 12 buildings and 100 agents from a replay stay within the 33 ms frame budget on the reference device. No actor waits more than 5 s in the corridor stress test. Offscreen buildings do no cosmetic routing. |
 | 4. Layout and props | Layout editing, the prop catalogue, the parts editor, parts-JSON import and attachments (section 6), all in the world database with undo and export/import | A host restart restores the same town. An invalid import leaves the previous revision intact. A user-made prop blocks exactly its declared footprint. A ticket-attached sticker follows its object into the review pile. |
@@ -740,8 +758,8 @@ makes zero model calls, except phase 6 once it is switched on.
 
 Risks:
 
-- **A service to run.** The host is a new user unit on the loops machine,
-  next to `team-probe`, with its own backup and pairing. Keep it small, and
+- **A service to run.** The host is a new process next to crewhub-loops (a
+  user unit on Linux, a launch agent on macOS), with its own backup and pairing. Keep it small, and
   never let it grow into a second loops.
 - **Agent identity.** The host sees what an agent sees. DMs stay invisible
   unless L5 is added, and human actions always happen in the loops web app.
@@ -757,12 +775,10 @@ Open questions for Nicky:
 
 - Q1. Confirm the combined room model of 4.2: people by role, work objects by
   status, kind as the object's look.
-- Q2. Does the host run on the crewhub-loops machine as a user unit, reached
-  over Tailscale Serve on its own port?
-- Q3. Is the four-role catalogue complete (lead, workers, analyst, design), and
+- Q2. Is the four-role catalogue complete (lead, workers, analyst, design), and
   are the name rules right?
-- Q4. Are no DMs in the world acceptable, or should L5 be proposed?
-- Q5. Should the director run as its own Haiku lane (recommended), or inside the
+- Q3. Are no DMs in the world acceptable, or should L5 be proposed?
+- Q4. Should the director run as its own Haiku lane (recommended), or inside the
   postman lane after all?
 
 ## 12. Sentences to change once this plan is accepted
@@ -808,7 +824,7 @@ parts of `VISUAL_DIRECTION.md`. Neither of those overlaps with the list below.
 | 57-60 | "Browser clients cannot directly open Herdr's Unix domain socket … The bridge provides that local access. …" | The host reaches crewhub-loops over its Unix socket; browsers reach the host (section 3). |
 | 64-76 | Session identity and command ownership | Identity is the loops principal id; CrewHub sends no commands; human actions open the loops web app. |
 | 80-88 | Events and reconnection against Herdr | The loops stream contract: `lastSeq`, 300 s end, heartbeats, 410 resync. |
-| 92-100 | Loopback pairing, remote access across Tailscale | Host pairing code, HttpOnly cookie, Origin check, Tailscale Serve on the host's own port. |
+| 92-100 | Loopback pairing, remote access across Tailscale | Both apps on one machine by default: loopback, a one-time pairing link, an HttpOnly cookie, Host and Origin checks; Tailscale or another TLS proxy only as an option. |
 | 104-108 | Primary references (Herdr, Tauri, Codex App Server, Claude SDK, MCP) | `loops:docs/events.md`, `loops:docs/team.md`, `loops:docs/agents.md`. |
 
 Other documents that this plan supersedes in part, and that should say so at

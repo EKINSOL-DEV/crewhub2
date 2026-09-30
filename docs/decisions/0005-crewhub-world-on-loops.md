@@ -1,8 +1,9 @@
 # 0005: CrewHub World is a thin 3D layer on crewhub-loops
 
 Status: proposed (2026-09-30), revised after Nicky's first answers; awaiting
-acceptance. Number 0005 because 0004 is taken by the design-system decision on
-the `feat/loops-design-system` branch.
+acceptance. This repository will be renamed crewhub later. Number 0005 because
+0004 is taken by the design-system decision on the `feat/loops-design-system`
+branch.
 
 ## Context
 
@@ -26,6 +27,9 @@ database for world information.
   - owns a SQLite world database with layout, props, roles, settings and
     director plans
   - serves the browser world after pairing
+
+  By default crewhub-loops and CrewHub run on the same machine and the browser
+  uses loopback. Tailscale is always optional, and is only for remote access.
 
   The browser renders the world and runs the movement. Nothing is served by
   crewhub-loops, and no loops credential reaches the browser.
