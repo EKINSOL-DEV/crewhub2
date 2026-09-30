@@ -129,11 +129,16 @@ function describeBuilding(building: Building, add: Add, buildingName: (slug: str
   }
   for (const r of building.releases) {
     const name = r.version ? `Release ${r.number} (${r.version})` : `Release ${r.number}`;
-    add(section, r.publishedAt ? `${name}: published at ${r.publishedAt}; a banner hangs in the lobby.` : `${name}: ${r.state}.`);
+    add(
+      section,
+      r.publishedAt
+        ? `${name}: published at ${r.publishedAt}; a banner hangs in the lobby and a trophy stands on the lead's desk.`
+        : `${name}: ${r.state}.`,
+    );
   }
   for (const beacon of building.beacons) add(section, `Amber beacon over the lead's office on ${beacon.ticketKey}: ${beacon.text}.`);
   if (building.archivedCount > 0) {
-    add(section, `${building.archivedCount} ${building.archivedCount === 1 ? "ticket" : "tickets"} archived from Dispatch.`);
+    add(section, `${building.archivedCount} ${building.archivedCount === 1 ? "ticket" : "tickets"} archived from Dispatch; the truck took them away and the lobby keeps the count.`);
   }
 
   for (const agent of building.agents) describeAgent(section, agent, add, buildingName);
@@ -172,10 +177,12 @@ function describeRoom(building: Building, room: Room, add: Add): void {
   const agents = building.agents.filter((a) => a.room === room.kind);
   if (agents.length > 0) add(section, `${room.label}: ${agents.map((a) => a.displayName).join(", ")}.`);
   const objects = building.objects.filter((o) => o.room === room.kind);
+  const statusRoom = ["storage", "planning", "review", "dispatch"].includes(room.kind);
   if (objects.length === 0) {
-    if (["storage", "planning", "review", "dispatch"].includes(room.kind)) add(section, `${room.label}: no tickets.`);
+    if (statusRoom) add(section, `${room.label}: no tickets.`);
     return;
   }
+  if (statusRoom) add(section, `${room.label}: ${objects.length} ${objects.length === 1 ? "ticket" : "tickets"} in the pile.`);
   for (const object of objects) describeObject(section, object, building, add);
 }
 
@@ -186,12 +193,18 @@ function describeObject(section: string, object: WorkObject, building: Building,
   if (object.sealed) parts.push("held, sealed");
   if (object.stall) {
     const minutes = object.stall.quietMinutes === null ? "" : ` ${object.stall.quietMinutes} min`;
-    parts.push(object.stall.state === "stalled" ? `stalled, quiet${minutes}` : `needs attention, quiet${minutes}`);
+    const nudges = object.stall.nudges > 0 ? `, nudged ${object.stall.nudges} ${object.stall.nudges === 1 ? "time" : "times"}` : "";
+    parts.push(
+      object.stall.state === "stalled"
+        ? `stalled, quiet${minutes}${nudges}, the desk lamp dimmed`
+        : `needs attention, quiet${minutes}${nudges}`,
+    );
   }
   if (object.nameTag) parts.push(`name tag ${object.nameTag}`);
   else if (object.waitingOnHuman) parts.push("waiting on a person");
-  if (object.milestone) parts.push(`milestone ${object.milestone.key}`);
-  if (object.labels.length > 0) parts.push(`labels ${object.labels.join(", ")}`);
+  if (object.milestone) parts.push(`milestone band ${object.milestone.key}`);
+  if (object.labels.length > 0) parts.push(`label stickers ${object.labels.join(", ")}`);
+  if (object.labels.includes("prop")) parts.push("a star sticker: a prop request");
   if (object.status === "in_progress") {
     if (object.deskOf === null) parts.push("in the lead's inbox tray, no agent on it");
     else {

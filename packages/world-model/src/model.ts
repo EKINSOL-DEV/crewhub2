@@ -124,7 +124,8 @@ export interface WorkObject {
   blocked: boolean;
   /** `held` milestone tickets in Storage are sealed. */
   sealed: boolean;
-  stall: { state: "stalled" | "attention"; quietSince: string; quietMinutes: number | null } | null;
+  /** The watchdog state; `nudges` counts the nudges loops actually sent (a counter by the quiet clock). */
+  stall: { state: "stalled" | "attention"; quietSince: string; quietMinutes: number | null; nudges: number } | null;
   /** Name tag of the person it waits on (`waitingOn` of kind user). */
   nameTag: string | null;
   waitingOnHuman: boolean;

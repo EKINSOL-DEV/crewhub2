@@ -94,7 +94,7 @@ function toObject(
     const quietMinutes = Number.isNaN(since)
       ? (openStall?.quietMinutes ?? null)
       : Math.max(0, Math.floor((now - since) / 60_000));
-    stall = { state: stallState, quietSince, quietMinutes };
+    stall = { state: stallState, quietSince, quietMinutes, nudges: openStall?.nudges ?? card.stall?.nudges ?? 0 };
   }
 
   let speechMarkUntil: number | null = null;
