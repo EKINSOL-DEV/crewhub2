@@ -28,7 +28,7 @@ working status, and a stone-colored Moss avatar. Selected cards use an even 1px
 border and a quiet neutral fill. Botanical scene materials remain independent of
 the UI palette.
 
-The [original reference](../apps/world/public/design-system/town-reference.png)
+The original reference
 was supplied by the user on 2026-09-13. It is retained without alteration for design
 review, not represented as a product screenshot or a CrewHub implementation. Its
 upstream creator/license was not supplied; this file is a reference, not a new
@@ -39,11 +39,11 @@ All other UI uses local CSS, existing Lucide icons, and system fonts.
 
 | File | Responsibility |
 | --- | --- |
-| [tokens.css](../apps/world/src/design-system/tokens.css) | Shared dimensions and semantic light/dark values |
-| [components.tsx](../apps/world/src/design-system/components.tsx) | Buttons, icon buttons, panels, statuses, source badges, avatars, agent cards and notices |
-| [components.css](../apps/world/src/design-system/components.css) | Reusable component, field, and focus styles |
-| [DesignSystem.tsx](../apps/world/src/design-system/DesignSystem.tsx) | Interactive guide, specimens, theme preference and token export |
-| [showcase.css](../apps/world/src/design-system/showcase.css) | Guide layout, responsive examples and material study presentation |
+| tokens.css | Shared dimensions and semantic light/dark values |
+| components.tsx | Buttons, icon buttons, panels, statuses, source badges, avatars, agent cards and notices |
+| components.css | Reusable component, field, and focus styles |
+| DesignSystem.tsx | Interactive guide, specimens, theme preference and token export |
+| showcase.css | Guide layout, responsive examples and material study presentation |
 | [check-design-system.mjs](../scripts/check-design-system.mjs) | Matching theme keys and contrast checks against exported tokens |
 
 Tokens are scoped by `data-crew-theme="light"` or `data-crew-theme="dark"` and use
