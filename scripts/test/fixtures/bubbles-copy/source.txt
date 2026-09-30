@@ -1,0 +1,7 @@
+import { useQuery } from "@tanstack/react-query";
+
+export const dmKeys = { threads: ["dm-threads"] as const };
+
+export function useThreads() {
+  return useQuery({ queryKey: dmKeys.threads, queryFn: () => [] });
+}
