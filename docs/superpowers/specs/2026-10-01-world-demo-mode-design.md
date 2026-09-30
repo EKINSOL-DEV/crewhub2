@@ -197,3 +197,80 @@ night ends early, later phases are reported as not done, never half-merged.
   integrator docs were unclear, contradictory, missing, or where the world
   needed something the docs mark as not available. The user wants this list.
 - What was not done, and why.
+
+## Addendum (2026-10-01, from the user): the prop builder as a ticket, and a prop-builder skill
+
+Building a prop is not a thing a person does in a 3D editor alone. **A prop is
+requested as a ticket in the CrewHub project in crewhub-loops**, an agent builds
+it with a dedicated skill, the result lands on the ticket, and the world picks it
+up. Two deliverables come out of this, and both are in scope tonight.
+
+### A. The `prop-builder` skill (built and fully tested tonight)
+
+A Claude Code skill in this repo, `skills/prop-builder/`, that any agent lane can
+use to turn a prop request into a valid prop. It must produce exactly the output
+the world consumes.
+
+- `SKILL.md` (frontmatter `name`, `description` that triggers on "build a prop",
+  "make a prop", "prop request", ticket labels `prop`), written for an agent that
+  has never seen this repo: what a prop is, the parts-JSON format (shapes,
+  sizes, positions, colours as loops palette names or tokens, never hex), the
+  footprint and the semantics the grid engine needs (geometry separate from
+  semantics, collision from the declared footprint, never from meshes), size
+  limits, naming, and the exact steps: read the request, sketch parts, write
+  the JSON, run the validator, fix until green, attach the result.
+- `references/prop-format.md`: the authoritative format description, generated
+  or checked against the TypeScript types in `packages/world-engine` (a drift
+  test).
+- `references/examples/`: five to eight hand-made props that pass, from simple
+  (a plant) to compound (a workbench with a lamp), each with the request text
+  that led to it.
+- A validator CLI, `npm run prop:validate -- <file.json>`, exit 1 with precise
+  messages; the same code the world uses at import.
+- Tests: the validator (good and bad inputs, limits, a footprint that does not
+  match the parts), the drift test, and an **eval**: the Dev Lead runs the skill
+  with a developer agent (Sonnet or Opus at medium) on six unseen requests, for
+  example "a coffee machine", "a whiteboard with three sticky notes", "a bug
+  crate", "a server rack", "a potted cactus", "a delivery truck"; all six must
+  pass the validator and render in the world. Record the eval in the night
+  report with the request texts and the outcome. If the skill fails an eval,
+  fix the skill, not the props.
+
+### B. The prop-request flow in the world (demo)
+
+- In the demo content, the CrewHub project has tickets with the label `prop`
+  and kind task, titled "Prop: <thing>". The demo script moves such a ticket
+  through backlog, planned and in progress; a progress line reads "building
+  the prop"; when the ticket reaches Review, the prop JSON is on the ticket;
+  when a person moves it to Done, the prop enters the catalogue and appears in
+  the world with the materialise effect, at a place the request named (a room
+  or an agent's desk) or in the building's storage.
+- How the JSON travels on the ticket: choose one of attachment or comment, and
+  document the choice and its reason in the night report. Note for the
+  challenges section: `attachment.added` is accepted as a filter but never
+  emitted (`events.md`), so a world following the stream cannot learn about an
+  attachment; a comment with a fenced `json` block does emit `comment.created`.
+  The validator runs on import; an invalid prop on a Done ticket shows a
+  labelled error object, never a crash.
+- Build mode (phase 5) keeps the local editor for quick edits, and gains a
+  "Request a prop" action that, in demo mode, creates a scripted `prop` ticket
+  in the CrewHub building and lets you watch the flow. Label it as demo.
+- The world treats a prop from a ticket and a prop from the local editor the
+  same way once imported: one catalogue, one placement system, provenance kept
+  (ticket key or "local").
+
+Sequencing: the skill and its validator belong to the foundation (their format
+is the prop model of phase 5, so define the format early and let phase 5 build
+on it); the flow itself is part of phases 3 and 5.
+
+## Addendum (2026-10-01, from the user): keep the existing 3D item style
+
+The user: "the style of the items that were already there is very nice." The
+Greenhouse's art direction for 3D items stays the art direction of the town:
+the soft toon materials, warm timber, chalk walls, framed glass, planted
+details and the soft robots in `apps/world/src/world/` (`models.ts`, `Scene.ts`,
+`shaders.ts`). Buildings, rooms, furniture, ticket objects, the postman's cart
+and every prop-builder example are made in that style. The crewhub-loops kit
+governs the 2D interface only. Removing the Greenhouse *room* in phase 1 does
+not mean removing its models, materials or lighting: reuse them, and grow the
+catalogue from them.
