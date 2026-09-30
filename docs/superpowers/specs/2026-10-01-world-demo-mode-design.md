@@ -274,3 +274,62 @@ and every prop-builder example are made in that style. The crewhub-loops kit
 governs the 2D interface only. Removing the Greenhouse *room* in phase 1 does
 not mean removing its models, materials or lighting: reuse them, and grow the
 catalogue from them.
+
+## Addendum (2026-10-01, from the user): the ticket drone
+
+When a ticket changes status, its object does not teleport or slide: **a small
+drone appears out of nowhere, flies in, picks up the package, carries it to the
+room the new status maps to, and drops it there**, then leaves the way it came.
+
+- Trigger: every `ticket.moved` where `from != to` (a reorder inside a column is
+  not a flight), plus archive (to the truck) and unarchive (from the truck).
+- The drone is in the Greenhouse item style: a soft, rounded body, a quiet
+  rotor blur, a small carrying hook; the Dev Lead decides the exact look. It
+  materialises above the package with the same materialise effect as props,
+  descends, hooks the object (a short lift animation), flies a smooth arc
+  through the building (doors are not needed for a drone, it goes over the
+  walls), lands, releases the package into its slot (desk, table, pile,
+  dispatch, truck), and de-materialises.
+- Timing: the whole flight lasts about 2 to 4 seconds at 1x demo speed and
+  scales with the speed control; at 16x flights still complete, but several
+  may be in the air at once. Under reduced motion the drone still appears and
+  the package is placed, but the flight is a short fade instead of an arc.
+- Movement is deterministic and cosmetic: it needs no pathfinding and no AI.
+  The world model updates when the drone drops the package, not when it picks
+  it up, so a text-view reader sees the new room at the same moment the drop
+  happens. During the flight the object is marked "in transit" in the text view.
+- Between buildings (a ticket moved to another project is not a loops
+  operation today, so this stays inside one building). The postman keeps
+  carrying deliveries on foot; the drone only carries tickets.
+- Interruptions: if a second status change arrives while a package is in the
+  air, the drone changes destination mid-flight; it never drops a package on the
+  floor.
+
+This belongs to phase 3 (interiors and ticket flow) and reuses the phase 5
+materialise effect; if phase 5 lands later, a simple fade stands in.
+
+## Addendum (2026-10-01, from the user): Greenhouse is one style of several
+
+The Greenhouse look is the first **style**, not the only one. Build the world
+so that a style is a swappable package, but build only the Greenhouse style
+tonight. No second style is needed now.
+
+- Introduce one seam, for example `WorldStyle`, that owns everything a look
+  consists of: materials and their parameters, the model set for buildings,
+  rooms, furniture, ticket objects, the drone and the postman's cart, lighting
+  per theme (day and lamplight), the environment (ground, sky, planting), and
+  the character look of the robots. Semantics (what a desk is, what a review
+  pile is, footprints, room roles) stay in the world model and the grid engine
+  and know nothing about style.
+- Renderers ask the style for a mesh by semantic key (`desk`, `ticket.bug`,
+  `drone`, `wall`, `door`) and never import a Greenhouse model directly.
+- Props from the prop builder carry their own parts and colours, but colours
+  are palette names that the style resolves, so a prop survives a style change.
+- The style id is stored with the town document; the settings panel shows the
+  current style with only one option for now. A test asserts that no module
+  outside the style package imports the Greenhouse models.
+- Do not build a second style, a style editor, or per-building styles tonight.
+- Leave the door open for a style **per project**: renderers resolve the style
+  through the building they draw (plot style id, falling back to the town
+  default), never through a global singleton. Tonight every plot resolves to
+  Greenhouse; the per-plot field exists but has no UI.

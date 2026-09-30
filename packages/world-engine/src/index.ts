@@ -430,3 +430,5 @@ export class WorldSimulation {
     };
   }
 }
+
+export * from "./props.ts";
