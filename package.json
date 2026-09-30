@@ -10,6 +10,7 @@
   },
   "workspaces": [
     "apps/world",
+    "packages/loops-client",
     "packages/protocol",
     "packages/world-engine",
     "packages/world-model"
@@ -22,7 +23,7 @@
     "check:docs": "node scripts/check-docs.mjs",
     "check:design": "node scripts/check-design-system.mjs",
     "check": "npm run typecheck && npm test && npm run check:docs && npm run check:design && npm run build",
-    "test": "node --test packages/world-engine/test/*.test.ts"
+    "test": "node --test packages/*/test/*.test.ts"
   },
   "devDependencies": {
     "@types/node": "22.20.1",

@@ -221,19 +221,5 @@ export interface TextLine {
   kind: "fact" | "inference" | "cosmetic" | "demo";
 }
 
-/**
- * Playback of a scripted or recorded source (the demo timeline tonight, a replay later).
- * The world never needs it to render; the UI shows it when a source offers it.
- */
-export type PlaybackSpeed = 0 | 1 | 4 | 16;
-export interface PlaybackControls {
-  readonly durationMs: number;
-  positionMs(): number;
-  speed(): PlaybackSpeed;
-  setSpeed(speed: PlaybackSpeed): void;
-  /** Seek to a point of the script; seeking back resets the world and replays to that point. */
-  seek(positionMs: number): void;
-  /** How many times the script has looped. */
-  loop(): number;
-  onChange(listener: () => void): () => void;
-}
+/** Playback lives with the source seam; re-exported so the renderer keeps one import. */
+export type { PlaybackControls, PlaybackSpeed } from "@crewhub/loops-client";
