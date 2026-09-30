@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { SCRIPT_DURATION_MS, createDemoSource, createManualScheduler } from "@crewhub/demo";
-import { definitions } from "../src/world/data.ts";
+import { definitions } from "../src/world/definitions.ts";
 import {
   applyEdit,
   builtinIds,
