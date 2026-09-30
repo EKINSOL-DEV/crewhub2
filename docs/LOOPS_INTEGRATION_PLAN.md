@@ -22,7 +22,10 @@ people talk to them. CrewHub becomes **CrewHub World**. It has two parts:
     using the same HTTP contract the `crewhub` CLI uses.
   - It keeps the world's own database.
   - It serves the world to the browser.
-- **The browser world**, which renders everything and runs the movement.
+- **The browser world**, which renders everything and runs the movement. Its
+  visible UI is minimal: the loops chat bubbles, navigation, and a build mode.
+  Everything else is expressed in the 3D world or opened in the loops web app
+  (section 4.7).
 
 The world model:
 
@@ -54,7 +57,8 @@ events. It is switchable and capped, and its usage is monitored.
 | Can one agent belong to several buildings? | Yes. Either clone it visually, or keep one real agent with proxies, the real one where it is actively working. The plan takes the second. | Section 4.4 |
 | AI movement? | Yes, on Haiku or another very cheap model, planning every 5 minutes or after actions. Measure the cost of one Haiku and adapt. Postman suggested as its home. | Section 7 |
 | Deployment? | By default crewhub-loops and CrewHub run on the same machine. Tailscale is always optional. | Section 3.5 |
-| A world without DMs (the host reads as an agent)? | Accepted. L5 stays an optional proposal. | Sections 3.1 and 9 |
+| A world without DMs (the host reads as an agent)? | Accepted for the scene; superseded for chat by the next row. L5 stays optional. | Sections 3.1 and 9 |
+| How much UI? | As little as possible; let the 3D world be the 3D world. Initially only: the chat bubbles, an exact mirror of the loops chat (a hard requirement; by default just the main agent), navigation of the world and its buildings, and a minimal build mode for placing props. Details are looked up in the loops web app. | Sections 3.5 and 4.7 |
 | The director in its own Haiku lane rather than inside postman? | Agreed: a dedicated `world-director` lane on the postman pattern. | Section 7.3 |
 
 ## 2. What crewhub-loops is today
@@ -168,6 +172,7 @@ flowchart LR
   Host["CrewHub host (apps/host)"] -- "socket, read-only key: REST + NDJSON" --> Loops
   Host --- DB[("World database (SQLite)")]
   Browser["CrewHub World (browser)"] -- "loopback HTTP: snapshot + SSE (Tailscale optional)" --> Host
+  Browser -- "chat bubbles only: DM routes as the person (CORS, L8)" --> Loops
   Director["world-director lane (Haiku)"] -- "crewhub-world CLI, host socket" --> Host
 ```
 
@@ -185,7 +190,7 @@ that the direct-browser option needed.
 | Credentials | One key file on the host, 0400, read per call like the CLI (`loops:clients/crewhub.py:114-123`). Never in the browser. | The person's session cookie. |
 | Streams | One loops stream for every browser tab and the director (loops caps each principal at 4; `loops:docs/events.md`). | One stream per browser, shared across tabs. |
 | World database, director, agent awareness | Live in the host. | Would need world storage and an endpoint in crewhub-loops. |
-| Identity | The host is an agent. It sees what agents see, so no DM content and no DM events (`loops:.../api/stream.py:142-180`). Human actions go to the loops web app through deep links. | The person: DMs visible, writes possible in the world. |
+| Identity | The host is an agent. It sees what agents see, so no DM content and no DM events (`loops:.../api/stream.py:142-180`). The chat bubbles therefore talk to crewhub-loops as the person, directly from the browser (3.5); every other human action opens the loops web app. | The person: DMs visible, writes possible in the world. |
 | Cost to CrewHub | A small service to run next to crewhub-loops, with its own pairing for the browser. | None beyond a client module. |
 | Latency | Socket on the host (sub-millisecond) plus SSE on loopback. Comparable. | nginx on loopback. |
 
@@ -284,10 +289,36 @@ public URL.
   - No loops credential ever reaches the browser.
 - **Development.** The host runs against a local crewhub-loops (`make dev` in
   that repository). Vite proxies `/world-api` to the host.
-- **Human actions.** A person comments, replies to a DM or asks a lead in the
-  loops web app. The world links straight to the page (`/t/<KEY>` and the thread
-  URLs that loops already uses; `loops:docs/agents.md`, "When postman writes to
-  you"). CrewHub never writes to crewhub-loops.
+- **Chat bubbles, as the person.** The one place where the browser talks to
+  crewhub-loops itself. The host cannot do it: it is an agent, and loops has no
+  way to let a process act for a person without holding that person's password
+  or session. `chl_device` only paces logins (`loops:.../auth/device.py:1-12`).
+  - The bubbles use the person's own loops session, the one the loops web app
+    already set in the same browser.
+  - On one machine, loops (`127.0.0.1:8091`) and the world (`127.0.0.1:<port>`)
+    are the same site, because ports do not count. The `SameSite=Lax` session
+    cookie is therefore sent on a credentialed request. The same holds for the
+    two optional public URLs on one host name.
+  - crewhub-loops only has to answer CORS for the CrewHub origin (L8).
+  - The bubbles call exactly the routes the loops dock uses
+    (`loops:apps/web/src/components/bubbles/queries.ts`):
+    - `GET /api/features/global/bubbles`
+    - `GET`/`PUT /api/me/bubbles` (the pins, shared with the loops web app)
+    - `GET /api/dm/threads`
+    - `GET`/`POST /api/dm/threads/{agent}/messages`
+    - `PUT /api/dm/threads/{agent}/read`
+    - `GET /api/agents`
+    - `GET /api/agents/{name}/summary`
+    - a person-scoped `GET /api/events/stream?types=dm.created,dm.answered,delivery.updated`
+      for live updates
+  - loops enforces the rest: bubbles are for admins with the global `bubbles`
+    feature on, and only for lead agents (`loops:.../api/routers/dm.py:29-72`,
+    `loops:apps/web/src/components/bubbles/Bubbles.tsx:16-33`).
+  - Signed out of loops, the dock shows one "sign in to crewhub-loops" link.
+- **Everything else a person does** (comment, move, quick-ask) happens in the
+  loops web app. The world opens the page (`/t/<KEY>` and the thread URLs loops
+  already uses; `loops:docs/agents.md`, "When postman writes to you"). The host
+  never writes to crewhub-loops.
 
 ### 3.6 Where the CLI is used
 
@@ -344,7 +375,7 @@ catalogue, predefined and stored in the world database:
   (`cl-dev-2`, `cl-design-7` in `loops:docs/agents.md`), and a worker's lead
   comes from the `lead` field of `/api/team` (`loops:.../contracts/team.py`).
 - **Inferred roles are labelled.** A role derived from a name is an inference
-  and the agent card says so. A person can override it per agent, and the
+  and its nameplate says so ("design, from its name"). A person can override it per agent, and the
   override is stored in the world database.
 - **Adding roles.** A new role is a catalogue row plus a room template.
 - **Growth.** A role room grows in 4 × 4 modules as desks are needed, following
@@ -416,12 +447,12 @@ Done is a person's decision (`loops:docs/agents.md`, "Finishing a ticket").
 | `ticket.moved` to `done` by a person | The object goes from the pile to Dispatch, with the small celebration. |
 | `ticket.moved` from `review` to `in_progress` with `reason: review_reply` (`loops:.../domain/comments.py:137-145`) | The agent takes the object off the pile and back to its desk. |
 | `ticket.progress` | A caption above the agent: the line itself (at most 200 characters), with `kind` as an icon. It fades after 20 s; a `question` stays until the next line. |
-| `comment.created` | A speech mark without text (payloads carry no bodies) over the author, or at the bench if the author is a person. Selecting it fetches the thread through the host. |
+| `comment.created` | A speech mark without text (payloads carry no bodies) over the author, or at the bench if the author is a person. Selecting it opens the thread in the loops web app. |
 | Two or more principals comment on one ticket within 10 minutes, or a lead and a worker report the same key | Inference: they meet in the meeting room, labelled "discussing CL-12". |
 | `delivery.created`, then `delivery.updated` | The postman avatar (the real `postman` agent) walks a letter from the post office to the recipient's building. `forwarded` hands it over; `uncertain` or `unroutable` leave a flagged letter at the mailbox. |
 | `ticket.stalled` (`stalled`) | The desk lamp dims and a clock shows "quiet 47 min"; nudges show as a counter. |
 | `ticket.stalled` (`attention`) | An amber beacon over the lead's office: "attention: cl-dev-3 blocked 12 min". |
-| `ticket.resumed` | Lamp and beacon clear; the resolution shows once as a toast. |
+| `ticket.resumed` | Lamp and beacon clear. |
 | `ticket.archived` (a batch shares `batchId`) | A truck takes those objects out of Dispatch; the lobby keeps the count. |
 | `release.published` | A banner in the lobby and a trophy on the lead's desk. |
 
@@ -479,10 +510,68 @@ invented tool calls, progress percentages or results, and idle is not success.
 | Meeting | inference, labelled | the co-activity rule in 4.3 |
 | Walks, idle actions, director intents | cosmetic | engine, deterministic idle variety, optional director; never presented as work |
 
-Every fact in the scene is also available as text: a building summary, an agent
-card and an accessible list view. None of them relies on colour alone. The colours
-come from the loops status tokens adopted by the design-system work.
+Labels live in the world: signs, nameplates, captions and counts on pallets
+(4.7). None of them relies on colour alone. The colours come from the loops
+status tokens adopted by the design-system work.
 
+### 4.7 Visible UI: minimal
+
+Let the 3D world be the 3D world. The initial visible UI has exactly three parts.
+
+1. **Chat bubbles: the exact loops chat, mirrored. This is a hard requirement.**
+   The world shows the same dock and the same chat as the loops web app, with
+   the same data, so a conversation can move between the two without any
+   difference:
+   - **Dock:** agent heads with unread badges and presence dots, and the `…`
+     pin menu.
+   - **Chat card:**
+     - a header with the agent chip, the `…` menu (pin or unpin, settings) and
+       close
+     - the "Agent activity" strip (`GET /api/agents/{name}/summary`)
+     - the message list with author, time and the `queued`, `delivered` and
+       `answered` states ("Answered" chip)
+     - the textarea composer with Send, keeping the draft per person and thread
+   - **Same data as loops:** the same pins, threads, unread counts and read
+     markers. A message sent in either UI appears in both.
+   - **How it stays exact:** `loops:apps/web/src/components/bubbles/` (with
+     `queries.ts`, `useMessageViewport.ts`, `bubbles.css` and the i18n strings
+     it uses) is copied verbatim into `apps/world/src/components/bubbles/`,
+     with the loops commit in a header line. This is the same rule the
+     design-system branch uses for `tokens.css` and `kit.css`.
+   - **Changing the chat:** a change is made in crewhub-loops and synced back,
+     never edited only in CrewHub. A small adapter covers what differs:
+     - no router, so "settings" opens the loops web app's
+       `/settings/agents` page
+     - the loops base URL
+     - the person-scoped event stream
+   - **Dependencies:** the copy brings `@tanstack/react-query` and the kit's
+     `Menu` primitive, which the design-system branch left out until a need
+     appeared.
+   - **Default:** with no pins, only the main agent's head shows (Q3).
+2. **Navigation.**
+   - Town overview, a building, a room: select a building to enter it, and use
+     one "back" control.
+   - Keyboard and touch equivalents for the camera.
+   - Nothing else stays on screen.
+3. **Build mode.**
+   - A single toggle.
+   - A small prop palette.
+   - Place, rotate, move, delete and undo (section 6).
+   - Hidden when it is off.
+
+Everything else is in the scene or in loops:
+
+- Status is posture, lamps, beacons, piles and short captions over heads.
+- Names and inferences are on nameplates, which appear on hover or selection.
+- Details (a ticket, its thread, a release) open in the loops web app.
+- There are no side panels, cards, toasts or permanent counters. Settings (the
+  role overrides, the director switch and its usage) sit behind one small
+  settings button.
+
+Accessibility stays as [AGENTS.md](../AGENTS.md) requires: full keyboard
+operation, reduced motion, and a text view of the world. That text view is
+hidden by default, opened by a key, and exposed to screen readers. It is the
+only text rendering of the scene's facts.
 ## 5. Pathfinding and the grid engine
 
 **What exists** (`packages/world-engine/src/index.ts`,
@@ -667,7 +756,7 @@ A second lane costs nothing extra per call, and it has its own off switch.
 **Measuring cost.**
 
 - The host logs every plan: trigger, building, input size, intents accepted and
-  rejected. The world shows the counters.
+  rejected. The counters are in the settings menu (4.7).
 - A Claude Code lane's real token usage is not visible to the host. For the first
   week, read it from the lane's account.
 - If the lane's per-turn overhead (its own system prompt and growing context)
@@ -725,21 +814,22 @@ With the director off, the world is fully functional.
 
 ## 9. Proposals for crewhub-loops
 
-Each item is a proposal for the crewhub-loops repository, in priority order.
-None of them blocks phase 1.
+Each item is a proposal for the crewhub-loops repository; the last column says
+when it is needed. None of them blocks phase 1.
 
 | # | Proposal | Reason | Needed by |
 | --- | --- | --- | --- |
 | L1 | A read-only agent role `viewer`: safe methods only, no writes at all | The host's key today must be `probe`, which can write the team snapshot (`loops:.../auth/deps.py:139-172`), or a `lead`, which can write tickets. A viewer should be unable to write anything. | Before production |
 | L2 | Publish JSON Schemas (or generated TypeScript types) for `Envelope`, `ProjectOut`, `TicketCard`, `BoardResponse`, `TeamSnapshot`, `AgentOut`, with a drift test, as already done for `team.schema.json` | OpenAPI is disabled (`loops:.../api/main.py:123-125`). The host must validate every response at runtime and should not hand-maintain the schemas. | Phase 1 (hand-written validators until then) |
-| L3 | `TeamAgent.ticketKey` (derived, nullable): the in-progress ticket a lane or worker is on, using the server's existing key rule | The server already credits workers to tickets (`loops:.../domain/progress.py`). Re-parsing `contextLine` in CrewHub duplicates a rule that can drift. | Phase 2 |
-| L4 | `ticket.updated` payload: the new `assigneeId` and `waitingOnId` when those changed | Saves a ticket re-read for the two changes that move agents and objects. | Phase 2 (optional) |
+| L3 | `TeamAgent.ticketKey` (derived, nullable): the in-progress ticket a lane or worker is on, using the server's existing key rule | The server already credits workers to tickets (`loops:.../domain/progress.py`). Re-parsing `contextLine` in CrewHub duplicates a rule that can drift. | Phase 3 |
+| L4 | `ticket.updated` payload: the new `assigneeId` and `waitingOnId` when those changed | Saves a ticket re-read for the two changes that move agents and objects. | Phase 3 (optional) |
 | L5 | Payload-free DM envelopes (`dm.created`, `dm.answered`: agent id and thread id only) visible to the `viewer` role | Without it, the world shows no DM activity (`loops:.../api/stream.py:175-180`). Nicky accepted a world without DMs, so this is not needed now. | Optional |
 | L6 | An explicit role attribute on agents, or a convention such as a profile, that the world can read | Rooms by role then rest on a fact instead of a name rule. | Optional |
 | L7 | One line in `loops:docs/agents-briefing-snippet.md` pointing to `crewhub-world where` | Agents learn that they can look themselves up. | Phase 6 |
+| L8 | CORS for the configured CrewHub origins: `Access-Control-Allow-Origin` (never `*`) with credentials, for the bubble routes and the person's event stream only, reusing `CHL_ALLOWED_ORIGINS` | The chat bubbles run in the world's page and use the person's own session (3.5). Without CORS the browser refuses the responses. | Phase 2 |
 
-Not needed any more: a `/world/` mount, CORS, a sign-in `next` path, and
-server-side world storage. There are also no new event types, and no change to
+Not needed any more: a `/world/` mount, a sign-in `next` path, and server-side
+world storage. There are also no new event types, and no change to
 postman or agentctl.
 
 ## 10. Phases
@@ -749,12 +839,12 @@ makes zero model calls, except phase 6 once it is switched on.
 
 | Phase | Deliverable | Acceptance criteria |
 | --- | --- | --- |
-| 1. First light | `apps/host`: key file, socket client, stream-first projection, SSE, pairing, static bundle. `packages/loops-client`. The browser shows one plain building per project with name, key and counts per status, and each lead in its building with its team status. | On one machine without Tailscale, against crewhub-loops `make dev` and its seed: `crewhub ticket move CL-1 in_progress` changes the counts within 2 s. A restart of the loops API and a restart of the host both recover without a page reload. Two browser tabs share one loops stream. Nothing is written to crewhub-loops. The key appears in no bundle, log or response. |
-| 2. Buildings | World database with migrations and backup; role catalogue with overrides; lead's office, role rooms, status rooms, work objects and piles, lobby; the movement table of 4.3; the real agent with proxies; stall, attention, waiting-on-person and progress captions; text panels. Remove `apps/bridge`, `packages/protocol`, the mock crew and scenarios; add replay fixtures recorded with `crewhub watch --json`. | A scripted run of CLI commands (new, move, progress, wait, done, comment) produces the expected rooms, objects and postures in a recorded test. A lead of two projects shows one solid avatar and one proxy. A stale snapshot is shown as stale. Every scene state has a text equivalent. |
-| 3. Town and dynamic pathfinding | Portal graph, doors, town paths, postman walks between buildings, wait budget and step-aside, heap A*, detail levels with one detailed interior at a time | 12 buildings and 100 agents from a replay stay within the 33 ms frame budget on the reference device. No actor waits more than 5 s in the corridor stress test. Offscreen buildings do no cosmetic routing. |
-| 4. Layout and props | Layout editing, the prop catalogue, the parts editor, parts-JSON import and attachments (section 6), all in the world database with undo and export/import | A host restart restores the same town. An invalid import leaves the previous revision intact. A user-made prop blocks exactly its declared footprint. A ticket-attached sticker follows its object into the review pile. |
-| 5. Links into loops | Every selectable fact offers "open in crewhub-loops": the ticket, its thread, the DM thread, the project | Each link opens the right loops page. The world never writes to crewhub-loops. |
-| 6. Director and awareness | The `crewhub-world` CLI (`where`, `plan-input`, `plan-submit`, `usage`), the host's watcher, the `world-director` Haiku lane, the settings and counters of section 7, and L7 | Off by default. When on, plans stay within the caps and the counters are visible. The kill switch stops prompts within one interval. Rejected intents are logged, not played. After a week the measured cost is recorded here. |
+| 1. First light | `apps/host`: key file, socket client, stream-first projection, SSE, pairing, static bundle. `packages/loops-client`. The browser shows one plain building per project with name, key and counts per status, and each lead in its building with its team status. Navigation only: overview, enter a building, back. | On one machine without Tailscale, against crewhub-loops `make dev` and its seed: `crewhub ticket move CL-1 in_progress` changes the counts within 2 s. A restart of the loops API and a restart of the host both recover without a page reload. Two browser tabs share one loops stream. Nothing is written to crewhub-loops. The key appears in no bundle, log or response. No UI beyond navigation. |
+| 2. Chat bubbles | The port of the loops dock and chat card (4.7), with the person's session and L8 | Side by side with the loops web app, at the same loops commit, the dock and chat look and behave the same: the same heads, badges, presence dots, activity strip, message states and composer. A message sent from the world appears in the loops chat and the reply appears in the world without a reload. Pins and read markers changed in one UI show in the other. The copied files are unchanged from the recorded loops commit. Signed out, only the sign-in link shows. |
+| 3. Buildings | World database with migrations and backup; role catalogue with overrides; lead's office, role rooms, status rooms, work objects and piles, lobby; the movement table of 4.3; the real agent with proxies; stall, attention, waiting-on-person and progress captions; nameplates; "open in loops" on selection; the hidden text view. Remove `apps/bridge`, `packages/protocol`, the mock crew and scenarios; add replay fixtures recorded with `crewhub watch --json`. | A scripted run of CLI commands (new, move, progress, wait, done, comment) produces the expected rooms, objects and postures in a recorded test. A lead of two projects shows one solid avatar and one proxy. A stale snapshot is shown as stale. Every scene fact is in the text view. No panels were added. |
+| 4. Town and dynamic pathfinding | Portal graph, doors, town paths, postman walks between buildings, wait budget and step-aside, heap A*, detail levels with one detailed interior at a time | 12 buildings and 100 agents from a replay stay within the 33 ms frame budget on the reference device. No actor waits more than 5 s in the corridor stress test. Offscreen buildings do no cosmetic routing. |
+| 5. Build mode: layout and props | The build-mode toggle and palette, layout editing, the prop catalogue, the parts editor, parts-JSON import and attachments (section 6), all in the world database with undo and export/import | A host restart restores the same town. An invalid import leaves the previous revision intact. A user-made prop blocks exactly its declared footprint. A ticket-attached sticker follows its object into the review pile. With build mode off, no build UI is visible. |
+| 6. Director and awareness | The `crewhub-world` CLI (`where`, `plan-input`, `plan-submit`, `usage`), the host's watcher, the `world-director` Haiku lane, the settings of section 7 behind the settings button, and L7 | Off by default. When on, plans stay within the caps and the usage shows in settings. The kill switch stops prompts within one interval. Rejected intents are logged, not played. After a week the measured cost is recorded here. |
 
 ## 11. Risks and open questions
 
@@ -763,8 +853,12 @@ Risks:
 - **A service to run.** The host is a new process next to crewhub-loops (a
   user unit on Linux, a launch agent on macOS), with its own backup and pairing. Keep it small, and
   never let it grow into a second loops.
-- **Agent identity.** The host sees what an agent sees. DMs stay invisible
-  unless L5 is added, and human actions always happen in the loops web app.
+- **Agent identity.** The host sees what an agent sees. Only the chat bubbles
+  act as the person, and only through loops' own DM routes; every other human
+  action happens in the loops web app.
+- **Two sites in one browser.** The bubbles rely on the world and loops being
+  the same site (same host name, any port) and on L8. A deployment that puts
+  them on different host names needs another answer.
 - **Presence cadence.** The team snapshot is at best 30 s fresh. Ease
   transitions and label freshness; never animate "working" from a stale snapshot.
 - **Director overhead.** A Claude Code lane carries its own prompt and a growing
@@ -779,6 +873,8 @@ Open questions for Nicky:
   status, kind as the object's look.
 - Q2. Is the four-role catalogue complete (lead, workers, analyst, design), and
   are the name rules right?
+- Q3. Who is "the main agent" whose bubble shows by default: the agent flagged
+  `is_crewhub_lead` in loops (`loops:docs/crewhub-lead.md`), or `g-man`?
 
 ## 12. Sentences to change once this plan is accepted
 
@@ -808,7 +904,7 @@ parts of `VISUAL_DIRECTION.md`. Neither of those overlaps with the list below.
 | 33-34 | "Use a CrewHub town as a work context, with persistent rooms and capacity that grows with usable workstations. Herdr can supply the initial hierarchy." | Every project is a building; agents sit in rooms by role and work objects move through rooms by status. |
 | 35-36 | "Allow Claude Code and Codex sessions to join directly and share rooms, with one canonical identity …" | Removed: identity is the loops principal. |
 | 44-45 | "For the first visual milestone, all activity is simulated … Later, one live Herdr session drives the same experience." | A live crewhub-loops drives the world; a labelled replay works without an account. |
-| 51-52 | "A subsequent live adapter can replace the mock source without redesigning the world." | Removed (done by phase 1 and 2). |
+| 51-52 | "A subsequent live adapter can replace the mock source without redesigning the world." | Removed (done by phases 1 and 3). |
 
 **[ARCHITECTURE.md](ARCHITECTURE.md)**
 
@@ -821,7 +917,7 @@ parts of `VISUAL_DIRECTION.md`. Neither of those overlaps with the list below.
 | 45-46 | "Rust is the intended bridge starting point; …" | Removed. |
 | 50-55 | Integration order 1-5 | The phases of section 10. |
 | 57-60 | "Browser clients cannot directly open Herdr's Unix domain socket … The bridge provides that local access. …" | The host reaches crewhub-loops over its Unix socket; browsers reach the host (section 3). |
-| 64-76 | Session identity and command ownership | Identity is the loops principal id; CrewHub sends no commands; human actions open the loops web app. |
+| 64-76 | Session identity and command ownership | Identity is the loops principal id; the host sends no commands; the chat bubbles send DMs as the person through loops' own routes; everything else opens the loops web app. |
 | 80-88 | Events and reconnection against Herdr | The loops stream contract: `lastSeq`, 300 s end, heartbeats, 410 resync. |
 | 92-100 | Loopback pairing, remote access across Tailscale | Both apps on one machine by default: loopback, a one-time pairing link, an HttpOnly cookie, Host and Origin checks; Tailscale or another TLS proxy only as an option. |
 | 104-108 | Primary references (Herdr, Tauri, Codex App Server, Claude SDK, MCP) | `loops:docs/events.md`, `loops:docs/team.md`, `loops:docs/agents.md`. |
