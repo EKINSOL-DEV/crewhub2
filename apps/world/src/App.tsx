@@ -1,8 +1,12 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent as ReactKeyboardEvent, type Ref } from "react";
 import { ArrowLeft, FlaskConical, Minus, Monitor, Moon, Pause, Plus, RotateCcw, RotateCw, Scan, Settings, Sprout, Sun, X } from "lucide-react";
 import type { PlaybackControls, PlaybackSpeed, TextLine } from "@crewhub/world-model";
+import { DirectorLog } from "./components/DirectorLog";
+import { PresenceSettings } from "./components/PresenceSettings";
 import { Button, Card, Chip } from "./components/primitives";
 import { SceneBoundary } from "./components/SceneBoundary";
+import { WhereForm } from "./components/WhereForm";
+import { useDirectorFeed } from "./state/director";
 import { useTheme } from "./state/theme";
 import { useWorld } from "./state/world";
 import type { CameraAction } from "./world/TownScene";
@@ -19,6 +23,7 @@ const typing = (target: EventTarget | null) => target instanceof HTMLElement && 
 export function App() {
   const { model, text, playback } = useWorld();
   const { theme, cycle } = useTheme();
+  useDirectorFeed();
   const [entered, setEntered] = useState<string | null>(null);
   const [focused, setFocused] = useState(0);
   const [ringVisible, setRingVisible] = useState(false);
@@ -231,7 +236,7 @@ export function App() {
             action={<Button variant="ghost" size="sm" iconOnly aria-label="Close settings" icon={<X className="icon" aria-hidden="true" />} onClick={closeSettings} />}
           />
           <Card.Body>
-            <p className="sign-muted">Nothing to set yet.</p>
+            <PresenceSettings />
           </Card.Body>
         </Card>
       )}
@@ -318,6 +323,7 @@ function TextView({ lines, fallback, onClose, ref }: { lines: TextLine[]; fallba
       />
       <Card.Body>
         {fallback && <p className="text-note">3D graphics are not available here, so the world is shown as text.</p>}
+        <WhereForm />
         {[...sections].map(([section, items]) => (
           <section key={section} className="text-section">
             <h3>{section}</h3>
@@ -333,6 +339,7 @@ function TextView({ lines, fallback, onClose, ref }: { lines: TextLine[]; fallba
             </ul>
           </section>
         ))}
+        <DirectorLog />
       </Card.Body>
     </Card>
   );
