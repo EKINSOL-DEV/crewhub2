@@ -1,6 +1,7 @@
 import "@fontsource-variable/archivo";
 import "./styles/tokens.css";
 import "./styles/kit.css";
+import "./styles/world.css";
 import { lazy, StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { ThemeProvider } from "./state/theme";

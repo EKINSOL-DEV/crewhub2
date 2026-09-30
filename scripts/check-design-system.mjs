@@ -15,8 +15,6 @@ const HEX_ALLOWED = new Set([
   "apps/world/src/world/models.ts",
   "apps/world/src/world/shaders.ts",
   "apps/world/src/world/data.ts",
-  // TEMPORARY: removed in T2 when styles.css is replaced by styles/world.css
-  "apps/world/src/styles.css",
 ]);
 
 async function* walk(dir) {
