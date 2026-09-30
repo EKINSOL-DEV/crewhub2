@@ -1,5 +1,7 @@
 # CrewHub town implementation plan
 
+Status: partly superseded by [ADR 0005](decisions/0005-crewhub-world-on-loops.md) and [the loops integration plan](LOOPS_INTEGRATION_PLAN.md) (its section 12). Sections 2, 3, 7 and 8 (session model, runtime bindings, Herdr and direct adapters) are replaced: identity is the loops principal id. Section 6 (IndexedDB as the layout store) is replaced by the host's world database once it exists; tonight the demo keeps a local town document. The town geometry in sections 4, 5 and 9 stays.
+
 Status: accepted product direction; proposed implementation sequence. This change
 adds planning documents only. Towns, dynamic rooms, persistence, and live adapters
 are not implemented by this plan.
