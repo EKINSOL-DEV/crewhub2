@@ -83,14 +83,19 @@ export const CIVIC_LOT = 12;
  * What the home camera frames: the plots in use (at least one), the two civic lots and the square, each with `margin`
  * around it.
  * Empty plots are left out, so a small town fills the screen; the camera fits the projected corners of these rects.
+ * `compact` (a portrait phone) frames tighter: each plot's building area and the civic buildings without their lawns,
+ * so hedges, meadows and the tree belt may run off the screen's edges.
  */
-export function homeRects(buildingCount: number, margin = 1.5): Bounds[] {
+export function homeRects(buildingCount: number, margin = 1.5, compact = false): Bounds[] {
   const square = (c: PlotSpot, half: number): Bounds => ({ minX: c.x - half, maxX: c.x + half, minZ: c.z - half, maxZ: c.z + half });
   const rects: Bounds[] = [];
   const used = Math.max(1, Math.min(TOWN_CAPACITY, buildingCount));
-  for (let i = 0; i < used; i++) rects.push(square(plotCenter(i), PLOT_SIZE / 2 + margin));
-  for (const place of ["post-office", "town-hall"] as const) rects.push(square(civicCenter(place), CIVIC_LOT / 2 + margin));
-  rects.push(square(civicCenter("square"), CIVIC_SIZE.square.width / 2 + margin));
+  const plotHalf = compact ? PLOT_SIZE / 2 - 2 : PLOT_SIZE / 2,
+    civicHalf = compact ? CIVIC_LOT / 2 - 2 : CIVIC_LOT / 2,
+    squareHalf = compact ? CIVIC_SIZE.square.width / 2 - 1 : CIVIC_SIZE.square.width / 2;
+  for (let i = 0; i < used; i++) rects.push(square(plotCenter(i), plotHalf + margin));
+  for (const place of ["post-office", "town-hall"] as const) rects.push(square(civicCenter(place), civicHalf + margin));
+  rects.push(square(civicCenter("square"), squareHalf + margin));
   return rects;
 }
 

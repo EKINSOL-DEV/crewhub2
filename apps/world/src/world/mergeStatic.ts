@@ -1,6 +1,6 @@
 /* Static batching: a building's shell and furniture never move, so their meshes are baked into one merged mesh per
    material. Style-agnostic: it works on whatever the style returned. Meshes that must stay pickable (room floors
-   carry `userData.room`), instanced meshes and meshes with attributes of their own (a style's decals) are kept as
+   carry `userData.room`), moving parts (`userData.live`), instanced meshes and meshes with attributes of their own (a style's decals) are kept as
    they are. */
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
@@ -14,7 +14,8 @@ export function mergeStatic(root: THREE.Group): THREE.BufferGeometry[] {
   const byMaterial = new Map<THREE.Material, { geometries: THREE.BufferGeometry[]; shadow: boolean }>();
   const merged: THREE.Mesh[] = [];
   root.traverse((o) => {
-    if (!(o instanceof THREE.Mesh) || o instanceof THREE.InstancedMesh || Array.isArray(o.material) || o.userData.room) return;
+    // Live meshes (a style's moving parts, `userData.live`) keep their own transforms.
+    if (!(o instanceof THREE.Mesh) || o instanceof THREE.InstancedMesh || Array.isArray(o.material) || o.userData.room || o.userData.live) return;
     if (Object.keys(o.geometry.attributes).some((name) => !MERGED.includes(name))) return;
     const matrix = new THREE.Matrix4().multiplyMatrices(inverse, o.matrixWorld);
     const source = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();

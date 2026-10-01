@@ -42,7 +42,7 @@ export function environment(
     sun.shadow.camera.updateProjectionMatrix();
     // Softness in texels: the close map blurs a little more per texel so both read as the same soft daylight.
     const size = shadowSize(r);
-    sun.shadow.radius = size === 2048 ? 4 : 2.5;
+    sun.shadow.radius = size === 2048 ? 2.5 : 2;
     if (sun.shadow.mapSize.x !== size) {
       sun.shadow.mapSize.set(size, size);
       sun.shadow.map?.dispose();

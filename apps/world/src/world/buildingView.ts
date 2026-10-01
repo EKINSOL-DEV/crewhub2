@@ -46,6 +46,37 @@ const WALLS: Record<WallRun["side"], [ModelKey, number, number]> = {
   east: ["wall.low", 0.22, 0.12],
   inner: ["building.partition", 0.6, 0.1],
 };
+const noShadow = (object: THREE.Object3D) => (object.traverse((o) => (o.castShadow = false)), object);
+
+/** The far-detail class of each furniture and dressing piece (the style draws `building.silhouette` per class). */
+const FAR_FURNITURE: Record<string, string> = {
+  workdesk: "desk",
+  "lead-desk": "desk",
+  "meeting-table": "table",
+  "planning-table": "table",
+  "coffee-table": "table",
+  "side-table": "table",
+  "coffee-counter": "table",
+  rack: "shelf",
+  bookshelf: "shelf",
+  "storage-shelf": "shelf",
+  "roller-shelf": "shelf",
+  "filing-cabinet": "shelf",
+  "lounge-sofa": "sofa",
+  armchair: "sofa",
+  bench: "sofa",
+  plant: "plant",
+  "review-pile": "crate",
+  pallet: "crate",
+  "board-stand": "board",
+  "mood-board": "board",
+};
+/** Rugs seen from the town, their size in cells. */
+const FAR_RUGS: Partial<Record<ModelKey, [number, number]>> = {
+  "decor.rug-round": [2.2, 2.2],
+  "decor.rug-long": [3.4, 2],
+  "decor.rug-runner": [4, 1.1],
+};
 /** Door frames between rooms stand taller than the partitions, so a doorway reads from the town. */
 const DOOR_FRAME = 1.05;
 /** Floors with a character of their own; the other rooms keep the studio's cream cells. */
@@ -131,8 +162,13 @@ export class BuildingView {
     west: { tall: new THREE.Group(), low: new THREE.Group() },
   };
   #merged: THREE.BufferGeometry[] = [];
+  #pilesMerged: THREE.BufferGeometry[] = [];
   #furnitureMerged: THREE.BufferGeometry[] = [];
   #furniture: THREE.Group | null = null;
+  /** Seen from the town: the furniture and dressing as a few merged boxes, so every building looks furnished. */
+  #silhouette = new THREE.Group();
+  #silhouetteMerged: THREE.BufferGeometry[] = [];
+  #silhouetteSignature = "";
   #piles = new THREE.Group();
   #signals = new THREE.Group();
   #agents = new THREE.Group();
@@ -176,7 +212,7 @@ export class BuildingView {
       toWorld: (v) => v.add(this.group.position),
     });
     const back = this.#backWalls;
-    this.group.add(back.north.tall, back.north.low, back.west.tall, back.west.low);
+    this.group.add(back.north.tall, back.north.low, back.west.tall, back.west.low, this.#silhouette);
     this.group.add(this.#shell, this.#shellStatic, this.#piles, this.#agents, this.#signals, this.#objects.group, this.#props.group);
   }
 
@@ -208,6 +244,7 @@ export class BuildingView {
     this.#syncAgents();
     this.#syncPiles();
     this.#piles.visible = !this.detailed;
+    this.#syncSilhouette(shape);
     this.#signals.visible = this.detailed;
     this.#objects.group.visible = this.detailed;
     if (this.detailed) {
@@ -303,9 +340,16 @@ export class BuildingView {
       const rotation = horizontal ? 0 : Math.PI / 2;
       if (opening.id === "entrance") {
         add(style.model("door", opt({ size: { width, height: FLOOR_RISE, depth: 0.16 }, accent })), x, z, 0, rotation);
+        // A wall lamp on the portal's east post, and a bike leaning on the lawn beside the planter.
+        this.#outside(style.model("building.wall-lamp", opt({})), x + width / CELL / 2 + 0.3, z + 0.18, 0);
+        // A small detail: it takes shadows but casts none.
+        if (!b.archived) this.#outside(noShadow(style.model("building.bike")), x - width / CELL / 2 - 2.4, z + 0.9, -FLOOR_RISE, 0.25, 0.12);
         // The closed sign hangs from the awning's front edge.
         if (b.archived) add(style.model("building.closed-sign"), x, z + 1.15, 1.4);
-      } else if (opening.id === "loading") add(style.model("building.loading-door", opt({ size: { width, height: 1.2, depth: 0.16 } })), x, z, 0, rotation);
+      } else if (opening.id === "loading") {
+        add(style.model("building.loading-door", opt({ size: { width, height: 1.2, depth: 0.16 } })), x, z, 0, rotation);
+        this.#outside(style.model("building.wall-lamp", opt({})), x + width / CELL / 2 + 0.25, z + 0.2, 0);
+      }
       else add(style.model("building.door-frame", opt({ size: { width, height: DOOR_FRAME, depth: 0.14 } })), x, z, 0, rotation);
     }
     // Outside, on the lawn: the flag at the north-west corner, the emblem by the path, the truck's apron.
@@ -329,6 +373,8 @@ export class BuildingView {
     } else this.#truck = null;
     this.anchors.set(`truck:${b.slug}`, this.world(TRUCK_SPOT.x, TRUCK_SPOT.z, 1 - FLOOR_RISE));
     this.#merged = mergeStatic(this.#shellStatic);
+    // The truck moves only as a whole: its parts merge per material under its own root (perf).
+    if (this.#truck) this.#merged.push(...mergeStatic(this.#truck as THREE.Group));
     for (const [side, walls] of Object.entries(this.#backWalls) as ["north" | "west", { tall: THREE.Group; low: THREE.Group }][])
       for (const tall of [true, false]) {
         const group = tall ? walls.tall : walls.low;
@@ -342,6 +388,15 @@ export class BuildingView {
           };
       }
     this.#applyFocus();
+  }
+
+  /** Adds a piece by the doors to the static batch, at building cells with a yaw and a sideways lean (its light pool
+   *  decal stays unbatched). */
+  #outside(object: THREE.Object3D, x: number, z: number, y: number, rotation = 0, lean = 0): THREE.Object3D {
+    object.position.copy(this.local(x, z, y));
+    object.rotation.set(lean, rotation, 0, "YXZ");
+    this.#shellStatic.add(object);
+    return object;
   }
 
   /** True when the camera looks at a back wall's inner face (from the south and east, as at home). */
@@ -397,6 +452,45 @@ export class BuildingView {
     this.#furnitureMerged = mergeStatic(g);
   }
 
+
+  /* The far-detail furniture: every furniture and dressing piece, and the rugs, as the style's plain stand-in boxes,
+     batched per material (a handful of draw calls per building). Rebuilt only when the rooms' furniture changes. */
+  #syncSilhouette(shape: string) {
+    const far = !this.detailed && !this.building.archived;
+    this.#silhouette.visible = far;
+    if (!far) return;
+    // Cheap: it runs on every model update of every building. The dressing follows the shape; a placed prop that
+    // makes dressing step aside changes a room's prop count.
+    let signature = shape;
+    for (const room of this.template.rooms) signature += `|${room.layout.props.length}`;
+    if (signature === this.#silhouetteSignature) return;
+    this.#silhouetteSignature = signature;
+    const { style } = this.ctx;
+    const g = this.#silhouette;
+    g.clear();
+    for (const geometry of this.#silhouetteMerged) geometry.dispose();
+    for (const room of this.template.rooms)
+      for (const prop of room.layout.props) {
+        const definition = interiorDefinitions[prop.definitionId];
+        const kind = FAR_FURNITURE[prop.definitionId];
+        if (!definition || !kind) continue;
+        const { width, depth } = definition.footprint;
+        const model = style.model("building.silhouette", { size: { width: width * CELL, height: 0, depth: depth * CELL }, variant: kind });
+        const pose = footprintPose(definition, prop.cell, prop.rotation);
+        model.position.copy(this.local(room.origin.x + pose.x, room.origin.z + pose.z, 0.02));
+        model.rotation.y = prop.definitionId === "workdesk" || prop.definitionId === "lead-desk" ? Math.PI : pose.rotationY;
+        g.add(model);
+      }
+    for (const item of roomDecor(this.template, { definitions: interiorDefinitions, seed: dressingSeed(this.building.slug), zones: dressingZones(this.template), loading: LOADING })) {
+      const rug = FAR_RUGS[item.key];
+      if (!rug) continue;
+      const model = style.model("building.silhouette", { size: { width: rug[0] * CELL, height: 0, depth: rug[1] * CELL }, variant: "rug" });
+      model.position.copy(this.local(item.x, item.z, 0.02));
+      model.rotation.y = item.rotation;
+      g.add(model);
+    }
+    this.#silhouetteMerged = mergeStatic(g);
+  }
 
   /* ── Agents ─────────────────────────────────────────────────────────────── */
 
@@ -483,6 +577,7 @@ export class BuildingView {
     if (signature === this.#signatures.piles) return;
     this.#signatures.piles = signature;
     this.#piles.clear();
+    for (const geometry of this.#pilesMerged) geometry.dispose();
     STATUS_ROOMS.forEach((kind, i) => {
       const count = counts[i]!;
       const room = roomOf(this.template, kind);
@@ -494,6 +589,8 @@ export class BuildingView {
       pile.scale.set(1.2, Math.min(4, 0.35 + count / 4), 1.2);
       this.#piles.add(pile);
     });
+    // Static until the counts change: one merged mesh per material instead of every pallet part (perf).
+    this.#pilesMerged = mergeStatic(this.#piles);
   }
 
   /* ── Signals (entered building) ─────────────────────────────────────────── */
@@ -682,7 +779,7 @@ export class BuildingView {
     this.#robots.clear();
     this.#objects.dispose();
     this.#props.dispose();
-    for (const geometry of [...this.#merged, ...this.#furnitureMerged]) geometry.dispose();
+    for (const geometry of [...this.#merged, ...this.#furnitureMerged, ...this.#pilesMerged, ...this.#silhouetteMerged]) geometry.dispose();
     this.group.removeFromParent();
   }
 }

@@ -5,7 +5,7 @@
 import * as THREE from "three";
 import type { ModelOptions, StyleTheme } from "@crewhub/world-style";
 import { put, type Kit, type Swatch } from "./kit.ts";
-import { grassShader, pavingShader, waterShader } from "./shaders.ts";
+import { decalMaterial, grassShader, pavingShader, waterShader } from "./shaders.ts";
 
 type Size = { width: number; height: number; depth: number };
 const size = (o: ModelOptions, fallback: Size): Size => o.size ?? fallback;
@@ -58,6 +58,53 @@ export function paving(kit: Kit, o: ModelOptions): THREE.Mesh {
     : shaded(kit, "flagstone", (m) => pavingShader(m, [0.95, 0.7], 0.03));
   const mesh = slab(kit, width, height, depth, material);
   mesh.position.y = height / 2;
+  return mesh;
+}
+
+/**
+ * A crossing where two lanes meet: the cobbles carry on, framed by a border of darker setts, with a small rosette of
+ * them in the middle. Stands on the ground like the lanes, a hair higher.
+ */
+export function crossing(kit: Kit, o: ModelOptions): THREE.Group {
+  const { width, height, depth } = size(o, { width: 3.2, height: 0.045, depth: 3.2 });
+  const g = new THREE.Group();
+  const cobble = shaded(kit, "cobble", (m) => pavingShader(m, [0.42, 0.3], 0.05));
+  const dark = shaded(kit, "cobble-dark", (m) => pavingShader(m, [0.26, 0.26], 0.06));
+  const BORDER = 0.3;
+  put(g, slab(kit, width - 2 * BORDER, height, depth - 2 * BORDER, cobble), 0, height / 2, 0);
+  for (const side of [-1, 1]) {
+    put(g, slab(kit, width, height + 0.004, BORDER, dark), 0, (height + 0.004) / 2, (side * (depth - BORDER)) / 2);
+    put(g, slab(kit, BORDER, height + 0.004, depth - 2 * BORDER, dark), (side * (width - BORDER)) / 2, (height + 0.004) / 2, 0);
+  }
+  const rosette = put(g, kit.mesh(kit.geometry("town:disc", () => new THREE.CylinderGeometry(0.5, 0.5, 1, 40)), dark), 0, height / 2 + 0.003, 0);
+  rosette.scale.set(1.1, height, 1.1);
+  rosette.castShadow = false;
+  return g;
+}
+
+const wearMaterials = new WeakMap<Kit, THREE.ShaderMaterial>();
+function wearMaterial(kit: Kit): THREE.ShaderMaterial {
+  let material = wearMaterials.get(kit);
+  if (!material) {
+    material = decalMaterial(kit.hex("path-wear"), 0.55, false);
+    wearMaterials.set(kit, material);
+  }
+  return material;
+}
+
+/** A soft patch of worn ground (grass trodden bare), `width` by `depth`, lying flat. One shared geometry, scaled. */
+export function wear(kit: Kit, o: ModelOptions): THREE.Mesh {
+  const { width, depth } = size(o, { width: 1, height: 0, depth: 1 });
+  const geometry = kit.geometry("town:wear", () => {
+    const plane = new THREE.PlaneGeometry(2, 2).rotateX(-Math.PI / 2);
+    const shape = new Float32Array(plane.attributes.position!.count * 3);
+    for (let i = 0; i < shape.length; i += 3) shape.set([0.45, 0.45, 0.55], i);
+    plane.setAttribute("aShape", new THREE.BufferAttribute(shape, 3));
+    return plane;
+  });
+  const mesh = new THREE.Mesh(geometry, wearMaterial(kit));
+  mesh.scale.set(width / 2, 1, depth / 2);
+  mesh.renderOrder = 1;
   return mesh;
 }
 
@@ -191,4 +238,10 @@ function lanternGlass(kit: Kit): THREE.MeshStandardMaterial {
 /** The town's look per theme: lantern heads glow softly by day and warmly in lamplight. */
 export function townTheme(kit: Kit, theme: StyleTheme) {
   lanternGlass(kit).emissiveIntensity = theme === "lamplight" ? 1.25 : 0.5;
+  wearMaterial(kit).uniforms.uColor!.value.set(kit.hex("path-wear"));
+}
+
+export function disposeTown(kit: Kit) {
+  wearMaterials.get(kit)?.dispose();
+  wearMaterials.delete(kit);
 }

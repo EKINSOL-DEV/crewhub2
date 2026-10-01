@@ -48,7 +48,7 @@ export function floor(kit: Kit, o: ModelOptions): THREE.Mesh {
   const swatch = o.variant === "dim" ? "floor-dim" : pattern === "cells" ? "floor" : `floor-${pattern}`;
   const material = kit.material(swatch);
   if (!material.userData.floor) {
-    floorShader(material, pattern);
+    floorShader(material, kit.shafts, pattern);
     material.userData.floor = true;
   }
   const mesh = new THREE.Mesh(geo, material);

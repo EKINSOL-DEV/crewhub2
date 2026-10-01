@@ -36,6 +36,41 @@ function pilasters(kit: Kit, g: THREE.Object3D, width: number, height: number, d
   }
 }
 
+/** A group for small details that take shadows but cast none (cheaper shadow passes in a town of buildings). */
+function small(parent: THREE.Object3D): THREE.Group {
+  const g = new THREE.Group();
+  g.userData.small = true;
+  parent.add(g);
+  return g;
+}
+/** Turns off shadow casting under every `small` group of a finished model. */
+function settle<T extends THREE.Object3D>(model: T): T {
+  model.traverse((o) => {
+    if (o.userData.small) o.traverse((m) => (m.castShadow = false));
+  });
+  return model;
+}
+
+/** A planted window box under a window on the wall's outer face (-z); an archived one holds only dry stems. */
+function windowBox(kit: Kit, wall: THREE.Object3D, x: number, sill: number, face: number, width: number, dry: boolean, seed: number) {
+  const g = small(wall);
+  const z = face - 0.11;
+  put(g, kit.box(width + 0.04, 0.16, 0.18, "terracotta", 0.03), x, sill - 0.12, z);
+  for (const s of [-1, 1]) put(g, kit.box(0.04, 0.12, 0.08, "timber", 0.01), x + s * (width / 2 - 0.08), sill - 0.24, face - 0.04);
+  const petals = ["petal", "coral", "cream", "tangerine"];
+  const count = Math.round(width / 0.13);
+  for (let i = 0; i < count; i++) {
+    const px = x - width / 2 + 0.07 + (i * (width - 0.14)) / Math.max(1, count - 1);
+    const lift = ((i * 7 + seed * 3) % 5) * 0.012;
+    if (dry) {
+      put(g, kit.box(0.015, 0.1, 0.015, "plank", 0.004), px, sill + 0.0, z);
+      continue;
+    }
+    put(g, kit.sphere(0.07, i % 2 ? "leaf" : "leaf-dark"), px, sill - 0.01 + lift, z).scale.set(1, 0.8, 1);
+    if (i % 2 === 0) put(g, kit.sphere(0.035, petals[(i / 2 + seed) % petals.length]!), px + 0.02, sill + 0.06 + lift, z - 0.04);
+  }
+}
+
 /** The tall solid back wall (west): chalk with a skirt, a ledge on top and a few framed windows. */
 export function tallWall(kit: Kit, o: ModelOptions, glass: THREE.Material): THREE.Group {
   const { width, height, depth } = size(o, { width: 4, height: 1.75, depth: 0.16 });
@@ -61,13 +96,14 @@ export function tallWall(kit: Kit, o: ModelOptions, glass: THREE.Material): THRE
     put(g, kit.box(0.035, head - sill, depth * 0.5, "mullion", 0.01), c, (sill + head) / 2, 0);
     put(g, kit.box(ww, 0.03, depth * 0.5, "mullion", 0.01), c, sill + (head - sill) * 0.55, 0);
     if (archived(o)) for (const z of [depth / 2 + 0.03, -depth / 2 - 0.03]) boardUp(kit, g, ww, head - sill, c, (sill + head) / 2, z);
+    windowBox(kit, g, c, sill, -depth / 2, ww, archived(o), i);
     from = right;
   }
   put(g, kit.box(width / 2 - from, height, depth, chalk, 0.02), (from + width / 2) / 2, height / 2, 0);
   for (const z of [depth / 2 + 0.012, -depth / 2 - 0.012]) put(g, kit.box(width, 0.13, 0.03, "skirt", 0.01), 0, 0.065, z);
   put(g, kit.box(width + 0.04, 0.07, depth + 0.08, "ledge", 0.02), 0, height + 0.035, 0);
   pilasters(kit, g, width, height, depth, chalk);
-  return g;
+  return settle(g);
 }
 
 /** The greenhouse glass wall (north): a chalk knee wall, tall panes between slim green mullions, a transom. */
@@ -136,9 +172,17 @@ export function entrance(kit: Kit, o: ModelOptions): THREE.Group {
   const chalk = shut ? "chalk-dim" : "chalk";
   for (const s of [-1, 1]) {
     put(g, kit.box(0.16, high, 0.2, chalk, 0.03), s * (width / 2 + 0.08), high / 2, 0);
-    // A small lamp on each post, facing the street.
-    put(g, kit.box(0.07, 0.1, 0.05, "lamp-base", 0.015), s * (width / 2 + 0.08), high - 0.28, 0.13);
-    put(g, kit.mesh(kit.geometry("entrance-lamp", () => new THREE.SphereGeometry(0.05, 10, 8)), kit.material("lamp-glow", { glow: shut ? 0.05 : 0.5 })), s * (width / 2 + 0.08), high - 0.2, 0.17);
+    // A planter on the lawn either side of the steps: a clipped box shrub with a ring of flowers.
+    const px = s * (width / 2 + 0.62);
+    const planter = small(g);
+    put(planter, kit.box(0.42, 0.34, 0.42, shut ? "chalk-dim" : "terracotta", 0.05), px, -SLAB + 0.17, 0.42);
+    put(planter, kit.box(0.46, 0.04, 0.46, "clay", 0.015), px, -SLAB + 0.34, 0.42);
+    put(planter, kit.sphere(0.2, shut ? "moss" : "leaf"), px, -SLAB + 0.5, 0.42).scale.set(1, 1.15, 1);
+    if (!shut)
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2 + s;
+        put(planter, kit.sphere(0.04, i % 2 ? "petal" : "coral"), px + Math.cos(a) * 0.17, -SLAB + 0.4, 0.42 + Math.sin(a) * 0.17);
+      }
   }
   put(g, kit.box(width + 0.5, 0.16, 0.24, chalk, 0.03), 0, high + 0.08, 0);
   // Door leaves: swung open into the lobby, or shut.
@@ -163,11 +207,14 @@ export function entrance(kit: Kit, o: ModelOptions): THREE.Group {
   put(awning, kit.box(width + 0.62, 0.09, 0.02, color, 0.008), 0, -0.045, 0.62);
   g.add(awning);
   if (shut) boardUp(kit, g, width, high - 0.1, 0, high / 2, 0.06);
-  // The mat outside and two steps down to the lawn.
+  // A mat inside, a coir doormat with a border on the top step, and two steps down to the lawn.
   put(g, kit.box(width * 0.8, 0.012, 0.3, shut ? "plank" : "rug", 0.004), 0, 0.006, -0.25);
+  const mat = small(g);
+  put(mat, kit.box(width * 0.62, 0.014, 0.24, "timber", 0.004), 0, -SLAB / 2 + 0.008, 0.3);
+  put(mat, kit.box(width * 0.54, 0.016, 0.17, shut ? "plank" : "timber-light", 0.004), 0, -SLAB / 2 + 0.01, 0.3);
   put(g, kit.box(width + 0.5, SLAB / 2, 0.32, "step", 0.02), 0, -SLAB * 0.75 + 0.002, 0.3);
   put(g, kit.box(width + 0.8, 0.03, 0.34, "step", 0.01), 0, -SLAB + 0.015, 0.62);
-  return g;
+  return settle(g);
 }
 
 /**
@@ -254,7 +301,8 @@ export function flag(kit: Kit, o: ModelOptions): THREE.Group {
   put(g, kit.box(0.26, 0.12, 0.26, "chalk", 0.04), 0, 0.06, 0);
   put(g, kit.cylinder(0.028, 0.035, high, "pole"), 0, high / 2, 0);
   put(g, kit.sphere(0.06, "brass"), 0, high + 0.04, 0);
-  const y = archived(o) ? high * 0.55 : high - 0.34;
+  // Half-mast still clears the tall walls at the corner.
+  const y = archived(o) ? high * 0.7 : high - 0.34;
   // Two panels at a slight angle: the cloth catches the wind.
   const cloth = accent(o);
   put(g, kit.box(0.46, 0.5, 0.025, cloth, 0.01), 0.25, y, 0).rotation.y = -0.12;
@@ -267,5 +315,71 @@ export function planks(kit: Kit, o: ModelOptions): THREE.Group {
   const { width, height } = size(o, { width: 1.3, height: 0.4, depth: 0.05 });
   const g = new THREE.Group();
   boardUp(kit, g, width, height, 0, height / 2, 0);
+  return g;
+}
+
+/**
+ * A wall lamp: a small lantern on a bracket, mounted on a door's post at `y` above the floor, facing the street (+z).
+ * The style adds its warm pool on the ground in front (LIGHT_POOLS).
+ */
+export function wallLamp(kit: Kit, o: ModelOptions): THREE.Group {
+  const g = new THREE.Group();
+  const y = 1.05;
+  put(g, kit.box(0.09, 0.14, 0.03, "lamp-base", 0.01), 0, y, 0.015);
+  put(g, kit.box(0.025, 0.025, 0.14, "lamp-base", 0.008), 0, y + 0.04, 0.09);
+  put(g, kit.box(0.11, 0.025, 0.11, "lamp-base", 0.008), 0, y + 0.03, 0.17);
+  put(g, kit.mesh(kit.geometry("wall-lamp:glass", () => new THREE.CylinderGeometry(0.055, 0.05, 0.14, 10)), kit.material("lamp-glow", { glow: archived(o) ? 0.05 : 0.9 })), 0, y - 0.04, 0.17);
+  put(g, kit.cylinder(0.01, 0.065, 0.05, "lamp-base"), 0, y + 0.06, 0.17);
+  g.traverse((m) => (m.castShadow = false));
+  return g;
+}
+
+/** Heights (m) of the far-detail stand-ins, by class. */
+const FAR_HEIGHT: Record<string, number> = { desk: 0.56, table: 0.5, shelf: 1.0, sofa: 0.42, plant: 0.7, crate: 0.42, rug: 0.012, board: 0.9 };
+
+/**
+ * The far-detail stand-in of a piece of furniture, `size` its footprint: a few plain boxes in the piece's main colours,
+ * so a building seen from the town looks furnished. Variants: desk, table, shelf, sofa, plant, crate, rug, board.
+ */
+export function silhouette(kit: Kit, o: ModelOptions): THREE.Group {
+  const { width: w, depth: d } = size(o, { width: 0.6, height: 0, depth: 0.6 });
+  const kind = o.variant ?? "crate";
+  const h = FAR_HEIGHT[kind] ?? 0.4;
+  const g = new THREE.Group();
+  const box = (bw: number, bh: number, bd: number, color: Swatch, x = 0, y = bh / 2, z = 0) => put(g, kit.box(bw, bh, bd, color, 0.01), x, y, z);
+  switch (kind) {
+    case "desk":
+      box(w - 0.1, 0.05, d - 0.12, "timber", 0, h - 0.025);
+      box(w - 0.2, h - 0.05, 0.05, "graphite", 0, (h - 0.05) / 2, d / 2 - 0.12);
+      box(0.36, 0.24, 0.04, "graphite", 0, h + 0.12, -d / 2 + 0.16);
+      break;
+    case "table":
+      box(w - 0.12, 0.06, d - 0.12, "timber", 0, h - 0.03);
+      box(Math.max(0.1, w - 0.6), h - 0.06, 0.08, "graphite", 0, (h - 0.06) / 2);
+      break;
+    case "shelf":
+      box(w - 0.1, h, d - 0.25, "timber");
+      box(w - 0.2, 0.18, d - 0.22, "sage", 0, h * 0.72);
+      box(w - 0.2, 0.18, d - 0.22, "clay", 0, h * 0.35);
+      break;
+    case "sofa":
+      box(w - 0.1, 0.24, d - 0.12, "sage", 0, 0.16);
+      box(w - 0.1, h - 0.1, 0.12, "sage", 0, (h + 0.1) / 2, -d / 2 + 0.12);
+      break;
+    case "plant":
+      box(0.24, 0.22, 0.24, "clay");
+      put(g, kit.mesh(kit.geometry("far-leaf", () => new THREE.IcosahedronGeometry(0.24, 0)), kit.material("leaf")), 0, 0.46, 0).scale.set(1, 1.2, 1);
+      break;
+    case "rug":
+      box(w - 0.1, h, d - 0.1, "rug", 0, 0.006);
+      break;
+    case "board":
+      box(w - 0.15, 0.6, 0.04, "clay", 0, h - 0.3);
+      break;
+    default:
+      box(w - 0.12, h, d - 0.12, "clay");
+  }
+  // Seen from the town these are a few pixels tall: they take shadows but cast none.
+  g.traverse((m) => (m.castShadow = false));
   return g;
 }

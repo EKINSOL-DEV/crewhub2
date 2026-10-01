@@ -14,7 +14,8 @@ function hash(text: string): number {
 }
 
 export function robot(kit: Kit, options: { key: string; accent: PaletteName | null; role: RobotRole }): RobotHandle {
-  const color = options.role === "lead" && options.accent ? options.accent : WORKER_COLORS[hash(options.key) % 3]!;
+  // A lead wears its project's colour as a soft tint, so it sits with the sage, apricot and lavender workers.
+  const color = options.role === "lead" && options.accent ? `soft:${options.accent}` : WORKER_COLORS[hash(options.key) % 3]!;
   const variant = options.role === "design" ? 1 : options.role === "analyst" || options.role === "router" ? 2 : 0;
   const group = new THREE.Group(),
     body = new THREE.Group(),
@@ -37,10 +38,15 @@ export function robot(kit: Kit, options: { key: string; accent: PaletteName | nu
   head.position.y = 0.92;
   body.add(head);
   put(head, kit.box(0.68, 0.52, 0.52, color, 0.13), 0, 0, 0);
-  put(head, kit.box(0.54, 0.25, 0.05, "visor", 0.09), 0, 0.005, 0.265);
-  for (const x of [-0.13, 0.13]) small(put(head, kit.box(0.07, 0.1, 0.028, "eye", 0.03), x, 0.015, 0.298));
+  small(put(head, kit.box(0.54, 0.25, 0.05, "visor", 0.09), 0, 0.005, 0.265));
+  // The face screen: two soft eyes that blink, and glow a little after dark (the theme's glow scales them).
+  const eyes = [-0.13, 0.13].map((x) => {
+    const eye = small(put(head, kit.box(0.07, 0.1, 0.028, "eye", 0.03), x, 0.015, 0.298));
+    eye.material = kit.material("eye", { glow: 0.18 });
+    return eye;
+  });
   small(put(head, kit.cylinder(0.018, 0.018, 0.19, "antenna-stem"), 0, 0.335, 0));
-  put(head, kit.sphere(0.075, "antenna"), 0, 0.435, 0);
+  const antenna = small(put(head, kit.sphere(0.075, "antenna"), 0, 0.435, 0));
   for (const x of [-0.355, 0.355]) small(put(head, kit.cylinder(0.09, 0.09, 0.065, "ear"), x, -0.01, 0)).rotation.z = Math.PI / 2;
   const arms = [-1, 1].map((side) => {
     const arm = new THREE.Group();
@@ -62,6 +68,7 @@ export function robot(kit: Kit, options: { key: string; accent: PaletteName | nu
   let proxy = false;
   let alerted = false;
   let time = hash(options.key) % 1000;
+  const blinkOffset = (hash(options.key) % 49) / 10;
   // Materials this handle owns (translucent or greyed copies); the shared ones stay untouched.
   const originals = new Map<THREE.Mesh, THREE.Material>();
   const owned = new Map<THREE.Material, THREE.Material>();
@@ -100,7 +107,9 @@ export function robot(kit: Kit, options: { key: string; accent: PaletteName | nu
     head.rotation.set(0, 0, 0);
     body.position.y = 0.12;
     for (const arm of arms) arm.rotation.set(0, 0, 0);
-    for (const foot of feet) foot.position.z = 0.065;
+    for (const foot of feet) foot.position.set(foot.position.x, 0.12, 0.065);
+    for (const eye of eyes) eye.scale.y = 1;
+    antenna.position.y = 0.435;
     switch (posture) {
       case "focused":
         body.rotation.x = 0.16; // leaning in over the desk
@@ -127,6 +136,8 @@ export function robot(kit: Kit, options: { key: string; accent: PaletteName | nu
         break;
     }
     halo.uniforms.uActive!.value = alerted || posture === "raised-hand" ? 0.65 : 0;
+    // An inactive halo draws nothing: skip its draw call.
+    ring.visible = alerted || posture === "raised-hand";
   };
   pose();
 
@@ -155,11 +166,16 @@ export function robot(kit: Kit, options: { key: string; accent: PaletteName | nu
       alerted = alert;
       halo.uniforms.uColor!.value.set(kit.hex(alert ? "beacon" : color));
       halo.uniforms.uActive!.value = alert || posture === "raised-hand" ? 0.65 : 0;
+      ring.visible = alert || posture === "raised-hand";
     },
     update(seconds) {
       if (proxy || posture === "greyed") return;
       time += seconds;
       halo.uniforms.uTime!.value = time;
+      // Idle life from the old room: a blink every few seconds and a slow nod of the antenna.
+      const blink = (time + blinkOffset) % 4.9 < 0.11;
+      for (const eye of eyes) eye.scale.y = blink ? 0.15 : 1;
+      antenna.position.y = 0.435 + Math.sin(time * 2.2) * 0.01;
       if (posture === "focused") {
         // Slow typing: hands tap in turn, a small bob.
         arms[0]!.rotation.x = -0.9 + Math.sin(time * 9) * 0.08;
@@ -167,6 +183,7 @@ export function robot(kit: Kit, options: { key: string; accent: PaletteName | nu
         body.position.y = 0.12 + Math.abs(Math.sin(time * 1.6)) * 0.015;
       } else if (posture === "relaxed") {
         body.position.y = 0.12 + Math.sin(time * 1.1) * 0.01;
+        head.rotation.z = 0.06 + Math.sin(time * 0.9) * 0.06; // a slow, curious head tilt
       } else if (posture === "raised-hand") {
         arms[1]!.rotation.z = 2.7 + Math.sin(time * 3) * 0.12;
       } else if (posture === "walking") {
@@ -174,6 +191,8 @@ export function robot(kit: Kit, options: { key: string; accent: PaletteName | nu
         const step = Math.sin(time * 8);
         feet[0]!.position.z = 0.065 + step * 0.08;
         feet[1]!.position.z = 0.065 - step * 0.08;
+        feet[0]!.position.y = 0.12 + Math.max(0, step) * 0.06;
+        feet[1]!.position.y = 0.12 + Math.max(0, -step) * 0.06;
         arms[0]!.rotation.x = -step * 0.45;
         arms[1]!.rotation.x = step * 0.45;
         body.position.y = 0.12 + Math.abs(step) * 0.035;

@@ -1,0 +1,169 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-town-picnic-blanket",
+  "name": "Picnic blanket",
+  "description": "A striped picnic blanket with a basket, cups and fruit.",
+  "category": "rest",
+  "tags": [
+    "greenhouse",
+    "town"
+  ],
+  "footprint": {
+    "width": 3,
+    "depth": 2
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        1.5,
+        0.02,
+        1.1
+      ],
+      "position": [
+        0,
+        0.01,
+        0
+      ],
+      "material": "terracotta",
+      "radius": 0.005
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.5,
+        0.01,
+        0.12
+      ],
+      "position": [
+        0,
+        0.021,
+        -0.35
+      ],
+      "material": "cream",
+      "radius": 0.002
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.5,
+        0.01,
+        0.12
+      ],
+      "position": [
+        0,
+        0.021,
+        0.0
+      ],
+      "material": "cream",
+      "radius": 0.002
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.5,
+        0.01,
+        0.12
+      ],
+      "position": [
+        0,
+        0.021,
+        0.35
+      ],
+      "material": "cream",
+      "radius": 0.002
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.36,
+        0.22,
+        0.26
+      ],
+      "position": [
+        0.45,
+        0.13,
+        -0.2
+      ],
+      "material": "timber-light",
+      "radius": 0.04
+    },
+    {
+      "shape": "torus",
+      "size": [
+        0.12,
+        0.015,
+        0
+      ],
+      "position": [
+        0.45,
+        0.27,
+        -0.2
+      ],
+      "material": "timber",
+      "rotation": [
+        90,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.04,
+        0.05,
+        0.04
+      ],
+      "position": [
+        -0.3,
+        0.05,
+        0.2
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.04,
+        0.05,
+        0.04
+      ],
+      "position": [
+        -0.15,
+        0.05,
+        0.28
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.09,
+        0.08,
+        0.09
+      ],
+      "position": [
+        -0.45,
+        0.09,
+        -0.2
+      ],
+      "material": "coral"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.07,
+        0.07
+      ],
+      "position": [
+        -0.32,
+        0.075,
+        -0.3
+      ],
+      "material": "lamp-glow"
+    }
+  ]
+}

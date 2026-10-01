@@ -18,7 +18,7 @@ import { styleRegistry } from "./style";
 import type { StyledPlot } from "./styleRegistry";
 import type { Ambient } from "./movement";
 import { CIVIC_LOT, civicCenter, homeRects, PLOT_SIZE, plotCenter, TOWN_CAPACITY, townBounds, type Bounds } from "./townLayout";
-import { GRASS_Y, LAWN_Y, townDressing } from "./townDressing";
+import { GRASS_Y, landmarks as townLandmarks, LAWN_Y, townDressing } from "./townDressing";
 import { instanceStatic } from "./instanceStatic";
 import { mergeStatic } from "./mergeStatic";
 import { plotDoor, plotObstacles } from "./navigation";
@@ -122,6 +122,8 @@ export class TownScene {
   readonly walks = new Walks();
   view: TownView;
   #environment: EnvironmentHandle;
+  /** Drawn frames since the town view's shadow map was last refreshed. */
+  #shadowAge = 0;
   #buildings = new Map<string, BuildingView>();
   /** A blob contact shadow under each building's slab, sized to its footprint. */
   #contacts = new Map<string, { object: THREE.Object3D; size: string }>();
@@ -266,6 +268,8 @@ export class TownScene {
       const b = townBounds();
       this.#environment.setShadowReach(Math.max(b.maxX - b.minX, b.maxZ - b.minZ) / 2 + 4, { x: (b.minX + b.maxX) / 2, z: (b.minZ + b.maxZ) / 2 });
       this.#shadowFit = null;
+      // A new fit refreshes the shadow map on the next drawn frame, also in the town view.
+      this.#shadowAge = 8;
       this.invalidate();
       return;
     }
@@ -282,6 +286,7 @@ export class TownScene {
     const reach = Math.min(Math.max(Math.max(b.maxX - b.minX, b.maxZ - b.minZ) / 2 + 2, seen), 60);
     this.#environment.setShadowReach(reach, { x: target.x, z: target.z });
     this.#shadowFit = { zoom, x: target.x, z: target.z };
+    this.#shadowAge = 8;
     this.invalidate();
   }
 
@@ -308,7 +313,7 @@ export class TownScene {
       hit.userData.plot = i;
       this.#hits.add(hit);
     }
-    // The landmarks stay whole (not instanced or merged): the square's fountain may animate.
+    // The landmarks merge per material; the square's fountain water stays live (`userData.live`) and animates.
     const landmarks: [ModelKey, number, number, number][] = [
       ["post-office", civicCenter("post-office").x, LAWN_Y, civicCenter("post-office").z],
       ["town-hall", civicCenter("town-hall").x, LAWN_Y, civicCenter("town-hall").z],
@@ -321,6 +326,18 @@ export class TownScene {
       object.position.set(x, y, z);
       this.#landmarks.add(object);
     }
+    // The reserved landmarks (welcome sign, windmill, greenhouse, ducks…) appear once the style draws them.
+    const covered = new Set<string>(style.manifest.coveredKeys);
+    for (const l of townLandmarks()) {
+      if (!covered.has(l.key)) continue;
+      const object = style.model(l.key as ModelKey);
+      object.position.set(l.x, l.y, l.z);
+      object.rotation.y = l.rotation;
+      this.#landmarks.add(object);
+    }
+    // Landmarks are static but for their live parts (the fountain's water): the rest merges per material across all of
+    // them (perf). The landmark roots stay, so their animations still run.
+    mergeStatic(this.#landmarks);
     this.scene.add(this.#landmarks);
   }
 
@@ -330,7 +347,9 @@ export class TownScene {
    */
   #dress(count: number) {
     const indices = Array.from({ length: Math.min(TOWN_CAPACITY, count) }, (_, i) => i);
-    const signature = indices.join(",");
+    // Fast quality leaves out the small detail (grass tufts, wild flowers).
+    const fast = this.view.quality === "fast";
+    const signature = `${indices.join(",")}|${fast}`;
     if (signature === this.#dressing.signature) return;
     this.#disposeDressing();
     const group = new THREE.Group();
@@ -338,6 +357,7 @@ export class TownScene {
     const dressing = townDressing(plots);
     this.#life.setTown(dressing, this.#landmarks);
     for (const d of dressing) {
+      if (fast && d.detail) continue;
       const object = this.townStyle.model(d.key as ModelKey, {
         ...(d.size ? { size: d.size } : {}),
         ...(d.seed !== undefined ? { seed: d.seed } : {}),
@@ -487,7 +507,10 @@ export class TownScene {
     this.view = view;
     this.controls.enableDamping = !view.reducedMotion;
     if (previous.theme !== view.theme) this.applyTheme(view.theme);
-    if (previous.quality !== view.quality) this.applyQuality(view.quality);
+    if (previous.quality !== view.quality) {
+      this.applyQuality(view.quality);
+      this.#dress(view.model.buildings.length);
+    }
     if (previous.model !== view.model || previous.entered !== view.entered || previous.room !== view.room || previous.town !== view.town) this.sync();
     else if (previous.reducedMotion !== view.reducedMotion || previous.ambient !== view.ambient)
       this.walks.update(view.model, { entered: view.entered, reducedMotion: view.reducedMotion, ambient: view.ambient });
@@ -573,8 +596,20 @@ export class TownScene {
     return { span, target };
   }
 
+  /**
+   * The home frame. On a portrait phone it frames tight (`homeRects` compact) and lets the town run under the side
+   * controls, so the town fills the tall screen instead of floating small in its middle.
+   */
+  #homeFrame() {
+    const canvas = this.renderer.domElement;
+    const portrait = canvas.clientWidth < canvas.clientHeight * 0.8;
+    const insets = this.insets();
+    const rects = homeRects(this.view.model.buildings.length, portrait ? 0 : 1.5, portrait);
+    return this.frameRects(rects, 2, HOME_OFFSET, portrait ? { ...insets, left: 0, right: 0 } : insets);
+  }
+
   home(immediate: boolean) {
-    const { target } = this.frameRects(homeRects(this.view.model.buildings.length), 2, HOME_OFFSET, this.insets());
+    const { target } = this.#homeFrame();
     this.moveTo(target, target.clone().add(HOME_OFFSET), 1, immediate);
   }
 
@@ -750,7 +785,7 @@ export class TownScene {
       position = this.camera.position.clone();
     this.controls.target.set(0, 0, 0);
     this.camera.position.copy(HOME_OFFSET);
-    this.#span = this.frameRects(homeRects(this.view.model.buildings.length), 2, HOME_OFFSET, this.insets()).span;
+    this.#span = this.#homeFrame().span;
     // Zoom is relative to the home frame: however large the town, the closest view is about one desk.
     this.controls.maxZoom = Math.max(4, this.#span / DESK_SPAN);
     this.controls.target.copy(target);
@@ -822,6 +857,14 @@ export class TownScene {
     t.add(this.#v);
     this.#refitShadow();
     this.placeLabels();
+    // The town view's shadow casters barely move (robots seen from the town cast none), so its shadow map refreshes
+    // every eighth drawn frame; inside a building it follows every frame.
+    const shadows = this.renderer.shadowMap;
+    shadows.autoUpdate = this.view.entered !== null;
+    if (!shadows.autoUpdate && ++this.#shadowAge >= 8) {
+      shadows.needsUpdate = true;
+      this.#shadowAge = 0;
+    }
     try {
       this.renderer.render(this.scene, this.camera);
     } catch {
