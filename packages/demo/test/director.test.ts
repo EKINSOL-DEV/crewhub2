@@ -3,14 +3,24 @@ import assert from "node:assert/strict";
 import { before, test } from "node:test";
 import { DEFAULT_PRESENCE, Projection, emptyMemory, reduceWorld } from "@crewhub/world-model";
 import type { AgentPlacement, PresenceSettings, WorldModel } from "@crewhub/world-model";
-import { QUICK_DEBOUNCE_MS, QUICK_MIN_GAP_MS, createDirectorFeed, demoPropTags, movementSignals } from "../src/director.ts";
+import { QUICK_DEBOUNCE_MS, QUICK_MIN_GAP_MS, createDirectorFeed, movementSignals } from "../src/director.ts";
 import { createManualScheduler } from "../src/scheduler.ts";
 import { DEMO_SEED, SCRIPT_DURATION_MS } from "../src/script.ts";
 import { createDemoSource } from "../src/source.ts";
 import { SECOND } from "../src/time.ts";
 
 const on: PresenceSettings = { ...DEFAULT_PRESENCE, directorEnabled: true };
-const reachable = (q: { kind: string; tag?: string; room?: string }) => q.kind !== "prop" || demoPropTags(q.room as never).includes(q.tag ?? "");
+/** A fixture: the tags the building template offers per room, standing in for the app's navigation world. */
+const FIXTURE_ROOM_PROPS: Readonly<Record<string, readonly string[]>> = {
+  lobby: ["mail", "rest", "coffee", "greenery"],
+  "lead-office": ["greenery"],
+  storage: ["storage"],
+  planning: ["planning"],
+  review: ["review"],
+  dispatch: ["dispatch"],
+};
+const propTags = (_building: string, room: string) => FIXTURE_ROOM_PROPS[room] ?? [];
+const reachable = (q: { kind: string; tag?: string; room?: string }) => q.kind !== "prop" || propTags("", q.room ?? "").includes(q.tag ?? "");
 
 /** One model every 10 s of demo time over a full loop. */
 let models: WorldModel[] = [];
@@ -31,7 +41,7 @@ before(async () => {
   projection.dispose();
 });
 
-const feedOf = (settings: PresenceSettings = on, seed = DEMO_SEED) => createDirectorFeed({ seed, reachable, settings });
+const feedOf = (settings: PresenceSettings = on, seed = DEMO_SEED) => createDirectorFeed({ seed, reachable, propTags, settings });
 const runAll = (feed = feedOf()) => models.flatMap((m) => feed.step(m));
 
 test("the demo gives the feed a loop of models to work with", () => {
@@ -61,6 +71,17 @@ test("the deliberately invalid intent shows up rejected with a reason", () => {
   const rejected = plans.flatMap((p) => p.rejected);
   assert.ok(rejected.length > 0, "a rejection is visible in a full loop");
   assert.ok(rejected.every((r) => /working|blocked|stalled|waiting|no meeting|unknown/.test(r.reason)));
+});
+
+test("scripted prop visits name tags the rooms offer, so most intents are accepted", () => {
+  const plans = runAll();
+  const accepted = plans.flatMap((p) => p.accepted);
+  const rejected = plans.flatMap((p) => p.rejected);
+  assert.ok(accepted.length > rejected.length * 2, `${accepted.length} accepted vs ${rejected.length} rejected`);
+  assert.ok(rejected.every((r) => !/no reachable prop/.test(r.reason)), "no scripted tag is missing from its room");
+  const visits = accepted.filter((i) => i.kind === "goToProp");
+  assert.ok(visits.length > 0);
+  for (const v of visits) assert.ok(propTags("", v.room).includes(v.tag), `${v.tag} is offered in the ${v.room}`);
 });
 
 test("disabled, the feed makes no plan; the kill switch stops it at once", () => {

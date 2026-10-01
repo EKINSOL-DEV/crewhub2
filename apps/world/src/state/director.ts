@@ -2,9 +2,11 @@
    world through the same runtime every view uses, sends each new model to the feed and plays the accepted intents
    through the intent player. No model call, no network; the settings only bound the script. */
 import { useEffect, useSyncExternalStore } from "react";
-import { createDirectorFeed, DEMO_SEED, demoPropTags, type FeedUsage, type PlanRecord } from "@crewhub/demo";
-import { DEFAULT_PRESENCE, normalizePresence, type PresenceSettings, type Reachable, type WorldModel } from "@crewhub/world-model";
+import { createDirectorFeed, DEMO_SEED, type FeedUsage, type PlanRecord, type PropTags } from "@crewhub/demo";
+import { DEFAULT_PRESENCE, normalizePresence, type AgentKey, type PresenceSettings, type Reachable, type WorldModel } from "@crewhub/world-model";
 import { clearIntents, playIntent } from "../world/intentPlayer";
+import { VISIT_TAGS } from "../world/movement";
+import { NavWorld } from "../world/navigation";
 import { worldRuntime } from "./world";
 
 const STORAGE_KEY = "crewhub.presence.v1";
@@ -27,9 +29,32 @@ function savePresence(settings: PresenceSettings) {
   }
 }
 
-/* Tonight reachability is the demo prop catalogue: the town's interiors and their engine layouts are not merged yet.
-   The walks layer replaces this with "an approach cell of a prop with this tag is reachable in the building's grid". */
-const reachable: Reachable = (query) => (query.kind === "prop" ? demoPropTags(query.room).includes(query.tag) : true);
+/* Reachability is the navigation world's: the building templates' rooms, props and doors, kept in step with every
+   model. A prop tag is reachable in a room when one of its approach cells can be reached from the agent's seat; a
+   visit needs a free cell beside the target's seat, a gather a place around the meeting table. The director's own
+   copy of the graph holds no walkers, so other agents never make a prop "unreachable". */
+const nav = new NavWorld();
+let current: WorldModel | null = null;
+
+function roomOf(slug: string, key: AgentKey) {
+  return current?.buildings.find((b) => b.slug === slug)?.agents.find((a) => a.key === key && a.presence === "real")?.room ?? null;
+}
+
+const reachable: Reachable = (query) => {
+  const from = nav.home(query.building, query.agent, roomOf(query.building, query.agent));
+  if (!from) return false;
+  switch (query.kind) {
+    case "prop":
+      return nav.reachableSpots(query.building, query.tag, query.room, from).length > 0;
+    case "agent":
+      return nav.beside(query.building, query.target, roomOf(query.building, query.target)).some((cell) => nav.canReach(from, cell));
+    case "room":
+      return nav.around(query.building, "gather", query.room).some((cell) => nav.canReach(from, cell));
+  }
+};
+
+/** The tags the script may choose in a room: visitable props (not desks) with an approach reachable from the lobby. */
+const propTags: PropTags = (slug, room) => nav.tags(slug, room).filter((tag) => VISIT_TAGS.includes(tag) && nav.reachableSpots(slug, tag, room).length > 0);
 
 export interface DirectorState {
   settings: PresenceSettings;
@@ -40,7 +65,7 @@ export interface DirectorState {
 
 class DirectorRuntime {
   #settings = loadPresence();
-  #script = createDirectorFeed({ seed: DEMO_SEED, reachable, settings: this.#settings });
+  #script = createDirectorFeed({ seed: DEMO_SEED, reachable, propTags, settings: this.#settings });
   #plans: readonly PlanRecord[] = [];
   #state: DirectorState;
   #listeners = new Set<() => void>();
@@ -78,6 +103,9 @@ class DirectorRuntime {
   }
 
   #onModel(model: WorldModel) {
+    current = model;
+    // Only the director asks; a switched-off director costs no graph work.
+    if (this.#settings.directorEnabled) nav.sync(model.buildings);
     const made = this.#script.step(model);
     for (const plan of made) for (const intent of plan.accepted) playIntent(intent, model);
     if (made.length > 0) this.#plans = [...made.reverse(), ...this.#plans].slice(0, LOG_LIMIT);

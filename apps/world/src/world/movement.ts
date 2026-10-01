@@ -9,13 +9,21 @@
    - A real-location switch walks the town path in the town view and swaps at once otherwise (plan 4.4).
    - Postures are the model's debounced ones (held two snapshots or 45 s), never the raw lane status.
    - Under reduced motion nothing walks: cosmetic errands are dropped and every move is a jump. */
-import type { AgentKey, AgentPlacement, Building, RoomKind, WorkObject, WorldModel } from "@crewhub/world-model";
+import type { AgentKey, AgentPlacement, Building, Intent, RoomKind, WorkObject, WorldModel } from "@crewhub/world-model";
 
 export type Ambient = "off" | "reduced" | "on";
 export const AMBIENT_CHOICES: readonly Ambient[] = ["on", "reduced", "off"];
 
-/** Where a leg ends: the agent's own desk, the approach of a prop with a tag, or the street outside. */
-export type Place = { kind: "desk" } | { kind: "spot"; tag: string; room: RoomKind | null } | { kind: "outside" };
+/**
+ * Where a leg ends: the agent's own desk, the approach of a prop with a tag, the street outside, beside another
+ * agent's seat (a director visit), or the `index`th place around the meeting table (a director gather).
+ */
+export type Place =
+  | { kind: "desk" }
+  | { kind: "spot"; tag: string; room: RoomKind | null }
+  | { kind: "outside" }
+  | { kind: "beside"; agent: AgentKey }
+  | { kind: "gather"; index: number };
 export interface Leg {
   place: Place;
   /** How long the agent stays there before the next leg, in simulation ms. */
@@ -33,10 +41,18 @@ export type MovementIntent =
   | { type: "switch"; agent: AgentKey; from: string; to: string; walk: boolean }
   /** Back to the desk: a ticket landed on it, or the agent is no longer at rest. */
   | { type: "desk"; agent: AgentKey; building: string }
-  /** A cosmetic round trip: the hand-over walk to review, or idle variety. */
-  | { type: "errand"; agent: AgentKey; building: string; reason: "handover" | "idle"; label: string; legs: Leg[] }
+  /** A cosmetic round trip: the hand-over walk to review, idle variety, or a director intent. */
+  | { type: "errand"; agent: AgentKey; building: string; reason: ErrandReason; label: string; legs: Leg[] }
   /** A new delivery: the postman takes a letter to the recipient's building (null: the town hall). */
   | { type: "deliver"; deliveryId: string; recipientId: string; toBuilding: string | null };
+
+export type ErrandReason = "handover" | "idle" | "director";
+
+/**
+ * The prop tags an agent may be sent to (idle variety and the director): props with somewhere to stand that are not
+ * someone's desk. The words come from the building template's prop definitions.
+ */
+export const VISIT_TAGS: readonly string[] = ["coffee", "rest", "greenery", "mail", "planning", "review", "storage", "dispatch"];
 
 export interface MovementOptions {
   reducedMotion: boolean;
@@ -208,4 +224,37 @@ export function planIdle(model: WorldModel, now: number, options: IdleOptions, d
     });
   }
   return out;
+}
+
+/* ── Director intents (plan 7.3) ─────────────────────────────────────────── */
+
+/** A director walk dwells for the intent's time-to-live, but never longer than this (source time). */
+export const DIRECTOR_DWELL_MAX_MS = 20_000;
+
+/**
+ * The round trips an accepted director intent asks for in `building`: to a prop's approach cell, beside another
+ * agent's seat, or around the meeting table, a dwell, and back to the desk. `stay` asks for none. Whether they run
+ * (entered building only, never under reduced motion) is the walk runtime's call.
+ */
+export function directorErrands(intent: Intent, building: string): (MovementIntent & { type: "errand" })[] {
+  const dwellMs = Math.min(intent.ttlMs, DIRECTOR_DWELL_MAX_MS);
+  const back: Leg = { place: { kind: "desk" }, dwellMs: 0 };
+  const errand = (agent: AgentKey, label: string, place: Place): MovementIntent & { type: "errand" } => ({
+    type: "errand",
+    agent,
+    building,
+    reason: "director",
+    label,
+    legs: [{ place, dwellMs }, back],
+  });
+  switch (intent.kind) {
+    case "stay":
+      return [];
+    case "goToProp":
+      return [errand(intent.agent, `goes to the ${intent.tag} props in the ${intent.room}`, { kind: "spot", tag: intent.tag, room: intent.room })];
+    case "visitAgent":
+      return [errand(intent.agent, `visits ${intent.target}`, { kind: "beside", agent: intent.target })];
+    case "gather":
+      return intent.agents.map((agent, index) => errand(agent, "gathers in the meeting room", { kind: "gather", index }));
+  }
 }

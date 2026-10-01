@@ -17,6 +17,7 @@ import { styleRegistry } from "./style";
 import type { StyledPlot } from "./styleRegistry";
 import type { Ambient } from "./movement";
 import { civicCenter, PLOT_SIZE, plotCenter, TOWN_CAPACITY, townBounds, usedBounds, type Bounds } from "./townLayout";
+import { onPlayIntent } from "./intentPlayer";
 import { Walks } from "./walks";
 
 export interface TownView {
@@ -122,6 +123,7 @@ export class TownScene {
   #floorHit = new THREE.Vector3();
   #buildCell = "";
   #dragging = false;
+  #stopIntents: () => void;
 
   constructor(host: HTMLElement, labels: HTMLElement, view: TownView, callbacks: Callbacks) {
     this.view = view;
@@ -171,6 +173,12 @@ export class TownScene {
     // Dev builds: the scene on `window.__town` for headless checks of walks and frame statistics.
     if (import.meta.env.DEV) (window as unknown as { __town?: TownScene }).__town = this;
     if (new URLSearchParams(window.location.search).has("perf")) this.#perf = { frames: 0, total: 0, worst: 0, since: performance.now() };
+    // Accepted director intents walk through the walk runtime (entered building only, never under reduced motion).
+    this.#stopIntents = onPlayIntent((played) => {
+      if (played) this.walks.direct(played.intent);
+      else this.walks.endDirected();
+      this.invalidate();
+    });
     this.#resize = new ResizeObserver(this.resize);
     this.#resize.observe(host);
     this.sync();
@@ -712,6 +720,7 @@ export class TownScene {
 
   dispose() {
     this.#disposed = true;
+    this.#stopIntents();
     cancelAnimationFrame(this.#raf);
     this.#resize.disconnect();
     document.removeEventListener("visibilitychange", this.visibility);

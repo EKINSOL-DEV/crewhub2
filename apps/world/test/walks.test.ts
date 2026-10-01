@@ -69,3 +69,83 @@ test("under reduced motion a new worker appears at its desk at once", () => {
   assert.equal(roomOf(walks, "cr/dev-3"), roomId("cr", "workers"));
   assert.equal(walks.walker("cr/dev-3")!.walking, false);
 });
+
+/* Director intents (plan 7.3) walk through the same runtime. */
+const idleModel = (extra: { meeting?: boolean; desk?: boolean } = {}) =>
+  world(
+    [
+      building(
+        "cr",
+        [agent("cr/dev-1", "workers", { posture: "relaxed", laneStatus: "idle" }), agent("cr/dev-2", "workers", { posture: "relaxed", laneStatus: "idle" })],
+        extra.desk ? [onDesk] : [],
+        extra.meeting ? ["meeting"] : [],
+      ),
+      building("ops"),
+    ],
+    { postOffice: [postman] },
+  );
+const inside = { entered: "cr", reducedMotion: false, ambient: "off" as const };
+const at = (walks: Walks, key: string, spot: { room: string; cell: { x: number; z: number } }) => {
+  const l = walks.nav.sim.actor(key)!.location;
+  return l.room === spot.room && l.cell.x === spot.cell.x && l.cell.z === spot.cell.z;
+};
+
+test("a director goToProp walks to the prop's approach cell, dwells for its capped time and walks back to the seat", () => {
+  const walks = new Walks();
+  walks.update(idleModel(), inside);
+  run(walks, 1);
+  const seat = walks.nav.sim.actor("cr/dev-1")!.location;
+  const coffee = walks.nav.spots("cr", "coffee", "lobby");
+  assert.equal(coffee.length, 1);
+  assert.equal(walks.direct({ kind: "goToProp", agent: "cr/dev-1", room: "lobby", tag: "coffee", ttlMs: 90_000 }), 1);
+  assert.ok(run(walks, 30, () => at(walks, "cr/dev-1", coffee[0]!)) < 30, "reaches the coffee machine");
+  // The 90 s ttl is capped at 20 s of source time: still there after 15 s, home well before 90 s.
+  run(walks, 15);
+  assert.ok(at(walks, "cr/dev-1", coffee[0]!), "dwells at the coffee machine");
+  run(walks, 40, () => !walks.moving);
+  assert.deepEqual(walks.nav.sim.actor("cr/dev-1")!.location, seat, "back at the desk");
+  assert.equal(walks.errand("cr/dev-1"), null);
+});
+
+test("a director visit stands beside the target's seat; a gather fills places around the meeting table", () => {
+  const walks = new Walks();
+  walks.update(idleModel({ meeting: true }), inside);
+  run(walks, 1);
+  walks.direct({ kind: "visitAgent", agent: "cr/dev-1", target: "cr/dev-2", ttlMs: 60_000 });
+  const beside = walks.nav.beside("cr", "cr/dev-2", "workers");
+  assert.ok(beside.length > 0);
+  assert.ok(run(walks, 30, () => beside.some((b) => at(walks, "cr/dev-1", b))) < 30, "stands beside cr/dev-2");
+  walks.endDirected();
+  run(walks, 30, () => !walks.moving);
+  assert.equal(walks.walker("cr/dev-1")!.seated, true, "the kill switch sends it home");
+
+  assert.equal(walks.direct({ kind: "gather", agents: ["cr/dev-1", "cr/dev-2"], room: "meeting", ttlMs: 60_000 }), 2);
+  const meeting = roomId("cr", "meeting");
+  assert.ok(run(walks, 40, () => roomOf(walks, "cr/dev-1") === meeting && roomOf(walks, "cr/dev-2") === meeting) < 40, "both reach the meeting room");
+});
+
+test("director intents only walk in the entered building and never under reduced motion; a desk fact cancels them", () => {
+  const go = { kind: "goToProp" as const, agent: "cr/dev-1", room: "lobby" as const, tag: "coffee", ttlMs: 60_000 };
+  const town = new Walks();
+  town.update(idleModel(), { ...inside, entered: null });
+  assert.equal(town.direct(go), 0, "the town view does no cosmetic routing");
+  const elsewhere = new Walks();
+  elsewhere.update(idleModel(), { ...inside, entered: "ops" });
+  assert.equal(elsewhere.direct(go), 0, "an offscreen building does no cosmetic routing");
+  const reduced = new Walks();
+  reduced.update(idleModel(), { ...inside, reducedMotion: true });
+  assert.equal(reduced.direct(go), 0, "reduced motion records only");
+  assert.equal(reduced.direct({ kind: "stay", agent: "cr/dev-1", ttlMs: 60_000 }), 0);
+
+  const walks = new Walks();
+  walks.update(idleModel(), inside);
+  run(walks, 1);
+  walks.direct(go);
+  run(walks, 1);
+  assert.equal(walks.errand("cr/dev-1")?.reason, "director");
+  // A ticket lands on its desk: the fact wins and the agent heads back.
+  walks.update(idleModel({ desk: true }), inside);
+  assert.equal(walks.errand("cr/dev-1"), null);
+  run(walks, 30, () => !walks.moving);
+  assert.equal(walks.walker("cr/dev-1")!.seated, true);
+});
