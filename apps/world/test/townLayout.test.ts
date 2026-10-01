@@ -55,3 +55,16 @@ test("playback times read as mm:ss", () => {
   assert.equal(mmss(61_900), "01:01");
   assert.equal(mmss(3_600_000), "60:00");
 });
+
+test("the phone's compact home frame is tighter but still covers every used building and civic piece", () => {
+  for (const n of [1, 4, 12]) {
+    const loose = homeRects(n),
+      tight = homeRects(n, 0, true);
+    assert.equal(tight.length, loose.length);
+    tight.forEach((t, i) => {
+      const l = loose[i]!;
+      assert.ok(t.minX > l.minX && t.maxX < l.maxX && t.minZ > l.minZ && t.maxZ < l.maxZ, `rect ${i} is tighter`);
+      assert.ok(t.maxX - t.minX >= 8, `rect ${i} still holds its building`);
+    });
+  }
+});

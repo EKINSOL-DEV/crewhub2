@@ -677,6 +677,15 @@
   .town-sign:not(.expanded) {
     padding: var(--space-1) var(--space-2);
   }
+  /* The post office and the town hall stay quiet over the small town: a small name, a slim pill. */
+  .town-sign.civic {
+    padding: 1px var(--space-2);
+    font-size: var(--text-2xs);
+    box-shadow: none;
+  }
+  .town-sign.civic strong {
+    font-weight: 600;
+  }
   /* 16 px gutters; the scrub shrinks, and the loop count and the duration go (the slider still says both). */
   .playback-bar {
     left: var(--space-4);

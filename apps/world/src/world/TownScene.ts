@@ -117,6 +117,8 @@ export class TownScene {
   readonly walks = new Walks();
   view: TownView;
   #environment: EnvironmentHandle;
+  /** Drawn frames since the town view's shadow map was last refreshed. */
+  #shadowAge = 0;
   #buildings = new Map<string, BuildingView>();
   /** A blob contact shadow under each building's slab, sized to its footprint. */
   #contacts = new Map<string, { object: THREE.Object3D; size: string }>();
@@ -252,6 +254,8 @@ export class TownScene {
     const b = view ? view.bounds(null) : townBounds();
     const margin = view ? 2 : 4;
     this.#environment.setShadowReach(Math.max(b.maxX - b.minX, b.maxZ - b.minZ) / 2 + margin, { x: (b.minX + b.maxX) / 2, z: (b.minZ + b.maxZ) / 2 });
+    // A new fit refreshes the shadow map on the next drawn frame, also in the town view.
+    this.#shadowAge = 8;
     this.invalidate();
   }
 
@@ -270,7 +274,7 @@ export class TownScene {
       hit.userData.plot = i;
       this.#hits.add(hit);
     }
-    // The landmarks stay whole (not instanced or merged): the square's fountain may animate.
+    // The landmarks merge per material; the square's fountain water stays live (`userData.live`) and animates.
     const landmarks: [ModelKey, number, number, number][] = [
       ["post-office", civicCenter("post-office").x, LAWN_Y, civicCenter("post-office").z],
       ["town-hall", civicCenter("town-hall").x, LAWN_Y, civicCenter("town-hall").z],
@@ -292,6 +296,9 @@ export class TownScene {
       object.rotation.y = l.rotation;
       this.#landmarks.add(object);
     }
+    // Landmarks are static but for their live parts (the fountain's water): the rest merges per material across all of
+    // them (perf). The landmark roots stay, so their animations still run.
+    mergeStatic(this.#landmarks);
     this.scene.add(this.#landmarks);
   }
 
@@ -542,8 +549,20 @@ export class TownScene {
     return { span, target };
   }
 
+  /**
+   * The home frame. On a portrait phone it frames tight (`homeRects` compact) and lets the town run under the side
+   * controls, so the town fills the tall screen instead of floating small in its middle.
+   */
+  #homeFrame() {
+    const canvas = this.renderer.domElement;
+    const portrait = canvas.clientWidth < canvas.clientHeight * 0.8;
+    const insets = this.insets();
+    const rects = homeRects(this.view.model.buildings.length, portrait ? 0 : 1.5, portrait);
+    return this.frameRects(rects, 2, HOME_OFFSET, portrait ? { ...insets, left: 0, right: 0 } : insets);
+  }
+
   home(immediate: boolean) {
-    const { target } = this.frameRects(homeRects(this.view.model.buildings.length), 2, HOME_OFFSET, this.insets());
+    const { target } = this.#homeFrame();
     this.moveTo(target, target.clone().add(HOME_OFFSET), 1, immediate);
   }
 
@@ -719,7 +738,7 @@ export class TownScene {
       position = this.camera.position.clone();
     this.controls.target.set(0, 0, 0);
     this.camera.position.copy(HOME_OFFSET);
-    this.#span = this.frameRects(homeRects(this.view.model.buildings.length), 2, HOME_OFFSET, this.insets()).span;
+    this.#span = this.#homeFrame().span;
     // Zoom is relative to the home frame: however large the town, the closest view is about one desk.
     this.controls.maxZoom = Math.max(4, this.#span / DESK_SPAN);
     this.controls.target.copy(target);
@@ -786,6 +805,14 @@ export class TownScene {
     this.camera.position.add(this.#v);
     t.add(this.#v);
     this.placeLabels();
+    // The town view's shadow casters barely move (robots seen from the town cast none), so its shadow map refreshes
+    // every eighth drawn frame; inside a building it follows every frame.
+    const shadows = this.renderer.shadowMap;
+    shadows.autoUpdate = this.view.entered !== null;
+    if (!shadows.autoUpdate && ++this.#shadowAge >= 8) {
+      shadows.needsUpdate = true;
+      this.#shadowAge = 0;
+    }
     try {
       this.renderer.render(this.scene, this.camera);
     } catch {

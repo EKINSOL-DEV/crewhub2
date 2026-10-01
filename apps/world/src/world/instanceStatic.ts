@@ -5,6 +5,9 @@
    one-off pieces it leaves (paving and lawns of one size each). */
 import * as THREE from "three";
 
+/** World radius under which an instanced part casts no shadow. */
+const TINY = 0.09;
+
 /** Replaces repeated static meshes under `root` with instanced meshes; returns them (to dispose). */
 export function instanceStatic(root: THREE.Group, minimum = 3): THREE.InstancedMesh[] {
   root.updateMatrixWorld(true);
@@ -28,7 +31,10 @@ export function instanceStatic(root: THREE.Group, minimum = 3): THREE.InstancedM
       mesh.removeFromParent();
     });
     instanced.instanceMatrix.needsUpdate = true;
-    instanced.castShadow = first.castShadow;
+    // Tiny parts (flower heads, berries, pebbles) cast no shadow: the shadow pass skips them.
+    if (!first.geometry.boundingSphere) first.geometry.computeBoundingSphere();
+    const scale = Math.max(...meshes.map((m) => m.matrixWorld.getMaxScaleOnAxis()));
+    instanced.castShadow = first.castShadow && (first.geometry.boundingSphere?.radius ?? 1) * scale >= TINY;
     instanced.receiveShadow = first.receiveShadow;
     instanced.renderOrder = first.renderOrder;
     instanced.computeBoundingSphere();
