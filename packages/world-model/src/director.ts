@@ -235,10 +235,23 @@ function checkIntent(model: WorldModel, intent: Intent, reachable: Reachable, us
   return { slug };
 }
 
+/** The thing a prop tag of the building template stands for, in words; other tags read as themselves. */
+const TAG_WORDS: Readonly<Record<string, string>> = {
+  coffee: "coffee machine",
+  rest: "bench",
+  greenery: "plant",
+  mail: "mailbox",
+  planning: "planning table",
+  review: "review pile",
+  storage: "storage racks",
+  dispatch: "dispatch pallets",
+  gather: "meeting table",
+};
+
 /** One sentence for the text view, e.g. "cr-dev-1 goes to the coffee machine in the lobby". No speech. */
 export function describeIntent(model: WorldModel, intent: Intent): string {
   const name = (key: AgentKey) => locate(model, key)?.agent.displayName ?? key;
-  const words = (tag: string) => tag.replace(/-/g, " ");
+  const words = (tag: string) => TAG_WORDS[tag] ?? tag.replace(/-/g, " ");
   switch (intent.kind) {
     case "goToProp":
       return `${name(intent.agent)} goes to the ${words(intent.tag)} in the ${roomLabel(intent.room).toLowerCase()}`;

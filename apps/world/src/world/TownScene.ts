@@ -16,7 +16,8 @@ import type { TownLayer } from "./propLayer";
 import { styleRegistry } from "./style";
 import type { StyledPlot } from "./styleRegistry";
 import type { Ambient } from "./movement";
-import { civicCenter, PLOT_SIZE, plotCenter, TOWN_CAPACITY, townBounds, usedBounds, type Bounds } from "./townLayout";
+import { CIVIC_LOT, civicCenter, homeRects, PLOT_SIZE, plotCenter, TOWN_CAPACITY, townBounds, type Bounds } from "./townLayout";
+import { onPlayIntent } from "./intentPlayer";
 import { Walks } from "./walks";
 
 export interface TownView {
@@ -74,7 +75,7 @@ interface Callbacks {
 }
 
 const ROBOT_SCALE = 0.62;
-const CIVIC_LAWN = 9;
+const CIVIC_LAWN = CIVIC_LOT;
 const HOME_OFFSET = new THREE.Vector3(1, 1.04, 1).normalize().multiplyScalar(90);
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -122,6 +123,7 @@ export class TownScene {
   #floorHit = new THREE.Vector3();
   #buildCell = "";
   #dragging = false;
+  #stopIntents: () => void;
 
   constructor(host: HTMLElement, labels: HTMLElement, view: TownView, callbacks: Callbacks) {
     this.view = view;
@@ -171,6 +173,12 @@ export class TownScene {
     // Dev builds: the scene on `window.__town` for headless checks of walks and frame statistics.
     if (import.meta.env.DEV) (window as unknown as { __town?: TownScene }).__town = this;
     if (new URLSearchParams(window.location.search).has("perf")) this.#perf = { frames: 0, total: 0, worst: 0, since: performance.now() };
+    // Accepted director intents walk through the walk runtime (entered building only, never under reduced motion).
+    this.#stopIntents = onPlayIntent((played) => {
+      if (played) this.walks.direct(played.intent);
+      else this.walks.endDirected();
+      this.invalidate();
+    });
     this.#resize = new ResizeObserver(this.resize);
     this.#resize.observe(host);
     this.sync();
@@ -353,28 +361,46 @@ export class TownScene {
 
   /** The frustum height (at zoom 1) that frames `bounds` from the current camera direction. */
   spanFor(bounds: Bounds, height: number): number {
-    this.#offset.copy(this.camera.position).sub(this.controls.target).normalize();
+    return this.frameRects([bounds], height, this.#v.copy(this.camera.position).sub(this.controls.target)).span;
+  }
+
+  /**
+   * Frames the projected corners of `rects` (each up to `height`) seen along `direction` (camera minus target): the
+   * frustum height at zoom 1 and the ground point to aim at so they sit centred on the screen.
+   */
+  frameRects(rects: readonly Bounds[], height: number, direction: THREE.Vector3): { span: number; target: THREE.Vector3 } {
+    this.#offset.copy(direction).normalize();
     this.#right.crossVectors(UP, this.#offset).normalize();
     this.#up.crossVectors(this.#offset, this.#right).normalize();
-    const cx = (bounds.minX + bounds.maxX) / 2,
-      cz = (bounds.minZ + bounds.maxZ) / 2;
-    let u = 0,
-      v = 0;
-    for (const x of [bounds.minX, bounds.maxX])
-      for (const z of [bounds.minZ, bounds.maxZ])
-        for (const y of [0, height]) {
-          this.#v.set(x - cx, y - height / 2, z - cz);
-          u = Math.max(u, Math.abs(this.#v.dot(this.#right)));
-          v = Math.max(v, Math.abs(this.#v.dot(this.#up)));
-        }
+    let u0 = Infinity,
+      u1 = -Infinity,
+      v0 = Infinity,
+      v1 = -Infinity;
+    const p = new THREE.Vector3();
+    for (const r of rects)
+      for (const x of [r.minX, r.maxX])
+        for (const z of [r.minZ, r.maxZ])
+          for (const y of [0, height]) {
+            p.set(x, y, z);
+            const u = p.dot(this.#right),
+              v = p.dot(this.#up);
+            u0 = Math.min(u0, u);
+            u1 = Math.max(u1, u);
+            v0 = Math.min(v0, v);
+            v1 = Math.max(v1, v);
+          }
+    const uc = (u0 + u1) / 2,
+      vc = (v0 + v1) / 2;
+    // The screen centre (uc, vc), slid along the view direction down to the ground.
+    const target = this.#right.clone().multiplyScalar(uc).addScaledVector(this.#up, vc);
+    target.addScaledVector(this.#offset, -target.y / this.#offset.y);
     const canvas = this.renderer.domElement;
     const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight) || 1;
-    return Math.max(2 * v, (2 * u) / aspect) * 1.08;
+    return { span: Math.max(v1 - v0, (u1 - u0) / aspect) * 1.04, target };
   }
 
   home(immediate: boolean) {
-    const b = usedBounds(this.view.model.buildings.length);
-    const target = new THREE.Vector3((b.minX + b.maxX) / 2, 0, (b.minZ + b.maxZ) / 2);
+    const { target } = this.frameRects(homeRects(this.view.model.buildings.length), 2, HOME_OFFSET);
     this.moveTo(target, target.clone().add(HOME_OFFSET), 1, immediate);
   }
 
@@ -543,7 +569,7 @@ export class TownScene {
       position = this.camera.position.clone();
     this.controls.target.set(0, 0, 0);
     this.camera.position.copy(HOME_OFFSET);
-    this.#span = this.spanFor(usedBounds(this.view.model.buildings.length), 2);
+    this.#span = this.frameRects(homeRects(this.view.model.buildings.length), 2, HOME_OFFSET).span;
     this.controls.target.copy(target);
     this.camera.position.copy(position);
     const aspect = width / height;
@@ -712,6 +738,7 @@ export class TownScene {
 
   dispose() {
     this.#disposed = true;
+    this.#stopIntents();
     cancelAnimationFrame(this.#raf);
     this.#resize.disconnect();
     document.removeEventListener("visibilitychange", this.visibility);

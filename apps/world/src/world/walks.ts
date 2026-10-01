@@ -6,8 +6,8 @@
    jump instead of routing. The town stays "full", so the postman and cross-building walks are visible. Under reduced
    motion everything is offscreen: every move is a jump. */
 import type { Location } from "@crewhub/world-engine";
-import type { AgentKey, RoomKind, WorldModel } from "@crewhub/world-model";
-import { planIdle, planMovement, type Ambient, type Leg, type MovementIntent, type Place } from "./movement.ts";
+import type { AgentKey, Intent, RoomKind, WorldModel } from "@crewhub/world-model";
+import { directorErrands, planIdle, planMovement, type Ambient, type ErrandReason, type Leg, type MovementIntent, type Place } from "./movement.ts";
 import { groundAt, NavWorld, POST_OFFICE_CELL, POSTMAN_PRIORITY, TOWN_HALL_CELL, TOWN_ROOM } from "./navigation.ts";
 
 export interface WalkOptions {
@@ -38,6 +38,7 @@ export interface Walker {
 }
 
 interface Errand {
+  reason: ErrandReason;
   legs: Leg[];
   index: number;
   /** Seconds left at the current stop; null while walking there. */
@@ -121,6 +122,42 @@ export class Walks {
     this.tickMs = globalThis.performance.now() - started;
   }
 
+  /**
+   * An accepted director intent: its agents walk only in the entered building, never under reduced motion (the
+   * director's log still records it). A director walk replaces an idle errand but never a hand-over; any later
+   * fact-driven move (desk, hand-over, switch, leave) replaces it. Returns how many agents set off.
+   */
+  direct(intent: Intent): number {
+    const { entered, reducedMotion } = this.#options;
+    if (reducedMotion || !entered) return 0;
+    let started = 0;
+    for (const errand of directorErrands(intent, entered)) {
+      const state = this.#agents.get(errand.agent);
+      if (!state || state.building !== entered || state.leaving || state.errand?.reason === "handover") continue;
+      if (!this.nav.sim.actor(state.key)) continue;
+      state.errand = { reason: "director", legs: errand.legs, index: 0, dwell: null };
+      this.#aim(state);
+      if (state.errand) started++;
+    }
+    if (started) this.#refreshWalkers();
+    return started;
+  }
+
+  /** The director's kill switch: every director walk ends and its agent goes back to its desk. */
+  endDirected(): void {
+    for (const state of this.#agents.values())
+      if (state.errand?.reason === "director") {
+        state.errand = null;
+        this.#aim(state);
+      }
+  }
+
+  /** The current errand of an agent, if any (the text and tests read it). */
+  errand(key: AgentKey): { reason: ErrandReason; leg: number } | null {
+    const errand = this.#agents.get(key)?.errand;
+    return errand ? { reason: errand.reason, leg: errand.index } : null;
+  }
+
   /* ── Intents ──────────────────────────────────────────────────────────── */
 
   #apply(intent: MovementIntent): void {
@@ -178,7 +215,7 @@ export class Walks {
       case "errand": {
         const state = this.#agents.get(intent.agent);
         if (!state || state.leaving || state.building !== intent.building) return;
-        state.errand = { legs: intent.legs, index: 0, dwell: null };
+        state.errand = { reason: intent.reason, legs: intent.legs, index: 0, dwell: null };
         this.#aim(state);
         return;
       }
@@ -225,7 +262,10 @@ export class Walks {
       return;
     }
     const leg = state.errand?.legs[state.errand.index];
-    const target = (leg && this.#resolve(state, leg.place)) ?? this.#home(state);
+    const spot = leg ? this.#resolve(state, leg.place) : null;
+    // A place that does not exist right now (no meeting room, nobody to visit): the errand is dropped.
+    if (leg && !spot) state.errand = null;
+    const target = spot ?? this.#home(state);
     if (!target) return;
     const result = sim.setDestination(state.key, target);
     if (!result.ok && state.errand) {
@@ -239,7 +279,14 @@ export class Walks {
   #resolve(state: AgentState, place: Place): Location | null {
     if (place.kind === "desk") return this.#home(state);
     if (place.kind === "outside") return this.nav.front(state.building);
-    const spots = this.nav.spots(state.building, place.tag, place.room ?? undefined);
+    if (place.kind === "gather") {
+      const around = this.nav.around(state.building, "gather", "meeting");
+      return around.length ? around[place.index % around.length]! : null;
+    }
+    const spots =
+      place.kind === "beside"
+        ? this.nav.beside(state.building, place.agent, this.#agents.get(place.agent)?.room ?? null)
+        : this.nav.spots(state.building, place.tag, place.room ?? undefined);
     if (!spots.length) return null;
     // Spread agents over the spots of a tag deterministically.
     let h = 0;

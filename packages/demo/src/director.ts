@@ -6,7 +6,8 @@
  * sequence of models it is shown; the only clock is the models' own `now` (demo time).
  *
  * Every few plans the script adds one deliberately invalid intent (moving a working agent), so the rejection
- * is visible in the log.
+ * is visible in the log. Prop tags come from the caller (`PropTags`): the same vocabulary the building template and
+ * the walks use (`coffee`, `rest`, `greenery`, `mail`, `planning`, ...).
  */
 import {
   DEFAULT_PRESENCE,
@@ -28,19 +29,12 @@ import type {
 import { mulberry32 } from "./prng.ts";
 import { DAY, HOUR, MINUTE, SECOND } from "./time.ts";
 
-/** The props a demo room offers, by tag. Stand-ins until the interiors bring real prop placement. */
-export const DEMO_ROOM_PROPS: Readonly<Partial<Record<RoomKind, readonly string[]>>> = {
-  lobby: ["coffee-machine", "mailbox"],
-  "lead-office": ["plant"],
-  workers: ["plant", "whiteboard"],
-  analyst: ["whiteboard"],
-  design: ["plant", "sofa"],
-  planning: ["whiteboard"],
-  review: ["notice-board"],
-  storage: ["shelf"],
-  meeting: ["table", "sofa"],
-};
-export const demoPropTags = (room: RoomKind): readonly string[] => DEMO_ROOM_PROPS[room] ?? [];
+/**
+ * The prop tags an agent can reach in a room of a building. The app answers it from the navigation world (the tags
+ * of the building template's props with a reachable approach cell); the script only picks from it, so a scripted
+ * `goToProp` names a prop that exists.
+ */
+export type PropTags = (building: string, room: RoomKind) => readonly string[];
 
 export const QUICK_DEBOUNCE_MS = 20 * SECOND;
 export const QUICK_MIN_GAP_MS = MINUTE;
@@ -89,6 +83,7 @@ export interface DirectorFeed {
 export interface DirectorFeedOptions {
   seed: number;
   reachable: Reachable;
+  propTags: PropTags;
   settings?: PresenceSettings;
 }
 
@@ -137,7 +132,7 @@ const isIdle = (b: Building, a: AgentPlacement): boolean => immovableReason({ ag
  * One scripted plan for a building: a few idle agents each get a prop visit, a visit or a stay, and every
  * third plan also asks to move a working agent (which validation then rejects). Returns raw intents.
  */
-export function scriptPlan(model: WorldModel, slug: string, seed: number, planNumber: number): unknown[] {
+export function scriptPlan(model: WorldModel, slug: string, seed: number, planNumber: number, propTags: PropTags): unknown[] {
   const building = model.buildings.find((b) => b.slug === slug);
   if (!building || building.archived) return [];
   const random = mulberry32(seed ^ hash(slug) ^ Math.imul(planNumber, 2654435761));
@@ -156,19 +151,20 @@ export function scriptPlan(model: WorldModel, slug: string, seed: number, planNu
     intents.push({ kind: "gather", agents: pool.slice(0, 3).map((a) => a.key), room: "meeting", ttlMs: 2 * MINUTE });
     pool.splice(0, Math.min(3, pool.length));
   }
-  const rooms = building.rooms.filter((r) => demoPropTags(r.kind).length > 0 && r.kind !== "meeting");
+  const tagsIn = (room: RoomKind) => propTags(slug, room);
+  const rooms = building.rooms.filter((r) => r.kind !== "meeting" && tagsIn(r.kind).length > 0);
   for (const agent of pool.slice(0, 3)) {
     const roll = random();
     const others = real(building).filter((a) => a.key !== agent.key);
     if (roll < 0.55 && rooms.length > 0) {
       const room = pick(rooms);
-      intents.push({ kind: "goToProp", agent: agent.key, room: room.kind, tag: pick(demoPropTags(room.kind)), ttlMs: 90 * SECOND });
+      intents.push({ kind: "goToProp", agent: agent.key, room: room.kind, tag: pick(tagsIn(room.kind)), ttlMs: 90 * SECOND });
     } else if (roll < 0.85 && others.length > 0) {
       intents.push({ kind: "visitAgent", agent: agent.key, target: pick(others).key, ttlMs: 60 * SECOND });
     } else intents.push({ kind: "stay", agent: agent.key, ttlMs: 60 * SECOND });
   }
   if (intents.length > 0 && planNumber % INVALID_EVERY === 0 && working.length > 0) {
-    intents.push({ kind: "goToProp", agent: pick(working).key, room: "lobby", tag: "coffee-machine", ttlMs: 90 * SECOND });
+    intents.push({ kind: "goToProp", agent: pick(working).key, room: "lobby", tag: "coffee", ttlMs: 90 * SECOND });
   }
   return intents;
 }
@@ -200,10 +196,10 @@ export function createDirectorFeed(options: DirectorFeedOptions): DirectorFeed {
   const fresh = (): BuildingClock => ({ plans: 0, nextScheduled: clock + intervalMs(), lastQuick: -Infinity, pendingReason: null, lastSignal: 0 });
 
   function makePlan(model: WorldModel, slug: string, trigger: PlanTrigger, reason: string, state: BuildingClock): PlanRecord | null {
-    const input = planInput(model, slug, demoPropTags, settings.inputBudget);
+    const input = planInput(model, slug, (room) => options.propTags(slug, room), settings.inputBudget);
     if (!input) return null;
     state.plans += 1;
-    const intents = scriptPlan(model, slug, options.seed, state.plans);
+    const intents = scriptPlan(model, slug, options.seed, state.plans, options.propTags);
     if (intents.length === 0) return null;
     const outputTokens = estimateTokens(JSON.stringify(intents));
     const overBudget = outputTokens > settings.outputBudget;

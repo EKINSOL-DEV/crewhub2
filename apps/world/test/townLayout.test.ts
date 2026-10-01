@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { civicCenter, laneWords, moveFocus, plotCenter, TOWN_CAPACITY, townBounds, usedBounds, mmss } from "../src/world/townLayout.ts";
+import { civicCenter, laneWords, moveFocus, plotCenter, TOWN_CAPACITY, townBounds, homeRects, mmss } from "../src/world/townLayout.ts";
 
 test("plots never overlap and the civic row stays behind the buildings", () => {
   const seen = new Set<string>();
@@ -18,10 +18,16 @@ test("plots never overlap and the civic row stays behind the buildings", () => {
   }
 });
 
-test("the home frame grows with the rows in use", () => {
-  assert.equal(usedBounds(0).maxZ, usedBounds(4).maxZ);
-  assert.ok(usedBounds(5).maxZ > usedBounds(4).maxZ);
-  assert.equal(usedBounds(12).maxZ, usedBounds(40).maxZ);
+test("the home frame covers the used plots and the civic lots, not the empty plots", () => {
+  const extent = (rects: ReturnType<typeof homeRects>) => ({ maxX: Math.max(...rects.map((r) => r.maxX)), maxZ: Math.max(...rects.map((r) => r.maxZ)) });
+  assert.equal(homeRects(0).length, 3, "one plot and the two civic lots");
+  assert.equal(homeRects(4).length, 6);
+  assert.equal(extent(homeRects(1)).maxZ, extent(homeRects(4)).maxZ);
+  assert.ok(extent(homeRects(5)).maxZ > extent(homeRects(4)).maxZ, "a second row grows the frame");
+  assert.ok(extent(homeRects(2)).maxX < extent(homeRects(4)).maxX, "empty plots on the row are left out");
+  assert.equal(homeRects(40).length, TOWN_CAPACITY + 2);
+  const post = civicCenter("post-office");
+  assert.ok(homeRects(1).some((r) => r.minX < post.x && r.maxX > post.x && r.minZ < post.z && r.maxZ > post.z), "the post office is framed");
 });
 
 test("arrow keys walk the plots in grid order and stop at the edges", () => {

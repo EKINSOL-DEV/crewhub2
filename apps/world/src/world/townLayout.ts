@@ -48,12 +48,20 @@ export function townBounds(): Bounds {
   return { minX: first.x - half, maxX: last.x + half, minZ: civicCenter("town-hall").z - half, maxZ: last.z + half };
 }
 
-/** What the home camera frames: the civic row and the building rows that are in use (at least one). */
-export function usedBounds(buildingCount: number): Bounds {
-  const rows = Math.max(1, Math.min(TOWN_ROWS, Math.ceil(buildingCount / TOWN_COLUMNS)));
-  const half = PLOT_SIZE / 2 + STREET / 2;
-  const all = townBounds();
-  return { minX: all.minX + STREET / 2, maxX: all.maxX - STREET / 2, minZ: civicCenter("town-hall").z - half, maxZ: plotCenter((rows - 1) * TOWN_COLUMNS).z + half };
+/** Side of the post office's and the town hall's lawns. */
+export const CIVIC_LOT = 9;
+
+/**
+ * What the home camera frames: the plots in use (at least one) and the two civic lots, each with `margin` around it.
+ * Empty plots are left out, so a small town fills the screen; the camera fits the projected corners of these rects.
+ */
+export function homeRects(buildingCount: number, margin = 1.5): Bounds[] {
+  const square = (c: PlotSpot, half: number): Bounds => ({ minX: c.x - half, maxX: c.x + half, minZ: c.z - half, maxZ: c.z + half });
+  const rects: Bounds[] = [];
+  const used = Math.max(1, Math.min(TOWN_CAPACITY, buildingCount));
+  for (let i = 0; i < used; i++) rects.push(square(plotCenter(i), PLOT_SIZE / 2 + margin));
+  for (const place of ["post-office", "town-hall"] as const) rects.push(square(civicCenter(place), CIVIC_LOT / 2 + margin));
+  return rects;
 }
 
 /**

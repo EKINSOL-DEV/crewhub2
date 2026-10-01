@@ -1,9 +1,11 @@
 /* The AI-presence block of the Settings card (LOOPS_INTEGRATION_PLAN.md section 7.3, the settings table). In demo mode
    the director switch turns on a scripted feed: no model is called, which the label says. */
 import { useEffect, useState } from "react";
-import { DIRECTOR_MODEL, PRESENCE_LIMITS, type AmbientMode, type PresenceSettings as Settings } from "@crewhub/world-model";
+import { DIRECTOR_MODEL, PRESENCE_LIMITS, type PresenceSettings as Settings } from "@crewhub/world-model";
 import { Chip, Field } from "./primitives";
+import { setAmbient, useAmbient } from "../state/ambient";
 import { directorRuntime, useDirector } from "../state/director";
+import { AMBIENT_CHOICES, type Ambient } from "../world/movement";
 import "../styles/presence.css";
 
 /** A number box that keeps what is being typed and commits on blur or Enter, so "10" is not clamped at "1". */
@@ -35,9 +37,11 @@ function NumberField({ label, value, min, max, hint, onCommit }: { label: string
 }
 
 const fmt = (n: number) => n.toLocaleString("en");
+const AMBIENT_LABELS: Record<Ambient, string> = { on: "On", reduced: "Reduced", off: "Off" };
 
-export function PresenceSettings() {
+export function PresenceSettings({ reducedMotion }: { reducedMotion: boolean }) {
   const { settings, usage } = useDirector();
+  const ambient = useAmbient();
   const set = (patch: Partial<Settings>) => directorRuntime().update(patch);
   const L = PRESENCE_LIMITS;
   return (
@@ -48,14 +52,21 @@ export function PresenceSettings() {
       <Field
         control="select"
         size="sm"
-        label="Ambient idle variety"
-        value={settings.ambient}
-        hint="Small idle actions, chosen from a seed. No model."
-        onChange={(e) => set({ ambient: e.currentTarget.value as AmbientMode })}
+        label="Ambient"
+        className="ambient-setting"
+        hint={
+          reducedMotion
+            ? "Off while your system asks for reduced motion."
+            : "Agents at rest now and then look at the board, water a plant or get a coffee. Chosen from a seed; no model."
+        }
+        value={ambient}
+        onChange={(e) => setAmbient(e.currentTarget.value as Ambient)}
       >
-        <option value="on">On</option>
-        <option value="reduced">Reduced</option>
-        <option value="off">Off</option>
+        {AMBIENT_CHOICES.map((choice) => (
+          <option key={choice} value={choice}>
+            {AMBIENT_LABELS[choice]}
+          </option>
+        ))}
       </Field>
       <Field
         control="checkbox"

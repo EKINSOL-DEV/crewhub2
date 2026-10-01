@@ -300,6 +300,21 @@ const ROOM_WORDS: Record<RoomKind, string> = {
   meeting: "Meeting room",
 };
 
+/** One word per room for the crowded phone layout. */
+const ROOM_SHORT: Record<RoomKind, string> = {
+  lobby: "Lobby",
+  "lead-office": "Lead",
+  workers: "Workers",
+  analyst: "Analyst",
+  design: "Design",
+  storage: "Storage",
+  planning: "Planning",
+  review: "Review",
+  dispatch: "Dispatch",
+  meeting: "Meeting",
+};
+export const shortRoomName = (kind: RoomKind): string => ROOM_SHORT[kind];
+
 export function roomName(building: Building, kind: RoomKind): string {
   return building.rooms.find((r) => r.kind === kind)?.label ?? ROOM_WORDS[kind];
 }

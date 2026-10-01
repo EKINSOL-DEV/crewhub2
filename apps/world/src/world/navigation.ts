@@ -249,6 +249,91 @@ export class NavWorld {
     return out;
   }
 
+  /**
+   * The approach cells of `tag` props in one room that a walker can actually reach from `from` (the agent's seat, or
+   * the lobby when it has none): what the director asks before it sends someone there.
+   */
+  reachableSpots(slug: string, tag: string, kind: RoomKind, from: Location | null = this.lobby(slug)): Location[] {
+    if (!from) return [];
+    return this.spots(slug, tag, kind).filter((spot) => this.canReach(from, spot));
+  }
+
+  /** True when a route exists between two open cells (doors included, other walkers ignored). */
+  canReach(from: Location, to: Location): boolean {
+    return this.graph.planRoute(from, to) !== null;
+  }
+
+  /** The tags of the props in a room that have at least one open approach cell, in template order. */
+  tags(slug: string, kind: RoomKind): string[] {
+    const entry = this.#entries.get(slug);
+    const room = entry && roomOf(entry.template, kind);
+    if (!entry || !room) return [];
+    const out = new Set<string>();
+    for (const prop of room.layout.props) {
+      const def = this.definitions[prop.definitionId];
+      if (!def) continue;
+      const open = def.approaches.some((a) => this.#walkable(roomId(slug, kind), { x: prop.cell.x + a.x, z: prop.cell.z + a.z }));
+      if (open) for (const tag of def.tags) out.add(tag);
+    }
+    return [...out];
+  }
+
+  /**
+   * Open cells right next to the props with `tag` in a room (a ring around the meeting table), never a desk seat,
+   * in a fixed order: where gathered agents stand.
+   */
+  around(slug: string, tag: string, kind: RoomKind): Location[] {
+    const entry = this.#entries.get(slug);
+    const room = entry && roomOf(entry.template, kind);
+    if (!entry || !room) return [];
+    const id = roomId(slug, kind);
+    const seen = new Set<string>();
+    const out: Location[] = [];
+    for (const prop of room.layout.props) {
+      const def = this.definitions[prop.definitionId];
+      if (!def?.tags.includes(tag)) continue;
+      const { width, depth } = def.footprint;
+      for (let z = -1; z <= depth; z++)
+        for (let x = -1; x <= width; x++) {
+          const edge = x === -1 || z === -1 || x === width || z === depth;
+          const corner = (x === -1 || x === width) && (z === -1 || z === depth);
+          if (!edge || corner) continue;
+          const cell = { x: prop.cell.x + x, z: prop.cell.z + z };
+          const key = `${cell.x},${cell.z}`;
+          if (seen.has(key) || !this.#walkable(id, cell) || this.#isSeat(entry, id, cell)) continue;
+          seen.add(key);
+          out.push({ room: id, cell });
+        }
+    }
+    return out;
+  }
+
+  /** Open cells beside an agent's seat (west, east, then north and south), never another desk's seat. */
+  beside(slug: string, key: AgentKey, kind: RoomKind | null): Location[] {
+    const entry = this.#entries.get(slug);
+    const seat = this.home(slug, key, kind);
+    if (!entry || !seat) return [];
+    const out: Location[] = [];
+    for (const [dx, dz] of [
+      [-1, 0],
+      [1, 0],
+      [0, -1],
+      [0, 1],
+    ] as const) {
+      const cell = { x: seat.cell.x + dx, z: seat.cell.z + dz };
+      if (this.#walkable(seat.room, cell) && !this.#isSeat(entry, seat.room, cell)) out.push({ room: seat.room, cell });
+    }
+    return out;
+  }
+
+  #isSeat(entry: Entry, room: string, cell: Cell): boolean {
+    for (const desk of entry.desks.values()) {
+      const seat = this.#local(entry, desk.seat);
+      if (seat && seat.room === room && seat.cell.x === cell.x && seat.cell.z === cell.z) return true;
+    }
+    return false;
+  }
+
   /** The lobby cell inside the front door. */
   lobby(slug: string): Location | null {
     return this.#entries.has(slug) ? { room: roomId(slug, "lobby"), cell: { x: 4, z: 5 } } : null;

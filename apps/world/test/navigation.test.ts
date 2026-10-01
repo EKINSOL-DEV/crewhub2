@@ -90,3 +90,17 @@ test("a grown room rebuilds its building and keeps the actors inside; an unchang
   assert.equal(nav.graph.room(roomId("cr", "lobby")), undefined);
   assert.equal(nav.sim.actor("cr/dev-1"), undefined);
 });
+
+test("director reachability: a room's visitable tags have reachable approach cells, other rooms have none", () => {
+  const nav = new NavWorld();
+  nav.sync([building("cr", [agent("cr/dev-1", "workers")], [], ["meeting"])]);
+  const seat = nav.home("cr", "cr/dev-1", "workers")!;
+  const lobby = nav.tags("cr", "lobby");
+  for (const tag of ["coffee", "rest", "greenery", "mail"]) {
+    assert.ok(lobby.includes(tag), `the lobby offers ${tag}`);
+    assert.ok(nav.reachableSpots("cr", tag, "lobby", seat).length > 0, `${tag} is reachable from the workers' desk`);
+  }
+  assert.deepEqual(nav.reachableSpots("cr", "coffee", "workers", seat), []);
+  assert.ok(nav.around("cr", "gather", "meeting").length >= 4, "room around the meeting table");
+  assert.ok(nav.beside("cr", "cr/dev-1", "workers").every((c) => !(c.cell.x === seat.cell.x && c.cell.z === seat.cell.z)));
+});
