@@ -334,16 +334,17 @@
     "skirt": "#c9b48f",
     "ledge": "#d4bf98",
     "cobble-dark": "#635e56",
-    "path-wear": "#4f5249"
+    "path-wear": "#4f5249",
+    "lamp-pool": "#ff9a40"
   },
   "lighting": {
     "day": {
       "background": null,
       "sky": "#f7f5df",
       "ground": "#8c9c8b",
-      "hemisphere": 2.2,
+      "hemisphere": 1.95,
       "key": "#fff0cf",
-      "keyIntensity": 3.3,
+      "keyIntensity": 3.5,
       "keyPosition": [
         -12,
         30,
@@ -383,7 +384,7 @@
       "exposure": 1.0,
       "shadowOpacity": 0.4,
       "glow": 2.4,
-      "pools": 0.32
+      "pools": 0.42
     }
   }
 }
