@@ -151,3 +151,70 @@ export function disposeLife(kit: Kit) {
   for (const m of materials.get(kit)?.values() ?? []) m.dispose();
   materials.delete(kit);
 }
+
+/* ── Affordances: soft shapes that say "this one" ─────────────────────────────────────────────────────────────── */
+
+/**
+ * A flat soft shape at the origin: "outline" glows round a `width` x `depth` rectangle (a focused or hovered plot),
+ * "fill" washes it softly (a hovered or focused room's floor), "ring" is a soft circle `width` across (under the
+ * selected agent). The size lives in the geometry, so one material serves every size.
+ */
+export function affordance(kit: Kit, shape: "outline" | "fill" | "ring", width: number, depth: number): THREE.Mesh {
+  const soft = shape === "fill" ? 0.5 : shape === "ring" ? 0.14 : 0.9;
+  const pad = shape === "fill" ? 0 : soft * 1.5;
+  const geometry = kit.geometry(`affordance:${shape}:${width.toFixed(2)},${depth.toFixed(2)}`, () => {
+    const plane = new THREE.PlaneGeometry(width + 2 * pad, depth + 2 * pad).rotateX(-Math.PI / 2);
+    const data = new Float32Array(plane.attributes.position!.count * 3);
+    for (let i = 0; i < data.length; i += 3) data.set([width / 2, depth / 2, soft], i);
+    plane.setAttribute("aShape", new THREE.BufferAttribute(data, 3));
+    return plane;
+  });
+  const opacity = shape === "fill" ? 0.2 : shape === "ring" ? 0.9 : 0.8;
+  const colour = affordanceColour(kit, shape);
+  const m = material(
+    kit,
+    `affordance:${shape}`,
+    () =>
+      new THREE.ShaderMaterial({
+        uniforms: { uColor: { value: new THREE.Color(kit.hex(colour)) }, uOpacity: { value: opacity }, uShape: { value: ["outline", "fill", "ring"].indexOf(shape) } },
+        transparent: true,
+        depthWrite: false,
+        vertexShader: `attribute vec3 aShape; varying vec2 vLocal; varying vec3 vShape;
+          void main() { vLocal = position.xz; vShape = aShape;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+        fragmentShader: `uniform vec3 uColor; uniform float uOpacity; uniform int uShape; varying vec2 vLocal; varying vec3 vShape;
+          void main() {
+            float a;
+            if (uShape == 2) {
+              // A soft ring at the radius.
+              a = 1.0 - smoothstep(0.0, vShape.z, abs(length(vLocal) - vShape.x + vShape.z));
+            } else {
+              vec2 q = abs(vLocal) - vShape.xy;
+              float sdf = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0);
+              // Outline: brightest on the edge, fading out and in. Fill: even inside, fading at the edge.
+              a = uShape == 0 ? 1.0 - smoothstep(0.0, vShape.z, abs(sdf)) : 1.0 - smoothstep(-vShape.z, 0.0, sdf);
+            }
+            gl_FragColor = vec4(uColor, uOpacity * a * a);
+            #include <tonemapping_fragment>
+            #include <colorspace_fragment>
+          }`,
+      }),
+  );
+  const mesh = lone(geometry, m);
+  mesh.renderOrder = 2;
+  return mesh;
+}
+
+/** The wash takes the focus colour; the outline and the ring a warm accent by day and lantern light in lamplight. */
+function affordanceColour(kit: Kit, shape: string): Swatch {
+  if (shape === "fill") return "focus-ring";
+  return kit.theme === "lamplight" ? "lantern-light" : "tangerine";
+}
+
+/** Re-colours the affordances for the kit's current theme. */
+export function lifeTheme(kit: Kit) {
+  for (const shape of ["outline", "fill", "ring"]) {
+    const m = materials.get(kit)?.get(`affordance:${shape}`) as THREE.ShaderMaterial | undefined;
+    m?.uniforms.uColor!.value.set(kit.hex(affordanceColour(kit, shape)));
+  }
+}

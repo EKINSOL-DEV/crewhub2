@@ -237,6 +237,12 @@ class GreenhouseStyle implements WorldStyle {
         return pieces.sparkle(kit);
       case "focus-ring":
         return pieces.focusRing(kit, o);
+      case "focus-glow":
+        return life.affordance(kit, "outline", o.size?.width ?? 4, o.size?.depth ?? 4);
+      case "focus-fill":
+        return life.affordance(kit, "fill", o.size?.width ?? 4, o.size?.depth ?? 4);
+      case "selection-ring":
+        return life.affordance(kit, "ring", 1.15, 1.15);
       case "town.contact-shadow":
         return pieces.contactShadow(kit, o);
       case "town.bird":
@@ -277,6 +283,7 @@ class GreenhouseStyle implements WorldStyle {
     this.#glass.uniforms.uColor!.value.set(this.#kit.hex("window"));
     this.#glass.uniforms.uOpacity!.value = theme === "lamplight" ? 0.82 : 0.32;
     town.townTheme(this.#kit, theme);
+    life.lifeTheme(this.#kit);
   }
 
   environment(scene: THREE.Scene, renderer: THREE.WebGLRenderer, theme: StyleTheme) {

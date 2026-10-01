@@ -65,6 +65,11 @@ export type ModelKey =
   | "error-crate"
   | "sparkle"
   | "focus-ring"
+  /** Soft affordances: a glowing outline round a focused or hovered plot (`size`), a soft wash on a hovered or focused
+      room's floor (`size`), a soft ring under the selected agent's feet. Flat, at their origin, never blocking. */
+  | "focus-glow"
+  | "focus-fill"
+  | "selection-ring"
   /** Town dressing (art pass): trees, hedges, flower beds, lanterns, benches, signposts, bike racks, ponds, bridges. */
   | `town.${string}`
   /** Civic pieces (art pass): the post office, the town hall, the square, the café, the bus stop. */

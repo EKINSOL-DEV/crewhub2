@@ -765,12 +765,58 @@ export class BuildingView {
   #applyFocus() {
     this.#focus?.removeFromParent();
     this.#focus = null;
+    this.#focusFill?.removeFromParent();
+    this.#focusFill = this.#fill(this.#focusRoom);
     const room = this.#focusRoom ? roomOf(this.template, this.#focusRoom) : undefined;
     if (!room) return;
     const { width, depth } = room.layout.grid;
     this.#focus = this.ctx.style.model("focus-ring", { size: { width: width * CELL - 0.1, height: 0, depth: depth * CELL - 0.1 } });
     this.#focus.position.copy(this.local(room.origin.x + width / 2, room.origin.z + depth / 2, 0.03));
     this.group.add(this.#focus);
+  }
+
+  /* A soft wash on the floor of the focused room and of the room under the pointer; a soft ring under the selected
+     agent's feet that follows it. Static: they show the same under reduced motion. */
+  #focusFill: THREE.Object3D | null = null;
+  #hoverFill: THREE.Object3D | null = null;
+  #hoverRoom: RoomKind | null = null;
+  #selectedKey: string | null = null;
+  #selection: THREE.Object3D | null = null;
+  #fill(kind: RoomKind | null): THREE.Object3D | null {
+    const room = kind ? roomOf(this.template, kind) : undefined;
+    if (!room) return null;
+    const { width, depth } = room.layout.grid;
+    const fill = this.ctx.style.model("focus-fill", { size: { width: width * CELL, height: 0, depth: depth * CELL } });
+    fill.position.copy(this.local(room.origin.x + width / 2, room.origin.z + depth / 2, 0.025));
+    this.group.add(fill);
+    return fill;
+  }
+  setHover(kind: RoomKind | null) {
+    if (kind === this.#hoverRoom) return;
+    this.#hoverRoom = kind;
+    this.#hoverFill?.removeFromParent();
+    this.#hoverFill = kind === this.#focusRoom ? null : this.#fill(kind);
+  }
+  setSelected(key: string | null) {
+    if (key === this.#selectedKey) return;
+    this.#selectedKey = key;
+    if (!key) {
+      this.#selection?.removeFromParent();
+      this.#selection = null;
+      return;
+    }
+    if (!this.#selection) {
+      this.#selection = this.ctx.style.model("selection-ring");
+      this.group.add(this.#selection);
+    }
+    this.#placeSelection();
+  }
+  #placeSelection() {
+    const ring = this.#selection;
+    if (!ring) return;
+    const robot = this.#selectedKey ? this.#robots.get(this.#selectedKey) : undefined;
+    ring.visible = !!robot;
+    if (robot) ring.position.set(robot.handle.object.position.x, robot.handle.object.position.y + 0.01, robot.handle.object.position.z);
   }
 
   /** True while something here moves. */
@@ -780,6 +826,7 @@ export class BuildingView {
   }
 
   tick(seconds: number) {
+    this.#placeSelection();
     const reduced = this.ctx.reducedMotion();
     for (const [key, robot] of this.#robots) {
       if (robot.departing && !this.ctx.walker(key)) {
