@@ -43,6 +43,11 @@ function small(parent: THREE.Object3D): THREE.Group {
   parent.add(g);
   return g;
 }
+/** A flat piece (slab, apron): it takes shadows but casts none. */
+function flat<T extends THREE.Object3D>(model: T): T {
+  model.traverse((m) => (m.castShadow = false));
+  return model;
+}
 /** Turns off shadow casting under every `small` group of a finished model. */
 function settle<T extends THREE.Object3D>(model: T): T {
   model.traverse((o) => {
@@ -57,7 +62,7 @@ function windowBox(kit: Kit, wall: THREE.Object3D, x: number, sill: number, face
   const z = face - 0.11;
   put(g, kit.box(width + 0.04, 0.16, 0.18, "terracotta", 0.03), x, sill - 0.12, z);
   for (const s of [-1, 1]) put(g, kit.box(0.04, 0.12, 0.08, "timber", 0.01), x + s * (width / 2 - 0.08), sill - 0.24, face - 0.04);
-  const petals = ["petal", "coral", "cream", "tangerine"];
+  const petals = ["petal", "coral"];
   const count = Math.round(width / 0.13);
   for (let i = 0; i < count; i++) {
     const px = x - width / 2 + 0.07 + (i * (width - 0.14)) / Math.max(1, count - 1);
@@ -66,7 +71,7 @@ function windowBox(kit: Kit, wall: THREE.Object3D, x: number, sill: number, face
       put(g, kit.box(0.015, 0.1, 0.015, "plank", 0.004), px, sill + 0.0, z);
       continue;
     }
-    put(g, kit.sphere(0.07, i % 2 ? "leaf" : "leaf-dark"), px, sill - 0.01 + lift, z).scale.set(1, 0.8, 1);
+    put(g, kit.sphere(0.07, "leaf"), px, sill - 0.01 + lift, z).scale.set(1, 0.8, 1);
     if (i % 2 === 0) put(g, kit.sphere(0.035, petals[(i / 2 + seed) % petals.length]!), px + 0.02, sill + 0.06 + lift, z - 0.04);
   }
 }
@@ -100,7 +105,7 @@ export function tallWall(kit: Kit, o: ModelOptions, glass: THREE.Material): THRE
     from = right;
   }
   put(g, kit.box(width / 2 - from, height, depth, chalk, 0.02), (from + width / 2) / 2, height / 2, 0);
-  for (const z of [depth / 2 + 0.012, -depth / 2 - 0.012]) put(g, kit.box(width, 0.13, 0.03, "skirt", 0.01), 0, 0.065, z);
+  for (const z of [depth / 2 + 0.012, -depth / 2 - 0.012]) put(g, kit.box(width, 0.13, 0.03, "ledge", 0.01), 0, 0.065, z);
   put(g, kit.box(width + 0.04, 0.07, depth + 0.08, "ledge", 0.02), 0, height + 0.035, 0);
   pilasters(kit, g, width, height, depth, chalk);
   return settle(g);
@@ -143,7 +148,7 @@ export function rim(kit: Kit, o: ModelOptions): THREE.Group {
 export function partition(kit: Kit, o: ModelOptions): THREE.Group {
   const { width, height, depth } = size(o, { width: 2, height: 0.6, depth: 0.1 });
   const g = new THREE.Group();
-  put(g, kit.box(width, height, depth, archived(o) ? "chalk-dim" : "partition", 0.02), 0, height / 2, 0);
+  put(g, kit.box(width, height, depth, archived(o) ? "chalk-dim" : "chalk", 0.02), 0, height / 2, 0);
   put(g, kit.box(width + 0.01, 0.035, depth + 0.035, "timber-trim", 0.012), 0, height + 0.0175, 0);
   return g;
 }
@@ -154,7 +159,7 @@ export function doorFrame(kit: Kit, o: ModelOptions): THREE.Group {
   const g = new THREE.Group();
   for (const x of [-width / 2, width / 2]) put(g, kit.box(0.08, height, 0.15, "timber-trim", 0.02), x, height / 2, 0);
   put(g, kit.box(width + 0.12, 0.08, 0.16, "timber-trim", 0.02), 0, height, 0);
-  put(g, kit.box(width - 0.06, 0.012, 0.16, "timber-light", 0.004), 0, 0.006, 0);
+  put(small(g), kit.box(width - 0.06, 0.012, 0.16, "timber-trim", 0.004), 0, 0.006, 0);
   return g;
 }
 
@@ -203,17 +208,17 @@ export function entrance(kit: Kit, o: ModelOptions): THREE.Group {
   const stripes = 7;
   const stripe = (width + 0.6) / stripes;
   for (let i = 0; i < stripes; i++)
-    put(awning, kit.box(stripe, 0.025, 0.62, i % 2 ? "awning-stripe" : color, 0.008), -(width + 0.6) / 2 + (i + 0.5) * stripe, 0, 0.31);
+    put(awning, kit.box(stripe, 0.025, 0.62, i % 2 ? "cream" : color, 0.008), -(width + 0.6) / 2 + (i + 0.5) * stripe, 0, 0.31);
   put(awning, kit.box(width + 0.62, 0.09, 0.02, color, 0.008), 0, -0.045, 0.62);
   g.add(awning);
   if (shut) boardUp(kit, g, width, high - 0.1, 0, high / 2, 0.06);
   // A mat inside, a coir doormat with a border on the top step, and two steps down to the lawn.
-  put(g, kit.box(width * 0.8, 0.012, 0.3, shut ? "plank" : "rug", 0.004), 0, 0.006, -0.25);
   const mat = small(g);
+  put(mat, kit.box(width * 0.8, 0.012, 0.3, shut ? "plank" : "rug", 0.004), 0, 0.006, -0.25);
   put(mat, kit.box(width * 0.62, 0.014, 0.24, "timber", 0.004), 0, -SLAB / 2 + 0.008, 0.3);
-  put(mat, kit.box(width * 0.54, 0.016, 0.17, shut ? "plank" : "timber-light", 0.004), 0, -SLAB / 2 + 0.01, 0.3);
-  put(g, kit.box(width + 0.5, SLAB / 2, 0.32, "step", 0.02), 0, -SLAB * 0.75 + 0.002, 0.3);
-  put(g, kit.box(width + 0.8, 0.03, 0.34, "step", 0.01), 0, -SLAB + 0.015, 0.62);
+  put(mat, kit.box(width * 0.54, 0.016, 0.17, shut ? "plank" : "timber-trim", 0.004), 0, -SLAB / 2 + 0.01, 0.3);
+  put(mat, kit.box(width + 0.5, SLAB / 2, 0.32, "step", 0.02), 0, -SLAB * 0.75 + 0.002, 0.3);
+  put(mat, kit.box(width + 0.8, 0.03, 0.34, "step", 0.01), 0, -SLAB + 0.015, 0.62);
   return settle(g);
 }
 
@@ -227,11 +232,12 @@ export function slab(kit: Kit, o: ModelOptions): THREE.Group {
   const g = new THREE.Group();
   const reach = 0.22;
   put(g, kit.box(width + reach * 2, SLAB - 0.05, depth + reach * 2, "slab", 0.05), 0, -(SLAB + 0.05) / 2, 0);
-  put(g, kit.box(width + reach * 2 + 0.06, 0.06, depth + reach * 2 + 0.06, archived(o) ? "chalk-dim" : "slab-edge", 0.03), 0, -0.03, 0);
+  put(g, kit.box(width + reach * 2 + 0.06, 0.06, depth + reach * 2 + 0.06, archived(o) ? "chalk-dim" : "cream", 0.03), 0, -0.03, 0);
   put(g, kit.box(width + reach * 2 + 0.02, 0.022, depth + reach * 2 + 0.02, archived(o) ? "plank" : accent(o), 0.008), 0, -0.075, 0);
-  put(g, kit.box(width + reach * 2 + 0.03, 0.04, depth + reach * 2 + 0.03, "skirt", 0.015), 0, -SLAB + 0.02, 0);
+  put(g, kit.box(width + reach * 2 + 0.03, 0.04, depth + reach * 2 + 0.03, "ledge", 0.015), 0, -SLAB + 0.02, 0);
   g.userData.rise = SLAB;
-  return g;
+  // Flat: its shadow is a sliver under the lip; the walls standing on it cast the ones that read.
+  return flat(g);
 }
 
 /** The truck's loading apron on the lawn in front of dispatch: a pale pad with a kerb and painted bay lines. */
@@ -241,7 +247,7 @@ export function apron(kit: Kit, o: ModelOptions): THREE.Group {
   put(g, kit.box(width, 0.035, depth, "floor-concrete", 0.012), 0, 0.0175 - SLAB, 0);
   for (const s of [-1, 1]) put(g, kit.box(0.05, 0.012, depth - 0.3, "cream", 0.004), s * (width / 2 - 0.2), 0.04 - SLAB, 0.1);
   put(g, kit.box(width + 0.08, 0.06, 0.08, "step", 0.02), 0, 0.03 - SLAB, -depth / 2 + 0.02);
-  return g;
+  return flat(g);
 }
 
 /** Dispatch's loading door, `width` wide in the south rim: a frame, a half-rolled shutter and two dock bumpers. */
@@ -260,8 +266,8 @@ export function loadingDoor(kit: Kit, o: ModelOptions): THREE.Group {
   put(g, kit.box(width - 0.04, down, 0.04, "sage", 0.01), 0, high - down / 2, 0.02);
   for (let i = 1; i < Math.floor(down / 0.1); i++) put(g, kit.box(width - 0.06, 0.012, 0.05, "mullion", 0.004), 0, high - i * 0.1, 0.02);
   put(g, kit.cylinder(0.08, 0.08, width - 0.04, "sage"), 0, high - 0.02, 0.06).rotation.z = Math.PI / 2;
-  put(g, kit.box(width, 0.02, 0.18, "plank", 0.006), 0, -0.01, 0.1);
-  return g;
+  put(small(g), kit.box(width, 0.02, 0.18, "plank", 0.006), 0, -0.01, 0.1);
+  return settle(g);
 }
 
 /** Ivy climbing a wall `width` wide up to `height`: soft leaf clusters on its face (+z), denser at the foot. */
@@ -379,7 +385,7 @@ export function silhouette(kit: Kit, o: ModelOptions): THREE.Group {
     default:
       box(w - 0.12, h, d - 0.12, "clay");
   }
-  // Seen from the town these are a few pixels tall: they take shadows but cast none.
-  g.traverse((m) => (m.castShadow = false));
+  // Seen from the town only the taller pieces (desks, shelves, sofas, plants) cast a shadow worth its draw call.
+  if (h <= 0.3) g.traverse((m) => (m.castShadow = false));
   return g;
 }
