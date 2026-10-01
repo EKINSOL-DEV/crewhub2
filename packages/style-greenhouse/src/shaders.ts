@@ -1,14 +1,18 @@
 /* Greenhouse shaders, moved from apps/world/src/world/shaders.ts. Colours are passed in (from style.json). */
 import * as THREE from "three";
 
-/** The studio floor: a faint grid, a checker and sun shafts, on a standard material. UVs are in cells. */
-export function floorShader(material: THREE.MeshStandardMaterial): THREE.MeshStandardMaterial {
+/**
+ * The studio floor: a faint grid, a checker and sun shafts, on a standard material. UVs are in cells. `shafts` is a
+ * shared uniform: 1 by day, 0 under lamplight (no sun after dark).
+ */
+export function floorShader(material: THREE.MeshStandardMaterial, shafts: { value: number }): THREE.MeshStandardMaterial {
   material.roughness = 0.93;
   material.onBeforeCompile = (shader) => {
+    shader.uniforms.uShafts = shafts;
     shader.vertexShader =
       "varying vec2 vFloor;\n" + shader.vertexShader.replace("#include <begin_vertex>", "#include <begin_vertex>\nvFloor = uv;");
     shader.fragmentShader =
-      "varying vec2 vFloor;\n" +
+      "varying vec2 vFloor;\nuniform float uShafts;\n" +
       shader.fragmentShader.replace(
         "#include <color_fragment>",
         `#include <color_fragment>
@@ -19,7 +23,7 @@ export function floorShader(material: THREE.MeshStandardMaterial): THREE.MeshSta
       diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.33, 0.48, 0.39), line * 0.05);
       float diagonal = vFloor.x + vFloor.y * 0.64;
       float shafts = smoothstep(0.1, 0.2, fract(diagonal / 3.0)) * (1.0 - smoothstep(0.82, 0.91, fract(diagonal / 3.0)));
-      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0, 0.91, 0.66), shafts * 0.06);
+      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0, 0.91, 0.66), shafts * 0.06 * uShafts);
     `,
       );
   };

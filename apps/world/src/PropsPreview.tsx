@@ -7,12 +7,14 @@ import { PROP_LIMITS, validatePropModel, type PropIssue, type PropModel } from "
 import { Button, Card } from "./components/primitives";
 import { DEFAULT_STYLE_ID, styleRegistry } from "./world/style";
 
-/* Three groups: the skill's examples, the skill's eval runs, and the demo world's prop tickets (its broken sign shows
-   as an invalid card, on purpose). `?group=eval` or `?group=demo` narrows the page to one group. */
+/* Four groups: the skill's examples, the skill's eval runs, the demo world's prop tickets (its broken sign shows as an
+   invalid card, on purpose) and the Greenhouse style's own data models. `?group=eval`, `?group=demo` or
+   `?group=style` narrows the page to one group. */
 const groups: Record<string, Record<string, unknown>> = {
   examples: import.meta.glob<unknown>("../../../skills/prop-builder/references/examples/*.json", { eager: true, import: "default" }),
   eval: import.meta.glob<unknown>("../../../skills/prop-builder/evals/*/*.json", { eager: true, import: "default" }),
   demo: import.meta.glob<unknown>("../../../packages/demo/src/props/*.json", { eager: true, import: "default" }),
+  style: import.meta.glob<unknown>("../../../packages/style-greenhouse/models/*.json", { eager: true, import: "default" }),
 };
 const only = typeof location !== "undefined" ? new URLSearchParams(location.search).get("group") : null;
 const files: Record<string, unknown> = Object.fromEntries(

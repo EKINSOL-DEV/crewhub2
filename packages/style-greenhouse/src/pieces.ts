@@ -92,7 +92,7 @@ export function floor(kit: Kit, o: ModelOptions): THREE.Mesh {
   });
   const material = kit.material(o.variant === "dim" ? "floor-dim" : "floor");
   if (!material.userData.floor) {
-    floorShader(material);
+    floorShader(material, kit.shafts);
     material.userData.floor = true;
   }
   const mesh = new THREE.Mesh(geo, material);

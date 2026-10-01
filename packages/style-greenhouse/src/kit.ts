@@ -33,6 +33,8 @@ export class Kit {
   readonly geometries = new Map<string, THREE.BufferGeometry>();
   readonly #materials = new Map<string, Entry>();
   readonly #decals: Record<Decal, THREE.ShaderMaterial>;
+  /** The floor shader's sun shafts: shown by day, faded out under lamplight. */
+  readonly shafts = { value: 1 };
   #lighting: Record<StyleTheme, LightingPreset>;
   #quality: GraphicsQuality = "pretty";
 
@@ -46,8 +48,15 @@ export class Kit {
     this.#applyDecals();
   }
 
-  /** The colour string of a swatch or palette name in the current theme. */
+  /**
+   * The colour string of a swatch or palette name in the current theme. `soft:<name>` is that colour half-way to
+   * cream: a project colour as a soft, Greenhouse-friendly tint (a lead robot's shell).
+   */
   hex(name: Swatch, theme: StyleTheme = this.theme): string {
+    if (name.startsWith("soft:")) {
+      const color = new THREE.Color(this.hex(name.slice("soft:".length), theme)).lerp(new THREE.Color(this.hex("cream", theme)), 0.45);
+      return `#${color.getHexString()}`;
+    }
     if (theme === "lamplight" && name in this.data.lamplightSwatches) return this.data.lamplightSwatches[name]!;
     return this.data.swatches[name] ?? (this.data.palette as Record<string, string>)[name] ?? this.data.swatches["no-project"]!;
   }
@@ -78,6 +87,7 @@ export class Kit {
   setTheme(theme: StyleTheme) {
     this.theme = theme;
     const glow = this.#lighting[theme].glow;
+    this.shafts.value = theme === "day" ? 1 : 0;
     for (const entry of this.#materials.values()) {
       entry.material.color.set(this.hex(entry.color));
       if (entry.emissive) {
