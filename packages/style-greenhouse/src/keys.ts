@@ -24,6 +24,8 @@ export const CODE_KEYS: readonly ModelKey[] = [
   "building.loading-door",
   "building.ivy",
   "building.closed-sign",
+  "building.wall-lamp",
+  "building.silhouette",
   "emblem.home",
   "emblem.inbox",
   "emblem.bot",
@@ -77,4 +79,6 @@ export const LIGHT_POOLS: Partial<Record<ModelKey, { radius: number; y: number; 
   "street-lamp": { radius: 2.2, y: 0.03 },
   "desk-lamp": { radius: 0.4, y: 0.006 },
   "town.lantern": { radius: 3, y: 0.075 },
+  // Mounted on a door post at floor level; the pool lies in front, just above the top step.
+  "building.wall-lamp": { radius: 1.4, y: -0.1, z: 0.7 },
 };
