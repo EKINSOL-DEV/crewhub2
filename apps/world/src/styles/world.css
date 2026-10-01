@@ -585,7 +585,8 @@
   font-style: italic;
 }
 .ambient-setting,
-.quality-setting {
+.quality-setting,
+.daynight-setting {
   margin-bottom: var(--space-4);
 }
 .role-settings {

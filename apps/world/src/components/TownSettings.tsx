@@ -1,11 +1,13 @@
 /* The town document's part of Settings: the style (from the document; one option tonight), the viewer's graphics
-   setting, where the town is kept, export and import of the whole town as JSON, and the rules table that switches
+   and day-and-night settings, where the town is kept, export and import of the whole town as JSON, and the rules table that switches
    rule props. An invalid import shows its precise error and changes nothing. */
 import { useState, type ChangeEvent } from "react";
 import { Download } from "lucide-react";
 import { exportTownDocument, RULE_IDS, type RuleId } from "@crewhub/world-model";
 import type { GraphicsQuality } from "@crewhub/world-style";
 import { QUALITY_CHOICES, setQuality, useQuality } from "../state/quality";
+import { setDayNight, useDayNight } from "../state/daynight";
+import { useWorld } from "../state/world";
 import type { TownState } from "../state/town";
 import { townRuntime } from "../state/town";
 import { styleRegistry } from "../world/style";
@@ -24,6 +26,7 @@ const QUALITY_LABELS: Record<GraphicsQuality, string> = { pretty: "Pretty", fast
 
 export function TownSettings({ town }: { town: TownState }) {
   const quality = useQuality();
+  const dayNight = useDayNight(useWorld().model.mode);
   const [importNote, setImportNote] = useState<{ ok: boolean; text: string } | null>(null);
   const style = styleRegistry.getStyle(town.doc.styleId).manifest;
 
@@ -55,6 +58,22 @@ export function TownSettings({ town }: { town: TownState }) {
               {QUALITY_LABELS[choice]}
             </option>
           ))}
+        </Field>
+        <Field
+          control="select"
+          size="sm"
+          label="Day and night"
+          className="daynight-setting"
+          hint={
+            dayNight
+              ? "The light drifts from morning to dusk and evening with the demo clock. Fast graphics and reduced motion keep it still. Kept in this browser."
+              : "The light stays at the theme's own time of day. Kept in this browser."
+          }
+          value={dayNight ? "on" : "off"}
+          onChange={(e) => setDayNight(e.currentTarget.value === "on")}
+        >
+          <option value="on">Drifts</option>
+          <option value="off">Still</option>
         </Field>
         <p className="hint">
           Layout revision {town.doc.revision}.{" "}

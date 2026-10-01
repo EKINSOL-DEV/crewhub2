@@ -25,6 +25,7 @@ import { plotDoor, plotObstacles } from "./navigation";
 import { onPlayIntent } from "./intentPlayer";
 import { Walks } from "./walks";
 import { AmbientLife } from "./ambientLife";
+import { driftPhase } from "./dayClock";
 
 export interface TownView {
   model: WorldModel;
@@ -43,6 +44,10 @@ export interface TownView {
   quality: GraphicsQuality;
   /** Source time now (ms): drone flights run on it, so they follow the playback speed. */
   now: () => number;
+  /** The Day and night setting: the light drifts with the source clock (`dayClock`). */
+  dayNight: boolean;
+  /** Source time since the first loop's start (ms): the day-night drift's clock. */
+  dayClock: () => number;
   /** The town document and build mode's ghost and selection (applied to the entered building only). */
   town: TownLayer | null;
   /** Playback speed (0 is paused): walks run at it, capped by the engine's tick. */
@@ -73,6 +78,8 @@ export interface FrameStats {
   walkers: number;
 }
 const FRAME_WINDOW = 300;
+/** How often the day-night drift looks at the clock: the light changes at most four times a second. */
+const DRIFT_INTERVAL_MS = 250;
 export type CameraAction = "home" | "rotate-left" | "rotate-right" | "zoom-in" | "zoom-out";
 interface Callbacks {
   enter: (slug: string) => void;
@@ -126,6 +133,9 @@ export class TownScene {
   #environment: EnvironmentHandle;
   /** Drawn frames since the town view's shadow map was last refreshed. */
   #shadowAge = 0;
+  /** The environment's shadow version the shadow maps were last drawn for. */
+  #shadowVersion = 0;
+  #driftTimer: ReturnType<typeof setInterval> | undefined;
   #buildings = new Map<string, BuildingView>();
   /** A blob contact shadow under each building's slab, sized to its footprint. */
   #contacts = new Map<string, { object: THREE.Object3D; size: string }>();
@@ -220,6 +230,7 @@ export class TownScene {
     this.#environment = this.townStyle.environment(this.scene, this.renderer, view.theme);
     this.#environment.setQuality(view.quality);
     this.fitShadow();
+    this.#shadowVersion = this.#environment.shadowVersion;
     this.#ring = this.townStyle.model("focus-ring", { size: { width: PLOT_SIZE + 0.4, height: 0, depth: PLOT_SIZE + 0.4 } });
     this.#ring.visible = false;
     // Just inside the hedges on the plot's rim, which would hide it.
@@ -229,6 +240,8 @@ export class TownScene {
     this.buildGround();
     this.#life = new AmbientLife(this.townStyle);
     this.scene.add(this.#hits, this.#ring, this.#civic, this.#life.group);
+    this.#drift();
+    this.#driftTimer = setInterval(this.#drift, DRIFT_INTERVAL_MS);
     canvas.addEventListener("pointerdown", this.pointerDown);
     canvas.addEventListener("pointerup", this.pointerUp);
     canvas.addEventListener("pointermove", this.pointerMove);
@@ -250,6 +263,32 @@ export class TownScene {
     this.resize();
     this.home(true);
     this.setView(view);
+  }
+
+  /**
+   * The day-night drift: a few times a second the light takes the time of day from the source clock, and the scene
+   * redraws one frame when it changed. A theme change re-applies it at once; reduced motion, Fast and the setting off
+   * keep the theme's own light. The ambient life follows the evening (fireflies, lit windows); the town's shadow map
+   * is redrawn only when the sun moved a visible step.
+   */
+  #drift = () => {
+    if (this.#disposed || document.hidden) return;
+    const v = this.view;
+    const phase = driftPhase({ dayNight: v.dayNight, reducedMotion: v.reducedMotion, quality: v.quality, sinceStartMs: v.dayClock() });
+    const changed = this.#environment.setDayPhase(phase);
+    this.#life.setEvening(this.#environment.evening);
+    if (!changed) return;
+    if (this.#environment.shadowVersion !== this.#shadowVersion) {
+      this.#shadowVersion = this.#environment.shadowVersion;
+      this.#shadowAge = 8;
+    }
+    this.redraw();
+  };
+
+  /** Draws one more frame (a light change), without the longer settling run of `invalidate`. */
+  redraw() {
+    this.#dirtyFrames = Math.max(this.#dirtyFrames, 1);
+    if (!this.#raf && !this.#disposed && !document.hidden) this.#raf = requestAnimationFrame(this.animate);
   }
 
   /** Every style in use follows the theme: the town's (through its environment) and each building's. */
@@ -546,7 +585,8 @@ export class TownScene {
       else this.home(false);
       this.fitShadow();
     } else if (view.entered && previous.zoomed !== view.zoomed) this.frameBuilding(view.entered, view.zoomed);
-    this.#life.configure({ ambient: view.ambient, reducedMotion: view.reducedMotion, quality: view.quality, theme: view.theme });
+    this.#life.configure({ ambient: view.ambient, reducedMotion: view.reducedMotion, quality: view.quality });
+    if (previous.theme !== view.theme || previous.quality !== view.quality || previous.reducedMotion !== view.reducedMotion || previous.dayNight !== view.dayNight) this.#drift();
     if (previous.entered !== view.entered || !view.entered !== !this.#lifeInside) {
       const inside = view.entered ? this.#buildings.get(view.entered) : undefined;
       this.#life.setBuilding(inside ? inside.bounds(null) : null);
@@ -1050,6 +1090,7 @@ export class TownScene {
     for (const view of this.#buildings.values()) view.dispose();
     for (const robot of this.#civicRobots) robot.dispose();
     this.#disposeDressing();
+    clearInterval(this.#driftTimer);
     this.#life.dispose();
     this.#environment.dispose();
     // Styles live in the registry (one instance per id) and outlast this scene; the renderer frees the GPU side.
