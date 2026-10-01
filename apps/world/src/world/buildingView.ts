@@ -124,7 +124,7 @@ export class BuildingView {
   #shellStatic = new THREE.Group();
   /**
    * The tall back walls, merged on their own, each with a low stand-in: when the camera turns to look from the north
-   * or the west, that side's tall wall gives way to its low rim so the rooms stay in view.
+   * or the west, that side's tall wall gives way to its low rim so the rooms stay in view (#seesInside).
    */
   #backWalls = {
     north: { tall: new THREE.Group(), low: new THREE.Group() },
@@ -329,24 +329,25 @@ export class BuildingView {
     } else this.#truck = null;
     this.anchors.set(`truck:${b.slug}`, this.world(TRUCK_SPOT.x, TRUCK_SPOT.z, 1 - FLOOR_RISE));
     this.#merged = mergeStatic(this.#shellStatic);
-    for (const side of Object.values(this.#backWalls)) for (const g of [side.tall, side.low]) this.#merged.push(...mergeStatic(g));
-    // Every frame the shell is drawn, check where the camera looks from (the one-frame lag is invisible).
-    const probe = this.#shellStatic.children.find((c) => c instanceof THREE.Mesh);
-    if (probe) probe.onBeforeRender = (_renderer, _scene, camera) => this.#faceCamera(camera);
-    this.#faceCamera(null);
+    for (const [side, walls] of Object.entries(this.#backWalls) as ["north" | "west", { tall: THREE.Group; low: THREE.Group }][])
+      for (const tall of [true, false]) {
+        const group = tall ? walls.tall : walls.low;
+        this.#merged.push(...mergeStatic(group));
+        // Decided per draw from the camera that draws it: a mesh that should not show collapses for that draw (its
+        // world matrix is rebuilt before the next frame), so there is no lag after a rotation and the tall walls
+        // still cast their shadows (shadow passes call onBeforeShadow, not this).
+        for (const mesh of group.children)
+          mesh.onBeforeRender = (_renderer, _scene, camera) => {
+            if (this.#seesInside(side, camera) !== tall) mesh.matrixWorld.makeScale(0, 0, 0);
+          };
+      }
     this.#applyFocus();
   }
 
-  /** Shows a tall back wall only while the camera looks at its inner face (from the south and east, as at home). */
-  #faceCamera(camera: THREE.Camera | null) {
+  /** True when the camera looks at a back wall's inner face (from the south and east, as at home). */
+  #seesInside(side: "north" | "west", camera: THREE.Camera): boolean {
     const o = this.group.position;
-    const north = !camera || camera.position.z > o.z + (DEPTH * CELL) / 2;
-    const west = !camera || camera.position.x > o.x + (this.template.size.width * CELL) / 2;
-    const back = this.#backWalls;
-    back.north.tall.visible = north;
-    back.north.low.visible = !north;
-    back.west.tall.visible = west;
-    back.west.low.visible = !west;
+    return side === "north" ? camera.position.z > o.z + (DEPTH * CELL) / 2 : camera.position.x > o.x + (this.template.size.width * CELL) / 2;
   }
 
   #signSpot(kind: RoomKind): { x: number; z: number } {
