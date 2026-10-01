@@ -304,7 +304,7 @@ Keep `npm run check` as the baseline, extending tests when behavior is introduce
 
 Test the initial town with three rooms at 3, 8, and 16 assigned sessions. Add an
 oversight stress fixture with 12 rooms and 100 sessions. These are test workloads,
-not claimed capacity guarantees. Maintain the 30 fps presentation cap and bounded
+not claimed capacity guarantees. Maintain the 60 fps presentation cap (30 before 2026-10-02) and bounded
 DPR; aim for frame work within the 33 ms budget on the documented reference device.
 Measure before promising support on a particular device.
 

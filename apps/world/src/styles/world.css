@@ -1063,6 +1063,7 @@
     top: var(--space-3);
     max-height: calc(100dvh - 2 * var(--space-3));
   }
+}
 /* ── Dev stress overlay (`?stress=1`, dev builds only) ─────────────────────── */
 .dev-overlay {
   position: absolute;
@@ -1081,4 +1082,47 @@
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
   pointer-events: none;
+}
+
+/* ── Frame rate overlay (Settings or F) ─────────────────────────────────────── */
+/* A fixed box under the top right toolbar, clear of the camera buttons and the chats; on a phone it sits at the bottom
+   left above the playback bar. Fixed size and strict containment: its text changes never move anything else. */
+.fps-overlay {
+  position: absolute;
+  top: calc(var(--space-4) * 5);
+  right: var(--space-4);
+  z-index: 6;
+  box-sizing: border-box;
+  width: 13rem;
+  height: 6.4rem;
+  contain: strict;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
+  white-space: nowrap;
+  color: var(--text-muted);
+  background: color-mix(in oklab, var(--surface) 88%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  pointer-events: none;
+}
+.fps-overlay .fps-head {
+  font-weight: 600;
+  color: var(--text);
+}
+@media (max-width: 600px) {
+  .fps-overlay {
+    top: auto;
+    right: auto;
+    bottom: calc(var(--space-4) * 6);
+    left: var(--space-3);
+    width: 11.5rem;
+  }
 }
