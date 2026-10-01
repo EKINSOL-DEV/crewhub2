@@ -164,6 +164,13 @@ another room while crossing.
   room does the same when it arrives there.
 - The same inputs and ticks produce the same snapshots.
 
+Actors can change at run time: `addActor({ id, priority?, location })` puts a new
+actor on the free, non-door cell nearest to `location`; `removeActor(id)` frees its
+cells, door lock and queue place; `place(id, location)` moves one there at once (a
+reset, reduced motion, a swap between offscreen buildings) and replans a set
+destination. A room re-added under the same ID with another size starts a fresh
+revision diff.
+
 `sim.updateRoom(id, layout)` is the safe way to move props at run time: it rejects
 layouts that cover an actor's current or next cell or a door cell. Snapshots list
 actors (location, next, progress, destination, status, wait, remaining rooms),
@@ -192,6 +199,63 @@ Measured on an Apple M2 Max, Node 22.22, 2026-10-01:
 Building the town and the simulation takes 11 to 21 ms. The first tick plans all
 100 routes at once; later ticks stay far below the 33 ms frame budget. These are
 engine numbers only, not rendering, and not measured on the reference device.
+
+### In the world
+
+`apps/world/src/world/navigation.ts` builds one `NavGraph` for the town: the town
+room is a 61 × 61 grid of 1.2 m cells (plots, streets, the post office and the
+town hall; building footprints and parked trucks are blocked), and every active
+building adds its rooms from `buildingTemplate` (0.6 m cells) with the template's
+doors. The lobby's front door joins the town cell just outside the building with a
+cost-2 door. A building whose shape changes (a role room grows, the meeting room
+comes or goes) has its rooms and doors replaced, its actors taken out and put back
+where they stood; a room whose furniture changes only is updated in place
+(`sim.updateRoom`).
+
+`movement.ts` maps changes of the world model to walks (never per frame), and
+`walks.ts` runs them on the simulation: the hand-over walk to the review pile and
+back when a ticket flies to review, back to the desk when a ticket lands on it,
+joins and departures through the lobby, real-location switches (walked along the
+town path in the town view, swapped otherwise), the postman's delivery rounds and
+seeded idle variety (plan 7.1). Postures are the model's debounced ones. Only the
+entered building's rooms are `full`; the town is `full` so the postman and
+cross-building walks show; under reduced motion every room is `offscreen`, so every
+move is a jump. The simulation ticks once per drawn frame at the playback speed
+and pauses with the playback and in hidden tabs.
+
+### Browser stress numbers
+
+`?stress=1` (dev builds only) loads a synthetic loops-shaped town through the same
+`WorldSource` seam (`createStressSource` in `packages/demo`): 12 buildings, 100
+agents (12 leads, 4 registered agents that work in two buildings, 84 workers) plus
+the postman, and a steady stream of ticket moves, progress lines, deliveries and
+team re-reads that flip lanes. An overlay shows the time between drawn frames
+(mean, p95 and max over the last 300 frames), the CPU work per frame and the walk
+engine's tick. In this mode the 30 fps cap is off, so the interval shows what the
+browser can do.
+
+Measured 2026-10-01 on an Apple M2 Max (macOS), Chromium 151 headless, 1440 × 900
+at device pixel ratio 1, playback at 4x. The window restarts when the view changes;
+the Metal runs filled all 300 frames, SwiftShader drew only 74 (town) and 83
+(inside) frames in 20 s.
+
+| Browser, view | Frame mean | p95 | max | CPU work mean | Engine tick mean / max | Draw calls |
+| --- | --- | --- | --- | --- | --- | --- |
+| Metal GPU (new headless), town view | 8.3 ms | 9.8 ms | 10.2 ms | 3.9 ms | 0.11 / 0.30 ms | 2,528 |
+| Metal GPU (new headless), inside one building | 9.1 ms | 16.5 ms | 17.5 ms | 2.9 ms | 0.11 / 1.0 ms | 1,357 |
+| SwiftShader (CPU), town view | 413 ms | 932 ms | 1,825 ms | 205 ms | 0.29 / 3.2 ms | 2,474 |
+| SwiftShader (CPU), inside one building | 272 ms | 316 ms | 1,433 ms | 13 ms | 0.21 / 0.6 ms | 1,384 |
+
+Before the two reductions below, the same Metal run measured 8.9 / 16.3 / 18.1 ms
+in the town view with 6.8 ms CPU work and 5,188 draw calls, and SwiftShader 1,128 /
+2,217 / 3,300 ms. The reductions: robots seen from the town use the style's "far"
+detail (no small parts, no shadows; `RobotHandle.setDetail`), and Greenhouse boxes
+with a bevel of 3 cm or less use one bevel segment (a building shell went from
+about 68,000 to about 25,000 triangles). The GPU run stays inside the 33 ms budget
+with room to spare. SwiftShader rasterises on the CPU and stays far above it: an
+empty scene renders in 5 ms there, the town's 620,000 triangles take about 300 ms,
+so the number says little about real hardware. The reference machine of the plan
+has not been measured; these are numbers from a development machine.
 
 ## Adding generated models later
 

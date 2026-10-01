@@ -657,7 +657,7 @@
 /* ── Dev stress overlay (`?stress=1`, dev builds only) ─────────────────────── */
 .dev-overlay {
   position: absolute;
-  top: calc(var(--space-4) * 3.5);
+  top: calc(var(--space-4) * 7);
   left: var(--space-4);
   z-index: 6;
   display: flex;

@@ -595,7 +595,12 @@ no heap and no deadlock handling.
 engine before phase 4. Items 1 to 5 below are now implemented headlessly in
 `packages/world-engine` (`nav.ts`, `navSim.ts`), with a stress fixture and
 measured numbers; see [GRID_ENGINE.md](GRID_ENGINE.md#rooms-doors-and-the-town).
-Rendering and the postman's delivery events are separate work.
+The world side (phase 4 walks, same night) builds the graph from the town and the
+building templates and drives it from the world model: `apps/world/src/world/`
+`navigation.ts`, `movement.ts` and `walks.ts`, with browser stress numbers in
+[GRID_ENGINE.md](GRID_ENGINE.md#browser-stress-numbers). Tickets ride the drone,
+not agents (spec addendum), so the 4.3 rows where an agent carries an object are
+walks without the object.
 
 **What dynamic pathfinding needs, in order:**
 

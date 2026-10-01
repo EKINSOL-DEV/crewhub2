@@ -327,6 +327,9 @@ export class TownScene {
     else if (previous.reducedMotion !== view.reducedMotion || previous.ambient !== view.ambient)
       this.walks.update(view.model, { entered: view.entered, reducedMotion: view.reducedMotion, ambient: view.ambient });
     if (previous.entered !== view.entered) {
+      // The overlay's window describes one view: start it again.
+      this.#frames.count = 0;
+      this.#frames.at = 0;
       if (view.entered) this.frameBuilding(view.entered, view.zoomed);
       else this.home(false);
     } else if (view.entered && previous.zoomed !== view.zoomed) this.frameBuilding(view.entered, view.zoomed);
