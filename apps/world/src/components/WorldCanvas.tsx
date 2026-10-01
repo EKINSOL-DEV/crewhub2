@@ -4,6 +4,8 @@ import type { AgentPlacement, Building, ProgressKind, RoleSource, WorkObject, Wo
 import { STRESS, worldRuntime } from "../state/world";
 import { useDark } from "../state/theme";
 import { useQuality } from "../state/quality";
+import { useFps } from "../state/fps";
+import { FpsOverlay } from "./FpsOverlay";
 import type { Pick } from "../world/buildingView";
 import { buildingTemplate } from "../world/buildingTemplate";
 import { assignDesks, placeObjects, roomName, shortRoomName } from "../world/interiorLayout";
@@ -54,6 +56,7 @@ export default function WorldCanvas(props: Props) {
   const [ready, setReady] = useState(false);
   const dark = useDark();
   const quality = useQuality();
+  const fps = useFps();
   latest.current = props;
   // The ghost's verdict tile takes the scene's theme.
   const town = useMemo(
@@ -75,6 +78,7 @@ export default function WorldCanvas(props: Props) {
     speed,
     ambient: props.ambient,
     measure: STRESS,
+    fps,
     selectedAgent: props.selection.selected?.kind === "agent" ? props.selection.selected.key : null,
   };
   useEffect(() => {
@@ -118,6 +122,7 @@ export default function WorldCanvas(props: Props) {
         </div>
       )}
       {STRESS && ready && <FrameOverlay scene={scene} />}
+      {fps && ready && <FpsOverlay scene={scene} />}
       <div ref={labels} className="world-labels">
         {model.buildings.slice(0, TOWN_CAPACITY).map((b, index) => {
           if (inside && inside.slug !== b.slug) return null;

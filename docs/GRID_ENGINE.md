@@ -231,7 +231,7 @@ agents (12 leads, 4 registered agents that work in two buildings, 84 workers) pl
 the postman, and a steady stream of ticket moves, progress lines, deliveries and
 team re-reads that flip lanes. An overlay shows the time between drawn frames
 (mean, p95 and max over the last 300 frames), the CPU work per frame and the walk
-engine's tick. In this mode the 30 fps cap is off, so the interval shows what the
+engine's tick. In this mode the 60 fps cap is off, so the interval shows what the
 browser can do.
 
 Measured 2026-10-01 on an Apple M2 Max (macOS), Chromium 151 headless, 1440 × 900

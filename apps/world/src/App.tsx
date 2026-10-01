@@ -14,6 +14,7 @@ import type { Selection } from "./components/WorldCanvas";
 import { createChatQueryClient, useChatEvents, useChatNavigation, useChatView } from "./state/chat";
 import { useAmbient } from "./state/ambient";
 import { toggleDetails, useDetails } from "./state/details";
+import { toggleFps } from "./state/fps";
 import { readRoleOverrides, writeRoleOverrides } from "./state/roleOverrides";
 import { useBuildMode } from "./state/build";
 import { useDark, useTheme } from "./state/theme";
@@ -294,6 +295,11 @@ function World() {
       if (e.key.toLowerCase() === "d" && !graphicsFailed) {
         e.preventDefault();
         setAnnouncement(toggleDetails() ? "Details on: every label shows." : "Details off: names and one bubble per robot.");
+        return;
+      }
+      if (e.key.toLowerCase() === "f" && !graphicsFailed) {
+        e.preventDefault();
+        setAnnouncement(toggleFps() ? "Frame rate overlay on." : "Frame rate overlay off.");
         return;
       }
       if (e.key.toLowerCase() === "t") {

@@ -114,6 +114,28 @@ test("part rules: shapes, named materials, sizes per shape, rotation and radius"
   assertError(prop({}, { emissive: 1 }), "parts[0].emissive", "true or false");
 });
 
+test("a wedge is a slice of a cylinder: sweep required, only on a wedge, exact bounds of the slice", () => {
+  const slice = { shape: "wedge", size: [0.35, 0.1, 0.35], position: [0, 0.05, 0], sweep: 90 };
+  assert.deepEqual(errors(prop({}, slice)), []);
+  const { sweep: _, ...whole } = slice;
+  assertError(prop({}, whole), "parts[0].sweep", "required on a wedge");
+  assertError(prop({}, { ...slice, sweep: 0 }), "parts[0].sweep", "between 1 and 360");
+  assertError(prop({}, { ...slice, sweep: 400 }), "parts[0].sweep", "between 1 and 360");
+  assertError(prop({}, { sweep: 90 }), "parts[0].sweep", "only allowed on a wedge");
+  // A cone slice (a parasol panel) may have a pointed top, like a cylinder.
+  assert.deepEqual(errors(prop({}, { ...slice, size: [0, 0.2, 0.35], position: [0, 0.1, 0] })), []);
+  assertError(prop({}, { ...slice, size: [0, 0.1, 0] }), "parts[0].size", "radiusTop or radiusBottom");
+  // A quarter from +x towards -z covers x 0..r and z -r..0; turning it by 90° about y gives the next quarter.
+  const quarter = partBounds({ shape: "wedge", size: [0.4, 0.1, 0.4], position: [0, 0.05, 0], sweep: 90 });
+  assert.deepEqual(quarter.min.map((n) => Math.round(n * 1000) / 1000), [0, 0, -0.4]);
+  assert.deepEqual(quarter.max.map((n) => Math.round(n * 1000) / 1000), [0.4, 0.1, 0]);
+  const next = partBounds({ shape: "wedge", size: [0.4, 0.1, 0.4], position: [0, 0.05, 0], rotation: [0, 90, 0], sweep: 90 });
+  assert.deepEqual(next.min.map((n) => Math.round(n * 1000) / 1000), [-0.4, 0, -0.4]);
+  assert.deepEqual(next.max.map((n) => Math.round(n * 1000) / 1000), [0, 0.1, 0]);
+  // A slice that would not fit as a whole cylinder fits when only its own quarter is inside the footprint.
+  assert.deepEqual(errors(prop({}, { ...slice, size: [0.55, 0.1, 0.55], position: [-0.15, 0.05, 0.15] })), []);
+});
+
 test("unknown keys are rejected everywhere, as an import format should", () => {
   assertError(prop({ colour: "red" }), "colour", "unknown key");
   assertError(prop({}, { color: "red" }), "parts[0].color", "unknown key");
@@ -167,7 +189,10 @@ function threeMesh(part: PropPart): THREE.Mesh {
           ? new THREE.CylinderGeometry(0, a, b, 64)
           : part.shape === "sphere"
             ? new THREE.SphereGeometry(1, 64, 48)
-            : new THREE.TorusGeometry(a, b, 48, 96).rotateX(Math.PI / 2);
+            : part.shape === "wedge"
+              ? // The slice starts on +x and turns towards -z: theta 90° in three.js (the cut faces add no new corners).
+                new THREE.CylinderGeometry(a, c, b, 256, 1, false, Math.PI / 2, ((part.sweep ?? 360) * Math.PI) / 180)
+              : new THREE.TorusGeometry(a, b, 48, 96).rotateX(Math.PI / 2);
   const mesh = new THREE.Mesh(geometry);
   if (part.shape === "sphere") mesh.scale.set(a, b, c);
   mesh.position.set(...part.position);
@@ -180,8 +205,8 @@ function threeMesh(part: PropPart): THREE.Mesh {
 test("validator bounds match three.js geometry with the renderer's conventions (Euler XYZ, flat torus)", () => {
   let seed = 7;
   const random = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-  const shapes: PropPart["shape"][] = ["box", "cylinder", "sphere", "torus", "cone"];
-  for (let i = 0; i < 60; i++) {
+  const shapes: PropPart["shape"][] = ["box", "cylinder", "sphere", "torus", "cone", "wedge"];
+  for (let i = 0; i < 90; i++) {
     const shape = shapes[i % shapes.length]!;
     const s = () => 0.05 + random() * 0.4;
     const size: [number, number, number] =
@@ -193,6 +218,7 @@ test("validator bounds match three.js geometry with the renderer's conventions (
       rotation: [random() * 360 - 180, random() * 360 - 180, random() * 360 - 180],
       material: "clay",
     };
+    if (shape === "wedge") part.sweep = [30, 45, 90, 135, 200, 360][Math.floor(i / 6) % 6]!;
     const ours = partBounds(part);
     const theirs = new THREE.Box3().setFromObject(threeMesh(part), true);
     for (let axis = 0; axis < 3; axis++) {
