@@ -257,13 +257,24 @@ function World() {
         build.toggle();
         return;
       }
+      // Escape closes the innermost thing first: Settings, then build mode (its drag, selection, chosen prop, then the
+      // mode itself), then the text view, the selection, the zoomed room and the building.
+      if (e.key === "Escape" && settingsOpen) {
+        e.preventDefault();
+        closeSettings();
+        return;
+      }
       if (build.key(e)) {
         e.preventDefault();
         return;
       }
+      if (e.key === "Escape" && build.state.on) {
+        e.preventDefault();
+        build.toggle();
+        return;
+      }
       if (e.key === "Escape") {
-        if (settingsOpen) closeSettings();
-        else if (textOpen) closeText();
+        if (textOpen) closeText();
         else if (selection.selected) setSelection((s) => ({ ...s, selected: null }));
         else if (zoomed) {
           setZoomed(null);
@@ -613,7 +624,8 @@ function PlaybackBar({ playback }: { playback: PlaybackControls }) {
         onChange={(e) => playback.seek(Number(e.currentTarget.value))}
       />
       <span className="playback-time">
-        {position} / {duration}
+        {position}
+        <span className="playback-duration"> / {duration}</span>
       </span>
       <span className="playback-loop" title="How many times the script has looped">
         loop {loop}
