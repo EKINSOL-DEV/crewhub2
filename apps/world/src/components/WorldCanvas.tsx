@@ -95,8 +95,9 @@ export default function WorldCanvas(props: Props) {
         pick: (target, hover) => latest.current.onPick(target, hover),
         error: () => latest.current.onError(),
         build: (kind, at, pick) => latest.current.onBuild(kind, at, pick),
+        // The town lays itself out over a few tasks; the loading note stays until it is done.
+        ready: () => setReady(true),
       });
-      setReady(true);
     } catch {
       latest.current.onError();
     }

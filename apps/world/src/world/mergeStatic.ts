@@ -31,9 +31,26 @@ function look(material: THREE.Material, castShadow: boolean): string | null {
   if (material.type !== "MeshStandardMaterial") return null;
   const m = material as THREE.MeshStandardMaterial;
   if (m.transparent || m.vertexColors || m.wireframe || m.alphaTest > 0 || m.emissive.getHex() !== 0) return null;
-  if (m.onBeforeCompile !== THREE.Material.prototype.onBeforeCompile) return null;
+  // A shader hook that only changes the lighting (the style names it in `userData.lightHook`) comes along; any other
+  // (a pattern) keeps the material to itself.
+  const hook = lightHook(m);
+  if (hook === undefined) return null;
   if (MAPS.some((name) => m[name])) return null;
-  return [m.roughness, m.metalness, m.side, m.flatShading, m.depthWrite, m.depthTest, m.polygonOffset, m.polygonOffsetFactor, m.polygonOffsetUnits, m.toneMapped, m.fog, castShadow].join("|");
+  return [hook ? hookId(hook) : 0, m.roughness, m.metalness, m.side, m.flatShading, m.depthWrite, m.depthTest, m.polygonOffset, m.polygonOffsetFactor, m.polygonOffsetUnits, m.toneMapped, m.fog, castShadow].join("|");
+}
+
+type Hook = THREE.Material["onBeforeCompile"];
+const hookIds = new WeakMap<Hook, number>();
+let hooks = 0;
+function hookId(hook: Hook): number {
+  let id = hookIds.get(hook);
+  if (id === undefined) hookIds.set(hook, (id = ++hooks));
+  return id;
+}
+/** The material's lighting hook, null for none, undefined for a hook of another kind. */
+function lightHook(m: THREE.Material): Hook | null | undefined {
+  if (m.onBeforeCompile === THREE.Material.prototype.onBeforeCompile) return null;
+  return m.onBeforeCompile === m.userData.lightHook ? m.onBeforeCompile : undefined;
 }
 
 /** A white copy of `source` that takes each vertex's colour from `palette` (the source materials' live colours). */
@@ -43,7 +60,9 @@ function paletteMaterial(source: THREE.MeshStandardMaterial, palette: THREE.Mesh
   const colors = palette.map((m) => m.color);
   // The uniform array has a fixed size per program: pad it, so batches share a few programs.
   while (colors.length < PALETTE) colors.push(colors[0]!);
-  material.onBeforeCompile = (shader) => {
+  const hook = lightHook(source);
+  material.onBeforeCompile = (shader, renderer) => {
+    hook?.call(material, shader, renderer);
     shader.uniforms.uPalette = { value: colors };
     shader.vertexShader = shader.vertexShader
       .replace("#include <common>", `#include <common>\nattribute float aSwatch;\nuniform vec3 uPalette[${PALETTE}];\nvarying vec3 vSwatch;`)
@@ -52,15 +71,32 @@ function paletteMaterial(source: THREE.MeshStandardMaterial, palette: THREE.Mesh
       .replace("#include <common>", "#include <common>\nvarying vec3 vSwatch;")
       .replace("#include <color_fragment>", "#include <color_fragment>\ndiffuseColor.rgb *= vSwatch;");
   };
-  material.customProgramCacheKey = () => `merge-palette-${PALETTE}`;
+  const key = `merge-palette-${PALETTE}-${hook ? hookId(hook) : 0}`;
+  material.customProgramCacheKey = () => key;
   return material;
+}
+
+/**
+ * Disposes `material` with `geometry`. A function of its own on purpose: a closure made inside `mergeStatic` would
+ * share that call's scope and keep every source mesh and geometry of the merge alive for as long as the listener.
+ */
+function disposeWith(geometry: THREE.BufferGeometry, material: THREE.Material) {
+  geometry.addEventListener("dispose", () => material.dispose());
+}
+
+/** After its upload the GPU holds the vertex data: the JS copy is let go (the docs' `onUpload` pattern). */
+function release(this: THREE.BufferAttribute) {
+  (this as unknown as { array: null }).array = null;
 }
 
 /**
  * Replaces the static meshes under `root` with merged meshes; returns the geometries it created (to dispose).
  * Disposing a palette batch's geometry also disposes the material made for it.
+ *
+ * The merged geometries keep their bounds but let their vertex data go once it is on the GPU, which is most of a
+ * town's memory: nothing reads it again. `keepData` keeps it, for meshes that are picked (raycast) under `root`.
  */
-export function mergeStatic(root: THREE.Group): THREE.BufferGeometry[] {
+export function mergeStatic(root: THREE.Group, options: { keepData?: boolean } = {}): THREE.BufferGeometry[] {
   root.updateMatrixWorld(true);
   const inverse = new THREE.Matrix4().copy(root.matrixWorld).invert();
   const batches = new Map<unknown, Batch[]>();
@@ -69,8 +105,19 @@ export function mergeStatic(root: THREE.Group): THREE.BufferGeometry[] {
     // Live meshes (a style's moving parts, `userData.live`) keep their own transforms.
     if (!(o instanceof THREE.Mesh) || o instanceof THREE.InstancedMesh || Array.isArray(o.material) || o.userData.room || o.userData.live) return;
     if (Object.keys(o.geometry.attributes).some((name) => !MERGED.includes(name))) return;
+    // Already merged, its vertex data on the GPU only: it stays as it is.
+    if (!o.geometry.attributes.position?.array) return;
     const matrix = new THREE.Matrix4().multiplyMatrices(inverse, o.matrixWorld);
-    const source = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+    // Indexed throughout: a style's geometry shares its vertices between faces, so transforming and uploading it costs a
+    // third of a non-indexed copy (the merge of an interior is the bulk of entering a building).
+    // A plain copy of the attributes: `clone()` would first build a parametric geometry's default shape again.
+    const source = new THREE.BufferGeometry();
+    for (const name of MERGED) {
+      const attribute = o.geometry.attributes[name];
+      if (attribute) source.setAttribute(name, attribute.clone());
+    }
+    const index = o.geometry.index;
+    source.setIndex(index ? index.clone() : Array.from({ length: o.geometry.attributes.position!.count }, (_, i) => i));
     if (!source.attributes.uv) source.setAttribute("uv", new THREE.Float32BufferAttribute(new Float32Array(source.attributes.position!.count * 2), 2));
     if (!source.attributes.normal) source.computeVertexNormals();
     source.applyMatrix4(matrix);
@@ -84,7 +131,8 @@ export function mergeStatic(root: THREE.Group): THREE.BufferGeometry[] {
       if (!batch) list.push((batch = { geometries: [], shadow: o.castShadow, palette: [], material }));
       let index = batch.palette!.indexOf(standard);
       if (index < 0) index = batch.palette!.push(standard) - 1;
-      source.setAttribute("aSwatch", new THREE.Float32BufferAttribute(new Float32Array(source.attributes.position!.count).fill(index), 1));
+      // One byte a vertex: the palette index, read as a float by the shader.
+      source.setAttribute("aSwatch", new THREE.BufferAttribute(new Uint8Array(source.attributes.position!.count).fill(index), 1));
       batch.geometries.push(source);
     } else {
       if (!list.length) list.push({ geometries: [], shadow: false, palette: null, material });
@@ -100,11 +148,13 @@ export function mergeStatic(root: THREE.Group): THREE.BufferGeometry[] {
       const geometry = mergeGeometries(geometries, false);
       for (const g of geometries) g.dispose();
       if (!geometry) continue;
+      geometry.computeBoundingBox();
+      geometry.computeBoundingSphere();
+      if (!options.keepData) for (const attribute of Object.values(geometry.attributes)) (attribute as THREE.BufferAttribute).onUpload(release);
       let drawn = material;
       if (palette) {
-        const own = paletteMaterial(material as THREE.MeshStandardMaterial, palette);
-        geometry.addEventListener("dispose", () => own.dispose());
-        drawn = own;
+        drawn = paletteMaterial(material as THREE.MeshStandardMaterial, palette);
+        disposeWith(geometry, drawn);
       }
       const mesh = new THREE.Mesh(geometry, drawn);
       mesh.castShadow = shadow;
