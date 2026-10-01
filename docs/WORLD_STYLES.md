@@ -42,7 +42,7 @@ Every style declares a manifest (for Greenhouse: `packages/style-greenhouse/styl
 | `description` | One or two sentences. |
 | `coveredKeys` | The semantic model keys the style provides. A test checks it equals what the style actually draws. |
 | `palette` | A colour for every palette name (below). |
-| `lighting` | A `LightingPreset` per theme: `day` and `lamplight`. |
+| `lighting` | A `LightingPreset` per theme: `day` and `lamplight`: sky, ground and key/fill lights, exposure, the blob shadows' opacity, the lamps' `glow` and the warm light `pools`. |
 
 A style may keep more data in its manifest file. Greenhouse adds `swatches` (named colours internal to the style:
 walls, lawn, robot parts) and `lamplightSwatches` (the swatches that change under lamplight).
@@ -99,8 +99,15 @@ Conventions for models:
   ears, antenna stem and hands, and casts no shadow) but keeps the silhouette, colours and postures. The style decides the rig; postures carry the
   meaning from the world model.
 - `environment(scene, renderer, theme)` adds the lights, tone mapping and background for a theme and returns a handle
-  with `setTheme`, `setShadowReach` and `dispose`. The UI's light theme is `day`, the dark theme is `lamplight`
-  (warmer, dimmer key light, lit windows and desk lamps, a darker ground).
+  with `setTheme`, `setShadowReach(reach, center?)`, `setQuality(quality)` and `dispose`. The UI's light theme is
+  `day`, the dark theme is `lamplight` (a deep blue-green evening: warm lamp light, lit windows, glowing desk and
+  pendant lamps, warm pools of light). The renderer fits the shadow to what the camera frames: the entered building
+  gets a close, crisp shadow, the town a cheaper, softer one.
+- `GraphicsQuality` is the viewer's graphics setting, `"pretty"` (the default) or `"fast"`, kept per browser and read
+  by renderers from `TownView.quality`. The renderer owns its own settings (shadow maps on or off, the pixel ratio)
+  and calls `setQuality` on the environment; the style then drops what it draws only for Pretty (Greenhouse: the key
+  light's shadow map and the warm lamp pools). Blob contact shadows under buildings (`town.contact-shadow`) and robots
+  stay in both settings.
 - `setTheme(theme)` re-colours the style's shared materials; the renderer calls it for every style in use.
 - `materialise(object, progress)`: the appear effect from 0 (gone) to 1 (there); running it backwards de-materialises.
   The drone and the truck use it; phase 5's props will too.

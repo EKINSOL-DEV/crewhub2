@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type Ref } from "react";
-import { ArrowLeft, FlaskConical, Hammer, MessageCircle, Minus, Monitor, Moon, Pause, Plus, RotateCcw, RotateCw, Scan, Settings, Sprout, Sun, X } from "lucide-react";
+import { ArrowLeft, FlaskConical, Hammer, MessageCircle, Minus, Monitor, Moon, Pause, Plus, RotateCcw, RotateCw, Scan, Settings, Sprout, Sun, Tags, X } from "lucide-react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { describeTownDocument, ruleProps, type AgentPlacement, type PlaybackControls, type PlaybackSpeed, type RoleId, type RoomKind, type TextLine, type WorldModel } from "@crewhub/world-model";
 import type { PropModel } from "@crewhub/world-engine";
@@ -13,6 +13,7 @@ import { SceneBoundary } from "./components/SceneBoundary";
 import type { Selection } from "./components/WorldCanvas";
 import { createChatQueryClient, useChatEvents, useChatNavigation, useChatView } from "./state/chat";
 import { useAmbient } from "./state/ambient";
+import { toggleDetails, useDetails } from "./state/details";
 import { readRoleOverrides, writeRoleOverrides } from "./state/roleOverrides";
 import { useBuildMode } from "./state/build";
 import { useDark, useTheme } from "./state/theme";
@@ -78,6 +79,7 @@ function World() {
   const [selection, setSelection] = useState<Selection>({ hover: null, selected: null });
   const [overrides, setOverrides] = useState<Record<string, RoleId>>(readRoleOverrides);
   const ambient = useAmbient();
+  const details = useDetails();
   useEffect(() => {
     writeRoleOverrides(overrides);
     worldRuntime().setRoleOverrides(overrides);
@@ -289,6 +291,11 @@ function World() {
         back();
         return;
       }
+      if (e.key.toLowerCase() === "d" && !graphicsFailed) {
+        e.preventDefault();
+        setAnnouncement(toggleDetails() ? "Details on: every label shows." : "Details off: names and one bubble per robot.");
+        return;
+      }
       if (e.key.toLowerCase() === "t") {
         e.preventDefault();
         if (textOpen) closeText();
@@ -383,6 +390,7 @@ function World() {
                 onPick={pick}
                 reducedMotion={reducedMotion}
                 ambient={ambient}
+                details={details}
                 action={action}
                 onEnter={enter}
                 onHover={hover}
@@ -401,7 +409,7 @@ function World() {
           <strong>CrewHub World</strong>
           {demo && (
             <Chip className="demo-chip" icon={<FlaskConical className="icon" aria-hidden="true" />} title="Demo: scripted data" aria-label="Demo: scripted data">
-              Demo
+              <span className="demo-word">Demo</span>
             </Chip>
           )}
         </div>
@@ -432,6 +440,17 @@ function World() {
 
       <div className="world-corner world-corner-right">
         <Button variant="ghost" iconOnly aria-label={`Theme: ${theme}. Switch to ${NEXT_THEME[theme]}.`} title={`Theme: ${theme}`} icon={<ThemeIcon className="icon" aria-hidden="true" />} onClick={cycle} />
+        {!graphicsFailed && (
+          <Button
+            variant="ghost"
+            iconOnly
+            aria-label="Details (D)"
+            title={details ? "Details on: every label (D)" : "Details: show every label (D)"}
+            pressed={details}
+            icon={<Tags className="icon" aria-hidden="true" />}
+            onClick={() => void toggleDetails()}
+          />
+        )}
         {!graphicsFailed && (
           <Button
             variant="ghost"

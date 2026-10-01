@@ -1,5 +1,5 @@
 /* Greenhouse town pieces that stretch or need code: the ground, lawns, paving, hedges, flower beds, the pond, the
-   bridge, fences and the lanterns with their pools of light. The trees, benches, signposts and other small street
+   bridge, fences and the lanterns. The trees, benches, signposts and other small street
    furniture are parts-JSON (../models/town.*.json). Origins: a piece's footprint centre on the ground it stands on;
    stretchable pieces run along x. Every repeated part uses the kit's shared geometry, so a renderer can instance it. */
 import * as THREE from "three";
@@ -168,10 +168,10 @@ export function fence(kit: Kit, o: ModelOptions): THREE.Group {
 }
 
 /**
- * A street lantern: an iron post, a glass head that glows (softly by day, warmly in lamplight) and, under it, a pool
- * of warm light on the ground (shown in lamplight only).
+ * A street lantern: an iron post and a glass head that glows (softly by day, warmly in lamplight). Its pool of light
+ * on the ground is the style's lamp-pool decal (LIGHT_POOLS).
  */
-export function lantern(kit: Kit, pool: THREE.Material): THREE.Group {
+export function lantern(kit: Kit): THREE.Group {
   const g = new THREE.Group();
   put(g, kit.cylinder(0.14, 0.18, 0.2, "lantern-iron"), 0, 0.1, 0);
   put(g, kit.cylinder(0.05, 0.065, 1.9, "lantern-iron"), 0, 1.1, 0);
@@ -181,9 +181,6 @@ export function lantern(kit: Kit, pool: THREE.Material): THREE.Group {
   glass.castShadow = false;
   put(g, kit.cylinder(0.025, 0.25, 0.18, "lantern-iron"), 0, 2.59, 0);
   put(g, kit.sphere(0.05, "brass"), 0, 2.7, 0);
-  const light = put(g, new THREE.Mesh(kit.geometry("town:pool", () => new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)), pool), 0, 0.07, 0);
-  light.scale.set(6, 1, 6);
-  light.renderOrder = 2;
   return g;
 }
 
@@ -191,36 +188,7 @@ function lanternGlass(kit: Kit): THREE.MeshStandardMaterial {
   return kit.material("lantern-glass", { glow: "lantern-light" });
 }
 
-/** The pool of light under a lantern: an additive radial decal, cheap enough for every lantern in town. */
-export function poolMaterial(kit: Kit): THREE.MeshBasicMaterial {
-  const N = 64;
-  const data = new Uint8Array(N * N * 4);
-  for (let y = 0; y < N; y++)
-    for (let x = 0; x < N; x++) {
-      const d = Math.min(1, Math.hypot(x + 0.5 - N / 2, y + 0.5 - N / 2) / (N / 2));
-      const v = Math.round(255 * Math.pow(1 - d, 2.2));
-      data.set([v, v, v, 255], (y * N + x) * 4);
-    }
-  const texture = new THREE.DataTexture(data, N, N);
-  texture.needsUpdate = true;
-  const material = new THREE.MeshBasicMaterial({
-    color: kit.hex("lantern-pool"),
-    alphaMap: texture,
-    transparent: true,
-    opacity: 0.75,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    polygonOffset: true,
-    polygonOffsetFactor: -2,
-  });
-  material.userData.dispose = () => texture.dispose();
-  return material;
-}
-
-/** The town's look per theme: lanterns glow brighter and their pools show in lamplight. */
-export function townTheme(kit: Kit, pool: THREE.MeshBasicMaterial, theme: StyleTheme) {
-  const lamplight = theme === "lamplight";
-  lanternGlass(kit).emissiveIntensity = lamplight ? 2.4 : 0.5;
-  pool.color.set(kit.hex("lantern-pool"));
-  pool.visible = lamplight;
+/** The town's look per theme: lantern heads glow softly by day and warmly in lamplight. */
+export function townTheme(kit: Kit, theme: StyleTheme) {
+  lanternGlass(kit).emissiveIntensity = theme === "lamplight" ? 2.4 : 0.5;
 }
