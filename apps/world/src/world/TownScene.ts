@@ -127,7 +127,12 @@ interface Callbacks {
   error: () => void;
   /** Build mode: the room cell under the pointer (null off the floor) and what a click hit. */
   build: (kind: BuildPointer, at: { room: RoomKind; cell: { x: number; z: number } } | null, pick: Pick | null) => void;
+  /** The town is laid out (its first build is spread over several tasks) and about to draw. */
+  ready?: () => void;
 }
+
+/** While the town is first laid out, one task builds buildings for about this long, then yields (no long task). */
+const LAYOUT_SLICE_MS = 30;
 
 const ROBOT_SCALE = 0.62;
 const CIVIC_LAWN = CIVIC_LOT;
@@ -232,6 +237,9 @@ export class TownScene {
   #last = 0;
   #disposed = false;
   #dirtyFrames = 2;
+  /** True until the first layout of the town is complete; nothing draws before. */
+  #layingOut = true;
+  #layoutTimer: ReturnType<typeof setTimeout> | 0 = 0;
   #down = { x: 0, y: 0 };
   #hovered: number | null = null;
   #hoverPick = "";
@@ -296,7 +304,6 @@ export class TownScene {
     this.#glow = this.townStyle.model("focus-glow", { size: { width: PLOT_SIZE - 3, height: 0, depth: PLOT_SIZE - 3 } });
     this.#glow.visible = false;
     this.scene.add(this.#glow);
-    this.buildGround();
     // Cloud shadows go to the light rig, which dims the key light under them on everything (when the style can).
     const environment = this.#environment;
     this.#life = new AmbientLife(this.townStyle, environment.setCloudShadows ? (clouds) => environment.setCloudShadows!(clouds) : null);
@@ -320,7 +327,13 @@ export class TownScene {
     });
     this.#resize = new ResizeObserver(this.resize);
     this.#resize.observe(host);
-    this.sync();
+    // The ground, then the town's dressing and buildings, each in tasks of their own (see sync).
+    this.#layoutTimer = setTimeout(() => {
+      this.#layoutTimer = 0;
+      if (this.#disposed) return;
+      this.buildGround();
+      this.#continueLayout();
+    }, 0);
     this.resize();
     this.home(true);
     this.setView(view);
@@ -507,14 +520,27 @@ export class TownScene {
   /* ── Model → scene ────────────────────────────────────────────────────── */
 
   sync() {
+    const started = performance.now();
+    let created = 0,
+      deferred = false;
     const model = this.view.model;
     this.#dress(model.buildings.length);
+    // The town's dressing is a slice of its own in the first layout.
+    if (this.#layingOut && performance.now() - started > LAYOUT_SLICE_MS && this.#buildings.size < Math.min(model.buildings.length, TOWN_CAPACITY)) {
+      this.#continueLayout();
+      return;
+    }
     this.walks.update(model, { entered: this.view.entered, reducedMotion: this.view.reducedMotion, ambient: this.view.ambient });
     const seen = new Set<string>();
     this.#anchors.clear();
     model.buildings.slice(0, TOWN_CAPACITY).forEach((b, index) => {
       seen.add(b.slug);
       let view = this.#buildings.get(b.slug);
+      // The first layout builds a slice of buildings per task (at least one), then yields; the rest follow.
+      if (this.#layingOut && !view && created > 0 && performance.now() - started > LAYOUT_SLICE_MS) {
+        deferred = true;
+        return;
+      }
       const c = plotCenter(index);
       // A plot's own style id when it has one, else the town document's default (tonight both are Greenhouse).
       const plot: StyledPlot = { styleId: this.view.town?.doc.plots.find((p) => p.slug === b.slug)?.styleId ?? this.view.town?.doc.styleId ?? null };
@@ -529,6 +555,7 @@ export class TownScene {
           walker: (key) => this.walks.walker(key),
         });
         view.group.userData.index = index;
+        created++;
         this.#buildings.set(b.slug, view);
         this.scene.add(view.group);
       }
@@ -553,7 +580,23 @@ export class TownScene {
         this.#contacts.delete(slug);
       }
     this.syncCivic();
+    if (this.#layingOut) {
+      if (deferred) this.#continueLayout();
+      else {
+        this.#layingOut = false;
+        this.callbacks.ready?.();
+      }
+    }
     this.invalidate();
+  }
+
+  /** The next slice of the first layout, in a task of its own, so the page stays responsive while the town builds. */
+  #continueLayout() {
+    if (this.#layoutTimer) return;
+    this.#layoutTimer = setTimeout(() => {
+      this.#layoutTimer = 0;
+      if (!this.#disposed) this.sync();
+    }, 0);
   }
 
   /** The blob shadow under a building's slab follows its footprint (role rooms grow east). */
@@ -957,7 +1000,7 @@ export class TownScene {
   };
   animate = (now: number) => {
     this.#raf = 0;
-    if (this.#disposed || document.hidden) return;
+    if (this.#disposed || document.hidden || this.#layingOut) return;
     if (this.#warm !== "warm") {
       if (this.#warm === "cold") {
         this.#warm = "warming";
@@ -1216,6 +1259,7 @@ export class TownScene {
 
   dispose() {
     this.#disposed = true;
+    if (this.#layoutTimer) clearTimeout(this.#layoutTimer);
     this.#stopIntents();
     cancelAnimationFrame(this.#raf);
     this.#resize.disconnect();
