@@ -2,7 +2,21 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { occupancy, validateLayout, type Cell } from "@crewhub/world-engine";
 import type { AgentPlacement, Building, RoomKind, WorkObject } from "@crewhub/world-model";
-import { buildingTemplate, doorCell, interiorDefinitions, MODULE, roomOf, wallRuns, type BuildingTemplate } from "../src/world/buildingTemplate.ts";
+import {
+  BUILDING_CELL,
+  buildingTemplate,
+  DEPTH,
+  doorCell,
+  dressingZones,
+  interiorDefinitions,
+  MAX_WIDTH,
+  MODULE,
+  PLOT_MARGIN,
+  roomOf,
+  wallRuns,
+  type BuildingTemplate,
+} from "../src/world/buildingTemplate.ts";
+import { PLOT_SIZE } from "../src/world/townLayout.ts";
 import { assignDesks, pileCapacity, placeObjects, roomNeighbor } from "../src/world/interiorLayout.ts";
 
 const agent = (key: string, room: RoomKind, extra: Partial<AgentPlacement> = {}): AgentPlacement => ({
@@ -204,4 +218,63 @@ test("arrow keys move between neighbouring rooms", () => {
   assert.equal(roomNeighbor(template, "lobby", "ArrowLeft"), "dispatch");
   assert.equal(roomNeighbor(template, "lead-office", "ArrowUp"), "meeting");
   assert.equal(roomNeighbor(template, "storage", "ArrowUp"), "storage");
+});
+
+test("the largest building fits 20 x 18 world units with a margin on its plot, and a one-agent room is roomy", () => {
+  assert.ok(MAX_WIDTH * BUILDING_CELL <= 20, "at most 20 units wide");
+  assert.ok(DEPTH * BUILDING_CELL <= 18, "at most 18 units deep");
+  assert.ok((PLOT_SIZE - MAX_WIDTH * BUILDING_CELL) / 2 >= 2, "2 units east and west");
+  assert.ok(PLOT_SIZE - PLOT_MARGIN - DEPTH * BUILDING_CELL >= 2 && PLOT_MARGIN >= 2, "2 units north and south");
+  const largest = buildingTemplate(building([...workers(8), ...workers(4, "analyst"), ...workers(4, "design")].map((a, i) => ({ ...a, key: `cr-${a.room}-${i}` })), ["meeting"]));
+  assert.equal(largest.size.width, MAX_WIDTH);
+  const one = roomOf(buildingTemplate(building(workers(1))), "workers")!;
+  assert.ok(one.layout.grid.width * BUILDING_CELL >= 3.5 && one.layout.grid.depth * BUILDING_CELL >= 7, "a one-agent workers room is no cupboard");
+});
+
+test("dressing zones lie inside their rooms on free floor, and blocking them keeps every door, seat and approach reachable", () => {
+  for (const [name, b] of variants) {
+    const template = buildingTemplate(b);
+    const zones = dressingZones(template);
+    for (const kind of ["lobby", "lead-office"] as const) assert.ok(zones.some((z) => z.room === kind), `${name}: ${kind} has a zone`);
+    for (const room of template.rooms) {
+      const own = zones.filter((z) => z.room === room.kind);
+      const blocked = occupancy(room.layout, interiorDefinitions);
+      const { width, depth } = room.layout.grid;
+      const doors = template.doors.flatMap((d) => [d.a, d.b]).filter((s) => s.room === room.kind).map((s) => `${s.cell.x},${s.cell.z}`);
+      const needed = new Set(doors);
+      for (const prop of room.layout.props)
+        for (const a of interiorDefinitions[prop.definitionId]!.approaches) needed.add(`${prop.cell.x + a.x},${prop.cell.z + a.z}`);
+      const zoned = new Set<string>();
+      for (const z of own)
+        for (let dz = 0; dz < z.depth; dz++)
+          for (let dx = 0; dx < z.width; dx++) {
+            const x = z.x - room.origin.x + dx,
+              cz = z.z - room.origin.z + dz;
+            assert.ok(x >= 0 && cz >= 0 && x < width && cz < depth, `${name}: ${room.kind} zone "${z.use}" is inside the room`);
+            assert.equal(blocked[cz * width + x], -1, `${name}: ${room.kind} zone "${z.use}" is free floor`);
+            assert.ok(!needed.has(`${x},${cz}`), `${name}: ${room.kind} zone "${z.use}" keeps doors and approaches free`);
+            zoned.add(`${x},${cz}`);
+          }
+      // Dress every zone with a blocking prop: the room's doors and approaches stay connected.
+      const dressed = {
+        ...room,
+        layout: {
+          ...room.layout,
+          props: [
+            ...room.layout.props,
+            ...[...zoned].map((key, i) => {
+              const [x, z] = key.split(",").map(Number) as [number, number];
+              return { id: `zone-${i}`, definitionId: "mailbox", cell: { x, z }, rotation: 0 as const };
+            }),
+          ],
+        },
+      };
+      const inside = reachable(dressed, room.layout.entrance);
+      for (const cell of needed) {
+        const [x, z] = cell.split(",").map(Number) as [number, number];
+        if (x < 0 || z < 0 || x >= width || z >= depth) continue;
+        assert.ok(inside.has(cell), `${name}: ${room.kind} ${cell} stays reachable with the zones dressed`);
+      }
+    }
+  }
 });
