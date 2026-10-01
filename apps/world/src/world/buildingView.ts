@@ -162,6 +162,7 @@ export class BuildingView {
     west: { tall: new THREE.Group(), low: new THREE.Group() },
   };
   #merged: THREE.BufferGeometry[] = [];
+  #pilesMerged: THREE.BufferGeometry[] = [];
   #furnitureMerged: THREE.BufferGeometry[] = [];
   #furniture: THREE.Group | null = null;
   /** Seen from the town: the furniture and dressing as a few merged boxes, so every building looks furnished. */
@@ -243,7 +244,7 @@ export class BuildingView {
     this.#syncAgents();
     this.#syncPiles();
     this.#piles.visible = !this.detailed;
-    this.#syncSilhouette();
+    this.#syncSilhouette(shape);
     this.#signals.visible = this.detailed;
     this.#objects.group.visible = this.detailed;
     if (this.detailed) {
@@ -372,6 +373,8 @@ export class BuildingView {
     } else this.#truck = null;
     this.anchors.set(`truck:${b.slug}`, this.world(TRUCK_SPOT.x, TRUCK_SPOT.z, 1 - FLOOR_RISE));
     this.#merged = mergeStatic(this.#shellStatic);
+    // The truck moves only as a whole: its parts merge per material under its own root (perf).
+    if (this.#truck) this.#merged.push(...mergeStatic(this.#truck as THREE.Group));
     for (const [side, walls] of Object.entries(this.#backWalls) as ["north" | "west", { tall: THREE.Group; low: THREE.Group }][])
       for (const tall of [true, false]) {
         const group = tall ? walls.tall : walls.low;
@@ -452,11 +455,14 @@ export class BuildingView {
 
   /* The far-detail furniture: every furniture and dressing piece, and the rugs, as the style's plain stand-in boxes,
      batched per material (a handful of draw calls per building). Rebuilt only when the rooms' furniture changes. */
-  #syncSilhouette() {
+  #syncSilhouette(shape: string) {
     const far = !this.detailed && !this.building.archived;
     this.#silhouette.visible = far;
     if (!far) return;
-    const signature = JSON.stringify(this.template.rooms.map((r) => [r.kind, r.origin, r.layout.props.map((p) => [p.definitionId, p.cell, p.rotation])]));
+    // Cheap: it runs on every model update of every building. The dressing follows the shape; a placed prop that
+    // makes dressing step aside changes a room's prop count.
+    let signature = shape;
+    for (const room of this.template.rooms) signature += `|${room.layout.props.length}`;
     if (signature === this.#silhouetteSignature) return;
     this.#silhouetteSignature = signature;
     const { style } = this.ctx;
@@ -571,6 +577,7 @@ export class BuildingView {
     if (signature === this.#signatures.piles) return;
     this.#signatures.piles = signature;
     this.#piles.clear();
+    for (const geometry of this.#pilesMerged) geometry.dispose();
     STATUS_ROOMS.forEach((kind, i) => {
       const count = counts[i]!;
       const room = roomOf(this.template, kind);
@@ -582,6 +589,8 @@ export class BuildingView {
       pile.scale.set(1.2, Math.min(4, 0.35 + count / 4), 1.2);
       this.#piles.add(pile);
     });
+    // Static until the counts change: one merged mesh per material instead of every pallet part (perf).
+    this.#pilesMerged = mergeStatic(this.#piles);
   }
 
   /* ── Signals (entered building) ─────────────────────────────────────────── */
@@ -770,7 +779,7 @@ export class BuildingView {
     this.#robots.clear();
     this.#objects.dispose();
     this.#props.dispose();
-    for (const geometry of [...this.#merged, ...this.#furnitureMerged, ...this.#silhouetteMerged]) geometry.dispose();
+    for (const geometry of [...this.#merged, ...this.#furnitureMerged, ...this.#pilesMerged, ...this.#silhouetteMerged]) geometry.dispose();
     this.group.removeFromParent();
   }
 }

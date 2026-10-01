@@ -274,7 +274,7 @@ export class TownScene {
       hit.userData.plot = i;
       this.#hits.add(hit);
     }
-    // The landmarks stay whole (not instanced or merged): the square's fountain may animate.
+    // The landmarks merge per material; the square's fountain water stays live (`userData.live`) and animates.
     const landmarks: [ModelKey, number, number, number][] = [
       ["post-office", civicCenter("post-office").x, LAWN_Y, civicCenter("post-office").z],
       ["town-hall", civicCenter("town-hall").x, LAWN_Y, civicCenter("town-hall").z],
@@ -296,6 +296,9 @@ export class TownScene {
       object.rotation.y = l.rotation;
       this.#landmarks.add(object);
     }
+    // Landmarks are static but for their live parts (the fountain's water): the rest merges per material across all of
+    // them (perf). The landmark roots stay, so their animations still run.
+    mergeStatic(this.#landmarks);
     this.scene.add(this.#landmarks);
   }
 

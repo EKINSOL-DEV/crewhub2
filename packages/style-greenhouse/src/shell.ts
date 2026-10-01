@@ -368,7 +368,7 @@ export function silhouette(kit: Kit, o: ModelOptions): THREE.Group {
       break;
     case "plant":
       box(0.24, 0.22, 0.24, "clay");
-      put(g, kit.sphere(0.24, "leaf"), 0, 0.46, 0).scale.set(1, 1.2, 1);
+      put(g, kit.mesh(kit.geometry("far-leaf", () => new THREE.IcosahedronGeometry(0.24, 0)), kit.material("leaf")), 0, 0.46, 0).scale.set(1, 1.2, 1);
       break;
     case "rug":
       box(w - 0.1, h, d - 0.1, "rug", 0, 0.006);
