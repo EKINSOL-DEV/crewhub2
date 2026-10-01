@@ -1,0 +1,92 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-decor-pendant-lamp",
+  "name": "Pendant lamp",
+  "description": "A sage pendant shade on a thin cord with a warm glowing disc underneath.",
+  "category": "light",
+  "tags": [
+    "greenhouse",
+    "lamp",
+    "pendant"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "cylinder",
+      "size": [
+        0.01,
+        0.3,
+        0.01
+      ],
+      "position": [
+        0,
+        1.45,
+        0
+      ],
+      "material": "slate"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.025,
+        0.03,
+        0.025
+      ],
+      "position": [
+        0,
+        1.29,
+        0
+      ],
+      "material": "brass"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.045,
+        0.11,
+        0.15
+      ],
+      "position": [
+        0,
+        1.22,
+        0
+      ],
+      "material": "sage"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.135,
+        0.012,
+        0.135
+      ],
+      "position": [
+        0,
+        1.16,
+        0
+      ],
+      "material": "lamp-glow",
+      "emissive": true
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.04,
+        0.04,
+        0.04
+      ],
+      "position": [
+        0,
+        1.17,
+        0
+      ],
+      "material": "lamp-glow",
+      "emissive": true
+    }
+  ]
+}
