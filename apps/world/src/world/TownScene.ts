@@ -184,7 +184,7 @@ export class TownScene {
   #civicRobots: RobotHandle[] = [];
   #postman: { handle: RobotHandle; key: string; letters: THREE.Object3D[] } | null = null;
   /** Drawn frames (the stress and frame rate overlays only), and whether the loop rested before the next one. */
-  #frames = new FrameRing();
+  #frames = new FrameRing(2048);
   #rested = true;
   /** Startup marks for the measurement script: the first drawn frame, the first with the town dressed. */
   #marked = { first: false, dressed: false };
@@ -1021,10 +1021,11 @@ export class TownScene {
     };
   }
 
-  /** The frame rate overlay's numbers: frames over the last two seconds, the last frame's draw calls, memory. */
-  perf(): WorldPerf {
+  /** The frame rate overlay's numbers: frames over the last two seconds (or `windowMs`; the ring holds 2048 frames),
+      the last frame's draw calls, memory. */
+  perf(windowMs = PERF_WINDOW_MS): WorldPerf {
     const now = performance.now();
-    const s = this.#frames.stats(now, PERF_WINDOW_MS);
+    const s = this.#frames.stats(now, windowMs);
     const { render, memory } = this.renderer.info;
     const heap = (performance as Performance & { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize ?? null;
     return {
