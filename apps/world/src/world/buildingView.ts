@@ -6,7 +6,7 @@
 import * as THREE from "three";
 import type { AgentPlacement, Building, RoomKind } from "@crewhub/world-model";
 import type { EmblemName, ModelKey, PaletteName, ResolvedStyle, RobotHandle, RobotPosture } from "@crewhub/world-style";
-import { BUILDING_CELL as CELL, buildingTemplate, DEPTH, MAX_WIDTH, roomOf, STATUS_ROOMS, wallRuns, type BuildingTemplate } from "./buildingTemplate";
+import { BUILDING_CELL as CELL, buildingTemplate, DEPTH, ENTRANCE, LOADING, MAX_WIDTH, PLOT_MARGIN, roomOf, STATUS_ROOMS, wallRuns, type BuildingTemplate } from "./buildingTemplate";
 import { assignDesks, placeObjects, roomCentre, type DeskSlot, type ObjectLayout, type Surface } from "./interiorLayout";
 import { mergeStatic } from "./mergeStatic";
 import { ObjectLayer } from "./objectLayer";
@@ -21,6 +21,8 @@ const TALL_WALL = 1.1;
 const LOW_WALL = 0.32;
 const WALL = 0.1;
 const TRUCK_S = 2.4;
+/** The truck's parking spot on its apron outside dispatch's loading door, building cells. */
+const TRUCK_SPOT = { x: (LOADING.x1 + LOADING.x2) / 2 + 0.5, z: DEPTH + 2 };
 
 export interface BuildingContext {
   style: ResolvedStyle;
@@ -108,7 +110,7 @@ export class BuildingView {
     this.template = buildingTemplate(building);
     this.#archivedCount = building.archivedCount;
     // The north-west corner never moves: role rooms grow east inside the reserved plot.
-    this.group.position.set(centre.x - (MAX_WIDTH * CELL) / 2, 0.17, centre.z - plotSize / 2 + 0.6);
+    this.group.position.set(centre.x - (MAX_WIDTH * CELL) / 2, 0.17, centre.z - plotSize / 2 + PLOT_MARGIN);
     this.#objects = new ObjectLayer(building.slug, {
       style: ctx.style,
       now: ctx.now,
@@ -235,20 +237,20 @@ export class BuildingView {
     this.#shellStatic.add(flag);
     if (b.icon) {
       const emblem = style.model(`emblem.${b.icon as EmblemName}`, { accent });
-      emblem.position.copy(this.local(17, DEPTH + 1.3));
+      emblem.position.copy(this.local(ENTRANCE.x + 4, DEPTH + 1.3));
       this.#shellStatic.add(emblem);
     }
     // The truck parks in front of Dispatch, nose to the west, ready to drive off the plot.
     if (!b.archived) {
       this.#truck = style.model("truck", { accent });
-      this.#truckHome.copy(this.local(3, DEPTH + 1.6));
+      this.#truckHome.copy(this.local(TRUCK_SPOT.x, TRUCK_SPOT.z));
       this.#truck.position.copy(this.#truckHome);
       this.#truck.rotation.y = Math.PI;
       this.#truck.scale.setScalar(0.85);
       this.#shell.add(this.#truck);
       this.#truckTarget.copy(this.#truckHome).setY(0.55);
     } else this.#truck = null;
-    this.anchors.set(`truck:${b.slug}`, this.world(3, DEPTH + 1.6, 1));
+    this.anchors.set(`truck:${b.slug}`, this.world(TRUCK_SPOT.x, TRUCK_SPOT.z, 1));
     this.#merged = mergeStatic(this.#shellStatic);
     this.#applyFocus();
   }
@@ -355,7 +357,7 @@ export class BuildingView {
     const room = agent.room ? roomOf(this.template, agent.room) : undefined;
     const n = loose.get(agent.room ?? "lobby") ?? 0;
     loose.set(agent.room ?? "lobby", n + 1);
-    if (!room) return { x: 10 + n, z: 17 };
+    if (!room) return { x: ENTRANCE.x - 2 + n, z: DEPTH - 2 };
     return { x: room.origin.x + 0.2 + (n % Math.max(1, room.layout.grid.width - 1)), z: room.origin.z + room.layout.grid.depth - 1.2 };
   }
 

@@ -19,7 +19,7 @@ import {
   type WorldProp,
 } from "@crewhub/world-engine";
 import type { AgentKey, Building, RoomKind } from "@crewhub/world-model";
-import { BUILDING_CELL, buildingTemplate, DEPTH, interiorDefinitions, MAX_WIDTH, roomOf, type BuildingTemplate } from "./buildingTemplate.ts";
+import { BUILDING_CELL, buildingTemplate, DEPTH, ENTRANCE, interiorDefinitions, LOADING, MAX_WIDTH, PLOT_MARGIN, roomOf, type BuildingTemplate } from "./buildingTemplate.ts";
 import { assignDesks, type DeskSlot } from "./interiorLayout.ts";
 import { civicCenter, CIVIC_LOT, CIVIC_SIZE, PLOT_SIZE, plotCenter, TOWN_CAPACITY, townBounds, type Bounds } from "./townLayout.ts";
 import { COBBLE_Y, LAWN_Y, townPaths } from "./townDressing.ts";
@@ -44,10 +44,14 @@ export function parseRoomId(id: string): { slug: string; kind: RoomKind } | null
   return at < 0 ? null : { slug: id.slice(0, at), kind: id.slice(at + 1) as RoomKind };
 }
 
-/** World position of building cell (0, 0) on plot `index`: the north-west corner, which never moves (BuildingView). */
+/**
+ * World position of building cell (0, 0) on plot `index`: the north-west corner, which never moves (BuildingView). The
+ * widest building is centred east to west; the north wall keeps `PLOT_MARGIN` from the plot edge, so the front yard
+ * (path, step and the truck's apron) lies between the south wall and the street.
+ */
 export function buildingOrigin(index: number): { x: number; z: number } {
   const c = plotCenter(index);
-  return { x: c.x - (MAX_WIDTH * BUILDING_CELL) / 2, z: c.z - PLOT_SIZE / 2 + 0.6 };
+  return { x: c.x - (MAX_WIDTH * BUILDING_CELL) / 2, z: c.z - PLOT_SIZE / 2 + PLOT_MARGIN };
 }
 
 export function townCellAt(x: number, z: number): Cell {
@@ -60,7 +64,7 @@ export function townCellCentre(cell: Cell): { x: number; z: number } {
   return { x: BOUNDS.minX + (cell.x + 0.5) * TOWN_CELL, z: BOUNDS.minZ + (cell.z + 0.5) * TOWN_CELL };
 }
 
-interface Rect {
+export interface Rect {
   x0: number;
   z0: number;
   x1: number;
@@ -74,22 +78,20 @@ function cover(minX: number, minZ: number, maxX: number, maxZ: number): Rect {
 }
 
 /** A building's footprint on the town grid: the shell at its widest, the flag at the north-west corner. */
-function buildingRect(index: number): Rect {
+export function buildingRect(index: number): Rect {
   const o = buildingOrigin(index);
   return cover(o.x - 0.6, o.z - 0.6, o.x + MAX_WIDTH * BUILDING_CELL, o.z + DEPTH * BUILDING_CELL);
 }
-/** The truck parked in front of Dispatch (BuildingView: building cell (3, DEPTH + 1.6)). */
-function truckRect(index: number): Rect {
+/** The truck on its apron outside dispatch's loading door (BuildingView: TRUCK_SPOT). */
+export function truckRect(index: number): Rect {
   const o = buildingOrigin(index);
-  return cover(o.x + 1.2 * BUILDING_CELL, o.z + (DEPTH + 0.6) * BUILDING_CELL, o.x + 4.8 * BUILDING_CELL, o.z + (DEPTH + 2.6) * BUILDING_CELL);
+  return cover(o.x + (LOADING.x1 - 1) * BUILDING_CELL, o.z + (DEPTH + 0.3) * BUILDING_CELL, o.x + (LOADING.x2 + 2) * BUILDING_CELL, o.z + (DEPTH + 4) * BUILDING_CELL);
 }
-/** The lobby's front door, building cells: the lobby's door cell (4, 6) sits at building cell (10, 19). */
-const ENTRANCE_X = 10;
 
 /** The town cell just outside a building's front door (the town side of the entrance door). */
 export function entranceCell(index: number): Cell {
   const o = buildingOrigin(index);
-  const x = townCellAt(o.x + (ENTRANCE_X + 0.5) * BUILDING_CELL, 0).x;
+  const x = townCellAt(o.x + (ENTRANCE.x + 0.5) * BUILDING_CELL, 0).x;
   return { x, z: buildingRect(index).z1 + 1 };
 }
 /** Where walkers stop outside a building: one step down the path from the door (door cells are no destinations). */
@@ -375,7 +377,9 @@ export class NavWorld {
 
   /** The lobby cell inside the front door. */
   lobby(slug: string): Location | null {
-    return this.#entries.has(slug) ? { room: roomId(slug, "lobby"), cell: { x: 4, z: 5 } } : null;
+    const entry = this.#entries.get(slug);
+    const door = entry?.template.doors.find((d) => d.b.room === "town");
+    return entry && door ? { room: roomId(slug, "lobby"), cell: { x: door.a.cell.x, z: door.a.cell.z - 1 } } : null;
   }
   /** The town cell in front of a building's door. */
   front(slug: string): Location | null {
