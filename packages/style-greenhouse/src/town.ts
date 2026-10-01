@@ -190,5 +190,5 @@ function lanternGlass(kit: Kit): THREE.MeshStandardMaterial {
 
 /** The town's look per theme: lantern heads glow softly by day and warmly in lamplight. */
 export function townTheme(kit: Kit, theme: StyleTheme) {
-  lanternGlass(kit).emissiveIntensity = theme === "lamplight" ? 2.4 : 0.5;
+  lanternGlass(kit).emissiveIntensity = theme === "lamplight" ? 1.25 : 0.5;
 }

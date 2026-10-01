@@ -449,7 +449,7 @@ function streets(add: Add, free: (x: number, z: number, pad: number) => boolean,
   for (const [xi, zi] of signs) {
     const x = xs[xi]! + verge,
       z = zs[zi]! + verge;
-    if (free(x, z, 0.2)) add("town.signpost", x, GRASS_Y, z, { rotation: (xi + zi) % 2 ? Math.PI / 4 : -Math.PI / 4, seed: xi * 4 + zi });
+    if (free(x, z, 0.2)) add("town.signpost", x, GRASS_Y, z, { scale: 1.35, rotation: (xi + zi) % 2 ? Math.PI / 4 : -Math.PI / 4, seed: xi * 4 + zi });
   }
   // The odd bike rack and crate by the lanes in front of the used plots.
   for (const plot of used.values()) {
