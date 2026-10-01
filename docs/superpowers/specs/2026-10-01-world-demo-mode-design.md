@@ -370,3 +370,19 @@ Scope of the pass, all through the `WorldStyle` seam and the building templates:
   persisted details toggle. The text view keeps everything.
 - The gate, the stress fixture budget, reduced motion, 375 px and both themes keep holding. Four to six
   implementers in parallel; visual work on Opus 5.5 at effort medium.
+
+## Addendum: beauty round two and performance rounds (night of 2026-10-01 to 02)
+
+Approved by the owner after the art pass. Two parts, in order:
+
+1. **Beauty round two:** the Lead's own follow-ups (wall art on interior partitions, cloud shadows, billboard
+   fireflies, café parasols with a wedge part, a slow day-night drift on the demo clock as a setting) and a
+   critical walk through the town and every room kind.
+2. **Performance rounds:** first an fps overlay (fps, frame mean and p95, draw calls, triangles, memory, the
+   Graphics setting; toggled from Settings and with `F`, off by default, near-zero cost when off, the same
+   numbers exposed to the headless scripts). Then repeated rounds of measure, fix the largest contributor,
+   re-measure: instancing of far robots and repeating dressing, merged static geometry, shared materials,
+   culling, amortised shadow maps, cheap label layout, O(visible) ambient life, no memory growth over a long
+   run, faster startup with lazy-loaded build mode and previews, a steady Fast setting on a phone budget. No
+   visible regression on Pretty against the art-pass screenshots; optimisations live in the renderer and the
+   style package, never in the model.
