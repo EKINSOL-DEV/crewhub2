@@ -59,6 +59,14 @@ export const CODE_KEYS: readonly ModelKey[] = [
   "town.fence",
   "town.lantern",
   "town.contact-shadow",
+  "town.bird",
+  "town.butterfly",
+  "town.firefly",
+  "town.mote",
+  "town.window-glow",
+  "town.ripple",
+  "town.steam",
+  "town.cloud-shadow",
 ];
 
 /** Top surface heights (m) where objects are set down, for models whose bounding box is taller than the top. */

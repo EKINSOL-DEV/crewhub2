@@ -24,6 +24,7 @@ import { mergeStatic } from "./mergeStatic";
 import { plotDoor, plotObstacles } from "./navigation";
 import { onPlayIntent } from "./intentPlayer";
 import { Walks } from "./walks";
+import { AmbientLife } from "./ambientLife";
 
 export interface TownView {
   model: WorldModel;
@@ -122,12 +123,15 @@ export class TownScene {
   #contacts = new Map<string, { object: THREE.Object3D; size: string }>();
   #civic = new THREE.Group();
   #landmarks = new THREE.Group();
+  /** Clouds, birds, butterflies, fireflies, ripples, steam and glowing windows (ambientLife.ts). */
+  #life: AmbientLife;
   #dressing: { signature: string; group: THREE.Group | null; instanced: THREE.InstancedMesh[]; merged: THREE.BufferGeometry[] } = {
     signature: "",
     group: null,
     instanced: [],
     merged: [],
   };
+  #lifeInside = false;
   #civicSignature = "";
   #civicRobots: RobotHandle[] = [];
   #postman: { handle: RobotHandle; key: string; letters: THREE.Object3D[] } | null = null;
@@ -202,7 +206,8 @@ export class TownScene {
     this.#ring = this.townStyle.model("focus-ring", { size: { width: PLOT_SIZE + 0.4, height: 0, depth: PLOT_SIZE + 0.4 } });
     this.#ring.visible = false;
     this.buildGround();
-    this.scene.add(this.#hits, this.#ring, this.#civic);
+    this.#life = new AmbientLife(this.townStyle);
+    this.scene.add(this.#hits, this.#ring, this.#civic, this.#life.group);
     canvas.addEventListener("pointerdown", this.pointerDown);
     canvas.addEventListener("pointerup", this.pointerUp);
     canvas.addEventListener("pointermove", this.pointerMove);
@@ -297,7 +302,9 @@ export class TownScene {
     this.#disposeDressing();
     const group = new THREE.Group();
     const plots = indices.map((index) => ({ index, door: plotDoor(index), obstacles: plotObstacles(index) }));
-    for (const d of townDressing(plots)) {
+    const dressing = townDressing(plots);
+    this.#life.setTown(dressing, this.#landmarks);
+    for (const d of dressing) {
       const object = this.townStyle.model(d.key as ModelKey, {
         ...(d.size ? { size: d.size } : {}),
         ...(d.seed !== undefined ? { seed: d.seed } : {}),
@@ -459,6 +466,12 @@ export class TownScene {
       else this.home(false);
       this.fitShadow();
     } else if (view.entered && previous.zoomed !== view.zoomed) this.frameBuilding(view.entered, view.zoomed);
+    this.#life.configure({ ambient: view.ambient, reducedMotion: view.reducedMotion, quality: view.quality, theme: view.theme });
+    if (previous.entered !== view.entered || !view.entered !== !this.#lifeInside) {
+      const inside = view.entered ? this.#buildings.get(view.entered) : undefined;
+      this.#life.setBuilding(inside ? inside.bounds(null) : null);
+      this.#lifeInside = !!inside;
+    }
     const index = Math.min(view.focused, TOWN_CAPACITY - 1);
     const p = plotCenter(index);
     this.#ring.position.set(p.x, 0.2, p.z);
@@ -758,6 +771,10 @@ export class TownScene {
     // Landmarks animate (the fountain) on frames drawn anyway; they never keep the loop running on their own.
     if (!this.view.reducedMotion && dt)
       for (const object of this.#landmarks.children) (object.userData.animate as ModelAnimation | undefined)?.(dt);
+    // Ambient life moves with the playback: still while it is paused, and it keeps the loop going only while it runs.
+    const playing = this.view.speed() > 0;
+    this.#life.tick(playing ? dt : 0);
+    if (playing && this.#life.active) moving = true;
     for (const view of this.#buildings.values()) {
       view.tick(dt);
       if (view.animating) moving = true;
@@ -905,6 +922,7 @@ export class TownScene {
     for (const view of this.#buildings.values()) view.dispose();
     for (const robot of this.#civicRobots) robot.dispose();
     this.#disposeDressing();
+    this.#life.dispose();
     this.#environment.dispose();
     // Styles live in the registry (one instance per id) and outlast this scene; the renderer frees the GPU side.
     this.renderer.dispose();
