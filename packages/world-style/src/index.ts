@@ -201,3 +201,10 @@ export interface ResolvedStyle extends Omit<WorldStyle, "model"> {
  * a beacon's slow turn). Renderers call it each drawn frame while the model is shown, and skip it under reduced motion.
  */
 export type ModelAnimation = (seconds: number) => void;
+
+/**
+ * Convention for ambient life: a model may hold empty child objects with `userData.life` set to a `LifeSpot` kind,
+ * marking where steam rises (a chimney, a cup) or where a lit window glows (facing the marker's +z). The renderer's
+ * ambient life places the `town.steam` and `town.window-glow` models there; a style without spots simply has none.
+ */
+export type LifeSpot = "steam" | "window";

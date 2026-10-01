@@ -93,6 +93,9 @@ Conventions for models:
   than its top (desks with a screen). Without it, renderers use the bounding box top.
 - `object.userData.animate = (seconds) => void`: a model that moves by itself (the drone's rotors, the fountain's
   water, the windmill's sails). Renderers call it each drawn frame and skip it under reduced motion.
+- `userData.life` on an empty child object (`LifeSpot`: `"steam"` or `"window"`): where steam rises (a chimney, a cup)
+  or where a lit window glows (facing the marker's +z). The renderer's ambient life places `town.steam` and
+  `town.window-glow` there; a style without spots simply has none.
 
 ### Key namespaces
 
@@ -103,7 +106,7 @@ The namespaces separate what a renderer may do with a model. The art pass added 
 | `building.*` | The pieces of a building's shell. | Drawn by `buildingView.ts`; static, merged per material. |
 | `furniture.*` | Interior furniture that blocks movement. | Needs a definition (footprint, blocking, approaches) in `definitions.ts` or the room dressing's `dressingDefinitions`. |
 | `decor.*` | Room dressing that never blocks movement. | No definition; listed by `roomDecor` and never part of the grid. |
-| `town.*` | The town's ground, paths and dressing. | Placed by `townDressing.ts`; repeated pieces are instanced. |
+| `town.*` | The town's ground, paths and dressing, and its ambient life. | Placed by `townDressing.ts`; repeated pieces are instanced. The life keys are moved by `ambientLife.ts`. |
 | `civic.*` | Landmarks and their parts. | Drawn whole by `TownScene` (so they may animate), and only once the style covers the key. |
 
 ### Lamp pools
@@ -114,6 +117,23 @@ model's own frame. The style adds the pool as a decal outside the static batchin
 untouched. Today the list covers `furniture.lamp`, `street-lamp`, `desk-lamp`, `town.lantern`, `decor.pendant-lamp`,
 `civic.square` (its four lamps) and `civic.cafe` (the terrace and two counter lanterns). Pools show only in lamplight
 and on Pretty. This is a Greenhouse detail, not part of the contract.
+
+### Ambient life
+
+The town's gentle motion is drawn from eight keys: `town.bird`, `town.butterfly`, `town.firefly`, `town.mote`,
+`town.window-glow`, `town.ripple`, `town.steam` and `town.cloud-shadow`. Each is one mesh on shared geometry and
+nothing animates itself: `apps/world/src/world/ambientLife.ts` instances them (one draw call each) and moves the
+instances.
+
+- Forward is +x. A bird flaps when scaled in y; a butterfly folds when scaled in z.
+- Glows are additive, and their instance colour sets their brightness, so the renderer fades one by darkening it.
+- Where they gather comes from the town dressing (flower beds, hedges, the pond) and from the landmarks' `LifeSpot`
+  markers (chimney, cups, lit windows).
+- They show only with the Ambient setting on or reduced, Pretty graphics and no reduced motion. They move only while
+  the playback runs.
+
+A style that leaves these keys out simply gets the registry's placeholder, so a third-party style should either cover
+them or accept plain crates drifting by. Covering them is the expected choice.
 
 ### Robots, environment, materialise
 
@@ -126,8 +146,9 @@ and on Pretty. This is a Greenhouse detail, not part of the contract.
 - `environment(scene, renderer, theme)` adds the lights, tone mapping and background for a theme and returns a handle
   with `setTheme`, `setShadowReach(reach, center?)`, `setQuality(quality)` and `dispose`. The UI's light theme is
   `day`, the dark theme is `lamplight` (a deep blue-green evening: warm lamp light, lit windows, glowing desk and
-  pendant lamps, warm pools of light). The renderer fits the shadow to what the camera frames: the entered building
-  gets a close, crisp shadow, the town a cheaper, softer one.
+  pendant lamps, warm pools of light). The renderer fits the shadow to what the camera frames: the ground the
+  entered building's view shows gets a close, crisp shadow (fitted again after a zoom or pan), the town a cheaper,
+  softer one.
 - `GraphicsQuality` is the viewer's graphics setting, `"pretty"` (the default) or `"fast"`, kept per browser and read
   by renderers from `TownView.quality`. The renderer owns its own settings (shadow maps on or off, the pixel ratio)
   and calls `setQuality` on the environment; the style then drops what it draws only for Pretty (Greenhouse: the key
@@ -150,6 +171,7 @@ Data first, code where it needs code.
 | A variant is a file `<key>.<variant>.json` (`ticket.tag.urgent.json`, `desk-lamp.dim.json`). | `shell.ts`: the building shell (walls, glass wall, rims, partitions, door frames, slab, front door, flag, planks, ivy, sign, apron, loading door). |
 | A model tagged `accent-<material>` draws that material's parts in the caller's accent colour. | `town.ts`: the ground, lawns, paving, hedges, flower beds, pond, bridge, fence, lanterns, crossings and wear. |
 | | `civic.ts`: the post office, town hall, square, café, greenhouse, windmill and welcome sign. They are assembled from rounded boxes, roofs and the `civic.*` data parts, and baked into one mesh per material once per kit. The fountain's water and the windmill's sails stay live. |
+| | `life.ts`: the ambient life (bird, butterfly, firefly, mote, window glow, ripple, steam, cloud shadow) with its soft additive glow shader. `civic.ts` marks the post office chimney, the café's cups and every landmark window as `LifeSpot`s, kept through baking. |
 | | `pieces.ts`: pieces that stretch or repeat (floors, emblems, straps, bands, stickers, focus frame). |
 | | `furniture.ts`: the Greenhouse furniture with instanced leaves and a glowing screen (desk, plant, bench, lamp, sofa, table, shelf, workdesk, lead desk). |
 | | `index.ts`: the code hooks on data models (the drone's rotor blades, the fountain's water) and the lamp pools. |
