@@ -6,7 +6,8 @@
    The plan, in world units (x east, z south):
    - Cobbled lanes run down the middle of every street between and around the plots, and along the civic row.
    - Every used plot has a lawn with hedges on its rim, a garden path from its front door down to the lane, a flower
-     bed either side of the gate, a mailbox and two gate lanterns. An empty plot is a meadow with trees and flowers.
+     bed either side of the gate, a mailbox and two gate lanterns. An empty plot has a character of its own (`plotUse`):
+     a meadow, an orchard, an allotment garden, a playground or a picnic lawn.
    - The civic row: the post office and the town hall on their lots with paved forecourts, the square with the
      fountain at the head of the main street, the café and the bus stop. West of it a park with a pond and a little
      bridge, east of it an orchard.
@@ -202,8 +203,14 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
   for (let i = 0; i < TOWN_CAPACITY; i++) {
     const c = plotCenter(i);
     const plot = used.get(i);
-    add("plot", c.x, 0, c.z, { size: { width: PLOT_SIZE, height: 0.16, depth: PLOT_SIZE }, ...(plot ? {} : { variant: "meadow" }) });
+    const use = plotUse(i);
+    const wild = !plot && (use === "meadow" || use === "orchard" || use === "picnic");
+    add("plot", c.x, 0, c.z, { size: { width: PLOT_SIZE, height: 0.16, depth: PLOT_SIZE }, ...(wild ? { variant: "meadow" } : {}) });
     if (plot) garden(add, plot, tree);
+    else if (use === "orchard") plotOrchard(add, i);
+    else if (use === "allotment") allotment(add, i);
+    else if (use === "playground") playground(add, i, tree);
+    else if (use === "picnic") picnic(add, i, tree);
     else meadow(add, i, tree);
   }
 
@@ -311,6 +318,102 @@ function garden(add: Add, plot: DressedPlot, tree: Tree) {
     if (i < 3) tree(x, z, LAWN_Y, plot.index * 13 + i, 1.05);
     else add("town.bush", x, LAWN_Y, z, { seed: plot.index + i });
   });
+}
+
+/** What an empty plot is, by index: fixed, so the town keeps its places as it grows. */
+export type PlotUse = "meadow" | "orchard" | "allotment" | "playground" | "picnic";
+const PLOT_USES: readonly PlotUse[] = ["meadow", "picnic", "orchard", "playground", "orchard", "playground", "allotment", "picnic", "meadow", "picnic", "meadow", "orchard"];
+export function plotUse(index: number): PlotUse {
+  return PLOT_USES[index % PLOT_USES.length]!;
+}
+
+/** Wild flowers and grass scattered over a plot, clear of `spots`. */
+function scatter(add: Add, index: number, count: number, spots: readonly { x: number; z: number; r: number }[]) {
+  const c = plotCenter(index);
+  const half = PLOT_SIZE / 2 - 1;
+  for (let i = 0; i < count; i++) {
+    const x = c.x + (noise(index, i, 15) * 2 - 1) * half,
+      z = c.z + (noise(index, i, 16) * 2 - 1) * half;
+    if (spots.some((s) => Math.hypot(s.x - x, s.z - z) < s.r)) continue;
+    add(i % 3 ? (i % 2 ? "town.flowers" : "town.wildflowers") : "town.grass", x, LAWN_Y, z, { rotation: noise(index, i, 17) * 6.28, seed: index * 5 + i, scale: 1.6 + noise(index, i, 18) * 0.8 });
+  }
+}
+
+/** An orchard plot: fruit trees in staggered rows, a bench in their shade. */
+function plotOrchard(add: Add, index: number) {
+  const c = plotCenter(index);
+  const spots: { x: number; z: number; r: number }[] = [];
+  for (let r = 0; r < 4; r++)
+    for (let k = 0; k < 4; k++) {
+      const x = c.x - 8.4 + k * 5.6 + (r % 2 ? 1.4 : -0.4),
+        z = c.z - 8.4 + r * 5.6;
+      if ((r === 3 && k === 2) || x > c.x + 10.5) continue;
+      add("town.fruit-tree", x, LAWN_Y, z, { rotation: noise(index, r, k) * 6.28, scale: 1.15 + noise(index, k, r) * 0.3, seed: r * 4 + k });
+      spots.push({ x, z, r: 1.6 });
+    }
+  add("town.bench", c.x + 3, LAWN_Y, c.z + 8.6, { rotation: 0.1 });
+  spots.push({ x: c.x + 3, z: c.z + 8.6, r: 1.5 });
+  scatter(add, index, 22, spots);
+}
+
+/** An allotment garden: raised vegetable beds either side of a flagstone path, a shed, a water butt of bushes. */
+function allotment(add: Add, index: number) {
+  const c = plotCenter(index);
+  paving(add, span(c.x - 0.8, c.x + 0.8, c.z - 9.5, c.z + PLOT_SIZE / 2), "flag", LAWN_Y);
+  for (let r = 0; r < 6; r++)
+    for (const side of [-1, 1]) {
+      const x = c.x + side * (2.6 + (r % 2) * 0.2),
+        z = c.z - 8 + r * 3;
+      add("town.veg-bed", x, LAWN_Y, z, { rotation: side < 0 ? 0 : Math.PI });
+      add("town.veg-bed", x + side * 3.4, LAWN_Y, z, { rotation: side < 0 ? 0 : Math.PI });
+    }
+  add("town.shed", c.x + 8.5, LAWN_Y, c.z - 9, { rotation: -Math.PI / 2 });
+  add("town.bush", c.x + 9.6, LAWN_Y, c.z - 6.4, { seed: index });
+  add("town.bush", c.x - 9.6, LAWN_Y, c.z - 9.6, { seed: index + 1 });
+  add("town.bench", c.x - 8.8, LAWN_Y, c.z + 9.4, { rotation: 0.2 });
+  for (let i = 0; i < 6; i++) add("town.flowers", c.x + 9.6, LAWN_Y, c.z - 2 + i * 1.8, { seed: index + i, scale: 2 });
+}
+
+/** A playground: a swing, a slide and a sandpit on the lawn, benches for the grown-ups, shade trees. */
+function playground(add: Add, index: number, tree: Tree) {
+  const c = plotCenter(index);
+  add("town.swing", c.x - 4, LAWN_Y, c.z - 3, { rotation: 0.3, scale: 1.4 });
+  add("town.slide", c.x + 4, LAWN_Y, c.z - 4, { rotation: -0.5, scale: 1.4 });
+  add("town.sandpit", c.x + 1, LAWN_Y, c.z + 3, { scale: 1.4 });
+  add("town.bench", c.x - 5, LAWN_Y, c.z + 5, { rotation: 0.5 });
+  add("town.bench", c.x + 6, LAWN_Y, c.z + 4, { rotation: -0.6 });
+  const trees: [number, number][] = [
+    [-8.5, -8.5],
+    [8.5, -8.5],
+    [-9, 7],
+    [9, 9],
+  ];
+  trees.forEach(([x, z], i) => tree(c.x + x, c.z + z, LAWN_Y, index * 19 + i, 1.4));
+  scatter(add, index, 14, [
+    { x: c.x - 4, z: c.z - 3, r: 2.6 },
+    { x: c.x + 4, z: c.z - 4, r: 2 },
+    { x: c.x + 1, z: c.z + 3, r: 1.8 },
+    ...trees.map(([x, z]) => ({ x: c.x + x, z: c.z + z, r: 1.6 })),
+  ]);
+}
+
+/** A picnic lawn: blankets under two big shade trees, a bench and plenty of flowers. */
+function picnic(add: Add, index: number, tree: Tree) {
+  const c = plotCenter(index);
+  tree(c.x - 4, c.z - 4, LAWN_Y, index * 23, 1.8);
+  tree(c.x + 5, c.z - 1, LAWN_Y, index * 23 + 1, 1.6);
+  add("town.picnic-blanket", c.x - 2.2, LAWN_Y, c.z - 0.8, { rotation: 0.4 });
+  add("town.picnic-blanket", c.x + 2.4, LAWN_Y, c.z + 3.2, { rotation: -0.3 });
+  add("town.picnic-blanket", c.x - 5.5, LAWN_Y, c.z + 5, { rotation: 1.2 });
+  add("town.bench", c.x + 7, LAWN_Y, c.z + 7, { rotation: -0.4 });
+  scatter(add, index, 30, [
+    { x: c.x - 4, z: c.z - 4, r: 2 },
+    { x: c.x + 5, z: c.z - 1, r: 2 },
+    { x: c.x - 2.2, z: c.z - 0.8, r: 1.4 },
+    { x: c.x + 2.4, z: c.z + 3.2, r: 1.4 },
+    { x: c.x - 5.5, z: c.z + 5, r: 1.4 },
+    { x: c.x + 7, z: c.z + 7, r: 1.4 },
+  ]);
 }
 
 /** An empty plot: a meadow with a few trees, wild flowers and, now and then, a bench. */
