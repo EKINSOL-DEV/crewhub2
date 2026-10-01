@@ -133,7 +133,7 @@ function describeBuilding(building: Building, add: Add, buildingName: (slug: str
     add(
       section,
       r.publishedAt
-        ? `${name}: published at ${r.publishedAt}; a banner hangs in the lobby and a trophy stands on the lead's desk.`
+        ? `${name}: published at ${r.publishedAt}; a banner hangs in the lobby.`
         : `${name}: ${r.state}.`,
     );
   }

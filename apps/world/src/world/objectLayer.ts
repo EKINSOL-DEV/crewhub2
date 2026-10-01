@@ -110,6 +110,8 @@ export class ObjectLayer {
   readonly #states = new Map<string, ObjectState>();
   readonly #celebrated = new Set<string>();
   #milestoneAccent = new Map<string, PaletteName>();
+  /** Props riding on a work object, by ticket key (plan 6.3): stickers and small figures. */
+  #riders = new Map<string, THREE.Object3D[]>();
   // Scratch.
   readonly #m = new THREE.Matrix4();
   readonly #place = new THREE.Matrix4();
@@ -167,6 +169,17 @@ export class ObjectLayer {
         if (state.hop) state.hop.sparkle.removeFromParent();
         this.#states.delete(id);
         this.anchors.delete(`o:${this.#slug}:${id}`);
+      }
+  }
+
+  /** Props that ride on work objects, by ticket key. They follow the object onto desks, piles and the drone's hook. */
+  setRiders(riders: Map<string, THREE.Object3D[]>) {
+    for (const list of this.#riders.values()) for (const rider of list) rider.removeFromParent();
+    this.#riders = riders;
+    for (const list of riders.values())
+      for (const rider of list) {
+        rider.visible = false;
+        this.group.add(rider);
       }
   }
 
@@ -287,7 +300,16 @@ export class ObjectLayer {
         state.hop = null;
       }
     }
-    state.anchor.copy(pos).setY(pos.y + this.#body(state.object).height * OBJECT_SCALE + 0.12);
+    const top = this.#body(state.object).height * OBJECT_SCALE;
+    const riders = this.#riders.get(state.object.key);
+    if (riders)
+      riders.forEach((rider, i) => {
+        rider.visible = !!(state.rest || state.flight);
+        rider.position.copy(pos);
+        rider.position.y += top;
+        rider.position.x += (i - (riders.length - 1) / 2) * 0.1;
+      });
+    state.anchor.copy(pos).setY(pos.y + top + 0.12);
     if (this.group.parent) state.anchor.add(this.group.parent.position);
   }
 

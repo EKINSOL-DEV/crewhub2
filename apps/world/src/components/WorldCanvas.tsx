@@ -1,12 +1,14 @@
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Archive, Check, CircleHelp, Clock, Flag, Hand, MessageSquare, Play, RefreshCw, Sprout, TriangleAlert, Trophy } from "lucide-react";
 import type { AgentPlacement, Building, ProgressKind, RoleSource, WorkObject, WorldModel } from "@crewhub/world-model";
 import { worldRuntime } from "../state/world";
-import { useTheme } from "../state/theme";
+import { useDark } from "../state/theme";
 import type { Pick } from "../world/buildingView";
 import { buildingTemplate } from "../world/buildingTemplate";
 import { assignDesks, placeObjects, roomName } from "../world/interiorLayout";
-import { TownScene, type CameraAction } from "../world/TownScene";
+import { TownScene, type BuildPointer, type CameraAction } from "../world/TownScene";
+import { resolveBuildingPlacements } from "../world/placements";
+import type { TownLayer } from "../world/propLayer";
 import { LaneChip } from "../world/lane";
 import { clockTime, countsLine, TOWN_CAPACITY } from "../world/townLayout";
 import type { RoomKind } from "@crewhub/world-model";
@@ -31,21 +33,8 @@ interface Props {
   onHover: (index: number | null) => void;
   onPick: (target: Pick | null, hover: boolean) => void;
   onError: () => void;
-}
-
-const darkQuery = () => window.matchMedia("(prefers-color-scheme: dark)");
-/** The resolved theme: an explicit choice, else the OS scheme. */
-function useDark(): boolean {
-  const { theme } = useTheme();
-  const system = useSyncExternalStore(
-    (listener) => {
-      const q = darkQuery();
-      q.addEventListener("change", listener);
-      return () => q.removeEventListener("change", listener);
-    },
-    () => darkQuery().matches,
-  );
-  return theme === "dark" || (theme === "system" && system);
+  town: TownLayer | null;
+  onBuild: (kind: BuildPointer, at: { room: RoomKind; cell: { x: number; z: number } } | null, pick: Pick | null) => void;
 }
 
 const now = () => worldRuntime().source.now();
@@ -59,6 +48,11 @@ export default function WorldCanvas(props: Props) {
   const [ready, setReady] = useState(false);
   const dark = useDark();
   latest.current = props;
+  // The ghost's verdict tile takes the scene's theme.
+  const town = useMemo(
+    () => (props.town?.build ? { ...props.town, build: { ...props.town.build, theme: dark ? ("lamplight" as const) : ("day" as const) } } : props.town),
+    [props.town, dark],
+  );
   const view = {
     model: props.model,
     entered: props.entered,
@@ -69,6 +63,7 @@ export default function WorldCanvas(props: Props) {
     reducedMotion: props.reducedMotion,
     theme: dark ? ("lamplight" as const) : ("day" as const),
     now,
+    town,
   };
   useEffect(() => {
     if (!host.current || !labels.current) return;
@@ -78,6 +73,7 @@ export default function WorldCanvas(props: Props) {
         hover: (index) => latest.current.onHover(index),
         pick: (target, hover) => latest.current.onPick(target, hover),
         error: () => latest.current.onError(),
+        build: (kind, at, pick) => latest.current.onBuild(kind, at, pick),
       });
       setReady(true);
     } catch {
@@ -244,6 +240,7 @@ function Interior({ building: b, model, props }: { building: Building; model: Wo
           </span>
         </div>
       )}
+      {props.town && <TownLabels building={b} town={props.town} />}
       {published.length > 0 && (
         <div className="anchor" data-anchor={`banner:${b.slug}`}>
           <span className="signal-tag">
@@ -252,6 +249,47 @@ function Interior({ building: b, model, props }: { building: Building; model: Wo
           </span>
         </div>
       )}
+    </>
+  );
+}
+
+const RULE_WORDS: Record<string, string> = { banner: "milestone banner", crate: "release crate", "sticker.rocket": "rocket", jar: "bug jar", trophy: "release trophy" };
+
+/** Error crates and rule props of the town document, labelled in words. */
+function TownLabels({ building: b, town }: { building: Building; town: TownLayer }) {
+  const resolved = resolveBuildingPlacements(town.doc, b.slug, buildingTemplate(b), town.definitions);
+  const name = (propId: string) => town.catalogue.get(propId)?.name ?? propId;
+  return (
+    <>
+      {resolved.errors.map((e) => (
+        <div key={e.placement.id} className="anchor" data-anchor={`err:${b.slug}:${e.placement.id}`}>
+          <span className="signal-tag error-tag">
+            <TriangleAlert className="icon icon-sm" aria-hidden="true" />
+            {name(e.placement.propId)} cannot stand here: {e.reason}
+          </span>
+        </div>
+      ))}
+      {town.invalid
+        .filter((r) => r.slug === b.slug)
+        .map((r) => (
+          <div key={r.ticketKey} className="anchor" data-anchor={`err:${b.slug}:${r.ticketKey}`}>
+            <span className="signal-tag error-tag">
+              <TriangleAlert className="icon icon-sm" aria-hidden="true" />
+              {r.error}
+            </span>
+          </div>
+        ))}
+      {town.rules
+        .filter((r) => r.anchor.building === b.slug && r.anchor.kind !== "ticket")
+        .map((r) => (
+          <div key={r.id} className="anchor" data-anchor={`rule:${b.slug}:${r.id}`}>
+            <span className="rule-tag" title={r.text}>
+              <span className="rule-word">rule</span>
+              {RULE_WORDS[r.key] ?? r.key}
+              {r.count !== null && `: ${r.count}`}
+            </span>
+          </div>
+        ))}
     </>
   );
 }

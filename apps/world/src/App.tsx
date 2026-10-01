@@ -1,20 +1,26 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type Ref } from "react";
-import { ArrowLeft, FlaskConical, MessageCircle, Minus, Monitor, Moon, Pause, Plus, RotateCcw, RotateCw, Scan, Settings, Sprout, Sun, X } from "lucide-react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type Ref } from "react";
+import { ArrowLeft, FlaskConical, Hammer, MessageCircle, Minus, Monitor, Moon, Pause, Plus, RotateCcw, RotateCw, Scan, Settings, Sprout, Sun, X } from "lucide-react";
 import { QueryClientProvider } from "@tanstack/react-query";
-import type { AgentPlacement, PlaybackControls, PlaybackSpeed, RoleId, RoomKind, TextLine, WorldModel } from "@crewhub/world-model";
+import { describeTownDocument, ruleProps, type AgentPlacement, type PlaybackControls, type PlaybackSpeed, type RoleId, type RoomKind, type TextLine, type WorldModel } from "@crewhub/world-model";
+import type { PropModel } from "@crewhub/world-engine";
 import { Bubbles } from "./components/bubbles/Bubbles";
+import { BuildPanel } from "./components/BuildPanel";
+import { PropEditor } from "./components/PropEditor";
+import { TownSettings } from "./components/TownSettings";
 import { IconSprite } from "./components/Icon";
 import { Button, Card, Chip, Field } from "./components/primitives";
 import { SceneBoundary } from "./components/SceneBoundary";
 import type { Selection } from "./components/WorldCanvas";
 import { createChatQueryClient, useChatEvents, useChatNavigation, useChatView } from "./state/chat";
 import { readRoleOverrides, writeRoleOverrides } from "./state/roleOverrides";
-import { useTheme } from "./state/theme";
+import { useBuildMode } from "./state/build";
+import { useDark, useTheme } from "./state/theme";
+import { townRuntime, useTown } from "./state/town";
+import type { TownLayer } from "./world/propLayer";
 import { useWorld, worldRuntime } from "./state/world";
 import { buildingTemplate } from "./world/buildingTemplate";
 import type { Pick } from "./world/buildingView";
 import { firstRoom, roomName, roomNeighbor, roomSummary } from "./world/interiorLayout";
-import { DEFAULT_STYLE_ID, styleRegistry } from "./world/style";
 import type { CameraAction } from "./world/TownScene";
 import { countsLine, laneWords, mmss, moveFocus, TOWN_CAPACITY } from "./world/townLayout";
 
@@ -69,6 +75,10 @@ function World() {
     writeRoleOverrides(overrides);
     worldRuntime().setRoleOverrides(overrides);
   }, [overrides]);
+  const town = useTown();
+  const dark = useDark();
+  const [editing, setEditing] = useState<{ prop: PropModel | null } | null>(null);
+  useEffect(() => townRuntime().onAnnounce(setAnnouncement), []);
   const returnFocus = useRef<HTMLElement | null>(null);
   const textRegion = useRef<HTMLElement>(null),
     settingsCard = useRef<HTMLDivElement>(null);
@@ -76,6 +86,50 @@ function World() {
   const buildings = model.buildings.slice(0, TOWN_CAPACITY);
   const inside = buildings.find((b) => b.slug === entered) ?? null;
   const camera = useCallback((type: CameraAction) => setAction((a) => ({ id: a.id + 1, type })), []);
+  const build = useBuildMode(town, inside, room, setAnnouncement);
+  const rules = useMemo(() => ruleProps(model, town.doc.rules), [model, town.doc.rules]);
+  const townLayer = useMemo<TownLayer>(
+    () => ({
+      doc: town.doc,
+      catalogue: town.catalogue,
+      definitions: town.definitions,
+      rules,
+      invalid: town.invalid,
+      fresh: townRuntime().fresh,
+      build: build.state.on ? { on: true, ghost: build.ghost, selected: build.state.selected, theme: "day" } : null,
+    }),
+    // The ghost object is rebuilt each render; its fields decide.
+    [town, rules, build.state.on, build.state.selected, JSON.stringify(build.ghost)],
+  );
+  const textLines = useMemo(
+    () => [...text, ...describeTownDocument(town.doc, town.catalogue, { ruleProps: rules, invalidRequests: town.invalid })],
+    [text, town.doc, town.catalogue, rules, town.invalid],
+  );
+  const undo = useCallback(() => {
+    townRuntime().undo();
+    setAnnouncement("Undone.");
+  }, []);
+  const redo = useCallback(() => {
+    townRuntime().redo();
+    setAnnouncement("Redone.");
+  }, []);
+  const requestProp = useCallback((thing: string) => {
+    const { title } = worldRuntime().source.createPropRequest(thing);
+    const text = `Requested "${title}". The ticket appears in the CrewHub building, an agent posts the prop, and a person moves it to Done.`;
+    setAnnouncement(text);
+    return text;
+  }, []);
+  const saveProp = useCallback(
+    (prop: PropModel) => {
+      const result = townRuntime().edit({ type: "add-user-prop", prop });
+      if (!result.ok) return result.error;
+      setEditing(null);
+      build.choose(prop.id);
+      setAnnouncement(`${prop.name} saved under Mine and chosen for placing.`);
+      return null;
+    },
+    [build],
+  );
 
   const describe = useCallback(
     (index: number) => {
@@ -122,6 +176,7 @@ function World() {
   );
   const pick = useCallback(
     (target: Pick | null, hover: boolean) => {
+      if (target?.kind === "prop") target = null;
       if (hover) {
         setSelection((s) => ({ ...s, hover: target }));
         return;
@@ -171,7 +226,28 @@ function World() {
   // Keys that work anywhere outside a text field: T, Escape and Backspace, and the camera keys.
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey || e.altKey || typing(e.target)) return;
+      if (typing(e.target)) return;
+      // Undo and redo of layout edits while build mode is on.
+      if (build.state.on && (e.ctrlKey || e.metaKey) && !e.altKey && (e.key.toLowerCase() === "z" || e.key.toLowerCase() === "y")) {
+        e.preventDefault();
+        if (e.key.toLowerCase() === "y" || e.shiftKey) redo();
+        else undo();
+        return;
+      }
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (editing) {
+        if (e.key === "Escape") setEditing(null);
+        return;
+      }
+      if (e.key.toLowerCase() === "b" && !graphicsFailed) {
+        e.preventDefault();
+        build.toggle();
+        return;
+      }
+      if (build.key(e)) {
+        e.preventDefault();
+        return;
+      }
       if (e.key === "Escape") {
         if (settingsOpen) closeSettings();
         else if (textOpen) closeText();
@@ -205,11 +281,13 @@ function World() {
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [back, camera, closeSettings, closeText, entered, graphicsFailed, inside, openText, selection.selected, settingsOpen, textOpen, zoomed]);
+  }, [back, build, camera, closeSettings, closeText, editing, entered, graphicsFailed, inside, openText, redo, selection.selected, settingsOpen, textOpen, undo, zoomed]);
 
   // Arrow keys and Enter move the focus ring between plots while the scene has keyboard focus.
   const sceneKey = (e: ReactKeyboardEvent) => {
     if (typing(e.target) || e.altKey || e.ctrlKey || e.metaKey) return;
+    // Build mode moves the chosen or selected prop with the arrow keys (the window listener handles them).
+    if (build.state.on && inside && (build.state.propId || build.state.selected)) return;
     if (inside) {
       // Inside a building: arrow keys move the focus ring between rooms, Enter zooms to the focused room.
       const onCanvas = e.target === e.currentTarget.querySelector("canvas");
@@ -284,6 +362,8 @@ function World() {
                 onEnter={enter}
                 onHover={hover}
                 onError={() => setGraphicsFailed(true)}
+                town={townLayer}
+                onBuild={build.pointer}
               />
             </Suspense>
           </SceneBoundary>
@@ -327,6 +407,17 @@ function World() {
 
       <div className="world-corner world-corner-right">
         <Button variant="ghost" iconOnly aria-label={`Theme: ${theme}. Switch to ${NEXT_THEME[theme]}.`} title={`Theme: ${theme}`} icon={<ThemeIcon className="icon" aria-hidden="true" />} onClick={cycle} />
+        {!graphicsFailed && (
+          <Button
+            variant="ghost"
+            iconOnly
+            aria-label={build.state.on ? "Leave build mode (B)" : "Build mode (B)"}
+            title={build.state.on ? "Leave build mode (B)" : "Build mode (B)"}
+            pressed={build.state.on}
+            icon={<Hammer className="icon" aria-hidden="true" />}
+            onClick={build.toggle}
+          />
+        )}
         <Button variant="ghost" iconOnly aria-label="Settings" title="Settings" expanded={settingsOpen} icon={<Settings className="icon" aria-hidden="true" />} onClick={settingsOpen ? closeSettings : openSettings} />
       </div>
 
@@ -339,10 +430,33 @@ function World() {
           />
           <Card.Body>
             <RoleSettings model={model} overrides={overrides} onChange={setOverrides} />
-            <p className="settings-style">Style: {styleRegistry.getStyle(DEFAULT_STYLE_ID).manifest.name}</p>
+            <TownSettings town={town} />
             <p className="sign-muted">Nothing to set yet. Agent settings live in the crewhub-loops web app; the demo has none.</p>
           </Card.Body>
         </Card>
+      )}
+
+      {build.state.on && !graphicsFailed && (
+        <BuildPanel
+          build={build}
+          town={town}
+          inside={inside}
+          demo={demo}
+          onClose={build.toggle}
+          onUndo={undo}
+          onRedo={redo}
+          onEdit={(propId) => setEditing({ prop: propId ? (town.catalogue.get(propId)?.model ?? null) : null })}
+          onRequest={requestProp}
+        />
+      )}
+      {editing && (
+        <PropEditor
+          initial={editing.prop}
+          takenIds={town.catalogue.entries.map((e) => e.id)}
+          theme={dark ? "lamplight" : "day"}
+          onSave={saveProp}
+          onClose={() => setEditing(null)}
+        />
       )}
 
       {!graphicsFailed && (
@@ -366,7 +480,7 @@ function World() {
 
       {playback && <PlaybackBar playback={playback} />}
 
-      {(textOpen || graphicsFailed) && <TextView ref={textRegion} lines={text} fallback={graphicsFailed} onClose={graphicsFailed ? null : closeText} />}
+      {(textOpen || graphicsFailed) && <TextView ref={textRegion} lines={textLines} fallback={graphicsFailed} onClose={graphicsFailed ? null : closeText} />}
     </div>
   );
 }

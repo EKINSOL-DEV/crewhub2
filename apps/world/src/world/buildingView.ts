@@ -10,6 +10,8 @@ import { BUILDING_CELL as CELL, buildingTemplate, DEPTH, MAX_WIDTH, roomOf, STAT
 import { assignDesks, placeObjects, roomCentre, type DeskSlot, type ObjectLayout, type Surface } from "./interiorLayout";
 import { mergeStatic } from "./mergeStatic";
 import { ObjectLayer } from "./objectLayer";
+import { cellAt, resolveBuildingPlacements, type BuildingPlacements } from "./placements";
+import { PropLayer, type TownLayer } from "./propLayer";
 import type { Bounds } from "./townLayout";
 
 /** Robots and desks are Greenhouse-sized; interiors show them at this scale. */
@@ -26,7 +28,7 @@ export interface BuildingContext {
   reducedMotion: () => boolean;
 }
 
-export type Pick = { kind: "agent"; key: string } | { kind: "object"; ticketId: string } | { kind: "room"; room: RoomKind };
+export type Pick = { kind: "agent"; key: string } | { kind: "object"; ticketId: string } | { kind: "room"; room: RoomKind } | { kind: "prop"; id: string };
 
 interface Robot {
   handle: RobotHandle;
@@ -77,6 +79,10 @@ export class BuildingView {
   #agents = new THREE.Group();
   #robots = new Map<string, Robot>();
   #objects: ObjectLayer;
+  #props: PropLayer;
+  /** The town document's placements resolved into this building's rooms, and what they were resolved from. */
+  placements: BuildingPlacements = { rooms: new Map(), errors: [] };
+  #placementsFrom: { doc: unknown; definitions: unknown; shape: string } = { doc: null, definitions: null, shape: "" };
   #truck: THREE.Object3D | null = null;
   #truckHome = new THREE.Vector3();
   /** Where flights to the truck set their package down (building-local). */
@@ -101,7 +107,14 @@ export class BuildingView {
       truck: this.#truckTarget,
       surface: (s) => surfacesOf(ctx.style)[s],
     });
-    this.group.add(this.#shell, this.#shellStatic, this.#piles, this.#agents, this.#signals, this.#objects.group);
+    this.#props = new PropLayer({
+      style: ctx.style,
+      slug: building.slug,
+      reducedMotion: ctx.reducedMotion,
+      surface: (s) => surfacesOf(ctx.style)[s],
+      toWorld: (v) => v.add(this.group.position),
+    });
+    this.group.add(this.#shell, this.#shellStatic, this.#piles, this.#agents, this.#signals, this.#objects.group, this.#props.group);
   }
 
   /** Building cells to building-local world units. */
@@ -112,7 +125,7 @@ export class BuildingView {
     return this.local(x, z, y).add(this.group.position);
   }
 
-  update(building: Building, detailed: boolean) {
+  update(building: Building, detailed: boolean, town: TownLayer | null = null) {
     this.building = building;
     this.template = buildingTemplate(building);
     this.desks = assignDesks(building, this.template);
@@ -139,8 +152,28 @@ export class BuildingView {
       this.#objects.sync(building, this.layout);
       for (const [id, v] of this.#objects.anchors) this.anchors.set(id, v);
     }
+    if (town) this.#syncTown(town, shape);
     if (building.archivedCount > this.#archivedCount) this.#truckPending = true;
     this.#archivedCount = building.archivedCount;
+  }
+
+  /* ── The town document: placed props, error crates, riders, rule props, build mode's ghost ─────────── */
+
+  #syncTown(town: TownLayer, shape: string) {
+    const from = this.#placementsFrom;
+    if (from.doc !== town.doc || from.definitions !== town.definitions || from.shape !== shape) {
+      this.placements = resolveBuildingPlacements(town.doc, this.building.slug, this.template, town.definitions);
+      this.#placementsFrom = { doc: town.doc, definitions: town.definitions, shape };
+    }
+    const riders = this.#props.sync({ building: this.building, template: this.template, placements: this.placements, desks: this.desks, town, detailed: this.detailed });
+    if (this.detailed) this.#objects.setRiders(riders);
+    for (const key of [...this.anchors.keys()]) if (/^(err|rule):/.test(key)) this.anchors.delete(key);
+    for (const [key, v] of this.#props.anchors) this.anchors.set(key, v);
+  }
+
+  /** The room and room cell under a world point on the floor, or null outside the rooms. */
+  cellAtWorld(point: THREE.Vector3): { room: RoomKind; cell: { x: number; z: number } } | null {
+    return cellAt(this.template, (point.x - this.group.position.x) / CELL, (point.z - this.group.position.z) / CELL);
   }
 
   /* ── Shell: floors, walls, door step, flag, emblem, room signs ───────────── */
@@ -353,12 +386,7 @@ export class BuildingView {
       this.#signals.add(beacon);
       this.anchors.set(`beacon:${b.slug}`, this.world(office.origin.x + 1, office.origin.z + 0.8, 1.9));
     }
-    const leadDesk = this.desks.get(b.lead.id);
-    if (published && leadDesk) {
-      const trophy = style.model("trophy");
-      trophy.position.copy(this.local(leadDesk.desk.x + 0.2, leadDesk.desk.z - 0.3, surfacesOf(style)["lead-desk"]));
-      this.#signals.add(trophy);
-    }
+    // The trophy on the lead's desk is a rule prop (release-trophy), drawn by the prop layer.
     const lobby = roomOf(this.template, "lobby");
     if (lobby && published) {
       const banner = style.model("banner", { accent: (b.color ?? null) as PaletteName | null });
@@ -406,7 +434,7 @@ export class BuildingView {
   /** True while something here moves. */
   get animating(): boolean {
     const idle = !this.ctx.reducedMotion() && this.#robots.size > 0;
-    return (this.detailed && (this.#objects.animating || idle)) || this.#truckDrive !== null || this.#truckPending;
+    return (this.detailed && (this.#objects.animating || this.#props.animating || idle)) || this.#truckDrive !== null || this.#truckPending;
   }
 
   tick(seconds: number) {
@@ -414,6 +442,7 @@ export class BuildingView {
     if (this.detailed) {
       if (!reduced) for (const robot of this.#robots.values()) robot.handle.update(seconds);
       this.#objects.update(seconds);
+      this.#props.tick(seconds);
       for (const child of this.#signals.children) (child.userData.animate as ((s: number) => void) | undefined)?.(seconds);
     }
     this.#driveTruck(seconds, reduced);
@@ -455,10 +484,12 @@ export class BuildingView {
   }
 
   pickables(): THREE.Object3D[] {
-    return [this.#agents, this.#shell, ...this.#objects.pickables()];
+    return [this.#agents, this.#shell, this.#props.group, ...this.#objects.pickables()];
   }
 
   resolve(hit: THREE.Intersection): Pick | null {
+    const prop = this.#props.resolve(hit);
+    if (prop) return { kind: "prop", id: prop };
     const ticket = this.#objects.pick(hit);
     if (ticket) return { kind: "object", ticketId: ticket };
     const agent = hit.object.userData.agentId as string | undefined;
@@ -484,6 +515,7 @@ export class BuildingView {
     for (const robot of this.#robots.values()) robot.handle.dispose();
     this.#robots.clear();
     this.#objects.dispose();
+    this.#props.dispose();
     for (const geometry of [...this.#merged, ...this.#furnitureMerged]) geometry.dispose();
     this.group.removeFromParent();
   }
