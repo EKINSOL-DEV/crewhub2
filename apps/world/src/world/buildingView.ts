@@ -30,6 +30,7 @@ import { mergeStatic } from "./mergeStatic";
 import { ObjectLayer } from "./objectLayer";
 import { cellAt, footprintPose, resolveBuildingPlacements, type BuildingPlacements } from "./placements";
 import { PropLayer, type TownLayer } from "./propLayer";
+import type { RobotCrowd } from "./robotCrowd";
 import { deskItems, DRESS_PREFIX, dressingSeed, roomDecor, type DecorItem } from "./roomDressing";
 import type { Bounds } from "./townLayout";
 import type { Walker } from "./walks";
@@ -861,14 +862,20 @@ export class BuildingView {
     return (this.detailed && (this.#objects.animating || this.#props.animating || idle)) || this.#truckDrive !== null || this.#truckPending;
   }
 
-  tick(seconds: number) {
+  /**
+   * `seen` false: the building is off screen. Its robots then skip following their walkers; they catch up on the
+   * first frame it is seen again.
+   */
+  tick(seconds: number, seen = true) {
     this.#placeSelection();
     const reduced = this.ctx.reducedMotion();
+    const still = !seen && !this.detailed;
     for (const [key, robot] of this.#robots) {
       if (robot.departing && !this.ctx.walker(key)) {
         this.#dropRobot(key, robot);
         continue;
       }
+      if (still) continue;
       const walking = this.#follow(key, robot);
       // Robots in a building seen from the town only animate while they walk.
       if (!reduced && (this.detailed || walking)) robot.handle.update(seconds);
@@ -914,6 +921,12 @@ export class BuildingView {
       this.#truckDrive = null;
     }
     if (!reduced && this.#truckDrive) truck.scale.multiplyScalar(0.85);
+  }
+
+  /** Seen from the town: hands the robots to the town's crowd, which draws them instanced (robotCrowd.ts). */
+  crowd(crowd: RobotCrowd, seen: boolean) {
+    if (this.detailed || !this.group.visible || !this.#agents.visible) return;
+    for (const robot of this.#robots.values()) crowd.add(robot.handle.object, seen);
   }
 
   pickables(): THREE.Object3D[] {
