@@ -210,9 +210,9 @@
     "rug": "#c9bc9d",
     "contact-shadow": "#0e1d1d",
     "water": "#5f9294",
-    "floor-wood": "#d6be98",
-    "floor-tile": "#e6dcc8",
-    "floor-concrete": "#cfc6b2"
+    "floor-wood": "#e2cba4",
+    "floor-tile": "#ede4d1",
+    "floor-concrete": "#d8d0bd"
   },
   "lighting": {
     "day": {

@@ -28,8 +28,8 @@ const PATTERNS: Record<FloorPattern, string> = {
       vec2 edge = abs(fract(t + 0.5) - 0.5) * 2.0 / max(fwidth(vFloor), vec2(0.001));
       float grout = 1.0 - min(min(edge.x, edge.y) / 1.6, 1.0);
       float checker = mod(floor(t.x) + floor(t.y), 2.0);
-      diffuseColor.rgb *= 1.0 - checker * 0.035;
-      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.97, 0.95, 0.9), grout * 0.7);`,
+      diffuseColor.rgb *= 1.0 - checker * 0.04;
+      diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.84, 0.86, 0.82), grout * 0.8);`,
   // Smooth concrete: faint saw cuts every four cells and a soft cloudiness.
   concrete: `
       vec2 c = vFloor / 4.0;
