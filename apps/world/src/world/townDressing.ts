@@ -309,6 +309,8 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
   add("crate", cafe.x - 3.3, GRASS_Y, cafe.z - 0.8, { scale: 1.2, rotation: 0.3 });
   add("crate", cafe.x - 3.1, GRASS_Y, cafe.z + 0.1, { scale: 1, rotation: -0.2 });
   const square = civicCenter("square");
+  // String lights over the square, pole to pole across it.
+  for (const dz of [-2.6, 2.6]) add("town.string-lights", square.x, GRASS_Y, square.z + dz, { size: { width: CIVIC_SIZE.square.width + 1.6, height: 2.7, depth: 0.1 } });
   for (const dx of [-1, 1]) add("town.lantern", square.x + dx * 2.6, GRASS_Y, square.z + CIVIC_SIZE.square.depth / 2 + 0.8, { seed: dx });
   const road = entranceRoad();
   for (const [x, z] of [
@@ -652,6 +654,14 @@ function park(add: Add, tree: Tree) {
   add("town.picnic-blanket", pond.maxX + 2.4, GRASS_Y, cz + 0.6, { rotation: -0.5 });
   add("town.picnic-blanket", pond.minX - 1.6, GRASS_Y, pond.maxZ + 3.4, { rotation: 0.3 });
   add("town.bench", cx - 2.6, GRASS_Y, pond.maxZ + 1.9, { rotation: Math.PI / 2 + 0.2 });
+  // Lanterns at both ends of the bridge, so the pond glows in the evening.
+  for (const [dx, z] of [
+    [-1.3, pond.maxZ + 0.9],
+    [1.3, pond.maxZ + 0.9],
+    [-1.3, pond.minZ - 0.9],
+    [1.3, pond.minZ - 0.9],
+  ] as const)
+    add("town.lantern", cx + dx, GRASS_Y, z, { seed: 80 + dx * 2 + z, scale: 0.85 });
   add("town.lantern", cx - 1.2, GRASS_Y, pond.maxZ + 3.2, { seed: 70 });
   add("town.lantern", cx + 1.2, GRASS_Y, pond.minZ - 1.8, { seed: 71 });
   for (const [x, z] of [

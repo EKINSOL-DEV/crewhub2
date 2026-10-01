@@ -118,6 +118,8 @@ class GreenhouseStyle implements WorldStyle {
         return town.bridge(kit, o);
       case "town.fence":
         return town.fence(kit, o);
+      case "town.string-lights":
+        return town.stringLights(kit, o);
       case "town.crossing":
         return town.crossing(kit, o);
       case "town.wear":
