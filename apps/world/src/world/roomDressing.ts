@@ -317,6 +317,11 @@ function plan(kind: RoomKind, facts: RoomFacts, planner: Planner, defs: Definiti
       place({ def: "armchair", at: "free", anchor: { x: waiting.x + 1.6, z: waiting.z - 0.6 } });
       const entrance = facts.room.layout.entrance;
       place({ def: "umbrella-stand", at: "free", anchor: { x: entrance.x + 2.5, z: entrance.z + 0.5 } });
+      // Plants flank the way in; a reading seat by the coffee corner.
+      place({ def: "plant", at: "free", anchor: { x: entrance.x - 1.5, z: entrance.z - 0.5 } });
+      place({ def: "plant", at: "free", anchor: { x: entrance.x + 2.5, z: entrance.z - 1.5 } });
+      const coffee = zoneCentre(facts, "coffee");
+      if (coffee) place({ def: "armchair", at: "free", anchor: { x: coffee.x - 1, z: coffee.z + 0.5 } });
       plants(1, "waiting");
       break;
     }
@@ -516,6 +521,8 @@ export function roomDecor(template: BuildingTemplate, options: Omit<DressOptions
       at("decor.rug-runner", e.x + 0.5, e.z - 1, 0, { scale: { x: 1, y: 1, z: 1.2 } });
       const waiting = zoneCentre(facts, "waiting");
       if (waiting) at("decor.rug-round", waiting.x, waiting.z, 0);
+      const coffee = zoneCentre(facts, "coffee");
+      if (coffee) at("decor.rug-round", coffee.x - 0.5, coffee.z + 0.5, 0, { scale: { x: 0.75, y: 1, z: 0.75 } });
       // A station clock hangs over the hall when no tall wall carries the clock.
       if (!facts.tall.north.size && !facts.tall.west.size) at("decor.station-clock", facts.width / 2, facts.depth / 2 - 1.5, 0.5);
       // Two pendants over the hall.
