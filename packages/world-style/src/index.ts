@@ -143,6 +143,12 @@ export interface EnvironmentHandle {
    * redraws them when this changes.
    */
   readonly shadowVersion: number;
+  /**
+   * Soft cloud shadows that dim the key light on everything they pass over (ground, roofs, walls, people), 5 numbers
+   * per cloud: centre x and z, half-length and half-width in world units, and its turn about y. An empty array clears
+   * them. Optional: a style without it draws `town.cloud-shadow` on the ground instead.
+   */
+  setCloudShadows?(clouds: ArrayLike<number>): void;
   dispose(): void;
 }
 
