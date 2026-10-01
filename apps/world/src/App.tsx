@@ -662,20 +662,15 @@ const ChatCorner = memo(function ChatCorner({ narrow, demo }: { narrow: boolean;
   );
 });
 
-function usePlayback(playback: PlaybackControls) {
-  // A snapshot string, so useSyncExternalStore sees a stable value between changes.
-  const snapshot = useSyncExternalStore(
-    (listener) => playback.onChange(listener),
-    () => `${Math.floor(playback.positionMs() / 1000)}|${playback.speed()}|${playback.loop()}`,
-  );
-  const [seconds, speed, loop] = snapshot.split("|").map(Number) as [number, number, number];
-  return { positionMs: seconds * 1000, speed: speed as PlaybackSpeed, loop };
+/** One playback value as a stable snapshot, so a component re-renders only when that value changes. */
+function usePlaybackValue<T extends string | number>(playback: PlaybackControls, read: () => T): T {
+  return useSyncExternalStore((listener) => playback.onChange(listener), read);
 }
 
+/* The speed buttons change rarely; the position ticks every second of script time (16 a second at 16x). They subscribe
+   apart, so the ticking time does not re-render the buttons. */
 const PlaybackBar = memo(function PlaybackBar({ playback }: { playback: PlaybackControls }) {
-  const { positionMs, speed, loop } = usePlayback(playback);
-  const position = mmss(positionMs),
-    duration = mmss(playback.durationMs);
+  const speed = usePlaybackValue(playback, () => playback.speed()) as PlaybackSpeed;
   return (
     <section className="playback-bar" aria-label="Demo playback">
       <div className="segmented playback-speeds" role="group" aria-label="Playback speed">
@@ -685,6 +680,18 @@ const PlaybackBar = memo(function PlaybackBar({ playback }: { playback: Playback
           </Button>
         ))}
       </div>
+      <PlaybackPosition playback={playback} />
+    </section>
+  );
+});
+
+function PlaybackPosition({ playback }: { playback: PlaybackControls }) {
+  const positionMs = usePlaybackValue(playback, () => Math.floor(playback.positionMs() / 1000) * 1000);
+  const loop = usePlaybackValue(playback, () => playback.loop());
+  const position = mmss(positionMs),
+    duration = mmss(playback.durationMs);
+  return (
+    <>
       <input
         className="playback-scrub"
         type="range"
@@ -703,9 +710,9 @@ const PlaybackBar = memo(function PlaybackBar({ playback }: { playback: Playback
       <span className="playback-loop" title="How many times the script has looped">
         loop {loop}
       </span>
-    </section>
+    </>
   );
-});
+}
 
 const KIND_WORD: Record<TextLine["kind"], string> = { fact: "fact", inference: "inference", cosmetic: "cosmetic", demo: "demo" };
 
