@@ -30,7 +30,7 @@ test("coveredKeys is exactly what the style draws: its data models and its code 
   assert.deepEqual([...manifest.coveredKeys].sort(), [...new Set([...data, ...CODE_KEYS])].sort());
 });
 
-test("the manifest resolves every palette name and has a lighting preset per theme", () => {
+test("the manifest resolves every palette name and has a lighting preset per theme and per drift light", () => {
   assert.deepEqual(Object.keys(manifest.palette).sort(), [...PROP_MATERIALS].sort());
-  assert.deepEqual(Object.keys(manifest.lighting).sort(), ["day", "lamplight"]);
+  assert.deepEqual(Object.keys(manifest.lighting).sort(), ["dawn", "day", "dusk", "lamplight", "night"]);
 });
