@@ -142,9 +142,11 @@ export function hedge(kit: Kit, o: ModelOptions): THREE.Group {
   const g = new THREE.Group();
   put(g, kit.box(width, height, depth, "hedge", 0.16), 0, height / 2, 0);
   const tufts = Math.max(2, Math.round(width / 0.55));
+  const dome = kit.geometry("town:dome", () => new THREE.SphereGeometry(1, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2 + 0.2));
   const seed = o.seed ?? 0;
   for (let i = 0; i < tufts; i++) {
-    const t = put(g, kit.sphere(1, i % 3 === 1 ? "hedge" : "hedge-light"), -width / 2 + ((i + 0.5) * width) / tufts, height - 0.02, ((i * 7 + seed) % 3) * 0.06 - 0.06);
+    // Domes, not spheres: a tuft's lower half is inside the hedge's box.
+    const t = put(g, kit.mesh(dome, kit.material(i % 3 === 1 ? "hedge" : "hedge-light")), -width / 2 + ((i + 0.5) * width) / tufts, height - 0.02, ((i * 7 + seed) % 3) * 0.06 - 0.06);
     const r = 0.27 + ((i * 13 + seed) % 5) * 0.012;
     t.scale.set(r * 1.1, r * 0.8, depth * 0.48);
   }
@@ -345,15 +347,22 @@ const SHADOWLESS = new Set([
  * (12 × 10) and cylinders (20 sides) for lighter ones (8 × 6, 10 sides), still soft under the toon materials, and the
  * small pieces cast no shadow. Shared geometry stays shared, so instancing is unchanged.
  */
+/** Model-space radius under which a ball is tiny. */
+const TINY = 0.09;
+
 export function townDetail(kit: Kit, object: THREE.Object3D, key: string) {
   const shadow = !SHADOWLESS.has(key);
   object.traverse((o) => {
     if (!(o instanceof THREE.Mesh)) return;
     if (!shadow) o.castShadow = false;
     const g = o.geometry;
-    if (g instanceof THREE.SphereGeometry && g.parameters.widthSegments > 8) {
+    if (g instanceof THREE.SphereGeometry && g.parameters.thetaLength === Math.PI && g.parameters.radius * Math.max(o.scale.x, o.scale.y, o.scale.z) < TINY) {
+      // Flower heads, fruit and berries: a few pixels across, so a 6 × 4 ball (36 triangles, not 80) reads the same.
       const r = g.parameters.radius;
-      o.geometry = kit.geometry(`sphere-low:${r}`, () => new THREE.SphereGeometry(r, 8, 6));
+      o.geometry = kit.geometry(`sphere-tiny:${r}`, () => new THREE.SphereGeometry(r, 6, 4));
+    } else if (g instanceof THREE.SphereGeometry && g.parameters.widthSegments > 8) {
+      const r = g.parameters.radius;
+      o.geometry = kit.geometry(`sphere-low:${r}`, () => new THREE.SphereGeometry(r, 7, 5));
     } else if (g instanceof THREE.CylinderGeometry && g.parameters.radialSegments > 10) {
       const { radiusTop, radiusBottom, height } = g.parameters;
       o.geometry = kit.geometry(`cylinder-low:${radiusTop},${radiusBottom},${height}`, () => new THREE.CylinderGeometry(radiusTop, radiusBottom, height, 10));
