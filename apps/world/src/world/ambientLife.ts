@@ -20,6 +20,7 @@ import type { GraphicsQuality, LifeSpot, ModelKey, PaletteName, ResolvedStyle } 
 import type { Ambient } from "./movement";
 import { noise, pondRect, type Dressing } from "./townDressing";
 import { townBounds, type Bounds } from "./townLayout";
+import { instancedMaterial } from "./instancedMaterial";
 
 export interface LifeSettings {
   ambient: Ambient;
@@ -63,7 +64,9 @@ class Swarm {
     if (!source) model.traverse((o) => (source ??= o instanceof THREE.Mesh ? o : null));
     const mesh = source as THREE.Mesh | null;
     this.#base = mesh ? mesh.matrixWorld.clone() : new THREE.Matrix4();
-    this.mesh = new THREE.InstancedMesh(mesh?.geometry ?? new THREE.BufferGeometry(), mesh?.material ?? new THREE.MeshBasicMaterial(), capacity);
+    // The style's material through its instanced twin (instancedMaterial.ts): the style may draw it whole elsewhere.
+    const material = mesh && !Array.isArray(mesh.material) ? instancedMaterial(mesh.material) : new THREE.MeshBasicMaterial();
+    this.mesh = new THREE.InstancedMesh(mesh?.geometry ?? new THREE.BufferGeometry(), material, capacity);
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.mesh.renderOrder = mesh?.renderOrder ?? 0;
     // Instances spread over the town: the base geometry's bounds would cull them wrongly.

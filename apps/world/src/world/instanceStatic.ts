@@ -5,6 +5,7 @@
    one-off pieces it leaves (paving and lawns of one size each). */
 import * as THREE from "three";
 import { removeBaked } from "./mergeStatic";
+import { useInstancedMaterials } from "./instancedMaterial";
 
 /** World radius under which an instanced part casts no shadow. */
 const TINY = 0.09;
@@ -37,6 +38,8 @@ export function instanceStatic(root: THREE.Group, minimum = 3): THREE.InstancedM
     instanced.receiveShadow = first.receiveShadow;
     instanced.renderOrder = first.renderOrder;
     instanced.computeBoundingSphere();
+    // Its own twin of the material, so the material is never drawn both instanced and not (instancedMaterial.ts).
+    useInstancedMaterials(instanced);
     root.add(instanced);
     created.push(instanced);
   }

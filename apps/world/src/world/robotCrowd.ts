@@ -9,6 +9,7 @@
    cannot batch (a translucent proxy's own materials, a halo's shader) stay on the default layer and draw as before.
    Robots in buildings the camera cannot see are not copied at all. */
 import * as THREE from "three";
+import { instancedMaterial } from "./instancedMaterial";
 
 /** The layer for a far robot's own meshes: neither the camera nor the shadow cameras draw it. */
 const HIDDEN = 31;
@@ -135,7 +136,7 @@ export class RobotCrowd {
         white.color.copy(WHITE);
         white.onBeforeCompile = source.onBeforeCompile;
         material = white;
-      } else material = source;
+      } else material = instancedMaterial(source); // the decal's twin: the near robots draw the source itself
     }
     const instanced = new THREE.InstancedMesh(mesh.geometry, material, capacity);
     instanced.frustumCulled = false;
