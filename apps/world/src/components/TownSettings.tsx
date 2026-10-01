@@ -1,9 +1,11 @@
-/* The town document's part of Settings: the style (from the document; one option tonight), where the town is kept,
-   export and import of the whole town as JSON, and the rules table that switches rule props. An invalid import
-   shows its precise error and changes nothing. */
+/* The town document's part of Settings: the style (from the document; one option tonight), the viewer's graphics
+   setting, where the town is kept, export and import of the whole town as JSON, and the rules table that switches
+   rule props. An invalid import shows its precise error and changes nothing. */
 import { useState, type ChangeEvent } from "react";
 import { Download } from "lucide-react";
 import { exportTownDocument, RULE_IDS, type RuleId } from "@crewhub/world-model";
+import type { GraphicsQuality } from "@crewhub/world-style";
+import { QUALITY_CHOICES, setQuality, useQuality } from "../state/quality";
 import type { TownState } from "../state/town";
 import { townRuntime } from "../state/town";
 import { styleRegistry } from "../world/style";
@@ -18,7 +20,10 @@ const RULES: Record<RuleId, { name: string; fact: string }> = {
   "release-trophy": { name: "Release trophy", fact: "a trophy on the lead's desk per published release" },
 };
 
+const QUALITY_LABELS: Record<GraphicsQuality, string> = { pretty: "Pretty", fast: "Fast" };
+
 export function TownSettings({ town }: { town: TownState }) {
+  const quality = useQuality();
   const [importNote, setImportNote] = useState<{ ok: boolean; text: string } | null>(null);
   const style = styleRegistry.getStyle(town.doc.styleId).manifest;
 
@@ -36,6 +41,21 @@ export function TownSettings({ town }: { town: TownState }) {
         <legend className="label">Town</legend>
         <p className="settings-style">Style: {style.name}</p>
         <p className="hint">The only style tonight; buildings follow the town style unless their plot names another.</p>
+        <Field
+          control="select"
+          size="sm"
+          label="Graphics"
+          className="quality-setting"
+          hint={quality === "pretty" ? "Soft shadows and warm lamp light. Kept in this browser." : "No shadow maps or lamp glow, for slower computers. Kept in this browser."}
+          value={quality}
+          onChange={(e) => setQuality(e.currentTarget.value as GraphicsQuality)}
+        >
+          {QUALITY_CHOICES.map((choice) => (
+            <option key={choice} value={choice}>
+              {QUALITY_LABELS[choice]}
+            </option>
+          ))}
+        </Field>
         <p className="hint">
           Layout revision {town.doc.revision}.{" "}
           {town.storage === "indexeddb" ? "Kept in this browser (IndexedDB)." : "Kept in memory only: it is lost on reload."}
