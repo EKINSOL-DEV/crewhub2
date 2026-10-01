@@ -1,5 +1,6 @@
-/* The navigation world: one portal graph for the whole town. The town is a room on its own coarse grid (plots,
-   streets, the post office and the town hall); every building adds its rooms from the building template, joined by
+/* The navigation world: one portal graph for the whole town. The town is a room on its own coarse grid: only its
+   paving is open (the lanes, the civic forecourts and paths, and each used plot's garden path from townDressing.ts),
+   so walkers keep to the paths and never cut across lawns or through hedges. Every building adds its rooms from the building template, joined by
    the template's doors, and its lobby door joins the town cell just outside the building's entrance. The graph and
    the simulation live together here so a rebuilt building can take its actors out and put them back. Pure: no
    Three.js, no DOM, so it runs under `node --test`.
@@ -20,7 +21,8 @@ import {
 import type { AgentKey, Building, RoomKind } from "@crewhub/world-model";
 import { BUILDING_CELL, buildingTemplate, DEPTH, ENTRANCE, interiorDefinitions, LOADING, MAX_WIDTH, PLOT_MARGIN, roomOf, type BuildingTemplate } from "./buildingTemplate.ts";
 import { assignDesks, type DeskSlot } from "./interiorLayout.ts";
-import { civicCenter, PLOT_SIZE, plotCenter, TOWN_CAPACITY, townBounds } from "./townLayout.ts";
+import { civicCenter, CIVIC_LOT, PLOT_SIZE, plotCenter, TOWN_CAPACITY, townBounds, type Bounds } from "./townLayout.ts";
+import { COBBLE_Y, LAWN_Y, townPaths } from "./townDressing.ts";
 
 export const TOWN_ROOM = "town";
 /** World units per town cell: two building cells, so a walk across the town stays short. */
@@ -98,31 +100,66 @@ export function frontCell(index: number): Cell {
   return { x: e.x, z: e.z + 1 };
 }
 
+/** World position of the town cell just outside a building's front door: where its garden path starts. */
+export function plotDoor(index: number): { x: number; z: number } {
+  return townCellCentre(entranceCell(index));
+}
+/** What stands on a used plot, in world units: the building at its widest and the parked truck. */
+export function plotObstacles(index: number): Bounds[] {
+  const world = (r: Rect): Bounds => {
+    const a = townCellCentre({ x: r.x0, z: r.z0 }),
+      b = townCellCentre({ x: r.x1, z: r.z1 });
+    return { minX: a.x - TOWN_CELL / 2, maxX: b.x + TOWN_CELL / 2, minZ: a.z - TOWN_CELL / 2, maxZ: b.z + TOWN_CELL / 2 };
+  };
+  return [world(buildingRect(index)), world(truckRect(index))];
+}
+
 const POST = civicCenter("post-office"),
   HALL = civicCenter("town-hall");
-/** The post office's back and counter, and the town hall's steps and columns; their front lawns stay open. */
-const CIVIC_RECTS: Rect[] = [
-  cover(POST.x - 1.8, POST.z - 1.9, POST.x + 1.8, POST.z - 0.45),
-  cover(HALL.x - 2.2, HALL.z - 1.9, HALL.x + 2.2, HALL.z + 0.6),
-];
-/** The postman's place in front of the post office counter. */
+/** The postman's place on the post office's forecourt. */
 export const POST_OFFICE_CELL = townCellAt(POST.x - 0.5, POST.z + 1);
-/** Where the postman leaves a letter for a recipient who works in no building. */
+/** Where the postman leaves a letter for a recipient who works in no building: the town hall's forecourt. */
 export const TOWN_HALL_CELL = townCellAt(HALL.x + 3, HALL.z + 2.2);
 
-/** Height of the ground under a walker: the lawn of a plot or a civic lot, else the street. */
+/** Height of the ground under a walker: the paving on a plot's or a civic lot's lawn, else the street's paving. */
 export function groundAt(x: number, z: number): number {
-  const LAWN = 0.17,
-    STREET = 0.02;
-  for (const c of [POST, HALL]) if (Math.abs(x - c.x) <= CIVIC_LAWN / 2 && Math.abs(z - c.z) <= CIVIC_LAWN / 2) return LAWN;
+  const LAWN = LAWN_Y + 0.04,
+    STREET = COBBLE_Y;
+  for (const c of [POST, HALL]) if (Math.abs(x - c.x) <= CIVIC_LOT / 2 && Math.abs(z - c.z) <= CIVIC_LOT / 2) return LAWN;
   for (let i = 0; i < TOWN_CAPACITY; i++) {
     const p = plotCenter(i);
     if (Math.abs(x - p.x) <= PLOT_SIZE / 2 && Math.abs(z - p.z) <= PLOT_SIZE / 2) return LAWN;
   }
   return STREET;
 }
-/** The civic lots' lawn (TownScene). */
-const CIVIC_LAWN = 9;
+
+/**
+ * The open cells of the town grid for these used plots: every cell whose centre lies on the paving, plus each front
+ * door's town cell. Everything else (grass, hedges, lawns, water) is closed.
+ */
+export function townOpenCells(indices: readonly number[]): Uint8Array {
+  const open = new Uint8Array(TOWN_GRID.width * TOWN_GRID.depth);
+  for (const r of townPaths(indices.map(plotDoor))) {
+    const a = townCellAt(r.minX, r.minZ),
+      b = townCellAt(r.maxX, r.maxZ);
+    for (let z = a.z; z <= b.z; z++)
+      for (let x = a.x; x <= b.x; x++) {
+        const c = townCellCentre({ x, z });
+        if (c.x >= r.minX && c.x <= r.maxX && c.z >= r.minZ && c.z <= r.maxZ) open[z * TOWN_GRID.width + x] = 1;
+      }
+  }
+  for (const index of indices) {
+    const e = entranceCell(index);
+    open[e.z * TOWN_GRID.width + e.x] = 1;
+  }
+  for (const cell of [POST_OFFICE_CELL, TOWN_HALL_CELL]) open[cell.z * TOWN_GRID.width + cell.x] = 1;
+  return open;
+}
+
+/** Marks the cells of a footprint closed (a building over its own garden path start, the truck). */
+function closeRect(open: Uint8Array, r: Rect) {
+  for (let z = r.z0; z <= r.z1; z++) for (let x = r.x0; x <= r.x1; x++) open[z * TOWN_GRID.width + x] = 0;
+}
 
 /** A building template as the graph sees it: room shapes and doors (structure) and furniture per room. */
 function structureKey(t: BuildingTemplate): string {
@@ -401,7 +438,7 @@ export class NavWorld {
       const definitionId = `block-${width}x${depth}`;
       this.definitions[definitionId] ??= {
         id: definitionId,
-        label: "Building footprint",
+        label: "Off the path",
         footprint: { width, depth },
         blocksMovement: true,
         tags: ["town"],
@@ -409,11 +446,27 @@ export class NavWorld {
       };
       props.push({ id, definitionId, cell: { x: r.x0, z: r.z0 }, rotation: 0 });
     };
-    CIVIC_RECTS.forEach((r, i) => block(`civic-${i}`, r));
-    for (const index of indices) {
-      block(`plot-${index}`, buildingRect(index));
-      block(`truck-${index}`, truckRect(index));
-    }
+    // Closed cells in as few rectangles as a greedy sweep finds: runs along x, grown down z while they match.
+    const open = townOpenCells(indices);
+    for (const index of indices) for (const r of [buildingRect(index), truckRect(index)]) closeRect(open, r);
+    const { width, depth } = TOWN_GRID;
+    const done = new Uint8Array(width * depth);
+    let n = 0;
+    for (let z = 0; z < depth; z++)
+      for (let x = 0; x < width; x++) {
+        const i = z * width + x;
+        if (open[i] || done[i]) continue;
+        let x1 = x;
+        while (x1 + 1 < width && !open[i + x1 + 1 - x] && !done[i + x1 + 1 - x]) x1++;
+        let z1 = z;
+        const rowFree = (zz: number) => {
+          for (let xx = x; xx <= x1; xx++) if (open[zz * width + xx] || done[zz * width + xx]) return false;
+          return true;
+        };
+        while (z1 + 1 < depth && rowFree(z1 + 1)) z1++;
+        for (let zz = z; zz <= z1; zz++) for (let xx = x; xx <= x1; xx++) done[zz * width + xx] = 1;
+        block(`off-${n++}`, { x0: x, z0: z, x1, z1 });
+      }
     return { version: 1, grid: { ...TOWN_GRID, cellSize: TOWN_CELL }, props, entrance: POST_OFFICE_CELL };
   }
 

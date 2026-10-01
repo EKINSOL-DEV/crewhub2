@@ -1,6 +1,6 @@
 /* The town's plot grid and the words the town labels use. Pure: no Three.js, no DOM, so it runs under `node --test`.
-   World units: x east, z south (towards the home camera); the civic row (post office, town hall) sits behind the
-   building rows. */
+   World units: x east, z south (towards the home camera); the civic row (post office, square, town hall) sits behind
+   the building rows. Streets run between the plots; a green belt rings the town (townDressing.ts dresses both). */
 import type { Freshness, LaneStatus, TicketStatus } from "@crewhub/world-model";
 
 export const TOWN_COLUMNS = 4;
@@ -27,11 +27,36 @@ export function plotCenter(index: number): PlotSpot {
   };
 }
 
-/** The civic row behind the building rows: post office on the left, town hall on the right. */
-export function civicCenter(place: "post-office" | "town-hall"): PlotSpot {
+/** The civic pieces in the row behind the buildings. */
+export type CivicPlace = "post-office" | "town-hall" | "square" | "cafe" | "bus-stop";
+
+/**
+ * The civic row behind the building rows: the post office on the left, the town hall on the right, the square with
+ * its fountain between them at the head of the main street, the café west of the square and the bus stop east of it,
+ * by the street. Each spot is the centre of the piece's footprint.
+ */
+export function civicCenter(place: CivicPlace): PlotSpot {
   const z = plotCenter(0).z - PITCH;
-  return { x: place === "post-office" ? -PITCH : PITCH, z };
+  switch (place) {
+    case "post-office":
+      return { x: -PITCH, z };
+    case "town-hall":
+      return { x: PITCH, z };
+    case "square":
+      return { x: 0, z: z + 1 };
+    case "cafe":
+      return { x: -13, z: z + 3 };
+    case "bus-stop":
+      return { x: 13.5, z: z + 11.4 };
+  }
 }
+
+/** Footprint sizes of the civic pieces that have no lot of their own (x by z, world units). */
+export const CIVIC_SIZE: Record<"square" | "cafe" | "bus-stop", { width: number; depth: number }> = {
+  square: { width: 10, depth: 10 },
+  cafe: { width: 5, depth: 4 },
+  "bus-stop": { width: 3, depth: 1.5 },
+};
 
 export interface Bounds {
   minX: number;
@@ -40,9 +65,12 @@ export interface Bounds {
   maxZ: number;
 }
 
-/** The whole town ground: every plot, the civic row and a street around it. */
+/** Width of the green belt of trees around the town, outside the outer streets. */
+export const GREEN_BELT = 6;
+
+/** The whole town ground: every plot, the civic row, a street around it and the green belt. */
 export function townBounds(): Bounds {
-  const half = PLOT_SIZE / 2 + STREET;
+  const half = PLOT_SIZE / 2 + STREET + GREEN_BELT;
   const first = plotCenter(0),
     last = plotCenter(TOWN_CAPACITY - 1);
   return { minX: first.x - half, maxX: last.x + half, minZ: civicCenter("town-hall").z - half, maxZ: last.z + half };
@@ -52,7 +80,8 @@ export function townBounds(): Bounds {
 export const CIVIC_LOT = 12;
 
 /**
- * What the home camera frames: the plots in use (at least one) and the two civic lots, each with `margin` around it.
+ * What the home camera frames: the plots in use (at least one), the two civic lots and the square, each with `margin`
+ * around it.
  * Empty plots are left out, so a small town fills the screen; the camera fits the projected corners of these rects.
  */
 export function homeRects(buildingCount: number, margin = 1.5): Bounds[] {
@@ -61,6 +90,7 @@ export function homeRects(buildingCount: number, margin = 1.5): Bounds[] {
   const used = Math.max(1, Math.min(TOWN_CAPACITY, buildingCount));
   for (let i = 0; i < used; i++) rects.push(square(plotCenter(i), PLOT_SIZE / 2 + margin));
   for (const place of ["post-office", "town-hall"] as const) rects.push(square(civicCenter(place), CIVIC_LOT / 2 + margin));
+  rects.push(square(civicCenter("square"), CIVIC_SIZE.square.width / 2 + margin));
   return rects;
 }
 

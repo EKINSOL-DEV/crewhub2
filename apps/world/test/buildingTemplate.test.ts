@@ -7,6 +7,7 @@ import {
   buildingTemplate,
   DEPTH,
   doorCell,
+  doorOpenings,
   dressingZones,
   interiorDefinitions,
   MAX_WIDTH,
@@ -276,5 +277,42 @@ test("dressing zones lie inside their rooms on free floor, and blocking them kee
         assert.ok(inside.has(cell), `${name}: ${room.kind} ${cell} stays reachable with the zones dressed`);
       }
     }
+  }
+});
+
+test("door openings are one or two cells wide around their door, walls merge into maximal runs, and none covers an opening", () => {
+  for (const [name, b] of variants) {
+    const template = buildingTemplate(b);
+    const openings = doorOpenings(template);
+    const runs = wallRuns(template);
+    for (const door of template.doors) {
+      const o = openings.find((x) => x.id === door.id)!;
+      const length = o.x2 - o.x1 + (o.z2 - o.z1);
+      assert.ok(o && (length === 1 || length === 2), `${name}: ${door.id} opening`);
+      const a = doorCell(template, door.a)!,
+        c = doorCell(template, door.b)!;
+      const mx = (a.x + c.x + 1) / 2,
+        mz = (a.z + c.z + 1) / 2;
+      const inside = o.z1 === o.z2 ? o.z1 === mz && mx > o.x1 && mx < o.x2 : o.x1 === mx && mz > o.z1 && mz < o.z2;
+      assert.ok(inside, `${name}: ${door.id} opening holds its door`);
+    }
+    assert.ok(openings.some((o) => o.id === "loading"), `${name}: dispatch's loading door`);
+    for (const o of openings)
+      for (const r of runs) {
+        const overlap =
+          o.z1 === o.z2
+            ? r.z1 === r.z2 && r.z1 === o.z1 && Math.min(r.x2, o.x2) > Math.max(r.x1, o.x1)
+            : r.x1 === r.x2 && r.x1 === o.x1 && Math.min(r.z2, o.z2) > Math.max(r.z1, o.z1);
+        assert.ok(!overlap, `${name}: a wall covers opening ${o.id}`);
+      }
+    // No two runs of one side touch end to end on one line: they would have merged.
+    for (const r of runs)
+      for (const q of runs)
+        if (r !== q && r.side === q.side) {
+          const touching = r.z1 === r.z2 ? q.z1 === q.z2 && q.z1 === r.z1 && q.x1 === r.x2 : q.x1 === q.x2 && q.x1 === r.x1 && q.z1 === r.z2;
+          assert.ok(!touching, `${name}: runs merge`);
+        }
+    // The back wall is one run along the whole west side.
+    assert.ok(runs.some((r) => r.side === "west" && r.x1 === 0 && r.z1 === 0 && r.z2 === DEPTH), `${name}: one west wall`);
   }
 });

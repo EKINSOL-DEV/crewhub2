@@ -53,7 +53,8 @@ export class Kit {
    * cream: a project colour as a soft, Greenhouse-friendly tint (a lead robot's shell).
    */
   hex(name: Swatch, theme: StyleTheme = this.theme): string {
-    if (name.startsWith("soft:")) {
+    // An unknown or missing name falls back to the neutral swatch below, never throws.
+    if (name?.startsWith("soft:")) {
       const color = new THREE.Color(this.hex(name.slice("soft:".length), theme)).lerp(new THREE.Color(this.hex("cream", theme)), 0.45);
       return `#${color.getHexString()}`;
     }

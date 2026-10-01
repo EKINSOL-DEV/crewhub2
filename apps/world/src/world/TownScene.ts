@@ -10,13 +10,18 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { AgentPlacement, RoomKind, WorldModel } from "@crewhub/world-model";
-import type { EnvironmentHandle, GraphicsQuality, ResolvedStyle, RobotHandle, RobotPosture, StyleTheme } from "@crewhub/world-style";
+import type { EnvironmentHandle, GraphicsQuality, ModelAnimation, ModelKey, ResolvedStyle, RobotHandle, RobotPosture, StyleTheme } from "@crewhub/world-style";
 import { BuildingView, type Pick } from "./buildingView";
+import { BUILDING_CELL } from "./buildingTemplate";
 import type { TownLayer } from "./propLayer";
 import { styleRegistry } from "./style";
 import type { StyledPlot } from "./styleRegistry";
 import type { Ambient } from "./movement";
 import { CIVIC_LOT, civicCenter, homeRects, PLOT_SIZE, plotCenter, TOWN_CAPACITY, townBounds, type Bounds } from "./townLayout";
+import { GRASS_Y, LAWN_Y, townDressing } from "./townDressing";
+import { instanceStatic } from "./instanceStatic";
+import { mergeStatic } from "./mergeStatic";
+import { plotDoor, plotObstacles } from "./navigation";
 import { onPlayIntent } from "./intentPlayer";
 import { Walks } from "./walks";
 
@@ -80,6 +85,27 @@ const ROBOT_SCALE = 0.62;
 const CIVIC_LAWN = CIVIC_LOT;
 const HOME_OFFSET = new THREE.Vector3(1, 1.04, 1).normalize().multiplyScalar(90);
 const UP = new THREE.Vector3(0, 1, 0);
+/* Framing heights: a building is seen up to its tall back walls, a room up to its people and desks. */
+const BUILDING_FRAME_HEIGHT = 2.6;
+const ROOM_FRAME_HEIGHT = 1.6;
+/* The closest view: a frustum this many world units tall, about one desk with its robot. */
+const DESK_SPAN = 2.4;
+/* Pixels between two hanging labels before the one further back moves up. */
+const LABEL_GAP = 3;
+/* Labels that hang above their anchor (bottom centred on it): robots' stacks, tags, chips and counts. Building, civic
+   and room signs sit beside their anchors and keep their places. */
+const HANGING = /^(a|o|rule|err|p|beacon|mail|banner):|^c:[^:]+:/;
+/* The HTML chrome over the canvas, in CSS pixels (App's corners, playback bar and camera toolbar): framing keeps its
+   subject in the free area between them. Phones stack the corner rows and the camera buttons differently. */
+interface Insets {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+}
+const NO_INSETS: Insets = { top: 0, bottom: 0, left: 0, right: 0 };
+const CHROME: Insets = { top: 104, bottom: 84, left: 24, right: 76 };
+const PHONE_CHROME: Insets = { top: 156, bottom: 76, left: 12, right: 60 };
 
 export class TownScene {
   readonly renderer: THREE.WebGLRenderer;
@@ -95,6 +121,13 @@ export class TownScene {
   /** A blob contact shadow under each building's slab, sized to its footprint. */
   #contacts = new Map<string, { object: THREE.Object3D; size: string }>();
   #civic = new THREE.Group();
+  #landmarks = new THREE.Group();
+  #dressing: { signature: string; group: THREE.Group | null; instanced: THREE.InstancedMesh[]; merged: THREE.BufferGeometry[] } = {
+    signature: "",
+    group: null,
+    instanced: [],
+    merged: [],
+  };
   #civicSignature = "";
   #civicRobots: RobotHandle[] = [];
   #postman: { handle: RobotHandle; key: string; letters: THREE.Object3D[] } | null = null;
@@ -103,7 +136,8 @@ export class TownScene {
   #ring: THREE.Object3D;
   #anchors = new Map<string, THREE.Vector3>();
   #labelsHost: HTMLElement;
-  #labels: { el: HTMLElement; id: string; half: number; x: number; y: number; visible: boolean }[] = [];
+  #labels: Label[] = [];
+  #stacks: Label[] = [];
   #span = 30;
   #raf = 0;
   #last = 0;
@@ -146,7 +180,7 @@ export class TownScene {
     canvas.setAttribute("role", "application");
     canvas.setAttribute(
       "aria-label",
-      "The town. Arrow keys move between buildings, Enter goes inside. Inside a building arrow keys move between rooms, Enter zooms to a room, Escape goes back one level. Plus and minus zoom, brackets rotate, H returns home. T opens the text view.",
+      "The town. Arrow keys move between buildings, Enter goes inside. Inside a building arrow keys move between rooms, Enter zooms to a room, Escape goes back one level. Plus and minus zoom, brackets rotate, H returns home. D shows every label. T opens the text view.",
     );
     host.appendChild(canvas);
     this.camera.position.copy(HOME_OFFSET);
@@ -223,52 +257,77 @@ export class TownScene {
 
   /* ── The town ground and the empty lots ───────────────────────────────── */
 
+  /** The plot hit boxes and the civic landmarks; the ground and its dressing follow the plots in use (`#dress`). */
   buildGround() {
     const style = this.townStyle;
-    const b = townBounds();
-    const ground = style.model("ground", { size: { width: b.maxX - b.minX, height: 0.5, depth: b.maxZ - b.minZ } });
-    ground.position.set((b.minX + b.maxX) / 2, 0, (b.minZ + b.maxZ) / 2);
-    this.scene.add(ground);
-    // Every lot, built or empty, has a lawn; the town has room for twelve buildings.
     const hitGeometry = new THREE.BoxGeometry(PLOT_SIZE, 2, PLOT_SIZE);
     const hitMaterial = new THREE.MeshBasicMaterial();
     for (let i = 0; i < TOWN_CAPACITY; i++) {
       const p = plotCenter(i);
-      const lawn = style.model("plot", { size: { width: PLOT_SIZE, height: 0.16, depth: PLOT_SIZE } });
-      lawn.position.set(p.x, 0, p.z);
-      this.scene.add(lawn);
       const hit = new THREE.Mesh(hitGeometry, hitMaterial);
       hit.visible = false;
       hit.position.set(p.x, 1, p.z);
       hit.userData.plot = i;
       this.#hits.add(hit);
-      const lamp = style.model("street-lamp");
-      lamp.position.set(p.x + PLOT_SIZE / 2 + 1.2, 0.02, p.z + PLOT_SIZE / 2 + 1.2);
-      this.scene.add(lamp);
     }
-    for (const place of ["post-office", "town-hall"] as const) {
-      const c = civicCenter(place);
-      const lawn = style.model("plot", { size: { width: CIVIC_LAWN, height: 0.16, depth: CIVIC_LAWN } });
-      lawn.position.set(c.x, 0, c.z);
-      this.scene.add(lawn);
-      const building = style.model(place);
-      building.position.set(c.x, 0.17, c.z - 0.6);
-      this.scene.add(building);
-      const plant = style.model("planting", { seed: place.length });
-      plant.position.set(c.x + (place === "post-office" ? -2.8 : 2.8), 0.17, c.z + 2.8);
-      this.scene.add(plant);
+    // The landmarks stay whole (not instanced or merged): the square's fountain may animate.
+    const landmarks: [ModelKey, number, number, number][] = [
+      ["post-office", civicCenter("post-office").x, LAWN_Y, civicCenter("post-office").z],
+      ["town-hall", civicCenter("town-hall").x, LAWN_Y, civicCenter("town-hall").z],
+      ["civic.square", civicCenter("square").x, GRASS_Y, civicCenter("square").z],
+      ["civic.cafe", civicCenter("cafe").x, GRASS_Y, civicCenter("cafe").z],
+      ["civic.bus-stop", civicCenter("bus-stop").x, GRASS_Y, civicCenter("bus-stop").z],
+    ];
+    for (const [key, x, y, z] of landmarks) {
+      const object = style.model(key);
+      object.position.set(x, y, z);
+      this.#landmarks.add(object);
     }
-    const bench = style.model("furniture.bench");
-    const hall = civicCenter("town-hall");
-    bench.position.set(hall.x, 0.2, hall.z + 2.4);
-    bench.scale.setScalar(ROBOT_SCALE);
-    this.scene.add(bench);
+    this.scene.add(this.#landmarks);
+  }
+
+  /**
+   * The ground, lawns, paths and dressing for the plots in use (townDressing.ts): rebuilt only when a plot is taken or
+   * freed. Repeated parts become instanced meshes, the one-off pieces merge per material.
+   */
+  #dress(count: number) {
+    const indices = Array.from({ length: Math.min(TOWN_CAPACITY, count) }, (_, i) => i);
+    const signature = indices.join(",");
+    if (signature === this.#dressing.signature) return;
+    this.#disposeDressing();
+    const group = new THREE.Group();
+    const plots = indices.map((index) => ({ index, door: plotDoor(index), obstacles: plotObstacles(index) }));
+    for (const d of townDressing(plots)) {
+      const object = this.townStyle.model(d.key as ModelKey, {
+        ...(d.size ? { size: d.size } : {}),
+        ...(d.seed !== undefined ? { seed: d.seed } : {}),
+        ...(d.variant ? { variant: d.variant } : {}),
+      });
+      object.position.set(d.x, d.y, d.z);
+      object.rotation.y = d.rotation;
+      object.scale.setScalar(d.scale);
+      group.add(object);
+    }
+    const instanced = instanceStatic(group);
+    const merged = mergeStatic(group);
+    this.scene.add(group);
+    this.#dressing = { signature, group, instanced, merged };
+  }
+
+  #disposeDressing() {
+    const { group, instanced, merged } = this.#dressing;
+    if (!group) return;
+    group.removeFromParent();
+    for (const mesh of instanced) mesh.dispose();
+    for (const geometry of merged) geometry.dispose();
+    this.#dressing = { signature: "", group: null, instanced: [], merged: [] };
   }
 
   /* ── Model → scene ────────────────────────────────────────────────────── */
 
   sync() {
     const model = this.view.model;
+    this.#dress(model.buildings.length);
     this.walks.update(model, { entered: this.view.entered, reducedMotion: this.view.reducedMotion, ambient: this.view.ambient });
     const seen = new Set<string>();
     this.#anchors.clear();
@@ -368,11 +427,14 @@ export class TownScene {
   refreshLabels() {
     const previous = new Map(this.#labels.map((l) => [l.el, l]));
     this.#labels = [...this.#labelsHost.querySelectorAll<HTMLElement>("[data-anchor]")].map(
-      (el) => previous.get(el) ?? { el, id: el.dataset.anchor ?? "", half: 0, x: Number.NaN, y: Number.NaN, visible: false },
+      (el) => previous.get(el) ?? { el, id: "", half: 0, height: 0, stack: false, x: Number.NaN, y: Number.NaN, nx: 0, ny: 0, visible: false },
     );
     for (const l of this.#labels) {
       l.id = l.el.dataset.anchor ?? "";
-      l.half = ((l.el.firstElementChild as HTMLElement | null)?.offsetWidth ?? 0) / 2;
+      const box = l.el.firstElementChild as HTMLElement | null;
+      l.half = (box?.offsetWidth ?? 0) / 2;
+      l.height = box?.offsetHeight ?? 0;
+      l.stack = HANGING.test(l.id);
       l.x = Number.NaN;
     }
     this.invalidate();
@@ -409,11 +471,25 @@ export class TownScene {
     return this.frameRects([bounds], height, this.#v.copy(this.camera.position).sub(this.controls.target)).span;
   }
 
+  /** The chrome over the canvas at its current size. */
+  insets(): Insets {
+    const canvas = this.renderer.domElement;
+    const width = canvas.clientWidth,
+      height = canvas.clientHeight;
+    if (!width || !height) return NO_INSETS;
+    const chrome = width < 600 ? PHONE_CHROME : CHROME;
+    // A short or narrow canvas never gives more than a third of an axis to the chrome.
+    const fit = (a: number, b: number, size: number) => Math.min(1, size / 3 / Math.max(1, a + b));
+    const fy = fit(chrome.top, chrome.bottom, height),
+      fx = fit(chrome.left, chrome.right, width);
+    return { top: chrome.top * fy, bottom: chrome.bottom * fy, left: chrome.left * fx, right: chrome.right * fx };
+  }
+
   /**
    * Frames the projected corners of `rects` (each up to `height`) seen along `direction` (camera minus target): the
-   * frustum height at zoom 1 and the ground point to aim at so they sit centred on the screen.
+   * frustum height at zoom 1 and the ground point to aim at so they sit centred in the canvas less `insets`.
    */
-  frameRects(rects: readonly Bounds[], height: number, direction: THREE.Vector3): { span: number; target: THREE.Vector3 } {
+  frameRects(rects: readonly Bounds[], height: number, direction: THREE.Vector3, insets: Insets = NO_INSETS, margin = 1.04): { span: number; target: THREE.Vector3 } {
     this.#offset.copy(direction).normalize();
     this.#right.crossVectors(UP, this.#offset).normalize();
     this.#up.crossVectors(this.#offset, this.#right).normalize();
@@ -434,29 +510,43 @@ export class TownScene {
             v0 = Math.min(v0, v);
             v1 = Math.max(v1, v);
           }
-    const uc = (u0 + u1) / 2,
-      vc = (v0 + v1) / 2;
+    const canvas = this.renderer.domElement;
+    const canvasWidth = Math.max(1, canvas.clientWidth),
+      canvasHeight = Math.max(1, canvas.clientHeight);
+    const aspect = canvasWidth / canvasHeight;
+    // The free area's share of each axis, and its centre's offset from the canvas centre in pixels (right, down).
+    const fy = Math.max(0.2, 1 - (insets.top + insets.bottom) / canvasHeight),
+      fx = Math.max(0.2, 1 - (insets.left + insets.right) / canvasWidth);
+    const span = Math.max((v1 - v0) / fy, (u1 - u0) / (aspect * fx)) * margin;
+    const perPixel = span / canvasHeight;
+    const uc = (u0 + u1) / 2 - ((insets.left - insets.right) / 2) * perPixel,
+      vc = (v0 + v1) / 2 + ((insets.top - insets.bottom) / 2) * perPixel;
     // The screen centre (uc, vc), slid along the view direction down to the ground.
     const target = this.#right.clone().multiplyScalar(uc).addScaledVector(this.#up, vc);
     target.addScaledVector(this.#offset, -target.y / this.#offset.y);
-    const canvas = this.renderer.domElement;
-    const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight) || 1;
-    return { span: Math.max(v1 - v0, (u1 - u0) / aspect) * 1.04, target };
+    return { span, target };
   }
 
   home(immediate: boolean) {
-    const { target } = this.frameRects(homeRects(this.view.model.buildings.length), 2, HOME_OFFSET);
+    const { target } = this.frameRects(homeRects(this.view.model.buildings.length), 2, HOME_OFFSET, this.insets());
     this.moveTo(target, target.clone().add(HOME_OFFSET), 1, immediate);
   }
 
-  /** Frames the entered building, or one of its rooms. */
+  /**
+   * Frames the entered building close: its template footprint (with the step before its door) fills the free canvas,
+   * or, given a room, that room does. The view direction stays (a rotation survives); only target and zoom move.
+   */
   frameBuilding(slug: string, room: RoomKind | null) {
     const view = this.#buildings.get(slug);
     if (!view) return;
-    const bounds = view.bounds(room);
-    const offset = this.camera.position.clone().sub(this.controls.target);
-    const target = new THREE.Vector3((bounds.minX + bounds.maxX) / 2, 0.4, (bounds.minZ + bounds.maxZ) / 2);
-    const span = this.spanFor(bounds, room ? 1.2 : 2);
+    const o = view.group.position,
+      size = view.template.size;
+    const bounds: Bounds = room
+      ? view.bounds(room)
+      : { minX: o.x - 0.3, maxX: o.x + size.width * BUILDING_CELL + 0.3, minZ: o.z - 0.3, maxZ: o.z + size.depth * BUILDING_CELL + 0.9 };
+    const direction = (this.#tween ? this.#tween.position.clone().sub(this.#tween.target) : this.camera.position.clone().sub(this.controls.target)).normalize();
+    const { span, target } = this.frameRects([bounds], room ? ROOM_FRAME_HEIGHT : BUILDING_FRAME_HEIGHT, direction, this.insets(), room ? 1.3 : 1.02);
+    const offset = direction.multiplyScalar(HOME_OFFSET.length());
     this.moveTo(target, target.clone().add(offset), THREE.MathUtils.clamp(this.#span / span, 0.6, this.controls.maxZoom), false);
   }
 
@@ -574,12 +664,12 @@ export class TownScene {
     }
     if (event.buttons) return;
     if (this.view.entered) {
-      const found = this.pickAt(event);
-      const target = found && found.kind !== "room" ? found : null;
+      // A room under the pointer is a hover target too: it reveals that room's labels.
+      const target = this.pickAt(event);
       const key = target ? JSON.stringify(target) : "";
       if (key === this.#hoverPick) return;
       this.#hoverPick = key;
-      this.renderer.domElement.style.cursor = found ? "pointer" : "";
+      this.renderer.domElement.style.cursor = target ? "pointer" : "";
       this.callbacks.pick(target, true);
       return;
     }
@@ -614,7 +704,9 @@ export class TownScene {
       position = this.camera.position.clone();
     this.controls.target.set(0, 0, 0);
     this.camera.position.copy(HOME_OFFSET);
-    this.#span = this.frameRects(homeRects(this.view.model.buildings.length), 2, HOME_OFFSET).span;
+    this.#span = this.frameRects(homeRects(this.view.model.buildings.length), 2, HOME_OFFSET, this.insets()).span;
+    // Zoom is relative to the home frame: however large the town, the closest view is about one desk.
+    this.controls.maxZoom = Math.max(4, this.#span / DESK_SPAN);
     this.controls.target.copy(target);
     this.camera.position.copy(position);
     const aspect = width / height;
@@ -663,6 +755,9 @@ export class TownScene {
       if (this.camera.position.distanceTo(this.#tween.position) < 0.005 && Math.abs(this.camera.zoom - this.#tween.zoom) < 0.002) this.#tween = null;
     }
     let moving = this.walks.moving || this.view.measure;
+    // Landmarks animate (the fountain) on frames drawn anyway; they never keep the loop running on their own.
+    if (!this.view.reducedMotion && dt)
+      for (const object of this.#landmarks.children) (object.userData.animate as ModelAnimation | undefined)?.(dt);
     for (const view of this.#buildings.values()) {
       view.tick(dt);
       if (view.animating) moving = true;
@@ -759,6 +854,8 @@ export class TownScene {
     const canvas = this.renderer.domElement;
     const width = canvas.clientWidth,
       height = canvas.clientHeight;
+    const stacks = this.#stacks;
+    stacks.length = 0;
     for (const label of this.#labels) {
       const anchor = this.#anchors.get(label.id);
       let visible = false,
@@ -771,12 +868,21 @@ export class TownScene {
         visible = this.#v.z > -1 && this.#v.z < 1 && x > 8 && x < width - 8 && y > 8 && y < height - 8;
         if (label.half * 2 + 16 < width) x = THREE.MathUtils.clamp(x, label.half + 8, width - label.half - 8);
       }
-      if (Math.abs(label.x - x) > 0.2 || Math.abs(label.y - y) > 0.2 || label.visible !== visible || Number.isNaN(label.x)) {
+      label.nx = x;
+      label.ny = y;
+      label.visible = visible;
+      if (visible && label.stack) stacks.push(label);
+    }
+    if (stacks.length > 1) nudgeStacks(stacks);
+    for (const label of this.#labels) {
+      const x = label.nx,
+        y = label.ny,
+        visible = label.visible;
+      if (Math.abs(label.x - x) > 0.2 || Math.abs(label.y - y) > 0.2 || label.el.style.visibility !== (visible ? "visible" : "hidden") || Number.isNaN(label.x)) {
         label.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
         label.el.style.visibility = visible ? "visible" : "hidden";
         label.x = x;
         label.y = y;
-        label.visible = visible;
       }
     }
   }
@@ -798,9 +904,49 @@ export class TownScene {
     canvas.removeEventListener("webglcontextlost", this.contextLost);
     for (const view of this.#buildings.values()) view.dispose();
     for (const robot of this.#civicRobots) robot.dispose();
+    this.#disposeDressing();
     this.#environment.dispose();
     // Styles live in the registry (one instance per id) and outlast this scene; the renderer frees the GPU side.
     this.renderer.dispose();
     canvas.remove();
+  }
+}
+
+interface Label {
+  el: HTMLElement;
+  id: string;
+  /** Half the width and the height of the label's box, measured when React renders it. */
+  half: number;
+  height: number;
+  /** A hanging label (a robot's pill and bubble, a tag), which keeps clear of its neighbours. */
+  stack: boolean;
+  /** Placed position, and this frame's position before it is applied. */
+  x: number;
+  y: number;
+  nx: number;
+  ny: number;
+  visible: boolean;
+}
+
+/**
+ * Two robots side by side would pile their pills and bubbles on each other, and so would tags on neighbouring desks.
+ * Each hangs above its anchor (bottom centred on it); from the front of the scene (lowest on screen) back, a label that
+ * would overlap one already placed moves up just above it, so the nearer thing keeps its label where it stands.
+ */
+function nudgeStacks(stacks: Label[]) {
+  stacks.sort((a, b) => b.ny - a.ny || (a.id < b.id ? -1 : 1));
+  for (let i = 1; i < stacks.length; i++) {
+    const l = stacks[i]!;
+    for (let pass = 0; pass < 4; pass++) {
+      let moved = false;
+      for (let j = 0; j < i; j++) {
+        const o = stacks[j]!;
+        if (Math.abs(l.nx - o.nx) < l.half + o.half + LABEL_GAP && l.ny > o.ny - o.height - LABEL_GAP && l.ny - l.height < o.ny + LABEL_GAP) {
+          l.ny = o.ny - o.height - LABEL_GAP;
+          moved = true;
+        }
+      }
+      if (!moved) break;
+    }
   }
 }

@@ -6,7 +6,22 @@
 import * as THREE from "three";
 import type { AgentPlacement, Building, RoomKind } from "@crewhub/world-model";
 import type { EmblemName, ModelKey, PaletteName, ResolvedStyle, RobotHandle, RobotPosture } from "@crewhub/world-style";
-import { BUILDING_CELL as CELL, buildingTemplate, DEPTH, ENTRANCE, LOADING, MAX_WIDTH, PLOT_MARGIN, roomOf, STATUS_ROOMS, wallRuns, type BuildingTemplate } from "./buildingTemplate";
+import {
+  BUILDING_CELL as CELL,
+  buildingTemplate,
+  DEPTH,
+  doorOpenings,
+  ENTRANCE,
+  FLOOR_RISE,
+  LOADING,
+  MAX_WIDTH,
+  PLOT_MARGIN,
+  roomOf,
+  STATUS_ROOMS,
+  wallRuns,
+  type BuildingTemplate,
+  type WallRun,
+} from "./buildingTemplate";
 import { assignDesks, placeObjects, roomCentre, type DeskSlot, type ObjectLayout, type Surface } from "./interiorLayout";
 import { mergeStatic } from "./mergeStatic";
 import { ObjectLayer } from "./objectLayer";
@@ -17,12 +32,34 @@ import type { Walker } from "./walks";
 
 /** Robots and desks are Greenhouse-sized; interiors show them at this scale. */
 const ROBOT_SCALE = 0.62;
-const TALL_WALL = 1.1;
-const LOW_WALL = 0.32;
-const WALL = 0.1;
 const TRUCK_S = 2.4;
-/** The truck's parking spot on its apron outside dispatch's loading door, building cells. */
-const TRUCK_SPOT = { x: (LOADING.x1 + LOADING.x2) / 2 + 0.5, z: DEPTH + 2 };
+/** The truck's parking spot on its apron, backed up to dispatch's loading door, building cells. */
+const TRUCK_SPOT = { x: (LOADING.x1 + LOADING.x2) / 2, z: DEPTH + 1.6 };
+/** Per wall side: the model, its height and its thickness (world units). The tall walls are the old room's height. */
+const WALLS: Record<WallRun["side"], [ModelKey, number, number]> = {
+  north: ["wall.glass", 1.75, 0.16],
+  west: ["wall", 1.75, 0.16],
+  south: ["wall.low", 0.22, 0.12],
+  east: ["wall.low", 0.22, 0.12],
+  inner: ["building.partition", 0.6, 0.1],
+};
+/** Door frames between rooms stand taller than the partitions, so a doorway reads from the town. */
+const DOOR_FRAME = 1.05;
+/** Floors with a character of their own; the other rooms keep the studio's cream cells. */
+const FLOOR_VARIANT: Partial<Record<RoomKind, string>> = {
+  lobby: "tile",
+  "lead-office": "wood",
+  meeting: "wood",
+  storage: "concrete",
+  dispatch: "concrete",
+};
+/** Ivy on an archived building, building cells: the back wall's outer face, the front corners. */
+const IVY: { x: number; z: number; width: number; height: number; rotation: number }[] = [
+  { x: -0.15, z: 5, width: 2.2, height: 1.5, rotation: -Math.PI / 2 },
+  { x: -0.15, z: 19, width: 1.6, height: 1.2, rotation: -Math.PI / 2 },
+  { x: 7.5, z: DEPTH + 0.15, width: 1.4, height: 0.5, rotation: 0 },
+  { x: 19, z: DEPTH + 0.15, width: 1.2, height: 0.45, rotation: 0 },
+];
 
 export interface BuildingContext {
   style: ResolvedStyle;
@@ -82,6 +119,14 @@ export class BuildingView {
   #shell = new THREE.Group();
   /** The static parts of the shell (walls, flag, emblem, signs), batched per material. */
   #shellStatic = new THREE.Group();
+  /**
+   * The tall back walls, merged on their own, each with a low stand-in: when the camera turns to look from the north
+   * or the west, that side's tall wall gives way to its low rim so the rooms stay in view.
+   */
+  #backWalls = {
+    north: { tall: new THREE.Group(), low: new THREE.Group() },
+    west: { tall: new THREE.Group(), low: new THREE.Group() },
+  };
   #merged: THREE.BufferGeometry[] = [];
   #furnitureMerged: THREE.BufferGeometry[] = [];
   #furniture: THREE.Group | null = null;
@@ -110,7 +155,8 @@ export class BuildingView {
     this.template = buildingTemplate(building);
     this.#archivedCount = building.archivedCount;
     // The north-west corner never moves: role rooms grow east inside the reserved plot.
-    this.group.position.set(centre.x - (MAX_WIDTH * CELL) / 2, 0.17, centre.z - plotSize / 2 + PLOT_MARGIN);
+    // The floors stand on the slab, FLOOR_RISE above the lawn.
+    this.group.position.set(centre.x - (MAX_WIDTH * CELL) / 2, 0.17 + FLOOR_RISE, centre.z - plotSize / 2 + PLOT_MARGIN);
     this.#objects = new ObjectLayer(building.slug, {
       style: ctx.style,
       now: ctx.now,
@@ -125,6 +171,8 @@ export class BuildingView {
       surface: (s) => surfacesOf(ctx.style)[s],
       toWorld: (v) => v.add(this.group.position),
     });
+    const back = this.#backWalls;
+    this.group.add(back.north.tall, back.north.low, back.west.tall, back.west.low);
     this.group.add(this.#shell, this.#shellStatic, this.#piles, this.#agents, this.#signals, this.#objects.group, this.#props.group);
   }
 
@@ -187,74 +235,109 @@ export class BuildingView {
     return cellAt(this.template, (point.x - this.group.position.x) / CELL, (point.z - this.group.position.z) / CELL);
   }
 
-  /* ── Shell: floors, walls, door step, flag, emblem, room signs ───────────── */
+  /* ── Shell: slab, floors, walls, doors, flag, emblem, room signs, the truck's apron ─────────────── */
 
   #buildShell() {
     const { style } = this.ctx;
     this.#shell.clear();
     this.#shellStatic.clear();
+    for (const side of Object.values(this.#backWalls)) for (const g of [side.tall, side.low]) g.clear();
     for (const g of this.#merged) g.dispose();
     const b = this.building;
-    const accent = (b.color ?? null) as PaletteName | null;
+    // An archived building keeps its colour out of the shell: muted sage and timber, never dark.
+    const accent = b.archived ? null : ((b.color ?? null) as PaletteName | null);
     const variant = b.archived ? "archived" : undefined;
     const opt = (o: object) => (variant ? { ...o, variant } : o);
+    const add = (object: THREE.Object3D, x: number, z: number, y = 0, rotation = 0) => {
+      object.position.copy(this.local(x, z, y));
+      object.rotation.y = rotation;
+      this.#shellStatic.add(object);
+      return object;
+    };
     for (const room of this.template.rooms) {
       const { width, depth } = room.layout.grid;
       const present = b.rooms.find((r) => r.kind === room.kind)?.present ?? true;
-      const floor = style.model("floor", { size: { width: width * CELL, height: 0, depth: depth * CELL }, ...(b.archived || !present ? { variant: "dim" } : {}) });
-      floor.position.copy(this.local(room.origin.x + width / 2, room.origin.z + depth / 2, 0.02));
+      const cx = room.origin.x + width / 2,
+        cz = room.origin.z + depth / 2;
+      const look = b.archived || !present ? "dim" : FLOOR_VARIANT[room.kind];
+      const floor = style.model("floor", { size: { width: width * CELL, height: 0, depth: depth * CELL }, ...(look ? { variant: look } : {}) });
+      floor.position.copy(this.local(cx, cz, 0.02));
       floor.traverse((o) => (o.userData.room = room.kind));
       this.#shell.add(floor);
-      const sign = style.model("room.sign");
+      add(style.model("building.slab", opt({ size: { width: width * CELL, height: FLOOR_RISE, depth: depth * CELL }, accent })), cx, cz);
       const at = this.#signSpot(room.kind);
-      sign.position.copy(this.local(at.x, at.z, 0.02));
-      this.#shellStatic.add(sign);
+      add(style.model("room.sign"), at.x, at.z, 0.02);
       this.anchors.set(`r:${b.slug}:${room.kind}`, this.world(at.x, at.z, 0.35));
     }
+    // North and west are the tall back walls (the glass wall and the chalk wall), south and east low rims to look in
+    // over, and the partitions between rooms in between.
     for (const run of wallRuns(this.template)) {
       const horizontal = run.z1 === run.z2;
       const length = (horizontal ? run.x2 - run.x1 : run.z2 - run.z1) * CELL;
-      const key: ModelKey = run.side === "north" ? "wall.glass" : run.side === "west" ? "wall" : "wall.low";
-      const height = run.side === "north" || run.side === "west" ? TALL_WALL : LOW_WALL;
-      const wall = style.model(key, opt({ size: { width: length + WALL, height, depth: WALL }, accent: run.side === "inner" ? null : accent }));
-      wall.position.copy(this.local((run.x1 + run.x2) / 2, (run.z1 + run.z2) / 2));
-      if (!horizontal) wall.rotation.y = Math.PI / 2;
-      this.#shellStatic.add(wall);
-    }
-    const entrance = this.template.doors.find((d) => d.b.room === "town");
-    if (entrance) {
-      const step = style.model("door", { size: { width: 1.2, height: 0.06, depth: 0.5 } });
-      step.position.copy(this.local(entrance.b.cell.x + 0.5, DEPTH + 0.4));
-      this.#shellStatic.add(step);
-      if (b.archived) {
-        const planks = style.model("building.planks", { size: { width: 0.8, height: 0.4, depth: 0.05 } });
-        planks.position.copy(this.local(entrance.b.cell.x + 0.5, DEPTH));
-        this.#shellStatic.add(planks);
+      const [key, height, depth] = WALLS[run.side];
+      const wall = add(style.model(key, opt({ size: { width: length + depth, height, depth } })), (run.x1 + run.x2) / 2, (run.z1 + run.z2) / 2, 0, horizontal ? 0 : Math.PI / 2);
+      if (run.side === "north" || run.side === "west") {
+        const [lowKey, lowHeight, lowDepth] = WALLS.south;
+        const low = style.model(lowKey, opt({ size: { width: length + lowDepth, height: lowHeight, depth: lowDepth } }));
+        low.position.copy(wall.position);
+        low.rotation.y = wall.rotation.y;
+        this.#backWalls[run.side].tall.add(wall);
+        this.#backWalls[run.side].low.add(low);
       }
     }
-    const flag = style.model("building.flag", opt({ accent }));
-    flag.position.copy(this.local(-0.6, -0.6));
-    this.#shellStatic.add(flag);
-    if (b.icon) {
-      const emblem = style.model(`emblem.${b.icon as EmblemName}`, { accent });
-      emblem.position.copy(this.local(ENTRANCE.x + 4, DEPTH + 1.3));
-      this.#shellStatic.add(emblem);
+    for (const opening of doorOpenings(this.template)) {
+      const horizontal = opening.z1 === opening.z2;
+      const width = (horizontal ? opening.x2 - opening.x1 : opening.z2 - opening.z1) * CELL;
+      const x = (opening.x1 + opening.x2) / 2,
+        z = (opening.z1 + opening.z2) / 2;
+      const rotation = horizontal ? 0 : Math.PI / 2;
+      if (opening.id === "entrance") {
+        add(style.model("door", opt({ size: { width, height: FLOOR_RISE, depth: 0.16 }, accent })), x, z, 0, rotation);
+        // The closed sign hangs from the awning's front edge.
+        if (b.archived) add(style.model("building.closed-sign"), x, z + 1.15, 1.4);
+      } else if (opening.id === "loading") add(style.model("building.loading-door", opt({ size: { width, height: 1.2, depth: 0.16 } })), x, z, 0, rotation);
+      else add(style.model("building.door-frame", opt({ size: { width, height: DOOR_FRAME, depth: 0.14 } })), x, z, 0, rotation);
     }
-    // The truck parks in front of Dispatch, nose to the west, ready to drive off the plot.
+    // Outside, on the lawn: the flag at the north-west corner, the emblem by the path, the truck's apron.
+    add(style.model("building.flag", opt({ accent })), -0.6, -0.6, -FLOOR_RISE);
+    if (b.icon) add(style.model(`emblem.${b.icon as EmblemName}`, { accent }), ENTRANCE.x + 4, DEPTH + 1.6, -FLOOR_RISE);
+    const apron = { x: (LOADING.x1 + LOADING.x2) / 2, z: DEPTH + 2.4 };
+    add(style.model("building.apron", { size: { width: (LOADING.x2 - LOADING.x1 + 2) * CELL, height: FLOOR_RISE, depth: 4 * CELL } }), apron.x, apron.z);
+    if (b.archived) {
+      // Boarded up but still pretty: ivy on the back wall and up the front corners.
+      IVY.forEach((spot, i) => add(style.model("building.ivy", { size: { width: spot.width, height: spot.height, depth: 0.1 }, seed: i + 1 }), spot.x, spot.z, 0, spot.rotation));
+    }
+    // The truck backs up to dispatch's loading door, nose to the street, ready to drive off the plot.
     if (!b.archived) {
       this.#truck = style.model("truck", { accent });
-      this.#truckHome.copy(this.local(TRUCK_SPOT.x, TRUCK_SPOT.z));
+      this.#truckHome.copy(this.local(TRUCK_SPOT.x, TRUCK_SPOT.z, -FLOOR_RISE));
       this.#truck.position.copy(this.#truckHome);
-      this.#truck.rotation.y = Math.PI;
+      this.#truck.rotation.y = -Math.PI / 2;
       this.#truck.scale.setScalar(0.85);
       this.#shell.add(this.#truck);
-      this.#truckTarget.copy(this.#truckHome).setY(0.55);
+      this.#truckTarget.copy(this.#truckHome).setY(0.55 - FLOOR_RISE);
     } else this.#truck = null;
-    this.anchors.set(`truck:${b.slug}`, this.world(TRUCK_SPOT.x, TRUCK_SPOT.z, 1));
+    this.anchors.set(`truck:${b.slug}`, this.world(TRUCK_SPOT.x, TRUCK_SPOT.z, 1 - FLOOR_RISE));
     this.#merged = mergeStatic(this.#shellStatic);
+    for (const side of Object.values(this.#backWalls)) for (const g of [side.tall, side.low]) this.#merged.push(...mergeStatic(g));
+    // Every frame the shell is drawn, check where the camera looks from (the one-frame lag is invisible).
+    const probe = this.#shellStatic.children.find((c) => c instanceof THREE.Mesh);
+    if (probe) probe.onBeforeRender = (_renderer, _scene, camera) => this.#faceCamera(camera);
+    this.#faceCamera(null);
     this.#applyFocus();
   }
 
+  /** Shows a tall back wall only while the camera looks at its inner face (from the south and east, as at home). */
+  #faceCamera(camera: THREE.Camera | null) {
+    const o = this.group.position;
+    const north = !camera || camera.position.z > o.z + (DEPTH * CELL) / 2;
+    const west = !camera || camera.position.x > o.x + (this.template.size.width * CELL) / 2;
+    const back = this.#backWalls;
+    back.north.tall.visible = north;
+    back.north.low.visible = !north;
+    back.west.tall.visible = west;
+    back.west.low.visible = !west;
+  }
 
   #signSpot(kind: RoomKind): { x: number; z: number } {
     const room = roomOf(this.template, kind)!;
@@ -519,7 +602,7 @@ export class BuildingView {
       truck.visible = t > 0.6;
     } else if (t < 0.55) {
       const u = t / 0.55;
-      truck.position.copy(this.#truckHome).setX(this.#truckHome.x - u * u * 4.5);
+      truck.position.copy(this.#truckHome).setZ(this.#truckHome.z + u * u * 4.5);
       this.ctx.style.materialise(truck, 1 - Math.max(0, (u - 0.6) / 0.4));
     } else {
       truck.position.copy(this.#truckHome);
