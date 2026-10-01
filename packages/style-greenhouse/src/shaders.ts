@@ -165,6 +165,11 @@ export function pavingShader(material: THREE.MeshStandardMaterial, stone: [numbe
 /** Grass with a soft mottle in world space, so wide lawns are never one flat colour. */
 /** The evening (0 by day, 1 in lamplight): the grass mottles more and warms in patches (set by `townLight`). */
 export const GRASS_NIGHT = { value: 0 };
+/**
+ * 0 by day and in lamplight, up to 1 in the light theme's dusk and dawn (set by `townLight`): a warm low sun on green
+ * reads olive and khaki, so the lawns keep their colour, a little richer and towards a golden green.
+ */
+export const GRASS_GOLDEN = { value: 0 };
 
 export function grassShader(material: THREE.MeshStandardMaterial, amount: number): THREE.MeshStandardMaterial {
   material.roughness = 1;
@@ -172,7 +177,8 @@ export function grassShader(material: THREE.MeshStandardMaterial, amount: number
   material.onBeforeCompile = (shader) => {
     worldXZ(shader);
     shader.uniforms.uGrassNight = GRASS_NIGHT;
-    shader.fragmentShader = shader.fragmentShader.replace("varying vec2 vTownXZ;", "varying vec2 vTownXZ;\nuniform float uGrassNight;").replace(
+    shader.uniforms.uGrassGolden = GRASS_GOLDEN;
+    shader.fragmentShader = shader.fragmentShader.replace("varying vec2 vTownXZ;", "varying vec2 vTownXZ;\nuniform float uGrassNight;\nuniform float uGrassGolden;").replace(
       "#include <color_fragment>",
       `#include <color_fragment>
       float mottle = townNoise(vTownXZ * 0.18) * 0.6 + townNoise(vTownXZ * 0.9) * 0.3 + townHash(floor(vTownXZ * 9.0)) * 0.1;
@@ -181,6 +187,10 @@ export function grassShader(material: THREE.MeshStandardMaterial, amount: number
       // Evening: soft warm patches (dry grass, clover) so the dark lawns are not one flat green.
       float warm = smoothstep(0.42, 0.75, townNoise(vTownXZ * 0.11 + 7.0)) * uGrassNight;
       diffuseColor.rgb *= mix(vec3(1.0), vec3(1.24, 1.08, 0.8), warm);
+      // Golden hour: more saturation and a fresh green that the warm sun turns golden, never grey-yellow.
+      float grassLuma = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+      diffuseColor.rgb = max(mix(vec3(grassLuma), diffuseColor.rgb, 1.0 + 0.3 * uGrassGolden), 0.0);
+      diffuseColor.rgb *= mix(vec3(1.0), vec3(1.0, 1.03, 0.84), uGrassGolden);
     `,
     );
   };
