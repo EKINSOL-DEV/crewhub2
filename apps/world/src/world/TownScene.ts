@@ -156,6 +156,7 @@ export class TownScene {
   #labelsHost: HTMLElement;
   #labels: Label[] = [];
   #stacks: Label[] = [];
+  #signs: Label[] = [];
   #span = 30;
   #raf = 0;
   #last = 0;
@@ -501,7 +502,7 @@ export class TownScene {
   refreshLabels() {
     const previous = new Map(this.#labels.map((l) => [l.el, l]));
     this.#labels = [...this.#labelsHost.querySelectorAll<HTMLElement>("[data-anchor]")].map(
-      (el) => previous.get(el) ?? { el, id: "", half: 0, height: 0, stack: false, x: Number.NaN, y: Number.NaN, nx: 0, ny: 0, visible: false },
+      (el) => previous.get(el) ?? { el, id: "", half: 0, height: 0, stack: false, sign: false, x: Number.NaN, y: Number.NaN, nx: 0, ny: 0, visible: false },
     );
     for (const l of this.#labels) {
       l.id = l.el.dataset.anchor ?? "";
@@ -509,6 +510,7 @@ export class TownScene {
       l.half = (box?.offsetWidth ?? 0) / 2;
       l.height = box?.offsetHeight ?? 0;
       l.stack = HANGING.test(l.id);
+      l.sign = l.id.startsWith("r:");
       l.x = Number.NaN;
     }
     this.invalidate();
@@ -986,8 +988,10 @@ export class TownScene {
     const canvas = this.renderer.domElement;
     const width = canvas.clientWidth,
       height = canvas.clientHeight;
-    const stacks = this.#stacks;
+    const stacks = this.#stacks,
+      signs = this.#signs;
     stacks.length = 0;
+    signs.length = 0;
     for (const label of this.#labels) {
       const anchor = this.#anchors.get(label.id);
       let visible = false,
@@ -1004,8 +1008,9 @@ export class TownScene {
       label.ny = y;
       label.visible = visible;
       if (visible && label.stack) stacks.push(label);
+      if (visible && label.sign) signs.push(label);
     }
-    if (stacks.length > 1) nudgeStacks(stacks);
+    if (stacks.length > 1 || (stacks.length && signs.length)) nudgeStacks(stacks, signs);
     for (const label of this.#labels) {
       const x = label.nx,
         y = label.ny,
@@ -1053,6 +1058,8 @@ interface Label {
   height: number;
   /** A hanging label (a robot's pill and bubble, a tag), which keeps clear of its neighbours. */
   stack: boolean;
+  /** A room sign: it keeps its place, and hanging labels keep clear of it. */
+  sign: boolean;
   /** Placed position, and this frame's position before it is applied. */
   x: number;
   y: number;
@@ -1062,20 +1069,33 @@ interface Label {
 }
 
 /**
- * Two robots side by side would pile their pills and bubbles on each other, and so would tags on neighbouring desks.
+ * Two robots side by side would pile their pills and bubbles on each other, and so would tags on neighbouring desks,
+ * or a tag on a room sign (with Details on).
  * Each hangs above its anchor (bottom centred on it); from the front of the scene (lowest on screen) back, a label that
  * would overlap one already placed moves up just above it, so the nearer thing keeps its label where it stands.
  */
-function nudgeStacks(stacks: Label[]) {
+function nudgeStacks(stacks: Label[], signs: readonly Label[]) {
   stacks.sort((a, b) => b.ny - a.ny || (a.id < b.id ? -1 : 1));
-  for (let i = 1; i < stacks.length; i++) {
+  for (let i = 0; i < stacks.length; i++) {
     const l = stacks[i]!;
-    for (let pass = 0; pass < 4; pass++) {
+    for (let pass = 0; pass < 6; pass++) {
       let moved = false;
       for (let j = 0; j < i; j++) {
         const o = stacks[j]!;
         if (Math.abs(l.nx - o.nx) < l.half + o.half + LABEL_GAP && l.ny > o.ny - o.height - LABEL_GAP && l.ny - l.height < o.ny + LABEL_GAP) {
           l.ny = o.ny - o.height - LABEL_GAP;
+          moved = true;
+        }
+      }
+      // A room sign stands fixed, its box from 10 % of its width left of its anchor and centred on it vertically
+      // (world.css): a label that would touch one moves up above it.
+      for (const s of signs) {
+        const left = s.nx - s.half * 0.2,
+          right = left + s.half * 2,
+          top = s.ny - s.height / 2,
+          bottom = s.ny + s.height / 2;
+        if (l.nx + l.half + LABEL_GAP > left && l.nx - l.half - LABEL_GAP < right && l.ny + LABEL_GAP > top && l.ny - l.height - LABEL_GAP < bottom) {
+          l.ny = top - LABEL_GAP;
           moved = true;
         }
       }
