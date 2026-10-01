@@ -542,8 +542,20 @@ export class TownScene {
     return { span, target };
   }
 
+  /**
+   * The home frame. On a portrait phone it frames tight (`homeRects` compact) and lets the town run under the side
+   * controls, so the town fills the tall screen instead of floating small in its middle.
+   */
+  #homeFrame() {
+    const canvas = this.renderer.domElement;
+    const portrait = canvas.clientWidth < canvas.clientHeight * 0.8;
+    const insets = this.insets();
+    const rects = homeRects(this.view.model.buildings.length, portrait ? 0 : 1.5, portrait);
+    return this.frameRects(rects, 2, HOME_OFFSET, portrait ? { ...insets, left: 0, right: 0 } : insets);
+  }
+
   home(immediate: boolean) {
-    const { target } = this.frameRects(homeRects(this.view.model.buildings.length), 2, HOME_OFFSET, this.insets());
+    const { target } = this.#homeFrame();
     this.moveTo(target, target.clone().add(HOME_OFFSET), 1, immediate);
   }
 
@@ -719,7 +731,7 @@ export class TownScene {
       position = this.camera.position.clone();
     this.controls.target.set(0, 0, 0);
     this.camera.position.copy(HOME_OFFSET);
-    this.#span = this.frameRects(homeRects(this.view.model.buildings.length), 2, HOME_OFFSET, this.insets()).span;
+    this.#span = this.#homeFrame().span;
     // Zoom is relative to the home frame: however large the town, the closest view is about one desk.
     this.controls.maxZoom = Math.max(4, this.#span / DESK_SPAN);
     this.controls.target.copy(target);
