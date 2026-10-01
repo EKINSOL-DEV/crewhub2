@@ -1,0 +1,171 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-town-tall-grass",
+  "name": "Tall grass",
+  "description": "A loose clump of long grass blades.",
+  "category": "greenery",
+  "tags": [
+    "greenhouse",
+    "town"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "cone",
+      "size": [
+        0.04,
+        0.55,
+        0
+      ],
+      "position": [
+        0.12,
+        0.287,
+        0.0
+      ],
+      "material": "leaf",
+      "rotation": [
+        0.0,
+        0,
+        14.0
+      ]
+    },
+    {
+      "shape": "cone",
+      "size": [
+        0.04,
+        0.73,
+        0
+      ],
+      "position": [
+        0.084,
+        0.377,
+        0.086
+      ],
+      "material": "sage",
+      "rotation": [
+        10.043,
+        45,
+        9.754
+      ]
+    },
+    {
+      "shape": "cone",
+      "size": [
+        0.04,
+        0.91,
+        0
+      ],
+      "position": [
+        -0.004,
+        0.467,
+        0.12
+      ],
+      "material": "leaf-dark",
+      "rotation": [
+        13.994,
+        90,
+        -0.409
+      ]
+    },
+    {
+      "shape": "cone",
+      "size": [
+        0.04,
+        0.55,
+        0
+      ],
+      "position": [
+        -0.088,
+        0.287,
+        0.081
+      ],
+      "material": "moss",
+      "rotation": [
+        9.456,
+        135,
+        -10.324
+      ]
+    },
+    {
+      "shape": "cone",
+      "size": [
+        0.04,
+        0.73,
+        0
+      ],
+      "position": [
+        -0.12,
+        0.377,
+        -0.007
+      ],
+      "material": "leaf",
+      "rotation": [
+        -0.817,
+        180,
+        -13.976
+      ]
+    },
+    {
+      "shape": "cone",
+      "size": [
+        0.04,
+        0.91,
+        0
+      ],
+      "position": [
+        -0.078,
+        0.467,
+        -0.091
+      ],
+      "material": "sage",
+      "rotation": [
+        -10.595,
+        225,
+        -9.151
+      ]
+    },
+    {
+      "shape": "cone",
+      "size": [
+        0.04,
+        0.55,
+        0
+      ],
+      "position": [
+        0.01,
+        0.287,
+        -0.12
+      ],
+      "material": "leaf-dark",
+      "rotation": [
+        -13.946,
+        270,
+        1.225
+      ]
+    },
+    {
+      "shape": "cone",
+      "size": [
+        0.04,
+        0.73,
+        0
+      ],
+      "position": [
+        0.093,
+        0.377,
+        -0.076
+      ],
+      "material": "moss",
+      "rotation": [
+        -8.838,
+        315,
+        10.858
+      ]
+    }
+  ]
+}

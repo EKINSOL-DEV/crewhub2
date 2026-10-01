@@ -672,12 +672,28 @@ function belt(add: Add, tree: Tree, free: (x: number, z: number, pad: number) =>
       const t = i / count;
       const nx = -(z1 - z0) / length,
         nz = (x1 - x0) / length;
-      const depth = 1.6 + noise(seed, 2) * 3.6;
-      const x = clamp(x0 + (x1 - x0) * t + nx * depth + (noise(seed, 3) - 0.5) * 0.8, b.minX + 1.2, b.maxX - 1.2),
-        z = clamp(z0 + (z1 - z0) * t + nz * depth + (noise(seed, 4) - 0.5) * 0.8, b.minZ + 1.2, b.maxZ - 1.2);
+      const depth = 0.9 + noise(seed, 2) * 4.3;
+      const x = clamp(x0 + (x1 - x0) * t + nx * depth + (noise(seed, 3) - 0.5) * 0.8, b.minX + 0.9, b.maxX - 0.9),
+        z = clamp(z0 + (z1 - z0) * t + nz * depth + (noise(seed, 4) - 0.5) * 0.8, b.minZ + 0.9, b.maxZ - 0.9);
       if (!free(x, z, 1)) continue;
       if (noise(seed, 5) < 0.2) add("town.bush", x, GRASS_Y, z, { seed, scale: 1 + noise(seed, 6) * 0.4 });
       else tree(x, z, GRASS_Y, seed, 1.5);
+    }
+    // The rim itself: tall grass, rocks and bushes right at the lip, so the edge line never runs straight.
+    const rim = Math.floor(length / 1.7);
+    for (let i = 0; i <= rim; i++) {
+      seed++;
+      const t = (i + noise(seed, 7) * 0.6) / rim;
+      const nx = -(z1 - z0) / length,
+        nz = (x1 - x0) / length;
+      const inset = 0.25 + noise(seed, 8) * 0.5;
+      const x = clamp(x0 + (x1 - x0) * t + nx * inset, b.minX + 0.2, b.maxX - 0.2),
+        z = clamp(z0 + (z1 - z0) * t + nz * inset, b.minZ + 0.2, b.maxZ - 0.2);
+      if (!free(x, z, 0.4)) continue;
+      const pick = noise(seed, 9);
+      if (pick < 0.5) add("town.tall-grass", x, GRASS_Y, z, { seed, rotation: noise(seed, 10) * 6.28, scale: 1.6 + noise(seed, 11) * 1.4 });
+      else if (pick < 0.68) add("town.rock", x, GRASS_Y, z, { seed, rotation: noise(seed, 10) * 6.28, scale: 0.8 + noise(seed, 11) * 1.1 });
+      else if (pick < 0.8) add("town.bush", x, GRASS_Y, z, { seed, scale: 0.9 + noise(seed, 11) * 0.5 });
     }
   };
   // Clockwise, so the inward normal points into the town.
