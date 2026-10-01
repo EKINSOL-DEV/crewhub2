@@ -2,7 +2,7 @@
    steps), pick a named material, set the footprint, name and category; a live preview through the style's parts
    renderer; Save runs `validatePropModel` and lists its errors. One prop's JSON can be exported and imported. Zero
    cost: nothing here calls a model. */
-import { useEffect, useState, type ChangeEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { Download, Trash2, X } from "lucide-react";
 import {
   PROP_CATEGORIES,
@@ -69,6 +69,10 @@ export function PropEditor({ initial, takenIds, theme, onSave, onClose }: Props)
   const [index, setIndex] = useState(0);
   const [errors, setErrors] = useState<PropIssue[]>([]);
   const [note, setNote] = useState("");
+  const errorBox = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (errors.length) errorBox.current?.scrollIntoView({ block: "nearest" });
+  }, [errors]);
   const part = draft.parts[index] ?? null;
   const preview = draftToModel(draft, keepId);
 
@@ -234,7 +238,7 @@ export function PropEditor({ initial, takenIds, theme, onSave, onClose }: Props)
           )}
 
           {errors.length > 0 && (
-            <div className="editor-errors" role="alert">
+            <div ref={errorBox} className="editor-errors" role="alert">
               <strong>Not saved:</strong>
               <ul>
                 {errors.map((e, i) => (
