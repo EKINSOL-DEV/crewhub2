@@ -61,6 +61,8 @@ export function roomSign(kit: Kit): THREE.Group {
   const g = new THREE.Group();
   put(g, kit.box(0.46, 0.035, 0.2, "timber-trim", 0.012), 0, 0.02, 0);
   put(g, kit.box(0.4, 0.01, 0.14, "cream", 0.004), 0, 0.042, 0);
+  // Flat on the floor: no shadow worth a draw call.
+  g.traverse((m) => (m.castShadow = false));
   return g;
 }
 

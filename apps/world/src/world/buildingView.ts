@@ -46,6 +46,9 @@ const WALLS: Record<WallRun["side"], [ModelKey, number, number]> = {
   east: ["wall.low", 0.22, 0.12],
   inner: ["building.partition", 0.6, 0.1],
 };
+/** A pick target that is never drawn: the renderer skips invisible materials, the raycaster does not. */
+const PICK_ONLY = new THREE.MeshBasicMaterial({ visible: false });
+
 const noShadow = (object: THREE.Object3D) => (object.traverse((o) => (o.castShadow = false)), object);
 
 /** The far-detail class of each furniture and dressing piece (the style draws `building.silhouette` per class). */
@@ -309,7 +312,13 @@ export class BuildingView {
       const look = b.archived || !present ? "dim" : FLOOR_VARIANT[room.kind];
       const floor = style.model("floor", { size: { width: width * CELL, height: 0, depth: depth * CELL }, ...(look ? { variant: look } : {}) });
       floor.position.copy(this.local(cx, cz, 0.02));
-      floor.traverse((o) => (o.userData.room = room.kind));
+      // Drawn from the static batch (one mesh per floor material); the room-tagged original stays as the pick target,
+      // with a material the renderer skips (the object itself stays visible, which picking asks for).
+      this.#shellStatic.add(floor.clone());
+      floor.traverse((o) => {
+        o.userData.room = room.kind;
+        if (o instanceof THREE.Mesh) o.material = PICK_ONLY;
+      });
       this.#shell.add(floor);
       add(style.model("building.slab", opt({ size: { width: width * CELL, height: FLOOR_RISE, depth: depth * CELL }, accent })), cx, cz);
       const at = this.#signSpot(room.kind);
@@ -379,14 +388,26 @@ export class BuildingView {
       for (const tall of [true, false]) {
         const group = tall ? walls.tall : walls.low;
         this.#merged.push(...mergeStatic(group));
-        // Decided per draw from the camera that draws it: a mesh that should not show collapses for that draw (its
-        // world matrix is rebuilt before the next frame), so there is no lag after a rotation and the tall walls
-        // still cast their shadows (shadow passes call onBeforeShadow, not this).
-        for (const mesh of group.children)
+        for (const mesh of group.children) {
+          // The low stand-in is a rim: its shadow is lost under the slab's lip anyway.
+          if (!tall) mesh.castShadow = false;
+          // The frame a rotation crosses a side, the wrong variant is still visible: it collapses for that draw.
           mesh.onBeforeRender = (_renderer, _scene, camera) => {
             if (this.#seesInside(side, camera) !== tall) mesh.matrixWorld.makeScale(0, 0, 0);
           };
+        }
       }
+    // Each draw of the shell sets which variant the next frames draw, so only one of them costs draw calls.
+    const probe = this.#shellStatic.children.find((c) => c instanceof THREE.Mesh);
+    if (probe)
+      probe.onBeforeRender = (_renderer, _scene, camera) => {
+        for (const [side, walls] of Object.entries(this.#backWalls) as ["north" | "west", { tall: THREE.Group; low: THREE.Group }][]) {
+          const inside = this.#seesInside(side, camera);
+          walls.tall.visible = inside;
+          walls.low.visible = !inside;
+        }
+      };
+    for (const walls of Object.values(this.#backWalls)) walls.low.visible = false;
     this.#applyFocus();
   }
 
