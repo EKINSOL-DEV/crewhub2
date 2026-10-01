@@ -1,17 +1,69 @@
-/* Static batching: a building's shell and furniture never move, so their meshes are baked into one merged mesh per
-   material. Style-agnostic: it works on whatever the style returned. Meshes that must stay pickable (room floors
-   carry `userData.room`), moving parts (`userData.live`), instanced meshes and meshes with attributes of their own (a style's decals) are kept as
-   they are. */
+/* Static batching: a building's shell and furniture never move, so their meshes are baked into merged meshes.
+   Style-agnostic: it works on whatever the style returned. Meshes that must stay pickable (room floors carry
+   `userData.room`), moving parts (`userData.live`), instanced meshes and meshes with attributes of their own (a
+   style's decals) are kept as they are.
+
+   Plain opaque materials that differ only by colour (a chalk wall, a timber trim, a sage sill) merge into one mesh
+   per look: each vertex carries its source material's index, and the merged material reads the colour from a palette
+   of the source materials' own colour objects, so a theme change that re-colours them shows at once. Other materials
+   (a style's shader, glass, a glowing window) merge per material, as before. */
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
 const MERGED = ["position", "normal", "uv"];
+/** Colours per palette batch; a look with more starts another batch. */
+const PALETTE = 32;
+const MAPS = ["map", "normalMap", "roughnessMap", "metalnessMap", "emissiveMap", "aoMap", "lightMap", "alphaMap", "bumpMap", "displacementMap", "envMap"] as const;
 
-/** Replaces the static meshes under `root` with merged meshes; returns the geometries it created (to dispose). */
+interface Batch {
+  geometries: THREE.BufferGeometry[];
+  shadow: boolean;
+  /** Palette batches: the source materials, by palette index. */
+  palette: THREE.MeshStandardMaterial[] | null;
+  material: THREE.Material;
+}
+
+/**
+ * The look of a material without its colour, when it can join a palette batch: a plain, opaque, untextured standard
+ * material with no glow of its own (glowing materials change their emissive with the theme) and no shader changes.
+ */
+function look(material: THREE.Material, castShadow: boolean): string | null {
+  if (material.type !== "MeshStandardMaterial") return null;
+  const m = material as THREE.MeshStandardMaterial;
+  if (m.transparent || m.vertexColors || m.wireframe || m.alphaTest > 0 || m.emissive.getHex() !== 0) return null;
+  if (m.onBeforeCompile !== THREE.Material.prototype.onBeforeCompile) return null;
+  if (MAPS.some((name) => m[name])) return null;
+  return [m.roughness, m.metalness, m.side, m.flatShading, m.depthWrite, m.depthTest, m.polygonOffset, m.polygonOffsetFactor, m.polygonOffsetUnits, m.toneMapped, m.fog, castShadow].join("|");
+}
+
+/** A white copy of `source` that takes each vertex's colour from `palette` (the source materials' live colours). */
+function paletteMaterial(source: THREE.MeshStandardMaterial, palette: THREE.MeshStandardMaterial[]): THREE.MeshStandardMaterial {
+  const material = source.clone();
+  material.color.set(1, 1, 1);
+  const colors = palette.map((m) => m.color);
+  // The uniform array has a fixed size per program: pad it, so batches share a few programs.
+  while (colors.length < PALETTE) colors.push(colors[0]!);
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uPalette = { value: colors };
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", `#include <common>\nattribute float aSwatch;\nuniform vec3 uPalette[${PALETTE}];\nvarying vec3 vSwatch;`)
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvSwatch = uPalette[int(aSwatch + 0.5)];");
+    shader.fragmentShader = shader.fragmentShader
+      .replace("#include <common>", "#include <common>\nvarying vec3 vSwatch;")
+      .replace("#include <color_fragment>", "#include <color_fragment>\ndiffuseColor.rgb *= vSwatch;");
+  };
+  material.customProgramCacheKey = () => `merge-palette-${PALETTE}`;
+  return material;
+}
+
+/**
+ * Replaces the static meshes under `root` with merged meshes; returns the geometries it created (to dispose).
+ * Disposing a palette batch's geometry also disposes the material made for it.
+ */
 export function mergeStatic(root: THREE.Group): THREE.BufferGeometry[] {
   root.updateMatrixWorld(true);
   const inverse = new THREE.Matrix4().copy(root.matrixWorld).invert();
-  const byMaterial = new Map<THREE.Material, { geometries: THREE.BufferGeometry[]; shadow: boolean }>();
+  const batches = new Map<unknown, Batch[]>();
   const merged: THREE.Mesh[] = [];
   root.traverse((o) => {
     // Live meshes (a style's moving parts, `userData.live`) keep their own transforms.
@@ -22,23 +74,43 @@ export function mergeStatic(root: THREE.Group): THREE.BufferGeometry[] {
     if (!source.attributes.uv) source.setAttribute("uv", new THREE.Float32BufferAttribute(new Float32Array(source.attributes.position!.count * 2), 2));
     if (!source.attributes.normal) source.computeVertexNormals();
     source.applyMatrix4(matrix);
-    const entry = byMaterial.get(o.material) ?? { geometries: [], shadow: false };
-    entry.geometries.push(source);
-    entry.shadow ||= o.castShadow;
-    byMaterial.set(o.material, entry);
+    const material = o.material as THREE.Material;
+    const key = look(material, o.castShadow);
+    const list = batches.get(key ?? material) ?? [];
+    batches.set(key ?? material, list);
+    if (key) {
+      const standard = material as THREE.MeshStandardMaterial;
+      let batch = list.find((b) => b.palette!.includes(standard) || b.palette!.length < PALETTE);
+      if (!batch) list.push((batch = { geometries: [], shadow: o.castShadow, palette: [], material }));
+      let index = batch.palette!.indexOf(standard);
+      if (index < 0) index = batch.palette!.push(standard) - 1;
+      source.setAttribute("aSwatch", new THREE.Float32BufferAttribute(new Float32Array(source.attributes.position!.count).fill(index), 1));
+      batch.geometries.push(source);
+    } else {
+      if (!list.length) list.push({ geometries: [], shadow: false, palette: null, material });
+      list[0]!.geometries.push(source);
+      list[0]!.shadow ||= o.castShadow;
+    }
     merged.push(o);
   });
   for (const mesh of merged) mesh.removeFromParent();
   const created: THREE.BufferGeometry[] = [];
-  for (const [material, { geometries, shadow }] of byMaterial) {
-    const geometry = mergeGeometries(geometries, false);
-    for (const g of geometries) g.dispose();
-    if (!geometry) continue;
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.castShadow = shadow;
-    mesh.receiveShadow = true;
-    root.add(mesh);
-    created.push(geometry);
-  }
+  for (const list of batches.values())
+    for (const { geometries, shadow, palette, material } of list) {
+      const geometry = mergeGeometries(geometries, false);
+      for (const g of geometries) g.dispose();
+      if (!geometry) continue;
+      let drawn = material;
+      if (palette) {
+        const own = paletteMaterial(material as THREE.MeshStandardMaterial, palette);
+        geometry.addEventListener("dispose", () => own.dispose());
+        drawn = own;
+      }
+      const mesh = new THREE.Mesh(geometry, drawn);
+      mesh.castShadow = shadow;
+      mesh.receiveShadow = true;
+      root.add(mesh);
+      created.push(geometry);
+    }
   return created;
 }
