@@ -119,6 +119,14 @@ export class BuildingView {
   #shell = new THREE.Group();
   /** The static parts of the shell (walls, flag, emblem, signs), batched per material. */
   #shellStatic = new THREE.Group();
+  /**
+   * The tall back walls, merged on their own, each with a low stand-in: when the camera turns to look from the north
+   * or the west, that side's tall wall gives way to its low rim so the rooms stay in view.
+   */
+  #backWalls = {
+    north: { tall: new THREE.Group(), low: new THREE.Group() },
+    west: { tall: new THREE.Group(), low: new THREE.Group() },
+  };
   #merged: THREE.BufferGeometry[] = [];
   #furnitureMerged: THREE.BufferGeometry[] = [];
   #furniture: THREE.Group | null = null;
@@ -163,6 +171,8 @@ export class BuildingView {
       surface: (s) => surfacesOf(ctx.style)[s],
       toWorld: (v) => v.add(this.group.position),
     });
+    const back = this.#backWalls;
+    this.group.add(back.north.tall, back.north.low, back.west.tall, back.west.low);
     this.group.add(this.#shell, this.#shellStatic, this.#piles, this.#agents, this.#signals, this.#objects.group, this.#props.group);
   }
 
@@ -231,6 +241,7 @@ export class BuildingView {
     const { style } = this.ctx;
     this.#shell.clear();
     this.#shellStatic.clear();
+    for (const side of Object.values(this.#backWalls)) for (const g of [side.tall, side.low]) g.clear();
     for (const g of this.#merged) g.dispose();
     const b = this.building;
     // An archived building keeps its colour out of the shell: muted sage and timber, never dark.
@@ -264,8 +275,15 @@ export class BuildingView {
       const horizontal = run.z1 === run.z2;
       const length = (horizontal ? run.x2 - run.x1 : run.z2 - run.z1) * CELL;
       const [key, height, depth] = WALLS[run.side];
-      const wall = style.model(key, opt({ size: { width: length + depth, height, depth } }));
-      add(wall, (run.x1 + run.x2) / 2, (run.z1 + run.z2) / 2, 0, horizontal ? 0 : Math.PI / 2);
+      const wall = add(style.model(key, opt({ size: { width: length + depth, height, depth } })), (run.x1 + run.x2) / 2, (run.z1 + run.z2) / 2, 0, horizontal ? 0 : Math.PI / 2);
+      if (run.side === "north" || run.side === "west") {
+        const [lowKey, lowHeight, lowDepth] = WALLS.south;
+        const low = style.model(lowKey, opt({ size: { width: length + lowDepth, height: lowHeight, depth: lowDepth } }));
+        low.position.copy(wall.position);
+        low.rotation.y = wall.rotation.y;
+        this.#backWalls[run.side].tall.add(wall);
+        this.#backWalls[run.side].low.add(low);
+      }
     }
     for (const opening of doorOpenings(this.template)) {
       const horizontal = opening.z1 === opening.z2;
@@ -275,7 +293,8 @@ export class BuildingView {
       const rotation = horizontal ? 0 : Math.PI / 2;
       if (opening.id === "entrance") {
         add(style.model("door", opt({ size: { width, height: FLOOR_RISE, depth: 0.16 }, accent })), x, z, 0, rotation);
-        if (b.archived) add(style.model("building.closed-sign"), x, z + 0.55, 1.42);
+        // The closed sign hangs from the awning's front edge.
+        if (b.archived) add(style.model("building.closed-sign"), x, z + 1.15, 1.4);
       } else if (opening.id === "loading") add(style.model("building.loading-door", opt({ size: { width, height: 1.2, depth: 0.16 } })), x, z, 0, rotation);
       else add(style.model("building.door-frame", opt({ size: { width, height: DOOR_FRAME, depth: 0.14 } })), x, z, 0, rotation);
     }
@@ -300,7 +319,24 @@ export class BuildingView {
     } else this.#truck = null;
     this.anchors.set(`truck:${b.slug}`, this.world(TRUCK_SPOT.x, TRUCK_SPOT.z, 1 - FLOOR_RISE));
     this.#merged = mergeStatic(this.#shellStatic);
+    for (const side of Object.values(this.#backWalls)) for (const g of [side.tall, side.low]) this.#merged.push(...mergeStatic(g));
+    // Every frame the shell is drawn, check where the camera looks from (the one-frame lag is invisible).
+    const probe = this.#shellStatic.children.find((c) => c instanceof THREE.Mesh);
+    if (probe) probe.onBeforeRender = (_renderer, _scene, camera) => this.#faceCamera(camera);
+    this.#faceCamera(null);
     this.#applyFocus();
+  }
+
+  /** Shows a tall back wall only while the camera looks at its inner face (from the south and east, as at home). */
+  #faceCamera(camera: THREE.Camera | null) {
+    const o = this.group.position;
+    const north = !camera || camera.position.z > o.z + (DEPTH * CELL) / 2;
+    const west = !camera || camera.position.x > o.x + (this.template.size.width * CELL) / 2;
+    const back = this.#backWalls;
+    back.north.tall.visible = north;
+    back.north.low.visible = !north;
+    back.west.tall.visible = west;
+    back.west.low.visible = !west;
   }
 
   #signSpot(kind: RoomKind): { x: number; z: number } {

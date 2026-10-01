@@ -213,12 +213,12 @@ export function ivy(kit: Kit, o: ModelOptions): THREE.Group {
   const g = new THREE.Group();
   let seed = (o.seed ?? 1) * 9301 + 49297;
   const random = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
-  const clusters = Math.max(6, Math.round(width * height * 22));
+  const clusters = Math.max(8, Math.round(width * height * 26));
   const colours = ["leaf", "leaf-dark", "moss"];
   for (let i = 0; i < clusters; i++) {
     const x = (random() - 0.5) * width;
     const y = Math.pow(random(), 1.7) * height;
-    const r = 0.07 + random() * 0.07;
+    const r = 0.08 + random() * 0.09;
     const leaf = put(g, kit.sphere(0.1, colours[i % 3]!), x, y + r, 0.02 + random() * 0.03);
     leaf.scale.set(r * 10, r * 9, r * 4);
   }
