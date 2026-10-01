@@ -1,8 +1,8 @@
 /* The Greenhouse kit: shared geometry and materials by swatch name, re-coloured in place on a theme change so every
    model built from them follows the lamplight variant. Colours live only in `style.json`. */
 import * as THREE from "three";
-import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import type { GraphicsQuality, LightingPreset, PaletteName, StyleTheme } from "@crewhub/world-style";
+import { roundedBoxGeometry } from "./roundedBox.ts";
 import { decalMaterial } from "./shaders.ts";
 
 export interface GreenhouseManifestData {
@@ -175,7 +175,7 @@ export class Kit {
     // A bevel of 3 cm or less reads the same with one segment; walls and trims are mostly that, at a third the triangles.
     const segments = radius <= 0.03 ? 1 : 2;
     return this.mesh(
-      this.geometry(`box:${w},${h},${d},${radius}`, () => new RoundedBoxGeometry(w, h, d, segments, Math.min(radius, w / 3, h / 3, d / 3))),
+      this.geometry(`box:${w},${h},${d},${radius}`, () => roundedBoxGeometry(w, h, d, segments, Math.min(radius, w / 3, h / 3, d / 3))),
       this.material(color),
     );
   }

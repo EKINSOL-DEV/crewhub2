@@ -1,0 +1,401 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "user:delivery-truck",
+  "name": "Delivery truck",
+  "description": "A small sage delivery truck with a cream cargo box, a coral side stripe, round headlights and a rear door.",
+  "category": "work",
+  "tags": [
+    "truck",
+    "vehicle",
+    "delivery"
+  ],
+  "footprint": {
+    "width": 2,
+    "depth": 3
+  },
+  "blocksMovement": true,
+  "approaches": [
+    {
+      "x": 0,
+      "z": 3
+    },
+    {
+      "x": 1,
+      "z": 3
+    }
+  ],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.8,
+        0.1,
+        1.7
+      ],
+      "position": [
+        0,
+        0.2,
+        0
+      ],
+      "material": "slate",
+      "radius": 0.03
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.8,
+        0.62,
+        1.0
+      ],
+      "position": [
+        0,
+        0.56,
+        0.3
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.76,
+        0.5,
+        0.56
+      ],
+      "position": [
+        0,
+        0.5,
+        -0.47
+      ],
+      "material": "sage"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.76,
+        0.25,
+        0.2
+      ],
+      "position": [
+        0,
+        0.375,
+        -0.8
+      ],
+      "material": "moss"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.66,
+        0.2,
+        0.02
+      ],
+      "position": [
+        0,
+        0.6,
+        -0.745
+      ],
+      "material": "glass",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.02,
+        0.2,
+        0.3
+      ],
+      "position": [
+        -0.385,
+        0.6,
+        -0.47
+      ],
+      "material": "glass",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.02,
+        0.1,
+        0.7
+      ],
+      "position": [
+        -0.405,
+        0.56,
+        0.3
+      ],
+      "material": "coral",
+      "radius": 0.01
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.04,
+        0.04,
+        0.02
+      ],
+      "position": [
+        -0.25,
+        0.38,
+        -0.9
+      ],
+      "material": "lamp-glow",
+      "emissive": true
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.14,
+        0.1,
+        0.14
+      ],
+      "position": [
+        -0.42,
+        0.14,
+        -0.5
+      ],
+      "material": "ink",
+      "rotation": [
+        0,
+        0,
+        90
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.07,
+        0.02,
+        0.07
+      ],
+      "position": [
+        -0.475,
+        0.14,
+        -0.5
+      ],
+      "material": "brass",
+      "rotation": [
+        0,
+        0,
+        90
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.14,
+        0.1,
+        0.14
+      ],
+      "position": [
+        -0.42,
+        0.14,
+        0.45
+      ],
+      "material": "ink",
+      "rotation": [
+        0,
+        0,
+        90
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.07,
+        0.02,
+        0.07
+      ],
+      "position": [
+        -0.475,
+        0.14,
+        0.45
+      ],
+      "material": "brass",
+      "rotation": [
+        0,
+        0,
+        90
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.02,
+        0.2,
+        0.3
+      ],
+      "position": [
+        0.385,
+        0.6,
+        -0.47
+      ],
+      "material": "glass",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.02,
+        0.1,
+        0.7
+      ],
+      "position": [
+        0.405,
+        0.56,
+        0.3
+      ],
+      "material": "coral",
+      "radius": 0.01
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.04,
+        0.04,
+        0.02
+      ],
+      "position": [
+        0.25,
+        0.38,
+        -0.9
+      ],
+      "material": "lamp-glow",
+      "emissive": true
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.14,
+        0.1,
+        0.14
+      ],
+      "position": [
+        0.42,
+        0.14,
+        -0.5
+      ],
+      "material": "ink",
+      "rotation": [
+        0,
+        0,
+        90
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.07,
+        0.02,
+        0.07
+      ],
+      "position": [
+        0.475,
+        0.14,
+        -0.5
+      ],
+      "material": "brass",
+      "rotation": [
+        0,
+        0,
+        90
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.14,
+        0.1,
+        0.14
+      ],
+      "position": [
+        0.42,
+        0.14,
+        0.45
+      ],
+      "material": "ink",
+      "rotation": [
+        0,
+        0,
+        90
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.07,
+        0.02,
+        0.07
+      ],
+      "position": [
+        0.475,
+        0.14,
+        0.45
+      ],
+      "material": "brass",
+      "rotation": [
+        0,
+        0,
+        90
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.7,
+        0.5,
+        0.02
+      ],
+      "position": [
+        0,
+        0.56,
+        0.805
+      ],
+      "material": "chalk",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.3,
+        0.03,
+        0.02
+      ],
+      "position": [
+        0,
+        0.56,
+        0.825
+      ],
+      "material": "brass",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.7,
+        0.07,
+        0.06
+      ],
+      "position": [
+        0,
+        0.2,
+        -0.93
+      ],
+      "material": "graphite"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.7,
+        0.07,
+        0.05
+      ],
+      "position": [
+        0,
+        0.2,
+        0.82
+      ],
+      "material": "graphite"
+    }
+  ]
+}
