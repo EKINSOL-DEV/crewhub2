@@ -503,6 +503,8 @@ export function fountainWater(g: THREE.Group, kit: Kit, base = 0) {
     drop.castShadow = false;
     return drop;
   });
+  // The moving parts are live: static batching (a renderer's mergeStatic) leaves them as they are.
+  for (const live of [curtain, ...rings, ...drops]) live.userData.live = true;
   let t = 0;
   const step = (seconds: number) => {
     t += seconds;
@@ -812,6 +814,8 @@ export function windmill(kit: Kit): THREE.Group {
       }
       sails.position.copy(hub);
       sails.rotation.z = 0.35;
+      // The sails turn: renderers that batch static meshes must leave them as they are.
+      sails.traverse((o) => (o.userData.live = true));
       g.add(sails);
       g.userData.animate = (seconds: number) => {
         sails.rotation.z -= seconds * 0.45;
