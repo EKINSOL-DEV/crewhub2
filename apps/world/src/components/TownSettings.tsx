@@ -1,0 +1,82 @@
+/* The town document's part of Settings: the style (from the document; one option tonight), where the town is kept,
+   export and import of the whole town as JSON, and the rules table that switches rule props. An invalid import
+   shows its precise error and changes nothing. */
+import { useState, type ChangeEvent } from "react";
+import { Download } from "lucide-react";
+import { exportTownDocument, RULE_IDS, type RuleId } from "@crewhub/world-model";
+import type { TownState } from "../state/town";
+import { townRuntime } from "../state/town";
+import { styleRegistry } from "../world/style";
+import { downloadText } from "./download";
+import { Button, Field } from "./primitives";
+
+const RULES: Record<RuleId, { name: string; fact: string }> = {
+  "milestone-banner": { name: "Milestone banner", fact: "a banner in the lobby per active milestone" },
+  "release-crate": { name: "Release crate", fact: "a crate at Dispatch per draft release" },
+  "deploy-sticker": { name: "Rocket sticker", fact: "a rocket on tickets labelled awaiting-deploy" },
+  "bug-jar": { name: "Bug jar", fact: "a jar on the lead's desk counting open bugs" },
+  "release-trophy": { name: "Release trophy", fact: "a trophy on the lead's desk per published release" },
+};
+
+export function TownSettings({ town }: { town: TownState }) {
+  const [importNote, setImportNote] = useState<{ ok: boolean; text: string } | null>(null);
+  const style = styleRegistry.getStyle(town.doc.styleId).manifest;
+
+  const importFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.currentTarget.files?.[0];
+    e.currentTarget.value = "";
+    if (!file) return;
+    const result = townRuntime().importText(await file.text());
+    setImportNote(result.ok ? { ok: true, text: `Imported ${file.name}. Undo goes back to the town before it.` } : { ok: false, text: `${file.name} was not imported, nothing changed: ${result.error}` });
+  };
+
+  return (
+    <>
+      <fieldset className="town-settings">
+        <legend className="label">Town</legend>
+        <p className="settings-style">Style: {style.name}</p>
+        <p className="hint">The only style tonight; buildings follow the town style unless their plot names another.</p>
+        <p className="hint">
+          Layout revision {town.doc.revision}.{" "}
+          {town.storage === "indexeddb" ? "Kept in this browser (IndexedDB)." : "Kept in memory only: it is lost on reload."}
+          {town.storageNote && ` ${town.storageNote}`}
+        </p>
+        <div className="town-file">
+          <Button size="sm" icon={<Download className="icon" aria-hidden="true" />} onClick={() => downloadText(`crewhub-town-r${town.doc.revision}.json`, exportTownDocument(town.doc))}>
+            Export the town
+          </Button>
+          <Field
+            control="file"
+            size="sm"
+            label="Import a town"
+            accept="application/json,.json"
+            onChange={(e) => void importFile(e)}
+            {...(importNote && !importNote.ok ? { error: importNote.text } : importNote ? { hint: importNote.text } : {})}
+          />
+        </div>
+      </fieldset>
+      <fieldset className="rule-settings">
+        <legend className="label">Rule props</legend>
+        <p className="hint">Props made from loops facts, labelled "rule" in the scene.</p>
+        <table className="rules-table">
+          <thead>
+            <tr>
+              <th scope="col">Rule</th>
+              <th scope="col">From the fact</th>
+            </tr>
+          </thead>
+          <tbody>
+            {RULE_IDS.map((rule) => (
+              <tr key={rule}>
+                <td>
+                  <Field control="checkbox" label={RULES[rule].name} checked={town.doc.rules[rule]} onChange={(e) => townRuntime().edit({ type: "set-rule", rule, on: e.currentTarget.checked })} />
+                </td>
+                <td className="sign-muted">{RULES[rule].fact}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </fieldset>
+    </>
+  );
+}

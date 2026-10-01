@@ -9,6 +9,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { AgentPlacement, RoomKind, WorldModel } from "@crewhub/world-model";
 import type { EnvironmentHandle, ResolvedStyle, RobotHandle, RobotPosture, StyleTheme } from "@crewhub/world-style";
 import { BuildingView, type Pick } from "./buildingView";
+import type { TownLayer } from "./propLayer";
 import { styleRegistry } from "./style";
 import type { StyledPlot } from "./styleRegistry";
 import { civicCenter, PLOT_SIZE, plotCenter, TOWN_CAPACITY, townBounds, usedBounds, type Bounds } from "./townLayout";
@@ -28,7 +29,10 @@ export interface TownView {
   theme: StyleTheme;
   /** Source time now (ms): drone flights run on it, so they follow the playback speed. */
   now: () => number;
+  /** The town document and build mode's ghost and selection (applied to the entered building only). */
+  town: TownLayer | null;
 }
+export type BuildPointer = "move" | "click" | "drag" | "drop";
 export type CameraAction = "home" | "rotate-left" | "rotate-right" | "zoom-in" | "zoom-out";
 interface Callbacks {
   enter: (slug: string) => void;
@@ -36,14 +40,14 @@ interface Callbacks {
   /** Inside a building: a pointer over (hover) or a click on an agent, an object or a room; null clears. */
   pick: (target: Pick | null, hover: boolean) => void;
   error: () => void;
+  /** Build mode: the room cell under the pointer (null off the floor) and what a click hit. */
+  build: (kind: BuildPointer, at: { room: RoomKind; cell: { x: number; z: number } } | null, pick: Pick | null) => void;
 }
 
 const ROBOT_SCALE = 0.62;
 const CIVIC_LAWN = 9;
 const HOME_OFFSET = new THREE.Vector3(1, 1.04, 1).normalize().multiplyScalar(90);
 const UP = new THREE.Vector3(0, 1, 0);
-/** Plot styles: tonight no plot sets one, so every building resolves to the town default. Phase 5 stores them. */
-const PLOTS: Record<string, StyledPlot> = {};
 
 export class TownScene {
   readonly renderer: THREE.WebGLRenderer;
@@ -82,6 +86,10 @@ export class TownScene {
   #right = new THREE.Vector3();
   #up = new THREE.Vector3();
   #hitList: THREE.Intersection[] = [];
+  #floor = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.19);
+  #floorHit = new THREE.Vector3();
+  #buildCell = "";
+  #dragging = false;
 
   constructor(host: HTMLElement, labels: HTMLElement, view: TownView, callbacks: Callbacks) {
     this.view = view;
@@ -198,16 +206,19 @@ export class TownScene {
       seen.add(b.slug);
       let view = this.#buildings.get(b.slug);
       const c = plotCenter(index);
-      if (!view || view.group.userData.index !== index) {
+      // A plot's own style id when it has one, else the town document's default (tonight both are Greenhouse).
+      const plot: StyledPlot = { styleId: this.view.town?.doc.plots.find((p) => p.slug === b.slug)?.styleId ?? this.view.town?.doc.styleId ?? null };
+      const style = styleRegistry.styleFor(plot);
+      if (!view || view.group.userData.index !== index || view.ctx.style !== style) {
         view?.dispose();
-        const style = styleRegistry.styleFor(PLOTS[b.slug]);
         if (style !== this.townStyle) style.setTheme(this.view.theme);
         view = new BuildingView(b, c, PLOT_SIZE, { style, now: () => this.view.now(), reducedMotion: () => this.view.reducedMotion });
         view.group.userData.index = index;
         this.#buildings.set(b.slug, view);
         this.scene.add(view.group);
       }
-      view.update(b, this.view.entered === b.slug);
+      const town = this.view.town;
+      view.update(b, this.view.entered === b.slug, town && (this.view.entered === b.slug ? town : { ...town, build: null }));
       view.setFocus(this.view.entered === b.slug ? this.view.room : null);
       for (const [id, v] of view.anchors) this.#anchors.set(id, v);
       this.#anchors.set(`b:${b.slug}`, new THREE.Vector3(c.x, 0.2, c.z + PLOT_SIZE / 2));
@@ -267,7 +278,7 @@ export class TownScene {
     this.view = view;
     this.controls.enableDamping = !view.reducedMotion;
     if (previous.theme !== view.theme) this.applyTheme(view.theme);
-    if (previous.model !== view.model || previous.entered !== view.entered || previous.room !== view.room) this.sync();
+    if (previous.model !== view.model || previous.entered !== view.entered || previous.room !== view.room || previous.town !== view.town) this.sync();
     if (previous.entered !== view.entered) {
       if (view.entered) this.frameBuilding(view.entered, view.zoomed);
       else this.home(false);
@@ -375,11 +386,42 @@ export class TownScene {
     }
     return null;
   }
+  /** Build mode inside the entered building. */
+  get #building(): boolean {
+    return !!this.view.entered && !!this.view.town?.build?.on;
+  }
+  /** The room cell of the entered building under the pointer. */
+  buildCellAt(event: PointerEvent): { room: RoomKind; cell: { x: number; z: number } } | null {
+    const view = this.view.entered ? this.#buildings.get(this.view.entered) : undefined;
+    if (!view) return null;
+    this.#setPointer(event);
+    return this.#ray.ray.intersectPlane(this.#floor, this.#floorHit) ? view.cellAtWorld(this.#floorHit) : null;
+  }
   pointerDown = (event: PointerEvent) => {
     this.#down = { x: event.clientX, y: event.clientY };
+    if (event.button !== 0 || !this.#building) return;
+    // Pressing on the selected prop drags it instead of panning the camera.
+    const hit = this.pickAt(event);
+    const selected = this.view.town?.build?.selected;
+    if (hit?.kind === "prop" && selected && hit.id === selected) {
+      this.#dragging = true;
+      this.controls.enabled = false;
+      this.renderer.domElement.setPointerCapture?.(event.pointerId);
+    }
   };
   pointerUp = (event: PointerEvent) => {
+    if (this.#dragging) {
+      this.#dragging = false;
+      this.controls.enabled = true;
+      this.callbacks.build("drop", this.buildCellAt(event), null);
+      return;
+    }
     if (event.button !== 0 || Math.hypot(event.clientX - this.#down.x, event.clientY - this.#down.y) > 6) return;
+    if (this.#building) {
+      const at = this.buildCellAt(event);
+      this.callbacks.build("click", at, this.pickAt(event));
+      return;
+    }
     if (this.view.entered) {
       this.callbacks.pick(this.pickAt(event), false);
       return;
@@ -389,6 +431,15 @@ export class TownScene {
     if (b) this.callbacks.enter(b.slug);
   };
   pointerMove = (event: PointerEvent) => {
+    if (this.#dragging || (!event.buttons && this.#building)) {
+      const at = this.buildCellAt(event);
+      const key = at ? `${at.room}:${at.cell.x},${at.cell.z}` : "";
+      if (key !== this.#buildCell) {
+        this.#buildCell = key;
+        this.callbacks.build(this.#dragging ? "drag" : "move", at, null);
+      }
+      if (this.#dragging) return;
+    }
     if (event.buttons) return;
     if (this.view.entered) {
       const found = this.pickAt(event);

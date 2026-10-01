@@ -653,3 +653,270 @@
   left: auto;
   right: 0;
 }
+
+/* ── Build mode: error crates and rule props in the scene (markup in WorldCanvas) ── */
+.signal-tag.error-tag {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+  color: var(--text);
+}
+.rule-tag {
+  position: absolute;
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  transform: translate(-50%, -100%);
+  padding: 1px var(--space-2) 1px 2px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-2xs);
+  white-space: nowrap;
+  background: color-mix(in oklab, var(--surface-raised) 90%, transparent);
+  color: var(--text-muted);
+  border: 1px dashed var(--border-strong);
+}
+.rule-word {
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--mist);
+  color: var(--mist-text);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-meta);
+}
+
+/* ── Build mode: the palette card (markup in BuildPanel) ── */
+.build-sheet {
+  top: 7.25rem;
+  left: var(--space-4);
+  width: min(20rem, calc(100% - 2 * var(--space-4)));
+  max-height: calc(100dvh - 13rem);
+}
+.build-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.build-sheet .card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.build-toolbar,
+.build-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.build-status {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text);
+}
+.build-message {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+.chip.ghost-ok {
+  align-self: flex-start;
+  background: var(--status-done-soft);
+  color: var(--status-done);
+}
+.chip.ghost-bad {
+  align-self: flex-start;
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.build-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.build-palette {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.build-palette li {
+  display: flex;
+  gap: var(--space-1);
+}
+.build-palette .palette-item {
+  flex: 1;
+  justify-content: space-between;
+  min-width: 0;
+}
+.palette-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.palette-meta {
+  color: var(--text-muted);
+  font-size: var(--text-2xs);
+  white-space: nowrap;
+}
+.build-request {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+.build-request .btn {
+  align-self: flex-start;
+}
+.build-request-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* ── The prop editor (markup in PropEditor) ── */
+.editor-sheet {
+  top: 4.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(44rem, calc(100% - 2 * var(--space-4)));
+  max-height: calc(100dvh - 6rem);
+}
+.editor-body {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1fr) minmax(16rem, 1.3fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+.parts-preview {
+  position: sticky;
+  top: 0;
+  height: 16rem;
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.parts-preview canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.editor-fields,
+.editor-part {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.editor-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.editor-row > legend {
+  margin-bottom: var(--space-1);
+}
+.editor-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+.editor-add .label {
+  width: 100%;
+}
+.editor-parts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.editor-parts li {
+  display: flex;
+}
+.editor-errors {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--danger-soft);
+  color: var(--text);
+  font-size: var(--text-sm);
+}
+.editor-errors ul {
+  margin: var(--space-1) 0 0;
+  padding-left: var(--space-4);
+}
+.editor-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+.editor-import {
+  max-width: 14rem;
+}
+
+/* ── Settings: the town and the rules table (markup in TownSettings) ── */
+.town-settings,
+.rule-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  border: 0;
+}
+.town-file {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+.rules-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+.rules-table th {
+  text-align: left;
+  font-weight: var(--weight-medium);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  padding-bottom: var(--space-1);
+}
+.rules-table td {
+  padding: var(--space-1) var(--space-2) var(--space-1) 0;
+  vertical-align: top;
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 700px) {
+  .editor-body {
+    grid-template-columns: 1fr;
+  }
+  .parts-preview {
+    position: static;
+    height: 12rem;
+  }
+}
+@media (max-width: 600px) {
+  .build-sheet {
+    top: auto;
+    left: var(--space-3);
+    right: var(--space-3);
+    bottom: 4.5rem;
+    width: auto;
+    max-height: 45dvh;
+  }
+  .editor-sheet {
+    top: var(--space-3);
+    max-height: calc(100dvh - 2 * var(--space-3));
+  }
+}

@@ -79,7 +79,8 @@ faces +z, and one world unit is one metre (a grid cell is 0.6).
 | `pallet` | A full pile wrapped on a pallet; also the pile height in the town view. | |
 | `drone`, `cart`, `truck` | The ticket drone, the postman's cart, the Dispatch truck. | `accent` |
 | `beacon`, `trophy`, `banner`, `desk-lamp`, `quiet-clock` | The attention beacon, the release trophy and banner, a desk lamp (`variant: "dim"` when a desk's ticket is stalled), the stall clock. | `variant`, `accent` |
-| `error-crate` | Stands in for a prop that failed validation. | |
+| `crate`, `jar`, `sticker.rocket` | Rule props (plan 6.3): the release crate at Dispatch for a draft release, the bug jar on the lead's desk, the rocket that rides on a ticket labelled `awaiting-deploy`. The trophy and the milestone `banner` are rule props too. | |
+| `error-crate` | Stands in for a prop that failed validation, or a placement that no longer fits its room. | |
 | `sparkle`, `focus-ring` | The celebration and materialise sparkle; the keyboard focus frame around a room or plot. | `size` |
 
 Conventions for models:
@@ -111,7 +112,7 @@ Data first, code where it needs code.
 | Data (`style.json`, `models/*.json`) | Code (`src/`) |
 | --- | --- |
 | The manifest, palette, swatches and both lighting presets. | `robot.ts`: the soft robot and its posture rig. |
-| 27 parts-JSON models: the four ticket looks, both tags, the name tag, letters, mailbox, both pallets, trophy, banner, both desk lamps, quiet clock, error crate, drone body, cart, truck, beacon, rack, planning table, review pile, meeting table. | `shaders.ts`: the floor, glass and halo shaders. |
+| 30 parts-JSON models: the four ticket looks, both tags, the name tag, letters, mailbox, both pallets, trophy, banner, both desk lamps, quiet clock, error crate, drone body, cart, truck, beacon, rack, planning table, review pile, meeting table, release crate, bug jar, rocket sticker. | `shaders.ts`: the floor, glass and halo shaders. |
 | A variant is a file `<key>.<variant>.json` (`ticket.tag.urgent.json`, `desk-lamp.dim.json`). | `pieces.ts`: pieces that stretch or repeat (walls, floors, ground, emblems, civic buildings, straps, bands, stickers, focus frame). |
 | A model tagged `accent-<material>` draws that material's parts in the caller's accent colour. | `furniture.ts`: the Greenhouse furniture with instanced leaves and a glowing screen (desk, plant, bench, lamp, sofa, table, shelf, workdesk, lead desk). |
 | | `index.ts`: the drone's rotor blades (the one code hook on a data model). |

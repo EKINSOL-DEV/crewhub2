@@ -54,6 +54,10 @@ export type ModelKey =
   | "beacon"
   | "trophy"
   | "banner"
+  /** Rule props (plan 6.3): the release crate in Dispatch, the bug jar on the lead's desk, a rocket on a ticket. */
+  | "crate"
+  | "jar"
+  | "sticker.rocket"
   | "desk-lamp"
   | "quiet-clock"
   | "error-crate"

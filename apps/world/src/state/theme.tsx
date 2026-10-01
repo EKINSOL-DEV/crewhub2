@@ -1,5 +1,5 @@
 /* Theme: system | light | dark on <html data-theme>, stored in this browser's localStorage. */
-import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 
 export type Theme = "system" | "light" | "dark";
 const STORAGE_KEY = "crewhub-theme";
@@ -69,4 +69,19 @@ export function useTheme(): ThemeState {
   const s = useContext(ThemeContext);
   if (!s) throw new Error("useTheme outside ThemeProvider");
   return s;
+}
+
+const darkQuery = () => window.matchMedia("(prefers-color-scheme: dark)");
+/** The resolved theme: an explicit choice, else the OS scheme. */
+export function useDark(): boolean {
+  const { theme } = useTheme();
+  const system = useSyncExternalStore(
+    (listener) => {
+      const q = darkQuery();
+      q.addEventListener("change", listener);
+      return () => q.removeEventListener("change", listener);
+    },
+    () => darkQuery().matches,
+  );
+  return theme === "dark" || (theme === "system" && system);
 }

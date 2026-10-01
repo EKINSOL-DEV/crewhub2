@@ -1,0 +1,403 @@
+/**
+ * The town document (`crewhub-town/1`): everything a person built locally, as one versioned JSON document. Plots,
+ * placements of catalogue props, the user props themselves (with provenance) and the rule-prop toggles. It is the
+ * unit of storage, undo, export and import. Pure: no DOM, no storage; `apps/world/src/state/townStore.ts` persists it.
+ *
+ * Every edit goes through `applyEdit`, which never mutates and returns a document with `revision + 1`. Grid rules
+ * (overlap, reachability) are not checked here: the room grid belongs to the renderer, so build mode validates a
+ * placement with the engine (`catalogue.ts` `roomLayout` + `WorldSimulation.placement`) before it applies the edit.
+ * This module keeps the document itself consistent: known styles, known props, unique ids.
+ */
+import { PROP_ID_PATTERN, validatePropModel } from "@crewhub/world-engine";
+import type { PropModel, PropValidation, Rotation } from "@crewhub/world-engine";
+import type { RoomKind } from "./model.ts";
+
+export const TOWN_FORMAT = "crewhub-town/1";
+export const DEFAULT_STYLE_ID = "greenhouse";
+
+/** Rule props: attachments made from facts (plan 6.3), each switchable in the rules table. */
+export const RULE_IDS = ["milestone-banner", "release-crate", "deploy-sticker", "bug-jar", "release-trophy"] as const;
+export type RuleId = (typeof RULE_IDS)[number];
+
+export const ROOM_KINDS: readonly RoomKind[] = [
+  "lobby",
+  "lead-office",
+  "workers",
+  "analyst",
+  "design",
+  "storage",
+  "planning",
+  "review",
+  "dispatch",
+  "meeting",
+];
+export const ATTACHMENT_KINDS = ["room", "agent", "ticket", "project"] as const;
+export type AttachmentKind = (typeof ATTACHMENT_KINDS)[number];
+
+/** Cells are room-grid (or town-grid) coordinates; the engine caps a grid at 128. */
+export const TOWN_LIMITS = { cellMax: 127, plotsMax: 64, placementsMax: 2000, userPropsMax: 200 } as const;
+
+export interface GridCell {
+  x: number;
+  z: number;
+}
+export interface Plot {
+  /** The loops project slug the plot holds. */
+  slug: string;
+  cell: GridCell;
+  /** Per-plot style; absent means the town default. No UI yet. */
+  styleId?: string;
+}
+export type PlacementSite = { building: string; room: RoomKind } | { town: true };
+export interface Attachment {
+  kind: AttachmentKind;
+  /** A loops id: room id (`slug:kind`), agent key, ticket key or project slug. */
+  ref: string;
+}
+export interface PlacedProp {
+  /** Stable instance id (a UUID), never `(propId, x, z)`. */
+  id: string;
+  /** Catalogue id: `builtin:desk` or `user:<slug>`. */
+  propId: string;
+  at: PlacementSite;
+  /** The footprint's first cell on the site's grid. */
+  cell: GridCell;
+  rotation: Rotation;
+  attachment?: Attachment;
+}
+export interface TownDocument {
+  format: typeof TOWN_FORMAT;
+  revision: number;
+  styleId: string;
+  plots: Plot[];
+  placements: PlacedProp[];
+  /** Always with provenance: `{kind: "ticket", ticketKey}` or `{kind: "local"}`. */
+  userProps: PropModel[];
+  rules: Record<RuleId, boolean>;
+}
+
+export interface TownIssue {
+  path: string;
+  message: string;
+}
+export type TownValidation = { ok: true; value: TownDocument } | { ok: false; errors: TownIssue[] };
+
+/** What the document is checked against: the registered styles and the props the app ships. */
+export interface TownContext {
+  knownStyles: readonly string[];
+  /** Namespaced ids of the shipped props (`builtin:desk`, ...), from `catalogue.ts` `builtinIds`. */
+  builtinIds: readonly string[];
+  /** Defaults to world-engine's `validatePropModel`, the same code as the prop:validate CLI. */
+  validateProp?: (value: unknown) => PropValidation;
+}
+
+export type TownEdit =
+  | { type: "place"; placement: PlacedProp }
+  | { type: "move"; id: string; at?: PlacementSite; cell: GridCell }
+  | { type: "rotate"; id: string; rotation: Rotation }
+  | { type: "attach"; id: string; attachment: Attachment | null }
+  | { type: "delete"; id: string }
+  /** Adds a user prop, or replaces the one with the same id (placements keep pointing at it). */
+  | { type: "add-user-prop"; prop: PropModel }
+  /** Removes a user prop and every placement of it. */
+  | { type: "remove-user-prop"; propId: string }
+  | { type: "set-rule"; rule: RuleId; on: boolean }
+  /** Adds or moves a plot; `cell: null` removes it. */
+  | { type: "set-plot"; slug: string; cell: GridCell | null; styleId?: string };
+
+export type EditResult = { ok: true; doc: TownDocument } | { ok: false; error: string };
+export type ImportResult = { ok: true; doc: TownDocument } | { ok: false; error: string; doc: TownDocument };
+
+export function emptyTownDocument(styleId: string = DEFAULT_STYLE_ID): TownDocument {
+  return {
+    format: TOWN_FORMAT,
+    revision: 0,
+    styleId,
+    plots: [],
+    placements: [],
+    userProps: [],
+    rules: Object.fromEntries(RULE_IDS.map((rule) => [rule, true])) as Record<RuleId, boolean>,
+  };
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const SLUG_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+const REF_MAX = 128;
+const DOC_KEYS = ["format", "revision", "styleId", "plots", "placements", "userProps", "rules"] as const;
+const PLOT_KEYS = ["slug", "cell", "styleId"] as const;
+const PLACEMENT_KEYS = ["id", "propId", "at", "cell", "rotation", "attachment"] as const;
+
+type Obj = Record<string, unknown>;
+const isObject = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
+const at = (base: string, key: string | number) => (typeof key === "number" ? `${base}[${key}]` : `${base}.${key}`);
+
+/** One readable line per issue, as `placements[2].propId: unknown prop "user:lamp"`. */
+export function formatTownIssue(issue: TownIssue): string {
+  return `${issue.path}: ${issue.message}`;
+}
+
+/**
+ * Strict validation of a town document from storage or an import. Unknown keys are errors, every user prop goes
+ * through the prop validator (its paths prefixed, as `userProps[0].parts[1].size[0]`), and every reference must
+ * resolve: styles, props, unique ids.
+ */
+export function validateTownDocument(value: unknown, context: TownContext): TownValidation {
+  const errors: TownIssue[] = [];
+  const error = (path: string, message: string) => errors.push({ path: path || "(root)", message });
+  const validateProp = context.validateProp ?? validatePropModel;
+  const unknownKeys = (obj: Obj, allowed: readonly string[], path: string) => {
+    for (const key of Object.keys(obj))
+      if (!allowed.includes(key)) error(path ? at(path, key) : key, `unknown key (allowed: ${allowed.join(", ")})`);
+  };
+  const cell = (v: unknown, path: string) => {
+    if (!isObject(v)) return error(path, "must be an object { x, z }");
+    unknownKeys(v, ["x", "z"], path);
+    for (const axis of ["x", "z"] as const) {
+      const n = v[axis];
+      if (!Number.isInteger(n) || (n as number) < 0 || (n as number) > TOWN_LIMITS.cellMax)
+        error(at(path, axis), `must be an integer from 0 to ${TOWN_LIMITS.cellMax}`);
+    }
+  };
+  const style = (v: unknown, path: string) => {
+    if (typeof v !== "string" || !context.knownStyles.includes(v))
+      error(path, `unknown style ${JSON.stringify(v)} (known: ${context.knownStyles.join(", ")})`);
+  };
+  const array = (v: unknown, path: string, max: number): v is unknown[] => {
+    if (!Array.isArray(v)) {
+      error(path, "must be an array");
+      return false;
+    }
+    if (v.length > max) error(path, `must have at most ${max} entries`);
+    return true;
+  };
+
+  if (!isObject(value)) return { ok: false, errors: [{ path: "(root)", message: "a town document must be a JSON object" }] };
+  unknownKeys(value, DOC_KEYS, "");
+  for (const key of DOC_KEYS) if (!(key in value)) error(key, "is required");
+  if ("format" in value && value.format !== TOWN_FORMAT) error("format", `must be "${TOWN_FORMAT}"`);
+  if ("revision" in value && (!Number.isSafeInteger(value.revision) || (value.revision as number) < 0))
+    error("revision", "must be a whole number of at least 0");
+  if ("styleId" in value) style(value.styleId, "styleId");
+
+  if ("plots" in value && array(value.plots, "plots", TOWN_LIMITS.plotsMax)) {
+    const slugs = new Set<string>(),
+      cells = new Set<string>();
+    value.plots.forEach((plot, i) => {
+      const path = at("plots", i);
+      if (!isObject(plot)) return error(path, "must be an object");
+      unknownKeys(plot, PLOT_KEYS, path);
+      if (typeof plot.slug !== "string" || !SLUG_PATTERN.test(plot.slug)) error(at(path, "slug"), "must be a project slug");
+      else if (slugs.has(plot.slug)) error(at(path, "slug"), `duplicate plot "${plot.slug}"`);
+      else slugs.add(plot.slug);
+      if (!("cell" in plot)) error(at(path, "cell"), "is required");
+      else {
+        const before = errors.length;
+        cell(plot.cell, at(path, "cell"));
+        const c = plot.cell as GridCell;
+        if (errors.length === before) {
+          if (cells.has(`${c.x},${c.z}`)) error(at(path, "cell"), `another plot already stands on ${c.x},${c.z}`);
+          cells.add(`${c.x},${c.z}`);
+        }
+      }
+      if ("styleId" in plot) style(plot.styleId, at(path, "styleId"));
+    });
+  }
+
+  const userIds = new Set<string>();
+  if ("userProps" in value && array(value.userProps, "userProps", TOWN_LIMITS.userPropsMax)) {
+    value.userProps.forEach((prop, i) => {
+      const path = at("userProps", i);
+      const result = validateProp(prop);
+      if (!result.ok) {
+        for (const issue of result.errors) error(issue.path === "(root)" ? path : `${path}.${issue.path}`, issue.message);
+        return;
+      }
+      const model = result.value;
+      if (!model.id.startsWith("user:")) error(at(path, "id"), 'a user prop id must start with "user:"');
+      else if (userIds.has(model.id)) error(at(path, "id"), `duplicate user prop "${model.id}"`);
+      else userIds.add(model.id);
+      if (!model.provenance) error(at(path, "provenance"), 'is required in the town ({ "kind": "local" } or a ticket key)');
+    });
+  }
+
+  if ("placements" in value && array(value.placements, "placements", TOWN_LIMITS.placementsMax)) {
+    const ids = new Set<string>();
+    value.placements.forEach((placement, i) => {
+      const path = at("placements", i);
+      if (!isObject(placement)) return error(path, "must be an object");
+      unknownKeys(placement, PLACEMENT_KEYS, path);
+      for (const key of ["id", "propId", "at", "cell", "rotation"]) if (!(key in placement)) error(at(path, key), "is required");
+      if ("id" in placement) {
+        if (typeof placement.id !== "string" || !UUID_PATTERN.test(placement.id)) error(at(path, "id"), "must be a UUID");
+        else if (ids.has(placement.id.toLowerCase())) error(at(path, "id"), `duplicate placement id "${placement.id}"`);
+        else ids.add(placement.id.toLowerCase());
+      }
+      if ("propId" in placement) {
+        const known = propKnown(placement.propId, context, userIds);
+        if (known !== true) error(at(path, "propId"), known);
+      }
+      if ("at" in placement) site(placement.at, at(path, "at"));
+      if ("cell" in placement) cell(placement.cell, at(path, "cell"));
+      if ("rotation" in placement && ![0, 1, 2, 3].includes(placement.rotation as number))
+        error(at(path, "rotation"), "must be 0, 1, 2 or 3 (quarter turns)");
+      if ("attachment" in placement) attachment(placement.attachment, at(path, "attachment"));
+    });
+  }
+
+  function site(v: unknown, path: string) {
+    if (!isObject(v)) return error(path, 'must be { "building", "room" } or { "town": true }');
+    if ("town" in v) {
+      unknownKeys(v, ["town"], path);
+      if (v.town !== true) error(at(path, "town"), "must be true");
+      return;
+    }
+    unknownKeys(v, ["building", "room"], path);
+    if (typeof v.building !== "string" || !SLUG_PATTERN.test(v.building)) error(at(path, "building"), "must be a project slug");
+    if (!ROOM_KINDS.includes(v.room as RoomKind)) error(at(path, "room"), `must be one of ${ROOM_KINDS.join(", ")}`);
+  }
+  function attachment(v: unknown, path: string) {
+    if (!isObject(v)) return error(path, "must be an object { kind, ref }");
+    unknownKeys(v, ["kind", "ref"], path);
+    if (!ATTACHMENT_KINDS.includes(v.kind as AttachmentKind)) error(at(path, "kind"), `must be one of ${ATTACHMENT_KINDS.join(", ")}`);
+    if (typeof v.ref !== "string" || v.ref.trim() === "" || v.ref.length > REF_MAX)
+      error(at(path, "ref"), `must be a non-empty id of at most ${REF_MAX} characters`);
+  }
+
+  if ("rules" in value) {
+    const rules = value.rules;
+    if (!isObject(rules)) error("rules", "must be an object of rule switches");
+    else {
+      unknownKeys(rules, RULE_IDS, "rules");
+      for (const rule of RULE_IDS) {
+        if (!(rule in rules)) error(at("rules", rule), "is required");
+        else if (typeof rules[rule] !== "boolean") error(at("rules", rule), "must be true or false");
+      }
+    }
+  }
+
+  if (errors.length) return { ok: false, errors };
+  return { ok: true, value: structuredClone(value) as unknown as TownDocument };
+}
+
+function propKnown(propId: unknown, context: TownContext, userIds: ReadonlySet<string>): true | string {
+  if (typeof propId !== "string" || !PROP_ID_PATTERN.test(propId)) return 'must be "builtin:<slug>" or "user:<slug>"';
+  if (propId.startsWith("builtin:") ? context.builtinIds.includes(propId) : userIds.has(propId)) return true;
+  return `unknown prop "${propId}"`;
+}
+
+const next = (doc: TownDocument, patch: Partial<TownDocument>): EditResult => ({
+  ok: true,
+  doc: { ...doc, ...patch, revision: doc.revision + 1 },
+});
+
+/**
+ * Applies one build-mode edit. Never mutates `doc`; the result has `revision + 1`. A rejected edit explains why in
+ * one sentence the UI can show.
+ */
+export function applyEdit(doc: TownDocument, edit: TownEdit, context: TownContext): EditResult {
+  const find = (id: string) => doc.placements.find((p) => p.id === id);
+  /** Checks a placement against the document by validating a one-placement document. */
+  const checkPlacement = (placement: PlacedProp): string | null => {
+    const probe = validateTownDocument({ ...doc, placements: [placement] }, context);
+    if (probe.ok) return null;
+    const issue = probe.errors.find((e) => e.path.startsWith("placements")) ?? probe.errors[0]!;
+    return `This placement is invalid: ${formatTownIssue(issue).replace("placements[0].", "")}.`;
+  };
+
+  switch (edit.type) {
+    case "place": {
+      if (find(edit.placement.id)) return { ok: false, error: `A placed prop with id ${edit.placement.id} already exists.` };
+      const problem = checkPlacement(edit.placement);
+      if (problem) return { ok: false, error: problem };
+      return next(doc, { placements: [...doc.placements, structuredClone(edit.placement)] });
+    }
+    case "move":
+    case "rotate":
+    case "attach": {
+      const current = find(edit.id);
+      if (!current) return { ok: false, error: `No placed prop with id ${edit.id}.` };
+      const changed: PlacedProp = structuredClone(current);
+      if (edit.type === "move") {
+        changed.cell = { ...edit.cell };
+        if (edit.at) changed.at = structuredClone(edit.at);
+      } else if (edit.type === "rotate") changed.rotation = edit.rotation;
+      else if (edit.attachment) changed.attachment = { ...edit.attachment };
+      else delete changed.attachment;
+      const problem = checkPlacement(changed);
+      if (problem) return { ok: false, error: problem };
+      return next(doc, { placements: doc.placements.map((p) => (p === current ? changed : p)) });
+    }
+    case "delete":
+      if (!find(edit.id)) return { ok: false, error: `No placed prop with id ${edit.id}.` };
+      return next(doc, { placements: doc.placements.filter((p) => p.id !== edit.id) });
+    case "add-user-prop": {
+      const others = doc.userProps.filter((p) => p.id !== edit.prop.id);
+      const probe = validateTownDocument({ ...doc, placements: [], userProps: [...others, edit.prop] }, context);
+      if (!probe.ok) {
+        const issue = probe.errors[0]!;
+        const path = issue.path.replace(/^userProps\[\d+\]\.?/, "");
+        return { ok: false, error: `This prop cannot be added: ${path ? `${path}: ` : ""}${issue.message}.` };
+      }
+      const prop = probe.value.userProps.at(-1)!;
+      const exists = doc.userProps.some((p) => p.id === prop.id);
+      return next(doc, {
+        userProps: exists ? doc.userProps.map((p) => (p.id === prop.id ? prop : p)) : [...doc.userProps, prop],
+      });
+    }
+    case "remove-user-prop":
+      if (!doc.userProps.some((p) => p.id === edit.propId)) return { ok: false, error: `No user prop ${edit.propId}.` };
+      return next(doc, {
+        userProps: doc.userProps.filter((p) => p.id !== edit.propId),
+        placements: doc.placements.filter((p) => p.propId !== edit.propId),
+      });
+    case "set-rule":
+      if (!RULE_IDS.includes(edit.rule)) return { ok: false, error: `Unknown rule ${edit.rule}.` };
+      return next(doc, { rules: { ...doc.rules, [edit.rule]: edit.on } });
+    case "set-plot": {
+      const others = doc.plots.filter((p) => p.slug !== edit.slug);
+      if (edit.cell === null) {
+        if (others.length === doc.plots.length) return { ok: false, error: `No plot for ${edit.slug}.` };
+        return next(doc, { plots: others });
+      }
+      const plot: Plot = { slug: edit.slug, cell: { ...edit.cell } };
+      const styleId = edit.styleId ?? doc.plots.find((p) => p.slug === edit.slug)?.styleId;
+      if (styleId !== undefined) plot.styleId = styleId;
+      const plots = doc.plots.some((p) => p.slug === edit.slug)
+        ? doc.plots.map((p) => (p.slug === edit.slug ? plot : p))
+        : [...doc.plots, plot];
+      const probe = validateTownDocument({ ...doc, plots, placements: [] }, context);
+      if (!probe.ok) return { ok: false, error: `This plot is invalid: ${formatTownIssue(probe.errors[0]!)}.` };
+      return next(doc, { plots });
+    }
+  }
+}
+
+/** The export file: the document as pretty JSON, ready to save. */
+export function exportTownDocument(doc: TownDocument): string {
+  return `${JSON.stringify(doc, null, 2)}\n`;
+}
+
+/**
+ * Imports an exported document. On success the imported town replaces the current one as the next revision
+ * (`current.revision + 1`), so history and storage stay monotonic. On failure `doc` is `current`, untouched, and
+ * `error` names the first problem (and how many more there are).
+ */
+export function importTownDocument(json: string, current: TownDocument, context: TownContext): ImportResult {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch (e) {
+    return { ok: false, error: `The file is not JSON: ${e instanceof Error ? e.message : String(e)}`, doc: current };
+  }
+  const result = validateTownDocument(parsed, context);
+  if (!result.ok) {
+    const more = result.errors.length - 1;
+    return {
+      ok: false,
+      error: `The town file is invalid: ${formatTownIssue(result.errors[0]!)}${more ? ` (and ${more} more)` : ""}`,
+      doc: current,
+    };
+  }
+  return { ok: true, doc: { ...result.value, revision: current.revision + 1 } };
+}
+
