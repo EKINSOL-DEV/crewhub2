@@ -19,7 +19,7 @@ function row(n: number) {
 
 test("repeated meshes become one instanced mesh and the emptied wrappers go", () => {
   const root = row(5);
-  const instanced = instanceStatic(root);
+  const instanced = instanceStatic(root, 3, 0);
   assert.equal(instanced.length, 1);
   assert.equal(instanced[0]!.count, 5);
   assert.deepEqual(root.children, instanced, "only the instanced mesh is left under the root");
@@ -27,7 +27,7 @@ test("repeated meshes become one instanced mesh and the emptied wrappers go", ()
 
 test("the culler draws only the instances near the view, and all of them again when the view widens", () => {
   const root = row(6);
-  const [mesh] = instanceStatic(root);
+  const [mesh] = instanceStatic(root, 3, 0);
   const culler = new InstanceCuller([mesh!]);
   const camera = new THREE.OrthographicCamera(-4, 4, 4, -4, 0.1, 100);
   camera.position.set(0, 30, 0);
@@ -45,4 +45,10 @@ test("the culler draws only the instances near the view, and all of them again w
   assert.equal(culler.update(camera), true);
   assert.equal(mesh!.count, 6);
   assert.equal(mesh!.visible, true);
+});
+
+test("a kind with few triangles in all stays for mergeStatic instead of costing a draw call", () => {
+  const root = row(4);
+  assert.equal(instanceStatic(root).length, 0, "4 boxes of 12 triangles are under the default budget");
+  assert.equal(root.children.length, 4);
 });

@@ -3,7 +3,7 @@
 import * as THREE from "three";
 import type { GraphicsQuality, LightingPreset, PaletteName, StyleTheme } from "@crewhub/world-style";
 import { roundedBoxGeometry } from "./roundedBox.ts";
-import { decalMaterial } from "./shaders.ts";
+import { cloudShadows, decalMaterial } from "./shaders.ts";
 
 export interface GreenhouseManifestData {
   palette: Record<PaletteName, string>;
@@ -68,13 +68,22 @@ export class Kit {
     return this.data.swatches[name] ?? (this.data.palette as Record<string, string>)[name] ?? this.data.swatches["no-project"]!;
   }
 
-  /** The shared toon-ish material of a swatch; `glow` makes it emissive (lamps, screens). */
-  material(name: Swatch, options: { glow?: Swatch | number; transparent?: number } = {}): THREE.MeshStandardMaterial {
+  /**
+   * The shared toon-ish material of a swatch; `glow` makes it emissive (lamps, screens). `instanced` gives the copy
+   * that instanced meshes draw with: one material drawn both plain and instanced makes three look its program up
+   * again at every switch.
+   */
+  material(name: Swatch, options: { glow?: Swatch | number; transparent?: number; instanced?: boolean } = {}): THREE.MeshStandardMaterial {
     const glow = options.glow === undefined ? null : typeof options.glow === "number" ? name : options.glow;
-    const key = `${name}|${glow ?? ""}|${typeof options.glow === "number" ? options.glow : ""}|${options.transparent ?? ""}`;
+    const key = `${name}|${glow ?? ""}|${typeof options.glow === "number" ? options.glow : ""}|${options.transparent ?? ""}${options.instanced ? "|instanced" : ""}`;
     let entry = this.#materials.get(key);
     if (!entry) {
       const material = new THREE.MeshStandardMaterial({ color: this.hex(name), roughness: glow ? 1 : 0.7, metalness: 0 });
+      // Passing clouds dim the key light on it (a pattern shader that replaces this hook adds them again). The hook
+      // only changes the lighting, so it is named in `userData.lightHook`: a renderer may batch the material and give
+      // its copy the same hook (apps/world robotCrowd.ts).
+      material.onBeforeCompile = cloudShadows;
+      material.userData.lightHook = cloudShadows;
       const strength = typeof options.glow === "number" ? options.glow : 0.35;
       if (glow) {
         material.emissive.set(this.hex(glow));

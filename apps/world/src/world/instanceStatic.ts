@@ -1,16 +1,22 @@
 /* Static instancing: the town dressing repeats the same few parts hundreds of times (a lantern's post, a tree's leaf
    blob, a fence post), and the style builds them from shared geometry and materials. Meshes under `root` that share
-   both become one InstancedMesh, so each kind of part is one draw call however many trees the town has.
+   both become one InstancedMesh, so each kind of part is one draw call however many trees the town has; kinds with
+   few triangles in all are left for mergeStatic, which bakes them into their material's one merged mesh.
    Style-agnostic, like mergeStatic: it works on whatever the style returned. Run mergeStatic afterwards for the
    one-off pieces it leaves (paving and lawns of one size each). */
 import * as THREE from "three";
 import { removeBaked } from "./mergeStatic.ts";
+import { useInstancedMaterials } from "./instancedMaterial.ts";
 
 /** World radius under which an instanced part casts no shadow. */
 const TINY = 0.09;
 
+const triangles = (g: THREE.BufferGeometry) => (g.index ? g.index.count : g.attributes.position!.count) / 3;
+/** What mergeStatic can bake: plain geometry (no attributes of a style's own, such as decals'), not live. */
+const mergeable = (mesh: THREE.Mesh) => !mesh.userData.live && !mesh.userData.room && Object.keys(mesh.geometry.attributes).every((name) => name === "position" || name === "normal" || name === "uv");
+
 /** Replaces repeated static meshes under `root` with instanced meshes; returns them (to dispose). */
-export function instanceStatic(root: THREE.Group, minimum = 3): THREE.InstancedMesh[] {
+export function instanceStatic(root: THREE.Group, minimum = 3, budget = 2000): THREE.InstancedMesh[] {
   root.updateMatrixWorld(true);
   const inverse = new THREE.Matrix4().copy(root.matrixWorld).invert();
   const groups = new Map<string, THREE.Mesh[]>();
@@ -26,6 +32,13 @@ export function instanceStatic(root: THREE.Group, minimum = 3): THREE.InstancedM
   for (const meshes of groups.values()) {
     if (meshes.length < minimum) continue;
     const first = meshes[0]!;
+    // A kind with few triangles in all (a handful of signposts, a row of fence posts) costs a draw call of its own as an
+    // instanced mesh; left as meshes, mergeStatic folds it into its material's merged mesh instead.
+    if (meshes.length * triangles(first.geometry) < budget && mergeable(first)) {
+      if (!first.geometry.boundingSphere) first.geometry.computeBoundingSphere();
+      for (const mesh of meshes) if ((first.geometry.boundingSphere?.radius ?? 1) * mesh.matrixWorld.getMaxScaleOnAxis() < TINY) mesh.castShadow = false;
+      continue;
+    }
     const instanced = new THREE.InstancedMesh(first.geometry, first.material as THREE.Material, meshes.length);
     meshes.forEach((mesh, i) => instanced.setMatrixAt(i, matrix.multiplyMatrices(inverse, mesh.matrixWorld)));
     removeBaked(root, meshes);
@@ -37,6 +50,8 @@ export function instanceStatic(root: THREE.Group, minimum = 3): THREE.InstancedM
     instanced.receiveShadow = first.receiveShadow;
     instanced.renderOrder = first.renderOrder;
     instanced.computeBoundingSphere();
+    // Its own twin of the material, so the material is never drawn both instanced and not (instancedMaterial.ts).
+    useInstancedMaterials(instanced);
     root.add(instanced);
     created.push(instanced);
   }
