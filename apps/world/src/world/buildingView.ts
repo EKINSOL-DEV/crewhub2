@@ -25,7 +25,7 @@ import {
   type BuildingTemplate,
   type WallRun,
 } from "./buildingTemplate";
-import { assignDesks, placeObjects, roomCentre, type DeskSlot, type ObjectLayout, type Surface } from "./interiorLayout";
+import { assignDesks, PILE_ROOMS, placeObjects, roomCentre, type DeskSlot, type ObjectLayout, type Surface } from "./interiorLayout";
 import { mergeStatic } from "./mergeStatic";
 import { ObjectLayer } from "./objectLayer";
 import { cellAt, footprintPose, resolveBuildingPlacements, type BuildingPlacements } from "./placements";
@@ -523,7 +523,7 @@ export class BuildingView {
     const wallDecor: Record<WallFace, THREE.Group> = { north: new THREE.Group(), west: new THREE.Group(), south: new THREE.Group(), east: new THREE.Group() };
     // Pendant cords and ceiling roses read as posts from the building camera: they draw only with a room in focus.
     const cords = new THREE.Group();
-    for (const item of roomDecor(this.template, { definitions: interiorDefinitions, seed: dressingSeed(this.building.slug), zones: dressingZones(this.template), loading: LOADING })) {
+    for (const item of roomDecor(this.template, { definitions: interiorDefinitions, seed: dressingSeed(this.building.slug), zones: dressingZones(this.template), loading: LOADING, piles: PILE_ROOMS })) {
       const side = item.wall ?? this.#mountedOn(item);
       (item.key === "decor.pendant-cord" ? cords : side ? wallDecor[side] : g).add(this.#decor(item));
     }
@@ -603,7 +603,7 @@ export class BuildingView {
         model.rotation.y = prop.definitionId === "workdesk" || prop.definitionId === "lead-desk" ? Math.PI : pose.rotationY;
         g.add(model);
       }
-    for (const item of roomDecor(this.template, { definitions: interiorDefinitions, seed: dressingSeed(this.building.slug), zones: dressingZones(this.template), loading: LOADING })) {
+    for (const item of roomDecor(this.template, { definitions: interiorDefinitions, seed: dressingSeed(this.building.slug), zones: dressingZones(this.template), loading: LOADING, piles: PILE_ROOMS })) {
       const rug = FAR_RUGS[item.key];
       if (!rug) continue;
       const model = style.model("building.silhouette", { size: { width: rug[0] * CELL, height: 0, depth: rug[1] * CELL }, variant: "rug" });

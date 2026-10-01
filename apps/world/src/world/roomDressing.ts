@@ -410,17 +410,19 @@ function plan(kind: RoomKind, facts: RoomFacts, planner: Planner, defs: Definiti
       if (kind === "workers" && !facts.tall.north.size && !facts.tall.west.size) place({ def: "board-stand", at: "wall", anchor: null });
       // The room's signature where no tall wall carries it: the analyst's chart board, the designer's mood board.
       if (kind === "analyst" && !facts.tall.north.size && !facts.tall.west.size) {
-        place({ def: "chart-board", at: "wall", anchor: null, sides: ["north", "west", "east"] });
+        // Tall boards stand on the far walls only: on the east wall they stand between the camera and a desk.
+        place({ def: "chart-board", at: "wall", anchor: null, sides: ["north", "west"] });
         place({ def: "chart-easel", at: "wall", anchor: null, sides: ["north", "west", "east"] });
       }
-      if (kind === "design" && !facts.tall.north.size && !facts.tall.west.size) place({ def: "mood-board", at: "wall", anchor: null, sides: ["north", "west", "east"] });
+      if (kind === "design" && !facts.tall.north.size && !facts.tall.west.size) place({ def: "mood-board", at: "wall", anchor: null, sides: ["north", "west"] });
       if (kind !== "workers") place({ def: "filing-cabinet", at: "wall", anchor: null, sides: ["north", "east"] });
       break;
     }
   }
   // Large bare floors: a reading nook (an armchair, a side table, a lamp, a rug from the decor) in the emptiest
   // stretch of a room of 60 cells or more, a big planter in storage and dispatch.
-  const stretch = kind !== "lobby" && facts.width * facts.depth >= 60 ? planner.bareStretch(3) : null;
+  // Not in the lobby (it has its own seats) nor the workers room, where the stretch lies between the desk rows.
+  const stretch = kind !== "lobby" && kind !== "workers" && facts.width * facts.depth >= 60 ? planner.bareStretch(3) : null;
   if (!stretch) return;
   if (kind === "storage" || kind === "dispatch") {
     place({ def: "planter", at: "free", anchor: stretch, tag: "nook" });
@@ -657,6 +659,15 @@ export function roomDecor(template: BuildingTemplate, options: Omit<DressOptions
       const lead = p.definitionId === "lead-desk";
       at("decor.desk-chair", seat.x + 0.5, seat.z + 0.5 - CHAIR_BACK, (rand() - 0.5) * 0.5, lead ? { scale: { x: 1.15, y: 1.15, z: 1.15 } } : {});
     }
+
+    // A runner under the planning table frames its pile; a painted bay where an overflowing pile's pallet stands.
+    for (const p of props.filter((q) => q.definitionId === "planning-table")) {
+      const def = defs[p.definitionId]!;
+      const pose = poseOf(p, defs);
+      rug("decor.rug-long", pose.x, pose.z, 0, { scale: { x: (def.footprint.width + 1.5) / 2.77, y: 1, z: (def.footprint.depth + 1.2) / 1.77 } });
+    }
+    const pallet = options.piles?.[room.kind]?.pallet;
+    if (pallet) at("decor.floor-bay", pallet.x, pallet.z);
 
     // Chairs all around the meeting table, tucked in.
     for (const p of props.filter((q) => q.definitionId === "meeting-table")) {
