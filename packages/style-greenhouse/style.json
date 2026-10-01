@@ -311,7 +311,12 @@
     "water": "#5f9294",
     "floor-wood": "#e2cba4",
     "floor-tile": "#ede4d1",
-    "floor-concrete": "#d8d0bd"
+    "floor-concrete": "#d8d0bd",
+    "chalk": "#f7e3c0",
+    "partition": "#f4dfbd",
+    "chalk-dim": "#bba98c",
+    "skirt": "#c9b48f",
+    "ledge": "#d4bf98"
   },
   "lighting": {
     "day": {
@@ -350,8 +355,8 @@
         22,
         -10
       ],
-      "fill": "#7f9fd3",
-      "fillIntensity": 0.7,
+      "fill": "#e8cba4",
+      "fillIntensity": 0.65,
       "fillPosition": [
         18,
         15,

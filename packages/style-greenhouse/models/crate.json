@@ -132,6 +132,44 @@
       ],
       "material": "tangerine",
       "radius": 0.004
+    },
+    {
+      "shape": "torus",
+      "size": [
+        0.04,
+        0.01,
+        0
+      ],
+      "position": [
+        -0.225,
+        0.24,
+        0
+      ],
+      "material": "clay",
+      "rotation": [
+        0,
+        0,
+        90
+      ]
+    },
+    {
+      "shape": "torus",
+      "size": [
+        0.04,
+        0.01,
+        0
+      ],
+      "position": [
+        0.225,
+        0.24,
+        0
+      ],
+      "material": "clay",
+      "rotation": [
+        0,
+        0,
+        90
+      ]
     }
   ]
 }
