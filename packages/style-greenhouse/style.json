@@ -6,8 +6,15 @@
   "coveredKeys": [
     "banner",
     "beacon",
+    "building.apron",
+    "building.closed-sign",
+    "building.door-frame",
     "building.flag",
+    "building.ivy",
+    "building.loading-door",
+    "building.partition",
     "building.planks",
+    "building.slab",
     "cart",
     "civic.bus-stop",
     "civic.cafe",
@@ -180,7 +187,14 @@
     "roof-dark": "#b07d63",
     "slate-roof": "#83998d",
     "dome": "#93b8a4",
-    "water": "#8ec5bd"
+    "water": "#8ec5bd",
+    "partition": "#e4e3d0",
+    "awning-stripe": "#f7f1e3",
+    "slab": "#e9e3d1",
+    "slab-edge": "#f4efe2",
+    "floor-wood": "#e3cfae",
+    "floor-tile": "#f3efe5",
+    "floor-concrete": "#e2ddcf"
   },
   "lamplightSwatches": {
     "plinth": "#2b3f42",
@@ -195,7 +209,10 @@
     "screen-glow": "#a8d4ae",
     "rug": "#c9bc9d",
     "contact-shadow": "#0e1d1d",
-    "water": "#5f9294"
+    "water": "#5f9294",
+    "floor-wood": "#d6be98",
+    "floor-tile": "#e6dcc8",
+    "floor-concrete": "#cfc6b2"
   },
   "lighting": {
     "day": {

@@ -8,6 +8,7 @@
 import type { Location } from "@crewhub/world-engine";
 import type { AgentKey, Intent, RoomKind, WorldModel } from "@crewhub/world-model";
 import { directorErrands, planIdle, planMovement, type Ambient, type ErrandReason, type Leg, type MovementIntent, type Place } from "./movement.ts";
+import { FLOOR_RISE } from "./buildingTemplate.ts";
 import { groundAt, NavWorld, POST_OFFICE_CELL, POSTMAN_PRIORITY, TOWN_HALL_CELL, TOWN_ROOM } from "./navigation.ts";
 
 export interface WalkOptions {
@@ -475,7 +476,8 @@ export class Walks {
         w.x = a.x;
         w.z = a.z;
       }
-      w.y = groundAt(w.x, w.z);
+      // Inside a building the floor stands on the slab, above the lawn.
+      w.y = groundAt(w.x, w.z) + (actor.location.room === TOWN_ROOM ? 0 : FLOOR_RISE);
       w.walking = actor.next !== null;
       if (actor.status === "moving" || actor.status === "waiting") moving = true;
       w.building = state?.building ?? null;

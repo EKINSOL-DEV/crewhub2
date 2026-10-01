@@ -43,6 +43,8 @@ const EAST_X = WEST + CENTRE;
 /** The widest and deepest a building gets, in cells; the town reserves a plot for it. */
 export const MAX_WIDTH = EAST_X + MODULE * MAX_MODULE_COLUMNS;
 export const DEPTH = 28;
+/** World units the floors stand above the lawn: the building's slab. Walkers inside a building walk at this height. */
+export const FLOOR_RISE = 0.24;
 /** World units between the plot's north edge and the building's north wall. */
 export const PLOT_MARGIN = 2;
 /** The building cell just outside the front door (the lobby's south door). */
@@ -370,22 +372,79 @@ export interface WallRun {
   side: "north" | "west" | "south" | "east" | "inner";
 }
 
-/**
- * The walls: every room edge, drawn once, with a gap where a door crosses it; unit segments on one line merge into
- * runs. An edge between a room and nothing (an absent role or meeting room) is an outer wall.
- */
-export function wallRuns(template: BuildingTemplate): WallRun[] {
+/** A gap in the walls, on one grid line from (x1, z1) to (x2, z2), building cells. */
+export interface Opening {
+  x1: number;
+  z1: number;
+  x2: number;
+  z2: number;
+  /** The door it belongs to, or "loading" for dispatch's loading door. */
+  id: string;
+}
+
+function ownerMap(template: BuildingTemplate): Map<string, RoomKind> {
   const owner = new Map<string, RoomKind>();
   for (const room of template.rooms)
     for (let z = 0; z < room.layout.grid.depth; z++)
       for (let x = 0; x < room.layout.grid.width; x++) owner.set(`${room.origin.x + x},${room.origin.z + z}`, room.kind);
-  const gaps = new Set<string>();
+  return owner;
+}
+
+/**
+ * The wall openings: every door, drawn two cells wide where the wall goes on with the same two rooms on either side
+ * (a generous opening; walkers still use the door cell), and dispatch's loading door.
+ */
+export function doorOpenings(template: BuildingTemplate): Opening[] {
+  const owner = ownerMap(template);
+  const at = (x: number, z: number) => owner.get(`${x},${z}`);
+  const taken = new Set<string>();
   for (const d of template.doors) {
     const a = doorCell(template, d.a),
       b = doorCell(template, d.b);
-    if (a && b) gaps.add(segmentKey(a, b));
+    if (a && b) taken.add(segmentKey(a, b));
   }
-  for (let x = LOADING.x1; x < LOADING.x2; x++) gaps.add(segmentKey({ x, z: DEPTH - 1 }, { x, z: DEPTH }));
+  const out: Opening[] = [];
+  for (const d of template.doors) {
+    const a = doorCell(template, d.a),
+      b = doorCell(template, d.b);
+    if (!a || !b) continue;
+    // Along the wall: x for a wall between north and south cells, z for one between west and east cells.
+    const [ax, az] = a.z !== b.z ? [1, 0] : [0, 1];
+    let lo = 0,
+      hi = 1;
+    for (const step of [1, -1]) {
+      const a2 = { x: a.x + ax * step, z: a.z + az * step },
+        b2 = { x: b.x + ax * step, z: b.z + az * step };
+      if (at(a2.x, a2.z) !== at(a.x, a.z) || at(b2.x, b2.z) !== at(b.x, b.z) || taken.has(segmentKey(a2, b2))) continue;
+      taken.add(segmentKey(a2, b2));
+      if (step > 0) hi = 2;
+      else lo = -1;
+      break;
+    }
+    // The grid line between the two cells.
+    if (a.z !== b.z) {
+      const z = Math.max(a.z, b.z);
+      out.push({ id: d.id, x1: a.x + lo, z1: z, x2: a.x + hi, z2: z });
+    } else {
+      const x = Math.max(a.x, b.x);
+      out.push({ id: d.id, x1: x, z1: a.z + lo, x2: x, z2: a.z + hi });
+    }
+  }
+  out.push({ id: "loading", x1: LOADING.x1, z1: DEPTH, x2: LOADING.x2, z2: DEPTH });
+  return out;
+}
+
+/**
+ * The walls: every room edge, drawn once, with a gap at every opening; unit segments on one line merge into runs. An
+ * edge between a room and nothing (an absent role or meeting room) is an outer wall.
+ */
+export function wallRuns(template: BuildingTemplate): WallRun[] {
+  const owner = ownerMap(template);
+  const gaps = new Set<string>();
+  for (const o of doorOpenings(template)) {
+    if (o.z1 === o.z2) for (let x = o.x1; x < o.x2; x++) gaps.add(segmentKey({ x, z: o.z1 - 1 }, { x, z: o.z1 }));
+    else for (let z = o.z1; z < o.z2; z++) gaps.add(segmentKey({ x: o.x1 - 1, z }, { x: o.x1, z }));
+  }
   type Unit = { x1: number; z1: number; x2: number; z2: number; side: WallRun["side"] };
   const units: Unit[] = [];
   const seen = new Set<string>();
@@ -412,7 +471,9 @@ export function wallRuns(template: BuildingTemplate): WallRun[] {
     }
   }
   // Merge collinear touching units of the same side.
-  units.sort((a, b) => (a.z1 === a.z2 ? 0 : 1) - (b.z1 === b.z2 ? 0 : 1) || a.z1 - b.z1 || a.x1 - b.x1);
+  // Horizontal units line by line (z, then x), vertical ones column by column (x, then z), so neighbours are adjacent.
+  const flat = (u: Unit) => u.z1 === u.z2;
+  units.sort((a, b) => (flat(a) ? 0 : 1) - (flat(b) ? 0 : 1) || (flat(a) ? a.z1 - b.z1 || a.x1 - b.x1 : a.x1 - b.x1 || a.z1 - b.z1));
   const runs: WallRun[] = [];
   for (const u of units) {
     const last = runs[runs.length - 1];

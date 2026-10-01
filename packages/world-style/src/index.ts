@@ -31,6 +31,8 @@ export type ModelKey =
   | "room.sign"
   | "building.flag"
   | "building.planks"
+  /** Building shell pieces (art pass): slab, partitions, door frames, the loading door and apron, ivy, signs. */
+  | `building.${string}`
   | `emblem.${EmblemName}`
   | "post-office"
   | "town-hall"
