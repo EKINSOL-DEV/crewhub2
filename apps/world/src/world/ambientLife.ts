@@ -1,7 +1,8 @@
 /* Ambient life: the gentle motion a small town is never without. By day soft cloud shadows drift over the town, a few
-   birds cross now and then, butterflies flutter over the flower beds and dust motes hang in the entered building's
-   light. In lamplight fireflies drift by the pond and the hedges and the landmarks' lit windows glow and breathe. Day
-   and night, rings ripple on the pond and steam rises from the post office chimney and the café's cups.
+   birds cross now and then (in the town view only), butterflies flutter over the flower beds and dust motes hang in
+   the entered building's light. In lamplight fireflies drift by the pond and the hedges and the landmarks' lit windows
+   glow and breathe. Day and night, rings ripple on the pond and steam rises from the post office chimney and the
+   café's cups.
 
    Every piece is a style model by key (`town.bird`, `town.firefly`, …), drawn as one instanced mesh and moved here, so
    the whole layer costs a handful of draw calls. The style marks where steam rises and which windows glow with
@@ -270,7 +271,8 @@ export class AmbientLife {
     const swarm = this.#birds,
       f = this.#flock;
     const day = this.#settings.theme === "day";
-    if (!this.enabled || !day) {
+    // Inside a building the camera is close: a bird passing overhead would be a big dark shard across the view.
+    if (!this.enabled || !day || this.#building) {
       swarm.done(0);
       return;
     }

@@ -89,6 +89,15 @@ Conventions for models:
   than its top (desks with a screen). Without it, renderers use the bounding box top.
 - `object.userData.animate = (seconds) => void`: a model that moves by itself (the drone's rotors). Renderers call it
   each drawn frame and skip it under reduced motion.
+- `userData.life` on an empty child object (`LifeSpot`: `"steam"` or `"window"`): where steam rises (a chimney, a cup)
+  or where a lit window glows (facing the marker's +z). The renderer's ambient life places `town.steam` and
+  `town.window-glow` there; a style without spots simply has none.
+
+Ambient life keys (`town.bird`, `town.butterfly`, `town.firefly`, `town.mote`, `town.window-glow`, `town.ripple`,
+`town.steam`, `town.cloud-shadow`) are each one mesh on shared geometry, with nothing animating itself: the renderer
+instances them and moves the instances. Forward is +x. A bird flaps when scaled in y and a butterfly folds when scaled in
+z. Glows are additive, and their instance colour sets their brightness, so a renderer fades one by darkening it. They
+show only with the Ambient setting on or reduced, Pretty graphics and no reduced motion.
 
 ### Robots, environment, materialise
 

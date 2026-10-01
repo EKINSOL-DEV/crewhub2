@@ -5,7 +5,8 @@ import * as THREE from "three";
 import type { EnvironmentHandle, GraphicsQuality, LightingPreset, StyleTheme } from "@crewhub/world-style";
 
 /** Shadow map texels per side for a reach: an entered building (reach ≲ 16) gets the sharp map. */
-const shadowSize = (reach: number) => (reach <= 16 ? 2048 : 1024);
+// The close map covers what an entered building's view shows (reach up to about 24); the town's is wider and softer.
+const shadowSize = (reach: number) => (reach <= 24 ? 2048 : 1024);
 
 export function environment(
   scene: THREE.Scene,

@@ -84,7 +84,11 @@ interface Callbacks {
 
 const ROBOT_SCALE = 0.62;
 const CIVIC_LAWN = CIVIC_LOT;
-const HOME_OFFSET = new THREE.Vector3(1, 1.04, 1).normalize().multiplyScalar(90);
+/* The camera stands this far from its target along the view direction. It is orthographic, so the distance changes
+   nothing on screen, but it must clear the whole town: framing a corner plot from 90 units put the trees on the near
+   side of the town behind the near plane, where they were cut into shards. Zoom does the framing; this stays fixed. */
+const CAMERA_DISTANCE = 220;
+const HOME_OFFSET = new THREE.Vector3(1, 1.04, 1).normalize().multiplyScalar(CAMERA_DISTANCE);
 const UP = new THREE.Vector3(0, 1, 0);
 /* Framing heights: a building is seen up to its tall back walls, a room up to its people and desks. */
 const BUILDING_FRAME_HEIGHT = 2.6;
@@ -111,7 +115,7 @@ const PHONE_CHROME: Insets = { top: 156, bottom: 76, left: 12, right: 60 };
 export class TownScene {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
-  readonly camera = new THREE.OrthographicCamera(-10, 10, 6, -6, 0.1, 300);
+  readonly camera = new THREE.OrthographicCamera(-10, 10, 6, -6, 1, CAMERA_DISTANCE * 2.8);
   readonly controls: OrbitControls;
   readonly callbacks: Callbacks;
   readonly townStyle: ResolvedStyle;
@@ -132,6 +136,8 @@ export class TownScene {
     merged: [],
   };
   #lifeInside = false;
+  /** The view the entered building's shadow was last fitted to. */
+  #shadowFit: { zoom: number; x: number; z: number } | null = null;
   #civicSignature = "";
   #civicRobots: RobotHandle[] = [];
   #postman: { handle: RobotHandle; key: string; letters: THREE.Object3D[] } | null = null;
@@ -249,15 +255,42 @@ export class TownScene {
   }
 
   /**
-   * The key light's shadow covers what the camera frames: the entered building (or its zoomed room, with the walls
-   * around it) gets a close, crisp shadow map; the town a cheaper, softer one over every lot.
+   * The key light's shadow covers what the camera frames: inside a building, the ground the camera sees (at least the
+   * building) gets a close, crisp shadow map; the town a cheaper, softer one over every lot. A map smaller than the
+   * view would cut the shadows of the trees round the building into sharp shards at its edge, so a zoom or pan that
+   * shows more ground fits it again (`#refitShadow`).
    */
   fitShadow() {
     const view = this.view.entered ? this.#buildings.get(this.view.entered) : undefined;
-    const b = view ? view.bounds(null) : townBounds();
-    const margin = view ? 2 : 4;
-    this.#environment.setShadowReach(Math.max(b.maxX - b.minX, b.maxZ - b.minZ) / 2 + margin, { x: (b.minX + b.maxX) / 2, z: (b.minZ + b.maxZ) / 2 });
+    if (!view) {
+      const b = townBounds();
+      this.#environment.setShadowReach(Math.max(b.maxX - b.minX, b.maxZ - b.minZ) / 2 + 4, { x: (b.minX + b.maxX) / 2, z: (b.minZ + b.maxZ) / 2 });
+      this.#shadowFit = null;
+      this.invalidate();
+      return;
+    }
+    const b = view.bounds(null);
+    const zoom = this.#tween?.zoom ?? this.camera.zoom,
+      target = this.#tween?.target ?? this.controls.target;
+    const canvas = this.renderer.domElement;
+    const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight) || 1;
+    // The view's half height and width on screen, in world units; seen from above at an angle, the ground it covers
+    // runs deeper by 1 / sin(elevation). Shadows of trees just outside it still fall in: a margin for them.
+    const halfH = this.#span / 2 / Math.max(zoom, 0.01),
+      elevation = this.#v.copy(this.camera.position).sub(this.controls.target).normalize().y;
+    const seen = Math.hypot(halfH * aspect, halfH / Math.max(0.3, elevation)) + 4;
+    const reach = Math.min(Math.max(Math.max(b.maxX - b.minX, b.maxZ - b.minZ) / 2 + 2, seen), 60);
+    this.#environment.setShadowReach(reach, { x: target.x, z: target.z });
+    this.#shadowFit = { zoom, x: target.x, z: target.z };
     this.invalidate();
+  }
+
+  /** Inside a building: fits the shadow again once a zoom or pan has changed the ground in view noticeably. */
+  #refitShadow() {
+    const fit = this.#shadowFit;
+    if (!fit || this.#tween || !this.view.entered) return;
+    const t = this.controls.target;
+    if (Math.abs(this.camera.zoom / fit.zoom - 1) > 0.12 || Math.hypot(t.x - fit.x, t.z - fit.z) > 2) this.fitShadow();
   }
 
   /* ── The town ground and the empty lots ───────────────────────────────── */
@@ -787,6 +820,7 @@ export class TownScene {
     this.#v.set(THREE.MathUtils.clamp(t.x, b.minX, b.maxX), THREE.MathUtils.clamp(t.y, 0, 2), THREE.MathUtils.clamp(t.z, b.minZ, b.maxZ)).sub(t);
     this.camera.position.add(this.#v);
     t.add(this.#v);
+    this.#refitShadow();
     this.placeLabels();
     try {
       this.renderer.render(this.scene, this.camera);
