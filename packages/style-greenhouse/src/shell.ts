@@ -254,7 +254,8 @@ export function flag(kit: Kit, o: ModelOptions): THREE.Group {
   put(g, kit.box(0.26, 0.12, 0.26, "chalk", 0.04), 0, 0.06, 0);
   put(g, kit.cylinder(0.028, 0.035, high, "pole"), 0, high / 2, 0);
   put(g, kit.sphere(0.06, "brass"), 0, high + 0.04, 0);
-  const y = archived(o) ? high * 0.55 : high - 0.34;
+  // Half-mast still clears the tall walls at the corner.
+  const y = archived(o) ? high * 0.7 : high - 0.34;
   // Two panels at a slight angle: the cloth catches the wind.
   const cloth = accent(o);
   put(g, kit.box(0.46, 0.5, 0.025, cloth, 0.01), 0.25, y, 0).rotation.y = -0.12;
