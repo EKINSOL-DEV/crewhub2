@@ -1,0 +1,101 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-furniture-reading-lamp",
+  "name": "Reading lamp",
+  "description": "An arched brass reading lamp leaning over a chair, with a small sage shade and a warm bulb.",
+  "category": "light",
+  "tags": [
+    "greenhouse",
+    "lamp",
+    "reading"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "cylinder",
+      "size": [
+        0.1,
+        0.035,
+        0.11
+      ],
+      "position": [
+        -0.15,
+        0.018,
+        -0.15
+      ],
+      "material": "slate"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.014,
+        0.8,
+        0.014
+      ],
+      "position": [
+        -0.15,
+        0.42,
+        -0.15
+      ],
+      "material": "brass"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.013,
+        0.36,
+        0.013
+      ],
+      "position": [
+        -0.03,
+        0.9,
+        -0.03
+      ],
+      "material": "brass",
+      "rotation": [
+        0,
+        45,
+        -58
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.05,
+        0.12,
+        0.11
+      ],
+      "position": [
+        0.1,
+        0.92,
+        0.1
+      ],
+      "material": "sage",
+      "rotation": [
+        0,
+        45,
+        20
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.04,
+        0.04,
+        0.04
+      ],
+      "position": [
+        0.11,
+        0.87,
+        0.11
+      ],
+      "material": "lamp-glow",
+      "emissive": true
+    }
+  ]
+}

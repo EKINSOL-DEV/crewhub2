@@ -1,0 +1,392 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-furniture-coffee-counter",
+  "name": "Coffee corner",
+  "description": "A timber counter on chalk cabinets with an espresso machine, a kettle, cups and a jar of beans.",
+  "category": "gather",
+  "tags": [
+    "greenhouse",
+    "coffee",
+    "kettle",
+    "counter"
+  ],
+  "footprint": {
+    "width": 2,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [
+    {
+      "x": 0,
+      "z": 1
+    },
+    {
+      "x": 1,
+      "z": 1
+    }
+  ],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        1.12,
+        0.46,
+        0.44
+      ],
+      "position": [
+        0,
+        0.23,
+        -0.06
+      ],
+      "material": "chalk",
+      "radius": 0.025
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.18,
+        0.04,
+        0.5
+      ],
+      "position": [
+        0,
+        0.48,
+        -0.06
+      ],
+      "material": "timber",
+      "radius": 0.015
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.02,
+        0.36,
+        0.01
+      ],
+      "position": [
+        0,
+        0.24,
+        0.165
+      ],
+      "material": "clay",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        0.02,
+        0.02
+      ],
+      "position": [
+        -0.06,
+        0.38,
+        0.175
+      ],
+      "material": "brass",
+      "radius": 0.006
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        0.02,
+        0.02
+      ],
+      "position": [
+        0.06,
+        0.38,
+        0.175
+      ],
+      "material": "brass",
+      "radius": 0.006
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.26,
+        0.28,
+        0.24
+      ],
+      "position": [
+        -0.32,
+        0.64,
+        -0.12
+      ],
+      "material": "sage",
+      "radius": 0.035
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.27,
+        0.04,
+        0.25
+      ],
+      "position": [
+        -0.32,
+        0.8,
+        -0.12
+      ],
+      "material": "graphite",
+      "radius": 0.015
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.1,
+        0.05,
+        0.06
+      ],
+      "position": [
+        -0.32,
+        0.67,
+        0.02
+      ],
+      "material": "brass",
+      "radius": 0.015
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.16,
+        0.02,
+        0.12
+      ],
+      "position": [
+        -0.32,
+        0.51,
+        0.04
+      ],
+      "material": "graphite",
+      "radius": 0.006
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.028,
+        0.05,
+        0.024
+      ],
+      "position": [
+        -0.32,
+        0.545,
+        0.04
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.012,
+        0.012,
+        0.012
+      ],
+      "position": [
+        -0.24,
+        0.74,
+        0.003
+      ],
+      "material": "lamp-glow",
+      "emissive": true
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.07,
+        0.14,
+        0.085
+      ],
+      "position": [
+        0.05,
+        0.57,
+        -0.1
+      ],
+      "material": "slate"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.03,
+        0.03,
+        0.05
+      ],
+      "position": [
+        0.05,
+        0.655,
+        -0.1
+      ],
+      "material": "graphite"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.03,
+        0.08,
+        0.02
+      ],
+      "position": [
+        0.14,
+        0.58,
+        -0.1
+      ],
+      "material": "graphite",
+      "radius": 0.008
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.05,
+        0.12,
+        0.05
+      ],
+      "position": [
+        0.26,
+        0.56,
+        -0.16
+      ],
+      "material": "glass"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.045,
+        0.07,
+        0.045
+      ],
+      "position": [
+        0.26,
+        0.535,
+        -0.16
+      ],
+      "material": "soil"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.052,
+        0.02,
+        0.052
+      ],
+      "position": [
+        0.26,
+        0.63,
+        -0.16
+      ],
+      "material": "timber"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.028,
+        0.05,
+        0.024
+      ],
+      "position": [
+        0.2,
+        0.525,
+        0.08
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.028,
+        0.05,
+        0.024
+      ],
+      "position": [
+        0.275,
+        0.525,
+        0.08
+      ],
+      "material": "terracotta"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.028,
+        0.05,
+        0.024
+      ],
+      "position": [
+        0.35,
+        0.525,
+        0.08
+      ],
+      "material": "sage"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.049,
+        0.07,
+        0.035
+      ],
+      "position": [
+        0.46,
+        0.535,
+        -0.14
+      ],
+      "material": "terracotta"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.053,
+        0.049,
+        0.053
+      ],
+      "position": [
+        0.46,
+        0.605,
+        -0.14
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.035,
+        0.042,
+        0.035
+      ],
+      "position": [
+        0.492,
+        0.64,
+        -0.126
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.032,
+        0.035,
+        0.032
+      ],
+      "position": [
+        0.425,
+        0.633,
+        -0.154
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.2,
+        0.012,
+        0.1
+      ],
+      "position": [
+        0.03,
+        0.506,
+        0.1
+      ],
+      "material": "paper",
+      "radius": 0.004
+    }
+  ]
+}

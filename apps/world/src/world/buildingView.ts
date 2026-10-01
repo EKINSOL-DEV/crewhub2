@@ -13,6 +13,8 @@ import {
   doorOpenings,
   ENTRANCE,
   FLOOR_RISE,
+  dressingZones,
+  interiorDefinitions,
   LOADING,
   MAX_WIDTH,
   PLOT_MARGIN,
@@ -25,8 +27,9 @@ import {
 import { assignDesks, placeObjects, roomCentre, type DeskSlot, type ObjectLayout, type Surface } from "./interiorLayout";
 import { mergeStatic } from "./mergeStatic";
 import { ObjectLayer } from "./objectLayer";
-import { cellAt, resolveBuildingPlacements, type BuildingPlacements } from "./placements";
+import { cellAt, footprintPose, resolveBuildingPlacements, type BuildingPlacements } from "./placements";
 import { PropLayer, type TownLayer } from "./propLayer";
+import { DRESS_PREFIX, dressingSeed, roomDecor } from "./roomDressing";
 import type { Bounds } from "./townLayout";
 import type { Walker } from "./walks";
 
@@ -147,6 +150,7 @@ export class BuildingView {
   #truckPending = false;
   #focus: THREE.Object3D | null = null;
   #signatures = { shell: "", furniture: "", piles: "", signals: "" };
+  #yielded = "";
   #archivedCount: number;
 
   constructor(building: Building, centre: { x: number; z: number }, plotSize: number, ctx: BuildingContext) {
@@ -223,6 +227,12 @@ export class BuildingView {
     if (from.doc !== town.doc || from.definitions !== town.definitions || from.shape !== shape) {
       this.placements = resolveBuildingPlacements(town.doc, this.building.slug, this.template, town.definitions);
       this.#placementsFrom = { doc: town.doc, definitions: town.definitions, shape };
+      // Dressing that steps aside for a placed prop leaves the furniture layer.
+      const yielded = [...this.placements.rooms.values()].flatMap((r) => r.yielded).join();
+      if (yielded !== this.#yielded) {
+        this.#yielded = yielded;
+        if (this.#furniture) this.#buildFurniture();
+      }
     }
     const riders = this.#props.sync({ building: this.building, template: this.template, placements: this.placements, desks: this.desks, town, detailed: this.detailed });
     if (this.detailed) this.#objects.setRiders(riders);
@@ -344,28 +354,48 @@ export class BuildingView {
     return { x: room.origin.x + 1.1, z: room.origin.z + room.layout.grid.depth - 0.45 };
   }
 
+  /* The furniture layer: the template's furniture with its blocking dressing, and the dressing that never blocks
+     (roomDressing.ts). Static, so it is batched per material; only the entered building draws it. */
   #buildFurniture() {
     const { style } = this.ctx;
     this.#furniture?.removeFromParent();
     const g = new THREE.Group();
+    const yielded = (kind: RoomKind) => this.placements.rooms.get(kind)?.yielded ?? [];
     for (const room of this.template.rooms)
       for (const prop of room.layout.props) {
         const def = prop.definitionId;
-        const size =
-          def === "workdesk" ? [2, 1] : def === "lead-desk" ? [3, 2] : def === "rack" ? [2, 1] : def === "planning-table" ? [4, 1] : def === "review-pile" ? [3, 2] : def === "pallet" ? [2, 2] : def === "meeting-table" ? [4, 2] : def === "bench" ? [3, 1] : [1, 1];
-        const model = style.model(`furniture.${def}`, { seed: prop.id.length });
-        model.position.copy(this.local(room.origin.x + prop.cell.x + size[0]! / 2, room.origin.z + prop.cell.z + size[1]! / 2, 0.02));
+        const definition = interiorDefinitions[def];
+        if (!definition || yielded(room.kind).includes(prop.id)) continue;
+        const dressing = prop.id.startsWith(DRESS_PREFIX);
+        const model = style.model(`furniture.${def}`, { seed: dressing ? dressingSeed(prop.id) % 97 : prop.id.length });
+        const pose = footprintPose(definition, prop.cell, prop.rotation);
+        model.position.copy(this.local(room.origin.x + pose.x, room.origin.z + pose.z, 0.02));
+        model.rotation.y = pose.rotationY;
         // Desks face their seat to the north, so the agent looks over the desk towards the camera.
         if (def === "workdesk" || def === "lead-desk") model.rotation.y = Math.PI;
-        if (def === "plant") model.scale.setScalar(ROBOT_SCALE);
+        if (def === "plant") model.scale.setScalar(dressing ? ROBOT_SCALE * (0.8 + (dressingSeed(prop.id) % 5) * 0.08) : ROBOT_SCALE);
         if (def === "bench" || def === "coffee-machine") model.scale.setScalar(0.7);
         g.add(model);
       }
+    const surfaces = surfacesOf(style);
+    for (const item of roomDecor(this.template, { definitions: interiorDefinitions, seed: dressingSeed(this.building.slug), zones: dressingZones(this.template), loading: LOADING })) {
+      const model = style.model(item.key);
+      model.position.copy(this.local(item.x, item.z, item.on === "desk" ? surfaces.desk + 0.01 : 0.02));
+      model.rotation.y = item.rotation;
+      if (item.scale) model.scale.set(item.scale.x, item.scale.y, item.scale.z);
+      if (item.lean) {
+        model.position.y -= item.lean.drop;
+        model.rotateX(-0.12);
+      }
+      g.add(model);
+    }
+    g.visible = this.detailed;
     this.#furniture = g;
     this.group.add(g);
     for (const geometry of this.#furnitureMerged) geometry.dispose();
     this.#furnitureMerged = mergeStatic(g);
   }
+
 
   /* ── Agents ─────────────────────────────────────────────────────────────── */
 

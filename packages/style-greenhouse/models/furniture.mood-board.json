@@ -1,0 +1,295 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-furniture-mood-board",
+  "name": "Mood board",
+  "description": "A freestanding cork mood board on timber legs with colour swatches, sketches and a fabric sample.",
+  "category": "work",
+  "tags": [
+    "greenhouse",
+    "design",
+    "swatches",
+    "board"
+  ],
+  "footprint": {
+    "width": 2,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.04,
+        0.9,
+        0.04
+      ],
+      "position": [
+        -0.5,
+        0.45,
+        -0.05
+      ],
+      "material": "timber",
+      "radius": 0.012
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.04,
+        0.9,
+        0.04
+      ],
+      "position": [
+        0.5,
+        0.45,
+        -0.05
+      ],
+      "material": "timber",
+      "radius": 0.012
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        0.03,
+        0.34
+      ],
+      "position": [
+        -0.5,
+        0.015,
+        -0.05
+      ],
+      "material": "timber",
+      "radius": 0.012
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        0.03,
+        0.34
+      ],
+      "position": [
+        0.5,
+        0.015,
+        -0.05
+      ],
+      "material": "timber",
+      "radius": 0.012
+    },
+    {
+      "shape": "box",
+      "size": [
+        1,
+        0.52,
+        0.035
+      ],
+      "position": [
+        0,
+        0.62,
+        -0.05
+      ],
+      "material": "timber",
+      "radius": 0.015
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.95,
+        0.47,
+        0.02
+      ],
+      "position": [
+        0,
+        0.62,
+        -0.028
+      ],
+      "material": "clay",
+      "radius": 0.006
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.07,
+        0.1,
+        0.01
+      ],
+      "position": [
+        -0.38,
+        0.74,
+        -0.013
+      ],
+      "material": "coral",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.07,
+        0.1,
+        0.01
+      ],
+      "position": [
+        -0.29,
+        0.74,
+        -0.013
+      ],
+      "material": "tangerine",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.07,
+        0.1,
+        0.01
+      ],
+      "position": [
+        -0.2,
+        0.74,
+        -0.013
+      ],
+      "material": "sage",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.07,
+        0.1,
+        0.01
+      ],
+      "position": [
+        -0.38,
+        0.61,
+        -0.013
+      ],
+      "material": "moss",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.07,
+        0.1,
+        0.01
+      ],
+      "position": [
+        -0.29,
+        0.61,
+        -0.013
+      ],
+      "material": "circle",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.07,
+        0.1,
+        0.01
+      ],
+      "position": [
+        -0.2,
+        0.61,
+        -0.013
+      ],
+      "material": "terracotta",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.2,
+        0.16,
+        0.01
+      ],
+      "position": [
+        0.03,
+        0.7,
+        -0.013
+      ],
+      "material": "paper",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        0,
+        4
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.04,
+        0.04,
+        0.01
+      ],
+      "position": [
+        0.03,
+        0.71,
+        -0.006
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.16,
+        0.2,
+        0.01
+      ],
+      "position": [
+        0.3,
+        0.66,
+        -0.013
+      ],
+      "material": "cream",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        0,
+        -5
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.12,
+        0.012,
+        0.01
+      ],
+      "position": [
+        0.3,
+        0.7,
+        -0.007
+      ],
+      "material": "slate",
+      "radius": 0.003,
+      "rotation": [
+        0,
+        0,
+        -5
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.17,
+        0.08,
+        0.012
+      ],
+      "position": [
+        0,
+        0.47,
+        -0.013
+      ],
+      "material": "sage",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        0,
+        -3
+      ]
+    }
+  ]
+}

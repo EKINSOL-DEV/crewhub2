@@ -1,0 +1,100 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-decor-poster-sun",
+  "name": "Sun poster",
+  "description": "A framed print in a timber frame on a clay mount, the Greenhouse way.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "poster",
+    "picture",
+    "wall"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.32,
+        0.42,
+        0.035
+      ],
+      "position": [
+        0,
+        0.74,
+        -0.22
+      ],
+      "material": "timber",
+      "radius": 0.012
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.27,
+        0.37,
+        0.02
+      ],
+      "position": [
+        0,
+        0.74,
+        -0.208
+      ],
+      "material": "clay",
+      "radius": 0.006
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.09,
+        0.012,
+        0.09
+      ],
+      "position": [
+        0,
+        0.8,
+        -0.196
+      ],
+      "material": "tangerine",
+      "rotation": [
+        90,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.24,
+        0.07,
+        0.01
+      ],
+      "position": [
+        0,
+        0.64,
+        -0.196
+      ],
+      "material": "sage",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.2,
+        0.05,
+        0.01
+      ],
+      "position": [
+        0.03,
+        0.69,
+        -0.195
+      ],
+      "material": "moss",
+      "radius": 0.02
+    }
+  ]
+}

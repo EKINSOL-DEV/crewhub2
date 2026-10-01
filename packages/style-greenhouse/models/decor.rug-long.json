@@ -1,0 +1,94 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-decor-rug-long",
+  "name": "Long rug",
+  "description": "A rectangular terracotta rug with a cream border and three soft stripes.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "rug"
+  ],
+  "footprint": {
+    "width": 3,
+    "depth": 2
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        1.66,
+        0.012,
+        1.06
+      ],
+      "position": [
+        0,
+        0.006,
+        0
+      ],
+      "material": "cream",
+      "radius": 0.04
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.54,
+        0.014,
+        0.94
+      ],
+      "position": [
+        0,
+        0.007,
+        0
+      ],
+      "material": "terracotta",
+      "radius": 0.03
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.4,
+        0.016,
+        0.06
+      ],
+      "position": [
+        0,
+        0.008,
+        -0.28
+      ],
+      "material": "clay",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.4,
+        0.016,
+        0.06
+      ],
+      "position": [
+        0,
+        0.008,
+        0
+      ],
+      "material": "clay",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.4,
+        0.016,
+        0.06
+      ],
+      "position": [
+        0,
+        0.008,
+        0.28
+      ],
+      "material": "clay",
+      "radius": 0.01
+    }
+  ]
+}
