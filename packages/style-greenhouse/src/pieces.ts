@@ -265,3 +265,9 @@ function starGeometry(outer: number, inner: number, depth: number): THREE.Buffer
 export function glass(kit: Kit): THREE.ShaderMaterial {
   return glassMaterial(kit.hex("window"), 0.32);
 }
+
+/** A soft blob contact shadow under a slab of `size` (a building on its lawn): the old diorama's grounding. */
+export function contactShadow(kit: Kit, o: ModelOptions): THREE.Mesh {
+  const { width, depth } = size(o, { width: 4, height: 0, depth: 4 });
+  return kit.decal("shadow", width / 2, depth / 2, Math.min(width, depth) * 0.08 + 0.4);
+}

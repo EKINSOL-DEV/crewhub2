@@ -18,7 +18,7 @@ import * as civic from "./civic.ts";
 import { environment } from "./environment.ts";
 import { bench, desk, lamp, leadDesk, shelf, sofa, table, workdesk } from "./furniture.ts";
 import { Kit, type GreenhouseManifestData } from "./kit.ts";
-import { SURFACES } from "./keys.ts";
+import { LIGHT_POOLS, SURFACES } from "./keys.ts";
 import { partsModel } from "./parts.ts";
 import * as pieces from "./pieces.ts";
 import { robot } from "./robot.ts";
@@ -37,7 +37,7 @@ for (const [path, json] of Object.entries(import.meta.glob<unknown>("../models/*
 
 class GreenhouseStyle implements WorldStyle {
   readonly manifest: StyleManifest = manifest;
-  readonly #kit = new Kit(manifest);
+  readonly #kit = new Kit(manifest, manifest.lighting);
   readonly #glass: THREE.ShaderMaterial;
 
   constructor() {
@@ -49,6 +49,13 @@ class GreenhouseStyle implements WorldStyle {
     if (!object) return null;
     const surface = SURFACES[key];
     if (surface !== undefined) object.userData.surface = surface;
+    const pool = LIGHT_POOLS[key];
+    if (pool) {
+      // A warm pool of light on the ground under a lamp (lamplight, Pretty only); kept apart from static batching.
+      const decal = this.#kit.decal("pool", pool.radius * 0.25, pool.radius * 0.25, pool.radius * 0.75);
+      decal.position.set(0, pool.y, pool.z ?? 0);
+      object.add(decal);
+    }
     return object;
   }
 
@@ -149,6 +156,8 @@ class GreenhouseStyle implements WorldStyle {
         return pieces.sparkle(kit);
       case "focus-ring":
         return pieces.focusRing(kit, o);
+      case "town.contact-shadow":
+        return pieces.contactShadow(kit, o);
       default:
         return null;
     }
@@ -169,11 +178,18 @@ class GreenhouseStyle implements WorldStyle {
   setTheme(theme: StyleTheme) {
     this.#kit.setTheme(theme);
     this.#glass.uniforms.uColor!.value.set(this.#kit.hex("window"));
-    this.#glass.uniforms.uOpacity!.value = theme === "lamplight" ? 0.6 : 0.32;
+    this.#glass.uniforms.uOpacity!.value = theme === "lamplight" ? 0.82 : 0.32;
   }
 
   environment(scene: THREE.Scene, renderer: THREE.WebGLRenderer, theme: StyleTheme) {
-    return environment(scene, renderer, manifest.lighting, theme, (next) => this.setTheme(next));
+    return environment(
+      scene,
+      renderer,
+      manifest.lighting,
+      theme,
+      (next) => this.setTheme(next),
+      (quality) => this.#kit.setQuality(quality),
+    );
   }
 
   /** Scale up from nothing with a sparkle; progress 0 → 1. Reversing progress de-materialises. */

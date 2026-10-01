@@ -60,3 +60,27 @@ export function haloMaterial(color: string) {
     }`,
   });
 }
+
+/**
+ * Soft ground decals drawn on flat planes from `Kit.decal`: a blob contact shadow (normal blending, darkens) or a warm
+ * light pool (additive, brightens). The plane's local x/z is the position; the `aShape` attribute holds the rounded
+ * rectangle's half-size and its soft edge in world units, so one material draws every size. Colours are passed in.
+ */
+export function decalMaterial(color: string, opacity: number, additive: boolean) {
+  return new THREE.ShaderMaterial({
+    uniforms: { uColor: { value: new THREE.Color(color) }, uOpacity: { value: opacity } },
+    transparent: true,
+    depthWrite: false,
+    blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
+    vertexShader: `attribute vec3 aShape; varying vec2 vLocal; varying vec3 vShape;
+      void main() { vLocal = position.xz; vShape = aShape; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: `uniform vec3 uColor; uniform float uOpacity; varying vec2 vLocal; varying vec3 vShape;
+      void main() { float d = length(max(abs(vLocal) - vShape.xy, 0.0)) / max(vShape.z, 0.001);
+      float a = 1.0 - smoothstep(0.0, 1.0, d);
+      a *= a;
+      gl_FragColor = vec4(uColor, uOpacity * a);
+      #include <tonemapping_fragment>
+      #include <colorspace_fragment>
+    }`,
+  });
+}

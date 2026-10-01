@@ -108,39 +108,44 @@ interface PileRoom {
 
 /** Status rooms never grow with their piles: a fixed stack height per room, then a pallet with a count. */
 export const PILE_ROOMS: Record<"storage" | "planning" | "review" | "dispatch", PileRoom> = {
+  // Four racks along the back wall and two in front (buildingTemplate), two slots each.
   storage: {
-    slots: [0, 2, 4].flatMap((x) => [
-      { x: x + 0.5, z: 0.5 },
-      { x: x + 1.5, z: 0.5 },
-    ]).concat([0, 2].flatMap((x) => [
-      { x: x + 0.5, z: 2.5 },
-      { x: x + 1.5, z: 2.5 },
-    ])),
+    slots: [0, 2, 4, 6]
+      .flatMap((x) => [
+        { x: x + 0.5, z: 0.5 },
+        { x: x + 1.5, z: 0.5 },
+      ])
+      .concat(
+        [0, 2].flatMap((x) => [
+          { x: x + 0.5, z: 3.5 },
+          { x: x + 1.5, z: 3.5 },
+        ]),
+      ),
     height: 3,
     surface: "rack",
-    pallet: { x: 1, z: 4 },
+    pallet: { x: 7.5, z: 5.5 },
   },
   // The planning table's east end, by the door to the lead's office, is the front: next up lies there.
-  planning: { slots: [3.5, 2.5, 1.5, 0.5].map((x) => ({ x, z: 3.5 })), height: 3, surface: "table", pallet: { x: 1.5, z: 1 } },
+  planning: { slots: [5.5, 4.5, 3.5, 2.5].map((x) => ({ x, z: 4.5 })), height: 3, surface: "table", pallet: { x: 7.5, z: 5.5 } },
   review: {
-    slots: [1.5, 2.5, 3.5].flatMap((x) => [
-      { x, z: 1.5 },
+    slots: [3.5, 4.5, 5.5].flatMap((x) => [
       { x, z: 2.5 },
+      { x, z: 3.5 },
     ]),
     height: 4,
     surface: "pile",
-    pallet: { x: 1, z: 3.9 },
+    pallet: { x: 7.5, z: 4.5 },
   },
   dispatch: {
-    slots: [0, 2].flatMap((x) => [
-      { x: x + 0.5, z: 2.5 },
-      { x: x + 1.5, z: 2.5 },
+    slots: [1, 4].flatMap((x) => [
       { x: x + 0.5, z: 3.5 },
       { x: x + 1.5, z: 3.5 },
+      { x: x + 0.5, z: 4.5 },
+      { x: x + 1.5, z: 4.5 },
     ]),
     height: 3,
     surface: "pallet",
-    pallet: { x: 4.5, z: 3.9 },
+    pallet: { x: 7.5, z: 4.5 },
   },
 };
 

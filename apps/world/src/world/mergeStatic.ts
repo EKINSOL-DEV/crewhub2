@@ -1,8 +1,11 @@
 /* Static batching: a building's shell and furniture never move, so their meshes are baked into one merged mesh per
    material. Style-agnostic: it works on whatever the style returned. Meshes that must stay pickable (room floors
-   carry `userData.room`) and instanced meshes are kept as they are. */
+   carry `userData.room`), instanced meshes and meshes with attributes of their own (a style's decals) are kept as
+   they are. */
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+
+const MERGED = ["position", "normal", "uv"];
 
 /** Replaces the static meshes under `root` with merged meshes; returns the geometries it created (to dispose). */
 export function mergeStatic(root: THREE.Group): THREE.BufferGeometry[] {
@@ -12,9 +15,9 @@ export function mergeStatic(root: THREE.Group): THREE.BufferGeometry[] {
   const merged: THREE.Mesh[] = [];
   root.traverse((o) => {
     if (!(o instanceof THREE.Mesh) || o instanceof THREE.InstancedMesh || Array.isArray(o.material) || o.userData.room) return;
+    if (Object.keys(o.geometry.attributes).some((name) => !MERGED.includes(name))) return;
     const matrix = new THREE.Matrix4().multiplyMatrices(inverse, o.matrixWorld);
     const source = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
-    for (const name of Object.keys(source.attributes)) if (!["position", "normal", "uv"].includes(name)) source.deleteAttribute(name);
     if (!source.attributes.uv) source.setAttribute("uv", new THREE.Float32BufferAttribute(new Float32Array(source.attributes.position!.count * 2), 2));
     if (!source.attributes.normal) source.computeVertexNormals();
     source.applyMatrix4(matrix);
