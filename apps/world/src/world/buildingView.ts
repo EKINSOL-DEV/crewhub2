@@ -194,6 +194,7 @@ export class BuildingView {
   /** The entered building's personal desk things (roomDressing.ts `deskItems`). */
   #personal = new THREE.Group();
   #personalMerged: THREE.BufferGeometry[] = [];
+  #signalsMerged: THREE.BufferGeometry[] = [];
   #furnitureMerged: THREE.BufferGeometry[] = [];
   #furniture: THREE.Group | null = null;
   /** The furniture layer's pieces hung on the tall north and west walls (they hide with their wall). */
@@ -747,6 +748,7 @@ export class BuildingView {
     if (signature === this.#signatures.signals) return;
     this.#signatures.signals = signature;
     this.#signals.clear();
+    for (const geometry of this.#signalsMerged) geometry.dispose();
     for (const key of [...this.anchors.keys()]) if (/^(c|beacon|banner|mail|p):/.test(key)) this.anchors.delete(key);
     // A lamp on every desk; a stalled ticket's desk dims its lamp and shows the quiet clock.
     for (const desk of this.desks.values()) {
@@ -795,6 +797,8 @@ export class BuildingView {
       this.#signals.add(model);
       this.anchors.set(`p:${b.slug}:${pallet.room}`, this.world(pallet.x, pallet.z, 0.6));
     }
+    // Static until the signature changes: one merged mesh per material instead of every lamp's parts (perf).
+    this.#signalsMerged = mergeStatic(this.#signals);
   }
 
   /* ── Focus, motion, picking ─────────────────────────────────────────────── */
@@ -971,7 +975,7 @@ export class BuildingView {
     this.#robots.clear();
     this.#objects.dispose();
     this.#props.dispose();
-    for (const geometry of [...this.#merged, ...this.#furnitureMerged, ...this.#pilesMerged, ...this.#silhouetteMerged, ...this.#personalMerged, ...this.#cordsMerged]) geometry.dispose();
+    for (const geometry of [...this.#merged, ...this.#furnitureMerged, ...this.#pilesMerged, ...this.#silhouetteMerged, ...this.#personalMerged, ...this.#signalsMerged, ...this.#cordsMerged]) geometry.dispose();
     this.group.removeFromParent();
   }
 }
