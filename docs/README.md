@@ -26,9 +26,8 @@ These are the active documents for the browser-world rebuild. All are in English
 | [../skills/prop-builder/SKILL.md](../skills/prop-builder/SKILL.md) | The `prop-builder` skill: requests become valid `crewhub-prop/1` props |
 | [decisions/0005-crewhub-world-on-loops.md](decisions/0005-crewhub-world-on-loops.md) | Decision record for the crewhub-loops integration |
 
-The night report of the demo build will be `docs/reports/2026-10-01-world-demo-night.md`
-(written by the Dev Lead; not linked until the file exists). The style contract
-`docs/WORLD_STYLES.md` is written on the phase 3 branch and is likewise unlinked.
+The night report of the demo build is [reports/2026-10-01-world-demo-night.md](reports/2026-10-01-world-demo-night.md):
+what was built per phase, verification, stress numbers, and the challenges met in the crewhub-loops integrator docs.
 
 Read [AGENTS.md](../AGENTS.md) before implementation. Historical plans are retained
 in the archive and Git history; they do not constrain the new visual experience.

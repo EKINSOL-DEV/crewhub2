@@ -57,6 +57,11 @@ proposals, and implemented behavior.
   same purity rules and never knows whether its source is the demo or a host.
 - `packages/demo` is the scripted in-memory crewhub-loops behind `WorldSource`. It is
   pure TypeScript and deterministic.
+- `packages/world-style` is the `WorldStyle` contract; `packages/style-greenhouse` is the
+  Greenhouse style (models as parts-JSON where possible, the palette and lighting as data).
+  Only `apps/world/src/world/style.ts` imports a style package; renderers ask the resolved
+  style of a building for meshes by semantic key. A test enforces this. See
+  [docs/WORLD_STYLES.md](docs/WORLD_STYLES.md).
 - `packages/world-engine` owns grid coordinates, footprints, placement, movement,
   pathfinding, and semantic world descriptions. Keep it free of rendering and provider code.
   Register geometry separately from prop semantics; never infer collision from meshes.

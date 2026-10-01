@@ -54,20 +54,23 @@ model, so a future host source replaces `DemoSource` and nothing else changes.
 
 Phase status, each to be confirmed at the end of the night:
 
-- Phase 1 (town, loops-client, demo source): built in demo mode STATUS-TBD
-- Phase 2 (chat mirror, backed by the demo chat API): built in demo mode STATUS-TBD
-- Phase 3 (interiors, ticket drone): built in demo mode STATUS-TBD
-- Phase 4 (town paths and dynamic pathfinding): built in demo mode STATUS-TBD
-- Phase 5 (town document and build mode): built in demo mode STATUS-TBD
-- Phase 6 (scripted director and `where`): built in demo mode STATUS-TBD
+- Phase 1 (town, loops-client, demo source): built in demo mode
+- Phase 2 (chat mirror, backed by the demo chat API): built in demo mode
+- Phase 3 (interiors, ticket drone): built in demo mode
+- Phase 4 (town paths and dynamic pathfinding): built in demo mode
+- Phase 5 (town document and build mode): built in demo mode
+- Phase 6 (scripted director and `where`): built in demo mode
 
 ## World styles
 
-The Greenhouse look is meant to become the first registered `WorldStyle`: renderers
-ask a style for a mesh by semantic key and never import its models directly.
-Semantics (footprints, room roles) stay in the world model and the grid engine.
-The seam and its contract are described in `docs/WORLD_STYLES.md` (plain text: that
-document is written on the phase 3 branch). Seam status: STATUS-TBD
+The Greenhouse look is the first registered `WorldStyle` (`packages/world-style` is the
+contract, `packages/style-greenhouse` the implementation, `apps/world/src/world/style.ts`
+the only importer). Renderers ask a style for a mesh by semantic key and never import
+its models; a test enforces that boundary. Styles resolve per building (a plot style id,
+falling back to the town default). Semantics (footprints, room roles) stay in the world
+model and the grid engine. The contract is described in [WORLD_STYLES.md](WORLD_STYLES.md).
+Built: the seam, the registry and the Greenhouse style. Not built: a second style,
+external loading, an editor.
 
 ## Boundaries
 
