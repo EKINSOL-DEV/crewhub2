@@ -8,8 +8,8 @@ export const TOWN_ROWS = 3;
 /** Room for 12 buildings; plots past this are not drawn (the text view still lists every building). */
 export const TOWN_CAPACITY = TOWN_COLUMNS * TOWN_ROWS;
 /** Side of a square plot and the street between plots, in world units. */
-export const PLOT_SIZE = 15;
-export const STREET = 2.5;
+export const PLOT_SIZE = 24;
+export const STREET = 6;
 export const PITCH = PLOT_SIZE + STREET;
 
 export interface PlotSpot {
@@ -49,7 +49,7 @@ export function townBounds(): Bounds {
 }
 
 /** Side of the post office's and the town hall's lawns. */
-export const CIVIC_LOT = 9;
+export const CIVIC_LOT = 12;
 
 /**
  * What the home camera frames: the plots in use (at least one) and the two civic lots, each with `margin` around it.
