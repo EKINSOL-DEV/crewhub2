@@ -343,7 +343,6 @@ function World() {
             action={<Button variant="ghost" size="sm" iconOnly aria-label="Close settings" icon={<X className="icon" aria-hidden="true" />} onClick={closeSettings} />}
           />
           <Card.Body>
-            <RoleSettings model={model} overrides={overrides} onChange={setOverrides} />
             <Field
               control="select"
               size="sm"
@@ -359,6 +358,7 @@ function World() {
                 </option>
               ))}
             </Field>
+            <RoleSettings model={model} overrides={overrides} onChange={setOverrides} />
             <p className="settings-style">Style: {styleRegistry.getStyle(DEFAULT_STYLE_ID).manifest.name}</p>
             <p className="sign-muted">Nothing to set yet. Agent settings live in the crewhub-loops web app; the demo has none.</p>
           </Card.Body>
