@@ -54,6 +54,7 @@ const rect = (cx: number, cz: number, width: number, depth: number): Bounds => (
 });
 const span = (minX: number, maxX: number, minZ: number, maxZ: number): Bounds => ({ minX, maxX, minZ, maxZ });
 const inside = (r: Bounds, x: number, z: number, pad = 0) => x >= r.minX - pad && x <= r.maxX + pad && z >= r.minZ - pad && z <= r.maxZ + pad;
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 const overlaps = (a: Bounds, b: Bounds, pad = 0) => a.minX < b.maxX + pad && a.maxX > b.minX - pad && a.minZ < b.maxZ + pad && a.maxZ > b.minZ - pad;
 
 /* ── The street plan ──────────────────────────────────────────────────── */
@@ -213,7 +214,7 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
     const side = place === "post-office" ? -1 : 1;
     add("town.flower-bed", c.x - 5.1, LAWN_Y, c.z + 1.8, { size: { width: 0.9, height: 0.2, depth: 3.2 }, seed: 3 + side });
     add("town.flower-bed", c.x + 5.1, LAWN_Y, c.z + 1.8, { size: { width: 0.9, height: 0.2, depth: 3.2 }, seed: 5 + side });
-    add("town.bike-rack", c.x + side * 3.4, LAWN_Y + 0.04, c.z + 4.6, { rotation: Math.PI / 2 });
+    add("town.bike-rack", c.x + side * 5.3, LAWN_Y, c.z + 4.8, { rotation: Math.PI / 2 });
     add("town.lantern", c.x - 1.9, GRASS_Y, c.z + CIVIC_LOT / 2 + 0.6, { seed: 1 });
     add("town.lantern", c.x + 1.9, GRASS_Y, c.z + CIVIC_LOT / 2 + 0.6, { seed: 2 });
   }
@@ -223,7 +224,7 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
   add("crate", post.x - 3.7, court, post.z + 1.1, { scale: 1.3, rotation: 0.2 });
   add("crate", post.x - 3.2, court, post.z + 1.9, { scale: 1.1, rotation: -0.3 });
   add("crate", post.x - 3.5, court + 0.42, post.z + 1.4, { scale: 0.9, rotation: 0.6 });
-  add("town.mailbox", post.x + 2.2, court, post.z + 5.4, { rotation: Math.PI });
+  add("town.mailbox", post.x + 5.2, LAWN_Y, post.z + 5.1, { rotation: -Math.PI / 2 });
   const cafe = civicCenter("cafe");
   add("town.bike-rack", cafe.x + 2.6, GRASS_Y, cafe.z + 3.6, { rotation: Math.PI / 2 });
   add("crate", cafe.x - 3.3, GRASS_Y, cafe.z - 0.8, { scale: 1.2, rotation: 0.3 });
@@ -473,8 +474,8 @@ function belt(add: Add, tree: Tree, free: (x: number, z: number, pad: number) =>
       const nx = -(z1 - z0) / length,
         nz = (x1 - x0) / length;
       const depth = 1.6 + noise(seed, 2) * 3.6;
-      const x = x0 + (x1 - x0) * t + nx * depth + (noise(seed, 3) - 0.5) * 0.8,
-        z = z0 + (z1 - z0) * t + nz * depth + (noise(seed, 4) - 0.5) * 0.8;
+      const x = clamp(x0 + (x1 - x0) * t + nx * depth + (noise(seed, 3) - 0.5) * 0.8, b.minX + 1.2, b.maxX - 1.2),
+        z = clamp(z0 + (z1 - z0) * t + nz * depth + (noise(seed, 4) - 0.5) * 0.8, b.minZ + 1.2, b.maxZ - 1.2);
       if (!free(x, z, 1)) continue;
       if (noise(seed, 5) < 0.2) add("town.bush", x, GRASS_Y, z, { seed, scale: 1 + noise(seed, 6) * 0.4 });
       else tree(x, z, GRASS_Y, seed, 1.5);
