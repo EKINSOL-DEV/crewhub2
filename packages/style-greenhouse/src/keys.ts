@@ -35,6 +35,9 @@ export const CODE_KEYS: readonly ModelKey[] = [
   "town-hall",
   "civic.square",
   "civic.cafe",
+  "civic.greenhouse",
+  "civic.windmill",
+  "civic.welcome-sign",
   "furniture.desk",
   "furniture.plant",
   "furniture.bench",
@@ -68,14 +71,28 @@ export const SURFACES: Partial<Record<ModelKey, number>> = {
   "furniture.desk": 0.92,
 };
 
+/** A pool of lamp light: its radius, and its height and offset in the model's own frame (origin: footprint centre). */
+export interface LightPool {
+  radius: number;
+  y: number;
+  x?: number;
+  z?: number;
+}
+
 /**
- * Lamps that throw a warm pool of light on the ground under lamplight: its radius, and its height and offset in the
- * model's own frame (the model's origin is its footprint centre). Other lamps can join by key.
+ * Lamps that throw a warm pool of light on the ground under lamplight. Other lamps can join by key; a model with
+ * several lamps (the square, the café) lists a pool per lamp.
  */
-export const LIGHT_POOLS: Partial<Record<ModelKey, { radius: number; y: number; z?: number }>> = {
+export const LIGHT_POOLS: Partial<Record<ModelKey, LightPool | LightPool[]>> = {
   "furniture.lamp": { radius: 1.1, y: 0.012 },
   "street-lamp": { radius: 2.2, y: 0.03 },
   "desk-lamp": { radius: 0.4, y: 0.006 },
   "town.lantern": { radius: 3, y: 0.075 },
   "decor.pendant-lamp": { radius: 0.9, y: 0.012 },
+  "civic.square": [-2.55, 2.55].flatMap((x) => [-2.55, 2.55].map((z) => ({ radius: 1.6, y: 0.14, x, z }))),
+  "civic.cafe": [
+    { radius: 2.4, y: 0.1, x: 0, z: 1.1 },
+    { radius: 1.1, y: 0.1, x: -1.32, z: -0.2 },
+    { radius: 1.1, y: 0.1, x: 1.32, z: -0.2 },
+  ],
 };
