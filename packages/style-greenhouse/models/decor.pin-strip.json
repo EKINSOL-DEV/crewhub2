@@ -1,0 +1,208 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-decor-pin-strip",
+  "name": "Pin strip",
+  "description": "A low cork strip on a partition with index cards, a photo and a sticky note.",
+  "category": "work",
+  "tags": [
+    "greenhouse",
+    "partition",
+    "board",
+    "wall",
+    "notes"
+  ],
+  "footprint": {
+    "width": 2,
+    "depth": 1
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.8,
+        0.28,
+        0.03
+      ],
+      "position": [
+        0,
+        0.38,
+        -0.22
+      ],
+      "material": "timber",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.76,
+        0.24,
+        0.02
+      ],
+      "position": [
+        0,
+        0.38,
+        -0.21
+      ],
+      "material": "terracotta",
+      "radius": 0.005
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.12,
+        0.085,
+        0.01
+      ],
+      "position": [
+        -0.28,
+        0.4,
+        -0.197
+      ],
+      "material": "paper",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        0,
+        4
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.12,
+        0.085,
+        0.01
+      ],
+      "position": [
+        -0.12,
+        0.37,
+        -0.197
+      ],
+      "material": "cream",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        0,
+        -3
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.12,
+        0.085,
+        0.01
+      ],
+      "position": [
+        0.05,
+        0.41,
+        -0.197
+      ],
+      "material": "sage",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        0,
+        2
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.12,
+        0.085,
+        0.01
+      ],
+      "position": [
+        0.22,
+        0.38,
+        -0.197
+      ],
+      "material": "paper",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        0,
+        -5
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.12,
+        0.085,
+        0.01
+      ],
+      "position": [
+        0.3,
+        0.42,
+        -0.197
+      ],
+      "material": "tangerine",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        0,
+        3
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.011,
+        0.011,
+        0.011
+      ],
+      "position": [
+        -0.28,
+        0.435,
+        -0.19
+      ],
+      "material": "coral"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.011,
+        0.011,
+        0.011
+      ],
+      "position": [
+        -0.12,
+        0.405,
+        -0.19
+      ],
+      "material": "coral"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.011,
+        0.011,
+        0.011
+      ],
+      "position": [
+        0.05,
+        0.445,
+        -0.19
+      ],
+      "material": "coral"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.011,
+        0.011,
+        0.011
+      ],
+      "position": [
+        0.22,
+        0.415,
+        -0.19
+      ],
+      "material": "coral"
+    }
+  ]
+}
