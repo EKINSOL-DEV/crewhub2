@@ -24,6 +24,18 @@
   touch-action: none;
   outline-offset: -4px;
 }
+/* Air around the diorama: the canvas is transparent, so the town floats on a soft gradient of the theme's air (daylight
+   or a blue-green evening), with a gentle vignette over the scene's edges. */
+.canvas-host {
+  background: radial-gradient(ellipse 75% 70% at 50% 45%, var(--world-air), var(--world-air-edge));
+}
+.canvas-host::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse 80% 75% at 50% 48%, transparent 62%, color-mix(in oklab, var(--world-air-edge) 55%, transparent));
+}
 .world-labels {
   pointer-events: none;
   overflow: hidden;
@@ -422,6 +434,79 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+/* The Greenhouse room's labels: a white rounded pill with a status dot and the name over each head, and above it at most
+   one bubble with an icon. */
+.agent-stack > .name-pill,
+.agent-stack > .bubble {
+  position: static;
+}
+.name-pill,
+.bubble {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px var(--space-2) 3px 7px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  color: var(--text);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.name-pill.proxy {
+  border-style: dashed;
+  background: color-mix(in oklab, var(--surface-raised) 80%, transparent);
+  color: var(--text-muted);
+}
+.pill-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: var(--radius-pill);
+  background: var(--status-planned);
+}
+.pill-dot[data-tone="working"] {
+  background: var(--status-progress);
+}
+.pill-dot[data-tone="done"] {
+  background: var(--status-done);
+}
+.pill-dot[data-tone="blocked"] {
+  background: var(--status-attention);
+}
+.pill-dot[data-tone="unknown"] {
+  background: var(--status-stalled);
+}
+.pill-dot[data-tone="proxy"] {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--text-muted);
+}
+.bubble {
+  max-width: 11rem;
+  font-weight: var(--weight-medium);
+}
+.bubble-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bubble.ask {
+  border-color: var(--accent-strong);
+  color: var(--accent-text);
+}
+.bubble.alert {
+  background: var(--warm-soft);
+  border-color: var(--warm);
+}
+.bubble.done {
+  color: var(--text-muted);
+}
+.bubble.done .icon {
+  color: var(--status-done);
+}
 .status-tag {
   background: var(--surface-sunken);
   color: var(--text-muted);
@@ -491,7 +576,8 @@
   color: var(--text-muted);
   font-style: italic;
 }
-.ambient-setting {
+.ambient-setting,
+.quality-setting {
   margin-bottom: var(--space-4);
 }
 .role-settings {
@@ -552,10 +638,10 @@
   .world-corner {
     top: var(--space-3);
   }
-  /* The right corner is three 40 px buttons with no gap (8rem with its border); the left corner keeps clear of it. */
+  /* The right corner is four 40 px buttons with no gap (10.25rem with its border); the left corner keeps clear of it. */
   .world-corner-left {
     left: var(--space-3);
-    max-width: calc(100% - 2 * var(--space-3) - 8rem - var(--space-2));
+    max-width: calc(100% - 2 * var(--space-3) - 10.25rem - var(--space-2));
   }
   .world-corner-right {
     right: var(--space-3);
@@ -567,6 +653,10 @@
   }
   .world-brand {
     font-size: var(--text-sm);
+  }
+  /* With four toolbar buttons beside it the brand keeps one line: the demo chip keeps its icon (and its label). */
+  .demo-word {
+    display: none;
   }
   /* The town is small on a phone: an unfocused sign shows its key only, the focused one expands. */
   .town-sign:not(.expanded) .sign-name,

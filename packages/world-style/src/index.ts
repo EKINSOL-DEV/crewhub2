@@ -107,10 +107,21 @@ export interface RobotHandle {
 }
 export type RobotDetail = "near" | "far";
 
+/**
+ * The viewer's graphics setting (Settings, kept per browser). "pretty" (the default) draws soft shadow maps and the
+ * ambient effects (warm light pools, glow); "fast" turns them off. Blob contact shadows stay in both.
+ */
+export type GraphicsQuality = "pretty" | "fast";
+
 export interface EnvironmentHandle {
   setTheme(theme: StyleTheme): void;
-  /** Fits the key light's shadow to a square of this half-size around the origin. */
-  setShadowReach(reach: number): void;
+  /**
+   * Fits the key light's shadow to a square of this half-size around `center` (the origin when left out). A small
+   * reach (an entered building, a room) gets crisp, close shadows; a large one (the town) cheaper, softer ones.
+   */
+  setShadowReach(reach: number, center?: { x: number; z: number }): void;
+  /** Shadow maps and the ambient effects follow the graphics setting; the renderer's own settings are the caller's. */
+  setQuality(quality: GraphicsQuality): void;
   dispose(): void;
 }
 
@@ -128,8 +139,12 @@ export interface LightingPreset {
   fillIntensity: number;
   fillPosition: [number, number, number];
   exposure: number;
-  /** Opacity of the soft contact shadow under the town. */
+  /** Opacity of the blob contact shadows under buildings and robots. */
   shadowOpacity: number;
+  /** Emissive strength of lamps, screens and lit windows in this theme (1 is the model's own). */
+  glow: number;
+  /** Opacity of the warm light pools under lamps (0 hides them: daylight). */
+  pools: number;
 }
 
 /**

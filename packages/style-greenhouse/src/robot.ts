@@ -23,7 +23,10 @@ export function robot(kit: Kit, options: { key: string; accent: PaletteName | nu
   const ring = new THREE.Mesh(kit.geometry("halo", () => new THREE.PlaneGeometry(1.45, 1.45)), halo);
   ring.rotation.x = -Math.PI / 2;
   ring.position.y = 0.04;
-  group.add(ring, body);
+  // A soft blob under the feet in every quality setting: the robot stands on the floor even without shadow maps.
+  const blob = kit.decal("shadow", 0.16, 0.12, 0.3);
+  blob.position.y = 0.015;
+  group.add(blob, ring, body);
   body.position.y = 0.12;
   // Small parts: seen from the town ("far") they are dropped, with every shadow.
   const fine: THREE.Object3D[] = [];
@@ -139,6 +142,7 @@ export function robot(kit: Kit, options: { key: string; accent: PaletteName | nu
     setProxy(next) {
       if (next === proxy) return;
       proxy = next;
+      blob.visible = !proxy;
       skin();
     },
     setDetail(next) {

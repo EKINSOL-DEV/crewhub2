@@ -33,6 +33,8 @@ export const CODE_KEYS: readonly ModelKey[] = [
   "emblem.folder",
   "post-office",
   "town-hall",
+  "civic.square",
+  "civic.cafe",
   "furniture.desk",
   "furniture.plant",
   "furniture.bench",
@@ -49,6 +51,7 @@ export const CODE_KEYS: readonly ModelKey[] = [
   "ticket.speech",
   "sparkle",
   "focus-ring",
+  "town.contact-shadow",
 ];
 
 /** Top surface heights (m) where objects are set down, for models whose bounding box is taller than the top. */
@@ -56,4 +59,14 @@ export const SURFACES: Partial<Record<ModelKey, number>> = {
   "furniture.workdesk": 0.565,
   "furniture.lead-desk": 0.635,
   "furniture.desk": 0.92,
+};
+
+/**
+ * Lamps that throw a warm pool of light on the ground under lamplight: its radius, and its height and offset in the
+ * model's own frame (the model's origin is its footprint centre). Other lamps can join by key.
+ */
+export const LIGHT_POOLS: Partial<Record<ModelKey, { radius: number; y: number; z?: number }>> = {
+  "furniture.lamp": { radius: 1.1, y: 0.012 },
+  "street-lamp": { radius: 2.2, y: 0.03 },
+  "desk-lamp": { radius: 0.4, y: 0.006 },
 };
