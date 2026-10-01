@@ -50,6 +50,8 @@ class GreenhouseStyle implements WorldStyle {
   model(key: ModelKey, options: ModelOptions = {}): THREE.Object3D | null {
     const object = this.#data(key, options) ?? this.#code(key, options);
     if (!object) return null;
+    // Town dressing repeats in the thousands: lighter round parts, and no shadows from the small pieces.
+    if (key.startsWith("town.") || key === "ground") town.townDetail(this.#kit, object, key);
     const surface = SURFACES[key];
     if (surface !== undefined) object.userData.surface = surface;
     const pools = LIGHT_POOLS[key];

@@ -273,3 +273,44 @@ export function disposeTown(kit: Kit) {
   wearMaterials.get(kit)?.dispose();
   wearMaterials.delete(kit);
 }
+
+/** Small town pieces whose shadows nobody sees from the town camera; they skip the shadow pass. */
+const SHADOWLESS = new Set([
+  "town.grass",
+  "town.tall-grass",
+  "town.flowers",
+  "town.wildflowers",
+  "town.flower-bed",
+  "town.lily",
+  "town.rock",
+  "town.mailbox",
+  "town.bike-rack",
+  "town.fence",
+  "town.veg-bed",
+  "town.picnic-blanket",
+  "town.sandpit",
+  "town.bush",
+  "town.hedge",
+  "ground",
+]);
+
+/**
+ * The town's level of detail. Dressing is drawn thousands of times, so its round parts swap the kit's smooth spheres
+ * (12 × 10) and cylinders (20 sides) for lighter ones (8 × 6, 10 sides), still soft under the toon materials, and the
+ * small pieces cast no shadow. Shared geometry stays shared, so instancing is unchanged.
+ */
+export function townDetail(kit: Kit, object: THREE.Object3D, key: string) {
+  const shadow = !SHADOWLESS.has(key);
+  object.traverse((o) => {
+    if (!(o instanceof THREE.Mesh)) return;
+    if (!shadow) o.castShadow = false;
+    const g = o.geometry;
+    if (g instanceof THREE.SphereGeometry && g.parameters.widthSegments > 8) {
+      const r = g.parameters.radius;
+      o.geometry = kit.geometry(`sphere-low:${r}`, () => new THREE.SphereGeometry(r, 8, 6));
+    } else if (g instanceof THREE.CylinderGeometry && g.parameters.radialSegments > 10) {
+      const { radiusTop, radiusBottom, height } = g.parameters;
+      o.geometry = kit.geometry(`cylinder-low:${radiusTop},${radiusBottom},${height}`, () => new THREE.CylinderGeometry(radiusTop, radiusBottom, height, 10));
+    }
+  });
+}
