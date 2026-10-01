@@ -299,14 +299,15 @@ export function postOffice(kit: Kit, piece: Piece): THREE.Group {
       placed(g, piece("cart"), 2.75, 0.3, front + 0.66, -0.3, 1.1);
       placed(g, piece("civic.parcel-stack"), 3.65, 0, front + 0.5, -0.5, 0.95);
       placed(g, piece("crate"), 1.75, 0.3, front + 0.5, 0.2, 0.9);
-      placed(g, piece("mailbox"), -3.1, 0, front + 0.75, 0, 1.3);
+      placed(g, piece("mailbox"), -3.05, 0, front + 1.15, 0, 1.3);
 
       // The forecourt: flagstones from the door, open for the postman.
       flagstones(g, kit, -0.2, front + 1.9 - 0.15, 6.6, 2.9, ["step", "clay", "step", "paper"]);
       placed(g, piece("civic.notice-board"), -3.2, 0, front + 2.2, 0.45, 0.85);
     },
     (g) => {
-      for (const x of [-2.0, -0.4]) placed(g, plant(kit, x > -1 ? 2 : 5), x, 0, front + 0.35, 0, 0.8);
+      // Plants flank the window and the door's left side; the ground right of the door is the postman's.
+      for (const x of [-3.65, -1.95]) placed(g, plant(kit, x > -3 ? 2 : 5), x, 0, front + 0.3, 0, 0.75);
     },
   );
 }
@@ -568,8 +569,8 @@ export function cafe(kit: Kit, piece: Piece): THREE.Group {
       put(g, kit.box(1.48, 0.4, 0.06, "moss", 0.03), 0, 2.52, front + 0.22);
       put(g, letters(kit, "CAFE", 0.065, "cream"), 0, 2.52, front + 0.27);
       // The terrace: two tables, the menu board, a planter.
-      placed(g, piece("civic.cafe-table"), -1.3, 0.08, 0.95, 0.4);
-      placed(g, piece("civic.cafe-table"), 1.3, 0.08, 0.95, -0.3);
+      placed(g, piece("civic.cafe-table"), -1.4, 0.08, 1.15, 0.4);
+      placed(g, piece("civic.cafe-table"), 1.4, 0.08, 1.15, -0.3);
       placed(g, piece("civic.menu-board"), -2.0, 0.08, -0.25, 0.5);
       placed(g, piece("civic.planter"), 2.0, 0.08, -1.25, 0, 0.7);
     },

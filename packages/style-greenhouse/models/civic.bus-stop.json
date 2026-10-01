@@ -141,6 +141,166 @@
     {
       "shape": "box",
       "size": [
+        2.6,
+        0.06,
+        1.2
+      ],
+      "position": [
+        0.0,
+        2.27,
+        -0.08
+      ],
+      "material": "leaf",
+      "rotation": [
+        -4.0,
+        0.0,
+        0.0
+      ],
+      "radius": 0.03
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.16,
+        0.112,
+        0.16
+      ],
+      "position": [
+        -1.0,
+        2.327,
+        -0.3
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.12,
+        0.084,
+        0.12
+      ],
+      "position": [
+        -0.55,
+        2.35,
+        0.2
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.14,
+        0.098,
+        0.14
+      ],
+      "position": [
+        0.1,
+        2.314,
+        -0.4
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.15,
+        0.105,
+        0.15
+      ],
+      "position": [
+        0.7,
+        2.355,
+        0.15
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.11,
+        0.077,
+        0.11
+      ],
+      "position": [
+        1.05,
+        2.301,
+        -0.45
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.045,
+        0.04,
+        0.045
+      ],
+      "position": [
+        -0.8,
+        2.361,
+        0.3
+      ],
+      "material": "coral"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.045,
+        0.04,
+        0.045
+      ],
+      "position": [
+        -0.2,
+        2.34,
+        0.0
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.045,
+        0.04,
+        0.045
+      ],
+      "position": [
+        0.35,
+        2.365,
+        0.35
+      ],
+      "material": "tangerine"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.045,
+        0.04,
+        0.045
+      ],
+      "position": [
+        0.9,
+        2.329,
+        -0.15
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.045,
+        0.04,
+        0.045
+      ],
+      "position": [
+        -1.15,
+        2.347,
+        0.1
+      ],
+      "material": "lamp-glow"
+    },
+    {
+      "shape": "box",
+      "size": [
         1.4,
         0.025,
         0.08
