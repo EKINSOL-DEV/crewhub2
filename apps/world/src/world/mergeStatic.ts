@@ -57,10 +57,26 @@ function paletteMaterial(source: THREE.MeshStandardMaterial, palette: THREE.Mesh
 }
 
 /**
+ * Disposes `material` with `geometry`. A function of its own on purpose: a closure made inside `mergeStatic` would
+ * share that call's scope and keep every source mesh and geometry of the merge alive for as long as the listener.
+ */
+function disposeWith(geometry: THREE.BufferGeometry, material: THREE.Material) {
+  geometry.addEventListener("dispose", () => material.dispose());
+}
+
+/** After its upload the GPU holds the vertex data: the JS copy is let go (the docs' `onUpload` pattern). */
+function release(this: THREE.BufferAttribute) {
+  (this as unknown as { array: null }).array = null;
+}
+
+/**
  * Replaces the static meshes under `root` with merged meshes; returns the geometries it created (to dispose).
  * Disposing a palette batch's geometry also disposes the material made for it.
+ *
+ * The merged geometries keep their bounds but let their vertex data go once it is on the GPU, which is most of a
+ * town's memory: nothing reads it again. `keepData` keeps it, for meshes that are picked (raycast) under `root`.
  */
-export function mergeStatic(root: THREE.Group): THREE.BufferGeometry[] {
+export function mergeStatic(root: THREE.Group, options: { keepData?: boolean } = {}): THREE.BufferGeometry[] {
   root.updateMatrixWorld(true);
   const inverse = new THREE.Matrix4().copy(root.matrixWorld).invert();
   const batches = new Map<unknown, Batch[]>();
@@ -84,7 +100,8 @@ export function mergeStatic(root: THREE.Group): THREE.BufferGeometry[] {
       if (!batch) list.push((batch = { geometries: [], shadow: o.castShadow, palette: [], material }));
       let index = batch.palette!.indexOf(standard);
       if (index < 0) index = batch.palette!.push(standard) - 1;
-      source.setAttribute("aSwatch", new THREE.Float32BufferAttribute(new Float32Array(source.attributes.position!.count).fill(index), 1));
+      // One byte a vertex: the palette index, read as a float by the shader.
+      source.setAttribute("aSwatch", new THREE.BufferAttribute(new Uint8Array(source.attributes.position!.count).fill(index), 1));
       batch.geometries.push(source);
     } else {
       if (!list.length) list.push({ geometries: [], shadow: false, palette: null, material });
@@ -100,11 +117,13 @@ export function mergeStatic(root: THREE.Group): THREE.BufferGeometry[] {
       const geometry = mergeGeometries(geometries, false);
       for (const g of geometries) g.dispose();
       if (!geometry) continue;
+      geometry.computeBoundingBox();
+      geometry.computeBoundingSphere();
+      if (!options.keepData) for (const attribute of Object.values(geometry.attributes)) (attribute as THREE.BufferAttribute).onUpload(release);
       let drawn = material;
       if (palette) {
-        const own = paletteMaterial(material as THREE.MeshStandardMaterial, palette);
-        geometry.addEventListener("dispose", () => own.dispose());
-        drawn = own;
+        drawn = paletteMaterial(material as THREE.MeshStandardMaterial, palette);
+        disposeWith(geometry, drawn);
       }
       const mesh = new THREE.Mesh(geometry, drawn);
       mesh.castShadow = shadow;

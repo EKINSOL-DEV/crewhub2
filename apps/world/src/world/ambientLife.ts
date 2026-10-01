@@ -15,6 +15,7 @@
    and no reduced motion; otherwise it is hidden. TownScene ticks it with the frame loop and keeps drawing for it only
    while the playback runs, so a paused or ambient-off town still idles. Deterministic per index (no Math.random). */
 import * as THREE from "three";
+import { instancedMaterial } from "./instancedMaterial";
 import type { GraphicsQuality, LifeSpot, ModelKey, PaletteName, ResolvedStyle } from "@crewhub/world-style";
 import type { Ambient } from "./movement";
 import { noise, pondRect, type Dressing } from "./townDressing";
@@ -62,7 +63,7 @@ class Swarm {
     if (!source) model.traverse((o) => (source ??= o instanceof THREE.Mesh ? o : null));
     const mesh = source as THREE.Mesh | null;
     this.#base = mesh ? mesh.matrixWorld.clone() : new THREE.Matrix4();
-    this.mesh = new THREE.InstancedMesh(mesh?.geometry ?? new THREE.BufferGeometry(), mesh?.material ?? new THREE.MeshBasicMaterial(), capacity);
+    this.mesh = new THREE.InstancedMesh(mesh?.geometry ?? new THREE.BufferGeometry(), mesh ? instancedMaterial(mesh.material as THREE.Material) : new THREE.MeshBasicMaterial(), capacity);
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.mesh.renderOrder = mesh?.renderOrder ?? 0;
     // Instances spread over the town: the base geometry's bounds would cull them wrongly.

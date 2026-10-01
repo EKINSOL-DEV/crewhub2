@@ -436,8 +436,9 @@ export class BuildingView {
     } else this.#truck = null;
     this.anchors.set(`truck:${b.slug}`, this.world(TRUCK_SPOT.x, TRUCK_SPOT.z, 1 - FLOOR_RISE));
     this.#merged = mergeStatic(this.#shellStatic);
-    // The truck moves only as a whole: its parts merge per material under its own root (perf).
-    if (this.#truck) this.#merged.push(...mergeStatic(this.#truck as THREE.Group));
+    // The truck moves only as a whole: its parts merge per material under its own root (perf). It can be picked, so
+    // its merged geometry keeps its vertex data for the raycast.
+    if (this.#truck) this.#merged.push(...mergeStatic(this.#truck as THREE.Group, { keepData: true }));
     for (const [side, walls] of Object.entries(this.#backWalls) as ["north" | "west", { tall: THREE.Group; low: THREE.Group }][])
       for (const tall of [true, false]) {
         const group = tall ? walls.tall : walls.low;

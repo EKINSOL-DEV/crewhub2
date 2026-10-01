@@ -3,6 +3,7 @@
    objects along an arc in source time; a re-stack eases over a short tween; a person's move to done hops once with a
    sparkle. Under reduced motion flights are a short fade and nothing hops. The frame path allocates nothing. */
 import * as THREE from "three";
+import { instancedMaterial } from "./instancedMaterial";
 import type { ModelKey, ModelOptions, PaletteName, ResolvedStyle } from "@crewhub/world-style";
 import type { Building, WorkObject } from "@crewhub/world-model";
 import { BUILDING_CELL } from "./buildingTemplate";
@@ -54,7 +55,7 @@ class Template {
     }
     this.meshes.length = 0;
     for (const part of this.parts) {
-      const mesh = new THREE.InstancedMesh(part.geometry, part.material, capacity);
+      const mesh = new THREE.InstancedMesh(part.geometry, instancedMaterial(part.material as THREE.Material), capacity);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       mesh.count = 0;

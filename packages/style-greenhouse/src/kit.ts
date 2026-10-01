@@ -68,10 +68,14 @@ export class Kit {
     return this.data.swatches[name] ?? (this.data.palette as Record<string, string>)[name] ?? this.data.swatches["no-project"]!;
   }
 
-  /** The shared toon-ish material of a swatch; `glow` makes it emissive (lamps, screens). */
-  material(name: Swatch, options: { glow?: Swatch | number; transparent?: number } = {}): THREE.MeshStandardMaterial {
+  /**
+   * The shared toon-ish material of a swatch; `glow` makes it emissive (lamps, screens). `instanced` gives the copy
+   * that instanced meshes draw with: one material drawn both plain and instanced makes three look its program up
+   * again at every switch.
+   */
+  material(name: Swatch, options: { glow?: Swatch | number; transparent?: number; instanced?: boolean } = {}): THREE.MeshStandardMaterial {
     const glow = options.glow === undefined ? null : typeof options.glow === "number" ? name : options.glow;
-    const key = `${name}|${glow ?? ""}|${typeof options.glow === "number" ? options.glow : ""}|${options.transparent ?? ""}`;
+    const key = `${name}|${glow ?? ""}|${typeof options.glow === "number" ? options.glow : ""}|${options.transparent ?? ""}${options.instanced ? "|instanced" : ""}`;
     let entry = this.#materials.get(key);
     if (!entry) {
       const material = new THREE.MeshStandardMaterial({ color: this.hex(name), roughness: glow ? 1 : 0.7, metalness: 0 });
