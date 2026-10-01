@@ -29,7 +29,8 @@ const files: Record<string, unknown> = Object.fromEntries(
   Object.entries(groups)
     .filter(([group]) => !only || group === only)
     .flatMap(([group, found]) =>
-      Object.entries(found).map(([path, json]) => [`${group}/${path.split("/").pop() ?? path}`, json]),
+      // Keyed by folder and file name: eval runs reuse their file names in a folder per run.
+      Object.entries(found).map(([path, json]) => [`${group}/${path.split("/").slice(-2).join("/")}`, json]),
     ),
 );
 
@@ -181,7 +182,7 @@ function PreviewCanvas({ angle, theme }: { angle: number; theme: StyleTheme }) {
       prop.position.y = 0.025;
       tile.add(prop);
       content.add(tile);
-      anchors.push({ id: m.id, name: m.name, point: new THREE.Vector3(spot.x, -0.1, spot.z + d / 2 + 0.2) });
+      anchors.push({ id: valid[i]!.file, name: m.name, point: new THREE.Vector3(spot.x, -0.1, spot.z + d / 2 + 0.2) });
     });
     const box = new THREE.Box3().setFromObject(content);
     const centre = box.getCenter(new THREE.Vector3());

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { NavWorld, plotDoor, plotObstacles, POST_OFFICE_CELL, TOWN_GRID, TOWN_HALL_CELL, TOWN_ROOM, townCellAt, townCellCentre, townOpenCells } from "../src/world/navigation.ts";
-import { entranceRoad, gardenPath, landmarks, laneRects, plotUse, streetXs, streetZs, pondRect, townDressing, townPaths, type Dressing } from "../src/world/townDressing.ts";
+import { entranceRoad, gardenKind, gardenPath, landmarks, laneRects, plotUse, streetXs, streetZs, pondRect, townDressing, townPaths, type Dressing } from "../src/world/townDressing.ts";
 import { civicCenter, PLOT_SIZE, plotCenter, TOWN_CAPACITY, townBounds, type Bounds } from "../src/world/townLayout.ts";
 import { building } from "./fixtures.ts";
 
@@ -12,7 +12,7 @@ const open = (cells: Uint8Array, x: number, z: number) => {
   return cells[c.z * TOWN_GRID.width + c.x] === 1;
 };
 /** Pieces that stand up out of the ground; paving, lawns, the pond, the bridge and the lantern pools lie on it. */
-const STANDING = /^town\.(oak|birch|pine|fruit-tree|bush|hedge|bench|signpost|bike-rack|mailbox|flower-bed|fence|swing|slide|sandpit|shed|veg-bed)$/;
+const STANDING = /^(town\.(oak|birch|pine|fruit-tree|bush|hedge|bench|signpost|bike-rack|mailbox|flower-bed|fence|swing|slide|sandpit|shed|veg-bed|bike-shelter|leaf-pile)|civic\.(cafe-table|planter))$/;
 
 test("the dressing is deterministic and stays on the town ground", () => {
   const a = townDressing(plots(4)),
@@ -132,4 +132,25 @@ test("the landmarks keep their reserved spots: off the paths, inside the town, w
   }
   const sign = landmarks().find((l) => l.key === "civic.welcome-sign")!;
   assert.ok(sign.x - road.maxX < 2.5 && sign.z > road.minZ, "the welcome sign stands by the entrance road");
+});
+
+test("each building's front garden follows its seed, and an archived one is overgrown", () => {
+  const yard = (seed: number, archived = false) => {
+    const plot = { ...plots(1)[0]!, seed, archived };
+    const c = plotCenter(0);
+    return townDressing([plot]).filter((d) => Math.abs(d.x - c.x) < PLOT_SIZE / 2 && Math.abs(d.z - c.z) < PLOT_SIZE / 2 && d.z > plot.obstacles[0]!.maxZ);
+  };
+  const expected: Record<string, RegExp> = { lawn: /^town\.bench$/, terrace: /^civic\.cafe-table$/, vegetables: /^town\.veg-bed$/, bikes: /^town\.bike-shelter$/ };
+  const seeds = (["lawn", "terrace", "vegetables", "bikes"] as const).map((kind) => Array.from({ length: 200 }, (_, i) => i).find((i) => gardenKind(i) === kind)!);
+  for (const seed of seeds) {
+    assert.ok(seed !== undefined, "every garden kind occurs");
+    const kind = gardenKind(seed);
+    assert.ok(yard(seed).some((d) => expected[kind]!.test(d.key)), `a ${kind} garden for seed ${seed}`);
+    assert.deepEqual(yard(seed), yard(seed), "the same building always gets the same garden");
+  }
+  const wild = yard(1, true);
+  assert.ok(wild.some((d) => d.key === "town.leaf-pile"), "fallen leaves");
+  assert.ok(wild.filter((d) => d.key === "town.tall-grass").length >= 6, "long grass");
+  assert.ok(!wild.some((d) => d.key === "town.flower-bed" || d.key === "civic.cafe-table"), "no tended beds or tables");
+  assert.ok(wild.some((d) => d.key === "town.gate"), "the gate is still there");
 });

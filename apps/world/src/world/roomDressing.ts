@@ -47,6 +47,7 @@ export const dressingDefinitions: Definitions = {
   "hand-truck": piece("hand-truck", "Hand truck", 1, 1),
   "board-stand": piece("board-stand", "Whiteboard on a stand", 2, 1),
   "chart-easel": piece("chart-easel", "Chart easel", 1, 1),
+  "chart-board": piece("chart-board", "Chart board", 2, 1),
   "mood-board": piece("mood-board", "Mood board", 2, 1),
   "round-table": piece("round-table", "Round table", 2, 2),
   planter: piece("planter", "Big planter", 2, 2),
@@ -365,7 +366,11 @@ function plan(kind: RoomKind, facts: RoomFacts, planner: Planner, defs: Definiti
       const modules = facts.zones.filter((z) => z.use.includes("plants")).length / 2 || 1;
       plants(Math.max(1, Math.round(modules * 1.5)), "plants");
       if (kind === "workers" && !facts.tall.north.size && !facts.tall.west.size) place({ def: "board-stand", at: "wall", anchor: null });
-      if (kind === "analyst" && !facts.tall.north.size && !facts.tall.west.size) place({ def: "chart-easel", at: "wall", anchor: null, sides: ["north", "west", "east"] });
+      // The room's signature where no tall wall carries it: the analyst's chart board, the designer's mood board.
+      if (kind === "analyst" && !facts.tall.north.size && !facts.tall.west.size) {
+        place({ def: "chart-board", at: "wall", anchor: null, sides: ["north", "west", "east"] });
+        place({ def: "chart-easel", at: "wall", anchor: null, sides: ["north", "west", "east"] });
+      }
       if (kind === "design" && !facts.tall.north.size && !facts.tall.west.size) place({ def: "mood-board", at: "wall", anchor: null, sides: ["north", "west", "east"] });
       if (kind !== "workers") place({ def: "filing-cabinet", at: "wall", anchor: null, sides: ["north", "east"] });
       break;
@@ -414,15 +419,22 @@ export interface DecorItem {
   /** Turn about y, radians. */
   rotation: number;
   /** What it stands on: the floor (wall and ceiling pieces carry their own height) or a desk top. */
-  on: "floor" | "desk";
+  on: "floor" | "desk" | "lead-desk";
   /** Scale per axis; 1 when absent. */
   scale?: { x: number; y: number; z: number };
   /** Leaning against a low wall instead of hanging: lowered by `drop` world units and tipped back. */
   lean?: { drop: number };
+  /** Hung higher on a tall wall, world units. */
+  raise?: number;
 }
 
-/** Wall pieces: model key and width in cells. */
-const WALL_ART: Partial<Record<RoomKind, [ModelKey, number][]>> = {
+/** Where a wall piece's footprint centre stands off its wall, in cells: clear of the tall walls' thickness. */
+const WALL_OFFSET = 0.62;
+/** How much higher than its model a piece hangs on the tall walls (they are 1.75 high), world units. */
+const HANG = 0.22;
+
+/** Wall pieces: model key, width in cells and, when not the default, how much higher it hangs. */
+const WALL_ART: Partial<Record<RoomKind, [ModelKey, number, number?][]>> = {
   "lead-office": [
     ["decor.picture-pair", 2],
     ["decor.poster-leaf", 1],
@@ -436,22 +448,20 @@ const WALL_ART: Partial<Record<RoomKind, [ModelKey, number][]>> = {
   workers: [
     ["decor.whiteboard", 3],
     ["decor.wall-clock", 1],
-    ["decor.window-box", 2],
-    ["decor.window-box", 2],
   ],
   meeting: [
     ["decor.screen", 2],
     ["decor.whiteboard", 3],
-    ["decor.window-box", 2],
   ],
   planning: [
-    ["decor.pin-board", 2],
+    // The signature: the big planning board, already drawn at its height.
+    ["decor.planning-board", 4, 0],
     ["decor.map-wall", 3],
+    ["decor.pin-board", 2],
     ["decor.wall-clock", 1],
   ],
   storage: [
     ["decor.wall-plant-shelf", 2],
-    ["decor.window-box", 2],
   ],
   review: [
     ["decor.poster-wave", 1],
@@ -542,14 +552,6 @@ export function roomDecor(template: BuildingTemplate, options: Omit<DressOptions
       if (free) at(room.kind === "design" ? "decor.rug-round" : "decor.rug-long", free.x + free.width / 2 + 1, free.z + free.depth / 2 + 1, 0, { scale: { x: 0.7, y: 1, z: 0.7 } });
     }
 
-    // Things on desks: books or a little plant on some workstations.
-    for (const p of props.filter((q) => q.definitionId === "workdesk")) {
-      const pose = poseOf(p, defs);
-      const r = rand();
-      if (r < 0.35) at("decor.desk-books", pose.x + 0.8, pose.z + 0.15, rand() - 0.5, { on: "desk" });
-      else if (r < 0.6) at("decor.desk-plant", pose.x + 0.8, pose.z + 0.2, 0, { on: "desk" });
-    }
-
     // Wall art along the tall back walls; pictures lean against a low partition where a room has none.
     const art = [...(WALL_ART[room.kind] ?? [])];
     const used = new Set<string>();
@@ -563,7 +565,7 @@ export function roomDecor(template: BuildingTemplate, options: Omit<DressOptions
       // Start at a seeded place along the wall so neighbours differ.
       const start = Math.floor(rand() * length);
       for (let k = 0; k < art.length; ) {
-        const [key, w] = art[k]!;
+        const [key, w, raise = HANG] = art[k]!;
         let found = -1;
         for (let j = 0; j < length && found < 0; j++) {
           const i = (start + j) % length;
@@ -577,9 +579,31 @@ export function roomDecor(template: BuildingTemplate, options: Omit<DressOptions
           continue;
         }
         for (let t = 0; t < w; t++) used.add(`${side}${found + t}`);
-        if (side === "north") at(key, found + w / 2, 0.5, 0);
-        else at(key, 0.5, found + w / 2, Math.PI / 2);
+        if (side === "north") at(key, found + w / 2, WALL_OFFSET, 0, { raise });
+        else at(key, WALL_OFFSET, found + w / 2, Math.PI / 2, { raise });
         art.splice(k, 1);
+      }
+    }
+
+    // The greenhouse glass (the tall north wall): a few blinds pulled half down, a ledge of potted plants on the knee
+    // wall and plants hanging in the bays between, on the stretches that wall art and furniture leave free.
+    const blinds = new Set<number>();
+    const north = (x: number) => facts.tall.north.has(x) && !used.has(`north${x}`);
+    for (let x = 0; x + 2 <= facts.width; x++)
+      if (north(x) && north(x + 1) && rand() < 0.3) {
+        at("decor.blind", x + 1, WALL_OFFSET, 0);
+        blinds.add(x).add(x + 1);
+        x += 2;
+      }
+    for (let x = 0; x < facts.width; x++) {
+      if (!north(x)) continue;
+      if (x + 1 < facts.width && north(x + 1) && !blockedBy.has(`${x},0`) && !blockedBy.has(`${x + 1},0`) && rand() < 0.7) {
+        at("decor.glass-ledge", x + 1, WALL_OFFSET, 0);
+        used.add(`north${x}`).add(`north${x + 1}`);
+        x += 1;
+      } else if (!blinds.has(x) && free("north", x) && rand() < 0.6) {
+        at("decor.hanging-plant", x + 0.5, WALL_OFFSET, 0);
+        used.add(`north${x}`);
       }
     }
     if (!facts.tall.north.size && !facts.tall.west.size && room.kind !== "lobby") {
@@ -600,6 +624,52 @@ export function roomDecor(template: BuildingTemplate, options: Omit<DressOptions
       const x1 = Math.max(options.loading.x1, room.origin.x) - room.origin.x,
         x2 = Math.min(options.loading.x2, room.origin.x + facts.width) - room.origin.x;
       if (x2 > x1) at("decor.truck-door", (x1 + x2) / 2, facts.depth - 0.5, Math.PI, { scale: { x: (x2 - x1) / 3, y: 1, z: 1 } });
+    }
+  }
+  return out;
+}
+
+/* ── Personal desks ───────────────────────────────────────────────────── */
+
+/** A desk and who sits at it: the view's desk slots (interiorLayout.ts), building cells. */
+export interface PersonalDesk {
+  agentKey: string;
+  room: RoomKind;
+  definitionId: string;
+  /** The desk's centre, building cells. */
+  desk: { x: number; z: number };
+}
+
+const PERSONAL: ModelKey[] = ["decor.desk-mug", "decor.photo-frame", "decor.desk-plant", "decor.desk-books", "decor.sticky-notes", "decor.headphones"];
+/**
+ * Free spots on a desk top, in cells from its centre (the seat is north): clear of the lamp (west end), the monitor
+ * (south middle), the ticket stack (east of the middle) and, on the lead's desk, the inbox tray, the bug jar and the
+ * trophy.
+ */
+const DESK_SPOTS: Record<string, { x: number; z: number }[]> = {
+  workdesk: [
+    { x: 0.78, z: -0.26 },
+    { x: 0.76, z: 0.3 },
+    { x: -0.4, z: -0.36 },
+  ],
+  "lead-desk": [{ x: -0.7, z: -0.5 }],
+};
+
+/** A small personal set on every desk, seeded by the agent's key: the same agent keeps the same things. */
+export function deskItems(desks: Iterable<PersonalDesk>): DecorItem[] {
+  const out: DecorItem[] = [];
+  for (const d of desks) {
+    const spots = DESK_SPOTS[d.definitionId];
+    if (!spots) continue;
+    const rand = random(dressingSeed(`desk:${d.agentKey}`));
+    const pool = [...PERSONAL];
+    const count = Math.min(spots.length, 2 + Math.floor(rand() * 2));
+    for (let i = 0; i < count; i++) {
+      const key = pool.splice(Math.floor(rand() * pool.length), 1)[0]!;
+      const spot = spots[i]!;
+      // Photos and headphones face the seat; the rest turn a little at random.
+      const rotation = key === "decor.photo-frame" ? Math.PI + (rand() - 0.5) * 0.6 : (rand() - 0.5) * 1.2;
+      out.push({ key, room: d.room, x: d.desk.x + spot.x, z: d.desk.z + spot.z, rotation, on: d.definitionId === "lead-desk" ? "lead-desk" : "desk" });
     }
   }
   return out;

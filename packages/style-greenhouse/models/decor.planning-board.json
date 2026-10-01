@@ -1,0 +1,544 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-decor-planning-board",
+  "name": "Planning board",
+  "description": "A big wall board in four columns of index cards, swimlanes in sage, a coral thread and a timber frame.",
+  "category": "work",
+  "tags": [
+    "greenhouse",
+    "planning",
+    "board",
+    "wall"
+  ],
+  "footprint": {
+    "width": 4,
+    "depth": 1
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        2.1,
+        0.72,
+        0.035
+      ],
+      "position": [
+        0,
+        0.95,
+        -0.22
+      ],
+      "material": "timber",
+      "radius": 0.012
+    },
+    {
+      "shape": "box",
+      "size": [
+        2.05,
+        0.67,
+        0.02
+      ],
+      "position": [
+        0,
+        0.95,
+        -0.208
+      ],
+      "material": "cream",
+      "radius": 0.006
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.46,
+        0.06,
+        0.01
+      ],
+      "position": [
+        -0.75,
+        1.24,
+        -0.196
+      ],
+      "material": "sage",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.46,
+        0.06,
+        0.01
+      ],
+      "position": [
+        -0.25,
+        1.24,
+        -0.196
+      ],
+      "material": "tangerine",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.46,
+        0.06,
+        0.01
+      ],
+      "position": [
+        0.25,
+        1.24,
+        -0.196
+      ],
+      "material": "circle",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.46,
+        0.06,
+        0.01
+      ],
+      "position": [
+        0.75,
+        1.24,
+        -0.196
+      ],
+      "material": "moss",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.01,
+        0.62,
+        0.01
+      ],
+      "position": [
+        -0.5,
+        0.93,
+        -0.196
+      ],
+      "material": "slate",
+      "radius": 0.003
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.01,
+        0.62,
+        0.01
+      ],
+      "position": [
+        0,
+        0.93,
+        -0.196
+      ],
+      "material": "slate",
+      "radius": 0.003
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.01,
+        0.62,
+        0.01
+      ],
+      "position": [
+        0.5,
+        0.93,
+        -0.196
+      ],
+      "material": "slate",
+      "radius": 0.003
+    },
+    {
+      "shape": "box",
+      "size": [
+        2,
+        0.01,
+        0.01
+      ],
+      "position": [
+        0,
+        0.98,
+        -0.196
+      ],
+      "material": "sage",
+      "radius": 0.003
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.17,
+        0.1,
+        0.01
+      ],
+      "position": [
+        -0.86,
+        1.13,
+        -0.192
+      ],
+      "material": "paper",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        0,
+        -4
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.17,
+        0.1,
+        0.01
+      ],
+      "position": [
+        -0.66,
+        1,
+        -0.192
+      ],
+      "material": "clay",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        0,
+        -3
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.17,
+        0.1,
+        0.01
+      ],
+      "position": [
+        -0.86,
+        0.85,
+        -0.192
+      ],
+      "material": "sage",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        0,
+        -2
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.17,
+        0.1,
+        0.01
+      ],
+      "position": [
+        -0.66,
+        0.72,
+        -0.192
+      ],
+      "material": "paper",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        0,
+        -1
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.17,
+        0.1,
+        0.01
+      ],
+      "position": [
+        -0.36,
+        1.13,
+        -0.192
+      ],
+      "material": "paper",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.17,
+        0.1,
+        0.01
+      ],
+      "position": [
+        -0.16,
+        1,
+        -0.192
+      ],
+      "material": "cream",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.17,
+        0.1,
+        0.01
+      ],
+      "position": [
+        -0.36,
+        0.85,
+        -0.192
+      ],
+      "material": "cream",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        0,
+        2
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.17,
+        0.1,
+        0.01
+      ],
+      "position": [
+        0.14,
+        1.13,
+        -0.192
+      ],
+      "material": "paper",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        0,
+        3
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.17,
+        0.1,
+        0.01
+      ],
+      "position": [
+        0.34,
+        1,
+        -0.192
+      ],
+      "material": "clay",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        0,
+        4
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.17,
+        0.1,
+        0.01
+      ],
+      "position": [
+        0.14,
+        0.85,
+        -0.192
+      ],
+      "material": "sage",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        0,
+        -4
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.17,
+        0.1,
+        0.01
+      ],
+      "position": [
+        0.34,
+        0.72,
+        -0.192
+      ],
+      "material": "paper",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        0,
+        -3
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.17,
+        0.1,
+        0.01
+      ],
+      "position": [
+        0.64,
+        1.13,
+        -0.192
+      ],
+      "material": "paper",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        0,
+        -2
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.17,
+        0.1,
+        0.01
+      ],
+      "position": [
+        0.84,
+        1,
+        -0.192
+      ],
+      "material": "cream",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        0,
+        -1
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.17,
+        0.1,
+        0.01
+      ],
+      "position": [
+        0.64,
+        0.85,
+        -0.192
+      ],
+      "material": "cream",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.5,
+        0.01,
+        0.01
+      ],
+      "position": [
+        -0.35,
+        1.06,
+        -0.188
+      ],
+      "material": "coral",
+      "radius": 0.003,
+      "rotation": [
+        0,
+        0,
+        -9
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.016,
+        0.016,
+        0.016
+      ],
+      "position": [
+        -0.6,
+        1.1,
+        -0.185
+      ],
+      "material": "coral"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.016,
+        0.016,
+        0.016
+      ],
+      "position": [
+        -0.12,
+        1.02,
+        -0.185
+      ],
+      "material": "coral"
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.6,
+        0.03,
+        0.06
+      ],
+      "position": [
+        0,
+        0.56,
+        -0.2
+      ],
+      "material": "timber",
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        0.015,
+        0.015
+      ],
+      "position": [
+        -0.5,
+        0.583,
+        -0.19
+      ],
+      "material": "coral",
+      "radius": 0.005
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        0.015,
+        0.015
+      ],
+      "position": [
+        -0.4,
+        0.583,
+        -0.19
+      ],
+      "material": "moss",
+      "radius": 0.005
+    }
+  ]
+}

@@ -18,7 +18,7 @@ import { styleRegistry } from "./style";
 import type { StyledPlot } from "./styleRegistry";
 import type { Ambient } from "./movement";
 import { CIVIC_LOT, civicCenter, homeRects, PLOT_SIZE, plotCenter, TOWN_CAPACITY, townBounds, type Bounds } from "./townLayout";
-import { GRASS_Y, landmarks as townLandmarks, LAWN_Y, townDressing } from "./townDressing";
+import { GRASS_Y, landmarks as townLandmarks, LAWN_Y, slugSeed, townDressing } from "./townDressing";
 import { instanceStatic } from "./instanceStatic";
 import { mergeStatic } from "./mergeStatic";
 import { plotDoor, plotObstacles } from "./navigation";
@@ -92,7 +92,7 @@ const HOME_OFFSET = new THREE.Vector3(1, 1.04, 1).normalize().multiplyScalar(CAM
 const UP = new THREE.Vector3(0, 1, 0);
 /* Framing heights: a building is seen up to its tall back walls, a room up to its people and desks. */
 const BUILDING_FRAME_HEIGHT = 2.6;
-const ROOM_FRAME_HEIGHT = 1.6;
+const ROOM_FRAME_HEIGHT = 1.1;
 /* The closest view: a frustum this many world units tall, about one desk with its robot. */
 const DESK_SPAN = 2.4;
 /* Pixels between two hanging labels before the one further back moves up. */
@@ -349,11 +349,15 @@ export class TownScene {
     const indices = Array.from({ length: Math.min(TOWN_CAPACITY, count) }, (_, i) => i);
     // Fast quality leaves out the small detail (grass tufts, wild flowers).
     const fast = this.view.quality === "fast";
-    const signature = `${indices.join(",")}|${fast}`;
+    // Each building's own garden follows its slug and whether it is archived.
+    const signature = `${indices.map((i) => `${this.view.model.buildings[i]?.slug}:${this.view.model.buildings[i]?.archived}`).join(",")}|${fast}`;
     if (signature === this.#dressing.signature) return;
     this.#disposeDressing();
     const group = new THREE.Group();
-    const plots = indices.map((index) => ({ index, door: plotDoor(index), obstacles: plotObstacles(index) }));
+    const plots = indices.map((index) => {
+      const b = this.view.model.buildings[index];
+      return { index, door: plotDoor(index), obstacles: plotObstacles(index), seed: b ? slugSeed(b.slug) : index, archived: b?.archived ?? false };
+    });
     const dressing = townDressing(plots);
     this.#life.setTown(dressing, this.#landmarks);
     for (const d of dressing) {
@@ -626,7 +630,7 @@ export class TownScene {
       ? view.bounds(room)
       : { minX: o.x - 0.3, maxX: o.x + size.width * BUILDING_CELL + 0.3, minZ: o.z - 0.3, maxZ: o.z + size.depth * BUILDING_CELL + 0.9 };
     const direction = (this.#tween ? this.#tween.position.clone().sub(this.#tween.target) : this.camera.position.clone().sub(this.controls.target)).normalize();
-    const { span, target } = this.frameRects([bounds], room ? ROOM_FRAME_HEIGHT : BUILDING_FRAME_HEIGHT, direction, this.insets(), room ? 1.3 : 1.02);
+    const { span, target } = this.frameRects([bounds], room ? ROOM_FRAME_HEIGHT : BUILDING_FRAME_HEIGHT, direction, this.insets(), room ? 1.06 : 1.02);
     const offset = direction.multiplyScalar(HOME_OFFSET.length());
     this.moveTo(target, target.clone().add(offset), THREE.MathUtils.clamp(this.#span / span, 0.6, this.controls.maxZoom), false);
   }

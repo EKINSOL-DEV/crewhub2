@@ -29,7 +29,7 @@ import { mergeStatic } from "./mergeStatic";
 import { ObjectLayer } from "./objectLayer";
 import { cellAt, footprintPose, resolveBuildingPlacements, type BuildingPlacements } from "./placements";
 import { PropLayer, type TownLayer } from "./propLayer";
-import { DRESS_PREFIX, dressingSeed, roomDecor, type DecorItem } from "./roomDressing";
+import { deskItems, DRESS_PREFIX, dressingSeed, roomDecor, type DecorItem } from "./roomDressing";
 import type { Bounds } from "./townLayout";
 import type { Walker } from "./walks";
 
@@ -180,6 +180,9 @@ export class BuildingView {
   };
   #merged: THREE.BufferGeometry[] = [];
   #pilesMerged: THREE.BufferGeometry[] = [];
+  /** The entered building's personal desk things (roomDressing.ts `deskItems`). */
+  #personal = new THREE.Group();
+  #personalMerged: THREE.BufferGeometry[] = [];
   #furnitureMerged: THREE.BufferGeometry[] = [];
   #furniture: THREE.Group | null = null;
   /** The furniture layer's pieces hung on the tall north and west walls (they hide with their wall). */
@@ -204,7 +207,7 @@ export class BuildingView {
   #truckDrive: { t: number } | null = null;
   #truckPending = false;
   #focus: THREE.Object3D | null = null;
-  #signatures = { shell: "", furniture: "", piles: "", signals: "" };
+  #signatures = { shell: "", furniture: "", piles: "", signals: "", personal: "" };
   #yielded = "";
   #archivedCount: number;
 
@@ -232,7 +235,7 @@ export class BuildingView {
     });
     const back = this.#backWalls;
     this.group.add(back.north.tall, back.north.low, back.west.tall, back.west.low, this.#silhouette);
-    this.group.add(this.#shell, this.#shellStatic, this.#piles, this.#agents, this.#signals, this.#objects.group, this.#props.group);
+    this.group.add(this.#shell, this.#shellStatic, this.#piles, this.#agents, this.#signals, this.#personal, this.#objects.group, this.#props.group);
   }
 
   /** Building cells to building-local world units. */
@@ -265,9 +268,11 @@ export class BuildingView {
     this.#piles.visible = !this.detailed;
     this.#syncSilhouette(shape);
     this.#signals.visible = this.detailed;
+    this.#personal.visible = this.detailed;
     this.#objects.group.visible = this.detailed;
     if (this.detailed) {
       this.#syncSignals();
+      this.#syncPersonal();
       this.#objects.sync(building, this.layout);
       for (const [id, v] of this.#objects.anchors) this.anchors.set(id, v);
     }
@@ -487,18 +492,10 @@ export class BuildingView {
         if (def === "bench" || def === "coffee-machine") model.scale.setScalar(0.7);
         g.add(model);
       }
-    const surfaces = surfacesOf(style);
     const wallDecor = { north: new THREE.Group(), west: new THREE.Group() };
     for (const item of roomDecor(this.template, { definitions: interiorDefinitions, seed: dressingSeed(this.building.slug), zones: dressingZones(this.template), loading: LOADING })) {
-      const model = style.model(item.key);
-      model.position.copy(this.local(item.x, item.z, item.on === "desk" ? surfaces.desk + 0.01 : 0.02));
-      model.rotation.y = item.rotation;
-      if (item.scale) model.scale.set(item.scale.x, item.scale.y, item.scale.z);
-      if (item.lean) {
-        model.position.y -= item.lean.drop;
-        model.rotateX(-0.12);
-      }
-      (this.#mountedOn(item) ? wallDecor[this.#mountedOn(item)!] : g).add(model);
+      const side = this.#mountedOn(item);
+      (side ? wallDecor[side] : g).add(this.#decor(item));
     }
     g.visible = this.detailed;
     this.#furniture = g;
@@ -517,6 +514,31 @@ export class BuildingView {
     this.#wallDecor = wallDecor;
   }
 
+
+  #decor(item: DecorItem): THREE.Object3D {
+    const surfaces = surfacesOf(this.ctx.style);
+    const model = this.ctx.style.model(item.key);
+    const y = item.on === "floor" ? 0.02 : surfaces[item.on] + 0.01;
+    model.position.copy(this.local(item.x, item.z, y + (item.raise ?? 0)));
+    model.rotation.y = item.rotation;
+    if (item.scale) model.scale.set(item.scale.x, item.scale.y, item.scale.z);
+    if (item.lean) {
+      model.position.y -= item.lean.drop;
+      model.rotateX(-0.12);
+    }
+    return model;
+  }
+
+  /** Each desk's personal things, seeded by who sits there; merged per material, rebuilt when the seating changes. */
+  #syncPersonal() {
+    const signature = [...this.desks.values()].map((d) => `${d.agentKey}@${d.propId}${d.room}`).join("|");
+    if (signature === this.#signatures.personal) return;
+    this.#signatures.personal = signature;
+    this.#personal.clear();
+    for (const geometry of this.#personalMerged) geometry.dispose();
+    for (const item of deskItems(this.desks.values())) this.#personal.add(this.#decor(item));
+    this.#personalMerged = mergeStatic(this.#personal);
+  }
 
   /* The far-detail furniture: every furniture and dressing piece, and the rugs, as the style's plain stand-in boxes,
      batched per material (a handful of draw calls per building). Rebuilt only when the rooms' furniture changes. */
@@ -844,7 +866,7 @@ export class BuildingView {
     this.#robots.clear();
     this.#objects.dispose();
     this.#props.dispose();
-    for (const geometry of [...this.#merged, ...this.#furnitureMerged, ...this.#pilesMerged, ...this.#silhouetteMerged]) geometry.dispose();
+    for (const geometry of [...this.#merged, ...this.#furnitureMerged, ...this.#pilesMerged, ...this.#silhouetteMerged, ...this.#personalMerged]) geometry.dispose();
     this.group.removeFromParent();
   }
 }

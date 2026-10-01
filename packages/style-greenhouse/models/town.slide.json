@@ -162,9 +162,9 @@
         0.6,
         0.35
       ],
-      "material": "sage",
+      "material": "tangerine",
       "rotation": [
-        40,
+        -40,
         0,
         0
       ],
@@ -182,9 +182,9 @@
         0.66,
         0.35
       ],
-      "material": "cream",
+      "material": "tangerine",
       "rotation": [
-        40,
+        -40,
         0,
         0
       ],
@@ -202,9 +202,9 @@
         0.66,
         0.35
       ],
-      "material": "cream",
+      "material": "tangerine",
       "rotation": [
-        40,
+        -40,
         0,
         0
       ],
