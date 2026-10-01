@@ -12,7 +12,7 @@ import type { ModelKey, ResolvedStyle, StyleTheme } from "@crewhub/world-style";
 import { BUILDING_CELL as CELL, roomOf, type BuildingTemplate } from "./buildingTemplate";
 import type { DeskSlot, Surface } from "./interiorLayout";
 import { roomCentre } from "./interiorLayout";
-import { footprintPose, isRider, turnedSize, type BuildingPlacements } from "./placements";
+import { footprintPose, freeSpots, isRider, turnedSize, type BuildingPlacements } from "./placements";
 import type { InvalidRequest } from "./propImport";
 
 const MATERIALISE_S = 1.2;
@@ -122,17 +122,19 @@ export class PropLayer {
     });
 
     // Prop requests whose prop is invalid.
-    town.invalid
-      .filter((r) => r.slug === b.slug)
-      .forEach((r, i) => {
-        const room = roomOf(template, r.room) ?? roomOf(template, "storage");
-        if (!room) return;
-        const c = roomCentre(room);
-        const at = new THREE.Vector3((c.x + 0.8 + i * 0.9) * CELL, 0.02, (c.z + 0.9) * CELL);
-        const item = this.#item(`i:${r.ticketKey}`, seen, "error-crate", () => this.#ctx.style.model("error-crate"), this.#primed);
-        item.holder.position.copy(at);
-        this.anchors.set(`err:${this.#ctx.slug}:${r.ticketKey}`, this.#ctx.toWorld(at.clone().setY(0.62)));
-      });
+    const invalid = town.invalid.filter((r) => r.slug === b.slug);
+    const spots = new Map<RoomKind, { x: number; z: number }[]>();
+    invalid.forEach((r, i) => {
+      const kind = placements.rooms.has(r.room) ? r.room : "storage";
+      const room = placements.rooms.get(kind);
+      if (!room) return;
+      if (!spots.has(kind)) spots.set(kind, freeSpots(room, town.definitions, invalid.length));
+      const c = spots.get(kind)!.shift() ?? { x: roomCentre(roomOf(template, kind)!).x - room.site.origin.x - 0.5 + i * 0.9, z: 0 };
+      const at = new THREE.Vector3((room.site.origin.x + c.x + 0.5) * CELL, 0.02, (room.site.origin.z + c.z + 0.5) * CELL);
+      const item = this.#item(`i:${r.ticketKey}`, seen, "error-crate", () => this.#ctx.style.model("error-crate"), this.#primed);
+      item.holder.position.copy(at);
+      this.anchors.set(`err:${this.#ctx.slug}:${r.ticketKey}`, this.#ctx.toWorld(at.clone().setY(0.62)));
+    });
 
     // Props attached to an agent sit on its desk, wherever that agent works now.
     const onDesk = new Map<string, number>();

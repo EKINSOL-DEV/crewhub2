@@ -197,7 +197,10 @@ export function roomToLocal(site: Pick<RoomSite, "origin">, x: number, z: number
   return { x: (site.origin.x + x) * BUILDING_CELL, z: (site.origin.z + z) * BUILDING_CELL };
 }
 
-/** The first free cell for `propId` in a room (row by row from its north-west corner), or null when it is full. */
+/**
+ * A free cell for `propId` in a room, scanning from the south-east corner (nearest the camera) so an imported prop
+ * lands where it is seen; null when the room is full.
+ */
 export function freeCellIn(room: RoomPlacements, definitions: Definitions, propId: string, rotation: Rotation = 0): Cell | null {
   let simulation: WorldSimulation;
   try {
@@ -206,8 +209,28 @@ export function freeCellIn(room: RoomPlacements, definitions: Definitions, propI
     return null;
   }
   const { width, depth } = room.layout.grid;
-  for (let z = 0; z < depth; z++)
-    for (let x = 0; x < width; x++)
+  for (let z = depth - 1; z >= 0; z--)
+    for (let x = width - 1; x >= 0; x--)
       if (simulation.placement({ id: "free-cell-probe", definitionId: propId, cell: { x, z }, rotation }).ok) return { x, z };
   return null;
+}
+
+/**
+ * Up to `count` free single cells of a room, from its south-east corner (nearest the camera) backwards: where an
+ * error crate stands without hiding inside furniture. A cell is free when the engine accepts a footprint-free
+ * marker there (no overlap, still reachable).
+ */
+export function freeSpots(room: RoomPlacements, definitions: Definitions, count: number): Cell[] {
+  const spots: Cell[] = [];
+  let simulation: WorldSimulation;
+  try {
+    simulation = new WorldSimulation(room.layout, definitions, []);
+  } catch {
+    return spots;
+  }
+  const { width, depth } = room.layout.grid;
+  for (let z = depth - 1; z >= 0 && spots.length < count; z--)
+    for (let x = width - 1; x >= 0 && spots.length < count; x--)
+      if (simulation.placement({ id: "free-spot-probe", definitionId: DOOR_MARKER, cell: { x, z }, rotation: 0 }).ok) spots.push({ x, z });
+  return spots;
 }

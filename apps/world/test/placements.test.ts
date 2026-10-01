@@ -4,7 +4,7 @@ import { propCells, validateLayout, type Rotation } from "@crewhub/world-engine"
 import { createCatalogue, emptyTownDocument, type Building, type PlacedProp, type RoomKind, type TownDocument } from "@crewhub/world-model";
 import { buildingTemplate } from "../src/world/buildingTemplate.ts";
 import { definitions as builtins } from "../src/world/definitions.ts";
-import { cellAt, checkGhost, footprintPose, freeCellIn, placementDefinitions, resolveBuildingPlacements, roomSite } from "../src/world/placements.ts";
+import { cellAt, checkGhost, footprintPose, freeCellIn, freeSpots, placementDefinitions, resolveBuildingPlacements, roomSite } from "../src/world/placements.ts";
 
 function building(): Building {
   const kinds: RoomKind[] = ["lobby", "lead-office", "storage", "planning", "review", "dispatch"];
@@ -128,4 +128,16 @@ test("a turned footprint's pose is the centre of the cells the engine blocks", (
   // A quarter turn carries the model's +x edge onto +z, as the engine turns the footprint.
   const r = footprintPose(def, { x: 0, z: 0 }, 1).rotationY;
   assert.ok(Math.abs(Math.cos(r)) < 1e-9 && Math.abs(-Math.sin(r) - 1) < 1e-9);
+});
+
+test("free spots for error crates start at the camera side and skip furniture and doors", () => {
+  const storage = resolveBuildingPlacements(doc0, "cr", template, defs).rooms.get("storage")!;
+  const spots = freeSpots(storage, defs, 3);
+  assert.equal(spots.length, 3);
+  const { width, depth } = storage.layout.grid;
+  assert.equal(spots[0]!.z, depth - 1);
+  const taken = new Set(storage.layout.props.flatMap((p) => propCells(p, defs)).map((c) => `${c.x},${c.z}`));
+  for (const spot of spots) assert.ok(spot.x < width && spot.z < depth && !taken.has(`${spot.x},${spot.z}`), `${spot.x},${spot.z}`);
+  // The storage door (3, 4) carries a marker, so it is never a spot.
+  assert.ok(taken.has("3,4"));
 });

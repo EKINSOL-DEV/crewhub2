@@ -687,10 +687,10 @@
 
 /* ── Build mode: the palette card (markup in BuildPanel) ── */
 .build-sheet {
-  top: 4.25rem;
+  top: 7.25rem;
   left: var(--space-4);
   width: min(20rem, calc(100% - 2 * var(--space-4)));
-  max-height: calc(100dvh - 10rem);
+  max-height: calc(100dvh - 13rem);
 }
 .build-title {
   display: inline-flex;
@@ -730,7 +730,9 @@
   color: var(--danger);
 }
 .build-groups {
+  display: flex;
   flex-wrap: wrap;
+  gap: var(--space-1);
 }
 .build-palette {
   display: flex;

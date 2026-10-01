@@ -207,7 +207,11 @@ export function PropEditor({ initial, takenIds, theme, onSave, onClose }: Props)
                   name ? <NumberField key={name} label={name} value={part.size[a]!} step={EDITOR_STEP} min={0} max={PROP_LIMITS.sizeMax} onCommit={(v) => setAxis("size", a, v)} /> : null,
                 )}
               </fieldset>
-              <Field control="select" label="Material" size="sm" value={part.material} onChange={(e) => changePart((p) => ({ ...p, material: e.currentTarget.value as PropMaterial }))}>
+              <Field control="select" label="Material" size="sm" value={part.material} onChange={(e) => {
+                  const material = e.currentTarget.value as PropMaterial;
+                  changePart((p) => ({ ...p, material }));
+                }}
+              >
                 {PROP_MATERIALS.map((m) => (
                   <option key={m} value={m}>
                     {m}

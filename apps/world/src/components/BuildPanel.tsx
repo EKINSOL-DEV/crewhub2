@@ -108,9 +108,9 @@ export function BuildPanel({ build, town, inside, demo, onClose, onUndo, onRedo,
           </div>
         )}
 
-        <div className="segmented build-groups" role="group" aria-label="Prop groups">
+        <div className="build-groups" role="group" aria-label="Prop groups">
           {groups.map((g) => (
-            <Button key={g.id} size="sm" className="btn-segmented" pressed={shown?.id === g.id} onClick={() => setGroup(g.id)}>
+            <Button key={g.id} size="sm" variant={shown?.id === g.id ? "primary" : "default"} pressed={shown?.id === g.id} onClick={() => setGroup(g.id)}>
               {g.label}
             </Button>
           ))}
@@ -121,8 +121,9 @@ export function BuildPanel({ build, town, inside, demo, onClose, onUndo, onRedo,
               <Button
                 size="sm"
                 className="palette-item"
+                data-prop-id={entry.id}
                 pressed={state.propId === entry.id}
-                onClick={() => build.choose(state.propId === entry.id ? null : entry.id)}
+                onClick={() => build.choose(entry.id)}
                 title={`${entry.name}: ${entry.definition.footprint.width} by ${entry.definition.footprint.depth} cells`}
               >
                 <span className="palette-name">{entry.name}</span>

@@ -98,7 +98,7 @@ export function useBuildMode(town: TownState, inside: Building | null, focusedRo
 
   const choose = useCallback(
     (propId: string | null) => {
-      setState((s) => ({ ...s, propId, selected: null, drag: null, spot: propId ? (s.spot ?? startSpot(propId, s.rotation)) : null, message: "" }));
+      setState((s) => ({ ...s, propId, selected: null, drag: null, spot: propId ? startSpot(propId, s.rotation) : null, message: "" }));
       if (propId) announce(`${nameOf(propId)} chosen. ${inside ? "Move the pointer over a floor or use the arrow keys, R turns it, Enter or a click places it." : "Enter a building to place it."}`);
     },
     [announce, inside, nameOf, startSpot],
@@ -112,11 +112,18 @@ export function useBuildMode(town: TownState, inside: Building | null, focusedRo
         say(`Can't place ${nameOf(state.propId)} here: ${verdict.reason}`);
         return;
       }
+      const id = crypto.randomUUID();
       const result = townRuntime().edit({
         type: "place",
-        placement: { id: crypto.randomUUID(), propId: state.propId, at: { building: inside.slug, room: spot.room }, cell: { ...spot.cell }, rotation: state.rotation },
+        placement: { id, propId: state.propId, at: { building: inside.slug, room: spot.room }, cell: { ...spot.cell }, rotation: state.rotation },
       });
-      say(result.ok ? `Placed ${nameOf(state.propId)} in the ${spot.room.replace("-", " ")}.` : result.error);
+      if (!result.ok) {
+        say(result.error);
+        return;
+      }
+      // The new prop is selected: arrow keys, R and Delete adjust it; choose again to place another.
+      setState((s) => ({ ...s, propId: null, spot: null, selected: id }));
+      say(`Placed ${nameOf(state.propId)} in the ${spot.room.replace("-", " ")}. It is selected: arrow keys move it, R turns it.`);
     },
     [inside, nameOf, say, state.propId, state.rotation, template, town.definitions, town.doc],
   );
@@ -226,7 +233,9 @@ export function useBuildMode(town: TownState, inside: Building | null, focusedRo
         }
         return false;
       }
-      if (e.key === "Enter" && state.propId && !(e.target instanceof HTMLButtonElement)) {
+      // Enter places the chosen prop, also from its own palette button (any other button keeps its own Enter).
+      const onChosen = e.target instanceof HTMLElement && e.target.closest("[data-prop-id]")?.getAttribute("data-prop-id") === state.propId;
+      if (e.key === "Enter" && state.propId && (onChosen || !(e.target instanceof HTMLButtonElement))) {
         place();
         return true;
       }
