@@ -1,0 +1,474 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-civic-flower-bed",
+  "name": "Flower bed",
+  "description": "A round stone-edged flower bed with a ring of blooms and a small leafy tree.",
+  "category": "greenery",
+  "tags": [
+    "greenhouse",
+    "civic",
+    "flowers",
+    "tree"
+  ],
+  "footprint": {
+    "width": 4,
+    "depth": 4
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "cylinder",
+      "size": [
+        1.08,
+        0.24,
+        1.12
+      ],
+      "position": [
+        0.0,
+        0.12,
+        0.0
+      ],
+      "material": "chalk"
+    },
+    {
+      "shape": "torus",
+      "size": [
+        1.07,
+        0.05,
+        0.0
+      ],
+      "position": [
+        0.0,
+        0.24,
+        0.0
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        1.0,
+        0.04,
+        1.0
+      ],
+      "position": [
+        0.0,
+        0.24,
+        0.0
+      ],
+      "material": "soil"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.98,
+        0.04,
+        0.98
+      ],
+      "position": [
+        0.0,
+        0.27,
+        0.0
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.075,
+        0.07,
+        0.075
+      ],
+      "position": [
+        0.8,
+        0.34,
+        0.0
+      ],
+      "material": "coral"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.075,
+        0.07,
+        0.075
+      ],
+      "position": [
+        0.739,
+        0.34,
+        0.306
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.075,
+        0.07,
+        0.075
+      ],
+      "position": [
+        0.566,
+        0.34,
+        0.566
+      ],
+      "material": "tangerine"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.075,
+        0.07,
+        0.075
+      ],
+      "position": [
+        0.306,
+        0.34,
+        0.739
+      ],
+      "material": "lamp-glow"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.075,
+        0.07,
+        0.075
+      ],
+      "position": [
+        0.0,
+        0.34,
+        0.8
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.075,
+        0.07,
+        0.075
+      ],
+      "position": [
+        -0.306,
+        0.34,
+        0.739
+      ],
+      "material": "coral"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.075,
+        0.07,
+        0.075
+      ],
+      "position": [
+        -0.566,
+        0.34,
+        0.566
+      ],
+      "material": "mist"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.075,
+        0.07,
+        0.075
+      ],
+      "position": [
+        -0.739,
+        0.34,
+        0.306
+      ],
+      "material": "tangerine"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.075,
+        0.07,
+        0.075
+      ],
+      "position": [
+        -0.8,
+        0.34,
+        0.0
+      ],
+      "material": "coral"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.075,
+        0.07,
+        0.075
+      ],
+      "position": [
+        -0.739,
+        0.34,
+        -0.306
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.075,
+        0.07,
+        0.075
+      ],
+      "position": [
+        -0.566,
+        0.34,
+        -0.566
+      ],
+      "material": "tangerine"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.075,
+        0.07,
+        0.075
+      ],
+      "position": [
+        -0.306,
+        0.34,
+        -0.739
+      ],
+      "material": "lamp-glow"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.075,
+        0.07,
+        0.075
+      ],
+      "position": [
+        -0.0,
+        0.34,
+        -0.8
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.075,
+        0.07,
+        0.075
+      ],
+      "position": [
+        0.306,
+        0.34,
+        -0.739
+      ],
+      "material": "coral"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.075,
+        0.07,
+        0.075
+      ],
+      "position": [
+        0.566,
+        0.34,
+        -0.566
+      ],
+      "material": "mist"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.075,
+        0.07,
+        0.075
+      ],
+      "position": [
+        0.739,
+        0.34,
+        -0.306
+      ],
+      "material": "tangerine"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.2,
+        0.17,
+        0.2
+      ],
+      "position": [
+        0.442,
+        0.38,
+        0.187
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.2,
+        0.17,
+        0.2
+      ],
+      "position": [
+        -0.041,
+        0.38,
+        0.478
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.2,
+        0.17,
+        0.2
+      ],
+      "position": [
+        -0.468,
+        0.38,
+        0.109
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.2,
+        0.17,
+        0.2
+      ],
+      "position": [
+        -0.248,
+        0.38,
+        -0.411
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.2,
+        0.17,
+        0.2
+      ],
+      "position": [
+        0.314,
+        0.38,
+        -0.363
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.07,
+        1.25,
+        0.1
+      ],
+      "position": [
+        0.0,
+        0.9,
+        0.0
+      ],
+      "material": "timber"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.03,
+        0.45,
+        0.04
+      ],
+      "position": [
+        0.16,
+        1.25,
+        0.05
+      ],
+      "material": "timber",
+      "rotation": [
+        0.0,
+        20.0,
+        -35.0
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.62,
+        0.55,
+        0.62
+      ],
+      "position": [
+        0.0,
+        1.95,
+        0.0
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.4,
+        0.36,
+        0.4
+      ],
+      "position": [
+        0.36,
+        1.72,
+        0.22
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.42,
+        0.38,
+        0.42
+      ],
+      "position": [
+        -0.36,
+        1.76,
+        -0.16
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.36,
+        0.33,
+        0.36
+      ],
+      "position": [
+        0.05,
+        2.32,
+        0.05
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.3,
+        0.28,
+        0.3
+      ],
+      "position": [
+        -0.2,
+        1.68,
+        0.38
+      ],
+      "material": "leaf"
+    }
+  ]
+}

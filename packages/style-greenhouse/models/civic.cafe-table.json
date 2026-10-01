@@ -1,0 +1,502 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-civic-cafe-table",
+  "name": "Caf\u00e9 table",
+  "description": "A round caf\u00e9 table under a cream parasol with sage ribs, two bistro chairs and coffee for two.",
+  "category": "gather",
+  "tags": [
+    "greenhouse",
+    "civic",
+    "cafe",
+    "table",
+    "parasol"
+  ],
+  "footprint": {
+    "width": 3,
+    "depth": 3
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "cylinder",
+      "size": [
+        0.2,
+        0.03,
+        0.22
+      ],
+      "position": [
+        0.0,
+        0.015,
+        0.0
+      ],
+      "material": "graphite"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.03,
+        0.7,
+        0.035
+      ],
+      "position": [
+        0.0,
+        0.37,
+        0.0
+      ],
+      "material": "graphite"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.38,
+        0.04,
+        0.38
+      ],
+      "position": [
+        0.0,
+        0.72,
+        0.0
+      ],
+      "material": "timber-light"
+    },
+    {
+      "shape": "torus",
+      "size": [
+        0.38,
+        0.02,
+        0.0
+      ],
+      "position": [
+        0.0,
+        0.72,
+        0.0
+      ],
+      "material": "timber"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.022,
+        1.45,
+        0.022
+      ],
+      "position": [
+        0.0,
+        1.45,
+        0.0
+      ],
+      "material": "timber"
+    },
+    {
+      "shape": "cone",
+      "size": [
+        0.9,
+        0.3,
+        0.0
+      ],
+      "position": [
+        0.0,
+        2.02,
+        0.0
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.94,
+        0.02,
+        0.05
+      ],
+      "position": [
+        0.45,
+        2.03,
+        0.0
+      ],
+      "material": "sage",
+      "rotation": [
+        0.0,
+        0.0,
+        -18.435
+      ],
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.94,
+        0.02,
+        0.05
+      ],
+      "position": [
+        0.318,
+        2.03,
+        -0.318
+      ],
+      "material": "sage",
+      "rotation": [
+        0.0,
+        45.0,
+        -18.435
+      ],
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.94,
+        0.02,
+        0.05
+      ],
+      "position": [
+        0.0,
+        2.03,
+        -0.45
+      ],
+      "material": "sage",
+      "rotation": [
+        0.0,
+        90.0,
+        -18.435
+      ],
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.94,
+        0.02,
+        0.05
+      ],
+      "position": [
+        -0.318,
+        2.03,
+        -0.318
+      ],
+      "material": "sage",
+      "rotation": [
+        0.0,
+        135.0,
+        -18.435
+      ],
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.94,
+        0.02,
+        0.05
+      ],
+      "position": [
+        -0.45,
+        2.03,
+        -0.0
+      ],
+      "material": "sage",
+      "rotation": [
+        0.0,
+        180.0,
+        -18.435
+      ],
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.94,
+        0.02,
+        0.05
+      ],
+      "position": [
+        -0.318,
+        2.03,
+        0.318
+      ],
+      "material": "sage",
+      "rotation": [
+        0.0,
+        225.0,
+        -18.435
+      ],
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.94,
+        0.02,
+        0.05
+      ],
+      "position": [
+        -0.0,
+        2.03,
+        0.45
+      ],
+      "material": "sage",
+      "rotation": [
+        0.0,
+        270.0,
+        -18.435
+      ],
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.94,
+        0.02,
+        0.05
+      ],
+      "position": [
+        0.318,
+        2.03,
+        0.318
+      ],
+      "material": "sage",
+      "rotation": [
+        0.0,
+        315.0,
+        -18.435
+      ],
+      "radius": 0.008
+    },
+    {
+      "shape": "torus",
+      "size": [
+        0.88,
+        0.035,
+        0.0
+      ],
+      "position": [
+        0.0,
+        1.87,
+        0.0
+      ],
+      "material": "sage"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.06,
+        0.06,
+        0.06
+      ],
+      "position": [
+        0.0,
+        2.2,
+        0.0
+      ],
+      "material": "sage"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.18,
+        0.04,
+        0.18
+      ],
+      "position": [
+        -0.62,
+        0.45,
+        0.0
+      ],
+      "material": "timber-light"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.025,
+        0.43,
+        0.025
+      ],
+      "position": [
+        -0.62,
+        0.215,
+        0.0
+      ],
+      "material": "graphite"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.13,
+        0.02,
+        0.15
+      ],
+      "position": [
+        -0.62,
+        0.01,
+        0.0
+      ],
+      "material": "graphite"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.04,
+        0.3,
+        0.32
+      ],
+      "position": [
+        -0.79,
+        0.66,
+        0.0
+      ],
+      "material": "sage",
+      "rotation": [
+        0.0,
+        0.0,
+        -8.0
+      ],
+      "radius": 0.02
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.18,
+        0.04,
+        0.18
+      ],
+      "position": [
+        0.62,
+        0.45,
+        0.0
+      ],
+      "material": "timber-light"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.025,
+        0.43,
+        0.025
+      ],
+      "position": [
+        0.62,
+        0.215,
+        0.0
+      ],
+      "material": "graphite"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.13,
+        0.02,
+        0.15
+      ],
+      "position": [
+        0.62,
+        0.01,
+        0.0
+      ],
+      "material": "graphite"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.04,
+        0.3,
+        0.32
+      ],
+      "position": [
+        0.79,
+        0.66,
+        0.0
+      ],
+      "material": "sage",
+      "rotation": [
+        0.0,
+        0.0,
+        8.0
+      ],
+      "radius": 0.02
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.045,
+        0.07,
+        0.04
+      ],
+      "position": [
+        0.12,
+        0.775,
+        0.1
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.07,
+        0.01,
+        0.07
+      ],
+      "position": [
+        0.12,
+        0.745,
+        0.1
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.045,
+        0.07,
+        0.04
+      ],
+      "position": [
+        -0.14,
+        0.775,
+        -0.06
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.07,
+        0.01,
+        0.07
+      ],
+      "position": [
+        -0.14,
+        0.745,
+        -0.06
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.03,
+        0.1,
+        0.04
+      ],
+      "position": [
+        0.05,
+        0.79,
+        -0.18
+      ],
+      "material": "glass"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.04,
+        0.035,
+        0.04
+      ],
+      "position": [
+        0.05,
+        0.87,
+        -0.18
+      ],
+      "material": "coral"
+    }
+  ]
+}

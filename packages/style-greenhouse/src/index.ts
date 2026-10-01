@@ -14,6 +14,7 @@ import type {
   WorldStyleFactory,
 } from "@crewhub/world-style";
 import manifestJson from "../style.json";
+import * as civic from "./civic.ts";
 import { environment } from "./environment.ts";
 import { bench, desk, lamp, leadDesk, shelf, sofa, table, workdesk } from "./furniture.ts";
 import { Kit, type GreenhouseManifestData } from "./kit.ts";
@@ -50,6 +51,9 @@ class GreenhouseStyle implements WorldStyle {
     if (surface !== undefined) object.userData.surface = surface;
     return object;
   }
+
+  /** A part for the landmarks: a data prop or a code piece, by key. */
+  readonly #piece = (key: string): THREE.Object3D => this.#data(key as ModelKey, {}) ?? this.#code(key as ModelKey, {}) ?? new THREE.Group();
 
   #data(key: ModelKey, options: ModelOptions): THREE.Object3D | null {
     const model = (options.variant && dataModels.get(`${key}.${options.variant}`)) || dataModels.get(key);
@@ -108,9 +112,13 @@ class GreenhouseStyle implements WorldStyle {
       case "building.planks":
         return pieces.planks(kit, o);
       case "post-office":
-        return pieces.postOffice(kit);
+        return civic.postOffice(kit, this.#piece);
       case "town-hall":
-        return pieces.townHall(kit);
+        return civic.townHall(kit, this.#piece);
+      case "civic.square":
+        return civic.square(kit, this.#piece);
+      case "civic.cafe":
+        return civic.cafe(kit, this.#piece);
       case "furniture.desk":
         return desk(kit, o.seed ?? 0);
       case "furniture.bench":
