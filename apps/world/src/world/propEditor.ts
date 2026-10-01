@@ -38,6 +38,8 @@ export function newPart(shape: PropShape): PropPart {
       return { shape, size: [0.15, 0.3, 0], position: [0, 0.15, 0], material: "leaf" };
     case "torus":
       return { shape, size: [0.15, 0.05, 0], position: [0, 0.05, 0], material: "brass" };
+    case "wedge":
+      return { shape, size: [0.15, 0.1, 0.15], position: [0, 0.05, 0], material: "cream", sweep: 90 };
   }
 }
 
@@ -48,6 +50,7 @@ export const SIZE_FIELDS: Record<PropShape, readonly (string | null)[]> = {
   sphere: ["radius x", "radius y", "radius z"],
   cone: ["radius", "height", null],
   torus: ["radius", "tube", null],
+  wedge: ["top radius", "height", "bottom radius"],
 };
 
 /** `user:<slug>` from a name; `user:prop` when the name has no letters or digits. */

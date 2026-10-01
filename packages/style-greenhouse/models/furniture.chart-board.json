@@ -198,7 +198,7 @@
       "radius": 0.003
     },
     {
-      "shape": "cylinder",
+      "shape": "wedge",
       "size": [
         0.14,
         0.012,
@@ -209,45 +209,52 @@
         0.98,
         -0.014
       ],
-      "material": "sage",
       "rotation": [
         90,
-        0,
+        20,
         0
-      ]
+      ],
+      "sweep": 170,
+      "material": "sage"
     },
     {
-      "shape": "box",
+      "shape": "wedge",
       "size": [
         0.14,
         0.012,
-        0.012
+        0.14
       ],
       "position": [
-        0.31,
-        1,
-        -0.006
+        0.26,
+        0.98,
+        -0.014
       ],
-      "material": "moss",
-      "radius": 0.003,
       "rotation": [
-        0,
-        0,
-        30
-      ]
+        90,
+        190,
+        0
+      ],
+      "sweep": 110,
+      "material": "moss"
     },
     {
-      "shape": "sphere",
+      "shape": "wedge",
       "size": [
-        0.07,
-        0.07,
-        0.01
+        0.14,
+        0.012,
+        0.14
       ],
       "position": [
-        0.21,
-        0.94,
-        -0.005
+        0.279,
+        0.974,
+        -0.012
       ],
+      "rotation": [
+        90,
+        300,
+        0
+      ],
+      "sweep": 80,
       "material": "leaf"
     },
     {

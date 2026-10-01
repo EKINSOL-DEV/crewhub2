@@ -104,8 +104,17 @@ The world has a settled style, the "Greenhouse" style: a botanical miniature stu
   in `references/examples/` were made at a larger, real-world scale: the floor lamp is 1.9 and the bookshelf 1.8.
   Borrow their construction, not their heights.
 - Sizes per shape: box `[w, h, d]`; cylinder `[radiusTop, height, radiusBottom]`; sphere `[rx, ry, rz]` (radii,
-  not diameters); cone `[radius, height, 0]`; torus `[radius, tube, 0]`, lying flat. Every used value is between
-  0.01 and 3; unused values are 0.
+  not diameters); cone `[radius, height, 0]`; torus `[radius, tube, 0]`, lying flat; wedge
+  `[radiusTop, height, radiusBottom]` plus `sweep` in degrees. Every used value is between 0.01 and 3 (a cylinder's or
+  wedge's radius may be 0); unused values are 0.
+- **Slices with the wedge.** A wedge is a pie slice of a cylinder or a cone. It starts on +x and turns towards -z, so
+  `rotation[1]` is its start angle, and a row of wedges with `sweep: 45` at `rotation: [0, 0, 0]`, `[0, 45, 0]`,
+  `[0, 90, 0]` and so on closes a full round:
+  - parasol or awning-umbrella stripes: cone slices `[0, h, r]`, alternating cream and a colour;
+  - a cake with a slice missing: one cylinder wedge with `sweep: 300`, and the slice beside it on a plate;
+  - a pie chart on a wall: `rotation: [90, start, 0]` stands a thin slice up facing +z, starting at `start` degrees
+    counter-clockwise from three o'clock as seen from the front.
+  Prefer it over a fan of thin boxes: one wedge per stripe is fewer parts and has no gaps.
 - Rotations are degrees in XYZ order. Rotation changes a part's bounds: a tilted leg may dip below the floor, so
   lift it a little.
 - **Tilting a box about x** (a slide's chute, a ramp, a sloping roof, an easel): a positive x rotation lowers the
