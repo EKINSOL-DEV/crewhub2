@@ -1,0 +1,239 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-furniture-planter",
+  "name": "Big planter",
+  "description": "A large square terracotta planter with a small olive-green tree, ferns at its feet and a clay rim.",
+  "category": "greenery",
+  "tags": [
+    "greenhouse",
+    "plant",
+    "tree",
+    "lobby"
+  ],
+  "footprint": {
+    "width": 2,
+    "depth": 2
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.9,
+        0.36,
+        0.9
+      ],
+      "position": [
+        0,
+        0.18,
+        0
+      ],
+      "material": "terracotta",
+      "radius": 0.06
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.96,
+        0.05,
+        0.96
+      ],
+      "position": [
+        0,
+        0.375,
+        0
+      ],
+      "material": "clay",
+      "radius": 0.03
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.84,
+        0.03,
+        0.84
+      ],
+      "position": [
+        0,
+        0.37,
+        0
+      ],
+      "material": "soil",
+      "radius": 0.02
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.035,
+        0.6,
+        0.05
+      ],
+      "position": [
+        0,
+        0.68,
+        0
+      ],
+      "material": "timber"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.02,
+        0.3,
+        0.02
+      ],
+      "position": [
+        0.08,
+        0.86,
+        0.03
+      ],
+      "material": "timber",
+      "rotation": [
+        0,
+        0,
+        -30
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.34,
+        0.28,
+        0.32
+      ],
+      "position": [
+        0,
+        1.12,
+        0
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.22,
+        0.2,
+        0.22
+      ],
+      "position": [
+        0.2,
+        1.24,
+        0.12
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.2,
+        0.18,
+        0.2
+      ],
+      "position": [
+        -0.18,
+        1.02,
+        -0.14
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.16,
+        0.16,
+        0.16
+      ],
+      "position": [
+        -0.08,
+        1.32,
+        0.1
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.12,
+        0.09,
+        0.12
+      ],
+      "position": [
+        -0.3,
+        0.44,
+        -0.28
+      ],
+      "material": "moss"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.12,
+        0.09,
+        0.12
+      ],
+      "position": [
+        0.3,
+        0.44,
+        0.3
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.12,
+        0.09,
+        0.12
+      ],
+      "position": [
+        -0.28,
+        0.44,
+        0.3
+      ],
+      "material": "moss"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.12,
+        0.09,
+        0.12
+      ],
+      "position": [
+        0.28,
+        0.44,
+        -0.3
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.03,
+        0.03,
+        0.03
+      ],
+      "position": [
+        0.32,
+        0.5,
+        0
+      ],
+      "material": "tangerine"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.03,
+        0.03,
+        0.03
+      ],
+      "position": [
+        -0.05,
+        0.5,
+        0.33
+      ],
+      "material": "tangerine"
+    }
+  ]
+}
