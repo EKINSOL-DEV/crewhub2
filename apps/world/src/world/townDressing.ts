@@ -345,8 +345,8 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
   ] as const)
     if (free(east.minX + dx, east.maxZ + dz, 1.2)) tree(east.minX + dx, east.maxZ + dz, GRASS_Y, 83 + k, 1.3);
   if (free(east.minX + 7, east.maxZ + 1.6, 0.8)) add("town.bench", east.minX + 7, GRASS_Y, east.maxZ + 1.6, { rotation: Math.PI });
-  // A pair of trees either side of the town hall frames it on its lot.
-  for (const side of [-1, 1]) tree(civicCenter("town-hall").x + side * 4.7, civicCenter("town-hall").z - 3.2, LAWN_Y, 71 + side, 1.15);
+  // A pair of trees in the back corners of the town hall's lot frames it, clear of its podium and roof.
+  for (const side of [-1, 1]) tree(civicCenter("town-hall").x + side * 5.4, civicCenter("town-hall").z - 5.4, LAWN_Y, 71 + side, 0.9);
   park(add, tree);
   orchard(add);
 

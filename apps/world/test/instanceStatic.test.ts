@@ -52,3 +52,18 @@ test("a kind with few triangles in all stays for mergeStatic instead of costing 
   assert.equal(instanceStatic(root).length, 0, "4 boxes of 12 triangles are under the default budget");
   assert.equal(root.children.length, 4);
 });
+
+test("a low sun keeps the pieces whose long shadows fall into view", () => {
+  const root = row(6);
+  const [mesh] = instanceStatic(root, 3, 0);
+  const culler = new InstanceCuller([mesh!]);
+  const camera = new THREE.OrthographicCamera(-4, 4, 4, -4, 0.1, 100);
+  camera.position.set(0, 30, 0);
+  camera.lookAt(0, 0, 0);
+  camera.updateMatrixWorld();
+  culler.update(camera);
+  assert.equal(mesh!.count, 1);
+  // The sun low in the east (+x): the box 20 to the east throws its shadow west, over the view.
+  assert.equal(culler.update(camera, new THREE.Vector3(1, 0.3, 0).normalize()), true);
+  assert.equal(mesh!.count, 2);
+});

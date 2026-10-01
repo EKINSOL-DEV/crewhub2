@@ -197,6 +197,8 @@ export class TownScene {
   };
   /** Draws only the dressing near the view (a building close up draws its corner of the town, not all of it). */
   #culler: InstanceCuller | null = null;
+  #sun: THREE.DirectionalLight | null | undefined;
+  readonly #v2 = new THREE.Vector3();
   #lifeInside = false;
   /** The view the entered building's shadow was last fitted to. */
   #shadowFit: { zoom: number; x: number; z: number } | null = null;
@@ -1017,7 +1019,7 @@ export class TownScene {
     // The town view's shadow casters rarely change (robots seen from the town cast none, the postman neither), so its
     // shadow map is drawn only when something changed; inside a building it follows every frame.
     this.camera.updateMatrixWorld();
-    if (this.#culler?.update(this.camera)) this.#shadowDirty = true;
+    if (this.#culler?.update(this.camera, this.#sunDirection())) this.#shadowDirty = true;
     const shadows = this.renderer.shadowMap;
     shadows.autoUpdate = this.view.entered !== null;
     if (!shadows.autoUpdate) {
@@ -1082,6 +1084,14 @@ export class TownScene {
   }
 
   /** A number that changes whenever a building's shadow casters seen from the town changed, or a building came or went. */
+  /** Towards the shadow-casting light (the style's sun), for culling that keeps long shadows; null without one. */
+  #sunDirection(): THREE.Vector3 | undefined {
+    if (this.#sun?.parent !== this.scene) this.#sun = null;
+    this.#sun ??= this.scene.children.find((o): o is THREE.DirectionalLight => o instanceof THREE.DirectionalLight && o.castShadow) ?? null;
+    if (!this.#sun) return undefined;
+    return this.#v2.copy(this.#sun.position).sub(this.#sun.target.position).normalize();
+  }
+
   #casterRevision(): number {
     let revision = this.#buildings.size;
     for (const view of this.#buildings.values()) revision = (revision * 31 + view.shadowRevision) | 0;
