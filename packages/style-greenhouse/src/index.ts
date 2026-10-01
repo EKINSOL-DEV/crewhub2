@@ -14,10 +14,11 @@ import type {
   WorldStyleFactory,
 } from "@crewhub/world-style";
 import manifestJson from "../style.json";
+import * as civic from "./civic.ts";
 import { environment } from "./environment.ts";
 import { bench, desk, lamp, leadDesk, shelf, sofa, table, workdesk } from "./furniture.ts";
 import { Kit, type GreenhouseManifestData } from "./kit.ts";
-import { SURFACES } from "./keys.ts";
+import { LIGHT_POOLS, SURFACES } from "./keys.ts";
 import { partsModel } from "./parts.ts";
 import * as pieces from "./pieces.ts";
 import { robot } from "./robot.ts";
@@ -36,7 +37,7 @@ for (const [path, json] of Object.entries(import.meta.glob<unknown>("../models/*
 
 class GreenhouseStyle implements WorldStyle {
   readonly manifest: StyleManifest = manifest;
-  readonly #kit = new Kit(manifest);
+  readonly #kit = new Kit(manifest, manifest.lighting);
   readonly #glass: THREE.ShaderMaterial;
 
   constructor() {
@@ -48,14 +49,28 @@ class GreenhouseStyle implements WorldStyle {
     if (!object) return null;
     const surface = SURFACES[key];
     if (surface !== undefined) object.userData.surface = surface;
+    const pool = LIGHT_POOLS[key];
+    if (pool) {
+      // A warm pool of light on the ground under a lamp (lamplight, Pretty only); kept apart from static batching.
+      const decal = this.#kit.decal("pool", pool.radius * 0.25, pool.radius * 0.25, pool.radius * 0.75);
+      decal.position.set(0, pool.y, pool.z ?? 0);
+      object.add(decal);
+    }
     return object;
   }
+
+  /** A part for the landmarks: a data prop or a code piece, by key. */
+  readonly #piece = (key: string): THREE.Object3D => {
+    const model = dataModels.get(key);
+    return model ? partsModel(model, this.#kit) : (this.#code(key as ModelKey, {}) ?? new THREE.Group());
+  };
 
   #data(key: ModelKey, options: ModelOptions): THREE.Object3D | null {
     const model = (options.variant && dataModels.get(`${key}.${options.variant}`)) || dataModels.get(key);
     if (!model) return null;
     const group = partsModel(model, this.#kit, options.accent ?? null);
     if (key === "drone") this.#rotors(group);
+    if (key === "civic.fountain") civic.fountainWater(group, this.#kit);
     return group;
   }
 
@@ -108,9 +123,13 @@ class GreenhouseStyle implements WorldStyle {
       case "building.planks":
         return pieces.planks(kit, o);
       case "post-office":
-        return pieces.postOffice(kit);
+        return civic.postOffice(kit, this.#piece);
       case "town-hall":
-        return pieces.townHall(kit);
+        return civic.townHall(kit, this.#piece);
+      case "civic.square":
+        return civic.square(kit, this.#piece);
+      case "civic.cafe":
+        return civic.cafe(kit, this.#piece);
       case "furniture.desk":
         return desk(kit, o.seed ?? 0);
       case "furniture.bench":
@@ -141,6 +160,8 @@ class GreenhouseStyle implements WorldStyle {
         return pieces.sparkle(kit);
       case "focus-ring":
         return pieces.focusRing(kit, o);
+      case "town.contact-shadow":
+        return pieces.contactShadow(kit, o);
       default:
         return null;
     }
@@ -161,11 +182,18 @@ class GreenhouseStyle implements WorldStyle {
   setTheme(theme: StyleTheme) {
     this.#kit.setTheme(theme);
     this.#glass.uniforms.uColor!.value.set(this.#kit.hex("window"));
-    this.#glass.uniforms.uOpacity!.value = theme === "lamplight" ? 0.6 : 0.32;
+    this.#glass.uniforms.uOpacity!.value = theme === "lamplight" ? 0.82 : 0.32;
   }
 
   environment(scene: THREE.Scene, renderer: THREE.WebGLRenderer, theme: StyleTheme) {
-    return environment(scene, renderer, manifest.lighting, theme, (next) => this.setTheme(next));
+    return environment(
+      scene,
+      renderer,
+      manifest.lighting,
+      theme,
+      (next) => this.setTheme(next),
+      (quality) => this.#kit.setQuality(quality),
+    );
   }
 
   /** Scale up from nothing with a sparkle; progress 0 → 1. Reversing progress de-materialises. */

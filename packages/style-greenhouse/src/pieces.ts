@@ -180,36 +180,6 @@ export function emblem(kit: Kit, icon: EmblemName, o: ModelOptions): THREE.Group
   return g;
 }
 
-const TALL = 1.35,
-  LOW = 0.45,
-  THICK = 0.14;
-
-/** The post office: a small chalk house with a timber counter and a mailbox. */
-export function postOffice(kit: Kit): THREE.Group {
-  const office = new THREE.Group();
-  for (const [x, z, w, d, h] of [
-    [0, -1.2, 3.2, THICK, TALL],
-    [-1.6, 0, THICK, 2.4, TALL],
-    [1.6, 0, THICK, 2.4, LOW],
-  ] as const) {
-    put(office, kit.box(w, h, d, "chalk", 0.03), x, h / 2, z);
-    put(office, kit.box(w + 0.04, 0.08, d + 0.04, "ledge", 0.02), x, h + 0.04, z);
-  }
-  put(office, kit.box(2, 0.7, 0.4, "timber-trim", 0.04), 0, 0.35, 0.2);
-  put(office, kit.box(0.4, 0.5, 0.34, "timber-trim", 0.05), 1.9, 0.25, 1.9);
-  return office;
-}
-
-/** The town hall: columns on a stepped base, a bench in front. */
-export function townHall(kit: Kit): THREE.Group {
-  const hall = new THREE.Group();
-  for (let i = 0; i < 2; i++) put(hall, kit.box(4.2 - i * 0.3, 0.12, 2.6 - i * 0.3, "step", 0.03), 0, 0.06 + i * 0.12, 0);
-  put(hall, kit.box(3.9, TALL, THICK, "chalk", 0.03), 0, TALL / 2 + 0.24, -1.1);
-  for (let i = 0; i < 5; i++) put(hall, kit.cylinder(0.1, 0.12, TALL, "chalk"), -1.6 + i * 0.8, TALL / 2 + 0.24, 1);
-  put(hall, kit.box(4, 0.14, 0.4, "ledge", 0.03), 0, TALL + 0.3, 1);
-  return hall;
-}
-
 /** A stretchable band around a ticket: straps (blocked), tape (held), the milestone band. */
 export function band(kit: Kit, o: ModelOptions, color: Swatch): THREE.Group {
   const { width, height, depth } = size(o, { width: 0.3, height: 0.2, depth: 0.25 });
@@ -294,4 +264,10 @@ function starGeometry(outer: number, inner: number, depth: number): THREE.Buffer
 
 export function glass(kit: Kit): THREE.ShaderMaterial {
   return glassMaterial(kit.hex("window"), 0.32);
+}
+
+/** A soft blob contact shadow under a slab of `size` (a building on its lawn): the old diorama's grounding. */
+export function contactShadow(kit: Kit, o: ModelOptions): THREE.Mesh {
+  const { width, depth } = size(o, { width: 4, height: 0, depth: 4 });
+  return kit.decal("shadow", width / 2, depth / 2, Math.min(width, depth) * 0.08 + 0.4);
 }
