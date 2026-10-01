@@ -2,7 +2,7 @@
   "format": "crewhub-prop/1",
   "id": "builtin:greenhouse-furniture-coffee-counter",
   "name": "Coffee corner",
-  "description": "A timber counter on chalk cabinets with an espresso machine, a kettle, cups and a jar of beans.",
+  "description": "A timber counter on chalk cabinets with an espresso machine, a kettle, cups, a jar of beans and a cake with a slice gone.",
   "category": "gather",
   "tags": [
     "greenhouse",
@@ -387,6 +387,60 @@
       ],
       "material": "paper",
       "radius": 0.004
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.068,
+        0.012,
+        0.06
+      ],
+      "position": [
+        0.46,
+        0.506,
+        0.07
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "wedge",
+      "size": [
+        0.055,
+        0.05,
+        0.055
+      ],
+      "position": [
+        0.46,
+        0.537,
+        0.07
+      ],
+      "rotation": [
+        0,
+        300,
+        0
+      ],
+      "sweep": 300,
+      "material": "terracotta"
+    },
+    {
+      "shape": "wedge",
+      "size": [
+        0.057,
+        0.014,
+        0.057
+      ],
+      "position": [
+        0.46,
+        0.568,
+        0.07
+      ],
+      "rotation": [
+        0,
+        300,
+        0
+      ],
+      "sweep": 300,
+      "material": "cream"
     }
   ]
 }

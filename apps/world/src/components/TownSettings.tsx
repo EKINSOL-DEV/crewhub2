@@ -6,6 +6,7 @@ import { Download } from "lucide-react";
 import { exportTownDocument, RULE_IDS, type RuleId } from "@crewhub/world-model";
 import type { GraphicsQuality } from "@crewhub/world-style";
 import { QUALITY_CHOICES, setQuality, useQuality } from "../state/quality";
+import { setFps, useFps } from "../state/fps";
 import type { TownState } from "../state/town";
 import { townRuntime } from "../state/town";
 import { styleRegistry } from "../world/style";
@@ -24,6 +25,7 @@ const QUALITY_LABELS: Record<GraphicsQuality, string> = { pretty: "Pretty", fast
 
 export function TownSettings({ town }: { town: TownState }) {
   const quality = useQuality();
+  const fps = useFps();
   const [importNote, setImportNote] = useState<{ ok: boolean; text: string } | null>(null);
   const style = styleRegistry.getStyle(town.doc.styleId).manifest;
 
@@ -56,6 +58,14 @@ export function TownSettings({ town }: { town: TownState }) {
             </option>
           ))}
         </Field>
+        <Field
+          control="checkbox"
+          label="Frame rate overlay"
+          className="fps-setting"
+          hint="Frames per second, frame time, draw calls and memory, in a corner of the town. Key F. Kept in this browser."
+          checked={fps}
+          onChange={(e) => setFps(e.currentTarget.checked)}
+        />
         <p className="hint">
           Layout revision {town.doc.revision}.{" "}
           {town.storage === "indexeddb" ? "Kept in this browser (IndexedDB)." : "Kept in memory only: it is lost on reload."}

@@ -2,7 +2,7 @@
   "format": "crewhub-prop/1",
   "id": "builtin:greenhouse-civic-cafe-table",
   "name": "Caf\u00e9 table",
-  "description": "A round caf\u00e9 table under a cream parasol with sage ribs, two bistro chairs and coffee for two.",
+  "description": "A round caf\u00e9 table under a striped cream and sage parasol with a brass finial, two bistro chairs and coffee for two.",
   "category": "gather",
   "tags": [
     "greenhouse",
@@ -89,446 +89,366 @@
       "material": "timber"
     },
     {
-      "shape": "cone",
+      "shape": "wedge",
       "size": [
-        0.78,
-        0.3,
+        0.0,
+        0.4,
+        0.8
+      ],
+      "position": [
+        0.0,
+        2.07,
         0.0
       ],
-      "position": [
+      "rotation": [
         0.0,
-        2.02,
+        0.0,
         0.0
       ],
-      "material": "sage"
+      "sweep": 45,
+      "material": "cream"
     },
     {
-      "shape": "box",
+      "shape": "wedge",
       "size": [
-        0.16,
-        0.02,
-        0.145
+        0.0,
+        0.4,
+        0.8
       ],
       "position": [
-        0.159,
-        2.118,
-        -0.066
-      ],
-      "material": "cream",
-      "rotation": [
         0.0,
-        22.5,
-        -21.038
-      ],
-      "radius": 0.006
-    },
-    {
-      "shape": "box",
-      "size": [
-        0.16,
-        0.02,
-        0.264
-      ],
-      "position": [
-        0.288,
-        2.064,
-        -0.119
-      ],
-      "material": "cream",
-      "rotation": [
-        0.0,
-        22.5,
-        -21.038
-      ],
-      "radius": 0.006
-    },
-    {
-      "shape": "box",
-      "size": [
-        0.16,
-        0.02,
-        0.382
-      ],
-      "position": [
-        0.418,
-        2.01,
-        -0.173
-      ],
-      "material": "cream",
-      "rotation": [
-        0.0,
-        22.5,
-        -21.038
-      ],
-      "radius": 0.006
-    },
-    {
-      "shape": "box",
-      "size": [
-        0.16,
-        0.02,
-        0.501
-      ],
-      "position": [
-        0.548,
-        1.956,
-        -0.227
-      ],
-      "material": "cream",
-      "rotation": [
-        0.0,
-        22.5,
-        -21.038
-      ],
-      "radius": 0.006
-    },
-    {
-      "shape": "box",
-      "size": [
-        0.16,
-        0.02,
-        0.606
-      ],
-      "position": [
-        0.663,
-        1.908,
-        -0.275
-      ],
-      "material": "cream",
-      "rotation": [
-        0.0,
-        22.5,
-        -21.038
-      ],
-      "radius": 0.006
-    },
-    {
-      "shape": "box",
-      "size": [
-        0.16,
-        0.02,
-        0.145
-      ],
-      "position": [
-        -0.066,
-        2.118,
-        -0.159
-      ],
-      "material": "cream",
-      "rotation": [
-        0.0,
-        112.5,
-        -21.038
-      ],
-      "radius": 0.006
-    },
-    {
-      "shape": "box",
-      "size": [
-        0.16,
-        0.02,
-        0.264
-      ],
-      "position": [
-        -0.119,
-        2.064,
-        -0.288
-      ],
-      "material": "cream",
-      "rotation": [
-        0.0,
-        112.5,
-        -21.038
-      ],
-      "radius": 0.006
-    },
-    {
-      "shape": "box",
-      "size": [
-        0.16,
-        0.02,
-        0.382
-      ],
-      "position": [
-        -0.173,
-        2.01,
-        -0.418
-      ],
-      "material": "cream",
-      "rotation": [
-        0.0,
-        112.5,
-        -21.038
-      ],
-      "radius": 0.006
-    },
-    {
-      "shape": "box",
-      "size": [
-        0.16,
-        0.02,
-        0.501
-      ],
-      "position": [
-        -0.227,
-        1.956,
-        -0.548
-      ],
-      "material": "cream",
-      "rotation": [
-        0.0,
-        112.5,
-        -21.038
-      ],
-      "radius": 0.006
-    },
-    {
-      "shape": "box",
-      "size": [
-        0.16,
-        0.02,
-        0.606
-      ],
-      "position": [
-        -0.275,
-        1.908,
-        -0.663
-      ],
-      "material": "cream",
-      "rotation": [
-        0.0,
-        112.5,
-        -21.038
-      ],
-      "radius": 0.006
-    },
-    {
-      "shape": "box",
-      "size": [
-        0.16,
-        0.02,
-        0.145
-      ],
-      "position": [
-        -0.159,
-        2.118,
-        0.066
-      ],
-      "material": "cream",
-      "rotation": [
-        0.0,
-        202.5,
-        -21.038
-      ],
-      "radius": 0.006
-    },
-    {
-      "shape": "box",
-      "size": [
-        0.16,
-        0.02,
-        0.264
-      ],
-      "position": [
-        -0.288,
-        2.064,
-        0.119
-      ],
-      "material": "cream",
-      "rotation": [
-        0.0,
-        202.5,
-        -21.038
-      ],
-      "radius": 0.006
-    },
-    {
-      "shape": "box",
-      "size": [
-        0.16,
-        0.02,
-        0.382
-      ],
-      "position": [
-        -0.418,
-        2.01,
-        0.173
-      ],
-      "material": "cream",
-      "rotation": [
-        0.0,
-        202.5,
-        -21.038
-      ],
-      "radius": 0.006
-    },
-    {
-      "shape": "box",
-      "size": [
-        0.16,
-        0.02,
-        0.501
-      ],
-      "position": [
-        -0.548,
-        1.956,
-        0.227
-      ],
-      "material": "cream",
-      "rotation": [
-        0.0,
-        202.5,
-        -21.038
-      ],
-      "radius": 0.006
-    },
-    {
-      "shape": "box",
-      "size": [
-        0.16,
-        0.02,
-        0.606
-      ],
-      "position": [
-        -0.663,
-        1.908,
-        0.275
-      ],
-      "material": "cream",
-      "rotation": [
-        0.0,
-        202.5,
-        -21.038
-      ],
-      "radius": 0.006
-    },
-    {
-      "shape": "box",
-      "size": [
-        0.16,
-        0.02,
-        0.145
-      ],
-      "position": [
-        0.066,
-        2.118,
-        0.159
-      ],
-      "material": "cream",
-      "rotation": [
-        0.0,
-        292.5,
-        -21.038
-      ],
-      "radius": 0.006
-    },
-    {
-      "shape": "box",
-      "size": [
-        0.16,
-        0.02,
-        0.264
-      ],
-      "position": [
-        0.119,
-        2.064,
-        0.288
-      ],
-      "material": "cream",
-      "rotation": [
-        0.0,
-        292.5,
-        -21.038
-      ],
-      "radius": 0.006
-    },
-    {
-      "shape": "box",
-      "size": [
-        0.16,
-        0.02,
-        0.382
-      ],
-      "position": [
-        0.173,
-        2.01,
-        0.418
-      ],
-      "material": "cream",
-      "rotation": [
-        0.0,
-        292.5,
-        -21.038
-      ],
-      "radius": 0.006
-    },
-    {
-      "shape": "box",
-      "size": [
-        0.16,
-        0.02,
-        0.501
-      ],
-      "position": [
-        0.227,
-        1.956,
-        0.548
-      ],
-      "material": "cream",
-      "rotation": [
-        0.0,
-        292.5,
-        -21.038
-      ],
-      "radius": 0.006
-    },
-    {
-      "shape": "box",
-      "size": [
-        0.16,
-        0.02,
-        0.606
-      ],
-      "position": [
-        0.275,
-        1.908,
-        0.663
-      ],
-      "material": "cream",
-      "rotation": [
-        0.0,
-        292.5,
-        -21.038
-      ],
-      "radius": 0.006
-    },
-    {
-      "shape": "torus",
-      "size": [
-        0.77,
-        0.035,
+        2.07,
         0.0
       ],
+      "rotation": [
+        0.0,
+        45.0,
+        0.0
+      ],
+      "sweep": 45,
+      "material": "leaf"
+    },
+    {
+      "shape": "wedge",
+      "size": [
+        0.0,
+        0.4,
+        0.8
+      ],
       "position": [
         0.0,
-        1.87,
+        2.07,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        90.0,
+        0.0
+      ],
+      "sweep": 45,
+      "material": "cream"
+    },
+    {
+      "shape": "wedge",
+      "size": [
+        0.0,
+        0.4,
+        0.8
+      ],
+      "position": [
+        0.0,
+        2.07,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        135.0,
+        0.0
+      ],
+      "sweep": 45,
+      "material": "leaf"
+    },
+    {
+      "shape": "wedge",
+      "size": [
+        0.0,
+        0.4,
+        0.8
+      ],
+      "position": [
+        0.0,
+        2.07,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        180.0,
+        0.0
+      ],
+      "sweep": 45,
+      "material": "cream"
+    },
+    {
+      "shape": "wedge",
+      "size": [
+        0.0,
+        0.4,
+        0.8
+      ],
+      "position": [
+        0.0,
+        2.07,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        225.0,
+        0.0
+      ],
+      "sweep": 45,
+      "material": "leaf"
+    },
+    {
+      "shape": "wedge",
+      "size": [
+        0.0,
+        0.4,
+        0.8
+      ],
+      "position": [
+        0.0,
+        2.07,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        270.0,
+        0.0
+      ],
+      "sweep": 45,
+      "material": "cream"
+    },
+    {
+      "shape": "wedge",
+      "size": [
+        0.0,
+        0.4,
+        0.8
+      ],
+      "position": [
+        0.0,
+        2.07,
+        0.0
+      ],
+      "rotation": [
+        0.0,
+        315.0,
+        0.0
+      ],
+      "sweep": 45,
+      "material": "leaf"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.76,
+        0.08,
+        0.06
+      ],
+      "position": [
+        0.0,
+        1.83,
         0.0
       ],
       "material": "cream"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.02,
+        0.09,
+        0.605
+      ],
+      "position": [
+        0.674,
+        1.83,
+        -0.279
+      ],
+      "rotation": [
+        0.0,
+        22.5,
+        0.0
+      ],
+      "radius": 0.008,
+      "material": "cream"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.02,
+        0.09,
+        0.605
+      ],
+      "position": [
+        0.279,
+        1.83,
+        -0.674
+      ],
+      "rotation": [
+        0.0,
+        67.5,
+        0.0
+      ],
+      "radius": 0.008,
+      "material": "leaf"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.02,
+        0.09,
+        0.605
+      ],
+      "position": [
+        -0.279,
+        1.83,
+        -0.674
+      ],
+      "rotation": [
+        0.0,
+        112.5,
+        0.0
+      ],
+      "radius": 0.008,
+      "material": "cream"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.02,
+        0.09,
+        0.605
+      ],
+      "position": [
+        -0.674,
+        1.83,
+        -0.279
+      ],
+      "rotation": [
+        0.0,
+        157.5,
+        0.0
+      ],
+      "radius": 0.008,
+      "material": "leaf"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.02,
+        0.09,
+        0.605
+      ],
+      "position": [
+        -0.674,
+        1.83,
+        0.279
+      ],
+      "rotation": [
+        0.0,
+        202.5,
+        0.0
+      ],
+      "radius": 0.008,
+      "material": "cream"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.02,
+        0.09,
+        0.605
+      ],
+      "position": [
+        -0.279,
+        1.83,
+        0.674
+      ],
+      "rotation": [
+        0.0,
+        247.5,
+        0.0
+      ],
+      "radius": 0.008,
+      "material": "leaf"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.02,
+        0.09,
+        0.605
+      ],
+      "position": [
+        0.279,
+        1.83,
+        0.674
+      ],
+      "rotation": [
+        0.0,
+        292.5,
+        0.0
+      ],
+      "radius": 0.008,
+      "material": "cream"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.02,
+        0.09,
+        0.605
+      ],
+      "position": [
+        0.674,
+        1.83,
+        0.279
+      ],
+      "rotation": [
+        0.0,
+        337.5,
+        0.0
+      ],
+      "radius": 0.008,
+      "material": "leaf"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.02,
+        0.07,
+        0.03
+      ],
+      "position": [
+        0.0,
+        2.29,
+        0.0
+      ],
+      "material": "brass"
     },
     {
       "shape": "sphere",
       "size": [
-        0.07,
-        0.06,
-        0.07
+        0.045,
+        0.045,
+        0.045
       ],
       "position": [
         0.0,
-        2.2,
+        2.35,
         0.0
       ],
-      "material": "cream"
+      "material": "brass"
     },
     {
       "shape": "cylinder",

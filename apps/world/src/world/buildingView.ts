@@ -405,6 +405,20 @@ export class BuildingView {
         // Ivy up the back wall comes and goes with that wall when the camera turns.
         if (spot.x < 0) this.#backWalls.west.tall.add(ivy);
       });
+      // Closed, not unfinished: the furniture under dust sheets, chairs stacked for the move, a few crates.
+      this.template.rooms.forEach((room, i) => {
+        const { width, depth } = room.layout.grid;
+        if (width < 4 || depth < 3) return;
+        const { x, z } = room.origin;
+        add(style.model("building.dust-sheet"), x + width * 0.42, z + 1.3, 0.02, (i % 3) * 0.08 - 0.08);
+        if (width >= 6) add(style.model("building.chair-stack"), x + width - 1.2, z + 1.1, 0.02, i * 0.7);
+        if (depth >= 5) add(style.model("building.dust-sheet"), x + 1.8, z + depth - 1.6, 0.02, Math.PI / 2 + 0.05);
+        if (i % 2 === 0 && width >= 5 && depth >= 4) {
+          add(style.model("crate"), x + width - 1.1, z + depth - 1.1, 0.02, 0.3 + i);
+          add(style.model("crate"), x + width - 1.9, z + depth - 1, 0.02, -0.2 + i);
+          add(style.model("crate"), x + width - 1.4, z + depth - 1.05, 0.34, 0.6 + i);
+        }
+      });
     }
     // The truck backs up to dispatch's loading door, nose to the street, ready to drive off the plot.
     if (!b.archived) {

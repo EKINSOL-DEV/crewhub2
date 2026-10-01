@@ -2,6 +2,7 @@
    with the kit's shared geometry and materials. The style's own data models use it too. A model tagged
    `accent-<material>` draws the parts of that material in the caller's accent colour (a project colour on a flag). */
 import * as THREE from "three";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { PROP_LIMITS, type PropModel, type PropPart } from "@crewhub/world-engine";
 import type { PaletteName } from "@crewhub/world-style";
 import type { Kit } from "./kit.ts";
@@ -31,6 +32,11 @@ function partMesh(kit: Kit, part: PropPart, color: string): THREE.Mesh {
         kit.material(color),
       );
       break;
+    case "wedge": {
+      const sweep = part.sweep ?? 360;
+      mesh = kit.mesh(kit.geometry(`prop-wedge:${a},${b},${c},${sweep}`, () => wedgeGeometry(a, c, b, sweep)), kit.material(color));
+      break;
+    }
   }
   if (part.emissive) mesh.material = kit.material(color, { glow: 0.6 });
   else if (part.material === "glass") mesh.material = kit.material(color, { transparent: 0.55 });
@@ -38,6 +44,54 @@ function partMesh(kit: Kit, part: PropPart, color: string): THREE.Mesh {
   const [rx, ry, rz] = part.rotation ?? [0, 0, 0];
   mesh.rotation.set(rx * DEG, ry * DEG, rz * DEG, "XYZ");
   return mesh;
+}
+
+/**
+ * A slice of an upright cylinder or cone, `sweep` degrees wide, starting on +x and turning towards -z (as a positive
+ * y rotation turns). three.js measures theta from +z towards +x, so the slice starts at theta 90°. Below a full turn
+ * the two cut faces close it, so a slice of cake or a pie-chart piece reads solid.
+ */
+export function wedgeGeometry(top: number, bottom: number, height: number, sweep: number): THREE.BufferGeometry {
+  const length = Math.min(sweep, 360) * DEG;
+  const segments = Math.max(2, Math.ceil((32 * sweep) / 360));
+  const side = new THREE.CylinderGeometry(top, bottom, height, segments, 1, false, Math.PI / 2, length);
+  if (sweep >= 360) return side;
+  const body = side.toNonIndexed();
+  side.dispose();
+  const h = height / 2;
+  const positions: number[] = [];
+  const normals: number[] = [];
+  const uvs: number[] = [];
+  // Each cut face is the quad axis-top, rim-top, rim-bottom, axis-bottom at angle a, its normal pointing out of the slice.
+  for (const [a, out] of [[0, -1], [length, 1]] as const) {
+    const dx = Math.cos(a),
+      dz = -Math.sin(a);
+    const n = new THREE.Vector3(-Math.sin(a), 0, -Math.cos(a)).multiplyScalar(out);
+    const quad = [
+      new THREE.Vector3(0, h, 0),
+      new THREE.Vector3(top * dx, h, top * dz),
+      new THREE.Vector3(bottom * dx, -h, bottom * dz),
+      new THREE.Vector3(0, -h, 0),
+    ];
+    for (const [i, j, k] of [[0, 1, 2], [0, 2, 3]] as const) {
+      let tri = [quad[i]!, quad[j]!, quad[k]!];
+      const face = new THREE.Vector3().subVectors(tri[1]!, tri[0]!).cross(new THREE.Vector3().subVectors(tri[2]!, tri[0]!));
+      if (face.dot(n) < 0) tri = [tri[0]!, tri[2]!, tri[1]!];
+      for (const v of tri) {
+        positions.push(v.x, v.y, v.z);
+        normals.push(n.x, n.y, n.z);
+        uvs.push(0, 0);
+      }
+    }
+  }
+  const cuts = new THREE.BufferGeometry();
+  cuts.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  cuts.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
+  cuts.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+  const merged = mergeGeometries([body, cuts]) ?? body;
+  if (merged !== body) body.dispose();
+  cuts.dispose();
+  return merged;
 }
 
 /** The group's origin is the footprint centre on the floor; the front faces +z. Pass only validated models. */
