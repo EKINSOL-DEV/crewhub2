@@ -8,6 +8,7 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { put, type Kit, type Swatch } from "./kit.ts";
 import { lamp, plant } from "./furniture.ts";
+import { wedgeGeometry } from "./parts.ts";
 
 /** A model by key from the style (a data prop or a code piece). */
 export type Piece = (key: string) => THREE.Object3D;
@@ -599,17 +600,19 @@ export function cafe(kit: Kit, piece: Piece): THREE.Group {
       spot(g, "steam", 0.28, 0.97, front + 0.24);
       // A glass cake dome.
       put(g, kit.cylinder(0.16, 0.16, 0.02, "cream"), 0.85, 0.89, front + 0.22);
-      put(g, kit.cylinder(0.1, 0.1, 0.08, "terracotta"), 0.85, 0.94, front + 0.22);
+      // A cake with a slice gone, the cut facing the counter's front.
+      for (const [r, h, y, color] of [[0.1, 0.06, 0.93, "terracotta"], [0.102, 0.02, 0.97, "cream"]] as const)
+        put(g, kit.mesh(kit.geometry(`cake:${r},${h}`, () => wedgeGeometry(r, r, h, 300)), kit.material(color)), 0.85, y, front + 0.22).rotation.y = (300 * Math.PI) / 180;
       put(g, kit.sphere(0.15, "glass"), 0.85, 0.93, front + 0.22).material = kit.material("glass", { transparent: 0.45 });
       // The striped awning with its scalloped edge.
       const stripes = 9,
         awningW = 3.1;
       for (let i = 0; i < stripes; i++) {
-        const stripe = put(g, kit.box(awningW / stripes + 0.005, 0.06, 1.0, i % 2 ? "cream" : "sage", 0.02), -awningW / 2 + (i + 0.5) * (awningW / stripes), 1.98, front + 0.45);
+        const stripe = put(g, kit.box(awningW / stripes + 0.005, 0.06, 1.0, i % 2 ? "cream" : "leaf", 0.02), -awningW / 2 + (i + 0.5) * (awningW / stripes), 1.98, front + 0.45);
         stripe.rotation.x = 0.4;
       }
       for (let i = 0; i < stripes; i++) {
-        const scallop = put(g, kit.sphere(awningW / stripes / 2, i % 2 ? "cream" : "sage"), -awningW / 2 + (i + 0.5) * (awningW / stripes), 1.77, front + 0.91);
+        const scallop = put(g, kit.sphere(awningW / stripes / 2, i % 2 ? "cream" : "leaf"), -awningW / 2 + (i + 0.5) * (awningW / stripes), 1.77, front + 0.91);
         scallop.scale.set(1, 0.7, 0.25);
       }
       // The CAFE sign on the roof front.
