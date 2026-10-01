@@ -40,6 +40,7 @@
     "scripts/prop-validate.ts",
     "scripts/bubbles-copy.ts",
     "scripts/check-bubbles-copy.ts",
-    "scripts/test"
+    "scripts/test",
+    "scripts/scan-model-calls.ts"
   ]
 }

@@ -53,3 +53,32 @@ export {
 } from "./propRequests.ts";
 export { AWAITING_DEPLOY_LABEL, ruleProps } from "./ruleProps.ts";
 export { describeTownDocument } from "./describeTown.ts";
+export type {
+  Gather,
+  GoToProp,
+  Intent,
+  Located,
+  PlanInput,
+  ReachQuery,
+  Reachable,
+  RejectedIntent,
+  Stay,
+  Validation,
+  VisitAgent,
+} from "./director.ts";
+export {
+  MAX_INTENTS_PER_PLAN,
+  MAX_TTL_MS,
+  MIN_TTL_MS,
+  describeIntent,
+  estimateTokens,
+  immovableReason,
+  locate,
+  movedAgents,
+  parseIntent,
+  planInput,
+  validateIntents,
+} from "./director.ts";
+export type { AmbientMode, PresenceSettings } from "./presence.ts";
+export { DEFAULT_PRESENCE, DIRECTOR_MODEL, PRESENCE_LIMITS, normalizePresence } from "./presence.ts";
+export { where } from "./where.ts";

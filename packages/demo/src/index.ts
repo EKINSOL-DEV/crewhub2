@@ -14,3 +14,5 @@ export { createDemoApi } from "./api.ts";
 export type { DemoApi, DemoApiOptions, DemoApiResponse, DemoChatSource, DemoView } from "./api.ts";
 export { DEMO_PERSON } from "./store.ts";
 export type { AgentSummary } from "./store.ts";
+export { DEMO_ROOM_PROPS, QUICK_DEBOUNCE_MS, QUICK_MIN_GAP_MS, createDirectorFeed, demoPropTags, movementSignals, scriptPlan } from "./director.ts";
+export type { DirectorFeed, DirectorFeedOptions, FeedUsage, PlanRecord, PlanTrigger } from "./director.ts";

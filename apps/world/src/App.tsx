@@ -23,6 +23,10 @@ import { buildingTemplate } from "./world/buildingTemplate";
 import type { Pick } from "./world/buildingView";
 import { firstRoom, roomName, roomNeighbor, roomSummary } from "./world/interiorLayout";
 import { AMBIENT_CHOICES, type Ambient } from "./world/movement";
+import { DirectorLog } from "./components/DirectorLog";
+import { PresenceSettings } from "./components/PresenceSettings";
+import { WhereForm } from "./components/WhereForm";
+import { useDirectorFeed } from "./state/director";
 import type { CameraAction } from "./world/TownScene";
 import { countsLine, laneWords, mmss, moveFocus, TOWN_CAPACITY } from "./world/townLayout";
 
@@ -60,6 +64,7 @@ function World() {
   const narrow = useNarrow();
   const dockHeight = useDockHeight();
   const { theme, cycle } = useTheme();
+  useDirectorFeed();
   const [entered, setEntered] = useState<string | null>(null);
   const [focused, setFocused] = useState(0);
   const [ringVisible, setRingVisible] = useState(false);
@@ -458,6 +463,7 @@ function World() {
             <RoleSettings model={model} overrides={overrides} onChange={setOverrides} />
             <TownSettings town={town} />
             <p className="sign-muted">Agent settings live in the crewhub-loops web app; the demo has none.</p>
+            <PresenceSettings />
           </Card.Body>
         </Card>
       )}
@@ -648,6 +654,7 @@ function TextView({ lines, fallback, onClose, ref }: { lines: TextLine[]; fallba
       />
       <Card.Body>
         {fallback && <p className="text-note">3D graphics are not available here, so the world is shown as text.</p>}
+        <WhereForm />
         {[...sections].map(([section, items]) => (
           <section key={section} className="text-section">
             <h3>{section}</h3>
@@ -663,6 +670,7 @@ function TextView({ lines, fallback, onClose, ref }: { lines: TextLine[]; fallba
             </ul>
           </section>
         ))}
+        <DirectorLog />
       </Card.Body>
     </Card>
   );
