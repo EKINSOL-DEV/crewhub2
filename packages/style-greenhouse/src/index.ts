@@ -15,6 +15,7 @@ import type {
 } from "@crewhub/world-style";
 import manifestJson from "../style.json";
 import * as civic from "./civic.ts";
+import * as life from "./life.ts";
 import { environment } from "./environment.ts";
 import { bench, desk, lamp, leadDesk, shelf, sofa, table, workdesk } from "./furniture.ts";
 import { Kit, type GreenhouseManifestData } from "./kit.ts";
@@ -50,6 +51,8 @@ class GreenhouseStyle implements WorldStyle {
   model(key: ModelKey, options: ModelOptions = {}): THREE.Object3D | null {
     const object = this.#data(key, options) ?? this.#code(key, options);
     if (!object) return null;
+    // Town dressing repeats in the thousands: lighter round parts, and no shadows from the small pieces.
+    if (key.startsWith("town.") || key === "ground") town.townDetail(this.#kit, object, key);
     const surface = SURFACES[key];
     if (surface !== undefined) object.userData.surface = surface;
     const pools = LIGHT_POOLS[key];
@@ -208,6 +211,22 @@ class GreenhouseStyle implements WorldStyle {
         return pieces.focusRing(kit, o);
       case "town.contact-shadow":
         return pieces.contactShadow(kit, o);
+      case "town.bird":
+        return life.bird(kit);
+      case "town.butterfly":
+        return life.butterfly(kit);
+      case "town.firefly":
+        return life.firefly(kit);
+      case "town.mote":
+        return life.mote(kit);
+      case "town.window-glow":
+        return life.windowGlow(kit);
+      case "town.ripple":
+        return life.ripple(kit);
+      case "town.steam":
+        return life.steam(kit);
+      case "town.cloud-shadow":
+        return life.cloudShadow(kit);
       default:
         return null;
     }
@@ -261,6 +280,7 @@ class GreenhouseStyle implements WorldStyle {
 
   dispose() {
     this.#glass.dispose();
+    life.disposeLife(this.#kit);
     town.disposeTown(this.#kit);
     this.#kit.dispose();
   }

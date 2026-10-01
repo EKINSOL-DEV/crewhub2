@@ -28,13 +28,41 @@ function slab(kit: Kit, w: number, h: number, d: number, material: THREE.Materia
   return mesh;
 }
 
-/** The town ground: a thick diorama slab with grass on top, its top at y = 0.02. */
+/**
+ * The town ground as a floating diorama: grass on a soft turf lip, a band of topsoil, a paler layer line, deep earth
+ * with a bevelled underside, a few rocks set into the sides and a soft contact shadow below. The grass top is at
+ * y = 0.02; everything else hangs under it.
+ */
 export function ground(kit: Kit, o: ModelOptions): THREE.Group {
   const { width, depth } = size(o, { width: 20, height: 0.5, depth: 20 });
   const g = new THREE.Group();
-  put(g, kit.box(width + 0.8, 1.1, depth + 0.8, "town-base", 0.3), 0, -0.62, 0);
-  put(g, kit.box(width + 0.5, 0.22, depth + 0.5, "grass-edge", 0.08), 0, -0.1, 0);
   put(g, slab(kit, width, 0.06, depth, shaded(kit, "grass", (m) => grassShader(m, 0.16))), 0, -0.01, 0);
+  put(g, kit.box(width + 0.5, 0.3, depth + 0.5, "grass-edge", 0.14), 0, -0.135, 0);
+  put(g, kit.box(width + 0.36, 0.72, depth + 0.36, "soil-top", 0.24), 0, -0.6, 0);
+  put(g, kit.box(width + 0.44, 0.09, depth + 0.44, "soil-line", 0.04), 0, -0.97, 0);
+  put(g, kit.box(width + 0.24, 1.3, depth + 0.24, "earth", 0.34), 0, -1.65, 0);
+  put(g, kit.box(width - 0.6, 0.5, depth - 0.6, "earth-deep", 0.24), 0, -2.42, 0);
+  // Rocks bedded in the sides, a few per side, in the topsoil and the deep earth.
+  const sides: [number, number, number, number][] = [
+    [0, -(depth + 0.3) / 2, width, 0],
+    [0, (depth + 0.3) / 2, width, 0],
+    [-(width + 0.3) / 2, 0, depth, Math.PI / 2],
+    [(width + 0.3) / 2, 0, depth, Math.PI / 2],
+  ];
+  sides.forEach(([cx, cz, length, turn], side) => {
+    const count = Math.round(length / 9);
+    for (let i = 0; i < count; i++) {
+      const n = (i * 7 + side * 13) % 11;
+      const t = -length / 2 + ((i + 0.5) * length) / count + (n - 5) * 0.35;
+      const rock = put(g, kit.sphere(1, n % 3 ? "rock" : "soil-line"), cx + (turn ? 0 : t), -0.55 - (n % 4) * 0.35, cz + (turn ? t : 0));
+      rock.scale.set(0.32 + (n % 3) * 0.12, 0.2 + (n % 2) * 0.08, 0.26 + (n % 4) * 0.05);
+      rock.rotation.y = turn + n;
+      rock.castShadow = false;
+    }
+  });
+  // The diorama's own soft shadow on whatever lies below it.
+  const shadow = put(g, kit.decal("shadow", width / 2 - 1, depth / 2 - 1, 7), 0, -2.75, 0);
+  shadow.renderOrder = 0;
   return g;
 }
 
@@ -244,4 +272,45 @@ export function townTheme(kit: Kit, theme: StyleTheme) {
 export function disposeTown(kit: Kit) {
   wearMaterials.get(kit)?.dispose();
   wearMaterials.delete(kit);
+}
+
+/** Small town pieces whose shadows nobody sees from the town camera; they skip the shadow pass. */
+const SHADOWLESS = new Set([
+  "town.grass",
+  "town.tall-grass",
+  "town.flowers",
+  "town.wildflowers",
+  "town.flower-bed",
+  "town.lily",
+  "town.rock",
+  "town.mailbox",
+  "town.bike-rack",
+  "town.fence",
+  "town.veg-bed",
+  "town.picnic-blanket",
+  "town.sandpit",
+  "town.bush",
+  "town.hedge",
+  "ground",
+]);
+
+/**
+ * The town's level of detail. Dressing is drawn thousands of times, so its round parts swap the kit's smooth spheres
+ * (12 × 10) and cylinders (20 sides) for lighter ones (8 × 6, 10 sides), still soft under the toon materials, and the
+ * small pieces cast no shadow. Shared geometry stays shared, so instancing is unchanged.
+ */
+export function townDetail(kit: Kit, object: THREE.Object3D, key: string) {
+  const shadow = !SHADOWLESS.has(key);
+  object.traverse((o) => {
+    if (!(o instanceof THREE.Mesh)) return;
+    if (!shadow) o.castShadow = false;
+    const g = o.geometry;
+    if (g instanceof THREE.SphereGeometry && g.parameters.widthSegments > 8) {
+      const r = g.parameters.radius;
+      o.geometry = kit.geometry(`sphere-low:${r}`, () => new THREE.SphereGeometry(r, 8, 6));
+    } else if (g instanceof THREE.CylinderGeometry && g.parameters.radialSegments > 10) {
+      const { radiusTop, radiusBottom, height } = g.parameters;
+      o.geometry = kit.geometry(`cylinder-low:${radiusTop},${radiusBottom},${height}`, () => new THREE.CylinderGeometry(radiusTop, radiusBottom, height, 10));
+    }
+  });
 }

@@ -18,7 +18,35 @@ interface Baked {
   geometry: THREE.BufferGeometry;
   material: THREE.Material;
 }
-const bakedByKit = new WeakMap<Kit, Map<string, Baked[]>>();
+/** A life spot (world-style's `LifeSpot` convention): where steam rises or a window glows, in the landmark's frame. */
+interface Spot {
+  life: string;
+  position: THREE.Vector3;
+  quaternion: THREE.Quaternion;
+}
+const bakedByKit = new WeakMap<Kit, Map<string, { baked: Baked[]; spots: Spot[] }>>();
+
+/** Marks a life spot: an empty object the renderer's ambient life reads (`userData.life`), kept through baking. */
+function spot(g: THREE.Group, life: "steam" | "window", x: number, y: number, z: number) {
+  const marker = new THREE.Object3D();
+  marker.position.set(x, y, z);
+  marker.userData.life = life;
+  g.add(marker);
+}
+
+/** The life spots under `root`, in its frame. */
+function spots(root: THREE.Group): Spot[] {
+  root.updateMatrixWorld(true);
+  const out: Spot[] = [];
+  root.traverse((o) => {
+    if (typeof o.userData.life !== "string") return;
+    const position = new THREE.Vector3(),
+      quaternion = new THREE.Quaternion();
+    o.matrixWorld.decompose(position, quaternion, new THREE.Vector3());
+    out.push({ life: o.userData.life, position, quaternion });
+  });
+  return out;
+}
 
 /** Merges the static meshes under `root` per material; the geometries live in the kit, so they go with it. */
 function bake(kit: Kit, name: string, root: THREE.Group): Baked[] {
@@ -49,16 +77,23 @@ function bake(kit: Kit, name: string, root: THREE.Group): Baked[] {
 function landmark(kit: Kit, name: string, build: (g: THREE.Group) => void, live?: (g: THREE.Group) => void): THREE.Group {
   let cache = bakedByKit.get(kit);
   if (!cache) bakedByKit.set(kit, (cache = new Map()));
-  let baked = cache.get(name);
-  if (!baked) {
+  let entry = cache.get(name);
+  if (!entry) {
     const source = new THREE.Group();
     build(source);
-    baked = bake(kit, name, source);
-    cache.set(name, baked);
+    entry = { baked: bake(kit, name, source), spots: spots(source) };
+    cache.set(name, entry);
   }
   const g = new THREE.Group();
   g.name = name;
-  for (const { geometry, material } of baked) g.add(kit.mesh(geometry, material));
+  for (const { geometry, material } of entry.baked) g.add(kit.mesh(geometry, material));
+  for (const s of entry.spots) {
+    const marker = new THREE.Object3D();
+    marker.position.copy(s.position);
+    marker.quaternion.copy(s.quaternion);
+    marker.userData.life = s.life;
+    g.add(marker);
+  }
   live?.(g);
   return g;
 }
@@ -181,6 +216,7 @@ function letters(kit: Kit, text: string, cell: number, color: Swatch): THREE.Gro
 function window_(g: THREE.Group, kit: Kit, x: number, y: number, z: number, w: number, h: number, frame: Swatch, arched = false) {
   put(g, kit.box(w + 0.16, h + 0.16, 0.08, frame, 0.03), x, y, z);
   put(g, kit.box(w, h, 0.08, "window", 0.02), x, y, z + 0.02).material = kit.material("window", { glow: 0.45 });
+  spot(g, "window", x, y - h * 0.15, z + 0.09);
   if (arched) {
     const back = put(g, kit.cylinder(w / 2 + 0.08, w / 2 + 0.08, 0.08, frame), x, y + h / 2, z);
     back.rotation.x = Math.PI / 2;
@@ -248,6 +284,7 @@ export function postOffice(kit: Kit, piece: Piece): THREE.Group {
       // A chimney on the back slope.
       put(g, kit.box(0.5, 1.3, 0.5, "terracotta", 0.05), -2.3, floor + PO.h + 1.2, PO.z - 0.9);
       put(g, kit.box(0.62, 0.12, 0.62, "slate", 0.04), -2.3, floor + PO.h + 1.9, PO.z - 0.9);
+      spot(g, "steam", -2.3, floor + PO.h + 2.0, PO.z - 0.9);
 
       // The door: moss green, a lit pane, a brass mail slot and knob, a stone step.
       const doorX = -1.2;
@@ -559,6 +596,7 @@ export function cafe(kit: Kit, piece: Piece): THREE.Group {
       for (let i = 0; i < 5; i++) put(g, kit.box(0.025, 0.6, 0.02, "timber", 0.008), -0.96 + i * 0.48, 0.45, front + 0.12);
       placed(g, piece("furniture.coffee-machine"), -0.65, 0.88, front + 0.17, 0, 0.7);
       for (const x of [0.1, 0.28, 0.46]) put(g, kit.cylinder(0.045, 0.04, 0.08, "cream"), x, 0.92, front + 0.24);
+      spot(g, "steam", 0.28, 0.97, front + 0.24);
       // A glass cake dome.
       put(g, kit.cylinder(0.16, 0.16, 0.02, "cream"), 0.85, 0.89, front + 0.22);
       put(g, kit.cylinder(0.1, 0.1, 0.08, "terracotta"), 0.85, 0.94, front + 0.22);
@@ -812,6 +850,7 @@ export function windmill(kit: Kit): THREE.Group {
         arm.rotation.z = (i * Math.PI) / 2;
         sails.add(arm);
       }
+      sails.name = "windmill-sails";
       sails.position.copy(hub);
       sails.rotation.z = 0.35;
       // The sails turn: renderers that batch static meshes must leave them as they are.
