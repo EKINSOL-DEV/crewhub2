@@ -243,7 +243,7 @@ export class BuildingView {
     this.#syncAgents();
     this.#syncPiles();
     this.#piles.visible = !this.detailed;
-    this.#syncSilhouette();
+    this.#syncSilhouette(shape);
     this.#signals.visible = this.detailed;
     this.#objects.group.visible = this.detailed;
     if (this.detailed) {
@@ -452,11 +452,14 @@ export class BuildingView {
 
   /* The far-detail furniture: every furniture and dressing piece, and the rugs, as the style's plain stand-in boxes,
      batched per material (a handful of draw calls per building). Rebuilt only when the rooms' furniture changes. */
-  #syncSilhouette() {
+  #syncSilhouette(shape: string) {
     const far = !this.detailed && !this.building.archived;
     this.#silhouette.visible = far;
     if (!far) return;
-    const signature = JSON.stringify(this.template.rooms.map((r) => [r.kind, r.origin, r.layout.props.map((p) => [p.definitionId, p.cell, p.rotation])]));
+    // Cheap: it runs on every model update of every building. The dressing follows the shape; a placed prop that
+    // makes dressing step aside changes a room's prop count.
+    let signature = shape;
+    for (const room of this.template.rooms) signature += `|${room.layout.props.length}`;
     if (signature === this.#silhouetteSignature) return;
     this.#silhouetteSignature = signature;
     const { style } = this.ctx;
