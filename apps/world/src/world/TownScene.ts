@@ -18,7 +18,7 @@ import { styleRegistry } from "./style";
 import type { StyledPlot } from "./styleRegistry";
 import type { Ambient } from "./movement";
 import { CIVIC_LOT, civicCenter, homeRects, PLOT_SIZE, plotCenter, TOWN_CAPACITY, townBounds, type Bounds } from "./townLayout";
-import { GRASS_Y, landmarks as townLandmarks, LAWN_Y, townDressing } from "./townDressing";
+import { GRASS_Y, landmarks as townLandmarks, LAWN_Y, slugSeed, townDressing } from "./townDressing";
 import { instanceStatic } from "./instanceStatic";
 import { mergeStatic } from "./mergeStatic";
 import { plotDoor, plotObstacles } from "./navigation";
@@ -349,11 +349,15 @@ export class TownScene {
     const indices = Array.from({ length: Math.min(TOWN_CAPACITY, count) }, (_, i) => i);
     // Fast quality leaves out the small detail (grass tufts, wild flowers).
     const fast = this.view.quality === "fast";
-    const signature = `${indices.join(",")}|${fast}`;
+    // Each building's own garden follows its slug and whether it is archived.
+    const signature = `${indices.map((i) => `${this.view.model.buildings[i]?.slug}:${this.view.model.buildings[i]?.archived}`).join(",")}|${fast}`;
     if (signature === this.#dressing.signature) return;
     this.#disposeDressing();
     const group = new THREE.Group();
-    const plots = indices.map((index) => ({ index, door: plotDoor(index), obstacles: plotObstacles(index) }));
+    const plots = indices.map((index) => {
+      const b = this.view.model.buildings[index];
+      return { index, door: plotDoor(index), obstacles: plotObstacles(index), seed: b ? slugSeed(b.slug) : index, archived: b?.archived ?? false };
+    });
     const dressing = townDressing(plots);
     this.#life.setTown(dressing, this.#landmarks);
     for (const d of dressing) {

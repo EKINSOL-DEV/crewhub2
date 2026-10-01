@@ -60,6 +60,23 @@ export interface DressedPlot {
   door: { x: number; z: number };
   /** Footprints on the plot that dressing must keep clear of (the building, the parked truck). */
   obstacles: readonly Bounds[];
+  /** Picks the front garden (`gardenKind`); the same building always gets the same garden. */
+  seed?: number;
+  /** An archived building's garden is overgrown. */
+  archived?: boolean;
+}
+
+/** A front garden: a lawn with a tree, a terrace with tables, a vegetable patch or a bike shelter. */
+export type GardenKind = "lawn" | "terrace" | "vegetables" | "bikes";
+const GARDENS: readonly GardenKind[] = ["lawn", "terrace", "vegetables", "bikes"];
+export function gardenKind(seed: number): GardenKind {
+  return GARDENS[Math.min(GARDENS.length - 1, Math.floor(noise(Math.abs(Math.floor(seed)) % 100003, 17) * GARDENS.length))]!;
+}
+/** A stable number for a building slug, for `DressedPlot.seed`. */
+export function slugSeed(slug: string): number {
+  let h = 7;
+  for (let i = 0; i < slug.length; i++) h = (Math.imul(h, 31) + slug.charCodeAt(i)) >>> 0;
+  return h;
 }
 
 const rect = (cx: number, cz: number, width: number, depth: number): Bounds => ({
@@ -260,7 +277,7 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
     const plot = used.get(i);
     const use = plotUse(i);
     const wild = !plot && (use === "meadow" || use === "orchard" || use === "picnic");
-    add("plot", c.x, 0, c.z, { size: { width: PLOT_SIZE, height: 0.16, depth: PLOT_SIZE }, ...(wild ? { variant: "meadow" } : {}) });
+    add("plot", c.x, 0, c.z, { size: { width: PLOT_SIZE, height: 0.16, depth: PLOT_SIZE }, ...(wild || plot?.archived ? { variant: "meadow" } : {}) });
     if (plot) garden(add, plot, tree);
     else if (use === "orchard") plotOrchard(add, i);
     else if (use === "allotment") allotment(add, i);
@@ -363,7 +380,7 @@ function garden(add: Add, plot: DressedPlot, tree: Tree) {
     for (const [x, z, turned] of edges) {
       const r = turned ? rect(x, z, 0.7, length) : rect(x, z, length, 0.7);
       if (!clear(r)) continue;
-      add("town.hedge", x, LAWN_Y, z, { size: { width: length, height: 0.62, depth: 0.7 }, rotation: turned ? Math.PI / 2 : 0, seed: plot.index * 31 + i });
+      add("town.hedge", x, LAWN_Y, z, { size: { width: length, height: 0.5, depth: 0.7 }, rotation: turned ? Math.PI / 2 : 0, seed: plot.index * 31 + i });
     }
   }
   // The front hedge runs up to the gate on either side, in runs that skip the truck.
@@ -377,7 +394,7 @@ function garden(add: Add, plot: DressedPlot, tree: Tree) {
     for (let i = 0; i < pieces; i++) {
       const x = from + (i + 0.5) * length;
       if (length < 0.8 || !clear(rect(x, southZ, length - 0.15, 0.7), 0.3)) continue;
-      add("town.hedge", x, LAWN_Y, southZ, { size: { width: length - 0.15, height: 0.62, depth: 0.7 }, seed: plot.index * 37 + i });
+      add("town.hedge", x, LAWN_Y, southZ, { size: { width: length - 0.15, height: 0.5, depth: 0.7 }, seed: plot.index * 37 + i });
     }
   }
   add("town.gate", plot.door.x, LAWN_Y, southZ, { seed: plot.index });
@@ -388,12 +405,20 @@ function garden(add: Add, plot: DressedPlot, tree: Tree) {
   const gateZ = c.z + half - 1.5;
   for (const side of [-1, 1]) {
     const bed = rect(plot.door.x + side * (GARDEN_PATH / 2 + 1.5), gateZ, 2.4, 0.9);
-    if (clear(bed, 0.1)) add("town.flower-bed", (bed.minX + bed.maxX) / 2, LAWN_Y, gateZ, { size: { width: 2.4, height: 0.2, depth: 0.9 }, seed: plot.index * 7 + side });
+    if (!clear(bed, 0.1)) continue;
+    if (plot.archived) {
+      // Gone to seed: wild flowers and long grass where the bed was.
+      for (let k = 0; k < 4; k++)
+        add(k % 2 ? "town.wildflowers" : "town.tall-grass", bed.minX + 0.3 + k * 0.6, LAWN_Y, gateZ + ((k % 3) - 1) * 0.2, { seed: plot.index * 9 + k, scale: 1.6, rotation: k });
+    } else add("town.flower-bed", (bed.minX + bed.maxX) / 2, LAWN_Y, gateZ, { size: { width: 2.4, height: 0.2, depth: 0.9 }, seed: plot.index * 7 + side });
+  }
+  for (const side of [-1, 1]) {
     const lantern = { x: plot.door.x + side * (GARDEN_PATH / 2 + 0.35), z: c.z + half - 0.35 };
     if (clear(rect(lantern.x, lantern.z, 0.3, 0.3), 0)) add("town.lantern", lantern.x, LAWN_Y, lantern.z, { seed: plot.index + side, scale: 0.85 });
   }
   const box = { x: plot.door.x + GARDEN_PATH / 2 + 0.45, z: c.z + half - 1.1 };
   if (clear(rect(box.x, box.z, 0.3, 0.3), 0)) add("town.mailbox", box.x, LAWN_Y, box.z, { rotation: -Math.PI / 2 });
+  frontGarden(add, plot, tree, clear);
   // Trees and bushes in the corners the building leaves free.
   const corners: [number, number][] = [
     [c.x - half + 1.3, c.z + half - 1.3],
@@ -406,6 +431,68 @@ function garden(add: Add, plot: DressedPlot, tree: Tree) {
     if (i < 3) tree(x, z, LAWN_Y, plot.index * 13 + i, 1.05);
     else add("town.bush", x, LAWN_Y, z, { seed: plot.index + i });
   });
+}
+
+/**
+ * The front garden in the yard east of the garden path, between the building and the front hedge: a lawn with a tree
+ * and a bench, a terrace with café tables, a vegetable patch or a bike shelter, by the building's seed. An archived
+ * building's yard has gone wild instead: long grass, wild flowers and a heap of fallen leaves, still pretty.
+ */
+function frontGarden(add: Add, plot: DressedPlot, tree: Tree, clear: (r: Bounds, pad?: number) => boolean) {
+  const c = plotCenter(plot.index);
+  const half = PLOT_SIZE / 2;
+  const building = plot.obstacles[0];
+  const x0 = plot.door.x + GARDEN_PATH / 2 + 3.4,
+    x1 = c.x + half - 2.4;
+  const z0 = (building ? building.maxZ : c.z + half - 5) + 0.35,
+    z1 = c.z + half - 1.05;
+  if (x1 - x0 < 3 || z1 - z0 < 2) return;
+  const cx = (x0 + x1) / 2,
+    cz = (z0 + z1) / 2;
+  const put = (key: string, x: number, z: number, w: number, d: number, extra: Partial<Dressing> = {}) => {
+    if (clear(rect(x, z, w, d), 0.1)) add(key, x, extra.y ?? LAWN_Y, z, extra);
+  };
+  const seed = plot.seed ?? plot.index;
+  if (plot.archived) {
+    put("town.leaf-pile", cx + 0.8, cz + 0.2, 1.8, 1.2, { rotation: 0.4, scale: 1.3 });
+    tree(x1 - 0.6, z0 + 0.9, LAWN_Y, seed + 3, 1.1);
+    for (let k = 0; k < 14; k++) {
+      const x = x0 + noise(seed, k, 1) * (x1 - x0),
+        z = z0 + noise(seed, k, 2) * (z1 - z0);
+      if (Math.hypot(x - cx - 0.8, z - cz - 0.2) < 1.2 || Math.hypot(x - x1 + 0.6, z - z0 - 0.9) < 1.1) continue;
+      add(k % 3 ? "town.tall-grass" : "town.wildflowers", x, LAWN_Y, z, { seed: seed + k, scale: 1.5 + noise(seed, k, 3), rotation: k * 0.9 });
+    }
+    return;
+  }
+  switch (gardenKind(seed)) {
+    case "lawn":
+      tree(cx + 1.2, cz - 0.2, LAWN_Y, seed, 1.15);
+      put("town.bench", cx - 1.4, cz + 0.4, 1.8, 0.8, { rotation: 0.3 });
+      for (let k = 0; k < 4; k++) put("town.flowers", x0 + 0.4 + k * 0.9, z1 - 0.3, 0.5, 0.5, { seed: seed + k, scale: 1.8 });
+      break;
+    case "terrace":
+      paving(add, span(x0, x1, z0 + 0.2, z1 - 0.2), "flag", LAWN_Y);
+      put("civic.cafe-table", cx - 1.4, cz, 1.4, 1.4, { y: LAWN_Y + 0.04, rotation: 0.3 });
+      put("civic.cafe-table", cx + 1.4, cz + 0.2, 1.4, 1.4, { y: LAWN_Y + 0.04, rotation: -0.4 });
+      put("civic.planter", x1 - 0.4, z0 + 0.6, 0.8, 0.8, { y: LAWN_Y + 0.04 });
+      put("civic.planter", x0 + 0.4, z0 + 0.6, 0.8, 0.8, { y: LAWN_Y + 0.04 });
+      break;
+    case "vegetables":
+      for (const [dx, dz] of [
+        [-1.3, -0.6],
+        [1.3, -0.6],
+        [-1.3, 0.75],
+        [1.3, 0.75],
+      ] as const)
+        put("town.veg-bed", cx + dx, cz + dz, 2.3, 1, { seed: seed + dx * 3 + dz });
+      put("town.bush", x1 - 0.2, z1 - 0.2, 0.8, 0.8, { seed });
+      break;
+    case "bikes":
+      put("town.bike-shelter", cx, z0 + 0.95, 3.4, 1.6);
+      for (let k = 0; k < 3; k++) put("town.flowers", cx - 1.4 + k * 1.4, z1 - 0.25, 0.5, 0.5, { seed: seed + k, scale: 1.8 });
+      put("town.bush", x1 - 0.2, z1 - 0.3, 0.8, 0.8, { seed });
+      break;
+  }
 }
 
 /** What an empty plot is, by index: fixed, so the town keeps its places as it grows. */
