@@ -12,8 +12,8 @@ import { resolveBuildingPlacements } from "../world/placements";
 import type { TownLayer } from "../world/propLayer";
 import type { Ambient } from "../world/movement";
 import { LaneChip } from "../world/lane";
-import { clockTime, countsLine, TOWN_CAPACITY } from "../world/townLayout";
-import type { RoomKind } from "@crewhub/world-model";
+import { clockTime, countsLine, laneWords, TOWN_CAPACITY } from "../world/townLayout";
+import type { RoomKind, RuleProp } from "@crewhub/world-model";
 import { Chip } from "./primitives";
 
 export interface Selection {
@@ -31,6 +31,8 @@ interface Props {
   selection: Selection;
   reducedMotion: boolean;
   ambient: Ambient;
+  /** Every label, not only names and one bubble per robot (the Details toggle). */
+  details: boolean;
   action: { id: number; type: CameraAction };
   onEnter: (slug: string) => void;
   onHover: (index: number | null) => void;
@@ -118,8 +120,10 @@ export default function WorldCanvas(props: Props) {
       <div ref={labels} className="world-labels">
         {model.buildings.slice(0, TOWN_CAPACITY).map((b, index) => {
           if (inside && inside.slug !== b.slug) return null;
-          // Inside a building on a phone the sign stays small: the breadcrumb names the building, the text view counts.
-          const expanded = inside ? !compact : props.ringVisible && props.focused === index;
+          // Inside, the breadcrumb names the building: its sign comes back with Details (small on a phone). In the town a
+          // sign is a quiet name until the focus ring or Details expands it with its counts and its lead.
+          if (inside && !props.details) return null;
+          const expanded = inside ? !compact : (props.ringVisible && props.focused === index) || props.details;
           const lead = b.agents.find((a) => a.key === b.lead.id && a.presence === "real");
           return (
             <div key={b.slug} className={`anchor${expanded ? " raised" : ""}`} data-anchor={`b:${b.slug}`}>
@@ -156,7 +160,7 @@ export default function WorldCanvas(props: Props) {
                 <span className="sign-title">
                   <strong>Town hall</strong>
                 </span>
-                <span className="sign-counts civic-names">{model.townHall.length ? model.townHall.map((a) => a.displayName).join(", ") : "nobody here"}</span>
+                {props.details && <span className="sign-counts civic-names">{model.townHall.length ? model.townHall.map((a) => a.displayName).join(", ") : "nobody here"}</span>}
               </span>
             </div>
             <div className="anchor" data-anchor="c:post-office">
@@ -164,7 +168,7 @@ export default function WorldCanvas(props: Props) {
                 <span className="sign-title">
                   <strong>Post office</strong>
                 </span>
-                <span className="sign-counts civic-names">{model.postOffice.length ? model.postOffice.map((a) => a.displayName).join(", ") : "the postman is out"}</span>
+                {props.details && <span className="sign-counts civic-names">{model.postOffice.length ? model.postOffice.map((a) => a.displayName).join(", ") : "the postman is out"}</span>}
               </span>
             </div>
           </>
@@ -174,9 +178,11 @@ export default function WorldCanvas(props: Props) {
   );
 }
 
-/* Below 600 px a building's labels crowd: one room sign (the focused room's, in one word) and captions only for the
-   agent under the pointer or selected, name tags and alert tags only for the focused room or the selected object or
-   agent. Everything hidden here stays in the text view. */
+/* Labels stay few, like the Greenhouse room: by default a name pill and at most one bubble per robot. A room's other
+   labels (its sign, update cards, status and waiting tags, stalled clocks, pallet counts, rule chips) show while the room
+   is revealed (under the pointer, with the keyboard focus or zoomed to), for the agent or object under the pointer or
+   selected, and everywhere with Details on. Below 600 px only the focused or zoomed room reveals, there is one room sign
+   (in one word), and name pills show only in a revealed room. Everything hidden here stays in the text view. */
 const COMPACT = "(max-width: 599px)";
 function useCompact(): boolean {
   return useSyncExternalStore(
@@ -196,17 +202,24 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
   const template = buildingTemplate(b);
   const layout = placeObjects(b, template, assignDesks(b, template));
   const nameOf = (slug: string | null) => model.buildings.find((x) => x.slug === slug)?.name ?? slug ?? "another building";
-  const shown = props.selection.hover ?? props.selection.selected;
+  // A hovered room reveals its labels; a nameplate is for the agent or object under the pointer, else the selected one.
+  const hovered = props.selection.hover?.kind === "room" ? null : props.selection.hover;
+  const shown = hovered ?? props.selection.selected;
   const published = b.releases.filter((r) => r.publishedAt);
-  // On a phone, name tags and alert tags show only for the focused room or the selected object or agent.
   const focusedRoom = props.room ?? props.zoomed;
   const picked = (target: Pick) => same(props.selection.hover, target) || same(props.selection.selected, target);
+  const revealed = new Set<RoomKind>();
+  for (const room of [props.room, props.zoomed]) if (room) revealed.add(room);
+  if (!compact) for (const target of [props.selection.hover, props.selection.selected]) if (target?.kind === "room") revealed.add(target.room);
+  const shows = (room: RoomKind | null | undefined) => props.details || (!!room && revealed.has(room));
+  const roomOfAgent = (key: string) => b.agents.find((a) => a.key === key)?.room ?? null;
+  const editing = !!props.town?.build;
   return (
     <>
       {template.rooms.map((r) => {
         const room = b.rooms.find((x) => x.kind === r.kind);
         const focused = props.room === r.kind;
-        if (compact && r.kind !== (props.room ?? props.zoomed)) return null;
+        if (compact ? r.kind !== focusedRoom : !shows(r.kind)) return null;
         return (
           <div key={r.kind} className="anchor" data-anchor={`r:${b.slug}:${r.kind}`}>
             <span className={`room-sign${room && !room.present ? " dimmed" : ""}${focused ? " focused" : ""}`}>
@@ -226,12 +239,12 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
           model={model}
           workingIn={nameOf(a.workingIn)}
           plate={same(shown, { kind: "agent", key: a.key })}
-          caption={!compact || picked({ kind: "agent", key: a.key })}
-          alerts={!compact || a.room === focusedRoom || picked({ kind: "agent", key: a.key })}
+          full={(shows(a.room) && !compact) || picked({ kind: "agent", key: a.key })}
+          pill={!compact || shows(a.room) || picked({ kind: "agent", key: a.key })}
         />
       ))}
       {b.objects.map((o) =>
-        (o.nameTag && (!compact || o.room === focusedRoom)) || same(shown, { kind: "object", ticketId: o.ticketId }) ? (
+        (o.nameTag && shows(o.room)) || same(shown, { kind: "object", ticketId: o.ticketId }) ? (
           <div key={o.ticketId} className="anchor" data-anchor={`o:${b.slug}:${o.ticketId}`}>
             {same(shown, { kind: "object", ticketId: o.ticketId }) ? (
               <ObjectPlate object={o} building={b} model={model} />
@@ -244,7 +257,7 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
         ) : null,
       )}
       {b.objects
-        .filter((o) => o.stall?.state === "stalled" && !o.transit)
+        .filter((o) => o.stall?.state === "stalled" && !o.transit && shows(o.room))
         .map((o) => (
           <div key={`clock-${o.ticketId}`} className="anchor" data-anchor={`c:${b.slug}:${o.ticketId}`}>
             <span className="signal-tag">
@@ -254,14 +267,14 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
             </span>
           </div>
         ))}
-      {layout.pallets.map((p) => (
+      {layout.pallets.filter((p) => shows(p.room)).map((p) => (
         <div key={`pallet-${p.room}`} className="anchor" data-anchor={`p:${b.slug}:${p.room}`}>
           <span className="pallet-count" title={`${p.count} more tickets wrapped on a pallet`}>
             {p.count}
           </span>
         </div>
       ))}
-      {b.beacons.length > 0 && (
+      {b.beacons.length > 0 && shows("lead-office") && (
         <div className="anchor" data-anchor={`beacon:${b.slug}`}>
           <span className="signal-tag attention">
             <TriangleAlert className="icon icon-sm" aria-hidden="true" />
@@ -269,7 +282,7 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
           </span>
         </div>
       )}
-      {b.mailbox.length > 0 && (
+      {b.mailbox.length > 0 && shows("lobby") && (
         <div className="anchor" data-anchor={`mail:${b.slug}`}>
           <span className="signal-tag">
             {b.mailbox.map((l) => (
@@ -281,8 +294,8 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
           </span>
         </div>
       )}
-      {props.town && <TownLabels building={b} town={props.town} />}
-      {published.length > 0 && (
+      {props.town && <TownLabels building={b} town={props.town} errors={editing || props.details} shows={(r) => editing || shows(r.anchor.kind === "room" ? r.anchor.room : r.anchor.kind === "desk" ? roomOfAgent(r.anchor.agent) : null)} />}
+      {published.length > 0 && shows("lobby") && (
         <div className="anchor" data-anchor={`banner:${b.slug}`}>
           <span className="signal-tag">
             <Trophy className="icon icon-sm" aria-hidden="true" />
@@ -296,13 +309,15 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
 
 const RULE_WORDS: Record<string, string> = { banner: "milestone banner", crate: "release crate", "sticker.rocket": "rocket", jar: "bug jar", trophy: "release trophy" };
 
-/** Error crates and rule props of the town document, labelled in words. */
-function TownLabels({ building: b, town }: { building: Building; town: TownLayer }) {
+/** Error crates and rule props of the town document, labelled in words: errors in build mode or with Details, a rule chip
+    where its room shows. */
+function TownLabels({ building: b, town, errors, shows }: { building: Building; town: TownLayer; errors: boolean; shows: (rule: RuleProp) => boolean }) {
   const resolved = resolveBuildingPlacements(town.doc, b.slug, buildingTemplate(b), town.definitions);
   const name = (propId: string) => town.catalogue.get(propId)?.name ?? propId;
   return (
     <>
-      {resolved.errors.map((e) => (
+      {errors &&
+        resolved.errors.map((e) => (
         <div key={e.placement.id} className="anchor" data-anchor={`err:${b.slug}:${e.placement.id}`}>
           <span className="signal-tag error-tag">
             <TriangleAlert className="icon icon-sm" aria-hidden="true" />
@@ -311,7 +326,7 @@ function TownLabels({ building: b, town }: { building: Building; town: TownLayer
         </div>
       ))}
       {town.invalid
-        .filter((r) => r.slug === b.slug)
+        .filter((r) => errors && r.slug === b.slug)
         .map((r) => (
           <div key={r.ticketKey} className="anchor" data-anchor={`err:${b.slug}:${r.ticketKey}`}>
             <span className="signal-tag error-tag">
@@ -321,7 +336,7 @@ function TownLabels({ building: b, town }: { building: Building; town: TownLayer
           </div>
         ))}
       {town.rules
-        .filter((r) => r.anchor.building === b.slug && r.anchor.kind !== "ticket")
+        .filter((r) => r.anchor.building === b.slug && r.anchor.kind !== "ticket" && shows(r))
         .map((r) => (
           <div key={r.id} className="anchor" data-anchor={`rule:${b.slug}:${r.id}`}>
             <span className="rule-tag" title={r.text}>
@@ -354,6 +369,28 @@ function statusTag(agent: AgentPlacement, model: WorldModel, workingIn: string) 
   return null;
 }
 
+/** The dot in a name pill: the lane status by colour, always with its words in the pill's title and the text view. */
+function dotTone(agent: AgentPlacement, model: WorldModel): string {
+  if (agent.presence === "proxy") return "proxy";
+  if (model.freshness.stale || agent.laneStatus === "unknown" || agent.posture === "greyed") return "unknown";
+  if (agent.posture === "raised-hand" || agent.laneStatus === "blocked") return "blocked";
+  return agent.laneStatus;
+}
+
+/** The one bubble a robot may carry by default: a question, a raised hand, a lit alert, or a fresh "done", in that order. */
+function bubbleFor(agent: AgentPlacement, model: WorldModel): { icon: typeof Play; text: string; tone: string; title: string } | null {
+  if (agent.presence !== "real") return null;
+  const caption = agent.caption;
+  if (caption?.kind === "question") return { icon: CircleHelp, text: "a little help?", tone: "ask", title: `${agent.displayName} asks on ${caption.ticketKey}: ${caption.text}` };
+  if (model.freshness.stale) return null;
+  if (agent.posture === "raised-hand") return { icon: Hand, text: "blocked", tone: "ask", title: `${agent.displayName} is blocked` };
+  const alert = agent.alerts[0];
+  if (alert) return { icon: TriangleAlert, text: alert, tone: "alert", title: agent.alerts.join("; ") };
+  if (caption?.kind === "done" && (caption.until == null || caption.until - model.now >= 4000))
+    return { icon: Check, text: "done", tone: "done", title: `${agent.displayName} on ${caption.ticketKey}: ${caption.text}` };
+  return null;
+}
+
 function AgentLabel({
   slug,
   agent,
@@ -361,8 +398,8 @@ function AgentLabel({
   model,
   workingIn,
   plate,
-  caption: showCaption,
-  alerts: showAlerts,
+  full,
+  pill: showPill,
 }: {
   slug: string;
   agent: AgentPlacement;
@@ -370,20 +407,34 @@ function AgentLabel({
   model: WorldModel;
   workingIn: string;
   plate: boolean;
-  /** False on a phone unless the agent is under the pointer or selected; the text view keeps every caption. */
-  caption: boolean;
-  /** False on a phone outside the focused room; the text view keeps every alert. */
-  alerts: boolean;
+  /** The agent's room is revealed, the agent is picked, or Details is on: its update card and every tag show. */
+  full: boolean;
+  /** False on a phone outside a revealed room; the text view keeps every name. */
+  pill: boolean;
 }) {
   const tag = statusTag(agent, model, workingIn);
-  const caption = agent.presence === "real" && showCaption ? agent.caption : null;
+  const caption = agent.presence === "real" && full ? agent.caption : null;
   const Icon = caption ? CAPTION_ICON[caption.kind] : null;
   const fading = caption?.until != null && caption.until - model.now < 4000;
-  const alerts = showAlerts ? agent.alerts : [];
-  if (!tag && !caption && !plate && alerts.length === 0) return null;
+  const alerts = full ? agent.alerts : [];
+  const bubble = full ? null : bubbleFor(agent, model);
+  const words = agent.presence === "proxy" ? (tag ?? "working elsewhere") : laneWords(agent.laneStatus, model.freshness);
+  const pill = showPill && !plate && (
+    <span className={`name-pill${agent.presence === "proxy" ? " proxy" : ""}`} title={`${agent.displayName}: ${words}`}>
+      <span className="pill-dot" data-tone={dotTone(agent, model)} aria-hidden="true" />
+      {agent.displayName}
+    </span>
+  );
+  if (!pill && !bubble && !plate && !(full && (tag || caption || alerts.length))) return null;
   return (
-    <div className="anchor" data-anchor={`a:${slug}:${agent.key}`}>
+    <div className="anchor agent-anchor" data-anchor={`a:${slug}:${agent.key}`}>
       <span className="agent-stack">
+        {bubble && (
+          <span className={`bubble ${bubble.tone}`} title={bubble.title}>
+            <bubble.icon className="icon icon-sm" aria-hidden="true" />
+            <span className="bubble-text">{bubble.text}</span>
+          </span>
+        )}
         {caption && Icon && (
           <span className={`caption${fading ? " fading" : ""}${caption.kind === "question" ? " question" : ""}`} title={`${agent.displayName} on ${caption.ticketKey}`}>
             <span className="caption-kind">
@@ -416,16 +467,19 @@ function AgentLabel({
             <DemoNote model={model} />
           </span>
         ) : (
-          <>
-            {tag && (
-              <span className={`status-tag${tag === "blocked" ? " blocked" : ""}${agent.presence === "proxy" ? " proxy" : ""}${model.freshness.stale ? " stale" : ""}`}>
-                {tag === "blocked" && <Hand className="icon icon-sm" aria-hidden="true" />}
-                {tag}
-              </span>
-            )}
-            {alerts.length > 0 && <span className="status-tag alert">{alerts.join("; ")}</span>}
-          </>
+          full && (
+            <>
+              {tag && (
+                <span className={`status-tag${tag === "blocked" ? " blocked" : ""}${agent.presence === "proxy" ? " proxy" : ""}${model.freshness.stale ? " stale" : ""}`}>
+                  {tag === "blocked" && <Hand className="icon icon-sm" aria-hidden="true" />}
+                  {tag}
+                </span>
+              )}
+              {alerts.length > 0 && <span className="status-tag alert">{alerts.join("; ")}</span>}
+            </>
+          )
         )}
+        {pill}
       </span>
     </div>
   );
