@@ -185,6 +185,11 @@ Settings has a **Graphics** choice: **Pretty** (the default) or **Fast**. It is 
 - **Details (D).** The Details toggle in the toolbar, also the **D** key, shows every label everywhere. It is kept per
   viewer (`crewhub-world.details`), and pressing D announces the new state. The text view and the live regions keep
   everything regardless.
+- **Frame rate (F).** Settings, next to Graphics, and the **F** key show a small fixed box under the toolbar (bottom
+  left on a phone): fps over the last second, frame time mean and p95 and the CPU work per frame over two seconds,
+  draw calls, triangles, geometries and textures in memory, the JS heap where the browser tells, and the Graphics
+  setting. Off by default, kept per viewer (`crewhub-world.fps`). The loop draws on demand, so a resting town reads
+  "idle", not 0 fps. The same numbers are `window.__worldPerf` for the measurement scripts.
 - **Camera.** The camera frames its subject in the free part of the canvas, clear of the HTML chrome. Entering a
   building fills the canvas with it, entering a room frames that room, and home frames the used plots and the civic
   row.
@@ -220,8 +225,8 @@ by default. If graphics are unavailable, provide a simple readable session view.
 
 ## Performance and evidence
 
-The first slice deliberately caps presentation at 30 fps to control idle graphics
-cost. This is a code limit, not a measured performance guarantee. Record browser, hardware, viewport,
+The first slice capped presentation at 30 fps to control idle graphics cost; since the performance rounds
+(2026-10-02) the cap is 60 fps, and the loop still draws on demand and rests when nothing moves. This is a code limit, not a measured performance guarantee. Record browser, hardware, viewport,
 device pixel ratio, and scene size when measuring. Start with three characters;
 also check a busier scene before increasing scope.
 

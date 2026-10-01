@@ -163,17 +163,24 @@ export function pavingShader(material: THREE.MeshStandardMaterial, stone: [numbe
 }
 
 /** Grass with a soft mottle in world space, so wide lawns are never one flat colour. */
+/** The evening (0 by day, 1 in lamplight): the grass mottles more and warms in patches (set by `townLight`). */
+export const GRASS_NIGHT = { value: 0 };
+
 export function grassShader(material: THREE.MeshStandardMaterial, amount: number): THREE.MeshStandardMaterial {
   material.roughness = 1;
   material.customProgramCacheKey = () => `town-grass:${amount}`;
   material.onBeforeCompile = (shader) => {
     worldXZ(shader);
-    shader.fragmentShader = shader.fragmentShader.replace(
+    shader.uniforms.uGrassNight = GRASS_NIGHT;
+    shader.fragmentShader = shader.fragmentShader.replace("varying vec2 vTownXZ;", "varying vec2 vTownXZ;\nuniform float uGrassNight;").replace(
       "#include <color_fragment>",
       `#include <color_fragment>
       float mottle = townNoise(vTownXZ * 0.18) * 0.6 + townNoise(vTownXZ * 0.9) * 0.3 + townHash(floor(vTownXZ * 9.0)) * 0.1;
-      diffuseColor.rgb *= 1.0 + (mottle - 0.5) * ${amount.toFixed(3)};
+      diffuseColor.rgb *= 1.0 + (mottle - 0.5) * ${amount.toFixed(3)} * (1.0 + uGrassNight * 1.2);
       diffuseColor.g *= 1.0 + (townNoise(vTownXZ * 0.07 + 3.0) - 0.5) * ${(amount * 0.5).toFixed(3)};
+      // Evening: soft warm patches (dry grass, clover) so the dark lawns are not one flat green.
+      float warm = smoothstep(0.42, 0.75, townNoise(vTownXZ * 0.11 + 7.0)) * uGrassNight;
+      diffuseColor.rgb *= mix(vec3(1.0), vec3(1.24, 1.08, 0.8), warm);
     `,
     );
   };
