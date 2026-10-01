@@ -10,7 +10,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { AgentPlacement, RoomKind, WorldModel } from "@crewhub/world-model";
-import type { EnvironmentHandle, GraphicsQuality, ResolvedStyle, RobotHandle, RobotPosture, StyleTheme } from "@crewhub/world-style";
+import type { EnvironmentHandle, GraphicsQuality, ModelAnimation, ModelKey, ResolvedStyle, RobotHandle, RobotPosture, StyleTheme } from "@crewhub/world-style";
 import { BuildingView, type Pick } from "./buildingView";
 import { BUILDING_CELL } from "./buildingTemplate";
 import type { TownLayer } from "./propLayer";
@@ -18,6 +18,10 @@ import { styleRegistry } from "./style";
 import type { StyledPlot } from "./styleRegistry";
 import type { Ambient } from "./movement";
 import { CIVIC_LOT, civicCenter, homeRects, PLOT_SIZE, plotCenter, TOWN_CAPACITY, townBounds, type Bounds } from "./townLayout";
+import { GRASS_Y, LAWN_Y, townDressing } from "./townDressing";
+import { instanceStatic } from "./instanceStatic";
+import { mergeStatic } from "./mergeStatic";
+import { plotDoor, plotObstacles } from "./navigation";
 import { onPlayIntent } from "./intentPlayer";
 import { Walks } from "./walks";
 
@@ -117,6 +121,13 @@ export class TownScene {
   /** A blob contact shadow under each building's slab, sized to its footprint. */
   #contacts = new Map<string, { object: THREE.Object3D; size: string }>();
   #civic = new THREE.Group();
+  #landmarks = new THREE.Group();
+  #dressing: { signature: string; group: THREE.Group | null; instanced: THREE.InstancedMesh[]; merged: THREE.BufferGeometry[] } = {
+    signature: "",
+    group: null,
+    instanced: [],
+    merged: [],
+  };
   #civicSignature = "";
   #civicRobots: RobotHandle[] = [];
   #postman: { handle: RobotHandle; key: string; letters: THREE.Object3D[] } | null = null;
@@ -246,52 +257,77 @@ export class TownScene {
 
   /* ── The town ground and the empty lots ───────────────────────────────── */
 
+  /** The plot hit boxes and the civic landmarks; the ground and its dressing follow the plots in use (`#dress`). */
   buildGround() {
     const style = this.townStyle;
-    const b = townBounds();
-    const ground = style.model("ground", { size: { width: b.maxX - b.minX, height: 0.5, depth: b.maxZ - b.minZ } });
-    ground.position.set((b.minX + b.maxX) / 2, 0, (b.minZ + b.maxZ) / 2);
-    this.scene.add(ground);
-    // Every lot, built or empty, has a lawn; the town has room for twelve buildings.
     const hitGeometry = new THREE.BoxGeometry(PLOT_SIZE, 2, PLOT_SIZE);
     const hitMaterial = new THREE.MeshBasicMaterial();
     for (let i = 0; i < TOWN_CAPACITY; i++) {
       const p = plotCenter(i);
-      const lawn = style.model("plot", { size: { width: PLOT_SIZE, height: 0.16, depth: PLOT_SIZE } });
-      lawn.position.set(p.x, 0, p.z);
-      this.scene.add(lawn);
       const hit = new THREE.Mesh(hitGeometry, hitMaterial);
       hit.visible = false;
       hit.position.set(p.x, 1, p.z);
       hit.userData.plot = i;
       this.#hits.add(hit);
-      const lamp = style.model("street-lamp");
-      lamp.position.set(p.x + PLOT_SIZE / 2 + 1.2, 0.02, p.z + PLOT_SIZE / 2 + 1.2);
-      this.scene.add(lamp);
     }
-    for (const place of ["post-office", "town-hall"] as const) {
-      const c = civicCenter(place);
-      const lawn = style.model("plot", { size: { width: CIVIC_LAWN, height: 0.16, depth: CIVIC_LAWN } });
-      lawn.position.set(c.x, 0, c.z);
-      this.scene.add(lawn);
-      const building = style.model(place);
-      building.position.set(c.x, 0.17, c.z - 0.6);
-      this.scene.add(building);
-      const plant = style.model("planting", { seed: place.length });
-      plant.position.set(c.x + (place === "post-office" ? -2.8 : 2.8), 0.17, c.z + 2.8);
-      this.scene.add(plant);
+    // The landmarks stay whole (not instanced or merged): the square's fountain may animate.
+    const landmarks: [ModelKey, number, number, number][] = [
+      ["post-office", civicCenter("post-office").x, LAWN_Y, civicCenter("post-office").z],
+      ["town-hall", civicCenter("town-hall").x, LAWN_Y, civicCenter("town-hall").z],
+      ["civic.square", civicCenter("square").x, GRASS_Y, civicCenter("square").z],
+      ["civic.cafe", civicCenter("cafe").x, GRASS_Y, civicCenter("cafe").z],
+      ["civic.bus-stop", civicCenter("bus-stop").x, GRASS_Y, civicCenter("bus-stop").z],
+    ];
+    for (const [key, x, y, z] of landmarks) {
+      const object = style.model(key);
+      object.position.set(x, y, z);
+      this.#landmarks.add(object);
     }
-    const bench = style.model("furniture.bench");
-    const hall = civicCenter("town-hall");
-    bench.position.set(hall.x, 0.2, hall.z + 2.4);
-    bench.scale.setScalar(ROBOT_SCALE);
-    this.scene.add(bench);
+    this.scene.add(this.#landmarks);
+  }
+
+  /**
+   * The ground, lawns, paths and dressing for the plots in use (townDressing.ts): rebuilt only when a plot is taken or
+   * freed. Repeated parts become instanced meshes, the one-off pieces merge per material.
+   */
+  #dress(count: number) {
+    const indices = Array.from({ length: Math.min(TOWN_CAPACITY, count) }, (_, i) => i);
+    const signature = indices.join(",");
+    if (signature === this.#dressing.signature) return;
+    this.#disposeDressing();
+    const group = new THREE.Group();
+    const plots = indices.map((index) => ({ index, door: plotDoor(index), obstacles: plotObstacles(index) }));
+    for (const d of townDressing(plots)) {
+      const object = this.townStyle.model(d.key as ModelKey, {
+        ...(d.size ? { size: d.size } : {}),
+        ...(d.seed !== undefined ? { seed: d.seed } : {}),
+        ...(d.variant ? { variant: d.variant } : {}),
+      });
+      object.position.set(d.x, d.y, d.z);
+      object.rotation.y = d.rotation;
+      object.scale.setScalar(d.scale);
+      group.add(object);
+    }
+    const instanced = instanceStatic(group);
+    const merged = mergeStatic(group);
+    this.scene.add(group);
+    this.#dressing = { signature, group, instanced, merged };
+  }
+
+  #disposeDressing() {
+    const { group, instanced, merged } = this.#dressing;
+    if (!group) return;
+    group.removeFromParent();
+    for (const mesh of instanced) mesh.dispose();
+    for (const geometry of merged) geometry.dispose();
+    this.#dressing = { signature: "", group: null, instanced: [], merged: [] };
   }
 
   /* ── Model → scene ────────────────────────────────────────────────────── */
 
   sync() {
     const model = this.view.model;
+    this.#dress(model.buildings.length);
     this.walks.update(model, { entered: this.view.entered, reducedMotion: this.view.reducedMotion, ambient: this.view.ambient });
     const seen = new Set<string>();
     this.#anchors.clear();
@@ -719,6 +755,9 @@ export class TownScene {
       if (this.camera.position.distanceTo(this.#tween.position) < 0.005 && Math.abs(this.camera.zoom - this.#tween.zoom) < 0.002) this.#tween = null;
     }
     let moving = this.walks.moving || this.view.measure;
+    // Landmarks animate (the fountain) on frames drawn anyway; they never keep the loop running on their own.
+    if (!this.view.reducedMotion && dt)
+      for (const object of this.#landmarks.children) (object.userData.animate as ModelAnimation | undefined)?.(dt);
     for (const view of this.#buildings.values()) {
       view.tick(dt);
       if (view.animating) moving = true;
@@ -865,6 +904,7 @@ export class TownScene {
     canvas.removeEventListener("webglcontextlost", this.contextLost);
     for (const view of this.#buildings.values()) view.dispose();
     for (const robot of this.#civicRobots) robot.dispose();
+    this.#disposeDressing();
     this.#environment.dispose();
     // Styles live in the registry (one instance per id) and outlast this scene; the renderer frees the GPU side.
     this.renderer.dispose();

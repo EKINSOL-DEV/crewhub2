@@ -18,14 +18,14 @@ test("plots never overlap and the civic row stays behind the buildings", () => {
   }
 });
 
-test("the home frame covers the used plots and the civic lots, not the empty plots", () => {
+test("the home frame covers the used plots, the civic lots and the square, not the empty plots", () => {
   const extent = (rects: ReturnType<typeof homeRects>) => ({ maxX: Math.max(...rects.map((r) => r.maxX)), maxZ: Math.max(...rects.map((r) => r.maxZ)) });
-  assert.equal(homeRects(0).length, 3, "one plot and the two civic lots");
-  assert.equal(homeRects(4).length, 6);
+  assert.equal(homeRects(0).length, 4, "one plot, the two civic lots and the square");
+  assert.equal(homeRects(4).length, 7);
   assert.equal(extent(homeRects(1)).maxZ, extent(homeRects(4)).maxZ);
   assert.ok(extent(homeRects(5)).maxZ > extent(homeRects(4)).maxZ, "a second row grows the frame");
   assert.ok(extent(homeRects(2)).maxX < extent(homeRects(4)).maxX, "empty plots on the row are left out");
-  assert.equal(homeRects(40).length, TOWN_CAPACITY + 2);
+  assert.equal(homeRects(40).length, TOWN_CAPACITY + 3);
   const post = civicCenter("post-office");
   assert.ok(homeRects(1).some((r) => r.minX < post.x && r.maxX > post.x && r.minZ < post.z && r.maxZ > post.z), "the post office is framed");
 });
