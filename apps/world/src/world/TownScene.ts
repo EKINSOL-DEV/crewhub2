@@ -25,8 +25,8 @@ import { plotDoor, plotObstacles } from "./navigation";
 import { onPlayIntent } from "./intentPlayer";
 import { Walks } from "./walks";
 import { AmbientLife } from "./ambientLife";
-import { RobotCrowd } from "./robotCrowd";
 import { FrameRing } from "./frameRing";
+import { RobotCrowd } from "./robotCrowd";
 
 export interface TownView {
   model: WorldModel;
@@ -978,6 +978,18 @@ export class TownScene {
     if (!this.#raf) this.#rested = true;
   };
 
+  /** `performance.mark`s for the startup measurement: the first drawn frame, and the first with the town dressed. */
+  #mark() {
+    if (!this.#marked.first) {
+      this.#marked.first = true;
+      performance.mark("world:first-frame");
+    }
+    if (this.#dressing.group && this.view.model.buildings.length && this.#buildings.size) {
+      this.#marked.dressed = true;
+      performance.mark("world:town-dressed");
+    }
+  }
+
   /** Which buildings the camera sees, with a margin (a robot stepping out of the door, a building lifting). */
   #see() {
     this.camera.updateMatrixWorld();
@@ -988,18 +1000,6 @@ export class TownScene {
       this.#box.min.set(b.minX - 1, -1, b.minZ - 1);
       this.#box.max.set(b.maxX + 1, 5, b.maxZ + 1);
       if (this.#frustum.intersectsBox(this.#box)) this.#seen.add(slug);
-    }
-  }
-
-  /** `performance.mark`s for the startup measurement: the first drawn frame, and the first with the town dressed. */
-  #mark() {
-    if (!this.#marked.first) {
-      this.#marked.first = true;
-      performance.mark("world:first-frame");
-    }
-    if (this.#dressing.group && this.view.model.buildings.length && this.#buildings.size) {
-      this.#marked.dressed = true;
-      performance.mark("world:town-dressed");
     }
   }
 
