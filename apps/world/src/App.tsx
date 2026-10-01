@@ -4,8 +4,6 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { describeTownDocument, ruleProps, type AgentPlacement, type PlaybackControls, type PlaybackSpeed, type RoleId, type RoomKind, type TextLine, type WorldModel } from "@crewhub/world-model";
 import type { PropModel } from "@crewhub/world-engine";
 import { Bubbles } from "./components/bubbles/Bubbles";
-import { BuildPanel } from "./components/BuildPanel";
-import { PropEditor } from "./components/PropEditor";
 import { TownSettings } from "./components/TownSettings";
 import { IconSprite } from "./components/Icon";
 import { Button, Card, Chip, Field } from "./components/primitives";
@@ -32,6 +30,9 @@ import type { CameraAction } from "./world/TownScene";
 import { countsLine, laneWords, mmss, moveFocus, TOWN_CAPACITY } from "./world/townLayout";
 
 const WorldCanvas = lazy(() => import("./components/WorldCanvas"));
+// Build mode and the prop editor are not needed for the first frame: they load when first opened.
+const BuildPanel = lazy(() => import("./components/BuildPanel").then(({ BuildPanel }) => ({ default: BuildPanel })));
+const PropEditor = lazy(() => import("./components/PropEditor").then(({ PropEditor }) => ({ default: PropEditor })));
 
 const THEME_ICON = { system: Monitor, light: Sun, dark: Moon } as const;
 const NEXT_THEME = { system: "light", light: "dark", dark: "system" } as const;
@@ -488,26 +489,30 @@ function World() {
       )}
 
       {build.state.on && !graphicsFailed && (
-        <BuildPanel
-          build={build}
-          town={town}
-          inside={inside}
-          demo={demo}
-          onClose={build.toggle}
-          onUndo={undo}
-          onRedo={redo}
-          onEdit={(propId) => setEditing({ prop: propId ? (town.catalogue.get(propId)?.model ?? null) : null })}
-          onRequest={requestProp}
-        />
+        <Suspense fallback={null}>
+          <BuildPanel
+            build={build}
+            town={town}
+            inside={inside}
+            demo={demo}
+            onClose={build.toggle}
+            onUndo={undo}
+            onRedo={redo}
+            onEdit={(propId) => setEditing({ prop: propId ? (town.catalogue.get(propId)?.model ?? null) : null })}
+            onRequest={requestProp}
+          />
+        </Suspense>
       )}
       {editing && (
-        <PropEditor
-          initial={editing.prop}
-          takenIds={town.catalogue.entries.map((e) => e.id)}
-          theme={dark ? "lamplight" : "day"}
-          onSave={saveProp}
-          onClose={() => setEditing(null)}
-        />
+        <Suspense fallback={null}>
+          <PropEditor
+            initial={editing.prop}
+            takenIds={town.catalogue.entries.map((e) => e.id)}
+            theme={dark ? "lamplight" : "day"}
+            onSave={saveProp}
+            onClose={() => setEditing(null)}
+          />
+        </Suspense>
       )}
 
       {!graphicsFailed && (

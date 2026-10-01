@@ -214,6 +214,8 @@ export class TownScene {
   #rested = true;
   /** Startup marks for the measurement script: the first drawn frame, the first with the town dressed. */
   #marked = { first: false, dressed: false };
+  /** The shaders compile in parallel (`compileAsync`) before the first frame, rather than one by one inside it. */
+  #warm: "cold" | "warming" | "warm" = "cold";
   #hits = new THREE.Group();
   #ring: THREE.Object3D;
   /** A soft glow round the focused or hovered plot, under the focus ring; that building lifts a little (not under
@@ -954,6 +956,19 @@ export class TownScene {
   animate = (now: number) => {
     this.#raf = 0;
     if (this.#disposed || document.hidden) return;
+    if (this.#warm !== "warm") {
+      if (this.#warm === "cold") {
+        this.#warm = "warming";
+        this.renderer
+          .compileAsync(this.scene, this.camera)
+          .catch(() => undefined)
+          .finally(() => {
+            this.#warm = "warm";
+            this.invalidate();
+          });
+      }
+      return;
+    }
     if (!this.view.measure && this.#last && now - this.#last < FRAME_SKIP_MS) {
       this.#raf = requestAnimationFrame(this.animate);
       return;

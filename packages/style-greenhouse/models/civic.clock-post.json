@@ -404,15 +404,71 @@
       "material": "brass"
     },
     {
+      "shape": "cylinder",
+      "size": [
+        0.3,
+        0.18,
+        0.32
+      ],
+      "position": [
+        0.0,
+        0.09,
+        0.0
+      ],
+      "material": "clay"
+    },
+    {
+      "shape": "torus",
+      "size": [
+        0.3,
+        0.022,
+        0.0
+      ],
+      "position": [
+        0.0,
+        0.18,
+        0.0
+      ],
+      "material": "timber-light"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.28,
+        0.02,
+        0.28
+      ],
+      "position": [
+        0.0,
+        0.18,
+        0.0
+      ],
+      "material": "soil"
+    },
+    {
       "shape": "sphere",
       "size": [
-        0.05,
-        0.045,
-        0.05
+        0.075,
+        0.06,
+        0.075
+      ],
+      "position": [
+        0.1615,
+        0.23,
+        0.11399999999999999
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.04,
+        0.035,
+        0.04
       ],
       "position": [
         0.17,
-        0.33,
+        0.29,
         0.12
       ],
       "material": "coral"
@@ -420,13 +476,27 @@
     {
       "shape": "sphere",
       "size": [
-        0.05,
-        0.045,
-        0.05
+        0.075,
+        0.06,
+        0.075
+      ],
+      "position": [
+        -0.1425,
+        0.23,
+        0.152
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.04,
+        0.035,
+        0.04
       ],
       "position": [
         -0.15,
-        0.33,
+        0.29,
         0.16
       ],
       "material": "cream"
@@ -434,13 +504,27 @@
     {
       "shape": "sphere",
       "size": [
-        0.05,
-        0.045,
-        0.05
+        0.075,
+        0.06,
+        0.075
+      ],
+      "position": [
+        0.11399999999999999,
+        0.23,
+        -0.1615
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.04,
+        0.035,
+        0.04
       ],
       "position": [
         0.12,
-        0.33,
+        0.29,
         -0.17
       ],
       "material": "tangerine"
@@ -448,13 +532,27 @@
     {
       "shape": "sphere",
       "size": [
-        0.05,
-        0.045,
-        0.05
+        0.075,
+        0.06,
+        0.075
+      ],
+      "position": [
+        -0.17099999999999999,
+        0.23,
+        -0.095
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.04,
+        0.035,
+        0.04
       ],
       "position": [
         -0.18,
-        0.33,
+        0.29,
         -0.1
       ],
       "material": "cream"
