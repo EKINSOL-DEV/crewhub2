@@ -10,7 +10,7 @@ export function plant(kit: Kit, seed = 0): THREE.Group {
   put(g, kit.cylinder(0.02, 0.025, 0.7, "stem"), 0, 0.62, 0);
   const leaves = new THREE.InstancedMesh(
     kit.geometry("leaf", () => new THREE.SphereGeometry(1, 10, 8)),
-    kit.material("leaf-mid"),
+    kit.material("leaf-mid", { instanced: true }),
     7,
   );
   const matrix = new THREE.Object3D();
