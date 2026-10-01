@@ -193,6 +193,61 @@ ran Opus 5.5 at effort high.
 | finish | Opus 5.5 | joins between phases 4 and 6, phone layout |
 | polish | Sonnet 5.5 | phone tags, two stale documents, a dead export |
 
+## Art pass (morning)
+
+After a first look in a real browser, the owner's verdict was that the world had lost the freshness of the earlier
+Greenhouse room, that buildings should be bigger and roomier, and that the small-town feeling (green, paths, lanterns
+and other details) matters a lot. The spec gained an addendum (`cf42bf7`), and the morning went to beauty, not
+features. Six developers worked in parallel (Opus 5.5 at effort medium), each in its own worktree and branch, from
+11:20 to about 13:00. Every finished area was merged `--no-ff` into `feat/world-demo` as soon as it landed green, so
+the world on port 5175 improved through the morning.
+
+Reference: the Greenhouse room on `main` at `3a66363`. All of the work goes through the `WorldStyle` seam and the
+building templates; the reducer, the projection and the demo source did not change. New model keys live in four
+namespaces added for the pass: `building.*`, `town.*`, `civic.*` and `decor.*`.
+
+| Area | What changed | Main merges |
+| --- | --- | --- |
+| Buildings (`task/art-shell`) | A bigger template (33 x 28 cells, up to 20 x 18 units, generous minimum role rooms, `dressingZones()`), plots of 24 with streets of 6. Tall back walls (the outer north wall is the greenhouse glass wall with green mullions, the west wall chalk with windows), low rims on the camera sides that swap with the walls when the camera turns, soft partitions with timber door frames and pilasters. A floating cream slab with a bevelled edge and skirting; wood, tile and concrete floors per room kind. Project colour only on the entrance awning, door, flag, trim and a name sign over the door. Archived buildings boarded up with ivy, a closed sign and the flag at half-mast. A loading apron for the truck, window boxes, entrance planters, wall lamps, a bike and a doormat; warm lit windows in the evening. From the town, every building shows a merged silhouette of its furniture. | `4875727`, `8a50ea5`, `b2efd84`, `ed05617`, `da4e035`, `8bed50d` |
+| Rooms (`task/art-rooms`) | `roomDressing.ts` dresses every room kind, deterministically, with blocking pieces in the room layouts (reachability tested) and non-blocking `decor.*` drawn only in the entered building: the old room's sofa, coffee table, bookshelves, floor lamps and pictures; rugs, clocks, whiteboards, pin boards, a mood wall, charts, a coffee corner, a lobby centrepiece, real storage shelving, a hand truck in dispatch; pendant lamps on cords above desks and tables; plants and blinds along the glass wall; personal things on every desk seeded by agent key; table lamps and candles for the evening. | `cf0977b`, `cde3529`, `ce41fd6`, `b16a730`, `f9c89f5` |
+| Town (`task/art-town`) | `townDressing.ts` (pure, tested): sage-green grass with a soft mottle, trees, hedges, flower beds, a pond with a bridge and ducks, cobbled paths and sett crossings that the navigation town grid now follows, lanterns with warm pools, benches, signposts, bike racks, fences and gates. Empty plots became an orchard, an allotment, a playground, a picnic lawn and a meadow; each building has its own front garden (the archived one overgrown). The town floats as a diorama on a layered earth slab. String lights over the square in the evening. The phone home view frames the used plots tightly. | `fec652d`, `fec10c9`, `f7cd671`, `5c1c9b2`, `d353eb1`, `edf9084`, `7e5b0e2` |
+| Landmarks (`task/art-civic`) | A real post office and town hall, the square with a fountain, a café with striped parasols, a bus stop, a notice board, a glass greenhouse, a windmill, a welcome sign and a clock post, all parts-JSON composites; a `?group=style` preview of every data model; a consistency pass over all models; the docs below; the prop-builder skill updated for the new namespaces (its eval re-run: 6 of 6 valid on the first run). | `b54cb2b`, `0c5f015`, `005463f`, `533c60e`, `7af38ad` |
+| Light (`task/art-light`) | The old room's rig back: hemisphere fill, a warm key light with soft shadows fitted to what the camera frames, ACES tone mapping. Lamplight is a blue-green evening with warm cream walls, glowing lamps, screens and windows, and amber light pools (`LIGHT_POOLS`). Blob contact shadows under buildings and robots; a soft gradient of air behind the scene. A **Graphics** setting (Pretty or Fast, per viewer, Pretty by default; Fast turns off shadow maps, pools and fine dressing). Livelier robots, Greenhouse-style ticket objects, the postman's cap and satchel, the drone's shadow and sparkle, the truck's headlights. Bloom was tried and dropped (cost and taste). | `6bcfef3`, `191615c`, `15aacdd`, `232153d` |
+| Labels and camera (`task/art-labels`) | By default a name pill per robot and at most one bubble; room signs, RULE chips, UPDATE cards, tags and counts appear for the room under the pointer, the focused or zoomed room, the selection, or everywhere with **Details** (button and `D`, per viewer). One quiet name sign per building in the town. Entering a building frames its footprint in the free canvas; a focused room fills the frame. Town life: drifting cloud shadows, birds, butterflies, fireflies, ripples, steam and twinkling windows (still under reduced motion, governed by the Ambient and Graphics settings). | `ca73615`, `556d74c`, `8d9ea39`, `4bd3a3e`, `6fe6e3e` |
+
+Performance was owned by the rooms developer in the second half of the morning. A profile of the stress town showed
+4087 draw calls and 4.5 million triangles; merging piles, the truck and the landmarks, lighter far robots, no shadows
+from tiny pieces, a triangle diet for the dressing and fewer shell materials brought it back to about 1800 to 2000
+draw calls.
+
+The stress fixture (`?stress=1`: 12 buildings, 101 walkers, 4x) on the final commit `8bed50d`, headless Chromium on
+Metal (Apple M2 Max), 1440 x 900, against last night's numbers. The p95 of about 16.6 ms is the headless display pace
+(one frame at 60 Hz); single spikes up to 34 ms are the frames that refresh the town's shadow map.
+
+| View | Last night | After the art pass, Pretty | After the art pass, Fast |
+| --- | --- | --- | --- |
+| Town: frame mean / p95 | 8.4 / 9.9 ms | 9.2 / 16.5 ms | 9.0 / 16.6 ms |
+| Town: CPU work mean | 4.4 ms | 6.1 ms | 5.2 ms |
+| Town: draw calls | 2528 | 1893 | 1882 |
+| Inside a building: frame mean / p95 | 9.1 / 16.6 ms | 9.5 / 17.3 ms | 9.4 / 17.5 ms |
+| Inside a building: draw calls | 1388 | 1302 | 682 |
+
+Both settings stay far inside the 33 ms budget. Verification on the final commit: `npm run check` green (250 tests,
+typecheck, docs links, hex guard and dark parity, the bubbles copy check, build, the no-model and no-network
+scanner), and the browser regression pass (`pass-art.mjs`, last night's pass adapted to the calm labels, Details and
+the Graphics setting) 38 of 38: keyboard entry and the Escape chain, room focus announcement, stall, attention,
+release and stale in the text view, walkers and the drone, chat send and scripted reply, build mode place and undo,
+settings and export, where, reduced motion, 375 px light and dark without horizontal scroll, no external request, no
+page or console error. Before and after screenshots are in the coordinator's scratchpad under `shots-art/`.
+
+### What would make it more beautiful next
+
+- Instance the far robots per part across the town (about 750 of the remaining draw calls in the stress town).
+- Hang wall art on interior partitions too (they are low now, so only the tall outer walls carry pictures).
+- Let cloud shadows fall on roofs and buildings, and turn the fireflies into camera-facing billboards.
+- A stronger, wedge-shaped stripe for the café parasols (the parts format has no wedge yet).
+- Measure on the plan's reference machine, and look at the morning's work in a real, visible browser at 4x and 16x.
+
 ## Challenges with docs/integrators
 
 Read at crewhub-loops `a1bed0f`. Each item names the document, what was unclear, contradictory, missing or marked

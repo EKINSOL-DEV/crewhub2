@@ -63,6 +63,11 @@ A building is a diorama on a slab, not a floor plan.
   half-mast, and the colours are muted, never black.
 - **Size.** The largest building is 33 x 28 cells (19.8 x 16.8 units) on a 24-unit plot. Role rooms grow in 6 x 6
   modules with two desks each.
+- **Outside.** A painted name sign in the project colour over every entrance (hidden behind the closed sign on an
+  archived building), window boxes under the west windows, planters by the door, wall lamps by the door and the
+  loading door, a bike and a doormat. In lamplight the windows glow warm and some twinkle.
+- **From the town.** Every building shows a merged silhouette of its furniture and dressing, so it reads as furnished
+  from the home camera; the full dressing is drawn only for the entered building.
 
 ### Rooms
 
@@ -90,6 +95,11 @@ and west walls, whose fronts face the camera.
   - **Dispatch:** roller shelves and a hand truck.
 - Dressing pieces carry only the tag `dressing`, so the director never sends agents to a sofa. The dressing is drawn
   only for the entered building.
+- **Personal desks.** Each workstation gets a small set of things seeded by who sits there (a mug, a photo frame,
+  sticky notes, headphones, a plant, books), on the left half of the desk; tickets keep the right half.
+- **The glass wall** has a ledge of potted plants, hanging plants and a few blinds half down.
+- **Pendant lamps** show their cords and ceiling roses only when a room is in focus; from the building camera the
+  shades hang alone. In lamplight table lamps and a candle warm the review corner and the lead's coffee table.
 
 ### The town
 
@@ -117,6 +127,20 @@ The town is a small green town of hedged gardens, not beige squares
   under reduced motion, and never keep the render loop running.
 - **Batching.** Repeated dressing pieces are instanced (`instanceStatic.ts`), and one-off pieces are merged per
   material.
+- **Gardens.** Each used plot has its own front garden, chosen by the building's slug: a lawn with a tree, a small
+  terrace, a vegetable patch or a bike shelter. The archived building's garden is overgrown, with tall grass, wild
+  flowers and a leaf pile.
+- **A floating diorama.** The town stands on a layered earth slab with a bevelled lip and a contact shadow; the tree
+  belt, rocks and tall grass break the edge line.
+- **Evening.** String lights hang over the square and the café terrace, the post office and the greenhouse have lit
+  windows, and lanterns stand by the pond's bridge.
+- **Town life** ([ambientLife.ts](../apps/world/src/world/ambientLife.ts)): drifting cloud shadows, birds crossing the
+  town view, butterflies by the flower beds in the day, fireflies by the pond and hedges and twinkling windows in
+  lamplight, ripples and steam. It follows the Ambient setting, stops under reduced motion, is left out on Fast, and
+  never keeps the render loop running at speed 0.
+- **Characters.** The postman wears a cap and a satchel with letters, the ticket drone throws a soft shadow and a
+  short sparkle trail (none under reduced motion), and the delivery truck has a shadow and headlights that glow in
+  lamplight.
 
 ### Light and the lamplight evening
 
@@ -148,6 +172,7 @@ Settings has a **Graphics** choice: **Pretty** (the default) or **Fast**. It is 
 | Warm lamp pools | In lamplight | None |
 | Grass tufts and wild flowers | Drawn | Left out |
 | Contact shadows | Drawn | Drawn |
+| Town life (clouds, birds, butterflies, fireflies, twinkling windows) | Drawn | Left out |
 
 ### Calm labels and the camera
 
@@ -163,6 +188,10 @@ Settings has a **Graphics** choice: **Pretty** (the default) or **Fast**. It is 
 - **Camera.** The camera frames its subject in the free part of the canvas, clear of the HTML chrome. Entering a
   building fills the canvas with it, entering a room frames that room, and home frames the used plots and the civic
   row.
+- **Affordances.** The focused or hovered plot gets a warm glow and its building lifts slightly (no lift under
+  reduced motion; the glow stays); inside, the hovered or focused room's floor gets a soft wash, and the selected
+  agent a ring under its feet. Waiting tags have their own shape, so they are not mistaken for robot name pills, and
+  tags step clear of room signs.
 
 ## State expressed through behavior
 
