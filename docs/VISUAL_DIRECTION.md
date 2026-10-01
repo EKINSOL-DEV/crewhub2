@@ -119,7 +119,9 @@ The town is a small green town of hedged gardens, not beige squares
   - a green belt of trees around the edge, with grass tufts and wild flowers on the open grass.
 - **Landmarks** (`civic.*`) are drawn whole, so they can animate:
   - **The civic row:** the post office, the town hall, the square between them with its fountain, the café and the
-    bus stop.
+    bus stop. The café's awning and parasols are striped cream and leaf green; the parasols are made of `wedge`
+    parts, the pie slices of the prop format. The post office and the town hall have windows in their back walls too,
+    since the camera turns.
   - **Reserved spots** (`landmarks()`): the welcome sign by the entrance road, the windmill behind the orchard, the
     greenhouse conservatory by the pond, the clock post by the square and three ducks on the pond. A landmark appears
     only once the style covers its key, so the spot reserved for `civic.water-tower` stays empty.

@@ -151,6 +151,8 @@ function civicPaving(): Bounds[] {
   }
   const square = civicCenter("square");
   out.push(span(square.x - LANE / 2, square.x + LANE / 2, square.z + CIVIC_SIZE.square.depth / 2 - 0.1, CIVIC_LANE));
+  // The promenade: from each civic lot to the square, just behind the café, so the civic row reads as one place.
+  out.push(...promenades());
   const cafe = civicCenter("cafe");
   out.push(span(cafe.x - 1, cafe.x + 1, cafe.z + CIVIC_SIZE.cafe.depth / 2, CIVIC_LANE));
   const stop = civicCenter("bus-stop");
@@ -159,6 +161,16 @@ function civicPaving(): Bounds[] {
   out.push(span(PARK_PATH_X - 0.8, PARK_PATH_X + 0.8, POND.maxZ + 0.6, CIVIC_LANE));
   out.push(span(PARK_PATH_X - 0.8, PARK_PATH_X + 0.8, POND.minZ - 3.4, POND.minZ - 0.6));
   return out;
+}
+
+/** The two halves of the promenade, lot edge to square edge. */
+function promenades(): Bounds[] {
+  const square = civicCenter("square"),
+    post = civicCenter("post-office"),
+    hall = civicCenter("town-hall");
+  const z0 = square.z - 2.4,
+    z1 = square.z - 0.2;
+  return [span(post.x + CIVIC_LOT / 2, square.x - CIVIC_SIZE.square.width / 2 + 0.1, z0, z1), span(square.x + CIVIC_SIZE.square.width / 2 - 0.1, hall.x - CIVIC_LOT / 2, z0, z1)];
 }
 
 /** The town's entrance road: the main street, on south from the last lane through the green belt to the edge. */
@@ -183,7 +195,7 @@ export function landmarks(): (Landmark & { clear: number })[] {
     cz = (pond.minZ + pond.maxZ) / 2;
   return [
     { key: "civic.welcome-sign", x: road.maxX + 1.6, y: GRASS_Y, z: b.maxZ - 3.4, rotation: 0, clear: 1.8 },
-    { key: "civic.windmill", x: hall.x + 18, y: GRASS_Y, z: b.minZ + 6.2, rotation: -0.5, clear: 3.6 },
+    { key: "civic.windmill", x: hall.x + 13, y: GRASS_Y, z: b.minZ + 6.2, rotation: -0.5, clear: 3.6 },
     { key: "civic.water-tower", x: post.x + 8, y: GRASS_Y, z: b.minZ + 5.6, rotation: 0, clear: 2.8 },
     { key: "civic.greenhouse", x: pond.maxX + 2.6, y: GRASS_Y, z: pond.minZ - 4.2, rotation: 0, clear: 2.6 },
     { key: "civic.clock-post", x: civicCenter("square").x - LANE / 2 - 1.1, y: GRASS_Y, z: CIVIC_LANE + LANE / 2 + 1.1, rotation: 0, clear: 0.9 },
@@ -319,6 +331,22 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
     [road.minX - 0.7, road.maxZ - 2.2],
   ] as const)
     add("town.lantern", x, GRASS_Y, z, { seed: Math.round(z) });
+  // Flower beds along the promenade's north side, with gaps to step through, and a lantern at each end.
+  for (const r of promenades()) {
+    for (let x = r.minX + 1.2; x + 3 < r.maxX - 0.8; x += 4.6)
+      add("town.flower-bed", x + 1.5, GRASS_Y, r.minZ - 0.65, { size: { width: 3, height: 0.2, depth: 0.8 }, seed: Math.round(x) });
+    for (const x of [r.minX + 0.6, r.maxX - 0.6]) add("town.lantern", x, GRASS_Y, r.maxZ + 0.45, { seed: Math.round(x) });
+  }
+  // Shade on the lawn between the square and the town hall: two trees and a bench facing the promenade.
+  const east = promenades()[1]!;
+  for (const [dx, dz, k] of [
+    [4.5, 4.2, 0],
+    [9.5, 5.6, 1],
+  ] as const)
+    if (free(east.minX + dx, east.maxZ + dz, 1.2)) tree(east.minX + dx, east.maxZ + dz, GRASS_Y, 83 + k, 1.3);
+  if (free(east.minX + 7, east.maxZ + 1.6, 0.8)) add("town.bench", east.minX + 7, GRASS_Y, east.maxZ + 1.6, { rotation: Math.PI });
+  // A pair of trees either side of the town hall frames it on its lot.
+  for (const side of [-1, 1]) tree(civicCenter("town-hall").x + side * 4.7, civicCenter("town-hall").z - 3.2, LAWN_Y, 71 + side, 1.15);
   park(add, tree);
   orchard(add);
 

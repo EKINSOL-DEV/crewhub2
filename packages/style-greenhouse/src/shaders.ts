@@ -261,8 +261,8 @@ export function grassShader(material: THREE.MeshStandardMaterial, amount: number
       diffuseColor.rgb *= mix(vec3(1.0), vec3(1.24, 1.08, 0.8), warm);
       // Golden hour: more saturation and a fresh green that the warm sun turns golden, never grey-yellow.
       float grassLuma = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
-      diffuseColor.rgb = max(mix(vec3(grassLuma), diffuseColor.rgb, 1.0 + 0.3 * uGrassGolden), 0.0);
-      diffuseColor.rgb *= mix(vec3(1.0), vec3(1.0, 1.03, 0.84), uGrassGolden);
+      diffuseColor.rgb = max(mix(vec3(grassLuma), diffuseColor.rgb, 1.0 + 0.12 * uGrassGolden), 0.0);
+      diffuseColor.rgb *= mix(vec3(1.0), vec3(1.0, 1.0, 0.9), uGrassGolden);
     `,
     );
   };
