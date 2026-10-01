@@ -105,6 +105,8 @@ export function mergeStatic(root: THREE.Group, options: { keepData?: boolean } =
     // Live meshes (a style's moving parts, `userData.live`) keep their own transforms.
     if (!(o instanceof THREE.Mesh) || o instanceof THREE.InstancedMesh || Array.isArray(o.material) || o.userData.room || o.userData.live) return;
     if (Object.keys(o.geometry.attributes).some((name) => !MERGED.includes(name))) return;
+    // Already merged, its vertex data on the GPU only: it stays as it is.
+    if (!o.geometry.attributes.position?.array) return;
     const matrix = new THREE.Matrix4().multiplyMatrices(inverse, o.matrixWorld);
     const source = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
     if (!source.attributes.uv) source.setAttribute("uv", new THREE.Float32BufferAttribute(new Float32Array(source.attributes.position!.count * 2), 2));
