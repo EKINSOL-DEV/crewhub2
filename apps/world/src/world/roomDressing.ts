@@ -542,6 +542,11 @@ export function roomDecor(template: BuildingTemplate, options: Omit<DressOptions
       // A station clock hangs over the hall when no tall wall carries the clock.
       if (!facts.tall.north.size && !facts.tall.west.size) at("decor.station-clock", facts.width / 2, facts.depth / 2 - 1.5, 0.5);
     }
+    // Evening warmth: a table lamp and a candle on the review room's side table and the lead's coffee table.
+    for (const p of props.filter((q) => (q.definitionId === "side-table" && room.kind === "review") || (q.definitionId === "coffee-table" && room.kind === "lead-office"))) {
+      const pose = poseOf(p, defs);
+      at("decor.table-lamp", pose.x - 0.15, pose.z - 0.1, rand() * Math.PI, { raise: p.definitionId === "side-table" ? 0.33 : 0.24 });
+    }
     const armchair = props.find((p) => p.definitionId === "armchair" && room.kind === "review");
     if (armchair) {
       const pose = poseOf(armchair, defs);
