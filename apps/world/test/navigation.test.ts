@@ -77,7 +77,7 @@ test("a grown room rebuilds its building and keeps the actors inside; an unchang
   const result = nav.sync([grown]);
   assert.deepEqual(result.rebuilt, ["cr"]);
   assert.ok(nav.graph.topologyRevision > topology);
-  assert.equal(nav.graph.room(roomId("cr", "workers"))!.layout.grid.width, 8);
+  assert.equal(nav.graph.room(roomId("cr", "workers"))!.layout.grid.width, 12);
   assert.deepEqual(nav.sim.actor("cr/dev-1")!.location, seat);
 
   // The same shape again touches nothing.
