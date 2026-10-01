@@ -491,6 +491,9 @@
   color: var(--text-muted);
   font-style: italic;
 }
+.ambient-setting {
+  margin-bottom: var(--space-4);
+}
 .role-settings {
   border: 0;
   margin: 0 0 var(--space-3);

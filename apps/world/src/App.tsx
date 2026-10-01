@@ -347,7 +347,7 @@ function World() {
               control="select"
               size="sm"
               label="Ambient"
-              inline
+              className="ambient-setting"
               hint={reducedMotion ? "Off while your system asks for reduced motion." : "Agents at rest now and then look at the board, water a plant or get a coffee."}
               value={ambient}
               onChange={(e) => setAmbient(e.currentTarget.value as Ambient)}
