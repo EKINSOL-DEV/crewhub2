@@ -26,6 +26,8 @@ export const CODE_KEYS: readonly ModelKey[] = [
   "emblem.folder",
   "post-office",
   "town-hall",
+  "civic.square",
+  "civic.cafe",
   "furniture.desk",
   "furniture.plant",
   "furniture.bench",

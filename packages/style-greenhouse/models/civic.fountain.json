@@ -1,0 +1,329 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-civic-fountain",
+  "name": "Fountain",
+  "description": "A round chalk-stone fountain with a raised bowl, lily pads and a brass finial.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "civic",
+    "fountain",
+    "water"
+  ],
+  "footprint": {
+    "width": 6,
+    "depth": 6
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "cylinder",
+      "size": [
+        1.75,
+        0.08,
+        1.78
+      ],
+      "position": [
+        0.0,
+        0.04,
+        0.0
+      ],
+      "material": "clay"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        1.55,
+        0.45,
+        1.6
+      ],
+      "position": [
+        0.0,
+        0.305,
+        0.0
+      ],
+      "material": "chalk"
+    },
+    {
+      "shape": "torus",
+      "size": [
+        1.52,
+        0.08,
+        0.0
+      ],
+      "position": [
+        0.0,
+        0.53,
+        0.0
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        1.46,
+        0.02,
+        1.46
+      ],
+      "position": [
+        0.0,
+        0.47,
+        0.0
+      ],
+      "material": "glass"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.15,
+        0.015,
+        0.15
+      ],
+      "position": [
+        0.867,
+        0.49,
+        0.593
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.11,
+        0.015,
+        0.11
+      ],
+      "position": [
+        0.611,
+        0.49,
+        0.854
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.14,
+        0.015,
+        0.14
+      ],
+      "position": [
+        -0.9,
+        0.49,
+        0.541
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.12,
+        0.015,
+        0.12
+      ],
+      "position": [
+        -0.421,
+        0.49,
+        -0.962
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.09,
+        0.015,
+        0.09
+      ],
+      "position": [
+        -0.118,
+        0.49,
+        -1.043
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.05,
+        0.04,
+        0.05
+      ],
+      "position": [
+        0.867,
+        0.52,
+        0.593
+      ],
+      "material": "coral"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.045,
+        0.04,
+        0.045
+      ],
+      "position": [
+        -0.421,
+        0.52,
+        -0.962
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.2,
+        0.9,
+        0.3
+      ],
+      "position": [
+        0.0,
+        0.93,
+        0.0
+      ],
+      "material": "chalk"
+    },
+    {
+      "shape": "torus",
+      "size": [
+        0.22,
+        0.05,
+        0.0
+      ],
+      "position": [
+        0.0,
+        1.05,
+        0.0
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.66,
+        0.22,
+        0.24
+      ],
+      "position": [
+        0.0,
+        1.47,
+        0.0
+      ],
+      "material": "chalk"
+    },
+    {
+      "shape": "torus",
+      "size": [
+        0.64,
+        0.05,
+        0.0
+      ],
+      "position": [
+        0.0,
+        1.58,
+        0.0
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.58,
+        0.02,
+        0.58
+      ],
+      "position": [
+        0.0,
+        1.56,
+        0.0
+      ],
+      "material": "glass"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.08,
+        0.35,
+        0.12
+      ],
+      "position": [
+        0.0,
+        1.75,
+        0.0
+      ],
+      "material": "chalk"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.11,
+        0.11,
+        0.11
+      ],
+      "position": [
+        0.0,
+        1.98,
+        0.0
+      ],
+      "material": "brass"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.09,
+        0.07,
+        0.09
+      ],
+      "position": [
+        1.075,
+        0.6,
+        1.075
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.09,
+        0.07,
+        0.09
+      ],
+      "position": [
+        -1.075,
+        0.6,
+        1.075
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.09,
+        0.07,
+        0.09
+      ],
+      "position": [
+        -1.075,
+        0.6,
+        -1.075
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.09,
+        0.07,
+        0.09
+      ],
+      "position": [
+        1.075,
+        0.6,
+        -1.075
+      ],
+      "material": "cream"
+    }
+  ]
+}

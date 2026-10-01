@@ -9,6 +9,17 @@
     "building.flag",
     "building.planks",
     "cart",
+    "civic.bus-stop",
+    "civic.cafe",
+    "civic.cafe-table",
+    "civic.flower-bed",
+    "civic.fountain",
+    "civic.menu-board",
+    "civic.notice-board",
+    "civic.parcel-stack",
+    "civic.park-bench",
+    "civic.planter",
+    "civic.square",
     "crate",
     "desk-lamp",
     "door",
@@ -164,7 +175,12 @@
     "truck-body": "#e8e4d1",
     "tyre": "#34453e",
     "contact-shadow": "#2f4a3c",
-    "lamp-pool": "#ffc978"
+    "lamp-pool": "#ffc978",
+    "roof": "#c9967a",
+    "roof-dark": "#b07d63",
+    "slate-roof": "#83998d",
+    "dome": "#93b8a4",
+    "water": "#8ec5bd"
   },
   "lamplightSwatches": {
     "plinth": "#2b3f42",
@@ -178,7 +194,8 @@
     "lamp-glow": "#ffe2a0",
     "screen-glow": "#a8d4ae",
     "rug": "#c9bc9d",
-    "contact-shadow": "#0e1d1d"
+    "contact-shadow": "#0e1d1d",
+    "water": "#5f9294"
   },
   "lighting": {
     "day": {
