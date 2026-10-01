@@ -57,6 +57,8 @@ export interface WorldModel {
   mode: "demo" | "live";
   /** The last applied event seq; for the text view and debugging. */
   cursor: number;
+  /** Loaded snapshots so far (a seek or a new loop is a snapshot): a change means "reset", not "moved". */
+  snapshots: number;
   freshness: Freshness;
   /** Plot order follows the loops project order; archived projects keep a boarded-up plot. */
   buildings: Building[];

@@ -142,13 +142,22 @@ export const interiorDefinitions: Definitions = {
     tags: ["rest"],
     approaches: [{ x: 1, z: -1 }],
   },
+  "coffee-machine": {
+    id: "coffee-machine",
+    label: "Coffee machine",
+    footprint: { width: 1, depth: 1 },
+    blocksMovement: true,
+    tags: ["coffee", "rest"],
+    approaches: [{ x: 0, z: 1 }],
+  },
   plant: {
     id: "plant",
     label: "Bird of paradise",
     footprint: { width: 1, depth: 1 },
     blocksMovement: true,
     tags: ["decoration", "greenery"],
-    approaches: [],
+    // Someone watering it stands to its west.
+    approaches: [{ x: -1, z: 0 }],
   },
 };
 
@@ -211,7 +220,12 @@ export function buildingTemplate(building: Building): BuildingTemplate {
   rooms.push({
     kind: "lobby",
     origin: { x: WEST, z: 13 },
-    layout: layout(CENTRE, 7, { x: 4, z: 6 }, [prop("mailbox", "mailbox", 1, 5), prop("bench", "bench", 5, 5), prop("plant", "plant", 7, 3)]),
+    layout: layout(CENTRE, 7, { x: 4, z: 6 }, [
+      prop("mailbox", "mailbox", 1, 5),
+      prop("bench", "bench", 5, 5),
+      prop("plant", "plant", 7, 3),
+      prop("coffee", "coffee-machine", 6, 0),
+    ]),
   });
   rooms.push({
     kind: "lead-office",

@@ -231,7 +231,7 @@ export class BuildingView {
         // Desks face their seat to the north, so the agent looks over the desk towards the camera.
         if (def === "workdesk" || def === "lead-desk") model.rotation.y = Math.PI;
         if (def === "plant") model.scale.setScalar(ROBOT_SCALE);
-        if (def === "bench") model.scale.setScalar(0.7);
+        if (def === "bench" || def === "coffee-machine") model.scale.setScalar(0.7);
         g.add(model);
       }
     this.#furniture = g;
