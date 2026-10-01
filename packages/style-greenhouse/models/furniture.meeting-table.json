@@ -2,7 +2,7 @@
   "format": "crewhub-prop/1",
   "id": "builtin:greenhouse-furniture-meeting-table",
   "name": "Meeting table",
-  "description": "A long meeting table with round stools.",
+  "description": "A long timber meeting table on two slate pedestals; the room dressing sets chairs all around it.",
   "category": "gather",
   "tags": [
     "greenhouse"
@@ -56,90 +56,6 @@
         0
       ],
       "material": "slate"
-    },
-    {
-      "shape": "cylinder",
-      "size": [
-        0.13,
-        0.3,
-        0.12
-      ],
-      "position": [
-        -0.7,
-        0.15,
-        -0.52
-      ],
-      "material": "sage"
-    },
-    {
-      "shape": "cylinder",
-      "size": [
-        0.13,
-        0.3,
-        0.12
-      ],
-      "position": [
-        -0.7,
-        0.15,
-        0.52
-      ],
-      "material": "sage"
-    },
-    {
-      "shape": "cylinder",
-      "size": [
-        0.13,
-        0.3,
-        0.12
-      ],
-      "position": [
-        0,
-        0.15,
-        -0.52
-      ],
-      "material": "sage"
-    },
-    {
-      "shape": "cylinder",
-      "size": [
-        0.13,
-        0.3,
-        0.12
-      ],
-      "position": [
-        0,
-        0.15,
-        0.52
-      ],
-      "material": "sage"
-    },
-    {
-      "shape": "cylinder",
-      "size": [
-        0.13,
-        0.3,
-        0.12
-      ],
-      "position": [
-        0.7,
-        0.15,
-        -0.52
-      ],
-      "material": "sage"
-    },
-    {
-      "shape": "cylinder",
-      "size": [
-        0.13,
-        0.3,
-        0.12
-      ],
-      "position": [
-        0.7,
-        0.15,
-        0.52
-      ],
-      "material": "sage"
     }
   ]
 }

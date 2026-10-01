@@ -2,7 +2,7 @@
   "format": "crewhub-prop/1",
   "id": "builtin:greenhouse-decor-truck-door",
   "name": "Loading door",
-  "description": "A sage roller door for the truck bay with timber posts, a brass handle and a coral stripe.",
+  "description": "A half-open sage roller door for the truck bay, between timber posts, with a brass handle and a coral stripe.",
   "category": "decoration",
   "tags": [
     "greenhouse",
@@ -63,15 +63,34 @@
       "radius": 0.015
     },
     {
-      "shape": "box",
+      "shape": "cylinder",
       "size": [
-        1.14,
-        0.11,
-        0.025
-      ],
-      "position": [
-        0,
         0.07,
+        1.14,
+        0.07
+      ],
+      "position": [
+        0,
+        0.86,
+        -0.24
+      ],
+      "material": "sage",
+      "rotation": [
+        0,
+        0,
+        90
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.14,
+        0.11,
+        0.025
+      ],
+      "position": [
+        0,
+        0.5,
         -0.24
       ],
       "material": "sage",
@@ -86,7 +105,7 @@
       ],
       "position": [
         0,
-        0.19,
+        0.62,
         -0.24
       ],
       "material": "sage",
@@ -101,67 +120,7 @@
       ],
       "position": [
         0,
-        0.31,
-        -0.24
-      ],
-      "material": "sage",
-      "radius": 0.01
-    },
-    {
-      "shape": "box",
-      "size": [
-        1.14,
-        0.11,
-        0.025
-      ],
-      "position": [
-        0,
-        0.43,
-        -0.24
-      ],
-      "material": "sage",
-      "radius": 0.01
-    },
-    {
-      "shape": "box",
-      "size": [
-        1.14,
-        0.11,
-        0.025
-      ],
-      "position": [
-        0,
-        0.55,
-        -0.24
-      ],
-      "material": "sage",
-      "radius": 0.01
-    },
-    {
-      "shape": "box",
-      "size": [
-        1.14,
-        0.11,
-        0.025
-      ],
-      "position": [
-        0,
-        0.67,
-        -0.24
-      ],
-      "material": "sage",
-      "radius": 0.01
-    },
-    {
-      "shape": "box",
-      "size": [
-        1.14,
-        0.11,
-        0.025
-      ],
-      "position": [
-        0,
-        0.79,
+        0.74,
         -0.24
       ],
       "material": "sage",
@@ -176,7 +135,7 @@
       ],
       "position": [
         0,
-        0.03,
+        0.44,
         -0.228
       ],
       "material": "coral",
@@ -191,7 +150,7 @@
       ],
       "position": [
         0,
-        0.2,
+        0.48,
         -0.215
       ],
       "material": "brass",

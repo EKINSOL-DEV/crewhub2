@@ -19,27 +19,13 @@
     {
       "shape": "cylinder",
       "size": [
-        0.01,
-        0.3,
-        0.01
+        0.05,
+        0.02,
+        0.05
       ],
       "position": [
         0,
-        1.45,
-        0
-      ],
-      "material": "slate"
-    },
-    {
-      "shape": "cylinder",
-      "size": [
-        0.025,
-        0.03,
-        0.025
-      ],
-      "position": [
-        0,
-        1.29,
+        1.42,
         0
       ],
       "material": "brass"
@@ -47,13 +33,41 @@
     {
       "shape": "cylinder",
       "size": [
-        0.045,
-        0.11,
-        0.15
+        0.01,
+        0.16,
+        0.01
       ],
       "position": [
         0,
-        1.22,
+        1.33,
+        0
+      ],
+      "material": "slate"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.028,
+        0.035,
+        0.028
+      ],
+      "position": [
+        0,
+        1.24,
+        0
+      ],
+      "material": "brass"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.05,
+        0.13,
+        0.18
+      ],
+      "position": [
+        0,
+        1.16,
         0
       ],
       "material": "sage"
@@ -61,13 +75,13 @@
     {
       "shape": "cylinder",
       "size": [
-        0.135,
-        0.012,
-        0.135
+        0.165,
+        0.014,
+        0.165
       ],
       "position": [
         0,
-        1.16,
+        1.09,
         0
       ],
       "material": "lamp-glow",
@@ -76,13 +90,13 @@
     {
       "shape": "sphere",
       "size": [
-        0.04,
-        0.04,
-        0.04
+        0.045,
+        0.045,
+        0.045
       ],
       "position": [
         0,
-        1.17,
+        1.11,
         0
       ],
       "material": "lamp-glow",

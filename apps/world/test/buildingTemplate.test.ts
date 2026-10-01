@@ -17,6 +17,7 @@ import {
   type BuildingTemplate,
 } from "../src/world/buildingTemplate.ts";
 import { PLOT_SIZE } from "../src/world/townLayout.ts";
+import { DRESS_PREFIX } from "../src/world/roomDressing.ts";
 import { assignDesks, pileCapacity, placeObjects, roomNeighbor } from "../src/world/interiorLayout.ts";
 
 const agent = (key: string, room: RoomKind, extra: Partial<AgentPlacement> = {}): AgentPlacement => ({
@@ -233,7 +234,9 @@ test("the largest building fits 20 x 18 world units with a margin on its plot, a
 
 test("dressing zones lie inside their rooms on free floor, and blocking them keeps every door, seat and approach reachable", () => {
   for (const [name, b] of variants) {
-    const template = buildingTemplate(b);
+    // The zones are free floor of the bare template; the room dressing (roomDressing.ts) then fills them.
+    const dressed = buildingTemplate(b);
+    const template = { ...dressed, rooms: dressed.rooms.map((r) => ({ ...r, layout: { ...r.layout, props: r.layout.props.filter((p) => !p.id.startsWith(DRESS_PREFIX)) } })) };
     const zones = dressingZones(template);
     for (const kind of ["lobby", "lead-office"] as const) assert.ok(zones.some((z) => z.room === kind), `${name}: ${kind} has a zone`);
     for (const room of template.rooms) {

@@ -9,10 +9,11 @@
 
    Props attached to a ticket or an agent take no footprint (plan 6.3); they ride on the work object or sit on the
    agent's desk, and are listed apart from the grid. */
-import { WorldSimulation } from "@crewhub/world-engine";
+import { cellKey, propCells, WorldSimulation } from "@crewhub/world-engine";
 import type { Cell, Definitions, PropDefinition, Rotation, WorldLayout, WorldProp } from "@crewhub/world-engine";
 import type { PlacedProp, RoomKind, TownDocument } from "@crewhub/world-model";
 import { BUILDING_CELL, interiorDefinitions, roomOf, type BuildingTemplate } from "./buildingTemplate.ts";
+import { DRESS_PREFIX } from "./roomDressing.ts";
 
 /** The template's own furniture, namespaced so it never meets a catalogue id. */
 export const FIXED_PREFIX = "fixed:";
@@ -74,6 +75,8 @@ export interface RoomPlacements {
   /** The site's layout with every valid placement added: what the engine routes through. */
   layout: WorldLayout;
   placed: PlacedProp[];
+  /** Template dressing pieces (their template ids) that stepped aside for a placement: the view leaves them out. */
+  yielded: string[];
   /** Changes whenever the room's placements change: phase 4's routes replan when it does. */
   revision: string;
 }
@@ -105,7 +108,7 @@ export function resolveBuildingPlacements(doc: TownDocument, slug: string, templ
   const errors: PlacementError[] = [];
   for (const t of template.rooms) {
     const site = roomSite(template, t.kind);
-    if (site) rooms.set(t.kind, { site, layout: site.layout, placed: [], revision: "" });
+    if (site) rooms.set(t.kind, { site, layout: site.layout, placed: [], yielded: [], revision: "" });
   }
   for (const p of doc.placements) {
     if ("town" in p.at || p.at.building !== slug || isRider(p)) continue;
@@ -118,7 +121,8 @@ export function resolveBuildingPlacements(doc: TownDocument, slug: string, templ
       errors.push({ placement: p, room: p.at.room, reason: `unknown prop ${p.propId}` });
       continue;
     }
-    const result = check(room.layout, definitions, toWorldProp(p));
+    let result = check(room.layout, definitions, toWorldProp(p));
+    if (!result.ok) result = yieldDressing(room, definitions, toWorldProp(p)) ?? result;
     if (!result.ok) {
       errors.push({ placement: p, room: p.at.room, reason: placementWords(result.reason) });
       continue;
@@ -128,6 +132,22 @@ export function resolveBuildingPlacements(doc: TownDocument, slug: string, templ
   }
   for (const room of rooms.values()) room.revision = room.placed.map((p) => `${p.id}@${p.cell.x},${p.cell.z},${p.rotation}`).join("|");
   return { rooms, errors };
+}
+
+/**
+ * The homely dressing (roomDressing.ts) yields to the document: dressing pieces under a placement step aside when that
+ * makes the placement fit. Returns the retried check when something stepped aside, else null.
+ */
+function yieldDressing(room: RoomPlacements, definitions: Definitions, prop: WorldProp): { ok: true } | null {
+  const cells = new Set(propCells(prop, definitions).map(cellKey));
+  const dressing = `fixed-${DRESS_PREFIX}`;
+  const inTheWay = room.layout.props.filter((q) => q.id.startsWith(dressing) && propCells(q, definitions).some((c) => cells.has(cellKey(c))));
+  if (!inTheWay.length) return null;
+  const layout = { ...room.layout, props: room.layout.props.filter((q) => !inTheWay.includes(q)) };
+  if (!check(layout, definitions, prop).ok) return null;
+  room.layout = layout;
+  room.yielded.push(...inTheWay.map((q) => q.id.slice("fixed-".length)));
+  return { ok: true };
 }
 
 function check(layout: WorldLayout, definitions: Definitions, prop: WorldProp): { ok: true } | { ok: false; reason: string } {
@@ -163,7 +183,9 @@ export function checkGhost(doc: TownDocument, slug: string, template: BuildingTe
   const others = { ...doc, placements: doc.placements.filter((p) => p.id !== probe.id) };
   const room = resolveBuildingPlacements(others, slug, template, definitions).rooms.get(probe.room);
   if (!room) return { ok: false, reason: `the ${roomWords(probe.room)} is not in this building now` };
-  const result = check(room.layout, definitions, { id: probe.id, definitionId: probe.propId, cell: probe.cell, rotation: probe.rotation });
+  const prop = { id: probe.id, definitionId: probe.propId, cell: probe.cell, rotation: probe.rotation };
+  let result = check(room.layout, definitions, prop);
+  if (!result.ok) result = yieldDressing(room, definitions, prop) ?? result;
   return result.ok ? result : { ok: false, reason: placementWords(result.reason) };
 }
 
