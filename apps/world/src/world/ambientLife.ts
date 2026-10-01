@@ -120,6 +120,8 @@ export class AmbientLife {
   #beds: Home[] = [];
   #glowers: Home[] = [];
   #windowSpots: { position: THREE.Vector3; yaw: number }[] = [];
+  #landmarkWindows: { position: THREE.Vector3; yaw: number }[] = [];
+  #buildingWindows: { position: THREE.Vector3; yaw: number }[] = [];
   #steamSpots: Home[] = [];
   #pond: { x: number; y: number; z: number; rx: number; rz: number } | null = null;
   #building: Bounds | null = null;
@@ -187,20 +189,21 @@ export class AmbientLife {
         const a = (i / 10) * Math.PI * 2;
         this.#glowers.unshift({ x: this.#pond.x + Math.cos(a) * (this.#pond.rx + 0.6), y: this.#pond.y, z: this.#pond.z + Math.sin(a) * (this.#pond.rz + 0.6), seed: noise(i, 3) });
       }
-    this.#windowSpots = [];
+    this.#landmarkWindows = [];
     this.#steamSpots = [];
-    landmarks.updateMatrixWorld(true);
-    const p = new THREE.Vector3(),
-      q = new THREE.Quaternion(),
-      s = new THREE.Vector3(),
-      e = new THREE.Euler();
-    landmarks.traverse((o) => {
-      const life = o.userData.life as LifeSpot | undefined;
-      if (!life) return;
-      o.matrixWorld.decompose(p, q, s);
-      if (life === "window") this.#windowSpots.push({ position: p.clone(), yaw: e.setFromQuaternion(q, "YXZ").y });
-      if (life === "steam") this.#steamSpots.push({ x: p.x, y: p.y, z: p.z, seed: noise(p.x, p.z, 4) });
+    spotsIn(landmarks, (life, position, yaw) => {
+      if (life === "window") this.#landmarkWindows.push({ position, yaw });
+      if (life === "steam") this.#steamSpots.push({ x: position.x, y: position.y, z: position.z, seed: noise(position.x, position.z, 4) });
     });
+    this.#windowSpots = [...this.#landmarkWindows, ...this.#buildingWindows];
+    this.#apply();
+  }
+
+  /** The buildings' window spots (their shells' tall walls), gathered again whenever a shell is rebuilt. */
+  setBuildingWindows(roots: readonly THREE.Object3D[]) {
+    this.#buildingWindows = [];
+    for (const root of roots) spotsIn(root, (life, position, yaw) => life === "window" && this.#buildingWindows.push({ position, yaw }));
+    this.#windowSpots = [...this.#landmarkWindows, ...this.#buildingWindows];
     this.#apply();
   }
 
@@ -430,4 +433,19 @@ export class AmbientLife {
     for (const swarm of this.#swarms()) swarm.dispose();
     this.group.removeFromParent();
   }
+}
+
+/** Every `userData.life` marker under `root`, in world space: its kind, position and yaw. */
+function spotsIn(root: THREE.Object3D, found: (life: LifeSpot, position: THREE.Vector3, yaw: number) => void) {
+  root.updateMatrixWorld(true);
+  const p = new THREE.Vector3(),
+    q = new THREE.Quaternion(),
+    s = new THREE.Vector3(),
+    e = new THREE.Euler();
+  root.traverse((o) => {
+    const life = o.userData.life as LifeSpot | undefined;
+    if (!life) return;
+    o.matrixWorld.decompose(p, q, s);
+    found(life, p.clone(), e.setFromQuaternion(q, "YXZ").y);
+  });
 }

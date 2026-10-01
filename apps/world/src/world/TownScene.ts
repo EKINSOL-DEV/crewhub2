@@ -12,7 +12,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { AgentPlacement, RoomKind, WorldModel } from "@crewhub/world-model";
 import type { EnvironmentHandle, GraphicsQuality, ModelAnimation, ModelKey, ResolvedStyle, RobotHandle, RobotPosture, StyleTheme } from "@crewhub/world-style";
 import { BuildingView, type Pick } from "./buildingView";
-import { BUILDING_CELL } from "./buildingTemplate";
+import { BACK_WALL_HEIGHT, BUILDING_CELL, FLOOR_RISE } from "./buildingTemplate";
 import type { TownLayer } from "./propLayer";
 import { styleRegistry } from "./style";
 import type { StyledPlot } from "./styleRegistry";
@@ -93,7 +93,7 @@ const CAMERA_DISTANCE = 220;
 const HOME_OFFSET = new THREE.Vector3(1, 1.04, 1).normalize().multiplyScalar(CAMERA_DISTANCE);
 const UP = new THREE.Vector3(0, 1, 0);
 /* Framing heights: a building is seen up to its tall back walls, a room up to its people and desks. */
-const BUILDING_FRAME_HEIGHT = 2.6;
+const BUILDING_FRAME_HEIGHT = FLOOR_RISE + BACK_WALL_HEIGHT + 0.6; // the slab, the tall walls and a little headroom
 const ROOM_FRAME_HEIGHT = 1.1;
 /* The closest view: a frustum this many world units tall, about one desk with its robot. */
 const DESK_SPAN = 2.4;
@@ -131,6 +131,8 @@ export class TownScene {
   #contacts = new Map<string, { object: THREE.Object3D; size: string }>();
   #civic = new THREE.Group();
   #landmarks = new THREE.Group();
+  /** The building shells whose window spots ambient life holds (slug and shell revision). */
+  #lifeWindows = "";
   /** Clouds, birds, butterflies, fireflies, ripples, steam and glowing windows (ambientLife.ts). */
   #life: AmbientLife;
   #dressing: { signature: string; group: THREE.Group | null; instanced: THREE.InstancedMesh[]; merged: THREE.BufferGeometry[] } = {
@@ -433,6 +435,12 @@ export class TownScene {
       this.#contact(b.slug, view);
       this.#anchors.set(`b:${b.slug}`, new THREE.Vector3(c.x, 0.2, c.z + PLOT_SIZE / 2));
     });
+    // Ambient life lights the buildings' windows in lamplight; gather their spots again when a shell changed.
+    const windows = [...this.#buildings.values()].map((v) => `${v.building.slug}:${v.shellRevision}`).join();
+    if (windows !== this.#lifeWindows) {
+      this.#lifeWindows = windows;
+      this.#life.setBuildingWindows([...this.#buildings.values()].filter((v) => seen.has(v.building.slug)).map((v) => v.group));
+    }
     for (const [slug, view] of this.#buildings)
       if (!seen.has(slug)) {
         view.dispose();

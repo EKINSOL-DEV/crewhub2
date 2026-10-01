@@ -7,6 +7,7 @@ import * as THREE from "three";
 import type { AgentPlacement, Building, RoomKind } from "@crewhub/world-model";
 import type { EmblemName, ModelKey, PaletteName, ResolvedStyle, RobotHandle, RobotPosture } from "@crewhub/world-style";
 import {
+  BACK_WALL_HEIGHT,
   BUILDING_CELL as CELL,
   buildingTemplate,
   DEPTH,
@@ -40,8 +41,8 @@ const TRUCK_S = 2.4;
 const TRUCK_SPOT = { x: (LOADING.x1 + LOADING.x2) / 2, z: DEPTH + 1.6 };
 /** Per wall side: the model, its height and its thickness (world units). The tall walls are the old room's height. */
 const WALLS: Record<WallRun["side"], [ModelKey, number, number]> = {
-  north: ["wall.glass", 1.75, 0.16],
-  west: ["wall", 1.75, 0.16],
+  north: ["wall.glass", BACK_WALL_HEIGHT, 0.16],
+  west: ["wall", BACK_WALL_HEIGHT, 0.16],
   south: ["wall.low", 0.22, 0.12],
   east: ["wall.low", 0.22, 0.12],
   inner: ["building.partition", 0.6, 0.1],
@@ -167,6 +168,8 @@ export class BuildingView {
   desks = new Map<string, DeskSlot>();
   layout: ObjectLayout = { placements: new Map(), targets: new Map(), pallets: [] };
   detailed = false;
+  /** Counts shell rebuilds, so the town knows when to gather the window spots again. */
+  shellRevision = 0;
   #shell = new THREE.Group();
   /** The static parts of the shell (walls, flag, emblem, signs), batched per material. */
   #shellStatic = new THREE.Group();
@@ -313,6 +316,7 @@ export class BuildingView {
   /* ── Shell: slab, floors, walls, doors, flag, emblem, room signs, the truck's apron ─────────────── */
 
   #buildShell() {
+    this.shellRevision++;
     const { style } = this.ctx;
     this.#shell.clear();
     this.#shellStatic.clear();

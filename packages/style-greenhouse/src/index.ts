@@ -281,7 +281,9 @@ class GreenhouseStyle implements WorldStyle {
   setTheme(theme: StyleTheme) {
     this.#kit.setTheme(theme);
     this.#glass.uniforms.uColor!.value.set(this.#kit.hex("window"));
-    this.#glass.uniforms.uOpacity!.value = theme === "lamplight" ? 0.82 : 0.32;
+    // By day the panes read a little more, with a soft sheen; at night the warm glass glows evenly.
+    this.#glass.uniforms.uOpacity!.value = theme === "lamplight" ? 0.82 : 0.4;
+    this.#glass.uniforms.uSheen!.value = theme === "lamplight" ? 0.15 : 1;
     town.townTheme(this.#kit, theme);
     life.lifeTheme(this.#kit);
   }

@@ -47,6 +47,8 @@ export const MAX_WIDTH = EAST_X + MODULE * MAX_MODULE_COLUMNS;
 export const DEPTH = 28;
 /** World units the floors stand above the lawn: the building's slab. Walkers inside a building walk at this height. */
 export const FLOOR_RISE = 0.24;
+/** World units the tall back walls (north glass, west chalk) stand above the floor: the old Greenhouse room's height. */
+export const BACK_WALL_HEIGHT = 1.75;
 /** World units between the plot's north edge and the building's north wall. */
 export const PLOT_MARGIN = 2;
 /** The building cell just outside the front door (the lobby's south door). */

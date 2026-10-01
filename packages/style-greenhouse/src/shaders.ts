@@ -73,16 +73,20 @@ export function floorShader(
 
 export function glassMaterial(color: string, opacity: number) {
   return new THREE.ShaderMaterial({
-    uniforms: { uOpacity: { value: opacity }, uColor: { value: new THREE.Color(color) } },
+    uniforms: { uOpacity: { value: opacity }, uColor: { value: new THREE.Color(color) }, uSheen: { value: 1 } },
     transparent: true,
     depthWrite: false,
     side: THREE.DoubleSide,
     vertexShader: `varying vec3 vNormal; varying vec3 vWorld; varying vec2 vUv;
       void main() { vUv = uv; vNormal = normalize(mat3(modelMatrix) * normal); vec4 p = modelMatrix * vec4(position, 1.0); vWorld = p.xyz; gl_Position = projectionMatrix * viewMatrix * p; }`,
-    fragmentShader: `uniform vec3 uColor; uniform float uOpacity; varying vec3 vNormal; varying vec3 vWorld; varying vec2 vUv;
+    fragmentShader: `uniform vec3 uColor; uniform float uOpacity; uniform float uSheen; varying vec3 vNormal; varying vec3 vWorld; varying vec2 vUv;
       void main() { float fresnel = pow(1.0 - abs(dot(normalize(cameraPosition - vWorld), normalize(vNormal))), 3.0);
       float etch = 1.0 - smoothstep(0.0, 0.025, abs(fract(vUv.y * 8.0) - 0.5));
-      gl_FragColor = vec4(uColor + fresnel * 0.2, uOpacity * (0.4 + fresnel * 0.6 + etch * 0.18));
+      // A soft diagonal sheen in world space, so it runs on across the panes: the glass catches the sky.
+      float d = fract((vWorld.x - vWorld.z) * 0.22 + vWorld.y * 0.55);
+      float sheen = (1.0 - smoothstep(0.0, 0.07, abs(d - 0.3))) * 0.8 + (1.0 - smoothstep(0.0, 0.025, abs(d - 0.4))) * 0.5;
+      sheen *= uSheen;
+      gl_FragColor = vec4(uColor + fresnel * 0.2 + sheen * 0.35, uOpacity * (0.4 + fresnel * 0.6 + etch * 0.18) + sheen * 0.22);
       #include <tonemapping_fragment>
       #include <colorspace_fragment>
     }`,
