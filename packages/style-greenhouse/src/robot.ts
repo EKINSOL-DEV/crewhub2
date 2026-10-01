@@ -38,7 +38,7 @@ export function robot(kit: Kit, options: { key: string; accent: PaletteName | nu
   head.position.y = 0.92;
   body.add(head);
   put(head, kit.box(0.68, 0.52, 0.52, color, 0.13), 0, 0, 0);
-  put(head, kit.box(0.54, 0.25, 0.05, "visor", 0.09), 0, 0.005, 0.265);
+  small(put(head, kit.box(0.54, 0.25, 0.05, "visor", 0.09), 0, 0.005, 0.265));
   // The face screen: two soft eyes that blink, and glow a little after dark (the theme's glow scales them).
   const eyes = [-0.13, 0.13].map((x) => {
     const eye = small(put(head, kit.box(0.07, 0.1, 0.028, "eye", 0.03), x, 0.015, 0.298));
@@ -46,7 +46,7 @@ export function robot(kit: Kit, options: { key: string; accent: PaletteName | nu
     return eye;
   });
   small(put(head, kit.cylinder(0.018, 0.018, 0.19, "antenna-stem"), 0, 0.335, 0));
-  const antenna = put(head, kit.sphere(0.075, "antenna"), 0, 0.435, 0);
+  const antenna = small(put(head, kit.sphere(0.075, "antenna"), 0, 0.435, 0));
   for (const x of [-0.355, 0.355]) small(put(head, kit.cylinder(0.09, 0.09, 0.065, "ear"), x, -0.01, 0)).rotation.z = Math.PI / 2;
   const arms = [-1, 1].map((side) => {
     const arm = new THREE.Group();
@@ -136,6 +136,8 @@ export function robot(kit: Kit, options: { key: string; accent: PaletteName | nu
         break;
     }
     halo.uniforms.uActive!.value = alerted || posture === "raised-hand" ? 0.65 : 0;
+    // An inactive halo draws nothing: skip its draw call.
+    ring.visible = alerted || posture === "raised-hand";
   };
   pose();
 
@@ -164,6 +166,7 @@ export function robot(kit: Kit, options: { key: string; accent: PaletteName | nu
       alerted = alert;
       halo.uniforms.uColor!.value.set(kit.hex(alert ? "beacon" : color));
       halo.uniforms.uActive!.value = alert || posture === "raised-hand" ? 0.65 : 0;
+      ring.visible = alert || posture === "raised-hand";
     },
     update(seconds) {
       if (proxy || posture === "greyed") return;
