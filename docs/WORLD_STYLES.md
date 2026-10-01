@@ -42,7 +42,7 @@ Every style declares a manifest (for Greenhouse: `packages/style-greenhouse/styl
 | `description` | One or two sentences. |
 | `coveredKeys` | The semantic model keys the style provides. A test checks it equals what the style actually draws. |
 | `palette` | A colour for every palette name (below). |
-| `lighting` | A `LightingPreset` per theme: `day` and `lamplight`: sky, ground and key/fill lights, exposure, the blob shadows' opacity, the lamps' `glow` and the warm light `pools`. |
+| `lighting` | A `LightingPreset` per theme, `day` and `lamplight`, and optionally the drift lights `dawn`, `dusk` and `night`: sky, ground and key/fill lights, exposure, the blob shadows' opacity, the lamps' `glow`, the warm light `pools` and how far into the `evening` the light is (0 by day, 1 with every lamp lit). |
 
 A style may keep more data in its manifest file. Greenhouse adds `swatches` (named colours internal to the style:
 walls, lawn, robot parts) and `lamplightSwatches` (the swatches that change under lamplight).
@@ -150,6 +150,15 @@ them or accept plain crates drifting by. Covering them is the expected choice.
   pendant lamps, warm pools of light). The renderer fits the shadow to what the camera frames: the ground the
   entered building's view shows gets a close, crisp shadow (fitted again after a zoom or pan), the town a cheaper,
   softer one.
+- The day-night drift: `setDayPhase(phase)` takes the time of day as a fraction of one day (0 the morning, through
+  dusk and the evening, back through dawn at 1) or `null` for the theme's fixed look, and returns true when the light
+  changed. The renderer derives the phase from the source clock (`world/dayClock.ts`: one day is one 16-minute loop of
+  the demo script) a few times a second, behind the viewer's "Day and night" setting (`state/daynight.ts`: on by
+  default in demo mode, off in live mode); reduced motion and Fast keep the theme's look. The theme stays the base:
+  Greenhouse runs the light theme through a warm dusk into a gentle evening and back through a pink dawn, and deepens
+  lamplight into a cool night and back (`daylight.ts`). `evening` is the shared factor (0 by day, 1 with every lamp
+  lit) that lamps, lit windows, pools, fireflies and the floor's sun shafts follow; `shadowVersion` counts the sun's
+  visible moves, so a renderer redraws a hand-refreshed shadow map only then. The HTML chrome follows the theme only.
 - `GraphicsQuality` is the viewer's graphics setting, `"pretty"` (the default) or `"fast"`, kept per browser and read
   by renderers from `TownView.quality`. The renderer owns its own settings (shadow maps on or off, the pixel ratio)
   and calls `setQuality` on the environment; the style then drops what it draws only for Pretty (Greenhouse: the key
@@ -186,7 +195,8 @@ part sizes of at most 3, 64 parts).
 ## What a third-party style must provide
 
 - A `WorldStyleFactory` with a manifest: id, name, semver version, description, `coveredKeys`, a colour for every
-  palette name and a lighting preset for `day` and `lamplight`.
+  palette name and a lighting preset for `day` and `lamplight` (`dawn`, `dusk` and `night` are optional: without them
+  the style keeps its theme's look through the day).
 - The `WorldStyle` methods: `model`, `robot`, `parts`, `color`, `setTheme`, `environment`, `materialise`, `dispose`.
 - A minimum set of keys is not enforced. `model` returns `null` for a key the style does not cover; the registry then
   draws a neutral placeholder (a plain mist crate, `PLACEHOLDER_MODEL`, drawn by the style's own `parts`) and warns

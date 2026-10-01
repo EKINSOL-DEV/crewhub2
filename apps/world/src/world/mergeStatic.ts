@@ -28,7 +28,7 @@ export function mergeStatic(root: THREE.Group): THREE.BufferGeometry[] {
     byMaterial.set(o.material, entry);
     merged.push(o);
   });
-  for (const mesh of merged) mesh.removeFromParent();
+  removeBaked(root, merged);
   const created: THREE.BufferGeometry[] = [];
   for (const [material, { geometries, shadow }] of byMaterial) {
     const geometry = mergeGeometries(geometries, false);
@@ -41,4 +41,23 @@ export function mergeStatic(root: THREE.Group): THREE.BufferGeometry[] {
     created.push(geometry);
   }
   return created;
+}
+
+/**
+ * Takes baked meshes out of the tree, then the groups they leave empty (a style model's wrappers): the renderer walks
+ * and updates every node each frame, and the town has thousands of them. Groups with an animation hook stay.
+ */
+export function removeBaked(root: THREE.Object3D, meshes: readonly THREE.Object3D[]) {
+  const parents = new Set<THREE.Object3D>();
+  for (const mesh of meshes) {
+    if (mesh.parent) parents.add(mesh.parent);
+    mesh.removeFromParent();
+  }
+  for (let node of parents) {
+    while (node !== root && node.children.length === 0 && (node.type === "Group" || node.type === "Object3D") && !node.userData.animate && node.parent) {
+      const parent: THREE.Object3D = node.parent;
+      node.removeFromParent();
+      node = parent;
+    }
+  }
 }

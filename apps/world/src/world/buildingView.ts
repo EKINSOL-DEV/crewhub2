@@ -171,6 +171,8 @@ export class BuildingView {
   detailed = false;
   /** Counts shell rebuilds, so the town knows when to gather the window spots again. */
   shellRevision = 0;
+  /** Bumps whenever something that casts a shadow seen from the town changed: the town then redraws its shadow map. */
+  shadowRevision = 0;
   #shell = new THREE.Group();
   /** The static parts of the shell (walls, flag, emblem, signs), batched per material. */
   #shellStatic = new THREE.Group();
@@ -296,6 +298,7 @@ export class BuildingView {
     if (from.doc !== town.doc || from.definitions !== town.definitions || from.shape !== shape) {
       this.placements = resolveBuildingPlacements(town.doc, this.building.slug, this.template, town.definitions);
       this.#placementsFrom = { doc: town.doc, definitions: town.definitions, shape };
+      this.shadowRevision++;
       // Dressing that steps aside for a placed prop leaves the furniture layer.
       const yielded = [...this.placements.rooms.values()].flatMap((r) => r.yielded).join();
       if (yielded !== this.#yielded) {
@@ -318,6 +321,7 @@ export class BuildingView {
 
   #buildShell() {
     this.shellRevision++;
+    this.shadowRevision++;
     const { style } = this.ctx;
     this.#shell.clear();
     this.#shellStatic.clear();
@@ -495,6 +499,7 @@ export class BuildingView {
   /* The furniture layer: the template's furniture with its blocking dressing, and the dressing that never blocks
      (roomDressing.ts). Static, so it is batched per material; only the entered building draws it. */
   #buildFurniture() {
+    this.shadowRevision++;
     const { style } = this.ctx;
     this.#furniture?.removeFromParent();
     const g = new THREE.Group();
@@ -583,6 +588,7 @@ export class BuildingView {
     for (const room of this.template.rooms) signature += `|${room.layout.props.length}`;
     if (signature === this.#silhouetteSignature) return;
     this.#silhouetteSignature = signature;
+    this.shadowRevision++;
     const { style } = this.ctx;
     const g = this.#silhouette;
     g.clear();
@@ -694,6 +700,7 @@ export class BuildingView {
     const signature = counts.join();
     if (signature === this.#signatures.piles) return;
     this.#signatures.piles = signature;
+    this.shadowRevision++;
     this.#piles.clear();
     for (const geometry of this.#pilesMerged) geometry.dispose();
     STATUS_ROOMS.forEach((kind, i) => {
@@ -895,6 +902,8 @@ export class BuildingView {
       this.#truckDrive = { t: 0 };
     }
     if (!this.#truckDrive) return;
+    // The truck casts a shadow as it drives off and comes back.
+    this.shadowRevision++;
     this.#truckDrive.t += seconds / TRUCK_S;
     const t = this.#truckDrive.t;
     if (reduced) {
