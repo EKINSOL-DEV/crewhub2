@@ -1,6 +1,75 @@
 /* Greenhouse shaders, moved from apps/world/src/world/shaders.ts. Colours are passed in (from style.json). */
 import * as THREE from "three";
 
+/* ── Cloud shadows ──────────────────────────────────────────────────────────────────────────────────────────────
+   Up to four soft ellipses that dim the key light (the first directional light: it casts the shadows, so three sorts it
+   first) on every kit material, so a passing cloud darkens roofs, walls and people as well as the grass. Each
+   fragment looks along the light to the ground (a roof's cloud shadow lies where the sun puts it). Shared uniforms,
+   set by the environment; all zero (the default, and any material without them) means no clouds. */
+const MAX_CLOUDS = 4;
+export const CLOUDS = {
+  /** Per cloud: centre x, z, then its local x axis over its half-length. */
+  a: { value: Array.from({ length: MAX_CLOUDS }, () => new THREE.Vector4()) },
+  /** Per cloud: its local z axis over its half-width, then how much it dims the key light. */
+  b: { value: Array.from({ length: MAX_CLOUDS }, () => new THREE.Vector4()) },
+  /** The light's slope: x and z over y of the direction towards it. */
+  slope: { value: new THREE.Vector2() },
+};
+/** How much a cloud's middle dims the key light. */
+const CLOUD_DIM = 0.7;
+
+/** Sets the cloud shadows from [x, z, halfLength, halfWidth, turn] per cloud (fewer clears the rest). */
+export function setClouds(clouds: ArrayLike<number>) {
+  for (let i = 0; i < MAX_CLOUDS; i++) {
+    const o = i * 5;
+    if (o + 4 >= clouds.length) {
+      CLOUDS.a.value[i]!.set(0, 0, 0, 0);
+      CLOUDS.b.value[i]!.set(0, 0, 0, 0);
+      continue;
+    }
+    const x = clouds[o]!, z = clouds[o + 1]!, rx = Math.max(0.01, clouds[o + 2]!), rz = Math.max(0.01, clouds[o + 3]!), turn = clouds[o + 4]!;
+    const c = Math.cos(turn), s = Math.sin(turn);
+    CLOUDS.a.value[i]!.set(x, z, c / rx, -s / rx);
+    CLOUDS.b.value[i]!.set(s / rz, c / rz, CLOUD_DIM, 0);
+  }
+}
+
+const CLOUD_PARS = `uniform vec4 uCloudA[${MAX_CLOUDS}];
+uniform vec4 uCloudB[${MAX_CLOUDS}];
+uniform vec2 uCloudSlope;
+float greenhouseCloudShade() {
+  // The fragment's world position from its view position (the view matrix is a rotation and a move).
+  vec3 w = (-vViewPosition - viewMatrix[3].xyz) * mat3(viewMatrix);
+  vec2 p = w.xz - w.y * uCloudSlope;
+  float shade = 1.0;
+  for (int i = 0; i < ${MAX_CLOUDS}; i++) {
+    vec2 d = p - uCloudA[i].xy;
+    float r = length(vec2(dot(d, uCloudA[i].zw), dot(d, uCloudB[i].xy)));
+    float body = 1.0 - smoothstep(0.15, 1.0, r);
+    shade *= 1.0 - uCloudB[i].z * body * body * (3.0 - 2.0 * body);
+  }
+  return shade;
+}
+`;
+
+/** Adds the cloud shadows to a lit material's shader (call it from `onBeforeCompile`, with any other changes). */
+export function cloudShadows(shader: THREE.WebGLProgramParametersWithUniforms) {
+  if (!shader.fragmentShader.includes("#include <lights_fragment_begin>")) return;
+  shader.uniforms.uCloudA = CLOUDS.a;
+  shader.uniforms.uCloudB = CLOUDS.b;
+  shader.uniforms.uCloudSlope = CLOUDS.slope;
+  const begin = THREE.ShaderChunk.lights_fragment_begin.replace(
+    "getDirectionalLightInfo( directionalLight, directLight );",
+    `getDirectionalLightInfo( directionalLight, directLight );
+		#if UNROLLED_LOOP_INDEX == 0
+		directLight.color *= greenhouseCloudShade();
+		#endif`,
+  );
+  shader.fragmentShader = shader.fragmentShader
+    .replace("#include <lights_pars_begin>", `#include <lights_pars_begin>\n${CLOUD_PARS}`)
+    .replace("#include <lights_fragment_begin>", begin);
+}
+
 /** Floor patterns: the studio's cream cells, warm wood planks, light tiles, smooth concrete. */
 export type FloorPattern = "cells" | "wood" | "tile" | "concrete";
 
@@ -51,6 +120,7 @@ export function floorShader(
 ): THREE.MeshStandardMaterial {
   material.roughness = 0.93;
   material.onBeforeCompile = (shader) => {
+    cloudShadows(shader);
     shader.uniforms.uShafts = shafts;
     shader.vertexShader =
       "varying vec2 vFloor;\n" + shader.vertexShader.replace("#include <begin_vertex>", "#include <begin_vertex>\nvFloor = uv;");
@@ -143,6 +213,7 @@ export function pavingShader(material: THREE.MeshStandardMaterial, stone: [numbe
   // The program differs per stone size; the default cache key (the callback's source) would not tell them apart.
   material.customProgramCacheKey = () => `town-paving:${stone.join(",")}:${joint}`;
   material.onBeforeCompile = (shader) => {
+    cloudShadows(shader);
     worldXZ(shader);
     shader.fragmentShader = shader.fragmentShader.replace(
       "#include <color_fragment>",
@@ -165,14 +236,21 @@ export function pavingShader(material: THREE.MeshStandardMaterial, stone: [numbe
 /** Grass with a soft mottle in world space, so wide lawns are never one flat colour. */
 /** The evening (0 by day, 1 in lamplight): the grass mottles more and warms in patches (set by `townLight`). */
 export const GRASS_NIGHT = { value: 0 };
+/**
+ * 0 by day and in lamplight, up to 1 in the light theme's dusk and dawn (set by `townLight`): a warm low sun on green
+ * reads olive and khaki, so the lawns keep their colour, a little richer and towards a golden green.
+ */
+export const GRASS_GOLDEN = { value: 0 };
 
 export function grassShader(material: THREE.MeshStandardMaterial, amount: number): THREE.MeshStandardMaterial {
   material.roughness = 1;
   material.customProgramCacheKey = () => `town-grass:${amount}`;
   material.onBeforeCompile = (shader) => {
+    cloudShadows(shader);
     worldXZ(shader);
     shader.uniforms.uGrassNight = GRASS_NIGHT;
-    shader.fragmentShader = shader.fragmentShader.replace("varying vec2 vTownXZ;", "varying vec2 vTownXZ;\nuniform float uGrassNight;").replace(
+    shader.uniforms.uGrassGolden = GRASS_GOLDEN;
+    shader.fragmentShader = shader.fragmentShader.replace("varying vec2 vTownXZ;", "varying vec2 vTownXZ;\nuniform float uGrassNight;\nuniform float uGrassGolden;").replace(
       "#include <color_fragment>",
       `#include <color_fragment>
       float mottle = townNoise(vTownXZ * 0.18) * 0.6 + townNoise(vTownXZ * 0.9) * 0.3 + townHash(floor(vTownXZ * 9.0)) * 0.1;
@@ -181,6 +259,10 @@ export function grassShader(material: THREE.MeshStandardMaterial, amount: number
       // Evening: soft warm patches (dry grass, clover) so the dark lawns are not one flat green.
       float warm = smoothstep(0.42, 0.75, townNoise(vTownXZ * 0.11 + 7.0)) * uGrassNight;
       diffuseColor.rgb *= mix(vec3(1.0), vec3(1.24, 1.08, 0.8), warm);
+      // Golden hour: more saturation and a fresh green that the warm sun turns golden, never grey-yellow.
+      float grassLuma = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+      diffuseColor.rgb = max(mix(vec3(grassLuma), diffuseColor.rgb, 1.0 + 0.12 * uGrassGolden), 0.0);
+      diffuseColor.rgb *= mix(vec3(1.0), vec3(1.0, 1.0, 0.9), uGrassGolden);
     `,
     );
   };
@@ -192,6 +274,7 @@ export function waterShader(material: THREE.MeshStandardMaterial): THREE.MeshSta
   material.roughness = 0.25;
   material.customProgramCacheKey = () => "town-water";
   material.onBeforeCompile = (shader) => {
+    cloudShadows(shader);
     worldXZ(shader);
     shader.fragmentShader = shader.fragmentShader.replace(
       "#include <color_fragment>",

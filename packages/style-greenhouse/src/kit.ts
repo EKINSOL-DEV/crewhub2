@@ -1,9 +1,9 @@
 /* The Greenhouse kit: shared geometry and materials by swatch name, re-coloured in place on a theme change so every
    model built from them follows the lamplight variant. Colours live only in `style.json`. */
 import * as THREE from "three";
-import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import type { GraphicsQuality, LightingPreset, PaletteName, StyleTheme } from "@crewhub/world-style";
-import { decalMaterial } from "./shaders.ts";
+import { roundedBoxGeometry } from "./roundedBox.ts";
+import { cloudShadows, decalMaterial } from "./shaders.ts";
 
 export interface GreenhouseManifestData {
   palette: Record<PaletteName, string>;
@@ -79,6 +79,11 @@ export class Kit {
     let entry = this.#materials.get(key);
     if (!entry) {
       const material = new THREE.MeshStandardMaterial({ color: this.hex(name), roughness: glow ? 1 : 0.7, metalness: 0 });
+      // Passing clouds dim the key light on it (a pattern shader that replaces this hook adds them again). The hook
+      // only changes the lighting, so it is named in `userData.lightHook`: a renderer may batch the material and give
+      // its copy the same hook (apps/world robotCrowd.ts).
+      material.onBeforeCompile = cloudShadows;
+      material.userData.lightHook = cloudShadows;
       const strength = typeof options.glow === "number" ? options.glow : 0.35;
       if (glow) {
         material.emissive.set(this.hex(glow));
@@ -177,9 +182,11 @@ export class Kit {
   }
   box(w: number, h: number, d: number, color: Swatch, radius = 0.04) {
     // A bevel of 3 cm or less reads the same with one segment; walls and trims are mostly that, at a third the triangles.
-    const segments = radius <= 0.03 ? 1 : 2;
+    // The bevel a thin box gets is a third of its thinnest side, whatever it asks for (a desk top, a shelf board).
+    const bevel = Math.min(radius, w / 3, h / 3, d / 3);
+    const segments = bevel <= 0.03 ? 1 : 2;
     return this.mesh(
-      this.geometry(`box:${w},${h},${d},${radius}`, () => new RoundedBoxGeometry(w, h, d, segments, Math.min(radius, w / 3, h / 3, d / 3))),
+      this.geometry(`box:${w},${h},${d},${radius}`, () => roundedBoxGeometry(w, h, d, segments, bevel)),
       this.material(color),
     );
   }

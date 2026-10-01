@@ -19,7 +19,7 @@ import type { StyledPlot } from "./styleRegistry";
 import type { Ambient } from "./movement";
 import { CIVIC_LOT, civicCenter, homeRects, PLOT_SIZE, plotCenter, TOWN_CAPACITY, townBounds, type Bounds } from "./townLayout";
 import { GRASS_Y, landmarks as townLandmarks, LAWN_Y, slugSeed, townDressing } from "./townDressing";
-import { instanceStatic } from "./instanceStatic";
+import { InstanceCuller, instanceStatic } from "./instanceStatic";
 import { mergeStatic } from "./mergeStatic";
 import { plotDoor, plotObstacles } from "./navigation";
 import { onPlayIntent } from "./intentPlayer";
@@ -195,6 +195,8 @@ export class TownScene {
     instanced: [],
     merged: [],
   };
+  /** Draws only the dressing near the view (a building close up draws its corner of the town, not all of it). */
+  #culler: InstanceCuller | null = null;
   #lifeInside = false;
   /** The view the entered building's shadow was last fitted to. */
   #shadowFit: { zoom: number; x: number; z: number } | null = null;
@@ -212,6 +214,8 @@ export class TownScene {
   #rested = true;
   /** Startup marks for the measurement script: the first drawn frame, the first with the town dressed. */
   #marked = { first: false, dressed: false };
+  /** The shaders compile in parallel (`compileAsync`) before the first frame, rather than one by one inside it. */
+  #warm: "cold" | "warming" | "warm" = "cold";
   #hits = new THREE.Group();
   #ring: THREE.Object3D;
   /** A soft glow round the focused or hovered plot, under the focus ring; that building lifts a little (not under
@@ -293,7 +297,9 @@ export class TownScene {
     this.#glow.visible = false;
     this.scene.add(this.#glow);
     this.buildGround();
-    this.#life = new AmbientLife(this.townStyle);
+    // Cloud shadows go to the light rig, which dims the key light under them on everything (when the style can).
+    const environment = this.#environment;
+    this.#life = new AmbientLife(this.townStyle, environment.setCloudShadows ? (clouds) => environment.setCloudShadows!(clouds) : null);
     this.scene.add(this.#hits, this.#ring, this.#civic, this.#life.group, this.#crowd.group);
     this.#drift();
     this.#driftTimer = setInterval(this.#drift, DRIFT_INTERVAL_MS);
@@ -484,6 +490,7 @@ export class TownScene {
     const instanced = instanceStatic(group);
     const merged = mergeStatic(group);
     this.scene.add(group);
+    this.#culler = new InstanceCuller(instanced);
     this.#dressing = { signature, group, instanced, merged };
   }
 
@@ -492,6 +499,7 @@ export class TownScene {
     if (!group) return;
     group.removeFromParent();
     for (const mesh of instanced) mesh.dispose();
+    this.#culler = null;
     for (const geometry of merged) geometry.dispose();
     this.#dressing = { signature: "", group: null, instanced: [], merged: [] };
   }
@@ -950,6 +958,19 @@ export class TownScene {
   animate = (now: number) => {
     this.#raf = 0;
     if (this.#disposed || document.hidden) return;
+    if (this.#warm !== "warm") {
+      if (this.#warm === "cold") {
+        this.#warm = "warming";
+        this.renderer
+          .compileAsync(this.scene, this.camera)
+          .catch(() => undefined)
+          .finally(() => {
+            this.#warm = "warm";
+            this.invalidate();
+          });
+      }
+      return;
+    }
     if (!this.view.measure && this.#last && now - this.#last < FRAME_SKIP_MS) {
       this.#raf = requestAnimationFrame(this.animate);
       return;
@@ -995,6 +1016,8 @@ export class TownScene {
     this.placeLabels();
     // The town view's shadow casters rarely change (robots seen from the town cast none, the postman neither), so its
     // shadow map is drawn only when something changed; inside a building it follows every frame.
+    this.camera.updateMatrixWorld();
+    if (this.#culler?.update(this.camera)) this.#shadowDirty = true;
     const shadows = this.renderer.shadowMap;
     shadows.autoUpdate = this.view.entered !== null;
     if (!shadows.autoUpdate) {

@@ -3,7 +3,8 @@
    Forward is +x, up is +y. Glows are additive, so a renderer fades an instance by darkening its instance colour.
    - town.bird: a small slate V seen from below and the side; scaling it in y flaps its wings.
    - town.butterfly: two pale wings tilted up (instance colours tint them); scaling it in z folds them.
-   - town.firefly: a soft warm halo, standing up to face the usual view. town.mote: a pale speck of dust in a sunbeam.
+   - town.firefly: a soft warm halo round a bright core, a billboard that always faces the camera (its shader turns
+     it; the instance's x scale sizes it). town.mote: a pale speck of dust in a sunbeam.
    - town.window-glow: a soft warm glow facing +z, set just in front of a lit window pane.
    - town.ripple: a soft pale ring on water, flat; it grows and fades.
    - town.steam: a soft cream puff, rising from a chimney or a cup.
@@ -105,10 +106,41 @@ export function butterfly(kit: Kit): THREE.Mesh {
 }
 
 export function firefly(kit: Kit): THREE.Mesh {
-  // A soft halo around a bright point, lying flat would hide it: it stands up, facing the usual view (+x +z).
   return lone(
-    kit.geometry("life:halo", () => new THREE.PlaneGeometry(0.5, 0.5).rotateY(Math.PI / 4)),
-    softGlow(kit, "lantern-light"),
+    kit.geometry("life:firefly", () => new THREE.PlaneGeometry(0.85, 0.85)),
+    material(
+      kit,
+      "firefly",
+      () =>
+        new THREE.ShaderMaterial({
+          uniforms: { uColor: { value: new THREE.Color(kit.hex("lantern-light")) }, uCore: { value: new THREE.Color(kit.hex("cream")) } },
+          transparent: true,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+          // The quad is laid out in view space round the instance's centre, so it faces the camera from any side.
+          vertexShader: `varying vec2 vUv; varying vec3 vTint;
+          void main() { vUv = uv; vTint = vec3(1.0); vec4 centre = vec4(0.0, 0.0, 0.0, 1.0); float size = 1.0;
+          #ifdef USE_INSTANCING
+          centre = instanceMatrix * centre; size = length(instanceMatrix[0].xyz);
+          #endif
+          #ifdef USE_INSTANCING_COLOR
+          vTint = instanceColor;
+          #endif
+          vec4 view = modelViewMatrix * centre;
+          view.xy += position.xy * size;
+          gl_Position = projectionMatrix * view; }`,
+          fragmentShader: `uniform vec3 uColor; uniform vec3 uCore; varying vec2 vUv; varying vec3 vTint;
+          void main() { float d = length(vUv - 0.5) * 2.0;
+          if (d > 1.0) discard;
+          float halo = pow(1.0 - smoothstep(0.0, 1.0, d), 2.2);
+          float core = 1.0 - smoothstep(0.04, 0.16, d);
+          float glow = vTint.r;
+          gl_FragColor = vec4((uColor * halo * 0.9 + uCore * core) * glow, 1.0);
+          #include <tonemapping_fragment>
+          #include <colorspace_fragment>
+        }`,
+        }),
+    ),
   );
 }
 

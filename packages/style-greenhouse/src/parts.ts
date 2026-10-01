@@ -8,22 +8,35 @@ import type { PaletteName } from "@crewhub/world-style";
 import type { Kit } from "./kit.ts";
 
 const DEG = Math.PI / 180;
+/* Small parts at full detail cost most of a room's triangles (a calendar's day squares, a plant's leaves) and read the
+   same with less: a box whose bevel is a centimetre or less is a plain box, a small sphere or cylinder has fewer sides. */
+const PLAIN_BEVEL = 0.012;
+const SMALL_SPHERE = 0.05;
+const SMALL_CYLINDER = 0.04;
 
 function partMesh(kit: Kit, part: PropPart, color: string): THREE.Mesh {
   const [a, b, c] = part.size;
   let mesh: THREE.Mesh;
   switch (part.shape) {
-    case "box":
-      mesh = kit.box(a, b, c, color, part.radius ?? PROP_LIMITS.cornerRadiusDefault);
+    case "box": {
+      const radius = part.radius ?? PROP_LIMITS.cornerRadiusDefault;
+      mesh =
+        Math.min(radius, a / 3, b / 3, c / 3) <= PLAIN_BEVEL
+          ? kit.mesh(kit.geometry(`prop-plain-box:${a},${b},${c}`, () => new THREE.BoxGeometry(a, b, c)), kit.material(color))
+          : kit.box(a, b, c, color, radius);
       break;
+    }
     case "cylinder":
-      mesh = kit.cylinder(a, c, b, color);
+      mesh =
+        Math.max(a, c) <= SMALL_CYLINDER
+          ? kit.mesh(kit.geometry(`prop-small-cylinder:${a},${c},${b}`, () => new THREE.CylinderGeometry(a, c, b, 10)), kit.material(color))
+          : kit.cylinder(a, c, b, color);
       break;
     case "cone":
       mesh = kit.cylinder(0, a, b, color);
       break;
     case "sphere":
-      mesh = kit.sphere(1, color);
+      mesh = Math.max(a, b, c) <= SMALL_SPHERE ? kit.mesh(kit.geometry("prop-small-sphere", () => new THREE.SphereGeometry(1, 8, 6)), kit.material(color)) : kit.sphere(1, color);
       mesh.scale.set(a, b, c);
       break;
     case "torus":
