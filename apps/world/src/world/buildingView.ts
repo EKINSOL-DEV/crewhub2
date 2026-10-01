@@ -180,6 +180,9 @@ export class BuildingView {
   };
   #merged: THREE.BufferGeometry[] = [];
   #pilesMerged: THREE.BufferGeometry[] = [];
+  /** Pendant cords, shown only with a room in focus. */
+  #cords = new THREE.Group();
+  #cordsMerged: THREE.BufferGeometry[] = [];
   /** The entered building's personal desk things (roomDressing.ts `deskItems`). */
   #personal = new THREE.Group();
   #personalMerged: THREE.BufferGeometry[] = [];
@@ -263,6 +266,7 @@ export class BuildingView {
       this.#buildFurniture();
     }
     if (this.#furniture) this.#furniture.visible = this.detailed;
+    this.#cords.visible = this.detailed && this.#focusRoom !== null;
     this.#syncAgents();
     this.#syncPiles();
     this.#piles.visible = !this.detailed;
@@ -493,10 +497,18 @@ export class BuildingView {
         g.add(model);
       }
     const wallDecor = { north: new THREE.Group(), west: new THREE.Group() };
+    // Pendant cords and ceiling roses read as posts from the building camera: they draw only with a room in focus.
+    const cords = new THREE.Group();
     for (const item of roomDecor(this.template, { definitions: interiorDefinitions, seed: dressingSeed(this.building.slug), zones: dressingZones(this.template), loading: LOADING })) {
       const side = this.#mountedOn(item);
-      (side ? wallDecor[side] : g).add(this.#decor(item));
+      (item.key === "decor.pendant-cord" ? cords : side ? wallDecor[side] : g).add(this.#decor(item));
     }
+    this.#cords.removeFromParent();
+    for (const geometry of this.#cordsMerged) geometry.dispose();
+    this.#cords = cords;
+    this.#cords.visible = this.detailed && this.#focusRoom !== null;
+    this.group.add(cords);
+    this.#cordsMerged = mergeStatic(cords);
     g.visible = this.detailed;
     this.#furniture = g;
     this.group.add(g);
@@ -760,6 +772,7 @@ export class BuildingView {
   setFocus(kind: RoomKind | null) {
     if (kind === this.#focusRoom && this.#focus) return;
     this.#focusRoom = kind;
+    this.#cords.visible = this.detailed && kind !== null;
     this.#applyFocus();
   }
   #applyFocus() {
@@ -913,7 +926,7 @@ export class BuildingView {
     this.#robots.clear();
     this.#objects.dispose();
     this.#props.dispose();
-    for (const geometry of [...this.#merged, ...this.#furnitureMerged, ...this.#pilesMerged, ...this.#silhouetteMerged, ...this.#personalMerged]) geometry.dispose();
+    for (const geometry of [...this.#merged, ...this.#furnitureMerged, ...this.#pilesMerged, ...this.#silhouetteMerged, ...this.#personalMerged, ...this.#cordsMerged]) geometry.dispose();
     this.group.removeFromParent();
   }
 }

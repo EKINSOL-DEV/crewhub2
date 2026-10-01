@@ -327,7 +327,11 @@ function plan(kind: RoomKind, facts: RoomFacts, planner: Planner, defs: Definiti
       place({ def: "plant", at: "free", anchor: { x: entrance.x - 1.5, z: entrance.z - 0.5 } });
       place({ def: "plant", at: "free", anchor: { x: entrance.x + 2.5, z: entrance.z - 1.5 } });
       const coffee = zoneCentre(facts, "coffee");
-      if (coffee) place({ def: "armchair", at: "free", anchor: { x: coffee.x - 1, z: coffee.z + 0.5 } });
+      if (coffee) {
+        place({ def: "armchair", at: "free", anchor: { x: coffee.x - 1, z: coffee.z + 0.5 } });
+        // The bigger lobby's second coffee table, with its chairs, in the coffee corner.
+        place({ def: "round-table", at: "free", anchor: { x: coffee.x + 0.5, z: coffee.z + 1 } });
+      }
       plants(1, "waiting");
       break;
     }
@@ -495,6 +499,11 @@ export function roomDecor(template: BuildingTemplate, options: Omit<DressOptions
     const rand = random(roomSeed(options.seed, room.kind) ^ 0x2545f491);
     const at = (key: ModelKey, x: number, z: number, rotation = 0, extra: Partial<DecorItem> = {}) =>
       out.push({ key, room: room.kind, x: room.origin.x + x, z: room.origin.z + z, rotation, on: "floor", ...extra });
+    // A pendant is its shade and, drawn only up close, its cord and ceiling rose.
+    const pendant = (x: number, z: number) => {
+      at("decor.pendant-lamp", x, z);
+      at("decor.pendant-cord", x, z);
+    };
     const props = room.layout.props;
     const blockedBy = new Map<string, string>();
     for (const p of props) for (const c of propCells(p, defs)) blockedBy.set(cellKey(c), p.definitionId);
@@ -504,10 +513,14 @@ export function roomDecor(template: BuildingTemplate, options: Omit<DressOptions
       const def = defs[p.definitionId];
       if (!def) continue;
       const pose = poseOf(p, defs);
-      if (def.tags.includes("desk") || p.definitionId === "coffee-table" || p.definitionId === "round-table") at("decor.pendant-lamp", pose.x, pose.z);
-      if (p.definitionId === "round-table") at("decor.rug-grand", pose.x, pose.z, 0);
+      if (def.tags.includes("desk") || p.definitionId === "coffee-table" || p.definitionId === "round-table") pendant(pose.x, pose.z);
+      if (p.definitionId === "round-table") {
+        // The first table gets the grand rug; a second one a smaller round rug.
+        const first = props.find((q) => q.definitionId === "round-table") === p;
+        at(first ? "decor.rug-grand" : "decor.rug-round", pose.x, pose.z, 0, first ? {} : { scale: { x: 0.85, y: 1, z: 0.85 } });
+      }
       if (p.definitionId === "meeting-table" || p.definitionId === "planning-table")
-        for (const dx of def.footprint.width >= 4 ? [-1, 1] : [0]) at("decor.pendant-lamp", pose.x + dx, pose.z);
+        for (const dx of def.footprint.width >= 4 ? [-1, 1] : [0]) pendant(pose.x + dx, pose.z);
     }
 
     // Chairs all around the meeting table, tucked in.
