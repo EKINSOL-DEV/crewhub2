@@ -523,9 +523,17 @@
   background: var(--warm-soft);
   color: var(--text);
 }
+/* A ticket waiting on a person: a squared tag with a speech icon on the waiting colour, so it never reads as a robot's
+   round name pill. */
 .name-tag {
   transform: translate(-50%, -100%);
   font-weight: var(--weight-semibold);
+  border-radius: var(--radius-xs);
+  background: var(--status-waiting-human-soft);
+  border-color: var(--status-waiting-human);
+}
+.name-tag .icon {
+  color: var(--status-waiting-human);
 }
 .signal-tag {
   width: max-content;

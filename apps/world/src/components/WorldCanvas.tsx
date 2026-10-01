@@ -251,6 +251,7 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
               <ObjectPlate object={o} building={b} model={model} />
             ) : (
               <span className="name-tag" title={`${o.key} waits on ${o.nameTag}`}>
+                <MessageSquare className="icon icon-sm" aria-hidden="true" />
                 {o.nameTag}
               </span>
             )}
