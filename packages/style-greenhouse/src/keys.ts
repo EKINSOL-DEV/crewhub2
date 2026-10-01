@@ -109,4 +109,14 @@ export const LIGHT_POOLS: Partial<Record<ModelKey, LightPool | LightPool[]>> = {
   ],
   // Mounted on a door post at floor level; the pool lies in front, just above the top step.
   "building.wall-lamp": { radius: 1.4, y: -0.1, z: 0.7 },
+  // The truck's headlights throw one warm pool on the road ahead of the cab (its front faces +x).
+  truck: { radius: 0.75, y: 0.012, x: 1.35 },
+};
+
+/**
+ * Models that move and carry their own soft blob contact shadow (every quality setting): its half-size and soft edge
+ * in the model's own frame, at floor level.
+ */
+export const BLOB_SHADOWS: Partial<Record<ModelKey, { halfX: number; halfZ: number; soft: number }>> = {
+  truck: { halfX: 0.7, halfZ: 0.32, soft: 0.22 },
 };
