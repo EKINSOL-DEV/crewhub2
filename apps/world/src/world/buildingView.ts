@@ -131,6 +131,7 @@ export class BuildingView {
     west: { tall: new THREE.Group(), low: new THREE.Group() },
   };
   #merged: THREE.BufferGeometry[] = [];
+  #pilesMerged: THREE.BufferGeometry[] = [];
   #furnitureMerged: THREE.BufferGeometry[] = [];
   #furniture: THREE.Group | null = null;
   #piles = new THREE.Group();
@@ -329,6 +330,8 @@ export class BuildingView {
     } else this.#truck = null;
     this.anchors.set(`truck:${b.slug}`, this.world(TRUCK_SPOT.x, TRUCK_SPOT.z, 1 - FLOOR_RISE));
     this.#merged = mergeStatic(this.#shellStatic);
+    // The truck moves only as a whole: its parts merge per material under its own root (perf).
+    if (this.#truck) this.#merged.push(...mergeStatic(this.#truck as THREE.Group));
     for (const [side, walls] of Object.entries(this.#backWalls) as ["north" | "west", { tall: THREE.Group; low: THREE.Group }][])
       for (const tall of [true, false]) {
         const group = tall ? walls.tall : walls.low;
@@ -483,6 +486,7 @@ export class BuildingView {
     if (signature === this.#signatures.piles) return;
     this.#signatures.piles = signature;
     this.#piles.clear();
+    for (const geometry of this.#pilesMerged) geometry.dispose();
     STATUS_ROOMS.forEach((kind, i) => {
       const count = counts[i]!;
       const room = roomOf(this.template, kind);
@@ -494,6 +498,8 @@ export class BuildingView {
       pile.scale.set(1.2, Math.min(4, 0.35 + count / 4), 1.2);
       this.#piles.add(pile);
     });
+    // Static until the counts change: one merged mesh per material instead of every pallet part (perf).
+    this.#pilesMerged = mergeStatic(this.#piles);
   }
 
   /* ── Signals (entered building) ─────────────────────────────────────────── */
@@ -682,7 +688,7 @@ export class BuildingView {
     this.#robots.clear();
     this.#objects.dispose();
     this.#props.dispose();
-    for (const geometry of [...this.#merged, ...this.#furnitureMerged]) geometry.dispose();
+    for (const geometry of [...this.#merged, ...this.#furnitureMerged, ...this.#pilesMerged]) geometry.dispose();
     this.group.removeFromParent();
   }
 }

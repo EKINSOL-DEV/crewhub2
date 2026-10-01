@@ -495,6 +495,8 @@ export function fountainWater(g: THREE.Group, kit: Kit, base = 0) {
     drop.castShadow = false;
     return drop;
   });
+  // The moving parts are live: static batching (a renderer's mergeStatic) leaves them as they are.
+  for (const live of [curtain, ...rings, ...drops]) live.userData.live = true;
   let t = 0;
   const step = (seconds: number) => {
     t += seconds;
