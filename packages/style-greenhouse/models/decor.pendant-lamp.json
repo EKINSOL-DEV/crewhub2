@@ -2,7 +2,7 @@
   "format": "crewhub-prop/1",
   "id": "builtin:greenhouse-decor-pendant-lamp",
   "name": "Pendant lamp",
-  "description": "A sage pendant shade hanging on a long cord from a brass ceiling canopy, a warm glowing disc underneath.",
+  "description": "A sage pendant shade with a brass collar and a warm glowing disc underneath; its cord and ceiling rose are decor.pendant-cord.",
   "category": "light",
   "tags": [
     "greenhouse",
@@ -16,48 +16,6 @@
   "blocksMovement": false,
   "approaches": [],
   "parts": [
-    {
-      "shape": "cylinder",
-      "size": [
-        0.07,
-        0.025,
-        0.07
-      ],
-      "position": [
-        0,
-        1.94,
-        0
-      ],
-      "material": "brass"
-    },
-    {
-      "shape": "cylinder",
-      "size": [
-        0.035,
-        0.03,
-        0.06
-      ],
-      "position": [
-        0,
-        1.915,
-        0
-      ],
-      "material": "brass"
-    },
-    {
-      "shape": "cylinder",
-      "size": [
-        0.012,
-        0.66,
-        0.012
-      ],
-      "position": [
-        0,
-        1.59,
-        0
-      ],
-      "material": "slate"
-    },
     {
       "shape": "cylinder",
       "size": [
