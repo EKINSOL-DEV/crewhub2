@@ -60,13 +60,17 @@ class GreenhouseStyle implements WorldStyle {
   }
 
   /** A part for the landmarks: a data prop or a code piece, by key. */
-  readonly #piece = (key: string): THREE.Object3D => this.#data(key as ModelKey, {}) ?? this.#code(key as ModelKey, {}) ?? new THREE.Group();
+  readonly #piece = (key: string): THREE.Object3D => {
+    const model = dataModels.get(key);
+    return model ? partsModel(model, this.#kit) : (this.#code(key as ModelKey, {}) ?? new THREE.Group());
+  };
 
   #data(key: ModelKey, options: ModelOptions): THREE.Object3D | null {
     const model = (options.variant && dataModels.get(`${key}.${options.variant}`)) || dataModels.get(key);
     if (!model) return null;
     const group = partsModel(model, this.#kit, options.accent ?? null);
     if (key === "drone") this.#rotors(group);
+    if (key === "civic.fountain") civic.fountainWater(group, this.#kit);
     return group;
   }
 

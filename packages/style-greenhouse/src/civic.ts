@@ -464,19 +464,19 @@ export function square(kit: Kit, piece: Piece): THREE.Group {
       ] as const)
         placed(g, lamp(kit), x, 0.12, z, 0, 1.05);
     },
-    (g) => fountainWater(g, kit),
+    (g) => fountainWater(g, kit, 0.14),
   );
 }
 
-/** The fountain's water: a basin and a bowl surface, a curtain falling from the bowl, rings rippling out and a bubbling
- *  jet on top. Lives on the square, so it animates; renderers skip it under reduced motion. */
-function fountainWater(g: THREE.Group, kit: Kit) {
-  const base = 0.14;
+/** The fountain's water over the `civic.fountain` prop standing at height `base`: a basin and a bowl surface, a curtain
+ *  falling from the bowl, rings rippling out and a bubbling jet on top. It animates through `userData.animate` on `g`;
+ *  renderers skip that under reduced motion, so the water then stands still. */
+export function fountainWater(g: THREE.Group, kit: Kit, base = 0) {
   const water = kit.material("water", { glow: 0.12, transparent: 0.82 });
   const sheet = kit.material("water", { glow: 0.2, transparent: 0.38 });
   const surface = (r: number, y: number) => put(g, kit.mesh(kit.geometry(`civic:water:${r}`, () => new THREE.CircleGeometry(r, 40).rotateX(-Math.PI / 2)), water), 0, y, 0);
-  surface(1.46, base + 0.485);
-  surface(0.58, base + 1.575);
+  surface(1.46, base + 0.555);
+  surface(0.58, base + 1.605);
   const curtain = put(
     g,
     kit.mesh(kit.geometry("civic:water-curtain", () => new THREE.CylinderGeometry(0.67, 0.86, 1.0, 32, 1, true)), sheet),
@@ -488,7 +488,7 @@ function fountainWater(g: THREE.Group, kit: Kit) {
   const rings = [0, 1, 2].map(() => {
     const ring = kit.mesh(kit.geometry("civic:ripple", () => new THREE.TorusGeometry(1, 0.025, 4, 48).rotateX(Math.PI / 2)), kit.material("cream", { transparent: 0.6 }));
     ring.castShadow = false;
-    return put(g, ring, 0, base + 0.495, 0);
+    return put(g, ring, 0, base + 0.565, 0);
   });
   const drops = [0, 1, 2].map((i) => {
     const drop = put(g, kit.mesh(kit.geometry("civic:drop", () => new THREE.SphereGeometry(0.07, 10, 8)), water), 0, base + 2.1 + i * 0.12, 0);
