@@ -29,7 +29,17 @@ the spec requires that kit, so `main` was merged into `feat/world-demo` first (`
 | Prop-builder skill | `skills/prop-builder/` (SKILL.md, format reference with a drift test, eight examples), `npm run prop:validate`, the eval below. | `c3b3087`, `40595af`, `999ec9e` |
 | Docs | AGENTS.md, VISION, ARCHITECTURE, ROADMAP, docs/README, root README, ASTRA_HANDOFF (rewritten as a current handoff), status lines on TOWN_PLAN, ADR 0001, ADR 0003, ROOM_REVIEW; DESIGN_SYSTEM (the chat copy rule); GRID_ENGINE (rooms, doors, numbers); WORLD_STYLES. | `c2d9949` and the phase merges |
 
-FINISH-PLACEHOLDER
+### Joining the phases
+
+Phases 4 and 6 were built in parallel, so a final task joined them (`14b991b`): accepted director intents now walk
+through the navigation (only in the entered building; recorded only under reduced motion or in the town view; a
+fact-driven move cancels a director walk), the director checks prop tags against real approach-cell reachability
+instead of a demo table, there is one Ambient setting (inside the AI-presence block), the Escape chain runs editor,
+Settings, build mode, text view, selection, room, building, and the phone layout was fixed (playback bar inside 375
+px, home view framed on the used plots, compact labels inside a building, 40 px touch targets on coarse pointers).
+
+A last polish task (`task/polish`) hid phone name and alert tags outside the focused room, brought
+`docs/COST_POLICY.md` and `docs/VISUAL_DIRECTION.md` up to date, and removed a dead export.
 
 ## What was not done
 
@@ -43,10 +53,97 @@ FINISH-PLACEHOLDER
   running.
 - Persisted building modules (role rooms follow the current agents and can shrink, which TOWN_PLAN does not want).
 - Measurements on the plan's reference machine and a screen-reader pass.
-- `docs/COST_POLICY.md` and `docs/VISUAL_DIRECTION.md` still mention the bridge and Herdr in places; ADR 0005 still
-  says "proposed".
+- ADR 0005 still says "proposed": accepting it is the user's decision.
+- Inside a focused room on a phone, two tags can still overlap (tag stacking is not built).
 
-VERIFY-PLACEHOLDER
+## Verification
+
+### `npm run check` on the final commit
+
+```
+> npm run typecheck && npm test && npm run check:docs && npm run check:design && npm run check:copy && npm run build
+tsc --noEmit                                   no errors
+node --test packages/*/test/*.test.ts apps/world/test/*.test.ts scripts/test/*.test.ts
+                                               # tests 233  # pass 233  # fail 0
+check:docs                                     Local file links checked in 48 Markdown documents.
+check:design                                   design: hex guard ok (75 files); dark token parity ok (66 vars)
+check:copy                                     bubbles copy: ok (5 files identical to crewhub-loops)
+vite build                                     built (the existing chunk-size warning for three.js remains)
+exit 0
+```
+
+The tests cover what the spec asks for: the projection (idempotent apply, out-of-order guard, thin `ticket.updated`
+coalesced into one refetch), the reducer (status to room and object look, desks, proxies, freshness, debounce,
+celebration only on a person's Done), the drone flights, heap A* (identical paths to the old scan on 150 seeded grids),
+the portal graph and navigation (every room of 12 buildings reachable, doors single-occupancy, no actor waits more
+than 5 s in the corridor stress test), the wait budget and step-aside, demo timeline determinism (same seed,
+byte-identical envelopes; seek equals straight play), the loops-client validators against fixtures, the demo chat API,
+the town document (invalid import leaves the previous revision), prop requests, the prop format and its drift test,
+the style boundary, and the no-model-call guard.
+
+### No model call, no network call
+
+- `scripts/scan-model-calls.ts` runs in `npm test`: "No model or network calls in 172 files" (AI SDK imports, model
+  endpoints, `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`, and AI SDKs in every `package.json`).
+- A separate grep of every tracked `.ts`, `.tsx`, `.mjs` and `.js` file for `fetch(`, `XMLHttpRequest`,
+  `new WebSocket`, `EventSource(`, `sendBeacon`, `@anthropic-ai`, `openai`, `api.anthropic.com` and `/v1/messages`
+  finds nothing outside the scanner and its tests.
+- Every browser run logged requests: none left `http://127.0.0.1:<port>`.
+
+### Browser pass of the final state
+
+On `npx vite --port 5175` (port 5173 untouched), headless Chromium on the Apple M2 Max GPU (ANGLE Metal), scripted:
+
+| Check | Result |
+| --- | --- |
+| Town, Demo chip, text view with the demo line and every building | pass |
+| Enter a building by keyboard, room focus announced ("Lobby: quiet."), zoom to a room, Escape back out | pass |
+| Speed control (pause, 1x, 4x, 16x) and scrub: stall (CR-24 "quiet 23 min, nudged 1x"), attention beacon, release published, stale snapshot ("stale since …", greyed robots) | pass |
+| Agents walking inside a building (up to 3 at once); the postman's rounds in the town view | pass (postman: walks run) |
+| The ticket drone: CR-18 flies from the review room to Dispatch; the text view says "in transit" during the flight only | pass |
+| Chat dock: open the head, send a message, "Queued", then "(demo reply) …" and "Answered" | pass |
+| Build mode: palette, ghost, place, undo; the prop editor; a prop ticket materialising in the lobby; the error crate | pass (buildui and Dev Lead runs) |
+| Settings: Style Greenhouse, director off by default, model calls 0, roles, rules; export the town (`crewhub-town-r2.json`) | pass |
+| "Where is …?" answers in the text view | pass |
+| Reduced motion: no walking at 16x; drone flights become fades | pass (fades: interiors run) |
+| 375 px light and dark: no horizontal scroll, no overlapping chrome, 40 px hit areas for signs on touch | pass |
+| A tab opened hidden draws as soon as it becomes visible (simulated `visibilitychange`) | pass |
+| No request outside the dev server's origin | pass |
+
+Not done: a pass in a real, visible desktop browser window. The Claude-in-Chrome tab opened in a background window,
+where the world correctly pauses rendering (`document.hidden`), so animation feel was judged from GPU-backed headless
+runs and frame sequences, not by eye in a live window.
+
+### Stress fixture (12 buildings, 100 agents)
+
+`?stress=1` (dev builds only) runs a loops-shaped stress source through the same seam: 12 projects, 100 agents (12
+leads, 4 agents in two buildings, 84 workers) plus the postman, a steady stream of moves, progress lines and
+deliveries. Measured by the Dev Lead on an Apple M2 Max, Chromium headless with ANGLE Metal, 1440 x 900, device pixel
+ratio 1, playback 4x, 300 frames per row:
+
+| View | Frame mean | p95 | max | CPU work mean / p95 | Engine tick mean / max | Draw calls |
+| --- | --- | --- | --- | --- | --- | --- |
+| Town | 8.4 ms | 9.9 ms | 18.0 ms | 4.0 / 4.7 ms | 0.11 / 0.60 ms | 2,514 |
+| Inside one building | 9.1 ms | 16.6 ms | 18.3 ms | 2.9 / 3.6 ms | 0.11 / 0.20 ms | 1,336 |
+
+Both stay well inside the 33 ms frame budget. The engine alone (`node packages/world-engine/bench/stress.ts`, 84
+rooms, 95 doors, 100 agents, 1,800 ticks) measured a p95 tick of 0.08 to 0.10 ms. Under SwiftShader (CPU
+rasterising) the same scenes take 270 to 410 ms a frame; that says little about real hardware. The plan's
+"reference machine" was not available; these are development-machine numbers.
+
+### Screenshots
+
+In the coordinator's scratchpad
+(`/private/tmp/claude-501/-Users-ekinsol-nicky-Documents-GitHub-crewhub2/bf28f894-c1d8-45e4-9db6-ee5366197e34/scratchpad/`):
+
+- `shots-demo/p1-*`, `p3-*`, `final-std-*`: town, building and text view per phase, desktop and 375 px, light and dark.
+- `shots-demo/final-*`: the final browser pass (town, building, room, stall, attention, release, stale, live walks,
+  chat, build mode, settings, where, reduced motion, 375 px, dark).
+- `shots-demo/drone-*`: the drone carrying CR-18; `shots-demo/stress-{town,inside}.png`;
+  `shots-demo/props-{eval,demo}-{light,dark}.png`.
+- Developers' shots: `shots-bubbles/`, `shots-buildui/`, `shots-director/`, and the interiors, walks and finish shots
+  listed in their reports (`report-*.md` in the same scratchpad).
+
 
 ## The prop-builder eval
 
@@ -94,6 +191,7 @@ ran Opus 5.5 at effort high.
 | buildui | Opus 5.5 | phase 5 UI and the prop-request flow |
 | walks | Opus 5.5 | phase 4 in the world |
 | finish | Opus 5.5 | joins between phases 4 and 6, phone layout |
+| polish | Sonnet 5.5 | phone tags, two stale documents, a dead export |
 
 ## Challenges with docs/integrators
 
