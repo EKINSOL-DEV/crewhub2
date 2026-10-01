@@ -62,7 +62,13 @@ export type ModelKey =
   | "quiet-clock"
   | "error-crate"
   | "sparkle"
-  | "focus-ring";
+  | "focus-ring"
+  /** Town dressing (art pass): trees, hedges, flower beds, lanterns, benches, signposts, bike racks, ponds, bridges. */
+  | `town.${string}`
+  /** Civic pieces (art pass): the post office, the town hall, the square, the café, the bus stop. */
+  | `civic.${string}`
+  /** Room dressing that never blocks movement (art pass): rugs, wall art, clocks, pendant lamps, windows, mood walls. */
+  | `decor.${string}`;
 
 export interface ModelOptions {
   /** Size in world units for stretchable pieces (walls, floors, pallets, straps). */
