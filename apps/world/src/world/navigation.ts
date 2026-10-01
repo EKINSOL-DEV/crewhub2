@@ -21,7 +21,7 @@ import {
 import type { AgentKey, Building, RoomKind } from "@crewhub/world-model";
 import { BUILDING_CELL, buildingTemplate, DEPTH, ENTRANCE, interiorDefinitions, LOADING, MAX_WIDTH, PLOT_MARGIN, roomOf, type BuildingTemplate } from "./buildingTemplate.ts";
 import { assignDesks, type DeskSlot } from "./interiorLayout.ts";
-import { civicCenter, CIVIC_LOT, CIVIC_SIZE, PLOT_SIZE, plotCenter, TOWN_CAPACITY, townBounds, type Bounds } from "./townLayout.ts";
+import { civicCenter, CIVIC_LOT, PLOT_SIZE, plotCenter, TOWN_CAPACITY, townBounds, type Bounds } from "./townLayout.ts";
 import { COBBLE_Y, LAWN_Y, townPaths } from "./townDressing.ts";
 
 export const TOWN_ROOM = "town";
@@ -115,19 +115,17 @@ export function plotObstacles(index: number): Bounds[] {
 }
 
 const POST = civicCenter("post-office"),
-  HALL = civicCenter("town-hall"),
-  SQUARE = civicCenter("square");
+  HALL = civicCenter("town-hall");
 /** The postman's place on the post office's forecourt. */
 export const POST_OFFICE_CELL = townCellAt(POST.x - 0.5, POST.z + 1);
 /** Where the postman leaves a letter for a recipient who works in no building: the town hall's forecourt. */
 export const TOWN_HALL_CELL = townCellAt(HALL.x + 3, HALL.z + 2.2);
 
-/** Height of the ground under a walker: a plot's or a civic lot's lawn path, else the street's paving. */
+/** Height of the ground under a walker: the paving on a plot's or a civic lot's lawn, else the street's paving. */
 export function groundAt(x: number, z: number): number {
-  const LAWN = LAWN_Y + 0.02,
+  const LAWN = LAWN_Y + 0.04,
     STREET = COBBLE_Y;
-  for (const c of [POST, HALL]) if (Math.abs(x - c.x) <= CIVIC_LOT / 2 && Math.abs(z - c.z) <= CIVIC_LOT / 2) return STREET;
-  if (Math.abs(x - SQUARE.x) <= CIVIC_SIZE.square.width / 2 && Math.abs(z - SQUARE.z) <= CIVIC_SIZE.square.depth / 2) return STREET;
+  for (const c of [POST, HALL]) if (Math.abs(x - c.x) <= CIVIC_LOT / 2 && Math.abs(z - c.z) <= CIVIC_LOT / 2) return LAWN;
   for (let i = 0; i < TOWN_CAPACITY; i++) {
     const p = plotCenter(i);
     if (Math.abs(x - p.x) <= PLOT_SIZE / 2 && Math.abs(z - p.z) <= PLOT_SIZE / 2) return LAWN;

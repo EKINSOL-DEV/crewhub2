@@ -17,9 +17,9 @@ import { civicCenter, CIVIC_LOT, CIVIC_SIZE, PITCH, PLOT_SIZE, plotCenter, STREE
 export const LANE = 3.2;
 /** Width of a garden path from a front door to the lane. */
 export const GARDEN_PATH = 1.6;
-/** Top heights: the street grass, a lane's cobbles, a lawn (plots and civic lots). */
+/** Top heights: the street grass, the paving on it, a lawn (plots and civic lots). Paving is 0.04 thick. */
 export const GRASS_Y = 0.02;
-export const COBBLE_Y = 0.05;
+export const COBBLE_Y = 0.06;
 export const LAWN_Y = 0.17;
 
 /** One piece of town dressing: a style model key and where it stands. */
@@ -189,14 +189,19 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
   add("ground", (bounds.minX + bounds.maxX) / 2, 0, (bounds.minZ + bounds.maxZ) / 2, {
     size: { width: bounds.maxX - bounds.minX, height: 0.5, depth: bounds.maxZ - bounds.minZ },
   });
-  for (const r of laneRects()) paving(add, r, "cobble", COBBLE_Y);
-  for (const r of civicPaving()) paving(add, r, "flag", COBBLE_Y + 0.004);
+  for (const r of laneRects()) paving(add, r, "cobble", GRASS_Y);
+  const lots = (["post-office", "town-hall"] as const).map((place) => rect(civicCenter(place).x, civicCenter(place).z, CIVIC_LOT, CIVIC_LOT));
+  for (const r of civicPaving()) {
+    const onLot = lots.some((l) => r.minX >= l.minX && r.maxX <= l.maxX && r.minZ >= l.minZ && r.maxZ <= l.maxZ);
+    // Paths stop at the lane's edge; the cobbles carry on underneath for the walkers.
+    paving(add, { ...r, maxZ: Math.min(r.maxZ, CIVIC_LANE - LANE / 2) }, "flag", onLot ? LAWN_Y : GRASS_Y + 0.002);
+  }
 
   /* The plots: lawns with hedges and front gardens, or meadows. */
   for (let i = 0; i < TOWN_CAPACITY; i++) {
     const c = plotCenter(i);
     const plot = used.get(i);
-    add("plot", c.x, 0, c.z, { size: { width: PLOT_SIZE, height: 0.16, depth: PLOT_SIZE }, variant: plot ? undefined : "meadow" });
+    add("plot", c.x, 0, c.z, { size: { width: PLOT_SIZE, height: 0.16, depth: PLOT_SIZE }, ...(plot ? {} : { variant: "meadow" }) });
     if (plot) garden(add, plot, tree);
     else meadow(add, i, tree);
   }
@@ -208,22 +213,23 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
     const side = place === "post-office" ? -1 : 1;
     add("town.flower-bed", c.x - 5.1, LAWN_Y, c.z + 1.8, { size: { width: 0.9, height: 0.2, depth: 3.2 }, seed: 3 + side });
     add("town.flower-bed", c.x + 5.1, LAWN_Y, c.z + 1.8, { size: { width: 0.9, height: 0.2, depth: 3.2 }, seed: 5 + side });
-    add("town.bike-rack", c.x + side * 3.4, COBBLE_Y, c.z + 4.6, { rotation: Math.PI / 2 });
-    add("town.lantern", c.x - 1.9, COBBLE_Y, c.z + CIVIC_LOT / 2 + 0.2, { seed: 1 });
-    add("town.lantern", c.x + 1.9, COBBLE_Y, c.z + CIVIC_LOT / 2 + 0.2, { seed: 2 });
+    add("town.bike-rack", c.x + side * 3.4, LAWN_Y + 0.04, c.z + 4.6, { rotation: Math.PI / 2 });
+    add("town.lantern", c.x - 1.9, GRASS_Y, c.z + CIVIC_LOT / 2 + 0.6, { seed: 1 });
+    add("town.lantern", c.x + 1.9, GRASS_Y, c.z + CIVIC_LOT / 2 + 0.6, { seed: 2 });
   }
   const post = civicCenter("post-office");
-  add("cart", post.x + 3.6, COBBLE_Y, post.z + 1.6, { rotation: -0.4, scale: 1.4 });
-  add("crate", post.x - 3.7, COBBLE_Y, post.z + 1.1, { scale: 1.3, rotation: 0.2 });
-  add("crate", post.x - 3.2, COBBLE_Y, post.z + 1.9, { scale: 1.1, rotation: -0.3 });
-  add("crate", post.x - 3.5, COBBLE_Y + 0.42, post.z + 1.4, { scale: 0.9, rotation: 0.6 });
-  add("town.mailbox", post.x + 2.2, COBBLE_Y, post.z + 5.4, { rotation: Math.PI });
+  const court = LAWN_Y + 0.04;
+  add("cart", post.x + 3.6, court, post.z + 1.6, { rotation: -0.4, scale: 1.4 });
+  add("crate", post.x - 3.7, court, post.z + 1.1, { scale: 1.3, rotation: 0.2 });
+  add("crate", post.x - 3.2, court, post.z + 1.9, { scale: 1.1, rotation: -0.3 });
+  add("crate", post.x - 3.5, court + 0.42, post.z + 1.4, { scale: 0.9, rotation: 0.6 });
+  add("town.mailbox", post.x + 2.2, court, post.z + 5.4, { rotation: Math.PI });
   const cafe = civicCenter("cafe");
   add("town.bike-rack", cafe.x + 2.6, GRASS_Y, cafe.z + 3.6, { rotation: Math.PI / 2 });
   add("crate", cafe.x - 3.3, GRASS_Y, cafe.z - 0.8, { scale: 1.2, rotation: 0.3 });
   add("crate", cafe.x - 3.1, GRASS_Y, cafe.z + 0.1, { scale: 1, rotation: -0.2 });
   const square = civicCenter("square");
-  for (const dx of [-1, 1]) add("town.lantern", square.x + dx * 2.6, COBBLE_Y, square.z + CIVIC_SIZE.square.depth / 2 + 0.8, { seed: dx });
+  for (const dx of [-1, 1]) add("town.lantern", square.x + dx * 2.6, GRASS_Y, square.z + CIVIC_SIZE.square.depth / 2 + 0.8, { seed: dx });
   park(add, tree);
   orchard(add);
 
@@ -232,11 +238,11 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
 
   /* The green belt round the town, and grass and wild flowers wherever there is room. */
   belt(add, tree, free);
-  for (let i = 0; i < 260; i++) {
+  for (let i = 0; i < 420; i++) {
     const x = bounds.minX + 1 + noise(i, 41) * (bounds.maxX - bounds.minX - 2),
       z = bounds.minZ + 1 + noise(i, 43) * (bounds.maxZ - bounds.minZ - 2);
     if (!free(x, z, 0.5)) continue;
-    add(noise(i, 47) < 0.55 ? "town.grass" : "town.flowers", x, GRASS_Y, z, { rotation: noise(i, 53) * 6.28, scale: 0.8 + noise(i, 59) * 0.5, seed: i });
+    add(noise(i, 47) < 0.55 ? "town.grass" : noise(i, 61) < 0.5 ? "town.flowers" : "town.wildflowers", x, GRASS_Y, z, { rotation: noise(i, 53) * 6.28, scale: 1.6 + noise(i, 59) * 0.8, seed: i });
   }
   return out;
 }
@@ -244,10 +250,11 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
 type Add = (key: string, x: number, y: number, z: number, extra?: Partial<Dressing>) => void;
 type Tree = (x: number, z: number, y: number, seed: number, scale?: number) => void;
 
+/** Paving over a rectangle, standing on the ground at `y`. */
 function paving(add: Add, r: Bounds, variant: "cobble" | "flag", y: number) {
   add("town.paving", (r.minX + r.maxX) / 2, y, (r.minZ + r.maxZ) / 2, {
     variant,
-    size: { width: r.maxX - r.minX, height: 0.06, depth: r.maxZ - r.minZ },
+    size: { width: r.maxX - r.minX, height: 0.04, depth: r.maxZ - r.minZ },
   });
 }
 
@@ -259,8 +266,8 @@ function garden(add: Add, plot: DressedPlot, tree: Tree) {
   const keepOut = [...plot.obstacles, path];
   const clear = (r: Bounds, pad = 0.3) => !keepOut.some((o) => overlaps(o, r, pad));
   // The flagstone path across the lawn and the verge.
-  paving(add, span(path.minX, path.maxX, path.minZ, c.z + half), "flag", LAWN_Y + 0.01);
-  paving(add, span(path.minX, path.maxX, c.z + half, laneSouthOf(c.z) - LANE / 2 + 0.05), "flag", COBBLE_Y);
+  paving(add, span(path.minX, path.maxX, path.minZ, c.z + half), "flag", LAWN_Y);
+  paving(add, span(path.minX, path.maxX, c.z + half, laneSouthOf(c.z) - LANE / 2), "flag", GRASS_Y + 0.002);
   // Hedges along the rim in short runs, so a run that would cross the path or the truck is simply left out.
   const RUN = 3.4,
     INSET = 0.45;
@@ -300,7 +307,7 @@ function garden(add: Add, plot: DressedPlot, tree: Tree) {
   ];
   corners.forEach(([x, z], i) => {
     if (!clear(rect(x, z, 1.6, 1.6), 0.2)) return;
-    if (i < 3) tree(x, z, LAWN_Y, plot.index * 13 + i, 0.8);
+    if (i < 3) tree(x, z, LAWN_Y, plot.index * 13 + i, 1.05);
     else add("town.bush", x, LAWN_Y, z, { seed: plot.index + i });
   });
 }
@@ -316,13 +323,13 @@ function meadow(add: Add, index: number, tree: Tree) {
       z = c.z + (noise(index, i, 3) * 2 - 1) * half;
     if (spots.some((s) => Math.hypot(s.x - x, s.z - z) < 4.5)) continue;
     spots.push({ x, z });
-    tree(x, z, LAWN_Y, index * 17 + i);
+    tree(x, z, LAWN_Y, index * 17 + i, 1.45);
   }
-  for (let i = 0; i < 16; i++) {
+  for (let i = 0; i < 26; i++) {
     const x = c.x + (noise(index, i, 5) * 2 - 1) * (half + 1),
       z = c.z + (noise(index, i, 6) * 2 - 1) * (half + 1);
     if (spots.some((s) => Math.hypot(s.x - x, s.z - z) < 1.4)) continue;
-    add(i % 3 ? "town.flowers" : "town.grass", x, LAWN_Y, z, { rotation: noise(index, i, 7) * 6.28, seed: index * 5 + i, scale: 0.9 + noise(index, i) * 0.6 });
+    add(i % 3 ? (i % 2 ? "town.flowers" : "town.wildflowers") : "town.grass", x, LAWN_Y, z, { rotation: noise(index, i, 7) * 6.28, seed: index * 5 + i, scale: 1.6 + noise(index, i) * 0.8 });
   }
   if (index % 2 === 0) add("town.bench", c.x + 2, LAWN_Y, c.z + 3, { rotation: noise(index, 9) * 0.6 - 0.3 });
 }
@@ -349,7 +356,7 @@ function park(add: Add, tree: Tree) {
     [parkX0 + 1.8, z1 - 1],
     [parkX1 - 1.4, z1 - 1.2],
   ];
-  ring.forEach(([x, z], i) => tree(x, z, GRASS_Y, 500 + i));
+  ring.forEach(([x, z], i) => tree(x, z, GRASS_Y, 500 + i, 1.3));
   for (const [x, z, seed] of [
     [pond.minX + 0.8, pond.maxZ + 0.9, 1],
     [pond.maxX - 1.2, pond.maxZ + 0.9, 2],
@@ -417,7 +424,7 @@ function streets(add: Add, free: (x: number, z: number, pad: number) => boolean,
       if (crossing(x, tz) || !free(x, tz, 0.8)) continue;
       const seed = row * 70 + Math.round(x);
       if (noise(seed, 1) < 0.22) add("town.bench", x, GRASS_Y, tz, { rotation: row % 2 ? 0 : Math.PI });
-      else tree(x, tz, GRASS_Y, seed, 0.7);
+      else tree(x, tz, GRASS_Y, seed, 1);
     }
   });
   xs.forEach((x, column) => {
@@ -428,7 +435,7 @@ function streets(add: Add, free: (x: number, z: number, pad: number) => boolean,
     for (let z = zs[0]! + 9.5; z < zs[zs.length - 1]! - 3; z += TREE) {
       const tx = x + (column % 2 ? verge : -verge);
       if (crossing(tx, z) || !free(tx, z, 0.8)) continue;
-      tree(tx, z, GRASS_Y, column * 90 + Math.round(z), 0.7);
+      tree(tx, z, GRASS_Y, column * 90 + Math.round(z), 1);
     }
   });
   // Signposts on the corner of a few crossings, pointing along the streets.
@@ -459,18 +466,18 @@ function belt(add: Add, tree: Tree, free: (x: number, z: number, pad: number) =>
   let seed = 900;
   const edge = (x0: number, z0: number, x1: number, z1: number) => {
     const length = Math.hypot(x1 - x0, z1 - z0);
-    const count = Math.floor(length / 2.9);
+    const count = Math.floor(length / 2.4);
     for (let i = 0; i <= count; i++) {
       seed++;
       const t = i / count;
       const nx = -(z1 - z0) / length,
         nz = (x1 - x0) / length;
-      const depth = 1.4 + noise(seed, 2) * 3.4;
+      const depth = 1.6 + noise(seed, 2) * 3.6;
       const x = x0 + (x1 - x0) * t + nx * depth + (noise(seed, 3) - 0.5) * 0.8,
         z = z0 + (z1 - z0) * t + nz * depth + (noise(seed, 4) - 0.5) * 0.8;
       if (!free(x, z, 1)) continue;
       if (noise(seed, 5) < 0.2) add("town.bush", x, GRASS_Y, z, { seed, scale: 1 + noise(seed, 6) * 0.4 });
-      else tree(x, z, GRASS_Y, seed);
+      else tree(x, z, GRASS_Y, seed, 1.5);
     }
   };
   // Clockwise, so the inward normal points into the town.

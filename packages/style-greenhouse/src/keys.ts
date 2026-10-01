@@ -42,6 +42,13 @@ export const CODE_KEYS: readonly ModelKey[] = [
   "ticket.speech",
   "sparkle",
   "focus-ring",
+  "town.paving",
+  "town.hedge",
+  "town.flower-bed",
+  "town.pond",
+  "town.bridge",
+  "town.fence",
+  "town.lantern",
 ];
 
 /** Top surface heights (m) where objects are set down, for models whose bounding box is taller than the top. */
