@@ -8,20 +8,22 @@ interaction. Choose a strong art direction and carry it through geometry,
 materials, lighting, motion, interface, typography, and sound if later added.
 
 Astra has creative freedom. The old world and its assets are not design constraints.
-The first implementation is The Greenhouse: an ivory and sage miniature studio,
-warm timber, glass architecture, botanical details, and three soft robots in sage,
-apricot, and lavender.
+The first implemented world style is Greenhouse: an ivory and sage miniature studio,
+warm timber, glass architecture, botanical details, and soft robots in sage,
+apricot, and lavender. It is a style, one swappable package behind a seam, not the
+product; see [WORLD_STYLES.md](WORLD_STYLES.md). The world itself is a town of
+buildings, one per crewhub-loops project, with rooms by role.
 The orthographic isometric home keeps spatial relationships stable; free orbit,
 focus, and automatic wall fading provide visibility when needed.
 
-## First room
+## Scenes and interface
 
 2D UI uses the crewhub-loops design system: Archivo and the Ekinsol palette, in
 light and dark. [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) records it. The botanical
 scene keeps its own materials and lighting, independent of the UI palette.
 
-- One complete room with three distinguishable characters and meaningful places
-  for them to work, wait, and present a result.
+- Every room has distinguishable characters and meaningful places for them to
+  work, wait, and present a result.
 - A clear overview camera and a satisfying focus/return interaction. Motion must
   remain interruptible, avoid occlusion, and keep the selected character visible.
 - A restrained interface that appears when useful. Put activity, selection, and
@@ -41,7 +43,8 @@ scene keeps its own materials and lighting, independent of the UI palette.
 
 These are examples, not prescribed character designs. Do not invent a concrete
 tool call, progress percentage, or generated result from a generic status event.
-Herdr `idle` does not automatically mean a task succeeded.
+A crewhub-loops lane that reads `idle` does not automatically mean a task
+succeeded.
 
 ## Feel and accessibility
 

@@ -7,15 +7,25 @@ signals, session discovery, status mapping, and ordinary tool labels must use
 deterministic application logic. Demo mode requires no account, key, network
 service, or running harness.
 
-Opening the app, entering a room, selecting a character, reconnecting the bridge,
+Opening the app, entering a room, selecting a character, reconnecting a source,
 or leaving a tab open must never start an agent or request inference.
 
-Existing sessions still incur their normal provider usage when they perform work.
-The bridge does not make that work free and must not duplicate it. Reuse approved
-runtime authentication without extracting browser credentials or claiming an
-unavailable subscription entitlement.
+Implemented: the world makes zero model calls. crewhub-loops is its only source
+of facts, and in demo mode the scripted in-browser source stands in for it. The
+scripted director (deterministic code, no model) stands in for the optional
+director and plays its intents only inside an entered building. `npm test` fails
+on an AI SDK import or a model endpoint.
+
+Existing sessions still incur their normal provider usage when they perform work
+in crewhub-loops. The world does not make that work free and must not duplicate
+it. It never holds provider credentials and never claims an unavailable
+subscription entitlement.
 
 ## Optional AI features, later
+
+Planned, not built: an optional director on Haiku or another very cheap model
+(see [LOOPS_INTEGRATION_PLAN.md](LOOPS_INTEGRATION_PLAN.md) section 7.3). It is
+off by default and capped by a request and token budget, with a kill switch.
 
 Summaries and conversational flavor are optional and disabled until configured.
 Any such feature must define its trigger, model choice, cache key, maximum input,
@@ -39,7 +49,7 @@ Local graphics can consume battery even when inference costs are zero.
 
 ## Acceptance
 
-The prototype and bridge observation path must operate with all model access
-disabled. Document any new network endpoint, background loop, model trigger, and
+The world, in demo mode and when it later reads crewhub-loops through the host,
+must operate with all model access disabled. Document any new network endpoint, background loop, model trigger, and
 its cancellation path when adding functionality. A visual feature is not an
 exception to this policy.

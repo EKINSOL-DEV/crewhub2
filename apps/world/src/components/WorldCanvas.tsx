@@ -172,7 +172,8 @@ export default function WorldCanvas(props: Props) {
 }
 
 /* Below 600 px a building's labels crowd: one room sign (the focused room's, in one word) and captions only for the
-   agent under the pointer or selected. Everything hidden here stays in the text view. */
+   agent under the pointer or selected, name tags and alert tags only for the focused room or the selected object or
+   agent. Everything hidden here stays in the text view. */
 const COMPACT = "(max-width: 599px)";
 function useCompact(): boolean {
   return useSyncExternalStore(
@@ -194,6 +195,9 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
   const nameOf = (slug: string | null) => model.buildings.find((x) => x.slug === slug)?.name ?? slug ?? "another building";
   const shown = props.selection.hover ?? props.selection.selected;
   const published = b.releases.filter((r) => r.publishedAt);
+  // On a phone, name tags and alert tags show only for the focused room or the selected object or agent.
+  const focusedRoom = props.room ?? props.zoomed;
+  const picked = (target: Pick) => same(props.selection.hover, target) || same(props.selection.selected, target);
   return (
     <>
       {template.rooms.map((r) => {
@@ -219,11 +223,12 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
           model={model}
           workingIn={nameOf(a.workingIn)}
           plate={same(shown, { kind: "agent", key: a.key })}
-          caption={!compact || same(props.selection.hover, { kind: "agent", key: a.key }) || same(props.selection.selected, { kind: "agent", key: a.key })}
+          caption={!compact || picked({ kind: "agent", key: a.key })}
+          alerts={!compact || a.room === focusedRoom || picked({ kind: "agent", key: a.key })}
         />
       ))}
       {b.objects.map((o) =>
-        o.nameTag || same(shown, { kind: "object", ticketId: o.ticketId }) ? (
+        (o.nameTag && (!compact || o.room === focusedRoom)) || same(shown, { kind: "object", ticketId: o.ticketId }) ? (
           <div key={o.ticketId} className="anchor" data-anchor={`o:${b.slug}:${o.ticketId}`}>
             {same(shown, { kind: "object", ticketId: o.ticketId }) ? (
               <ObjectPlate object={o} building={b} model={model} />
@@ -354,6 +359,7 @@ function AgentLabel({
   workingIn,
   plate,
   caption: showCaption,
+  alerts: showAlerts,
 }: {
   slug: string;
   agent: AgentPlacement;
@@ -363,12 +369,15 @@ function AgentLabel({
   plate: boolean;
   /** False on a phone unless the agent is under the pointer or selected; the text view keeps every caption. */
   caption: boolean;
+  /** False on a phone outside the focused room; the text view keeps every alert. */
+  alerts: boolean;
 }) {
   const tag = statusTag(agent, model, workingIn);
   const caption = agent.presence === "real" && showCaption ? agent.caption : null;
   const Icon = caption ? CAPTION_ICON[caption.kind] : null;
   const fading = caption?.until != null && caption.until - model.now < 4000;
-  if (!tag && !caption && !plate && agent.alerts.length === 0) return null;
+  const alerts = showAlerts ? agent.alerts : [];
+  if (!tag && !caption && !plate && alerts.length === 0) return null;
   return (
     <div className="anchor" data-anchor={`a:${slug}:${agent.key}`}>
       <span className="agent-stack">
@@ -411,7 +420,7 @@ function AgentLabel({
                 {tag}
               </span>
             )}
-            {agent.alerts.length > 0 && <span className="status-tag alert">{agent.alerts.join("; ")}</span>}
+            {alerts.length > 0 && <span className="status-tag alert">{alerts.join("; ")}</span>}
           </>
         )}
       </span>
