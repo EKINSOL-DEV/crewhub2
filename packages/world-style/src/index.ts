@@ -86,8 +86,14 @@ export interface RobotHandle {
   setAlert(alert: boolean): void;
   /** Idle bob, typing, walking; `seconds` since the last call. Callers skip it under reduced motion. */
   update(seconds: number): void;
+  /**
+   * "far": the robot is seen from the town, a few pixels tall. The style may drop small parts and shadows to save
+   * triangles; the silhouette, colours and postures stay. "near" (the default) is the full robot.
+   */
+  setDetail(detail: RobotDetail): void;
   dispose(): void;
 }
+export type RobotDetail = "near" | "far";
 
 export interface EnvironmentHandle {
   setTheme(theme: StyleTheme): void;

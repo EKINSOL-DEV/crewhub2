@@ -27,7 +27,7 @@ export function chatInvalidations(e: Pick<Envelope, "type" | "payload">): QueryK
 export function useChatEvents(): void {
   const qc = useQueryClient();
   useEffect(() => {
-    return worldRuntime().source.start((message) => {
+    return worldRuntime().chat.start((message) => {
       if (message.type === "snapshot") {
         for (const key of [["dm-threads"], ["dm-messages"], ["dm-summary"], ["agents"]]) void qc.invalidateQueries({ queryKey: key });
       } else if (message.type === "event") {

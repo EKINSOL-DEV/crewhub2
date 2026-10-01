@@ -3,7 +3,10 @@
    `BuildingView` with the style its plot resolves to. It reads the WorldModel contract only. Labels are HTML
    (WorldCanvas); this class positions every `[data-anchor]` element over its anchor each drawn frame. It renders on
    demand: a frame is drawn after a change, a camera move, during a tween, or while something inside the entered
-   building moves. */
+   building moves, or while someone walks.
+
+   Walks: `walks.ts` owns the navigation world and the simulation. It gets every new model and view, ticks once per
+   drawn frame at the playback speed (paused with it, and with the tab), and each robot follows its walker. */
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { AgentPlacement, RoomKind, WorldModel } from "@crewhub/world-model";
@@ -11,7 +14,9 @@ import type { EnvironmentHandle, ResolvedStyle, RobotHandle, RobotPosture, Style
 import { BuildingView, type Pick } from "./buildingView";
 import { styleRegistry } from "./style";
 import type { StyledPlot } from "./styleRegistry";
+import type { Ambient } from "./movement";
 import { civicCenter, PLOT_SIZE, plotCenter, TOWN_CAPACITY, townBounds, usedBounds, type Bounds } from "./townLayout";
+import { Walks } from "./walks";
 
 export interface TownView {
   model: WorldModel;
@@ -28,7 +33,31 @@ export interface TownView {
   theme: StyleTheme;
   /** Source time now (ms): drone flights run on it, so they follow the playback speed. */
   now: () => number;
+  /** Playback speed (0 is paused): walks run at it, capped by the engine's tick. */
+  speed: () => number;
+  /** Idle variety: off, reduced or on (Settings). */
+  ambient: Ambient;
+  /** The dev stress fixture: draw every frame, uncapped, and keep frame statistics. */
+  measure: boolean;
 }
+
+/** Frame statistics over the last `FRAME_WINDOW` drawn frames (the dev overlay). */
+export interface FrameStats {
+  frames: number;
+  /** Time between drawn frames, ms. */
+  mean: number;
+  p95: number;
+  max: number;
+  /** CPU work per frame (walks, buildings, render submission), ms. */
+  workMean: number;
+  workP95: number;
+  /** The walk engine's tick, ms. */
+  tickMean: number;
+  tickMax: number;
+  calls: number;
+  walkers: number;
+}
+const FRAME_WINDOW = 300;
 export type CameraAction = "home" | "rotate-left" | "rotate-right" | "zoom-in" | "zoom-out";
 interface Callbacks {
   enter: (slug: string) => void;
@@ -52,12 +81,15 @@ export class TownScene {
   readonly controls: OrbitControls;
   readonly callbacks: Callbacks;
   readonly townStyle: ResolvedStyle;
+  readonly walks = new Walks();
   view: TownView;
   #environment: EnvironmentHandle;
   #buildings = new Map<string, BuildingView>();
   #civic = new THREE.Group();
   #civicSignature = "";
   #civicRobots: RobotHandle[] = [];
+  #postman: { handle: RobotHandle; key: string; letters: THREE.Object3D[] } | null = null;
+  #frames = { interval: new Float32Array(FRAME_WINDOW), work: new Float32Array(FRAME_WINDOW), tick: new Float32Array(FRAME_WINDOW), count: 0, at: 0 };
   #hits = new THREE.Group();
   #ring: THREE.Object3D;
   #anchors = new Map<string, THREE.Vector3>();
@@ -128,6 +160,8 @@ export class TownScene {
     canvas.addEventListener("pointerleave", this.pointerLeave);
     canvas.addEventListener("webglcontextlost", this.contextLost);
     document.addEventListener("visibilitychange", this.visibility);
+    // Dev builds: the scene on `window.__town` for headless checks of walks and frame statistics.
+    if (import.meta.env.DEV) (window as unknown as { __town?: TownScene }).__town = this;
     if (new URLSearchParams(window.location.search).has("perf")) this.#perf = { frames: 0, total: 0, worst: 0, since: performance.now() };
     this.#resize = new ResizeObserver(this.resize);
     this.#resize.observe(host);
@@ -192,6 +226,7 @@ export class TownScene {
 
   sync() {
     const model = this.view.model;
+    this.walks.update(model, { entered: this.view.entered, reducedMotion: this.view.reducedMotion, ambient: this.view.ambient });
     const seen = new Set<string>();
     this.#anchors.clear();
     model.buildings.slice(0, TOWN_CAPACITY).forEach((b, index) => {
@@ -202,7 +237,12 @@ export class TownScene {
         view?.dispose();
         const style = styleRegistry.styleFor(PLOTS[b.slug]);
         if (style !== this.townStyle) style.setTheme(this.view.theme);
-        view = new BuildingView(b, c, PLOT_SIZE, { style, now: () => this.view.now(), reducedMotion: () => this.view.reducedMotion });
+        view = new BuildingView(b, c, PLOT_SIZE, {
+          style,
+          now: () => this.view.now(),
+          reducedMotion: () => this.view.reducedMotion,
+          walker: (key) => this.walks.walker(key),
+        });
         view.group.userData.index = index;
         this.#buildings.set(b.slug, view);
         this.scene.add(view.group);
@@ -234,6 +274,7 @@ export class TownScene {
     this.#civicSignature = signature;
     for (const robot of this.#civicRobots) robot.dispose();
     this.#civicRobots = [];
+    this.#postman = null;
     const place = (agent: AgentPlacement, x: number, z: number, role: "router" | "worker" | "analyst" | "design" | "lead") => {
       const robot = this.townStyle.robot({ key: agent.key, accent: null, role });
       robot.object.position.set(x, 0.2, z);
@@ -243,6 +284,21 @@ export class TownScene {
       this.#civicRobots.push(robot);
     };
     model.postOffice.slice(0, 2).forEach((a, i) => place(a, post.x - 0.5 + i, post.z + 0.4, "router"));
+    const postman = model.postOffice[0];
+    const handle = postman && this.#civicRobots[0];
+    if (postman && handle) {
+      // The postman walks the town at the interiors' scale; the letters it carries ride in front of it.
+      handle.object.scale.setScalar(ROBOT_SCALE * 1.15);
+      const letters = [0, 1, 2].map((i) => {
+        const letter = this.townStyle.model("letter");
+        letter.position.set(0, 0.62 + i * 0.07, 0.34);
+        letter.rotation.x = -0.35;
+        letter.visible = false;
+        handle.object.add(letter);
+        return letter;
+      });
+      this.#postman = { handle, key: postman.key, letters };
+    }
     model.townHall.slice(0, 5).forEach((a, i) => place(a, hall.x - 1.6 + i * 0.8, hall.z + 1.3, a.role));
   }
 
@@ -268,6 +324,8 @@ export class TownScene {
     this.controls.enableDamping = !view.reducedMotion;
     if (previous.theme !== view.theme) this.applyTheme(view.theme);
     if (previous.model !== view.model || previous.entered !== view.entered || previous.room !== view.room) this.sync();
+    else if (previous.reducedMotion !== view.reducedMotion || previous.ambient !== view.ambient)
+      this.walks.update(view.model, { entered: view.entered, reducedMotion: view.reducedMotion, ambient: view.ambient });
     if (previous.entered !== view.entered) {
       if (view.entered) this.frameBuilding(view.entered, view.zoomed);
       else this.home(false);
@@ -460,13 +518,17 @@ export class TownScene {
   animate = (now: number) => {
     this.#raf = 0;
     if (this.#disposed || document.hidden) return;
-    if (this.#last && now - this.#last < 1000 / 30 - 0.5) {
+    if (!this.view.measure && this.#last && now - this.#last < 1000 / 30 - 0.5) {
       this.#raf = requestAnimationFrame(this.animate);
       return;
     }
     const started = performance.now();
-    const dt = this.#last ? Math.min((now - this.#last) / 1000, 0.05) : 0;
+    const interval = this.#last ? now - this.#last : 0;
+    const dt = this.#last ? Math.min(interval / 1000, 0.05) : 0;
     this.#last = now;
+    // Walks run in simulation seconds: paused with the playback, faster with it (the engine caps one tick).
+    this.walks.tick(dt * Math.max(0, this.view.speed()), this.view.now());
+    this.#followPostman(dt);
     if (this.#tween) {
       const alpha = this.view.reducedMotion ? 1 : 1 - Math.exp(-dt * 6);
       this.camera.position.lerp(this.#tween.position, alpha);
@@ -475,7 +537,7 @@ export class TownScene {
       this.camera.updateProjectionMatrix();
       if (this.camera.position.distanceTo(this.#tween.position) < 0.005 && Math.abs(this.camera.zoom - this.#tween.zoom) < 0.002) this.#tween = null;
     }
-    let moving = false;
+    let moving = this.walks.moving || this.view.measure;
     for (const view of this.#buildings.values()) {
       view.tick(dt);
       if (view.animating) moving = true;
@@ -495,6 +557,7 @@ export class TownScene {
       this.callbacks.error();
       return;
     }
+    if (this.view.measure && interval) this.#record(interval, performance.now() - started, this.walks.tickMs);
     if (this.#perf) {
       const total = performance.now() - started;
       if (total > 100) console.info(`[perf] slow frame: tick ${(ticked - started).toFixed(1)} ms, render ${(performance.now() - ticked).toFixed(1)} ms, programs ${this.renderer.info.programs?.length ?? 0}`);
@@ -503,6 +566,54 @@ export class TownScene {
     this.#dirtyFrames--;
     if (!this.#raf && (this.#tween || moving || this.#dirtyFrames > 0)) this.#raf = requestAnimationFrame(this.animate);
   };
+
+  /** The postman follows its walker and shows the letters it carries. */
+  #followPostman(seconds: number) {
+    const p = this.#postman;
+    if (!p) return;
+    const walker = this.walks.walker(p.key);
+    if (!walker) return;
+    const object = p.handle.object;
+    object.position.set(walker.x, walker.y + 0.02, walker.z);
+    object.rotation.y = walker.walking || walker.carrying ? walker.heading : 0;
+    p.handle.setPosture(walker.walking ? "walking" : "relaxed");
+    p.letters.forEach((letter, i) => (letter.visible = i < walker.carrying));
+    if (!this.view.reducedMotion && walker.walking) p.handle.update(seconds);
+  }
+
+  #record(interval: number, work: number, tick: number) {
+    const f = this.#frames;
+    f.interval[f.at] = interval;
+    f.work[f.at] = work;
+    f.tick[f.at] = tick;
+    f.at = (f.at + 1) % FRAME_WINDOW;
+    f.count = Math.min(FRAME_WINDOW, f.count + 1);
+  }
+
+  /** Mean, p95 and max over the last 300 drawn frames (the dev overlay; `measure` only). */
+  frameStats(): FrameStats {
+    const f = this.#frames;
+    const n = f.count;
+    const stat = (a: Float32Array) => {
+      const v = Array.from(a.subarray(0, n)).sort((x, y) => x - y);
+      return { mean: v.reduce((s, x) => s + x, 0) / Math.max(1, n), p95: v[Math.min(n - 1, Math.floor(n * 0.95))] ?? 0, max: v[n - 1] ?? 0 };
+    };
+    const interval = stat(f.interval),
+      work = stat(f.work),
+      tick = stat(f.tick);
+    return {
+      frames: n,
+      mean: interval.mean,
+      p95: interval.p95,
+      max: interval.max,
+      workMean: work.mean,
+      workP95: work.p95,
+      tickMean: tick.mean,
+      tickMax: tick.max,
+      calls: this.renderer.info.render.calls,
+      walkers: [...this.walks.walkers()].length,
+    };
+  }
 
   /** `?perf`: frame work time (update + render), logged every two seconds. */
   #measure(ms: number) {

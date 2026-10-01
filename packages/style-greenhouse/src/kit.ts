@@ -87,8 +87,10 @@ export class Kit {
     return mesh;
   }
   box(w: number, h: number, d: number, color: Swatch, radius = 0.04) {
+    // A bevel of 3 cm or less reads the same with one segment; walls and trims are mostly that, at a third the triangles.
+    const segments = radius <= 0.03 ? 1 : 2;
     return this.mesh(
-      this.geometry(`box:${w},${h},${d},${radius}`, () => new RoundedBoxGeometry(w, h, d, 2, Math.min(radius, w / 3, h / 3, d / 3))),
+      this.geometry(`box:${w},${h},${d},${radius}`, () => new RoundedBoxGeometry(w, h, d, segments, Math.min(radius, w / 3, h / 3, d / 3))),
       this.material(color),
     );
   }

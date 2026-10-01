@@ -8,6 +8,7 @@ import { Button, Card, Chip, Field } from "./components/primitives";
 import { SceneBoundary } from "./components/SceneBoundary";
 import type { Selection } from "./components/WorldCanvas";
 import { createChatQueryClient, useChatEvents, useChatNavigation, useChatView } from "./state/chat";
+import { readAmbient, writeAmbient } from "./state/ambient";
 import { readRoleOverrides, writeRoleOverrides } from "./state/roleOverrides";
 import { useTheme } from "./state/theme";
 import { useWorld, worldRuntime } from "./state/world";
@@ -15,6 +16,7 @@ import { buildingTemplate } from "./world/buildingTemplate";
 import type { Pick } from "./world/buildingView";
 import { firstRoom, roomName, roomNeighbor, roomSummary } from "./world/interiorLayout";
 import { DEFAULT_STYLE_ID, styleRegistry } from "./world/style";
+import { AMBIENT_CHOICES, type Ambient } from "./world/movement";
 import type { CameraAction } from "./world/TownScene";
 import { countsLine, laneWords, mmss, moveFocus, TOWN_CAPACITY } from "./world/townLayout";
 
@@ -65,6 +67,8 @@ function World() {
   const [zoomed, setZoomed] = useState<RoomKind | null>(null);
   const [selection, setSelection] = useState<Selection>({ hover: null, selected: null });
   const [overrides, setOverrides] = useState<Record<string, RoleId>>(readRoleOverrides);
+  const [ambient, setAmbient] = useState<Ambient>(readAmbient);
+  useEffect(() => writeAmbient(ambient), [ambient]);
   useEffect(() => {
     writeRoleOverrides(overrides);
     worldRuntime().setRoleOverrides(overrides);
@@ -280,6 +284,7 @@ function World() {
                 selection={selection}
                 onPick={pick}
                 reducedMotion={reducedMotion}
+                ambient={ambient}
                 action={action}
                 onEnter={enter}
                 onHover={hover}
@@ -339,6 +344,21 @@ function World() {
           />
           <Card.Body>
             <RoleSettings model={model} overrides={overrides} onChange={setOverrides} />
+            <Field
+              control="select"
+              size="sm"
+              label="Ambient"
+              inline
+              hint={reducedMotion ? "Off while your system asks for reduced motion." : "Agents at rest now and then look at the board, water a plant or get a coffee."}
+              value={ambient}
+              onChange={(e) => setAmbient(e.currentTarget.value as Ambient)}
+            >
+              {AMBIENT_CHOICES.map((choice) => (
+                <option key={choice} value={choice}>
+                  {AMBIENT_LABELS[choice]}
+                </option>
+              ))}
+            </Field>
             <p className="settings-style">Style: {styleRegistry.getStyle(DEFAULT_STYLE_ID).manifest.name}</p>
             <p className="sign-muted">Nothing to set yet. Agent settings live in the crewhub-loops web app; the demo has none.</p>
           </Card.Body>
@@ -400,6 +420,7 @@ function useDockHeight(): number | null {
 
 
 const ROLE_CHOICES: readonly RoleId[] = ["lead", "worker", "analyst", "design"];
+const AMBIENT_LABELS: Record<Ambient, string> = { on: "On", reduced: "Reduced", off: "Off" };
 
 /** Role overrides (plan 4.2): one select per agent; "from the rules" removes the override. */
 function RoleSettings({ model, overrides, onChange }: { model: WorldModel; overrides: Record<string, RoleId>; onChange: (next: Record<string, RoleId>) => void }) {

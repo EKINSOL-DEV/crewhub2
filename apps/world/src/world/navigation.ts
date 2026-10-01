@@ -108,6 +108,20 @@ export const POST_OFFICE_CELL = townCellAt(POST.x - 0.5, POST.z + 1);
 /** Where the postman leaves a letter for a recipient who works in no building. */
 export const TOWN_HALL_CELL = townCellAt(HALL.x + 3, HALL.z + 2.2);
 
+/** Height of the ground under a walker: the lawn of a plot or a civic lot, else the street. */
+export function groundAt(x: number, z: number): number {
+  const LAWN = 0.17,
+    STREET = 0.02;
+  for (const c of [POST, HALL]) if (Math.abs(x - c.x) <= CIVIC_LAWN / 2 && Math.abs(z - c.z) <= CIVIC_LAWN / 2) return LAWN;
+  for (let i = 0; i < TOWN_CAPACITY; i++) {
+    const p = plotCenter(i);
+    if (Math.abs(x - p.x) <= PLOT_SIZE / 2 && Math.abs(z - p.z) <= PLOT_SIZE / 2) return LAWN;
+  }
+  return STREET;
+}
+/** The civic lots' lawn (TownScene). */
+const CIVIC_LAWN = 9;
+
 /** A building template as the graph sees it: room shapes and doors (structure) and furniture per room. */
 function structureKey(t: BuildingTemplate): string {
   return JSON.stringify([t.rooms.map((r) => [r.kind, r.origin, r.layout.grid.width, r.layout.grid.depth]), t.doors]);

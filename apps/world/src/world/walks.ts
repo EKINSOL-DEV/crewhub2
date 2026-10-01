@@ -1,0 +1,453 @@
+/* The walk runtime: turns movement intents (movement.ts) into NavSimulation destinations, runs errands and the
+   postman's rounds, sets the detail levels and hands the renderer one interpolated position per walker. Pure
+   TypeScript (no Three.js, no DOM); the renderer calls `update` on every new model and `tick` once per drawn frame.
+
+   Detail levels: only the entered building's rooms are "full"; every other building is "offscreen", so its agents
+   jump instead of routing. The town stays "full", so the postman and cross-building walks are visible. Under reduced
+   motion everything is offscreen: every move is a jump. */
+import type { Location } from "@crewhub/world-engine";
+import type { AgentKey, RoomKind, WorldModel } from "@crewhub/world-model";
+import { planIdle, planMovement, type Ambient, type Leg, type MovementIntent, type Place } from "./movement.ts";
+import { groundAt, NavWorld, POST_OFFICE_CELL, POSTMAN_PRIORITY, TOWN_HALL_CELL, TOWN_ROOM } from "./navigation.ts";
+
+export interface WalkOptions {
+  entered: string | null;
+  reducedMotion: boolean;
+  ambient: Ambient;
+}
+
+/** What the renderer needs per walker, in world units. Reused objects: read them, do not keep them. */
+export interface Walker {
+  readonly key: string;
+  x: number;
+  /** Height of the ground under it: a lawn or the street. */
+  y: number;
+  z: number;
+  /** Facing, radians about +y; 0 looks south (towards the home camera). */
+  heading: number;
+  /** Moving along a segment right now (the soft robots bob and lean). */
+  walking: boolean;
+  /** The building whose robot this is (its real location), or null for the postman. */
+  building: string | null;
+  /** On the way out of the snapshot: the robot stays until it is through the door. */
+  leaving: boolean;
+  /** Letters the postman carries. */
+  carrying: number;
+  /** At its own desk and not walking: the renderer uses the seat pose. */
+  seated: boolean;
+}
+
+interface Errand {
+  legs: Leg[];
+  index: number;
+  /** Seconds left at the current stop; null while walking there. */
+  dwell: number | null;
+}
+interface AgentState {
+  key: AgentKey;
+  building: string;
+  room: RoomKind | null;
+  errand: Errand | null;
+  leaving: boolean;
+}
+interface Stop {
+  deliveryId: string;
+  toBuilding: string | null;
+}
+interface Postman {
+  key: AgentKey;
+  queue: Stop[];
+  round: Stop[] | null;
+  stop: number;
+  dwell: number | null;
+}
+
+const POSTMAN_DWELL_S = 1.2;
+const TOWN_HOME: Location = { room: TOWN_ROOM, cell: POST_OFFICE_CELL };
+
+export class Walks {
+  readonly nav = new NavWorld();
+  #model: WorldModel | null = null;
+  #options: WalkOptions = { entered: null, reducedMotion: false, ambient: "on" };
+  #detailKey = "";
+  #agents = new Map<AgentKey, AgentState>();
+  #postman: Postman | null = null;
+  #walkers = new Map<string, Walker>();
+  #idleDone = new Set<string>();
+  #idleCheck = 0;
+  /** Milliseconds the last engine tick took (the dev overlay shows it). */
+  tickMs = 0;
+  /** True while any walker moves or waits on its way. */
+  moving = false;
+
+  /** A new world model (or new options): applies the intents of the change and the detail levels. */
+  update(model: WorldModel, options: WalkOptions): void {
+    const optionsChanged = options.entered !== this.#options.entered || options.reducedMotion !== this.#options.reducedMotion;
+    this.#options = options;
+    const sync = this.nav.sync(model.buildings);
+    for (const slug of sync.removed)
+      for (const [key, state] of this.#agents) if (state.building === slug && !this.nav.sim.actor(key)) this.#agents.delete(key);
+    this.#applyDetail(optionsChanged);
+    const intents = planMovement(this.#model, model, options);
+    this.#model = model;
+    for (const intent of intents) this.#apply(intent);
+    // Destinations into a rebuilt building point at cells that may have moved: aim again.
+    for (const slug of sync.rebuilt)
+      for (const state of this.#agents.values()) if (state.building === slug) this.#aim(state);
+    this.#syncAgents(model);
+    this.#syncPostman(model);
+    this.#refreshWalkers();
+  }
+
+  walker(key: string): Walker | undefined {
+    return this.#walkers.get(key);
+  }
+  walkers(): IterableIterator<Walker> {
+    return this.#walkers.values();
+  }
+  /** The postman's walker, when the town has one. */
+  postman(): Walker | undefined {
+    return this.#postman ? this.#walkers.get(this.#postman.key) : undefined;
+  }
+
+  /** Advances the simulation by `seconds` (simulation time) at source time `now` (ms, for idle buckets). */
+  tick(seconds: number, now: number): void {
+    const started = globalThis.performance.now();
+    if (seconds > 0) this.nav.sim.tick(seconds);
+    this.#idle(now);
+    for (const state of [...this.#agents.values()]) this.#advance(state, seconds);
+    this.#advancePostman(seconds);
+    this.#refreshWalkers();
+    this.tickMs = globalThis.performance.now() - started;
+  }
+
+  /* ── Intents ──────────────────────────────────────────────────────────── */
+
+  #apply(intent: MovementIntent): void {
+    const sim = this.nav.sim;
+    switch (intent.type) {
+      case "spawn": {
+        const state = this.#state(intent.agent, intent.building);
+        state.errand = null;
+        state.leaving = false;
+        const home = this.#home(state);
+        if (home) this.#put(state.key, home);
+        this.#aim(state);
+        return;
+      }
+      case "enter": {
+        const state = this.#state(intent.agent, intent.building);
+        state.errand = null;
+        state.leaving = false;
+        const start = intent.walk ? this.nav.front(intent.building) : this.#home(state);
+        if (start) this.#put(state.key, start);
+        this.#aim(state);
+        return;
+      }
+      case "leave": {
+        const state = this.#agents.get(intent.agent);
+        if (!state) return;
+        const front = this.nav.front(intent.building);
+        if (!intent.walk || !front || !sim.actor(state.key)) {
+          sim.removeActor(state.key);
+          this.#agents.delete(state.key);
+          return;
+        }
+        state.errand = null;
+        state.leaving = true;
+        sim.setDestination(state.key, front);
+        return;
+      }
+      case "switch": {
+        const state = this.#state(intent.agent, intent.to);
+        state.errand = null;
+        state.leaving = false;
+        // From the old building's door along the town path; the old avatar stays behind as a proxy.
+        const start = intent.walk ? this.nav.front(intent.from) : this.#home(state);
+        if (start) this.#put(state.key, start);
+        this.#aim(state);
+        return;
+      }
+      case "desk": {
+        const state = this.#agents.get(intent.agent);
+        if (!state || state.leaving) return;
+        state.errand = null;
+        this.#aim(state);
+        return;
+      }
+      case "errand": {
+        const state = this.#agents.get(intent.agent);
+        if (!state || state.leaving || state.building !== intent.building) return;
+        state.errand = { legs: intent.legs, index: 0, dwell: null };
+        this.#aim(state);
+        return;
+      }
+      case "deliver":
+        this.#postman?.queue.push({ deliveryId: intent.deliveryId, toBuilding: intent.toBuilding });
+        return;
+    }
+  }
+
+  #state(key: AgentKey, building: string): AgentState {
+    let state = this.#agents.get(key);
+    if (!state) {
+      state = { key, building, room: null, errand: null, leaving: false };
+      this.#agents.set(key, state);
+    }
+    state.building = building;
+    const placement = this.#model?.buildings.find((b) => b.slug === building)?.agents.find((a) => a.key === key);
+    state.room = placement?.room ?? state.room;
+    return state;
+  }
+
+  /** Adds the actor at `location`, or moves it there at once. */
+  #put(id: string, location: Location, priority = 0): void {
+    const sim = this.nav.sim;
+    if (sim.actor(id)) sim.place(id, location);
+    else sim.addActor({ id, priority, location });
+  }
+
+  #home(state: AgentState): Location | null {
+    return this.nav.home(state.building, state.key, state.room);
+  }
+
+  /** Sets the destination the agent's state asks for: the current errand leg, else its desk. */
+  #aim(state: AgentState): void {
+    const sim = this.nav.sim;
+    if (!sim.actor(state.key)) {
+      const home = this.#home(state);
+      if (!home) return;
+      sim.addActor({ id: state.key, location: home });
+    }
+    if (state.leaving) {
+      const front = this.nav.front(state.building);
+      if (front) sim.setDestination(state.key, front);
+      return;
+    }
+    const leg = state.errand?.legs[state.errand.index];
+    const target = (leg && this.#resolve(state, leg.place)) ?? this.#home(state);
+    if (!target) return;
+    const result = sim.setDestination(state.key, target);
+    if (!result.ok && state.errand) {
+      // A spot that cannot be reached right now (taken by furniture): skip the errand.
+      state.errand = null;
+      const home = this.#home(state);
+      if (home) sim.setDestination(state.key, home);
+    }
+  }
+
+  #resolve(state: AgentState, place: Place): Location | null {
+    if (place.kind === "desk") return this.#home(state);
+    if (place.kind === "outside") return this.nav.front(state.building);
+    const spots = this.nav.spots(state.building, place.tag, place.room ?? undefined);
+    if (!spots.length) return null;
+    // Spread agents over the spots of a tag deterministically.
+    let h = 0;
+    for (let i = 0; i < state.key.length; i++) h = (h * 31 + state.key.charCodeAt(i)) >>> 0;
+    return spots[h % spots.length]!;
+  }
+
+  /** Agents of the model that the intents did not place yet (first sync after a rebuild), and gone ones. */
+  #syncAgents(model: WorldModel): void {
+    const real = new Set<AgentKey>();
+    for (const b of model.buildings) {
+      if (b.archived || !this.nav.entry(b.slug)) continue;
+      for (const agent of b.agents) {
+        if (agent.presence !== "real") continue;
+        real.add(agent.key);
+        const state = this.#agents.get(agent.key);
+        if (!state) {
+          this.#apply({ type: "spawn", agent: agent.key, building: b.slug });
+        } else if (state.room !== agent.room && state.building === b.slug) {
+          state.room = agent.room;
+          if (!state.errand) this.#aim(state);
+        }
+      }
+    }
+    for (const [key, state] of this.#agents)
+      if (!real.has(key) && !state.leaving) {
+        this.nav.sim.removeActor(key);
+        this.#agents.delete(key);
+      }
+  }
+
+  /* ── Errands, departures, idle variety ────────────────────────────────── */
+
+  #advance(state: AgentState, seconds: number): void {
+    const actor = this.nav.sim.actor(state.key);
+    if (!actor) {
+      if (state.leaving) this.#agents.delete(state.key);
+      return;
+    }
+    const settled = actor.status === "arrived" || actor.status === "unreachable" || actor.status === "idle";
+    if (state.leaving) {
+      if (settled) {
+        this.nav.sim.removeActor(state.key);
+        this.#agents.delete(state.key);
+      }
+      return;
+    }
+    const errand = state.errand;
+    if (!errand || !settled) return;
+    if (errand.dwell === null) errand.dwell = (errand.legs[errand.index]?.dwellMs ?? 0) / 1000;
+    errand.dwell -= seconds;
+    if (errand.dwell > 0) return;
+    errand.index++;
+    errand.dwell = null;
+    if (errand.index >= errand.legs.length) state.errand = null;
+    this.#aim(state);
+  }
+
+  #idle(now: number): void {
+    const model = this.#model;
+    if (!model || now < this.#idleCheck) return;
+    this.#idleCheck = now + 1000;
+    for (const errand of planIdle(model, now, this.#options, this.#idleDone)) {
+      this.#idleDone.add(errand.id);
+      const state = this.#agents.get(errand.agent);
+      if (!state || state.errand || state.leaving) continue;
+      const actor = this.nav.sim.actor(errand.agent);
+      if (!actor || actor.status !== "arrived") continue;
+      this.#apply(errand);
+    }
+    if (this.#idleDone.size > 2000) this.#idleDone.clear();
+  }
+
+  /* ── The postman ──────────────────────────────────────────────────────── */
+
+  #syncPostman(model: WorldModel): void {
+    const key = model.postOffice[0]?.key ?? null;
+    if (this.#postman && this.#postman.key !== key) {
+      this.nav.sim.removeActor(this.#postman.key);
+      this.#walkers.delete(this.#postman.key);
+      this.#postman = null;
+    }
+    if (!key) return;
+    if (!this.#postman) {
+      this.#postman = { key, queue: [], round: null, stop: 0, dwell: null };
+      this.#put(key, TOWN_HOME, POSTMAN_PRIORITY);
+      this.nav.sim.setDestination(key, TOWN_HOME);
+    }
+    // A new snapshot starts the round over: the letters it carried are history now.
+    if (this.#lastSnapshots !== -1 && model.snapshots !== this.#lastSnapshots) {
+      this.#postman.queue = [];
+      this.#postman.round = null;
+      this.#put(key, TOWN_HOME, POSTMAN_PRIORITY);
+      this.nav.sim.setDestination(key, TOWN_HOME);
+    }
+    this.#lastSnapshots = model.snapshots;
+  }
+  #lastSnapshots = -1;
+
+  #advancePostman(seconds: number): void {
+    const p = this.#postman;
+    if (!p) return;
+    const actor = this.nav.sim.actor(p.key);
+    if (!actor) return;
+    const settled = actor.status === "arrived" || actor.status === "unreachable" || actor.status === "idle";
+    if (!p.round) {
+      if (!p.queue.length || !settled) return;
+      // Several deliveries share one round, in plot order.
+      const order = this.nav.slugs();
+      p.round = p.queue.splice(0).sort((a, b) => rank(order, a.toBuilding) - rank(order, b.toBuilding));
+      p.stop = 0;
+      p.dwell = null;
+      this.#aimPostman(p);
+      return;
+    }
+    if (!settled) return;
+    if (p.stop >= p.round.length) {
+      p.round = null;
+      return;
+    }
+    if (p.dwell === null) p.dwell = POSTMAN_DWELL_S;
+    p.dwell -= seconds;
+    if (p.dwell > 0) return;
+    p.stop++;
+    p.dwell = null;
+    this.#aimPostman(p);
+  }
+
+  #aimPostman(p: Postman): void {
+    const stop = p.round?.[p.stop];
+    let target: Location = TOWN_HOME;
+    if (stop) {
+      const slug = stop.toBuilding;
+      if (slug && this.nav.entry(slug)) {
+        // Inside the shown building the letter goes to the lobby mailbox; elsewhere to the front door.
+        const mailbox = slug === this.#options.entered && !this.#options.reducedMotion ? this.nav.spots(slug, "mail", "lobby")[0] : undefined;
+        target = mailbox ?? this.nav.front(slug) ?? TOWN_HOME;
+      } else target = { room: TOWN_ROOM, cell: TOWN_HALL_CELL };
+    }
+    this.nav.sim.setDestination(p.key, target);
+  }
+
+  /* ── Detail levels and the renderer's view ────────────────────────────── */
+
+  #applyDetail(force: boolean): void {
+    const ids = this.nav.graph.roomIds();
+    const { entered, reducedMotion } = this.#options;
+    const key = `${reducedMotion}|${entered}|${ids.join()}`;
+    if (!force && key === this.#detailKey) return;
+    this.#detailKey = key;
+    const sim = this.nav.sim;
+    if (reducedMotion) {
+      sim.setDetail(ids, "offscreen");
+      return;
+    }
+    const full = new Set([TOWN_ROOM, ...(entered ? this.nav.rooms(entered) : [])]);
+    sim.setDetail(ids.filter((id) => !full.has(id)), "offscreen");
+    sim.setDetail([...full], "full");
+  }
+
+  #a = { x: 0, z: 0 };
+  #b = { x: 0, z: 0 };
+  #refreshWalkers(): void {
+    const seen = new Set<string>();
+    let moving = false;
+    const postmanKey = this.#postman?.key ?? null;
+    for (const actor of this.nav.sim.snapshot().actors) {
+      const state = this.#agents.get(actor.id);
+      const postman = actor.id === postmanKey;
+      if (!state && !postman) continue;
+      seen.add(actor.id);
+      let w = this.#walkers.get(actor.id);
+      if (!w) {
+        w = { key: actor.id, x: 0, y: 0, z: 0, heading: 0, walking: false, building: null, leaving: false, carrying: 0, seated: false };
+        this.#walkers.set(actor.id, w);
+      }
+      const a = this.nav.toWorld(actor.location, this.#a);
+      if (actor.next) {
+        const b = this.nav.toWorld(actor.next, this.#b);
+        const t = actor.progress;
+        w.x = a.x + (b.x - a.x) * t;
+        w.z = a.z + (b.z - a.z) * t;
+        if (Math.abs(b.x - a.x) + Math.abs(b.z - a.z) > 1e-6) w.heading = Math.atan2(b.x - a.x, b.z - a.z);
+      } else {
+        w.x = a.x;
+        w.z = a.z;
+      }
+      w.y = groundAt(w.x, w.z);
+      w.walking = actor.next !== null;
+      if (actor.status === "moving" || actor.status === "waiting") moving = true;
+      w.building = state?.building ?? null;
+      w.leaving = state?.leaving ?? false;
+      w.carrying = postman && this.#postman?.round ? Math.max(0, this.#postman.round.length - this.#postman.stop) : 0;
+      const home = state && !state.errand && !state.leaving ? this.#home(state) : null;
+      w.seated =
+        !w.walking &&
+        !!home &&
+        actor.location.room === home.room &&
+        actor.location.cell.x === home.cell.x &&
+        actor.location.cell.z === home.cell.z;
+      if (w.seated) w.heading = 0;
+    }
+    for (const key of [...this.#walkers.keys()]) if (!seen.has(key)) this.#walkers.delete(key);
+    this.moving = moving || !!this.#postman?.round || [...this.#agents.values()].some((s) => s.errand !== null);
+  }
+}
+
+function rank(order: string[], slug: string | null): number {
+  const i = slug ? order.indexOf(slug) : -1;
+  return i < 0 ? order.length : i;
+}

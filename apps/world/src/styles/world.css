@@ -653,3 +653,23 @@
   left: auto;
   right: 0;
 }
+
+/* ── Dev stress overlay (`?stress=1`, dev builds only) ─────────────────────── */
+.dev-overlay {
+  position: absolute;
+  top: calc(var(--space-4) * 3.5);
+  left: var(--space-4);
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  background: color-mix(in oklab, var(--surface) 90%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  pointer-events: none;
+}
