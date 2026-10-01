@@ -19,7 +19,7 @@ import type { StyledPlot } from "./styleRegistry";
 import type { Ambient } from "./movement";
 import { CIVIC_LOT, civicCenter, homeRects, PLOT_SIZE, plotCenter, TOWN_CAPACITY, townBounds, type Bounds } from "./townLayout";
 import { GRASS_Y, landmarks as townLandmarks, LAWN_Y, slugSeed, townDressing } from "./townDressing";
-import { instanceStatic } from "./instanceStatic";
+import { InstanceCuller, instanceStatic } from "./instanceStatic";
 import { mergeStatic } from "./mergeStatic";
 import { plotDoor, plotObstacles } from "./navigation";
 import { onPlayIntent } from "./intentPlayer";
@@ -195,6 +195,8 @@ export class TownScene {
     instanced: [],
     merged: [],
   };
+  /** Draws only the dressing near the view (a building close up draws its corner of the town, not all of it). */
+  #culler: InstanceCuller | null = null;
   #lifeInside = false;
   /** The view the entered building's shadow was last fitted to. */
   #shadowFit: { zoom: number; x: number; z: number } | null = null;
@@ -486,6 +488,7 @@ export class TownScene {
     const instanced = instanceStatic(group);
     const merged = mergeStatic(group);
     this.scene.add(group);
+    this.#culler = new InstanceCuller(instanced);
     this.#dressing = { signature, group, instanced, merged };
   }
 
@@ -494,6 +497,7 @@ export class TownScene {
     if (!group) return;
     group.removeFromParent();
     for (const mesh of instanced) mesh.dispose();
+    this.#culler = null;
     for (const geometry of merged) geometry.dispose();
     this.#dressing = { signature: "", group: null, instanced: [], merged: [] };
   }
@@ -1010,6 +1014,8 @@ export class TownScene {
     this.placeLabels();
     // The town view's shadow casters rarely change (robots seen from the town cast none, the postman neither), so its
     // shadow map is drawn only when something changed; inside a building it follows every frame.
+    this.camera.updateMatrixWorld();
+    if (this.#culler?.update(this.camera)) this.#shadowDirty = true;
     const shadows = this.renderer.shadowMap;
     shadows.autoUpdate = this.view.entered !== null;
     if (!shadows.autoUpdate) {
