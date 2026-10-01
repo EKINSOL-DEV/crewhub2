@@ -812,6 +812,7 @@ export function windmill(kit: Kit): THREE.Group {
         arm.rotation.z = (i * Math.PI) / 2;
         sails.add(arm);
       }
+      sails.name = "windmill-sails";
       sails.position.copy(hub);
       sails.rotation.z = 0.35;
       // The sails turn: renderers that batch static meshes must leave them as they are.
