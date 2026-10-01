@@ -4,6 +4,7 @@
    Style-agnostic, like mergeStatic: it works on whatever the style returned. Run mergeStatic afterwards for the
    one-off pieces it leaves (paving and lawns of one size each). */
 import * as THREE from "three";
+import { instancedMaterial } from "./instancedMaterial";
 import { removeBaked } from "./mergeStatic";
 
 /** World radius under which an instanced part casts no shadow. */
@@ -26,7 +27,7 @@ export function instanceStatic(root: THREE.Group, minimum = 3): THREE.InstancedM
   for (const meshes of groups.values()) {
     if (meshes.length < minimum) continue;
     const first = meshes[0]!;
-    const instanced = new THREE.InstancedMesh(first.geometry, first.material as THREE.Material, meshes.length);
+    const instanced = new THREE.InstancedMesh(first.geometry, instancedMaterial(first.material as THREE.Material, false), meshes.length);
     meshes.forEach((mesh, i) => instanced.setMatrixAt(i, matrix.multiplyMatrices(inverse, mesh.matrixWorld)));
     removeBaked(root, meshes);
     instanced.instanceMatrix.needsUpdate = true;

@@ -6,6 +6,7 @@ import * as THREE from "three";
 import type { ModelKey, ModelOptions, PaletteName, ResolvedStyle } from "@crewhub/world-style";
 import type { Building, WorkObject } from "@crewhub/world-model";
 import { BUILDING_CELL } from "./buildingTemplate";
+import { instancedMaterial } from "./instancedMaterial";
 import type { ObjectLayout, Placement, Surface } from "./interiorLayout";
 
 /** Ticket objects are a little smaller than the Greenhouse props they sit on. */
@@ -54,7 +55,7 @@ class Template {
     }
     this.meshes.length = 0;
     for (const part of this.parts) {
-      const mesh = new THREE.InstancedMesh(part.geometry, part.material, capacity);
+      const mesh = new THREE.InstancedMesh(part.geometry, Array.isArray(part.material) ? part.material : instancedMaterial(part.material, false), capacity);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       mesh.count = 0;
