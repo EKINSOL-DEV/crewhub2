@@ -34,8 +34,23 @@ export interface Dressing {
   scale: number;
   seed?: number;
   variant?: string;
-  /** For stretchable pieces (paving, hedges, the pond, the bridge, fences, flower beds, lawns). */
+  /** For stretchable pieces (paving, hedges, the pond, the bridge, fences, flower beds, lawns, wear). */
   size?: { width: number; height: number; depth: number };
+  /** Small detail the Fast quality leaves out (grass tufts, wild flowers). */
+  detail?: boolean;
+}
+
+/**
+ * A landmark with a reserved spot, drawn whole (it may animate) and only once the style covers its key: the welcome
+ * sign by the town's entrance road, the windmill at the meadow's edge, the greenhouse in the park, the water tower,
+ * the clock post and the ducks on the pond.
+ */
+export interface Landmark {
+  key: string;
+  x: number;
+  y: number;
+  z: number;
+  rotation: number;
 }
 
 /** A used plot as the dressing sees it: its index, its front door on the town side and what stands on it. */
@@ -129,9 +144,36 @@ function civicPaving(): Bounds[] {
   return out;
 }
 
-/** Every walkable paved rectangle: the lanes, the civic paths and one garden path per door. */
+/** The town's entrance road: the main street, on south from the last lane through the green belt to the edge. */
+export function entranceRoad(): Bounds {
+  const zs = streetZs();
+  const x = civicCenter("square").x;
+  return span(x - LANE / 2, x + LANE / 2, zs[zs.length - 1]!, townBounds().maxZ - 0.2);
+}
+
+/** Every walkable paved rectangle: the lanes, the entrance road, the civic paths and one garden path per door. */
 export function townPaths(doors: readonly { x: number; z: number }[]): Bounds[] {
-  return [...laneRects(), ...civicPaths(), ...doors.map(gardenPath)];
+  return [...laneRects(), entranceRoad(), ...civicPaths(), ...doors.map(gardenPath)];
+}
+
+/** The landmarks' reserved spots (see `Landmark`), with the radius dressing keeps clear around each. */
+export function landmarks(): (Landmark & { clear: number })[] {
+  const b = townBounds();
+  const road = entranceRoad();
+  const post = civicCenter("post-office"),
+    hall = civicCenter("town-hall");
+  const pond = POND,
+    cz = (pond.minZ + pond.maxZ) / 2;
+  return [
+    { key: "civic.welcome-sign", x: road.maxX + 1.6, y: GRASS_Y, z: b.maxZ - 3.4, rotation: 0, clear: 1.8 },
+    { key: "civic.windmill", x: hall.x + 18, y: GRASS_Y, z: b.minZ + 6.2, rotation: -0.5, clear: 3.6 },
+    { key: "civic.water-tower", x: post.x + 8, y: GRASS_Y, z: b.minZ + 5.6, rotation: 0, clear: 2.8 },
+    { key: "civic.greenhouse", x: pond.maxX + 2.6, y: GRASS_Y, z: pond.minZ - 4.2, rotation: 0, clear: 2.6 },
+    { key: "civic.clock-post", x: civicCenter("square").x - LANE / 2 - 1.1, y: GRASS_Y, z: CIVIC_LANE + LANE / 2 + 1.1, rotation: 0, clear: 0.9 },
+    { key: "civic.duck", x: pond.minX + 2.6, y: GRASS_Y + 0.09, z: cz + 1.2, rotation: 0.6, clear: 0 },
+    { key: "civic.duck", x: pond.minX + 3.3, y: GRASS_Y + 0.09, z: cz + 1.7, rotation: 0.9, clear: 0 },
+    { key: "civic.duck", x: pond.maxX - 2.4, y: GRASS_Y + 0.09, z: cz - 1.1, rotation: -2.4, clear: 0 },
+  ];
 }
 
 /** The pond in the park (the bridge crosses it on the park path). */
@@ -181,6 +223,7 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
     const c = plotCenter(p.index);
     blocked.push(rect(c.x, c.z, PLOT_SIZE, PLOT_SIZE));
   }
+  for (const l of landmarks()) if (l.clear) blocked.push(rect(l.x, l.z, l.clear * 2, l.clear * 2));
   const free = (x: number, z: number, pad: number) => !blocked.some((b) => inside(b, x, z, pad));
   const tree = (x: number, z: number, y: number, seed: number, scale = 1) => {
     const kind = TREES[Math.floor(noise(seed, 7) * TREES.length)]!;
@@ -191,7 +234,19 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
   add("ground", (bounds.minX + bounds.maxX) / 2, 0, (bounds.minZ + bounds.maxZ) / 2, {
     size: { width: bounds.maxX - bounds.minX, height: 0.5, depth: bounds.maxZ - bounds.minZ },
   });
-  for (const r of laneRects()) paving(add, r, "cobble", GRASS_Y);
+  for (const r of [...laneRects(), entranceRoad()]) paving(add, r, "cobble", GRASS_Y);
+  // Crossings: a square of darker setts where two lanes meet, and grass worn bare where people cut the corners.
+  for (const x of streetXs())
+    for (const z of streetZs()) {
+      add("town.crossing", x, GRASS_Y, z, { size: { width: LANE, height: 0.045, depth: LANE } });
+      for (const [dx, dz] of [
+        [-1, -1],
+        [1, -1],
+        [-1, 1],
+        [1, 1],
+      ] as const)
+        if (noise(x, z, dx, dz) < 0.6) wear(add, x + dx * (LANE / 2 + 0.25), GRASS_Y, z + dz * (LANE / 2 + 0.25), 1.3, 1.3, noise(x, dz, z) * 3);
+    }
   const lots = (["post-office", "town-hall"] as const).map((place) => rect(civicCenter(place).x, civicCenter(place).z, CIVIC_LOT, CIVIC_LOT));
   for (const r of civicPaving()) {
     const onLot = lots.some((l) => r.minX >= l.minX && r.maxX <= l.maxX && r.minZ >= l.minZ && r.maxZ <= l.maxZ);
@@ -238,6 +293,13 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
   add("crate", cafe.x - 3.1, GRASS_Y, cafe.z + 0.1, { scale: 1, rotation: -0.2 });
   const square = civicCenter("square");
   for (const dx of [-1, 1]) add("town.lantern", square.x + dx * 2.6, GRASS_Y, square.z + CIVIC_SIZE.square.depth / 2 + 0.8, { seed: dx });
+  const road = entranceRoad();
+  for (const [x, z] of [
+    [road.minX - 0.7, road.minZ + 3.4],
+    [road.maxX + 0.7, road.minZ + 3.4],
+    [road.minX - 0.7, road.maxZ - 2.2],
+  ] as const)
+    add("town.lantern", x, GRASS_Y, z, { seed: Math.round(z) });
   park(add, tree);
   orchard(add);
 
@@ -250,9 +312,18 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
     const x = bounds.minX + 1 + noise(i, 41) * (bounds.maxX - bounds.minX - 2),
       z = bounds.minZ + 1 + noise(i, 43) * (bounds.maxZ - bounds.minZ - 2);
     if (!free(x, z, 0.5)) continue;
-    add(noise(i, 47) < 0.55 ? "town.grass" : noise(i, 61) < 0.5 ? "town.flowers" : "town.wildflowers", x, GRASS_Y, z, { rotation: noise(i, 53) * 6.28, scale: 1.6 + noise(i, 59) * 0.8, seed: i });
+    const key = noise(i, 47) < 0.55 ? "town.grass" : noise(i, 61) < 0.5 ? "town.flowers" : "town.wildflowers";
+    add(key, x, GRASS_Y, z, { rotation: noise(i, 53) * 6.28, scale: 1.6 + noise(i, 59) * 0.8, seed: i, ...detail(key) });
   }
   return out;
+}
+
+/** Grass tufts and wild flowers are detail the Fast quality leaves out. */
+const detail = (key: string): Partial<Dressing> => (key === "town.grass" || key === "town.wildflowers" ? { detail: true } : {});
+
+/** A soft patch of worn ground, `width` by `depth`, turned by `rotation`. */
+function wear(add: Add, x: number, y: number, z: number, width: number, depth: number, rotation = 0) {
+  add("town.wear", x, y + 0.004, z, { size: { width, height: 0, depth }, rotation });
 }
 
 type Add = (key: string, x: number, y: number, z: number, extra?: Partial<Dressing>) => void;
@@ -288,7 +359,6 @@ function garden(add: Add, plot: DressedPlot, tree: Tree) {
       [c.x + a, c.z - half + INSET, false],
       [c.x - half + INSET, c.z + a, true],
       [c.x + half - INSET, c.z + a, true],
-      [c.x + a, c.z + half - INSET, false],
     ];
     for (const [x, z, turned] of edges) {
       const r = turned ? rect(x, z, 0.7, length) : rect(x, z, length, 0.7);
@@ -296,6 +366,24 @@ function garden(add: Add, plot: DressedPlot, tree: Tree) {
       add("town.hedge", x, LAWN_Y, z, { size: { width: length, height: 0.62, depth: 0.7 }, rotation: turned ? Math.PI / 2 : 0, seed: plot.index * 31 + i });
     }
   }
+  // The front hedge runs up to the gate on either side, in runs that skip the truck.
+  const southZ = c.z + half - INSET;
+  for (const [from, to] of [
+    [c.x - half + 0.1, path.minX - 0.65],
+    [path.maxX + 0.65, c.x + half - 0.1],
+  ] as const) {
+    const pieces = Math.max(1, Math.ceil((to - from) / RUN));
+    const length = (to - from) / pieces;
+    for (let i = 0; i < pieces; i++) {
+      const x = from + (i + 0.5) * length;
+      if (length < 0.8 || !clear(rect(x, southZ, length - 0.15, 0.7), 0.3)) continue;
+      add("town.hedge", x, LAWN_Y, southZ, { size: { width: length - 0.15, height: 0.62, depth: 0.7 }, seed: plot.index * 37 + i });
+    }
+  }
+  add("town.gate", plot.door.x, LAWN_Y, southZ, { seed: plot.index });
+  // Grass worn bare either side of where the garden path meets the lane.
+  const laneEdge = laneSouthOf(c.z) - LANE / 2;
+  for (const side of [-1, 1]) wear(add, plot.door.x + side * (GARDEN_PATH / 2 + 0.3), GRASS_Y, laneEdge - 0.35, 0.9, 0.7);
   // Flower beds either side of the garden path, then the mailbox and two lanterns at the gate.
   const gateZ = c.z + half - 1.5;
   for (const side of [-1, 1]) {
@@ -335,7 +423,8 @@ function scatter(add: Add, index: number, count: number, spots: readonly { x: nu
     const x = c.x + (noise(index, i, 15) * 2 - 1) * half,
       z = c.z + (noise(index, i, 16) * 2 - 1) * half;
     if (spots.some((s) => Math.hypot(s.x - x, s.z - z) < s.r)) continue;
-    add(i % 3 ? (i % 2 ? "town.flowers" : "town.wildflowers") : "town.grass", x, LAWN_Y, z, { rotation: noise(index, i, 17) * 6.28, seed: index * 5 + i, scale: 1.6 + noise(index, i, 18) * 0.8 });
+    const key = i % 3 ? (i % 2 ? "town.flowers" : "town.wildflowers") : "town.grass";
+    add(key, x, LAWN_Y, z, { rotation: noise(index, i, 17) * 6.28, seed: index * 5 + i, scale: 1.6 + noise(index, i, 18) * 0.8, ...detail(key) });
   }
 }
 
@@ -380,6 +469,7 @@ function playground(add: Add, index: number, tree: Tree) {
   add("town.swing", c.x - 4, LAWN_Y, c.z - 3, { rotation: 0.3, scale: 1.4 });
   add("town.slide", c.x + 4, LAWN_Y, c.z - 4, { rotation: -0.5, scale: 1.4 });
   add("town.sandpit", c.x + 1, LAWN_Y, c.z + 3, { scale: 1.4 });
+  wear(add, c.x - 4, LAWN_Y, c.z - 3, 3.4, 1.4, 0.3);
   add("town.bench", c.x - 5, LAWN_Y, c.z + 5, { rotation: 0.5 });
   add("town.bench", c.x + 6, LAWN_Y, c.z + 4, { rotation: -0.6 });
   const trees: [number, number][] = [
@@ -433,7 +523,8 @@ function meadow(add: Add, index: number, tree: Tree) {
     const x = c.x + (noise(index, i, 5) * 2 - 1) * (half + 1),
       z = c.z + (noise(index, i, 6) * 2 - 1) * (half + 1);
     if (spots.some((s) => Math.hypot(s.x - x, s.z - z) < 1.4)) continue;
-    add(i % 3 ? (i % 2 ? "town.flowers" : "town.wildflowers") : "town.grass", x, LAWN_Y, z, { rotation: noise(index, i, 7) * 6.28, seed: index * 5 + i, scale: 1.6 + noise(index, i) * 0.8 });
+    const key = i % 3 ? (i % 2 ? "town.flowers" : "town.wildflowers") : "town.grass";
+    add(key, x, LAWN_Y, z, { rotation: noise(index, i, 7) * 6.28, seed: index * 5 + i, scale: 1.6 + noise(index, i) * 0.8, ...detail(key) });
   }
   if (index % 2 === 0) add("town.bench", c.x + 2, LAWN_Y, c.z + 3, { rotation: noise(index, 9) * 0.6 - 0.3 });
 }
@@ -460,7 +551,10 @@ function park(add: Add, tree: Tree) {
     [parkX0 + 1.8, z1 - 1],
     [parkX1 - 1.4, z1 - 1.2],
   ];
-  ring.forEach(([x, z], i) => tree(x, z, GRASS_Y, 500 + i, 1.3));
+  const reserved = landmarks().filter((l) => l.clear);
+  ring.forEach(([x, z], i) => {
+    if (!reserved.some((l) => Math.hypot(l.x - x, l.z - z) < l.clear + 1)) tree(x, z, GRASS_Y, 500 + i, 1.3);
+  });
   for (const [x, z, seed] of [
     [pond.minX + 0.8, pond.maxZ + 0.9, 1],
     [pond.maxX - 1.2, pond.maxZ + 0.9, 2],
@@ -468,6 +562,8 @@ function park(add: Add, tree: Tree) {
   ] as const)
     add("town.flower-bed", x, GRASS_Y, z, { size: { width: 1.8, height: 0.2, depth: 0.7 }, seed: 40 + seed });
   add("town.bench", cx + 1.6, GRASS_Y, pond.minZ - 2.6, { rotation: Math.PI });
+  add("town.picnic-blanket", pond.maxX + 2.4, GRASS_Y, cz + 0.6, { rotation: -0.5 });
+  add("town.picnic-blanket", pond.minX - 1.6, GRASS_Y, pond.maxZ + 3.4, { rotation: 0.3 });
   add("town.bench", cx - 2.6, GRASS_Y, pond.maxZ + 1.9, { rotation: Math.PI / 2 + 0.2 });
   add("town.lantern", cx - 1.2, GRASS_Y, pond.maxZ + 3.2, { seed: 70 });
   add("town.lantern", cx + 1.2, GRASS_Y, pond.minZ - 1.8, { seed: 71 });

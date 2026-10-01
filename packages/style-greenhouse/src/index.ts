@@ -114,6 +114,10 @@ class GreenhouseStyle implements WorldStyle {
         return town.bridge(kit, o);
       case "town.fence":
         return town.fence(kit, o);
+      case "town.crossing":
+        return town.crossing(kit, o);
+      case "town.wear":
+        return town.wear(kit, o);
       case "town.lantern":
         return town.lantern(kit);
       case "path":
@@ -252,6 +256,7 @@ class GreenhouseStyle implements WorldStyle {
 
   dispose() {
     this.#glass.dispose();
+    town.disposeTown(this.#kit);
     this.#kit.dispose();
   }
 }
