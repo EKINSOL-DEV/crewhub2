@@ -78,10 +78,11 @@ export interface FrameStats {
 }
 const FRAME_WINDOW = 300;
 /* The frame loop draws at most 60 times a second, so a 120 Hz display does not double the work (the stress fixture is
-   uncapped). Frames fall due on a 60 Hz grid rather than "at least 16.7 ms after the last": at 120 Hz, a display frame
-   that came a hair early would otherwise be skipped and the next drawn 25 ms late. Display frame times jitter by a
-   millisecond or two, so a frame counts as due a quarter step early (still well under half a 120 Hz frame). */
-const FRAME_MS = 1000 / 60;
+   uncapped). A display frame is skipped only when less than three quarters of a 60 Hz frame has passed since the last
+   drawn one: at 120 Hz (8.3 ms, +-1.5 ms of jitter) every other one is drawn, at 60 Hz every one. A tighter test (or a
+   fixed 60 Hz grid, whose phase drifts against the display's) skips a frame that came a hair early and draws the next
+   one 25 ms late. */
+const FRAME_SKIP_MS = (1000 / 60) * 0.75;
 /** The numbers the frame rate overlay shows and `window.__worldPerf` exposes (ms, counts and bytes). */
 export interface WorldPerf {
   fps: number;
@@ -211,8 +212,6 @@ export class TownScene {
   #span = 30;
   #raf = 0;
   #last = 0;
-  /** When the next frame may be drawn (the 60 fps cap). */
-  #due = 0;
   #disposed = false;
   #dirtyFrames = 2;
   #down = { x: 0, y: 0 };
@@ -915,12 +914,10 @@ export class TownScene {
       }
       return;
     }
-    if (!this.view.measure && this.#last && now < this.#due - FRAME_MS / 4) {
+    if (!this.view.measure && this.#last && now - this.#last < FRAME_SKIP_MS) {
       this.#raf = requestAnimationFrame(this.animate);
       return;
     }
-    // The next frame is due one 60 Hz step on, or one step from now after a rest or a long frame.
-    this.#due = now - this.#due < FRAME_MS ? this.#due + FRAME_MS : now + FRAME_MS;
     const started = performance.now();
     const interval = this.#last ? now - this.#last : 0;
     const dt = this.#last ? Math.min(interval / 1000, 0.05) : 0;
