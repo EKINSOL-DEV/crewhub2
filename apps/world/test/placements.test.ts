@@ -66,17 +66,17 @@ test("placements apply in document order; the one that no longer fits becomes a 
 });
 
 test("a door cell stays open: a prop on it, or one that walls it off, is refused", () => {
-  // The lobby's north door to the lead's office is lobby cell 4,0.
-  const onDoor = checkGhost(doc0, "cr", template, defs, { id: "probe", propId: "builtin:lamp", room: "lobby", cell: { x: 4, z: 0 }, rotation: 0 });
+  // The lobby's north door to the lead's office is lobby cell 6,0.
+  const onDoor = checkGhost(doc0, "cr", template, defs, { id: "probe", propId: "builtin:lamp", room: "lobby", cell: { x: 6, z: 0 }, rotation: 0 });
   assert.equal(onDoor.ok, false);
-  // The lobby's west door to Dispatch is lobby cell 0,3. Lamps north and south of it still leave the way in from the
+  // The lobby's west door to Dispatch is lobby cell 0,6. Lamps north and south of it still leave the way in from the
   // east; a third lamp there walls the door off.
-  const doc = withPlacements(place("builtin:lamp", "lobby", 0, 2), place("builtin:lamp", "lobby", 0, 4));
+  const doc = withPlacements(place("builtin:lamp", "lobby", 0, 5), place("builtin:lamp", "lobby", 0, 7));
   assert.deepEqual(resolveBuildingPlacements(doc, "cr", template, defs).errors, []);
-  const wall = checkGhost(doc, "cr", template, defs, { id: "probe", propId: "builtin:lamp", room: "lobby", cell: { x: 1, z: 3 }, rotation: 0 });
+  const wall = checkGhost(doc, "cr", template, defs, { id: "probe", propId: "builtin:lamp", room: "lobby", cell: { x: 1, z: 6 }, rotation: 0 });
   assert.deepEqual(wall, { ok: false, reason: "It would block a door or a place someone needs to reach." });
-  // Diagonal to the north door is fine (6,1 is the lobby coffee machine's approach cell, so not that one).
-  const beside = checkGhost(doc0, "cr", template, defs, { id: "probe", propId: "builtin:lamp", room: "lobby", cell: { x: 5, z: 1 }, rotation: 0 });
+  // Diagonal to the north door is fine.
+  const beside = checkGhost(doc0, "cr", template, defs, { id: "probe", propId: "builtin:lamp", room: "lobby", cell: { x: 7, z: 1 }, rotation: 0 });
   assert.deepEqual(beside, { ok: true });
 });
 
@@ -140,6 +140,6 @@ test("free spots for error crates start near the room centre and skip furniture 
   assert.ok(distance(spots[0]!) <= distance(spots[1]!) && distance(spots[1]!) <= distance(spots[2]!));
   const taken = new Set(storage.layout.props.flatMap((p) => propCells(p, defs)).map((c) => `${c.x},${c.z}`));
   for (const spot of spots) assert.ok(spot.x < width && spot.z < depth && !taken.has(`${spot.x},${spot.z}`), `${spot.x},${spot.z}`);
-  // The storage door (3, 4) carries a marker, so it is never a spot.
-  assert.ok(taken.has("3,4"));
+  // The storage door (4, 6) carries a marker, so it is never a spot.
+  assert.ok(taken.has("4,6"));
 });
