@@ -3,7 +3,7 @@
    furniture are parts-JSON (../models/town.*.json). Origins: a piece's footprint centre on the ground it stands on;
    stretchable pieces run along x. Every repeated part uses the kit's shared geometry, so a renderer can instance it. */
 import * as THREE from "three";
-import type { ModelOptions, StyleTheme } from "@crewhub/world-style";
+import type { ModelOptions } from "@crewhub/world-style";
 import { put, type Kit, type Swatch } from "./kit.ts";
 import { decalMaterial, GRASS_NIGHT, grassShader, pavingShader, waterShader } from "./shaders.ts";
 
@@ -302,18 +302,25 @@ function bulbMaterial(kit: Kit): THREE.MeshStandardMaterial {
   return kit.material("lamp-glow", { glow: "lantern-light" });
 }
 
-/**
- * The town's look per theme: lantern heads and string-light bulbs glow softly by day and warmly in lamplight, and the
- * landmarks' windows (art-civic's lit window and greenhouse glass materials) shine brighter in the evening.
- */
-export function townTheme(kit: Kit, theme: StyleTheme) {
-  const lamplight = theme === "lamplight";
-  GRASS_NIGHT.value = lamplight ? 1 : 0;
-  lanternGlass(kit).emissiveIntensity = lamplight ? 1.25 : 0.5;
-  bulbMaterial(kit).emissiveIntensity = lamplight ? 2.2 : 0.35;
-  kit.material("window", { glow: 0.45 }).emissiveIntensity = lamplight ? 1.15 : 0.45;
-  kit.material("window", { glow: 0.3, transparent: 0.42 }).emissiveIntensity = lamplight ? 1.5 : 0.3;
+/** The town's colours per theme: the worn paths. */
+export function townTheme(kit: Kit) {
   wearMaterial(kit).uniforms.uColor!.value.set(kit.hex("path-wear"));
+}
+
+/**
+ * The town's lamps follow the evening (0 by day, 1 in lamplight or late in the drift): lantern heads and string-light
+ * bulbs glow softly by day and warmly in the evening, and the landmarks' windows (art-civic's lit window and greenhouse
+ * glass materials) shine brighter.
+ */
+export function townLight(kit: Kit, evening: number) {
+  const e = THREE.MathUtils.clamp(evening, 0, 1);
+  const lerp = (day: number, night: number) => day + (night - day) * e;
+  // The lawns' warm evening patches belong to the dark lawns of lamplight; on the daylight lawns they would turn olive.
+  GRASS_NIGHT.value = kit.theme === "lamplight" ? e : e * 0.25;
+  lanternGlass(kit).emissiveIntensity = lerp(0.5, 1.25);
+  bulbMaterial(kit).emissiveIntensity = lerp(0.35, 2.2);
+  kit.material("window", { glow: 0.45 }).emissiveIntensity = lerp(0.45, 1.15);
+  kit.material("window", { glow: 0.3, transparent: 0.42 }).emissiveIntensity = lerp(0.3, 1.5);
 }
 
 export function disposeTown(kit: Kit) {

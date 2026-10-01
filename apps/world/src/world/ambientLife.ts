@@ -1,8 +1,10 @@
 /* Ambient life: the gentle motion a small town is never without. By day soft cloud shadows drift over the town, a few
    birds cross now and then (in the town view only), butterflies flutter over the flower beds and dust motes hang in
-   the entered building's light. In lamplight fireflies drift by the pond and the hedges and the landmarks' lit windows
+   the entered building's light. In the evening fireflies drift by the pond and the hedges and the landmarks' lit windows
    glow and breathe. Day and night, rings ripple on the pond and steam rises from the post office chimney and the
-   café's cups.
+   café's cups. "Evening" is the environment's evening factor (0 by day, 1 in lamplight), so the life follows the
+   day-night drift as well as the theme: the day's life thins out at dusk, fireflies come out one by one and the
+   windows brighten slowly.
 
    Every piece is a style model by key (`town.bird`, `town.firefly`, …), drawn as one instanced mesh and moved here, so
    the whole layer costs a handful of draw calls. The style marks where steam rises and which windows glow with
@@ -13,7 +15,7 @@
    and no reduced motion; otherwise it is hidden. TownScene ticks it with the frame loop and keeps drawing for it only
    while the playback runs, so a paused or ambient-off town still idles. Deterministic per index (no Math.random). */
 import * as THREE from "three";
-import type { GraphicsQuality, LifeSpot, ModelKey, PaletteName, ResolvedStyle, StyleTheme } from "@crewhub/world-style";
+import type { GraphicsQuality, LifeSpot, ModelKey, PaletteName, ResolvedStyle } from "@crewhub/world-style";
 import type { Ambient } from "./movement";
 import { noise, pondRect, type Dressing } from "./townDressing";
 import { townBounds, type Bounds } from "./townLayout";
@@ -22,8 +24,11 @@ export interface LifeSettings {
   ambient: Ambient;
   reducedMotion: boolean;
   quality: GraphicsQuality;
-  theme: StyleTheme;
 }
+
+/** The evening is followed in steps of this size: counts change at most this often during a dusk. */
+const EVENING_STEPS = 24;
+const smooth = (x: number, from: number, to: number) => THREE.MathUtils.smoothstep(x, from, to);
 
 /* Capacities with Ambient on; "reduced" shows about half and birds come less often. */
 const CLOUDS = 4;
@@ -115,7 +120,9 @@ export class AmbientLife {
   #ripples: Swarm;
   #steam: Swarm;
   #motes: Swarm;
-  #settings: LifeSettings = { ambient: "on", reducedMotion: false, quality: "pretty", theme: "day" };
+  #settings: LifeSettings = { ambient: "on", reducedMotion: false, quality: "pretty" };
+  /** The evening factor, in `EVENING_STEPS` steps: 0 by day, 1 in lamplight. */
+  #evening = 0;
   #t = 0;
   #beds: Home[] = [];
   #glowers: Home[] = [];
@@ -159,8 +166,16 @@ export class AmbientLife {
 
   configure(settings: LifeSettings) {
     const s = this.#settings;
-    if (s.ambient === settings.ambient && s.reducedMotion === settings.reducedMotion && s.quality === settings.quality && s.theme === settings.theme) return;
+    if (s.ambient === settings.ambient && s.reducedMotion === settings.reducedMotion && s.quality === settings.quality) return;
     this.#settings = { ...settings };
+    this.#apply();
+  }
+
+  /** Follows the environment's evening factor (0 by day, 1 with every lamp lit). */
+  setEvening(evening: number) {
+    const stepped = Math.round(THREE.MathUtils.clamp(evening, 0, 1) * EVENING_STEPS) / EVENING_STEPS;
+    if (stepped === this.#evening) return;
+    this.#evening = stepped;
     this.#apply();
   }
 
@@ -213,20 +228,23 @@ export class AmbientLife {
     this.#apply();
   }
 
-  /** Counts per swarm for the theme and the density; colours that do not change per frame. */
+  /** Counts per swarm for the evening and the density; colours that do not change per frame. */
   #apply() {
     const on = this.enabled;
     this.group.visible = on;
-    const day = this.#settings.theme === "day";
+    const e = this.#evening;
+    // The day's life thins out through the dusk; fireflies come out as it deepens.
+    const day = 1 - smooth(e, 0.25, 0.6),
+      dusk = smooth(e, 0.45, 0.95);
     const share = this.#settings.ambient === "reduced" ? 0.5 : 1;
     const n = (count: number, capacity: number) => (on ? Math.min(capacity, Math.round(count * share)) : 0);
-    this.#clouds.mesh.count = day ? n(CLOUDS, CLOUDS) : 0;
-    this.#butterflies.mesh.count = day ? n(this.#beds.length * BUTTERFLIES_PER_BED, BUTTERFLIES) : 0;
-    this.#fireflies.mesh.count = day ? 0 : n(this.#glowers.length * 2, FIREFLIES);
-    this.#windows.mesh.count = day ? 0 : on ? Math.min(WINDOWS, this.#windowSpots.length) : 0;
+    this.#clouds.mesh.count = Math.round(n(CLOUDS, CLOUDS) * day);
+    this.#butterflies.mesh.count = Math.round(n(this.#beds.length * BUTTERFLIES_PER_BED, BUTTERFLIES) * day);
+    this.#fireflies.mesh.count = Math.round(n(this.#glowers.length * 2, FIREFLIES) * dusk);
+    this.#windows.mesh.count = e > 0.05 && on ? Math.min(WINDOWS, this.#windowSpots.length) : 0;
     this.#ripples.mesh.count = this.#pond ? n(RIPPLES, RIPPLES) : 0;
     this.#steam.mesh.count = on ? Math.min(STEAM, this.#steamSpots.length * PUFFS_PER_SPOT) : 0;
-    this.#motes.mesh.count = day && this.#building ? n(MOTES, MOTES) : 0;
+    this.#motes.mesh.count = this.#building ? Math.round(n(MOTES, MOTES) * day) : 0;
     this.#birds.mesh.count = 0;
     for (let i = 0; i < this.#butterflies.capacity; i++) {
       const home = this.#beds[Math.floor(i / BUTTERFLIES_PER_BED)];
@@ -273,9 +291,8 @@ export class AmbientLife {
   #tickBirds(t: number, seconds: number) {
     const swarm = this.#birds,
       f = this.#flock;
-    const day = this.#settings.theme === "day";
     // Inside a building the camera is close: a bird passing overhead would be a big dark shard across the view.
-    if (!this.enabled || !day || this.#building) {
+    if (!this.enabled || this.#evening > 0.3 || this.#building) {
       swarm.done(0);
       return;
     }
@@ -362,13 +379,15 @@ export class AmbientLife {
     const swarm = this.#windows,
       count = swarm.mesh.count;
     if (!count) return;
+    // The windows brighten slowly through the dusk.
+    const lit = smooth(this.#evening, 0.05, 0.8);
     for (let i = 0; i < count; i++) {
       const spot = this.#windowSpots[i]!;
       swarm.put(i, spot.position.x, spot.position.y, spot.position.z, spot.yaw, 1, 1, 1);
       // Candle-like: a slow breath with a faint flicker, each window its own.
       const breath = 0.5 + 0.5 * Math.sin(t * (0.35 + noise(i, 22) * 0.3) + i * 2.1);
       const flicker = Math.sin(t * 9.7 + i * 5.3) * Math.sin(t * 6.1 + i) * 0.05;
-      swarm.shade(i, 0.3 + breath * 0.35 + flicker);
+      swarm.shade(i, (0.3 + breath * 0.35 + flicker) * lit);
     }
     swarm.done(count, true);
   }
@@ -378,7 +397,7 @@ export class AmbientLife {
       count = swarm.mesh.count,
       pond = this.#pond;
     if (!count || !pond) return;
-    const night = this.#settings.theme === "lamplight";
+    const night = this.#evening > 0.5;
     for (let i = 0; i < count; i++) {
       const period = 3.6;
       const cycle = (t + (i * period) / count) / period;

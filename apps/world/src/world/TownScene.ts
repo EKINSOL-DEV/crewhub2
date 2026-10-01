@@ -25,6 +25,7 @@ import { plotDoor, plotObstacles } from "./navigation";
 import { onPlayIntent } from "./intentPlayer";
 import { Walks } from "./walks";
 import { AmbientLife } from "./ambientLife";
+import { driftPhase } from "./dayClock";
 import { FrameRing } from "./frameRing";
 import { RobotCrowd } from "./robotCrowd";
 
@@ -45,6 +46,10 @@ export interface TownView {
   quality: GraphicsQuality;
   /** Source time now (ms): drone flights run on it, so they follow the playback speed. */
   now: () => number;
+  /** The Day and night setting: the light drifts with the source clock (`dayClock`). */
+  dayNight: boolean;
+  /** Source time since the first loop's start (ms): the day-night drift's clock. */
+  dayClock: () => number;
   /** The town document and build mode's ghost and selection (applied to the entered building only). */
   town: TownLayer | null;
   /** Playback speed (0 is paused): walks run at it, capped by the engine's tick. */
@@ -77,11 +82,14 @@ export interface FrameStats {
   walkers: number;
 }
 const FRAME_WINDOW = 300;
+/** How often the day-night drift looks at the clock: the light changes at most four times a second. */
+const DRIFT_INTERVAL_MS = 250;
 /* The frame loop draws at most 60 times a second, so a 120 Hz display does not double the work (the stress fixture is
-   uncapped). Frames fall due on a 60 Hz grid rather than "at least 16.7 ms after the last": at 120 Hz, a display frame
-   that came a hair early would otherwise be skipped and the next drawn 25 ms late. Display frame times jitter by a
-   millisecond or two, so a frame counts as due a quarter step early (still well under half a 120 Hz frame). */
-const FRAME_MS = 1000 / 60;
+   uncapped). A display frame is skipped only when less than three quarters of a 60 Hz frame has passed since the last
+   drawn one: at 120 Hz (8.3 ms, +-1.5 ms of jitter) every other one is drawn, at 60 Hz every one. A tighter test (or a
+   fixed 60 Hz grid, whose phase drifts against the display's) skips a frame that came a hair early and draws the next
+   one 25 ms late. */
+const FRAME_SKIP_MS = (1000 / 60) * 0.75;
 /** The numbers the frame rate overlay shows and `window.__worldPerf` exposes (ms, counts and bytes). */
 export interface WorldPerf {
   fps: number;
@@ -161,8 +169,17 @@ export class TownScene {
   readonly walks = new Walks();
   view: TownView;
   #environment: EnvironmentHandle;
-  /** Drawn frames since the town view's shadow map was last refreshed. */
-  #shadowAge = 0;
+  /**
+   * The town view's shadow map is drawn once and again only when something that casts or lights it changed: the sun
+   * (a fit or a visible step of the drift), the dressing, a building's casters (`BuildingView.shadowRevision`), a lift.
+   * Inside a building it follows every frame (robots cast there).
+   */
+  #shadowDirty = true;
+  /** The buildings' caster revisions the town's shadow map was last drawn for. */
+  #shadowCasters = -1;
+  /** The environment's shadow version the shadow maps were last drawn for. */
+  #shadowVersion = 0;
+  #driftTimer: ReturnType<typeof setInterval> | undefined;
   #buildings = new Map<string, BuildingView>();
   /** A blob contact shadow under each building's slab, sized to its footprint. */
   #contacts = new Map<string, { object: THREE.Object3D; size: string }>();
@@ -209,8 +226,6 @@ export class TownScene {
   #span = 30;
   #raf = 0;
   #last = 0;
-  /** When the next frame may be drawn (the 60 fps cap). */
-  #due = 0;
   #disposed = false;
   #dirtyFrames = 2;
   #down = { x: 0, y: 0 };
@@ -270,6 +285,7 @@ export class TownScene {
     this.#environment = this.townStyle.environment(this.scene, this.renderer, view.theme);
     this.#environment.setQuality(view.quality);
     this.fitShadow();
+    this.#shadowVersion = this.#environment.shadowVersion;
     this.#ring = this.townStyle.model("focus-ring", { size: { width: PLOT_SIZE + 0.4, height: 0, depth: PLOT_SIZE + 0.4 } });
     this.#ring.visible = false;
     // Just inside the hedges on the plot's rim, which would hide it.
@@ -279,6 +295,8 @@ export class TownScene {
     this.buildGround();
     this.#life = new AmbientLife(this.townStyle);
     this.scene.add(this.#hits, this.#ring, this.#civic, this.#life.group, this.#crowd.group);
+    this.#drift();
+    this.#driftTimer = setInterval(this.#drift, DRIFT_INTERVAL_MS);
     canvas.addEventListener("pointerdown", this.pointerDown);
     canvas.addEventListener("pointerup", this.pointerUp);
     canvas.addEventListener("pointermove", this.pointerMove);
@@ -302,6 +320,32 @@ export class TownScene {
     this.setView(view);
   }
 
+  /**
+   * The day-night drift: a few times a second the light takes the time of day from the source clock, and the scene
+   * redraws one frame when it changed. A theme change re-applies it at once; reduced motion, Fast and the setting off
+   * keep the theme's own light. The ambient life follows the evening (fireflies, lit windows); the town's shadow map
+   * is redrawn only when the sun moved a visible step.
+   */
+  #drift = () => {
+    if (this.#disposed || document.hidden) return;
+    const v = this.view;
+    const phase = driftPhase({ dayNight: v.dayNight, reducedMotion: v.reducedMotion, quality: v.quality, sinceStartMs: v.dayClock() });
+    const changed = this.#environment.setDayPhase(phase);
+    this.#life.setEvening(this.#environment.evening);
+    if (!changed) return;
+    if (this.#environment.shadowVersion !== this.#shadowVersion) {
+      this.#shadowVersion = this.#environment.shadowVersion;
+      this.#shadowDirty = true;
+    }
+    this.redraw();
+  };
+
+  /** Draws one more frame (a light change), without the longer settling run of `invalidate`. */
+  redraw() {
+    this.#dirtyFrames = Math.max(this.#dirtyFrames, 1);
+    if (!this.#raf && !this.#disposed && !document.hidden) this.#raf = requestAnimationFrame(this.animate);
+  }
+
   /** Every style in use follows the theme: the town's (through its environment) and each building's. */
   applyTheme(theme: StyleTheme) {
     this.#environment.setTheme(theme);
@@ -313,6 +357,7 @@ export class TownScene {
   applyQuality(quality: GraphicsQuality, live = true) {
     const pretty = quality === "pretty";
     this.renderer.shadowMap.enabled = pretty;
+    this.#shadowDirty = true;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, pretty ? 2 : 1));
     if (!live) return;
     this.#environment.setQuality(quality);
@@ -332,7 +377,7 @@ export class TownScene {
       this.#environment.setShadowReach(Math.max(b.maxX - b.minX, b.maxZ - b.minZ) / 2 + 4, { x: (b.minX + b.maxX) / 2, z: (b.minZ + b.maxZ) / 2 });
       this.#shadowFit = null;
       // A new fit refreshes the shadow map on the next drawn frame, also in the town view.
-      this.#shadowAge = 8;
+      this.#shadowDirty = true;
       this.invalidate();
       return;
     }
@@ -349,7 +394,7 @@ export class TownScene {
     const reach = Math.min(Math.max(Math.max(b.maxX - b.minX, b.maxZ - b.minZ) / 2 + 2, seen), 60);
     this.#environment.setShadowReach(reach, { x: target.x, z: target.z });
     this.#shadowFit = { zoom, x: target.x, z: target.z };
-    this.#shadowAge = 8;
+    this.#shadowDirty = true;
     this.invalidate();
   }
 
@@ -416,6 +461,7 @@ export class TownScene {
     const signature = `${indices.map((i) => `${this.view.model.buildings[i]?.slug}:${this.view.model.buildings[i]?.archived}`).join(",")}|${fast}`;
     if (signature === this.#dressing.signature) return;
     this.#disposeDressing();
+    this.#shadowDirty = true;
     const group = new THREE.Group();
     const plots = indices.map((index) => {
       const b = this.view.model.buildings[index];
@@ -526,6 +572,7 @@ export class TownScene {
     this.#anchors.set("c:town-hall", new THREE.Vector3(hall.x, 0.2, hall.z + CIVIC_LAWN / 2));
     if (signature === this.#civicSignature) return;
     this.#civicSignature = signature;
+    this.#shadowDirty = true;
     for (const robot of this.#civicRobots) robot.dispose();
     this.#civicRobots = [];
     this.#postman = null;
@@ -543,6 +590,8 @@ export class TownScene {
     if (postman && handle) {
       // The postman walks the town at the interiors' scale; the letters it carries ride in front of it.
       handle.object.scale.setScalar(ROBOT_SCALE * 1.15);
+      // It walks the whole town: its soft blob shadow goes along, a sun shadow would hold the town's map on every step.
+      handle.object.traverse((o) => (o.castShadow = false));
       const letters = [0, 1, 2].map((i) => {
         const letter = this.townStyle.model("letter");
         letter.position.set(0, 0.62 + i * 0.07, 0.34);
@@ -595,7 +644,8 @@ export class TownScene {
       else this.home(false);
       this.fitShadow();
     } else if (view.entered && previous.zoomed !== view.zoomed) this.frameBuilding(view.entered, view.zoomed);
-    this.#life.configure({ ambient: view.ambient, reducedMotion: view.reducedMotion, quality: view.quality, theme: view.theme });
+    this.#life.configure({ ambient: view.ambient, reducedMotion: view.reducedMotion, quality: view.quality });
+    if (previous.theme !== view.theme || previous.quality !== view.quality || previous.reducedMotion !== view.reducedMotion || previous.dayNight !== view.dayNight) this.#drift();
     if (previous.entered !== view.entered || !view.entered !== !this.#lifeInside) {
       const inside = view.entered ? this.#buildings.get(view.entered) : undefined;
       this.#life.setBuilding(inside ? inside.bounds(null) : null);
@@ -900,12 +950,10 @@ export class TownScene {
   animate = (now: number) => {
     this.#raf = 0;
     if (this.#disposed || document.hidden) return;
-    if (!this.view.measure && this.#last && now < this.#due - FRAME_MS / 4) {
+    if (!this.view.measure && this.#last && now - this.#last < FRAME_SKIP_MS) {
       this.#raf = requestAnimationFrame(this.animate);
       return;
     }
-    // The next frame is due one 60 Hz step on, or one step from now after a rest or a long frame.
-    this.#due = now - this.#due < FRAME_MS ? this.#due + FRAME_MS : now + FRAME_MS;
     const started = performance.now();
     const interval = this.#last ? now - this.#last : 0;
     const dt = this.#last ? Math.min(interval / 1000, 0.05) : 0;
@@ -945,13 +993,20 @@ export class TownScene {
     t.add(this.#v);
     this.#refitShadow();
     this.placeLabels();
-    // The town view's shadow casters barely move (robots seen from the town cast none), so its shadow map refreshes
-    // every eighth drawn frame; inside a building it follows every frame.
+    // The town view's shadow casters rarely change (robots seen from the town cast none, the postman neither), so its
+    // shadow map is drawn only when something changed; inside a building it follows every frame.
     const shadows = this.renderer.shadowMap;
     shadows.autoUpdate = this.view.entered !== null;
-    if (!shadows.autoUpdate && ++this.#shadowAge >= 8) {
+    if (!shadows.autoUpdate) {
+      const casters = this.#casterRevision();
+      if (casters !== this.#shadowCasters) {
+        this.#shadowCasters = casters;
+        this.#shadowDirty = true;
+      }
+    }
+    if (!shadows.autoUpdate && this.#shadowDirty) {
       shadows.needsUpdate = true;
-      this.#shadowAge = 0;
+      this.#shadowDirty = false;
     }
     this.#crowd.begin();
     for (const [slug, view] of this.#buildings) view.crowd(this.#crowd, this.#seen.has(slug));
@@ -1003,6 +1058,13 @@ export class TownScene {
     }
   }
 
+  /** A number that changes whenever a building's shadow casters seen from the town changed, or a building came or went. */
+  #casterRevision(): number {
+    let revision = this.#buildings.size;
+    for (const view of this.#buildings.values()) revision = (revision * 31 + view.shadowRevision) | 0;
+    return revision;
+  }
+
   /** Eases the focused or hovered building up a little and the others back down; true while one still moves. */
   #lift(slug: string, view: BuildingView, seconds: number): boolean {
     const base = (view.group.userData.baseY ??= view.group.position.y) as number;
@@ -1011,7 +1073,7 @@ export class TownScene {
     if (y === goal) return false;
     const next = this.view.reducedMotion || Math.abs(goal - y) < 0.004 ? goal : THREE.MathUtils.lerp(y, goal, 1 - Math.exp(-seconds * 10));
     view.group.position.y = next;
-    this.#shadowAge = 8;
+    this.#shadowDirty = true;
     return next !== goal;
   }
 
@@ -1148,6 +1210,7 @@ export class TownScene {
     for (const robot of this.#civicRobots) robot.dispose();
     this.#crowd.dispose();
     this.#disposeDressing();
+    clearInterval(this.#driftTimer);
     this.#life.dispose();
     this.#environment.dispose();
     // Styles live in the registry (one instance per id) and outlast this scene; the renderer frees the GPU side.
