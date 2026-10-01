@@ -12,6 +12,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { AgentPlacement, RoomKind, WorldModel } from "@crewhub/world-model";
 import type { EnvironmentHandle, ResolvedStyle, RobotHandle, RobotPosture, StyleTheme } from "@crewhub/world-style";
 import { BuildingView, type Pick } from "./buildingView";
+import { BUILDING_CELL } from "./buildingTemplate";
 import type { TownLayer } from "./propLayer";
 import { styleRegistry } from "./style";
 import type { StyledPlot } from "./styleRegistry";
@@ -78,6 +79,27 @@ const ROBOT_SCALE = 0.62;
 const CIVIC_LAWN = CIVIC_LOT;
 const HOME_OFFSET = new THREE.Vector3(1, 1.04, 1).normalize().multiplyScalar(90);
 const UP = new THREE.Vector3(0, 1, 0);
+/* Framing heights: a building is seen up to its tall back walls, a room up to its people and desks. */
+const BUILDING_FRAME_HEIGHT = 2.6;
+const ROOM_FRAME_HEIGHT = 1.6;
+/* The closest view: a frustum this many world units tall, about one desk with its robot. */
+const DESK_SPAN = 2.4;
+/* Pixels between two hanging labels before the one further back moves up. */
+const LABEL_GAP = 3;
+/* Labels that hang above their anchor (bottom centred on it): robots' stacks, tags, chips and counts. Building, civic
+   and room signs sit beside their anchors and keep their places. */
+const HANGING = /^(a|o|rule|err|p|beacon|mail|banner):|^c:[^:]+:/;
+/* The HTML chrome over the canvas, in CSS pixels (App's corners, playback bar and camera toolbar): framing keeps its
+   subject in the free area between them. Phones stack the corner rows and the camera buttons differently. */
+interface Insets {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+}
+const NO_INSETS: Insets = { top: 0, bottom: 0, left: 0, right: 0 };
+const CHROME: Insets = { top: 104, bottom: 84, left: 24, right: 76 };
+const PHONE_CHROME: Insets = { top: 156, bottom: 76, left: 12, right: 60 };
 
 export class TownScene {
   readonly renderer: THREE.WebGLRenderer;
@@ -99,7 +121,8 @@ export class TownScene {
   #ring: THREE.Object3D;
   #anchors = new Map<string, THREE.Vector3>();
   #labelsHost: HTMLElement;
-  #labels: { el: HTMLElement; id: string; half: number; x: number; y: number; visible: boolean }[] = [];
+  #labels: Label[] = [];
+  #stacks: Label[] = [];
   #span = 30;
   #raf = 0;
   #last = 0;
@@ -141,7 +164,7 @@ export class TownScene {
     canvas.setAttribute("role", "application");
     canvas.setAttribute(
       "aria-label",
-      "The town. Arrow keys move between buildings, Enter goes inside. Inside a building arrow keys move between rooms, Enter zooms to a room, Escape goes back one level. Plus and minus zoom, brackets rotate, H returns home. T opens the text view.",
+      "The town. Arrow keys move between buildings, Enter goes inside. Inside a building arrow keys move between rooms, Enter zooms to a room, Escape goes back one level. Plus and minus zoom, brackets rotate, H returns home. D shows every label. T opens the text view.",
     );
     host.appendChild(canvas);
     this.camera.position.copy(HOME_OFFSET);
@@ -325,11 +348,14 @@ export class TownScene {
   refreshLabels() {
     const previous = new Map(this.#labels.map((l) => [l.el, l]));
     this.#labels = [...this.#labelsHost.querySelectorAll<HTMLElement>("[data-anchor]")].map(
-      (el) => previous.get(el) ?? { el, id: el.dataset.anchor ?? "", half: 0, x: Number.NaN, y: Number.NaN, visible: false },
+      (el) => previous.get(el) ?? { el, id: "", half: 0, height: 0, stack: false, x: Number.NaN, y: Number.NaN, nx: 0, ny: 0, visible: false },
     );
     for (const l of this.#labels) {
       l.id = l.el.dataset.anchor ?? "";
-      l.half = ((l.el.firstElementChild as HTMLElement | null)?.offsetWidth ?? 0) / 2;
+      const box = l.el.firstElementChild as HTMLElement | null;
+      l.half = (box?.offsetWidth ?? 0) / 2;
+      l.height = box?.offsetHeight ?? 0;
+      l.stack = HANGING.test(l.id);
       l.x = Number.NaN;
     }
     this.invalidate();
@@ -364,11 +390,25 @@ export class TownScene {
     return this.frameRects([bounds], height, this.#v.copy(this.camera.position).sub(this.controls.target)).span;
   }
 
+  /** The chrome over the canvas at its current size. */
+  insets(): Insets {
+    const canvas = this.renderer.domElement;
+    const width = canvas.clientWidth,
+      height = canvas.clientHeight;
+    if (!width || !height) return NO_INSETS;
+    const chrome = width < 600 ? PHONE_CHROME : CHROME;
+    // A short or narrow canvas never gives more than a third of an axis to the chrome.
+    const fit = (a: number, b: number, size: number) => Math.min(1, size / 3 / Math.max(1, a + b));
+    const fy = fit(chrome.top, chrome.bottom, height),
+      fx = fit(chrome.left, chrome.right, width);
+    return { top: chrome.top * fy, bottom: chrome.bottom * fy, left: chrome.left * fx, right: chrome.right * fx };
+  }
+
   /**
    * Frames the projected corners of `rects` (each up to `height`) seen along `direction` (camera minus target): the
-   * frustum height at zoom 1 and the ground point to aim at so they sit centred on the screen.
+   * frustum height at zoom 1 and the ground point to aim at so they sit centred in the canvas less `insets`.
    */
-  frameRects(rects: readonly Bounds[], height: number, direction: THREE.Vector3): { span: number; target: THREE.Vector3 } {
+  frameRects(rects: readonly Bounds[], height: number, direction: THREE.Vector3, insets: Insets = NO_INSETS, margin = 1.04): { span: number; target: THREE.Vector3 } {
     this.#offset.copy(direction).normalize();
     this.#right.crossVectors(UP, this.#offset).normalize();
     this.#up.crossVectors(this.#offset, this.#right).normalize();
@@ -389,29 +429,43 @@ export class TownScene {
             v0 = Math.min(v0, v);
             v1 = Math.max(v1, v);
           }
-    const uc = (u0 + u1) / 2,
-      vc = (v0 + v1) / 2;
+    const canvas = this.renderer.domElement;
+    const canvasWidth = Math.max(1, canvas.clientWidth),
+      canvasHeight = Math.max(1, canvas.clientHeight);
+    const aspect = canvasWidth / canvasHeight;
+    // The free area's share of each axis, and its centre's offset from the canvas centre in pixels (right, down).
+    const fy = Math.max(0.2, 1 - (insets.top + insets.bottom) / canvasHeight),
+      fx = Math.max(0.2, 1 - (insets.left + insets.right) / canvasWidth);
+    const span = Math.max((v1 - v0) / fy, (u1 - u0) / (aspect * fx)) * margin;
+    const perPixel = span / canvasHeight;
+    const uc = (u0 + u1) / 2 - ((insets.left - insets.right) / 2) * perPixel,
+      vc = (v0 + v1) / 2 + ((insets.top - insets.bottom) / 2) * perPixel;
     // The screen centre (uc, vc), slid along the view direction down to the ground.
     const target = this.#right.clone().multiplyScalar(uc).addScaledVector(this.#up, vc);
     target.addScaledVector(this.#offset, -target.y / this.#offset.y);
-    const canvas = this.renderer.domElement;
-    const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight) || 1;
-    return { span: Math.max(v1 - v0, (u1 - u0) / aspect) * 1.04, target };
+    return { span, target };
   }
 
   home(immediate: boolean) {
-    const { target } = this.frameRects(homeRects(this.view.model.buildings.length), 2, HOME_OFFSET);
+    const { target } = this.frameRects(homeRects(this.view.model.buildings.length), 2, HOME_OFFSET, this.insets());
     this.moveTo(target, target.clone().add(HOME_OFFSET), 1, immediate);
   }
 
-  /** Frames the entered building, or one of its rooms. */
+  /**
+   * Frames the entered building close: its template footprint (with the step before its door) fills the free canvas,
+   * or, given a room, that room does. The view direction stays (a rotation survives); only target and zoom move.
+   */
   frameBuilding(slug: string, room: RoomKind | null) {
     const view = this.#buildings.get(slug);
     if (!view) return;
-    const bounds = view.bounds(room);
-    const offset = this.camera.position.clone().sub(this.controls.target);
-    const target = new THREE.Vector3((bounds.minX + bounds.maxX) / 2, 0.4, (bounds.minZ + bounds.maxZ) / 2);
-    const span = this.spanFor(bounds, room ? 1.2 : 2);
+    const o = view.group.position,
+      size = view.template.size;
+    const bounds: Bounds = room
+      ? view.bounds(room)
+      : { minX: o.x - 0.3, maxX: o.x + size.width * BUILDING_CELL + 0.3, minZ: o.z - 0.3, maxZ: o.z + size.depth * BUILDING_CELL + 0.9 };
+    const direction = (this.#tween ? this.#tween.position.clone().sub(this.#tween.target) : this.camera.position.clone().sub(this.controls.target)).normalize();
+    const { span, target } = this.frameRects([bounds], room ? ROOM_FRAME_HEIGHT : BUILDING_FRAME_HEIGHT, direction, this.insets(), room ? 1.3 : 1.02);
+    const offset = direction.multiplyScalar(HOME_OFFSET.length());
     this.moveTo(target, target.clone().add(offset), THREE.MathUtils.clamp(this.#span / span, 0.6, this.controls.maxZoom), false);
   }
 
@@ -569,7 +623,9 @@ export class TownScene {
       position = this.camera.position.clone();
     this.controls.target.set(0, 0, 0);
     this.camera.position.copy(HOME_OFFSET);
-    this.#span = this.frameRects(homeRects(this.view.model.buildings.length), 2, HOME_OFFSET).span;
+    this.#span = this.frameRects(homeRects(this.view.model.buildings.length), 2, HOME_OFFSET, this.insets()).span;
+    // Zoom is relative to the home frame: however large the town, the closest view is about one desk.
+    this.controls.maxZoom = Math.max(4, this.#span / DESK_SPAN);
     this.controls.target.copy(target);
     this.camera.position.copy(position);
     const aspect = width / height;
@@ -714,6 +770,8 @@ export class TownScene {
     const canvas = this.renderer.domElement;
     const width = canvas.clientWidth,
       height = canvas.clientHeight;
+    const stacks = this.#stacks;
+    stacks.length = 0;
     for (const label of this.#labels) {
       const anchor = this.#anchors.get(label.id);
       let visible = false,
@@ -726,12 +784,21 @@ export class TownScene {
         visible = this.#v.z > -1 && this.#v.z < 1 && x > 8 && x < width - 8 && y > 8 && y < height - 8;
         if (label.half * 2 + 16 < width) x = THREE.MathUtils.clamp(x, label.half + 8, width - label.half - 8);
       }
-      if (Math.abs(label.x - x) > 0.2 || Math.abs(label.y - y) > 0.2 || label.visible !== visible || Number.isNaN(label.x)) {
+      label.nx = x;
+      label.ny = y;
+      label.visible = visible;
+      if (visible && label.stack) stacks.push(label);
+    }
+    if (stacks.length > 1) nudgeStacks(stacks);
+    for (const label of this.#labels) {
+      const x = label.nx,
+        y = label.ny,
+        visible = label.visible;
+      if (Math.abs(label.x - x) > 0.2 || Math.abs(label.y - y) > 0.2 || label.el.style.visibility !== (visible ? "visible" : "hidden") || Number.isNaN(label.x)) {
         label.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
         label.el.style.visibility = visible ? "visible" : "hidden";
         label.x = x;
         label.y = y;
-        label.visible = visible;
       }
     }
   }
@@ -757,5 +824,44 @@ export class TownScene {
     // Styles live in the registry (one instance per id) and outlast this scene; the renderer frees the GPU side.
     this.renderer.dispose();
     canvas.remove();
+  }
+}
+
+interface Label {
+  el: HTMLElement;
+  id: string;
+  /** Half the width and the height of the label's box, measured when React renders it. */
+  half: number;
+  height: number;
+  /** A hanging label (a robot's pill and bubble, a tag), which keeps clear of its neighbours. */
+  stack: boolean;
+  /** Placed position, and this frame's position before it is applied. */
+  x: number;
+  y: number;
+  nx: number;
+  ny: number;
+  visible: boolean;
+}
+
+/**
+ * Two robots side by side would pile their pills and bubbles on each other, and so would tags on neighbouring desks.
+ * Each hangs above its anchor (bottom centred on it); from the front of the scene (lowest on screen) back, a label that
+ * would overlap one already placed moves up just above it, so the nearer thing keeps its label where it stands.
+ */
+function nudgeStacks(stacks: Label[]) {
+  stacks.sort((a, b) => b.ny - a.ny || (a.id < b.id ? -1 : 1));
+  for (let i = 1; i < stacks.length; i++) {
+    const l = stacks[i]!;
+    for (let pass = 0; pass < 4; pass++) {
+      let moved = false;
+      for (let j = 0; j < i; j++) {
+        const o = stacks[j]!;
+        if (Math.abs(l.nx - o.nx) < l.half + o.half + LABEL_GAP && l.ny > o.ny - o.height - LABEL_GAP && l.ny - l.height < o.ny + LABEL_GAP) {
+          l.ny = o.ny - o.height - LABEL_GAP;
+          moved = true;
+        }
+      }
+      if (!moved) break;
+    }
   }
 }
