@@ -26,6 +26,7 @@ import { onPlayIntent } from "./intentPlayer";
 import { Walks } from "./walks";
 import { AmbientLife } from "./ambientLife";
 import { FrameRing } from "./frameRing";
+import { RobotCrowd } from "./robotCrowd";
 
 export interface TownView {
   model: WorldModel;
@@ -183,6 +184,12 @@ export class TownScene {
   #shadowFit: { zoom: number; x: number; z: number } | null = null;
   #civicSignature = "";
   #civicRobots: RobotHandle[] = [];
+  /** The far robots of every building, drawn instanced (robotCrowd.ts). */
+  #crowd = new RobotCrowd();
+  /** Buildings the camera sees this frame (their far robots follow their walkers and are drawn). */
+  #seen = new Set<string>();
+  #frustum = new THREE.Frustum();
+  #box = new THREE.Box3();
   #postman: { handle: RobotHandle; key: string; letters: THREE.Object3D[] } | null = null;
   /** Drawn frames (the stress and frame rate overlays only), and whether the loop rested before the next one. */
   #frames = new FrameRing(2048);
@@ -215,6 +222,7 @@ export class TownScene {
   #ray = new THREE.Raycaster();
   #pointer = new THREE.Vector2();
   #v = new THREE.Vector3();
+  #projection = new THREE.Matrix4();
   #offset = new THREE.Vector3();
   #right = new THREE.Vector3();
   #up = new THREE.Vector3();
@@ -269,7 +277,7 @@ export class TownScene {
     this.scene.add(this.#glow);
     this.buildGround();
     this.#life = new AmbientLife(this.townStyle);
-    this.scene.add(this.#hits, this.#ring, this.#civic, this.#life.group);
+    this.scene.add(this.#hits, this.#ring, this.#civic, this.#life.group, this.#crowd.group);
     canvas.addEventListener("pointerdown", this.pointerDown);
     canvas.addEventListener("pointerup", this.pointerUp);
     canvas.addEventListener("pointermove", this.pointerMove);
@@ -918,8 +926,9 @@ export class TownScene {
     const playing = this.view.speed() > 0;
     this.#life.tick(playing ? dt : 0);
     if (playing && this.#life.active) moving = true;
+    this.#see();
     for (const [slug, view] of this.#buildings.entries()) {
-      view.tick(dt);
+      view.tick(dt, this.#seen.has(slug));
       if (view.animating) moving = true;
       if (this.#lift(slug, view, dt)) moving = true;
     }
@@ -941,6 +950,9 @@ export class TownScene {
       shadows.needsUpdate = true;
       this.#shadowAge = 0;
     }
+    this.#crowd.begin();
+    for (const [slug, view] of this.#buildings) view.crowd(this.#crowd, this.#seen.has(slug));
+    this.#crowd.end();
     try {
       this.renderer.render(this.scene, this.camera);
     } catch {
@@ -972,6 +984,19 @@ export class TownScene {
     if (this.#dressing.group && this.view.model.buildings.length && this.#buildings.size) {
       this.#marked.dressed = true;
       performance.mark("world:town-dressed");
+    }
+  }
+
+  /** Which buildings the camera sees, with a margin (a robot stepping out of the door, a building lifting). */
+  #see() {
+    this.camera.updateMatrixWorld();
+    this.#frustum.setFromProjectionMatrix(this.#projection.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse));
+    this.#seen.clear();
+    for (const [slug, view] of this.#buildings) {
+      const b = view.bounds(null);
+      this.#box.min.set(b.minX - 1, -1, b.minZ - 1);
+      this.#box.max.set(b.maxX + 1, 5, b.maxZ + 1);
+      if (this.#frustum.intersectsBox(this.#box)) this.#seen.add(slug);
     }
   }
 
@@ -1118,6 +1143,7 @@ export class TownScene {
     canvas.removeEventListener("webglcontextlost", this.contextLost);
     for (const view of this.#buildings.values()) view.dispose();
     for (const robot of this.#civicRobots) robot.dispose();
+    this.#crowd.dispose();
     this.#disposeDressing();
     this.#life.dispose();
     this.#environment.dispose();
