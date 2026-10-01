@@ -19,7 +19,7 @@ import * as life from "./life.ts";
 import { environment } from "./environment.ts";
 import { bench, desk, lamp, leadDesk, shelf, sofa, table, workdesk } from "./furniture.ts";
 import { Kit, type GreenhouseManifestData } from "./kit.ts";
-import { LIGHT_POOLS, SURFACES } from "./keys.ts";
+import { BLOB_SHADOWS, LIGHT_POOLS, SURFACES } from "./keys.ts";
 import { partsModel } from "./parts.ts";
 import * as pieces from "./pieces.ts";
 import * as shell from "./shell.ts";
@@ -63,6 +63,12 @@ class GreenhouseStyle implements WorldStyle {
       decal.position.set(pool.x ?? 0, pool.y, pool.z ?? 0);
       object.add(decal);
     }
+    const blob = BLOB_SHADOWS[key];
+    if (blob) {
+      const shadow = this.#kit.decal("shadow", blob.halfX, blob.halfZ, blob.soft);
+      shadow.position.y = 0.008;
+      object.add(shadow);
+    }
     return object;
   }
 
@@ -93,8 +99,26 @@ class GreenhouseStyle implements WorldStyle {
       drone.add(blade);
       blades.push(blade);
     }
+    // Sparkle dust: a few motes swirl and twinkle under the drone while it flies. They show only once the animation
+    // runs, so under reduced motion (renderers skip the hook) the drone keeps its plain fade.
+    const motes = [0, 1, 2, 3, 4].map((i) => {
+      const mote = new THREE.Mesh(this.#kit.geometry("drone:mote", () => new THREE.SphereGeometry(0.016, 8, 6)), this.#kit.material("sparkle", { glow: 0.9 }));
+      mote.visible = false;
+      mote.userData.phase = i * 1.26;
+      drone.add(mote);
+      return mote;
+    });
+    let time = 0;
     drone.userData.animate = (seconds: number) => {
       for (const blade of blades) blade.rotation.y += seconds * 40;
+      time += seconds;
+      for (const mote of motes) {
+        const a = time * 2.4 + (mote.userData.phase as number);
+        const fall = (time * 0.35 + (mote.userData.phase as number) / 6.3) % 1;
+        mote.position.set(Math.cos(a) * 0.13, 0.3 - fall * 0.22, Math.sin(a) * 0.13);
+        mote.scale.setScalar(Math.max(0.05, Math.sin(fall * Math.PI) * (0.7 + 0.3 * Math.sin(time * 9 + a))));
+        mote.visible = true;
+      }
     };
   }
 

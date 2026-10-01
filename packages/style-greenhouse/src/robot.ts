@@ -58,7 +58,8 @@ export function robot(kit: Kit, options: { key: string; accent: PaletteName | nu
   });
   const feet = [-0.16, 0.16].map((x) => put(group, kit.box(0.19, 0.14, 0.29, "foot", 0.065), x, 0.12, 0.065));
   if (variant === 1) put(head, kit.sphere(0.1, "petal"), 0.27, 0.22, 0.14).scale.set(1, 0.35, 1);
-  if (variant === 2) put(body, kit.box(0.32, 0.07, 0.37, "cap", 0.02), 0, 0.68, 0.01);
+  if (variant === 2 && options.role !== "router") put(body, kit.box(0.32, 0.07, 0.37, "cap", 0.02), 0, 0.68, 0.01);
+  if (options.role === "router") postal(kit, head, body, small);
   group.traverse((o) => {
     o.userData.agentId = options.key;
   });
@@ -206,4 +207,31 @@ export function robot(kit: Kit, options: { key: string; accent: PaletteName | nu
       group.removeFromParent();
     },
   };
+}
+
+/**
+ * The post office's look: a postal cap whose crown the antenna pokes through (its ball sits on top like a pompom), and
+ * a timber messenger satchel on the hip with a cross-body strap and letters peeking out. Everything rides the body and
+ * head, so it follows postures and the walk.
+ */
+function postal(kit: Kit, head: THREE.Group, body: THREE.Group, small: <T extends THREE.Object3D>(o: T) => T) {
+  put(head, kit.cylinder(0.21, 0.23, 0.1, "slate"), 0, 0.31, 0);
+  put(head, kit.cylinder(0.235, 0.235, 0.03, "coral"), 0, 0.275, 0);
+  put(head, kit.box(0.3, 0.025, 0.15, "slate", 0.012), 0, 0.27, 0.24).rotation.x = 0.12;
+  small(put(head, kit.sphere(0.03, "brass"), 0, 0.31, 0.225)).scale.set(1, 1, 0.4);
+  // A messenger satchel on the left hip, its strap across the chest from the right shoulder, letters peeking out.
+  const bag = new THREE.Group();
+  bag.position.set(-0.37, 0.27, 0.04);
+  body.add(bag);
+  put(bag, kit.box(0.11, 0.2, 0.28, "timber", 0.035), 0, 0, 0);
+  put(bag, kit.box(0.12, 0.09, 0.29, "timber-light", 0.03), -0.006, 0.07, 0);
+  small(put(bag, kit.box(0.02, 0.05, 0.06, "brass", 0.01), -0.065, 0.04, 0));
+  for (const [z, tilt, color] of [
+    [-0.07, 0.2, "paper"],
+    [0.02, -0.1, "cream"],
+    [0.09, 0.12, "paper"],
+  ] as const)
+    small(put(bag, kit.box(0.012, 0.09, 0.11, color, 0.006), 0.01, 0.12, z)).rotation.x = tilt;
+  const strap = put(body, kit.box(0.045, 0.58, 0.02, "timber", 0.01), -0.02, 0.47, 0.182);
+  strap.rotation.z = -0.72;
 }

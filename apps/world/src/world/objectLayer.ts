@@ -218,11 +218,17 @@ export class ObjectLayer {
       state.drone.add(this.#ctx.style.model("drone"));
       state.drone.scale.setScalar(DRONE_SCALE);
       this.group.add(state.drone);
+      // Its soft blob shadow stays on the floor under it, smaller and lighter the higher it flies.
+      const shadow = this.#ctx.style.model("town.contact-shadow", { size: { width: 0.05, height: 0, depth: 0.05 } });
+      shadow.visible = false;
+      state.drone.userData.shadow = shadow;
+      this.group.add(shadow);
     }
   }
 
   #dropDrone(state: ObjectState) {
     if (!state.drone) return;
+    (state.drone.userData.shadow as THREE.Object3D | undefined)?.removeFromParent();
     state.drone.removeFromParent();
     state.drone = null;
   }
@@ -279,6 +285,13 @@ export class ObjectLayer {
         const fade = whole < 0.1 ? whole / 0.1 : t > 0.9 ? (1 - t) / 0.1 : 1;
         const body = drone.children[0]!;
         this.#ctx.style.materialise(body, fade);
+        const shadow = drone.userData.shadow as THREE.Object3D | undefined;
+        if (shadow) {
+          const floor = this.#ctx.surface("floor");
+          shadow.visible = fade > 0.02;
+          shadow.position.set(drone.position.x, floor + 0.004, drone.position.z);
+          shadow.scale.setScalar((0.9 * Math.max(0.001, fade)) / (1 + Math.max(0, drone.position.y - floor) * 0.45));
+        }
         (body.userData.animate as ((s: number) => void) | undefined)?.(seconds);
       }
     } else if (state.rest) {
