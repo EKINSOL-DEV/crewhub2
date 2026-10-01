@@ -346,3 +346,27 @@ tonight. No second style is needed now.
   implements it, and what a third-party style would have to provide. Loading
   styles from outside the bundle, a style marketplace or an editor are not
   tonight's work.
+
+## Addendum: the Greenhouse art pass (morning of 2026-10-01)
+
+After the first look in a real browser, the owner's verdict: the world misses the freshness of the buildings and
+interiors of the earlier Greenhouse room, buildings should be bigger and roomier, and the small-town feeling
+(green, paths, lanterns and other details) is very important. The following hours go to beauty, not features;
+functional work resumes afterwards. Nothing functional may be lost.
+
+Reference: the Greenhouse room on `main` at 3a66363. What it had and the world lost: tall back walls with the
+greenhouse glass wall, soft directional light with shadows and a cream floor slab, homely props in the rooms (sofa,
+bookshelf, lamps, pictures, plants), few labels (name pill and one bubble per robot), a close camera.
+
+Scope of the pass, all through the `WorldStyle` seam and the building templates:
+
+- Buildings bigger and roomier, tall walls on the back sides, the glass wall as the signature outer wall, project
+  colour as an accent rather than a ribbon, the old lighting and floor slab, every room type dressed with the homely
+  props, a camera that frames the building and the focused room closely.
+- A real small town in the Greenhouse palette: green, paths that the navigation grid follows, lanterns lit in dark
+  mode, benches, signposts, a square, real post office and town hall buildings, archived buildings boarded up but
+  pretty.
+- Labels: by default only a name pill and at most one bubble per robot; everything else on hover, selection or a
+  persisted details toggle. The text view keeps everything.
+- The gate, the stress fixture budget, reduced motion, 375 px and both themes keep holding. Four to six
+  implementers in parallel; visual work on Opus 5.5 at effort medium.
