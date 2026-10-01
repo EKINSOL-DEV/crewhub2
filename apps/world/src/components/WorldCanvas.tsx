@@ -1,11 +1,11 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Archive, Check, CircleHelp, Clock, Flag, Hand, MessageSquare, Play, RefreshCw, Sprout, TriangleAlert, Trophy } from "lucide-react";
 import type { AgentPlacement, Building, ProgressKind, RoleSource, WorkObject, WorldModel } from "@crewhub/world-model";
 import { STRESS, worldRuntime } from "../state/world";
 import { useDark } from "../state/theme";
 import type { Pick } from "../world/buildingView";
 import { buildingTemplate } from "../world/buildingTemplate";
-import { assignDesks, placeObjects, roomName } from "../world/interiorLayout";
+import { assignDesks, placeObjects, roomName, shortRoomName } from "../world/interiorLayout";
 import { TownScene, type BuildPointer, type CameraAction, type FrameStats } from "../world/TownScene";
 import { resolveBuildingPlacements } from "../world/placements";
 import type { TownLayer } from "../world/propLayer";
@@ -101,6 +101,7 @@ export default function WorldCanvas(props: Props) {
 
   const { model, entered } = props;
   const inside = model.buildings.find((b) => b.slug === entered) ?? null;
+  const compact = useCompact();
   return (
     <>
       <div ref={host} className="canvas-host" />
@@ -114,7 +115,8 @@ export default function WorldCanvas(props: Props) {
       <div ref={labels} className="world-labels">
         {model.buildings.slice(0, TOWN_CAPACITY).map((b, index) => {
           if (inside && inside.slug !== b.slug) return null;
-          const expanded = !!inside || (props.ringVisible && props.focused === index);
+          // Inside a building on a phone the sign stays small: the breadcrumb names the building, the text view counts.
+          const expanded = inside ? !compact : props.ringVisible && props.focused === index;
           const lead = b.agents.find((a) => a.key === b.lead.id && a.presence === "real");
           return (
             <div key={b.slug} className={`anchor${expanded ? " raised" : ""}`} data-anchor={`b:${b.slug}`}>
@@ -143,7 +145,7 @@ export default function WorldCanvas(props: Props) {
             </div>
           );
         })}
-        {inside && !inside.archived && <Interior building={inside} model={model} props={props} />}
+        {inside && !inside.archived && <Interior building={inside} model={model} props={props} compact={compact} />}
         {!inside && (
           <>
             <div className="anchor" data-anchor="c:town-hall">
@@ -169,10 +171,24 @@ export default function WorldCanvas(props: Props) {
   );
 }
 
+/* Below 600 px a building's labels crowd: one room sign (the focused room's, in one word) and captions only for the
+   agent under the pointer or selected. Everything hidden here stays in the text view. */
+const COMPACT = "(max-width: 599px)";
+function useCompact(): boolean {
+  return useSyncExternalStore(
+    (listener) => {
+      const media = window.matchMedia(COMPACT);
+      media.addEventListener("change", listener);
+      return () => media.removeEventListener("change", listener);
+    },
+    () => window.matchMedia(COMPACT).matches,
+  );
+}
+
 const same = (a: Pick | null, b: Pick | null) => !!a && !!b && JSON.stringify(a) === JSON.stringify(b);
 
 /** Labels inside the entered building. */
-function Interior({ building: b, model, props }: { building: Building; model: WorldModel; props: Props }) {
+function Interior({ building: b, model, props, compact }: { building: Building; model: WorldModel; props: Props; compact: boolean }) {
   const template = buildingTemplate(b);
   const layout = placeObjects(b, template, assignDesks(b, template));
   const nameOf = (slug: string | null) => model.buildings.find((x) => x.slug === slug)?.name ?? slug ?? "another building";
@@ -183,10 +199,11 @@ function Interior({ building: b, model, props }: { building: Building; model: Wo
       {template.rooms.map((r) => {
         const room = b.rooms.find((x) => x.kind === r.kind);
         const focused = props.room === r.kind;
+        if (compact && r.kind !== (props.room ?? props.zoomed)) return null;
         return (
           <div key={r.kind} className="anchor" data-anchor={`r:${b.slug}:${r.kind}`}>
             <span className={`room-sign${room && !room.present ? " dimmed" : ""}${focused ? " focused" : ""}`}>
-              <strong>{roomName(b, r.kind)}</strong>
+              <strong>{compact ? shortRoomName(r.kind) : roomName(b, r.kind)}</strong>
               {room && !room.present && <span className="sign-muted">{room.emptyLabel}</span>}
               {r.kind === "lobby" && b.archivedCount > 0 && <span className="sign-muted">{b.archivedCount} archived</span>}
             </span>
@@ -194,7 +211,16 @@ function Interior({ building: b, model, props }: { building: Building; model: Wo
         );
       })}
       {b.agents.map((a) => (
-        <AgentLabel key={a.key} slug={b.slug} agent={a} building={b} model={model} workingIn={nameOf(a.workingIn)} plate={same(shown, { kind: "agent", key: a.key })} />
+        <AgentLabel
+          key={a.key}
+          slug={b.slug}
+          agent={a}
+          building={b}
+          model={model}
+          workingIn={nameOf(a.workingIn)}
+          plate={same(shown, { kind: "agent", key: a.key })}
+          caption={!compact || same(props.selection.hover, { kind: "agent", key: a.key }) || same(props.selection.selected, { kind: "agent", key: a.key })}
+        />
       ))}
       {b.objects.map((o) =>
         o.nameTag || same(shown, { kind: "object", ticketId: o.ticketId }) ? (
@@ -320,9 +346,26 @@ function statusTag(agent: AgentPlacement, model: WorldModel, workingIn: string) 
   return null;
 }
 
-function AgentLabel({ slug, agent, building, model, workingIn, plate }: { slug: string; agent: AgentPlacement; building: Building; model: WorldModel; workingIn: string; plate: boolean }) {
+function AgentLabel({
+  slug,
+  agent,
+  building,
+  model,
+  workingIn,
+  plate,
+  caption: showCaption,
+}: {
+  slug: string;
+  agent: AgentPlacement;
+  building: Building;
+  model: WorldModel;
+  workingIn: string;
+  plate: boolean;
+  /** False on a phone unless the agent is under the pointer or selected; the text view keeps every caption. */
+  caption: boolean;
+}) {
   const tag = statusTag(agent, model, workingIn);
-  const caption = agent.presence === "real" ? agent.caption : null;
+  const caption = agent.presence === "real" && showCaption ? agent.caption : null;
   const Icon = caption ? CAPTION_ICON[caption.kind] : null;
   const fading = caption?.until != null && caption.until - model.now < 4000;
   if (!tag && !caption && !plate && agent.alerts.length === 0) return null;
