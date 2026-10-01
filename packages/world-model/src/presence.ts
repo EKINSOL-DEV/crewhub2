@@ -4,11 +4,11 @@
  * but never raise it above the plan.
  */
 
-export type AmbientMode = "off" | "reduced" | "on";
-
+/**
+ * The director's settings. The table's `presence.ambient` (idle variety, plan 7.1) is the walks' own setting in the
+ * app (`state/ambient.ts`), shown in the same block; it is not stored here, so there is one value.
+ */
 export interface PresenceSettings {
-  /** Deterministic idle variety (plan 7.1). */
-  ambient: AmbientMode;
   /** Off until a person switches it on. In demo mode it turns the scripted feed on. */
   directorEnabled: boolean;
   /** Scheduled plan interval, minutes. Minimum 2. */
@@ -34,7 +34,6 @@ export const PRESENCE_LIMITS = {
 } as const;
 
 export const DEFAULT_PRESENCE: PresenceSettings = {
-  ambient: "on",
   directorEnabled: false,
   intervalMinutes: 5,
   quickPlans: true,
@@ -55,7 +54,6 @@ export function normalizePresence(raw: unknown): PresenceSettings {
   const o: Record<string, unknown> = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
   const L = PRESENCE_LIMITS;
   return {
-    ambient: o.ambient === "off" || o.ambient === "reduced" || o.ambient === "on" ? o.ambient : d.ambient,
     directorEnabled: o.directorEnabled === true,
     intervalMinutes: whole(o.intervalMinutes, L.intervalMinMinutes, L.intervalMaxMinutes, d.intervalMinutes),
     quickPlans: typeof o.quickPlans === "boolean" ? o.quickPlans : d.quickPlans,
