@@ -254,11 +254,13 @@ export function postOffice(kit: Kit, piece: Piece): THREE.Group {
       hood.rotation.x = 0.35;
       for (const x of [doorX - 0.68, doorX + 0.68]) put(g, kit.box(0.06, 0.32, 0.06, "timber-trim", 0.02), x, floor + 2.0, front + 0.5);
 
-      // The POST sign on the fascia above the door.
-      put(g, kit.box(1.7, 0.56, 0.1, "timber-trim", 0.04), doorX, floor + PO.h - 0.2, front + 0.08);
-      put(g, kit.box(1.56, 0.44, 0.06, "moss", 0.03), doorX, floor + PO.h - 0.2, front + 0.12);
-      put(g, letters(kit, "POST", 0.07, "cream"), doorX, floor + PO.h - 0.2, front + 0.17);
-
+      // The POST sign stands on the front slope of the roof, above the door, where the town camera sees it.
+      const signY = floor + PO.h + 0.78,
+        signZ = front - 0.25;
+      for (const x of [doorX - 0.7, doorX + 0.7]) put(g, kit.box(0.08, 0.5, 0.08, "timber-trim", 0.02), x, signY - 0.3, signZ - 0.05);
+      put(g, kit.box(2.0, 0.72, 0.1, "timber-trim", 0.04), doorX, signY, signZ);
+      put(g, kit.box(1.86, 0.58, 0.06, "moss", 0.03), doorX, signY, signZ + 0.04);
+      put(g, letters(kit, "POST", 0.095, "cream"), doorX, signY, signZ + 0.1);
       // A window left of the door, with a flower box.
       window_(g, kit, -2.75, floor + 1.35, front + 0.02, 0.9, 1.0, "timber-trim");
       put(g, kit.box(1.1, 0.2, 0.22, "timber", 0.04), -2.75, floor + 0.62, front + 0.16);
@@ -377,8 +379,8 @@ export function townHall(kit: Kit, piece: Piece): THREE.Group {
       fan.material = kit.material("window", { glow: 0.45 });
 
       // The clock cupola on the roof ridge, its dome, finial and flag.
-      const cy = roofY + 0.9;
-      put(g, kit.box(1.3, 1.1, 1.3, "chalk", 0.04), 0, cy, TH.z);
+      const cy = roofY + 1.45;
+      put(g, kit.box(1.3, 1.6, 1.3, "chalk", 0.04), 0, cy - 0.25, TH.z);
       put(g, kit.box(1.45, 0.14, 1.45, "cream", 0.04), 0, cy + 0.6, TH.z);
       for (const [x, z, turn] of [
         [0, 0.66, 0],
