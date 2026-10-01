@@ -77,4 +77,5 @@ export const LIGHT_POOLS: Partial<Record<ModelKey, { radius: number; y: number; 
   "street-lamp": { radius: 2.2, y: 0.03 },
   "desk-lamp": { radius: 0.4, y: 0.006 },
   "town.lantern": { radius: 3, y: 0.075 },
+  "decor.pendant-lamp": { radius: 0.9, y: 0.012 },
 };
