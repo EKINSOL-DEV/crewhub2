@@ -5,7 +5,7 @@
 import * as THREE from "three";
 import type { ModelOptions, StyleTheme } from "@crewhub/world-style";
 import { put, type Kit, type Swatch } from "./kit.ts";
-import { decalMaterial, grassShader, pavingShader, waterShader } from "./shaders.ts";
+import { decalMaterial, GRASS_NIGHT, grassShader, pavingShader, waterShader } from "./shaders.ts";
 
 type Size = { width: number; height: number; depth: number };
 const size = (o: ModelOptions, fallback: Size): Size => o.size ?? fallback;
@@ -306,6 +306,7 @@ function bulbMaterial(kit: Kit): THREE.MeshStandardMaterial {
  */
 export function townTheme(kit: Kit, theme: StyleTheme) {
   const lamplight = theme === "lamplight";
+  GRASS_NIGHT.value = lamplight ? 1 : 0;
   lanternGlass(kit).emissiveIntensity = lamplight ? 1.25 : 0.5;
   bulbMaterial(kit).emissiveIntensity = lamplight ? 2.2 : 0.35;
   kit.material("window", { glow: 0.45 }).emissiveIntensity = lamplight ? 1.15 : 0.45;

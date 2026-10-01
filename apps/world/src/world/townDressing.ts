@@ -568,7 +568,14 @@ function playground(add: Add, index: number, tree: Tree) {
     [9, 9],
   ];
   trees.forEach(([x, z], i) => tree(c.x + x, c.z + z, LAWN_Y, index * 19 + i, 1.4));
-  scatter(add, index, 14, [
+  border(add, index, 6.5);
+  for (const [x, z] of [
+    [-6.8, -6.6],
+    [6.6, -6.4],
+    [7.4, 7.6],
+  ] as const)
+    add("town.bush", c.x + x, LAWN_Y, c.z + z, { seed: index + x, scale: 1.3 });
+  scatter(add, index, 10, [
     { x: c.x - 4, z: c.z - 3, r: 2.6 },
     { x: c.x + 4, z: c.z - 4, r: 2 },
     { x: c.x + 1, z: c.z + 3, r: 1.8 },
@@ -576,46 +583,79 @@ function playground(add: Add, index: number, tree: Tree) {
   ]);
 }
 
-/** A picnic lawn: blankets under two big shade trees, a bench and plenty of flowers. */
-function picnic(add: Add, index: number, tree: Tree) {
-  const c = plotCenter(index);
-  tree(c.x - 4, c.z - 4, LAWN_Y, index * 23, 1.8);
-  tree(c.x + 5, c.z - 1, LAWN_Y, index * 23 + 1, 1.6);
-  add("town.picnic-blanket", c.x - 2.2, LAWN_Y, c.z - 0.8, { rotation: 0.4 });
-  add("town.picnic-blanket", c.x + 2.4, LAWN_Y, c.z + 3.2, { rotation: -0.3 });
-  add("town.picnic-blanket", c.x - 5.5, LAWN_Y, c.z + 5, { rotation: 1.2 });
-  add("town.bench", c.x + 7, LAWN_Y, c.z + 7, { rotation: -0.4 });
-  scatter(add, index, 30, [
-    { x: c.x - 4, z: c.z - 4, r: 2 },
-    { x: c.x + 5, z: c.z - 1, r: 2 },
-    { x: c.x - 2.2, z: c.z - 0.8, r: 1.4 },
-    { x: c.x + 2.4, z: c.z + 3.2, r: 1.4 },
-    { x: c.x - 5.5, z: c.z + 5, r: 1.4 },
-    { x: c.x + 7, z: c.z + 7, r: 1.4 },
-  ]);
+/** A tight drift of wild flowers and long grass round (x, z): a patch that reads from afar, not a sprinkle of dots. */
+function drift(add: Add, x: number, z: number, rx: number, rz: number, count: number, seed: number) {
+  for (let i = 0; i < count; i++) {
+    // Sunflower spiral: even cover of the ellipse, denser at the heart.
+    const r = Math.sqrt((i + 0.5) / count),
+      a = i * 2.39996 + noise(seed, i) * 0.6;
+    const key = i % 4 === 3 ? "town.tall-grass" : i % 3 ? "town.wildflowers" : "town.flowers";
+    add(key, x + Math.cos(a) * r * rx, LAWN_Y, z + Math.sin(a) * r * rz, { rotation: noise(seed, i, 1) * 6.28, seed: seed + i, scale: 1.7 + noise(seed, i, 2) * 0.7, ...detail(key) });
+  }
 }
 
-/** An empty plot: a meadow with a few trees, wild flowers and, now and then, a bench. */
+/** A tended border of flower beds along the plot's lane side, with a gap where people walk in. */
+function border(add: Add, index: number, length: number) {
+  const c = plotCenter(index);
+  const z = c.z + PLOT_SIZE / 2 - 1.3;
+  for (const side of [-1, 1])
+    add("town.flower-bed", c.x + side * (1.6 + length / 2), LAWN_Y, z, { size: { width: length, height: 0.2, depth: 0.85 }, seed: index * 3 + side });
+}
+
+/** A copse: trees close together round (x, z) with bushes at their feet; returns the trees' spots. */
+function copse(add: Add, tree: Tree, x: number, z: number, count: number, seed: number, scale: number) {
+  const spots: { x: number; z: number; r: number }[] = [];
+  for (let i = 0; i < count; i++) {
+    const a = (i / count) * Math.PI * 2 + noise(seed, i) * 0.8,
+      r = i === 0 ? 0 : 2.3 + noise(seed, i, 1) * 0.8;
+    const tx = x + Math.cos(a) * r,
+      tz = z + Math.sin(a) * r;
+    tree(tx, tz, LAWN_Y, seed + i, scale * (i === 0 ? 1.15 : 0.9 + noise(seed, i, 2) * 0.2));
+    spots.push({ x: tx, z: tz, r: 1.8 });
+  }
+  for (let i = 0; i < 3; i++) {
+    const a = noise(seed, i, 5) * Math.PI * 2;
+    add("town.bush", x + Math.cos(a) * 3.9, LAWN_Y, z + Math.sin(a) * 3.9, { seed: seed + i, scale: 1.2 });
+  }
+  return spots;
+}
+
+/** A picnic lawn: blankets in the shade of a tree group, a bench beside them, a flower border along the lane. */
+function picnic(add: Add, index: number, tree: Tree) {
+  const c = plotCenter(index);
+  const flip = index % 2 ? -1 : 1;
+  const grove = { x: c.x - 4.5 * flip, z: c.z - 5 };
+  const spots = copse(add, tree, grove.x, grove.z, 3, index * 23, 1.6);
+  const blankets: [number, number, number][] = [
+    [grove.x + 3.8 * flip, grove.z + 3.6, 0.4],
+    [grove.x + 6.4 * flip, grove.z + 5.6, -0.3],
+    [grove.x + 2.4 * flip, grove.z + 6.6, 1.2],
+  ];
+  for (const [x, z, rotation] of blankets) {
+    add("town.picnic-blanket", x, LAWN_Y, z, { rotation });
+    spots.push({ x, z, r: 1.5 });
+  }
+  add("town.bench", grove.x + 8.6 * flip, LAWN_Y, grove.z + 2.4, { rotation: -0.5 * flip });
+  spots.push({ x: grove.x + 8.6 * flip, z: grove.z + 2.4, r: 1.5 });
+  border(add, index, 7.5);
+  drift(add, c.x + 6.5 * flip, c.z - 6.5, 2.4, 1.8, 12, index * 31);
+  scatter(add, index, 8, [...spots, { x: c.x + 6.5 * flip, z: c.z - 6.5, r: 3 }, { x: c.x, z: c.z + PLOT_SIZE / 2 - 1.3, r: 0 }]);
+}
+
+/** An empty plot: a meadow with a copse of trees and a bench facing it, and a drift of wild flowers. */
 function meadow(add: Add, index: number, tree: Tree) {
   const c = plotCenter(index);
-  const half = PLOT_SIZE / 2 - 2;
-  const trees = 3 + Math.floor(noise(index, 1) * 3);
-  const spots: { x: number; z: number }[] = [];
-  for (let i = 0; i < 24 && spots.length < trees; i++) {
-    const x = c.x + (noise(index, i, 2) * 2 - 1) * half,
-      z = c.z + (noise(index, i, 3) * 2 - 1) * half;
-    if (spots.some((s) => Math.hypot(s.x - x, s.z - z) < 4.5)) continue;
-    spots.push({ x, z });
-    tree(x, z, LAWN_Y, index * 17 + i, 1.45);
-  }
-  for (let i = 0; i < 26; i++) {
-    const x = c.x + (noise(index, i, 5) * 2 - 1) * (half + 1),
-      z = c.z + (noise(index, i, 6) * 2 - 1) * (half + 1);
-    if (spots.some((s) => Math.hypot(s.x - x, s.z - z) < 1.4)) continue;
-    const key = i % 3 ? (i % 2 ? "town.flowers" : "town.wildflowers") : "town.grass";
-    add(key, x, LAWN_Y, z, { rotation: noise(index, i, 7) * 6.28, seed: index * 5 + i, scale: 1.6 + noise(index, i) * 0.8, ...detail(key) });
-  }
-  if (index % 2 === 0) add("town.bench", c.x + 2, LAWN_Y, c.z + 3, { rotation: noise(index, 9) * 0.6 - 0.3 });
+  const sx = noise(index, 1) < 0.5 ? -1 : 1,
+    sz = noise(index, 2) < 0.5 ? -1 : 1;
+  const grove = { x: c.x + sx * 5, z: c.z + sz * 4.5 };
+  const spots = copse(add, tree, grove.x, grove.z, 4 + Math.floor(noise(index, 3) * 2), index * 17, 1.45);
+  const bench = { x: grove.x - sx * 5, z: grove.z - sz * 1.2 };
+  add("town.bench", bench.x, LAWN_Y, bench.z, { rotation: sx > 0 ? -Math.PI / 2 : Math.PI / 2 });
+  spots.push({ ...bench, r: 1.4 });
+  const field = { x: c.x - sx * 5, z: c.z - sz * 5 };
+  drift(add, field.x, field.z, 3.6, 2.8, 26, index * 29);
+  spots.push({ ...field, r: 4 });
+  scatter(add, index, 8, spots);
 }
 
 /** The park west of the post office: the pond, the bridge, willows and birches, benches and a low fence. */
