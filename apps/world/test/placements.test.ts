@@ -130,12 +130,13 @@ test("a turned footprint's pose is the centre of the cells the engine blocks", (
   assert.ok(Math.abs(Math.cos(r)) < 1e-9 && Math.abs(-Math.sin(r) - 1) < 1e-9);
 });
 
-test("free spots for error crates start at the camera side and skip furniture and doors", () => {
+test("free spots for error crates start near the room centre and skip furniture and doors", () => {
   const storage = resolveBuildingPlacements(doc0, "cr", template, defs).rooms.get("storage")!;
   const spots = freeSpots(storage, defs, 3);
   assert.equal(spots.length, 3);
   const { width, depth } = storage.layout.grid;
-  assert.equal(spots[0]!.z, depth - 1);
+  const distance = (c: { x: number; z: number }) => Math.hypot(c.x + 0.5 - width / 2, c.z + 0.5 - depth / 2);
+  assert.ok(distance(spots[0]!) <= distance(spots[1]!) && distance(spots[1]!) <= distance(spots[2]!));
   const taken = new Set(storage.layout.props.flatMap((p) => propCells(p, defs)).map((c) => `${c.x},${c.z}`));
   for (const spot of spots) assert.ok(spot.x < width && spot.z < depth && !taken.has(`${spot.x},${spot.z}`), `${spot.x},${spot.z}`);
   // The storage door (3, 4) carries a marker, so it is never a spot.

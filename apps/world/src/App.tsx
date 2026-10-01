@@ -431,7 +431,7 @@ function World() {
           <Card.Body>
             <RoleSettings model={model} overrides={overrides} onChange={setOverrides} />
             <TownSettings town={town} />
-            <p className="sign-muted">Nothing to set yet. Agent settings live in the crewhub-loops web app; the demo has none.</p>
+            <p className="sign-muted">Agent settings live in the crewhub-loops web app; the demo has none.</p>
           </Card.Body>
         </Card>
       )}

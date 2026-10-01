@@ -216,21 +216,22 @@ export function freeCellIn(room: RoomPlacements, definitions: Definitions, propI
 }
 
 /**
- * Up to `count` free single cells of a room, from its south-east corner (nearest the camera) backwards: where an
- * error crate stands without hiding inside furniture. A cell is free when the engine accepts a footprint-free
- * marker there (no overlap, still reachable).
+ * Up to `count` free single cells of a room, nearest its centre first: where an error crate stands in view, not behind
+ * a wall or inside furniture. A cell is free when the engine accepts a footprint-free marker there (no overlap, still
+ * reachable).
  */
 export function freeSpots(room: RoomPlacements, definitions: Definitions, count: number): Cell[] {
-  const spots: Cell[] = [];
   let simulation: WorldSimulation;
   try {
     simulation = new WorldSimulation(room.layout, definitions, []);
   } catch {
-    return spots;
+    return [];
   }
   const { width, depth } = room.layout.grid;
-  for (let z = depth - 1; z >= 0 && spots.length < count; z--)
-    for (let x = width - 1; x >= 0 && spots.length < count; x--)
-      if (simulation.placement({ id: "free-spot-probe", definitionId: DOOR_MARKER, cell: { x, z }, rotation: 0 }).ok) spots.push({ x, z });
-  return spots;
+  const free: Cell[] = [];
+  for (let z = 0; z < depth; z++)
+    for (let x = 0; x < width; x++)
+      if (simulation.placement({ id: "free-spot-probe", definitionId: DOOR_MARKER, cell: { x, z }, rotation: 0 }).ok) free.push({ x, z });
+  const distance = (c: Cell) => Math.hypot(c.x + 0.5 - width / 2, c.z + 0.5 - depth / 2);
+  return free.sort((a, b) => distance(a) - distance(b) || b.z - a.z || b.x - a.x).slice(0, count);
 }
