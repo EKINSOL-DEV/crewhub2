@@ -75,6 +75,8 @@ const FAR_FURNITURE: Record<string, string> = {
   "board-stand": "board",
   "mood-board": "board",
 };
+/** The room edge a wall piece hangs on. */
+type WallFace = "north" | "west" | "south" | "east";
 /** Decor that hangs on a wall (roomDressing's wall art), by key prefix. */
 const WALL_HUNG = [
   "decor.wall-",
@@ -192,7 +194,7 @@ export class BuildingView {
   #furnitureMerged: THREE.BufferGeometry[] = [];
   #furniture: THREE.Group | null = null;
   /** The furniture layer's pieces hung on the tall north and west walls (they hide with their wall). */
-  #wallDecor: { north: THREE.Group; west: THREE.Group } | null = null;
+  #wallDecor: Record<WallFace, THREE.Group> | null = null;
   /** Seen from the town: the furniture and dressing as a few merged boxes, so every building looks furnished. */
   #silhouette = new THREE.Group();
   #silhouetteMerged: THREE.BufferGeometry[] = [];
@@ -440,7 +442,11 @@ export class BuildingView {
           const inside = this.#seesInside(side, camera);
           walls.tall.visible = inside;
           walls.low.visible = !inside;
-          if (this.#wallDecor) this.#wallDecor[side].visible = inside;
+          if (this.#wallDecor) {
+            this.#wallDecor[side].visible = inside;
+            // A partition's other face, the one a room's south or east edge carries, shows from the far side.
+            this.#wallDecor[side === "north" ? "south" : "east"].visible = !inside;
+          }
         }
       };
     for (const walls of Object.values(this.#backWalls)) walls.low.visible = false;
@@ -458,7 +464,7 @@ export class BuildingView {
 
   /** The tall back wall a decor piece hangs on, if any: a wall piece set against a north or west outer run. */
   #mountedOn(item: DecorItem): "north" | "west" | null {
-    if (item.lean || item.on !== "floor" || !WALL_HUNG.some((k) => item.key.startsWith(k))) return null;
+    if (item.on !== "floor" || !WALL_HUNG.some((k) => item.key.startsWith(k))) return null;
     for (const run of wallRuns(this.template)) {
       if (run.side === "north" && Math.abs(item.z - 0.5 - run.z1) < 0.01 && item.x > run.x1 && item.x < run.x2) return "north";
       if (run.side === "west" && Math.abs(item.x - 0.5 - run.x1) < 0.01 && item.z > run.z1 && item.z < run.z2) return "west";
@@ -500,11 +506,11 @@ export class BuildingView {
         if (def === "bench" || def === "coffee-machine") model.scale.setScalar(0.7);
         g.add(model);
       }
-    const wallDecor = { north: new THREE.Group(), west: new THREE.Group() };
+    const wallDecor: Record<WallFace, THREE.Group> = { north: new THREE.Group(), west: new THREE.Group(), south: new THREE.Group(), east: new THREE.Group() };
     // Pendant cords and ceiling roses read as posts from the building camera: they draw only with a room in focus.
     const cords = new THREE.Group();
     for (const item of roomDecor(this.template, { definitions: interiorDefinitions, seed: dressingSeed(this.building.slug), zones: dressingZones(this.template), loading: LOADING })) {
-      const side = this.#mountedOn(item);
+      const side = item.wall ?? this.#mountedOn(item);
       (item.key === "decor.pendant-cord" ? cords : side ? wallDecor[side] : g).add(this.#decor(item));
     }
     this.#cords.removeFromParent();
@@ -518,13 +524,16 @@ export class BuildingView {
     this.group.add(g);
     for (const geometry of this.#furnitureMerged) geometry.dispose();
     this.#furnitureMerged = mergeStatic(g);
-    // Pieces hung on a tall back wall come and go with that wall when the camera turns (#seesInside).
-    for (const side of ["north", "west"] as const) {
+    // Pieces hung on a tall back wall come and go with that wall when the camera turns (#seesInside); art on a
+    // partition shows only on the face turned to the camera.
+    for (const side of ["north", "west", "south", "east"] as const) {
       g.add(wallDecor[side]);
       this.#furnitureMerged.push(...mergeStatic(wallDecor[side]));
+      const wall = side === "south" ? "north" : side === "east" ? "west" : side;
+      const facing = side === wall;
       for (const mesh of wallDecor[side].children)
         mesh.onBeforeRender = (_renderer, _scene, camera) => {
-          if (!this.#seesInside(side, camera)) mesh.matrixWorld.makeScale(0, 0, 0);
+          if (this.#seesInside(wall, camera) !== facing) mesh.matrixWorld.makeScale(0, 0, 0);
         };
     }
     this.#wallDecor = wallDecor;
@@ -538,10 +547,6 @@ export class BuildingView {
     model.position.copy(this.local(item.x, item.z, y + (item.raise ?? 0)));
     model.rotation.y = item.rotation;
     if (item.scale) model.scale.set(item.scale.x, item.scale.y, item.scale.z);
-    if (item.lean) {
-      model.position.y -= item.lean.drop;
-      model.rotateX(-0.12);
-    }
     return model;
   }
 
