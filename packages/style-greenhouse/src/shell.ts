@@ -28,6 +28,14 @@ function boardUp(kit: Kit, g: THREE.Object3D, width: number, height: number, x: 
   }
 }
 
+/** Chalk pilasters at both ends of a tall wall: the corners and the wall's end at the front look finished. */
+function pilasters(kit: Kit, g: THREE.Object3D, width: number, height: number, depth: number, chalk: Swatch) {
+  for (const s of [-1, 1]) {
+    put(g, kit.box(0.26, height + 0.06, depth + 0.1, chalk, 0.03), s * (width / 2 - 0.13), (height + 0.06) / 2, 0);
+    put(g, kit.box(0.32, 0.06, depth + 0.16, "ledge", 0.02), s * (width / 2 - 0.13), height + 0.09, 0);
+  }
+}
+
 /** The tall solid back wall (west): chalk with a skirt, a ledge on top and a few framed windows. */
 export function tallWall(kit: Kit, o: ModelOptions, glass: THREE.Material): THREE.Group {
   const { width, height, depth } = size(o, { width: 4, height: 1.75, depth: 0.16 });
@@ -58,6 +66,7 @@ export function tallWall(kit: Kit, o: ModelOptions, glass: THREE.Material): THRE
   put(g, kit.box(width / 2 - from, height, depth, chalk, 0.02), (from + width / 2) / 2, height / 2, 0);
   for (const z of [depth / 2 + 0.012, -depth / 2 - 0.012]) put(g, kit.box(width, 0.13, 0.03, "skirt", 0.01), 0, 0.065, z);
   put(g, kit.box(width + 0.04, 0.07, depth + 0.08, "ledge", 0.02), 0, height + 0.035, 0);
+  pilasters(kit, g, width, height, depth, chalk);
   return g;
 }
 
@@ -81,6 +90,7 @@ export function glassWall(kit: Kit, o: ModelOptions, glass: THREE.Material): THR
   put(g, kit.box(0.045, height - knee, 0.09, "mullion", 0.01), width / 2, (knee + height) / 2, 0);
   put(g, kit.box(width, 0.035, 0.07, "mullion", 0.01), 0, transom, 0);
   put(g, kit.box(width + 0.06, 0.09, depth, "mullion", 0.02), 0, height - 0.02, 0);
+  pilasters(kit, g, width, height, depth, archived(o) ? "chalk-dim" : "chalk");
   return g;
 }
 
