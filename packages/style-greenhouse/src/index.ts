@@ -16,6 +16,7 @@ import type {
 import manifestJson from "../style.json";
 import * as civic from "./civic.ts";
 import * as life from "./life.ts";
+import { compileLights, type Light, type Lights } from "./daylight.ts";
 import { environment } from "./environment.ts";
 import { bench, desk, lamp, leadDesk, shelf, sofa, table, workdesk } from "./furniture.ts";
 import { Kit, type GreenhouseManifestData } from "./kit.ts";
@@ -42,10 +43,12 @@ class GreenhouseStyle implements WorldStyle {
   readonly manifest: StyleManifest = manifest;
   readonly #kit = new Kit(manifest, manifest.lighting);
   readonly #glass: THREE.ShaderMaterial;
+  readonly #lights: Lights = compileLights(manifest.lighting);
 
   constructor() {
     this.#glass = pieces.glass(this.#kit);
-    town.townTheme(this.#kit, this.#kit.theme);
+    town.townTheme(this.#kit);
+    this.#light(this.#lights.day);
   }
 
   model(key: ModelKey, options: ModelOptions = {}): THREE.Object3D | null {
@@ -278,14 +281,23 @@ class GreenhouseStyle implements WorldStyle {
     return new THREE.Color(this.#kit.hex(name, theme));
   }
 
+  /** Swatches follow the theme, and the light starts at the theme's own; the environment's drift then shades it. */
   setTheme(theme: StyleTheme) {
     this.#kit.setTheme(theme);
     this.#glass.uniforms.uColor!.value.set(this.#kit.hex("window"));
-    // By day the panes read a little more, with a soft sheen; at night the warm glass glows evenly.
-    this.#glass.uniforms.uOpacity!.value = theme === "lamplight" ? 0.82 : 0.4;
-    this.#glass.uniforms.uSheen!.value = theme === "lamplight" ? 0.15 : 1;
-    town.townTheme(this.#kit, theme);
+    town.townTheme(this.#kit);
     life.lifeTheme(this.#kit);
+    this.#light(this.#lights[theme]);
+  }
+
+  /** Lamps, lit windows, pools and glass follow the light of the time of day. */
+  #light(light: Light) {
+    this.#kit.setLight(light);
+    const evening = THREE.MathUtils.clamp(light.evening, 0, 1);
+    // By day the panes read a little more, with a soft sheen; in the evening the warm glass glows evenly.
+    this.#glass.uniforms.uOpacity!.value = 0.4 + (0.82 - 0.4) * evening;
+    this.#glass.uniforms.uSheen!.value = 1 + (0.15 - 1) * evening;
+    town.townLight(this.#kit, evening);
   }
 
   environment(scene: THREE.Scene, renderer: THREE.WebGLRenderer, theme: StyleTheme) {
@@ -296,6 +308,7 @@ class GreenhouseStyle implements WorldStyle {
       theme,
       (next) => this.setTheme(next),
       (quality) => this.#kit.setQuality(quality),
+      (light) => this.#light(light),
     );
   }
 

@@ -163,7 +163,7 @@ export function pavingShader(material: THREE.MeshStandardMaterial, stone: [numbe
 }
 
 /** Grass with a soft mottle in world space, so wide lawns are never one flat colour. */
-/** 0 by day, 1 in lamplight: the grass mottles more and warms in patches in the evening (set by `townTheme`). */
+/** The evening (0 by day, 1 in lamplight): the grass mottles more and warms in patches (set by `townLight`). */
 export const GRASS_NIGHT = { value: 0 };
 
 export function grassShader(material: THREE.MeshStandardMaterial, amount: number): THREE.MeshStandardMaterial {
