@@ -70,7 +70,16 @@ export function mergeStatic(root: THREE.Group): THREE.BufferGeometry[] {
     if (!(o instanceof THREE.Mesh) || o instanceof THREE.InstancedMesh || Array.isArray(o.material) || o.userData.room || o.userData.live) return;
     if (Object.keys(o.geometry.attributes).some((name) => !MERGED.includes(name))) return;
     const matrix = new THREE.Matrix4().multiplyMatrices(inverse, o.matrixWorld);
-    const source = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+    // Indexed throughout: a style's geometry shares its vertices between faces, so transforming and uploading it costs a
+    // third of a non-indexed copy (the merge of an interior is the bulk of entering a building).
+    // A plain copy of the attributes: `clone()` would first build a parametric geometry's default shape again.
+    const source = new THREE.BufferGeometry();
+    for (const name of MERGED) {
+      const attribute = o.geometry.attributes[name];
+      if (attribute) source.setAttribute(name, attribute.clone());
+    }
+    const index = o.geometry.index;
+    source.setIndex(index ? index.clone() : Array.from({ length: o.geometry.attributes.position!.count }, (_, i) => i));
     if (!source.attributes.uv) source.setAttribute("uv", new THREE.Float32BufferAttribute(new Float32Array(source.attributes.position!.count * 2), 2));
     if (!source.attributes.normal) source.computeVertexNormals();
     source.applyMatrix4(matrix);
