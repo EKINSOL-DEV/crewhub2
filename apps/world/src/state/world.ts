@@ -2,13 +2,15 @@
    contract only (packages/world-model). The source is the scripted demo tonight; a future host source replaces
    `createDemoSource` and nothing else changes. */
 import { useSyncExternalStore } from "react";
-import { browserScheduler, createDemoSource, type DemoSource } from "@crewhub/demo";
+import type { WorldSource } from "@crewhub/loops-client";
+import { browserScheduler, createDemoSource, createStressSource, type DemoSource } from "@crewhub/demo";
 import {
   describeWorld,
   emptyMemory,
   Projection,
   reduceWorld,
   type PlaybackControls,
+  type PlaybackControls as Playback,
   type RoleId,
   type TextLine,
   type WorldModel,
@@ -25,8 +27,18 @@ const TIME_TICK_MS = 1000;
 /** While a ticket drone is in the air, re-reduce faster so the model lands the package on time at 16x. */
 const FLIGHT_TICK_MS = 250;
 
+/**
+ * `?stress=1` (dev builds only): the synthetic stress town (12 buildings, 100 agents) through the same seam, with a
+ * frame-time overlay. Production builds ignore the flag.
+ */
+export const STRESS = import.meta.env.DEV && new URLSearchParams(globalThis.location?.search ?? "").get("stress") === "1";
+
+type Source = WorldSource & { readonly mode: "demo"; readonly playback: Playback };
+
 class WorldRuntime {
-  readonly source: DemoSource;
+  readonly source: Source;
+  /** The chat dock's demo source: the world's own, or (stress fixture) a separate scripted demo for the dock only. */
+  readonly chat: DemoSource;
   readonly projection: Projection;
   #memory = emptyMemory();
   #roleOverrides: Record<string, RoleId> = {};
@@ -38,7 +50,10 @@ class WorldRuntime {
 
   constructor() {
     // The script starts at the minute the page opened, so the copied chat's relative times read naturally.
-    this.source = createDemoSource({ scheduler: browserScheduler(), epochMs: Math.floor(Date.now() / 60_000) * 60_000 });
+    const epochMs = Math.floor(Date.now() / 60_000) * 60_000;
+    const demo = createDemoSource({ scheduler: browserScheduler(), epochMs });
+    this.chat = demo;
+    this.source = STRESS ? createStressSource({ scheduler: browserScheduler(), epochMs }) : demo;
     this.projection = new Projection(this.source);
     this.source.start((message) => this.projection.apply(message));
     this.projection.onChange(() => this.#schedule());
@@ -51,6 +66,11 @@ class WorldRuntime {
 
   get state(): WorldState {
     return this.#state;
+  }
+
+  /** The scripted demo behind the world, or null when the world runs the stress fixture. */
+  get demo(): DemoSource | null {
+    return this.source === this.chat ? this.chat : null;
   }
 
   setRoleOverrides(overrides: Record<string, RoleId>) {

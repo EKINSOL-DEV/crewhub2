@@ -94,7 +94,9 @@ Conventions for models:
 
 - `robot({ key, accent, role })` returns a `RobotHandle`: `setPosture("focused" | "relaxed" | "raised-hand" |
   "greyed" | "walking")`, `setProxy(bool)` (the translucent echo), `setAlert(bool)` (a lit halo), `update(seconds)`
-  (idle motion; callers skip it under reduced motion) and `dispose()`. The style decides the rig; postures carry the
+  (idle motion and the walk; callers skip it under reduced motion), `setDetail("near" | "far")` and `dispose()`.
+  "far" is a robot seen from the town: the style may drop small parts and shadows (Greenhouse drops the badge, eyes,
+  ears, antenna stem and hands, and casts no shadow) but keeps the silhouette, colours and postures. The style decides the rig; postures carry the
   meaning from the world model.
 - `environment(scene, renderer, theme)` adds the lights, tone mapping and background for a theme and returns a handle
   with `setTheme`, `setShadowReach` and `dispose`. The UI's light theme is `day`, the dark theme is `lamplight`

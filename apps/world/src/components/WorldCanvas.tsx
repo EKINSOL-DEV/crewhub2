@@ -1,14 +1,15 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Archive, Check, CircleHelp, Clock, Flag, Hand, MessageSquare, Play, RefreshCw, Sprout, TriangleAlert, Trophy } from "lucide-react";
 import type { AgentPlacement, Building, ProgressKind, RoleSource, WorkObject, WorldModel } from "@crewhub/world-model";
-import { worldRuntime } from "../state/world";
+import { STRESS, worldRuntime } from "../state/world";
 import { useDark } from "../state/theme";
 import type { Pick } from "../world/buildingView";
 import { buildingTemplate } from "../world/buildingTemplate";
 import { assignDesks, placeObjects, roomName } from "../world/interiorLayout";
-import { TownScene, type BuildPointer, type CameraAction } from "../world/TownScene";
+import { TownScene, type BuildPointer, type CameraAction, type FrameStats } from "../world/TownScene";
 import { resolveBuildingPlacements } from "../world/placements";
 import type { TownLayer } from "../world/propLayer";
+import type { Ambient } from "../world/movement";
 import { LaneChip } from "../world/lane";
 import { clockTime, countsLine, TOWN_CAPACITY } from "../world/townLayout";
 import type { RoomKind } from "@crewhub/world-model";
@@ -28,6 +29,7 @@ interface Props {
   zoomed: RoomKind | null;
   selection: Selection;
   reducedMotion: boolean;
+  ambient: Ambient;
   action: { id: number; type: CameraAction };
   onEnter: (slug: string) => void;
   onHover: (index: number | null) => void;
@@ -38,6 +40,7 @@ interface Props {
 }
 
 const now = () => worldRuntime().source.now();
+const speed = () => worldRuntime().source.playback.speed();
 
 /** The Three.js town and its HTML labels. Labels carry words for every fact they show; the scene only positions them. */
 export default function WorldCanvas(props: Props) {
@@ -64,6 +67,9 @@ export default function WorldCanvas(props: Props) {
     theme: dark ? ("lamplight" as const) : ("day" as const),
     now,
     town,
+    speed,
+    ambient: props.ambient,
+    measure: STRESS,
   };
   useEffect(() => {
     if (!host.current || !labels.current) return;
@@ -104,6 +110,7 @@ export default function WorldCanvas(props: Props) {
           <span>Laying out the town…</span>
         </div>
       )}
+      {STRESS && ready && <FrameOverlay scene={scene} />}
       <div ref={labels} className="world-labels">
         {model.buildings.slice(0, TOWN_CAPACITY).map((b, index) => {
           if (inside && inside.slug !== b.slug) return null;
@@ -402,4 +409,31 @@ function ObjectPlate({ object: o, building, model }: { object: WorkObject; build
 function DemoNote({ model }: { model: WorldModel }) {
   if (model.mode !== "demo") return null;
   return <span className="demo-note">Demo: there is no crewhub-loops web app to open</span>;
+}
+
+/** `?stress=1` (dev only): frame time over the last 300 drawn frames and the walk engine's tick. */
+function FrameOverlay({ scene }: { scene: { current: TownScene | null } }) {
+  const [stats, setStats] = useState<FrameStats | null>(null);
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      const next = scene.current?.frameStats() ?? null;
+      setStats(next);
+      (window as unknown as { __frameStats?: FrameStats | null }).__frameStats = next;
+    }, 500);
+    return () => window.clearInterval(id);
+  }, [scene]);
+  if (!stats) return null;
+  const ms = (v: number) => v.toFixed(1);
+  return (
+    <output className="dev-overlay" aria-live="off">
+      <strong>Stress: {stats.walkers} walkers</strong>
+      <span>
+        frame {ms(stats.mean)} / p95 {ms(stats.p95)} / max {ms(stats.max)} ms ({stats.frames})
+      </span>
+      <span>
+        work {ms(stats.workMean)} / p95 {ms(stats.workP95)} ms, engine {stats.tickMean.toFixed(2)} / max {stats.tickMax.toFixed(2)} ms
+      </span>
+      <span>{stats.calls} draw calls</span>
+    </output>
+  );
 }

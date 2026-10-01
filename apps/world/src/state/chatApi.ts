@@ -28,6 +28,6 @@ function savePins(pins: string[]): void {
 let chatApi: DemoApi | null = null;
 
 export function demoChatApi(): DemoApi {
-  chatApi ??= createDemoApi(worldRuntime().source, { pins: savedPins(), onPinsChange: savePins, baseUrl: DEMO_LOOPS_URL });
+  chatApi ??= createDemoApi(worldRuntime().chat, { pins: savedPins(), onPinsChange: savePins, baseUrl: DEMO_LOOPS_URL });
   return chatApi;
 }

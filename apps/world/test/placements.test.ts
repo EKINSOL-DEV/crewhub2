@@ -75,7 +75,8 @@ test("a door cell stays open: a prop on it, or one that walls it off, is refused
   assert.deepEqual(resolveBuildingPlacements(doc, "cr", template, defs).errors, []);
   const wall = checkGhost(doc, "cr", template, defs, { id: "probe", propId: "builtin:lamp", room: "lobby", cell: { x: 1, z: 3 }, rotation: 0 });
   assert.deepEqual(wall, { ok: false, reason: "It would block a door or a place someone needs to reach." });
-  const beside = checkGhost(doc0, "cr", template, defs, { id: "probe", propId: "builtin:lamp", room: "lobby", cell: { x: 6, z: 1 }, rotation: 0 });
+  // Diagonal to the north door is fine (6,1 is the lobby coffee machine's approach cell, so not that one).
+  const beside = checkGhost(doc0, "cr", template, defs, { id: "probe", propId: "builtin:lamp", room: "lobby", cell: { x: 5, z: 1 }, rotation: 0 });
   assert.deepEqual(beside, { ok: true });
 });
 

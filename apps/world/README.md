@@ -20,5 +20,15 @@ pans, right-drag rotates, two fingers zoom and rotate on touch.
 There are no network connections, model calls or telemetry. The render loop is capped
 at 30 fps, draws only after a change, and stops while the tab is hidden.
 
+Walks: `src/world/navigation.ts` builds the town's portal graph (the town grid and
+every building's rooms and doors), `movement.ts` turns model changes into walks
+(pure, tested) and `walks.ts` runs them on the engine's `NavSimulation`; each robot
+follows its walker. Settings has **Ambient** (on, reduced, off) for idle variety;
+reduced motion turns every walk into a jump.
+
+Dev flags: `?perf` logs frame work every two seconds; `?stress=1` (dev builds only)
+swaps in a synthetic town of 12 buildings and 100 agents and shows a frame-time
+overlay. The scene is on `window.__town` in dev builds for headless checks.
+
 See [grid semantics](../../docs/GRID_ENGINE.md) and the
 [integration plan](../../docs/LOOPS_INTEGRATION_PLAN.md).

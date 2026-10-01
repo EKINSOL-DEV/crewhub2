@@ -13,6 +13,7 @@ import { ObjectLayer } from "./objectLayer";
 import { cellAt, resolveBuildingPlacements, type BuildingPlacements } from "./placements";
 import { PropLayer, type TownLayer } from "./propLayer";
 import type { Bounds } from "./townLayout";
+import type { Walker } from "./walks";
 
 /** Robots and desks are Greenhouse-sized; interiors show them at this scale. */
 const ROBOT_SCALE = 0.62;
@@ -26,6 +27,8 @@ export interface BuildingContext {
   /** Source time now (ms). */
   now: () => number;
   reducedMotion: () => boolean;
+  /** The walk runtime's interpolated position of an agent, when it has one (walks.ts). */
+  walker: (key: string) => Walker | undefined;
 }
 
 export type Pick = { kind: "agent"; key: string } | { kind: "object"; ticketId: string } | { kind: "room"; room: RoomKind } | { kind: "prop"; id: string };
@@ -33,6 +36,12 @@ export type Pick = { kind: "agent"; key: string } | { kind: "object"; ticketId: 
 interface Robot {
   handle: RobotHandle;
   signature: string;
+  /** A real avatar follows its walker; a proxy stays still at its home place. */
+  real: boolean;
+  /** The model's posture, shown whenever the robot is not walking. */
+  posture: RobotPosture;
+  /** Gone from the model but still walking out of the front door. */
+  departing: boolean;
 }
 
 const surfaceHeights = new WeakMap<ResolvedStyle, Record<Surface, number>>();
@@ -264,7 +273,7 @@ export class BuildingView {
         // Desks face their seat to the north, so the agent looks over the desk towards the camera.
         if (def === "workdesk" || def === "lead-desk") model.rotation.y = Math.PI;
         if (def === "plant") model.scale.setScalar(ROBOT_SCALE);
-        if (def === "bench") model.scale.setScalar(0.7);
+        if (def === "bench" || def === "coffee-machine") model.scale.setScalar(0.7);
         g.add(model);
       }
     this.#furniture = g;
@@ -288,24 +297,57 @@ export class BuildingView {
       let robot = this.#robots.get(agent.key);
       if (!robot || robot.signature !== signature) {
         robot?.handle.dispose();
-        robot = { handle: style.robot({ key: agent.key, accent, role }), signature };
+        robot = { handle: style.robot({ key: agent.key, accent, role }), signature, real: false, posture: "relaxed", departing: false };
         robot.handle.object.scale.setScalar(ROBOT_SCALE);
         this.#robots.set(agent.key, robot);
         this.#agents.add(robot.handle.object);
       }
+      robot.real = agent.presence === "real";
+      // Seen from the town, a robot is a few pixels tall: the style may drop its small parts and shadows.
+      robot.handle.setDetail(this.detailed ? "near" : "far");
+      robot.departing = false;
+      robot.posture = agent.presence === "proxy" ? "relaxed" : (agent.posture as RobotPosture);
       const seat = this.desks.get(agent.key)?.seat ?? this.#looseSpot(agent, loose);
       robot.handle.object.position.copy(this.local(seat.x + 0.5, seat.z + 0.5, 0.02));
-      robot.handle.setPosture(agent.presence === "proxy" ? "relaxed" : (agent.posture as RobotPosture));
+      robot.handle.object.rotation.y = 0;
+      robot.handle.setPosture(robot.posture);
       robot.handle.setProxy(agent.presence === "proxy");
       robot.handle.setAlert(agent.alerts.length > 0);
-      this.anchors.set(`a:${b.slug}:${agent.key}`, this.world(seat.x + 0.5, seat.z + 0.5, 1.02));
+      const anchor = this.anchors.get(`a:${b.slug}:${agent.key}`);
+      if (anchor) anchor.copy(this.world(seat.x + 0.5, seat.z + 0.5, 1.02));
+      else this.anchors.set(`a:${b.slug}:${agent.key}`, this.world(seat.x + 0.5, seat.z + 0.5, 1.02));
+      this.#follow(agent.key, robot);
     }
     for (const [key, robot] of this.#robots)
       if (!seen.has(key)) {
-        robot.handle.dispose();
-        this.#robots.delete(key);
-        this.anchors.delete(`a:${b.slug}:${key}`);
+        // A worker that left the snapshot keeps its robot until it is out of the door.
+        const walker = this.ctx.walker(key);
+        if (robot.real && walker?.leaving && walker.building === b.slug) {
+          robot.departing = true;
+          robot.handle.setAlert(false);
+          this.anchors.delete(`a:${b.slug}:${key}`);
+          continue;
+        }
+        this.#dropRobot(key, robot);
       }
+  }
+
+  #dropRobot(key: string, robot: Robot) {
+    robot.handle.dispose();
+    this.#robots.delete(key);
+    this.anchors.delete(`a:${this.building.slug}:${key}`);
+  }
+
+  /** Puts a real avatar where its walker is (world units), facing its way, walking or in its posture. */
+  #follow(key: string, robot: Robot): boolean {
+    const walker = robot.real ? this.ctx.walker(key) : undefined;
+    if (!walker || walker.building !== this.building.slug) return false;
+    const o = this.group.position;
+    robot.handle.object.position.set(walker.x - o.x, walker.y - o.y + 0.02, walker.z - o.z);
+    robot.handle.object.rotation.y = walker.heading;
+    robot.handle.setPosture(walker.walking ? "walking" : walker.seated ? robot.posture : "relaxed");
+    this.anchors.get(`a:${this.building.slug}:${key}`)?.set(walker.x, walker.y + 1.04, walker.z);
+    return walker.walking;
   }
 
   /** An agent past its room's desks stands near the room's middle. */
@@ -439,8 +481,16 @@ export class BuildingView {
 
   tick(seconds: number) {
     const reduced = this.ctx.reducedMotion();
+    for (const [key, robot] of this.#robots) {
+      if (robot.departing && !this.ctx.walker(key)) {
+        this.#dropRobot(key, robot);
+        continue;
+      }
+      const walking = this.#follow(key, robot);
+      // Robots in a building seen from the town only animate while they walk.
+      if (!reduced && (this.detailed || walking)) robot.handle.update(seconds);
+    }
     if (this.detailed) {
-      if (!reduced) for (const robot of this.#robots.values()) robot.handle.update(seconds);
       this.#objects.update(seconds);
       this.#props.tick(seconds);
       for (const child of this.#signals.children) (child.userData.animate as ((s: number) => void) | undefined)?.(seconds);

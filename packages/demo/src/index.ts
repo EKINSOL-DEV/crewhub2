@@ -1,4 +1,6 @@
 export { createDemoSource } from "./source.ts";
+export { createStressSource, STRESS_AGENTS, STRESS_BUILDINGS } from "./stress.ts";
+export type { StressSourceOptions } from "./stress.ts";
 export type { DemoSource, DemoSourceOptions } from "./source.ts";
 export { DEMO_SEED, PROBE_SILENCE, SCRIPT_DURATION_MS, buildScript } from "./script.ts";
 export type { ScriptEntry } from "./script.ts";

@@ -1,7 +1,7 @@
 /* The soft Greenhouse robot (moved from models.ts) with its posture rig. Postures are still poses plus a small idle
    motion in `update`; the caller skips `update` under reduced motion. */
 import * as THREE from "three";
-import type { PaletteName, RobotHandle, RobotPosture, RobotRole } from "@crewhub/world-style";
+import type { PaletteName, RobotDetail, RobotHandle, RobotPosture, RobotRole } from "@crewhub/world-style";
 import { put, type Kit } from "./kit.ts";
 import { haloMaterial } from "./shaders.ts";
 
@@ -25,23 +25,26 @@ export function robot(kit: Kit, options: { key: string; accent: PaletteName | nu
   ring.position.y = 0.04;
   group.add(ring, body);
   body.position.y = 0.12;
+  // Small parts: seen from the town ("far") they are dropped, with every shadow.
+  const fine: THREE.Object3D[] = [];
+  const small = <T extends THREE.Object3D>(o: T): T => (fine.push(o), o);
   put(body, kit.box(0.5, 0.43, 0.36, color, 0.1), 0, 0.46, 0);
-  put(body, kit.box(0.25, 0.15, 0.025, "badge", 0.035), 0, 0.49, 0.18);
-  put(body, kit.cylinder(0.035, 0.035, 0.026, "badge-dot"), 0, 0.49, 0.204).rotation.x = Math.PI / 2;
+  small(put(body, kit.box(0.25, 0.15, 0.025, "badge", 0.035), 0, 0.49, 0.18));
+  small(put(body, kit.cylinder(0.035, 0.035, 0.026, "badge-dot"), 0, 0.49, 0.204)).rotation.x = Math.PI / 2;
   head.position.y = 0.92;
   body.add(head);
   put(head, kit.box(0.68, 0.52, 0.52, color, 0.13), 0, 0, 0);
   put(head, kit.box(0.54, 0.25, 0.05, "visor", 0.09), 0, 0.005, 0.265);
-  for (const x of [-0.13, 0.13]) put(head, kit.box(0.07, 0.1, 0.028, "eye", 0.03), x, 0.015, 0.298);
-  put(head, kit.cylinder(0.018, 0.018, 0.19, "antenna-stem"), 0, 0.335, 0);
+  for (const x of [-0.13, 0.13]) small(put(head, kit.box(0.07, 0.1, 0.028, "eye", 0.03), x, 0.015, 0.298));
+  small(put(head, kit.cylinder(0.018, 0.018, 0.19, "antenna-stem"), 0, 0.335, 0));
   put(head, kit.sphere(0.075, "antenna"), 0, 0.435, 0);
-  for (const x of [-0.355, 0.355]) put(head, kit.cylinder(0.09, 0.09, 0.065, "ear"), x, -0.01, 0).rotation.z = Math.PI / 2;
+  for (const x of [-0.355, 0.355]) small(put(head, kit.cylinder(0.09, 0.09, 0.065, "ear"), x, -0.01, 0)).rotation.z = Math.PI / 2;
   const arms = [-1, 1].map((side) => {
     const arm = new THREE.Group();
     arm.position.set(side * 0.32, 0.6, 0);
     body.add(arm);
     put(arm, kit.box(0.12, 0.29, 0.15, color, 0.06), 0, -0.11, 0);
-    put(arm, kit.sphere(0.079, "hand"), 0, -0.24, 0.015);
+    small(put(arm, kit.sphere(0.079, "hand"), 0, -0.24, 0.015));
     return arm;
   });
   const feet = [-0.16, 0.16].map((x) => put(group, kit.box(0.19, 0.14, 0.29, "foot", 0.065), x, 0.12, 0.065));
@@ -52,6 +55,7 @@ export function robot(kit: Kit, options: { key: string; accent: PaletteName | nu
   });
 
   let posture: RobotPosture = "relaxed";
+  let detail: RobotDetail = "near";
   let proxy = false;
   let alerted = false;
   let time = hash(options.key) % 1000;
@@ -70,7 +74,7 @@ export function robot(kit: Kit, options: { key: string; accent: PaletteName | nu
     for (const [mesh, original] of originals) {
       if (!proxy && !greyed) {
         mesh.material = original;
-        mesh.castShadow = true;
+        mesh.castShadow = detail === "near";
         continue;
       }
       let copy = owned.get(original);
@@ -84,7 +88,7 @@ export function robot(kit: Kit, options: { key: string; accent: PaletteName | nu
         copy = c;
       }
       mesh.material = copy;
-      mesh.castShadow = !proxy;
+      mesh.castShadow = !proxy && detail === "near";
     }
   };
 
@@ -115,6 +119,8 @@ export function robot(kit: Kit, options: { key: string; accent: PaletteName | nu
         body.rotation.x = 0.04;
         break;
       case "walking":
+        body.rotation.x = 0.14; // leaning into the walk
+        head.rotation.x = -0.06;
         break;
     }
     halo.uniforms.uActive!.value = alerted || posture === "raised-hand" ? 0.65 : 0;
@@ -133,6 +139,12 @@ export function robot(kit: Kit, options: { key: string; accent: PaletteName | nu
     setProxy(next) {
       if (next === proxy) return;
       proxy = next;
+      skin();
+    },
+    setDetail(next) {
+      if (next === detail) return;
+      detail = next;
+      for (const o of fine) o.visible = detail === "near";
       skin();
     },
     setAlert(alert) {
@@ -154,9 +166,14 @@ export function robot(kit: Kit, options: { key: string; accent: PaletteName | nu
       } else if (posture === "raised-hand") {
         arms[1]!.rotation.z = 2.7 + Math.sin(time * 3) * 0.12;
       } else if (posture === "walking") {
-        feet[0]!.position.z = 0.065 + Math.sin(time * 8) * 0.08;
-        feet[1]!.position.z = 0.065 - Math.sin(time * 8) * 0.08;
-        body.position.y = 0.12 + Math.abs(Math.sin(time * 8)) * 0.03;
+        // A soft trot: feet step in turn, arms swing against them, the body bobs and sways a little.
+        const step = Math.sin(time * 8);
+        feet[0]!.position.z = 0.065 + step * 0.08;
+        feet[1]!.position.z = 0.065 - step * 0.08;
+        arms[0]!.rotation.x = -step * 0.45;
+        arms[1]!.rotation.x = step * 0.45;
+        body.position.y = 0.12 + Math.abs(step) * 0.035;
+        body.rotation.z = step * 0.04;
       }
     },
     dispose() {
