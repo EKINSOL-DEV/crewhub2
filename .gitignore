@@ -10,3 +10,4 @@ test-results/
 *.local
 *.log
 apps/bridge/target/
+*.tsbuildinfo
