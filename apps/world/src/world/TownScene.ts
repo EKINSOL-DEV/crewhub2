@@ -25,6 +25,7 @@ import { plotDoor, plotObstacles } from "./navigation";
 import { onPlayIntent } from "./intentPlayer";
 import { Walks } from "./walks";
 import { AmbientLife } from "./ambientLife";
+import { FrameRing } from "./frameRing";
 
 export interface TownView {
   model: WorldModel;
@@ -51,12 +52,14 @@ export interface TownView {
   ambient: Ambient;
   /** The dev stress fixture: draw every frame, uncapped, and keep frame statistics. */
   measure: boolean;
+  /** The frame rate overlay is on: keep frame statistics (`perf()`). */
+  fps?: boolean;
   /** Inside a building: the selected agent's key (a soft ring under its feet), or null. */
   selectedAgent?: string | null;
 }
 export type BuildPointer = "move" | "click" | "drag" | "drop";
 
-/** Frame statistics over the last `FRAME_WINDOW` drawn frames (the dev overlay). */
+/** Frame statistics over the last `FRAME_WINDOW` drawn frames (the stress overlay). */
 export interface FrameStats {
   frames: number;
   /** Time between drawn frames, ms. */
@@ -73,6 +76,39 @@ export interface FrameStats {
   walkers: number;
 }
 const FRAME_WINDOW = 300;
+/* The frame loop draws at most 60 times a second, so a 120 Hz display does not double the work (the stress fixture is
+   uncapped). Frames fall due on a 60 Hz grid rather than "at least 16.7 ms after the last": at 120 Hz, a display frame
+   that came a hair early would otherwise be skipped and the next drawn 25 ms late. Display frame times jitter by a
+   millisecond or two, so a frame counts as due a quarter step early (still well under half a 120 Hz frame). */
+const FRAME_MS = 1000 / 60;
+/** The numbers the frame rate overlay shows and `window.__worldPerf` exposes (ms, counts and bytes). */
+export interface WorldPerf {
+  fps: number;
+  /** No frame drawn for a moment: the loop rests until something changes. */
+  idle: boolean;
+  frameMean: number;
+  frameP95: number;
+  frameMax: number;
+  /** Frames more than 33 ms after the one before, in the window. */
+  slow: number;
+  workMean: number;
+  workP95: number;
+  calls: number;
+  triangles: number;
+  geometries: number;
+  textures: number;
+  /** The JS heap in bytes, where the browser tells (Chromium), else null. */
+  heap: number | null;
+  quality: GraphicsQuality;
+  /** "town", or the entered building's slug. */
+  view: string;
+  /** Drawn frames in the window. */
+  frames: number;
+  /** performance.now() of this sample. */
+  at: number;
+}
+/* The overlay's window: frame time and work over the last two seconds. */
+const PERF_WINDOW_MS = 2000;
 export type CameraAction = "home" | "rotate-left" | "rotate-right" | "zoom-in" | "zoom-out";
 interface Callbacks {
   enter: (slug: string) => void;
@@ -147,7 +183,11 @@ export class TownScene {
   #civicSignature = "";
   #civicRobots: RobotHandle[] = [];
   #postman: { handle: RobotHandle; key: string; letters: THREE.Object3D[] } | null = null;
-  #frames = { interval: new Float32Array(FRAME_WINDOW), work: new Float32Array(FRAME_WINDOW), tick: new Float32Array(FRAME_WINDOW), count: 0, at: 0 };
+  /** Drawn frames (the stress and frame rate overlays only), and whether the loop rested before the next one. */
+  #frames = new FrameRing();
+  #rested = true;
+  /** Startup marks for the measurement script: the first drawn frame, the first with the town dressed. */
+  #marked = { first: false, dressed: false };
   #hits = new THREE.Group();
   #ring: THREE.Object3D;
   /** A soft glow round the focused or hovered plot, under the focus ring; that building lifts a little (not under
@@ -162,6 +202,8 @@ export class TownScene {
   #span = 30;
   #raf = 0;
   #last = 0;
+  /** When the next frame may be drawn (the 60 fps cap). */
+  #due = 0;
   #disposed = false;
   #dirtyFrames = 2;
   #down = { x: 0, y: 0 };
@@ -540,8 +582,7 @@ export class TownScene {
       this.walks.update(view.model, { entered: view.entered, reducedMotion: view.reducedMotion, ambient: view.ambient });
     if (previous.entered !== view.entered) {
       // The overlay's window describes one view: start it again.
-      this.#frames.count = 0;
-      this.#frames.at = 0;
+      this.#frames.clear();
       if (view.entered) this.frameBuilding(view.entered, view.zoomed);
       else this.home(false);
       this.fitShadow();
@@ -851,10 +892,12 @@ export class TownScene {
   animate = (now: number) => {
     this.#raf = 0;
     if (this.#disposed || document.hidden) return;
-    if (!this.view.measure && this.#last && now - this.#last < 1000 / 30 - 0.5) {
+    if (!this.view.measure && this.#last && now < this.#due - FRAME_MS / 4) {
       this.#raf = requestAnimationFrame(this.animate);
       return;
     }
+    // The next frame is due one 60 Hz step on, or one step from now after a rest or a long frame.
+    this.#due = now - this.#due < FRAME_MS ? this.#due + FRAME_MS : now + FRAME_MS;
     const started = performance.now();
     const interval = this.#last ? now - this.#last : 0;
     const dt = this.#last ? Math.min(interval / 1000, 0.05) : 0;
@@ -907,7 +950,12 @@ export class TownScene {
       this.callbacks.error();
       return;
     }
-    if (this.view.measure && interval) this.#record(interval, performance.now() - started, this.walks.tickMs);
+    if (this.view.measure || this.view.fps) {
+      // The first frame after a rest (the loop draws on demand) has no frame time: it was not late, nothing was drawn.
+      this.#frames.push(now, this.#rested || !interval ? NaN : interval, performance.now() - started, this.walks.tickMs);
+    }
+    this.#rested = false;
+    if (!this.#marked.dressed) this.#mark();
     if (this.#perf) {
       const total = performance.now() - started;
       if (total > 100) console.info(`[perf] slow frame: tick ${(ticked - started).toFixed(1)} ms, render ${(performance.now() - ticked).toFixed(1)} ms, programs ${this.renderer.info.programs?.length ?? 0}`);
@@ -915,7 +963,20 @@ export class TownScene {
     }
     this.#dirtyFrames--;
     if (!this.#raf && (this.#tween || moving || this.#dirtyFrames > 0)) this.#raf = requestAnimationFrame(this.animate);
+    if (!this.#raf) this.#rested = true;
   };
+
+  /** `performance.mark`s for the startup measurement: the first drawn frame, and the first with the town dressed. */
+  #mark() {
+    if (!this.#marked.first) {
+      this.#marked.first = true;
+      performance.mark("world:first-frame");
+    }
+    if (this.#dressing.group && this.view.model.buildings.length && this.#buildings.size) {
+      this.#marked.dressed = true;
+      performance.mark("world:town-dressed");
+    }
+  }
 
   /** Eases the focused or hovered building up a little and the others back down; true while one still moves. */
   #lift(slug: string, view: BuildingView, seconds: number): boolean {
@@ -943,37 +1004,47 @@ export class TownScene {
     if (!this.view.reducedMotion && walker.walking) p.handle.update(seconds);
   }
 
-  #record(interval: number, work: number, tick: number) {
-    const f = this.#frames;
-    f.interval[f.at] = interval;
-    f.work[f.at] = work;
-    f.tick[f.at] = tick;
-    f.at = (f.at + 1) % FRAME_WINDOW;
-    f.count = Math.min(FRAME_WINDOW, f.count + 1);
-  }
-
-  /** Mean, p95 and max over the last 300 drawn frames (the dev overlay; `measure` only). */
+  /** Mean, p95 and max over the last 300 drawn frames (the stress overlay; kept with `measure` or `fps`). */
   frameStats(): FrameStats {
-    const f = this.#frames;
-    const n = f.count;
-    const stat = (a: Float32Array) => {
-      const v = Array.from(a.subarray(0, n)).sort((x, y) => x - y);
-      return { mean: v.reduce((s, x) => s + x, 0) / Math.max(1, n), p95: v[Math.min(n - 1, Math.floor(n * 0.95))] ?? 0, max: v[n - 1] ?? 0 };
-    };
-    const interval = stat(f.interval),
-      work = stat(f.work),
-      tick = stat(f.tick);
+    const s = this.#frames.stats(performance.now(), Infinity, FRAME_WINDOW);
     return {
-      frames: n,
-      mean: interval.mean,
-      p95: interval.p95,
-      max: interval.max,
-      workMean: work.mean,
-      workP95: work.p95,
-      tickMean: tick.mean,
-      tickMax: tick.max,
+      frames: s.frames,
+      mean: s.frameMean,
+      p95: s.frameP95,
+      max: s.frameMax,
+      workMean: s.workMean,
+      workP95: s.workP95,
+      tickMean: s.tickMean,
+      tickMax: s.tickMax,
       calls: this.renderer.info.render.calls,
       walkers: [...this.walks.walkers()].length,
+    };
+  }
+
+  /** The frame rate overlay's numbers: frames over the last two seconds, the last frame's draw calls, memory. */
+  perf(): WorldPerf {
+    const now = performance.now();
+    const s = this.#frames.stats(now, PERF_WINDOW_MS);
+    const { render, memory } = this.renderer.info;
+    const heap = (performance as Performance & { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize ?? null;
+    return {
+      fps: s.idle ? 0 : s.fps,
+      idle: s.idle,
+      frameMean: s.frameMean,
+      frameP95: s.frameP95,
+      frameMax: s.frameMax,
+      slow: s.slow,
+      workMean: s.workMean,
+      workP95: s.workP95,
+      calls: render.calls,
+      triangles: render.triangles,
+      geometries: memory.geometries,
+      textures: memory.textures,
+      heap,
+      quality: this.view.quality,
+      view: this.view.entered ?? "town",
+      frames: s.frames,
+      at: now,
     };
   }
 
