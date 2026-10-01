@@ -143,6 +143,10 @@ const CAMERA_DISTANCE = 220;
 const HOME_OFFSET = new THREE.Vector3(1, 1.04, 1).normalize().multiplyScalar(CAMERA_DISTANCE);
 const UP = new THREE.Vector3(0, 1, 0);
 /* Framing heights: a building is seen up to its tall back walls, a room up to its people and desks. */
+/** Built interiors kept for a quick enter: the entered building's and the two most recently used others. */
+const KEPT_INTERIORS = 3;
+/** The idle time an interior build step needs left before it starts, ms. */
+const IDLE_STEP_MS = 12;
 const BUILDING_FRAME_HEIGHT = FLOOR_RISE + BACK_WALL_HEIGHT + 0.6; // the slab, the tall walls and a little headroom
 const ROOM_FRAME_HEIGHT = 1.1;
 /* The closest view: a frustum this many world units tall, about one desk with its robot. */
@@ -242,6 +246,11 @@ export class TownScene {
   #layoutTimer: ReturnType<typeof setTimeout> | 0 = 0;
   #down = { x: 0, y: 0 };
   #hovered: number | null = null;
+  /** Buildings holding a built interior, most recently used last (buildingView.ts prepareInterior). */
+  #interiors: string[] = [];
+  #cancelPrepare: (() => void) | null = null;
+  /** The building whose interior is being built in idle time. */
+  #preparing: string | null = null;
   #hoverPick = "";
   #tween: { position: THREE.Vector3; target: THREE.Vector3; zoom: number } | null = null;
   #resize: ResizeObserver;
@@ -561,6 +570,7 @@ export class TownScene {
       }
       const town = this.view.town;
       view.update(b, this.view.entered === b.slug, town && (this.view.entered === b.slug ? town : { ...town, build: null }));
+      if (this.view.entered === b.slug) this.#useInterior(b.slug);
       view.setFocus(this.view.entered === b.slug ? this.view.room : null);
       for (const [id, v] of view.anchors) this.#anchors.set(id, v);
       this.#contact(b.slug, view);
@@ -588,6 +598,7 @@ export class TownScene {
       }
     }
     this.invalidate();
+    this.#prepareInterior();
   }
 
   /** The next slice of the first layout, in a task of its own, so the page stays responsive while the town builds. */
@@ -597,6 +608,45 @@ export class TownScene {
       this.#layoutTimer = 0;
       if (!this.#disposed) this.sync();
     }, 0);
+  }
+
+  /** Marks a building's interior as just used and drops the oldest beyond the few kept (never the entered one). */
+  #useInterior(slug: string) {
+    if (this.#interiors[this.#interiors.length - 1] === slug) return;
+    this.#interiors = [...this.#interiors.filter((s) => s !== slug), slug];
+    while (this.#interiors.length > KEPT_INTERIORS) this.#buildings.get(this.#interiors.shift()!)?.releaseInterior();
+  }
+
+  /**
+   * In the town, while the browser is idle, builds the interior of the building the pointer is over or the keyboard
+   * has focused, so entering it only has to show it.
+   */
+  #prepareInterior() {
+    if (this.#cancelPrepare || this.#layingOut || this.view.entered) return;
+    const run = (more: () => boolean) => {
+      this.#cancelPrepare = null;
+      if (this.#disposed || this.view.entered) return;
+      const index = this.#hovered ?? Math.min(this.view.focused, TOWN_CAPACITY - 1);
+      const slug = this.view.model.buildings[index]?.slug;
+      const view = slug ? this.#buildings.get(slug) : undefined;
+      if (!slug || !view) return;
+      // One build at a time: a build for a building the visitor has moved on from is given up.
+      if (this.#preparing !== slug) this.#buildings.get(this.#preparing ?? "")?.cancelPrepare();
+      this.#preparing = slug;
+      if (view.prepareInterior(more)) this.#useInterior(slug);
+      // Not done in this slice: go on in the next idle time.
+      if (view.preparing) this.#prepareInterior();
+    };
+    if (typeof requestIdleCallback === "function") {
+      const id = requestIdleCallback((deadline) => run(() => deadline.timeRemaining() > IDLE_STEP_MS), { timeout: 1500 });
+      this.#cancelPrepare = () => cancelIdleCallback(id);
+    } else {
+      const id = window.setTimeout(() => {
+        const start = performance.now();
+        run(() => performance.now() - start < IDLE_STEP_MS);
+      }, 300);
+      this.#cancelPrepare = () => window.clearTimeout(id);
+    }
   }
 
   /** The blob shadow under a building's slab follows its footprint (role rooms grow east). */
@@ -716,6 +766,7 @@ export class TownScene {
     }
     if (view.entered) this.#buildings.get(view.entered)?.setSelected(view.selectedAgent ?? null);
     this.refreshLabels();
+    this.#prepareInterior();
   }
 
   /** The frustum height (at zoom 1) that frames `bounds` from the current camera direction. */
@@ -943,6 +994,7 @@ export class TownScene {
     this.#hovered = plot;
     this.renderer.domElement.style.cursor = plot === null ? "" : "pointer";
     this.callbacks.hover(plot);
+    this.#prepareInterior();
   };
   pointerLeave = () => {
     this.renderer.domElement.style.cursor = "";
@@ -1260,6 +1312,7 @@ export class TownScene {
   dispose() {
     this.#disposed = true;
     if (this.#layoutTimer) clearTimeout(this.#layoutTimer);
+    this.#cancelPrepare?.();
     this.#stopIntents();
     cancelAnimationFrame(this.#raf);
     this.#resize.disconnect();
