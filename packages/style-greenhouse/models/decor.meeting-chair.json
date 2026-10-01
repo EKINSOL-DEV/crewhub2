@@ -1,0 +1,121 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-decor-meeting-chair",
+  "name": "Meeting chair",
+  "description": "A small sage chair with a rounded back and timber legs, tucked in at the table.",
+  "category": "rest",
+  "tags": [
+    "greenhouse",
+    "chair",
+    "meeting"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "cylinder",
+      "size": [
+        0.014,
+        0.22,
+        0.012
+      ],
+      "position": [
+        -0.1,
+        0.11,
+        -0.1
+      ],
+      "material": "timber"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.014,
+        0.22,
+        0.012
+      ],
+      "position": [
+        -0.1,
+        0.11,
+        0.1
+      ],
+      "material": "timber"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.014,
+        0.22,
+        0.012
+      ],
+      "position": [
+        0.1,
+        0.11,
+        -0.1
+      ],
+      "material": "timber"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.014,
+        0.22,
+        0.012
+      ],
+      "position": [
+        0.1,
+        0.11,
+        0.1
+      ],
+      "material": "timber"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.26,
+        0.045,
+        0.26
+      ],
+      "position": [
+        0,
+        0.24,
+        0
+      ],
+      "material": "sage",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.26,
+        0.2,
+        0.04
+      ],
+      "position": [
+        0,
+        0.36,
+        -0.12
+      ],
+      "material": "sage",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.2,
+        0.03,
+        0.2
+      ],
+      "position": [
+        0,
+        0.275,
+        0.01
+      ],
+      "material": "cream",
+      "radius": 0.012
+    }
+  ]
+}

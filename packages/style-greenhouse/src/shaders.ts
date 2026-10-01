@@ -40,21 +40,29 @@ const PATTERNS: Record<FloorPattern, string> = {
       diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 0.82, cut * 0.5);`,
 };
 
-/** The studio floor: a pattern and soft sun shafts on a standard material. UVs are in cells. */
-export function floorShader(material: THREE.MeshStandardMaterial, pattern: FloorPattern = "cells"): THREE.MeshStandardMaterial {
+/**
+ * The studio floor: a pattern and soft sun shafts on a standard material. UVs are in cells. `shafts` is a shared
+ * uniform: 1 by day, 0 under lamplight (no sun after dark).
+ */
+export function floorShader(
+  material: THREE.MeshStandardMaterial,
+  shafts: { value: number },
+  pattern: FloorPattern = "cells",
+): THREE.MeshStandardMaterial {
   material.roughness = 0.93;
   material.onBeforeCompile = (shader) => {
+    shader.uniforms.uShafts = shafts;
     shader.vertexShader =
       "varying vec2 vFloor;\n" + shader.vertexShader.replace("#include <begin_vertex>", "#include <begin_vertex>\nvFloor = uv;");
     shader.fragmentShader =
-      "varying vec2 vFloor;\n" +
+      "varying vec2 vFloor;\nuniform float uShafts;\n" +
       shader.fragmentShader.replace(
         "#include <color_fragment>",
         `#include <color_fragment>
       ${PATTERNS[pattern]}
       float diagonal = vFloor.x + vFloor.y * 0.64;
       float shafts = smoothstep(0.1, 0.2, fract(diagonal / 3.0)) * (1.0 - smoothstep(0.82, 0.91, fract(diagonal / 3.0)));
-      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0, 0.91, 0.66), shafts * 0.06);
+      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0, 0.91, 0.66), shafts * 0.06 * uShafts);
     `,
       );
   };
@@ -98,6 +106,93 @@ export function haloMaterial(color: string) {
   });
 }
 
+/** World x/z of a vertex, instanced or merged, as a varying the fragment patterns below read. */
+function worldXZ(shader: { vertexShader: string; fragmentShader: string }) {
+  shader.vertexShader =
+    "varying vec2 vTownXZ;\n" +
+    shader.vertexShader.replace(
+      "#include <begin_vertex>",
+      `#include <begin_vertex>
+      vec4 townWorld = vec4(transformed, 1.0);
+      #ifdef USE_INSTANCING
+      townWorld = instanceMatrix * townWorld;
+      #endif
+      vTownXZ = (modelMatrix * townWorld).xz;`,
+    );
+  shader.fragmentShader =
+    `varying vec2 vTownXZ;
+    float townHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    float townNoise(vec2 p) {
+      vec2 i = floor(p), f = fract(p);
+      f = f * f * (3.0 - 2.0 * f);
+      return mix(mix(townHash(i), townHash(i + vec2(1.0, 0.0)), f.x), mix(townHash(i + vec2(0.0, 1.0)), townHash(i + vec2(1.0, 1.0)), f.x), f.y);
+    }
+` + shader.fragmentShader;
+}
+
+/**
+ * Paving laid in world space, so it lines up across pieces: cobbles (small stones in a running bond) or flagstones
+ * (large slabs). Each stone gets its own shade, the joints are darker and the stones' edges soft.
+ */
+export function pavingShader(material: THREE.MeshStandardMaterial, stone: [number, number], joint: number): THREE.MeshStandardMaterial {
+  material.roughness = 0.95;
+  // The program differs per stone size; the default cache key (the callback's source) would not tell them apart.
+  material.customProgramCacheKey = () => `town-paving:${stone.join(",")}:${joint}`;
+  material.onBeforeCompile = (shader) => {
+    worldXZ(shader);
+    shader.fragmentShader = shader.fragmentShader.replace(
+      "#include <color_fragment>",
+      `#include <color_fragment>
+      vec2 st = vTownXZ / vec2(${stone[0].toFixed(3)}, ${stone[1].toFixed(3)});
+      st.x += step(1.0, mod(floor(st.y), 2.0)) * 0.5;
+      vec2 cell = floor(st), f = fract(st) - 0.5;
+      vec2 width = fwidth(st);
+      vec2 edge = smoothstep(vec2(0.5) - width * 1.5 - ${joint.toFixed(3)}, vec2(0.5) - ${joint.toFixed(3)}, abs(f));
+      float jointMask = max(edge.x, edge.y);
+      float shade = townHash(cell) * 0.12 - 0.06 + (townNoise(vTownXZ * 0.35) - 0.5) * 0.06;
+      diffuseColor.rgb *= (1.0 + shade) * (1.0 - jointMask * 0.22);
+      diffuseColor.rgb *= 1.0 - smoothstep(0.25, 0.5, length(f)) * 0.05;
+    `,
+    );
+  };
+  return material;
+}
+
+/** Grass with a soft mottle in world space, so wide lawns are never one flat colour. */
+export function grassShader(material: THREE.MeshStandardMaterial, amount: number): THREE.MeshStandardMaterial {
+  material.roughness = 1;
+  material.customProgramCacheKey = () => `town-grass:${amount}`;
+  material.onBeforeCompile = (shader) => {
+    worldXZ(shader);
+    shader.fragmentShader = shader.fragmentShader.replace(
+      "#include <color_fragment>",
+      `#include <color_fragment>
+      float mottle = townNoise(vTownXZ * 0.18) * 0.6 + townNoise(vTownXZ * 0.9) * 0.3 + townHash(floor(vTownXZ * 9.0)) * 0.1;
+      diffuseColor.rgb *= 1.0 + (mottle - 0.5) * ${amount.toFixed(3)};
+      diffuseColor.g *= 1.0 + (townNoise(vTownXZ * 0.07 + 3.0) - 0.5) * ${(amount * 0.5).toFixed(3)};
+    `,
+    );
+  };
+  return material;
+}
+
+/** The pond: a soft ripple and a lighter rim towards the bank. UVs run 0..1 over the pond. */
+export function waterShader(material: THREE.MeshStandardMaterial): THREE.MeshStandardMaterial {
+  material.roughness = 0.25;
+  material.customProgramCacheKey = () => "town-water";
+  material.onBeforeCompile = (shader) => {
+    worldXZ(shader);
+    shader.fragmentShader = shader.fragmentShader.replace(
+      "#include <color_fragment>",
+      `#include <color_fragment>
+      float ripple = townNoise(vTownXZ * vec2(1.6, 3.2));
+      diffuseColor.rgb *= 0.94 + ripple * 0.1;
+    `,
+    );
+  };
+  return material;
+}
+
 /**
  * Soft ground decals drawn on flat planes from `Kit.decal`: a blob contact shadow (normal blending, darkens) or a warm
  * light pool (additive, brightens). The plane's local x/z is the position; the `aShape` attribute holds the rounded
@@ -110,7 +205,11 @@ export function decalMaterial(color: string, opacity: number, additive: boolean)
     depthWrite: false,
     blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
     vertexShader: `attribute vec3 aShape; varying vec2 vLocal; varying vec3 vShape;
-      void main() { vLocal = position.xz; vShape = aShape; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+      void main() { vLocal = position.xz; vShape = aShape; vec4 p = vec4(position, 1.0);
+      #ifdef USE_INSTANCING
+      p = instanceMatrix * p;
+      #endif
+      gl_Position = projectionMatrix * modelViewMatrix * p; }`,
     fragmentShader: `uniform vec3 uColor; uniform float uOpacity; varying vec2 vLocal; varying vec3 vShape;
       void main() { float d = length(max(abs(vLocal) - vShape.xy, 0.0)) / max(vShape.z, 0.001);
       float a = 1.0 - smoothstep(0.0, 1.0, d);

@@ -23,6 +23,7 @@ import { partsModel } from "./parts.ts";
 import * as pieces from "./pieces.ts";
 import * as shell from "./shell.ts";
 import { robot } from "./robot.ts";
+import * as town from "./town.ts";
 
 type ManifestFile = StyleManifest & GreenhouseManifestData;
 const manifest = manifestJson as unknown as ManifestFile;
@@ -43,6 +44,7 @@ class GreenhouseStyle implements WorldStyle {
 
   constructor() {
     this.#glass = pieces.glass(this.#kit);
+    town.townTheme(this.#kit, this.#kit.theme);
   }
 
   model(key: ModelKey, options: ModelOptions = {}): THREE.Object3D | null {
@@ -97,9 +99,23 @@ class GreenhouseStyle implements WorldStyle {
     if (key.startsWith("emblem.")) return pieces.emblem(kit, key.slice("emblem.".length) as EmblemName, o);
     switch (key) {
       case "ground":
-        return pieces.ground(kit, o);
+        return town.ground(kit, o);
       case "plot":
-        return pieces.plot(kit, o);
+        return town.plot(kit, o);
+      case "town.paving":
+        return town.paving(kit, o);
+      case "town.hedge":
+        return town.hedge(kit, o);
+      case "town.flower-bed":
+        return town.flowerBed(kit, o);
+      case "town.pond":
+        return town.pond(kit, o);
+      case "town.bridge":
+        return town.bridge(kit, o);
+      case "town.fence":
+        return town.fence(kit, o);
+      case "town.lantern":
+        return town.lantern(kit);
       case "path":
         return pieces.path(kit, o);
       case "street-lamp":
@@ -198,6 +214,7 @@ class GreenhouseStyle implements WorldStyle {
     this.#kit.setTheme(theme);
     this.#glass.uniforms.uColor!.value.set(this.#kit.hex("window"));
     this.#glass.uniforms.uOpacity!.value = theme === "lamplight" ? 0.82 : 0.32;
+    town.townTheme(this.#kit, theme);
   }
 
   environment(scene: THREE.Scene, renderer: THREE.WebGLRenderer, theme: StyleTheme) {

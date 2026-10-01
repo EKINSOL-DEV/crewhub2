@@ -27,6 +27,8 @@
 */
 import type { Cell, Definitions, WorldLayout, WorldProp } from "@crewhub/world-engine";
 import type { Building, RoomKind } from "@crewhub/world-model";
+import { PILE_ROOMS } from "./interiorLayout.ts";
+import { dressingDefinitions, dressingSeed, dressRooms } from "./roomDressing.ts";
 
 /** World units per building cell: the Greenhouse grid. */
 export const BUILDING_CELL = 0.6;
@@ -175,6 +177,8 @@ export const interiorDefinitions: Definitions = {
     // Someone watering it stands to its west.
     approaches: [{ x: -1, z: 0 }],
   },
+  // The homely dressing pieces (roomDressing.ts): plain blocking footprints the director never visits.
+  ...dressingDefinitions,
 };
 
 const prop = (id: string, definitionId: string, x: number, z: number): WorldProp => ({ id, definitionId, cell: { x, z }, rotation: 0 });
@@ -297,7 +301,10 @@ export function buildingTemplate(building: Building): BuildingTemplate {
     door(`${d.room}-${kind}`, { room: d.room, cell: d.other }, { room: kind, cell: d.own });
     width = Math.max(width, EAST_X + columns * MODULE);
   }
-  return { size: { width, depth: DEPTH }, rooms, doors };
+  const template = { size: { width, depth: DEPTH }, rooms, doors };
+  // The homely dressing: its blocking pieces join the room layouts (roomDressing.ts).
+  const dressing = { definitions: interiorDefinitions, seed: dressingSeed(building.slug), zones: dressingZones(template), loading: LOADING, piles: PILE_ROOMS };
+  return { ...template, rooms: dressRooms(template, dressing) };
 }
 
 /** A free rectangle of floor in building cells, for props that dress a room and block nothing. */

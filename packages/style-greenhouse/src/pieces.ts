@@ -11,22 +11,6 @@ type Size = { width: number; height: number; depth: number };
 const size = (o: ModelOptions, fallback: Size): Size => o.size ?? fallback;
 const accent = (o: ModelOptions): Swatch => o.accent ?? "no-project";
 
-export function ground(kit: Kit, o: ModelOptions): THREE.Group {
-  const { width, depth } = size(o, { width: 20, height: 0.5, depth: 20 });
-  const g = new THREE.Group();
-  put(g, kit.box(width + 0.6, 0.5, depth + 0.6, "plinth", 0.2), 0, -0.3, 0);
-  put(g, kit.box(width, 0.1, depth, "street", 0.04), 0, -0.03, 0);
-  return g;
-}
-
-export function plot(kit: Kit, o: ModelOptions): THREE.Group {
-  const { width, depth } = size(o, { width: 6, height: 0.16, depth: 6 });
-  const g = new THREE.Group();
-  put(g, kit.box(width, 0.16, depth, "lawn-edge", 0.06), 0, 0.06, 0);
-  put(g, kit.box(width - 0.2, 0.04, depth - 0.2, "lawn", 0.015), 0, 0.15, 0);
-  return g;
-}
-
 export function path(kit: Kit, o: ModelOptions): THREE.Object3D {
   const { width, depth } = size(o, { width: 1, height: 0.04, depth: 1 });
   const mesh = kit.box(width, 0.04, depth, "step", 0.015);
@@ -64,7 +48,7 @@ export function floor(kit: Kit, o: ModelOptions): THREE.Mesh {
   const swatch = o.variant === "dim" ? "floor-dim" : pattern === "cells" ? "floor" : `floor-${pattern}`;
   const material = kit.material(swatch);
   if (!material.userData.floor) {
-    floorShader(material, pattern);
+    floorShader(material, kit.shafts, pattern);
     material.userData.floor = true;
   }
   const mesh = new THREE.Mesh(geo, material);

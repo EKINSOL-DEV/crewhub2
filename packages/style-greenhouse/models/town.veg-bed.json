@@ -1,0 +1,358 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-town-veg-bed",
+  "name": "Vegetable bed",
+  "description": "A raised timber bed of lettuces, cabbages and carrots.",
+  "category": "greenery",
+  "tags": [
+    "greenhouse",
+    "town"
+  ],
+  "footprint": {
+    "width": 4,
+    "depth": 2
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        2.2,
+        0.26,
+        0.9
+      ],
+      "position": [
+        0,
+        0.13,
+        0
+      ],
+      "material": "timber",
+      "radius": 0.04
+    },
+    {
+      "shape": "box",
+      "size": [
+        2.06,
+        0.02,
+        0.76
+      ],
+      "position": [
+        0,
+        0.265,
+        0
+      ],
+      "material": "soil",
+      "radius": 0.005
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.13,
+        0.1,
+        0.13
+      ],
+      "position": [
+        -0.85,
+        0.34,
+        -0.22
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.13,
+        0.1,
+        0.13
+      ],
+      "position": [
+        -0.51,
+        0.34,
+        -0.22
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.13,
+        0.1,
+        0.13
+      ],
+      "position": [
+        -0.17,
+        0.34,
+        -0.22
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.13,
+        0.1,
+        0.13
+      ],
+      "position": [
+        0.17,
+        0.34,
+        -0.22
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.13,
+        0.1,
+        0.13
+      ],
+      "position": [
+        0.51,
+        0.34,
+        -0.22
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.13,
+        0.1,
+        0.13
+      ],
+      "position": [
+        0.85,
+        0.34,
+        -0.22
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.11,
+        0.14,
+        0.11
+      ],
+      "position": [
+        -0.85,
+        0.364,
+        0.0
+      ],
+      "material": "sage"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.11,
+        0.14,
+        0.11
+      ],
+      "position": [
+        -0.51,
+        0.364,
+        0.0
+      ],
+      "material": "sage"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.11,
+        0.14,
+        0.11
+      ],
+      "position": [
+        -0.17,
+        0.364,
+        0.0
+      ],
+      "material": "sage"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.11,
+        0.14,
+        0.11
+      ],
+      "position": [
+        0.17,
+        0.364,
+        0.0
+      ],
+      "material": "sage"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.11,
+        0.14,
+        0.11
+      ],
+      "position": [
+        0.51,
+        0.364,
+        0.0
+      ],
+      "material": "sage"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.11,
+        0.14,
+        0.11
+      ],
+      "position": [
+        0.85,
+        0.364,
+        0.0
+      ],
+      "material": "sage"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.12,
+        0.09,
+        0.12
+      ],
+      "position": [
+        -0.85,
+        0.334,
+        0.22
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.12,
+        0.09,
+        0.12
+      ],
+      "position": [
+        -0.51,
+        0.334,
+        0.22
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.12,
+        0.09,
+        0.12
+      ],
+      "position": [
+        -0.17,
+        0.334,
+        0.22
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.12,
+        0.09,
+        0.12
+      ],
+      "position": [
+        0.17,
+        0.334,
+        0.22
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.12,
+        0.09,
+        0.12
+      ],
+      "position": [
+        0.51,
+        0.334,
+        0.22
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.12,
+        0.09,
+        0.12
+      ],
+      "position": [
+        0.85,
+        0.334,
+        0.22
+      ],
+      "material": "leaf-dark"
+    },
+    {
+      "shape": "cone",
+      "size": [
+        0.04,
+        0.12,
+        0
+      ],
+      "position": [
+        -0.7,
+        0.33,
+        0.22
+      ],
+      "material": "tangerine",
+      "rotation": [
+        180,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "cone",
+      "size": [
+        0.04,
+        0.12,
+        0
+      ],
+      "position": [
+        -0.1,
+        0.33,
+        0.22
+      ],
+      "material": "tangerine",
+      "rotation": [
+        180,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "cone",
+      "size": [
+        0.04,
+        0.12,
+        0
+      ],
+      "position": [
+        0.5,
+        0.33,
+        0.22
+      ],
+      "material": "tangerine",
+      "rotation": [
+        180,
+        0,
+        0
+      ]
+    }
+  ]
+}

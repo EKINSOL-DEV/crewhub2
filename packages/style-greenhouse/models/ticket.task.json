@@ -2,7 +2,7 @@
   "format": "crewhub-prop/1",
   "id": "builtin:greenhouse-ticket-task",
   "name": "Folder",
-  "description": "A task ticket: a manila folder lying flat, a sheet peeking out.",
+  "description": "A task ticket: a manila folder lying flat, two sheets peeking out and a sticky note on top.",
   "category": "storage",
   "tags": [
     "greenhouse"
@@ -18,13 +18,28 @@
       "shape": "box",
       "size": [
         0.3,
-        0.04,
+        0.03,
         0.22
       ],
       "position": [
         0,
-        0.02,
+        0.015,
         0
+      ],
+      "material": "timber-light",
+      "radius": 0.012
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.1,
+        0.03,
+        0.035
+      ],
+      "position": [
+        -0.08,
+        0.024,
+        -0.125
       ],
       "material": "timber-light",
       "radius": 0.01
@@ -37,9 +52,9 @@
         0.2
       ],
       "position": [
-        0.01,
-        0.045,
-        0.005
+        0.012,
+        0.036,
+        0.004
       ],
       "material": "paper",
       "radius": 0.004
@@ -47,17 +62,42 @@
     {
       "shape": "box",
       "size": [
-        0.1,
-        0.03,
-        0.035
+        0.25,
+        0.01,
+        0.18
       ],
       "position": [
-        -0.08,
-        0.03,
-        -0.125
+        -0.006,
+        0.045,
+        0.008
       ],
-      "material": "timber-light",
-      "radius": 0.008
+      "material": "cream",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        4,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.06,
+        0.01,
+        0.06
+      ],
+      "position": [
+        0.08,
+        0.046,
+        -0.06
+      ],
+      "material": "tangerine",
+      "radius": 0.006,
+      "rotation": [
+        0,
+        -8,
+        0
+      ]
     }
   ]
 }

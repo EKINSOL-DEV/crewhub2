@@ -10,8 +10,9 @@ import { Button, Card } from "./components/primitives";
 import type { ModelKey, StyleTheme } from "@crewhub/world-style";
 import { DEFAULT_STYLE_ID, styleRegistry } from "./world/style";
 
-/* Three groups: the skill's examples, the skill's eval runs, and the demo world's prop tickets (its broken sign shows
-   as an invalid card, on purpose). `?group=eval` or `?group=demo` narrows the page to one group. */
+/* Four groups: the skill's examples, the skill's eval runs, the demo world's prop tickets (its broken sign shows as an
+   invalid card, on purpose) and the Greenhouse style's own data models. `?group=eval`, `?group=demo` or
+   `?group=style` narrows the page to one group. */
 const groups: Record<string, Record<string, unknown>> = {
   examples: import.meta.glob<unknown>("../../../skills/prop-builder/references/examples/*.json", {
     eager: true,
@@ -19,6 +20,7 @@ const groups: Record<string, Record<string, unknown>> = {
   }),
   eval: import.meta.glob<unknown>("../../../skills/prop-builder/evals/*/*.json", { eager: true, import: "default" }),
   demo: import.meta.glob<unknown>("../../../packages/demo/src/props/*.json", { eager: true, import: "default" }),
+  style: import.meta.glob<unknown>("../../../packages/style-greenhouse/models/*.json", { eager: true, import: "default" }),
 };
 const params = new URLSearchParams(typeof location !== "undefined" ? location.search : "");
 const only = params.get("group");

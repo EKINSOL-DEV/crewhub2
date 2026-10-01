@@ -1,0 +1,110 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-decor-rug-runner",
+  "name": "Runner rug",
+  "description": "A long moss runner with a chalk border and a row of clay diamonds.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "rug",
+    "runner"
+  ],
+  "footprint": {
+    "width": 2,
+    "depth": 3
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.92,
+        0.012,
+        1.68
+      ],
+      "position": [
+        0,
+        0.006,
+        0
+      ],
+      "material": "chalk",
+      "radius": 0.04
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.8,
+        0.014,
+        1.56
+      ],
+      "position": [
+        0,
+        0.007,
+        0
+      ],
+      "material": "moss",
+      "radius": 0.03
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.2,
+        0.016,
+        0.2
+      ],
+      "position": [
+        0,
+        0.008,
+        -0.5
+      ],
+      "material": "clay",
+      "radius": 0.01,
+      "rotation": [
+        0,
+        45,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.2,
+        0.016,
+        0.2
+      ],
+      "position": [
+        0,
+        0.008,
+        0
+      ],
+      "material": "clay",
+      "radius": 0.01,
+      "rotation": [
+        0,
+        45,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.2,
+        0.016,
+        0.2
+      ],
+      "position": [
+        0,
+        0.008,
+        0.5
+      ],
+      "material": "clay",
+      "radius": 0.01,
+      "rotation": [
+        0,
+        45,
+        0
+      ]
+    }
+  ]
+}
