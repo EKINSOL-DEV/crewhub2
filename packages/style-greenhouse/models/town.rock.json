@@ -1,0 +1,75 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-town-rock",
+  "name": "Rocks",
+  "description": "A cluster of soft grey stones with a little moss on top.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "town"
+  ],
+  "footprint": {
+    "width": 2,
+    "depth": 2
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "sphere",
+      "size": [
+        0.42,
+        0.26,
+        0.34
+      ],
+      "position": [
+        0,
+        0.27,
+        0
+      ],
+      "material": "slate"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.26,
+        0.18,
+        0.24
+      ],
+      "position": [
+        0.4,
+        0.19,
+        0.18
+      ],
+      "material": "mist"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.2,
+        0.13,
+        0.18
+      ],
+      "position": [
+        -0.36,
+        0.14,
+        0.22
+      ],
+      "material": "clay"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.16,
+        0.08,
+        0.14
+      ],
+      "position": [
+        0.05,
+        0.5,
+        -0.05
+      ],
+      "material": "moss"
+    }
+  ]
+}
