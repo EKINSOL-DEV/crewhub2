@@ -48,6 +48,8 @@ export const dressingDefinitions: Definitions = {
   "board-stand": piece("board-stand", "Whiteboard on a stand", 2, 1),
   "chart-easel": piece("chart-easel", "Chart easel", 1, 1),
   "mood-board": piece("mood-board", "Mood board", 2, 1),
+  "round-table": piece("round-table", "Round table", 2, 2),
+  planter: piece("planter", "Big planter", 2, 2),
 };
 
 /** A seeded number per building: the same slug always dresses the same way. */
@@ -315,6 +317,9 @@ function plan(kind: RoomKind, facts: RoomFacts, planner: Planner, defs: Definiti
       const chair = place({ def: "armchair", at: "free", anchor: { x: waiting.x - 0.6, z: waiting.z - 0.6 } });
       if (chair) place({ def: "side-table", at: "free", anchor: { x: waiting.x + 0.6, z: waiting.z - 0.6 } });
       place({ def: "armchair", at: "free", anchor: { x: waiting.x + 1.6, z: waiting.z - 0.6 } });
+      // The hall's middle: a round table on a big rug west of the walkway, a large planter east of it.
+      place({ def: "round-table", at: "free", anchor: { x: centre.x - 2.5, z: centre.z + 0.5 } });
+      place({ def: "planter", at: "free", anchor: { x: centre.x + 2.5, z: centre.z - 1 } });
       const entrance = facts.room.layout.entrance;
       place({ def: "umbrella-stand", at: "free", anchor: { x: entrance.x + 2.5, z: entrance.z + 0.5 } });
       // Plants flank the way in; a reading seat by the coffee corner.
@@ -489,7 +494,8 @@ export function roomDecor(template: BuildingTemplate, options: Omit<DressOptions
       const def = defs[p.definitionId];
       if (!def) continue;
       const pose = poseOf(p, defs);
-      if (def.tags.includes("desk") || p.definitionId === "coffee-table") at("decor.pendant-lamp", pose.x, pose.z);
+      if (def.tags.includes("desk") || p.definitionId === "coffee-table" || p.definitionId === "round-table") at("decor.pendant-lamp", pose.x, pose.z);
+      if (p.definitionId === "round-table") at("decor.rug-grand", pose.x, pose.z, 0);
       if (p.definitionId === "meeting-table" || p.definitionId === "planning-table")
         for (const dx of def.footprint.width >= 4 ? [-1, 1] : [0]) at("decor.pendant-lamp", pose.x + dx, pose.z);
     }
@@ -525,9 +531,6 @@ export function roomDecor(template: BuildingTemplate, options: Omit<DressOptions
       if (coffee) at("decor.rug-round", coffee.x - 0.5, coffee.z + 0.5, 0, { scale: { x: 0.75, y: 1, z: 0.75 } });
       // A station clock hangs over the hall when no tall wall carries the clock.
       if (!facts.tall.north.size && !facts.tall.west.size) at("decor.station-clock", facts.width / 2, facts.depth / 2 - 1.5, 0.5);
-      // Two pendants over the hall.
-      at("decor.pendant-lamp", facts.width / 2 - 2.5, facts.depth / 2);
-      at("decor.pendant-lamp", facts.width / 2 + 2.5, facts.depth / 2);
     }
     const armchair = props.find((p) => p.definitionId === "armchair" && room.kind === "review");
     if (armchair) {

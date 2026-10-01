@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { NavWorld, plotDoor, plotObstacles, POST_OFFICE_CELL, TOWN_GRID, TOWN_HALL_CELL, TOWN_ROOM, townCellAt, townCellCentre, townOpenCells } from "../src/world/navigation.ts";
-import { gardenPath, laneRects, plotUse, pondRect, townDressing, townPaths, type Dressing } from "../src/world/townDressing.ts";
+import { entranceRoad, gardenPath, landmarks, laneRects, plotUse, streetXs, streetZs, pondRect, townDressing, townPaths, type Dressing } from "../src/world/townDressing.ts";
 import { civicCenter, PLOT_SIZE, plotCenter, TOWN_CAPACITY, townBounds, type Bounds } from "../src/world/townLayout.ts";
 import { building } from "./fixtures.ts";
 
@@ -102,4 +102,34 @@ test("walkers in the town only ever step on the paving", () => {
       assert.equal(cells[cell.z * TOWN_GRID.width + cell.x], 1, `${slug}: the route crosses ${at.x.toFixed(1)},${at.z.toFixed(1)} off the path`);
     }
   }
+});
+
+test("every used plot has a gate on its path, every crossing its border, and Fast detail is marked", () => {
+  const used = plots(4);
+  const dressing = townDressing(used);
+  for (const p of used) assert.ok(dressing.some((d) => d.key === "town.gate" && Math.abs(d.x - p.door.x) < 1e-6), `plot ${p.index} has a gate`);
+  assert.equal(dressing.filter((d) => d.key === "town.crossing").length, streetXs().length * streetZs().length);
+  assert.ok(dressing.some((d) => d.key === "town.wear"), "worn grass by the paths");
+  const tufts = dressing.filter((d) => d.key === "town.grass" || d.key === "town.wildflowers");
+  assert.ok(tufts.length > 50 && tufts.every((d) => d.detail), "grass tufts and wild flowers are Fast-quality detail");
+  assert.ok(dressing.filter((d) => d.detail).every((d) => d.key === "town.grass" || d.key === "town.wildflowers"));
+});
+
+test("the landmarks keep their reserved spots: off the paths, inside the town, with nothing planted on them", () => {
+  const used = plots(12);
+  const paths = townPaths(used.map((p) => p.door));
+  const all = townBounds();
+  const dressing = townDressing(used).filter((d) => STANDING.test(d.key));
+  const road = entranceRoad();
+  for (const l of landmarks()) {
+    assert.ok(l.x > all.minX && l.x < all.maxX && l.z > all.minZ && l.z < all.maxZ, `${l.key} is in town`);
+    if (l.key === "civic.duck") {
+      assert.ok(inside(pondRect(), l.x, l.z), "the ducks swim on the pond");
+      continue;
+    }
+    for (const r of paths) assert.ok(!inside(r, l.x, l.z), `${l.key} stands off the paths`);
+    for (const d of dressing) assert.ok(Math.hypot(d.x - l.x, d.z - l.z) >= l.clear, `${d.key} at ${d.x.toFixed(1)},${d.z.toFixed(1)} is planted on ${l.key}`);
+  }
+  const sign = landmarks().find((l) => l.key === "civic.welcome-sign")!;
+  assert.ok(sign.x - road.maxX < 2.5 && sign.z > road.minZ, "the welcome sign stands by the entrance road");
 });

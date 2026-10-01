@@ -132,7 +132,7 @@ function pitched(g: THREE.Group, kit: Kit, r: RoofSpec) {
   ridge.rotation.z = Math.PI / 2;
 }
 
-/* A chunky pixel font for the shop signs: 3 x 5 cells per letter. */
+/* A chunky pixel font for the signs: 5 rows per letter, 3 cells wide (the w 5). */
 const FONT: Record<string, string[]> = {
   P: ["110", "101", "110", "100", "100"],
   O: ["010", "101", "101", "101", "010"],
@@ -142,31 +142,38 @@ const FONT: Record<string, string[]> = {
   A: ["010", "101", "111", "101", "101"],
   F: ["111", "100", "110", "100", "100"],
   E: ["111", "100", "110", "100", "111"],
+  H: ["101", "101", "111", "101", "101"],
+  r: ["000", "011", "100", "100", "100"],
+  e: ["010", "101", "111", "100", "011"],
+  w: ["00000", "10001", "10101", "10101", "01010"],
+  u: ["000", "101", "101", "101", "011"],
+  b: ["100", "100", "110", "101", "110"],
 };
 
 /** `text` in raised letters on the xy plane, centred on the origin, `cell` per pixel. */
 function letters(kit: Kit, text: string, cell: number, color: Swatch): THREE.Group {
   const g = new THREE.Group();
-  const advance = cell * 4;
-  const start = -((text.length * advance - cell) / 2);
-  [...text].forEach((ch, i) => {
-    const rows = FONT[ch];
-    if (!rows) return;
+  const glyphs = [...text].map((ch) => FONT[ch] ?? ["000", "000", "000", "000", "000"]);
+  const width = glyphs.reduce((sum, rows) => sum + (rows[0]!.length + 1) * cell, -cell);
+  let left = -width / 2;
+  for (const rows of glyphs) {
+    const columns = rows[0]!.length;
     rows.forEach((row, y) => {
       let x = 0;
-      while (x < 3) {
+      while (x < columns) {
         if (row[x] !== "1") {
           x++;
           continue;
         }
         let end = x;
-        while (end < 3 && row[end] === "1") end++;
+        while (end < columns && row[end] === "1") end++;
         const w = (end - x) * cell;
-        put(g, kit.box(w, cell, cell * 0.6, color, 0.012), start + i * advance + x * cell + w / 2, (2 - y) * cell, 0);
+        put(g, kit.box(w, cell, cell * 0.6, color, 0.012), left + x * cell + w / 2, (2 - y) * cell, 0);
         x = end;
       }
     });
-  });
+    left += (columns + 1) * cell;
+  }
   return g;
 }
 
@@ -573,6 +580,273 @@ export function cafe(kit: Kit, piece: Piece): THREE.Group {
       placed(g, piece("civic.cafe-table"), 1.4, 0.08, 1.15, -0.3);
       placed(g, piece("civic.menu-board"), -2.0, 0.08, -0.25, 0.5);
       placed(g, piece("civic.planter"), 2.0, 0.08, -1.25, 0, 0.7);
+      // Lanterns either side of the counter, and festoon bulbs strung from two terrace poles to the kiosk.
+      for (const side of [-1, 1]) {
+        put(g, kit.box(0.08, 0.3, 0.12, "lantern-iron", 0.02), side * 1.32, 1.62, front + 0.12);
+        put(g, kit.box(0.16, 0.22, 0.16, "lantern-glass", 0.03), side * 1.32, 1.52, front + 0.22).material = kit.material("lantern-glass", { glow: "lantern-light" });
+        put(g, kit.cylinder(0.02, 0.12, 0.08, "lantern-iron"), side * 1.32, 1.67, front + 0.22);
+        put(g, kit.cylinder(0.035, 0.045, 2.6, "lantern-iron"), side * 2.35, 1.38, 1.85);
+        put(g, kit.sphere(0.05, "brass"), side * 2.35, 2.71, 1.85);
+        festoon(g, kit, new THREE.Vector3(side * 2.35, 2.62, 1.85), new THREE.Vector3(side * 1.55, 2.2, front + 0.05), 6, 0.12);
+      }
+      festoon(g, kit, new THREE.Vector3(-2.35, 2.62, 1.85), new THREE.Vector3(2.35, 2.62, 1.85), 11, 0.22);
     },
   );
+}
+
+/** A string of glowing bulbs from `a` to `b`, sagging by `sag` in the middle. */
+function festoon(g: THREE.Group, kit: Kit, a: THREE.Vector3, b: THREE.Vector3, bulbs: number, sag: number) {
+  const at = (t: number) => a.clone().lerp(b, t).setY(a.y + (b.y - a.y) * t - sag * 4 * t * (1 - t));
+  const steps = 12;
+  for (let i = 0; i < steps; i++) {
+    const p = at(i / steps),
+      q = at((i + 1) / steps);
+    const wire = put(g, kit.box(0.015, 0.015, p.distanceTo(q), "lantern-iron", 0.005), (p.x + q.x) / 2, (p.y + q.y) / 2, (p.z + q.z) / 2);
+    wire.lookAt(g.localToWorld(q.clone()));
+  }
+  for (let i = 1; i <= bulbs; i++) {
+    const p = at(i / (bulbs + 1));
+    put(g, kit.sphere(0.045, "lamp-glow"), p.x, p.y - 0.06, p.z).material = kit.material("lamp-glow", { glow: 0.8 });
+  }
+}
+
+/* ── The greenhouse ──────────────────────────────────────────────────── */
+
+/** The town's namesake (6 x 4): a glass conservatory on a low chalk wall, green glazing bars, a glass gable roof with
+ *  a brass ridge, benches of potted plants and tall palms inside. Its glass glows warmly in lamplight. */
+export function greenhouse(kit: Kit): THREE.Group {
+  const W = 5.6,
+    D = 3.5,
+    wall = 0.55,
+    glassH = 1.5,
+    rise = 1.15;
+  const eave = 0.12 + wall + glassH;
+  const pane = kit.material("window", { glow: 0.3, transparent: 0.42 });
+  const glass = (w: number, h: number, d: number) => {
+    const m = kit.box(w, h, d, "window", 0.01);
+    m.material = pane;
+    m.castShadow = false;
+    return m;
+  };
+  return landmark(
+    kit,
+    "civic.greenhouse",
+    (g) => {
+      put(g, kit.box(6.0, 0.12, 4.0, "ledge", 0.04), 0, 0.06, 0);
+      put(g, kit.box(W - 0.3, 0.04, D - 0.3, "step", 0.02), 0, 0.14, 0);
+      // The low chalk wall, with a gap for the door.
+      for (const [x, z, w, d] of [
+        [0, -D / 2, W, 0.2],
+        [-W / 2, 0, 0.2, D],
+        [W / 2, 0, 0.2, D],
+        [-1.65, D / 2, W / 2 - 0.55, 0.2],
+        [1.65, D / 2, W / 2 - 0.55, 0.2],
+      ] as const) {
+        put(g, kit.box(w, wall, d, "chalk", 0.04), x, 0.12 + wall / 2, z);
+        put(g, kit.box(w + 0.06, 0.06, d + 0.06, "cream", 0.02), x, 0.12 + wall + 0.03, z);
+      }
+      // Glass walls and their bars.
+      const y0 = 0.12 + wall + 0.06;
+      for (const [x, z, w, d] of [
+        [0, -D / 2, W, 0.04],
+        [-W / 2, 0, 0.04, D],
+        [W / 2, 0, 0.04, D],
+        [-1.65, D / 2, W / 2 - 0.55, 0.04],
+        [1.65, D / 2, W / 2 - 0.55, 0.04],
+      ] as const)
+        put(g, glass(w, glassH - 0.06, d), x, y0 + (glassH - 0.06) / 2, z);
+      const bar = (w: number, h: number, d: number, x: number, y: number, z: number) => put(g, kit.box(w, h, d, "mullion", 0.012), x, y, z);
+      for (let i = 0; i <= 8; i++) {
+        const x = -W / 2 + (i * W) / 8;
+        bar(0.06, glassH, 0.06, x, y0 + glassH / 2 - 0.03, -D / 2);
+        if (Math.abs(x) > 0.5) bar(0.06, glassH, 0.06, x, y0 + glassH / 2 - 0.03, D / 2);
+      }
+      for (let i = 0; i <= 5; i++)
+        for (const x of [-W / 2, W / 2]) bar(0.06, glassH, 0.06, x, y0 + glassH / 2 - 0.03, -D / 2 + (i * D) / 5);
+      for (const z of [-D / 2, D / 2]) bar(W + 0.06, 0.08, 0.08, 0, eave, z);
+      for (const x of [-W / 2, W / 2]) bar(0.08, 0.08, D + 0.06, x, eave, 0);
+      bar(W, 0.05, 0.05, 0, y0 + glassH * 0.55, -D / 2);
+      // The glass gable roof: slabs, bars along the slope, glass gables and a brass ridge with finials.
+      const half = D / 2 + 0.12,
+        slope = Math.hypot(half, rise),
+        angle = Math.atan2(rise, half);
+      for (const side of [1, -1]) {
+        const slab = put(g, glass(W + 0.16, 0.04, slope), 0, eave + rise / 2 + 0.02, (side * half) / 2);
+        slab.rotation.x = side * angle;
+        for (let i = 0; i <= 8; i++) {
+          const rib = bar(0.05, 0.06, slope, -W / 2 + (i * W) / 8, eave + rise / 2 + 0.05, (side * half) / 2);
+          rib.rotation.x = side * angle;
+        }
+      }
+      for (const x of [-W / 2, W / 2]) {
+        const end = put(g, gable(kit, 0.04, D, rise, "window"), x, eave, 0);
+        end.material = pane;
+        end.castShadow = false;
+        bar(0.05, rise, 0.05, x, eave + rise / 2, 0);
+      }
+      const ridge = put(g, kit.cylinder(0.06, 0.06, W + 0.2, "brass"), 0, eave + rise + 0.05, 0);
+      ridge.rotation.z = Math.PI / 2;
+      for (let i = 0; i < 9; i++) put(g, kit.sphere(0.05, "brass"), -W / 2 + (i * W) / 8, eave + rise + 0.14, 0);
+      // The door: a glazed frame in the gap, a step, and a little gable over it.
+      put(g, kit.box(1.1, 0.12, 0.5, "step", 0.03), 0, 0.06, D / 2 + 0.3);
+      for (const x of [-0.5, 0.5]) bar(0.08, 1.95, 0.08, x, 0.12 + 0.975, D / 2);
+      bar(1.08, 0.08, 0.08, 0, 2.1, D / 2);
+      put(g, kit.box(0.9, 1.9, 0.05, "moss", 0.02), 0, 0.12 + 0.95, D / 2 - 0.02);
+      put(g, glass(0.66, 1.2, 0.06), 0, 0.12 + 1.15, D / 2);
+      put(g, kit.sphere(0.04, "brass"), 0.32, 1.05, D / 2 + 0.04);
+      const hood = put(g, gable(kit, 0.5, 1.3, 0.42, "mullion"), 0, 2.14, D / 2 + 0.12);
+      hood.rotation.y = Math.PI / 2;
+      // Inside: staging along the back and sides with rows of pots.
+      const floor = 0.16;
+      for (const [x, z, w, d] of [
+        [0, -D / 2 + 0.45, W - 0.6, 0.6],
+        [-W / 2 + 0.45, 0.25, 0.6, D - 1.6],
+        [W / 2 - 0.45, 0.25, 0.6, D - 1.6],
+      ] as const) {
+        put(g, kit.box(w, 0.06, d, "timber", 0.02), x, floor + 0.62, z);
+        for (const dx of [-w / 2 + 0.08, w / 2 - 0.08]) put(g, kit.box(0.06, 0.62, 0.06, "timber-trim", 0.02), x + dx, floor + 0.31, z);
+        const along = w > d,
+          count = Math.floor((along ? w : d) / 0.42);
+        for (let i = 0; i < count; i++) {
+          const t = -((count - 1) / 2) + i;
+          const px = along ? x + t * 0.42 : x,
+            pz = along ? z : z + t * 0.42;
+          put(g, kit.cylinder(0.12, 0.09, 0.2, "terracotta"), px, floor + 0.75, pz);
+          put(g, kit.sphere(0.17, i % 3 ? "leaf" : "leaf-dark"), px, floor + 0.98, pz).scale.set(1, 0.85 + (i % 2) * 0.3, 1);
+          if (i % 3 === 1) put(g, kit.sphere(0.05, i % 2 ? "coral" : "cream"), px + 0.06, floor + 1.12, pz + 0.08);
+        }
+      }
+      // Outside: a watering can by the step and pots of flowers.
+      put(g, kit.cylinder(0.13, 0.15, 0.26, "sage"), 0.95, 0.25, D / 2 + 0.38);
+      const spout = put(g, kit.cylinder(0.022, 0.03, 0.34, "sage"), 1.16, 0.32, D / 2 + 0.38);
+      spout.rotation.z = -0.9;
+      put(g, kit.mesh(kit.geometry("civic:can-handle", () => new THREE.TorusGeometry(0.1, 0.018, 6, 16, Math.PI)), kit.material("sage")), 0.95, 0.38, D / 2 + 0.38);
+      for (const [x, c] of [
+        [-0.9, "coral"],
+        [-1.25, "cream"],
+      ] as const) {
+        put(g, kit.cylinder(0.1, 0.08, 0.16, "terracotta"), x, 0.2, D / 2 + 0.36);
+        put(g, kit.sphere(0.11, "leaf"), x, 0.34, D / 2 + 0.36);
+        put(g, kit.sphere(0.045, c), x + 0.04, 0.43, D / 2 + 0.4);
+      }
+    },
+    (g) => {
+      for (const [x, z, s] of [
+        [-1.3, -0.35, 1.5],
+        [0.1, -0.5, 1.75],
+        [1.4, -0.3, 1.4],
+      ] as const)
+        placed(g, plant(kit, Math.round(x * 3)), x, 0.16, z, 0, s);
+    },
+  );
+}
+
+/* ── The windmill ────────────────────────────────────────────────────── */
+
+const octagon = (kit: Kit, top: number, bottom: number, h: number, color: Swatch) =>
+  kit.mesh(kit.geometry(`civic:oct:${top},${bottom},${h}`, () => new THREE.CylinderGeometry(top, bottom, h, 8)), kit.material(color));
+
+/** A chalk tower mill (4 x 4) on a stone plinth: a clay cap, a timber door and windows, flour sacks and flowers at its
+ *  foot, and four cream sails that turn slowly (a `userData.animate`; still under reduced motion). */
+export function windmill(kit: Kit): THREE.Group {
+  const hub = new THREE.Vector3(0, 3.5, 1.05);
+  return landmark(
+    kit,
+    "civic.windmill",
+    (g) => {
+      put(g, octagon(kit, 1.55, 1.65, 0.24, "ledge"), 0, 0.12, 0);
+      put(g, octagon(kit, 0.82, 1.25, 3.0, "chalk"), 0, 0.24 + 1.5, 0);
+      put(g, octagon(kit, 1.28, 1.3, 0.3, "skirt"), 0, 0.24 + 0.15, 0);
+      put(g, octagon(kit, 0.9, 0.9, 0.12, "timber-trim"), 0, 3.28, 0);
+      put(g, octagon(kit, 0.98, 0.98, 0.12, "roof-dark"), 0, 3.4, 0);
+      put(g, octagon(kit, 0.12, 0.98, 0.95, "roof"), 0, 3.93, 0);
+      put(g, kit.sphere(0.12, "brass"), 0, 4.45, 0);
+      // The windshaft out to the hub.
+      const shaft = put(g, kit.cylinder(0.1, 0.12, 0.7, "timber"), 0, hub.y, hub.z - 0.3);
+      shaft.rotation.x = Math.PI / 2;
+      // Door, windows (lit at night), a little sign of a sheaf above the door.
+      const front = (y: number) => 1.25 - ((y - 0.24) / 3.0) * 0.43;
+      put(g, kit.box(0.72, 1.25, 0.12, "timber-trim", 0.04), 0, 0.24 + 0.62, front(0.8) - 0.02).rotation.x = -0.14;
+      put(g, kit.box(0.58, 1.12, 0.1, "timber", 0.04), 0, 0.24 + 0.58, front(0.8) + 0.01).rotation.x = -0.14;
+      put(g, kit.sphere(0.04, "brass"), 0.18, 0.85, front(0.85) + 0.08);
+      put(g, kit.box(1.0, 0.14, 0.5, "step", 0.03), 0, 0.07, 1.62);
+      for (const [y, turn] of [
+        [2.3, 0],
+        [1.6, -Math.PI / 4],
+        [1.6, Math.PI / 4],
+      ] as const) {
+        const w = new THREE.Group();
+        put(w, kit.box(0.42, 0.52, 0.08, "timber-trim", 0.03), 0, 0, 0);
+        put(w, kit.box(0.3, 0.4, 0.08, "window", 0.02), 0, 0, 0.02).material = kit.material("window", { glow: 0.45 });
+        put(w, kit.box(0.03, 0.4, 0.03, "timber-trim", 0.01), 0, 0, 0.07);
+        w.rotation.set(-0.14, turn, 0, "YXZ");
+        const r = front(y) - 0.01;
+        put(g, w, Math.sin(turn) * r, y, Math.cos(turn) * r);
+      }
+      // Flour sacks by the door and flowers round the plinth.
+      for (const [x, z, s] of [
+        [0.75, 1.5, 1],
+        [1.0, 1.25, 0.85],
+        [0.85, 1.3, 0.7],
+      ] as const)
+        put(g, kit.sphere(0.2 * s, "cream"), x, 0.24 + 0.18 * s + (s === 0.7 ? 0.3 : 0), z).scale.set(1, 1.2, 0.9);
+      for (let i = 0; i < 18; i++) {
+        const a = (i / 18) * Math.PI * 2;
+        if (Math.abs(Math.sin(a) - 1) < 0.08) continue;
+        put(g, kit.sphere(0.13, i % 2 ? "leaf" : "leaf-dark"), Math.cos(a) * 1.55, 0.3, Math.sin(a) * 1.55);
+        if (i % 3 === 0) put(g, kit.sphere(0.05, ["coral", "cream", "tangerine"][(i / 3) % 3]!), Math.cos(a) * 1.6, 0.42, Math.sin(a) * 1.6);
+      }
+    },
+    (g) => {
+      const sails = new THREE.Group();
+      put(sails, kit.sphere(0.16, "timber"), 0, 0, 0.05);
+      for (let i = 0; i < 4; i++) {
+        const arm = new THREE.Group();
+        put(arm, kit.box(0.08, 1.95, 0.07, "timber", 0.02), 0, 0.98, 0);
+        put(arm, kit.box(0.4, 1.4, 0.025, "cream", 0.01), 0.24, 1.18, 0.03);
+        for (let j = 0; j < 4; j++) put(arm, kit.box(0.46, 0.03, 0.03, "timber", 0.008), 0.22, 0.55 + j * 0.42, 0.05);
+        put(arm, kit.box(0.025, 1.4, 0.03, "timber", 0.008), 0.45, 1.18, 0.05);
+        arm.rotation.z = (i * Math.PI) / 2;
+        sails.add(arm);
+      }
+      sails.position.copy(hub);
+      sails.rotation.z = 0.35;
+      g.add(sails);
+      g.userData.animate = (seconds: number) => {
+        sails.rotation.z -= seconds * 0.45;
+      };
+    },
+  );
+}
+
+/* ── The welcome sign ────────────────────────────────────────────────── */
+
+/** The town's name board (3 x 1): "CrewHub" in moss letters on a cream board between timber posts, under a sage
+ *  crest, with a planter of flowers at its foot. */
+export function welcomeSign(kit: Kit): THREE.Group {
+  return landmark(kit, "civic.welcome-sign", (g) => {
+    for (const x of [-1.38, 1.38]) {
+      put(g, kit.box(0.14, 1.75, 0.14, "timber", 0.04), x, 0.875, -0.1);
+      put(g, kit.sphere(0.08, "brass"), x, 1.8, -0.1);
+    }
+    put(g, kit.box(2.7, 0.78, 0.1, "timber-trim", 0.04), 0, 1.28, -0.08);
+    put(g, kit.box(2.54, 0.62, 0.06, "cream", 0.03), 0, 1.28, -0.04);
+    put(g, kit.box(2.9, 0.09, 0.24, "sage", 0.03), 0, 1.71, -0.08);
+    put(g, letters(kit, "CrewHub", 0.075, "moss"), 0, 1.3, 0.0);
+    // A sprig either side of the name.
+    for (const side of [-1, 1]) {
+      put(g, kit.sphere(0.05, "leaf"), side * 1.18, 1.28, 0.0).scale.set(0.6, 1.3, 0.4);
+      put(g, kit.sphere(0.03, "coral"), side * 1.18, 1.37, 0.01);
+    }
+    // The planter at its foot.
+    put(g, kit.box(2.5, 0.32, 0.5, "timber", 0.04), 0, 0.16, 0.18);
+    put(g, kit.box(2.56, 0.05, 0.56, "timber-light", 0.02), 0, 0.33, 0.18);
+    put(g, kit.box(2.36, 0.03, 0.4, "soil", 0.01), 0, 0.35, 0.18);
+    const colors = ["coral", "cream", "tangerine", "lamp-glow", "cream", "coral", "mist"];
+    for (let i = 0; i < 11; i++) {
+      const x = -1.1 + i * 0.22;
+      put(g, kit.sphere(0.13, i % 2 ? "leaf" : "leaf-dark"), x, 0.45, 0.18 + (i % 2 ? 0.06 : -0.05)).scale.set(1, 0.8, 1);
+      put(g, kit.sphere(0.055, colors[i % colors.length]!), x + 0.04, 0.55 + (i % 3) * 0.03, 0.26);
+    }
+  });
 }

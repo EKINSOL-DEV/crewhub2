@@ -18,7 +18,7 @@ import { styleRegistry } from "./style";
 import type { StyledPlot } from "./styleRegistry";
 import type { Ambient } from "./movement";
 import { CIVIC_LOT, civicCenter, homeRects, PLOT_SIZE, plotCenter, TOWN_CAPACITY, townBounds, type Bounds } from "./townLayout";
-import { GRASS_Y, LAWN_Y, townDressing } from "./townDressing";
+import { GRASS_Y, landmarks as townLandmarks, LAWN_Y, townDressing } from "./townDressing";
 import { instanceStatic } from "./instanceStatic";
 import { mergeStatic } from "./mergeStatic";
 import { plotDoor, plotObstacles } from "./navigation";
@@ -283,6 +283,15 @@ export class TownScene {
       object.position.set(x, y, z);
       this.#landmarks.add(object);
     }
+    // The reserved landmarks (welcome sign, windmill, greenhouse, ducks…) appear once the style draws them.
+    const covered = new Set<string>(style.manifest.coveredKeys);
+    for (const l of townLandmarks()) {
+      if (!covered.has(l.key)) continue;
+      const object = style.model(l.key as ModelKey);
+      object.position.set(l.x, l.y, l.z);
+      object.rotation.y = l.rotation;
+      this.#landmarks.add(object);
+    }
     this.scene.add(this.#landmarks);
   }
 
@@ -292,12 +301,15 @@ export class TownScene {
    */
   #dress(count: number) {
     const indices = Array.from({ length: Math.min(TOWN_CAPACITY, count) }, (_, i) => i);
-    const signature = indices.join(",");
+    // Fast quality leaves out the small detail (grass tufts, wild flowers).
+    const fast = this.view.quality === "fast";
+    const signature = `${indices.join(",")}|${fast}`;
     if (signature === this.#dressing.signature) return;
     this.#disposeDressing();
     const group = new THREE.Group();
     const plots = indices.map((index) => ({ index, door: plotDoor(index), obstacles: plotObstacles(index) }));
     for (const d of townDressing(plots)) {
+      if (fast && d.detail) continue;
       const object = this.townStyle.model(d.key as ModelKey, {
         ...(d.size ? { size: d.size } : {}),
         ...(d.seed !== undefined ? { seed: d.seed } : {}),
@@ -447,7 +459,10 @@ export class TownScene {
     this.view = view;
     this.controls.enableDamping = !view.reducedMotion;
     if (previous.theme !== view.theme) this.applyTheme(view.theme);
-    if (previous.quality !== view.quality) this.applyQuality(view.quality);
+    if (previous.quality !== view.quality) {
+      this.applyQuality(view.quality);
+      this.#dress(view.model.buildings.length);
+    }
     if (previous.model !== view.model || previous.entered !== view.entered || previous.room !== view.room || previous.town !== view.town) this.sync();
     else if (previous.reducedMotion !== view.reducedMotion || previous.ambient !== view.ambient)
       this.walks.update(view.model, { entered: view.entered, reducedMotion: view.reducedMotion, ambient: view.ambient });

@@ -52,11 +52,11 @@ class GreenhouseStyle implements WorldStyle {
     if (!object) return null;
     const surface = SURFACES[key];
     if (surface !== undefined) object.userData.surface = surface;
-    const pool = LIGHT_POOLS[key];
-    if (pool) {
+    const pools = LIGHT_POOLS[key];
+    for (const pool of pools === undefined ? [] : Array.isArray(pools) ? pools : [pools]) {
       // A warm pool of light on the ground under a lamp (lamplight, Pretty only); kept apart from static batching.
       const decal = this.#kit.decal("pool", pool.radius * 0.25, pool.radius * 0.25, pool.radius * 0.75);
-      decal.position.set(0, pool.y, pool.z ?? 0);
+      decal.position.set(pool.x ?? 0, pool.y, pool.z ?? 0);
       object.add(decal);
     }
     return object;
@@ -114,6 +114,10 @@ class GreenhouseStyle implements WorldStyle {
         return town.bridge(kit, o);
       case "town.fence":
         return town.fence(kit, o);
+      case "town.crossing":
+        return town.crossing(kit, o);
+      case "town.wear":
+        return town.wear(kit, o);
       case "town.lantern":
         return town.lantern(kit);
       case "path":
@@ -165,6 +169,12 @@ class GreenhouseStyle implements WorldStyle {
         return civic.square(kit, this.#piece);
       case "civic.cafe":
         return civic.cafe(kit, this.#piece);
+      case "civic.greenhouse":
+        return civic.greenhouse(kit);
+      case "civic.windmill":
+        return civic.windmill(kit);
+      case "civic.welcome-sign":
+        return civic.welcomeSign(kit);
       case "furniture.desk":
         return desk(kit, o.seed ?? 0);
       case "furniture.bench":
@@ -250,6 +260,7 @@ class GreenhouseStyle implements WorldStyle {
 
   dispose() {
     this.#glass.dispose();
+    town.disposeTown(this.#kit);
     this.#kit.dispose();
   }
 }
