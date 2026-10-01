@@ -31,6 +31,139 @@ scene keeps its own materials and lighting, independent of the UI palette.
 - A compact way to run deterministic demonstration scenarios, visibly labeled
   as simulated. The live integration must be replaceable at the data boundary.
 
+## The world as built
+
+Status: the Greenhouse art pass on the demo branch (2026-10-01). The art direction is the old Greenhouse room: soft
+toon materials, warm timber, chalk walls, framed glass, planted details and soft robots. The 2D kit governs only the
+HTML around the scene.
+
+### Buildings
+
+A building is a diorama on a slab, not a floor plan.
+
+- **Walls.** The north side is the greenhouse glass wall (`wall.glass`, 1.75 high): a chalk knee wall, panes about
+  1.1 wide between slim green mullions, a transom and a top beam. The west side is a tall chalk wall (`wall`) with a
+  skirt, a ledge and framed windows. Chalk pilasters close the ends of every tall wall. The south and east sides,
+  which face the camera, are low rims (`wall.low`), so the rooms stay visible.
+- **Rotating the camera.** When the camera turns (`[` and `]`), a tall back wall would stand in front of the rooms,
+  so each one has a low stand-in. Each wall mesh decides per draw, from the camera drawing it, which version shows.
+  Shadow passes keep the tall walls.
+- **Inside.** Rooms are divided by low sage-cream partitions (`building.partition`) with timber door frames
+  (`building.door-frame`) in every opening.
+- **Slab and floors.** Every room stands on `building.slab`, a cream block with a bevelled lip and a thin
+  project-colour trim. Floors sit `FLOOR_RISE` (0.24) above the lawn. The floor pattern follows the room:
+  - wood in the lead's office and the meeting room;
+  - tile in the lobby;
+  - concrete in storage and dispatch;
+  - the studio's cream cells elsewhere.
+- **The project colour is an accent, never a wall.** It shows on the front door's leaves and awning valance, the
+  flag, the slab trim, the emblem and the lead robot. The lead wears a soft tint of the colour, 45% of the way to
+  cream.
+- **Archived buildings** are boarded up and grown with ivy. A closed sign hangs from the awning, the flag is at
+  half-mast, and the colours are muted, never black.
+- **Size.** The largest building is 33 x 28 cells (19.8 x 16.8 units) on a 24-unit plot. Role rooms grow in 6 x 6
+  modules with two desks each.
+
+### Rooms
+
+Rooms are dressed by kind ([roomDressing.ts](../apps/world/src/world/roomDressing.ts)). The dressing is pure,
+deterministic and seeded per building, so a building always dresses the same way and neighbours differ.
+`dressRooms` places the pieces into the free zones of the building template (`dressingZones`), preferring the north
+and west walls, whose fronts face the camera.
+
+- **`furniture.*` pieces block movement** and have a definition. A piece is placed only where doors, approach cells,
+  seats, piles, signal spots and the floor in front of desks stay free. A flood fill then checks that everything
+  reachable before is still reachable. The dressing steps aside for a person's own placed props.
+- **`decor.*` pieces never block** (`roomDecor`). They include:
+  - rugs and pendant lamps over desks and tables;
+  - wall art, only on the tall north and west walls;
+  - leaning prints in rooms without a tall wall, a station clock in the lobby;
+  - chairs around the meeting table, books or a plant on some desks;
+  - the roller door in dispatch's loading opening.
+- **Room by room:**
+  - **Lead's office:** a sofa corner with a coffee table, a floor lamp, a rug and a bookshelf.
+  - **Lobby:** a coffee counter, a water cooler, armchairs, a round table and a planter either side of the way in.
+  - **Role rooms:** plants between the desks and a pendant over each desk.
+  - **Planning:** a pin board and a map wall.
+  - **Review:** a reading corner.
+  - **Design** and **analyst:** a mood wall and a chart wall.
+  - **Dispatch:** roller shelves and a hand truck.
+- Dressing pieces carry only the tag `dressing`, so the director never sends agents to a sofa. The dressing is drawn
+  only for the entered building.
+
+### The town
+
+The town is a small green town of hedged gardens, not beige squares
+([townDressing.ts](../apps/world/src/world/townDressing.ts), pure and deterministic).
+
+- **Paths.** A 3.2-wide cobbled lane runs down every street, including the outer ring and an entrance road from the
+  south edge. Garden paths lead from each front door under a timber gate down to the lane, and crossings get a border
+  of darker setts. The town's navigation grid opens only paved cells (`townOpenCells`), so the postman and walkers
+  keep to the lanes and garden paths.
+- **Used plots** get a raised lawn, hedges with gaps for the path, flower beds, gate lanterns, a mailbox and trees.
+- **Empty plots** each have a character by index (`plotUse`): a meadow, an orchard, an allotment, a playground or a
+  picnic lawn.
+- **Around the town:**
+  - a park with a pond, an arched bridge and lilies, and an orchard by the town hall;
+  - lanterns every 9 units along the streets, street trees, benches, signposts and bike racks;
+  - a green belt of trees around the edge, with grass tufts and wild flowers on the open grass.
+- **Landmarks** (`civic.*`) are drawn whole, so they can animate:
+  - **The civic row:** the post office, the town hall, the square between them with its fountain, the café and the
+    bus stop.
+  - **Reserved spots** (`landmarks()`): the welcome sign by the entrance road, the windmill behind the orchard, the
+    greenhouse conservatory by the pond, the clock post by the square and three ducks on the pond. A landmark appears
+    only once the style covers its key, so the spot reserved for `civic.water-tower` stays empty.
+- **Animation.** The fountain's water and the windmill's sails animate only on frames that are drawn anyway, never
+  under reduced motion, and never keep the render loop running.
+- **Batching.** Repeated dressing pieces are instanced (`instanceStatic.ts`), and one-off pieces are merged per
+  material.
+
+### Light and the lamplight evening
+
+- **Day** keeps the old room's light: a hemisphere fill, a warm key light with soft shadows, a cool fill and ACES tone
+  mapping. The key light's shadow follows what the camera frames: a crisp 2048 map over the entered building, and a
+  softer 1024 map over the town.
+- **Lamplight**, the dark theme, is a warm blue-green evening:
+  - a dusk sky over a deep teal ground, and a warm key light and fill;
+  - walls that read as cream lit from inside;
+  - emissive lamps, screens, eyes and windows that glow more strongly;
+  - glass walls that become lit windows;
+  - the floor's sun shafts fade out.
+- **Warm pools.** A lamp listed in the style's `LIGHT_POOLS` throws a warm pool of light on the ground in lamplight:
+  floor and desk lamps, street lanterns, pendants, the square's lamps and the café's lanterns and terrace.
+- **Contact shadows.** Soft blob decals sit under every building (`town.contact-shadow`) and every robot, in both
+  quality settings.
+- **Air.** The canvas is transparent over a soft radial gradient with a gentle vignette (`--world-air` and
+  `--world-air-edge`).
+
+### Graphics quality
+
+Settings has a **Graphics** choice: **Pretty** (the default) or **Fast**. It is kept per browser
+(`crewhub-world.quality`).
+
+| | Pretty | Fast |
+| --- | --- | --- |
+| Shadow maps | On | Off; the key light casts no shadow |
+| Pixel ratio | Up to 2 | 1 |
+| Warm lamp pools | In lamplight | None |
+| Grass tufts and wild flowers | Drawn | Left out |
+| Contact shadows | Drawn | Drawn |
+
+### Calm labels and the camera
+
+- **Labels.** By default each robot shows a name pill (a status dot and its name) and at most one bubble, chosen in
+  this order: a question, a raised hand, the first alert, a fresh "done". Each building in town shows one quiet name
+  sign.
+- **Revealed rooms.** A room's labels (room sign, update and caption cards, status tags, name tags, pallet counts,
+  rule chips) show only when the room is revealed: under the pointer, keyboard-focused or zoomed to. Hanging labels
+  that would overlap nudge upwards instead of piling up.
+- **Details (D).** The Details toggle in the toolbar, also the **D** key, shows every label everywhere. It is kept per
+  viewer (`crewhub-world.details`), and pressing D announces the new state. The text view and the live regions keep
+  everything regardless.
+- **Camera.** The camera frames its subject in the free part of the canvas, clear of the HTML chrome. Entering a
+  building fills the canvas with it, entering a room frames that room, and home frames the used plots and the civic
+  row.
+
 ## State expressed through behavior
 
 | Meaning | Possible visual expression | Required truthfulness |
