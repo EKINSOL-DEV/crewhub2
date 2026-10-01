@@ -51,6 +51,8 @@ export interface TownView {
   ambient: Ambient;
   /** The dev stress fixture: draw every frame, uncapped, and keep frame statistics. */
   measure: boolean;
+  /** Inside a building: the selected agent's key (a soft ring under its feet), or null. */
+  selectedAgent?: string | null;
 }
 export type BuildPointer = "move" | "click" | "drag" | "drop";
 
@@ -146,6 +148,10 @@ export class TownScene {
   #frames = { interval: new Float32Array(FRAME_WINDOW), work: new Float32Array(FRAME_WINDOW), tick: new Float32Array(FRAME_WINDOW), count: 0, at: 0 };
   #hits = new THREE.Group();
   #ring: THREE.Object3D;
+  /** A soft glow round the focused or hovered plot, under the focus ring; that building lifts a little (not under
+      reduced motion: the glow and the ring alone show it then). */
+  #glow: THREE.Object3D;
+  #lifted: string | null = null;
   #anchors = new Map<string, THREE.Vector3>();
   #labelsHost: HTMLElement;
   #labels: Label[] = [];
@@ -213,6 +219,10 @@ export class TownScene {
     this.fitShadow();
     this.#ring = this.townStyle.model("focus-ring", { size: { width: PLOT_SIZE + 0.4, height: 0, depth: PLOT_SIZE + 0.4 } });
     this.#ring.visible = false;
+    // Just inside the hedges on the plot's rim, which would hide it.
+    this.#glow = this.townStyle.model("focus-glow", { size: { width: PLOT_SIZE - 3, height: 0, depth: PLOT_SIZE - 3 } });
+    this.#glow.visible = false;
+    this.scene.add(this.#glow);
     this.buildGround();
     this.#life = new AmbientLife(this.townStyle);
     this.scene.add(this.#hits, this.#ring, this.#civic, this.#life.group);
@@ -536,6 +546,15 @@ export class TownScene {
     const p = plotCenter(index);
     this.#ring.position.set(p.x, 0.2, p.z);
     this.#ring.visible = view.ringVisible && !view.entered && index < view.model.buildings.length;
+    this.#glow.position.set(p.x, 0.32, p.z);
+    this.#glow.visible = this.#ring.visible;
+    this.#lifted = this.#ring.visible ? (view.model.buildings[index]?.slug ?? null) : null;
+    if (previous.entered && previous.entered !== view.entered) {
+      const left = this.#buildings.get(previous.entered);
+      left?.setHover(null);
+      left?.setSelected(null);
+    }
+    if (view.entered) this.#buildings.get(view.entered)?.setSelected(view.selectedAgent ?? null);
     this.refreshLabels();
   }
 
@@ -751,6 +770,7 @@ export class TownScene {
     if (this.view.entered) {
       // A room under the pointer is a hover target too: it reveals that room's labels.
       const target = this.pickAt(event);
+      this.#buildings.get(this.view.entered)?.setHover(target?.kind === "room" ? target.room : null);
       const key = target ? JSON.stringify(target) : "";
       if (key === this.#hoverPick) return;
       this.#hoverPick = key;
@@ -766,6 +786,7 @@ export class TownScene {
   };
   pointerLeave = () => {
     this.renderer.domElement.style.cursor = "";
+    if (this.view.entered) this.#buildings.get(this.view.entered)?.setHover(null);
     if (this.#hoverPick) {
       this.#hoverPick = "";
       this.callbacks.pick(null, true);
@@ -847,9 +868,10 @@ export class TownScene {
     const playing = this.view.speed() > 0;
     this.#life.tick(playing ? dt : 0);
     if (playing && this.#life.active) moving = true;
-    for (const view of this.#buildings.values()) {
+    for (const [slug, view] of this.#buildings.entries()) {
       view.tick(dt);
       if (view.animating) moving = true;
+      if (this.#lift(slug, view, dt)) moving = true;
     }
     const ticked = performance.now();
     this.controls.update();
@@ -884,6 +906,18 @@ export class TownScene {
     this.#dirtyFrames--;
     if (!this.#raf && (this.#tween || moving || this.#dirtyFrames > 0)) this.#raf = requestAnimationFrame(this.animate);
   };
+
+  /** Eases the focused or hovered building up a little and the others back down; true while one still moves. */
+  #lift(slug: string, view: BuildingView, seconds: number): boolean {
+    const base = (view.group.userData.baseY ??= view.group.position.y) as number;
+    const goal = base + (slug === this.#lifted && !this.view.reducedMotion && !this.view.entered ? 0.3 : 0);
+    const y = view.group.position.y;
+    if (y === goal) return false;
+    const next = this.view.reducedMotion || Math.abs(goal - y) < 0.004 ? goal : THREE.MathUtils.lerp(y, goal, 1 - Math.exp(-seconds * 10));
+    view.group.position.y = next;
+    this.#shadowAge = 8;
+    return next !== goal;
+  }
 
   /** The postman follows its walker and shows the letters it carries. */
   #followPostman(seconds: number) {

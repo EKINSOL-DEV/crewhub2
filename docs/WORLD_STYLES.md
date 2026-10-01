@@ -86,6 +86,7 @@ faces +z, and one world unit is one metre (a grid cell is 0.6).
 | `crate`, `jar`, `sticker.rocket` | Rule props (plan 6.3): the release crate at Dispatch for a draft release, the bug jar on the lead's desk, the rocket that rides on a ticket labelled `awaiting-deploy`. The trophy and the milestone `banner` are rule props too. | |
 | `error-crate` | Stands in for a prop that failed validation, or a placement that no longer fits its room. | |
 | `sparkle`, `focus-ring` | The celebration and materialise sparkle; the keyboard focus frame around a room or plot. | `size` |
+| `focus-glow`, `focus-fill`, `selection-ring` | Soft affordances: a glow round the focused or hovered plot (inside its hedges), a wash on the focused or hovered room's floor, a ring under the selected agent. Flat and static, so they show the same under reduced motion; only the hovered building's small lift animates. | `size` (glow, fill) |
 
 Conventions for models:
 

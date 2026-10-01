@@ -57,6 +57,9 @@ export const CODE_KEYS: readonly ModelKey[] = [
   "ticket.speech",
   "sparkle",
   "focus-ring",
+  "focus-glow",
+  "focus-fill",
+  "selection-ring",
   "town.paving",
   "town.hedge",
   "town.flower-bed",
@@ -65,6 +68,7 @@ export const CODE_KEYS: readonly ModelKey[] = [
   "town.fence",
   "town.lantern",
   "town.crossing",
+  "town.string-lights",
   "town.wear",
   "town.contact-shadow",
   "town.bird",
@@ -102,6 +106,9 @@ export const LIGHT_POOLS: Partial<Record<ModelKey, LightPool | LightPool[]>> = {
   "desk-lamp": { radius: 0.4, y: 0.006 },
   "town.lantern": { radius: 3, y: 0.075 },
   "decor.pendant-lamp": { radius: 0.9, y: 0.012 },
+  "furniture.floor-lamp": { radius: 0.8, y: 0.012 },
+  "furniture.reading-lamp": { radius: 0.7, y: 0.012, x: 0.1, z: 0.1 },
+  "decor.table-lamp": { radius: 0.45, y: 0.004 },
   "civic.square": [-2.55, 2.55].flatMap((x) => [-2.55, 2.55].map((z) => ({ radius: 1.6, y: 0.14, x, z }))),
   "civic.cafe": [
     { radius: 2.4, y: 0.1, x: 0, z: 1.1 },
@@ -110,4 +117,14 @@ export const LIGHT_POOLS: Partial<Record<ModelKey, LightPool | LightPool[]>> = {
   ],
   // Mounted on a door post at floor level; the pool lies in front, just above the top step.
   "building.wall-lamp": { radius: 1.4, y: -0.1, z: 0.7 },
+  // The truck's headlights throw one warm pool on the road ahead of the cab (its front faces +x).
+  truck: { radius: 0.75, y: 0.012, x: 1.35 },
+};
+
+/**
+ * Models that move and carry their own soft blob contact shadow (every quality setting): its half-size and soft edge
+ * in the model's own frame, at floor level.
+ */
+export const BLOB_SHADOWS: Partial<Record<ModelKey, { halfX: number; halfZ: number; soft: number }>> = {
+  truck: { halfX: 0.7, halfZ: 0.32, soft: 0.22 },
 };

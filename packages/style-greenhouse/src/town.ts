@@ -263,9 +263,53 @@ function lanternGlass(kit: Kit): THREE.MeshStandardMaterial {
   return kit.material("lantern-glass", { glow: "lantern-light" });
 }
 
-/** The town's look per theme: lantern heads glow softly by day and warmly in lamplight. */
+/**
+ * String lights along x: two slim iron poles and a sagging wire of small warm bulbs, unlit by day and glowing in
+ * lamplight. One wire geometry and one bulb geometry, so a renderer instances every string in town together.
+ */
+export function stringLights(kit: Kit, o: ModelOptions): THREE.Group {
+  const { width, height } = size(o, { width: 8, height: 2.7, depth: 0.1 });
+  const g = new THREE.Group();
+  for (const side of [-1, 1]) {
+    put(g, kit.cylinder(0.035, 0.045, height, "lantern-iron"), (side * width) / 2, height / 2, 0);
+    put(g, kit.sphere(0.06, "brass"), (side * width) / 2, height + 0.04, 0);
+  }
+  const sag = 0.35 + width * 0.02;
+  const at = (t: number) => new THREE.Vector3(-width / 2 + t * width, height - 0.08 - sag * 4 * t * (1 - t), 0);
+  const wire = kit.geometry("town:wire", () => new THREE.BoxGeometry(1, 0.016, 0.016));
+  const steps = 10;
+  for (let i = 0; i < steps; i++) {
+    const p = at(i / steps),
+      q = at((i + 1) / steps);
+    const piece = put(g, kit.mesh(wire, kit.material("lantern-iron")), (p.x + q.x) / 2, (p.y + q.y) / 2, 0);
+    piece.scale.x = p.distanceTo(q) + 0.01;
+    piece.rotation.z = Math.atan2(q.y - p.y, q.x - p.x);
+    piece.castShadow = false;
+  }
+  const bulbs = Math.max(4, Math.round(width / 0.55));
+  for (let i = 1; i < bulbs; i++) {
+    const p = at(i / bulbs);
+    const bulb = put(g, kit.mesh(kit.geometry("town:bulb", () => new THREE.SphereGeometry(1, 8, 6)), bulbMaterial(kit)), p.x, p.y - 0.07, 0);
+    bulb.scale.set(0.055, 0.07, 0.055);
+    bulb.castShadow = false;
+  }
+  return g;
+}
+
+function bulbMaterial(kit: Kit): THREE.MeshStandardMaterial {
+  return kit.material("lamp-glow", { glow: "lantern-light" });
+}
+
+/**
+ * The town's look per theme: lantern heads and string-light bulbs glow softly by day and warmly in lamplight, and the
+ * landmarks' windows (art-civic's lit window and greenhouse glass materials) shine brighter in the evening.
+ */
 export function townTheme(kit: Kit, theme: StyleTheme) {
-  lanternGlass(kit).emissiveIntensity = theme === "lamplight" ? 1.25 : 0.5;
+  const lamplight = theme === "lamplight";
+  lanternGlass(kit).emissiveIntensity = lamplight ? 1.25 : 0.5;
+  bulbMaterial(kit).emissiveIntensity = lamplight ? 2.2 : 0.35;
+  kit.material("window", { glow: 0.45 }).emissiveIntensity = lamplight ? 1.15 : 0.45;
+  kit.material("window", { glow: 0.3, transparent: 0.42 }).emissiveIntensity = lamplight ? 1.5 : 0.3;
   wearMaterial(kit).uniforms.uColor!.value.set(kit.hex("path-wear"));
 }
 
@@ -276,6 +320,7 @@ export function disposeTown(kit: Kit) {
 
 /** Small town pieces whose shadows nobody sees from the town camera; they skip the shadow pass. */
 const SHADOWLESS = new Set([
+  "town.string-lights",
   "town.grass",
   "town.tall-grass",
   "town.flowers",

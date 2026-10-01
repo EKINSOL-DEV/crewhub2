@@ -75,6 +75,7 @@ export default function WorldCanvas(props: Props) {
     speed,
     ambient: props.ambient,
     measure: STRESS,
+    selectedAgent: props.selection.selected?.kind === "agent" ? props.selection.selected.key : null,
   };
   useEffect(() => {
     if (!host.current || !labels.current) return;
