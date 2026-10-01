@@ -1,0 +1,271 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-decor-desk-chair",
+  "name": "Desk chair",
+  "description": "A swivel desk chair: a five-star graphite base, a sage seat with a cream cushion and a rounded back.",
+  "category": "rest",
+  "tags": [
+    "greenhouse",
+    "partition",
+    "chair",
+    "desk",
+    "work"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.022,
+        0.02,
+        0.15
+      ],
+      "position": [
+        0,
+        0.03,
+        0.07
+      ],
+      "material": "graphite",
+      "radius": 0.008,
+      "rotation": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.022,
+        0.02,
+        0.15
+      ],
+      "position": [
+        0.067,
+        0.03,
+        0.022
+      ],
+      "material": "graphite",
+      "radius": 0.008,
+      "rotation": [
+        0,
+        72,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.022,
+        0.02,
+        0.15
+      ],
+      "position": [
+        0.041,
+        0.03,
+        -0.057
+      ],
+      "material": "graphite",
+      "radius": 0.008,
+      "rotation": [
+        0,
+        144,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.022,
+        0.02,
+        0.15
+      ],
+      "position": [
+        -0.041,
+        0.03,
+        -0.057
+      ],
+      "material": "graphite",
+      "radius": 0.008,
+      "rotation": [
+        0,
+        216,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.022,
+        0.02,
+        0.15
+      ],
+      "position": [
+        -0.067,
+        0.03,
+        0.022
+      ],
+      "material": "graphite",
+      "radius": 0.008,
+      "rotation": [
+        0,
+        288,
+        0
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.018,
+        0.016,
+        0.018
+      ],
+      "position": [
+        0,
+        0.018,
+        0.14
+      ],
+      "material": "slate"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.018,
+        0.016,
+        0.018
+      ],
+      "position": [
+        0.133,
+        0.018,
+        0.043
+      ],
+      "material": "slate"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.018,
+        0.016,
+        0.018
+      ],
+      "position": [
+        0.082,
+        0.018,
+        -0.113
+      ],
+      "material": "slate"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.018,
+        0.016,
+        0.018
+      ],
+      "position": [
+        -0.082,
+        0.018,
+        -0.113
+      ],
+      "material": "slate"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.018,
+        0.016,
+        0.018
+      ],
+      "position": [
+        -0.133,
+        0.018,
+        0.043
+      ],
+      "material": "slate"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.018,
+        0.2,
+        0.018
+      ],
+      "position": [
+        0,
+        0.14,
+        0
+      ],
+      "material": "graphite"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.28,
+        0.05,
+        0.27
+      ],
+      "position": [
+        0,
+        0.255,
+        0
+      ],
+      "material": "sage",
+      "radius": 0.022
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.22,
+        0.03,
+        0.2
+      ],
+      "position": [
+        0,
+        0.29,
+        0.015
+      ],
+      "material": "cream",
+      "radius": 0.012
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.03,
+        0.12,
+        0.03
+      ],
+      "position": [
+        0,
+        0.33,
+        -0.13
+      ],
+      "material": "graphite",
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.27,
+        0.19,
+        0.05
+      ],
+      "position": [
+        0,
+        0.43,
+        -0.14
+      ],
+      "material": "sage",
+      "radius": 0.025,
+      "rotation": [
+        -8,
+        0,
+        0
+      ]
+    }
+  ]
+}
