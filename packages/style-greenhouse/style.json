@@ -426,8 +426,8 @@
     },
     "dawn": {
       "background": null,
-      "sky": "#f4dde5",
-      "ground": "#8f8f86",
+      "sky": "#f5e2df",
+      "ground": "#8a9a86",
       "hemisphere": 1.75,
       "key": "#ffd4b5",
       "keyIntensity": 2.8,

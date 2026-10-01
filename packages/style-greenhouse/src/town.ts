@@ -5,7 +5,7 @@
 import * as THREE from "three";
 import type { ModelOptions } from "@crewhub/world-style";
 import { put, type Kit, type Swatch } from "./kit.ts";
-import { decalMaterial, GRASS_NIGHT, grassShader, pavingShader, waterShader } from "./shaders.ts";
+import { decalMaterial, GRASS_GOLDEN, GRASS_NIGHT, grassShader, pavingShader, waterShader } from "./shaders.ts";
 
 type Size = { width: number; height: number; depth: number };
 const size = (o: ModelOptions, fallback: Size): Size => o.size ?? fallback;
@@ -315,6 +315,8 @@ export function townLight(kit: Kit, evening: number) {
   const lerp = (day: number, night: number) => day + (night - day) * e;
   // The lawns' warm evening patches belong to the dark lawns of lamplight; on the daylight lawns they would turn olive.
   GRASS_NIGHT.value = kit.theme === "lamplight" ? e : e * 0.25;
+  // The light theme's low sun (dawn and dusk, still there in its gentle evening) gets the golden lawns.
+  GRASS_GOLDEN.value = kit.theme === "lamplight" ? 0 : THREE.MathUtils.smoothstep(e, 0.05, 0.35);
   lanternGlass(kit).emissiveIntensity = lerp(0.5, 1.25);
   bulbMaterial(kit).emissiveIntensity = lerp(0.35, 2.2);
   kit.material("window", { glow: 0.45 }).emissiveIntensity = lerp(0.45, 1.15);
