@@ -5,7 +5,7 @@ import * as THREE from "three";
 import type { EmblemName, ModelOptions } from "@crewhub/world-style";
 import { put, type Kit, type Swatch } from "./kit.ts";
 import { lamp, plant } from "./furniture.ts";
-import { floorShader, glassMaterial } from "./shaders.ts";
+import { floorShader, glassMaterial, type FloorPattern } from "./shaders.ts";
 
 type Size = { width: number; height: number; depth: number };
 const size = (o: ModelOptions, fallback: Size): Size => o.size ?? fallback;
@@ -46,42 +46,12 @@ export function planting(kit: Kit, o: ModelOptions): THREE.Group {
   return plant(kit, o.seed ?? 0);
 }
 
-/** A tall chalk wall with a skirt and a trim in the accent colour; "archived" dims it. */
-export function wall(kit: Kit, o: ModelOptions, low = false): THREE.Group {
-  const { width, height, depth } = size(o, { width: 1, height: low ? 0.3 : 1.35, depth: 0.12 });
-  const color = o.variant === "archived" ? "chalk-dim" : "chalk";
-  const g = new THREE.Group();
-  put(g, kit.box(width, height, depth, color, 0.03), 0, height / 2, 0);
-  if (!low) put(g, kit.box(Math.max(0.05, width - 0.1), 0.12, depth + 0.04, "skirt", 0.02), 0, 0.08, 0);
-  put(g, kit.box(width + 0.02, 0.06, depth + 0.05, o.accent ? accent(o) : "ledge", 0.02), 0, height + 0.03, 0);
-  return g;
-}
+const FLOOR_PATTERNS: Record<string, FloorPattern> = { wood: "wood", tile: "tile", concrete: "concrete" };
 
-/** Framed glass between mullions: the Greenhouse's glass wall. Windows glow under lamplight. */
-export function glassWall(kit: Kit, o: ModelOptions, glass: THREE.ShaderMaterial): THREE.Group {
-  const { width, height, depth } = size(o, { width: 4, height: 1.35, depth: 0.12 });
-  const g = new THREE.Group();
-  const panes = Math.max(1, Math.round(width / 1.3));
-  const pane = kit.geometry(`pane:${(width / panes).toFixed(3)},${height}`, () => new THREE.PlaneGeometry(width / panes - 0.08, height - 0.2));
-  for (let i = 0; i < panes; i++) {
-    const offset = -width / 2 + ((i + 0.5) * width) / panes;
-    put(g, new THREE.Mesh(pane, glass), offset, height / 2, 0);
-    put(g, kit.box(0.05, height, depth * 0.6, "mullion", 0.01), offset - width / panes / 2, height / 2, 0);
-  }
-  put(g, kit.box(0.05, height, depth * 0.6, "mullion", 0.01), width / 2, height / 2, 0);
-  put(g, kit.box(width, 0.1, depth, "mullion", 0.02), 0, 0.05, 0);
-  put(g, kit.box(width + 0.04, 0.06, depth + 0.05, o.accent ? accent(o) : "ledge", 0.02), 0, height + 0.03, 0);
-  return g;
-}
-
-export function door(kit: Kit, o: ModelOptions): THREE.Object3D {
-  const { width, depth } = size(o, { width: 1.2, height: 0.06, depth: 0.5 });
-  const step = kit.box(width, 0.06, depth, "step", 0.02);
-  step.position.y = 0.03;
-  return step;
-}
-
-/** A room floor: the Greenhouse floor shader, UVs in 0.6 m cells; "dim" is an empty room's floor. */
+/**
+ * A room floor: the Greenhouse floor shader, UVs in 0.6 m cells. Variants: "wood" (warm planks), "tile" (light tiles),
+ * "concrete" (grey-cream), "dim" (an empty or archived room's floor); none is the studio's cream cells.
+ */
 export function floor(kit: Kit, o: ModelOptions): THREE.Mesh {
   const { width, depth } = size(o, { width: 3, height: 0, depth: 3 });
   const geo = kit.geometry(`floor:${width},${depth}`, () => {
@@ -90,9 +60,11 @@ export function floor(kit: Kit, o: ModelOptions): THREE.Mesh {
     for (let i = 0; i < uv.count; i++) uv.setXY(i, (uv.getX(i) * width) / 0.6, (uv.getY(i) * depth) / 0.6);
     return plane.rotateX(-Math.PI / 2);
   });
-  const material = kit.material(o.variant === "dim" ? "floor-dim" : "floor");
+  const pattern = (o.variant && FLOOR_PATTERNS[o.variant]) || "cells";
+  const swatch = o.variant === "dim" ? "floor-dim" : pattern === "cells" ? "floor" : `floor-${pattern}`;
+  const material = kit.material(swatch);
   if (!material.userData.floor) {
-    floorShader(material);
+    floorShader(material, pattern);
     material.userData.floor = true;
   }
   const mesh = new THREE.Mesh(geo, material);
@@ -105,25 +77,6 @@ export function roomSign(kit: Kit): THREE.Group {
   const g = new THREE.Group();
   put(g, kit.box(0.46, 0.035, 0.2, "timber-trim", 0.012), 0, 0.02, 0);
   put(g, kit.box(0.4, 0.01, 0.14, "cream", 0.004), 0, 0.042, 0);
-  return g;
-}
-
-export function flag(kit: Kit, o: ModelOptions): THREE.Group {
-  const g = new THREE.Group();
-  put(g, kit.cylinder(0.03, 0.03, 2.4, "pole"), 0, 1.2, 0);
-  // An archived project's flag hangs at half-mast.
-  put(g, kit.box(0.75, 0.46, 0.03, accent(o), 0.01), 0.39, o.variant === "archived" ? 1.35 : 2.12, 0);
-  return g;
-}
-
-export function planks(kit: Kit, o: ModelOptions): THREE.Group {
-  const { width } = size(o, { width: 1.3, height: 0.4, depth: 0.05 });
-  const g = new THREE.Group();
-  for (const [y, tilt] of [
-    [0.18, 0.18],
-    [0.36, -0.14],
-  ] as const)
-    put(g, kit.box(width + 0.2, 0.09, 0.05, "plank", 0.015), 0, y, 0).rotation.z = tilt;
   return g;
 }
 

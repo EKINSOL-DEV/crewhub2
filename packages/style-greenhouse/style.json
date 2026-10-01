@@ -6,8 +6,15 @@
   "coveredKeys": [
     "banner",
     "beacon",
+    "building.apron",
+    "building.closed-sign",
+    "building.door-frame",
     "building.flag",
+    "building.ivy",
+    "building.loading-door",
+    "building.partition",
     "building.planks",
+    "building.slab",
     "cart",
     "crate",
     "desk-lamp",
@@ -161,7 +168,14 @@
     "lamp-dim": "#8a8470",
     "drone-rotor": "#d9e6dd",
     "truck-body": "#e8e4d1",
-    "tyre": "#34453e"
+    "tyre": "#34453e",
+    "partition": "#e4e3d0",
+    "awning-stripe": "#f7f1e3",
+    "slab": "#e9e3d1",
+    "slab-edge": "#f4efe2",
+    "floor-wood": "#e3cfae",
+    "floor-tile": "#f3efe5",
+    "floor-concrete": "#e2ddcf"
   },
   "lamplightSwatches": {
     "plinth": "#7a7666",
@@ -174,7 +188,10 @@
     "window": "#ffd98a",
     "lamp-glow": "#ffe7a0",
     "screen-glow": "#a8d4ae",
-    "rug": "#b9ad90"
+    "rug": "#b9ad90",
+    "floor-wood": "#d6be98",
+    "floor-tile": "#e6dcc8",
+    "floor-concrete": "#cfc6b2"
   },
   "lighting": {
     "day": {

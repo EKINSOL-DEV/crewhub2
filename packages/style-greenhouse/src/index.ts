@@ -20,6 +20,7 @@ import { Kit, type GreenhouseManifestData } from "./kit.ts";
 import { SURFACES } from "./keys.ts";
 import { partsModel } from "./parts.ts";
 import * as pieces from "./pieces.ts";
+import * as shell from "./shell.ts";
 import { robot } from "./robot.ts";
 
 type ManifestFile = StyleManifest & GreenhouseManifestData;
@@ -92,21 +93,35 @@ class GreenhouseStyle implements WorldStyle {
       case "furniture.plant":
         return pieces.planting(kit, o);
       case "wall":
-        return pieces.wall(kit, o);
+        return shell.tallWall(kit, o, this.#glass);
       case "wall.low":
-        return pieces.wall(kit, o, true);
+        return shell.rim(kit, o);
       case "wall.glass":
-        return pieces.glassWall(kit, o, this.#glass);
+        return shell.glassWall(kit, o, this.#glass);
       case "door":
-        return pieces.door(kit, o);
+        return shell.entrance(kit, o);
+      case "building.partition":
+        return shell.partition(kit, o);
+      case "building.door-frame":
+        return shell.doorFrame(kit, o);
+      case "building.slab":
+        return shell.slab(kit, o);
+      case "building.apron":
+        return shell.apron(kit, o);
+      case "building.loading-door":
+        return shell.loadingDoor(kit, o);
+      case "building.ivy":
+        return shell.ivy(kit, o);
+      case "building.closed-sign":
+        return shell.closedSign(kit);
       case "floor":
         return pieces.floor(kit, o);
       case "room.sign":
         return pieces.roomSign(kit);
       case "building.flag":
-        return pieces.flag(kit, o);
+        return shell.flag(kit, o);
       case "building.planks":
-        return pieces.planks(kit, o);
+        return shell.planks(kit, o);
       case "post-office":
         return pieces.postOffice(kit);
       case "town-hall":

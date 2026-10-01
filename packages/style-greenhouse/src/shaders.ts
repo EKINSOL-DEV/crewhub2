@@ -1,8 +1,47 @@
 /* Greenhouse shaders, moved from apps/world/src/world/shaders.ts. Colours are passed in (from style.json). */
 import * as THREE from "three";
 
-/** The studio floor: a faint grid, a checker and sun shafts, on a standard material. UVs are in cells. */
-export function floorShader(material: THREE.MeshStandardMaterial): THREE.MeshStandardMaterial {
+/** Floor patterns: the studio's cream cells, warm wood planks, light tiles, smooth concrete. */
+export type FloorPattern = "cells" | "wood" | "tile" | "concrete";
+
+const PATTERNS: Record<FloorPattern, string> = {
+  cells: `
+      vec2 edge = abs(fract(vFloor + 0.5) - 0.5) / max(fwidth(vFloor), vec2(0.001));
+      float line = 1.0 - min(min(edge.x, edge.y), 1.0);
+      float checker = mod(floor(vFloor.x) + floor(vFloor.y), 2.0);
+      diffuseColor.rgb *= 1.0 - checker * 0.018;
+      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.33, 0.48, 0.39), line * 0.05);`,
+  // Planks a third of a cell wide running east to west, with staggered butt joints and a soft grain.
+  wood: `
+      vec2 p = vec2(vFloor.x, vFloor.y * 3.0);
+      float row = floor(p.y);
+      float along = p.x / 2.4 + fract(row * 0.618) ;
+      vec2 seam = vec2(abs(fract(along + 0.5) - 0.5) * 2.4, abs(fract(p.y + 0.5) - 0.5) / 3.0) / max(fwidth(vFloor), vec2(0.001));
+      float joint = 1.0 - min(min(seam.x, seam.y), 1.0);
+      float tone = fract(sin(row * 12.9898 + floor(along) * 78.233) * 43758.5453);
+      float grain = sin(p.x * 7.0 + sin(p.x * 1.3 + row) * 2.0) * 0.5 + 0.5;
+      diffuseColor.rgb *= 0.95 + tone * 0.07 + grain * 0.025;
+      diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 0.78, joint * 0.55);`,
+  // Two-cell square tiles with pale grout and a faint alternate tint.
+  tile: `
+      vec2 t = vFloor / 2.0;
+      vec2 edge = abs(fract(t + 0.5) - 0.5) * 2.0 / max(fwidth(vFloor), vec2(0.001));
+      float grout = 1.0 - min(min(edge.x, edge.y) / 1.6, 1.0);
+      float checker = mod(floor(t.x) + floor(t.y), 2.0);
+      diffuseColor.rgb *= 1.0 - checker * 0.035;
+      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.97, 0.95, 0.9), grout * 0.7);`,
+  // Smooth concrete: faint saw cuts every four cells and a soft cloudiness.
+  concrete: `
+      vec2 c = vFloor / 4.0;
+      vec2 edge = abs(fract(c + 0.5) - 0.5) * 4.0 / max(fwidth(vFloor), vec2(0.001));
+      float cut = 1.0 - min(min(edge.x, edge.y), 1.0);
+      float cloud = sin(vFloor.x * 0.9 + sin(vFloor.y * 0.7) * 1.8) * sin(vFloor.y * 1.1 + vFloor.x * 0.3);
+      diffuseColor.rgb *= 0.985 + cloud * 0.02;
+      diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 0.82, cut * 0.5);`,
+};
+
+/** The studio floor: a pattern and soft sun shafts on a standard material. UVs are in cells. */
+export function floorShader(material: THREE.MeshStandardMaterial, pattern: FloorPattern = "cells"): THREE.MeshStandardMaterial {
   material.roughness = 0.93;
   material.onBeforeCompile = (shader) => {
     shader.vertexShader =
@@ -12,17 +51,15 @@ export function floorShader(material: THREE.MeshStandardMaterial): THREE.MeshSta
       shader.fragmentShader.replace(
         "#include <color_fragment>",
         `#include <color_fragment>
-      vec2 edge = abs(fract(vFloor + 0.5) - 0.5) / max(fwidth(vFloor), vec2(0.001));
-      float line = 1.0 - min(min(edge.x, edge.y), 1.0);
-      float checker = mod(floor(vFloor.x) + floor(vFloor.y), 2.0);
-      diffuseColor.rgb *= 1.0 - checker * 0.018;
-      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.33, 0.48, 0.39), line * 0.05);
+      ${PATTERNS[pattern]}
       float diagonal = vFloor.x + vFloor.y * 0.64;
       float shafts = smoothstep(0.1, 0.2, fract(diagonal / 3.0)) * (1.0 - smoothstep(0.82, 0.91, fract(diagonal / 3.0)));
       diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0, 0.91, 0.66), shafts * 0.06);
     `,
       );
   };
+  // One program per pattern: the patterns differ only inside the closure, so the cache key must say which.
+  material.customProgramCacheKey = () => `greenhouse-floor-${pattern}`;
   return material;
 }
 
