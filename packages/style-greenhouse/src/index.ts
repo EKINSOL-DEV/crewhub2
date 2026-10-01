@@ -55,7 +55,8 @@ class GreenhouseStyle implements WorldStyle {
     const pool = LIGHT_POOLS[key];
     if (pool) {
       // A warm pool of light on the ground under a lamp (lamplight, Pretty only); kept apart from static batching.
-      const decal = this.#kit.decal("pool", pool.radius * 0.25, pool.radius * 0.25, pool.radius * 0.75);
+      // A small bright core and a long soft edge: a pool of light, not a disc.
+      const decal = this.#kit.decal("pool", pool.radius * 0.08, pool.radius * 0.08, pool.radius * 0.92);
       decal.position.set(0, pool.y, pool.z ?? 0);
       object.add(decal);
     }

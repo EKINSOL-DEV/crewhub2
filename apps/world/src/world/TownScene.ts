@@ -117,6 +117,8 @@ export class TownScene {
   readonly walks = new Walks();
   view: TownView;
   #environment: EnvironmentHandle;
+  /** Drawn frames since the town view's shadow map was last refreshed. */
+  #shadowAge = 0;
   #buildings = new Map<string, BuildingView>();
   /** A blob contact shadow under each building's slab, sized to its footprint. */
   #contacts = new Map<string, { object: THREE.Object3D; size: string }>();
@@ -252,6 +254,8 @@ export class TownScene {
     const b = view ? view.bounds(null) : townBounds();
     const margin = view ? 2 : 4;
     this.#environment.setShadowReach(Math.max(b.maxX - b.minX, b.maxZ - b.minZ) / 2 + margin, { x: (b.minX + b.maxX) / 2, z: (b.minZ + b.maxZ) / 2 });
+    // A new fit refreshes the shadow map on the next drawn frame, also in the town view.
+    this.#shadowAge = 8;
     this.invalidate();
   }
 
@@ -771,6 +775,14 @@ export class TownScene {
     this.camera.position.add(this.#v);
     t.add(this.#v);
     this.placeLabels();
+    // The town view's shadow casters barely move (robots seen from the town cast none), so its shadow map refreshes
+    // every eighth drawn frame; inside a building it follows every frame.
+    const shadows = this.renderer.shadowMap;
+    shadows.autoUpdate = this.view.entered !== null;
+    if (!shadows.autoUpdate && ++this.#shadowAge >= 8) {
+      shadows.needsUpdate = true;
+      this.#shadowAge = 0;
+    }
     try {
       this.renderer.render(this.scene, this.camera);
     } catch {

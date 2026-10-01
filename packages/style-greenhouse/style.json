@@ -316,16 +316,17 @@
     "partition": "#f4dfbd",
     "chalk-dim": "#bba98c",
     "skirt": "#c9b48f",
-    "ledge": "#d4bf98"
+    "ledge": "#d4bf98",
+    "lamp-pool": "#ff9a40"
   },
   "lighting": {
     "day": {
       "background": null,
       "sky": "#f7f5df",
       "ground": "#8c9c8b",
-      "hemisphere": 2.2,
+      "hemisphere": 1.95,
       "key": "#fff0cf",
-      "keyIntensity": 3.3,
+      "keyIntensity": 3.5,
       "keyPosition": [
         -12,
         30,
@@ -365,7 +366,7 @@
       "exposure": 1.0,
       "shadowOpacity": 0.4,
       "glow": 2.4,
-      "pools": 0.32
+      "pools": 0.42
     }
   }
 }
