@@ -641,6 +641,10 @@
   .world-brand {
     font-size: var(--text-sm);
   }
+  /* With four toolbar buttons beside it the brand keeps one line: the demo chip keeps its icon (and its label). */
+  .demo-word {
+    display: none;
+  }
   /* The town is small on a phone: an unfocused sign shows its key only, the focused one expands. */
   .town-sign:not(.expanded) .sign-name,
   .town-sign:not(.expanded) .sign-archived,

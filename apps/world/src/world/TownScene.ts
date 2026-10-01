@@ -583,12 +583,12 @@ export class TownScene {
     }
     if (event.buttons) return;
     if (this.view.entered) {
-      const found = this.pickAt(event);
-      const target = found && found.kind !== "room" ? found : null;
+      // A room under the pointer is a hover target too: it reveals that room's labels.
+      const target = this.pickAt(event);
       const key = target ? JSON.stringify(target) : "";
       if (key === this.#hoverPick) return;
       this.#hoverPick = key;
-      this.renderer.domElement.style.cursor = found ? "pointer" : "";
+      this.renderer.domElement.style.cursor = target ? "pointer" : "";
       this.callbacks.pick(target, true);
       return;
     }

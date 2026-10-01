@@ -409,7 +409,7 @@ function World() {
           <strong>CrewHub World</strong>
           {demo && (
             <Chip className="demo-chip" icon={<FlaskConical className="icon" aria-hidden="true" />} title="Demo: scripted data" aria-label="Demo: scripted data">
-              Demo
+              <span className="demo-word">Demo</span>
             </Chip>
           )}
         </div>

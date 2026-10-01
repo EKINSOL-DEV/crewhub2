@@ -199,7 +199,9 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
   const template = buildingTemplate(b);
   const layout = placeObjects(b, template, assignDesks(b, template));
   const nameOf = (slug: string | null) => model.buildings.find((x) => x.slug === slug)?.name ?? slug ?? "another building";
-  const shown = props.selection.hover ?? props.selection.selected;
+  // A hovered room reveals its labels; a nameplate is for the agent or object under the pointer, else the selected one.
+  const hovered = props.selection.hover?.kind === "room" ? null : props.selection.hover;
+  const shown = hovered ?? props.selection.selected;
   const published = b.releases.filter((r) => r.publishedAt);
   const focusedRoom = props.room ?? props.zoomed;
   const picked = (target: Pick) => same(props.selection.hover, target) || same(props.selection.selected, target);
