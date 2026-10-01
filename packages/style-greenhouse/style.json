@@ -13,6 +13,7 @@
     "building.flag",
     "building.ivy",
     "building.loading-door",
+    "building.name-sign",
     "building.partition",
     "building.planks",
     "building.silhouette",
@@ -314,7 +315,9 @@
     "soil-line": "#d6c3a2",
     "earth": "#94775d",
     "earth-deep": "#7c644f",
-    "rock": "#b9b3a4"
+    "rock": "#b9b3a4",
+    "window-lit": "#d3e4d8",
+    "window-light": "#33413a"
   },
   "lamplightSwatches": {
     "plinth": "#2b3f42",
@@ -359,7 +362,9 @@
     "soil-line": "#c4a982",
     "earth": "#7a6450",
     "earth-deep": "#5f5044",
-    "rock": "#9a958a"
+    "rock": "#9a958a",
+    "window-lit": "#ffe2a8",
+    "window-light": "#ffc266"
   },
   "lighting": {
     "day": {

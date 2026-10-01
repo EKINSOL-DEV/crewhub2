@@ -153,6 +153,8 @@ class GreenhouseStyle implements WorldStyle {
         return shell.ivy(kit, o);
       case "building.closed-sign":
         return shell.closedSign(kit);
+      case "building.name-sign":
+        return shell.nameSign(kit, o);
       case "building.wall-lamp":
         return shell.wallLamp(kit, o);
       case "building.silhouette":
@@ -279,6 +281,7 @@ class GreenhouseStyle implements WorldStyle {
   }
 
   dispose() {
+    shell.disposeLettering();
     this.#glass.dispose();
     life.disposeLife(this.#kit);
     town.disposeTown(this.#kit);

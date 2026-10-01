@@ -84,6 +84,8 @@ export interface ModelOptions {
    * room's floor, a stalled desk's lamp), "urgent" or "high" (priority tags), "star" (the prop sticker).
    */
   variant?: string;
+  /** Words a style may paint on a piece, such as a building's name on its sign. Plain text, short. */
+  text?: string;
 }
 
 export type RobotPosture = "focused" | "relaxed" | "raised-hand" | "greyed" | "walking";

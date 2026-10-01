@@ -64,11 +64,11 @@ faces +z, and one world unit is one metre (a grid cell is 0.6).
 | --- | --- | --- |
 | `ground`, `plot`, `path`, `street-lamp`, `planting` | The town's diorama slab with a grass top, a raised lawn (`variant: "meadow"` for an empty plot), a paving slab, a street lamp, a potted plant. | `size`, `seed`, `variant` |
 | `wall`, `wall.glass`, `wall.low` | The tall chalk back wall with framed windows, the greenhouse glass wall, the low rim on the sides facing the camera; they run along x and stretch to `size`. | `size`, `accent`, `variant: "archived"` |
-| `door` | The front door: a chalk portal, door leaves and an awning valance in the accent, two small lamps, steps to the lawn. | `size`, `accent`, `variant` |
+| `door` | The front door: a chalk portal, door leaves and an awning in the accent, planters, a doormat, steps to the lawn. | `size`, `accent`, `variant` |
 | `floor` | A room floor. | `size`, `variant`: `wood`, `tile`, `concrete`, `dim` (an empty room) or none (cream cells) |
 | `room.sign` | The small floor plaque where a room's HTML label stands. | |
 | `building.flag`, `building.planks` | The project flag (half-mast when archived), planks across a boarded-up door. | `accent`, `variant`, `size` |
-| `building.<piece>` | The rest of the shell: `slab` (the cream block under the rooms), `partition` and `door-frame` (inside walls and their openings), `apron` and `loading-door` (dispatch's truck bay), `ivy` and `closed-sign` (archived buildings). | `size`, `accent`, `variant` |
+| `building.<piece>` | The rest of the shell: `slab` (the cream block under the rooms), `partition` and `door-frame` (inside walls and their openings), `apron` and `loading-door` (dispatch's truck bay), `wall-lamp` (by a door, with a light pool), `bike`, `name-sign` (the building's name painted over the front door), `silhouette` (far-detail furniture stand-ins by `variant`), `ivy` and `closed-sign` (archived buildings). | `size`, `accent`, `variant`, `text` (the name sign's words) |
 | `emblem.<icon>` | The loops project icon as a sculpture: `home`, `inbox`, `bot`, `spark`, `users`, `star`, `folder`. | `accent` |
 | `post-office`, `town-hall` | The civic buildings, each with an open forecourt at its front for the robots that stand there. | |
 | `civic.<landmark>` | The town's landmarks and their parts: `square` (with the fountain), `cafe`, `bus-stop`, `greenhouse`, `windmill`, `welcome-sign`, `clock-post`, `duck`, and pieces such as `fountain`, `park-bench`, `planter`, `flower-bed`, `cafe-table`, `menu-board`, `notice-board`, `parcel-stack`. | |

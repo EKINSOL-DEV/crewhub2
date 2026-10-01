@@ -74,6 +74,20 @@ const FAR_FURNITURE: Record<string, string> = {
   "board-stand": "board",
   "mood-board": "board",
 };
+/** Decor that hangs on a wall (roomDressing's wall art), by key prefix. */
+const WALL_HUNG = [
+  "decor.wall-",
+  "decor.picture",
+  "decor.poster",
+  "decor.whiteboard",
+  "decor.screen",
+  "decor.pin-board",
+  "decor.map-wall",
+  "decor.chart-wall",
+  "decor.mood-wall",
+  "decor.window-box",
+  "decor.station-clock",
+];
 /** Rugs seen from the town, their size in cells. */
 const FAR_RUGS: Partial<Record<ModelKey, [number, number]>> = {
   "decor.rug-round": [2.2, 2.2],
@@ -171,6 +185,8 @@ export class BuildingView {
   #personalMerged: THREE.BufferGeometry[] = [];
   #furnitureMerged: THREE.BufferGeometry[] = [];
   #furniture: THREE.Group | null = null;
+  /** The furniture layer's pieces hung on the tall north and west walls (they hide with their wall). */
+  #wallDecor: { north: THREE.Group; west: THREE.Group } | null = null;
   /** Seen from the town: the furniture and dressing as a few merged boxes, so every building looks furnished. */
   #silhouette = new THREE.Group();
   #silhouetteMerged: THREE.BufferGeometry[] = [];
@@ -358,6 +374,8 @@ export class BuildingView {
         this.#outside(style.model("building.wall-lamp", opt({})), x + width / CELL / 2 + 0.3, z + 0.18, 0);
         // A small detail: it takes shadows but casts none.
         if (!b.archived) this.#outside(noShadow(style.model("building.bike")), x - width / CELL / 2 - 2.4, z + 0.9, -FLOOR_RISE, 0.25, 0.12);
+        // The building's name on a painted board over the door; an archived building shows only its closed sign.
+        if (!b.archived) add(style.model("building.name-sign", { accent, text: b.name, size: { width, height: 0.3, depth: 0.06 } }), x, z, 0, rotation);
         // The closed sign hangs from the awning's front edge.
         if (b.archived) add(style.model("building.closed-sign"), x, z + 1.15, 1.4);
       } else if (opening.id === "loading") {
@@ -373,7 +391,11 @@ export class BuildingView {
     add(style.model("building.apron", { size: { width: (LOADING.x2 - LOADING.x1 + 2) * CELL, height: FLOOR_RISE, depth: 4 * CELL } }), apron.x, apron.z);
     if (b.archived) {
       // Boarded up but still pretty: ivy on the back wall and up the front corners.
-      IVY.forEach((spot, i) => add(style.model("building.ivy", { size: { width: spot.width, height: spot.height, depth: 0.1 }, seed: i + 1 }), spot.x, spot.z, 0, spot.rotation));
+      IVY.forEach((spot, i) => {
+        const ivy = add(style.model("building.ivy", { size: { width: spot.width, height: spot.height, depth: 0.1 }, seed: i + 1 }), spot.x, spot.z, 0, spot.rotation);
+        // Ivy up the back wall comes and goes with that wall when the camera turns.
+        if (spot.x < 0) this.#backWalls.west.tall.add(ivy);
+      });
     }
     // The truck backs up to dispatch's loading door, nose to the street, ready to drive off the plot.
     if (!b.archived) {
@@ -410,6 +432,7 @@ export class BuildingView {
           const inside = this.#seesInside(side, camera);
           walls.tall.visible = inside;
           walls.low.visible = !inside;
+          if (this.#wallDecor) this.#wallDecor[side].visible = inside;
         }
       };
     for (const walls of Object.values(this.#backWalls)) walls.low.visible = false;
@@ -423,6 +446,16 @@ export class BuildingView {
     object.rotation.set(lean, rotation, 0, "YXZ");
     this.#shellStatic.add(object);
     return object;
+  }
+
+  /** The tall back wall a decor piece hangs on, if any: a wall piece set against a north or west outer run. */
+  #mountedOn(item: DecorItem): "north" | "west" | null {
+    if (item.lean || item.on !== "floor" || !WALL_HUNG.some((k) => item.key.startsWith(k))) return null;
+    for (const run of wallRuns(this.template)) {
+      if (run.side === "north" && Math.abs(item.z - 0.5 - run.z1) < 0.01 && item.x > run.x1 && item.x < run.x2) return "north";
+      if (run.side === "west" && Math.abs(item.x - 0.5 - run.x1) < 0.01 && item.z > run.z1 && item.z < run.z2) return "west";
+    }
+    return null;
   }
 
   /** True when the camera looks at a back wall's inner face (from the south and east, as at home). */
@@ -459,12 +492,26 @@ export class BuildingView {
         if (def === "bench" || def === "coffee-machine") model.scale.setScalar(0.7);
         g.add(model);
       }
-    for (const item of roomDecor(this.template, { definitions: interiorDefinitions, seed: dressingSeed(this.building.slug), zones: dressingZones(this.template), loading: LOADING })) g.add(this.#decor(item));
+    const wallDecor = { north: new THREE.Group(), west: new THREE.Group() };
+    for (const item of roomDecor(this.template, { definitions: interiorDefinitions, seed: dressingSeed(this.building.slug), zones: dressingZones(this.template), loading: LOADING })) {
+      const side = this.#mountedOn(item);
+      (side ? wallDecor[side] : g).add(this.#decor(item));
+    }
     g.visible = this.detailed;
     this.#furniture = g;
     this.group.add(g);
     for (const geometry of this.#furnitureMerged) geometry.dispose();
     this.#furnitureMerged = mergeStatic(g);
+    // Pieces hung on a tall back wall come and go with that wall when the camera turns (#seesInside).
+    for (const side of ["north", "west"] as const) {
+      g.add(wallDecor[side]);
+      this.#furnitureMerged.push(...mergeStatic(wallDecor[side]));
+      for (const mesh of wallDecor[side].children)
+        mesh.onBeforeRender = (_renderer, _scene, camera) => {
+          if (!this.#seesInside(side, camera)) mesh.matrixWorld.makeScale(0, 0, 0);
+        };
+    }
+    this.#wallDecor = wallDecor;
   }
 
 

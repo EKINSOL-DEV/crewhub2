@@ -94,8 +94,15 @@ export function tallWall(kit: Kit, o: ModelOptions, glass: THREE.Material): THRE
     put(g, kit.box(left - from, height, depth, chalk, 0.02), (from + left) / 2, height / 2, 0);
     put(g, kit.box(ww, sill, depth, chalk, 0.02), c, sill / 2, 0);
     put(g, kit.box(ww, height - head, depth, chalk, 0.02), c, (height + head) / 2, 0);
+    // A warm pane: pale glass by day, lit from inside in the evening (its glow follows the theme), with a patch of
+    // window light on the floor below it inside (+z), a lamp-pool decal that only shows in lamplight.
     const pane = kit.geometry(`window-pane:${ww}`, () => new THREE.PlaneGeometry(ww - 0.04, head - sill - 0.04));
-    put(g, new THREE.Mesh(pane, glass), c, (sill + head) / 2, 0);
+    put(g, new THREE.Mesh(pane, archived(o) ? glass : kit.material("window-lit", { glow: "window-light" })), c, (sill + head) / 2, 0);
+    if (!archived(o)) {
+      const spill = kit.decal("pool", ww * 0.35, 0.22, 0.45);
+      spill.position.set(c, 0.03, depth / 2 + 0.5);
+      g.add(spill);
+    }
     // Frame, a cross of glazing bars and a deep sill.
     put(g, kit.box(ww + 0.12, 0.05, depth + 0.1, "timber-trim", 0.015), c, sill, 0);
     put(g, kit.box(0.035, head - sill, depth * 0.5, "mullion", 0.01), c, (sill + head) / 2, 0);
@@ -387,5 +394,66 @@ export function silhouette(kit: Kit, o: ModelOptions): THREE.Group {
   }
   // Seen from the town only the taller pieces (desks, shelves, sofas, plants) cast a shadow worth its draw call.
   if (h <= 0.3) g.traverse((m) => (m.castShadow = false));
+  return g;
+}
+
+const painted = new Map<string, THREE.MeshStandardMaterial>();
+
+/** The lettering of a name sign: the words in cream on a transparent canvas, one material per text and theme colour. */
+function lettering(kit: Kit, text: string, width: number, height: number): THREE.MeshStandardMaterial {
+  const ink = kit.hex("cream", "day");
+  const key = `${text}|${ink}|${width.toFixed(2)}`;
+  let material = painted.get(key);
+  if (!material) {
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(width * 320);
+    canvas.height = Math.round(height * 320);
+    const ctx = canvas.getContext("2d")!;
+    let size = canvas.height * 0.62;
+    const font = (px: number) => `600 ${px}px Georgia, "Times New Roman", serif`;
+    ctx.font = font(size);
+    // Shrink long names to fit the board, with a margin.
+    const room = canvas.width * 0.88;
+    const measured = ctx.measureText(text).width;
+    if (measured > room) size *= room / measured;
+    ctx.font = font(size);
+    ctx.fillStyle = ink;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, canvas.width / 2, canvas.height * 0.54);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = 4;
+    material = new THREE.MeshStandardMaterial({ map: texture, transparent: true, alphaTest: 0.35, roughness: 0.8 });
+    painted.set(key, material);
+  }
+  return material;
+}
+
+/** Disposes the painted lettering (the style's dispose). */
+export function disposeLettering() {
+  for (const material of painted.values()) {
+    material.map?.dispose();
+    material.dispose();
+  }
+  painted.clear();
+}
+
+/**
+ * A painted name board that stands on the front door's lintel (origin: the doorway's centre at floor level, the street
+ * at +z): a board in the project colour with a timber frame and the name lettered in cream.
+ */
+export function nameSign(kit: Kit, o: ModelOptions): THREE.Group {
+  const text = (o.text ?? "").trim() || " ";
+  const g = new THREE.Group();
+  const width = Math.min(2.2, Math.max(1.3, 0.55 + text.length * 0.075));
+  const height = 0.36;
+  const y = 1.62 + height / 2 + 0.06;
+  put(g, kit.box(width + 0.08, height + 0.08, 0.06, "timber-trim", 0.02), 0, y, -0.02);
+  put(g, kit.box(width, height, 0.05, accent(o), 0.015), 0, y, 0.0);
+  for (const s of [-1, 1]) put(g, kit.box(0.05, 0.08, 0.05, "timber-trim", 0.01), s * (width / 2 - 0.15), 1.66, -0.02);
+  const face = new THREE.Mesh(kit.geometry(`name-face:${width.toFixed(2)}`, () => new THREE.PlaneGeometry(width - 0.06, height - 0.04)), lettering(kit, text, width - 0.06, height - 0.04));
+  face.position.set(0, y, 0.027);
+  g.add(face);
   return g;
 }

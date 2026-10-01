@@ -25,6 +25,7 @@ export const CODE_KEYS: readonly ModelKey[] = [
   "building.ivy",
   "building.closed-sign",
   "building.wall-lamp",
+  "building.name-sign",
   "building.silhouette",
   "emblem.home",
   "emblem.inbox",
