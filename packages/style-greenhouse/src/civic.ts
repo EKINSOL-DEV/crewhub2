@@ -203,7 +203,8 @@ function flagstones(g: THREE.Group, kit: Kit, x: number, z: number, w: number, d
       const a = Math.max(left, -w / 2),
         b = Math.min(left + size, w / 2);
       if (b - a < 0.15) continue;
-      const color = colors[(r * 7 + Math.round(left * 3)) % colors.length]!;
+      const n = r * 7 + Math.round(left * 3);
+      const color = colors[((n % colors.length) + colors.length) % colors.length]!;
       put(g, kit.box(b - a - 0.05, 0.03, rowDepth - 0.05, color, 0.012), x + (a + b) / 2, 0.015, z - d / 2 + (r + 0.5) * rowDepth);
     }
   }
