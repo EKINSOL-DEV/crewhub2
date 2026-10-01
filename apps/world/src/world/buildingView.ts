@@ -270,6 +270,7 @@ export class BuildingView {
       this.#buildShell();
     }
     this.detailed = detailed && !building.archived;
+    if (!this.detailed) this.#releaseInterior();
     if (this.detailed && shape !== this.#signatures.furniture) {
       this.#signatures.furniture = shape;
       this.#buildFurniture();
@@ -560,6 +561,25 @@ export class BuildingView {
     this.#wallDecor = wallDecor;
   }
 
+
+  /** A building seen from the town keeps no interior: its furniture, decor, desk things and signals are dropped and
+   *  rebuilt on the next visit, so visiting building after building does not pile up geometry (perf). */
+  #releaseInterior() {
+    if (!this.#furniture) return;
+    this.#furniture.removeFromParent();
+    this.#furniture = null;
+    this.#wallDecor = null;
+    this.#cords.removeFromParent();
+    this.#cords = new THREE.Group();
+    this.#personal.clear();
+    this.#signals.clear();
+    for (const geometry of [...this.#furnitureMerged, ...this.#cordsMerged, ...this.#personalMerged, ...this.#signalsMerged]) geometry.dispose();
+    this.#furnitureMerged = [];
+    this.#cordsMerged = [];
+    this.#personalMerged = [];
+    this.#signalsMerged = [];
+    this.#signatures.furniture = this.#signatures.personal = this.#signatures.signals = "";
+  }
 
   #decor(item: DecorItem): THREE.Object3D {
     const surfaces = surfacesOf(this.ctx.style);
