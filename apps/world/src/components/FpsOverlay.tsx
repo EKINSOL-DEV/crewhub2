@@ -1,6 +1,7 @@
 /* The frame rate overlay (Settings or F; off by default): fps, frame time, the work per frame, draw calls, memory and
    the Graphics setting. It reads the scene four times a second and writes its text straight into a fixed-size box: no
-   React state, no layout change. The same numbers go to `window.__worldPerf` for the measurement scripts. */
+   React state, no layout change. The same numbers go to `window.__worldPerf` for the measurement scripts, and
+   `window.__worldPerfWindow(ms)` gives them over a longer window (up to the ring's 2048 frames). */
 import { useEffect, useRef } from "react";
 import type { TownScene, WorldPerf } from "../world/TownScene";
 
@@ -25,7 +26,8 @@ export function FpsOverlay({ scene }: { scene: { current: TownScene | null } }) 
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const lines = Array.from(box.current?.children ?? []) as HTMLElement[];
-    const target = window as unknown as { __worldPerf?: WorldPerf | null };
+    const target = window as unknown as { __worldPerf?: WorldPerf | null; __worldPerfWindow?: ((ms: number) => WorldPerf | null) | null };
+    target.__worldPerfWindow = (ms) => scene.current?.perf(ms) ?? null;
     const tick = () => {
       const perf = scene.current?.perf();
       if (!perf) return;
@@ -40,6 +42,7 @@ export function FpsOverlay({ scene }: { scene: { current: TownScene | null } }) 
     return () => {
       window.clearInterval(id);
       target.__worldPerf = null;
+      target.__worldPerfWindow = null;
     };
   }, [scene]);
   return (
