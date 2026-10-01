@@ -300,7 +300,8 @@ export class Walks {
 
   #idle(now: number): void {
     const model = this.#model;
-    if (!model || now < this.#idleCheck) return;
+    // Once a second of source time; a seek back in time starts the clock again.
+    if (!model || (now < this.#idleCheck && this.#idleCheck - now <= 1000)) return;
     this.#idleCheck = now + 1000;
     for (const errand of planIdle(model, now, this.#options, this.#idleDone)) {
       this.#idleDone.add(errand.id);
