@@ -10,7 +10,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { AgentPlacement, RoomKind, WorldModel } from "@crewhub/world-model";
-import type { EnvironmentHandle, ResolvedStyle, RobotHandle, RobotPosture, StyleTheme } from "@crewhub/world-style";
+import type { EnvironmentHandle, GraphicsQuality, ResolvedStyle, RobotHandle, RobotPosture, StyleTheme } from "@crewhub/world-style";
 import { BuildingView, type Pick } from "./buildingView";
 import type { TownLayer } from "./propLayer";
 import { styleRegistry } from "./style";
@@ -33,6 +33,8 @@ export interface TownView {
   reducedMotion: boolean;
   /** The resolved UI theme: light is day, dark is lamplight. */
   theme: StyleTheme;
+  /** The viewer's graphics setting: "pretty" draws shadow maps and ambient effects, "fast" leaves them out. */
+  quality: GraphicsQuality;
   /** Source time now (ms): drone flights run on it, so they follow the playback speed. */
   now: () => number;
   /** The town document and build mode's ghost and selection (applied to the entered building only). */
@@ -90,6 +92,8 @@ export class TownScene {
   view: TownView;
   #environment: EnvironmentHandle;
   #buildings = new Map<string, BuildingView>();
+  /** A blob contact shadow under each building's slab, sized to its footprint. */
+  #contacts = new Map<string, { object: THREE.Object3D; size: string }>();
   #civic = new THREE.Group();
   #civicSignature = "";
   #civicRobots: RobotHandle[] = [];
@@ -132,10 +136,11 @@ export class TownScene {
     this.townStyle = styleRegistry.styleFor(null);
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "low-power" });
     this.renderer.debug.onShaderError = () => this.callbacks.error();
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.7));
+    // The canvas stays transparent: the UI background (and its evening or daylight air) shows around the town.
     this.renderer.setClearColor(0, 0);
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // Soft shadows come from the light's shadow radius (three's PCF filter); Fast turns shadow maps off.
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.applyQuality(view.quality, false);
     const canvas = this.renderer.domElement;
     canvas.tabIndex = 0;
     canvas.setAttribute("role", "application");
@@ -158,8 +163,8 @@ export class TownScene {
     this.controls.addEventListener("start", this.cancelTween);
     this.controls.addEventListener("change", this.invalidate);
     this.#environment = this.townStyle.environment(this.scene, this.renderer, view.theme);
-    const b = townBounds();
-    this.#environment.setShadowReach(Math.max(b.maxX - b.minX, b.maxZ - b.minZ) / 2 + 4);
+    this.#environment.setQuality(view.quality);
+    this.fitShadow();
     this.#ring = this.townStyle.model("focus-ring", { size: { width: PLOT_SIZE + 0.4, height: 0, depth: PLOT_SIZE + 0.4 } });
     this.#ring.visible = false;
     this.buildGround();
@@ -191,6 +196,28 @@ export class TownScene {
   applyTheme(theme: StyleTheme) {
     this.#environment.setTheme(theme);
     for (const view of this.#buildings.values()) if (view.ctx.style !== this.townStyle) view.ctx.style.setTheme(theme);
+    this.invalidate();
+  }
+
+  /** Pretty: shadow maps and a sharp canvas (up to 2× pixels). Fast: no shadow maps, one pixel per CSS pixel. */
+  applyQuality(quality: GraphicsQuality, live = true) {
+    const pretty = quality === "pretty";
+    this.renderer.shadowMap.enabled = pretty;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, pretty ? 2 : 1));
+    if (!live) return;
+    this.#environment.setQuality(quality);
+    this.resize();
+  }
+
+  /**
+   * The key light's shadow covers what the camera frames: the entered building (or its zoomed room, with the walls
+   * around it) gets a close, crisp shadow map; the town a cheaper, softer one over every lot.
+   */
+  fitShadow() {
+    const view = this.view.entered ? this.#buildings.get(this.view.entered) : undefined;
+    const b = view ? view.bounds(null) : townBounds();
+    const margin = view ? 2 : 4;
+    this.#environment.setShadowReach(Math.max(b.maxX - b.minX, b.maxZ - b.minZ) / 2 + margin, { x: (b.minX + b.maxX) / 2, z: (b.minZ + b.maxZ) / 2 });
     this.invalidate();
   }
 
@@ -269,15 +296,31 @@ export class TownScene {
       view.update(b, this.view.entered === b.slug, town && (this.view.entered === b.slug ? town : { ...town, build: null }));
       view.setFocus(this.view.entered === b.slug ? this.view.room : null);
       for (const [id, v] of view.anchors) this.#anchors.set(id, v);
+      this.#contact(b.slug, view);
       this.#anchors.set(`b:${b.slug}`, new THREE.Vector3(c.x, 0.2, c.z + PLOT_SIZE / 2));
     });
     for (const [slug, view] of this.#buildings)
       if (!seen.has(slug)) {
         view.dispose();
         this.#buildings.delete(slug);
+        this.#contacts.get(slug)?.object.removeFromParent();
+        this.#contacts.delete(slug);
       }
     this.syncCivic();
     this.invalidate();
+  }
+
+  /** The blob shadow under a building's slab follows its footprint (role rooms grow east). */
+  #contact(slug: string, view: BuildingView) {
+    const b = view.bounds(null);
+    const size = `${(b.maxX - b.minX).toFixed(2)}x${(b.maxZ - b.minZ).toFixed(2)}`;
+    const current = this.#contacts.get(slug);
+    if (current?.size === size) return;
+    current?.object.removeFromParent();
+    const object = this.townStyle.model("town.contact-shadow", { size: { width: b.maxX - b.minX, height: 0, depth: b.maxZ - b.minZ } });
+    object.position.set((b.minX + b.maxX) / 2, view.group.position.y + 0.004, (b.minZ + b.maxZ) / 2);
+    this.scene.add(object);
+    this.#contacts.set(slug, { object, size });
   }
 
   /** The postman at the post office and the agents in the town hall. */
@@ -342,6 +385,7 @@ export class TownScene {
     this.view = view;
     this.controls.enableDamping = !view.reducedMotion;
     if (previous.theme !== view.theme) this.applyTheme(view.theme);
+    if (previous.quality !== view.quality) this.applyQuality(view.quality);
     if (previous.model !== view.model || previous.entered !== view.entered || previous.room !== view.room || previous.town !== view.town) this.sync();
     else if (previous.reducedMotion !== view.reducedMotion || previous.ambient !== view.ambient)
       this.walks.update(view.model, { entered: view.entered, reducedMotion: view.reducedMotion, ambient: view.ambient });
@@ -351,6 +395,7 @@ export class TownScene {
       this.#frames.at = 0;
       if (view.entered) this.frameBuilding(view.entered, view.zoomed);
       else this.home(false);
+      this.fitShadow();
     } else if (view.entered && previous.zoomed !== view.zoomed) this.frameBuilding(view.entered, view.zoomed);
     const index = Math.min(view.focused, TOWN_CAPACITY - 1);
     const p = plotCenter(index);

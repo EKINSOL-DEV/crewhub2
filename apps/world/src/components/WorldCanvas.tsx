@@ -3,6 +3,7 @@ import { Archive, Check, CircleHelp, Clock, Flag, Hand, MessageSquare, Play, Ref
 import type { AgentPlacement, Building, ProgressKind, RoleSource, WorkObject, WorldModel } from "@crewhub/world-model";
 import { STRESS, worldRuntime } from "../state/world";
 import { useDark } from "../state/theme";
+import { useQuality } from "../state/quality";
 import type { Pick } from "../world/buildingView";
 import { buildingTemplate } from "../world/buildingTemplate";
 import { assignDesks, placeObjects, roomName, shortRoomName } from "../world/interiorLayout";
@@ -50,6 +51,7 @@ export default function WorldCanvas(props: Props) {
     latest = useRef(props);
   const [ready, setReady] = useState(false);
   const dark = useDark();
+  const quality = useQuality();
   latest.current = props;
   // The ghost's verdict tile takes the scene's theme.
   const town = useMemo(
@@ -65,6 +67,7 @@ export default function WorldCanvas(props: Props) {
     zoomed: props.zoomed,
     reducedMotion: props.reducedMotion,
     theme: dark ? ("lamplight" as const) : ("day" as const),
+    quality,
     now,
     town,
     speed,
