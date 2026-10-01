@@ -452,10 +452,10 @@
     "dusk": {
       "background": null,
       "sky": "#f1d7dc",
-      "ground": "#7f8b92",
+      "ground": "#8a8a84",
       "hemisphere": 1.7,
-      "key": "#ffbd8c",
-      "keyIntensity": 2.5,
+      "key": "#ffc690",
+      "keyIntensity": 2.7,
       "keyPosition": [
         -28,
         13,
