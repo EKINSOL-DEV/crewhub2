@@ -101,6 +101,9 @@ export const LIGHT_POOLS: Partial<Record<ModelKey, LightPool | LightPool[]>> = {
   "desk-lamp": { radius: 0.4, y: 0.006 },
   "town.lantern": { radius: 3, y: 0.075 },
   "decor.pendant-lamp": { radius: 0.9, y: 0.012 },
+  "furniture.floor-lamp": { radius: 0.8, y: 0.012 },
+  "furniture.reading-lamp": { radius: 0.7, y: 0.012, x: 0.1, z: 0.1 },
+  "decor.table-lamp": { radius: 0.45, y: 0.004 },
   "civic.square": [-2.55, 2.55].flatMap((x) => [-2.55, 2.55].map((z) => ({ radius: 1.6, y: 0.14, x, z }))),
   "civic.cafe": [
     { radius: 2.4, y: 0.1, x: 0, z: 1.1 },
