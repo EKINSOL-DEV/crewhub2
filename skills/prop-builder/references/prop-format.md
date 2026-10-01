@@ -13,7 +13,7 @@ A prop is two things under one id:
 1. **What the grid engine knows**: the footprint in cells, whether it blocks movement, and the approach cells
    where a crew member stands to use it. Only these drive where it can be placed, where robots can walk and where
    they stop. Collision comes from the footprint, never from the parts.
-2. **What it looks like**: a list of simple parts (boxes, cylinders, spheres, cones, tori), each with a size, a
+2. **What it looks like**: a list of simple parts (boxes, cylinders, spheres, cones, tori, wedges), each with a size, a
    position, an optional rotation and a named material. The parts must fit inside the footprint, but they never
    change navigation.
 
@@ -54,6 +54,7 @@ A prop is two things under one id:
 | `material` | string | one of the materials below; hex colours are not allowed |
 | `radius` | number | optional, **box only**: corner rounding, 0 to 0.5, default 0.04 (clamped to a third of the smallest side) |
 | `emissive` | boolean | optional: the part glows (a bulb, a screen) |
+| `sweep` | number | **wedge only, and required there**: the slice's width in degrees, 1 to 360 |
 
 ## Shapes
 
@@ -64,6 +65,7 @@ A prop is two things under one id:
 | `sphere` | [radiusX, radiusY, radiusZ] | `[r, r, r]` is a ball; unequal radii give an ellipsoid (a leaf, a cushion, a kettle). |
 | `cone` | [radius, height, 0] | Upright, point at the top. |
 | `torus` | [radius, tube, 0] | A ring lying flat (the hole looks up), like a rim on a pot. `tube` is at most `radius`. Rotate `[90, 0, 0]` to stand it up facing +z. |
+| `wedge` | [radiusTop, height, radiusBottom] | A pie slice of an upright cylinder (or, with a radius 0, of a cone), `sweep` degrees wide. The slice starts on the part's +x axis and turns towards -z, the way a positive y rotation turns, so `rotation[1]` is its start angle. Cut faces close it, so a slice reads solid. Stripes of a parasol, a piece of cake, a pie chart, a sun-dial face. |
 
 ## Materials
 
@@ -148,6 +150,8 @@ The exact numbers the validator uses (`PROP_LIMITS`).
 | `rotationMax` | 360 | largest absolute rotation, degrees |
 | `cornerRadiusMax` | 0.5 | largest box corner radius |
 | `cornerRadiusDefault` | 0.04 | box corner radius when `radius` is left out |
+| `sweepMin` | 1 | narrowest wedge, degrees |
+| `sweepMax` | 360 | widest wedge (a whole round), degrees |
 | `minTotalVolume` | 0.0005 | smallest total volume of all parts, m³ |
 | `coverageWarning` | 0.25 | below this share of the footprint covered, the validator warns |
 

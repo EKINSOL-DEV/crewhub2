@@ -9,7 +9,7 @@
 import type { Cell, PropDefinition } from "./index.ts";
 
 export const PROP_FORMAT = "crewhub-prop/1";
-export const PROP_SHAPES = ["box", "cylinder", "sphere", "cone", "torus"] as const;
+export const PROP_SHAPES = ["box", "cylinder", "sphere", "cone", "torus", "wedge"] as const;
 /** Named materials only, never hex: the Greenhouse palette family plus the loops project colour names. */
 export const PROP_MATERIALS = [
   "timber",
@@ -60,6 +60,9 @@ export const PROP_LIMITS = {
   cornerRadiusMax: 0.5,
   /** Default rounded-box corner radius, as `Assets.box` in the world. */
   cornerRadiusDefault: 0.04,
+  /** A wedge's sweep, degrees: from a thin sliver to the whole round. */
+  sweepMin: 1,
+  sweepMax: 360,
   /** The parts together must have at least this volume (cubic metres), so a prop is never invisible. */
   minTotalVolume: 0.0005,
   /** Below this share of the footprint area covered by the parts' outline, the validator warns (not an error). */
@@ -77,6 +80,7 @@ export interface PropPart {
    * World units. box: [width x, height y, depth z]. cylinder: [radiusTop, height, radiusBottom] (one may be 0, not
    * both). cone: [radius, height, 0] (point up). sphere: [radiusX, radiusY, radiusZ] ([r, r, r] for a ball).
    * torus: [radius, tube, 0], lying flat (the hole looks up) before rotation, tube at most radius.
+   * wedge: [radiusTop, height, radiusBottom], a slice of an upright cylinder (or cone) `sweep` degrees wide.
    * Unused components are 0.
    */
   size: Vec3;
@@ -89,6 +93,11 @@ export interface PropPart {
   radius?: number;
   /** Glow (lamps, screens). */
   emissive?: boolean;
+  /**
+   * Wedge only, required: the slice's width in degrees (1 to 360). The slice starts on the part's +x axis and turns
+   * the way a positive y rotation turns (from +x towards -z), so `rotation[1]` is its start angle.
+   */
+  sweep?: number;
 }
 export type PropProvenance = { kind: "ticket"; ticketKey: string } | { kind: "local" };
 export interface PropModel {
@@ -136,7 +145,7 @@ const MODEL_KEYS = [
   "parts",
   "provenance",
 ] as const;
-const PART_KEYS = ["shape", "size", "position", "rotation", "material", "radius", "emissive"] as const;
+const PART_KEYS = ["shape", "size", "position", "rotation", "material", "radius", "emissive", "sweep"] as const;
 
 type Record_ = Record<string, unknown>;
 const isObject = (v: unknown): v is Record_ => typeof v === "object" && v !== null && !Array.isArray(v);
@@ -177,7 +186,7 @@ export interface Bounds {
 }
 
 /** Exact axis-aligned bounds of a part after rotation, in the prop's frame. */
-export function partBounds(part: Pick<PropPart, "shape" | "size" | "position" | "rotation">): Bounds {
+export function partBounds(part: Pick<PropPart, "shape" | "size" | "position" | "rotation" | "sweep">): Bounds {
   const m = rotationMatrix(part.rotation ?? [0, 0, 0]);
   const [s0, s1, s2] = part.size;
   const min: Vec3 = [...part.position],
@@ -212,6 +221,30 @@ export function partBounds(part: Pick<PropPart, "shape" | "size" | "position" | 
         hi = s0 * across + s1;
         lo = -hi;
         break;
+      case "wedge": {
+        // The slice holds its axis (both end centres) and two arcs; an arc point at angle a is
+        // (r cos a, ±height/2, -r sin a) in the part's frame, so along this world axis it is ry·y + r(rx cos a - rz sin a).
+        const sweep = ((part.sweep ?? 360) * Math.PI) / 180;
+        const crest = Math.atan2(-rz, rx);
+        const angles = [0, sweep];
+        for (const a of [crest, crest + Math.PI]) {
+          const t = ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+          if (t <= sweep) angles.push(t);
+        }
+        hi = -Infinity;
+        lo = Infinity;
+        for (const [r, y] of [[s0, s1 / 2], [s2, -s1 / 2]] as const) {
+          const end = ry * y;
+          hi = Math.max(hi, end);
+          lo = Math.min(lo, end);
+          for (const a of angles) {
+            const v = end + r * (rx * Math.cos(a) - rz * Math.sin(a));
+            hi = Math.max(hi, v);
+            lo = Math.min(lo, v);
+          }
+        }
+        break;
+      }
     }
     min[i] = min[i]! + lo;
     max[i] = max[i]! + hi;
@@ -232,6 +265,8 @@ function partVolume(part: PropPart): number {
       return (Math.PI * b * a * a) / 3;
     case "torus":
       return 2 * Math.PI * Math.PI * a * b * b;
+    case "wedge":
+      return ((Math.PI * b * (a * a + a * c + c * c)) / 3) * ((part.sweep ?? 360) / 360);
   }
 }
 
@@ -380,15 +415,15 @@ export function validatePropModel(value: unknown): PropValidation {
     if ("size" in p && shape) {
       const used = usedAxes(shape);
       vec3(p.size, join(path, "size"), (n, at, i) => {
-        // A cylinder radius may be 0 (a point); every other used size is at least sizeMin.
-        const min = shape === "cylinder" && i !== 1 ? 0 : L.sizeMin;
+        // A cylinder or wedge radius may be 0 (a point); every other used size is at least sizeMin.
+        const min = (shape === "cylinder" || shape === "wedge") && i !== 1 ? 0 : L.sizeMin;
         if (!used[i]) {
           if (n !== 0) error(at, `must be 0 (unused for ${shape})`);
         } else if (n < min || n > L.sizeMax) error(at, `must be between ${min} and ${L.sizeMax}`);
       });
       if (Array.isArray(p.size) && isNumber(p.size[0]) && isNumber(p.size[2]) && isNumber(p.size[1])) {
-        if (shape === "cylinder" && Math.max(p.size[0], p.size[2]) < L.sizeMin)
-          error(join(path, "size"), `a cylinder needs radiusTop or radiusBottom of at least ${L.sizeMin}`);
+        if ((shape === "cylinder" || shape === "wedge") && Math.max(p.size[0], p.size[2]) < L.sizeMin)
+          error(join(path, "size"), `a ${shape} needs radiusTop or radiusBottom of at least ${L.sizeMin}`);
         if (shape === "torus" && p.size[1] > p.size[0]) error(join(path, "size[1]"), "tube must be at most the radius (size[0])");
       }
     }
@@ -406,6 +441,11 @@ export function validatePropModel(value: unknown): PropValidation {
         error(join(path, "radius"), `must be between 0 and ${L.cornerRadiusMax}`);
     }
     if ("emissive" in p && typeof p.emissive !== "boolean") error(join(path, "emissive"), "must be true or false");
+    if ("sweep" in p) {
+      if (shape && shape !== "wedge") error(join(path, "sweep"), "is only allowed on a wedge");
+      else if (!isNumber(p.sweep) || p.sweep < L.sweepMin || p.sweep > L.sweepMax)
+        error(join(path, "sweep"), `must be between ${L.sweepMin} and ${L.sweepMax} degrees`);
+    } else if (shape === "wedge") error(join(path, "sweep"), "is required on a wedge (its width in degrees)");
     if (errors.length !== before) return null;
 
     const part = p as unknown as PropPart;

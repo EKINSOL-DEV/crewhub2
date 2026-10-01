@@ -210,6 +210,9 @@ export function PropEditor({ initial, takenIds, theme, onSave, onClose }: Props)
                 {SIZE_FIELDS[part.shape].map((name, a) =>
                   name ? <NumberField key={name} label={name} value={part.size[a]!} step={EDITOR_STEP} min={0} max={PROP_LIMITS.sizeMax} onCommit={(v) => setAxis("size", a, v)} /> : null,
                 )}
+                {part.shape === "wedge" ? (
+                  <NumberField label="sweep (degrees)" value={part.sweep ?? 90} step={TURN_STEP} min={PROP_LIMITS.sweepMin} max={PROP_LIMITS.sweepMax} onCommit={(v) => changePart((p) => ({ ...p, sweep: v }))} />
+                ) : null}
               </fieldset>
               <Field control="select" label="Material" size="sm" value={part.material} onChange={(e) => {
                   const material = e.currentTarget.value as PropMaterial;
