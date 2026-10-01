@@ -31,9 +31,26 @@ function look(material: THREE.Material, castShadow: boolean): string | null {
   if (material.type !== "MeshStandardMaterial") return null;
   const m = material as THREE.MeshStandardMaterial;
   if (m.transparent || m.vertexColors || m.wireframe || m.alphaTest > 0 || m.emissive.getHex() !== 0) return null;
-  if (m.onBeforeCompile !== THREE.Material.prototype.onBeforeCompile) return null;
+  // A shader hook that only changes the lighting (the style names it in `userData.lightHook`) comes along; any other
+  // (a pattern) keeps the material to itself.
+  const hook = lightHook(m);
+  if (hook === undefined) return null;
   if (MAPS.some((name) => m[name])) return null;
-  return [m.roughness, m.metalness, m.side, m.flatShading, m.depthWrite, m.depthTest, m.polygonOffset, m.polygonOffsetFactor, m.polygonOffsetUnits, m.toneMapped, m.fog, castShadow].join("|");
+  return [hook ? hookId(hook) : 0, m.roughness, m.metalness, m.side, m.flatShading, m.depthWrite, m.depthTest, m.polygonOffset, m.polygonOffsetFactor, m.polygonOffsetUnits, m.toneMapped, m.fog, castShadow].join("|");
+}
+
+type Hook = THREE.Material["onBeforeCompile"];
+const hookIds = new WeakMap<Hook, number>();
+let hooks = 0;
+function hookId(hook: Hook): number {
+  let id = hookIds.get(hook);
+  if (id === undefined) hookIds.set(hook, (id = ++hooks));
+  return id;
+}
+/** The material's lighting hook, null for none, undefined for a hook of another kind. */
+function lightHook(m: THREE.Material): Hook | null | undefined {
+  if (m.onBeforeCompile === THREE.Material.prototype.onBeforeCompile) return null;
+  return m.onBeforeCompile === m.userData.lightHook ? m.onBeforeCompile : undefined;
 }
 
 /** A white copy of `source` that takes each vertex's colour from `palette` (the source materials' live colours). */
@@ -43,7 +60,9 @@ function paletteMaterial(source: THREE.MeshStandardMaterial, palette: THREE.Mesh
   const colors = palette.map((m) => m.color);
   // The uniform array has a fixed size per program: pad it, so batches share a few programs.
   while (colors.length < PALETTE) colors.push(colors[0]!);
-  material.onBeforeCompile = (shader) => {
+  const hook = lightHook(source);
+  material.onBeforeCompile = (shader, renderer) => {
+    hook?.call(material, shader, renderer);
     shader.uniforms.uPalette = { value: colors };
     shader.vertexShader = shader.vertexShader
       .replace("#include <common>", `#include <common>\nattribute float aSwatch;\nuniform vec3 uPalette[${PALETTE}];\nvarying vec3 vSwatch;`)
@@ -52,7 +71,8 @@ function paletteMaterial(source: THREE.MeshStandardMaterial, palette: THREE.Mesh
       .replace("#include <common>", "#include <common>\nvarying vec3 vSwatch;")
       .replace("#include <color_fragment>", "#include <color_fragment>\ndiffuseColor.rgb *= vSwatch;");
   };
-  material.customProgramCacheKey = () => `merge-palette-${PALETTE}`;
+  const key = `merge-palette-${PALETTE}-${hook ? hookId(hook) : 0}`;
+  material.customProgramCacheKey = () => key;
   return material;
 }
 
