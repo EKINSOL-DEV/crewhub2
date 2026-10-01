@@ -26,6 +26,13 @@ export interface WorldState {
 const TIME_TICK_MS = 1000;
 /** While a ticket drone is in the air, re-reduce faster so the model lands the package on time at 16x. */
 const FLIGHT_TICK_MS = 250;
+/**
+ * Under a heavy stream (the stress town at 16x) a reduction and what follows it (React, the scene's sync) cost several
+ * milliseconds, many times a second. Reductions are spaced by this many times the last one's cost, so the pipeline
+ * keeps to a small share of the main thread: no wait at 1x, a few frames at 16x. Never longer than REDUCE_GAP_MAX_MS.
+ */
+const REDUCE_GAP_PER_MS = 20;
+const REDUCE_GAP_MAX_MS = 200;
 
 /**
  * `?stress=1` (dev builds only): the synthetic stress town (12 buildings, 100 agents) through the same seam, with a
@@ -47,7 +54,10 @@ class WorldRuntime {
   #state: WorldState;
   #listeners = new Set<() => void>();
   #frame = 0;
+  #wait: ReturnType<typeof setTimeout> | 0 = 0;
   #lastReduce = 0;
+  /** How long the last reduction took (ms). */
+  #cost = 0;
   #inFlight = false;
 
   constructor() {
@@ -86,9 +96,17 @@ class WorldRuntime {
     return () => this.#listeners.delete(listener);
   };
 
-  /** Coalesce a burst of applied messages into one reduction per animation frame. */
+  /** Coalesce a burst of applied messages into one reduction per animation frame, spaced by the reductions' cost. */
   #schedule() {
-    if (this.#frame) return;
+    if (this.#frame || this.#wait) return;
+    const wait = this.#lastReduce + Math.min(REDUCE_GAP_MAX_MS, this.#cost * REDUCE_GAP_PER_MS) - performance.now();
+    if (wait > 0) {
+      this.#wait = setTimeout(() => {
+        this.#wait = 0;
+        this.#schedule();
+      }, wait);
+      return;
+    }
     this.#frame = requestAnimationFrame(() => {
       this.#frame = 0;
       this.#state = this.#reduce();
@@ -97,6 +115,7 @@ class WorldRuntime {
   }
 
   #reduce(): WorldState {
+    const started = performance.now();
     const result = reduceWorld(this.projection.facts, this.#memory, {
       now: this.source.now(),
       mode: this.source.mode,
@@ -104,6 +123,7 @@ class WorldRuntime {
     });
     this.#memory = result.memory;
     this.#lastReduce = performance.now();
+    this.#cost = this.#lastReduce - started;
     this.#inFlight = result.model.buildings.some((b) => b.objects.some((o) => o.transit));
     return { model: result.model, text: describeWorld(result.model), playback: this.source.playback };
   }

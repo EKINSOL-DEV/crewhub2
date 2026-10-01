@@ -233,6 +233,26 @@ const OFFICE_SIDE_DESKS = 2;
  * model has it (an agent of that role has been present); the meeting room only while the model infers a meeting.
  */
 export function buildingTemplate(building: Building): BuildingTemplate {
+  // The template reads only the slug, the room kinds and each role room's desk count. The renderer asks for it on every
+  // model update of every building, so the same inputs return the same (shared, read-only) template.
+  const key = `${building.slug}|${building.rooms.map((r) => r.kind).join()}|${ROLE_ROOMS.map((kind) => deskCount(building, kind)).join()}`;
+  let template = templates.get(key);
+  if (template) {
+    // Most recently used last, so the oldest goes first when the cache is full.
+    templates.delete(key);
+  } else {
+    template = makeTemplate(building);
+    if (templates.size >= TEMPLATE_CACHE) templates.delete(templates.keys().next().value!);
+  }
+  templates.set(key, template);
+  return template;
+}
+
+/** Templates by their inputs; a stress town has a dozen buildings, each changing its desks now and then. */
+const TEMPLATE_CACHE = 64;
+const templates = new Map<string, BuildingTemplate>();
+
+function makeTemplate(building: Building): BuildingTemplate {
   const kinds = new Set(building.rooms.map((r) => r.kind));
   const rooms: TemplateRoom[] = [];
   const doors: TemplateDoor[] = [];
