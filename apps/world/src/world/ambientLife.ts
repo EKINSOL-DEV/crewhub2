@@ -1,4 +1,5 @@
-/* Ambient life: the gentle motion a small town is never without. By day soft cloud shadows drift over the town, a few
+/* Ambient life: the gentle motion a small town is never without. By day soft cloud shadows drift over the town (and
+   over its roofs, walls and people, where the style's light rig takes them: `setCloudShadows`), a few
    birds cross now and then (in the town view only), butterflies flutter over the flower beds and dust motes hang in
    the entered building's light. In lamplight fireflies drift by the pond and the hedges and the landmarks' lit windows
    glow and breathe. Day and night, rings ripple on the pond and steam rises from the post office chimney and the
@@ -126,9 +127,15 @@ export class AmbientLife {
   #pond: { x: number; y: number; z: number; rx: number; rz: number } | null = null;
   #building: Bounds | null = null;
   #flock = { next: 6, start: 0, from: new THREE.Vector3(), dir: new THREE.Vector3(), length: 0, size: 0 };
+  /** The light rig's cloud shadows, or null: the clouds are then ground decals (`town.cloud-shadow`). */
+  #lightClouds: ((clouds: ArrayLike<number>) => void) | null;
+  #cloudData = new Float32Array(CLOUDS * 5);
+  #cloudsShown = false;
+  #cloudCount = 0;
 
-  constructor(style: ResolvedStyle) {
+  constructor(style: ResolvedStyle, lightClouds: ((clouds: ArrayLike<number>) => void) | null = null) {
     this.#style = style;
+    this.#lightClouds = lightClouds;
     this.#clouds = new Swarm(style, "town.cloud-shadow", CLOUDS);
     this.#birds = new Swarm(style, "town.bird", FLOCK);
     this.#butterflies = new Swarm(style, "town.butterfly", BUTTERFLIES);
@@ -154,7 +161,7 @@ export class AmbientLife {
 
   /** Something is shown that moves: the frame loop keeps drawing for it while the playback runs. */
   get active(): boolean {
-    return this.enabled && this.#swarms().some((s) => s.mesh.count > 0);
+    return this.enabled && (this.#cloudCount > 0 || this.#swarms().some((s) => s.mesh.count > 0));
   }
 
   configure(settings: LifeSettings) {
@@ -220,7 +227,12 @@ export class AmbientLife {
     const day = this.#settings.theme === "day";
     const share = this.#settings.ambient === "reduced" ? 0.5 : 1;
     const n = (count: number, capacity: number) => (on ? Math.min(capacity, Math.round(count * share)) : 0);
-    this.#clouds.mesh.count = day ? n(CLOUDS, CLOUDS) : 0;
+    this.#cloudCount = day ? n(CLOUDS, CLOUDS) : 0;
+    this.#clouds.mesh.count = this.#lightClouds ? 0 : this.#cloudCount;
+    if (this.#lightClouds && !this.#cloudCount && this.#cloudsShown) {
+      this.#lightClouds([]);
+      this.#cloudsShown = false;
+    }
     this.#butterflies.mesh.count = day ? n(this.#beds.length * BUTTERFLIES_PER_BED, BUTTERFLIES) : 0;
     this.#fireflies.mesh.count = day ? 0 : n(this.#glowers.length * 2, FIREFLIES);
     this.#windows.mesh.count = day ? 0 : on ? Math.min(WINDOWS, this.#windowSpots.length) : 0;
@@ -255,7 +267,7 @@ export class AmbientLife {
 
   #tickClouds(t: number) {
     const swarm = this.#clouds,
-      count = swarm.mesh.count;
+      count = this.#cloudCount;
     if (!count) return;
     const b = townBounds();
     const w = b.maxX - b.minX + 24,
@@ -265,9 +277,17 @@ export class AmbientLife {
       const along = (noise(i, 6) * w + t * (0.5 + noise(i, 7) * 0.3)) % w;
       const x = b.minX - 12 + along,
         z = b.minZ - 12 + ((noise(i, 8) * d + along * (WIND.z / WIND.x)) % d);
-      swarm.put(i, x, 0.21, z, noise(i, 9) * Math.PI, 1.2 + noise(i, 10) * 1.3, 1, 1 + noise(i, 11) * 0.8);
+      const yaw = noise(i, 9) * Math.PI,
+        sx = 1.2 + noise(i, 10) * 1.3,
+        sz = 1 + noise(i, 11) * 0.8;
+      if (this.#lightClouds) this.#cloudData.set([x, z, 6 * sx, 4.6 * sz, yaw], i * 5);
+      else swarm.put(i, x, 0.21, z, yaw, sx, 1, sz);
     }
-    swarm.done(count);
+    if (this.#lightClouds) {
+      // The light rig draws them on everything; the decals stay empty.
+      this.#lightClouds(this.#cloudData.subarray(0, count * 5));
+      this.#cloudsShown = true;
+    } else swarm.done(count);
   }
 
   #tickBirds(t: number, seconds: number) {
@@ -350,10 +370,12 @@ export class AmbientLife {
       const x = home.x + Math.sin(t * 0.23 + s) * 0.9 + Math.sin(t * 0.61 + s * 2) * 0.3,
         z = home.z + Math.cos(t * 0.19 + s) * 0.9,
         y = home.y + 0.45 + noise(i, 20) * 0.7 + Math.sin(t * 0.5 + s) * 0.2;
-      swarm.put(i, x, y, z, 0, 1, 1, 1);
-      // A slow blink: dark most of the time, a soft glow now and then.
+      // A slow blink: dark most of the time, a soft glow now and then, and a little larger while it glows.
       const pulse = Math.max(0, Math.sin(t * (0.8 + noise(i, 21) * 0.6) + s));
-      swarm.shade(i, 0.08 + pulse * pulse * pulse * 0.9);
+      const glow = pulse * pulse * pulse;
+      const size = 0.75 + glow * 0.45;
+      swarm.put(i, x, y, z, 0, size, size, size);
+      swarm.shade(i, 0.08 + glow * 0.9);
     }
     swarm.done(count, true);
   }

@@ -3,6 +3,7 @@
    close, crisp shadow map over an entered building or room, a cheaper, softer one over the whole town. */
 import * as THREE from "three";
 import type { EnvironmentHandle, GraphicsQuality, LightingPreset, StyleTheme } from "@crewhub/world-style";
+import { CLOUDS, setClouds } from "./shaders.ts";
 
 /** Shadow map texels per side for a reach: an entered building (reach ≲ 16) gets the sharp map. */
 // The close map covers what an entered building's view shows (reach up to about 24); the town's is wider and softer.
@@ -31,6 +32,8 @@ export function environment(
   /** The key light keeps its preset direction and sits far enough out to see the whole square. */
   const place = () => {
     const direction = new THREE.Vector3(...preset.keyPosition);
+    // Cloud shadows fall along the key light.
+    CLOUDS.slope.value.set(direction.x / Math.max(0.01, direction.y), direction.z / Math.max(0.01, direction.y));
     const distance = Math.max(direction.length(), focus.reach * 2);
     direction.setLength(distance);
     sun.target.position.set(focus.x, 0, focus.z);
@@ -77,7 +80,9 @@ export function environment(
       sun.castShadow = quality === "pretty";
       onQuality(quality);
     },
+    setCloudShadows: setClouds,
     dispose() {
+      setClouds([]);
       scene.remove(hemisphere, sun, sun.target, fill);
       sun.shadow.dispose();
     },

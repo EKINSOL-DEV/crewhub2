@@ -129,6 +129,12 @@ export interface EnvironmentHandle {
   setShadowReach(reach: number, center?: { x: number; z: number }): void;
   /** Shadow maps and the ambient effects follow the graphics setting; the renderer's own settings are the caller's. */
   setQuality(quality: GraphicsQuality): void;
+  /**
+   * Soft cloud shadows that dim the key light on everything they pass over (ground, roofs, walls, people), 5 numbers
+   * per cloud: centre x and z, half-length and half-width in world units, and its turn about y. An empty array clears
+   * them. Optional: a style without it draws `town.cloud-shadow` on the ground instead.
+   */
+  setCloudShadows?(clouds: ArrayLike<number>): void;
   dispose(): void;
 }
 

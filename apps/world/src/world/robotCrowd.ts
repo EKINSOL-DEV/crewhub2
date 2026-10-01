@@ -114,7 +114,10 @@ export class RobotCrowd {
     if (Array.isArray(material)) return null;
     if (mesh.userData.decal) return `${mesh.geometry.uuid}|${material.uuid}`;
     if (!(material instanceof THREE.MeshStandardMaterial) || material.type !== "MeshStandardMaterial") return null;
-    if (material.transparent || material.map || material.onBeforeCompile !== THREE.Material.prototype.onBeforeCompile) return null;
+    // A shader hook that only changes the lighting (the style names it in `userData.lightHook`) batches; any other
+    // hook (a pattern) draws on its own.
+    const hook = material.onBeforeCompile;
+    if (material.transparent || material.map || (hook !== THREE.Material.prototype.onBeforeCompile && hook !== material.userData.lightHook)) return null;
     return `${mesh.geometry.uuid}|${material.roughness}|${material.metalness}|${material.emissive.getHexString()}|${material.emissiveIntensity}|${material.side}`;
   }
 
@@ -130,6 +133,7 @@ export class RobotCrowd {
         // White, so the instance colour is the part's colour.
         const white = (source as THREE.MeshStandardMaterial).clone();
         white.color.copy(WHITE);
+        white.onBeforeCompile = source.onBeforeCompile;
         material = white;
       } else material = source;
     }

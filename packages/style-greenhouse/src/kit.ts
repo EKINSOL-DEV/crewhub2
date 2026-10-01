@@ -3,7 +3,7 @@
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import type { GraphicsQuality, LightingPreset, PaletteName, StyleTheme } from "@crewhub/world-style";
-import { decalMaterial } from "./shaders.ts";
+import { cloudShadows, decalMaterial } from "./shaders.ts";
 
 export interface GreenhouseManifestData {
   palette: Record<PaletteName, string>;
@@ -69,6 +69,11 @@ export class Kit {
     let entry = this.#materials.get(key);
     if (!entry) {
       const material = new THREE.MeshStandardMaterial({ color: this.hex(name), roughness: glow ? 1 : 0.7, metalness: 0 });
+      // Passing clouds dim the key light on it (a pattern shader that replaces this hook adds them again). The hook
+      // only changes the lighting, so it is named in `userData.lightHook`: a renderer may batch the material and give
+      // its copy the same hook (apps/world robotCrowd.ts).
+      material.onBeforeCompile = cloudShadows;
+      material.userData.lightHook = cloudShadows;
       const strength = typeof options.glow === "number" ? options.glow : 0.35;
       if (glow) {
         material.emissive.set(this.hex(glow));

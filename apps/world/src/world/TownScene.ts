@@ -276,7 +276,9 @@ export class TownScene {
     this.#glow.visible = false;
     this.scene.add(this.#glow);
     this.buildGround();
-    this.#life = new AmbientLife(this.townStyle);
+    // Cloud shadows go to the light rig, which dims the key light under them on everything (when the style can).
+    const environment = this.#environment;
+    this.#life = new AmbientLife(this.townStyle, environment.setCloudShadows ? (clouds) => environment.setCloudShadows!(clouds) : null);
     this.scene.add(this.#hits, this.#ring, this.#civic, this.#life.group, this.#crowd.group);
     canvas.addEventListener("pointerdown", this.pointerDown);
     canvas.addEventListener("pointerup", this.pointerUp);
