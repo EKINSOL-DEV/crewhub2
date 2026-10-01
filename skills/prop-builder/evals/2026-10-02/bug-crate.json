@@ -1,0 +1,29 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "user:bug-crate",
+  "name": "Bug crate",
+  "description": "A clay slatted crate of soil and leaves with a paper label and a small coral ladybug crawling on top.",
+  "category": "storage",
+  "tags": ["crate", "bug", "ladybug"],
+  "footprint": { "width": 1, "depth": 1 },
+  "blocksMovement": true,
+  "approaches": [{ "x": 0, "z": 1 }],
+  "parts": [
+    { "shape": "box", "size": [0.6, 0.28, 0.5], "position": [0, 0.14, 0], "material": "clay" },
+    { "shape": "box", "size": [0.66, 0.05, 0.04], "position": [0, 0.28, 0.25], "material": "timber-light" },
+    { "shape": "box", "size": [0.66, 0.05, 0.04], "position": [0, 0.28, -0.25], "material": "timber-light" },
+    { "shape": "box", "size": [0.04, 0.05, 0.54], "position": [0.31, 0.28, 0], "material": "timber-light" },
+    { "shape": "box", "size": [0.04, 0.05, 0.54], "position": [-0.31, 0.28, 0], "material": "timber-light" },
+    { "shape": "box", "size": [0.52, 0.04, 0.42], "position": [0, 0.29, 0], "material": "soil" },
+    { "shape": "box", "size": [0.6, 0.03, 0.01], "position": [0, 0.07, 0.255], "material": "timber" },
+    { "shape": "box", "size": [0.6, 0.03, 0.01], "position": [0, 0.21, 0.255], "material": "timber" },
+    { "shape": "box", "size": [0.22, 0.1, 0.01], "position": [0, 0.14, 0.265], "material": "paper" },
+    { "shape": "box", "size": [0.14, 0.02, 0.01], "position": [0, 0.15, 0.275], "material": "ink" },
+    { "shape": "sphere", "size": [0.12, 0.035, 0.07], "position": [-0.14, 0.325, -0.1], "rotation": [0, 30, 0], "material": "leaf" },
+    { "shape": "sphere", "size": [0.1, 0.03, 0.06], "position": [0.15, 0.325, -0.08], "rotation": [0, -25, 0], "material": "leaf-dark" },
+    { "shape": "sphere", "size": [0.07, 0.045, 0.08], "position": [0.02, 0.33, 0.06], "material": "coral" },
+    { "shape": "sphere", "size": [0.035, 0.03, 0.03], "position": [0.02, 0.325, 0.135], "material": "ink" },
+    { "shape": "sphere", "size": [0.014, 0.01, 0.014], "position": [-0.03, 0.372, 0.05], "material": "ink" },
+    { "shape": "sphere", "size": [0.014, 0.01, 0.014], "position": [0.07, 0.372, 0.07], "material": "ink" }
+  ]
+}

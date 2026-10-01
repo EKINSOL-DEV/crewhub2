@@ -37,6 +37,8 @@ type Source = WorldSource & { readonly mode: "demo"; readonly playback: Playback
 
 class WorldRuntime {
   readonly source: Source;
+  /** Source time at the first loop's start (ms): the day-night drift counts the time of day from it. */
+  readonly epochMs: number;
   /** The chat dock's demo source: the world's own, or (stress fixture) a separate scripted demo for the dock only. */
   readonly chat: DemoSource;
   readonly projection: Projection;
@@ -51,6 +53,7 @@ class WorldRuntime {
   constructor() {
     // The script starts at the minute the page opened, so the copied chat's relative times read naturally.
     const epochMs = Math.floor(Date.now() / 60_000) * 60_000;
+    this.epochMs = epochMs;
     const demo = createDemoSource({ scheduler: browserScheduler(), epochMs });
     this.chat = demo;
     this.source = STRESS ? createStressSource({ scheduler: browserScheduler(), epochMs }) : demo;

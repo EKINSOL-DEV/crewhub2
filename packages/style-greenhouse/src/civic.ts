@@ -313,6 +313,14 @@ export function postOffice(kit: Kit, piece: Piece): THREE.Group {
       for (let i = 0; i < 5; i++) put(g, kit.sphere(0.09, i % 2 ? "leaf" : "leaf-dark"), -3.15 + i * 0.2, floor + 0.78, front + 0.17);
       for (let i = 0; i < 4; i++) put(g, kit.sphere(0.05, i % 2 ? "coral" : "cream"), -3.05 + i * 0.2, floor + 0.86, front + 0.25);
 
+      // Two windows in the back wall, which shows when the camera turns round.
+      for (const x of [-2.2, 1.6]) {
+        const w = new THREE.Group();
+        window_(w, kit, 0, 0, 0, 0.9, 1.0, "timber-trim");
+        w.rotation.y = Math.PI;
+        put(g, w, x, floor + 1.35, PO.z - PO.d / 2 - 0.02);
+      }
+
       // The sorting window: wide and lit, a timber counter in front, letters waiting on it.
       const sortX = 1.75;
       window_(g, kit, sortX, floor + 1.4, front + 0.02, 1.9, 1.05, "timber-trim");
@@ -393,6 +401,13 @@ export function townHall(kit: Kit, piece: Piece): THREE.Group {
           w.rotation.y = side * (Math.PI / 2);
           put(g, w, side * (TH.w / 2 + 0.02), top + 1.35, z);
         }
+      // The back wall shows when the camera turns round: four arched windows, like the wings.
+      for (const x of [-3.3, -1.1, 1.1, 3.3]) {
+        const w = new THREE.Group();
+        window_(w, kit, 0, 0, 0, 0.62, 1.35, "cream", true);
+        w.rotation.y = Math.PI;
+        put(g, w, x, top + 1.35, TH.z - TH.d / 2 - 0.02);
+      }
 
       // The portico: four columns, an entablature and a pediment.
       const porticoZ = facade + 0.62;

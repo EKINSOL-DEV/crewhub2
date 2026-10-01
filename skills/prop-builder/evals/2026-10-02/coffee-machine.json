@@ -1,0 +1,26 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "user:coffee-machine",
+  "name": "Coffee machine",
+  "description": "A sage coffee machine on a timber counter with a glass bean hopper, brass dial, drip tray and a tangerine mug.",
+  "category": "gather",
+  "tags": ["coffee", "break", "machine"],
+  "footprint": { "width": 1, "depth": 1 },
+  "blocksMovement": true,
+  "approaches": [{ "x": 0, "z": 1 }],
+  "parts": [
+    { "shape": "box", "size": [0.46, 0.03, 0.42], "position": [0, 0.015, 0], "material": "slate" },
+    { "shape": "box", "size": [0.5, 0.48, 0.46], "position": [0, 0.26, 0], "material": "timber" },
+    { "shape": "box", "size": [0.56, 0.04, 0.5], "position": [0, 0.52, 0], "material": "timber-light" },
+    { "shape": "box", "size": [0.46, 0.38, 0.36], "position": [0, 0.73, -0.06], "material": "sage" },
+    { "shape": "box", "size": [0.4, 0.05, 0.3], "position": [0, 0.945, -0.06], "material": "moss" },
+    { "shape": "box", "size": [0.22, 0.07, 0.12], "position": [0, 0.84, 0.12], "material": "graphite" },
+    { "shape": "cylinder", "size": [0.02, 0.05, 0.02], "position": [0, 0.785, 0.13], "material": "brass" },
+    { "shape": "box", "size": [0.3, 0.02, 0.16], "position": [0, 0.55, 0.17], "material": "slate" },
+    { "shape": "cylinder", "size": [0.045, 0.07, 0.04], "position": [0, 0.595, 0.15], "material": "tangerine" },
+    { "shape": "box", "size": [0.06, 0.03, 0.01], "position": [-0.15, 0.86, 0.125], "material": "lamp-glow", "emissive": true, "radius": 0.008 },
+    { "shape": "torus", "size": [0.03, 0.012, 0], "position": [0.15, 0.86, 0.125], "rotation": [90, 0, 0], "material": "brass" },
+    { "shape": "cylinder", "size": [0.07, 0.2, 0.07], "position": [0, 1.065, -0.06], "material": "glass" },
+    { "shape": "cylinder", "size": [0.075, 0.025, 0.075], "position": [0, 1.18, -0.06], "material": "cream" }
+  ]
+}

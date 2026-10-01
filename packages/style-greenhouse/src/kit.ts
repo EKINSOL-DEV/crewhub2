@@ -1,8 +1,8 @@
 /* The Greenhouse kit: shared geometry and materials by swatch name, re-coloured in place on a theme change so every
    model built from them follows the lamplight variant. Colours live only in `style.json`. */
 import * as THREE from "three";
-import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import type { GraphicsQuality, LightingPreset, PaletteName, StyleTheme } from "@crewhub/world-style";
+import { roundedBoxGeometry } from "./roundedBox.ts";
 import { cloudShadows, decalMaterial } from "./shaders.ts";
 
 export interface GreenhouseManifestData {
@@ -27,20 +27,26 @@ interface Entry {
 /** Ground decals: blob contact shadows (every quality) and warm lamp pools (lamplight, pretty only). */
 type Decal = "shadow" | "pool";
 
+/** What of the light the shared materials follow: lamp glow, pools, contact shadows and the evening. */
+export type KitLight = Pick<LightingPreset, "glow" | "pools" | "shadowOpacity" | "evening">;
+
 export class Kit {
   readonly data: GreenhouseManifestData;
   theme: StyleTheme = "day";
   readonly geometries = new Map<string, THREE.BufferGeometry>();
   readonly #materials = new Map<string, Entry>();
   readonly #decals: Record<Decal, THREE.ShaderMaterial>;
-  /** The floor shader's sun shafts: shown by day, faded out under lamplight. */
+  /** The floor shader's sun shafts: shown by day, faded out in the evening and under lamplight. */
   readonly shafts = { value: 1 };
   #lighting: Record<StyleTheme, LightingPreset>;
+  /** The light the shared materials show now: the theme's, or the day-night drift's. */
+  #light: KitLight;
   #quality: GraphicsQuality = "pretty";
 
   constructor(data: GreenhouseManifestData, lighting: Record<StyleTheme, LightingPreset>) {
     this.data = data;
     this.#lighting = lighting;
+    this.#light = { ...lighting.day };
     this.#decals = {
       shadow: decalMaterial(this.hex("contact-shadow"), lighting.day.shadowOpacity, false),
       pool: decalMaterial(this.hex("lamp-pool"), lighting.day.pools, true),
@@ -77,7 +83,7 @@ export class Kit {
       const strength = typeof options.glow === "number" ? options.glow : 0.35;
       if (glow) {
         material.emissive.set(this.hex(glow));
-        material.emissiveIntensity = strength * this.#lighting[this.theme].glow;
+        material.emissiveIntensity = strength * this.#light.glow;
       }
       if (options.transparent !== undefined) {
         material.transparent = true;
@@ -90,17 +96,29 @@ export class Kit {
     return entry.material;
   }
 
+  /** Swatch colours follow the theme; the light starts at the theme's own (the drift then shades it, `setLight`). */
   setTheme(theme: StyleTheme) {
     this.theme = theme;
-    const glow = this.#lighting[theme].glow;
-    this.shafts.value = theme === "day" ? 1 : 0;
     for (const entry of this.#materials.values()) {
       entry.material.color.set(this.hex(entry.color));
-      if (entry.emissive) {
-        entry.material.emissive.set(this.hex(entry.emissive));
-        entry.material.emissiveIntensity = entry.glow * glow;
-      }
+      if (entry.emissive) entry.material.emissive.set(this.hex(entry.emissive));
     }
+    this.setLight(this.#lighting[theme]);
+  }
+
+  /** How far into the evening the light is (0 by day, 1 with every lamp lit). */
+  get evening(): number {
+    return this.#light.evening;
+  }
+
+  /** Lamp glow, light pools, contact shadows and the floor's sun shafts follow the light of the time of day. */
+  setLight(light: KitLight) {
+    this.#light.glow = light.glow;
+    this.#light.pools = light.pools;
+    this.#light.shadowOpacity = light.shadowOpacity;
+    this.#light.evening = light.evening;
+    this.shafts.value = 1 - THREE.MathUtils.clamp(light.evening, 0, 1);
+    for (const entry of this.#materials.values()) if (entry.emissive) entry.material.emissiveIntensity = entry.glow * light.glow;
     this.#applyDecals();
   }
 
@@ -110,14 +128,14 @@ export class Kit {
   }
 
   #applyDecals() {
-    const preset = this.#lighting[this.theme];
+    const preset = this.#light;
     const { shadow, pool } = this.#decals;
     shadow.uniforms.uColor!.value.set(this.hex("contact-shadow"));
     shadow.uniforms.uOpacity!.value = preset.shadowOpacity;
     pool.uniforms.uColor!.value.set(this.hex("lamp-pool"));
     pool.uniforms.uOpacity!.value = preset.pools;
     // A hidden material skips its draw calls entirely: no pools by day or on Fast.
-    pool.visible = preset.pools > 0 && this.#quality === "pretty";
+    pool.visible = preset.pools > 0.01 && this.#quality === "pretty";
   }
 
   /**
@@ -162,7 +180,7 @@ export class Kit {
     // A bevel of 3 cm or less reads the same with one segment; walls and trims are mostly that, at a third the triangles.
     const segments = radius <= 0.03 ? 1 : 2;
     return this.mesh(
-      this.geometry(`box:${w},${h},${d},${radius}`, () => new RoundedBoxGeometry(w, h, d, segments, Math.min(radius, w / 3, h / 3, d / 3))),
+      this.geometry(`box:${w},${h},${d},${radius}`, () => roundedBoxGeometry(w, h, d, segments, Math.min(radius, w / 3, h / 3, d / 3))),
       this.material(color),
     );
   }

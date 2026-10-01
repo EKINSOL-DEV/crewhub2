@@ -4,6 +4,7 @@ import type { AgentPlacement, Building, ProgressKind, RoleSource, WorkObject, Wo
 import { STRESS, worldRuntime } from "../state/world";
 import { useDark } from "../state/theme";
 import { useQuality } from "../state/quality";
+import { useDayNight } from "../state/daynight";
 import { useFps } from "../state/fps";
 import { FpsOverlay } from "./FpsOverlay";
 import type { Pick } from "../world/buildingView";
@@ -46,6 +47,7 @@ interface Props {
 
 const now = () => worldRuntime().source.now();
 const speed = () => worldRuntime().source.playback.speed();
+const dayClock = () => worldRuntime().source.now() - worldRuntime().epochMs;
 
 /** The Three.js town and its HTML labels. Labels carry words for every fact they show; the scene only positions them. */
 export default function WorldCanvas(props: Props) {
@@ -56,6 +58,7 @@ export default function WorldCanvas(props: Props) {
   const [ready, setReady] = useState(false);
   const dark = useDark();
   const quality = useQuality();
+  const dayNight = useDayNight(props.model.mode);
   const fps = useFps();
   latest.current = props;
   // The ghost's verdict tile takes the scene's theme.
@@ -74,6 +77,8 @@ export default function WorldCanvas(props: Props) {
     theme: dark ? ("lamplight" as const) : ("day" as const),
     quality,
     now,
+    dayNight,
+    dayClock,
     town,
     speed,
     ambient: props.ambient,

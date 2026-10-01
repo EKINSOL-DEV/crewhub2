@@ -130,6 +130,20 @@ export interface EnvironmentHandle {
   /** Shadow maps and the ambient effects follow the graphics setting; the renderer's own settings are the caller's. */
   setQuality(quality: GraphicsQuality): void;
   /**
+   * The day-night drift. `phase` is the time of day as a fraction of one day: 0 is the morning, the light runs through
+   * the afternoon into dusk and the evening and comes back through dawn at 1. The renderer derives it from the
+   * source's clock; null keeps the theme's fixed look (reduced motion, Fast, the setting off). The theme stays the base
+   * and the drift shades it. Cheap to call a few times a second: true when the light changed (the caller redraws).
+   */
+  setDayPhase(phase: number | null): boolean;
+  /** How far into the evening the light is: 0 by day, 1 when every lantern, lit window and firefly shows. */
+  readonly evening: number;
+  /**
+   * Counts the moves of the key light and its shadow frustum. A renderer that redraws shadow maps only when needed
+   * redraws them when this changes.
+   */
+  readonly shadowVersion: number;
+  /**
    * Soft cloud shadows that dim the key light on everything they pass over (ground, roofs, walls, people), 5 numbers
    * per cloud: centre x and z, half-length and half-width in world units, and its turn about y. An empty array clears
    * them. Optional: a style without it draws `town.cloud-shadow` on the ground instead.
@@ -158,7 +172,15 @@ export interface LightingPreset {
   glow: number;
   /** Opacity of the warm light pools under lamps (0 hides them: daylight). */
   pools: number;
+  /** How far into the evening this light is: 0 by day, 1 when every lantern and lit window shows (`evening`). */
+  evening: number;
 }
+
+/**
+ * The extra lights of the day-night drift. A style that gives them drifts; one without them keeps its theme's look.
+ * By day the drift runs through dawn and dusk; in lamplight it deepens into the night and back.
+ */
+export type DriftLight = "dawn" | "dusk" | "night";
 
 /**
  * What a style declares about itself; for Greenhouse this is `packages/style-greenhouse/style.json`. A future plugin
@@ -173,7 +195,7 @@ export interface StyleManifest {
   description: string;
   coveredKeys: ModelKey[];
   palette: Record<PaletteName, string>;
-  lighting: Record<StyleTheme, LightingPreset>;
+  lighting: Record<StyleTheme, LightingPreset> & Partial<Record<DriftLight, LightingPreset>>;
 }
 
 export interface WorldStyle {
