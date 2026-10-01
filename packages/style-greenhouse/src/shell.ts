@@ -4,7 +4,7 @@
    only as an accent (the entrance door, its awning, a thin trim on the slab, the flag). Origins: a piece's footprint
    centre at floor level (the slab's top); walls run along x. "archived" boards a piece up: planks, ivy, muted chalk. */
 import * as THREE from "three";
-import type { ModelOptions } from "@crewhub/world-style";
+import type { LifeSpot, ModelOptions } from "@crewhub/world-style";
 import { put, type Kit, type Swatch } from "./kit.ts";
 
 type Size = { width: number; height: number; depth: number };
@@ -34,6 +34,14 @@ function pilasters(kit: Kit, g: THREE.Object3D, width: number, height: number, d
     put(g, kit.box(0.26, height + 0.06, depth + 0.1, chalk, 0.03), s * (width / 2 - 0.13), (height + 0.06) / 2, 0);
     put(g, kit.box(0.32, 0.06, depth + 0.16, "ledge", 0.02), s * (width / 2 - 0.13), height + 0.09, 0);
   }
+}
+
+/** An empty marker for the renderer's ambient life (world-style's LifeSpot convention). */
+function lifeSpot(g: THREE.Object3D, life: LifeSpot, x: number, y: number, z: number) {
+  const spot = new THREE.Object3D();
+  spot.position.set(x, y, z);
+  spot.userData.life = life;
+  g.add(spot);
 }
 
 /** A group for small details that take shadows but cast none (cheaper shadow passes in a town of buildings). */
@@ -99,6 +107,8 @@ export function tallWall(kit: Kit, o: ModelOptions, glass: THREE.Material): THRE
     const pane = kit.geometry(`window-pane:${ww}`, () => new THREE.PlaneGeometry(ww - 0.04, head - sill - 0.04));
     put(g, new THREE.Mesh(pane, archived(o) ? glass : kit.material("window-lit", { glow: "window-light" })), c, (sill + head) / 2, 0);
     if (!archived(o)) {
+      // Ambient life's window spot: a lit window glows here in lamplight, facing into the room (+z).
+      lifeSpot(g, "window", c, (sill + head) / 2, depth / 2 + 0.01);
       const spill = kit.decal("pool", ww * 0.35, 0.22, 0.45);
       spill.position.set(c, 0.03, depth / 2 + 0.5);
       g.add(spill);
@@ -134,6 +144,8 @@ export function glassWall(kit: Kit, o: ModelOptions, glass: THREE.Material): THR
     put(g, new THREE.Mesh(pane, glass), x, (knee + height) / 2, 0);
     put(g, kit.box(0.045, height - knee, 0.09, "mullion", 0.01), x - bay / 2, (knee + height) / 2, 0);
     if (archived(o) && i % 2 === 0) for (const z of [0.07, -0.07]) boardUp(kit, g, bay, height - knee, x, (knee + height) / 2, z);
+    // Every third bay is a window spot for ambient life, facing into the room (+z).
+    else if (!archived(o) && i % 3 === 1) lifeSpot(g, "window", x, knee + (height - knee) * 0.45, depth / 2 + 0.01);
   }
   put(g, kit.box(0.045, height - knee, 0.09, "mullion", 0.01), width / 2, (knee + height) / 2, 0);
   put(g, kit.box(width, 0.035, 0.07, "mullion", 0.01), 0, transom, 0);
