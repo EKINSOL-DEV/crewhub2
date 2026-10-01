@@ -1,0 +1,97 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-decor-blind",
+  "name": "Roller blind",
+  "description": "A cream linen roller blind pulled half down over the glass, a timber bar and a brass pull.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "blind",
+    "window"
+  ],
+  "footprint": {
+    "width": 2,
+    "depth": 1
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "cylinder",
+      "size": [
+        0.03,
+        0.96,
+        0.03
+      ],
+      "position": [
+        0,
+        1.64,
+        -0.23
+      ],
+      "material": "chalk",
+      "rotation": [
+        0,
+        0,
+        90
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.9,
+        0.5,
+        0.012
+      ],
+      "position": [
+        0,
+        1.38,
+        -0.215
+      ],
+      "material": "cream",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.92,
+        0.03,
+        0.03
+      ],
+      "position": [
+        0,
+        1.13,
+        -0.215
+      ],
+      "material": "timber",
+      "radius": 0.008
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.01,
+        0.1,
+        0.01
+      ],
+      "position": [
+        0,
+        1.07,
+        -0.21
+      ],
+      "material": "brass"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.018,
+        0.018,
+        0.018
+      ],
+      "position": [
+        0,
+        1.01,
+        -0.21
+      ],
+      "material": "brass"
+    }
+  ]
+}
