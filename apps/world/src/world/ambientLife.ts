@@ -127,6 +127,10 @@ export class AmbientLife {
   #settings: LifeSettings = { ambient: "on", reducedMotion: false, quality: "pretty" };
   /** The evening factor, in `EVENING_STEPS` steps: 0 by day, 1 in lamplight. */
   #evening = 0;
+  /** The evening factor as it is now, between the steps: fades and the windows' glow follow it. */
+  #eveningNow = 0;
+  /** The butterflies and fireflies the density allows when all are out. */
+  #full = { butterflies: 0, fireflies: 0 };
   #t = 0;
   #beds: Home[] = [];
   #glowers: Home[] = [];
@@ -181,9 +185,13 @@ export class AmbientLife {
     this.#apply();
   }
 
-  /** Follows the environment's evening factor (0 by day, 1 with every lamp lit). */
+  /**
+   * Follows the environment's evening factor (0 by day, 1 with every lamp lit). Counts change in steps; within a step
+   * the newest firefly or butterfly fades (`#weight`), so nothing pops on or off at any playback speed.
+   */
   setEvening(evening: number) {
-    const stepped = Math.round(THREE.MathUtils.clamp(evening, 0, 1) * EVENING_STEPS) / EVENING_STEPS;
+    this.#eveningNow = THREE.MathUtils.clamp(evening, 0, 1);
+    const stepped = Math.round(this.#eveningNow * EVENING_STEPS) / EVENING_STEPS;
     if (stepped === this.#evening) return;
     this.#evening = stepped;
     this.#apply();
@@ -254,8 +262,10 @@ export class AmbientLife {
       this.#lightClouds([]);
       this.#cloudsShown = false;
     }
-    this.#butterflies.mesh.count = Math.round(n(this.#beds.length * BUTTERFLIES_PER_BED, BUTTERFLIES) * day);
-    this.#fireflies.mesh.count = Math.round(n(this.#glowers.length * 2, FIREFLIES) * dusk);
+    // One step ahead of the count, so the newest one is there to fade in (or out) through the step.
+    this.#full = { butterflies: n(this.#beds.length * BUTTERFLIES_PER_BED, BUTTERFLIES), fireflies: n(this.#glowers.length * 2, FIREFLIES) };
+    this.#butterflies.mesh.count = Math.ceil(this.#full.butterflies * Math.min(1, day + 1 / EVENING_STEPS));
+    this.#fireflies.mesh.count = Math.ceil(this.#full.fireflies * Math.min(1, dusk + 1 / EVENING_STEPS));
     this.#windows.mesh.count = e > 0.05 && on ? Math.min(WINDOWS, this.#windowSpots.length) : 0;
     this.#ripples.mesh.count = this.#pond ? n(RIPPLES, RIPPLES) : 0;
     this.#steam.mesh.count = on ? Math.min(STEAM, this.#steamSpots.length * PUFFS_PER_SPOT) : 0;
@@ -284,6 +294,11 @@ export class AmbientLife {
     this.#tickRipples(t);
     this.#tickSteam(t);
     this.#tickMotes(t);
+  }
+
+  /** Instance `i` of `full` at a share `amount` (0 to 1) of them: 1 while inside the share, fading at its edge. */
+  #weight(i: number, full: number, amount: number): number {
+    return THREE.MathUtils.clamp(amount * full - i, 0, 1);
   }
 
   #tickClouds(t: number) {
@@ -375,7 +390,8 @@ export class AmbientLife {
       const dx = Math.cos(t * a + s) * a * 0.9,
         dz = Math.cos(t * c + s * 1.3) * c * 0.6;
       const fold = 0.2 + 0.8 * Math.abs(Math.sin(t * 13 + s * 3));
-      swarm.put(i, x, y, z, Math.atan2(-dz, dx), 1, 1, fold);
+      const fade = this.#weight(i, this.#full.butterflies, 1 - smooth(this.#eveningNow, 0.25, 0.6));
+      swarm.put(i, x, y, z, Math.atan2(-dz, dx), fade, fade, fold * fade);
     }
     swarm.done(count);
   }
@@ -395,7 +411,7 @@ export class AmbientLife {
       const glow = pulse * pulse * pulse;
       const size = 0.75 + glow * 0.45;
       swarm.put(i, x, y, z, 0, size, size, size);
-      swarm.shade(i, 0.08 + glow * 0.9);
+      swarm.shade(i, (0.08 + glow * 0.9) * this.#weight(i, this.#full.fireflies, smooth(this.#eveningNow, 0.45, 0.95)));
     }
     swarm.done(count, true);
   }
@@ -405,7 +421,7 @@ export class AmbientLife {
       count = swarm.mesh.count;
     if (!count) return;
     // The windows brighten slowly through the dusk.
-    const lit = smooth(this.#evening, 0.05, 0.8);
+    const lit = smooth(this.#eveningNow, 0.05, 0.8);
     for (let i = 0; i < count; i++) {
       const spot = this.#windowSpots[i]!;
       swarm.put(i, spot.position.x, spot.position.y, spot.position.z, spot.yaw, 1, 1, 1);

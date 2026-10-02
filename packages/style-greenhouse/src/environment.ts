@@ -11,8 +11,8 @@ import { CLOUDS, setClouds } from "./shaders.ts";
 // The close map covers what an entered building's view shows (reach up to about 24); the town's is wider and softer.
 const shadowSize = (reach: number) => (reach <= 24 ? 2048 : 1024);
 
-/** The sun turns its shadow only once its direction moved this far (radians, about 1.5°): a step nobody sees. */
-const SUN_STEP = 0.026;
+/** The sun turns its shadow only once its direction moved this far (radians, about 0.5°): steps too small to see. */
+const SUN_STEP = 0.009;
 
 export function environment(
   scene: THREE.Scene,

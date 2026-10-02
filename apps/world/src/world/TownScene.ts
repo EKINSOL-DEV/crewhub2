@@ -25,7 +25,7 @@ import { plotDoor, plotObstacles } from "./navigation";
 import { onPlayIntent } from "./intentPlayer";
 import { Walks } from "./walks";
 import { AmbientLife } from "./ambientLife";
-import { driftPhase } from "./dayClock";
+import { driftPhase, followPhase, type DriftFollow } from "./dayClock";
 import { FrameRing } from "./frameRing";
 import { updateMatrices } from "./matrixPass";
 import { RobotCrowd } from "./robotCrowd";
@@ -190,6 +190,8 @@ export class TownScene {
   /** The environment's shadow version the shadow maps were last drawn for. */
   #shadowVersion = 0;
   #driftTimer: ReturnType<typeof setInterval> | undefined;
+  /** The light's own phase, which follows the clock's at most at 4x (dayClock.ts). */
+  #follow: DriftFollow = { phase: null, clock: 0, wall: 0 };
   /** The scene's own element: its backdrop (the air behind the diorama) follows the drift. */
   #host: HTMLElement;
   /** The air last written to the backdrop: colour channels and tint. */
@@ -367,8 +369,11 @@ export class TownScene {
   #drift = () => {
     if (this.#disposed || document.hidden) return;
     const v = this.view;
-    const phase = driftPhase({ dayNight: v.dayNight, reducedMotion: v.reducedMotion, quality: v.quality, sinceStartMs: v.dayClock() });
-    const changed = this.#environment.setDayPhase(phase);
+    const clock = v.dayClock();
+    const target = driftPhase({ dayNight: v.dayNight, reducedMotion: v.reducedMotion, quality: v.quality, sinceStartMs: clock });
+    // At high playback speeds the light keeps a graceful pace of its own (followPhase).
+    this.#follow = followPhase(this.#follow, target, clock, performance.now());
+    const changed = this.#environment.setDayPhase(this.#follow.phase);
     this.#life.setEvening(this.#environment.evening);
     this.#tintAir();
     if (!changed) return;
