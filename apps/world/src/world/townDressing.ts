@@ -163,6 +163,12 @@ function civicPaving(): Bounds[] {
   return out;
 }
 
+/** The bus's lay-by: a paved bay east of the stop, between it and the lane. */
+export function busBay(): Bounds {
+  const stop = civicCenter("bus-stop");
+  return span(stop.x + CIVIC_SIZE["bus-stop"].width / 2 + 0.6, stop.x + CIVIC_SIZE["bus-stop"].width / 2 + 5.4, CIVIC_LANE - LANE / 2 - 1.9, CIVIC_LANE - LANE / 2);
+}
+
 /** The two halves of the promenade, lot edge to square edge. */
 function promenades(): Bounds[] {
   const square = civicCenter("square"),
@@ -269,6 +275,8 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
   }
   for (const l of landmarks()) if (l.clear) blocked.push(rect(l.x, l.z, l.clear * 2, l.clear * 2));
   blocked.push(streamBand());
+  blocked.push(busBay());
+  for (const r of promenades()) blocked.push({ ...r, minZ: r.minZ - 1.2, maxZ: r.maxZ + 2.2 });
   const free = (x: number, z: number, pad: number) => !blocked.some((b) => inside(b, x, z, pad));
   const tree = (x: number, z: number, y: number, seed: number, scale = 1) => {
     const kind = TREES[Math.floor(noise(seed, 7) * TREES.length)]!;
@@ -353,14 +361,20 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
       add("town.flower-bed", x + 1.5, GRASS_Y, r.minZ - 0.65, { size: { width: 3, height: 0.2, depth: 0.8 }, seed: Math.round(x) });
     for (const x of [r.minX + 0.6, r.maxX - 0.6]) add("town.lantern", x, GRASS_Y, r.maxZ + 0.45, { seed: Math.round(x) });
   }
-  // Shade on the lawn between the square and the town hall: two trees and a bench facing the promenade.
+  // A little market on the promenade east of the square: three stalls facing it, and further on two shade trees and
+  // a bench facing the promenade.
   const east = promenades()[1]!;
+  for (const [k, dx] of [2.4, 4.9, 7.4].entries()) add("town.market-stall", east.minX + dx, GRASS_Y, east.maxZ + 1.1, { rotation: Math.PI, scale: 1.15, seed: k });
   for (const [dx, dz, k] of [
-    [4.5, 4.2, 0],
-    [9.5, 5.6, 1],
+    [13.5, 4.2, 0],
+    [17.5, 5.6, 1],
   ] as const)
     if (free(east.minX + dx, east.maxZ + dz, 1.2)) tree(east.minX + dx, east.maxZ + dz, GRASS_Y, 83 + k, 1.3);
-  if (free(east.minX + 7, east.maxZ + 1.6, 0.8)) add("town.bench", east.minX + 7, GRASS_Y, east.maxZ + 1.6, { rotation: Math.PI });
+  if (free(east.minX + 15.5, east.maxZ + 1.6, 0.8)) add("town.bench", east.minX + 15.5, GRASS_Y, east.maxZ + 1.6, { rotation: Math.PI });
+  // The bus waits in a paved bay beside its stop, clear of the lane.
+  const bay = busBay();
+  paving(add, bay, "cobble", GRASS_Y);
+  add("town.bus", (bay.minX + bay.maxX) / 2, GRASS_Y + 0.04, (bay.minZ + bay.maxZ) / 2, { scale: 1.3 });
   // A pair of trees in the back corners of the town hall's lot frames it, clear of its podium and roof.
   for (const side of [-1, 1]) tree(civicCenter("town-hall").x + side * 5.4, civicCenter("town-hall").z - 5.4, LAWN_Y, 71 + side, 0.9);
   park(add, tree);
@@ -594,6 +608,7 @@ function allotment(add: Add, index: number) {
       add("town.veg-bed", x + side * 3.4, LAWN_Y, z, { rotation: side < 0 ? 0 : Math.PI });
     }
   add("town.shed", c.x + 8.5, LAWN_Y, c.z - 9, { rotation: -Math.PI / 2 });
+  add("town.washing-line", c.x - 8.6, LAWN_Y, c.z - 4, { rotation: Math.PI / 2 });
   add("town.bush", c.x + 9.6, LAWN_Y, c.z - 6.4, { seed: index });
   add("town.bush", c.x - 9.6, LAWN_Y, c.z - 9.6, { seed: index + 1 });
   add("town.bench", c.x - 8.8, LAWN_Y, c.z + 9.4, { rotation: 0.2 });
