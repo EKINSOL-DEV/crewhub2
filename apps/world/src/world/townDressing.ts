@@ -163,6 +163,15 @@ function civicPaving(): Bounds[] {
   return out;
 }
 
+/** The bandstand's spot on the lawn north of the promenade, between the square and the town hall, and its path. */
+const BANDSTAND = { x: 14.5, z: -52.6, scale: 1.6 };
+function bandstandLawn(): Bounds {
+  return span(BANDSTAND.x - 3.4, BANDSTAND.x + 3.4, BANDSTAND.z - 3.2, promenades()[1]!.minZ);
+}
+
+/** The farm corner in the green belt east of the windmill: hay bales and a few grazing sheep behind a fence. */
+const FARM: Bounds = { minX: 48, maxX: 63, minZ: -67.6, maxZ: -57.5 };
+
 /** The bus's lay-by: a paved bay east of the stop, between it and the lane. */
 export function busBay(): Bounds {
   const stop = civicCenter("bus-stop");
@@ -276,6 +285,7 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
   for (const l of landmarks()) if (l.clear) blocked.push(rect(l.x, l.z, l.clear * 2, l.clear * 2));
   blocked.push(streamBand());
   blocked.push(busBay());
+  blocked.push(bandstandLawn(), FARM);
   for (const r of promenades()) blocked.push({ ...r, minZ: r.minZ - 1.2, maxZ: r.maxZ + 2.2 });
   const free = (x: number, z: number, pad: number) => !blocked.some((b) => inside(b, x, z, pad));
   const tree = (x: number, z: number, y: number, seed: number, scale = 1) => {
@@ -371,17 +381,32 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
   ] as const)
     if (free(east.minX + dx, east.maxZ + dz, 1.2)) tree(east.minX + dx, east.maxZ + dz, GRASS_Y, 83 + k, 1.3);
   if (free(east.minX + 15.5, east.maxZ + 1.6, 0.8)) add("town.bench", east.minX + 15.5, GRASS_Y, east.maxZ + 1.6, { rotation: Math.PI });
+  // The bandstand on the lawn behind the market, a flagstone path up to its steps through a gap in the beds, and
+  // benches facing it.
+  add("town.bandstand", BANDSTAND.x, GRASS_Y, BANDSTAND.z, { scale: BANDSTAND.scale });
+  paving(add, span(BANDSTAND.x - 0.6, BANDSTAND.x + 0.6, BANDSTAND.z + 2.5, promenades()[1]!.minZ), "flag", GRASS_Y + 0.002);
+  for (const side of [-1, 1]) add("town.bench", BANDSTAND.x + side * 3.6, GRASS_Y, BANDSTAND.z + 1.4, { rotation: side * (Math.PI / 2 + 0.5) });
   // The bus waits in a paved bay beside its stop, clear of the lane.
   const bay = busBay();
   paving(add, bay, "cobble", GRASS_Y);
   add("town.bus", (bay.minX + bay.maxX) / 2, GRASS_Y + 0.04, (bay.minZ + bay.maxZ) / 2, { scale: 1.3 });
   // A pair of trees in the back corners of the town hall's lot frames it, clear of its podium and roof.
   for (const side of [-1, 1]) tree(civicCenter("town-hall").x + side * 5.4, civicCenter("town-hall").z - 5.4, LAWN_Y, 71 + side, 0.9);
+  // Hanging baskets on the civic row's lanterns, the arms pointing either way along the lane.
+  for (const d of [...out]) if (d.key === "town.lantern" && d.z < CIVIC_LANE - LANE / 2) add("town.hanging-basket", d.x, d.y, d.z, { scale: d.scale, rotation: Math.round(d.x) % 2 ? Math.PI : 0 });
+  farm(add);
   park(add, tree);
   orchard(add);
 
   /* Street furniture along the lanes: lanterns on one verge, street trees and benches on the other. */
   streets(add, free, tree, used);
+  // Bunting across the main street on the way up to the square, its poles on the verges clear of the lanterns.
+  const lamps = out.filter((d) => d.key === "town.lantern");
+  for (const z of [-24, -18, -10]) {
+    const half = LANE / 2 + 0.6;
+    if (lamps.some((l) => Math.abs(Math.abs(l.x) - half) < 0.7 && Math.abs(l.z - z) < 0.7)) continue;
+    add("town.bunting", 0, GRASS_Y, z, { size: { width: half * 2, height: 3.4, depth: 0.1 }, seed: Math.round(-z) });
+  }
 
   /* The green belt round the town, and grass and wild flowers wherever there is room. */
   belt(add, tree, free);
@@ -392,8 +417,26 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
     const key = noise(i, 47) < 0.55 ? "town.grass" : noise(i, 61) < 0.5 ? "town.flowers" : "town.wildflowers";
     add(key, x, GRASS_Y, z, { rotation: noise(i, 53) * 6.28, scale: 1.6 + noise(i, 59) * 0.8, seed: i, ...detail(key) });
   }
+  // After the rain: a puddle on the cobbles beside about one lane lantern in four, its reflection towards the lantern.
+  const lanes = laneRects();
+  for (const l of out.filter((d) => d.key === "town.lantern")) {
+    if (noise(l.x, l.z, 91) > 0.25) continue;
+    const lane = lanes.find((r) => l.x > r.minX - 2 && l.x < r.maxX + 2 && l.z > r.minZ - 2 && l.z < r.maxZ + 2 && !inside(r, l.x, l.z, 0));
+    if (!lane) continue;
+    const cx = clamp(l.x, lane.minX + 1.1, lane.maxX - 1.1),
+      cz = clamp(l.z, lane.minZ + 1.1, lane.maxZ - 1.1);
+    const width = 1.5 + noise(l.x, l.z, 92) * 1;
+    add("town.puddle", cx, COBBLE_Y, cz, { size: { width, height: 0, depth: width * 0.6 }, rotation: Math.atan2(l.z - cz, -(l.x - cx)) });
+  }
   // October: about one oak, birch or bush in five is turning (gold and orange) among the green.
-  for (const d of out) if (AUTUMN.test(d.key) && noise(d.x, d.z, 77) < 0.2) d.key = `${d.key}-autumn`;
+  for (const d of [...out])
+    if (AUTUMN.test(d.key) && noise(d.x, d.z, 77) < 0.2) {
+      d.key = `${d.key}-autumn`;
+      // Leaves fallen under about half the turning trees.
+      const lx = d.x + 0.9,
+        lz = d.z + 0.6;
+      if (d.key !== "town.bush-autumn" && noise(d.x, d.z, 112) < 0.5 && free(lx, lz, 0.9)) add("town.leaf-pile", lx, d.y, lz, { rotation: noise(d.x, d.z, 113) * 6.28, scale: 0.55 });
+    }
   return out;
 }
 
@@ -478,7 +521,12 @@ function garden(add: Add, plot: DressedPlot, tree: Tree) {
   }
   for (const side of [-1, 1]) {
     const lantern = { x: plot.door.x + side * (GARDEN_PATH / 2 + 0.35), z: c.z + half - 0.35 };
-    if (clear(rect(lantern.x, lantern.z, 0.3, 0.3), 0)) add("town.lantern", lantern.x, LAWN_Y, lantern.z, { seed: plot.index + side, scale: 0.85 });
+    if (!clear(rect(lantern.x, lantern.z, 0.3, 0.3), 0)) continue;
+    add("town.lantern", lantern.x, LAWN_Y, lantern.z, { seed: plot.index + side, scale: 0.85 });
+    // A hanging basket on each gate lantern, its arm reaching away from the path (not on a closed building's).
+    if (!plot.archived) add("town.hanging-basket", lantern.x, LAWN_Y, lantern.z, { scale: 0.85, rotation: side < 0 ? Math.PI : 0 });
+    // October: a pumpkin or two on the lawn by the gate.
+    if (!plot.archived && noise(plot.index, side, 109) < 0.6) add("town.pumpkin", lantern.x + side * 0.55, LAWN_Y, lantern.z - 0.35, { rotation: noise(plot.index, side) * 6.28, scale: 1.5 });
   }
   const box = { x: plot.door.x + GARDEN_PATH / 2 + 0.45, z: c.z + half - 1.1 };
   if (clear(rect(box.x, box.z, 0.3, 0.3), 0)) add("town.mailbox", box.x, LAWN_Y, box.z, { rotation: -Math.PI / 2 });
@@ -609,6 +657,8 @@ function allotment(add: Add, index: number) {
     }
   add("town.shed", c.x + 8.5, LAWN_Y, c.z - 9, { rotation: -Math.PI / 2 });
   add("town.washing-line", c.x - 8.6, LAWN_Y, c.z - 4, { rotation: Math.PI / 2 });
+  // A pumpkin patch at the allotment's far end.
+  for (let i = 0; i < 9; i++) add("town.pumpkin", c.x - 9.4 + (i % 3) * 1.2 + noise(index, i, 110) * 0.4, LAWN_Y, c.z + 5.6 + Math.floor(i / 3) * 1.1, { rotation: noise(index, i) * 6.28, scale: 1.2 + noise(index, i, 111) * 0.9 });
   add("town.bush", c.x + 9.6, LAWN_Y, c.z - 6.4, { seed: index });
   add("town.bush", c.x - 9.6, LAWN_Y, c.z - 9.6, { seed: index + 1 });
   add("town.bench", c.x - 8.8, LAWN_Y, c.z + 9.4, { rotation: 0.2 });
@@ -763,6 +813,24 @@ function streamAt(x: number): number {
   const a = points[i]!,
     c = points[i + 1]!;
   return a.z + ((x - a.x) / (c.x - a.x)) * (c.z - a.z);
+}
+
+/** October by the windmill: round hay bales, sheep grazing, pumpkins along a low fence. */
+function farm(add: Add) {
+  const f = FARM;
+  fence(add, f.minX + 0.4, f.maxZ - 0.3, f.maxX - 0.4);
+  for (const [x, z, r] of [
+    [f.minX + 2.2, f.minZ + 2.4, 0.3],
+    [f.minX + 3.6, f.minZ + 3.4, 1.4],
+    [f.minX + 2.6, f.minZ + 5, 0.8],
+  ] as const)
+    add("town.hay-bale", x, GRASS_Y, z, { rotation: r, scale: 1.3 });
+  for (let i = 0; i < 6; i++) {
+    const x = f.minX + 6 + noise(i, 101) * (f.maxX - f.minX - 7.5),
+      z = f.minZ + 1.5 + noise(i, 102) * (f.maxZ - f.minZ - 3.5);
+    add("town.sheep", x, GRASS_Y, z, { rotation: noise(i, 103) * Math.PI * 2, scale: 1.3 + noise(i, 104) * 0.2, seed: i });
+  }
+  for (let i = 0; i < 7; i++) add("town.pumpkin", f.minX + 1.4 + i * 1.6 + noise(i, 105) * 0.5, GRASS_Y, f.maxZ - 1.2 - noise(i, 106) * 0.6, { rotation: noise(i, 107) * 6.28, scale: 1.4 + noise(i, 108) * 0.8 });
 }
 
 /** The park west of the post office: the pond, the bridge, willows and birches, benches and a low fence. */

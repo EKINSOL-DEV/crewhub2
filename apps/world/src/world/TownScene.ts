@@ -25,8 +25,9 @@ import { plotDoor, plotObstacles } from "./navigation";
 import { onPlayIntent } from "./intentPlayer";
 import { Walks } from "./walks";
 import { AmbientLife } from "./ambientLife";
-import { driftPhase } from "./dayClock";
+import { driftPhase, followPhase, type DriftFollow } from "./dayClock";
 import { FrameRing } from "./frameRing";
+import { updateMatrices } from "./matrixPass";
 import { RobotCrowd } from "./robotCrowd";
 
 export interface TownView {
@@ -192,6 +193,8 @@ export class TownScene {
   /** The environment's shadow version the shadow maps were last drawn for. */
   #shadowVersion = 0;
   #driftTimer: ReturnType<typeof setInterval> | undefined;
+  /** The light's own phase, which follows the clock's at most at 4x (dayClock.ts). */
+  #follow: DriftFollow = { phase: null, clock: 0, wall: 0 };
   /** The scene's own element: its backdrop (the air behind the diorama) follows the drift. */
   #host: HTMLElement;
   /** The air last written to the backdrop: colour channels and tint. */
@@ -327,6 +330,8 @@ export class TownScene {
     const environment = this.#environment;
     this.#life = new AmbientLife(this.townStyle, environment.setCloudShadows ? (clouds) => environment.setCloudShadows!(clouds) : null);
     this.scene.add(this.#hits, this.#ring, this.#civic, this.#life.group, this.#crowd.group);
+    // The frame loop brings world matrices up to date itself, for what moved only (matrixPass.ts).
+    this.scene.matrixWorldAutoUpdate = false;
     this.#drift();
     this.#driftTimer = setInterval(this.#drift, DRIFT_INTERVAL_MS);
     canvas.addEventListener("pointerdown", this.pointerDown);
@@ -367,8 +372,11 @@ export class TownScene {
   #drift = () => {
     if (this.#disposed || document.hidden) return;
     const v = this.view;
-    const phase = driftPhase({ dayNight: v.dayNight, reducedMotion: v.reducedMotion, quality: v.quality, sinceStartMs: v.dayClock() });
-    const changed = this.#environment.setDayPhase(phase);
+    const clock = v.dayClock();
+    const target = driftPhase({ dayNight: v.dayNight, reducedMotion: v.reducedMotion, quality: v.quality, sinceStartMs: clock });
+    // At high playback speeds the light keeps a graceful pace of its own (followPhase).
+    this.#follow = followPhase(this.#follow, target, clock, performance.now());
+    const changed = this.#environment.setDayPhase(this.#follow.phase);
     this.#life.setEvening(this.#environment.evening);
     this.#tintAir();
     if (!changed) return;
@@ -1159,6 +1167,9 @@ export class TownScene {
       shadows.needsUpdate = true;
       this.#shadowDirty = false;
     }
+    // World matrices for what moved only (matrixPass.ts; three's own pass is off for this scene), before the crowd
+    // copies its robots' matrices.
+    updateMatrices(this.scene);
     this.#crowd.begin();
     for (const [slug, view] of this.#buildings) view.crowd(this.#crowd, this.#seen.has(slug));
     this.#crowd.end();
