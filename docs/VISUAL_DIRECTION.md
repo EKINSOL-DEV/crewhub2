@@ -44,21 +44,27 @@ A building is a diorama on a slab, not a floor plan.
 - **Walls.** The north side is the greenhouse glass wall (`wall.glass`, 1.75 high): a chalk knee wall, panes about
   1.1 wide between slim green mullions, a transom and a top beam. The west side is a tall chalk wall (`wall`) with a
   skirt, a ledge and framed windows. Chalk pilasters close the ends of every tall wall. The south and east sides,
-  which face the camera, are low rims (`wall.low`), so the rooms stay visible.
+  which face the camera, are low rims (`wall.low`), so the rooms stay visible. The rims carry a timber coping with
+  square posts at both ends of every run (the corners and either side of each door), and the glass wall's frame a pale
+  cream cap, so a building's outline reads from the town in every camera quarter, even where the back walls give way
+  to rims.
 - **Rotating the camera.** When the camera turns (`[` and `]`), a tall back wall would stand in front of the rooms,
   so each one has a low stand-in. Each wall mesh decides per draw, from the camera drawing it, which version shows.
   Shadow passes keep the tall walls.
-- **Inside.** Rooms are divided by low sage-cream partitions (`building.partition`) with timber door frames
-  (`building.door-frame`) in every opening.
-- **Slab and floors.** Every room stands on `building.slab`, a cream block with a bevelled lip and a thin
-  project-colour trim. Floors sit `FLOOR_RISE` (0.24) above the lawn. The floor pattern follows the room:
-  - wood in the lead's office and the meeting room;
-  - tile in the lobby;
+- **Inside.** Rooms are divided by low partitions (`building.partition`, 0.52 high, in their own quieter tone) with
+  timber door frames (`building.door-frame`) in every opening. A soft shade fades in from the walls along every room's
+  floor (`building.floor-shade`), so walls and floor meet without a hard line.
+- **Slab and floors.** Every room stands on `building.slab`, a cream block with a bevelled lip over a warmer side and a
+  thin trim in a soft tint of the project colour. Floors sit `FLOOR_RISE` (0.24) above the lawn. Each room kind has its
+  own floor, and rooms that share a wall never share a tone:
+  - light wood in the lead's office, dark oak in the meeting room and planning;
+  - cream tile in the lobby, sage tile in review and design;
   - concrete in storage and dispatch;
-  - the studio's cream cells elsewhere.
+  - the studio's cream cells for the workers, cool mist cells for the analysts.
 - **The project colour is an accent, never a wall.** It shows on the front door's leaves and awning valance, the
-  flag, the slab trim, the emblem and the lead robot. The lead wears a soft tint of the colour, 45% of the way to
-  cream.
+  flag, the name sign, the emblem, a thin soft-tinted slab trim and the lead robot. It is never a band along the wall
+  tops: inside a building such a band reads as the saturated ribbon of the old floor plan. The lead wears a soft tint
+  of the colour, 45% of the way to cream.
 - **Archived buildings** are boarded up and grown with ivy. A closed sign hangs from the awning, the flag is at
   half-mast, and the colours are muted, never black. Inside, desks stand under pale dust sheets, chairs are stacked
   four high and crates wait (`building.dust-sheet`, `building.chair-stack`), so an archived building reads as closed
@@ -69,7 +75,9 @@ A building is a diorama on a slab, not a floor plan.
   archived building), window boxes under the west windows, planters by the door, wall lamps by the door and the
   loading door, a bike and a doormat. In lamplight the windows glow warm and some twinkle.
 - **From the town.** Every building shows a merged silhouette of its furniture and dressing, so it reads as furnished
-  from the home camera; the full dressing is drawn only for the entered building.
+  from the home camera; the far desks and tables are muted sage-grey and timber, never black screen boxes. The full
+  dressing is drawn only for the entered building. In the evening the greenhouse glass wall glows warm enough to read
+  as lit from the town.
 
 ### Rooms
 
@@ -99,6 +107,14 @@ and west walls, whose fronts face the camera.
   and west edges and one on the others (one more in the lead's office), with gaps, two cells clear of every doorway, and never behind a seat, so art
   never hangs behind a robot's head. Partitions carry art on both faces; a face shows only while it is turned to the
   camera (like the tall back walls), so the hidden face costs nothing.
+- **A signature per room kind**, so each reads at a glance with its floor tone: a reception desk with a bell and a
+  guest book in the lobby, a drafting table in design, a two-seat review desk with marked proofs and a banker's lamp
+  in review, crate stacks in storage, parcel carts by the loading door in dispatch (`furniture.reception-desk`,
+  `drafting-table`, `review-desk`, `crate-stack`, `parcel-cart`). Planning, the meeting room and the analysts keep
+  their tables and boards.
+- **October inside**, seeded per building: autumn branches in a vase by the lobby's way in, a pumpkin on the
+  reception desk, a bowl of apples on the coffee counter, a striped throw over a sofa's arm. None goes where tickets
+  go.
 - **Reading nooks.** The emptiest 3 x 3 stretch of a large room (60 cells or more, not the lobby or the workers room)
   gets a nook: an armchair, a side table, a reading or floor lamp, sometimes a plant, on a round rug. Storage and
   dispatch get a big planter there instead. Everything goes through the room planner, so reachability holds.
@@ -166,6 +182,11 @@ The town is a small green town of hedged gardens, not beige squares
   - autumn among the green, for it is October: about one oak, birch or bush in five turns gold and orange
     (`town.oak-autumn`, `town.birch-autumn`, `town.bush-autumn`, chosen by a seeded noise, so the same trees turn every
     time), with fallen leaves under about half the turning trees;
+  - twelve cottages in the green belt beyond the outer lanes, with chimneys, window boxes front and back, a flagstone
+    path to the lane and a bush or pumpkin by the step (`town.cottage`, `town.cottage-timber`);
+  - a chapel on the town's axis behind the square, so the entrance road, the main street, the square and its slate
+    spire line up; a bell tower with a clock, a flagstone path from the square and pines either side (`town.chapel`);
+  - bunting: three strings across the main street on the way up to the square (`town.bunting`);
   - an October farm corner by the windmill: hay bales, six sheep and pumpkins along a fence; pumpkins by most garden
     gates and a pumpkin patch in the allotment;
   - lanterns every 9 units along the streets, street trees, benches, signposts and bike racks;
@@ -227,7 +248,12 @@ The town is a small green town of hedged gardens, not beige squares
   - glass walls that become lit windows;
   - the floor's sun shafts fade out.
 - **Warm pools.** A lamp listed in the style's `LIGHT_POOLS` throws a warm pool of light on the ground in lamplight:
-  floor and desk lamps, street lanterns, pendants, the square's lamps and the café's lanterns and terrace.
+  floor and desk lamps, street lanterns, pendants, the square's lamps and the café's lanterns and terrace. Interior
+  pools are large enough to read as pools, not spots.
+- **The evening's light, everywhere.** Monitors face their seats, away from the camera, so their light shows as a cool
+  glow on the desk top and the floor where the chair stands. The post office's and town hall's windows spill onto
+  their paving and podium, the square has a warm wash under its string lights, and the pond and the stream catch long,
+  soft streaks of lantern light. All follow the evening factor; by day they cost nothing.
 - **Contact shadows.** Soft blob decals sit under every building (`town.contact-shadow`) and every robot, in both
   quality settings.
 - **Air.** The canvas is transparent over a soft radial gradient with a gentle vignette (`--world-air` and
@@ -279,6 +305,14 @@ Settings has a **Graphics** choice: **Pretty** (the default) or **Fast**. It is 
 - **Revealed rooms.** A room's labels (room sign, update and caption cards, status tags, name tags, pallet counts,
   rule chips) show only when the room is revealed: under the pointer, keyboard-focused or zoomed to. Hanging labels
   that would overlap nudge upwards instead of piling up.
+- **Labels never hide their robot** ([labelLayout.ts](../apps/world/src/world/labelLayout.ts)). Inside a building each
+  robot is a box on screen, from just over its head to its feet. The hovered or selected robot's plate is placed
+  first, then every robot's own stack just over its head, then the other labels; desk tags, rule and ticket chips and
+  pallet counts that would cover a robot step aside to their own side instead of climbing over it, and a room sign over
+  a robot fades until the pointer is on it.
+- **Quiet when many.** A label pushed more than 72 px from its anchor fades, beyond 160 px (72 on a phone) it hides;
+  the picked plate never does. With Details on, a town of more than six buildings keeps its signs as quiet names, and
+  only the focused one expands.
 - **A label never hides its robot** (`apps/world/src/world/labelLayout.ts`). The robots are the hero of each room.
   - The hovered or selected robot's plate is placed first, then every robot's own stack, each just over its head: the
     name pill stays closest.
@@ -298,7 +332,8 @@ Settings has a **Graphics** choice: **Pretty** (the default) or **Fast**. It is 
   "idle", not 0 fps. The same numbers are `window.__worldPerf` for the measurement scripts.
 - **Camera.** The camera frames its subject in the free part of the canvas, clear of the HTML chrome. Entering a
   building fills the canvas with it, entering a room frames that room, and home frames the used plots and the civic
-  row.
+  row. On a portrait phone a building or room frame runs under the side controls and lets the diamond's outer tips
+  leave the screen, like the home frame, so a focused room fills the tall screen (about 1.3 times larger).
 - **Affordances.** The focused or hovered plot gets a warm glow and its building lifts slightly (no lift under
   reduced motion; the glow stays); inside, the hovered or focused room's floor gets a soft wash, and the selected
   agent a ring under its feet. Waiting tags have their own shape, so they are not mistaken for robot name pills, and
