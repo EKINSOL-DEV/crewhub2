@@ -153,6 +153,8 @@ class GreenhouseStyle implements WorldStyle {
         return town.crossing(kit, o);
       case "town.wear":
         return town.wear(kit, o);
+      case "town.puddle":
+        return town.puddle(kit, o);
       case "town.lantern":
         return town.lantern(kit);
       case "path":

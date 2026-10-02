@@ -136,6 +136,41 @@ export function wear(kit: Kit, o: ModelOptions): THREE.Mesh {
   return mesh;
 }
 
+const puddleMaterials = new WeakMap<Kit, THREE.ShaderMaterial>();
+function puddleMaterial(kit: Kit): THREE.ShaderMaterial {
+  let material = puddleMaterials.get(kit);
+  if (!material) {
+    material = decalMaterial(kit.hex("water"), 0.42, false);
+    puddleMaterials.set(kit, material);
+  }
+  return material;
+}
+
+/**
+ * A rain puddle on the paving, `width` by `depth`: a soft film of sky-coloured water, and in it the lantern's warm
+ * reflection (a light-pool decal, so it shows only in the evening, like the pools under the lanterns). The reflection
+ * lies towards -x, where the renderer puts the lantern. One shared geometry each, scaled, so every puddle instances.
+ */
+export function puddle(kit: Kit, o: ModelOptions): THREE.Group {
+  const { width, depth } = size(o, { width: 1.2, height: 0, depth: 0.7 });
+  const g = new THREE.Group();
+  // A small core and a wide soft edge: an irregular-looking round film, not a tile.
+  const geometry = kit.geometry("town:puddle", () => {
+    const plane = new THREE.PlaneGeometry(2, 2).rotateX(-Math.PI / 2);
+    const shape = new Float32Array(plane.attributes.position!.count * 3);
+    for (let i = 0; i < shape.length; i += 3) shape.set([0.3, 0.12, 0.7], i);
+    plane.setAttribute("aShape", new THREE.BufferAttribute(shape, 3));
+    return plane;
+  });
+  const film = put(g, new THREE.Mesh(geometry, puddleMaterial(kit)), 0, 0.006, 0);
+  film.scale.set(width / 2, 1, depth / 2);
+  film.renderOrder = 1;
+  film.castShadow = false;
+  const glint = put(g, kit.decal("pool", 0.05, 0.05, 0.3), -width * 0.15, 0.008, 0);
+  glint.scale.set(width * 1.1, 1, depth * 0.9);
+  return g;
+}
+
 /** A clipped hedge: a soft block with a row of rounder tufts on top. */
 export function hedge(kit: Kit, o: ModelOptions): THREE.Group {
   const { width, height, depth } = size(o, { width: 3, height: 0.6, depth: 0.7 });
@@ -348,6 +383,7 @@ function bulbMaterial(kit: Kit): THREE.MeshStandardMaterial {
 /** The town's colours per theme: the worn paths. */
 export function townTheme(kit: Kit) {
   wearMaterial(kit).uniforms.uColor!.value.set(kit.hex("path-wear"));
+  puddleMaterial(kit).uniforms.uColor!.value.set(kit.hex("water"));
 }
 
 /**
@@ -371,6 +407,8 @@ export function townLight(kit: Kit, evening: number) {
 export function disposeTown(kit: Kit) {
   wearMaterials.get(kit)?.dispose();
   wearMaterials.delete(kit);
+  puddleMaterials.get(kit)?.dispose();
+  puddleMaterials.delete(kit);
 }
 
 /** Small town pieces whose shadows nobody sees from the town camera; they skip the shadow pass. */
