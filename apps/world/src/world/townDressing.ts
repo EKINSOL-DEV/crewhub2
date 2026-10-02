@@ -169,6 +169,10 @@ function bandstandLawn(): Bounds {
   return span(BANDSTAND.x - 3.4, BANDSTAND.x + 3.4, BANDSTAND.z - 3.2, promenades()[1]!.minZ);
 }
 
+/** The chapel on the town's axis, behind the square: main street, square and spire in one line from the entrance. */
+const CHAPEL = { x: 0, z: -61.5, scale: 3 };
+const CHAPEL_GROUND: Bounds = { minX: -4.6, maxX: 4.6, minZ: -67.8, maxZ: -49.2 };
+
 /** The farm corner in the green belt east of the windmill: hay bales and a few grazing sheep behind a fence. */
 const FARM: Bounds = { minX: 48, maxX: 63, minZ: -67.6, maxZ: -57.5 };
 
@@ -285,7 +289,7 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
   for (const l of landmarks()) if (l.clear) blocked.push(rect(l.x, l.z, l.clear * 2, l.clear * 2));
   blocked.push(streamBand());
   blocked.push(busBay());
-  blocked.push(bandstandLawn(), FARM);
+  blocked.push(bandstandLawn(), FARM, CHAPEL_GROUND);
   for (const r of promenades()) blocked.push({ ...r, minZ: r.minZ - 1.2, maxZ: r.maxZ + 2.2 });
   const free = (x: number, z: number, pad: number) => !blocked.some((b) => inside(b, x, z, pad));
   const tree = (x: number, z: number, y: number, seed: number, scale = 1) => {
@@ -395,6 +399,14 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
   // Hanging baskets on the civic row's lanterns, the arms pointing either way along the lane.
   for (const d of [...out]) if (d.key === "town.lantern" && d.z < CIVIC_LANE - LANE / 2) add("town.hanging-basket", d.x, d.y, d.z, { scale: d.scale, rotation: Math.round(d.x) % 2 ? Math.PI : 0 });
   farm(add);
+  // The chapel, a flagstone path up from the square to its door, a pair of dark pines either side and a bench.
+  add("town.chapel", CHAPEL.x, GRASS_Y, CHAPEL.z, { scale: CHAPEL.scale });
+  paving(add, span(CHAPEL.x - 0.7, CHAPEL.x + 0.7, CHAPEL.z + 5.1, civicCenter("square").z - CIVIC_SIZE.square.depth / 2 + 0.1), "flag", GRASS_Y + 0.002);
+  for (const side of [-1, 1]) {
+    add("town.pine", CHAPEL.x + side * 3.6, GRASS_Y, CHAPEL.z + 4.2, { scale: 1.25, seed: 120 + side, rotation: side });
+    add("town.bush", CHAPEL.x + side * 1.6, GRASS_Y, CHAPEL.z + 5.4, { scale: 0.9, seed: 124 + side });
+  }
+  add("town.bench", CHAPEL.x + 2.4, GRASS_Y, CHAPEL.z + 9, { rotation: -Math.PI / 2 });
   park(add, tree);
   orchard(add);
 
