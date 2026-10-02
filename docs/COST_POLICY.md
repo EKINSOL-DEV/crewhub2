@@ -64,9 +64,11 @@ The rules that keep it there:
   stops in a hidden tab. A 120 Hz display still draws at most 60. Animations of
   models ride on frames that are drawn anyway and never keep the loop running.
 - **Shadows on change.** In the town the shadow map is drawn once and again only
-  when something that casts or lights it changed (a fit, a building's casters, a
-  lift, the dressing, the civic robots, the drift's sun after a step of about
-  half a degree; the drift itself moves at most at a 4x pace).
+  when something that casts or lights it changed. A fit, a lift, the dressing or
+  the quality redraw it at once; small changes (a building's piles, the drift's
+  sun after a step of about half a degree) redraw it at most every 400 ms, and a
+  timer catches up the last one if the loop rests. The drift itself moves at most
+  at a 4x pace.
   Inside a building it follows every frame, because the robots move. Fast has no
   shadow map; blob contact shadows stay in both settings.
 - **Culling.** Buildings outside the camera's view are not drawn, their robots
@@ -83,6 +85,11 @@ The rules that keep it there:
   only when its position, rotation or scale changed since the last frame, and
   multiplies world matrices only below a change (in the stress town at 4x it
   halved the matrix work, about 105 to 55 ms per second).
+- **Frame what matters.** On a portrait phone a focused room fills the screen,
+  so fewer objects are in view (Fast inside a room: about 170 to 120 draw calls).
+- **Labels stay cheap.** Label layout is pure geometry over screen boxes and
+  keeps its applied visibility, so it never reads the DOM back: about 0.05 ms a
+  frame inside a stress building with every label on.
 - **Lower detail where it does not show.** Small parts have fewer segments, the
   town's small balls and leaf blobs fewer triangles, and robots seen from the
   town drop their small parts and shadows.
