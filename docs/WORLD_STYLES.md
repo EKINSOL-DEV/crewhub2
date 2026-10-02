@@ -128,6 +128,12 @@ instances.
 
 - Forward is +x. A bird flaps when scaled in y; a butterfly folds when scaled in z.
 - Glows are additive, and their instance colour sets their brightness, so the renderer fades one by darkening it.
+- `town.firefly` is a billboard: its shader lays the quad out in view space round the instance's centre, so it faces
+  the camera from any side (the instance's x scale sizes it).
+- Cloud shadows: when the environment handle has `setCloudShadows`, the renderer sends the clouds there instead of
+  drawing `town.cloud-shadow` decals, and the style dims its key light under them on every lit material, so a passing
+  cloud darkens roofs, walls and robots as well as the grass. Greenhouse injects this into each kit material's shader
+  (`cloudShadows` in `shaders.ts`; the hook is named in `userData.lightHook` so the far-robot crowd may batch it).
 - Where they gather comes from the town dressing (flower beds, hedges, the pond) and from the landmarks' `LifeSpot`
   markers (chimney, cups, lit windows).
 - They show only with the Ambient setting on or reduced, Pretty graphics and no reduced motion. They move only while
@@ -145,7 +151,8 @@ them or accept plain crates drifting by. Covering them is the expected choice.
   ears, antenna stem and hands, and casts no shadow) but keeps the silhouette, colours and postures. The style decides the rig; postures carry the
   meaning from the world model.
 - `environment(scene, renderer, theme)` adds the lights, tone mapping and background for a theme and returns a handle
-  with `setTheme`, `setShadowReach(reach, center?)`, `setQuality(quality)` and `dispose`. The UI's light theme is
+  with `setTheme`, `setShadowReach(reach, center?)`, `setQuality(quality)`, the optional
+  `setCloudShadows(clouds)` and `dispose`. The UI's light theme is
   `day`, the dark theme is `lamplight` (a deep blue-green evening: warm lamp light, lit windows, glowing desk and
   pendant lamps, warm pools of light). The renderer fits the shadow to what the camera frames: the ground the
   entered building's view shows gets a close, crisp shadow (fitted again after a zoom or pan), the town a cheaper,

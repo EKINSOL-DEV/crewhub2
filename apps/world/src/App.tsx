@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type Ref } from "react";
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type Ref } from "react";
 import { ArrowLeft, FlaskConical, Hammer, MessageCircle, Minus, Monitor, Moon, Pause, Plus, RotateCcw, RotateCw, Scan, Settings, Sprout, Sun, Tags, X } from "lucide-react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { describeTownDocument, ruleProps, type AgentPlacement, type PlaybackControls, type PlaybackSpeed, type RoleId, type RoomKind, type TextLine, type WorldModel } from "@crewhub/world-model";
@@ -51,6 +51,13 @@ const useNarrow = () =>
 
 const prefersReducedMotion = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const typing = (target: EventTarget | null) => target instanceof HTMLElement && (target.matches("input, select, textarea") || target.isContentEditable);
+
+/** A callback whose identity never changes but which always calls the latest `fn`, so memoised chrome skips renders. */
+function useStable<A extends unknown[], R>(fn: (...args: A) => R): (...args: A) => R {
+  const latest = useRef(fn);
+  latest.current = fn;
+  return useCallback((...args: A) => latest.current(...args), []);
+}
 
 export function App() {
   const [queryClient] = useState(createChatQueryClient);
@@ -358,8 +365,8 @@ function World() {
     setRingVisible(true);
   }, []);
 
-  const ThemeIcon = THEME_ICON[theme];
   const demo = model.mode === "demo";
+  const onBack = useStable(back);
 
   return (
     <div
@@ -410,67 +417,9 @@ function World() {
         )}
       </main>
 
-      <header className="world-corner world-corner-left">
-        <div className="world-brand">
-          <span className="brand-mark" aria-hidden="true" />
-          <strong>CrewHub World</strong>
-          {demo && (
-            <Chip className="demo-chip" icon={<FlaskConical className="icon" aria-hidden="true" />} title="Demo: scripted data" aria-label="Demo: scripted data">
-              <span className="demo-word">Demo</span>
-            </Chip>
-          )}
-        </div>
-        {!graphicsFailed && (
-          <nav className="world-breadcrumb" aria-label="Where you are">
-            {inside ? (
-              <>
-                <Button size="sm" icon={<ArrowLeft className="icon" aria-hidden="true" />} onClick={back} kbd="Esc">
-                  Town
-                </Button>
-                <span className="crumb-current" aria-current={zoomed ? undefined : "location"}>
-                  {inside.name}
-                </span>
-                {zoomed && (
-                  <span className="crumb-current" aria-current="location">
-                    {roomName(inside, zoomed)}
-                  </span>
-                )}
-              </>
-            ) : (
-              <span className="crumb-current" aria-current="location">
-                Town
-              </span>
-            )}
-          </nav>
-        )}
-      </header>
+      <Corner demo={demo} graphicsFailed={graphicsFailed} insideName={inside?.name ?? null} zoomedName={inside && zoomed ? roomName(inside, zoomed) : null} onBack={onBack} />
 
-      <div className="world-corner world-corner-right">
-        <Button variant="ghost" iconOnly aria-label={`Theme: ${theme}. Switch to ${NEXT_THEME[theme]}.`} title={`Theme: ${theme}`} icon={<ThemeIcon className="icon" aria-hidden="true" />} onClick={cycle} />
-        {!graphicsFailed && (
-          <Button
-            variant="ghost"
-            iconOnly
-            aria-label="Details (D)"
-            title={details ? "Details on: every label (D)" : "Details: show every label (D)"}
-            pressed={details}
-            icon={<Tags className="icon" aria-hidden="true" />}
-            onClick={() => void toggleDetails()}
-          />
-        )}
-        {!graphicsFailed && (
-          <Button
-            variant="ghost"
-            iconOnly
-            aria-label={build.state.on ? "Leave build mode (B)" : "Build mode (B)"}
-            title={build.state.on ? "Leave build mode (B)" : "Build mode (B)"}
-            pressed={build.state.on}
-            icon={<Hammer className="icon" aria-hidden="true" />}
-            onClick={build.toggle}
-          />
-        )}
-        <Button variant="ghost" iconOnly aria-label="Settings" title="Settings" expanded={settingsOpen} icon={<Settings className="icon" aria-hidden="true" />} onClick={settingsOpen ? closeSettings : openSettings} />
-      </div>
+      <CornerTools theme={theme} cycle={cycle} details={details} buildOn={build.state.on} toggleBuild={build.toggle} settingsOpen={settingsOpen} openSettings={openSettings} closeSettings={closeSettings} graphicsFailed={graphicsFailed} />
 
       {settingsOpen && (
         <Card ref={settingsCard} className="world-sheet settings-sheet" role="dialog" aria-labelledby="settings-title">
@@ -515,24 +464,9 @@ function World() {
         </Suspense>
       )}
 
-      {!graphicsFailed && (
-        <div className="camera-toolbar" role="toolbar" aria-label="Camera">
-          <Button variant="ghost" size="sm" iconOnly aria-label="Zoom in" title="Zoom in (+)" icon={<Plus className="icon" aria-hidden="true" />} onClick={() => camera("zoom-in")} />
-          <Button variant="ghost" size="sm" iconOnly aria-label="Zoom out" title="Zoom out (−)" icon={<Minus className="icon" aria-hidden="true" />} onClick={() => camera("zoom-out")} />
-          <Button variant="ghost" size="sm" iconOnly aria-label="Rotate left" title="Rotate left ([)" icon={<RotateCcw className="icon" aria-hidden="true" />} onClick={() => camera("rotate-left")} />
-          <Button variant="ghost" size="sm" iconOnly aria-label="Rotate right" title="Rotate right (])" icon={<RotateCw className="icon" aria-hidden="true" />} onClick={() => camera("rotate-right")} />
-          <Button variant="ghost" size="sm" iconOnly aria-label="Home view" title="Home view (H)" icon={<Scan className="icon" aria-hidden="true" />} onClick={() => camera("home")} />
-        </div>
-      )}
+      {!graphicsFailed && <CameraToolbar camera={camera} />}
 
-      <div className="world-chat">
-        <Bubbles narrow={narrow} />
-        {demo && (
-          <Chip className="demo-chat-chip" icon={<MessageCircle className="icon" aria-hidden="true" />}>
-            Demo: replies are scripted
-          </Chip>
-        )}
-      </div>
+      <ChatCorner narrow={narrow} demo={demo} />
 
       {playback && <PlaybackBar playback={playback} />}
 
@@ -619,20 +553,124 @@ const SPEEDS: readonly { speed: PlaybackSpeed; label: string }[] = [
   { speed: 16, label: "16x" },
 ];
 
-function usePlayback(playback: PlaybackControls) {
-  // A snapshot string, so useSyncExternalStore sees a stable value between changes.
-  const snapshot = useSyncExternalStore(
-    (listener) => playback.onChange(listener),
-    () => `${Math.floor(playback.positionMs() / 1000)}|${playback.speed()}|${playback.loop()}`,
+/* The chrome around the scene, memoised: the world model changes many times a second under load, and none of these show
+   it, so they render only when their own props change. */
+const Corner = memo(function Corner({ demo, graphicsFailed, insideName, zoomedName, onBack }: { demo: boolean; graphicsFailed: boolean; insideName: string | null; zoomedName: string | null; onBack: () => void }) {
+  return (
+    <header className="world-corner world-corner-left">
+      <div className="world-brand">
+        <span className="brand-mark" aria-hidden="true" />
+        <strong>CrewHub World</strong>
+        {demo && (
+          <Chip className="demo-chip" icon={<FlaskConical className="icon" aria-hidden="true" />} title="Demo: scripted data" aria-label="Demo: scripted data">
+            <span className="demo-word">Demo</span>
+          </Chip>
+        )}
+      </div>
+      {!graphicsFailed && (
+        <nav className="world-breadcrumb" aria-label="Where you are">
+          {insideName !== null ? (
+            <>
+              <Button size="sm" icon={<ArrowLeft className="icon" aria-hidden="true" />} onClick={onBack} kbd="Esc">
+                Town
+              </Button>
+              <span className="crumb-current" aria-current={zoomedName ? undefined : "location"}>
+                {insideName}
+              </span>
+              {zoomedName && (
+                <span className="crumb-current" aria-current="location">
+                  {zoomedName}
+                </span>
+              )}
+            </>
+          ) : (
+            <span className="crumb-current" aria-current="location">
+              Town
+            </span>
+          )}
+        </nav>
+      )}
+    </header>
   );
-  const [seconds, speed, loop] = snapshot.split("|").map(Number) as [number, number, number];
-  return { positionMs: seconds * 1000, speed: speed as PlaybackSpeed, loop };
+});
+
+const CornerTools = memo(function CornerTools(props: {
+  theme: keyof typeof THEME_ICON;
+  cycle: () => void;
+  details: boolean;
+  buildOn: boolean;
+  toggleBuild: () => void;
+  settingsOpen: boolean;
+  openSettings: () => void;
+  closeSettings: () => void;
+  graphicsFailed: boolean;
+}) {
+  const { theme, cycle, details, buildOn, toggleBuild, settingsOpen, openSettings, closeSettings, graphicsFailed } = props;
+  const ThemeIcon = THEME_ICON[theme];
+  return (
+    <div className="world-corner world-corner-right">
+      <Button variant="ghost" iconOnly aria-label={`Theme: ${theme}. Switch to ${NEXT_THEME[theme]}.`} title={`Theme: ${theme}`} icon={<ThemeIcon className="icon" aria-hidden="true" />} onClick={cycle} />
+      {!graphicsFailed && (
+        <Button
+          variant="ghost"
+          iconOnly
+          aria-label="Details (D)"
+          title={details ? "Details on: every label (D)" : "Details: show every label (D)"}
+          pressed={details}
+          icon={<Tags className="icon" aria-hidden="true" />}
+          onClick={() => void toggleDetails()}
+        />
+      )}
+      {!graphicsFailed && (
+        <Button
+          variant="ghost"
+          iconOnly
+          aria-label={buildOn ? "Leave build mode (B)" : "Build mode (B)"}
+          title={buildOn ? "Leave build mode (B)" : "Build mode (B)"}
+          pressed={buildOn}
+          icon={<Hammer className="icon" aria-hidden="true" />}
+          onClick={toggleBuild}
+        />
+      )}
+      <Button variant="ghost" iconOnly aria-label="Settings" title="Settings" expanded={settingsOpen} icon={<Settings className="icon" aria-hidden="true" />} onClick={settingsOpen ? closeSettings : openSettings} />
+    </div>
+  );
+});
+
+const CameraToolbar = memo(function CameraToolbar({ camera }: { camera: (type: CameraAction) => void }) {
+  return (
+    <div className="camera-toolbar" role="toolbar" aria-label="Camera">
+      <Button variant="ghost" size="sm" iconOnly aria-label="Zoom in" title="Zoom in (+)" icon={<Plus className="icon" aria-hidden="true" />} onClick={() => camera("zoom-in")} />
+      <Button variant="ghost" size="sm" iconOnly aria-label="Zoom out" title="Zoom out (−)" icon={<Minus className="icon" aria-hidden="true" />} onClick={() => camera("zoom-out")} />
+      <Button variant="ghost" size="sm" iconOnly aria-label="Rotate left" title="Rotate left ([)" icon={<RotateCcw className="icon" aria-hidden="true" />} onClick={() => camera("rotate-left")} />
+      <Button variant="ghost" size="sm" iconOnly aria-label="Rotate right" title="Rotate right (])" icon={<RotateCw className="icon" aria-hidden="true" />} onClick={() => camera("rotate-right")} />
+      <Button variant="ghost" size="sm" iconOnly aria-label="Home view" title="Home view (H)" icon={<Scan className="icon" aria-hidden="true" />} onClick={() => camera("home")} />
+    </div>
+  );
+});
+
+const ChatCorner = memo(function ChatCorner({ narrow, demo }: { narrow: boolean; demo: boolean }) {
+  return (
+    <div className="world-chat">
+      <Bubbles narrow={narrow} />
+      {demo && (
+        <Chip className="demo-chat-chip" icon={<MessageCircle className="icon" aria-hidden="true" />}>
+          Demo: replies are scripted
+        </Chip>
+      )}
+    </div>
+  );
+});
+
+/** One playback value as a stable snapshot, so a component re-renders only when that value changes. */
+function usePlaybackValue<T extends string | number>(playback: PlaybackControls, read: () => T): T {
+  return useSyncExternalStore((listener) => playback.onChange(listener), read);
 }
 
-function PlaybackBar({ playback }: { playback: PlaybackControls }) {
-  const { positionMs, speed, loop } = usePlayback(playback);
-  const position = mmss(positionMs),
-    duration = mmss(playback.durationMs);
+/* The speed buttons change rarely; the position ticks every second of script time (16 a second at 16x). They subscribe
+   apart, so the ticking time does not re-render the buttons. */
+const PlaybackBar = memo(function PlaybackBar({ playback }: { playback: PlaybackControls }) {
+  const speed = usePlaybackValue(playback, () => playback.speed()) as PlaybackSpeed;
   return (
     <section className="playback-bar" aria-label="Demo playback">
       <div className="segmented playback-speeds" role="group" aria-label="Playback speed">
@@ -642,6 +680,18 @@ function PlaybackBar({ playback }: { playback: PlaybackControls }) {
           </Button>
         ))}
       </div>
+      <PlaybackPosition playback={playback} />
+    </section>
+  );
+});
+
+function PlaybackPosition({ playback }: { playback: PlaybackControls }) {
+  const positionMs = usePlaybackValue(playback, () => Math.floor(playback.positionMs() / 1000) * 1000);
+  const loop = usePlaybackValue(playback, () => playback.loop());
+  const position = mmss(positionMs),
+    duration = mmss(playback.durationMs);
+  return (
+    <>
       <input
         className="playback-scrub"
         type="range"
@@ -660,7 +710,7 @@ function PlaybackBar({ playback }: { playback: PlaybackControls }) {
       <span className="playback-loop" title="How many times the script has looped">
         loop {loop}
       </span>
-    </section>
+    </>
   );
 }
 

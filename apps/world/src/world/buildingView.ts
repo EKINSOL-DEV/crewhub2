@@ -25,7 +25,7 @@ import {
   type BuildingTemplate,
   type WallRun,
 } from "./buildingTemplate";
-import { assignDesks, placeObjects, roomCentre, type DeskSlot, type ObjectLayout, type Surface } from "./interiorLayout";
+import { assignDesks, PILE_ROOMS, placeObjects, roomCentre, type DeskSlot, type ObjectLayout, type Surface } from "./interiorLayout";
 import { mergeStatic } from "./mergeStatic";
 import { ObjectLayer } from "./objectLayer";
 import { cellAt, footprintPose, resolveBuildingPlacements, type BuildingPlacements } from "./placements";
@@ -76,6 +76,8 @@ const FAR_FURNITURE: Record<string, string> = {
   "board-stand": "board",
   "mood-board": "board",
 };
+/** The room edge a wall piece hangs on. */
+type WallFace = "north" | "west" | "south" | "east";
 /** Decor that hangs on a wall (roomDressing's wall art), by key prefix. */
 const WALL_HUNG = [
   "decor.wall-",
@@ -192,10 +194,11 @@ export class BuildingView {
   /** The entered building's personal desk things (roomDressing.ts `deskItems`). */
   #personal = new THREE.Group();
   #personalMerged: THREE.BufferGeometry[] = [];
+  #signalsMerged: THREE.BufferGeometry[] = [];
   #furnitureMerged: THREE.BufferGeometry[] = [];
   #furniture: THREE.Group | null = null;
   /** The furniture layer's pieces hung on the tall north and west walls (they hide with their wall). */
-  #wallDecor: { north: THREE.Group; west: THREE.Group } | null = null;
+  #wallDecor: Record<WallFace, THREE.Group> | null = null;
   /** Seen from the town: the furniture and dressing as a few merged boxes, so every building looks furnished. */
   #silhouette = new THREE.Group();
   #silhouetteMerged: THREE.BufferGeometry[] = [];
@@ -216,6 +219,10 @@ export class BuildingView {
   #truckDrive: { t: number } | null = null;
   #truckPending = false;
   #focus: THREE.Object3D | null = null;
+  /** The rooms' layout signature of the last update: an interior built for another one is stale. */
+  #shape = "";
+  /** An interior build spread over idle time, and the layout it is for. */
+  #pending: { steps: Generator<void, void>; shape: string } | null = null;
   #signatures = { shell: "", furniture: "", piles: "", signals: "", personal: "" };
   #yielded = "";
   #archivedCount: number;
@@ -267,10 +274,8 @@ export class BuildingView {
       this.#buildShell();
     }
     this.detailed = detailed && !building.archived;
-    if (this.detailed && shape !== this.#signatures.furniture) {
-      this.#signatures.furniture = shape;
-      this.#buildFurniture();
-    }
+    this.#shape = shape;
+    if (this.detailed) this.prepareInterior();
     if (this.#furniture) this.#furniture.visible = this.detailed;
     this.#cords.visible = this.detailed && this.#focusRoom !== null;
     this.#syncAgents();
@@ -303,6 +308,7 @@ export class BuildingView {
       const yielded = [...this.placements.rooms.values()].flatMap((r) => r.yielded).join();
       if (yielded !== this.#yielded) {
         this.#yielded = yielded;
+        this.cancelPrepare();
         if (this.#furniture) this.#buildFurniture();
       }
     }
@@ -436,8 +442,9 @@ export class BuildingView {
     } else this.#truck = null;
     this.anchors.set(`truck:${b.slug}`, this.world(TRUCK_SPOT.x, TRUCK_SPOT.z, 1 - FLOOR_RISE));
     this.#merged = mergeStatic(this.#shellStatic);
-    // The truck moves only as a whole: its parts merge per material under its own root (perf).
-    if (this.#truck) this.#merged.push(...mergeStatic(this.#truck as THREE.Group));
+    // The truck moves only as a whole: its parts merge per material under its own root (perf). It can be picked, so
+    // its merged geometry keeps its vertex data for the raycast.
+    if (this.#truck) this.#merged.push(...mergeStatic(this.#truck as THREE.Group, { keepData: true }));
     for (const [side, walls] of Object.entries(this.#backWalls) as ["north" | "west", { tall: THREE.Group; low: THREE.Group }][])
       for (const tall of [true, false]) {
         const group = tall ? walls.tall : walls.low;
@@ -459,7 +466,11 @@ export class BuildingView {
           const inside = this.#seesInside(side, camera);
           walls.tall.visible = inside;
           walls.low.visible = !inside;
-          if (this.#wallDecor) this.#wallDecor[side].visible = inside;
+          if (this.#wallDecor) {
+            this.#wallDecor[side].visible = inside;
+            // A partition's other face, the one a room's south or east edge carries, shows from the far side.
+            this.#wallDecor[side === "north" ? "south" : "east"].visible = !inside;
+          }
         }
       };
     for (const walls of Object.values(this.#backWalls)) walls.low.visible = false;
@@ -477,7 +488,7 @@ export class BuildingView {
 
   /** The tall back wall a decor piece hangs on, if any: a wall piece set against a north or west outer run. */
   #mountedOn(item: DecorItem): "north" | "west" | null {
-    if (item.lean || item.on !== "floor" || !WALL_HUNG.some((k) => item.key.startsWith(k))) return null;
+    if (item.on !== "floor" || !WALL_HUNG.some((k) => item.key.startsWith(k))) return null;
     for (const run of wallRuns(this.template)) {
       if (run.side === "north" && Math.abs(item.z - 0.5 - run.z1) < 0.01 && item.x > run.x1 && item.x < run.x2) return "north";
       if (run.side === "west" && Math.abs(item.x - 0.5 - run.x1) < 0.01 && item.z > run.z1 && item.z < run.z2) return "west";
@@ -498,10 +509,18 @@ export class BuildingView {
 
   /* The furniture layer: the template's furniture with its blocking dressing, and the dressing that never blocks
      (roomDressing.ts). Static, so it is batched per material; only the entered building draws it. */
+  /** Builds the interior at once (an entered building, or a placed prop that changed what the dressing yields). */
   #buildFurniture() {
-    this.shadowRevision++;
+    this.cancelPrepare();
+    for (const _ of this.#furnitureSteps());
+  }
+
+  /**
+   * The interior build in steps (the furniture's models, the decor's, then each merge), so the town can spread it over
+   * idle time. Nothing joins the scene before the last step swaps it in; a build given up disposes what it merged.
+   */
+  *#furnitureSteps(): Generator<void, void> {
     const { style } = this.ctx;
-    this.#furniture?.removeFromParent();
     const g = new THREE.Group();
     const yielded = (kind: RoomKind) => this.placements.rooms.get(kind)?.yielded ?? [];
     for (const room of this.template.rooms)
@@ -520,36 +539,116 @@ export class BuildingView {
         if (def === "bench" || def === "coffee-machine") model.scale.setScalar(0.7);
         g.add(model);
       }
-    const wallDecor = { north: new THREE.Group(), west: new THREE.Group() };
+    yield;
+    const wallDecor: Record<WallFace, THREE.Group> = { north: new THREE.Group(), west: new THREE.Group(), south: new THREE.Group(), east: new THREE.Group() };
     // Pendant cords and ceiling roses read as posts from the building camera: they draw only with a room in focus.
     const cords = new THREE.Group();
-    for (const item of roomDecor(this.template, { definitions: interiorDefinitions, seed: dressingSeed(this.building.slug), zones: dressingZones(this.template), loading: LOADING })) {
-      const side = this.#mountedOn(item);
+    for (const item of roomDecor(this.template, { definitions: interiorDefinitions, seed: dressingSeed(this.building.slug), zones: dressingZones(this.template), loading: LOADING, piles: PILE_ROOMS })) {
+      const side = item.wall ?? this.#mountedOn(item);
       (item.key === "decor.pendant-cord" ? cords : side ? wallDecor[side] : g).add(this.#decor(item));
     }
-    this.#cords.removeFromParent();
-    for (const geometry of this.#cordsMerged) geometry.dispose();
-    this.#cords = cords;
-    this.#cords.visible = this.detailed && this.#focusRoom !== null;
-    this.group.add(cords);
-    this.#cordsMerged = mergeStatic(cords);
-    g.visible = this.detailed;
-    this.#furniture = g;
-    this.group.add(g);
-    for (const geometry of this.#furnitureMerged) geometry.dispose();
-    this.#furnitureMerged = mergeStatic(g);
-    // Pieces hung on a tall back wall come and go with that wall when the camera turns (#seesInside).
-    for (const side of ["north", "west"] as const) {
-      g.add(wallDecor[side]);
-      this.#furnitureMerged.push(...mergeStatic(wallDecor[side]));
-      for (const mesh of wallDecor[side].children)
-        mesh.onBeforeRender = (_renderer, _scene, camera) => {
-          if (!this.#seesInside(side, camera)) mesh.matrixWorld.makeScale(0, 0, 0);
-        };
+    yield;
+    let cordsMerged: THREE.BufferGeometry[] = [];
+    const merged: THREE.BufferGeometry[] = [];
+    let swapped = false;
+    try {
+      cordsMerged = mergeStatic(cords);
+      merged.push(...mergeStatic(g));
+      yield;
+      // Pieces hung on a tall back wall come and go with that wall when the camera turns (#seesInside); art on a
+      // partition shows only on the face turned to the camera.
+      for (const side of ["north", "west", "south", "east"] as const) {
+        g.add(wallDecor[side]);
+        merged.push(...mergeStatic(wallDecor[side]));
+        const wall = side === "south" ? "north" : side === "east" ? "west" : side;
+        const facing = side === wall;
+        for (const mesh of wallDecor[side].children)
+          mesh.onBeforeRender = (_renderer, _scene, camera) => {
+            if (this.#seesInside(wall, camera) !== facing) mesh.matrixWorld.makeScale(0, 0, 0);
+          };
+      }
+      // Swap the new interior in.
+      this.shadowRevision++;
+      this.#furniture?.removeFromParent();
+      this.#cords.removeFromParent();
+      for (const geometry of [...this.#furnitureMerged, ...this.#cordsMerged]) geometry.dispose();
+      this.#cords = cords;
+      this.#cords.visible = this.detailed && this.#focusRoom !== null;
+      this.#cordsMerged = cordsMerged;
+      this.group.add(cords);
+      g.visible = this.detailed;
+      this.#furniture = g;
+      this.#furnitureMerged = merged;
+      this.#wallDecor = wallDecor;
+      this.group.add(g);
+      swapped = true;
+    } finally {
+      if (!swapped) for (const geometry of [...cordsMerged, ...merged]) geometry.dispose();
     }
-    this.#wallDecor = wallDecor;
   }
 
+
+
+  /** True while the building holds a built interior (shown or kept for the next visit). */
+  get hasInterior(): boolean {
+    return this.#furniture !== null;
+  }
+
+  /**
+   * Builds the interior (the furniture layer with its decor) for the current layout unless it is built already; true
+   * when this call finished it. The town calls it ahead, in idle time, for the building the visitor is about to enter,
+   * so the enter itself only shows it: with `more`, it stops between steps once `more()` says no and goes on at the next
+   * call. Hidden until the building is entered.
+   */
+  prepareInterior(more: () => boolean = () => true): boolean {
+    if (this.building.archived) return false;
+    if (this.#pending && this.#pending.shape !== this.#shape) this.cancelPrepare();
+    if (!this.#pending) {
+      if (this.#shape === this.#signatures.furniture) return false;
+      this.#pending = { steps: this.#furnitureSteps(), shape: this.#shape };
+    }
+    const pending = this.#pending;
+    do {
+      if (pending.steps.next().done) {
+        this.#pending = null;
+        this.#signatures.furniture = pending.shape;
+        return true;
+      }
+    } while (more());
+    return false;
+  }
+
+  /** True while an interior build waits for its next step. */
+  get preparing(): boolean {
+    return this.#pending !== null;
+  }
+
+  /** Gives up an interior build in progress (the visitor moved on, or the layout changed). */
+  cancelPrepare() {
+    this.#pending?.steps.return();
+    this.#pending = null;
+  }
+
+  /** Drops the interior: its furniture, decor, desk things and signals, rebuilt on the next visit. The town keeps
+   *  only the few most recently used interiors, so visiting building after building does not pile up geometry. */
+  releaseInterior() {
+    if (this.detailed) return;
+    this.cancelPrepare();
+    if (!this.#furniture) return;
+    this.#furniture.removeFromParent();
+    this.#furniture = null;
+    this.#wallDecor = null;
+    this.#cords.removeFromParent();
+    this.#cords = new THREE.Group();
+    this.#personal.clear();
+    this.#signals.clear();
+    for (const geometry of [...this.#furnitureMerged, ...this.#cordsMerged, ...this.#personalMerged, ...this.#signalsMerged]) geometry.dispose();
+    this.#furnitureMerged = [];
+    this.#cordsMerged = [];
+    this.#personalMerged = [];
+    this.#signalsMerged = [];
+    this.#signatures.furniture = this.#signatures.personal = this.#signatures.signals = "";
+  }
 
   #decor(item: DecorItem): THREE.Object3D {
     const surfaces = surfacesOf(this.ctx.style);
@@ -558,10 +657,6 @@ export class BuildingView {
     model.position.copy(this.local(item.x, item.z, y + (item.raise ?? 0)));
     model.rotation.y = item.rotation;
     if (item.scale) model.scale.set(item.scale.x, item.scale.y, item.scale.z);
-    if (item.lean) {
-      model.position.y -= item.lean.drop;
-      model.rotateX(-0.12);
-    }
     return model;
   }
 
@@ -605,7 +700,7 @@ export class BuildingView {
         model.rotation.y = prop.definitionId === "workdesk" || prop.definitionId === "lead-desk" ? Math.PI : pose.rotationY;
         g.add(model);
       }
-    for (const item of roomDecor(this.template, { definitions: interiorDefinitions, seed: dressingSeed(this.building.slug), zones: dressingZones(this.template), loading: LOADING })) {
+    for (const item of roomDecor(this.template, { definitions: interiorDefinitions, seed: dressingSeed(this.building.slug), zones: dressingZones(this.template), loading: LOADING, piles: PILE_ROOMS })) {
       const rug = FAR_RUGS[item.key];
       if (!rug) continue;
       const model = style.model("building.silhouette", { size: { width: rug[0] * CELL, height: 0, depth: rug[1] * CELL }, variant: "rug" });
@@ -742,6 +837,7 @@ export class BuildingView {
     if (signature === this.#signatures.signals) return;
     this.#signatures.signals = signature;
     this.#signals.clear();
+    for (const geometry of this.#signalsMerged) geometry.dispose();
     for (const key of [...this.anchors.keys()]) if (/^(c|beacon|banner|mail|p):/.test(key)) this.anchors.delete(key);
     // A lamp on every desk; a stalled ticket's desk dims its lamp and shows the quiet clock.
     for (const desk of this.desks.values()) {
@@ -790,6 +886,8 @@ export class BuildingView {
       this.#signals.add(model);
       this.anchors.set(`p:${b.slug}:${pallet.room}`, this.world(pallet.x, pallet.z, 0.6));
     }
+    // Static until the signature changes: one merged mesh per material instead of every lamp's parts (perf).
+    this.#signalsMerged = mergeStatic(this.#signals);
   }
 
   /* ── Focus, motion, picking ─────────────────────────────────────────────── */
@@ -962,11 +1060,12 @@ export class BuildingView {
   }
 
   dispose() {
+    this.cancelPrepare();
     for (const robot of this.#robots.values()) robot.handle.dispose();
     this.#robots.clear();
     this.#objects.dispose();
     this.#props.dispose();
-    for (const geometry of [...this.#merged, ...this.#furnitureMerged, ...this.#pilesMerged, ...this.#silhouetteMerged, ...this.#personalMerged, ...this.#cordsMerged]) geometry.dispose();
+    for (const geometry of [...this.#merged, ...this.#furnitureMerged, ...this.#pilesMerged, ...this.#silhouetteMerged, ...this.#personalMerged, ...this.#signalsMerged, ...this.#cordsMerged]) geometry.dispose();
     this.group.removeFromParent();
   }
 }

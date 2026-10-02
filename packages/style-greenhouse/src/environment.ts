@@ -5,6 +5,7 @@
 import * as THREE from "three";
 import type { EnvironmentHandle, GraphicsQuality, LightingPreset, StyleManifest, StyleTheme } from "@crewhub/world-style";
 import { cloneLight, compileLights, driftLight, mixLights, sameLight, type Light } from "./daylight.ts";
+import { CLOUDS, setClouds } from "./shaders.ts";
 
 /** Shadow map texels per side for a reach: an entered building (reach ≲ 16) gets the sharp map. */
 // The close map covers what an entered building's view shows (reach up to about 24); the town's is wider and softer.
@@ -47,6 +48,8 @@ export function environment(
   const place = () => {
     sunDirection.copy(light.keyPosition).normalize();
     const distance = Math.max(light.keyPosition.length(), focus.reach * 2);
+    // Cloud shadows fall along the key light.
+    CLOUDS.slope.value.set(sunDirection.x / Math.max(0.01, sunDirection.y), sunDirection.z / Math.max(0.01, sunDirection.y));
     sun.target.position.set(focus.x, 0, focus.z);
     sun.position.set(focus.x, 0, focus.z).addScaledVector(sunDirection, distance);
     sun.target.updateMatrixWorld();
@@ -111,6 +114,7 @@ export function environment(
       sun.castShadow = quality === "pretty";
       onQuality(quality);
     },
+    setCloudShadows: setClouds,
     setDayPhase(at) {
       if (at === phase) return false;
       phase = at;
@@ -126,6 +130,7 @@ export function environment(
       return shadowVersion;
     },
     dispose() {
+      setClouds([]);
       scene.remove(hemisphere, sun, sun.target, fill);
       sun.shadow.dispose();
     },

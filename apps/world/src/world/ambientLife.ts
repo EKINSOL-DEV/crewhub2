@@ -1,4 +1,5 @@
-/* Ambient life: the gentle motion a small town is never without. By day soft cloud shadows drift over the town, a few
+/* Ambient life: the gentle motion a small town is never without. By day soft cloud shadows drift over the town (and
+   over its roofs, walls and people, where the style's light rig takes them: `setCloudShadows`), a few
    birds cross now and then (in the town view only), butterflies flutter over the flower beds and dust motes hang in
    the entered building's light. In the evening fireflies drift by the pond and the hedges and the landmarks' lit windows
    glow and breathe. Day and night, rings ripple on the pond and steam rises from the post office chimney and the
@@ -16,10 +17,10 @@
    while the playback runs, so a paused or ambient-off town still idles. Deterministic per index (no Math.random). */
 import * as THREE from "three";
 import type { GraphicsQuality, LifeSpot, ModelKey, PaletteName, ResolvedStyle } from "@crewhub/world-style";
-import { instancedMaterial } from "./instancedMaterial";
 import type { Ambient } from "./movement";
 import { noise, pondRect, type Dressing } from "./townDressing";
 import { townBounds, type Bounds } from "./townLayout";
+import { instancedMaterial } from "./instancedMaterial";
 
 export interface LifeSettings {
   ambient: Ambient;
@@ -63,7 +64,9 @@ class Swarm {
     if (!source) model.traverse((o) => (source ??= o instanceof THREE.Mesh ? o : null));
     const mesh = source as THREE.Mesh | null;
     this.#base = mesh ? mesh.matrixWorld.clone() : new THREE.Matrix4();
-    this.mesh = new THREE.InstancedMesh(mesh?.geometry ?? new THREE.BufferGeometry(), mesh ? instancedMaterial(mesh.material as THREE.Material, true) : new THREE.MeshBasicMaterial(), capacity);
+    // The style's material through its instanced twin (instancedMaterial.ts): the style may draw it whole elsewhere.
+    const material = mesh && !Array.isArray(mesh.material) ? instancedMaterial(mesh.material) : new THREE.MeshBasicMaterial();
+    this.mesh = new THREE.InstancedMesh(mesh?.geometry ?? new THREE.BufferGeometry(), material, capacity);
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.mesh.renderOrder = mesh?.renderOrder ?? 0;
     // Instances spread over the town: the base geometry's bounds would cull them wrongly.
@@ -134,9 +137,15 @@ export class AmbientLife {
   #pond: { x: number; y: number; z: number; rx: number; rz: number } | null = null;
   #building: Bounds | null = null;
   #flock = { next: 6, start: 0, from: new THREE.Vector3(), dir: new THREE.Vector3(), length: 0, size: 0 };
+  /** The light rig's cloud shadows, or null: the clouds are then ground decals (`town.cloud-shadow`). */
+  #lightClouds: ((clouds: ArrayLike<number>) => void) | null;
+  #cloudData = new Float32Array(CLOUDS * 5);
+  #cloudsShown = false;
+  #cloudCount = 0;
 
-  constructor(style: ResolvedStyle) {
+  constructor(style: ResolvedStyle, lightClouds: ((clouds: ArrayLike<number>) => void) | null = null) {
     this.#style = style;
+    this.#lightClouds = lightClouds;
     this.#clouds = new Swarm(style, "town.cloud-shadow", CLOUDS);
     this.#birds = new Swarm(style, "town.bird", FLOCK);
     this.#butterflies = new Swarm(style, "town.butterfly", BUTTERFLIES);
@@ -162,7 +171,7 @@ export class AmbientLife {
 
   /** Something is shown that moves: the frame loop keeps drawing for it while the playback runs. */
   get active(): boolean {
-    return this.enabled && this.#swarms().some((s) => s.mesh.count > 0);
+    return this.enabled && (this.#cloudCount > 0 || this.#swarms().some((s) => s.mesh.count > 0));
   }
 
   configure(settings: LifeSettings) {
@@ -239,7 +248,12 @@ export class AmbientLife {
       dusk = smooth(e, 0.45, 0.95);
     const share = this.#settings.ambient === "reduced" ? 0.5 : 1;
     const n = (count: number, capacity: number) => (on ? Math.min(capacity, Math.round(count * share)) : 0);
-    this.#clouds.mesh.count = Math.round(n(CLOUDS, CLOUDS) * day);
+    this.#cloudCount = Math.round(n(CLOUDS, CLOUDS) * day);
+    this.#clouds.mesh.count = this.#lightClouds ? 0 : this.#cloudCount;
+    if (this.#lightClouds && !this.#cloudCount && this.#cloudsShown) {
+      this.#lightClouds([]);
+      this.#cloudsShown = false;
+    }
     this.#butterflies.mesh.count = Math.round(n(this.#beds.length * BUTTERFLIES_PER_BED, BUTTERFLIES) * day);
     this.#fireflies.mesh.count = Math.round(n(this.#glowers.length * 2, FIREFLIES) * dusk);
     this.#windows.mesh.count = e > 0.05 && on ? Math.min(WINDOWS, this.#windowSpots.length) : 0;
@@ -274,7 +288,7 @@ export class AmbientLife {
 
   #tickClouds(t: number) {
     const swarm = this.#clouds,
-      count = swarm.mesh.count;
+      count = this.#cloudCount;
     if (!count) return;
     const b = townBounds();
     const w = b.maxX - b.minX + 24,
@@ -284,9 +298,17 @@ export class AmbientLife {
       const along = (noise(i, 6) * w + t * (0.5 + noise(i, 7) * 0.3)) % w;
       const x = b.minX - 12 + along,
         z = b.minZ - 12 + ((noise(i, 8) * d + along * (WIND.z / WIND.x)) % d);
-      swarm.put(i, x, 0.21, z, noise(i, 9) * Math.PI, 1.2 + noise(i, 10) * 1.3, 1, 1 + noise(i, 11) * 0.8);
+      const yaw = noise(i, 9) * Math.PI,
+        sx = 1.2 + noise(i, 10) * 1.3,
+        sz = 1 + noise(i, 11) * 0.8;
+      if (this.#lightClouds) this.#cloudData.set([x, z, 6 * sx, 4.6 * sz, yaw], i * 5);
+      else swarm.put(i, x, 0.21, z, yaw, sx, 1, sz);
     }
-    swarm.done(count);
+    if (this.#lightClouds) {
+      // The light rig draws them on everything; the decals stay empty.
+      this.#lightClouds(this.#cloudData.subarray(0, count * 5));
+      this.#cloudsShown = true;
+    } else swarm.done(count);
   }
 
   #tickBirds(t: number, seconds: number) {
@@ -368,10 +390,12 @@ export class AmbientLife {
       const x = home.x + Math.sin(t * 0.23 + s) * 0.9 + Math.sin(t * 0.61 + s * 2) * 0.3,
         z = home.z + Math.cos(t * 0.19 + s) * 0.9,
         y = home.y + 0.45 + noise(i, 20) * 0.7 + Math.sin(t * 0.5 + s) * 0.2;
-      swarm.put(i, x, y, z, 0, 1, 1, 1);
-      // A slow blink: dark most of the time, a soft glow now and then.
+      // A slow blink: dark most of the time, a soft glow now and then, and a little larger while it glows.
       const pulse = Math.max(0, Math.sin(t * (0.8 + noise(i, 21) * 0.6) + s));
-      swarm.shade(i, 0.08 + pulse * pulse * pulse * 0.9);
+      const glow = pulse * pulse * pulse;
+      const size = 0.75 + glow * 0.45;
+      swarm.put(i, x, y, z, 0, size, size, size);
+      swarm.shade(i, 0.08 + glow * 0.9);
     }
     swarm.done(count, true);
   }

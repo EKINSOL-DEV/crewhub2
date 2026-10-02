@@ -1,56 +1,46 @@
-/* The material an instanced mesh draws with: a twin of the style's shared material, not the material itself.
+/* Materials for instanced meshes. three compiles a material once with instancing and once without, and keeps one
+   current program per material: a material drawn by plain meshes and by instanced ones (a style material that the town
+   dressing instances in one place and draws whole in another) has its program parameters worked out again at every
+   switch, a few dozen times per frame. The same goes for the shadow pass, whose one depth material switches on
+   nearly every caster. So an instanced mesh gets its own twin of the style's material, and its own depth material.
 
-   Three keeps one program choice per material. When a material is drawn by plain meshes and by instanced meshes (or by
-   instanced meshes with and without instance colours) in the same frame, every switch between them makes three look
-   the program up again (getParameters, the program cache key), and draws of one material sit next to each other in
-   the render list, sorted by depth, so the switches come by the dozen each frame. A twin per source and mode keeps each
-   material on one program.
-
-   The twin is a live view of its source: it shares the colour objects and the shader uniforms, and reads the numbers
-   that themes and the day-night drift change (emissive strength, opacity, visibility, version) from the source, so the
-   style's theme changes reach it with no per-frame work. Programs are shared with the source's (the same shader and
-   cache key), so twins compile nothing new. */
+   A twin follows its source: the same colour objects and uniforms, and its numbers (opacity, emissive strength, ...)
+   read through to the source, so a theme change on the style's material shows on the instances too. Style-agnostic. */
 import * as THREE from "three";
 
-const twins = new WeakMap<THREE.Material, Map<string, THREE.Material>>();
+const twins = new WeakMap<THREE.Material, THREE.Material>();
+/** Properties a style changes in place on its materials (the theme): the twin reads them from the source. */
+const NUMBERS = ["opacity", "emissiveIntensity", "roughness", "metalness", "visible", "version"] as const;
+const COLOURS = ["color", "emissive"] as const;
 
-/** Numbers a style changes in place on its shared materials; the twin reads them from the source. */
-const LIVE = ["emissiveIntensity", "opacity", "visible", "version", "alphaTest"] as const;
-
-/** The twin of `source` for instanced meshes, with (`colours`) or without instance colours. */
-export function instancedMaterial(source: THREE.Material, colours: boolean): THREE.Material {
-  let byMode = twins.get(source);
-  if (!byMode) {
-    byMode = new Map();
-    twins.set(source, byMode);
-  }
-  const mode = colours ? "colours" : "plain";
-  let twin = byMode.get(mode);
+/** The twin of `source` for instanced meshes (one per source; freed with it). */
+export function instancedMaterial<T extends THREE.Material>(source: T): T {
+  let twin = twins.get(source);
   if (!twin) {
-    twin = twinOf(source);
-    byMode.set(mode, twin);
+    const made = source.clone();
+    made.onBeforeCompile = source.onBeforeCompile;
+    made.customProgramCacheKey = source.customProgramCacheKey;
+    made.userData = source.userData;
+    const from = source as unknown as Record<string, unknown>,
+      to = made as unknown as Record<string, unknown>;
+    for (const key of COLOURS) if (from[key] instanceof THREE.Color) to[key] = from[key];
+    if (from.uniforms) to.uniforms = from.uniforms;
+    for (const key of NUMBERS)
+      if (key in source) Object.defineProperty(made, key, { get: () => from[key], set: () => {}, configurable: true });
+    source.addEventListener("dispose", () => {
+      made.dispose();
+      twins.delete(source);
+    });
+    twins.set(source, (twin = made));
   }
-  return twin;
+  return twin as T;
 }
 
-function twinOf(source: THREE.Material): THREE.Material {
-  const twin = source.clone();
-  // Material.copy leaves out a material's own shader hooks; the twin compiles the same shader as its source.
-  twin.onBeforeCompile = source.onBeforeCompile;
-  twin.customProgramCacheKey = source.customProgramCacheKey;
-  const shared = source as THREE.Material & Partial<Record<"color" | "emissive", THREE.Color>> & { uniforms?: Record<string, THREE.IUniform> };
-  const target = twin as typeof shared;
-  if (shared.color) target.color = shared.color;
-  if (shared.emissive) target.emissive = shared.emissive;
-  if (shared.uniforms) target.uniforms = shared.uniforms;
-  for (const key of LIVE) {
-    if (!(key in source)) continue;
-    Object.defineProperty(twin, key, {
-      get: () => (source as unknown as Record<string, unknown>)[key],
-      // Writes go to the source: a style re-colouring "its" material through an instanced mesh still reaches both.
-      set: (value: unknown) => ((source as unknown as Record<string, unknown>)[key] = value),
-      configurable: true,
-    });
-  }
-  return twin;
+/** The shadow pass's depth material for instanced casters (three's own one then only ever sees plain meshes). */
+export const INSTANCED_DEPTH = new THREE.MeshDepthMaterial();
+
+/** Gives an instanced mesh the twin of its material and the instanced depth material. */
+export function useInstancedMaterials(mesh: THREE.InstancedMesh) {
+  if (!Array.isArray(mesh.material)) mesh.material = instancedMaterial(mesh.material);
+  mesh.customDepthMaterial = INSTANCED_DEPTH;
 }
