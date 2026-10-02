@@ -379,7 +379,7 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
     add(key, x, GRASS_Y, z, { rotation: noise(i, 53) * 6.28, scale: 1.6 + noise(i, 59) * 0.8, seed: i, ...detail(key) });
   }
   // October: about one oak, birch or bush in five is turning (gold and orange) among the green.
-  for (const d of out) if (AUTUMN.test(d.key) && !d.variant && noise(d.x, d.z, 77) < 0.2) d.variant = "autumn";
+  for (const d of out) if (AUTUMN.test(d.key) && noise(d.x, d.z, 77) < 0.2) d.key = `${d.key}-autumn`;
   return out;
 }
 
