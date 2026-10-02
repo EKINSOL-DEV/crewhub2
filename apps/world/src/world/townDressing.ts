@@ -173,6 +173,21 @@ function promenades(): Bounds[] {
   return [span(post.x + CIVIC_LOT / 2, square.x - CIVIC_SIZE.square.width / 2 + 0.1, z0, z1), span(square.x + CIVIC_SIZE.square.width / 2 - 0.1, hall.x - CIVIC_LOT / 2, z0, z1)];
 }
 
+/** The stream along the town's southern edge: a gentle meander from the west edge to the east, under the entrance road. */
+export const STREAM = { z: 66.5, width: 1.5, amplitude: 0.7 };
+export function streamPath(): { x: number; z: number }[] {
+  const b = townBounds();
+  const points: { x: number; z: number }[] = [];
+  for (let x = b.minX; x <= b.maxX + 1e-6; x += 6) points.push({ x, z: STREAM.z + Math.sin(x * 0.11 + 0.7) * STREAM.amplitude * (0.6 + 0.4 * Math.sin(x * 0.037)) });
+  return points;
+}
+/** Where the stream runs, with its banks: nothing is planted there. */
+export function streamBand(): Bounds {
+  const b = townBounds();
+  const pad = STREAM.amplitude + STREAM.width / 2 + 0.6;
+  return { minX: b.minX, maxX: b.maxX, minZ: STREAM.z - pad, maxZ: STREAM.z + pad };
+}
+
 /** The town's entrance road: the main street, on south from the last lane through the green belt to the edge. */
 export function entranceRoad(): Bounds {
   const zs = streetZs();
@@ -194,7 +209,7 @@ export function landmarks(): (Landmark & { clear: number })[] {
   const pond = POND,
     cz = (pond.minZ + pond.maxZ) / 2;
   return [
-    { key: "civic.welcome-sign", x: road.maxX + 1.6, y: GRASS_Y, z: b.maxZ - 3.4, rotation: 0, clear: 1.8 },
+    { key: "civic.welcome-sign", x: road.maxX + 1.6, y: GRASS_Y, z: b.maxZ - 5.8, rotation: 0, clear: 1.8 },
     { key: "civic.windmill", x: hall.x + 13, y: GRASS_Y, z: b.minZ + 6.2, rotation: -0.5, clear: 3.6 },
     { key: "civic.water-tower", x: post.x + 8, y: GRASS_Y, z: b.minZ + 5.6, rotation: 0, clear: 2.8 },
     { key: "civic.greenhouse", x: pond.maxX + 2.6, y: GRASS_Y, z: pond.minZ - 4.2, rotation: 0, clear: 2.6 },
@@ -253,6 +268,7 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
     blocked.push(rect(c.x, c.z, PLOT_SIZE, PLOT_SIZE));
   }
   for (const l of landmarks()) if (l.clear) blocked.push(rect(l.x, l.z, l.clear * 2, l.clear * 2));
+  blocked.push(streamBand());
   const free = (x: number, z: number, pad: number) => !blocked.some((b) => inside(b, x, z, pad));
   const tree = (x: number, z: number, y: number, seed: number, scale = 1) => {
     const kind = TREES[Math.floor(noise(seed, 7) * TREES.length)]!;
@@ -328,9 +344,9 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
   for (const [x, z] of [
     [road.minX - 0.7, road.minZ + 3.4],
     [road.maxX + 0.7, road.minZ + 3.4],
-    [road.minX - 0.7, road.maxZ - 2.2],
   ] as const)
     add("town.lantern", x, GRASS_Y, z, { seed: Math.round(z) });
+  stream(add);
   // Flower beds along the promenade's north side, with gaps to step through, and a lantern at each end.
   for (const r of promenades()) {
     for (let x = r.minX + 1.2; x + 3 < r.maxX - 0.8; x += 4.6)
@@ -362,8 +378,12 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
     const key = noise(i, 47) < 0.55 ? "town.grass" : noise(i, 61) < 0.5 ? "town.flowers" : "town.wildflowers";
     add(key, x, GRASS_Y, z, { rotation: noise(i, 53) * 6.28, scale: 1.6 + noise(i, 59) * 0.8, seed: i, ...detail(key) });
   }
+  // October: about one oak, birch or bush in five is turning (gold and orange) among the green.
+  for (const d of out) if (AUTUMN.test(d.key) && !d.variant && noise(d.x, d.z, 77) < 0.2) d.variant = "autumn";
   return out;
 }
+
+const AUTUMN = /^town\.(oak|birch|bush)$/;
 
 /** Grass tufts and wild flowers are detail the Fast quality leaves out. */
 const detail = (key: string): Partial<Dressing> => (key === "town.grass" || key === "town.wildflowers" ? { detail: true } : {});
@@ -684,6 +704,50 @@ function meadow(add: Add, index: number, tree: Tree) {
   drift(add, field.x, field.z, 3.6, 2.8, 26, index * 29);
   spots.push({ ...field, r: 4 });
   scatter(add, index, 8, spots);
+}
+
+/** The stream: overlapping stretches along its course, square-cut at the diorama's edges where it spills over in a
+ *  little waterfall, a timber bridge for the entrance road (its lanterns stand by the lane), reeds and stones along the banks. */
+function stream(add: Add) {
+  const points = streamPath();
+  const b = townBounds();
+  for (let i = 0; i + 1 < points.length; i++) {
+    const a = points[i]!,
+      c = points[i + 1]!;
+    const edge = i === 0 || i + 2 === points.length;
+    const length = Math.hypot(c.x - a.x, c.z - a.z);
+    // The end stretches run straight out to the edge, square-cut; the others overlap with round ends.
+    add("town.stream", (a.x + c.x) / 2, GRASS_Y, (a.z + c.z) / 2, {
+      size: { width: length + (edge ? 0 : STREAM.width), height: 0, depth: STREAM.width },
+      rotation: Math.atan2(-(c.z - a.z), c.x - a.x),
+      ...(edge ? { variant: "cut" } : {}),
+    });
+  }
+  for (const end of [points[0]!, points[points.length - 1]!])
+    add("town.stream", end.x < 0 ? b.minX - 0.28 : b.maxX + 0.28, GRASS_Y, end.z, { size: { width: 0, height: 0, depth: STREAM.width }, variant: "fall", rotation: end.x < 0 ? Math.PI : 0 });
+  const road = entranceRoad();
+  const at = streamAt(0);
+  add("town.bridge", 0, GRASS_Y + 0.02, at, { size: { width: road.maxX - road.minX + 0.4, height: 0.28, depth: STREAM.width + 2.2 } });
+  // Reeds and stones along both banks, thinning out; none by the bridge.
+  for (let i = 0; i < 70; i++) {
+    const x = b.minX + 1.5 + noise(i, 81) * (b.maxX - b.minX - 3);
+    if (Math.abs(x) < 3) continue;
+    const side = noise(i, 82) < 0.5 ? -1 : 1;
+    const z = streamAt(x) + side * (STREAM.width / 2 + 0.25 + noise(i, 83) * 0.35);
+    const pick = noise(i, 84);
+    if (pick < 0.6) add("town.tall-grass", x, GRASS_Y, z, { seed: 700 + i, rotation: noise(i, 85) * 6.28, scale: 1.5 + noise(i, 86) * 1.2 });
+    else if (pick < 0.85) add("town.rock", x, GRASS_Y, z, { seed: 700 + i, rotation: noise(i, 85) * 6.28, scale: 0.6 + noise(i, 86) * 0.6 });
+    else add("town.lily", x, GRASS_Y + 0.07, streamAt(x) + (noise(i, 87) - 0.5) * 0.5, { seed: 700 + i, rotation: noise(i, 85) * 6.28 });
+  }
+}
+
+/** The stream's centre line at `x` (between the course's points). */
+function streamAt(x: number): number {
+  const points = streamPath();
+  const i = Math.max(0, Math.min(points.length - 2, Math.floor((x - points[0]!.x) / 6)));
+  const a = points[i]!,
+    c = points[i + 1]!;
+  return a.z + ((x - a.x) / (c.x - a.x)) * (c.z - a.z);
 }
 
 /** The park west of the post office: the pond, the bridge, willows and birches, benches and a low fence. */

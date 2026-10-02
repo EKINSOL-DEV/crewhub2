@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { NavWorld, plotDoor, plotObstacles, POST_OFFICE_CELL, TOWN_GRID, TOWN_HALL_CELL, TOWN_ROOM, townCellAt, townCellCentre, townOpenCells } from "../src/world/navigation.ts";
-import { entranceRoad, gardenKind, gardenPath, landmarks, laneRects, plotUse, streetXs, streetZs, pondRect, townDressing, townPaths, type Dressing } from "../src/world/townDressing.ts";
+import { entranceRoad, gardenKind, streamBand, streamPath, gardenPath, landmarks, laneRects, plotUse, streetXs, streetZs, pondRect, townDressing, townPaths, type Dressing } from "../src/world/townDressing.ts";
 import { civicCenter, PLOT_SIZE, plotCenter, TOWN_CAPACITY, townBounds, type Bounds } from "../src/world/townLayout.ts";
 import { building } from "./fixtures.ts";
 
@@ -20,7 +20,9 @@ test("the dressing is deterministic and stays on the town ground", () => {
   assert.deepEqual(a, b);
   assert.ok(a.length > 300, "a dressed town, not a bare one");
   const all = townBounds();
-  for (const d of a) assert.ok(d.x >= all.minX && d.x <= all.maxX && d.z >= all.minZ && d.z <= all.maxZ, `${d.key} at ${d.x},${d.z}`);
+  // The stream's waterfalls hang over the diorama's edge, just outside it.
+  const pad = (d: Dressing) => (d.variant === "fall" ? 0.5 : 0);
+  for (const d of a) assert.ok(d.x >= all.minX - pad(d) && d.x <= all.maxX + pad(d) && d.z >= all.minZ && d.z <= all.maxZ, `${d.key} at ${d.x},${d.z}`);
   const kinds = new Set(a.map((d) => d.key));
   for (const key of ["town.oak", "town.birch", "town.pine", "town.hedge", "town.lantern", "town.bench", "town.signpost", "town.pond", "town.bridge", "town.fence"])
     assert.ok(kinds.has(key), `the town has a ${key}`);
@@ -153,4 +155,19 @@ test("each building's front garden follows its seed, and an archived one is over
   assert.ok(wild.filter((d) => d.key === "town.tall-grass").length >= 6, "long grass");
   assert.ok(!wild.some((d) => d.key === "town.flower-bed" || d.key === "civic.cafe-table"), "no tended beds or tables");
   assert.ok(wild.some((d) => d.key === "town.gate"), "the gate is still there");
+});
+
+test("the stream runs edge to edge across the south of the town, under the entrance road's bridge, with nothing planted in it", () => {
+  const dressing = townDressing(plots(12));
+  const all = townBounds();
+  const path = streamPath();
+  assert.equal(path[0]!.x, all.minX);
+  assert.ok(Math.abs(path[path.length - 1]!.x - all.maxX) < 1e-6);
+  assert.equal(dressing.filter((d) => d.key === "town.stream" && d.variant === "fall").length, 2, "a waterfall at either end");
+  const band = streamBand();
+  const road = entranceRoad();
+  assert.ok(dressing.some((d) => d.key === "town.bridge" && d.x === 0 && inside(band, d.x, d.z)), "the road crosses on a bridge");
+  for (const d of dressing.filter((d) => STANDING.test(d.key) || /^civic\./.test(d.key))) assert.ok(!inside(band, d.x, d.z), `${d.key} at ${d.x.toFixed(1)},${d.z.toFixed(1)} stands in the stream`);
+  for (const l of landmarks()) assert.ok(!inside(band, l.x, l.z), `${l.key} stands clear of the stream`);
+  assert.ok(road.maxZ > band.maxZ, "the road runs on past the stream to the edge");
 });
