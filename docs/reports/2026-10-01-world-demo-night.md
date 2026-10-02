@@ -220,7 +220,7 @@ Performance was owned by the rooms developer in the second half of the morning. 
 from tiny pieces, a triangle diet for the dressing and fewer shell materials brought it back to about 1800 to 2000
 draw calls.
 
-The stress fixture (`?stress=1`: 12 buildings, 101 walkers, 4x) on the final commit `8bed50d`, headless Chromium on
+The stress fixture (`?stress=1`: 12 buildings, 101 walkers; the scripts meant 4x but ran at 1x, see "Performance rounds") on the final commit `8bed50d`, headless Chromium on
 Metal (Apple M2 Max), 1440 x 900, against last night's numbers. The p95 of about 16.6 ms is the headless display pace
 (one frame at 60 Hz); single spikes up to 34 ms are the frames that refresh the town's shadow map.
 
@@ -247,6 +247,142 @@ page or console error. Before and after screenshots are in the coordinator's scr
 - Let cloud shadows fall on roofs and buildings, and turn the fireflies into camera-facing billboards.
 - A stronger, wedge-shaped stripe for the café parasols (the parts format has no wedge yet).
 - Measure on the plan's reference machine, and look at the morning's work in a real, visible browser at 4x and 16x.
+
+## Beauty round two (night of 2026-10-01 to 02)
+
+The owner approved the art pass's "what next" list and added performance rounds (spec addendum `35f0872`). Six
+developers worked in parallel from 00:45 (Opus 5.5 at effort medium), each in its own worktree and branch. The Dev
+Lead merged every finished piece `--no-ff` once `npm run check` was green, so the world on port 5175 improved through
+the night: 56 merges, the last at 03:06. The reducer, the projection and the demo source did not change.
+
+| Area | What changed | Main merges |
+| --- | --- | --- |
+| Rooms | <ul><li>Art on the low partitions on both faces: frames, a calendar, a pin strip, a ledge plant, a clock.</li><li>A chair at every desk, and reading nooks on bare floors.</li><li>Rugs kept inside their rooms, and pendants only over tables, so they no longer cover a desk.</li><li>The Lead's office dressed as the homeliest room.</li><li>Every room kind recognisable at a glance: a floor tone and a signature piece each.</li><li>October touches: autumn branches, a pumpkin on reception, apples, a throw on the sofa.</li></ul> | `29b7db0`, `fde07b4`, `67fc568` |
+| Robots as the hero | <ul><li>Seeded idle life: glances and bursts of typing at work, a weight shift and look-round when idle, a bob while waiting. Robots are still under reduced motion.</li><li>A lit face screen at work, which follows the evening.</li><li>A larger contact shadow, and ticket objects at full size.</li><li>Labels never cover their own robot.</li><li>Far labels fade and hide when there are many.</li></ul> | `8fcffc2`, `c89f582` |
+| Landmarks | <ul><li>A **wedge** part in `crewhub-prop/1`, with the validator, renderer, editor, the prop-builder skill and its drift test. The skill's eval, re-run with two wedge requests, was 8 of 8 valid.</li><li>Striped café parasols, a pie chart and cakes.</li><li>Back windows on the post office and the town hall.</li></ul> | `ed1ff00`, `6fd4093` |
+| Town | <ul><li>Clustered plot dressing with flower borders.</li><li>The archived building under dust sheets.</li><li>A civic promenade.</li><li>October colour in one tree in five.</li><li>A stream with a timber bridge and waterfalls over the diorama's edge.</li><li>A market, the bus waiting at its stop, a bandstand, a chapel, hanging baskets, bunting, puddles that catch the lanterns.</li><li>A farm corner with sheep and pumpkins, and cottages beyond the outer lanes.</li></ul> | `558371a`, `7594fa4`, `165fc14`, `5fd7961`, `67af5e7`, `c88b990`, `b9d4c80`, `aa3fed1` |
+| Light | <ul><li>A slow **day-night drift** on the demo clock: dawn, day, dusk and lamplight. It is a setting, "Day and night", on by default in demo mode. The theme sets the base and the drift shades it.</li><li>Lanterns, windows, fireflies and string lights follow the drift.</li><li>Reduced motion and Fast keep a fixed time.</li><li>At high speeds the light keeps at most a 4x pace.</li><li>The air behind the diorama follows the drift.</li><li>The evening glows: screens on their desks, lamp pools, light spilling from windows, a wash under the string lights, lantern streaks on the water.</li></ul> | `d71330a`, `36937f3`, `43ad204`, `4b85433`, `a785789` |
+| Town life | <ul><li>Fireflies as camera-facing billboards, capped to a few pixels.</li><li>Cloud shadows that dim the light on roofs, walls and robots.</li></ul> | `6bce014`, `9e7efe3` |
+| Buildings from the town | <ul><li>Timber coping and corner posts.</li><li>Quieter partitions.</li><li>A soft contact shade along the walls.</li><li>The glass wall glows in the evening.</li><li>The project colour stays on the awning, door, flag and sign. A roof-line ribbon was tried and removed, because it repeated the morning's main complaint.</li></ul> | `7bbf218`, `43d3fc0`, `d61fd1d` |
+| Phone | <ul><li>A focused room, and the entered building, fill the tall screen.</li></ul> | `63625ed` |
+
+The Dev Lead made a critical walk at the start of the night: pendant lamps over the hero, rugs crossing the walls,
+desks without chairs, bare floors and plots, the archived shell, flat dark grass. A visual regression review of every
+optimisation followed. It found no pop-in, no stale shadows and no colour shifts. Its two findings were fixed: long
+low-sun shadows lost to culling, and fireflies that read as orbs up close. The before and after shots are in the
+coordinator's scratchpad under `shots-art2/`.
+
+## Performance rounds (night of 2026-10-01 to 02)
+
+### Instrumentation first
+
+- **The fps overlay.** It is in Settings and on the **F** key, kept per viewer and off by default. It shows:
+  - fps over 1 second, and the frame time mean and p95 over 2 seconds;
+  - the CPU work per frame;
+  - draw calls and triangles;
+  - geometries and textures in memory;
+  - the JS heap;
+  - the Graphics setting.
+
+  It costs nothing while off, and when on it updates its text four times a second.
+- **The same numbers for scripts.** `window.__worldPerf` holds them, and `window.__worldPerfWindow(ms)` gives them over a
+  longer window.
+- **The measurement script.** Every number of the night comes from one script (`perf.mjs` in the coordinator's
+  scratchpad), on the dev server or a production build. Its scenarios: the demo town and inside, the stress fixture at
+  4x and 16x, view changes, the phone in the town and inside, and startup.
+- **A finding along the way.** The art pass's stress numbers ("at 4x") actually ran at 1x: the button is labelled
+  "Play at 4x" and the old script's click missed it.
+
+### The rounds
+
+1. **Overlay and robots.**
+   - The 30 fps cap became a 60 fps cap that rests when nothing moves, and that is robust against rAF jitter.
+   - The far robots are drawn as one instanced crowd, and robots in unseen buildings are not followed.
+2. **Scene graph and shadows.**
+   - Baking drops the groups it empties: 7692 to 4379 nodes in the stress town.
+   - The town shadow map redraws only on change.
+3. **Batching and startup.**
+   - Static meshes merge per material look, with live vertex colours.
+   - A triangle diet for the town dressing.
+   - Startup:
+     - shaders compile in parallel before the first frame;
+     - build mode and the prop editor load lazily;
+     - three.js gets its own chunk.
+4. **Culling and lighter detail.**
+   - The town dressing is culled in 12 m cells, with long low-sun shadows kept.
+   - A left building drops its interior.
+   - Small parts render at lower detail.
+5. **Memory, React and view changes.**
+   - **A leak fixed:** a dispose closure in `mergeStatic` kept every merge's sources, 7000 meshes and 106 MB in the
+     stress fixture.
+   - Merged geometry drops its JS vertex arrays after upload.
+   - The chrome around the scene is memoised: 187 to 16 button renders a second under the stress stream.
+   - Reductions are spaced by their cost under heavy streams.
+   - The first layout is sliced into short tasks.
+   - The hovered building's interior is built ahead in idle time, so entering it shows no long task.
+   - Instanced meshes get material twins.
+6. **Matrices and the last spikes.**
+   - Matrices are recomputed only for what moved, with the scene's own matrix pass.
+   - Ticket templates and plant leaves batch.
+   - At 16x, small shadow changes redraw the map at most every 400 ms: 90 redraws per 10 s became 25.
+
+Final numbers, Pretty and light unless noted, on `c89f582`. The app is unchanged on the final commit, which only adds
+docs.
+
+| Scenario | Before the rounds (`35f0872`, dev) | After (`c89f582`) |
+| --- | --- | --- |
+| Demo town: work mean / p95 | 4.6 / 6.2 ms | 1.4 / 2.0 ms dev, 1.4 / 2.2 ms production |
+| Demo town: draw calls | 676 | 279 |
+| Demo inside: work mean / p95 | 5.3 / 7.2 ms | 1.6 / 2.3 ms |
+| Demo inside: draw calls | 916 | 430 |
+| Stress town 4x: frame max | 40.9 ms, 4 frames over 33 ms | 10.9 ms, none over 33 ms |
+| Stress town 4x: work | 8.0 / 9.6 ms | 2.3 / 3.0 ms |
+| Stress town 4x: draw calls | 1893 | 498 |
+| Stress inside 4x: frame max | 50.8 ms, 11 frames over 33 ms | 10.5 ms, none over 33 ms |
+| Stress inside 4x: work | 7.8 / 10.2 ms | 2.1 / 2.8 ms |
+| Stress town 16x | not measured | max 18.6 ms, none over 33 ms, 25 shadow redraws per 10 s |
+| Enter, zoom and leave | 1 long task of 61 to 73 ms (90 ms in the stress fixture) | no long task, no frame over 33 ms |
+| Phone, Fast, town (375 px, 4x throttle): work | 13.1 / 17.2 ms (dev) | 3.7 / 5.2 ms dev, 3.6 / 5.6 ms production |
+| Phone, Fast, town: frames over 33 ms | 0 to 2 per 10 s | 0 |
+| Phone inside, production: work | not measured | Fast 2.6 / 4.4 ms, Pretty 4.3 / 6.6 ms |
+| Phone inside, production: frames over 33 ms | not measured | 0 |
+| Startup, first frame and dressed town | 2.1 s (dev) | 0.88 s dev, 0.79 s production |
+
+Memory, read after a forced GC every 30 s:
+
+- 10 minutes of the demo at 16x on a production build: the JS heap moves between 22 and 25 MB with no trend.
+  Geometries, textures, DOM nodes and listeners stay the same.
+- 5 minutes of the stress fixture at 16x: the heap grows 0.4 MB, and the rest stays the same.
+
+Before the fix, a dispose closure in static batching kept every merge's sources: 7000 meshes and 106 MB of native
+memory in the stress fixture.
+
+**How to read the numbers.** Headless Chromium paces `requestAnimationFrame` at 120 Hz with about 1.5 ms of jitter.
+So in the demo, which is capped at 60, a steady 60 reads as a frame p95 of about 18 ms; on a real display that is
+16.7 ms. The stress fixture is uncapped and runs at the headless 120 Hz.
+
+**Targets:**
+
+| Target | Result |
+| --- | --- |
+| Frame p95 under 16.7 ms on Pretty in the normal demo | Met: steady 60, with 1.4 to 2.3 ms of work per frame |
+| No frame over 33 ms except at a view change | Met, including the view changes |
+| Shadow-map spikes gone | Met |
+| Fast steady 60 on a phone budget | Met in the town and inside, at DPR 1 and 3 |
+| No memory growth over 10 minutes at 16x | See above |
+| A faster startup | 2.1 s to 0.79 s |
+
+The rules that keep the budget are in [COST_POLICY.md](../COST_POLICY.md), "Graphics also have a budget". The style
+seams that make them possible are in [WORLD_STYLES.md](../WORLD_STYLES.md).
+
+**Verification on the final commit:**
+
+- `npm run check` green, 279 tests.
+- The browser regression pass 38 of 38: no external request, no page or console error.
+- `packages/world-model`, `packages/demo` and `packages/loops-client` unchanged since `35f0872`.
+
+**Still open:** a look and a measurement in a real, visible browser. Every number here is headless. The Chrome tab
+that the Dev Lead tried at night was in the background, so its loop rested.
 
 ## Challenges with docs/integrators
 
