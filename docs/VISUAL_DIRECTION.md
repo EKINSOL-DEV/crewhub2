@@ -96,14 +96,16 @@ and west walls, whose fronts face the camera.
   botanical print, a trio of frames, a calendar, a pin strip, a plant on a bracket, a small clock
   (`decor.frame-hill`, `frame-botanical`, `frame-trio`, `calendar`, `pin-strip`, `ledge-plant`, `small-clock`). Each
   room kind has its own list, rotated and started by a seed, so neighbours differ. At most two pieces on a room's north
-  and west edges and one on the others, with gaps, two cells clear of every doorway, and never behind a seat, so art
+  and west edges and one on the others (one more in the lead's office), with gaps, two cells clear of every doorway, and never behind a seat, so art
   never hangs behind a robot's head. Partitions carry art on both faces; a face shows only while it is turned to the
   camera (like the tall back walls), so the hidden face costs nothing.
 - **Reading nooks.** The emptiest 3 x 3 stretch of a large room (60 cells or more, not the lobby or the workers room)
   gets a nook: an armchair, a side table, a reading or floor lamp, sometimes a plant, on a round rug. Storage and
   dispatch get a big planter there instead. Everything goes through the room planner, so reachability holds.
 - **Room by room:**
-  - **Lead's office:** a sofa corner with a coffee table, a floor lamp, a rug and a bookshelf.
+  - **Lead's office**, the homeliest room: the lead's desk on a big round rug, a sofa corner with a coffee table, a
+    floor lamp and a bookshelf, a small meeting corner (a low table on a round rug with two armchairs facing the
+    camera) and a group of plants.
   - **Lobby:** a coffee counter, a water cooler, armchairs, a round table and a planter either side of the way in.
   - **Role rooms:** plants between the desks and a chair at each desk.
   - **Planning:** a pin board and a map wall; tall boards stand on the north or west wall, never between the camera
@@ -154,7 +156,8 @@ The town is a small green town of hedged gardens, not beige squares
 - **Empty plots** each have a character by index (`plotUse`): a meadow, an orchard, an allotment, a playground or a
   picnic lawn. Their pieces gather into groups, not a sprinkle: the meadow is a copse of trees with bushes at their
   feet, a bench facing it and a spiral drift of wild flowers; the picnic lawn has three shade trees with the blankets
-  in their shade; picnic lawn and playground get a flower-bed border along the lane with a gap to walk in.
+  in their shade; picnic lawn and playground get a flower-bed border along the lane with a gap to walk in; the allotment
+  has a washing line.
 - **Around the town:**
   - a park with a pond, an arched bridge and lilies, and an orchard by the town hall;
   - a meandering stream along the southern edge, under a timber bridge for the entrance road, with reeds, stones and
@@ -169,7 +172,11 @@ The town is a small green town of hedged gardens, not beige squares
   - **The civic row:** the post office, the town hall, the square between them with its fountain, the café and the
     bus stop. A paved promenade runs behind the café from the post office lot through the square to the town hall lot,
     with flower beds along its north side, gaps to step through and a lantern at each end; walkers use it like any
-    other paving. Trees frame the town hall, and two shade trees with a bench face the promenade east of the square. The café's awning and parasols are striped cream and leaf green; the parasols are made of `wedge`
+    other paving. Three market stalls stand along it east of the square. Trees frame the town hall, and two shade
+    trees with a bench face the promenade east of the square. The town bus waits in a paved lay-by beside its stop,
+    off the lane.
+  - **Hanging baskets** of trailing leaves and flowers hang from the civic row's lanterns and at every garden gate
+    (none on the archived building). The café's awning and parasols are striped cream and leaf green; the parasols are made of `wedge`
     parts, the pie slices of the prop format. The post office and the town hall have windows in their back walls too,
     since the camera turns.
   - **Reserved spots** (`landmarks()`): the welcome sign by the entrance road, the windmill behind the orchard (inside
