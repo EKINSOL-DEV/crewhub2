@@ -1,0 +1,142 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-decor-pumpkin",
+  "name": "Small pumpkin",
+  "description": "A small ribbed tangerine pumpkin with a moss stem and a leaf.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "autumn",
+    "pumpkin"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "sphere",
+      "size": [
+        0.055,
+        0.048,
+        0.055
+      ],
+      "position": [
+        0,
+        0.048,
+        0
+      ],
+      "material": "tangerine"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.032,
+        0.044,
+        0.032
+      ],
+      "position": [
+        0,
+        0.046,
+        0.036
+      ],
+      "material": "tangerine"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.032,
+        0.044,
+        0.032
+      ],
+      "position": [
+        0.034,
+        0.046,
+        0.011
+      ],
+      "material": "tangerine"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.032,
+        0.044,
+        0.032
+      ],
+      "position": [
+        0.021,
+        0.046,
+        -0.029
+      ],
+      "material": "tangerine"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.032,
+        0.044,
+        0.032
+      ],
+      "position": [
+        -0.021,
+        0.046,
+        -0.029
+      ],
+      "material": "tangerine"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.032,
+        0.044,
+        0.032
+      ],
+      "position": [
+        -0.034,
+        0.046,
+        0.011
+      ],
+      "material": "tangerine"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.008,
+        0.035,
+        0.01
+      ],
+      "position": [
+        0,
+        0.105,
+        0
+      ],
+      "material": "moss",
+      "rotation": [
+        0,
+        0,
+        12
+      ]
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.025,
+        0.01,
+        0.015
+      ],
+      "position": [
+        0.022,
+        0.1,
+        0
+      ],
+      "material": "leaf",
+      "rotation": [
+        0,
+        0,
+        -20
+      ]
+    }
+  ]
+}

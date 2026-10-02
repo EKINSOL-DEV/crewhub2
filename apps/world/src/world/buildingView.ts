@@ -46,7 +46,7 @@ const WALLS: Record<WallRun["side"], [ModelKey, number, number]> = {
   west: ["wall", BACK_WALL_HEIGHT, 0.16],
   south: ["wall.low", 0.22, 0.12],
   east: ["wall.low", 0.22, 0.12],
-  inner: ["building.partition", 0.6, 0.1],
+  inner: ["building.partition", 0.52, 0.1],
 };
 /** A pick target that is never drawn: the renderer skips invisible materials, the raycaster does not. */
 const PICK_ONLY = new THREE.MeshBasicMaterial({ visible: false });
@@ -75,6 +75,12 @@ const FAR_FURNITURE: Record<string, string> = {
   pallet: "crate",
   "board-stand": "board",
   "mood-board": "board",
+  "reception-desk": "table",
+  "drafting-table": "table",
+  "review-desk": "desk",
+  "parcel-cart": "crate",
+  "crate-stack": "crate",
+  "autumn-vase": "plant",
 };
 /** The room edge a wall piece hangs on. */
 type WallFace = "north" | "west" | "south" | "east";
@@ -104,7 +110,13 @@ const DOOR_FRAME = 1.05;
 const FLOOR_VARIANT: Partial<Record<RoomKind, string>> = {
   lobby: "tile",
   "lead-office": "wood",
-  meeting: "wood",
+  // Neighbours never share a tone: the meeting room's dark oak beside the lead's light wood, planning's oak beside
+  // storage's concrete, review's sage tiles between planning and dispatch, the analysts' cool cells beside the workers'.
+  meeting: "oak",
+  planning: "oak",
+  review: "sage",
+  design: "sage",
+  analyst: "mist",
   storage: "concrete",
   dispatch: "concrete",
 };
@@ -360,6 +372,8 @@ export class BuildingView {
         if (o instanceof THREE.Mesh) o.material = PICK_ONLY;
       });
       this.#shell.add(floor);
+      // Soft contact shade where the walls meet this room's floor.
+      add(style.model("building.floor-shade", { size: { width: width * CELL, height: 0, depth: depth * CELL } }), cx, cz, 0.026);
       add(style.model("building.slab", opt({ size: { width: width * CELL, height: FLOOR_RISE, depth: depth * CELL }, accent })), cx, cz);
       const at = this.#signSpot(room.kind);
       add(style.model("room.sign"), at.x, at.z, 0.02);

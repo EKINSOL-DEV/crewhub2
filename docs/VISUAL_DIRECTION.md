@@ -165,7 +165,9 @@ The town is a small green town of hedged gardens, not beige squares
     (`town.stream`, `variant: "cut"` and `"fall"`). Nothing is planted in its band;
   - autumn among the green, for it is October: about one oak, birch or bush in five turns gold and orange
     (`town.oak-autumn`, `town.birch-autumn`, `town.bush-autumn`, chosen by a seeded noise, so the same trees turn every
-    time);
+    time), with fallen leaves under about half the turning trees;
+  - an October farm corner by the windmill: hay bales, six sheep and pumpkins along a fence; pumpkins by most garden
+    gates and a pumpkin patch in the allotment;
   - lanterns every 9 units along the streets, street trees, benches, signposts and bike racks;
   - a green belt of trees around the edge, with grass tufts and wild flowers on the open grass.
 - **Landmarks** (`civic.*`) are drawn whole, so they can animate:
@@ -177,7 +179,9 @@ The town is a small green town of hedged gardens, not beige squares
     trees with a bench face the promenade east of the square. The town bus waits in a paved lay-by beside its stop,
     off the lane.
   - **Hanging baskets** of trailing leaves and flowers hang from the civic row's lanterns and at every garden gate
-    (none on the archived building). The café's awning and parasols are striped cream and leaf green; the parasols are made of `wedge`
+    (none on the archived building).
+  - **Puddles** lie on the cobbles beside about one lane lantern in four: a soft film of water by day, the lantern's
+    warm reflection in the evening (`town.puddle`). The café's awning and parasols are striped cream and leaf green; the parasols are made of `wedge`
     parts, the pie slices of the prop format. The post office and the town hall have windows in their back walls too,
     since the camera turns.
   - **Reserved spots** (`landmarks()`): the welcome sign by the entrance road, the windmill behind the orchard (inside
@@ -202,7 +206,7 @@ The town is a small green town of hedged gardens, not beige squares
   - **Cloud shadows fall on buildings.** A passing cloud dims the key light on everything under it, roofs, walls, desks
     and robots as well as the grass, where the sun puts its shadow.
   - **Fireflies are billboards:** a cream core in a soft lantern-light halo that faces the camera from any side, so they
-    stay visible when the camera turns.
+    stay visible when the camera turns; up close they stay specks of a few pixels, never orbs.
   - Through the evening (below), clouds, butterflies, motes and birds thin out, fireflies come out one by one, landmark
     windows brighten slowly and pond ripples dim at night.
 - **Lamplight grass** mottles more strongly and warms in soft, large patches of dry grass and clover, so the dark

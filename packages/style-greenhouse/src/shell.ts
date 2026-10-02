@@ -150,6 +150,8 @@ export function glassWall(kit: Kit, o: ModelOptions, glass: THREE.Material): THR
   put(g, kit.box(0.045, height - knee, 0.09, "mullion", 0.01), width / 2, (knee + height) / 2, 0);
   put(g, kit.box(width, 0.035, 0.07, "mullion", 0.01), 0, transom, 0);
   put(g, kit.box(width + 0.06, 0.09, depth, "mullion", 0.02), 0, height - 0.02, 0);
+  // A pale cap on the frame: from the town the glass wall's top catches the light like the chalk wall's ledge.
+  put(g, kit.box(width + 0.08, 0.035, depth + 0.06, "cream", 0.012), 0, height + 0.04, 0);
   pilasters(kit, g, width, height, depth, archived(o) ? "chalk-dim" : "chalk");
   return g;
 }
@@ -159,15 +161,24 @@ export function rim(kit: Kit, o: ModelOptions): THREE.Group {
   const { width, height, depth } = size(o, { width: 2, height: 0.22, depth: 0.12 });
   const g = new THREE.Group();
   put(g, kit.box(width, height, depth, archived(o) ? "chalk-dim" : "chalk", 0.02), 0, height / 2, 0);
-  put(g, kit.box(width + 0.02, 0.04, depth + 0.04, "ledge", 0.012), 0, height + 0.02, 0);
+  // A timber coping: from the town the front walls draw the building's outline.
+  put(g, kit.box(width + 0.02, 0.045, depth + 0.05, "coping", 0.012), 0, height + 0.0225, 0);
+  // Square posts at both ends (the corners, and either side of a door), a little taller than the rim.
+  for (const s of [-1, 1]) {
+    put(g, kit.box(depth + 0.08, height + 0.12, depth + 0.08, archived(o) ? "chalk-dim" : "chalk", 0.02), s * (width / 2 - depth / 2), (height + 0.12) / 2, 0);
+    put(g, kit.box(depth + 0.12, 0.04, depth + 0.12, "coping", 0.012), s * (width / 2 - depth / 2), height + 0.14, 0);
+  }
   return g;
 }
 
-/** A soft partition between rooms: lower than the outer walls, with a timber cap. */
+/**
+ * A soft partition between rooms: lower than the outer walls, in a quieter tone than the chalk outer walls (from the
+ * town the rooms read as places, not as white lines), with a timber cap.
+ */
 export function partition(kit: Kit, o: ModelOptions): THREE.Group {
-  const { width, height, depth } = size(o, { width: 2, height: 0.6, depth: 0.1 });
+  const { width, height, depth } = size(o, { width: 2, height: 0.52, depth: 0.1 });
   const g = new THREE.Group();
-  put(g, kit.box(width, height, depth, archived(o) ? "chalk-dim" : "chalk", 0.02), 0, height / 2, 0);
+  put(g, kit.box(width, height, depth, archived(o) ? "chalk-dim" : "partition", 0.02), 0, height / 2, 0);
   put(g, kit.box(width + 0.01, 0.035, depth + 0.035, "timber-trim", 0.012), 0, height + 0.0175, 0);
   return g;
 }
@@ -250,9 +261,12 @@ export function slab(kit: Kit, o: ModelOptions): THREE.Group {
   const { width, depth } = size(o, { width: 4, height: SLAB, depth: 4 });
   const g = new THREE.Group();
   const reach = 0.22;
-  put(g, kit.box(width + reach * 2, SLAB - 0.05, depth + reach * 2, "slab", 0.05), 0, -(SLAB + 0.05) / 2, 0);
+  // A warm side under a cream lip: the building's footprint reads crisply against the lawn.
+  put(g, kit.box(width + reach * 2, SLAB - 0.05, depth + reach * 2, "slab-side", 0.05), 0, -(SLAB + 0.05) / 2, 0);
   put(g, kit.box(width + reach * 2 + 0.06, 0.06, depth + reach * 2 + 0.06, archived(o) ? "chalk-dim" : "cream", 0.03), 0, -0.03, 0);
-  put(g, kit.box(width + reach * 2 + 0.02, 0.022, depth + reach * 2 + 0.02, archived(o) ? "plank" : accent(o), 0.008), 0, -0.075, 0);
+  // A thin trim under the lip in a soft tint of the project colour: an accent, never a ribbon (the colour reads from
+  // the town through the awning, the door, the flag and the name sign).
+  put(g, kit.box(width + reach * 2 + 0.02, 0.022, depth + reach * 2 + 0.02, archived(o) ? "plank" : `soft:${accent(o)}`, 0.008), 0, -0.075, 0);
   put(g, kit.box(width + reach * 2 + 0.03, 0.04, depth + reach * 2 + 0.03, "ledge", 0.015), 0, -SLAB + 0.02, 0);
   g.userData.rise = SLAB;
   // Flat: its shadow is a sliver under the lip; the walls standing on it cast the ones that read.
@@ -375,12 +389,13 @@ export function silhouette(kit: Kit, o: ModelOptions): THREE.Group {
   switch (kind) {
     case "desk":
       box(w - 0.1, 0.05, d - 0.12, "timber", 0, h - 0.025);
-      box(w - 0.2, h - 0.05, 0.05, "graphite", 0, (h - 0.05) / 2, d / 2 - 0.12);
-      box(0.36, 0.24, 0.04, "graphite", 0, h + 0.12, -d / 2 + 0.16);
+      // Soft tones, not black: from the town a row of desks reads as furniture, not as dark marks.
+      box(w - 0.2, h - 0.05, 0.05, "timber-trim", 0, (h - 0.05) / 2, d / 2 - 0.12);
+      box(0.36, 0.24, 0.04, "far-screen", 0, h + 0.12, -d / 2 + 0.16);
       break;
     case "table":
       box(w - 0.12, 0.06, d - 0.12, "timber", 0, h - 0.03);
-      box(Math.max(0.1, w - 0.6), h - 0.06, 0.08, "graphite", 0, (h - 0.06) / 2);
+      box(Math.max(0.1, w - 0.6), h - 0.06, 0.08, "timber-trim", 0, (h - 0.06) / 2);
       break;
     case "shelf":
       box(w - 0.1, h, d - 0.25, "timber");

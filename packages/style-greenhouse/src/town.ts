@@ -5,7 +5,7 @@
 import * as THREE from "three";
 import type { ModelOptions } from "@crewhub/world-style";
 import { put, type Kit, type Swatch } from "./kit.ts";
-import { decalMaterial, GRASS_GOLDEN, GRASS_NIGHT, grassShader, pavingShader, waterShader } from "./shaders.ts";
+import { decalMaterial, GRASS_GOLDEN, GRASS_NIGHT, WATER_GLINT, grassShader, pavingShader, waterShader } from "./shaders.ts";
 
 type Size = { width: number; height: number; depth: number };
 const size = (o: ModelOptions, fallback: Size): Size => o.size ?? fallback;
@@ -347,6 +347,48 @@ function lanternGlass(kit: Kit): THREE.MeshStandardMaterial {
  * String lights along x: two slim iron poles and a sagging wire of small warm bulbs, unlit by day and glowing in
  * lamplight. One wire geometry and one bulb geometry, so a renderer instances every string in town together.
  */
+/**
+ * Bunting along x: two slim timber poles and a sagging line of little triangular flags in turn coral, cream, tangerine
+ * and sage, catching a little sideways twist each. One flag geometry per colour, so every string in town instances.
+ */
+export function bunting(kit: Kit, o: ModelOptions): THREE.Group {
+  const { width, height } = size(o, { width: 8, height: 3.4, depth: 0.1 });
+  const g = new THREE.Group();
+  for (const side of [-1, 1]) {
+    put(g, kit.cylinder(0.04, 0.05, height, "timber"), (side * width) / 2, height / 2, 0);
+    put(g, kit.sphere(0.06, "brass"), (side * width) / 2, height + 0.04, 0);
+  }
+  const sag = 0.3 + width * 0.03;
+  const at = (t: number) => new THREE.Vector3(-width / 2 + t * width, height - 0.1 - sag * 4 * t * (1 - t), 0);
+  const wire = kit.geometry("town:wire", () => new THREE.BoxGeometry(1, 0.016, 0.016));
+  const steps = 10;
+  for (let i = 0; i < steps; i++) {
+    const p = at(i / steps),
+      q = at((i + 1) / steps);
+    const piece = put(g, kit.mesh(wire, kit.material("cream")), (p.x + q.x) / 2, (p.y + q.y) / 2, 0);
+    piece.scale.x = p.distanceTo(q) + 0.01;
+    piece.rotation.z = Math.atan2(q.y - p.y, q.x - p.x);
+    piece.castShadow = false;
+  }
+  // A flat downward triangle, 0.3 wide and 0.34 long, both faces drawn.
+  const flag = kit.geometry("town:flag", () => {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute([-0.15, 0, 0, 0.15, 0, 0, 0, -0.34, 0, 0.15, 0, 0, -0.15, 0, 0, 0, -0.34, 0], 3));
+    geometry.computeVertexNormals();
+    return geometry;
+  });
+  const colours: Swatch[] = ["coral", "cream", "tangerine", "sage"];
+  const flags = Math.max(4, Math.round(width / 0.42));
+  const seed = o.seed ?? 0;
+  for (let i = 1; i < flags; i++) {
+    const p = at(i / flags);
+    const mesh = put(g, kit.mesh(flag, kit.material(colours[(i + seed) % colours.length]!)), p.x, p.y, 0);
+    mesh.rotation.y = (((i * 7 + seed) % 5) - 2) * 0.12;
+    mesh.castShadow = false;
+  }
+  return g;
+}
+
 export function stringLights(kit: Kit, o: ModelOptions): THREE.Group {
   const { width, height } = size(o, { width: 8, height: 2.7, depth: 0.1 });
   const g = new THREE.Group();
@@ -396,6 +438,8 @@ export function townLight(kit: Kit, evening: number) {
   const lerp = (day: number, night: number) => day + (night - day) * e;
   // The lawns' warm evening patches belong to the dark lawns of lamplight; on the daylight lawns they would turn olive.
   GRASS_NIGHT.value = kit.theme === "lamplight" ? e : e * 0.25;
+  WATER_GLINT.uGlint.value = THREE.MathUtils.smoothstep(e, 0.3, 0.9);
+  WATER_GLINT.uGlintColor.value.set(kit.hex("lantern-light"));
   // The light theme's low sun (dawn and dusk, still there in its gentle evening) gets the golden lawns.
   GRASS_GOLDEN.value = kit.theme === "lamplight" ? 0 : THREE.MathUtils.smoothstep(e, 0.05, 0.35);
   lanternGlass(kit).emissiveIntensity = lerp(0.5, 1.25);
@@ -414,6 +458,7 @@ export function disposeTown(kit: Kit) {
 /** Small town pieces whose shadows nobody sees from the town camera; they skip the shadow pass. */
 const SHADOWLESS = new Set([
   "town.string-lights",
+  "town.bunting",
   "town.grass",
   "town.tall-grass",
   "town.flowers",

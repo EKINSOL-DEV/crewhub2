@@ -84,6 +84,8 @@ export interface FrameStats {
   walkers: number;
 }
 const FRAME_WINDOW = 300;
+/** The town's shadow map follows small changes (piles, the drifting sun) at most this often (ms). */
+const SOFT_SHADOW_MS = 400;
 /** How often the day-night drift looks at the clock: the light changes at most four times a second. */
 const DRIFT_INTERVAL_MS = 250;
 /* The frame loop draws at most 60 times a second, so a 120 Hz display does not double the work (the stress fixture is
@@ -151,6 +153,9 @@ const KEPT_INTERIORS = 3;
 const IDLE_STEP_MS = 12;
 const BUILDING_FRAME_HEIGHT = FLOOR_RISE + BACK_WALL_HEIGHT + 0.6; // the slab, the tall walls and a little headroom
 const ROOM_FRAME_HEIGHT = 1.1;
+/** On a portrait phone a room or building frame crops its diamond's outer corner tips (below 1: tighter). */
+const PORTRAIT_ROOM_MARGIN = 0.86;
+const PORTRAIT_BUILDING_MARGIN = 0.94;
 /* The closest view: a frustum this many world units tall, about one desk with its robot. */
 const DESK_SPAN = 2.4;
 /* A robot as the labels see it: from its label anchor (just over its head) down this far to its feet, and this wide
@@ -193,9 +198,16 @@ export class TownScene {
   /**
    * The town view's shadow map is drawn once and again only when something that casts or lights it changed: the sun
    * (a fit or a visible step of the drift), the dressing, a building's casters (`BuildingView.shadowRevision`), a lift.
-   * Inside a building it follows every frame (robots cast there).
+   * Inside a building it follows every frame (robots cast there). A fit, a lift, the dressing or the quality redraw it
+   * at once (`#shadowDirty`); the small, frequent changes (a pile of tickets grows, the drifting sun turns half a
+   * degree) wait for the next of a few redraws a second (`#shadowSoft`, `SOFT_SHADOW_MS`): at 16x the piles alone
+   * changed a dozen times a second.
    */
   #shadowDirty = true;
+  #shadowSoft = false;
+  /** When the town's shadow map was last drawn (performance.now()), and a pending catch-up frame. */
+  #shadowDrawn = 0;
+  #shadowTimer: ReturnType<typeof setTimeout> | 0 = 0;
   /** The buildings' caster revisions the town's shadow map was last drawn for. */
   #shadowCasters = -1;
   /** The environment's shadow version the shadow maps were last drawn for. */
@@ -392,7 +404,7 @@ export class TownScene {
     if (!changed) return;
     if (this.#environment.shadowVersion !== this.#shadowVersion) {
       this.#shadowVersion = this.#environment.shadowVersion;
-      this.#shadowDirty = true;
+      this.#shadowSoft = true;
     }
     this.redraw();
   };
@@ -907,7 +919,14 @@ export class TownScene {
       ? view.bounds(room)
       : { minX: o.x - 0.3, maxX: o.x + size.width * BUILDING_CELL + 0.3, minZ: o.z - 0.3, maxZ: o.z + size.depth * BUILDING_CELL + 0.9 };
     const direction = (this.#tween ? this.#tween.position.clone().sub(this.#tween.target) : this.camera.position.clone().sub(this.controls.target)).normalize();
-    const { span, target } = this.frameRects([bounds], room ? ROOM_FRAME_HEIGHT : BUILDING_FRAME_HEIGHT, direction, this.insets(), room ? 1.06 : 1.02);
+    // On a portrait phone the width binds: the room (or building) runs under the side controls and its diamond's outer
+    // corner tips may leave the screen, so it fills the tall screen instead of floating small in its middle.
+    const canvas = this.renderer.domElement;
+    const portrait = canvas.clientWidth < canvas.clientHeight * 0.8;
+    const insets = this.insets();
+    const { span, target } = portrait
+      ? this.frameRects([bounds], room ? ROOM_FRAME_HEIGHT : BUILDING_FRAME_HEIGHT, direction, { ...insets, left: 0, right: 0 }, room ? PORTRAIT_ROOM_MARGIN : PORTRAIT_BUILDING_MARGIN)
+      : this.frameRects([bounds], room ? ROOM_FRAME_HEIGHT : BUILDING_FRAME_HEIGHT, direction, insets, room ? 1.06 : 1.02);
     const offset = direction.multiplyScalar(HOME_OFFSET.length());
     this.moveTo(target, target.clone().add(offset), THREE.MathUtils.clamp(this.#span / span, 0.6, this.controls.maxZoom), false);
   }
@@ -1166,12 +1185,23 @@ export class TownScene {
       const casters = this.#casterRevision();
       if (casters !== this.#shadowCasters) {
         this.#shadowCasters = casters;
-        this.#shadowDirty = true;
+        this.#shadowSoft = true;
       }
     }
-    if (!shadows.autoUpdate && this.#shadowDirty) {
-      shadows.needsUpdate = true;
-      this.#shadowDirty = false;
+    if (!shadows.autoUpdate && (this.#shadowDirty || this.#shadowSoft)) {
+      const now = performance.now(),
+        wait = this.#shadowDrawn + SOFT_SHADOW_MS - now;
+      if (this.#shadowDirty || wait <= 0) {
+        shadows.needsUpdate = true;
+        this.#shadowDirty = this.#shadowSoft = false;
+        this.#shadowDrawn = now;
+      } else if (!this.#shadowTimer) {
+        // The loop may rest before then: one frame later catches the change up.
+        this.#shadowTimer = setTimeout(() => {
+          this.#shadowTimer = 0;
+          this.redraw();
+        }, wait + 1);
+      }
     }
     // World matrices for what moved only (matrixPass.ts; three's own pass is off for this scene), before the crowd
     // copies its robots' matrices.
@@ -1429,6 +1459,7 @@ export class TownScene {
     this.#crowd.dispose();
     this.#disposeDressing();
     clearInterval(this.#driftTimer);
+    clearTimeout(this.#shadowTimer);
     this.#life.dispose();
     this.#environment.dispose();
     // Styles live in the registry (one instance per id) and outlast this scene; the renderer frees the GPU side.
