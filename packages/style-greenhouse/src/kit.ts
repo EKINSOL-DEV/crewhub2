@@ -3,7 +3,10 @@
 import * as THREE from "three";
 import type { GraphicsQuality, LightingPreset, PaletteName, StyleTheme } from "@crewhub/world-style";
 import { roundedBoxGeometry } from "./roundedBox.ts";
-import { cloudShadows, decalMaterial } from "./shaders.ts";
+import { cloudShadows, decalMaterial, edgeShadeMaterial } from "./shaders.ts";
+
+/** The contact shade along a room's walls, as a share of the blob contact shadows' opacity. */
+const EDGE = 1.1;
 
 export interface GreenhouseManifestData {
   palette: Record<PaletteName, string>;
@@ -27,7 +30,7 @@ interface Entry {
 }
 
 /** Ground decals: blob contact shadows (every quality) and warm lamp pools (lamplight, pretty only). */
-type Decal = "shadow" | "pool";
+type Decal = "shadow" | "pool" | "screen";
 
 /** What of the light the shared materials follow: lamp glow, pools, contact shadows and the evening. */
 export type KitLight = Pick<LightingPreset, "glow" | "pools" | "shadowOpacity" | "evening">;
@@ -38,6 +41,8 @@ export class Kit {
   readonly geometries = new Map<string, THREE.BufferGeometry>();
   readonly #materials = new Map<string, Entry>();
   readonly #decals: Record<Decal, THREE.ShaderMaterial>;
+  /** The contact shade along a room's walls (`edgeShade`). */
+  readonly #edge: THREE.ShaderMaterial;
   /** The floor shader's sun shafts: shown by day, faded out in the evening and under lamplight. */
   readonly shafts = { value: 1 };
   #lighting: Record<StyleTheme, LightingPreset>;
@@ -52,7 +57,9 @@ export class Kit {
     this.#decals = {
       shadow: decalMaterial(this.hex("contact-shadow"), lighting.day.shadowOpacity, false),
       pool: decalMaterial(this.hex("lamp-pool"), lighting.day.pools, true),
+      screen: decalMaterial(this.hex("screen-glow"), 0, true),
     };
+    this.#edge = edgeShadeMaterial(this.hex("contact-shadow"), lighting.day.shadowOpacity * EDGE);
     this.#applyDecals();
   }
 
@@ -138,13 +145,19 @@ export class Kit {
 
   #applyDecals() {
     const preset = this.#light;
-    const { shadow, pool } = this.#decals;
+    const { shadow, pool, screen } = this.#decals;
     shadow.uniforms.uColor!.value.set(this.hex("contact-shadow"));
     shadow.uniforms.uOpacity!.value = preset.shadowOpacity;
     pool.uniforms.uColor!.value.set(this.hex("lamp-pool"));
     pool.uniforms.uOpacity!.value = preset.pools;
+    this.#edge.uniforms.uColor!.value.set(this.hex("contact-shadow"));
+    this.#edge.uniforms.uOpacity!.value = preset.shadowOpacity * EDGE;
     // A hidden material skips its draw calls entirely: no pools by day or on Fast.
     pool.visible = preset.pools > 0.01 && this.#quality === "pretty";
+    // Screens light their desks as the rooms dim: a cool glow that follows the evening, gentler than a lamp's.
+    screen.uniforms.uColor!.value.set(this.hex("screen-glow"));
+    screen.uniforms.uOpacity!.value = preset.pools * 1.3;
+    screen.visible = pool.visible;
   }
 
   /**
@@ -163,6 +176,39 @@ export class Kit {
     const mesh = new THREE.Mesh(geo, this.#decals[kind]);
     mesh.renderOrder = kind === "shadow" ? 1 : 2;
     mesh.userData.decal = true;
+    return mesh;
+  }
+
+  /**
+   * The soft contact shade where walls meet a floor of `width` x `depth`: a frame strip `reach` wide inside the floor's
+   * edge, darkest at the wall line. Lies flat at the origin, centred on the floor.
+   */
+  edgeShade(width: number, depth: number, reach = 0.5): THREE.Mesh {
+    const geo = this.geometry(`edge-shade:${width.toFixed(2)},${depth.toFixed(2)},${reach}`, () => {
+      const w = width / 2,
+        d = depth / 2,
+        r = Math.min(reach, w * 0.8, d * 0.8);
+      // Outer ring (uv.y 0) and inner ring (uv.y 1), four corners each, joined by four strips.
+      const outer = [[-w, -d], [w, -d], [w, d], [-w, d]];
+      const inner = [[-w + r, -d + r], [w - r, -d + r], [w - r, d - r], [-w + r, d - r]];
+      const position: number[] = [],
+        uv: number[] = [];
+      for (const [x, z] of outer) position.push(x!, 0, z!), uv.push(0, 0);
+      for (const [x, z] of inner) position.push(x!, 0, z!), uv.push(0, 1);
+      const index: number[] = [];
+      for (let i = 0; i < 4; i++) {
+        const j = (i + 1) % 4;
+        index.push(i, 4 + i, j, j, 4 + i, 4 + j);
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.Float32BufferAttribute(position, 3));
+      g.setAttribute("normal", new THREE.Float32BufferAttribute(new Array(24).fill(0).map((_, i) => (i % 3 === 1 ? 1 : 0)), 3));
+      g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+      g.setIndex(index);
+      return g;
+    });
+    const mesh = new THREE.Mesh(geo, this.#edge);
+    mesh.renderOrder = 1;
     return mesh;
   }
 
@@ -212,6 +258,8 @@ export class Kit {
     this.#materials.forEach((e) => e.material.dispose());
     this.#decals.shadow.dispose();
     this.#decals.pool.dispose();
+    this.#decals.screen.dispose();
+    this.#edge.dispose();
     this.geometries.clear();
     this.#materials.clear();
   }

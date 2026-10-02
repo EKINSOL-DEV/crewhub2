@@ -46,7 +46,7 @@ const WALLS: Record<WallRun["side"], [ModelKey, number, number]> = {
   west: ["wall", BACK_WALL_HEIGHT, 0.16],
   south: ["wall.low", 0.22, 0.12],
   east: ["wall.low", 0.22, 0.12],
-  inner: ["building.partition", 0.6, 0.1],
+  inner: ["building.partition", 0.52, 0.1],
 };
 /** A pick target that is never drawn: the renderer skips invisible materials, the raycaster does not. */
 const PICK_ONLY = new THREE.MeshBasicMaterial({ visible: false });
@@ -372,6 +372,8 @@ export class BuildingView {
         if (o instanceof THREE.Mesh) o.material = PICK_ONLY;
       });
       this.#shell.add(floor);
+      // Soft contact shade where the walls meet this room's floor.
+      add(style.model("building.floor-shade", { size: { width: width * CELL, height: 0, depth: depth * CELL } }), cx, cz, 0.026);
       add(style.model("building.slab", opt({ size: { width: width * CELL, height: FLOOR_RISE, depth: depth * CELL }, accent })), cx, cz);
       const at = this.#signSpot(room.kind);
       add(style.model("room.sign"), at.x, at.z, 0.02);

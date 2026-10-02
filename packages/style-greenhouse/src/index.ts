@@ -62,7 +62,7 @@ class GreenhouseStyle implements WorldStyle {
     for (const pool of pools === undefined ? [] : Array.isArray(pools) ? pools : [pools]) {
       // A warm pool of light on the ground under a lamp (lamplight, Pretty only); kept apart from static batching.
       // A small bright core and a long soft edge: a pool of light, not a disc.
-      const decal = this.#kit.decal("pool", pool.radius * 0.08, pool.radius * 0.08, pool.radius * 0.92);
+      const decal = this.#kit.decal(pool.kind ?? "pool", pool.radius * 0.08, pool.radius * 0.08, pool.radius * 0.92);
       decal.position.set(pool.x ?? 0, pool.y, pool.z ?? 0);
       object.add(decal);
     }
@@ -192,6 +192,10 @@ class GreenhouseStyle implements WorldStyle {
         return shell.nameSign(kit, o);
       case "building.wall-lamp":
         return shell.wallLamp(kit, o);
+      case "building.floor-shade": {
+        const { width, depth } = o.size ?? { width: 2, height: 0, depth: 2 };
+        return kit.edgeShade(width, depth);
+      }
       case "building.silhouette":
         return shell.silhouette(kit, o);
       case "floor":
@@ -300,8 +304,9 @@ class GreenhouseStyle implements WorldStyle {
   #light(light: Light) {
     this.#kit.setLight(light);
     const evening = THREE.MathUtils.clamp(light.evening, 0, 1);
-    // By day the panes read a little more, with a soft sheen; in the evening the warm glass glows evenly.
-    this.#glass.uniforms.uOpacity!.value = 0.4 + (0.82 - 0.4) * evening;
+    // By day the panes read a little more, with a soft sheen; in the evening the warm glass glows evenly, strongly
+    // enough that a lit greenhouse wall reads from the town against the dark lawn behind it.
+    this.#glass.uniforms.uOpacity!.value = 0.4 + (1.5 - 0.4) * evening;
     this.#glass.uniforms.uSheen!.value = 1 + (0.15 - 1) * evening;
     town.townLight(this.#kit, evening);
   }
