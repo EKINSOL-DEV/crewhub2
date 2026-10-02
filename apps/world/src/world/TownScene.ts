@@ -27,6 +27,7 @@ import { Walks } from "./walks";
 import { AmbientLife } from "./ambientLife";
 import { driftPhase } from "./dayClock";
 import { FrameRing } from "./frameRing";
+import { updateMatrices } from "./matrixPass";
 import { RobotCrowd } from "./robotCrowd";
 
 export interface TownView {
@@ -301,6 +302,8 @@ export class TownScene {
     const environment = this.#environment;
     this.#life = new AmbientLife(this.townStyle, environment.setCloudShadows ? (clouds) => environment.setCloudShadows!(clouds) : null);
     this.scene.add(this.#hits, this.#ring, this.#civic, this.#life.group, this.#crowd.group);
+    // The frame loop brings world matrices up to date itself, for what moved only (matrixPass.ts).
+    this.scene.matrixWorldAutoUpdate = false;
     this.#drift();
     this.#driftTimer = setInterval(this.#drift, DRIFT_INTERVAL_MS);
     canvas.addEventListener("pointerdown", this.pointerDown);
@@ -1031,6 +1034,9 @@ export class TownScene {
       shadows.needsUpdate = true;
       this.#shadowDirty = false;
     }
+    // World matrices for what moved only (matrixPass.ts; three's own pass is off for this scene), before the crowd
+    // copies its robots' matrices.
+    updateMatrices(this.scene);
     this.#crowd.begin();
     for (const [slug, view] of this.#buildings) view.crowd(this.#crowd, this.#seen.has(slug));
     this.#crowd.end();

@@ -58,7 +58,7 @@ export class RobotCrowd {
       if (fresh) for (const mesh of parts) if (this.#key(mesh)) mesh.layers.set(HIDDEN);
       return;
     }
-    robot.updateWorldMatrix(true, true);
+    // The robot's world matrices are current: TownScene's matrix pass (matrixPass.ts) runs just before the crowd.
     for (const mesh of parts) {
       const key = shown(mesh, robot) ? this.#key(mesh) : null;
       if (!key) {

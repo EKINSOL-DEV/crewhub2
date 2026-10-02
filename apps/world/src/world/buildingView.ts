@@ -451,7 +451,10 @@ export class BuildingView {
           if (!tall) mesh.castShadow = false;
           // The frame a rotation crosses a side, the wrong variant is still visible: it collapses for that draw.
           mesh.onBeforeRender = (_renderer, _scene, camera) => {
-            if (this.#seesInside(side, camera) !== tall) mesh.matrixWorld.makeScale(0, 0, 0);
+            if (this.#seesInside(side, camera) === tall) return;
+            mesh.matrixWorld.makeScale(0, 0, 0);
+            // The matrix pass recomputes only what changed (matrixPass.ts): restore it next frame.
+            mesh.matrixWorldNeedsUpdate = true;
           };
         }
       }
@@ -555,7 +558,9 @@ export class BuildingView {
       const facing = side === wall;
       for (const mesh of wallDecor[side].children)
         mesh.onBeforeRender = (_renderer, _scene, camera) => {
-          if (this.#seesInside(wall, camera) !== facing) mesh.matrixWorld.makeScale(0, 0, 0);
+          if (this.#seesInside(wall, camera) === facing) return;
+          mesh.matrixWorld.makeScale(0, 0, 0);
+          mesh.matrixWorldNeedsUpdate = true; // restored by the next matrix pass (matrixPass.ts)
         };
     }
     this.#wallDecor = wallDecor;
