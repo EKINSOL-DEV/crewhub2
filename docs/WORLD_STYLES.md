@@ -218,6 +218,14 @@ them. A style keeps its world cheap by keeping its materials batchable.
 - **Town dressing** (`instanceStatic.ts`). Repeated pieces are instanced one mesh per part and material and culled by
   12 m ground cells; a kind with fewer than about 2,000 triangles in all is merged instead. Model groups the bakers empty
   are removed, so they cost nothing per frame; a group with `userData.animate` stays.
+- **Matrices only for what moved** (`matrixPass.ts`). TownScene updates world matrices itself, instead of three.js
+  recomposing every object every frame: an object's local matrix is recomposed only when its position, rotation
+  (quaternion) or scale changed since the last frame, and world matrices are multiplied only below a change. Nothing
+  needs declaring as static or moving: an animation that writes `position`, `rotation`, `quaternion` or `scale` in
+  place keeps updating (robot parts, the windmill's sails, a door). A part whose `matrix` or `matrixWorld` is written
+  directly sets `matrixAutoUpdate = false` (for `matrix`) and `matrixWorldNeedsUpdate = true` after each write, as in
+  plain three.js; a one-draw change in `onBeforeRender` (the back walls' collapse) also sets `matrixWorldNeedsUpdate`
+  so the next pass restores the matrix.
 
 ## How Greenhouse implements it
 
