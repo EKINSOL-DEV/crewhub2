@@ -1,9 +1,11 @@
-/* Work objects of the entered building, drawn instanced: one InstancedMesh per mesh of each style template (a ticket
-   look, a tag, a strap, …), so a pile of fifty tickets costs a handful of draw calls. The ticket drone carries flying
+/* Work objects of the entered building, drawn instanced: each style template (a ticket look, a tag, a strap, …) is
+   baked into one mesh per material look first (mergeStatic), then drawn as one InstancedMesh per baked mesh, so a pile
+   of fifty tickets costs a handful of draw calls and a template a call or two. The ticket drone carries flying
    objects along an arc in source time; a re-stack eases over a short tween; a person's move to done hops once with a
    sparkle. Under reduced motion flights are a short fade and nothing hops. The frame path allocates nothing. */
 import * as THREE from "three";
 import { useInstancedMaterials } from "./instancedMaterial";
+import { mergeStatic } from "./mergeStatic";
 import type { ModelKey, ModelOptions, PaletteName, ResolvedStyle } from "@crewhub/world-style";
 import type { Building, WorkObject } from "@crewhub/world-model";
 import { BUILDING_CELL } from "./buildingTemplate";
@@ -33,17 +35,24 @@ class Template {
   count = 0;
   /** Ticket id per instance, for picking (bodies only). */
   readonly ids: string[] = [];
+  /** The geometry the bake made (the template's own). */
+  readonly #baked: THREE.BufferGeometry[];
 
   constructor(object: THREE.Object3D) {
     object.updateMatrixWorld(true);
-    object.traverse((o) => {
+    const box = new THREE.Box3().setFromObject(object);
+    box.getSize(this.size);
+    this.height = box.max.y;
+    // One mesh per material look instead of one per part; the data stays in memory, bodies are raycast for picking.
+    const root = new THREE.Group();
+    root.add(object);
+    this.#baked = mergeStatic(root, { keepData: true });
+    root.updateMatrixWorld(true);
+    root.traverse((o) => {
       if (o instanceof THREE.Mesh && !(o instanceof THREE.InstancedMesh)) {
         this.parts.push({ geometry: o.geometry, material: o.material, matrix: o.matrixWorld.clone() });
       }
     });
-    const box = new THREE.Box3().setFromObject(object);
-    box.getSize(this.size);
-    this.height = box.max.y;
   }
 
   ensure(n: number, parent: THREE.Object3D, key: string) {
@@ -75,6 +84,7 @@ class Template {
       mesh.removeFromParent();
       mesh.dispose();
     }
+    for (const geometry of this.#baked) geometry.dispose();
   }
 }
 
