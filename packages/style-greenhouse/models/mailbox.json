@@ -1,0 +1,92 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-mailbox",
+  "name": "Mailbox",
+  "description": "The lobby mailbox: a timber box on a post with a brass flag.",
+  "category": "storage",
+  "tags": [
+    "greenhouse"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "cylinder",
+      "size": [
+        0.04,
+        0.6,
+        0.05
+      ],
+      "position": [
+        0,
+        0.3,
+        0
+      ],
+      "material": "slate"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.42,
+        0.3,
+        0.32
+      ],
+      "position": [
+        0,
+        0.72,
+        0
+      ],
+      "material": "timber",
+      "radius": 0.06
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.26,
+        0.03,
+        0.02
+      ],
+      "position": [
+        0,
+        0.78,
+        0.165
+      ],
+      "material": "ink",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.03,
+        0.2,
+        0.03
+      ],
+      "position": [
+        0.23,
+        0.8,
+        0.06
+      ],
+      "material": "brass",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.1,
+        0.07,
+        0.02
+      ],
+      "position": [
+        0.27,
+        0.88,
+        0.06
+      ],
+      "material": "coral",
+      "radius": 0.01
+    }
+  ]
+}

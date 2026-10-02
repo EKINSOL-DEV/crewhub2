@@ -1,30 +1,28 @@
-# CrewHub
+# CrewHub World
 
-A playful browser world for the AI agents you already use.
+A playful 3D browser world for the AI agents you already use.
 
-CrewHub is being rebuilt in this repository. The goal is a visually distinctive,
-responsive environment where real agent activity becomes easy to understand and
-enjoy. Herdr is the first integration. A reusable local bridge will connect the
-world to agents; an optional Tauri companion may package that bridge later.
+CrewHub World is a thin 3D layer on [crewhub-loops](docs/decisions/0005-crewhub-world-on-loops.md).
+Every project is a building, agents sit in rooms by role, and tickets are physical
+work objects that move through the rooms by status. Nothing in it controls an agent.
 
 ## Current state
 
-This branch contains **The Greenhouse**, the first interactive room:
+**The world runs only in demo mode.** A scripted in-browser source produces data in
+exactly the shapes crewhub-loops serves, loops forever and is labelled as demo
+everywhere. There is no network call, no account and no model call.
 
-- A botanical Three.js room with three procedural robot companions.
-- Isometric home, free orbit, focus, zoom, and fading architectural walls.
-- Shader glass, a shader grid, selection halos, and state-driven character motion.
-- An independent grid engine with footprints, rotation, safe placement, four-way
-  pathfinding, movement reservations, and compact semantic world snapshots.
-- An oversight panel, four mock scenarios, keyboard controls, reduced motion,
-  lighter graphics, a text-first fallback, and JSON layout export.
-- Type checking, engine tests, documentation links, and a production build in CI.
+Built in demo mode (the status of each phase is listed in the [roadmap](docs/ROADMAP.md)):
 
-All activity is simulated locally. No credentials, running agents, Rust toolchain,
-or paid services are needed. The Herdr adapter, bridge, and Tauri companion are
-future work. The user has accepted the room's visual direction. The cloud agent's
-browser preview was blocked, so technical browser, GPU, and touch-device checks
-remain outstanding. See the [review notes](docs/ROOM_REVIEW.md) for the distinction.
+- A town with one building per demo project, rooms by role, and tickets as objects.
+- The crewhub-loops chat bubbles, mirrored from crewhub-loops and backed by a fake chat API.
+- A grid engine with doors, town paths and pathfinding.
+- Build mode with a local town document, and props made with the `prop-builder` skill.
+- A scripted director, a "Where is ...?" lookup and a hidden text view of every fact.
+
+Planned, **not built**: `apps/host` (the process that would read a live crewhub-loops),
+its world database, the real chat and the real director. See the
+[architecture](docs/ARCHITECTURE.md).
 
 ## Start locally
 
@@ -36,14 +34,13 @@ npm ci
 npm run dev
 ```
 
-Open <http://127.0.0.1:5173>. Select a companion, try the scene selector, and use the
-box or footprints tool to arrange furniture or walk an agent. Everything is local;
-the app does not contact Herdr or an AI provider. Assets are procedural and fonts
-use the system. Add `?view=list` for the text-first overview.
+Open <http://127.0.0.1:5173>. The demo starts by itself: use the playback bar for speed
+and scrubbing, click a building to enter it, and press T for the text view.
 
 ```bash
-npm run check       # typecheck, engine tests, documentation links, production build
-npm test            # headless placement and navigation checks
+npm run check       # typecheck, tests, doc links, design and copy guards, build
+npm test            # all package and app tests
+npm run prop:validate -- path/to/prop.json
 npm run preview     # serve the built world at http://127.0.0.1:4173
 ```
 
@@ -51,24 +48,24 @@ Run commands from the repository root. Build output is `apps/world/dist`.
 
 ## Workspace
 
-The 2D UI uses the crewhub-loops [design system](docs/DESIGN_SYSTEM.md): Archivo,
-the Ekinsol palette, and light/dark themes. The 3D scene keeps its own materials.
+The 2D UI uses the crewhub-loops [design system](docs/DESIGN_SYSTEM.md). The 3D items
+keep the Greenhouse style.
 
 | Path | Responsibility | Status |
 | --- | --- | --- |
-| [apps/world](apps/world/README.md) | Browser room and mock session presentation | Implemented; visual direction accepted |
-| [packages/world-engine](packages/world-engine/README.md) | Grid, placement, routes, semantic snapshots | Implemented and tested |
-| [apps/bridge](apps/bridge/README.md) | Independent local runtime bridge | Reserved; no executable yet |
-| [packages/protocol](packages/protocol/README.md) | Renderer-independent session types | Draft, mock use only |
-| [docs](docs/README.md) | Current decisions and next build brief | Authoritative for this rebuild |
+| [apps/world](apps/world/README.md) | The browser world: town, buildings, UI | Demo mode only |
+| [packages/loops-client](packages/loops-client/README.md) | crewhub-loops types, validators, the `WorldSource` seam | Implemented and tested |
+| [packages/demo](packages/demo/README.md) | The scripted in-memory crewhub-loops | Implemented and tested |
+| [packages/world-model](packages/world-model/README.md) | Projection, world reducer, text description | Implemented and tested |
+| [packages/world-engine](packages/world-engine/README.md) | Grid, placement, routes, props | Implemented and tested |
+| [skills/prop-builder](skills/prop-builder/SKILL.md) | Skill: a prop request becomes a valid prop | Implemented and evaluated |
+| [docs](docs/README.md) | Decisions, plan and handoff | Authoritative for this rebuild |
 
 ## Start the next build
 
-Read [AGENTS.md](AGENTS.md), then [the Astra handoff](docs/ASTRA_HANDOFF.md).
-The next sequence is described in [the town implementation plan](docs/TOWN_PLAN.md):
-shared identities, growing rooms, a mock town, Herdr observation, direct Claude Code
-and Codex adapters, then explicit interaction. The crewhub-loops design system
-guides UI work. The town sequence is planned, not yet implemented.
+Read [AGENTS.md](AGENTS.md), then [the handoff](docs/ASTRA_HANDOFF.md). The open work
+is the host and everything that needs a live crewhub-loops: see the
+[roadmap](docs/ROADMAP.md).
 
 ## Previous version
 

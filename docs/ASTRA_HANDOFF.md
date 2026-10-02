@@ -1,75 +1,48 @@
-# Astra handoff: build the first CrewHub room
+# Handoff: where to start
 
-## Assignment
+The file name is historical. It once briefed the first room, the Greenhouse, which
+is gone. This is the current handoff for CrewHub World.
 
-You are continuing CrewHub's browser-world rebuild in `EKINSOL-DEV/crewhub2`.
-The owner is unhappy with the previous version's appearance and feel and wants a
-new, modern, playful visual environment. Astra is the intended visual author;
-use the available configured model, and do not invent or hardcode a model API ID.
+## What exists
 
-The first implementation now exists as The Greenhouse. The user has reviewed it
-positively and accepted the room's visual direction. The user then requested a
-reference-based light/dark design system. It was later replaced by the crewhub-loops
-[design system](DESIGN_SYSTEM.md), adopted for all 2D UI; visual review of the
-migrated room is pending. The next town implementation sequence is in
-[TOWN_PLAN.md](TOWN_PLAN.md). Keep [ROOM_REVIEW.md](ROOM_REVIEW.md) for outstanding
-technical browser/device checks. This brief preserves the first room's quality bar.
+CrewHub World is a thin 3D layer on crewhub-loops ([ADR 0005](decisions/0005-crewhub-world-on-loops.md)).
+Tonight it runs **only in demo mode**: a scripted in-browser source with the shapes
+crewhub-loops serves, no network, no account and no model call. `apps/host` is
+planned, not built. Every demo screen is labelled as demo.
 
-Read [AGENTS.md](../AGENTS.md), [vision](VISION.md),
-[visual direction](VISUAL_DIRECTION.md), [architecture](ARCHITECTURE.md), and
-[cost policy](COST_POLICY.md). All deliverables must be in English.
+## Where to start
 
-## Starting point
+1. [AGENTS.md](../AGENTS.md): boundaries and working rules.
+2. [The demo-mode spec](superpowers/specs/2026-10-01-world-demo-mode-design.md): the contract for this build.
+3. [ARCHITECTURE.md](ARCHITECTURE.md): the target diagram and "What is built (demo mode)".
+4. [ROADMAP.md](ROADMAP.md): the phases and what is still open.
+5. [LOOPS_INTEGRATION_PLAN.md](LOOPS_INTEGRATION_PLAN.md): the full plan, mapping in sections 4 to 7.
 
-- `apps/world` runs with `npm ci` then `npm run dev` from the repository root.
-- The room is a botanical miniature studio with three soft robot companions.
-- `packages/world-engine` defines renderer-free placement and navigation. Read
-  [GRID_ENGINE.md](GRID_ENGINE.md) before changing coordinates or prop footprints.
-- `packages/protocol` has provisional renderer-independent session types.
-- `apps/bridge` is reserved; no live bridge or Tauri integration exists yet.
-- The desktop version is archived. Consult it only for a specific useful idea;
-  do not carry over its architecture, appearance, plans, or asset collection by
-  default. Keep the original license and record the origins of any imported assets.
+## Packages
 
-## Deliver one vertical slice
+| Path | What |
+| --- | --- |
+| [packages/loops-client](../packages/loops-client/README.md) | crewhub-loops types, validators, the `WorldSource` seam |
+| [packages/demo](../packages/demo/README.md) | The scripted source and its storyline ([CONTENT.md](../packages/demo/CONTENT.md)) |
+| [packages/world-model](../packages/world-model/README.md) | Projection, reducer, text description, town document |
+| [packages/world-engine](../packages/world-engine/README.md) | Grid, placement, pathfinding, the prop format |
+| [apps/world](../apps/world/README.md) | The browser app |
+| [skills/prop-builder](../skills/prop-builder/SKILL.md) | The skill that builds valid props |
 
-Review and refine the cohesive art direction for a complete room with three
-distinct characters. Provide overview, selection, focus, and return interactions.
-Make idle, working, needs-input, and completion feel visibly different and
-understandable. Give the user a compact activity view for the selected character.
+## Run and verify
 
-Use a deterministic mock source with repeatable scenarios. Label simulated data.
-Include a disconnected scenario without pretending the task succeeded. Keep the
-view replaceable by live session data later. Normal animation must use ordinary
-code and must never trigger model calls.
+```bash
+npm ci
+npm run dev          # http://127.0.0.1:5173, the demo starts by itself
+npm run check        # typecheck, tests, doc links, design guard, copy check, build
+npm run prop:validate -- path/to/prop.json
+```
 
-Use tasteful motion, lighting, materials, and environmental detail. The exact
-character geometry, palette, and materials can evolve. Preserve the isometric
-home and optional camera freedom requested by the user. Three.js currently renders
-the room; a rendering library alone is not the design.
+Look at the result in a real browser, in light and dark, at desktop and phone width.
+A green build alone does not establish good feel. Keep the loops kit for 2D UI and
+the Greenhouse style for 3D items ([VISUAL_DIRECTION.md](VISUAL_DIRECTION.md)).
 
-Implement keyboard selection, visible focus, useful text status, touch handling,
-reduced motion, and a fallback when graphics fail. Avoid unnecessary settings,
-large navigation shells, or infrastructure before the room itself is convincing.
+## Not built
 
-## Boundaries
-
-Do not implement a live adapter, Tauri shell, paid AI feature, autonomous crew,
-meeting system, or cloud deployment as part of this milestone. Do not start or
-change the owner's existing sessions. Do not let runtime-specific code enter
-scene components. Add dependencies only when used and keep the lockfile current.
-
-## How to verify and deliver
-
-1. Run `npm run check` and add focused checks for new nontrivial state behavior.
-2. Inspect the actual browser experience at desktop and touch-sized viewports.
-3. Exercise every status, selection/focus/return, disconnect, keyboard flow,
-   reduced-motion setting, and graphics fallback.
-4. Capture representative screenshots and an interaction recording if available.
-5. Record performance context and limitations; do not claim device testing from
-   viewport resizing alone.
-6. Deliver reviewable code, a short design rationale, validation evidence, and
-   known limitations. Update the roadmap to reflect actual completion.
-
-The decisive result is a room whose look and interaction feel worth building on.
-Spend the effort there before increasing the number of features.
+The host, the world database, the live stream, real chat, the real director and
+every change to crewhub-loops. See "Open: the host" in the roadmap.

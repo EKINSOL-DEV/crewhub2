@@ -10,8 +10,12 @@
   },
   "workspaces": [
     "apps/world",
-    "packages/protocol",
-    "packages/world-engine"
+    "packages/demo",
+    "packages/loops-client",
+    "packages/style-greenhouse",
+    "packages/world-engine",
+    "packages/world-model",
+    "packages/world-style"
   ],
   "scripts": {
     "dev": "npm run dev --workspace @crewhub/world",
@@ -20,8 +24,10 @@
     "typecheck": "tsc --noEmit",
     "check:docs": "node scripts/check-docs.mjs",
     "check:design": "node scripts/check-design-system.mjs",
-    "check": "npm run typecheck && npm test && npm run check:docs && npm run check:design && npm run build",
-    "test": "node --test packages/world-engine/test/*.test.ts"
+    "check:copy": "node scripts/check-bubbles-copy.ts",
+    "check": "npm run typecheck && npm test && npm run check:docs && npm run check:design && npm run check:copy && npm run build",
+    "test": "node --test packages/*/test/*.test.ts apps/world/test/*.test.ts scripts/test/*.test.ts",
+    "prop:validate": "node scripts/prop-validate.ts"
   },
   "devDependencies": {
     "@types/node": "22.20.1",

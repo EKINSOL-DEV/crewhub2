@@ -1,0 +1,204 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-town-swing",
+  "name": "Swing",
+  "description": "A timber swing frame with two painted seats.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "town"
+  ],
+  "footprint": {
+    "width": 5,
+    "depth": 2
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.08,
+        1.75,
+        0.08
+      ],
+      "position": [
+        -1.1,
+        0.875,
+        -0.21
+      ],
+      "material": "timber",
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.08,
+        1.75,
+        0.08
+      ],
+      "position": [
+        -1.1,
+        0.875,
+        0.21
+      ],
+      "material": "timber",
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.08,
+        1.75,
+        0.08
+      ],
+      "position": [
+        1.1,
+        0.875,
+        -0.21
+      ],
+      "material": "timber",
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.08,
+        1.75,
+        0.08
+      ],
+      "position": [
+        1.1,
+        0.875,
+        0.21
+      ],
+      "material": "timber",
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        2.4,
+        0.1,
+        0.1
+      ],
+      "position": [
+        0,
+        1.78,
+        0
+      ],
+      "material": "timber",
+      "radius": 0.03
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.015,
+        1.3,
+        0.015
+      ],
+      "position": [
+        -0.7,
+        1.13,
+        0
+      ],
+      "material": "graphite",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.015,
+        1.3,
+        0.015
+      ],
+      "position": [
+        -0.3,
+        1.13,
+        0
+      ],
+      "material": "graphite",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.48,
+        0.05,
+        0.22
+      ],
+      "position": [
+        -0.5,
+        0.47,
+        0
+      ],
+      "material": "coral",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.015,
+        1.3,
+        0.015
+      ],
+      "position": [
+        0.3,
+        1.13,
+        0
+      ],
+      "material": "graphite",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.015,
+        1.3,
+        0.015
+      ],
+      "position": [
+        0.7,
+        1.13,
+        0
+      ],
+      "material": "graphite",
+      "radius": 0.004
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.48,
+        0.05,
+        0.22
+      ],
+      "position": [
+        0.5,
+        0.47,
+        0
+      ],
+      "material": "lamp-glow",
+      "radius": 0.02
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "mode": "observe",
+  "lastTickAt": "2026-09-30T21:12:00Z",
+  "stopped": false,
+  "lastError": null,
+  "monitoring": "ok",
+  "transport": { "oldestPendingDeliveryS": null, "unsentNotifications": 0, "inputObstructed": 0 },
+  "openStalled": 0,
+  "openAttention": 1,
+  "open": [
+    {
+      "ticket": {
+        "id": "tk_000000000090",
+        "key": "CL-90",
+        "title": "Fix the probe upload",
+        "kind": "bug",
+        "status": "in_progress",
+        "priority": "urgent",
+        "position": 1,
+        "version": 2,
+        "assignee": { "id": "cl-lead", "kind": "agent", "displayName": "CL lead" },
+        "stall": { "state": "attention", "quietSince": "2026-09-30T21:00:00Z" },
+        "updatedAt": "2026-09-30T21:00:00Z",
+        "statusChangedAt": "2026-09-30T20:00:00Z",
+        "project": { "slug": "crewhub-loops", "key": "CL" },
+        "createdAt": "2026-09-30T19:00:00Z"
+      },
+      "stall": {
+        "state": "attention",
+        "quietSince": "2026-09-30T21:00:00Z",
+        "detectedAt": "2026-09-30T21:00:00Z",
+        "quietMinutes": 12
+      }
+    }
+  ]
+}

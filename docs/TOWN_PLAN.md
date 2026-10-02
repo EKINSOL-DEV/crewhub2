@@ -1,5 +1,7 @@
 # CrewHub town implementation plan
 
+Status: partly superseded by [ADR 0005](decisions/0005-crewhub-world-on-loops.md) and [the loops integration plan](LOOPS_INTEGRATION_PLAN.md) (its section 12). Sections 2, 3, 7 and 8 (session model, runtime bindings, Herdr and direct adapters) are replaced: identity is the loops principal id. Section 6 (IndexedDB as the layout store) is replaced by the host's world database once it exists; tonight the demo keeps a local town document. The town geometry in sections 4, 5 and 9 stays.
+
 Status: accepted product direction; proposed implementation sequence. This change
 adds planning documents only. Towns, dynamic rooms, persistence, and live adapters
 are not implemented by this plan.
@@ -302,7 +304,7 @@ Keep `npm run check` as the baseline, extending tests when behavior is introduce
 
 Test the initial town with three rooms at 3, 8, and 16 assigned sessions. Add an
 oversight stress fixture with 12 rooms and 100 sessions. These are test workloads,
-not claimed capacity guarantees. Maintain the 30 fps presentation cap and bounded
+not claimed capacity guarantees. Maintain the 60 fps presentation cap (30 before 2026-10-02) and bounded
 DPR; aim for frame work within the 33 ms budget on the documented reference device.
 Measure before promising support on a particular device.
 

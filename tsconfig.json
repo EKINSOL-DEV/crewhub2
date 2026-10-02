@@ -16,13 +16,31 @@
     "skipLibCheck": true,
     "noEmit": true,
     "allowImportingTsExtensions": true,
-    "types": ["vite/client", "node"]
+    "types": ["vite/client", "node"],
+    "paths": {
+      "react-router-dom": ["./apps/world/src/shims/react-router-dom.ts"]
+    }
   },
   "include": [
     "apps/world/src",
+    "apps/world/test",
     "apps/world/vite.config.ts",
-    "packages/protocol/src",
+    "packages/loops-client/src",
+    "packages/loops-client/test",
+    "packages/demo/src",
+    "packages/demo/test",
+    "packages/world-engine/bench",
     "packages/world-engine/src",
-    "packages/world-engine/test"
+    "packages/world-engine/test",
+    "packages/world-model/src",
+    "packages/world-model/test",
+    "packages/world-style/src",
+    "packages/style-greenhouse/src",
+    "packages/style-greenhouse/test",
+    "scripts/prop-validate.ts",
+    "scripts/bubbles-copy.ts",
+    "scripts/check-bubbles-copy.ts",
+    "scripts/test",
+    "scripts/scan-model-calls.ts"
   ]
 }

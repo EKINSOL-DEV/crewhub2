@@ -1,0 +1,18 @@
+export { createDemoSource } from "./source.ts";
+export { createStressSource, STRESS_AGENTS, STRESS_BUILDINGS } from "./stress.ts";
+export type { StressSourceOptions } from "./stress.ts";
+export type { DemoSource, DemoSourceOptions } from "./source.ts";
+export { DEMO_SEED, PROBE_SILENCE, SCRIPT_DURATION_MS, buildScript } from "./script.ts";
+export type { ScriptEntry } from "./script.ts";
+export type { Action } from "./actions.ts";
+export { browserScheduler, createManualScheduler } from "./scheduler.ts";
+export type { ManualScheduler, Scheduler } from "./scheduler.ts";
+export { DEMO_EPOCH_MS } from "./time.ts";
+export { DEMO_PROPS, propComment } from "./props.ts";
+export * as DEMO_CONTENT from "./content.ts";
+export { createDemoApi } from "./api.ts";
+export type { DemoApi, DemoApiOptions, DemoApiResponse, DemoChatSource, DemoView } from "./api.ts";
+export { DEMO_PERSON } from "./store.ts";
+export type { AgentSummary } from "./store.ts";
+export { QUICK_DEBOUNCE_MS, QUICK_MIN_GAP_MS, createDirectorFeed, movementSignals, scriptPlan } from "./director.ts";
+export type { DirectorFeed, DirectorFeedOptions, FeedUsage, PlanRecord, PlanTrigger, PropTags } from "./director.ts";

@@ -1,8 +1,9 @@
 # Roadmap
 
 Milestones are deliberately small. They are not commitments to dates or estimates.
-The next sequence is detailed in [the town implementation plan](TOWN_PLAN.md).
-M2 onward is planned work, not functionality delivered by the planning change.
+The direction changed on 2026-09-30: [ADR 0005](decisions/0005-crewhub-world-on-loops.md)
+and [the integration plan](LOOPS_INTEGRATION_PLAN.md) replace M5 to M7 (runtime
+adapters) with the phases below. The town, rooms and growth of M2 to M4 continue in phases 3 to 5.
 
 ## M0 — Bootstrap (merged)
 
@@ -14,7 +15,7 @@ Exit: `npm ci` and `npm run check` pass; the fixture runs in a browser; the arch
 points to the original commit; the change is reviewable without rewriting history.
 Report CI separately from local checks. Creating a workflow is not a passing CI run.
 
-## M1 — One excellent room (merged; visual direction accepted)
+## M1 — One excellent room (merged; visual direction accepted; the room itself was later replaced by the town)
 
 The Greenhouse implements one room, three procedural characters, four deterministic
 scenarios, selection/focus, activity inspection, keyboard and touch controls,
@@ -66,42 +67,42 @@ Exit: three rooms with different capacities are clear and pleasant to navigate;
 only one detailed interior is active initially. Exercise a 12-room, 100-session
 oversight fixture and record device, frame-time, memory, and accessibility evidence.
 
-## M5 — Bridge and Herdr observation
+## The loops phases
 
-Build the independent bridge with pairing, validated schemas, capability discovery,
-stable source identity, and reconnect reconciliation. Import an existing Herdr
-session's hierarchy into the already working town and follow native events.
+The phases of plan section 10, built first in demo mode: a scripted in-browser source
+with the shapes crewhub-loops serves, no network, no account and no model call
+([the demo-mode spec](superpowers/specs/2026-10-01-world-demo-mode-design.md)). The
+status lines are "built in demo mode" or "not built"; a host phase is never marked
+built.
 
-Exit: observation does not start, resume, or prompt agents. Disconnects become stale
-state; reconnect and pane replacement preserve the right identities. Unsupported
-capabilities and uncertain outcomes remain explicit.
+| Phase | Deliverable | Status |
+| --- | --- | --- |
+| 1. First light | `packages/loops-client`, `WorldSource`, the demo source, one building per project, navigation, hidden text view | Built in demo mode (2026-10-01) |
+| 2. Chat bubbles | The loops chat mirrored verbatim, backed by an in-browser demo chat API | Built in demo mode (2026-10-01) |
+| 3. Buildings | Rooms by role, tickets as objects in rooms, the ticket drone, postures and captions, the `WorldStyle` seam | Built in demo mode (2026-10-01) |
+| 4. Town and dynamic pathfinding | Doors, town paths, heap A*, wait budget, detail levels, stress fixture | Built in demo mode (2026-10-01) |
+| 5. Build mode: layout and props | Local town document with undo and export/import, prop catalogue, the `crewhub-prop/1` format and the `prop-builder` skill | Built in demo mode (2026-10-01) |
+| 6. Director and awareness | A scripted intent feed through the validated intent list, `where`, the settings block, the no-model-call guard | Built in demo mode (2026-10-01) |
 
-## M6 — Direct Claude Code and Codex observation
+## Open: the host
 
-Begin with separate feasibility checks, then implement each supported adapter in
-its own PR. Prove visibility of existing live sessions rather than assuming that
-saved history or a new SDK/App Server process supplies it. Group direct sessions
-by project or explicit assignment; allow mixed-runtime rooms.
+Everything below is planned and not built. Each item needs crewhub-loops running.
 
-Exit: each supported adapter works without Herdr. The same native conversation
-discovered through two sources stays one character with one selected command
-route. If live access cannot be proven, report the limitation instead of resuming
-a session to make it observable.
-
-## M7 — Explicit interaction
-
-Add on-demand output and native focus/open where supported, then explicit prompt
-and interrupt controls. Herdr controls depend on M5; direct runtime controls also
-depend on the relevant M6 adapter. Preserve native approvals and distinguish
-submitted, failed, waiting, completed, and uncertain-delivery outcomes.
-
-Exit: commands reach one intended target through one route. Duplicate submission,
-stale occupant identity, unsupported operations, and transport loss are handled.
+- **Host.** `apps/host`: key file, socket client, stream-first projection, SSE,
+  pairing, the static bundle, and a `host` `WorldSource`. Phase 1 of the plan in
+  live form.
+- **World database.** SQLite with migrations and backup replaces the browser's
+  IndexedDB town document (phase 3 and 5 of the plan in live form).
+- **Real chat.** The bubbles talk to crewhub-loops as the person; this needs CORS
+  for the CrewHub origin (proposal L8).
+- **Real director.** The `crewhub-world` CLI, the watcher and the `world-director`
+  lane, off by default, capped and measured. No model call exists today.
+- **Proposals for crewhub-loops** L1 to L8 (plan section 9), for example a read-only
+  `viewer` role and published schemas.
 
 ## Later scope
 
-Optional Tauri packaging, remote access, cross-device persistence, additional
-clients, cross-room walking, generated models, and autonomous coordination each
-need a separate scope based on the working town. Optional AI features must satisfy
-[the cost policy](COST_POLICY.md). Claude.ai/ChatGPT conversation import and cloud
-hosting are not implied by direct Claude Code and Codex support.
+Remote access, cross-device persistence, additional clients, generated models, and
+autonomous coordination each need a separate scope based on the working town. Optional AI features must satisfy
+[the cost policy](COST_POLICY.md). Direct Herdr, Claude Code and Codex adapters are removed, not
+postponed: Herdr stays behind crewhub-loops.

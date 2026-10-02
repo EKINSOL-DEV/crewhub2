@@ -1,135 +1,16 @@
-/* The world view: layout specific to the Greenhouse screen, on top of tokens.css and kit.css.
+/* The world view: the full-screen town and the few controls over it (plan 4.7), on top of tokens.css and kit.css.
    Colours, type, radii, shadows and spacing come from the tokens; components come from the kit. */
 
-/* ── Shell ─────────────────────────────────────────────────────────────── */
-.app-shell {
-  height: 100dvh;
-  min-height: 39rem;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.app-header {
-  height: var(--topbar-height);
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  padding: 0 var(--gutter);
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  z-index: var(--z-sticky);
-}
-.brand {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: var(--text-lg);
-  font-weight: var(--weight-bold);
-  letter-spacing: var(--tracking-title);
-  color: var(--text);
-  text-decoration: none;
-}
-.workspace-name {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  padding-left: var(--space-4);
-  border-left: 1px solid var(--border-strong);
-  font-size: var(--text-sm);
-  color: var(--text-muted);
-}
-.header-actions {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-.workspace {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: 4rem minmax(0, 1fr) 20rem;
-  outline: none;
-}
-
-/* ── Side rail ─────────────────────────────────────────────────────────── */
-.side-rail {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-4) 0;
-  background: var(--surface);
-  border-right: 1px solid var(--border);
-  z-index: 11;
-}
-.rail-spacer {
-  flex: 1;
-}
-
-/* A pressed or expanded toggle in a toolbar-like group reads as selected. */
-.side-rail .btn[aria-pressed="true"],
-.side-rail .btn[aria-expanded="true"],
-.camera-toolbar .btn[aria-pressed="true"],
-.status-bar .btn[aria-pressed="true"] {
-  background: var(--surface-sunken);
-  color: var(--text);
-  box-shadow: inset 0 0 0 1px var(--border-strong);
-}
-.demo-buttons .btn[aria-pressed="true"],
-.prop-palette .btn[aria-pressed="true"] {
-  background: var(--accent-soft);
-  border-color: var(--accent-strong);
-}
-
-/* ── Room ──────────────────────────────────────────────────────────────── */
-.room-area {
+/* ── Shell: the scene fills the window; everything else floats in a corner ── */
+.world-shell {
   position: relative;
-  min-width: 0;
+  height: 100dvh;
   overflow: hidden;
-  background: radial-gradient(ellipse at 62% 35%, var(--surface) 0, transparent 60%), var(--bg);
+  background: var(--bg);
 }
-.room-heading {
+.world-stage {
   position: absolute;
-  top: var(--space-6);
-  left: var(--space-8);
-  z-index: 3;
-  pointer-events: none;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-.room-heading h1 {
-  font-size: var(--text-2xl);
-}
-.room-heading h1 span {
-  margin-left: var(--space-2);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-  color: var(--text-subtle);
-  vertical-align: super;
-}
-.room-heading > p:not(.eyebrow) {
-  color: var(--text-muted);
-}
-.scene-summary {
-  position: absolute;
-  top: 7.5rem;
-  left: var(--space-8);
-  z-index: 4;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-}
-.scene-summary .btn {
-  height: auto;
-  padding: 0;
-}
-.scene-stage {
-  position: absolute;
-  inset: 6.25rem 0 4rem;
+  inset: 0;
 }
 .canvas-host,
 .canvas-host canvas,
@@ -142,6 +23,21 @@
 .canvas-host canvas {
   touch-action: none;
   outline-offset: -4px;
+}
+/* Air around the diorama: the canvas is transparent, so the town floats on a soft gradient of the theme's air (daylight
+   or a blue-green evening), with a gentle vignette over the scene's edges. The day-night drift tints it (TownScene sets
+   --drift-air and --drift-air-tint on this element): a pale warm dawn, a rosy dusk, a blue-green evening. */
+.canvas-host {
+  --air-centre: color-mix(in oklab, var(--world-air), var(--drift-air, var(--world-air)) var(--drift-air-tint, 0%));
+  --air-edge: color-mix(in oklab, var(--world-air-edge), var(--drift-air, var(--world-air-edge)) var(--drift-air-tint, 0%));
+  background: radial-gradient(ellipse 75% 70% at 50% 45%, var(--air-centre), var(--air-edge));
+}
+.canvas-host::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse 80% 75% at 50% 48%, transparent 62%, color-mix(in oklab, var(--air-edge) 55%, transparent));
 }
 .world-labels {
   pointer-events: none;
@@ -158,561 +54,1098 @@
   color: var(--text-muted);
   font-size: var(--text-sm);
 }
-.room-caption {
+
+.world-corner {
   position: absolute;
-  bottom: 5rem;
-  left: var(--space-8);
-  pointer-events: none;
-  color: var(--text-muted);
+  top: var(--space-4);
+  z-index: 6;
+  display: flex;
+  gap: var(--space-2);
+}
+.world-corner-left {
+  left: var(--space-4);
+  flex-direction: column;
+  align-items: flex-start;
+}
+.world-corner-right {
+  right: var(--space-4);
+  align-items: center;
+}
+.world-brand,
+.world-breadcrumb,
+.world-corner-right,
+.camera-toolbar,
+.playback-bar {
+  background: color-mix(in oklab, var(--surface) 90%, transparent);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+.world-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2) var(--space-1) var(--space-3);
+  min-height: var(--control-h);
   font-size: var(--text-md);
+  letter-spacing: var(--tracking-title);
 }
-.caption-line {
-  display: block;
-  width: var(--space-6);
-  height: 1px;
-  margin-bottom: var(--space-3);
-  background: var(--border-hover);
+.brand-mark {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
 }
-.room-caption small {
-  display: block;
-  margin-top: var(--space-2);
-  font-size: var(--text-2xs);
-  color: var(--text-subtle);
+.world-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3) var(--space-1) var(--space-1);
+  min-height: var(--control-h);
+  font-size: var(--text-sm);
+}
+.world-breadcrumb:has(> .crumb-current:only-child) {
+  padding-left: var(--space-3);
+}
+.crumb-current {
+  font-weight: var(--weight-semibold);
+  color: var(--text);
+}
+.world-corner-right {
+  padding: var(--space-1);
 }
 
-/* Labels the scene places over each robot (markup in WorldCanvas). */
-.world-label {
+/* ── Labels the scene places over plots and robots (markup in WorldCanvas) ── */
+.anchor {
   position: absolute;
+  left: 0;
+  top: 0;
   visibility: hidden;
-  transform: translate(-50%, -100%);
+  will-change: transform;
+}
+.anchor.raised {
+  z-index: 2;
+}
+/* Quiet when many (TownScene.placeLabels): a hanging label pushed far from its anchor fades until the pointer is on
+   it; a room sign over a robot or its stack steps back so the robot reads. */
+.anchor.label-far,
+.anchor.label-yield {
+  opacity: 0.32;
+  transition: opacity 200ms ease;
+}
+.anchor.label-far:hover,
+.anchor.label-far:focus-within,
+.anchor.label-yield:hover,
+.anchor.label-yield:focus-within {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .anchor.label-far,
+  .anchor.label-yield {
+    transition: none;
+  }
+}
+.town-sign,
+.agent-plate {
   pointer-events: auto;
+  position: absolute;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: var(--space-1);
-  padding: 0;
-  border: 0;
-  background: none !important;
-  font: inherit;
-  color: inherit;
-  white-space: nowrap;
-  cursor: pointer;
-}
-.label-name {
-  display: flex;
   align-items: center;
   gap: var(--space-1);
   padding: var(--space-1) var(--space-3);
   background: var(--surface-raised);
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
+  font: inherit;
   font-size: var(--text-xs);
-  font-weight: var(--weight-semibold);
-  color: var(--text-muted);
-  transition: transform var(--duration-fast) var(--ease);
-}
-.label-name i {
-  width: 0.4rem;
-  height: 0.4rem;
-  border-radius: var(--radius-pill);
-}
-.world-label.selected .label-name {
-  border-color: var(--accent-strong);
   color: var(--text);
+  white-space: nowrap;
 }
-.world-label:hover .label-name {
-  transform: translateY(-2px);
+/* A sign stands in front of its plot; a nameplate floats over a head. */
+.town-sign {
+  transform: translate(-50%, var(--space-2));
+  cursor: pointer;
 }
-.world-label:focus-visible {
+.town-sign.civic {
+  cursor: default;
+  pointer-events: none;
+}
+.town-sign.expanded {
+  z-index: 2;
+  border-color: var(--accent-strong);
+  box-shadow: var(--shadow-md);
+}
+.town-sign.archived {
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+}
+.town-sign:focus-visible {
   outline: 0;
-}
-.world-label:focus-visible .label-name {
   box-shadow: var(--focus-ring);
 }
-.label-callout {
+.agent-plate {
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+}
+.agent-plate.proxy {
+  border-style: dashed;
+  background: color-mix(in oklab, var(--surface-raised) 80%, transparent);
+}
+.sign-title,
+.plate-name,
+.sign-lead {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid;
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-sm);
+  gap: var(--space-2);
+}
+.sign-key {
+  font-family: var(--font-mono);
   font-size: var(--text-2xs);
-  font-weight: var(--weight-medium);
+  color: var(--text-muted);
 }
-.label-callout.attention {
-  background: var(--status-attention-soft);
-  border-color: var(--status-attention);
-  color: var(--status-attention);
+.sign-archived {
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
-.label-callout.complete {
-  background: var(--status-done-soft);
-  border-color: var(--border-strong);
-  color: var(--status-done);
+.sign-counts,
+.sign-muted {
+  color: var(--text-muted);
+  font-size: var(--text-2xs);
 }
 
-/* ── Toolbar and floating panels ───────────────────────────────────────── */
+/* ── Camera toolbar: keyboard and touch equivalents of the pointer gestures ── */
 .camera-toolbar {
   position: absolute;
-  bottom: var(--space-5);
+  right: var(--space-4);
+  bottom: var(--space-4);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-1);
+}
+
+/* ── Playback bar: shown only when the source offers playback ─────────────── */
+.playback-bar {
+  position: absolute;
+  bottom: var(--space-4);
   left: 50%;
   transform: translateX(-50%);
   z-index: 5;
   display: flex;
   align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-1) var(--space-2);
-  background: color-mix(in oklab, var(--surface) 92%, transparent);
-  backdrop-filter: blur(14px);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-md);
-  white-space: nowrap;
-}
-.toolbar-divider {
-  width: 1px;
-  height: var(--space-5);
-  margin: 0 var(--space-1);
-  background: var(--border-strong);
-}
-.floating-panel {
-  position: absolute;
-  z-index: 8;
-  width: min(20rem, calc(100% - 2 * var(--space-4)));
-  box-shadow: var(--shadow-lg);
-}
-.action-tray {
-  bottom: 5rem;
-  left: var(--space-6);
-}
-.preferences {
-  top: 7.5rem;
-  left: var(--space-6);
-}
-.panel-stack {
-  display: flex;
-  flex-direction: column;
   gap: var(--space-3);
-}
-.prop-palette {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-2);
-}
-.prop-palette .btn {
-  height: auto;
-  flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-2);
-}
-.prop-palette small {
-  font-size: var(--text-2xs);
-  font-weight: var(--weight-regular);
+  padding: var(--space-1) var(--space-3) var(--space-1) var(--space-1);
+  width: min(36rem, calc(100% - 7rem));
+  font-size: var(--text-xs);
   color: var(--text-muted);
 }
-.tray-row {
-  display: flex;
-  gap: var(--space-2);
+.playback-speeds {
+  flex: none;
+  gap: var(--space-1);
 }
-.tray-row > .select {
+.playback-speeds .btn {
+  min-width: 2.5rem;
+  font-variant-numeric: tabular-nums;
+}
+.playback-time,
+.playback-loop {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+.playback-scrub {
   flex: 1;
-  min-width: 0;
-}
-
-/* The text-first overview replaces the canvas. */
-.text-overview {
-  position: absolute;
-  /* Below the status chips, which overlap the top of the stage. */
-  top: 4rem;
-  left: 50%;
-  transform: translateX(-50%);
-  width: min(22rem, calc(100% - 2 * var(--space-5)));
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--space-2);
-  color: var(--text-muted);
-}
-.text-overview > svg {
-  margin-bottom: var(--space-2);
-}
-.text-overview h2 {
-  font-size: var(--text-xl);
-  color: var(--text);
-}
-.text-overview > p {
-  margin-bottom: var(--space-3);
-}
-.text-overview > .btn-link {
-  align-self: flex-start;
-}
-
-/* ── Crew panel ────────────────────────────────────────────────────────── */
-.crew-panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  min-height: 0;
-  padding: var(--space-5);
-  overflow-y: auto;
-  background: var(--surface);
-  border-left: 1px solid var(--border);
-  z-index: var(--z-sticky);
-}
-.panel-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-.panel-heading h2 {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: var(--text-lg);
-}
-.panel-subtitle {
-  margin-top: calc(-1 * var(--space-2));
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-}
-.crew-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-.crew-card {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  width: 100%;
-  padding: var(--space-3);
-  font: inherit;
-  color: var(--text);
-  text-align: left;
+  min-width: 4rem;
+  height: var(--control-h-sm);
+  margin: 0;
+  background: transparent;
+  accent-color: var(--accent);
   cursor: pointer;
 }
-.crew-card:hover {
-  border-color: var(--border-hover);
+.playback-scrub::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--border-strong);
 }
-.crew-card:focus-visible {
-  outline: 0;
-  box-shadow: var(--focus-ring);
+.playback-scrub::-moz-range-track {
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--border-strong);
 }
-.crew-card[aria-pressed="true"] {
-  background: var(--surface-sunken);
-  border-color: var(--accent-strong);
+.playback-scrub::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border-radius: var(--radius-pill);
+  background: var(--primary);
+  border: 2px solid var(--surface);
 }
-.crew-card-copy {
-  flex: 1;
-  min-width: 0;
+.playback-scrub::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-pill);
+  background: var(--primary);
+  border: 2px solid var(--surface);
+}
+.playback-scrub {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* ── Sheets: settings and the text view ───────────────────────────────────── */
+.world-sheet {
+  position: absolute;
+  z-index: 8;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-1);
+  max-height: calc(100% - 2 * var(--space-4));
+  box-shadow: var(--shadow-lg);
 }
-.card-arrow {
-  color: var(--text-subtle);
+.world-sheet .card-body {
+  overflow: auto;
 }
-.agent-identity {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
+.settings-sheet {
+  top: 4.25rem;
+  right: var(--space-4);
+  width: min(22rem, calc(100% - 2 * var(--space-4)));
+  max-height: calc(100dvh - 9rem);
+  overflow-y: auto;
 }
-.agent-identity h4 {
-  font-size: var(--text-md);
+.text-sheet {
+  top: var(--space-4);
+  right: var(--space-4);
+  bottom: var(--space-4);
+  width: min(28rem, calc(100% - 2 * var(--space-4)));
 }
-.agent-identity span {
+.text-sheet:focus {
+  outline: 0;
+}
+.text-sheet:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+.text-sheet.fallback {
+  top: 7rem;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  width: min(40rem, calc(100% - 2 * var(--space-4)));
+}
+.text-note {
+  margin-bottom: var(--space-4);
+  color: var(--text-muted);
+}
+.text-section + .text-section {
+  margin-top: var(--space-4);
+}
+.text-section h3 {
+  margin-bottom: var(--space-2);
   font-size: var(--text-sm);
-  color: var(--text-muted);
 }
-.agent-description,
-.session-meta {
-  font-size: var(--text-sm);
-  color: var(--text-muted);
-}
-.task-card {
-  background: var(--surface-sunken);
-  box-shadow: none;
-}
-.task-card .btn {
-  align-self: flex-start;
-}
-.task-title {
-  font-size: var(--text-md);
-  font-weight: var(--weight-semibold);
-}
-.sample-result {
-  background: var(--surface);
-  box-shadow: none;
-}
-.session-meta {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-2);
-  font-size: var(--text-xs);
-  color: var(--text-subtle);
-}
-.demo-buttons {
-  display: flex;
-  gap: var(--space-2);
-}
-.demo-note {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-.mobile-crew-toggle,
-.mobile-panel-close {
-  display: none;
-}
-
-/* ── Status bar ────────────────────────────────────────────────────────── */
-.status-bar {
-  height: 2.5rem;
-  flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-5);
-  padding: 0 var(--space-5);
-  background: var(--surface);
-  border-top: 1px solid var(--border);
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-  z-index: var(--z-sticky);
-}
-.status-bar > span {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-.status-bar b {
-  font-weight: var(--weight-regular);
-  color: var(--text-subtle);
-}
-.status-bar em {
-  font-style: normal;
-}
-
-/* ── Toast position: above the status bar ──────────────────────────────── */
-.app-shell .toast-region {
-  bottom: calc(2.5rem + var(--space-4));
-}
-
-/* ── Guide dialog ──────────────────────────────────────────────────────── */
-.guide-list {
+.text-section ul {
   margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-1);
+}
+.text-section li {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  gap: var(--space-2);
   font-size: var(--text-sm);
 }
-.guide-list dt {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-top: var(--space-3);
-  font-weight: var(--weight-semibold);
-}
-.guide-list dd {
-  margin: var(--space-1) 0 0 var(--space-6);
+.text-kind {
+  font-size: var(--text-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   color: var(--text-muted);
+  padding-top: 0.15em;
 }
-.guide-note {
-  padding: var(--space-3);
-  background: var(--surface-sunken);
-  border-radius: var(--radius-sm);
+.text-kind[data-kind="demo"] {
+  color: var(--accent-text);
 }
 
-/* ── Robot avatar (scene colour comes from --bot-color) ────────────────── */
-.bot-avatar {
-  position: relative;
-  display: block;
-  flex: none;
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--bot-color) 20%, var(--surface));
+/* ── Touch: 40 px targets ─────────────────────────────────────────────────── */
+/* ── Inside a building: room signs, captions, status tags and signals (markup in WorldCanvas) ── */
+.room-sign,
+.status-tag,
+.name-tag,
+.signal-tag,
+.pallet-count,
+.caption {
+  position: absolute;
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-2xs);
+  white-space: nowrap;
+  background: var(--surface-raised);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-sm);
+}
+.room-sign {
+  transform: translate(-10%, -50%);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  background: color-mix(in oklab, var(--surface-raised) 88%, transparent);
+}
+.room-sign.dimmed {
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+  border-style: dashed;
+}
+.room-sign.focused {
+  border-color: var(--accent-strong);
+  box-shadow: var(--focus-ring);
+}
+.agent-stack {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+}
+.agent-stack > .agent-plate {
+  position: static;
+  transform: none;
+}
+.agent-stack > .status-tag,
+.agent-stack > .caption {
+  position: static;
+}
+.caption {
+  width: max-content;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  max-width: 15rem;
+  white-space: normal;
+  transition: opacity var(--duration-base) var(--ease);
+}
+.caption.fading {
+  opacity: 0.55;
+}
+.caption.question {
+  border-color: var(--accent-strong);
+}
+.caption-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: var(--text-2xs);
+}
+/* At most two lines over a head; the full line is in the text view. */
+.caption-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.bot-avatar-head {
-  position: absolute;
-  left: 17%;
-  right: 17%;
-  top: 29%;
-  height: 53%;
-  border-radius: 32% 32% 29% 29%;
-  background: var(--bot-color);
-  box-shadow: inset 0 3px 1px color-mix(in srgb, var(--paper) 25%, transparent);
+/* The Greenhouse room's labels: a white rounded pill with a status dot and the name over each head, and above it at most
+   one bubble with an icon. */
+.agent-stack > .name-pill,
+.agent-stack > .bubble {
+  position: static;
 }
-.bot-avatar-visor {
-  position: absolute;
-  top: 24%;
-  left: 15%;
-  right: 15%;
-  height: 45%;
-  border-radius: var(--radius-sm);
-  background: var(--ink);
-  display: flex;
-  gap: 22%;
-  justify-content: center;
+.name-pill,
+.bubble {
+  display: inline-flex;
   align-items: center;
-}
-.bot-avatar-visor i {
-  width: 10%;
-  height: 30%;
-  border-radius: 3px;
-  background: var(--paper);
-}
-.bot-avatar-antenna {
-  position: absolute;
-  top: 14%;
-  left: 49%;
-  width: 3%;
-  height: 19%;
-  background: var(--bot-color);
-}
-.bot-avatar-antenna::before {
-  content: "";
-  position: absolute;
-  top: -4%;
-  left: -70%;
-  width: 240%;
-  aspect-ratio: 1;
+  gap: 5px;
+  padding: 3px var(--space-2) 3px 7px;
   border-radius: var(--radius-pill);
-  background: var(--bot-color);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  color: var(--text);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.name-pill.proxy {
+  border-style: dashed;
+  background: color-mix(in oklab, var(--surface-raised) 80%, transparent);
+  color: var(--text-muted);
+}
+.pill-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: var(--radius-pill);
+  background: var(--status-planned);
+}
+.pill-dot[data-tone="working"] {
+  background: var(--status-progress);
+}
+.pill-dot[data-tone="done"] {
+  background: var(--status-done);
+}
+.pill-dot[data-tone="blocked"] {
+  background: var(--status-attention);
+}
+.pill-dot[data-tone="unknown"] {
+  background: var(--status-stalled);
+}
+.pill-dot[data-tone="proxy"] {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--text-muted);
+}
+.bubble {
+  max-width: 11rem;
+  font-weight: var(--weight-medium);
+}
+.bubble-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bubble.ask {
+  border-color: var(--accent-strong);
+  color: var(--accent-text);
+}
+.bubble.alert {
+  background: var(--warm-soft);
+  border-color: var(--warm);
+}
+.bubble.done {
+  color: var(--text-muted);
+}
+.bubble.done .icon {
+  color: var(--status-done);
+}
+.status-tag {
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+}
+.status-tag.blocked {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  border-color: var(--accent-strong);
+}
+.status-tag.proxy {
+  border-style: dashed;
+}
+.status-tag.alert {
+  background: var(--warm-soft);
+  color: var(--text);
+}
+/* A ticket waiting on a person: a squared tag with a speech icon on the waiting colour, so it never reads as a robot's
+   round name pill. */
+.name-tag {
+  transform: translate(-50%, -100%);
+  font-weight: var(--weight-semibold);
+  border-radius: var(--radius-xs);
+  background: var(--status-waiting-human-soft);
+  border-color: var(--status-waiting-human);
+}
+.name-tag .icon {
+  color: var(--status-waiting-human);
+}
+.signal-tag {
+  width: max-content;
+  transform: translate(-50%, -100%);
+  flex-wrap: wrap;
+  max-width: 16rem;
+  white-space: normal;
+}
+.signal-tag.attention {
+  background: var(--warm-soft);
+  border-color: var(--warm);
+  font-weight: var(--weight-semibold);
+}
+.signal-tag .letter {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.nudges {
+  margin-left: var(--space-1);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-xs);
+  background: var(--surface-sunken);
+}
+.pallet-count {
+  transform: translate(-50%, -100%);
+  font-family: var(--font-mono);
+  font-weight: var(--weight-bold);
+  font-size: var(--text-xs);
+}
+.object-plate {
+  width: max-content;
+  align-items: flex-start;
+  white-space: normal;
+  max-width: 17rem;
+}
+.agent-plate .plate-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+.plate-title {
+  font-size: var(--text-xs);
+}
+.demo-note {
+  font-size: var(--text-2xs);
+  color: var(--text-muted);
+  font-style: italic;
+}
+.ambient-setting,
+.quality-setting,
+.daynight-setting {
+  margin-bottom: var(--space-4);
+}
+.role-settings {
+  border: 0;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+}
+.role-settings ul {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+.role-settings li > div,
+.role-settings li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+}
+.settings-style {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
 }
 
-/* ── Touch: non-.btn controls get the 40px hit area ────────────────────── */
 @media (pointer: coarse) {
-  .crew-card,
-  .world-label {
+  .camera-toolbar .btn,
+  .playback-speeds .btn,
+  .playback-scrub {
     min-height: var(--control-h-touch);
   }
-  /* Compact controls keep their look and get an invisible 40px hit area, as the kit does for chips. */
-  .brand,
-  .scene-summary .btn {
-    position: relative;
+  .camera-toolbar .btn {
+    min-width: var(--control-h-touch);
   }
-  .brand::after,
-  .scene-summary .btn::after {
+  /* The visible pill may stay small; an invisible pad gives every building sign a 40 x 40 px hit area. */
+  .town-sign::after {
     content: "";
     position: absolute;
-    left: 0;
-    right: 0;
+    left: 50%;
     top: 50%;
-    height: var(--control-h-touch);
-    transform: translateY(-50%);
+    width: max(100%, var(--control-h-touch));
+    height: max(100%, var(--control-h-touch));
+    transform: translate(-50%, -50%);
+  }
+  .skip-link {
+    display: inline-flex;
+    align-items: center;
+    min-width: var(--control-h-touch);
+    min-height: var(--control-h-touch);
   }
 }
 
-/* ── Wide screens: a roomier rail and panel ──────────────────────────── */
-@media (min-width: 1600px) {
-  .workspace {
-    grid-template-columns: 4.5rem minmax(0, 1fr) 22rem;
-  }
-}
-
-/* ── Phones and small tablets: the crew panel is an overlay ────────────── */
-@media (max-width: 900px) {
-  .workspace {
-    grid-template-columns: 3.5rem minmax(0, 1fr);
-  }
-  .crew-panel {
-    display: none;
-    position: absolute;
-    right: 0;
-    top: var(--topbar-height);
-    bottom: 2.5rem;
-    width: min(20rem, calc(100vw - 3.5rem));
-    box-shadow: var(--shadow-lg);
-  }
-  .crew-panel.is-open {
-    display: flex;
-  }
-  .mobile-crew-toggle {
-    position: absolute;
-    display: inline-flex;
-    top: var(--space-4);
-    right: var(--space-4);
-    z-index: 7;
-  }
-  .mobile-crew-toggle .badge {
-    position: absolute;
-    top: calc(-1 * var(--space-1));
-    right: calc(-1 * var(--space-1));
-  }
-  .mobile-panel-close {
-    display: inline-flex;
-  }
-}
+/* ── Phones: the playback bar spans the bottom, the camera stack sits above it ── */
 @media (max-width: 600px) {
-  .app-shell {
-    min-height: 37.5rem;
+  .world-corner {
+    top: var(--space-3);
   }
-  .app-header {
-    padding: 0 var(--space-3);
-    gap: var(--space-2);
+  /* The right corner is four 40 px buttons with no gap (10.25rem with its border); the left corner keeps clear of it. */
+  .world-corner-left {
+    left: var(--space-3);
+    max-width: calc(100% - 2 * var(--space-3) - 10.25rem - var(--space-2));
   }
-  .workspace-name,
-  .header-actions .chip {
+  .world-corner-right {
+    right: var(--space-3);
+    gap: 0;
+    padding: 2px;
+  }
+  .world-brand {
+    gap: var(--space-1);
+  }
+  .world-brand {
+    font-size: var(--text-sm);
+  }
+  /* With four toolbar buttons beside it the brand keeps one line: the demo chip keeps its icon (and its label). */
+  .demo-word {
     display: none;
   }
-  .workspace {
-    grid-template-columns: 2.75rem minmax(0, 1fr);
+  /* The town is small on a phone: an unfocused sign shows its key only, the focused one expands. */
+  .town-sign:not(.expanded) .sign-name,
+  .town-sign:not(.expanded) .sign-archived,
+  .civic-names,
+  .plate-role,
+  .room-sign .sign-muted,
+  .caption-kind {
+    display: none;
   }
-  .side-rail {
-    padding-top: var(--space-3);
+  .caption {
+    max-width: 9rem;
   }
-  .room-heading {
-    left: var(--space-4);
-    top: var(--space-4);
-    max-width: calc(100% - 4.5rem);
+  /* On a phone the building sign already says "stale since"; one tag per head would bury the room. */
+  .status-tag.stale {
+    display: none;
   }
-  .room-heading h1 {
-    font-size: var(--text-xl);
+  .town-sign:not(.expanded) {
+    padding: var(--space-1) var(--space-2);
   }
-  .scene-summary {
-    top: 6rem;
+  /* The post office and the town hall stay quiet over the small town: a small name, a slim pill. */
+  .town-sign.civic {
+    padding: 1px var(--space-2);
+    font-size: var(--text-2xs);
+    box-shadow: none;
+  }
+  .town-sign.civic strong {
+    font-weight: 600;
+  }
+  /* 16 px gutters; the scrub shrinks, and the loop count and the duration go (the slider still says both). */
+  .playback-bar {
     left: var(--space-4);
     right: var(--space-4);
+    bottom: var(--space-3);
+    transform: none;
+    width: auto;
+    gap: var(--space-2);
+    padding-right: var(--space-2);
   }
-  .scene-stage {
-    inset: 5.5rem 0 4rem;
+  .playback-speeds .btn {
+    min-width: 2.25rem;
   }
-  .room-caption {
+  .playback-scrub {
+    min-width: 2.5rem;
+  }
+  .playback-loop,
+  .playback-duration {
+    display: none;
+  }
+  .playback-time {
+    font-size: var(--text-2xs);
+  }
+  /* Rule props crowd a phone's building; the text view lists them. */
+  .world-labels .rule-tag {
     display: none;
   }
   .camera-toolbar {
+    right: var(--space-3);
+    bottom: calc(var(--space-3) + 3.5rem);
+  }
+  .text-sheet,
+  .settings-sheet {
+    left: var(--space-3);
+    right: var(--space-3);
+    width: auto;
+  }
+  .text-sheet {
+    top: 6.5rem;
     bottom: var(--space-3);
-    width: max-content;
-    max-width: calc(100% - var(--space-4));
-    flex-wrap: wrap;
-    justify-content: center;
   }
-  .camera-toolbar .btn {
-    flex: none;
+  .text-sheet.fallback {
+    transform: none;
+    left: var(--space-3);
+    width: auto;
   }
-  .header-actions .btn:not(.btn-icon) {
-    padding: 0 var(--space-2);
+  .settings-sheet {
+    top: 3.75rem;
   }
-  .status-bar {
-    padding: 0 var(--space-3);
-    gap: var(--space-2);
+}
+
+/* ── Chat bubbles: the copied loops dock and chat (components/bubbles) ───────
+   The dock and the chat card place themselves (kit.css, bubbles.css): the dock at the bottom right, the chat above it.
+   While there is a dock (App measures it into --dock-height and sets data-dock on the shell), the demo note and then the
+   camera toolbar stack above it. Without one (below 900px), .world-chat is a row under the top-right corner: loops'
+   narrow "Agent chats" menu, then the demo note. */
+.world-chat {
+  position: absolute;
+  z-index: 6;
+  right: var(--space-4);
+  top: calc(var(--space-4) + var(--control-h) + 2 * var(--space-1) + var(--space-2));
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: var(--space-2);
+}
+.world-chat > .menu-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+.world-chat > .menu-wrap > .menu {
+  left: auto;
+  right: 0;
+}
+.demo-chat-chip {
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+.world-shell[data-dock] .demo-chat-chip {
+  position: fixed;
+  right: var(--space-3);
+  bottom: calc(var(--space-4) + var(--dock-height) + var(--space-2));
+}
+.world-shell[data-dock] .camera-toolbar {
+  right: calc(var(--space-3) + 0.375rem);
+  bottom: calc(var(--space-4) + var(--dock-height) + 2 * var(--space-2) + 1.5rem);
+}
+/* Phones: the left corner is two rows (brand, breadcrumb), so the chat row goes under both. */
+@media (max-width: 600px) {
+  .world-chat {
+    right: var(--space-3);
+    top: calc(var(--space-3) + 2 * (var(--control-h) + 2 * var(--space-1)) + 2 * var(--space-2));
   }
-  .status-bar .grid-meta {
-    display: none;
+}
+/* The chat header's "…" menu opens to the right of its trigger and is cut off at the viewport edge (the copy does not
+   pass align="end"; the same happens in crewhub-loops, reported there). Until the source changes, open it leftwards. */
+.bubble-chat-actions > .menu-wrap > .menu {
+  left: auto;
+  right: 0;
+}
+
+/* ── Build mode: error crates and rule props in the scene (markup in WorldCanvas) ── */
+.signal-tag.error-tag {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+  color: var(--text);
+}
+.rule-tag {
+  position: absolute;
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  transform: translate(-50%, -100%);
+  padding: 1px var(--space-2) 1px 2px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-2xs);
+  white-space: nowrap;
+  background: color-mix(in oklab, var(--surface-raised) 90%, transparent);
+  color: var(--text-muted);
+  border: 1px dashed var(--border-strong);
+}
+.rule-word {
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--mist);
+  color: var(--mist-text);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-meta);
+}
+
+/* ── Build mode: the palette card (markup in BuildPanel) ── */
+.build-sheet {
+  top: 7.25rem;
+  left: var(--space-4);
+  width: min(20rem, calc(100% - 2 * var(--space-4)));
+  max-height: calc(100dvh - 13rem);
+}
+.build-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.build-sheet .card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.build-toolbar,
+.build-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.build-status {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text);
+}
+.build-message {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+.chip.ghost-ok {
+  align-self: flex-start;
+  background: var(--status-done-soft);
+  color: var(--status-done);
+}
+.chip.ghost-bad {
+  align-self: flex-start;
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.build-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.build-palette {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.build-palette li {
+  display: flex;
+  gap: var(--space-1);
+}
+.build-palette .palette-item {
+  flex: 1;
+  justify-content: space-between;
+  min-width: 0;
+}
+.palette-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.palette-meta {
+  color: var(--text-muted);
+  font-size: var(--text-2xs);
+  white-space: nowrap;
+}
+.build-request {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+.build-request .btn {
+  align-self: flex-start;
+}
+.build-request-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* ── The prop editor (markup in PropEditor) ── */
+.editor-sheet {
+  top: 4.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(44rem, calc(100% - 2 * var(--space-4)));
+  max-height: calc(100dvh - 6rem);
+}
+.editor-body {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1fr) minmax(16rem, 1.3fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+.parts-preview {
+  position: sticky;
+  top: 0;
+  height: 16rem;
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.parts-preview canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.editor-fields,
+.editor-part {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.editor-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.editor-row > legend {
+  margin-bottom: var(--space-1);
+}
+.editor-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+}
+.editor-add .label {
+  width: 100%;
+}
+.editor-parts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.editor-parts li {
+  display: flex;
+}
+.editor-errors {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--danger-soft);
+  color: var(--text);
+  font-size: var(--text-sm);
+}
+.editor-errors ul {
+  margin: var(--space-1) 0 0;
+  padding-left: var(--space-4);
+}
+.editor-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+.editor-import {
+  max-width: 14rem;
+}
+
+/* ── Settings: the town and the rules table (markup in TownSettings) ── */
+.town-settings,
+.rule-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  border: 0;
+}
+.town-file {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+.rules-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+.rules-table th {
+  text-align: left;
+  font-weight: var(--weight-medium);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  padding-bottom: var(--space-1);
+}
+.rules-table td {
+  padding: var(--space-1) var(--space-2) var(--space-1) 0;
+  vertical-align: top;
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 700px) {
+  .editor-body {
+    grid-template-columns: 1fr;
   }
-  .crew-panel {
-    width: min(20rem, calc(100vw - 2.75rem));
-    padding: var(--space-4);
+  .parts-preview {
+    position: static;
+    height: 12rem;
   }
-  .action-tray {
+}
+@media (max-width: 600px) {
+  /* Beside the camera stack (3.25rem wide), not over it. */
+  .build-sheet {
+    top: auto;
+    left: var(--space-3);
+    right: calc(var(--space-3) + 3.25rem + var(--space-2));
     bottom: 4.5rem;
-    left: var(--space-2);
+    width: auto;
+    max-height: 45dvh;
   }
-  .preferences {
-    top: 6rem;
-    left: var(--space-2);
+  .editor-sheet {
+    top: var(--space-3);
+    max-height: calc(100dvh - 2 * var(--space-3));
   }
-  .text-overview {
-    top: 6rem;
+}
+/* ── Dev stress overlay (`?stress=1`, dev builds only) ─────────────────────── */
+.dev-overlay {
+  position: absolute;
+  top: calc(var(--space-4) * 7);
+  left: var(--space-4);
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  background: color-mix(in oklab, var(--surface) 90%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  pointer-events: none;
+}
+
+/* ── Frame rate overlay (Settings or F) ─────────────────────────────────────── */
+/* A fixed box under the top right toolbar, clear of the camera buttons and the chats; on a phone it sits at the bottom
+   left above the playback bar. Fixed size and strict containment: its text changes never move anything else. */
+.fps-overlay {
+  position: absolute;
+  top: calc(var(--space-4) * 5);
+  right: var(--space-4);
+  z-index: 6;
+  box-sizing: border-box;
+  width: 13rem;
+  height: 6.4rem;
+  contain: strict;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
+  white-space: nowrap;
+  color: var(--text-muted);
+  background: color-mix(in oklab, var(--surface) 88%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  pointer-events: none;
+}
+.fps-overlay .fps-head {
+  font-weight: 600;
+  color: var(--text);
+}
+@media (max-width: 600px) {
+  .fps-overlay {
+    top: auto;
+    right: auto;
+    bottom: calc(var(--space-4) * 6);
+    left: var(--space-3);
+    width: 11.5rem;
   }
 }

@@ -1,0 +1,105 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-decor-apple-bowl",
+  "name": "Bowl of apples",
+  "description": "A cream bowl of autumn apples, coral, tangerine and one green.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "autumn",
+    "apples",
+    "bowl"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "cylinder",
+      "size": [
+        0.085,
+        0.05,
+        0.055
+      ],
+      "position": [
+        0,
+        0.025,
+        0
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.032,
+        0.03,
+        0.032
+      ],
+      "position": [
+        0.04,
+        0.062,
+        0
+      ],
+      "material": "coral"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.032,
+        0.03,
+        0.032
+      ],
+      "position": [
+        -0.035,
+        0.062,
+        0.025
+      ],
+      "material": "tangerine"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.032,
+        0.03,
+        0.032
+      ],
+      "position": [
+        -0.01,
+        0.062,
+        -0.045
+      ],
+      "material": "coral"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.032,
+        0.03,
+        0.032
+      ],
+      "position": [
+        0.035,
+        0.062,
+        -0.04
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.03,
+        0.028,
+        0.03
+      ],
+      "position": [
+        0,
+        0.095,
+        0.005
+      ],
+      "material": "coral"
+    }
+  ]
+}

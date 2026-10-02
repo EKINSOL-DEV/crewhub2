@@ -8,10 +8,11 @@ in Astra demonstrations. This is permission to rethink the entire presentation,
 not a request to reproduce those demonstrations or claim a guaranteed result.
 
 Keep the same repository and preserve the former version on an archive branch.
-The bootstrap and first room are merged. The user has accepted the room's visual
-direction and requested a plan for growing it into a town. The user then supplied
-a visual reference for a light/dark design system. Its first kit was
-replaced by the crewhub-loops [design system](DESIGN_SYSTEM.md). See [the town plan](TOWN_PLAN.md).
+The bootstrap and first room were merged, and the user accepted the room's visual
+direction. The 2D UI now uses the crewhub-loops [design system](DESIGN_SYSTEM.md).
+On 2026-09-30 the direction changed: CrewHub World is a thin 3D layer on
+crewhub-loops ([ADR 0005](decisions/0005-crewhub-world-on-loops.md)), and the
+Greenhouse room was replaced by a town of project buildings.
 
 ## Product promise
 
@@ -24,16 +25,15 @@ interaction. Delight is a core product requirement.
 
 - The main experience runs in a browser. An optional desktop shell may host the
   same experience later.
-- Reuse existing sessions and harnesses, beginning with Herdr.
-- Put machine access in an independent bridge that other applications can use.
+- Show the crew as crewhub-loops knows it.
+- crewhub-loops is the service. A small CrewHub host (planned, not built) would read
+  it and serve the world.
 - Let ordinary code drive presentation. Watching agents incurs no model calls.
 - Give the new visual work freedom over layout, style, characters, and motion.
 - Keep an honest connection between real events and what the world communicates.
 - Build one excellent room before expanding into a campus or feature catalog.
-- Use a CrewHub town as a work context, with persistent rooms and capacity that
-  grows with usable workstations. Herdr can supply the initial hierarchy.
-- Allow Claude Code and Codex sessions to join directly and share rooms, with one
-  canonical identity when the same conversation is discovered through two sources.
+- Every project is a building. Agents sit in rooms by role, and work objects move
+  through the rooms by status.
 
 ## First meaningful experience
 
@@ -41,15 +41,16 @@ A person opens the world, notices their small crew, understands who is working o
 needs input, selects a character, and can inspect its activity. Completion has a
 small, readable celebration. Attention is clear without becoming intrusive.
 
-For the first visual milestone, all activity is simulated and visibly identified
-as such. Later, one live Herdr session drives the same experience.
+Tonight all activity comes from a scripted demo that uses the shapes crewhub-loops
+serves, and it is visibly labelled as demo. A live crewhub-loops would drive the
+same world through a host that is planned, not built.
 
 ## Success
 
 The room has a coherent visual identity, appealing characters, enjoyable camera
 and selection behavior, readable status, and responsive performance. It works
-without credentials or AI calls in demo mode. A subsequent live adapter can
-replace the mock source without redesigning the world.
+without an account or AI calls: a labelled demo works without an account. Only the
+source changes when a live host exists; the world does not need redesign.
 
 The exact art style is open. A particular robot shape, biome, color palette, or
 old panel layout is not a requirement. Collaboration is the long-term purpose;
