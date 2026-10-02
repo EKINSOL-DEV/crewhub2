@@ -173,6 +173,32 @@ function bandstandLawn(): Bounds {
 const CHAPEL = { x: 0, z: -61.5, scale: 3 };
 const CHAPEL_GROUND: Bounds = { minX: -4.6, maxX: 4.6, minZ: -67.8, maxZ: -49.2 };
 
+/**
+ * The cottages: a row of little houses in the green belt beyond the outer lanes, facing them, set between the east
+ * verge's lanterns and the west verge's trees. Each has its ground (kept clear of trees) and its door's x and z.
+ */
+export function cottages(): { x: number; z: number; rotation: number; key: string; ground: Bounds; door: { x: number; z: number } }[] {
+  const xs = streetXs();
+  const out: ReturnType<typeof cottages> = [];
+  const place = (side: 1 | -1, zs: readonly number[]) =>
+    zs.forEach((z, i) => {
+      if (noise(side, z, 131) < 0.2) return;
+      const x = side * (xs[xs.length - 1]! + LANE / 2 + 3.3);
+      const door = { x: side * (xs[xs.length - 1]! + LANE / 2 + 2), z: z - side * 0.56 };
+      out.push({
+        x,
+        z,
+        rotation: (-side * Math.PI) / 2,
+        key: (i + (side > 0 ? 0 : 1)) % 3 === 2 ? "town.cottage-timber" : "town.cottage",
+        ground: { minX: x - 2, maxX: x + 2, minZ: z - 2.4, maxZ: z + 2.4 },
+        door,
+      });
+    });
+  place(1, [-20.5, -11.5, 6.5, 15.5, 24.5, 42.5, 51.5]);
+  place(-1, [-14, 12, 25, 38, 51]);
+  return out;
+}
+
 /** The farm corner in the green belt east of the windmill: hay bales and a few grazing sheep behind a fence. */
 const FARM: Bounds = { minX: 48, maxX: 63, minZ: -67.6, maxZ: -57.5 };
 
@@ -289,7 +315,7 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
   for (const l of landmarks()) if (l.clear) blocked.push(rect(l.x, l.z, l.clear * 2, l.clear * 2));
   blocked.push(streamBand());
   blocked.push(busBay());
-  blocked.push(bandstandLawn(), FARM, CHAPEL_GROUND);
+  blocked.push(bandstandLawn(), FARM, CHAPEL_GROUND, ...cottages().map((c) => c.ground));
   for (const r of promenades()) blocked.push({ ...r, minZ: r.minZ - 1.2, maxZ: r.maxZ + 2.2 });
   const free = (x: number, z: number, pad: number) => !blocked.some((b) => inside(b, x, z, pad));
   const tree = (x: number, z: number, y: number, seed: number, scale = 1) => {
@@ -399,6 +425,14 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
   // Hanging baskets on the civic row's lanterns, the arms pointing either way along the lane.
   for (const d of [...out]) if (d.key === "town.lantern" && d.z < CIVIC_LANE - LANE / 2) add("town.hanging-basket", d.x, d.y, d.z, { scale: d.scale, rotation: Math.round(d.x) % 2 ? Math.PI : 0 });
   farm(add);
+  // The cottages, each with a flagstone path from the lane to its door and a bush or a pumpkin by the step.
+  for (const c of cottages()) {
+    add(c.key, c.x, GRASS_Y, c.z, { rotation: c.rotation, scale: 1.6 });
+    const lane = Math.sign(c.x) * (streetXs()[streetXs().length - 1]! + LANE / 2);
+    paving(add, span(Math.min(lane, c.door.x), Math.max(lane, c.door.x), c.door.z - 0.4, c.door.z + 0.4), "flag", GRASS_Y + 0.002);
+    const by = { x: c.door.x + Math.sign(c.x) * 0.4, z: c.door.z - Math.sign(c.x) * 1.1 };
+    add(noise(c.x, c.z, 132) < 0.5 ? "town.bush" : "town.pumpkin", by.x, GRASS_Y, by.z, { scale: 1.4, seed: Math.round(c.z) });
+  }
   // The chapel, a flagstone path up from the square to its door, a pair of dark pines either side and a bench.
   add("town.chapel", CHAPEL.x, GRASS_Y, CHAPEL.z, { scale: CHAPEL.scale });
   paving(add, span(CHAPEL.x - 0.7, CHAPEL.x + 0.7, CHAPEL.z + 5.1, civicCenter("square").z - CIVIC_SIZE.square.depth / 2 + 0.1), "flag", GRASS_Y + 0.002);
