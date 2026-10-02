@@ -65,7 +65,8 @@ The rules that keep it there:
   models ride on frames that are drawn anyway and never keep the loop running.
 - **Shadows on change.** In the town the shadow map is drawn once and again only
   when something that casts or lights it changed (a fit, a building's casters, a
-  lift, the dressing, the civic robots, the sun's step of 1.5° in the drift).
+  lift, the dressing, the civic robots, the drift's sun after a step of about
+  half a degree; the drift itself moves at most at a 4x pace).
   Inside a building it follows every frame, because the robots move. Fast has no
   shadow map; blob contact shadows stay in both settings.
 - **Culling.** Buildings outside the camera's view are not drawn, their robots

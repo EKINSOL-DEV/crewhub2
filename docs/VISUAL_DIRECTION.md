@@ -172,7 +172,8 @@ The town is a small green town of hedged gardens, not beige squares
   - **The civic row:** the post office, the town hall, the square between them with its fountain, the café and the
     bus stop. A paved promenade runs behind the café from the post office lot through the square to the town hall lot,
     with flower beds along its north side, gaps to step through and a lantern at each end; walkers use it like any
-    other paving. Three market stalls stand along it east of the square. Trees frame the town hall, and two shade
+    other paving. Three market stalls stand along it east of the square, and behind them a bandstand with bunting sits
+    on the lawn, a flagstone path up to its steps and benches facing it. Trees frame the town hall, and two shade
     trees with a bench face the promenade east of the square. The town bus waits in a paved lay-by beside its stop,
     off the lane.
   - **Hanging baskets** of trailing leaves and flowers hang from the civic row's lanterns and at every garden gate
@@ -246,8 +247,10 @@ starts from the same morning.
 - **One evening factor** (0 by day, 1 with every lamp lit) drives the lamps' glow, lantern heads, string lights, lit
   windows, the glass sheen, light pools, contact shadows, the floor's sun shafts, the robots' lit faces and the town
   life.
-- **Calm.** The light changes only when the mix moves, the sun's shadow only after a 1.5° step. Reduced motion and Fast
-  keep the theme's fixed look.
+- **Calm.** The light changes only when the mix moves, the sun's shadow only after a step of about half a degree. At 1x
+  and 4x the light follows the clock exactly; at 16x it keeps a 4x pace and falls behind the clock (a seek snaps it to
+  the clock), so a dusk never flickers past in seconds, and fireflies and butterflies fade in and out instead of
+  popping. Reduced motion and Fast keep the theme's fixed look.
 
 ### Graphics quality
 
