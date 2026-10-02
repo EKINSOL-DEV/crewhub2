@@ -83,6 +83,8 @@ export interface FrameStats {
   walkers: number;
 }
 const FRAME_WINDOW = 300;
+/** The town's shadow map follows small changes (piles, the drifting sun) at most this often (ms). */
+const SOFT_SHADOW_MS = 400;
 /** How often the day-night drift looks at the clock: the light changes at most four times a second. */
 const DRIFT_INTERVAL_MS = 250;
 /* The frame loop draws at most 60 times a second, so a 120 Hz display does not double the work (the stress fixture is
@@ -185,9 +187,16 @@ export class TownScene {
   /**
    * The town view's shadow map is drawn once and again only when something that casts or lights it changed: the sun
    * (a fit or a visible step of the drift), the dressing, a building's casters (`BuildingView.shadowRevision`), a lift.
-   * Inside a building it follows every frame (robots cast there).
+   * Inside a building it follows every frame (robots cast there). A fit, a lift, the dressing or the quality redraw it
+   * at once (`#shadowDirty`); the small, frequent changes (a pile of tickets grows, the drifting sun turns half a
+   * degree) wait for the next of a few redraws a second (`#shadowSoft`, `SOFT_SHADOW_MS`): at 16x the piles alone
+   * changed a dozen times a second.
    */
   #shadowDirty = true;
+  #shadowSoft = false;
+  /** When the town's shadow map was last drawn (performance.now()), and a pending catch-up frame. */
+  #shadowDrawn = 0;
+  #shadowTimer: ReturnType<typeof setTimeout> | 0 = 0;
   /** The buildings' caster revisions the town's shadow map was last drawn for. */
   #shadowCasters = -1;
   /** The environment's shadow version the shadow maps were last drawn for. */
@@ -382,7 +391,7 @@ export class TownScene {
     if (!changed) return;
     if (this.#environment.shadowVersion !== this.#shadowVersion) {
       this.#shadowVersion = this.#environment.shadowVersion;
-      this.#shadowDirty = true;
+      this.#shadowSoft = true;
     }
     this.redraw();
   };
@@ -1160,12 +1169,23 @@ export class TownScene {
       const casters = this.#casterRevision();
       if (casters !== this.#shadowCasters) {
         this.#shadowCasters = casters;
-        this.#shadowDirty = true;
+        this.#shadowSoft = true;
       }
     }
-    if (!shadows.autoUpdate && this.#shadowDirty) {
-      shadows.needsUpdate = true;
-      this.#shadowDirty = false;
+    if (!shadows.autoUpdate && (this.#shadowDirty || this.#shadowSoft)) {
+      const now = performance.now(),
+        wait = this.#shadowDrawn + SOFT_SHADOW_MS - now;
+      if (this.#shadowDirty || wait <= 0) {
+        shadows.needsUpdate = true;
+        this.#shadowDirty = this.#shadowSoft = false;
+        this.#shadowDrawn = now;
+      } else if (!this.#shadowTimer) {
+        // The loop may rest before then: one frame later catches the change up.
+        this.#shadowTimer = setTimeout(() => {
+          this.#shadowTimer = 0;
+          this.redraw();
+        }, wait + 1);
+      }
     }
     // World matrices for what moved only (matrixPass.ts; three's own pass is off for this scene), before the crowd
     // copies its robots' matrices.
@@ -1383,6 +1403,7 @@ export class TownScene {
     this.#crowd.dispose();
     this.#disposeDressing();
     clearInterval(this.#driftTimer);
+    clearTimeout(this.#shadowTimer);
     this.#life.dispose();
     this.#environment.dispose();
     // Styles live in the registry (one instance per id) and outlast this scene; the renderer frees the GPU side.
