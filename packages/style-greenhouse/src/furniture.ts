@@ -1,4 +1,4 @@
-/* Greenhouse furniture that needs code (instanced leaves, the desk's screen glow, repeated books). Moved from
+/* Greenhouse furniture that needs code (a plant's leaves, the desk's screen glow, repeated books). Moved from
    apps/world/src/world/models.ts. Every model's origin is its footprint centre on the floor; its front faces +z. */
 import * as THREE from "three";
 import { put, type Kit } from "./kit.ts";
@@ -8,24 +8,17 @@ export function plant(kit: Kit, seed = 0): THREE.Group {
   put(g, kit.cylinder(0.21, 0.15, 0.34, "terracotta"), 0, 0.17, 0);
   put(g, kit.cylinder(0.19, 0.19, 0.035, "soil"), 0, 0.345, 0);
   put(g, kit.cylinder(0.02, 0.025, 0.7, "stem"), 0, 0.62, 0);
-  const leaves = new THREE.InstancedMesh(
-    kit.geometry("leaf", () => new THREE.SphereGeometry(1, 10, 8)),
-    kit.material("leaf-mid"),
-    7,
-  );
-  const matrix = new THREE.Object3D();
-  const color = new THREE.Color();
+  // Plain leaves, not an InstancedMesh per plant: a renderer batches them across plants (merged in a building, instanced
+  // in the town), where seven-leaf instancing cost a draw call and a shadow caster for every plant.
+  const geometry = kit.geometry("leaf", () => new THREE.SphereGeometry(1, 10, 8));
   for (let i = 0; i < 7; i++) {
     const angle = i * 2.4 + seed * 0.7;
-    matrix.position.set(Math.sin(angle) * 0.16, 0.66 + (i % 3) * 0.14, Math.cos(angle) * 0.16);
-    matrix.rotation.set(Math.cos(angle) * 0.55, angle, Math.sin(angle) * 0.55);
-    matrix.scale.set(0.13, 0.4, 0.045);
-    matrix.updateMatrix();
-    leaves.setMatrixAt(i, matrix.matrix);
-    leaves.setColorAt(i, color.set(kit.hex(i % 2 ? "leaf" : "leaf-dark")));
+    const leaf = kit.mesh(geometry, kit.material("leaf-mid", { tint: i % 2 ? "leaf" : "leaf-dark" }));
+    leaf.position.set(Math.sin(angle) * 0.16, 0.66 + (i % 3) * 0.14, Math.cos(angle) * 0.16);
+    leaf.rotation.set(Math.cos(angle) * 0.55, angle, Math.sin(angle) * 0.55);
+    leaf.scale.set(0.13, 0.4, 0.045);
+    g.add(leaf);
   }
-  leaves.castShadow = true;
-  g.add(leaves);
   return g;
 }
 

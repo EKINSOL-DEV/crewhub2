@@ -219,6 +219,10 @@ export class BuildingView {
   #truckDrive: { t: number } | null = null;
   #truckPending = false;
   #focus: THREE.Object3D | null = null;
+  /** The rooms' layout signature of the last update: an interior built for another one is stale. */
+  #shape = "";
+  /** An interior build spread over idle time, and the layout it is for. */
+  #pending: { steps: Generator<void, void>; shape: string } | null = null;
   #signatures = { shell: "", furniture: "", piles: "", signals: "", personal: "" };
   #yielded = "";
   #archivedCount: number;
@@ -270,11 +274,8 @@ export class BuildingView {
       this.#buildShell();
     }
     this.detailed = detailed && !building.archived;
-    if (!this.detailed) this.#releaseInterior();
-    if (this.detailed && shape !== this.#signatures.furniture) {
-      this.#signatures.furniture = shape;
-      this.#buildFurniture();
-    }
+    this.#shape = shape;
+    if (this.detailed) this.prepareInterior();
     if (this.#furniture) this.#furniture.visible = this.detailed;
     this.#cords.visible = this.detailed && this.#focusRoom !== null;
     this.#syncAgents();
@@ -307,6 +308,7 @@ export class BuildingView {
       const yielded = [...this.placements.rooms.values()].flatMap((r) => r.yielded).join();
       if (yielded !== this.#yielded) {
         this.#yielded = yielded;
+        this.cancelPrepare();
         if (this.#furniture) this.#buildFurniture();
       }
     }
@@ -440,8 +442,9 @@ export class BuildingView {
     } else this.#truck = null;
     this.anchors.set(`truck:${b.slug}`, this.world(TRUCK_SPOT.x, TRUCK_SPOT.z, 1 - FLOOR_RISE));
     this.#merged = mergeStatic(this.#shellStatic);
-    // The truck moves only as a whole: its parts merge per material under its own root (perf).
-    if (this.#truck) this.#merged.push(...mergeStatic(this.#truck as THREE.Group));
+    // The truck moves only as a whole: its parts merge per material under its own root (perf). It can be picked, so
+    // its merged geometry keeps its vertex data for the raycast.
+    if (this.#truck) this.#merged.push(...mergeStatic(this.#truck as THREE.Group, { keepData: true }));
     for (const [side, walls] of Object.entries(this.#backWalls) as ["north" | "west", { tall: THREE.Group; low: THREE.Group }][])
       for (const tall of [true, false]) {
         const group = tall ? walls.tall : walls.low;
@@ -509,10 +512,18 @@ export class BuildingView {
 
   /* The furniture layer: the template's furniture with its blocking dressing, and the dressing that never blocks
      (roomDressing.ts). Static, so it is batched per material; only the entered building draws it. */
+  /** Builds the interior at once (an entered building, or a placed prop that changed what the dressing yields). */
   #buildFurniture() {
-    this.shadowRevision++;
+    this.cancelPrepare();
+    for (const _ of this.#furnitureSteps());
+  }
+
+  /**
+   * The interior build in steps (the furniture's models, the decor's, then each merge), so the town can spread it over
+   * idle time. Nothing joins the scene before the last step swaps it in; a build given up disposes what it merged.
+   */
+  *#furnitureSteps(): Generator<void, void> {
     const { style } = this.ctx;
-    this.#furniture?.removeFromParent();
     const g = new THREE.Group();
     const yielded = (kind: RoomKind) => this.placements.rooms.get(kind)?.yielded ?? [];
     for (const room of this.template.rooms)
@@ -531,6 +542,7 @@ export class BuildingView {
         if (def === "bench" || def === "coffee-machine") model.scale.setScalar(0.7);
         g.add(model);
       }
+    yield;
     const wallDecor: Record<WallFace, THREE.Group> = { north: new THREE.Group(), west: new THREE.Group(), south: new THREE.Group(), east: new THREE.Group() };
     // Pendant cords and ceiling roses read as posts from the building camera: they draw only with a room in focus.
     const cords = new THREE.Group();
@@ -538,38 +550,95 @@ export class BuildingView {
       const side = item.wall ?? this.#mountedOn(item);
       (item.key === "decor.pendant-cord" ? cords : side ? wallDecor[side] : g).add(this.#decor(item));
     }
-    this.#cords.removeFromParent();
-    for (const geometry of this.#cordsMerged) geometry.dispose();
-    this.#cords = cords;
-    this.#cords.visible = this.detailed && this.#focusRoom !== null;
-    this.group.add(cords);
-    this.#cordsMerged = mergeStatic(cords);
-    g.visible = this.detailed;
-    this.#furniture = g;
-    this.group.add(g);
-    for (const geometry of this.#furnitureMerged) geometry.dispose();
-    this.#furnitureMerged = mergeStatic(g);
-    // Pieces hung on a tall back wall come and go with that wall when the camera turns (#seesInside); art on a
-    // partition shows only on the face turned to the camera.
-    for (const side of ["north", "west", "south", "east"] as const) {
-      g.add(wallDecor[side]);
-      this.#furnitureMerged.push(...mergeStatic(wallDecor[side]));
-      const wall = side === "south" ? "north" : side === "east" ? "west" : side;
-      const facing = side === wall;
-      for (const mesh of wallDecor[side].children)
-        mesh.onBeforeRender = (_renderer, _scene, camera) => {
-          if (this.#seesInside(wall, camera) === facing) return;
-          mesh.matrixWorld.makeScale(0, 0, 0);
-          mesh.matrixWorldNeedsUpdate = true; // restored by the next matrix pass (matrixPass.ts)
-        };
+    yield;
+    let cordsMerged: THREE.BufferGeometry[] = [];
+    const merged: THREE.BufferGeometry[] = [];
+    let swapped = false;
+    try {
+      cordsMerged = mergeStatic(cords);
+      merged.push(...mergeStatic(g));
+      yield;
+      // Pieces hung on a tall back wall come and go with that wall when the camera turns (#seesInside); art on a
+      // partition shows only on the face turned to the camera.
+      for (const side of ["north", "west", "south", "east"] as const) {
+        g.add(wallDecor[side]);
+        merged.push(...mergeStatic(wallDecor[side]));
+        const wall = side === "south" ? "north" : side === "east" ? "west" : side;
+        const facing = side === wall;
+        for (const mesh of wallDecor[side].children)
+          mesh.onBeforeRender = (_renderer, _scene, camera) => {
+            if (this.#seesInside(wall, camera) === facing) return;
+            mesh.matrixWorld.makeScale(0, 0, 0);
+            mesh.matrixWorldNeedsUpdate = true; // restored by the next matrix pass (matrixPass.ts)
+          };
+      }
+      // Swap the new interior in.
+      this.shadowRevision++;
+      this.#furniture?.removeFromParent();
+      this.#cords.removeFromParent();
+      for (const geometry of [...this.#furnitureMerged, ...this.#cordsMerged]) geometry.dispose();
+      this.#cords = cords;
+      this.#cords.visible = this.detailed && this.#focusRoom !== null;
+      this.#cordsMerged = cordsMerged;
+      this.group.add(cords);
+      g.visible = this.detailed;
+      this.#furniture = g;
+      this.#furnitureMerged = merged;
+      this.#wallDecor = wallDecor;
+      this.group.add(g);
+      swapped = true;
+    } finally {
+      if (!swapped) for (const geometry of [...cordsMerged, ...merged]) geometry.dispose();
     }
-    this.#wallDecor = wallDecor;
   }
 
 
-  /** A building seen from the town keeps no interior: its furniture, decor, desk things and signals are dropped and
-   *  rebuilt on the next visit, so visiting building after building does not pile up geometry (perf). */
-  #releaseInterior() {
+
+  /** True while the building holds a built interior (shown or kept for the next visit). */
+  get hasInterior(): boolean {
+    return this.#furniture !== null;
+  }
+
+  /**
+   * Builds the interior (the furniture layer with its decor) for the current layout unless it is built already; true
+   * when this call finished it. The town calls it ahead, in idle time, for the building the visitor is about to enter,
+   * so the enter itself only shows it: with `more`, it stops between steps once `more()` says no and goes on at the next
+   * call. Hidden until the building is entered.
+   */
+  prepareInterior(more: () => boolean = () => true): boolean {
+    if (this.building.archived) return false;
+    if (this.#pending && this.#pending.shape !== this.#shape) this.cancelPrepare();
+    if (!this.#pending) {
+      if (this.#shape === this.#signatures.furniture) return false;
+      this.#pending = { steps: this.#furnitureSteps(), shape: this.#shape };
+    }
+    const pending = this.#pending;
+    do {
+      if (pending.steps.next().done) {
+        this.#pending = null;
+        this.#signatures.furniture = pending.shape;
+        return true;
+      }
+    } while (more());
+    return false;
+  }
+
+  /** True while an interior build waits for its next step. */
+  get preparing(): boolean {
+    return this.#pending !== null;
+  }
+
+  /** Gives up an interior build in progress (the visitor moved on, or the layout changed). */
+  cancelPrepare() {
+    this.#pending?.steps.return();
+    this.#pending = null;
+  }
+
+  /** Drops the interior: its furniture, decor, desk things and signals, rebuilt on the next visit. The town keeps
+   *  only the few most recently used interiors, so visiting building after building does not pile up geometry. */
+  releaseInterior() {
+    if (this.detailed) return;
+    this.cancelPrepare();
     if (!this.#furniture) return;
     this.#furniture.removeFromParent();
     this.#furniture = null;
@@ -996,6 +1065,7 @@ export class BuildingView {
   }
 
   dispose() {
+    this.cancelPrepare();
     for (const robot of this.#robots.values()) robot.handle.dispose();
     this.#robots.clear();
     this.#objects.dispose();

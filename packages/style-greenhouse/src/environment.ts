@@ -123,6 +123,9 @@ export function environment(
     get evening() {
       return light.evening;
     },
+    get air() {
+      return { color: light.air, tint: light.airTint };
+    },
     get shadowVersion() {
       return shadowVersion;
     },

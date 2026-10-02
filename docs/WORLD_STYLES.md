@@ -42,7 +42,7 @@ Every style declares a manifest (for Greenhouse: `packages/style-greenhouse/styl
 | `description` | One or two sentences. |
 | `coveredKeys` | The semantic model keys the style provides. A test checks it equals what the style actually draws. |
 | `palette` | A colour for every palette name (below). |
-| `lighting` | A `LightingPreset` per theme, `day` and `lamplight`, and optionally the drift lights `dawn`, `dusk` and `night`: sky, ground and key/fill lights, exposure, the blob shadows' opacity, the lamps' `glow`, the warm light `pools` and how far into the `evening` the light is (0 by day, 1 with every lamp lit). |
+| `lighting` | A `LightingPreset` per theme, `day` and `lamplight`, and optionally the drift lights `dawn`, `dusk` and `night`: sky, ground and key/fill lights, exposure, the blob shadows' opacity, the lamps' `glow`, the warm light `pools`, how far into the `evening` the light is (0 by day, 1 with every lamp lit) and the `air` behind the diorama with its `airTint` (the share of the theme's own air it replaces). |
 
 A style may keep more data in its manifest file. Greenhouse adds `swatches` (named colours internal to the style:
 walls, lawn, robot parts) and `lamplightSwatches` (the swatches that change under lamplight).
@@ -164,7 +164,9 @@ them or accept plain crates drifting by. Covering them is the expected choice.
   default in demo mode, off in live mode); reduced motion and Fast keep the theme's look. The theme stays the base:
   Greenhouse runs the light theme through a warm dusk into a gentle evening and back through a pink dawn, and deepens
   lamplight into a cool night and back (`daylight.ts`). `evening` is the shared factor (0 by day, 1 with every lamp
-  lit) that lamps, lit windows, pools, fireflies and the floor's sun shafts follow; `shadowVersion` counts the sun's
+  lit) that lamps, lit windows, pools, fireflies and the floor's sun shafts follow; `air` is the backdrop's tint (the
+  renderer mixes it into the theme's `--world-air` on the scene's own element: a warm dawn, a rosy dusk, a blue-green
+  evening); `shadowVersion` counts the sun's
   visible moves, so a renderer redraws a hand-refreshed shadow map only then. The HTML chrome follows the theme only.
 - `GraphicsQuality` is the viewer's graphics setting, `"pretty"` (the default) or `"fast"`, kept per browser and read
   by renderers from `TownView.quality`. The renderer owns its own settings (shadow maps on or off, the pixel ratio)

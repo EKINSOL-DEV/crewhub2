@@ -25,16 +25,19 @@
   outline-offset: -4px;
 }
 /* Air around the diorama: the canvas is transparent, so the town floats on a soft gradient of the theme's air (daylight
-   or a blue-green evening), with a gentle vignette over the scene's edges. */
+   or a blue-green evening), with a gentle vignette over the scene's edges. The day-night drift tints it (TownScene sets
+   --drift-air and --drift-air-tint on this element): a pale warm dawn, a rosy dusk, a blue-green evening. */
 .canvas-host {
-  background: radial-gradient(ellipse 75% 70% at 50% 45%, var(--world-air), var(--world-air-edge));
+  --air-centre: color-mix(in oklab, var(--world-air), var(--drift-air, var(--world-air)) var(--drift-air-tint, 0%));
+  --air-edge: color-mix(in oklab, var(--world-air-edge), var(--drift-air, var(--world-air-edge)) var(--drift-air-tint, 0%));
+  background: radial-gradient(ellipse 75% 70% at 50% 45%, var(--air-centre), var(--air-edge));
 }
 .canvas-host::after {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: radial-gradient(ellipse 80% 75% at 50% 48%, transparent 62%, color-mix(in oklab, var(--world-air-edge) 55%, transparent));
+  background: radial-gradient(ellipse 80% 75% at 50% 48%, transparent 62%, color-mix(in oklab, var(--air-edge) 55%, transparent));
 }
 .world-labels {
   pointer-events: none;

@@ -164,9 +164,12 @@
     "town.bike-rack",
     "town.bike-shelter",
     "town.birch",
+    "town.birch-autumn",
     "town.bird",
     "town.bridge",
+    "town.bus",
     "town.bush",
+    "town.bush-autumn",
     "town.butterfly",
     "town.cloud-shadow",
     "town.contact-shadow",
@@ -183,8 +186,10 @@
     "town.leaf-pile",
     "town.lily",
     "town.mailbox",
+    "town.market-stall",
     "town.mote",
     "town.oak",
+    "town.oak-autumn",
     "town.paving",
     "town.picnic-blanket",
     "town.pine",
@@ -196,10 +201,12 @@
     "town.signpost",
     "town.slide",
     "town.steam",
+    "town.stream",
     "town.string-lights",
     "town.swing",
     "town.tall-grass",
     "town.veg-bed",
+    "town.washing-line",
     "town.wear",
     "town.wildflowers",
     "town.window-glow",
@@ -257,6 +264,7 @@
     "stem": "#738463",
     "leaf-mid": "#557a58",
     "screen-glow": "#77977b",
+    "face-glow": "#2c5a4a",
     "code-hi": "#ebedc4",
     "code": "#719c8b",
     "desk-pad": "#a4ae81",
@@ -346,6 +354,7 @@
     "window": "#ffd98a",
     "lamp-glow": "#ffe2a0",
     "screen-glow": "#a8d4ae",
+    "face-glow": "#3a3120",
     "rug": "#c9bc9d",
     "grass": "#3b5b53",
     "grass-lawn": "#44675a",
@@ -406,7 +415,9 @@
       "shadowOpacity": 0.2,
       "glow": 1,
       "pools": 0,
-      "evening": 0
+      "evening": 0,
+      "air": "#f4efe1",
+      "airTint": 0
     },
     "lamplight": {
       "background": null,
@@ -431,7 +442,9 @@
       "shadowOpacity": 0.4,
       "glow": 2.4,
       "pools": 0.42,
-      "evening": 1
+      "evening": 1,
+      "air": "#1f3a3c",
+      "airTint": 0
     },
     "dawn": {
       "background": null,
@@ -456,7 +469,9 @@
       "shadowOpacity": 0.18,
       "glow": 1.3,
       "pools": 0.12,
-      "evening": 0.3
+      "evening": 0.3,
+      "air": "#f6d9c6",
+      "airTint": 0.5
     },
     "dusk": {
       "background": null,
@@ -481,7 +496,9 @@
       "shadowOpacity": 0.24,
       "glow": 1.9,
       "pools": 0.3,
-      "evening": 0.85
+      "evening": 0.85,
+      "air": "#efb79c",
+      "airTint": 0.55
     },
     "night": {
       "background": null,
@@ -506,7 +523,9 @@
       "shadowOpacity": 0.45,
       "glow": 2.9,
       "pools": 0.55,
-      "evening": 1
+      "evening": 1,
+      "air": "#16393a",
+      "airTint": 0.55
     }
   }
 }

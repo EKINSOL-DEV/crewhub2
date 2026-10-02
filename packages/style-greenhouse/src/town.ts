@@ -195,6 +195,49 @@ export function pond(kit: Kit, o: ModelOptions): THREE.Group {
   return g;
 }
 
+/** A flat outline on the ground, `w` along x by `d` along z: a stadium (round ends) or, cut, a plain rectangle. */
+function outline(w: number, d: number, cut: boolean): THREE.BufferGeometry {
+  const shape = new THREE.Shape();
+  const r = cut ? 0 : d / 2,
+    x = w / 2 - r;
+  shape.moveTo(-x, -d / 2);
+  shape.lineTo(x, -d / 2);
+  if (r) shape.absarc(x, 0, r, -Math.PI / 2, Math.PI / 2, false);
+  else shape.lineTo(x, d / 2);
+  shape.lineTo(-x, d / 2);
+  if (r) shape.absarc(-x, 0, r, Math.PI / 2, (Math.PI * 3) / 2, false);
+  return new THREE.ShapeGeometry(shape, 6).rotateX(-Math.PI / 2);
+}
+
+/**
+ * A stretch of stream, `width` along x by `depth` across: still water on a pale stony bank. Stretches overlap at their
+ * round ends into a meander (the water is shaded in world space, so the seams do not show); `variant: "cut"` has
+ * square ends for where the stream meets the diorama's edge, and `variant: "fall"` is the little waterfall that spills
+ * over that edge, hanging down the side of the ground.
+ */
+export function stream(kit: Kit, o: ModelOptions): THREE.Group {
+  const { width, depth } = size(o, { width: 6, height: 0, depth: 1.6 });
+  const g = new THREE.Group();
+  const water = shaded(kit, "water", waterShader);
+  if (o.variant === "fall") {
+    const sheet = put(g, kit.mesh(kit.geometry(`town:fall:${depth.toFixed(2)}`, () => new THREE.PlaneGeometry(depth, 1.05).rotateY(Math.PI / 2)), water), 0, -0.47, 0);
+    sheet.castShadow = false;
+    const foam = put(g, kit.sphere(1, "cream"), 0.05, -0.98, 0);
+    foam.scale.set(0.12, 0.08, depth * 0.45);
+    foam.castShadow = false;
+    return g;
+  }
+  const cut = o.variant === "cut";
+  const key = `${width.toFixed(2)},${depth.toFixed(2)},${cut}`;
+  const bank = put(g, kit.mesh(kit.geometry(`town:bank:${key}`, () => outline(width + (cut ? 0 : 0.5), depth + 0.5, cut)), kit.material("water-edge")), 0, 0.03, 0);
+  bank.receiveShadow = true;
+  bank.castShadow = false;
+  const surface = put(g, kit.mesh(kit.geometry(`town:stream:${key}`, () => outline(width, depth, cut)), water), 0, 0.05, 0);
+  surface.receiveShadow = true;
+  surface.castShadow = false;
+  return g;
+}
+
 /** A little arched timber footbridge along z: deck boards on an arch, posts and rails either side. */
 export function bridge(kit: Kit, o: ModelOptions): THREE.Group {
   const { width, height, depth } = size(o, { width: 1.6, height: 0.5, depth: 6 });

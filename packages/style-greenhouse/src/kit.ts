@@ -22,6 +22,8 @@ interface Entry {
   emissive: Swatch | null;
   /** The emissive strength the model asked for; the theme's `glow` scales it. */
   glow: number;
+  /** A second swatch multiplied into the colour. */
+  tint?: Swatch;
 }
 
 /** Ground decals: blob contact shadows (every quality) and warm lamp pools (lamplight, pretty only). */
@@ -68,13 +70,19 @@ export class Kit {
     return this.data.swatches[name] ?? (this.data.palette as Record<string, string>)[name] ?? this.data.swatches["no-project"]!;
   }
 
-  /** The shared toon-ish material of a swatch; `glow` makes it emissive (lamps, screens). */
-  material(name: Swatch, options: { glow?: Swatch | number; transparent?: number } = {}): THREE.MeshStandardMaterial {
+  /**
+   * The shared toon-ish material of a swatch; `glow` makes it emissive (lamps, screens). `instanced` gives the copy
+   * that instanced meshes draw with: one material drawn both plain and instanced makes three look its program up
+   * again at every switch.
+   */
+  /** A shared material per swatch; `tint` multiplies a second swatch in (an instance colour, made a material). */
+  material(name: Swatch, options: { glow?: Swatch | number; transparent?: number; instanced?: boolean; tint?: Swatch } = {}): THREE.MeshStandardMaterial {
     const glow = options.glow === undefined ? null : typeof options.glow === "number" ? name : options.glow;
-    const key = `${name}|${glow ?? ""}|${typeof options.glow === "number" ? options.glow : ""}|${options.transparent ?? ""}`;
+    const key = `${name}|${glow ?? ""}|${typeof options.glow === "number" ? options.glow : ""}|${options.transparent ?? ""}${options.instanced ? "|instanced" : ""}${options.tint ? `|tint:${options.tint}` : ""}`;
     let entry = this.#materials.get(key);
     if (!entry) {
       const material = new THREE.MeshStandardMaterial({ color: this.hex(name), roughness: glow ? 1 : 0.7, metalness: 0 });
+      if (options.tint) material.color.multiply(new THREE.Color(this.hex(options.tint)));
       // Passing clouds dim the key light on it (a pattern shader that replaces this hook adds them again). The hook
       // only changes the lighting, so it is named in `userData.lightHook`: a renderer may batch the material and give
       // its copy the same hook (apps/world robotCrowd.ts).
@@ -90,7 +98,7 @@ export class Kit {
         material.opacity = options.transparent;
         material.depthWrite = false;
       }
-      entry = { material, color: name, emissive: glow, glow: strength };
+      entry = { material, color: name, emissive: glow, glow: strength, ...(options.tint ? { tint: options.tint } : {}) };
       this.#materials.set(key, entry);
     }
     return entry.material;
@@ -101,6 +109,7 @@ export class Kit {
     this.theme = theme;
     for (const entry of this.#materials.values()) {
       entry.material.color.set(this.hex(entry.color));
+      if (entry.tint) entry.material.color.multiply(new THREE.Color(this.hex(entry.tint)));
       if (entry.emissive) entry.material.emissive.set(this.hex(entry.emissive));
     }
     this.setLight(this.#lighting[theme]);

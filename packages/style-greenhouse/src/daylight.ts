@@ -21,10 +21,12 @@ export interface Light {
   glow: number;
   pools: number;
   evening: number;
+  air: THREE.Color;
+  airTint: number;
 }
 
 /** The lights a day mixes: the themes, the style's drift lights and the gentle evening of the day theme. */
-type LightName = StyleTheme | DriftLight | "day-evening";
+type LightName = StyleTheme | DriftLight | "day-evening" | "lamplight-dusk" | "lamplight-dawn";
 export type Lights = Partial<Record<LightName, Light>> & Record<StyleTheme, Light>;
 
 /** One day per theme as stops `[phase, light]`; between two stops the light eases from one to the next. */
@@ -41,14 +43,18 @@ export const DAY_STOPS: Record<StyleTheme, readonly (readonly [number, LightName
   lamplight: [
     [0, "lamplight"],
     [0.5, "lamplight"],
-    [0.66, "night"],
+    [0.6, "lamplight-dusk"],
+    [0.7, "night"],
     [0.84, "night"],
+    [0.93, "lamplight-dawn"],
     [1, "lamplight"],
   ],
 };
 
 /** How far the day theme's evening leans from the dusk towards the night: lit, but still a daylight town. */
 const DAY_EVENING_DEPTH = 0.35;
+/** In lamplight the dusk and the dawn show only in the air, faintly: a rose and a warm glow behind the evening town. */
+const LAMPLIGHT_AIR = 0.12;
 
 export function toLight(preset: LightingPreset): Light {
   return {
@@ -66,6 +72,8 @@ export function toLight(preset: LightingPreset): Light {
     glow: preset.glow,
     pools: preset.pools,
     evening: preset.evening,
+    air: new THREE.Color(preset.air),
+    airTint: preset.airTint,
   };
 }
 
@@ -79,6 +87,7 @@ export function cloneLight(light: Light): Light {
     keyPosition: new THREE.Vector3(),
     fill: new THREE.Color(),
     fillPosition: new THREE.Vector3(),
+    air: new THREE.Color(),
   });
 }
 
@@ -89,6 +98,7 @@ export function mixLights(a: Light, b: Light, t: number, out: Light): Light {
   out.ground.copy(a.ground).lerp(b.ground, t);
   out.key.copy(a.key).lerp(b.key, t);
   out.fill.copy(a.fill).lerp(b.fill, t);
+  out.air.copy(a.air).lerp(b.air, t);
   out.keyPosition.copy(a.keyPosition).lerp(b.keyPosition, t);
   out.fillPosition.copy(a.fillPosition).lerp(b.fillPosition, t);
   out.hemisphere = n(a.hemisphere, b.hemisphere);
@@ -99,6 +109,7 @@ export function mixLights(a: Light, b: Light, t: number, out: Light): Light {
   out.glow = n(a.glow, b.glow);
   out.pools = n(a.pools, b.pools);
   out.evening = n(a.evening, b.evening);
+  out.airTint = n(a.airTint, b.airTint);
   return out;
 }
 
@@ -115,6 +126,8 @@ export function sameLight(a: Light, b: Light): boolean {
     near(a.glow, b.glow) &&
     near(a.pools, b.pools) &&
     near(a.evening, b.evening) &&
+    near(a.airTint, b.airTint) &&
+    same(a.air, b.air) &&
     same(a.sky, b.sky) &&
     same(a.ground, b.ground) &&
     same(a.key, b.key) &&
@@ -131,7 +144,20 @@ export function compileLights(presets: Record<StyleTheme, LightingPreset> & Part
     const preset = presets[name];
     if (preset) lights[name] = toLight(preset);
   }
-  if (lights.dusk && lights.night) lights["day-evening"] = mixLights(lights.dusk, lights.night, DAY_EVENING_DEPTH, cloneLight(lights.dusk));
+  if (lights.dusk && lights.night) {
+    const evening = mixLights(lights.dusk, lights.night, DAY_EVENING_DEPTH, cloneLight(lights.dusk));
+    // The air goes further than the light: the rosy dusk gives way to a blue-green evening behind a still-lit town.
+    evening.air.copy(lights.night.air);
+    evening.airTint = lights.night.airTint;
+    lights["day-evening"] = evening;
+  }
+  for (const [name, from] of [["lamplight-dusk", lights.dusk], ["lamplight-dawn", lights.dawn]] as const) {
+    if (!from) continue;
+    const light = cloneLight(lights.lamplight);
+    light.air.copy(from.air);
+    light.airTint = LAMPLIGHT_AIR;
+    lights[name] = light;
+  }
   return lights;
 }
 

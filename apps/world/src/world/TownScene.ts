@@ -128,7 +128,12 @@ interface Callbacks {
   error: () => void;
   /** Build mode: the room cell under the pointer (null off the floor) and what a click hit. */
   build: (kind: BuildPointer, at: { room: RoomKind; cell: { x: number; z: number } } | null, pick: Pick | null) => void;
+  /** The town is laid out (its first build is spread over several tasks) and about to draw. */
+  ready?: () => void;
 }
+
+/** While the town is first laid out, one task builds buildings for about this long, then yields (no long task). */
+const LAYOUT_SLICE_MS = 30;
 
 const ROBOT_SCALE = 0.62;
 const CIVIC_LAWN = CIVIC_LOT;
@@ -139,6 +144,10 @@ const CAMERA_DISTANCE = 220;
 const HOME_OFFSET = new THREE.Vector3(1, 1.04, 1).normalize().multiplyScalar(CAMERA_DISTANCE);
 const UP = new THREE.Vector3(0, 1, 0);
 /* Framing heights: a building is seen up to its tall back walls, a room up to its people and desks. */
+/** Built interiors kept for a quick enter: the entered building's and the two most recently used others. */
+const KEPT_INTERIORS = 3;
+/** The idle time an interior build step needs left before it starts, ms. */
+const IDLE_STEP_MS = 12;
 const BUILDING_FRAME_HEIGHT = FLOOR_RISE + BACK_WALL_HEIGHT + 0.6; // the slab, the tall walls and a little headroom
 const ROOM_FRAME_HEIGHT = 1.1;
 /* The closest view: a frustum this many world units tall, about one desk with its robot. */
@@ -181,6 +190,10 @@ export class TownScene {
   /** The environment's shadow version the shadow maps were last drawn for. */
   #shadowVersion = 0;
   #driftTimer: ReturnType<typeof setInterval> | undefined;
+  /** The scene's own element: its backdrop (the air behind the diorama) follows the drift. */
+  #host: HTMLElement;
+  /** The air last written to the backdrop: colour channels and tint. */
+  #air = { r: -1, g: -1, b: -1, tint: -1 };
   #buildings = new Map<string, BuildingView>();
   /** A blob contact shadow under each building's slab, sized to its footprint. */
   #contacts = new Map<string, { object: THREE.Object3D; size: string }>();
@@ -198,6 +211,8 @@ export class TownScene {
   };
   /** Draws only the dressing near the view (a building close up draws its corner of the town, not all of it). */
   #culler: InstanceCuller | null = null;
+  #sun: THREE.DirectionalLight | null | undefined;
+  readonly #v2 = new THREE.Vector3();
   #lifeInside = false;
   /** The view the entered building's shadow was last fitted to. */
   #shadowFit: { zoom: number; x: number; z: number } | null = null;
@@ -233,8 +248,16 @@ export class TownScene {
   #last = 0;
   #disposed = false;
   #dirtyFrames = 2;
+  /** True until the first layout of the town is complete; nothing draws before. */
+  #layingOut = true;
+  #layoutTimer: ReturnType<typeof setTimeout> | 0 = 0;
   #down = { x: 0, y: 0 };
   #hovered: number | null = null;
+  /** Buildings holding a built interior, most recently used last (buildingView.ts prepareInterior). */
+  #interiors: string[] = [];
+  #cancelPrepare: (() => void) | null = null;
+  /** The building whose interior is being built in idle time. */
+  #preparing: string | null = null;
   #hoverPick = "";
   #tween: { position: THREE.Vector3; target: THREE.Vector3; zoom: number } | null = null;
   #resize: ResizeObserver;
@@ -258,6 +281,7 @@ export class TownScene {
     this.view = view;
     this.callbacks = callbacks;
     this.#labelsHost = labels;
+    this.#host = host;
     this.townStyle = styleRegistry.styleFor(null);
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "low-power" });
     this.renderer.debug.onShaderError = () => this.callbacks.error();
@@ -297,7 +321,6 @@ export class TownScene {
     this.#glow = this.townStyle.model("focus-glow", { size: { width: PLOT_SIZE - 3, height: 0, depth: PLOT_SIZE - 3 } });
     this.#glow.visible = false;
     this.scene.add(this.#glow);
-    this.buildGround();
     // Cloud shadows go to the light rig, which dims the key light under them on everything (when the style can).
     const environment = this.#environment;
     this.#life = new AmbientLife(this.townStyle, environment.setCloudShadows ? (clouds) => environment.setCloudShadows!(clouds) : null);
@@ -323,7 +346,13 @@ export class TownScene {
     });
     this.#resize = new ResizeObserver(this.resize);
     this.#resize.observe(host);
-    this.sync();
+    // The ground, then the town's dressing and buildings, each in tasks of their own (see sync).
+    this.#layoutTimer = setTimeout(() => {
+      this.#layoutTimer = 0;
+      if (this.#disposed) return;
+      this.buildGround();
+      this.#continueLayout();
+    }, 0);
     this.resize();
     this.home(true);
     this.setView(view);
@@ -341,6 +370,7 @@ export class TownScene {
     const phase = driftPhase({ dayNight: v.dayNight, reducedMotion: v.reducedMotion, quality: v.quality, sinceStartMs: v.dayClock() });
     const changed = this.#environment.setDayPhase(phase);
     this.#life.setEvening(this.#environment.evening);
+    this.#tintAir();
     if (!changed) return;
     if (this.#environment.shadowVersion !== this.#shadowVersion) {
       this.#shadowVersion = this.#environment.shadowVersion;
@@ -348,6 +378,21 @@ export class TownScene {
     }
     this.redraw();
   };
+
+  /**
+   * The air behind the diorama follows the light: the style's air colour, mixed into the theme's own air (world.css)
+   * by its tint, as two custom properties on the scene's element. Written only when it changed; the HTML chrome keeps
+   * the theme's colours.
+   */
+  #tintAir() {
+    const { color, tint } = this.#environment.air;
+    const a = this.#air;
+    // Steps of about one percent: during a dusk the backdrop repaints about once a second, never per frame.
+    if (Math.abs(a.r - color.r) + Math.abs(a.g - color.g) + Math.abs(a.b - color.b) < 0.015 && Math.abs(a.tint - tint) < 0.012) return;
+    Object.assign(a, { r: color.r, g: color.g, b: color.b, tint });
+    this.#host.style.setProperty("--drift-air", `#${color.getHexString()}`);
+    this.#host.style.setProperty("--drift-air-tint", `${(tint * 100).toFixed(1)}%`);
+  }
 
   /** Draws one more frame (a light change), without the longer settling run of `invalidate`. */
   redraw() {
@@ -510,14 +555,27 @@ export class TownScene {
   /* ── Model → scene ────────────────────────────────────────────────────── */
 
   sync() {
+    const started = performance.now();
+    let created = 0,
+      deferred = false;
     const model = this.view.model;
     this.#dress(model.buildings.length);
+    // The town's dressing is a slice of its own in the first layout.
+    if (this.#layingOut && performance.now() - started > LAYOUT_SLICE_MS && this.#buildings.size < Math.min(model.buildings.length, TOWN_CAPACITY)) {
+      this.#continueLayout();
+      return;
+    }
     this.walks.update(model, { entered: this.view.entered, reducedMotion: this.view.reducedMotion, ambient: this.view.ambient });
     const seen = new Set<string>();
     this.#anchors.clear();
     model.buildings.slice(0, TOWN_CAPACITY).forEach((b, index) => {
       seen.add(b.slug);
       let view = this.#buildings.get(b.slug);
+      // The first layout builds a slice of buildings per task (at least one), then yields; the rest follow.
+      if (this.#layingOut && !view && created > 0 && performance.now() - started > LAYOUT_SLICE_MS) {
+        deferred = true;
+        return;
+      }
       const c = plotCenter(index);
       // A plot's own style id when it has one, else the town document's default (tonight both are Greenhouse).
       const plot: StyledPlot = { styleId: this.view.town?.doc.plots.find((p) => p.slug === b.slug)?.styleId ?? this.view.town?.doc.styleId ?? null };
@@ -532,11 +590,13 @@ export class TownScene {
           walker: (key) => this.walks.walker(key),
         });
         view.group.userData.index = index;
+        created++;
         this.#buildings.set(b.slug, view);
         this.scene.add(view.group);
       }
       const town = this.view.town;
       view.update(b, this.view.entered === b.slug, town && (this.view.entered === b.slug ? town : { ...town, build: null }));
+      if (this.view.entered === b.slug) this.#useInterior(b.slug);
       view.setFocus(this.view.entered === b.slug ? this.view.room : null);
       for (const [id, v] of view.anchors) this.#anchors.set(id, v);
       this.#contact(b.slug, view);
@@ -556,7 +616,63 @@ export class TownScene {
         this.#contacts.delete(slug);
       }
     this.syncCivic();
+    if (this.#layingOut) {
+      if (deferred) this.#continueLayout();
+      else {
+        this.#layingOut = false;
+        this.callbacks.ready?.();
+      }
+    }
     this.invalidate();
+    this.#prepareInterior();
+  }
+
+  /** The next slice of the first layout, in a task of its own, so the page stays responsive while the town builds. */
+  #continueLayout() {
+    if (this.#layoutTimer) return;
+    this.#layoutTimer = setTimeout(() => {
+      this.#layoutTimer = 0;
+      if (!this.#disposed) this.sync();
+    }, 0);
+  }
+
+  /** Marks a building's interior as just used and drops the oldest beyond the few kept (never the entered one). */
+  #useInterior(slug: string) {
+    if (this.#interiors[this.#interiors.length - 1] === slug) return;
+    this.#interiors = [...this.#interiors.filter((s) => s !== slug), slug];
+    while (this.#interiors.length > KEPT_INTERIORS) this.#buildings.get(this.#interiors.shift()!)?.releaseInterior();
+  }
+
+  /**
+   * In the town, while the browser is idle, builds the interior of the building the pointer is over or the keyboard
+   * has focused, so entering it only has to show it.
+   */
+  #prepareInterior() {
+    if (this.#cancelPrepare || this.#layingOut || this.view.entered) return;
+    const run = (more: () => boolean) => {
+      this.#cancelPrepare = null;
+      if (this.#disposed || this.view.entered) return;
+      const index = this.#hovered ?? Math.min(this.view.focused, TOWN_CAPACITY - 1);
+      const slug = this.view.model.buildings[index]?.slug;
+      const view = slug ? this.#buildings.get(slug) : undefined;
+      if (!slug || !view) return;
+      // One build at a time: a build for a building the visitor has moved on from is given up.
+      if (this.#preparing !== slug) this.#buildings.get(this.#preparing ?? "")?.cancelPrepare();
+      this.#preparing = slug;
+      if (view.prepareInterior(more)) this.#useInterior(slug);
+      // Not done in this slice: go on in the next idle time.
+      if (view.preparing) this.#prepareInterior();
+    };
+    if (typeof requestIdleCallback === "function") {
+      const id = requestIdleCallback((deadline) => run(() => deadline.timeRemaining() > IDLE_STEP_MS), { timeout: 1500 });
+      this.#cancelPrepare = () => cancelIdleCallback(id);
+    } else {
+      const id = window.setTimeout(() => {
+        const start = performance.now();
+        run(() => performance.now() - start < IDLE_STEP_MS);
+      }, 300);
+      this.#cancelPrepare = () => window.clearTimeout(id);
+    }
   }
 
   /** The blob shadow under a building's slab follows its footprint (role rooms grow east). */
@@ -676,6 +792,7 @@ export class TownScene {
     }
     if (view.entered) this.#buildings.get(view.entered)?.setSelected(view.selectedAgent ?? null);
     this.refreshLabels();
+    this.#prepareInterior();
   }
 
   /** The frustum height (at zoom 1) that frames `bounds` from the current camera direction. */
@@ -903,6 +1020,7 @@ export class TownScene {
     this.#hovered = plot;
     this.renderer.domElement.style.cursor = plot === null ? "" : "pointer";
     this.callbacks.hover(plot);
+    this.#prepareInterior();
   };
   pointerLeave = () => {
     this.renderer.domElement.style.cursor = "";
@@ -960,7 +1078,7 @@ export class TownScene {
   };
   animate = (now: number) => {
     this.#raf = 0;
-    if (this.#disposed || document.hidden) return;
+    if (this.#disposed || document.hidden || this.#layingOut) return;
     if (this.#warm !== "warm") {
       if (this.#warm === "cold") {
         this.#warm = "warming";
@@ -1020,7 +1138,7 @@ export class TownScene {
     // The town view's shadow casters rarely change (robots seen from the town cast none, the postman neither), so its
     // shadow map is drawn only when something changed; inside a building it follows every frame.
     this.camera.updateMatrixWorld();
-    if (this.#culler?.update(this.camera)) this.#shadowDirty = true;
+    if (this.#culler?.update(this.camera, this.#sunDirection())) this.#shadowDirty = true;
     const shadows = this.renderer.shadowMap;
     shadows.autoUpdate = this.view.entered !== null;
     if (!shadows.autoUpdate) {
@@ -1088,6 +1206,14 @@ export class TownScene {
   }
 
   /** A number that changes whenever a building's shadow casters seen from the town changed, or a building came or went. */
+  /** Towards the shadow-casting light (the style's sun), for culling that keeps long shadows; null without one. */
+  #sunDirection(): THREE.Vector3 | undefined {
+    if (this.#sun?.parent !== this.scene) this.#sun = null;
+    this.#sun ??= this.scene.children.find((o): o is THREE.DirectionalLight => o instanceof THREE.DirectionalLight && o.castShadow) ?? null;
+    if (!this.#sun) return undefined;
+    return this.#v2.copy(this.#sun.position).sub(this.#sun.target.position).normalize();
+  }
+
   #casterRevision(): number {
     let revision = this.#buildings.size;
     for (const view of this.#buildings.values()) revision = (revision * 31 + view.shadowRevision) | 0;
@@ -1222,6 +1348,8 @@ export class TownScene {
 
   dispose() {
     this.#disposed = true;
+    if (this.#layoutTimer) clearTimeout(this.#layoutTimer);
+    this.#cancelPrepare?.();
     this.#stopIntents();
     cancelAnimationFrame(this.#raf);
     this.#resize.disconnect();
