@@ -51,6 +51,12 @@ export const dressingDefinitions: Definitions = {
   "mood-board": piece("mood-board", "Mood board", 2, 1),
   "round-table": piece("round-table", "Round table", 2, 2),
   planter: piece("planter", "Big planter", 2, 2),
+  "reception-desk": piece("reception-desk", "Reception desk", 3, 1),
+  "drafting-table": piece("drafting-table", "Drafting table", 2, 1),
+  "review-desk": piece("review-desk", "Review desk", 2, 2),
+  "parcel-cart": piece("parcel-cart", "Parcel cart", 1, 1),
+  "crate-stack": piece("crate-stack", "Crate stack", 1, 1),
+  "autumn-vase": piece("autumn-vase", "Vase of autumn branches", 1, 1),
 };
 
 /** A seeded number per building: the same slug always dresses the same way. */
@@ -383,6 +389,10 @@ function plan(kind: RoomKind, facts: RoomFacts, planner: Planner, defs: Definiti
         place({ def: "round-table", at: "free", anchor: { x: coffee.x + 0.5, z: coffee.z + 1 } });
       }
       plants(1, "waiting");
+      // The signature, placed last so the hall keeps its plan: a reception desk against the back wall, facing whoever
+      // comes in; and, in October, most lobbies have a vase of autumn branches by the way in.
+      place({ def: "reception-desk", at: "wall", anchor: { x: centre.x + 2.5, z: 0 }, sides: ["north", "west", "east"] });
+      if (rand() < 0.75) place({ def: "autumn-vase", at: "free", anchor: { x: entrance.x - 2.5, z: entrance.z - 0.5 } });
       break;
     }
     case "meeting":
@@ -390,17 +400,24 @@ function plan(kind: RoomKind, facts: RoomFacts, planner: Planner, defs: Definiti
       place({ def: "water-cooler", at: "wall", anchor: zoneCentre(facts, "sideboard") });
       if (!facts.tall.north.size && !facts.tall.west.size) place({ def: "board-stand", at: "wall", anchor: zoneCentre(facts, "whiteboard") });
       break;
-    case "storage":
+    case "storage": {
       place({ def: "storage-shelf", at: "wall", anchor: zoneCentre(facts, "crates") });
       place({ def: "storage-shelf", at: "wall", anchor: zoneCentre(facts, "crates") });
       place({ def: "filing-cabinet", at: "wall", anchor: zoneCentre(facts, "crates") });
+      // The signature: crates stacked three high in a corner.
+      const crates = zoneCentre(facts, "crates") ?? { x: 1, z: facts.depth - 1 };
+      place({ def: "crate-stack", at: "free", anchor: { x: crates.x + 1, z: crates.z + 1 } });
+      place({ def: "crate-stack", at: "free", anchor: { x: crates.x + 2, z: crates.z + 1 } });
       break;
+    }
     case "planning":
       place({ def: "filing-cabinet", at: "wall", anchor: zoneCentre(facts, "stool") });
       plants(1, "plant");
       if (!facts.tall.west.size && !facts.tall.north.size) place({ def: "board-stand", at: "wall", anchor: zoneCentre(facts, "pinboard") });
       break;
     case "review": {
+      // The signature: a two-seat review desk with its lamp, in the room's open middle.
+      place({ def: "review-desk", at: "free", anchor: { x: centre.x + 1, z: centre.z + 0.5 } });
       place({ def: "bookshelf", at: "wall", anchor: zoneCentre(facts, "shelving"), sides: ["west", "north"] });
       const chair = place({ def: "armchair", at: "free", anchor: offset({ ...(zoneCentre(facts, "shelving") ?? centre), front: { x: 1, z: 0 } }, 1.5, 1) });
       if (chair) {
@@ -413,10 +430,14 @@ function plan(kind: RoomKind, facts: RoomFacts, planner: Planner, defs: Definiti
       place({ def: "roller-shelf", at: "wall", anchor: zoneCentre(facts, "boxes") });
       place({ def: "roller-shelf", at: "wall", anchor: zoneCentre(facts, "boxes") });
       place({ def: "hand-truck", at: "wall", anchor: zoneCentre(facts, "boxes") ?? centre });
+      // The signature with the loading door: parcel carts lined up for the truck.
+      for (const dx of [-0.5, 0.5]) place({ def: "parcel-cart", at: "free", anchor: { x: centre.x + dx, z: facts.depth - 2 } });
       break;
     case "workers":
     case "analyst":
     case "design": {
+      // The design room's signature: a big drafting table on a far wall.
+      if (kind === "design") place({ def: "drafting-table", at: "wall", anchor: null, sides: ["north", "west"] });
       const modules = facts.zones.filter((z) => z.use.includes("plants")).length / 2 || 1;
       plants(Math.max(1, Math.round(modules * 1.5)), "plants");
       if (kind === "workers" && !facts.tall.north.size && !facts.tall.west.size) place({ def: "board-stand", at: "wall", anchor: null });
@@ -729,6 +750,17 @@ export function roomDecor(template: BuildingTemplate, options: Omit<DressOptions
       const pose = poseOf(p, defs);
       rug("decor.rug-round", pose.x, pose.z - 0.4, 0, { scale: { x: 0.95, y: 1, z: 0.85 } });
     }
+    // October, lightly and seeded: a pumpkin on the reception desk, a bowl of apples on the coffee counter, a warm throw
+    // over a sofa's arm. Never on a desk where tickets go.
+    const onTop = (p: WorldProp, key: ModelKey, lx: number, lz: number, raise: number, turn = 0) => {
+      const pose = poseOf(p, defs);
+      const yaw = Math.atan2(pose.front.x, pose.front.z);
+      at(key, pose.x + lx * Math.cos(yaw) + lz * Math.sin(yaw), pose.z - lx * Math.sin(yaw) + lz * Math.cos(yaw), yaw + turn, { raise });
+    };
+    for (const p of props.filter((q) => q.definitionId === "reception-desk")) if (rand() < 0.8) onTop(p, "decor.pumpkin", 0.75, -0.05, 0.52, rand());
+    for (const p of props.filter((q) => q.definitionId === "coffee-counter" && room.kind === "lobby")) if (rand() < 0.7) onTop(p, "decor.apple-bowl", 0.8, 0.17, 0.48);
+    for (const p of props.filter((q) => q.definitionId === "lounge-sofa")) if (rand() < 0.7) onTop(p, "decor.sofa-throw", 0, 0, 0);
+
     // A round rug under each reading nook's armchair and side table.
     for (const p of props.filter((q) => q.id.startsWith(`${DRESS_PREFIX}nook-armchair`))) {
       const pose = poseOf(p, defs);

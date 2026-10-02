@@ -1,0 +1,405 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-furniture-drafting-table",
+  "name": "Drafting table",
+  "description": "A big tilted drafting board on timber trestles with a sketch, colour swatches, a pencil ledge and a clamp lamp.",
+  "category": "work",
+  "tags": [
+    "greenhouse",
+    "design",
+    "table",
+    "drafting"
+  ],
+  "footprint": {
+    "width": 2,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.04,
+        0.62,
+        0.04
+      ],
+      "position": [
+        -0.46,
+        0.31,
+        -0.13
+      ],
+      "material": "timber",
+      "radius": 0.01,
+      "rotation": [
+        -8,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.04,
+        0.62,
+        0.04
+      ],
+      "position": [
+        -0.46,
+        0.31,
+        0.13
+      ],
+      "material": "timber",
+      "radius": 0.01,
+      "rotation": [
+        8,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.04,
+        0.62,
+        0.04
+      ],
+      "position": [
+        0.46,
+        0.31,
+        -0.13
+      ],
+      "material": "timber",
+      "radius": 0.01,
+      "rotation": [
+        -8,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.04,
+        0.62,
+        0.04
+      ],
+      "position": [
+        0.46,
+        0.31,
+        0.13
+      ],
+      "material": "timber",
+      "radius": 0.01,
+      "rotation": [
+        8,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.96,
+        0.03,
+        0.03
+      ],
+      "position": [
+        0,
+        0.2,
+        0
+      ],
+      "material": "timber",
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.04,
+        0.035,
+        0.56
+      ],
+      "position": [
+        0,
+        0.66,
+        0
+      ],
+      "material": "cream",
+      "radius": 0.012,
+      "rotation": [
+        20,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.08,
+        0.025,
+        0.6
+      ],
+      "position": [
+        0,
+        0.637,
+        -0.009
+      ],
+      "material": "timber-light",
+      "radius": 0.01,
+      "rotation": [
+        20,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.58,
+        0.01,
+        0.4
+      ],
+      "position": [
+        -0.08,
+        0.688,
+        -0.011
+      ],
+      "material": "paper",
+      "radius": 0.003,
+      "rotation": [
+        20,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.34,
+        0.01,
+        0.012
+      ],
+      "position": [
+        -0.24,
+        0.716,
+        -0.065
+      ],
+      "material": "slate",
+      "radius": 0.003,
+      "rotation": [
+        20,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.22,
+        0.01,
+        0.012
+      ],
+      "position": [
+        -0.06,
+        0.675,
+        0.048
+      ],
+      "material": "slate",
+      "radius": 0.003,
+      "rotation": [
+        20,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.16,
+        0.01,
+        0.012
+      ],
+      "position": [
+        0.05,
+        0.722,
+        -0.084
+      ],
+      "material": "sage",
+      "radius": 0.003,
+      "rotation": [
+        20,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.07,
+        0.01,
+        0.07
+      ],
+      "position": [
+        0.3,
+        0.657,
+        0.084
+      ],
+      "material": "tangerine",
+      "radius": 0.003,
+      "rotation": [
+        20,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.07,
+        0.01,
+        0.07
+      ],
+      "position": [
+        0.38,
+        0.657,
+        0.084
+      ],
+      "material": "sage",
+      "radius": 0.003,
+      "rotation": [
+        20,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.07,
+        0.01,
+        0.07
+      ],
+      "position": [
+        0.46,
+        0.657,
+        0.084
+      ],
+      "material": "coral",
+      "radius": 0.003,
+      "rotation": [
+        20,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.9,
+        0.025,
+        0.04
+      ],
+      "position": [
+        0,
+        0.58,
+        0.279
+      ],
+      "material": "timber",
+      "radius": 0.006,
+      "rotation": [
+        20,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.16,
+        0.012,
+        0.012
+      ],
+      "position": [
+        -0.2,
+        0.6,
+        0.287
+      ],
+      "material": "tangerine",
+      "radius": 0.004,
+      "rotation": [
+        20,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.012,
+        0.36,
+        0.012
+      ],
+      "position": [
+        0.5,
+        0.9,
+        -0.22
+      ],
+      "material": "brass",
+      "radius": 0.004,
+      "rotation": [
+        0,
+        0,
+        -14
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.012,
+        0.22,
+        0.012
+      ],
+      "position": [
+        0.44,
+        1.08,
+        -0.14
+      ],
+      "material": "brass",
+      "radius": 0.004,
+      "rotation": [
+        50,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.03,
+        0.08,
+        0.07
+      ],
+      "position": [
+        0.42,
+        1.06,
+        -0.04
+      ],
+      "material": "sage"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.035,
+        0.02,
+        0.035
+      ],
+      "position": [
+        0.42,
+        1.02,
+        -0.04
+      ],
+      "material": "lamp-glow",
+      "emissive": true
+    }
+  ]
+}
