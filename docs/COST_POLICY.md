@@ -123,9 +123,41 @@ Pretty.
 
 The final numbers of the night (filled in by the Dev Lead):
 
-| Scenario | Build | Frame p95 | Work mean / p95 | Draw calls | Frames over 33 ms |
+Measured on `c89f582` with `perf.mjs` (headless Chromium on Metal, 1440 x 900 unless noted, Pretty and the light
+theme unless noted). Headless Chromium runs `requestAnimationFrame` at 120 Hz with about 1.5 ms of jitter, so a
+steady 60 fps reads as a frame p95 of about 18 ms. On a real display it is 16.7 ms. The CPU work per frame decides
+whether a display holds its rate.
+
+| Scenario | Build | Frame p95 / max | Work mean / p95 | Draw calls | Frames over 33 ms |
 | --- | --- | --- | --- | --- | --- |
-| PERF_TABLE | | | | | |
+| Demo, town | production | 18.2 / 20.0 ms (steady 60) | 1.4 / 2.2 ms | 279 | 0 |
+| Demo, inside a building | production | 18.1 / 19.4 ms (steady 60) | 1.6 / 2.3 ms | 430 | 0 |
+| Demo, town, dark | production | 18.0 / 19.3 ms | 1.4 / 2.2 ms | 320 | 0 |
+| Stress town, 4x | dev | 9.8 / 10.9 ms (uncapped) | 2.3 / 3.0 ms | 498 | 0 |
+| Stress inside, 4x | dev | 9.9 / 10.5 ms (uncapped) | 2.1 / 2.8 ms | 608 | 0 |
+| Stress town, 16x | dev | 9.9 / 18.6 ms (uncapped) | 2.4 / 3.2 ms | 617 | 0 |
+| Enter, zoom and leave a building | production | 17.9 / 18.5 ms | no long task | | 0 |
+| Phone, Fast, town (375 px, 4x CPU throttle) | production | 18.1 / 19.3 ms | 3.6 / 5.6 ms | 240 | 0 |
+| Phone, Fast, inside a building | production | 18.1 / 19.9 ms | 2.6 / 4.4 ms | 117 | 0 |
+| Phone, Pretty, inside a building | production | 18.1 / 20.0 ms | 4.3 / 6.6 ms | 294 | 0 |
+| Startup to a dressed town | production | first frame at 0.79 s | | | |
+
+The same scenarios before the rounds (`35f0872`, dev build):
+
+| Scenario | Work mean / p95 | Draw calls | Frames over 33 ms |
+| --- | --- | --- | --- |
+| Demo, town | 4.6 / 6.2 ms | 676 | 0 |
+| Demo, inside a building | 5.3 / 7.2 ms | 916 | 0 |
+| Stress town, 4x | 8.0 / 9.6 ms | 1893 | 4, with a 40.9 ms max |
+| Stress inside, 4x | 7.8 / 10.2 ms | 1255 | 11, with a 50.8 ms max |
+| Phone, Fast, town | 13.1 / 17.2 ms | 636 | 0 |
+| Startup | first frame at 2.1 s | | |
+
+Memory, read after a forced GC every 30 s:
+
+- 10 minutes of the demo at 16x on a production build: the JS heap moves between 22 and 25 MB with no trend.
+  Geometries, textures, DOM nodes and listeners stay the same.
+- 5 minutes of the stress fixture at 16x: the heap grows 0.4 MB, and the rest stays the same.
 
 ## Acceptance
 
