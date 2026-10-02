@@ -143,6 +143,8 @@ class GreenhouseStyle implements WorldStyle {
         return town.pond(kit, o);
       case "town.bridge":
         return town.bridge(kit, o);
+      case "town.stream":
+        return town.stream(kit, o);
       case "town.fence":
         return town.fence(kit, o);
       case "town.string-lights":
