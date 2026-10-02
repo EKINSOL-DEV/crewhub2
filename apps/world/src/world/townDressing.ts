@@ -377,6 +377,8 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
   add("town.bus", (bay.minX + bay.maxX) / 2, GRASS_Y + 0.04, (bay.minZ + bay.maxZ) / 2, { scale: 1.3 });
   // A pair of trees in the back corners of the town hall's lot frames it, clear of its podium and roof.
   for (const side of [-1, 1]) tree(civicCenter("town-hall").x + side * 5.4, civicCenter("town-hall").z - 5.4, LAWN_Y, 71 + side, 0.9);
+  // Hanging baskets on the civic row's lanterns, the arms pointing either way along the lane.
+  for (const d of [...out]) if (d.key === "town.lantern" && d.z < CIVIC_LANE - LANE / 2) add("town.hanging-basket", d.x, d.y, d.z, { scale: d.scale, rotation: Math.round(d.x) % 2 ? Math.PI : 0 });
   park(add, tree);
   orchard(add);
 
@@ -478,7 +480,10 @@ function garden(add: Add, plot: DressedPlot, tree: Tree) {
   }
   for (const side of [-1, 1]) {
     const lantern = { x: plot.door.x + side * (GARDEN_PATH / 2 + 0.35), z: c.z + half - 0.35 };
-    if (clear(rect(lantern.x, lantern.z, 0.3, 0.3), 0)) add("town.lantern", lantern.x, LAWN_Y, lantern.z, { seed: plot.index + side, scale: 0.85 });
+    if (!clear(rect(lantern.x, lantern.z, 0.3, 0.3), 0)) continue;
+    add("town.lantern", lantern.x, LAWN_Y, lantern.z, { seed: plot.index + side, scale: 0.85 });
+    // A hanging basket on each gate lantern, its arm reaching away from the path (not on a closed building's).
+    if (!plot.archived) add("town.hanging-basket", lantern.x, LAWN_Y, lantern.z, { scale: 0.85, rotation: side < 0 ? Math.PI : 0 });
   }
   const box = { x: plot.door.x + GARDEN_PATH / 2 + 0.45, z: c.z + half - 1.1 };
   if (clear(rect(box.x, box.z, 0.3, 0.3), 0)) add("town.mailbox", box.x, LAWN_Y, box.z, { rotation: -Math.PI / 2 });
