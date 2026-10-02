@@ -406,7 +406,9 @@
       "shadowOpacity": 0.2,
       "glow": 1,
       "pools": 0,
-      "evening": 0
+      "evening": 0,
+      "air": "#f4efe1",
+      "airTint": 0
     },
     "lamplight": {
       "background": null,
@@ -431,7 +433,9 @@
       "shadowOpacity": 0.4,
       "glow": 2.4,
       "pools": 0.42,
-      "evening": 1
+      "evening": 1,
+      "air": "#1f3a3c",
+      "airTint": 0
     },
     "dawn": {
       "background": null,
@@ -456,7 +460,9 @@
       "shadowOpacity": 0.18,
       "glow": 1.3,
       "pools": 0.12,
-      "evening": 0.3
+      "evening": 0.3,
+      "air": "#f6d9c6",
+      "airTint": 0.5
     },
     "dusk": {
       "background": null,
@@ -481,7 +487,9 @@
       "shadowOpacity": 0.24,
       "glow": 1.9,
       "pools": 0.3,
-      "evening": 0.85
+      "evening": 0.85,
+      "air": "#efb79c",
+      "airTint": 0.55
     },
     "night": {
       "background": null,
@@ -506,7 +514,9 @@
       "shadowOpacity": 0.45,
       "glow": 2.9,
       "pools": 0.55,
-      "evening": 1
+      "evening": 1,
+      "air": "#16393a",
+      "airTint": 0.55
     }
   }
 }
