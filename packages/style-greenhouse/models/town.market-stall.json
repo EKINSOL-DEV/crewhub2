@@ -1,0 +1,548 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-town-market-stall",
+  "name": "Market stall",
+  "description": "A market stall under a striped awning, with crates of fruit and greens.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "town"
+  ],
+  "footprint": {
+    "width": 3,
+    "depth": 2
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        1.8,
+        0.75,
+        0.7
+      ],
+      "position": [
+        0,
+        0.375,
+        0.15
+      ],
+      "material": "timber",
+      "radius": 0.04
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.86,
+        0.05,
+        0.76
+      ],
+      "position": [
+        0,
+        0.77,
+        0.15
+      ],
+      "material": "timber-light",
+      "radius": 0.02
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.035,
+        1.75,
+        0.035
+      ],
+      "position": [
+        -0.86,
+        0.875,
+        -0.25
+      ],
+      "material": "timber"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.035,
+        1.75,
+        0.035
+      ],
+      "position": [
+        -0.86,
+        0.875,
+        0.5
+      ],
+      "material": "timber"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.035,
+        1.75,
+        0.035
+      ],
+      "position": [
+        0.86,
+        0.875,
+        -0.25
+      ],
+      "material": "timber"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.035,
+        1.75,
+        0.035
+      ],
+      "position": [
+        0.86,
+        0.875,
+        0.5
+      ],
+      "material": "timber"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.32,
+        0.04,
+        1.0
+      ],
+      "position": [
+        -0.8,
+        1.8,
+        0.12
+      ],
+      "material": "tangerine",
+      "rotation": [
+        14,
+        0,
+        0
+      ],
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.32,
+        0.04,
+        1.0
+      ],
+      "position": [
+        -0.48,
+        1.8,
+        0.12
+      ],
+      "material": "cream",
+      "rotation": [
+        14,
+        0,
+        0
+      ],
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.32,
+        0.04,
+        1.0
+      ],
+      "position": [
+        -0.16,
+        1.8,
+        0.12
+      ],
+      "material": "tangerine",
+      "rotation": [
+        14,
+        0,
+        0
+      ],
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.32,
+        0.04,
+        1.0
+      ],
+      "position": [
+        0.16,
+        1.8,
+        0.12
+      ],
+      "material": "cream",
+      "rotation": [
+        14,
+        0,
+        0
+      ],
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.32,
+        0.04,
+        1.0
+      ],
+      "position": [
+        0.48,
+        1.8,
+        0.12
+      ],
+      "material": "tangerine",
+      "rotation": [
+        14,
+        0,
+        0
+      ],
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.32,
+        0.04,
+        1.0
+      ],
+      "position": [
+        0.8,
+        1.8,
+        0.12
+      ],
+      "material": "cream",
+      "rotation": [
+        14,
+        0,
+        0
+      ],
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.32,
+        0.16,
+        0.02
+      ],
+      "position": [
+        -0.8,
+        1.66,
+        0.63
+      ],
+      "material": "tangerine",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.32,
+        0.16,
+        0.02
+      ],
+      "position": [
+        -0.48,
+        1.66,
+        0.63
+      ],
+      "material": "cream",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.32,
+        0.16,
+        0.02
+      ],
+      "position": [
+        -0.16,
+        1.66,
+        0.63
+      ],
+      "material": "tangerine",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.32,
+        0.16,
+        0.02
+      ],
+      "position": [
+        0.16,
+        1.66,
+        0.63
+      ],
+      "material": "cream",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.32,
+        0.16,
+        0.02
+      ],
+      "position": [
+        0.48,
+        1.66,
+        0.63
+      ],
+      "material": "tangerine",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.32,
+        0.16,
+        0.02
+      ],
+      "position": [
+        0.8,
+        1.66,
+        0.63
+      ],
+      "material": "cream",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.46,
+        0.14,
+        0.32
+      ],
+      "position": [
+        -0.55,
+        0.85,
+        0.2
+      ],
+      "material": "clay",
+      "radius": 0.02
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.07,
+        0.07
+      ],
+      "position": [
+        -0.67,
+        0.95,
+        0.12
+      ],
+      "material": "coral"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.07,
+        0.07
+      ],
+      "position": [
+        -0.43,
+        0.95,
+        0.12
+      ],
+      "material": "coral"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.07,
+        0.07
+      ],
+      "position": [
+        -0.67,
+        0.95,
+        0.28
+      ],
+      "material": "coral"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.07,
+        0.07
+      ],
+      "position": [
+        -0.43,
+        0.95,
+        0.28
+      ],
+      "material": "coral"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.46,
+        0.14,
+        0.32
+      ],
+      "position": [
+        0.0,
+        0.85,
+        0.2
+      ],
+      "material": "clay",
+      "radius": 0.02
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.07,
+        0.07
+      ],
+      "position": [
+        -0.12,
+        0.95,
+        0.12
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.07,
+        0.07
+      ],
+      "position": [
+        0.12,
+        0.95,
+        0.12
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.07,
+        0.07
+      ],
+      "position": [
+        -0.12,
+        0.95,
+        0.28
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.07,
+        0.07
+      ],
+      "position": [
+        0.12,
+        0.95,
+        0.28
+      ],
+      "material": "leaf"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.46,
+        0.14,
+        0.32
+      ],
+      "position": [
+        0.55,
+        0.85,
+        0.2
+      ],
+      "material": "clay",
+      "radius": 0.02
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.07,
+        0.07
+      ],
+      "position": [
+        0.43,
+        0.95,
+        0.12
+      ],
+      "material": "tangerine"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.07,
+        0.07
+      ],
+      "position": [
+        0.67,
+        0.95,
+        0.12
+      ],
+      "material": "tangerine"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.07,
+        0.07
+      ],
+      "position": [
+        0.43,
+        0.95,
+        0.28
+      ],
+      "material": "tangerine"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.07,
+        0.07,
+        0.07
+      ],
+      "position": [
+        0.67,
+        0.95,
+        0.28
+      ],
+      "material": "tangerine"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.4,
+        0.3,
+        0.03
+      ],
+      "position": [
+        0.65,
+        1.15,
+        0.55
+      ],
+      "material": "graphite",
+      "rotation": [
+        -10,
+        0,
+        0
+      ],
+      "radius": 0.02
+    }
+  ]
+}
