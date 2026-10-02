@@ -36,14 +36,6 @@ function pilasters(kit: Kit, g: THREE.Object3D, width: number, height: number, d
   }
 }
 
-/**
- * The roof line: a slim strip in the project colour along the top of a tall wall, so the building's colour reads from
- * the town. An archived building's strip is weathered timber.
- */
-function roofLine(kit: Kit, g: THREE.Object3D, width: number, top: number, depth: number, o: ModelOptions) {
-  put(small(g), kit.box(width - 0.3, 0.025, depth * 0.55, archived(o) ? "plank" : accent(o), 0.008), 0, top + 0.0125, 0);
-}
-
 /** An empty marker for the renderer's ambient life (world-style's LifeSpot convention). */
 function lifeSpot(g: THREE.Object3D, life: LifeSpot, x: number, y: number, z: number) {
   const spot = new THREE.Object3D();
@@ -132,7 +124,6 @@ export function tallWall(kit: Kit, o: ModelOptions, glass: THREE.Material): THRE
   put(g, kit.box(width / 2 - from, height, depth, chalk, 0.02), (from + width / 2) / 2, height / 2, 0);
   for (const z of [depth / 2 + 0.012, -depth / 2 - 0.012]) put(g, kit.box(width, 0.13, 0.03, "ledge", 0.01), 0, 0.065, z);
   put(g, kit.box(width + 0.04, 0.07, depth + 0.08, "ledge", 0.02), 0, height + 0.035, 0);
-  roofLine(kit, g, width, height + 0.07, depth, o);
   pilasters(kit, g, width, height, depth, chalk);
   return settle(g);
 }
@@ -161,7 +152,6 @@ export function glassWall(kit: Kit, o: ModelOptions, glass: THREE.Material): THR
   put(g, kit.box(width + 0.06, 0.09, depth, "mullion", 0.02), 0, height - 0.02, 0);
   // A pale cap on the frame: from the town the glass wall's top catches the light like the chalk wall's ledge.
   put(g, kit.box(width + 0.08, 0.035, depth + 0.06, "cream", 0.012), 0, height + 0.04, 0);
-  roofLine(kit, g, width, height + 0.0575, depth, o);
   pilasters(kit, g, width, height, depth, archived(o) ? "chalk-dim" : "chalk");
   return g;
 }
@@ -274,8 +264,9 @@ export function slab(kit: Kit, o: ModelOptions): THREE.Group {
   // A warm side under a cream lip: the building's footprint reads crisply against the lawn.
   put(g, kit.box(width + reach * 2, SLAB - 0.05, depth + reach * 2, "slab-side", 0.05), 0, -(SLAB + 0.05) / 2, 0);
   put(g, kit.box(width + reach * 2 + 0.06, 0.06, depth + reach * 2 + 0.06, archived(o) ? "chalk-dim" : "cream", 0.03), 0, -0.03, 0);
-  // The band in the project colour under the lip: wide enough to read from the town on every side.
-  put(g, kit.box(width + reach * 2 + 0.02, 0.07, depth + reach * 2 + 0.02, archived(o) ? "plank" : accent(o), 0.012), 0, -0.1, 0);
+  // A thin trim under the lip in a soft tint of the project colour: an accent, never a ribbon (the colour reads from
+  // the town through the awning, the door, the flag and the name sign).
+  put(g, kit.box(width + reach * 2 + 0.02, 0.022, depth + reach * 2 + 0.02, archived(o) ? "plank" : `soft:${accent(o)}`, 0.008), 0, -0.075, 0);
   put(g, kit.box(width + reach * 2 + 0.03, 0.04, depth + reach * 2 + 0.03, "ledge", 0.015), 0, -SLAB + 0.02, 0);
   g.userData.rise = SLAB;
   // Flat: its shadow is a sliver under the lip; the walls standing on it cast the ones that read.

@@ -373,9 +373,7 @@ export class BuildingView {
       const horizontal = run.z1 === run.z2;
       const length = (horizontal ? run.x2 - run.x1 : run.z2 - run.z1) * CELL;
       const [key, height, depth] = WALLS[run.side];
-      // The tall back walls carry the project colour along their roof line.
-      const tall = run.side === "north" || run.side === "west";
-      const wall = add(style.model(key, opt({ size: { width: length + depth, height, depth }, ...(tall ? { accent } : {}) })), (run.x1 + run.x2) / 2, (run.z1 + run.z2) / 2, 0, horizontal ? 0 : Math.PI / 2);
+      const wall = add(style.model(key, opt({ size: { width: length + depth, height, depth } })), (run.x1 + run.x2) / 2, (run.z1 + run.z2) / 2, 0, horizontal ? 0 : Math.PI / 2);
       if (run.side === "north" || run.side === "west") {
         const [lowKey, lowHeight, lowDepth] = WALLS.south;
         const low = style.model(lowKey, opt({ size: { width: length + lowDepth, height: lowHeight, depth: lowDepth } }));
