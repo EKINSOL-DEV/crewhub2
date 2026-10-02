@@ -279,6 +279,15 @@ Settings has a **Graphics** choice: **Pretty** (the default) or **Fast**. It is 
 - **Revealed rooms.** A room's labels (room sign, update and caption cards, status tags, name tags, pallet counts,
   rule chips) show only when the room is revealed: under the pointer, keyboard-focused or zoomed to. Hanging labels
   that would overlap nudge upwards instead of piling up.
+- **A label never hides its robot** (`apps/world/src/world/labelLayout.ts`). The robots are the hero of each room.
+  - The hovered or selected robot's plate is placed first, then every robot's own stack, each just over its head: the
+    name pill stays closest.
+  - Desk tags, rule chips and ticket chips that would cover a robot or its stack step aside, to the side their anchor
+    is on, rather than up.
+  - A room sign over a robot or its stack steps back (faded) instead of pushing the stack away.
+- **Quiet when many.** A hanging label pushed more than 72 px from its anchor fades until the pointer is on it, and one
+  pushed more than 160 px is hidden (on a phone's narrow canvas, beyond 72 px). With Details on, a town of more than
+  six buildings keeps its signs as quiet names; the focused one still expands.
 - **Details (D).** The Details toggle in the toolbar, also the **D** key, shows every label everywhere. It is kept per
   viewer (`crewhub-world.details`), and pressing D announces the new state. The text view and the live regions keep
   everything regardless.

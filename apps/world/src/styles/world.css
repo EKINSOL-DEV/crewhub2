@@ -127,6 +127,25 @@
 .anchor.raised {
   z-index: 2;
 }
+/* Quiet when many (TownScene.placeLabels): a hanging label pushed far from its anchor fades until the pointer is on
+   it; a room sign over a robot or its stack steps back so the robot reads. */
+.anchor.label-far,
+.anchor.label-yield {
+  opacity: 0.32;
+  transition: opacity 200ms ease;
+}
+.anchor.label-far:hover,
+.anchor.label-far:focus-within,
+.anchor.label-yield:hover,
+.anchor.label-yield:focus-within {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .anchor.label-far,
+  .anchor.label-yield {
+    transition: none;
+  }
+}
 .town-sign,
 .agent-plate {
   pointer-events: auto;

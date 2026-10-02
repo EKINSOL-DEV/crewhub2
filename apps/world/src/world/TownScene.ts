@@ -27,6 +27,7 @@ import { Walks } from "./walks";
 import { AmbientLife } from "./ambientLife";
 import { driftPhase, followPhase, type DriftFollow } from "./dayClock";
 import { FrameRing } from "./frameRing";
+import { nudgeStacks, overRobot, type Label, type RobotBox } from "./labelLayout";
 import { updateMatrices } from "./matrixPass";
 import { RobotCrowd } from "./robotCrowd";
 
@@ -157,8 +158,18 @@ const PORTRAIT_ROOM_MARGIN = 0.86;
 const PORTRAIT_BUILDING_MARGIN = 0.94;
 /* The closest view: a frustum this many world units tall, about one desk with its robot. */
 const DESK_SPAN = 2.4;
-/* Pixels between two hanging labels before the one further back moves up. */
-const LABEL_GAP = 3;
+/* A robot as the labels see it: from its label anchor (just over its head) down this far to its feet, and this wide
+   either side, in world units (robots stand at 0.62 scale). Other labels keep off it. */
+const ROBOT_BODY = 1.0;
+const ROBOT_HALF_WIDTH = 0.3;
+/* A hanging label pushed further than this from its anchor (pixels) is too far to read as its object's: it fades
+   until the pointer is on it. */
+const FAR_LABEL = 72;
+/* Pushed further than this, it is hidden: on a crowded screen (a stress building, a phone) the far ones would stack
+   into a column of faded text. On a phone's narrow canvas there is no room for faded ones: they hide at FAR_LABEL. The
+   hovered or selected robot's plate is never hidden: it is placed first. */
+const HIDDEN_LABEL = 160;
+const NARROW_CANVAS = 600;
 /* Labels that hang above their anchor (bottom centred on it): robots' stacks, tags, chips and counts. Building, civic
    and room signs sit beside their anchors and keep their places. */
 const HANGING = /^(a|o|rule|err|p|beacon|mail|banner):|^c:[^:]+:/;
@@ -257,6 +268,8 @@ export class TownScene {
   #labels: Label[] = [];
   #stacks: Label[] = [];
   #signs: Label[] = [];
+  /** The entered building's robots on screen this frame (a pool, reused). */
+  #robotBoxes: RobotBox[] = [];
   #span = 30;
   #raf = 0;
   #last = 0;
@@ -753,7 +766,8 @@ export class TownScene {
   refreshLabels() {
     const previous = new Map(this.#labels.map((l) => [l.el, l]));
     this.#labels = [...this.#labelsHost.querySelectorAll<HTMLElement>("[data-anchor]")].map(
-      (el) => previous.get(el) ?? { el, id: "", half: 0, height: 0, stack: false, sign: false, x: Number.NaN, y: Number.NaN, nx: 0, ny: 0, visible: false },
+      (el) =>
+        previous.get(el) ?? { el, id: "", half: 0, height: 0, stack: false, sign: false, robot: false, picked: false, shown: false, x: Number.NaN, y: Number.NaN, nx: 0, ny: 0, ay: 0, visible: false, far: false, yields: false },
     );
     for (const l of this.#labels) {
       l.id = l.el.dataset.anchor ?? "";
@@ -762,6 +776,8 @@ export class TownScene {
       l.height = box?.offsetHeight ?? 0;
       l.stack = HANGING.test(l.id);
       l.sign = l.id.startsWith("r:");
+      l.robot = l.id.startsWith("a:");
+      l.picked = l.el.classList.contains("picked");
       l.x = Number.NaN;
     }
     this.invalidate();
@@ -1349,6 +1365,7 @@ export class TownScene {
       signs = this.#signs;
     stacks.length = 0;
     signs.length = 0;
+    const robots = this.#robotsOnScreen(width, height);
     for (const label of this.#labels) {
       const anchor = this.#anchors.get(label.id);
       let visible = false,
@@ -1363,22 +1380,61 @@ export class TownScene {
       }
       label.nx = x;
       label.ny = y;
+      label.ay = y;
       label.visible = visible;
       if (visible && label.stack) stacks.push(label);
       if (visible && label.sign) signs.push(label);
     }
-    if (stacks.length > 1 || (stacks.length && signs.length)) nudgeStacks(stacks, signs);
+    if (stacks.length > 1 || (stacks.length && (signs.length || robots))) nudgeStacks(stacks, signs, this.#robotBoxes, robots);
+    const hideBeyond = width < NARROW_CANVAS ? FAR_LABEL : HIDDEN_LABEL;
     for (const label of this.#labels) {
       const x = label.nx,
         y = label.ny,
-        visible = label.visible;
-      if (Math.abs(label.x - x) > 0.2 || Math.abs(label.y - y) > 0.2 || label.el.style.visibility !== (visible ? "visible" : "hidden") || Number.isNaN(label.x)) {
-        label.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+        visible = label.visible && !(label.stack && !label.picked && label.ay - y > hideBeyond);
+      // Quiet when many: a label pushed far from its anchor fades; a room sign over a robot or its stack steps back.
+      const far = visible && label.stack && !label.picked && label.ay - y > FAR_LABEL;
+      if (far !== label.far) label.el.classList.toggle("label-far", (label.far = far));
+      const yields = visible && label.sign && overRobot(label, stacks, this.#robotBoxes, robots);
+      if (yields !== label.yields) label.el.classList.toggle("label-yield", (label.yields = yields));
+      // The applied visibility is kept on the label: reading the element's style every frame cost more than the rest.
+      if (visible !== label.shown) {
         label.el.style.visibility = visible ? "visible" : "hidden";
+        label.shown = visible;
+      }
+      if (visible && (Math.abs(label.x - x) > 0.2 || Math.abs(label.y - y) > 0.2 || Number.isNaN(label.x))) {
+        label.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
         label.x = x;
         label.y = y;
       }
     }
+  }
+
+  /** The entered building's robots as screen boxes (head to feet), from their label anchors; none in the town. */
+  #robotsOnScreen(width: number, height: number): number {
+    const view = this.view.entered ? this.#buildings.get(this.view.entered) : undefined;
+    if (!view) return 0;
+    const pixels = (height * this.camera.zoom) / (this.camera.top - this.camera.bottom);
+    const half = ROBOT_HALF_WIDTH * pixels;
+    let n = 0;
+    for (const [id, anchor] of view.anchors) {
+      if (id.charCodeAt(0) !== 97 || id.charCodeAt(1) !== 58) continue; // "a:"
+      this.#v.copy(anchor).project(this.camera);
+      if (this.#v.z < -1 || this.#v.z > 1) continue;
+      const x = (this.#v.x * 0.5 + 0.5) * width,
+        top = (-this.#v.y * 0.5 + 0.5) * height;
+      this.#v.set(anchor.x, anchor.y - ROBOT_BODY, anchor.z).project(this.camera);
+      const bottom = (-this.#v.y * 0.5 + 0.5) * height;
+      if (x < -half || x > width + half || bottom < 0 || top > height) continue;
+      const box = (this.#robotBoxes[n] ??= { id: "", x: 0, left: 0, right: 0, top: 0, bottom: 0 });
+      box.id = id;
+      box.x = x;
+      box.left = x - half;
+      box.right = x + half;
+      box.top = top;
+      box.bottom = bottom;
+      n++;
+    }
+    return n;
   }
 
   dispose() {
@@ -1409,59 +1465,5 @@ export class TownScene {
     // Styles live in the registry (one instance per id) and outlast this scene; the renderer frees the GPU side.
     this.renderer.dispose();
     canvas.remove();
-  }
-}
-
-interface Label {
-  el: HTMLElement;
-  id: string;
-  /** Half the width and the height of the label's box, measured when React renders it. */
-  half: number;
-  height: number;
-  /** A hanging label (a robot's pill and bubble, a tag), which keeps clear of its neighbours. */
-  stack: boolean;
-  /** A room sign: it keeps its place, and hanging labels keep clear of it. */
-  sign: boolean;
-  /** Placed position, and this frame's position before it is applied. */
-  x: number;
-  y: number;
-  nx: number;
-  ny: number;
-  visible: boolean;
-}
-
-/**
- * Two robots side by side would pile their pills and bubbles on each other, and so would tags on neighbouring desks,
- * or a tag on a room sign (with Details on).
- * Each hangs above its anchor (bottom centred on it); from the front of the scene (lowest on screen) back, a label that
- * would overlap one already placed moves up just above it, so the nearer thing keeps its label where it stands.
- */
-function nudgeStacks(stacks: Label[], signs: readonly Label[]) {
-  stacks.sort((a, b) => b.ny - a.ny || (a.id < b.id ? -1 : 1));
-  for (let i = 0; i < stacks.length; i++) {
-    const l = stacks[i]!;
-    for (let pass = 0; pass < 6; pass++) {
-      let moved = false;
-      for (let j = 0; j < i; j++) {
-        const o = stacks[j]!;
-        if (Math.abs(l.nx - o.nx) < l.half + o.half + LABEL_GAP && l.ny > o.ny - o.height - LABEL_GAP && l.ny - l.height < o.ny + LABEL_GAP) {
-          l.ny = o.ny - o.height - LABEL_GAP;
-          moved = true;
-        }
-      }
-      // A room sign stands fixed, its box from 10 % of its width left of its anchor and centred on it vertically
-      // (world.css): a label that would touch one moves up above it.
-      for (const s of signs) {
-        const left = s.nx - s.half * 0.2,
-          right = left + s.half * 2,
-          top = s.ny - s.height / 2,
-          bottom = s.ny + s.height / 2;
-        if (l.nx + l.half + LABEL_GAP > left && l.nx - l.half - LABEL_GAP < right && l.ny + LABEL_GAP > top && l.ny - l.height - LABEL_GAP < bottom) {
-          l.ny = top - LABEL_GAP;
-          moved = true;
-        }
-      }
-      if (!moved) break;
-    }
   }
 }

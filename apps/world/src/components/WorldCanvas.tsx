@@ -45,6 +45,8 @@ interface Props {
   onBuild: (kind: BuildPointer, at: { room: RoomKind; cell: { x: number; z: number } } | null, pick: Pick | null) => void;
 }
 
+/* Above this many buildings, Details leaves the town's signs as quiet names (only the focused one expands). */
+const QUIET_TOWN = 6;
 const now = () => worldRuntime().source.now();
 const speed = () => worldRuntime().source.playback.speed();
 const dayClock = () => worldRuntime().source.now() - worldRuntime().epochMs;
@@ -135,7 +137,9 @@ export default function WorldCanvas(props: Props) {
           // Inside, the breadcrumb names the building: its sign comes back with Details (small on a phone). In the town a
           // sign is a quiet name until the focus ring or Details expands it with its counts and its lead.
           if (inside && !props.details) return null;
-          const expanded = inside ? !compact : (props.ringVisible && props.focused === index) || props.details;
+          // With Details on, a town of more than a few buildings keeps its signs quiet (a wall of cards hides the town):
+          // the focused one still expands.
+          const expanded = inside ? !compact : (props.ringVisible && props.focused === index) || (props.details && model.buildings.length <= QUIET_TOWN);
           const lead = b.agents.find((a) => a.key === b.lead.id && a.presence === "real");
           return (
             <div key={b.slug} className={`anchor${expanded ? " raised" : ""}`} data-anchor={`b:${b.slug}`}>
@@ -440,7 +444,7 @@ function AgentLabel({
   );
   if (!pill && !bubble && !plate && !(full && (tag || caption || alerts.length))) return null;
   return (
-    <div className="anchor agent-anchor" data-anchor={`a:${slug}:${agent.key}`}>
+    <div className={`anchor agent-anchor${plate ? " picked" : ""}`} data-anchor={`a:${slug}:${agent.key}`}>
       <span className="agent-stack">
         {bubble && (
           <span className={`bubble ${bubble.tone}`} title={bubble.title}>
