@@ -12,7 +12,7 @@ const open = (cells: Uint8Array, x: number, z: number) => {
   return cells[c.z * TOWN_GRID.width + c.x] === 1;
 };
 /** Pieces that stand up out of the ground; paving, lawns, the pond, the bridge and the lantern pools lie on it. */
-const STANDING = /^(town\.(oak|birch|pine|fruit-tree|bush|hedge|bench|signpost|bike-rack|mailbox|flower-bed|fence|swing|slide|sandpit|shed|veg-bed|bike-shelter|leaf-pile)|civic\.(cafe-table|planter))$/;
+const STANDING = /^(town\.(oak|birch|pine|fruit-tree|bush|oak-autumn|birch-autumn|bush-autumn|hedge|bench|signpost|bike-rack|mailbox|flower-bed|fence|swing|slide|sandpit|shed|veg-bed|bike-shelter|leaf-pile)|civic\.(cafe-table|planter))$/;
 
 test("the dressing is deterministic and stays on the town ground", () => {
   const a = townDressing(plots(4)),
@@ -64,7 +64,7 @@ test("empty plots each have a character; used plots are lawns with hedges", () =
   assert.ok(on(0, /^town\.hedge$/).length > 8);
   assert.equal(on(8, /^town\.hedge$/).length, 0);
   assert.equal(plotUse(8), "meadow");
-  assert.ok(on(8, /^town\.(oak|birch|pine)$/).length >= 3);
+  assert.ok(on(8, /^town\.(oak|birch|pine)(-autumn)?$/).length >= 3);
   assert.equal(dressing.find((d) => d.key === "plot" && d.x === plotCenter(8).x && d.z === plotCenter(8).z)?.variant, "meadow");
   const uses = new Set(Array.from({ length: TOWN_CAPACITY - 4 }, (_, i) => plotUse(i + 4)));
   assert.deepEqual([...uses].sort(), ["allotment", "meadow", "orchard", "picnic", "playground"], "the demo's empty plots show every character");
@@ -170,4 +170,12 @@ test("the stream runs edge to edge across the south of the town, under the entra
   for (const d of dressing.filter((d) => STANDING.test(d.key) || /^civic\./.test(d.key))) assert.ok(!inside(band, d.x, d.z), `${d.key} at ${d.x.toFixed(1)},${d.z.toFixed(1)} stands in the stream`);
   for (const l of landmarks()) assert.ok(!inside(band, l.x, l.z), `${l.key} stands clear of the stream`);
   assert.ok(road.maxZ > band.maxZ, "the road runs on past the stream to the edge");
+});
+
+test("about one tree or bush in five turns for October, the same ones every time", () => {
+  const dressing = townDressing(plots(4));
+  const green = dressing.filter((d) => /^town\.(oak|birch|bush)$/.test(d.key)).length,
+    autumn = dressing.filter((d) => /^town\.(oak|birch|bush)-autumn$/.test(d.key)).length;
+  assert.ok(autumn > 0.1 * (green + autumn) && autumn < 0.3 * (green + autumn), `${autumn} of ${green + autumn}`);
+  assert.deepEqual(townDressing(plots(4)), dressing);
 });
