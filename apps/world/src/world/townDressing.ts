@@ -406,6 +406,17 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
     const key = noise(i, 47) < 0.55 ? "town.grass" : noise(i, 61) < 0.5 ? "town.flowers" : "town.wildflowers";
     add(key, x, GRASS_Y, z, { rotation: noise(i, 53) * 6.28, scale: 1.6 + noise(i, 59) * 0.8, seed: i, ...detail(key) });
   }
+  // After the rain: a puddle on the cobbles beside about one lane lantern in four, its reflection towards the lantern.
+  const lanes = laneRects();
+  for (const l of out.filter((d) => d.key === "town.lantern")) {
+    if (noise(l.x, l.z, 91) > 0.25) continue;
+    const lane = lanes.find((r) => l.x > r.minX - 2 && l.x < r.maxX + 2 && l.z > r.minZ - 2 && l.z < r.maxZ + 2 && !inside(r, l.x, l.z, 0));
+    if (!lane) continue;
+    const cx = clamp(l.x, lane.minX + 1.1, lane.maxX - 1.1),
+      cz = clamp(l.z, lane.minZ + 1.1, lane.maxZ - 1.1);
+    const width = 1.5 + noise(l.x, l.z, 92) * 1;
+    add("town.puddle", cx, COBBLE_Y, cz, { size: { width, height: 0, depth: width * 0.6 }, rotation: Math.atan2(l.z - cz, -(l.x - cx)) });
+  }
   // October: about one oak, birch or bush in five is turning (gold and orange) among the green.
   for (const d of out) if (AUTUMN.test(d.key) && noise(d.x, d.z, 77) < 0.2) d.key = `${d.key}-autumn`;
   return out;
