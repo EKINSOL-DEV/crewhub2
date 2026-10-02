@@ -79,6 +79,10 @@ The rules that keep it there:
   twin of their material so one material never switches programs between plain
   and instanced use. A style keeps this working by keeping its materials
   batchable ([WORLD_STYLES.md](WORLD_STYLES.md), "What batches").
+- **Matrices only for what moved.** The scene recomposes an object's matrix
+  only when its position, rotation or scale changed since the last frame, and
+  multiplies world matrices only below a change (in the stress town at 4x it
+  halved the matrix work, about 105 to 55 ms per second).
 - **Lower detail where it does not show.** Small parts have fewer segments, the
   town's small balls and leaf blobs fewer triangles, and robots seen from the
   town drop their small parts and shadows.
@@ -94,7 +98,8 @@ The rules that keep it there:
   last one's, at most 200 ms). The chrome around the scene renders only when its
   own props change; building templates are cached by their inputs.
 - **Memory released.** Merged geometry lets its vertex data go once it is on the
-  GPU; a left building drops its interior; nothing grows with time.
+  GPU; a left building drops its interior; nothing grows with time (a production
+  build ran 10 minutes at 16x with a flat heap, geometries, textures and DOM).
 - **Fast's choices.** Fast turns off the shadow maps, caps the pixel ratio at 1
   (Pretty at 2), drops the warm lamp pools, the grass tufts and wild flowers and
   the town life, and keeps the theme's fixed light instead of the day-night drift.
