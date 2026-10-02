@@ -139,6 +139,11 @@ export interface EnvironmentHandle {
   /** How far into the evening the light is: 0 by day, 1 when every lantern, lit window and firefly shows. */
   readonly evening: number;
   /**
+   * The air behind the diorama now: a colour and how much of it (0 to 1) to mix into the theme's own air. The renderer
+   * tints the scene's backdrop with it; the HTML chrome keeps the theme's colours.
+   */
+  readonly air: { readonly color: THREE.Color; readonly tint: number };
+  /**
    * Counts the moves of the key light and its shadow frustum. A renderer that redraws shadow maps only when needed
    * redraws them when this changes.
    */
@@ -168,6 +173,9 @@ export interface LightingPreset {
   pools: number;
   /** How far into the evening this light is: 0 by day, 1 when every lantern and lit window shows (`evening`). */
   evening: number;
+  /** The air behind the diorama at this light: `air` mixed into the theme's own air by `airTint` (0 keeps it as is). */
+  air: string;
+  airTint: number;
 }
 
 /**

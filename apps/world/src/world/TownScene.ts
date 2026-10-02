@@ -180,6 +180,10 @@ export class TownScene {
   /** The environment's shadow version the shadow maps were last drawn for. */
   #shadowVersion = 0;
   #driftTimer: ReturnType<typeof setInterval> | undefined;
+  /** The scene's own element: its backdrop (the air behind the diorama) follows the drift. */
+  #host: HTMLElement;
+  /** The air last written to the backdrop: colour channels and tint. */
+  #air = { r: -1, g: -1, b: -1, tint: -1 };
   #buildings = new Map<string, BuildingView>();
   /** A blob contact shadow under each building's slab, sized to its footprint. */
   #contacts = new Map<string, { object: THREE.Object3D; size: string }>();
@@ -255,6 +259,7 @@ export class TownScene {
     this.view = view;
     this.callbacks = callbacks;
     this.#labelsHost = labels;
+    this.#host = host;
     this.townStyle = styleRegistry.styleFor(null);
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "low-power" });
     this.renderer.debug.onShaderError = () => this.callbacks.error();
@@ -334,6 +339,7 @@ export class TownScene {
     const phase = driftPhase({ dayNight: v.dayNight, reducedMotion: v.reducedMotion, quality: v.quality, sinceStartMs: v.dayClock() });
     const changed = this.#environment.setDayPhase(phase);
     this.#life.setEvening(this.#environment.evening);
+    this.#tintAir();
     if (!changed) return;
     if (this.#environment.shadowVersion !== this.#shadowVersion) {
       this.#shadowVersion = this.#environment.shadowVersion;
@@ -341,6 +347,21 @@ export class TownScene {
     }
     this.redraw();
   };
+
+  /**
+   * The air behind the diorama follows the light: the style's air colour, mixed into the theme's own air (world.css)
+   * by its tint, as two custom properties on the scene's element. Written only when it changed; the HTML chrome keeps
+   * the theme's colours.
+   */
+  #tintAir() {
+    const { color, tint } = this.#environment.air;
+    const a = this.#air;
+    // Steps of about one percent: during a dusk the backdrop repaints about once a second, never per frame.
+    if (Math.abs(a.r - color.r) + Math.abs(a.g - color.g) + Math.abs(a.b - color.b) < 0.015 && Math.abs(a.tint - tint) < 0.012) return;
+    Object.assign(a, { r: color.r, g: color.g, b: color.b, tint });
+    this.#host.style.setProperty("--drift-air", `#${color.getHexString()}`);
+    this.#host.style.setProperty("--drift-air-tint", `${(tint * 100).toFixed(1)}%`);
+  }
 
   /** Draws one more frame (a light change), without the longer settling run of `invalidate`. */
   redraw() {

@@ -72,3 +72,19 @@ test("a style without drift lights keeps its theme's look at every phase", () =>
   assert.ok(sameLight(driftLight(plain, "day", 0.75, out()), plain.day));
   assert.ok(sameLight(driftLight(plain, "lamplight", 0.75, out()), plain.lamplight));
 });
+
+test("the air follows the drift: the theme's own by day, warm at dawn, rosy at dusk, blue-green in the evening", () => {
+  const air = (theme: "day" | "lamplight", phase: number) => driftLight(lights, theme, phase, out());
+  assert.equal(air("day", 0.3).airTint, 0);
+  assert.equal(air("lamplight", 0.3).airTint, 0);
+  assert.ok(sameLight(air("day", 0.92), lights.dawn!));
+  assert.ok(sameLight(air("day", 0.62), lights.dusk!));
+  // The day theme's evening has the night's blue-green air behind its still-lit town.
+  const evening = air("day", 0.77);
+  assert.ok(evening.air.equals(lights.night!.air) && evening.airTint === lights.night!.airTint);
+  // Lamplight shows the dusk and the dawn only in its air, faintly; its light stays the lamplight.
+  const dusk = air("lamplight", 0.6);
+  assert.ok(dusk.air.equals(lights.dusk!.air) && dusk.airTint > 0 && dusk.airTint < lights.dusk!.airTint);
+  assert.equal(dusk.keyIntensity, lights.lamplight.keyIntensity);
+  assert.ok(air("lamplight", 0.93).air.equals(lights.dawn!.air));
+});
