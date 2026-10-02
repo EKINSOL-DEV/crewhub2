@@ -165,7 +165,9 @@ The town is a small green town of hedged gardens, not beige squares
     (`town.stream`, `variant: "cut"` and `"fall"`). Nothing is planted in its band;
   - autumn among the green, for it is October: about one oak, birch or bush in five turns gold and orange
     (`town.oak-autumn`, `town.birch-autumn`, `town.bush-autumn`, chosen by a seeded noise, so the same trees turn every
-    time);
+    time), with fallen leaves under about half the turning trees;
+  - an October farm corner by the windmill: hay bales, six sheep and pumpkins along a fence; pumpkins by most garden
+    gates and a pumpkin patch in the allotment;
   - lanterns every 9 units along the streets, street trees, benches, signposts and bike racks;
   - a green belt of trees around the edge, with grass tufts and wild flowers on the open grass.
 - **Landmarks** (`civic.*`) are drawn whole, so they can animate:
