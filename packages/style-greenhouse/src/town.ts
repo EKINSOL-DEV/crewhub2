@@ -136,6 +136,41 @@ export function wear(kit: Kit, o: ModelOptions): THREE.Mesh {
   return mesh;
 }
 
+const puddleMaterials = new WeakMap<Kit, THREE.ShaderMaterial>();
+function puddleMaterial(kit: Kit): THREE.ShaderMaterial {
+  let material = puddleMaterials.get(kit);
+  if (!material) {
+    material = decalMaterial(kit.hex("water"), 0.42, false);
+    puddleMaterials.set(kit, material);
+  }
+  return material;
+}
+
+/**
+ * A rain puddle on the paving, `width` by `depth`: a soft film of sky-coloured water, and in it the lantern's warm
+ * reflection (a light-pool decal, so it shows only in the evening, like the pools under the lanterns). The reflection
+ * lies towards -x, where the renderer puts the lantern. One shared geometry each, scaled, so every puddle instances.
+ */
+export function puddle(kit: Kit, o: ModelOptions): THREE.Group {
+  const { width, depth } = size(o, { width: 1.2, height: 0, depth: 0.7 });
+  const g = new THREE.Group();
+  // A small core and a wide soft edge: an irregular-looking round film, not a tile.
+  const geometry = kit.geometry("town:puddle", () => {
+    const plane = new THREE.PlaneGeometry(2, 2).rotateX(-Math.PI / 2);
+    const shape = new Float32Array(plane.attributes.position!.count * 3);
+    for (let i = 0; i < shape.length; i += 3) shape.set([0.3, 0.12, 0.7], i);
+    plane.setAttribute("aShape", new THREE.BufferAttribute(shape, 3));
+    return plane;
+  });
+  const film = put(g, new THREE.Mesh(geometry, puddleMaterial(kit)), 0, 0.006, 0);
+  film.scale.set(width / 2, 1, depth / 2);
+  film.renderOrder = 1;
+  film.castShadow = false;
+  const glint = put(g, kit.decal("pool", 0.05, 0.05, 0.3), -width * 0.15, 0.008, 0);
+  glint.scale.set(width * 1.1, 1, depth * 0.9);
+  return g;
+}
+
 /** A clipped hedge: a soft block with a row of rounder tufts on top. */
 export function hedge(kit: Kit, o: ModelOptions): THREE.Group {
   const { width, height, depth } = size(o, { width: 3, height: 0.6, depth: 0.7 });
@@ -312,6 +347,48 @@ function lanternGlass(kit: Kit): THREE.MeshStandardMaterial {
  * String lights along x: two slim iron poles and a sagging wire of small warm bulbs, unlit by day and glowing in
  * lamplight. One wire geometry and one bulb geometry, so a renderer instances every string in town together.
  */
+/**
+ * Bunting along x: two slim timber poles and a sagging line of little triangular flags in turn coral, cream, tangerine
+ * and sage, catching a little sideways twist each. One flag geometry per colour, so every string in town instances.
+ */
+export function bunting(kit: Kit, o: ModelOptions): THREE.Group {
+  const { width, height } = size(o, { width: 8, height: 3.4, depth: 0.1 });
+  const g = new THREE.Group();
+  for (const side of [-1, 1]) {
+    put(g, kit.cylinder(0.04, 0.05, height, "timber"), (side * width) / 2, height / 2, 0);
+    put(g, kit.sphere(0.06, "brass"), (side * width) / 2, height + 0.04, 0);
+  }
+  const sag = 0.3 + width * 0.03;
+  const at = (t: number) => new THREE.Vector3(-width / 2 + t * width, height - 0.1 - sag * 4 * t * (1 - t), 0);
+  const wire = kit.geometry("town:wire", () => new THREE.BoxGeometry(1, 0.016, 0.016));
+  const steps = 10;
+  for (let i = 0; i < steps; i++) {
+    const p = at(i / steps),
+      q = at((i + 1) / steps);
+    const piece = put(g, kit.mesh(wire, kit.material("cream")), (p.x + q.x) / 2, (p.y + q.y) / 2, 0);
+    piece.scale.x = p.distanceTo(q) + 0.01;
+    piece.rotation.z = Math.atan2(q.y - p.y, q.x - p.x);
+    piece.castShadow = false;
+  }
+  // A flat downward triangle, 0.3 wide and 0.34 long, both faces drawn.
+  const flag = kit.geometry("town:flag", () => {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute([-0.15, 0, 0, 0.15, 0, 0, 0, -0.34, 0, 0.15, 0, 0, -0.15, 0, 0, 0, -0.34, 0], 3));
+    geometry.computeVertexNormals();
+    return geometry;
+  });
+  const colours: Swatch[] = ["coral", "cream", "tangerine", "sage"];
+  const flags = Math.max(4, Math.round(width / 0.42));
+  const seed = o.seed ?? 0;
+  for (let i = 1; i < flags; i++) {
+    const p = at(i / flags);
+    const mesh = put(g, kit.mesh(flag, kit.material(colours[(i + seed) % colours.length]!)), p.x, p.y, 0);
+    mesh.rotation.y = (((i * 7 + seed) % 5) - 2) * 0.12;
+    mesh.castShadow = false;
+  }
+  return g;
+}
+
 export function stringLights(kit: Kit, o: ModelOptions): THREE.Group {
   const { width, height } = size(o, { width: 8, height: 2.7, depth: 0.1 });
   const g = new THREE.Group();
@@ -348,6 +425,7 @@ function bulbMaterial(kit: Kit): THREE.MeshStandardMaterial {
 /** The town's colours per theme: the worn paths. */
 export function townTheme(kit: Kit) {
   wearMaterial(kit).uniforms.uColor!.value.set(kit.hex("path-wear"));
+  puddleMaterial(kit).uniforms.uColor!.value.set(kit.hex("water"));
 }
 
 /**
@@ -373,11 +451,14 @@ export function townLight(kit: Kit, evening: number) {
 export function disposeTown(kit: Kit) {
   wearMaterials.get(kit)?.dispose();
   wearMaterials.delete(kit);
+  puddleMaterials.get(kit)?.dispose();
+  puddleMaterials.delete(kit);
 }
 
 /** Small town pieces whose shadows nobody sees from the town camera; they skip the shadow pass. */
 const SHADOWLESS = new Set([
   "town.string-lights",
+  "town.bunting",
   "town.grass",
   "town.tall-grass",
   "town.flowers",

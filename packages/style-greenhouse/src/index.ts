@@ -149,10 +149,14 @@ class GreenhouseStyle implements WorldStyle {
         return town.fence(kit, o);
       case "town.string-lights":
         return town.stringLights(kit, o);
+      case "town.bunting":
+        return town.bunting(kit, o);
       case "town.crossing":
         return town.crossing(kit, o);
       case "town.wear":
         return town.wear(kit, o);
+      case "town.puddle":
+        return town.puddle(kit, o);
       case "town.lantern":
         return town.lantern(kit);
       case "path":
@@ -188,6 +192,10 @@ class GreenhouseStyle implements WorldStyle {
         return shell.nameSign(kit, o);
       case "building.wall-lamp":
         return shell.wallLamp(kit, o);
+      case "building.floor-shade": {
+        const { width, depth } = o.size ?? { width: 2, height: 0, depth: 2 };
+        return kit.edgeShade(width, depth);
+      }
       case "building.silhouette":
         return shell.silhouette(kit, o);
       case "floor":

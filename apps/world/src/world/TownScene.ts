@@ -27,6 +27,7 @@ import { Walks } from "./walks";
 import { AmbientLife } from "./ambientLife";
 import { driftPhase, followPhase, type DriftFollow } from "./dayClock";
 import { FrameRing } from "./frameRing";
+import { updateMatrices } from "./matrixPass";
 import { RobotCrowd } from "./robotCrowd";
 
 export interface TownView {
@@ -151,6 +152,9 @@ const KEPT_INTERIORS = 3;
 const IDLE_STEP_MS = 12;
 const BUILDING_FRAME_HEIGHT = FLOOR_RISE + BACK_WALL_HEIGHT + 0.6; // the slab, the tall walls and a little headroom
 const ROOM_FRAME_HEIGHT = 1.1;
+/** On a portrait phone a room or building frame crops its diamond's outer corner tips (below 1: tighter). */
+const PORTRAIT_ROOM_MARGIN = 0.86;
+const PORTRAIT_BUILDING_MARGIN = 0.94;
 /* The closest view: a frustum this many world units tall, about one desk with its robot. */
 const DESK_SPAN = 2.4;
 /* Pixels between two hanging labels before the one further back moves up. */
@@ -335,6 +339,8 @@ export class TownScene {
     const environment = this.#environment;
     this.#life = new AmbientLife(this.townStyle, environment.setCloudShadows ? (clouds) => environment.setCloudShadows!(clouds) : null);
     this.scene.add(this.#hits, this.#ring, this.#civic, this.#life.group, this.#crowd.group);
+    // The frame loop brings world matrices up to date itself, for what moved only (matrixPass.ts).
+    this.scene.matrixWorldAutoUpdate = false;
     this.#drift();
     this.#driftTimer = setInterval(this.#drift, DRIFT_INTERVAL_MS);
     canvas.addEventListener("pointerdown", this.pointerDown);
@@ -897,7 +903,14 @@ export class TownScene {
       ? view.bounds(room)
       : { minX: o.x - 0.3, maxX: o.x + size.width * BUILDING_CELL + 0.3, minZ: o.z - 0.3, maxZ: o.z + size.depth * BUILDING_CELL + 0.9 };
     const direction = (this.#tween ? this.#tween.position.clone().sub(this.#tween.target) : this.camera.position.clone().sub(this.controls.target)).normalize();
-    const { span, target } = this.frameRects([bounds], room ? ROOM_FRAME_HEIGHT : BUILDING_FRAME_HEIGHT, direction, this.insets(), room ? 1.06 : 1.02);
+    // On a portrait phone the width binds: the room (or building) runs under the side controls and its diamond's outer
+    // corner tips may leave the screen, so it fills the tall screen instead of floating small in its middle.
+    const canvas = this.renderer.domElement;
+    const portrait = canvas.clientWidth < canvas.clientHeight * 0.8;
+    const insets = this.insets();
+    const { span, target } = portrait
+      ? this.frameRects([bounds], room ? ROOM_FRAME_HEIGHT : BUILDING_FRAME_HEIGHT, direction, { ...insets, left: 0, right: 0 }, room ? PORTRAIT_ROOM_MARGIN : PORTRAIT_BUILDING_MARGIN)
+      : this.frameRects([bounds], room ? ROOM_FRAME_HEIGHT : BUILDING_FRAME_HEIGHT, direction, insets, room ? 1.06 : 1.02);
     const offset = direction.multiplyScalar(HOME_OFFSET.length());
     this.moveTo(target, target.clone().add(offset), THREE.MathUtils.clamp(this.#span / span, 0.6, this.controls.maxZoom), false);
   }
@@ -1174,6 +1187,9 @@ export class TownScene {
         }, wait + 1);
       }
     }
+    // World matrices for what moved only (matrixPass.ts; three's own pass is off for this scene), before the crowd
+    // copies its robots' matrices.
+    updateMatrices(this.scene);
     this.#crowd.begin();
     for (const [slug, view] of this.#buildings) view.crowd(this.#crowd, this.#seen.has(slug));
     this.#crowd.end();

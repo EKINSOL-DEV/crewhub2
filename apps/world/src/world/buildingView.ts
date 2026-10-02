@@ -46,7 +46,7 @@ const WALLS: Record<WallRun["side"], [ModelKey, number, number]> = {
   west: ["wall", BACK_WALL_HEIGHT, 0.16],
   south: ["wall.low", 0.22, 0.12],
   east: ["wall.low", 0.22, 0.12],
-  inner: ["building.partition", 0.6, 0.1],
+  inner: ["building.partition", 0.52, 0.1],
 };
 /** A pick target that is never drawn: the renderer skips invisible materials, the raycaster does not. */
 const PICK_ONLY = new THREE.MeshBasicMaterial({ visible: false });
@@ -360,6 +360,8 @@ export class BuildingView {
         if (o instanceof THREE.Mesh) o.material = PICK_ONLY;
       });
       this.#shell.add(floor);
+      // Soft contact shade where the walls meet this room's floor.
+      add(style.model("building.floor-shade", { size: { width: width * CELL, height: 0, depth: depth * CELL } }), cx, cz, 0.026);
       add(style.model("building.slab", opt({ size: { width: width * CELL, height: FLOOR_RISE, depth: depth * CELL }, accent })), cx, cz);
       const at = this.#signSpot(room.kind);
       add(style.model("room.sign"), at.x, at.z, 0.02);
@@ -371,7 +373,9 @@ export class BuildingView {
       const horizontal = run.z1 === run.z2;
       const length = (horizontal ? run.x2 - run.x1 : run.z2 - run.z1) * CELL;
       const [key, height, depth] = WALLS[run.side];
-      const wall = add(style.model(key, opt({ size: { width: length + depth, height, depth } })), (run.x1 + run.x2) / 2, (run.z1 + run.z2) / 2, 0, horizontal ? 0 : Math.PI / 2);
+      // The tall back walls carry the project colour along their roof line.
+      const tall = run.side === "north" || run.side === "west";
+      const wall = add(style.model(key, opt({ size: { width: length + depth, height, depth }, ...(tall ? { accent } : {}) })), (run.x1 + run.x2) / 2, (run.z1 + run.z2) / 2, 0, horizontal ? 0 : Math.PI / 2);
       if (run.side === "north" || run.side === "west") {
         const [lowKey, lowHeight, lowDepth] = WALLS.south;
         const low = style.model(lowKey, opt({ size: { width: length + lowDepth, height: lowHeight, depth: lowDepth } }));
@@ -454,7 +458,10 @@ export class BuildingView {
           if (!tall) mesh.castShadow = false;
           // The frame a rotation crosses a side, the wrong variant is still visible: it collapses for that draw.
           mesh.onBeforeRender = (_renderer, _scene, camera) => {
-            if (this.#seesInside(side, camera) !== tall) mesh.matrixWorld.makeScale(0, 0, 0);
+            if (this.#seesInside(side, camera) === tall) return;
+            mesh.matrixWorld.makeScale(0, 0, 0);
+            // The matrix pass recomputes only what changed (matrixPass.ts): restore it next frame.
+            mesh.matrixWorldNeedsUpdate = true;
           };
         }
       }
@@ -564,7 +571,9 @@ export class BuildingView {
         const facing = side === wall;
         for (const mesh of wallDecor[side].children)
           mesh.onBeforeRender = (_renderer, _scene, camera) => {
-            if (this.#seesInside(wall, camera) !== facing) mesh.matrixWorld.makeScale(0, 0, 0);
+            if (this.#seesInside(wall, camera) === facing) return;
+            mesh.matrixWorld.makeScale(0, 0, 0);
+            mesh.matrixWorldNeedsUpdate = true; // restored by the next matrix pass (matrixPass.ts)
           };
       }
       // Swap the new interior in.

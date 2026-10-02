@@ -105,9 +105,14 @@ export function butterfly(kit: Kit): THREE.Mesh {
   );
 }
 
+/** The firefly's quad, world units, and the cap on its half-size in clip space (0.011 of the half-height: about 5 px
+    on a 900 px canvas). */
+const FIREFLY_QUAD = 0.85;
+const FIREFLY_CAP = 0.011;
+
 export function firefly(kit: Kit): THREE.Mesh {
   return lone(
-    kit.geometry("life:firefly", () => new THREE.PlaneGeometry(0.85, 0.85)),
+    kit.geometry("life:firefly", () => new THREE.PlaneGeometry(FIREFLY_QUAD, FIREFLY_QUAD)),
     material(
       kit,
       "firefly",
@@ -117,7 +122,9 @@ export function firefly(kit: Kit): THREE.Mesh {
           transparent: true,
           depthWrite: false,
           blending: THREE.AdditiveBlending,
-          // The quad is laid out in view space round the instance's centre, so it faces the camera from any side.
+          // The quad is laid out in view space round the instance's centre, so it faces the camera from any side. Its
+          // size on screen is capped (a speck, never a lens flare up close): half the quad at most FIREFLY_CAP of the
+          // clip space's half-height, about what it is in the town view.
           vertexShader: `varying vec2 vUv; varying vec3 vTint;
           void main() { vUv = uv; vTint = vec3(1.0); vec4 centre = vec4(0.0, 0.0, 0.0, 1.0); float size = 1.0;
           #ifdef USE_INSTANCING
@@ -127,7 +134,9 @@ export function firefly(kit: Kit): THREE.Mesh {
           vTint = instanceColor;
           #endif
           vec4 view = modelViewMatrix * centre;
-          view.xy += position.xy * size;
+          float extent = ${(FIREFLY_QUAD / 2).toFixed(3)} * size * abs(projectionMatrix[1][1]);
+          if (!isOrthographic) extent /= max(0.001, -view.z);
+          view.xy += position.xy * size * min(1.0, ${FIREFLY_CAP.toFixed(4)} / max(extent, 1e-6));
           gl_Position = projectionMatrix * view; }`,
           fragmentShader: `uniform vec3 uColor; uniform vec3 uCore; varying vec2 vUv; varying vec3 vTint;
           void main() { float d = length(vUv - 0.5) * 2.0;

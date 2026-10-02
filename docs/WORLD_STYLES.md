@@ -1,6 +1,7 @@
 # World styles
 
-Status: implemented on the demo branch (2026-10-01). One style exists, Greenhouse. External loading, a style
+Status: implemented on the demo branch (2026-10-01; round two and the performance rounds on 2026-10-02). One style
+exists, Greenhouse. External loading, a style
 marketplace and a style editor are **not built**; this document describes the contract a future plugin would
 implement.
 
@@ -68,12 +69,12 @@ faces +z, and one world unit is one metre (a grid cell is 0.6).
 | `floor` | A room floor. | `size`, `variant`: `wood`, `tile`, `concrete`, `dim` (an empty room) or none (cream cells) |
 | `room.sign` | The small floor plaque where a room's HTML label stands. | |
 | `building.flag`, `building.planks` | The project flag (half-mast when archived), planks across a boarded-up door. | `accent`, `variant`, `size` |
-| `building.<piece>` | The rest of the shell: `slab` (the cream block under the rooms), `partition` and `door-frame` (inside walls and their openings), `apron` and `loading-door` (dispatch's truck bay), `wall-lamp` (by a door, with a light pool), `bike`, `name-sign` (the building's name painted over the front door), `silhouette` (far-detail furniture stand-ins by `variant`), `ivy` and `closed-sign` (archived buildings). | `size`, `accent`, `variant`, `text` (the name sign's words) |
+| `building.<piece>` | The rest of the shell: `slab` (the cream block under the rooms), `partition` and `door-frame` (inside walls and their openings), `apron` and `loading-door` (dispatch's truck bay), `wall-lamp` (by a door, with a light pool), `bike`, `name-sign` (the building's name painted over the front door), `silhouette` (far-detail furniture stand-ins by `variant`), `ivy`, `closed-sign`, `dust-sheet` and `chair-stack` (archived buildings). | `size`, `accent`, `variant`, `text` (the name sign's words) |
 | `emblem.<icon>` | The loops project icon as a sculpture: `home`, `inbox`, `bot`, `spark`, `users`, `star`, `folder`. | `accent` |
 | `post-office`, `town-hall` | The civic buildings, each with an open forecourt at its front for the robots that stand there. | |
 | `civic.<landmark>` | The town's landmarks and their parts: `square` (with the fountain), `cafe`, `bus-stop`, `greenhouse`, `windmill`, `welcome-sign`, `clock-post`, `duck`, and pieces such as `fountain`, `park-bench`, `planter`, `flower-bed`, `cafe-table`, `menu-board`, `notice-board`, `parcel-stack`. | |
-| `town.<piece>` | Town dressing: `paving` (`cobble` or `flag`), `hedge`, `flower-bed`, `pond`, `bridge`, `fence`, `lantern`, `crossing`, `wear`, `contact-shadow`, trees (`oak`, `birch`, `pine`, `fruit-tree`, `bush`), `grass`, `flowers`, `wildflowers`, `lily`, `bench`, `signpost`, `bike-rack`, `mailbox`, `gate`, and the empty plots' `swing`, `slide`, `sandpit`, `picnic-blanket`, `shed`, `veg-bed`. | `size`, `variant`, `seed` |
-| `decor.<piece>` | Room dressing that never blocks movement: rugs, pendant lamps, clocks, whiteboards, pin boards, wall art, screens, window boxes, meeting chairs, desk books and plants, the dispatch roller door. | |
+| `town.<piece>` | Town dressing: `paving` (`cobble` or `flag`), `hedge`, `flower-bed`, `pond`, `bridge`, `fence`, `lantern`, `crossing`, `wear`, `contact-shadow`, trees (`oak`, `birch`, `pine`, `fruit-tree`, `bush`) and their autumn keys (`oak-autumn`, `birch-autumn`, `bush-autumn`: separate keys, not a variant, so a style that lacks them gets the placeholder only for those), `stream` (a stretch of water on its bank; `variant: "cut"` square-ends it at the diorama's edge, `"fall"` is the little waterfall down the side), `grass`, `flowers`, `wildflowers`, `lily`, `bench`, `signpost`, `bike-rack`, `mailbox`, `gate`, `hanging-basket`, `market-stall`, `bandstand`, `bus` (the town bus waiting at its stop), `washing-line`, `puddle` (a film of water by a lantern, reflecting it in the evening), `pumpkin`, `hay-bale`, `sheep`, `leaf-pile`, and the empty plots' `swing`, `slide`, `sandpit`, `picnic-blanket`, `shed`, `veg-bed`. | `size`, `variant`, `seed` |
+| `decor.<piece>` | Room dressing that never blocks movement: rugs, pendant lamps, clocks, whiteboards, pin boards, wall art, screens, window boxes, meeting chairs, desk chairs (`desk-chair`), desk books and plants, the dispatch roller door, the partition art (`frame-hill`, `frame-botanical`, `frame-trio`, `calendar`, `pin-strip`, `ledge-plant`, `small-clock`) and the painted pallet bay (`floor-bay`). | |
 | `mailbox`, `letter`, `letter.flagged` | The lobby mailbox; a letter; a letter the postman could not deliver. | |
 | `furniture.<definition id>` | Builtin props and interior furniture, each with a definition, so it blocks movement: `desk`, `plant`, `bench`, `lamp`, `sofa`, `table`, `shelf`, `workdesk`, `lead-desk`, `rack`, `planning-table`, `review-pile`, `pallet`, `mailbox`, `meeting-table`, and the room dressing's `lounge-sofa`, `coffee-table`, `bookshelf`, `armchair`, `coffee-counter`, `round-table`, `planter` and the rest. | `seed` |
 | `ticket.task`, `ticket.feature`, `ticket.bug`, `ticket.question` | Work objects by ticket kind: a folder, a cardboard box, a crate with a bug stamp, an envelope with a question mark. | |
@@ -178,6 +179,53 @@ them or accept plain crates drifting by. Covering them is the expected choice.
   The drone and the truck use it; phase 5's props will too.
 - `parts(prop)` draws a validated `crewhub-prop/1` model with the style's materials: one parts renderer for the prop
   builder's props and for the style's own data models.
+  - The format has a `wedge` part since round two: a pie slice of an upright cylinder or cone, `sweep` degrees wide,
+    starting on the part's +x axis and turning as a positive y rotation turns, with its cut faces closed. A style's
+    parts renderer must draw it (Greenhouse: `wedgeGeometry` in `parts.ts`). The format is described in
+    [prop-format.md](../skills/prop-builder/references/prop-format.md).
+  - Small parts may be drawn at lower detail; they read the same. Greenhouse draws a box whose bevel is 1.2 cm or less
+    as a plain box, a sphere of 5 cm or less with 8 x 6 segments, and a cylinder of 4 cm or less with 10 sides, and its
+    kit box takes only the bevel segments the bevel actually gets.
+
+## What batches, and what a style must do for it
+
+The renderer batches what repeats, style-agnostically: it never knows a style's materials, only what three.js shows of
+them. A style keeps its world cheap by keeping its materials batchable.
+
+- **Static merging per look** (`apps/world/src/world/mergeStatic.ts`). Static meshes (a building's shell, the interior
+  furniture and decor, the town's one-off dressing) merge per material, and plain materials that differ only by colour
+  merge into one mesh per *look*: roughness, metalness, side, flat shading, depth and polygon-offset settings, shadow
+  casting and the lighting hook. Each vertex carries its source material's index (one byte), and the merged material
+  reads the colour from the source materials' own `Color` objects, so a theme change, a lamplight swatch or the drift
+  shows at once.
+  - To batch, a material is a `MeshStandardMaterial` that is opaque, untextured, without vertex colours, wireframe or
+    alpha test, and without an emissive colour of its own. Glowing, transparent, textured and pattern-shader materials
+    still merge, but per material.
+  - Its only shader change may be a lighting-only hook, set as `onBeforeCompile` and named in `userData.lightHook`
+    (Greenhouse's cloud shadows). Any other `onBeforeCompile` keeps the material out of the palette.
+  - Change colours in place (`material.color.set(...)`), never by swapping materials: the merged palettes hold the
+    source materials' colour objects.
+- **Instanced twins** (`instancedMaterial.ts`). An instanced mesh draws a cached twin of the style's material that
+  shares its colour objects and uniforms and reads its numbers (opacity, emissive strength, roughness, metalness,
+  visibility, version) through to the source, plus an instanced depth material for the shadow pass. So one material may
+  be drawn plain in one place and instanced in another without three re-resolving its program at every switch. A style
+  that instances meshes itself should do the same (Greenhouse: `kit.material(name, { instanced: true })`).
+- **The far robot crowd** (`robotCrowd.ts`). Robots seen from the town are copied into one instanced mesh per part and
+  look, the part's colour riding as an instance colour on a white copy of its material. Plain kit materials (with at
+  most the named lighting hook) batch; parts that cannot (a translucent proxy's own copies, a halo shader) draw
+  themselves. A robot handle should therefore keep its far parts on plain shared materials and keep any extra glow for
+  `setDetail("near")`, as Greenhouse does.
+- **Town dressing** (`instanceStatic.ts`). Repeated pieces are instanced one mesh per part and material and culled by
+  12 m ground cells; a kind with fewer than about 2,000 triangles in all is merged instead. Model groups the bakers empty
+  are removed, so they cost nothing per frame; a group with `userData.animate` stays.
+- **Matrices only for what moved** (`matrixPass.ts`). TownScene updates world matrices itself, instead of three.js
+  recomposing every object every frame: an object's local matrix is recomposed only when its position, rotation
+  (quaternion) or scale changed since the last frame, and world matrices are multiplied only below a change. Nothing
+  needs declaring as static or moving: an animation that writes `position`, `rotation`, `quaternion` or `scale` in
+  place keeps updating (robot parts, the windmill's sails, a door). A part whose `matrix` or `matrixWorld` is written
+  directly sets `matrixAutoUpdate = false` (for `matrix`) and `matrixWorldNeedsUpdate = true` after each write, as in
+  plain three.js; a one-draw change in `onBeforeRender` (the back walls' collapse) also sets `matrixWorldNeedsUpdate`
+  so the next pass restores the matrix.
 
 ## How Greenhouse implements it
 
@@ -185,14 +233,14 @@ Data first, code where it needs code.
 
 | Data (`style.json`, `models/*.json`) | Code (`src/`) |
 | --- | --- |
-| The manifest, palette, swatches and both lighting presets. | `robot.ts`: the soft robot, its posture rig and idle life (blinks, antenna nod, head tilt). |
+| The manifest, palette, swatches and the lighting presets (`day`, `lamplight`, and the drift's `dawn`, `dusk` and `night`). The `face-glow` swatch is the light a working robot's face screen catches: faint teal by day, faint warm amber in lamplight. | `robot.ts`: the soft robot, its posture rig and seeded idle life (typing in bursts with a glance up, a weight shift and a look round when idle, a bob while waiting, blinks and the antenna's nod); the lit face screen while working; near robots' colour carries 0.06 of the glow, far robots keep the plain material the crowd batches. |
 | About a hundred parts-JSON models: the ticket looks, tags, letters, mailbox, pallets, trophy, banner, desk lamps, quiet clock, error crate, drone body, cart, truck, beacon and rule props; the room dressing (`furniture.*` and `decor.*`); the town's trees, flowers, benches, signposts, gates and playground pieces (`town.*`); the landmarks' smaller parts, the bus stop, the clock post and the duck (`civic.*`). | `shaders.ts`: the floor patterns (with sun shafts that fade at night), glass, halo, paving, grass, pond ripple and the soft decals for contact shadows and lamp pools. |
 | A variant is a file `<key>.<variant>.json` (`ticket.tag.urgent.json`, `desk-lamp.dim.json`). | `shell.ts`: the building shell (walls, glass wall, rims, partitions, door frames, slab, front door, flag, planks, ivy, sign, apron, loading door). |
 | A model tagged `accent-<material>` draws that material's parts in the caller's accent colour. | `town.ts`: the ground, lawns, paving, hedges, flower beds, pond, bridge, fence, lanterns, crossings and wear. |
 | | `civic.ts`: the post office, town hall, square, café, greenhouse, windmill and welcome sign. They are assembled from rounded boxes, roofs and the `civic.*` data parts, and baked into one mesh per material once per kit. The fountain's water and the windmill's sails stay live. |
 | | `life.ts`: the ambient life (bird, butterfly, firefly, mote, window glow, ripple, steam, cloud shadow) with its soft additive glow shader. `civic.ts` marks the post office chimney, the café's cups and every landmark window as `LifeSpot`s, kept through baking. |
 | | `pieces.ts`: pieces that stretch or repeat (floors, emblems, straps, bands, stickers, focus frame). |
-| | `furniture.ts`: the Greenhouse furniture with instanced leaves and a glowing screen (desk, plant, bench, lamp, sofa, table, shelf, workdesk, lead desk). |
+| | `furniture.ts`: the Greenhouse furniture with a glowing screen; a plant's leaves are plain meshes on a theme-following `tint` material, so the renderer batches them across plants (desk, plant, bench, lamp, sofa, table, shelf, workdesk, lead desk). |
 | | `index.ts`: the code hooks on data models (the drone's rotor blades, the fountain's water) and the lamp pools. |
 
 Every model file passes `validatePropModel` (`packages/style-greenhouse/test/models.test.ts`). Small decorations get
