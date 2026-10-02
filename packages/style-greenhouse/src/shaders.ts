@@ -270,6 +270,12 @@ export function grassShader(material: THREE.MeshStandardMaterial, amount: number
 }
 
 /** The pond: a soft ripple and a lighter rim towards the bank. UVs run 0..1 over the pond. */
+/**
+ * The water's evening glint (set by `townLight`): `uGlint` follows the evening (0 by day), `uGlintColor` is the lantern
+ * light. Long soft streaks of warm light on the pond and the stream, as if the lanterns on the banks reflected in it.
+ */
+export const WATER_GLINT = { uGlint: { value: 0 }, uGlintColor: { value: new THREE.Color() } };
+
 export function waterShader(material: THREE.MeshStandardMaterial): THREE.MeshStandardMaterial {
   material.roughness = 0.25;
   material.customProgramCacheKey = () => "town-water";
@@ -283,6 +289,17 @@ export function waterShader(material: THREE.MeshStandardMaterial): THREE.MeshSta
       diffuseColor.rgb *= 0.94 + ripple * 0.1;
     `,
     );
+    Object.assign(shader.uniforms, WATER_GLINT);
+    shader.fragmentShader = shader.fragmentShader
+      .replace("varying vec2 vTownXZ;", "varying vec2 vTownXZ;\nuniform float uGlint;\nuniform vec3 uGlintColor;")
+      .replace(
+        "#include <emissivemap_fragment>",
+        `#include <emissivemap_fragment>
+      // Evening: soft warm streaks, long across the water, as if the lanterns on the banks reflected in it.
+      float streak = smoothstep(0.62, 0.9, townNoise(vTownXZ * vec2(0.55, 4.2) + 11.0));
+      totalEmissiveRadiance += uGlintColor * streak * uGlint * 0.3;
+    `,
+      );
   };
   return material;
 }

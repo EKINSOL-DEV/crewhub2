@@ -27,7 +27,7 @@ interface Entry {
 }
 
 /** Ground decals: blob contact shadows (every quality) and warm lamp pools (lamplight, pretty only). */
-type Decal = "shadow" | "pool";
+type Decal = "shadow" | "pool" | "screen";
 
 /** What of the light the shared materials follow: lamp glow, pools, contact shadows and the evening. */
 export type KitLight = Pick<LightingPreset, "glow" | "pools" | "shadowOpacity" | "evening">;
@@ -52,6 +52,7 @@ export class Kit {
     this.#decals = {
       shadow: decalMaterial(this.hex("contact-shadow"), lighting.day.shadowOpacity, false),
       pool: decalMaterial(this.hex("lamp-pool"), lighting.day.pools, true),
+      screen: decalMaterial(this.hex("screen-glow"), 0, true),
     };
     this.#applyDecals();
   }
@@ -138,13 +139,17 @@ export class Kit {
 
   #applyDecals() {
     const preset = this.#light;
-    const { shadow, pool } = this.#decals;
+    const { shadow, pool, screen } = this.#decals;
     shadow.uniforms.uColor!.value.set(this.hex("contact-shadow"));
     shadow.uniforms.uOpacity!.value = preset.shadowOpacity;
     pool.uniforms.uColor!.value.set(this.hex("lamp-pool"));
     pool.uniforms.uOpacity!.value = preset.pools;
     // A hidden material skips its draw calls entirely: no pools by day or on Fast.
     pool.visible = preset.pools > 0.01 && this.#quality === "pretty";
+    // Screens light their desks as the rooms dim: a cool glow that follows the evening, gentler than a lamp's.
+    screen.uniforms.uColor!.value.set(this.hex("screen-glow"));
+    screen.uniforms.uOpacity!.value = preset.pools * 1.3;
+    screen.visible = pool.visible;
   }
 
   /**
@@ -212,6 +217,7 @@ export class Kit {
     this.#materials.forEach((e) => e.material.dispose());
     this.#decals.shadow.dispose();
     this.#decals.pool.dispose();
+    this.#decals.screen.dispose();
     this.geometries.clear();
     this.#materials.clear();
   }
