@@ -81,8 +81,8 @@ The rules that keep it there:
   batchable ([WORLD_STYLES.md](WORLD_STYLES.md), "What batches").
 - **Matrices only for what moved.** The scene recomposes an object's matrix
   only when its position, rotation or scale changed since the last frame, and
-  multiplies world matrices only below a change; a still town costs almost
-  nothing per frame.
+  multiplies world matrices only below a change (in the stress town at 4x it
+  halved the matrix work, about 105 to 55 ms per second).
 - **Lower detail where it does not show.** Small parts have fewer segments, the
   town's small balls and leaf blobs fewer triangles, and robots seen from the
   town drop their small parts and shadows.
