@@ -400,6 +400,13 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
 
   /* Street furniture along the lanes: lanterns on one verge, street trees and benches on the other. */
   streets(add, free, tree, used);
+  // Bunting across the main street on the way up to the square, its poles on the verges clear of the lanterns.
+  const lamps = out.filter((d) => d.key === "town.lantern");
+  for (const z of [-24, -18, -10]) {
+    const half = LANE / 2 + 0.6;
+    if (lamps.some((l) => Math.abs(Math.abs(l.x) - half) < 0.7 && Math.abs(l.z - z) < 0.7)) continue;
+    add("town.bunting", 0, GRASS_Y, z, { size: { width: half * 2, height: 3.4, depth: 0.1 }, seed: Math.round(-z) });
+  }
 
   /* The green belt round the town, and grass and wild flowers wherever there is room. */
   belt(add, tree, free);
