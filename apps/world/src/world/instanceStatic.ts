@@ -70,6 +70,8 @@ export class InstanceCuller {
   readonly #frustum = new THREE.Frustum();
   readonly #view = new THREE.Matrix4();
   readonly #last = new THREE.Matrix4();
+  readonly #shadow = new THREE.Vector3();
+  readonly #lastShadow = new THREE.Vector3();
   #visible = new Set<number>();
 
   constructor(meshes: readonly THREE.InstancedMesh[], cell = 12, pad = 4) {
@@ -97,14 +99,22 @@ export class InstanceCuller {
     this.#visible = new Set(this.#cells.keys());
   }
 
-  /** Re-culls when the camera moved; true when the drawn set changed (the shadow map then needs a redraw). */
-  update(camera: THREE.Camera): boolean {
+  /**
+   * Re-culls when the camera or the sun moved; true when the drawn set changed (the shadow map then needs a redraw).
+   * `sun` points towards the light: a cell also counts as seen when the shadows of its tallest pieces (`reach` high)
+   * fall into view, so a low evening sun does not lose the long shadows of trees just off screen.
+   */
+  update(camera: THREE.Camera, sun?: THREE.Vector3, reach = 6): boolean {
     this.#view.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
-    if (this.#view.equals(this.#last)) return false;
+    const shadow = sun && sun.y > 0.05 ? this.#shadow.set((-sun.x / sun.y) * reach, 0, (-sun.z / sun.y) * reach) : this.#shadow.set(0, 0, 0);
+    if (this.#view.equals(this.#last) && shadow.equals(this.#lastShadow)) return false;
     this.#last.copy(this.#view);
+    this.#lastShadow.copy(shadow);
     this.#frustum.setFromProjectionMatrix(this.#view);
     const visible = new Set<number>();
-    for (const [key, box] of this.#cells) if (this.#frustum.intersectsBox(box)) visible.add(key);
+    const cast = new THREE.Box3();
+    for (const [key, box] of this.#cells)
+      if (this.#frustum.intersectsBox(box) || (shadow.lengthSq() > 0 && this.#frustum.intersectsBox(cast.copy(box).translate(shadow)))) visible.add(key);
     if (visible.size === this.#visible.size && [...visible].every((key) => this.#visible.has(key))) return false;
     this.#visible = visible;
     for (const { mesh, all, byCell } of this.#meshes) {
