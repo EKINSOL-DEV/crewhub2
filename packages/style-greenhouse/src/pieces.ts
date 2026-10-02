@@ -30,11 +30,20 @@ export function planting(kit: Kit, o: ModelOptions): THREE.Group {
   return plant(kit, o.seed ?? 0);
 }
 
-const FLOOR_PATTERNS: Record<string, FloorPattern> = { wood: "wood", tile: "tile", concrete: "concrete" };
+/** Floor variants: the shader's pattern and the swatch it tints (a room kind's floor tone). */
+const FLOOR_VARIANTS: Record<string, [FloorPattern, Swatch]> = {
+  wood: ["wood", "floor-wood"],
+  tile: ["tile", "floor-tile"],
+  concrete: ["concrete", "floor-concrete"],
+  oak: ["wood", "floor-oak"],
+  sage: ["tile", "floor-sage"],
+  mist: ["cells", "floor-mist"],
+};
 
 /**
- * A room floor: the Greenhouse floor shader, UVs in 0.6 m cells. Variants: "wood" (warm planks), "tile" (light tiles),
- * "concrete" (grey-cream), "dim" (an empty or archived room's floor); none is the studio's cream cells.
+ * A room floor: the Greenhouse floor shader, UVs in 0.6 m cells. Variants: "wood" (warm planks), "oak" (darker planks),
+ * "tile" (light tiles), "sage" (pale sage tiles), "concrete" (grey-cream), "mist" (cool pale cells), "dim" (an empty or
+ * archived room's floor); none is the studio's cream cells.
  */
 export function floor(kit: Kit, o: ModelOptions): THREE.Mesh {
   const { width, depth } = size(o, { width: 3, height: 0, depth: 3 });
@@ -44,8 +53,8 @@ export function floor(kit: Kit, o: ModelOptions): THREE.Mesh {
     for (let i = 0; i < uv.count; i++) uv.setXY(i, (uv.getX(i) * width) / 0.6, (uv.getY(i) * depth) / 0.6);
     return plane.rotateX(-Math.PI / 2);
   });
-  const pattern = (o.variant && FLOOR_PATTERNS[o.variant]) || "cells";
-  const swatch = o.variant === "dim" ? "floor-dim" : pattern === "cells" ? "floor" : `floor-${pattern}`;
+  const [pattern, tone] = (o.variant && FLOOR_VARIANTS[o.variant]) || ["cells", "floor"];
+  const swatch = o.variant === "dim" ? "floor-dim" : tone;
   const material = kit.material(swatch);
   if (!material.userData.floor) {
     floorShader(material, kit.shafts, pattern);
