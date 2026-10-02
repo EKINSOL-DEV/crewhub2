@@ -12,7 +12,7 @@ const open = (cells: Uint8Array, x: number, z: number) => {
   return cells[c.z * TOWN_GRID.width + c.x] === 1;
 };
 /** Pieces that stand up out of the ground; paving, lawns, the pond, the bridge and the lantern pools lie on it. */
-const STANDING = /^(town\.(oak|birch|pine|fruit-tree|bush|oak-autumn|birch-autumn|bush-autumn|hedge|bench|signpost|bike-rack|mailbox|flower-bed|fence|swing|slide|sandpit|shed|veg-bed|bike-shelter|leaf-pile)|civic\.(cafe-table|planter))$/;
+const STANDING = /^(town\.(oak|birch|pine|fruit-tree|bush|oak-autumn|birch-autumn|bush-autumn|hedge|bench|signpost|bike-rack|mailbox|flower-bed|fence|swing|slide|sandpit|shed|veg-bed|bike-shelter|leaf-pile|bus|market-stall|washing-line)|civic\.(cafe-table|planter))$/;
 
 test("the dressing is deterministic and stays on the town ground", () => {
   const a = townDressing(plots(4)),

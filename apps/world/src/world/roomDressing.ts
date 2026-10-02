@@ -346,6 +346,18 @@ function plan(kind: RoomKind, facts: RoomFacts, planner: Planner, defs: Definiti
         place({ def: "floor-lamp", at: "free", anchor: offset(p, 0.2, rand() < 0.5 ? 1.6 : -1.6) });
       }
       place({ def: "bookshelf", at: "wall", anchor: zoneCentre(facts, "bookshelf"), sides: ["north", "west", "east"] });
+      // A small meeting corner in the open floor north-east of the desk: a low table with two armchairs behind it,
+      // facing the camera.
+      const desk = facts.room.layout.props.find((p) => p.definitionId === "lead-desk");
+      const at = desk ? poseOf(desk, defs) : centre;
+      const table = place({ def: "coffee-table", at: "free", anchor: { x: facts.width - 2, z: Math.max(2.5, at.z - 1) }, tag: "corner" });
+      if (table) {
+        place({ def: "armchair", at: "free", anchor: { x: table.cell.x - 0.5, z: table.cell.z - 0.5 }, tag: "corner" });
+        place({ def: "armchair", at: "free", anchor: { x: table.cell.x + 1.5, z: table.cell.z - 0.5 }, tag: "corner" });
+      }
+      // A plant group on the open floor in front of (south of) the desk, a little to its west.
+      const group = { x: at.x - 1.5, z: at.z + 3.5 };
+      for (const [dx, dz] of [[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5]] as const) place({ def: "plant", at: "free", anchor: { x: group.x + dx, z: group.z + dz }, tag: "group" });
       break;
     }
     case "lobby": {
@@ -557,7 +569,9 @@ const PARTITION_ART: Partial<Record<RoomKind, [ModelKey, number][]>> = {
   "lead-office": [
     ["decor.frame-trio", 2],
     ["decor.ledge-plant", 1],
+    ["decor.frame-hill", 1],
     ["decor.small-clock", 1],
+    ["decor.frame-botanical", 1],
   ],
   lobby: [
     ["decor.frame-trio", 2],
@@ -706,6 +720,15 @@ export function roomDecor(template: BuildingTemplate, options: Omit<DressOptions
       const pose = poseOf(p, defs);
       at("decor.table-lamp", pose.x - 0.15, pose.z - 0.1, rand() * Math.PI, { raise: p.definitionId === "side-table" ? 0.33 : 0.24 });
     }
+    // The lead's desk and seat stand on the office's big rug; the meeting corner's table on a round one.
+    for (const p of props.filter((q) => q.definitionId === "lead-desk")) {
+      const pose = poseOf(p, defs);
+      rug("decor.rug-grand", pose.x, pose.z - 0.5, 0, { scale: { x: 1.05, y: 1, z: 0.85 } });
+    }
+    for (const p of props.filter((q) => q.id.startsWith(`${DRESS_PREFIX}corner-coffee-table`))) {
+      const pose = poseOf(p, defs);
+      rug("decor.rug-round", pose.x, pose.z - 0.4, 0, { scale: { x: 0.95, y: 1, z: 0.85 } });
+    }
     // A round rug under each reading nook's armchair and side table.
     for (const p of props.filter((q) => q.id.startsWith(`${DRESS_PREFIX}nook-armchair`))) {
       const pose = poseOf(p, defs);
@@ -789,7 +812,9 @@ export function roomDecor(template: BuildingTemplate, options: Omit<DressOptions
     for (const side of ["north", "west", "south", "east"] as const) {
       const length = side === "north" || side === "south" ? facts.width : facts.depth;
       const start = Math.floor(rand() * length);
-      for (let count = 0; count < (side === "north" || side === "west" ? 2 : 1) && pieces.length; ) {
+      // The lead's office is the homeliest room: a piece more on each edge.
+      const most = (side === "north" || side === "west" ? 2 : 1) + (room.kind === "lead-office" ? 1 : 0);
+      for (let count = 0; count < most && pieces.length; ) {
         const [key, w] = pieces[0]!;
         let found = -1;
         for (let j = 0; j < length && found < 0; j++) {
