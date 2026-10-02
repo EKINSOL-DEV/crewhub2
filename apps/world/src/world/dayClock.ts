@@ -22,3 +22,39 @@ export function driftPhase(options: { dayNight: boolean; reducedMotion: boolean;
   if (!options.dayNight || options.reducedMotion || options.quality === "fast") return null;
   return dayPhase(options.sinceStartMs);
 }
+
+/**
+ * The fastest the light drifts, in demo speed: at 1x and 4x the day follows the clock exactly (16 and 4 minutes a day);
+ * at 16x it would turn in a minute, a dusk in seven seconds, with lanterns and shadows ticking, so the light keeps
+ * drifting at 4x and falls behind the clock, still moving forward. A little slack absorbs timer jitter.
+ */
+export const MAX_DRIFT_SPEED = 4.4;
+
+/** The light's own phase, and the source and wall clocks (ms) it was last moved at. */
+export interface DriftFollow {
+  phase: number | null;
+  clock: number;
+  wall: number;
+}
+
+/**
+ * Moves the shown phase towards `target` (the clock's phase, or null for the fixed look). Forward play moves it forward
+ * by at most `MAX_DRIFT_SPEED` days per day of real time; a seek, a jump back or the first phase snaps to the target, as
+ * a viewer who scrubs means to see that time. Returns the new state; pure.
+ */
+export function followPhase(previous: DriftFollow, target: number | null, clock: number, wall: number, dayLengthMs = DAY_LENGTH_MS): DriftFollow {
+  if (target === null || previous.phase === null) return { phase: target, clock, wall };
+  const elapsedClock = clock - previous.clock,
+    elapsedWall = Math.max(0, wall - previous.wall);
+  // More source time than 16x play explains (with slack), or time going back: a seek.
+  const seek = elapsedClock < 0 || elapsedClock > elapsedWall * 32 + 2000;
+  if (seek) return { phase: target, clock, wall };
+  const ahead = target - previous.phase - Math.floor(target - previous.phase);
+  const step = Math.min(ahead, (elapsedWall * MAX_DRIFT_SPEED) / dayLengthMs);
+  return { phase: wrap(previous.phase + step), clock, wall };
+}
+
+const wrap = (u: number) => {
+  const w = u - Math.floor(u);
+  return w >= 1 ? 0 : w;
+};
