@@ -163,6 +163,12 @@ function civicPaving(): Bounds[] {
   return out;
 }
 
+/** The bandstand's spot on the lawn north of the promenade, between the square and the town hall, and its path. */
+const BANDSTAND = { x: 14.5, z: -52.6, scale: 1.6 };
+function bandstandLawn(): Bounds {
+  return span(BANDSTAND.x - 3.4, BANDSTAND.x + 3.4, BANDSTAND.z - 3.2, promenades()[1]!.minZ);
+}
+
 /** The bus's lay-by: a paved bay east of the stop, between it and the lane. */
 export function busBay(): Bounds {
   const stop = civicCenter("bus-stop");
@@ -276,6 +282,7 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
   for (const l of landmarks()) if (l.clear) blocked.push(rect(l.x, l.z, l.clear * 2, l.clear * 2));
   blocked.push(streamBand());
   blocked.push(busBay());
+  blocked.push(bandstandLawn());
   for (const r of promenades()) blocked.push({ ...r, minZ: r.minZ - 1.2, maxZ: r.maxZ + 2.2 });
   const free = (x: number, z: number, pad: number) => !blocked.some((b) => inside(b, x, z, pad));
   const tree = (x: number, z: number, y: number, seed: number, scale = 1) => {
@@ -371,6 +378,11 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
   ] as const)
     if (free(east.minX + dx, east.maxZ + dz, 1.2)) tree(east.minX + dx, east.maxZ + dz, GRASS_Y, 83 + k, 1.3);
   if (free(east.minX + 15.5, east.maxZ + 1.6, 0.8)) add("town.bench", east.minX + 15.5, GRASS_Y, east.maxZ + 1.6, { rotation: Math.PI });
+  // The bandstand on the lawn behind the market, a flagstone path up to its steps through a gap in the beds, and
+  // benches facing it.
+  add("town.bandstand", BANDSTAND.x, GRASS_Y, BANDSTAND.z, { scale: BANDSTAND.scale });
+  paving(add, span(BANDSTAND.x - 0.6, BANDSTAND.x + 0.6, BANDSTAND.z + 2.5, promenades()[1]!.minZ), "flag", GRASS_Y + 0.002);
+  for (const side of [-1, 1]) add("town.bench", BANDSTAND.x + side * 3.6, GRASS_Y, BANDSTAND.z + 1.4, { rotation: side * (Math.PI / 2 + 0.5) });
   // The bus waits in a paved bay beside its stop, clear of the lane.
   const bay = busBay();
   paving(add, bay, "cobble", GRASS_Y);
