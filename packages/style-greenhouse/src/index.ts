@@ -304,8 +304,9 @@ class GreenhouseStyle implements WorldStyle {
   #light(light: Light) {
     this.#kit.setLight(light);
     const evening = THREE.MathUtils.clamp(light.evening, 0, 1);
-    // By day the panes read a little more, with a soft sheen; in the evening the warm glass glows evenly.
-    this.#glass.uniforms.uOpacity!.value = 0.4 + (0.82 - 0.4) * evening;
+    // By day the panes read a little more, with a soft sheen; in the evening the warm glass glows evenly, strongly
+    // enough that a lit greenhouse wall reads from the town against the dark lawn behind it.
+    this.#glass.uniforms.uOpacity!.value = 0.4 + (1.5 - 0.4) * evening;
     this.#glass.uniforms.uSheen!.value = 1 + (0.15 - 1) * evening;
     town.townLight(this.#kit, evening);
   }
