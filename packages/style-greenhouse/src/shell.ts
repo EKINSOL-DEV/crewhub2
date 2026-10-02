@@ -36,6 +36,14 @@ function pilasters(kit: Kit, g: THREE.Object3D, width: number, height: number, d
   }
 }
 
+/**
+ * The roof line: a slim strip in the project colour along the top of a tall wall, so the building's colour reads from
+ * the town. An archived building's strip is weathered timber.
+ */
+function roofLine(kit: Kit, g: THREE.Object3D, width: number, top: number, depth: number, o: ModelOptions) {
+  put(small(g), kit.box(width - 0.3, 0.025, depth * 0.55, archived(o) ? "plank" : accent(o), 0.008), 0, top + 0.0125, 0);
+}
+
 /** An empty marker for the renderer's ambient life (world-style's LifeSpot convention). */
 function lifeSpot(g: THREE.Object3D, life: LifeSpot, x: number, y: number, z: number) {
   const spot = new THREE.Object3D();
@@ -124,6 +132,7 @@ export function tallWall(kit: Kit, o: ModelOptions, glass: THREE.Material): THRE
   put(g, kit.box(width / 2 - from, height, depth, chalk, 0.02), (from + width / 2) / 2, height / 2, 0);
   for (const z of [depth / 2 + 0.012, -depth / 2 - 0.012]) put(g, kit.box(width, 0.13, 0.03, "ledge", 0.01), 0, 0.065, z);
   put(g, kit.box(width + 0.04, 0.07, depth + 0.08, "ledge", 0.02), 0, height + 0.035, 0);
+  roofLine(kit, g, width, height + 0.07, depth, o);
   pilasters(kit, g, width, height, depth, chalk);
   return settle(g);
 }
@@ -150,6 +159,9 @@ export function glassWall(kit: Kit, o: ModelOptions, glass: THREE.Material): THR
   put(g, kit.box(0.045, height - knee, 0.09, "mullion", 0.01), width / 2, (knee + height) / 2, 0);
   put(g, kit.box(width, 0.035, 0.07, "mullion", 0.01), 0, transom, 0);
   put(g, kit.box(width + 0.06, 0.09, depth, "mullion", 0.02), 0, height - 0.02, 0);
+  // A pale cap on the frame: from the town the glass wall's top catches the light like the chalk wall's ledge.
+  put(g, kit.box(width + 0.08, 0.035, depth + 0.06, "cream", 0.012), 0, height + 0.04, 0);
+  roofLine(kit, g, width, height + 0.0575, depth, o);
   pilasters(kit, g, width, height, depth, archived(o) ? "chalk-dim" : "chalk");
   return g;
 }
@@ -159,15 +171,24 @@ export function rim(kit: Kit, o: ModelOptions): THREE.Group {
   const { width, height, depth } = size(o, { width: 2, height: 0.22, depth: 0.12 });
   const g = new THREE.Group();
   put(g, kit.box(width, height, depth, archived(o) ? "chalk-dim" : "chalk", 0.02), 0, height / 2, 0);
-  put(g, kit.box(width + 0.02, 0.04, depth + 0.04, "ledge", 0.012), 0, height + 0.02, 0);
+  // A timber coping: from the town the front walls draw the building's outline.
+  put(g, kit.box(width + 0.02, 0.045, depth + 0.05, "coping", 0.012), 0, height + 0.0225, 0);
+  // Square posts at both ends (the corners, and either side of a door), a little taller than the rim.
+  for (const s of [-1, 1]) {
+    put(g, kit.box(depth + 0.08, height + 0.12, depth + 0.08, archived(o) ? "chalk-dim" : "chalk", 0.02), s * (width / 2 - depth / 2), (height + 0.12) / 2, 0);
+    put(g, kit.box(depth + 0.12, 0.04, depth + 0.12, "coping", 0.012), s * (width / 2 - depth / 2), height + 0.14, 0);
+  }
   return g;
 }
 
-/** A soft partition between rooms: lower than the outer walls, with a timber cap. */
+/**
+ * A soft partition between rooms: lower than the outer walls, in a quieter tone than the chalk outer walls (from the
+ * town the rooms read as places, not as white lines), with a timber cap.
+ */
 export function partition(kit: Kit, o: ModelOptions): THREE.Group {
-  const { width, height, depth } = size(o, { width: 2, height: 0.6, depth: 0.1 });
+  const { width, height, depth } = size(o, { width: 2, height: 0.52, depth: 0.1 });
   const g = new THREE.Group();
-  put(g, kit.box(width, height, depth, archived(o) ? "chalk-dim" : "chalk", 0.02), 0, height / 2, 0);
+  put(g, kit.box(width, height, depth, archived(o) ? "chalk-dim" : "partition", 0.02), 0, height / 2, 0);
   put(g, kit.box(width + 0.01, 0.035, depth + 0.035, "timber-trim", 0.012), 0, height + 0.0175, 0);
   return g;
 }
@@ -250,9 +271,11 @@ export function slab(kit: Kit, o: ModelOptions): THREE.Group {
   const { width, depth } = size(o, { width: 4, height: SLAB, depth: 4 });
   const g = new THREE.Group();
   const reach = 0.22;
-  put(g, kit.box(width + reach * 2, SLAB - 0.05, depth + reach * 2, "slab", 0.05), 0, -(SLAB + 0.05) / 2, 0);
+  // A warm side under a cream lip: the building's footprint reads crisply against the lawn.
+  put(g, kit.box(width + reach * 2, SLAB - 0.05, depth + reach * 2, "slab-side", 0.05), 0, -(SLAB + 0.05) / 2, 0);
   put(g, kit.box(width + reach * 2 + 0.06, 0.06, depth + reach * 2 + 0.06, archived(o) ? "chalk-dim" : "cream", 0.03), 0, -0.03, 0);
-  put(g, kit.box(width + reach * 2 + 0.02, 0.022, depth + reach * 2 + 0.02, archived(o) ? "plank" : accent(o), 0.008), 0, -0.075, 0);
+  // The band in the project colour under the lip: wide enough to read from the town on every side.
+  put(g, kit.box(width + reach * 2 + 0.02, 0.07, depth + reach * 2 + 0.02, archived(o) ? "plank" : accent(o), 0.012), 0, -0.1, 0);
   put(g, kit.box(width + reach * 2 + 0.03, 0.04, depth + reach * 2 + 0.03, "ledge", 0.015), 0, -SLAB + 0.02, 0);
   g.userData.rise = SLAB;
   // Flat: its shadow is a sliver under the lip; the walls standing on it cast the ones that read.
@@ -375,12 +398,13 @@ export function silhouette(kit: Kit, o: ModelOptions): THREE.Group {
   switch (kind) {
     case "desk":
       box(w - 0.1, 0.05, d - 0.12, "timber", 0, h - 0.025);
-      box(w - 0.2, h - 0.05, 0.05, "graphite", 0, (h - 0.05) / 2, d / 2 - 0.12);
-      box(0.36, 0.24, 0.04, "graphite", 0, h + 0.12, -d / 2 + 0.16);
+      // Soft tones, not black: from the town a row of desks reads as furniture, not as dark marks.
+      box(w - 0.2, h - 0.05, 0.05, "timber-trim", 0, (h - 0.05) / 2, d / 2 - 0.12);
+      box(0.36, 0.24, 0.04, "far-screen", 0, h + 0.12, -d / 2 + 0.16);
       break;
     case "table":
       box(w - 0.12, 0.06, d - 0.12, "timber", 0, h - 0.03);
-      box(Math.max(0.1, w - 0.6), h - 0.06, 0.08, "graphite", 0, (h - 0.06) / 2);
+      box(Math.max(0.1, w - 0.6), h - 0.06, 0.08, "timber-trim", 0, (h - 0.06) / 2);
       break;
     case "shelf":
       box(w - 0.1, h, d - 0.25, "timber");

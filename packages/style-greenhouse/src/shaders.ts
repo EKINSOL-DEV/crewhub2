@@ -163,6 +163,25 @@ export function glassMaterial(color: string, opacity: number) {
   });
 }
 
+/**
+ * Soft contact shade where walls meet a floor: a frame strip whose uv.y runs from 0 at the wall line to 1 inside the
+ * room; the shade fades out across it. Plain attributes only, so a building's strips merge into one mesh.
+ */
+export function edgeShadeMaterial(color: string, opacity: number) {
+  return new THREE.ShaderMaterial({
+    uniforms: { uColor: { value: new THREE.Color(color) }, uOpacity: { value: opacity } },
+    transparent: true,
+    depthWrite: false,
+    vertexShader: `varying float vEdge; void main() { vEdge = uv.y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: `uniform vec3 uColor; uniform float uOpacity; varying float vEdge;
+      void main() { float a = 1.0 - smoothstep(0.0, 1.0, vEdge);
+      gl_FragColor = vec4(uColor, uOpacity * a * a);
+      #include <tonemapping_fragment>
+      #include <colorspace_fragment>
+    }`,
+  });
+}
+
 export function haloMaterial(color: string) {
   return new THREE.ShaderMaterial({
     uniforms: { uColor: { value: new THREE.Color(color) }, uTime: { value: 0 }, uActive: { value: 0 } },

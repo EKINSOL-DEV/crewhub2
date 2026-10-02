@@ -192,6 +192,10 @@ class GreenhouseStyle implements WorldStyle {
         return shell.nameSign(kit, o);
       case "building.wall-lamp":
         return shell.wallLamp(kit, o);
+      case "building.floor-shade": {
+        const { width, depth } = o.size ?? { width: 2, height: 0, depth: 2 };
+        return kit.edgeShade(width, depth);
+      }
       case "building.silhouette":
         return shell.silhouette(kit, o);
       case "floor":
