@@ -25,7 +25,7 @@ export function robot(kit: Kit, options: { key: string; accent: PaletteName | nu
   ring.rotation.x = -Math.PI / 2;
   ring.position.y = 0.04;
   // A soft blob under the feet in every quality setting: the robot stands on the floor even without shadow maps.
-  const blob = kit.decal("shadow", 0.16, 0.12, 0.3);
+  const blob = kit.decal("shadow", 0.2, 0.16, 0.3);
   blob.position.y = 0.015;
   group.add(blob, ring, body);
   body.position.y = 0.12;
@@ -38,7 +38,11 @@ export function robot(kit: Kit, options: { key: string; accent: PaletteName | nu
   head.position.y = 0.92;
   body.add(head);
   put(head, kit.box(0.68, 0.52, 0.52, color, 0.13), 0, 0, 0);
-  small(put(head, kit.box(0.54, 0.25, 0.05, "visor", 0.09), 0, 0.005, 0.265));
+  const visor = small(put(head, kit.box(0.54, 0.25, 0.05, "visor", 0.09), 0, 0.005, 0.265));
+  // At work the face screen catches the glow of the desk's screen: cool by day, warm in the evening (the theme's glow
+  // follows the time of day).
+  const visorDark = visor.material as THREE.Material,
+    visorLit = kit.material("visor", { glow: "face-glow" });
   // The face screen: two soft eyes that blink, and glow a little after dark (the theme's glow scales them).
   const eyes = [-0.13, 0.13].map((x) => {
     const eye = small(put(head, kit.box(0.07, 0.1, 0.028, "eye", 0.03), x, 0.015, 0.298));
@@ -70,6 +74,9 @@ export function robot(kit: Kit, options: { key: string; accent: PaletteName | nu
   let alerted = false;
   let time = hash(options.key) % 1000;
   const blinkOffset = (hash(options.key) % 49) / 10;
+  // Seeded idle rhythm: every robot glances or looks round on its own beat, never in step with its neighbours.
+  const beat = 6.5 + (hash(`${options.key}:beat`) % 40) / 10;
+  const side = hash(`${options.key}:side`) % 2 ? 1 : -1;
   // Materials this handle owns (translucent or greyed copies); the shared ones stay untouched.
   const originals = new Map<THREE.Mesh, THREE.Material>();
   const owned = new Map<THREE.Material, THREE.Material>();
@@ -77,6 +84,11 @@ export function robot(kit: Kit, options: { key: string; accent: PaletteName | nu
     if (o instanceof THREE.Mesh && o.material instanceof THREE.MeshStandardMaterial) originals.set(o, o.material);
   });
   const grey = new THREE.Color(kit.hex("grey-bot"));
+  // Near (inside a building), the robot's own colour carries a faint light of its own, so it stands out from the
+  // furniture; the glow follows the time of day, a little stronger in the evening when the rooms dim. Far robots keep
+  // the plain material (the town's crowd batches them).
+  const base = kit.material(color);
+  const shell = kit.material(color, { glow: 0.06 });
 
   const skin = () => {
     const greyed = posture === "greyed";
@@ -84,7 +96,7 @@ export function robot(kit: Kit, options: { key: string; accent: PaletteName | nu
     owned.clear();
     for (const [mesh, original] of originals) {
       if (!proxy && !greyed) {
-        mesh.material = original;
+        mesh.material = original === base && detail === "near" ? shell : original;
         mesh.castShadow = detail === "near";
         continue;
       }
@@ -104,6 +116,11 @@ export function robot(kit: Kit, options: { key: string; accent: PaletteName | nu
   };
 
   const pose = () => {
+    const face = posture === "focused" ? visorLit : visorDark;
+    if (originals.get(visor) !== face) {
+      originals.set(visor, face);
+      if (!proxy && posture !== "greyed") visor.material = face;
+    }
     body.rotation.set(0, 0, 0);
     head.rotation.set(0, 0, 0);
     body.position.y = 0.12;
@@ -141,6 +158,7 @@ export function robot(kit: Kit, options: { key: string; accent: PaletteName | nu
     ring.visible = alerted || posture === "raised-hand";
   };
   pose();
+  skin();
 
   return {
     object: group,
@@ -177,16 +195,28 @@ export function robot(kit: Kit, options: { key: string; accent: PaletteName | nu
       const blink = (time + blinkOffset) % 4.9 < 0.11;
       for (const eye of eyes) eye.scale.y = blink ? 0.15 : 1;
       antenna.position.y = 0.435 + Math.sin(time * 2.2) * 0.01;
+      // A soft 0..1..0 swell, about 1.6 s long, once per beat: a glance up from the screen, a look round the room.
+      const phase = (time % beat) / 1.6;
+      const swell = phase < 1 ? Math.sin(phase * Math.PI) ** 2 : 0;
       if (posture === "focused") {
-        // Slow typing: hands tap in turn, a small bob.
-        arms[0]!.rotation.x = -0.9 + Math.sin(time * 9) * 0.08;
-        arms[1]!.rotation.x = -0.9 + Math.sin(time * 9 + 1.7) * 0.08;
+        // Typing in bursts: hands tap in turn and rest while the robot glances up and to the side, then back to work.
+        const typing = 1 - swell;
+        arms[0]!.rotation.x = -0.9 + Math.sin(time * 9) * 0.08 * typing + swell * 0.2;
+        arms[1]!.rotation.x = -0.9 + Math.sin(time * 9 + 1.7) * 0.08 * typing + swell * 0.2;
         body.position.y = 0.12 + Math.abs(Math.sin(time * 1.6)) * 0.015;
+        head.rotation.x = 0.12 - swell * 0.16;
+        head.rotation.y = swell * 0.3 * side;
       } else if (posture === "relaxed") {
+        // Weight shifting from foot to foot, a slow curious tilt, and now and then a look round the room.
         body.position.y = 0.12 + Math.sin(time * 1.1) * 0.01;
-        head.rotation.z = 0.06 + Math.sin(time * 0.9) * 0.06; // a slow, curious head tilt
+        body.rotation.z = Math.sin(time * 0.6 + blinkOffset) * 0.03;
+        head.rotation.z = 0.06 + Math.sin(time * 0.9) * 0.06;
+        head.rotation.y = swell * 0.45 * side;
       } else if (posture === "raised-hand") {
+        // Waiting for a person: the hand waves, the robot bobs on its toes and tilts its head, asking.
         arms[1]!.rotation.z = 2.7 + Math.sin(time * 3) * 0.12;
+        body.position.y = 0.12 + Math.abs(Math.sin(time * 3)) * 0.02;
+        head.rotation.z = -0.08 + Math.sin(time * 0.8) * 0.05;
       } else if (posture === "walking") {
         // A soft trot: feet step in turn, arms swing against them, the body bobs and sways a little.
         const step = Math.sin(time * 8);

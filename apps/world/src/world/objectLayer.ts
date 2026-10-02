@@ -11,8 +11,8 @@ import type { Building, WorkObject } from "@crewhub/world-model";
 import { BUILDING_CELL } from "./buildingTemplate";
 import type { ObjectLayout, Placement, Surface } from "./interiorLayout";
 
-/** Ticket objects are a little smaller than the Greenhouse props they sit on. */
-const OBJECT_SCALE = 0.9;
+/** Ticket objects at the size of the Greenhouse props they sit on, so the work reads first among the desk things. */
+const OBJECT_SCALE = 1;
 const RESTACK_S = 0.35;
 const DRONE_SCALE = 1.6;
 const HOP_S = 1.1;
