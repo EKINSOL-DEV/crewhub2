@@ -18,10 +18,13 @@ export type { InvalidPropRequest } from "./describeTown.ts";
 export {
   ATTACHMENT_KINDS,
   DEFAULT_STYLE_ID,
+  DEFAULT_ZONE_ID,
   ROOM_KINDS,
   RULE_IDS,
   TOWN_FORMAT,
   TOWN_LIMITS,
+  ZONE_COLORS,
+  ZONE_EMBLEMS,
   applyEdit,
   emptyTownDocument,
   exportTownDocument,
