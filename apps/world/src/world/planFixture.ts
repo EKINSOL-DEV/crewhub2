@@ -45,11 +45,12 @@ export function fixturePlan(count: number, zones = 1, archived = 0): { plan: Set
     staked: tier === "clearing" ? CENTRE_LOT : null,
   };
   const centres = new Map(plan.lots.map((lot) => [lot.slug, lot.centre]));
-  // A lot's door and footprints: plot 0's, moved to the lot.
+  // A lot's door and footprints: those of the old grid's plot 0 (lot 63,64), moved to the lot.
+  const FIRST_LOT = { x: 63, z: 64 };
   const shift = (slug: string) => ({ x: centres.get(slug)!.x - plotCenter(0).x, z: centres.get(slug)!.z - plotCenter(0).z });
   const dress = dressPlan(plan, {
-    door: (slug) => ({ x: plotDoor(0).x + shift(slug).x, z: plotDoor(0).z + shift(slug).z }),
-    obstacles: (slug) => plotObstacles(0).map((r): Bounds => ({ minX: r.minX + shift(slug).x, maxX: r.maxX + shift(slug).x, minZ: r.minZ + shift(slug).z, maxZ: r.maxZ + shift(slug).z })),
+    door: (slug) => ({ x: plotDoor(FIRST_LOT).x + shift(slug).x, z: plotDoor(FIRST_LOT).z + shift(slug).z }),
+    obstacles: (slug) => plotObstacles(FIRST_LOT).map((r): Bounds => ({ minX: r.minX + shift(slug).x, maxX: r.maxX + shift(slug).x, minZ: r.minZ + shift(slug).z, maxZ: r.maxZ + shift(slug).z })),
     zone: (id) => FIXTURE_ZONES.find((z) => z.id === id),
     lotCentre,
     stakedText: FIXTURE_SIGN,

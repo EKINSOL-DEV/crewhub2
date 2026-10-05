@@ -20,7 +20,9 @@ import { styleRegistry } from "./style";
 import type { StyledPlot } from "./styleRegistry";
 import { lookAt, looksSignature, previewLooks, type TownLooks } from "./townLooks";
 import type { Ambient } from "./movement";
-import { CIVIC_LOT, civicCenter, homeRects, PLOT_SIZE, plotCenter, TOWN_CAPACITY, townBounds, type Bounds } from "./townLayout";
+import { CIVIC_LOT, civicCenter, PLOT_SIZE, TOWN_CAPACITY, TOWN_COLUMNS, townBounds, type Bounds } from "./townLayout";
+import { lotKey } from "./settlement";
+import { homeRects, planKey, type TownPlan } from "./townPlan";
 import { Construction } from "./construction";
 import { GRASS_Y, landmarks as townLandmarks, LAWN_Y, slugSeed, townDressing } from "./townDressing";
 import { InstanceCuller, instanceStatic } from "./instanceStatic";
@@ -44,7 +46,9 @@ export interface TownView {
   model: WorldModel;
   /** Slug of the building whose interior is shown, or null for the town overview. */
   entered: string | null;
-  /** Index of the plot with the keyboard focus ring. */
+  /** Where every building stands and how large the settlement is (townPlan.ts). */
+  plan: TownPlan;
+  /** Index (in `model.buildings`) of the building with the keyboard focus ring. */
   focused: number;
   ringVisible: boolean;
   /** Inside a building: the room with the keyboard focus ring, and the room the camera frames. */
@@ -181,6 +185,10 @@ const PORTRAIT_ROOM_MARGIN = 0.86;
 const PORTRAIT_BUILDING_MARGIN = 0.94;
 /* The closest view: a frustum this many world units tall, about one desk with its robot. */
 const DESK_SPAN = 2.4;
+const HIT_GEOMETRY = new THREE.BoxGeometry(PLOT_SIZE, 2, PLOT_SIZE);
+const HIT_MATERIAL = new THREE.MeshBasicMaterial();
+/** The widest ground the town's shadow map covers at once (about today's town); a larger settlement gets a window of it. */
+const TOWN_SHADOW_REACH = 90;
 /* A robot as the labels see it: from its label anchor (just over its head) down this far to its feet, and this wide
    either side, in world units (robots stand at 0.62 scale). Other labels keep off it. */
 const ROBOT_BODY = 1.0;
@@ -213,7 +221,8 @@ const PHONE_CHROME: Insets = { top: 156, bottom: 76, left: 12, right: 60 };
 export class TownScene {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
-  readonly camera = new THREE.OrthographicCamera(-10, 10, 6, -6, 1, CAMERA_DISTANCE * 2.8);
+  // The near plane lies far behind the camera: a region is wider than the camera stands off, and nothing may clip.
+  readonly camera = new THREE.OrthographicCamera(-10, 10, 6, -6, -CAMERA_DISTANCE * 8, CAMERA_DISTANCE * 10);
   readonly controls: OrbitControls;
   readonly callbacks: Callbacks;
   readonly townStyle: ResolvedStyle;
@@ -313,6 +322,10 @@ export class TownScene {
   #layoutTimer: ReturnType<typeof setTimeout> | 0 = 0;
   #down = { x: 0, y: 0 };
   #hovered: number | null = null;
+  #hitsKey = "";
+  #fitKey = "";
+  /** True while the camera shows the home frame: a visitor who moved it is left alone when the town grows. */
+  #atHome = true;
   /** Buildings holding a built interior, most recently used last (buildingView.ts prepareInterior). */
   #interiors: string[] = [];
   #cancelPrepare: (() => void) | null = null;
@@ -371,6 +384,7 @@ export class TownScene {
     this.controls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
     this.controls.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE };
     this.controls.addEventListener("start", this.cancelTween);
+    this.controls.addEventListener("start", this.#leftHome);
     this.controls.addEventListener("change", this.invalidate);
     this.#environment = this.townStyle.environment(this.scene, this.renderer, view.theme);
     this.#environment.setQuality(view.quality);
@@ -491,9 +505,18 @@ export class TownScene {
   fitShadow() {
     const view = this.view.entered ? this.#buildings.get(this.view.entered) : undefined;
     if (!view) {
-      const b = townBounds();
-      this.#environment.setShadowReach(Math.max(b.maxX - b.minX, b.maxZ - b.minZ) / 2 + 4, { x: (b.minX + b.maxX) / 2, z: (b.minZ + b.maxZ) / 2 });
-      this.#shadowFit = null;
+      // The town's shadow map covers the whole settlement while that keeps it crisp enough; a region gets the part
+      // around what the camera looks at, and a pan fits it again (`#refitShadow`).
+      const b = this.view.plan.ground;
+      const whole = Math.max(b.maxX - b.minX, b.maxZ - b.minZ) / 2 + 4;
+      const target = this.#tween?.target ?? this.controls.target;
+      if (whole <= TOWN_SHADOW_REACH) {
+        this.#environment.setShadowReach(whole, { x: (b.minX + b.maxX) / 2, z: (b.minZ + b.maxZ) / 2 });
+        this.#shadowFit = null;
+      } else {
+        this.#environment.setShadowReach(TOWN_SHADOW_REACH, { x: target.x, z: target.z });
+        this.#shadowFit = { zoom: this.camera.zoom, x: target.x, z: target.z };
+      }
       // A new fit refreshes the shadow map on the next drawn frame, also in the town view.
       this.#shadowDirty = true;
       this.invalidate();
@@ -519,8 +542,13 @@ export class TownScene {
   /** Inside a building: fits the shadow again once a zoom or pan has changed the ground in view noticeably. */
   #refitShadow() {
     const fit = this.#shadowFit;
-    if (!fit || this.#tween || !this.view.entered) return;
+    if (!fit || this.#tween) return;
     const t = this.controls.target;
+    // In a region the map follows the pan in large steps: it covers far more than the step.
+    if (!this.view.entered) {
+      if (Math.hypot(t.x - fit.x, t.z - fit.z) > TOWN_SHADOW_REACH / 3) this.fitShadow();
+      return;
+    }
     if (Math.abs(this.camera.zoom / fit.zoom - 1) > 0.12 || Math.hypot(t.x - fit.x, t.z - fit.z) > 2) this.fitShadow();
   }
 
@@ -529,16 +557,6 @@ export class TownScene {
   /** The plot hit boxes and the civic landmarks; the ground and its dressing follow the plots in use (`#dress`). */
   buildGround() {
     const style = this.townStyle;
-    const hitGeometry = new THREE.BoxGeometry(PLOT_SIZE, 2, PLOT_SIZE);
-    const hitMaterial = new THREE.MeshBasicMaterial();
-    for (let i = 0; i < TOWN_CAPACITY; i++) {
-      const p = plotCenter(i);
-      const hit = new THREE.Mesh(hitGeometry, hitMaterial);
-      hit.visible = false;
-      hit.position.set(p.x, 1, p.z);
-      hit.userData.plot = i;
-      this.#hits.add(hit);
-    }
     // The landmarks merge per material; the square's fountain water stays live (`userData.live`) and animates.
     const landmarks: [ModelKey, number, number, number][] = [
       ["post-office", civicCenter("post-office").x, LAWN_Y, civicCenter("post-office").z],
@@ -571,20 +589,24 @@ export class TownScene {
    * The ground, lawns, paths and dressing for the plots in use (townDressing.ts): rebuilt only when a plot is taken or
    * freed. Repeated parts become instanced meshes, the one-off pieces merge per material.
    */
-  #dress(count: number) {
-    const indices = Array.from({ length: Math.min(TOWN_CAPACITY, count) }, (_, i) => i);
+  #dress() {
+    const plan = this.view.plan;
     // Fast quality leaves out the small detail (grass tufts, wild flowers).
     const fast = this.view.quality === "fast";
     const townOptions = townLook(this.#lookContext()).styleOptions;
-    // Each building's own garden follows its slug and whether it is archived.
-    const signature = `${indices.map((i) => `${this.view.model.buildings[i]?.slug}:${this.view.model.buildings[i]?.archived}`).join(",")}|${fast}|${looksSignature(this.#looks)}|${styleOptionsKey(townOptions)}`;
+    // Each building's own garden follows its slug, its lot and whether it is archived.
+    const signature = `${planKey(plan)}|${fast}|${looksSignature(this.#looks)}|${styleOptionsKey(townOptions)}`;
     if (signature === this.#dressing.signature) return;
     this.#disposeDressing();
     this.#shadowDirty = true;
     const group = new THREE.Group();
-    const plots = indices.map((index) => {
-      const b = this.view.model.buildings[index];
-      return { index, door: plotDoor(index), obstacles: plotObstacles(index), seed: b ? slugSeed(b.slug) : index, archived: b?.archived ?? false };
+    // Until the settlement dressing lands (settlementDressing.ts), the old dressing knows the 4 x 3 grid only: a lot
+    // on that grid is dressed as its grid plot, any other lot stands on bare ground.
+    const plots = plan.lots.flatMap((lot) => {
+      const column = lot.cell.x - 63,
+        row = lot.cell.z - 64;
+      if (column < 0 || column >= TOWN_COLUMNS || row < 0 || row * TOWN_COLUMNS + column >= TOWN_CAPACITY) return [];
+      return [{ index: row * TOWN_COLUMNS + column, door: plotDoor(lot.cell), obstacles: plotObstacles(lot.cell), seed: slugSeed(lot.slug), archived: lot.archived }];
     });
     const dressing = townDressing(plots);
     this.#life.setTown(dressing, this.#landmarks);
@@ -647,17 +669,26 @@ export class TownScene {
     const started = performance.now();
     let created = 0,
       deferred = false;
-    const model = this.view.model;
-    this.#dress(model.buildings.length);
+    const model = this.view.model,
+      plan = this.view.plan;
+    this.#dress();
+    this.#layHits();
+    this.#fitPlan();
+    const lots = new Map(plan.lots.map((l) => [l.slug, l]));
+    // The first layout waits for every building's lot (the allocation follows the first model within a moment).
+    if (this.#layingOut && plan.pending > 0) return;
     // The town's dressing is a slice of its own in the first layout.
-    if (this.#layingOut && performance.now() - started > LAYOUT_SLICE_MS && this.#buildings.size < Math.min(model.buildings.length, TOWN_CAPACITY)) {
+    if (this.#layingOut && performance.now() - started > LAYOUT_SLICE_MS && this.#buildings.size < plan.lots.length) {
       this.#continueLayout();
       return;
     }
-    this.walks.update(model, { entered: this.view.entered, reducedMotion: this.view.reducedMotion, ambient: this.view.ambient });
+    this.walks.update(model, { entered: this.view.entered, reducedMotion: this.view.reducedMotion, ambient: this.view.ambient, plan });
     const seen = new Set<string>();
     this.#anchors.clear();
-    model.buildings.slice(0, TOWN_CAPACITY).forEach((b, index) => {
+    model.buildings.forEach((b) => {
+      // A building stands on its lot; one whose lot is still on its way (the allocation) is not drawn yet.
+      const lot = lots.get(b.slug);
+      if (!lot) return;
       seen.add(b.slug);
       let view = this.#buildings.get(b.slug);
       // The first layout builds a slice of buildings per task (at least one), then yields; the rest follow.
@@ -665,13 +696,13 @@ export class TownScene {
         deferred = true;
         return;
       }
-      const c = plotCenter(index);
+      const c = lot.centre;
       // The building's look: its plot's, then its zone's, the viewer's, the town's, the style's default (`look.ts`).
       const look = buildingLook(this.#lookContext(), b.slug);
       const plot: StyledPlot = { styleId: look.styleId };
       const style = styleRegistry.styleFor(plot, { ...look.styleOptions, ...lookAt(this.#looks, c.x, c.z) });
       const cast = castRegistry.castFor(style, look.castId);
-      if (!view || view.group.userData.index !== index || view.ctx.style !== style) {
+      if (!view || view.group.userData.lot !== lotKey(lot.cell) || view.ctx.style !== style) {
         view?.dispose();
         if (style !== this.townStyle) style.setTheme(this.view.theme);
         view = new BuildingView(b, c, PLOT_SIZE, {
@@ -681,7 +712,7 @@ export class TownScene {
           reducedMotion: () => this.view.reducedMotion,
           walker: (key) => this.walks.walker(key),
         });
-        view.group.userData.index = index;
+        view.group.userData.lot = lotKey(lot.cell);
         created++;
         this.#buildings.set(b.slug, view);
         this.scene.add(view.group);
@@ -759,7 +790,7 @@ export class TownScene {
     const run = (more: () => boolean) => {
       this.#cancelPrepare = null;
       if (this.#disposed || this.view.entered) return;
-      const index = this.#hovered ?? Math.min(this.view.focused, TOWN_CAPACITY - 1);
+      const index = this.#hovered ?? this.view.focused;
       const slug = this.view.model.buildings[index]?.slug;
       const view = slug ? this.#buildings.get(slug) : undefined;
       if (!slug || !view) return;
@@ -885,12 +916,12 @@ export class TownScene {
     if (previous.theme !== view.theme) this.applyTheme(view.theme);
     if (previous.quality !== view.quality) {
       this.applyQuality(view.quality);
-      this.#dress(view.model.buildings.length);
+      this.#dress();
     }
     if (previous.cast !== view.cast) this.#shadowDirty = true;
-    if (previous.cast !== view.cast || previous.styleOptions !== view.styleOptions || previous.model !== view.model || previous.entered !== view.entered || previous.room !== view.room || previous.town !== view.town) this.sync();
+    if (previous.cast !== view.cast || previous.styleOptions !== view.styleOptions || previous.model !== view.model || previous.plan !== view.plan || previous.entered !== view.entered || previous.room !== view.room || previous.town !== view.town) this.sync();
     else if (previous.reducedMotion !== view.reducedMotion || previous.ambient !== view.ambient)
-      this.walks.update(view.model, { entered: view.entered, reducedMotion: view.reducedMotion, ambient: view.ambient });
+      this.walks.update(view.model, { entered: view.entered, reducedMotion: view.reducedMotion, ambient: view.ambient, plan: view.plan });
     if (previous.entered !== view.entered) {
       // The overlay's window describes one view: start it again.
       this.#frames.clear();
@@ -906,13 +937,15 @@ export class TownScene {
       this.#life.setBuilding(inside ? inside.bounds(null) : null);
       this.#lifeInside = !!inside;
     }
-    const index = Math.min(view.focused, TOWN_CAPACITY - 1);
-    const p = plotCenter(index);
-    this.#ring.position.set(p.x, 0.2, p.z);
-    this.#ring.visible = view.ringVisible && !view.entered && index < view.model.buildings.length;
-    this.#glow.position.set(p.x, 0.32, p.z);
+    const focusedSlug = view.model.buildings[view.focused]?.slug;
+    const p = view.plan.lots.find((l) => l.slug === focusedSlug)?.centre;
+    if (p) {
+      this.#ring.position.set(p.x, 0.2, p.z);
+      this.#glow.position.set(p.x, 0.32, p.z);
+    }
+    this.#ring.visible = view.ringVisible && !view.entered && !!p;
     this.#glow.visible = this.#ring.visible;
-    this.#lifted = this.#ring.visible ? (view.model.buildings[index]?.slug ?? null) : null;
+    this.#lifted = this.#ring.visible ? (focusedSlug ?? null) : null;
     if (previous.entered && previous.entered !== view.entered) {
       const left = this.#buildings.get(previous.entered);
       left?.setHover(null);
@@ -992,13 +1025,68 @@ export class TownScene {
     const canvas = this.renderer.domElement;
     const portrait = canvas.clientWidth < canvas.clientHeight * 0.8;
     const insets = this.insets();
-    const rects = homeRects(this.view.model.buildings.length, portrait ? 0 : 1.5, portrait);
+    const rects = homeRects(this.view.plan, portrait ? 0 : 1.5, portrait);
     return this.frameRects(rects, 2, HOME_OFFSET, portrait ? { ...insets, left: 0, right: 0 } : insets);
   }
 
   home(immediate: boolean) {
     const { target } = this.#homeFrame();
+    this.#atHome = true;
     this.moveTo(target, target.clone().add(HOME_OFFSET), 1, immediate);
+  }
+
+  /** One pickable box per building, on its lot; `userData.plot` is the building's index in the model. */
+  #layHits() {
+    const plan = this.view.plan;
+    const key = this.view.model.buildings.map((b) => b.slug).join() + "|" + planKey(plan);
+    if (key === this.#hitsKey) return;
+    this.#hitsKey = key;
+    const lots = new Map(plan.lots.map((l) => [l.slug, l]));
+    this.#hits.clear();
+    this.view.model.buildings.forEach((b, index) => {
+      const lot = lots.get(b.slug);
+      if (!lot) return;
+      const hit = new THREE.Mesh(HIT_GEOMETRY, HIT_MATERIAL);
+      hit.visible = false;
+      hit.position.set(lot.centre.x, 1, lot.centre.z);
+      hit.userData.plot = index;
+      this.#hits.add(hit);
+    });
+    this.#hits.updateMatrixWorld(true);
+  }
+
+  /**
+   * The settlement changed size (a tier, a new district, the first building): the zoom-1 frustum follows the new
+   * home frame. A camera that was at home goes home again, gently; one the visitor moved keeps looking at the same
+   * ground at the same scale.
+   */
+  #fitPlan() {
+    const plan = this.view.plan;
+    const key = `${plan.tier}|${plan.lots.map((l) => lotKey(l.cell)).join(";")}`;
+    if (key === this.#fitKey) return;
+    this.#fitKey = key;
+    const before = this.#span;
+    this.resize();
+    // The first layout simply starts at home.
+    if (this.#layingOut) {
+      if (!this.view.entered) this.home(true);
+      return;
+    }
+    if (Math.abs(this.#span - before) < 1e-3) return;
+    if (this.view.entered) {
+      this.camera.zoom *= this.#span / before;
+      if (this.#tween) this.#tween.zoom *= this.#span / before;
+      this.camera.updateProjectionMatrix();
+    } else if (this.#atHome) {
+      // Start from the frame the visitor was looking at, then ease to the new home.
+      this.camera.zoom = this.#span / before;
+      this.camera.updateProjectionMatrix();
+      this.home(false);
+    } else {
+      this.camera.zoom *= this.#span / before;
+      this.camera.updateProjectionMatrix();
+    }
+    this.fitShadow();
   }
 
   /**
@@ -1073,6 +1161,7 @@ export class TownScene {
       const offset = position.clone().sub(target).applyAxisAngle(UP, action === "rotate-left" ? Math.PI / 2 : -Math.PI / 2);
       position.copy(target).add(offset);
     }
+    this.#atHome = false;
     if (action === "zoom-in") zoom = Math.min(this.controls.maxZoom, zoom * 1.25);
     if (action === "zoom-out") zoom = Math.max(this.controls.minZoom, zoom / 1.25);
     this.moveTo(target, position, zoom, false);
@@ -1080,6 +1169,9 @@ export class TownScene {
 
   cancelTween = () => {
     this.#tween = null;
+  };
+  #leftHome = () => {
+    this.#atHome = false;
   };
 
   #setPointer(event: PointerEvent) {
@@ -1292,7 +1384,7 @@ export class TownScene {
     const ticked = performance.now();
     this.controls.update();
     // Keep panning inside the town.
-    const b = townBounds(),
+    const b = this.view.plan.ground,
       t = this.controls.target;
     this.#v.set(THREE.MathUtils.clamp(t.x, b.minX, b.maxX), THREE.MathUtils.clamp(t.y, 0, 2), THREE.MathUtils.clamp(t.z, b.minZ, b.maxZ)).sub(t);
     this.camera.position.add(this.#v);
@@ -1600,6 +1692,7 @@ export class TownScene {
     this.#resize.disconnect();
     document.removeEventListener("visibilitychange", this.visibility);
     this.controls.removeEventListener("start", this.cancelTween);
+    this.controls.removeEventListener("start", this.#leftHome);
     this.controls.removeEventListener("change", this.invalidate);
     this.controls.dispose();
     const canvas = this.renderer.domElement;

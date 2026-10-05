@@ -8,6 +8,7 @@ import {
   applyEdit,
   canRedo,
   canUndo,
+  amendHistory,
   commitHistory,
   createHistory,
   currentDocument,
@@ -44,6 +45,11 @@ export interface TownStore {
   load(): Promise<TownDocument>;
   /** Makes `doc` (the result of `applyEdit` on `state.doc`) the current revision. Returns it as stored. */
   commit(doc: TownDocument): Promise<TownDocument>;
+  /**
+   * Replaces the current revision in place: no undo step (`amendHistory`). For what the world records by itself.
+   * `update` gets the document that is current when the amend is applied; null leaves it as it is.
+   */
+  amend(update: (doc: TownDocument) => TownDocument | null): Promise<TownDocument>;
   undo(): Promise<TownDocument>;
   redo(): Promise<TownDocument>;
   subscribe(listener: () => void): () => void;
@@ -191,6 +197,20 @@ export function createTownStore(options: TownStoreOptions): TownStore {
       await write((store) => {
         for (const revision of dropped) store.delete(revision);
         for (const d of missing) store.put(d, d.revision);
+        store.put(current.revision, HEAD_KEY);
+      });
+      return current;
+    },
+    async amend(update) {
+      await store.load();
+      const doc = update(currentDocument(history));
+      if (!doc) return state.doc;
+      history = amendHistory(history, doc);
+      const current = currentDocument(history);
+      stored.add(current.revision);
+      publish();
+      await write((store) => {
+        store.put(current, current.revision);
         store.put(current.revision, HEAD_KEY);
       });
       return current;

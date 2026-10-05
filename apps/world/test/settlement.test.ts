@@ -8,6 +8,7 @@ import {
   CENTRAL_SLOT,
   CENTRE_LOT,
   civicStage,
+  districtBlocks,
   districtBorders,
   districtLots,
   districtGreens,
@@ -30,6 +31,7 @@ import {
   settlementOf,
   slotAllowed,
   slotBounds,
+  slotCrossing,
   slotKey,
   slotOf,
   slotSpiral,
@@ -92,6 +94,13 @@ test("a district's growth sequence starts by its green, then blocks of four to s
     const touches = (lot: { x: number; z: number }, green: { x: number; z: number }) => Math.abs(lot.x - green.x) <= 1 && Math.abs(lot.z - green.z) <= 1;
     if (slot !== CENTRAL_SLOT) greens.forEach((green, block) => assert.ok(lots.slice(block * 5, block * 5 + 5).every((lot) => touches(lot, green)), `block ${block} of ${slotKey(slot)}`));
     for (const green of greens) assert.ok(lots.filter((lot) => touches(lot, green)).length >= 4);
+    const blocks = districtBlocks(slot);
+    assert.deepEqual(blocks.map((b) => b.green), greens);
+    for (const block of blocks) {
+      assert.equal(block.lots.length, 5, "a block of five around its green");
+      assert.ok(block.lots.every((lot) => touches(lot, block.green)));
+    }
+    assert.equal(new Set(blocks.flatMap((b) => b.lots.map(lotKey))).size, blocks.length * 5);
     // The sequence grows outward, it does not scatter: every lot touches the settlement so far.
     lots.forEach((lot, i) => {
       if (i === 0) return;
@@ -195,6 +204,29 @@ test("the ground covers every allocated lot and grows with the tier, the streets
     for (const [x, z] of [[(b.minX + b.maxX) / 2, b.minZ], [(b.minX + b.maxX) / 2, b.maxZ], [b.minX, (b.minZ + b.maxZ) / 2], [b.maxX, (b.minZ + b.maxZ) / 2]] as const)
       assert.ok(all.some((s) => x >= s.x0 && x <= s.x1 && z >= s.z0 && z <= s.z1), `a street by ${lotKey(lot)}`);
   }
+});
+
+test("a district's streets join at its main crossing, where the roads arrive", () => {
+  /** True when the streets form one network that touches `point`. */
+  const joined = (runs: ReturnType<typeof streets>, point: { x: number; z: number }) => {
+    const touch = (a: (typeof runs)[number], b: (typeof runs)[number]) => a.x0 <= b.x1 && a.x1 >= b.x0 && a.z0 <= b.z1 && a.z1 >= b.z0;
+    const start = runs.findIndex((s) => point.x >= s.x0 && point.x <= s.x1 && point.z >= s.z0 && point.z <= s.z1);
+    if (start < 0) return false;
+    const seen = new Set([start]);
+    const queue = [start];
+    for (let i = queue.shift(); i !== undefined; i = queue.shift()) runs.forEach((s, j) => !seen.has(j) && touch(runs[i]!, s) && queue.push((seen.add(j), j)));
+    return seen.size === runs.length;
+  };
+  for (const slot of [{ x: 1, z: 0 }, { x: -1, z: 1 }, { x: 2, z: -2 }]) {
+    const lots = districtLots(slot);
+    // The district's own streets (the centre always has its civic lane, which is not this district's).
+    const own = (used: typeof lots) => streets("region", used).filter((s) => s.x0 >= slotBounds(slot).minX - 1 && s.x1 <= slotBounds(slot).maxX + 1 && s.z0 >= slotBounds(slot).minZ - 1);
+    for (const n of [1, 2, 5, 6, 11, 20]) assert.ok(joined(own(lots.slice(0, n)), slotCrossing(slot)), `${n} lots of ${slotKey(slot)}`);
+    // A building moved by hand to the far corner of an empty district still gets its way to the crossing.
+    assert.ok(joined(own([lots[19]!]), slotCrossing(slot)));
+  }
+  const central = districtLots(CENTRAL_SLOT);
+  for (const tier of TIERS) for (const n of [1, 4, 9, 16]) assert.ok(joined(streets(tier, [...central.slice(0, n), central[15]!]), slotCrossing(CENTRAL_SLOT)), `${tier} with ${n}`);
 });
 
 test("roads join every district to the centre along street lines, borders lie between neighbours", () => {

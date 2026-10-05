@@ -106,6 +106,17 @@ export function districtLots(slot: DistrictSlot): GridCell[] {
 export function districtGreens(slot: DistrictSlot): GridCell[] {
   return absolute(slot, isCentral(slot) ? CENTRAL_GREENS : OUTER_GREENS);
 }
+/**
+ * A district's blocks: each green with the lots that stand around it as one neighbourhood, in the order the blocks
+ * grow. The central district's first four lots belong to no block: their green is the square.
+ */
+export function districtBlocks(slot: DistrictSlot): { green: GridCell; lots: GridCell[] }[] {
+  const lots = districtLots(slot);
+  return districtGreens(slot).map((green, block) => ({
+    green,
+    lots: isCentral(slot) ? lots.slice(4, 14).filter((lot) => (lot.x > CENTRE_LOT.x) === (green.x > CENTRE_LOT.x)) : lots.slice(block * 5, block * 5 + 5),
+  }));
+}
 /** The slot whose district cell holds a lot. */
 export function slotOf(cell: GridCell): DistrictSlot {
   return {
@@ -296,8 +307,8 @@ const union = (rects: readonly Bounds[]): Bounds => ({
 const GROUND_MARGIN = STREET + GREEN_BELT;
 
 /**
- * The ground at a tier: the tier's civic core, every landmark that has arrived and every allocated lot (in use or
- * boarded up), with a street and the green belt around them. It only ever grows with the lots: a tier never moves one.
+ * The ground at a tier: the tier's civic core, every landmark that has arrived, every allocated lot (in use or
+ * boarded up) and the main crossing of every district in use, with a street and the green belt around them. It only ever grows with the lots: a tier never moves one.
  */
 export function groundExtent(tier: Tier, lots: readonly GridCell[], arrived: readonly LandmarkId[] = []): Bounds {
   const core: Bounds[] = (["post-office", "town-hall", "square"] as const).map((id) => spotBounds(reservedSpot(id)));
@@ -305,7 +316,12 @@ export function groundExtent(tier: Tier, lots: readonly GridCell[], arrived: rea
   core.push(lotBounds(CENTRE_LOT));
   if (tier !== "clearing" && tier !== "hamlet") for (const lot of districtLots(CENTRAL_SLOT).slice(0, 4)) core.push(lotBounds(lot), lotBounds({ x: lot.x, z: lot.z - 1 }));
   if (tier === "town" || tier === "region") for (const id of ["cafe", "bus-stop"] as const) core.push(spotBounds(reservedSpot(id)));
-  const all = union([...core, ...arrived.map((id) => spotBounds(reservedSpot(id))), ...lots.map((lot) => lotBounds(lot))]);
+  // A district's streets join at its main crossing, where its road arrives: that is on the ground too.
+  const crossings = [CENTRAL_SLOT, ...lots.map(slotOf).filter(slotAllowed)].map((slot): Bounds => {
+    const c = slotCrossing(slot);
+    return { minX: c.x, maxX: c.x, minZ: c.z, maxZ: c.z };
+  });
+  const all = union([...core, ...arrived.map((id) => spotBounds(reservedSpot(id))), ...lots.map((lot) => lotBounds(lot)), ...crossings]);
   return { minX: all.minX - GROUND_MARGIN, maxX: all.maxX + GROUND_MARGIN, minZ: all.minZ - GROUND_MARGIN, maxZ: all.maxZ + GROUND_MARGIN };
 }
 
@@ -321,6 +337,7 @@ export interface Segment {
  * The streets between the lots in use, as centre lines on the lattice's street lines, joined into straight runs.
  * A village and anything larger has a street on every side of every used lot. A clearing and a hamlet have one lane:
  * from the mail hut along the civic lane to the lodge, and down the main street past the hamlet's lot to its gate.
+ * The streets of a district always join at its main crossing, so the roads between districts reach every building.
  */
 export function streets(tier: Tier, lots: readonly GridCell[]): Segment[] {
   // Unit edges by lattice line: `h` runs along x on the north side of lot (x, z), `v` along z on its west side.
@@ -337,6 +354,41 @@ export function streets(tier: Tier, lots: readonly GridCell[]): Segment[] {
       v.add(lotKey({ x: lot.x + 1, z: lot.z }));
       h.add(lotKey({ x: lot.x, z: lot.z + 1 }));
     } else around(lot);
+  }
+  // Every used lot must be reachable from its district's main crossing, where the district roads arrive: a lot whose
+  // streets do not join the rest (the first lot of an outer district, a building moved to a far lot by hand) gets
+  // the shortest way there along the lattice.
+  const node = (x: number, z: number) => `${x},${z}`;
+  const reach = (from: string): Set<string> => {
+    const next = new Map<string, string[]>();
+    const link = (a: string, b: string) => {
+      next.set(a, [...(next.get(a) ?? []), b]);
+      next.set(b, [...(next.get(b) ?? []), a]);
+    };
+    for (const key of h) {
+      const [x, z] = key.split(",").map(Number) as [number, number];
+      link(node(x, z), node(x + 1, z));
+    }
+    for (const key of v) {
+      const [x, z] = key.split(",").map(Number) as [number, number];
+      link(node(x, z), node(x, z + 1));
+    }
+    const seen = new Set([from]);
+    const queue = [from];
+    for (let at = queue.shift(); at !== undefined; at = queue.shift()) for (const to of next.get(at) ?? []) if (!seen.has(to)) queue.push((seen.add(to), to));
+    return seen;
+  };
+  for (const lot of lots) {
+    const slot = slotOf(lot);
+    if (!slotAllowed(slot)) continue;
+    const origin = slotOrigin(slot);
+    const cross = { x: origin.x + 1, z: origin.z + 1 };
+    const joined = reach(node(cross.x, cross.z));
+    if (joined.has(node(lot.x, lot.z)) || joined.has(node(lot.x + 1, lot.z + 1))) continue;
+    // From the lot's corner nearest the crossing: along z first, then along x.
+    const corner = { x: lot.x + (cross.x > lot.x ? 1 : 0), z: lot.z + (cross.z > lot.z ? 1 : 0) };
+    for (let z = Math.min(corner.z, cross.z); z < Math.max(corner.z, cross.z); z++) v.add(node(corner.x, z));
+    for (let x = Math.min(corner.x, cross.x); x < Math.max(corner.x, cross.x); x++) h.add(node(x, cross.z));
   }
   const cells = (set: Set<string>) => [...set].map((key) => key.split(",").map(Number) as [number, number]);
   const runs: Segment[] = [];

@@ -9,12 +9,18 @@ import type { Location } from "@crewhub/world-engine";
 import type { AgentKey, Intent, RoomKind, WorldModel } from "@crewhub/world-model";
 import { directorErrands, planIdle, planMovement, type Ambient, type ErrandReason, type Leg, type MovementIntent, type Place } from "./movement.ts";
 import { FLOOR_RISE } from "./buildingTemplate.ts";
-import { groundAt, NavWorld, POST_OFFICE_CELL, POSTMAN_PRIORITY, TOWN_HALL_CELL, TOWN_ROOM } from "./navigation.ts";
+import type { TownPlan } from "./townPlan.ts";
+import type { Bounds } from "./townLayout.ts";
+import { isTownRoom, NavWorld, POST_OFFICE_CELL, POSTMAN_PRIORITY, TOWN_HALL_CELL, TOWN_ROOM } from "./navigation.ts";
 
 export interface WalkOptions {
   entered: string | null;
   reducedMotion: boolean;
   ambient: Ambient;
+  /** Where the buildings stand (townPlan.ts); without one, each building stands where the allocation would put it. */
+  plan?: TownPlan;
+  /** The paving walkers keep to, in world units; without it, the plan's streets, roads, civic paths and garden paths. */
+  walkways?: readonly Bounds[];
 }
 
 /** What the renderer needs per walker, in world units. Reused objects: read them, do not keep them. */
@@ -95,7 +101,7 @@ export class Walks {
   update(model: WorldModel, options: WalkOptions): void {
     const optionsChanged = options.entered !== this.#options.entered || options.reducedMotion !== this.#options.reducedMotion;
     this.#options = options;
-    const sync = this.nav.sync(model.buildings);
+    const sync = this.nav.sync(model.buildings, options.plan, options.walkways);
     for (const slug of sync.removed)
       for (const [key, state] of this.#agents) if (state.building === slug && !this.nav.sim.actor(key)) this.#agents.delete(key);
     this.#applyDetail(optionsChanged);
@@ -459,7 +465,7 @@ export class Walks {
       sim.setDetail(ids, "offscreen");
       return;
     }
-    const full = new Set([TOWN_ROOM, ...(entered ? this.nav.rooms(entered) : [])]);
+    const full = new Set([...ids.filter(isTownRoom), ...(entered ? this.nav.rooms(entered) : [])]);
     sim.setDetail(ids.filter((id) => !full.has(id)), "offscreen");
     sim.setDetail([...full], "full");
   }
@@ -492,7 +498,7 @@ export class Walks {
         w.z = a.z;
       }
       // Inside a building the floor stands on the slab, above the lawn.
-      w.y = groundAt(w.x, w.z) + (actor.location.room === TOWN_ROOM ? 0 : FLOOR_RISE);
+      w.y = this.nav.groundAt(w.x, w.z) + (isTownRoom(actor.location.room) ? 0 : FLOOR_RISE);
       w.walking = actor.next !== null;
       if (actor.status === "moving" || actor.status === "waiting") moving = true;
       w.building = state?.building ?? null;
