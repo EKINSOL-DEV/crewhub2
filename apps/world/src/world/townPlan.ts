@@ -176,7 +176,8 @@ export function planTown(doc: Pick<TownDocument, "plots" | "districts">, buildin
     civic: civicStage(tier),
     landmarks,
     staked: tier === "clearing" && !used.has(lotKey(CENTRE_LOT)) ? CENTRE_LOT : null,
-    ground: groundExtent(tier, cells, landmarks),
+    // The ground also reaches every green whose block has begun, so a green never hangs over the edge.
+    ground: groundExtent(tier, [...cells, ...inUse.flatMap((d) => d.greens)], landmarks),
     streets: streets(tier, cells),
     roads: districtRoads(usedSlots),
     borders: districtBorders(usedSlots),
