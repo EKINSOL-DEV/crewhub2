@@ -1,0 +1,195 @@
+{
+  "format": "crewhub-figure/1",
+  "joints": [
+    { "id": "foot-l", "position": [-0.14, 0.06, 0.05] },
+    { "id": "foot-r", "position": [0.14, 0.06, 0.05] },
+    { "id": "pot", "position": [0, 0.1, 0] },
+    { "id": "eyes", "parent": "pot", "position": [0, 0.36, 0] },
+    { "id": "plant", "parent": "pot", "position": [0, 0.6, 0] },
+    { "id": "stem", "parent": "plant", "position": [0, 0, 0] },
+    { "id": "mid", "parent": "stem", "position": [0, 0.2, 0] },
+    { "id": "crown", "parent": "mid", "position": [0, 0.2, 0] }
+  ],
+  "parts": [
+    { "id": "foot-l", "joint": "foot-l", "shape": "sphere", "size": [0.1, 0.07, 0.13], "position": [0, 0, 0], "color": "clay-foot", "detail": "near" },
+    { "id": "foot-r", "joint": "foot-r", "shape": "sphere", "size": [0.1, 0.07, 0.13], "position": [0, 0, 0], "color": "clay-foot", "detail": "near" },
+    { "id": "pot", "joint": "pot", "shape": "cylinder", "size": [0.33, 0.5, 0.23], "position": [0, 0.25, 0], "color": "slot:clay" },
+    { "id": "rim", "joint": "pot", "shape": "cylinder", "size": [0.37, 0.12, 0.36], "position": [0, 0.54, 0], "color": "slot:rim" },
+    { "id": "band", "joint": "pot", "shape": "cylinder", "size": [0.287, 0.14, 0.258], "position": [0, 0.15, 0], "color": "slot:band" },
+    { "id": "soil", "joint": "pot", "shape": "cylinder", "size": [0.33, 0.02, 0.33], "position": [0, 0.6, 0], "color": "soil" },
+    { "id": "eye-l", "joint": "eyes", "shape": "sphere", "size": [0.042, 0.054, 0.02], "position": [-0.105, 0, 0.287], "color": "eye", "detail": "near" },
+    { "id": "eye-r", "joint": "eyes", "shape": "sphere", "size": [0.042, 0.054, 0.02], "position": [0.105, 0, 0.287], "color": "eye", "detail": "near" },
+    { "id": "shine-l", "joint": "eyes", "shape": "sphere", "size": [0.012, 0.014, 0.008], "position": [-0.093, 0.02, 0.304], "color": "eye-shine", "detail": "near" },
+    { "id": "shine-r", "joint": "eyes", "shape": "sphere", "size": [0.012, 0.014, 0.008], "position": [0.117, 0.02, 0.304], "color": "eye-shine", "detail": "near" },
+    { "id": "blush-l", "joint": "pot", "shape": "sphere", "size": [0.04, 0.026, 0.012], "position": [-0.2, 0.295, 0.212], "rotation": [0, -44, 0], "color": "blush", "detail": "near" },
+    { "id": "blush-r", "joint": "pot", "shape": "sphere", "size": [0.04, 0.026, 0.012], "position": [0.2, 0.295, 0.212], "rotation": [0, 44, 0], "color": "blush", "detail": "near" },
+
+    { "id": "l-trunk", "joint": "stem", "roles": ["lead"], "shape": "cylinder", "size": [0.04, 0.2, 0.055], "position": [0, 0.1, 0], "color": "bark" },
+    { "id": "l-trunk2", "joint": "mid", "roles": ["lead"], "shape": "cylinder", "size": [0.032, 0.2, 0.04], "position": [0, 0.1, 0], "color": "bark" },
+    { "id": "l-crown", "joint": "crown", "roles": ["lead"], "shape": "sphere", "size": [0.29, 0.22, 0.27], "position": [0, 0.17, 0], "color": "sprig-deep" },
+    { "id": "l-lobe-a", "joint": "crown", "roles": ["lead"], "shape": "sphere", "size": [0.19, 0.16, 0.19], "position": [-0.2, 0.1, 0.06], "color": "sprig" },
+    { "id": "l-lobe-b", "joint": "crown", "roles": ["lead"], "shape": "sphere", "size": [0.18, 0.15, 0.18], "position": [0.21, 0.15, -0.02], "color": "sprig" },
+    { "id": "l-top", "joint": "crown", "roles": ["lead"], "shape": "sphere", "size": [0.15, 0.13, 0.15], "position": [0.03, 0.33, 0.02], "color": "sprig" },
+    { "id": "l-bloom-a", "joint": "crown", "roles": ["lead"], "shape": "sphere", "size": [0.045, 0.045, 0.045], "position": [-0.2, 0.2, 0.2], "color": "slot:bloom", "detail": "near" },
+    { "id": "l-bloom-b", "joint": "crown", "roles": ["lead"], "shape": "sphere", "size": [0.045, 0.045, 0.045], "position": [0.17, 0.27, 0.15], "color": "slot:bloom", "detail": "near" },
+    { "id": "l-bloom-c", "joint": "crown", "roles": ["lead"], "shape": "sphere", "size": [0.045, 0.045, 0.045], "position": [0.03, 0.09, 0.265], "color": "slot:bloom", "detail": "near" },
+    { "id": "l-fruit", "joint": "crown", "roles": ["lead"], "activities": ["done"], "shape": "sphere", "size": [0.07, 0.07, 0.07], "position": [0.1, 0.43, 0.08], "color": "fruit" },
+    { "id": "l-ask", "joint": "crown", "roles": ["lead"], "waiting": true, "shape": "sphere", "size": [0.085, 0.095, 0.085], "position": [0.03, 0.52, 0.02], "color": "lantern", "glow": 0.7 },
+
+    { "id": "w-stem", "joint": "stem", "roles": ["worker"], "shape": "cylinder", "size": [0.028, 0.2, 0.036], "position": [0, 0.1, 0], "color": "stalk" },
+    { "id": "w-stem2", "joint": "mid", "roles": ["worker"], "shape": "cylinder", "size": [0.022, 0.2, 0.028], "position": [0, 0.1, 0], "color": "stalk" },
+    { "id": "w-leaf-a", "joint": "stem", "roles": ["worker"], "shape": "sphere", "size": [0.1, 0.03, 0.055], "position": [-0.1, 0.13, 0.01], "rotation": [0, 0, -30], "color": "sprig-deep", "detail": "near" },
+    { "id": "w-leaf-b", "joint": "mid", "roles": ["worker"], "shape": "sphere", "size": [0.14, 0.036, 0.075], "position": [0.135, 0.075, 0], "rotation": [0, 0, 28], "color": "sprig" },
+    { "id": "w-leaf-c", "joint": "crown", "roles": ["worker"], "shape": "sphere", "size": [0.2, 0.042, 0.105], "position": [-0.165, 0.085, 0], "rotation": [0, 0, -35], "color": "sprig" },
+    { "id": "w-leaf-d", "joint": "crown", "roles": ["worker"], "shape": "sphere", "size": [0.2, 0.042, 0.105], "position": [0.165, 0.105, 0], "rotation": [0, 0, 38], "color": "sprig-deep" },
+    { "id": "w-tip", "joint": "crown", "roles": ["worker"], "shape": "sphere", "size": [0.045, 0.08, 0.045], "position": [0, 0.07, 0], "color": "sprig", "detail": "near" },
+    { "id": "w-fruit", "joint": "crown", "roles": ["worker"], "activities": ["done"], "shape": "sphere", "size": [0.065, 0.065, 0.065], "position": [0, 0.15, 0.02], "color": "fruit" },
+    { "id": "w-ask", "joint": "crown", "roles": ["worker"], "waiting": true, "shape": "sphere", "size": [0.085, 0.095, 0.085], "position": [0, 0.2, 0], "color": "lantern", "glow": 0.7 },
+
+    { "id": "d-stem", "joint": "stem", "roles": ["design"], "shape": "cylinder", "size": [0.022, 0.2, 0.028], "position": [0, 0.1, 0], "color": "stalk" },
+    { "id": "d-stem2", "joint": "mid", "roles": ["design"], "shape": "cylinder", "size": [0.018, 0.26, 0.022], "position": [0, 0.13, 0], "color": "stalk" },
+    { "id": "d-leaf-a", "joint": "stem", "roles": ["design"], "shape": "sphere", "size": [0.12, 0.032, 0.065], "position": [0.11, 0.14, 0], "rotation": [0, 0, 30], "color": "sprig" },
+    { "id": "d-leaf-b", "joint": "mid", "roles": ["design"], "shape": "sphere", "size": [0.1, 0.03, 0.055], "position": [-0.1, 0.07, 0.01], "rotation": [0, 0, -28], "color": "sprig-deep", "detail": "near" },
+    { "id": "d-disc", "joint": "crown", "roles": ["design"], "shape": "cylinder", "size": [0.16, 0.02, 0.16], "position": [0, 0.1, 0.03], "rotation": [60, 0, 0], "color": "slot:petal" },
+    { "id": "d-petal-a", "joint": "crown", "roles": ["design"], "shape": "sphere", "size": [0.1, 0.06, 0.022], "position": [0.125, 0.1, 0.03], "rotation": [-30, 0, 0], "color": "slot:petal", "detail": "near" },
+    { "id": "d-petal-b", "joint": "crown", "roles": ["design"], "shape": "sphere", "size": [0.1, 0.06, 0.022], "position": [0.063, 0.194, -0.024], "rotation": [-30, 0, 60], "color": "slot:petal", "detail": "near" },
+    { "id": "d-petal-c", "joint": "crown", "roles": ["design"], "shape": "sphere", "size": [0.1, 0.06, 0.022], "position": [-0.063, 0.194, -0.024], "rotation": [-30, 0, 120], "color": "slot:petal", "detail": "near" },
+    { "id": "d-petal-d", "joint": "crown", "roles": ["design"], "shape": "sphere", "size": [0.1, 0.06, 0.022], "position": [-0.125, 0.1, 0.03], "rotation": [-30, 0, 0], "color": "slot:petal", "detail": "near" },
+    { "id": "d-petal-e", "joint": "crown", "roles": ["design"], "shape": "sphere", "size": [0.1, 0.06, 0.022], "position": [-0.063, 0.006, 0.084], "rotation": [-30, 0, 60], "color": "slot:petal", "detail": "near" },
+    { "id": "d-petal-f", "joint": "crown", "roles": ["design"], "shape": "sphere", "size": [0.1, 0.06, 0.022], "position": [0.063, 0.006, 0.084], "rotation": [-30, 0, 120], "color": "slot:petal", "detail": "near" },
+    { "id": "d-pollen", "joint": "crown", "roles": ["design"], "shape": "sphere", "size": [0.075, 0.075, 0.045], "position": [0, 0.11, 0.047], "rotation": [-30, 0, 0], "color": "pollen" },
+    { "id": "d-fruit", "joint": "mid", "roles": ["design"], "activities": ["done"], "shape": "sphere", "size": [0.06, 0.075, 0.06], "position": [0.09, 0.15, 0.03], "color": "slot:petal" },
+    { "id": "d-ask", "joint": "crown", "roles": ["design"], "waiting": true, "shape": "sphere", "size": [0.085, 0.095, 0.085], "position": [0, 0.33, -0.04], "color": "lantern", "glow": 0.7 },
+
+    { "id": "a-body", "joint": "stem", "roles": ["analyst"], "shape": "sphere", "size": [0.18, 0.2, 0.18], "position": [0, 0.14, 0], "color": "cactus" },
+    { "id": "a-head", "joint": "mid", "roles": ["analyst"], "shape": "sphere", "size": [0.15, 0.19, 0.15], "position": [0, 0.12, 0], "color": "cactus" },
+    { "id": "a-elbow-l", "joint": "stem", "roles": ["analyst"], "shape": "sphere", "size": [0.1, 0.05, 0.06], "position": [-0.17, 0.16, 0], "color": "cactus", "detail": "near" },
+    { "id": "a-arm-l", "joint": "stem", "roles": ["analyst"], "shape": "sphere", "size": [0.065, 0.11, 0.065], "position": [-0.235, 0.24, 0], "color": "cactus" },
+    { "id": "a-elbow-r", "joint": "mid", "roles": ["analyst"], "shape": "sphere", "size": [0.09, 0.045, 0.055], "position": [0.14, 0.08, 0], "color": "cactus", "detail": "near" },
+    { "id": "a-arm-r", "joint": "mid", "roles": ["analyst"], "shape": "sphere", "size": [0.055, 0.095, 0.055], "position": [0.2, 0.15, 0], "color": "cactus" },
+    { "id": "a-bloom", "joint": "crown", "roles": ["analyst"], "shape": "sphere", "size": [0.055, 0.04, 0.055], "position": [0, 0.115, 0], "color": "cactus-bloom" },
+    { "id": "a-fruit", "joint": "crown", "roles": ["analyst"], "activities": ["done"], "shape": "sphere", "size": [0.11, 0.05, 0.11], "position": [0, 0.125, 0], "color": "cactus-bloom" },
+    { "id": "a-ask", "joint": "crown", "roles": ["analyst"], "waiting": true, "shape": "sphere", "size": [0.085, 0.095, 0.085], "position": [0, 0.2, 0], "color": "lantern", "glow": 0.7 },
+
+    { "id": "p-stem", "joint": "stem", "roles": ["postman"], "shape": "cylinder", "size": [0.024, 0.2, 0.03], "position": [0, 0.1, 0], "color": "stalk" },
+    { "id": "p-stem2", "joint": "mid", "roles": ["postman"], "shape": "cylinder", "size": [0.02, 0.24, 0.024], "position": [0, 0.12, 0], "color": "stalk" },
+    { "id": "p-leaf", "joint": "stem", "roles": ["postman"], "shape": "sphere", "size": [0.12, 0.032, 0.065], "position": [-0.11, 0.14, 0], "rotation": [0, 0, -30], "color": "sprig" },
+    { "id": "p-horn", "joint": "crown", "roles": ["postman"], "shape": "cone", "size": [0.16, 0.28, 0], "position": [0, 0.08, 0.05], "rotation": [-115, 0, 0], "color": "horn" },
+    { "id": "p-mouth", "joint": "crown", "roles": ["postman"], "shape": "sphere", "size": [0.115, 0.115, 0.03], "position": [0, 0.139, 0.177], "rotation": [-25, 0, 0], "color": "pollen" },
+    { "id": "p-bag", "joint": "pot", "roles": ["postman"], "shape": "box", "size": [0.1, 0.2, 0.26], "position": [-0.36, 0.36, 0.02], "radius": 0.03, "color": "timber" },
+    { "id": "p-flap", "joint": "pot", "roles": ["postman"], "shape": "box", "size": [0.11, 0.08, 0.27], "position": [-0.365, 0.43, 0.02], "radius": 0.03, "color": "timber-light", "detail": "near" },
+    { "id": "p-letter-a", "joint": "pot", "roles": ["postman"], "carrying": true, "shape": "box", "size": [0.012, 0.1, 0.11], "position": [-0.35, 0.5, -0.05], "rotation": [12, 0, 0], "radius": 0.005, "color": "paper", "detail": "near" },
+    { "id": "p-letter-b", "joint": "pot", "roles": ["postman"], "carrying": true, "shape": "box", "size": [0.012, 0.1, 0.11], "position": [-0.37, 0.49, 0.06], "rotation": [-8, 0, 0], "radius": 0.005, "color": "cream", "detail": "near" },
+    { "id": "p-fruit", "joint": "mid", "roles": ["postman"], "activities": ["done"], "shape": "sphere", "size": [0.06, 0.06, 0.06], "position": [0.05, 0.1, 0.03], "color": "fruit" },
+    { "id": "p-ask", "joint": "crown", "roles": ["postman"], "waiting": true, "shape": "sphere", "size": [0.085, 0.095, 0.085], "position": [0, 0.3, -0.03], "color": "lantern", "glow": 0.7 },
+
+    { "id": "o-stem", "joint": "stem", "roles": ["operator"], "shape": "cylinder", "size": [0.026, 0.2, 0.034], "position": [0, 0.1, 0], "color": "bark" },
+    { "id": "o-stem2", "joint": "mid", "roles": ["operator"], "shape": "cylinder", "size": [0.022, 0.26, 0.026], "position": [0, 0.13, 0], "color": "bark", "detail": "near" },
+    { "id": "o-ball", "joint": "mid", "roles": ["operator"], "shape": "sphere", "size": [0.18, 0.17, 0.18], "position": [0, 0.08, 0], "color": "topiary" },
+    { "id": "o-top", "joint": "crown", "roles": ["operator"], "shape": "sphere", "size": [0.125, 0.12, 0.125], "position": [0, 0.13, 0], "color": "topiary" },
+    { "id": "o-finial", "joint": "crown", "roles": ["operator"], "shape": "sphere", "size": [0.035, 0.035, 0.035], "position": [0, 0.275, 0], "color": "brass", "detail": "near" },
+    { "id": "o-fruit", "joint": "mid", "roles": ["operator"], "activities": ["done"], "shape": "sphere", "size": [0.06, 0.06, 0.06], "position": [0.1, 0.18, 0.12], "color": "fruit" },
+    { "id": "o-ask", "joint": "crown", "roles": ["operator"], "waiting": true, "shape": "sphere", "size": [0.085, 0.095, 0.085], "position": [0, 0.34, 0], "color": "lantern", "glow": 0.7 },
+
+    { "id": "u-seed", "joint": "stem", "roles": ["unknown"], "shape": "sphere", "size": [0.065, 0.05, 0.09], "position": [0.02, 0.045, 0.04], "rotation": [0, 25, 12], "color": "seed" },
+    { "id": "u-shoot", "joint": "stem", "roles": ["unknown"], "shape": "sphere", "size": [0.016, 0.04, 0.016], "position": [0.03, 0.1, 0.03], "color": "shoot", "detail": "near" },
+    { "id": "u-fruit", "joint": "stem", "roles": ["unknown"], "activities": ["done"], "shape": "sphere", "size": [0.05, 0.016, 0.03], "position": [0.03, 0.14, 0.03], "rotation": [0, 0, 20], "color": "shoot" },
+    { "id": "u-ask", "joint": "stem", "roles": ["unknown"], "waiting": true, "shape": "sphere", "size": [0.05, 0.06, 0.05], "position": [0.03, 0.2, 0.03], "color": "lantern", "glow": 0.7 }
+  ],
+  "poses": {
+    "working": { "pot": { "rotation": [9, 0, 0] }, "stem": { "rotation": [5, 0, 0] }, "eyes": { "offset": [0, -0.015, 0] } },
+    "idle": { "pot": { "rotation": [-3, 0, 0] }, "stem": { "rotation": [0, 0, 5] }, "crown": { "rotation": [0, 0, -7] } },
+    "done": { "pot": { "rotation": [-9, 0, 0] }, "stem": { "rotation": [-4, 0, 0] }, "crown": { "rotation": [0, 0, 8] }, "eyes": { "offset": [0, 0.015, 0] } },
+    "blocked": {
+      "pot": { "rotation": [3, 0, -4], "scale": [1, 0.96, 1] },
+      "eyes": { "offset": [0, -0.03, 0], "scale": [1, 0.7, 1] },
+      "stem": { "rotation": [0, 0, 26] },
+      "mid": { "rotation": [0, 0, 42] },
+      "crown": { "rotation": [0, 0, 40] }
+    },
+    "stale": {
+      "eyes": { "scale": [1, 0.14, 1] },
+      "stem": { "rotation": [4, 0, 12] },
+      "mid": { "rotation": [0, 0, 16] },
+      "crown": { "rotation": [0, 0, 14] }
+    },
+    "walking": {
+      "pot": { "rotation": [6, 0, -3] },
+      "foot-l": { "offset": [0, 0.02, 0.04] },
+      "foot-r": { "offset": [0, 0, -0.04] },
+      "stem": { "rotation": [-4, 0, 3] }
+    },
+    "waiting": { "plant": { "scale": [1, 1.1, 1] }, "eyes": { "offset": [0, 0.02, 0] } },
+    "carrying": { "plant": { "rotation": [-12, 0, 0] } }
+  },
+  "motions": {
+    "always": [{ "joint": "eyes", "channel": "scale.y", "wave": "blink", "amplitude": -0.86, "period": 4.7, "seeded": true }],
+    "working": [
+      { "joint": "pot", "channel": "offset.y", "wave": "bounce", "amplitude": 0.012, "period": 1.1, "seeded": true },
+      { "joint": "mid", "channel": "rotation.z", "wave": "sine", "amplitude": 3, "period": 0.9, "seeded": true },
+      { "joint": "crown", "channel": "rotation.z", "wave": "sine", "amplitude": 4, "period": 0.45, "seeded": true },
+      { "joint": "pot", "channel": "rotation.y", "wave": "glance", "amplitude": 14, "period": 7.5, "seeded": true, "sided": true }
+    ],
+    "idle": [
+      { "joint": "pot", "channel": "rotation.z", "wave": "sine", "amplitude": 2, "period": 5.2, "seeded": true },
+      { "joint": "stem", "channel": "rotation.z", "wave": "sine", "amplitude": 4, "period": 4, "seeded": true },
+      { "joint": "crown", "channel": "rotation.z", "wave": "sine", "amplitude": 5, "period": 3.1, "seeded": true },
+      { "joint": "pot", "channel": "rotation.y", "wave": "glance", "amplitude": 22, "period": 6.5, "seeded": true, "sided": true }
+    ],
+    "done": [
+      { "joint": "pot", "channel": "offset.y", "wave": "bounce", "amplitude": 0.01, "period": 2.4, "seeded": true },
+      { "joint": "crown", "channel": "rotation.z", "wave": "sine", "amplitude": 6, "period": 2.6, "seeded": true }
+    ],
+    "blocked": [
+      { "joint": "mid", "channel": "rotation.z", "wave": "sine", "amplitude": 3, "period": 3.6, "seeded": true },
+      { "joint": "pot", "channel": "scale.y", "wave": "glance", "amplitude": -0.035, "period": 5.5, "seeded": true }
+    ],
+    "walking": [
+      { "joint": "pot", "channel": "rotation.z", "wave": "sine", "amplitude": 8, "period": 0.7, "seeded": true },
+      { "joint": "pot", "channel": "offset.y", "wave": "bounce", "amplitude": 0.04, "period": 0.7, "seeded": true },
+      { "joint": "foot-l", "channel": "offset.y", "wave": "lift", "amplitude": 0.07, "period": 0.7, "seeded": true },
+      { "joint": "foot-l", "channel": "offset.z", "wave": "sine", "amplitude": 0.08, "period": 0.7, "phase": 0.75, "seeded": true },
+      { "joint": "foot-r", "channel": "offset.y", "wave": "lift", "amplitude": 0.07, "period": 0.7, "phase": 0.5, "seeded": true },
+      { "joint": "foot-r", "channel": "offset.z", "wave": "sine", "amplitude": 0.08, "period": 0.7, "phase": 0.25, "seeded": true },
+      { "joint": "stem", "channel": "rotation.z", "wave": "sine", "amplitude": 7, "period": 0.7, "phase": 0.6, "seeded": true },
+      { "joint": "crown", "channel": "rotation.z", "wave": "sine", "amplitude": 6, "period": 0.7, "phase": 0.75, "seeded": true }
+    ],
+    "waiting": [
+      { "joint": "crown", "channel": "rotation.z", "wave": "sine", "amplitude": 11, "period": 0.9 },
+      { "joint": "plant", "channel": "offset.y", "wave": "bounce", "amplitude": 0.025, "period": 1.2 }
+    ]
+  },
+  "looks": {
+    "working": {
+      "parts": {
+        "l-lobe-a": { "glow": 0.07 }, "l-lobe-b": { "glow": 0.07 }, "l-top": { "glow": 0.07 },
+        "w-leaf-b": { "glow": 0.07 }, "w-leaf-c": { "glow": 0.07 }, "w-leaf-d": { "glow": 0.07 },
+        "d-disc": { "glow": 0.07 }, "d-pollen": { "glow": 0.3 },
+        "a-bloom": { "glow": 0.3 }, "a-head": { "glow": 0.07 },
+        "p-mouth": { "glow": 0.3 }, "o-top": { "glow": 0.07 }, "u-shoot": { "glow": 0.3 }
+      }
+    },
+    "blocked": {
+      "parts": {
+        "l-crown": { "color": "wilt-deep" }, "l-lobe-a": { "color": "wilt" }, "l-lobe-b": { "color": "wilt" }, "l-top": { "color": "wilt" },
+        "w-leaf-a": { "color": "wilt-deep" }, "w-leaf-b": { "color": "wilt" }, "w-leaf-c": { "color": "wilt" }, "w-leaf-d": { "color": "wilt-deep" }, "w-tip": { "color": "wilt" },
+        "d-leaf-a": { "color": "wilt" }, "d-leaf-b": { "color": "wilt-deep" }, "d-pollen": { "color": "wilt-deep" },
+        "a-body": { "color": "wilt-deep" }, "a-head": { "color": "wilt" }, "a-arm-l": { "color": "wilt" }, "a-arm-r": { "color": "wilt" }, "a-elbow-l": { "color": "wilt" }, "a-elbow-r": { "color": "wilt" },
+        "p-leaf": { "color": "wilt" }, "p-mouth": { "color": "wilt-deep" },
+        "o-ball": { "color": "wilt-deep" }, "o-top": { "color": "wilt" }
+      }
+    },
+    "alert": { "parts": { "rim": { "color": "alert", "glow": 0.45 } } },
+    "hover": { "parts": { "pot": { "glow": 0.1 }, "rim": { "glow": 0.1 } } },
+    "selected": { "parts": { "pot": { "glow": 0.18 }, "rim": { "glow": 0.18 } } }
+  },
+  "halo": "lantern",
+  "colorways": {
+    "clay": { "others": ["clay-a", "clay-b", "clay-c"] },
+    "rim": { "lead": "accent", "others": ["clay-rim"] },
+    "band": { "lead": "accent", "roles": { "worker": "accent", "design": "accent", "analyst": "accent", "unknown": "accent", "postman": "coral", "operator": "brass" }, "others": ["glaze-cream", "glaze-sky", "glaze-olive"] },
+    "petal": { "others": ["petal-pink", "petal-cream", "petal-violet", "petal-sun"] },
+    "bloom": { "lead": "accent", "others": ["petal-cream"] }
+  },
+  "anchors": { "label": [0, 1.72, 0], "carry": [0, 0.78, 0.2], "ground": 0.36, "height": 1.62 }
+}
