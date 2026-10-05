@@ -213,6 +213,12 @@ test("the text view lists placements, user props with provenance and failed requ
 test("zones, assignments and districts are additive: a document without them stays valid, with them it round-trips", () => {
   const plain = builtTown();
   assert.ok(!("zones" in plain) && !("assignments" in plain) && !("districts" in plain));
+  // An entry may only dress a zone that comes from elsewhere (a group's id, or the default zone): only the id is required.
+  assert.ok(applyEdit(plain, { type: "set-zone", zone: { id: "default", look: { castId: "sprouts" } } }, CONTEXT).ok);
+  const dressed = edit(edit(plain, { type: "set-style-options", options: { season: "summer" } }), { type: "set-style-options", slug: "crewhub", options: { planting: "orchard" } });
+  assert.deepEqual([dressed.styleOptions, dressed.plots[0]?.styleOptions], [{ season: "summer" }, { planting: "orchard" }]);
+  const bare = edit(edit(dressed, { type: "set-style-options", options: null }), { type: "set-style-options", slug: "crewhub", options: {} });
+  assert.ok(!("styleOptions" in bare) && !("styleOptions" in bare.plots[0]!));
   let doc = edit(plain, { type: "set-zone", zone: { id: "studio", name: "Studio", order: 1, color: "coral", emblem: "spark", look: { styleOptions: { season: "spring" }, castId: "potlings" } } });
   doc = edit(doc, { type: "allocate", plots: [{ slug: "alpha", cell: { x: 64, z: 64 } }, { slug: "beta", cell: { x: 71, z: 63 }, zoneId: "studio" }], districts: [{ zoneId: "default", slot: { x: 0, z: 0 } }, { zoneId: "studio", slot: { x: 1, z: 0 } }] });
   doc = edit(doc, { type: "assign", slug: "beta", zoneId: "studio" });

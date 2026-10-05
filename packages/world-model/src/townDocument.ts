@@ -11,11 +11,11 @@
 import { PROP_ID_PATTERN, validatePropModel } from "@crewhub/world-engine";
 import type { PropModel, PropValidation, Rotation } from "@crewhub/world-engine";
 import type { ProjectColor, ProjectIcon, RoomKind } from "./model.ts";
+import { DEFAULT_ZONE_ID } from "./zones.ts";
+import type { TownZone } from "./zones.ts";
 
 export const TOWN_FORMAT = "crewhub-town/1";
 export const DEFAULT_STYLE_ID = "greenhouse";
-/** The zone of every project that no assignment and no group puts elsewhere. It is never stored in `zones`. */
-export const DEFAULT_ZONE_ID = "default";
 
 /** Rule props: attachments made from facts (plan 6.3), each switchable in the rules table. */
 export const RULE_IDS = ["milestone-banner", "release-crate", "deploy-sticker", "bug-jar", "release-trophy"] as const;
@@ -54,6 +54,8 @@ export interface Plot {
   zoneId?: string;
   /** Per-plot style; absent means the town default. No UI yet. */
   styleId?: string;
+  /** Per-plot style options; they win over the zone's and the town's. Absent means none. */
+  styleOptions?: Record<string, string>;
   /** Per-plot cast (the figures that stand for this building's agents); absent means the town's. No UI yet. */
   castId?: string;
 }
@@ -73,22 +75,6 @@ export interface PlacedProp {
   cell: GridCell;
   rotation: Rotation;
   attachment?: Attachment;
-}
-/** A zone's look, most specific first in the resolution: building, zone, viewer, town, style. All optional. */
-export interface TownZoneLook {
-  styleId?: string;
-  /** Style options by name (season, planting, ...); a style ignores the ones it does not know. */
-  styleOptions?: Record<string, string>;
-  castId?: string;
-}
-/** A zone the town defines itself (build mode), or the town's overrides for a zone that comes from a group. */
-export interface TownZone {
-  id: string;
-  name: string | null;
-  order: number;
-  color: ProjectColor | null;
-  emblem: ProjectIcon | null;
-  look: TownZoneLook;
 }
 /** A district's place on the coarse lattice of district cells; `{ x: 0, z: 0 }` is the central district. */
 export interface DistrictSlot {
@@ -116,7 +102,12 @@ export interface TownDocument {
    */
   castId?: string;
   plots: Plot[];
-  /** The zones the town defines or overrides, in no particular order (`order` sorts them). Absent means none. */
+  /** The town's style options (season, planting, ...); a zone's and a plot's win over them. Absent means the style's defaults. */
+  styleOptions?: Record<string, string>;
+  /**
+   * The zones the town defines itself, and its entries for zones that come from elsewhere: an entry with a group's
+   * id or the default zone's dresses that zone (`zones.ts`). Only `id` is required. Absent means none.
+   */
   zones?: TownZone[];
   /** Manual zone assignments, project slug to zone id; they win over a group from the source. Absent means none. */
   assignments?: Record<string, string>;
@@ -175,6 +166,8 @@ export type TownEdit =
   | { type: "move-plot"; slug: string; cell: GridCell; zoneId?: string; districts?: District[] }
   /** A manual zone assignment; null removes it, so the group or the default zone decides again. The plot stays put. */
   | { type: "assign"; slug: string; zoneId: string | null }
+  /** The style options of one plot (`slug`) or of the town; null or an empty object clears them. */
+  | { type: "set-style-options"; slug?: string; options: Record<string, string> | null }
   /** Adds a zone, or replaces the one with the same id. */
   | { type: "set-zone"; zone: TownZone }
   /** Removes a zone and the manual assignments to it. Buildings and districts stay where they stand. */
@@ -203,8 +196,8 @@ const ZONE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9:._-]{0,127}$/;
 const OPTION_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const DOC_KEYS = ["format", "revision", "styleId", "plots", "placements", "userProps", "rules"] as const;
 /** Additive keys of `crewhub-town/1`: a document without them is as valid as before. */
-const OPTIONAL_DOC_KEYS = ["castId", "zones", "assignments", "districts"] as const;
-const PLOT_KEYS = ["slug", "cell", "zoneId", "styleId", "castId"] as const;
+const OPTIONAL_DOC_KEYS = ["castId", "styleOptions", "zones", "assignments", "districts"] as const;
+const PLOT_KEYS = ["slug", "cell", "zoneId", "styleId", "styleOptions", "castId"] as const;
 const ZONE_KEYS = ["id", "name", "order", "color", "emblem", "look"] as const;
 const PLACEMENT_KEYS = ["id", "propId", "at", "cell", "rotation", "attachment"] as const;
 
@@ -258,6 +251,14 @@ export function validateTownDocument(value: unknown, context: TownContext): Town
 
   if (!isObject(value)) return { ok: false, errors: [{ path: "(root)", message: "a town document must be a JSON object" }] };
   unknownKeys(value, [...DOC_KEYS, ...OPTIONAL_DOC_KEYS], "");
+  // Which options a style has is the style's to say (it ignores the rest); here they only have to be well-formed.
+  const options = (v: unknown, path: string) => {
+    if (!isObject(v)) return error(path, "must be an object of option names and values");
+    for (const [name, option] of Object.entries(v))
+      if (!OPTION_PATTERN.test(name) || name.length > REF_MAX || typeof option !== "string" || !OPTION_PATTERN.test(option) || option.length > REF_MAX)
+        error(at(path, name), "an option's name and value must be lowercase letters, digits and dashes");
+  };
+  if ("styleOptions" in value) options(value.styleOptions, "styleOptions");
   const zoneId = (v: unknown, path: string) => {
     if (typeof v !== "string" || !ZONE_ID_PATTERN.test(v)) error(path, "must be a zone id (letters, digits, and : . _ -)");
   };
@@ -290,6 +291,7 @@ export function validateTownDocument(value: unknown, context: TownContext): Town
       }
       if ("zoneId" in plot) zoneId(plot.zoneId, at(path, "zoneId"));
       if ("styleId" in plot) style(plot.styleId, at(path, "styleId"));
+      if ("styleOptions" in plot) options(plot.styleOptions, at(path, "styleOptions"));
       if ("castId" in plot) cast(plot.castId, at(path, "castId"));
     });
   }
@@ -300,15 +302,15 @@ export function validateTownDocument(value: unknown, context: TownContext): Town
       const path = at("zones", i);
       if (!isObject(zone)) return error(path, "must be an object");
       unknownKeys(zone, ZONE_KEYS, path);
-      for (const key of ZONE_KEYS) if (!(key in zone)) error(at(path, key), "is required");
-      if ("id" in zone) {
+      if (!("id" in zone)) error(at(path, "id"), "is required");
+      else {
         zoneId(zone.id, at(path, "id"));
         if (ids.has(zone.id as string)) error(at(path, "id"), `duplicate zone "${String(zone.id)}"`);
         ids.add(zone.id as string);
       }
       if ("name" in zone && zone.name !== null && (typeof zone.name !== "string" || zone.name.trim() === "" || zone.name.length > REF_MAX))
         error(at(path, "name"), `must be null or a name of at most ${REF_MAX} characters`);
-      if ("order" in zone && !Number.isFinite(zone.order)) error(at(path, "order"), "must be a number");
+      if ("order" in zone && (typeof zone.order !== "number" || !Number.isFinite(zone.order))) error(at(path, "order"), "must be a number");
       if ("color" in zone && zone.color !== null && !ZONE_COLORS.includes(zone.color as ProjectColor))
         error(at(path, "color"), `must be null or one of ${ZONE_COLORS.join(", ")}`);
       if ("emblem" in zone && zone.emblem !== null && !ZONE_EMBLEMS.includes(zone.emblem as ProjectIcon))
@@ -320,15 +322,7 @@ export function validateTownDocument(value: unknown, context: TownContext): Town
         unknownKeys(look, ["styleId", "styleOptions", "castId"], lookPath);
         if ("styleId" in look) style(look.styleId, at(lookPath, "styleId"));
         if ("castId" in look) cast(look.castId, at(lookPath, "castId"));
-        if ("styleOptions" in look) {
-          const options = look.styleOptions,
-            optionsPath = at(lookPath, "styleOptions");
-          if (!isObject(options)) return error(optionsPath, "must be an object of option names and values");
-          // Which options a style has is the style's to say (it ignores the rest); here they only have to be well-formed.
-          for (const [name, option] of Object.entries(options))
-            if (!OPTION_PATTERN.test(name) || name.length > REF_MAX || typeof option !== "string" || !OPTION_PATTERN.test(option) || option.length > REF_MAX)
-              error(at(optionsPath, name), "an option's name and value must be lowercase letters, digits and dashes");
-        }
+        if ("styleOptions" in look) options(look.styleOptions, at(lookPath, "styleOptions"));
       }
     });
   }
@@ -535,6 +529,8 @@ export function applyEdit(doc: TownDocument, edit: TownEdit, context: TownContex
       if (castId !== undefined) plot.castId = castId;
       const zone = doc.plots.find((p) => p.slug === edit.slug)?.zoneId;
       if (zone !== undefined) plot.zoneId = zone;
+      const styleOptions = doc.plots.find((p) => p.slug === edit.slug)?.styleOptions;
+      if (styleOptions !== undefined) plot.styleOptions = styleOptions;
       const plots = doc.plots.some((p) => p.slug === edit.slug)
         ? doc.plots.map((p) => (p.slug === edit.slug ? plot : p))
         : [...doc.plots, plot];
@@ -568,6 +564,21 @@ export function applyEdit(doc: TownDocument, edit: TownEdit, context: TownContex
       if (edit.zoneId === null) return had === undefined ? { ok: false, error: `${edit.slug} has no manual zone.` } : layout({ assignments: others });
       return layout({ assignments: { ...others, [edit.slug]: edit.zoneId } });
     }
+    case "set-style-options": {
+      const set = edit.options && Object.keys(edit.options).length ? { styleOptions: { ...edit.options } } : {};
+      if (edit.slug === undefined) {
+        const { styleOptions: _, ...rest } = doc;
+        return layout({ ...set }, rest);
+      }
+      if (!doc.plots.some((p) => p.slug === edit.slug)) return { ok: false, error: `No plot for ${edit.slug}.` };
+      return layout({
+        plots: doc.plots.map((p) => {
+          if (p.slug !== edit.slug) return p;
+          const { styleOptions: _, ...rest } = p;
+          return { ...rest, ...set };
+        }),
+      });
+    }
     case "set-zone": {
       const zone = structuredClone(edit.zone);
       const zones = doc.zones ?? [];
@@ -583,8 +594,8 @@ export function applyEdit(doc: TownDocument, edit: TownEdit, context: TownContex
   }
 
   /** A layout patch (plots, zones, assignments, districts), validated as a whole; empty optional parts are left out. */
-  function layout(patch: Partial<TownDocument>): EditResult {
-    const merged: TownDocument = { ...doc, ...patch };
+  function layout(patch: Partial<TownDocument>, base: TownDocument = doc): EditResult {
+    const merged: TownDocument = { ...base, ...patch };
     if (merged.zones && !merged.zones.length) delete merged.zones;
     if (merged.districts && !merged.districts.length) delete merged.districts;
     if (merged.assignments && !Object.keys(merged.assignments).length) delete merged.assignments;
@@ -599,6 +610,7 @@ function plotOf(lot: PlotLot, previous?: Plot): Plot {
   const plot: Plot = { slug: lot.slug, cell: { x: lot.cell.x, z: lot.cell.z } };
   if (lot.zoneId !== undefined && lot.zoneId !== DEFAULT_ZONE_ID) plot.zoneId = lot.zoneId;
   if (previous?.styleId !== undefined) plot.styleId = previous.styleId;
+  if (previous?.styleOptions !== undefined) plot.styleOptions = previous.styleOptions;
   if (previous?.castId !== undefined) plot.castId = previous.castId;
   return plot;
 }
