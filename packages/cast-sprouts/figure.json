@@ -61,8 +61,6 @@
     { "id": "puff-b", "joint": "crown", "roles": ["postman"], "shape": "sphere", "size": [0.09, 0.09, 0.09], "position": [-0.12, 0.31, 0.07], "color": "sprout-fluff" },
     { "id": "puff-c", "joint": "crown", "roles": ["postman"], "shape": "sphere", "size": [0.09, 0.09, 0.09], "position": [0.0, 0.37, -0.05], "color": "sprout-fluff", "detail": "near" },
     { "id": "puff-d", "joint": "crown", "roles": ["postman"], "shape": "sphere", "size": [0.09, 0.09, 0.09], "position": [-0.03, 0.2, 0.15], "color": "sprout-fluff", "detail": "near" },
-    { "id": "puff-e", "joint": "crown", "roles": ["postman"], "shape": "sphere", "size": [0.09, 0.09, 0.09], "position": [0.05, 0.24, -0.15], "color": "sprout-fluff", "detail": "near" },
-    { "id": "puff-f", "joint": "crown", "roles": ["postman"], "shape": "sphere", "size": [0.09, 0.09, 0.09], "position": [-0.02, 0.09, 0.03], "color": "sprout-fluff", "detail": "near" },
     { "id": "seed-a", "joint": "crown", "roles": ["postman"], "shape": "sphere", "size": [0.03, 0.03, 0.03], "position": [0.27, 0.42, -0.06], "color": "sprout-fluff", "detail": "near" },
     { "id": "seed-b", "joint": "crown", "roles": ["postman"], "shape": "sphere", "size": [0.022, 0.022, 0.022], "position": [0.36, 0.52, -0.12], "color": "sprout-fluff", "detail": "near" },
     { "id": "satchel", "joint": "body", "roles": ["postman"], "shape": "box", "size": [0.09, 0.17, 0.22], "radius": 0.03, "position": [-0.31, 0.24, 0.03], "rotation": [0, 0, -8], "color": "timber" },
@@ -181,7 +179,7 @@
         "tree-top": { "glow": 0.55 }, "tree-left": { "glow": 0.55 }, "tree-right": { "glow": 0.55 },
         "petal-0": { "glow": 0.55 }, "petal-1": { "glow": 0.55 }, "petal-2": { "glow": 0.55 }, "petal-3": { "glow": 0.55 }, "petal-4": { "glow": 0.55 }, "petal-5": { "glow": 0.55 }, "flower-heart": { "glow": 0.7 },
         "cap": { "glow": 0.55 },
-        "puff": { "glow": 0.45 }, "puff-a": { "glow": 0.45 }, "puff-b": { "glow": 0.45 }, "puff-c": { "glow": 0.45 }, "puff-d": { "glow": 0.45 }, "puff-e": { "glow": 0.45 }, "puff-f": { "glow": 0.45 },
+        "puff": { "glow": 0.45 }, "puff-a": { "glow": 0.45 }, "puff-b": { "glow": 0.45 }, "puff-c": { "glow": 0.45 }, "puff-d": { "glow": 0.45 },
         "reed-head": { "glow": 0.5 }, "reed-blade": { "glow": 0.55 }, "reed-blade-small": { "glow": 0.55 },
         "seed-leaf-left": { "glow": 0.5 }, "seed-leaf-right": { "glow": 0.5 }
       }
@@ -189,7 +187,7 @@
   },
   "halo": "sprout-light",
   "colorways": {
-    "bean": { "roles": { "unknown": "bean-seed" }, "others": ["bean-pea", "bean-butter", "bean-rose", "bean-lilac"] },
+    "bean": { "roles": { "unknown": "bean-seed" }, "others": ["bean-pea", "bean-butter", "bean-sky", "bean-lilac", "bean-rose"] },
     "growth": { "lead": "accent", "roles": { "worker": "accent", "design": "accent", "analyst": "accent", "operator": "accent" }, "others": ["leaf-fresh", "leaf-teal", "leaf-gold"] }
   },
   "anchors": { "label": [0, 1.62, 0], "carry": [0, 0.42, 0.34], "ground": 0.3, "height": 1.6 }
