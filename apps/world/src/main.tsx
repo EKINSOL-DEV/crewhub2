@@ -7,8 +7,10 @@ import { createRoot } from "react-dom/client";
 import { ThemeProvider } from "./state/theme";
 
 const App = lazy(() => import("./App").then(({ App }) => ({ default: App })));
-// Review-only route (not linked from the UI): the prop-builder examples drawn by the parts renderer.
-const Page = window.location.pathname.replace(/\/$/, "") === "/props-preview" ? lazy(() => import("./PropsPreview")) : App;
+// Two side pages, each loaded only when asked for: the prop-builder examples drawn by the parts renderer (review only,
+// not linked from the UI) and the casting room (linked from Settings).
+const path = window.location.pathname.replace(/\/$/, "");
+const Page = path === "/props-preview" ? lazy(() => import("./PropsPreview")) : path === "/cast-preview" ? lazy(() => import("./CastPreview")) : App;
 
 const root = document.getElementById("root");
 if (!root) throw new Error("The application root is missing.");
