@@ -91,8 +91,10 @@ test("the home view frames what exists: the building for a hamlet, the settlemen
     region = frame(20, 4);
   assert.ok(holds(clearing, lotBounds(CENTRE_LOT)) && holds(clearing, post), "a clearing shows the lodge, the mailbox and the staked plot");
   assert.ok(holds(hamlet, lotBounds(CENTRE_LOT)), "a hamlet shows its building");
-  assert.ok(!holds(hamlet, post) && hamlet.minZ < post.maxZ, "and only the front of the mail hut's lot");
+  assert.ok(!holds(hamlet, post), "not a map of the civic row");
   assert.ok(hamlet.maxZ - hamlet.minZ < clearing.maxZ - clearing.minZ, "so the building fills the picture");
+  const centre = lotBounds(CENTRE_LOT);
+  assert.equal(hamlet.minX + hamlet.maxX, centre.minX + centre.maxX, "and stands in its middle");
   assert.ok(holds(village, post) && width(village) > width(hamlet));
   assert.ok(width(twelve) > width(village) && width(region) > 1.5 * width(twelve));
   for (const all of [projects(4), projects(12), projects(20, 4)]) {
