@@ -497,6 +497,7 @@ export function settlementDressing(plan: DressPlan): Dressing[] {
       add("town.bunting", SQUARE.x, GRASS_Y, z, { size: { width: half * 2, height: 3.4, depth: 0.1 }, seed: Math.round(z) });
     }
   }
+  features(add, out, plan, free);
   countryside(add, plan, tree, free);
   belt(add, g, tree, free, small(plan.tier) ? 2 : 1);
   const area = (g.maxX - g.minX) * (g.maxZ - g.minZ);
@@ -968,6 +969,24 @@ function streets(add: Add, plan: DressPlan, free: (x: number, z: number, pad: nu
     const pick = Math.floor(noise(lot.centre.x, lot.centre.z, 203) * 12);
     if (pick % 3 === 1 && free(x, z, 0.3)) add("town.bike-rack", x, GRASS_Y, z, { rotation: 0 });
     if (pick % 4 === 2 && free(x + 2, z, 0.3)) add("crate", x + 2, GRASS_Y, z, { scale: 1.2, rotation: 0.4 });
+  }
+}
+
+/**
+ * What stands between the buildings: `town.feature` on the verge in front of each used lot, either side of its garden
+ * path, facing the lane. The key is the planting's to fill (a stall, a ladder and crates, a little pool, a beehive); a
+ * style or a look with nothing to say leaves the grass. Kept clear of the lanterns, trees and benches.
+ */
+function features(add: Add, placed: readonly Dressing[], plan: DressPlan, free: (x: number, z: number, pad: number) => boolean) {
+  const taken = placed.filter((d) => /^town\.(lantern|oak|birch|pine|bench|bike-rack|signpost)$|^crate$/.test(d.key));
+  for (const lot of plan.lots) {
+    const c = lot.centre;
+    const z = c.z + PLOT_SIZE / 2 + (PITCH - PLOT_SIZE - LANE) / 4;
+    for (const [k, dx] of [-6.5, 6.5, -11].entries()) {
+      const x = clamp(lot.door.x + dx, c.x - PLOT_SIZE / 2 + 1.5, c.x + PLOT_SIZE / 2 - 1.5);
+      if (Math.abs(x - lot.door.x) < 3 || !free(x, z, 0.6) || taken.some((d) => Math.hypot(d.x - x, d.z - z) < 1.7)) continue;
+      add("town.feature", x, GRASS_Y, z, { seed: (lot.seed ?? lot.index) * 3 + k });
+    }
   }
 }
 
