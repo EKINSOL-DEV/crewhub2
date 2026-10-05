@@ -45,11 +45,13 @@ Every style declares a manifest (for Greenhouse: `packages/style-greenhouse/styl
 | `description` | One or two sentences. |
 | `coveredKeys` | The semantic model keys the style provides. A test checks it equals what the style actually draws. |
 | `workSurfaces` | Optional. The tops figures work at, by model key: see "Perches" in the Casts chapter. |
+| `options` | Optional. The choices the style offers within its own look: see "Style options and zone looks". |
 | `palette` | A colour for every palette name (below). |
 | `lighting` | A `LightingPreset` per theme, `day` and `lamplight`, and optionally the drift lights `dawn`, `dusk` and `night`: sky, ground and key/fill lights, exposure, the blob shadows' opacity, the lamps' `glow`, the warm light `pools`, how far into the `evening` the light is (0 by day, 1 with every lamp lit) and the `air` behind the diorama with its `airTint` (the share of the theme's own air it replaces). |
 
 A style may keep more data in its manifest file. Greenhouse adds `swatches` (named colours internal to the style:
-walls, lawn, robot parts) and `lamplightSwatches` (the swatches that change under lamplight).
+walls, lawn, robot parts), `lamplightSwatches` (the swatches that change under lamplight), and `looks`, `materialSets`
+and `beds` (what each option value changes: see "Style options and zone looks").
 
 ## Palette names
 
@@ -271,6 +273,132 @@ Rules:
 - Collision comes from footprints, never from meshes.
 - Status is never colour alone: the style draws shapes (two flags for urgent, straps for blocked, a raised hand), and
   the HTML labels carry the words.
+
+## Style options and zone looks
+
+A style is one art direction, and within it a style may offer choices: a season, what is planted, an accent colour,
+the kind of lantern. These are **style options**. They are data in the manifest, a person picks them per zone (or per
+building, for the whole town, or for their own browser), and a district dressed in other picks is still the same
+style: the same models, light and effects. This is how two districts of one town look different today, while a
+second full style is still out of scope.
+
+### The format
+
+`StyleManifest.options` is a list. Ids are the style's own; names and descriptions are what a person reads.
+
+```json
+"options": [
+  {
+    "id": "season",
+    "name": "Season",
+    "description": "The time of year in the gardens and on the lawns.",
+    "default": "october",
+    "values": [
+      { "id": "october", "name": "October", "description": "Turning leaves, pumpkins by the gates." },
+      { "id": "spring", "name": "Spring" },
+      { "id": "summer", "name": "Summer" }
+    ]
+  }
+]
+```
+
+Picked values are a plain record by option id (`StyleOptionValues`, for example
+`{ "season": "spring", "planting": "orchard" }`). That record is what a zone's look, a plot and the town document
+store as `styleOptions`.
+
+**A style ignores what it does not know.** Picks are written for one style and may be read by another: a zone keeps
+its picks when the town changes style, and a document may come from a newer version of a style. An option id the
+style does not declare is dropped, and so is a value id the option does not have; the option then takes the next
+layer's pick, or its default. `resolveStyleOptions(manifest, ...layers)` in `@crewhub/world-style` does exactly this
+and returns one value for every declared option. A style with no `options` has one look, and every pick is ignored.
+
+### How a renderer gets a look
+
+`WorldStyle.withOptions(values)` returns the same style dressed in those values. The result is a `WorldStyle` again:
+`model`, `parts` and `color` are the look's, while the theme, the light, the quality and `dispose` stay the style's
+own, so every look follows the one environment and the day-night drift. Renderers therefore need nothing new: they
+keep asking for models by key and get the look's.
+
+In the app the registry does the resolving and keeps one instance per set of values:
+
+```ts
+const style = styleRegistry.styleFor(plot, picks); // or style.withOptions(picks)
+style.options;                                     // one value for every declared option
+style.model("town.lantern");                       // the look's lantern
+```
+
+The default values are the style as it stands (`withOptions` returns the same object), so a town that never picks
+an option draws exactly what it drew before.
+
+A style keeps a look cheap by sharing: pieces the values do not change must use the same geometry and materials in
+every look. Then a district in another look costs draw calls only for the materials that differ, and everything
+else still instances and merges with the rest of the town (see "What batches").
+
+### How a zone's look resolves
+
+Look resolves from the most specific to the most general, per option:
+
+1. the **building** (its plot's `styleOptions`),
+2. its **zone** (`Zone.look.styleOptions`),
+3. the **viewer** (Settings, kept in the browser),
+4. the **town** (the town document's `styleOptions`),
+5. the **style's default** for that option.
+
+It is the same order as for the style id and the cast, and it lives in one place: `apps/world/src/world/look.ts`
+(pure) and `worldLook.ts` (`buildingLook`, `zoneLook`, `townLook`). Each option resolves on its own, so a zone may
+set only the season and inherit the town's lanterns. What wears which look:
+
+| Drawn | Look |
+| --- | --- |
+| A building: shell, rooms, furniture, decor | `buildingLook`: the building's picks first |
+| A district's ground, planting, lanterns, gate | `zoneLook`: the zone's picks first |
+| Everything outside a district, and the civic buildings | `townLook`: the viewer's picks first |
+
+The scene takes each district's ground and picks as `TownLooks` (`apps/world/src/world/townLooks.ts`): every piece
+of dressing wears the look of the district it stands in, and each district gets a sheet of its look's own grass
+(`town.turf`) on the town's ground. To see a look without a zone, the address bar previews one:
+`?look=season:spring,planting:orchard` dresses the whole town, and `?looks=season:spring|season:summer,planting:market`
+lays looks side by side as bands from west to east.
+
+### Greenhouse's options
+
+| Option | Values (default first) | What changes |
+| --- | --- | --- |
+| `season` | `october`, `spring`, `summer` | October is the look as it was: turning oaks and birches, pumpkins by the gates, heaps of fallen leaves. Spring: fresh light greens, blossom on the fruit trees and on one oak in four, tulips where the pumpkins lay, crocuses for the leaf heaps, bulbs in the flower beds, blossom branches in the vase indoors. Summer: deep greens and sun-bleached meadows, full flower beds, sunflowers, a parasol over every picnic. |
+| `planting` | `mixed`, `orchard`, `market`, `waterside`, `meadow` | What grows and stands between the buildings. Orchard: fruit trees for street trees, apple crates, a picker's ladder, pale gravel paths. Market: stalls, flower barrows and café tables on the verges, planters for bushes, warm brick lanes. Waterside: willows, reeds, little pools and a rowing boat on the bank, cool stone lanes. Meadow: long grass and wild flowers, picket fences for hedges, meadow lawns, hay bales, sheep and beehives, earth-coloured tracks. |
+| `accent` | `coral`, `tangerine`, `gold`, `sage`, `lilac`, `sky` | A palette colour on awnings, parasols, gates, hanging baskets, bunting and picnic blankets. |
+| `lantern` | `iron`, `globe`, `paper` | The street lantern: a glass head on an iron post, two round globes on a slim post, or a paper lantern hanging from a timber post. Same height, same pool of light. |
+
+`town.feature` is the one key that exists for the planting: the town dressing reserves a few spots on the verge in
+front of each building, and the planting says what stands there (nothing at all in the town garden).
+
+### How Greenhouse implements them: data, not code paths
+
+Everything a value changes is in `style.json` under `looks`, by option id and value id. There is no code per season
+or per flavour; a value may hold:
+
+| Field | Meaning |
+| --- | --- |
+| `swatches`, `lamplightSwatches` | Swatch or palette names recoloured in this look, per theme: a colour, or the name of another swatch (`"accent": "sage"`). A recoloured swatch that has a lamplight colour needs one here too. |
+| `models` | By model key (or `key:variant`): what stands in its place. Another key (`"town.pumpkin": "town.tulips"`), a key with a variant (`"town.lantern": "town.lantern:globe"`), `null` for nothing, or `{ "model", "variant", "materials", "scale" }` to redraw a parts model with its materials swapped (a blossom tree is the oak with `leaf` drawn in `blossom`). A list is a choice made by the piece's seed, so a district's trees are a stable mix. |
+| `materials` | Material swaps on listed models only, or the name of a set in `materialSets` (the accent goes on awnings and gates, not on every coral thing). |
+
+Options apply in the order of the keys of `looks` (planting, lantern, season, accent): a later one dresses what an
+earlier one chose, so the orchard picks the fruit tree and spring puts it in blossom. Flower beds read their
+variants from `beds` (which flowers, how close, how tall). `packages/style-greenhouse/test/looks.test.ts` checks
+that every key, swatch, variant and set the data names exists.
+
+Inside the style a look is a kit of its own (`Kit` in `kit.ts`, `withOptions` in `index.ts`) that shares the root
+kit's geometry, decals and every material its swatches leave alone, and holds materials only for what it recolours.
+Measured on the stress town (12 buildings, 100 agents): 501 draw calls with one look, 515 with another look for
+the whole town, 545 with four districts in four different looks.
+
+### Adding an option or a value
+
+Add the value to `options`, add its entry under `looks`, and add any new model as parts-JSON under `models/` (and to
+`coveredKeys`). Nothing in the renderer or the registry changes, and a settings screen can list the options straight
+from the manifest. A third-party style declares its own options the same way and implements `withOptions`; how it
+realises a look inside is its own business.
 
 ## Casts
 

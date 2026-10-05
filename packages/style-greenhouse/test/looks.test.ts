@@ -86,7 +86,8 @@ test("a choice is made by the seed and is stable; an accent swaps coral on the l
   const picks = new Set(Array.from({ length: 40 }, (_, seed) => market.dress("town.feature", undefined, seed)!.key));
   assert.ok(picks.has("town.market-stall") && picks.has("town.barrow"));
   assert.deepEqual(market.dress("town.feature", undefined, 7), market.dress("town.feature", undefined, 7));
-  assert.equal(market.dress("town.market-stall", undefined, 0)!.materials?.coral, "accent");
+  assert.equal(market.dress("town.market-stall", undefined, 0)!.materials?.tangerine, "accent");
+  assert.equal(market.dress("town.gate", undefined, 0)!.materials?.coral, "accent");
   assert.equal(market.dress("town.fruit-tree", undefined, 0)!.materials, null);
   assert.equal(market.swatches.accent, "flower-blue");
 });

@@ -471,7 +471,8 @@
   },
   "materialSets": {
     "accent": [
-      { "keys": ["town.market-stall", "town.gate", "town.hanging-basket", "town.picnic-blanket", "town.picnic-parasol", "town.bandstand", "town.cottage", "town.cottage-timber", "town.swing", "town.rowboat"], "map": { "coral": "accent" } },
+      { "keys": ["town.market-stall"], "map": { "tangerine": "accent" } },
+      { "keys": ["town.gate", "town.hanging-basket", "town.picnic-blanket", "town.picnic-parasol", "town.bandstand", "town.cottage", "town.cottage-timber", "town.swing", "town.rowboat"], "map": { "coral": "accent" } },
       { "keys": ["civic.cafe-table"], "map": { "leaf": "accent" } }
     ]
   },
