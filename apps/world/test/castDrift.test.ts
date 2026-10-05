@@ -12,8 +12,8 @@ test("the sprouts' postman takes off and lands without a jump", () => {
   const figure = cast.figure({ key: "postman", role: "postman", accent: null });
   // The body joint is the one the bean hangs on; its height over the standing pose is the drift.
   let body: { position: { y: number } } | null = null;
-  figure.object.traverse((o) => {
-    if (!body && o.children.some((c) => (c as { isMesh?: boolean }).isMesh) && o !== figure.object) body = o;
+  figure.body.traverse((o) => {
+    if (!body && o.children.some((c) => (c as { isMesh?: boolean }).isMesh) && o !== figure.body) body = o;
   });
   assert.ok(body);
   const height = () => body!.position.y;

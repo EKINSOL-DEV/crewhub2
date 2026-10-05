@@ -6,7 +6,7 @@
 import * as THREE from "three";
 import type { AgentPlacement, Building, RoomKind } from "@crewhub/world-model";
 import { IDLE_STATE, type Cast, type CastRole, type FigureHandle, type FigureState } from "@crewhub/world-cast";
-import type { EmblemName, ModelKey, PaletteName, ResolvedStyle, WorkSurface } from "@crewhub/world-style";
+import type { EmblemName, ModelKey, PaletteName, ResolvedStyle } from "@crewhub/world-style";
 import {
   BACK_WALL_HEIGHT,
   BUILDING_CELL as CELL,
@@ -37,6 +37,7 @@ import { deskItems, DRESS_PREFIX, dressingSeed, roomDecor, type DecorItem } from
 import type { Bounds } from "./townLayout";
 import type { Walker, WorkSpot } from "./walks";
 import { deskClutter, WORK_FURNITURE, workPlace, type Circle, type WorkAt } from "./workPlaces";
+import { workSurfaceOf } from "./workSurface";
 
 /** Figures and desks are Greenhouse-sized; interiors show them at this scale. */
 const ROBOT_SCALE = 0.62;
@@ -169,21 +170,6 @@ interface Robot {
 
 /** What a ticket pile takes of a table top, world units. */
 const PILE_RADIUS = 0.13;
-const workSurfaces = new WeakMap<ResolvedStyle, Map<ModelKey, WorkSurface>>();
-
-/** The top of a piece of work furniture as the style gives it; a style that says nothing gets its model's box as a plain table. */
-function workSurfaceOf(style: ResolvedStyle, key: ModelKey): WorkSurface {
-  let known = workSurfaces.get(style);
-  if (!known) workSurfaces.set(style, (known = new Map()));
-  let surface = known.get(key) ?? style.manifest.workSurfaces?.[key];
-  if (!surface) {
-    const object = style.model(key);
-    const box = new THREE.Box3().setFromObject(object);
-    surface = { height: typeof object.userData.surface === "number" ? object.userData.surface : box.max.y, half: [(box.max.x - box.min.x) / 2, (box.max.z - box.min.z) / 2] };
-  }
-  known.set(key, surface);
-  return surface;
-}
 
 const surfaceHeights = new WeakMap<ResolvedStyle, Record<Surface, number>>();
 

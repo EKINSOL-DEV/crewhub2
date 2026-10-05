@@ -13,7 +13,10 @@ import {
   type CastManifest,
   type FigureSpec,
   type FigureState,
+  type Perch,
+  type WorkPlace,
 } from "../src/index.ts";
+import { castProblems, sightProblems } from "../src/index.ts";
 
 const manifest: CastManifest = {
   format: "crewhub-cast/1",
@@ -49,8 +52,9 @@ const state = (change: Partial<FigureState>): FigureState => ({ activity: "idle"
 const build = (role: "lead" | "worker" = "worker") => {
   const kit = referenceKit(manifest.colors);
   const handle = createCast(manifest, figure(), kit).figure({ key: "a:1", role, accent: role === "lead" ? "coral" : null });
-  const joint = (index: number) => handle.object.children.filter((c) => c.type === "Group")[0]!.children.filter((c) => c.type === "Group")[index] ?? handle.object.children.filter((c) => c.type === "Group")[0]!;
-  return { handle, body: handle.object.children.find((c) => c.type === "Group")!, head: joint(0) };
+  // The joints ride in the figure's body (the group a perch lifts); the first is the "body" joint, its child the head.
+  const body = handle.body.children.find((c) => c.type === "Group")!;
+  return { handle, body, head: body.children.find((c) => c.type === "Group")! };
 };
 
 test("the validators accept the example and name each problem with its path", () => {
@@ -159,4 +163,151 @@ test("a patch re-dresses a figure: recolours, drops and adds parts, keeps the ri
   assert.equal(patched.joints, patched.joints);
   assert.equal(base.parts.length, 5, "the base is untouched");
   assert.equal(validateFigure(patched).ok, true);
+});
+
+/* ── Perches ──────────────────────────────────────────────────────────── */
+
+/** A desk as a world would tell it: the top above the peg's eyes (0.8 at scale 1), a screen ahead and a little left. */
+const desk = (free: { x: number; z: number } | null = { x: 0.1, z: 0.6 }): WorkPlace => ({
+  pose: "desk",
+  scale: 0.5,
+  height: 0.5,
+  edge: 0.3,
+  focus: [-0.2, 0.7, 0.8],
+  screen: [0, -1],
+  spot: (radius) => (free && radius <= 0.2 ? free : null),
+});
+const step: Perch = {
+  kind: "step",
+  gap: 0.3,
+  steps: [
+    { id: "crate", height: 0.5, parts: [{ shape: "box", size: [0.4, 0.5, 0.4], position: [0, 0.25, 0], color: "wood" }] },
+    { id: "drum", height: 0.5, parts: [{ shape: "cylinder", size: [0.2, 0.5, 0.2], position: [0, 0.25, 0], color: "slot:coat" }] },
+  ],
+  pose: { head: { rotation: [0, 0, 5] } },
+};
+const perched = (perch: Record<string, Perch> | undefined, key = "a:1") => {
+  const spec = { ...figure(), ...(perch ? { perch } : {}) };
+  return createCast(manifest, spec, referenceKit(manifest.colors)).figure({ key, role: "worker", accent: null });
+};
+
+test("the validators check a perch: its poses, its steps and their parts", () => {
+  assert.equal(validateFigure({ ...figure(), perch: { default: step, "review-table": { kind: "floor" }, "lead-desk": { kind: "surface", base: 0.2 } } }).ok, true);
+  assert.equal(validateFigurePatch({ format: "crewhub-figure-patch/1", perch: { desk: { kind: "surface" } } }).ok, true);
+  const bad = validateFigure({
+    ...figure(),
+    perch: {
+      sofa: { kind: "surface" },
+      desk: { kind: "ladder" },
+      "lead-desk": { kind: "step", steps: [] },
+      "meeting-table": { kind: "step", gap: -1, steps: [{ id: "Crate", height: 0, parts: [{ shape: "box", size: [1, 1, 1], position: [0, 0, 0], color: "slot:none", joint: "head" }] }], pose: { tail: {} } },
+      "planning-table": { kind: "surface", base: 0, steps: [] },
+    },
+  });
+  const errors = bad.ok ? [] : bad.errors;
+  for (const path of [
+    "figure.perch.sofa",
+    "figure.perch.desk.kind",
+    "figure.perch.lead-desk.steps",
+    "figure.perch.meeting-table.gap",
+    "figure.perch.meeting-table.steps[0].id",
+    "figure.perch.meeting-table.steps[0].height",
+    "figure.perch.meeting-table.steps[0].parts[0].joint",
+    "figure.perch.meeting-table.steps[0].parts[0].color",
+    "figure.perch.meeting-table.pose.tail",
+    "figure.perch.planning-table.base",
+    "figure.perch.planning-table.steps",
+  ])
+    assert.ok(errors.some((e) => e.startsWith(path)), `${path} in\n${errors.join("\n")}`);
+});
+
+test("a figure without a perch stays on the floor; too small for the desk, the contract says so", () => {
+  const handle = perched(undefined);
+  handle.setPerch(desk(), true);
+  assert.deepEqual(handle.body.position.toArray(), [0, 0, 0]);
+  assert.match(sightProblems(handle, desk(), "peg").join(), /eyes \(40 cm\) are not above the surface \(50 cm\); it needs a perch/);
+  const cast = createCast(manifest, figure(), referenceKit(manifest.colors));
+  const sight = castProblems(cast, [desk()]).filter((problem) => !castProblems(cast).includes(problem));
+  assert.equal(sight.length, 7, "every role is checked at every work place");
+  assert.ok(sight.every((problem) => /at the desk: its eyes/.test(problem)));
+});
+
+test("a step: seeded per figure, drawn up to the top, the figure on it turned to its screen, and gone again", () => {
+  const handle = perched({ default: step });
+  const before = measureFigure(handle).meshes;
+  handle.setPerch(desk(), true);
+  // The edge is 0.3 away at scale 0.5: 0.6 figure units, less the gap of 0.3.
+  assert.deepEqual(handle.body.position.toArray().map((n) => +n.toFixed(6)), [0, 0.5, 0.3]);
+  assert.ok(handle.body.rotation.y < 0, "turned to the screen on its left");
+  assert.equal(measureFigure(handle).meshes, before + 1, "its step stands under it");
+  assert.deepEqual(sightProblems(handle, desk(), "peg"), []);
+  // The same figure takes the same step on every load; some other figure takes the other one.
+  const colour = (h: typeof handle) => {
+    h.setPerch(desk(), true);
+    let found = "";
+    h.object.children.forEach((child) => child !== h.body && child.traverse((o) => "material" in o && (found = (o.material as { color: { getHexString(): string } }).color.getHexString())));
+    return found;
+  };
+  assert.equal(colour(perched({ default: step })), colour(perched({ default: step })));
+  assert.equal(new Set(["a:1", "a:2", "a:3", "a:4", "a:5", "a:6"].map((key) => colour(perched({ default: step }, key)))).size, 2);
+  handle.setPerch(null, true);
+  assert.deepEqual(handle.body.position.toArray(), [0, 0, 0]);
+  assert.equal(handle.body.rotation.y, 0);
+  assert.equal(measureFigure(handle).meshes, before, "the step is gone with it");
+});
+
+test("getting on a perch is a hop over a few updates, or a cut", () => {
+  const handle = perched({ default: step });
+  handle.setPerch(desk());
+  assert.equal(handle.body.position.y, 0, "nothing moves before the first update");
+  let top = 0;
+  for (let i = 0; i < 12; i++) {
+    handle.update(1 / 60);
+    top = Math.max(top, handle.body.position.y);
+  }
+  assert.ok(handle.body.position.y > 0.2 && handle.body.position.y < 0.66, "on its way after a fifth of a second");
+  for (let i = 0; i < 60; i++) {
+    handle.update(1 / 60);
+    top = Math.max(top, handle.body.position.y);
+  }
+  assert.ok(top > 0.55, "the hop arcs over the step");
+  assert.ok(Math.abs(handle.body.position.y - 0.5) < 1e-6, "and lands on it");
+  // A stale figure stands still, but still gets down.
+  handle.setState(state({ activity: "stale" }));
+  handle.setPerch(null);
+  for (let i = 0; i < 60; i++) handle.update(1 / 60);
+  assert.equal(handle.body.position.y, 0);
+});
+
+test("on the surface: at the free place the furniture offers, with its perched pose; on the floor when the top is full", () => {
+  const sit: Perch = { kind: "surface", base: 0.3, pose: { head: { rotation: [0, 0, 5] } } };
+  const { head } = (() => {
+    const handle = perched({ default: step, desk: sit });
+    handle.setPerch(desk(), true);
+    // The spot is in world units, the body in figure units: twice as far at scale 0.5, the top's height too.
+    assert.deepEqual(handle.body.position.toArray().map((n) => +n.toFixed(6)), [0.2, 1, 1.2]);
+    assert.deepEqual(sightProblems(handle, desk(), "peg"), []);
+    handle.setPerch(desk(), true);
+    const body = handle.body.children.find((c) => c.type === "Group")!;
+    return { head: body.children.find((c) => c.type === "Group")! };
+  })();
+  assert.ok(Math.abs(head.rotation.z - (5 * Math.PI) / 180) < 1e-6, "the perched pose layers over the activity's");
+  const full = perched({ desk: sit });
+  full.setPerch(desk(null), true);
+  assert.deepEqual(full.body.position.toArray(), [0, 0, 0]);
+  const wide = perched({ desk: { kind: "surface" } });
+  wide.setPerch(desk(), true);
+  assert.deepEqual(wide.body.position.toArray().map((n) => +n.toFixed(6)), [0.2, 1, 1.2], "left out, the base is its ground radius (0.25 at scale 0.5: 0.125)");
+  // Behind the screen it cannot read it.
+  const behind: WorkPlace = { ...desk({ x: 0, z: 1.2 }), focus: [0, 0.7, 0.8] };
+  assert.match(sightProblems(perched({ desk: sit }), behind, "peg").join(), /off the screen's axis/);
+});
+
+test("a re-dress keeps its base's perch, recoloured, unless it brings its own", () => {
+  const base = { ...figure(), perch: { default: step } };
+  const kept = applyFigurePatch(base, { format: "crewhub-figure-patch/1", recolor: { wood: "pale" } });
+  assert.equal(kept.perch?.default?.kind === "step" && kept.perch.default.steps[0]!.parts[0]!.color, "pale");
+  const own = applyFigurePatch(base, { format: "crewhub-figure-patch/1", perch: { default: { kind: "floor" } } });
+  assert.deepEqual(own.perch, { default: { kind: "floor" } });
+  assert.equal("perch" in applyFigurePatch(figure(), { format: "crewhub-figure-patch/1" }), false);
 });

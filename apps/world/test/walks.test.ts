@@ -122,6 +122,26 @@ test("a director visit stands beside the target's seat; a gather fills places ar
   assert.equal(walks.direct({ kind: "gather", agents: ["cr/dev-1", "cr/dev-2"], room: "meeting", ttlMs: 60_000 }), 2);
   const meeting = roomId("cr", "meeting");
   assert.ok(run(walks, 40, () => roomOf(walks, "cr/dev-1") === meeting && roomOf(walks, "cr/dev-2") === meeting) < 40, "both reach the meeting room");
+  // Standing at the table, a walker says which furniture it works at (the renderer turns it there, on its cast's perch).
+  assert.equal(walks.walker("cr/dev-1")!.work, null, "nothing while it walks");
+  assert.ok(run(walks, 20, () => walks.walker("cr/dev-1")!.work !== null && walks.walker("cr/dev-2")!.work !== null) < 20, "both stand at the table");
+  const work = walks.walker("cr/dev-1")!.work!;
+  assert.equal(work.definitionId, "meeting-table");
+  assert.deepEqual(work, walks.walker("cr/dev-2")!.work, "the same table: its centre in building cells");
+  walks.endDirected();
+  run(walks, 0.2);
+  assert.equal(walks.walker("cr/dev-1")!.work, null, "and nothing once it sets off again");
+});
+
+test("a walker at the coffee machine or at its own desk stands at no work furniture of an errand", () => {
+  const walks = new Walks();
+  walks.update(idleModel(), inside);
+  run(walks, 1);
+  assert.equal(walks.walker("cr/dev-1")!.seated, true);
+  assert.equal(walks.walker("cr/dev-1")!.work, null, "its desk is its seat, not an errand");
+  walks.direct({ kind: "goToProp", agent: "cr/dev-1", room: "planning", tag: "planning", ttlMs: 60_000 });
+  assert.ok(run(walks, 40, () => walks.walker("cr/dev-1")!.work !== null) < 40, "stands at the planning table");
+  assert.equal(walks.walker("cr/dev-1")!.work!.definitionId, "planning-table");
 });
 
 test("director intents only walk in the entered building and never under reduced motion; a desk fact cancels them", () => {

@@ -53,7 +53,11 @@ export function workPlace(pose: WorkPose, surface: WorkSurface, at: { x: number;
   const heading = Math.atan2(facing.x, facing.z);
   /** A world point in the standing figure's frame (+z the way it faces). */
   const toFigure = (x: number, z: number) => ({ x: (x - stand.x) * facing.z - (z - stand.z) * facing.x, z: (x - stand.x) * facing.x + (z - stand.z) * facing.z });
-  const focus = surface.screen ? toWorld(surface.screen[0], surface.screen[2]) : toWorld(0, 0);
+  // A screen is looked at in its middle; a table along its middle line, at the point nearest the figure.
+  const spine = { x: Math.max(0, halfX - halfZ), z: Math.max(0, halfZ - halfX) };
+  const focus = surface.screen
+    ? toWorld(surface.screen[0], surface.screen[2])
+    : toWorld(Math.max(-spine.x, Math.min(spine.x, local.x)), Math.max(-spine.z, Math.min(spine.z, local.z)));
   const seen = toFigure(focus.x, focus.z);
   const blocked = occupied.map((c) => ({ ...toModel(c.x, c.z), radius: c.radius }));
   const result: WorkAt = {

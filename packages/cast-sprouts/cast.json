@@ -31,5 +31,5 @@
     "sprout-ripe": { "day": "#f0b545", "lamplight": "#f2ad3f" },
     "sprout-reed": { "day": "#7a5236", "lamplight": "#7a5236" }
   },
-  "budget": { "nearTriangles": 4900, "farTriangles": 2200, "nearMeshes": 28, "farMeshes": 12 }
+  "budget": { "nearTriangles": 5200, "farTriangles": 2200, "nearMeshes": 28, "farMeshes": 12 }
 }

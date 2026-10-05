@@ -93,7 +93,7 @@ export interface WorkPlace {
   height: number;
   /** How far in front of the figure the top's near edge is. */
   edge: number;
-  /** What the worker looks at: the middle of the screen, or the middle of the table at the top's height. */
+  /** What the worker looks at: the middle of the screen, or the table's middle line where it is nearest, at the top's height. */
   focus: Vec3;
   /** With a screen: the way it faces, a unit vector on the floor (x, z). The worker must be in front of it. */
   screen?: [number, number];

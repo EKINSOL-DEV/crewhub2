@@ -36,7 +36,7 @@ const BEAT_STRETCH = 0.6;
 /** Getting on or off a perch: seconds per figure unit of the way (at least `HOP_MIN`), and how high the hop arcs. */
 const HOP_PACE = 0.32;
 const HOP_MIN = 0.22;
-const HOP_ARC = 0.16;
+const HOP_ARC = 0.22;
 
 interface Joint {
   object: THREE.Object3D;
@@ -181,7 +181,7 @@ function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend
   const settle = (t: number) => {
     const eased = t * t * (3 - 2 * t);
     body.position.lerpVectors(hop.from, hop.to, eased);
-    body.position.y += Math.sin(Math.PI * t) * HOP_ARC;
+    if (t < 1) body.position.y += Math.sin(Math.PI * t) * HOP_ARC;
     body.rotation.y = hop.turnFrom + (hop.turnTo - hop.turnFrom) * eased;
     if (step) step.scale.setScalar(Math.max(0.001, Math.min(1, t * 2.5)));
     if (leaving) {

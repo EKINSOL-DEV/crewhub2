@@ -10,6 +10,7 @@ import type { EnvironmentHandle, GraphicsQuality, ModelKey, ResolvedStyle } from
 import type { PreviewCast } from "./castRoomCasts";
 import {
   DESKS,
+  LEAD_DESK,
   DUSK_PHASE,
   figureArea,
   FIGURE_SCALE,
@@ -32,6 +33,8 @@ import {
   type RoomPlay,
 } from "./castRoomPlan";
 import { RobotCrowd } from "./robotCrowd";
+import { WORK_FURNITURE, workPlace, type WorkAt } from "./workPlaces";
+import { workSurfaceOf } from "./workSurface";
 
 export interface CastRoomView {
   /** The casts shown, one room each (one cast, or all of them side by side). */
@@ -72,7 +75,14 @@ interface Figure {
   handle: FigureHandle;
   carried: THREE.Object3D;
   highlight: FigureHighlight;
+  /** Its work place at its desk (the members with one), and whether it has been put there before (then it hops). */
+  desk: WorkAt | null;
+  placed: boolean;
 }
+
+/** Where the room's drone sets a ticket down on a desk, cells from the desk's north-west corner. */
+const TICKET_SPOT = { x: 0.55, z: 0.6 };
+const TICKET_RADIUS = 0.085;
 
 /** A part of the stage, CSS pixels from its top left. */
 interface Cell {
@@ -263,7 +273,7 @@ export class CastRoomScene {
         drone,
         shadow,
         from: new THREE.Vector3(DRONE_FROM.x * CELL, 0.03, DRONE_FROM.z * CELL),
-        to: new THREE.Vector3((desk.x + 0.55) * CELL, this.#deskTop + 0.01, (desk.z + 0.6) * CELL),
+        to: new THREE.Vector3((desk.x + TICKET_SPOT.x) * CELL, this.#deskTop + 0.01, (desk.z + TICKET_SPOT.z) * CELL),
         t: 0,
       };
     }
@@ -408,13 +418,26 @@ export class CastRoomScene {
       carried.position.set(...handle.anchors.carry);
       carried.rotation.x = -0.35;
       carried.visible = false;
-      handle.object.add(carried);
+      // It rides with the figure itself, up on a perch too.
+      handle.body.add(carried);
       group.add(handle.object);
-      const figure: Figure = { id: figureId(index, member.key), member, handle, carried, highlight: "none" };
+      const figure: Figure = { id: figureId(index, member.key), member, handle, carried, highlight: "none", desk: this.#deskAt(member), placed: false };
       this.#figures.set(figure.id, figure);
       return figure;
     });
     return { cast, play, lawn, area: { minX: 0, maxX: ROOM.width, minZ: 0, maxZ: ROOM.depth }, group, figures, backWalls, tickets: [], flight: null, delivered: 0 };
+  }
+
+  /** A member's work place at its desk, as in a building: the seat north of it, clear of where the drone's ticket lands. */
+  #deskAt(member: CastMember): WorkAt | null {
+    const lead = member.role === "lead";
+    const desk = lead ? LEAD_DESK : DESKS[member.key];
+    if (!desk) return null;
+    const furniture = WORK_FURNITURE[lead ? "lead-desk" : "workdesk"]!;
+    const [width, depth] = lead ? [3, 2] : [2, 1];
+    const ticket = { x: (desk.x + TICKET_SPOT.x) * CELL, z: (desk.z + TICKET_SPOT.z) * CELL, radius: TICKET_RADIUS };
+    const at = { x: (desk.x + width / 2) * CELL, z: (desk.z + depth / 2) * CELL, rotation: Math.PI };
+    return workPlace(furniture.pose, workSurfaceOf(this.#style, furniture.key), at, { x: member.home.x * CELL, z: member.home.z * CELL }, FIGURE_SCALE, lead ? [] : [ticket]);
   }
 
   /**
@@ -465,6 +488,11 @@ export class CastRoomScene {
     const state: FigureState = memberState(scene, previewState(room.play.state), member, this.#time);
     handle.object.rotation.y = !walking && state.activity === "walking" ? Math.PI / 2 : spot.heading;
     handle.setState(state);
+    // At its desk it works at the top as its cast does (a step, the top itself); an echo and the far crowd do not.
+    const at = spot === member.home && !state.proxy && !this.view.far ? figure.desk : null;
+    if (at) handle.object.rotation.y = at.heading;
+    handle.setPerch(at?.place ?? null, this.view.reducedMotion || !figure.placed);
+    figure.placed = true;
     figure.carried.visible = state.carrying;
     if (!this.view.reducedMotion) handle.update(seconds);
   }
@@ -526,7 +554,7 @@ export class CastRoomScene {
     const ringed = !!selected && !this.view.far;
     this.#ring.visible = ringed;
     if (selected) {
-      selected.handle.object.getWorldPosition(this.#ring.position);
+      selected.handle.body.getWorldPosition(this.#ring.position);
       this.#ring.position.y += 0.012;
       this.#ring.scale.setScalar(selected.handle.anchors.ground / 0.3);
     }
@@ -564,7 +592,7 @@ export class CastRoomScene {
       if (anchor.figure) {
         const { handle } = anchor.figure;
         const cell = cells?.[this.#rooms.findIndex((room) => room.figures.includes(anchor.figure!))] ?? whole;
-        handle.object.localToWorld(p.set(handle.anchors.label[0], handle.anchors.label[1], handle.anchors.label[2])).project(this.camera);
+        handle.body.localToWorld(p.set(handle.anchors.label[0], handle.anchors.label[1], handle.anchors.label[2])).project(this.camera);
         [x, y] = [cell.x + ((p.x + 1) / 2) * cell.width, cell.y + ((1 - p.y) / 2) * cell.height];
       } else if (anchor.room) {
         const cell = cells?.[this.#rooms.indexOf(anchor.room)];

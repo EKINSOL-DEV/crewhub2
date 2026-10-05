@@ -49,6 +49,8 @@ export function everyState(): FigureState[] {
 /** A worker may look at its work from this far to the side of where it faces, and at a screen from this far off its axis. */
 const SIGHT_TURN = 75;
 const SCREEN_CONE = 75;
+/** Closer than this to what it looks at (sitting on a table, by its middle), a figure looks down at it whichever way it sits. */
+const SIGHT_NEAR = 0.25;
 const WORKING: FigureState = { activity: "working", waiting: false, alert: false, proxy: false, carrying: false };
 
 /**
@@ -76,7 +78,7 @@ export function sightProblems(handle: FigureHandle, place: WorkPlace, at: string
     const sight = new THREE.Vector2(focus.x - eyes.x, focus.z - eyes.z);
     const facing = handle.body.getWorldDirection(new THREE.Vector3());
     const turn = Math.abs(new THREE.Vector2(facing.x, facing.z).angleTo(sight)) / (Math.PI / 180);
-    if (sight.length() > 1e-6 && turn > SIGHT_TURN) problems.push(`${at}: it faces ${turn.toFixed(0)}° away from what it works on`);
+    if (sight.length() > SIGHT_NEAR && turn > SIGHT_TURN) problems.push(`${at}: it faces ${turn.toFixed(0)}° away from what it works on`);
     if (place.screen) {
       const off = Math.abs(new THREE.Vector2(...place.screen).angleTo(sight.clone().negate())) / (Math.PI / 180);
       if (off > SCREEN_CONE) problems.push(`${at}: it is ${off.toFixed(0)}° off the screen's axis and cannot read it`);
