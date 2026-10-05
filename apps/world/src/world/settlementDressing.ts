@@ -97,8 +97,13 @@ export type PlanLandmark = "windmill" | "chapel" | "bandstand" | "farm" | "cotta
 
 export interface DressPlan {
   tier: Tier;
-  /** The whole ground. */
+  /** The bounding box of all ground. */
   ground: Bounds;
+  /**
+   * The ground itself: one piece per district in use and one corridor per district road, overlapping where a road
+   * enters a district. A single settlement has one piece, equal to `ground`.
+   */
+  grounds: readonly Bounds[];
   /** The town's own number (its founding project), for what varies from town to town. */
   seed: number;
   lots: readonly PlanLot[];
@@ -120,6 +125,7 @@ export interface SettlementPlan {
   tier: Tier;
   seed: number;
   ground: Bounds;
+  grounds?: readonly Bounds[];
   streets: readonly PlanSegment[];
   roads: readonly (PlanSegment & { from: { x: number; z: number } })[];
   borders: readonly PlanBorder[];
@@ -147,6 +153,7 @@ export function dressPlan(plan: SettlementPlan, extras: DressExtras): DressPlan 
   return {
     tier: plan.tier,
     ground: plan.ground,
+    grounds: plan.grounds?.length ? plan.grounds : [plan.ground],
     seed: plan.seed,
     lots: plan.lots.map((lot, index) => ({
       index,
@@ -246,7 +253,14 @@ export interface LanePlan {
   streets: readonly PlanSegment[];
   roads: readonly PlanSegment[];
   ground: Bounds;
+  grounds?: readonly Bounds[];
 }
+/** The pieces of ground of a plan. */
+const piecesOf = (plan: { ground: Bounds; grounds?: readonly Bounds[] }): readonly Bounds[] => (plan.grounds?.length ? plan.grounds : [plan.ground]);
+/** Whether a spot lies on the ground, at least `inset` from the edge of the piece it is on. */
+const onGround = (pieces: readonly Bounds[], x: number, z: number, inset = 0) => pieces.some((p) => inside(p, x, z, -inset));
+/** A corridor is the narrow piece of ground under a district road. */
+const isCorridor = (p: Bounds) => Math.min(p.maxX - p.minX, p.maxZ - p.minZ) <= 2 * PITCH - PLOT_SIZE;
 const laneRect = (s: PlanSegment): Bounds => span(Math.min(s.x0, s.x1) - LANE / 2, Math.max(s.x0, s.x1) + LANE / 2, Math.min(s.z0, s.z1) - LANE / 2, Math.max(s.z0, s.z1) + LANE / 2);
 
 /**
@@ -269,18 +283,36 @@ export function entranceRoad(plan: LanePlan & Pick<DressPlan, "tier">): Bounds |
   if (small(plan.tier)) return null;
   const main = [...plan.streets, ...plan.roads].filter((s) => along(s) === "z" && Math.abs(s.x0 - SQUARE.x) < 0.01);
   const south = Math.max(CIVIC_LANE + PITCH, ...main.map((s) => Math.max(s.z0, s.z1)));
-  if (south >= plan.ground.maxZ - 1) return null;
-  return span(SQUARE.x - LANE / 2, SQUARE.x + LANE / 2, south, plan.ground.maxZ - 0.2);
+  // To the edge of the piece of ground the main street stands on.
+  const edge = Math.max(...piecesOf(plan).filter((p) => inside(p, SQUARE.x, south - 0.5, 0)).map((p) => p.maxZ), -Infinity);
+  if (south >= edge - 1) return null;
+  return span(SQUARE.x - LANE / 2, SQUARE.x + LANE / 2, south, edge - 0.2);
 }
 
-/** z of every stream in the plan: one along each border row that has a district in use on both sides, edge to edge. */
-export function streamRows(plan: DressPlan): number[] {
-  const rows = new Set<number>();
-  for (const b of plan.borders) if (b.strip.maxX - b.strip.minX > b.strip.maxZ - b.strip.minZ) rows.add(b.strip.minZ + STREAM.offset - 2 * PITCH);
-  // The central district's own southern edge has the stream as soon as the ground reaches it.
-  const home = STREAM.offset;
-  if (plan.ground.maxZ > home + 2.4 && plan.ground.minZ < home - 3) rows.add(home);
-  return [...rows].filter((z) => plan.ground.maxZ > z + 2.4 && plan.ground.minZ < z - 3).sort((a, b) => a - b);
+/**
+ * z of every stream in the plan: one along each border row (the row of lots south of a row of districts) that a piece
+ * of ground crosses, so the central district's southern edge has it once the ground reaches there, and every road
+ * that runs south crosses one.
+ */
+export function streamRows(plan: Pick<DressPlan, "ground"> & { grounds?: readonly Bounds[] }): number[] {
+  const rows: number[] = [];
+  const first = STREAM.offset + Math.ceil((plan.ground.minZ - STREAM.offset) / STREAM.period) * STREAM.period;
+  for (let z = first; z < plan.ground.maxZ; z += STREAM.period) if (streamSpans(plan, z).length) rows.push(z);
+  return rows;
+}
+/** The stretches of a stream row that lie on the ground, west to east: where pieces cross it, joined where they touch. */
+function streamSpans(plan: { ground: Bounds; grounds?: readonly Bounds[] }, row: number): [number, number][] {
+  const crossing = piecesOf(plan)
+    .filter((p) => p.maxZ > row + 2.4 && p.minZ < row - 3)
+    .map((p): [number, number] => [p.minX, p.maxX])
+    .sort((a, b) => a[0] - b[0]);
+  const out: [number, number][] = [];
+  for (const [a, b] of crossing) {
+    const last = out[out.length - 1];
+    if (last && a <= last[1]) last[1] = Math.max(last[1], b);
+    else out.push([a, b]);
+  }
+  return out;
 }
 /** The stream's centre line at `x` on the row at `z`. */
 function streamAt(row: number, x: number): number {
@@ -419,7 +451,8 @@ export function settlementDressing(plan: DressPlan): Dressing[] {
   const blocked: Bounds[] = [...paths];
   for (const lot of plan.lots) blocked.push(rect(lot.centre.x, lot.centre.z, PLOT_SIZE, PLOT_SIZE));
   // A green at the ground's edge waits until the ground has grown round it.
-  const greens = plan.greens.filter((green) => inside(g, green.x, green.z, -PLOT_SIZE / 2 - 1));
+  const pieces = plan.grounds;
+  const greens = plan.greens.filter((green) => onGround(pieces, green.x, green.z, PLOT_SIZE / 2 + 1));
   for (const green of greens) blocked.push(rect(green.x, green.z, PLOT_SIZE, PLOT_SIZE));
   if (plan.staked) blocked.push(rect(plan.staked.x, plan.staked.z, PLOT_SIZE, PLOT_SIZE));
   blocked.push(rect(HALL.x, HALL.z, CIVIC_LOT, CIVIC_LOT));
@@ -440,14 +473,14 @@ export function settlementDressing(plan: DressPlan): Dressing[] {
   for (const z of streams) blocked.push(span(g.minX, g.maxX, z - STREAM.amplitude - STREAM.width / 2 - 0.6, z + STREAM.amplitude + STREAM.width / 2 + 0.6));
   const gates = districtGates(plan);
   for (const gate of gates) blocked.push(rect(gate.x, gate.z, gate.rotation ? 2.4 : gate.width + 2.6, gate.rotation ? gate.width + 2.6 : 2.4));
-  const free = (x: number, z: number, pad: number) => inside(g, x, z, -0.6) && !blocked.some((b) => inside(b, x, z, pad));
+  const free = (x: number, z: number, pad: number) => onGround(pieces, x, z, 0.6) && !blocked.some((b) => inside(b, x, z, pad));
   const tree: Tree = (x, z, y, seed, scale = 1) => {
     const kind = TREES[Math.floor(noise(seed, 7) * TREES.length)]!;
     add(kind, x, y, z, { rotation: noise(seed, 3) * Math.PI * 2, scale: scale * (0.85 + noise(seed, 5) * 0.35), seed: Math.floor(noise(seed, 11) * 1000) });
   };
 
   /* The ground, the lanes and their crossings. */
-  add("ground", (g.minX + g.maxX) / 2, 0, (g.minZ + g.maxZ) / 2, { size: { width: g.maxX - g.minX, height: 0.5, depth: g.maxZ - g.minZ } });
+  for (const p of pieces) add("ground", (p.minX + p.maxX) / 2, 0, (p.minZ + p.maxZ) / 2, { size: { width: p.maxX - p.minX, height: 0.5, depth: p.maxZ - p.minZ } });
   const lanes = planLanes(plan);
   const road = entranceRoad(plan);
   for (const r of [...lanes, ...(road ? [road] : [])]) paving(add, r, "cobble", GRASS_Y);
@@ -513,7 +546,9 @@ export function settlementDressing(plan: DressPlan): Dressing[] {
 
   /* Streams and their bridges, hedgerows, district gates. */
   const crossers = [...lanes, ...(road ? [road] : [])].filter((r) => r.maxX - r.minX < r.maxZ - r.minZ);
-  for (const z of streams) stream(add, g, z, crossers.filter((r) => r.minZ < z - 2 && r.maxZ > z + 2));
+  for (const z of streams)
+    for (const [x0, x1] of streamSpans(plan, z))
+      stream(add, x0, x1, z, crossers.filter((r) => r.minZ < z - 2 && r.maxZ > z + 2 && r.minX > x0 && r.maxX < x1));
   for (const border of plan.borders) if (border.strip.maxZ - border.strip.minZ > border.strip.maxX - border.strip.minX) hedgerow(add, border, tree, free);
   for (const gate of gates) {
     add("town.district-gate", gate.x, GRASS_Y, gate.z, { rotation: gate.rotation, size: { width: gate.width, height: 3.3, depth: 0.6 }, ...(gate.name ? { text: gate.name } : {}), ...(gate.accent ? { accent: gate.accent } : {}) });
@@ -545,16 +580,22 @@ export function settlementDressing(plan: DressPlan): Dressing[] {
   }
   features(add, out, plan, free);
   countryside(add, plan, tree, free);
-  belt(add, g, tree, free, small(plan.tier) ? 2 : 1);
-  const area = (g.maxX - g.minX) * (g.maxZ - g.minZ);
-  // A wide region is seen from far: its loose tufts thin out, so the country costs no more than a town's verges.
-  const tufts = Math.min(900, Math.round(area * 0.023));
-  for (let i = 0; i < tufts; i++) {
-    const x = g.minX + 1 + noise(i, 41) * (g.maxX - g.minX - 2),
-      z = g.minZ + 1 + noise(i, 43) * (g.maxZ - g.minZ - 2);
-    if (!free(x, z, 0.5)) continue;
-    const key = noise(i, 47) < 0.55 ? "town.grass" : noise(i, 61) < 0.5 ? "town.flowers" : "town.wildflowers";
-    add(key, x, GRASS_Y, z, { rotation: noise(i, 53) * 6.28, scale: 1.6 + noise(i, 59) * 0.8, seed: i, ...detail(key) });
+  // The belt of each piece, left open where another piece carries on (a road's corridor entering a district).
+  for (const [k, p] of pieces.entries()) {
+    const others = pieces.filter((q) => q !== p);
+    belt(add, p, tree, (x, z, pad) => free(x, z, pad) && !others.some((q) => inside(q, x, z, -5.6)), small(plan.tier) ? 2 : 1, isCorridor(p) ? 2.4 : undefined, 900 + k * 5000);
+  }
+  // Loose tufts of grass and flowers on the open grass of each piece.
+  for (const [k, p] of pieces.entries()) {
+    const tufts = Math.min(700, Math.round((p.maxX - p.minX) * (p.maxZ - p.minZ) * 0.023));
+    for (let i = 0; i < tufts; i++) {
+      const x = p.minX + 1 + noise(i, k, 41) * (p.maxX - p.minX - 2),
+        z = p.minZ + 1 + noise(i, k, 43) * (p.maxZ - p.minZ - 2);
+      // A spot that an earlier piece also covers has had its turn.
+      if (!free(x, z, 0.5) || pieces.slice(0, k).some((q) => inside(q, x, z, 0))) continue;
+      const key = noise(i, k, 47) < 0.55 ? "town.grass" : noise(i, k, 61) < 0.5 ? "town.flowers" : "town.wildflowers";
+      add(key, x, GRASS_Y, z, { rotation: noise(i, k, 53) * 6.28, scale: 1.6 + noise(i, k, 59) * 0.8, seed: i, ...detail(key) });
+    }
   }
   // After the rain: a puddle on the cobbles beside about one lane lantern in four, its reflection towards the lantern.
   for (const l of out.filter((d) => d.key === "town.lantern")) {
@@ -602,7 +643,7 @@ function nodes(plan: DressPlan): PlotSpot[] {
     }
   const road = entranceRoad(plan);
   if (road) put((road.minX + road.maxX) / 2, road.minZ);
-  return [...found.values()].filter((n) => inside(plan.ground, n.x, n.z, -LANE));
+  return [...found.values()].filter((n) => onGround(plan.grounds, n.x, n.z, LANE));
 }
 
 /**
@@ -869,11 +910,12 @@ function cottages(add: Add, c: PlotSpot, seed: number, tree: Tree) {
 }
 
 /**
- * A stream along a border row, edge to edge: overlapping stretches of a gentle meander, square-cut where it spills
+ * A stretch of stream along a border row, from one edge of the ground to the other: overlapping stretches of a gentle meander, square-cut where it spills
  * over the diorama's edge in a little waterfall, a timber bridge wherever a road or the main street crosses, reeds,
  * stones and lilies along the banks.
  */
-function stream(add: Add, g: Bounds, row: number, crossers: readonly Bounds[]) {
+function stream(add: Add, x0: number, x1: number, row: number, crossers: readonly Bounds[]) {
+  const g = { minX: x0, maxX: x1 };
   const points: PlotSpot[] = [];
   for (let x = g.minX; x < g.maxX - 1e-6; x += 6) points.push({ x, z: streamAt(row, x) });
   points.push({ x: g.maxX, z: streamAt(row, g.maxX) });
@@ -915,7 +957,7 @@ function hedgerow(add: Add, border: PlanBorder, tree: Tree, free: (x: number, z:
   const RUN = 3.6;
   for (let z = s.minZ + 2; z + RUN < s.maxZ - 1; z += RUN + 0.2) {
     const mid = z + RUN / 2;
-    if (border.crossing && Math.abs(mid - border.crossing.z) < 5.5) continue;
+    if (border.crossing && Math.abs(mid - border.crossing.z) < 4.2) continue;
     const hx = x + Math.sin(mid * 0.09) * 1.6;
     if (free(hx, mid, 0.6)) add("town.hedge", hx, GRASS_Y, mid, { size: { width: RUN, height: 0.7, depth: 0.9 }, rotation: Math.PI / 2, seed: Math.round(mid) });
     const seed = Math.round(mid * 3 + x);
@@ -1071,10 +1113,13 @@ function countryside(add: Add, plan: DressPlan, tree: Tree, free: (x: number, z:
   const reach = hasPark(plan) ? 2 * PITCH : PITCH + CIVIC_LOT / 2;
   const tended = small(plan.tier) ? null : span(-reach, reach, CIVIC_LANE - PITCH, CIVIC_LANE);
   // A field's own ground: a paler patch, where the whole lot is open and inside the ground.
+  // Out in the country: no building or green on a neighbouring lot. Beside one, a hayfield would read as an empty lot.
+  const settled = [...plan.lots.map((l) => l.centre), ...plan.greens];
+  const lonely = (cx: number, cz: number) => !settled.some((s) => Math.abs(s.x - cx) < PITCH * 1.5 && Math.abs(s.z - cz) < PITCH * 1.5);
   const field = (cx: number, cz: number) => {
     const half = PLOT_SIZE / 2 - 1;
     const open = [-1, 0, 1].every((dx) => [-1, 0, 1].every((dz) => free(cx + dx * half, cz + dz * half, 0.5)));
-    if (open && inside(g, cx, cz, -half - 2)) add("town.field", cx, GRASS_Y, cz, { size: { width: PLOT_SIZE - 2, height: 0, depth: PLOT_SIZE - 2 }, rotation: (noise(cx, cz, 314) - 0.5) * 0.5 });
+    if (open && onGround(plan.grounds, cx, cz, half + 2)) add("town.field", cx, GRASS_Y, cz, { size: { width: PLOT_SIZE - 2, height: 0, depth: PLOT_SIZE - 2 }, rotation: (noise(cx, cz, 314) - 0.5) * 0.5 });
   };
   for (let cx = first(g.minX); cx < g.maxX + PITCH / 2; cx += PITCH)
     for (let cz = first(g.minZ); cz < g.maxZ + PITCH / 2; cz += PITCH) {
@@ -1095,13 +1140,13 @@ function countryside(add: Add, plan: DressPlan, tree: Tree, free: (x: number, z:
         }
       } else if (pick < woods + 0.28) {
         // A meadow in flower: a field left to grow, with two drifts of wild flowers and long grass.
-        field(cx, cz);
+        if (lonely(cx, cz)) field(cx, cz);
         for (let i = 0; i < 2; i++) {
           const x = cx + (noise(cx, cz, i, 306) - 0.5) * 14,
             z = cz + (noise(cx, cz, i, 307) - 0.5) * 14;
-          if (free(x, z, 3.2) && inside(g, x, z, -3.6)) drift(add, x, z, 2.8, 2.2, 12, Math.round(cx + cz * 3 + i));
+          if (free(x, z, 3.2) && onGround(plan.grounds, x, z, 3.6)) drift(add, x, z, 2.8, 2.2, 12, Math.round(cx + cz * 3 + i));
         }
-      } else if (pick < woods + 0.45 && !small(plan.tier)) {
+      } else if (pick < woods + 0.45 && !small(plan.tier) && lonely(cx, cz)) {
         // A hayfield: bales in a loose row and a few sheep.
         field(cx, cz);
         for (let i = 0; i < 5; i++) {
@@ -1119,9 +1164,9 @@ function countryside(add: Add, plan: DressPlan, tree: Tree, free: (x: number, z:
  * The green belt: loose rows of trees and bushes along the ground's edge (`rows` deep), and a ragged rim. A long edge
  * (a region's) is planted more loosely, so the belt of a region costs about what a town's does.
  */
-function belt(add: Add, b: Bounds, tree: Tree, free: (x: number, z: number, pad: number) => boolean, rows: number) {
-  let seed = 900;
-  const loose = clamp((b.maxX - b.minX + b.maxZ - b.minZ) / 300, 1, 2.6);
+function belt(add: Add, b: Bounds, tree: Tree, free: (x: number, z: number, pad: number) => boolean, rows: number, looseness?: number, from = 900) {
+  let seed = from;
+  const loose = looseness ?? clamp((b.maxX - b.minX + b.maxZ - b.minZ) / 300, 1, 2.6);
   const edge = (x0: number, z0: number, x1: number, z1: number) => {
     const length = Math.hypot(x1 - x0, z1 - z0);
     const nx = -(z1 - z0) / length,

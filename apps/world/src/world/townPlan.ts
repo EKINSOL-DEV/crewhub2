@@ -12,6 +12,7 @@ import {
   districtBlocks,
   districtRoads,
   groundExtent,
+  groundPieces,
   landmarksArrived,
   lotBounds,
   lotCentre,
@@ -84,7 +85,10 @@ export interface TownPlan {
   landmarks: LandmarkId[];
   /** The lot staked out for the first project: only a clearing has one. */
   staked: GridCell | null;
+  /** The bounding box of all ground: what the camera may pan over. The ground itself is `grounds`. */
   ground: Bounds;
+  /** The ground's pieces (`groundPieces`): a rectangle per district in use and a corridor per road. Nothing else is ground. */
+  grounds: Bounds[];
   streets: Segment[];
   roads: ReturnType<typeof districtRoads>;
   borders: DistrictBorder[];
@@ -166,6 +170,9 @@ export function planTown(doc: Pick<TownDocument, "plots" | "districts">, buildin
   const seed = townSeed(doc.plots);
   const landmarks = landmarksArrived(seed, doc.plots.length);
   const cells = lots.map((l) => l.cell);
+  // The ground also reaches every green whose block has begun, so a green never hangs over the edge.
+  const grounded = [...cells, ...inUse.flatMap((d) => d.greens)];
+  const roads = districtRoads(usedSlots);
   return {
     tier,
     active,
@@ -176,10 +183,10 @@ export function planTown(doc: Pick<TownDocument, "plots" | "districts">, buildin
     civic: civicStage(tier),
     landmarks,
     staked: tier === "clearing" && !used.has(lotKey(CENTRE_LOT)) ? CENTRE_LOT : null,
-    // The ground also reaches every green whose block has begun, so a green never hangs over the edge.
-    ground: groundExtent(tier, [...cells, ...inUse.flatMap((d) => d.greens)], landmarks),
+    ground: groundExtent(tier, grounded, landmarks),
+    grounds: groundPieces(tier, grounded, landmarks, roads),
     streets: streets(tier, cells),
-    roads: districtRoads(usedSlots),
+    roads,
     borders: districtBorders(usedSlots),
     oldQuarter: fold,
   };
@@ -202,7 +209,7 @@ export const planLotBounds = (lot: PlanLot, pad = 0): Bounds => lotBounds(lot.ce
  * What the home camera frames, each rectangle with `margin` around it; the camera fits their projected corners. The
  * home view frames what exists:
  * - a clearing: the lodge, the mailbox and the staked-out plot;
- * - a hamlet: the building, with the lodge and the mail hut at the edge of the picture (see `HAMLET_CIVIC`);
+ * - a hamlet: the building in the middle, with the lodge and the mail hut at the edge of the picture (`HAMLET_ROOM`);
  * - a village or a town: every building that stands, the two civic lots and the square;
  * - a region: every district's buildings, and the centre's civic lots.
  * Buildings folded into the old quarter are left out. `compact` (a portrait phone) frames tighter: each plot's
@@ -218,17 +225,18 @@ export function homeRects(plan: TownPlan, margin = 1.5, compact = false): Bounds
   const standing = plan.lots.filter((l) => !l.folded);
   if (plan.tier === "clearing") return [...civic, green, square(lotCentre(plan.staked ?? CENTRE_LOT), plotHalf), ...standing.map((l) => square(l.centre, plotHalf))];
   if (plan.tier === "hamlet") {
-    // One project: the building is the picture. Archived neighbours stand outside it; the civic pair is cut to a sliver.
+    // One project: the building is the centre of the picture, with room around it for the lane, the green and the
+    // near corners of the lodge and the mail hut. Archived neighbours stand outside it.
     const home = standing.filter((l) => !l.archived);
-    return [...(home.length ? home : standing).map((l) => square(l.centre, plotHalf)), ...civic.map((r) => ({ ...r, minZ: r.maxZ - HAMLET_CIVIC }))];
+    return (home.length ? home : standing).map((l) => square(l.centre, plotHalf + (compact ? 0 : HAMLET_ROOM)));
   }
   return [...standing.map((l) => square(l.centre, plotHalf)), ...civic, green];
 }
 /**
- * How much of the lodge's and the mail hut's lots a hamlet's home view takes in, from their front edge: enough to
- * see that they are there, so the one building still fills the picture.
+ * The ground a hamlet's home view shows around its one building's plot, on every side: the building stays in the
+ * middle and fills most of the picture, and the lodge and the mail hut are seen at its edge.
  */
-const HAMLET_CIVIC = 5;
+const HAMLET_ROOM = 4;
 
 /**
  * Keyboard focus between buildings, by where they stand: an arrow key goes to the nearest building in that direction

@@ -116,7 +116,12 @@ test("districts are joined by roads under a gate with their name, and parted by 
     const row = rows.find((z) => z > Math.min(road.z0, road.z1) && z < Math.max(road.z0, road.z1))!;
     assert.ok(dressing.some((d) => d.key === "town.bridge" && Math.abs(d.x - road.x0) < 0.5 && Math.abs(d.z - row) < 2), "a bridge where the road crosses the stream");
   }
-  assert.ok(dressing.filter((d) => d.key === "town.hedge" && d.y < 0.1).length > 10, "a hedgerow between east and west neighbours");
+  // Only the road's corridor is ground between east and west neighbours: the hedgerow crosses it either side of the road.
+  assert.ok(dressing.filter((d) => d.key === "town.hedge" && d.y < 0.1).length >= 4, "a hedgerow between east and west neighbours");
+  // The ground is the districts and the corridors, not their bounding box, and nothing stands off it.
+  assert.ok(dress.grounds.length >= 7 && dressing.filter((d) => d.key === "ground").length === dress.grounds.length);
+  for (const d of dressing.filter((d) => /^town\.(oak|birch|pine|bush|lantern|hay-bale|sheep|bench)/.test(d.key)))
+    assert.ok(dress.grounds.some((g) => inside(g, d.x, d.z)), `${d.key} at ${d.x.toFixed(1)},${d.z.toFixed(1)} stands on no ground`);
   // Each outer district has its small centre, and its pieces carry its zone for the district's look.
   assert.equal(dressing.filter((d) => d.key === "civic.fountain").length, dress.greens.filter((g) => g.centre).length);
   assert.deepEqual([...new Set(dressing.map((d) => d.district).filter(Boolean))].sort(), ["default", "low-meadow", "mill-side", "orchard-row"]);

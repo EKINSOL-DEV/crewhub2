@@ -203,9 +203,13 @@ export class AmbientLife {
     this.#beds = [];
     this.#glowers = [];
     this.#pond = null;
+    let ground: Bounds | null = null;
     for (const d of dressing) {
       // The whole ground: clouds drift and birds cross as far as the settlement reaches.
-      if (d.key === "ground" && d.size) this.#ground = { minX: d.x - d.size.width / 2, maxX: d.x + d.size.width / 2, minZ: d.z - d.size.depth / 2, maxZ: d.z + d.size.depth / 2 };
+      if (d.key === "ground" && d.size) {
+        const piece = { minX: d.x - d.size.width / 2, maxX: d.x + d.size.width / 2, minZ: d.z - d.size.depth / 2, maxZ: d.z + d.size.depth / 2 };
+        ground = ground ? { minX: Math.min(ground.minX, piece.minX), maxX: Math.max(ground.maxX, piece.maxX), minZ: Math.min(ground.minZ, piece.minZ), maxZ: Math.max(ground.maxZ, piece.maxZ) } : piece;
+      }
       if (d.key === "town.flower-bed") this.#beds.push({ x: d.x, y: d.y, z: d.z, seed: noise(d.x, d.z, 1) });
       if (d.key === "town.pond") {
         this.#pond = { x: d.x, y: d.y + 0.12, z: d.z, rx: (d.size?.width ?? 9) / 2, rz: (d.size?.depth ?? 5.6) / 2 };
@@ -219,6 +223,7 @@ export class AmbientLife {
         }
       }
     }
+    if (ground) this.#ground = ground;
     if (this.#pond)
       for (let i = 0; i < 10; i++) {
         const a = (i / 10) * Math.PI * 2;
