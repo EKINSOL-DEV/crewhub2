@@ -106,6 +106,17 @@ export function districtLots(slot: DistrictSlot): GridCell[] {
 export function districtGreens(slot: DistrictSlot): GridCell[] {
   return absolute(slot, isCentral(slot) ? CENTRAL_GREENS : OUTER_GREENS);
 }
+/**
+ * A district's blocks: each green with the lots that stand around it as one neighbourhood, in the order the blocks
+ * grow. The central district's first four lots belong to no block: their green is the square.
+ */
+export function districtBlocks(slot: DistrictSlot): { green: GridCell; lots: GridCell[] }[] {
+  const lots = districtLots(slot);
+  return districtGreens(slot).map((green, block) => ({
+    green,
+    lots: isCentral(slot) ? lots.slice(4, 14).filter((lot) => (lot.x > CENTRE_LOT.x) === (green.x > CENTRE_LOT.x)) : lots.slice(block * 5, block * 5 + 5),
+  }));
+}
 /** The slot whose district cell holds a lot. */
 export function slotOf(cell: GridCell): DistrictSlot {
   return {

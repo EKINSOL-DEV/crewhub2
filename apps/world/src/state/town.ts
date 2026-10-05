@@ -17,6 +17,7 @@ import {
 import { definitions } from "../world/definitions";
 import { placementDefinitions } from "../world/placements";
 import { importPropRequest, type InvalidRequest } from "../world/propImport";
+import { allocationEdit } from "../world/settlement";
 import { styleRegistry } from "../world/style";
 import { createTownStore, type TownStore } from "./townStore";
 import { worldRuntime } from "./world";
@@ -52,10 +53,18 @@ class TownRuntime {
   constructor() {
     this.store = createTownStore({ context: this.context });
     this.#state = this.#derive();
-    this.store.subscribe(() => this.#refresh());
+    this.store.subscribe(() => {
+      this.#refresh();
+      // An undo may go back to before a project had its lot: it gets one again at once.
+      this.#allocate();
+    });
     void this.store.load().then(() => {
       this.#refresh();
-      worldRuntime().subscribe(() => this.#checkRequests());
+      worldRuntime().subscribe(() => {
+        this.#allocate();
+        this.#checkRequests();
+      });
+      this.#allocate();
       this.#checkRequests();
     });
   }
@@ -109,6 +118,21 @@ class TownRuntime {
     if (!result.ok) return { ok: false, error: result.error };
     void this.store.commit(result.doc);
     return { ok: true };
+  }
+
+  /**
+   * Gives every project the world sees for the first time its lot (`settlement.ts`), in the current revision: where
+   * a building stands is the world's record, not a person's edit, so it adds no undo step.
+   */
+  #allocate() {
+    if (!this.store.state.loaded) return;
+    const buildings = worldRuntime().state.model.buildings.map((b) => ({ slug: b.slug, zoneId: b.zoneId }));
+    if (!allocationEdit(this.store.state.doc, buildings)) return;
+    void this.store.amend((doc) => {
+      const edit = allocationEdit(doc, buildings);
+      const result = edit && applyEdit(doc, edit, this.context);
+      return result?.ok ? result.doc : null;
+    });
   }
 
   #refresh() {

@@ -8,6 +8,7 @@ import {
   CENTRAL_SLOT,
   CENTRE_LOT,
   civicStage,
+  districtBlocks,
   districtBorders,
   districtLots,
   districtGreens,
@@ -92,6 +93,13 @@ test("a district's growth sequence starts by its green, then blocks of four to s
     const touches = (lot: { x: number; z: number }, green: { x: number; z: number }) => Math.abs(lot.x - green.x) <= 1 && Math.abs(lot.z - green.z) <= 1;
     if (slot !== CENTRAL_SLOT) greens.forEach((green, block) => assert.ok(lots.slice(block * 5, block * 5 + 5).every((lot) => touches(lot, green)), `block ${block} of ${slotKey(slot)}`));
     for (const green of greens) assert.ok(lots.filter((lot) => touches(lot, green)).length >= 4);
+    const blocks = districtBlocks(slot);
+    assert.deepEqual(blocks.map((b) => b.green), greens);
+    for (const block of blocks) {
+      assert.equal(block.lots.length, 5, "a block of five around its green");
+      assert.ok(block.lots.every((lot) => touches(lot, block.green)));
+    }
+    assert.equal(new Set(blocks.flatMap((b) => b.lots.map(lotKey))).size, blocks.length * 5);
     // The sequence grows outward, it does not scatter: every lot touches the settlement so far.
     lots.forEach((lot, i) => {
       if (i === 0) return;

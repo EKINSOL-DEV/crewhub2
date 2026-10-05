@@ -21,7 +21,7 @@ understand about the room. Meshes are never queried to infer navigation.
 | `Actor` | Current cell, reserved next cell, segment progress, remaining route, destination |
 
 The Greenhouse is 18 × 14 cells, each 0.6 world units. The initial room has 13 props
-and three actors. Grids are bounded to 128 × 128; cell sizes must be finite and
+and three actors. Grids are bounded to 256 × 256; cell sizes must be finite and
 between 0.1 and 10. The current renderer is art-directed for this one room, while
 the engine supports other valid dimensions.
 
