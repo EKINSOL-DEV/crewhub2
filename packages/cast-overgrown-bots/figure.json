@@ -1,0 +1,48 @@
+{
+  "format": "crewhub-figure-patch/1",
+  "recolor": {
+    "sage": "oak", "apricot": "cherry", "lavender": "birch",
+    "badge": "glaze-white", "ear": "glaze-white", "hand": "glaze-white", "cap": "glaze-white",
+    "foot": "root", "visor": "pane", "face-glow": "ember", "petal": "bloom"
+  },
+  "remove": ["head", "eye-left", "eye-right", "antenna-stem", "antenna", "badge-dot"],
+  "joints": [{"id": "shoot", "parent": "head", "position": [0, 0.26, 0]}],
+  "add": [
+    {"id": "head", "joint": "head", "shape": "box", "size": [0.68, 0.52, 0.52], "position": [0, 0, 0], "radius": 0.13, "color": "slot:glaze"},
+    {"id": "eye-left", "joint": "eye-left", "shape": "sphere", "size": [0.05, 0.058, 0.02], "position": [0, 0, 0], "color": "lantern", "glow": 0.8, "detail": "near"},
+    {"id": "eye-right", "joint": "eye-right", "shape": "sphere", "size": [0.05, 0.058, 0.02], "position": [0, 0, 0], "color": "lantern", "glow": 0.8, "detail": "near"},
+    {"id": "moss-head", "joint": "head", "shape": "sphere", "size": [0.27, 0.085, 0.2], "position": [-0.05, 0.235, -0.04], "color": "moss-fresh"},
+    {"id": "moss-tuft", "joint": "head", "shape": "sphere", "size": [0.13, 0.085, 0.12], "position": [-0.25, 0.19, 0.16], "color": "moss-deep", "detail": "near"},
+    {"id": "moss-left", "joint": "arm-left", "shape": "sphere", "size": [0.09, 0.065, 0.1], "position": [-0.005, 0.025, 0], "color": "moss-fresh", "detail": "near"},
+    {"id": "moss-right", "joint": "arm-right", "shape": "sphere", "size": [0.09, 0.065, 0.1], "position": [0.005, 0.025, 0], "color": "moss-deep", "detail": "near"},
+    {"id": "shoot-stem", "joint": "shoot", "shape": "cylinder", "size": [0.013, 0.26, 0.02], "position": [0, 0.13, 0], "color": "shoot", "detail": "near"},
+    {"id": "leaf-left", "joint": "shoot", "shape": "sphere", "size": [0.085, 0.014, 0.045], "position": [-0.075, 0.2, 0], "rotation": [0, 0, -30], "color": "shoot-leaf", "detail": "near"},
+    {"id": "leaf-right", "joint": "shoot", "shape": "sphere", "size": [0.085, 0.014, 0.045], "position": [0.075, 0.2, 0], "rotation": [0, 0, 30], "color": "shoot-leaf", "detail": "near"},
+    {"id": "bud", "joint": "shoot", "shape": "sphere", "size": [0.045, 0.06, 0.045], "position": [0, 0.295, 0], "color": "bud", "activities": ["working", "idle", "blocked", "stale", "walking"], "detail": "near"},
+    {"id": "bloom", "joint": "shoot", "shape": "sphere", "size": [0.12, 0.022, 0.12], "position": [0, 0.275, 0], "color": "bloom", "activities": ["done"], "detail": "near"},
+    {"id": "bloom-heart", "joint": "shoot", "shape": "sphere", "size": [0.05, 0.04, 0.05], "position": [0, 0.295, 0], "color": "bud", "activities": ["done"], "detail": "near"},
+    {"id": "leaf-low", "joint": "shoot", "shape": "sphere", "size": [0.07, 0.014, 0.04], "position": [0.06, 0.09, 0.01], "rotation": [0, 0, 30], "color": "shoot-leaf", "roles": ["lead"], "detail": "near"},
+    {"id": "petal-heart", "joint": "head", "shape": "sphere", "size": [0.042, 0.032, 0.042], "position": [0.27, 0.245, 0.14], "color": "bud", "roles": ["design"], "detail": "near"},
+    {"id": "toadstool-stem", "joint": "head", "shape": "cylinder", "size": [0.02, 0.08, 0.026], "position": [0.25, 0.3, 0.08], "color": "glaze-white", "roles": ["analyst"], "detail": "near"},
+    {"id": "toadstool", "joint": "head", "shape": "sphere", "size": [0.068, 0.042, 0.068], "position": [0.25, 0.345, 0.08], "color": "toadstool", "roles": ["analyst"]}
+  ],
+  "poses": {
+    "blocked": {"arm-right": {"rotation": [0, 0, 154.699]}, "head": {"rotation": [0, 0, -4.584]}, "shoot": {"rotation": [20, 0, 72]}},
+    "stale": {"head": {"rotation": [16.043, 0, 0]}, "body": {"rotation": [2.292, 0, 0]}, "shoot": {"rotation": [30, 0, 55]}}
+  },
+  "motions": {
+    "always": [
+      {"joint": "eye-left", "channel": "scale.y", "wave": "blink", "amplitude": -0.85, "period": 4.9, "seeded": true},
+      {"joint": "eye-right", "channel": "scale.y", "wave": "blink", "amplitude": -0.85, "period": 4.9, "seeded": true},
+      {"joint": "shoot", "channel": "rotation.z", "wave": "sine", "amplitude": 7, "period": 3.4, "seeded": true}
+    ]
+  },
+  "looks": {
+    "waiting": {"parts": {"bud": {"color": "lantern", "glow": 0.9}, "bloom-heart": {"color": "lantern", "glow": 0.9}}}
+  },
+  "colorways": {
+    "shell": {"others": ["oak", "cherry", "birch"]},
+    "glaze": {"lead": "soft:accent", "others": ["celadon", "oat", "rain", "wisteria"]}
+  },
+  "halo": "slot:glaze"
+}
