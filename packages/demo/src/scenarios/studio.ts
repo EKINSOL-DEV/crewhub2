@@ -24,7 +24,7 @@ interface GroupPlan {
   color: ProjectColor;
   icon: ProjectIcon;
   /** The district's look in the town document seed: Greenhouse style options and a cast. */
-  look: { season: string; planting: string; castId: string };
+  look: { season: string; planting: string; accent: string; lantern: string; castId: string };
   /** Name, key, and whether releases are on. */
   projects: [name: string, key: string, releases?: boolean][];
 }
@@ -36,7 +36,7 @@ const GROUPS: GroupPlan[] = [
     name: "Apps",
     color: "coral",
     icon: "home",
-    look: { season: "summer", planting: "market", castId: "classic-bots" },
+    look: { season: "summer", planting: "market", accent: "coral", lantern: "globe", castId: "classic-bots" },
     projects: [["Pocket Garden", "PG", true], ["Field Notes", "FN"], ["Trail Maps", "TM", true], ["Recipe Box", "RB"], ["Bird Log", "BL"]],
   },
   {
@@ -45,7 +45,7 @@ const GROUPS: GroupPlan[] = [
     name: "Platform",
     color: "ink",
     icon: "bot",
-    look: { season: "october", planting: "waterside", castId: "overgrown-bots" },
+    look: { season: "october", planting: "waterside", accent: "sky", lantern: "iron", castId: "overgrown-bots" },
     projects: [["Accounts", "AC", true], ["Sync Engine", "SY", true], ["Billing", "BI"], ["Notifications", "NT"], ["Search", "SE"]],
   },
   {
@@ -54,7 +54,7 @@ const GROUPS: GroupPlan[] = [
     name: "Brand",
     color: "tangerine",
     icon: "spark",
-    look: { season: "spring", planting: "orchard", castId: "sprouts" },
+    look: { season: "spring", planting: "orchard", accent: "gold", lantern: "paper", castId: "sprouts" },
     projects: [["Website", "WB"], ["Launch Week", "LW"], ["Help Centre", "HC"], ["Newsletter", "NL"], ["Brand Kit", "BK"]],
   },
   {
@@ -63,7 +63,7 @@ const GROUPS: GroupPlan[] = [
     name: "Lab",
     color: "mist",
     icon: "star",
-    look: { season: "october", planting: "meadow", castId: "potlings" },
+    look: { season: "october", planting: "meadow", accent: "lilac", lantern: "paper", castId: "potlings" },
     projects: [["Voice Notes", "VN"], ["Offline Mode", "OF"], ["Widgets", "WG"], ["Importers", "IM"], ["Translations", "TR"]],
   },
 ];
@@ -175,7 +175,8 @@ const GROUP_SEEDS: ProjectGroupSeed[] = GROUPS.map((g, order) => ({ id: g.id, sl
  */
 export const STUDIO_TOWN_ZONES: TownZone[] = GROUPS.map((g) => ({
   id: g.id,
-  look: { styleOptions: { season: g.look.season, planting: g.look.planting }, castId: g.look.castId },
+  // Greenhouse's style options (season, planting, accent, lantern); a style ignores the ones it does not know.
+  look: { styleOptions: { season: g.look.season, planting: g.look.planting, accent: g.look.accent, lantern: g.look.lantern }, castId: g.look.castId },
 }));
 
 const idle = (p: Plan, w: number) => (p.index + w) % 4 === 0;

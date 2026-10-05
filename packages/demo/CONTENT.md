@@ -183,10 +183,10 @@ Twenty projects, five in each of four groups:
 
 | Group | Projects | District look in the town seed |
 |---|---|---|
-| Apps | Pocket Garden, Field Notes, Trail Maps, Recipe Box, Bird Log | season `summer`, planting `market`, cast `classic-bots` |
-| Platform | Accounts, Sync Engine, Billing, Notifications, Search | season `october`, planting `waterside`, cast `overgrown-bots` |
-| Brand | Website, Launch Week, Help Centre, Newsletter, Brand Kit | season `spring`, planting `orchard`, cast `sprouts` |
-| Lab | Voice Notes, Offline Mode, Widgets, Importers, Translations | season `october`, planting `meadow`, cast `potlings` |
+| Apps | Pocket Garden, Field Notes, Trail Maps, Recipe Box, Bird Log | season `summer`, planting `market`, accent `coral`, lantern `globe`, cast `classic-bots` |
+| Platform | Accounts, Sync Engine, Billing, Notifications, Search | season `october`, planting `waterside`, accent `sky`, lantern `iron`, cast `overgrown-bots` |
+| Brand | Website, Launch Week, Help Centre, Newsletter, Brand Kit | season `spring`, planting `orchard`, accent `gold`, lantern `paper`, cast `sprouts` |
+| Lab | Voice Notes, Offline Mode, Widgets, Importers, Translations | season `october`, planting `meadow`, accent `lilac`, lantern `paper`, cast `potlings` |
 
 **The groups are a future field (proposal L22 "project groups").** Crewhub-loops has no level above projects
 today. The demo sends it in the shape the world would like loops to offer: `groupId` on `ProjectOut`, the list as
