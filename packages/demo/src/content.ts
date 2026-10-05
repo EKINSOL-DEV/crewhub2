@@ -78,6 +78,25 @@ export interface ProjectSeed {
   features: { milestones: boolean; releases: boolean; watchdog_nudge: boolean };
   /** Archived at the loop start this long before the base instant; null when active. */
   archivedAgo: number | null;
+  /**
+   * FUTURE (proposal L22 "project groups", not in crewhub-loops today): the id of the group above this project.
+   * Only the Studio scenario and the `?stress=20` fixture set it; it leaves the source as `ProjectOut.groupId`.
+   */
+  groupId?: string;
+}
+
+/**
+ * FUTURE (proposal L22, not in crewhub-loops today): a level above projects, in the shape the world would like
+ * loops to offer (`ProjectGroup` of `@crewhub/loops-client`): `GET /api/project-groups` would answer
+ * `{ groups: ProjectGroup[] }`. Loops carries no looks; a zone's look lives in the town document.
+ */
+export interface ProjectGroupSeed {
+  id: string;
+  slug: string;
+  name: string;
+  order: number;
+  color: ProjectColor | null;
+  icon: ProjectIcon | null;
 }
 
 /** In sidebar order; the archived one is appended when it is restored. */
@@ -757,6 +776,8 @@ export interface LaneSeed {
   name: string;
   status: string;
   contextLine: string | null;
+  /** The herdr workspace of the lane; "w1" when absent. */
+  workspace?: string;
 }
 
 /** Lanes in the one herdr session at the loop start (the first snapshot is uploaded 12 s before). */
@@ -767,12 +788,12 @@ export const LANES: LaneSeed[] = [
   { name: "cr-dev-2", status: "working", contextLine: "CR-22: instancing pallets" },
   { name: "cr-design-1", status: "idle", contextLine: null },
   { name: "cr-scout", status: "idle", contextLine: "looked through the v1 demo for ideas" },
-  { name: "cl-lead", status: "working", contextLine: "CL-81: catalogue table, releases section" },
-  { name: "cl-dev-1", status: "working", contextLine: "CL-81: payload columns" },
-  { name: "cl-dev-2", status: "working", contextLine: "CL-44: tail endpoint handler" },
-  { name: "cl-analyst-1", status: "idle", contextLine: null },
+  { name: "cl-lead", status: "working", contextLine: "CL-81: catalogue table, releases section", workspace: "w2" },
+  { name: "cl-dev-1", status: "working", contextLine: "CL-81: payload columns", workspace: "w2" },
+  { name: "cl-dev-2", status: "working", contextLine: "CL-44: tail endpoint handler", workspace: "w2" },
+  { name: "cl-analyst-1", status: "idle", contextLine: null, workspace: "w2" },
   { name: "marky", status: "working", contextLine: "MK-10: screenshots of the town overview" },
-  { name: "analyst", status: "working", contextLine: "CL-40: mapping ticket events" },
+  { name: "analyst", status: "working", contextLine: "CL-40: mapping ticket events", workspace: "w2" },
   { name: "ux-lead", status: "working", contextLine: "MK-9: hero sketch" },
   { name: "postman", status: "idle", contextLine: null },
 ];
@@ -811,7 +832,58 @@ export const PROGRESS: ProgressSeed[] = [
 ];
 
 /** An earlier DM thread (yesterday), so the chat has history. */
-export const DM_HISTORY: { agent: string; author: string; ago: number; text: string }[] = [
+export interface DmSeed {
+  agent: string;
+  author: string;
+  ago: number;
+  text: string;
+}
+
+export const DM_HISTORY: DmSeed[] = [
   { agent: "g-man", author: "nicky", ago: 18 * HOUR, text: "Can you keep an eye on the demo build tonight?" },
   { agent: "g-man", author: "g-man", ago: 18 * HOUR - 2 * MINUTE, text: "Yes. I'll post a summary in the morning." },
 ];
+
+/**
+ * One demo installation: everything crewhub-loops would hold at the start of a loop. A scenario (`scenarios.ts`)
+ * is such an installation plus a storyline. Plain data, never mutated.
+ */
+export interface DemoContent {
+  /** The herdr session every lane runs in. */
+  session: string;
+  people: PersonSeed[];
+  agents: AgentSeed[];
+  /** In sidebar order; archived ones are appended to the order when they are restored. */
+  projects: ProjectSeed[];
+  /** FUTURE (proposal L22): the groups above the projects. Empty in every scenario but Studio. */
+  groups: ProjectGroupSeed[];
+  labels: LabelOut[];
+  milestones: MilestoneSeed[];
+  releases: ReleaseSeed[];
+  nextReleaseNumber: Record<string, number>;
+  tickets: TicketSeed[];
+  nextTicketNumber: Record<string, number>;
+  lanes: LaneSeed[];
+  comments: CommentSeed[];
+  progress: ProgressSeed[];
+  dmHistory: DmSeed[];
+}
+
+/** "Small team": the four projects of the original demo, the default scenario. */
+export const SMALL_TEAM: DemoContent = {
+  session: DEMO_SESSION,
+  people: PEOPLE,
+  agents: AGENTS,
+  projects: PROJECTS,
+  groups: [],
+  labels: LABELS,
+  milestones: MILESTONES,
+  releases: RELEASES,
+  nextReleaseNumber: NEXT_RELEASE_NUMBER,
+  tickets: TICKETS,
+  nextTicketNumber: NEXT_TICKET_NUMBER,
+  lanes: LANES,
+  comments: COMMENTS,
+  progress: PROGRESS,
+  dmHistory: DM_HISTORY,
+};

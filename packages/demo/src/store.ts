@@ -36,22 +36,7 @@ import type {
   TicketSummary,
   WatchdogResponse,
 } from "@crewhub/loops-client";
-import {
-  AGENTS,
-  COMMENTS,
-  DEMO_SESSION,
-  DM_HISTORY,
-  LABELS,
-  LANES,
-  MILESTONES,
-  NEXT_RELEASE_NUMBER,
-  NEXT_TICKET_NUMBER,
-  PEOPLE,
-  PROGRESS,
-  PROJECTS,
-  RELEASES,
-  TICKETS,
-} from "./content.ts";
+import { type DemoContent, type ProjectGroupSeed, type ProjectSeed, SMALL_TEAM } from "./content.ts";
 import { DAY, MINUTE, SECOND, iso } from "./time.ts";
 
 export const STATUSES: readonly TicketStatus[] = ["backlog", "planned", "in_progress", "review", "done"];
@@ -71,6 +56,8 @@ export interface StoredProject {
   archivedAt: number | null;
   archivedById: string | null;
   revision: number;
+  /** FUTURE (proposal L22, not in crewhub-loops today): the project group this project belongs to. */
+  groupId: string | null;
   features: { milestones: boolean; releases: boolean; watchdog_nudge: boolean };
   nextTicketNumber: number;
   nextMilestoneNumber: number;
@@ -163,6 +150,8 @@ export interface StoredLane {
 
 /** Everything a demo loop mutates. Plain data: `structuredClone` copies it. */
 export interface DemoState {
+  /** The installation this loop started from (the scenario's content); never mutated. */
+  content: DemoContent;
   /** Demo time in ms: set by the engine before each action. */
   now: number;
   /** The loop's base instant (script position 0). */
@@ -193,36 +182,43 @@ export interface DemoState {
   events: Envelope[];
 }
 
-export function initialState(base: number, cursor: number): DemoState {
+/** A project row as loops would hold it right after `at` (the loop start, or the moment it is created). */
+export function storedProject(content: DemoContent, p: ProjectSeed, base: number): StoredProject {
+  return {
+    id: p.id,
+    slug: p.slug,
+    key: p.key,
+    name: p.name,
+    leadId: p.leadId,
+    color: p.color,
+    icon: p.icon,
+    description: p.description,
+    archivedAt: p.archivedAgo === null ? null : base - p.archivedAgo,
+    archivedById: p.archivedAgo === null ? null : DEMO_PERSON,
+    revision: 7,
+    groupId: p.groupId ?? null,
+    features: { ...p.features },
+    nextTicketNumber: content.nextTicketNumber[p.key] ?? 1,
+    nextMilestoneNumber: 1 + Math.max(0, ...content.milestones.filter((m) => m.project === p.slug).map((m) => m.number)),
+    nextReleaseNumber: content.nextReleaseNumber[p.slug] ?? 1,
+  };
+}
+
+export function initialState(base: number, cursor: number, content: DemoContent = SMALL_TEAM): DemoState {
   const state: DemoState = {
+    content,
     now: base,
     base,
     seq: cursor,
     counters: {},
-    projects: PROJECTS.map((p) => ({
-      id: p.id,
-      slug: p.slug,
-      key: p.key,
-      name: p.name,
-      leadId: p.leadId,
-      color: p.color,
-      icon: p.icon,
-      description: p.description,
-      archivedAt: p.archivedAgo === null ? null : base - p.archivedAgo,
-      archivedById: p.archivedAgo === null ? null : "nicky",
-      revision: 7,
-      features: { ...p.features },
-      nextTicketNumber: NEXT_TICKET_NUMBER[p.key] ?? 1,
-      nextMilestoneNumber: 1 + Math.max(0, ...MILESTONES.filter((m) => m.project === p.slug).map((m) => m.number)),
-      nextReleaseNumber: NEXT_RELEASE_NUMBER[p.slug] ?? 1,
-    })),
-    order: PROJECTS.filter((p) => p.archivedAgo === null).map((p) => p.slug),
+    projects: content.projects.map((p) => storedProject(content, p, base)),
+    order: content.projects.filter((p) => p.archivedAgo === null).map((p) => p.slug),
     orderRevision: 3,
-    labels: LABELS.map((l) => ({ ...l })),
+    labels: content.labels.map((l) => ({ ...l })),
     tickets: [],
     comments: [],
     progress: [],
-    milestones: MILESTONES.map((m, index) => ({
+    milestones: content.milestones.map((m, index) => ({
       id: m.id,
       project: m.project,
       number: m.number,
@@ -244,12 +240,12 @@ export function initialState(base: number, cursor: number): DemoState {
     dmThreads: [],
     dmMessages: [],
     dmReads: {},
-    lanes: LANES.map((l, index) => ({
+    lanes: content.lanes.map((l, index) => ({
       name: l.name,
       status: l.status,
       contextLine: l.contextLine,
       paneId: `p${index + 1}`,
-      workspaceId: l.name.startsWith("cl-") || l.name === "analyst" ? "w2" : "w1",
+      workspaceId: l.workspace ?? "w1",
     })),
     team: { v: 1, ts: "", sessions: [] },
     events: [],
@@ -260,7 +256,7 @@ export function initialState(base: number, cursor: number): DemoState {
     return found;
   };
   const positions: Record<string, number> = {};
-  for (const seed of TICKETS) {
+  for (const seed of content.tickets) {
     const p = project(seed.key);
     const number = Number(seed.key.split("-")[1]);
     const createdAgo = seed.createdAgo ?? (8 - (number % 7)) * DAY;
@@ -299,7 +295,7 @@ export function initialState(base: number, cursor: number): DemoState {
       episodes: 0,
     });
   }
-  for (const seed of RELEASES) {
+  for (const seed of content.releases) {
     const carrier = requireTicket(state, seed.carrier);
     state.releases.push({
       id: seed.id,
@@ -318,17 +314,17 @@ export function initialState(base: number, cursor: number): DemoState {
       memberIds: state.tickets.filter((t) => t.releaseId === seed.id && t.id !== carrier.id).map((t) => t.id),
     });
   }
-  for (const seed of COMMENTS) {
+  for (const seed of content.comments) {
     const ticket = requireTicket(state, seed.ticket);
     const id = nextId(state, "cm");
-    state.comments.push(normalComment(state, id, ticket.id, principalRef(seed.author), seed.text, base - seed.ago, null));
+    state.comments.push(normalComment(state, id, ticket.id, principalRef(state, seed.author), seed.text, base - seed.ago, null));
   }
-  for (const seed of PROGRESS) {
+  for (const seed of content.progress) {
     const ticket = requireTicket(state, seed.ticket);
     state.progress.push({
       ticketId: ticket.id,
       id: nextNumber(state, "progress"),
-      agent: principalRef(seed.agent),
+      agent: principalRef(state, seed.agent),
       kind: seed.kind,
       text: seed.text,
       worker: seed.worker ?? null,
@@ -336,7 +332,7 @@ export function initialState(base: number, cursor: number): DemoState {
       createdAt: iso(base - seed.ago),
     });
   }
-  for (const seed of DM_HISTORY) {
+  for (const seed of content.dmHistory) {
     const thread = dmThread(state, seed.agent, base - seed.ago);
     const at = base - seed.ago;
     const replyTo = seed.author === seed.agent ? (state.dmMessages.at(-1)?.id ?? null) : null;
@@ -414,29 +410,31 @@ export interface AgentSummary {
   tickets: { id: string; key: string; title: string; status: TicketStatus; url: string }[];
 }
 
-const PRINCIPALS: PrincipalOut[] = [
-  ...PEOPLE.map((p): PrincipalOut => ({ id: p.id, kind: "user", displayName: p.displayName })),
-  ...AGENTS.map((a): PrincipalOut => ({ id: a.id, kind: "agent", displayName: a.displayName })),
-];
+function principals(state: DemoState): PrincipalOut[] {
+  return [
+    ...state.content.people.map((p): PrincipalOut => ({ id: p.id, kind: "user", displayName: p.displayName })),
+    ...state.content.agents.map((a): PrincipalOut => ({ id: a.id, kind: "agent", displayName: a.displayName })),
+  ];
+}
 
-export function principalRef(id: string): PrincipalRef {
+export function principalRef(state: DemoState, id: string): PrincipalRef {
   if (id === "system") return { id: "system", kind: "system", displayName: "System" };
-  const found = PRINCIPALS.find((p) => p.id === id);
+  const found = principals(state).find((p) => p.id === id);
   if (found === undefined) throw new Error(`Unknown principal ${id}`);
   return { ...found };
 }
 
-export function actorRef(id: string): ActorRef {
-  const ref = principalRef(id);
+export function actorRef(state: DemoState, id: string): ActorRef {
+  const ref = principalRef(state, id);
   return { id: ref.id, kind: ref.kind };
 }
 
-export function isLeadAgent(id: string | null): boolean {
-  return id !== null && AGENTS.some((a) => a.id === id && a.role === "lead");
+export function isLeadAgent(state: DemoState, id: string | null): boolean {
+  return id !== null && state.content.agents.some((a) => a.id === id && a.role === "lead");
 }
 
-export function isAgent(id: string): boolean {
-  return AGENTS.some((a) => a.id === id);
+export function isAgent(state: DemoState, id: string): boolean {
+  return state.content.agents.some((a) => a.id === id);
 }
 
 // Construction helpers shared with the actions
@@ -504,7 +502,7 @@ export function dmMessage(
   const message: DmMessage = {
     id,
     threadId: thread.id,
-    author: principalRef(authorId),
+    author: principalRef(state, authorId),
     body: richBody(text),
     bodyMarkdown: text,
     bodyText: text,
@@ -534,7 +532,7 @@ function clip(text: string, max: number): string {
 
 /** The snapshot the probe would upload now: the live lanes, `lead` added by the stem rule. */
 export function uploadSnapshot(state: DemoState, at: number): TeamSnapshot {
-  const registered = new Set(AGENTS.map((a) => a.id));
+  const registered = new Set(state.content.agents.map((a) => a.id));
   const leads = state.lanes.map((l) => l.name).filter((n) => registered.has(n) && n.endsWith("-lead"));
   const agents = state.lanes.map((lane): TeamAgent => {
     let lead: string | null = null;
@@ -558,7 +556,7 @@ export function uploadSnapshot(state: DemoState, at: number): TeamSnapshot {
       unsentInput: null,
     };
   });
-  return { v: 1, ts: iso(at), sessions: [{ name: DEMO_SESSION, agents }] };
+  return { v: 1, ts: iso(at), sessions: [{ name: state.content.session, agents }] };
 }
 
 // Reads
@@ -576,7 +574,7 @@ export class DemoReads {
   }
 
   private agentWorking(t: StoredTicket): boolean {
-    if (t.status !== "in_progress" || t.assigneeId === null || !isAgent(t.assigneeId)) return false;
+    if (t.status !== "in_progress" || t.assigneeId === null || !isAgent(this.state, t.assigneeId)) return false;
     if (!this.teamFresh()) return false;
     const agents = this.state.team.sessions.flatMap((s) => s.agents);
     if (agents.some((a) => a.name === t.assigneeId && a.status === "working")) return true;
@@ -619,8 +617,8 @@ export class DemoReads {
       priority: t.priority,
       position: t.position,
       version: t.version,
-      assignee: t.assigneeId === null ? null : principalRef(t.assigneeId),
-      waitingOn: t.waitingOnId === null ? null : principalRef(t.waitingOnId),
+      assignee: t.assigneeId === null ? null : principalRef(this.state, t.assigneeId),
+      waitingOn: t.waitingOnId === null ? null : principalRef(this.state, t.waitingOnId),
       labels: t.labelIds.map((id) => ({ ...(this.state.labels.find((l) => l.id === id) as LabelOut) })),
       commentCount: this.state.comments.filter((c) => c.ticketId === t.id && c.kind === "normal").length,
       attachmentCount: 0,
@@ -629,7 +627,7 @@ export class DemoReads {
         t.stall === null || t.status !== "in_progress"
           ? null
           : { state: t.stall.state, quietSince: iso(t.stall.quietSince), nudges: t.stall.nudges },
-      waitingOnHuman: t.status === "in_progress" && t.waitingOnId !== null && !isAgent(t.waitingOnId),
+      waitingOnHuman: t.status === "in_progress" && t.waitingOnId !== null && !isAgent(this.state, t.waitingOnId),
       milestone: this.milestoneRef(t.milestoneId),
       held: t.held,
       blocked: this.blockers(t).some((b) => this.isBlocking(b)),
@@ -689,7 +687,7 @@ export class DemoReads {
       body: richBody(t.bodyMarkdown),
       bodyMarkdown: t.bodyMarkdown,
       attachments: [],
-      createdBy: principalRef(t.createdById),
+      createdBy: principalRef(this.state, t.createdById),
       seedId: null,
     };
   }
@@ -716,7 +714,7 @@ export class DemoReads {
       slug: p.slug,
       key: p.key,
       name: p.name,
-      lead: principalRef(p.leadId),
+      lead: principalRef(this.state, p.leadId),
       herdrSession: null,
       counts: this.counts(slug),
       releaseScheme: p.features.releases ? "semver" : null,
@@ -729,12 +727,19 @@ export class DemoReads {
       icon: p.icon,
       description: p.description,
       archivedAt: p.archivedAt === null ? null : iso(p.archivedAt),
-      archivedBy: p.archivedById === null ? null : principalRef(p.archivedById),
-      effectiveRoute: { agent: p.leadId, session: DEMO_SESSION, source: "agent" },
+      archivedBy: p.archivedById === null ? null : principalRef(this.state, p.archivedById),
+      effectiveRoute: { agent: p.leadId, session: this.state.content.session, source: "agent" },
       repoCount: 1,
       ticketTotal: this.state.tickets.filter((t) => t.project === slug).length,
       keyLocked: true,
+      // FUTURE (proposal L22): absent in crewhub-loops today, so absent here unless the scenario has groups.
+      ...(p.groupId === null ? {} : { groupId: p.groupId }),
     };
+  }
+
+  /** FUTURE (proposal L22): `GET /api/project-groups`. Crewhub-loops has no such route today. */
+  projectGroups(): ProjectGroupSeed[] {
+    return this.state.content.groups.map((g) => ({ ...g })).sort((a, b) => a.order - b.order);
   }
 
   projects(): ProjectOut[] {
@@ -767,11 +772,11 @@ export class DemoReads {
     // Archived projects are left out of both lists, as in loops (`domain/agents.py`, `agent_extras`).
     const active = this.state.projects.filter((p) => p.archivedAt === null);
     const ref = (p: StoredProject) => ({ slug: p.slug, key: p.key });
-    return AGENTS.map((a) => ({
+    return this.state.content.agents.map((a) => ({
       id: a.id,
       displayName: a.displayName,
       role: a.role,
-      herdrSession: DEMO_SESSION,
+      herdrSession: this.state.content.session,
       disabled: false,
       lastSeenAt: iso(this.state.now - 40 * SECOND),
       keys: null,
@@ -788,7 +793,7 @@ export class DemoReads {
   }
 
   principals(): PrincipalOut[] {
-    return PRINCIPALS.map((p) => ({ ...p }));
+    return principals(this.state);
   }
 
   watchdog(): WatchdogResponse {
@@ -833,7 +838,7 @@ export class DemoReads {
           project: { slug: p.slug, key: p.key },
           targetDate: m.targetDate,
           position: m.position,
-          owner: m.ownerId === null ? null : principalRef(m.ownerId),
+          owner: m.ownerId === null ? null : principalRef(this.state, m.ownerId),
           createdAt: iso(m.createdAt),
           updatedAt: iso(m.updatedAt),
           startedAt: m.startedAt === null ? null : iso(m.startedAt),

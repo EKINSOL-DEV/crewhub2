@@ -49,6 +49,11 @@ export interface TownStore {
 
 export interface TownStoreOptions {
   context: TownContext;
+  /**
+   * The database's name. Default TOWN_DB_NAME. Every demo scenario has its own (`DemoScenario.townKey`), so the
+   * plots and placements of one town never mix into another.
+   */
+  name?: string;
   /** Defaults to `globalThis.indexedDB`; pass null to force memory. */
   indexedDB?: IDBFactory | null;
 }
@@ -66,8 +71,8 @@ const done = (tx: IDBTransaction): Promise<void> =>
     tx.onabort = () => reject(tx.error ?? new Error("IndexedDB transaction aborted"));
   });
 
-function openDatabase(factory: IDBFactory): Promise<IDBDatabase> {
-  const open = factory.open(TOWN_DB_NAME, TOWN_DB_VERSION);
+function openDatabase(factory: IDBFactory, name: string): Promise<IDBDatabase> {
+  const open = factory.open(name, TOWN_DB_VERSION);
   open.onupgradeneeded = () => {
     if (!open.result.objectStoreNames.contains(TOWN_STORE_NAME)) open.result.createObjectStore(TOWN_STORE_NAME);
   };
@@ -147,7 +152,7 @@ export function createTownStore(options: TownStoreOptions): TownStore {
       loading ??= (async () => {
         if (factory) {
           try {
-            db = await openDatabase(factory);
+            db = await openDatabase(factory, options.name ?? TOWN_DB_NAME);
             const { docs, head, skipped } = await readStored(db);
             for (const doc of docs) stored.add(doc.revision);
             const restored = restoreHistory(docs, head);
