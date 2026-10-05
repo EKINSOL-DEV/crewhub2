@@ -10,6 +10,7 @@ import type {
   MilestoneSummary,
   PrincipalOut,
   ProgressItem,
+  ProjectGroup,
   ProjectOut,
   ReleaseSummary,
   TeamSnapshot,
@@ -56,6 +57,11 @@ export interface LoopsSnapshot {
   milestones: Record<string, MilestoneSummary[]>;
   /** GET /api/projects/{slug}/releases per project with the feature on, keyed by slug. */
   releases: Record<string, ReleaseSummary[]>;
+  /**
+   * FUTURE (proposal L22): `GET /api/project-groups`. Absent from a real crewhub-loops, which has no groups; the
+   * demo fills it so a seek or a loop resets the groups with everything else.
+   */
+  groups?: ProjectGroup[];
 }
 
 export type SourceMessage =
@@ -79,6 +85,11 @@ export interface WorldSource {
   getWatchdog(): Promise<WatchdogResponse>;
   getMilestones(slug: string): Promise<MilestoneSummary[]>;
   getReleases(slug: string): Promise<ReleaseSummary[]>;
+  /**
+   * FUTURE (proposal L22): the groups above projects, in order. A source for a real crewhub-loops answers `[]` until
+   * loops has them; the world then puts every project in its one default zone.
+   */
+  listProjectGroups(): Promise<ProjectGroup[]>;
   /** Detail reads, only when a person opens a ticket (text view). */
   getComments(ref: string): Promise<CommentOut[]>;
   getProgress(ref: string): Promise<ProgressItem[]>;

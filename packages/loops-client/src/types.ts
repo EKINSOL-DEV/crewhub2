@@ -132,6 +132,31 @@ export interface ProjectOut {
   repoCount?: number;
   ticketTotal?: number;
   keyLocked?: boolean;
+  /**
+   * FUTURE (proposal L22 "project groups"): the group the project belongs to. crewhub-loops does not send it today;
+   * only the demo does, so the world's zones have something to read.
+   */
+  groupId?: string | null;
+}
+
+/**
+ * FUTURE (proposal L22 "project groups"): a level above projects, in the shape the world would like crewhub-loops to
+ * offer. Nothing in crewhub-loops has it today; the name is neutral on purpose (loops decides whether it is an area,
+ * a workspace, a team or a category). The world reads a group as a zone: a district of the town.
+ */
+export interface ProjectGroup {
+  id: string;
+  slug: string;
+  name: string;
+  /** Sidebar order, ascending. */
+  order: number;
+  color: ProjectColor | null;
+  icon: ProjectIcon | null;
+}
+
+/** FUTURE (proposal L22): `GET /api/project-groups`. */
+export interface ProjectGroupsResponse {
+  groups: ProjectGroup[];
 }
 
 export interface ProjectsResponse {

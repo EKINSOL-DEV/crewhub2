@@ -56,6 +56,7 @@ export function building(slug: string, agents: AgentPlacement[] = [], objects: W
   for (const a of all) if (a.room) kinds.add(a.room);
   return {
     slug,
+    zoneId: "default",
     key: slug.toUpperCase(),
     name: slug,
     color: "coral",
@@ -82,6 +83,7 @@ export function world(buildings: Building[], extra: Partial<WorldModel> = {}): W
     snapshots: 1,
     freshness: { teamTs: null, ageSeconds: 0, stale: false },
     buildings,
+    zones: [{ id: "default", name: null, order: 0, color: null, emblem: null, look: {}, source: "default" }],
     townHall: [],
     postOffice: [],
     deliveries: [],

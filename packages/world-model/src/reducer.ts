@@ -35,6 +35,8 @@ import { finishFlights, flyObjects, startFlights } from "./flights.ts";
 import { buildObjects } from "./objects.ts";
 import type { BuiltObject, DeskHolder } from "./objects.ts";
 import { buildRooms, meetingKey } from "./rooms.ts";
+import { DEFAULT_ZONE_ID, resolveZones } from "./zones.ts";
+import type { TownZoning } from "./zones.ts";
 
 export const STALE_AFTER_S = 300;
 
@@ -44,6 +46,8 @@ export interface ReduceOptions {
   mode: "demo" | "live";
   /** A person's role choice per agent (plan 4.2), stored by the app. */
   roleOverrides: Record<AgentKey, RoleId>;
+  /** The town document's zones and manual assignments; absent means the source's groups alone decide. */
+  zoning?: TownZoning;
 }
 
 export interface ReduceResult {
@@ -106,6 +110,13 @@ export function reduceWorld(facts: Readonly<Facts>, memory: PresentationMemory, 
 
   finishFlights(ctx);
 
+  const zoning = resolveZones(
+    buildings.map((b) => ({ slug: b.slug, groupId: facts.projects[b.slug]?.groupId ?? null })),
+    facts.groups,
+    options.zoning,
+  );
+  for (const building of buildings) building.zoneId = zoning.zoneOf[building.slug]!;
+
   const townHall: AgentPlacement[] = [];
   const postOffice: AgentPlacement[] = [];
   for (const state of states.values()) {
@@ -124,6 +135,7 @@ export function reduceWorld(facts: Readonly<Facts>, memory: PresentationMemory, 
     snapshots: facts.snapshots,
     freshness,
     buildings,
+    zones: zoning.zones,
     townHall: sortPlacements(townHall),
     postOffice: sortPlacements(postOffice),
     deliveries: walks,
@@ -195,6 +207,7 @@ function activeBuilding(
   const meeting = meetingKey(slug, project.lead.id, entities, ctx);
   return {
     slug,
+    zoneId: DEFAULT_ZONE_ID,
     key: project.key,
     name: project.name,
     color: project.color ?? null,
@@ -217,6 +230,7 @@ function archivedBuilding(project: ProjectOut, ctx: ReduceContext): Building {
   const { facts } = ctx;
   return {
     slug: project.slug,
+    zoneId: DEFAULT_ZONE_ID,
     key: project.key,
     name: project.name,
     color: project.color ?? null,

@@ -73,6 +73,7 @@ function building(agents: AgentPlacement[], extraRooms: RoomKind[] = [], objects
   for (const a of agents) if (a.room) kinds.add(a.room);
   return {
     slug: "cr",
+    zoneId: "default",
     key: "CR",
     name: "CrewHub",
     color: "coral",
