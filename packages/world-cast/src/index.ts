@@ -15,9 +15,9 @@
 import type * as THREE from "three";
 import type { PropShape, Vec3 } from "@crewhub/world-engine";
 import type { PaletteName, StyleTheme } from "@crewhub/world-style";
-import { CAST_ROLES, FIGURE_ACTIVITIES } from "./names.ts";
+import { CAST_ROLES, FIGURE_ACTIVITIES, WORK_POSES } from "./names.ts";
 
-export { CAST_ROLES, FIGURE_ACTIVITIES };
+export { CAST_ROLES, FIGURE_ACTIVITIES, WORK_POSES };
 
 /* ── What a figure stands for ───────────────────────────────────────────── */
 
@@ -67,7 +67,70 @@ export interface FigureAnchors {
   ground: number;
   /** Total height, standing: framing, hit areas and the far crowd's culling use it. */
   height: number;
+  /**
+   * Between the eyes: what must see over a work surface (the contract checks it at every work pose). Left out: on the
+   * centre line at four fifths of the height.
+   */
+  eyes?: Vec3;
 }
+
+/* ── Work places and perches ────────────────────────────────────────────── */
+
+/** A place a figure works at a surface: a desk, the lead's desk, the meeting, planning or review table. */
+export type WorkPose = (typeof WORK_POSES)[number];
+
+/**
+ * A work place as the world tells a figure, in the frame of the figure standing there: its feet at the origin on the
+ * floor, +z the way it faces (squarely towards the surface), world units. Furniture and rooms never change with the
+ * cast: the style says how high the top is, what there is to look at and where the top is free; the cast's `perch`
+ * says how its figure gets up there.
+ */
+export interface WorkPlace {
+  pose: WorkPose;
+  /** The figure's scale here (the renderer's: 0.62 inside a building). */
+  scale: number;
+  /** The top's height above the floor. */
+  height: number;
+  /** How far in front of the figure the top's near edge is. */
+  edge: number;
+  /** What the worker looks at: the middle of the screen, or the table's middle line where it is nearest, at the top's height. */
+  focus: Vec3;
+  /** With a screen: the way it faces, a unit vector on the floor (x, z). The worker must be in front of it. */
+  screen?: [number, number];
+  /**
+   * A free place on the top for a figure that sits on it: the nearest place clear of what stands there that is at
+   * least `radius` wide (the perch's own base, see `Perch`); null when the top is full.
+   */
+  spot(radius: number): { x: number; z: number } | null;
+}
+
+/** A shape of a step, as a figure's parts are: its colour a cast or style colour name, `slot:<name>` or `accent`. */
+export interface PerchPart extends FigurePart {
+  color: string;
+}
+
+/** One step a figure may stand on. Its parts are placed around the figure's standing point, the floor at y = 0. */
+export interface PerchStep {
+  /** Unique among the perch's steps: "books", "pot", "stool". */
+  id: string;
+  /** How high the figure stands on it, figure units (the step scales with the figure). */
+  height: number;
+  parts: PerchPart[];
+}
+
+/**
+ * How a figure reaches a work surface (`perch` in the figure data, per work pose or as `default`):
+ * - `floor`: it stands on the floor, as a figure without a perch does (to opt out of the default at one pose);
+ * - `step`: it stands on a small prop of its own, one of `steps` seeded by the agent key, drawn up to the top: `gap`
+ *   figure units from its edge (left out: the figure's ground radius), never behind where it would stand;
+ * - `surface`: it sits on the top itself, at the free place the furniture offers, turned to what it looks at. `base`
+ *   is the radius it needs there, figure units (left out: its ground radius).
+ * `pose` layers over the activity's still pose while it is up there (feet tucked in, legs dangling).
+ */
+export type Perch =
+  | { kind: "floor" }
+  | { kind: "step"; steps: PerchStep[]; gap?: number; pose?: Record<string, JointPose> }
+  | { kind: "surface"; base?: number; pose?: Record<string, JointPose> };
 
 /* ── The runtime contract renderers use ─────────────────────────────────── */
 
@@ -83,6 +146,18 @@ export interface FigureHandle {
    * figure then shows its still pose for the activity, which must read on its own.
    */
   update(seconds: number): void;
+  /**
+   * The figure itself inside `object`: at rest at the origin; on a perch lifted, moved and turned. Whatever follows
+   * the figure (the name pill, the selection ring) reads its position, in figure units; the contact shadow rides in it.
+   */
+  readonly body: THREE.Object3D;
+  /**
+   * The work place the figure is at, or null (the floor: walking, away from a surface, seen from the town). The
+   * renderer keeps `object` on the floor where the figure would stand, facing the surface; the figure gets on its
+   * perch by itself: a small hop over a few `update`s, or at once with `cut` (reduced motion, a first placement).
+   * Cheap to call every frame with the same place. A cast without a perch stays where it is.
+   */
+  setPerch(place: WorkPlace | null, cut?: boolean): void;
   dispose(): void;
 }
 
@@ -302,6 +377,11 @@ export interface FigureSpec {
    */
   colorways: Record<string, { lead?: string; roles?: Partial<Record<CastRole, string>>; others: string[] }>;
   anchors: FigureAnchors;
+  /**
+   * How the figure reaches a work surface it cannot see over: per work pose, or `default` for every pose not named.
+   * Left out: it stands on the floor everywhere (a figure tall enough needs nothing).
+   */
+  perch?: Partial<Record<WorkPose | "default", Perch>>;
 }
 
 /**
@@ -325,10 +405,12 @@ export interface FigurePatch {
   colorways?: FigureSpec["colorways"];
   halo?: string;
   anchors?: Partial<FigureAnchors>;
+  /** Per work pose (and `default`), this cast's perch replaces the base's. */
+  perch?: FigureSpec["perch"];
 }
 
-export { applyFigurePatch, figureColor, hashKey, wave } from "./figure.ts";
+export { applyFigurePatch, figureColor, figureEyes, hashKey, perchFor, perchPlacement, wave, type PerchPlacement } from "./figure.ts";
 export { validateCastManifest, validateFigure, validateFigurePatch, type CastValidation } from "./validate.ts";
 export { createCast } from "./runtime.ts";
 export { referenceKit } from "./referenceKit.ts";
-export { castProblems, measureFigure } from "./contract.ts";
+export { castProblems, measureFigure, sightProblems } from "./contract.ts";

@@ -193,5 +193,17 @@
     "petal": { "others": ["petal-pink", "petal-cream", "petal-violet", "petal-sun"] },
     "bloom": { "lead": "accent", "others": ["petal-cream"] }
   },
-  "anchors": { "label": [0, 1.978, 0], "carry": [0, 0.897, 0.23], "ground": 0.414, "height": 1.863 }
+  "anchors": { "label": [0, 1.978, 0], "carry": [0, 0.897, 0.23], "ground": 0.414, "height": 1.863, "eyes": [0, 0.529, 0.33] },
+  "perch": {
+    "default": {
+      "kind": "surface",
+      "base": 0.25,
+      "pose": {
+        "pot": { "offset": [0, -0.1, 0] },
+        "foot-l": { "offset": [-0.03, -0.025, 0.27], "rotation": [-35, -12, 0] },
+        "foot-r": { "offset": [0.03, -0.025, 0.27], "rotation": [-35, 12, 0] }
+      }
+    },
+    "review-table": { "kind": "floor" }
+  }
 }

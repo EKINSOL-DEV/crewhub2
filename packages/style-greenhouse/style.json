@@ -4,6 +4,29 @@
   "version": "1.0.0",
   "description": "The botanical miniature studio: soft toon materials, warm timber, chalk walls, framed glass, planted details and soft light.",
   "defaultCast": "classic-bots",
+  "workSurfaces": {
+    "furniture.workdesk": {
+      "height": 0.565,
+      "half": [0.527, 0.329],
+      "screen": [0, 0.778, -0.138],
+      "spots": [
+        { "x": -0.37, "z": 0.185, "radius": 0.16 },
+        { "x": 0.3, "z": 0.21, "radius": 0.11 }
+      ]
+    },
+    "furniture.lead-desk": {
+      "height": 0.635,
+      "half": [0.595, 0.371],
+      "screen": [0, 0.879, -0.156],
+      "spots": [
+        { "x": 0.38, "z": 0.235, "radius": 0.16 },
+        { "x": 0, "z": 0.26, "radius": 0.11 }
+      ]
+    },
+    "furniture.meeting-table": { "height": 0.53, "half": [1.1, 0.475] },
+    "furniture.planning-table": { "height": 0.53, "half": [1.15, 0.25] },
+    "furniture.review-pile": { "height": 0.12, "half": [0.8, 0.5] }
+  },
   "coveredKeys": [
     "banner",
     "beacon",

@@ -2,7 +2,7 @@
    (crewhub-figure-patch/1). Pure and hand-written, like the prop validator: every problem is one line with its path. */
 import { PROP_SHAPES } from "@crewhub/world-engine";
 import type { CastManifest, FigurePatch, FigureSpec } from "./index.ts";
-import { CAST_ROLES, FIGURE_ACTIVITIES } from "./names.ts";
+import { CAST_ROLES, FIGURE_ACTIVITIES, WORK_POSES } from "./names.ts";
 
 export type CastValidation<T> = { ok: true; value: T } | { ok: false; errors: string[] };
 
@@ -11,6 +11,10 @@ const CHANNELS = ["rotation", "offset", "scale"].flatMap((c) => ["x", "y", "z"].
 const POSE_KEYS = [...FIGURE_ACTIVITIES, "waiting", "carrying"];
 const MOTION_KEYS = [...FIGURE_ACTIVITIES, "waiting", "always"];
 const LOOK_KEYS = [...FIGURE_ACTIVITIES, "waiting", "alert", "near", "hover", "selected"];
+const PERCH_KEYS = [...WORK_POSES, "default"];
+const PART_KEYS = ["id", "joint", "shape", "size", "position", "rotation", "radius", "sweep", "color", "glow", "roles", "activities", "waiting", "carrying", "detail"];
+/** A step is plain shapes in a colour: it has no joints, roles or states. */
+const STEP_PART_KEYS = ["shape", "size", "position", "rotation", "radius", "sweep", "color"];
 /** A colour in cast data: a hex colour. Names resolve through the cast's colours and the style. */
 const HEX = /^#[0-9a-fA-F]{6}$/;
 const ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -74,12 +78,12 @@ function colorName(r: Report, value: unknown, path: string) {
   else if (value.startsWith("#")) r.error(path, "must be a colour name; hex colours live in cast.json");
 }
 
-function parts(r: Report, value: unknown, path: string, joints: ReadonlySet<string> | null, ids: Set<string>) {
+function parts(r: Report, value: unknown, path: string, joints: ReadonlySet<string> | null, ids: Set<string>, keys: readonly string[] = PART_KEYS) {
   if (!Array.isArray(value)) return r.error(path, "must be a list of parts");
   value.forEach((part: unknown, i) => {
     const at = `${path}[${i}]`;
     if (!isObject(part)) return r.error(at, "must be an object");
-    r.keys(part, ["id", "joint", "shape", "size", "position", "rotation", "radius", "sweep", "color", "glow", "roles", "activities", "waiting", "carrying", "detail"], at);
+    r.keys(part, keys, at);
     if (!PROP_SHAPES.includes(part.shape as (typeof PROP_SHAPES)[number])) r.error(`${at}.shape`, `must be one of ${PROP_SHAPES.join(", ")}`);
     if (r.vec3(part.size, `${at}.size`) && (part.size as number[]).some((n) => n < 0)) r.error(`${at}.size`, "must not be negative");
     r.vec3(part.position, `${at}.position`);
@@ -125,18 +129,66 @@ function poses(r: Report, value: unknown, path: string, joints: ReadonlySet<stri
       r.error(`${path}.${key}`, "must be an object of joints");
       continue;
     }
-    for (const [joint, change] of Object.entries(pose)) {
-      const at = `${path}.${key}.${joint}`;
-      if (joints && !joints.has(joint)) r.error(at, "is not a joint of the figure");
-      if (!isObject(change)) {
-        r.error(at, "must be { rotation, offset, scale }");
-        continue;
-      }
-      r.keys(change, ["rotation", "offset", "scale"], at);
-      if ("rotation" in change) r.vec3(change.rotation, `${at}.rotation`, 360);
-      if ("offset" in change) r.vec3(change.offset, `${at}.offset`);
-      if ("scale" in change && r.vec3(change.scale, `${at}.scale`) && (change.scale as number[]).some((n) => n <= 0)) r.error(`${at}.scale`, "must be above 0");
+    jointPoses(r, pose, `${path}.${key}`, joints);
+  }
+}
+
+/** One still pose: joints → { rotation, offset, scale }. */
+function jointPoses(r: Report, pose: Bag, path: string, joints: ReadonlySet<string> | null) {
+  for (const [joint, change] of Object.entries(pose)) {
+    const at = `${path}.${joint}`;
+    if (joints && !joints.has(joint)) r.error(at, "is not a joint of the figure");
+    if (!isObject(change)) {
+      r.error(at, "must be { rotation, offset, scale }");
+      continue;
     }
+    r.keys(change, ["rotation", "offset", "scale"], at);
+    if ("rotation" in change) r.vec3(change.rotation, `${at}.rotation`, 360);
+    if ("offset" in change) r.vec3(change.offset, `${at}.offset`);
+    if ("scale" in change && r.vec3(change.scale, `${at}.scale`) && (change.scale as number[]).some((n) => n <= 0)) r.error(`${at}.scale`, "must be above 0");
+  }
+}
+
+/** The perches of a figure: per work pose or `default`, a step of its own, the top itself, or the floor. */
+function perches(r: Report, value: unknown, path: string, joints: ReadonlySet<string> | null, slots: Bag | null) {
+  if (!isObject(value)) return r.error(path, "must be an object of perches per work pose");
+  r.keys(value, PERCH_KEYS, path);
+  for (const [pose, perch] of Object.entries(value)) {
+    const at = `${path}.${pose}`;
+    if (!isObject(perch) || !["floor", "step", "surface"].includes(perch.kind as string)) {
+      r.error(`${at}.kind`, 'must be "floor", "step" or "surface"');
+      continue;
+    }
+    r.keys(perch, perch.kind === "step" ? ["kind", "steps", "gap", "pose"] : perch.kind === "surface" ? ["kind", "base", "pose"] : ["kind"], at);
+    if ("pose" in perch) {
+      if (!isObject(perch.pose)) r.error(`${at}.pose`, "must be an object of joints");
+      else jointPoses(r, perch.pose, `${at}.pose`, joints);
+    }
+    if ("base" in perch && (!isNumber(perch.base) || perch.base <= 0 || perch.base > REACH)) r.error(`${at}.base`, `must be a radius above 0 and at most ${REACH}`);
+    if (perch.kind !== "step") continue;
+    if ("gap" in perch && (!isNumber(perch.gap) || perch.gap < 0 || perch.gap > REACH)) r.error(`${at}.gap`, `must be a number from 0 to ${REACH}`);
+    if (!Array.isArray(perch.steps) || !perch.steps.length) {
+      r.error(`${at}.steps`, "must list at least one step");
+      continue;
+    }
+    const ids = new Set<string>();
+    perch.steps.forEach((step: unknown, i) => {
+      const s = `${at}.steps[${i}]`;
+      if (!isObject(step)) return r.error(s, "must be { id, height, parts }");
+      r.keys(step, ["id", "height", "parts"], s);
+      if (!isText(step.id) || !ID.test(step.id)) r.error(`${s}.id`, "must be lowercase letters, digits and dashes");
+      else if (ids.has(step.id)) r.error(`${s}.id`, `"${step.id}" is used twice`);
+      else ids.add(step.id);
+      if (!isNumber(step.height) || step.height <= 0 || step.height > REACH) r.error(`${s}.height`, `must be a number above 0 and at most ${REACH}`);
+      parts(r, step.parts, `${s}.parts`, null, new Set(), STEP_PART_KEYS);
+      if (Array.isArray(step.parts)) {
+        if (!step.parts.length) r.error(`${s}.parts`, "must list at least one part");
+        step.parts.forEach((part: unknown, j) => {
+          const color = isObject(part) && typeof part.color === "string" ? part.color : "";
+          if (slots && color.startsWith("slot:") && !(color.slice(5) in slots)) r.error(`${s}.parts[${j}].color`, `"${color}" names no colourway slot`);
+        });
+      }
+    });
   }
 }
 
@@ -210,8 +262,9 @@ function colorways(r: Report, value: unknown, path: string) {
 
 function anchors(r: Report, value: unknown, path: string, partial: boolean) {
   if (!isObject(value)) return r.error(path, "must be { label, carry, ground, height }");
-  r.keys(value, ["label", "carry", "ground", "height"], path);
+  r.keys(value, ["label", "carry", "ground", "height", "eyes"], path);
   for (const key of ["label", "carry"]) if (!partial || key in value) r.vec3(value[key], `${path}.${key}`);
+  if ("eyes" in value) r.vec3(value.eyes, `${path}.eyes`);
   for (const key of ["ground", "height"]) {
     const n = value[key];
     if ((!partial || key in value) && (!isNumber(n) || n <= 0 || n > REACH)) r.error(`${path}.${key}`, `must be a number above 0 and at most ${REACH}`);
@@ -221,7 +274,7 @@ function anchors(r: Report, value: unknown, path: string, partial: boolean) {
 export function validateFigure(value: unknown): CastValidation<FigureSpec> {
   const r = new Report();
   if (!isObject(value)) return { ok: false, errors: ["figure: must be an object"] };
-  r.keys(value, ["format", "joints", "parts", "poses", "motions", "looks", "colorways", "halo", "anchors"], "figure");
+  r.keys(value, ["format", "joints", "parts", "poses", "motions", "looks", "colorways", "halo", "anchors", "perch"], "figure");
   if (value.format !== "crewhub-figure/1") r.error("figure.format", 'must be "crewhub-figure/1"');
   const joints = new Set(["root"]);
   jointList(r, value.joints, "figure.joints", joints);
@@ -235,6 +288,7 @@ export function validateFigure(value: unknown): CastValidation<FigureSpec> {
   colorways(r, value.colorways, "figure.colorways");
   if ("halo" in value) colorName(r, value.halo, "figure.halo");
   anchors(r, value.anchors, "figure.anchors", false);
+  if ("perch" in value) perches(r, value.perch, "figure.perch", movable, isObject(value.colorways) ? value.colorways : null);
   if (isObject(value.colorways) && Array.isArray(value.parts))
     value.parts.forEach((part: unknown, i) => {
       const color = isObject(part) && typeof part.color === "string" ? part.color : "";
@@ -247,7 +301,7 @@ export function validateFigure(value: unknown): CastValidation<FigureSpec> {
 export function validateFigurePatch(value: unknown): CastValidation<FigurePatch> {
   const r = new Report();
   if (!isObject(value)) return { ok: false, errors: ["patch: must be an object"] };
-  r.keys(value, ["format", "recolor", "remove", "add", "joints", "poses", "motions", "looks", "colorways", "halo", "anchors"], "patch");
+  r.keys(value, ["format", "recolor", "remove", "add", "joints", "poses", "motions", "looks", "colorways", "halo", "anchors", "perch"], "patch");
   if (value.format !== "crewhub-figure-patch/1") r.error("patch.format", 'must be "crewhub-figure-patch/1"');
   if ("recolor" in value) {
     if (!isObject(value.recolor)) r.error("patch.recolor", "must be an object of colour names");
@@ -269,5 +323,6 @@ export function validateFigurePatch(value: unknown): CastValidation<FigurePatch>
   if ("colorways" in value) colorways(r, value.colorways, "patch.colorways");
   if ("halo" in value) colorName(r, value.halo, "patch.halo");
   if ("anchors" in value) anchors(r, value.anchors, "patch.anchors", true);
+  if ("perch" in value) perches(r, value.perch, "patch.perch", null, null);
   return r.done(value);
 }

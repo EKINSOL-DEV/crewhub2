@@ -3,7 +3,7 @@
    a still pose, a set of motions and the looks. A figure only re-poses and re-skins when its state changes, and its
    `update` allocates nothing. */
 import * as THREE from "three";
-import { figureColor, hashKey, wave } from "./figure.ts";
+import { figureColor, hashKey, perchPlacement, wave, type PerchPlacement } from "./figure.ts";
 import type {
   Cast,
   CastManifest,
@@ -20,6 +20,8 @@ import type {
   JointPose,
   Motion,
   MotionWave,
+  PerchStep,
+  WorkPlace,
 } from "./index.ts";
 
 const DEG = Math.PI / 180;
@@ -31,6 +33,10 @@ const STALE_OPACITY = 0.8;
 const PROXY_OPACITY = 0.35;
 /** A seeded glance's beat stretches by up to this share of its period. */
 const BEAT_STRETCH = 0.6;
+/** Getting on or off a perch: seconds per figure unit of the way (at least `HOP_MIN`), and how high the hop arcs. */
+const HOP_PACE = 0.32;
+const HOP_MIN = 0.22;
+const HOP_ARC = 0.22;
 
 interface Joint {
   object: THREE.Object3D;
@@ -76,16 +82,20 @@ function sameState(a: FigureState, b: FigureState): boolean {
 
 function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend: FigureExtension | undefined): FigureHandle {
   const root = new THREE.Group();
+  // The figure itself rides in `body`, so a perch can lift, move and turn it while the renderer keeps `root` on the
+  // floor; its step stands beside it in `root`.
+  const body = new THREE.Group();
   const shadow = kit.contactShadow(spec.anchors.ground);
   const halo = kit.halo(spec.anchors.ground);
-  root.add(shadow, halo.object);
+  body.add(shadow, halo.object);
+  root.add(body);
 
   const joints = new Map<string, Joint>();
-  const objects = new Map<string, THREE.Object3D>([["root", root]]);
+  const objects = new Map<string, THREE.Object3D>([["root", body]]);
   for (const j of spec.joints) {
     const object = new THREE.Group();
     object.position.set(...j.position);
-    (objects.get(j.parent ?? "root") ?? root).add(object);
+    (objects.get(j.parent ?? "root") ?? body).add(object);
     objects.set(j.id, object);
     joints.set(j.id, { object, rest: j.position, base: new Float32Array(9), now: new Float32Array(9), moves: 0 });
   }
@@ -97,7 +107,7 @@ function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend
     if (part.roles && !part.roles.includes(options.role)) continue;
     const color = figureColor(spec, part.color, seed);
     const mesh = kit.part(part, color);
-    (objects.get(part.joint ?? "root") ?? root).add(mesh);
+    (objects.get(part.joint ?? "root") ?? body).add(mesh);
     parts.push({ mesh, spec: part, color, glow: typeof part.glow === "string" ? figureColor(spec, part.glow, seed) : part.glow, material: mesh.material as THREE.Material });
     if (part.id) named.set(part.id, mesh);
   }
@@ -147,6 +157,42 @@ function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend
     if (pose.scale) for (let i = 0; i < 3; i++) base[6 + i] = pose.scale[i]!;
   };
 
+  /* The perch: where the figure is going (`perched`, null for the floor), the hop there, and the steps built so far. */
+  let place: WorkPlace | null = null;
+  let perched: PerchPlacement | null = null;
+  const hop = { from: new THREE.Vector3(), to: new THREE.Vector3(), turnFrom: 0, turnTo: 0, t: 1, seconds: HOP_MIN };
+  const steps = new Map<PerchStep, THREE.Group>();
+  /** The step shown now (it grows as the figure gets on and goes as it gets off) and the one being left. */
+  let step: THREE.Group | null = null;
+  let leaving: THREE.Group | null = null;
+  const stepOf = (spec_: PerchStep): THREE.Group => {
+    let group = steps.get(spec_);
+    if (!group) {
+      group = new THREE.Group();
+      for (const part of spec_.parts) group.add(kit.part(part, figureColor(spec, part.color, seed)));
+      // A step is picked as its figure is.
+      group.traverse((o) => Object.assign(o.userData, root.userData));
+      steps.set(spec_, group);
+      root.add(group);
+    }
+    return group;
+  };
+  /** The hop at `t` (0 to 1): the body on its way, the steps growing and going. */
+  const settle = (t: number) => {
+    const eased = t * t * (3 - 2 * t);
+    body.position.lerpVectors(hop.from, hop.to, eased);
+    if (t < 1) body.position.y += Math.sin(Math.PI * t) * HOP_ARC;
+    body.rotation.y = hop.turnFrom + (hop.turnTo - hop.turnFrom) * eased;
+    if (step) step.scale.setScalar(Math.max(0.001, Math.min(1, t * 2.5)));
+    if (leaving) {
+      leaving.scale.setScalar(Math.max(0.001, 1 - eased));
+      if (t >= 1) {
+        leaving.visible = false;
+        leaving = null;
+      }
+    }
+  };
+
   /** The still pose of the state, and the motions that play over it. Walking wins: no waiting pose or motion then. */
   const pose = () => {
     const asks = state.waiting && state.activity !== "walking";
@@ -154,6 +200,7 @@ function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend
       joint.base.fill(0, 0, 6).fill(1, 6);
       joint.moves = 0;
       layer(joint.base, spec.poses[state.activity]?.[id]);
+      if (perched) layer(joint.base, perched.perch.pose?.[id]);
       if (asks) layer(joint.base, spec.poses.waiting?.[id]);
       if (state.carrying) layer(joint.base, spec.poses.carrying?.[id]);
       writeJoint(joint, joint.base);
@@ -230,7 +277,36 @@ function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend
 
   return {
     object: root,
+    body,
     anchors: spec.anchors,
+    setPerch(next, cut = false) {
+      if (next === place && (!cut || hop.t >= 1)) return;
+      const changed = next !== place;
+      place = next;
+      if (changed) {
+        const was = perched;
+        perched = next ? perchPlacement(spec, next, options.key) : null;
+        hop.from.copy(body.position);
+        hop.turnFrom = body.rotation.y;
+        hop.to.set(...(perched?.feet ?? [0, 0, 0]));
+        hop.turnTo = perched?.turn ?? 0;
+        hop.seconds = Math.max(HOP_MIN, hop.from.distanceTo(hop.to) * HOP_PACE);
+        hop.t = hop.from.distanceToSquared(hop.to) < 1e-8 && hop.turnFrom === hop.turnTo ? 1 : 0;
+        const stands = perched?.step ? stepOf(perched.step.spec) : null;
+        if (stands !== step) {
+          if (leaving) leaving.visible = false;
+          leaving = step;
+          step = stands;
+        }
+        if (step && perched?.step) {
+          step.visible = true;
+          step.position.set(perched.step.x, 0, perched.step.z);
+        }
+        if ((was?.perch.pose ?? null) !== (perched?.perch.pose ?? null)) pose();
+      }
+      if (cut) hop.t = 1;
+      if (hop.t >= 1) settle(1);
+    },
     setState(next) {
       if (sameState(next, state)) return;
       state = { activity: next.activity, waiting: next.waiting, alert: next.alert, proxy: next.proxy, carrying: next.carrying };
@@ -251,6 +327,7 @@ function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend
       if (lifted) skin();
     },
     update(seconds) {
+      if (hop.t < 1) settle((hop.t = Math.min(1, hop.t + seconds / hop.seconds)));
       // An echo and a stale figure stand still.
       if (state.proxy || state.activity === "stale") return;
       time += seconds;

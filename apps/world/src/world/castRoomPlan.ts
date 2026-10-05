@@ -57,7 +57,9 @@ export const DESKS: Record<string, { x: number; z: number }> = {
   "cast:analyst": { x: 10, z: 3 },
   "cast:worker-cy": { x: 5, z: 7 },
 };
-const LEAD_DESK = { x: 9, z: 7 };
+export const LEAD_DESK = { x: 9, z: 7 };
+/** The desk the "At the desk" scene looks at closely: the first worker's. */
+export const CLOSE_DESK = "cast:worker-ada";
 
 /** Every role stands in the room; three workers, so colourways and the line behind the lead show. */
 export const MEMBERS: readonly CastMember[] = [
@@ -109,9 +111,10 @@ export function previewState(id: PreviewStateId): FigureState {
 }
 
 /** What the room plays: everyone at their place in one state, a loop, the lead with its workers in tow, or own ways. */
-export type PreviewScene = "desks" | "walk" | "team" | "carry-on";
+export type PreviewScene = "desks" | "at-desk" | "walk" | "team" | "carry-on";
 export const PREVIEW_SCENES: readonly { id: PreviewScene; label: string; hint: string }[] = [
   { id: "desks", label: "At their places", hint: "The whole cast in the chosen state." },
+  { id: "at-desk", label: "At the desk", hint: "One desk from close by: how the cast reaches its screen." },
   { id: "walk", label: "Walk", hint: "Every figure walks a loop round the room." },
   { id: "team", label: "Lead with workers in tow", hint: "The lead walks the loop; its workers follow in a line." },
   { id: "carry-on", label: "Carry on", hint: "Each figure goes its own way through the states; the postman does its round." },
@@ -193,6 +196,11 @@ export type PreviewFraming = "figures" | "room";
  * figure round it. The camera frames this in "figures".
  */
 export function figureArea(play: Pick<RoomPlay, "state" | "scene">): { minX: number; maxX: number; minZ: number; maxZ: number } {
+  if (play.scene === "at-desk") {
+    // One desk with its seat, and a little floor round them.
+    const desk = DESKS[CLOSE_DESK]!;
+    return { minX: desk.x + 0.1, maxX: desk.x + 2.3, minZ: desk.z - 0.9, maxZ: desk.z + 0.9 };
+  }
   const area = { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity };
   const lap = LOOP_LENGTH / WALK_SPEED;
   for (const member of MEMBERS)

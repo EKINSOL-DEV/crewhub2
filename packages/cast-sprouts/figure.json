@@ -197,5 +197,44 @@
     "fruit": { "lead": "accent", "others": ["sprout-pollen"] },
     "growth": { "roles": { "worker": "accent", "design": "accent", "analyst": "accent", "operator": "accent" }, "others": ["leaf-fresh", "leaf-teal", "leaf-gold"] }
   },
-  "anchors": { "label": [0, 1.76, 0], "carry": [0, 0.42, 0.34], "ground": 0.3, "height": 1.75 }
+  "anchors": { "label": [0, 1.76, 0], "carry": [0, 0.42, 0.34], "ground": 0.3, "height": 1.75, "eyes": [0, 0.65, 0.23] },
+  "perch": {
+    "default": {
+      "kind": "step",
+      "gap": 0.3,
+      "steps": [
+        {
+          "id": "books",
+          "height": 0.56,
+          "parts": [
+            { "shape": "box", "size": [0.5, 0.15, 0.38], "radius": 0.02, "position": [0.0, 0.075, -0.08], "rotation": [0, 4, 0], "color": "book-a" },
+            { "shape": "box", "size": [0.46, 0.13, 0.35], "radius": 0.02, "position": [-0.01, 0.215, -0.085], "rotation": [0, -7, 0], "color": "book-c" },
+            { "shape": "box", "size": [0.48, 0.14, 0.36], "radius": 0.02, "position": [0.015, 0.35, -0.075], "rotation": [0, 5, 0], "color": "book-b" },
+            { "shape": "box", "size": [0.43, 0.14, 0.34], "radius": 0.02, "position": [0.0, 0.49, -0.07], "rotation": [0, -3, 0], "color": "sprout-stalk" }
+          ]
+        },
+        {
+          "id": "pot",
+          "height": 0.56,
+          "parts": [
+            { "shape": "cylinder", "size": [0.22, 0.47, 0.3], "position": [0, 0.325, -0.08], "color": "terracotta" },
+            { "shape": "cylinder", "size": [0.33, 0.09, 0.33], "position": [0, 0.045, -0.08], "color": "terracotta" },
+            { "shape": "cylinder", "size": [0.05, 0.012, 0.05], "position": [0.1, 0.562, -0.16], "color": "sprout-foot" }
+          ]
+        },
+        {
+          "id": "stool",
+          "height": 0.56,
+          "parts": [
+            { "shape": "cylinder", "size": [0.25, 0.06, 0.25], "position": [0, 0.53, -0.09], "color": "timber-light" },
+            { "shape": "cylinder", "size": [0.03, 0.52, 0.04], "position": [0, 0.25, 0.07], "rotation": [-12, 0, 0], "color": "timber" },
+            { "shape": "cylinder", "size": [0.03, 0.52, 0.04], "position": [-0.15, 0.25, -0.18], "rotation": [8, 0, -12], "color": "timber" },
+            { "shape": "cylinder", "size": [0.03, 0.52, 0.04], "position": [0.15, 0.25, -0.18], "rotation": [8, 0, 12], "color": "timber" },
+            { "shape": "torus", "size": [0.16, 0.014, 0], "position": [0, 0.2, -0.09], "color": "timber" }
+          ]
+        }
+      ]
+    },
+    "review-table": { "kind": "floor" }
+  }
 }

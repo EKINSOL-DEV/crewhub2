@@ -142,5 +142,5 @@
     "shell": {"lead": "soft:accent", "others": ["sage", "apricot", "lavender"]}
   },
   "halo": "slot:shell",
-  "anchors": {"label": [0, 1.613, 0], "carry": [0, 0.62, 0.34], "ground": 0.4, "height": 1.55}
+  "anchors": {"label": [0, 1.613, 0], "carry": [0, 0.62, 0.34], "ground": 0.4, "height": 1.55, "eyes": [0, 1.055, 0.3]}
 }

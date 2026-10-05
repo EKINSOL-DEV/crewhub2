@@ -1,8 +1,10 @@
 /* The contract every cast passes (spec addendum "casts"): every role and every state builds, the anchors are sane, a
-   figure stays inside its manifest's budget near and far, and far figures are made only of materials the renderer's
-   crowd batches. Measured with any `FigureKit`; the test suite uses the reference kit. */
+   figure stays inside its manifest's budget near and far, far figures are made only of materials the renderer's
+   crowd batches, and at every work place the world has, the working figure sees over the surface to what it works on
+   (on its perch, when it brings one). Measured with any `FigureKit`; the test suite uses the reference kit. */
 import * as THREE from "three";
-import type { Cast, FigureHandle, FigureState } from "./index.ts";
+import { figureEyes } from "./figure.ts";
+import type { Cast, FigureHandle, FigureState, WorkPlace } from "./index.ts";
 import { CAST_ROLES, FIGURE_ACTIVITIES } from "./names.ts";
 
 export interface FigureMeasure {
@@ -44,8 +46,56 @@ export function everyState(): FigureState[] {
   return states;
 }
 
-/** Why a cast breaks the contract, one line per problem; empty when it passes. */
-export function castProblems(cast: Cast): string[] {
+/** A worker may look at its work from this far to the side of where it faces, and at a screen from this far off its axis. */
+const SIGHT_TURN = 75;
+const SCREEN_CONE = 75;
+/** Closer than this to what it looks at (sitting on a table, by its middle), a figure looks down at it whichever way it sits. */
+const SIGHT_NEAR = 0.25;
+const WORKING: FigureState = { activity: "working", waiting: false, alert: false, proxy: false, carrying: false };
+
+/**
+ * Why a figure at a work place cannot see its work, one line per problem. The figure is put there as the renderer
+ * does it (standing on the floor at the origin, facing +z, at the place's scale, told `setPerch`), and its eyes are
+ * read from its own body: above the top, turned towards what it looks at, and in front of a screen.
+ */
+export function sightProblems(handle: FigureHandle, place: WorkPlace, at: string): string[] {
+  const problems: string[] = [];
+  const { object } = handle;
+  const kept = { position: object.position.clone(), rotation: object.rotation.y, scale: object.scale.clone() };
+  object.position.set(0, 0, 0);
+  object.rotation.y = 0;
+  object.scale.setScalar(place.scale);
+  handle.setState(WORKING);
+  handle.setDetail("near");
+  handle.setPerch(place, true);
+  object.updateMatrixWorld(true);
+  const eyes = handle.body.localToWorld(new THREE.Vector3(...figureEyes(handle.anchors)));
+  const focus = new THREE.Vector3(...place.focus);
+  if (![eyes.x, eyes.y, eyes.z].every(Number.isFinite)) problems.push(`${at}: its place on the perch is not finite`);
+  else {
+    const cm = (n: number) => `${(n * 100).toFixed(0)} cm`;
+    if (eyes.y <= place.height) problems.push(`${at}: its eyes (${cm(eyes.y)}) are not above the surface (${cm(place.height)}); it needs a perch`);
+    const sight = new THREE.Vector2(focus.x - eyes.x, focus.z - eyes.z);
+    const facing = handle.body.getWorldDirection(new THREE.Vector3());
+    const turn = Math.abs(new THREE.Vector2(facing.x, facing.z).angleTo(sight)) / (Math.PI / 180);
+    if (sight.length() > SIGHT_NEAR && turn > SIGHT_TURN) problems.push(`${at}: it faces ${turn.toFixed(0)}° away from what it works on`);
+    if (place.screen) {
+      const off = Math.abs(new THREE.Vector2(...place.screen).angleTo(sight.clone().negate())) / (Math.PI / 180);
+      if (off > SCREEN_CONE) problems.push(`${at}: it is ${off.toFixed(0)}° off the screen's axis and cannot read it`);
+    }
+  }
+  handle.setPerch(null, true);
+  object.position.copy(kept.position);
+  object.rotation.y = kept.rotation;
+  object.scale.copy(kept.scale);
+  return problems;
+}
+
+/**
+ * Why a cast breaks the contract, one line per problem; empty when it passes. `places` are the world's work places
+ * (one of each pose is enough): every role must see its work at each.
+ */
+export function castProblems(cast: Cast, places: readonly WorkPlace[] = []): string[] {
   const problems: string[] = [];
   const { id, budget } = cast.manifest;
   for (const role of CAST_ROLES) {
@@ -92,6 +142,19 @@ export function castProblems(cast: Cast): string[] {
       }
     }
     for (const highlight of ["hover", "selected", "none"] as const) handle.setHighlight(highlight);
+    for (const place of places) {
+      try {
+        problems.push(...sightProblems(handle, place, `${at} at the ${place.pose}`));
+        // On its perch the figure still fits its budget, step and all.
+        handle.setPerch(place, true);
+        const perched = measureFigure(handle);
+        near = Math.max(near, perched.triangles);
+        nearMeshes = Math.max(nearMeshes, perched.meshes);
+        handle.setPerch(null, true);
+      } catch (error) {
+        problems.push(`${at} at the ${place.pose}: throws (${(error as Error).message})`);
+      }
+    }
     if (near > budget.nearTriangles) problems.push(`${at}: ${near} triangles near, over the budget of ${budget.nearTriangles}`);
     if (far > budget.farTriangles) problems.push(`${at}: ${far} triangles far, over the budget of ${budget.farTriangles}`);
     if (nearMeshes > budget.nearMeshes) problems.push(`${at}: ${nearMeshes} meshes near, over the budget of ${budget.nearMeshes}`);

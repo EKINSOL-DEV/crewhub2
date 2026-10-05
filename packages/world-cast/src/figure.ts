@@ -1,6 +1,7 @@
 /* The pure half of the figure runtime: seeding, colourways, waves and re-dressing a figure with a patch. No three.js,
    so it runs under `node --test` and the validator and the registry can use it. */
-import type { CastRole, FigurePatch, FigureSpec, MotionWave } from "./index.ts";
+import type { CastRole, FigureAnchors, FigurePatch, FigureSpec, MotionWave, Perch, PerchStep, WorkPlace, WorkPose } from "./index.ts";
+import type { Vec3 } from "@crewhub/world-engine";
 
 /** FNV-1a: the seed of an agent key (colourways, rhythms, sides). Stable across loads. */
 export function hashKey(text: string): number {
@@ -56,6 +57,49 @@ export function figureColor(spec: FigureSpec, color: string, options: { key: str
   return chosen ? accented(chosen, slot) : seeded(slot);
 }
 
+/** Between a figure's eyes, figure units: its `eyes` anchor, else the centre line at four fifths of its height. */
+export function figureEyes(anchors: FigureAnchors): Vec3 {
+  return anchors.eyes ?? [0, anchors.height * 0.8, 0];
+}
+
+/** The perch a figure brings to a work pose: the pose's own, else its `default`; null for none (and for `floor`). */
+export function perchFor(spec: Pick<FigureSpec, "perch">, pose: WorkPose): Exclude<Perch, { kind: "floor" }> | null {
+  const perch = spec.perch?.[pose] ?? spec.perch?.default;
+  return !perch || perch.kind === "floor" ? null : perch;
+}
+
+/** Where a figure is on its perch, in its own frame at the work place (figure units; the floor spot is the origin). */
+export interface PerchPlacement {
+  perch: Exclude<Perch, { kind: "floor" }>;
+  /** Where its feet are: up on the step, or on the top. */
+  feet: Vec3;
+  /** Its turn about y from facing the surface squarely, radians: towards what it looks at. */
+  turn: number;
+  /** The step it stands on, and where the step stands on the floor (x, z). */
+  step: { spec: PerchStep; x: number; z: number } | null;
+}
+
+/**
+ * Where the perch of `spec` puts a figure at a work place; null when it brings none there, or when it would sit on a
+ * top that has no free place (it then stands on the floor). The step is seeded by the agent key.
+ */
+export function perchPlacement(spec: Pick<FigureSpec, "perch" | "anchors">, place: WorkPlace, key: string): PerchPlacement | null {
+  const perch = perchFor(spec, place.pose);
+  if (!perch) return null;
+  const turnTo = (x: number, z: number) => Math.atan2(place.focus[0] / place.scale - x, place.focus[2] / place.scale - z);
+  if (perch.kind === "step") {
+    const step = perch.steps[hashKey(`${key}:perch`) % perch.steps.length];
+    if (!step) return null;
+    const z = Math.max(0, place.edge / place.scale - (perch.gap ?? spec.anchors.ground));
+    return { perch, feet: [0, step.height, z], turn: turnTo(0, z), step: { spec: step, x: 0, z } };
+  }
+  const spot = place.spot((perch.base ?? spec.anchors.ground) * place.scale);
+  if (!spot) return null;
+  const x = spot.x / place.scale,
+    z = spot.z / place.scale;
+  return { perch, feet: [x, place.height / place.scale, z], turn: turnTo(x, z), step: null };
+}
+
 /**
  * A base figure re-dressed by a patch (`extends`): parts dropped, recoloured and added, and the patch's poses,
  * motions, looks, colourways and anchors over the base's. The base is not changed.
@@ -88,6 +132,12 @@ export function applyFigurePatch(base: FigureSpec, patch: FigurePatch): FigureSp
     colorways[slot] = { ...(way.lead !== undefined ? { lead: to(way.lead) } : {}), ...(way.roles ? { roles } : {}), others: way.others.map(to) };
   }
   const halo = patch.halo ?? (base.halo !== undefined ? to(base.halo) : undefined);
+  // The base's steps are recoloured like its parts; a pose the patch names is the patch's own.
+  const perch: NonNullable<FigureSpec["perch"]> = {};
+  for (const [pose, way] of Object.entries(base.perch ?? {}))
+    perch[pose as keyof typeof perch] =
+      way.kind !== "step" ? way : { ...way, steps: way.steps.map((step) => ({ ...step, parts: step.parts.map((part) => ({ ...part, color: to(part.color) })) })) };
+  Object.assign(perch, patch.perch);
   return {
     format: "crewhub-figure/1",
     joints: [...base.joints, ...(patch.joints ?? [])],
@@ -98,5 +148,6 @@ export function applyFigurePatch(base: FigureSpec, patch: FigurePatch): FigureSp
     colorways: { ...colorways, ...patch.colorways },
     ...(halo !== undefined ? { halo } : {}),
     anchors: { ...base.anchors, ...patch.anchors },
+    ...(Object.keys(perch).length ? { perch } : {}),
   };
 }

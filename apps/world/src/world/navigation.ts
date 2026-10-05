@@ -347,6 +347,30 @@ export class NavWorld {
     return out;
   }
 
+  /**
+   * The prop with `tag` that someone at `location` stands at (on one of its approach cells or right beside it): its
+   * definition, its footprint's centre in building cells and its model's turn about y.
+   */
+  standsAt(location: Location, tag: string): { definitionId: string; x: number; z: number; rotation: number } | null {
+    const parsed = parseRoomId(location.room);
+    const entry = parsed && this.#entries.get(parsed.slug);
+    const room = entry && parsed ? roomOf(entry.template, parsed.kind) : undefined;
+    if (!room) return null;
+    for (const prop of room.layout.props) {
+      const def = this.definitions[prop.definitionId];
+      if (!def?.tags.includes(tag)) continue;
+      const turned = prop.rotation % 2 === 1;
+      const halfX = (turned ? def.footprint.depth : def.footprint.width) / 2,
+        halfZ = (turned ? def.footprint.width : def.footprint.depth) / 2;
+      const pose = { x: prop.cell.x + halfX, z: prop.cell.z + halfZ, rotationY: -prop.rotation * (Math.PI / 2) };
+      const dx = Math.abs(location.cell.x + 0.5 - pose.x) - halfX,
+        dz = Math.abs(location.cell.z + 0.5 - pose.z) - halfZ;
+      // Beside the footprint, not on it and not across a corner.
+      if (Math.max(dx, dz) > 0 && Math.max(dx, dz) < 1 && Math.min(dx, dz) < 0) return { definitionId: prop.definitionId, x: room.origin.x + pose.x, z: room.origin.z + pose.z, rotation: pose.rotationY };
+    }
+    return null;
+  }
+
   /** Open cells beside an agent's seat (west, east, then north and south), never another desk's seat. */
   beside(slug: string, key: AgentKey, kind: RoomKind | null): Location[] {
     const entry = this.#entries.get(slug);
