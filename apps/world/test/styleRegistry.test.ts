@@ -47,3 +47,36 @@ test("a key the style does not cover draws the neutral placeholder and warns onc
   assert.equal(warnings.length, 1);
   assert.match(warnings[0]!, /does not cover "drone"/);
 });
+
+test("a style is dressed in option values: resolved first, one instance per set, and a style without options is itself", () => {
+  const asked: Record<string, string>[] = [];
+  const options = [{ id: "season", name: "Season", default: "october", values: [{ id: "october", name: "October" }, { id: "spring", name: "Spring" }] }];
+  const registry = createStyleRegistry("greenhouse");
+  const base = fakeFactory("greenhouse", []);
+  registry.registerStyle({
+    manifest: { ...base.manifest, options },
+    create: () => {
+      const style = { ...base.create(), manifest: { ...base.manifest, options } } as WorldStyle;
+      style.withOptions = (values) => {
+        asked.push({ ...values });
+        return { ...style, model: () => ({ drawn: `look:${values.season}` }) as never };
+      };
+      return style;
+    },
+  });
+  registry.registerStyle(fakeFactory("plain", []));
+  const town = registry.getStyle("greenhouse");
+  assert.deepEqual(town.options, { season: "october" });
+  // The defaults, and picks the style does not know, are the style as it stands.
+  assert.equal(town.withOptions({ season: "october" }), town);
+  assert.equal(registry.styleFor(null, { season: "winter", weather: "rain" }), town);
+  const spring = registry.styleFor(null, { season: "spring", weather: "rain" });
+  assert.deepEqual(spring.options, { season: "spring" });
+  assert.deepEqual(spring.model("plot"), { drawn: "look:spring" });
+  assert.equal(registry.styleFor({ styleOptions: { season: "spring" } }), spring, "one instance per set of values");
+  assert.equal(spring.withOptions(null), town);
+  assert.deepEqual(asked, [{ season: "spring" }]);
+  const plain = registry.getStyle("plain");
+  assert.equal(plain.withOptions({ season: "spring" }), plain);
+  assert.deepEqual(plain.options, {});
+});

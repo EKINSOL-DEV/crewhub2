@@ -17,6 +17,7 @@ import { BACK_WALL_HEIGHT, BUILDING_CELL, FLOOR_RISE } from "./buildingTemplate"
 import type { TownLayer } from "./propLayer";
 import { styleRegistry } from "./style";
 import type { StyledPlot } from "./styleRegistry";
+import { lookAt, looksSignature, previewLooks, type TownLooks } from "./townLooks";
 import type { Ambient } from "./movement";
 import { CIVIC_LOT, civicCenter, homeRects, PLOT_SIZE, plotCenter, TOWN_CAPACITY, townBounds, type Bounds } from "./townLayout";
 import { GRASS_Y, landmarks as townLandmarks, LAWN_Y, slugSeed, townDressing } from "./townDressing";
@@ -69,6 +70,11 @@ export interface TownView {
   fps?: boolean;
   /** Inside a building: the selected agent's key (a soft ring under its feet), or null. */
   selectedAgent?: string | null;
+  /**
+   * The look of the town and of each district (townLooks.ts): picks for the style's options. Left out, the address
+   * bar's preview (`?look=`, `?looks=`), else the style as it stands.
+   */
+  looks?: TownLooks | null;
 }
 export type BuildPointer = "move" | "click" | "drag" | "drop";
 
@@ -314,6 +320,7 @@ export class TownScene {
   #buildCell = "";
   #dragging = false;
   #stopIntents: () => void;
+  readonly #previewLooks = previewLooks(globalThis.location?.search ?? "", townBounds());
 
   constructor(host: HTMLElement, labels: HTMLElement, view: TownView, callbacks: Callbacks) {
     this.view = view;
@@ -525,7 +532,7 @@ export class TownScene {
       ["civic.bus-stop", civicCenter("bus-stop").x, GRASS_Y, civicCenter("bus-stop").z],
     ];
     for (const [key, x, y, z] of landmarks) {
-      const object = style.model(key);
+      const object = this.#styleAt(x, z).model(key);
       object.position.set(x, y, z);
       this.#landmarks.add(object);
     }
@@ -533,7 +540,7 @@ export class TownScene {
     const covered = new Set<string>(style.manifest.coveredKeys);
     for (const l of townLandmarks()) {
       if (!covered.has(l.key)) continue;
-      const object = style.model(l.key as ModelKey);
+      const object = this.#styleAt(l.x, l.z).model(l.key as ModelKey);
       object.position.set(l.x, l.y, l.z);
       object.rotation.y = l.rotation;
       this.#landmarks.add(object);
@@ -553,7 +560,7 @@ export class TownScene {
     // Fast quality leaves out the small detail (grass tufts, wild flowers).
     const fast = this.view.quality === "fast";
     // Each building's own garden follows its slug and whether it is archived.
-    const signature = `${indices.map((i) => `${this.view.model.buildings[i]?.slug}:${this.view.model.buildings[i]?.archived}`).join(",")}|${fast}`;
+    const signature = `${indices.map((i) => `${this.view.model.buildings[i]?.slug}:${this.view.model.buildings[i]?.archived}`).join(",")}|${fast}|${looksSignature(this.#looks)}`;
     if (signature === this.#dressing.signature) return;
     this.#disposeDressing();
     this.#shadowDirty = true;
@@ -564,9 +571,19 @@ export class TownScene {
     });
     const dressing = townDressing(plots);
     this.#life.setTown(dressing, this.#landmarks);
+    // A district's own turf lies on the town's ground, in its look's grass.
+    for (const { bounds } of this.#looks?.districts ?? []) {
+      const turf = this.#styleAt((bounds.minX + bounds.maxX) / 2, (bounds.minZ + bounds.maxZ) / 2).model("town.turf", {
+        size: { width: bounds.maxX - bounds.minX, height: 0, depth: bounds.maxZ - bounds.minZ },
+      });
+      turf.position.set((bounds.minX + bounds.maxX) / 2, turf.position.y, (bounds.minZ + bounds.maxZ) / 2);
+      group.add(turf);
+    }
     for (const d of dressing) {
       if (fast && d.detail) continue;
-      const object = this.townStyle.model(d.key as ModelKey, {
+      // The whole ground is the town's; everything else wears the look of the district it stands in.
+      const style = d.key === "ground" ? this.#styleAt(Infinity, Infinity) : this.#styleAt(d.x, d.z);
+      const object = style.model(d.key as ModelKey, {
         ...(d.size ? { size: d.size } : {}),
         ...(d.seed !== undefined ? { seed: d.seed } : {}),
         ...(d.variant ? { variant: d.variant } : {}),
@@ -581,6 +598,16 @@ export class TownScene {
     this.scene.add(group);
     this.#culler = new InstanceCuller(instanced);
     this.#dressing = { signature, group, instanced, merged };
+  }
+
+  /** The look of the town and its districts: the view's, else the address bar's preview. */
+  get #looks(): TownLooks | null {
+    return this.view.looks === undefined ? this.#previewLooks : this.view.looks;
+  }
+
+  /** The town's style in the look of the district at a spot (the town's own look outside every district). */
+  #styleAt(x: number, z: number, plot: StyledPlot | null = null): ResolvedStyle {
+    return styleRegistry.styleFor(plot, lookAt(this.#looks, x, z));
   }
 
   #disposeDressing() {
@@ -620,7 +647,7 @@ export class TownScene {
       const c = plotCenter(index);
       // A plot's own style id when it has one, else the town document's default (tonight both are Greenhouse).
       const plot: StyledPlot = { styleId: this.view.town?.doc.plots.find((p) => p.slug === b.slug)?.styleId ?? this.view.town?.doc.styleId ?? null };
-      const style = styleRegistry.styleFor(plot);
+      const style = this.#styleAt(c.x, c.z, plot);
       const cast = this.#castFor(style, b.slug);
       if (!view || view.group.userData.index !== index || view.ctx.style !== style) {
         view?.dispose();

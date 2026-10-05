@@ -10,10 +10,12 @@ import type {
   ModelOptions,
   PaletteName,
   StyleManifest,
+  StyleOptionValues,
   StyleTheme,
   WorldStyle,
   WorldStyleFactory,
 } from "@crewhub/world-style";
+import { resolveStyleOptions } from "@crewhub/world-style";
 import manifestJson from "../style.json";
 import * as civic from "./civic.ts";
 import * as life from "./life.ts";
@@ -22,13 +24,14 @@ import { environment } from "./environment.ts";
 import { bench, desk, lamp, leadDesk, shelf, sofa, table, workdesk } from "./furniture.ts";
 import { Kit, type GreenhouseManifestData } from "./kit.ts";
 import { BLOB_SHADOWS, LIGHT_POOLS, SURFACES } from "./keys.ts";
+import { compileLook, type Look, type LooksData, type MaterialSwap } from "./looks.ts";
 import { partsModel } from "./parts.ts";
 import * as pieces from "./pieces.ts";
 import * as shell from "./shell.ts";
 import { figureKit } from "./figureKit.ts";
 import * as town from "./town.ts";
 
-type ManifestFile = StyleManifest & GreenhouseManifestData;
+type ManifestFile = StyleManifest & GreenhouseManifestData & { looks?: LooksData; materialSets?: Record<string, MaterialSwap[]> };
 const manifest = manifestJson as unknown as ManifestFile;
 
 /** Data models by file name without `.json`: `<key>` or `<key>.<variant>`. Invalid files are skipped with a warning. */
@@ -40,12 +43,21 @@ for (const [path, json] of Object.entries(import.meta.glob<unknown>("../models/*
   else console.warn(`Greenhouse style: ${name}.json is not a valid crewhub-prop/1 model`, checked.errors);
 }
 
+/** What draws a model: the style itself, or one of its looks (its own kit for what it recolours, and its data). */
+interface Dresser {
+  kit: Kit;
+  look: Look | null;
+}
+
 class GreenhouseStyle implements WorldStyle {
   readonly manifest: StyleManifest = manifest;
   readonly #kit = new Kit(manifest, manifest.lighting);
   readonly #glass: THREE.ShaderMaterial;
   readonly #lights: Lights = compileLights(manifest.lighting);
   readonly #figureKits = new Map<string, FigureKit>();
+  readonly #self: Dresser = { kit: this.#kit, look: null };
+  readonly #looks = new Map<string, WorldStyle>();
+  #evening = 0;
 
   constructor() {
     this.#glass = pieces.glass(this.#kit);
@@ -54,41 +66,90 @@ class GreenhouseStyle implements WorldStyle {
   }
 
   model(key: ModelKey, options: ModelOptions = {}): THREE.Object3D | null {
-    const object = this.#data(key, options) ?? this.#code(key, options);
+    return this.#model(this.#self, key, options);
+  }
+
+  /**
+   * The style in a set of option values (looks.ts): the same models, lights and effects, with the look's swatches and
+   * the models its data puts in place. The values that are all defaults are the style itself.
+   */
+  withOptions(values: StyleOptionValues): WorldStyle {
+    const resolved = resolveStyleOptions(manifest, values);
+    const look = compileLook(manifest.options ?? [], manifest.looks ?? {}, resolved, manifest.materialSets);
+    if ((manifest.options ?? []).every((option) => resolved[option.id] === option.default)) return this;
+    let dressed = this.#looks.get(look.id);
+    if (dressed) return dressed;
+    // A kit of its own even when the look recolours nothing: what the style bakes per kit (the landmarks) is the look's.
+    const dresser: Dresser = { kit: new Kit(manifest, manifest.lighting, { of: this.#kit, swatches: look }), look };
+    town.townLight(dresser.kit, this.#evening);
+    dressed = {
+      manifest,
+      model: (key, options = {}) => this.#model(dresser, key, options),
+      withOptions: (next) => this.withOptions(next),
+      figureKit: (cast) => this.figureKit(cast),
+      parts: (prop) => partsModel(prop, dresser.kit),
+      color: (name, theme) => new THREE.Color(dresser.kit.hex(name, theme)),
+      setTheme: (theme) => this.setTheme(theme),
+      environment: (scene, renderer, theme) => this.environment(scene, renderer, theme),
+      materialise: (object, progress) => this.materialise(object, progress),
+      dispose: () => this.dispose(),
+    };
+    this.#looks.set(look.id, dressed);
+    return dressed;
+  }
+
+  #model(dresser: Dresser, asked: ModelKey, options: ModelOptions): THREE.Object3D | null {
+    const { kit } = dresser;
+    // A look may put another model in this one's place, swap its materials, or leave the spot empty.
+    const dressed = dresser.look?.dress(asked, options.variant, options.seed ?? 0);
+    if (dressed === null) return new THREE.Group();
+    const key = (dressed?.key ?? asked) as ModelKey;
+    const o: ModelOptions = dressed ? { ...options, ...(dressed.variant ? { variant: dressed.variant } : {}) } : options;
+    let object = this.#data(dresser, key, o, dressed?.materials ?? null) ?? this.#code(dresser, key, o);
     if (!object) return null;
     // Town dressing repeats in the thousands: lighter round parts, and no shadows from the small pieces.
-    if (key.startsWith("town.") || key === "ground") town.townDetail(this.#kit, object, key);
+    if (key.startsWith("town.") || key === "ground") town.townDetail(kit, object, key);
     const surface = SURFACES[key];
     if (surface !== undefined) object.userData.surface = surface;
     const pools = LIGHT_POOLS[key];
     for (const pool of pools === undefined ? [] : Array.isArray(pools) ? pools : [pools]) {
       // A warm pool of light on the ground under a lamp (lamplight, Pretty only); kept apart from static batching.
       // A small bright core and a long soft edge: a pool of light, not a disc.
-      const decal = this.#kit.decal(pool.kind ?? "pool", pool.radius * 0.08, pool.radius * 0.08, pool.radius * 0.92);
+      const decal = kit.decal(pool.kind ?? "pool", pool.radius * 0.08, pool.radius * 0.08, pool.radius * 0.92);
       decal.position.set(pool.x ?? 0, pool.y, pool.z ?? 0);
       object.add(decal);
     }
     const blob = BLOB_SHADOWS[key];
     if (blob) {
-      const shadow = this.#kit.decal("shadow", blob.halfX, blob.halfZ, blob.soft);
+      const shadow = kit.decal("shadow", blob.halfX, blob.halfZ, blob.soft);
       shadow.position.y = 0.008;
       object.add(shadow);
+    }
+    if (dressed && dressed.scale !== 1) {
+      // The caller places and sizes what it gets back, so the look's own size goes one level down.
+      object.scale.multiplyScalar(dressed.scale);
+      object = new THREE.Group().add(object);
     }
     return object;
   }
 
-  /** A part for the landmarks: a data prop or a code piece, by key. */
-  readonly #piece = (key: string): THREE.Object3D => {
-    const model = dataModels.get(key);
-    return model ? partsModel(model, this.#kit) : (this.#code(key as ModelKey, {}) ?? new THREE.Group());
-  };
+  /** A part for the landmarks: a data prop or a code piece, by key, as the dresser draws it. */
+  #piece(dresser: Dresser) {
+    return (asked: string): THREE.Object3D => {
+      const dressed = dresser.look?.dress(asked, undefined, 0);
+      if (dressed === null) return new THREE.Group();
+      const key = (dressed?.key ?? asked) as ModelKey;
+      const o: ModelOptions = dressed?.variant ? { variant: dressed.variant } : {};
+      return this.#data(dresser, key, o, dressed?.materials ?? null) ?? this.#code(dresser, key, o) ?? new THREE.Group();
+    };
+  }
 
-  #data(key: ModelKey, options: ModelOptions): THREE.Object3D | null {
+  #data(dresser: Dresser, key: ModelKey, options: ModelOptions, swap: Record<string, string> | null): THREE.Object3D | null {
     const model = (options.variant && dataModels.get(`${key}.${options.variant}`)) || dataModels.get(key);
     if (!model) return null;
-    const group = partsModel(model, this.#kit, options.accent ?? null);
+    const group = partsModel(model, dresser.kit, options.accent ?? null, swap);
     if (key === "drone") this.#rotors(group);
-    if (key === "civic.fountain") civic.fountainWater(group, this.#kit);
+    if (key === "civic.fountain") civic.fountainWater(group, dresser.kit);
     return group;
   }
 
@@ -127,8 +188,9 @@ class GreenhouseStyle implements WorldStyle {
     };
   }
 
-  #code(key: ModelKey, o: ModelOptions): THREE.Object3D | null {
-    const kit = this.#kit;
+  #code(dresser: Dresser, key: ModelKey, o: ModelOptions): THREE.Object3D | null {
+    const { kit } = dresser;
+    const piece = this.#piece(dresser);
     if (key.startsWith("emblem.")) return pieces.emblem(kit, key.slice("emblem.".length) as EmblemName, o);
     switch (key) {
       case "ground":
@@ -160,7 +222,13 @@ class GreenhouseStyle implements WorldStyle {
       case "town.puddle":
         return town.puddle(kit, o);
       case "town.lantern":
-        return town.lantern(kit);
+        return town.lantern(kit, o);
+      case "town.turf":
+        return town.turf(kit, o);
+      case "town.feature":
+        // What stands between a district's buildings is the planting's to say (style.json "looks"); the town garden
+        // leaves the spot to the grass.
+        return new THREE.Group();
       case "path":
         return pieces.path(kit, o);
       case "street-lamp":
@@ -209,13 +277,13 @@ class GreenhouseStyle implements WorldStyle {
       case "building.planks":
         return shell.planks(kit, o);
       case "post-office":
-        return civic.postOffice(kit, this.#piece);
+        return civic.postOffice(kit, piece);
       case "town-hall":
-        return civic.townHall(kit, this.#piece);
+        return civic.townHall(kit, piece);
       case "civic.square":
-        return civic.square(kit, this.#piece);
+        return civic.square(kit, piece);
       case "civic.cafe":
-        return civic.cafe(kit, this.#piece);
+        return civic.cafe(kit, piece);
       case "civic.greenhouse":
         return civic.greenhouse(kit);
       case "civic.windmill":
@@ -313,7 +381,9 @@ class GreenhouseStyle implements WorldStyle {
     // enough that a lit greenhouse wall reads from the town against the dark lawn behind it.
     this.#glass.uniforms.uOpacity!.value = 0.4 + (1.5 - 0.4) * evening;
     this.#glass.uniforms.uSheen!.value = 1 + (0.15 - 1) * evening;
-    town.townLight(this.#kit, evening);
+    this.#evening = evening;
+    // A look that recolours a lamp has that lamp's material of its own, and it follows the evening too.
+    for (const kit of [this.#kit, ...this.#kit.looks]) town.townLight(kit, evening);
   }
 
   environment(scene: THREE.Scene, renderer: THREE.WebGLRenderer, theme: StyleTheme) {
