@@ -20,7 +20,7 @@ import { importPropRequest, type InvalidRequest } from "../world/propImport";
 import { allocationEdit } from "../world/settlement";
 import { styleRegistry } from "../world/style";
 import { createTownStore, type TownStore } from "./townStore";
-import { worldRuntime } from "./world";
+import { TOWN_KEY, worldRuntime } from "./world";
 
 export interface TownState {
   doc: TownDocument;
@@ -51,7 +51,7 @@ class TownRuntime {
   #announce: (text: string) => void = () => {};
 
   constructor() {
-    this.store = createTownStore({ context: this.context });
+    this.store = createTownStore({ context: this.context, name: TOWN_KEY });
     this.#state = this.#derive();
     this.store.subscribe(() => {
       this.#refresh();

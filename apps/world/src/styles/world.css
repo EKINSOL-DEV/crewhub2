@@ -601,6 +601,14 @@
 .plate-title {
   font-size: var(--text-xs);
 }
+/* The Demo chip's scenario picker: a name and a few words on one line each. While it is open, the corner it hangs
+   from lies over the chat dock and the labels. */
+.demo-menu .menu-item {
+  white-space: nowrap;
+}
+.world-corner-left:has(.demo-chip[aria-expanded="true"]) {
+  z-index: var(--z-menu);
+}
 .demo-note {
   font-size: var(--text-2xs);
   color: var(--text-muted);
@@ -686,7 +694,8 @@
     font-size: var(--text-sm);
   }
   /* With four toolbar buttons beside it the brand keeps one line: the demo chip keeps its icon (and its label). */
-  .demo-word {
+  .demo-word,
+  .demo-chip .menu-caret {
     display: none;
   }
   /* The town is small on a phone: an unfocused sign shows its key only, the focused one expands. */
@@ -1027,6 +1036,88 @@
 }
 .editor-import {
   max-width: 14rem;
+}
+
+/* ── Zones: the Settings section and build mode's part (markup in ZonePanel) ── */
+.zone-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  border: 0;
+}
+.zone-list,
+.zone-assign {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.zone-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+.zone-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+}
+.zone-fields,
+.zone-look {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--space-2);
+  width: 100%;
+}
+.zone-dot {
+  display: inline-block;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  margin-right: var(--space-1);
+  background: var(--text-muted);
+}
+.zone-dot-coral {
+  background: var(--coral);
+}
+.zone-dot-tangerine {
+  background: var(--tangerine);
+}
+.zone-dot-circle {
+  background: var(--circle);
+}
+.zone-dot-mist {
+  background: var(--mist);
+}
+.zone-dot-ink {
+  background: var(--text);
+}
+.zone-error {
+  color: var(--danger);
+}
+.build-zones {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+.build-zones h3 {
+  margin: 0;
+}
+.build-zone-look {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
 /* ── Settings: the town and the rules table (markup in TownSettings) ── */

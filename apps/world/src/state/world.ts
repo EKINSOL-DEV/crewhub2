@@ -3,7 +3,21 @@
    `createDemoSource` and nothing else changes. */
 import { useSyncExternalStore } from "react";
 import type { WorldSource } from "@crewhub/loops-client";
-import { browserScheduler, createDemoSource, createStressSource, type DemoSource } from "@crewhub/demo";
+import {
+  browserScheduler,
+  createDemoSource,
+  createStressSource,
+  DEFAULT_SCENARIO,
+  demoScenario,
+  demoScenarios,
+  parseScenarioId,
+  parseStressSize,
+  STRESS_FIXTURES,
+  STRESS_SIZES,
+  type DemoScenario,
+  type DemoSource,
+  type StressSize,
+} from "@crewhub/demo";
 import {
   describeWorld,
   emptyMemory,
@@ -35,11 +49,59 @@ const FLIGHT_TICK_MS = 250;
 const REDUCE_GAP_PER_MS = 20;
 const REDUCE_GAP_MAX_MS = 200;
 
+const PARAMS = new URLSearchParams(globalThis.location?.search ?? "");
+
 /**
- * `?stress=1` (dev builds only): the synthetic stress town (12 buildings, 100 agents) through the same seam, with a
- * frame-time overlay. Production builds ignore the flag.
+ * `?stress=1` and `?stress=20` (dev builds only): the synthetic stress towns (12 buildings with 100 agents, or 20
+ * buildings with 200 agents in four groups) through the same seam, with a frame-time overlay. Production builds
+ * ignore the flag.
  */
-export const STRESS = import.meta.env.DEV && new URLSearchParams(globalThis.location?.search ?? "").get("stress") === "1";
+export const STRESS_SIZE: StressSize | null = import.meta.env.DEV ? parseStressSize(PARAMS.get("stress")) : null;
+export const STRESS = STRESS_SIZE !== null;
+
+/** `?scenario=<id>`: which demo installation the world shows; the default storyline without it. */
+export const SCENARIO: DemoScenario = demoScenario(parseScenarioId(PARAMS.get("scenario")));
+
+/** The storage key of the town document on this page: one town per scenario and per stress fixture. */
+export const TOWN_KEY = STRESS_SIZE === null ? SCENARIO.townKey : `crewhub-world.stress-${STRESS_SIZE}`;
+
+export interface ScenarioChoice {
+  id: string;
+  name: string;
+  summary: string;
+  current: boolean;
+  /** Where choosing it goes: this page with the scenario in the URL. */
+  href: string;
+}
+
+/** The Demo chip's picker: every scenario, and in dev builds the stress fixtures. Choosing one reloads the page. */
+export function scenarioChoices(): ScenarioChoice[] {
+  const href = (set: (params: URLSearchParams) => void) => {
+    const params = new URLSearchParams(PARAMS);
+    params.delete("scenario");
+    params.delete("stress");
+    set(params);
+    const query = params.toString();
+    return `${globalThis.location?.pathname ?? "/"}${query ? `?${query}` : ""}`;
+  };
+  const choices: ScenarioChoice[] = demoScenarios().map((s) => ({
+    id: s.id,
+    name: s.name,
+    summary: s.summary,
+    current: !STRESS && s.id === SCENARIO.id,
+    href: href((params) => s.id !== DEFAULT_SCENARIO && params.set("scenario", s.id)),
+  }));
+  if (import.meta.env.DEV)
+    for (const size of STRESS_SIZES)
+      choices.push({
+        id: `stress-${size}`,
+        name: `Stress ${size}`,
+        summary: `${STRESS_FIXTURES[size].agents} agents`,
+        current: STRESS_SIZE === size,
+        href: href((params) => params.set("stress", String(size))),
+      });
+  return choices;
+}
 
 type Source = WorldSource & { readonly mode: "demo"; readonly playback: Playback };
 
@@ -67,9 +129,9 @@ class WorldRuntime {
     // The script starts at the minute the page opened, so the copied chat's relative times read naturally.
     const epochMs = Math.floor(Date.now() / 60_000) * 60_000;
     this.epochMs = epochMs;
-    const demo = createDemoSource({ scheduler: browserScheduler(), epochMs });
+    const demo = createDemoSource({ scheduler: browserScheduler(), epochMs, scenario: SCENARIO.id });
     this.chat = demo;
-    this.source = STRESS ? createStressSource({ scheduler: browserScheduler(), epochMs }) : demo;
+    this.source = STRESS_SIZE !== null ? createStressSource({ scheduler: browserScheduler(), epochMs, size: STRESS_SIZE }) : demo;
     this.projection = new Projection(this.source);
     this.source.start((message) => this.projection.apply(message));
     this.projection.onChange(() => this.#schedule());
