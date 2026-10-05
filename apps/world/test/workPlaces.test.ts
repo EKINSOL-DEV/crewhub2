@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { WorkSurface } from "@crewhub/world-style";
 import { deskItems } from "../src/world/roomDressing.ts";
-import { deskClutter, templateWorkPlaces, workPlace } from "../src/world/workPlaces.ts";
+import { deskClutter, HOME_VIEW, templateWorkPlaces, workPlace } from "../src/world/workPlaces.ts";
 
 const near = (a: number, b: number) => Math.abs(a - b) < 1e-9;
 const desk: WorkSurface = { height: 0.6, half: [0.5, 0.3], screen: [0, 0.8, -0.1], spots: [{ x: -0.3, z: 0.15, radius: 0.14 }, { x: 0.3, z: 0.15, radius: 0.1 }] };
@@ -33,6 +33,33 @@ test("a sitter gets the style's first free place that is wide enough and clear o
   assert.ok(near(second.x, -0.6) && near(second.z, 0.45), "the other side of the desk");
   assert.equal(ticket.place.spot(0.12), null, "too wide for the second place: the top is full");
   assert.equal(workPlace("desk", desk, at, stand, 0.62).place.spot(0.2), null, "wider than any place the style offers");
+});
+
+test("with two free places a sitter takes the one where it faces the camera; without a choice, or a camera, the style's first", () => {
+  // Two places wide enough, either side of the screen. The desk is turned as in a building: the model's +x is the west.
+  const wide: WorkSurface = { ...desk, spots: [{ x: -0.3, z: 0.15, radius: 0.14 }, { x: 0.3, z: 0.15, radius: 0.14 }] };
+  const at = { x: 0, z: 0, rotation: Math.PI };
+  const stand = { x: 0.3, z: -0.6 };
+  const plain = workPlace("desk", wide, at, stand, 0.62);
+  plain.place.spot(0.12);
+  assert.ok(near(plain.taken!.x, 0.3), "no camera: the first place, east of the screen");
+  // From the west place the screen is to the south-east, where the camera is: the sitter shows its face.
+  const seen = workPlace("desk", wide, at, stand, 0.62, [], HOME_VIEW);
+  const spot = seen.place.spot(0.12)!;
+  assert.ok(near(seen.taken!.x, -0.3) && near(seen.taken!.z, -0.15), `${seen.taken!.x}, ${seen.taken!.z}`);
+  const turned = { x: seen.place.focus[0] - spot.x, z: seen.place.focus[2] - spot.z };
+  assert.ok(turned.z > 0 && Math.abs(Math.atan2(turned.x, turned.z)) < (75 * Math.PI) / 180, "still turned to the screen within reading angle");
+  // A camera on the other side: the east place again.
+  const other = workPlace("desk", wide, at, stand, 0.62, [], { x: -HOME_VIEW.x, z: HOME_VIEW.z });
+  other.place.spot(0.12);
+  assert.ok(near(other.taken!.x, 0.3));
+  // The camera's side taken by a ticket: the other one. And a sitter too wide for it never gets it.
+  const ticket = workPlace("desk", wide, at, stand, 0.62, [{ x: -0.3, z: -0.1, radius: 0.1 }], HOME_VIEW);
+  ticket.place.spot(0.12);
+  assert.ok(near(ticket.taken!.x, 0.3), "the side that is free");
+  const narrow = workPlace("desk", desk, at, stand, 0.62, [], HOME_VIEW);
+  narrow.place.spot(0.12);
+  assert.ok(near(narrow.taken!.x, 0.3), "the only place wide enough");
 });
 
 test("a clear table: looked at along its middle line, sat on at the edge where the figure stands, or a little along it", () => {
