@@ -113,7 +113,7 @@ The namespaces separate what a renderer may do with a model. The art pass added 
 | `building.*` | The pieces of a building's shell. | Drawn by `buildingView.ts`; static, merged per material. |
 | `furniture.*` | Interior furniture that blocks movement. | Needs a definition (footprint, blocking, approaches) in `definitions.ts` or the room dressing's `dressingDefinitions`. |
 | `decor.*` | Room dressing that never blocks movement. | No definition; listed by `roomDecor` and never part of the grid. |
-| `town.*` | The town's ground, paths and dressing, and its ambient life. | Placed by `townDressing.ts`; repeated pieces are instanced. The life keys are moved by `ambientLife.ts`. |
+| `town.*` | The town's ground, paths and dressing, the pieces of a growing town (lodge, mail hut, post box, staked plot and its sign, scaffolding, district gate) and its ambient life. | Placed by `settlementDressing.ts` from the town plan; repeated pieces are instanced. `town.plot-sign` and `town.district-gate` paint `text`; the gate takes the zone's colour as `accent`. The life keys are moved by `ambientLife.ts`. |
 | `civic.*` | Landmarks and their parts. | Drawn whole by `TownScene` (so they may animate), and only once the style covers the key. |
 
 ### Lamp pools

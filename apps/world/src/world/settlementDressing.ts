@@ -66,6 +66,8 @@ export interface PlanDistrict {
   name: string | null;
   /** The zone's colour as a palette name, for the gate's board. */
   accent: string | null;
+  /** The zone's emblem, for the mark on the gate's beam. */
+  emblem?: string | null;
   bounds: Bounds;
 }
 /** A road between two neighbouring district crossings, from the outer one (x0, z0) towards the centre; `name` and
@@ -73,6 +75,7 @@ export interface PlanDistrict {
 export interface PlanRoad extends PlanSegment {
   name: string | null;
   accent: string | null;
+  emblem?: string | null;
 }
 /** The border strip between two neighbouring districts in use. */
 export interface PlanBorder {
@@ -129,7 +132,7 @@ export interface DressExtras {
   door(slug: string): PlotSpot;
   /** Footprints on the plot that dressing keeps clear of (the building, the parked truck). */
   obstacles(slug: string): readonly Bounds[];
-  zone?(id: string): { name: string | null; accent: string | null } | undefined;
+  zone?(id: string): { name: string | null; accent: string | null; emblem?: string | null } | undefined;
   /** World position of a lot's centre (settlement.ts's `lotCentre`). */
   lotCentre(cell: { x: number; z: number }): PlotSpot;
   stakedText?: string;
@@ -137,7 +140,7 @@ export interface DressExtras {
 
 /** The dressing's plan from the town plan. */
 export function dressPlan(plan: SettlementPlan, extras: DressExtras): DressPlan {
-  const zone = (id: string) => extras.zone?.(id) ?? { name: null, accent: null };
+  const zone = (id: string): { name: string | null; accent: string | null; emblem?: string | null } => extras.zone?.(id) ?? { name: null, accent: null };
   return {
     tier: plan.tier,
     ground: plan.ground,
@@ -465,6 +468,8 @@ export function settlementDressing(plan: DressPlan): Dressing[] {
 
   /* The civic rows. */
   civic(add, plan, tree, free);
+  // Hanging baskets on the civic rows' lanterns, the arms pointing either way along the lane.
+  for (const d of [...out]) if (d.key === "town.lantern" && d.z < CIVIC_LANE - LANE / 2) add("town.hanging-basket", d.x, d.y, d.z, { scale: d.scale, rotation: Math.round(d.x) % 2 ? Math.PI : 0 });
   if (has("bandstand")) {
     add("town.bandstand", BANDSTAND.x, GRASS_Y, BANDSTAND.z, { scale: BANDSTAND.scale });
     for (const side of [-1, 1]) add("town.bench", BANDSTAND.x + side * 3.6, GRASS_Y, BANDSTAND.z + 1.4, { rotation: side * (Math.PI / 2 + 0.5) });
@@ -487,6 +492,9 @@ export function settlementDressing(plan: DressPlan): Dressing[] {
   for (const border of plan.borders) if (border.strip.maxZ - border.strip.minZ > border.strip.maxX - border.strip.minX) hedgerow(add, border, tree, free);
   for (const gate of gates) {
     add("town.district-gate", gate.x, GRASS_Y, gate.z, { rotation: gate.rotation, size: { width: gate.width, height: 3.3, depth: 0.6 }, ...(gate.name ? { text: gate.name } : {}), ...(gate.accent ? { accent: gate.accent } : {}) });
+    // The zone's mark on the beam, over the name (the style's medallion: its back on the beam, facing out).
+    if (gate.accent || gate.emblem)
+      add("town.zone-mark", gate.x + (gate.rotation ? 0.15 : 0), GRASS_Y + 3.2, gate.z + (gate.rotation ? 0 : 0.15), { rotation: gate.rotation, ...(gate.accent ? { accent: gate.accent } : {}), ...(gate.emblem ? { variant: gate.emblem } : {}) });
     // A road that runs east to west shows the home camera its gate edge-on, so the name also stands on a board
     // beside the road, facing south.
     if (gate.rotation && gate.name) add("town.plot-sign", gate.x - gate.inward * 3.2, GRASS_Y, gate.z + gate.width / 2 + 2.6, { scale: 1.5, text: gate.name, ...(gate.accent ? { accent: gate.accent } : {}) });
@@ -904,6 +912,7 @@ interface Gate {
   inward: number;
   name: string | null;
   accent: string | null;
+  emblem: string | null;
 }
 /**
  * One gate per district road, in the border strip it crosses, on the outer district's side: past the bridge on a road
@@ -916,11 +925,11 @@ function districtGates(plan: DressPlan): Gate[] {
       // The strip is the column east of the western district: its middle is 3.5 lots east of that district's crossing.
       const west = Math.min(road.x0, road.x1);
       const outward = Math.sign(road.x0 - road.x1) || 1;
-      return { x: west + 3.5 * PITCH + outward * 8, z: road.z0, rotation: Math.PI / 2, width, inward: -outward, name: road.name, accent: road.accent };
+      return { x: west + 3.5 * PITCH + outward * 8, z: road.z0, rotation: Math.PI / 2, width, inward: -outward, name: road.name, accent: road.accent, emblem: road.emblem ?? null };
     }
     const north = Math.min(road.z0, road.z1);
     const outward = Math.sign(road.z0 - road.z1) || 1;
-    return { x: road.x0, z: north + STREAM.offset + outward * 5.6, rotation: 0, width, inward: -outward, name: road.name, accent: road.accent };
+    return { x: road.x0, z: north + STREAM.offset + outward * 5.6, rotation: 0, width, inward: -outward, name: road.name, accent: road.accent, emblem: road.emblem ?? null };
   });
 }
 
