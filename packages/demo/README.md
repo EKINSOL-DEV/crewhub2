@@ -20,12 +20,16 @@ const api = createDemoApi(source); // the loops chat routes, answered in memory
 await api.handle("GET", "/api/dm/threads"); // { status: 200, body: { threads: [...] } }
 ```
 
-- `src/content.ts`: people, agents, projects, tickets, milestones, releases, lanes.
+- `src/scenarios.ts` and `src/scenarios/`: the scenarios (`fresh`, `one`, `small-team`, `studio`). Each is a
+  `DemoContent` and a `Story`; `createDemoSource({ scenario })` plays one, `demoScenarios()` lists them for the
+  picker, and `townKey` and `townZones` say where its town document lives and which zones it starts with.
+- `src/content.ts`: people, agents, projects, tickets, milestones, releases, lanes of Small team, and `DemoContent`.
 - `src/store.ts`: the loops state and the read models (`ProjectOut`, `BoardResponse`,
   `Ticket`, `TeamSnapshot`, `WatchdogResponse`, and so on).
 - `src/actions.ts`: loops-level changes that append the envelopes of `events.md`.
   They also enforce loops' rules; for example, agents never move a ticket to Done.
-- `src/script.ts`: the 16-minute storyline with seeded jitter.
+- `src/script.ts`: Small team's 16-minute storyline with seeded jitter, and `buildStory` for any scenario.
+- `src/stress.ts`: the synthetic stress fixtures (12 buildings, or 20 in four groups).
 - `src/source.ts`: `createDemoSource`, with playback, loops, seek, heartbeats,
   prop requests and the person's chat (`sendDm`, `markDmRead`). A sent message
   gets its `dm` delivery at once, the postman claims and forwards it, and a
