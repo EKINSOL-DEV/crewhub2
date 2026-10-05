@@ -161,54 +161,58 @@ However richly a room is dressed, the eye goes to the robots and their tickets f
 
 ### The town
 
-The town is a small green town of hedged gardens, not beige squares
-([townDressing.ts](../apps/world/src/world/townDressing.ts), pure and deterministic).
+The settlement is as large as what lives in it, and every size is a place of its own
+([settlementDressing.ts](../apps/world/src/world/settlementDressing.ts), pure and deterministic; it reads the town plan
+of `townPlan.ts`, so it never decides where a lot, a street or a civic spot is, only what stands there). The page
+`/tiers-preview?n=7&zones=2` shows any size without the demo.
 
-- **Paths.** A 3.2-wide cobbled lane runs down every street, including the outer ring and an entrance road from the
-  south edge. Garden paths lead from each front door under a timber gate down to the lane, and crossings get a border
-  of darker setts. The town's navigation grid opens only paved cells (`townOpenCells`), so the postman and walkers
-  keep to the lanes and garden paths.
-- **Used plots** get a raised lawn, hedges with gaps for the path, flower beds, gate lanterns, a mailbox and trees.
-- **Empty plots** each have a character by index (`plotUse`): a meadow, an orchard, an allotment, a playground or a
-  picnic lawn. Their pieces gather into groups, not a sprinkle: the meadow is a copse of trees with bushes at their
-  feet, a bench facing it and a spiral drift of wild flowers; the picnic lawn has three shade trees with the blankets
-  in their shade; picnic lawn and playground get a flower-bed border along the lane with a gap to walk in; the allotment
-  has a washing line.
-- **Around the town:**
-  - a park with a pond, an arched bridge and lilies, and an orchard by the town hall;
-  - a meandering stream along the southern edge, under a timber bridge for the entrance road, with reeds, stones and
-    lilies on its banks; where it reaches the diorama's edge it spills over in a little waterfall on each side
-    (`town.stream`, `variant: "cut"` and `"fall"`). Nothing is planted in its band;
-  - autumn among the green, for it is October: about one oak, birch or bush in five turns gold and orange
-    (`town.oak-autumn`, `town.birch-autumn`, `town.bush-autumn`, chosen by a seeded noise, so the same trees turn every
-    time), with fallen leaves under about half the turning trees;
-  - twelve cottages in the green belt beyond the outer lanes, with chimneys, window boxes front and back, a flagstone
-    path to the lane and a bush or pumpkin by the step (`town.cottage`, `town.cottage-timber`);
-  - a chapel on the town's axis behind the square, so the entrance road, the main street, the square and its slate
-    spire line up; a bell tower with a clock, a flagstone path from the square and pines either side (`town.chapel`);
-  - bunting: three strings across the main street on the way up to the square (`town.bunting`);
-  - an October farm corner by the windmill: hay bales, six sheep and pumpkins along a fence; pumpkins by most garden
-    gates and a pumpkin patch in the allotment;
-  - lanterns every 9 units along the streets, street trees, benches, signposts and bike racks;
-  - a green belt of trees around the edge, with grass tufts and wild flowers on the open grass.
-- **Landmarks** (`civic.*`) are drawn whole, so they can animate:
-  - **The civic row:** the post office, the town hall, the square between them with its fountain, the café and the
-    bus stop. A paved promenade runs behind the café from the post office lot through the square to the town hall lot,
-    with flower beds along its north side, gaps to step through and a lantern at each end; walkers use it like any
-    other paving. Three market stalls stand along it east of the square, and behind them a bandstand with bunting sits
-    on the lawn, a flagstone path up to its steps and benches facing it. Trees frame the town hall, and two shade
-    trees with a bench face the promenade east of the square. The town bus waits in a paved lay-by beside its stop,
-    off the lane.
-  - **Hanging baskets** of trailing leaves and flowers hang from the civic row's lanterns and at every garden gate
-    (none on the archived building).
+- **Clearing (no project).** A glade in the woods: the lodge (`town.lodge`), a post box on a flagstone pad
+  (`town.post-box`), the welcome sign on a small green and one staked-out plot (`town.staked-plot`) with a sign that
+  says what to do next (`town.plot-sign`: "Create a project in crewhub-loops"), joined by one lane. The stakes stand
+  on the lot the first building takes.
+- **Hamlet (one project).** The building on that lot with its garden, the lodge and the mail hut (`town.mail-hut`)
+  close by, the lane and the green.
+- **Village (two to four).** One street, the paved square with its fountain, the promenade between the mail hut and
+  the lodge with one market stall, bunting over the main street and the entrance road from the south.
+- **Town (five to nine).** The town hall and the post office stand where the lodge and the mail hut stood. The café,
+  the bus stop with its bus, the park with the pond, the conservatory and the ducks, the orchard and the market
+  complete the civic rows.
+- **Region (ten and more, or several zones).** Districts joined by roads lined with birches. A stream runs along the
+  border between a district and the one south of it, edge to edge, with a bridge where a road crosses; a hedgerow
+  runs between a district and the one east of it. Each district road passes under a gate (`town.district-gate`) that
+  carries the district's name, colour and mark; a road that runs east to west shows the home camera its gate
+  edge-on, so the name also stands on a board beside it. An outer district's first green is its small centre (a
+  fountain, benches, lanterns, a notice board, two stalls).
+- **Greens.** A block's green is a pocket park by its seed: a meadow, an orchard, an allotment, a playground or a
+  picnic lawn. With one zone the blocks therefore read as neighbourhoods, without names.
+- **Landmarks arrive with growth** (the plan says which have arrived; the order is the town's own): the bandstand
+  behind the promenade, the chapel on the town's axis behind the square, the windmill, the farm corner beside it
+  (hay bales, sheep, pumpkins along a fence) and two clusters of cottages round a little yard, each with a footpath
+  to the civic lane. Nothing empty waits for them.
+- **A building goes up** ([construction.ts](../apps/world/src/world/construction.ts)): when a project joins a
+  standing town, scaffolding (`town.scaffolding`) rises on its plot, the building grows inside it and the scaffolding
+  comes down. Under reduced motion nothing moves: the scaffolding stands round a plain wrap, then both fade away from
+  the finished building.
+- **Paths.** A 3.2-wide cobbled lane runs down every street the plan has; crossings get a border of darker setts.
+  Garden paths lead from each front door under a timber gate down to the lane. The navigation opens exactly the
+  paving the dressing lays (`civicWalkways`), so the postman and walkers keep to it at every tier.
+- **Used plots** get a raised lawn, hedges with gaps for the path, flower beds, gate lanterns, a mailbox and trees;
+  an archived building's garden has gone wild.
+- **The country.** Inside the ground, every lattice lot that holds nothing is a wood, a meadow in flower, a hayfield
+  with a few sheep (`town.field` is the paler patch under both) or plain grass, by its place and the town's seed. A
+  clearing and a hamlet stand in the woods. A green belt rings the ground; on a region's long edge it is planted more
+  loosely, so a region costs no more dressing per building than the fixed town of four did (a test holds this).
+- **October by default.** About two oaks, birches or bushes in five turn gold and orange, with fallen leaves under about
+  half the turning trees; pumpkins by most garden gates. A district's own season and planting come from its zone's
+  style options (see "Style options and zone looks" in [WORLD_STYLES.md](WORLD_STYLES.md)): the dressing places the
+  same keys, and the style draws them in the district's look.
+- **Whole pieces** (`planPieces`) are drawn one by one, so they can animate: the lodge or the town hall, the post
+  box, the mail hut or the post office, the square, the café, the bus stop, the welcome sign (on the green while the
+  town is small, at the head of the main street after), the conservatory, the ducks and the windmill.
+  - **Hanging baskets** of trailing leaves and flowers hang from the civic rows' lanterns and at every garden gate
+    (none on an archived building).
   - **Puddles** lie on the cobbles beside about one lane lantern in four: a soft film of water by day, the lantern's
-    warm reflection in the evening (`town.puddle`). The café's awning and parasols are striped cream and leaf green; the parasols are made of `wedge`
-    parts, the pie slices of the prop format. The post office and the town hall have windows in their back walls too,
-    since the camera turns.
-  - **Reserved spots** (`landmarks()`): the welcome sign by the entrance road, the windmill behind the orchard (inside
-    the 1440-wide home view), the
-    greenhouse conservatory by the pond, the clock post by the square and three ducks on the pond. A landmark appears
-    only once the style covers its key, so the spot reserved for `civic.water-tower` stays empty.
+    warm reflection in the evening (`town.puddle`).
 - **Animation.** The fountain's water and the windmill's sails animate only on frames that are drawn anyway, never
   under reduced motion, and never keep the render loop running.
 - **Batching.** Repeated dressing pieces are instanced (`instanceStatic.ts`), and one-off pieces are merged per

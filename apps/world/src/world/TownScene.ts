@@ -12,7 +12,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { zoneById } from "@crewhub/world-model";
 import type { AgentPlacement, RoomKind, WorldModel } from "@crewhub/world-model";
 import { IDLE_STATE, type Cast, type FigureHandle, type FigureState } from "@crewhub/world-cast";
-import { styleOptionsKey, type EnvironmentHandle, type GraphicsQuality, type ModelAnimation, type ModelKey, type ResolvedStyle, type StyleOptionValues, type StyleTheme } from "@crewhub/world-style";
+import { styleOptionsKey, type EnvironmentHandle, type GraphicsQuality, type ModelAnimation, type ModelKey, type PaletteName, type ResolvedStyle, type StyleOptionValues, type StyleTheme } from "@crewhub/world-style";
 import { BuildingView, type Pick } from "./buildingView";
 import { BACK_WALL_HEIGHT, BUILDING_CELL, FLOOR_RISE } from "./buildingTemplate";
 import type { TownLayer } from "./propLayer";
@@ -20,11 +20,12 @@ import { styleRegistry } from "./style";
 import type { StyledPlot } from "./styleRegistry";
 import { lookAt, looksSignature, previewLooks, type TownLooks } from "./townLooks";
 import type { Ambient } from "./movement";
-import { CIVIC_LOT, civicCenter, PLOT_SIZE, TOWN_CAPACITY, TOWN_COLUMNS, townBounds, type Bounds } from "./townLayout";
+import { CIVIC_LOT, civicCenter, PLOT_SIZE, type Bounds } from "./townLayout";
+import { Construction } from "./construction";
 import { lotCentre, lotKey } from "./settlement";
 import { homeRects, planKey, type TownPlan } from "./townPlan";
-import { Construction } from "./construction";
-import { GRASS_Y, landmarks as townLandmarks, LAWN_Y, slugSeed, townDressing } from "./townDressing";
+import { dressPlan, planPaths, planPieces, settlementDressing, STAKED_SIGN, type DressPlan } from "./settlementDressing";
+import { LAWN_Y } from "./townDressing";
 import { InstanceCuller, instanceStatic } from "./instanceStatic";
 import { mergeStatic } from "./mergeStatic";
 import { plotDoor, plotObstacles } from "./navigation";
@@ -39,7 +40,7 @@ import { RobotCrowd } from "./robotCrowd";
 import { DistrictFrames, type DistrictView } from "./districtFrames";
 import { isDistant, labelDetail, type LabelDetail } from "./wayfinding";
 import { castRegistry } from "./cast";
-import { buildingLook, townLook, type LookContext } from "./worldLook";
+import { buildingLook, townLook, zoneLook, type LookContext } from "./worldLook";
 import { figureRole, figureState, type FigureFacts, type FigurePlace } from "./figureState";
 
 export interface TownView {
@@ -187,6 +188,15 @@ const PORTRAIT_ROOM_MARGIN = 0.86;
 const PORTRAIT_BUILDING_MARGIN = 0.94;
 /* The closest view: a frustum this many world units tall, about one desk with its robot. */
 const DESK_SPAN = 2.4;
+/**
+ * `?frame=minX,maxX,minZ,maxZ` (dev builds only): the home view frames this ground instead of the settlement, so
+ * pictures of a town at different sizes share one camera and show what stayed where.
+ */
+const FIXED_FRAME: Bounds | null = (() => {
+  if (!import.meta.env.DEV) return null;
+  const [minX, maxX, minZ, maxZ] = (new URLSearchParams(globalThis.location?.search ?? "").get("frame") ?? "").split(",").map(Number);
+  return [minX, maxX, minZ, maxZ].every((n) => typeof n === "number" && Number.isFinite(n)) ? { minX: minX!, maxX: maxX!, minZ: minZ!, maxZ: maxZ! } : null;
+})();
 const HIT_GEOMETRY = new THREE.BoxGeometry(PLOT_SIZE, 2, PLOT_SIZE);
 const HIT_MATERIAL = new THREE.MeshBasicMaterial();
 /** The widest ground the town's shadow map covers at once (about today's town); a larger settlement gets a window of it. */
@@ -321,6 +331,13 @@ export class TownScene {
   #dirtyFrames = 2;
   /** True until the first layout of the town is complete; nothing draws before. */
   #layingOut = true;
+  /** The plan as the dressing reads it and the paving walkers keep to, by plan and zones. */
+  #dressPlan: { key: string; dress: DressPlan; paths: Bounds[] } | null = null;
+  #piecesSignature = "";
+  /** When the town was first drawn without a building (the startup mark of an empty town). */
+  #emptySince = 0;
+  #piecesMerged: THREE.BufferGeometry[] = [];
+  #districtLooks: { plan: TownPlan; context: LookContext; looks: TownLooks | null } | null = null;
   /** Buildings going up (construction.ts), and the slugs the town has shown: a new one gets scaffolding first. */
   readonly #constructions = new Map<string, Construction>();
   readonly #known = new Set<string>();
@@ -354,7 +371,6 @@ export class TownScene {
   #buildCell = "";
   #dragging = false;
   #stopIntents: () => void;
-  readonly #previewLooks = previewLooks(globalThis.location?.search ?? "", townBounds());
 
   constructor(host: HTMLElement, labels: HTMLElement, view: TownView, callbacks: Callbacks) {
     this.view = view;
@@ -559,61 +575,75 @@ export class TownScene {
 
   /* ── The town ground and the empty lots ───────────────────────────────── */
 
-  /** The plot hit boxes and the civic landmarks; the ground and its dressing follow the plots in use (`#dress`). */
+  /** The civic pieces and landmarks stand in a group of their own (`#pieces`); the ground follows the plan (`#dress`). */
   buildGround() {
-    const style = this.townStyle;
-    // The landmarks merge per material; the square's fountain water stays live (`userData.live`) and animates.
-    const landmarks: [ModelKey, number, number, number][] = [
-      ["post-office", civicCenter("post-office").x, LAWN_Y, civicCenter("post-office").z],
-      ["town-hall", civicCenter("town-hall").x, LAWN_Y, civicCenter("town-hall").z],
-      ["civic.square", civicCenter("square").x, GRASS_Y, civicCenter("square").z],
-      ["civic.cafe", civicCenter("cafe").x, GRASS_Y, civicCenter("cafe").z],
-      ["civic.bus-stop", civicCenter("bus-stop").x, GRASS_Y, civicCenter("bus-stop").z],
-    ];
-    for (const [key, x, y, z] of landmarks) {
-      const object = this.#styleAt(x, z).model(key);
-      object.position.set(x, y, z);
-      this.#landmarks.add(object);
-    }
-    // The reserved landmarks (welcome sign, windmill, greenhouse, ducks…) appear once the style draws them.
-    const covered = new Set<string>(style.manifest.coveredKeys);
-    for (const l of townLandmarks()) {
-      if (!covered.has(l.key)) continue;
-      const object = this.#styleAt(l.x, l.z).model(l.key as ModelKey);
-      object.position.set(l.x, l.y, l.z);
-      object.rotation.y = l.rotation;
-      this.#landmarks.add(object);
-    }
-    // Landmarks are static but for their live parts (the fountain's water): the rest merges per material across all of
-    // them (perf). The landmark roots stay, so their animations still run.
-    mergeStatic(this.#landmarks);
     this.scene.add(this.#landmarks);
   }
 
+  /** The plan as the dressing reads it, with each building's door and footprint and the zones' names and colours. */
+  #dressed(): DressPlan {
+    const plan = this.view.plan,
+      zones = this.view.model.zones;
+    const key = `${planKey(plan)}|${zones.map((z) => `${z.id}:${z.name}:${z.color}:${z.emblem}`).join(";")}`;
+    if (this.#dressPlan?.key !== key) {
+      const cells = new Map(plan.lots.map((lot) => [lot.slug, lot.cell]));
+      const dress = dressPlan(plan, {
+        door: (slug) => plotDoor(cells.get(slug)!),
+        obstacles: (slug) => plotObstacles(cells.get(slug)!),
+        zone: (id) => {
+          const zone = zoneById(zones, id);
+          return zone && { name: zone.name, accent: zone.color, emblem: zone.emblem };
+        },
+        lotCentre,
+        stakedText: STAKED_SIGN,
+      });
+      this.#dressPlan = { key, dress, paths: planPaths(dress) };
+    }
+    return this.#dressPlan.dress;
+  }
+
   /**
-   * The ground, lawns, paths and dressing for the plots in use (townDressing.ts): rebuilt only when a plot is taken or
-   * freed. Repeated parts become instanced meshes, the one-off pieces merge per material.
+   * The civic buildings and the landmarks of the plan's tier (the lodge or the town hall, the post box, the mail hut or
+   * the post office, the square, what has arrived), rebuilt when the tier, the arrivals or the town's look change. They
+   * are static but for their live parts (the fountain's water, the windmill's sails): the rest merges per material
+   * across all of them, and the roots stay, so their animations still run.
+   */
+  #pieces(dress: DressPlan, townOptions: StyleOptionValues) {
+    const pieces = planPieces(dress);
+    const signature = `${pieces.map((p) => p.key).join()}|${looksSignature(this.#looks)}|${styleOptionsKey(townOptions)}`;
+    if (signature === this.#piecesSignature) return;
+    this.#piecesSignature = signature;
+    for (const geometry of this.#piecesMerged) geometry.dispose();
+    this.#landmarks.clear();
+    for (const p of pieces) {
+      const object = this.#styleAt(p.x, p.z, townOptions).model(p.key as ModelKey);
+      object.position.set(p.x, p.y, p.z);
+      object.rotation.y = p.rotation;
+      object.scale.setScalar(p.scale);
+      this.#landmarks.add(object);
+    }
+    this.#piecesMerged = mergeStatic(this.#landmarks);
+    this.#civicSignature = "";
+  }
+
+  /**
+   * The ground, lawns, paths and dressing of the settlement (settlementDressing.ts): rebuilt only when the plan, a
+   * zone's name or colour, or a look changes. Repeated parts become instanced meshes, the one-off pieces merge per
+   * material.
    */
   #dress() {
-    const plan = this.view.plan;
     // Fast quality leaves out the small detail (grass tufts, wild flowers).
     const fast = this.view.quality === "fast";
     const townOptions = townLook(this.#lookContext()).styleOptions;
     // Each building's own garden follows its slug, its lot and whether it is archived.
-    const signature = `${planKey(plan)}|${fast}|${looksSignature(this.#looks)}|${styleOptionsKey(townOptions)}`;
+    const dress = this.#dressed();
+    this.#pieces(dress, townOptions);
+    const signature = `${this.#dressPlan!.key}|${fast}|${looksSignature(this.#looks)}|${styleOptionsKey(townOptions)}`;
     if (signature === this.#dressing.signature) return;
     this.#disposeDressing();
     this.#shadowDirty = true;
     const group = new THREE.Group();
-    // Until the settlement dressing lands (settlementDressing.ts), the old dressing knows the 4 x 3 grid only: a lot
-    // on that grid is dressed as its grid plot, any other lot stands on bare ground.
-    const plots = plan.lots.flatMap((lot) => {
-      const column = lot.cell.x - 63,
-        row = lot.cell.z - 64;
-      if (column < 0 || column >= TOWN_COLUMNS || row < 0 || row * TOWN_COLUMNS + column >= TOWN_CAPACITY) return [];
-      return [{ index: row * TOWN_COLUMNS + column, door: plotDoor(lot.cell), obstacles: plotObstacles(lot.cell), seed: slugSeed(lot.slug), archived: lot.archived }];
-    });
-    const dressing = townDressing(plots);
+    const dressing = settlementDressing(dress);
     this.#life.setTown(dressing, this.#landmarks);
     // A district's own turf lies on the town's ground, in its look's grass.
     for (const { bounds } of this.#looks?.districts ?? []) {
@@ -631,6 +661,8 @@ export class TownScene {
         ...(d.size ? { size: d.size } : {}),
         ...(d.seed !== undefined ? { seed: d.seed } : {}),
         ...(d.variant ? { variant: d.variant } : {}),
+        ...(d.text ? { text: d.text } : {}),
+        ...(d.accent ? { accent: d.accent as PaletteName } : {}),
       });
       object.position.set(d.x, d.y, d.z);
       object.rotation.y = d.rotation;
@@ -646,7 +678,23 @@ export class TownScene {
 
   /** The look of the town and its districts: the view's, else the address bar's preview. */
   get #looks(): TownLooks | null {
-    return this.view.looks === undefined ? this.#previewLooks : this.view.looks;
+    if (this.view.looks !== undefined) return this.view.looks;
+    const plan = this.view.plan;
+    const context = this.#lookContext();
+    if (this.#districtLooks?.plan !== plan || this.#districtLooks.context.doc !== context.doc || this.#districtLooks.context.zones !== context.zones || this.#districtLooks.context.viewer.styleOptions !== context.viewer.styleOptions) {
+      const preview = previewLooks(globalThis.location?.search ?? "", plan.ground);
+      const town = styleOptionsKey(townLook(context).styleOptions);
+      // A district wears its zone's look where that differs from the town's own.
+      const districts = plan.districts.flatMap((d) => {
+        const options = zoneLook(context, d.zoneId).styleOptions;
+        // Its ground, as far as the town's ground reaches (a district's lots fill in from one corner).
+        const g = plan.ground;
+        const bounds = { minX: Math.max(d.bounds.minX, g.minX + 0.5), maxX: Math.min(d.bounds.maxX, g.maxX - 0.5), minZ: Math.max(d.bounds.minZ, g.minZ + 0.5), maxZ: Math.min(d.bounds.maxZ, g.maxZ - 0.5) };
+        return styleOptionsKey(options) === town || bounds.maxX <= bounds.minX || bounds.maxZ <= bounds.minZ ? [] : [{ bounds, options }];
+      });
+      this.#districtLooks = { plan, context, looks: preview ?? (districts.length ? { town: null, districts } : null) };
+    }
+    return this.#districtLooks.looks;
   }
 
   /**
@@ -687,7 +735,7 @@ export class TownScene {
       this.#continueLayout();
       return;
     }
-    this.walks.update(model, { entered: this.view.entered, reducedMotion: this.view.reducedMotion, ambient: this.view.ambient, plan });
+    this.walks.update(model, { entered: this.view.entered, reducedMotion: this.view.reducedMotion, ambient: this.view.ambient, plan, walkways: this.#walkways() });
     const seen = new Set<string>();
     this.#anchors.clear();
     model.buildings.forEach((b) => {
@@ -835,6 +883,12 @@ export class TownScene {
     this.#contacts.set(slug, { object, size });
   }
 
+  /** The paving walkers keep to: exactly what the dressing lays for the plan. */
+  #walkways(): Bounds[] {
+    this.#dressed();
+    return this.#dressPlan!.paths;
+  }
+
   #lookContext(): LookContext {
     const { model, town, cast, styleOptions } = this.view;
     return { doc: town?.doc, zones: model.zones, buildings: model.buildings, viewer: { castId: cast, styleOptions } };
@@ -930,7 +984,7 @@ export class TownScene {
     if (previous.cast !== view.cast) this.#shadowDirty = true;
     if (previous.cast !== view.cast || previous.styleOptions !== view.styleOptions || previous.model !== view.model || previous.plan !== view.plan || previous.lotAnchors !== view.lotAnchors || previous.entered !== view.entered || previous.room !== view.room || previous.town !== view.town) this.sync();
     else if (previous.reducedMotion !== view.reducedMotion || previous.ambient !== view.ambient)
-      this.walks.update(view.model, { entered: view.entered, reducedMotion: view.reducedMotion, ambient: view.ambient, plan: view.plan });
+      this.walks.update(view.model, { entered: view.entered, reducedMotion: view.reducedMotion, ambient: view.ambient, plan: view.plan, walkways: this.#walkways() });
     if (previous.entered !== view.entered) {
       // The overlay's window describes one view: start it again.
       this.#frames.clear();
@@ -1036,7 +1090,7 @@ export class TownScene {
     let insets = this.insets();
     // A region's districts carry a card above their far corner: the frame keeps headroom for the topmost one.
     if ((this.view.districts?.length ?? 0) > 1) insets = { ...insets, top: insets.top + (canvas.clientWidth < NARROW_CANVAS ? DISTRICT_CARD.phone : DISTRICT_CARD.desktop) };
-    const rects = homeRects(this.view.plan, portrait ? 0 : 1.5, portrait);
+    const rects = FIXED_FRAME ? [FIXED_FRAME] : homeRects(this.view.plan, portrait ? 0 : 1.5, portrait);
     // While a building is picked up, the free plots it can move to are in the picture too.
     for (const cell of this.view.lotAnchors ?? []) {
       const c = lotCentre(cell);
@@ -1469,7 +1523,11 @@ export class TownScene {
       this.#marked.first = true;
       performance.mark("world:first-frame");
     }
-    if (this.#dressing.group && this.view.model.buildings.length && this.#buildings.size) {
+    // A clearing is a dressed town too: without a building, the mark waits a moment in case the first snapshot is
+    // still on its way.
+    const empty = !this.view.model.buildings.length && !this.#layingOut;
+    if (empty) this.#emptySince ||= performance.now();
+    if (this.#dressing.group && (empty ? performance.now() - this.#emptySince > 1500 : this.#buildings.size > 0)) {
       this.#marked.dressed = true;
       performance.mark("world:town-dressed");
     }

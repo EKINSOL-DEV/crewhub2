@@ -333,3 +333,65 @@ are part of this plan. Existing agent work retains its normal provider costs.
 The immediate implementation objective is a correct shared model, followed by
 stable growing rooms and a convincing mock town. Live integrations reuse those
 same identities and presentation inputs once their observation paths are proven.
+
+## 11. The settlement: lots, districts and tiers
+
+Status: built in demo mode (2026-10-06). The design is the addendum "Scale and zones" in
+[the demo-mode spec](superpowers/specs/2026-10-01-world-demo-mode-design.md); this section says where it lives and
+what the rules are. Sections 4 and 5 describe a fixed grid of room plots; the town itself no longer has one.
+
+**The rule.** Nothing in the town moves by itself. A building stands on its lot, and the lot is written into the town
+document the first time the world sees the project. Adding, archiving or regrouping projects never changes a lot;
+the only two ways are "Tidy the town" and moving a building by hand, both explicit edits in build mode and each one
+undo step.
+
+**Where it lives.**
+
+| File | What it holds |
+| --- | --- |
+| `apps/world/src/world/settlement.ts` | Pure. The lot lattice, the districts and their growth sequences, the reserved civic ground, tiers, the ground's extent, streets, district roads and borders, and the allocation (`allocationEdit`, `tidyEdit`, `moveEdit`). |
+| `apps/world/src/world/townPlan.ts` | Pure. `planTown(document, buildings)`: the settlement as it stands now, read by the scene, the dressing, the navigation and the camera. Also the home frame per tier, keyboard focus by position, the free plots and the text view's lines. |
+| `packages/world-model/src/townDocument.ts` | The schema: a plot's `cell` is a lot, with an optional `zoneId`; `districts` (zone to slot), `zones`, `assignments`; the edits `allocate`, `tidy`, `move-plot`, `assign`, `set-zone`, `remove-zone`. All additive in `crewhub-town/1`. |
+| `apps/world/src/state/town.ts` | Gives a new project its lot, in the current revision: the world's own record, so no undo step. |
+| `apps/world/src/world/navigation.ts` | The walkable town: one room per district, joined where a district road crosses the border. |
+
+**Lots.** Square lots on one pitch: a 24-unit plot and a 6-unit street. The centre lot is `{ x: 64, z: 64 }`, at
+world `(-15, -15)`, just south-west of the main crossing. A lot is one of four things (`lotKind`): a `lot` a
+building can stand on, a `green`, `reserved` civic ground, or `border`.
+
+**Districts.** A zone owns a district: a cell of 7 by 6 lots on a coarse lattice, of which 6 by 5 can be built on;
+the last column and row are the border to the next district. Slots are given out in a spiral from the centre (east,
+south, west, then the corners), and stored. The column straight north of the centre is never given out: it
+stays open country behind the square, and it holds the old quarter. A district's growth sequence depends on its slot
+only:
+
+- the centre: the village street of four lots facing the square (the hamlet's lot first), then two blocks south of
+  it either side of the main street, each around a green, then the street's two ends: 16 lots;
+- any other district: four blocks of five lots, each a U around its green and open to the south: 20 lots.
+
+A zone that fills its district gets a further slot, the free one nearest its first.
+
+**Reserved ground.** The two lot rows north of the centre's street belong to the town: the lodge that becomes the
+town hall, the mailbox that becomes the mail hut and the post office, the square, the café, the bus stop, and the
+landmarks (bandstand, chapel, windmill, farm corner, two rows of cottages). No growth sequence touches them, so civic
+buildings grow in place. Landmarks arrive at 3, 4, 6, 7, 9 and 12 plots, in an order seeded by the town's founding
+project; archived plots count, so a town never loses one.
+
+**Tiers.** From the number of projects that are not archived: clearing (0), hamlet (1), village (2 to 4), town (5 to
+9), region (10 and more). A tier is entered at its threshold and left two below it; no project is always a clearing.
+The tier decides the ground, the streets (a hamlet has one lane) and the civic stage. It never moves a lot.
+
+**Archived buildings** keep their plot. The viewer setting "Archived buildings: fold into the old quarter"
+(Settings, off by default, this browser only) draws them in rows north of the civic ground instead; the document is
+not touched.
+
+**The stability test** (`apps/world/test/settlement.test.ts`): projects added one by one from 0 to 40, in six orders
+(as listed, reversed, four shuffles), over one to four zones (even, one zone after another, lopsided), with archiving
+and restoring mixed into half the runs. After every step: no building's lot changed, no two buildings share a lot,
+every building stands on a lot of its own zone's district and off the reserved ground, and the ground covers every
+lot. A second test checks that one batch and one-by-one arrival give the same town.
+
+**Walking.** The engine bounds a grid at 256 cells a side, so the town is not one room: each district is a room of
+its own (175 by 150 cells of 1.2 units), and never changes size or place. The streets of a district always join at
+its main crossing; the roads run crossing to crossing, and a portal door (`road/<x>,<z>`) stands where a road crosses
+the border between two district rooms.

@@ -91,8 +91,10 @@ test("the home view frames what exists: the building for a hamlet, the settlemen
     region = frame(20, 4);
   assert.ok(holds(clearing, lotBounds(CENTRE_LOT)) && holds(clearing, post), "a clearing shows the lodge, the mailbox and the staked plot");
   assert.ok(holds(hamlet, lotBounds(CENTRE_LOT)), "a hamlet shows its building");
-  assert.ok(!holds(hamlet, post) && hamlet.minZ < post.maxZ, "and only the front of the mail hut's lot");
+  assert.ok(!holds(hamlet, post), "not a map of the civic row");
   assert.ok(hamlet.maxZ - hamlet.minZ < clearing.maxZ - clearing.minZ, "so the building fills the picture");
+  const centre = lotBounds(CENTRE_LOT);
+  assert.equal(hamlet.minX + hamlet.maxX, centre.minX + centre.maxX, "and stands in its middle");
   assert.ok(holds(village, post) && width(village) > width(hamlet));
   assert.ok(width(twelve) > width(village) && width(region) > 1.5 * width(twelve));
   for (const all of [projects(4), projects(12), projects(20, 4)]) {
@@ -174,4 +176,30 @@ test("the free plots a building can move to: every district in use, numbered in 
     assert.equal(lotKind(lot.cell).kind, "lot");
     assert.equal(lotKind(lot.cell).index + 1, lot.number);
   }
+});
+
+test("a region's ground is its districts and the roads between them, not the box around them", () => {
+  const area = (rects: readonly { minX: number; maxX: number; minZ: number; maxZ: number }[]) => rects.reduce((sum, r) => sum + (r.maxX - r.minX) * (r.maxZ - r.minZ), 0);
+  const inside = (rects: readonly { minX: number; maxX: number; minZ: number; maxZ: number }[], x: number, z: number) => rects.some((r) => x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ);
+  // One district: one piece, the whole ground.
+  const village = planTown(town(projects(4)), projects(4));
+  assert.deepEqual(village.grounds, [village.ground]);
+  for (const [count, zones] of [[20, 4], [40, 4], [40, 1], [12, 3]] as const) {
+    const all = projects(count, zones);
+    const plan = planTown(town(all), all);
+    assert.equal(plan.grounds.length, plan.districts.length + plan.roads.length);
+    for (const piece of plan.grounds) assert.ok(piece.minX >= plan.ground.minX && piece.maxX <= plan.ground.maxX && piece.minZ >= plan.ground.minZ && piece.maxZ <= plan.ground.maxZ);
+    // Every building's plot with its street, every begun green and every step of every road lies on a piece.
+    for (const lot of plan.lots) for (const dx of [-18, 18]) for (const dz of [-18, 18]) assert.ok(inside(plan.grounds, lot.centre.x + dx, lot.centre.z + dz), `${lot.slug}`);
+    for (const road of plan.roads) for (let t = 0; t <= 1; t += 0.05) assert.ok(inside(plan.grounds, road.x0 + (road.x1 - road.x0) * t, road.z0 + (road.z1 - road.z0) * t), "a road runs on ground");
+    for (const street of plan.streets) assert.ok(inside(plan.grounds, (street.x0 + street.x1) / 2, (street.z0 + street.z1) / 2), "a street runs on ground");
+  }
+  const studio = projects(20, 4);
+  const region = planTown(town(studio), studio);
+  assert.ok(area(region.grounds) < 0.5 * area([region.ground]), "less than half the box is ground");
+  // An archived building folded into the old quarter stands on the centre's ground.
+  const some = projects(6).map((b, i) => ({ ...b, archived: i === 5 }));
+  const folded = planTown(town(some), some, { oldQuarter: true });
+  assert.equal(folded.grounds.length, 1);
+  assert.ok(inside(folded.grounds, planLot(folded, "p5")!.centre.x, planLot(folded, "p5")!.centre.z));
 });
