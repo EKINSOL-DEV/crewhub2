@@ -483,14 +483,15 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
     const width = 1.5 + noise(l.x, l.z, 92) * 1;
     add("town.puddle", cx, COBBLE_Y, cz, { size: { width, height: 0, depth: width * 0.6 }, rotation: Math.atan2(l.z - cz, -(l.x - cx)) });
   }
-  // October: about one oak, birch or bush in five is turning (gold and orange) among the green.
+  // October: about two oaks, birches or bushes in five are turning (gold and orange) among the green. A style's look
+  // may read the turning ones as another season's (blossom in spring, full green in summer).
   for (const d of [...out])
-    if (AUTUMN.test(d.key) && noise(d.x, d.z, 77) < 0.2) {
+    if (AUTUMN.test(d.key) && noise(d.x, d.z, 77) < 0.4) {
       d.key = `${d.key}-autumn`;
       // Leaves fallen under about half the turning trees.
       const lx = d.x + 0.9,
         lz = d.z + 0.6;
-      if (d.key !== "town.bush-autumn" && noise(d.x, d.z, 112) < 0.5 && free(lx, lz, 0.9)) add("town.leaf-pile", lx, d.y, lz, { rotation: noise(d.x, d.z, 113) * 6.28, scale: 0.55 });
+      if (d.key !== "town.bush-autumn" && noise(d.x, d.z, 112) < 0.3 && free(lx, lz, 0.9)) add("town.leaf-pile", lx, d.y, lz, { rotation: noise(d.x, d.z, 113) * 6.28, scale: 0.55 });
     }
   return out;
 }

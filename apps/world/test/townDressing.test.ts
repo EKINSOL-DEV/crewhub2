@@ -172,10 +172,10 @@ test("the stream runs edge to edge across the south of the town, under the entra
   assert.ok(road.maxZ > band.maxZ, "the road runs on past the stream to the edge");
 });
 
-test("about one tree or bush in five turns for October, the same ones every time", () => {
+test("about two trees or bushes in five turn for October, the same ones every time", () => {
   const dressing = townDressing(plots(4));
   const green = dressing.filter((d) => /^town\.(oak|birch|bush)$/.test(d.key)).length,
     autumn = dressing.filter((d) => /^town\.(oak|birch|bush)-autumn$/.test(d.key)).length;
-  assert.ok(autumn > 0.1 * (green + autumn) && autumn < 0.3 * (green + autumn), `${autumn} of ${green + autumn}`);
+  assert.ok(autumn > 0.3 * (green + autumn) && autumn < 0.5 * (green + autumn), `${autumn} of ${green + autumn}`);
   assert.deepEqual(townDressing(plots(4)), dressing);
 });
