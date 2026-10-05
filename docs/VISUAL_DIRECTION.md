@@ -178,11 +178,17 @@ of `townPlan.ts`, so it never decides where a lot, a street or a civic spot is, 
   the bus stop with its bus, the park with the pond, the conservatory and the ducks, the orchard and the market
   complete the civic rows.
 - **Region (ten and more, or several zones).** Districts joined by roads lined with birches. A stream runs along the
-  border between a district and the one south of it, edge to edge, with a bridge where a road crosses; a hedgerow
-  runs between a district and the one east of it. Each district road passes under a gate (`town.district-gate`) that
+  border between a district and the one south of it, with a bridge where a road crosses; a hedgerow crosses the road
+  between a district and the one east of it. Each district road passes under a gate (`town.district-gate`) that
   carries the district's name, colour and mark; a road that runs east to west shows the home camera its gate
   edge-on, so the name also stands on a board beside it. An outer district's first green is its small centre (a
   fountain, benches, lanterns, a notice board, two stalls).
+- **A region's ground is not one slab.** The plan gives pieces (`plan.grounds`): one per district, fitted to what
+  stands there, and a corridor under each district road. Each piece gets its own ground slab, belt of trees and loose
+  tufts; a stream runs only where a piece crosses a border row, and spills over that piece's edges. Hayfields and
+  their paler patch stay out in the open country, never beside a building, where they would read as an empty lot.
+- **Names follow the stage.** Labels, the text view and the "Where is" answer say Lodge, Mailbox and Mail hut until
+  the town has its Town hall and Post office (`civicWords`).
 - **Greens.** A block's green is a pocket park by its seed: a meadow, an orchard, an allotment, a playground or a
   picnic lawn. With one zone the blocks therefore read as neighbourhoods, without names.
 - **Landmarks arrive with growth** (the plan says which have arrived; the order is the town's own): the bandstand
