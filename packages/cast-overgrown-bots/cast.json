@@ -25,6 +25,7 @@
     "shoot-leaf": { "day": "#93c365", "lamplight": "#8fba60" },
     "bud": { "day": "#f2c552", "lamplight": "#f5c04c" },
     "bloom": { "day": "#f7dfe0", "lamplight": "#f9d9cf" },
+    "rose": { "day": "#f08fa6", "lamplight": "#f08c98" },
     "toadstool": { "day": "#d9674f", "lamplight": "#dc664a" }
   },
   "budget": { "nearTriangles": 5400, "farTriangles": 2700, "nearMeshes": 34, "farMeshes": 13 }
