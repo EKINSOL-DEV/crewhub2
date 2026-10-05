@@ -11,6 +11,8 @@ import {
   validateEnvelope,
   validateMilestonesResponse,
   validateProgressResponse,
+  validateProjectGroupsResponse,
+  validateProjectOut,
   validateProjectsResponse,
   validateReleasesResponse,
   validateTeamSnapshot,
@@ -18,6 +20,7 @@ import {
   validateWatchdogResponse,
 } from "../src/validate.ts";
 import type { Result } from "../src/validate.ts";
+import { groupOf, sortProjectGroups } from "../src/groups.ts";
 
 const fixture = (name: string): Record<string, unknown> =>
   JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8")) as Record<string, unknown>;
@@ -196,4 +199,41 @@ test("a full ticket without createdBy is rejected", () => {
 
 test("null where the schema does not allow it is rejected", () => {
   assert.equal(failure(validateTicket({ ...fixture("ticket.json"), priority: null })).path, "$.priority");
+});
+
+// FUTURE (proposal L22): crewhub-loops has no project groups today; these shapes are what the world would like.
+
+const groupFixture = { id: "pg_studio", slug: "studio", name: "Studio", order: 1, color: "mist", icon: null };
+
+test("project groups (proposal L22): the list validates, colour and icon may be null but not missing or unknown", () => {
+  const { groups } = value(validateProjectGroupsResponse({ groups: [groupFixture, { ...groupFixture, id: "pg_x", extra: 1 }] }));
+  assert.deepEqual(groups[0], groupFixture);
+  assert.equal("extra" in groups[1]!, false);
+  assert.equal(failure(validateProjectGroupsResponse({ groups: [{ ...groupFixture, color: "purple" }] })).path, "$.groups[0].color");
+  const { icon: _icon, ...withoutIcon } = groupFixture;
+  assert.equal(failure(validateProjectGroupsResponse({ groups: [withoutIcon] })).path, "$.groups[0].icon");
+  assert.equal(failure(validateProjectGroupsResponse({})).path, "$.groups");
+});
+
+test("project groups (proposal L22): a project without groupId is today's shape; groupOf resolves or answers null", () => {
+  const today = fixture("projects.json") as { projects: Record<string, unknown>[] };
+  const plain = value(validateProjectOut(today.projects[0]));
+  assert.equal("groupId" in plain, false);
+  const grouped = value(validateProjectOut({ ...today.projects[0], groupId: "pg_studio" }));
+  assert.equal(grouped.groupId, "pg_studio");
+  assert.equal(failure(validateProjectOut({ ...today.projects[0], groupId: 3 })).path, "$.groupId");
+
+  const groups = [groupFixture as never];
+  assert.equal(groupOf(plain, groups), null);
+  assert.equal(groupOf({ groupId: null }, groups), null);
+  assert.equal(groupOf({ groupId: "pg_gone" }, groups), null);
+  assert.equal(groupOf(grouped, groups)?.slug, "studio");
+  assert.equal(groupOf(grouped, []), null, "a real crewhub-loops lists no groups");
+});
+
+test("project groups (proposal L22): sorted by order, then slug, whatever order they arrive in", () => {
+  const g = (slug: string, order: number) => ({ id: `pg_${slug}`, slug, name: slug, order, color: null, icon: null });
+  const list = [g("b", 1), g("c", 0), g("a", 1)];
+  assert.deepEqual(sortProjectGroups(list).map((x) => x.slug), ["c", "a", "b"]);
+  assert.deepEqual(sortProjectGroups([...list].reverse()).map((x) => x.slug), ["c", "a", "b"]);
 });

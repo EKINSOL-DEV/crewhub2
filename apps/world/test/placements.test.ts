@@ -10,6 +10,7 @@ function building(): Building {
   const kinds: RoomKind[] = ["lobby", "lead-office", "storage", "planning", "review", "dispatch"];
   return {
     slug: "cr",
+    zoneId: "default",
     key: "CR",
     name: "CrewHub",
     color: "coral",
