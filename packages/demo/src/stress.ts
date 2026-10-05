@@ -150,6 +150,7 @@ function snapshotTeam(state: State, at: number): TeamSnapshot {
 }
 
 function agents(state: State): AgentOut[] {
+  const ref = (slug: string) => ({ slug, key: state.projects.find((p) => p.out.slug === slug)!.out.key });
   const out: AgentOut[] = state.projects.map((p) => ({
     id: p.out.lead.id,
     displayName: p.out.lead.id,
@@ -158,7 +159,8 @@ function agents(state: State): AgentOut[] {
     disabled: false,
     lastSeenAt: iso(state.now),
     keys: null,
-    projects: [p.out.slug],
+    isCrewhubLead: false,
+    projects: { lead: [ref(p.out.slug)], member: [] },
   }));
   for (let r = 1; r <= ROVERS; r++)
     out.push({
@@ -169,10 +171,11 @@ function agents(state: State): AgentOut[] {
       disabled: false,
       lastSeenAt: iso(state.now),
       keys: null,
+      isCrewhubLead: false,
       // Each rover belongs to two buildings, so its real location moves between them (plan 4.4).
-      projects: [slugOf((r * 3) % STRESS_BUILDINGS), slugOf((r * 3 + 1) % STRESS_BUILDINGS)],
+      projects: { lead: [], member: [ref(slugOf((r * 3) % STRESS_BUILDINGS)), ref(slugOf((r * 3 + 1) % STRESS_BUILDINGS))] },
     });
-  out.push({ id: "postman", displayName: "Postman", role: "router", herdrSession: SESSION, disabled: false, lastSeenAt: iso(state.now), keys: null, projects: [] });
+  out.push({ id: "postman", displayName: "Postman", role: "router", herdrSession: SESSION, disabled: false, lastSeenAt: iso(state.now), keys: null, isCrewhubLead: false, projects: { lead: [], member: [] } });
   return out;
 }
 

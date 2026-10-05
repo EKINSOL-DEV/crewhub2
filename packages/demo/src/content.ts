@@ -34,8 +34,8 @@ export interface AgentSeed {
   displayName: string;
   role: "lead" | "router" | "probe";
   isCrewhubLead: boolean;
-  /** Project membership (agents_admin shape); slugs, an assumption. */
-  projects: string[];
+  /** The projects the agent is a member of without leading them (`AgentOut.projects.member`), as slugs. */
+  memberOf: string[];
 }
 
 export const PEOPLE: PersonSeed[] = [
@@ -44,26 +44,26 @@ export const PEOPLE: PersonSeed[] = [
 ];
 
 export const AGENTS: AgentSeed[] = [
-  { id: "g-man", displayName: "G-Man", role: "lead", isCrewhubLead: true, projects: [] },
-  { id: "cr-lead", displayName: "CR Lead", role: "lead", isCrewhubLead: false, projects: ["crewhub"] },
+  { id: "g-man", displayName: "G-Man", role: "lead", isCrewhubLead: true, memberOf: [] },
+  { id: "cr-lead", displayName: "CR Lead", role: "lead", isCrewhubLead: false, memberOf: [] },
   {
     id: "cl-lead",
     displayName: "CL Lead",
     role: "lead",
     isCrewhubLead: false,
-    projects: ["crewhub-loops", "ops-tooling"],
+    memberOf: [],
   },
-  { id: "marky", displayName: "Marky", role: "lead", isCrewhubLead: false, projects: ["marketing"] },
+  { id: "marky", displayName: "Marky", role: "lead", isCrewhubLead: false, memberOf: [] },
   {
     id: "analyst",
     displayName: "Analyst",
     role: "lead",
     isCrewhubLead: false,
-    projects: ["crewhub-loops", "marketing"],
+    memberOf: ["crewhub-loops", "marketing"],
   },
-  { id: "ux-lead", displayName: "UX Lead", role: "lead", isCrewhubLead: false, projects: ["marketing"] },
-  { id: "postman", displayName: "Postman", role: "router", isCrewhubLead: false, projects: [] },
-  { id: "team-probe", displayName: "Team probe", role: "probe", isCrewhubLead: false, projects: [] },
+  { id: "ux-lead", displayName: "UX Lead", role: "lead", isCrewhubLead: false, memberOf: ["marketing"] },
+  { id: "postman", displayName: "Postman", role: "router", isCrewhubLead: false, memberOf: [] },
+  { id: "team-probe", displayName: "Team probe", role: "probe", isCrewhubLead: false, memberOf: [] },
 ];
 
 export interface ProjectSeed {

@@ -70,7 +70,7 @@ export function ticketFrom(c: TicketCard, slug: string, key: string, extra: Part
 }
 
 export function registered(id: string, role = "lead", extra: Partial<AgentOut> = {}): AgentOut {
-  return { id, displayName: id, role, herdrSession: "ekinsol", disabled: false, lastSeenAt: null, keys: null, ...extra };
+  return { id, displayName: id, role, herdrSession: "ekinsol", disabled: false, lastSeenAt: null, keys: null, isCrewhubLead: false, projects: { lead: [], member: [] }, ...extra };
 }
 
 export function lane(name: string, status: string, extra: Partial<TeamAgent> = {}): TeamAgent {

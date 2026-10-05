@@ -75,7 +75,7 @@ test("an allowlisted payload missing a documented key is rejected", () => {
   assert.equal(failure(toWorldEvent(envelope)!).path, "$.payload.to");
 });
 
-test("the team-and-projects.md snapshot validates; v as the number 1 and the string '1' both pass", () => {
+test("the team snapshot validates; v is the number 1 (contracts/team.py), the documents' string '1' passes too", () => {
   const snapshot = value(validateTeamSnapshot(fixture("team-snapshot.json")));
   assert.equal(snapshot.sessions[0]?.agents[0]?.contextLine, "CL-85: writing docs");
   assert.ok(value(validateTeamSnapshot({ ...fixture("team-snapshot.json"), v: "1" })));
@@ -121,9 +121,71 @@ test("the read-model fixtures follow the schema blocks", () => {
   const cp = fixture("comments-progress.json");
   assert.equal(value(validateCommentsResponse(cp.comments)).comments[0]?.kind, "normal");
   assert.equal(value(validateProgressResponse(cp.progress)).progress[0]?.worker, "cl-dev-2");
+  assert.equal(value(validateCommentsResponse(cp.comments)).comments.length, 3);
+});
+
+// The four shapes below are read from the loops code at f55d1288, not from read-model.md (fixtures/README.md).
+
+test("GET /api/agents: projects is {lead, member} of {slug, key}", () => {
+  // loops:services/api/src/crewhub_loops/contracts/agents.py (AgentDetailOut, AgentProjects);
+  // loops:services/api/tests/test_api_agents_admin.py expects exactly this for cr-lead.
   const agents = value(validateAgents(fixture("agents.json"))).agents;
-  assert.deepEqual(agents[0]?.projects, ["crewhub-loops"]);
-  assert.equal(agents[1]?.projects, undefined);
+  assert.deepEqual(agents[0]?.projects, {
+    lead: [{ slug: "creator", key: "CR" }],
+    member: [{ slug: "inbox", key: "IN" }],
+  });
+  assert.deepEqual(agents[1]?.projects, { lead: [], member: [] });
+  assert.equal(agents[1]?.isCrewhubLead, true);
+  // The list of slugs the world assumed before is not what loops sends.
+  const old = { agents: [{ ...(fixture("agents.json").agents as Record<string, unknown>[])[0], projects: ["creator"] }] };
+  assert.equal(failure(validateAgents(old)).path, "$.agents[0].projects");
+});
+
+test("a body's v is the number 1; the string the documents print passes too, 2 fails", () => {
+  // loops:services/api/src/crewhub_loops/contracts/richtext.py: RichBody and SystemCommentBody, `v: Literal[1] = 1`.
+  // The ticket body is the one loops:services/api/tests/test_api_releases_publish.py sends.
+  const body = { v: 1, profile: "ticket", doc: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Notes" }] }] } };
+  assert.equal(value(validateTicket({ ...fixture("ticket.json"), body })).body?.v, 1);
+  assert.ok(value(validateTicket({ ...fixture("ticket.json"), body: { ...body, v: "1" } })));
+  assert.equal(failure(validateTicket({ ...fixture("ticket.json"), body: { ...body, v: 2 } })).path, "$.body.v");
+
+  const comments = fixture("comments-progress.json").comments as { comments: Record<string, unknown>[] };
+  const [normal, system, deleted] = value(validateCommentsResponse(comments)).comments;
+  assert.equal(normal?.body?.v, 1);
+  assert.deepEqual(system?.body, { v: 1, system: { code: "uncertain", lead: "cl-lead", detail: "input box held typed text" } });
+  assert.equal(deleted?.body, null);
+  const bad = { comments: [{ ...comments.comments[1], body: { v: 2, system: { code: "uncertain", lead: "cl-lead" } } }] };
+  assert.equal(failure(validateCommentsResponse(bad)).path, "$.comments[0].body.v");
+
+  const dm = fixture("dm.json").messages as { messages: { body: { v: unknown } }[] };
+  assert.equal(value(validateDmMessagesResponse(dm)).messages[0]?.body.v, 1);
+});
+
+test("ticket.moved: labelsCleared is a list of label names", () => {
+  // loops:services/api/src/crewhub_loops/domain/board.py, `_apply_move`: `"labelsCleared": [AWAITING_DEPLOY_NAME]`.
+  const typed = value(toWorldEvent(value(validateEnvelope(fixture("envelope-ticket-moved-deploy.json"))))!);
+  assert.equal(typed.type, "ticket.moved");
+  if (typed.type === "ticket.moved") assert.deepEqual(typed.payload.labelsCleared, ["awaiting-deploy"]);
+  const base = fixture("envelope-ticket-moved-deploy.json");
+  const boolean = value(validateEnvelope({ ...base, payload: { ...(base.payload as object), labelsCleared: true } }));
+  assert.equal(failure(toWorldEvent(boolean)!).path, "$.payload.labelsCleared");
+});
+
+test("ticket.moved: a rejection carries resolution and resolutionReason; a card carries them too", () => {
+  // loops:services/api/src/crewhub_loops/domain/board.py, `_apply_move`; the reason is the one of
+  // loops:services/api/tests/test_api_reject.py (test_a_person_rejects_with_a_reason).
+  const typed = value(toWorldEvent(value(validateEnvelope(fixture("envelope-ticket-moved-rejected.json"))))!);
+  if (typed.type !== "ticket.moved") assert.fail("not a ticket.moved");
+  assert.deepEqual([typed.payload.to, typed.payload.resolution, typed.payload.resolutionReason], ["done", "rejected", "Superseded by CL-30"]);
+  // A reopen: `resolutionCleared`.
+  const base = fixture("envelope-ticket-moved-rejected.json");
+  const reopened = value(toWorldEvent(value(validateEnvelope({ ...base, payload: { from: "done", to: "planned", position: 1000, resolutionCleared: true } })))!);
+  if (reopened.type === "ticket.moved") assert.equal(reopened.payload.resolutionCleared, true);
+  // The board card of test_api_reject.py: `(key, resolution, resolutionReason) == ("CR-1", "rejected", WHY)`.
+  const card = { ...(fixture("board.json").columns as { tickets: Record<string, unknown>[] }[])[2]!.tickets[0], status: "done", resolution: "rejected", resolutionReason: "Superseded by CL-30" };
+  const board = value(validateBoardResponse({ columns: [{ status: "done", tickets: [card] }] }));
+  assert.deepEqual([board.columns[0]?.tickets[0]?.resolution, board.columns[0]?.tickets[0]?.resolutionReason], ["rejected", "Superseded by CL-30"]);
+  assert.equal(value(validateTicket(fixture("ticket.json"))).resolution, null);
 });
 
 test("a full ticket without createdBy is rejected", () => {

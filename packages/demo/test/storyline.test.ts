@@ -1,12 +1,16 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Envelope, TeamSnapshot } from "@crewhub/loops-client";
+import { applyAction } from "../src/actions.ts";
+import type { Output } from "../src/actions.ts";
+import { initialState, requireTicket } from "../src/store.ts";
 import { at } from "../src/time.ts";
 import { envelopes, firstLoop, playLoop, startDemo } from "./helpers.ts";
 
 const loop = firstLoop(playLoop().messages);
 const events = envelopes(loop);
 const of = (type: string): Envelope[] => events.filter((e) => e.type === type);
+const T0 = Date.parse("2026-10-01T08:00:00Z");
 const values = (type: string, key: string): Set<unknown> => new Set(of(type).map((e) => e.payload[key]));
 
 function includesAll(actual: Set<unknown>, expected: unknown[], what: string): void {
@@ -103,4 +107,47 @@ test("while the probe is silent the reads say so: stale monitoring and no agentW
   assert.ok(cards.every((t) => t.agentWorking === false));
   run.play(at("0:50"));
   assert.equal((await run.source.getWatchdog()).monitoring, "ok");
+});
+
+test("a person turns one ticket down, in the shape of loops' ticket.moved (CL-89)", async () => {
+  // loops:services/api/src/crewhub_loops/domain/board.py, `_apply_move`: `resolution` and `resolutionReason` join
+  // the payload of the move that rejects.
+  const rejections = of("ticket.moved").filter((e) => "resolution" in e.payload);
+  assert.equal(rejections.length, 1);
+  const [rejection] = rejections;
+  assert.deepEqual(
+    [rejection?.ticket?.key, rejection?.actor.kind, rejection?.payload["to"], rejection?.payload["resolution"]],
+    ["CR-25", "user", "done", "rejected"],
+  );
+  assert.equal(typeof rejection?.payload["resolutionReason"], "string");
+  const run = startDemo();
+  run.play(at("7:00"));
+  const done = ((await run.source.getBoard("crewhub"))?.columns ?? []).find((c) => c.status === "done")?.tickets ?? [];
+  assert.deepEqual(done.filter((t) => t.resolution === "rejected").map((t) => [t.key, t.resolutionReason]), [
+    ["CR-25", rejection?.payload["resolutionReason"]],
+  ]);
+  assert.equal((await run.source.getTicket("CR-25"))?.resolution, "rejected");
+});
+
+test("a ticket that leaves In progress loses only its awaiting-deploy label, named in the payload", () => {
+  // loops:services/api/tests/test_domain_board.py, test_leaving_in_progress_clears_the_deploy_label_with_history.
+  // The storyline has no such move, so the action is applied to the seed state directly: CL-45 is in progress
+  // with the labels api and awaiting-deploy.
+  const state = initialState(T0, 0);
+  const labels = () => requireTicket(state, "CL-45").labelIds.map((id) => state.labels.find((l) => l.id === id)?.name);
+  assert.deepEqual(labels(), ["api", "awaiting-deploy"]);
+  const moved = (out: Output[]) => out.flatMap((o) => (o.type === "event" && o.envelope.type === "ticket.moved" ? [o.envelope.payload] : []));
+  const toReview = moved(applyAction(state, { type: "move", by: "cl-lead", ticket: "CL-45", to: "review" }, 1));
+  assert.deepEqual(toReview.map((p) => [p["from"], p["to"], p["labelsCleared"]]), [["in_progress", "review", ["awaiting-deploy"]]]);
+  assert.deepEqual(labels(), ["api"]);
+  // A later move has nothing to clear and says nothing.
+  const toDone = moved(applyAction(state, { type: "move", by: "nicky", ticket: "CL-45", to: "done" }, 2));
+  assert.equal("labelsCleared" in toDone[0]!, false);
+  // A Done ticket rejected afterwards: `from == to == "done"`, and a reopen clears the resolution.
+  const rejected = moved(applyAction(state, { type: "move", by: "nicky", ticket: "CL-45", to: "done", rejected: "Not this quarter" }, 3));
+  assert.deepEqual(rejected.map((p) => [p["from"], p["to"], p["resolution"], p["resolutionReason"]]), [["done", "done", "rejected", "Not this quarter"]]);
+  const reopened = moved(applyAction(state, { type: "move", by: "nicky", ticket: "CL-45", to: "planned" }, 4));
+  assert.equal(reopened[0]?.["resolutionCleared"], true);
+  assert.equal(requireTicket(state, "CL-45").resolution, null);
+  assert.throws(() => applyAction(state, { type: "move", by: "cl-lead", ticket: "CL-45", to: "review", rejected: "no" }, 5), /goes with the done status/);
 });

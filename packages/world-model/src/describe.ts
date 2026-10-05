@@ -197,6 +197,10 @@ function placeWords(place: TransitPlace): string {
 
 function describeObject(section: string, object: WorkObject, building: Building, add: Add): void {
   const parts = [`${object.key} "${object.title}": ${object.kind} as a ${LOOK_WORDS[object.look]}, ${STATUS_WORDS[object.status]}`];
+  if (object.rejected) {
+    const reason = object.rejected.reason ? `: "${object.rejected.reason}"` : "";
+    parts.push(`turned down (closed as won't do${reason}), set aside askew under a pale return slip`);
+  }
   if (object.priorityTag) parts.push(`${object.priorityTag} priority tag`);
   if (object.blocked) parts.push("blocked, strapped shut");
   if (object.sealed) parts.push("held, sealed");
@@ -225,6 +229,7 @@ function describeObject(section: string, object: WorkObject, building: Building,
   if (object.deskInferred) add(section, `${object.key} is on that desk because the agent's status line names it: an inference.`, "inference");
   if (object.speechMarkUntil !== null) add(section, `${object.key} has a new comment (speech mark until ${clock(object.speechMarkUntil)}).`);
   if (object.celebrateUntil !== null) add(section, `${object.key} was just moved to done by a person.`);
+  if (object.turnedDownUntil !== null) add(section, `${object.key} was just turned down by a person: no celebration.`);
   if (object.transit) {
     add(section, `${object.key} is in transit from ${placeWords(object.transit.fromRoom)} to ${placeWords(object.transit.toRoom)}: the ticket drone carries it.`, "cosmetic");
   }

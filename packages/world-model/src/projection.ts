@@ -240,6 +240,8 @@ export class Projection {
       case "ticket.moved": {
         if (!event.ticket) return;
         const fact = facts.cards[event.ticket.id];
+        // A resolution other than `rejected` is a new value: tolerated, and read as a plain move.
+        const rejects = event.payload.to === "done" && event.payload.resolution === "rejected";
         facts.lastMoves[event.ticket.id] = {
           seq: event.seq,
           ts,
@@ -250,6 +252,8 @@ export class Projection {
           from: event.payload.from,
           to: event.payload.to,
           reason: event.payload.reason ?? null,
+          resolution: rejects ? "rejected" : event.payload.resolutionCleared ? "cleared" : null,
+          resolutionReason: rejects ? (event.payload.resolutionReason ?? null) : null,
         };
         if (!fact) {
           this.refetchTicket(event.ticket.id);
@@ -261,7 +265,17 @@ export class Projection {
           card.waitingOn = null;
           card.waitingOnHuman = false;
         }
-        if (event.payload.labelsCleared) card.labels = [];
+        // The payload names a resolution only when the move sets or clears it; a reorder inside Done keeps it.
+        if (event.payload.resolution) {
+          card.resolution = event.payload.resolution;
+          card.resolutionReason = event.payload.resolutionReason ?? null;
+        } else if (event.payload.resolutionCleared || event.payload.to !== "done") {
+          card.resolution = null;
+          card.resolutionReason = null;
+        }
+        // Only the named labels go (`["awaiting-deploy"]` when a ticket leaves In progress).
+        const cleared = event.payload.labelsCleared;
+        if (cleared && cleared.length > 0 && card.labels) card.labels = card.labels.filter((label) => !cleared.includes(label.name));
         if (event.payload.to !== "in_progress") card.stall = null;
         facts.cards[event.ticket.id] = { slug: fact.slug, card };
         this.recount(fact.slug);

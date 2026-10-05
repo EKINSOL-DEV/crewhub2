@@ -1,0 +1,4 @@
+{"v":1,"seq":4713,"ts":"2026-10-05T09:15:40.502Z","type":"ticket.moved",
+ "project":{"slug":"creator","key":"CR"},"ticket":{"id":"tk_000000000002","key":"CR-2","title":"A deployed ticket"},
+ "actor":{"id":"nicky","kind":"user"},"recipientIds":[],
+ "payload":{"from":"in_progress","to":"review","position":1000.0,"labelsCleared":["awaiting-deploy"],"code":"deployed","deployId":"dp_000000000001"}}

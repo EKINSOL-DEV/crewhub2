@@ -81,7 +81,7 @@ test("the prop is the most recent json block on the ticket, validated", () => {
 
 test("without bodyMarkdown the rich body's json code node is read", () => {
   const rich = {
-    v: "1",
+    v: 1 as const,
     doc: {
       type: "doc",
       content: [

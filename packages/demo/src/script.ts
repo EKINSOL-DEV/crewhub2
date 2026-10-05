@@ -300,6 +300,9 @@ function storyline(s: ScriptBuilder): void {
   s.post("14:52", { type: "comment", by: "sam", ticket: "CR-20", text: "The camera stays put now. Nice." });
   s.post("15:16", { type: "comment", by: "nicky", ticket: "MK-14", text: "Keep the voice-over under 90 seconds." });
   s.add("15:56", { type: "comment", by: "cl-lead", ticket: `@${release}`, text: "Notes ready for 0.9.0." });
+  // A person turns a ticket down (CL-89): it goes to Done as "won't do", which is no celebration. Added last and
+  // without jitter, so every action above keeps its id and its time.
+  s.add("6:49", { type: "move", by: "nicky", ticket: "CR-25", to: "done", rejected: "The building sign already shows the counts." }, false);
 }
 
 /** Adds jitter and keeps the authored order; probe and poll stay on their 30 s grid. */
