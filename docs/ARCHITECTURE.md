@@ -72,6 +72,8 @@ model and the grid engine. The contract is described in [WORLD_STYLES.md](WORLD_
 The figures that stand for agents are a cast, a second seam next to the style (`packages/world-cast` is the contract
 and the generic figure runtime, `packages/cast-*` the casts as data, `apps/world/src/world/cast.ts` the only
 importer). A building wears its own cast, else the viewer's choice, else the town's, else the style's default.
+A figure too small to see over a desk brings its own perch as data (a step, or a place on the top); the style only
+says where each top is, and furniture never changes with the cast.
 Built: the seam, the registry and the Greenhouse style. Not built: a second style,
 external loading, an editor.
 

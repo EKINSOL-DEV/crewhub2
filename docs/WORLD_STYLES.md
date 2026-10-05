@@ -44,6 +44,7 @@ Every style declares a manifest (for Greenhouse: `packages/style-greenhouse/styl
 | `version` | Semver of the style. |
 | `description` | One or two sentences. |
 | `coveredKeys` | The semantic model keys the style provides. A test checks it equals what the style actually draws. |
+| `workSurfaces` | Optional. The tops figures work at, by model key: see "Perches" in the Casts chapter. |
 | `palette` | A colour for every palette name (below). |
 | `lighting` | A `LightingPreset` per theme, `day` and `lamplight`, and optionally the drift lights `dawn`, `dusk` and `night`: sky, ground and key/fill lights, exposure, the blob shadows' opacity, the lamps' `glow`, the warm light `pools`, how far into the `evening` the light is (0 by day, 1 with every lamp lit) and the `air` behind the diorama with its `airTint` (the share of the theme's own air it replaces). |
 
@@ -296,7 +297,7 @@ sample room, in every role and state.
 ### What the world asks of a figure
 
 Renderers talk only to a `FigureHandle`: `setState`, `setDetail("near" | "far")`, `setHighlight`, `update(seconds)`
-(never called under reduced motion), `anchors` and `dispose`. One pure function (`figureState.ts`) derives the state
+(never called under reduced motion), `setPerch` with `body` (see "Perches" below), `anchors` and `dispose`. One pure function (`figureState.ts`) derives the state
 from what the world model already says; the reducer and the projection know nothing of casts.
 
 - **Role**: `lead`, `worker`, `design`, `analyst`, `postman` (the post office), `operator` (a town-hall agent without
@@ -305,7 +306,8 @@ from what the world model already says; the reducer and the projection know noth
 - **Flags**: `waiting` (the ticket on its desk waits on a person), `alert` (its building has a stall), `proxy` (the
   echo of an agent that works elsewhere), `carrying` (the postman's letters).
 - **Anchors**, in the figure's own space at scale 1: `label` (the name pill and bubbles), `carry` (letters ride
-  here), `ground` (the radius the blob shadow, halo and selection ring size to) and `height`.
+  here), `ground` (the radius the blob shadow, halo and selection ring size to), `height`, and optionally `eyes`
+  (between the eyes: what must see over a work surface; left out, the centre line at four fifths of the height).
 - **Accent**: the building's project colour goes to every figure of that building; the cast decides who wears it.
 
 ### The two data formats
@@ -380,10 +382,94 @@ A cast that sets `extends` in its manifest re-dresses another cast: its `figure.
 that recolours, drops and adds parts and may replace poses, motions, looks, colourways and anchors. The rig is the
 base's. The registry applies the patch; the cast never imports its base.
 
+### Perches: how a small figure reaches its work
+
+A sprout or a potling is too small to see the screen on a desk. Figures do not grow and desks do not shrink: **each
+cast brings its own way up**, as data, and the renderer reads it without knowing the cast. Furniture and rooms never
+change with the cast.
+
+**The work poses** are the places a figure works at a surface: `desk`, `lead-desk`, `meeting-table`, `planning-table`
+and `review-table`. The world maps its furniture onto them (`apps/world/src/world/workPlaces.ts`: the workdesk, the
+lead's desk, the meeting table, the planning table and the review pile).
+
+**The cast says** how its figure gets up, in `perch` of `figure.json` (or of a patch), per work pose or as `default`
+for every pose it does not name. A cast without `perch` stands on the floor everywhere (the classic and overgrown
+bots). One of:
+
+| `kind` | The figure | Fields |
+| --- | --- | --- |
+| `step` | stands on a small prop of the cast's own, drawn up to the top's edge | `steps`: one or more variants, each `{ id, height, parts }`; a figure takes one seeded by its agent key and keeps it. `height` is how high it stands (figure units; the step scales with the figure). `parts` are plain shapes like a figure's, in a colour name, placed around the standing point with the floor at y = 0. `gap`: how far from the top's edge it stands (left out: its ground radius). |
+| `surface` | sits on the top itself, at the free place the furniture offers, turned to what it looks at | `base`: the radius it needs there, figure units (left out: its ground radius). |
+| `floor` | stands on the floor | For one pose, to opt out of the `default` (the review pile is a tray on the floor). |
+
+`step` and `surface` may add `pose`: joints like a still pose, layered over the activity's pose while the figure is
+up there (feet tucked in, legs out in front), and `scale`: the figure's size up there (0.5 to 1.5, 1 when left out).
+The potlings are large so they read from across a floor; on a desk they are raised and seen anyway, and sit at 0.85
+so they read as a plant beside the screen.
+
+```json
+"anchors": { "label": [0, 1.76, 0], "carry": [0, 0.42, 0.34], "ground": 0.3, "height": 1.75, "eyes": [0, 0.65, 0.23] },
+"perch": {
+  "default": {
+    "kind": "step",
+    "gap": 0.3,
+    "steps": [
+      { "id": "books", "height": 0.56, "parts": [{ "shape": "box", "size": [0.5, 0.15, 0.38], "position": [0, 0.075, -0.08], "color": "book-a" }] },
+      { "id": "stool", "height": 0.56, "parts": [{ "shape": "cylinder", "size": [0.25, 0.06, 0.25], "position": [0, 0.53, -0.09], "color": "timber-light" }] }
+    ]
+  },
+  "review-table": { "kind": "floor" }
+}
+```
+
+The potlings' whole answer is `"default": { "kind": "surface", "scale": 0.85, "base": 0.25, "pose": { ... } }`.
+
+**The style says** where each top is, in `workSurfaces` of its manifest, by model key and in the model's own space
+(the origin is the footprint's centre on the floor, world units):
+
+```json
+"workSurfaces": {
+  "furniture.workdesk": {
+    "height": 0.565,
+    "half": [0.527, 0.329],
+    "screen": [0, 0.778, -0.138],
+    "spots": [{ "x": -0.37, "z": 0.185, "radius": 0.16 }, { "x": 0.3, "z": 0.21, "radius": 0.11 }]
+  },
+  "furniture.meeting-table": { "height": 0.53, "half": [1.1, 0.475] }
+}
+```
+
+`height` and `half` are the top. `screen` is the middle of a screen standing on it, facing +z where its worker is;
+without one the top is a table, looked at along its middle line. `spots` are the free places on the top, best first,
+clear of the model's own things (the mug, the tray) for `radius` around; without them the top is clear and any place
+along its edge will do. A key the manifest leaves out is taken from the model's bounding box as a plain table.
+
+**The world puts the two together** into a `WorkPlace`: the top's height, how far ahead its edge is, what there is to
+look at, and a `spot(radius)` that hands out the first free place wide enough. It keeps clear of what the renderer
+itself sets on a top (the ticket stack, the desk lamp, a pile on the planning table), and the desk's personal things
+make room for a figure that sits there. The renderer keeps the figure's root on the floor where it would stand,
+facing the top, and calls `handle.setPerch(place)` when it is at its desk or stands at a table on an errand, and
+`setPerch(null)` when it walks. The figure does the rest inside itself:
+
+- It moves its `body` (lifted, shifted and turned to its work) with a small hop over a few updates, or at once with
+  `cut` (reduced motion, a first placement). The contact shadow rides along; the name pill, the bubbles and the
+  selection ring follow `handle.body`.
+- Its step grows as it gets on and goes as it gets off. It is drawn inside the figure, so it never touches the
+  navigation grid.
+- A proxy stays an echo on the floor, and the far crowd needs no perch: only the entered building's own agents (and
+  the casting room's near view) are told a place, so the town stays as cheap as before.
+
+**The contract holds every cast to it.** `castProblems(cast, places)` puts every role at every work place the world
+has (`templateWorkPlaces`: every style's tops, laid out as a building lays them out) and reads the figure's eyes from
+its own body: above the top, turned towards its work, and in front of the screen within reading angle. A fifth cast
+that is too small and brings no perch fails with "its eyes (40 cm) are not above the surface (57 cm); it needs a
+perch". The casting room's scene "At the desk" shows one desk from close by, per cast or side by side.
+
 ### Adding a cast
 
 1. Copy a cast folder to `packages/cast-<id>` and give it its id and name in `package.json` and `cast.json`.
-2. Edit `cast.json` (colours, budget) and `figure.json`. `index.ts` stays as it is:
+2. Edit `cast.json` (colours, budget) and `figure.json` (with a `perch` if the figure cannot see over a desk).
+   `index.ts` stays as it is:
    `import figure from "../figure.json" with { type: "json" }` and `export const cast = { manifest, figure }`.
 3. Add `"@crewhub/cast-<id>": "0.0.0"` to `apps/world/package.json`, run `npm install`, and add one import and one
    `registerCast` line to `apps/world/src/world/cast.ts`.
@@ -396,7 +482,8 @@ return `update`, `setState` and `dispose`. A cast drawn wholly in code gives `cr
 ### What a cast may not do
 
 A test enforces the first three (`apps/world/test/castBoundary.test.ts`), the design-system check the fourth, and the
-contract test the budgets (`apps/world/test/castContract.test.ts`, which covers every registered cast).
+contract test the budgets and the sight lines (`apps/world/test/castContract.test.ts`, which covers every registered
+cast).
 
 - Import the renderer, the world model, a style or another cast. A cast imports only `@crewhub/world-cast`,
   `@crewhub/world-engine`, `@crewhub/world-style` (types) and `three`, and draws only through the `FigureKit`.
@@ -407,6 +494,8 @@ contract test the budgets (`apps/world/test/castContract.test.ts`, which covers 
   every role in every state with the reference kit and holds the cast to them. Far figures must be made only of the
   kit's plain opaque materials, so the renderer's crowd draws a hundred of them in a few instanced calls. For
   reference, the classic bots: 3,552 triangles and 28 meshes near at most (the postman), 2,392 and 12 far.
+- Leave a figure unable to see its work. At every work pose its eyes are above the top and turned to the screen or
+  the table, on its perch if it needs one; a figure on its perch still fits the budget, step and all.
 - Decide meaning. Roles, states and where a figure stands come from the world model; a cast only draws them. Status
   is never colour alone: a pose, a part or the halo carries it too.
 - Draw a human, or copy a franchise's characters.

@@ -197,6 +197,7 @@
   "perch": {
     "default": {
       "kind": "surface",
+      "scale": 0.85,
       "base": 0.25,
       "pose": {
         "pot": { "offset": [0, -0.1, 0] },
