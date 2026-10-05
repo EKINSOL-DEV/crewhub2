@@ -456,6 +456,96 @@ team move to follow.
 - Screenshots of every cast in every state, near and far, light and dark, and of the world per cast, in the
   coordinator's scratchpad under `shots-casts/`.
 
+## Perches and loops drift (2026-10-05 to 06)
+
+Two small follow-ups, approved by the owner. Three developers worked in parallel (Opus 5.5 at effort medium) from
+23:27 to about 00:05. There were five merges, each green before the live branch moved.
+
+### Perches: small figures reach their screen
+
+The owner's finding: sprouts and potlings were too small to see the screen on the desk. Nothing was scaled up and no
+desk was lowered. Each cast now brings its own way up, as data.
+
+- **The contract.** `figure.json` (or a patch) gains an optional `perch` per work pose (`desk`, `lead-desk`,
+  `meeting-table`, `planning-table`, `review-table`) or as a `default`:
+  - `step`: a small prop made of the cast's own parts, with seeded variants, plus the height the figure works at;
+  - `surface`: the figure sits on the top itself, at a free spot the furniture offers;
+  - `floor`: no perch at that pose.
+  Each may add a `pose` and a `scale` for while the figure is up there. The handle gains `setPerch(place, cut)` and a
+  `body` that the perch lifts; the contact shadow, the label, the name pill and the selection ring follow `body`.
+- **The style only exposes surfaces.** `style.json` lists `workSurfaces` per model (height, half size, the screen,
+  free spots). Furniture and rooms do not change with the cast. The one thing that yields is a desk's personal
+  props, which leave the spot a sitter takes; the ticket slot and the lamp stay clear for the drone.
+- **The casts.**
+  - Sprouts stand on a stack of books, an upturned flowerpot or a small stool, seeded per figure, toes at the edge.
+  - Potlings sit on the desk beside the monitor at 0.85 of their size, facing the screen.
+  - Classic and overgrown bots are unchanged.
+- **The details.**
+  - Figures hop on and off when a walk ends or starts, and cut instead under reduced motion.
+  - The step is drawn inside the figure, so the navigation grid is untouched.
+  - Far figures and proxies have no perch, so the town's draw calls are unchanged.
+  - The postman never perches.
+- **Tests.** The contract test checks every registered cast at every work place of every style. A working figure must
+  have its eyes above the surface, be turned to its work, and sit in front of the screen within reading angle. A
+  fifth cast that is too small and brings no perch fails with a sentence that says so.
+- **Where to see it.**
+  - The casting room has a scene "At the desk" (`/cast-preview?scene=at-desk`).
+  - The docs are in [WORLD_STYLES.md](../WORLD_STYLES.md), "Perches".
+
+**Cast polish.** Three follow-ups from the casts report:
+
+- **Potlings at a distance.** Potlings are 1.15 times larger, and every potling's rim and lugs are in the project
+  colour, so they no longer pass for the decor's potted plants.
+- **Sprouts:**
+  - the dandelion postman carries a clock on a stalk;
+  - done spreads the growth and ripens it to gold, so it differs from idle at town distance;
+  - the dandelion's drift eases down instead of popping (a test samples the landing frame by frame).
+
+### Four fixes from the crewhub-loops gap analysis
+
+`docs/LOOPS_GAP_ANALYSIS.md` maps the world against crewhub-loops `f55d1288`. Its section 4 found four places where
+the world's reading of crewhub-loops had drifted. Each is fixed, with a test that feeds a payload in the real
+crewhub-loops shape (copied from its code or tests, with the path in a comment) through the validator and the
+projection. The fixtures name `f55d1288` in a new `README.md`.
+
+| # | Was | Is now |
+| --- | --- | --- |
+| D1 | `AgentOut.projects` as a list of slugs | `{lead: [ProjectRef], member: [ProjectRef]}`; an agent is placed in the buildings of both lists |
+| D2 | `RichBody.v` as the string `"1"` | The number 1 (the string still accepted); the same for the system comment body and the team snapshot |
+| D3 | `labelsCleared` as a boolean that cleared every label | A list of label names; only those are removed |
+| D5 | A move to Done always celebrated | A move with `resolution: "rejected"` is not celebrated and imports no prop; the object is set aside askew in Dispatch with a dark band struck across it; the text view and the object card say "turned down" and why. The demo rejects CR-25 once, at 6:49. |
+
+The developer checked every claim of the document against the crewhub-loops code. Every claim held, and two facts were
+added to the document:
+
+- `from == to == "done"` is also what a rejected ticket made a plain Done after all looks like;
+- the demo wrote `v: "1"` in every body, not only in system comments.
+
+`labelsCleared` is also sent from `domain/release_actions.py`, beside `domain/board.py`. The chat copy (D9, D10) was
+not re-synced; that is the owner's decision.
+
+### Performance and verification
+
+`perf.mjs --cast`, dev server, Pretty, light, on the final commit. The machine carried other work (load about 9), so
+every work time reads about 0.5 ms above the casts table, the untouched classic bots included. The draw calls are the
+reliable comparison. No frame was over 33 ms in any scenario with any cast.
+
+| Scenario | Classic bots | Overgrown bots | Sprouts | Potlings |
+| --- | --- | --- | --- | --- |
+| Stress town, work mean (draw calls) | 2.9 ms (499) | 2.5 ms (508) | 2.4 ms (499) | 2.6 ms (512) |
+| Stress inside, work mean (draw calls) | 2.2 ms (580) | 2.3 ms (682) | 2.6 ms (655) | 2.4 ms (676) |
+| Demo inside, work mean (draw calls) | 1.9 ms (430) | 1.7 ms (486) | 1.6 ms (471) | 1.8 ms (490) |
+| Phone, Fast, work mean | 3.7 ms | 3.6 ms | 3.9 ms | 4.2 ms |
+
+Sprouts' steps cost about 40 draw calls in the stress building (613 to 655), after merging each step's parts per
+colour; the potlings' perch costs nothing.
+
+- `npm run check` is green, with 335 tests (308 after the casts).
+- The browser regression pass has no page or console error and no external request. Since the casts there are no
+  new failures: its one failure ("stall in text view") and the build palette's timeout occur identically on the
+  casts commit `661afbe`.
+- Screenshots are in the coordinator's scratchpad under `shots-perch/`.
+
 ## Challenges with docs/integrators
 
 Read at crewhub-loops `a1bed0f`. Each item names the document, what was unclear, contradictory, missing or marked
