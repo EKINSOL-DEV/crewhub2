@@ -49,6 +49,8 @@ export class Kit {
   /** The light the shared materials show now: the theme's, or the day-night drift's. */
   #light: KitLight;
   #quality: GraphicsQuality = "pretty";
+  /** Colours of the casts drawn with this kit, by `cast:<id>:<name>` (figureKit.ts): a cast's own, per theme. */
+  readonly #castColors = new Map<string, { day: string; lamplight: string }>();
 
   constructor(data: GreenhouseManifestData, lighting: Record<StyleTheme, LightingPreset>) {
     this.data = data;
@@ -73,6 +75,8 @@ export class Kit {
       const color = new THREE.Color(this.hex(name.slice("soft:".length), theme)).lerp(new THREE.Color(this.hex("cream", theme)), 0.45);
       return `#${color.getHexString()}`;
     }
+    const cast = this.#castColors.get(name);
+    if (cast) return cast[theme];
     if (theme === "lamplight" && name in this.data.lamplightSwatches) return this.data.lamplightSwatches[name]!;
     return this.data.swatches[name] ?? (this.data.palette as Record<string, string>)[name] ?? this.data.swatches["no-project"]!;
   }
@@ -109,6 +113,11 @@ export class Kit {
       this.#materials.set(key, entry);
     }
     return entry.material;
+  }
+
+  /** A cast's own colours (cast.json), under names no swatch has; its materials follow the theme like any other. */
+  castColors(prefix: string, colors: Record<string, { day: string; lamplight: string }>) {
+    for (const [name, color] of Object.entries(colors)) this.#castColors.set(`${prefix}${name}`, color);
   }
 
   /** Swatch colours follow the theme; the light starts at the theme's own (the drift then shades it, `setLight`). */

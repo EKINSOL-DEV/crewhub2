@@ -6,6 +6,7 @@
  */
 import type * as THREE from "three";
 import type { PropMaterial, PropModel } from "@crewhub/world-engine";
+import type { CastManifest, FigureKit } from "@crewhub/world-cast";
 
 /** Light UI → day, dark UI → lamplight (warmer, dimmer, lit windows and desk lamps). */
 export type StyleTheme = "day" | "lamplight";
@@ -202,6 +203,8 @@ export interface StyleManifest {
   version: string;
   description: string;
   coveredKeys: ModelKey[];
+  /** The cast whose figures stand for agents in this style, unless the viewer or the town chose another. */
+  defaultCast?: string;
   palette: Record<PaletteName, string>;
   lighting: Record<StyleTheme, LightingPreset> & Partial<Record<DriftLight, LightingPreset>>;
 }
@@ -214,6 +217,12 @@ export interface WorldStyle {
    */
   model(key: ModelKey, options?: ModelOptions): THREE.Object3D | null;
   robot(options: { key: string; accent: PaletteName | null; role: RobotRole }): RobotHandle;
+  /**
+   * The kit a cast draws its figures with (`@crewhub/world-cast`): the style's shapes, shared materials, contact
+   * shadow and alert halo, with the cast's own colours per theme. One per cast. A style without one gets the cast
+   * registry's plain reference kit.
+   */
+  figureKit?(cast: Pick<CastManifest, "id" | "colors">): FigureKit;
   /** A crewhub-prop/1 prop; its part materials are palette names this style resolves. */
   parts(prop: PropModel): THREE.Object3D;
   color(name: PaletteName, theme: StyleTheme): THREE.Color;

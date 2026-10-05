@@ -3,6 +3,7 @@
    renderer; code draws only what needs it (the robot rig, shaders, stretchable walls and floors, instanced leaves). */
 import * as THREE from "three";
 import { validatePropModel, type PropModel } from "@crewhub/world-engine";
+import type { CastManifest, FigureKit } from "@crewhub/world-cast";
 import type {
   EmblemName,
   ModelKey,
@@ -25,6 +26,7 @@ import { partsModel } from "./parts.ts";
 import * as pieces from "./pieces.ts";
 import * as shell from "./shell.ts";
 import { robot } from "./robot.ts";
+import { figureKit } from "./figureKit.ts";
 import * as town from "./town.ts";
 
 type ManifestFile = StyleManifest & GreenhouseManifestData;
@@ -44,6 +46,7 @@ class GreenhouseStyle implements WorldStyle {
   readonly #kit = new Kit(manifest, manifest.lighting);
   readonly #glass: THREE.ShaderMaterial;
   readonly #lights: Lights = compileLights(manifest.lighting);
+  readonly #figureKits = new Map<string, FigureKit>();
 
   constructor() {
     this.#glass = pieces.glass(this.#kit);
@@ -281,6 +284,13 @@ class GreenhouseStyle implements WorldStyle {
 
   robot(options: Parameters<WorldStyle["robot"]>[0]) {
     return robot(this.#kit, options);
+  }
+
+  /** The kit a cast draws its figures with: one per cast, so each cast's own colours follow the theme. */
+  figureKit(cast: Pick<CastManifest, "id" | "colors">): FigureKit {
+    let kit = this.#figureKits.get(cast.id);
+    if (!kit) this.#figureKits.set(cast.id, (kit = figureKit(this.#kit, cast)));
+    return kit;
   }
 
   parts(prop: PropModel): THREE.Object3D {

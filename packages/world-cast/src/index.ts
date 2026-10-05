@@ -15,6 +15,9 @@
 import type * as THREE from "three";
 import type { PropShape, Vec3 } from "@crewhub/world-engine";
 import type { PaletteName, StyleTheme } from "@crewhub/world-style";
+import { CAST_ROLES, FIGURE_ACTIVITIES } from "./names.ts";
+
+export { CAST_ROLES, FIGURE_ACTIVITIES };
 
 /* ── What a figure stands for ───────────────────────────────────────────── */
 
@@ -22,7 +25,6 @@ import type { PaletteName, StyleTheme } from "@crewhub/world-style";
  * The roles a cast draws. `operator` is the town-hall agent, `postman` the post office's walker. `unknown` is an agent
  * whose role is not known yet (a new agent): a cast may draw it plainer than a worker (an empty pot with a seed).
  */
-export const CAST_ROLES = ["lead", "worker", "design", "analyst", "postman", "operator", "unknown"] as const;
 export type CastRole = (typeof CAST_ROLES)[number];
 
 /**
@@ -30,7 +32,6 @@ export type CastRole = (typeof CAST_ROLES)[number];
  * focused → working; relaxed with lane "done" → done; relaxed otherwise → idle; raised-hand → blocked;
  * greyed (lane unknown, a stale snapshot) → stale. `walking` is any figure moving between places; it wins over the rest.
  */
-export const FIGURE_ACTIVITIES = ["working", "idle", "done", "blocked", "stale", "walking"] as const;
 export type FigureActivity = (typeof FIGURE_ACTIVITIES)[number];
 
 /** The full state a figure shows. Every combination must read; a cast decides how. */
@@ -118,6 +119,8 @@ export type FigureExtension = (figure: {
   options: FigureOptions;
   kit: FigureKit;
   joints: ReadonlyMap<string, THREE.Object3D>;
+  /** The built parts that have an id, to re-skin or reshape. */
+  parts: ReadonlyMap<string, THREE.Mesh>;
   state: () => FigureState;
   detail: () => FigureDetail;
 }) => { update?(seconds: number): void; setState?(state: FigureState): void; dispose?(): void } | void;
@@ -128,6 +131,9 @@ export type FigureExtension = (figure: {
  * The style's drawing kit for figures. Colours are a cast colour name (from the cast manifest's `colors`), a style
  * palette name, or `soft:<name>` (that colour half-way to the style's cream: a lead's gentle project tint). Materials
  * are shared and follow the theme, the day-night drift's glow and the cloud shadows, like the style's own.
+ *
+ * Two names are reserved and resolve in every kit, unless the cast gives its own colour of that name: `alert` (the
+ * style's alert colour, the halo of a stalled building) and `stale` (the grey a stale figure fades towards).
  */
 export interface FigureKit {
   readonly theme: StyleTheme;
@@ -198,8 +204,8 @@ export interface FigurePartSpec extends FigurePart {
    * the slot's fallback when there is none).
    */
   color: string;
-  /** Emissive strength (lamps, eyes); the theme's glow scales it. */
-  glow?: number;
+  /** Emissive (lamps, eyes): a strength in the part's own colour, or a glow colour name. The theme's glow scales it. */
+  glow?: number | string;
   /** Only for these roles. */
   roles?: CastRole[];
   /** Only in these activities (a bud at rest, an open flower at work). */
@@ -232,8 +238,9 @@ export type MotionChannel = "rotation.x" | "rotation.y" | "rotation.z" | "offset
 
 /**
  * A wave over time, `period` seconds long, added to the pose (degrees for rotations, units for offsets, a factor
- * difference for scales). sine: smooth back and forth. bounce: |sine|, a hop. lift: max(0, sine), a foot or a step.
- * blink: a short dip once per period (eyes). glance: a soft swell, about 1.6 s, once per period (a look round).
+ * difference for scales). sine: smooth back and forth. bounce: |sine|, two hops a period. lift: max(0, sine), a foot
+ * or a step. blink: a short dip, about a tenth of a second, once per period (eyes). glance: a soft swell, about 1.6 s,
+ * once per period (a look round).
  */
 export type MotionWave = "sine" | "bounce" | "lift" | "blink" | "glance";
 
@@ -243,29 +250,52 @@ export interface Motion {
   wave: MotionWave;
   amplitude: number;
   period: number;
-  /** A phase offset in periods (0..1); `seeded` adds a per-figure offset from the agent key, so figures never move in step. */
+  /** A phase offset in periods (0..1). */
   phase?: number;
+  /**
+   * The motion runs on the figure's own clock, which starts at a time seeded by the agent key, so figures never move
+   * in step; seeded motions of one figure stay in step with each other (two feet, two eyes). With `glance` the beat is
+   * seeded too: the period stretches by up to 60 % per figure.
+   */
   seeded?: boolean;
   /** With `glance`: the turn's side is seeded per figure (left or right). */
   sided?: boolean;
+  /** The motion fades out while the activity's glance swells (typing in bursts: the hands rest while it looks up). */
+  rests?: boolean;
 }
 
 /** Looks per state: parts that glow or swap colour while a state holds. */
 export interface FigureLook {
-  /** Part ids → a colour (a cast or style colour name) and/or a glow strength while this look holds. */
-  parts: Record<string, { color?: string; glow?: number }>;
+  /** Part ids → a colour (as a part's own) and/or a glow (a strength, or a glow colour name) while this look holds. */
+  parts: Record<string, { color?: string; glow?: number | string }>;
 }
 
 export interface FigureSpec {
   format: "crewhub-figure/1";
   joints: FigureJoint[];
   parts: FigurePartSpec[];
-  /** The still pose per activity; `waiting` and `carrying` layer on top of it. Joints left out rest. */
+  /**
+   * The still pose per activity; `waiting` and `carrying` layer on top of it (a layer's rotation, offset or scale of a
+   * joint replaces the activity's). Joints left out rest. Walking wins: the waiting pose and motion are not layered
+   * while the figure walks (its looks are). The root is the renderer's to place: poses and motions move joints.
+   */
   poses: Partial<Record<FigureActivity | "waiting" | "carrying", Record<string, JointPose>>>;
-  /** The motion per activity (and `waiting`, layered); left out or empty: still. Never run under reduced motion. */
-  motions: Partial<Record<FigureActivity | "waiting", Motion[]>>;
-  /** Looks per activity and per `waiting` / `alert`, layered in that order. */
-  looks?: Partial<Record<FigureActivity | "waiting" | "alert", FigureLook>>;
+  /**
+   * The motion per activity (and `waiting`, layered); left out or empty: still. `always` runs in every activity (a
+   * blink). Never run under reduced motion; a stale figure and a proxy stand still whatever is listed.
+   */
+  motions: Partial<Record<FigureActivity | "waiting" | "always", Motion[]>>;
+  /**
+   * Looks, layered in this order: `near` (while seen from close by: a faint light of its own that the far crowd does
+   * without, and neither
+   * a proxy nor a stale figure), the activity, `waiting`, `alert`, then `hover` or `selected` (the gentle lift of `setHighlight`).
+   */
+  looks?: Partial<Record<FigureActivity | "waiting" | "alert" | "near" | "hover" | "selected", FigureLook>>;
+  /**
+   * The colour of the style's halo while the figure asks (blocked, or waiting on a person): a colour name or
+   * `slot:<name>`. Left out: no halo of its own. While `alert` the halo always shows, in the style's alert colour.
+   */
+  halo?: string;
   /**
    * Colourway slots: `slot:<name>` parts take the lead's colour for a lead (`soft:accent` for the soft project tint,
    * `accent` for the project colour itself, or a colour name), else one of `others`, seeded by the agent key.
@@ -285,8 +315,20 @@ export interface FigurePatch {
   /** Base part ids to drop. */
   remove?: string[];
   add?: FigurePartSpec[];
-  looks?: FigureSpec["looks"];
-  colorways?: FigureSpec["colorways"];
+  /** Extra joints for added parts (a shoot that sways). */
+  joints?: FigureJoint[];
+  /** Per key (an activity, `waiting`, ...), this cast's entry replaces the base's. */
+  poses?: FigureSpec["poses"];
   motions?: FigureSpec["motions"];
+  looks?: FigureSpec["looks"];
+  /** Per slot, this cast's colourway replaces the base's. */
+  colorways?: FigureSpec["colorways"];
+  halo?: string;
   anchors?: Partial<FigureAnchors>;
 }
+
+export { applyFigurePatch, figureColor, hashKey, wave } from "./figure.ts";
+export { validateCastManifest, validateFigure, validateFigurePatch, type CastValidation } from "./validate.ts";
+export { createCast } from "./runtime.ts";
+export { referenceKit } from "./referenceKit.ts";
+export { castProblems, measureFigure } from "./contract.ts";
