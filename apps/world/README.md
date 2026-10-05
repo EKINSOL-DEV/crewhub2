@@ -26,9 +26,13 @@ every building's rooms and doors), `movement.ts` turns model changes into walks
 follows its walker. Settings has **Ambient** (on, reduced, off) for idle variety;
 reduced motion turns every walk into a jump.
 
+The Demo chip is a picker of demo scenarios (Fresh install, One project, Small team,
+Studio); `?scenario=fresh|one|small-team|studio` chooses one by URL, and each keeps
+its own town document. See `packages/demo/CONTENT.md`.
+
 Dev flags: `?perf` logs frame work every two seconds; `?stress=1` (dev builds only)
 swaps in a synthetic town of 12 buildings and 100 agents and shows a frame-time
-overlay. The scene is on `window.__town` in dev builds for headless checks.
+overlay; `?stress=20` is the region of 20 buildings and 200 agents in four groups. The scene is on `window.__town` in dev builds for headless checks.
 
 See [grid semantics](../../docs/GRID_ENGINE.md) and the
 [integration plan](../../docs/LOOPS_INTEGRATION_PLAN.md).

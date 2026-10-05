@@ -234,6 +234,9 @@ team re-reads that flip lanes. An overlay shows the time between drawn frames
 engine's tick. In this mode the 60 fps cap is off, so the interval shows what the
 browser can do.
 
+`?stress=20` is the same stream at region size: 20 buildings in four groups (the
+future `groupId` of proposal L22) and 200 agents (20 leads, 4 rovers, 176 workers).
+
 Measured 2026-10-01 on an Apple M2 Max (macOS), Chromium 151 headless, 1440 × 900
 at device pixel ratio 1, playback at 4x. The window restarts when the view changes;
 the Metal runs filled all 300 frames, SwiftShader drew only 74 (town) and 83

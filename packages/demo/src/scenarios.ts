@@ -4,12 +4,14 @@
  * chosen by id (the world reads `?scenario=<id>` and offers a picker on the Demo chip) and keeps its own town
  * document, so plots and placements of one never mix into another. All of them are fiction.
  */
+import type { TownZone } from "@crewhub/world-model";
 import { type DemoContent, SMALL_TEAM } from "./content.ts";
 import { type PropHome, type Story, SMALL_TEAM_STORY } from "./script.ts";
 import { FIRST_PROJECT, FIRST_PROJECT_AT_MS, FRESH_CONTENT, FRESH_PROPS, FRESH_STORY } from "./scenarios/fresh.ts";
 import { ONE_CONTENT, ONE_PROPS, ONE_STORY } from "./scenarios/one.ts";
+import { STUDIO_CONTENT, STUDIO_PROPS, STUDIO_PROPS_PROJECT, STUDIO_STORY, STUDIO_TOWN_ZONES } from "./scenarios/studio.ts";
 
-export const SCENARIO_IDS = ["fresh", "one", "small-team"] as const;
+export const SCENARIO_IDS = ["fresh", "one", "small-team", "studio"] as const;
 export type ScenarioId = (typeof SCENARIO_IDS)[number];
 /** The scenario the world opens with until a person chooses another. */
 export const DEFAULT_SCENARIO: ScenarioId = "small-team";
@@ -29,6 +31,11 @@ export interface DemoScenario {
    * scenario keeps the key the world always used, so a town somebody built before scenarios existed stays where it is.
    */
   townKey: string;
+  /**
+   * The zones a new town document of this scenario starts with: the look per district (style options, cast), keyed
+   * by the group's id. Loops would not carry looks, so they are the town's, not the source's. Only Studio has any.
+   */
+  townZones: TownZone[];
 }
 
 const SCENARIOS: Record<ScenarioId, DemoScenario> = {
@@ -40,6 +47,7 @@ const SCENARIOS: Record<ScenarioId, DemoScenario> = {
     story: FRESH_STORY,
     props: { ...FRESH_PROPS, fromMs: FIRST_PROJECT_AT_MS, projectName: FIRST_PROJECT.name },
     townKey: "crewhub-world.fresh",
+    townZones: [],
   },
   one: {
     id: "one",
@@ -49,6 +57,7 @@ const SCENARIOS: Record<ScenarioId, DemoScenario> = {
     story: ONE_STORY,
     props: { ...ONE_PROPS, fromMs: 0, projectName: "Pocket Garden" },
     townKey: "crewhub-world.one",
+    townZones: [],
   },
   "small-team": {
     id: "small-team",
@@ -58,6 +67,17 @@ const SCENARIOS: Record<ScenarioId, DemoScenario> = {
     story: SMALL_TEAM_STORY,
     props: { project: "crewhub", lead: "cr-lead", person: "nicky", fromMs: 0, projectName: "CrewHub World" },
     townKey: "crewhub-world",
+    townZones: [],
+  },
+  studio: {
+    id: "studio",
+    name: "Studio",
+    summary: "20 projects, 4 groups",
+    content: STUDIO_CONTENT,
+    story: STUDIO_STORY,
+    props: { ...STUDIO_PROPS, fromMs: 0, projectName: STUDIO_PROPS_PROJECT },
+    townKey: "crewhub-world.studio",
+    townZones: STUDIO_TOWN_ZONES,
   },
 };
 
