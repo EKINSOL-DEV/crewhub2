@@ -11,6 +11,7 @@ import type { PreviewCast } from "./castRoomCasts";
 import {
   DESKS,
   DUSK_PHASE,
+  figureArea,
   FIGURE_SCALE,
   FURNITURE,
   MEMBERS,
@@ -24,6 +25,7 @@ import {
   roomOrigin,
   roomPlays,
   type CastMember,
+  type PreviewFraming,
   type PreviewLight,
   type PreviewScene,
   type PreviewStateId,
@@ -41,6 +43,8 @@ export interface CastRoomView {
   reducedMotion: boolean;
   /** Town distance: the camera far out, figures at their far detail, drawn by the robot crowd. */
   far: boolean;
+  /** Near only: the camera frames the figures tightly, or the whole room. */
+  framing: PreviewFraming;
 }
 
 export type CastRoomCamera = "home" | "rotate-left" | "rotate-right" | "zoom-in" | "zoom-out";
@@ -50,7 +54,10 @@ export const figureId = (room: number, key: string) => `${room}:${key}`;
 
 const FLOOR_RISE = 0.24;
 const WALL_HEIGHT = 1.75;
-const HOME_DIRECTION = new THREE.Vector3(1, 1.04, 1).normalize();
+/** A little more from the front than the town's camera, so the wide room fills a wide stage. */
+const HOME_DIRECTION = new THREE.Vector3(0.62, 0.9, 1).normalize();
+/** The room for a standing figure and the pill over its head, world units. */
+const FIGURE_HEADROOM = 1.15;
 const CAMERA_DISTANCE = 120;
 /** The frustum height of the town-distance view, world units: a figure is then as small as in the town's home view. */
 const FAR_SPAN = 40;
@@ -79,6 +86,8 @@ interface Flight {
 interface Room {
   cast: PreviewCast;
   play: RoomPlay;
+  /** The floor the camera frames of this room, cells. */
+  area: { minX: number; maxX: number; minZ: number; maxZ: number };
   group: THREE.Group;
   figures: Figure[];
   /** The tall back walls and the low rims that stand in for them when the camera looks from behind. */
@@ -107,6 +116,8 @@ export class CastRoomScene {
   #hovered: string | null = null;
   #onSelect: (id: string | null) => void;
   #bounds = new THREE.Box3();
+  #lawns = new THREE.Group();
+  #framed = "";
   #deskTop = 0.5;
   #time = SCENE_START;
   #last = 0;
@@ -171,7 +182,8 @@ export class CastRoomScene {
       this.#rooms.forEach((room, i) => (room.play = plays[i]!));
     }
     if (previous.scene !== next.scene) this.#time = SCENE_START;
-    if (rebuilt) this.#frame(true);
+    // What the figures use of the floor changed (a line-up, a loop), or the framing did: the camera frames it again.
+    if (this.#layout() || rebuilt) this.#frame(true);
   }
 
   /** The page's label elements changed: `[data-figure]` pills follow their figure, `[data-room]` titles their room. */
@@ -273,30 +285,81 @@ export class CastRoomScene {
     this.#content.clear();
     this.#rooms = [];
     const { casts, far } = this.view;
-    const style = this.#style;
-    this.#bounds.makeEmpty();
-    const { plays, columns } = roomPlays(casts.length, this.view.state, this.view.scene, far);
+    const { plays } = roomPlays(casts.length, this.view.state, this.view.scene, far);
     plays.forEach((play, index) => {
-      const origin = roomOrigin(index, columns);
       const room = this.#room(casts[play.cast]!, play, index);
-      room.group.position.set(origin.x * CELL, 0, origin.z * CELL);
       this.#content.add(room.group);
       this.#rooms.push(room);
-      this.#bounds.expandByPoint(this.#v.set(origin.x * CELL - 0.3, -FLOOR_RISE, origin.z * CELL - 0.3));
-      this.#bounds.expandByPoint(this.#v.set((origin.x + ROOM.width) * CELL + 0.3, WALL_HEIGHT, (origin.z + ROOM.depth) * CELL + 0.3));
     });
-    // The rooms stand on a lawn, centred on the scene's origin.
-    const centre = this.#bounds.getCenter(new THREE.Vector3()).setY(0);
-    const size = this.#bounds.getSize(new THREE.Vector3());
-    const lawn = style.model("plot", { size: { width: size.x + (far ? 30 : 5), height: 0.16, depth: size.z + (far ? 30 : 5) } });
-    lawn.position.set(centre.x, -FLOOR_RISE - 0.09, centre.z);
-    this.#content.add(lawn);
-    this.#content.position.copy(centre).negate();
-    this.#bounds.translate(this.#content.position);
-    this.#environment.setShadowReach(Math.hypot(size.x, size.z) / 2 + 1);
+    this.#content.add(this.#lawns);
+    this.#framed = "";
+    this.#layout();
     if (this.#selected && !this.#figures.has(this.#selected)) this.#onSelect((this.#selected = null));
     this.#highlight();
     this.refreshLabels();
+  }
+
+  /**
+   * Places the rooms and fits the bounds the camera frames; true when they changed. At town distance the rooms stand
+   * in a block on one lawn, as buildings would. Near, each room has its own lawn and the rooms stand on a grid of the
+   * screen (seen from the home direction), so every room gets the same share of the stage as a room alone would.
+   */
+  #layout(): boolean {
+    const { far, framing, casts } = this.view;
+    const { plays, columns } = roomPlays(casts.length, this.view.state, this.view.scene, far);
+    const whole = far || framing === "room";
+    const areas = plays.map((play) => (whole ? { minX: -0.5, maxX: ROOM.width + 0.5, minZ: -0.5, maxZ: ROOM.depth + 0.5 } : figureArea(play)));
+    const key = JSON.stringify([far, framing, columns, areas]);
+    if (key === this.#framed) return false;
+    this.#framed = key;
+    const low = whole ? -FLOOR_RISE : 0,
+      high = whole ? WALL_HEIGHT : FIGURE_HEADROOM;
+    // The ground directions of the screen from the home direction: to the right, and towards the camera.
+    const toCamera = new THREE.Vector2(HOME_DIRECTION.x, HOME_DIRECTION.z).normalize();
+    const right = new THREE.Vector2(toCamera.y, -toCamera.x);
+    const rise = HOME_DIRECTION.y;
+    // The grid's steps come from the whole room, so rooms never stand in each other; the frame from what is framed.
+    let acrossSpan = 0,
+      nearSpan = 0;
+    for (const [x, z] of [[0, 0], [ROOM.width, 0], [0, ROOM.depth], [ROOM.width, ROOM.depth]] as const) {
+      acrossSpan = Math.max(acrossSpan, Math.abs((x - ROOM.width / 2) * right.x + (z - ROOM.depth / 2) * right.y) * 2 * CELL);
+      nearSpan = Math.max(nearSpan, Math.abs((x - ROOM.width / 2) * toCamera.x + (z - ROOM.depth / 2) * toCamera.y) * 2 * CELL);
+    }
+    const stepAcross = acrossSpan + 0.7,
+      stepNear = nearSpan + (FIGURE_HEADROOM * Math.sqrt(1 - rise * rise) + 0.9) / rise;
+    this.#bounds.makeEmpty();
+    this.#lawns.clear();
+    const style = this.#style;
+    this.#rooms.forEach((room, index) => {
+      const area = (room.area = areas[index]!);
+      if (far) {
+        const origin = roomOrigin(index, columns);
+        room.group.position.set(origin.x * CELL, 0, origin.z * CELL);
+      } else {
+        const column = index % columns,
+          row = Math.floor(index / columns);
+        const x = right.x * column * stepAcross + toCamera.x * row * stepNear,
+          z = right.y * column * stepAcross + toCamera.y * row * stepNear;
+        room.group.position.set(x - (ROOM.width / 2) * CELL, 0, z - (ROOM.depth / 2) * CELL);
+        const lawn = style.model("plot", { size: { width: ROOM.width * CELL + 2.4, height: 0.16, depth: ROOM.depth * CELL + 2.4 } });
+        lawn.position.set(room.group.position.x + (ROOM.width / 2) * CELL, -FLOOR_RISE - 0.09, room.group.position.z + (ROOM.depth / 2) * CELL);
+        this.#lawns.add(lawn);
+      }
+      const at = room.group.position;
+      this.#bounds.expandByPoint(this.#v.set(at.x + area.minX * CELL, low, at.z + area.minZ * CELL));
+      this.#bounds.expandByPoint(this.#v.set(at.x + area.maxX * CELL, high, at.z + area.maxZ * CELL));
+    });
+    const centre = this.#bounds.getCenter(new THREE.Vector3()).setY(0);
+    const size = this.#bounds.getSize(new THREE.Vector3());
+    if (far) {
+      const lawn = style.model("plot", { size: { width: size.x + 30, height: 0.16, depth: size.z + 30 } });
+      lawn.position.set(centre.x, -FLOOR_RISE - 0.09, centre.z);
+      this.#lawns.add(lawn);
+    }
+    this.#content.position.set(0, 0, 0).sub(centre);
+    this.#bounds.translate(this.#content.position);
+    this.#environment.setShadowReach(Math.hypot(size.x, size.z) / 2 + 3);
+    return true;
   }
 
   #room(cast: PreviewCast, play: RoomPlay, index: number): Room {
@@ -346,7 +409,7 @@ export class CastRoomScene {
       this.#figures.set(figure.id, figure);
       return figure;
     });
-    return { cast, play, group, figures, backWalls, tickets: [], flight: null, delivered: 0 };
+    return { cast, play, area: { minX: 0, maxX: ROOM.width, minZ: 0, maxZ: ROOM.depth }, group, figures, backWalls, tickets: [], flight: null, delivered: 0 };
   }
 
   /**
@@ -361,7 +424,7 @@ export class CastRoomScene {
     const camera = this.camera;
     if (recentre) {
       const offset = this.#v.copy(camera.position).sub(this.controls.target).setLength(CAMERA_DISTANCE);
-      this.controls.target.set(0, 0.5, 0);
+      this.controls.target.set(0, (this.#bounds.min.y + this.#bounds.max.y) / 2, 0);
       camera.position.copy(this.controls.target).add(offset);
       camera.zoom = 1;
     }
@@ -377,8 +440,8 @@ export class CastRoomScene {
       halfW = Math.max(halfW, Math.abs(p.x - aim.x));
       halfH = Math.max(halfH, Math.abs(p.y - aim.y));
     }
-    halfW += 0.5;
-    halfH += 0.7;
+    halfW += 0.2;
+    halfH += 0.25;
     if (this.view.far) halfH = Math.max(halfH, FAR_SPAN / 2);
     const aspect = width / height;
     if (halfW / halfH > aspect) halfH = halfW / aspect;
@@ -478,7 +541,10 @@ export class CastRoomScene {
       if (anchor.figure) {
         const { handle } = anchor.figure;
         handle.object.localToWorld(p.set(handle.anchors.label[0], handle.anchors.label[1], handle.anchors.label[2]));
-      } else if (anchor.room) anchor.room.group.localToWorld(p.set((ROOM.width / 2) * CELL, 0, (ROOM.depth + 0.9) * CELL));
+      } else if (anchor.room) {
+        const { area } = anchor.room;
+        anchor.room.group.localToWorld(p.set(((area.minX + area.maxX) / 2 + 0.6) * CELL, 0, (area.maxZ + 0.6) * CELL));
+      }
       else continue;
       p.project(this.camera);
       anchor.el.style.transform = `translate(-50%, ${anchor.figure ? "-100%" : "0"}) translate(${(((p.x + 1) / 2) * width).toFixed(1)}px, ${(((1 - p.y) / 2) * height).toFixed(1)}px)`;

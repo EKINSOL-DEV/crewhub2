@@ -185,6 +185,29 @@ export function memberSpot(scene: PreviewScene, chosen: PreviewStateId, member: 
   return { spot: member.home, walking: false };
 }
 
+/** What the camera frames: the figures, tightly (the floor they stand on and a bit of wall), or the whole room. */
+export type PreviewFraming = "figures" | "room";
+
+/**
+ * The floor a room's figures use in what it plays, in cells: every place a member stands or walks, with room for a
+ * figure round it. The camera frames this in "figures".
+ */
+export function figureArea(play: Pick<RoomPlay, "state" | "scene">): { minX: number; maxX: number; minZ: number; maxZ: number } {
+  const area = { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity };
+  const lap = LOOP_LENGTH / WALK_SPEED;
+  for (const member of MEMBERS)
+    for (let seconds = 0; seconds <= lap * 1.25; seconds += 0.5) {
+      const { spot, walking } = memberSpot(play.scene, play.state, member, seconds);
+      area.minX = Math.min(area.minX, spot.x);
+      area.maxX = Math.max(area.maxX, spot.x);
+      area.minZ = Math.min(area.minZ, spot.z);
+      area.maxZ = Math.max(area.maxZ, spot.z);
+      if (!walking) break;
+    }
+  const pad = 0.7;
+  return { minX: Math.max(0, area.minX - pad), maxX: Math.min(ROOM.width, area.maxX + pad), minZ: Math.max(0, area.minZ - pad), maxZ: Math.min(ROOM.depth, area.maxZ + pad) };
+}
+
 function hash(text: string): number {
   let h = 2166136261;
   for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
