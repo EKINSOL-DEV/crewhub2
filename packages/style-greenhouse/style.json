@@ -11,7 +11,7 @@
       "screen": [0, 0.778, -0.138],
       "spots": [
         { "x": -0.37, "z": 0.185, "radius": 0.16 },
-        { "x": 0.3, "z": 0.21, "radius": 0.11 }
+        { "x": 0.36, "z": 0.19, "radius": 0.14 }
       ]
     },
     "furniture.lead-desk": {
@@ -37,11 +37,11 @@
     "building.door-frame",
     "building.dust-sheet",
     "building.flag",
+    "building.floor-shade",
     "building.ivy",
     "building.loading-door",
     "building.name-sign",
     "building.partition",
-    "building.floor-shade",
     "building.planks",
     "building.silhouette",
     "building.slab",
@@ -194,7 +194,10 @@
     "ticket.tag",
     "ticket.task",
     "town-hall",
+    "town.apple-crate",
     "town.bandstand",
+    "town.barrow",
+    "town.beehive",
     "town.bench",
     "town.bike-rack",
     "town.bike-shelter",
@@ -213,6 +216,7 @@
     "town.cottage",
     "town.cottage-timber",
     "town.crossing",
+    "town.feature",
     "town.fence",
     "town.firefly",
     "town.flower-bed",
@@ -231,14 +235,18 @@
     "town.mote",
     "town.oak",
     "town.oak-autumn",
+    "town.orchard-ladder",
     "town.paving",
     "town.picnic-blanket",
+    "town.picnic-parasol",
     "town.pine",
     "town.pond",
     "town.puddle",
     "town.pumpkin",
+    "town.reeds",
     "town.ripple",
     "town.rock",
+    "town.rowboat",
     "town.sandpit",
     "town.shed",
     "town.sheep",
@@ -247,12 +255,16 @@
     "town.steam",
     "town.stream",
     "town.string-lights",
+    "town.sunflowers",
     "town.swing",
     "town.tall-grass",
+    "town.tulips",
+    "town.turf",
     "town.veg-bed",
     "town.washing-line",
     "town.wear",
     "town.wildflowers",
+    "town.willow",
     "town.window-glow",
     "trophy",
     "truck",
@@ -266,8 +278,210 @@
     "town.zone-mark",
     "town.lodge",
     "town.mail-hut",
-    "town.post-box"
+    "town.post-box",
+    "town.field"
   ],
+  "options": [
+    {
+      "id": "season",
+      "name": "Season",
+      "description": "The time of year in the gardens and on the lawns.",
+      "default": "october",
+      "values": [
+        { "id": "october", "name": "October", "description": "Turning leaves, pumpkins by the gates, heaps of fallen leaves." },
+        { "id": "spring", "name": "Spring", "description": "Blossom on the trees, fresh greens, tulips and other bulbs." },
+        { "id": "summer", "name": "Summer", "description": "Deep greens, full flower beds, sunflowers and parasols up." }
+      ]
+    },
+    {
+      "id": "planting",
+      "name": "Planting",
+      "description": "What grows and stands between the buildings.",
+      "default": "mixed",
+      "values": [
+        { "id": "mixed", "name": "Town garden", "description": "Oaks, birches and pines, clipped hedges and flower beds." },
+        { "id": "orchard", "name": "Orchard", "description": "Fruit trees, ladders and crates of apples." },
+        { "id": "market", "name": "Market", "description": "Stalls, flower barrows, café tables and planters on warm brick." },
+        { "id": "waterside", "name": "Waterside", "description": "Willows, reeds, little pools and a boat on the bank." },
+        { "id": "meadow", "name": "Meadow", "description": "Long grass and wild flowers behind picket fences, hay, sheep and beehives." }
+      ]
+    },
+    {
+      "id": "accent",
+      "name": "Accent",
+      "description": "The colour of awnings, parasols, gates and bunting.",
+      "default": "coral",
+      "values": [
+        { "id": "coral", "name": "Coral" },
+        { "id": "tangerine", "name": "Tangerine" },
+        { "id": "gold", "name": "Gold" },
+        { "id": "sage", "name": "Sage" },
+        { "id": "lilac", "name": "Lilac" },
+        { "id": "sky", "name": "Sky" }
+      ]
+    },
+    {
+      "id": "lantern",
+      "name": "Lanterns",
+      "description": "The street lanterns.",
+      "default": "iron",
+      "values": [
+        { "id": "iron", "name": "Iron post", "description": "A square glass head on an iron post." },
+        { "id": "globe", "name": "Twin globes", "description": "Two round glass globes on a slim post." },
+        { "id": "paper", "name": "Paper lantern", "description": "A paper lantern hanging from a timber post." }
+      ]
+    }
+  ],
+  "looks": {
+    "planting": {
+      "orchard": {
+        "swatches": { "flagstone": "#e6d3ab", "cobble": "#d6c49c", "cobble-dark": "#b8a47c" },
+        "lamplightSwatches": { "flagstone": "#93876f", "cobble": "#857a64", "cobble-dark": "#665d4c" },
+        "models": {
+          "town.oak": ["town.fruit-tree", "town.fruit-tree", "town.oak"],
+          "town.oak-autumn": "town.fruit-tree",
+          "town.birch": ["town.fruit-tree", { "model": "town.fruit-tree", "materials": { "coral": "lamp-glow", "tangerine": "leaf" } }],
+          "town.birch-autumn": "town.fruit-tree",
+          "town.pine": "town.fruit-tree",
+          "town.bush": ["town.apple-crate", "town.bush"],
+          "town.bush-autumn": "town.apple-crate",
+          "town.leaf-pile": { "model": "town.apple-crate", "scale": 1.6 },
+          "town.feature": [{ "model": "town.orchard-ladder", "scale": 1.25 }, { "model": "town.apple-crate", "scale": 1.3 }, "town.fruit-tree", { "model": "town.hay-bale", "scale": 1.2 }]
+        }
+      },
+      "market": {
+        "swatches": { "cobble": "#d9b79b", "cobble-dark": "#b88e74", "flagstone": "#ecd8bd" },
+        "lamplightSwatches": { "cobble": "#8d776a", "cobble-dark": "#6c594f", "flagstone": "#99887a" },
+        "models": {
+          "town.pine": "town.oak",
+          "town.bush": { "model": "civic.planter", "scale": 1.15 },
+          "town.bush-autumn": { "model": "civic.planter", "scale": 1.15 },
+          "town.leaf-pile": { "model": "furniture.crate-stack", "scale": 0.6 },
+          "town.bench": ["town.bench", "civic.cafe-table"],
+          "town.feature": [{ "model": "town.market-stall", "scale": 1.15 }, { "model": "town.barrow", "scale": 1.2 }, { "model": "town.market-stall", "scale": 1.15 }, "civic.cafe-table"]
+        }
+      },
+      "waterside": {
+        "swatches": { "cobble": "#c3cabd", "cobble-dark": "#9dab9f", "flagstone": "#dfe4d5", "water-edge": "#d9cfae" },
+        "lamplightSwatches": { "cobble": "#727e7b", "cobble-dark": "#57625f", "flagstone": "#838e89", "water-edge": "#6a655a" },
+        "models": {
+          "town.oak": ["town.willow", "town.birch", "town.willow"],
+          "town.oak-autumn": "town.willow",
+          "town.pine": "town.willow",
+          "town.bush": { "model": "town.reeds", "scale": 1.5 },
+          "town.bush-autumn": { "model": "town.reeds", "scale": 1.5 },
+          "town.leaf-pile": { "model": "town.rock", "scale": 2.4 },
+          "town.grass": "town.tall-grass",
+          "town.feature": [{ "model": "town.pond", "scale": 0.42 }, { "model": "town.rowboat", "scale": 1.25 }, { "model": "town.reeds", "scale": 1.7 }, { "model": "town.pond", "scale": 0.34 }]
+        }
+      },
+      "meadow": {
+        "swatches": { "cobble": "#cdb98f", "cobble-dark": "#ad9a72", "flagstone": "#dccba5" },
+        "lamplightSwatches": { "cobble": "#847a63", "cobble-dark": "#655d4b", "flagstone": "#90866b" },
+        "models": {
+          "plot": "plot:meadow",
+          "town.hedge": "town.fence",
+          "town.oak": ["town.oak", "town.birch", { "model": "town.tall-grass", "scale": 2.2 }],
+          "town.pine": "town.birch",
+          "town.bush": { "model": "town.tall-grass", "scale": 2 },
+          "town.bush-autumn": { "model": "town.tall-grass", "scale": 2 },
+          "town.grass": "town.tall-grass",
+          "town.flowers": "town.wildflowers",
+          "town.bench": ["town.bench", { "model": "town.hay-bale", "scale": 1.2 }],
+          "town.feature": [{ "model": "town.hay-bale", "scale": 1.3 }, { "model": "town.sheep", "scale": 1.3 }, { "model": "town.beehive", "scale": 1.5 }, { "model": "town.wildflowers", "scale": 2.4 }]
+        }
+      }
+    },
+    "lantern": {
+      "globe": { "models": { "town.lantern": "town.lantern:globe" } },
+      "paper": { "models": { "town.lantern": "town.lantern:paper" } }
+    },
+    "season": {
+      "spring": {
+        "swatches": {
+          "leaf": "#9bc864",
+          "leaf-dark": "#69a45a",
+          "moss": "#5d8b52",
+          "grass": "#9fd072",
+          "grass-lawn": "#b3e088",
+          "grass-meadow": "#a9d67b",
+          "grass-edge": "#8cb669",
+          "hedge": "#73ae55",
+          "hedge-light": "#93c96a"
+        },
+        "lamplightSwatches": {
+          "grass": "#436f5a",
+          "grass-lawn": "#4d7c62",
+          "grass-meadow": "#48755b",
+          "grass-edge": "#355845",
+          "hedge": "#375f49",
+          "hedge-light": "#467357"
+        },
+        "models": {
+          "town.oak": ["town.oak", "town.oak", "town.oak", { "model": "town.oak", "materials": { "leaf": "blossom", "leaf-dark": "blossom-deep" } }],
+          "town.oak-autumn": { "model": "town.oak", "materials": { "leaf": "blossom", "leaf-dark": "blossom-deep" } },
+          "town.birch-autumn": "town.birch",
+          "town.bush-autumn": { "model": "town.bush", "materials": { "leaf": "blossom-white", "leaf-dark": "leaf" } },
+          "town.fruit-tree": { "model": "town.fruit-tree", "materials": { "leaf": "blossom-white", "leaf-dark": "blossom", "coral": "blossom-deep", "tangerine": "blossom" } },
+          "town.pumpkin": "town.tulips",
+          "town.leaf-pile": { "model": "town.flowers", "materials": { "coral": "flower-lilac", "tangerine": "flower-lilac", "lamp-glow": "cream" }, "scale": 2.2 },
+          "town.flower-bed": "town.flower-bed:bulbs",
+          "decor.pumpkin": { "model": "town.tulips", "scale": 0.7 },
+          "furniture.autumn-vase": { "model": "furniture.autumn-vase", "materials": { "coral": "blossom", "tangerine": "blossom-white" } }
+        }
+      },
+      "summer": {
+        "swatches": {
+          "leaf": "#5d9a4b",
+          "leaf-dark": "#2f6c45",
+          "moss": "#2e5b40",
+          "grass": "#7db45d",
+          "grass-lawn": "#8dc56b",
+          "grass-meadow": "#aebb67",
+          "grass-edge": "#689650",
+          "hedge": "#488840",
+          "hedge-light": "#62a251"
+        },
+        "lamplightSwatches": {
+          "grass": "#315847",
+          "grass-lawn": "#39644e",
+          "grass-meadow": "#4a6148",
+          "grass-edge": "#274536",
+          "hedge": "#274938",
+          "hedge-light": "#335a44"
+        },
+        "models": {
+          "town.oak-autumn": "town.oak",
+          "town.birch-autumn": "town.birch",
+          "town.bush-autumn": "town.bush",
+          "town.pumpkin": "town.sunflowers",
+          "town.leaf-pile": { "model": "town.wildflowers", "scale": 2.2 },
+          "town.flower-bed": "town.flower-bed:full",
+          "town.picnic-blanket": "town.picnic-parasol",
+          "decor.pumpkin": "decor.apple-bowl",
+          "furniture.autumn-vase": { "model": "furniture.autumn-vase", "materials": { "coral": "lamp-glow", "tangerine": "leaf" } }
+        }
+      }
+    },
+    "accent": {
+      "tangerine": { "swatches": { "accent": "tangerine" }, "materials": "accent" },
+      "gold": { "swatches": { "accent": "brass" }, "materials": "accent" },
+      "sage": { "swatches": { "accent": "sage" }, "materials": "accent" },
+      "lilac": { "swatches": { "accent": "flower-lilac" }, "materials": "accent" },
+      "sky": { "swatches": { "accent": "flower-blue" }, "materials": "accent" }
+    }
+  },
+  "materialSets": {
+    "accent": [
+      { "keys": ["town.market-stall"], "map": { "tangerine": "accent" } },
+      { "keys": ["town.gate", "town.hanging-basket", "town.picnic-blanket", "town.picnic-parasol", "town.bandstand", "town.cottage", "town.cottage-timber", "town.swing", "town.rowboat"], "map": { "coral": "accent" } },
+      { "keys": ["civic.cafe-table"], "map": { "leaf": "accent" } }
+    ]
+  },
+  "beds": {
+    "bulbs": { "flowers": ["coral", "lamp-glow", "cream", "flower-pink", "lamp-glow", "circle"], "spacing": 0.26, "leaf": [0.09, 0.06, 0.09], "head": [0.055, 0.085, 0.055], "lift": 0.26 },
+    "full": { "flowers": ["coral", "lamp-glow", "flower-lilac", "cream", "tangerine", "flower-pink", "flower-blue", "circle"], "spacing": 0.22, "leaf": [0.16, 0.15, 0.16], "head": [0.085, 0.085, 0.085], "lift": 0.27 }
+  },
   "palette": {
     "timber": "#bf9873",
     "timber-light": "#d6b58e",
@@ -400,7 +614,11 @@
     "partition": "#e5e1cf",
     "slab-side": "#d8cfb6",
     "far-screen": "#9aa596",
-    "coping": "#ad9670"
+    "coping": "#ad9670",
+    "accent": "coral",
+    "blossom": "#f9b7ca",
+    "blossom-deep": "#ee8aa8",
+    "blossom-white": "#fde6ea"
   },
   "lamplightSwatches": {
     "plinth": "#2b3f42",
@@ -455,7 +673,10 @@
     "partition": "#e4cfa9",
     "slab-side": "#c2ae88",
     "far-screen": "#7d8574",
-    "coping": "#b0905f"
+    "coping": "#b0905f",
+    "blossom": "#dba0b0",
+    "blossom-deep": "#c67b95",
+    "blossom-white": "#e6cfd0"
   },
   "lighting": {
     "day": {

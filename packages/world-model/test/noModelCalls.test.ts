@@ -3,6 +3,7 @@
  * allowed ones alone), then run on the real tree. See scripts/scan-model-calls.ts.
  */
 import assert from "node:assert/strict";
+import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -51,6 +52,56 @@ test("package.json dependencies are checked in every group", () => {
   assert.equal(scanPackageJson("package.json", JSON.stringify({ devDependencies: { "@anthropic-ai/sdk": "1" } })).length, 1);
   assert.equal(scanPackageJson("package.json", JSON.stringify({ peerDependencies: { openai: "1" } })).length, 1);
   assert.equal(scanPackageJson("package.json", "{nope").length, 1);
+});
+
+test("a browser driver is tooling: imported under tools/ only, a dev dependency of the root only", () => {
+  for (const spec of ["playwright-core", "playwright", "@playwright/test", "playwright-core/lib/server", "puppeteer", "puppeteer-core"]) {
+    for (const file of ["apps/world/src/x.ts", "apps/world/test/x.test.ts", "packages/world-model/src/x.ts", "packages/cast-sprouts/src/index.ts", "scripts/x.ts", "skills/x/run.mjs"]) {
+      assert.deepEqual(scanSource(file, `import { chromium } from "${spec}";`).map((f) => f.rule), ["browser-import"], `${spec} in ${file}`);
+      assert.deepEqual(scanSource(file, `const { chromium } = await import('${spec}');`).map((f) => f.rule), ["browser-import"], `${spec} in ${file}, dynamic`);
+    }
+    assert.deepEqual(scanSource("tools/lib/world.mjs", `import { chromium } from "${spec}";`), [], `${spec} under tools/`);
+  }
+  assert.deepEqual(scanSource("apps/world/src/x.ts", `import { playwrightish } from "./playwright-notes.ts";`), [], "a file that merely has the name");
+  const manifest = (field: string) => JSON.stringify({ [field]: { "playwright-core": "1.62.1" } });
+  assert.deepEqual(scanPackageJson("package.json", manifest("devDependencies")), []);
+  assert.deepEqual(scanPackageJson("package.json", manifest("dependencies")).map((f) => f.rule), ["browser-dependency"]);
+  for (const file of ["apps/world/package.json", "packages/world-model/package.json"]) {
+    assert.deepEqual(scanPackageJson(file, manifest("devDependencies")).map((f) => f.rule), ["browser-dependency"], file);
+  }
+});
+
+test("a tool only addresses this machine, and keeps every other rule", () => {
+  const tool = (text: string) => scanSource("tools/x.mjs", text).map((f) => f.rule);
+  assert.deepEqual(tool("const base = `http://127.0.0.1:${port}/`; const other = 'http://localhost:5176/cast-preview';"), []);
+  for (const text of ['await page.goto("https://example.com/");', "const u = `http://${host}:${port}/`;", 'const s = "ws://10.0.0.2:9222";', "open('http://127.0.0.1.example.com/')"]) {
+    assert.deepEqual(tool(text), ["tooling-address"], text);
+  }
+  assert.deepEqual(tool("await fetch(`http://127.0.0.1:${port}/`);"), ["network"], "no network primitive of its own");
+  assert.deepEqual(tool('import OpenAI from "openai";'), ["ai-sdk-import"]);
+  // Outside tools/ an address is not this rule's business (documentation links, the loops shapes).
+  assert.deepEqual(scanSource("packages/demo/src/x.ts", 'const docs = "https://example.com/";'), []);
+});
+
+test("the real tree: playwright-core is imported under tools/ and nowhere under apps/ or packages/", async () => {
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+  const importers: string[] = [];
+  const walk = async (directory: string): Promise<void> => {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      if (entry.name === "node_modules" || entry.name === "dist" || entry.name === "out") continue;
+      const absolute = path.join(directory, entry.name);
+      if (entry.isDirectory()) await walk(absolute);
+      else if (/\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/.test(entry.name) && /["']playwright-core["'/]/.test(await readFile(absolute, "utf8"))) importers.push(path.relative(root, absolute).split(path.sep).join("/"));
+    }
+  };
+  for (const top of ["apps", "packages", "tools"]) await walk(path.join(root, top));
+  // This test names the package itself; the scanner's own fixtures are its only other mention outside tools/.
+  const outside = importers.filter((file) => !file.startsWith("tools/") && file !== "packages/world-model/test/noModelCalls.test.ts");
+  assert.deepEqual(outside, []);
+  assert.ok(importers.some((file) => file.startsWith("tools/")), "the tools do use it (the walk found the import)");
+  for (const workspace of ["apps/world/package.json", ...(await readdir(path.join(root, "packages"))).map((name) => `packages/${name}/package.json`)]) {
+    assert.doesNotMatch(await readFile(path.join(root, workspace), "utf8"), /playwright|puppeteer/, workspace);
+  }
 });
 
 test("the real tree has no AI SDK, no model endpoint and no network call", async () => {

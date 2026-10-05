@@ -93,6 +93,18 @@ the accessible controls, the chat bubbles and the text view. The renderer consum
 used for prop placement and navigation; see [GRID_ENGINE.md](GRID_ENGINE.md).
 No React Three Fiber or physics engine is needed for this slice.
 
+## Tools: looking at and measuring the running world
+
+[`tools/`](../tools/README.md) holds the scripts that open the running world in a headless browser: the browser
+regression pass (`regress.mjs`, 38 checks), the frame and memory measurements (`perf.mjs`, `memory.mjs`) and the
+screenshot helpers (`shots.mjs`, `castshots.mjs`, `castworld.mjs`). They are plain `.mjs` files run with `node`
+against a Vite server on a port of your own, and write to the git-ignored `tools/out/` unless told otherwise. They
+are not part of `npm run check`: they need a browser and a running server.
+
+The browser driver (`playwright-core`, a root dev dependency) is tooling only. `scripts/scan-model-calls.ts` lets
+nothing outside `tools/` import it and no workspace depend on it, and holds the tools to this machine's addresses
+(`127.0.0.1`, `localhost`); a test in `packages/world-model/test/noModelCalls.test.ts` proves both on the real tree.
+
 ## Integration order
 
 The phases of plan section 10 are listed in [the roadmap](ROADMAP.md). The demo phases

@@ -16,7 +16,7 @@ import { townRuntime } from "../state/town";
 import { styleRegistry } from "../world/style";
 import { downloadText } from "./download";
 import { Button, Field } from "./primitives";
-import { ZoneSettings } from "./ZonePanel";
+import { StyleOptionSettings, ZoneSettings } from "./ZonePanel";
 
 const RULES: Record<RuleId, { name: string; fact: string }> = {
   "milestone-banner": { name: "Milestone banner", fact: "a banner in the lobby per active milestone" },
@@ -71,6 +71,7 @@ export function TownSettings({ town }: { town: TownState }) {
             </option>
           ))}
         </Field>
+        <StyleOptionSettings town={town} />
         <p className="hint">
           <a href="/cast-preview">Open the casting room</a>: every cast in one sample room, in every role and state.
         </p>

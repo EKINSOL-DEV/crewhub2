@@ -307,8 +307,8 @@ const union = (rects: readonly Bounds[]): Bounds => ({
 const GROUND_MARGIN = STREET + GREEN_BELT;
 
 /**
- * The ground at a tier: the tier's civic core, every landmark that has arrived and every allocated lot (in use or
- * boarded up), with a street and the green belt around them. It only ever grows with the lots: a tier never moves one.
+ * The ground at a tier: the tier's civic core, every landmark that has arrived, every allocated lot (in use or
+ * boarded up) and the main crossing of every district in use, with a street and the green belt around them. It only ever grows with the lots: a tier never moves one.
  */
 export function groundExtent(tier: Tier, lots: readonly GridCell[], arrived: readonly LandmarkId[] = []): Bounds {
   const core: Bounds[] = (["post-office", "town-hall", "square"] as const).map((id) => spotBounds(reservedSpot(id)));
@@ -316,7 +316,12 @@ export function groundExtent(tier: Tier, lots: readonly GridCell[], arrived: rea
   core.push(lotBounds(CENTRE_LOT));
   if (tier !== "clearing" && tier !== "hamlet") for (const lot of districtLots(CENTRAL_SLOT).slice(0, 4)) core.push(lotBounds(lot), lotBounds({ x: lot.x, z: lot.z - 1 }));
   if (tier === "town" || tier === "region") for (const id of ["cafe", "bus-stop"] as const) core.push(spotBounds(reservedSpot(id)));
-  const all = union([...core, ...arrived.map((id) => spotBounds(reservedSpot(id))), ...lots.map((lot) => lotBounds(lot))]);
+  // A district's streets join at its main crossing, where its road arrives: that is on the ground too.
+  const crossings = [CENTRAL_SLOT, ...lots.map(slotOf).filter(slotAllowed)].map((slot): Bounds => {
+    const c = slotCrossing(slot);
+    return { minX: c.x, maxX: c.x, minZ: c.z, maxZ: c.z };
+  });
+  const all = union([...core, ...arrived.map((id) => spotBounds(reservedSpot(id))), ...lots.map((lot) => lotBounds(lot)), ...crossings]);
   return { minX: all.minX - GROUND_MARGIN, maxX: all.maxX + GROUND_MARGIN, minZ: all.minZ - GROUND_MARGIN, maxZ: all.maxZ + GROUND_MARGIN };
 }
 

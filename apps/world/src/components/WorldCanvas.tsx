@@ -5,6 +5,7 @@ import { STRESS, worldRuntime } from "../state/world";
 import { useDark } from "../state/theme";
 import { useQuality } from "../state/quality";
 import { useCast } from "../state/cast";
+import { useStyleOptions } from "../state/styleOptions";
 import { useDayNight } from "../state/daynight";
 import { useFps } from "../state/fps";
 import { FpsOverlay } from "./FpsOverlay";
@@ -65,6 +66,7 @@ export default function WorldCanvas(props: Props) {
   const dark = useDark();
   const quality = useQuality();
   const cast = useCast();
+  const styleOptions = useStyleOptions();
   const dayNight = useDayNight(props.model.mode);
   const fps = useFps();
   latest.current = props;
@@ -85,6 +87,7 @@ export default function WorldCanvas(props: Props) {
     theme: dark ? ("lamplight" as const) : ("day" as const),
     quality,
     cast,
+    styleOptions,
     now,
     dayNight,
     dayClock,

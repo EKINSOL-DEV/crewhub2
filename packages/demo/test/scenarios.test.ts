@@ -158,6 +158,74 @@ test("One project: one building with its lead and two workers", async () => {
   projection.dispose();
 });
 
+test("Studio: twenty projects in four groups of five, as the future field of proposal L22", async () => {
+  const { source, messages } = play("studio", 1_000);
+  const first = messages[0];
+  assert.ok(first?.type === "snapshot");
+  const { projects, groups } = first.snapshot;
+  assert.equal(projects.length, 20);
+  assert.deepEqual(groups?.map((g) => [g.slug, g.order]), [["apps", 1], ["platform", 2], ["brand", 3], ["lab", 4]]);
+  assert.deepEqual(await source.listProjectGroups(), groups);
+  for (const group of groups ?? []) assert.equal(projects.filter((p) => p.groupId === group.id).length, 5, group.name);
+  assert.equal(new Set(projects.map((p) => p.key)).size, 20);
+  // The looks are the town document's, one zone entry per group, each a different district at a glance.
+  const zones = demoScenario("studio").townZones;
+  assert.deepEqual(zones.map((z) => z.id), groups?.map((g) => g.id));
+  assert.equal(new Set(zones.map((z) => z.look?.castId)).size, 4);
+  assert.equal(new Set(zones.map((z) => `${z.look?.styleOptions?.["season"]} ${z.look?.styleOptions?.["planting"]}`)).size, 4);
+  for (const id of ["fresh", "one", "small-team"] as const) assert.deepEqual(demoScenario(id).townZones, []);
+});
+
+test("Studio: the world is twenty buildings in four zones, dressed by the town document's looks", async () => {
+  const scheduler = createManualScheduler();
+  const source = createDemoSource({ scheduler, speed: 16, scenario: "studio" });
+  const projection = new Projection(source, { coalesceMs: 0 });
+  source.start((message) => projection.apply(message));
+  scheduler.advance(1_000);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const { model } = reduceWorld(projection.facts, emptyMemory(), {
+    now: source.now(),
+    mode: "demo",
+    roleOverrides: {},
+    zoning: { zones: demoScenario("studio").townZones },
+  });
+  assert.equal(model.buildings.length, 20);
+  assert.deepEqual(model.zones.map((z) => [z.name, z.source, z.look.castId]), [
+    ["Apps", "group", "classic-bots"],
+    ["Platform", "group", "overgrown-bots"],
+    ["Brand", "group", "sprouts"],
+    ["Lab", "group", "potlings"],
+  ]);
+  for (const zone of model.zones) assert.equal(model.buildings.filter((b) => b.zoneId === zone.id).length, 5);
+  const agents = new Set(model.buildings.flatMap((b) => b.agents.map((a) => a.key)));
+  assert.equal(agents.size, 76, "twenty leads and fifty-six workers");
+  projection.dispose();
+});
+
+test("Studio: a person is needed in at least two groups for almost the whole loop, and the truck comes by", async () => {
+  const { source, scheduler, messages } = play("studio", 0);
+  const content = demoScenario("studio").content;
+  for (let minute = 1; minute <= 14; minute++) {
+    scheduler.advance(60_000 / 16);
+    const stalled = new Set(((await source.getWatchdog()).open ?? []).map((o) => o.ticket.key.split("-")[0]));
+    const groups = new Set<string>();
+    for (const project of content.projects) {
+      const board = await source.getBoard(project.slug);
+      const waits = board?.columns.some((c) => c.tickets.some((t) => t.waitingOnHuman)) ?? false;
+      if (waits || stalled.has(project.key)) groups.add(project.groupId ?? "");
+    }
+    assert.ok(groups.size >= 2, `minute ${minute}: ${groups.size} groups need a person`);
+  }
+  scheduler.advance((2 * 60_000) / 16);
+  const events = envelopes(messages);
+  const reasons = new Set(events.filter((e) => e.type === "ticket.stalled").map((e) => (e.payload as { reason: string }).reason));
+  assert.deepEqual([...reasons].sort(), ["attention", "stalled"]);
+  const batches = new Set(events.filter((e) => e.type === "ticket.archived").map((e) => (e.payload as { batchId: string }).batchId));
+  assert.equal(batches.size, 4, "two releases and two archive batches");
+  assert.equal(events.filter((e) => e.type === "release.published").length, 1);
+  assert.ok(events.filter((e) => e.type === "delivery.created").length > 40, "the postman keeps walking");
+});
+
 test("no scenario but Studio has groups: the future field stays out of the stream", async () => {
   for (const id of ["fresh", "one", "small-team"] as const) {
     const { source, messages } = play(id, 90_000);

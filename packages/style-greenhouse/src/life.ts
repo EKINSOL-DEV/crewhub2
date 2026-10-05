@@ -18,8 +18,9 @@ const materials = new WeakMap<Kit, Map<string, THREE.Material>>();
 
 /** A life material, once per kit (a theme change does not recolour these: each shows in one theme). */
 function material(kit: Kit, key: string, create: () => THREE.Material): THREE.Material {
-  let cache = materials.get(kit);
-  if (!cache) materials.set(kit, (cache = new Map()));
+  // Effects are the same in every look: a look's kit draws them with its root's.
+  let cache = materials.get(kit.root);
+  if (!cache) materials.set(kit.root, (cache = new Map()));
   let m = cache.get(key);
   if (!m) cache.set(key, (m = create()));
   return m;
@@ -255,7 +256,7 @@ function affordanceColour(kit: Kit, shape: string): Swatch {
 /** Re-colours the affordances for the kit's current theme. */
 export function lifeTheme(kit: Kit) {
   for (const shape of ["outline", "fill", "ring"]) {
-    const m = materials.get(kit)?.get(`affordance:${shape}`) as THREE.ShaderMaterial | undefined;
+    const m = materials.get(kit.root)?.get(`affordance:${shape}`) as THREE.ShaderMaterial | undefined;
     m?.uniforms.uColor!.value.set(kit.hex(affordanceColour(kit, shape)));
   }
 }

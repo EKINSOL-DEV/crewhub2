@@ -19,8 +19,8 @@ import { placementDefinitions } from "../world/placements";
 import { importPropRequest, type InvalidRequest } from "../world/propImport";
 import { allocationEdit } from "../world/settlement";
 import { styleRegistry } from "../world/style";
-import { createTownStore, type TownStore } from "./townStore";
-import { TOWN_KEY, worldRuntime } from "./world";
+import { createTownStore, seededTown, type TownStore } from "./townStore";
+import { SCENARIO, STRESS, TOWN_KEY, worldRuntime } from "./world";
 
 export interface TownState {
   doc: TownDocument;
@@ -51,7 +51,9 @@ class TownRuntime {
   #announce: (text: string) => void = () => {};
 
   constructor() {
-    this.store = createTownStore({ context: this.context, name: TOWN_KEY });
+    // A scenario's town starts with its zones' looks (Studio's four districts); the stress fixtures start empty.
+    const initial = STRESS ? undefined : seededTown(SCENARIO.townZones, this.context);
+    this.store = createTownStore({ context: this.context, name: TOWN_KEY, ...(initial ? { initial } : {}) });
     this.#state = this.#derive();
     this.store.subscribe(() => {
       this.#refresh();
