@@ -399,31 +399,34 @@
     "season": {
       "spring": {
         "swatches": {
-          "leaf": "#9bc864",
-          "leaf-dark": "#69a45a",
-          "moss": "#5d8b52",
-          "grass": "#9fd072",
-          "grass-lawn": "#b3e088",
-          "grass-meadow": "#a9d67b",
-          "grass-edge": "#8cb669",
-          "hedge": "#73ae55",
-          "hedge-light": "#93c96a"
+          "leaf": "#aad66c",
+          "leaf-dark": "#7dba62",
+          "moss": "#6a9a58",
+          "grass": "#b2dd7a",
+          "grass-lawn": "#c6eb94",
+          "grass-meadow": "#bbe486",
+          "grass-edge": "#93bf6b",
+          "hedge": "#80bc58",
+          "hedge-light": "#a3d672"
         },
         "lamplightSwatches": {
-          "grass": "#436f5a",
-          "grass-lawn": "#4d7c62",
-          "grass-meadow": "#48755b",
-          "grass-edge": "#355845",
-          "hedge": "#375f49",
-          "hedge-light": "#467357"
+          "grass": "#4a7c5c",
+          "grass-lawn": "#568b66",
+          "grass-meadow": "#50835f",
+          "grass-edge": "#3a6248",
+          "hedge": "#3f6d4d",
+          "hedge-light": "#50835c"
         },
         "models": {
-          "town.oak": ["town.oak", "town.oak", "town.oak", { "model": "town.oak", "materials": { "leaf": "blossom", "leaf-dark": "blossom-deep" } }],
-          "town.oak-autumn": { "model": "town.oak", "materials": { "leaf": "blossom", "leaf-dark": "blossom-deep" } },
-          "town.birch-autumn": "town.birch",
-          "town.bush-autumn": { "model": "town.bush", "materials": { "leaf": "blossom-white", "leaf-dark": "leaf" } },
+          "town.oak": [{ "model": "town.oak", "materials": { "leaf": "blossom", "leaf-dark": "blossom-deep" } }, "town.oak", { "model": "town.oak", "materials": { "leaf": "blossom-white", "leaf-dark": "blossom" } }, "town.oak"],
+          "town.oak-autumn": [{ "model": "town.oak", "materials": { "leaf": "blossom", "leaf-dark": "blossom-deep" } }, { "model": "town.oak", "materials": { "leaf": "blossom-white", "leaf-dark": "blossom" } }],
+          "town.birch": ["town.birch", { "model": "town.birch", "materials": { "leaf": "blossom-white", "sage": "leaf" } }],
+          "town.birch-autumn": { "model": "town.birch", "materials": { "leaf": "blossom-white", "sage": "blossom" } },
+          "town.bush": ["town.bush", { "model": "town.bush", "materials": { "leaf": "blossom-white", "leaf-dark": "leaf" } }, { "model": "town.bush", "materials": { "leaf": "blossom", "leaf-dark": "leaf" } }],
+          "town.bush-autumn": { "model": "town.bush", "materials": { "leaf": "blossom", "leaf-dark": "blossom-deep" } },
           "town.fruit-tree": { "model": "town.fruit-tree", "materials": { "leaf": "blossom-white", "leaf-dark": "blossom", "coral": "blossom-deep", "tangerine": "blossom" } },
           "town.pumpkin": "town.tulips",
+          "town.wildflowers": ["town.wildflowers", { "model": "town.tulips", "scale": 1.2 }],
           "town.leaf-pile": { "model": "town.flowers", "materials": { "coral": "flower-lilac", "tangerine": "flower-lilac", "lamp-glow": "cream" }, "scale": 2.2 },
           "town.flower-bed": "town.flower-bed:bulbs",
           "decor.pumpkin": { "model": "town.tulips", "scale": 0.7 },
@@ -432,28 +435,34 @@
       },
       "summer": {
         "swatches": {
-          "leaf": "#5d9a4b",
-          "leaf-dark": "#2f6c45",
-          "moss": "#2e5b40",
-          "grass": "#7db45d",
-          "grass-lawn": "#8dc56b",
-          "grass-meadow": "#aebb67",
-          "grass-edge": "#689650",
-          "hedge": "#488840",
-          "hedge-light": "#62a251"
+          "leaf": "#4d8c41",
+          "leaf-dark": "#27603d",
+          "moss": "#28523a",
+          "sage": "#7fa06c",
+          "grass": "#69a650",
+          "grass-lawn": "#78b85c",
+          "grass-meadow": "#c2bc62",
+          "grass-edge": "#568a43",
+          "hedge": "#3d7c39",
+          "hedge-light": "#539747"
         },
         "lamplightSwatches": {
-          "grass": "#315847",
-          "grass-lawn": "#39644e",
-          "grass-meadow": "#4a6148",
-          "grass-edge": "#274536",
-          "hedge": "#274938",
-          "hedge-light": "#335a44"
+          "grass": "#294f41",
+          "grass-lawn": "#305a47",
+          "grass-meadow": "#4a6345",
+          "grass-edge": "#203d31",
+          "hedge": "#213f32",
+          "hedge-light": "#2b4f3c"
         },
         "models": {
-          "town.oak-autumn": "town.oak",
-          "town.birch-autumn": "town.birch",
-          "town.bush-autumn": "town.bush",
+          "town.oak": { "model": "town.oak", "scale": 1.14 },
+          "town.oak-autumn": { "model": "town.oak", "scale": 1.14 },
+          "town.birch": { "model": "town.birch", "scale": 1.1 },
+          "town.birch-autumn": { "model": "town.birch", "scale": 1.1 },
+          "town.bush": { "model": "town.bush", "scale": 1.15 },
+          "town.bush-autumn": { "model": "town.bush", "scale": 1.15 },
+          "town.fruit-tree": { "model": "town.fruit-tree", "scale": 1.12 },
+          "town.flowers": { "model": "town.flowers", "scale": 1.35 },
           "town.pumpkin": "town.sunflowers",
           "town.leaf-pile": { "model": "town.wildflowers", "scale": 2.2 },
           "town.flower-bed": "town.flower-bed:full",
@@ -479,8 +488,8 @@
     ]
   },
   "beds": {
-    "bulbs": { "flowers": ["coral", "lamp-glow", "cream", "flower-pink", "lamp-glow", "circle"], "spacing": 0.26, "leaf": [0.09, 0.06, 0.09], "head": [0.055, 0.085, 0.055], "lift": 0.26 },
-    "full": { "flowers": ["coral", "lamp-glow", "flower-lilac", "cream", "tangerine", "flower-pink", "flower-blue", "circle"], "spacing": 0.22, "leaf": [0.16, 0.15, 0.16], "head": [0.085, 0.085, 0.085], "lift": 0.27 }
+    "bulbs": { "flowers": ["coral", "lamp-glow", "cream", "flower-pink", "lamp-glow", "circle"], "spacing": 0.24, "leaf": [0.09, 0.07, 0.09], "head": [0.075, 0.11, 0.075], "lift": 0.28 },
+    "full": { "flowers": ["coral", "lamp-glow", "flower-lilac", "cream", "tangerine", "flower-pink", "flower-blue", "circle"], "spacing": 0.2, "leaf": [0.17, 0.16, 0.17], "head": [0.1, 0.1, 0.1], "lift": 0.29 }
   },
   "palette": {
     "timber": "#bf9873",
@@ -573,10 +582,10 @@
     "drone-rotor": "#d9e6dd",
     "truck-body": "#e8e4d1",
     "tyre": "#34453e",
-    "grass": "#93b873",
-    "grass-lawn": "#a7c98a",
-    "grass-meadow": "#9cbf7c",
-    "grass-edge": "#7c9a63",
+    "grass": "#a2b86f",
+    "grass-lawn": "#b2c784",
+    "grass-meadow": "#b9bd74",
+    "grass-edge": "#86995e",
     "cobble": "#d0c3a6",
     "flagstone": "#e6dbc1",
     "hedge": "#5e9150",
