@@ -46,6 +46,9 @@ export function TownSettings({ town }: { town: TownState }) {
         <legend className="label">Town</legend>
         <p className="settings-style">Style: {style.name}</p>
         <p className="hint">The only style tonight; buildings follow the town style unless their plot names another.</p>
+        <p className="hint">
+          <a href="/cast-preview">Open the casting room</a>: every cast in one sample room, in every role and state.
+        </p>
         <Field
           control="select"
           size="sm"
