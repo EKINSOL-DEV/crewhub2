@@ -11,8 +11,8 @@
     { "id": "crown", "parent": "mid", "position": [0, 0.2, 0] }
   ],
   "parts": [
-    { "id": "foot-l", "joint": "foot-l", "shape": "sphere", "size": [0.1, 0.07, 0.13], "position": [0, 0, 0], "color": "clay-foot" },
-    { "id": "foot-r", "joint": "foot-r", "shape": "sphere", "size": [0.1, 0.07, 0.13], "position": [0, 0, 0], "color": "clay-foot" },
+    { "id": "foot-l", "joint": "foot-l", "shape": "sphere", "size": [0.1, 0.07, 0.13], "position": [0, 0, 0], "color": "clay-foot", "detail": "near" },
+    { "id": "foot-r", "joint": "foot-r", "shape": "sphere", "size": [0.1, 0.07, 0.13], "position": [0, 0, 0], "color": "clay-foot", "detail": "near" },
     { "id": "pot", "joint": "pot", "shape": "cylinder", "size": [0.33, 0.5, 0.23], "position": [0, 0.25, 0], "color": "slot:clay" },
     { "id": "rim", "joint": "pot", "shape": "cylinder", "size": [0.37, 0.12, 0.36], "position": [0, 0.54, 0], "color": "slot:rim" },
     { "id": "band", "joint": "pot", "shape": "cylinder", "size": [0.287, 0.14, 0.258], "position": [0, 0.15, 0], "color": "slot:band" },
@@ -34,7 +34,7 @@
     { "id": "l-bloom-b", "joint": "crown", "roles": ["lead"], "shape": "sphere", "size": [0.045, 0.045, 0.045], "position": [0.17, 0.27, 0.15], "color": "slot:bloom", "detail": "near" },
     { "id": "l-bloom-c", "joint": "crown", "roles": ["lead"], "shape": "sphere", "size": [0.045, 0.045, 0.045], "position": [0.03, 0.09, 0.265], "color": "slot:bloom", "detail": "near" },
     { "id": "l-fruit", "joint": "crown", "roles": ["lead"], "activities": ["done"], "shape": "sphere", "size": [0.07, 0.07, 0.07], "position": [0.1, 0.43, 0.08], "color": "fruit" },
-    { "id": "l-ask", "joint": "crown", "roles": ["lead"], "waiting": true, "shape": "sphere", "size": [0.085, 0.095, 0.085], "position": [0.03, 0.52, 0.02], "color": "lantern", "glow": 1 },
+    { "id": "l-ask", "joint": "crown", "roles": ["lead"], "waiting": true, "shape": "sphere", "size": [0.085, 0.095, 0.085], "position": [0.03, 0.52, 0.02], "color": "lantern", "glow": 0.7 },
 
     { "id": "w-stem", "joint": "stem", "roles": ["worker"], "shape": "cylinder", "size": [0.028, 0.2, 0.036], "position": [0, 0.1, 0], "color": "stalk" },
     { "id": "w-stem2", "joint": "mid", "roles": ["worker"], "shape": "cylinder", "size": [0.022, 0.2, 0.028], "position": [0, 0.1, 0], "color": "stalk" },
@@ -44,7 +44,7 @@
     { "id": "w-leaf-d", "joint": "crown", "roles": ["worker"], "shape": "sphere", "size": [0.2, 0.042, 0.105], "position": [0.165, 0.105, 0], "rotation": [0, 0, 38], "color": "sprig-deep" },
     { "id": "w-tip", "joint": "crown", "roles": ["worker"], "shape": "sphere", "size": [0.045, 0.08, 0.045], "position": [0, 0.07, 0], "color": "sprig", "detail": "near" },
     { "id": "w-fruit", "joint": "crown", "roles": ["worker"], "activities": ["done"], "shape": "sphere", "size": [0.065, 0.065, 0.065], "position": [0, 0.15, 0.02], "color": "fruit" },
-    { "id": "w-ask", "joint": "crown", "roles": ["worker"], "waiting": true, "shape": "sphere", "size": [0.085, 0.095, 0.085], "position": [0, 0.2, 0], "color": "lantern", "glow": 1 },
+    { "id": "w-ask", "joint": "crown", "roles": ["worker"], "waiting": true, "shape": "sphere", "size": [0.085, 0.095, 0.085], "position": [0, 0.2, 0], "color": "lantern", "glow": 0.7 },
 
     { "id": "d-stem", "joint": "stem", "roles": ["design"], "shape": "cylinder", "size": [0.022, 0.2, 0.028], "position": [0, 0.1, 0], "color": "stalk" },
     { "id": "d-stem2", "joint": "mid", "roles": ["design"], "shape": "cylinder", "size": [0.018, 0.26, 0.022], "position": [0, 0.13, 0], "color": "stalk" },
@@ -59,7 +59,7 @@
     { "id": "d-petal-f", "joint": "crown", "roles": ["design"], "shape": "sphere", "size": [0.1, 0.06, 0.022], "position": [0.063, 0.006, 0.084], "rotation": [-30, 0, 120], "color": "slot:petal", "detail": "near" },
     { "id": "d-pollen", "joint": "crown", "roles": ["design"], "shape": "sphere", "size": [0.075, 0.075, 0.045], "position": [0, 0.11, 0.047], "rotation": [-30, 0, 0], "color": "pollen" },
     { "id": "d-fruit", "joint": "mid", "roles": ["design"], "activities": ["done"], "shape": "sphere", "size": [0.06, 0.075, 0.06], "position": [0.09, 0.15, 0.03], "color": "slot:petal" },
-    { "id": "d-ask", "joint": "crown", "roles": ["design"], "waiting": true, "shape": "sphere", "size": [0.085, 0.095, 0.085], "position": [0, 0.33, -0.04], "color": "lantern", "glow": 1 },
+    { "id": "d-ask", "joint": "crown", "roles": ["design"], "waiting": true, "shape": "sphere", "size": [0.085, 0.095, 0.085], "position": [0, 0.33, -0.04], "color": "lantern", "glow": 0.7 },
 
     { "id": "a-body", "joint": "stem", "roles": ["analyst"], "shape": "sphere", "size": [0.18, 0.2, 0.18], "position": [0, 0.14, 0], "color": "cactus" },
     { "id": "a-head", "joint": "mid", "roles": ["analyst"], "shape": "sphere", "size": [0.15, 0.19, 0.15], "position": [0, 0.12, 0], "color": "cactus" },
@@ -69,7 +69,7 @@
     { "id": "a-arm-r", "joint": "mid", "roles": ["analyst"], "shape": "sphere", "size": [0.055, 0.095, 0.055], "position": [0.2, 0.15, 0], "color": "cactus" },
     { "id": "a-bloom", "joint": "crown", "roles": ["analyst"], "shape": "sphere", "size": [0.055, 0.04, 0.055], "position": [0, 0.115, 0], "color": "cactus-bloom" },
     { "id": "a-fruit", "joint": "crown", "roles": ["analyst"], "activities": ["done"], "shape": "sphere", "size": [0.11, 0.05, 0.11], "position": [0, 0.125, 0], "color": "cactus-bloom" },
-    { "id": "a-ask", "joint": "crown", "roles": ["analyst"], "waiting": true, "shape": "sphere", "size": [0.085, 0.095, 0.085], "position": [0, 0.2, 0], "color": "lantern", "glow": 1 },
+    { "id": "a-ask", "joint": "crown", "roles": ["analyst"], "waiting": true, "shape": "sphere", "size": [0.085, 0.095, 0.085], "position": [0, 0.2, 0], "color": "lantern", "glow": 0.7 },
 
     { "id": "p-stem", "joint": "stem", "roles": ["postman"], "shape": "cylinder", "size": [0.024, 0.2, 0.03], "position": [0, 0.1, 0], "color": "stalk" },
     { "id": "p-stem2", "joint": "mid", "roles": ["postman"], "shape": "cylinder", "size": [0.02, 0.24, 0.024], "position": [0, 0.12, 0], "color": "stalk" },
@@ -81,7 +81,7 @@
     { "id": "p-letter-a", "joint": "pot", "roles": ["postman"], "carrying": true, "shape": "box", "size": [0.012, 0.1, 0.11], "position": [-0.35, 0.5, -0.05], "rotation": [12, 0, 0], "radius": 0.005, "color": "paper", "detail": "near" },
     { "id": "p-letter-b", "joint": "pot", "roles": ["postman"], "carrying": true, "shape": "box", "size": [0.012, 0.1, 0.11], "position": [-0.37, 0.49, 0.06], "rotation": [-8, 0, 0], "radius": 0.005, "color": "cream", "detail": "near" },
     { "id": "p-fruit", "joint": "mid", "roles": ["postman"], "activities": ["done"], "shape": "sphere", "size": [0.06, 0.06, 0.06], "position": [0.05, 0.1, 0.03], "color": "fruit" },
-    { "id": "p-ask", "joint": "crown", "roles": ["postman"], "waiting": true, "shape": "sphere", "size": [0.085, 0.095, 0.085], "position": [0, 0.3, -0.03], "color": "lantern", "glow": 1 },
+    { "id": "p-ask", "joint": "crown", "roles": ["postman"], "waiting": true, "shape": "sphere", "size": [0.085, 0.095, 0.085], "position": [0, 0.3, -0.03], "color": "lantern", "glow": 0.7 },
 
     { "id": "o-stem", "joint": "stem", "roles": ["operator"], "shape": "cylinder", "size": [0.026, 0.2, 0.034], "position": [0, 0.1, 0], "color": "bark" },
     { "id": "o-stem2", "joint": "mid", "roles": ["operator"], "shape": "cylinder", "size": [0.022, 0.26, 0.026], "position": [0, 0.13, 0], "color": "bark", "detail": "near" },
@@ -89,12 +89,12 @@
     { "id": "o-top", "joint": "crown", "roles": ["operator"], "shape": "sphere", "size": [0.125, 0.12, 0.125], "position": [0, 0.13, 0], "color": "topiary" },
     { "id": "o-finial", "joint": "crown", "roles": ["operator"], "shape": "sphere", "size": [0.035, 0.035, 0.035], "position": [0, 0.275, 0], "color": "brass", "detail": "near" },
     { "id": "o-fruit", "joint": "mid", "roles": ["operator"], "activities": ["done"], "shape": "sphere", "size": [0.06, 0.06, 0.06], "position": [0.1, 0.18, 0.12], "color": "fruit" },
-    { "id": "o-ask", "joint": "crown", "roles": ["operator"], "waiting": true, "shape": "sphere", "size": [0.085, 0.095, 0.085], "position": [0, 0.34, 0], "color": "lantern", "glow": 1 },
+    { "id": "o-ask", "joint": "crown", "roles": ["operator"], "waiting": true, "shape": "sphere", "size": [0.085, 0.095, 0.085], "position": [0, 0.34, 0], "color": "lantern", "glow": 0.7 },
 
     { "id": "u-seed", "joint": "stem", "roles": ["unknown"], "shape": "sphere", "size": [0.065, 0.05, 0.09], "position": [0.02, 0.045, 0.04], "rotation": [0, 25, 12], "color": "seed" },
     { "id": "u-shoot", "joint": "stem", "roles": ["unknown"], "shape": "sphere", "size": [0.016, 0.04, 0.016], "position": [0.03, 0.1, 0.03], "color": "shoot", "detail": "near" },
     { "id": "u-fruit", "joint": "stem", "roles": ["unknown"], "activities": ["done"], "shape": "sphere", "size": [0.05, 0.016, 0.03], "position": [0.03, 0.14, 0.03], "rotation": [0, 0, 20], "color": "shoot" },
-    { "id": "u-ask", "joint": "stem", "roles": ["unknown"], "waiting": true, "shape": "sphere", "size": [0.05, 0.06, 0.05], "position": [0.03, 0.2, 0.03], "color": "lantern", "glow": 1 }
+    { "id": "u-ask", "joint": "stem", "roles": ["unknown"], "waiting": true, "shape": "sphere", "size": [0.05, 0.06, 0.05], "position": [0.03, 0.2, 0.03], "color": "lantern", "glow": 0.7 }
   ],
   "poses": {
     "working": { "pot": { "rotation": [9, 0, 0] }, "stem": { "rotation": [5, 0, 0] }, "eyes": { "offset": [0, -0.015, 0] } },
@@ -179,7 +179,9 @@
         "o-ball": { "color": "wilt-deep" }, "o-top": { "color": "wilt" }
       }
     },
-    "alert": { "parts": { "rim": { "color": "alert", "glow": 0.45 } } }
+    "alert": { "parts": { "rim": { "color": "alert", "glow": 0.45 } } },
+    "hover": { "parts": { "pot": { "glow": 0.1 }, "rim": { "glow": 0.1 } } },
+    "selected": { "parts": { "pot": { "glow": 0.18 }, "rim": { "glow": 0.18 } } }
   },
   "halo": "lantern",
   "colorways": {
