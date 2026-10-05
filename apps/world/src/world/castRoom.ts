@@ -33,7 +33,7 @@ import {
   type RoomPlay,
 } from "./castRoomPlan";
 import { RobotCrowd } from "./robotCrowd";
-import { WORK_FURNITURE, workPlace, type WorkAt } from "./workPlaces";
+import { HOME_VIEW, WORK_FURNITURE, workPlace, type WorkAt } from "./workPlaces";
 import { workSurfaceOf } from "./workSurface";
 
 export interface CastRoomView {
@@ -437,7 +437,7 @@ export class CastRoomScene {
     const [width, depth] = lead ? [3, 2] : [2, 1];
     const ticket = { x: (desk.x + TICKET_SPOT.x) * CELL, z: (desk.z + TICKET_SPOT.z) * CELL, radius: TICKET_RADIUS };
     const at = { x: (desk.x + width / 2) * CELL, z: (desk.z + depth / 2) * CELL, rotation: Math.PI };
-    return workPlace(furniture.pose, workSurfaceOf(this.#style, furniture.key), at, { x: member.home.x * CELL, z: member.home.z * CELL }, FIGURE_SCALE, lead ? [] : [ticket]);
+    return workPlace(furniture.pose, workSurfaceOf(this.#style, furniture.key), at, { x: member.home.x * CELL, z: member.home.z * CELL }, FIGURE_SCALE, lead ? [] : [ticket], HOME_VIEW);
   }
 
   /**

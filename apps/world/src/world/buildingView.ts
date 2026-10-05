@@ -36,7 +36,7 @@ import type { RobotCrowd } from "./robotCrowd";
 import { deskItems, DRESS_PREFIX, dressingSeed, roomDecor, type DecorItem } from "./roomDressing";
 import type { Bounds } from "./townLayout";
 import type { Walker, WorkSpot } from "./walks";
-import { deskClutter, WORK_FURNITURE, workPlace, type Circle, type WorkAt } from "./workPlaces";
+import { deskClutter, HOME_VIEW, WORK_FURNITURE, workPlace, type Circle, type WorkAt } from "./workPlaces";
 import { workSurfaceOf } from "./workSurface";
 
 /** Figures and desks are Greenhouse-sized; interiors show them at this scale. */
@@ -885,7 +885,7 @@ export class BuildingView {
     if (!furniture) return null;
     const occupied = deskClutter(desk.definitionId).map((c) => ({ x: (desk.desk.x + c.x) * CELL, z: (desk.desk.z + c.z) * CELL, radius: c.radius * CELL }));
     const stand = { x: (desk.seat.x + 0.5) * CELL, z: (desk.seat.z + 0.5) * CELL };
-    return workPlace(furniture.pose, workSurfaceOf(this.ctx.style, furniture.key), { x: desk.desk.x * CELL, z: desk.desk.z * CELL, rotation: Math.PI }, stand, ROBOT_SCALE, occupied);
+    return workPlace(furniture.pose, workSurfaceOf(this.ctx.style, furniture.key), { x: desk.desk.x * CELL, z: desk.desk.z * CELL, rotation: Math.PI }, stand, ROBOT_SCALE, occupied, HOME_VIEW);
   }
 
   /** The work place of a figure standing at a table on an errand, clear of the piles on that table. */
@@ -898,7 +898,7 @@ export class BuildingView {
       for (const list of [this.layout.placements, this.layout.targets])
         for (const p of list.values()) if (p.surface === "table") occupied.push({ x: p.x * CELL, z: p.z * CELL, radius: PILE_RADIUS });
       const { x, z } = robot.handle.object.position;
-      at = workPlace(furniture.pose, workSurfaceOf(this.ctx.style, furniture.key), { x: spot.x * CELL, z: spot.z * CELL, rotation: spot.rotation }, { x, z }, ROBOT_SCALE, occupied);
+      at = workPlace(furniture.pose, workSurfaceOf(this.ctx.style, furniture.key), { x: spot.x * CELL, z: spot.z * CELL, rotation: spot.rotation }, { x, z }, ROBOT_SCALE, occupied, HOME_VIEW);
     }
     robot.errand = { spot, at };
     return at;

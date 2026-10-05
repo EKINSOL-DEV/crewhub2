@@ -433,7 +433,7 @@ The potlings' whole answer is `"default": { "kind": "surface", "scale": 0.85, "b
     "height": 0.565,
     "half": [0.527, 0.329],
     "screen": [0, 0.778, -0.138],
-    "spots": [{ "x": -0.37, "z": 0.185, "radius": 0.16 }, { "x": 0.3, "z": 0.21, "radius": 0.11 }]
+    "spots": [{ "x": -0.37, "z": 0.185, "radius": 0.16 }, { "x": 0.36, "z": 0.19, "radius": 0.14 }]
   },
   "furniture.meeting-table": { "height": 0.53, "half": [1.1, 0.475] }
 }
@@ -445,7 +445,9 @@ clear of the model's own things (the mug, the tray) for `radius` around; without
 along its edge will do. A key the manifest leaves out is taken from the model's bounding box as a plain table.
 
 **The world puts the two together** into a `WorkPlace`: the top's height, how far ahead its edge is, what there is to
-look at, and a `spot(radius)` that hands out the first free place wide enough. It keeps clear of what the renderer
+look at, and a `spot(radius)` that hands out a free place wide enough: the style's first, unless another one shows
+the sitter's face to the home camera (it looks in from the south-east; turned to its screen on the far side of a
+desk, a potling looks out over the monitor at you instead of showing its side). It keeps clear of what the renderer
 itself sets on a top (the ticket stack, the desk lamp, a pile on the planning table), and the desk's personal things
 make room for a figure that sits there. The renderer keeps the figure's root on the floor where it would stand,
 facing the top, and calls `handle.setPerch(place)` when it is at its desk or stands at a table on an errand, and
