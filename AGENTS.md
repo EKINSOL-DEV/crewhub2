@@ -62,6 +62,10 @@ proposals, and implemented behavior.
   Only `apps/world/src/world/style.ts` imports a style package; renderers ask the resolved
   style of a building for meshes by semantic key. A test enforces this. See
   [docs/WORLD_STYLES.md](docs/WORLD_STYLES.md).
+- `packages/world-cast` is the cast contract and the generic figure runtime; `packages/cast-*` are the casts (the
+  figures that stand for agents), data first: `cast.json` and `figure.json`. Only `apps/world/src/world/cast.ts`
+  imports a cast package, a cast imports no other cast, and renderers ask the resolved cast for figures. Tests
+  enforce the boundary and the contract. See "Casts" in [docs/WORLD_STYLES.md](docs/WORLD_STYLES.md).
 - `packages/world-engine` owns grid coordinates, footprints, placement, movement,
   pathfinding, and semantic world descriptions. Keep it free of rendering and provider code.
   Register geometry separately from prop semantics; never infer collision from meshes.

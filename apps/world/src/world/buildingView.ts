@@ -5,7 +5,7 @@
    only when their signature changes. */
 import * as THREE from "three";
 import type { AgentPlacement, Building, RoomKind } from "@crewhub/world-model";
-import type { Cast, CastRole, FigureHandle } from "@crewhub/world-cast";
+import { IDLE_STATE, type Cast, type CastRole, type FigureHandle, type FigureState } from "@crewhub/world-cast";
 import type { EmblemName, ModelKey, PaletteName, ResolvedStyle } from "@crewhub/world-style";
 import {
   BACK_WALL_HEIGHT,
@@ -230,6 +230,7 @@ export class BuildingView {
   #robots = new Map<string, Robot>();
   /** The facts of the figure being followed (reused every frame). */
   #facts: FigureFacts = { agent: null as unknown as AgentPlacement };
+  #state: FigureState = { ...IDLE_STATE };
   #objects: ObjectLayer;
   #props: PropLayer;
   /** The town document's placements resolved into this building's rooms, and what they were resolved from. */
@@ -839,7 +840,7 @@ export class BuildingView {
     this.#facts.agent = robot.agent;
     this.#facts.deskWaiting = robot.deskWaiting;
     this.#facts.walker = walker;
-    robot.handle.setState(figureState(this.#facts));
+    robot.handle.setState(figureState(this.#facts, this.#state));
     this.anchors.get(`a:${this.building.slug}:${key}`)?.set(walker.x, walker.y + 2 * FLOOR_LIFT + robot.handle.anchors.label[1] * ROBOT_SCALE, walker.z);
     return walker.walking;
   }

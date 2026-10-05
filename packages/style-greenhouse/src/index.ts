@@ -1,6 +1,6 @@
 /* The Greenhouse style: the botanical miniature studio as a `WorldStyle`. The manifest, palette, swatches and lighting
    presets are data (../style.json); simple models are parts-JSON (../models/<key>.json) drawn by the shared parts
-   renderer; code draws only what needs it (the robot rig, shaders, stretchable walls and floors, instanced leaves). */
+   renderer; code draws only what needs it (shaders, stretchable walls and floors, instanced leaves). */
 import * as THREE from "three";
 import { validatePropModel, type PropModel } from "@crewhub/world-engine";
 import type { CastManifest, FigureKit } from "@crewhub/world-cast";
@@ -25,7 +25,6 @@ import { BLOB_SHADOWS, LIGHT_POOLS, SURFACES } from "./keys.ts";
 import { partsModel } from "./parts.ts";
 import * as pieces from "./pieces.ts";
 import * as shell from "./shell.ts";
-import { robot } from "./robot.ts";
 import { figureKit } from "./figureKit.ts";
 import * as town from "./town.ts";
 
@@ -280,10 +279,6 @@ class GreenhouseStyle implements WorldStyle {
       default:
         return null;
     }
-  }
-
-  robot(options: Parameters<WorldStyle["robot"]>[0]) {
-    return robot(this.#kit, options);
   }
 
   /** The kit a cast draws its figures with: one per cast, so each cast's own colours follow the theme. */

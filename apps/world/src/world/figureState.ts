@@ -1,6 +1,6 @@
 /* What a figure shows, derived from what the world model already says: an agent's placement, the ticket on its desk,
    its walker and (for the postman) its letters. Pure; the reducer and the projection know nothing of casts. */
-import type { CastRole, FigureState } from "@crewhub/world-cast";
+import { IDLE_STATE, type CastRole, type FigureState } from "@crewhub/world-cast";
 import type { AgentPlacement } from "@crewhub/world-model";
 
 /** Where a figure stands in the world: its building, or one of the two civic places. */
@@ -29,16 +29,20 @@ export interface FigureFacts {
 
 /**
  * focused → working; relaxed → done when its lane says so, else idle; raised-hand → blocked; greyed → stale. A proxy
- * idles, as does an agent standing away from its desk; walking wins over all of them.
+ * idles, as does an agent standing away from its desk; walking wins over all of them. `into` is filled and returned
+ * when given (the renderer asks every frame and reuses one state).
  */
-export function figureState({ agent, deskWaiting = false, walker = null, carrying = false }: FigureFacts): FigureState {
+export function figureState({ agent, deskWaiting = false, walker = null, carrying = false }: FigureFacts, into: FigureState = { ...IDLE_STATE }): FigureState {
   const proxy = agent.presence === "proxy";
-  let activity: FigureState["activity"];
-  if (walker?.walking) activity = "walking";
-  else if (proxy || (walker && !walker.seated)) activity = "idle";
-  else if (agent.posture === "focused") activity = "working";
-  else if (agent.posture === "raised-hand") activity = "blocked";
-  else if (agent.posture === "greyed") activity = "stale";
-  else activity = agent.laneStatus === "done" ? "done" : "idle";
-  return { activity, waiting: deskWaiting && !proxy, alert: agent.alerts.length > 0, proxy, carrying };
+  if (walker?.walking) into.activity = "walking";
+  else if (proxy || (walker && !walker.seated)) into.activity = "idle";
+  else if (agent.posture === "focused") into.activity = "working";
+  else if (agent.posture === "raised-hand") into.activity = "blocked";
+  else if (agent.posture === "greyed") into.activity = "stale";
+  else into.activity = agent.laneStatus === "done" ? "done" : "idle";
+  into.waiting = deskWaiting && !proxy;
+  into.alert = agent.alerts.length > 0;
+  into.proxy = proxy;
+  into.carrying = carrying;
+  return into;
 }

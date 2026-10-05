@@ -10,7 +10,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { AgentPlacement, RoomKind, WorldModel } from "@crewhub/world-model";
-import type { Cast, FigureHandle } from "@crewhub/world-cast";
+import { IDLE_STATE, type Cast, type FigureHandle, type FigureState } from "@crewhub/world-cast";
 import type { EnvironmentHandle, GraphicsQuality, ModelAnimation, ModelKey, ResolvedStyle, StyleTheme } from "@crewhub/world-style";
 import { BuildingView, type Pick } from "./buildingView";
 import { BACK_WALL_HEIGHT, BUILDING_CELL, FLOOR_RISE } from "./buildingTemplate";
@@ -1328,7 +1328,7 @@ export class TownScene {
     facts.agent = this.#civicRobots[0]!.agent;
     facts.walker = walker;
     facts.carrying = walker.carrying > 0;
-    const state = figureState(facts);
+    const state = figureState(facts, this.#postmanFigure);
     // Between rounds it idles at the post office, whatever its lane says.
     if (!walker.walking) state.activity = "idle";
     const key = `${state.activity}${state.carrying}`;
@@ -1342,6 +1342,7 @@ export class TownScene {
     if (!this.view.reducedMotion && walker.walking) p.handle.update(seconds);
   }
   #postmanState = "";
+  #postmanFigure: FigureState = { ...IDLE_STATE };
 
   /** Mean, p95 and max over the last 300 drawn frames (the stress overlay; kept with `measure` or `fps`). */
   frameStats(): FrameStats {
