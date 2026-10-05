@@ -601,6 +601,14 @@
 .plate-title {
   font-size: var(--text-xs);
 }
+/* The Demo chip's scenario picker: a name and a few words on one line each. While it is open, the corner it hangs
+   from lies over the chat dock and the labels. */
+.demo-menu .menu-item {
+  white-space: nowrap;
+}
+.world-corner-left:has(.demo-chip[aria-expanded="true"]) {
+  z-index: var(--z-menu);
+}
 .demo-note {
   font-size: var(--text-2xs);
   color: var(--text-muted);
@@ -686,7 +694,8 @@
     font-size: var(--text-sm);
   }
   /* With four toolbar buttons beside it the brand keeps one line: the demo chip keeps its icon (and its label). */
-  .demo-word {
+  .demo-word,
+  .demo-chip .menu-caret {
     display: none;
   }
   /* The town is small on a phone: an unfocused sign shows its key only, the focused one expands. */

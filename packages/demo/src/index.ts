@@ -1,7 +1,10 @@
 export { createDemoSource } from "./source.ts";
-export { createStressSource, STRESS_AGENTS, STRESS_BUILDINGS } from "./stress.ts";
-export type { StressSourceOptions } from "./stress.ts";
+export { createStressSource, parseStressSize, STRESS_AGENTS, STRESS_BUILDINGS, STRESS_FIXTURES, STRESS_SIZES } from "./stress.ts";
+export type { StressSize, StressSource, StressSourceOptions } from "./stress.ts";
 export type { DemoSource, DemoSourceOptions } from "./source.ts";
+export { DEFAULT_SCENARIO, SCENARIO_IDS, demoScenario, demoScenarios, parseScenarioId } from "./scenarios.ts";
+export type { DemoScenario, ScenarioId } from "./scenarios.ts";
+export type { DemoContent, ProjectGroupSeed } from "./content.ts";
 export { DEMO_SEED, PROBE_SILENCE, SCRIPT_DURATION_MS, buildScript } from "./script.ts";
 export type { ScriptEntry } from "./script.ts";
 export type { Action } from "./actions.ts";

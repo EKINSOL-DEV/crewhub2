@@ -17,7 +17,6 @@ import type {
   TicketPriority,
   TicketStatus,
 } from "@crewhub/loops-client";
-import { DEMO_SESSION } from "./content.ts";
 import {
   type DemoState,
   type StoredTicket,
@@ -34,10 +33,12 @@ import {
   normalComment,
   principalRef,
   requireProject,
+  storedProject,
   requireTicket,
   ticketId,
   uploadSnapshot,
 } from "./store.ts";
+import type { ProjectSeed } from "./content.ts";
 import { MINUTE, iso } from "./time.ts";
 
 export type Action =
@@ -86,6 +87,8 @@ export type Action =
   | { type: "releaseCreate"; by: string; project: string; title: string; version: string | null; tickets: string[] }
   | { type: "releaseRequestPublish"; by: string; project: string }
   | { type: "releasePublish"; by: string; project: string }
+  /** A person creates a project (`POST /api/projects`): `project.created`, appended to the sidebar order. */
+  | { type: "projectCreate"; by: string; project: ProjectSeed }
   | { type: "projectRestore"; by: string; project: string }
   | { type: "projectArchive"; by: string; project: string }
   | { type: "projectUpdate"; by: string; project: string; description: string }
@@ -127,7 +130,7 @@ function emit(
     type,
     project: project === null ? null : { slug: project.slug, key: project.key },
     ticket: ticket === null ? null : { id: ticket.id, key: ticket.key, title: ticket.title },
-    actor: actorRef(actorId),
+    actor: actorRef(state, actorId),
     recipientIds: [],
     payload,
   };
@@ -183,7 +186,7 @@ function deliver(
 
 /** Who a ticket's delivery goes to: its lead assignee, else the project lead (routing.py). */
 function routeFor(ctx: Context, t: StoredTicket): string {
-  if (t.assigneeId !== null && isLeadAgent(t.assigneeId)) return t.assigneeId;
+  if (t.assigneeId !== null && isLeadAgent(ctx.state, t.assigneeId)) return t.assigneeId;
   return requireProject(ctx.state, t.project).leadId;
 }
 
@@ -241,7 +244,7 @@ function releaseBlocked(ctx: Context, blocker: StoredTicket, actorId: string): v
       unblockedBy: blocker.key,
       how: "review",
     });
-    if (blocked.assigneeId !== null && isLeadAgent(blocked.assigneeId)) {
+    if (blocked.assigneeId !== null && isLeadAgent(ctx.state, blocked.assigneeId)) {
       deliver(ctx, event, blocked.assigneeId, "unblocked", blocked);
     }
   }
@@ -311,7 +314,7 @@ const HANDLERS: Handlers = {
   move(ctx, a) {
     const t = ticketOf(ctx, a.ticket);
     assertActiveProject(ctx, t);
-    if (a.to === "done" && isAgent(a.by)) throw new Error(`${a.by} is an agent: agents never move ${t.key} to done`);
+    if (a.to === "done" && isAgent(ctx.state, a.by)) throw new Error(`${a.by} is an agent: agents never move ${t.key} to done`);
     if (a.rejected !== undefined && a.to !== "done") throw new Error(`${t.key}: a rejection goes with the done status`);
     if (a.rejected !== undefined && t.resolution === "rejected") throw new Error(`${t.key} is already rejected`);
     // A Done ticket can be rejected afterwards: it stays where it is and the move has `from == to`.
@@ -343,7 +346,7 @@ const HANDLERS: Handlers = {
     }
     if (a.to !== "in_progress") t.stall = null;
     const event = emit(ctx, "ticket.moved", a.by, { ticket: t }, payload);
-    if (a.to === "planned" && !isAgent(a.by)) deliver(ctx, event, routeFor(ctx, t), "planned", t);
+    if (a.to === "planned" && !isAgent(ctx.state, a.by)) deliver(ctx, event, routeFor(ctx, t), "planned", t);
     releaseBlocked(ctx, t, a.by);
   },
 
@@ -352,7 +355,7 @@ const HANDLERS: Handlers = {
     t.assigneeId = a.assignee;
     touch(ctx, t);
     const event = emit(ctx, "ticket.updated", a.by, { ticket: t }, { changed: ["assignee"] });
-    if (a.assignee !== null && a.assignee !== a.by && isLeadAgent(a.assignee)) {
+    if (a.assignee !== null && a.assignee !== a.by && isLeadAgent(ctx.state, a.assignee)) {
       deliver(ctx, event, a.assignee, "assigned", t);
     }
   },
@@ -390,13 +393,13 @@ const HANDLERS: Handlers = {
     assertActiveProject(ctx, t);
     const id = nextId(state, "cm");
     const parent = a.replyToLast === true ? state.comments.filter((c) => c.ticketId === t.id).at(-1) : undefined;
-    const comment = normalComment(state, id, t.id, principalRef(a.by), a.text, state.now, parent?.id ?? null);
+    const comment = normalComment(state, id, t.id, principalRef(ctx.state, a.by), a.text, state.now, parent?.id ?? null);
     state.comments.push(comment);
     t.updatedAt = state.now;
     const event = emit(ctx, "comment.created", a.by, { ticket: t }, { commentId: id, parentId: comment.parentId });
-    if (isAgent(a.by)) {
+    if (isAgent(ctx.state, a.by)) {
       // An agent's comment: loops auto-assigns an unassigned ticket to the commenting lead.
-      if (t.assigneeId === null && isLeadAgent(a.by)) {
+      if (t.assigneeId === null && isLeadAgent(ctx.state, a.by)) {
         t.assigneeId = a.by;
         touch(ctx, t);
         emit(ctx, "ticket.updated", a.by, { ticket: t }, { changed: ["assignee"] });
@@ -423,14 +426,14 @@ const HANDLERS: Handlers = {
   progress(ctx, a) {
     const { state } = ctx;
     const t = ticketOf(ctx, a.ticket);
-    if (t.assigneeId !== a.agent || !isLeadAgent(a.agent)) {
+    if (t.assigneeId !== a.agent || !isLeadAgent(ctx.state, a.agent)) {
       throw new Error(`${a.agent} is not the lead lane of ${t.key}: only it writes progress`);
     }
     if (a.text.length > 200) throw new Error(`Progress line on ${t.key} is longer than 200 characters`);
     state.progress.push({
       ticketId: t.id,
       id: nextNumber(state, "progress"),
-      agent: principalRef(a.agent),
+      agent: principalRef(ctx.state, a.agent),
       kind: a.kind,
       text: a.text,
       worker: a.worker ?? null,
@@ -569,7 +572,7 @@ const HANDLERS: Handlers = {
       if (a.state === "claimed") {
         d.attempts += 1;
         d.attemptId = `at_demo_${d.id}_${d.attempts}`;
-        d.attemptedSession = DEMO_SESSION;
+        d.attemptedSession = state.content.session;
         d.leaseUntil = iso(state.now + 2 * MINUTE);
       } else {
         d.leaseUntil = null;
@@ -591,7 +594,7 @@ const HANDLERS: Handlers = {
           ticketId: ticket.id,
           parentId: null,
           rootId: id,
-          author: principalRef("system"),
+          author: principalRef(ctx.state, "system"),
           kind: "system",
           systemCode: a.state,
           deliveryId: d.id,
@@ -712,7 +715,7 @@ const HANDLERS: Handlers = {
 
   handoff(ctx, a) {
     const { state } = ctx;
-    if (isAgent(a.by)) throw new Error("A hand-off is a person's action");
+    if (isAgent(ctx.state, a.by)) throw new Error("A hand-off is a person's action");
     const m = milestoneByKey(state, a.milestone);
     const handoffId = nextId(state, "ho");
     const tickets = state.tickets.filter((t) => t.milestoneId === m.id && t.status === "backlog" && t.archivedAt === null);
@@ -854,6 +857,29 @@ const HANDLERS: Handlers = {
       releaseId: r.id,
       revision: r.revision,
       version: r.version,
+    });
+  },
+
+  projectCreate(ctx, a) {
+    const { state } = ctx;
+    const seed = a.project;
+    if (state.projects.some((p) => p.slug === seed.slug || p.key === seed.key)) throw new Error(`${seed.slug} exists`);
+    if (!isLeadAgent(state, seed.leadId)) throw new Error(`${seed.leadId} is not a lead agent: it cannot lead ${seed.slug}`);
+    const p = storedProject(state.content, { ...seed, archivedAgo: null }, state.now);
+    p.revision = 1;
+    state.projects.push(p);
+    state.order.push(p.slug);
+    // The payload is loops' (domain/projects.py, `create_project_tx`): the initial values as the change, with the
+    // optional fields only when they are set.
+    const initial: Record<string, unknown> = { name: p.name, key: p.key, leadId: p.leadId, color: p.color, icon: p.icon };
+    if (p.description !== "") initial["description"] = p.description;
+    emit(ctx, "project.created", a.by, { project: p.slug }, {
+      slug: p.slug,
+      key: p.key,
+      leadId: p.leadId,
+      changed: Object.keys(initial),
+      old: {},
+      new: initial,
     });
   },
 
