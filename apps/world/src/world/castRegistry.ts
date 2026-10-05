@@ -1,5 +1,5 @@
-/* The cast registry: casts register by manifest, like styles, and a building resolves its cast from its plot, the
-   viewer's choice, the town and the style's default. A cast that `extends` another is resolved here (its figure is the
+/* The cast registry: casts register by manifest, like styles, and a building resolves its cast from its plot, its
+   zone, the viewer's choice, the town and the style's default (the order of every look, `look.ts`). A cast that `extends` another is resolved here (its figure is the
    base's with its patch applied); no cast imports another. Nothing here knows a particular cast or style. */
 import {
   applyFigurePatch,
@@ -26,7 +26,9 @@ export interface CastStyle {
 export interface CastChoice {
   /** The building's own cast (the town document's plot). */
   building?: string | null | undefined;
-  /** The viewer's choice in Settings. */
+  /** The cast of the building's zone (the district's look). */
+  zone?: string | null | undefined;
+  /** The viewer's choice in Settings; it yields to a zone that sets a cast. */
   viewer?: string | null | undefined;
   /** The town document's cast. */
   town?: string | null | undefined;
@@ -112,7 +114,7 @@ export function createCastRegistry(fallbackId: string, warn: (message: string) =
     },
     resolve(choice) {
       const unknown: string[] = [];
-      for (const id of [choice.building, choice.viewer, choice.town, choice.style]) {
+      for (const id of [choice.building, choice.zone, choice.viewer, choice.town, choice.style]) {
         if (!id) continue;
         if (factories.has(id)) return { id, unknown };
         if (!unknown.includes(id)) unknown.push(id);

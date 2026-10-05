@@ -1,7 +1,7 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type Ref } from "react";
 import { ArrowLeft, FlaskConical, Hammer, MessageCircle, Minus, Monitor, Moon, Pause, Plus, RotateCcw, RotateCw, Scan, Settings, Sprout, Sun, Tags, X } from "lucide-react";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { describeTownDocument, ruleProps, type AgentPlacement, type PlaybackControls, type PlaybackSpeed, type RoleId, type RoomKind, type TextLine, type WorldModel } from "@crewhub/world-model";
+import { describeTownDocument, ruleProps, zoningOf, type AgentPlacement, type PlaybackControls, type PlaybackSpeed, type RoleId, type RoomKind, type TextLine, type WorldModel } from "@crewhub/world-model";
 import type { PropModel } from "@crewhub/world-engine";
 import { Bubbles } from "./components/bubbles/Bubbles";
 import { TownSettings } from "./components/TownSettings";
@@ -124,13 +124,22 @@ function World() {
     [town, rules, build.state.on, build.state.selected, JSON.stringify(build.ghost)],
   );
   const cast = useCast();
+  // The town document's zones and manual assignments decide each building's zone, before the source's groups.
+  useEffect(() => worldRuntime().setZoning(zoningOf(town.doc)), [town.doc]);
   const textLines = useMemo(
     () => [
       ...text,
-      ...describeCasts(castRegistry, { viewer: cast, town: town.doc.castId, plots: town.doc.plots, style: styleRegistry.getStyle(town.doc.styleId).manifest.defaultCast }),
+      ...describeCasts(castRegistry, {
+        viewer: cast,
+        town: town.doc.castId,
+        plots: town.doc.plots,
+        style: styleRegistry.getStyle(town.doc.styleId).manifest.defaultCast,
+        zones: model.zones,
+        buildings: model.buildings,
+      }),
       ...describeTownDocument(town.doc, town.catalogue, { ruleProps: rules, invalidRequests: town.invalid }),
     ],
-    [text, cast, town.doc, town.catalogue, rules, town.invalid],
+    [text, cast, town.doc, town.catalogue, rules, town.invalid, model.zones, model.buildings],
   );
   const undo = useCallback(() => {
     townRuntime().undo();

@@ -62,6 +62,8 @@ export interface WorldModel {
   freshness: Freshness;
   /** Plot order follows the loops project order; archived projects keep a boarded-up plot. */
   buildings: Building[];
+  /** The districts, in their order; never empty (without any grouping: the one unnamed default zone). */
+  zones: Zone[];
   /** Registered agents active in no building (plan 4.1). */
   townHall: AgentPlacement[];
   /** The postman (role `router`) when it is at the post office. */
@@ -70,8 +72,36 @@ export interface WorldModel {
   deliveries: DeliveryWalk[];
 }
 
+/**
+ * What a zone asks its district to look like. Every field is optional: what is absent falls through to the viewer's
+ * choice, the town and the style's default. A style ignores option ids and values it does not know.
+ */
+export interface ZoneLook {
+  styleId?: string;
+  styleOptions?: Record<string, string>;
+  castId?: string;
+}
+
+/**
+ * A level above projects: a district of the town. The world owns zones until crewhub-loops has groups (proposal
+ * L22); `source` says where this one comes from.
+ */
+export interface Zone {
+  id: string;
+  /** Null for the unnamed default zone (and for a zone nobody named yet). */
+  name: string | null;
+  order: number;
+  color: ProjectColor | null;
+  emblem: ProjectIcon | null;
+  look: ZoneLook;
+  /** "town": made in this browser's town document. "group": a group of the source. "default": the one fallback. */
+  source: "town" | "group" | "default";
+}
+
 export interface Building {
   slug: string;
+  /** The zone the building belongs to: a manual assignment, else the source's group, else the default zone. */
+  zoneId: string;
   key: string;
   name: string;
   color: ProjectColor | null;

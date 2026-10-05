@@ -426,28 +426,32 @@ export function silhouette(kit: Kit, o: ModelOptions): THREE.Group {
 
 const painted = new Map<string, THREE.MeshStandardMaterial>();
 
-/** The lettering of a name sign: the words in cream on a transparent canvas, one material per text and theme colour. */
-function lettering(kit: Kit, text: string, width: number, height: number): THREE.MeshStandardMaterial {
+/**
+ * The lettering of a painted sign: the words in cream on a transparent canvas, one material per text, theme colour and
+ * board size. A line break in `text` starts a second line (the staked plot's sign).
+ */
+export function lettering(kit: Kit, text: string, width: number, height: number): THREE.MeshStandardMaterial {
   const ink = kit.hex("cream", "day");
-  const key = `${text}|${ink}|${width.toFixed(2)}`;
+  const key = `${text}|${ink}|${width.toFixed(2)}|${height.toFixed(2)}`;
   let material = painted.get(key);
   if (!material) {
     const canvas = document.createElement("canvas");
     canvas.width = Math.round(width * 320);
     canvas.height = Math.round(height * 320);
     const ctx = canvas.getContext("2d")!;
-    let size = canvas.height * 0.62;
+    const lines = text.split("\n");
+    let size = (canvas.height * 0.62) / lines.length;
     const font = (px: number) => `600 ${px}px Georgia, "Times New Roman", serif`;
     ctx.font = font(size);
     // Shrink long names to fit the board, with a margin.
     const room = canvas.width * 0.88;
-    const measured = ctx.measureText(text).width;
+    const measured = Math.max(...lines.map((line) => ctx.measureText(line).width));
     if (measured > room) size *= room / measured;
     ctx.font = font(size);
     ctx.fillStyle = ink;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(text, canvas.width / 2, canvas.height * 0.54);
+    lines.forEach((line, i) => ctx.fillText(line, canvas.width / 2, canvas.height * (0.54 + (i - (lines.length - 1) / 2) * (0.84 / lines.length))));
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.anisotropy = 4;

@@ -26,6 +26,7 @@ export {
   WORLD_EVENT_TYPES,
   isWorldEventType,
 } from "./types.ts";
+export { groupOf, sortProjectGroups } from "./groups.ts";
 export type { Result, Shape, Validator } from "./validate.ts";
 export {
   toWorldEvent,
@@ -40,6 +41,7 @@ export {
   validateMilestonesResponse,
   validatePrincipals,
   validateProgressResponse,
+  validateProjectGroupsResponse,
   validateProjectOut,
   validateProjectsResponse,
   validateReleasesResponse,

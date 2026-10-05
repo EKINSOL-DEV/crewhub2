@@ -27,6 +27,7 @@ import {
   type PlaybackControls as Playback,
   type RoleId,
   type TextLine,
+  type TownZoning,
   type WorldModel,
 } from "@crewhub/world-model";
 
@@ -113,6 +114,8 @@ class WorldRuntime {
   readonly projection: Projection;
   #memory = emptyMemory();
   #roleOverrides: Record<string, RoleId> = {};
+  #zoning: TownZoning = {};
+  #zoningSignature = "{}";
   #state: WorldState;
   #listeners = new Set<() => void>();
   #frame = 0;
@@ -153,6 +156,15 @@ class WorldRuntime {
     this.#schedule();
   }
 
+  /** The town document's zones and manual assignments; the reducer resolves every building's zone with them. */
+  setZoning(zoning: TownZoning) {
+    const signature = JSON.stringify(zoning);
+    if (signature === this.#zoningSignature) return;
+    this.#zoningSignature = signature;
+    this.#zoning = zoning;
+    this.#schedule();
+  }
+
   subscribe = (listener: () => void) => {
     this.#listeners.add(listener);
     return () => this.#listeners.delete(listener);
@@ -182,6 +194,7 @@ class WorldRuntime {
       now: this.source.now(),
       mode: this.source.mode,
       roleOverrides: this.#roleOverrides,
+      zoning: this.#zoning,
     });
     this.#memory = result.memory;
     this.#lastReduce = performance.now();

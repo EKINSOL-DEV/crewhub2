@@ -1,0 +1,592 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-town-mail-hut",
+  "name": "Mail hut",
+  "description": "A chalk hut with a clay roof, a serving hatch under a sage awning and a pillar box: the post office of a small town.",
+  "category": "work",
+  "tags": [
+    "greenhouse",
+    "town"
+  ],
+  "footprint": {
+    "width": 4,
+    "depth": 4
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        1.7,
+        0.08,
+        1.4
+      ],
+      "position": [
+        0,
+        0.04,
+        -0.1
+      ],
+      "material": "clay",
+      "radius": 0.03
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.5,
+        1.05,
+        1.2
+      ],
+      "position": [
+        0,
+        0.6,
+        -0.1
+      ],
+      "material": "chalk",
+      "radius": 0.03
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.54,
+        0.14,
+        1.24
+      ],
+      "position": [
+        0,
+        0.15,
+        -0.1
+      ],
+      "material": "cream",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.6,
+        0.08,
+        1.3
+      ],
+      "position": [
+        0,
+        1.13,
+        -0.1
+      ],
+      "material": "timber",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.86,
+        0.08,
+        0.92
+      ],
+      "position": [
+        0,
+        1.427,
+        -0.461
+      ],
+      "material": "terracotta",
+      "rotation": [
+        -34,
+        0,
+        0
+      ],
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.86,
+        0.08,
+        0.92
+      ],
+      "position": [
+        0,
+        1.427,
+        0.261
+      ],
+      "material": "terracotta",
+      "rotation": [
+        34,
+        0,
+        0
+      ],
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.88,
+        0.07,
+        0.1
+      ],
+      "position": [
+        0,
+        1.694,
+        -0.1
+      ],
+      "material": "cream",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.05,
+        0.18,
+        0.9
+      ],
+      "position": [
+        -0.73,
+        1.26,
+        -0.1
+      ],
+      "material": "chalk",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.05,
+        0.18,
+        0.42
+      ],
+      "position": [
+        -0.73,
+        1.44,
+        -0.1
+      ],
+      "material": "chalk",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.05,
+        0.18,
+        0.9
+      ],
+      "position": [
+        0.73,
+        1.26,
+        -0.1
+      ],
+      "material": "chalk",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.05,
+        0.18,
+        0.42
+      ],
+      "position": [
+        0.73,
+        1.44,
+        -0.1
+      ],
+      "material": "chalk",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.5,
+        0.84,
+        0.04
+      ],
+      "position": [
+        -0.4,
+        0.5,
+        0.5
+      ],
+      "material": "cream",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.4,
+        0.76,
+        0.05
+      ],
+      "position": [
+        -0.4,
+        0.46,
+        0.51
+      ],
+      "material": "moss",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.2,
+        0.035,
+        0.03
+      ],
+      "position": [
+        -0.4,
+        0.5,
+        0.53
+      ],
+      "material": "brass",
+      "radius": 0.008
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.025,
+        0.025,
+        0.025
+      ],
+      "position": [
+        -0.26,
+        0.42,
+        0.55
+      ],
+      "material": "brass"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.5,
+        0.2,
+        0.04
+      ],
+      "position": [
+        -0.4,
+        1.0,
+        0.51
+      ],
+      "material": "cream",
+      "radius": 0.02
+    },
+    {
+      "shape": "torus",
+      "size": [
+        0.055,
+        0.016,
+        0
+      ],
+      "position": [
+        -0.44,
+        1.0,
+        0.54
+      ],
+      "material": "brass",
+      "rotation": [
+        90,
+        0,
+        0
+      ]
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.012,
+        0.1,
+        0.035
+      ],
+      "position": [
+        -0.33,
+        1.0,
+        0.54
+      ],
+      "material": "brass",
+      "rotation": [
+        0,
+        0,
+        90
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.62,
+        0.42,
+        0.04
+      ],
+      "position": [
+        0.32,
+        0.72,
+        0.5
+      ],
+      "material": "glass",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.74,
+        0.05,
+        0.22
+      ],
+      "position": [
+        0.32,
+        0.49,
+        0.58
+      ],
+      "material": "timber",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.8,
+        0.05,
+        0.42
+      ],
+      "position": [
+        0.32,
+        1.0,
+        0.67
+      ],
+      "material": "sage",
+      "rotation": [
+        24,
+        0,
+        0
+      ],
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.8,
+        0.07,
+        0.04
+      ],
+      "position": [
+        0.32,
+        0.9,
+        0.87
+      ],
+      "material": "cream",
+      "radius": 0.01
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.04,
+        0.04,
+        0.04
+      ],
+      "position": [
+        0.02,
+        0.9,
+        0.56
+      ],
+      "material": "lamp-glow",
+      "emissive": true
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.08,
+        0.1,
+        0.08
+      ],
+      "position": [
+        0.02,
+        0.96,
+        0.54
+      ],
+      "material": "graphite",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.16,
+        0.1,
+        0.12
+      ],
+      "position": [
+        0.5,
+        0.565,
+        0.6
+      ],
+      "material": "timber-light",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.3,
+        0.26,
+        0.3
+      ],
+      "position": [
+        -1.0,
+        0.13,
+        0.25
+      ],
+      "material": "timber-light",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.22,
+        0.18,
+        0.22
+      ],
+      "position": [
+        -1.02,
+        0.35,
+        0.27
+      ],
+      "material": "paper",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.24,
+        0.2,
+        0.26
+      ],
+      "position": [
+        -0.98,
+        0.1,
+        -0.12
+      ],
+      "material": "timber",
+      "radius": 0.02
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.04,
+        0.36,
+        0.4
+      ],
+      "position": [
+        -0.76,
+        0.72,
+        -0.3
+      ],
+      "material": "glass",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.04,
+        0.36,
+        0.4
+      ],
+      "position": [
+        0.76,
+        0.72,
+        -0.1
+      ],
+      "material": "glass",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.5,
+        0.36,
+        0.04
+      ],
+      "position": [
+        0,
+        0.72,
+        -0.7
+      ],
+      "material": "glass",
+      "radius": 0.01
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.13,
+        0.06,
+        0.15
+      ],
+      "position": [
+        1.05,
+        0.03,
+        0.5
+      ],
+      "material": "clay"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.11,
+        0.56,
+        0.11
+      ],
+      "position": [
+        1.05,
+        0.34,
+        0.5
+      ],
+      "material": "sage"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.115,
+        0.05,
+        0.115
+      ],
+      "position": [
+        1.05,
+        0.5,
+        0.5
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.12,
+        0.08,
+        0.12
+      ],
+      "position": [
+        1.05,
+        0.62,
+        0.5
+      ],
+      "material": "sage"
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.1,
+        0.022,
+        0.02
+      ],
+      "position": [
+        1.05,
+        0.5,
+        0.612
+      ],
+      "material": "ink",
+      "radius": 0.005
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.02,
+        0.14,
+        0.05
+      ],
+      "position": [
+        1.17,
+        0.58,
+        0.46
+      ],
+      "material": "coral",
+      "radius": 0.005
+    }
+  ]
+}

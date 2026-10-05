@@ -287,10 +287,13 @@ from outside the repository and an agent choosing its own figure are **not built
 
 ### Which cast a building wears
 
-The first registered cast of: the building's own (`castId` on its plot in the town document), the viewer's choice
-(Settings, kept in this browser as `crewhub-world.cast`), the town document's `castId`, the style's `defaultCast`. An
-id nobody registered falls back to the next in that order, with one note in the text view. The text view names the
-active cast once and the frame rate overlay shows the cast in view. Changing the cast in Settings swaps every figure
+The first registered cast of: the building's own (`castId` on its plot in the town document), its zone's (the
+`castId` of the zone's look), the viewer's choice (Settings, kept in this browser as `crewhub-world.cast`), the town
+document's `castId`, the style's `defaultCast`. It is the order of every look, for the style and its options as well
+(`apps/world/src/world/look.ts`): a zone that sets a cast wins over the viewer's choice, and a zone that sets none
+leaves it to the viewer. An id nobody registered falls back to the next in that order, with one note in the text
+view. The text view names the town's cast once, then every zone and building that wears another, and the frame rate
+overlay shows the cast in view. Changing the cast in Settings swaps every figure
 where it stands or walks, without a reload. The casting room at `/cast-preview` shows every registered cast in one
 sample room, in every role and state.
 

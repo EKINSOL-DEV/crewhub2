@@ -261,6 +261,8 @@ export function createDemoSource(options: DemoSourceOptions): DemoSource {
     getWatchdog: (): Promise<WatchdogResponse> => answer(current().watchdog()),
     getMilestones: (slug): Promise<MilestoneSummary[]> => answer(current().milestones(slug)),
     getReleases: (slug): Promise<ReleaseSummary[]> => answer(current().releases(slug)),
+    // FUTURE (proposal L22): no groups in this scenario; a scenario with zones answers its list here.
+    listProjectGroups: async () => [],
     getComments: (ref): Promise<CommentOut[]> => answer(current().comments(ref)),
     getProgress: (ref): Promise<ProgressItem[]> => answer(current().progress(ref)),
     getDmThreads: () => answer(current().dmThreads()),
