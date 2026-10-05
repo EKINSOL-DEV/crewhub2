@@ -28,7 +28,8 @@
     "sprout-pollen": { "day": "#f3cf5a", "lamplight": "#f6c956" },
     "sprout-fluff": { "day": "#f7f5ea", "lamplight": "#fbeed2" },
     "sprout-stalk": { "day": "#f0e6cc", "lamplight": "#f2dfbc" },
+    "sprout-ripe": { "day": "#f0b545", "lamplight": "#f2ad3f" },
     "sprout-reed": { "day": "#7a5236", "lamplight": "#7a5236" }
   },
-  "budget": { "nearTriangles": 4000, "farTriangles": 2200, "nearMeshes": 28, "farMeshes": 12 }
+  "budget": { "nearTriangles": 4900, "farTriangles": 2200, "nearMeshes": 28, "farMeshes": 12 }
 }
