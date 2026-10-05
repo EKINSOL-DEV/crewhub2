@@ -535,6 +535,34 @@ export class NavWorld {
     return entry ? { room: townRoomId(slotOfLot(entry.cell)), cell: frontCell(entry.cell) } : null;
   }
 
+  /**
+   * The bus between districts, as the simplest honest thing: a figure that moves to a building in another district
+   * is not walked across the region (a district is some two hundred units wide). It steps off where the district
+   * road enters the destination's district (the stop at its gate; the one nearest to where it came from) and walks
+   * on from there. Null when both buildings stand in one district, or the destination's district has no road yet.
+   */
+  arrival(to: string, from: string): Location | null {
+    const there = this.front(to),
+      here = this.front(from);
+    if (!there || !here || there.room === here.room) return null;
+    const origin = this.toWorld(here),
+      at = { x: 0, z: 0 };
+    let best: Location | null = null,
+      bestDistance = Infinity;
+    for (const cell of this.#portalCells.get(there.room) ?? []) {
+      // The stop is the road's own cell on this side of the border: open ground, and a door cell of the graph.
+      const state = this.graph.room(there.room);
+      if (!state || state.blocked[cell.z * state.layout.grid.width + cell.x] !== -1) continue;
+      this.toWorld({ room: there.room, cell }, at);
+      const distance = Math.abs(at.x - origin.x) + Math.abs(at.z - origin.z);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = { room: there.room, cell };
+      }
+    }
+    return best;
+  }
+
   /** World position (x, z) of a location's cell centre. */
   toWorld(location: Location, out: { x: number; z: number } = { x: 0, z: 0 }): { x: number; z: number } {
     const slot = townRoomSlot(location.room);
