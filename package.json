@@ -10,9 +10,11 @@
   },
   "workspaces": [
     "apps/world",
+    "packages/cast-*",
     "packages/demo",
     "packages/loops-client",
     "packages/style-greenhouse",
+    "packages/world-cast",
     "packages/world-engine",
     "packages/world-model",
     "packages/world-style"

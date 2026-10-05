@@ -23,9 +23,10 @@ async function* walk(dir) {
 
 const files = [path.join(root, "apps/world/index.html")];
 for await (const file of walk(path.join(root, "apps/world/src"))) files.push(file);
-// World styles: their code draws by palette and swatch names; hex lives only in the style's data.
+// World styles and casts: their code draws by palette and colour names; hex lives only in their data (style.json,
+// cast.json).
 for (const entry of await readdir(path.join(root, "packages"), { withFileTypes: true }))
-  if (entry.isDirectory() && entry.name.startsWith("style-"))
+  if (entry.isDirectory() && (entry.name.startsWith("style-") || entry.name.startsWith("cast-") || entry.name === "world-cast"))
     for await (const file of walk(path.join(root, "packages", entry.name, "src"))) files.push(file);
 let scanned = 0;
 for (const file of files) {
