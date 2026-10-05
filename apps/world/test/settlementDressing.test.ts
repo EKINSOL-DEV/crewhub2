@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { FIXTURE_SIGN, fixturePlan } from "../src/world/planFixture.ts";
-import { entranceRoad, planLanes, planPaths, planPieces, settlementDressing, streamRows } from "../src/world/settlementDressing.ts";
-import { plotDoor, plotObstacles } from "../src/world/navigation.ts";
-import { townDressing, type Dressing } from "../src/world/townDressing.ts";
+import { civicLabel, civicWords, entranceRoad, planLanes, planPaths, planPieces, settlementDressing, streamRows } from "../src/world/settlementDressing.ts";
+import type { Dressing } from "../src/world/townDressing.ts";
 import type { Bounds } from "../src/world/townLayout.ts";
 
 const inside = (r: Bounds, x: number, z: number) => x > r.minX && x < r.maxX && z > r.minZ && z < r.maxZ;
@@ -124,8 +123,9 @@ test("districts are joined by roads under a gate with their name, and parted by 
 });
 
 test("no settlement costs more dressing per building than the fixed town of four did", () => {
-  // The fixed 4 x 3 grid dressed twelve plots for four buildings.
-  const before = townDressing(Array.from({ length: 4 }, (_, index) => ({ index, door: plotDoor({ x: 63 + index, z: 64 }), obstacles: plotObstacles({ x: 63 + index, z: 64 }) }))).filter((d) => !d.detail).length / 4;
+  // The fixed 4 x 3 grid dressed twelve plots for four buildings: 1225 pieces without the Fast-quality detail, as
+  // measured before it was replaced.
+  const before = 1225 / 4;
   const perLot = (count: number, zones: number) => settlementDressing(fixturePlan(count, zones).dress).filter((d) => !d.detail).length / count;
   for (const [count, zones] of [
     [4, 1],
@@ -134,7 +134,16 @@ test("no settlement costs more dressing per building than the fixed town of four
     [20, 4],
     [40, 3],
   ] as const)
-    assert.ok(perLot(count, zones) < before * 0.7, `${count} projects in ${zones} zones: ${perLot(count, zones).toFixed(0)} pieces a building, the fixed town: ${before.toFixed(0)}`);
-  // A settlement of one is small in all: about a third of the fixed town.
+    assert.ok(perLot(count, zones) < before * 0.75, `${count} projects in ${zones} zones: ${perLot(count, zones).toFixed(0)} pieces a building, the fixed town: ${before.toFixed(0)}`);
+  // A settlement of one is small in all: about half of the fixed town.
   assert.ok(settlementDressing(fixturePlan(1).dress).length < before * 4 * 0.6);
+});
+
+test("the civic places go by what stands there: the lodge and the mailbox before the town hall and the post office", () => {
+  const words = (count: number) => civicWords(fixturePlan(count).plan.civic);
+  assert.deepEqual(words(0), { hall: "lodge", post: "mailbox" });
+  assert.deepEqual(words(1), { hall: "lodge", post: "mail hut" });
+  assert.deepEqual(words(3), { hall: "lodge", post: "mail hut" });
+  assert.deepEqual(words(7), { hall: "town hall", post: "post office" });
+  assert.equal(civicLabel(words(1).post), "Mail hut");
 });

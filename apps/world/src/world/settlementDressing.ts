@@ -173,6 +173,15 @@ export function dressPlan(plan: SettlementPlan, extras: DressExtras): DressPlan 
 }
 const LANDMARKS: readonly PlanLandmark[] = ["windmill", "chapel", "bandstand", "farm", "cottages-west", "cottages-east"];
 
+/**
+ * What the civic places are called at a stage, as nouns after "the": the lodge until it is the town hall, the mailbox
+ * and the mail hut until there is a post office. Labels capitalise them (`civicLabel`).
+ */
+export function civicWords(civic: Pick<PlanCivic, "hall" | "post">): { hall: string; post: string } {
+  return { hall: civic.hall === "lodge" ? "lodge" : "town hall", post: civic.post === "mailbox" ? "mailbox" : civic.post === "mail-hut" ? "mail hut" : "post office" };
+}
+export const civicLabel = (word: string): string => word.charAt(0).toUpperCase() + word.slice(1);
+
 /** A whole model with a spot of its own (it may animate, and is drawn once): the civic buildings and the landmarks. */
 export interface PlanPiece {
   key: string;
@@ -232,13 +241,19 @@ export function parkPond(): Bounds {
 
 /* ── Streets, roads and paths ─────────────────────────────────────────── */
 
+/** What the lanes depend on: the streets, the district roads and the ground they are cut off at. */
+export interface LanePlan {
+  streets: readonly PlanSegment[];
+  roads: readonly PlanSegment[];
+  ground: Bounds;
+}
 const laneRect = (s: PlanSegment): Bounds => span(Math.min(s.x0, s.x1) - LANE / 2, Math.max(s.x0, s.x1) + LANE / 2, Math.min(s.z0, s.z1) - LANE / 2, Math.max(s.z0, s.z1) + LANE / 2);
 
 /**
  * The cobbled lanes of a plan: its streets and its district roads, cut off at the ground's edge (a road runs to its
  * district's main crossing, which may lie beyond the lots in use).
  */
-export function planLanes(plan: Pick<DressPlan, "streets" | "roads" | "ground">): Bounds[] {
+export function planLanes(plan: LanePlan): Bounds[] {
   const g = plan.ground;
   return [...plan.streets, ...plan.roads]
     .map(laneRect)
@@ -250,7 +265,7 @@ export function planLanes(plan: Pick<DressPlan, "streets" | "roads" | "ground">)
  * The entrance road of a village or anything larger: the main street, on south from its last crossing to the ground's
  * edge. Null in a clearing or a hamlet (their lane ends at the gate), and where a district road already runs there.
  */
-export function entranceRoad(plan: Pick<DressPlan, "tier" | "streets" | "roads" | "ground">): Bounds | null {
+export function entranceRoad(plan: LanePlan & Pick<DressPlan, "tier">): Bounds | null {
   if (small(plan.tier)) return null;
   const main = [...plan.streets, ...plan.roads].filter((s) => along(s) === "z" && Math.abs(s.x0 - SQUARE.x) < 0.01);
   const south = Math.max(CIVIC_LANE + PITCH, ...main.map((s) => Math.max(s.z0, s.z1)));

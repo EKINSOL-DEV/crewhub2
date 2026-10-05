@@ -1,7 +1,7 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type Ref } from "react";
 import { ArrowLeft, FlaskConical, Hammer, MessageCircle, Minus, Monitor, Moon, Pause, Plus, RotateCcw, RotateCw, Scan, Settings, Sprout, Sun, Tags, X } from "lucide-react";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { describeTownDocument, ruleProps, zoningOf, type AgentPlacement, type PlaybackControls, type PlaybackSpeed, type RoleId, type RoomKind, type TextLine, type WorldModel } from "@crewhub/world-model";
+import { CIVIC_WORDS, describeTownDocument, describeWorld, ruleProps, zoningOf, type AgentPlacement, type CivicWords, type PlaybackControls, type PlaybackSpeed, type RoleId, type RoomKind, type TextLine, type WorldModel } from "@crewhub/world-model";
 import type { PropModel } from "@crewhub/world-engine";
 import { Bubbles } from "./components/bubbles/Bubbles";
 import { TownSettings } from "./components/TownSettings";
@@ -30,6 +30,7 @@ import { firstRoom, roomName, roomNeighbor, roomSummary } from "./world/interior
 import { DirectorLog } from "./components/DirectorLog";
 import { PresenceSettings } from "./components/PresenceSettings";
 import { WhereForm } from "./components/WhereForm";
+import { civicWords } from "./world/settlementDressing";
 import { useDirectorFeed } from "./state/director";
 import type { CameraAction } from "./world/TownScene";
 import { countsLine, laneWords, mmss } from "./world/townLayout";
@@ -130,9 +131,11 @@ function World() {
   const cast = useCast();
   // The town document's zones and manual assignments decide each building's zone, before the source's groups.
   useEffect(() => worldRuntime().setZoning(zoningOf(town.doc)), [town.doc]);
+  // The civic places go by what stands there at this size: the lodge, the mailbox, the mail hut.
+  const civic = useMemo(() => civicWords(plan.civic), [plan.civic.hall, plan.civic.post]);
   const textLines = useMemo(
     () => [
-      ...text,
+      ...(civic.hall === CIVIC_WORDS.hall && civic.post === CIVIC_WORDS.post ? text : describeWorld(model, civic)),
       ...describeCasts(castRegistry, {
         viewer: cast,
         town: town.doc.castId,
@@ -151,7 +154,7 @@ function World() {
       ...describePlan(plan, (slug) => model.buildings.find((b) => b.slug === slug)?.name ?? slug),
       ...describeTownDocument(town.doc, town.catalogue, { ruleProps: rules, invalidRequests: town.invalid }),
     ],
-    [text, cast, town.doc, town.catalogue, rules, town.invalid, model.zones, model.buildings, plan],
+    [text, civic, cast, town.doc, town.catalogue, rules, town.invalid, model.zones, model.buildings, plan],
   );
   const undo = useCallback(() => {
     townRuntime().undo();
@@ -505,7 +508,7 @@ function World() {
 
       {playback && <PlaybackBar playback={playback} />}
 
-      {(textOpen || graphicsFailed) && <TextView ref={textRegion} lines={textLines} fallback={graphicsFailed} onClose={graphicsFailed ? null : closeText} />}
+      {(textOpen || graphicsFailed) && <TextView civic={civic} ref={textRegion} lines={textLines} fallback={graphicsFailed} onClose={graphicsFailed ? null : closeText} />}
     </div>
   );
 }
@@ -774,7 +777,7 @@ function PlaybackPosition({ playback }: { playback: PlaybackControls }) {
 
 const KIND_WORD: Record<TextLine["kind"], string> = { fact: "fact", inference: "inference", cosmetic: "cosmetic", demo: "demo" };
 
-function TextView({ lines, fallback, onClose, ref }: { lines: TextLine[]; fallback: boolean; onClose: (() => void) | null; ref: Ref<HTMLElement> }) {
+function TextView({ lines, civic, fallback, onClose, ref }: { lines: TextLine[]; civic: CivicWords; fallback: boolean; onClose: (() => void) | null; ref: Ref<HTMLElement> }) {
   const sections = new Map<string, TextLine[]>();
   for (const line of lines) sections.set(line.section, [...(sections.get(line.section) ?? []), line]);
   return (
@@ -786,7 +789,7 @@ function TextView({ lines, fallback, onClose, ref }: { lines: TextLine[]; fallba
       />
       <Card.Body>
         {fallback && <p className="text-note">3D graphics are not available here, so the world is shown as text.</p>}
-        <WhereForm />
+        <WhereForm civic={civic} />
         {[...sections].map(([section, items]) => (
           <section key={section} className="text-section">
             <h3>{section}</h3>

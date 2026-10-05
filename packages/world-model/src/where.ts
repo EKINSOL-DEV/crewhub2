@@ -3,6 +3,7 @@
  * coordinates. Pure over the world model; nothing is ever sent into a lane.
  */
 import { roomLabel } from "./rooms.ts";
+import { CIVIC_WORDS, type CivicWords } from "./describe.ts";
 import type { AgentPlacement, Building, WorldModel } from "./model.ts";
 
 const MAX_NEARBY = 3;
@@ -52,7 +53,7 @@ function letters(model: WorldModel, building: Building, agent: AgentPlacement): 
  * The answer for `agentName` (a principal id, a herdr name or a display name, in any case). An agent with proxies
  * hears where its real avatar is and where its proxies stand; unknown names get a plain "no such agent".
  */
-export function where(model: WorldModel, agentName: string): string {
+export function where(model: WorldModel, agentName: string, civic: CivicWords = CIVIC_WORDS): string {
   const wanted = agentName.trim().toLowerCase();
   const found = wanted === "" ? [] : everyPlacement(model).filter((p) => matches(p.agent, wanted));
   const real = found.find((p) => p.agent.presence === "real");
@@ -71,9 +72,9 @@ export function where(model: WorldModel, agentName: string): string {
   if (!building) {
     if (model.postOffice.some((a) => a.key === agent.key)) {
       const carrying = model.deliveries.length;
-      return `You are at the post office${carrying > 0 ? `, with ${plural(carrying, "letter", "letters")} in flight` : ""}.`;
+      return `You are at the ${civic.post}${carrying > 0 ? `, with ${plural(carrying, "letter", "letters")} in flight` : ""}.`;
     }
-    return "You are in the town hall: you are active in no building right now.";
+    return `You are in the ${civic.hall}: you are active in no building right now.`;
   }
 
   const proxyText =

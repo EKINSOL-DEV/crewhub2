@@ -64,12 +64,23 @@ function clock(ms: number): string {
   return new Date(ms).toISOString().slice(11, 16);
 }
 
-export function describeWorld(model: WorldModel): TextLine[] {
+/**
+ * What the town's two civic places are called right now, as nouns after "the": a small town has a lodge for a town
+ * hall and a mailbox or a mail hut for a post office. The model does not know the town's size; whoever does passes
+ * the words.
+ */
+export interface CivicWords {
+  hall: string;
+  post: string;
+}
+export const CIVIC_WORDS: CivicWords = { hall: "town hall", post: "post office" };
+
+export function describeWorld(model: WorldModel, civic: CivicWords = CIVIC_WORDS): TextLine[] {
   const lines: TextLine[] = [];
   const add = (section: string, text: string, kind: TextLine["kind"] = "fact") => lines.push({ section, text, kind });
   const nameOf = new Map<string, string>();
   for (const building of model.buildings) nameOf.set(building.slug, buildingSection(building));
-  const buildingName = (slug: string | null) => (slug ? (nameOf.get(slug) ?? slug) : "the town hall");
+  const buildingName = (slug: string | null) => (slug ? (nameOf.get(slug) ?? slug) : `the ${civic.hall}`);
 
   if (model.mode === "demo") add("Town", "Demo mode: scripted data, no live crewhub-loops session", "demo");
   const { freshness } = model;
@@ -87,9 +98,9 @@ export function describeWorld(model: WorldModel): TextLine[] {
     `${active.length} ${active.length === 1 ? "building" : "buildings"} in project order: ${active.map(buildingSection).join(", ") || "none"}.`,
   );
   for (const building of archived) add("Town", `${buildingSection(building)} is boarded up: the project is archived.`);
-  for (const agent of model.postOffice) add("Town", `${agent.displayName} is the postman, at the post office: ${agentState(agent)}.`);
+  for (const agent of model.postOffice) add("Town", `${agent.displayName} is the postman, at the ${civic.post}: ${agentState(agent)}.`);
   for (const agent of model.townHall) {
-    add("Town", `${agent.displayName} is in the town hall, active in no building: ${agentState(agent)}.`);
+    add("Town", `${agent.displayName} is in the ${civic.hall}, active in no building: ${agentState(agent)}.`);
     describeCaption("Town", agent, add);
   }
   for (const walk of model.deliveries) {
