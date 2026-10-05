@@ -22,6 +22,7 @@ These are the active documents for the browser-world rebuild. All are in English
 | [decisions/0004-loops-design-system.md](decisions/0004-loops-design-system.md) | One design language with crewhub-loops for all 2D UI |
 | [superpowers/specs/2026-09-30-loops-design-system-design.md](superpowers/specs/2026-09-30-loops-design-system-design.md) | Accepted spec for the loops design-system migration |
 | [LOOPS_INTEGRATION_PLAN.md](LOOPS_INTEGRATION_PLAN.md) | The plan: CrewHub World as a thin 3D layer on crewhub-loops |
+| [LOOPS_GAP_ANALYSIS.md](LOOPS_GAP_ANALYSIS.md) | What crewhub-loops provides today against what the world needs: phase verdict, drift, and the list of what is still missing |
 | [superpowers/specs/2026-10-01-world-demo-mode-design.md](superpowers/specs/2026-10-01-world-demo-mode-design.md) | Accepted spec for the demo-mode build: the plan's phases, scripted |
 | [../skills/prop-builder/SKILL.md](../skills/prop-builder/SKILL.md) | The `prop-builder` skill: requests become valid `crewhub-prop/1` props |
 | [decisions/0005-crewhub-world-on-loops.md](decisions/0005-crewhub-world-on-loops.md) | Decision record for the crewhub-loops integration |
