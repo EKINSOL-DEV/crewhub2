@@ -9,6 +9,7 @@
    drawn frame at the playback speed (paused with it, and with the tab), and each robot follows its walker. */
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { zoneById } from "@crewhub/world-model";
 import type { AgentPlacement, RoomKind, WorldModel } from "@crewhub/world-model";
 import { IDLE_STATE, type Cast, type FigureHandle, type FigureState } from "@crewhub/world-cast";
 import { styleOptionsKey, type EnvironmentHandle, type GraphicsQuality, type ModelAnimation, type ModelKey, type ResolvedStyle, type StyleOptionValues, type StyleTheme } from "@crewhub/world-style";
@@ -53,6 +54,8 @@ export interface TownView {
   quality: GraphicsQuality;
   /** The viewer's cast (Settings); null follows the town and the style. A building's own cast and its zone's win over it. */
   cast: string | null;
+  /** The viewer's style options (Settings); an absent one follows the town. A zone's and a building's own win over them. */
+  styleOptions?: Readonly<Record<string, string>>;
   /** Source time now (ms): drone flights run on it, so they follow the playback speed. */
   now: () => number;
   /** The Day and night setting: the light drifts with the source clock (`dayClock`). */
@@ -674,7 +677,7 @@ export class TownScene {
       // A cast chosen in Settings (or by the town document) swaps the figures where they stand and walk.
       view.setCast(cast);
       const town = this.view.town;
-      view.update(b, this.view.entered === b.slug, town && (this.view.entered === b.slug ? town : { ...town, build: null }));
+      view.update(b, this.view.entered === b.slug, town && (this.view.entered === b.slug ? town : { ...town, build: null }), zoneById(model.zones, b.zoneId));
       if (this.view.entered === b.slug) this.#useInterior(b.slug);
       view.setFocus(this.view.entered === b.slug ? this.view.room : null);
       for (const [id, v] of view.anchors) this.#anchors.set(id, v);
@@ -768,8 +771,8 @@ export class TownScene {
   }
 
   #lookContext(): LookContext {
-    const { model, town, cast } = this.view;
-    return { doc: town?.doc, zones: model.zones, buildings: model.buildings, viewer: { castId: cast } };
+    const { model, town, cast, styleOptions } = this.view;
+    return { doc: town?.doc, zones: model.zones, buildings: model.buildings, viewer: { castId: cast, styleOptions } };
   }
 
   /** The cast of the town itself (its postman and town hall): the viewer's choice, else the town document's, else the style's default. */
@@ -860,7 +863,7 @@ export class TownScene {
       this.#dress(view.model.buildings.length);
     }
     if (previous.cast !== view.cast) this.#shadowDirty = true;
-    if (previous.cast !== view.cast || previous.model !== view.model || previous.entered !== view.entered || previous.room !== view.room || previous.town !== view.town) this.sync();
+    if (previous.cast !== view.cast || previous.styleOptions !== view.styleOptions || previous.model !== view.model || previous.entered !== view.entered || previous.room !== view.room || previous.town !== view.town) this.sync();
     else if (previous.reducedMotion !== view.reducedMotion || previous.ambient !== view.ambient)
       this.walks.update(view.model, { entered: view.entered, reducedMotion: view.reducedMotion, ambient: view.ambient });
     if (previous.entered !== view.entered) {

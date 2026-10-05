@@ -1,7 +1,9 @@
 /**
- * StressSource: a synthetic crewhub-loops for the browser stress fixture (`?stress=1`, dev only). Twelve projects
- * and a hundred agents (twelve leads, four registered agents that work in two projects, eighty-four herdr workers),
- * served through the same `WorldSource` seam as the scripted demo: a loops-shaped snapshot, then a steady stream of
+ * StressSource: a synthetic crewhub-loops for the browser stress fixtures (dev only). `?stress=1`: twelve projects
+ * and a hundred agents (twelve leads, four registered agents that work in two projects, eighty-four herdr workers).
+ * `?stress=20`: twenty projects in four groups and two hundred agents (twenty leads, four rovers, 176 workers); the
+ * groups are the FUTURE field of proposal L22 (`groupId` on `ProjectOut`), which crewhub-loops does not have today.
+ * Both are served through the same `WorldSource` seam as the scripted demo: a loops-shaped snapshot, then a steady stream of
  * envelopes (ticket moves, progress lines, deliveries and their postman states) and team re-reads that flip lanes.
  * Deterministic: every step of demo time draws from a PRNG seeded by the step index, so a seek replays the same
  * stream. It tells no story; it exists to load the renderer and the walk engine.
@@ -24,12 +26,42 @@ import type {
   WatchdogResponse,
   WorldSource,
 } from "@crewhub/loops-client";
+import type { ProjectGroupSeed } from "./content.ts";
 import { mulberry32 } from "./prng.ts";
 import type { Scheduler } from "./scheduler.ts";
 import { DEMO_EPOCH_MS, MINUTE, SECOND, iso } from "./time.ts";
 
 export const STRESS_BUILDINGS = 12;
 export const STRESS_AGENTS = 100;
+
+/** The fixtures by size (their building count): leads, rovers and workers add up to `agents`; the postman is extra. */
+export const STRESS_FIXTURES = {
+  12: { buildings: STRESS_BUILDINGS, agents: STRESS_AGENTS, groups: 0 },
+  20: { buildings: 20, agents: 200, groups: 4 },
+} as const;
+export type StressSize = keyof typeof STRESS_FIXTURES;
+export const STRESS_SIZES: readonly StressSize[] = [12, 20];
+type Fixture = (typeof STRESS_FIXTURES)[StressSize];
+
+/** The `?stress=` value: "1" (the original flag) and "12" are the town of twelve, "20" the region of twenty. */
+export function parseStressSize(value: string | null | undefined): StressSize | null {
+  if (value === "1" || value === "12") return 12;
+  if (value === "20") return 20;
+  return null;
+}
+
+/** FUTURE (proposal L22): the groups of `?stress=20`, five projects each. */
+function stressGroups(fixture: Fixture): ProjectGroupSeed[] {
+  const names = ["North", "East", "South", "West"];
+  return Array.from({ length: fixture.groups }, (_, g) => ({
+    id: `pg_stress_${g + 1}`,
+    slug: `stress-group-${g + 1}`,
+    name: `Stress ${names[g % names.length]}`,
+    order: g + 1,
+    color: COLORS[g % COLORS.length]!,
+    icon: ICONS[g % ICONS.length]!,
+  }));
+}
 const ROVERS = 4;
 const TICKETS_PER_PROJECT = 14;
 /** One draw of the stream per step of demo time. */
@@ -47,6 +79,8 @@ export interface StressSourceOptions {
   /** Demo time of position 0, ms since the epoch. Default DEMO_EPOCH_MS. */
   epochMs?: number;
   seed?: number;
+  /** Which fixture: 12 buildings (default) or 20. */
+  size?: StressSize;
 }
 
 interface Project {
@@ -69,19 +103,23 @@ const keyOf = (i: number) => `S${String.fromCharCode(65 + i)}`;
 const agentRef = (id: string): PrincipalRef => ({ id, kind: "agent", displayName: id });
 const PERSON: PrincipalRef = { id: "nicky", kind: "user", displayName: "Nicky" };
 
-/** Seven workers per building (84 in all): a designer, an analyst and five developers. */
-const WORKERS_PER_BUILDING = 7;
-function workerNames(i: number): string[] {
+/**
+ * The workers of building `i`: a designer, an analyst and developers. Seven per building in the town of twelve (84
+ * in all); in the region of twenty the 176 are spread as evenly as they go (nine in sixteen buildings, eight in four).
+ */
+function workerNames(i: number, fixture: Fixture): string[] {
   const stem = slugOf(i);
-  const count = WORKERS_PER_BUILDING;
+  const workers = fixture.agents - fixture.buildings - ROVERS;
+  const count = Math.floor(workers / fixture.buildings) + (i < workers % fixture.buildings ? 1 : 0);
   const names = [`${stem}-design-1`, `${stem}-analyst-1`];
   for (let w = 1; names.length < count; w++) names.push(`${stem}-dev-${w}`);
   return names;
 }
 
-function initial(base: number): State {
+function initial(base: number, fixture: Fixture): State {
   const projects: Project[] = [];
-  for (let i = 0; i < STRESS_BUILDINGS; i++) {
+  const groups = stressGroups(fixture);
+  for (let i = 0; i < fixture.buildings; i++) {
     const slug = slugOf(i),
       key = keyOf(i),
       lead = `${slug}-lead`;
@@ -118,9 +156,11 @@ function initial(base: number): State {
         archivedAt: null,
         effectiveRoute: { agent: lead, session: SESSION, source: "project" },
         revision: 1,
+        // FUTURE (proposal L22): absent in crewhub-loops today, and absent here in the town of twelve.
+        ...(groups.length === 0 ? {} : { groupId: groups[Math.floor((i * groups.length) / fixture.buildings)]!.id }),
       },
       cards,
-      workers: workerNames(i),
+      workers: workerNames(i, fixture),
     });
   }
   const lanes: TeamAgent[] = [];
@@ -173,7 +213,7 @@ function agents(state: State): AgentOut[] {
       keys: null,
       isCrewhubLead: false,
       // Each rover belongs to two buildings, so its real location moves between them (plan 4.4).
-      projects: { lead: [], member: [ref(slugOf((r * 3) % STRESS_BUILDINGS)), ref(slugOf((r * 3 + 1) % STRESS_BUILDINGS))] },
+      projects: { lead: [], member: [ref(slugOf((r * 3) % state.projects.length)), ref(slugOf((r * 3 + 1) % state.projects.length))] },
     });
   out.push({ id: "postman", displayName: "Postman", role: "router", herdrSession: SESSION, disabled: false, lastSeenAt: iso(state.now), keys: null, isCrewhubLead: false, projects: { lead: [], member: [] } });
   return out;
@@ -238,7 +278,7 @@ function step(state: State, index: number, at: number): SourceMessage[] {
     let home = project;
     if (rover) {
       agent = `rover-${rover}`;
-      home = state.projects[random() < 0.5 ? (rover * 3) % STRESS_BUILDINGS : (rover * 3 + 1) % STRESS_BUILDINGS]!;
+      home = state.projects[random() < 0.5 ? (rover * 3) % state.projects.length : (rover * 3 + 1) % state.projects.length]!;
       text = `Looking at ${home.out.key}-${1 + Math.floor(random() * TICKETS_PER_PROJECT)} now.`;
     } else {
       const worker = project.workers[Math.floor(random() * project.workers.length)]!;
@@ -274,10 +314,18 @@ function step(state: State, index: number, at: number): SourceMessage[] {
   return out;
 }
 
-export function createStressSource(options: StressSourceOptions): WorldSource & { readonly mode: "demo"; readonly playback: PlaybackControls } {
+export interface StressSource extends WorldSource {
+  readonly mode: "demo";
+  readonly playback: PlaybackControls;
+  /** FUTURE (proposal L22): `GET /api/project-groups`; [] in the town of twelve. */
+  listProjectGroups(): Promise<ProjectGroupSeed[]>;
+}
+
+export function createStressSource(options: StressSourceOptions): StressSource {
   const scheduler = options.scheduler;
+  const fixture = STRESS_FIXTURES[options.size ?? 12];
   const epoch = options.epochMs ?? DEMO_EPOCH_MS;
-  let state = initial(epoch);
+  let state = initial(epoch, fixture);
   let position = 0;
   let steps = 0;
   let speed: PlaybackSpeed = 1;
@@ -316,13 +364,15 @@ export function createStressSource(options: StressSourceOptions): WorldSource & 
         watchdog,
         milestones: {},
         releases: {},
+        // FUTURE (proposal L22): only the region of twenty has groups.
+        ...(fixture.groups === 0 ? {} : { groups: stressGroups(fixture) }),
       },
     };
   };
 
   /** Rebuilds the state for this loop and replays the stream silently up to `to`. */
   function rebuild(to: number): void {
-    state = initial(base());
+    state = initial(base(), fixture);
     state.seq += loop * 1_000_000;
     steps = 0;
     while ((steps + 1) * STEP_MS <= to) {
@@ -426,9 +476,8 @@ export function createStressSource(options: StressSourceOptions): WorldSource & 
     getWatchdog: async () => ({ mode: "observe", open: [] }),
     getMilestones: async () => [],
     getReleases: async () => [],
-    // FUTURE (proposal L22): no groups in this fixture yet.
-    listProjectGroups: async () => [],
     getComments: async () => [],
     getProgress: async () => [],
+    listProjectGroups: async () => stressGroups(fixture),
   };
 }
