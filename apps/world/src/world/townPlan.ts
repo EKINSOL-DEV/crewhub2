@@ -12,6 +12,7 @@ import {
   districtBlocks,
   districtRoads,
   groundExtent,
+  groundPieces,
   landmarksArrived,
   lotBounds,
   lotCentre,
@@ -84,7 +85,10 @@ export interface TownPlan {
   landmarks: LandmarkId[];
   /** The lot staked out for the first project: only a clearing has one. */
   staked: GridCell | null;
+  /** The bounding box of all ground: what the camera may pan over. The ground itself is `grounds`. */
   ground: Bounds;
+  /** The ground's pieces (`groundPieces`): a rectangle per district in use and a corridor per road. Nothing else is ground. */
+  grounds: Bounds[];
   streets: Segment[];
   roads: ReturnType<typeof districtRoads>;
   borders: DistrictBorder[];
@@ -166,6 +170,9 @@ export function planTown(doc: Pick<TownDocument, "plots" | "districts">, buildin
   const seed = townSeed(doc.plots);
   const landmarks = landmarksArrived(seed, doc.plots.length);
   const cells = lots.map((l) => l.cell);
+  // The ground also reaches every green whose block has begun, so a green never hangs over the edge.
+  const grounded = [...cells, ...inUse.flatMap((d) => d.greens)];
+  const roads = districtRoads(usedSlots);
   return {
     tier,
     active,
@@ -176,10 +183,10 @@ export function planTown(doc: Pick<TownDocument, "plots" | "districts">, buildin
     civic: civicStage(tier),
     landmarks,
     staked: tier === "clearing" && !used.has(lotKey(CENTRE_LOT)) ? CENTRE_LOT : null,
-    // The ground also reaches every green whose block has begun, so a green never hangs over the edge.
-    ground: groundExtent(tier, [...cells, ...inUse.flatMap((d) => d.greens)], landmarks),
+    ground: groundExtent(tier, grounded, landmarks),
+    grounds: groundPieces(tier, grounded, landmarks, roads),
     streets: streets(tier, cells),
-    roads: districtRoads(usedSlots),
+    roads,
     borders: districtBorders(usedSlots),
     oldQuarter: fold,
   };
