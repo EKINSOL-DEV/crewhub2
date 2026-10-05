@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { applyEdit, emptyTownDocument, type TownDocument } from "@crewhub/world-model";
 import { allocationEdit, CENTRE_LOT, lotBounds, lotKey, lotKind, reservedBounds } from "../src/world/settlement.ts";
-import { oldQuarterLot, planKey, planLot, planTown, type PlanBuilding } from "../src/world/townPlan.ts";
+import { homeRects, moveFocus, oldQuarterLot, planKey, planLot, planTown, type PlanBuilding } from "../src/world/townPlan.ts";
+import { reservedSpot, spotBounds } from "../src/world/settlement.ts";
 
 const CONTEXT = { knownStyles: ["greenhouse"], builtinIds: [] };
 function town(buildings: readonly PlanBuilding[]): TownDocument {
@@ -72,4 +73,76 @@ test("a tier change, an archive and a regroup move nothing; the old quarter is a
     assert.ok(b.maxZ <= civic.minZ, "behind the civic ground");
   }
   assert.equal(new Set(Array.from({ length: 30 }, (_, i) => lotKey(oldQuarterLot(i)))).size, 30);
+});
+
+test("the home view frames what exists: the building for a hamlet, the settlement for a village or town, the districts for a region", () => {
+  const frame = (n: number, zones = 1, compact = false) => {
+    const all = projects(n, zones);
+    const rects = homeRects(planTown(town(all), all), compact ? 0 : 1.5, compact);
+    return { rects, minX: Math.min(...rects.map((r) => r.minX)), maxX: Math.max(...rects.map((r) => r.maxX)), minZ: Math.min(...rects.map((r) => r.minZ)), maxZ: Math.max(...rects.map((r) => r.maxZ)) };
+  };
+  const width = (f: ReturnType<typeof frame>) => f.maxX - f.minX;
+  const holds = (f: ReturnType<typeof frame>, b: { minX: number; maxX: number; minZ: number; maxZ: number }) => f.rects.some((r) => r.minX <= b.minX && r.maxX >= b.maxX && r.minZ <= b.minZ && r.maxZ >= b.maxZ);
+  const post = spotBounds(reservedSpot("post-office"));
+  const clearing = frame(0),
+    hamlet = frame(1),
+    village = frame(4),
+    twelve = frame(12),
+    region = frame(20, 4);
+  assert.ok(holds(clearing, lotBounds(CENTRE_LOT)) && holds(clearing, post), "a clearing shows the lodge, the mailbox and the staked plot");
+  assert.ok(holds(hamlet, lotBounds(CENTRE_LOT)), "a hamlet shows its building");
+  assert.ok(!holds(hamlet, post) && hamlet.minZ < post.maxZ, "and only the front of the mail hut's lot");
+  assert.ok(hamlet.maxZ - hamlet.minZ < clearing.maxZ - clearing.minZ, "so the building fills the picture");
+  assert.ok(holds(village, post) && width(village) > width(hamlet));
+  assert.ok(width(twelve) > width(village) && width(region) > 1.5 * width(twelve));
+  for (const all of [projects(4), projects(12), projects(20, 4)]) {
+    const plan = planTown(town(all), all);
+    const rects = homeRects(plan);
+    for (const lot of plan.lots) assert.ok(rects.some((r) => r.minX <= lot.centre.x - 12 && r.maxX >= lot.centre.x + 12 && r.minZ <= lot.centre.z - 12 && r.maxZ >= lot.centre.z + 12), `${lot.slug} is in the picture`);
+    // The phone's compact frame is tighter and still holds every building.
+    const tight = homeRects(plan, 0, true);
+    assert.equal(tight.length, rects.length);
+    tight.forEach((t, i) => assert.ok(t.minX > rects[i]!.minX && t.maxX < rects[i]!.maxX && t.maxX - t.minX >= 8));
+  }
+  // Folded into the old quarter, an archived building leaves the picture; boarded up on its plot, it stays.
+  const all = projects(6).map((b, i) => ({ ...b, archived: i === 5 }));
+  assert.equal(homeRects(planTown(town(all), all)).length, 6 + 3);
+  assert.equal(homeRects(planTown(town(all), all, { oldQuarter: true })).length, 5 + 3);
+});
+
+test("keyboard focus follows the layout: the nearest building that way, and it stays put at an edge", () => {
+  const all = projects(9);
+  const plan = planTown(town(all), all);
+  const slugs = all.map((b) => b.slug);
+  const at = (index: number) => lotKey(plan.lots[index]!.cell);
+  const go = (index: number, key: string) => at(moveFocus(plan, slugs, index, key));
+  // The village street is 63..66 on row 64, in the order p2, p0, p1, p3.
+  assert.equal(at(0), "64,64");
+  assert.equal(go(0, "ArrowRight"), "65,64");
+  assert.equal(go(0, "ArrowLeft"), "63,64");
+  assert.equal(go(2, "ArrowLeft"), "63,64", "nothing further west: stay");
+  assert.equal(go(1, "ArrowDown"), "65,65", "the building in front");
+  assert.equal(go(4, "ArrowDown"), "65,66");
+  assert.equal(go(6, "ArrowDown"), "65,66", "nothing further south: stay");
+  assert.equal(go(6, "ArrowUp"), "65,65");
+  assert.equal(go(0, "ArrowUp"), "64,64", "the civic row holds no building");
+  assert.equal(go(3, "Home"), "63,64");
+  assert.equal(go(3, "End"), "65,66");
+  assert.equal(go(3, "KeyA"), at(3));
+  // Every building can be reached from every other with the arrow keys.
+  for (const zones of [1, 4]) {
+    const many = projects(20, zones);
+    const big = planTown(town(many), many);
+    const names = many.map((b) => b.slug);
+    const seen = new Set([0]);
+    const queue = [0];
+    for (let i = queue.shift(); i !== undefined; i = queue.shift()) for (const key of ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"]) {
+      const next = moveFocus(big, names, i, key);
+      if (!seen.has(next)) queue.push((seen.add(next), next));
+    }
+    assert.equal(seen.size, 20, `all twenty buildings in ${zones} zone(s)`);
+  }
+  // A building without a lot yet is skipped; an empty town has nothing to focus.
+  assert.equal(moveFocus(planTown(town(all.slice(0, 2)), all), slugs, 0, "End"), 1);
+  assert.equal(moveFocus(planTown(town([]), []), [], 3, "ArrowRight"), 0);
 });

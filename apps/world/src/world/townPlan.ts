@@ -15,6 +15,7 @@ import {
   lotBounds,
   lotCentre,
   lotKey,
+  reservedSpot,
   slotBounds,
   slotCrossing,
   slotKey,
@@ -28,7 +29,7 @@ import {
   type Segment,
   type Tier,
 } from "./settlement.ts";
-import type { Bounds, PlotSpot } from "./townLayout.ts";
+import { CIVIC_LOT, CIVIC_SIZE, PLOT_SIZE, type Bounds, type PlotSpot } from "./townLayout.ts";
 
 /** A building as the plan needs it: who it is, whether it is archived and the zone it belongs to now. */
 export interface PlanBuilding {
@@ -74,6 +75,8 @@ export interface TownPlan {
   seed: number;
   /** Every building that has a plot, in the order of the buildings given. */
   lots: PlanLot[];
+  /** Buildings whose lot is still on its way (the allocation runs right after the world first sees a project). */
+  pending: number;
   districts: PlanDistrict[];
   civic: CivicStage;
   /** The landmarks that have arrived, in the order they came. */
@@ -167,6 +170,7 @@ export function planTown(doc: Pick<TownDocument, "plots" | "districts">, buildin
     active,
     seed,
     lots,
+    pending: buildings.length - lots.length,
     districts: inUse,
     civic: civicStage(tier),
     landmarks,
@@ -191,3 +195,70 @@ export function planKey(plan: TownPlan): string {
 
 /** A plot's ground in world units, with `pad` around it. */
 export const planLotBounds = (lot: PlanLot, pad = 0): Bounds => lotBounds(lot.cell, pad);
+
+/**
+ * What the home camera frames, each rectangle with `margin` around it; the camera fits their projected corners. The
+ * home view frames what exists:
+ * - a clearing: the lodge, the mailbox and the staked-out plot;
+ * - a hamlet: the building, with the lodge and the mail hut at the edge of the picture (see `HAMLET_CIVIC`);
+ * - a village or a town: every building that stands, the two civic lots and the square;
+ * - a region: every district's buildings, and the centre's civic lots.
+ * Buildings folded into the old quarter are left out. `compact` (a portrait phone) frames tighter: each plot's
+ * building area and the civic buildings without their lawns, so hedges and verges may run off the screen's edges.
+ */
+export function homeRects(plan: TownPlan, margin = 1.5, compact = false): Bounds[] {
+  const square = (c: PlotSpot, half: number): Bounds => ({ minX: c.x - half, maxX: c.x + half, minZ: c.z - half, maxZ: c.z + half });
+  const plotHalf = (compact ? PLOT_SIZE / 2 - 2 : PLOT_SIZE / 2) + margin,
+    civicHalf = (compact ? CIVIC_LOT / 2 - 2 : CIVIC_LOT / 2) + margin,
+    squareHalf = (compact ? CIVIC_SIZE.square.width / 2 - 1 : CIVIC_SIZE.square.width / 2) + margin;
+  const civic = (["post-office", "town-hall"] as const).map((id) => square(reservedSpot(id), civicHalf));
+  const green = square(reservedSpot("square"), squareHalf);
+  const standing = plan.lots.filter((l) => !l.folded);
+  if (plan.tier === "clearing") return [...civic, green, square(lotCentre(plan.staked ?? CENTRE_LOT), plotHalf), ...standing.map((l) => square(l.centre, plotHalf))];
+  if (plan.tier === "hamlet") {
+    // One project: the building is the picture. Archived neighbours stand outside it; the civic pair is cut to a sliver.
+    const home = standing.filter((l) => !l.archived);
+    return [...(home.length ? home : standing).map((l) => square(l.centre, plotHalf)), ...civic.map((r) => ({ ...r, minZ: r.maxZ - HAMLET_CIVIC }))];
+  }
+  return [...standing.map((l) => square(l.centre, plotHalf)), ...civic, green];
+}
+/**
+ * How much of the lodge's and the mail hut's lots a hamlet's home view takes in, from their front edge: enough to
+ * see that they are there, so the one building still fills the picture.
+ */
+const HAMLET_CIVIC = 5;
+
+/**
+ * Keyboard focus between buildings, by where they stand: an arrow key goes to the nearest building in that direction
+ * (left is west, up is north, as on the old grid), preferring one in the same street; with none that way the focus
+ * stays. Home and End go to the first and the last building in reading order (north to south, west to east).
+ * `slugs` is the list the focus index counts in (`model.buildings`); returns the new index.
+ */
+export function moveFocus(plan: TownPlan, slugs: readonly string[], index: number, key: string): number {
+  const lots = new Map(plan.lots.map((l) => [l.slug, l.centre]));
+  const placed = slugs.map((slug, i) => ({ i, at: lots.get(slug) })).filter((p): p is { i: number; at: PlotSpot } => !!p.at);
+  if (!placed.length) return 0;
+  const current = placed.find((p) => p.i === index) ?? placed[0]!;
+  const reading = [...placed].sort((a, b) => a.at.z - b.at.z || a.at.x - b.at.x);
+  if (key === "Home") return reading[0]!.i;
+  if (key === "End") return reading[reading.length - 1]!.i;
+  const step: Record<string, readonly [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+  const direction = step[key];
+  if (!direction) return current.i;
+  let best = current,
+    bestCost = Infinity;
+  for (const p of placed) {
+    const dx = p.at.x - current.at.x,
+      dz = p.at.z - current.at.z;
+    const along = dx * direction[0] + dz * direction[1],
+      across = Math.abs(dx * direction[1]) + Math.abs(dz * direction[0]);
+    // Only buildings ahead, and not more to the side than ahead: a diagonal neighbour belongs to the other axis.
+    if (along <= 0 || across > along) continue;
+    const cost = along + across * 2;
+    if (cost < bestCost) {
+      best = p;
+      bestCost = cost;
+    }
+  }
+  return best.i;
+}
