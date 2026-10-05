@@ -17,7 +17,12 @@ import { resolveBuildingPlacements } from "../world/placements";
 import type { TownLayer } from "../world/propLayer";
 import type { Ambient } from "../world/movement";
 import { LaneChip } from "../world/lane";
-import { clockTime, countsLine, laneWords, TOWN_CAPACITY } from "../world/townLayout";
+import { clockTime, countsLine, laneWords } from "../world/townLayout";
+import { freeLots, type TownPlan } from "../world/townPlan";
+import { lotKey } from "../world/settlement";
+import { setMovingBuilding, useMovingBuilding } from "../state/layoutMove";
+import { moveBuilding, plotLabel } from "./LayoutPanel";
+import { townRuntime } from "../state/town";
 import type { RoomKind, RuleProp } from "@crewhub/world-model";
 import { Chip } from "./primitives";
 
@@ -28,6 +33,8 @@ export interface Selection {
 
 interface Props {
   model: WorldModel;
+  /** Where every building stands (state/plan.ts). */
+  plan: TownPlan;
   entered: string | null;
   focused: number;
   ringVisible: boolean;
@@ -44,6 +51,8 @@ interface Props {
   onPick: (target: Pick | null, hover: boolean) => void;
   onError: () => void;
   town: TownLayer | null;
+  /** Says something on the polite status line (a building moved). */
+  onAnnounce?: (text: string) => void;
   onBuild: (kind: BuildPointer, at: { room: RoomKind; cell: { x: number; z: number } } | null, pick: Pick | null) => void;
 }
 
@@ -72,8 +81,16 @@ export default function WorldCanvas(props: Props) {
     () => (props.town?.build ? { ...props.town, build: { ...props.town.build, theme: dark ? ("lamplight" as const) : ("day" as const) } } : props.town),
     [props.town, dark],
   );
+  // A building picked up in build mode: its free plots show as markers in the town view.
+  const moving = useMovingBuilding();
+  const movingBuilding = !props.entered && moving ? (props.model.buildings.find((b) => b.slug === moving) ?? null) : null;
+  const plots = props.town?.doc.plots;
+  const free = useMemo(() => (movingBuilding && plots ? freeLots(props.plan, plots) : []), [movingBuilding, props.plan, plots]);
+  const lotAnchors = useMemo(() => free.map((l) => l.cell), [free]);
   const view = {
     model: props.model,
+    plan: props.plan,
+    lotAnchors,
     entered: props.entered,
     focused: props.focused,
     ringVisible: props.ringVisible,
@@ -138,7 +155,24 @@ export default function WorldCanvas(props: Props) {
       {STRESS && ready && <FrameOverlay scene={scene} />}
       {fps && ready && <FpsOverlay scene={scene} />}
       <div ref={labels} className="world-labels">
-        {model.buildings.slice(0, TOWN_CAPACITY).map((b, index) => {
+        {movingBuilding &&
+          free.map((lot) => (
+            <div key={`lot:${lotKey(lot.cell)}`} className="anchor raised" data-anchor={`lot:${lotKey(lot.cell)}`}>
+              <button
+                type="button"
+                className={`lot-marker${lot.next ? " next" : ""}`}
+                aria-label={`Move ${movingBuilding.name} to ${plotLabel(lot, model.zones)}${lot.next ? " (next free)" : ""}`}
+                title={`Move ${movingBuilding.name} here: ${plotLabel(lot, model.zones)}`}
+                onClick={() => {
+                  latest.current.onAnnounce?.(moveBuilding(townRuntime().state, movingBuilding, lot, model.zones));
+                  setMovingBuilding(null);
+                }}
+              >
+                {lot.number}
+              </button>
+            </div>
+          ))}
+        {model.buildings.map((b, index) => {
           if (inside && inside.slug !== b.slug) return null;
           // Inside, the breadcrumb names the building: its sign comes back with Details (small on a phone). In the town a
           // sign is a quiet name until the focus ring or Details expands it with its counts and its lead.

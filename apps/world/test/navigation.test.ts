@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { NavWorld, POST_OFFICE_CELL, TOWN_ROOM, TOWN_HALL_CELL, parseRoomId, roomId } from "../src/world/navigation.ts";
+import { isTownRoom, NavWorld, POST_OFFICE_CELL, standalonePlan, TOWN_GRID, TOWN_ROOM, TOWN_HALL_CELL, townLocationAt, townRoomId, townRoomSlot, parseRoomId, roomId } from "../src/world/navigation.ts";
+import { districtLots, lotCentre } from "../src/world/settlement.ts";
 import { agent, building } from "./fixtures.ts";
 
 const town = (n: number) =>
@@ -103,4 +104,75 @@ test("director reachability: a room's visitable tags have reachable approach cel
   assert.deepEqual(nav.reachableSpots("cr", "coffee", "workers", seat), []);
   assert.ok(nav.around("cr", "gather", "meeting").length >= 4, "room around the meeting table");
   assert.ok(nav.beside("cr", "cr/dev-1", "workers").every((c) => !(c.cell.x === seat.cell.x && c.cell.z === seat.cell.z)));
+});
+
+test("a region is walked district by district: every district is a room, and the roads join them", () => {
+  const nav = new NavWorld();
+  // Twenty buildings in four zones: four districts, the centre and three around it.
+  const buildings = town(20).map((b, i) => ({ ...b, zoneId: `zone-${i % 4}` }));
+  const plan = standalonePlan(buildings);
+  assert.equal(plan.districts.length, 4);
+  nav.sync(buildings, plan);
+  assert.deepEqual(nav.townRooms().sort(), plan.districts.map((d) => townRoomId(d.slot)).sort());
+  for (const id of nav.townRooms()) {
+    const { width, depth } = nav.graph.room(id)!.layout.grid;
+    assert.deepEqual({ width, depth }, TOWN_GRID, "every town room has the same grid");
+    assert.ok(isTownRoom(id) && townRoomSlot(id));
+  }
+  assert.ok(TOWN_GRID.width <= 256 && TOWN_GRID.depth <= 256, "inside the engine's bound");
+  const post = { room: TOWN_ROOM, cell: POST_OFFICE_CELL };
+  assert.equal(nav.slugs().length, 20);
+  for (const slug of nav.slugs()) {
+    const front = nav.front(slug)!;
+    const route = nav.graph.planRoute(post, front);
+    assert.ok(route, `${slug} is reachable from the post office`);
+    const lot = plan.lots.find((l) => l.slug === slug)!;
+    assert.equal(front.room, townRoomId(lot.slot), "a building's front is in its own district's room");
+    // A walk into another district crosses a road's portal, never thin air.
+    if (front.room !== TOWN_ROOM) assert.ok(route.legs.some((leg) => leg.viaDoor?.startsWith("road/")), `${slug} is reached by road`);
+    const at = nav.toWorld(front);
+    assert.ok(Math.abs(at.x - lot.centre.x) < 12 && at.z > lot.centre.z && at.z < lot.centre.z + 15, "the front is on the building's own plot, south of it");
+    assert.deepEqual(townLocationAt(at.x, at.z), front);
+  }
+  assert.equal(nav.graph.doors().filter((d) => d.id.startsWith("road/")).length, plan.roads.length);
+  // The same plan again touches nothing.
+  const topology = nav.graph.topologyRevision;
+  nav.sync(buildings, plan);
+  assert.equal(nav.graph.topologyRevision, topology);
+});
+
+test("a growing town only adds: a building keeps its rooms when neighbours and districts arrive", () => {
+  const nav = new NavWorld();
+  const all = town(24).map((b, i) => ({ ...b, zoneId: i < 18 ? "default" : "labs" }));
+  nav.sync(all.slice(0, 1), standalonePlan(all.slice(0, 1)));
+  const lobby = nav.lobby("p0")!;
+  assert.ok(nav.sim.addActor({ id: "p0-lead", location: lobby }).ok);
+  for (const count of [2, 5, 10, 17, 24]) {
+    const result = nav.sync(all.slice(0, count), standalonePlan(all.slice(0, count)));
+    assert.deepEqual(result, { rebuilt: [], removed: [] }, `at ${count} buildings nothing that stood is rebuilt`);
+    assert.deepEqual(nav.sim.actor("p0-lead")?.location, lobby);
+    assert.equal(nav.slugs().length, count);
+  }
+  // The default zone outgrew the centre (sixteen lots) and opened a district; labs has its own.
+  assert.equal(nav.townRooms().length, 3);
+  const far = districtLots({ x: 1, z: 0 })[0]!;
+  assert.ok(nav.groundAt(lotCentre(far).x, lotCentre(far).z) > nav.groundAt(lotCentre(far).x + 15, lotCentre(far).z), "a used plot is a lawn, the street beside it is not");
+  const post = { room: TOWN_ROOM, cell: POST_OFFICE_CELL };
+  for (const slug of nav.slugs()) assert.ok(nav.graph.planRoute(post, nav.front(slug)!), `${slug} is reachable`);
+});
+
+test("an archived building has no rooms; a moved building is rebuilt on its new lot", () => {
+  const nav = new NavWorld();
+  const [a, b] = town(2);
+  const plan = standalonePlan([a!, b!]);
+  nav.sync([a!, { ...b!, archived: true }], plan);
+  assert.deepEqual(nav.slugs(), ["p0"]);
+  nav.sync([a!, b!], plan);
+  assert.deepEqual(nav.slugs().sort(), ["p0", "p1"]);
+  const before = nav.toWorld(nav.front("p1")!);
+  const moved = { ...plan, lots: plan.lots.map((l) => (l.slug === "p1" ? { ...l, cell: { x: 66, z: 64 }, centre: lotCentre({ x: 66, z: 64 }) } : l)) };
+  const result = nav.sync([a!, b!], moved);
+  assert.deepEqual(result.removed, ["p1"]);
+  assert.ok(nav.entry("p1"), "it stands again at once");
+  assert.equal(Math.round(nav.toWorld(nav.front("p1")!).x - before.x), 30);
 });

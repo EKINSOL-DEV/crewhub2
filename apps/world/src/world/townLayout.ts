@@ -79,51 +79,6 @@ export function townBounds(): Bounds {
 /** Side of the post office's and the town hall's lawns. */
 export const CIVIC_LOT = 12;
 
-/**
- * What the home camera frames: the plots in use (at least one), the two civic lots and the square, each with `margin`
- * around it.
- * Empty plots are left out, so a small town fills the screen; the camera fits the projected corners of these rects.
- * `compact` (a portrait phone) frames tighter: each plot's building area and the civic buildings without their lawns,
- * so hedges, meadows and the tree belt may run off the screen's edges.
- */
-export function homeRects(buildingCount: number, margin = 1.5, compact = false): Bounds[] {
-  const square = (c: PlotSpot, half: number): Bounds => ({ minX: c.x - half, maxX: c.x + half, minZ: c.z - half, maxZ: c.z + half });
-  const rects: Bounds[] = [];
-  const used = Math.max(1, Math.min(TOWN_CAPACITY, buildingCount));
-  const plotHalf = compact ? PLOT_SIZE / 2 - 2 : PLOT_SIZE / 2,
-    civicHalf = compact ? CIVIC_LOT / 2 - 2 : CIVIC_LOT / 2,
-    squareHalf = compact ? CIVIC_SIZE.square.width / 2 - 1 : CIVIC_SIZE.square.width / 2;
-  for (let i = 0; i < used; i++) rects.push(square(plotCenter(i), plotHalf + margin));
-  for (const place of ["post-office", "town-hall"] as const) rects.push(square(civicCenter(place), civicHalf + margin));
-  rects.push(square(civicCenter("square"), squareHalf + margin));
-  return rects;
-}
-
-/**
- * Keyboard focus between plots in grid order. Left and right step through the order (wrapping to the next row);
- * up and down move a whole row and stay put at an edge. Returns the current index for any other key.
- */
-export function moveFocus(index: number, key: string, count: number): number {
-  if (count <= 0) return 0;
-  const current = Math.min(Math.max(index, 0), count - 1);
-  switch (key) {
-    case "ArrowLeft":
-      return Math.max(0, current - 1);
-    case "ArrowRight":
-      return Math.min(count - 1, current + 1);
-    case "ArrowUp":
-      return current - TOWN_COLUMNS >= 0 ? current - TOWN_COLUMNS : current;
-    case "ArrowDown":
-      return current + TOWN_COLUMNS < count ? current + TOWN_COLUMNS : current;
-    case "Home":
-      return 0;
-    case "End":
-      return count - 1;
-    default:
-      return current;
-  }
-}
-
 const STATUS_ORDER: readonly TicketStatus[] = ["backlog", "planned", "in_progress", "review", "done"];
 const STATUS_WORD: Record<TicketStatus, string> = {
   backlog: "backlog",

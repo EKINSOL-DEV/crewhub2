@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { NavWorld, plotDoor, plotObstacles, POST_OFFICE_CELL, TOWN_GRID, TOWN_HALL_CELL, TOWN_ROOM, townCellAt, townCellCentre, townOpenCells } from "../src/world/navigation.ts";
+import { NavWorld, plotDoor, plotObstacles, POST_OFFICE_CELL, standalonePlan, TOWN_GRID, TOWN_HALL_CELL, TOWN_ROOM, townCellAt, townCellCentre, townOpenCells } from "../src/world/navigation.ts";
 import { entranceRoad, gardenKind, streamBand, streamPath, gardenPath, landmarks, laneRects, plotUse, streetXs, streetZs, pondRect, townDressing, townPaths, type Dressing } from "../src/world/townDressing.ts";
 import { civicCenter, PLOT_SIZE, plotCenter, TOWN_CAPACITY, townBounds, type Bounds } from "../src/world/townLayout.ts";
 import { building } from "./fixtures.ts";
 
-const plots = (n: number) => Array.from({ length: n }, (_, index) => ({ index, door: plotDoor(index), obstacles: plotObstacles(index) }));
+/** The lot under the old grid's plot `index`: the dressing still counts in grid plots, the navigation in lots. */
+const lot = (index: number) => ({ x: 63 + (index % 4), z: 64 + Math.floor(index / 4) });
+const plots = (n: number) => Array.from({ length: n }, (_, index) => ({ index, door: plotDoor(lot(index)), obstacles: plotObstacles(lot(index)) }));
 const inside = (r: Bounds, x: number, z: number) => x > r.minX && x < r.maxX && z > r.minZ && z < r.maxZ;
 const open = (cells: Uint8Array, x: number, z: number) => {
   const c = townCellAt(x, z);
@@ -76,8 +78,12 @@ test("empty plots each have a character; used plots are lawns with hedges", () =
 });
 
 test("the town grid is the paving: lanes, forecourts and garden paths are open; grass, lawns and water are not", () => {
-  const cells = townOpenCells([0, 1, 2, 3]);
-  for (const r of laneRects()) assert.ok(open(cells, (r.minX + r.maxX) / 2, (r.minZ + r.maxZ) / 2), "a lane is open");
+  // Four buildings stand on the village street: the lots of the old grid's first row.
+  const plan = standalonePlan(Array.from({ length: 4 }, (_, i) => ({ slug: `p${i}` })));
+  const cells = townOpenCells(plan);
+  for (const s of plan.streets) assert.ok(open(cells, (s.x0 + s.x1) / 2, (s.z0 + s.z1) / 2), "a street is open");
+  // The dressing paves every street the walkers use.
+  for (const s of plan.streets) assert.ok(laneRects().some((r) => s.x0 >= r.minX - 1.7 && s.x1 <= r.maxX + 1.7 && s.z0 >= r.minZ - 1.7 && s.z1 <= r.maxZ + 1.7), "a street is a paved lane");
   for (const cell of [POST_OFFICE_CELL, TOWN_HALL_CELL]) assert.equal(cells[cell.z * TOWN_GRID.width + cell.x], 1);
   const square = civicCenter("square");
   assert.ok(open(cells, square.x, square.z), "the square is open");
@@ -93,7 +99,7 @@ test("walkers in the town only ever step on the paving", () => {
   const nav = new NavWorld();
   const buildings = Array.from({ length: TOWN_CAPACITY }, (_, i) => building(`p${i}`, [], []));
   nav.sync(buildings);
-  const cells = townOpenCells(buildings.map((_, i) => i));
+  const cells = townOpenCells(standalonePlan(buildings));
   const post = { room: TOWN_ROOM, cell: POST_OFFICE_CELL };
   for (const slug of nav.slugs()) {
     const front = nav.front(slug)!;

@@ -8,11 +8,15 @@ import type { BuildMode } from "../state/build";
 import type { TownState } from "../state/town";
 import { SCENARIO, useWorld } from "../state/world";
 import { Button, Card, Chip, Field } from "./primitives";
+import { BuildLayout } from "./LayoutPanel";
+import type { TownPlan } from "../world/townPlan";
 import { BuildZones } from "./ZonePanel";
 
 interface Props {
   build: BuildMode;
   town: TownState;
+  /** Where every building stands: build mode's layout part moves them. */
+  plan: TownPlan;
   inside: Building | null;
   demo: boolean;
   onClose: () => void;
@@ -24,7 +28,7 @@ interface Props {
 
 const ROTATION_WORDS = ["facing the camera", "turned a quarter", "turned half", "turned three quarters"] as const;
 
-export function BuildPanel({ build, town, inside, demo, onClose, onUndo, onRedo, onEdit, onRequest }: Props) {
+export function BuildPanel({ build, town, plan, inside, demo, onClose, onUndo, onRedo, onEdit, onRequest }: Props) {
   const { model } = useWorld();
   const groups = town.catalogue.groups();
   const [group, setGroup] = useState<CatalogueGroupId>(groups[0]?.id ?? "work");
@@ -141,6 +145,8 @@ export function BuildPanel({ build, town, inside, demo, onClose, onUndo, onRedo,
             </li>
           ))}
         </ul>
+
+        <BuildLayout model={model} town={town} plan={plan} inside={inside} />
 
         <BuildZones model={model} town={town} inside={inside} />
 

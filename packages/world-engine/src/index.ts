@@ -234,8 +234,8 @@ export function validateLayout(value: unknown, defs: Definitions): WorldLayout {
     !Number.isInteger(l.grid.depth) ||
     l.grid.width < 1 ||
     l.grid.depth < 1 ||
-    l.grid.width > 128 ||
-    l.grid.depth > 128 ||
+    l.grid.width > 256 ||
+    l.grid.depth > 256 ||
     !Number.isFinite(l.grid.cellSize) ||
     l.grid.cellSize < 0.1 ||
     l.grid.cellSize > 10 ||

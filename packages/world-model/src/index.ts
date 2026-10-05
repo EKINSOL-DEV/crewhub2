@@ -35,6 +35,7 @@ export {
 } from "./townDocument.ts";
 export {
   HISTORY_LIMIT,
+  amendHistory,
   canRedo,
   canUndo,
   commitHistory,
