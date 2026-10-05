@@ -13,19 +13,19 @@
     "celadon": { "day": "#a9cfb9", "lamplight": "#aecbae" },
     "oat": { "day": "#f1e8d0", "lamplight": "#f4e2c0" },
     "rain": { "day": "#a8c3d8", "lamplight": "#adc0cb" },
-    "blush": { "day": "#ecbcab", "lamplight": "#eeb79e" },
+    "wisteria": { "day": "#c9bfe2", "lamplight": "#cdbbd6" },
     "glaze-white": { "day": "#f6f1e1", "lamplight": "#f8ead0" },
     "root": { "day": "#5d4735", "lamplight": "#5d4735" },
     "pane": { "day": "#3a2c22", "lamplight": "#3a2a1c" },
     "ember": { "day": "#8a4f1c", "lamplight": "#b8661c" },
-    "lantern": { "day": "#ffe2a0", "lamplight": "#ffd27e" },
-    "moss-fresh": { "day": "#7ba352", "lamplight": "#74994e" },
-    "moss-deep": { "day": "#5c8647", "lamplight": "#557c44" },
+    "lantern": { "day": "#ffd98a", "lamplight": "#ffc966" },
+    "moss-fresh": { "day": "#6f9c4c", "lamplight": "#6a9349" },
+    "moss-deep": { "day": "#557f43", "lamplight": "#4f7640" },
     "shoot": { "day": "#6f9450", "lamplight": "#6c8d4e" },
     "shoot-leaf": { "day": "#93c365", "lamplight": "#8fba60" },
     "bud": { "day": "#f2c552", "lamplight": "#f5c04c" },
     "bloom": { "day": "#f7dfe0", "lamplight": "#f9d9cf" },
     "toadstool": { "day": "#d9674f", "lamplight": "#dc664a" }
   },
-  "budget": { "nearTriangles": 4400, "farTriangles": 2700, "nearMeshes": 34, "farMeshes": 13 }
+  "budget": { "nearTriangles": 5400, "farTriangles": 2700, "nearMeshes": 34, "farMeshes": 13 }
 }
