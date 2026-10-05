@@ -65,7 +65,9 @@ const walkersWalking = (p) => p.evaluate(() => [...(globalThis.__town?.walks?.wa
 let p = await open();
 await town(p, 3000);
 await shot(p, "01-town");
-ok("Demo chip visible", await p.getByText("Demo", { exact: true }).first().isVisible());
+// The chip in the header says the data is scripted; since the scenario picker it is a button, "Demo: <scenario>".
+const chip = p.locator("header .demo-word, header .chip").filter({ hasText: /^Demo\b/ }).first();
+ok("Demo chip visible", await chip.isVisible().catch(() => false), (await chip.innerText().catch(() => "")).trim());
 let tv = await text(p);
 ok("text view opens with demo line", /Demo mode/.test(tv), tv.slice(0, 80).replace(/\n/g, " | "));
 ok("text view lists buildings", /CrewHub World \(CR\)/.test(tv) && /crewhub-loops \(CL\)/.test(tv) && /Launch & Marketing \(MK\)/.test(tv));
