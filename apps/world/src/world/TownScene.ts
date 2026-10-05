@@ -10,7 +10,8 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { AgentPlacement, RoomKind, WorldModel } from "@crewhub/world-model";
-import type { EnvironmentHandle, GraphicsQuality, ModelAnimation, ModelKey, ResolvedStyle, RobotHandle, RobotPosture, StyleTheme } from "@crewhub/world-style";
+import { IDLE_STATE, type Cast, type FigureHandle, type FigureState } from "@crewhub/world-cast";
+import type { EnvironmentHandle, GraphicsQuality, ModelAnimation, ModelKey, ResolvedStyle, StyleTheme } from "@crewhub/world-style";
 import { BuildingView, type Pick } from "./buildingView";
 import { BACK_WALL_HEIGHT, BUILDING_CELL, FLOOR_RISE } from "./buildingTemplate";
 import type { TownLayer } from "./propLayer";
@@ -30,6 +31,8 @@ import { FrameRing } from "./frameRing";
 import { nudgeStacks, overRobot, type Label, type RobotBox } from "./labelLayout";
 import { updateMatrices } from "./matrixPass";
 import { RobotCrowd } from "./robotCrowd";
+import { castRegistry } from "./cast";
+import { figureRole, figureState, type FigureFacts, type FigurePlace } from "./figureState";
 
 export interface TownView {
   model: WorldModel;
@@ -46,6 +49,8 @@ export interface TownView {
   theme: StyleTheme;
   /** The viewer's graphics setting: "pretty" draws shadow maps and ambient effects, "fast" leaves them out. */
   quality: GraphicsQuality;
+  /** The viewer's cast (Settings); null follows the town and the style. A building's own cast wins over it. */
+  cast: string | null;
   /** Source time now (ms): drone flights run on it, so they follow the playback speed. */
   now: () => number;
   /** The Day and night setting: the light drifts with the source clock (`dayClock`). */
@@ -113,6 +118,8 @@ export interface WorldPerf {
   /** The JS heap in bytes, where the browser tells (Chromium), else null. */
   heap: number | null;
   quality: GraphicsQuality;
+  /** The name of the cast in view: the entered building's, else the town's. */
+  cast: string;
   /** "town", or the entered building's slug. */
   view: string;
   /** Drawn frames in the window. */
@@ -162,6 +169,8 @@ const DESK_SPAN = 2.4;
    either side, in world units (robots stand at 0.62 scale). Other labels keep off it. */
 const ROBOT_BODY = 1.0;
 const ROBOT_HALF_WIDTH = 0.3;
+/* The same for any cast: a figure's box is as wide as this share of its ground radius either side. */
+const FIGURE_HALF_WIDTH = 1.2;
 /* A hanging label pushed further than this from its anchor (pixels) is too far to read as its object's: it fades
    until the pointer is on it. */
 const FAR_LABEL = 72;
@@ -242,14 +251,16 @@ export class TownScene {
   /** The view the entered building's shadow was last fitted to. */
   #shadowFit: { zoom: number; x: number; z: number } | null = null;
   #civicSignature = "";
-  #civicRobots: RobotHandle[] = [];
+  #civicRobots: { handle: FigureHandle; agent: AgentPlacement }[] = [];
+  /** The facts of the postman's state (reused every frame). */
+  #postmanFacts: FigureFacts = { agent: null as unknown as AgentPlacement };
   /** The far robots of every building, drawn instanced (robotCrowd.ts). */
   #crowd = new RobotCrowd();
   /** Buildings the camera sees this frame (their far robots follow their walkers and are drawn). */
   #seen = new Set<string>();
   #frustum = new THREE.Frustum();
   #box = new THREE.Box3();
-  #postman: { handle: RobotHandle; key: string; letters: THREE.Object3D[] } | null = null;
+  #postman: { handle: FigureHandle; key: string; letters: THREE.Object3D[] } | null = null;
   /** Drawn frames (the stress and frame rate overlays only), and whether the loop rested before the next one. */
   #frames = new FrameRing(2048);
   #rested = true;
@@ -610,11 +621,13 @@ export class TownScene {
       // A plot's own style id when it has one, else the town document's default (tonight both are Greenhouse).
       const plot: StyledPlot = { styleId: this.view.town?.doc.plots.find((p) => p.slug === b.slug)?.styleId ?? this.view.town?.doc.styleId ?? null };
       const style = styleRegistry.styleFor(plot);
+      const cast = this.#castFor(style, b.slug);
       if (!view || view.group.userData.index !== index || view.ctx.style !== style) {
         view?.dispose();
         if (style !== this.townStyle) style.setTheme(this.view.theme);
         view = new BuildingView(b, c, PLOT_SIZE, {
           style,
+          cast,
           now: () => this.view.now(),
           reducedMotion: () => this.view.reducedMotion,
           walker: (key) => this.walks.walker(key),
@@ -624,6 +637,8 @@ export class TownScene {
         this.#buildings.set(b.slug, view);
         this.scene.add(view.group);
       }
+      // A cast chosen in Settings (or by the town document) swaps the figures where they stand and walk.
+      view.setCast(cast);
       const town = this.view.town;
       view.update(b, this.view.entered === b.slug, town && (this.view.entered === b.slug ? town : { ...town, build: null }));
       if (this.view.entered === b.slug) this.#useInterior(b.slug);
@@ -718,11 +733,22 @@ export class TownScene {
     this.#contacts.set(slug, { object, size });
   }
 
+  /**
+   * The cast of a building (null: of the town itself, its postman and town hall): the building's own in the town
+   * document, else the viewer's choice, else the town document's, else the style's default.
+   */
+  #castFor(style: ResolvedStyle, slug: string | null): Cast {
+    const doc = this.view.town?.doc;
+    const building = slug === null ? null : doc?.plots.find((p) => p.slug === slug)?.castId;
+    return castRegistry.castFor(style, castRegistry.resolve({ building, viewer: this.view.cast, town: doc?.castId, style: style.manifest.defaultCast }).id);
+  }
+
   /** The postman at the post office and the agents in the town hall. */
   syncCivic() {
     const model = this.view.model;
     const civic = [...model.postOffice.slice(0, 2), ...model.townHall.slice(0, 5)];
-    const signature = civic.map((a) => `${a.key}:${a.posture}`).join("|") + model.freshness.stale;
+    const cast = this.#castFor(this.townStyle, null);
+    const signature = `${cast.manifest.id}|` + civic.map((a) => `${a.key}:${a.posture}:${a.laneStatus}`).join("|") + model.freshness.stale;
     const post = civicCenter("post-office"),
       hall = civicCenter("town-hall");
     this.#anchors.set("c:post-office", new THREE.Vector3(post.x, 0.2, post.z + CIVIC_LAWN / 2));
@@ -730,36 +756,41 @@ export class TownScene {
     if (signature === this.#civicSignature) return;
     this.#civicSignature = signature;
     this.#shadowDirty = true;
-    for (const robot of this.#civicRobots) robot.dispose();
+    for (const robot of this.#civicRobots) robot.handle.dispose();
     this.#civicRobots = [];
     this.#postman = null;
-    const place = (agent: AgentPlacement, x: number, z: number, role: "router" | "worker" | "analyst" | "design" | "lead") => {
-      const robot = this.townStyle.robot({ key: agent.key, accent: null, role });
-      robot.object.position.set(x, 0.2, z);
-      robot.object.scale.setScalar(ROBOT_SCALE * 1.4);
-      robot.setPosture(agent.posture as RobotPosture);
-      this.#civic.add(robot.object);
-      this.#civicRobots.push(robot);
+    const place = (agent: AgentPlacement, x: number, z: number, where: FigurePlace) => {
+      const handle = cast.figure({ key: agent.key, accent: null, role: figureRole(agent, where) });
+      handle.object.position.set(x, 0.2, z);
+      handle.object.scale.setScalar(ROBOT_SCALE * 1.4);
+      handle.setState(figureState({ agent }));
+      this.#civic.add(handle.object);
+      this.#civicRobots.push({ handle, agent });
     };
-    model.postOffice.slice(0, 2).forEach((a, i) => place(a, post.x - 0.5 + i, post.z + 0.4, "router"));
+    model.postOffice.slice(0, 2).forEach((a, i) => place(a, post.x - 0.5 + i, post.z + 0.4, "post-office"));
     const postman = model.postOffice[0];
-    const handle = postman && this.#civicRobots[0];
+    const handle = postman && this.#civicRobots[0]?.handle;
     if (postman && handle) {
-      // The postman walks the town at the interiors' scale; the letters it carries ride in front of it.
+      // The postman walks the town at the interiors' scale; the letters it carries ride at its carry anchor.
       handle.object.scale.setScalar(ROBOT_SCALE * 1.15);
-      // It walks the whole town: its soft blob shadow goes along, a sun shadow would hold the town's map on every step.
-      handle.object.traverse((o) => (o.castShadow = false));
+      const [x, y, z] = handle.anchors.carry;
       const letters = [0, 1, 2].map((i) => {
         const letter = this.townStyle.model("letter");
-        letter.position.set(0, 0.62 + i * 0.07, 0.34);
+        letter.position.set(x, y + i * 0.07, z);
         letter.rotation.x = -0.35;
         letter.visible = false;
         handle.object.add(letter);
         return letter;
       });
       this.#postman = { handle, key: postman.key, letters };
+      this.#unshadowPostman();
     }
-    model.townHall.slice(0, 5).forEach((a, i) => place(a, hall.x - 1.6 + i * 0.8, hall.z + 1.3, a.role));
+    model.townHall.slice(0, 5).forEach((a, i) => place(a, hall.x - 1.6 + i * 0.8, hall.z + 1.3, "town-hall"));
+  }
+
+  /** The postman walks the whole town: its soft blob shadow goes along, a sun shadow would hold the town's map on every step. */
+  #unshadowPostman() {
+    this.#postman?.handle.object.traverse((o) => (o.castShadow = false));
   }
 
   /** Picks up the label elements React rendered; call after every render that can change them. */
@@ -794,7 +825,8 @@ export class TownScene {
       this.applyQuality(view.quality);
       this.#dress(view.model.buildings.length);
     }
-    if (previous.model !== view.model || previous.entered !== view.entered || previous.room !== view.room || previous.town !== view.town) this.sync();
+    if (previous.cast !== view.cast) this.#shadowDirty = true;
+    if (previous.cast !== view.cast || previous.model !== view.model || previous.entered !== view.entered || previous.room !== view.room || previous.town !== view.town) this.sync();
     else if (previous.reducedMotion !== view.reducedMotion || previous.ambient !== view.ambient)
       this.walks.update(view.model, { entered: view.entered, reducedMotion: view.reducedMotion, ambient: view.ambient });
     if (previous.entered !== view.entered) {
@@ -1292,10 +1324,25 @@ export class TownScene {
     const object = p.handle.object;
     object.position.set(walker.x, walker.y + 0.02, walker.z);
     object.rotation.y = walker.walking || walker.carrying ? walker.heading : 0;
-    p.handle.setPosture(walker.walking ? "walking" : "relaxed");
+    const facts = this.#postmanFacts;
+    facts.agent = this.#civicRobots[0]!.agent;
+    facts.walker = walker;
+    facts.carrying = walker.carrying > 0;
+    const state = figureState(facts, this.#postmanFigure);
+    // Between rounds it idles at the post office, whatever its lane says.
+    if (!walker.walking) state.activity = "idle";
+    const key = `${state.activity}${state.carrying}`;
+    p.handle.setState(state);
+    if (key !== this.#postmanState) {
+      // A new state re-skins the figure, and with that its shadows.
+      this.#postmanState = key;
+      this.#unshadowPostman();
+    }
     p.letters.forEach((letter, i) => (letter.visible = i < walker.carrying));
     if (!this.view.reducedMotion && walker.walking) p.handle.update(seconds);
   }
+  #postmanState = "";
+  #postmanFigure: FigureState = { ...IDLE_STATE };
 
   /** Mean, p95 and max over the last 300 drawn frames (the stress overlay; kept with `measure` or `fps`). */
   frameStats(): FrameStats {
@@ -1336,6 +1383,7 @@ export class TownScene {
       textures: memory.textures,
       heap,
       quality: this.view.quality,
+      cast: ((this.view.entered && this.#buildings.get(this.view.entered)?.ctx.cast) || this.#castFor(this.townStyle, null)).manifest.name,
       view: this.view.entered ?? "town",
       frames: s.frames,
       at: now,
@@ -1414,7 +1462,9 @@ export class TownScene {
     const view = this.view.entered ? this.#buildings.get(this.view.entered) : undefined;
     if (!view) return 0;
     const pixels = (height * this.camera.zoom) / (this.camera.top - this.camera.bottom);
-    const half = ROBOT_HALF_WIDTH * pixels;
+    const figure = view.figureBox;
+    const half = (figure ? figure.half * FIGURE_HALF_WIDTH : ROBOT_HALF_WIDTH) * pixels;
+    const body = figure ? figure.height : ROBOT_BODY;
     let n = 0;
     for (const [id, anchor] of view.anchors) {
       if (id.charCodeAt(0) !== 97 || id.charCodeAt(1) !== 58) continue; // "a:"
@@ -1422,7 +1472,7 @@ export class TownScene {
       if (this.#v.z < -1 || this.#v.z > 1) continue;
       const x = (this.#v.x * 0.5 + 0.5) * width,
         top = (-this.#v.y * 0.5 + 0.5) * height;
-      this.#v.set(anchor.x, anchor.y - ROBOT_BODY, anchor.z).project(this.camera);
+      this.#v.set(anchor.x, anchor.y - body, anchor.z).project(this.camera);
       const bottom = (-this.#v.y * 0.5 + 0.5) * height;
       if (x < -half || x > width + half || bottom < 0 || top > height) continue;
       const box = (this.#robotBoxes[n] ??= { id: "", x: 0, left: 0, right: 0, top: 0, bottom: 0 });
@@ -1455,7 +1505,7 @@ export class TownScene {
     canvas.removeEventListener("pointerleave", this.pointerLeave);
     canvas.removeEventListener("webglcontextlost", this.contextLost);
     for (const view of this.#buildings.values()) view.dispose();
-    for (const robot of this.#civicRobots) robot.dispose();
+    for (const robot of this.#civicRobots) robot.handle.dispose();
     this.#crowd.dispose();
     this.#disposeDressing();
     clearInterval(this.#driftTimer);

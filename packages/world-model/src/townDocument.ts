@@ -47,6 +47,8 @@ export interface Plot {
   cell: GridCell;
   /** Per-plot style; absent means the town default. No UI yet. */
   styleId?: string;
+  /** Per-plot cast (the figures that stand for this building's agents); absent means the town's. No UI yet. */
+  castId?: string;
 }
 export type PlacementSite = { building: string; room: RoomKind } | { town: true };
 export interface Attachment {
@@ -69,6 +71,11 @@ export interface TownDocument {
   format: typeof TOWN_FORMAT;
   revision: number;
   styleId: string;
+  /**
+   * The town's cast; absent means the viewer's choice, else the style's default. An id is not checked against the
+   * casts this viewer has: an unknown one falls back, with a note in the text view.
+   */
+  castId?: string;
   plots: Plot[];
   placements: PlacedProp[];
   /** Always with provenance: `{kind: "ticket", ticketKey}` or `{kind: "local"}`. */
@@ -103,7 +110,9 @@ export type TownEdit =
   | { type: "remove-user-prop"; propId: string }
   | { type: "set-rule"; rule: RuleId; on: boolean }
   /** Adds or moves a plot; `cell: null` removes it. */
-  | { type: "set-plot"; slug: string; cell: GridCell | null; styleId?: string };
+  | { type: "set-plot"; slug: string; cell: GridCell | null; styleId?: string; castId?: string }
+  /** The town's cast; null goes back to the viewer's choice and the style's default. */
+  | { type: "set-cast"; castId: string | null };
 
 export type EditResult = { ok: true; doc: TownDocument } | { ok: false; error: string };
 export type ImportResult = { ok: true; doc: TownDocument } | { ok: false; error: string; doc: TownDocument };
@@ -124,7 +133,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 const SLUG_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const REF_MAX = 128;
 const DOC_KEYS = ["format", "revision", "styleId", "plots", "placements", "userProps", "rules"] as const;
-const PLOT_KEYS = ["slug", "cell", "styleId"] as const;
+const PLOT_KEYS = ["slug", "cell", "styleId", "castId"] as const;
 const PLACEMENT_KEYS = ["id", "propId", "at", "cell", "rotation", "attachment"] as const;
 
 type Obj = Record<string, unknown>;
@@ -162,6 +171,10 @@ export function validateTownDocument(value: unknown, context: TownContext): Town
     if (typeof v !== "string" || !context.knownStyles.includes(v))
       error(path, `unknown style ${JSON.stringify(v)} (known: ${context.knownStyles.join(", ")})`);
   };
+  // A cast id only has to be well-formed: which casts exist is the viewer's registry's to say.
+  const cast = (v: unknown, path: string) => {
+    if (typeof v !== "string" || v.length > REF_MAX || !SLUG_PATTERN.test(v)) error(path, "must be a cast id (lowercase letters, digits and dashes)");
+  };
   const array = (v: unknown, path: string, max: number): v is unknown[] => {
     if (!Array.isArray(v)) {
       error(path, "must be an array");
@@ -172,12 +185,13 @@ export function validateTownDocument(value: unknown, context: TownContext): Town
   };
 
   if (!isObject(value)) return { ok: false, errors: [{ path: "(root)", message: "a town document must be a JSON object" }] };
-  unknownKeys(value, DOC_KEYS, "");
+  unknownKeys(value, [...DOC_KEYS, "castId"], "");
   for (const key of DOC_KEYS) if (!(key in value)) error(key, "is required");
   if ("format" in value && value.format !== TOWN_FORMAT) error("format", `must be "${TOWN_FORMAT}"`);
   if ("revision" in value && (!Number.isSafeInteger(value.revision) || (value.revision as number) < 0))
     error("revision", "must be a whole number of at least 0");
   if ("styleId" in value) style(value.styleId, "styleId");
+  if ("castId" in value) cast(value.castId, "castId");
 
   if ("plots" in value && array(value.plots, "plots", TOWN_LIMITS.plotsMax)) {
     const slugs = new Set<string>(),
@@ -200,6 +214,7 @@ export function validateTownDocument(value: unknown, context: TownContext): Town
         }
       }
       if ("styleId" in plot) style(plot.styleId, at(path, "styleId"));
+      if ("castId" in plot) cast(plot.castId, at(path, "castId"));
     });
   }
 
@@ -350,6 +365,12 @@ export function applyEdit(doc: TownDocument, edit: TownEdit, context: TownContex
         userProps: doc.userProps.filter((p) => p.id !== edit.propId),
         placements: doc.placements.filter((p) => p.propId !== edit.propId),
       });
+    case "set-cast": {
+      const { castId: _, ...rest } = doc;
+      if (edit.castId === null) return next(rest, {});
+      if (!SLUG_PATTERN.test(edit.castId) || edit.castId.length > REF_MAX) return { ok: false, error: `${JSON.stringify(edit.castId)} is not a cast id.` };
+      return next(doc, { castId: edit.castId });
+    }
     case "set-rule":
       if (!RULE_IDS.includes(edit.rule)) return { ok: false, error: `Unknown rule ${edit.rule}.` };
       return next(doc, { rules: { ...doc.rules, [edit.rule]: edit.on } });
@@ -362,6 +383,8 @@ export function applyEdit(doc: TownDocument, edit: TownEdit, context: TownContex
       const plot: Plot = { slug: edit.slug, cell: { ...edit.cell } };
       const styleId = edit.styleId ?? doc.plots.find((p) => p.slug === edit.slug)?.styleId;
       if (styleId !== undefined) plot.styleId = styleId;
+      const castId = edit.castId ?? doc.plots.find((p) => p.slug === edit.slug)?.castId;
+      if (castId !== undefined) plot.castId = castId;
       const plots = doc.plots.some((p) => p.slug === edit.slug)
         ? doc.plots.map((p) => (p.slug === edit.slug ? plot : p))
         : [...doc.plots, plot];

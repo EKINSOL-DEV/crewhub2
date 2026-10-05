@@ -94,27 +94,6 @@ export interface ModelOptions {
   text?: string;
 }
 
-export type RobotPosture = "focused" | "relaxed" | "raised-hand" | "greyed" | "walking";
-export type RobotRole = "lead" | "worker" | "analyst" | "design" | "router";
-
-export interface RobotHandle {
-  readonly object: THREE.Object3D;
-  setPosture(posture: RobotPosture): void;
-  /** The translucent echo of an agent that works in another building; still. */
-  setProxy(proxy: boolean): void;
-  /** A lit halo: the agent's own building has a stall or a waiting ticket. */
-  setAlert(alert: boolean): void;
-  /** Idle bob, typing, walking; `seconds` since the last call. Callers skip it under reduced motion. */
-  update(seconds: number): void;
-  /**
-   * "far": the robot is seen from the town, a few pixels tall. The style may drop small parts and shadows to save
-   * triangles; the silhouette, colours and postures stay. "near" (the default) is the full robot.
-   */
-  setDetail(detail: RobotDetail): void;
-  dispose(): void;
-}
-export type RobotDetail = "near" | "far";
-
 /**
  * The viewer's graphics setting (Settings, kept per browser). "pretty" (the default) draws soft shadow maps and the
  * ambient effects (warm light pools, glow); "fast" turns them off. Blob contact shadows stay in both.
@@ -216,7 +195,6 @@ export interface WorldStyle {
    * does not cover (the registry then draws the neutral placeholder).
    */
   model(key: ModelKey, options?: ModelOptions): THREE.Object3D | null;
-  robot(options: { key: string; accent: PaletteName | null; role: RobotRole }): RobotHandle;
   /**
    * The kit a cast draws its figures with (`@crewhub/world-cast`): the style's shapes, shared materials, contact
    * shadow and alert halo, with the cast's own colours per theme. One per cast. A style without one gets the cast

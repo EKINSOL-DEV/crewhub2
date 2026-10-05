@@ -1117,7 +1117,7 @@
   z-index: 6;
   box-sizing: border-box;
   width: 13rem;
-  height: 6.4rem;
+  height: 7.6rem;
   contain: strict;
   display: flex;
   flex-direction: column;
@@ -1193,11 +1193,14 @@
 }
 .cast-stage {
   position: relative;
-  height: min(72vh, 46rem);
+  height: min(78vh, 52rem);
   min-height: 20rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   overflow: hidden;
+}
+.cast-stage[data-side] {
+  height: min(88vh, 60rem);
 }
 .cast-stage canvas {
   display: block;
@@ -1219,22 +1222,26 @@
   left: 0;
   will-change: transform;
 }
+/* The world's own name pill, as a button: small and quiet, the figure does the talking. */
 .cast-pill {
   pointer-events: auto;
   cursor: pointer;
-  margin-top: calc(-1 * var(--space-1));
+  padding: 2px var(--space-2);
+  font-family: inherit;
+  opacity: 0.86;
+}
+.cast-pill:hover,
+.cast-pill:focus-visible,
+.cast-pill[aria-pressed="true"] {
+  opacity: 1;
+  border-color: var(--border-hover);
 }
 .cast-pill[aria-pressed="true"] {
   background: var(--surface-sunken);
-  border-color: var(--border-hover);
-  color: var(--text);
-  font-weight: var(--weight-semibold);
 }
 .cast-room-title {
-  height: auto;
-  padding: var(--space-1) var(--space-3);
-  font-size: var(--text-sm);
-  color: var(--text);
+  padding: 3px var(--space-3);
+  font-size: var(--text-xs);
 }
 .cast-about {
   max-width: 60rem;

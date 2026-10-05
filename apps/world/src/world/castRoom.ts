@@ -11,6 +11,7 @@ import type { PreviewCast } from "./castRoomCasts";
 import {
   DESKS,
   DUSK_PHASE,
+  figureArea,
   FIGURE_SCALE,
   FURNITURE,
   MEMBERS,
@@ -20,9 +21,11 @@ import {
   ROOM,
   ROOM_ACCENT,
   ROOM_CELL as CELL,
+  SCENE_START,
   roomOrigin,
   roomPlays,
   type CastMember,
+  type PreviewFraming,
   type PreviewLight,
   type PreviewScene,
   type PreviewStateId,
@@ -40,6 +43,8 @@ export interface CastRoomView {
   reducedMotion: boolean;
   /** Town distance: the camera far out, figures at their far detail, drawn by the robot crowd. */
   far: boolean;
+  /** Near only: the camera frames the figures tightly, or the whole room. */
+  framing: PreviewFraming;
 }
 
 export type CastRoomCamera = "home" | "rotate-left" | "rotate-right" | "zoom-in" | "zoom-out";
@@ -49,7 +54,10 @@ export const figureId = (room: number, key: string) => `${room}:${key}`;
 
 const FLOOR_RISE = 0.24;
 const WALL_HEIGHT = 1.75;
-const HOME_DIRECTION = new THREE.Vector3(1, 1.04, 1).normalize();
+/** A little more from the front than the town's camera, so the wide room fills a wide stage. */
+const HOME_DIRECTION = new THREE.Vector3(0.62, 0.9, 1).normalize();
+/** The room for a standing figure and the pill over its head, world units. */
+const FIGURE_HEADROOM = 1.15;
 const CAMERA_DISTANCE = 120;
 /** The frustum height of the town-distance view, world units: a figure is then as small as in the town's home view. */
 const FAR_SPAN = 40;
@@ -66,6 +74,14 @@ interface Figure {
   highlight: FigureHighlight;
 }
 
+/** A part of the stage, CSS pixels from its top left. */
+interface Cell {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 interface Flight {
   ticket: THREE.Object3D;
   drone: THREE.Group;
@@ -78,6 +94,10 @@ interface Flight {
 interface Room {
   cast: PreviewCast;
   play: RoomPlay;
+  /** The floor the camera frames of this room, cells. */
+  area: { minX: number; maxX: number; minZ: number; maxZ: number };
+  /** The room's own strip of lawn (near; at town distance the block stands on one lawn). */
+  lawn: THREE.Object3D;
   group: THREE.Group;
   figures: Figure[];
   /** The tall back walls and the low rims that stand in for them when the camera looks from behind. */
@@ -106,8 +126,10 @@ export class CastRoomScene {
   #hovered: string | null = null;
   #onSelect: (id: string | null) => void;
   #bounds = new THREE.Box3();
+  #lawns = new THREE.Group();
+  #framed = "";
   #deskTop = 0.5;
-  #time = 0;
+  #time = SCENE_START;
   #last = 0;
   #raf = 0;
   #observer: ResizeObserver;
@@ -169,8 +191,9 @@ export class CastRoomScene {
       const { plays } = roomPlays(next.casts.length, next.state, next.scene, next.far);
       this.#rooms.forEach((room, i) => (room.play = plays[i]!));
     }
-    if (previous.scene !== next.scene) this.#time = 0;
-    if (rebuilt) this.#frame(true);
+    if (previous.scene !== next.scene) this.#time = SCENE_START;
+    // What the figures use of the floor changed (a line-up, a loop), or the framing did: the camera frames it again.
+    if (this.#layout() || rebuilt) this.#frame(true);
   }
 
   /** The page's label elements changed: `[data-figure]` pills follow their figure, `[data-room]` titles their room. */
@@ -272,30 +295,75 @@ export class CastRoomScene {
     this.#content.clear();
     this.#rooms = [];
     const { casts, far } = this.view;
-    const style = this.#style;
-    this.#bounds.makeEmpty();
-    const { plays, columns } = roomPlays(casts.length, this.view.state, this.view.scene, far);
+    const { plays } = roomPlays(casts.length, this.view.state, this.view.scene, far);
     plays.forEach((play, index) => {
-      const origin = roomOrigin(index, columns);
       const room = this.#room(casts[play.cast]!, play, index);
-      room.group.position.set(origin.x * CELL, 0, origin.z * CELL);
       this.#content.add(room.group);
       this.#rooms.push(room);
-      this.#bounds.expandByPoint(this.#v.set(origin.x * CELL - 0.3, -FLOOR_RISE, origin.z * CELL - 0.3));
-      this.#bounds.expandByPoint(this.#v.set((origin.x + ROOM.width) * CELL + 0.3, WALL_HEIGHT, (origin.z + ROOM.depth) * CELL + 0.3));
     });
-    // The rooms stand on a lawn, centred on the scene's origin.
-    const centre = this.#bounds.getCenter(new THREE.Vector3()).setY(0);
-    const size = this.#bounds.getSize(new THREE.Vector3());
-    const lawn = style.model("plot", { size: { width: size.x + (far ? 30 : 5), height: 0.16, depth: size.z + (far ? 30 : 5) } });
-    lawn.position.set(centre.x, -FLOOR_RISE - 0.09, centre.z);
-    this.#content.add(lawn);
-    this.#content.position.copy(centre).negate();
-    this.#bounds.translate(this.#content.position);
-    this.#environment.setShadowReach(Math.hypot(size.x, size.z) / 2 + 1);
+    this.#content.add(this.#lawns);
+    this.#framed = "";
+    this.#layout();
     if (this.#selected && !this.#figures.has(this.#selected)) this.#onSelect((this.#selected = null));
     this.#highlight();
     this.refreshLabels();
+  }
+
+  /**
+   * The stage's cells in CSS pixels when the rooms are side by side and near: a grid of equal cells, two to a row,
+   * one room drawn in each with the same camera. Null when the stage is one picture (one room, or town distance).
+   */
+  #cells(): Cell[] | null {
+    const count = this.#rooms.length;
+    if (this.view.far || count < 2) return null;
+    const gap = 8,
+      top = 26;
+    const rows = Math.ceil(count / 2);
+    const width = (this.#host.clientWidth - gap) / 2,
+      height = (this.#host.clientHeight - gap * (rows - 1)) / rows;
+    // The top of each cell is kept for the cast's name.
+    return this.#rooms.map((_, i) => ({ x: (i % 2) * (width + gap), y: Math.floor(i / 2) * (height + gap) + top, width, height: height - top }));
+  }
+
+  /**
+   * Places the rooms and fits the bounds the camera frames; true when they changed. At town distance the rooms stand
+   * in a block on one lawn, as buildings would. Near, every room stands on the same spot, centred on what the camera
+   * frames of it: side by side each is drawn alone into its own cell of the stage (`#cells`).
+   */
+  #layout(): boolean {
+    const { far, framing, casts } = this.view;
+    const { plays, columns } = roomPlays(casts.length, this.view.state, this.view.scene, far);
+    const whole = far || framing === "room";
+    const areas = plays.map((play) => (whole ? { minX: -0.5, maxX: ROOM.width + 0.5, minZ: -0.5, maxZ: ROOM.depth + 0.5 } : figureArea(play)));
+    const key = JSON.stringify([far, framing, columns, areas]);
+    if (key === this.#framed) return false;
+    this.#framed = key;
+    const low = whole ? -FLOOR_RISE : 0,
+      high = whole ? WALL_HEIGHT : FIGURE_HEADROOM;
+    this.#bounds.makeEmpty();
+    this.#lawns.clear();
+    this.#rooms.forEach((room, index) => {
+      const area = (room.area = areas[index]!);
+      room.lawn.visible = !far;
+      if (far) {
+        const origin = roomOrigin(index, columns);
+        room.group.position.set(origin.x * CELL, 0, origin.z * CELL);
+      } else room.group.position.set((-(area.minX + area.maxX) / 2) * CELL, 0, (-(area.minZ + area.maxZ) / 2) * CELL);
+      const at = room.group.position;
+      this.#bounds.expandByPoint(this.#v.set(at.x + area.minX * CELL, low, at.z + area.minZ * CELL));
+      this.#bounds.expandByPoint(this.#v.set(at.x + area.maxX * CELL, high, at.z + area.maxZ * CELL));
+    });
+    const centre = this.#bounds.getCenter(new THREE.Vector3()).setY(0);
+    const size = this.#bounds.getSize(new THREE.Vector3());
+    if (far) {
+      const lawn = this.#style.model("plot", { size: { width: size.x + 30, height: 0.16, depth: size.z + 30 } });
+      lawn.position.set(centre.x, -FLOOR_RISE - 0.09, centre.z);
+      this.#lawns.add(lawn);
+    }
+    this.#content.position.set(0, 0, 0).sub(centre);
+    this.#bounds.translate(this.#content.position);
+    this.#environment.setShadowReach(Math.hypot(size.x, size.z) / 2 + 3);
+    return true;
   }
 
   #room(cast: PreviewCast, play: RoomPlay, index: number): Room {
@@ -309,6 +377,7 @@ export class CastRoomScene {
       group.add(object);
       return object;
     };
+    const lawn = add(style.model("plot", { size: { width: width + 2.4, height: 0.16, depth: depth + 2.4 } }), ROOM.width / 2, ROOM.depth / 2, -FLOOR_RISE - 0.09);
     add(style.model("floor", { size: { width, height: 0, depth } }), ROOM.width / 2, ROOM.depth / 2, 0.02);
     add(style.model("building.floor-shade", { size: { width, height: 0, depth } }), ROOM.width / 2, ROOM.depth / 2, 0.026);
     add(style.model("building.slab", { size: { width, height: FLOOR_RISE, depth }, accent: ROOM_ACCENT }), ROOM.width / 2, ROOM.depth / 2);
@@ -345,7 +414,7 @@ export class CastRoomScene {
       this.#figures.set(figure.id, figure);
       return figure;
     });
-    return { cast, play, group, figures, backWalls, tickets: [], flight: null, delivered: 0 };
+    return { cast, play, lawn, area: { minX: 0, maxX: ROOM.width, minZ: 0, maxZ: ROOM.depth }, group, figures, backWalls, tickets: [], flight: null, delivered: 0 };
   }
 
   /**
@@ -360,7 +429,7 @@ export class CastRoomScene {
     const camera = this.camera;
     if (recentre) {
       const offset = this.#v.copy(camera.position).sub(this.controls.target).setLength(CAMERA_DISTANCE);
-      this.controls.target.set(0, 0.5, 0);
+      this.controls.target.set(0, (this.#bounds.min.y + this.#bounds.max.y) / 2, 0);
       camera.position.copy(this.controls.target).add(offset);
       camera.zoom = 1;
     }
@@ -376,10 +445,11 @@ export class CastRoomScene {
       halfW = Math.max(halfW, Math.abs(p.x - aim.x));
       halfH = Math.max(halfH, Math.abs(p.y - aim.y));
     }
-    halfW += 0.5;
-    halfH += 0.7;
+    halfW += 0.2;
+    halfH += 0.25;
     if (this.view.far) halfH = Math.max(halfH, FAR_SPAN / 2);
-    const aspect = width / height;
+    const cell = this.#cells()?.[0];
+    const aspect = cell ? cell.width / cell.height : width / height;
     if (halfW / halfH > aspect) halfH = halfW / aspect;
     else halfW = halfH * aspect;
     Object.assign(camera, { left: -halfW, right: halfW, top: halfH, bottom: -halfH });
@@ -453,7 +523,8 @@ export class CastRoomScene {
       this.#fly(room, seconds);
     }
     const selected = this.#selected ? this.#figures.get(this.#selected) : undefined;
-    this.#ring.visible = !!selected && !this.view.far;
+    const ringed = !!selected && !this.view.far;
+    this.#ring.visible = ringed;
     if (selected) {
       selected.handle.object.getWorldPosition(this.#ring.position);
       this.#ring.position.y += 0.012;
@@ -464,33 +535,64 @@ export class CastRoomScene {
     this.#crowd.begin();
     if (this.view.far) for (const figure of this.#figures.values()) this.#crowd.add(figure.handle.object, true);
     this.#crowd.end();
-    this.renderer.render(this.scene, camera);
-    this.#placeLabels();
+    const cells = this.#cells();
+    if (!cells) this.renderer.render(this.scene, camera);
+    else {
+      // Side by side: each room alone, into its own cell, with the same camera.
+      const height = this.#host.clientHeight;
+      this.renderer.setScissorTest(true);
+      cells.forEach((cell, index) => {
+        this.#rooms.forEach((room, i) => (room.group.visible = i === index));
+        this.#ring.visible = ringed && this.#rooms[index]!.figures.includes(selected!);
+        this.renderer.setViewport(cell.x, height - cell.y - cell.height, cell.width, cell.height);
+        this.renderer.setScissor(cell.x, height - cell.y - cell.height, cell.width, cell.height);
+        this.renderer.render(this.scene, camera);
+      });
+      for (const room of this.#rooms) room.group.visible = true;
+      this.renderer.setScissorTest(false);
+      this.renderer.setViewport(0, 0, this.#host.clientWidth, height);
+    }
+    this.#placeLabels(cells);
     if (!this.#host.dataset.ready) this.#host.dataset.ready = "true";
   };
 
-  #placeLabels() {
-    const width = this.#host.clientWidth,
-      height = this.#host.clientHeight;
+  #placeLabels(cells: Cell[] | null) {
+    const whole = { x: 0, y: 0, width: this.#host.clientWidth, height: this.#host.clientHeight };
     for (const anchor of this.#anchors) {
       const p = this.#v;
+      let x: number, y: number;
       if (anchor.figure) {
         const { handle } = anchor.figure;
-        handle.object.localToWorld(p.set(handle.anchors.label[0], handle.anchors.label[1], handle.anchors.label[2]));
-      } else if (anchor.room) anchor.room.group.localToWorld(p.set((ROOM.width / 2) * CELL, 0, (ROOM.depth + 0.9) * CELL));
-      else continue;
-      p.project(this.camera);
-      anchor.el.style.transform = `translate(-50%, ${anchor.figure ? "-100%" : "0"}) translate(${(((p.x + 1) / 2) * width).toFixed(1)}px, ${(((1 - p.y) / 2) * height).toFixed(1)}px)`;
+        const cell = cells?.[this.#rooms.findIndex((room) => room.figures.includes(anchor.figure!))] ?? whole;
+        handle.object.localToWorld(p.set(handle.anchors.label[0], handle.anchors.label[1], handle.anchors.label[2])).project(this.camera);
+        [x, y] = [cell.x + ((p.x + 1) / 2) * cell.width, cell.y + ((1 - p.y) / 2) * cell.height];
+      } else if (anchor.room) {
+        const cell = cells?.[this.#rooms.indexOf(anchor.room)];
+        if (cell) [x, y] = [cell.x + cell.width / 2, cell.y - 24];
+        else {
+          // A block of rooms: the title sits at the front of its room.
+          const { area } = anchor.room;
+          anchor.room.group.localToWorld(p.set(((area.minX + area.maxX) / 2 + 0.6) * CELL, 0, (area.maxZ + 0.6) * CELL)).project(this.camera);
+          [x, y] = [((p.x + 1) / 2) * whole.width, ((1 - p.y) / 2) * whole.height];
+        }
+      } else continue;
+      anchor.el.style.transform = `translate(-50%, ${anchor.figure ? "-100%" : "0"}) translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
     }
   }
 
   #pick(event: PointerEvent): string | null {
     const rect = this.renderer.domElement.getBoundingClientRect();
-    this.#pointer.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
+    const x = event.clientX - rect.left,
+      y = event.clientY - rect.top;
+    const cells = this.#cells();
+    const index = cells ? cells.findIndex((c) => x >= c.x && x <= c.x + c.width && y >= c.y && y <= c.y + c.height) : -1;
+    if (cells && index < 0) return null;
+    const cell = cells ? cells[index]! : { x: 0, y: 0, width: rect.width, height: rect.height };
+    this.#pointer.set(((x - cell.x) / cell.width) * 2 - 1, -((y - cell.y) / cell.height) * 2 + 1);
     this.#raycaster.setFromCamera(this.#pointer, this.camera);
     let best: string | null = null,
       distance = Infinity;
-    for (const figure of this.#figures.values()) {
+    for (const figure of cells ? this.#rooms[index]!.figures : this.#figures.values()) {
       const hit = this.#raycaster.intersectObject(figure.handle.object, true)[0];
       if (hit && hit.distance < distance) [best, distance] = [figure.id, hit.distance];
     }

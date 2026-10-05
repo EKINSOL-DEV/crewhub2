@@ -38,6 +38,8 @@ interface Joint {
   /** The still pose now and the pose with this frame's motion, nine channels each (rotations in radians). */
   base: Float32Array;
   now: Float32Array;
+  /** Which of rotation (1), offset (2) and scale (4) the motions of the state now move: only those are written. */
+  moves: number;
 }
 
 interface Part {
@@ -61,11 +63,11 @@ interface Wave {
   rests: boolean;
 }
 
-function writeJoint(joint: Joint, values: Float32Array) {
+function writeJoint(joint: Joint, values: Float32Array, what = 7) {
   const o = joint.object;
-  o.rotation.set(values[0]!, values[1]!, values[2]!);
-  o.position.set(joint.rest[0] + values[3]!, joint.rest[1] + values[4]!, joint.rest[2] + values[5]!);
-  o.scale.set(values[6]!, values[7]!, values[8]!);
+  if (what & 1) o.rotation.set(values[0]!, values[1]!, values[2]!);
+  if (what & 2) o.position.set(joint.rest[0] + values[3]!, joint.rest[1] + values[4]!, joint.rest[2] + values[5]!);
+  if (what & 4) o.scale.set(values[6]!, values[7]!, values[8]!);
 }
 
 function sameState(a: FigureState, b: FigureState): boolean {
@@ -85,7 +87,7 @@ function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend
     object.position.set(...j.position);
     (objects.get(j.parent ?? "root") ?? root).add(object);
     objects.set(j.id, object);
-    joints.set(j.id, { object, rest: j.position, base: new Float32Array(9), now: new Float32Array(9) });
+    joints.set(j.id, { object, rest: j.position, base: new Float32Array(9), now: new Float32Array(9), moves: 0 });
   }
 
   const seed = { key: options.key, role: options.role, accent: options.accent };
@@ -150,6 +152,7 @@ function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend
     const asks = state.waiting && state.activity !== "walking";
     for (const [id, joint] of joints) {
       joint.base.fill(0, 0, 6).fill(1, 6);
+      joint.moves = 0;
       layer(joint.base, spec.poses[state.activity]?.[id]);
       if (asks) layer(joint.base, spec.poses.waiting?.[id]);
       if (state.carrying) layer(joint.base, spec.poses.carrying?.[id]);
@@ -162,6 +165,7 @@ function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend
       for (const w of compiled.get(key) ?? []) {
         waves.push(w);
         if (!moving.includes(w.joint)) moving.push(w.joint);
+        w.joint.moves |= 1 << Math.floor(w.channel / 3);
         if (w.kind === "glance" && !glance) glance = w;
       }
     haloOn = state.alert || (haloColor !== null && (state.waiting || state.activity === "blocked"));
@@ -258,7 +262,7 @@ function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend
         const w = waves[i]!;
         w.joint.now[w.channel]! += w.amplitude * wave(w.kind, (time + w.offset) / w.period + w.phase, w.period) * (w.rests ? rest : 1);
       }
-      for (let i = 0; i < moving.length; i++) writeJoint(moving[i]!, moving[i]!.now);
+      for (let i = 0; i < moving.length; i++) writeJoint(moving[i]!, moving[i]!.now, moving[i]!.moves);
       extension?.update?.(seconds);
     },
     dispose() {

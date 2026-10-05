@@ -37,5 +37,5 @@
     "wilt-deep": { "day": "#a8985e", "lamplight": "#a8985e" },
     "lantern": { "day": "#ffc94d", "lamplight": "#ffc94d" }
   },
-  "budget": { "nearTriangles": 9000, "farTriangles": 4500, "nearMeshes": 30, "farMeshes": 12 }
+  "budget": { "nearTriangles": 4600, "farTriangles": 2000, "nearMeshes": 28, "farMeshes": 12 }
 }
