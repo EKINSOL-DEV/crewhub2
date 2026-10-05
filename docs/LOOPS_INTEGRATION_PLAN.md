@@ -586,7 +586,7 @@ only text rendering of the scene's facts.
 ## 5. Pathfinding and the grid engine
 
 **What exists** (`packages/world-engine/src/index.ts`,
-[GRID_ENGINE.md](GRID_ENGINE.md)): one rectangular grid of at most 128 × 128 cells;
+[GRID_ENGINE.md](GRID_ENGINE.md)): one rectangular grid of at most 256 × 256 cells;
 rotated rectangular footprints; static occupancy; four-way A* with an open-list
 scan (quadratic in the worst case); actor reservations of the current and next
 cell; atomic placement with reachability checks; replanning of every actor after a

@@ -37,6 +37,9 @@ import {
   type Tree,
 } from "./townDressing.ts";
 
+/** What the staked plot's sign says: the next thing to do in a town without a project. */
+export const STAKED_SIGN = "Create a project\nin crewhub-loops";
+
 export type Tier = "clearing" | "hamlet" | "village" | "town" | "region";
 
 /** A straight piece of street or road: its centre line, along x or along z (settlement.ts's `Segment`). */
@@ -231,9 +234,16 @@ export function parkPond(): Bounds {
 
 const laneRect = (s: PlanSegment): Bounds => span(Math.min(s.x0, s.x1) - LANE / 2, Math.max(s.x0, s.x1) + LANE / 2, Math.min(s.z0, s.z1) - LANE / 2, Math.max(s.z0, s.z1) + LANE / 2);
 
-/** The cobbled lanes of a plan: its streets and its district roads. */
-export function planLanes(plan: DressPlan): Bounds[] {
-  return [...plan.streets, ...plan.roads].map(laneRect);
+/**
+ * The cobbled lanes of a plan: its streets and its district roads, cut off at the ground's edge (a road runs to its
+ * district's main crossing, which may lie beyond the lots in use).
+ */
+export function planLanes(plan: Pick<DressPlan, "streets" | "roads" | "ground">): Bounds[] {
+  const g = plan.ground;
+  return [...plan.streets, ...plan.roads]
+    .map(laneRect)
+    .map((r) => span(Math.max(r.minX, g.minX + 0.2), Math.min(r.maxX, g.maxX - 0.2), Math.max(r.minZ, g.minZ + 0.2), Math.min(r.maxZ, g.maxZ - 0.2)))
+    .filter((r) => r.maxX - r.minX > 0.5 && r.maxZ - r.minZ > 0.5);
 }
 
 /**
@@ -576,7 +586,7 @@ function nodes(plan: DressPlan): PlotSpot[] {
     }
   const road = entranceRoad(plan);
   if (road) put((road.minX + road.maxX) / 2, road.minZ);
-  return [...found.values()];
+  return [...found.values()].filter((n) => inside(plan.ground, n.x, n.z, -LANE));
 }
 
 /**

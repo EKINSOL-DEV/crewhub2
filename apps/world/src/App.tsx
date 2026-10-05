@@ -32,7 +32,9 @@ import { PresenceSettings } from "./components/PresenceSettings";
 import { WhereForm } from "./components/WhereForm";
 import { useDirectorFeed } from "./state/director";
 import type { CameraAction } from "./world/TownScene";
-import { countsLine, laneWords, mmss, moveFocus, TOWN_CAPACITY } from "./world/townLayout";
+import { countsLine, laneWords, mmss } from "./world/townLayout";
+import { moveFocus } from "./world/townPlan";
+import { useTownPlan } from "./state/plan";
 
 const WorldCanvas = lazy(() => import("./components/WorldCanvas"));
 // Build mode and the prop editor are not needed for the first frame: they load when first opened.
@@ -106,7 +108,8 @@ function World() {
   const textRegion = useRef<HTMLElement>(null),
     settingsCard = useRef<HTMLDivElement>(null);
 
-  const buildings = model.buildings.slice(0, TOWN_CAPACITY);
+  const buildings = model.buildings;
+  const plan = useTownPlan(model, town.doc);
   const inside = buildings.find((b) => b.slug === entered) ?? null;
   const camera = useCallback((type: CameraAction) => setAction((a) => ({ id: a.id + 1, type })), []);
   const build = useBuildMode(town, inside, room, setAnnouncement);
@@ -375,7 +378,8 @@ function World() {
     }
     if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(e.key)) {
       e.preventDefault();
-      const next = ringVisible ? moveFocus(focused, e.key, buildings.length) : focused;
+      // The ring moves by where the buildings stand, not by their order in the list.
+      const next = ringVisible ? moveFocus(plan, buildings.map((b) => b.slug), focused, e.key) : focused;
       setFocused(next);
       setRingVisible(true);
       setAnnouncement(describe(next));
@@ -422,6 +426,7 @@ function World() {
             >
               <WorldCanvas
                 model={model}
+                plan={plan}
                 entered={entered}
                 focused={focused}
                 ringVisible={ringVisible}

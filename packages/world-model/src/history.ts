@@ -38,6 +38,16 @@ export function commitHistory(history: TownHistory, doc: TownDocument): TownHist
   return { entries, index: entries.length - 1 };
 }
 
+/**
+ * Replaces the current revision in place: no new undo step, the revision number and the redo tail are kept. For
+ * what the world records by itself (a new project's lot), which is not a person's edit and so not theirs to undo.
+ */
+export function amendHistory(history: TownHistory, doc: TownDocument): TownHistory {
+  const revision = currentDocument(history).revision;
+  const entries = history.entries.map((entry, i) => (i === history.index ? { ...doc, revision } : entry));
+  return { entries, index: history.index };
+}
+
 export function undoHistory(history: TownHistory): TownHistory {
   return canUndo(history) ? { entries: history.entries, index: history.index - 1 } : history;
 }

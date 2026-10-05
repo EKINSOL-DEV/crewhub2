@@ -125,7 +125,7 @@ test("districts are joined by roads under a gate with their name, and parted by 
 
 test("no settlement costs more dressing per building than the fixed town of four did", () => {
   // The fixed 4 x 3 grid dressed twelve plots for four buildings.
-  const before = townDressing(Array.from({ length: 4 }, (_, index) => ({ index, door: plotDoor(index), obstacles: plotObstacles(index) }))).filter((d) => !d.detail).length / 4;
+  const before = townDressing(Array.from({ length: 4 }, (_, index) => ({ index, door: plotDoor({ x: 63 + index, z: 64 }), obstacles: plotObstacles({ x: 63 + index, z: 64 }) }))).filter((d) => !d.detail).length / 4;
   const perLot = (count: number, zones: number) => settlementDressing(fixturePlan(count, zones).dress).filter((d) => !d.detail).length / count;
   for (const [count, zones] of [
     [4, 1],

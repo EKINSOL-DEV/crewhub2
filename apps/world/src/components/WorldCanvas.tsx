@@ -17,7 +17,8 @@ import { resolveBuildingPlacements } from "../world/placements";
 import type { TownLayer } from "../world/propLayer";
 import type { Ambient } from "../world/movement";
 import { LaneChip } from "../world/lane";
-import { clockTime, countsLine, laneWords, TOWN_CAPACITY } from "../world/townLayout";
+import { clockTime, countsLine, laneWords } from "../world/townLayout";
+import type { TownPlan } from "../world/townPlan";
 import type { RoomKind, RuleProp } from "@crewhub/world-model";
 import { Chip } from "./primitives";
 
@@ -28,6 +29,8 @@ export interface Selection {
 
 interface Props {
   model: WorldModel;
+  /** Where every building stands (state/plan.ts). */
+  plan: TownPlan;
   entered: string | null;
   focused: number;
   ringVisible: boolean;
@@ -74,6 +77,7 @@ export default function WorldCanvas(props: Props) {
   );
   const view = {
     model: props.model,
+    plan: props.plan,
     entered: props.entered,
     focused: props.focused,
     ringVisible: props.ringVisible,
@@ -138,7 +142,7 @@ export default function WorldCanvas(props: Props) {
       {STRESS && ready && <FrameOverlay scene={scene} />}
       {fps && ready && <FpsOverlay scene={scene} />}
       <div ref={labels} className="world-labels">
-        {model.buildings.slice(0, TOWN_CAPACITY).map((b, index) => {
+        {model.buildings.map((b, index) => {
           if (inside && inside.slug !== b.slug) return null;
           // Inside, the breadcrumb names the building: its sign comes back with Details (small on a phone). In the town a
           // sign is a quiet name until the focus ring or Details expands it with its counts and its lead.
