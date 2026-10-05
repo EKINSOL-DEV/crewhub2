@@ -437,7 +437,6 @@ Not crewhub-loops' work. In order.
 8. **Which of section 6 goes to `cl-lead` now?** The proposal: L9, L11 and L13 at once (documentation; they remove the cause of
    three real bugs), L8 with L12 when phase 2 is scheduled, L1 and L10 before production, the
    rest when a phase asks for it.
-
 9. **Project groups (L22): ask crewhub-loops for them, and under which name?** The world works without them
    (zones made by hand, per browser, later in the world database). Asking makes the districts the same for
    everyone and lets the crewhub-loops board group the same way. The proposal's shape is small and holds no

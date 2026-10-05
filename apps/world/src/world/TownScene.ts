@@ -9,6 +9,7 @@
    drawn frame at the playback speed (paused with it, and with the tab), and each robot follows its walker. */
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { zoneById } from "@crewhub/world-model";
 import type { AgentPlacement, RoomKind, WorldModel } from "@crewhub/world-model";
 import { IDLE_STATE, type Cast, type FigureHandle, type FigureState } from "@crewhub/world-cast";
 import type { EnvironmentHandle, GraphicsQuality, ModelAnimation, ModelKey, ResolvedStyle, StyleTheme } from "@crewhub/world-style";
@@ -642,7 +643,7 @@ export class TownScene {
       // A cast chosen in Settings (or by the town document) swaps the figures where they stand and walk.
       view.setCast(cast);
       const town = this.view.town;
-      view.update(b, this.view.entered === b.slug, town && (this.view.entered === b.slug ? town : { ...town, build: null }));
+      view.update(b, this.view.entered === b.slug, town && (this.view.entered === b.slug ? town : { ...town, build: null }), zoneById(model.zones, b.zoneId));
       if (this.view.entered === b.slug) this.#useInterior(b.slug);
       view.setFocus(this.view.entered === b.slug ? this.view.room : null);
       for (const [id, v] of view.anchors) this.#anchors.set(id, v);

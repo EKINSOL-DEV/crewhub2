@@ -50,9 +50,10 @@ const entries: Entry[] = Object.entries(files)
 const valid = entries.filter((e): e is Extract<Entry, { ok: true }> => e.ok);
 
 /** Sample words for the style's pieces that carry lettering, so the preview shows them as the town does. */
-const SAMPLE_OPTIONS: Record<string, { text: string }> = {
+const SAMPLE_OPTIONS: Record<string, { text?: string; accent?: "circle"; variant?: string }> = {
   "town.plot-sign": { text: "Create a project\nin crewhub-loops" },
   "town.district-gate": { text: "Orchard Row" },
+  "town.zone-mark": { accent: "circle", variant: "star" },
 };
 
 const CELL = PROP_LIMITS.cellSize;

@@ -77,13 +77,45 @@ export function roomSign(kit: Kit): THREE.Group {
 
 /** The loops `icon` as a small sculpture on a plinth. */
 export function emblem(kit: Kit, icon: EmblemName, o: ModelOptions): THREE.Group {
-  const color = accent(o);
   const g = new THREE.Group();
   put(g, kit.box(0.62, 0.3, 0.62, "emblem-plinth", 0.05), 0, 0.15, 0);
+  emblemFigure(kit, g, icon, accent(o), 0.3);
+  return g;
+}
+
+const EMBLEMS: readonly string[] = ["home", "inbox", "bot", "spark", "users", "star", "folder"];
+
+/**
+ * A zone's mark: a small enamel medallion in the zone's colour on a timber rim, with the zone's emblem (`variant`, a
+ * loops icon name) in cream on its face. Hung on a building's name sign and on a district's gate. Origin: the centre of
+ * its back, facing +z. Calm on purpose: a disc the size of a hand, no ribbon.
+ */
+export function zoneMark(kit: Kit, o: ModelOptions): THREE.Group {
+  const g = new THREE.Group();
+  const flat = (radius: number, depth: number, color: Swatch, z: number) => {
+    const disc = put(g, kit.cylinder(radius, radius, depth, color), 0, 0, z);
+    disc.rotation.x = Math.PI / 2;
+    return disc;
+  };
+  flat(0.25, 0.04, "timber-trim", 0.02);
+  flat(0.21, 0.05, o.accent ?? "sage", 0.035);
+  if (o.variant && EMBLEMS.includes(o.variant)) {
+    const figure = new THREE.Group();
+    emblemFigure(kit, figure, o.variant as EmblemName, "cream", 0);
+    figure.scale.setScalar(0.5);
+    figure.position.set(0, -0.12, 0.085);
+    // Flattened against the disc: a relief, not a statue.
+    figure.scale.z = 0.16;
+    g.add(figure);
+  }
+  return g;
+}
+
+/** The figure of a loops icon, standing on `top`. */
+function emblemFigure(kit: Kit, g: THREE.Group, icon: EmblemName, color: Swatch, top: number): void {
   const material = kit.material(color);
   const shape = (key: string, create: () => THREE.BufferGeometry, x: number, y: number, z: number) =>
     put(g, kit.mesh(kit.geometry(key, create), material), x, y, z);
-  const top = 0.3;
   switch (icon) {
     case "home":
       put(g, kit.box(0.36, 0.26, 0.36, color, 0.03), 0, top + 0.13, 0);
@@ -125,7 +157,6 @@ export function emblem(kit: Kit, icon: EmblemName, o: ModelOptions): THREE.Group
       put(g, kit.box(0.18, 0.06, 0.07, color, 0.02), -0.14, top + 0.36, 0);
       break;
   }
-  return g;
 }
 
 /** A stretchable band around a ticket: straps (blocked), tape (held), the milestone band. */
