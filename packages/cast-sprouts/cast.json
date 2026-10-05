@@ -21,6 +21,7 @@
     "leaf-fresh": { "day": "#8fbf5f", "lamplight": "#8cb65c" },
     "leaf-teal": { "day": "#5fae8c", "lamplight": "#62a685" },
     "leaf-gold": { "day": "#d9b84a", "lamplight": "#dcb148" },
+    "tree-leaf": { "day": "#6fa85c", "lamplight": "#6c9f59" },
     "sprout-pale": { "day": "#d5dfae", "lamplight": "#d8d9a2" },
     "sprout-bark": { "day": "#8a6a4c", "lamplight": "#8a6a4c" },
     "sprout-light": { "day": "#ffe9a3", "lamplight": "#ffd77a" },
@@ -29,5 +30,5 @@
     "sprout-stalk": { "day": "#f0e6cc", "lamplight": "#f2dfbc" },
     "sprout-reed": { "day": "#7a5236", "lamplight": "#7a5236" }
   },
-  "budget": { "nearTriangles": 4000, "farTriangles": 2000, "nearMeshes": 28, "farMeshes": 10 }
+  "budget": { "nearTriangles": 4000, "farTriangles": 2200, "nearMeshes": 28, "farMeshes": 12 }
 }
