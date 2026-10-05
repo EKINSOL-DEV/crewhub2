@@ -14,7 +14,7 @@ const PLAIN_BEVEL = 0.012;
 const SMALL_SPHERE = 0.05;
 const SMALL_CYLINDER = 0.04;
 
-function partMesh(kit: Kit, part: PropPart, color: string): THREE.Mesh {
+export function partMesh(kit: Kit, part: Pick<PropPart, "shape" | "size" | "position" | "rotation" | "radius" | "sweep"> & Partial<Pick<PropPart, "emissive" | "material">>, color: string): THREE.Mesh {
   const [a, b, c] = part.size;
   let mesh: THREE.Mesh;
   switch (part.shape) {

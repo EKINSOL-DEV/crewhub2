@@ -7,6 +7,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@crewhub/world-cast": "0.0.0",
     "@crewhub/world-engine": "0.0.0",
     "@crewhub/world-style": "0.0.0",
     "three": "0.186.0"
