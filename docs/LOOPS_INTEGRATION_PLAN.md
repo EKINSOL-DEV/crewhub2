@@ -849,10 +849,11 @@ when it is needed. None of them blocks phase 1.
 | L6 | An explicit role attribute on agents, or a convention such as a profile, that the world can read | Rooms by role then rest on a fact instead of a name rule. | Optional |
 | L7 | One line in `loops:docs/agents-briefing-snippet.md` pointing to `crewhub-world where` | Agents learn that they can look themselves up. | Phase 6 |
 | L8 | CORS for the configured CrewHub origins: `Access-Control-Allow-Origin` (never `*`) with credentials, for the bubble routes and the person's event stream only, reusing `CHL_ALLOWED_ORIGINS` | The chat bubbles run in the world's page and use the person's own session (3.5). Without CORS the browser refuses the responses. | Phase 2 |
+| L22 | **Project groups**, a level above projects: a group with `id`, `slug`, `name`, `order` and optional `color` and `icon`; `groupId` (nullable) on `ProjectOut`; a list route `GET /api/project-groups`; events `project_group.created`, `project_group.updated`, `project_group.deleted` and `project_group.reordered`, and a project moving between groups as `project.updated` with `changed: ["groupId"]`. Named neutrally: crewhub-loops decides whether it is an area, a workspace, a team or a category. Written, not built. | From about ten projects the world draws districts, and a district is a zone above projects. Without a group in crewhub-loops the zones live in each browser's town document (later the world database), so two people see different districts. With it everyone sees the same districts, and the crewhub-loops board and sidebar can group the same way. A zone's look (style, options, cast) stays in the world's store; it could move to per-project client settings (L21 of the gap analysis) if crewhub-loops ever offers them. | Optional; worth it from about ten projects. The world already reads this shape and resolves a zone as manual assignment, then group, then the default zone ([gap analysis](LOOPS_GAP_ANALYSIS.md) 5.8). |
 
 Not needed any more: a `/world/` mount, a sign-in `next` path, and server-side
-world storage. There are also no new event types, and no change to
-postman or agentctl.
+world storage. Apart from the optional L22, there are no new event types, and no
+change to postman or agentctl.
 
 ## 10. Phases
 

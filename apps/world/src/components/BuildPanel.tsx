@@ -6,7 +6,9 @@ import { FlaskConical, Hammer, Pencil, Plus, Redo2, RotateCw, Trash2, Undo2, X }
 import type { Building, CatalogueGroupId } from "@crewhub/world-model";
 import type { BuildMode } from "../state/build";
 import type { TownState } from "../state/town";
+import { useWorld } from "../state/world";
 import { Button, Card, Chip, Field } from "./primitives";
+import { BuildZones } from "./ZonePanel";
 
 interface Props {
   build: BuildMode;
@@ -23,6 +25,7 @@ interface Props {
 const ROTATION_WORDS = ["facing the camera", "turned a quarter", "turned half", "turned three quarters"] as const;
 
 export function BuildPanel({ build, town, inside, demo, onClose, onUndo, onRedo, onEdit, onRequest }: Props) {
+  const { model } = useWorld();
   const groups = town.catalogue.groups();
   const [group, setGroup] = useState<CatalogueGroupId>(groups[0]?.id ?? "work");
   const shown = groups.find((g) => g.id === group) ?? groups[0];
@@ -138,6 +141,8 @@ export function BuildPanel({ build, town, inside, demo, onClose, onUndo, onRedo,
             </li>
           ))}
         </ul>
+
+        <BuildZones model={model} town={town} inside={inside} />
 
         {demo && (
           <form className="build-request" onSubmit={request}>
