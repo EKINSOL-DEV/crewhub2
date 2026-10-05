@@ -10,6 +10,7 @@
     "bean-butter": { "day": "#ecd27e", "lamplight": "#eecd76" },
     "bean-rose": { "day": "#e9aa9c", "lamplight": "#eaa590" },
     "bean-lilac": { "day": "#b9a6d8", "lamplight": "#bda4cd" },
+    "bean-sky": { "day": "#a6cdd2", "lamplight": "#a9c8c6" },
     "bean-seed": { "day": "#e0d2b4", "lamplight": "#e2cfa8" },
     "sprout-belly": { "day": "#f6efd8", "lamplight": "#f8e9c6" },
     "sprout-eye": { "day": "#2b3a30", "lamplight": "#2b3a30" },
@@ -28,5 +29,5 @@
     "sprout-stalk": { "day": "#f0e6cc", "lamplight": "#f2dfbc" },
     "sprout-reed": { "day": "#7a5236", "lamplight": "#7a5236" }
   },
-  "budget": { "nearTriangles": 6000, "farTriangles": 2400, "nearMeshes": 32, "farMeshes": 12 }
+  "budget": { "nearTriangles": 4000, "farTriangles": 2000, "nearMeshes": 28, "farMeshes": 10 }
 }
