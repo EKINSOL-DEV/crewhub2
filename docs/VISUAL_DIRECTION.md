@@ -202,7 +202,7 @@ of `townPlan.ts`, so it never decides where a lot, a street or a civic spot is, 
   with a few sheep (`town.field` is the paler patch under both) or plain grass, by its place and the town's seed. A
   clearing and a hamlet stand in the woods. A green belt rings the ground; on a region's long edge it is planted more
   loosely, so a region costs no more dressing per building than the fixed town of four did (a test holds this).
-- **October by default.** About one oak, birch or bush in five turns gold and orange, with fallen leaves under about
+- **October by default.** About two oaks, birches or bushes in five turn gold and orange, with fallen leaves under about
   half the turning trees; pumpkins by most garden gates. A district's own season and planting come from its zone's
   style options (see "Style options and zone looks" in [WORLD_STYLES.md](WORLD_STYLES.md)): the dressing places the
   same keys, and the style draws them in the district's look.
