@@ -18,8 +18,8 @@
 import * as THREE from "three";
 import type { GraphicsQuality, LifeSpot, ModelKey, PaletteName, ResolvedStyle } from "@crewhub/world-style";
 import type { Ambient } from "./movement";
-import { noise, pondRect, type Dressing } from "./townDressing";
-import { townBounds, type Bounds } from "./townLayout";
+import { noise, type Dressing } from "./townDressing";
+import type { Bounds } from "./townLayout";
 import { instancedMaterial } from "./instancedMaterial";
 
 export interface LifeSettings {
@@ -198,15 +198,21 @@ export class AmbientLife {
   }
 
   /** Where life gathers: flower beds, hedges and the pond from the town dressing, steam and window spots on `landmarks`. */
+  #ground: Bounds = { minX: -60, maxX: 60, minZ: -70, maxZ: 10 };
   setTown(dressing: readonly Dressing[], landmarks: THREE.Object3D) {
     this.#beds = [];
     this.#glowers = [];
     this.#pond = null;
+    let ground: Bounds | null = null;
     for (const d of dressing) {
+      // The whole ground: clouds drift and birds cross as far as the settlement reaches.
+      if (d.key === "ground" && d.size) {
+        const piece = { minX: d.x - d.size.width / 2, maxX: d.x + d.size.width / 2, minZ: d.z - d.size.depth / 2, maxZ: d.z + d.size.depth / 2 };
+        ground = ground ? { minX: Math.min(ground.minX, piece.minX), maxX: Math.max(ground.maxX, piece.maxX), minZ: Math.min(ground.minZ, piece.minZ), maxZ: Math.max(ground.maxZ, piece.maxZ) } : piece;
+      }
       if (d.key === "town.flower-bed") this.#beds.push({ x: d.x, y: d.y, z: d.z, seed: noise(d.x, d.z, 1) });
       if (d.key === "town.pond") {
-        const r = pondRect();
-        this.#pond = { x: d.x, y: d.y + 0.12, z: d.z, rx: (r.maxX - r.minX) / 2, rz: (r.maxZ - r.minZ) / 2 };
+        this.#pond = { x: d.x, y: d.y + 0.12, z: d.z, rx: (d.size?.width ?? 9) / 2, rz: (d.size?.depth ?? 5.6) / 2 };
       }
       if (d.key === "town.hedge" && d.size) {
         // A few fireflies along each hedge (hedges run along x before their turn).
@@ -217,6 +223,7 @@ export class AmbientLife {
         }
       }
     }
+    if (ground) this.#ground = ground;
     if (this.#pond)
       for (let i = 0; i < 10; i++) {
         const a = (i / 10) * Math.PI * 2;
@@ -305,7 +312,7 @@ export class AmbientLife {
     const swarm = this.#clouds,
       count = this.#cloudCount;
     if (!count) return;
-    const b = townBounds();
+    const b = this.#ground;
     const w = b.maxX - b.minX + 24,
       d = b.maxZ - b.minZ + 24;
     for (let i = 0; i < count; i++) {
@@ -338,7 +345,7 @@ export class AmbientLife {
       f.next -= seconds;
       if (f.next > 0) return;
       // A new flock: from one side of the town to the other, a little off the wind.
-      const b = townBounds();
+      const b = this.#ground;
       const k = Math.floor(t * 7.31);
       const angle = Math.atan2(WIND.z, WIND.x) + (noise(k, 12) - 0.5) * 1.2;
       f.dir.set(Math.cos(angle), 0, Math.sin(angle));

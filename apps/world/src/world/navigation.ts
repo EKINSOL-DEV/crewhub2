@@ -30,7 +30,8 @@ import { assignDesks, type DeskSlot } from "./interiorLayout.ts";
 import { allocationEdit, CENTRAL_SLOT, DISTRICT_SPAN, lotCentre, lotKey, reservedSpot, slotBounds, slotKey, type Segment } from "./settlement.ts";
 import { planTown, type PlanBuilding, type TownPlan } from "./townPlan.ts";
 import { CIVIC_LOT, PITCH, PLOT_SIZE, type Bounds } from "./townLayout.ts";
-import { civicPaths, COBBLE_Y, GARDEN_PATH, LANE, LAWN_Y } from "./townDressing.ts";
+import { civicWalkways, entranceRoad } from "./settlementDressing.ts";
+import { COBBLE_Y, GARDEN_PATH, LANE, LAWN_Y } from "./townDressing.ts";
 
 /** The central district's room. Every other district's room is `town@x,z` (`townRoomId`). */
 export const TOWN_ROOM = "town";
@@ -199,14 +200,10 @@ export function townWalkways(plan: TownPlan): Bounds[] {
     ...plan.lots.filter((l) => !l.archived).map((l) => gardenWalk(l.cell)),
   ];
 }
-/** The civic paths at the plan's tier: today's civic row for a village and up, two forecourt paths before that. */
+/** The civic paths at the plan's tier, exactly as the dressing paves them, and the entrance road of a village or more. */
 function civicWalks(plan: TownPlan): Bounds[] {
-  if (plan.tier !== "clearing" && plan.tier !== "hamlet") return civicPaths();
-  const lane = lotCentre({ x: 64, z: 64 }).z - PITCH / 2;
-  return [POST, HALL].flatMap((c) => [
-    { minX: c.x - 4.5, maxX: c.x + 4.5, minZ: c.z + 0.2, maxZ: c.z + CIVIC_LOT / 2 },
-    { minX: c.x - 1.2, maxX: c.x + 1.2, minZ: c.z + CIVIC_LOT / 2 - 0.1, maxZ: lane },
-  ]);
+  const road = entranceRoad(plan);
+  return [...civicWalkways(plan), ...(road ? [road] : [])];
 }
 
 /**

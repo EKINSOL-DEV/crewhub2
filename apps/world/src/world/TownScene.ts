@@ -687,9 +687,11 @@ export class TownScene {
       // A district wears its zone's look where that differs from the town's own.
       const districts = plan.districts.flatMap((d) => {
         const options = zoneLook(context, d.zoneId).styleOptions;
-        // Its ground, as far as the town's ground reaches (a district's lots fill in from one corner).
-        const g = plan.ground;
-        const bounds = { minX: Math.max(d.bounds.minX, g.minX + 0.5), maxX: Math.min(d.bounds.maxX, g.maxX - 0.5), minZ: Math.max(d.bounds.minZ, g.minZ + 0.5), maxZ: Math.min(d.bounds.maxZ, g.maxZ - 0.5) };
+        // Its ground: the piece of the plan's ground that covers most of the district (its lots fill in from one
+        // corner, and the ground is fitted to them).
+        const cut = (g: Bounds): Bounds => ({ minX: Math.max(d.bounds.minX, g.minX + 0.5), maxX: Math.min(d.bounds.maxX, g.maxX - 0.5), minZ: Math.max(d.bounds.minZ, g.minZ + 0.5), maxZ: Math.min(d.bounds.maxZ, g.maxZ - 0.5) });
+        const area = (r: Bounds) => Math.max(0, r.maxX - r.minX) * Math.max(0, r.maxZ - r.minZ);
+        const bounds = (plan.grounds.length ? plan.grounds : [plan.ground]).map(cut).reduce((best, r) => (area(r) > area(best) ? r : best));
         return styleOptionsKey(options) === town || bounds.maxX <= bounds.minX || bounds.maxZ <= bounds.minZ ? [] : [{ bounds, options }];
       });
       this.#districtLooks = { plan, context, looks: preview ?? (districts.length ? { town: null, districts } : null) };
