@@ -172,6 +172,8 @@
     ]
   },
   "looks": {
+    "hover": { "parts": { "bean": { "glow": 0.14 }, "bean-bottom": { "glow": 0.14 }, "nub-left": { "glow": 0.14 }, "nub-right": { "glow": 0.14 } } },
+    "selected": { "parts": { "bean": { "glow": 0.2 }, "bean-bottom": { "glow": 0.2 }, "nub-left": { "glow": 0.2 }, "nub-right": { "glow": 0.2 } } },
     "near": { "parts": { "bean": { "glow": 0.06 }, "bean-bottom": { "glow": 0.06 }, "nub-left": { "glow": 0.06 }, "nub-right": { "glow": 0.06 } } },
     "waiting": {
       "parts": {
