@@ -1,0 +1,196 @@
+{
+  "format": "crewhub-figure/1",
+  "joints": [
+    { "id": "body", "position": [0, 0.15, 0] },
+    { "id": "eyes", "parent": "body", "position": [0, 0.5, 0] },
+    { "id": "arm-left", "parent": "body", "position": [-0.27, 0.34, 0.04] },
+    { "id": "arm-right", "parent": "body", "position": [0.27, 0.34, 0.04] },
+    { "id": "foot-left", "position": [-0.12, 0.07, 0.03] },
+    { "id": "foot-right", "position": [0.12, 0.07, 0.03] },
+    { "id": "stem", "parent": "body", "position": [0, 0.74, 0] },
+    { "id": "crown", "parent": "stem", "position": [0, 0.2, 0] },
+    { "id": "spark", "parent": "body", "position": [0, 1.42, 0] }
+  ],
+  "parts": [
+    { "id": "bean", "joint": "body", "shape": "sphere", "size": [0.262, 0.3, 0.25], "position": [0, 0.48, 0], "color": "slot:bean" },
+    { "id": "bean-bottom", "joint": "body", "shape": "sphere", "size": [0.29, 0.25, 0.27], "position": [0, 0.28, 0.005], "color": "slot:bean" },
+    { "id": "cheek-left", "joint": "body", "shape": "sphere", "size": [0.04, 0.026, 0.012], "position": [-0.17, 0.43, 0.2], "rotation": [0, -38, 0], "color": "sprout-cheek", "detail": "near" },
+    { "id": "cheek-right", "joint": "body", "shape": "sphere", "size": [0.04, 0.026, 0.012], "position": [0.17, 0.43, 0.2], "rotation": [0, 38, 0], "color": "sprout-cheek", "detail": "near" },
+    { "id": "eye-left", "joint": "eyes", "shape": "sphere", "size": [0.036, 0.052, 0.014], "position": [-0.1, 0, 0.226], "rotation": [0, -22, 0], "color": "sprout-eye", "detail": "near" },
+    { "id": "eye-right", "joint": "eyes", "shape": "sphere", "size": [0.036, 0.052, 0.014], "position": [0.1, 0, 0.226], "rotation": [0, 22, 0], "color": "sprout-eye", "detail": "near" },
+    { "id": "glint-left", "joint": "eyes", "shape": "sphere", "size": [0.012, 0.014, 0.008], "position": [-0.09, 0.02, 0.238], "color": "sprout-glint", "detail": "near" },
+    { "id": "glint-right", "joint": "eyes", "shape": "sphere", "size": [0.012, 0.014, 0.008], "position": [0.108, 0.02, 0.238], "color": "sprout-glint", "detail": "near" },
+    { "id": "nub-left", "joint": "arm-left", "shape": "sphere", "size": [0.055, 0.085, 0.055], "position": [-0.015, -0.05, 0], "color": "slot:bean", "detail": "near" },
+    { "id": "nub-right", "joint": "arm-right", "shape": "sphere", "size": [0.055, 0.085, 0.055], "position": [0.015, -0.05, 0], "color": "slot:bean", "detail": "near" },
+    { "id": "leg-left", "joint": "foot-left", "shape": "cylinder", "size": [0.032, 0.12, 0.036], "position": [0, 0.06, -0.02], "color": "sprout-foot", "detail": "near" },
+    { "id": "leg-right", "joint": "foot-right", "shape": "cylinder", "size": [0.032, 0.12, 0.036], "position": [0, 0.06, -0.02], "color": "sprout-foot", "detail": "near" },
+    { "id": "foot-left", "joint": "foot-left", "shape": "sphere", "size": [0.08, 0.055, 0.105], "position": [0, -0.012, 0.01], "color": "sprout-foot" },
+    { "id": "foot-right", "joint": "foot-right", "shape": "sphere", "size": [0.08, 0.055, 0.105], "position": [0, -0.012, 0.01], "color": "sprout-foot" },
+    { "id": "stem", "joint": "stem", "shape": "cylinder", "size": [0.028, 0.26, 0.04], "position": [0, 0.09, 0], "color": "sprout-stem" },
+    { "id": "spark", "joint": "spark", "waiting": true, "shape": "sphere", "size": [0.06, 0.06, 0.06], "position": [0, 0, 0], "color": "sprout-light", "glow": 1 },
+
+    { "id": "leaf-big", "joint": "crown", "roles": ["worker"], "shape": "sphere", "size": [0.234, 0.044, 0.124], "position": [0.182, 0.098, 0.0], "rotation": [0, 0, 30], "color": "slot:growth" },
+    { "id": "leaf-small", "joint": "crown", "roles": ["worker"], "shape": "sphere", "size": [0.169, 0.039, 0.098], "position": [-0.13, 0.078, 0.0], "rotation": [0, 0, -36], "color": "slot:growth" },
+
+    { "id": "trunk", "joint": "crown", "roles": ["lead"], "shape": "cylinder", "size": [0.052, 0.26, 0.072], "position": [0.0, 0.026, 0.0], "color": "sprout-bark" },
+    { "id": "tree-top", "joint": "crown", "roles": ["lead"], "shape": "sphere", "size": [0.26, 0.221, 0.26], "position": [0.0, 0.312, 0.0], "color": "slot:growth" },
+    { "id": "tree-left", "joint": "crown", "roles": ["lead"], "shape": "sphere", "size": [0.182, 0.156, 0.182], "position": [-0.195, 0.182, 0.052], "color": "slot:growth" },
+    { "id": "tree-right", "joint": "crown", "roles": ["lead"], "shape": "sphere", "size": [0.169, 0.143, 0.169], "position": [0.208, 0.208, -0.039], "color": "slot:growth" },
+    { "id": "tree-fruit-a", "joint": "crown", "roles": ["lead"], "shape": "sphere", "size": [0.039, 0.039, 0.039], "position": [0.091, 0.351, 0.221], "color": "sprout-pollen", "detail": "near" },
+    { "id": "tree-fruit-b", "joint": "crown", "roles": ["lead"], "shape": "sphere", "size": [0.039, 0.039, 0.039], "position": [-0.208, 0.221, 0.208], "color": "sprout-pollen", "detail": "near" },
+    { "id": "tree-fruit-c", "joint": "crown", "roles": ["lead"], "shape": "sphere", "size": [0.039, 0.039, 0.039], "position": [0.26, 0.26, 0.104], "color": "sprout-pollen", "detail": "near" },
+
+    { "id": "flower-heart", "joint": "crown", "roles": ["design"], "shape": "sphere", "size": [0.098, 0.072, 0.098], "position": [0.0, 0.085, 0.0], "color": "sprout-pollen" },
+    { "id": "petal-0", "joint": "crown", "roles": ["design"], "shape": "sphere", "size": [0.137, 0.034, 0.091], "position": [0.169, 0.111, 0.0], "rotation": [0, 0, 22], "color": "slot:growth" },
+    { "id": "petal-1", "joint": "crown", "roles": ["design"], "shape": "sphere", "size": [0.137, 0.034, 0.091], "position": [0.085, 0.111, -0.147], "rotation": [0, 60, 22], "color": "slot:growth", "detail": "near" },
+    { "id": "petal-2", "joint": "crown", "roles": ["design"], "shape": "sphere", "size": [0.137, 0.034, 0.091], "position": [-0.085, 0.111, -0.147], "rotation": [0, 120, 22], "color": "slot:growth" },
+    { "id": "petal-3", "joint": "crown", "roles": ["design"], "shape": "sphere", "size": [0.137, 0.034, 0.091], "position": [-0.169, 0.111, 0.0], "rotation": [0, 180, 22], "color": "slot:growth", "detail": "near" },
+    { "id": "petal-4", "joint": "crown", "roles": ["design"], "shape": "sphere", "size": [0.137, 0.034, 0.091], "position": [-0.085, 0.111, 0.147], "rotation": [0, 240, 22], "color": "slot:growth" },
+    { "id": "petal-5", "joint": "crown", "roles": ["design"], "shape": "sphere", "size": [0.137, 0.034, 0.091], "position": [0.085, 0.111, 0.147], "rotation": [0, 300, 22], "color": "slot:growth", "detail": "near" },
+
+    { "id": "stalk", "joint": "crown", "roles": ["analyst"], "shape": "cylinder", "size": [0.078, 0.208, 0.098], "position": [0.0, -0.039, 0.0], "color": "sprout-stalk" },
+    { "id": "cap", "joint": "crown", "roles": ["analyst"], "shape": "sphere", "size": [0.325, 0.169, 0.325], "position": [0.0, 0.13, 0.0], "color": "slot:growth" },
+    { "id": "gills", "joint": "crown", "roles": ["analyst"], "shape": "cylinder", "size": [0.273, 0.039, 0.221], "position": [0.0, 0.058, 0.0], "color": "sprout-stalk", "detail": "near" },
+    { "id": "spot-a", "joint": "crown", "roles": ["analyst"], "shape": "sphere", "size": [0.058, 0.026, 0.058], "position": [0.104, 0.26, 0.13], "rotation": [22, 0, -18], "color": "sprout-belly", "detail": "near" },
+    { "id": "spot-b", "joint": "crown", "roles": ["analyst"], "shape": "sphere", "size": [0.046, 0.023, 0.046], "position": [-0.156, 0.24, 0.091], "rotation": [16, 0, 28], "color": "sprout-belly", "detail": "near" },
+    { "id": "spot-c", "joint": "crown", "roles": ["analyst"], "shape": "sphere", "size": [0.052, 0.023, 0.052], "position": [-0.026, 0.26, -0.169], "rotation": [-30, 0, 4], "color": "sprout-belly", "detail": "near" },
+    { "id": "spot-d", "joint": "crown", "roles": ["analyst"], "shape": "sphere", "size": [0.039, 0.021, 0.039], "position": [-0.039, 0.221, 0.247], "rotation": [44, 0, 6], "color": "sprout-belly", "detail": "near" },
+
+    { "id": "puff", "joint": "crown", "roles": ["postman"], "shape": "sphere", "size": [0.17, 0.17, 0.17], "position": [0, 0.22, 0], "color": "sprout-fluff" },
+    { "id": "puff-a", "joint": "crown", "roles": ["postman"], "shape": "sphere", "size": [0.09, 0.09, 0.09], "position": [0.13, 0.29, 0.06], "color": "sprout-fluff" },
+    { "id": "puff-b", "joint": "crown", "roles": ["postman"], "shape": "sphere", "size": [0.09, 0.09, 0.09], "position": [-0.12, 0.31, 0.07], "color": "sprout-fluff" },
+    { "id": "puff-c", "joint": "crown", "roles": ["postman"], "shape": "sphere", "size": [0.09, 0.09, 0.09], "position": [0.0, 0.37, -0.05], "color": "sprout-fluff", "detail": "near" },
+    { "id": "puff-d", "joint": "crown", "roles": ["postman"], "shape": "sphere", "size": [0.09, 0.09, 0.09], "position": [-0.03, 0.2, 0.15], "color": "sprout-fluff", "detail": "near" },
+    { "id": "puff-e", "joint": "crown", "roles": ["postman"], "shape": "sphere", "size": [0.09, 0.09, 0.09], "position": [0.05, 0.24, -0.15], "color": "sprout-fluff", "detail": "near" },
+    { "id": "puff-f", "joint": "crown", "roles": ["postman"], "shape": "sphere", "size": [0.09, 0.09, 0.09], "position": [-0.02, 0.09, 0.03], "color": "sprout-fluff", "detail": "near" },
+    { "id": "seed-a", "joint": "crown", "roles": ["postman"], "shape": "sphere", "size": [0.03, 0.03, 0.03], "position": [0.27, 0.42, -0.06], "color": "sprout-fluff", "detail": "near" },
+    { "id": "seed-b", "joint": "crown", "roles": ["postman"], "shape": "sphere", "size": [0.022, 0.022, 0.022], "position": [0.36, 0.52, -0.12], "color": "sprout-fluff", "detail": "near" },
+    { "id": "satchel", "joint": "body", "roles": ["postman"], "shape": "box", "size": [0.09, 0.17, 0.22], "radius": 0.03, "position": [-0.31, 0.24, 0.03], "rotation": [0, 0, -8], "color": "timber" },
+    { "id": "satchel-flap", "joint": "body", "roles": ["postman"], "shape": "box", "size": [0.1, 0.08, 0.23], "radius": 0.025, "position": [-0.32, 0.3, 0.03], "rotation": [0, 0, -8], "color": "timber-light", "detail": "near" },
+    { "id": "satchel-letter", "joint": "body", "roles": ["postman"], "shape": "box", "size": [0.014, 0.09, 0.11], "radius": 0.005, "position": [-0.3, 0.36, 0.02], "rotation": [10, 0, -8], "color": "paper", "detail": "near" },
+
+    { "id": "reed", "joint": "crown", "roles": ["operator"], "shape": "cylinder", "size": [0.026, 0.26, 0.031], "position": [0.0, 0.104, 0.0], "color": "sprout-stem" },
+    { "id": "reed-head", "joint": "crown", "roles": ["operator"], "shape": "sphere", "size": [0.085, 0.195, 0.085], "position": [0.0, 0.351, 0.0], "color": "sprout-reed" },
+    { "id": "reed-tip", "joint": "crown", "roles": ["operator"], "shape": "cone", "size": [0.021, 0.117, 0.0], "position": [0.0, 0.585, 0.0], "color": "sprout-stem", "detail": "near" },
+    { "id": "reed-blade", "joint": "crown", "roles": ["operator"], "shape": "sphere", "size": [0.046, 0.247, 0.085], "position": [0.111, 0.13, 0.0], "rotation": [0, 0, -20], "color": "slot:growth" },
+    { "id": "reed-blade-small", "joint": "crown", "roles": ["operator"], "shape": "sphere", "size": [0.039, 0.156, 0.065], "position": [-0.085, 0.052, 0.0], "rotation": [0, 0, 28], "color": "slot:growth", "detail": "near" },
+
+    { "id": "seed-leaf-left", "joint": "crown", "roles": ["unknown"], "shape": "sphere", "size": [0.098, 0.031, 0.065], "position": [-0.078, 0.039, 0.0], "rotation": [0, 0, -30], "color": "sprout-pale" },
+    { "id": "seed-leaf-right", "joint": "crown", "roles": ["unknown"], "shape": "sphere", "size": [0.098, 0.031, 0.065], "position": [0.078, 0.039, 0.0], "rotation": [0, 0, 30], "color": "sprout-pale" }
+  ],
+  "poses": {
+    "idle": {
+      "body": { "rotation": [-4, 0, 0] },
+      "stem": { "rotation": [0, 0, 5] },
+      "crown": { "scale": [0.55, 0.92, 0.55] }
+    },
+    "done": {
+      "body": { "rotation": [-9, 0, 0], "offset": [0, -0.07, 0] },
+      "eyes": { "scale": [1.15, 0.22, 1] },
+      "foot-left": { "offset": [-0.03, 0, 0.1], "rotation": [-25, -14, 0] },
+      "foot-right": { "offset": [0.03, 0, 0.1], "rotation": [-25, 14, 0] },
+      "stem": { "rotation": [10, 0, 14] },
+      "crown": { "scale": [0.5, 0.85, 0.5] }
+    },
+    "working": {
+      "body": { "rotation": [9, 0, 0] },
+      "arm-left": { "rotation": [-75, 0, 0] },
+      "arm-right": { "rotation": [-75, 0, 0] },
+      "stem": { "rotation": [-6, 0, 0] }
+    },
+    "blocked": {
+      "body": { "rotation": [7, 0, 0], "offset": [0, -0.03, 0], "scale": [1.03, 0.95, 1.03] },
+      "eyes": { "scale": [1, 0.55, 1] },
+      "stem": { "rotation": [62, 0, 8] },
+      "crown": { "rotation": [48, 0, 0], "scale": [0.82, 0.82, 0.82] }
+    },
+    "stale": {
+      "body": { "rotation": [11, 0, 0], "offset": [0, -0.03, 0] },
+      "eyes": { "scale": [1.1, 0.14, 1] },
+      "stem": { "rotation": [40, 0, -6] },
+      "crown": { "rotation": [30, 0, 0], "scale": [0.5, 0.8, 0.5] }
+    },
+    "walking": {
+      "body": { "rotation": [8, 0, 0] },
+      "stem": { "rotation": [-16, 0, 0] },
+      "crown": { "rotation": [-8, 0, 0], "scale": [0.85, 1, 0.85] }
+    },
+    "waiting": {
+      "arm-right": { "rotation": [0, 0, 150] },
+      "body": { "offset": [0, 0.02, 0] }
+    },
+    "carrying": {
+      "arm-left": { "rotation": [-65, 0, 20] },
+      "arm-right": { "rotation": [-65, 0, -20] }
+    }
+  },
+  "motions": {
+    "always": [
+      { "joint": "eyes", "channel": "scale.y", "wave": "blink", "amplitude": -0.85, "period": 4.9, "seeded": true }
+    ],
+    "idle": [
+      { "joint": "body", "channel": "offset.y", "wave": "sine", "amplitude": 0.008, "period": 3.2, "seeded": true },
+      { "joint": "body", "channel": "rotation.y", "wave": "glance", "amplitude": 24, "period": 7.5, "seeded": true, "sided": true },
+      { "joint": "stem", "channel": "rotation.z", "wave": "sine", "amplitude": 6, "period": 4.1, "seeded": true },
+      { "joint": "crown", "channel": "rotation.z", "wave": "sine", "amplitude": 5, "period": 2.7, "seeded": true }
+    ],
+    "done": [
+      { "joint": "body", "channel": "scale.y", "wave": "sine", "amplitude": 0.02, "period": 3.6, "seeded": true },
+      { "joint": "stem", "channel": "rotation.z", "wave": "sine", "amplitude": 3, "period": 5.2, "seeded": true }
+    ],
+    "working": [
+      { "joint": "body", "channel": "offset.y", "wave": "bounce", "amplitude": 0.012, "period": 3.9, "seeded": true },
+      { "joint": "body", "channel": "rotation.y", "wave": "glance", "amplitude": 16, "period": 8.5, "seeded": true, "sided": true },
+      { "joint": "arm-left", "channel": "rotation.x", "wave": "sine", "amplitude": 10, "period": 0.7, "seeded": true },
+      { "joint": "arm-right", "channel": "rotation.x", "wave": "sine", "amplitude": 10, "period": 0.7, "phase": 0.27, "seeded": true },
+      { "joint": "stem", "channel": "rotation.z", "wave": "sine", "amplitude": 5, "period": 2.4, "seeded": true },
+      { "joint": "crown", "channel": "rotation.z", "wave": "sine", "amplitude": 6, "period": 1.7, "seeded": true },
+      { "joint": "crown", "channel": "scale.y", "wave": "sine", "amplitude": 0.05, "period": 1.2, "seeded": true }
+    ],
+    "blocked": [
+      { "joint": "stem", "channel": "rotation.z", "wave": "sine", "amplitude": 5, "period": 3.5, "seeded": true },
+      { "joint": "body", "channel": "rotation.z", "wave": "sine", "amplitude": 2, "period": 4.4, "seeded": true },
+      { "joint": "body", "channel": "scale.y", "wave": "sine", "amplitude": 0.015, "period": 4.4, "seeded": true }
+    ],
+    "waiting": [
+      { "joint": "arm-right", "channel": "rotation.z", "wave": "sine", "amplitude": 14, "period": 1.05 },
+      { "joint": "body", "channel": "offset.y", "wave": "bounce", "amplitude": 0.022, "period": 2.1 },
+      { "joint": "crown", "channel": "scale.x", "wave": "sine", "amplitude": 0.07, "period": 1.6 },
+      { "joint": "crown", "channel": "scale.y", "wave": "sine", "amplitude": 0.07, "period": 1.6 },
+      { "joint": "crown", "channel": "scale.z", "wave": "sine", "amplitude": 0.07, "period": 1.6 },
+      { "joint": "spark", "channel": "offset.y", "wave": "sine", "amplitude": 0.04, "period": 1.6 }
+    ],
+    "walking": [
+      { "joint": "foot-left", "channel": "offset.y", "wave": "lift", "amplitude": 0.06, "period": 0.78 },
+      { "joint": "foot-right", "channel": "offset.y", "wave": "lift", "amplitude": 0.06, "period": 0.78, "phase": 0.5 },
+      { "joint": "foot-left", "channel": "offset.z", "wave": "sine", "amplitude": 0.07, "period": 0.78 },
+      { "joint": "foot-right", "channel": "offset.z", "wave": "sine", "amplitude": 0.07, "period": 0.78, "phase": 0.5 },
+      { "joint": "body", "channel": "offset.y", "wave": "bounce", "amplitude": 0.04, "period": 0.78 },
+      { "joint": "body", "channel": "rotation.z", "wave": "sine", "amplitude": 4, "period": 0.78 },
+      { "joint": "arm-left", "channel": "rotation.x", "wave": "sine", "amplitude": 28, "period": 0.78, "phase": 0.5 },
+      { "joint": "arm-right", "channel": "rotation.x", "wave": "sine", "amplitude": 28, "period": 0.78 },
+      { "joint": "stem", "channel": "rotation.x", "wave": "sine", "amplitude": 9, "period": 0.39, "phase": 0.2 },
+      { "joint": "crown", "channel": "rotation.x", "wave": "sine", "amplitude": 11, "period": 0.39, "phase": 0.45 }
+    ]
+  },
+  "looks": {
+    "near": { "parts": { "bean": { "glow": 0.06 }, "bean-bottom": { "glow": 0.06 }, "nub-left": { "glow": 0.06 }, "nub-right": { "glow": 0.06 } } },
+    "waiting": {
+      "parts": {
+        "leaf-big": { "glow": 0.55 }, "leaf-small": { "glow": 0.55 },
+        "tree-top": { "glow": 0.55 }, "tree-left": { "glow": 0.55 }, "tree-right": { "glow": 0.55 },
+        "petal-0": { "glow": 0.55 }, "petal-1": { "glow": 0.55 }, "petal-2": { "glow": 0.55 }, "petal-3": { "glow": 0.55 }, "petal-4": { "glow": 0.55 }, "petal-5": { "glow": 0.55 }, "flower-heart": { "glow": 0.7 },
+        "cap": { "glow": 0.55 },
+        "puff": { "glow": 0.45 }, "puff-a": { "glow": 0.45 }, "puff-b": { "glow": 0.45 }, "puff-c": { "glow": 0.45 }, "puff-d": { "glow": 0.45 }, "puff-e": { "glow": 0.45 }, "puff-f": { "glow": 0.45 },
+        "reed-head": { "glow": 0.5 }, "reed-blade": { "glow": 0.55 }, "reed-blade-small": { "glow": 0.55 },
+        "seed-leaf-left": { "glow": 0.5 }, "seed-leaf-right": { "glow": 0.5 }
+      }
+    }
+  },
+  "halo": "sprout-light",
+  "colorways": {
+    "bean": { "roles": { "unknown": "bean-seed" }, "others": ["bean-pea", "bean-butter", "bean-rose", "bean-lilac"] },
+    "growth": { "lead": "accent", "roles": { "worker": "accent", "design": "accent", "analyst": "accent", "operator": "accent" }, "others": ["leaf-fresh", "leaf-teal", "leaf-gold"] }
+  },
+  "anchors": { "label": [0, 1.62, 0], "carry": [0, 0.42, 0.34], "ground": 0.3, "height": 1.6 }
+}

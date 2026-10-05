@@ -1,0 +1,32 @@
+{
+  "format": "crewhub-cast/1",
+  "id": "sprouts",
+  "name": "Sprouts",
+  "version": "1.0.0",
+  "description": "A species of its own: a bean on short legs with a growth on its head. The growth is the role, and it opens, droops and glows with the work.",
+  "author": "CrewHub",
+  "colors": {
+    "bean-pea": { "day": "#a3c476", "lamplight": "#a8c474" },
+    "bean-butter": { "day": "#ecd27e", "lamplight": "#eecd76" },
+    "bean-rose": { "day": "#e9aa9c", "lamplight": "#eaa590" },
+    "bean-lilac": { "day": "#b9a6d8", "lamplight": "#bda4cd" },
+    "bean-seed": { "day": "#e0d2b4", "lamplight": "#e2cfa8" },
+    "sprout-belly": { "day": "#f6efd8", "lamplight": "#f8e9c6" },
+    "sprout-eye": { "day": "#2b3a30", "lamplight": "#2b3a30" },
+    "sprout-glint": { "day": "#fbfff0", "lamplight": "#fff3cf" },
+    "sprout-cheek": { "day": "#f19a94", "lamplight": "#f09a86" },
+    "sprout-foot": { "day": "#6b5a45", "lamplight": "#6b5a45" },
+    "sprout-stem": { "day": "#7fa35a", "lamplight": "#7c9c58" },
+    "leaf-fresh": { "day": "#8fbf5f", "lamplight": "#8cb65c" },
+    "leaf-teal": { "day": "#5fae8c", "lamplight": "#62a685" },
+    "leaf-gold": { "day": "#d9b84a", "lamplight": "#dcb148" },
+    "sprout-pale": { "day": "#d5dfae", "lamplight": "#d8d9a2" },
+    "sprout-bark": { "day": "#8a6a4c", "lamplight": "#8a6a4c" },
+    "sprout-light": { "day": "#ffe9a3", "lamplight": "#ffd77a" },
+    "sprout-pollen": { "day": "#f3cf5a", "lamplight": "#f6c956" },
+    "sprout-fluff": { "day": "#f7f5ea", "lamplight": "#fbeed2" },
+    "sprout-stalk": { "day": "#f0e6cc", "lamplight": "#f2dfbc" },
+    "sprout-reed": { "day": "#7a5236", "lamplight": "#7a5236" }
+  },
+  "budget": { "nearTriangles": 6000, "farTriangles": 2400, "nearMeshes": 32, "farMeshes": 12 }
+}
