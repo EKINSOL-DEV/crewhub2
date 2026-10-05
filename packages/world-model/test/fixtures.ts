@@ -71,6 +71,8 @@ export function object(key: string, extra: Partial<WorkObject> = {}): WorkObject
     labels: [],
     speechMarkUntil: null,
     celebrateUntil: null,
+    rejected: null,
+    turnedDownUntil: null,
     transit: null,
     ...extra,
   };

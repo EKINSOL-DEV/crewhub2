@@ -156,7 +156,8 @@ class TownRuntime {
   async #import(ticketKey: string) {
     const world = worldRuntime();
     const ticket = await world.source.getTicket(ticketKey);
-    if (!ticket) return;
+    // A ticket turned down while the read was on its way (Done, then rejected) brings no prop.
+    if (!ticket || ticket.resolution === "rejected") return;
     const comments = await world.source.getComments(ticketKey);
     const result = importPropRequest({
       doc: this.store.state.doc,

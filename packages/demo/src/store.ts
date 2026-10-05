@@ -109,6 +109,9 @@ export interface StoredTicket {
   updatedAt: number;
   statusChangedAt: number;
   closedAt: number | null;
+  /** How a Done ticket closed (CL-89): `rejected` is a person's "won't do", with the reason; null is done as planned. */
+  resolution: "rejected" | null;
+  resolutionReason: string | null;
   archivedAt: number | null;
   releaseId: string | null;
   createdById: string;
@@ -286,6 +289,8 @@ export function initialState(base: number, cursor: number): DemoState {
       updatedAt: closedAt ?? base - ((number * 7) % 50) * MINUTE - 5 * MINUTE,
       statusChangedAt: closedAt ?? base - ((number * 11) % 90) * MINUTE - 10 * MINUTE,
       closedAt,
+      resolution: null,
+      resolutionReason: null,
       archivedAt: archived ? base - 20 * 60 * MINUTE : null,
       releaseId: seed.archivedInto ?? seed.carrierOf ?? null,
       createdById: seed.createdBy ?? "nicky",
@@ -436,9 +441,9 @@ export function isAgent(id: string): boolean {
 
 // Construction helpers shared with the actions
 
-export function richBody(text: string): { v: "1"; doc: Record<string, unknown> } {
+export function richBody(text: string): { v: 1; doc: Record<string, unknown> } {
   return {
-    v: "1",
+    v: 1,
     doc: {
       type: "doc",
       content: text.split("\n\n").map((paragraph) => ({
@@ -609,6 +614,8 @@ export class DemoReads {
       title: t.title,
       kind: t.kind,
       status: t.status,
+      resolution: t.resolution,
+      resolutionReason: t.resolutionReason,
       priority: t.priority,
       position: t.position,
       version: t.version,
@@ -757,6 +764,9 @@ export class DemoReads {
   }
 
   agents(): AgentOut[] {
+    // Archived projects are left out of both lists, as in loops (`domain/agents.py`, `agent_extras`).
+    const active = this.state.projects.filter((p) => p.archivedAt === null);
+    const ref = (p: StoredProject) => ({ slug: p.slug, key: p.key });
     return AGENTS.map((a) => ({
       id: a.id,
       displayName: a.displayName,
@@ -767,7 +777,10 @@ export class DemoReads {
       keys: null,
       isCrewhubLead: a.isCrewhubLead,
       successorId: null,
-      projects: [...a.projects],
+      projects: {
+        lead: active.filter((p) => p.leadId === a.id).map(ref),
+        member: active.filter((p) => a.memberOf.includes(p.slug)).map(ref),
+      },
       lane: null,
       rights: [],
       revision: 1,

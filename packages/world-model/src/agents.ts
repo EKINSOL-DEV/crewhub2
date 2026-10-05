@@ -105,7 +105,10 @@ export function listAgents(facts: Readonly<Facts>): AgentEntity[] {
     }
   }
 
-  const agentsById = new Map(facts.agents.map((a) => [a.id, a]));
+  // The projects an agent leads or is a member of (`AgentOut.projects`), as slugs.
+  const projectsOf = new Map(
+    facts.agents.map((a) => [a.id, new Set([...a.projects.lead, ...a.projects.member].map((p) => p.slug))]),
+  );
   for (const slug of facts.order) {
     const project = facts.projects[slug];
     if (!project) continue;
@@ -119,7 +122,7 @@ export function listAgents(facts: Readonly<Facts>): AgentEntity[] {
       const belongs = entity.registered
         ? project.lead.id === entity.key ||
           holders.has(entity.key) ||
-          (agentsById.get(entity.key)?.projects ?? []).includes(slug)
+          projectsOf.get(entity.key)?.has(slug) === true
         : entity.lead === project.lead.id;
       if (belongs) entity.homes.push(slug);
     }

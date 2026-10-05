@@ -53,7 +53,11 @@ export type Action =
       labels?: string[];
       body: string;
     }
-  | { type: "move"; by: string; ticket: string; to: TicketStatus }
+  /**
+   * With `rejected` (only to Done, only by a person, CL-89): the ticket is closed as "won't do" for that reason. A
+   * ticket that is already Done can be rejected too; that move has `from == to == "done"`.
+   */
+  | { type: "move"; by: string; ticket: string; to: TicketStatus; rejected?: string }
   | { type: "assign"; by: string; ticket: string; assignee: string | null }
   | { type: "labels"; by: string; ticket: string; labels: string[] }
   | { type: "waitOn"; by: string; ticket: string; on: string | null }
@@ -253,6 +257,9 @@ function assertActiveProject(ctx: Context, t: StoredTicket): void {
 
 type Handlers = { [K in Action["type"]]: (ctx: Context, action: Extract<Action, { type: K }>) => void };
 
+/** loops' `AWAITING_DEPLOY_NAME` (domain/labels.py). */
+const AWAITING_DEPLOY = "awaiting-deploy";
+
 const HANDLERS: Handlers = {
   createTicket(ctx, a) {
     const { state } = ctx;
@@ -280,6 +287,8 @@ const HANDLERS: Handlers = {
       updatedAt: state.now,
       statusChangedAt: state.now,
       closedAt: null,
+      resolution: null,
+      resolutionReason: null,
       archivedAt: null,
       releaseId: null,
       createdById: a.by,
@@ -303,13 +312,34 @@ const HANDLERS: Handlers = {
     const t = ticketOf(ctx, a.ticket);
     assertActiveProject(ctx, t);
     if (a.to === "done" && isAgent(a.by)) throw new Error(`${a.by} is an agent: agents never move ${t.key} to done`);
-    if (a.to === t.status) throw new Error(`${t.key} is already ${a.to}`);
+    if (a.rejected !== undefined && a.to !== "done") throw new Error(`${t.key}: a rejection goes with the done status`);
+    if (a.rejected !== undefined && t.resolution === "rejected") throw new Error(`${t.key} is already rejected`);
+    // A Done ticket can be rejected afterwards: it stays where it is and the move has `from == to`.
+    const reorder = a.to === t.status;
+    if (reorder && a.rejected === undefined) throw new Error(`${t.key} is already ${a.to}`);
     const payload: Record<string, unknown> = {};
-    const from = setStatus(ctx, t, a.to, bottom(ctx, t, a.to));
+    const closedAt = t.closedAt;
+    const from = setStatus(ctx, t, a.to, reorder ? t.position : bottom(ctx, t, a.to));
+    if (reorder) {
+      t.statusChangedAt = closedAt ?? t.statusChangedAt;
+      t.closedAt = closedAt;
+    }
+    // The payload keys and their order are those of loops' `ticket.moved` emit (domain/board.py, `_apply_move`).
     Object.assign(payload, { from, to: a.to, position: t.position });
-    if (a.to === "done" && t.waitingOnId !== null) {
+    if (!reorder && a.to === "done" && t.waitingOnId !== null) {
       t.waitingOnId = null;
       payload["waitingOnCleared"] = true;
+    }
+    const hadResolution = t.resolution !== null;
+    t.resolution = a.rejected === undefined ? null : "rejected";
+    t.resolutionReason = a.rejected ?? null;
+    if (t.resolution !== null) Object.assign(payload, { resolution: t.resolution, resolutionReason: t.resolutionReason });
+    else if (hadResolution) payload["resolutionCleared"] = true;
+    // Leaving In progress ends "awaiting deploy": only that label goes, and the payload names it.
+    const awaiting = labelByName(ctx.state, AWAITING_DEPLOY).id;
+    if (from === "in_progress" && !reorder && t.labelIds.includes(awaiting)) {
+      t.labelIds = t.labelIds.filter((id) => id !== awaiting);
+      payload["labelsCleared"] = [AWAITING_DEPLOY];
     }
     if (a.to !== "in_progress") t.stall = null;
     const event = emit(ctx, "ticket.moved", a.by, { ticket: t }, payload);
@@ -565,7 +595,7 @@ const HANDLERS: Handlers = {
           kind: "system",
           systemCode: a.state,
           deliveryId: d.id,
-          body: { v: "1", system: { code: a.state, lead: d.recipientId, detail: a.detail ?? null } },
+          body: { v: 1, system: { code: a.state, lead: d.recipientId, detail: a.detail ?? null } },
           bodyMarkdown: null,
           attachments: [],
           createdAt: iso(state.now),
@@ -739,6 +769,8 @@ const HANDLERS: Handlers = {
       updatedAt: state.now,
       statusChangedAt: state.now,
       closedAt: null,
+      resolution: null,
+      resolutionReason: null,
       archivedAt: null,
       releaseId,
       createdById: a.by,

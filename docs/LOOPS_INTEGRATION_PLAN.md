@@ -428,12 +428,13 @@ work is always on somebody's desk in a role room.
 - the project's lead
 - workers whose `lead` is that lead
 - registered agents that hold an in-progress ticket of that project
-- project members, when crewhub-loops has `agents_admin` on
-  (`loops:.../contracts/agents.py:57`)
+- project members (`projects.member` of `GET /api/agents`, `loops:.../contracts/agents.py`, `AgentProjects`)
 
 When an agent qualifies for several buildings, section 4.4 applies.
 Completion is celebrated only on `ticket.moved` to `done` by a person, because
-Done is a person's decision (`loops:docs/agents.md`, "Finishing a ticket").
+Done is a person's decision (`loops:docs/agents.md`, "Finishing a ticket"). A move
+to `done` with `resolution: "rejected"` (a person's "won't do") is not a completion:
+no celebration, and a rejected prop request brings no prop.
 
 ### 4.3 How agents move
 
@@ -449,6 +450,7 @@ Done is a person's decision (`loops:docs/agents.md`, "Finishing a ticket").
 | a worker appears in or leaves the snapshot | It enters through the lobby and walks to a desk in its role room, or walks out. |
 | `ticket.moved` to `review` | The agent carries the object to the Review room pile and returns. |
 | `ticket.moved` to `done` by a person | The object goes from the pile to Dispatch, with the small celebration. |
+| `ticket.moved` to `done` with `resolution: "rejected"` (also `from == to == "done"`) | The object goes to Dispatch without a celebration and is set aside: turned askew, with a dark band struck across it. |
 | `ticket.moved` from `review` to `in_progress` with `reason: review_reply` (`loops:.../domain/comments.py:137-145`) | The agent takes the object off the pile and back to its desk. |
 | `ticket.progress` | A caption above the agent: the line itself (at most 200 characters), with `kind` as an icon. It fades after 20 s; a `question` stays until the next line. |
 | `comment.created` | A speech mark without text (payloads carry no bodies) over the agent who wrote it; a person's comment shows as a speech mark on the ticket's box. Selecting it opens the thread in the loops web app. |

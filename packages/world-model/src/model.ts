@@ -150,8 +150,12 @@ export interface WorkObject {
   labels: string[];
   /** Comment speech mark without text (payloads carry no bodies), with its expiry. */
   speechMarkUntil: number | null;
-  /** `ticket.moved` to done by a person just happened: play the small celebration once. */
+  /** `ticket.moved` to done by a person just happened: play the small celebration once. Never for a rejection. */
   celebrateUntil: number | null;
+  /** A Done ticket a person closed as "won't do" (CL-89), with the person's reason; null for done as planned. */
+  rejected: { reason: string | null } | null;
+  /** A person just rejected it: the object is set aside with a small, calm gesture, once. */
+  turnedDownUntil: number | null;
   /** The ticket drone carries it right now (a status change, archive or unarchive). */
   transit: Transit | null;
 }

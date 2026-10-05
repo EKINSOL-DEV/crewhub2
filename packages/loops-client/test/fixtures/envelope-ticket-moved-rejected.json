@@ -1,0 +1,4 @@
+{"v":1,"seq":4712,"ts":"2026-10-05T09:14:02.118Z","type":"ticket.moved",
+ "project":{"slug":"creator","key":"CR"},"ticket":{"id":"tk_000000000001","key":"CR-1","title":"A ticket"},
+ "actor":{"id":"nicky","kind":"user"},"recipientIds":[],
+ "payload":{"from":"backlog","to":"done","position":1000.0,"resolution":"rejected","resolutionReason":"Superseded by CL-30"}}

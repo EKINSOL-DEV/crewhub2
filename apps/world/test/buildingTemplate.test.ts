@@ -62,6 +62,8 @@ const object = (id: string, room: RoomKind, extra: Partial<WorkObject> = {}): Wo
   labels: [],
   speechMarkUntil: null,
   celebrateUntil: null,
+    rejected: null,
+    turnedDownUntil: null,
   transit: null,
   ...extra,
 });

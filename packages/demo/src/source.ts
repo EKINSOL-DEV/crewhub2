@@ -75,7 +75,7 @@ export interface DemoSource extends WorldSource {
   getDmMessages(agentId: string): Promise<DmMessage[]>;
   /** `GET /api/deliveries` as the router or an admin sees it. */
   getDeliveries(): Promise<DeliveryOut[]>;
-  /** `GET /api/agents` (the agents_admin shape). */
+  /** `GET /api/agents`. */
   getAgents(): Promise<AgentOut[]>;
   /** `GET /api/agents/{name}/summary`; `baseUrl` stands for loops' public URL in the links. */
   getAgentSummary(agentId: string, baseUrl: string): Promise<AgentSummary>;

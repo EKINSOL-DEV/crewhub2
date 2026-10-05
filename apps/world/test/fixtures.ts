@@ -42,6 +42,8 @@ export const object = (id: string, room: RoomKind, extra: Partial<WorkObject> = 
   labels: [],
   speechMarkUntil: null,
   celebrateUntil: null,
+    rejected: null,
+    turnedDownUntil: null,
   transit: null,
   ...extra,
 });

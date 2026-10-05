@@ -7,7 +7,7 @@
         "id": "dm_1",
         "threadId": "dt_1",
         "author": { "id": "nicky", "kind": "user", "displayName": "Nicky" },
-        "body": { "v": "1", "doc": { "type": "doc", "content": [] } },
+        "body": { "v": 1, "doc": { "type": "doc", "content": [] } },
         "bodyMarkdown": "How far is CL-85?",
         "bodyText": "How far is CL-85?",
         "replyTo": null,

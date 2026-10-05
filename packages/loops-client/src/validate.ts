@@ -2,7 +2,7 @@
  * Hand-written runtime validators for the loops wire shapes (loops publishes no schemas yet,
  * proposal L2). Unknown keys are ignored and dropped (stability.md "ignore what you do not know").
  * New values of `reason`, `state` and `resolution` in event payloads are tolerated; a `v` other
- * than 1 on an envelope or a team snapshot fails loudly.
+ * than 1 on an envelope, a team snapshot or a rich body fails loudly.
  */
 import type { LoopsSnapshot } from "./source.ts";
 import {
@@ -31,6 +31,7 @@ import {
 import type {
   ActorRef,
   AgentOut,
+  AgentProjects,
   AgentsResponse,
   BoardColumn,
   BoardResponse,
@@ -67,6 +68,7 @@ import type {
   StallDetail,
   StallSummary,
   StatusCounts,
+  SystemCommentBody,
   TeamAgent,
   TeamSession,
   TeamSnapshot,
@@ -299,6 +301,8 @@ const cardShape: Shape<TicketCard> = {
   title: str,
   kind: oneOf(TICKET_KINDS),
   status: oneOf(TICKET_STATUSES),
+  resolution: optional(nullable(str)),
+  resolutionReason: optional(nullable(str)),
   priority: oneOf(TICKET_PRIORITIES),
   position: num,
   version: int,
@@ -344,10 +348,18 @@ const relationRef = object<RelationRef>({
   active: bool,
 });
 
+/** The wire value is the number 1; the string is what read-model.md prints, accepted for safety. */
+const bodyVersion = union(literal(1), literal("1"));
+
 const richBody = object<RichBody>({
-  v: optional(literal("1")),
+  v: optional(bodyVersion),
   profile: optional(literal("ticket")),
   doc: recordOf(unknownValue),
+});
+
+const systemCommentBody = object<SystemCommentBody>({
+  v: optional(bodyVersion),
+  system: object<SystemCommentBody["system"]>({ code: str, lead: str, detail: optional(nullable(str)) }),
 });
 
 const ticket = object<Ticket>({
@@ -377,7 +389,7 @@ const commentOut = object<CommentOut>({
   kind: oneOf(COMMENT_KINDS),
   systemCode: optional(nullable(oneOf(SYSTEM_COMMENT_CODES))),
   deliveryId: optional(nullable(str)),
-  body: optional(unknownValue),
+  body: optional(nullable(union(systemCommentBody, richBody))),
   bodyMarkdown: optional(nullable(str)),
   attachments: optional(arrayOf(unknownValue)),
   createdAt: str,
@@ -455,8 +467,7 @@ const teamAgent = object<TeamAgent>({
 const teamSession = object<TeamSession>({ name: str, agents: arrayOf(teamAgent) });
 
 const teamSnapshot = object<TeamSnapshot>({
-  // read-model.md types it as the string "1", team-and-projects.md shows the number 1.
-  v: optional(union(literal("1"), literal(1))),
+  v: optional(bodyVersion),
   ts: str,
   sessions: arrayOf(teamSession),
 });
@@ -534,9 +545,13 @@ const agentOut = object<AgentOut>({
   disabled: bool,
   lastSeenAt: nullable(str),
   keys: nullable(arrayOf(unknownValue)),
-  isCrewhubLead: optional(bool),
+  isCrewhubLead: bool,
+  isCoordinator: optional(bool),
+  isOperator: optional(bool),
+  isLauncher: optional(bool),
+  isBuilderReader: optional(bool),
   successorId: optional(nullable(str)),
-  projects: optional(arrayOf(str)),
+  projects: object<AgentProjects>({ lead: arrayOf(projectRef), member: arrayOf(projectRef) }),
   lane: optional(unknownValue),
   rights: optional(unknownValue),
   revision: optional(int),
@@ -591,7 +606,10 @@ const payloadValidators: { [T in WorldEventType]: Validator<WorldEventPayloads[T
     position: num,
     renumbered: optional(unknownValue),
     waitingOnCleared: optional(bool),
-    labelsCleared: optional(bool),
+    resolution: optional(nullable(str)),
+    resolutionReason: optional(nullable(str)),
+    resolutionCleared: optional(bool),
+    labelsCleared: optional(arrayOf(str)),
     reason: optional(str),
     code: optional(str),
     milestoneId: optional(str),
