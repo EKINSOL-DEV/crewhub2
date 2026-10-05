@@ -125,12 +125,14 @@ export interface PerchStep {
  *   figure units from its edge (left out: the figure's ground radius), never behind where it would stand;
  * - `surface`: it sits on the top itself, at the free place the furniture offers, turned to what it looks at. `base`
  *   is the radius it needs there, figure units (left out: its ground radius).
- * `pose` layers over the activity's still pose while it is up there (feet tucked in, legs dangling).
+ * `pose` layers over the activity's still pose while it is up there (feet tucked in, legs dangling). `scale` is the
+ * figure's size up there, 1 when left out: a figure made large to read from across a floor may sit a little smaller on
+ * a desk, where it is raised and seen anyway (`base` and its eyes scale with it).
  */
 export type Perch =
   | { kind: "floor" }
-  | { kind: "step"; steps: PerchStep[]; gap?: number; pose?: Record<string, JointPose> }
-  | { kind: "surface"; base?: number; pose?: Record<string, JointPose> };
+  | { kind: "step"; steps: PerchStep[]; gap?: number; pose?: Record<string, JointPose>; scale?: number }
+  | { kind: "surface"; base?: number; pose?: Record<string, JointPose>; scale?: number };
 
 /* ── The runtime contract renderers use ─────────────────────────────────── */
 

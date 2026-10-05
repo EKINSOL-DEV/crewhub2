@@ -295,6 +295,13 @@ test("on the surface: at the free place the furniture offers, with its perched p
   const full = perched({ desk: sit });
   full.setPerch(desk(null), true);
   assert.deepEqual(full.body.position.toArray(), [0, 0, 0]);
+  // Smaller on the top: its body, and the room it asks for (0.5 x 0.8 x 0.5 = 0.2, the widest this desk offers).
+  const small = perched({ desk: { kind: "surface", base: 0.5, scale: 0.8 } });
+  small.setPerch(desk(), true);
+  assert.ok(Math.abs(small.body.scale.x - 0.8) < 1e-9 && small.body.position.y === 1);
+  small.setPerch(null, true);
+  assert.equal(small.body.scale.x, 1, "its own size again on the floor");
+  assert.equal(validateFigure({ ...figure(), perch: { desk: { kind: "surface", scale: 3 } } }).ok, false);
   const wide = perched({ desk: { kind: "surface" } });
   wide.setPerch(desk(), true);
   assert.deepEqual(wide.body.position.toArray().map((n) => +n.toFixed(6)), [0.2, 1, 1.2], "left out, the base is its ground radius (0.25 at scale 0.5: 0.125)");

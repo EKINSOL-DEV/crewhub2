@@ -75,6 +75,8 @@ export interface PerchPlacement {
   feet: Vec3;
   /** Its turn about y from facing the surface squarely, radians: towards what it looks at. */
   turn: number;
+  /** Its size up there (1: as it stands on the floor). */
+  scale: number;
   /** The step it stands on, and where the step stands on the floor (x, z). */
   step: { spec: PerchStep; x: number; z: number } | null;
 }
@@ -91,13 +93,14 @@ export function perchPlacement(spec: Pick<FigureSpec, "perch" | "anchors">, plac
     const step = perch.steps[hashKey(`${key}:perch`) % perch.steps.length];
     if (!step) return null;
     const z = Math.max(0, place.edge / place.scale - (perch.gap ?? spec.anchors.ground));
-    return { perch, feet: [0, step.height, z], turn: turnTo(0, z), step: { spec: step, x: 0, z } };
+    return { perch, feet: [0, step.height, z], turn: turnTo(0, z), scale: perch.scale ?? 1, step: { spec: step, x: 0, z } };
   }
-  const spot = place.spot((perch.base ?? spec.anchors.ground) * place.scale);
+  const scale = perch.scale ?? 1;
+  const spot = place.spot((perch.base ?? spec.anchors.ground) * scale * place.scale);
   if (!spot) return null;
   const x = spot.x / place.scale,
     z = spot.z / place.scale;
-  return { perch, feet: [x, place.height / place.scale, z], turn: turnTo(x, z), step: null };
+  return { perch, feet: [x, place.height / place.scale, z], turn: turnTo(x, z), scale, step: null };
 }
 
 /**

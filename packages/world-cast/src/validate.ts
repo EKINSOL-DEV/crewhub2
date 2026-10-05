@@ -159,7 +159,8 @@ function perches(r: Report, value: unknown, path: string, joints: ReadonlySet<st
       r.error(`${at}.kind`, 'must be "floor", "step" or "surface"');
       continue;
     }
-    r.keys(perch, perch.kind === "step" ? ["kind", "steps", "gap", "pose"] : perch.kind === "surface" ? ["kind", "base", "pose"] : ["kind"], at);
+    r.keys(perch, perch.kind === "step" ? ["kind", "steps", "gap", "pose", "scale"] : perch.kind === "surface" ? ["kind", "base", "pose", "scale"] : ["kind"], at);
+    if ("scale" in perch && (!isNumber(perch.scale) || perch.scale < 0.5 || perch.scale > 1.5)) r.error(`${at}.scale`, "must be a size from 0.5 to 1.5");
     if ("pose" in perch) {
       if (!isObject(perch.pose)) r.error(`${at}.pose`, "must be an object of joints");
       else jointPoses(r, perch.pose, `${at}.pose`, joints);

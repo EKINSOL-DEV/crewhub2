@@ -3,6 +3,7 @@
    a still pose, a set of motions and the looks. A figure only re-poses and re-skins when its state changes, and its
    `update` allocates nothing. */
 import * as THREE from "three";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { figureColor, hashKey, perchPlacement, wave, type PerchPlacement } from "./figure.ts";
 import type {
   Cast,
@@ -80,7 +81,49 @@ function sameState(a: FigureState, b: FigureState): boolean {
   return a.activity === b.activity && a.waiting === b.waiting && a.alert === b.alert && a.proxy === b.proxy && a.carrying === b.carrying;
 }
 
-function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend: FigureExtension | undefined): FigureHandle {
+/** A cast's steps as drawn: per step and colour one merged geometry, shared by every figure that stands on it. */
+type StepCache = Map<PerchStep, Map<string, THREE.BufferGeometry | null>>;
+
+/**
+ * A step's meshes: its parts merged per colour, so a stack of books is a mesh per cover and a stool is two. A step
+ * costs its figure a few draw calls, not one per part. Parts that will not merge are drawn as they are.
+ */
+function stepMeshes(step: PerchStep, kit: FigureKit, color: (name: string) => string, cache: StepCache): THREE.Mesh[] {
+  let merged = cache.get(step);
+  if (!merged) cache.set(step, (merged = new Map()));
+  const byColor = new Map<string, THREE.Mesh[]>();
+  for (const part of step.parts) {
+    const name = color(part.color);
+    byColor.set(name, [...(byColor.get(name) ?? []), kit.part(part, name)]);
+  }
+  const out: THREE.Mesh[] = [];
+  for (const [name, meshes] of byColor) {
+    if (meshes.length === 1) {
+      out.push(meshes[0]!);
+      continue;
+    }
+    let geometry = merged.get(name);
+    if (geometry === undefined) {
+      const baked = meshes.map((mesh) => {
+        mesh.updateMatrix();
+        return mesh.geometry.clone().applyMatrix4(mesh.matrix);
+      });
+      geometry = mergeGeometries(baked);
+      for (const g of baked) g.dispose();
+      merged.set(name, geometry);
+    }
+    if (!geometry) {
+      out.push(...meshes);
+      continue;
+    }
+    const mesh = new THREE.Mesh(geometry, meshes[0]!.material);
+    mesh.castShadow = mesh.receiveShadow = true;
+    out.push(mesh);
+  }
+  return out;
+}
+
+function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend: FigureExtension | undefined, stepCache: StepCache): FigureHandle {
   const root = new THREE.Group();
   // The figure itself rides in `body`, so a perch can lift, move and turn it while the renderer keeps `root` on the
   // floor; its step stands beside it in `root`.
@@ -160,7 +203,7 @@ function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend
   /* The perch: where the figure is going (`perched`, null for the floor), the hop there, and the steps built so far. */
   let place: WorkPlace | null = null;
   let perched: PerchPlacement | null = null;
-  const hop = { from: new THREE.Vector3(), to: new THREE.Vector3(), turnFrom: 0, turnTo: 0, t: 1, seconds: HOP_MIN };
+  const hop = { from: new THREE.Vector3(), to: new THREE.Vector3(), turnFrom: 0, turnTo: 0, sizeFrom: 1, sizeTo: 1, t: 1, seconds: HOP_MIN };
   const steps = new Map<PerchStep, THREE.Group>();
   /** The step shown now (it grows as the figure gets on and goes as it gets off) and the one being left. */
   let step: THREE.Group | null = null;
@@ -169,7 +212,7 @@ function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend
     let group = steps.get(spec_);
     if (!group) {
       group = new THREE.Group();
-      for (const part of spec_.parts) group.add(kit.part(part, figureColor(spec, part.color, seed)));
+      group.add(...stepMeshes(spec_, kit, (name) => figureColor(spec, name, seed), stepCache));
       // A step is picked as its figure is.
       group.traverse((o) => Object.assign(o.userData, root.userData));
       steps.set(spec_, group);
@@ -183,6 +226,7 @@ function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend
     body.position.lerpVectors(hop.from, hop.to, eased);
     if (t < 1) body.position.y += Math.sin(Math.PI * t) * HOP_ARC;
     body.rotation.y = hop.turnFrom + (hop.turnTo - hop.turnFrom) * eased;
+    body.scale.setScalar(hop.sizeFrom + (hop.sizeTo - hop.sizeFrom) * eased);
     if (step) step.scale.setScalar(Math.max(0.001, Math.min(1, t * 2.5)));
     if (leaving) {
       leaving.scale.setScalar(Math.max(0.001, 1 - eased));
@@ -290,8 +334,10 @@ function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend
         hop.turnFrom = body.rotation.y;
         hop.to.set(...(perched?.feet ?? [0, 0, 0]));
         hop.turnTo = perched?.turn ?? 0;
+        hop.sizeFrom = body.scale.x;
+        hop.sizeTo = perched?.scale ?? 1;
         hop.seconds = Math.max(HOP_MIN, hop.from.distanceTo(hop.to) * HOP_PACE);
-        hop.t = hop.from.distanceToSquared(hop.to) < 1e-8 && hop.turnFrom === hop.turnTo ? 1 : 0;
+        hop.t = hop.from.distanceToSquared(hop.to) < 1e-8 && hop.turnFrom === hop.turnTo && hop.sizeFrom === hop.sizeTo ? 1 : 0;
         const stands = perched?.step ? stepOf(perched.step.spec) : null;
         if (stands !== step) {
           if (leaving) leaving.visible = false;
@@ -354,9 +400,10 @@ function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend
 
 /** A cast from its data: every figure is built by the runtime with the style's kit, then handed to `extend`. */
 export function createCast(manifest: CastManifest, spec: FigureSpec, kit: FigureKit, extend?: FigureExtension): Cast {
+  const steps: StepCache = new Map();
   return {
     manifest,
-    figure: (options) => figure(spec, kit, options, extend),
+    figure: (options) => figure(spec, kit, options, extend, steps),
     dispose() {},
   };
 }

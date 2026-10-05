@@ -556,7 +556,7 @@ export class CastRoomScene {
     if (selected) {
       selected.handle.body.getWorldPosition(this.#ring.position);
       this.#ring.position.y += 0.012;
-      this.#ring.scale.setScalar(selected.handle.anchors.ground / 0.3);
+      this.#ring.scale.setScalar((selected.handle.anchors.ground * selected.handle.body.scale.x) / 0.3);
     }
     // Seen from town distance the figures draw as the town draws them: batched by the robot crowd.
     this.scene.updateMatrixWorld();

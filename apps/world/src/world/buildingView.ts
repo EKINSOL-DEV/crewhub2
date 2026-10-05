@@ -798,7 +798,7 @@ export class BuildingView {
       // Until its walker says otherwise it is at its place; a walker puts it where it really is.
       this.#settle(robot, undefined, true);
       const lift = this.#lift(robot);
-      const head = FLOOR_LIFT + robot.handle.anchors.label[1] * ROBOT_SCALE + lift.y;
+      const head = FLOOR_LIFT + robot.handle.anchors.label[1] * robot.handle.body.scale.y * ROBOT_SCALE + lift.y;
       const anchor = this.anchors.get(`a:${b.slug}:${agent.key}`);
       if (anchor) anchor.copy(this.world(seat.x + 0.5, seat.z + 0.5, head)).add(lift.setY(0));
       else this.anchors.set(`a:${b.slug}:${agent.key}`, this.world(seat.x + 0.5, seat.z + 0.5, head).add(lift.setY(0)));
@@ -873,7 +873,7 @@ export class BuildingView {
     robot.handle.setState(figureState(this.#facts, this.#state));
     this.#settle(robot, walker, !robot.near || this.ctx.reducedMotion());
     const lift = this.#lift(robot);
-    this.anchors.get(`a:${this.building.slug}:${key}`)?.set(walker.x + lift.x, walker.y + 2 * FLOOR_LIFT + robot.handle.anchors.label[1] * ROBOT_SCALE + lift.y, walker.z + lift.z);
+    this.anchors.get(`a:${this.building.slug}:${key}`)?.set(walker.x + lift.x, walker.y + 2 * FLOOR_LIFT + robot.handle.anchors.label[1] * robot.handle.body.scale.y * ROBOT_SCALE + lift.y, walker.z + lift.z);
     return walker.walking;
   }
 
@@ -1106,7 +1106,7 @@ export class BuildingView {
     if (!ring) return;
     const robot = this.#selectedKey ? this.#robots.get(this.#selectedKey) : undefined;
     ring.visible = !!robot;
-    if (robot) ring.scale.setScalar(robot.handle.anchors.ground / RING_GROUND);
+    if (robot) ring.scale.setScalar((robot.handle.anchors.ground * robot.handle.body.scale.x) / RING_GROUND);
     robot?.handle.setHighlight("selected");
     // The ring follows the figure up on its perch.
     if (robot) ring.position.copy(robot.handle.object.position).add(this.#lift(robot)).y += 0.01;
