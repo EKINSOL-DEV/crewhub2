@@ -4,7 +4,7 @@
    lamps, quiet clocks, the attention beacon, trophy, banner, mailbox letters) and the ticket drones. Layers rebuild
    only when their signature changes. */
 import * as THREE from "three";
-import type { AgentPlacement, Building, RoomKind } from "@crewhub/world-model";
+import type { AgentPlacement, Building, ProjectColor, ProjectIcon, RoomKind } from "@crewhub/world-model";
 import { IDLE_STATE, type Cast, type CastRole, type FigureHandle, type FigureState } from "@crewhub/world-cast";
 import type { EmblemName, ModelKey, PaletteName, ResolvedStyle } from "@crewhub/world-style";
 import {
@@ -147,6 +147,9 @@ export interface BuildingContext {
   walker: (key: string) => Walker | undefined;
 }
 
+/** What a building shows of its zone: the district's colour and emblem, on a medallion by the door. */
+export type ZoneMark = { color: ProjectColor | null; emblem: ProjectIcon | null };
+
 export type Pick = { kind: "agent"; key: string } | { kind: "object"; ticketId: string } | { kind: "room"; room: RoomKind } | { kind: "prop"; id: string };
 
 interface Robot {
@@ -206,6 +209,7 @@ export class BuildingView {
   detailed = false;
   /** Counts shell rebuilds, so the town knows when to gather the window spots again. */
   shellRevision = 0;
+  #zone: ZoneMark | null = null;
   /** Bumps whenever something that casts a shadow seen from the town changed: the town then redraws its shadow map. */
   shadowRevision = 0;
   #shell = new THREE.Group();
@@ -298,13 +302,14 @@ export class BuildingView {
     return this.local(x, z, y).add(this.group.position);
   }
 
-  update(building: Building, detailed: boolean, town: TownLayer | null = null) {
+  update(building: Building, detailed: boolean, town: TownLayer | null = null, zone: ZoneMark | null = null) {
     this.building = building;
+    this.#zone = zone && (zone.color || zone.emblem) ? zone : null;
     this.template = buildingTemplate(building);
     this.desks = assignDesks(building, this.template);
     this.layout = placeObjects(building, this.template, this.desks);
     const shape = JSON.stringify(this.template.rooms.map((r) => [r.kind, r.origin, r.layout.grid.width, r.layout.grid.depth]));
-    const shell = `${shape}|${building.rooms.map((r) => `${r.kind}${r.present}`).join()}|${building.archived}|${building.color}|${building.icon}`;
+    const shell = `${shape}|${building.rooms.map((r) => `${r.kind}${r.present}`).join()}|${building.archived}|${building.color}|${building.icon}|${this.#zone?.color ?? ""}|${this.#zone?.emblem ?? ""}`;
     if (shell !== this.#signatures.shell) {
       this.#signatures.shell = shell;
       this.#buildShell();
@@ -433,6 +438,9 @@ export class BuildingView {
         if (!b.archived) this.#outside(noShadow(style.model("building.bike")), x - width / CELL / 2 - 2.4, z + 0.9, -FLOOR_RISE, 0.25, 0.12);
         // The building's name on a painted board over the door; an archived building shows only its closed sign.
         if (!b.archived) add(style.model("building.name-sign", { accent, text: b.name, size: { width, height: 0.3, depth: 0.06 } }), x, z, 0, rotation);
+        // The zone's mark crowns the name board: the district's colour and emblem on a small medallion.
+        if (!b.archived && this.#zone)
+          add(noShadow(style.model("town.zone-mark", { accent: (this.#zone.color ?? null) as PaletteName | null, ...(this.#zone.emblem ? { variant: this.#zone.emblem } : {}) })), x, z, 2.3, rotation);
         // The closed sign hangs from the awning's front edge.
         if (b.archived) add(style.model("building.closed-sign"), x, z + 1.15, 1.4);
       } else if (opening.id === "loading") {
