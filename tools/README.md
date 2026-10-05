@@ -23,8 +23,9 @@ Every script takes:
 | `--swiftshader` | Software rendering, for a machine without a GPU. Pictures are fine; never compare its timings with GPU runs. |
 
 Where they apply: `--theme light,dark`, `--cast <id>` (the viewer's cast choice, as Settings > Town > Cast stores
-it), `--stress <n>` (the stress fixture's size, the page's `?stress=<n>`; dev builds only, and `1` is the only size
-the app knows until a larger fixture lands) and `--tag <name>` (the prefix of the files written).
+it), `--stress <n>` (the stress fixture's size, the page's `?stress=<n>`; dev builds only: `1` is 12 buildings with
+about 100 agents, `20` is 20 buildings with 200 agents in four groups), `--scenario <id>` (a demo scenario from the
+Demo chip's picker, the page's `?scenario=<id>`; `perf.mjs` and `shots.mjs`) and `--tag <name>` (the prefix of the files written).
 
 **The browser.** Headless Chromium from `playwright-core`, launched with
 `--headless=new --use-angle=metal --enable-gpu` (GPU-backed, Metal ANGLE: macOS), or with
@@ -36,9 +37,9 @@ unless a script says otherwise; a phone is 375 x 812 with touch.
 | Script | What it does | Writes |
 | --- | --- | --- |
 | `regress.mjs` | The browser regression pass: 38 checks along a visitor's walk through the demo (keyboard, text view, Details, timeline, chat, build mode, settings, the where form, reduced motion, themes, a phone), failing on any page error, console error or request that leaves the page. Prints `regress: <passed>/<total>` last; exit code 0 only at full marks. Needs a dev server (two checks read `window.__town`). About two minutes. | `<tag>-NN-<stop>.png`, `<tag>-results.json`, `<tag>.log` |
-| `perf.mjs` | Frame time, work per frame, draw calls, triangles and heap per scenario (`demo-town`, `demo-inside`, `stress-town`, `stress-inside`, `phone-fast`, `startup`, and more: see its header). `--preview` for a production build, `--cast`, `--quality`, `--theme`, `--stress`. | The table on stdout; `--json <file>` for every number |
+| `perf.mjs` | Frame time, work per frame, draw calls, triangles and heap per scenario (`demo-town`, `demo-inside`, `stress-town`, `stress-inside`, `phone-fast`, `startup`, and more: see its header). `--preview` for a production build, `--cast`, `--quality`, `--theme`, `--scenario`, `--stress`. | The table on stdout; `--json <file>` for every number |
 | `memory.mjs` | Heap after GC, GPU geometries and textures, DOM nodes and listeners over a long 16x run (`demo` or `stress`), and the growth after warm-up. | Lines on stdout; `--json <file>` |
-| `shots.mjs` | The world in screenshots: `--views` (`town`, `building`, `room`, `walk`, `stress`) x `--theme` x `--width`. `walk` is the critical walk through every building and room. | `<tag>-<view>-<theme>-<width>.png` |
+| `shots.mjs` | The world in screenshots: `--views` (`town`, `building`, `room`, `walk`, `stress`) x `--theme` x `--width`, in any `--scenario`. `walk` is the critical walk through every building and room. | `<tag>-<view>-<theme>-<width>.png` |
 | `castshots.mjs` | The casting room (`/cast-preview`): every cast in every state, the scenes, dusk, reduced motion, Fast, far, the drone, and the side-by-side view. `--cast`, `--states`, `--only` narrow it. | `room-<cast>-<what>-<theme>.png` |
 | `castworld.mjs` | The world as each cast draws it (the viewer's choice): town, building, room per theme and width, and the stress fixture with the dev overlay's numbers. | `<tag>-<cast>-<view>-<theme>-<width>.png` |
 

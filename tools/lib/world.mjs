@@ -110,5 +110,8 @@ export const seek = (page, ms) =>
 /** Presses a playback speed button. They are named "Play at 4x" (aria-label); the text alone does not match. */
 export const speed = (page, label) => page.getByRole("button", { name: `Play at ${label}`, exact: true }).click({ timeout: 5000 });
 
-/** The world's page address: `?stress=<n>` for the stress fixture (dev builds only), nothing for the demo. */
-export const worldUrl = (base, stress) => `${base}${stress ? `?stress=${stress}` : ""}`;
+/**
+ * The world's page address: `?stress=<n>` for a stress fixture (dev builds only: 1 or 20), `?scenario=<id>` for a demo
+ * scenario (the Demo chip's picker), nothing for the default storyline.
+ */
+export const worldUrl = (base, stress, scenario) => `${base}${stress ? `?stress=${encodeURIComponent(stress)}` : scenario ? `?scenario=${encodeURIComponent(scenario)}` : ""}`;

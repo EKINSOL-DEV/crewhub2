@@ -15,9 +15,10 @@ const viewport = (width) => (width <= 480 ? { viewport: { width, height: 812 }, 
  * - walk: every one of the first `buildings` buildings and each of its rooms, a shot per stop;
  * - stress: the stress fixture (?stress=<n>, dev builds only) at 4x after 12 s, in the town and inside the second
  *   building, with the dev overlay's numbers as a line in the result.
+ * `scenario` is the demo scenario of every view but stress (left out: the default storyline).
  * Returns { count, notes }: how many files were written and what to tell (the overlay lines).
  */
-export async function worldShots(browser, { base, origin, out, views, themes, widths, cast = null, stress = "1", building = 0, room = 0, buildings = 6, rooms = 7, settle = 3500, problems, name }) {
+export async function worldShots(browser, { base, origin, out, views, themes, widths, cast = null, scenario = null, stress = "1", building = 0, room = 0, buildings = 6, rooms = 7, settle = 3500, problems, name }) {
   const notes = [];
   let count = 0;
   for (const theme of themes) {
@@ -43,7 +44,7 @@ export async function worldShots(browser, { base, origin, out, views, themes, wi
         await p.waitForTimeout(2500);
       };
       if (views.some((v) => ["town", "building", "room"].includes(v))) {
-        const p = await open(base);
+        const p = await open(worldUrl(base, null, scenario));
         if (views.includes("town")) await shot(p, "town");
         if (views.includes("building") || views.includes("room")) {
           await enter(p, building);
@@ -58,7 +59,7 @@ export async function worldShots(browser, { base, origin, out, views, themes, wi
         await p.context().close();
       }
       if (views.includes("walk")) {
-        const p = await open(base);
+        const p = await open(worldUrl(base, null, scenario));
         for (let i = 0; i < buildings; i++) {
           await enter(p, i);
           await shot(p, `walk-b${i}`);
