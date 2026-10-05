@@ -514,7 +514,7 @@ function ObjectPlate({ object: o, building, model }: { object: WorkObject; build
       <span className="plate-name">
         <strong>{o.key}</strong>
         <span className="sign-muted">
-          {o.kind}, {STATUS_WORDS[o.status]}
+          {o.kind}, {o.rejected ? "turned down" : STATUS_WORDS[o.status]}
         </span>
       </span>
       <span className="plate-title">{o.title}</span>
@@ -522,12 +522,14 @@ function ObjectPlate({ object: o, building, model }: { object: WorkObject; build
         {o.priorityTag && <Chip.Attention>{o.priorityTag} priority</Chip.Attention>}
         {o.blocked && <Chip>blocked</Chip>}
         {o.sealed && <Chip>held</Chip>}
+        {o.rejected && <Chip>won't do</Chip>}
         {o.stall && <Chip.Stalled>{o.stall.state === "stalled" ? `stalled, quiet ${o.stall.quietMinutes ?? "?"} min` : "needs attention"}</Chip.Stalled>}
         {(o.nameTag || o.waitingOnHuman) && (
           <Chip icon={<MessageSquare className="icon icon-sm" aria-hidden="true" />}>waiting on {o.nameTag ?? "a person"}</Chip>
         )}
       </span>
       {o.status === "in_progress" && <span className="sign-muted">{holder ? `On the desk of ${holder}${o.deskInferred ? " (inferred from its status line)" : ""}` : "In the lead's inbox tray"}</span>}
+      {o.rejected?.reason && <span className="sign-muted">Turned down: {o.rejected.reason}</span>}
       {o.milestone && <span className="sign-muted">Milestone {o.milestone.key}</span>}
       {o.transit && <span className="sign-muted">In transit: the ticket drone carries it</span>}
       <DemoNote model={model} />

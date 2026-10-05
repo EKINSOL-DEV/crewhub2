@@ -199,7 +199,7 @@ function describeObject(section: string, object: WorkObject, building: Building,
   const parts = [`${object.key} "${object.title}": ${object.kind} as a ${LOOK_WORDS[object.look]}, ${STATUS_WORDS[object.status]}`];
   if (object.rejected) {
     const reason = object.rejected.reason ? `: "${object.rejected.reason}"` : "";
-    parts.push(`turned down (closed as won't do${reason}), set aside askew under a pale return slip`);
+    parts.push(`turned down (closed as won't do${reason}), set aside askew, struck through with a dark band`);
   }
   if (object.priorityTag) parts.push(`${object.priorityTag} priority tag`);
   if (object.blocked) parts.push("blocked, strapped shut");

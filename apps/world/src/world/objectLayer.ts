@@ -2,7 +2,9 @@
    baked into one mesh per material look first (mergeStatic), then drawn as one InstancedMesh per baked mesh, so a pile
    of fifty tickets costs a handful of draw calls and a template a call or two. The ticket drone carries flying
    objects along an arc in source time; a re-stack eases over a short tween; a person's move to done hops once with a
-   sparkle. Under reduced motion flights are a short fade and nothing hops. The frame path allocates nothing. */
+   sparkle. A ticket a person turned down (Done as "won't do") gets no hop and no sparkle: it is set aside, turned
+   askew, with one dark band struck across it. Under reduced motion flights are a short fade, nothing hops and the turned-down
+   object is askew at once. The frame path allocates nothing. */
 import * as THREE from "three";
 import { useInstancedMaterials } from "./instancedMaterial";
 import { mergeStatic } from "./mergeStatic";
@@ -16,6 +18,10 @@ const OBJECT_SCALE = 1;
 const RESTACK_S = 0.35;
 const DRONE_SCALE = 1.6;
 const HOP_S = 1.1;
+/** A turned-down object is set aside slowly: this long for the turn, this far (radians) off the pile's line. */
+const ASIDE_S = 1.6;
+const ASIDE_TURN = 0.62;
+const ASIDE_STRIKE: PaletteName = "slate";
 const MILESTONE_ACCENTS: readonly PaletteName[] = ["sage", "tangerine", "circle", "brass", "leaf", "coral"];
 const STICKER_ACCENTS: readonly PaletteName[] = ["coral", "tangerine", "circle", "sage", "brass", "leaf", "mist"];
 
@@ -100,6 +106,8 @@ interface ObjectState {
   flight: { from: THREE.Vector3; to: THREE.Vector3; startedAt: number; until: number; retargetAt: number } | null;
   drone: THREE.Object3D | null;
   hop: { t: number; until: number; sparkle: THREE.Object3D } | null;
+  /** How far a turned-down object has been set aside, 0 to 1. */
+  aside: number;
   anchor: THREE.Vector3;
 }
 
@@ -165,7 +173,9 @@ export class ObjectLayer {
       let state = this.#states.get(object.ticketId);
       if (!state) {
         const pos = rest ? rest.clone() : new THREE.Vector3();
-        state = { object, rest, pos, ease: null, flight: null, drone: null, hop: null, anchor: new THREE.Vector3() };
+        // One that was turned down before it came into view is askew already; a fresh rejection turns in view.
+        const aside = object.rejected && object.turnedDownUntil === null ? 1 : 0;
+        state = { object, rest, pos, ease: null, flight: null, drone: null, hop: null, aside, anchor: new THREE.Vector3() };
         this.#states.set(object.ticketId, state);
       } else if (rest && state.rest && !state.flight && !object.transit && rest.distanceToSquared(state.rest) > 1e-6 && !this.#ctx.reducedMotion()) {
         state.ease = { from: state.pos.clone(), t: 0 };
@@ -257,9 +267,9 @@ export class ObjectLayer {
     state.hop = { t: 0, until: HOP_S, sparkle };
   }
 
-  /** True while something moves (a flight, an ease, a hop). */
+  /** True while something moves (a flight, an ease, a hop, a turned-down object being set aside). */
   get animating(): boolean {
-    for (const s of this.#states.values()) if (s.flight || s.ease || s.hop) return true;
+    for (const s of this.#states.values()) if (s.flight || s.ease || s.hop || (s.object.rejected && s.aside < 1)) return true;
     return false;
   }
 
@@ -315,6 +325,9 @@ export class ObjectLayer {
         if (u >= 1) state.ease = null;
       } else pos.copy(state.rest);
     }
+    // Set aside once it has landed: a slow turn, no hop. Taken back (reopened, or a plain Done after all), it straightens.
+    if (!state.object.rejected) state.aside = 0;
+    else if (!state.flight && state.aside < 1) state.aside = reduced ? 1 : Math.min(1, state.aside + seconds / ASIDE_S);
     if (state.hop) {
       state.hop.t += seconds;
       const u = state.hop.t / state.hop.until;
@@ -350,10 +363,16 @@ export class ObjectLayer {
       const body = this.#body(o);
       this.#s.setScalar(OBJECT_SCALE);
       // A little deterministic turn per ticket keeps a pile from looking machined.
-      this.#q.setFromAxisAngle(this.#yAxis, ((o.position * 37 + o.key.length * 11) % 13) * 0.02 - 0.12);
+      const aside = state.aside * state.aside * (3 - 2 * state.aside);
+      this.#q.setFromAxisAngle(this.#yAxis, ((o.position * 37 + o.key.length * 11) % 13) * 0.02 - 0.12 + aside * ASIDE_TURN);
       this.#place.compose(state.pos, this.#q, this.#s);
       this.#put(body, o.ticketId);
       const size = { width: body.size.x + 0.02, height: body.height + 0.004, depth: body.size.z + 0.02 };
+      // Struck through: one thin dark band from corner to corner (a milestone band runs straight and is coloured).
+      if (o.rejected) {
+        const strike = { width: Math.hypot(body.size.x, body.size.z) * 0.94, height: size.height + 0.004, depth: 0.03 };
+        this.#put(this.#template("ticket.band", { size: strike, accent: ASIDE_STRIKE }), o.ticketId, false, 0, 0, 0, Math.atan2(body.size.z, body.size.x));
+      }
       if (o.blocked) this.#put(this.#template("ticket.strap", { size }), o.ticketId, false);
       if (o.sealed) this.#put(this.#template("ticket.seal", { size: { width: 0.07, height: size.height, depth: size.depth } }), o.ticketId, false);
       if (o.milestone) {
@@ -378,15 +397,17 @@ export class ObjectLayer {
       }
   }
 
-  /** Adds one instance of a template, offset in the object's local frame. */
-  #put(t: Template, id: string, body = true, dx = 0, dy = 0, dz = 0) {
+  /** Adds one instance of a template, offset (and turned by `yaw`) in the object's local frame. */
+  #put(t: Template, id: string, body = true, dx = 0, dy = 0, dz = 0, yaw = 0) {
     const index = t.count;
     if (index >= t.capacity) {
       // Growing replaces the meshes, so this frame's earlier instances are written again.
       t.ensure(index + 1, this.group, "");
       this.#regrown = true;
     }
-    this.#m.makeTranslation(dx, dy, dz).premultiply(this.#place);
+    if (yaw === 0) this.#m.makeTranslation(dx, dy, dz);
+    else this.#m.makeRotationY(yaw).setPosition(dx, dy, dz);
+    this.#m.premultiply(this.#place);
     for (let i = 0; i < t.parts.length; i++) {
       this.#scratch.multiplyMatrices(this.#m, t.parts[i]!.matrix);
       t.meshes[i]!.setMatrixAt(index, this.#scratch);
