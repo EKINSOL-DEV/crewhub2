@@ -5,7 +5,7 @@
  * the town default), never through a global singleton.
  */
 import type * as THREE from "three";
-import type { PropMaterial, PropModel } from "@crewhub/world-engine";
+import type { PropMaterial, PropModel, Vec3 } from "@crewhub/world-engine";
 import type { CastManifest, FigureKit } from "@crewhub/world-cast";
 
 /** Light UI → day, dark UI → lamplight (warmer, dimmer, lit windows and desk lamps). */
@@ -184,8 +184,32 @@ export interface StyleManifest {
   coveredKeys: ModelKey[];
   /** The cast whose figures stand for agents in this style, unless the viewer or the town chose another. */
   defaultCast?: string;
+  /**
+   * The tops figures work at, by the model's key. A cast's figure may be too small to see over one and bring a perch
+   * (`@crewhub/world-cast`): furniture never changes with the cast, the style only says where each top is. A key left
+   * out: the renderer takes the model's bounding box as a plain table.
+   */
+  workSurfaces?: Partial<Record<ModelKey, WorkSurface>>;
   palette: Record<PaletteName, string>;
   lighting: Record<StyleTheme, LightingPreset> & Partial<Record<DriftLight, LightingPreset>>;
+}
+
+/**
+ * A top a figure works at, in its model's own space as `model(key)` returns it: the origin is the footprint's centre
+ * on the floor, world units.
+ */
+export interface WorkSurface {
+  /** The top's height above the floor. */
+  height: number;
+  /** Half the top's width (x) and depth (z). */
+  half: [number, number];
+  /** The middle of a screen standing on it; it faces +z, where its worker is. Left out: a table, looked at in its middle. */
+  screen?: Vec3;
+  /**
+   * Free places on the top for something to sit, best first: clear of the model's own things for `radius` around.
+   * Left out: the top is clear, anywhere along its edge will do.
+   */
+  spots?: { x: number; z: number; radius: number }[];
 }
 
 export interface WorldStyle {

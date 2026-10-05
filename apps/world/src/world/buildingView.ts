@@ -6,7 +6,7 @@
 import * as THREE from "three";
 import type { AgentPlacement, Building, RoomKind } from "@crewhub/world-model";
 import { IDLE_STATE, type Cast, type CastRole, type FigureHandle, type FigureState } from "@crewhub/world-cast";
-import type { EmblemName, ModelKey, PaletteName, ResolvedStyle } from "@crewhub/world-style";
+import type { EmblemName, ModelKey, PaletteName, ResolvedStyle, WorkSurface } from "@crewhub/world-style";
 import {
   BACK_WALL_HEIGHT,
   BUILDING_CELL as CELL,
@@ -35,7 +35,8 @@ import { figureRole, figureState, type FigureFacts } from "./figureState";
 import type { RobotCrowd } from "./robotCrowd";
 import { deskItems, DRESS_PREFIX, dressingSeed, roomDecor, type DecorItem } from "./roomDressing";
 import type { Bounds } from "./townLayout";
-import type { Walker } from "./walks";
+import type { Walker, WorkSpot } from "./walks";
+import { deskClutter, WORK_FURNITURE, workPlace, type Circle, type WorkAt } from "./workPlaces";
 
 /** Figures and desks are Greenhouse-sized; interiors show them at this scale. */
 const ROBOT_SCALE = 0.62;
@@ -157,6 +158,31 @@ interface Robot {
   deskWaiting: boolean;
   /** Gone from the model but still walking out of the front door. */
   departing: boolean;
+  /** The work place at its own desk and the desk it was worked out for; null without a desk or seen from the town. */
+  seat: WorkAt | null;
+  seatKey: string;
+  /** The work place it stands at on an errand, kept while its walker stands at the same furniture. */
+  errand: { spot: WorkSpot; at: WorkAt | null } | null;
+  /** Drawn near at the last sync: a figure that is new to the near view is on its perch at once, without the hop. */
+  near: boolean;
+}
+
+/** What a ticket pile takes of a table top, world units. */
+const PILE_RADIUS = 0.13;
+const workSurfaces = new WeakMap<ResolvedStyle, Map<ModelKey, WorkSurface>>();
+
+/** The top of a piece of work furniture as the style gives it; a style that says nothing gets its model's box as a plain table. */
+function workSurfaceOf(style: ResolvedStyle, key: ModelKey): WorkSurface {
+  let known = workSurfaces.get(style);
+  if (!known) workSurfaces.set(style, (known = new Map()));
+  let surface = known.get(key) ?? style.manifest.workSurfaces?.[key];
+  if (!surface) {
+    const object = style.model(key);
+    const box = new THREE.Box3().setFromObject(object);
+    surface = { height: typeof object.userData.surface === "number" ? object.userData.surface : box.max.y, half: [(box.max.x - box.min.x) / 2, (box.max.z - box.min.z) / 2] };
+  }
+  known.set(key, surface);
+  return surface;
 }
 
 const surfaceHeights = new WeakMap<ResolvedStyle, Record<Surface, number>>();
@@ -693,12 +719,18 @@ export class BuildingView {
 
   /** Each desk's personal things, seeded by who sits there; merged per material, rebuilt when the seating changes. */
   #syncPersonal() {
-    const signature = [...this.desks.values()].map((d) => `${d.agentKey}@${d.propId}${d.room}`).join("|");
+    // A figure that sits on its desk has the place it took to itself: the things there make room.
+    const taken = new Map<string, Circle>();
+    for (const [key, robot] of this.#robots) {
+      const spot = robot.seat?.taken;
+      if (spot) taken.set(key, { x: spot.x / CELL, z: spot.z / CELL, radius: spot.radius / CELL });
+    }
+    const signature = [...this.desks.values()].map((d) => `${d.agentKey}@${d.propId}${d.room}${taken.has(d.agentKey) ? "*" : ""}`).join("|");
     if (signature === this.#signatures.personal) return;
     this.#signatures.personal = signature;
     this.#personal.clear();
     for (const geometry of this.#personalMerged) geometry.dispose();
-    for (const item of deskItems(this.desks.values())) this.#personal.add(this.#decor(item));
+    for (const item of deskItems(this.desks.values(), taken)) this.#personal.add(this.#decor(item));
     this.#personalMerged = mergeStatic(this.#personal);
   }
 
@@ -757,7 +789,7 @@ export class BuildingView {
       let robot = this.#robots.get(agent.key);
       if (!robot || robot.signature !== signature) {
         robot?.handle.dispose();
-        robot = { handle: this.#figure(agent.key, role, accent), signature, real: false, agent, deskWaiting: false, departing: false };
+        robot = { handle: this.#figure(agent.key, role, accent), signature, real: false, agent, deskWaiting: false, departing: false, seat: null, seatKey: "", errand: null, near: false };
         this.#robots.set(agent.key, robot);
       }
       robot.real = agent.presence === "real";
@@ -766,15 +798,26 @@ export class BuildingView {
       // Seen from the town, a figure is a few pixels tall: the cast drops its small parts and shadows.
       robot.handle.setDetail(this.detailed ? "near" : "far");
       robot.departing = false;
-      const seat = this.desks.get(agent.key)?.seat ?? this.#looseSpot(agent, loose);
+      const desk = this.desks.get(agent.key);
+      const seat = desk?.seat ?? this.#looseSpot(agent, loose);
       robot.handle.object.position.copy(this.local(seat.x + 0.5, seat.z + 0.5, FLOOR_LIFT));
       robot.handle.object.rotation.y = 0;
       robot.handle.setState(figureState(robot));
-      const head = FLOOR_LIFT + robot.handle.anchors.label[1] * ROBOT_SCALE;
+      // Its work place at its desk, for the near view only: the far crowd stands on the floor, as cheap as ever.
+      const seatKey = this.detailed && desk ? `${desk.definitionId}@${desk.desk.x},${desk.desk.z}` : "";
+      if (seatKey !== robot.seatKey) {
+        robot.seatKey = seatKey;
+        robot.seat = desk && seatKey ? this.#deskAt(desk) : null;
+      }
+      // Until its walker says otherwise it is at its place; a walker puts it where it really is.
+      this.#settle(robot, undefined, true);
+      const lift = this.#lift(robot);
+      const head = FLOOR_LIFT + robot.handle.anchors.label[1] * ROBOT_SCALE + lift.y;
       const anchor = this.anchors.get(`a:${b.slug}:${agent.key}`);
-      if (anchor) anchor.copy(this.world(seat.x + 0.5, seat.z + 0.5, head));
-      else this.anchors.set(`a:${b.slug}:${agent.key}`, this.world(seat.x + 0.5, seat.z + 0.5, head));
+      if (anchor) anchor.copy(this.world(seat.x + 0.5, seat.z + 0.5, head)).add(lift.setY(0));
+      else this.anchors.set(`a:${b.slug}:${agent.key}`, this.world(seat.x + 0.5, seat.z + 0.5, head).add(lift.setY(0)));
       this.#follow(agent.key, robot);
+      robot.near = this.detailed;
     }
     for (const [key, robot] of this.#robots)
       if (!seen.has(key)) {
@@ -796,6 +839,7 @@ export class BuildingView {
             robot.handle.object.rotation.y = at.rotation.y;
             robot.handle.setDetail(this.detailed ? "near" : "far");
             robot.signature = `${this.ctx.cast.manifest.id}|${role}|${accent}`;
+            robot.seat = robot.errand = null;
           }
           this.#follow(key, robot);
           this.anchors.delete(`a:${b.slug}:${key}`);
@@ -841,8 +885,64 @@ export class BuildingView {
     this.#facts.deskWaiting = robot.deskWaiting;
     this.#facts.walker = walker;
     robot.handle.setState(figureState(this.#facts, this.#state));
-    this.anchors.get(`a:${this.building.slug}:${key}`)?.set(walker.x, walker.y + 2 * FLOOR_LIFT + robot.handle.anchors.label[1] * ROBOT_SCALE, walker.z);
+    this.#settle(robot, walker, !robot.near || this.ctx.reducedMotion());
+    const lift = this.#lift(robot);
+    this.anchors.get(`a:${this.building.slug}:${key}`)?.set(walker.x + lift.x, walker.y + 2 * FLOOR_LIFT + robot.handle.anchors.label[1] * ROBOT_SCALE + lift.y, walker.z + lift.z);
     return walker.walking;
+  }
+
+  /* ── Work places: where a figure works at a surface, and the perch its cast brings there ─────────── */
+
+  /** The work place at a desk: the seat north of it, clear of the ticket stack and the lamp. Building-local units. */
+  #deskAt(desk: DeskSlot): WorkAt | null {
+    const furniture = WORK_FURNITURE[desk.definitionId];
+    if (!furniture) return null;
+    const occupied = deskClutter(desk.definitionId).map((c) => ({ x: (desk.desk.x + c.x) * CELL, z: (desk.desk.z + c.z) * CELL, radius: c.radius * CELL }));
+    const stand = { x: (desk.seat.x + 0.5) * CELL, z: (desk.seat.z + 0.5) * CELL };
+    return workPlace(furniture.pose, workSurfaceOf(this.ctx.style, furniture.key), { x: desk.desk.x * CELL, z: desk.desk.z * CELL, rotation: Math.PI }, stand, ROBOT_SCALE, occupied);
+  }
+
+  /** The work place of a figure standing at a table on an errand, clear of the piles on that table. */
+  #errandAt(robot: Robot, spot: WorkSpot): WorkAt | null {
+    if (robot.errand?.spot === spot) return robot.errand.at;
+    const furniture = WORK_FURNITURE[spot.definitionId];
+    let at: WorkAt | null = null;
+    if (furniture) {
+      const occupied: Circle[] = [];
+      for (const list of [this.layout.placements, this.layout.targets])
+        for (const p of list.values()) if (p.surface === "table") occupied.push({ x: p.x * CELL, z: p.z * CELL, radius: PILE_RADIUS });
+      const { x, z } = robot.handle.object.position;
+      at = workPlace(furniture.pose, workSurfaceOf(this.ctx.style, furniture.key), { x: spot.x * CELL, z: spot.z * CELL, rotation: spot.rotation }, { x, z }, ROBOT_SCALE, occupied);
+    }
+    robot.errand = { spot, at };
+    return at;
+  }
+
+  /**
+   * Tells the figure where it works: at its desk when it is there, at the table it stands at on an errand, else
+   * nowhere (walking, or away from a surface). The figure gets on and off its perch by itself; `cut` skips the hop.
+   * Only the near view's own agents: a proxy is an echo on the floor, and the far crowd needs no perch.
+   */
+  #settle(robot: Robot, walker: Walker | undefined, cut: boolean) {
+    let at: WorkAt | null = null;
+    if (this.detailed && robot.real && !robot.departing) {
+      if (!walker || walker.seated) at = robot.seat;
+      else if (!walker.walking && walker.work) at = this.#errandAt(robot, walker.work);
+    }
+    if (at) robot.handle.object.rotation.y = at.heading;
+    robot.handle.setPerch(at?.place ?? null, cut);
+  }
+
+  #lifted = new THREE.Vector3();
+  /** How far the figure's body is from where its root stands, building-local units: up on its perch, or mid-hop. */
+  #lift(robot: Robot): THREE.Vector3 {
+    const body = robot.handle.body.position;
+    const out = this.#lifted.set(0, 0, 0);
+    if (body.x === 0 && body.y === 0 && body.z === 0) return out;
+    const turn = robot.handle.object.rotation.y;
+    const cos = Math.cos(turn),
+      sin = Math.sin(turn);
+    return out.set((body.x * cos + body.z * sin) * ROBOT_SCALE, body.y * ROBOT_SCALE, (body.z * cos - body.x * sin) * ROBOT_SCALE);
   }
 
   /** An agent past its room's desks stands near the room's middle. */
@@ -1022,7 +1122,8 @@ export class BuildingView {
     ring.visible = !!robot;
     if (robot) ring.scale.setScalar(robot.handle.anchors.ground / RING_GROUND);
     robot?.handle.setHighlight("selected");
-    if (robot) ring.position.set(robot.handle.object.position.x, robot.handle.object.position.y + 0.01, robot.handle.object.position.z);
+    // The ring follows the figure up on its perch.
+    if (robot) ring.position.copy(robot.handle.object.position).add(this.#lift(robot)).y += 0.01;
   }
 
   /** A figure of this building as the labels see it, in world units: from its label anchor down to its feet, and its ground radius. */

@@ -36,7 +36,14 @@ export interface Walker {
   carrying: number;
   /** At its own desk and not walking: the renderer uses the seat pose. */
   seated: boolean;
+  /**
+   * Standing at a piece of furniture on an errand (the meeting table, the planning table, the review pile): its
+   * definition, its footprint's centre in building cells and its model's turn. The renderer turns the figure to it.
+   */
+  work: WorkSpot | null;
 }
+
+export type WorkSpot = NonNullable<ReturnType<NavWorld["standsAt"]>>;
 
 interface Errand {
   reason: ErrandReason;
@@ -44,6 +51,8 @@ interface Errand {
   index: number;
   /** Seconds left at the current stop; null while walking there. */
   dwell: number | null;
+  /** The furniture stood at during the stop. */
+  at: WorkSpot | null;
 }
 interface AgentState {
   key: AgentKey;
@@ -136,7 +145,7 @@ export class Walks {
       const state = this.#agents.get(errand.agent);
       if (!state || state.building !== entered || state.leaving || state.errand?.reason === "handover") continue;
       if (!this.nav.sim.actor(state.key)) continue;
-      state.errand = { reason: "director", legs: errand.legs, index: 0, dwell: null };
+      state.errand = { reason: "director", legs: errand.legs, index: 0, dwell: null, at: null };
       this.#aim(state);
       if (state.errand) started++;
     }
@@ -216,7 +225,7 @@ export class Walks {
       case "errand": {
         const state = this.#agents.get(intent.agent);
         if (!state || state.leaving || state.building !== intent.building) return;
-        state.errand = { reason: intent.reason, legs: intent.legs, index: 0, dwell: null };
+        state.errand = { reason: intent.reason, legs: intent.legs, index: 0, dwell: null, at: null };
         this.#aim(state);
         return;
       }
@@ -337,11 +346,17 @@ export class Walks {
     }
     const errand = state.errand;
     if (!errand || !settled) return;
-    if (errand.dwell === null) errand.dwell = (errand.legs[errand.index]?.dwellMs ?? 0) / 1000;
+    if (errand.dwell === null) {
+      const place = errand.legs[errand.index]?.place;
+      errand.dwell = (errand.legs[errand.index]?.dwellMs ?? 0) / 1000;
+      const tag = place?.kind === "gather" ? "gather" : place?.kind === "spot" ? place.tag : null;
+      errand.at = tag && actor.status === "arrived" ? this.nav.standsAt(actor.location, tag) : null;
+    }
     errand.dwell -= seconds;
     if (errand.dwell > 0) return;
     errand.index++;
     errand.dwell = null;
+    errand.at = null;
     if (errand.index >= errand.legs.length) state.errand = null;
     this.#aim(state);
   }
@@ -462,7 +477,7 @@ export class Walks {
       seen.add(actor.id);
       let w = this.#walkers.get(actor.id);
       if (!w) {
-        w = { key: actor.id, x: 0, y: 0, z: 0, heading: 0, walking: false, building: null, leaving: false, carrying: 0, seated: false };
+        w = { key: actor.id, x: 0, y: 0, z: 0, heading: 0, walking: false, building: null, leaving: false, carrying: 0, seated: false, work: null };
         this.#walkers.set(actor.id, w);
       }
       const a = this.nav.toWorld(actor.location, this.#a);
@@ -491,6 +506,7 @@ export class Walks {
         actor.location.cell.x === home.cell.x &&
         actor.location.cell.z === home.cell.z;
       if (w.seated) w.heading = 0;
+      w.work = !w.walking && state?.errand?.dwell != null ? state.errand.at : null;
     }
     for (const key of [...this.#walkers.keys()]) if (!seen.has(key)) this.#walkers.delete(key);
     this.moving = moving || !!this.#postman?.round || [...this.#agents.values()].some((s) => s.errand !== null);

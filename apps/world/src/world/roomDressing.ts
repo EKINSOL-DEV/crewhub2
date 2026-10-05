@@ -903,11 +903,18 @@ const DESK_SPOTS: Record<string, { x: number; z: number }[]> = {
   "lead-desk": [{ x: -0.7, z: -0.5 }],
 };
 
-/** A small personal set on every desk, seeded by the agent's key: the same agent keeps the same things. */
-export function deskItems(desks: Iterable<PersonalDesk>): DecorItem[] {
+/** How wide a personal thing is on a desk top, cells: what it keeps clear of a figure sitting there. */
+const PERSONAL_RADIUS = 0.1;
+
+/**
+ * A small personal set on every desk, seeded by the agent's key: the same agent keeps the same things. `taken` is the
+ * place on its desk an agent's figure sits at, if its cast sits on the top (building cells): the things leave it free.
+ */
+export function deskItems(desks: Iterable<PersonalDesk>, taken?: ReadonlyMap<string, { x: number; z: number; radius: number }>): DecorItem[] {
   const out: DecorItem[] = [];
   for (const d of desks) {
-    const spots = DESK_SPOTS[d.definitionId];
+    const sits = taken?.get(d.agentKey);
+    const spots = DESK_SPOTS[d.definitionId]?.filter((s) => !sits || Math.hypot(d.desk.x + s.x - sits.x, d.desk.z + s.z - sits.z) >= sits.radius + PERSONAL_RADIUS);
     if (!spots) continue;
     const rand = random(dressingSeed(`desk:${d.agentKey}`));
     const pool = [...PERSONAL];
