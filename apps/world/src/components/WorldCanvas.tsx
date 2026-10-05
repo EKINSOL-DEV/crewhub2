@@ -21,7 +21,7 @@ import { clockTime, countsLine, laneWords } from "../world/townLayout";
 import type { TownPlan } from "../world/townPlan";
 import type { RoomKind, RuleProp } from "@crewhub/world-model";
 import { Chip } from "./primitives";
-import { needsOf, needsTotal, needsWords, summarise, summaryWords, workWords, type DistrictPlace } from "../world/wayfinding";
+import { needsOf, needsTotal, needsWords, summarise, summaryWords, activeWords, type DistrictPlace } from "../world/wayfinding";
 
 export interface Selection {
   hover: Pick | null;
@@ -255,7 +255,7 @@ function Wayfinding({ districts, district, onDistrict, onEnter }: { districts: D
                 <span className="district-counts">
                   {summary.buildings} {summary.buildings === 1 ? "building" : "buildings"}, {summary.agents} {summary.agents === 1 ? "agent" : "agents"}
                 </span>
-                <span className="district-work">{workWords(summary.counts)}</span>
+                <span className="district-work">{activeWords(summary.counts)}</span>
                 {needs && <span className="district-needs">Needs a person: {needs}</span>}
               </button>
             </div>

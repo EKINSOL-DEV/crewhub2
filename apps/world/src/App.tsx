@@ -121,10 +121,10 @@ function World() {
   // The districts in use: a building stands in the district of its plot (after a regroup that is not its zone's).
   const districtKey = `${model.zones.map((z) => `${z.id}:${z.name}:${z.order}`).join("|")}#${model.buildings.map((b) => `${b.slug}:${b.zoneId}`).join("|")}`;
   const districts = useMemo(() => {
-    const stands = new Map(town.doc.plots.map((p) => [p.slug, p.zoneId]));
+    const stands = new Map(plan.lots.map((lot) => [lot.slug, lot.districtZoneId]));
     return districtsOf(model, (slug) => stands.get(slug));
     // The model is a new object on every reduction; the districts follow who stands where.
-  }, [districtKey, town.doc.plots, model]);
+  }, [districtKey, plan, model]);
   const region = isRegion(districts);
   const here = region ? (districts.find((d) => d.id === district) ?? null) : null;
   const districtOfBuilding = useCallback((slug: string) => (isRegion(districts) ? (districts.find((d) => d.buildings.some((b) => b.slug === slug))?.id ?? null) : null), [districts]);

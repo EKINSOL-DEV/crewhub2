@@ -163,6 +163,12 @@ export function workWords(counts: Record<TicketStatus, number>): string {
   return parts.length ? parts.join(", ") : "nothing open";
 }
 
+/** The work in hand, for a card with little room: "10 in progress, 5 in review". */
+export function activeWords(counts: Record<TicketStatus, number>): string {
+  const parts = [counts.in_progress && `${counts.in_progress} in progress`, counts.review && `${counts.review} in review`].filter(Boolean);
+  return parts.length ? parts.join(", ") : "nothing in hand";
+}
+
 /** One sentence for a district: for the text view, the jump list and the label's accessible name. */
 export function summaryWords(summary: Summary): string {
   const needs = needsWords(summary.needs);
@@ -302,3 +308,13 @@ export function labelDetail(pixelsPerUnit: number, region: boolean, previous: La
   if (!region || above(BUILDING_SIGN_PX, previous === "buildings" || previous === "close")) return "buildings";
   return "districts";
 }
+
+/**
+ * Whether buildings are seen from so far that their furniture, their piles and a figure at rest are a pixel or two:
+ * the scene then draws shells and the crowd only (a region's overview, or any town zoomed far out).
+ */
+export function isDistant(pixelsPerUnit: number, previous = false): boolean {
+  return pixelsPerUnit < DISTANT_PX * (previous ? 1.08 : 0.92);
+}
+/** Below this a desk is under four pixels wide. */
+export const DISTANT_PX = 3.6;

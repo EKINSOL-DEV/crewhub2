@@ -37,7 +37,7 @@ import { nudgeStacks, overRobot, type Label, type RobotBox } from "./labelLayout
 import { updateMatrices } from "./matrixPass";
 import { RobotCrowd } from "./robotCrowd";
 import { DistrictFrames, type DistrictView } from "./districtFrames";
-import { labelDetail, type LabelDetail } from "./wayfinding";
+import { isDistant, labelDetail, type LabelDetail } from "./wayfinding";
 import { castRegistry } from "./cast";
 import { buildingLook, townLook, type LookContext } from "./worldLook";
 import { figureRole, figureState, type FigureFacts, type FigurePlace } from "./figureState";
@@ -203,6 +203,8 @@ const FAR_LABEL = 72;
    hovered or selected robot's plate is never hidden: it is placed first. */
 const HIDDEN_LABEL = 160;
 const NARROW_CANVAS = 600;
+/** The height of a district's card in pixels: its name and three lines, or only its name on a phone. */
+const DISTRICT_CARD = { desktop: 84, phone: 36 };
 /* Labels that hang above their anchor (bottom centred on it): robots' stacks, tags, chips and counts. Building, civic
    and room signs sit beside their anchors and keep their places. */
 const HANGING = /^(a|o|rule|err|p|beacon|mail|banner):|^c:[^:]+:/;
@@ -282,6 +284,7 @@ export class TownScene {
   /** The far robots of every building, drawn instanced (robotCrowd.ts). */
   #crowd = new RobotCrowd();
   #districts = new DistrictFrames();
+  #distant = false;
   /** Which labels show at the current zoom (`labelDetail`); on the labels host as `data-detail`. */
   #detail: LabelDetail | null = null;
   /** Buildings the camera sees this frame (their far robots follow their walkers and are drawn). */
@@ -1024,7 +1027,9 @@ export class TownScene {
   #homeFrame() {
     const canvas = this.renderer.domElement;
     const portrait = canvas.clientWidth < canvas.clientHeight * 0.8;
-    const insets = this.insets();
+    let insets = this.insets();
+    // A region's districts carry a card above their far corner: the frame keeps headroom for the topmost one.
+    if ((this.view.districts?.length ?? 0) > 1) insets = { ...insets, top: insets.top + (canvas.clientWidth < NARROW_CANVAS ? DISTRICT_CARD.phone : DISTRICT_CARD.desktop) };
     const rects = homeRects(this.view.plan, portrait ? 0 : 1.5, portrait);
     return this.frameRects(rects, 2, HOME_OFFSET, portrait ? { ...insets, left: 0, right: 0 } : insets);
   }
@@ -1464,7 +1469,11 @@ export class TownScene {
     this.camera.updateMatrixWorld();
     this.#frustum.setFromProjectionMatrix(this.#projection.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse));
     this.#seen.clear();
+    // From far (a region's overview) a building is its shell and the crowd: its furniture and resting figures step back.
+    const canvas = this.renderer.domElement;
+    this.#distant = !this.view.entered && isDistant((canvas.clientHeight * this.camera.zoom) / (this.camera.top - this.camera.bottom), this.#distant);
     for (const [slug, view] of this.#buildings) {
+      view.setDistant(this.#distant);
       const b = view.bounds(null);
       this.#box.min.set(b.minX - 1, -1, b.minZ - 1);
       this.#box.max.set(b.maxX + 1, 5, b.maxZ + 1);

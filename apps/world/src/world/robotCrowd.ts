@@ -41,6 +41,9 @@ export class RobotCrowd {
   /** Robots the crowd draws this frame and the last, by root object. */
   #claimed = new Set<THREE.Object3D>();
   #next = new Set<THREE.Object3D>();
+  /** Robots at rest (far and still): the parts the crowd draws for each, worked out once; `hidden` when the robot's
+      own objects are out of the render walk altogether (every part is in a batch). */
+  #resting = new Map<THREE.Object3D, { parts: { key: string; mesh: THREE.Mesh }[]; hidden: boolean }>();
 
   constructor() {
     this.group.name = "robot-crowd";
@@ -51,22 +54,44 @@ export class RobotCrowd {
     for (const batch of this.#batches.values()) batch.count = 0;
   }
 
-  /** A far robot: drawn by the crowd. `seen` false (its building is off screen) skips the per-frame copy. */
-  add(robot: THREE.Object3D, seen: boolean) {
+  /**
+   * A far robot: drawn by the crowd. `seen` false (its building is off screen) skips the per-frame copy. `resting`
+   * (it neither moves nor changes until the caller says otherwise) draws it from what the first resting frame found,
+   * and takes its own objects out of the renderer's walk when the crowd draws every part of it.
+   */
+  add(robot: THREE.Object3D, seen: boolean, resting = false) {
     this.#next.add(robot);
     const parts = this.#partsOf(robot);
     const fresh = !this.#claimed.has(robot);
+    let rest = this.#resting.get(robot);
+    if (rest && (!resting || !seen)) {
+      this.#wake(robot);
+      rest = undefined;
+    }
+    if (rest) {
+      for (const { key, mesh } of rest.parts) {
+        const batch = this.#batch(key, mesh);
+        batch.mesh.setMatrixAt(batch.count, mesh.matrixWorld);
+        if (batch.tinted) batch.mesh.setColorAt(batch.count, (mesh.material as THREE.MeshStandardMaterial).color);
+        batch.count++;
+      }
+      return;
+    }
     if (!seen) {
       // Off screen: hide what the crowd would draw, so the robot costs nothing until it is seen again.
       if (fresh) for (const mesh of parts) if (this.#key(mesh)) mesh.layers.set(HIDDEN);
       return;
     }
     // The robot's world matrices are current: TownScene's matrix pass (matrixPass.ts) runs just before the crowd.
+    const drawn: { key: string; mesh: THREE.Mesh }[] | null = resting ? [] : null;
+    let own = false;
     for (const mesh of parts) {
-      const key = shown(mesh, robot) ? this.#key(mesh) : null;
+      const visible = shown(mesh, robot);
+      const key = visible ? this.#key(mesh) : null;
       if (!key) {
         // A part the crowd cannot batch (or a hidden one) draws, or hides, as the robot says.
         mesh.layers.set(0);
+        if (visible) own = true;
         continue;
       }
       mesh.layers.set(HIDDEN);
@@ -74,7 +99,20 @@ export class RobotCrowd {
       batch.mesh.setMatrixAt(batch.count, mesh.matrixWorld);
       if (batch.tinted) batch.mesh.setColorAt(batch.count, (mesh.material as THREE.MeshStandardMaterial).color);
       batch.count++;
+      drawn?.push({ key, mesh });
     }
+    if (drawn && robot.visible) {
+      // Nothing of its own left to draw (no translucent proxy, no halo): the renderer need not walk it.
+      this.#resting.set(robot, { parts: drawn, hidden: !own });
+      if (!own) robot.visible = false;
+    }
+  }
+
+  #wake(robot: THREE.Object3D) {
+    const rest = this.#resting.get(robot);
+    if (!rest) return;
+    this.#resting.delete(robot);
+    if (rest.hidden) robot.visible = true;
   }
 
   /** Uploads the frame's instances and gives robots that are near again their own meshes back. */
@@ -93,6 +131,7 @@ export class RobotCrowd {
   }
 
   #release(robot: THREE.Object3D) {
+    this.#wake(robot);
     for (const mesh of this.#partsOf(robot)) mesh.layers.set(0);
   }
 
@@ -179,6 +218,7 @@ export class RobotCrowd {
   }
 
   dispose() {
+    for (const robot of [...this.#resting.keys()]) this.#wake(robot);
     for (const robot of this.#claimed) this.#release(robot);
     this.#claimed.clear();
     for (const batch of this.#batches.values()) {
