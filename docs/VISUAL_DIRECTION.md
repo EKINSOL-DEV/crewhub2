@@ -339,6 +339,42 @@ Settings has a **Graphics** choice: **Pretty** (the default) or **Fast**. It is 
   agent a ring under its feet. Waiting tags have their own shape, so they are not mistaken for robot name pills, and
   tags step clear of room signs.
 
+### Finding your way at scale
+
+Built for the scale-and-zones round (`apps/world/src/world/wayfinding.ts`, pure and tested; the spec addendum "Scale
+and zones" has the design).
+
+- **Zoom levels.** Region, district, building, room. A town with one district has no district level: its home view
+  is the town. The breadcrumb names every level you are in; the level one step out is a button (Escape presses it)
+  and the levels above it are plain crumbs to click. Escape steps room, building, district, home. Entering a district
+  frames its ground; **H** frames the level you are in.
+- **Zoomed out, the world summarises.** The scene sets `data-detail` on the labels host from the screen pixels per
+  world unit (`labelDetail`), with a little hysteresis:
+  - `districts` (a region from far): one card per district, hung above the corner of its ground that is highest on
+    the screen so it never covers a building. It says the district's name, its buildings and agents, the work in
+    hand, and what needs a person. Building signs are hidden.
+  - `buildings`: the building signs return and a district keeps only its name and beacon.
+  - `close`: as before.
+- **One beacon.** A district's card carries one beacon (a warning mark with a count, never colour alone) when
+  anything inside waits on a person, needs attention or is stalled. A building that needs a person carries the same
+  mark as a pin over its roof at every distance; close by the pin says what it wants. Archived buildings ask for
+  nobody. The beacon breathes; it holds still under reduced motion. On a phone, from far, only the districts'
+  beacons show.
+- **The jump list.** The search button beside the breadcrumb, **/** and **Cmd/Ctrl+K** open a searchable list of
+  districts, projects, agents and the two civic buildings. The focus stays in the field; arrows move, Enter flies the
+  camera there (at once under reduced motion), Escape closes. With nothing typed, what needs a person comes first.
+  An agent's jump lands in its room with the agent selected. On a phone this is the main way around a region.
+- **The text view groups by district** and offers the same jumps: a "Go to" button per district and "Go inside" per
+  building, with each building's sections under its district.
+- **Far districts are cheap.** Below `DISTANT_PX` screen pixels per world unit (a region's overview) a building is
+  its shell and the instanced crowd: the furniture silhouettes and the piles are not drawn, and a figure that
+  neither walks nor changes is left alone (the matrix pass skips it, `restMatrices`; the crowd draws it from the
+  parts it found once, and the renderer does not walk it). Interiors are still only built when a building is hovered,
+  focused or entered.
+- **Between districts** a figure that changes building is not walked across the region. It takes a bus that is not
+  drawn: it steps off where the district road enters the new district and walks to the door from there
+  (`NavWorld.arrival`). The postman keeps walking. A drawn bus with stops and a timetable is not built.
+
 ### What keeps it calm
 
 Round two added a lot of life; these rules keep it a place to leave open while agents work.
