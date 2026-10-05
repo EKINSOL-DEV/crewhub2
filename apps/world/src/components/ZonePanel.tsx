@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { DEFAULT_ZONE_ID, ZONE_COLORS, ZONE_EMBLEMS, zoneById, type Building, type TownZone, type WorldModel, type Zone, type ZoneLook } from "@crewhub/world-model";
 import { useCast } from "../state/cast";
+import { setStyleOption, useStyleOptions } from "../state/styleOptions";
 import type { TownState } from "../state/town";
 import { townRuntime } from "../state/town";
 import { castRegistry } from "../world/cast";
@@ -22,11 +23,12 @@ interface ShownOption {
   default: string;
   values: readonly { id: string; name: string }[];
 }
-const optionsOf = (styleId: string): readonly ShownOption[] => (styleRegistry.listStyles().find((m) => m.id === styleId) as { options?: readonly ShownOption[] } | undefined)?.options ?? [];
+export const optionsOf = (styleId: string): readonly ShownOption[] => (styleRegistry.listStyles().find((m) => m.id === styleId) as { options?: readonly ShownOption[] } | undefined)?.options ?? [];
 
 function useLookContext(model: WorldModel, town: TownState): LookContext {
   const cast = useCast();
-  return { doc: town.doc, zones: model.zones, buildings: model.buildings, viewer: { castId: cast } };
+  const styleOptions = useStyleOptions();
+  return { doc: town.doc, zones: model.zones, buildings: model.buildings, viewer: { castId: cast, styleOptions } };
 }
 
 /** The document entry of a zone: the one it has, else a fresh one that leaves a group's own facts alone. */
@@ -297,5 +299,54 @@ export function BuildZones({ model, town, inside }: { model: WorldModel; town: T
         </p>
       )}
     </section>
+  );
+}
+
+/**
+ * Settings, the town's part: one row per option of the town's style. "For me" is the viewer's choice in this browser;
+ * "The town" is the town document's, which every zone and viewer follows unless they choose. Nothing is drawn for a
+ * style without options.
+ */
+export function StyleOptionSettings({ town }: { town: TownState }) {
+  const viewer = useStyleOptions();
+  const [error, setError] = useState<string | null>(null);
+  const options = optionsOf(styleRegistry.styleIdFor({ styleId: town.doc.styleId }));
+  if (!options.length) return null;
+  const setTown = (id: string, value: string) => {
+    const next = { ...town.doc.styleOptions };
+    if (value) next[id] = value;
+    else delete next[id];
+    const result = townRuntime().edit({ type: "set-style-options", options: Object.keys(next).length ? next : null });
+    setError(result.ok ? null : result.error);
+  };
+  return (
+    <div className="style-options">
+      {options.map((option) => {
+        const name = (id: string | undefined) => option.values.find((v) => v.id === id)?.name ?? option.values.find((v) => v.id === option.default)?.name ?? option.default;
+        const choices = option.values.map((value) => (
+          <option key={value.id} value={value.id}>
+            {value.name}
+          </option>
+        ));
+        return (
+          <div key={option.id} className="zone-fields" data-style-option={option.id}>
+            <Field control="select" size="sm" label={`${option.name}, for me`} value={viewer[option.id] ?? ""} onChange={(e) => setStyleOption(option.id, e.currentTarget.value || null)}>
+              <option value="">Follow the town ({name(town.doc.styleOptions?.[option.id])})</option>
+              {choices}
+            </Field>
+            <Field control="select" size="sm" label={`${option.name}, the town`} value={town.doc.styleOptions?.[option.id] ?? ""} onChange={(e) => setTown(option.id, e.currentTarget.value)}>
+              <option value="">The style's own ({name(option.default)})</option>
+              {choices}
+            </Field>
+          </div>
+        );
+      })}
+      <p className="hint">"For me" is kept in this browser, "the town" in the town document. A zone or a building with a choice of its own keeps it.</p>
+      {error && (
+        <p className="hint zone-error" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
   );
 }

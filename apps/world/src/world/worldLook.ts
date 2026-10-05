@@ -27,13 +27,13 @@ export interface LookContext {
   viewer: LookLayer;
 }
 
-/** The town document's own layer. A document may carry town-wide style options once its schema has them. */
+/** The town document's own layer. */
 function townLayer(doc: TownDocument | null | undefined): LookLayer {
-  return { styleId: doc?.styleId, castId: doc?.castId, styleOptions: (doc as { styleOptions?: Record<string, string> } | null | undefined)?.styleOptions };
+  return { styleId: doc?.styleId, castId: doc?.castId, styleOptions: doc?.styleOptions };
 }
 
 function layers(context: LookContext, zoneId: string | null, slug: string | null): LookLayers {
-  const plot = slug === null ? undefined : (context.doc?.plots.find((p) => p.slug === slug) as (LookLayer & { slug: string }) | undefined);
+  const plot = slug === null ? undefined : context.doc?.plots.find((p) => p.slug === slug);
   return {
     building: plot ? { styleId: plot.styleId, castId: plot.castId, styleOptions: plot.styleOptions } : null,
     zone: zoneId === null ? null : zoneById(context.zones, zoneId).look,

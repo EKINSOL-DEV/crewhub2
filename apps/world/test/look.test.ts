@@ -95,3 +95,11 @@ test("option layers come most specific first, empty ones left out; equal looks s
   assert.equal(lookKey(a), lookKey(b));
   assert.notEqual(lookKey(a), lookKey(resolveLook({}, registries)));
 });
+
+test("the viewer's stored style options: only a flat object of strings is kept", async () => {
+  const { parseStyleOptions } = await import("../src/state/styleOptions.ts");
+  assert.deepEqual(parseStyleOptions('{"season":"spring","planting":"","n":3}'), { season: "spring" });
+  assert.deepEqual(parseStyleOptions("[1]"), {});
+  assert.deepEqual(parseStyleOptions("not json"), {});
+  assert.deepEqual(parseStyleOptions(null), {});
+});
