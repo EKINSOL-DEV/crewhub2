@@ -59,13 +59,13 @@
     { "id": "spot-c", "joint": "crown", "roles": ["analyst"], "shape": "sphere", "size": [0.052, 0.023, 0.052], "position": [-0.026, 0.33, -0.169], "rotation": [-30, 0, 4], "color": "sprout-belly", "detail": "near" },
     { "id": "spot-d", "joint": "crown", "roles": ["analyst"], "shape": "sphere", "size": [0.039, 0.021, 0.039], "position": [-0.039, 0.291, 0.247], "rotation": [44, 0, 6], "color": "sprout-belly", "detail": "near" },
 
-    { "id": "puff", "joint": "crown", "roles": ["postman"], "shape": "sphere", "size": [0.17, 0.17, 0.17], "position": [0, 0.22, 0], "color": "sprout-fluff" },
-    { "id": "puff-a", "joint": "crown", "roles": ["postman"], "shape": "sphere", "size": [0.09, 0.09, 0.09], "position": [0.13, 0.29, 0.06], "color": "sprout-fluff" },
-    { "id": "puff-b", "joint": "crown", "roles": ["postman"], "shape": "sphere", "size": [0.09, 0.09, 0.09], "position": [-0.12, 0.31, 0.07], "color": "sprout-fluff" },
-    { "id": "puff-c", "joint": "crown", "roles": ["postman"], "shape": "sphere", "size": [0.09, 0.09, 0.09], "position": [0.0, 0.37, -0.05], "color": "sprout-fluff", "detail": "near" },
-    { "id": "puff-d", "joint": "crown", "roles": ["postman"], "shape": "sphere", "size": [0.09, 0.09, 0.09], "position": [-0.03, 0.2, 0.15], "color": "sprout-fluff", "detail": "near" },
-    { "id": "seed-a", "joint": "crown", "roles": ["postman"], "shape": "sphere", "size": [0.03, 0.03, 0.03], "position": [0.27, 0.42, -0.06], "color": "sprout-fluff", "detail": "near" },
-    { "id": "seed-b", "joint": "crown", "roles": ["postman"], "shape": "sphere", "size": [0.022, 0.022, 0.022], "position": [0.36, 0.52, -0.12], "color": "sprout-fluff", "detail": "near" },
+    { "id": "clock-stalk", "joint": "crown", "roles": ["postman"], "shape": "cylinder", "size": [0.016, 0.4, 0.022], "position": [0, 0.16, 0], "color": "sprout-stem" },
+    { "id": "clock", "joint": "crown", "roles": ["postman"], "shape": "sphere", "size": [0.14, 0.14, 0.14], "position": [0, 0.44, 0], "color": "sprout-fluff" },
+    { "id": "clock-ring-a", "joint": "crown", "roles": ["postman"], "shape": "torus", "size": [0.2, 0.009, 0], "position": [0, 0.44, 0], "rotation": [14, 0, 10], "color": "sprout-fluff", "detail": "near" },
+    { "id": "clock-ring-b", "joint": "crown", "roles": ["postman"], "shape": "torus", "size": [0.195, 0.009, 0], "position": [0, 0.44, 0], "rotation": [82, 0, 24], "color": "sprout-fluff", "detail": "near" },
+    { "id": "clock-ring-c", "joint": "crown", "roles": ["postman"], "shape": "torus", "size": [0.2, 0.009, 0], "position": [0, 0.44, 0], "rotation": [20, 0, 96], "color": "sprout-fluff", "detail": "near" },
+    { "id": "seed-a", "joint": "crown", "roles": ["postman"], "shape": "sphere", "size": [0.03, 0.03, 0.03], "position": [0.29, 0.56, -0.06], "color": "sprout-fluff", "detail": "near" },
+    { "id": "seed-b", "joint": "crown", "roles": ["postman"], "shape": "sphere", "size": [0.022, 0.022, 0.022], "position": [0.38, 0.66, -0.12], "color": "sprout-fluff", "detail": "near" },
     { "id": "satchel", "joint": "body", "roles": ["postman"], "shape": "box", "size": [0.09, 0.17, 0.22], "radius": 0.03, "position": [-0.31, 0.24, 0.03], "rotation": [0, 0, -8], "color": "timber" },
     { "id": "satchel-flap", "joint": "body", "roles": ["postman"], "shape": "box", "size": [0.1, 0.08, 0.23], "radius": 0.025, "position": [-0.32, 0.3, 0.03], "rotation": [0, 0, -8], "color": "timber-light", "detail": "near" },
     { "id": "satchel-letter", "joint": "body", "roles": ["postman"], "shape": "box", "size": [0.014, 0.09, 0.11], "radius": 0.005, "position": [-0.3, 0.36, 0.02], "rotation": [10, 0, -8], "color": "paper", "detail": "near" },
@@ -91,7 +91,7 @@
       "foot-left": { "offset": [-0.03, 0, 0.1], "rotation": [-25, -14, 0] },
       "foot-right": { "offset": [0.03, 0, 0.1], "rotation": [-25, 14, 0] },
       "stem": { "rotation": [10, 0, 14] },
-      "crown": { "scale": [0.5, 0.85, 0.5] }
+      "crown": { "scale": [1.25, 0.9, 1.25] }
     },
     "working": {
       "body": { "rotation": [9, 0, 0] },
@@ -175,6 +175,7 @@
     ]
   },
   "looks": {
+    "done": { "parts": { "leaf-big": { "color": "sprout-ripe" }, "leaf-small": { "color": "sprout-ripe" }, "tree-top": { "color": "sprout-ripe" }, "tree-left": { "color": "sprout-ripe" }, "tree-right": { "color": "sprout-ripe" }, "petal-0": { "color": "sprout-ripe" }, "petal-1": { "color": "sprout-ripe" }, "petal-2": { "color": "sprout-ripe" }, "petal-3": { "color": "sprout-ripe" }, "petal-4": { "color": "sprout-ripe" }, "petal-5": { "color": "sprout-ripe" }, "cap": { "color": "sprout-ripe" }, "reed-blade": { "color": "sprout-ripe" }, "reed-blade-small": { "color": "sprout-ripe" }, "seed-leaf-left": { "color": "sprout-ripe" }, "seed-leaf-right": { "color": "sprout-ripe" } } },
     "hover": { "parts": { "bean": { "glow": 0.14 }, "bean-bottom": { "glow": 0.14 }, "nub-left": { "glow": 0.14 }, "nub-right": { "glow": 0.14 } } },
     "selected": { "parts": { "bean": { "glow": 0.2 }, "bean-bottom": { "glow": 0.2 }, "nub-left": { "glow": 0.2 }, "nub-right": { "glow": 0.2 } } },
     "near": { "parts": { "bean": { "glow": 0.06 }, "bean-bottom": { "glow": 0.06 }, "nub-left": { "glow": 0.06 }, "nub-right": { "glow": 0.06 } } },
@@ -184,7 +185,7 @@
         "tree-top": { "glow": 0.3 }, "tree-left": { "glow": 0.3 }, "tree-right": { "glow": 0.3 }, "tree-fruit-a": { "glow": 0.9 }, "tree-fruit-b": { "glow": 0.9 }, "tree-fruit-c": { "glow": 0.9 }, "tree-fruit-d": { "glow": 0.9 }, "tree-fruit-e": { "glow": 0.9 }, "tree-fruit-f": { "glow": 0.9 },
         "petal-0": { "glow": 0.55 }, "petal-1": { "glow": 0.55 }, "petal-2": { "glow": 0.55 }, "petal-3": { "glow": 0.55 }, "petal-4": { "glow": 0.55 }, "petal-5": { "glow": 0.55 }, "flower-heart": { "glow": 0.7 },
         "cap": { "glow": 0.55 },
-        "puff": { "glow": 0.45 }, "puff-a": { "glow": 0.45 }, "puff-b": { "glow": 0.45 }, "puff-c": { "glow": 0.45 }, "puff-d": { "glow": 0.45 },
+        "clock": { "glow": 0.45 }, "clock-ring-a": { "glow": 0.45 }, "clock-ring-b": { "glow": 0.45 }, "clock-ring-c": { "glow": 0.45 },
         "reed-head": { "glow": 0.5 }, "reed-blade": { "glow": 0.55 }, "reed-blade-small": { "glow": 0.55 },
         "seed-leaf-left": { "glow": 0.5 }, "seed-leaf-right": { "glow": 0.5 }
       }
