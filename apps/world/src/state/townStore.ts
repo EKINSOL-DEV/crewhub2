@@ -5,6 +5,7 @@
    IndexedDB is missing or fails (private mode), the store keeps working in memory and says so in `state.storage`
    for the Settings card; nothing then survives a reload. */
 import {
+  applyEdit,
   canRedo,
   canUndo,
   commitHistory,
@@ -18,6 +19,7 @@ import {
   type TownContext,
   type TownDocument,
   type TownHistory,
+  type TownZone,
 } from "@crewhub/world-model";
 
 export const TOWN_DB_NAME = "crewhub-world";
@@ -54,6 +56,11 @@ export interface TownStoreOptions {
    * plots and placements of one town never mix into another.
    */
   name?: string;
+  /**
+   * The document a town starts from while nothing is stored: revision 0, so no undo goes behind it. Default the empty
+   * town. A demo scenario seeds its zones' looks here (`seededTown`).
+   */
+  initial?: TownDocument;
   /** Defaults to `globalThis.indexedDB`; pass null to force memory. */
   indexedDB?: IDBFactory | null;
 }
@@ -83,7 +90,7 @@ const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 export function createTownStore(options: TownStoreOptions): TownStore {
   const factory = options.indexedDB === undefined ? (globalThis.indexedDB ?? null) : options.indexedDB;
-  let history: TownHistory = createHistory(emptyTownDocument());
+  let history: TownHistory = createHistory(options.initial ?? emptyTownDocument());
   let db: IDBDatabase | null = null;
   let loading: Promise<TownDocument> | null = null;
   /** Revisions present in the database, so a commit writes each kept document once (the first one included). */
@@ -210,4 +217,17 @@ export function createTownStore(options: TownStoreOptions): TownStore {
     },
   };
   return store;
+}
+
+/**
+ * The empty town with `zones` set (a scenario's district looks), as revision 0. A zone the document refuses is left
+ * out: the seed must never keep a town from starting.
+ */
+export function seededTown(zones: readonly TownZone[], context: TownContext): TownDocument {
+  let doc = emptyTownDocument();
+  for (const zone of zones) {
+    const result = applyEdit(doc, { type: "set-zone", zone }, context);
+    if (result.ok) doc = result.doc;
+  }
+  return { ...doc, revision: 0 };
 }

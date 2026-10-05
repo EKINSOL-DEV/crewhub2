@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { applyEdit, HISTORY_LIMIT, type TownContext, type TownDocument } from "@crewhub/world-model";
-import { createTownStore, TOWN_DB_NAME, TOWN_STORE_NAME, type TownStore } from "../src/state/townStore.ts";
+import { createTownStore, seededTown, TOWN_DB_NAME, TOWN_STORE_NAME, type TownStore } from "../src/state/townStore.ts";
 
 const CONTEXT: TownContext = { knownStyles: ["greenhouse"], builtinIds: [] };
 
@@ -143,4 +143,30 @@ test("each scenario keeps its own town: a named store never reads or writes anot
   const freshAgain = createTownStore({ context: CONTEXT, indexedDB: factory, name: "crewhub-world.fresh" });
   await freshAgain.load();
   assert.deepEqual(freshAgain.state.doc.plots.map((p) => p.cell.x), [9]);
+});
+
+test("a scenario's town starts from its seeded zones at revision 0; a stored town wins over the seed", async () => {
+  const zones = [
+    { id: "pg_demo_brand", look: { styleOptions: { season: "spring", planting: "orchard" }, castId: "sprouts" } },
+    { id: "pg_demo_lab", look: { castId: "potlings" } },
+  ];
+  const initial = seededTown(zones, CONTEXT);
+  assert.equal(initial.revision, 0);
+  assert.deepEqual(initial.zones, zones);
+  assert.deepEqual(seededTown([], CONTEXT).zones, undefined);
+
+  const idb = new FakeIndexedDB();
+  const factory = idb as unknown as IDBFactory;
+  const first = createTownStore({ context: CONTEXT, indexedDB: factory, name: "crewhub-world.studio", initial });
+  await first.load();
+  assert.deepEqual(first.state.doc.zones, zones);
+  assert.equal(first.state.canUndo, false);
+  await commitPlot(first, 2);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+
+  // A reload with a different seed keeps what the person has: the stored town, zones included.
+  const again = createTownStore({ context: CONTEXT, indexedDB: factory, name: "crewhub-world.studio", initial: seededTown([], CONTEXT) });
+  await again.load();
+  assert.deepEqual(again.state.doc.zones, zones);
+  assert.deepEqual(again.state.doc.plots.map((p) => p.cell.x), [2]);
 });
