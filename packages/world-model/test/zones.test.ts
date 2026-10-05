@@ -4,7 +4,7 @@ import type { ProjectGroup } from "@crewhub/loops-client";
 import { emptyMemory } from "../src/memory.ts";
 import { Projection } from "../src/projection.ts";
 import { reduceWorld } from "../src/reducer.ts";
-import { DEFAULT_ZONE_ID, resolveZones, zoneById } from "../src/zones.ts";
+import { DEFAULT_ZONE_ID, resolveZones, zoneById, zoningOf } from "../src/zones.ts";
 import type { TownZoning } from "../src/zones.ts";
 import { FakeSource, ManualScheduler, T0, project, snapshot } from "./helpers.ts";
 
@@ -173,4 +173,11 @@ test("a source that only lists its groups (no groups in the snapshot) still reac
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(projection.facts.groups.map((g) => g.id), ["studio"]);
   assert.equal(changes, 2);
+});
+
+test("a town document from before zones gives an empty zoning; one with zones gives exactly those two keys", () => {
+  assert.deepEqual(zoningOf({ format: "crewhub-town/1", plots: [] }), {});
+  assert.deepEqual(zoningOf(null), {});
+  const zones = [{ id: "garden", name: "Garden" }];
+  assert.deepEqual(zoningOf({ plots: [], zones, assignments: { cr: "garden" }, districts: {} }), { zones, assignments: { cr: "garden" } });
 });

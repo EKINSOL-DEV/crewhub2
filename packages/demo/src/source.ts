@@ -23,16 +23,9 @@ import type {
   WorldSource,
 } from "@crewhub/loops-client";
 import { applyAction } from "./actions.ts";
-import { DEMO_BASE_CURSOR, DEMO_SEQ_STRIDE } from "./content.ts";
-import {
-  type ScriptEntry,
-  DEMO_SEED,
-  DM_ENTRY_STRIDE,
-  SCRIPT_DURATION_MS,
-  buildDmExchange,
-  buildPropRequest,
-  buildScript,
-} from "./script.ts";
+import { type ProjectGroupSeed, DEMO_BASE_CURSOR, DEMO_SEQ_STRIDE } from "./content.ts";
+import { type DemoScenario, type ScenarioId, DEFAULT_SCENARIO, demoScenario } from "./scenarios.ts";
+import { type ScriptEntry, DEMO_SEED, DM_ENTRY_STRIDE, buildDmExchange, buildPropRequest, buildStory } from "./script.ts";
 import type { Scheduler } from "./scheduler.ts";
 import { type AgentSummary, type DemoState, DEMO_PERSON, DemoReads, initialState } from "./store.ts";
 import { DEMO_EPOCH_MS, SECOND, iso } from "./time.ts";
@@ -47,6 +40,8 @@ const EXTRA_FIRST_ID = 100_000;
 const CHAT_FIRST_ID = 500_000;
 
 export interface DemoSourceOptions {
+  /** Which installation and storyline to play. Default DEFAULT_SCENARIO ("small-team"). */
+  scenario?: ScenarioId;
   /** Seeds the timing jitter. Same seed, byte-identical envelopes. Default DEMO_SEED. */
   seed?: number;
   scheduler: Scheduler;
@@ -64,12 +59,20 @@ export interface DemoSourceOptions {
 export interface DemoSource extends WorldSource {
   readonly mode: "demo";
   readonly playback: PlaybackControls;
+  /** The scenario this source plays. */
+  readonly scenario: DemoScenario;
   /**
    * Build mode's "Request a prop" (demo only): runs the scripted prop flow for `thing` from the
-   * current position. The ticket appears one second of demo time later; a seek before that
-   * point or the next loop drops it again.
+   * current position, or from the moment the scenario's project exists (Fresh install before its first
+   * project). The ticket appears one second of demo time later; a seek before that point or the next loop
+   * drops it again. `project` is the name of the project the ticket lands in.
    */
-  createPropRequest(thing: string): { title: string; startsAtMs: number };
+  createPropRequest(thing: string): { title: string; startsAtMs: number; project: string };
+  /**
+   * FUTURE (proposal L22 "project groups"): `GET /api/project-groups`. Crewhub-loops has no groups today; a real
+   * source answers []. Only scenarios with groups (Studio) answer more.
+   */
+  listProjectGroups(): Promise<ProjectGroupSeed[]>;
   /** Chat reads for phase 2 (`GET /api/dm/threads`, `GET /api/dm/threads/{agent}/messages`). */
   getDmThreads(): Promise<DmThread[]>;
   getDmMessages(agentId: string): Promise<DmMessage[]>;
@@ -93,7 +96,10 @@ export interface DemoSource extends WorldSource {
 export function createDemoSource(options: DemoSourceOptions): DemoSource {
   const seed = options.seed ?? DEMO_SEED;
   const scheduler = options.scheduler;
-  const script = buildScript(seed);
+  const scenario = demoScenario(options.scenario ?? DEFAULT_SCENARIO);
+  const duration = scenario.story.durationMs;
+  const script = buildStory(scenario.story, seed);
+  const clampPosition = (ms: number) => (Number.isFinite(ms) ? Math.min(Math.max(0, Math.round(ms)), duration - 1) : 0);
 
   let timeline: ScriptEntry[] = script;
   let loop = 0;
@@ -112,7 +118,7 @@ export function createDemoSource(options: DemoSourceOptions): DemoSource {
   const changeListeners = new Set<() => void>();
 
   const epoch = options.epochMs ?? DEMO_EPOCH_MS;
-  const base = () => epoch + loop * SCRIPT_DURATION_MS;
+  const base = () => epoch + loop * duration;
   const send = (message: SourceMessage) => {
     for (const listener of [...listeners]) listener(message);
   };
@@ -126,7 +132,7 @@ export function createDemoSource(options: DemoSourceOptions): DemoSource {
 
   /** Rebuilds the store for this loop and plays the timeline silently up to `to`. */
   function rebuild(to: number): void {
-    state = initialState(base(), DEMO_BASE_CURSOR + resets * DEMO_SEQ_STRIDE);
+    state = initialState(base(), DEMO_BASE_CURSOR + resets * DEMO_SEQ_STRIDE, scenario.content);
     resets += 1;
     reads = new DemoReads(state);
     next = 0;
@@ -169,7 +175,7 @@ export function createDemoSource(options: DemoSourceOptions): DemoSource {
     for (;;) {
       const entry = timeline[next];
       const heartbeatAt = lastLineAt + HEARTBEAT_MS;
-      const due = Math.min(entry?.at ?? Infinity, heartbeatAt, SCRIPT_DURATION_MS);
+      const due = Math.min(entry?.at ?? Infinity, heartbeatAt, duration);
       if (due > target) break;
       if (entry !== undefined && entry.at === due) {
         state.now = base() + entry.at;
@@ -181,9 +187,9 @@ export function createDemoSource(options: DemoSourceOptions): DemoSource {
         position = heartbeatAt;
         send({ type: "heartbeat", seq: state.seq, ts: iso(base() + heartbeatAt) });
       } else {
-        target -= SCRIPT_DURATION_MS;
+        target -= duration;
         loop += 1;
-        timeline = merge(script, carryChat(timeline));
+        timeline = merge(script, carryChat(timeline, duration));
         nextExtraId = EXTRA_FIRST_ID;
         rebuild(0);
         sendSnapshot();
@@ -204,7 +210,7 @@ export function createDemoSource(options: DemoSourceOptions): DemoSource {
   rebuild(position);
 
   const playback: PlaybackControls = {
-    durationMs: SCRIPT_DURATION_MS,
+    durationMs: duration,
     positionMs: () => position,
     speed: () => speed,
     setSpeed(value) {
@@ -231,6 +237,8 @@ export function createDemoSource(options: DemoSourceOptions): DemoSource {
   return {
     mode: "demo",
     playback,
+    scenario,
+    listProjectGroups: () => answer(current().projectGroups()),
     now: () => base() + position,
     start(listener) {
       listeners.add(listener);
@@ -253,8 +261,6 @@ export function createDemoSource(options: DemoSourceOptions): DemoSource {
     getWatchdog: (): Promise<WatchdogResponse> => answer(current().watchdog()),
     getMilestones: (slug): Promise<MilestoneSummary[]> => answer(current().milestones(slug)),
     getReleases: (slug): Promise<ReleaseSummary[]> => answer(current().releases(slug)),
-    // FUTURE (proposal L22): no groups in this scenario; a scenario with zones answers its list here.
-    listProjectGroups: async () => [],
     getComments: (ref): Promise<CommentOut[]> => answer(current().comments(ref)),
     getProgress: (ref): Promise<ProgressItem[]> => answer(current().progress(ref)),
     getDmThreads: () => answer(current().dmThreads()),
@@ -291,12 +297,13 @@ export function createDemoSource(options: DemoSourceOptions): DemoSource {
     },
     createPropRequest(thing) {
       const text = thing.trim().replace(/\s+/g, " ").slice(0, 80) || "a small crate";
-      const entries = buildPropRequest(text, position, nextExtraId, seed);
+      const { fromMs, projectName, ...home } = scenario.props;
+      const entries = buildPropRequest(text, Math.max(position, fromMs), nextExtraId, seed, home, duration);
       nextExtraId += 1000;
       const pending = timeline.slice(next);
       const played = timeline.slice(0, next);
       timeline = [...played, ...[...pending, ...entries].sort((a, b) => a.at - b.at || a.id - b.id)];
-      return { title: `Prop: ${text}`, startsAtMs: entries[0]?.at ?? position };
+      return { title: `Prop: ${text}`, startsAtMs: entries[0]?.at ?? position, project: projectName };
     },
   };
 }
@@ -309,13 +316,8 @@ function merge(a: ScriptEntry[], b: ScriptEntry[]): ScriptEntry[] {
  * The person's chat actions of the loop that ends, for the next loop: what was played lands at
  * its start (in the same order), what was still due keeps its distance past the loop end.
  */
-function carryChat(timeline: ScriptEntry[]): ScriptEntry[] {
+function carryChat(timeline: ScriptEntry[], duration: number): ScriptEntry[] {
   return timeline
     .filter((entry) => entry.id >= CHAT_FIRST_ID)
-    .map((entry) => ({ ...entry, at: Math.max(0, entry.at - SCRIPT_DURATION_MS) }));
-}
-
-function clampPosition(ms: number): number {
-  if (!Number.isFinite(ms)) return 0;
-  return Math.min(Math.max(0, Math.round(ms)), SCRIPT_DURATION_MS - 1);
+    .map((entry) => ({ ...entry, at: Math.max(0, entry.at - duration) }));
 }

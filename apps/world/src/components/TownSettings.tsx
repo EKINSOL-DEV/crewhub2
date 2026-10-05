@@ -58,7 +58,7 @@ export function TownSettings({ town }: { town: TownState }) {
           size="sm"
           label="Cast"
           className="cast-setting"
-          hint={`${active?.description ?? ""} The figures that stand for agents; a building with a cast of its own keeps it. Kept in this browser.`}
+          hint={`${active?.description ?? ""} The figures that stand for agents; a zone or a building with a cast of its own keeps it. Kept in this browser.`}
           value={cast && castRegistry.has(cast) ? cast : ""}
           onChange={(e) => setCast(e.currentTarget.value || null)}
         >

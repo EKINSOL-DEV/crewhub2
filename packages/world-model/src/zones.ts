@@ -150,3 +150,12 @@ export function zoneById(zones: readonly Zone[], id: string): Zone {
     }
   );
 }
+
+/**
+ * The zoning of a town document: its zones and manual assignments, and nothing else. Read by key, so a document
+ * written before zones existed (it has neither) gives an empty zoning.
+ */
+export function zoningOf(doc: object | null | undefined): TownZoning {
+  const { zones, assignments } = (doc ?? {}) as TownZoning;
+  return { ...(Array.isArray(zones) ? { zones } : {}), ...(assignments && typeof assignments === "object" ? { assignments } : {}) };
+}
