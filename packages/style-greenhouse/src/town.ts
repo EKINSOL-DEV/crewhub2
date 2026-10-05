@@ -4,7 +4,7 @@
    stretchable pieces run along x. Every repeated part uses the kit's shared geometry, so a renderer can instance it. */
 import * as THREE from "three";
 import type { ModelOptions } from "@crewhub/world-style";
-import { put, type Kit, type Swatch } from "./kit.ts";
+import { put, type FlowerBed, type Kit, type Swatch } from "./kit.ts";
 import { decalMaterial, GRASS_GOLDEN, GRASS_NIGHT, WATER_GLINT, grassShader, pavingShader, waterShader } from "./shaders.ts";
 
 type Size = { width: number; height: number; depth: number };
@@ -112,10 +112,10 @@ export function crossing(kit: Kit, o: ModelOptions): THREE.Group {
 
 const wearMaterials = new WeakMap<Kit, THREE.ShaderMaterial>();
 function wearMaterial(kit: Kit): THREE.ShaderMaterial {
-  let material = wearMaterials.get(kit);
+  let material = wearMaterials.get(kit.root);
   if (!material) {
-    material = decalMaterial(kit.hex("path-wear"), 0.55, false);
-    wearMaterials.set(kit, material);
+    material = decalMaterial(kit.root.hex("path-wear"), 0.55, false);
+    wearMaterials.set(kit.root, material);
   }
   return material;
 }
@@ -171,10 +171,10 @@ export function field(kit: Kit, o: ModelOptions): THREE.Group {
 
 const puddleMaterials = new WeakMap<Kit, THREE.ShaderMaterial>();
 function puddleMaterial(kit: Kit): THREE.ShaderMaterial {
-  let material = puddleMaterials.get(kit);
+  let material = puddleMaterials.get(kit.root);
   if (!material) {
-    material = decalMaterial(kit.hex("water"), 0.42, false);
-    puddleMaterials.set(kit, material);
+    material = decalMaterial(kit.root.hex("water"), 0.42, false);
+    puddleMaterials.set(kit.root, material);
   }
   return material;
 }
@@ -221,26 +221,34 @@ export function hedge(kit: Kit, o: ModelOptions): THREE.Group {
   return g;
 }
 
-const FLOWERS: Swatch[] = ["coral", "lamp-glow", "flower-lilac", "cream", "tangerine", "flower-pink", "flower-blue"];
+/** The bed as it has always been; a season's variants are data (style.json "beds"). */
+const BED: FlowerBed = {
+  flowers: ["coral", "lamp-glow", "flower-lilac", "cream", "tangerine", "flower-pink", "flower-blue"],
+  spacing: 0.3,
+  leaf: [0.13, 0.11, 0.13],
+  head: [0.065, 0.065, 0.065],
+  lift: 0.2,
+};
 
 /** A raised flower bed: a timber edge, dark soil, leaves and flowers in a few colours. */
 export function flowerBed(kit: Kit, o: ModelOptions): THREE.Group {
   const { width, height, depth } = size(o, { width: 2, height: 0.2, depth: 0.8 });
+  const bed = (o.variant && kit.data.beds?.[o.variant]) || BED;
   const g = new THREE.Group();
   put(g, kit.box(width, height, depth, "timber", 0.04), 0, height / 2, 0);
   put(g, slab(kit, width - 0.12, 0.02, depth - 0.12, kit.material("soil")), 0, height + 0.005, 0);
   const seed = o.seed ?? 0;
-  const across = Math.max(1, Math.round(depth / 0.32)),
-    along = Math.max(2, Math.round(width / 0.3));
+  const across = Math.max(1, Math.round(depth / (bed.spacing + 0.02))),
+    along = Math.max(2, Math.round(width / bed.spacing));
   for (let i = 0; i < along; i++)
     for (let j = 0; j < across; j++) {
       const n = i * 7 + j * 3 + seed;
       const x = -width / 2 + ((i + 0.5) * width) / along + ((n % 3) - 1) * 0.04,
         z = -depth / 2 + ((j + 0.5) * depth) / across + (((n >> 1) % 3) - 1) * 0.04;
       const leaf = put(g, kit.sphere(1, n % 2 ? "leaf" : "leaf-dark"), x, height + 0.08, z);
-      leaf.scale.set(0.13, 0.11, 0.13);
-      const flower = put(g, kit.sphere(1, FLOWERS[(Math.abs(seed) + i + j * 2) % FLOWERS.length]!), x + 0.03, height + 0.2 + (n % 3) * 0.03, z - 0.02);
-      flower.scale.setScalar(0.065);
+      leaf.scale.set(...bed.leaf);
+      const flower = put(g, kit.sphere(1, bed.flowers[(Math.abs(seed) + i + j * 2) % bed.flowers.length]!), x + 0.03, height + bed.lift + (n % 3) * 0.03, z - 0.02);
+      flower.scale.set(...bed.head);
     }
   return g;
 }
@@ -359,8 +367,10 @@ export function fence(kit: Kit, o: ModelOptions): THREE.Group {
  * A street lantern: an iron post and a glass head that glows (softly by day, warmly in lamplight). Its pool of light
  * on the ground is the style's lamp-pool decal (LIGHT_POOLS).
  */
-export function lantern(kit: Kit): THREE.Group {
+export function lantern(kit: Kit, o: ModelOptions = {}): THREE.Group {
   const g = new THREE.Group();
+  if (o.variant === "globe") return globeLantern(kit, g);
+  if (o.variant === "paper") return paperLantern(kit, g);
   put(g, kit.cylinder(0.14, 0.18, 0.2, "lantern-iron"), 0, 0.1, 0);
   put(g, kit.cylinder(0.05, 0.065, 1.9, "lantern-iron"), 0, 1.1, 0);
   put(g, kit.cylinder(0.1, 0.1, 0.06, "lantern-iron"), 0, 2.07, 0);
@@ -372,6 +382,55 @@ export function lantern(kit: Kit): THREE.Group {
   return g;
 }
 
+/**
+ * "globe": a slim post that parts into two arms, a round glass globe on each. The same height and the same pool of
+ * light as the iron lantern, so a district may change its lanterns and nothing else moves.
+ */
+function globeLantern(kit: Kit, g: THREE.Group): THREE.Group {
+  put(g, kit.cylinder(0.11, 0.16, 0.16, "lantern-iron"), 0, 0.08, 0);
+  put(g, kit.cylinder(0.04, 0.055, 2.05, "lantern-iron"), 0, 1.18, 0);
+  put(g, kit.box(0.78, 0.05, 0.05, "lantern-iron", 0.02), 0, 2.2, 0);
+  put(g, kit.sphere(0.05, "brass"), 0, 2.27, 0);
+  for (const side of [-1, 1]) {
+    put(g, kit.cylinder(0.05, 0.035, 0.1, "lantern-iron"), side * 0.36, 2.27, 0);
+    const globe = put(g, kit.sphere(0.19, "lantern-glass"), side * 0.36, 2.49, 0);
+    globe.material = lanternGlass(kit);
+    globe.castShadow = false;
+  }
+  return g;
+}
+
+/**
+ * "paper": a timber post with an arm, and a paper lantern hanging from it on a cord: a soft drum with a timber cap and
+ * a tassel in the district's accent.
+ */
+function paperLantern(kit: Kit, g: THREE.Group): THREE.Group {
+  put(g, kit.box(0.24, 0.14, 0.24, "timber", 0.03), 0, 0.07, 0);
+  put(g, kit.box(0.1, 2.5, 0.1, "timber", 0.02), 0, 1.32, 0);
+  put(g, kit.box(0.62, 0.07, 0.07, "timber", 0.02), 0.24, 2.5, 0);
+  put(g, kit.box(0.14, 0.05, 0.14, "timber-light", 0.015), 0, 2.6, 0);
+  put(g, kit.cylinder(0.008, 0.008, 0.16, "graphite"), 0.44, 2.39, 0);
+  put(g, kit.cylinder(0.1, 0.12, 0.05, "timber"), 0.44, 2.3, 0);
+  const paper = put(g, kit.sphere(1, "lantern-glass"), 0.44, 2.06, 0);
+  paper.scale.set(0.2, 0.25, 0.2);
+  paper.material = lanternGlass(kit);
+  paper.castShadow = false;
+  put(g, kit.cylinder(0.12, 0.1, 0.05, "timber"), 0.44, 1.82, 0);
+  put(g, kit.cylinder(0.02, 0.012, 0.16, "accent"), 0.44, 1.72, 0);
+  return g;
+}
+
+/**
+ * A district's own turf, `width` by `depth`: a thin sheet of the look's street grass, to lay on the town's ground
+ * where a district stands (its top a hair above the ground's, at y = 0.03 from its origin on the ground).
+ */
+export function turf(kit: Kit, o: ModelOptions): THREE.Mesh {
+  const { width, depth } = size(o, { width: 30, height: 0, depth: 30 });
+  const mesh = slab(kit, width, 0.012, depth, shaded(kit, "grass", (m) => grassShader(m, 0.16)));
+  mesh.position.y = 0.024;
+  return mesh;
+}
+
 function lanternGlass(kit: Kit): THREE.MeshStandardMaterial {
   return kit.material("lantern-glass", { glow: "lantern-light" });
 }
@@ -381,7 +440,7 @@ function lanternGlass(kit: Kit): THREE.MeshStandardMaterial {
  * lamplight. One wire geometry and one bulb geometry, so a renderer instances every string in town together.
  */
 /**
- * Bunting along x: two slim timber poles and a sagging line of little triangular flags in turn coral, cream, tangerine
+ * Bunting along x: two slim timber poles and a sagging line of little triangular flags in turn the accent (coral), cream, tangerine
  * and sage, catching a little sideways twist each. One flag geometry per colour, so every string in town instances.
  */
 export function bunting(kit: Kit, o: ModelOptions): THREE.Group {
@@ -410,7 +469,7 @@ export function bunting(kit: Kit, o: ModelOptions): THREE.Group {
     geometry.computeVertexNormals();
     return geometry;
   });
-  const colours: Swatch[] = ["coral", "cream", "tangerine", "sage"];
+  const colours: Swatch[] = ["accent", "cream", "tangerine", "sage"];
   const flags = Math.max(4, Math.round(width / 0.42));
   const seed = o.seed ?? 0;
   for (let i = 1; i < flags; i++) {

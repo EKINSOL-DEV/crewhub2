@@ -6,7 +6,7 @@ import { FlaskConical, Hammer, Pencil, Plus, Redo2, RotateCw, Trash2, Undo2, X }
 import type { Building, CatalogueGroupId } from "@crewhub/world-model";
 import type { BuildMode } from "../state/build";
 import type { TownState } from "../state/town";
-import { useWorld } from "../state/world";
+import { SCENARIO, useWorld } from "../state/world";
 import { Button, Card, Chip, Field } from "./primitives";
 import { BuildZones } from "./ZonePanel";
 
@@ -158,7 +158,7 @@ export function BuildPanel({ build, town, inside, demo, onClose, onUndo, onRedo,
               value={thing}
               maxLength={80}
               onChange={(e) => setThing(e.currentTarget.value)}
-              hint={requested || "Opens a Prop ticket in the CrewHub building; when a person moves it to Done, the prop appears."}
+              hint={requested || `Opens a Prop ticket in the ${SCENARIO.props.projectName} building; when a person moves it to Done, the prop appears.`}
             />
             <Button size="sm" type="submit" disabled={!thing.trim()}>
               Request

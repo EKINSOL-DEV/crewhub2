@@ -1,6 +1,6 @@
 /**
  * The world style seam: the contract every look of CrewHub World implements (spec addendum "Greenhouse is one style
- * of several"). Types only: no implementation and no colours. Renderers ask a `WorldStyle` for semantic models by key
+ * of several"). Types and the one pure resolver of style options: no drawing and no colours. Renderers ask a `WorldStyle` for semantic models by key
  * and for palette colours by name; the style decides the look. Styles resolve per building (a plot's style id, else
  * the town default), never through a global singleton.
  */
@@ -190,8 +190,58 @@ export interface StyleManifest {
    * out: the renderer takes the model's bounding box as a plain table.
    */
   workSurfaces?: Partial<Record<ModelKey, WorkSurface>>;
+  /**
+   * The choices this style offers within its own look (a season, what is planted, an accent, the lanterns), as data.
+   * A zone, a building, the viewer or the town picks a value per option (`StyleOptionValues`); `resolveStyleOptions`
+   * turns those picks into one value for every option. A style without options has one look.
+   */
+  options?: StyleOption[];
   palette: Record<PaletteName, string>;
   lighting: Record<StyleTheme, LightingPreset> & Partial<Record<DriftLight, LightingPreset>>;
+}
+
+/** One choice a style offers. Ids are the style's own; names are what a person reads in Settings. */
+export interface StyleOption {
+  id: string;
+  name: string;
+  description?: string;
+  values: StyleOptionValue[];
+  /** The id of the value the style shows when nobody chose. */
+  default: string;
+}
+
+export interface StyleOptionValue {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+/**
+ * Picked values by option id. It is written for one style and may be read by another (a zone keeps its picks when the
+ * town changes style), so a style ignores every option id and every value id it does not know.
+ */
+export type StyleOptionValues = Readonly<Record<string, string>>;
+
+/**
+ * One value for every option the style declares, from layers of picks, the most specific first (a building, its zone,
+ * the viewer, the town): the first layer that names a value the option has wins, else the option's default. Option ids
+ * and value ids the style does not know are dropped, so the result is safe to hand to `withOptions`.
+ */
+export function resolveStyleOptions(manifest: Pick<StyleManifest, "options">, ...layers: (StyleOptionValues | null | undefined)[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const option of manifest.options ?? []) {
+    const known = new Set(option.values.map((v) => v.id));
+    out[option.id] = layers.map((layer) => layer?.[option.id]).find((value): value is string => typeof value === "string" && known.has(value)) ?? option.default;
+  }
+  return out;
+}
+
+/** A stable key for resolved option values: the same picks give the same key, whatever order they were written in. */
+export function styleOptionsKey(values: StyleOptionValues): string {
+  return Object.keys(values)
+    .sort()
+    .map((id) => `${id}=${values[id]}`)
+    .join(";");
 }
 
 /**
@@ -225,6 +275,14 @@ export interface WorldStyle {
    * registry's plain reference kit.
    */
   figureKit?(cast: Pick<CastManifest, "id" | "colors">): FigureKit;
+  /**
+   * The same style dressed in option values (`StyleManifest.options`): what it returns for `model`, `parts` and `color`
+   * is that look's. Theme, light, quality and `dispose` stay the style's own, so every look of a style follows the one
+   * environment. Pieces the values do not change share their geometry and materials with every other look, so a
+   * district in another look costs draw calls only for what differs. Unknown ids and values are ignored. A style
+   * without options leaves it out.
+   */
+  withOptions?(values: StyleOptionValues): WorldStyle;
   /** A crewhub-prop/1 prop; its part materials are palette names this style resolves. */
   parts(prop: PropModel): THREE.Object3D;
   color(name: PaletteName, theme: StyleTheme): THREE.Color;
@@ -246,8 +304,12 @@ export interface WorldStyleFactory {
  * A style as the registry hands it to renderers: every key resolves. A key the style does not cover draws the
  * registry's neutral placeholder (a plain mist crate) and warns once.
  */
-export interface ResolvedStyle extends Omit<WorldStyle, "model"> {
+export interface ResolvedStyle extends Omit<WorldStyle, "model" | "withOptions"> {
   model(key: ModelKey, options?: ModelOptions): THREE.Object3D;
+  /** The option values this style is dressed in: one for every option its manifest declares. */
+  readonly options: StyleOptionValues;
+  /** The style in other option values (resolved against its manifest first); one instance per set of values. */
+  withOptions(values: StyleOptionValues | null | undefined): ResolvedStyle;
 }
 
 /**
