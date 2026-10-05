@@ -9,6 +9,7 @@ import { QUALITY_CHOICES, setQuality, useQuality } from "../state/quality";
 import { setCast, useCast } from "../state/cast";
 import { castRegistry } from "../world/cast";
 import { setDayNight, useDayNight } from "../state/daynight";
+import { setOldQuarter, useOldQuarter } from "../state/oldQuarter";
 import { useWorld } from "../state/world";
 import { setFps, useFps } from "../state/fps";
 import type { TownState } from "../state/town";
@@ -33,6 +34,7 @@ export function TownSettings({ town }: { town: TownState }) {
   const { model } = useWorld();
   const dayNight = useDayNight(model.mode);
   const fps = useFps();
+  const oldQuarter = useOldQuarter();
   const [importNote, setImportNote] = useState<{ ok: boolean; text: string } | null>(null);
   const style = styleRegistry.getStyle(town.doc.styleId).manifest;
   const cast = useCast();
@@ -105,6 +107,22 @@ export function TownSettings({ town }: { town: TownState }) {
         >
           <option value="on">Drifts</option>
           <option value="off">Still</option>
+        </Field>
+        <Field
+          control="select"
+          size="sm"
+          label="Archived buildings"
+          className="old-quarter-setting"
+          hint={
+            oldQuarter
+              ? "Archived buildings are folded away into the old quarter, a row of their own behind the town. Their plots stay theirs. Only you see this; kept in this browser."
+              : "An archived building keeps its plot, boarded up. Kept in this browser."
+          }
+          value={oldQuarter ? "on" : "off"}
+          onChange={(e) => setOldQuarter(e.currentTarget.value === "on")}
+        >
+          <option value="off">Stay on their plots</option>
+          <option value="on">Fold into the old quarter</option>
         </Field>
         <Field
           control="checkbox"
