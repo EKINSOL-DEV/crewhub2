@@ -1,6 +1,6 @@
 /* The dressing of a settlement at any size: a clearing, a hamlet, a village, a town or a region of districts. Pure and
    deterministic like townDressing.ts (no Three.js, no DOM, no Math.random), whose pieces it reuses: the same plan
-   always gives the same town. It reads a `TownPlan` (townPlan.ts builds one from settlement.ts and the model), so
+   always gives the same town. It reads a `DressPlan` (`dressPlan` makes one from the town plan of townPlan.ts), so
    nothing here decides where a lot, a street or a civic spot is; it decides what stands there.
 
    What a tier looks like:
@@ -28,6 +28,7 @@ import {
   noise,
   paving,
   pocket,
+  slugSeed,
   wear,
   type Add,
   type DressedPlot,
@@ -88,7 +89,7 @@ export interface PlanCivic {
 }
 export type PlanLandmark = "windmill" | "chapel" | "bandstand" | "farm" | "cottages-west" | "cottages-east";
 
-export interface TownPlan {
+export interface DressPlan {
   tier: Tier;
   /** The whole ground. */
   ground: Bounds;
@@ -107,6 +108,64 @@ export interface TownPlan {
   /** The words on the staked plot's sign. */
   stakedText?: string;
 }
+
+/** The part of the town plan (townPlan.ts) the dressing reads. */
+export interface SettlementPlan {
+  tier: Tier;
+  seed: number;
+  ground: Bounds;
+  streets: readonly PlanSegment[];
+  roads: readonly (PlanSegment & { from: { x: number; z: number } })[];
+  borders: readonly PlanBorder[];
+  civic: PlanCivic;
+  landmarks: readonly string[];
+  lots: readonly { slug: string; centre: PlotSpot; archived: boolean }[];
+  districts: readonly { slot: { x: number; z: number }; zoneId: string; central: boolean; bounds: Bounds; greens: readonly { x: number; z: number }[] }[];
+  staked: { x: number; z: number } | null;
+}
+/** What the dressing needs beside the plan: each building's door and footprint, and the zones' names and colours. */
+export interface DressExtras {
+  /** World position of the town cell just outside a building's front door. */
+  door(slug: string): PlotSpot;
+  /** Footprints on the plot that dressing keeps clear of (the building, the parked truck). */
+  obstacles(slug: string): readonly Bounds[];
+  zone?(id: string): { name: string | null; accent: string | null } | undefined;
+  /** World position of a lot's centre (settlement.ts's `lotCentre`). */
+  lotCentre(cell: { x: number; z: number }): PlotSpot;
+  stakedText?: string;
+}
+
+/** The dressing's plan from the town plan. */
+export function dressPlan(plan: SettlementPlan, extras: DressExtras): DressPlan {
+  const zone = (id: string) => extras.zone?.(id) ?? { name: null, accent: null };
+  return {
+    tier: plan.tier,
+    ground: plan.ground,
+    seed: plan.seed,
+    lots: plan.lots.map((lot, index) => ({
+      index,
+      centre: lot.centre,
+      lane: lot.centre.z + PITCH / 2,
+      door: extras.door(lot.slug),
+      obstacles: extras.obstacles(lot.slug),
+      seed: slugSeed(lot.slug),
+      archived: lot.archived,
+    })),
+    greens: plan.districts.flatMap((d) => d.greens.map((cell, i) => ({ ...extras.lotCentre(cell), seed: cell.x * 131 + cell.z, ...(!d.central && i === 0 ? { centre: true } : {}) }))),
+    streets: plan.streets,
+    roads: plan.roads.map((road) => {
+      const out = plan.districts.find((d) => d.slot.x === road.from.x && d.slot.z === road.from.z);
+      return { x0: road.x0, z0: road.z0, x1: road.x1, z1: road.z1, ...(out ? zone(out.zoneId) : { name: null, accent: null }) };
+    }),
+    borders: plan.borders,
+    districts: plan.districts.map((d) => ({ id: d.zoneId, ...zone(d.zoneId), bounds: d.bounds })),
+    civic: plan.civic,
+    landmarks: plan.landmarks.filter((id): id is PlanLandmark => LANDMARKS.includes(id as PlanLandmark)),
+    staked: plan.staked ? extras.lotCentre(plan.staked) : null,
+    ...(extras.stakedText ? { stakedText: extras.stakedText } : {}),
+  };
+}
+const LANDMARKS: readonly PlanLandmark[] = ["windmill", "chapel", "bandstand", "farm", "cottages-west", "cottages-east"];
 
 /** A whole model with a spot of its own (it may animate, and is drawn once): the civic buildings and the landmarks. */
 export interface PlanPiece {
@@ -149,7 +208,7 @@ const STREAM = { offset: 66.5, period: 6 * PITCH, width: 1.5, amplitude: 0.7 };
 /** How the lodge, the mail hut and the post box stand on their spots. */
 const LODGE = { x: HALL.x, z: HALL.z - 2.2, scale: 2.3 };
 const HUT = { x: POST.x, z: POST.z - 2.2, scale: 2.2 };
-const BOX = { x: POST.x + 0.9, z: POST.z - 1.3, scale: 1.9 };
+const BOX = { x: POST.x + 0.9, z: POST.z - 1.3, scale: 2.5 };
 
 /** The two halves of the promenade behind the square, lot edge to square edge. */
 function promenades(): Bounds[] {
@@ -170,7 +229,7 @@ export function parkPond(): Bounds {
 const laneRect = (s: PlanSegment): Bounds => span(Math.min(s.x0, s.x1) - LANE / 2, Math.max(s.x0, s.x1) + LANE / 2, Math.min(s.z0, s.z1) - LANE / 2, Math.max(s.z0, s.z1) + LANE / 2);
 
 /** The cobbled lanes of a plan: its streets and its district roads. */
-export function planLanes(plan: TownPlan): Bounds[] {
+export function planLanes(plan: DressPlan): Bounds[] {
   return [...plan.streets, ...plan.roads].map(laneRect);
 }
 
@@ -178,7 +237,7 @@ export function planLanes(plan: TownPlan): Bounds[] {
  * The entrance road of a village or anything larger: the main street, on south from its last crossing to the ground's
  * edge. Null in a clearing or a hamlet (their lane ends at the gate), and where a district road already runs there.
  */
-export function entranceRoad(plan: TownPlan): Bounds | null {
+export function entranceRoad(plan: DressPlan): Bounds | null {
   if (small(plan.tier)) return null;
   const main = [...plan.streets, ...plan.roads].filter((s) => along(s) === "z" && Math.abs(s.x0 - SQUARE.x) < 0.01);
   const south = Math.max(CIVIC_LANE + PITCH, ...main.map((s) => Math.max(s.z0, s.z1)));
@@ -187,7 +246,7 @@ export function entranceRoad(plan: TownPlan): Bounds | null {
 }
 
 /** z of every stream in the plan: one along each border row that has a district in use on both sides, edge to edge. */
-export function streamRows(plan: TownPlan): number[] {
+export function streamRows(plan: DressPlan): number[] {
   const rows = new Set<number>();
   for (const b of plan.borders) if (b.strip.maxX - b.strip.minX > b.strip.maxZ - b.strip.minZ) rows.add(b.strip.minZ + STREAM.offset - 2 * PITCH);
   // The central district's own southern edge has the stream as soon as the ground reaches it.
@@ -201,7 +260,7 @@ function streamAt(row: number, x: number): number {
 }
 
 /** The paved places of the civic rows at the plan's stage: forecourts, the stems down to the lane, the promenade. */
-function civicPaving(plan: TownPlan): { rect: Bounds; lawn: boolean }[] {
+function civicPaving(plan: DressPlan): { rect: Bounds; lawn: boolean }[] {
   const out: { rect: Bounds; lawn: boolean }[] = [];
   const court = (c: PlotSpot, half: number, from: number) => {
     out.push({ rect: span(c.x - half, c.x + half, c.z + from, c.z + CIVIC_LOT / 2), lawn: true });
@@ -227,10 +286,10 @@ function civicPaving(plan: TownPlan): { rect: Bounds; lawn: boolean }[] {
   return out;
 }
 /** The park, the orchard and the market belong to a town: the full civic set. */
-const hasPark = (plan: TownPlan) => plan.tier === "town" || plan.tier === "region";
+const hasPark = (plan: DressPlan) => plan.tier === "town" || plan.tier === "region";
 
-/** The footpaths to the landmarks that have arrived and to the staked plot. */
-function sidePaths(plan: TownPlan): Bounds[] {
+/** The footpaths to the landmarks that have arrived. */
+function sidePaths(plan: DressPlan): Bounds[] {
   const out: Bounds[] = [];
   const has = (id: PlanLandmark) => plan.landmarks.includes(id);
   if (has("bandstand")) out.push(span(BANDSTAND.x - 0.6, BANDSTAND.x + 0.6, BANDSTAND.z + 2.5, plan.civic.square === "square" ? promenades()[1]!.minZ : CIVIC_LANE));
@@ -245,12 +304,6 @@ function sidePaths(plan: TownPlan): Bounds[] {
     out.push(span(c.x - 0.7, c.x + 0.7, c.z + 1, CIVIC_LANE + 0.7));
     if (Math.abs(end) < Math.abs(c.x)) out.push(span(Math.min(end, c.x) - 0.7, Math.max(end, c.x) + 0.7, CIVIC_LANE - 0.7, CIVIC_LANE + 0.7));
   }
-  if (plan.staked) {
-    // The staked plot's path: where the garden path will be, from the sign down to the lane.
-    const lanes = plan.streets.filter((s) => along(s) === "x" && inside(laneRect(s), plan.staked!.x, s.z0, 0));
-    const north = lanes.find((s) => s.z0 < plan.staked!.z);
-    if (north) out.push(span(plan.staked.x + PLOT_SIZE / 2 - 0.8, plan.staked.x + PLOT_SIZE / 2 + 0.8, north.z0, plan.staked.z - PLOT_SIZE / 2 + 0.2));
-  }
   return out;
 }
 
@@ -258,7 +311,7 @@ function sidePaths(plan: TownPlan): Bounds[] {
 const gardenPath = (lot: PlanLot): Bounds => span(lot.door.x - GARDEN_PATH / 2, lot.door.x + GARDEN_PATH / 2, lot.door.z - 0.6, lot.lane);
 
 /** Every walkable paved rectangle of a plan: lanes, roads, the entrance road, civic paths, footpaths and garden paths. */
-export function planPaths(plan: TownPlan): Bounds[] {
+export function planPaths(plan: DressPlan): Bounds[] {
   const road = entranceRoad(plan);
   const paths = [...planLanes(plan), ...(road ? [road] : []), ...civicPaving(plan).map((p) => p.rect), ...sidePaths(plan), ...plan.lots.map(gardenPath)];
   if (plan.civic.square === "square") paths.push(rect(SQUARE.x, SQUARE.z, CIVIC_SIZE.square.width, CIVIC_SIZE.square.depth));
@@ -273,7 +326,7 @@ export function planPaths(plan: TownPlan): Bounds[] {
  * The civic buildings and landmarks of a plan, each drawn whole: the lodge or the town hall, the post box, the mail
  * hut or the post office, the square, the café, the bus stop, the welcome sign, and whatever has arrived.
  */
-export function planPieces(plan: TownPlan): PlanPiece[] {
+export function planPieces(plan: DressPlan): PlanPiece[] {
   const out: PlanPiece[] = [];
   const add = (key: string, x: number, y: number, z: number, rotation = 0, scale = 1) => out.push({ key, x, y, z, rotation, scale });
   if (plan.civic.hall === "lodge") add("town.lodge", LODGE.x, LAWN_Y, LODGE.z, 0, LODGE.scale);
@@ -301,7 +354,7 @@ export function planPieces(plan: TownPlan): PlanPiece[] {
 }
 
 /** The welcome sign: in the middle of the green while the town is small, at the head of the main street after. */
-function welcomeSign(plan: TownPlan): { x: number; y: number; z: number } {
+function welcomeSign(plan: DressPlan): { x: number; y: number; z: number } {
   if (plan.civic.square === "green") return { x: SQUARE.x, y: LAWN_Y, z: SQUARE.z - 0.4 };
   return { x: SQUARE.x + LANE / 2 + 2.1, y: GRASS_Y, z: CIVIC_LANE + LANE / 2 + 0.75 };
 }
@@ -313,7 +366,7 @@ const AUTUMN = /^town\.(oak|birch|bush)$/;
 const USES: readonly PlotUse[] = ["picnic", "playground", "orchard", "allotment", "meadow"];
 
 /** The whole dressing of a plan, in a fixed order. Each piece inside a district's ground carries that district's id. */
-export function settlementDressing(plan: TownPlan): Dressing[] {
+export function settlementDressing(plan: DressPlan): Dressing[] {
   const out: Dressing[] = [];
   const add: Add = (key, x, y, z, extra = {}) => out.push({ key, x, y, z, rotation: 0, scale: 1, ...extra });
   const g = plan.ground;
@@ -324,7 +377,9 @@ export function settlementDressing(plan: TownPlan): Dressing[] {
   /* Keep-out zones for trees, benches and the like. */
   const blocked: Bounds[] = [...paths];
   for (const lot of plan.lots) blocked.push(rect(lot.centre.x, lot.centre.z, PLOT_SIZE, PLOT_SIZE));
-  for (const green of plan.greens) blocked.push(rect(green.x, green.z, PLOT_SIZE, PLOT_SIZE));
+  // A green at the ground's edge waits until the ground has grown round it.
+  const greens = plan.greens.filter((green) => inside(g, green.x, green.z, -PLOT_SIZE / 2 - 1));
+  for (const green of greens) blocked.push(rect(green.x, green.z, PLOT_SIZE, PLOT_SIZE));
   if (plan.staked) blocked.push(rect(plan.staked.x, plan.staked.z, PLOT_SIZE, PLOT_SIZE));
   blocked.push(rect(HALL.x, HALL.z, CIVIC_LOT, CIVIC_LOT));
   blocked.push(plan.civic.post === "mailbox" ? rect(POST.x, POST.z, 7, 7) : rect(POST.x, POST.z, CIVIC_LOT, CIVIC_LOT));
@@ -386,7 +441,7 @@ export function settlementDressing(plan: TownPlan): Dressing[] {
   if (plan.staked) stakedPlot(add, plan.staked, plan.stakedText ?? "");
 
   /* The greens: a district's small centre, or a pocket park by its seed. */
-  for (const green of plan.greens) {
+  for (const green of greens) {
     const c = { x: green.x, z: green.z };
     const use = USES[Math.floor(noise(green.seed, plan.seed % 1009, 5) * USES.length)]!;
     const wild = !green.centre && (use === "meadow" || use === "orchard" || use === "picnic");
@@ -419,6 +474,9 @@ export function settlementDressing(plan: TownPlan): Dressing[] {
   for (const border of plan.borders) if (border.strip.maxZ - border.strip.minZ > border.strip.maxX - border.strip.minX) hedgerow(add, border, tree, free);
   for (const gate of gates) {
     add("town.district-gate", gate.x, GRASS_Y, gate.z, { rotation: gate.rotation, size: { width: gate.width, height: 3.3, depth: 0.6 }, ...(gate.name ? { text: gate.name } : {}), ...(gate.accent ? { accent: gate.accent } : {}) });
+    // A road that runs east to west shows the home camera its gate edge-on, so the name also stands on a board
+    // beside the road, facing south.
+    if (gate.rotation && gate.name) add("town.plot-sign", gate.x - gate.inward * 3.2, GRASS_Y, gate.z + gate.width / 2 + 2.6, { scale: 1.5, text: gate.name, ...(gate.accent ? { accent: gate.accent } : {}) });
     // A lantern beside each pier, on the town side.
     for (const side of [-1, 1]) {
       const [x, z] = gate.rotation ? [gate.x + gate.inward * 1.3, gate.z + side * (gate.width / 2 + 1.5)] : [gate.x + side * (gate.width / 2 + 1.5), gate.z + gate.inward * 1.3];
@@ -442,7 +500,8 @@ export function settlementDressing(plan: TownPlan): Dressing[] {
   countryside(add, plan, tree, free);
   belt(add, g, tree, free, small(plan.tier) ? 2 : 1);
   const area = (g.maxX - g.minX) * (g.maxZ - g.minZ);
-  const tufts = Math.min(1500, Math.round(area * 0.023));
+  // A wide region is seen from far: its loose tufts thin out, so the country costs no more than a town's verges.
+  const tufts = Math.min(900, Math.round(area * 0.023));
   for (let i = 0; i < tufts; i++) {
     const x = g.minX + 1 + noise(i, 41) * (g.maxX - g.minX - 2),
       z = g.minZ + 1 + noise(i, 43) * (g.maxZ - g.minZ - 2);
@@ -479,7 +538,7 @@ export function settlementDressing(plan: TownPlan): Dressing[] {
 }
 
 /** Where lanes end or meet: every segment's two ends, and where a street along x crosses one along z. */
-function nodes(plan: TownPlan): PlotSpot[] {
+function nodes(plan: DressPlan): PlotSpot[] {
   const all = [...plan.streets, ...plan.roads];
   const found = new Map<string, PlotSpot>();
   const put = (x: number, z: number) => found.set(`${Math.round(x * 10)},${Math.round(z * 10)}`, { x, z });
@@ -506,14 +565,14 @@ function stakedPlot(add: Add, c: PlotSpot, text: string) {
   const half = PLOT_SIZE / 2;
   add("plot", c.x, 0, c.z, { size: { width: PLOT_SIZE, height: 0.16, depth: PLOT_SIZE }, variant: "meadow" });
   // The building's own ground, staked: a little north of the middle, as the buildings stand.
-  add("town.staked-plot", c.x, LAWN_Y, c.z - 1.5, { size: { width: 16, height: 0, depth: 11 }, seed: 3 });
-  wear(add, c.x, LAWN_Y, c.z - 1.5, 9, 6, 0.1);
-  add("town.plot-sign", c.x - 4.4, LAWN_Y, c.z + half - 3.2, { rotation: 0.12, scale: 1.5, ...(text ? { text } : {}) });
+  add("town.staked-plot", c.x, LAWN_Y, c.z - 2.2, { size: { width: 16, height: 0, depth: 11 }, seed: 3 });
+  wear(add, c.x, LAWN_Y, c.z - 2.2, 13, 8.4, 0.05);
+  add("town.plot-sign", c.x - 3.6, LAWN_Y, c.z + half - 3.4, { rotation: 0.1, scale: 2.3, ...(text ? { text } : {}) });
   // Building materials waiting: planks on a pallet, crates, a bale of string.
   add("pallet", c.x + 5.6, LAWN_Y, c.z + half - 3.6, { rotation: 0.3, scale: 1.5 });
   add("crate", c.x + 7.6, LAWN_Y, c.z + half - 2.6, { rotation: -0.4, scale: 1.4 });
   add("crate", c.x + 8.3, LAWN_Y, c.z + half - 3.9, { rotation: 0.5, scale: 1.1 });
-  add("town.bench", c.x - 9, LAWN_Y, c.z + half - 2.2, { rotation: 0.25 });
+  add("town.bench", c.x - 9.6, LAWN_Y, c.z + half - 2.2, { rotation: 0.25 });
   drift(add, c.x - 8.5, c.z - 8, 2.6, 2, 16, 611);
   drift(add, c.x + 9, c.z - 7.5, 2, 2.4, 12, 613);
   for (const [dx, dz, s] of [
@@ -555,7 +614,7 @@ function districtCentre(add: Add, c: PlotSpot, seed: number, tree: Tree) {
 }
 
 /** The civic rows at the plan's stage. */
-function civic(add: Add, plan: TownPlan, tree: Tree, free: (x: number, z: number, pad: number) => boolean) {
+function civic(add: Add, plan: DressPlan, tree: Tree, free: (x: number, z: number, pad: number) => boolean) {
   const court = LAWN_Y + 0.04;
   /* The hall's lot: the lodge among trees, or the town hall. */
   add("plot", HALL.x, 0, HALL.z, { size: { width: CIVIC_LOT, height: 0.16, depth: CIVIC_LOT } });
@@ -836,7 +895,7 @@ interface Gate {
  * One gate per district road, in the border strip it crosses, on the outer district's side: past the bridge on a road
  * that runs north to south, in the hedgerow's gap on one that runs east to west.
  */
-function districtGates(plan: TownPlan): Gate[] {
+function districtGates(plan: DressPlan): Gate[] {
   return plan.roads.map((road) => {
     const width = LANE + 1;
     if (along(road) === "x") {
@@ -855,7 +914,7 @@ function districtGates(plan: TownPlan): Gate[] {
  * Lanterns every few metres on one verge of each street, street trees and the odd bench on the other, a signpost at a
  * few crossings and the odd bike rack by a used lot's gate.
  */
-function streets(add: Add, plan: TownPlan, free: (x: number, z: number, pad: number) => boolean, tree: Tree) {
+function streets(add: Add, plan: DressPlan, free: (x: number, z: number, pad: number) => boolean, tree: Tree) {
   const verge = LANE / 2 + (PITCH - PLOT_SIZE - LANE) / 4;
   const corners = nodes(plan);
   const crossing = (x: number, z: number) => corners.some((n) => Math.abs(n.x - x) < (PITCH - PLOT_SIZE) / 2 + 0.8 && Math.abs(n.z - z) < (PITCH - PLOT_SIZE) / 2 + 0.8);
@@ -913,7 +972,7 @@ function streets(add: Add, plan: TownPlan, free: (x: number, z: number, pad: num
 }
 
 /** The roads between districts: an avenue of trees on both verges and a lantern now and then. */
-function avenues(add: Add, plan: TownPlan, free: (x: number, z: number, pad: number) => boolean) {
+function avenues(add: Add, plan: DressPlan, free: (x: number, z: number, pad: number) => boolean) {
   const off = LANE / 2 + 1.5;
   for (const road of plan.roads) {
     const length = Math.hypot(road.x1 - road.x0, road.z1 - road.z0);
@@ -937,35 +996,47 @@ function avenues(add: Add, plan: TownPlan, free: (x: number, z: number, pad: num
  * The open country inside the ground: every lattice lot that holds nothing is a wood, a meadow in flower, a hayfield
  * with a few sheep or plain grass, by its place. A clearing or a hamlet stands in the woods, so most of it is trees.
  */
-function countryside(add: Add, plan: TownPlan, tree: Tree, free: (x: number, z: number, pad: number) => boolean) {
+function countryside(add: Add, plan: DressPlan, tree: Tree, free: (x: number, z: number, pad: number) => boolean) {
   const g = plan.ground;
-  const woods = small(plan.tier) ? 0.8 : 0.34;
+  const woods = small(plan.tier) ? 0.8 : 0.4;
   const first = (v: number) => Math.floor((v + PITCH / 2) / PITCH) * PITCH - PITCH / 2;
   // The civic rows of a village or more are tended ground, not country.
-  const tended = small(plan.tier) ? null : span(-3 * PITCH, 3 * PITCH, CIVIC_LANE - 2 * PITCH, CIVIC_LANE);
+  const reach = hasPark(plan) ? 2 * PITCH : PITCH + CIVIC_LOT / 2;
+  const tended = small(plan.tier) ? null : span(-reach, reach, CIVIC_LANE - PITCH, CIVIC_LANE);
+  // A field's own ground: a paler patch, where the whole lot is open and inside the ground.
+  const field = (cx: number, cz: number) => {
+    const half = PLOT_SIZE / 2 - 1;
+    const open = [-1, 0, 1].every((dx) => [-1, 0, 1].every((dz) => free(cx + dx * half, cz + dz * half, 0.5)));
+    if (open && inside(g, cx, cz, -half - 2)) add("town.field", cx, GRASS_Y, cz, { size: { width: PLOT_SIZE - 2, height: 0, depth: PLOT_SIZE - 2 }, rotation: (noise(cx, cz, 314) - 0.5) * 0.5 });
+  };
   for (let cx = first(g.minX); cx < g.maxX + PITCH / 2; cx += PITCH)
     for (let cz = first(g.minZ); cz < g.maxZ + PITCH / 2; cz += PITCH) {
       if (tended && inside(tended, cx, cz, 0)) continue;
       const pick = noise(cx, cz, plan.seed % 1009, 301);
       if (pick < woods) {
-        // A wood: trees close together, bushes at their feet.
-        const count = small(plan.tier) ? 9 : 6;
+        // A wood: trees close together round a heart that is off the lot's middle, bushes at their feet.
+        const count = small(plan.tier) ? 9 : 8;
+        const spread = small(plan.tier) ? PITCH - 3 : 17;
+        const hx = cx + (noise(cx, cz, 312) - 0.5) * (PITCH - 3 - spread),
+          hz = cz + (noise(cx, cz, 313) - 0.5) * (PITCH - 3 - spread);
         for (let i = 0; i < count; i++) {
-          const x = cx + (noise(cx, cz, i, 302) - 0.5) * (PITCH - 3),
-            z = cz + (noise(cx, cz, i, 303) - 0.5) * (PITCH - 3);
+          const x = hx + (noise(cx, cz, i, 302) - 0.5) * spread,
+            z = hz + (noise(cx, cz, i, 303) - 0.5) * spread;
           if (!free(x, z, 1.6)) continue;
           if (i % 5 === 4) add("town.bush", x, GRASS_Y, z, { seed: i, scale: 1.1 + noise(cx, cz, i, 304) * 0.4 });
           else tree(x, z, GRASS_Y, Math.round(cx * 7 + cz * 13 + i), 1.3 + noise(cx, cz, i, 305) * 0.4);
         }
-      } else if (pick < woods + 0.2) {
-        // A meadow in flower: two drifts of wild flowers and long grass.
+      } else if (pick < woods + 0.28) {
+        // A meadow in flower: a field left to grow, with two drifts of wild flowers and long grass.
+        field(cx, cz);
         for (let i = 0; i < 2; i++) {
           const x = cx + (noise(cx, cz, i, 306) - 0.5) * 14,
             z = cz + (noise(cx, cz, i, 307) - 0.5) * 14;
-          if (free(x, z, 3.2)) drift(add, x, z, 2.8, 2.2, 14, Math.round(cx + cz * 3 + i));
+          if (free(x, z, 3.2) && inside(g, x, z, -3.6)) drift(add, x, z, 2.8, 2.2, 12, Math.round(cx + cz * 3 + i));
         }
-      } else if (pick < woods + 0.32 && !small(plan.tier)) {
+      } else if (pick < woods + 0.45 && !small(plan.tier)) {
         // A hayfield: bales in a loose row and a few sheep.
+        field(cx, cz);
         for (let i = 0; i < 5; i++) {
           const x = cx - 8 + i * 4 + noise(cx, cz, i, 308) * 1.6,
             z = cz + (noise(cx, cz, i, 309) - 0.5) * 12;
@@ -977,14 +1048,18 @@ function countryside(add: Add, plan: TownPlan, tree: Tree, free: (x: number, z: 
     }
 }
 
-/** The green belt: loose rows of trees and bushes along the ground's edge (`rows` deep), and a ragged rim. */
+/**
+ * The green belt: loose rows of trees and bushes along the ground's edge (`rows` deep), and a ragged rim. A long edge
+ * (a region's) is planted more loosely, so the belt of a region costs about what a town's does.
+ */
 function belt(add: Add, b: Bounds, tree: Tree, free: (x: number, z: number, pad: number) => boolean, rows: number) {
   let seed = 900;
+  const loose = clamp((b.maxX - b.minX + b.maxZ - b.minZ) / 300, 1, 2.6);
   const edge = (x0: number, z0: number, x1: number, z1: number) => {
     const length = Math.hypot(x1 - x0, z1 - z0);
     const nx = -(z1 - z0) / length,
       nz = (x1 - x0) / length;
-    const count = Math.floor((length / 2.4) * rows);
+    const count = Math.floor((length / (2.4 * loose)) * rows);
     for (let i = 0; i <= count; i++) {
       seed++;
       const t = i / count;
@@ -995,7 +1070,7 @@ function belt(add: Add, b: Bounds, tree: Tree, free: (x: number, z: number, pad:
       if (noise(seed, 5) < 0.2) add("town.bush", x, GRASS_Y, z, { seed, scale: 1 + noise(seed, 6) * 0.4 });
       else tree(x, z, GRASS_Y, seed, 1.5);
     }
-    const rim = Math.floor(length / 1.7);
+    const rim = Math.floor(length / (1.7 * loose));
     for (let i = 0; i <= rim; i++) {
       seed++;
       const t = (i + noise(seed, 7) * 0.6) / rim;

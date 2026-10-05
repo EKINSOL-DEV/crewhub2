@@ -121,7 +121,7 @@ function wearMaterial(kit: Kit): THREE.ShaderMaterial {
 }
 
 /** A soft patch of worn ground (grass trodden bare), `width` by `depth`, lying flat. One shared geometry, scaled. */
-export function wear(kit: Kit, o: ModelOptions): THREE.Mesh {
+export function wear(kit: Kit, o: ModelOptions): THREE.Group {
   const { width, depth } = size(o, { width: 1, height: 0, depth: 1 });
   const geometry = kit.geometry("town:wear", () => {
     const plane = new THREE.PlaneGeometry(2, 2).rotateX(-Math.PI / 2);
@@ -130,10 +130,43 @@ export function wear(kit: Kit, o: ModelOptions): THREE.Mesh {
     plane.setAttribute("aShape", new THREE.BufferAttribute(shape, 3));
     return plane;
   });
-  const mesh = new THREE.Mesh(geometry, wearMaterial(kit));
+  // In a group: renderers set the scale of what a model returns, which would undo the patch's own size.
+  const g = new THREE.Group();
+  const mesh = put(g, new THREE.Mesh(geometry, wearMaterial(kit)), 0, 0, 0);
   mesh.scale.set(width / 2, 1, depth / 2);
   mesh.renderOrder = 1;
-  return mesh;
+  return g;
+}
+
+const fieldMaterials = new WeakMap<Kit, THREE.ShaderMaterial>();
+function fieldMaterial(kit: Kit): THREE.ShaderMaterial {
+  let material = fieldMaterials.get(kit);
+  if (!material) {
+    material = decalMaterial(kit.hex("grass-meadow"), 0.85, false);
+    fieldMaterials.set(kit, material);
+  }
+  return material;
+}
+
+/**
+ * A field in the open country, `width` by `depth`, lying flat on the grass: a soft-edged patch in the meadow's colour
+ * (a hayfield, a meadow left to flower). One shared geometry, scaled, so every field in a region instances.
+ */
+export function field(kit: Kit, o: ModelOptions): THREE.Group {
+  const { width, depth } = size(o, { width: 20, height: 0, depth: 20 });
+  const geometry = kit.geometry("town:field", () => {
+    const plane = new THREE.PlaneGeometry(2, 2).rotateX(-Math.PI / 2);
+    const shape = new Float32Array(plane.attributes.position!.count * 3);
+    for (let i = 0; i < shape.length; i += 3) shape.set([0.86, 0.86, 0.14], i);
+    plane.setAttribute("aShape", new THREE.BufferAttribute(shape, 3));
+    return plane;
+  });
+  // In a group: renderers set the scale of what a model returns.
+  const g = new THREE.Group();
+  const mesh = put(g, new THREE.Mesh(geometry, fieldMaterial(kit)), 0, 0.003, 0);
+  mesh.scale.set(width / 2, 1, depth / 2);
+  mesh.renderOrder = 1;
+  return g;
 }
 
 const puddleMaterials = new WeakMap<Kit, THREE.ShaderMaterial>();
@@ -426,6 +459,7 @@ function bulbMaterial(kit: Kit): THREE.MeshStandardMaterial {
 export function townTheme(kit: Kit) {
   wearMaterial(kit).uniforms.uColor!.value.set(kit.hex("path-wear"));
   puddleMaterial(kit).uniforms.uColor!.value.set(kit.hex("water"));
+  fieldMaterial(kit).uniforms.uColor!.value.set(kit.hex("grass-meadow"));
 }
 
 /**
@@ -453,6 +487,8 @@ export function disposeTown(kit: Kit) {
   wearMaterials.delete(kit);
   puddleMaterials.get(kit)?.dispose();
   puddleMaterials.delete(kit);
+  fieldMaterials.get(kit)?.dispose();
+  fieldMaterials.delete(kit);
 }
 
 /** Small town pieces whose shadows nobody sees from the town camera; they skip the shadow pass. */
