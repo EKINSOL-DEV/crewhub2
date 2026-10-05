@@ -8,6 +8,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { GraphicsQuality } from "@crewhub/world-style";
 import { Button, Field } from "./components/primitives";
+import { readCast } from "./state/cast";
 import { useDark, useTheme } from "./state/theme";
 import { CastRoomScene, figureId, type CastRoomCamera } from "./world/castRoom";
 import { previewCasts } from "./world/castRoomCasts";
@@ -30,7 +31,11 @@ export default function CastPreview() {
   const casts = useMemo(() => previewCasts(style), [style]);
   const dark = useDark();
   const { setTheme } = useTheme();
-  const [castId, setCastId] = useState(() => casts.find((c) => c.id === params.get("cast"))?.id ?? casts[0]!.id);
+  const [castId, setCastId] = useState(() => {
+    // The address names the cast; else the room opens on the cast chosen in Settings.
+    const asked = params.get("cast") ?? readCast();
+    return casts.find((c) => c.id === asked)?.id ?? casts[0]!.id;
+  });
   const [side, setSide] = useState(params.get("side") === "1");
   const [state, setState] = useState<PreviewStateId>(() => oneOf(params.get("state"), PREVIEW_STATES.map((s) => s.id)) ?? "working");
   const [scene, setScene] = useState<PreviewScene>(() => oneOf(params.get("scene"), PREVIEW_SCENES.map((s) => s.id)) ?? "desks");
