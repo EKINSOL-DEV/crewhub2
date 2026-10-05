@@ -53,6 +53,8 @@ export interface TownView {
   quality: GraphicsQuality;
   /** The viewer's cast (Settings); null follows the town and the style. A building's own cast and its zone's win over it. */
   cast: string | null;
+  /** The viewer's style options (Settings); an absent one follows the town. A zone's and a building's own win over them. */
+  styleOptions?: Readonly<Record<string, string>>;
   /** Source time now (ms): drone flights run on it, so they follow the playback speed. */
   now: () => number;
   /** The Day and night setting: the light drifts with the source clock (`dayClock`). */
@@ -737,8 +739,8 @@ export class TownScene {
   }
 
   #lookContext(): LookContext {
-    const { model, town, cast } = this.view;
-    return { doc: town?.doc, zones: model.zones, buildings: model.buildings, viewer: { castId: cast } };
+    const { model, town, cast, styleOptions } = this.view;
+    return { doc: town?.doc, zones: model.zones, buildings: model.buildings, viewer: { castId: cast, styleOptions } };
   }
 
   /** The cast of the town itself (its postman and town hall): the viewer's choice, else the town document's, else the style's default. */
@@ -829,7 +831,7 @@ export class TownScene {
       this.#dress(view.model.buildings.length);
     }
     if (previous.cast !== view.cast) this.#shadowDirty = true;
-    if (previous.cast !== view.cast || previous.model !== view.model || previous.entered !== view.entered || previous.room !== view.room || previous.town !== view.town) this.sync();
+    if (previous.cast !== view.cast || previous.styleOptions !== view.styleOptions || previous.model !== view.model || previous.entered !== view.entered || previous.room !== view.room || previous.town !== view.town) this.sync();
     else if (previous.reducedMotion !== view.reducedMotion || previous.ambient !== view.ambient)
       this.walks.update(view.model, { entered: view.entered, reducedMotion: view.reducedMotion, ambient: view.ambient });
     if (previous.entered !== view.entered) {
