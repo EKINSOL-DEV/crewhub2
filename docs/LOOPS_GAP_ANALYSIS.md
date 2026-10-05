@@ -6,6 +6,9 @@ crewhub-loops against what crewhub-loops provides today, and lists what is still
 Update, 2026-10-05 (later): D1, D2, D3 and D5 of section 4 are fixed in the world; their rows say so. The
 verdict and the other sections describe the world as it was before those fixes.
 
+Update, 2026-10-06: section 5.8 and proposal L22 ("project groups") are new. The world now has zones, a level
+above projects, and keeps them itself until crewhub-loops offers one.
+
 Two readers: the owner (Nicky), who decides what to ask of crewhub-loops, and the crewhub-loops lead agent
 (`cl-lead`), who receives section 6 as work. Each section can be read on its own.
 
@@ -295,6 +298,57 @@ posts its choice as a comment, a person closes the ticket. What it needs:
 
 Nothing to ask of crewhub-loops now.
 
+### 5.8 Scale and zones: a level above projects
+
+The world now fits one project and twenty ([the spec addendum "Scale and zones"](superpowers/specs/2026-10-01-world-demo-mode-design.md)).
+From about ten projects it draws **districts**, and a district is a **zone**: a level above projects with a name,
+an order, an optional colour and emblem, and a look of its own (a season, a planting, a cast).
+
+**What crewhub-loops has today** (verified at `f55d1288`): no level above projects.
+
+- `projects` has no parent column, and no table groups projects. `ProjectOut` (`loops:.../contracts/projects.py`)
+  has no field for one.
+- What exists next to it is **order**, not grouping: the admin's order of active projects (`projects.sort`,
+  `PUT /api/projects/order`, the event `project.reordered` with `{slugs}`, `orderRevision` on the list) and each
+  person's own sidebar order and favourites (`user_project_prefs`, `GET` and `PUT /api/me/sidebar`, CL-16). The
+  favourites are one fixed section per person, not groups a team shares.
+- Labels belong to tickets. `herdrSession` on a project is a fallback route, not a grouping. Agents belong to
+  projects (`agent_projects`), not to anything above them.
+
+**What the world does without it.** Zones live in the world's own store: today the town document in each
+browser, later the world database. A building's zone resolves in one place
+(`packages/world-model/src/zones.ts`, `resolveZones`), in this order:
+
+1. a manual assignment in the town document (build mode);
+2. the project's group from the source (`groupOf` in `packages/loops-client/src/groups.ts`);
+3. the one default zone.
+
+Item 2 is already wired, in the shape of proposal L22 below: `ProjectOut.groupId`, a `ProjectGroup` type, a
+validator and `listProjectGroups()` on the source seam. Only the demo fills it, marked as a future field in
+code. A source for a real crewhub-loops lists no groups, so every project lands in the default zone until a
+person makes zones by hand.
+
+The cost of doing without: **two people see different districts.** One browser's zones are not another's, so
+"the client work is in the east district" means nothing to a colleague. The world database fixes that for
+people who use the world, but the crewhub-loops board still shows one flat list, and the two never agree on
+what belongs together.
+
+**What it gains with L22.** Everyone sees the same districts, because the grouping is a fact of the
+installation and arrives like every other fact. The board, the sidebar and the project pickers in crewhub-loops
+can group the same way, so a district in the world and a section in the sidebar are the same thing under the
+same name. For the world it is a mapping, not a redesign: the resolver's second step starts answering.
+
+**Naming.** The proposal says "group" and means nothing more by it. Whether crewhub-loops calls it an area, a
+workspace, a team or a category, and what else it hangs on it later (members, defaults, rights), is for
+crewhub-loops to decide. The world needs only the shape in L22.
+
+**The look stays the world's.** A zone's look (style id, style options, cast id) is presentation, like the
+style and cast per building in 5.3, and stays in the world's store: ADR 0005 puts presentation settings there.
+The group's `color` and `icon` are the exception, as on `ProjectOut`: the world draws them on the district's
+gate and on each building's sign. If crewhub-loops ever offers a place for a client's per-project settings
+(L21), the same place per group could hold a zone's look, so the look is shared without the world database.
+That is the only link between the two proposals; L22 does not need L21.
+
 ## 6. What is still missing: the list for `cl-lead`
 
 Ordered by priority. Ids continue the plan's L-series; L1 to L8 keep their ids. "Phase" is the world's phase
@@ -318,6 +372,7 @@ documents (or the tool that writes them) are wrong or silent.
 | L6 | A role attribute on agents that a client can read (or a documented naming convention). | Rooms by role rest on name rules (`<stem>-design-n`, `<stem>-analyst-n`). A worker named outside the convention lands in the workers room. | Write the naming convention for workers (`<stem>-dev-n`, `<stem>-design-n`, `<stem>-analyst-n`) into `team-and-projects.md` and pin it with a test, so the world's rule cannot drift from the leads' practice. A stored role field is the larger step and is not asked now. | Optional | Name rules plus a per-agent override in the world. |
 | L2 | Publish JSON Schemas for the envelope and the read models the world loads (`ProjectOut`, `BoardResponse`, `TeamSnapshot`, the agents answer, `Ticket`, `CommentOut`, `WatchdogResponse`), kept in step by a test. | The world's hand-written validators had three mistakes (D1 to D3) that no test could catch. A published schema would have caught all three. | Write `model_json_schema()` of those models to `loops:docs/integrators/schemas/` from `loops:services/api/tests/integrator_doc_tools.py`, with the same drift test as the schema blocks. This needs `response_model` on the routes that return a `dict` today (`GET /api/agents`). | Nice to have once L9 and L11 to L13 are done | Hand-written validators, checked against fixtures recorded from a real server (section 7). |
 | L21 | A per-project place for a client's presentation settings. | Only if the owner wants the building style to be set in crewhub-loops (5.3). | A `str` feature type with a pattern in `loops:.../domain/features.py` and two registry keys, or a separate small key-value route. | Only on the owner's decision; not recommended | The world database. |
+| L22 | **Project groups**: a level above projects. A group has `id`, `slug`, `name`, `order`, and optional `color` and `icon` (the same value sets as a project's). `ProjectOut` gains `groupId` (nullable). A list route, `GET /api/project-groups` answering `{groups, orderRevision}`, readable by every principal that may list projects (and by the viewer key of L1). Events: `project_group.created`, `project_group.updated` and `project_group.deleted` (`{changed, old, new}` like the project events), `project_group.reordered` (`{ids}`), and a project moving between groups as `project.updated` with `changed: ["groupId"]` and the old and new id. The name is neutral on purpose: crewhub-loops decides whether it is an area, a workspace, a team or a category. | With ten or more projects the world draws districts (5.8). Without a group in crewhub-loops, zones live in each browser's town document, so two people see different districts and the board cannot group the same way. With it, everyone sees the same districts and the board, the sidebar and the pickers can use the same grouping. | A table `project_groups` (id, slug, name, sort, color, icon, revision) and a nullable `projects.group_id` (deleting a group sets it to null); the field on `ProjectOut` in `loops:.../contracts/projects.py`; `groupId` among the editable fields of `PATCH /api/projects/{slug}` (`loops:.../api/routers/projects.py`), so the move emits the existing `project.updated`; admin routes to create, edit, delete and reorder a group, the reorder as compare-and-swap like `PUT /api/projects/order`; rows in `events.md` and blocks in `read-model.md`. A group holds no rights and no members in this proposal. | Nice to have; worth it from about ten projects | Zones in the world's own store (`resolveZones`), assigned by hand in build mode. The world already reads this shape (`packages/loops-client`, marked as future); only the demo fills it. |
 | L5 | Payload-free chat envelopes for a viewer key. | The scene shows no chat activity. Accepted by the owner. | `loops:.../api/stream.py`, `event_visibility_sql`. | Optional, not asked now | The chat dock shows chat; the scene does not. |
 
 ### 6.2 crewhub-loops only needs to document what it already does
@@ -358,7 +413,8 @@ Not crewhub-loops' work. In order.
    on one host name, because a cookie is scoped by host name and not by port. The host must never log or store
    request cookies, whatever the answer to question 1 is. Plan section 3.5 ("no loops credential ever reaches
    the browser") should say this.
-8. Update the plan (D12) and move L9 to L21 into its section 9 once the owner has chosen.
+8. Update the plan (D12) and move L9 to L21 into its section 9 once the owner has chosen. (L22 is already
+   there: it was written with the zones.)
 
 ## 8. Open questions for the owner
 
@@ -381,3 +437,8 @@ Not crewhub-loops' work. In order.
 8. **Which of section 6 goes to `cl-lead` now?** The proposal: L9, L11 and L13 at once (documentation; they remove the cause of
    three real bugs), L8 with L12 when phase 2 is scheduled, L1 and L10 before production, the
    rest when a phase asks for it.
+
+9. **Project groups (L22): ask crewhub-loops for them, and under which name?** The world works without them
+   (zones made by hand, per browser, later in the world database). Asking makes the districts the same for
+   everyone and lets the crewhub-loops board group the same way. The proposal's shape is small and holds no
+   rights; the name ("group") is a placeholder for whatever crewhub-loops wants the level to be.
