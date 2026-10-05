@@ -21,6 +21,8 @@
     { "id": "eye-r", "joint": "eyes", "shape": "sphere", "size": [0.042, 0.054, 0.02], "position": [0.105, 0, 0.287], "color": "eye", "detail": "near" },
     { "id": "shine-l", "joint": "eyes", "shape": "sphere", "size": [0.012, 0.014, 0.008], "position": [-0.093, 0.02, 0.304], "color": "eye-shine", "detail": "near" },
     { "id": "shine-r", "joint": "eyes", "shape": "sphere", "size": [0.012, 0.014, 0.008], "position": [0.117, 0.02, 0.304], "color": "eye-shine", "detail": "near" },
+    { "id": "lug-l", "joint": "pot", "shape": "sphere", "size": [0.055, 0.075, 0.07], "position": [-0.385, 0.5, 0], "rotation": [0, 0, 18], "color": "slot:rim", "detail": "near" },
+    { "id": "lug-r", "joint": "pot", "shape": "sphere", "size": [0.055, 0.075, 0.07], "position": [0.385, 0.5, 0], "rotation": [0, 0, -18], "color": "slot:rim", "detail": "near" },
     { "id": "blush-l", "joint": "pot", "shape": "sphere", "size": [0.04, 0.026, 0.012], "position": [-0.2, 0.295, 0.212], "rotation": [0, -44, 0], "color": "blush", "detail": "near" },
     { "id": "blush-r", "joint": "pot", "shape": "sphere", "size": [0.04, 0.026, 0.012], "position": [0.2, 0.295, 0.212], "rotation": [0, 44, 0], "color": "blush", "detail": "near" },
 
@@ -179,7 +181,7 @@
         "o-ball": { "color": "wilt-deep" }, "o-top": { "color": "wilt" }
       }
     },
-    "alert": { "parts": { "rim": { "color": "alert", "glow": 0.45 } } },
+    "alert": { "parts": { "rim": { "color": "alert", "glow": 0.45 }, "lug-l": { "color": "alert", "glow": 0.45 }, "lug-r": { "color": "alert", "glow": 0.45 } } },
     "hover": { "parts": { "pot": { "glow": 0.1 }, "rim": { "glow": 0.1 } } },
     "selected": { "parts": { "pot": { "glow": 0.18 }, "rim": { "glow": 0.18 } } }
   },

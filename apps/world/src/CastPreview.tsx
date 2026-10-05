@@ -4,14 +4,14 @@
    setting, reduced motion and a town-distance view (the far detail, through the robot crowd) are a click away.
 
    Every control is also a URL parameter, so a view can be shared and scripted: `?cast=<id>` or `?side=1`, `&state=`,
-   `&scene=`, `&light=day|dusk|lamplight`, `&quality=fast`, `&motion=reduced`, `&view=far`, `&labels=0`. */
+   `&scene=`, `&light=day|dusk|lamplight`, `&quality=fast`, `&motion=reduced`, `&view=far`, `&frame=room`, `&labels=0`. */
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { GraphicsQuality } from "@crewhub/world-style";
 import { Button, Field } from "./components/primitives";
 import { useDark, useTheme } from "./state/theme";
 import { CastRoomScene, figureId, type CastRoomCamera } from "./world/castRoom";
 import { previewCasts } from "./world/castRoomCasts";
-import { MEMBERS, PREVIEW_LIGHTS, PREVIEW_SCENES, PREVIEW_STATES, roomPlays, type PreviewLight, type PreviewScene, type PreviewStateId } from "./world/castRoomPlan";
+import { MEMBERS, PREVIEW_LIGHTS, PREVIEW_SCENES, PREVIEW_STATES, roomPlays, type PreviewFraming, type PreviewLight, type PreviewScene, type PreviewStateId } from "./world/castRoomPlan";
 import { DEFAULT_STYLE_ID, styleRegistry } from "./world/style";
 
 const params = new URLSearchParams(typeof location !== "undefined" ? location.search : "");
@@ -40,12 +40,13 @@ export default function CastPreview() {
   const [quality, setQuality] = useState<GraphicsQuality>(params.get("quality") === "fast" ? "fast" : "pretty");
   const [reducedMotion, setReducedMotion] = useState(() => params.get("motion") === "reduced" || (params.get("motion") === null && window.matchMedia("(prefers-reduced-motion: reduce)").matches));
   const [far, setFar] = useState(params.get("view") === "far");
+  const [framing, setFraming] = useState<PreviewFraming>(params.get("frame") === "room" ? "room" : "figures");
   const [labels, setLabels] = useState(params.get("labels") !== "0");
   const [selected, setSelected] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
 
   const shown = useMemo(() => (side ? casts : casts.filter((c) => c.id === castId)), [casts, castId, side]);
-  const view = useMemo(() => ({ casts: shown, state, scene, light, quality, reducedMotion, far }), [shown, state, scene, light, quality, reducedMotion, far]);
+  const view = useMemo(() => ({ casts: shown, state, scene, light, quality, reducedMotion, far, framing }), [shown, state, scene, light, quality, reducedMotion, far, framing]);
   const host = useRef<HTMLDivElement>(null);
   const labelHost = useRef<HTMLDivElement>(null);
   const room = useRef<CastRoomScene | null>(null);
@@ -82,9 +83,10 @@ export default function CastPreview() {
     if (quality === "fast") next.set("quality", "fast");
     if (reducedMotion) next.set("motion", "reduced");
     if (far) next.set("view", "far");
+    if (framing === "room") next.set("frame", "room");
     if (!labels) next.set("labels", "0");
     history.replaceState(null, "", `${location.pathname}?${next}`);
-  }, [castId, side, state, scene, lightChoice, quality, reducedMotion, far, labels]);
+  }, [castId, side, state, scene, lightChoice, quality, reducedMotion, far, framing, labels]);
 
   const cast = casts.find((c) => c.id === castId)!;
   const stateLabel = PREVIEW_STATES.find((s) => s.id === state)!.label;
@@ -139,6 +141,11 @@ export default function CastPreview() {
               </option>
             ))}
           </Field>
+          <Field control="select" size="sm" label="Camera" value={far ? "far" : framing} onChange={(e) => (setFar(e.currentTarget.value === "far"), e.currentTarget.value !== "far" && setFraming(e.currentTarget.value as PreviewFraming))}>
+            <option value="figures">The figures, close</option>
+            <option value="room">The whole room</option>
+            <option value="far">Town distance (far detail)</option>
+          </Field>
           <Field control="select" size="sm" label="Graphics" value={quality} onChange={(e) => setQuality(e.currentTarget.value as GraphicsQuality)}>
             <option value="pretty">Pretty</option>
             <option value="fast">Fast</option>
@@ -146,7 +153,6 @@ export default function CastPreview() {
         </div>
         <div className="cast-toggles">
           <Field control="checkbox" label="Side by side (every cast)" checked={side} onChange={(e) => setSide(e.currentTarget.checked)} />
-          <Field control="checkbox" label="Town distance" checked={far} onChange={(e) => setFar(e.currentTarget.checked)} />
           <Field control="checkbox" label="Reduced motion" checked={reducedMotion} onChange={(e) => setReducedMotion(e.currentTarget.checked)} />
           <Field control="checkbox" label="Role labels" checked={labels} onChange={(e) => setLabels(e.currentTarget.checked)} />
           <Button size="sm" onClick={() => room.current?.sendDrone()}>
@@ -173,7 +179,7 @@ export default function CastPreview() {
       {failed ? (
         <p role="status">This browser cannot draw 3D graphics, so only the description below is available.</p>
       ) : (
-        <div ref={host} className="canvas-host cast-stage" data-far={far || undefined}>
+        <div ref={host} className="canvas-host cast-stage" data-side={side || undefined}>
           <div ref={labelHost} className="cast-labels">
             {pills &&
               MEMBERS.map((m) => {
@@ -182,7 +188,7 @@ export default function CastPreview() {
                   <button
                     key={id}
                     type="button"
-                    className="chip cast-pill"
+                    className="name-pill cast-pill"
                     data-figure={id}
                     aria-pressed={selected === id}
                     onClick={() => setSelected(selected === id ? null : id)}
@@ -195,7 +201,7 @@ export default function CastPreview() {
               })}
             {(side || far) &&
               plays.map((play, i) => (
-                <span key={i} className="chip cast-room-title" data-room={i}>
+                <span key={i} className="name-pill cast-room-title" data-room={i}>
                   {[side ? shown[play.cast]!.name : null, play.note].filter(Boolean).join(" · ")}
                 </span>
               ))}
