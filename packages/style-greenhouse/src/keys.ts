@@ -74,6 +74,7 @@ export const CODE_KEYS: readonly ModelKey[] = [
   "town.crossing",
   "town.string-lights",
   "town.wear",
+  "town.field",
   "town.staked-plot",
   "town.plot-sign",
   "town.scaffolding",

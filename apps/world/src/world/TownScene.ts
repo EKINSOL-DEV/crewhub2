@@ -20,6 +20,7 @@ import { styleRegistry } from "./style";
 import type { StyledPlot } from "./styleRegistry";
 import type { Ambient } from "./movement";
 import { CIVIC_LOT, civicCenter, homeRects, PLOT_SIZE, plotCenter, TOWN_CAPACITY, townBounds, type Bounds } from "./townLayout";
+import { Construction } from "./construction";
 import { GRASS_Y, landmarks as townLandmarks, LAWN_Y, slugSeed, townDressing } from "./townDressing";
 import { InstanceCuller, instanceStatic } from "./instanceStatic";
 import { mergeStatic } from "./mergeStatic";
@@ -292,6 +293,9 @@ export class TownScene {
   #dirtyFrames = 2;
   /** True until the first layout of the town is complete; nothing draws before. */
   #layingOut = true;
+  /** Buildings going up (construction.ts), and the slugs the town has shown: a new one gets scaffolding first. */
+  readonly #constructions = new Map<string, Construction>();
+  readonly #known = new Set<string>();
   #layoutTimer: ReturnType<typeof setTimeout> | 0 = 0;
   #down = { x: 0, y: 0 };
   #hovered: number | null = null;
@@ -641,6 +645,15 @@ export class TownScene {
         created++;
         this.#buildings.set(b.slug, view);
         this.scene.add(view.group);
+        // A project that joins a standing town goes up in scaffolding; the first layout and a re-dress do not.
+        this.#constructions.get(b.slug)?.finish();
+        this.#constructions.delete(b.slug);
+        if (!this.#layingOut && !this.#known.has(b.slug) && this.view.entered !== b.slug) {
+          const going = new Construction(this.townStyle, view.group, view.bounds(null), LAWN_Y, this.view.theme, this.view.reducedMotion);
+          this.#constructions.set(b.slug, going);
+          this.scene.add(going.group);
+        }
+        this.#known.add(b.slug);
       }
       // A cast chosen in Settings (or by the town document) swaps the figures where they stand and walk.
       view.setCast(cast);
@@ -660,6 +673,9 @@ export class TownScene {
     }
     for (const [slug, view] of this.#buildings)
       if (!seen.has(slug)) {
+        this.#constructions.get(slug)?.finish();
+        this.#constructions.delete(slug);
+        this.#known.delete(slug);
         view.dispose();
         this.#buildings.delete(slug);
         this.#contacts.get(slug)?.object.removeFromParent();
@@ -1197,6 +1213,12 @@ export class TownScene {
     this.#life.tick(playing ? dt : 0);
     if (playing && this.#life.active) moving = true;
     this.#see();
+    for (const [slug, going] of this.#constructions) {
+      // An entered building is shown whole at once.
+      if (this.view.entered === slug ? going.finish() : going.tick(dt)) moving = true;
+      else this.#constructions.delete(slug);
+      this.#shadowSoft = true;
+    }
     for (const [slug, view] of this.#buildings.entries()) {
       view.tick(dt, this.#seen.has(slug));
       if (view.animating) moving = true;
@@ -1498,6 +1520,8 @@ export class TownScene {
     this.#cancelPrepare?.();
     this.#stopIntents();
     cancelAnimationFrame(this.#raf);
+    for (const going of this.#constructions.values()) going.finish();
+    this.#constructions.clear();
     this.#resize.disconnect();
     document.removeEventListener("visibilitychange", this.visibility);
     this.controls.removeEventListener("start", this.cancelTween);

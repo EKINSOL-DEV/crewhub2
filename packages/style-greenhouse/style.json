@@ -266,7 +266,8 @@
     "town.zone-mark",
     "town.lodge",
     "town.mail-hut",
-    "town.post-box"
+    "town.post-box",
+    "town.field"
   ],
   "palette": {
     "timber": "#bf9873",

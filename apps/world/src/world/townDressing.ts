@@ -12,7 +12,7 @@
      fountain at the head of the main street, the café and the bus stop. West of it a park with a pond and a little
      bridge, east of it an orchard.
    - A green belt of trees rings the town. */
-import { civicCenter, CIVIC_LOT, CIVIC_SIZE, PITCH, PLOT_SIZE, plotCenter, STREET, TOWN_CAPACITY, TOWN_COLUMNS, TOWN_ROWS, townBounds, type Bounds } from "./townLayout.ts";
+import { civicCenter, CIVIC_LOT, CIVIC_SIZE, PITCH, PLOT_SIZE, plotCenter, STREET, TOWN_CAPACITY, TOWN_COLUMNS, TOWN_ROWS, townBounds, type Bounds, type PlotSpot } from "./townLayout.ts";
 
 /** Width of the cobbled lanes down the streets; grass verges are left either side. */
 export const LANE = 3.2;
@@ -38,6 +38,12 @@ export interface Dressing {
   size?: { width: number; height: number; depth: number };
   /** Small detail the Fast quality leaves out (grass tufts, wild flowers). */
   detail?: boolean;
+  /** Words painted on the piece (the staked plot's sign, a district gate's name). */
+  text?: string;
+  /** A palette name for the piece's accent (a district's colour on its gate). */
+  accent?: string;
+  /** The zone whose district the piece stands in (settlementDressing.ts), for the district's own look. */
+  district?: string;
 }
 
 /**
@@ -64,7 +70,13 @@ export interface DressedPlot {
   seed?: number;
   /** An archived building's garden is overgrown. */
   archived?: boolean;
+  /** The plot's centre when it stands on a settlement lot (settlementDressing.ts); the grid's plot `index` otherwise. */
+  centre?: PlotSpot;
+  /** z of the middle of the lane the garden path runs down to, with `centre`. */
+  lane?: number;
 }
+const centreOf = (plot: DressedPlot): PlotSpot => plot.centre ?? plotCenter(plot.index);
+const laneOf = (plot: DressedPlot): number => plot.lane ?? laneSouthOf(centreOf(plot).z);
 
 /** A front garden: a lawn with a tree, a terrace with tables, a vegetable patch or a bike shelter. */
 export type GardenKind = "lawn" | "terrace" | "vegetables" | "bikes";
@@ -355,11 +367,7 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
     const wild = !plot && (use === "meadow" || use === "orchard" || use === "picnic");
     add("plot", c.x, 0, c.z, { size: { width: PLOT_SIZE, height: 0.16, depth: PLOT_SIZE }, ...(wild || plot?.archived ? { variant: "meadow" } : {}) });
     if (plot) garden(add, plot, tree);
-    else if (use === "orchard") plotOrchard(add, i);
-    else if (use === "allotment") allotment(add, i);
-    else if (use === "playground") playground(add, i, tree);
-    else if (use === "picnic") picnic(add, i, tree);
-    else meadow(add, i, tree);
+    else pocket(add, use, c, i, tree);
   }
 
   /* The civic row: lots, the park, the orchard. */
@@ -489,18 +497,18 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
 const AUTUMN = /^town\.(oak|birch|bush)$/;
 
 /** Grass tufts and wild flowers are detail the Fast quality leaves out. */
-const detail = (key: string): Partial<Dressing> => (key === "town.grass" || key === "town.wildflowers" ? { detail: true } : {});
+export const detail = (key: string): Partial<Dressing> => (key === "town.grass" || key === "town.wildflowers" ? { detail: true } : {});
 
 /** A soft patch of worn ground, `width` by `depth`, turned by `rotation`. */
-function wear(add: Add, x: number, y: number, z: number, width: number, depth: number, rotation = 0) {
+export function wear(add: Add, x: number, y: number, z: number, width: number, depth: number, rotation = 0) {
   add("town.wear", x, y + 0.004, z, { size: { width, height: 0, depth }, rotation });
 }
 
-type Add = (key: string, x: number, y: number, z: number, extra?: Partial<Dressing>) => void;
-type Tree = (x: number, z: number, y: number, seed: number, scale?: number) => void;
+export type Add = (key: string, x: number, y: number, z: number, extra?: Partial<Dressing>) => void;
+export type Tree = (x: number, z: number, y: number, seed: number, scale?: number) => void;
 
 /** Paving over a rectangle, standing on the ground at `y`. */
-function paving(add: Add, r: Bounds, variant: "cobble" | "flag", y: number) {
+export function paving(add: Add, r: Bounds, variant: "cobble" | "flag", y: number) {
   add("town.paving", (r.minX + r.maxX) / 2, y, (r.minZ + r.maxZ) / 2, {
     variant,
     size: { width: r.maxX - r.minX, height: 0.04, depth: r.maxZ - r.minZ },
@@ -508,15 +516,15 @@ function paving(add: Add, r: Bounds, variant: "cobble" | "flag", y: number) {
 }
 
 /** A used plot: hedges on the rim, the garden path with beds and gate lanterns, trees in the free corners. */
-function garden(add: Add, plot: DressedPlot, tree: Tree) {
-  const c = plotCenter(plot.index);
+export function garden(add: Add, plot: DressedPlot, tree: Tree) {
+  const c = centreOf(plot);
   const half = PLOT_SIZE / 2;
-  const path = gardenPath(plot.door);
+  const path = { ...gardenPath(plot.door), maxZ: laneOf(plot) };
   const keepOut = [...plot.obstacles, path];
   const clear = (r: Bounds, pad = 0.3) => !keepOut.some((o) => overlaps(o, r, pad));
   // The flagstone path across the lawn and the verge.
   paving(add, span(path.minX, path.maxX, path.minZ, c.z + half), "flag", LAWN_Y);
-  paving(add, span(path.minX, path.maxX, c.z + half, laneSouthOf(c.z) - LANE / 2), "flag", GRASS_Y + 0.002);
+  paving(add, span(path.minX, path.maxX, c.z + half, laneOf(plot) - LANE / 2), "flag", GRASS_Y + 0.002);
   // Hedges along the rim in short runs, so a run that would cross the path or the truck is simply left out.
   const RUN = 3.4,
     INSET = 0.45;
@@ -552,7 +560,7 @@ function garden(add: Add, plot: DressedPlot, tree: Tree) {
   }
   add("town.gate", plot.door.x, LAWN_Y, southZ, { seed: plot.index });
   // Grass worn bare either side of where the garden path meets the lane.
-  const laneEdge = laneSouthOf(c.z) - LANE / 2;
+  const laneEdge = laneOf(plot) - LANE / 2;
   for (const side of [-1, 1]) wear(add, plot.door.x + side * (GARDEN_PATH / 2 + 0.3), GRASS_Y, laneEdge - 0.35, 0.9, 0.7);
   // Flower beds either side of the garden path, then the mailbox and two lanterns at the gate.
   const gateZ = c.z + half - 1.5;
@@ -597,7 +605,7 @@ function garden(add: Add, plot: DressedPlot, tree: Tree) {
  * building's yard has gone wild instead: long grass, wild flowers and a heap of fallen leaves, still pretty.
  */
 function frontGarden(add: Add, plot: DressedPlot, tree: Tree, clear: (r: Bounds, pad?: number) => boolean) {
-  const c = plotCenter(plot.index);
+  const c = centreOf(plot);
   const half = PLOT_SIZE / 2;
   const building = plot.obstacles[0];
   const x0 = plot.door.x + GARDEN_PATH / 2 + 3.4,
@@ -660,9 +668,17 @@ export function plotUse(index: number): PlotUse {
   return PLOT_USES[index % PLOT_USES.length]!;
 }
 
+/** An unbuilt plot or a neighbourhood green dressed by its use, centred on `c`; `seed` varies it. */
+export function pocket(add: Add, use: PlotUse, c: PlotSpot, seed: number, tree: Tree) {
+  if (use === "orchard") plotOrchard(add, c, seed);
+  else if (use === "allotment") allotment(add, c, seed);
+  else if (use === "playground") playground(add, c, seed, tree);
+  else if (use === "picnic") picnic(add, c, seed, tree);
+  else meadow(add, c, seed, tree);
+}
+
 /** Wild flowers and grass scattered over a plot, clear of `spots`. */
-function scatter(add: Add, index: number, count: number, spots: readonly { x: number; z: number; r: number }[]) {
-  const c = plotCenter(index);
+function scatter(add: Add, c: PlotSpot, index: number, count: number, spots: readonly { x: number; z: number; r: number }[]) {
   const half = PLOT_SIZE / 2 - 1;
   for (let i = 0; i < count; i++) {
     const x = c.x + (noise(index, i, 15) * 2 - 1) * half,
@@ -674,8 +690,7 @@ function scatter(add: Add, index: number, count: number, spots: readonly { x: nu
 }
 
 /** An orchard plot: fruit trees in staggered rows, a bench in their shade. */
-function plotOrchard(add: Add, index: number) {
-  const c = plotCenter(index);
+function plotOrchard(add: Add, c: PlotSpot, index: number) {
   const spots: { x: number; z: number; r: number }[] = [];
   for (let r = 0; r < 4; r++)
     for (let k = 0; k < 4; k++) {
@@ -687,12 +702,11 @@ function plotOrchard(add: Add, index: number) {
     }
   add("town.bench", c.x + 3, LAWN_Y, c.z + 8.6, { rotation: 0.1 });
   spots.push({ x: c.x + 3, z: c.z + 8.6, r: 1.5 });
-  scatter(add, index, 22, spots);
+  scatter(add, c, index, 22, spots);
 }
 
 /** An allotment garden: raised vegetable beds either side of a flagstone path, a shed, a water butt of bushes. */
-function allotment(add: Add, index: number) {
-  const c = plotCenter(index);
+function allotment(add: Add, c: PlotSpot, index: number) {
   paving(add, span(c.x - 0.8, c.x + 0.8, c.z - 9.5, c.z + PLOT_SIZE / 2), "flag", LAWN_Y);
   for (let r = 0; r < 6; r++)
     for (const side of [-1, 1]) {
@@ -712,8 +726,7 @@ function allotment(add: Add, index: number) {
 }
 
 /** A playground: a swing, a slide and a sandpit on the lawn, benches for the grown-ups, shade trees. */
-function playground(add: Add, index: number, tree: Tree) {
-  const c = plotCenter(index);
+function playground(add: Add, c: PlotSpot, index: number, tree: Tree) {
   add("town.swing", c.x - 4, LAWN_Y, c.z - 3, { rotation: 0.3, scale: 1.4 });
   add("town.slide", c.x + 4, LAWN_Y, c.z - 4, { rotation: -0.5, scale: 1.4 });
   add("town.sandpit", c.x + 1, LAWN_Y, c.z + 3, { scale: 1.4 });
@@ -727,14 +740,14 @@ function playground(add: Add, index: number, tree: Tree) {
     [9, 9],
   ];
   trees.forEach(([x, z], i) => tree(c.x + x, c.z + z, LAWN_Y, index * 19 + i, 1.4));
-  border(add, index, 6.5);
+  border(add, c, index, 6.5);
   for (const [x, z] of [
     [-6.8, -6.6],
     [6.6, -6.4],
     [7.4, 7.6],
   ] as const)
     add("town.bush", c.x + x, LAWN_Y, c.z + z, { seed: index + x, scale: 1.3 });
-  scatter(add, index, 10, [
+  scatter(add, c, index, 10, [
     { x: c.x - 4, z: c.z - 3, r: 2.6 },
     { x: c.x + 4, z: c.z - 4, r: 2 },
     { x: c.x + 1, z: c.z + 3, r: 1.8 },
@@ -743,7 +756,7 @@ function playground(add: Add, index: number, tree: Tree) {
 }
 
 /** A tight drift of wild flowers and long grass round (x, z): a patch that reads from afar, not a sprinkle of dots. */
-function drift(add: Add, x: number, z: number, rx: number, rz: number, count: number, seed: number) {
+export function drift(add: Add, x: number, z: number, rx: number, rz: number, count: number, seed: number) {
   for (let i = 0; i < count; i++) {
     // Sunflower spiral: even cover of the ellipse, denser at the heart.
     const r = Math.sqrt((i + 0.5) / count),
@@ -754,15 +767,14 @@ function drift(add: Add, x: number, z: number, rx: number, rz: number, count: nu
 }
 
 /** A tended border of flower beds along the plot's lane side, with a gap where people walk in. */
-function border(add: Add, index: number, length: number) {
-  const c = plotCenter(index);
+function border(add: Add, c: PlotSpot, index: number, length: number) {
   const z = c.z + PLOT_SIZE / 2 - 1.3;
   for (const side of [-1, 1])
     add("town.flower-bed", c.x + side * (1.6 + length / 2), LAWN_Y, z, { size: { width: length, height: 0.2, depth: 0.85 }, seed: index * 3 + side });
 }
 
 /** A copse: trees close together round (x, z) with bushes at their feet; returns the trees' spots. */
-function copse(add: Add, tree: Tree, x: number, z: number, count: number, seed: number, scale: number) {
+export function copse(add: Add, tree: Tree, x: number, z: number, count: number, seed: number, scale: number) {
   const spots: { x: number; z: number; r: number }[] = [];
   for (let i = 0; i < count; i++) {
     const a = (i / count) * Math.PI * 2 + noise(seed, i) * 0.8,
@@ -780,8 +792,7 @@ function copse(add: Add, tree: Tree, x: number, z: number, count: number, seed: 
 }
 
 /** A picnic lawn: blankets in the shade of a tree group, a bench beside them, a flower border along the lane. */
-function picnic(add: Add, index: number, tree: Tree) {
-  const c = plotCenter(index);
+function picnic(add: Add, c: PlotSpot, index: number, tree: Tree) {
   const flip = index % 2 ? -1 : 1;
   const grove = { x: c.x - 4.5 * flip, z: c.z - 5 };
   const spots = copse(add, tree, grove.x, grove.z, 3, index * 23, 1.6);
@@ -796,14 +807,13 @@ function picnic(add: Add, index: number, tree: Tree) {
   }
   add("town.bench", grove.x + 8.6 * flip, LAWN_Y, grove.z + 2.4, { rotation: -0.5 * flip });
   spots.push({ x: grove.x + 8.6 * flip, z: grove.z + 2.4, r: 1.5 });
-  border(add, index, 7.5);
+  border(add, c, index, 7.5);
   drift(add, c.x + 6.5 * flip, c.z - 6.5, 2.4, 1.8, 12, index * 31);
-  scatter(add, index, 8, [...spots, { x: c.x + 6.5 * flip, z: c.z - 6.5, r: 3 }, { x: c.x, z: c.z + PLOT_SIZE / 2 - 1.3, r: 0 }]);
+  scatter(add, c, index, 8, [...spots, { x: c.x + 6.5 * flip, z: c.z - 6.5, r: 3 }, { x: c.x, z: c.z + PLOT_SIZE / 2 - 1.3, r: 0 }]);
 }
 
 /** An empty plot: a meadow with a copse of trees and a bench facing it, and a drift of wild flowers. */
-function meadow(add: Add, index: number, tree: Tree) {
-  const c = plotCenter(index);
+function meadow(add: Add, c: PlotSpot, index: number, tree: Tree) {
   const sx = noise(index, 1) < 0.5 ? -1 : 1,
     sz = noise(index, 2) < 0.5 ? -1 : 1;
   const grove = { x: c.x + sx * 5, z: c.z + sz * 4.5 };
@@ -814,7 +824,7 @@ function meadow(add: Add, index: number, tree: Tree) {
   const field = { x: c.x - sx * 5, z: c.z - sz * 5 };
   drift(add, field.x, field.z, 3.6, 2.8, 26, index * 29);
   spots.push({ ...field, r: 4 });
-  scatter(add, index, 8, spots);
+  scatter(add, c, index, 8, spots);
 }
 
 /** The stream: overlapping stretches along its course, square-cut at the diorama's edges where it spills over in a
@@ -955,7 +965,7 @@ function orchard(add: Add) {
 }
 
 /** A low fence from x0 to x1 at z, in sections the style stretches. */
-function fence(add: Add, x0: number, z: number, x1: number) {
+export function fence(add: Add, x0: number, z: number, x1: number) {
   const sections = Math.max(1, Math.round((x1 - x0) / 3));
   const length = (x1 - x0) / sections;
   for (let i = 0; i < sections; i++) add("town.fence", x0 + (i + 0.5) * length, GRASS_Y, z, { size: { width: length, height: 0.5, depth: 0.1 } });
