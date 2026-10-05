@@ -69,6 +69,14 @@ export interface MoveFact {
   from: TicketStatus;
   to: TicketStatus;
   reason: string | null;
+  /**
+   * What this move did to how the ticket closed (CL-89): `rejected` when a person closed it as won't do with
+   * this move (`from` may equal `to`: a Done ticket rejected afterwards), `cleared` when the move took a
+   * rejection away (a reopen, or a plain Done after all), null for every other move.
+   */
+  resolution: "rejected" | "cleared" | null;
+  /** The person's reason for a rejection. */
+  resolutionReason: string | null;
 }
 
 /** A `ticket.archived` (the truck) or `ticket.unarchived` (back from the truck), for the ticket drone. */

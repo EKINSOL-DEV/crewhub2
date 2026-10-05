@@ -1,7 +1,10 @@
 /**
  * crewhub-loops wire types, transcribed from `docs/integrators/read-model.md` "Schemas" and
- * `docs/integrators/events.md` (loops commit a1bed0f). `?` keys are optional properties; `| null`
- * stays. Only the models CrewHub World reads are here. Bodies the world never reads are `unknown`.
+ * `docs/integrators/events.md` (loops commit a1bed0f), and checked against the loops code at
+ * f55d1288 where the documents and the code differ (docs/LOOPS_GAP_ANALYSIS.md, D1 to D3 and D5):
+ * the agents answer, `RichBody.v`, `labelsCleared` and a ticket's `resolution`. `?` keys are optional
+ * properties; `| null` stays. Only the models CrewHub World reads are here. Bodies the world never
+ * reads are `unknown`.
  */
 
 export const TICKET_STATUSES = ["backlog", "planned", "in_progress", "review", "done"] as const;
@@ -197,6 +200,13 @@ export interface TicketCard {
   title: string;
   kind: TicketKind;
   status: TicketStatus;
+  /**
+   * How a Done ticket closed (CL-89, `contracts/tickets.py`): null or absent is done as planned,
+   * `rejected` is a person's "won't do". Typed as the wire's `string`: new values can appear.
+   */
+  resolution?: string | null;
+  /** Why; set exactly when `resolution` is. */
+  resolutionReason?: string | null;
   priority: TicketPriority;
   position: number;
   version: number;
@@ -245,7 +255,11 @@ export interface RelationRef {
 }
 
 export interface RichBody {
-  v?: "1";
+  /**
+   * The number 1 on the wire (`contracts/richtext.py`, `v: Literal[1]`). read-model.md prints it as
+   * `"1"` because its doc tool quotes every literal; the validator accepts that string too.
+   */
+  v?: 1 | "1";
   profile?: "ticket";
   doc: Record<string, unknown>;
 }
@@ -269,6 +283,13 @@ export interface TicketResponse {
   ticket: Ticket;
 }
 
+/** The body of a system comment (`contracts/richtext.py`): no `doc`, the code and the lead it concerns. */
+export interface SystemCommentBody {
+  v?: 1 | "1";
+  /** `code` is one of `SYSTEM_COMMENT_CODES` today; typed as the wire's `string`. */
+  system: { code: string; lead: string; detail?: string | null };
+}
+
 export interface CommentOut {
   id: string;
   ticketId: string;
@@ -278,7 +299,8 @@ export interface CommentOut {
   kind: CommentKind;
   systemCode?: SystemCommentCode | null;
   deliveryId?: string | null;
-  body?: unknown;
+  /** Null for a deleted comment; a system comment carries a `SystemCommentBody`. */
+  body?: RichBody | SystemCommentBody | null;
   bodyMarkdown?: string | null;
   attachments?: unknown[];
   createdAt: string;
@@ -389,9 +411,10 @@ export interface TeamSession {
 
 export interface TeamSnapshot {
   /**
-   * read-model.md says `v?: "1"`; team-and-projects.md shows `"v":1`. Both are accepted.
+   * The number 1 on the wire (`contracts/team.py`, `v: Literal[1]`). read-model.md prints `v?: "1"`
+   * (its doc tool quotes every literal); the string is accepted too.
    */
-  v?: "1" | 1;
+  v?: 1 | "1";
   /** The probe's clock; `""` until the first upload. */
   ts: string;
   sessions: TeamSession[];
@@ -478,9 +501,16 @@ export interface WatchdogResponse {
 
 // Agents and principals (read-model.md endpoint table; no schema block)
 
+/** The projects an agent leads and the ones it is a member of (`contracts/agents.py`, `AgentProjects`). */
+export interface AgentProjects {
+  lead: ProjectRef[];
+  member: ProjectRef[];
+}
+
 /**
- * An item of `GET /api/agents`. The last six keys only exist with the global flag `agents_admin` on.
- * `projects` as a list of project slugs is an assumption: the docs name the key but not its shape.
+ * An item of `GET /api/agents` (`contracts/agents.py`, `AgentDetailOut`). read-model.md names the
+ * keys but has no schema block; the shapes are read from the loops code. `lane` and `rights` are
+ * not read by the world.
  */
 export interface AgentOut {
   id: string;
@@ -490,9 +520,13 @@ export interface AgentOut {
   disabled: boolean;
   lastSeenAt: string | null;
   keys: unknown[] | null;
-  isCrewhubLead?: boolean;
+  isCrewhubLead: boolean;
+  isCoordinator?: boolean;
+  isOperator?: boolean;
+  isLauncher?: boolean;
+  isBuilderReader?: boolean;
   successorId?: string | null;
-  projects?: string[];
+  projects: AgentProjects;
   lane?: unknown;
   rights?: unknown;
   revision?: number;
@@ -614,7 +648,16 @@ export interface TicketMovedPayload {
   position: number;
   renumbered?: unknown;
   waitingOnCleared?: boolean;
-  labelsCleared?: boolean;
+  /**
+   * Only when this move sets it (`domain/board.py`, the `ticket.moved` emit): a person closed the
+   * ticket as rejected. A rejection of a ticket that is already Done has `from == to == "done"`.
+   */
+  resolution?: string | null;
+  resolutionReason?: string | null;
+  /** The ticket had a resolution and this move took it away (a reopen, or a plain Done after all). */
+  resolutionCleared?: boolean;
+  /** The names of the labels this move removed, `["awaiting-deploy"]` today (`domain/board.py`). */
+  labelsCleared?: string[];
   reason?: string;
   code?: string;
   milestoneId?: string;

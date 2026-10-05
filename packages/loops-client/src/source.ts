@@ -46,7 +46,7 @@ export interface LoopsSnapshot {
   boards: Record<string, BoardResponse>;
   /** GET /api/team. */
   team: TeamSnapshot;
-  /** GET /api/agents (with the agents_admin shape: isCrewhubLead, projects). */
+  /** GET /api/agents: every registered agent with `isCrewhubLead` and the projects it leads or is a member of. */
   agents: AgentOut[];
   /** GET /api/principals. */
   principals: PrincipalOut[];

@@ -1,7 +1,8 @@
 # Demo content and storyline
 
 Everything here is fiction, played by `@crewhub/demo` in the browser. It has exactly
-the shapes crewhub-loops serves (`docs/integrators/` at loops commit `a1bed0f`), so
+the shapes crewhub-loops serves (`docs/integrators/` at loops commit `a1bed0f`, with the agents answer, body
+versions, `labelsCleared` and a ticket's `resolution` as the loops code has them at `f55d1288`), so
 the world cannot tell it from a live host. Every surface that shows it labels it
 as demo. The data lives in `src/content.ts`; the storyline lives in
 `src/script.ts`.
@@ -16,8 +17,8 @@ as demo. The data lives in `src/content.ts`; the storyline lives in
 | `cr-lead` | agent | lead | Leads CR. |
 | `cl-lead` | agent | lead | Leads CL **and** OPS: one real avatar, one proxy. |
 | `marky` | agent | lead | Leads MK. It has no `-lead` name, so no worker maps to it. |
-| `analyst` | agent | lead | Holds in-progress tickets in CL (CL-40) and MK (MK-12): it works in two buildings. |
-| `ux-lead` | agent | lead | Works in MK through MK-9; a delivery to it ends `unroutable`. |
+| `analyst` | agent | lead | A member of CL and MK (`projects.member`); holds in-progress tickets in CL (CL-40) and MK (MK-12): it works in two buildings. |
+| `ux-lead` | agent | lead | A member of MK; works there through MK-9; a delivery to it ends `unroutable`. |
 | `postman` | agent | router | Claims and forwards every delivery. |
 | `team-probe` | agent | probe | Uploads the team snapshot. Never shown. |
 
@@ -107,7 +108,7 @@ every 30 s.
 | 3:04–3:52 | `cl-lead` comments on the unassigned CL-83, which auto-assigns it. `cl-dev-3` appears as `unknown`, then starts working. Nicky closes the nook (**prop materialises**) and CR-18. Nicky DMs `g-man` (a `dm` delivery). |
 | 4:00–4:54 | Nicky plans the fern. `g-man` answers (`dm.created` and `dm.answered`). `cr-dev-2` is `done` (herdr's word, not the ticket's). CL-81 goes to review with a `done` line. |
 | 5:00–5:56 | **OPS is restored** and its building opens. Nicky comments on CL-80, a review ticket that waits on Nicky: a **review reply** sends it back to in progress. `cl-lead` fetches OPS-4, so its real avatar moves to OPS. OPS gets a new description (`project.updated`). The **projects are reordered**. CR-22 goes to review. |
-| 6:10–6:54 | `cr-lead` posts a progress line on CR-24, and the watchdog closes the stall (`activity`). CL-80 goes back to review, waiting on Nicky. The fern prop comment is posted and the fern moves to review. |
+| 6:10–6:54 | `cr-lead` posts a progress line on CR-24, and the watchdog closes the stall (`activity`). CL-80 goes back to review, waiting on Nicky. The fern prop comment is posted and the fern moves to review. At 6:49 Nicky **turns CR-25 down** (Done with `resolution: "rejected"` and a reason): it goes from Planning to Dispatch without a celebration. |
 | 7:00–7:56 | MK-M1 becomes active (`milestone.updated`). Nicky **hands off** MK-M1 to `marky`: three tickets move from backlog to planned with `planned` deliveries, and MK-15 is no longer held. `cl-dev-2` is **blocked** on a permission prompt, with the rest of CL idle. Nicky closes the fern (**prop materialises**). |
 | 8:00–8:44 | The watchdog opens **attention** on CL-44. Nicky archives MK's Done column: three `ticket.archived` share one `batchId` (**the truck**). Sam asks for **Prop: a broken sign**. CL-81 and CL-80 are done, and **CL-M3 completes**. |
 | 8:50–9:53 | `cr-scout` builds the sign. `cl-dev-2` works again, and the watchdog closes the attention (`attending`). Sam unarchives MK-5 and comments; that delivery ends **`uncertain`** (a system comment). `cl-dev-3` leaves the snapshot. Nicky assigns MK-16 to `ux-lead`; that delivery ends **`unroutable`** (a system comment). Nicky creates **CL-M4** and attaches CL-84 and CL-86, then plans CL-86. |

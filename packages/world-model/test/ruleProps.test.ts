@@ -79,7 +79,7 @@ test("rule props follow the facts", () => {
     event("ticket.moved", { from, to, position: 1, ...extra }, { ticket: { id, key, title: key } });
   move("t_3", "CR-3", "review", "done");
   event("ticket.archived", { batchId: null, batchSize: null, releaseId: null, reason: "manual" }, { ticket: { id: "t_2", key: "CR-2", title: "CR-2" } });
-  move("t_1", "CR-1", "review", "done", { labelsCleared: true });
+  move("t_1", "CR-1", "review", "done", { labelsCleared: ["awaiting-deploy"] });
   assert.deepEqual(shown(), ["rule:trophy:crewhub:rl_3 trophy desk:cr-lead"]);
 });
 

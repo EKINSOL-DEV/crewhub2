@@ -1,7 +1,8 @@
 /**
  * Prop requests (spec addendum B): a prop is requested as a loops ticket labelled `prop`, an agent posts the prop as
  * a comment with a fenced `json` block (a comment emits `comment.created`; `attachment.added` is never emitted), and
- * when a **person** moves the ticket to Done the prop enters the town's catalogue with its ticket as provenance.
+ * when a **person** moves the ticket to Done the prop enters the town's catalogue with its ticket as provenance. A
+ * ticket closed as rejected ("won't do", CL-89) is Done too, and its prop is not imported.
  * Pure: the app lists the requests with `propRequestsFromFacts`, fetches each ticket and its comments once
  * (`source.getTicket`, `source.getComments`), then calls `extractPropRequest` and `placeFor`.
  *
@@ -63,6 +64,10 @@ const hasPropLabel = (labels: readonly { name: string }[] | undefined) => (label
  * The trigger: done prop tickets whose last move to Done was made by a person (`actor.kind === "user"`; agents never
  * move to Done, and a system move does not count), that the document has not imported yet. Oldest Done first. A
  * ticket that was already Done when the stream started has no move fact and is not listed.
+ *
+ * A rejected ticket is never listed: neither a move to Done that rejects it, nor a Done ticket rejected afterwards
+ * (`from == to == "done"`). A rejected ticket that a person makes a plain Done after all (`resolutionCleared` inside
+ * Done) is an acceptance and is listed.
  */
 export function propRequestsFromFacts(facts: Facts, doc: TownDocument): PropRequest[] {
   const imported = new Set(
@@ -70,9 +75,11 @@ export function propRequestsFromFacts(facts: Facts, doc: TownDocument): PropRequ
   );
   const requests: (PropRequest & { seq: number })[] = [];
   for (const [ticketId, move] of Object.entries(facts.lastMoves)) {
-    if (move.to !== "done" || move.from === "done" || move.actorKind !== "user") continue;
+    if (move.to !== "done" || move.actorKind !== "user" || move.resolution === "rejected") continue;
+    if (move.from === "done" && move.resolution !== "cleared") continue;
     const fact = facts.cards[ticketId];
     if (!fact || fact.card.status !== "done" || !hasPropLabel(fact.card.labels)) continue;
+    if (fact.card.resolution === "rejected") continue;
     if (imported.has(fact.card.key)) continue;
     requests.push({
       seq: move.seq,

@@ -9,6 +9,7 @@ import type { AgentKey, ObjectLook, RoomKind, WorkObject } from "./model.ts";
 
 export const SPEECH_MARK_MS = 20_000;
 export const CELEBRATION_MS = 6_000;
+export const TURNED_DOWN_MS = 6_000;
 
 const LOOKS: Record<TicketKind, ObjectLook> = {
   task: "folder",
@@ -104,11 +105,17 @@ function toObject(
     }
   }
 
-  // Done is a person's decision: celebrate only a person's move to done.
+  // Done is a person's decision: celebrate only a person's move to done, and never a rejection (CL-89).
   const move = facts.lastMoves[card.id];
+  const rejected = card.status === "done" && card.resolution === "rejected";
+  const byPerson = move !== undefined && move.to === "done" && move.actorKind === "user" && card.status === "done";
   const celebrateUntil =
-    move && move.to === "done" && move.actorKind === "user" && card.status === "done" && move.ts + CELEBRATION_MS > now
+    byPerson && !rejected && move.resolution !== "rejected" && move.ts + CELEBRATION_MS > now
       ? move.ts + CELEBRATION_MS
+      : null;
+  const turnedDownUntil =
+    byPerson && rejected && move.resolution === "rejected" && move.ts + TURNED_DOWN_MS > now
+      ? move.ts + TURNED_DOWN_MS
       : null;
 
   const priorityTag = card.priority === "urgent" || card.priority === "high" ? card.priority : null;
@@ -134,6 +141,8 @@ function toObject(
     labels: (card.labels ?? []).map((label) => label.name),
     speechMarkUntil,
     celebrateUntil,
+    rejected: rejected ? { reason: card.resolutionReason ?? null } : null,
+    turnedDownUntil,
     transit: null,
   };
 }
