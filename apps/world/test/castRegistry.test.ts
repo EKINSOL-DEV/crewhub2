@@ -45,11 +45,15 @@ test("casts register by manifest and a cast with broken data is refused", () => 
   assert.equal(warnings.length, 3);
 });
 
-test("a choice resolves building over viewer over town over style, and names the unknown ids", () => {
+test("a choice resolves building over zone over viewer over town over style, and names the unknown ids", () => {
   const { r } = registry();
   r.registerCast(pegs);
   r.registerCast(mossy);
   assert.deepEqual(r.resolve({ building: "mossy-pegs", viewer: "pegs" }), { id: "mossy-pegs", unknown: [] });
+  assert.deepEqual(r.resolve({ building: "pegs", zone: "mossy-pegs", viewer: "mossy-pegs" }), { id: "pegs", unknown: [] });
+  assert.deepEqual(r.resolve({ zone: "mossy-pegs", viewer: "pegs", town: "pegs", style: "pegs" }), { id: "mossy-pegs", unknown: [] }, "the viewer's choice yields to a zone that sets a cast");
+  assert.deepEqual(r.resolve({ zone: null, viewer: "mossy-pegs", town: "pegs" }), { id: "mossy-pegs", unknown: [] }, "a zone without a cast leaves it to the viewer");
+  assert.deepEqual(r.resolve({ zone: "ghosts", viewer: "mossy-pegs" }), { id: "mossy-pegs", unknown: ["ghosts"] });
   assert.deepEqual(r.resolve({ viewer: "mossy-pegs", town: "pegs", style: "pegs" }), { id: "mossy-pegs", unknown: [] });
   assert.deepEqual(r.resolve({ building: "ghosts", viewer: "ghosts", town: "mossy-pegs" }), { id: "mossy-pegs", unknown: ["ghosts"] });
   assert.deepEqual(r.resolve({ style: "elves" }), { id: "pegs", unknown: ["elves"] });
