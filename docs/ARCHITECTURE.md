@@ -69,6 +69,9 @@ the only importer). Renderers ask a style for a mesh by semantic key and never i
 its models; a test enforces that boundary. Styles resolve per building (a plot style id,
 falling back to the town default). Semantics (footprints, room roles) stay in the world
 model and the grid engine. The contract is described in [WORLD_STYLES.md](WORLD_STYLES.md).
+The figures that stand for agents are a cast, a second seam next to the style (`packages/world-cast` is the contract
+and the generic figure runtime, `packages/cast-*` the casts as data, `apps/world/src/world/cast.ts` the only
+importer). A building wears its own cast, else the viewer's choice, else the town's, else the style's default.
 Built: the seam, the registry and the Greenhouse style. Not built: a second style,
 external loading, an editor.
 

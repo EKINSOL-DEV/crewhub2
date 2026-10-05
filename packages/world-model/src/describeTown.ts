@@ -38,9 +38,9 @@ export function describeTownDocument(
   const lines: TextLine[] = [];
   const line = (section: string, text: string, kind: TextLine["kind"]) => lines.push({ section, text, kind });
 
-  line("Build", `Town layout revision ${doc.revision}, style ${doc.styleId}, ${doc.placements.length} placed prop${doc.placements.length === 1 ? "" : "s"}.`, "cosmetic");
+  line("Build", `Town layout revision ${doc.revision}, style ${doc.styleId}${doc.castId ? `, cast ${doc.castId}` : ""}, ${doc.placements.length} placed prop${doc.placements.length === 1 ? "" : "s"}.`, "cosmetic");
   for (const plot of doc.plots)
-    line("Build", `Plot of ${plot.slug} at ${plot.cell.x},${plot.cell.z}${plot.styleId ? `, style ${plot.styleId}` : ""}.`, "cosmetic");
+    line("Build", `Plot of ${plot.slug} at ${plot.cell.x},${plot.cell.z}${plot.styleId ? `, style ${plot.styleId}` : ""}${plot.castId ? `, cast ${plot.castId}` : ""}.`, "cosmetic");
   for (const p of doc.placements) {
     const entry = catalogue.get(p.propId);
     const name = entry ? `${entry.name} (${p.propId})` : p.propId;

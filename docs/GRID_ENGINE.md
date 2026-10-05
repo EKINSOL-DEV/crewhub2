@@ -249,7 +249,7 @@ the Metal runs filled all 300 frames, SwiftShader drew only 74 (town) and 83
 Before the two reductions below, the same Metal run measured 8.9 / 16.3 / 18.1 ms
 in the town view with 6.8 ms CPU work and 5,188 draw calls, and SwiftShader 1,128 /
 2,217 / 3,300 ms. The reductions: robots seen from the town use the style's "far"
-detail (no small parts, no shadows; `RobotHandle.setDetail`), and Greenhouse boxes
+detail (no small parts, no shadows; `FigureHandle.setDetail`), and Greenhouse boxes
 with a bevel of 3 cm or less use one bevel segment (a building shell went from
 about 68,000 to about 25,000 triangles). The GPU run stays inside the 33 ms budget
 with room to spare. SwiftShader rasterises on the CPU and stays far above it: an

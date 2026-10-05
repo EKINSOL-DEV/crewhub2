@@ -11,6 +11,10 @@ import { SceneBoundary } from "./components/SceneBoundary";
 import type { Selection } from "./components/WorldCanvas";
 import { createChatQueryClient, useChatEvents, useChatNavigation, useChatView } from "./state/chat";
 import { useAmbient } from "./state/ambient";
+import { useCast } from "./state/cast";
+import { castRegistry } from "./world/cast";
+import { describeCasts } from "./world/castText";
+import { styleRegistry } from "./world/style";
 import { toggleDetails, useDetails } from "./state/details";
 import { toggleFps } from "./state/fps";
 import { readRoleOverrides, writeRoleOverrides } from "./state/roleOverrides";
@@ -119,9 +123,14 @@ function World() {
     // The ghost object is rebuilt each render; its fields decide.
     [town, rules, build.state.on, build.state.selected, JSON.stringify(build.ghost)],
   );
+  const cast = useCast();
   const textLines = useMemo(
-    () => [...text, ...describeTownDocument(town.doc, town.catalogue, { ruleProps: rules, invalidRequests: town.invalid })],
-    [text, town.doc, town.catalogue, rules, town.invalid],
+    () => [
+      ...text,
+      ...describeCasts(castRegistry, { viewer: cast, town: town.doc.castId, plots: town.doc.plots, style: styleRegistry.getStyle(town.doc.styleId).manifest.defaultCast }),
+      ...describeTownDocument(town.doc, town.catalogue, { ruleProps: rules, invalidRequests: town.invalid }),
+    ],
+    [text, cast, town.doc, town.catalogue, rules, town.invalid],
   );
   const undo = useCallback(() => {
     townRuntime().undo();
