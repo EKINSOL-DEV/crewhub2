@@ -331,23 +331,24 @@ export const ROAD_GROUND = GROUND_MARGIN;
 /**
  * The ground as the pieces it is made of, so the world is as big as what lives in it: one rectangle per district in
  * use, fitted to what stands there (`groundExtent` of that district alone; the centre's holds the civic core and the
- * landmarks), and one corridor per district road. Empty district cells and the country between districts are no
+ * landmarks), one corridor per district road, and one for the old quarter when buildings are folded into it. Empty district cells and the country between districts are no
  * ground at all. The pieces overlap where a road enters a district; their bounding box is `groundExtent` of the
  * whole. `lots` are every allocated lot and every begun green.
  */
 export function groundPieces(tier: Tier, lots: readonly GridCell[], arrived: readonly LandmarkId[] = [], roads: readonly Segment[] = districtRoads([...new Map(lots.map(slotOf).filter(slotAllowed).map((s) => [slotKey(s), s])).values()])): Bounds[] {
   const bySlot = new Map<string, GridCell[]>();
   for (const lot of lots) {
-    const slot = slotOf(lot);
-    // The old quarter lies north of the centre, in the column no district takes: it is the centre's ground.
-    const key = slotAllowed(slot) ? slotKey(slot) : slotKey(CENTRAL_SLOT);
+    const key = slotKey(slotOf(lot));
     bySlot.set(key, [...(bySlot.get(key) ?? []), lot]);
   }
   const pieces: Bounds[] = [groundExtent(tier, bySlot.get(slotKey(CENTRAL_SLOT)) ?? [], arrived)];
   for (const [key, own] of bySlot) {
     if (key === slotKey(CENTRAL_SLOT)) continue;
-    const c = slotCrossing(slotOf(own[0]!));
-    const all = union([...own.map((lot) => lotBounds(lot)), { minX: c.x, maxX: c.x, minZ: c.z, maxZ: c.z }]);
+    // The old quarter (the column north of the centre, which no district takes) has no crossing and no road: it is
+    // a piece of its own behind the town, folded away.
+    const slot = slotOf(own[0]!);
+    const c = slotCrossing(slot);
+    const all = union([...own.map((lot) => lotBounds(lot)), ...(slotAllowed(slot) ? [{ minX: c.x, maxX: c.x, minZ: c.z, maxZ: c.z }] : [])]);
     pieces.push({ minX: all.minX - GROUND_MARGIN, maxX: all.maxX + GROUND_MARGIN, minZ: all.minZ - GROUND_MARGIN, maxZ: all.maxZ + GROUND_MARGIN });
   }
   for (const r of roads) pieces.push({ minX: Math.min(r.x0, r.x1) - ROAD_GROUND, maxX: Math.max(r.x0, r.x1) + ROAD_GROUND, minZ: Math.min(r.z0, r.z1) - ROAD_GROUND, maxZ: Math.max(r.z0, r.z1) + ROAD_GROUND });

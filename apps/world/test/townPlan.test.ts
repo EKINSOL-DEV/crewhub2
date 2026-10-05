@@ -197,9 +197,10 @@ test("a region's ground is its districts and the roads between them, not the box
   const studio = projects(20, 4);
   const region = planTown(town(studio), studio);
   assert.ok(area(region.grounds) < 0.5 * area([region.ground]), "less than half the box is ground");
-  // An archived building folded into the old quarter stands on the centre's ground.
+  // An archived building folded into the old quarter stands on a piece of its own, behind the town.
   const some = projects(6).map((b, i) => ({ ...b, archived: i === 5 }));
   const folded = planTown(town(some), some, { oldQuarter: true });
-  assert.equal(folded.grounds.length, 1);
+  assert.equal(folded.grounds.length, 2);
+  assert.ok(folded.grounds[1]!.maxZ < folded.grounds[0]!.minZ + 40, "close behind the centre");
   assert.ok(inside(folded.grounds, planLot(folded, "p5")!.centre.x, planLot(folded, "p5")!.centre.z));
 });
