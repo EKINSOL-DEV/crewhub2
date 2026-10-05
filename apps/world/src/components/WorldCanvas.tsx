@@ -20,6 +20,7 @@ import { LaneChip } from "../world/lane";
 import { clockTime, countsLine, laneWords, TOWN_CAPACITY } from "../world/townLayout";
 import type { RoomKind, RuleProp } from "@crewhub/world-model";
 import { Chip } from "./primitives";
+import { needsOf, needsTotal, needsWords, summarise, summaryWords, workWords, type DistrictPlace } from "../world/wayfinding";
 
 export interface Selection {
   hover: Pick | null;
@@ -39,6 +40,12 @@ interface Props {
   /** Every label, not only names and one bubble per robot (the Details toggle). */
   details: boolean;
   action: { id: number; type: CameraAction };
+  /** The districts in use (one for a single settlement) and the one the view is in, if any. */
+  districts: DistrictPlace[];
+  district: string | null;
+  /** A camera flight to a label anchor (the jump list's civic buildings). */
+  flight: { id: number; anchor: string };
+  onDistrict: (id: string) => void;
   onEnter: (slug: string) => void;
   onHover: (index: number | null) => void;
   onPick: (target: Pick | null, hover: boolean) => void;
@@ -67,6 +74,9 @@ export default function WorldCanvas(props: Props) {
   const dayNight = useDayNight(props.model.mode);
   const fps = useFps();
   latest.current = props;
+  // Which buildings stand in which district: the scene frames a district and hangs its label from this.
+  const districtKey = props.districts.map((d) => `${d.id}:${d.buildings.map((b) => b.slug).join(",")}`).join("|");
+  const districtViews = useMemo(() => props.districts.map((d) => ({ id: d.id, slugs: d.buildings.map((b) => b.slug) })), [districtKey]);
   // The ghost's verdict tile takes the scene's theme.
   const town = useMemo(
     () => (props.town?.build ? { ...props.town, build: { ...props.town.build, theme: dark ? ("lamplight" as const) : ("day" as const) } } : props.town),
@@ -93,6 +103,8 @@ export default function WorldCanvas(props: Props) {
     measure: STRESS,
     fps,
     selectedAgent: props.selection.selected?.kind === "agent" ? props.selection.selected.key : null,
+    districts: districtViews,
+    district: props.district,
   };
   useEffect(() => {
     if (!host.current || !labels.current) return;
@@ -122,6 +134,9 @@ export default function WorldCanvas(props: Props) {
   useEffect(() => {
     if (props.action.id) scene.current?.cameraAction(props.action.type);
   }, [props.action]);
+  useEffect(() => {
+    if (props.flight.id) scene.current?.flyToAnchor(props.flight.anchor);
+  }, [props.flight]);
 
   const { model, entered } = props;
   const inside = model.buildings.find((b) => b.slug === entered) ?? null;
@@ -174,6 +189,7 @@ export default function WorldCanvas(props: Props) {
             </div>
           );
         })}
+        {!inside && <Wayfinding districts={props.districts} district={props.district} onDistrict={props.onDistrict} onEnter={props.onEnter} />}
         {inside && !inside.archived && <Interior building={inside} model={model} props={props} compact={compact} />}
         {!inside && (
           <>
@@ -196,6 +212,67 @@ export default function WorldCanvas(props: Props) {
           </>
         )}
       </div>
+    </>
+  );
+}
+
+/* What the town says from a distance. A region's districts each carry one card (the name, how much lives there, the
+   open work) with one beacon when anything inside needs a person; a building that needs a person carries a small pin
+   over its roof. The scene shows the cards from far and the building signs nearer (`data-detail` on the labels host,
+   `labelDetail` in wayfinding.ts); every fact here is also a sentence in the text view. */
+function Wayfinding({ districts, district, onDistrict, onEnter }: { districts: DistrictPlace[]; district: string | null; onDistrict: (id: string) => void; onEnter: (slug: string) => void }) {
+  const region = districts.length > 1;
+  return (
+    <>
+      {region &&
+        districts.map((d) => {
+          const summary = summarise(d.buildings);
+          const needs = needsWords(summary.needs);
+          return (
+            <div key={d.id} className="anchor district-anchor" data-anchor={`d:${d.id}`}>
+              <button
+                type="button"
+                className={`district-card${summary.beacon ? " beacon" : ""}${district === d.id ? " current" : ""}`}
+                data-color={d.zone?.color ?? undefined}
+                aria-label={`${d.name}, district. ${summaryWords(summary)}${district === d.id ? " You are here." : " Go there."}`}
+                aria-current={district === d.id ? "location" : undefined}
+                onClick={() => onDistrict(d.id)}
+              >
+                <span className="district-name">
+                  <span className="district-dot" aria-hidden="true" />
+                  <strong>{d.name}</strong>
+                  {summary.beacon && (
+                    <span className="district-beacon">
+                      <TriangleAlert className="icon icon-sm" aria-hidden="true" />
+                      {needsTotal(summary.needs)}
+                    </span>
+                  )}
+                </span>
+                <span className="district-counts">
+                  {summary.buildings} {summary.buildings === 1 ? "building" : "buildings"}, {summary.agents} {summary.agents === 1 ? "agent" : "agents"}
+                </span>
+                <span className="district-work">{workWords(summary.counts)}</span>
+                {needs && <span className="district-needs">Needs a person: {needs}</span>}
+              </button>
+            </div>
+          );
+        })}
+      {districts.flatMap((d) =>
+        d.buildings.map((b) => {
+          const needs = needsOf(b);
+          const total = needsTotal(needs);
+          if (!total) return null;
+          return (
+            <div key={b.slug} className="anchor need-anchor" data-anchor={`n:${b.slug}`}>
+              <button type="button" className="need-pin" aria-label={`${b.name} needs a person: ${needsWords(needs)}. Go inside.`} title={`${b.name}: ${needsWords(needs)}`} onClick={() => onEnter(b.slug)}>
+                <TriangleAlert className="icon icon-sm" aria-hidden="true" />
+                <span className="need-count">{total}</span>
+                <span className="need-words">{needsWords(needs)}</span>
+              </button>
+            </div>
+          );
+        }),
+      )}
     </>
   );
 }

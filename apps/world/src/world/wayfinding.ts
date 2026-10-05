@@ -191,6 +191,9 @@ export interface JumpEntry {
   keywords: string;
 }
 
+/** What needs a person leads a row's detail, so it survives the row being cut short. */
+const lead = (needs: string): string => (needs ? `Needs a person: ${needs}. ` : "");
+
 /** Every place one can jump to: districts (in a region), buildings, agents and the two civic buildings. */
 export function jumpEntries(model: Pick<WorldModel, "zones" | "buildings" | "townHall" | "postOffice">, districts: readonly DistrictPlace[]): JumpEntry[] {
   const entries: JumpEntry[] = [];
@@ -202,7 +205,7 @@ export function jumpEntries(model: Pick<WorldModel, "zones" | "buildings" | "tow
         kind: "zone",
         id: `zone:${d.id}`,
         label: d.name,
-        detail: summaryWords(summary),
+        detail: `${lead(needsWords(summary.needs))}${summary.buildings} ${summary.buildings === 1 ? "building" : "buildings"}, ${summary.agents} ${summary.agents === 1 ? "agent" : "agents"}. ${workWords(summary.counts)}.`,
         place: { district: d.id, building: null, room: null },
         needs: needsTotal(summary.needs),
         keywords: "zone district",
@@ -216,7 +219,7 @@ export function jumpEntries(model: Pick<WorldModel, "zones" | "buildings" | "tow
         kind: "building",
         id: `building:${b.slug}`,
         label: b.name,
-        detail: `${b.key}${region ? `, ${d.name}` : ""}. ${b.archived ? "Archived." : `${workWords(b.counts)}.`}${words ? ` Needs a person: ${words}.` : ""}`,
+        detail: `${lead(words)}${b.key}${region ? `, ${d.name}` : ""}. ${b.archived ? "Archived." : `${workWords(b.counts)}.`}`,
         place: { district: region ? d.id : null, building: b.slug, room: null },
         needs: needsTotal(needs),
         keywords: `${b.key} ${b.slug} ${d.name} project building`.toLowerCase(),

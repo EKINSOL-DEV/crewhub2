@@ -29,12 +29,12 @@ const studio = zone("studio", 0, { name: "Studio" }),
   garden = zone("garden", 1, { name: "Garden" }),
   fallback = zone("default", 2, { source: "default" });
 
-const quiet = inZone(building("quiet", [agent("q-dev", "worker")]), "studio", "Quiet Works");
+const quiet = inZone(building("quiet", [agent("q-dev", "workers")]), "studio", "Quiet Works");
 const asking = inZone(
   building(
     "asking",
-    [agent("a-dev", "worker", { posture: "raised-hand", displayName: "Ada" })],
-    [object("1", "review", { waitingOnHuman: true }), object("2", "worker", { stall: { state: "stalled", quietSince: "", quietMinutes: 20, nudges: 1 } }), object("3", "worker", { stall: { state: "attention", quietSince: "", quietMinutes: 12, nudges: 0 } })],
+    [agent("a-dev", "workers", { posture: "raised-hand", displayName: "Ada" })],
+    [object("1", "review", { waitingOnHuman: true }), object("2", "workers", { stall: { state: "stalled", quietSince: "", quietMinutes: 20, nudges: 1 } }), object("3", "workers", { stall: { state: "attention", quietSince: "", quietMinutes: 12, nudges: 0 } })],
   ),
   "garden",
   "Asking Yard",
@@ -115,7 +115,7 @@ test("the jump list finds zones, projects and agents, and puts what needs a pers
   assert.deepEqual(searchJumps(entries, "zzz"), []);
   assert.equal(searchJumps(entries, "town hall")[0]!.civic, "town-hall");
   // An agent's jump lands in its room, inside its district.
-  assert.deepEqual(entries.find((e) => e.id === "agent:a-dev")!.place, { district: "garden", building: "asking", room: "worker" });
+  assert.deepEqual(entries.find((e) => e.id === "agent:a-dev")!.place, { district: "garden", building: "asking", room: "workers" });
   assert.equal(searchJumps(entries, "", 2).length, 2);
 });
 

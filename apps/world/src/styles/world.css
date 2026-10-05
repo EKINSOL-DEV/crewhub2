@@ -1340,3 +1340,344 @@
 .cast-about p {
   margin: 0 0 var(--space-1);
 }
+
+/* ── Finding your way at scale: the breadcrumb's levels, the jump list, district cards and need pins ── */
+.crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.crumb-sep {
+  color: var(--text-subtle);
+  flex: none;
+}
+.crumb .crumb-current {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 14rem;
+}
+.world-breadcrumb .jump-button {
+  margin-left: var(--space-1);
+}
+/* With only the home crumb the row is "Town" and the jump button: the padding the lone crumb had comes back. */
+.world-breadcrumb[data-levels="1"] {
+  padding-left: var(--space-3);
+}
+
+.jump-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  background: color-mix(in oklab, var(--scrim) 45%, transparent);
+}
+.jump-sheet {
+  z-index: 9;
+  top: 4.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(34rem, calc(100% - 2 * var(--space-4)));
+  max-height: min(34rem, calc(100dvh - 6rem));
+}
+.jump-sheet .card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 0;
+  overflow: hidden;
+}
+.jump-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.jump-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+.jump-row[data-active] {
+  background: var(--surface-sunken);
+  border-color: var(--border-strong);
+}
+.jump-icon {
+  flex: none;
+  color: var(--text-muted);
+}
+.jump-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.jump-label {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.jump-label strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.jump-kind {
+  flex: none;
+  font-size: var(--text-2xs);
+  color: var(--text-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.jump-detail {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.jump-needs {
+  flex: none;
+  display: inline-flex;
+  padding: var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--warm-soft);
+  border: 1px solid var(--warm);
+  color: var(--text);
+}
+.jump-empty {
+  padding: var(--space-4) var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+.jump-keys {
+  margin: 0;
+  font-size: var(--text-2xs);
+  color: var(--text-subtle);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
+
+/* A district's card hangs above the far corner of its ground, so it never covers a building. */
+.district-card {
+  pointer-events: auto;
+  position: absolute;
+  transform: translate(-50%, calc(-100% - var(--space-2)));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  width: max-content;
+  max-width: 15rem;
+  padding: var(--space-2) var(--space-3);
+  background: color-mix(in oklab, var(--surface-raised) 94%, transparent);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  font: inherit;
+  font-size: var(--text-xs);
+  text-align: left;
+  cursor: pointer;
+}
+.district-card:hover,
+.district-card.current {
+  border-color: var(--accent-strong);
+  box-shadow: var(--shadow-md);
+}
+.district-card:focus-visible {
+  outline: 0;
+  box-shadow: var(--focus-ring);
+}
+.district-card.beacon {
+  border-color: var(--warm);
+}
+.district-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+}
+.district-dot {
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: var(--radius-pill);
+  background: var(--mist-dark);
+  flex: none;
+}
+.district-card[data-color="coral"] .district-dot {
+  background: var(--coral);
+}
+.district-card[data-color="tangerine"] .district-dot {
+  background: var(--tangerine);
+}
+.district-card[data-color="circle"] .district-dot {
+  background: var(--circle);
+}
+.district-card[data-color="mist"] .district-dot {
+  background: var(--mist);
+}
+.district-card[data-color="ink"] .district-dot {
+  background: var(--text);
+}
+.district-beacon,
+.need-pin {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px var(--space-2) 1px var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--warm-soft);
+  border: 1px solid var(--warm);
+  color: var(--text);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  font-variant-numeric: tabular-nums;
+}
+.district-counts,
+.district-work {
+  color: var(--text-muted);
+}
+.district-needs {
+  font-weight: var(--weight-semibold);
+}
+.need-pin {
+  pointer-events: auto;
+  position: absolute;
+  transform: translate(-50%, -100%);
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  white-space: nowrap;
+}
+.need-pin:focus-visible {
+  outline: 0;
+  box-shadow: var(--focus-ring);
+}
+/* The beacon breathes, so the eye finds it among twenty roofs; it holds still under reduced motion. */
+.district-beacon,
+.need-pin {
+  animation: beacon-breathe 2.4s ease-in-out infinite;
+}
+@keyframes beacon-breathe {
+  50% {
+    box-shadow: 0 0 0 5px color-mix(in oklab, var(--warm) 28%, transparent);
+  }
+}
+.need-words {
+  display: none;
+  font-weight: var(--weight-regular, 400);
+}
+/* What shows at which distance (`labelDetail`): from far a region is its district cards and pins; nearer the building
+   signs take over and a district keeps its name; close by the district names go and a pin says what it wants. */
+.world-labels[data-detail="districts"] .town-sign {
+  display: none;
+}
+.world-labels[data-detail="buildings"] .district-counts,
+.world-labels[data-detail="buildings"] .district-work,
+.world-labels[data-detail="buildings"] .district-needs,
+.world-labels[data-detail="close"] .district-counts,
+.world-labels[data-detail="close"] .district-work,
+.world-labels[data-detail="close"] .district-needs {
+  display: none;
+}
+.world-labels[data-detail="buildings"] .district-card,
+.world-labels[data-detail="close"] .district-card {
+  padding: var(--space-1) var(--space-2);
+  box-shadow: none;
+}
+.world-labels[data-detail="close"] .need-words {
+  display: inline;
+  margin-left: var(--space-1);
+}
+
+.text-district {
+  margin-bottom: var(--space-5);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+.text-district-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.text-district-summary,
+.text-jump {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-2) 0;
+  font-size: var(--text-sm);
+}
+.text-building {
+  margin-left: var(--space-2);
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--border);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .district-beacon,
+  .need-pin {
+    animation: none;
+  }
+}
+@media (pointer: coarse) {
+  .jump-row {
+    min-height: var(--control-h-touch);
+  }
+  .need-pin::after,
+  .district-card::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, var(--control-h-touch));
+    height: max(100%, var(--control-h-touch));
+    transform: translate(-50%, -50%);
+  }
+}
+@media (max-width: 600px) {
+  /* A phone's region: a district is its name and its beacon; the jump list has the rest. */
+  .district-card .district-counts,
+  .district-card .district-work,
+  .district-card .district-needs {
+    display: none;
+  }
+  .district-card {
+    padding: var(--space-1) var(--space-2);
+  }
+  .jump-word,
+  .jump-button .btn-kbd,
+  .world-breadcrumb .btn-kbd,
+  .jump-keys {
+    display: none;
+  }
+  .crumb .crumb-current {
+    max-width: 7rem;
+  }
+  /* The breadcrumb keeps one row: the levels above the one Escape steps out to fold away (the jump list reaches them). */
+  .world-breadcrumb .crumb:not([data-parent]):not(:last-of-type) {
+    display: none;
+  }
+  .world-breadcrumb .crumb[data-parent] .crumb-sep,
+  .world-breadcrumb .crumb[data-parent] + .crumb .crumb-sep {
+    display: none;
+  }
+  .jump-sheet {
+    top: var(--space-3);
+    max-height: calc(100dvh - 2 * var(--space-3));
+  }
+}

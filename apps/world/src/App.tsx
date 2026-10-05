@@ -1,10 +1,11 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type Ref } from "react";
-import { ArrowLeft, FlaskConical, Hammer, MessageCircle, Minus, Monitor, Moon, Pause, Plus, RotateCcw, RotateCw, Scan, Settings, Sprout, Sun, Tags, X } from "lucide-react";
+import { ArrowLeft, ChevronRight, FlaskConical, Hammer, MessageCircle, Minus, Monitor, Moon, Pause, Plus, RotateCcw, RotateCw, Scan, Search, Settings, Sprout, Sun, Tags, X } from "lucide-react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { describeTownDocument, ruleProps, zoningOf, type AgentPlacement, type PlaybackControls, type PlaybackSpeed, type RoleId, type RoomKind, type TextLine, type WorldModel } from "@crewhub/world-model";
 import type { PropModel } from "@crewhub/world-engine";
 import { Bubbles } from "./components/bubbles/Bubbles";
 import { TownSettings } from "./components/TownSettings";
+import { JumpList } from "./components/JumpList";
 import { IconSprite } from "./components/Icon";
 import { Button, Card, Chip, Field, Menu } from "./components/primitives";
 import { SceneBoundary } from "./components/SceneBoundary";
@@ -16,6 +17,7 @@ import { castRegistry } from "./world/cast";
 import { describeCasts } from "./world/castText";
 import { describeZones } from "./world/zoneText";
 import { styleRegistry } from "./world/style";
+import { crumbs, districtsOf, homeName, isRegion, jumpEntries, needsOf, needsWords, stepOut, summarise, summaryWords, type Crumb, type DistrictPlace, type JumpEntry, type Place } from "./world/wayfinding";
 import { toggleDetails, useDetails } from "./state/details";
 import { toggleFps } from "./state/fps";
 import { readRoleOverrides, writeRoleOverrides } from "./state/roleOverrides";
@@ -90,6 +92,10 @@ function World() {
   const [action, setAction] = useState<{ id: number; type: CameraAction }>({ id: 0, type: "home" });
   const [room, setRoom] = useState<RoomKind | null>(null);
   const [zoomed, setZoomed] = useState<RoomKind | null>(null);
+  // The district the view is in (a region only): the level between the home view and a building.
+  const [district, setDistrict] = useState<string | null>(null);
+  const [jumpOpen, setJumpOpen] = useState(false);
+  const [flight, setFlight] = useState<{ id: number; anchor: string }>({ id: 0, anchor: "" });
   const [selection, setSelection] = useState<Selection>({ hover: null, selected: null });
   const [overrides, setOverrides] = useState<Record<string, RoleId>>(readRoleOverrides);
   const ambient = useAmbient();
@@ -109,6 +115,16 @@ function World() {
   const buildings = model.buildings.slice(0, TOWN_CAPACITY);
   const inside = buildings.find((b) => b.slug === entered) ?? null;
   const camera = useCallback((type: CameraAction) => setAction((a) => ({ id: a.id + 1, type })), []);
+  // The districts in use: a building stands in the district of its plot (after a regroup that is not its zone's).
+  const districtKey = `${model.zones.map((z) => `${z.id}:${z.name}:${z.order}`).join("|")}#${model.buildings.map((b) => `${b.slug}:${b.zoneId}`).join("|")}`;
+  const districts = useMemo(() => {
+    const stands = new Map(town.doc.plots.map((p) => [p.slug, p.zoneId]));
+    return districtsOf(model, (slug) => stands.get(slug));
+    // The model is a new object on every reduction; the districts follow who stands where.
+  }, [districtKey, town.doc.plots, model]);
+  const region = isRegion(districts);
+  const here = region ? (districts.find((d) => d.id === district) ?? null) : null;
+  const districtOfBuilding = useCallback((slug: string) => (isRegion(districts) ? (districts.find((d) => d.buildings.some((b) => b.slug === slug))?.id ?? null) : null), [districts]);
   const build = useBuildMode(town, inside, room, setAnnouncement);
   const rules = useMemo(() => ruleProps(model, town.doc.rules), [model, town.doc.rules]);
   const townLayer = useMemo<TownLayer>(
@@ -198,21 +214,68 @@ function World() {
       const b = buildings[index];
       if (!b) return;
       setEntered(slug);
+      setDistrict(districtOfBuilding(slug));
       setFocused(index);
       setRoom(null);
       setZoomed(null);
       setSelection({ hover: null, selected: null });
       setAnnouncement(`Inside ${b.name} (${b.key}). ${b.agents.filter((a) => a.presence === "real").length} agents here. Escape or Backspace returns to the town.`);
     },
-    [buildings],
+    [buildings, districtOfBuilding],
   );
+  const describeDistrict = useCallback((d: DistrictPlace) => `${d.name}. ${summaryWords(summarise(d.buildings))}`, []);
   const back = useCallback(() => {
     setEntered(null);
     setRoom(null);
     setZoomed(null);
     setSelection({ hover: null, selected: null });
-    setAnnouncement(`The town. ${describe(focused)}`);
-  }, [describe, focused]);
+    // In a region a building steps out to its district; Escape once more shows the region.
+    setAnnouncement(here ? `${describeDistrict(here)} Escape shows the region.` : `The town. ${describe(focused)}`);
+  }, [describe, describeDistrict, focused, here]);
+  /* Goes to a place of any level (the breadcrumb, the jump list, a district's label, the text view). */
+  const go = useCallback(
+    (place: Place, agent?: string) => {
+      const b = place.building ? buildings.find((x) => x.slug === place.building) : undefined;
+      const d = isRegion(districts) ? (districts.find((x) => x.id === place.district) ?? null) : null;
+      setDistrict(b ? districtOfBuilding(b.slug) : (d?.id ?? null));
+      setEntered(b?.slug ?? null);
+      setRoom(b ? place.room : null);
+      setZoomed(b ? place.room : null);
+      setSelection({ hover: null, selected: b && agent ? { kind: "agent", key: agent } : null });
+      if (b) {
+        setFocused(buildings.indexOf(b));
+        setAnnouncement(`Inside ${b.name} (${b.key})${place.room ? `, ${roomName(b, place.room)}` : ""}. Escape steps back out.`);
+      } else if (d) {
+        setRingVisible(false);
+        setAnnouncement(`${describeDistrict(d)} Escape shows the region.`);
+      } else setAnnouncement(isRegion(districts) ? `The region: ${districts.map((x) => x.name).join(", ")}.` : "The town.");
+    },
+    [buildings, describeDistrict, districtOfBuilding, districts],
+  );
+  const jump = useCallback(
+    (entry: JumpEntry) => {
+      setJumpOpen(false);
+      go(entry.place, entry.agent);
+      if (entry.civic) {
+        setFlight((f) => ({ id: f.id + 1, anchor: `c:${entry.civic}` }));
+        setAnnouncement(`${entry.label}. ${entry.detail}`);
+      }
+    },
+    [go],
+  );
+  const openJump = useCallback(() => {
+    returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setJumpOpen(true);
+  }, []);
+  const closeJump = useCallback(() => {
+    setJumpOpen(false);
+    returnFocus.current?.focus();
+  }, []);
+  const jumps = useMemo(() => (jumpOpen ? jumpEntries(model, districts) : []), [jumpOpen, model, districts]);
+  // A district that emptied or a town that shrank back to one settlement has no district level left.
+  useEffect(() => {
+    if (district && !here) setDistrict(null);
+  }, [district, here]);
   const summary = useCallback(
     (kind: RoomKind) => (inside ? roomSummary(inside, kind, (a: AgentPlacement) => laneWords(a.laneStatus, model.freshness)) : ""),
     [inside, model.freshness],
@@ -277,6 +340,13 @@ function World() {
   // Keys that work anywhere outside a text field: T, Escape and Backspace, and the camera keys.
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
+      // The jump list opens from anywhere, a text field included (Cmd or Ctrl+K types nothing).
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "k" && !editing) {
+        e.preventDefault();
+        if (jumpOpen) closeJump();
+        else openJump();
+        return;
+      }
       if (typing(e.target)) return;
       // Undo and redo of layout edits while build mode is on.
       if (build.state.on && (e.ctrlKey || e.metaKey) && !e.altKey && (e.key.toLowerCase() === "z" || e.key.toLowerCase() === "y")) {
@@ -297,6 +367,18 @@ function World() {
       }
       // Escape closes the innermost thing first: Settings, then build mode (its drag, selection, chosen prop, then the
       // mode itself), then the text view, the selection, the zoomed room and the building.
+      if (jumpOpen) {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          closeJump();
+        }
+        return;
+      }
+      if (e.key === "/") {
+        e.preventDefault();
+        openJump();
+        return;
+      }
       if (e.key === "Escape" && settingsOpen) {
         e.preventDefault();
         closeSettings();
@@ -318,6 +400,7 @@ function World() {
           setZoomed(null);
           setAnnouncement(`Inside ${inside?.name ?? "the building"}. Arrow keys move between rooms.`);
         } else if (entered) back();
+        else if (here) go(stepOut({ district: here.id, building: null, room: null })!);
         else return;
         e.preventDefault();
         return;
@@ -353,7 +436,7 @@ function World() {
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [back, build, camera, closeSettings, closeText, editing, entered, graphicsFailed, inside, openText, redo, selection.selected, settingsOpen, textOpen, undo, zoomed]);
+  }, [back, build, camera, closeJump, closeSettings, closeText, editing, entered, go, graphicsFailed, here, inside, jumpOpen, openJump, openText, redo, selection.selected, settingsOpen, textOpen, undo, zoomed]);
 
   // Arrow keys and Enter move the focus ring between plots while the scene has keyboard focus.
   const sceneKey = (e: ReactKeyboardEvent) => {
@@ -393,7 +476,13 @@ function World() {
   }, []);
 
   const demo = model.mode === "demo";
-  const onBack = useStable(back);
+  const onGo = useStable(go);
+  const trailNames = { home: homeName(districts), district: here?.name ?? null, building: inside?.name ?? null, room: inside && zoomed ? roomName(inside, zoomed) : null };
+  const trail = useMemo(
+    () => crumbs({ district: here?.id ?? null, building: inside?.slug ?? null, room: inside ? zoomed : null }, trailNames),
+    // The names decide; the object is new each render.
+    [here?.id, inside?.slug, zoomed, JSON.stringify(trailNames)],
+  );
 
   return (
     <div
@@ -433,6 +522,10 @@ function World() {
                 ambient={ambient}
                 details={details}
                 action={action}
+                districts={districts}
+                district={here?.id ?? null}
+                flight={flight}
+                onDistrict={(id) => onGo({ district: id, building: null, room: null })}
                 onEnter={enter}
                 onHover={hover}
                 onError={() => setGraphicsFailed(true)}
@@ -444,7 +537,9 @@ function World() {
         )}
       </main>
 
-      <Corner demo={demo} graphicsFailed={graphicsFailed} insideName={inside?.name ?? null} zoomedName={inside && zoomed ? roomName(inside, zoomed) : null} onBack={onBack} />
+      <Corner demo={demo} graphicsFailed={graphicsFailed} trail={trail} onGo={onGo} onJump={openJump} jumpOpen={jumpOpen} />
+
+      {jumpOpen && <JumpList entries={jumps} onJump={jump} onClose={closeJump} />}
 
       <CornerTools theme={theme} cycle={cycle} details={details} buildOn={build.state.on} toggleBuild={build.toggle} settingsOpen={settingsOpen} openSettings={openSettings} closeSettings={closeSettings} graphicsFailed={graphicsFailed} />
 
@@ -497,7 +592,7 @@ function World() {
 
       {playback && <PlaybackBar playback={playback} />}
 
-      {(textOpen || graphicsFailed) && <TextView ref={textRegion} lines={textLines} fallback={graphicsFailed} onClose={graphicsFailed ? null : closeText} />}
+      {(textOpen || graphicsFailed) && <TextView ref={textRegion} lines={textLines} fallback={graphicsFailed} onClose={graphicsFailed ? null : closeText} districts={districts} onGo={graphicsFailed ? null : onGo} />}
     </div>
   );
 }
@@ -584,8 +679,25 @@ const SPEEDS: readonly { speed: PlaybackSpeed; label: string }[] = [
    it, so they render only when their own props change. */
 const SCENARIO_CHOICES = scenarioChoices();
 
-const Corner = memo(function Corner({ demo, graphicsFailed, insideName, zoomedName, onBack }: { demo: boolean; graphicsFailed: boolean; insideName: string | null; zoomedName: string | null; onBack: () => void }) {
+const Corner = memo(function Corner({
+  demo,
+  graphicsFailed,
+  trail,
+  onGo,
+  onJump,
+  jumpOpen,
+}: {
+  demo: boolean;
+  graphicsFailed: boolean;
+  /** Where you are, outermost first: region or town, district, building, room. */
+  trail: Crumb[];
+  onGo: (place: Place) => void;
+  onJump: () => void;
+  jumpOpen: boolean;
+}) {
   const scenario = SCENARIO_CHOICES.find((choice) => choice.current)?.name ?? "";
+  // One step out is the button Escape presses; the levels above it are plain crumbs to click.
+  const parent = trail.length > 1 ? trail[trail.length - 2]! : null;
   return (
     <header className="world-corner world-corner-left">
       <div className="world-brand">
@@ -618,26 +730,32 @@ const Corner = memo(function Corner({ demo, graphicsFailed, insideName, zoomedNa
         )}
       </div>
       {!graphicsFailed && (
-        <nav className="world-breadcrumb" aria-label="Where you are">
-          {insideName !== null ? (
-            <>
-              <Button size="sm" icon={<ArrowLeft className="icon" aria-hidden="true" />} onClick={onBack} kbd="Esc">
-                Town
-              </Button>
-              <span className="crumb-current" aria-current={zoomedName ? undefined : "location"}>
-                {insideName}
+        <nav className="world-breadcrumb" aria-label="Where you are" data-levels={trail.length}>
+          {trail.map((crumb, index) => {
+            const current = crumb.to === null;
+            const to = crumb.to;
+            return (
+              <span key={crumb.level} className="crumb" data-level={crumb.level} data-parent={crumb === parent ? "" : undefined}>
+                {index > 0 && <ChevronRight className="icon icon-sm crumb-sep" aria-hidden="true" />}
+                {current || !to ? (
+                  <span className="crumb-current" aria-current="location">
+                    {crumb.label}
+                  </span>
+                ) : crumb === parent ? (
+                  <Button size="sm" icon={<ArrowLeft className="icon" aria-hidden="true" />} onClick={() => onGo(to)} kbd="Esc">
+                    {crumb.label}
+                  </Button>
+                ) : (
+                  <Button size="sm" variant="ghost" onClick={() => onGo(to)}>
+                    {crumb.label}
+                  </Button>
+                )}
               </span>
-              {zoomedName && (
-                <span className="crumb-current" aria-current="location">
-                  {zoomedName}
-                </span>
-              )}
-            </>
-          ) : (
-            <span className="crumb-current" aria-current="location">
-              Town
-            </span>
-          )}
+            );
+          })}
+          <Button className="jump-button" size="sm" variant="ghost" icon={<Search className="icon" aria-hidden="true" />} aria-label="Jump to a district, project or agent" title="Jump to… (/ or Ctrl+K)" expanded={jumpOpen} onClick={onJump} kbd="/">
+            <span className="jump-word">Jump to</span>
+          </Button>
         </nav>
       )}
     </header>
@@ -766,9 +884,34 @@ function PlaybackPosition({ playback }: { playback: PlaybackControls }) {
 
 const KIND_WORD: Record<TextLine["kind"], string> = { fact: "fact", inference: "inference", cosmetic: "cosmetic", demo: "demo" };
 
-function TextView({ lines, fallback, onClose, ref }: { lines: TextLine[]; fallback: boolean; onClose: (() => void) | null; ref: Ref<HTMLElement> }) {
+function TextView({ lines, fallback, onClose, districts, onGo, ref }: { lines: TextLine[]; fallback: boolean; onClose: (() => void) | null; districts: DistrictPlace[]; onGo: ((place: Place) => void) | null; ref: Ref<HTMLElement> }) {
   const sections = new Map<string, TextLine[]>();
   for (const line of lines) sections.set(line.section, [...(sections.get(line.section) ?? []), line]);
+  // The town first, then every building's sections under its district, then the rest (casts, zones, the town document).
+  const region = isRegion(districts);
+  const names = [...sections.keys()];
+  const owned = (b: { name: string; key: string }) => names.filter((n) => n === `${b.name} (${b.key})` || n.startsWith(`${b.name} (${b.key}): `));
+  const placed = new Set(districts.flatMap((d) => d.buildings.flatMap(owned)));
+  const before = names.filter((n) => !placed.has(n) && n === "Town"),
+    after = names.filter((n) => !placed.has(n) && n !== "Town");
+  const block = (section: string, level: 3 | 4) => {
+    const Heading = `h${level}` as "h3" | "h4";
+    return (
+      <section key={section} className="text-section">
+        <Heading>{section}</Heading>
+        <ul>
+          {sections.get(section)!.map((line, i) => (
+            <li key={i}>
+              <span className="text-kind" data-kind={line.kind}>
+                {KIND_WORD[line.kind]}
+              </span>
+              <span>{line.text}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+    );
+  };
   return (
     <Card as="section" ref={ref} id="text-view" className={`world-sheet text-sheet${fallback ? " fallback" : ""}`} role="region" aria-labelledby="text-view-title" tabIndex={-1}>
       <Card.Header
@@ -779,21 +922,47 @@ function TextView({ lines, fallback, onClose, ref }: { lines: TextLine[]; fallba
       <Card.Body>
         {fallback && <p className="text-note">3D graphics are not available here, so the world is shown as text.</p>}
         <WhereForm />
-        {[...sections].map(([section, items]) => (
-          <section key={section} className="text-section">
-            <h3>{section}</h3>
-            <ul>
-              {items.map((line, i) => (
-                <li key={i}>
-                  <span className="text-kind" data-kind={line.kind}>
-                    {KIND_WORD[line.kind]}
-                  </span>
-                  <span>{line.text}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))}
+        {before.map((section) => block(section, 3))}
+        {districts.map((d) => {
+          const summary = summarise(d.buildings);
+          return (
+            <section key={d.id} className="text-district" aria-label={d.name}>
+              <header className="text-district-head">
+                <h3>{region ? d.name : "Buildings"}</h3>
+                {region && onGo && (
+                  <Button size="sm" onClick={() => onGo({ district: d.id, building: null, room: null })}>
+                    Go to {d.name}
+                  </Button>
+                )}
+              </header>
+              <p className="text-district-summary">
+                <span className="text-kind" data-kind="fact">
+                  fact
+                </span>
+                <span>{summaryWords(summary)}</span>
+              </p>
+              {d.buildings.map((b) => {
+                const needs = needsWords(needsOf(b));
+                return (
+                  <div key={b.slug} className="text-building">
+                    <p className="text-jump">
+                      {onGo ? (
+                        <Button size="sm" variant="ghost" onClick={() => onGo({ district: d.id, building: b.slug, room: null })}>
+                          Go inside {b.name}
+                        </Button>
+                      ) : (
+                        <strong>{b.name}</strong>
+                      )}
+                      {needs && <Chip.Attention>Needs a person: {needs}</Chip.Attention>}
+                    </p>
+                    {owned(b).map((section) => block(section, 4))}
+                  </div>
+                );
+              })}
+            </section>
+          );
+        })}
+        {after.map((section) => block(section, 3))}
         <DirectorLog />
       </Card.Body>
     </Card>
