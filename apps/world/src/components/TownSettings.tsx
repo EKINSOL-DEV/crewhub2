@@ -16,6 +16,7 @@ import { townRuntime } from "../state/town";
 import { styleRegistry } from "../world/style";
 import { downloadText } from "./download";
 import { Button, Field } from "./primitives";
+import { ZoneSettings } from "./ZonePanel";
 
 const RULES: Record<RuleId, { name: string; fact: string }> = {
   "milestone-banner": { name: "Milestone banner", fact: "a banner in the lobby per active milestone" },
@@ -29,7 +30,8 @@ const QUALITY_LABELS: Record<GraphicsQuality, string> = { pretty: "Pretty", fast
 
 export function TownSettings({ town }: { town: TownState }) {
   const quality = useQuality();
-  const dayNight = useDayNight(useWorld().model.mode);
+  const { model } = useWorld();
+  const dayNight = useDayNight(model.mode);
   const fps = useFps();
   const [importNote, setImportNote] = useState<{ ok: boolean; text: string } | null>(null);
   const style = styleRegistry.getStyle(town.doc.styleId).manifest;
@@ -130,6 +132,7 @@ export function TownSettings({ town }: { town: TownState }) {
           />
         </div>
       </fieldset>
+      <ZoneSettings model={model} town={town} />
       <fieldset className="rule-settings">
         <legend className="label">Rule props</legend>
         <p className="hint">Props made from loops facts, labelled "rule" in the scene.</p>

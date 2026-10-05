@@ -170,6 +170,8 @@ class GreenhouseStyle implements WorldStyle {
         return growth.scaffolding(kit, o);
       case "town.district-gate":
         return growth.districtGate(kit, o);
+      case "town.zone-mark":
+        return pieces.zoneMark(kit, o);
       case "path":
         return pieces.path(kit, o);
       case "street-lamp":
