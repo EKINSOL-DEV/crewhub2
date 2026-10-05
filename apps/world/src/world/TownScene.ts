@@ -9,6 +9,7 @@
    drawn frame at the playback speed (paused with it, and with the tab), and each robot follows its walker. */
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { zoneById } from "@crewhub/world-model";
 import type { AgentPlacement, RoomKind, WorldModel } from "@crewhub/world-model";
 import { IDLE_STATE, type Cast, type FigureHandle, type FigureState } from "@crewhub/world-cast";
 import type { EnvironmentHandle, GraphicsQuality, ModelAnimation, ModelKey, ResolvedStyle, StyleTheme } from "@crewhub/world-style";
@@ -32,6 +33,7 @@ import { nudgeStacks, overRobot, type Label, type RobotBox } from "./labelLayout
 import { updateMatrices } from "./matrixPass";
 import { RobotCrowd } from "./robotCrowd";
 import { castRegistry } from "./cast";
+import { buildingLook, townLook, type LookContext } from "./worldLook";
 import { figureRole, figureState, type FigureFacts, type FigurePlace } from "./figureState";
 
 export interface TownView {
@@ -49,7 +51,7 @@ export interface TownView {
   theme: StyleTheme;
   /** The viewer's graphics setting: "pretty" draws shadow maps and ambient effects, "fast" leaves them out. */
   quality: GraphicsQuality;
-  /** The viewer's cast (Settings); null follows the town and the style. A building's own cast wins over it. */
+  /** The viewer's cast (Settings); null follows the town and the style. A building's own cast and its zone's win over it. */
   cast: string | null;
   /** Source time now (ms): drone flights run on it, so they follow the playback speed. */
   now: () => number;
@@ -618,10 +620,11 @@ export class TownScene {
         return;
       }
       const c = plotCenter(index);
-      // A plot's own style id when it has one, else the town document's default (tonight both are Greenhouse).
-      const plot: StyledPlot = { styleId: this.view.town?.doc.plots.find((p) => p.slug === b.slug)?.styleId ?? this.view.town?.doc.styleId ?? null };
+      // The building's look: its plot's, then its zone's, the viewer's, the town's, the style's default (`look.ts`).
+      const look = buildingLook(this.#lookContext(), b.slug);
+      const plot: StyledPlot = { styleId: look.styleId };
       const style = styleRegistry.styleFor(plot);
-      const cast = this.#castFor(style, b.slug);
+      const cast = castRegistry.castFor(style, look.castId);
       if (!view || view.group.userData.index !== index || view.ctx.style !== style) {
         view?.dispose();
         if (style !== this.townStyle) style.setTheme(this.view.theme);
@@ -640,7 +643,7 @@ export class TownScene {
       // A cast chosen in Settings (or by the town document) swaps the figures where they stand and walk.
       view.setCast(cast);
       const town = this.view.town;
-      view.update(b, this.view.entered === b.slug, town && (this.view.entered === b.slug ? town : { ...town, build: null }));
+      view.update(b, this.view.entered === b.slug, town && (this.view.entered === b.slug ? town : { ...town, build: null }), zoneById(model.zones, b.zoneId));
       if (this.view.entered === b.slug) this.#useInterior(b.slug);
       view.setFocus(this.view.entered === b.slug ? this.view.room : null);
       for (const [id, v] of view.anchors) this.#anchors.set(id, v);
@@ -733,21 +736,21 @@ export class TownScene {
     this.#contacts.set(slug, { object, size });
   }
 
-  /**
-   * The cast of a building (null: of the town itself, its postman and town hall): the building's own in the town
-   * document, else the viewer's choice, else the town document's, else the style's default.
-   */
-  #castFor(style: ResolvedStyle, slug: string | null): Cast {
-    const doc = this.view.town?.doc;
-    const building = slug === null ? null : doc?.plots.find((p) => p.slug === slug)?.castId;
-    return castRegistry.castFor(style, castRegistry.resolve({ building, viewer: this.view.cast, town: doc?.castId, style: style.manifest.defaultCast }).id);
+  #lookContext(): LookContext {
+    const { model, town, cast } = this.view;
+    return { doc: town?.doc, zones: model.zones, buildings: model.buildings, viewer: { castId: cast } };
+  }
+
+  /** The cast of the town itself (its postman and town hall): the viewer's choice, else the town document's, else the style's default. */
+  #townCast(): Cast {
+    return castRegistry.castFor(this.townStyle, townLook(this.#lookContext()).castId);
   }
 
   /** The postman at the post office and the agents in the town hall. */
   syncCivic() {
     const model = this.view.model;
     const civic = [...model.postOffice.slice(0, 2), ...model.townHall.slice(0, 5)];
-    const cast = this.#castFor(this.townStyle, null);
+    const cast = this.#townCast();
     const signature = `${cast.manifest.id}|` + civic.map((a) => `${a.key}:${a.posture}:${a.laneStatus}`).join("|") + model.freshness.stale;
     const post = civicCenter("post-office"),
       hall = civicCenter("town-hall");
@@ -1383,7 +1386,7 @@ export class TownScene {
       textures: memory.textures,
       heap,
       quality: this.view.quality,
-      cast: ((this.view.entered && this.#buildings.get(this.view.entered)?.ctx.cast) || this.#castFor(this.townStyle, null)).manifest.name,
+      cast: ((this.view.entered && this.#buildings.get(this.view.entered)?.ctx.cast) || this.#townCast()).manifest.name,
       view: this.view.entered ?? "town",
       frames: s.frames,
       at: now,

@@ -405,3 +405,139 @@ the viewer can choose one in Settings, and the town document can set one per bui
 
 Later, not now: an agent choosing its own figure through a ticket (a character builder next to the prop
 builder). It costs tokens, so it will be off by default, with a plain pick from the cast as the default.
+
+## Addendum: scale and zones (2026-10-06)
+
+The owner, translated: "In the beginning we usually start small. A fresh installation of crewhub-loops has for
+example only one project, and we must be ready for that. But it must also be possible to have 20 projects. Think
+about how we handle that, maybe several zones that are then also linked to a future feature in crewhub-loops, a level
+above the projects, or a category. That must be possible with CrewHub World. We could set the styling per zone
+ourselves."
+
+Today the town is a fixed 4 x 3 grid. Buildings stand on the plot of their index in `model.buildings`, and the
+town document's plot cells do not decide anything yet. One project looks lost in that grid, and twenty do not fit.
+
+### Four principles (fixed)
+
+1. **The settlement fits its content.** The world is as big as what lives in it: a clearing for nothing, a hamlet
+   for one project, a village, a town, a region of districts. It never shows a grid of empty plots waiting.
+2. **Nothing moves by itself.** People find a project by where it stands. A building keeps its place when projects
+   are added, archived or regrouped; growth adds at the edges. Only an explicit action ("Tidy the town", or moving a
+   building by hand in build mode) re-lays anything.
+3. **Zones are a level above projects that the world owns until crewhub-loops has one.** The world model gets
+   zones now. Where a project's zone comes from is one small resolver, so a future loops feature plugs in without
+   touching the renderer.
+4. **Look resolves from the most specific to the most general:** building, then zone, then the viewer's choice,
+   then the town, then the style's default. This holds for the style, its options and the cast. (It inserts the
+   zone into the casts' order; the viewer's choice now yields to a zone that sets a look.)
+
+### The layout seam: lots, districts and tiers
+
+Pure functions in `apps/world/src/world/settlement.ts` (no Three.js), owned by one developer. Every other part reads
+them:
+
+- **Lots.** The town stands on a lattice of square lots of today's pitch (a 24-unit plot plus a 6-unit street). A
+  plot in the town document is a lot coordinate: `cell` keeps its 0 to 127 range, with the centre lot at
+  `{x: 64, z: 64}`.
+- **Districts.** Each zone owns a district, and a district has a fixed **growth sequence**: an ordered list of
+  district-local lot offsets that depends on nothing but the index. The sequence has three properties:
+  - the first lot is the hamlet's lot beside the district's green;
+  - the next ones form a block of four to six lots around that green;
+  - further blocks follow around small greens of their own, ringing outward.
+- **District slots.** A district's slot (its origin on a coarse lattice of district cells, spiralling out from the
+  centre) is assigned the first time the world sees the zone, then stored. Reordering zones changes lists and
+  labels, never where a district stands. Districts are separated by natural borders on the coarse lattice's gaps:
+  the stream, hedges, a bridge, a gate with the district's name.
+- **Civic lots are reserved.** The central district's sequence skips them. The lodge stands where the town hall
+  will stand, and the mail hut where the post office will. The square, the café, the bus stop and the landmark
+  spots (windmill, chapel, bandstand, farm corner, cottages) also sit on spots that no project ever takes. Civic
+  buildings grow in place, so they never move either.
+- **Allocation.** A project gets the next free lot of its zone's sequence the first time the world sees it. The lot
+  is written into the town document as its plot and never changes after that, except by Tidy or by hand.
+  - Archived projects keep their plot, boarded up.
+  - A viewer setting may fold archived buildings into an "old quarter" row. That is an explicit choice, and it is
+    shown as such.
+  - A project that moves to another zone stays where it stands. It carries its new zone's colour, and the text view
+    and build mode say it belongs elsewhere; Tidy or a hand move rehouses it.
+- **Tier.** The tier is chosen from the number of projects that are not archived, with hysteresis: a tier is
+  entered at its threshold and left only two projects below it.
+
+  | Projects | Tier | What it is |
+  | --- | --- | --- |
+  | 0 | Clearing | A small lodge, a mailbox, a welcome sign, and one staked-out plot that says what to do next ("create a project in crewhub-loops"). The operator and the postman are at home. |
+  | 1 | Hamlet | One building as the centre of the picture, the lodge and the mail hut close by, one lane, a small green. |
+  | 2 to 4 | Village | One street and a small square: today's town, tightened. |
+  | 5 to 9 | Town | Square, streets and the full civic set. |
+  | 10 and more | Region | Districts, joined by roads and separated by natural borders. With a single zone, the district's blocks read as neighbourhoods without names. |
+
+  The tier decides the ground's extent (always covering every allocated lot), the streets, the civic set and which
+  landmarks have arrived. It never moves a lot.
+- **Landmarks** arrive with growth, deterministically: seeded by the town, the same on every load.
+- **A new project** appears as a building going up: scaffolding for a moment, then the building. Under reduced
+  motion it fades in.
+- **The stability test:** add projects one by one from 0 to 40, in several orders and spread over one to four
+  zones, with archiving and restoring mixed in. No building's lot may ever change, and no lot may overlap another
+  or a reserved spot.
+
+### Zones
+
+- **In the model:** a zone has an id, a name, an order, an optional colour and emblem, and a look (style id, style
+  options, cast id). Every building belongs to exactly one zone. Without any grouping there is one unnamed default
+  zone, and the world behaves as a single settlement.
+- **Where a building's zone comes from,** in order:
+  1. a manual assignment in the town document (build mode);
+  2. a group from the source;
+  3. the default zone.
+
+  Item 2 sits behind one function in `packages/loops-client`, in the shape the world would like crewhub-loops to
+  offer: a group with an id, slug, name, order and optional colour and icon, plus `groupId` on `ProjectOut`. The
+  demo source feeds it as the one clearly marked future field.
+- **Look per zone:** Settings and build mode let a person set a zone's style, style options and cast. Only
+  Greenhouse exists, so **style options** prove the idea. Greenhouse declares them as data in its `style.json`:
+  - season: October as today, spring, summer;
+  - planting: orchard, market, waterside, meadow;
+  - accent;
+  - lantern type.
+
+  A style ignores options it does not know. A zone with a different season and cast must read as a different
+  district at a glance.
+- **Proposal L22 "project groups"** for crewhub-loops is written, not built. It goes in `docs/LOOPS_GAP_ANALYSIS.md`
+  section 6 and the integration plan's section 9, named neutrally as a "group".
+
+### Finding your way at scale
+
+- **Zoom levels:** region, district, building, room. The breadcrumb and the Escape chain follow them. The home view
+  frames what exists:
+  - the building, for a hamlet;
+  - the settlement, for a village or town;
+  - the districts, for a region.
+- **Zoomed out, the world summarises.** Per district: its name, counts per status, and one beacon when anything
+  inside needs a person (waiting on a person, attention, stalled). Per building the same, one level down. The calm
+  labels rule holds.
+- **A jump list:** a searchable list of zones, projects and agents (a button, plus `/` and `Cmd/Ctrl+K`) that flies
+  the camera there. The text view groups by zone and offers the same jumps. On a phone, the jump list is the main
+  way around a region.
+- **Far districts are cheap:** silhouettes and the instanced crowd, and interiors are not built until approached.
+  The performance rounds' frame targets hold for 20 buildings and 200 agents in four zones (`?stress=20`).
+- **Travel between districts:** figures take the bus between districts (walk to the stop, the bus drives, walk on),
+  or the simplest honest substitute if the bus is more than a small addition to the navigation.
+
+### The demo shows all of it
+
+A scenario picker on the Demo chip offers:
+
+- **"Fresh install":** no project. A minute in, the first project is created and its building goes up.
+- **"One project".**
+- **"Small team":** today's four projects and storyline, still the default.
+- **"Studio":** twenty projects in four zones with different looks and casts, with enough going on to light the
+  beacons.
+- **The stress fixtures.**
+
+Every scenario is deterministic and seeded, and every scenario keeps its own town document, so switching does not
+mix plots. In "Fresh install" and "One project" the chat, the drone, the prop request and build mode all still work.
+
+### Out of scope
+
+- A second full style.
+- Building the loops side of L22.
+- Re-syncing the chat copy (D9, D10 of the gap analysis).

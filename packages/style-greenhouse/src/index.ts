@@ -26,6 +26,7 @@ import { partsModel } from "./parts.ts";
 import * as pieces from "./pieces.ts";
 import * as shell from "./shell.ts";
 import { figureKit } from "./figureKit.ts";
+import * as growth from "./growth.ts";
 import * as town from "./town.ts";
 
 type ManifestFile = StyleManifest & GreenhouseManifestData;
@@ -161,6 +162,16 @@ class GreenhouseStyle implements WorldStyle {
         return town.puddle(kit, o);
       case "town.lantern":
         return town.lantern(kit);
+      case "town.staked-plot":
+        return growth.stakedPlot(kit, o);
+      case "town.plot-sign":
+        return growth.plotSign(kit, o);
+      case "town.scaffolding":
+        return growth.scaffolding(kit, o);
+      case "town.district-gate":
+        return growth.districtGate(kit, o);
+      case "town.zone-mark":
+        return pieces.zoneMark(kit, o);
       case "path":
         return pieces.path(kit, o);
       case "street-lamp":

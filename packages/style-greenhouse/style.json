@@ -258,7 +258,15 @@
     "truck",
     "wall",
     "wall.glass",
-    "wall.low"
+    "wall.low",
+    "town.staked-plot",
+    "town.plot-sign",
+    "town.scaffolding",
+    "town.district-gate",
+    "town.zone-mark",
+    "town.lodge",
+    "town.mail-hut",
+    "town.post-box"
   ],
   "palette": {
     "timber": "#bf9873",

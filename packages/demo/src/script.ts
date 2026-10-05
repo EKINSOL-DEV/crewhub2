@@ -38,7 +38,7 @@ interface Draft {
   action: Action;
 }
 
-class ScriptBuilder {
+export class ScriptBuilder {
   readonly drafts: Draft[] = [];
   private nextId: number;
 
@@ -65,22 +65,33 @@ class ScriptBuilder {
   }
 }
 
+/** Where a scenario's prop requests land: the project, its lead (who takes them) and the person who plans and closes. */
+export interface PropHome {
+  project: string;
+  lead: string;
+  person: string;
+}
+
+const CREWHUB_HOME: PropHome = { project: "crewhub", lead: "cr-lead", person: "nicky" };
+
 /**
  * One prop request, start to Done: created (or taken from the backlog), planned by a person,
- * fetched by cr-lead, built by a worker (or the lead), posted as a comment, reviewed, done.
+ * fetched by the lead, built by a worker (or the lead), posted as a comment, reviewed, done.
  */
-function propFlow(
+export function propFlow(
   s: ScriptBuilder,
   start: number,
   prop: { title?: string; ticket?: string; by?: string; body?: string; json: unknown; worker?: string; doneAfter: number },
+  home: PropHome = CREWHUB_HOME,
 ): void {
+  const { lead, person } = home;
   const t = (seconds: number) => start + seconds * SECOND;
   let ref = prop.ticket ?? "";
   if (prop.title !== undefined) {
     const created = s.post(t(0), {
       type: "createTicket",
-      by: prop.by ?? "nicky",
-      project: "crewhub",
+      by: prop.by ?? person,
+      project: home.project,
       title: prop.title,
       kind: "task",
       priority: "normal",
@@ -90,21 +101,21 @@ function propFlow(
     ref = `@${created}`;
   }
   const worker = prop.worker === undefined ? {} : { worker: prop.worker };
-  s.post(t(14), { type: "move", by: "nicky", ticket: ref, to: "planned" });
-  s.add(t(32), { type: "assign", by: "cr-lead", ticket: ref, assignee: "cr-lead" });
-  s.add(t(36), { type: "move", by: "cr-lead", ticket: ref, to: "in_progress" });
-  s.add(t(40), { type: "progress", ticket: ref, agent: "cr-lead", kind: "start", text: "building the prop", ...worker });
+  s.post(t(14), { type: "move", by: person, ticket: ref, to: "planned" });
+  s.add(t(32), { type: "assign", by: lead, ticket: ref, assignee: lead });
+  s.add(t(36), { type: "move", by: lead, ticket: ref, to: "in_progress" });
+  s.add(t(40), { type: "progress", ticket: ref, agent: lead, kind: "start", text: "building the prop", ...worker });
   s.add(t(84), {
     type: "progress",
     ticket: ref,
-    agent: "cr-lead",
+    agent: lead,
     kind: "update",
     text: "parts placed; checking them against the footprint",
     ...worker,
   });
-  s.add(t(102), { type: "comment", by: "cr-lead", ticket: ref, text: propComment(prop.json) });
-  s.add(t(106), { type: "move", by: "cr-lead", ticket: ref, to: "review" });
-  s.add(t(prop.doneAfter), { type: "move", by: "nicky", ticket: ref, to: "done" });
+  s.add(t(102), { type: "comment", by: lead, ticket: ref, text: propComment(prop.json) });
+  s.add(t(106), { type: "move", by: lead, ticket: ref, to: "review" });
+  s.add(t(prop.doneAfter), { type: "move", by: person, ticket: ref, to: "done" });
 }
 
 function storyline(s: ScriptBuilder): void {
@@ -319,29 +330,52 @@ function finish(drafts: Draft[], rng: () => number, offset = 0): ScriptEntry[] {
   return entries;
 }
 
-export function buildScript(seed: number): ScriptEntry[] {
+/** A storyline with its length: what `buildStory` turns into the entries of one loop. */
+export interface Story {
+  durationMs: number;
+  storyline(s: ScriptBuilder): void;
+  /** The probe uploads nothing in this window; null when it never falls silent. */
+  probeSilence: { from: number; to: number } | null;
+}
+
+/** The entries of one loop of `story`: its actions with the seeded jitter, and the probe and the poll on their grid. */
+export function buildStory(story: Story, seed: number): ScriptEntry[] {
   const s = new ScriptBuilder();
-  storyline(s);
-  for (let t = POLL_OFFSET_MS; t < SCRIPT_DURATION_MS; t += TEAM_PERIOD_MS) s.add(t, { type: "poll" }, false);
-  for (let t = PROBE_OFFSET_MS; t < SCRIPT_DURATION_MS; t += TEAM_PERIOD_MS) {
-    if (t > PROBE_SILENCE.from && t < PROBE_SILENCE.to) continue;
+  story.storyline(s);
+  for (let t = POLL_OFFSET_MS; t < story.durationMs; t += TEAM_PERIOD_MS) s.add(t, { type: "poll" }, false);
+  for (let t = PROBE_OFFSET_MS; t < story.durationMs; t += TEAM_PERIOD_MS) {
+    if (story.probeSilence !== null && t > story.probeSilence.from && t < story.probeSilence.to) continue;
     s.add(t, { type: "probe" }, false);
   }
   const entries = finish(s.drafts, mulberry32(seed));
-  const late = entries.find((e) => e.at >= SCRIPT_DURATION_MS);
+  const late = entries.find((e) => e.at >= story.durationMs);
   if (late !== undefined) throw new Error(`Script action ${late.id} falls after the loop end`);
   return entries;
+}
+
+/** The storyline of "Small team", the default scenario. */
+export const SMALL_TEAM_STORY: Story = { durationMs: SCRIPT_DURATION_MS, storyline, probeSilence: PROBE_SILENCE };
+
+export function buildScript(seed: number): ScriptEntry[] {
+  return buildStory(SMALL_TEAM_STORY, seed);
 }
 
 /**
  * The on-demand prop request (build mode's "Request a prop", demo only): the same flow as the
  * scripted props, from `fromMs`, with ids from `firstId` up. Actions past the loop end are cut.
  */
-export function buildPropRequest(thing: string, fromMs: number, firstId: number, seed: number): ScriptEntry[] {
+export function buildPropRequest(
+  thing: string,
+  fromMs: number,
+  firstId: number,
+  seed: number,
+  home: PropHome = CREWHUB_HOME,
+  durationMs: number = SCRIPT_DURATION_MS,
+): ScriptEntry[] {
   const s = new ScriptBuilder(firstId);
   const flowStart = fromMs + SECOND;
-  propFlow(s, flowStart, { title: `Prop: ${thing}`, json: requestedProp(thing), doneAfter: 130 });
-  return finish(s.drafts, mulberry32(seed ^ firstId), fromMs).filter((e) => e.at < SCRIPT_DURATION_MS);
+  propFlow(s, flowStart, { title: `Prop: ${thing}`, json: requestedProp(thing), doneAfter: 130 }, home);
+  return finish(s.drafts, mulberry32(seed ^ firstId), fromMs).filter((e) => e.at < durationMs);
 }
 
 /** Ids one chat exchange uses (the message, the postman's claim and forward, the reply). */

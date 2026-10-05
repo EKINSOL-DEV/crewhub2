@@ -30,6 +30,7 @@ export function room(kind: RoomKind, slug = "cr"): Room {
 export function building(slug: string, agents: AgentPlacement[], extra: Partial<Building> = {}): Building {
   return {
     slug,
+    zoneId: "default",
     key: slug.toUpperCase(),
     name: `${slug.toUpperCase()} product`,
     color: null,
@@ -86,6 +87,7 @@ export function world(buildings: Building[], extra: Partial<WorldModel> = {}): W
     snapshots: 0,
     freshness: { teamTs: null, ageSeconds: null, stale: false },
     buildings,
+    zones: [{ id: "default", name: null, order: 0, color: null, emblem: null, look: {}, source: "default" }],
     townHall: [],
     postOffice: [],
     deliveries: [],
