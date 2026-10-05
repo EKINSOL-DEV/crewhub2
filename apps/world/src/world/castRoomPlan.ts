@@ -68,7 +68,7 @@ export const MEMBERS: readonly CastMember[] = [
   { key: "cast:design", role: "design", name: "Design", accent: ROOM_ACCENT, home: seat(7, 3), follows: false },
   { key: "cast:analyst", role: "analyst", name: "Analyst", accent: ROOM_ACCENT, home: seat(10, 3), follows: false },
   { key: "cast:unknown", role: "unknown", name: "Unknown", accent: ROOM_ACCENT, home: { x: 3.4, z: 7.1, heading: -0.5 }, follows: false },
-  { key: "cast:postman", role: "postman", name: "Postman", accent: null, home: { x: 12.9, z: 6.5, heading: -0.3 }, follows: false },
+  { key: "cast:postman", role: "postman", name: "Postman", accent: null, home: { x: 12.8, z: 7.7, heading: -0.3 }, follows: false },
   { key: "cast:operator", role: "operator", name: "Operator", accent: null, home: { x: 13.1, z: 0.8, heading: -0.4 }, follows: false },
 ];
 
@@ -82,7 +82,7 @@ export const FURNITURE: readonly Furnishing[] = [
   { key: "furniture.floor-lamp", x: 0.6, z: 6.4 },
   { key: "furniture.plant", x: 0.7, z: 9.3, scale: FIGURE_SCALE, seed: 3 },
   { key: "furniture.plant", x: 13.3, z: 9.3, scale: FIGURE_SCALE * 0.9, seed: 5 },
-  { key: "furniture.mailbox", x: 13.5, z: 6.6, rotation: -Math.PI / 2 },
+  { key: "furniture.mailbox", x: 13.5, z: 7.6, rotation: -Math.PI / 2 },
   { key: "furniture.bookshelf", x: 13.3, z: 3.2, rotation: -Math.PI / 2 },
 ];
 
