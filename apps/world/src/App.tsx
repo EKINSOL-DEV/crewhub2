@@ -14,6 +14,7 @@ import { useAmbient } from "./state/ambient";
 import { useCast } from "./state/cast";
 import { castRegistry } from "./world/cast";
 import { describeCasts } from "./world/castText";
+import { describeZones } from "./world/zoneText";
 import { styleRegistry } from "./world/style";
 import { toggleDetails, useDetails } from "./state/details";
 import { toggleFps } from "./state/fps";
@@ -136,6 +137,13 @@ function World() {
         style: styleRegistry.getStyle(town.doc.styleId).manifest.defaultCast,
         zones: model.zones,
         buildings: model.buildings,
+      }),
+      ...describeZones({
+        zones: model.zones,
+        buildings: model.buildings,
+        plots: town.doc.plots,
+        assignments: town.doc.assignments,
+        lookOf: (zone) => [...Object.values(zone.look.styleOptions ?? {}), ...(zone.look.castId ? [castRegistry.listCasts().find((m) => m.id === zone.look.castId)?.name ?? zone.look.castId] : [])].join(", "),
       }),
       ...describeTownDocument(town.doc, town.catalogue, { ruleProps: rules, invalidRequests: town.invalid }),
     ],
