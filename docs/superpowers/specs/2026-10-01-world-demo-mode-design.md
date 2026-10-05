@@ -386,3 +386,22 @@ Approved by the owner after the art pass. Two parts, in order:
    run, faster startup with lazy-loaded build mode and previews, a steady Fast setting on a phone budget. No
    visible regression on Pretty against the art-pass screenshots; optimisations live in the renderer and the
    style package, never in the model.
+
+## Addendum: casts (2026-10-05)
+
+The owner doubts that little robots are the right figures for agents: the world became a warm small town, and
+"AI equals robot" lays it on thick. Decision: the cast, the set of figures that stand for agents, becomes a
+swappable part of a style with its own contract and registry, and four casts ship side by side, which also proves
+that modding works:
+
+1. **Classic bots**: the current robots, unchanged, the default.
+2. **Overgrown bots**: the same robots re-dressed in wood, ceramic and moss; shows how small a cast mod can be.
+3. **Sprouts**: an own species, a bean-shaped body with a growth on its head that carries role and state.
+4. **Potlings**: a walking terracotta pot with a plant that carries role and state.
+
+A cast is data first (a manifest, parts-JSON models, a small rig description). A style names its default cast,
+the viewer can choose one in Settings, and the town document can set one per building. A casting room
+(`/cast-preview`) shows every cast in the same sample room in every role and state, alone and side by side.
+
+Later, not now: an agent choosing its own figure through a ticket (a character builder next to the prop
+builder). It costs tokens, so it will be off by default, with a plain pick from the cast as the default.
