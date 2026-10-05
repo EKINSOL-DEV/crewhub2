@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@crewhub/cast-classic-bots": "0.0.0",
+    "@crewhub/cast-potlings": "0.0.0",
     "@crewhub/demo": "0.0.0",
     "@crewhub/loops-client": "0.0.0",
     "@crewhub/style-greenhouse": "0.0.0",
