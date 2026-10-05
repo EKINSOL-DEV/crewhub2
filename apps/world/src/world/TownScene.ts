@@ -36,6 +36,8 @@ import { FrameRing } from "./frameRing";
 import { nudgeStacks, overRobot, type Label, type RobotBox } from "./labelLayout";
 import { updateMatrices } from "./matrixPass";
 import { RobotCrowd } from "./robotCrowd";
+import { DistrictFrames, type DistrictView } from "./districtFrames";
+import { isDistant, labelDetail, type LabelDetail } from "./wayfinding";
 import { castRegistry } from "./cast";
 import { buildingLook, townLook, type LookContext } from "./worldLook";
 import { figureRole, figureState, type FigureFacts, type FigurePlace } from "./figureState";
@@ -81,6 +83,9 @@ export interface TownView {
   fps?: boolean;
   /** Inside a building: the selected agent's key (a soft ring under its feet), or null. */
   selectedAgent?: string | null;
+  /** The districts in use and the one the view is in (a region's level between home and a building), or null. */
+  districts?: readonly DistrictView[];
+  district?: string | null;
   /**
    * The look of the town and of each district (townLooks.ts): picks for the style's options. Left out, the address
    * bar's preview (`?look=`, `?looks=`), else the style as it stands.
@@ -200,6 +205,8 @@ const FAR_LABEL = 72;
    hovered or selected robot's plate is never hidden: it is placed first. */
 const HIDDEN_LABEL = 160;
 const NARROW_CANVAS = 600;
+/** The height of a district's card in pixels: its name and three lines, or only its name on a phone. */
+const DISTRICT_CARD = { desktop: 84, phone: 36 };
 /* Labels that hang above their anchor (bottom centred on it): robots' stacks, tags, chips and counts. Building, civic
    and room signs sit beside their anchors and keep their places. */
 const HANGING = /^(a|o|rule|err|p|beacon|mail|banner):|^c:[^:]+:/;
@@ -278,6 +285,10 @@ export class TownScene {
   #postmanFacts: FigureFacts = { agent: null as unknown as AgentPlacement };
   /** The far robots of every building, drawn instanced (robotCrowd.ts). */
   #crowd = new RobotCrowd();
+  #districts = new DistrictFrames();
+  #distant = false;
+  /** Which labels show at the current zoom (`labelDetail`); on the labels host as `data-detail`. */
+  #detail: LabelDetail | null = null;
   /** Buildings the camera sees this frame (their far robots follow their walkers and are drawn). */
   #seen = new Set<string>();
   #frustum = new THREE.Frustum();
@@ -730,6 +741,7 @@ export class TownScene {
       this.#contact(b.slug, view);
       this.#anchors.set(`b:${b.slug}`, new THREE.Vector3(c.x, 0.2, c.z + PLOT_SIZE / 2));
     });
+    this.#districts.update(this.view.districts ?? [], (slug) => this.#buildings.get(slug)?.bounds(null) ?? null, this.#anchors);
     for (const cell of this.view.lotAnchors ?? []) {
       const c = lotCentre(cell);
       this.#anchors.set(`lot:${lotKey(cell)}`, new THREE.Vector3(c.x, 0.2, c.z));
@@ -923,9 +935,10 @@ export class TownScene {
       // The overlay's window describes one view: start it again.
       this.#frames.clear();
       if (view.entered) this.frameBuilding(view.entered, view.zoomed);
-      else this.home(false);
+      else this.#frameOutside();
       this.fitShadow();
     } else if (view.entered && previous.zoomed !== view.zoomed) this.frameBuilding(view.entered, view.zoomed);
+    else if (!view.entered && (previous.district ?? null) !== (view.district ?? null)) this.#frameOutside();
     this.#life.configure({ ambient: view.ambient, reducedMotion: view.reducedMotion, quality: view.quality });
     if (previous.theme !== view.theme || previous.quality !== view.quality || previous.reducedMotion !== view.reducedMotion || previous.dayNight !== view.dayNight) this.#drift();
     if (previous.entered !== view.entered || !view.entered !== !this.#lifeInside) {
@@ -1020,7 +1033,9 @@ export class TownScene {
   #homeFrame() {
     const canvas = this.renderer.domElement;
     const portrait = canvas.clientWidth < canvas.clientHeight * 0.8;
-    const insets = this.insets();
+    let insets = this.insets();
+    // A region's districts carry a card above their far corner: the frame keeps headroom for the topmost one.
+    if ((this.view.districts?.length ?? 0) > 1) insets = { ...insets, top: insets.top + (canvas.clientWidth < NARROW_CANVAS ? DISTRICT_CARD.phone : DISTRICT_CARD.desktop) };
     const rects = homeRects(this.view.plan, portrait ? 0 : 1.5, portrait);
     // While a building is picked up, the free plots it can move to are in the picture too.
     for (const cell of this.view.lotAnchors ?? []) {
@@ -1115,6 +1130,29 @@ export class TownScene {
     this.moveTo(target, target.clone().add(offset), THREE.MathUtils.clamp(this.#span / span, 0.6, this.controls.maxZoom), false);
   }
 
+  /** The view outside a building: the district the view is in, else the home frame. */
+  #frameOutside() {
+    const bounds = this.view.district ? this.#districts.bounds.get(this.view.district) : undefined;
+    if (bounds) this.frameGround(bounds, 4);
+    else this.home(false);
+  }
+
+  /** Flies to a piece of ground and frames it in the free canvas; the view direction stays (a rotation survives). */
+  frameGround(bounds: Bounds, height: number) {
+    const direction = (this.#tween ? this.#tween.position.clone().sub(this.#tween.target) : this.camera.position.clone().sub(this.controls.target)).normalize();
+    const canvas = this.renderer.domElement;
+    const portrait = canvas.clientWidth < canvas.clientHeight * 0.8;
+    const insets = this.insets();
+    const { span, target } = this.frameRects([bounds], height, direction, portrait ? { ...insets, left: 0, right: 0 } : insets, portrait ? 0.96 : 1.04);
+    this.moveTo(target, target.clone().add(direction.multiplyScalar(HOME_OFFSET.length())), THREE.MathUtils.clamp(this.#span / span, this.controls.minZoom, this.controls.maxZoom), false);
+  }
+
+  /** Flies to the ground around a label's anchor (the jump list's town hall and post office). */
+  flyToAnchor(id: string, reach = 13) {
+    const anchor = this.#anchors.get(id);
+    if (anchor) this.frameGround({ minX: anchor.x - reach, maxX: anchor.x + reach, minZ: anchor.z - reach * 1.4, maxZ: anchor.z + reach * 0.6 }, 5);
+  }
+
   moveTo(target: THREE.Vector3, position: THREE.Vector3, zoom: number, immediate: boolean) {
     if (immediate || this.view.reducedMotion) {
       this.controls.target.copy(target);
@@ -1129,7 +1167,7 @@ export class TownScene {
   cameraAction(action: CameraAction) {
     if (action === "home") {
       if (this.view.entered) this.frameBuilding(this.view.entered, this.view.zoomed);
-      else this.home(false);
+      else this.#frameOutside();
       return;
     }
     const target = this.controls.target.clone(),
@@ -1442,7 +1480,11 @@ export class TownScene {
     this.camera.updateMatrixWorld();
     this.#frustum.setFromProjectionMatrix(this.#projection.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse));
     this.#seen.clear();
+    // From far (a region's overview) a building is its shell and the crowd: its furniture and resting figures step back.
+    const canvas = this.renderer.domElement;
+    this.#distant = !this.view.entered && isDistant((canvas.clientHeight * this.camera.zoom) / (this.camera.top - this.camera.bottom), this.#distant);
     for (const [slug, view] of this.#buildings) {
+      view.setDistant(this.#distant);
       const b = view.bounds(null);
       this.#box.min.set(b.minX - 1, -1, b.minZ - 1);
       this.#box.max.set(b.maxX + 1, 5, b.maxZ + 1);
@@ -1576,6 +1618,16 @@ export class TownScene {
     stacks.length = 0;
     signs.length = 0;
     const robots = this.#robotsOnScreen(width, height);
+    // From far a region shows its districts, nearer its buildings' signs (wayfinding.ts); the CSS follows `data-detail`.
+    const districts = this.view.districts?.length ?? 0;
+    const detail = this.view.entered ? "close" : labelDetail((height * this.camera.zoom) / (this.camera.top - this.camera.bottom), districts > 1, this.#detail);
+    if (detail !== this.#detail) {
+      this.#detail = detail;
+      this.#labelsHost.dataset.detail = detail;
+      // What a label holds changed with it: measure again.
+      this.refreshLabels();
+    }
+    if (districts > 1 && !this.view.entered) this.#districts.place(this.#anchors, this.camera);
     for (const label of this.#labels) {
       const anchor = this.#anchors.get(label.id);
       let visible = false,

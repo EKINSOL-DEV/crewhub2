@@ -28,6 +28,7 @@ import {
 } from "./buildingTemplate";
 import { assignDesks, PILE_ROOMS, placeObjects, roomCentre, type DeskSlot, type ObjectLayout, type Surface } from "./interiorLayout";
 import { mergeStatic } from "./mergeStatic";
+import { restMatrices } from "./matrixPass";
 import { ObjectLayer } from "./objectLayer";
 import { cellAt, footprintPose, resolveBuildingPlacements, type BuildingPlacements } from "./placements";
 import { PropLayer, type TownLayer } from "./propLayer";
@@ -169,6 +170,12 @@ interface Robot {
   errand: { spot: WorkSpot; at: WorkAt | null } | null;
   /** Drawn near at the last sync: a figure that is new to the near view is on its perch at once, without the hop. */
   near: boolean;
+  /** Seen from far and not walking: followed its walker once since it last changed (`settled`), then left alone (`resting`). */
+  settled?: boolean;
+  resting?: boolean;
+  /** What it rested on: the facts its pose follows and where its walker stood. A change wakes it. */
+  facts?: string;
+  restAt?: { x: number; z: number; seated: boolean };
 }
 
 /** What a ticket pile takes of a table top, world units. */
@@ -238,6 +245,7 @@ export class BuildingView {
   #wallDecor: Record<WallFace, THREE.Group> | null = null;
   /** Seen from the town: the furniture and dressing as a few merged boxes, so every building looks furnished. */
   #silhouette = new THREE.Group();
+  #distant = false;
   #silhouetteMerged: THREE.BufferGeometry[] = [];
   #silhouetteSignature = "";
   #piles = new THREE.Group();
@@ -326,6 +334,7 @@ export class BuildingView {
     this.#signals.visible = this.detailed;
     this.#personal.visible = this.detailed;
     this.#objects.group.visible = this.detailed;
+    this.#applyDistance();
     if (this.detailed) {
       this.#syncSignals();
       this.#syncPersonal();
@@ -768,6 +777,34 @@ export class BuildingView {
     this.#silhouetteMerged = mergeStatic(g);
   }
 
+  /* ── Distance ───────────────────────────────────────────────────────────── */
+
+  /**
+   * Seen from so far that furniture and piles are a pixel or two (a region's overview): only the shell and the crowd
+   * draw, and a figure that is not walking is left alone until it moves or the model changes. TownScene decides.
+   */
+  setDistant(distant: boolean) {
+    if (distant === this.#distant) return;
+    this.#distant = distant;
+    this.#applyDistance();
+    this.shadowRevision++;
+    if (!distant) for (const robot of this.#robots.values()) this.#wake(robot);
+  }
+
+  #applyDistance() {
+    const far = this.#distant && !this.detailed;
+    this.#silhouette.visible = !this.detailed && !this.building.archived && !far;
+    this.#piles.visible = !this.detailed && !far;
+  }
+
+  /** A figure at rest is skipped by the matrix pass (`restMatrices`); waking it brings it up to date on the next frame. */
+  #wake(robot: Robot) {
+    robot.settled = false;
+    if (!robot.resting) return;
+    robot.resting = false;
+    restMatrices(robot.handle.object, false);
+  }
+
   /* ── Agents ─────────────────────────────────────────────────────────────── */
 
   #syncAgents() {
@@ -789,11 +826,16 @@ export class BuildingView {
       robot.real = agent.presence === "real";
       robot.agent = agent;
       robot.deskWaiting = agent.deskTicketKey !== null && b.objects.some((o) => o.key === agent.deskTicketKey && o.waitingOnHuman);
+      const desk = this.desks.get(agent.key);
+      const seat = desk?.seat ?? this.#looseSpot(agent, loose);
+      // A figure at rest far away whose state and place are what they were is left as it is: nothing to pose or move.
+      const facts = `${agent.presence}|${agent.posture}|${agent.laneStatus}|${agent.alerts.length}|${robot.deskWaiting}|${seat.x},${seat.z}`;
+      if (robot.resting && !this.detailed && robot.facts === facts && !robot.departing) continue;
+      robot.facts = facts;
+      this.#wake(robot);
       // Seen from the town, a figure is a few pixels tall: the cast drops its small parts and shadows.
       robot.handle.setDetail(this.detailed ? "near" : "far");
       robot.departing = false;
-      const desk = this.desks.get(agent.key);
-      const seat = desk?.seat ?? this.#looseSpot(agent, loose);
       robot.handle.object.position.copy(this.local(seat.x + 0.5, seat.z + 0.5, FLOOR_LIFT));
       robot.handle.object.rotation.y = 0;
       robot.handle.setState(figureState(robot));
@@ -1143,12 +1185,30 @@ export class BuildingView {
     this.#placeSelection();
     const reduced = this.ctx.reducedMotion();
     const still = !seen && !this.detailed;
+    const far = this.#distant && !this.detailed;
     for (const [key, robot] of this.#robots) {
       if (robot.departing && !this.ctx.walker(key)) {
         this.#dropRobot(key, robot);
         continue;
       }
       if (still) continue;
+      if (far) {
+        // Far away a figure that stands or sits is a few pixels that do not change: once it has settled it rests,
+        // and neither its pose nor its matrices are touched until it walks or the model changes.
+        const walker = robot.real ? this.ctx.walker(key) : undefined;
+        const moving = walker?.walking === true;
+        // Under reduced motion a walker steps to its place without walking: where it stands counts too.
+        const stayed = !walker || (robot.restAt?.x === walker.x && robot.restAt.z === walker.z && robot.restAt.seated === walker.seated);
+        if (robot.resting && !moving && stayed) continue;
+        if (robot.resting) this.#wake(robot);
+        else if (!moving && robot.settled && stayed) {
+          robot.resting = true;
+          restMatrices(robot.handle.object, true);
+          continue;
+        }
+        robot.settled = !moving;
+        if (walker) (robot.restAt ??= { x: 0, z: 0, seated: false }), (robot.restAt.x = walker.x), (robot.restAt.z = walker.z), (robot.restAt.seated = walker.seated);
+      } else if (robot.resting) this.#wake(robot);
       const walking = this.#follow(key, robot);
       // Robots in a building seen from the town only animate while they walk.
       if (!reduced && (this.detailed || walking)) robot.handle.update(seconds);
@@ -1201,7 +1261,7 @@ export class BuildingView {
   /** Seen from the town: hands the robots to the town's crowd, which draws them instanced (robotCrowd.ts). */
   crowd(crowd: RobotCrowd, seen: boolean) {
     if (this.detailed || !this.group.visible || !this.#agents.visible) return;
-    for (const robot of this.#robots.values()) crowd.add(robot.handle.object, seen);
+    for (const robot of this.#robots.values()) crowd.add(robot.handle.object, seen, robot.resting === true);
   }
 
   pickables(): THREE.Object3D[] {
