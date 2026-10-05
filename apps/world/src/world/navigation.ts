@@ -337,8 +337,9 @@ export class NavWorld {
   /**
    * Brings the graph in line with the buildings on the plan's lots (`standalonePlan` when none is given). Only
    * changed districts, buildings and rooms are touched. An archived building has no rooms: nobody walks into it.
+   * `walkways` is the paving the walkers keep to, in world units: the dressing's own once it paves by plan.
    */
-  sync(buildings: readonly Building[], plan: TownPlan = standalonePlan(buildings)): NavSyncResult {
+  sync(buildings: readonly Building[], plan: TownPlan = standalonePlan(buildings), walkways: readonly Bounds[] = townWalkways(plan)): NavSyncResult {
     const result: NavSyncResult = { rebuilt: [], removed: [] };
     const wanted = new Map<string, { building: Building; cell: GridCell }>();
     const lots = new Map(plan.lots.map((l) => [l.slug, l]));
@@ -355,7 +356,7 @@ export class NavWorld {
       }
     }
     this.#usedLots = new Set(plan.lots.map((l) => lotKey(l.cell)));
-    this.#syncTown(plan);
+    this.#syncTown(plan, walkways);
     for (const [slug, { building, cell }] of wanted) {
       const template = buildingTemplate(building);
       const structure = structureKey(template);
@@ -584,8 +585,7 @@ export class NavWorld {
    * The town rooms: one per district in use and per district a road passes through. A new district gets its room
    * and the road's portal; a district whose paving or buildings changed has its room updated in place.
    */
-  #syncTown(plan: TownPlan): void {
-    const walkways = townWalkways(plan);
+  #syncTown(plan: TownPlan, walkways: readonly Bounds[]): void {
     const slots = new Map<string, DistrictSlot>(plan.districts.map((d) => [slotKey(d.slot), d.slot]));
     const portals = plan.roads.map(portal);
     for (const road of plan.roads) for (const slot of [road.from, road.to]) slots.set(slotKey(slot), slot);

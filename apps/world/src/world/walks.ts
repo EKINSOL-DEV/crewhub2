@@ -10,6 +10,7 @@ import type { AgentKey, Intent, RoomKind, WorldModel } from "@crewhub/world-mode
 import { directorErrands, planIdle, planMovement, type Ambient, type ErrandReason, type Leg, type MovementIntent, type Place } from "./movement.ts";
 import { FLOOR_RISE } from "./buildingTemplate.ts";
 import type { TownPlan } from "./townPlan.ts";
+import type { Bounds } from "./townLayout.ts";
 import { isTownRoom, NavWorld, POST_OFFICE_CELL, POSTMAN_PRIORITY, TOWN_HALL_CELL, TOWN_ROOM } from "./navigation.ts";
 
 export interface WalkOptions {
@@ -18,6 +19,8 @@ export interface WalkOptions {
   ambient: Ambient;
   /** Where the buildings stand (townPlan.ts); without one, each building stands where the allocation would put it. */
   plan?: TownPlan;
+  /** The paving walkers keep to, in world units; without it, the plan's streets, roads, civic paths and garden paths. */
+  walkways?: readonly Bounds[];
 }
 
 /** What the renderer needs per walker, in world units. Reused objects: read them, do not keep them. */
@@ -98,7 +101,7 @@ export class Walks {
   update(model: WorldModel, options: WalkOptions): void {
     const optionsChanged = options.entered !== this.#options.entered || options.reducedMotion !== this.#options.reducedMotion;
     this.#options = options;
-    const sync = this.nav.sync(model.buildings, options.plan);
+    const sync = this.nav.sync(model.buildings, options.plan, options.walkways);
     for (const slug of sync.removed)
       for (const [key, state] of this.#agents) if (state.building === slug && !this.nav.sim.actor(key)) this.#agents.delete(key);
     this.#applyDetail(optionsChanged);

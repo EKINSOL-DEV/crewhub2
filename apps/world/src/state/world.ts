@@ -58,6 +58,11 @@ const PARAMS = new URLSearchParams(globalThis.location?.search ?? "");
  */
 export const STRESS_SIZE: StressSize | null = import.meta.env.DEV ? parseStressSize(PARAMS.get("stress")) : null;
 export const STRESS = STRESS_SIZE !== null;
+/**
+ * `?buildings=N` (dev builds only): the world shows only the first N projects of its source. With the same town
+ * document, raising N step by step is a town growing: the way to look at what a new project does to the settlement.
+ */
+const BUILDING_LIMIT = import.meta.env.DEV ? Math.max(0, Math.floor(Number(PARAMS.get("buildings") ?? NaN))) : NaN;
 
 /** `?scenario=<id>`: which demo installation the world shows; the default storyline without it. */
 export const SCENARIO: DemoScenario = demoScenario(parseScenarioId(PARAMS.get("scenario")));
@@ -200,7 +205,8 @@ class WorldRuntime {
     this.#lastReduce = performance.now();
     this.#cost = this.#lastReduce - started;
     this.#inFlight = result.model.buildings.some((b) => b.objects.some((o) => o.transit));
-    return { model: result.model, text: describeWorld(result.model), playback: this.source.playback };
+    const model = Number.isNaN(BUILDING_LIMIT) ? result.model : { ...result.model, buildings: result.model.buildings.slice(0, BUILDING_LIMIT) };
+    return { model, text: describeWorld(model), playback: this.source.playback };
   }
 }
 
