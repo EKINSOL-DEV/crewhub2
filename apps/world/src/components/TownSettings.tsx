@@ -6,6 +6,8 @@ import { Download } from "lucide-react";
 import { exportTownDocument, RULE_IDS, type RuleId } from "@crewhub/world-model";
 import type { GraphicsQuality } from "@crewhub/world-style";
 import { QUALITY_CHOICES, setQuality, useQuality } from "../state/quality";
+import { setCast, useCast } from "../state/cast";
+import { castRegistry } from "../world/cast";
 import { setDayNight, useDayNight } from "../state/daynight";
 import { useWorld } from "../state/world";
 import { setFps, useFps } from "../state/fps";
@@ -31,6 +33,11 @@ export function TownSettings({ town }: { town: TownState }) {
   const fps = useFps();
   const [importNote, setImportNote] = useState<{ ok: boolean; text: string } | null>(null);
   const style = styleRegistry.getStyle(town.doc.styleId).manifest;
+  const cast = useCast();
+  const casts = castRegistry.listCasts();
+  // What the town wears when the viewer chooses nothing, and what it wears now.
+  const followed = castRegistry.resolve({ town: town.doc.castId, style: style.defaultCast }).id;
+  const active = casts.find((m) => m.id === castRegistry.resolve({ viewer: cast, town: town.doc.castId, style: style.defaultCast }).id);
 
   const importFile = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.currentTarget.files?.[0];
@@ -46,6 +53,22 @@ export function TownSettings({ town }: { town: TownState }) {
         <legend className="label">Town</legend>
         <p className="settings-style">Style: {style.name}</p>
         <p className="hint">The only style tonight; buildings follow the town style unless their plot names another.</p>
+        <Field
+          control="select"
+          size="sm"
+          label="Cast"
+          className="cast-setting"
+          hint={`${active?.description ?? ""} The figures that stand for agents; a building with a cast of its own keeps it. Kept in this browser.`}
+          value={cast && castRegistry.has(cast) ? cast : ""}
+          onChange={(e) => setCast(e.currentTarget.value || null)}
+        >
+          <option value="">Follow the town ({casts.find((m) => m.id === followed)?.name ?? followed})</option>
+          {casts.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.name}
+            </option>
+          ))}
+        </Field>
         <p className="hint">
           <a href="/cast-preview">Open the casting room</a>: every cast in one sample room, in every role and state.
         </p>
