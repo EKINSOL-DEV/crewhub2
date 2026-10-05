@@ -71,6 +71,8 @@ export const CODE_KEYS: readonly ModelKey[] = [
   "town.bunting",
   "town.fence",
   "town.lantern",
+  "town.turf",
+  "town.feature",
   "town.crossing",
   "town.string-lights",
   "town.wear",

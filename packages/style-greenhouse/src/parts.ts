@@ -1,6 +1,7 @@
 /* The shared parts renderer (moved from apps/world/src/world/partsModel.ts): draws a validated crewhub-prop/1 model
    with the kit's shared geometry and materials. The style's own data models use it too. A model tagged
-   `accent-<material>` draws the parts of that material in the caller's accent colour (a project colour on a flag). */
+   `accent-<material>` draws the parts of that material in the caller's accent colour (a project colour on a flag); a
+   look (looks.ts) may swap part materials for other swatches. */
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { PROP_LIMITS, type PropModel, type PropPart } from "@crewhub/world-engine";
@@ -108,12 +109,13 @@ export function wedgeGeometry(top: number, bottom: number, height: number, sweep
 }
 
 /** The group's origin is the footprint centre on the floor; the front faces +z. Pass only validated models. */
-export function partsModel(model: PropModel, kit: Kit, accent: PaletteName | null = null): THREE.Group {
+export function partsModel(model: PropModel, kit: Kit, accent: PaletteName | null = null, swap: Record<string, string> | null = null): THREE.Group {
   const g = new THREE.Group();
   g.name = model.id;
   const accented = model.tags.find((t) => t.startsWith("accent-"))?.slice("accent-".length) ?? null;
   for (const part of model.parts) {
-    const color = accent && part.material === accented ? accent : part.material;
+    // A look may swap materials for swatches of its own (blossom for leaves); the caller's accent still wins.
+    const color = accent && part.material === accented ? accent : (swap?.[part.material] ?? part.material);
     g.add(partMesh(kit, part, color));
   }
   return g;

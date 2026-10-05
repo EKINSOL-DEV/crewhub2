@@ -454,6 +454,7 @@ export function townDressing(plots: readonly DressedPlot[]): Dressing[] {
 
   /* Street furniture along the lanes: lanterns on one verge, street trees and benches on the other. */
   streets(add, free, tree, used);
+  features(add, out, free, used);
   // Bunting across the main street on the way up to the square, its poles on the verges clear of the lanterns.
   const lamps = out.filter((d) => d.key === "town.lantern");
   for (const z of [-24, -18, -10]) {
@@ -1025,6 +1026,24 @@ function streets(add: Add, free: (x: number, z: number, pad: number) => boolean,
     const x = plot.door.x + 3.4;
     if (plot.index % 3 === 1 && free(x, z, 0.3)) add("town.bike-rack", x, GRASS_Y, z, { rotation: 0 });
     if (plot.index % 4 === 2 && free(x + 2, z, 0.3)) add("crate", x + 2, GRASS_Y, z, { scale: 1.2, rotation: 0.4 });
+  }
+}
+
+/**
+ * What stands between the buildings: `town.feature` on the verge in front of each used plot, either side of its
+ * garden path, facing the lane. The key is the planting's to fill (a stall, a ladder and crates, a little pool, a
+ * beehive); a style or a look with nothing to say leaves the grass. Kept clear of the lanterns, trees and benches.
+ */
+function features(add: Add, placed: readonly Dressing[], free: (x: number, z: number, pad: number) => boolean, used: ReadonlyMap<number, DressedPlot>) {
+  const taken = placed.filter((d) => /^town\.(lantern|oak|birch|pine|bench|bike-rack|signpost)$|^crate$/.test(d.key));
+  for (const plot of used.values()) {
+    const c = plotCenter(plot.index);
+    const z = c.z + PLOT_SIZE / 2 + (STREET - LANE) / 4;
+    for (const [k, dx] of [-6.5, 6.5, -11].entries()) {
+      const x = clamp(plot.door.x + dx, c.x - PLOT_SIZE / 2 + 1.5, c.x + PLOT_SIZE / 2 - 1.5);
+      if (Math.abs(x - plot.door.x) < 3 || !free(x, z, 0.6) || taken.some((d) => Math.hypot(d.x - x, d.z - z) < 1.7)) continue;
+      add("town.feature", x, GRASS_Y, z, { seed: plot.index * 3 + k });
+    }
   }
 }
 
