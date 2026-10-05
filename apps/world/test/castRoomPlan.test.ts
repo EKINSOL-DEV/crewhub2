@@ -16,6 +16,7 @@ import {
   ROOM,
   roomOrigin,
   roomPlays,
+  SCENE_START,
   walkSpot,
 } from "../src/world/castRoomPlan.ts";
 
@@ -67,7 +68,7 @@ test("team: the lead walks, its workers follow in a line one gap apart, the rest
   const followers = MEMBERS.filter((m) => m.follows);
   assert.ok(followers.length >= 3 && followers.every((m) => m.role === "worker"));
   // On a straight stretch of the loop the line is exact.
-  const seconds = 4;
+  const seconds = SCENE_START;
   const line = [lead, ...followers].map((m) => walkSpot("team", m, seconds)!);
   for (let i = 1; i < line.length; i++) {
     assert.ok(Math.abs(Math.hypot(line[i]!.x - line[i - 1]!.x, line[i]!.z - line[i - 1]!.z) - FOLLOW_GAP) < 1e-9);

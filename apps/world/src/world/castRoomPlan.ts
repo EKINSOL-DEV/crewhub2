@@ -68,8 +68,8 @@ export const MEMBERS: readonly CastMember[] = [
   { key: "cast:design", role: "design", name: "Design", accent: ROOM_ACCENT, home: seat(7, 3), follows: false },
   { key: "cast:analyst", role: "analyst", name: "Analyst", accent: ROOM_ACCENT, home: seat(10, 3), follows: false },
   { key: "cast:unknown", role: "unknown", name: "Unknown", accent: ROOM_ACCENT, home: { x: 3.4, z: 7.1, heading: -0.5 }, follows: false },
-  { key: "cast:postman", role: "postman", name: "Postman", accent: null, home: { x: 12.6, z: 5.6, heading: -0.3 }, follows: false },
-  { key: "cast:operator", role: "operator", name: "Operator", accent: null, home: { x: 12.6, z: 1.3, heading: -0.2 }, follows: false },
+  { key: "cast:postman", role: "postman", name: "Postman", accent: null, home: { x: 12.9, z: 6.5, heading: -0.3 }, follows: false },
+  { key: "cast:operator", role: "operator", name: "Operator", accent: null, home: { x: 13.1, z: 0.8, heading: -0.4 }, follows: false },
 ];
 
 /** The room's furniture: four desks under the window, the lead's desk, one more desk, and a sofa corner. */
@@ -79,10 +79,10 @@ export const FURNITURE: readonly Furnishing[] = [
   { key: "decor.rug-round", x: 2.3, z: 7.6 },
   { key: "furniture.lounge-sofa", x: 0.8, z: 7.6, rotation: Math.PI / 2 },
   { key: "furniture.coffee-table", x: 2.4, z: 7.7 },
-  { key: "furniture.floor-lamp", x: 0.7, z: 5.9 },
+  { key: "furniture.floor-lamp", x: 0.6, z: 6.4 },
   { key: "furniture.plant", x: 0.7, z: 9.3, scale: FIGURE_SCALE, seed: 3 },
   { key: "furniture.plant", x: 13.3, z: 9.3, scale: FIGURE_SCALE * 0.9, seed: 5 },
-  { key: "furniture.mailbox", x: 13.4, z: 5.6, rotation: -Math.PI / 2 },
+  { key: "furniture.mailbox", x: 13.5, z: 6.6, rotation: -Math.PI / 2 },
   { key: "furniture.bookshelf", x: 13.3, z: 3.2, rotation: -Math.PI / 2 },
 ];
 
@@ -119,11 +119,13 @@ export const PREVIEW_SCENES: readonly { id: PreviewScene; label: string; hint: s
 
 /** The loop figures walk: the aisle between the desk rows, up the east side, along the window and back down. */
 export const LOOP: readonly { x: number; z: number }[] = [
-  { x: 0.8, z: 5.4 },
-  { x: 12, z: 5.4 },
-  { x: 12, z: 1.2 },
-  { x: 0.8, z: 1.2 },
+  { x: 0.6, z: 5.4 },
+  { x: 12.3, z: 5.4 },
+  { x: 12.3, z: 1.5 },
+  { x: 0.6, z: 1.5 },
 ];
+/** A scene starts this far in, so the lead's line is on the aisle at once (and under reduced motion, where it stays). */
+export const SCENE_START = 4;
 /** Cells per second: a figure at the interiors' scale walks about a metre a second. */
 export const WALK_SPEED = 1.5;
 /** The gap between the lead and each worker behind it, cells. */

@@ -20,6 +20,7 @@ import {
   ROOM,
   ROOM_ACCENT,
   ROOM_CELL as CELL,
+  SCENE_START,
   roomOrigin,
   roomPlays,
   type CastMember,
@@ -107,7 +108,7 @@ export class CastRoomScene {
   #onSelect: (id: string | null) => void;
   #bounds = new THREE.Box3();
   #deskTop = 0.5;
-  #time = 0;
+  #time = SCENE_START;
   #last = 0;
   #raf = 0;
   #observer: ResizeObserver;
@@ -169,7 +170,7 @@ export class CastRoomScene {
       const { plays } = roomPlays(next.casts.length, next.state, next.scene, next.far);
       this.#rooms.forEach((room, i) => (room.play = plays[i]!));
     }
-    if (previous.scene !== next.scene) this.#time = 0;
+    if (previous.scene !== next.scene) this.#time = SCENE_START;
     if (rebuilt) this.#frame(true);
   }
 
