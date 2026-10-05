@@ -1,0 +1,80 @@
+{
+  "format": "crewhub-cast/1",
+  "id": "classic-bots",
+  "name": "Classic bots",
+  "version": "1.0.0",
+  "description": "The soft Greenhouse robots: a rounded shell in sage, apricot or lavender, a face screen with two eyes, an antenna. The lead wears its project's colour.",
+  "author": "CrewHub",
+  "colors": {
+    "sage": {
+      "day": "#83a995",
+      "lamplight": "#83a995"
+    },
+    "apricot": {
+      "day": "#e6ac7c",
+      "lamplight": "#e6ac7c"
+    },
+    "lavender": {
+      "day": "#b5a5d3",
+      "lamplight": "#b5a5d3"
+    },
+    "badge": {
+      "day": "#eff0dd",
+      "lamplight": "#eff0dd"
+    },
+    "badge-dot": {
+      "day": "#547563",
+      "lamplight": "#547563"
+    },
+    "visor": {
+      "day": "#283f36",
+      "lamplight": "#283f36"
+    },
+    "face-glow": {
+      "day": "#2c5a4a",
+      "lamplight": "#3a3120"
+    },
+    "eye": {
+      "day": "#efffdc",
+      "lamplight": "#efffdc"
+    },
+    "antenna-stem": {
+      "day": "#5a7160",
+      "lamplight": "#5a7160"
+    },
+    "antenna": {
+      "day": "#f1dd94",
+      "lamplight": "#f1dd94"
+    },
+    "ear": {
+      "day": "#e3e4c9",
+      "lamplight": "#e3e4c9"
+    },
+    "hand": {
+      "day": "#e8e7cd",
+      "lamplight": "#e8e7cd"
+    },
+    "foot": {
+      "day": "#4e6657",
+      "lamplight": "#4e6657"
+    },
+    "petal": {
+      "day": "#f1d990",
+      "lamplight": "#f1d990"
+    },
+    "cap": {
+      "day": "#ede5c7",
+      "lamplight": "#ede5c7"
+    },
+    "stale": {
+      "day": "#a9aba3",
+      "lamplight": "#a9aba3"
+    }
+  },
+  "budget": {
+    "nearTriangles": 3600,
+    "farTriangles": 2400,
+    "nearMeshes": 28,
+    "farMeshes": 12
+  }
+}
