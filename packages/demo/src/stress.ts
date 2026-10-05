@@ -426,6 +426,8 @@ export function createStressSource(options: StressSourceOptions): WorldSource & 
     getWatchdog: async () => ({ mode: "observe", open: [] }),
     getMilestones: async () => [],
     getReleases: async () => [],
+    // FUTURE (proposal L22): no groups in this fixture yet.
+    listProjectGroups: async () => [],
     getComments: async () => [],
     getProgress: async () => [],
   };

@@ -10,6 +10,7 @@ import type {
   PrincipalKind,
   PrincipalOut,
   ProgressKind,
+  ProjectGroup,
   ProjectOut,
   ReleaseSummary,
   TeamSnapshot,
@@ -115,6 +116,8 @@ export interface Facts {
   order: string[];
   /** Archived project slugs in the order they were archived or loaded. */
   archivedOrder: string[];
+  /** FUTURE (proposal L22): the source's project groups; always empty with a real crewhub-loops today. */
+  groups: ProjectGroup[];
   /** Open cards by ticket id. */
   cards: Record<string, CardFact>;
   team: TeamSnapshot | null;
@@ -158,6 +161,7 @@ export function emptyFacts(): Facts {
     projects: {},
     order: [],
     archivedOrder: [],
+    groups: [],
     cards: {},
     team: null,
     teamReceivedAt: null,

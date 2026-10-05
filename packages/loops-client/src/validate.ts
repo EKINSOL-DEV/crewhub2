@@ -56,6 +56,8 @@ import type {
   PrincipalsResponse,
   ProgressItem,
   ProgressResponse,
+  ProjectGroup,
+  ProjectGroupsResponse,
   ProjectOut,
   ProjectRef,
   ProjectsResponse,
@@ -251,6 +253,17 @@ const projectOut = object<ProjectOut>({
   repoCount: optional(int),
   ticketTotal: optional(int),
   keyLocked: optional(bool),
+  groupId: optional(nullable(str)),
+});
+
+/** FUTURE (proposal L22): crewhub-loops has no groups yet; the demo is the only producer. */
+const projectGroup = object<ProjectGroup>({
+  id: str,
+  slug: str,
+  name: str,
+  order: int,
+  color: nullable(oneOf(PROJECT_COLORS)),
+  icon: nullable(oneOf(PROJECT_ICONS)),
 });
 
 const labelOut = object<LabelOut>({
@@ -698,6 +711,8 @@ export const validateProjectsResponse = run(
   }),
 );
 export const validateProjectOut = run(projectOut);
+/** FUTURE (proposal L22): `GET /api/project-groups`: `{groups: [...]}`. */
+export const validateProjectGroupsResponse = run(object<ProjectGroupsResponse>({ groups: arrayOf(projectGroup) }));
 export const validateBoardResponse = run(boardResponse);
 export const validateTeamSnapshot = run(teamSnapshot);
 export const validateTicket = run(ticket);
@@ -737,5 +752,6 @@ export const validateLoopsSnapshot = run(
     watchdog: watchdogResponse,
     milestones: recordOf(arrayOf(milestoneSummary)),
     releases: recordOf(arrayOf(releaseSummary)),
+    groups: optional(arrayOf(projectGroup)),
   }),
 );

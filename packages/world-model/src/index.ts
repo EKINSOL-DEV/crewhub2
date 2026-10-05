@@ -8,6 +8,8 @@ export { emptyMemory } from "./memory.ts";
 export { Projection } from "./projection.ts";
 export { freshnessOf, reduceWorld } from "./reducer.ts";
 export { describeWorld } from "./describe.ts";
+export { DEFAULT_ZONE_ID, resolveZones, zoneById, zoningOf } from "./zones.ts";
+export type { TownZone, TownZoning, ZoneProject, ZoneReason, ZoneResolution } from "./zones.ts";
 export { flightMs, FLIGHT_MAX_MS, FLIGHT_MIN_MS } from "./flights.ts";
 export type * from "./townDocument.ts";
 export type * from "./history.ts";

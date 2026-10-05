@@ -8,9 +8,9 @@ import { figureRole, figureState } from "../src/world/figureState.ts";
 const names: Record<string, string> = { "classic-bots": "Classic bots", sprouts: "Sprouts" };
 const registry = {
   listCasts: () => Object.entries(names).map(([id, name]) => ({ id, name }) as CastManifest),
-  resolve(choice: { building?: string | null; viewer?: string | null; town?: string | null; style?: string | null }) {
+  resolve(choice: { building?: string | null; zone?: string | null; viewer?: string | null; town?: string | null; style?: string | null }) {
     const unknown: string[] = [];
-    for (const id of [choice.building, choice.viewer, choice.town, choice.style]) {
+    for (const id of [choice.building, choice.zone, choice.viewer, choice.town, choice.style]) {
       if (!id) continue;
       if (id in names) return { id, unknown };
       unknown.push(id);
@@ -26,6 +26,31 @@ test("the text view names the cast once, a building's own cast, and unknown ids 
   assert.deepEqual(text({ viewer: "elves", town: "ghosts", plots: [{ slug: "lab", castId: "elves" }], style: "classic-bots" }), [
     "Cast: Classic bots.",
     'No cast named "elves" or "ghosts" is installed; Classic bots stand in.',
+  ]);
+});
+
+test("the text view names a zone's cast when it differs, over the viewer's choice, and a building's own inside it", () => {
+  const text = (facts: Parameters<typeof describeCasts>[1]) => describeCasts(registry, facts).map((l) => l.text);
+  const zones = [
+    { id: "garden", name: "Garden", look: { castId: "sprouts" } },
+    { id: "default", name: null, look: {} },
+    { id: "yard", name: "Yard", look: { castId: "classic-bots" } },
+  ];
+  const buildings = [
+    { slug: "hq", zoneId: "garden" },
+    { slug: "lab", zoneId: "garden" },
+    { slug: "shed", zoneId: "default" },
+  ];
+  assert.deepEqual(text({ viewer: "classic-bots", town: undefined, plots: [{ slug: "hq" }, { slug: "lab", castId: "classic-bots" }, { slug: "shed", castId: "classic-bots" }], style: "classic-bots", zones, buildings }), [
+    "Cast: Classic bots.",
+    "Cast of the Garden zone: Sprouts.",
+    "Cast of lab: Classic bots.",
+  ]);
+  // A building's own cast that equals its zone's is not news; an unknown zone cast is named in the one note.
+  assert.deepEqual(text({ viewer: null, town: undefined, plots: [{ slug: "hq", castId: "sprouts" }], style: "classic-bots", zones: [...zones, { id: "moor", name: "Moor", look: { castId: "ghosts" } }], buildings }), [
+    "Cast: Classic bots.",
+    "Cast of the Garden zone: Sprouts.",
+    'No cast named "ghosts" is installed; Classic bots stand in.',
   ]);
 });
 

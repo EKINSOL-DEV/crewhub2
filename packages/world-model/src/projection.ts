@@ -20,7 +20,9 @@ import type { CardFact, Facts } from "./facts.ts";
 export type ProjectionSource = Pick<
   WorldSource,
   "now" | "getTicket" | "getProject" | "getBoard" | "getMilestones" | "getReleases"
->;
+> &
+  /** FUTURE (proposal L22): read once per snapshot that carries no groups of its own. */
+  Partial<Pick<WorldSource, "listProjectGroups">>;
 
 export interface Scheduler {
   setTimeout(callback: () => void, ms: number): unknown;
@@ -150,7 +152,25 @@ export class Projection {
     }
     facts.milestones = { ...snapshot.milestones };
     facts.releases = { ...snapshot.releases };
+    facts.groups = snapshot.groups ? [...snapshot.groups] : [];
     this.state = facts;
+    if (!snapshot.groups) void this.loadGroups();
+  }
+
+  /** FUTURE (proposal L22): a snapshot without groups asks the source once; a real crewhub-loops answers none. */
+  private async loadGroups(): Promise<void> {
+    const read = this.source.listProjectGroups;
+    if (!read) return;
+    const epoch = this.epoch;
+    let groups;
+    try {
+      groups = await read.call(this.source);
+    } catch {
+      return;
+    }
+    if (epoch !== this.epoch || groups.length === 0) return;
+    this.state.groups = [...groups];
+    this.changed();
   }
 
   private applyEnvelope(input: Envelope): boolean {
