@@ -215,8 +215,8 @@ const FAR_LABEL = 72;
    hovered or selected robot's plate is never hidden: it is placed first. */
 const HIDDEN_LABEL = 160;
 const NARROW_CANVAS = 600;
-/** The height of a district's card in pixels: its name and three lines, or only its name on a phone. */
-const DISTRICT_CARD = { desktop: 84, phone: 36 };
+/** The height of a district's card in pixels: its name and up to four lines, or only its name on a phone. */
+const DISTRICT_CARD = { desktop: 128, phone: 40 };
 /* Labels that hang above their anchor (bottom centred on it): robots' stacks, tags, chips and counts. Building, civic
    and room signs sit beside their anchors and keep their places. */
 const HANGING = /^(a|o|rule|err|p|beacon|mail|banner):|^c:[^:]+:/;
@@ -390,7 +390,7 @@ export class TownScene {
     canvas.setAttribute("role", "application");
     canvas.setAttribute(
       "aria-label",
-      "The town. Arrow keys move between buildings, Enter goes inside. Inside a building arrow keys move between rooms, Enter zooms to a room, Escape goes back one level. Plus and minus zoom, brackets rotate, H returns home. D shows every label. T opens the text view.",
+      "The town. Arrow keys move between buildings, Enter goes inside. Inside a building arrow keys move between rooms, Enter zooms to a room, Escape goes back one level. Plus and minus zoom, brackets rotate, H returns home. D shows every label. T opens the text view. Slash opens the jump list.",
     );
     host.appendChild(canvas);
     this.camera.position.copy(HOME_OFFSET);
@@ -1676,9 +1676,10 @@ export class TownScene {
     stacks.length = 0;
     signs.length = 0;
     const robots = this.#robotsOnScreen(width, height);
-    // From far a region shows its districts, nearer its buildings' signs (wayfinding.ts); the CSS follows `data-detail`.
+    // From far a region shows its districts, nearer (and always inside a district) its buildings' signs (wayfinding.ts);
+    // the CSS follows `data-detail`.
     const districts = this.view.districts?.length ?? 0;
-    const detail = this.view.entered ? "close" : labelDetail((height * this.camera.zoom) / (this.camera.top - this.camera.bottom), districts > 1, this.#detail);
+    const detail = this.view.entered ? "close" : labelDetail((height * this.camera.zoom) / (this.camera.top - this.camera.bottom), districts > 1 && !this.view.district, this.#detail);
     if (detail !== this.#detail) {
       this.#detail = detail;
       this.#labelsHost.dataset.detail = detail;

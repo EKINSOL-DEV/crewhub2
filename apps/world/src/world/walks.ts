@@ -215,8 +215,9 @@ export class Walks {
         const state = this.#state(intent.agent, intent.to);
         state.errand = null;
         state.leaving = false;
-        // From the old building's door along the town path; the old avatar stays behind as a proxy.
-        const start = intent.walk ? this.nav.front(intent.from) : this.#home(state);
+        // From the old building's door along the town path; the old avatar stays behind as a proxy. Across districts
+        // it takes the bus (not drawn): it steps off at the gate of the new district and walks on from there.
+        const start = intent.walk ? (this.nav.arrival(intent.to, intent.from) ?? this.nav.front(intent.from)) : this.#home(state);
         if (start) this.#put(state.key, start);
         this.#aim(state);
         return;

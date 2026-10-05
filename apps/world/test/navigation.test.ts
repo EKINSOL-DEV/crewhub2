@@ -141,6 +141,33 @@ test("a region is walked district by district: every district is a room, and the
   assert.equal(nav.graph.topologyRevision, topology);
 });
 
+test("the bus between districts: a figure changing district steps off at the new district's gate and walks on", () => {
+  const nav = new NavWorld();
+  const buildings = town(20).map((b, i) => ({ ...b, zoneId: `zone-${i % 4}` }));
+  const plan = standalonePlan(buildings);
+  nav.sync(buildings, plan);
+  const slugs = nav.slugs();
+  const roomOf = (slug: string) => nav.front(slug)!.room;
+  const home = slugs.find((s) => roomOf(s) === TOWN_ROOM)!;
+  const neighbour = slugs.find((s) => s !== home && roomOf(s) === TOWN_ROOM)!;
+  // Inside one district it is a walk, as ever.
+  assert.equal(nav.arrival(neighbour, home), null);
+  for (const far of slugs.filter((s) => roomOf(s) !== TOWN_ROOM)) {
+    const stop = nav.arrival(far, home)!;
+    assert.ok(stop, `${far} has a stop`);
+    assert.equal(stop.room, roomOf(far), "the stop is in the destination's district");
+    const route = nav.graph.planRoute(stop, nav.front(far)!)!;
+    assert.ok(route, "the door is reachable from the stop");
+    assert.ok(!route.legs.some((leg) => leg.viaDoor?.startsWith("road/")), "the walk from the stop stays in the district");
+    // A figure can be put down there and sets off for the door.
+    nav.sim.addActor({ id: `rider-${far}`, location: stop });
+    assert.equal(nav.sim.setDestination(`rider-${far}`, nav.front(far)!).ok, true);
+    nav.sim.removeActor(`rider-${far}`);
+    // And back to the centre: off at the centre's side of a road.
+    assert.equal(nav.arrival(home, far)!.room, TOWN_ROOM);
+  }
+});
+
 test("a growing town only adds: a building keeps its rooms when neighbours and districts arrive", () => {
   const nav = new NavWorld();
   const all = town(24).map((b, i) => ({ ...b, zoneId: i < 18 ? "default" : "labs" }));
