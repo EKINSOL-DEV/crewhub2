@@ -364,6 +364,8 @@ export function createStressSource(options: StressSourceOptions): StressSource {
         watchdog,
         milestones: {},
         releases: {},
+        // FUTURE (proposal L22): only the region of twenty has groups.
+        ...(fixture.groups === 0 ? {} : { groups: stressGroups(fixture) }),
       },
     };
   };
@@ -474,8 +476,6 @@ export function createStressSource(options: StressSourceOptions): StressSource {
     getWatchdog: async () => ({ mode: "observe", open: [] }),
     getMilestones: async () => [],
     getReleases: async () => [],
-    // FUTURE (proposal L22): no groups in this fixture yet.
-    listProjectGroups: async () => [],
     getComments: async () => [],
     getProgress: async () => [],
     listProjectGroups: async () => stressGroups(fixture),

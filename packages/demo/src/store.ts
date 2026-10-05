@@ -947,6 +947,8 @@ export class DemoReads {
       watchdog: this.watchdog(),
       milestones: Object.fromEntries(featured("milestones").map((slug) => [slug, this.milestones(slug)])),
       releases: Object.fromEntries(featured("releases").map((slug) => [slug, this.releases(slug)])),
+      // FUTURE (proposal L22): absent in crewhub-loops today, so absent here unless the scenario has groups.
+      ...(this.state.content.groups.length === 0 ? {} : { groups: this.projectGroups() }),
     };
   }
 }

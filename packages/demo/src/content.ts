@@ -9,6 +9,7 @@ import type {
   MilestoneState,
   ProgressKind,
   ProjectColor,
+  ProjectGroup,
   ProjectIcon,
   TicketKind,
   TicketPriority,
@@ -90,14 +91,7 @@ export interface ProjectSeed {
  * loops to offer (`ProjectGroup` of `@crewhub/loops-client`): `GET /api/project-groups` would answer
  * `{ groups: ProjectGroup[] }`. Loops carries no looks; a zone's look lives in the town document.
  */
-export interface ProjectGroupSeed {
-  id: string;
-  slug: string;
-  name: string;
-  order: number;
-  color: ProjectColor | null;
-  icon: ProjectIcon | null;
-}
+export type ProjectGroupSeed = ProjectGroup;
 
 /** In sidebar order; the archived one is appended when it is restored. */
 export const PROJECTS: ProjectSeed[] = [
