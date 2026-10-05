@@ -27,18 +27,21 @@
     { "id": "foot-left", "joint": "foot-left", "shape": "sphere", "size": [0.08, 0.055, 0.105], "position": [0, -0.012, 0.01], "color": "sprout-foot" },
     { "id": "foot-right", "joint": "foot-right", "shape": "sphere", "size": [0.08, 0.055, 0.105], "position": [0, -0.012, 0.01], "color": "sprout-foot" },
     { "id": "stem", "joint": "stem", "shape": "cylinder", "size": [0.028, 0.26, 0.04], "position": [0, 0.09, 0], "color": "sprout-stem" },
-    { "id": "spark", "joint": "spark", "waiting": true, "shape": "sphere", "size": [0.06, 0.06, 0.06], "position": [0, 0, 0], "color": "sprout-light", "glow": 1 },
+    { "id": "spark", "joint": "spark", "waiting": true, "shape": "sphere", "size": [0.05, 0.05, 0.05], "position": [0, 0, 0], "color": "sprout-light", "glow": 1 },
 
     { "id": "leaf-big", "joint": "crown", "roles": ["worker"], "shape": "sphere", "size": [0.234, 0.044, 0.124], "position": [0.182, 0.098, 0.0], "rotation": [0, 0, 30], "color": "slot:growth" },
     { "id": "leaf-small", "joint": "crown", "roles": ["worker"], "shape": "sphere", "size": [0.169, 0.039, 0.098], "position": [-0.13, 0.078, 0.0], "rotation": [0, 0, -36], "color": "slot:growth" },
 
-    { "id": "trunk", "joint": "crown", "roles": ["lead"], "shape": "cylinder", "size": [0.052, 0.26, 0.072], "position": [0.0, 0.026, 0.0], "color": "sprout-bark" },
-    { "id": "tree-top", "joint": "crown", "roles": ["lead"], "shape": "sphere", "size": [0.26, 0.221, 0.26], "position": [0.0, 0.312, 0.0], "color": "slot:growth" },
-    { "id": "tree-left", "joint": "crown", "roles": ["lead"], "shape": "sphere", "size": [0.182, 0.156, 0.182], "position": [-0.195, 0.182, 0.052], "color": "slot:growth" },
-    { "id": "tree-right", "joint": "crown", "roles": ["lead"], "shape": "sphere", "size": [0.169, 0.143, 0.169], "position": [0.208, 0.208, -0.039], "color": "slot:growth" },
-    { "id": "tree-fruit-a", "joint": "crown", "roles": ["lead"], "shape": "sphere", "size": [0.039, 0.039, 0.039], "position": [0.091, 0.351, 0.221], "color": "sprout-pollen", "detail": "near" },
-    { "id": "tree-fruit-b", "joint": "crown", "roles": ["lead"], "shape": "sphere", "size": [0.039, 0.039, 0.039], "position": [-0.208, 0.221, 0.208], "color": "sprout-pollen", "detail": "near" },
-    { "id": "tree-fruit-c", "joint": "crown", "roles": ["lead"], "shape": "sphere", "size": [0.039, 0.039, 0.039], "position": [0.26, 0.26, 0.104], "color": "sprout-pollen", "detail": "near" },
+    { "id": "trunk", "joint": "crown", "roles": ["lead"], "shape": "cylinder", "size": [0.045, 0.36, 0.07], "position": [0, 0.08, 0], "color": "sprout-bark" },
+    { "id": "tree-top", "joint": "crown", "roles": ["lead"], "shape": "sphere", "size": [0.25, 0.22, 0.25], "position": [0, 0.43, 0], "color": "tree-leaf" },
+    { "id": "tree-left", "joint": "crown", "roles": ["lead"], "shape": "sphere", "size": [0.18, 0.155, 0.18], "position": [-0.19, 0.31, 0.05], "color": "tree-leaf" },
+    { "id": "tree-right", "joint": "crown", "roles": ["lead"], "shape": "sphere", "size": [0.17, 0.145, 0.17], "position": [0.2, 0.33, -0.04], "color": "tree-leaf" },
+    { "id": "tree-fruit-a", "joint": "crown", "roles": ["lead"], "shape": "sphere", "size": [0.05, 0.05, 0.05], "position": [0.1, 0.5, 0.2], "color": "slot:fruit" },
+    { "id": "tree-fruit-b", "joint": "crown", "roles": ["lead"], "shape": "sphere", "size": [0.05, 0.05, 0.05], "position": [-0.22, 0.34, 0.2], "color": "slot:fruit" },
+    { "id": "tree-fruit-c", "joint": "crown", "roles": ["lead"], "shape": "sphere", "size": [0.05, 0.05, 0.05], "position": [0.27, 0.4, 0.09], "color": "slot:fruit", "detail": "near" },
+    { "id": "tree-fruit-d", "joint": "crown", "roles": ["lead"], "shape": "sphere", "size": [0.05, 0.05, 0.05], "position": [-0.08, 0.6, -0.14], "color": "slot:fruit", "detail": "near" },
+    { "id": "tree-fruit-e", "joint": "crown", "roles": ["lead"], "shape": "sphere", "size": [0.05, 0.05, 0.05], "position": [-0.1, 0.46, 0.22], "color": "slot:fruit", "detail": "near" },
+    { "id": "tree-fruit-f", "joint": "crown", "roles": ["lead"], "shape": "sphere", "size": [0.05, 0.05, 0.05], "position": [0.18, 0.3, -0.19], "color": "slot:fruit", "detail": "near" },
 
     { "id": "flower-heart", "joint": "crown", "roles": ["design"], "shape": "sphere", "size": [0.098, 0.072, 0.098], "position": [0.0, 0.085, 0.0], "color": "sprout-pollen" },
     { "id": "petal-0", "joint": "crown", "roles": ["design"], "shape": "sphere", "size": [0.137, 0.034, 0.091], "position": [0.169, 0.111, 0.0], "rotation": [0, 0, 22], "color": "slot:growth" },
@@ -48,13 +51,13 @@
     { "id": "petal-4", "joint": "crown", "roles": ["design"], "shape": "sphere", "size": [0.137, 0.034, 0.091], "position": [-0.085, 0.111, 0.147], "rotation": [0, 240, 22], "color": "slot:growth" },
     { "id": "petal-5", "joint": "crown", "roles": ["design"], "shape": "sphere", "size": [0.137, 0.034, 0.091], "position": [0.085, 0.111, 0.147], "rotation": [0, 300, 22], "color": "slot:growth", "detail": "near" },
 
-    { "id": "stalk", "joint": "crown", "roles": ["analyst"], "shape": "cylinder", "size": [0.078, 0.208, 0.098], "position": [0.0, -0.039, 0.0], "color": "sprout-stalk" },
-    { "id": "cap", "joint": "crown", "roles": ["analyst"], "shape": "sphere", "size": [0.325, 0.169, 0.325], "position": [0.0, 0.13, 0.0], "color": "slot:growth" },
-    { "id": "gills", "joint": "crown", "roles": ["analyst"], "shape": "cylinder", "size": [0.273, 0.039, 0.221], "position": [0.0, 0.058, 0.0], "color": "sprout-stalk", "detail": "near" },
-    { "id": "spot-a", "joint": "crown", "roles": ["analyst"], "shape": "sphere", "size": [0.058, 0.026, 0.058], "position": [0.104, 0.26, 0.13], "rotation": [22, 0, -18], "color": "sprout-belly", "detail": "near" },
-    { "id": "spot-b", "joint": "crown", "roles": ["analyst"], "shape": "sphere", "size": [0.046, 0.023, 0.046], "position": [-0.156, 0.24, 0.091], "rotation": [16, 0, 28], "color": "sprout-belly", "detail": "near" },
-    { "id": "spot-c", "joint": "crown", "roles": ["analyst"], "shape": "sphere", "size": [0.052, 0.023, 0.052], "position": [-0.026, 0.26, -0.169], "rotation": [-30, 0, 4], "color": "sprout-belly", "detail": "near" },
-    { "id": "spot-d", "joint": "crown", "roles": ["analyst"], "shape": "sphere", "size": [0.039, 0.021, 0.039], "position": [-0.039, 0.221, 0.247], "rotation": [44, 0, 6], "color": "sprout-belly", "detail": "near" },
+    { "id": "stalk", "joint": "crown", "roles": ["analyst"], "shape": "cylinder", "size": [0.07, 0.27, 0.095], "position": [0, 0, 0], "color": "sprout-stalk" },
+    { "id": "cap", "joint": "crown", "roles": ["analyst"], "shape": "sphere", "size": [0.325, 0.169, 0.325], "position": [0.0, 0.2, 0.0], "color": "slot:growth" },
+    { "id": "gills", "joint": "crown", "roles": ["analyst"], "shape": "cylinder", "size": [0.273, 0.039, 0.221], "position": [0.0, 0.128, 0.0], "color": "sprout-stalk" },
+    { "id": "spot-a", "joint": "crown", "roles": ["analyst"], "shape": "sphere", "size": [0.058, 0.026, 0.058], "position": [0.104, 0.33, 0.13], "rotation": [22, 0, -18], "color": "sprout-belly", "detail": "near" },
+    { "id": "spot-b", "joint": "crown", "roles": ["analyst"], "shape": "sphere", "size": [0.046, 0.023, 0.046], "position": [-0.156, 0.31, 0.091], "rotation": [16, 0, 28], "color": "sprout-belly", "detail": "near" },
+    { "id": "spot-c", "joint": "crown", "roles": ["analyst"], "shape": "sphere", "size": [0.052, 0.023, 0.052], "position": [-0.026, 0.33, -0.169], "rotation": [-30, 0, 4], "color": "sprout-belly", "detail": "near" },
+    { "id": "spot-d", "joint": "crown", "roles": ["analyst"], "shape": "sphere", "size": [0.039, 0.021, 0.039], "position": [-0.039, 0.291, 0.247], "rotation": [44, 0, 6], "color": "sprout-belly", "detail": "near" },
 
     { "id": "puff", "joint": "crown", "roles": ["postman"], "shape": "sphere", "size": [0.17, 0.17, 0.17], "position": [0, 0.22, 0], "color": "sprout-fluff" },
     { "id": "puff-a", "joint": "crown", "roles": ["postman"], "shape": "sphere", "size": [0.09, 0.09, 0.09], "position": [0.13, 0.29, 0.06], "color": "sprout-fluff" },
@@ -172,11 +175,13 @@
     ]
   },
   "looks": {
+    "hover": { "parts": { "bean": { "glow": 0.14 }, "bean-bottom": { "glow": 0.14 }, "nub-left": { "glow": 0.14 }, "nub-right": { "glow": 0.14 } } },
+    "selected": { "parts": { "bean": { "glow": 0.2 }, "bean-bottom": { "glow": 0.2 }, "nub-left": { "glow": 0.2 }, "nub-right": { "glow": 0.2 } } },
     "near": { "parts": { "bean": { "glow": 0.06 }, "bean-bottom": { "glow": 0.06 }, "nub-left": { "glow": 0.06 }, "nub-right": { "glow": 0.06 } } },
     "waiting": {
       "parts": {
         "leaf-big": { "glow": 0.55 }, "leaf-small": { "glow": 0.55 },
-        "tree-top": { "glow": 0.55 }, "tree-left": { "glow": 0.55 }, "tree-right": { "glow": 0.55 },
+        "tree-top": { "glow": 0.3 }, "tree-left": { "glow": 0.3 }, "tree-right": { "glow": 0.3 }, "tree-fruit-a": { "glow": 0.9 }, "tree-fruit-b": { "glow": 0.9 }, "tree-fruit-c": { "glow": 0.9 }, "tree-fruit-d": { "glow": 0.9 }, "tree-fruit-e": { "glow": 0.9 }, "tree-fruit-f": { "glow": 0.9 },
         "petal-0": { "glow": 0.55 }, "petal-1": { "glow": 0.55 }, "petal-2": { "glow": 0.55 }, "petal-3": { "glow": 0.55 }, "petal-4": { "glow": 0.55 }, "petal-5": { "glow": 0.55 }, "flower-heart": { "glow": 0.7 },
         "cap": { "glow": 0.55 },
         "puff": { "glow": 0.45 }, "puff-a": { "glow": 0.45 }, "puff-b": { "glow": 0.45 }, "puff-c": { "glow": 0.45 }, "puff-d": { "glow": 0.45 },
@@ -188,7 +193,8 @@
   "halo": "sprout-light",
   "colorways": {
     "bean": { "roles": { "unknown": "bean-seed" }, "others": ["bean-pea", "bean-butter", "bean-sky", "bean-lilac", "bean-rose"] },
-    "growth": { "lead": "accent", "roles": { "worker": "accent", "design": "accent", "analyst": "accent", "operator": "accent" }, "others": ["leaf-fresh", "leaf-teal", "leaf-gold"] }
+    "fruit": { "lead": "accent", "others": ["sprout-pollen"] },
+    "growth": { "roles": { "worker": "accent", "design": "accent", "analyst": "accent", "operator": "accent" }, "others": ["leaf-fresh", "leaf-teal", "leaf-gold"] }
   },
-  "anchors": { "label": [0, 1.62, 0], "carry": [0, 0.42, 0.34], "ground": 0.3, "height": 1.6 }
+  "anchors": { "label": [0, 1.76, 0], "carry": [0, 0.42, 0.34], "ground": 0.3, "height": 1.75 }
 }
