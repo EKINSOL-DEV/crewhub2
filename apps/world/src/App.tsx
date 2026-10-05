@@ -6,7 +6,7 @@ import type { PropModel } from "@crewhub/world-engine";
 import { Bubbles } from "./components/bubbles/Bubbles";
 import { TownSettings } from "./components/TownSettings";
 import { IconSprite } from "./components/Icon";
-import { Button, Card, Chip, Field } from "./components/primitives";
+import { Button, Card, Chip, Field, Menu } from "./components/primitives";
 import { SceneBoundary } from "./components/SceneBoundary";
 import type { Selection } from "./components/WorldCanvas";
 import { createChatQueryClient, useChatEvents, useChatNavigation, useChatView } from "./state/chat";
@@ -22,7 +22,7 @@ import { useBuildMode } from "./state/build";
 import { useDark, useTheme } from "./state/theme";
 import { townRuntime, useTown } from "./state/town";
 import type { TownLayer } from "./world/propLayer";
-import { useWorld, worldRuntime } from "./state/world";
+import { scenarioChoices, useWorld, worldRuntime } from "./state/world";
 import { buildingTemplate } from "./world/buildingTemplate";
 import type { Pick } from "./world/buildingView";
 import { firstRoom, roomName, roomNeighbor, roomSummary } from "./world/interiorLayout";
@@ -156,8 +156,9 @@ function World() {
       setAnnouncement(text);
       return text;
     }
-    const { title } = demo.createPropRequest(thing);
-    const text = `Requested "${title}". The ticket appears in the CrewHub building, an agent posts the prop, and a person moves it to Done.`;
+    const { title, project } = demo.createPropRequest(thing);
+    const waits = demo.playback.positionMs() < demo.scenario.props.fromMs ? `There is no project yet: the ticket follows once ${project} exists. ` : "";
+    const text = `Requested "${title}". ${waits}The ticket appears in the ${project} building, an agent posts the prop, and a person moves it to Done.`;
     setAnnouncement(text);
     return text;
   }, []);
@@ -573,16 +574,39 @@ const SPEEDS: readonly { speed: PlaybackSpeed; label: string }[] = [
 
 /* The chrome around the scene, memoised: the world model changes many times a second under load, and none of these show
    it, so they render only when their own props change. */
+const SCENARIO_CHOICES = scenarioChoices();
+
 const Corner = memo(function Corner({ demo, graphicsFailed, insideName, zoomedName, onBack }: { demo: boolean; graphicsFailed: boolean; insideName: string | null; zoomedName: string | null; onBack: () => void }) {
+  const scenario = SCENARIO_CHOICES.find((choice) => choice.current)?.name ?? "";
   return (
     <header className="world-corner world-corner-left">
       <div className="world-brand">
         <span className="brand-mark" aria-hidden="true" />
         <strong>CrewHub World</strong>
         {demo && (
-          <Chip className="demo-chip" icon={<FlaskConical className="icon" aria-hidden="true" />} title="Demo: scripted data" aria-label="Demo: scripted data">
-            <span className="demo-word">Demo</span>
-          </Chip>
+          <Menu
+            name="Demo scenario"
+            className="demo-menu"
+            initialFocus="checked"
+            trigger={{
+              variant: "chip",
+              className: "demo-chip",
+              icon: <FlaskConical className="icon" aria-hidden="true" />,
+              label: <span className="demo-word">Demo: {scenario}</span>,
+              ariaLabel: `Demo: scripted data. Scenario: ${scenario}. Choose a scenario`,
+            }}
+            items={[
+              { group: "Demo scenario" },
+              ...SCENARIO_CHOICES.map((choice) => ({
+                label: choice.name,
+                value: choice.id,
+                hint: choice.summary,
+                checked: choice.current,
+                // Each scenario is its own page (its own source and town document): choosing one loads it.
+                onSelect: () => !choice.current && globalThis.location.assign(choice.href),
+              })),
+            ]}
+          />
         )}
       </div>
       {!graphicsFailed && (

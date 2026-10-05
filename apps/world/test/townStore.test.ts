@@ -123,3 +123,24 @@ test("without IndexedDB the store works in memory and says so", async () => {
     assert.ok(changes >= 3);
   }
 });
+
+test("each scenario keeps its own town: a named store never reads or writes another's plots", async () => {
+  const idb = new FakeIndexedDB();
+  const factory = idb as unknown as IDBFactory;
+  const small = createTownStore({ context: CONTEXT, indexedDB: factory });
+  await small.load();
+  await commitPlot(small, 3);
+  const fresh = createTownStore({ context: CONTEXT, indexedDB: factory, name: "crewhub-world.fresh" });
+  await fresh.load();
+  assert.deepEqual(fresh.state.doc.plots, []);
+  await commitPlot(fresh, 9);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.deepEqual([...idb.data.keys()].sort(), [TOWN_DB_NAME, "crewhub-world.fresh"]);
+
+  const again = createTownStore({ context: CONTEXT, indexedDB: factory });
+  await again.load();
+  assert.deepEqual(again.state.doc.plots.map((p) => p.cell.x), [3]);
+  const freshAgain = createTownStore({ context: CONTEXT, indexedDB: factory, name: "crewhub-world.fresh" });
+  await freshAgain.load();
+  assert.deepEqual(freshAgain.state.doc.plots.map((p) => p.cell.x), [9]);
+});
