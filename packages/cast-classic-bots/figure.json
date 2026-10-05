@@ -1,0 +1,146 @@
+{
+  "format": "crewhub-figure/1",
+  "joints": [
+    {"id": "body", "position": [0, 0.12, 0]},
+    {"id": "head", "parent": "body", "position": [0, 0.92, 0]},
+    {"id": "antenna", "parent": "head", "position": [0, 0.435, 0]},
+    {"id": "eye-left", "parent": "head", "position": [-0.13, 0.015, 0.298]},
+    {"id": "eye-right", "parent": "head", "position": [0.13, 0.015, 0.298]},
+    {"id": "arm-left", "parent": "body", "position": [-0.32, 0.6, 0]},
+    {"id": "arm-right", "parent": "body", "position": [0.32, 0.6, 0]},
+    {"id": "foot-left", "position": [-0.16, 0.12, 0.065]},
+    {"id": "foot-right", "position": [0.16, 0.12, 0.065]}
+  ],
+  "parts": [
+    {"id": "torso", "joint": "body", "shape": "box", "size": [0.5, 0.43, 0.36], "position": [0, 0.46, 0], "radius": 0.1, "color": "slot:shell"},
+    {"id": "badge", "joint": "body", "shape": "box", "size": [0.25, 0.15, 0.025], "position": [0, 0.49, 0.18], "radius": 0.035, "color": "badge", "detail": "near"},
+    {"id": "badge-dot", "joint": "body", "shape": "cylinder", "size": [0.035, 0.026, 0.035], "position": [0, 0.49, 0.204], "rotation": [90, 0, 0], "color": "badge-dot", "detail": "near"},
+    {"id": "head", "joint": "head", "shape": "box", "size": [0.68, 0.52, 0.52], "position": [0, 0, 0], "radius": 0.13, "color": "slot:shell"},
+    {"id": "visor", "joint": "head", "shape": "box", "size": [0.54, 0.25, 0.05], "position": [0, 0.005, 0.265], "radius": 0.09, "color": "visor", "detail": "near"},
+    {"id": "eye-left", "joint": "eye-left", "shape": "box", "size": [0.07, 0.1, 0.028], "position": [0, 0, 0], "radius": 0.03, "color": "eye", "glow": 0.18, "detail": "near"},
+    {"id": "eye-right", "joint": "eye-right", "shape": "box", "size": [0.07, 0.1, 0.028], "position": [0, 0, 0], "radius": 0.03, "color": "eye", "glow": 0.18, "detail": "near"},
+    {"id": "antenna-stem", "joint": "head", "shape": "cylinder", "size": [0.018, 0.19, 0.018], "position": [0, 0.335, 0], "color": "antenna-stem", "detail": "near"},
+    {"id": "antenna", "joint": "antenna", "shape": "sphere", "size": [0.075, 0.075, 0.075], "position": [0, 0, 0], "color": "antenna", "detail": "near"},
+    {"id": "ear-left", "joint": "head", "shape": "cylinder", "size": [0.09, 0.065, 0.09], "position": [-0.355, -0.01, 0], "rotation": [0, 0, 90], "color": "ear", "detail": "near"},
+    {"id": "ear-right", "joint": "head", "shape": "cylinder", "size": [0.09, 0.065, 0.09], "position": [0.355, -0.01, 0], "rotation": [0, 0, 90], "color": "ear", "detail": "near"},
+    {"id": "arm-left", "joint": "arm-left", "shape": "box", "size": [0.12, 0.29, 0.15], "position": [0, -0.11, 0], "radius": 0.06, "color": "slot:shell"},
+    {"id": "hand-left", "joint": "arm-left", "shape": "sphere", "size": [0.079, 0.079, 0.079], "position": [0, -0.24, 0.015], "color": "hand", "detail": "near"},
+    {"id": "arm-right", "joint": "arm-right", "shape": "box", "size": [0.12, 0.29, 0.15], "position": [0, -0.11, 0], "radius": 0.06, "color": "slot:shell"},
+    {"id": "hand-right", "joint": "arm-right", "shape": "sphere", "size": [0.079, 0.079, 0.079], "position": [0, -0.24, 0.015], "color": "hand", "detail": "near"},
+    {"id": "foot-left", "joint": "foot-left", "shape": "box", "size": [0.19, 0.14, 0.29], "position": [0, 0, 0], "radius": 0.065, "color": "foot"},
+    {"id": "foot-right", "joint": "foot-right", "shape": "box", "size": [0.19, 0.14, 0.29], "position": [0, 0, 0], "radius": 0.065, "color": "foot"},
+    {"id": "petal", "joint": "head", "shape": "sphere", "size": [0.1, 0.035, 0.1], "position": [0.27, 0.22, 0.14], "color": "petal", "roles": ["design"]},
+    {"id": "cap", "joint": "body", "shape": "box", "size": [0.32, 0.07, 0.37], "position": [0, 0.68, 0.01], "radius": 0.02, "color": "cap", "roles": ["analyst"]},
+    {"id": "post-cap", "joint": "head", "shape": "cylinder", "size": [0.21, 0.1, 0.23], "position": [0, 0.31, 0], "color": "slate", "roles": ["postman"]},
+    {"id": "post-band", "joint": "head", "shape": "cylinder", "size": [0.235, 0.03, 0.235], "position": [0, 0.275, 0], "color": "coral", "roles": ["postman"]},
+    {"id": "post-peak", "joint": "head", "shape": "box", "size": [0.3, 0.025, 0.15], "position": [0, 0.27, 0.24], "rotation": [6.875, 0, 0], "radius": 0.012, "color": "slate", "roles": ["postman"]},
+    {"id": "post-badge", "joint": "head", "shape": "sphere", "size": [0.03, 0.03, 0.012], "position": [0, 0.31, 0.225], "color": "brass", "roles": ["postman"], "detail": "near"},
+    {"id": "satchel", "joint": "body", "shape": "box", "size": [0.11, 0.2, 0.28], "position": [-0.37, 0.27, 0.04], "radius": 0.035, "color": "timber", "roles": ["postman"]},
+    {"id": "satchel-flap", "joint": "body", "shape": "box", "size": [0.12, 0.09, 0.29], "position": [-0.376, 0.34, 0.04], "radius": 0.03, "color": "timber-light", "roles": ["postman"]},
+    {"id": "satchel-clasp", "joint": "body", "shape": "box", "size": [0.02, 0.05, 0.06], "position": [-0.435, 0.31, 0.04], "radius": 0.01, "color": "brass", "roles": ["postman"], "detail": "near"},
+    {"id": "satchel-letter-1", "joint": "body", "shape": "box", "size": [0.012, 0.09, 0.11], "position": [-0.36, 0.39, -0.03], "rotation": [11.459, 0, 0], "radius": 0.006, "color": "paper", "roles": ["postman"], "detail": "near"},
+    {"id": "satchel-letter-2", "joint": "body", "shape": "box", "size": [0.012, 0.09, 0.11], "position": [-0.36, 0.39, 0.06], "rotation": [-5.73, 0, 0], "radius": 0.006, "color": "cream", "roles": ["postman"], "detail": "near"},
+    {"id": "satchel-letter-3", "joint": "body", "shape": "box", "size": [0.012, 0.09, 0.11], "position": [-0.36, 0.39, 0.13], "rotation": [6.875, 0, 0], "radius": 0.006, "color": "paper", "roles": ["postman"], "detail": "near"},
+    {"id": "satchel-strap", "joint": "body", "shape": "box", "size": [0.045, 0.58, 0.02], "position": [-0.02, 0.47, 0.182], "rotation": [0, 0, -41.253], "radius": 0.01, "color": "timber", "roles": ["postman"]}
+  ],
+  "poses": {
+    "working": {
+      "body": {"rotation": [9.167, 0, 0]},
+      "head": {"rotation": [6.875, 0, 0]},
+      "arm-left": {"rotation": [-51.566, 0, 0]},
+      "arm-right": {"rotation": [-51.566, 0, 0]}
+    },
+    "idle": {
+      "body": {"rotation": [-6.875, 0, 0]},
+      "head": {"rotation": [-5.73, 0, 3.438]}
+    },
+    "done": {
+      "body": {"rotation": [-6.875, 0, 0]},
+      "head": {"rotation": [-5.73, 0, 3.438]}
+    },
+    "blocked": {
+      "arm-right": {"rotation": [0, 0, 154.699]},
+      "head": {"rotation": [0, 0, -4.584]}
+    },
+    "waiting": {
+      "arm-right": {"rotation": [0, 0, 154.699]},
+      "head": {"rotation": [0, 0, -4.584]}
+    },
+    "stale": {
+      "head": {"rotation": [16.043, 0, 0]},
+      "body": {"rotation": [2.292, 0, 0]}
+    },
+    "walking": {
+      "body": {"rotation": [8.021, 0, 0]},
+      "head": {"rotation": [-3.438, 0, 0]}
+    }
+  },
+  "motions": {
+    "always": [
+      {"joint": "eye-left", "channel": "scale.y", "wave": "blink", "amplitude": -0.85, "period": 4.9, "seeded": true},
+      {"joint": "eye-right", "channel": "scale.y", "wave": "blink", "amplitude": -0.85, "period": 4.9, "seeded": true},
+      {"joint": "antenna", "channel": "offset.y", "wave": "sine", "amplitude": 0.01, "period": 2.856, "seeded": true}
+    ],
+    "working": [
+      {"joint": "arm-left", "channel": "rotation.x", "wave": "sine", "amplitude": 4.584, "period": 0.698, "seeded": true, "rests": true},
+      {"joint": "arm-right", "channel": "rotation.x", "wave": "sine", "amplitude": 4.584, "period": 0.698, "seeded": true, "rests": true, "phase": 0.271},
+      {"joint": "arm-left", "channel": "rotation.x", "wave": "glance", "amplitude": 11.459, "period": 6.5, "seeded": true},
+      {"joint": "arm-right", "channel": "rotation.x", "wave": "glance", "amplitude": 11.459, "period": 6.5, "seeded": true},
+      {"joint": "body", "channel": "offset.y", "wave": "bounce", "amplitude": 0.015, "period": 3.927, "seeded": true},
+      {"joint": "head", "channel": "rotation.x", "wave": "glance", "amplitude": -9.167, "period": 6.5, "seeded": true},
+      {"joint": "head", "channel": "rotation.y", "wave": "glance", "amplitude": 17.189, "period": 6.5, "seeded": true, "sided": true}
+    ],
+    "idle": [
+      {"joint": "body", "channel": "offset.y", "wave": "sine", "amplitude": 0.01, "period": 5.712, "seeded": true},
+      {"joint": "body", "channel": "rotation.z", "wave": "sine", "amplitude": 1.719, "period": 10.472, "seeded": true, "phase": 0.3},
+      {"joint": "head", "channel": "rotation.z", "wave": "sine", "amplitude": 3.438, "period": 6.981, "seeded": true},
+      {"joint": "head", "channel": "rotation.y", "wave": "glance", "amplitude": 25.783, "period": 6.5, "seeded": true, "sided": true}
+    ],
+    "done": [
+      {"joint": "body", "channel": "offset.y", "wave": "sine", "amplitude": 0.01, "period": 5.712, "seeded": true},
+      {"joint": "body", "channel": "rotation.z", "wave": "sine", "amplitude": 1.719, "period": 10.472, "seeded": true, "phase": 0.3},
+      {"joint": "head", "channel": "rotation.z", "wave": "sine", "amplitude": 3.438, "period": 6.981, "seeded": true},
+      {"joint": "head", "channel": "rotation.y", "wave": "glance", "amplitude": 25.783, "period": 6.5, "seeded": true, "sided": true}
+    ],
+    "blocked": [
+      {"joint": "arm-right", "channel": "rotation.z", "wave": "sine", "amplitude": 6.875, "period": 2.094, "seeded": true},
+      {"joint": "body", "channel": "offset.y", "wave": "bounce", "amplitude": 0.02, "period": 2.094, "seeded": true},
+      {"joint": "head", "channel": "rotation.z", "wave": "sine", "amplitude": 2.865, "period": 7.854, "seeded": true}
+    ],
+    "waiting": [
+      {"joint": "arm-right", "channel": "rotation.z", "wave": "sine", "amplitude": 6.875, "period": 2.094, "seeded": true},
+      {"joint": "body", "channel": "offset.y", "wave": "bounce", "amplitude": 0.02, "period": 2.094, "seeded": true},
+      {"joint": "head", "channel": "rotation.z", "wave": "sine", "amplitude": 2.865, "period": 7.854, "seeded": true}
+    ],
+    "walking": [
+      {"joint": "foot-left", "channel": "offset.z", "wave": "sine", "amplitude": 0.08, "period": 0.785, "seeded": true},
+      {"joint": "foot-right", "channel": "offset.z", "wave": "sine", "amplitude": -0.08, "period": 0.785, "seeded": true},
+      {"joint": "foot-left", "channel": "offset.y", "wave": "lift", "amplitude": 0.06, "period": 0.785, "seeded": true},
+      {"joint": "foot-right", "channel": "offset.y", "wave": "lift", "amplitude": 0.06, "period": 0.785, "seeded": true, "phase": 0.5},
+      {"joint": "arm-left", "channel": "rotation.x", "wave": "sine", "amplitude": -25.783, "period": 0.785, "seeded": true},
+      {"joint": "arm-right", "channel": "rotation.x", "wave": "sine", "amplitude": 25.783, "period": 0.785, "seeded": true},
+      {"joint": "body", "channel": "offset.y", "wave": "bounce", "amplitude": 0.035, "period": 0.785, "seeded": true},
+      {"joint": "body", "channel": "rotation.z", "wave": "sine", "amplitude": 2.292, "period": 0.785, "seeded": true}
+    ]
+  },
+  "looks": {
+    "near": {
+      "parts": {
+        "torso": {"glow": 0.06},
+        "head": {"glow": 0.06},
+        "arm-left": {"glow": 0.06},
+        "arm-right": {"glow": 0.06}
+      }
+    },
+    "working": {
+      "parts": {
+        "visor": {"glow": "face-glow"}
+      }
+    }
+  },
+  "colorways": {
+    "shell": {"lead": "soft:accent", "others": ["sage", "apricot", "lavender"]}
+  },
+  "halo": "slot:shell",
+  "anchors": {"label": [0, 1.613, 0], "carry": [0, 0.62, 0.34], "ground": 0.4, "height": 1.55}
+}

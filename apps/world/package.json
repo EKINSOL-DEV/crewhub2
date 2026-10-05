@@ -9,9 +9,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@crewhub/cast-classic-bots": "0.0.0",
+    "@crewhub/cast-sprouts": "0.0.0",
+    "@crewhub/cast-potlings": "0.0.0",
     "@crewhub/demo": "0.0.0",
     "@crewhub/loops-client": "0.0.0",
     "@crewhub/style-greenhouse": "0.0.0",
+    "@crewhub/world-cast": "0.0.0",
     "@crewhub/world-engine": "0.0.0",
     "@crewhub/world-model": "0.0.0",
     "@crewhub/world-style": "0.0.0",

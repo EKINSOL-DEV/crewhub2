@@ -1,5 +1,5 @@
 {
-  "name": "@crewhub/world-cast",
+  "name": "@crewhub/cast-sprouts",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -7,8 +7,6 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@crewhub/world-engine": "0.0.0",
-    "@crewhub/world-style": "0.0.0",
-    "three": "0.186.0"
+    "@crewhub/world-cast": "0.0.0"
   }
 }
