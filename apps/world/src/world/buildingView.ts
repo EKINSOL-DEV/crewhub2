@@ -5,7 +5,8 @@
    only when their signature changes. */
 import * as THREE from "three";
 import type { AgentPlacement, Building, RoomKind } from "@crewhub/world-model";
-import type { EmblemName, ModelKey, PaletteName, ResolvedStyle, RobotHandle, RobotPosture } from "@crewhub/world-style";
+import type { Cast, CastRole, FigureHandle } from "@crewhub/world-cast";
+import type { EmblemName, ModelKey, PaletteName, ResolvedStyle } from "@crewhub/world-style";
 import {
   BACK_WALL_HEIGHT,
   BUILDING_CELL as CELL,
@@ -30,13 +31,18 @@ import { mergeStatic } from "./mergeStatic";
 import { ObjectLayer } from "./objectLayer";
 import { cellAt, footprintPose, resolveBuildingPlacements, type BuildingPlacements } from "./placements";
 import { PropLayer, type TownLayer } from "./propLayer";
+import { figureRole, figureState, type FigureFacts } from "./figureState";
 import type { RobotCrowd } from "./robotCrowd";
 import { deskItems, DRESS_PREFIX, dressingSeed, roomDecor, type DecorItem } from "./roomDressing";
 import type { Bounds } from "./townLayout";
 import type { Walker } from "./walks";
 
-/** Robots and desks are Greenhouse-sized; interiors show them at this scale. */
+/** Figures and desks are Greenhouse-sized; interiors show them at this scale. */
 const ROBOT_SCALE = 0.62;
+/** The ground radius the style's selection ring is drawn for: a wider or slimmer figure scales it. */
+const RING_GROUND = 0.4;
+/** Figures stand this far above the floor, clear of rugs and decals. */
+const FLOOR_LIFT = 0.02;
 const TRUCK_S = 2.4;
 /** The truck's parking spot on its apron, backed up to dispatch's loading door, building cells. */
 const TRUCK_SPOT = { x: (LOADING.x1 + LOADING.x2) / 2, z: DEPTH + 1.6 };
@@ -130,6 +136,8 @@ const IVY: { x: number; z: number; width: number; height: number; rotation: numb
 
 export interface BuildingContext {
   style: ResolvedStyle;
+  /** The cast whose figures stand for this building's agents (`setCast` swaps it live). */
+  cast: Cast;
   /** Source time now (ms). */
   now: () => number;
   reducedMotion: () => boolean;
@@ -140,12 +148,13 @@ export interface BuildingContext {
 export type Pick = { kind: "agent"; key: string } | { kind: "object"; ticketId: string } | { kind: "room"; room: RoomKind } | { kind: "prop"; id: string };
 
 interface Robot {
-  handle: RobotHandle;
+  handle: FigureHandle;
   signature: string;
   /** A real avatar follows its walker; a proxy stays still at its home place. */
   real: boolean;
-  /** The model's posture, shown whenever the robot is not walking. */
-  posture: RobotPosture;
+  /** What the figure state is derived from (figureState.ts); its walker is read each frame. */
+  agent: AgentPlacement;
+  deskWaiting: boolean;
   /** Gone from the model but still walking out of the front door. */
   departing: boolean;
 }
@@ -219,6 +228,8 @@ export class BuildingView {
   #signals = new THREE.Group();
   #agents = new THREE.Group();
   #robots = new Map<string, Robot>();
+  /** The facts of the figure being followed (reused every frame). */
+  #facts: FigureFacts = { agent: null as unknown as AgentPlacement };
   #objects: ObjectLayer;
   #props: PropLayer;
   /** The town document's placements resolved into this building's rooms, and what they were resolved from. */
@@ -733,51 +744,83 @@ export class BuildingView {
   /* ── Agents ─────────────────────────────────────────────────────────────── */
 
   #syncAgents() {
-    const { style } = this.ctx;
     const b = this.building;
     const seen = new Set<string>();
     const loose = new Map<RoomKind, number>();
     for (const agent of b.archived ? [] : b.agents) {
       seen.add(agent.key);
-      const role = agent.role;
-      const accent = agent.key === b.lead.id ? ((b.color ?? null) as PaletteName | null) : null;
-      const signature = `${role}|${accent}`;
+      const role = figureRole(agent, "building");
+      // Every figure of a project gets its colour; the cast decides who wears it (the classic bots: the lead).
+      const accent = (b.color ?? null) as PaletteName | null;
+      const signature = `${this.ctx.cast.manifest.id}|${role}|${accent}`;
       let robot = this.#robots.get(agent.key);
       if (!robot || robot.signature !== signature) {
         robot?.handle.dispose();
-        robot = { handle: style.robot({ key: agent.key, accent, role }), signature, real: false, posture: "relaxed", departing: false };
-        robot.handle.object.scale.setScalar(ROBOT_SCALE);
+        robot = { handle: this.#figure(agent.key, role, accent), signature, real: false, agent, deskWaiting: false, departing: false };
         this.#robots.set(agent.key, robot);
-        this.#agents.add(robot.handle.object);
       }
       robot.real = agent.presence === "real";
-      // Seen from the town, a robot is a few pixels tall: the style may drop its small parts and shadows.
+      robot.agent = agent;
+      robot.deskWaiting = agent.deskTicketKey !== null && b.objects.some((o) => o.key === agent.deskTicketKey && o.waitingOnHuman);
+      // Seen from the town, a figure is a few pixels tall: the cast drops its small parts and shadows.
       robot.handle.setDetail(this.detailed ? "near" : "far");
       robot.departing = false;
-      robot.posture = agent.presence === "proxy" ? "relaxed" : (agent.posture as RobotPosture);
       const seat = this.desks.get(agent.key)?.seat ?? this.#looseSpot(agent, loose);
-      robot.handle.object.position.copy(this.local(seat.x + 0.5, seat.z + 0.5, 0.02));
+      robot.handle.object.position.copy(this.local(seat.x + 0.5, seat.z + 0.5, FLOOR_LIFT));
       robot.handle.object.rotation.y = 0;
-      robot.handle.setPosture(robot.posture);
-      robot.handle.setProxy(agent.presence === "proxy");
-      robot.handle.setAlert(agent.alerts.length > 0);
+      robot.handle.setState(figureState(robot));
+      const head = FLOOR_LIFT + robot.handle.anchors.label[1] * ROBOT_SCALE;
       const anchor = this.anchors.get(`a:${b.slug}:${agent.key}`);
-      if (anchor) anchor.copy(this.world(seat.x + 0.5, seat.z + 0.5, 1.02));
-      else this.anchors.set(`a:${b.slug}:${agent.key}`, this.world(seat.x + 0.5, seat.z + 0.5, 1.02));
+      if (anchor) anchor.copy(this.world(seat.x + 0.5, seat.z + 0.5, head));
+      else this.anchors.set(`a:${b.slug}:${agent.key}`, this.world(seat.x + 0.5, seat.z + 0.5, head));
       this.#follow(agent.key, robot);
     }
     for (const [key, robot] of this.#robots)
       if (!seen.has(key)) {
-        // A worker that left the snapshot keeps its robot until it is out of the door.
+        // A worker that left the snapshot keeps its figure until it is out of the door.
         const walker = this.ctx.walker(key);
         if (robot.real && walker?.leaving && walker.building === b.slug) {
-          robot.departing = true;
-          robot.handle.setAlert(false);
+          if (!robot.departing) {
+            robot.departing = true;
+            robot.agent = { ...robot.agent, alerts: [] };
+            robot.deskWaiting = false;
+          }
+          // A cast swapped while it walks out: it leaves as the new cast.
+          if (!robot.signature.startsWith(`${this.ctx.cast.manifest.id}|`)) {
+            const [, role, accent] = robot.signature.split("|") as [string, CastRole, string];
+            const at = robot.handle.object;
+            robot.handle.dispose();
+            robot.handle = this.#figure(key, role, accent === "null" ? null : (accent as PaletteName));
+            robot.handle.object.position.copy(at.position);
+            robot.handle.object.rotation.y = at.rotation.y;
+            robot.handle.setDetail(this.detailed ? "near" : "far");
+            robot.signature = `${this.ctx.cast.manifest.id}|${role}|${accent}`;
+          }
+          this.#follow(key, robot);
           this.anchors.delete(`a:${b.slug}:${key}`);
           continue;
         }
         this.#dropRobot(key, robot);
       }
+  }
+
+  /** A figure of the building's cast, at the interiors' scale, pickable as its agent. */
+  #figure(key: string, role: CastRole, accent: PaletteName | null): FigureHandle {
+    const handle = this.ctx.cast.figure({ key, role, accent });
+    handle.object.scale.setScalar(ROBOT_SCALE);
+    handle.object.traverse((o) => {
+      o.userData.agentId = key;
+    });
+    this.#agents.add(handle.object);
+    return handle;
+  }
+
+  /** Another cast for this building: every figure is swapped in place, where it stands or walks. */
+  setCast(cast: Cast) {
+    if (cast === this.ctx.cast) return;
+    this.ctx.cast = cast;
+    this.#syncAgents();
+    this.#placeSelection();
   }
 
   #dropRobot(key: string, robot: Robot) {
@@ -791,10 +834,13 @@ export class BuildingView {
     const walker = robot.real ? this.ctx.walker(key) : undefined;
     if (!walker || walker.building !== this.building.slug) return false;
     const o = this.group.position;
-    robot.handle.object.position.set(walker.x - o.x, walker.y - o.y + 0.02, walker.z - o.z);
+    robot.handle.object.position.set(walker.x - o.x, walker.y - o.y + FLOOR_LIFT, walker.z - o.z);
     robot.handle.object.rotation.y = walker.heading;
-    robot.handle.setPosture(walker.walking ? "walking" : walker.seated ? robot.posture : "relaxed");
-    this.anchors.get(`a:${this.building.slug}:${key}`)?.set(walker.x, walker.y + 1.04, walker.z);
+    this.#facts.agent = robot.agent;
+    this.#facts.deskWaiting = robot.deskWaiting;
+    this.#facts.walker = walker;
+    robot.handle.setState(figureState(this.#facts));
+    this.anchors.get(`a:${this.building.slug}:${key}`)?.set(walker.x, walker.y + 2 * FLOOR_LIFT + robot.handle.anchors.label[1] * ROBOT_SCALE, walker.z);
     return walker.walking;
   }
 
@@ -955,6 +1001,7 @@ export class BuildingView {
   }
   setSelected(key: string | null) {
     if (key === this.#selectedKey) return;
+    if (this.#selectedKey) this.#robots.get(this.#selectedKey)?.handle.setHighlight("none");
     this.#selectedKey = key;
     if (!key) {
       this.#selection?.removeFromParent();
@@ -972,7 +1019,18 @@ export class BuildingView {
     if (!ring) return;
     const robot = this.#selectedKey ? this.#robots.get(this.#selectedKey) : undefined;
     ring.visible = !!robot;
+    if (robot) ring.scale.setScalar(robot.handle.anchors.ground / RING_GROUND);
+    robot?.handle.setHighlight("selected");
     if (robot) ring.position.set(robot.handle.object.position.x, robot.handle.object.position.y + 0.01, robot.handle.object.position.z);
+  }
+
+  /** A figure of this building as the labels see it, in world units: from its label anchor down to its feet, and its ground radius. */
+  get figureBox(): { height: number; half: number } | null {
+    for (const robot of this.#robots.values()) {
+      const anchors = robot.handle.anchors;
+      return { height: anchors.label[1] * ROBOT_SCALE, half: anchors.ground * ROBOT_SCALE };
+    }
+    return null;
   }
 
   /** True while something here moves. */
