@@ -384,6 +384,78 @@ seams that make them possible are in [WORLD_STYLES.md](../WORLD_STYLES.md).
 **Still open:** a look and a measurement in a real, visible browser. Every number here is headless. The Chrome tab
 that the Dev Lead tried at night was in the background, so its loop rested.
 
+## Casts (2026-10-05)
+
+The owner doubted that little robots are the right figures for agents: the world became a warm small town, and "AI
+equals robot" lays it on thick. Their decision (spec addendum `cbce8fb`) was several casts side by side, which also
+proves that modding works. Five developers worked in parallel (Opus 5.5 at effort medium) from 21:10 to about 22:00.
+There were 14 merges, each green before the live branch moved. The reducer, the projection, the demo source and
+`packages/loops-client` did not change. The town document (`townDocument.ts`) gained an optional cast id per town and
+per plot, like the style id.
+
+**The seam.** `packages/world-cast` holds the cast contract, written by the Dev Lead and refined additively by
+cast-core while building it.
+
+- **Data formats:**
+  - `crewhub-cast/1`: a manifest with the cast's own colours per theme, `extends`, and the budgets;
+  - `crewhub-figure/1`: joints, parts on joints filtered by role, activity, waiting, carrying and detail; still poses
+    per activity; motions as waves on joint channels; looks per state; colourways; anchors;
+  - `crewhub-figure-patch/1`: a re-dress of another cast.
+- **The runtime:** a generic figure runtime that turns the data into `FigureHandle`s.
+- **The tests:**
+  - validators;
+  - a contract test that every registered cast passes: every role and state builds, anchors are sane, triangles and
+    meshes stay within budget near and far, and far figures are batchable;
+  - a boundary test: only the registration module imports a cast, and no cast imports another.
+- **How a cast draws:** through a `FigureKit` the style provides, so every cast takes the style's materials, glow,
+  evening and cloud shadows, and the far robot crowd batches every cast unchanged.
+- **Where it shows in the world:** the renderer derives one `FigureState` per agent from the `AgentPlacement`, the desk
+  ticket, the walker and the postman's letters. The robot left the `WorldStyle` contract.
+
+**Resolution:** a building's own cast, then the viewer's choice in Settings > Town > Cast (kept per viewer, switched
+live without a reload), then the town document's cast, then the style's `defaultCast`. An unknown id falls back to the
+style's default with one note in the text view. The text view names the cast once, and the fps overlay shows it. The
+docs are in [WORLD_STYLES.md](../WORLD_STYLES.md), "Casts". They also describe, without building it, the later option
+of an agent choosing its own figure through a ticket. It would be off by default, because it costs tokens.
+
+**The four casts** (files and lines per package, `package.json` included):
+
+| Cast | What | Package |
+| --- | --- | --- |
+| Classic bots (the default) | The robots as before, now as data; pixel-close to the old robots (at most 130 of 1.3 million pixels differ in a room, the town is identical). | 4 files, 246 lines, no code |
+| Overgrown bots | A re-dress of the classic bots through `extends`. Timber and glazed ceramic, moss on head and shoulders, lantern eyes, the antenna a shoot that glows while waiting, droops when blocked and flowers when done. A rose for design, a toadstool for the analyst, a stained lead, a bare unknown with a seed. | 4 files, 103 lines, no code |
+| Sprouts | Bean-shaped creatures on short legs with a growth that is the role (a little tree for the lead, a leaf, a flower, a mushroom, a dandelion for the postman that can drift, a cattail, a seedling) and the state (bud, open, drooping, glowing). Project colour in every growth. | 4 files, 273 lines (27 of code: the dandelion's drift) |
+| Potlings | Walking terracotta pots with eyes and a glazed band in the project colour, the plant carrying the role (a tree, a sprig, a flower, a cactus, a post-horn flower, a topiary, a seed in an empty pot) and the state (wilting, fruiting, a lantern bud). | 4 files, 258 lines, no code |
+
+**The casting room** (`/cast-preview`, linked from Settings) has:
+
+- one Greenhouse sample room with every role;
+- every cast alone, or all four side by side in a 2 x 2 grid;
+- the whole cast in each of ten states;
+- walk, carry on, a ticket by drone, a lead with its workers in tow;
+- day, dusk and lamplight, light and dark, reduced motion, Pretty and Fast;
+- a close camera on the figures, the whole room, or town distance through the real robot crowd.
+
+The leader-with-followers line exists only in the casting room: the world's walks are individual errands, with no
+team move to follow.
+
+**Performance.** `perf.mjs --cast`, dev server, Pretty, light. No frame was over 33 ms in any scenario with any cast.
+
+| Scenario | Classic bots | Overgrown bots | Sprouts | Potlings |
+| --- | --- | --- | --- | --- |
+| Stress town, work mean (draw calls) | 2.3 ms (499) | 2.4 ms (508) | 2.4 ms (499) | 2.5 ms (512) |
+| Stress inside, work mean (draw calls) | 2.1 ms (580) | 2.3 ms (682) | 2.1 ms (613) | 2.3 ms (676) |
+| Demo town, work mean (draw calls) | 1.6 ms (279) | 1.6 ms (293) | 1.6 ms (280) | 1.5 ms (286) |
+| Demo inside, work mean (draw calls) | 1.8 ms (430) | 1.8 ms (486) | 1.8 ms (455) | 1.8 ms (490) |
+| Phone, Fast, work mean | 3.3 ms | 3.5 ms | 3.4 ms | 3.4 ms |
+
+**Verification on the final commit:**
+
+- `npm run check` green, 308 tests.
+- The browser regression pass with the default cast, 38 of 38.
+- Screenshots of every cast in every state, near and far, light and dark, and of the world per cast, in the
+  coordinator's scratchpad under `shots-casts/`.
+
 ## Challenges with docs/integrators
 
 Read at crewhub-loops `a1bed0f`. Each item names the document, what was unclear, contradictory, missing or marked
