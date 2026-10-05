@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { applyEdit, emptyTownDocument, type TownDocument } from "@crewhub/world-model";
 import { allocationEdit, CENTRE_LOT, lotBounds, lotKey, lotKind, reservedBounds } from "../src/world/settlement.ts";
-import { homeRects, moveFocus, oldQuarterLot, planKey, planLot, planTown, type PlanBuilding } from "../src/world/townPlan.ts";
+import { describePlan, freeLots, homeRects, moveFocus, oldQuarterLot, planKey, planLot, planTown, type PlanBuilding } from "../src/world/townPlan.ts";
 import { reservedSpot, spotBounds } from "../src/world/settlement.ts";
 
 const CONTEXT = { knownStyles: ["greenhouse"], builtinIds: [] };
@@ -145,4 +145,33 @@ test("keyboard focus follows the layout: the nearest building that way, and it s
   // A building without a lot yet is skipped; an empty town has nothing to focus.
   assert.equal(moveFocus(planTown(town(all.slice(0, 2)), all), slugs, 0, "End"), 1);
   assert.equal(moveFocus(planTown(town([]), []), [], 3, "ArrowRight"), 0);
+});
+
+test("the text view says what the settlement is, what grew with it and where the archived buildings are", () => {
+  const words = (plan: ReturnType<typeof planTown>) => describePlan(plan, (slug) => slug.toUpperCase()).map((l) => l.text);
+  assert.match(words(planTown(emptyTownDocument(), []))[0]!, /^The settlement is a clearing/);
+  const all = projects(7).map((b, i) => ({ ...b, archived: i === 6, ...(i === 2 ? { zoneId: "labs" } : {}) }));
+  const doc = town(projects(7));
+  const lines = words(planTown(doc, all));
+  assert.match(lines[0]!, /^The settlement is a town of 6 projects\. A building keeps its plot/);
+  assert.ok(lines.some((l) => /^Grown with the town: /.test(l)));
+  assert.ok(lines.includes("Archived, boarded up on its plot: P6."));
+  assert.ok(lines.includes("Standing in another district than their zone's: P2."));
+  assert.ok(words(planTown(doc, all, { oldQuarter: true })).some((l) => l.startsWith("Archived, folded into the old quarter behind the town (your setting): P6.")));
+  assert.ok(words(planTown(town(projects(6)), all)).includes("1 new project is getting a plot."));
+});
+
+test("the free plots a building can move to: every district in use, numbered in growth order", () => {
+  const all = projects(8, 2);
+  const doc = town(all);
+  const plan = planTown(doc, all);
+  const free = freeLots(plan, doc.plots);
+  assert.equal(free.length, 16 - 4 + 20 - 4);
+  assert.deepEqual(free.filter((l) => l.next).map((l) => [l.zoneId, l.number]), [["default", 5], ["zone-1", 5]]);
+  const taken = new Set(doc.plots.map((p) => lotKey(p.cell)));
+  for (const lot of free) {
+    assert.ok(!taken.has(lotKey(lot.cell)));
+    assert.equal(lotKind(lot.cell).kind, "lot");
+    assert.equal(lotKind(lot.cell).index + 1, lot.number);
+  }
 });

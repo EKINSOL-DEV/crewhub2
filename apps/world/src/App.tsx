@@ -35,7 +35,7 @@ import { WhereForm } from "./components/WhereForm";
 import { useDirectorFeed } from "./state/director";
 import type { CameraAction } from "./world/TownScene";
 import { countsLine, laneWords, mmss } from "./world/townLayout";
-import { moveFocus } from "./world/townPlan";
+import { describePlan, moveFocus } from "./world/townPlan";
 import { useTownPlan } from "./state/plan";
 
 const WorldCanvas = lazy(() => import("./components/WorldCanvas"));
@@ -164,9 +164,10 @@ function World() {
         assignments: town.doc.assignments,
         lookOf: (zone) => [...Object.values(zone.look.styleOptions ?? {}), ...(zone.look.castId ? [castRegistry.listCasts().find((m) => m.id === zone.look.castId)?.name ?? zone.look.castId] : [])].join(", "),
       }),
+      ...describePlan(plan, (slug) => model.buildings.find((b) => b.slug === slug)?.name ?? slug),
       ...describeTownDocument(town.doc, town.catalogue, { ruleProps: rules, invalidRequests: town.invalid }),
     ],
-    [text, cast, town.doc, town.catalogue, rules, town.invalid, model.zones, model.buildings],
+    [text, cast, town.doc, town.catalogue, rules, town.invalid, model.zones, model.buildings, plan],
   );
   const undo = useCallback(() => {
     townRuntime().undo();
@@ -534,6 +535,7 @@ function World() {
                 onEnter={enter}
                 onHover={hover}
                 onError={() => setGraphicsFailed(true)}
+                onAnnounce={setAnnouncement}
                 town={townLayer}
                 onBuild={build.pointer}
               />
@@ -569,6 +571,7 @@ function World() {
           <BuildPanel
             build={build}
             town={town}
+            plan={plan}
             inside={inside}
             demo={demo}
             onClose={build.toggle}

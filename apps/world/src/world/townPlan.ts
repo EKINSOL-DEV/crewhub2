@@ -2,12 +2,13 @@
    read by everything that draws or walks the town (the scene, the dressing, the navigation, the camera). Pure: no
    Three.js, no DOM. The lots come from the document; nothing here chooses or moves one. */
 import { DEFAULT_ZONE_ID } from "@crewhub/world-model";
-import type { District, DistrictSlot, GridCell, TownDocument } from "@crewhub/world-model";
+import type { District, DistrictSlot, GridCell, TextLine, TownDocument } from "@crewhub/world-model";
 import {
   CENTRAL_SLOT,
   CENTRE_LOT,
   civicStage,
   districtBorders,
+  districtLots,
   districtBlocks,
   districtRoads,
   groundExtent,
@@ -175,7 +176,8 @@ export function planTown(doc: Pick<TownDocument, "plots" | "districts">, buildin
     civic: civicStage(tier),
     landmarks,
     staked: tier === "clearing" && !used.has(lotKey(CENTRE_LOT)) ? CENTRE_LOT : null,
-    ground: groundExtent(tier, cells, landmarks),
+    // The ground also reaches every green whose block has begun, so a green never hangs over the edge.
+    ground: groundExtent(tier, [...cells, ...inUse.flatMap((d) => d.greens)], landmarks),
     streets: streets(tier, cells),
     roads: districtRoads(usedSlots),
     borders: districtBorders(usedSlots),
@@ -261,4 +263,56 @@ export function moveFocus(plan: TownPlan, slugs: readonly string[], index: numbe
     }
   }
   return best.i;
+}
+
+/** A lot a building can be moved to by hand: free, in a district that is in use. */
+export interface FreeLot {
+  cell: GridCell;
+  centre: PlotSpot;
+  slot: DistrictSlot;
+  /** The zone whose district the lot lies in. */
+  zoneId: string;
+  /** The lot's number in its district: its place in the growth sequence, from 1. */
+  number: number;
+  /** The district's next free lot: where its zone's next project would go. */
+  next: boolean;
+}
+/** Every free lot of the districts in use, district by district in growth order. */
+export function freeLots(plan: TownPlan, plots: readonly { cell: GridCell }[]): FreeLot[] {
+  const taken = new Set(plots.map((p) => lotKey(p.cell)));
+  return plan.districts.flatMap((d) => {
+    let next = true;
+    return districtLots(d.slot).flatMap((cell, index): FreeLot[] => {
+      if (taken.has(lotKey(cell))) return [];
+      const lot = { cell, centre: lotCentre(cell), slot: d.slot, zoneId: d.zoneId, number: index + 1, next };
+      next = false;
+      return [lot];
+    });
+  });
+}
+
+const TIER_WORDS: Record<Tier, string> = { clearing: "a clearing", hamlet: "a hamlet", village: "a village", town: "a town", region: "a region" };
+const LANDMARK_WORDS: Record<LandmarkId, string> = { windmill: "the windmill", chapel: "the chapel", bandstand: "the bandstand", farm: "the farm corner", "cottages-west": "the west cottages", "cottages-east": "the east cottages" };
+const list = (words: readonly string[]) => (words.length < 2 ? words.join("") : `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`);
+
+/**
+ * The text view's lines about the settlement: what it is at this size, what has arrived, and where the archived
+ * buildings are. `nameOf` gives a building's name for its slug.
+ */
+export function describePlan(plan: TownPlan, nameOf: (slug: string) => string): TextLine[] {
+  const lines: TextLine[] = [];
+  const line = (text: string) => lines.push({ section: "Town layout", text, kind: "cosmetic" });
+  const archived = plan.lots.filter((l) => l.archived);
+  const count = `${plan.active} project${plan.active === 1 ? "" : "s"}`;
+  if (plan.tier === "clearing") line("The settlement is a clearing: a lodge, a mailbox and one staked-out plot, waiting for the first project.");
+  else line(`The settlement is ${TIER_WORDS[plan.tier]} of ${count}${plan.districts.length > 1 ? ` in ${plan.districts.length} districts` : ""}. A building keeps its plot; only Tidy the town or a move by hand (build mode) changes one.`);
+  if (plan.landmarks.length) line(`Grown with the town: ${list(plan.landmarks.map((id) => LANDMARK_WORDS[id]))}.`);
+  if (archived.length) {
+    const names = list(archived.map((l) => nameOf(l.slug)));
+    line(plan.oldQuarter ? `Archived, folded into the old quarter behind the town (your setting): ${names}. Their plots stay theirs.` : `Archived, boarded up on ${archived.length === 1 ? "its plot" : "their plots"}: ${names}.`);
+  }
+  const elsewhere = plan.lots.filter((l) => !l.folded && l.zoneId !== l.districtZoneId);
+  if (elsewhere.length) line(`Standing in another district than their zone's: ${list(elsewhere.map((l) => nameOf(l.slug)))}.`);
+  if (plan.pending) line(`${plan.pending} new project${plan.pending === 1 ? " is" : "s are"} getting a plot.`);
+  return lines;
 }
