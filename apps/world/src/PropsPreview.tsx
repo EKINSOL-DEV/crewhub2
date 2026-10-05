@@ -49,6 +49,12 @@ const entries: Entry[] = Object.entries(files)
   });
 const valid = entries.filter((e): e is Extract<Entry, { ok: true }> => e.ok);
 
+/** Sample words for the style's pieces that carry lettering, so the preview shows them as the town does. */
+const SAMPLE_OPTIONS: Record<string, { text: string }> = {
+  "town.plot-sign": { text: "Create a project\nin crewhub-loops" },
+  "town.district-gate": { text: "Orchard Row" },
+};
+
 const CELL = PROP_LIMITS.cellSize;
 const GAP = 1.1;
 
@@ -132,7 +138,7 @@ function PreviewCanvas({ angle, theme }: { angle: number; theme: StyleTheme }) {
 
     if (styleGroup) {
       // Each model on a lawn tile the size of its bounds; big models (the civic buildings) get wider rows.
-      const objects = styleKeys.map((key) => style.model(key));
+      const objects = styleKeys.map((key) => style.model(key, SAMPLE_OPTIONS[key]));
       const sizes = objects.map((o) => new THREE.Box3().setFromObject(o).getSize(new THREE.Vector3()));
       const tiles = sizes.map((s) => ({ w: Math.max(1, s.x) + 0.6, d: Math.max(1, s.z) + 0.6 }));
       const widest = Math.max(...tiles.map((t) => t.w), 4);

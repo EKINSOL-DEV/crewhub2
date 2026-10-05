@@ -209,3 +209,63 @@ test("the text view lists placements, user props with provenance and failed requ
   assert.ok(text.includes("Switched off: bug-jar."));
   assert.ok(text.includes("Error object in crewhub: prop CR-38 is invalid: parts[1].position[0]: outside."));
 });
+
+test("zones, assignments and districts are additive: a document without them stays valid, with them it round-trips", () => {
+  const plain = builtTown();
+  assert.ok(!("zones" in plain) && !("assignments" in plain) && !("districts" in plain));
+  // An entry may only dress a zone that comes from elsewhere (a group's id, or the default zone): only the id is required.
+  assert.ok(applyEdit(plain, { type: "set-zone", zone: { id: "default", look: { castId: "sprouts" } } }, CONTEXT).ok);
+  const dressed = edit(edit(plain, { type: "set-style-options", options: { season: "summer" } }), { type: "set-style-options", slug: "crewhub", options: { planting: "orchard" } });
+  assert.deepEqual([dressed.styleOptions, dressed.plots[0]?.styleOptions], [{ season: "summer" }, { planting: "orchard" }]);
+  const bare = edit(edit(dressed, { type: "set-style-options", options: null }), { type: "set-style-options", slug: "crewhub", options: {} });
+  assert.ok(!("styleOptions" in bare) && !("styleOptions" in bare.plots[0]!));
+  let doc = edit(plain, { type: "set-zone", zone: { id: "studio", name: "Studio", order: 1, color: "coral", emblem: "spark", look: { styleOptions: { season: "spring" }, castId: "potlings" } } });
+  doc = edit(doc, { type: "allocate", plots: [{ slug: "alpha", cell: { x: 64, z: 64 } }, { slug: "beta", cell: { x: 71, z: 63 }, zoneId: "studio" }], districts: [{ zoneId: "default", slot: { x: 0, z: 0 } }, { zoneId: "studio", slot: { x: 1, z: 0 } }] });
+  doc = edit(doc, { type: "assign", slug: "beta", zoneId: "studio" });
+  assert.deepEqual(doc.plots.map((p) => [p.slug, p.zoneId]), [["crewhub", undefined], ["alpha", undefined], ["beta", "studio"]]);
+  const again = validateTownDocument(JSON.parse(exportTownDocument(doc)), CONTEXT);
+  assert.ok(again.ok);
+  assert.deepEqual(again.value, doc);
+
+  const errorsOf = (mutate: (d: any) => void) => {
+    const copy = JSON.parse(exportTownDocument(doc));
+    mutate(copy);
+    const result = validateTownDocument(copy, CONTEXT);
+    return result.ok ? [] : result.errors.map((e) => `${e.path}: ${e.message}`);
+  };
+  assert.match(errorsOf((d) => (d.zones[0].color = "teal")).join(), /^zones\[0\]\.color: must be null or one of coral/);
+  assert.match(errorsOf((d) => d.zones.push(d.zones[0])).join(), /zones\[1\]\.id: duplicate zone "studio"/);
+  assert.match(errorsOf((d) => (d.zones[0].look.styleId = "neon")).join(), /zones\[0\]\.look\.styleId: unknown style/);
+  assert.match(errorsOf((d) => (d.zones[0].look.styleOptions.season = 3)).join(), /zones\[0\]\.look\.styleOptions\.season/);
+  assert.match(errorsOf((d) => (d.districts[1].slot.x = 9)).join(), /districts\[1\]\.slot\.x: must be an integer from -8 to 8/);
+  assert.match(errorsOf((d) => (d.districts[1].slot = { x: 0, z: 0 })).join(), /another district already stands on slot 0,0/);
+  assert.match(errorsOf((d) => (d.assignments["Not A Slug"] = "studio")).join(), /the key must be a project slug/);
+  assert.match(errorsOf((d) => (d.plots[1].zoneId = "")).join(), /plots\[1\]\.zoneId: must be a zone id/);
+});
+
+test("the layout edits: allocate adds only, tidy re-lays in one revision, a hand move joins a zone", () => {
+  let doc = edit(emptyTownDocument(), { type: "set-plot", slug: "alpha", cell: { x: 64, z: 64 }, styleId: "greenhouse", castId: "potlings" });
+  const refused = applyEdit(doc, { type: "allocate", plots: [{ slug: "alpha", cell: { x: 65, z: 64 } }] }, CONTEXT);
+  assert.deepEqual(refused, { ok: false, error: "alpha already has a plot." });
+  const clash = applyEdit(doc, { type: "allocate", plots: [{ slug: "beta", cell: { x: 64, z: 64 } }] }, CONTEXT);
+  assert.ok(!clash.ok && /another plot already stands on 64,64/.test(clash.error));
+  doc = edit(doc, { type: "allocate", plots: [{ slug: "beta", cell: { x: 65, z: 64 } }], districts: [{ zoneId: "default", slot: { x: 0, z: 0 } }] });
+
+  const before = doc.revision;
+  const tidied = edit(doc, { type: "tidy", plots: [{ slug: "beta", cell: { x: 64, z: 64 } }, { slug: "alpha", cell: { x: 65, z: 64 } }], districts: [{ zoneId: "default", slot: { x: 0, z: 0 } }] });
+  assert.equal(tidied.revision, before + 1, "one revision, so one undo step");
+  assert.deepEqual(tidied.plots, [{ slug: "beta", cell: { x: 64, z: 64 } }, { slug: "alpha", cell: { x: 65, z: 64 }, styleId: "greenhouse", castId: "potlings" }], "a plot keeps its style and cast");
+
+  const taken = applyEdit(tidied, { type: "move-plot", slug: "alpha", cell: { x: 64, z: 64 } }, CONTEXT);
+  assert.deepEqual(taken, { ok: false, error: "beta already stands on that plot." });
+  let moved = edit(tidied, { type: "move-plot", slug: "alpha", cell: { x: 66, z: 64 } });
+  assert.deepEqual([moved.plots[1]?.cell, moved.plots[1]?.zoneId, moved.assignments], [{ x: 66, z: 64 }, undefined, undefined], "a move to a lot changes no zone");
+  moved = edit(moved, { type: "move-plot", slug: "alpha", cell: { x: 70, z: 63 }, zoneId: "studio", districts: [{ zoneId: "studio", slot: { x: 1, z: 0 } }] });
+  assert.deepEqual([moved.plots[1]?.zoneId, moved.assignments, moved.districts?.length], ["studio", { alpha: "studio" }, 2]);
+  assert.equal(moved.plots[1]?.castId, "potlings");
+
+  moved = edit(moved, { type: "set-zone", zone: { id: "studio", name: null, order: 0, color: null, emblem: null, look: {} } });
+  const gone = edit(moved, { type: "remove-zone", id: "studio" });
+  assert.deepEqual([gone.zones, gone.assignments, gone.plots[1]?.cell], [undefined, undefined, { x: 70, z: 63 }], "removing a zone moves nothing");
+  assert.deepEqual(applyEdit(gone, { type: "assign", slug: "alpha", zoneId: null }, CONTEXT), { ok: false, error: "alpha has no manual zone." });
+});

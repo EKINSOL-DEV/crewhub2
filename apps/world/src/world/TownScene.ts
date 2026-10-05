@@ -11,7 +11,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { AgentPlacement, RoomKind, WorldModel } from "@crewhub/world-model";
 import { IDLE_STATE, type Cast, type FigureHandle, type FigureState } from "@crewhub/world-cast";
-import type { EnvironmentHandle, GraphicsQuality, ModelAnimation, ModelKey, ResolvedStyle, StyleTheme } from "@crewhub/world-style";
+import { styleOptionsKey, type EnvironmentHandle, type GraphicsQuality, type ModelAnimation, type ModelKey, type ResolvedStyle, type StyleOptionValues, type StyleTheme } from "@crewhub/world-style";
 import { BuildingView, type Pick } from "./buildingView";
 import { BACK_WALL_HEIGHT, BUILDING_CELL, FLOOR_RISE } from "./buildingTemplate";
 import type { TownLayer } from "./propLayer";
@@ -33,6 +33,7 @@ import { nudgeStacks, overRobot, type Label, type RobotBox } from "./labelLayout
 import { updateMatrices } from "./matrixPass";
 import { RobotCrowd } from "./robotCrowd";
 import { castRegistry } from "./cast";
+import { buildingLook, townLook, type LookContext } from "./worldLook";
 import { figureRole, figureState, type FigureFacts, type FigurePlace } from "./figureState";
 
 export interface TownView {
@@ -50,7 +51,7 @@ export interface TownView {
   theme: StyleTheme;
   /** The viewer's graphics setting: "pretty" draws shadow maps and ambient effects, "fast" leaves them out. */
   quality: GraphicsQuality;
-  /** The viewer's cast (Settings); null follows the town and the style. A building's own cast wins over it. */
+  /** The viewer's cast (Settings); null follows the town and the style. A building's own cast and its zone's win over it. */
   cast: string | null;
   /** Source time now (ms): drone flights run on it, so they follow the playback speed. */
   now: () => number;
@@ -559,8 +560,9 @@ export class TownScene {
     const indices = Array.from({ length: Math.min(TOWN_CAPACITY, count) }, (_, i) => i);
     // Fast quality leaves out the small detail (grass tufts, wild flowers).
     const fast = this.view.quality === "fast";
+    const townOptions = townLook(this.#lookContext()).styleOptions;
     // Each building's own garden follows its slug and whether it is archived.
-    const signature = `${indices.map((i) => `${this.view.model.buildings[i]?.slug}:${this.view.model.buildings[i]?.archived}`).join(",")}|${fast}|${looksSignature(this.#looks)}`;
+    const signature = `${indices.map((i) => `${this.view.model.buildings[i]?.slug}:${this.view.model.buildings[i]?.archived}`).join(",")}|${fast}|${looksSignature(this.#looks)}|${styleOptionsKey(townOptions)}`;
     if (signature === this.#dressing.signature) return;
     this.#disposeDressing();
     this.#shadowDirty = true;
@@ -573,7 +575,7 @@ export class TownScene {
     this.#life.setTown(dressing, this.#landmarks);
     // A district's own turf lies on the town's ground, in its look's grass.
     for (const { bounds } of this.#looks?.districts ?? []) {
-      const turf = this.#styleAt((bounds.minX + bounds.maxX) / 2, (bounds.minZ + bounds.maxZ) / 2).model("town.turf", {
+      const turf = this.#styleAt((bounds.minX + bounds.maxX) / 2, (bounds.minZ + bounds.maxZ) / 2, townOptions).model("town.turf", {
         size: { width: bounds.maxX - bounds.minX, height: 0, depth: bounds.maxZ - bounds.minZ },
       });
       turf.position.set((bounds.minX + bounds.maxX) / 2, turf.position.y, (bounds.minZ + bounds.maxZ) / 2);
@@ -582,7 +584,7 @@ export class TownScene {
     for (const d of dressing) {
       if (fast && d.detail) continue;
       // The whole ground is the town's; everything else wears the look of the district it stands in.
-      const style = d.key === "ground" ? this.#styleAt(Infinity, Infinity) : this.#styleAt(d.x, d.z);
+      const style = d.key === "ground" ? this.#styleAt(Infinity, Infinity, townOptions) : this.#styleAt(d.x, d.z, townOptions);
       const object = style.model(d.key as ModelKey, {
         ...(d.size ? { size: d.size } : {}),
         ...(d.seed !== undefined ? { seed: d.seed } : {}),
@@ -605,9 +607,13 @@ export class TownScene {
     return this.view.looks === undefined ? this.#previewLooks : this.view.looks;
   }
 
-  /** The town's style in the look of the district at a spot (the town's own look outside every district). */
-  #styleAt(x: number, z: number, plot: StyledPlot | null = null): ResolvedStyle {
-    return styleRegistry.styleFor(plot, lookAt(this.#looks, x, z));
+  /**
+   * The town's style as it is worn at a spot: the town's own look (the viewer's and the town document's picks), and
+   * over it the picks of the district that stands there.
+   */
+  #styleAt(x: number, z: number, town: StyleOptionValues = townLook(this.#lookContext()).styleOptions): ResolvedStyle {
+    const district = lookAt(this.#looks, x, z);
+    return this.townStyle.withOptions(district ? { ...town, ...district } : town);
   }
 
   #disposeDressing() {
@@ -645,10 +651,11 @@ export class TownScene {
         return;
       }
       const c = plotCenter(index);
-      // A plot's own style id when it has one, else the town document's default (tonight both are Greenhouse).
-      const plot: StyledPlot = { styleId: this.view.town?.doc.plots.find((p) => p.slug === b.slug)?.styleId ?? this.view.town?.doc.styleId ?? null };
-      const style = this.#styleAt(c.x, c.z, plot);
-      const cast = this.#castFor(style, b.slug);
+      // The building's look: its plot's, then its zone's, the viewer's, the town's, the style's default (`look.ts`).
+      const look = buildingLook(this.#lookContext(), b.slug);
+      const plot: StyledPlot = { styleId: look.styleId };
+      const style = styleRegistry.styleFor(plot, { ...look.styleOptions, ...lookAt(this.#looks, c.x, c.z) });
+      const cast = castRegistry.castFor(style, look.castId);
       if (!view || view.group.userData.index !== index || view.ctx.style !== style) {
         view?.dispose();
         if (style !== this.townStyle) style.setTheme(this.view.theme);
@@ -760,21 +767,21 @@ export class TownScene {
     this.#contacts.set(slug, { object, size });
   }
 
-  /**
-   * The cast of a building (null: of the town itself, its postman and town hall): the building's own in the town
-   * document, else the viewer's choice, else the town document's, else the style's default.
-   */
-  #castFor(style: ResolvedStyle, slug: string | null): Cast {
-    const doc = this.view.town?.doc;
-    const building = slug === null ? null : doc?.plots.find((p) => p.slug === slug)?.castId;
-    return castRegistry.castFor(style, castRegistry.resolve({ building, viewer: this.view.cast, town: doc?.castId, style: style.manifest.defaultCast }).id);
+  #lookContext(): LookContext {
+    const { model, town, cast } = this.view;
+    return { doc: town?.doc, zones: model.zones, buildings: model.buildings, viewer: { castId: cast } };
+  }
+
+  /** The cast of the town itself (its postman and town hall): the viewer's choice, else the town document's, else the style's default. */
+  #townCast(): Cast {
+    return castRegistry.castFor(this.townStyle, townLook(this.#lookContext()).castId);
   }
 
   /** The postman at the post office and the agents in the town hall. */
   syncCivic() {
     const model = this.view.model;
     const civic = [...model.postOffice.slice(0, 2), ...model.townHall.slice(0, 5)];
-    const cast = this.#castFor(this.townStyle, null);
+    const cast = this.#townCast();
     const signature = `${cast.manifest.id}|` + civic.map((a) => `${a.key}:${a.posture}:${a.laneStatus}`).join("|") + model.freshness.stale;
     const post = civicCenter("post-office"),
       hall = civicCenter("town-hall");
@@ -1410,7 +1417,7 @@ export class TownScene {
       textures: memory.textures,
       heap,
       quality: this.view.quality,
-      cast: ((this.view.entered && this.#buildings.get(this.view.entered)?.ctx.cast) || this.#castFor(this.townStyle, null)).manifest.name,
+      cast: ((this.view.entered && this.#buildings.get(this.view.entered)?.ctx.cast) || this.#townCast()).manifest.name,
       view: this.view.entered ?? "town",
       frames: s.frames,
       at: now,

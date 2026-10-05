@@ -29,6 +29,7 @@ import { partsModel } from "./parts.ts";
 import * as pieces from "./pieces.ts";
 import * as shell from "./shell.ts";
 import { figureKit } from "./figureKit.ts";
+import * as growth from "./growth.ts";
 import * as town from "./town.ts";
 
 type ManifestFile = StyleManifest & GreenhouseManifestData & { looks?: LooksData; materialSets?: Record<string, MaterialSwap[]> };
@@ -229,6 +230,14 @@ class GreenhouseStyle implements WorldStyle {
         // What stands between a district's buildings is the planting's to say (style.json "looks"); the town garden
         // leaves the spot to the grass.
         return new THREE.Group();
+      case "town.staked-plot":
+        return growth.stakedPlot(kit, o);
+      case "town.plot-sign":
+        return growth.plotSign(kit, o);
+      case "town.scaffolding":
+        return growth.scaffolding(kit, o);
+      case "town.district-gate":
+        return growth.districtGate(kit, o);
       case "path":
         return pieces.path(kit, o);
       case "street-lamp":
