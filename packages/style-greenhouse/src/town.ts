@@ -142,14 +142,14 @@ const fieldMaterials = new WeakMap<Kit, THREE.ShaderMaterial>();
 function fieldMaterial(kit: Kit): THREE.ShaderMaterial {
   let material = fieldMaterials.get(kit);
   if (!material) {
-    material = decalMaterial(kit.hex("grass-meadow"), 0.85, false);
+    material = decalMaterial(kit.hex("grass-lawn"), 0.38, false);
     fieldMaterials.set(kit, material);
   }
   return material;
 }
 
 /**
- * A field in the open country, `width` by `depth`, lying flat on the grass: a soft-edged patch in the meadow's colour
+ * A field in the open country, `width` by `depth`, lying flat on the grass: a soft-edged, faint patch in the lawn's colour
  * (a hayfield, a meadow left to flower). One shared geometry, scaled, so every field in a region instances.
  */
 export function field(kit: Kit, o: ModelOptions): THREE.Group {
@@ -518,7 +518,7 @@ function bulbMaterial(kit: Kit): THREE.MeshStandardMaterial {
 export function townTheme(kit: Kit) {
   wearMaterial(kit).uniforms.uColor!.value.set(kit.hex("path-wear"));
   puddleMaterial(kit).uniforms.uColor!.value.set(kit.hex("water"));
-  fieldMaterial(kit).uniforms.uColor!.value.set(kit.hex("grass-meadow"));
+  fieldMaterial(kit).uniforms.uColor!.value.set(kit.hex("grass-lawn"));
 }
 
 /**
