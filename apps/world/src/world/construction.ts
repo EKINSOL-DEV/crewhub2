@@ -59,8 +59,9 @@ export class Construction {
       });
       const wrap = new THREE.MeshStandardMaterial({ color: style.color("cream", theme), roughness: 0.9, transparent: true });
       this.#fading.push(wrap);
-      this.#wrap = new THREE.Mesh(new THREE.BoxGeometry(width - 0.5, HEIGHT - 0.25, depth - 0.5), wrap);
-      this.#wrap.position.y = (HEIGHT - 0.25) / 2;
+      // Lower and narrower than the scaffolding, so the poles and decks stand clear round it.
+      this.#wrap = new THREE.Mesh(new THREE.BoxGeometry(width - 1.8, HEIGHT * 0.62, depth - 1.8), wrap);
+      this.#wrap.position.y = (HEIGHT * 0.62) / 2;
       this.group.add(this.#wrap);
       building.visible = false;
     } else {
