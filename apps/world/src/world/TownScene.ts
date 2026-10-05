@@ -47,6 +47,8 @@ export interface TownView {
   entered: string | null;
   /** Where every building stands and how large the settlement is (townPlan.ts). */
   plan: TownPlan;
+  /** Free lots to anchor a label on (`lot:x,z`): the plots a picked-up building can move to (build mode). */
+  lotAnchors?: readonly { x: number; z: number }[] | undefined;
   /** Index (in `model.buildings`) of the building with the keyboard focus ring. */
   focused: number;
   ringVisible: boolean;
@@ -767,6 +769,10 @@ export class TownScene {
       this.#contact(b.slug, view);
       this.#anchors.set(`b:${b.slug}`, new THREE.Vector3(c.x, 0.2, c.z + PLOT_SIZE / 2));
     });
+    for (const cell of this.view.lotAnchors ?? []) {
+      const c = lotCentre(cell);
+      this.#anchors.set(`lot:${lotKey(cell)}`, new THREE.Vector3(c.x, 0.2, c.z));
+    }
     // Ambient life lights the buildings' windows in lamplight; gather their spots again when a shell changed.
     const windows = [...this.#buildings.values()].map((v) => `${v.building.slug}:${v.shellRevision}`).join();
     if (windows !== this.#lifeWindows) {
@@ -955,7 +961,7 @@ export class TownScene {
       this.#dress();
     }
     if (previous.cast !== view.cast) this.#shadowDirty = true;
-    if (previous.cast !== view.cast || previous.styleOptions !== view.styleOptions || previous.model !== view.model || previous.plan !== view.plan || previous.entered !== view.entered || previous.room !== view.room || previous.town !== view.town) this.sync();
+    if (previous.cast !== view.cast || previous.styleOptions !== view.styleOptions || previous.model !== view.model || previous.plan !== view.plan || previous.lotAnchors !== view.lotAnchors || previous.entered !== view.entered || previous.room !== view.room || previous.town !== view.town) this.sync();
     else if (previous.reducedMotion !== view.reducedMotion || previous.ambient !== view.ambient)
       this.walks.update(view.model, { entered: view.entered, reducedMotion: view.reducedMotion, ambient: view.ambient, plan: view.plan, walkways: this.#walkways() });
     if (previous.entered !== view.entered) {
@@ -1061,6 +1067,11 @@ export class TownScene {
     const portrait = canvas.clientWidth < canvas.clientHeight * 0.8;
     const insets = this.insets();
     const rects = homeRects(this.view.plan, portrait ? 0 : 1.5, portrait);
+    // While a building is picked up, the free plots it can move to are in the picture too.
+    for (const cell of this.view.lotAnchors ?? []) {
+      const c = lotCentre(cell);
+      rects.push({ minX: c.x - PLOT_SIZE / 4, maxX: c.x + PLOT_SIZE / 4, minZ: c.z - PLOT_SIZE / 4, maxZ: c.z + PLOT_SIZE / 4 });
+    }
     return this.frameRects(rects, 2, HOME_OFFSET, portrait ? { ...insets, left: 0, right: 0 } : insets);
   }
 
@@ -1097,7 +1108,7 @@ export class TownScene {
    */
   #fitPlan() {
     const plan = this.view.plan;
-    const key = `${plan.tier}|${plan.lots.map((l) => lotKey(l.cell)).join(";")}`;
+    const key = `${plan.tier}|${plan.lots.map((l) => lotKey(l.cell)).join(";")}|${this.view.lotAnchors?.length ?? 0}`;
     if (key === this.#fitKey) return;
     this.#fitKey = key;
     const before = this.#span;
