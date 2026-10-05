@@ -12,7 +12,16 @@ import * as THREE from "three";
 
 /** The transform an object's matrix was last composed from (position, quaternion, scale), kept on the object itself:
     a WeakMap lookup per object per frame cost more than the compose it saves. */
-type Tracked = THREE.Object3D & { __composed?: Float64Array };
+type Tracked = THREE.Object3D & { __composed?: Float64Array; __rest?: boolean };
+
+/**
+ * Puts a subtree to rest, or wakes it. A resting subtree is not walked at all (a far figure that neither walks nor
+ * changes: two hundred of them are most of the scene's objects), unless an ancestor moved. Whoever rests it knows
+ * nothing inside changes; waking it brings everything up to date on the next pass, as for any other object.
+ */
+export function restMatrices(root: THREE.Object3D, rest: boolean) {
+  (root as Tracked).__rest = rest;
+}
 
 /** Brings every world matrix under `root` up to date, recomputing only what moved. Returns the matrices composed. */
 export function updateMatrices(root: THREE.Object3D): number {
@@ -20,6 +29,7 @@ export function updateMatrices(root: THREE.Object3D): number {
 }
 
 function visit(o: THREE.Object3D, parentChanged: boolean): number {
+  if ((o as Tracked).__rest === true && !parentChanged) return 0;
   let count = 0;
   let changed = parentChanged || o.matrixWorldNeedsUpdate;
   if (o.matrixAutoUpdate && (o.pivot !== null || moved(o))) {
