@@ -31,14 +31,33 @@ export interface WorkAt {
   taken: Circle | null;
 }
 
+/**
+ * The way from a building to the home camera, along the floor (a unit vector: it looks in from the south-east). A
+ * figure that sits on a top takes, of the places free for it, the one where it shows its face to this side.
+ */
+export const HOME_VIEW: Readonly<{ x: number; z: number }> = { x: Math.SQRT1_2, z: Math.SQRT1_2 };
+
+/** Places seen this much alike from the camera are the style's to rank: the earlier one is taken. */
+const VIEW_TIE = 0.05;
+
 /** How far apart the places along a clear table's edge are tried, beyond the sitter's own width. */
 const SLIDE_MARGIN = 0.05;
 
 /**
  * The work place of a figure standing at `stand` by a piece of furniture at `at` (its footprint's centre and its
- * model's turn about y). `occupied` is what stands on the top besides the model's own things.
+ * model's turn about y). `occupied` is what stands on the top besides the model's own things. With `view` (the way to
+ * the camera along the floor, `HOME_VIEW`), a sitter with more than one free place takes the one it is seen best at:
+ * turned to its work there, it faces the camera most. Left out: the style's first free place.
  */
-export function workPlace(pose: WorkPose, surface: WorkSurface, at: { x: number; z: number; rotation: number }, stand: { x: number; z: number }, scale: number, occupied: readonly Circle[] = []): WorkAt {
+export function workPlace(
+  pose: WorkPose,
+  surface: WorkSurface,
+  at: { x: number; z: number; rotation: number },
+  stand: { x: number; z: number },
+  scale: number,
+  occupied: readonly Circle[] = [],
+  view?: { x: number; z: number },
+): WorkAt {
   const cos = Math.cos(at.rotation),
     sin = Math.sin(at.rotation);
   /** World to the model's own space, and back. */
@@ -60,6 +79,13 @@ export function workPlace(pose: WorkPose, surface: WorkSurface, at: { x: number;
     : toWorld(Math.max(-spine.x, Math.min(spine.x, local.x)), Math.max(-spine.z, Math.min(spine.z, local.z)));
   const seen = toFigure(focus.x, focus.z);
   const blocked = occupied.map((c) => ({ ...toModel(c.x, c.z), radius: c.radius }));
+  /** How squarely a sitter at a model place, turned to what it looks at, faces the camera: 1 full face, -1 its back. */
+  const shown = (x: number, z: number) => {
+    if (!view) return 0;
+    const from = toWorld(x, z);
+    const length = Math.hypot(focus.x - from.x, focus.z - from.z);
+    return length < 1e-6 ? 0 : ((focus.x - from.x) * view.x + (focus.z - from.z) * view.z) / length;
+  };
   const result: WorkAt = {
     heading,
     taken: null,
@@ -73,7 +99,13 @@ export function workPlace(pose: WorkPose, surface: WorkSurface, at: { x: number;
       spot(radius) {
         const clear = (x: number, z: number) => blocked.every((c) => Math.hypot(c.x - x, c.z - z) >= c.radius + radius);
         let found: { x: number; z: number } | undefined;
-        if (surface.spots) found = surface.spots.find((s) => s.radius >= radius - 1e-6 && clear(s.x, s.z));
+        if (surface.spots) {
+          // The style's places that are wide enough and clear, best first; the camera's side wins when one shows more.
+          for (const s of surface.spots) {
+            if (s.radius < radius - 1e-6 || !clear(s.x, s.z)) continue;
+            if (!found || shown(s.x, s.z) > shown(found.x, found.z) + VIEW_TIE) found = s;
+          }
+        }
         else if (radius <= halfX && radius <= halfZ) {
           // A clear top: on its edge where the figure stands, else a little along it to either side.
           const near = { x: Math.max(radius - halfX, Math.min(halfX - radius, local.x)), z: Math.max(radius - halfZ, Math.min(halfZ - radius, local.z)) };
@@ -108,7 +140,7 @@ export function deskClutter(definitionId: string): Circle[] {
 
 /**
  * One work place of every pose, as the building template lays its furniture out (a desk with its seat to the north,
- * a place on the long side of a table): what the cast contract checks every figure against.
+ * a place on the long side of a table, seen from the home camera): what the cast contract checks every figure against.
  */
 export function templateWorkPlaces(surfaces: Partial<Record<ModelKey, WorkSurface>>, scale: number): WorkPlace[] {
   const places: WorkPlace[] = [];
@@ -122,7 +154,7 @@ export function templateWorkPlaces(surfaces: Partial<Record<ModelKey, WorkSurfac
     const approach = pose === "meeting-table" ? { x: 1, z: -1 } : (definition.approaches[0] ?? { x: 0, z: -1 });
     const stand = { x: (approach.x + 0.5 - width / 2) * CELL, z: (approach.z + 0.5 - depth / 2) * CELL };
     const occupied = desk ? deskClutter(id).map((c) => ({ x: c.x * CELL, z: c.z * CELL, radius: c.radius * CELL })) : [];
-    places.push(workPlace(pose, surface, { x: 0, z: 0, rotation: desk ? Math.PI : 0 }, stand, scale, occupied).place);
+    places.push(workPlace(pose, surface, { x: 0, z: 0, rotation: desk ? Math.PI : 0 }, stand, scale, occupied, HOME_VIEW).place);
   }
   return places;
 }

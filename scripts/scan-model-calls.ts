@@ -1,15 +1,26 @@
 /**
  * The no-model-call guard. CrewHub World makes no model call and no network call tonight (spec: "No model call of any
  * kind"; AGENTS.md: "Normal rendering, motion, state changes, and attention signals require zero model calls"). This
- * scans every source file under apps/, packages/, skills/ and scripts/ (never node_modules or dist) for:
+ * scans every source file under apps/, packages/, skills/, scripts/ and tools/ (never node_modules or dist) for:
  *   - imports of AI SDKs,
  *   - model endpoints,
  *   - any `fetch(`, `XMLHttpRequest`, `WebSocket(`, `EventSource(` or `sendBeacon(` outside NETWORK_ALLOWLIST,
- * and checks every package.json for an AI SDK dependency. It runs in `npm test` through
+ * and checks every package.json for an AI SDK dependency.
+ *
+ * Tooling: `tools/` holds the helper scripts that look at and measure the running world in a headless browser
+ * (`playwright-core`, a root dev dependency). They are scanned by the same rules, and by two more that keep the
+ * browser where it belongs:
+ *   - under tools/ every address must be this machine's (`127.0.0.1` or `localhost`): a tool opens the local dev
+ *     server and nothing else;
+ *   - outside tools/ nothing may import a browser driver, and no workspace's package.json may depend on one. The
+ *     world's apps and packages never see it.
+ *
+ * It runs in `npm test` through
  * packages/world-model/test/noModelCalls.test.ts, and directly: `node scripts/scan-model-calls.ts`.
  *
  * This file and its test define the forbidden patterns, so they match themselves; SELF is the only exemption.
  */
+import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -20,13 +31,21 @@ export const NETWORK_ALLOWLIST: Readonly<Record<string, string>> = {};
 /** The scanner and its test hold the patterns and their fixtures, so they would flag themselves. */
 export const SELF: readonly string[] = ["scripts/scan-model-calls.ts", "packages/world-model/test/noModelCalls.test.ts"];
 
-export const SCAN_ROOTS = ["apps", "packages", "skills", "scripts"] as const;
+export const SCAN_ROOTS = ["apps", "packages", "skills", "scripts", "tools"] as const;
+/** Tooling only: scripts that drive a browser against the local dev server. Their output folder is not source. */
+export const TOOLING_ROOT = "tools/";
+const TOOLING_OUTPUT = "tools/out/";
 const SOURCE = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|html|py|sh)$/;
 const SKIP_DIRS = new Set(["node_modules", "dist", ".git"]);
 
 /** Package names of AI SDKs, matched at the start of an import specifier or a dependency name. */
 const AI_PACKAGE = /^(@anthropic-ai\/|anthropic|openai|@google\/genai|@google\/generative-ai|cohere|@?mistral|ollama|@?langchain)/;
 const IMPORT_SPECIFIER = /(?:\bfrom|\bimport|\brequire)\s*\(?\s*["']([^"']+)["']/g;
+/** Browser drivers: tooling, never part of the world. */
+const BROWSER_PACKAGE = /^(@playwright\/|(playwright|puppeteer)(-core)?(\/|$))/;
+/** An address with a scheme and a host, and the hosts a tool may open. */
+const ADDRESS = /\b(?:https?|wss?):\/\/([^\s/"'`:$)]+|\$\{)/g;
+const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost"]);
 const ENDPOINTS = [
   /api\.anthropic\.com/,
   /api\.openai\.com/,
@@ -45,7 +64,7 @@ const NETWORK: { rule: string; pattern: RegExp }[] = [
 export interface Finding {
   file: string;
   line: number;
-  rule: "ai-sdk-import" | "model-endpoint" | "network" | "ai-sdk-dependency";
+  rule: "ai-sdk-import" | "model-endpoint" | "network" | "ai-sdk-dependency" | "browser-import" | "browser-dependency" | "tooling-address";
   detail: string;
 }
 
@@ -53,10 +72,19 @@ export interface Finding {
 export function scanSource(file: string, text: string, allowlist: Readonly<Record<string, string>> = NETWORK_ALLOWLIST): Finding[] {
   const findings: Finding[] = [];
   const lines = text.split("\n");
+  const tooling = file.startsWith(TOOLING_ROOT);
   lines.forEach((content, index) => {
     const line = index + 1;
     for (const match of content.matchAll(IMPORT_SPECIFIER)) {
       if (AI_PACKAGE.test(match[1]!)) findings.push({ file, line, rule: "ai-sdk-import", detail: `imports ${match[1]}` });
+      if (!tooling && BROWSER_PACKAGE.test(match[1]!)) findings.push({ file, line, rule: "browser-import", detail: `imports ${match[1]}: a browser driver belongs under ${TOOLING_ROOT} only` });
+    }
+    if (tooling) {
+      for (const match of content.matchAll(ADDRESS)) {
+        // An address built from a variable cannot be checked: a tool spells its host out.
+        const host = match[1] === "${" ? "a computed host" : match[1]!;
+        if (!LOCAL_HOSTS.has(host)) findings.push({ file, line, rule: "tooling-address", detail: `addresses ${host}: a tool only opens 127.0.0.1 or localhost` });
+      }
     }
     for (const endpoint of ENDPOINTS) {
       if (endpoint.test(content)) findings.push({ file, line, rule: "model-endpoint", detail: `mentions ${endpoint.source.replace(/\\/g, "")}` });
@@ -84,6 +112,10 @@ export function scanPackageJson(file: string, text: string): Finding[] {
     if (typeof group !== "object" || group === null) continue;
     for (const name of Object.keys(group)) {
       if (AI_PACKAGE.test(name)) findings.push({ file, line: 1, rule: "ai-sdk-dependency", detail: `${field} lists ${name}` });
+      // The root manifest may hold a browser driver as a dev dependency, for tools/; a workspace's never does.
+      if (BROWSER_PACKAGE.test(name) && (file !== "package.json" || field !== "devDependencies")) {
+        findings.push({ file, line: 1, rule: "browser-dependency", detail: `${field} lists ${name}: a browser driver is a root dev dependency for ${TOOLING_ROOT} only` });
+      }
     }
   }
   return findings;
@@ -104,9 +136,10 @@ export async function scanTree(root: string, allowlist: Readonly<Record<string, 
   const rootManifest = path.join(root, "package.json");
   findings.push(...scanPackageJson("package.json", await readFile(rootManifest, "utf8")));
   for (const top of SCAN_ROOTS) {
+    if (!existsSync(path.join(root, top))) continue;
     for await (const absolute of walk(path.join(root, top))) {
       const file = path.relative(root, absolute).split(path.sep).join("/");
-      if (SELF.includes(file)) continue;
+      if (SELF.includes(file) || file.startsWith(TOOLING_OUTPUT)) continue;
       const base = path.basename(file);
       if (base === "package.json") {
         scanned += 1;
