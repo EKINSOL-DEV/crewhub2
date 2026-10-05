@@ -237,7 +237,7 @@ export function planLanes(plan: DressPlan): Bounds[] {
  * The entrance road of a village or anything larger: the main street, on south from its last crossing to the ground's
  * edge. Null in a clearing or a hamlet (their lane ends at the gate), and where a district road already runs there.
  */
-export function entranceRoad(plan: DressPlan): Bounds | null {
+export function entranceRoad(plan: Pick<DressPlan, "tier" | "streets" | "roads" | "ground">): Bounds | null {
   if (small(plan.tier)) return null;
   const main = [...plan.streets, ...plan.roads].filter((s) => along(s) === "z" && Math.abs(s.x0 - SQUARE.x) < 0.01);
   const south = Math.max(CIVIC_LANE + PITCH, ...main.map((s) => Math.max(s.z0, s.z1)));
@@ -259,8 +259,25 @@ function streamAt(row: number, x: number): number {
   return row + Math.sin(x * 0.11 + 0.7 + row) * STREAM.amplitude * (0.6 + 0.4 * Math.sin(x * 0.037));
 }
 
+/** What the civic rows' paths depend on: the tier, the civic stage, the landmarks that have arrived and the streets. */
+export type CivicPlan = Pick<DressPlan, "tier" | "civic" | "landmarks" | "streets">;
+
+/**
+ * Every walkable paved rectangle of the civic rows: forecourts and their stems, the green's path or the square and
+ * its promenade, the café's and the bus stop's paths, the park path over its bridge and the footpaths to the
+ * landmarks. The navigation opens exactly these (with the streets, roads and garden paths), so walkers stay on what
+ * the dressing paves.
+ */
+export function civicWalkways(plan: CivicPlan): Bounds[] {
+  const paths = [...civicPaving(plan).map((p) => p.rect), ...sidePaths(plan)];
+  if (plan.civic.square === "square") paths.push(rect(SQUARE.x, SQUARE.z, CIVIC_SIZE.square.width, CIVIC_SIZE.square.depth));
+  if (plan.civic.busStop) paths.push(busBay());
+  if (hasPark(plan)) paths.push(rect(PARK_X, (POND.minZ + POND.maxZ) / 2, 1.6, POND.maxZ - POND.minZ + 1.4));
+  return paths;
+}
+
 /** The paved places of the civic rows at the plan's stage: forecourts, the stems down to the lane, the promenade. */
-function civicPaving(plan: DressPlan): { rect: Bounds; lawn: boolean }[] {
+function civicPaving(plan: CivicPlan): { rect: Bounds; lawn: boolean }[] {
   const out: { rect: Bounds; lawn: boolean }[] = [];
   const court = (c: PlotSpot, half: number, from: number) => {
     out.push({ rect: span(c.x - half, c.x + half, c.z + from, c.z + CIVIC_LOT / 2), lawn: true });
@@ -286,10 +303,10 @@ function civicPaving(plan: DressPlan): { rect: Bounds; lawn: boolean }[] {
   return out;
 }
 /** The park, the orchard and the market belong to a town: the full civic set. */
-const hasPark = (plan: DressPlan) => plan.tier === "town" || plan.tier === "region";
+const hasPark = (plan: Pick<DressPlan, "tier">) => plan.tier === "town" || plan.tier === "region";
 
 /** The footpaths to the landmarks that have arrived. */
-function sidePaths(plan: DressPlan): Bounds[] {
+function sidePaths(plan: CivicPlan): Bounds[] {
   const out: Bounds[] = [];
   const has = (id: PlanLandmark) => plan.landmarks.includes(id);
   if (has("bandstand")) out.push(span(BANDSTAND.x - 0.6, BANDSTAND.x + 0.6, BANDSTAND.z + 2.5, plan.civic.square === "square" ? promenades()[1]!.minZ : CIVIC_LANE));
@@ -313,11 +330,7 @@ const gardenPath = (lot: PlanLot): Bounds => span(lot.door.x - GARDEN_PATH / 2, 
 /** Every walkable paved rectangle of a plan: lanes, roads, the entrance road, civic paths, footpaths and garden paths. */
 export function planPaths(plan: DressPlan): Bounds[] {
   const road = entranceRoad(plan);
-  const paths = [...planLanes(plan), ...(road ? [road] : []), ...civicPaving(plan).map((p) => p.rect), ...sidePaths(plan), ...plan.lots.map(gardenPath)];
-  if (plan.civic.square === "square") paths.push(rect(SQUARE.x, SQUARE.z, CIVIC_SIZE.square.width, CIVIC_SIZE.square.depth));
-  if (plan.civic.busStop) paths.push(busBay());
-  if (hasPark(plan)) paths.push(rect(PARK_X, (POND.minZ + POND.maxZ) / 2, 1.6, POND.maxZ - POND.minZ + 1.4));
-  return paths;
+  return [...planLanes(plan), ...(road ? [road] : []), ...civicWalkways(plan), ...plan.lots.map(gardenPath)];
 }
 
 /* ── The pieces with a spot of their own ──────────────────────────────── */
