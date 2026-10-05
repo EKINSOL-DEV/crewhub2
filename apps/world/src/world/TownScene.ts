@@ -182,6 +182,15 @@ const PORTRAIT_ROOM_MARGIN = 0.86;
 const PORTRAIT_BUILDING_MARGIN = 0.94;
 /* The closest view: a frustum this many world units tall, about one desk with its robot. */
 const DESK_SPAN = 2.4;
+/**
+ * `?frame=minX,maxX,minZ,maxZ` (dev builds only): the home view frames this ground instead of the settlement, so
+ * pictures of a town at different sizes share one camera and show what stayed where.
+ */
+const FIXED_FRAME: Bounds | null = (() => {
+  if (!import.meta.env.DEV) return null;
+  const [minX, maxX, minZ, maxZ] = (new URLSearchParams(globalThis.location?.search ?? "").get("frame") ?? "").split(",").map(Number);
+  return [minX, maxX, minZ, maxZ].every((n) => typeof n === "number" && Number.isFinite(n)) ? { minX: minX!, maxX: maxX!, minZ: minZ!, maxZ: maxZ! } : null;
+})();
 const HIT_GEOMETRY = new THREE.BoxGeometry(PLOT_SIZE, 2, PLOT_SIZE);
 const HIT_MATERIAL = new THREE.MeshBasicMaterial();
 /** The widest ground the town's shadow map covers at once (about today's town); a larger settlement gets a window of it. */
@@ -1021,7 +1030,7 @@ export class TownScene {
     const canvas = this.renderer.domElement;
     const portrait = canvas.clientWidth < canvas.clientHeight * 0.8;
     const insets = this.insets();
-    const rects = homeRects(this.view.plan, portrait ? 0 : 1.5, portrait);
+    const rects = FIXED_FRAME ? [FIXED_FRAME] : homeRects(this.view.plan, portrait ? 0 : 1.5, portrait);
     // While a building is picked up, the free plots it can move to are in the picture too.
     for (const cell of this.view.lotAnchors ?? []) {
       const c = lotCentre(cell);
