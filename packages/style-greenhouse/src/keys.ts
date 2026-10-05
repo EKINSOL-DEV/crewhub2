@@ -145,6 +145,10 @@ export const LIGHT_POOLS: Partial<Record<ModelKey, LightPool | LightPool[]>> = {
     { radius: 1.7, y: 0.05, x: 1.75, z: 1.5 },
   ],
   "town-hall": [-3.3, 3.3].map((x) => ({ radius: 1.2, y: 0.5, x, z: 0.25 })),
+  // The lodge's porch lamp and the mail hut's hatch lamp: a small pool on the step in front (model units; the town
+  // draws both about twice as large).
+  "town.lodge": { radius: 1.1, y: 0.13, x: 0.2, z: 1.25 },
+  "town.mail-hut": { radius: 0.9, y: 0.1, x: 0.1, z: 0.95 },
   // Mounted on a door post at floor level; the pool lies in front, just above the top step.
   "building.wall-lamp": { radius: 1.4, y: -0.1, z: 0.7 },
   // The truck's headlights throw one warm pool on the road ahead of the cab (its front faces +x).
