@@ -29,7 +29,7 @@ function stops(length: number, step: number): number[] {
 /**
  * A plot staked out for a building that is not there yet, `width` by `depth`: timber stakes at the corners and along
  * the edges, a builder's string run between them with a ribbon tied on here and there, and the corner stakes capped
- * in cream. The front edge (+z) is left open in the middle, where the garden path will come.
+ * in coral. Sized to read from the town camera. The front edge (+z) is left open in the middle, where the garden path will come.
  */
 export function stakedPlot(kit: Kit, o: ModelOptions): THREE.Group {
   const { width, depth } = size(o, { width: 6, height: 0, depth: 6 });
@@ -44,22 +44,22 @@ export function stakedPlot(kit: Kit, o: ModelOptions): THREE.Group {
     ...[...xs].reverse().slice(0, -1).map((x, i) => ({ x, z: depth / 2, corner: i === 0 })),
     ...[...zs].reverse().slice(0, -1).map((z, i) => ({ x: -width / 2, z, corner: i === 0 })),
   ];
-  const top = (s: { corner: boolean }) => (s.corner ? 0.62 : 0.46);
+  const top = (s: { corner: boolean }) => (s.corner ? 1.05 : 0.8);
   ring.forEach((s, i) => {
     const lean = (((i * 7 + seed) % 5) - 2) * 0.035;
-    const stake = put(g, kit.box(s.corner ? 0.11 : 0.08, top(s) + 0.1, s.corner ? 0.11 : 0.08, "timber-light", 0.02), s.x, top(s) / 2 - 0.05, s.z);
+    const stake = put(g, kit.box(s.corner ? 0.2 : 0.15, top(s) + 0.1, s.corner ? 0.2 : 0.15, "timber", 0.03), s.x, top(s) / 2 - 0.05, s.z);
     stake.rotation.set(lean, 0, -lean);
-    if (s.corner) put(g, kit.box(0.13, 0.1, 0.13, "cream", 0.02), s.x, top(s) - 0.04, s.z);
+    if (s.corner) put(g, kit.box(0.24, 0.16, 0.24, "coral", 0.03), s.x, top(s) - 0.06, s.z);
     const next = ring[(i + 1) % ring.length]!;
     // The gate gap: no string across the middle of the front edge.
     const gate = s.z === depth / 2 && next.z === depth / 2 && Math.abs(s.x + next.x) < 2.7 && xs.length > 3;
     if (gate) return;
-    const a = new THREE.Vector3(s.x, top(s) - 0.14, s.z),
-      b = new THREE.Vector3(next.x, top(next) - 0.14, next.z);
-    bar(kit, g, a, b, 0.022, "cream").castShadow = false;
+    const a = new THREE.Vector3(s.x, top(s) - 0.2, s.z),
+      b = new THREE.Vector3(next.x, top(next) - 0.2, next.z);
+    bar(kit, g, a, b, 0.05, "cream").castShadow = false;
     if ((i * 3 + seed) % 4 === 0) {
       const mid = a.clone().lerp(b, 0.4 + ((i + seed) % 3) * 0.1);
-      const ribbon = put(g, kit.box(0.035, 0.2, 0.05, i % 2 ? "coral" : "tangerine", 0.008), mid.x, mid.y - 0.09, mid.z);
+      const ribbon = put(g, kit.box(0.07, 0.34, 0.09, i % 2 ? "coral" : "tangerine", 0.012), mid.x, mid.y - 0.15, mid.z);
       ribbon.castShadow = false;
     }
   });

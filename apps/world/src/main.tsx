@@ -10,7 +10,14 @@ const App = lazy(() => import("./App").then(({ App }) => ({ default: App })));
 // Two side pages, each loaded only when asked for: the prop-builder examples drawn by the parts renderer (review only,
 // not linked from the UI) and the casting room (linked from Settings).
 const path = window.location.pathname.replace(/\/$/, "");
-const Page = path === "/props-preview" ? lazy(() => import("./PropsPreview")) : path === "/cast-preview" ? lazy(() => import("./CastPreview")) : App;
+const Page =
+  path === "/props-preview"
+    ? lazy(() => import("./PropsPreview"))
+    : path === "/tiers-preview"
+      ? lazy(() => import("./TiersPreview"))
+      : path === "/cast-preview"
+        ? lazy(() => import("./CastPreview"))
+        : App;
 
 const root = document.getElementById("root");
 if (!root) throw new Error("The application root is missing.");

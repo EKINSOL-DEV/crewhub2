@@ -14,6 +14,24 @@ export interface GreenhouseManifestData {
   swatches: Record<string, string>;
   /** Swatches that change under the lamplight theme. */
   lamplightSwatches: Record<string, string>;
+  /** Flower beds by variant (town.ts): what a season plants in them. */
+  beds?: Record<string, FlowerBed>;
+}
+
+/** What grows in a flower bed: the flowers' swatches in turn, how close they stand, and the sizes of leaf and head. */
+export interface FlowerBed {
+  flowers: string[];
+  spacing: number;
+  leaf: [number, number, number];
+  head: [number, number, number];
+  /** The heads' height above the bed. */
+  lift: number;
+}
+
+/** The swatches a look recolours (looks.ts): a colour, or the name of another swatch. */
+export interface KitLook {
+  swatches: Record<string, string>;
+  lamplightSwatches: Record<string, string>;
 }
 
 /** A swatch or palette name. */
@@ -38,13 +56,20 @@ export type KitLight = Pick<LightingPreset, "glow" | "pools" | "shadowOpacity" |
 export class Kit {
   readonly data: GreenhouseManifestData;
   theme: StyleTheme = "day";
-  readonly geometries = new Map<string, THREE.BufferGeometry>();
+  readonly geometries: Map<string, THREE.BufferGeometry>;
+  /**
+   * The kit this one is a look of, or itself. A look's kit shares the root's geometry, decals and every material its
+   * swatches leave alone, and keeps materials of its own only for what it recolours.
+   */
+  readonly root: Kit;
+  readonly #look: KitLook | null;
+  readonly #looks: Kit[] = [];
   readonly #materials = new Map<string, Entry>();
   readonly #decals: Record<Decal, THREE.ShaderMaterial>;
   /** The contact shade along a room's walls (`edgeShade`). */
   readonly #edge: THREE.ShaderMaterial;
   /** The floor shader's sun shafts: shown by day, faded out in the evening and under lamplight. */
-  readonly shafts = { value: 1 };
+  readonly shafts: { value: number };
   #lighting: Record<StyleTheme, LightingPreset>;
   /** The light the shared materials show now: the theme's, or the day-night drift's. */
   #light: KitLight;
@@ -52,9 +77,22 @@ export class Kit {
   /** Colours of the casts drawn with this kit, by `cast:<id>:<name>` (figureKit.ts): a cast's own, per theme. */
   readonly #castColors = new Map<string, { day: string; lamplight: string }>();
 
-  constructor(data: GreenhouseManifestData, lighting: Record<StyleTheme, LightingPreset>) {
+  constructor(data: GreenhouseManifestData, lighting: Record<StyleTheme, LightingPreset>, look?: { of: Kit; swatches: KitLook }) {
     this.data = data;
     this.#lighting = lighting;
+    this.root = look?.of ?? this;
+    this.#look = look?.swatches ?? null;
+    this.geometries = look?.of.geometries ?? new Map();
+    this.shafts = look?.of.shafts ?? { value: 1 };
+    if (look) {
+      this.theme = look.of.theme;
+      this.#light = { ...look.of.#light };
+      this.#quality = look.of.#quality;
+      this.#decals = look.of.#decals;
+      this.#edge = look.of.#edge;
+      look.of.#looks.push(this);
+      return;
+    }
     this.#light = { ...lighting.day };
     this.#decals = {
       shadow: decalMaterial(this.hex("contact-shadow"), lighting.day.shadowOpacity, false),
@@ -75,10 +113,27 @@ export class Kit {
       const color = new THREE.Color(this.hex(name.slice("soft:".length), theme)).lerp(new THREE.Color(this.hex("cream", theme)), 0.45);
       return `#${color.getHexString()}`;
     }
-    const cast = this.#castColors.get(name);
+    const cast = this.root.#castColors.get(name);
     if (cast) return cast[theme];
-    if (theme === "lamplight" && name in this.data.lamplightSwatches) return this.data.lamplightSwatches[name]!;
-    return this.data.swatches[name] ?? (this.data.palette as Record<string, string>)[name] ?? this.data.swatches["no-project"]!;
+    const look = this.#look;
+    const found =
+      (theme === "lamplight" ? (look?.lamplightSwatches[name] ?? this.data.lamplightSwatches[name]) : undefined) ??
+      look?.swatches[name] ??
+      this.data.swatches[name] ??
+      (this.data.palette as Record<string, string>)[name] ??
+      this.data.swatches["no-project"]!;
+    // A swatch may name another one (the accent is a palette colour); a look's own names resolve in the look.
+    return found.startsWith("#") || found === name ? found : this.hex(found, theme);
+  }
+
+  /** Whether this look recolours a swatch, by itself or through the swatch it names. */
+  #recolours(name: Swatch | null | undefined): boolean {
+    const look = this.#look;
+    if (!look || !name) return false;
+    const plain = name.startsWith("soft:") ? name.slice("soft:".length) : name;
+    if (plain in look.swatches || plain in look.lamplightSwatches) return true;
+    const alias = this.data.swatches[plain];
+    return alias !== undefined && !alias.startsWith("#") && alias !== plain && this.#recolours(alias);
   }
 
   /**
@@ -89,6 +144,8 @@ export class Kit {
   /** A shared material per swatch; `tint` multiplies a second swatch in (an instance colour, made a material). */
   material(name: Swatch, options: { glow?: Swatch | number; transparent?: number; instanced?: boolean; tint?: Swatch } = {}): THREE.MeshStandardMaterial {
     const glow = options.glow === undefined ? null : typeof options.glow === "number" ? name : options.glow;
+    // A look draws with the root's material wherever its swatches change nothing, so districts batch together.
+    if (this.root !== this && !this.#recolours(name) && !this.#recolours(glow) && !this.#recolours(options.tint)) return this.root.material(name, options);
     const key = `${name}|${glow ?? ""}|${typeof options.glow === "number" ? options.glow : ""}|${options.transparent ?? ""}${options.instanced ? "|instanced" : ""}${options.tint ? `|tint:${options.tint}` : ""}`;
     let entry = this.#materials.get(key);
     if (!entry) {
@@ -117,7 +174,7 @@ export class Kit {
 
   /** A cast's own colours (cast.json), under names no swatch has; its materials follow the theme like any other. */
   castColors(prefix: string, colors: Record<string, { day: string; lamplight: string }>) {
-    for (const [name, color] of Object.entries(colors)) this.#castColors.set(`${prefix}${name}`, color);
+    for (const [name, color] of Object.entries(colors)) this.root.#castColors.set(`${prefix}${name}`, color);
   }
 
   /** Swatch colours follow the theme; the light starts at the theme's own (the drift then shades it, `setLight`). */
@@ -128,6 +185,7 @@ export class Kit {
       if (entry.tint) entry.material.color.multiply(new THREE.Color(this.hex(entry.tint)));
       if (entry.emissive) entry.material.emissive.set(this.hex(entry.emissive));
     }
+    for (const look of this.#looks) look.setTheme(theme);
     this.setLight(this.#lighting[theme]);
   }
 
@@ -144,15 +202,24 @@ export class Kit {
     this.#light.evening = light.evening;
     this.shafts.value = 1 - THREE.MathUtils.clamp(light.evening, 0, 1);
     for (const entry of this.#materials.values()) if (entry.emissive) entry.material.emissiveIntensity = entry.glow * light.glow;
+    for (const look of this.#looks) look.setLight(light);
     this.#applyDecals();
   }
 
   setQuality(quality: GraphicsQuality) {
     this.#quality = quality;
+    for (const look of this.#looks) look.setQuality(quality);
     this.#applyDecals();
   }
 
+  /** The kits of this kit's looks (the root's only). */
+  get looks(): readonly Kit[] {
+    return this.#looks;
+  }
+
   #applyDecals() {
+    // The decals are the root's: a look has none of its own.
+    if (this.root !== this) return;
     const preset = this.#light;
     const { shadow, pool, screen } = this.#decals;
     shadow.uniforms.uColor!.value.set(this.hex("contact-shadow"));
@@ -223,7 +290,7 @@ export class Kit {
 
   isShared(material: THREE.Material): boolean {
     for (const entry of this.#materials.values()) if (entry.material === material) return true;
-    return false;
+    return this.root !== this && this.root.isShared(material);
   }
 
   geometry(key: string, create: () => THREE.BufferGeometry) {
@@ -263,8 +330,12 @@ export class Kit {
     );
   }
   dispose() {
-    this.geometries.forEach((g) => g.dispose());
     this.#materials.forEach((e) => e.material.dispose());
+    this.#materials.clear();
+    if (this.root !== this) return;
+    for (const look of this.#looks) look.dispose();
+    this.#looks.length = 0;
+    this.geometries.forEach((g) => g.dispose());
     this.#decals.shadow.dispose();
     this.#decals.pool.dispose();
     this.#decals.screen.dispose();

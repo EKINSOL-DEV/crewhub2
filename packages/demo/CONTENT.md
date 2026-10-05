@@ -7,6 +7,9 @@ the world cannot tell it from a live host. Every surface that shows it labels it
 as demo. The data lives in `src/content.ts`; the storyline lives in
 `src/script.ts`.
 
+This file describes **Small team**, the default scenario, in full. The other scenarios (the picker on the Demo
+chip, or `?scenario=<id>`) are in [Scenarios](#scenarios) at the end.
+
 ## People and agents
 
 | Id | Kind | Role | Notes |
@@ -131,3 +134,84 @@ every 30 s.
   stream.
 - The same seed produces a byte-identical stream, at any speed. A different seed
   changes only the jitter.
+
+## Scenarios
+
+A scenario is an installation (`DemoContent`) plus a storyline (`Story`), played by the same `createDemoSource`.
+The world offers them on the Demo chip and reads `?scenario=<id>`; choosing one reloads the page. Each scenario
+keeps its own town document (`DemoScenario.townKey`, the name of the browser database), so plots, placements and
+zones never mix. Every scenario is deterministic and seeded like the default one, and every message passes the
+same loops-client validators.
+
+| Id | Name | Installation | Loop | Town document |
+|---|---|---|---|---|
+| `fresh` | Fresh install | no project; Nicky, `g-man`, `fn-lead`, the postman, the probe | 10:00 | `crewhub-world.fresh` |
+| `one` | One project | Pocket Garden (PG): `pg-lead`, `pg-dev-1`, `pg-design-1`, 11 tickets | 10:00 | `crewhub-world.one` |
+| `small-team` | Small team (default) | the four projects above | 16:00 | `crewhub-world` |
+| `studio` | Studio | twenty projects in four groups, 20 leads and 56 workers | 16:00 | `crewhub-world.studio` |
+
+### Fresh install
+
+Crewhub-loops right after the installer. The first snapshot has no project, no board and two lanes (`g-man` and the
+postman). The lead agent `fn-lead` is already registered, because loops' onboarding registers a lead before it
+asks for a project; it has no lane yet.
+
+| Time | What happens |
+|---|---|
+| 0:14–0:30 | Nicky writes to `g-man` ("Loops is installed. Are you there?"); the postman claims and forwards it; `g-man` answers. |
+| **1:00** | **Nicky creates Field Notes (FN):** `project.created` with the payload loops writes (`slug`, `key`, `leadId`, `changed`, `old: {}`, `new` with the initial values). The projection refetches the project and its empty board. |
+| 1:10–2:12 | `fn-lead`'s lane starts. Nicky creates FN-1 "Write the README" (a `new_ticket` delivery) and plans it; the lead takes it. |
+| 2:30–3:24 | FN-2 "List notes by day" and the bug FN-3 are created. `fn-dev-1` joins as a worker. |
+| 3:40–4:30 | FN-1 goes to review, waiting on Nicky; the lead starts FN-2; Nicky closes FN-1. |
+| 5:10–7:22 | **Prop: a welcome mat** (FN-4), the usual prop flow, built by `fn-dev-1`. |
+| 7:34–9:30 | FN-3 is planned; a question and an answer on FN-2; FN-2 goes to review and Nicky closes it. |
+| 10:00 | The loop ends and the installation is empty again. |
+
+"Request a prop" before 1:00 is accepted and starts when the project exists. The chat works from the first second.
+A real fresh crewhub-loops also has its built-in Inbox project; the demo leaves it out, and how the world should
+show the Inbox is an open question.
+
+### One project
+
+Pocket Garden with a lead and two workers: work on PG-5 and PG-6, a review reply on PG-4 (1:48), the prop from the
+backlog (PG-11, from 2:30), a `stalled` episode with a nudge on PG-5 (5:20 to 6:10), a new bug from Nicky (7:14),
+and a question that waits on Nicky (8:10, answered at 8:46).
+
+### Studio
+
+Twenty projects, five in each of four groups:
+
+| Group | Projects | District look in the town seed |
+|---|---|---|
+| Apps | Pocket Garden, Field Notes, Trail Maps, Recipe Box, Bird Log | season `summer`, planting `market`, accent `coral`, lantern `globe`, cast `classic-bots` |
+| Platform | Accounts, Sync Engine, Billing, Notifications, Search | season `october`, planting `waterside`, accent `sky`, lantern `iron`, cast `overgrown-bots` |
+| Brand | Website, Launch Week, Help Centre, Newsletter, Brand Kit | season `spring`, planting `orchard`, accent `gold`, lantern `paper`, cast `sprouts` |
+| Lab | Voice Notes, Offline Mode, Widgets, Importers, Translations | season `october`, planting `meadow`, accent `lilac`, lantern `paper`, cast `potlings` |
+
+**The groups are a future field (proposal L22 "project groups").** Crewhub-loops has no level above projects
+today. The demo sends it in the shape the world would like loops to offer: `groupId` on `ProjectOut`, the list as
+`LoopsSnapshot.groups` and `listProjectGroups()` (`GET /api/project-groups`). Every such line in the code is marked
+`FUTURE (proposal L22)`. No other scenario sends a group, and `groupId` is absent from their streams.
+
+**The looks are not loops data.** They are Studio's town document seed (`DemoScenario.townZones`): one zone entry
+per group id with style options and a cast. A new Studio town starts from it at revision 0; a person's own changes
+are stored and win over the seed from then on.
+
+Studio tells no single story. Every project has eight tickets (two done, one in review, two in progress, one
+planned, two in the backlog) and gets a progress line about every 45 seconds. What it is built to exercise:
+
+- **A person is needed somewhere all loop long.** Five reviews wait on Nicky at the start and four tickets wait on
+  a person. Sixteen projects take turns with the watchdog: a `stalled` episode with a nudge, an `attention`
+  episode, or a question that waits on a person, each closed after about two and a half minutes and repeated every
+  six and a half. A test checks that at least two groups need a person in every minute up to 14:00.
+- **The postman keeps walking:** more than forty deliveries per loop (comments, planned tickets, new tickets,
+  nudges, releases).
+- **The truck:** Sync Engine releases 2.4.0 (created 4:10, publish asked 6:02, published 6:34), Pocket Garden gets
+  a draft 1.3.0 (11:20), and Website (9:40) and Voice Notes (13:05) archive their Done column.
+- A worker of Trail Maps is `blocked` on a permission prompt from 7:10 to 9:15.
+
+### The stress fixtures
+
+`?stress=1` (dev builds only) is unchanged: 12 buildings and 100 agents. `?stress=20` is the region: 20 buildings
+and 200 agents (20 leads, 4 rovers, 176 workers) in four groups of five, with the same future `groupId`. Neither
+tells a story; they exist to load the renderer.

@@ -12,14 +12,16 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { zoneById } from "@crewhub/world-model";
 import type { AgentPlacement, RoomKind, WorldModel } from "@crewhub/world-model";
 import { IDLE_STATE, type Cast, type FigureHandle, type FigureState } from "@crewhub/world-cast";
-import type { EnvironmentHandle, GraphicsQuality, ModelAnimation, ModelKey, ResolvedStyle, StyleTheme } from "@crewhub/world-style";
+import { styleOptionsKey, type EnvironmentHandle, type GraphicsQuality, type ModelAnimation, type ModelKey, type ResolvedStyle, type StyleOptionValues, type StyleTheme } from "@crewhub/world-style";
 import { BuildingView, type Pick } from "./buildingView";
 import { BACK_WALL_HEIGHT, BUILDING_CELL, FLOOR_RISE } from "./buildingTemplate";
 import type { TownLayer } from "./propLayer";
 import { styleRegistry } from "./style";
 import type { StyledPlot } from "./styleRegistry";
+import { lookAt, looksSignature, previewLooks, type TownLooks } from "./townLooks";
 import type { Ambient } from "./movement";
 import { CIVIC_LOT, civicCenter, homeRects, PLOT_SIZE, plotCenter, TOWN_CAPACITY, townBounds, type Bounds } from "./townLayout";
+import { Construction } from "./construction";
 import { GRASS_Y, landmarks as townLandmarks, LAWN_Y, slugSeed, townDressing } from "./townDressing";
 import { InstanceCuller, instanceStatic } from "./instanceStatic";
 import { mergeStatic } from "./mergeStatic";
@@ -73,6 +75,11 @@ export interface TownView {
   fps?: boolean;
   /** Inside a building: the selected agent's key (a soft ring under its feet), or null. */
   selectedAgent?: string | null;
+  /**
+   * The look of the town and of each district (townLooks.ts): picks for the style's options. Left out, the address
+   * bar's preview (`?look=`, `?looks=`), else the style as it stands.
+   */
+  looks?: TownLooks | null;
 }
 export type BuildPointer = "move" | "click" | "drag" | "drop";
 
@@ -292,6 +299,9 @@ export class TownScene {
   #dirtyFrames = 2;
   /** True until the first layout of the town is complete; nothing draws before. */
   #layingOut = true;
+  /** Buildings going up (construction.ts), and the slugs the town has shown: a new one gets scaffolding first. */
+  readonly #constructions = new Map<string, Construction>();
+  readonly #known = new Set<string>();
   #layoutTimer: ReturnType<typeof setTimeout> | 0 = 0;
   #down = { x: 0, y: 0 };
   #hovered: number | null = null;
@@ -318,6 +328,7 @@ export class TownScene {
   #buildCell = "";
   #dragging = false;
   #stopIntents: () => void;
+  readonly #previewLooks = previewLooks(globalThis.location?.search ?? "", townBounds());
 
   constructor(host: HTMLElement, labels: HTMLElement, view: TownView, callbacks: Callbacks) {
     this.view = view;
@@ -529,7 +540,7 @@ export class TownScene {
       ["civic.bus-stop", civicCenter("bus-stop").x, GRASS_Y, civicCenter("bus-stop").z],
     ];
     for (const [key, x, y, z] of landmarks) {
-      const object = style.model(key);
+      const object = this.#styleAt(x, z).model(key);
       object.position.set(x, y, z);
       this.#landmarks.add(object);
     }
@@ -537,7 +548,7 @@ export class TownScene {
     const covered = new Set<string>(style.manifest.coveredKeys);
     for (const l of townLandmarks()) {
       if (!covered.has(l.key)) continue;
-      const object = style.model(l.key as ModelKey);
+      const object = this.#styleAt(l.x, l.z).model(l.key as ModelKey);
       object.position.set(l.x, l.y, l.z);
       object.rotation.y = l.rotation;
       this.#landmarks.add(object);
@@ -556,8 +567,9 @@ export class TownScene {
     const indices = Array.from({ length: Math.min(TOWN_CAPACITY, count) }, (_, i) => i);
     // Fast quality leaves out the small detail (grass tufts, wild flowers).
     const fast = this.view.quality === "fast";
+    const townOptions = townLook(this.#lookContext()).styleOptions;
     // Each building's own garden follows its slug and whether it is archived.
-    const signature = `${indices.map((i) => `${this.view.model.buildings[i]?.slug}:${this.view.model.buildings[i]?.archived}`).join(",")}|${fast}`;
+    const signature = `${indices.map((i) => `${this.view.model.buildings[i]?.slug}:${this.view.model.buildings[i]?.archived}`).join(",")}|${fast}|${looksSignature(this.#looks)}|${styleOptionsKey(townOptions)}`;
     if (signature === this.#dressing.signature) return;
     this.#disposeDressing();
     this.#shadowDirty = true;
@@ -568,9 +580,19 @@ export class TownScene {
     });
     const dressing = townDressing(plots);
     this.#life.setTown(dressing, this.#landmarks);
+    // A district's own turf lies on the town's ground, in its look's grass.
+    for (const { bounds } of this.#looks?.districts ?? []) {
+      const turf = this.#styleAt((bounds.minX + bounds.maxX) / 2, (bounds.minZ + bounds.maxZ) / 2, townOptions).model("town.turf", {
+        size: { width: bounds.maxX - bounds.minX, height: 0, depth: bounds.maxZ - bounds.minZ },
+      });
+      turf.position.set((bounds.minX + bounds.maxX) / 2, turf.position.y, (bounds.minZ + bounds.maxZ) / 2);
+      group.add(turf);
+    }
     for (const d of dressing) {
       if (fast && d.detail) continue;
-      const object = this.townStyle.model(d.key as ModelKey, {
+      // The whole ground is the town's; everything else wears the look of the district it stands in.
+      const style = d.key === "ground" ? this.#styleAt(Infinity, Infinity, townOptions) : this.#styleAt(d.x, d.z, townOptions);
+      const object = style.model(d.key as ModelKey, {
         ...(d.size ? { size: d.size } : {}),
         ...(d.seed !== undefined ? { seed: d.seed } : {}),
         ...(d.variant ? { variant: d.variant } : {}),
@@ -585,6 +607,20 @@ export class TownScene {
     this.scene.add(group);
     this.#culler = new InstanceCuller(instanced);
     this.#dressing = { signature, group, instanced, merged };
+  }
+
+  /** The look of the town and its districts: the view's, else the address bar's preview. */
+  get #looks(): TownLooks | null {
+    return this.view.looks === undefined ? this.#previewLooks : this.view.looks;
+  }
+
+  /**
+   * The town's style as it is worn at a spot: the town's own look (the viewer's and the town document's picks), and
+   * over it the picks of the district that stands there.
+   */
+  #styleAt(x: number, z: number, town: StyleOptionValues = townLook(this.#lookContext()).styleOptions): ResolvedStyle {
+    const district = lookAt(this.#looks, x, z);
+    return this.townStyle.withOptions(district ? { ...town, ...district } : town);
   }
 
   #disposeDressing() {
@@ -625,7 +661,7 @@ export class TownScene {
       // The building's look: its plot's, then its zone's, the viewer's, the town's, the style's default (`look.ts`).
       const look = buildingLook(this.#lookContext(), b.slug);
       const plot: StyledPlot = { styleId: look.styleId };
-      const style = styleRegistry.styleFor(plot);
+      const style = styleRegistry.styleFor(plot, { ...look.styleOptions, ...lookAt(this.#looks, c.x, c.z) });
       const cast = castRegistry.castFor(style, look.castId);
       if (!view || view.group.userData.index !== index || view.ctx.style !== style) {
         view?.dispose();
@@ -641,6 +677,15 @@ export class TownScene {
         created++;
         this.#buildings.set(b.slug, view);
         this.scene.add(view.group);
+        // A project that joins a standing town goes up in scaffolding; the first layout and a re-dress do not.
+        this.#constructions.get(b.slug)?.finish();
+        this.#constructions.delete(b.slug);
+        if (!this.#layingOut && !this.#known.has(b.slug) && this.view.entered !== b.slug) {
+          const going = new Construction(this.townStyle, view.group, view.bounds(null), LAWN_Y, this.view.theme, this.view.reducedMotion);
+          this.#constructions.set(b.slug, going);
+          this.scene.add(going.group);
+        }
+        this.#known.add(b.slug);
       }
       // A cast chosen in Settings (or by the town document) swaps the figures where they stand and walk.
       view.setCast(cast);
@@ -660,6 +705,9 @@ export class TownScene {
     }
     for (const [slug, view] of this.#buildings)
       if (!seen.has(slug)) {
+        this.#constructions.get(slug)?.finish();
+        this.#constructions.delete(slug);
+        this.#known.delete(slug);
         view.dispose();
         this.#buildings.delete(slug);
         this.#contacts.get(slug)?.object.removeFromParent();
@@ -1197,6 +1245,12 @@ export class TownScene {
     this.#life.tick(playing ? dt : 0);
     if (playing && this.#life.active) moving = true;
     this.#see();
+    for (const [slug, going] of this.#constructions) {
+      // An entered building is shown whole at once.
+      if (this.view.entered === slug ? going.finish() : going.tick(dt)) moving = true;
+      else this.#constructions.delete(slug);
+      this.#shadowSoft = true;
+    }
     for (const [slug, view] of this.#buildings.entries()) {
       view.tick(dt, this.#seen.has(slug));
       if (view.animating) moving = true;
@@ -1498,6 +1552,8 @@ export class TownScene {
     this.#cancelPrepare?.();
     this.#stopIntents();
     cancelAnimationFrame(this.#raf);
+    for (const going of this.#constructions.values()) going.finish();
+    this.#constructions.clear();
     this.#resize.disconnect();
     document.removeEventListener("visibilitychange", this.visibility);
     this.controls.removeEventListener("start", this.cancelTween);
