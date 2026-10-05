@@ -52,6 +52,7 @@ export function createStyleRegistry(defaultId: string, warn: (message: string) =
         return style.parts(PLACEHOLDER_MODEL);
       },
       robot: (options) => style.robot(options),
+      ...(style.figureKit ? { figureKit: (cast: Parameters<NonNullable<WorldStyle["figureKit"]>>[0]) => style.figureKit!(cast) } : {}),
       parts: (prop) => style.parts(prop),
       color: (name, theme) => style.color(name, theme),
       setTheme: (theme) => style.setTheme(theme),

@@ -3,6 +3,7 @@
   "name": "Greenhouse",
   "version": "1.0.0",
   "description": "The botanical miniature studio: soft toon materials, warm timber, chalk walls, framed glass, planted details and soft robots.",
+  "defaultCast": "classic-bots",
   "coveredKeys": [
     "banner",
     "beacon",
