@@ -149,8 +149,10 @@ function World() {
   useEffect(() => worldRuntime().setZoning(zoningOf(town.doc)), [town.doc]);
   // The civic places go by what stands there at this size: the lodge, the mailbox, the mail hut.
   const civic = useMemo(() => civicWords(plan.civic), [plan.civic.hall, plan.civic.post]);
+  // Only while the text view shows: describing a region on every model update is felt on a phone.
+  const textShown = textOpen || graphicsFailed;
   const textLines = useMemo(
-    () => [
+    () => !textShown ? [] : [
       ...(civic.hall === CIVIC_WORDS.hall && civic.post === CIVIC_WORDS.post ? text : describeWorld(model, civic)),
       ...describeCasts(castRegistry, {
         viewer: cast,
@@ -170,7 +172,7 @@ function World() {
       ...describePlan(plan, (slug) => model.buildings.find((b) => b.slug === slug)?.name ?? slug),
       ...describeTownDocument(town.doc, town.catalogue, { ruleProps: rules, invalidRequests: town.invalid }),
     ],
-    [text, civic, cast, town.doc, town.catalogue, rules, town.invalid, model.zones, model.buildings, plan],
+    [textShown, text, civic, cast, town.doc, town.catalogue, rules, town.invalid, model.zones, model.buildings, plan],
   );
   const undo = useCallback(() => {
     townRuntime().undo();

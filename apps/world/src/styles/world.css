@@ -1597,13 +1597,24 @@
   box-shadow: var(--focus-ring);
 }
 /* The beacon breathes, so the eye finds it among twenty roofs; it holds still under reduced motion. */
-.district-beacon,
-.need-pin {
+.district-beacon {
+  position: relative;
+}
+.district-beacon::before,
+.need-pin::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  box-shadow: 0 0 0 5px color-mix(in oklab, var(--warm) 28%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  /* Only opacity moves, so the browser composes it without painting again each frame. */
   animation: beacon-breathe 2.4s ease-in-out infinite;
 }
 @keyframes beacon-breathe {
   50% {
-    box-shadow: 0 0 0 5px color-mix(in oklab, var(--warm) 28%, transparent);
+    opacity: 1;
   }
 }
 .need-words {
@@ -1660,8 +1671,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .district-beacon,
-  .need-pin {
+  .district-beacon::before,
+  .need-pin::before {
     animation: none;
   }
 }

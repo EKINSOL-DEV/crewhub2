@@ -306,6 +306,8 @@ export class NavWorld {
   #townKeys = new Map<string, string>();
   /** The cells of each town room that a district road's portal stands on: they stay open whatever the plan says. */
   #portalCells = new Map<string, Cell[]>();
+  /** What the town rooms were last brought up to date for; null when that sync left something for the next one. */
+  #townSynced: { plan: TownPlan; walkways: readonly Bounds[]; standing: string } | null = null;
   #usedLots = new Set<string>();
 
   constructor() {
@@ -353,7 +355,11 @@ export class NavWorld {
       }
     }
     this.#usedLots = new Set(plan.lots.map((l) => lotKey(l.cell)));
-    this.#syncTown(plan, walkways);
+    // The town rooms follow the plan, the paving and which buildings stand in the graph: when none of them changed
+    // since a sync that went through, they are as they should be (a region's rooms are costly to work out again).
+    const standing = [...this.#entries.keys()].join();
+    const last = this.#townSynced;
+    if (!last || last.plan !== plan || last.walkways !== walkways || last.standing !== standing) this.#townSynced = this.#syncTown(plan, walkways) ? { plan, walkways, standing } : null;
     for (const [slug, { building, cell }] of wanted) {
       const template = buildingTemplate(building);
       const structure = structureKey(template);
@@ -610,7 +616,8 @@ export class NavWorld {
    * The town rooms: one per district in use and per district a road passes through. A new district gets its room
    * and the road's portal; a district whose paving or buildings changed has its room updated in place.
    */
-  #syncTown(plan: TownPlan, walkways: readonly Bounds[]): void {
+  #syncTown(plan: TownPlan, walkways: readonly Bounds[]): boolean {
+    let settled = true;
     const slots = new Map<string, DistrictSlot>(plan.districts.map((d) => [slotKey(d.slot), d.slot]));
     const portals = plan.roads.map(portal);
     for (const road of plan.roads) for (const slot of [road.from, road.to]) slots.set(slotKey(slot), slot);
@@ -627,11 +634,18 @@ export class NavWorld {
       const key = JSON.stringify(layout.props);
       if (!this.graph.room(id)) this.graph.addRoom({ id, layout });
       // A walker standing where a new building goes blocks the update; the next sync tries again.
-      else if (this.#townKeys.get(id) === key || !this.sim.updateRoom(id, layout).ok) continue;
+      else if (this.#townKeys.get(id) === key) continue;
+      else if (!this.sim.updateRoom(id, layout).ok) {
+        settled = false;
+        continue;
+      }
       this.#townKeys.set(id, key);
     }
     for (const door of portals)
-      if (!this.graph.door(door.id) && this.#walkable(door.a.room, door.a.cell) && this.#walkable(door.b.room, door.b.cell)) this.graph.addDoor({ id: door.id, a: door.a, b: door.b });
+      if (this.graph.door(door.id)) continue;
+      else if (this.#walkable(door.a.room, door.a.cell) && this.#walkable(door.b.room, door.b.cell)) this.graph.addDoor({ id: door.id, a: door.a, b: door.b });
+      else settled = false;
+    return settled;
   }
 
   /** A district room's layout for a plan, or null when nothing in it is paved. */

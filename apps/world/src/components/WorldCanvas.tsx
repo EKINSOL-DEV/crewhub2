@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Archive, Check, CircleHelp, Clock, Flag, Hand, MessageSquare, Play, RefreshCw, Sprout, TriangleAlert, Trophy } from "lucide-react";
 import type { AgentPlacement, Building, ProgressKind, RoleSource, WorkObject, WorldModel } from "@crewhub/world-model";
 import { STRESS, worldRuntime } from "../state/world";
@@ -24,7 +24,7 @@ import { lotKey } from "../world/settlement";
 import { setMovingBuilding, useMovingBuilding } from "../state/layoutMove";
 import { moveBuilding, plotLabel } from "./LayoutPanel";
 import { townRuntime } from "../state/town";
-import type { RoomKind, RuleProp } from "@crewhub/world-model";
+import type { LaneStatus, RoomKind, RuleProp } from "@crewhub/world-model";
 import { Chip } from "./primitives";
 import { needsOf, needsTotal, needsWords, summarise, summaryWords, activeWords, type DistrictPlace } from "../world/wayfinding";
 
@@ -159,6 +159,8 @@ export default function WorldCanvas(props: Props) {
   const { model, entered } = props;
   const inside = model.buildings.find((b) => b.slug === entered) ?? null;
   const compact = useCompact();
+  const go = useRef({ onEnter: props.onEnter, onHover: props.onHover });
+  go.current = { onEnter: props.onEnter, onHover: props.onHover };
   return (
     <>
       <div ref={host} className="canvas-host" />
@@ -196,32 +198,24 @@ export default function WorldCanvas(props: Props) {
           // With Details on, a town of more than a few buildings keeps its signs quiet (a wall of cards hides the town):
           // the focused one still expands.
           const expanded = inside ? !compact : (props.ringVisible && props.focused === index) || (props.details && model.buildings.length <= QUIET_TOWN);
-          const lead = b.agents.find((a) => a.key === b.lead.id && a.presence === "real");
+          const lead = expanded && !b.archived ? b.agents.find((a) => a.key === b.lead.id && a.presence === "real") : undefined;
           return (
-            <div key={b.slug} className={`anchor${expanded ? " raised" : ""}`} data-anchor={`b:${b.slug}`}>
-              <button
-                type="button"
-                className={`town-sign${expanded ? " expanded" : ""}${b.archived ? " archived" : ""}`}
-                aria-label={inside ? `${b.name} (${b.key}), inside` : `Enter ${b.name} (${b.key})`}
-                tabIndex={inside ? -1 : 0}
-                onClick={() => !inside && props.onEnter(b.slug)}
-                onFocus={() => props.onHover(index)}
-              >
-                <span className="sign-title">
-                  {b.archived && <Archive className="icon icon-sm" aria-hidden="true" />}
-                  <strong className="sign-name">{b.name}</strong>
-                  <span className="sign-key">{b.key}</span>
-                  {b.archived && <span className="sign-archived">archived</span>}
-                </span>
-                {expanded && <span className="sign-counts">{countsLine(b.counts)}</span>}
-                {expanded && !b.archived && (
-                  <span className="sign-lead">
-                    Lead {b.lead.displayName}
-                    {lead ? <LaneChip status={lead.laneStatus} freshness={model.freshness} /> : <span className="sign-muted">not in the building</span>}
-                  </span>
-                )}
-              </button>
-            </div>
+            <TownSign
+              key={b.slug}
+              slug={b.slug}
+              index={index}
+              name={b.name}
+              projectKey={b.key}
+              archived={b.archived}
+              expanded={expanded}
+              inside={!!inside}
+              counts={expanded ? countsLine(b.counts) : ""}
+              leadName={expanded && !b.archived ? b.lead.displayName : ""}
+              leadStatus={lead?.laneStatus ?? null}
+              stale={expanded && model.freshness.stale}
+              teamTs={expanded ? model.freshness.teamTs : null}
+              go={go}
+            />
           );
         })}
         {!inside && <Wayfinding districts={props.districts} district={props.district} onDistrict={props.onDistrict} onEnter={props.onEnter} />}
@@ -251,64 +245,120 @@ export default function WorldCanvas(props: Props) {
   );
 }
 
+/* A building's sign. Memoised on plain values: the model is new many times a second, a sign changes rarely, and a
+   region has twenty of them. */
+const TownSign = memo(function TownSign(props: {
+  slug: string;
+  index: number;
+  name: string;
+  projectKey: string;
+  archived: boolean;
+  expanded: boolean;
+  inside: boolean;
+  counts: string;
+  leadName: string;
+  leadStatus: LaneStatus | null;
+  stale: boolean;
+  teamTs: string | null;
+  go: { current: { onEnter: (slug: string) => void; onHover: (index: number | null) => void } };
+}) {
+  const { slug, index, name, projectKey, archived, expanded, inside, go } = props;
+  return (
+    <div className={`anchor${expanded ? " raised" : ""}`} data-anchor={`b:${slug}`}>
+      <button
+        type="button"
+        className={`town-sign${expanded ? " expanded" : ""}${archived ? " archived" : ""}`}
+        aria-label={inside ? `${name} (${projectKey}), inside` : `Enter ${name} (${projectKey})`}
+        tabIndex={inside ? -1 : 0}
+        onClick={() => !inside && go.current.onEnter(slug)}
+        onFocus={() => go.current.onHover(index)}
+      >
+        <span className="sign-title">
+          {archived && <Archive className="icon icon-sm" aria-hidden="true" />}
+          <strong className="sign-name">{name}</strong>
+          <span className="sign-key">{projectKey}</span>
+          {archived && <span className="sign-archived">archived</span>}
+        </span>
+        {expanded && <span className="sign-counts">{props.counts}</span>}
+        {expanded && !archived && (
+          <span className="sign-lead">
+            Lead {props.leadName}
+            {props.leadStatus ? <LaneChip status={props.leadStatus} freshness={{ stale: props.stale, teamTs: props.teamTs, ageSeconds: null }} /> : <span className="sign-muted">not in the building</span>}
+          </span>
+        )}
+      </button>
+    </div>
+  );
+});
+
 /* What the town says from a distance. A region's districts each carry one card (the name, how much lives there, the
    open work) with one beacon when anything inside needs a person; a building that needs a person carries a small pin
    over its roof. The scene shows the cards from far and the building signs nearer (`data-detail` on the labels host,
    `labelDetail` in wayfinding.ts); every fact here is also a sentence in the text view. */
 function Wayfinding({ districts, district, onDistrict, onEnter }: { districts: DistrictPlace[]; district: string | null; onDistrict: (id: string) => void; onEnter: (slug: string) => void }) {
-  const region = districts.length > 1;
-  return (
-    <>
-      {region &&
-        districts.map((d) => {
+  // The model is new many times a second and these labels rarely change: they are worked out as plain values and
+  // drawn again only when one of those differs.
+  const cards =
+    districts.length > 1
+      ? districts.map((d) => {
           const summary = summarise(d.buildings);
-          const needs = needsWords(summary.needs);
-          return (
-            <div key={d.id} className="anchor district-anchor" data-anchor={`d:${d.id}`}>
-              <button
-                type="button"
-                className={`district-card${summary.beacon ? " beacon" : ""}${district === d.id ? " current" : ""}`}
-                data-color={d.zone?.color ?? undefined}
-                aria-label={`${d.name}, district. ${summaryWords(summary)}${district === d.id ? " You are here." : " Go there."}`}
-                aria-current={district === d.id ? "location" : undefined}
-                onClick={() => onDistrict(d.id)}
-              >
-                <span className="district-name">
-                  <span className="district-dot" aria-hidden="true" />
-                  <strong>{d.name}</strong>
-                  {summary.beacon && (
-                    <span className="district-beacon">
-                      <TriangleAlert className="icon icon-sm" aria-hidden="true" />
-                      {needsTotal(summary.needs)}
-                    </span>
-                  )}
-                </span>
-                <span className="district-counts">
-                  {summary.buildings} {summary.buildings === 1 ? "building" : "buildings"}, {summary.agents} {summary.agents === 1 ? "agent" : "agents"}
-                </span>
-                <span className="district-work">{activeWords(summary.counts)}</span>
-                {needs && <span className="district-needs">Needs a person: {needs}</span>}
-              </button>
-            </div>
-          );
-        })}
-      {districts.flatMap((d) =>
-        d.buildings.map((b) => {
-          const needs = needsOf(b);
-          const total = needsTotal(needs);
-          if (!total) return null;
-          return (
-            <div key={b.slug} className="anchor need-anchor" data-anchor={`n:${b.slug}`}>
-              <button type="button" className="need-pin" aria-label={`${b.name} needs a person: ${needsWords(needs)}. Go inside.`} title={`${b.name}: ${needsWords(needs)}`} onClick={() => onEnter(b.slug)}>
-                <TriangleAlert className="icon icon-sm" aria-hidden="true" />
-                <span className="need-count">{total}</span>
-                <span className="need-words">{needsWords(needs)}</span>
-              </button>
-            </div>
-          );
-        }),
-      )}
-    </>
+          return { id: d.id, name: d.name, color: d.zone?.color ?? null, beacon: summary.beacon, total: needsTotal(summary.needs), needs: needsWords(summary.needs), buildings: summary.buildings, agents: summary.agents, work: activeWords(summary.counts), words: summaryWords(summary) };
+        })
+      : [];
+  const pins = districts.flatMap((d) =>
+    d.buildings.flatMap((b) => {
+      const needs = needsOf(b);
+      const total = needsTotal(needs);
+      return total ? [{ slug: b.slug, name: b.name, total, words: needsWords(needs) }] : [];
+    }),
+  );
+  const key = JSON.stringify([cards, pins]);
+  const go = useRef({ onDistrict, onEnter });
+  go.current = { onDistrict, onEnter };
+  return useMemo(
+    () => (
+      <>
+        {cards.map((d) => (
+          <div key={d.id} className="anchor district-anchor" data-anchor={`d:${d.id}`}>
+            <button
+              type="button"
+              className={`district-card${d.beacon ? " beacon" : ""}${district === d.id ? " current" : ""}`}
+              data-color={d.color ?? undefined}
+              aria-label={`${d.name}, district. ${d.words}${district === d.id ? " You are here." : " Go there."}`}
+              aria-current={district === d.id ? "location" : undefined}
+              onClick={() => go.current.onDistrict(d.id)}
+            >
+              <span className="district-name">
+                <span className="district-dot" aria-hidden="true" />
+                <strong>{d.name}</strong>
+                {d.beacon && (
+                  <span className="district-beacon">
+                    <TriangleAlert className="icon icon-sm" aria-hidden="true" />
+                    {d.total}
+                  </span>
+                )}
+              </span>
+              <span className="district-counts">
+                {d.buildings} {d.buildings === 1 ? "building" : "buildings"}, {d.agents} {d.agents === 1 ? "agent" : "agents"}
+              </span>
+              <span className="district-work">{d.work}</span>
+              {d.needs && <span className="district-needs">Needs a person: {d.needs}</span>}
+            </button>
+          </div>
+        ))}
+        {pins.map((b) => (
+          <div key={b.slug} className="anchor need-anchor" data-anchor={`n:${b.slug}`}>
+            <button type="button" className="need-pin" aria-label={`${b.name} needs a person: ${b.words}. Go inside.`} title={`${b.name}: ${b.words}`} onClick={() => go.current.onEnter(b.slug)}>
+              <TriangleAlert className="icon icon-sm" aria-hidden="true" />
+              <span className="need-count">{b.total}</span>
+              <span className="need-words">{b.words}</span>
+            </button>
+          </div>
+        ))}
+      </>
+    ),
+    // The values decide; the arrays are new each render.
+    [key, district],
   );
 }
 

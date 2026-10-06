@@ -375,6 +375,14 @@ and zones" has the design).
   neither walks nor changes is left alone (the matrix pass skips it, `restMatrices`; the crowd draws it from the
   parts it found once, and the renderer does not walk it). Interiors are still only built when a building is hovered,
   focused or entered.
+- **On Fast, a region seen whole steps back once more** (`isRemote`, below `REMOTE_PX` pixels per world unit; Pretty
+  never does). A building keeps the large pieces of its shell: decals, pieces under three world units and the
+  figures (a pixel or two tall) leave the camera's layer, and its matrices are only walked on the frame after a model
+  update. Instanced dressing under 2.6 units (tufts, flowers, benches, lanterns) and the blob shadows under buildings
+  leave too; trees, hedges, paving and ground stay. Nothing is rebuilt, so coming closer shows everything at once.
+- **A model update is spread over two tasks** in the town view: React commits, and the scene follows at the start of
+  the next drawn frame. Building signs and the district cards are memoised on plain values. The dressing's matrices
+  are worked out once when it is laid.
 - **Between districts** a figure that changes building is not walked across the region. It takes a bus that is not
   drawn: it steps off where the district road enters the new district and walks to the door from there
   (`NavWorld.arrival`). The postman keeps walking. A drawn bus with stops and a timetable is not built.

@@ -24,7 +24,8 @@ Every script takes:
 
 Where they apply: `--theme light,dark`, `--cast <id>` (the viewer's cast choice, as Settings > Town > Cast stores
 it), `--stress <n>` (the stress fixture's size, the page's `?stress=<n>`; dev builds only: `1` is 12 buildings with
-about 100 agents, `20` is 20 buildings with 200 agents in four groups), `--scenario <id>` (a demo scenario from the
+about 100 agents, `20` is 20 buildings with 200 agents in four groups; given to a `phone-*` scenario of `perf.mjs` it
+measures the fixture at 4x on the phone instead of the demo), `--scenario <id>` (a demo scenario from the
 Demo chip's picker, the page's `?scenario=<id>`; `perf.mjs` and `shots.mjs`) and `--tag <name>` (the prefix of the files written).
 
 **The browser.** Headless Chromium from `playwright-core`, launched with
