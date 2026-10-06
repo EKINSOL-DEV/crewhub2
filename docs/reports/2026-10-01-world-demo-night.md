@@ -546,6 +546,137 @@ colour; the potlings' perch costs nothing.
   casts commit `661afbe`.
 - Screenshots are in the coordinator's scratchpad under `shots-perch/`.
 
+## Scale and zones (2026-10-06)
+
+The owner's request: a fresh crewhub-loops install often has one project, and a busy one has twenty. The world must
+fit both, perhaps with zones above projects that a future crewhub-loops feature could supply. Until now the town was
+a fixed 4 x 3 grid. The design is the spec addendum "Scale and zones" (`2e22983`).
+
+- **Team:** seven developers (Opus 5.5 at effort medium), from 00:20 to about 02:05.
+- **Merges:** 23 merges, each green before the live branch moved.
+
+### First: the helper scripts in the repository
+
+A cleanup of `/tmp` had removed the Dev Lead's 38-check browser regression pass. The scripts a later task must rerun
+now live in `tools/` ([README](../../tools/README.md)):
+
+- the regression pass, `regress.mjs`, rebuilt to its 38 checks;
+- `perf.mjs`, which now takes `--stress` and `--scenario`;
+- `memory.mjs`;
+- the screenshot helpers;
+- the casting-room shots.
+
+The browser driver, `playwright-core`, is a root dev dependency, installed from the local cache without network.
+The no-network scanner covers `tools/`, and a test proves the app never imports the driver.
+
+The same task fixed one perch detail: a sitter now takes the side of the desk that faces the camera, so a potling's
+face shows.
+
+### The settlement fits its content
+
+- **Plots never move.** `apps/world/src/world/settlement.ts` defines:
+  - lots on the old pitch;
+  - districts with a fixed growth order;
+  - reserved spots for the civic buildings and landmarks, so the lodge grows into the town hall and the mail hut
+    into the post office, each in place;
+  - tiers with hysteresis.
+- **Allocation.** A project gets the next free lot of its zone's district the first time the world sees it, written
+  into the town document.
+- **The stability test.**
+  - The setup: 24 runs, one to four zones, six orders each, with archiving and restoring mixed in, adding projects
+    one by one from 0 to 40.
+  - What it checks: no building's lot ever changes, nothing overlaps, and the ground always covers every lot.
+- **The tiers** (`settlementDressing.ts`):
+  - **clearing:** a lodge, a mailbox, a welcome sign, and a staked plot that says "Create a project in
+    crewhub-loops";
+  - **hamlet:** the building centred, with a lane and a green;
+  - **village:** today's town, tightened;
+  - **town:** the full civic set;
+  - **region:** districts joined by wooded roads across streams and hedges, with a gate that carries the zone's
+    name.
+- **Growth.** Landmarks arrive as the town grows, seeded by the town. A new project's building goes up in
+  scaffolding, or fades in under reduced motion.
+- **Build mode** has "Tidy the town" (one undo step) and moving a building by hand to a plot or a zone. Archived
+  buildings keep their plot; a viewer setting folds them into an old quarter.
+
+### Zones and their looks
+
+- **In the model.** A zone has an id, name, order, colour, emblem and look. A building's zone resolves from a manual
+  assignment, then the source's group, then the default zone.
+- **The group from loops.** That shape is wired in `packages/loops-client` as the future field of proposal L22,
+  which the demo fills.
+- **Look resolution** runs building, then zone, then viewer, then town, then style default, for the style, its
+  options and the cast.
+- **Style options as data.** Greenhouse declares four options in `style.json`, and a style ignores options it does
+  not know:
+  - season: October, spring, summer;
+  - planting: town garden, orchard, market, waterside, meadow;
+  - accent;
+  - lantern.
+- **Where to set them:** Settings > Zones and build mode set a zone's look; the viewer and the town have their own
+  option rows.
+- **Proposal L22, "project groups"** for crewhub-loops, is written in [LOOPS_GAP_ANALYSIS.md](../LOOPS_GAP_ANALYSIS.md)
+  5.8 and section 6, and in the integration plan's section 9.
+
+### Finding your way at scale
+
+- **Navigation:**
+  - Zoom levels region, district, building and room, in the breadcrumb and the Escape chain.
+  - A jump list on `/` and `Cmd/Ctrl+K`, which lists what needs a person first.
+  - A card per district with counts and one beacon.
+  - A pin over each building that needs a person.
+  - The text view grouped by district.
+- **Far and remote buildings** draw as shell and crowd only; on Fast, remote buildings keep only their large pieces.
+- **Between districts** a figure steps off at the gate of its new district and walks on. There is no drawn bus yet.
+
+### The demo shows it
+
+A scenario picker on the Demo chip offers:
+
+- **Fresh install:** the first project is created at 1:00, and its building goes up.
+- **One project.**
+- **Small team:** the default, unchanged.
+- **Studio:** twenty projects in four groups with their own seasons, plantings and casts.
+- **`?stress=20`:** 200 agents in four zones.
+
+Every scenario keeps its own town document.
+
+### Performance
+
+`tools/perf.mjs`, dev server, Pretty, light, on the final commit. No frame went over 33 ms in any desktop scenario.
+
+| Projects | Town: work / draw calls | Inside: work / draw calls | Phone, Fast: work / draw calls |
+| --- | --- | --- | --- |
+| 0 (Fresh install) | 0.6 ms / 108 | (no building yet) | 1.6 ms / 99 |
+| 1 (One project) | 0.8 ms / 100 | 1.0 ms / 244 | 2.6 ms / 92 |
+| 4 (Small team) | 1.3 ms / 220 | 1.6 ms / 431 | 4.2 ms / 211 |
+| 12 (`?stress=1`, 4x) | 2.8 ms / 525 | 2.6 ms / 622 | 6.9 ms / 449 |
+| 20 (`?stress=20`, 4x) | 3.1 ms / 678 | 3.5 ms / 679 | 5.6 ms / 413 |
+| 20 (Studio) | 3.7 ms / 784 | 3.2 ms / 453 | 7.0 ms / 442 |
+
+**Before and after.** Measured back to back on the same machine, the state before this round (`a5ea03f`) read:
+
+| Scenario | Before | After |
+| --- | --- | --- |
+| Small team, work | 1.5 ms | 1.3 ms |
+| Small team, draw calls | 280 | 220 |
+| Phone | 4.6 ms | 4.3 ms |
+| Stress town | 2.9 ms | 2.7 ms |
+
+**The phone.** Studio on a phone first read 13.9 ms of work, with 762 draw calls and 11 frames over 33 ms. A remote
+tier on Fast and a lighter model sync brought it to the table's numbers.
+
+- **On a production build** it is a steady 60: 6.0 ms of work and no frame over 33 ms. Small team reads 3.4 ms there.
+- **On the dev build** one to three frames per run still land just over 33 ms.
+- **Memory:** the heap is about 300 MB in dev with twenty projects; it has not been looked at.
+
+**Verification:**
+
+- `npm run check` is green with 425 tests. The old fixed-grid dressing and its tests are gone.
+- `node tools/regress.mjs` passes 38 of 38, with no page or console error and no external request.
+- Screenshots of every tier, light and dark, at 1440 and 375 px, are in the coordinator's scratchpad under
+  `shots-scale/`.
+
 ## Challenges with docs/integrators
 
 Read at crewhub-loops `a1bed0f`. Each item names the document, what was unclear, contradictory, missing or marked
