@@ -35,10 +35,10 @@ import { AmbientLife } from "./ambientLife";
 import { driftPhase, followPhase, type DriftFollow } from "./dayClock";
 import { FrameRing } from "./frameRing";
 import { nudgeStacks, overRobot, type Label, type RobotBox } from "./labelLayout";
-import { updateMatrices } from "./matrixPass";
+import { restMatrices, updateMatrices } from "./matrixPass";
 import { RobotCrowd } from "./robotCrowd";
 import { DistrictFrames, type DistrictView } from "./districtFrames";
-import { isDistant, labelDetail, type LabelDetail } from "./wayfinding";
+import { isDistant, isRemote, labelDetail, type LabelDetail } from "./wayfinding";
 import { castRegistry } from "./cast";
 import { buildingLook, townLook, zoneLook, type LookContext } from "./worldLook";
 import { figureRole, figureState, type FigureFacts, type FigurePlace } from "./figureState";
@@ -215,6 +215,9 @@ const FAR_LABEL = 72;
    hovered or selected robot's plate is never hidden: it is placed first. */
 const HIDDEN_LABEL = 160;
 const NARROW_CANVAS = 600;
+/** The remote tier: instanced dressing pieces smaller than this (world units) are not drawn; they go to this layer. */
+const REMOTE_DRESSING = 2.6;
+const REMOTE_LAYER = 30;
 /** The height of a district's card in pixels: its name and up to four lines, or only its name on a phone. */
 const DISTRICT_CARD = { desktop: 128, phone: 40 };
 /* Labels that hang above their anchor (bottom centred on it): robots' stacks, tags, chips and counts. Building, civic
@@ -297,6 +300,14 @@ export class TownScene {
   #crowd = new RobotCrowd();
   #districts = new DistrictFrames();
   #distant = false;
+  #remote = false;
+  /** The dressing the remote tier was last applied to, and what it took off the camera's layer. */
+  #remoteDressing: THREE.Group | null = null;
+  #remoteHidden: THREE.Object3D[] = [];
+  /** A sync ran since the last drawn frame: remote buildings may have changed inside. */
+  #stirred = true;
+  /** A new model waits for the next drawn frame to be applied (`setView`). */
+  #modelPending = false;
   /** Which labels show at the current zoom (`labelDetail`); on the labels host as `data-detail`. */
   #detail: LabelDetail | null = null;
   /** Buildings the camera sees this frame (their far robots follow their walkers and are drawn). */
@@ -674,6 +685,9 @@ export class TownScene {
     this.scene.add(group);
     this.#culler = new InstanceCuller(instanced);
     this.#dressing = { signature, group, instanced, merged };
+    // The dressing never moves once it is laid (a change builds a new one): its matrices are worked out once, here.
+    group.updateMatrixWorld(true);
+    restMatrices(group, true);
   }
 
   /** The look of the town and its districts: the view's, else the address bar's preview. */
@@ -721,6 +735,7 @@ export class TownScene {
   /* ── Model → scene ────────────────────────────────────────────────────── */
 
   sync() {
+    this.#modelPending = false;
     const started = performance.now();
     let created = 0,
       deferred = false;
@@ -756,7 +771,7 @@ export class TownScene {
       const look = buildingLook(this.#lookContext(), b.slug);
       const plot: StyledPlot = { styleId: look.styleId };
       const style = styleRegistry.styleFor(plot, { ...look.styleOptions, ...lookAt(this.#looks, c.x, c.z) });
-      const cast = castRegistry.castFor(style, look.castId);
+      const cast = this.#castFor(style, look.castId);
       if (!view || view.group.userData.lot !== lotKey(lot.cell) || view.ctx.style !== style) {
         view?.dispose();
         if (style !== this.townStyle) style.setTheme(this.view.theme);
@@ -791,6 +806,7 @@ export class TownScene {
       this.#contact(b.slug, view);
       this.#anchors.set(`b:${b.slug}`, new THREE.Vector3(c.x, 0.2, c.z + PLOT_SIZE / 2));
     });
+    this.#stirred = true;
     this.#districts.update(this.view.districts ?? [], (slug) => this.#buildings.get(slug)?.bounds(null) ?? null, this.#anchors);
     for (const cell of this.view.lotAnchors ?? []) {
       const c = lotCentre(cell);
@@ -891,6 +907,16 @@ export class TownScene {
     return this.#dressPlan!.paths;
   }
 
+  /** The registry's cast for a style and an id, remembered: the registry resolves and checks the figure on every ask. */
+  #castFor(style: ResolvedStyle, id: string): Cast {
+    let casts = this.#casts.get(style);
+    if (!casts) this.#casts.set(style, (casts = new Map()));
+    let cast = casts.get(id);
+    if (!cast) casts.set(id, (cast = castRegistry.castFor(style, id)));
+    return cast;
+  }
+  #casts = new WeakMap<ResolvedStyle, Map<string, Cast>>();
+
   #lookContext(): LookContext {
     const { model, town, cast, styleOptions } = this.view;
     return { doc: town?.doc, zones: model.zones, buildings: model.buildings, viewer: { castId: cast, styleOptions } };
@@ -898,7 +924,7 @@ export class TownScene {
 
   /** The cast of the town itself (its postman and town hall): the viewer's choice, else the town document's, else the style's default. */
   #townCast(): Cast {
-    return castRegistry.castFor(this.townStyle, townLook(this.#lookContext()).castId);
+    return this.#castFor(this.townStyle, townLook(this.#lookContext()).castId);
   }
 
   /** The postman at the post office and the agents in the town hall. */
@@ -984,7 +1010,19 @@ export class TownScene {
       this.#dress();
     }
     if (previous.cast !== view.cast) this.#shadowDirty = true;
-    if (previous.cast !== view.cast || previous.styleOptions !== view.styleOptions || previous.model !== view.model || previous.plan !== view.plan || previous.lotAnchors !== view.lotAnchors || previous.entered !== view.entered || previous.room !== view.room || previous.town !== view.town) this.sync();
+    // Seen from the town, the town layer only carries the model's rule props along (build mode works inside a building).
+    const townChanged = previous.town !== view.town && (!!view.entered || previous.town?.doc !== view.town?.doc);
+    if (previous.cast !== view.cast || previous.styleOptions !== view.styleOptions || previous.plan !== view.plan || previous.lotAnchors !== view.lotAnchors || previous.entered !== view.entered || previous.room !== view.room || townChanged) this.sync();
+    else if (previous.model !== view.model || previous.town !== view.town) {
+      // Only the model moved on (the common case, many times a minute). Seen from the town the scene follows at the
+      // start of the next drawn frame, so React's commit and the scene's sync do not add up to one long frame (a
+      // region's twenty buildings on a phone). Inside a building, and while the town is still being laid out, at once.
+      if (view.entered || this.#layingOut || document.hidden) this.sync();
+      else {
+        this.#modelPending = true;
+        this.invalidate();
+      }
+    }
     else if (previous.reducedMotion !== view.reducedMotion || previous.ambient !== view.ambient)
       this.walks.update(view.model, { entered: view.entered, reducedMotion: view.reducedMotion, ambient: view.ambient, plan: view.plan, walkways: this.#walkways() });
     if (previous.entered !== view.entered) {
@@ -1418,6 +1456,7 @@ export class TownScene {
       this.#raf = requestAnimationFrame(this.animate);
       return;
     }
+    if (this.#modelPending) this.sync();
     const started = performance.now();
     const interval = this.#last ? now - this.#last : 0;
     const dt = this.#last ? Math.min(interval / 1000, 0.05) : 0;
@@ -1493,6 +1532,9 @@ export class TownScene {
     }
     // World matrices for what moved only (matrixPass.ts; three's own pass is off for this scene), before the crowd
     // copies its robots' matrices.
+    // Remote buildings stand still between model updates: the pass walks them only on the frame after one.
+    if (this.#remote) for (const view of this.#buildings.values()) restMatrices(view.group, !this.#stirred);
+    this.#stirred = false;
     updateMatrices(this.scene);
     this.#crowd.begin();
     for (const [slug, view] of this.#buildings) view.crowd(this.#crowd, this.#seen.has(slug));
@@ -1535,6 +1577,37 @@ export class TownScene {
     }
   }
 
+  /**
+   * The remote tier of the town itself: dressing smaller than `REMOTE_DRESSING` world units (tufts, flowers, benches,
+   * lanterns: under three pixels) and the blob shadows under the buildings step off the camera's layer. The trees,
+   * hedges, paving and ground stay. Layers, not visibility: the instance culler owns `visible`.
+   */
+  #setRemote(remote: boolean) {
+    this.#remote = remote;
+    for (const o of this.#remoteHidden) o.layers.set(0);
+    this.#remoteHidden = [];
+    this.#remoteDressing = remote ? this.#dressing.group : null;
+    this.#stirred = true;
+    if (!remote) {
+      for (const view of this.#buildings.values()) restMatrices(view.group, false);
+      return;
+    }
+    const hide = (o: THREE.Object3D) => {
+      o.layers.set(REMOTE_LAYER);
+      this.#remoteHidden.push(o);
+    };
+    const size = new THREE.Vector3();
+    this.#dressing.group?.traverse((o) => {
+      if (!(o instanceof THREE.Mesh) || o.layers.mask !== 1) return;
+      const geometry = o.geometry as THREE.BufferGeometry;
+      // An instanced mesh's geometry is one piece: its own size decides. A merged mesh spans the town and stays.
+      if (!(o instanceof THREE.InstancedMesh)) return;
+      if (!geometry.boundingBox && geometry.attributes.position?.array) geometry.computeBoundingBox();
+      if (geometry.boundingBox && Math.max(...geometry.boundingBox.getSize(size).toArray()) < REMOTE_DRESSING) hide(o);
+    });
+    for (const { object } of this.#contacts.values()) object.traverse((o) => o instanceof THREE.Mesh && hide(o));
+  }
+
   /** Which buildings the camera sees, with a margin (a robot stepping out of the door, a building lifting). */
   #see() {
     this.camera.updateMatrixWorld();
@@ -1542,9 +1615,13 @@ export class TownScene {
     this.#seen.clear();
     // From far (a region's overview) a building is its shell and the crowd: its furniture and resting figures step back.
     const canvas = this.renderer.domElement;
-    this.#distant = !this.view.entered && isDistant((canvas.clientHeight * this.camera.zoom) / (this.camera.top - this.camera.bottom), this.#distant);
+    const pixels = (canvas.clientHeight * this.camera.zoom) / (this.camera.top - this.camera.bottom);
+    this.#distant = !this.view.entered && isDistant(pixels, this.#distant);
+    // On Fast a region seen whole steps back once more: small pieces of shells and dressing are not drawn at all.
+    const remote = this.#distant && this.view.quality === "fast" && isRemote(pixels, this.#remote);
+    if (remote !== this.#remote || (remote && this.#remoteDressing !== this.#dressing.group)) this.#setRemote(remote);
     for (const [slug, view] of this.#buildings) {
-      view.setDistant(this.#distant);
+      view.setDistant(this.#distant, this.#remote);
       const b = view.bounds(null);
       this.#box.min.set(b.minX - 1, -1, b.minZ - 1);
       this.#box.max.set(b.maxX + 1, 5, b.maxZ + 1);

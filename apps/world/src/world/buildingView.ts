@@ -57,6 +57,9 @@ const WALLS: Record<WallRun["side"], [ModelKey, number, number]> = {
   east: ["wall.low", 0.22, 0.12],
   inner: ["building.partition", 0.52, 0.1],
 };
+/** The remote tier (see `#applyDistance`): pieces smaller than this, world units, are not drawn; they go to this layer. */
+const REMOTE_PIECE = 3;
+const REMOTE_LAYER = 30;
 /** A pick target that is never drawn: the renderer skips invisible materials, the raycaster does not. */
 const PICK_ONLY = new THREE.MeshBasicMaterial({ visible: false });
 
@@ -246,6 +249,10 @@ export class BuildingView {
   /** Seen from the town: the furniture and dressing as a few merged boxes, so every building looks furnished. */
   #silhouette = new THREE.Group();
   #distant = false;
+  #remote = false;
+  /** Meshes taken off the camera's layer by the remote tier. */
+  #stepped = new Set<THREE.Mesh>();
+  #remoteApplied = "";
   #silhouetteMerged: THREE.BufferGeometry[] = [];
   #silhouetteSignature = "";
   #piles = new THREE.Group();
@@ -783,18 +790,52 @@ export class BuildingView {
    * Seen from so far that furniture and piles are a pixel or two (a region's overview): only the shell and the crowd
    * draw, and a figure that is not walking is left alone until it moves or the model changes. TownScene decides.
    */
-  setDistant(distant: boolean) {
-    if (distant === this.#distant) return;
+  setDistant(distant: boolean, remote = false) {
+    if (distant === this.#distant && remote === this.#remote) return;
+    const woke = this.#distant && !distant;
     this.#distant = distant;
+    this.#remote = remote;
     this.#applyDistance();
     this.shadowRevision++;
-    if (!distant) for (const robot of this.#robots.values()) this.#wake(robot);
+    if (woke) for (const robot of this.#robots.values()) this.#wake(robot);
   }
 
+  /**
+   * `remote` (Fast graphics, a region on a small screen: a building is some twenty pixels wide): besides the distant
+   * tier, the building keeps only the large pieces of its shell. Decals, anything smaller than `REMOTE_PIECE` and
+   * the figures (half a pixel tall) step off the camera's layer; nothing is rebuilt, so coming closer costs nothing.
+   */
   #applyDistance() {
     const far = this.#distant && !this.detailed;
     this.#silhouette.visible = !this.detailed && !this.building.archived && !far;
     this.#piles.visible = !this.detailed && !far;
+    const remote = far && this.#remote;
+    // Nothing to do again while the tier and the shell are what they were (this runs on every model update).
+    const applied = `${remote}|${this.shellRevision}`;
+    if (applied === this.#remoteApplied) return;
+    this.#remoteApplied = applied;
+    // Half a pixel tall: the figures are neither drawn nor walked by the renderer and the matrix pass until nearer.
+    if (this.#agents.visible === remote) {
+      this.#agents.visible = !remote;
+      restMatrices(this.#agents, remote);
+    }
+    if (!remote && !this.#stepped.size) return;
+    for (const mesh of this.#stepped) mesh.layers.set(0);
+    this.#stepped.clear();
+    if (!remote) return;
+    const size = new THREE.Vector3();
+    this.group.traverse((o) => {
+      if (!(o instanceof THREE.Mesh) || o.layers.mask !== 1) return;
+      let small = !!o.userData.decal;
+      if (!small) {
+        const geometry = o.geometry as THREE.BufferGeometry;
+        if (!geometry.boundingBox && geometry.attributes.position?.array) geometry.computeBoundingBox();
+        small = !!geometry.boundingBox && Math.max(...geometry.boundingBox.getSize(size).toArray()) < REMOTE_PIECE;
+      }
+      if (!small) return;
+      o.layers.set(REMOTE_LAYER);
+      this.#stepped.add(o);
+    });
   }
 
   /** A figure at rest is skipped by the matrix pass (`restMatrices`); waking it brings it up to date on the next frame. */
@@ -1260,7 +1301,7 @@ export class BuildingView {
 
   /** Seen from the town: hands the robots to the town's crowd, which draws them instanced (robotCrowd.ts). */
   crowd(crowd: RobotCrowd, seen: boolean) {
-    if (this.detailed || !this.group.visible || !this.#agents.visible) return;
+    if (this.detailed || !this.group.visible || !this.#agents.visible || this.#remote) return;
     for (const robot of this.#robots.values()) crowd.add(robot.handle.object, seen, robot.resting === true);
   }
 

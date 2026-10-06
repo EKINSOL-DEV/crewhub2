@@ -143,18 +143,47 @@ export function lineWorker(line: ProgressFact, facts: Readonly<Facts>): { worker
   return null;
 }
 
+/**
+ * Every progress line under the agent it belongs to, worked out once per state of the facts: asking per agent would
+ * read every line (and match it against every session) for each of them, which is felt with two hundred agents.
+ * The facts change in place, so the index is kept for as long as the lines and the team snapshot are the same.
+ */
+interface LineIndex {
+  progress: readonly ProgressFact[];
+  length: number;
+  first: ProgressFact | undefined;
+  last: ProgressFact | undefined;
+  teamRevision: number;
+  byOwner: Map<string, { line: ProgressFact; text: string }[]>;
+}
+const lineIndexes = new WeakMap<Readonly<Facts>, LineIndex>();
+const NO_LINES: { line: ProgressFact; text: string }[] = [];
+const registeredOwner = (agent: string) => `r\u0000${agent}`;
+const workerOwner = (lead: string, worker: string) => `w\u0000${lead}\u0000${worker}`;
+
+function lineIndex(facts: Readonly<Facts>): LineIndex {
+  const { progress } = facts;
+  const cached = lineIndexes.get(facts);
+  if (cached && cached.progress === progress && cached.length === progress.length && cached.first === progress[0] && cached.last === progress[progress.length - 1] && cached.teamRevision === facts.teamRevision)
+    return cached;
+  const byOwner = new Map<string, { line: ProgressFact; text: string }[]>();
+  for (const line of progress) {
+    const worker = lineWorker(line, facts);
+    const owner = worker ? workerOwner(line.agent, worker.worker) : registeredOwner(line.agent);
+    const list = byOwner.get(owner);
+    const entry = { line, text: worker ? worker.text : line.text };
+    if (list) list.push(entry);
+    else byOwner.set(owner, [entry]);
+  }
+  const index: LineIndex = { progress, length: progress.length, first: progress[0], last: progress[progress.length - 1], teamRevision: facts.teamRevision, byOwner };
+  lineIndexes.set(facts, index);
+  return index;
+}
+
 /** Progress lines that belong to an agent, oldest first. */
 export function linesOf(entity: AgentEntity, facts: Readonly<Facts>): { line: ProgressFact; text: string }[] {
-  const out: { line: ProgressFact; text: string }[] = [];
-  for (const line of facts.progress) {
-    const worker = lineWorker(line, facts);
-    if (entity.registered) {
-      if (line.agent === entity.key && worker === null) out.push({ line, text: line.text });
-    } else if (worker && line.agent === entity.lead && worker.worker === entity.name) {
-      out.push({ line, text: worker.text });
-    }
-  }
-  return out;
+  const { byOwner } = lineIndex(facts);
+  return (entity.registered ? byOwner.get(registeredOwner(entity.key)) : entity.lead ? byOwner.get(workerOwner(entity.lead, entity.name)) : undefined) ?? NO_LINES;
 }
 
 /** Plan 4.2, in order: override, the project lead (fact), then the name rules. */

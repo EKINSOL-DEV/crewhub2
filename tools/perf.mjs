@@ -9,7 +9,8 @@
      demo-inside    the normal demo, Enter on the first building, 1x
      stress-town    the stress fixture (?stress=1: 12 buildings, ~100 agents) at 4x, town view
      stress-inside  the stress fixture at 4x, Enter on the first building
-     phone-fast     375 x 812, Fast, 4x CPU throttle (CDP), the normal demo town
+     phone-fast     375 x 812, Fast, 4x CPU throttle (CDP), the normal demo town (--scenario picks another; with
+                    --stress <n> the stress fixture at 4x instead, dev builds only; so do the other phone-* scenarios)
      startup        time to the first drawn frame and to a dressed town (median of 3 cold loads in fresh contexts)
    Not in the default run:
      phone-fast-dpr3      phone-fast at DPR 3 as a mobile viewport
@@ -58,7 +59,7 @@ import { castChoice, cli, launch, seek, speed, store, worldUrl } from "./lib/wor
 
 const opts = cli(
   "node tools/perf.mjs --port <port> [scenario...] [--quality pretty|fast] [--theme light|dark] [--cast <id>] [--scenario <id>] [--stress <n>] [--json <file>] [--minutes <n>] [--preview] [--out <dir>] [--swiftshader]",
-  { options: { quality: "pretty", theme: "light", json: null, minutes: "10", cast: null, scenario: null, stress: "1" }, flags: ["preview"] },
+  { options: { quality: "pretty", theme: "light", json: null, minutes: "10", cast: null, scenario: null, stress: null }, flags: ["preview"] },
 );
 const { port, quality, theme, preview, base } = opts;
 const jsonOut = opts.json && (path.isAbsolute(opts.json) || opts.json.includes(path.sep) ? opts.json : path.join(opts.out, opts.json));
@@ -66,7 +67,9 @@ const minutes = Number(opts.minutes);
 /** --cast <id>: the viewer's cast choice (Settings > Town > Cast). */
 const castId = opts.cast;
 /** --stress <n>: the stress fixture's size, as the page's ?stress=<n>. */
-const stressSize = opts.stress;
+const stressSize = opts.stress ?? "1";
+/** The phone scenarios run the stress fixture (at 4x) only when --stress is given; otherwise the demo, as --scenario says. */
+const phoneStress = opts.stress !== null;
 const build = preview ? "preview" : "dev";
 /** Scenarios that need the dev-only stress fixture. */
 const STRESS_ONLY = ["stress-town", "stress-inside", "stress-16x", "view-change-stress", "long"];
@@ -77,7 +80,7 @@ const SETTLE_MS = 3000,
 
 const browser = await launch({ swiftshader: opts.swiftshader, extra: ["--enable-precise-memory-info"] });
 
-async function open({ stress = false, phone = false, fast = false, pretty = false, fps = true, dpr = 1 } = {}) {
+async function open({ phone = false, stress = phone && phoneStress, fast = false, pretty = false, fps = true, dpr = 1 } = {}) {
   const context = await browser.newContext({
     viewport: phone ? { width: 375, height: 812 } : { width: 1440, height: 900 },
     deviceScaleFactor: dpr,
@@ -102,6 +105,7 @@ async function open({ stress = false, phone = false, fast = false, pretty = fals
   }
   await page.goto(worldUrl(base, stress ? stressSize : null, opts.scenario));
   await page.waitForFunction((fps) => performance.getEntriesByName("world:town-dressed").length > 0 && (!fps || window.__worldPerfWindow), fps, { timeout: 60000 });
+  if (phone && stress) await speed(page, "4x");
   return { context, page };
 }
 
@@ -132,7 +136,7 @@ const results = [];
 const mb = (bytes) => (bytes == null ? "?" : `${(bytes / 1048576).toFixed(0)}MB`);
 const n1 = (v) => v.toFixed(1);
 function line(name, r) {
-  results.push({ scenario: name, quality: name.startsWith("phone-fast") ? "fast" : name.startsWith("phone-pretty") ? "pretty" : quality, theme, build, ...(castId ? { cast: castId } : {}), ...(name.includes("stress") ? { stress: stressSize } : opts.scenario ? { scenario: opts.scenario } : {}), ...r });
+  results.push({ scenario: name, quality: name.startsWith("phone-fast") ? "fast" : name.startsWith("phone-pretty") ? "pretty" : quality, theme, build, ...(castId ? { cast: castId } : {}), ...(name.includes("stress") || (name.startsWith("phone") && phoneStress) ? { stress: stressSize } : opts.scenario ? { scenario: opts.scenario } : {}), ...r });
   // Dev runs print exactly as before; a production run marks each line.
   const mark = preview ? " [preview]" : "";
   if (name.startsWith("view-change")) {
@@ -291,7 +295,7 @@ const run = {
   },
 };
 
-console.log(`perf.mjs  port ${port}  quality ${quality}  theme ${theme}${castId ? `  cast ${castId}` : ""}${opts.scenario ? `  scenario ${opts.scenario}` : ""}${stressSize !== "1" ? `  stress ${stressSize}` : ""}${opts.swiftshader ? "  swiftshader" : ""}  ${new Date().toISOString()}${preview ? "  build preview (production)" : ""}`);
+console.log(`perf.mjs  port ${port}  quality ${quality}  theme ${theme}${castId ? `  cast ${castId}` : ""}${opts.scenario ? `  scenario ${opts.scenario}` : ""}${opts.stress !== null ? `  stress ${stressSize}` : ""}${opts.swiftshader ? "  swiftshader" : ""}  ${new Date().toISOString()}${preview ? "  build preview (production)" : ""}`);
 for (const name of scenarios) {
   if (preview && STRESS_ONLY.includes(name)) {
     console.log(`${name.padEnd(14)} skipped: the stress fixture exists in dev builds only`);

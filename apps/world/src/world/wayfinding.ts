@@ -318,3 +318,12 @@ export function isDistant(pixelsPerUnit: number, previous = false): boolean {
 }
 /** Below this a desk is under four pixels wide. */
 export const DISTANT_PX = 3.6;
+
+/**
+ * Whether buildings are so small (a few dozen pixels wide: a region seen whole) that only the large pieces of a shell
+ * and the trees of the dressing can be told apart. The scene uses it on Fast graphics only.
+ */
+export function isRemote(pixelsPerUnit: number, previous = false): boolean {
+  return pixelsPerUnit < REMOTE_PX * (previous ? 1.08 : 0.92);
+}
+export const REMOTE_PX = 2.2;
