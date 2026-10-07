@@ -176,6 +176,7 @@ test("moveTicket emits ticket.moved on the stream and the board and ticket reads
   const res = await fetch(`${fake.url}/api/events/stream?after=${tail}`, { headers: headers(fake) });
   assert.equal(res.status, 200);
   assert.equal(res.headers.get("content-type"), "application/x-ndjson");
+  assert.equal(fake.openStreams(), 1);
   const before = (await get(fake, "/api/tickets/CR-19")).body.ticket;
   assert.notEqual(before.status, "review");
   await fake.moveTicket("CR-19", "review");

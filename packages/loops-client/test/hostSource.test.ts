@@ -197,9 +197,9 @@ test("a reset message → catching-up, a fresh snapshot, then live", async () =>
   await host.close();
 });
 
-test("a seq gap → catching-up and a fresh snapshot", async () => {
+test("a seq gap → catching-up and a fresh snapshot when resnapshotOnGap is on", async () => {
   const host = await startHost();
-  const run = observe(host.url);
+  const run = observe(host.url, { resnapshotOnGap: true });
   await run.until(() => host.cursors.length === 1, "the stream");
   host.cursor = 105;
   host.push({ type: "event", envelope: envelope(101) });
@@ -208,6 +208,22 @@ test("a seq gap → catching-up and a fresh snapshot", async () => {
   assert.ok(run.states.includes("catching-up"));
   assert.equal(count(run.messages, "event"), 1, "the event past the gap is not delivered; the snapshot holds it");
   await run.until(() => host.cursors.length === 2, "the new stream");
+  assert.equal(host.cursors[1], "105");
+  run.stop();
+  await host.close();
+});
+
+test("by default a seq gap is normal (loops filters the stream per key): the event is delivered, no snapshot", async () => {
+  const host = await startHost();
+  const run = observe(host.url);
+  await run.until(() => host.cursors.length === 1, "the stream");
+  host.push({ type: "event", envelope: envelope(101) });
+  host.push({ type: "event", envelope: envelope(105) });
+  await run.until(() => count(run.messages, "event") === 2, "both events");
+  assert.equal(host.snapshots, 1);
+  assert.equal(run.state(), "live");
+  host.endStreams();
+  await run.until(() => host.cursors.length === 2, "the reconnect");
   assert.equal(host.cursors[1], "105");
   run.stop();
   await host.close();
