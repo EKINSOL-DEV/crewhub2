@@ -25,6 +25,7 @@ export function SourceSettings() {
         control="select"
         size="sm"
         label={t("world.source.setting")}
+        hideLabel
         className="source-setting"
         hint={SOURCE.setting === "auto" ? t("world.source.hint.auto", { ms: PROBE_TIMEOUT_MS }) : t("world.source.hint.fixed")}
         value={SOURCE.setting}

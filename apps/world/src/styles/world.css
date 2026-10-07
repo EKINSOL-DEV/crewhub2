@@ -623,10 +623,17 @@
 .daynight-setting {
   margin-bottom: var(--space-4);
 }
-.role-settings {
+.role-settings,
+.source-settings {
   border: 0;
   margin: 0 0 var(--space-3);
   padding: 0;
+}
+/* Settings > Source: the legend is the heading, the select is unlabelled (hidden label), like the Roles rows. */
+.source-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 .role-settings ul {
   list-style: none;
