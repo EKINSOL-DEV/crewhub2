@@ -677,6 +677,69 @@ tier on Fast and a lighter model sync brought it to the table's numbers.
 - Screenshots of every tier, light and dark, at 1440 and 375 px, are in the coordinator's scratchpad under
   `shots-scale/`.
 
+## Loops readiness (2026-10-07)
+
+Nicky installs a fresh crewhub-loops on this Mac (`053b5f47`, 85 commits after the one the plan read), and the world
+must hook in the same day. This round built the plan's phase 1 data path without pairing and without the chat. The
+design is the spec addendum "Loops readiness" (`bd3d4a3`).
+
+- **Team:** five developers (Fable 5.1 at effort medium) from 13:36, with a hard stop at 14:46.
+- **Merges:** every merge green before the live branch moved; the browser regression pass in demo mode stays 38/38.
+
+### What runs end to end
+
+```sh
+npm run loops:fake -- --port 8091     # a fake crewhub-loops; the key goes to tools/out/loops-fake.key
+CREWHUB_WORLD_KEY_FILE=tools/out/loops-fake.key npm run host:start   # builds, then serves the world on 127.0.0.1:5180
+```
+
+Open `http://127.0.0.1:5180/`: the world finds the host and runs live. With the real install only the URL and the
+key file change ([LOOPS_SETUP.md](../LOOPS_SETUP.md)). The Dev Lead ran this chain in a headless browser: Live after
+0.6 s, "Loops down" within a second of stopping the fake, Live again after restarting it, no page reload, no console
+error, and the key in no response, log or bundle file.
+
+### The parts
+
+- **The relay, `apps/host`** ([README](../../apps/host/README.md)). A Node program with no dependencies on
+  `127.0.0.1`. It holds the key, assembles one `LoopsSnapshot` by read-model.md's recipe, keeps one loops stream for
+  every tab with a ring buffer, sends `reset` when loops answers 410 or continuity is lost, and reconnects with
+  backoff. Its loops routes are one allow-list; every other path is 404 and every other method 405. Host and Origin
+  are checked. The known gap is written down: no pairing yet, so the host trusts loopback.
+- **The live source, `HostSource`** in `packages/loops-client`. It implements the seam with `mode: "live"`: snapshot,
+  events by `seq`, a new snapshot on `reset`, heartbeats for liveness, and a `connection` the UI reads. A gap in
+  `seq` is normal on a real install, because loops filters the stream per key, so only the host's `reset`
+  re-snapshots. The validators now accept an unknown `kind`, `status` or event `type` with one warning; `grill` and
+  `PendingRequest` are typed, and the fixtures are checked against `053b5f47`.
+- **The fake, `packages/loops-fake`.** It plays the demo storyline in real time behind loops' own routes, with bearer
+  auth, `ambiguous_auth`, `after=`, heartbeats and a 410. The end-to-end test runs fake, host, live source and
+  projection: a ticket move changes the building's counts within 2 s, a fake restart recovers, two sources share one
+  upstream stream, and the key appears nowhere.
+- **The world in live mode.** A source setting (Automatic, Demo, Live; `?source=`), and a connection chip where the
+  Demo chip was (Connecting, Live, Catching up, Stale, Loops down, Unauthorized). The text view says the same. The
+  Demo chip, the scenario picker and the playback bar are hidden; the chat corner shows "Sign in to crewhub-loops".
+  The live town has its own town document. With no host, Automatic falls back to the demo without a console error.
+- **Docs.** [LOOPS_SETUP.md](../LOOPS_SETUP.md), the runbook for the install; section 2b of the
+  [gap analysis](../LOOPS_GAP_ANALYSIS.md), "What changed between f55d1288 and 053b5f47"; and section 10 of the
+  [integration plan](../LOOPS_INTEGRATION_PLAN.md), phase 1 as built.
+
+### Findings about crewhub-loops
+
+- **The builder key is no fallback.** loops limits it to tickets, comments, rules and attachments of its member
+  projects; projects, boards, the team and the stream answer 403. The world needs its own agent `crewhub-world` with
+  the probe role and a registered key. The host still reads the builder key when nothing else exists, but only to
+  show "Unauthorized" with a clear warning.
+- **CORS is still absent.** `CHL_ALLOWED_ORIGINS` feeds the Origin guard only. The relay is the only road, and the
+  phase 2 chat still needs L8.
+- **Archived projects** reach the world only when the host sees them archived through events: an agent key may not
+  list them.
+- **Stale integrator docs.** `docs/integrators` still lists the removed executor routes and the agent-action events;
+  the list is in the gap analysis as items for cl-lead.
+
+### Not in this round
+
+Pairing (plan 3.5), the chat (phase 2), a viewer role (L1), project groups (L22), and a run against the real
+install, which did not exist yet.
+
 ## Challenges with docs/integrators
 
 Read at crewhub-loops `a1bed0f`. Each item names the document, what was unclear, contradictory, missing or marked
