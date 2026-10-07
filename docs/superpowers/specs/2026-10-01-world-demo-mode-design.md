@@ -594,3 +594,30 @@ the default zone until L22 exists; manual zones still work.
 `kind`, `status` or event `type` with one warning, so the next such addition does not break the world.
 
 **Out of scope this round:** pairing, the chat (phase 2), a viewer role (L1), writing anything to loops, Tailscale.
+
+## Addendum: readiness hardening (2026-10-07, afternoon)
+
+The loops readiness round left four known gaps. This round closes them, still against the fake: crewhub-loops is not
+yet running on this Mac.
+
+1. **Pairing** (plan 3.5). Without it, any page in the same browser could read `/world-api` on loopback.
+   - **The flow:** `npm run host -- open` prints a one-time link `http://127.0.0.1:<port>/pair/<token>`, valid for 10
+     minutes and usable once. The browser exchanges it for an HttpOnly `SameSite=Strict` cookie, which is `Secure`
+     when `CREWHUB_WORLD_PUBLIC_URL` says the host sits behind TLS, and lands on `/`.
+   - **Without the cookie:** every `/world-api/*` route answers 401, except `health`, which carries no data. The world
+     then shows a "Pair this browser" page that names the command and never the link.
+   - **Lifetime:** a pairing lasts as long as the host's run, unless `CREWHUB_WORLD_PAIRING_FILE` keeps the secret
+     across restarts.
+   - **Secrets:** the token and the secret never appear in a log or a response.
+   - **Development:** `CREWHUB_WORLD_PAIRING=off` serves the Vite proxy; the host says so loudly at start and refuses
+     it in production.
+2. **A faithful fake.** Streams end after 300 s as loops' do, and the client resumes at its cursor without losing an
+   event. The fake gains the grill and pending-delegation reads, `/api/auth/me`, and loops' 403 for a key that may not
+   read (`--builder-key`). The small-team storyline meets a grill ticket and a pending request.
+3. **Regression checks.** The browser pass grows to cover the jump list, the Region level, a beacon pin, the scenario
+   picker and live mode against the fake: the chip through a fake restart, the sign-in link and the pairing page. A
+   run stays within its 60 s budget.
+4. **The allocation undo gap.** A lot, once given, is a fact of the town, not an edit, so allocations stay out of the
+   undo history. An undo past a hand move never re-allocates a project, and the stability test covers that sequence.
+
+The reducer and the projection still do not know about the host, and nothing is written to crewhub-loops.
