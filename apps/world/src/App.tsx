@@ -569,8 +569,8 @@ function World() {
             action={<Button variant="ghost" size="sm" iconOnly aria-label="Close settings" icon={<X className="icon" aria-hidden="true" />} onClick={closeSettings} />}
           />
           <Card.Body>
-            <RoleSettings model={model} overrides={overrides} onChange={setOverrides} />
             <SourceSettings />
+            <RoleSettings model={model} overrides={overrides} onChange={setOverrides} />
             <TownSettings town={town} />
             <p className="sign-muted">{translate(demo ? "world.settings.agentsDemo" : "world.settings.agentsLive")}</p>
             <PresenceSettings reducedMotion={reducedMotion} />

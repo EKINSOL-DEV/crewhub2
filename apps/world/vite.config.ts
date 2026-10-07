@@ -8,11 +8,12 @@ function worldApiProxy() {
   return {
     target: `http://127.0.0.1:${port}`,
     changeOrigin: true,
-    // Proxy errors (no host) are answered as 502 quietly: the probe reads that as "no host", nothing more is logged.
+    // Proxy errors (no host) are answered as 204 with no body: the probe reads an empty answer as "no host", and the
+    // browser logs nothing (a 502 would be a console error on every start without a host).
     configure(proxy: { on(event: "error", handler: (err: Error, req: unknown, res: { headersSent?: boolean; writeHead(status: number): void; end(): void } | undefined) => void): void; on(event: "proxyReq", handler: (proxyReq: { setHeader(name: string, value: string): void }) => void): void }) {
       proxy.on("error", (_err, _req, res) => {
         if (res && !res.headersSent && typeof res.writeHead === "function") {
-          res.writeHead(502);
+          res.writeHead(204, { "x-world-host": "unreachable" });
           res.end();
         }
       });
