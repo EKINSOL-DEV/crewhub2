@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { HostHealth } from "@crewhub/loops-client";
-import { decideSource, hrefWithoutOverride, LIVE_TOWN_KEY, needsProbe, parseSourceOverride, parseSourceSetting, PROBE_TIMEOUT_MS, readSourceSetting, resolveSource, SOURCE_SETTING_KEY, townKeyFor, writeSourceSetting } from "../src/state/source.ts";
+import { decideSource, DEFAULT_LOOPS_URL, hrefWithoutOverride, LIVE_TOWN_KEY, loopsWebUrl, needsProbe, parseSourceOverride, parseSourceSetting, PROBE_TIMEOUT_MS, readSourceSetting, resolveSource, SOURCE_SETTING_KEY, townKeyFor, writeSourceSetting } from "../src/state/source.ts";
 
 const HEALTH: HostHealth = { loops: "ok", keyName: "crewhub-world", sharedKey: false };
 
@@ -103,4 +103,11 @@ test("the setting in storage: auto is the absence of a value; a broken storage i
 test("the href without the override keeps the other parameters", () => {
   assert.equal(hrefWithoutOverride({ pathname: "/", search: "?source=live&scenario=studio" }), "/?scenario=studio");
   assert.equal(hrefWithoutOverride({ pathname: "/", search: "?source=demo" }), "/");
+});
+
+test("the sign-in link: the host's loopsWebUrl when it names one, else the default", () => {
+  assert.equal(loopsWebUrl(null), DEFAULT_LOOPS_URL);
+  assert.equal(loopsWebUrl(HEALTH), DEFAULT_LOOPS_URL);
+  assert.equal(loopsWebUrl({ ...HEALTH, loopsWebUrl: "http://localhost:8091" }), "http://localhost:8091");
+  assert.equal(loopsWebUrl({ ...HEALTH, loopsWebUrl: "javascript:alert(1)" }), DEFAULT_LOOPS_URL);
 });
