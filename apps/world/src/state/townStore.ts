@@ -69,6 +69,12 @@ export interface TownStoreOptions {
   initial?: TownDocument;
   /** Defaults to `globalThis.indexedDB`; pass null to force memory. */
   indexedDB?: IDBFactory | null;
+  /**
+   * What an undo or redo carries from the revision it leaves (`from`) into the one it restores (`to`): the town's own
+   * facts (a project's lot) are not a person's edit, so they are not undone with it. The result replaces the restored
+   * revision in place; returning `to` itself changes nothing. The town runtime passes `carryAllocations`.
+   */
+  carry?: (from: TownDocument, to: TownDocument) => TownDocument;
 }
 
 const request = <T>(r: IDBRequest<T>): Promise<T> =>
@@ -157,6 +163,23 @@ export function createTownStore(options: TownStoreOptions): TownStore {
     return { docs, head, skipped };
   }
 
+  /** An undo or a redo: moves the cursor, then carries the world's own facts into the restored revision. */
+  async function travel(move: (history: TownHistory) => TownHistory): Promise<TownDocument> {
+    await store.load();
+    const from = currentDocument(history);
+    history = move(history);
+    const to = currentDocument(history);
+    const carried = to !== from && options.carry ? options.carry(from, to) : to;
+    if (carried !== to) history = amendHistory(history, carried);
+    publish();
+    const current = currentDocument(history);
+    await write((store) => {
+      if (carried !== to) store.put(current, current.revision);
+      store.put(current.revision, HEAD_KEY);
+    });
+    return current;
+  }
+
   const store: TownStore = {
     get state() {
       return state;
@@ -215,22 +238,8 @@ export function createTownStore(options: TownStoreOptions): TownStore {
       });
       return current;
     },
-    async undo() {
-      await store.load();
-      history = undoHistory(history);
-      publish();
-      const revision = state.doc.revision;
-      await write((store) => store.put(revision, HEAD_KEY));
-      return state.doc;
-    },
-    async redo() {
-      await store.load();
-      history = redoHistory(history);
-      publish();
-      const revision = state.doc.revision;
-      await write((store) => store.put(revision, HEAD_KEY));
-      return state.doc;
-    },
+    undo: () => travel(undoHistory),
+    redo: () => travel(redoHistory),
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);

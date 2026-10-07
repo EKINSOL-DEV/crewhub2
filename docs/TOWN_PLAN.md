@@ -345,6 +345,15 @@ document the first time the world sees the project. Adding, archiving or regroup
 the only two ways are "Tidy the town" and moving a building by hand, both explicit edits in build mode and each one
 undo step.
 
+**Undo.** A lot is a fact of the town, not an edit, so it stays out of the undo history: the allocation is written
+into the current revision (no undo step), and an undo or redo carries the lots given since into the revision it
+restores (`carryAllocations` in `settlement.ts`, applied by the town store). So an undo past a hand move never
+re-allocates a project that had no lot at that revision: the newcomer keeps its lot, and the district it stands in
+comes along. A restored building whose old lot a newcomer took meanwhile takes its zone's next free lot: it was moved
+by hand, the newcomer was not. Undoing "Tidy the town" restores the previous plan the same way: everyone the tidy
+moved goes back, a project that arrived after the tidy keeps its lot. A district that an undone move opened goes
+with the undo unless a later project lives there.
+
 **Where it lives.**
 
 | File | What it holds |
@@ -353,6 +362,7 @@ undo step.
 | `apps/world/src/world/townPlan.ts` | Pure. `planTown(document, buildings)`: the settlement as it stands now, read by the scene, the dressing, the navigation and the camera. Also the home frame per tier, keyboard focus by position, the free plots and the text view's lines. |
 | `packages/world-model/src/townDocument.ts` | The schema: a plot's `cell` is a lot, with an optional `zoneId`; `districts` (zone to slot), `zones`, `assignments`; the edits `allocate`, `tidy`, `move-plot`, `assign`, `set-zone`, `remove-zone`. All additive in `crewhub-town/1`. |
 | `apps/world/src/state/town.ts` | Gives a new project its lot, in the current revision: the world's own record, so no undo step. |
+| `apps/world/src/state/townStore.ts` | The history in IndexedDB. Its `carry` option (the runtime passes `carryAllocations`) brings the lots given since into the revision an undo or redo restores. |
 | `apps/world/src/world/navigation.ts` | The walkable town: one room per district, joined where a district road crosses the border. |
 
 **Lots.** Square lots on one pitch: a 24-unit plot and a 6-unit street. The centre lot is `{ x: 64, z: 64 }`, at
