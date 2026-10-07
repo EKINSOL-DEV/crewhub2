@@ -621,3 +621,118 @@ yet running on this Mac.
    undo history. An undo past a hand move never re-allocates a project, and the stability test covers that sequence.
 
 The reducer and the projection still do not know about the host, and nothing is written to crewhub-loops.
+
+## Addendum: three rooms per building (2026-10-07, evening)
+
+From the user. Ten rooms per project mixed two orderings (rooms per role, rooms per ticket status, plus a lobby, an
+office and a meeting room), so what is being worked on was spread over the whole building. Every building now has
+exactly three rooms, each with one meaning.
+
+1. **Administration.** One wall holds four racks: **Backlog, Planning, Review, Done** (formerly storage, planning,
+   review and dispatch). Every package that is not in someone's hands stands on a rack. The rack shows the status; the
+   box shows the kind (folder, box, bug crate, envelope). The mailbox and the archive counter live here, by the front
+   door. No agent works here. Agents and the drone only fetch and return tickets.
+2. **The floor.** One open space with a desk per working agent. A desk holds at most one package: the one in progress.
+   The desk shows the role: an analyst desk has screens, a design desk has a drawing table, a worker desk is plain. A
+   small round table, the huddle, replaces the meeting room; the meeting inference stays, and the agents gather there.
+   A lamp on each desk shows the agent's lane: green working, amber waiting on the operator, grey idle, off when gone.
+3. **The lead's office.** A separate room with its own desk, the amber attention beacon above it as today, a door and
+   a window onto the floor. The lead stays here.
+
+The handover is the building's story:
+- When work starts, the box leaves the rack and lands on a desk.
+- When the work is done, the box goes back to the Review rack.
+- When it is approved, it moves one rack further, to Done.
+- When it is rejected, it goes back to the desk.
+
+### The model stays; the renderer maps
+
+`RoomKind`, `TransitPlace`, flights, the memory of role rooms and their tests do not change. A building template may
+now host several model rooms in one physical room, the **hall**:
+
+| Hall           | Hosts (model rooms)                            | The hall's own kind |
+| -------------- | ---------------------------------------------- | ------------------- |
+| Administration | storage, planning, review, dispatch, lobby     | `lobby`             |
+| The floor      | workers, analyst, design, meeting              | `workers`           |
+| Lead's office  | lead-office                                    | `lead-office`       |
+
+- **`roomOf(template, kind)`** returns the template room whose own kind is `kind` or that hosts `kind`. Code that asks
+  for the analyst room gets the floor.
+- **Walls** stand only between halls. Inside a hall the floor is open, so the navigation grid has three rooms joined by
+  doors.
+- **Desks** carry their zone (`workers`, `analyst` or `design`). An agent sits at a desk of its own room kind, as
+  before.
+- **Piles** are part of the template. Each status has a rack, slot positions and an overflow pallet, so the classic
+  template keeps today's piles and the three-room template has its own.
+- **Model change.** The only one is in the words. `describe`, the agent card and the room summaries say
+  "Administration", "the floor" and "the lead's office", and name racks ("on the Review rack") when the three-room
+  template is in use. The classic labels keep working for the classic template.
+
+### Floor plan (building cells, x east, z south; one cell is 0.6 world units)
+
+```
+ x: 0        9           15  18  21 ........ 27 ........ 33   the floor grows east in 6-cell module columns
+ z0  +--------+-----------------------+-----------+-----------+
+     |LEAD'S  | THE FLOOR    module grid 6 x 6, 3 rows        |
+     |OFFICE  | [w][w]       desks by role (two per module,   |
+     | shelf  |  ...         staggered as today):             |
+     | lead   |              workers, then analyst, then      |
+     | desk * |              design, each role contiguous     |
+ z6  |  (beacon)                                              |
+     |  side  |                                               |
+     |  desks ~ window                                        |
+ z12 |  sofa  +-------+                                       |
+     |  corner| huddle|                                       |
+     |        D (O)   |                                       |
+ z18 +--------+-------+-----------D---+···························
+     |ADMINISTRATION                 |   (outside: lawn, when
+     | [Backlog] [Planning] [Review] [Done]   the floor is wider)
+     |  x1-3      x5-7       x9-11   x13-15
+     |                               |
+     |          mailbox     counter  |
+ z28 +-[load]---------[E]------------+
+       x1-4           x15
+```
+
+- **Lead's office:** origin (0, 0), 9 x 18.
+  - The lead's desk is near the north wall, with the beacon above it.
+  - Two side desks for agents a person set to lead (as today).
+  - A bookshelf and a sofa corner.
+  - A window on the east wall onto the floor.
+  - The door to the floor is at office cell (8, 14), opening onto floor cell (0, 14).
+- **The floor:** origin (9, 0), 6 x c cells wide (c = 2 to 4 module columns) and 18 deep (three module rows).
+  - The huddle is floor module (0, 2), the one by the office door: a small round table with places all round, tagged
+    `gather`.
+  - The other modules hold two desks each, filled row by row from the back. A role's desks are contiguous: workers,
+    then analyst, then design.
+  - A role room the model has gets at least one module, even when it has no agent now (it stays dimmed, as today).
+  - The column count is the smallest c ≥ 2 that fits every desk module plus the huddle, at most 4. That gives 10, 16
+    and 22 desks.
+  - An agent past capacity gets no desk, as today; the text view lists it.
+- **Administration:** origin (0, 18), 21 x 10.
+  - Four racks stand against its north wall, 3 cells wide and 1 deep, at x 1, 5, 9 and 13.
+  - Each rack holds three slots on four shelves, so 12 boxes. Past that, a pallet with a count stands in front of the
+    rack.
+  - The front door is today's entrance at building cell (15, 28), and the loading door is today's (x 1 to 4).
+  - The door to the floor is at administration cell (18, 0), opening onto floor cell (9, 17).
+  - The mailbox and the archive counter stand between the front door and the racks.
+- **Footprint:** `MAX_WIDTH` (33), `DEPTH` (28), `ENTRANCE` and `LOADING` are unchanged, so plots, roads and the truck
+  apron stay where they are. A small team's building is 21 wide instead of 27; the widest is 33, as before. When the
+  floor is wider than 12 cells, the south-east corner (x 21 and up, z 18 to 28) is outside: lawn.
+
+### Selecting it
+
+- **The setting.** `BuildingPlan = "three-rooms" | "classic"` is a per-viewer setting: Settings > Town > Buildings, with
+  `?rooms=three|classic` overriding it, kept like the Old quarter setting. Both stay selectable so they can be compared
+  side by side.
+- **The template.** `buildingTemplate(building, plan)` returns the classic template unchanged for `classic`.
+- **The default.** The default becomes `three-rooms` once the round passes the lead's gate (one commit at the end).
+
+### Keep working
+
+- **Figures:** picking and the agent card (figures at desks); follow and walk (three halls, the doors, the front
+  door); the director's intents (a prop tag in a model room resolves to that room's hall).
+- **Town and looks:** scale tiers, zones and the 20-project scenario (fewer cells, so the heap should not grow); all
+  four casts; the prop editor and rule props (a placement site naming a model room resolves to its hall; a placement
+  that no longer fits is dropped with the usual notice).
+- **The text view tells the same story as the scene.**
