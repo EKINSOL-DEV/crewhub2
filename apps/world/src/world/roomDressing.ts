@@ -405,6 +405,21 @@ function plan(kind: RoomKind, facts: RoomFacts, planner: Planner, defs: Definiti
       // A plant group on the open floor in front of (south of) the desk, a little to its west.
       const group = { x: at.x - 1.5, z: at.z + 3.5 };
       for (const [dx, dz] of [[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5]] as const) place({ def: "plant", at: "free", anchor: { x: group.x + dx, z: group.z + dz }, tag: "group" });
+      if (threeRoom) {
+        // The three-room office is 9 x 18: its south half, past the side desks, is the lead's own sitting room. A round
+        // table with two armchairs on a rug by the west wall, a second bookshelf and a floor lamp along it, a big
+        // planter in the corner by the door.
+        const south = { x: 2.5, z: facts.depth - 4.5 };
+        const table = place({ def: "round-table", at: "free", anchor: south, tag: "lounge" });
+        if (table) {
+          place({ def: "armchair", at: "free", anchor: { x: table.cell.x - 0.5, z: table.cell.z + 0.5 }, tag: "lounge" });
+          place({ def: "armchair", at: "free", anchor: { x: table.cell.x + 2.5, z: table.cell.z + 0.5 }, tag: "lounge" });
+        }
+        place({ def: "bookshelf", at: "wall", anchor: { x: 0, z: facts.depth - 7 }, sides: ["west"], tag: "lounge" });
+        place({ def: "floor-lamp", at: "wall", anchor: { x: 0, z: facts.depth - 2 }, sides: ["west", "south"], tag: "lounge" });
+        place({ def: "planter", at: "free", anchor: { x: facts.width - 2, z: facts.depth - 2 }, tag: "lounge" });
+        place({ def: "plant", at: "free", anchor: { x: facts.width - 1.5, z: 7.5 }, tag: "lounge" });
+      }
       break;
     }
     case "lobby": {
@@ -534,6 +549,15 @@ function planHall(kind: RoomKind, facts: RoomFacts, planner: Planner, defs: Defi
     // A plant between the mailbox and the counter, and one in the quiet east end.
     if (mailbox) place({ def: "plant", at: "free", anchor: { x: mailbox.cell.x + 2.5, z: mailbox.cell.z + 1.5 } });
     place({ def: "plant", at: "free", anchor: { x: facts.width - 1.5, z: 3.5 } });
+    // The hall's middle, between the racks and the front door: a waiting corner (two armchairs and a side table on a
+    // rug from the decor) west of the way in, a water cooler and a second plant by the counter.
+    const waiting = { x: Math.max(3, entrance.x - 6), z: 4.5 };
+    const chair = place({ def: "armchair", at: "free", anchor: { x: waiting.x - 0.5, z: waiting.z }, tag: "waiting" });
+    if (chair) {
+      place({ def: "side-table", at: "free", anchor: { x: chair.cell.x + 1.5, z: chair.cell.z + 0.5 }, tag: "waiting" });
+      place({ def: "armchair", at: "free", anchor: { x: chair.cell.x + 2.5, z: chair.cell.z + 0.5 }, tag: "waiting" });
+    }
+    if (counter) place({ def: "water-cooler", at: "free", anchor: { x: counter.cell.x - 1.5, z: counter.cell.z + 0.5 } });
     if (rand() < 0.75) place({ def: "autumn-vase", at: "free", anchor: { x: entrance.x - 2.5, z: entrance.z - 1.5 } });
     return;
   }
@@ -880,6 +904,16 @@ export function roomDecor(template: BuildingTemplate, options: Omit<DressOptions
           i = j + 1;
         }
         if (best && best[1] - best[0] >= 1) at("decor.office-window", facts.width, (best[0] + best[1] + 1) / 2, Math.PI / 2);
+      }
+      // The office lounge's table and the waiting corner's chairs stand on round rugs.
+      for (const p of props.filter((q) => q.id.startsWith(`${DRESS_PREFIX}lounge-round-table`))) {
+        const pose = poseOf(p, defs);
+        rug("decor.rug-round", pose.x, pose.z + 0.3, 0, { scale: { x: 1.3, y: 1, z: 1.2 } });
+      }
+      const waitingChair = props.find((q) => q.id.startsWith(`${DRESS_PREFIX}waiting-armchair`));
+      if (waitingChair) {
+        const pose = poseOf(waitingChair, defs);
+        rug("decor.rug-round", pose.x + 1.5, pose.z + 0.3, 0, { scale: { x: 1.1, y: 1, z: 0.9 } });
       }
       // A runner from the front door into Administration, and a small rug before the counter.
       if (room.kind === "lobby") {

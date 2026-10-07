@@ -443,6 +443,12 @@
   transform: translate(-50%, -100%);
   align-items: center;
 }
+/* From the building view the four rack signs stand close: one word each, in the small type, so all four read. */
+.room-sign.rack-sign-small {
+  padding: 1px var(--space-1);
+  font-size: var(--text-3xs, 0.6rem);
+  line-height: 1.2;
+}
 .room-sign.dimmed {
   background: var(--surface-sunken);
   color: var(--text-muted);

@@ -571,15 +571,20 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
         );
       })}
       {racks
-        .filter(({ room }) => shows(room) || compact)
-        .map(({ prop }) => {
+        // The racks' signs say the status of everything on them: shown whenever the building is entered; on a phone
+        // only with Administration in focus.
+        .filter(({ room }) => !compact || shows(room))
+        .map(({ prop, room }) => {
           const rack = RACKS.find((r) => r.definitionId === prop.definitionId)!;
           const count = b.objects.filter((o) => o.room === rack.room).length;
+          // Four racks stand 2.4 units apart: from the building view the sign is one short word; the count joins it
+          // once Administration is in focus (zoomed or revealed).
+          const near = shows(room);
           return (
             <div key={prop.id} className="anchor" data-anchor={`r:${b.slug}:${prop.definitionId}`}>
-              <span className="room-sign rack-sign">
+              <span className={`room-sign rack-sign${near ? "" : " rack-sign-small"}`}>
                 <strong>{rack.sign}</strong>
-                {!compact && <span className="sign-muted">{count === 1 ? "1 ticket" : `${count} tickets`}</span>}
+                {near && !compact && <span className="sign-muted">{count === 1 ? "1 ticket" : `${count} tickets`}</span>}
               </span>
             </div>
           );

@@ -79,7 +79,7 @@ export function assignDesks(building: Building, template: BuildingTemplate): Map
  * World units from one rack shelf to the next: an object with surface "shelf" stands at the shelf surface plus
  * `level` pitches (the renderer's ObjectLayer; the style's rack model is built to this pitch).
  */
-export const SHELF_PITCH = 0.3;
+export const SHELF_PITCH = 0.36;
 
 export interface Placement {
   room: RoomKind;

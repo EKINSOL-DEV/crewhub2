@@ -148,6 +148,8 @@ export function statusRack(kit: Kit): THREE.Group {
   put(g, kit.box(width + 0.04, 0.05, 0.05, "timber-trim", 0.01), 0, top + 0.22, -depth / 2 + 0.03);
   put(g, kit.box(0.74, 0.22, 0.03, "cream", 0.006), 0, top + 0.37, -depth / 2 + 0.03);
   put(g, kit.box(0.8, 0.26, 0.02, "timber-trim", 0.008), 0, top + 0.37, -depth / 2 + 0.005);
+  // The view reads the shelf rise from the model, so a style with other shelves keeps the boxes on them.
+  g.userData.shelfPitch = RACK_SHELF_PITCH;
   return g;
 }
 
@@ -246,19 +248,19 @@ export function roleDesk(kit: Kit, role: DeskRole, seed = 0): THREE.Group {
     // A drawing board on two trestles, leaning on the desk's far side and tilted to the camera: a sketch, three
     // colour swatches and a cup of pencils on its ledge.
     const board = new THREE.Group();
-    for (const x of [-0.18, 0.18]) put(board, kit.box(0.03, 0.4, 0.2, "timber", 0.006), x, 0.2, 0);
+    for (const x of [-0.18, 0.18]) put(board, kit.box(0.03, 0.72, 0.2, "timber", 0.006), x, 0.36, 0);
     const tilt = -0.42;
-    const top = put(board, kit.box(0.5, 0.025, 0.36, "timber-light", 0.006), 0, 0.42, 0);
+    const top = put(board, kit.box(0.5, 0.025, 0.36, "timber-light", 0.006), 0, 0.75, 0);
     top.rotation.x = tilt;
-    const sheet = put(board, kit.box(0.36, 0.006, 0.26, "paper", 0.002), 0, 0.436, -0.004);
+    const sheet = put(board, kit.box(0.36, 0.006, 0.26, "paper", 0.002), 0, 0.766, -0.004);
     sheet.rotation.x = tilt;
     put(sheet, kit.box(0.2, 0.004, 0.004, "ink", 0.001), -0.03, 0.004, -0.04).rotation.y = 0.4;
     put(sheet, kit.box(0.14, 0.004, 0.004, "ink", 0.001), 0.05, 0.004, 0.03).rotation.y = -0.7;
     for (let i = 0; i < 3; i++) put(sheet, kit.box(0.045, 0.004, 0.045, ["coral", "sage", "tangerine"][i]!, 0.001), -0.1 + i * 0.1, 0.004, 0.09);
-    const ledge = put(board, kit.box(0.5, 0.02, 0.03, "timber", 0.004), 0, 0.345, -0.17);
+    const ledge = put(board, kit.box(0.5, 0.02, 0.03, "timber", 0.004), 0, 0.675, -0.17);
     ledge.rotation.x = tilt;
-    put(board, kit.cylinder(0.025, 0.022, 0.07, "clay"), 0.2, 0.395, -0.15);
-    put(g, board, 0.14, 0, -0.34);
+    put(board, kit.cylinder(0.025, 0.022, 0.07, "clay"), 0.2, 0.725, -0.15);
+    put(g, board, 0.1, 0, -0.38);
   }
   return g;
 }

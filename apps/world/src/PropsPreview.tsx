@@ -2,7 +2,8 @@
    the parts renderer on a grid with its footprint outlined, its approach cells marked and its name. Not linked from the
    UI; the Dev Lead uses it to check that example and eval props render. `?group=style` instead draws every model the
    town style covers, by key and in day or lamplight, so a model can be judged on its own (`&only=civic,post-office`
-   narrows it to keys starting with those words; `&theme=lamplight` starts in lamplight). */
+   narrows it to keys starting with those words; `&theme=lamplight` starts in lamplight; `&variant=<name>` draws every
+   model in that variant, such as a desk by role or a desk lamp's lane). */
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { PROP_LIMITS, validatePropModel, type PropIssue, type PropModel } from "@crewhub/world-engine";
@@ -139,7 +140,9 @@ function PreviewCanvas({ angle, theme }: { angle: number; theme: StyleTheme }) {
 
     if (styleGroup) {
       // Each model on a lawn tile the size of its bounds; big models (the civic buildings) get wider rows.
-      const objects = styleKeys.map((key) => style.model(key, SAMPLE_OPTIONS[key]));
+      // `&variant=<name>` draws every shown model in that variant (a desk by role, a lamp's lane), for review.
+      const variant = params.get("variant");
+      const objects = styleKeys.map((key) => style.model(key, variant ? { ...SAMPLE_OPTIONS[key], variant } : SAMPLE_OPTIONS[key]));
       const sizes = objects.map((o) => new THREE.Box3().setFromObject(o).getSize(new THREE.Vector3()));
       const tiles = sizes.map((s) => ({ w: Math.max(1, s.x) + 0.6, d: Math.max(1, s.z) + 0.6 }));
       const widest = Math.max(...tiles.map((t) => t.w), 4);

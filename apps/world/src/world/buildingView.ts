@@ -28,7 +28,7 @@ import {
   type BuildingTemplate,
   type WallRun,
 } from "./buildingTemplate";
-import { assignDesks, PILE_ROOMS, placeObjects, roomCentre, type DeskSlot, type ObjectLayout, type Surface } from "./interiorLayout";
+import { assignDesks, placeObjects, roomCentre, SHELF_PITCH, type DeskSlot, type ObjectLayout, type Surface } from "./interiorLayout";
 import { mergeStatic } from "./mergeStatic";
 import { restMatrices } from "./matrixPass";
 import { ObjectLayer } from "./objectLayer";
@@ -59,6 +59,12 @@ const WALLS: Record<WallRun["side"], [ModelKey, number, number]> = {
   east: ["wall.low", 0.22, 0.12],
   inner: ["building.partition", 0.52, 0.1],
 };
+/**
+ * The partitions between the three halls stand a little higher than the classic rooms': the halls are big, and a
+ * 0.52 partition of these lengths did not draw at all from the merged shell (bisected: 0.53 and up draw; the cause
+ * in the static merge is open, see the racks report).
+ */
+const HALL_PARTITION = 0.56;
 /** The remote tier (see `#applyDistance`): pieces smaller than this, world units, are not drawn; they go to this layer. */
 const REMOTE_PIECE = 3;
 const REMOTE_LAYER = 30;
@@ -143,8 +149,6 @@ const FLOOR_VARIANT: Partial<Record<RoomKind, string>> = {
 };
 /** The three halls' floors (addendum): Administration's tiles, the floor's cool cells, the office's wood. */
 const HALL_FLOOR: Partial<Record<RoomKind, string>> = { lobby: "tile", workers: "mist", "lead-office": "wood" };
-/** The shelf rise of a status rack when the style's model does not say (furniture.ts RACK_SHELF_PITCH). */
-const SHELF_PITCH = 0.36;
 /** Ivy on an archived building, building cells: the back wall's outer face, the front corners. */
 const IVY: { x: number; z: number; width: number; height: number; rotation: number }[] = [
   { x: -0.15, z: 5, width: 2.2, height: 1.5, rotation: -Math.PI / 2 },
@@ -454,7 +458,8 @@ export class BuildingView {
     for (const run of wallRuns(this.template)) {
       const horizontal = run.z1 === run.z2;
       const length = (horizontal ? run.x2 - run.x1 : run.z2 - run.z1) * CELL;
-      const [key, height, depth] = WALLS[run.side];
+      const [key, wallHeight, depth] = WALLS[run.side];
+      const height = run.side === "inner" && threeRoom ? HALL_PARTITION : wallHeight;
       const wall = add(style.model(key, opt({ size: { width: length + depth, height, depth } })), (run.x1 + run.x2) / 2, (run.z1 + run.z2) / 2, 0, horizontal ? 0 : Math.PI / 2);
       if (run.side === "north" || run.side === "west") {
         const [lowKey, lowHeight, lowDepth] = WALLS.south;
@@ -638,7 +643,7 @@ export class BuildingView {
     const wallDecor: Record<WallFace, THREE.Group> = { north: new THREE.Group(), west: new THREE.Group(), south: new THREE.Group(), east: new THREE.Group() };
     // Pendant cords and ceiling roses read as posts from the building camera: they draw only with a room in focus.
     const cords = new THREE.Group();
-    for (const item of roomDecor(this.template, { definitions: interiorDefinitions, seed: dressingSeed(this.building.slug), zones: dressingZones(this.template), loading: LOADING, piles: PILE_ROOMS })) {
+    for (const item of roomDecor(this.template, { definitions: interiorDefinitions, seed: dressingSeed(this.building.slug), zones: dressingZones(this.template), loading: LOADING, piles: this.template.piles })) {
       const side = item.wall ?? this.#mountedOn(item);
       (item.key === "decor.pendant-cord" ? cords : side ? wallDecor[side] : g).add(this.#decor(item));
     }
@@ -803,7 +808,7 @@ export class BuildingView {
         model.rotation.y = prop.definitionId === "workdesk" || prop.definitionId === "lead-desk" ? Math.PI : pose.rotationY;
         g.add(model);
       }
-    for (const item of roomDecor(this.template, { definitions: interiorDefinitions, seed: dressingSeed(this.building.slug), zones: dressingZones(this.template), loading: LOADING, piles: PILE_ROOMS })) {
+    for (const item of roomDecor(this.template, { definitions: interiorDefinitions, seed: dressingSeed(this.building.slug), zones: dressingZones(this.template), loading: LOADING, piles: this.template.piles })) {
       const rug = FAR_RUGS[item.key];
       if (!rug) continue;
       const model = style.model("building.silhouette", { size: { width: rug[0] * CELL, height: 0, depth: rug[1] * CELL }, variant: "rug" });
