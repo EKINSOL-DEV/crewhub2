@@ -82,29 +82,47 @@ All of this is `loops:docs/porting/MAC-QUICKSTART.md`, sections 0 to 5 and 8. In
    a terminal**, because the API way needs the admin's browser session and the web's Settings > Agents is a
    read-only list since CL-233 (#508).
 
-   - **By the seed** (the simpler one). Add one line to `config/agents.yaml` in the checkout, next to
-     `team-probe`, then import what is missing (`crewhub-seed --import-missing`, `loops:.../seed/features.py`;
-     `--dry-run` first lists what it would add and writes nothing):
+   - **By the seed** (the simpler one). On the Mac stack the api reads its seed from `/app/config/generic`
+     (`loops:compose.local.yaml`, `CHL_CONFIG_DIR: /app/config/generic`), and `config/` is copied INTO the api
+     image at build time (`loops:infra/api.Dockerfile` line 14, no bind mount). So the line goes into
+     `config/generic/agents.yaml`, with `session: default` like the generic agents there (`crewhub-lead`,
+     `postman`, `team-probe`, `builder`), and the api image must be rebuilt before the seed can see it:
 
      ```sh
      source ~/.config/crewhub-loops/mac.env
      cd "$checkout"
-     printf '  - { name: crewhub-world, session: ekinsol, role: probe }\n' >> config/agents.yaml
+     printf '  - { name: crewhub-world, session: default, role: probe }\n' >> config/generic/agents.yaml
+     chl_compose up -d --build
      chl_compose exec -T api crewhub-seed --import-missing --dry-run
      chl_compose exec -T api crewhub-seed --import-missing
      ```
 
-     The `printf` appends to the `agents:` list; open the file once to see the line sits under the other agents
-     (`team-probe`, `builder`, `gate-sync` are the three `probe` examples there). A plain `probe` with no other
-     flag: never `builder_read: true`.
+     The `printf` appends to the `agents:` list, which is the last thing in that file; open it once to see the
+     line sits under `builder`. `chl_compose up -d --build` is the quickstart's own line (section 3 there): it
+     rebuilds the api image with the new file and restarts the containers; the database in the docker volume is
+     kept. `--dry-run` lists what the import would add and writes nothing; the second line adds it. A plain
+     `probe` with no other flag: never `builder_read: true`. (`config/agents.yaml` at the checkout's root is the
+     team's own seed, not the one this stack reads.)
 
    - **By an admin, through the API:** `POST /api/agents` with `{"name": "crewhub-world", "displayName":
-     "CrewHub World", "herdrSession": "ekinsol", "role": "probe"}` (`loops:.../api/routers/agents.py`,
-     `AgentCreateRequest`), sent with the admin's session cookie, so from the browser's devtools of a signed-in
-     admin tab, not from curl.
+     "CrewHub World", "herdrSession": "default", "role": "probe"}` (`loops:.../api/routers/agents.py`,
+     `AgentCreateRequest`, camelCase on the wire). It needs the admin's session cookie. There is no CSRF token in
+     crewhub-loops: the check on a cookie write is the Host/Origin guard (`loops:.../api/security.py`,
+     `HostOriginGuard`), so a same-origin request from a signed-in tab passes. In the devtools console of the loops
+     tab at `http://127.0.0.1:8091`:
 
-   These lines are not in the quickstart; they are from `loops:config/agents.yaml`, `loops:.../seed/features.py`
-   and `loops:.../api/routers/agents.py` at `053b5f47`.
+     ```js
+     await fetch("/api/agents", { method: "POST", headers: { "content-type": "application/json" },
+       body: JSON.stringify({ name: "crewhub-world", displayName: "CrewHub World", herdrSession: "default", role: "probe" }) })
+       .then((r) => r.status);
+     ```
+
+     `201` is the answer. No rebuild, no seed; but the row is then not in the seed file, which is fine (the seed
+     is bootstrap only, read once on a fresh database).
+
+   Apart from `chl_compose up -d --build`, these lines are not in the quickstart; they are from
+   `loops:compose.local.yaml`, `loops:infra/api.Dockerfile`, `loops:config/generic/agents.yaml`,
+   `loops:.../seed/features.py`, `loops:.../api/routers/agents.py` and `loops:.../api/security.py` at `053b5f47`.
 
 4. **Its key: the operator's two commands**, verbatim from the loops builder's answer of 2026-10-07 (the same
    line as the quickstart's step 5, for one agent, with the secrets folder spelled out; `<agent>` is
