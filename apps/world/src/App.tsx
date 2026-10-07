@@ -27,8 +27,8 @@ import { useBuildMode } from "./state/build";
 import { useDark, useTheme } from "./state/theme";
 import { townRuntime, useTown } from "./state/town";
 import type { TownLayer } from "./world/propLayer";
-import { scenarioChoices, useConnection, useWorld, worldRuntime } from "./state/world";
-import { DEFAULT_LOOPS_URL } from "./state/source";
+import { scenarioChoices, SOURCE, useConnection, useWorld, worldRuntime } from "./state/world";
+import { loopsWebUrl } from "./state/source";
 import { translate } from "./i18n";
 import type { ConnectionState } from "@crewhub/loops-client";
 import { buildingTemplate } from "./world/buildingTemplate";
@@ -847,7 +847,7 @@ const ChatCorner = memo(function ChatCorner({ narrow, demo, connection }: { narr
   if (!demo)
     return (
       <div className="world-chat">
-        <Chip className="demo-chat-chip chat-sign-in" href={DEFAULT_LOOPS_URL} title={translate("world.chat.signInHint")} data-connection={connection ?? undefined} icon={<MessageCircle className="icon" aria-hidden="true" />}>
+        <Chip className="demo-chat-chip chat-sign-in" href={loopsWebUrl(SOURCE.health)} title={translate("world.chat.signInHint")} data-connection={connection ?? undefined} icon={<MessageCircle className="icon" aria-hidden="true" />}>
           {translate("world.chat.signIn")}
         </Chip>
       </div>

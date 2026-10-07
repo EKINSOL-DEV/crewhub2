@@ -109,6 +109,15 @@ export function hostUrl(origin: string): string {
   return `${origin}/world-api`;
 }
 
+/**
+ * Where "Sign in to crewhub-loops" goes: the loops web app the host names in its health (`loopsWebUrl`, optional; the
+ * host adds it), else DEFAULT_LOOPS_URL. Only an http(s) URL is trusted for a link.
+ */
+export function loopsWebUrl(health: HostHealth | null | undefined): string {
+  const url = health?.loopsWebUrl;
+  return typeof url === "string" && /^https?:\/\//.test(url) ? url : DEFAULT_LOOPS_URL;
+}
+
 let decision: SourceDecision | null = null;
 
 /** main.tsx records the decision before the app's modules load. */
