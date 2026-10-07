@@ -14,7 +14,7 @@ import type { AgentPlacement, RoomKind, WorldModel } from "@crewhub/world-model"
 import { IDLE_STATE, type Cast, type FigureHandle, type FigureState } from "@crewhub/world-cast";
 import { styleOptionsKey, type EnvironmentHandle, type GraphicsQuality, type ModelAnimation, type ModelKey, type PaletteName, type ResolvedStyle, type StyleOptionValues, type StyleTheme } from "@crewhub/world-style";
 import { BuildingView, type Pick } from "./buildingView";
-import { BACK_WALL_HEIGHT, BUILDING_CELL, FLOOR_RISE } from "./buildingTemplate";
+import { BACK_WALL_HEIGHT, BUILDING_CELL, FLOOR_RISE, type BuildingPlan } from "./buildingTemplate";
 import type { TownLayer } from "./propLayer";
 import { styleRegistry } from "./style";
 import type { StyledPlot } from "./styleRegistry";
@@ -65,6 +65,8 @@ export interface TownView {
   quality: GraphicsQuality;
   /** The viewer's cast (Settings); null follows the town and the style. A building's own cast and its zone's win over it. */
   cast: string | null;
+  /** The viewer's building template (Settings > Town > Buildings, `?rooms=`); a switch rebuilds every building. */
+  buildingPlan: BuildingPlan;
   /** The viewer's style options (Settings); an absent one follows the town. A zone's and a building's own win over them. */
   styleOptions?: Readonly<Record<string, string>>;
   /** Source time now (ms): drone flights run on it, so they follow the playback speed. */
@@ -814,7 +816,7 @@ export class TownScene {
       this.#continueLayout();
       return;
     }
-    this.walks.update(model, { entered: this.view.entered, following: this.#following, reducedMotion: this.view.reducedMotion, ambient: this.view.ambient, plan, walkways: this.#walkways() });
+    this.walks.update(model, { entered: this.view.entered, following: this.#following, reducedMotion: this.view.reducedMotion, ambient: this.view.ambient, plan, walkways: this.#walkways(), buildingPlan: this.view.buildingPlan });
     const seen = new Set<string>();
     this.#anchors.clear();
     model.buildings.forEach((b) => {
@@ -840,6 +842,7 @@ export class TownScene {
         view = new BuildingView(b, c, PLOT_SIZE, {
           style,
           cast,
+          buildingPlan: () => this.view.buildingPlan,
           now: () => this.view.now(),
           reducedMotion: () => this.view.reducedMotion,
           walker: (key) => this.walks.walker(key),
@@ -1096,7 +1099,7 @@ export class TownScene {
       }
     }
     else if (previous.reducedMotion !== view.reducedMotion || previous.ambient !== view.ambient)
-      this.walks.update(view.model, { entered: view.entered, following: this.#following, reducedMotion: view.reducedMotion, ambient: view.ambient, plan: view.plan, walkways: this.#walkways() });
+      this.walks.update(view.model, { entered: view.entered, following: this.#following, reducedMotion: view.reducedMotion, ambient: view.ambient, plan: view.plan, walkways: this.#walkways(), buildingPlan: view.buildingPlan });
     if (previous.entered !== view.entered) {
       // The overlay's window describes one view: start it again.
       this.#frames.clear();

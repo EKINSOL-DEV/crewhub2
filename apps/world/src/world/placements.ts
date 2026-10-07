@@ -12,11 +12,13 @@
 import { cellKey, propCells, WorldSimulation } from "@crewhub/world-engine";
 import type { Cell, Definitions, PropDefinition, Rotation, WorldLayout, WorldProp } from "@crewhub/world-engine";
 import type { PlacedProp, RoomKind, TownDocument } from "@crewhub/world-model";
-import { BUILDING_CELL, interiorDefinitions, roomOf, type BuildingTemplate } from "./buildingTemplate.ts";
+import { BUILDING_CELL, hallOf, interiorDefinitions, roomOf, type BuildingTemplate } from "./buildingTemplate.ts";
 import { DRESS_PREFIX } from "./roomDressing.ts";
 
 /** The template's own furniture, namespaced so it never meets a catalogue id. */
 export const FIXED_PREFIX = "fixed:";
+/** The homely dressing's pieces: the same footprints, but no approach cells (they yield to placements and pin nothing). */
+export const DRESSING_PREFIX = "dressing:";
 export const DOOR_MARKER = "fixed:door";
 
 const DOOR_DEFINITION: PropDefinition = {
@@ -33,7 +35,12 @@ export function placementDefinitions(catalogueDefinitions: Definitions): Definit
   const fixed = Object.fromEntries(
     Object.entries(interiorDefinitions).map(([key, def]) => [`${FIXED_PREFIX}${key}`, { ...def, id: `${FIXED_PREFIX}${key}` }]),
   );
-  return { ...catalogueDefinitions, ...fixed, [DOOR_MARKER]: DOOR_DEFINITION };
+  // A dressing piece against a wall may have its only approach off the grid; the engine would then refuse every
+  // placement in the room ("keep interaction cells reachable"), so in build mode the dressing has no approaches.
+  const dressing = Object.fromEntries(
+    Object.entries(interiorDefinitions).map(([key, def]) => [`${DRESSING_PREFIX}${key}`, { ...def, id: `${DRESSING_PREFIX}${key}`, approaches: [] }]),
+  );
+  return { ...catalogueDefinitions, ...fixed, ...dressing, [DOOR_MARKER]: DOOR_DEFINITION };
 }
 
 /** A room as build mode sees it: its grid, entrance, template furniture and door markers. */
@@ -44,20 +51,21 @@ export interface RoomSite {
   layout: WorldLayout;
 }
 
+/** The site of a model room: its own template room, or the hall that hosts it (the site is then the hall's). */
 export function roomSite(template: BuildingTemplate, room: RoomKind): RoomSite | null {
   const found = roomOf(template, room);
   if (!found) return null;
-  const fixed: WorldProp[] = found.layout.props.map((p) => ({ ...p, id: `fixed-${p.id}`, definitionId: `${FIXED_PREFIX}${p.definitionId}` }));
+  const fixed: WorldProp[] = found.layout.props.map((p) => ({ ...p, id: `fixed-${p.id}`, definitionId: `${p.id.startsWith(DRESS_PREFIX) ? DRESSING_PREFIX : FIXED_PREFIX}${p.definitionId}` }));
   const doors: WorldProp[] = [];
   const seen = new Set<string>();
   for (const door of template.doors)
     for (const side of [door.a, door.b])
-      if (side.room === room && !seen.has(`${side.cell.x},${side.cell.z}`)) {
+      if (side.room === found.kind && !seen.has(`${side.cell.x},${side.cell.z}`)) {
         seen.add(`${side.cell.x},${side.cell.z}`);
         doors.push({ id: `door-${door.id}`, definitionId: DOOR_MARKER, cell: { ...side.cell }, rotation: 0 });
       }
   return {
-    room,
+    room: found.kind,
     origin: { ...found.origin },
     layout: { version: 1, grid: { ...found.layout.grid }, entrance: { ...found.layout.entrance }, props: [...fixed, ...doors] },
   };
@@ -100,8 +108,9 @@ export function placementWords(reason: string): string {
 const roomWords = (room: RoomKind) => room.replace("-", " ");
 
 /**
- * The building's rooms with the document's grid placements applied in document order. Placements attached to a
- * ticket or an agent are not on the grid and are not listed here (see `riders`).
+ * The building's rooms with the document's grid placements applied in document order, keyed by the template's own
+ * room kinds (a placement in a hosted model room lands in its hall; one that no longer fits there is an error).
+ * Placements attached to a ticket or an agent are not on the grid and are not listed here (see `riders`).
  */
 export function resolveBuildingPlacements(doc: TownDocument, slug: string, template: BuildingTemplate, definitions: Definitions): BuildingPlacements {
   const rooms = new Map<RoomKind, RoomPlacements>();
@@ -112,7 +121,8 @@ export function resolveBuildingPlacements(doc: TownDocument, slug: string, templ
   }
   for (const p of doc.placements) {
     if ("town" in p.at || p.at.building !== slug || isRider(p)) continue;
-    const room = rooms.get(p.at.room);
+    const hall = hallOf(template, p.at.room);
+    const room = hall ? rooms.get(hall) : undefined;
     if (!room) {
       errors.push({ placement: p, room: null, reason: `the ${roomWords(p.at.room)} is not in this building now` });
       continue;
@@ -181,7 +191,8 @@ export type GhostCheck = { ok: true } | { ok: false; reason: string };
 export function checkGhost(doc: TownDocument, slug: string, template: BuildingTemplate, definitions: Definitions, probe: Probe): GhostCheck {
   if (!definitions[probe.propId]) return { ok: false, reason: `unknown prop ${probe.propId}` };
   const others = { ...doc, placements: doc.placements.filter((p) => p.id !== probe.id) };
-  const room = resolveBuildingPlacements(others, slug, template, definitions).rooms.get(probe.room);
+  const hall = hallOf(template, probe.room);
+  const room = hall ? resolveBuildingPlacements(others, slug, template, definitions).rooms.get(hall) : undefined;
   if (!room) return { ok: false, reason: `the ${roomWords(probe.room)} is not in this building now` };
   const prop = { id: probe.id, definitionId: probe.propId, cell: probe.cell, rotation: probe.rotation };
   let result = check(room.layout, definitions, prop);

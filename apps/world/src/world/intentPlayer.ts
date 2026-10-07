@@ -2,7 +2,7 @@
    text view ("director: cr-dev-1 goes to the coffee machine in the lobby") and hands it to the players: the scene routes it through the walk runtime (walks.ts), which walks it
    only inside the entered building and never under reduced motion. The log says what was played either way. */
 import { describeIntent, type Intent, type WorldModel } from "@crewhub/world-model";
-import { readBuildingPlan } from "../state/buildingPlan.ts";
+import { buildingPlanNow } from "../state/buildingPlan.ts";
 
 export interface PlayedIntent {
   id: number;
@@ -24,7 +24,7 @@ const players = new Set<(played: PlayedIntent | null) => void>();
 const emit = () => listeners.forEach((listener) => listener());
 
 export function playIntent(intent: Intent, model: WorldModel): PlayedIntent {
-  const played: PlayedIntent = { id: nextId++, intent, text: `director: ${describeIntent(model, intent, readBuildingPlan())}`, at: model.now, expiresAt: model.now + intent.ttlMs };
+  const played: PlayedIntent = { id: nextId++, intent, text: `director: ${describeIntent(model, intent, buildingPlanNow())}`, at: model.now, expiresAt: model.now + intent.ttlMs };
   log = [played, ...log].slice(0, LOG_LIMIT);
   emit();
   for (const player of players) player(played);

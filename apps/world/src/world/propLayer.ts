@@ -9,7 +9,7 @@ import * as THREE from "three";
 import type { Definitions, PropModel, Rotation } from "@crewhub/world-engine";
 import type { Building, Catalogue, PlacedProp, RoomKind, RuleProp, TownDocument } from "@crewhub/world-model";
 import type { ModelKey, ResolvedStyle, StyleTheme } from "@crewhub/world-style";
-import { BUILDING_CELL as CELL, roomOf, type BuildingTemplate } from "./buildingTemplate";
+import { BUILDING_CELL as CELL, hallOf, roomOf, type BuildingTemplate } from "./buildingTemplate";
 import type { DeskSlot, Surface } from "./interiorLayout";
 import { roomCentre } from "./interiorLayout";
 import { footprintPose, freeSpots, isRider, turnedSize, type BuildingPlacements } from "./placements";
@@ -125,7 +125,8 @@ export class PropLayer {
     const invalid = town.invalid.filter((r) => r.slug === b.slug);
     const spots = new Map<RoomKind, { x: number; z: number }[]>();
     invalid.forEach((r, i) => {
-      const kind = placements.rooms.has(r.room) ? r.room : "storage";
+      // The room the request named (resolved to its hall), else storage's.
+      const kind = hallOf(template, r.room) ?? hallOf(template, "storage") ?? "lobby";
       const room = placements.rooms.get(kind);
       if (!room) return;
       if (!spots.has(kind)) spots.set(kind, freeSpots(room, town.definitions, invalid.length));
