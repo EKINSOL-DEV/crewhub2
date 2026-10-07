@@ -133,7 +133,8 @@ npm run host:start                                    # then open http://127.0.0
 ```
 
 The source setting is `auto` by default: Live when a host answers `/world-api/health` within 1.5 s, else Demo.
-`?source=live` or `?source=demo` overrides it; Settings > Source shows the choice and the host URL. In live mode the
+`?source=live` or `?source=demo` overrides it; Settings > Source shows the choice, the host URL and why the source was
+chosen, and changing it reloads the page (the source is decided once, before the world starts). In live mode the
 Demo chip, the scenario picker and the playback bar are hidden, the chat dock shows the "sign in to crewhub-loops"
 link (the chat is phase 2), and the connection chip sits where the Demo chip was. The text view says the same.
 
