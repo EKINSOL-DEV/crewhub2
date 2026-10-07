@@ -6,6 +6,7 @@ import { useCallback, useMemo, useState } from "react";
 import type { Cell, Rotation } from "@crewhub/world-engine";
 import type { Building, PlacedProp, RoomKind } from "@crewhub/world-model";
 import { buildingTemplate } from "../world/buildingTemplate";
+import { useBuildingPlan } from "./buildingPlan";
 import type { Pick } from "../world/buildingView";
 import { cellAt, checkGhost, freeCellIn, resolveBuildingPlacements, roomSite, type GhostCheck } from "../world/placements";
 import type { Ghost } from "../world/propLayer";
@@ -52,7 +53,8 @@ export interface BuildMode {
 
 export function useBuildMode(town: TownState, inside: Building | null, focusedRoom: RoomKind | null, announce: (text: string) => void): BuildMode {
   const [state, setState] = useState<BuildState>(OFF);
-  const template = useMemo(() => (inside ? buildingTemplate(inside) : null), [inside]);
+  const buildingPlan = useBuildingPlan();
+  const template = useMemo(() => (inside ? buildingTemplate(inside, buildingPlan) : null), [buildingPlan, inside]);
   const selectedPlacement = state.selected ? (town.doc.placements.find((p) => p.id === state.selected) ?? null) : null;
   const say = useCallback(
     (message: string) => {

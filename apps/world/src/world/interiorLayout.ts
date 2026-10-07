@@ -4,7 +4,9 @@
    (floats; x.5 is a cell centre). */
 import type { Cell } from "@crewhub/world-engine";
 import type { AgentKey, AgentPlacement, Building, RoomKind, WorkObject } from "@crewhub/world-model";
-import { roomOf, type BuildingTemplate, type TemplateRoom } from "./buildingTemplate.ts";
+import { deskZone, roomOf, type BuildingTemplate, type PileRoom, type Piles, type Surface, type TemplateRoom } from "./buildingTemplate.ts";
+
+export type { PileRoom, Piles, Surface } from "./buildingTemplate.ts";
 
 export interface DeskSlot {
   agentKey: AgentKey;
@@ -32,6 +34,8 @@ function desksOf(room: TemplateRoom) {
       return {
         propId: p.id,
         definitionId: p.definitionId,
+        // The desk's zone: the role in its id on the three-room floor, else its room (a classic role room, the office).
+        zone: deskZone(p) ?? room.kind,
         desk: { x: room.origin.x + p.cell.x + f.width / 2, z: room.origin.z + p.cell.z + f.depth / 2 },
         seat: { x: room.origin.x + p.cell.x + f.seat.x, z: room.origin.z + p.cell.z + f.seat.z },
       };
@@ -39,9 +43,10 @@ function desksOf(room: TemplateRoom) {
 }
 
 /**
- * Desk slots by agent key: the project lead at the lead's desk, everyone else at the desks of its role room in key
- * order (deterministic: the same agents always sit at the same desks). Agents past a room's capacity get no desk; the
- * text view still lists them.
+ * Desk slots by agent key: the project lead at the lead's desk, everyone else at the desks of its room kind's zone in
+ * key order (deterministic: the same agents always sit at the same desks). On the three-room floor the zone is the
+ * role the desk carries (`deskZone`); in a classic role room every desk is the room's. Agents past a zone's capacity
+ * get no desk; the text view still lists them.
  */
 export function assignDesks(building: Building, template: BuildingTemplate): Map<AgentKey, DeskSlot> {
   const slots = new Map<AgentKey, DeskSlot>();
@@ -57,18 +62,24 @@ export function assignDesks(building: Building, template: BuildingTemplate): Map
     if (!room) continue;
     const desks = desksOf(room);
     const lead = desks.find((d) => d.definitionId === "lead-desk");
-    const free = desks.filter((d) => d !== lead);
+    const free = desks.filter((d) => d !== lead && d.zone === kind);
     const sorted = [...agents].sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
     for (const agent of sorted) {
       const desk = agent.key === building.lead.id && lead ? lead : free.shift();
-      if (desk) slots.set(agent.key, { agentKey: agent.key, room: kind, ...desk });
+      if (desk) {
+        const { zone: _zone, ...slot } = desk;
+        slots.set(agent.key, { agentKey: agent.key, room: kind, ...slot });
+      }
     }
   }
   return slots;
 }
 
-/** What an object stands on; "shelf" is a status rack's bottom shelf, `level` shelves up (the three-room plan). */
-export type Surface = "floor" | "rack" | "shelf" | "table" | "pile" | "pallet" | "desk" | "lead-desk";
+/**
+ * World units from one rack shelf to the next: an object with surface "shelf" stands at the shelf surface plus
+ * `level` pitches (the renderer's ObjectLayer; the style's rack model is built to this pitch).
+ */
+export const SHELF_PITCH = 0.3;
 
 export interface Placement {
   room: RoomKind;
@@ -98,16 +109,11 @@ export interface ObjectLayout {
   pallets: PalletMark[];
 }
 
-interface PileRoom {
-  /** Slot centres in room cells, in fill order; each stacks up to `height`. */
-  slots: { x: number; z: number }[];
-  height: number;
-  surface: Surface;
-  /** Where the pallet stands when the pile overflows, room cells. */
-  pallet: { x: number; z: number };
-}
-
-/** Status rooms never grow with their piles: a fixed stack height per room, then a pallet with a count. */
+/**
+ * The classic template's piles: status rooms never grow with their piles, a fixed stack height per room, then a
+ * pallet with a count. The three-room template's piles are its racks (threeRoomTemplate.ts); `placeObjects` takes
+ * them from the template.
+ */
 export const PILE_ROOMS: Record<"storage" | "planning" | "review" | "dispatch", PileRoom> = {
   // Four racks along the back wall and two in front (buildingTemplate), two slots each.
   storage: {
@@ -150,11 +156,13 @@ export const PILE_ROOMS: Record<"storage" | "planning" | "review" | "dispatch", 
   },
 };
 
-export function pileCapacity(kind: keyof typeof PILE_ROOMS): number {
-  const room = PILE_ROOMS[kind];
-  return room.slots.length * room.height;
+/** Objects a pile shows before it overflows onto its pallet; 0 for a kind the template has no pile for. */
+export function pileCapacity(kind: RoomKind, piles: Piles = PILE_ROOMS): number {
+  const room = piles[kind];
+  return room ? room.slots.length * room.height : 0;
 }
 
+/** The classic status rooms: the kinds whose objects stand on a pile (both templates pile the same four kinds). */
 const isPileRoom = (kind: RoomKind): kind is keyof typeof PILE_ROOMS => kind in PILE_ROOMS;
 
 /**
@@ -197,18 +205,20 @@ export function placeObjects(building: Building, template: BuildingTemplate, des
     return { room: slot.room, x, z: slot.desk.z, surface: slot.definitionId === "lead-desk" ? "lead-desk" : "desk", level, slot: key };
   };
 
+  const piles = template.piles;
   for (const [kind, objects] of byRoom) {
-    if (!isPileRoom(kind)) {
+    const pile = piles[kind];
+    if (!pile) {
       for (const o of objects) placements.set(o.ticketId, onDesk(o.deskOf, kind));
       continue;
     }
     const room = roomOf(template, kind);
     if (!room) continue;
-    const pile = PILE_ROOMS[kind];
     const sorted = [...objects].sort((a, b) => a.position - b.position || a.key.localeCompare(b.key));
-    const capacity = pileCapacity(kind);
-    // When the pile overflows, the last slot's worth goes to the pallet with everything past it.
-    const shown = sorted.length > capacity ? capacity - pile.height : sorted.length;
+    const capacity = pileCapacity(kind, piles);
+    // When a stack overflows, the last slot's worth goes to the pallet with everything past it; a rack's shelves stay
+    // full and only the rest goes to the pallet in front of it.
+    const shown = sorted.length > capacity ? (pile.surface === "shelf" ? capacity : capacity - pile.height) : sorted.length;
     sorted.forEach((o, i) => {
       if (i >= shown) return;
       const s = pile.slots[i % pile.slots.length]!;
@@ -226,13 +236,13 @@ export function placeObjects(building: Building, template: BuildingTemplate, des
     const transit = object.transit;
     if (!transit || transit.toRoom === "truck") continue;
     const kind = transit.toRoom;
-    if (!isPileRoom(kind)) {
+    const pile = piles[kind];
+    if (!pile) {
       targets.set(object.ticketId, onDesk(transit.toDeskOf, kind));
       continue;
     }
     const room = roomOf(template, kind);
     if (!room) continue;
-    const pile = PILE_ROOMS[kind];
     // The least stacked slot, first in fill order.
     let best = 0;
     let bestLevel = Number.POSITIVE_INFINITY;

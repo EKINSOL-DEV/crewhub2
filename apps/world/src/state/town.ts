@@ -3,6 +3,7 @@
    once, and the prop is imported and placed as one revision (world/propImport.ts); an invalid prop becomes an error
    object. Placements made here or imported are marked fresh so the scene materialises them. */
 import { useSyncExternalStore } from "react";
+import { buildingPlanNow } from "./buildingPlan";
 import {
   applyEdit,
   builtinIds,
@@ -195,6 +196,7 @@ class TownRuntime {
       ticket,
       comments,
       placementId: crypto.randomUUID(),
+      buildingPlan: buildingPlanNow(),
     });
     if (!result.ok) {
       this.#invalid.set(ticketKey, result.invalid);

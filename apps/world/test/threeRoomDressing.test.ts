@@ -47,12 +47,12 @@ function threeRooms(columns: number): BuildingTemplate & { plan: string } {
       n++;
     }
   const rooms: TemplateRoom[] = [
-    { kind: "lead-office", origin: { x: 0, z: 0 }, layout: layout(9, 18, { x: 8, z: 14 }, [prop("lead-desk", "lead-desk", 3, 2), prop("side-desk-0", "workdesk", 5, 8), prop("side-desk-1", "workdesk", 5, 11)]) },
-    { kind: "workers", origin: { x: 9, z: 0 }, layout: layout(floorWidth, 18, { x: 0, z: 14 }, [...desks, prop("huddle", "huddle-table", 2, 14)]) },
+    { kind: "lead-office", hosts: [], origin: { x: 0, z: 0 }, layout: layout(9, 18, { x: 8, z: 14 }, [prop("lead-desk", "lead-desk", 3, 2), prop("side-desk-0", "workdesk", 5, 8), prop("side-desk-1", "workdesk", 5, 11)]) },
+    { kind: "workers", hosts: ["analyst", "design", "meeting"], origin: { x: 9, z: 0 }, layout: layout(floorWidth, 18, { x: 0, z: 14 }, [...desks, prop("huddle", "huddle-table", 2, 14)]) },
     {
       kind: "lobby",
       // Administration hosts the status rooms (and the model's lobby): `TemplateRoom.hosts` of the three-room template.
-      ...({ hosts: ["storage", "planning", "review", "dispatch"] } as object),
+      hosts: ["storage", "planning", "review", "dispatch"],
       origin: { x: 0, z: 18 },
       layout: layout(21, 10, { x: 15, z: 9 }, [
         ...RACKS.map((r, i) => prop(r.definitionId, r.definitionId, 1 + i * 4, 0)),
@@ -70,6 +70,7 @@ function threeRooms(columns: number): BuildingTemplate & { plan: string } {
       { id: "office-floor", a: { room: "lead-office", cell: { x: 8, z: 14 } }, b: { room: "workers", cell: { x: 0, z: 14 } } },
       { id: "admin-floor", a: { room: "lobby", cell: { x: 18, z: 0 } }, b: { room: "workers", cell: { x: 9, z: 17 } } },
     ],
+    piles: piles as BuildingTemplate["piles"],
   };
 }
 
@@ -149,7 +150,7 @@ test("the three halls are dressed, deterministically, and every rack, desk, hudd
 });
 
 test("the classic template is not a three-room one, and its dressing is untouched by the plan check", () => {
-  assert.equal(isThreeRoom({ rooms: [{ kind: "lobby", origin: { x: 0, z: 0 }, layout: layout(3, 3, { x: 0, z: 0 }, [prop("mailbox", "mailbox", 1, 1)]) }] }), false);
+  assert.equal(isThreeRoom({ rooms: [{ kind: "lobby", hosts: [], origin: { x: 0, z: 0 }, layout: layout(3, 3, { x: 0, z: 0 }, [prop("mailbox", "mailbox", 1, 1)]) }] }), false);
 });
 
 test("the racks' signs and the desks' zones", () => {

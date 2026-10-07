@@ -18,7 +18,7 @@ import {
   type TownDocument,
   type WorldModel,
 } from "@crewhub/world-model";
-import { buildingTemplate } from "./buildingTemplate.ts";
+import { buildingTemplate, hallOf, type BuildingPlan } from "./buildingTemplate.ts";
 import { freeCellIn, placementDefinitions, resolveBuildingPlacements } from "./placements.ts";
 
 /** A failed request with the room its error object stands in. */
@@ -39,6 +39,8 @@ export interface PropImportInput {
   comments: readonly CommentOut[];
   /** A fresh UUID for the placement. */
   placementId: string;
+  /** The building template the placement is checked against (the viewer's; the classic one when left out). */
+  buildingPlan?: BuildingPlan;
 }
 
 export function importPropRequest(input: PropImportInput): PropImport {
@@ -68,9 +70,11 @@ export function importPropRequest(input: PropImportInput): PropImport {
     const building = model.buildings.find((b) => b.slug === place.at.building);
     if (building) {
       const definitions = placementDefinitions(createCatalogue(input.builtins, added.doc).definitions);
-      const rooms = resolveBuildingPlacements(added.doc, building.slug, buildingTemplate(building), definitions).rooms;
+      const template = buildingTemplate(building, input.buildingPlan);
+      const rooms = resolveBuildingPlacements(added.doc, building.slug, template, definitions).rooms;
       for (const kind of [place.at.room, "storage", "lobby"] as const) {
-        const room = rooms.get(kind);
+        const hall = hallOf(template, kind);
+        const room = hall ? rooms.get(hall) : undefined;
         const cell = room ? freeCellIn(room, definitions, prop.id) : null;
         if (!cell) continue;
         chosen = placement({ building: building.slug, room: kind }, cell);

@@ -561,13 +561,13 @@ function World() {
       const onCanvas = e.target === e.currentTarget.querySelector("canvas");
       if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
         e.preventDefault();
-        const template = buildingTemplate(inside);
+        const template = buildingTemplate(inside, rooms);
         focusRoom(room ? roomNeighbor(template, room, e.key) : firstRoom(template), false);
       } else if (e.key === "Enter" && onCanvas) {
         e.preventDefault();
         // Enter on a selected agent opens its card; else it zooms to the focused room.
         if (selectedAgent && !card) setCard(true);
-        else focusRoom(room ?? firstRoom(buildingTemplate(inside)), true);
+        else focusRoom(room ?? firstRoom(buildingTemplate(inside, rooms)), true);
       }
       return;
     }

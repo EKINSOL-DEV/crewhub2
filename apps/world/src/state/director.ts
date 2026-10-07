@@ -7,6 +7,7 @@ import { DEFAULT_PRESENCE, normalizePresence, type AgentKey, type PresenceSettin
 import { clearIntents, playIntent } from "../world/intentPlayer";
 import { VISIT_TAGS } from "../world/movement";
 import { NavWorld } from "../world/navigation";
+import { buildingPlanNow } from "./buildingPlan";
 import { worldRuntime } from "./world";
 
 const STORAGE_KEY = "crewhub.presence.v1";
@@ -105,7 +106,7 @@ class DirectorRuntime {
   #onModel(model: WorldModel) {
     current = model;
     // Only the director asks; a switched-off director costs no graph work.
-    if (this.#settings.directorEnabled) nav.sync(model.buildings);
+    if (this.#settings.directorEnabled) nav.sync(model.buildings, undefined, undefined, buildingPlanNow());
     const made = this.#script.step(model);
     for (const plan of made) for (const intent of plan.accepted) playIntent(intent, model);
     if (made.length > 0) this.#plans = [...made.reverse(), ...this.#plans].slice(0, LOG_LIMIT);

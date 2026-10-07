@@ -176,6 +176,7 @@ export default function WorldCanvas(props: Props) {
   const dark = useDark();
   const quality = useQuality();
   const cast = useCast();
+  const buildingPlan = useBuildingPlan();
   const styleOptions = useStyleOptions();
   const dayNight = useDayNight(props.model.mode);
   const fps = useFps();
@@ -207,6 +208,7 @@ export default function WorldCanvas(props: Props) {
     theme: dark ? ("lamplight" as const) : ("day" as const),
     quality,
     cast,
+    buildingPlan,
     styleOptions,
     now,
     dayNight,
@@ -530,9 +532,9 @@ const same = (a: Pick | null, b: Pick | null) => !!a && !!b && JSON.stringify(a)
 
 /** Labels inside the entered building. */
 function Interior({ building: b, model, props, compact }: { building: Building; model: WorldModel; props: Props; compact: boolean }) {
-  // The words for the signs: a room's own name, or its hall's when the building has three halls.
+  // The viewer's plan picks the template and the words for the signs: a room's own name, or its hall's.
   const rooms = useBuildingPlan();
-  const template = buildingTemplate(b);
+  const template = buildingTemplate(b, rooms);
   const layout = placeObjects(b, template, assignDesks(b, template));
   const nameOf = (slug: string | null) => model.buildings.find((x) => x.slug === slug)?.name ?? slug ?? "another building";
   // A hovered room reveals its labels; a nameplate is for the agent or object under the pointer, else the selected one.
@@ -673,7 +675,7 @@ const RULE_WORDS: Record<string, string> = { banner: "milestone banner", crate: 
 /** Error crates and rule props of the town document, labelled in words: errors in build mode or with Details, a rule chip
     where its room shows. */
 function TownLabels({ building: b, town, errors, shows }: { building: Building; town: TownLayer; errors: boolean; shows: (rule: RuleProp) => boolean }) {
-  const resolved = resolveBuildingPlacements(town.doc, b.slug, buildingTemplate(b), town.definitions);
+  const resolved = resolveBuildingPlacements(town.doc, b.slug, buildingTemplate(b, useBuildingPlan()), town.definitions);
   const name = (propId: string) => town.catalogue.get(propId)?.name ?? propId;
   return (
     <>
