@@ -1,5 +1,7 @@
 # CrewHub town implementation plan
 
+Status: partly superseded by [ADR 0005](decisions/0005-crewhub-world-on-loops.md) and [the loops integration plan](LOOPS_INTEGRATION_PLAN.md) (its section 12). Sections 2, 3, 7 and 8 (session model, runtime bindings, Herdr and direct adapters) are replaced: identity is the loops principal id. Section 6 (IndexedDB as the layout store) is replaced by the host's world database once it exists; tonight the demo keeps a local town document. The town geometry in sections 4, 5 and 9 stays.
+
 Status: accepted product direction; proposed implementation sequence. This change
 adds planning documents only. Towns, dynamic rooms, persistence, and live adapters
 are not implemented by this plan.
@@ -302,7 +304,7 @@ Keep `npm run check` as the baseline, extending tests when behavior is introduce
 
 Test the initial town with three rooms at 3, 8, and 16 assigned sessions. Add an
 oversight stress fixture with 12 rooms and 100 sessions. These are test workloads,
-not claimed capacity guarantees. Maintain the 30 fps presentation cap and bounded
+not claimed capacity guarantees. Maintain the 60 fps presentation cap (30 before 2026-10-02) and bounded
 DPR; aim for frame work within the 33 ms budget on the documented reference device.
 Measure before promising support on a particular device.
 
@@ -331,3 +333,134 @@ are part of this plan. Existing agent work retains its normal provider costs.
 The immediate implementation objective is a correct shared model, followed by
 stable growing rooms and a convincing mock town. Live integrations reuse those
 same identities and presentation inputs once their observation paths are proven.
+
+## 11. The settlement: lots, districts and tiers
+
+Status: built in demo mode (2026-10-06). The design is the addendum "Scale and zones" in
+[the demo-mode spec](superpowers/specs/2026-10-01-world-demo-mode-design.md); this section says where it lives and
+what the rules are. Sections 4 and 5 describe a fixed grid of room plots; the town itself no longer has one.
+
+**The rule.** Nothing in the town moves by itself. A building stands on its lot, and the lot is written into the town
+document the first time the world sees the project. Adding, archiving or regrouping projects never changes a lot;
+the only two ways are "Tidy the town" and moving a building by hand, both explicit edits in build mode and each one
+undo step.
+
+**Undo.** A lot is a fact of the town, not an edit, so it stays out of the undo history: the allocation is written
+into the current revision (no undo step), and an undo or redo carries the lots given since into the revision it
+restores (`carryAllocations` in `settlement.ts`, applied by the town store). So an undo past a hand move never
+re-allocates a project that had no lot at that revision: the newcomer keeps its lot, and the district it stands in
+comes along. A restored building whose old lot a newcomer took meanwhile takes its zone's next free lot: it was moved
+by hand, the newcomer was not. Undoing "Tidy the town" restores the previous plan the same way: everyone the tidy
+moved goes back, a project that arrived after the tidy keeps its lot. A district that an undone move opened goes
+with the undo unless a later project lives there.
+
+**Where it lives.**
+
+| File | What it holds |
+| --- | --- |
+| `apps/world/src/world/settlement.ts` | Pure. The lot lattice, the districts and their growth sequences, the reserved civic ground, tiers, the ground's extent, streets, district roads and borders, and the allocation (`allocationEdit`, `tidyEdit`, `moveEdit`). |
+| `apps/world/src/world/townPlan.ts` | Pure. `planTown(document, buildings)`: the settlement as it stands now, read by the scene, the dressing, the navigation and the camera. Also the home frame per tier, keyboard focus by position, the free plots and the text view's lines. |
+| `packages/world-model/src/townDocument.ts` | The schema: a plot's `cell` is a lot, with an optional `zoneId`; `districts` (zone to slot), `zones`, `assignments`; the edits `allocate`, `tidy`, `move-plot`, `assign`, `set-zone`, `remove-zone`. All additive in `crewhub-town/1`. |
+| `apps/world/src/state/town.ts` | Gives a new project its lot, in the current revision: the world's own record, so no undo step. |
+| `apps/world/src/state/townStore.ts` | The history in IndexedDB. Its `carry` option (the runtime passes `carryAllocations`) brings the lots given since into the revision an undo or redo restores. |
+| `apps/world/src/world/navigation.ts` | The walkable town: one room per district, joined where a district road crosses the border. |
+
+**Lots.** Square lots on one pitch: a 24-unit plot and a 6-unit street. The centre lot is `{ x: 64, z: 64 }`, at
+world `(-15, -15)`, just south-west of the main crossing. A lot is one of four things (`lotKind`): a `lot` a
+building can stand on, a `green`, `reserved` civic ground, or `border`.
+
+**Districts.** A zone owns a district: a cell of 7 by 6 lots on a coarse lattice, of which 6 by 5 can be built on;
+the last column and row are the border to the next district. Slots are given out in a spiral from the centre (east,
+south, west, then the corners), and stored. The column straight north of the centre is never given out: it
+stays open country behind the square, and it holds the old quarter. A district's growth sequence depends on its slot
+only:
+
+- the centre: the village street of four lots facing the square (the hamlet's lot first), then two blocks south of
+  it either side of the main street, each around a green, then the street's two ends: 16 lots;
+- any other district: four blocks of five lots, each a U around its green and open to the south: 20 lots.
+
+A zone that fills its district gets a further slot, the free one nearest its first.
+
+**Reserved ground.** The two lot rows north of the centre's street belong to the town: the lodge that becomes the
+town hall, the mailbox that becomes the mail hut and the post office, the square, the café, the bus stop, and the
+landmarks (bandstand, chapel, windmill, farm corner, two rows of cottages). No growth sequence touches them, so civic
+buildings grow in place. Landmarks arrive at 3, 4, 6, 7, 9 and 12 plots, in an order seeded by the town's founding
+project; archived plots count, so a town never loses one.
+
+**Tiers.** From the number of projects that are not archived: clearing (0), hamlet (1), village (2 to 4), town (5 to
+9), region (10 and more). A tier is entered at its threshold and left two below it; no project is always a clearing.
+The tier decides the ground, the streets (a hamlet has one lane) and the civic stage. It never moves a lot.
+
+**Archived buildings** keep their plot. The viewer setting "Archived buildings: fold into the old quarter"
+(Settings, off by default, this browser only) draws them in rows north of the civic ground instead; the document is
+not touched.
+
+**The stability test** (`apps/world/test/settlement.test.ts`): projects added one by one from 0 to 40, in six orders
+(as listed, reversed, four shuffles), over one to four zones (even, one zone after another, lopsided), with archiving
+and restoring mixed into half the runs. After every step: no building's lot changed, no two buildings share a lot,
+every building stands on a lot of its own zone's district and off the reserved ground, and the ground covers every
+lot. A second test checks that one batch and one-by-one arrival give the same town.
+
+**Walking.** The engine bounds a grid at 256 cells a side, so the town is not one room: each district is a room of
+its own (175 by 150 cells of 1.2 units), and never changes size or place. The streets of a district always join at
+its main crossing; the roads run crossing to crossing, and a portal door (`road/<x>,<z>`) stands where a road crosses
+the border between two district rooms.
+
+## 12. The three-room building
+
+Status: the wording, the setting and the regression checks are built (2026-10-07); the template itself lands with the
+same round. The design is the addendum "Three rooms per building" in
+[the demo-mode spec](superpowers/specs/2026-10-01-world-demo-mode-design.md), with the floor plan; this section says
+what the rules are and where they live.
+
+**Why.** Ten rooms per project mixed two orderings (rooms per role, rooms per ticket status, plus a lobby, an office
+and a meeting room), so what was being worked on was spread over the whole building. A building now has three halls,
+each with one meaning.
+
+**The halls.**
+
+| Hall | What stands there | Hosts (model rooms) | Its own kind |
+| --- | --- | --- | --- |
+| Administration | Four racks on the north wall: **Backlog, Planning, Review, Done**; the mailbox and the archive counter by the front door. No agent works here. | storage, planning, review, dispatch, lobby | `lobby` |
+| The floor | One open space, a desk per working agent (the desk shows the role: screens for an analyst, a drawing table for design, plain for a worker), a lamp per desk for the lane, and the huddle, a small round table that replaces the meeting room. | workers, analyst, design, meeting | `workers` |
+| Lead's office | A separate room with the lead's desk, the amber attention beacon above it, a door and a window onto the floor. | lead-office | `lead-office` |
+
+The handover is the building's story: work starts and the box leaves the rack for a desk; done, it goes back to the
+Review rack; approved, one rack further to Done; rejected, back to the desk.
+
+**The floor plan** (building cells, one cell 0.6 world units): the lead's office at the north-west, 9 by 18; the floor
+east of it, 18 deep and 12 to 24 wide in 6-cell module columns (the huddle takes the module by the office door, every
+other module two desks, a role's desks contiguous: workers, then analyst, then design); Administration along the south,
+21 by 10, with the four racks at x 1, 5, 9 and 13 (three slots on four shelves each, a pallet with a count past 12).
+The front door and the loading door are where they were, so plots, roads and the truck apron do not move; the widest
+building is still 33 cells. The addendum has the drawing.
+
+**The hall mapping.** The model keeps its ten `RoomKind`s, `TransitPlace`, the flights and the memory of role rooms:
+nothing a fact produces changes. `packages/world-model/src/halls.ts` is the mapping as data: `hallOf(kind)` gives
+`administration`, `floor` or `office`; `HALL_LABELS` the signs; `RACK_NAMES` the rack per status room; `placeWords`
+and `roomPlaceWords` the words for a place in either wording. The template resolves a model room to its hall
+(`roomOf(template, kind)` answers the hall that hosts `kind`), desks carry their role zone, and the piles are part of
+the template, so the classic building keeps its own.
+
+**The words.** The text view tells the same story as the scene. `describeWorld`, `where`, `describeIntent` and
+`describeTownDocument` take a wording, `{ rooms: "three-rooms" | "classic" }`, default classic; in three-rooms wording
+they say "Administration: Backlog 4, Planning 2, Review 1, Done 3; 2 flagged letters; 5 archived", "The floor: Ada at
+its desk on CH-12 (working), Bo (idle), the analyst desk empty; a huddle at the round table about CH-12", "Lead's
+office: Lin (working); beacon: …", a ticket "on the Review rack" or "on Ada's desk", and a flight "from the Planning
+rack to the lead's office". `hallSummary` is the one line per hall; the app's room focus status line and the 2D room
+signs (`apps/world/src/world/roomWords.ts`), the agent card's Now line and the where form use the same wording.
+
+**The setting.** `BuildingPlan = "three-rooms" | "classic"` is a per-viewer setting (Settings > Town > Buildings,
+`apps/world/src/state/buildingPlan.ts`, kept like the Old quarter setting); `?rooms=three|classic` in the URL
+overrides it for the page. `buildingTemplate(building, plan)` returns the classic template unchanged for `classic`.
+Both stay selectable so they can be compared side by side; the default becomes `three-rooms` once the round passes
+the lead's gate.
+
+**The classic template** is the alternative: ten rooms (the lobby, the lead's office, the role rooms, the four status
+rooms and the meeting room) as drawn at the top of `apps/world/src/world/buildingTemplate.ts`. It renders and behaves
+exactly as before under `classic`, with its own piles and its own words, and its tests do not change.
+
+**Checks.** `tools/regress.mjs --groups rooms` opens the world with `?rooms=three` and checks the three room signs, the
+arrow keys between the halls, the text view's racks and desks with a package on each, the lead's office beacon, the
+agent card on a figure at a desk, and walk mode through the front door into Administration and on to the floor. The
+wording has its own tests (`packages/world-model/test/halls.test.ts`, `apps/world/test/roomWords.test.ts`).

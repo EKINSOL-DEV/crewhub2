@@ -1,0 +1,106 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-decor-sofa-throw",
+  "name": "Sofa throw",
+  "description": "A warm knitted throw draped over the sofa's arm, tangerine with clay stripes.",
+  "category": "decoration",
+  "tags": [
+    "greenhouse",
+    "autumn",
+    "throw",
+    "sofa"
+  ],
+  "footprint": {
+    "width": 2,
+    "depth": 1
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        0.18,
+        0.02,
+        0.42
+      ],
+      "position": [
+        -0.51,
+        0.425,
+        0.02
+      ],
+      "material": "tangerine",
+      "radius": 0.008
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.02,
+        0.2,
+        0.42
+      ],
+      "position": [
+        -0.595,
+        0.33,
+        0.02
+      ],
+      "material": "tangerine",
+      "radius": 0.008,
+      "rotation": [
+        0,
+        0,
+        -6
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.17,
+        0.02,
+        0.42
+      ],
+      "position": [
+        -0.37,
+        0.33,
+        0.02
+      ],
+      "material": "tangerine",
+      "radius": 0.008,
+      "rotation": [
+        0,
+        0,
+        14
+      ]
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.19,
+        0.022,
+        0.03
+      ],
+      "position": [
+        -0.51,
+        0.427,
+        -0.1
+      ],
+      "material": "clay",
+      "radius": 0.006
+    },
+    {
+      "shape": "box",
+      "size": [
+        0.19,
+        0.022,
+        0.03
+      ],
+      "position": [
+        -0.51,
+        0.427,
+        0.12
+      ],
+      "material": "clay",
+      "radius": 0.006
+    }
+  ]
+}

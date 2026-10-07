@@ -2,110 +2,146 @@
 
 ## Decision
 
-Keep the visual experience browser-first and the machine bridge independently
-usable. Tauri is an optional packaging and desktop-integration layer. It does not
-own the visual design or define the public bridge API.
+CrewHub World is a browser world served by a small CrewHub host that reads
+crewhub-loops. There is no bridge and no Tauri. The decision is
+[ADR 0005](decisions/0005-crewhub-world-on-loops.md) and the full plan is
+[LOOPS_INTEGRATION_PLAN.md](LOOPS_INTEGRATION_PLAN.md).
 
-The browser room, headless grid engine, and draft session types are implemented.
-The accepted next direction adds CrewHub-owned towns, dynamic rooms, and bindings
-to runtime sessions. See [the town plan](TOWN_PLAN.md) and
-[the identity decision](decisions/0003-towns-and-session-bindings.md). Those additions
-remain planned. The [design system](DESIGN_SYSTEM.md) supplies the UI
-tokens and components; it does not change world, protocol, or bridge behavior.
-The following diagram describes future live integration, not running services.
+Towns and rooms are CrewHub's own; every fact is crewhub-loops'. See
+[the town plan](TOWN_PLAN.md) for the layout model, with the runtime-binding parts
+superseded. The [design system](DESIGN_SYSTEM.md) supplies the UI tokens and
+components.
+
+**The diagram below is the target, not running services.** Only the browser world and
+a scripted demo source are built; see "What is built (demo mode)" after it.
 
 ```mermaid
-flowchart TD
-  World["CrewHub browser world"] --> Bridge["Independent local bridge"]
-  Other["Other client applications"] --> Bridge
-  Tauri["Optional Tauri companion"] -. "starts and supervises" .-> Bridge
-  Bridge --> Herdr["Herdr adapter"]
-  Bridge --> Direct["Optional direct adapters"]
-  Herdr --> Sessions["Existing agent sessions"]
-  Direct --> Sessions
+flowchart LR
+  Agents["Agent lanes (Herdr)"] -- "crewhub CLI, socket" --> Loops["crewhub-loops API"]
+  Probe["team-probe"] -- "PUT /api/team/snapshot" --> Loops
+  Postman["postman lane"] -- "deliver next" --> Loops
+  People["Nicky, loops web app"] --> Loops
+  Host["CrewHub host (apps/host)"] -- "socket, read-only key: REST + NDJSON" --> Loops
+  Host --- DB[("World database (SQLite)")]
+  Browser["CrewHub World (browser)"] -- "loopback HTTP: snapshot + SSE (Tailscale optional)" --> Host
+  Browser -- "chat bubbles only: DM routes as the person (CORS, L8)" --> Loops
+  Director["world-director lane (Haiku)"] -- "crewhub-world CLI, host socket" --> Host
 ```
+
+## What is built (demo mode)
+
+Tonight the world runs only in the browser on a scripted source. There is no
+`apps/host`, no network call to crewhub-loops and no model call.
+
+| Package | Role |
+| --- | --- |
+| `packages/loops-client` | crewhub-loops types, hand-written runtime validators, the event allowlist, and the `WorldSource` seam |
+| `packages/demo` | `DemoSource`: a deterministic, in-memory crewhub-loops with a 16-minute storyline, playback controls and the chat API the bubbles call |
+| `packages/world-model` | Projection, `reduceWorld`, `describeWorld` (text view), town document, catalogue, director intents and `where` |
+| `packages/world-engine` | Grid, footprints, placement, pathfinding, the prop format (`crewhub-prop/1`) and its validator |
+| `apps/world` | The browser app: Three.js town and building scenes, the minimal UI, the chat bubbles mirrored from crewhub-loops, the `useWorld` seam |
+
+Data flow:
+
+```text
+DemoSource -> Projection -> reduceWorld -> renderer / describeWorld
+```
+
+`DemoSource` emits loops-shaped envelopes with increasing `seq`. The projection
+applies them idempotently. `reduceWorld` maps facts to buildings, rooms, work
+objects and agent placements. The renderer and the text description read only that
+model, so a future host source replaces `DemoSource` and nothing else changes.
+
+Phase status, each to be confirmed at the end of the night:
+
+- Phase 1 (town, loops-client, demo source): built in demo mode
+- Phase 2 (chat mirror, backed by the demo chat API): built in demo mode
+- Phase 3 (interiors, ticket drone): built in demo mode
+- Phase 4 (town paths and dynamic pathfinding): built in demo mode
+- Phase 5 (town document and build mode): built in demo mode
+- Phase 6 (scripted director and `where`): built in demo mode
+
+## World styles
+
+The Greenhouse look is the first registered `WorldStyle` (`packages/world-style` is the
+contract, `packages/style-greenhouse` the implementation, `apps/world/src/world/style.ts`
+the only importer). Renderers ask a style for a mesh by semantic key and never import
+its models; a test enforces that boundary. Styles resolve per building (a plot style id,
+falling back to the town default). Semantics (footprints, room roles) stay in the world
+model and the grid engine. The contract is described in [WORLD_STYLES.md](WORLD_STYLES.md).
+The figures that stand for agents are a cast, a second seam next to the style (`packages/world-cast` is the contract
+and the generic figure runtime, `packages/cast-*` the casts as data, `apps/world/src/world/cast.ts` the only
+importer). A building wears its own cast, else its zone's, else the viewer's choice, else the town's, else the style's default.
+A figure too small to see over a desk brings its own perch as data (a step, or a place on the top); the style only
+says where each top is, and furniture never changes with the cast.
+Built: the seam, the registry and the Greenhouse style. Not built: a second style,
+external loading, an editor.
 
 ## Boundaries
 
 | Layer | Owns | Must stay independent of |
 | --- | --- | --- |
-| World | Scene, characters, input, view state, accessible alternatives | Tauri APIs, process control, provider credentials |
-| World engine | Grid, footprints, placement, pathfinding, movement, semantics | React, Three.js, bridge and runtime details |
-| Bridge | Discovery, normalized events, explicit command routing, local pairing | A particular UI or desktop window |
-| Adapter | One runtime's discovery and control interface | Rendering decisions |
-| Protocol | Versioned snapshots, events, capabilities, command outcomes | React, Three.js, Rust implementation details |
-| Tauri companion | Installation, lifecycle, tray, notifications, optional window | Exclusive ownership of bridge functionality |
+| World | Scene, characters, input, view state, accessible alternatives | Process control, credentials, runtime details |
+| World engine | Grid, footprints, placement, pathfinding, movement, semantics | React, Three.js, host and runtime details |
+| Host (planned) | Reading crewhub-loops with a read-only key, the world database, serving and pairing the browser | Rendering, movement, agent control, provider secrets |
+| loops client | crewhub-loops types, runtime validation of every response and event, the `WorldSource` seam | React, Three.js, the DOM, the network |
+| crewhub-loops (external) | Every fact: projects, tickets, agents, deliveries, messages, team presence | CrewHub's code; it is read, never edited |
 
 React, TypeScript, and Vite host the browser app. Three.js is lazy-loaded for the
-room; an imperative scene controller owns frame updates outside React. React owns
-the accessible controls and oversight panel. The renderer consumes the same grid
+town; an imperative scene controller owns frame updates outside React. React owns
+the accessible controls, the chat bubbles and the text view. The renderer consumes the same grid
 used for prop placement and navigation; see [GRID_ENGINE.md](GRID_ENGINE.md).
 No React Three Fiber or physics engine is needed for this slice.
 
-Rust is the intended bridge starting point; its
-crate structure and server library remain undecided until the bridge milestone.
+## Tools: looking at and measuring the running world
+
+[`tools/`](../tools/README.md) holds the scripts that open the running world in a headless browser: the browser
+regression pass (`regress.mjs`: the demo walk, the demo's wayfinding and picker, and live mode against the fake and pairing, 56 checks), the frame and memory measurements (`perf.mjs`, `memory.mjs`) and the
+screenshot helpers (`shots.mjs`, `castshots.mjs`, `castworld.mjs`). They are plain `.mjs` files run with `node`
+against a Vite server on a port of your own, and write to the git-ignored `tools/out/` unless told otherwise. They
+are not part of `npm run check`: they need a browser and a running server.
+
+The browser driver (`playwright-core`, a root dev dependency) is tooling only. `scripts/scan-model-calls.ts` lets
+nothing outside `tools/` import it and no workspace depend on it, and holds the tools to this machine's addresses
+(`127.0.0.1`, `localhost`); a test in `packages/world-model/test/noModelCalls.test.ts` proves both on the real tree.
 
 ## Integration order
 
-1. Normalize mock identities and bindings; build growing rooms and a mock town.
-2. Herdr observation: discover existing sessions and follow status events.
-3. Direct Claude Code and Codex observation, each gated by proof of existing-session
-   visibility through supported interfaces.
-4. Explicit supported interactions with one verified target and command route.
-5. Optional Tauri packaging, remote access, and other clients.
+The phases of plan section 10 are listed in [the roadmap](ROADMAP.md). The demo phases
+come first; the host phases stay open.
 
-Browser clients cannot directly open Herdr's Unix domain socket or Windows named
-pipe. The bridge provides that local access. Its initial browser interface is
-intended to use authenticated HTTP for commands and WebSocket for events; exact
-routes, pairing, and schemas are design work for the live milestone.
+The host would reach crewhub-loops over its Unix socket; browsers reach the host over
+loopback HTTP and SSE (plan section 3). Browsers cannot open a Unix socket.
 
-## Session identity and command ownership
+## Identity and commands
 
-A persistent character, a native runtime session, and a task are distinct things.
-A character can outlive a session; one session can work on several tasks.
+Identity is the loops principal id; a worker's identity is its session and name. The
+host sends no commands. The chat bubbles send DMs as the person through loops' own
+routes (in demo mode, an in-browser fake answers them and the reply is scripted).
+Everything else a person does opens the loops web app.
 
-Namespace identities by bridge and runtime. Keep native session references when
-available, and account for pane occupant replacement. A Herdr pane identifier alone
-is not a permanent agent identity. If the same native session appears through
-Herdr and a direct adapter, reconcile it and select one command route. Do not
-resume or control it concurrently through two providers.
-
-Advertise actual capabilities per session. Unsupported controls remain unavailable.
-A submitted prompt is not a completed task. Unknown, idle, disconnected, waiting
-for permission, and successful completion must not collapse into the same state.
-Keep runtime approval policy authoritative; normal prompting is not approval.
+Unknown, idle, blocked and done are different lane statuses, and a lane status never
+proves that a task succeeded. A team snapshot older than 5 minutes is shown as
+unknown.
 
 ## Events and reconnection
 
-At Herdr connection time, subscribe and await acknowledgement before taking
-`session.snapshot`, buffer intervening events, and reconcile in order. Obtain a
-fresh snapshot after reconnect because subscriptions do not replay old events.
-Before implementation, verify these details against the installed Herdr version.
+The loops stream contract: resume with `lastSeq`, the server ends a stream after
+300 s, heartbeats carry a seq, and a 410 means reload. The demo source emits the same
+envelopes and heartbeats. Validate every response and event at runtime, bound
+buffers, and keep rendering independent of event frequency.
 
-The CrewHub protocol must define its own stream epoch/revision behavior before
-live use. Include bridge identity, protocol version, and explicit connection
-state. Validate messages at runtime, bound buffers, and recover from gaps with a
-snapshot. Keep rendering independent of event frequency.
+## Local access (planned)
 
-## Local access and reuse
-
-Default to loopback and explicit client pairing. Authenticate clients, check
-allowed browser origins, and validate command targets. Never put provider secrets
-in frontend bundles, URLs, or browser storage. Reusing the bridge must not require
-opening arbitrary machine commands to any website.
-
-Remote access, including use across Tailscale, requires an explicit supported
-deployment path, authentication, and origin handling. A static site or an HTTPS
-page does not automatically gain localhost or private-network access. That work
-is outside the bootstrap and first room.
+Both apps on one machine by default: loopback, a one-time pairing link, an HttpOnly
+cookie, Host and Origin checks. Tailscale or another TLS proxy is only an option.
+Nothing of this exists in demo mode, and no credential is ever bundled.
 
 ## Primary references
 
-- [Herdr socket API](https://herdr.dev/docs/socket-api/)
-- [Tauri architecture](https://v2.tauri.app/concept/architecture/)
-- [Codex App Server](https://learn.chatgpt.com/docs/app-server)
-- [Claude Code SDK sessions](https://code.claude.com/docs/en/agent-sdk/sessions)
-- [OpenAI MCP integrations](https://developers.openai.com/api/docs/mcp)
+- `loops:docs/integrators/events.md`
+- `loops:docs/integrators/team-and-projects.md`
+- `loops:docs/integrators/agents-and-states.md`
+- `loops:docs/integrators/read-model.md`
 
-Reviewed for the bootstrap on 2026-09-12. Recheck relevant APIs before implementing
-an adapter. MCP exposes tools; it does not by itself mirror a user's chat history.
+`loops:` is the crewhub-loops repository, commit `a1bed0f`.

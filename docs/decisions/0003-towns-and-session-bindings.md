@@ -1,5 +1,7 @@
 # 0003: Towns own layout; runtime bindings supply activity
 
+Status note: the runtime-binding parts (canonical sessions, Herdr and direct bindings, command routes) are superseded by [ADR 0005](0005-crewhub-world-on-loops.md) and [the loops integration plan](../LOOPS_INTEGRATION_PLAN.md) section 12. Identity is now the loops principal id. The CrewHub-owned town and room layout stays.
+
 Status: accepted direction; implementation planned.
 
 The user wants the town metaphor restored, with a room per Herdr space and room

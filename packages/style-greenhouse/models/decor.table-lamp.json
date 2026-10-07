@@ -1,0 +1,121 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-decor-table-lamp",
+  "name": "Table lamp",
+  "description": "A small brass table lamp with a cream shade and a warm bulb, next to a short candle in a clay holder.",
+  "category": "light",
+  "tags": [
+    "greenhouse",
+    "lamp",
+    "candle",
+    "evening"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": false,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "cylinder",
+      "size": [
+        0.04,
+        0.015,
+        0.045
+      ],
+      "position": [
+        -0.03,
+        0.008,
+        0
+      ],
+      "material": "brass"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.01,
+        0.12,
+        0.01
+      ],
+      "position": [
+        -0.03,
+        0.075,
+        0
+      ],
+      "material": "brass"
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.022,
+        0.022,
+        0.022
+      ],
+      "position": [
+        -0.03,
+        0.13,
+        0
+      ],
+      "material": "lamp-glow",
+      "emissive": true
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.035,
+        0.06,
+        0.06
+      ],
+      "position": [
+        -0.03,
+        0.15,
+        0
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.025,
+        0.012,
+        0.03
+      ],
+      "position": [
+        0.06,
+        0.006,
+        0.03
+      ],
+      "material": "clay"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.012,
+        0.04,
+        0.012
+      ],
+      "position": [
+        0.06,
+        0.032,
+        0.03
+      ],
+      "material": "cream"
+    },
+    {
+      "shape": "cone",
+      "size": [
+        0.01,
+        0.02,
+        0
+      ],
+      "position": [
+        0.06,
+        0.062,
+        0.03
+      ],
+      "material": "lamp-glow",
+      "emissive": true
+    }
+  ]
+}

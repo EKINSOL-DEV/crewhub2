@@ -1,5 +1,7 @@
 # The Greenhouse: implementation and review
 
+Status: historical. The Greenhouse room described here was replaced by the town of project buildings ([ADR 0005](decisions/0005-crewhub-world-on-loops.md)); its models, materials and lighting live on as the 3D style. Its open browser and device checks are not carried forward.
+
 After the initial PR, the user reviewed the room positively and accepted its visual
 direction. They will provide a design system for UI refinement. The technical
 verification limits below remain unchanged; the next sequence is in
@@ -44,7 +46,7 @@ claimed. Automated checks establish code and engine behavior, not visual quality
 
 ## Performance policy, not measurements
 
-Presentation is capped at 30 fps. Device pixel ratio is capped at 1.7, or 1 with
+Presentation is capped at 60 fps (it was 30 until the performance rounds of 2026-10-02: the target is a frame p95 under 16.7 ms; a 120 Hz display still draws at most 60). Device pixel ratio is capped at 2 on Pretty, or 1 with
 lighter graphics; lighter graphics also disable shadows. Hidden tabs stop their
 animation loop. Paused and static reduced-motion views render briefly to settle
 camera/wall transitions, then sleep until input or a view update. A 500 ms local

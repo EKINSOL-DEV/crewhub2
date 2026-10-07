@@ -1,0 +1,55 @@
+/* The AI-presence settings block. Tokens only; layout for one narrow sheet. */
+.settings-sheet:has(.presence-settings) {
+  width: min(24rem, calc(100% - 2 * var(--space-4)));
+}
+.presence-settings {
+  display: grid;
+  gap: var(--space-3);
+}
+.presence-title {
+  font-size: var(--text-sm);
+}
+.presence-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+.presence-cap {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  background: var(--surface-sunken);
+}
+.presence-usage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+  font-size: var(--text-sm);
+}
+.presence-usage dt {
+  color: var(--text-muted);
+}
+.presence-usage dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+/* The text view's "Where is …?" form and the director's plans. */
+.where-form {
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+.where-form h3 {
+  margin-bottom: var(--space-2);
+  font-size: var(--text-sm);
+}
+.where-answer {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+}

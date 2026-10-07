@@ -1,0 +1,231 @@
+/* The far robots as a crowd: seen from the town a robot is a few pixels tall, and a hundred of them as full models
+   are most of the town's draw calls. Each frame the crowd copies the parts of every far robot into one InstancedMesh
+   per part and material (body, head, arm, foot, the blob under the feet...). Parts of one shape that differ only by
+   colour (a sage, an apricot and a lead's soft project tint) share one batch, with the colour as an instance colour.
+   Style-agnostic, like instanceStatic: it works on whatever meshes the style's robot handle holds.
+
+   A robot the crowd draws keeps its own meshes, on a layer the camera does not render: they still pose, walk and
+   animate as before, and come back as they are when the robot is near again (the entered building). Parts the crowd
+   cannot batch (a translucent proxy's own materials, a halo's shader) stay on the default layer and draw as before.
+   Robots in buildings the camera cannot see are not copied at all. */
+import * as THREE from "three";
+import { instancedMaterial } from "./instancedMaterial";
+
+/** The layer for a far robot's own meshes: neither the camera nor the shadow cameras draw it. */
+const HIDDEN = 31;
+const WHITE = new THREE.Color(1, 1, 1);
+
+/** The mesh and every parent up to the robot's root are visible. */
+function shown(mesh: THREE.Object3D, root: THREE.Object3D): boolean {
+  for (let o: THREE.Object3D | null = mesh; o; o = o.parent) {
+    if (!o.visible) return false;
+    if (o === root) return true;
+  }
+  return true;
+}
+
+interface Batch {
+  mesh: THREE.InstancedMesh;
+  /** Each instance takes its part's colour (a white copy of the material); false: the material is shared as it is. */
+  tinted: boolean;
+  count: number;
+}
+
+export class RobotCrowd {
+  readonly group = new THREE.Group();
+  #batches = new Map<string, Batch>();
+  #parts = new WeakMap<THREE.Object3D, THREE.Mesh[]>();
+  /** Each part's batch key, kept while its material, emissive colour and strength stay the same (a theme change
+      recolours the emissive and so gets a new key): building the key string per part per frame was most of the copy. */
+  #keys = new WeakMap<THREE.Mesh, { material: THREE.Material | THREE.Material[]; r: number; g: number; b: number; i: number; key: string | null }>();
+  /** Robots the crowd draws this frame and the last, by root object. */
+  #claimed = new Set<THREE.Object3D>();
+  #next = new Set<THREE.Object3D>();
+  /** Robots at rest (far and still): the parts the crowd draws for each, worked out once; `hidden` when the robot's
+      own objects are out of the render walk altogether (every part is in a batch). */
+  #resting = new Map<THREE.Object3D, { parts: { key: string; mesh: THREE.Mesh }[]; hidden: boolean }>();
+
+  constructor() {
+    this.group.name = "robot-crowd";
+    this.group.matrixAutoUpdate = false;
+  }
+
+  begin() {
+    for (const batch of this.#batches.values()) batch.count = 0;
+  }
+
+  /**
+   * A far robot: drawn by the crowd. `seen` false (its building is off screen) skips the per-frame copy. `resting`
+   * (it neither moves nor changes until the caller says otherwise) draws it from what the first resting frame found,
+   * and takes its own objects out of the renderer's walk when the crowd draws every part of it.
+   */
+  add(robot: THREE.Object3D, seen: boolean, resting = false) {
+    this.#next.add(robot);
+    const parts = this.#partsOf(robot);
+    const fresh = !this.#claimed.has(robot);
+    let rest = this.#resting.get(robot);
+    if (rest && (!resting || !seen)) {
+      this.#wake(robot);
+      rest = undefined;
+    }
+    if (rest) {
+      for (const { key, mesh } of rest.parts) {
+        const batch = this.#batch(key, mesh);
+        batch.mesh.setMatrixAt(batch.count, mesh.matrixWorld);
+        if (batch.tinted) batch.mesh.setColorAt(batch.count, (mesh.material as THREE.MeshStandardMaterial).color);
+        batch.count++;
+      }
+      return;
+    }
+    if (!seen) {
+      // Off screen: hide what the crowd would draw, so the robot costs nothing until it is seen again.
+      if (fresh) for (const mesh of parts) if (this.#key(mesh)) mesh.layers.set(HIDDEN);
+      return;
+    }
+    // The robot's world matrices are current: TownScene's matrix pass (matrixPass.ts) runs just before the crowd.
+    const drawn: { key: string; mesh: THREE.Mesh }[] | null = resting ? [] : null;
+    let own = false;
+    for (const mesh of parts) {
+      const visible = shown(mesh, robot);
+      const key = visible ? this.#key(mesh) : null;
+      if (!key) {
+        // A part the crowd cannot batch (or a hidden one) draws, or hides, as the robot says.
+        mesh.layers.set(0);
+        if (visible) own = true;
+        continue;
+      }
+      mesh.layers.set(HIDDEN);
+      const batch = this.#batch(key, mesh);
+      batch.mesh.setMatrixAt(batch.count, mesh.matrixWorld);
+      if (batch.tinted) batch.mesh.setColorAt(batch.count, (mesh.material as THREE.MeshStandardMaterial).color);
+      batch.count++;
+      drawn?.push({ key, mesh });
+    }
+    if (drawn && robot.visible) {
+      // Nothing of its own left to draw (no translucent proxy, no halo): the renderer need not walk it.
+      this.#resting.set(robot, { parts: drawn, hidden: !own });
+      if (!own) robot.visible = false;
+    }
+  }
+
+  #wake(robot: THREE.Object3D) {
+    const rest = this.#resting.get(robot);
+    if (!rest) return;
+    this.#resting.delete(robot);
+    if (rest.hidden) robot.visible = true;
+  }
+
+  /** Uploads the frame's instances and gives robots that are near again their own meshes back. */
+  end() {
+    for (const robot of this.#claimed) if (!this.#next.has(robot)) this.#release(robot);
+    [this.#claimed, this.#next] = [this.#next, this.#claimed];
+    this.#next.clear();
+    for (const batch of this.#batches.values()) {
+      const mesh = batch.mesh;
+      mesh.count = batch.count;
+      mesh.visible = batch.count > 0;
+      if (!batch.count) continue;
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    }
+  }
+
+  #release(robot: THREE.Object3D) {
+    this.#wake(robot);
+    for (const mesh of this.#partsOf(robot)) mesh.layers.set(0);
+  }
+
+  #partsOf(robot: THREE.Object3D): THREE.Mesh[] {
+    let parts = this.#parts.get(robot);
+    if (!parts) {
+      parts = [];
+      robot.traverse((o) => {
+        if (o instanceof THREE.Mesh && !(o instanceof THREE.InstancedMesh)) parts!.push(o);
+      });
+      this.#parts.set(robot, parts);
+    }
+    return parts;
+  }
+
+  /**
+   * The batch a part goes into, or null when it cannot be batched. A plain opaque standard material batches by its
+   * look without the colour (the colour rides each instance); a style's ground decal (`userData.decal`, whose shader
+   * reads the instance matrix) batches by its own material. Anything else draws on its own.
+   */
+  #key(mesh: THREE.Mesh): string | null {
+    const material = mesh.material;
+    const cached = this.#keys.get(mesh);
+    const e = (material as THREE.MeshStandardMaterial).emissive,
+      i = (material as THREE.MeshStandardMaterial).emissiveIntensity ?? 0;
+    const r = e?.r ?? 0,
+      g = e?.g ?? 0,
+      b = e?.b ?? 0;
+    if (cached && cached.material === material && cached.r === r && cached.g === g && cached.b === b && cached.i === i) return cached.key;
+    const key = this.#makeKey(mesh);
+    this.#keys.set(mesh, { material, r, g, b, i, key });
+    return key;
+  }
+
+  #makeKey(mesh: THREE.Mesh): string | null {
+    const material = mesh.material;
+    if (Array.isArray(material)) return null;
+    if (mesh.userData.decal) return `${mesh.geometry.uuid}|${material.uuid}`;
+    if (!(material instanceof THREE.MeshStandardMaterial) || material.type !== "MeshStandardMaterial") return null;
+    // A shader hook that only changes the lighting (the style names it in `userData.lightHook`) batches; any other
+    // hook (a pattern) draws on its own.
+    const hook = material.onBeforeCompile;
+    if (material.transparent || material.map || (hook !== THREE.Material.prototype.onBeforeCompile && hook !== material.userData.lightHook)) return null;
+    return `${mesh.geometry.uuid}|${material.roughness}|${material.metalness}|${material.emissive.getHexString()}|${material.emissiveIntensity}|${material.side}`;
+  }
+
+  #batch(key: string, mesh: THREE.Mesh): Batch {
+    let batch = this.#batches.get(key);
+    if (batch && batch.count < batch.mesh.instanceMatrix.count) return batch;
+    const capacity = batch ? batch.mesh.instanceMatrix.count * 2 : 16;
+    const source = mesh.material as THREE.Material;
+    const tinted = !mesh.userData.decal;
+    let material = batch?.mesh.material as THREE.Material | undefined;
+    if (!material) {
+      if (tinted) {
+        // White, so the instance colour is the part's colour.
+        const white = (source as THREE.MeshStandardMaterial).clone();
+        white.color.copy(WHITE);
+        white.onBeforeCompile = source.onBeforeCompile;
+        material = white;
+      } else material = instancedMaterial(source); // the decal's twin: the near robots draw the source itself
+    }
+    const instanced = new THREE.InstancedMesh(mesh.geometry, material, capacity);
+    instanced.frustumCulled = false;
+    instanced.castShadow = false;
+    instanced.receiveShadow = mesh.receiveShadow;
+    instanced.renderOrder = mesh.renderOrder;
+    instanced.matrixAutoUpdate = false;
+    instanced.count = 0;
+    if (batch) {
+      // Keep what this frame copied so far.
+      instanced.instanceMatrix.array.set(batch.mesh.instanceMatrix.array);
+      if (batch.mesh.instanceColor) {
+        instanced.setColorAt(0, WHITE);
+        instanced.instanceColor!.array.set(batch.mesh.instanceColor.array);
+      }
+      batch.mesh.removeFromParent();
+      batch.mesh.dispose();
+    }
+    batch = { mesh: instanced, tinted, count: batch?.count ?? 0 };
+    this.#batches.set(key, batch);
+    this.group.add(instanced);
+    return batch;
+  }
+
+  dispose() {
+    for (const robot of [...this.#resting.keys()]) this.#wake(robot);
+    for (const robot of this.#claimed) this.#release(robot);
+    this.#claimed.clear();
+    for (const batch of this.#batches.values()) {
+      batch.mesh.dispose();
+      if (batch.tinted) (batch.mesh.material as THREE.Material).dispose();
+    }
+    this.#batches.clear();
+    this.group.removeFromParent();
+  }
+}

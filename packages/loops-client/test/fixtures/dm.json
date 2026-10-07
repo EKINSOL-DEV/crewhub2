@@ -1,0 +1,24 @@
+{
+  "threads": { "threads": [{ "id": "dt_1", "agentId": "cl-lead", "createdAt": "2026-09-30T08:00:00Z", "lastMessageAt": "2026-09-30T21:00:00Z", "unreadCount": 1 }] },
+  "messages": {
+    "nextCursor": null,
+    "messages": [
+      {
+        "id": "dm_1",
+        "threadId": "dt_1",
+        "author": { "id": "nicky", "kind": "user", "displayName": "Nicky" },
+        "body": { "v": 1, "doc": { "type": "doc", "content": [] } },
+        "bodyMarkdown": "How far is CL-85?",
+        "bodyText": "How far is CL-85?",
+        "replyTo": null,
+        "clientId": "c_1",
+        "createdAt": "2026-09-30T21:00:00Z",
+        "deliveryId": "dl_1",
+        "deliveryState": "forwarded",
+        "deliveryError": null,
+        "answeredAt": null,
+        "state": "delivered"
+      }
+    ]
+  }
+}

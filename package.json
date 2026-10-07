@@ -9,9 +9,17 @@
     "npm": ">=11 <12"
   },
   "workspaces": [
+    "apps/host",
     "apps/world",
-    "packages/protocol",
-    "packages/world-engine"
+    "packages/cast-*",
+    "packages/demo",
+    "packages/loops-client",
+    "packages/loops-fake",
+    "packages/style-greenhouse",
+    "packages/world-cast",
+    "packages/world-engine",
+    "packages/world-model",
+    "packages/world-style"
   ],
   "scripts": {
     "dev": "npm run dev --workspace @crewhub/world",
@@ -20,14 +28,20 @@
     "typecheck": "tsc --noEmit",
     "check:docs": "node scripts/check-docs.mjs",
     "check:design": "node scripts/check-design-system.mjs",
-    "check": "npm run typecheck && npm test && npm run check:docs && npm run check:design && npm run build",
-    "test": "node --test packages/world-engine/test/*.test.ts"
+    "check:copy": "node scripts/check-bubbles-copy.ts",
+    "check": "npm run typecheck && npm test && npm run check:docs && npm run check:design && npm run check:copy && npm run build",
+    "test": "node --test packages/*/test/*.test.ts apps/world/test/*.test.ts apps/host/test/*.test.ts scripts/test/*.test.ts",
+    "prop:validate": "node scripts/prop-validate.ts",
+    "host": "node apps/host/src/main.ts",
+    "host:start": "npm run build && NODE_ENV=production node apps/host/src/main.ts",
+    "loops:fake": "node packages/loops-fake/src/main.ts"
   },
   "devDependencies": {
     "@types/node": "22.20.1",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.5",
     "@types/three": "0.186.0",
+    "playwright-core": "^1.62.1",
     "typescript": "6.0.3"
   }
 }

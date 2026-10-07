@@ -1,0 +1,256 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "user:garden-parasol",
+  "name": "Garden parasol table",
+  "description": "A small round timber table with a brass pole carrying a sage and cream striped parasol.",
+  "category": "gather",
+  "tags": [
+    "parasol",
+    "garden",
+    "table",
+    "outdoor"
+  ],
+  "footprint": {
+    "width": 1,
+    "depth": 1
+  },
+  "blocksMovement": true,
+  "approaches": [
+    {
+      "x": 0,
+      "z": 1
+    }
+  ],
+  "parts": [
+    {
+      "shape": "cylinder",
+      "size": [
+        0.2,
+        0.03,
+        0.22
+      ],
+      "position": [
+        0,
+        0.015,
+        0
+      ],
+      "material": "moss"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.035,
+        0.38,
+        0.035
+      ],
+      "position": [
+        0,
+        0.21,
+        0
+      ],
+      "material": "timber"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.27,
+        0.035,
+        0.27
+      ],
+      "position": [
+        0,
+        0.4125,
+        0
+      ],
+      "material": "timber-light"
+    },
+    {
+      "shape": "cylinder",
+      "size": [
+        0.015,
+        0.88,
+        0.015
+      ],
+      "position": [
+        0,
+        0.86,
+        0
+      ],
+      "material": "brass"
+    },
+    {
+      "shape": "wedge",
+      "size": [
+        0,
+        0.2,
+        0.4
+      ],
+      "position": [
+        0,
+        1.22,
+        0
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "material": "sage",
+      "sweep": 45
+    },
+    {
+      "shape": "wedge",
+      "size": [
+        0,
+        0.2,
+        0.4
+      ],
+      "position": [
+        0,
+        1.22,
+        0
+      ],
+      "rotation": [
+        0,
+        45,
+        0
+      ],
+      "material": "cream",
+      "sweep": 45
+    },
+    {
+      "shape": "wedge",
+      "size": [
+        0,
+        0.2,
+        0.4
+      ],
+      "position": [
+        0,
+        1.22,
+        0
+      ],
+      "rotation": [
+        0,
+        90,
+        0
+      ],
+      "material": "sage",
+      "sweep": 45
+    },
+    {
+      "shape": "wedge",
+      "size": [
+        0,
+        0.2,
+        0.4
+      ],
+      "position": [
+        0,
+        1.22,
+        0
+      ],
+      "rotation": [
+        0,
+        135,
+        0
+      ],
+      "material": "cream",
+      "sweep": 45
+    },
+    {
+      "shape": "wedge",
+      "size": [
+        0,
+        0.2,
+        0.4
+      ],
+      "position": [
+        0,
+        1.22,
+        0
+      ],
+      "rotation": [
+        0,
+        180,
+        0
+      ],
+      "material": "sage",
+      "sweep": 45
+    },
+    {
+      "shape": "wedge",
+      "size": [
+        0,
+        0.2,
+        0.4
+      ],
+      "position": [
+        0,
+        1.22,
+        0
+      ],
+      "rotation": [
+        0,
+        225,
+        0
+      ],
+      "material": "cream",
+      "sweep": 45
+    },
+    {
+      "shape": "wedge",
+      "size": [
+        0,
+        0.2,
+        0.4
+      ],
+      "position": [
+        0,
+        1.22,
+        0
+      ],
+      "rotation": [
+        0,
+        270,
+        0
+      ],
+      "material": "sage",
+      "sweep": 45
+    },
+    {
+      "shape": "wedge",
+      "size": [
+        0,
+        0.2,
+        0.4
+      ],
+      "position": [
+        0,
+        1.22,
+        0
+      ],
+      "rotation": [
+        0,
+        315,
+        0
+      ],
+      "material": "cream",
+      "sweep": 45
+    },
+    {
+      "shape": "sphere",
+      "size": [
+        0.025,
+        0.025,
+        0.025
+      ],
+      "position": [
+        0,
+        1.335,
+        0
+      ],
+      "material": "brass"
+    }
+  ]
+}

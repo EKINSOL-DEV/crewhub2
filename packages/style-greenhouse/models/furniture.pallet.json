@@ -1,0 +1,108 @@
+{
+  "format": "crewhub-prop/1",
+  "id": "builtin:greenhouse-furniture-pallet",
+  "name": "Dispatch pallet",
+  "description": "An empty timber pallet on the Dispatch floor.",
+  "category": "storage",
+  "tags": [
+    "greenhouse"
+  ],
+  "footprint": {
+    "width": 2,
+    "depth": 2
+  },
+  "blocksMovement": true,
+  "approaches": [],
+  "parts": [
+    {
+      "shape": "box",
+      "size": [
+        1.1,
+        0.07,
+        1.1
+      ],
+      "position": [
+        0,
+        0.035,
+        0
+      ],
+      "material": "timber",
+      "radius": 0.01
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.1,
+        0.035,
+        0.18
+      ],
+      "position": [
+        0,
+        0.087,
+        -0.45
+      ],
+      "material": "timber-light",
+      "radius": 0.005
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.1,
+        0.035,
+        0.18
+      ],
+      "position": [
+        0,
+        0.087,
+        -0.225
+      ],
+      "material": "timber-light",
+      "radius": 0.005
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.1,
+        0.035,
+        0.18
+      ],
+      "position": [
+        0,
+        0.087,
+        0.0
+      ],
+      "material": "timber-light",
+      "radius": 0.005
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.1,
+        0.035,
+        0.18
+      ],
+      "position": [
+        0,
+        0.087,
+        0.225
+      ],
+      "material": "timber-light",
+      "radius": 0.005
+    },
+    {
+      "shape": "box",
+      "size": [
+        1.1,
+        0.035,
+        0.18
+      ],
+      "position": [
+        0,
+        0.087,
+        0.45
+      ],
+      "material": "timber-light",
+      "radius": 0.005
+    }
+  ]
+}

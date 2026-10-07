@@ -10,11 +10,7 @@ const HEX_RE = /#[0-9a-fA-F]{3,8}\b/;
 const HEX_ALLOWED = new Set([
   // The palette itself.
   "apps/world/src/styles/tokens.css",
-  // Robot and material colours of the Three.js scene, not UI palette (the scene is out of scope of the design system).
-  "apps/world/src/world/Scene.ts",
-  "apps/world/src/world/models.ts",
-  "apps/world/src/world/shaders.ts",
-  "apps/world/src/world/data.ts",
+  // A world style keeps its colours in its manifest (style.json, not scanned) or in a palette module named here.
 ]);
 
 async function* walk(dir) {
@@ -27,6 +23,11 @@ async function* walk(dir) {
 
 const files = [path.join(root, "apps/world/index.html")];
 for await (const file of walk(path.join(root, "apps/world/src"))) files.push(file);
+// World styles and casts: their code draws by palette and colour names; hex lives only in their data (style.json,
+// cast.json).
+for (const entry of await readdir(path.join(root, "packages"), { withFileTypes: true }))
+  if (entry.isDirectory() && (entry.name.startsWith("style-") || entry.name.startsWith("cast-") || entry.name === "world-cast"))
+    for await (const file of walk(path.join(root, "packages", entry.name, "src"))) files.push(file);
 let scanned = 0;
 for (const file of files) {
   const rel = path.relative(root, file).split(path.sep).join("/");
