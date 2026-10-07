@@ -886,7 +886,7 @@ install changes only a URL and a key file. The runbook is [LOOPS_SETUP.md](LOOPS
   `/world-api/health`, an allow-list of loops `GET` paths in one file, Host and Origin checked against loopback,
   reconnect with backoff, the static bundle in production. `npm run host`, `npm run host:start`.
 - **The live source**, `createHostSource` in `packages/loops-client`: `WorldSource` with `mode: "live"`,
-  snapshot then events by `seq`, a reset or a gap re-snapshots, `connection` for the chip, `probeHost`.
+  snapshot then events by `seq`, a reset re-snapshots (a gap in `seq` is normal: loops filters per key), `connection` for the chip, `probeHost`.
   The validators accept an unknown `kind`, `status` or event `type` with one warning. Fixtures checked
   against `053b5f47` (a `grill` ticket, a `PendingRequest`).
 - **The fake**, `packages/loops-fake`: an in-process crewhub-loops with the real routes, bearer auth, `seq`,
