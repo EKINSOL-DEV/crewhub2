@@ -193,12 +193,13 @@ curl http://127.0.0.1:5180/world-api/health
 ```
 
 ```json
-{"loops":"ok","keyName":"crewhub-world","sharedKey":false,"loopsCommit":"...","cursor":1234}
+{"loops":"ok","keyName":"crewhub-world","sharedKey":false,"loopsCommit":"...","cursor":1234,"loopsWebUrl":"http://127.0.0.1:8091"}
 ```
 
 `loops` is `ok`, `down` or `unauthorized` (a loops 401 or 403); `keyName` is the key file's agent name; `sharedKey`
 is `true` when the builder key is the fallback; `loopsCommit` is loops' own version from its health read; `cursor`
-is the last `seq` the host holds. The key itself is never in the answer. A request with a foreign Host header gets
+is the last `seq` the host holds; `loopsWebUrl` is the origin of the loops URL, where the chat dock's sign-in link
+points (on the Mac the web app and the API share 8091). The key itself is never in the answer. A request with a foreign Host header gets
 421 and one with a foreign Origin 403: the guard against other sites and DNS rebinding, not pairing.
 
 ## 5. The chip says X, do Y
