@@ -27,7 +27,7 @@ import { type ProjectGroupSeed, DEMO_BASE_CURSOR, DEMO_SEQ_STRIDE } from "./cont
 import { type DemoScenario, type ScenarioId, DEFAULT_SCENARIO, demoScenario } from "./scenarios.ts";
 import { type ScriptEntry, DEMO_SEED, DM_ENTRY_STRIDE, buildDmExchange, buildPropRequest, buildStory } from "./script.ts";
 import type { Scheduler } from "./scheduler.ts";
-import { type AgentSummary, type DemoState, DEMO_PERSON, DemoReads, initialState } from "./store.ts";
+import { type AgentSummary, type DemoState, type PendingRequest, DEMO_PERSON, DemoReads, initialState } from "./store.ts";
 import { DEMO_EPOCH_MS, SECOND, iso } from "./time.ts";
 
 const HEARTBEAT_MS = 15 * SECOND;
@@ -80,6 +80,8 @@ export interface DemoSource extends WorldSource {
   getDmMessages(agentId: string): Promise<DmMessage[]>;
   /** `GET /api/deliveries` as the router or an admin sees it. */
   getDeliveries(): Promise<DeliveryOut[]>;
+  /** `GET /api/delegations/pending` as the owner sees it: the requests that wait for a click (only the fake serves it). */
+  getPendingDelegations(): Promise<PendingRequest[]>;
   /** `GET /api/agents`. */
   getAgents(): Promise<AgentOut[]>;
   /** `GET /api/projects/{slug}/features`: which optional parts the project has on; null for an unknown project. */
@@ -277,6 +279,7 @@ export function createDemoSource(options: DemoSourceOptions): DemoSource {
     getDmThreads: () => answer(current().dmThreads()),
     getDmMessages: (agentId) => answer(current().dmMessages(agentId)),
     getDeliveries: () => answer(current().deliveries()),
+    getPendingDelegations: () => answer(current().pendingDelegations()),
     getAgents: () => answer(current().agents()),
     getProjectFeatures: (slug) => answer(current().features(slug)),
     act(action) {
