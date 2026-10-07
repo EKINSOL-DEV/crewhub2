@@ -129,14 +129,18 @@ on a fresh install (the world's allow-list never had them). The tables `action_t
 dropped (migration 055); `agent_actions` is frozen. New write routes the world never calls: the lead start requests
 (`/api/agents/{name}/start-request`, `/api/hosts/{host_id}/lead-starts…`), the key routes
 (`/api/agents/{name}/keys`, `…/revoke`), `PUT /api/agents/{name}/lane`, the grill writes. A grill's questions and
-answers are ordinary comments made through the comment service (`create_comment_in_tx`, which emits
-`comment.created`), so the world's comment refetch covers them; `?hideGrill=true` leaves them out of a thread. The
+answers are ordinary comments; `?hideGrill=true` leaves them out of a thread and of the comment count. cl-builder
+did not trace whether they emit `comment.created`; read here: `loops:.../domain/grill.py` makes them through
+`comments.create_comment_in_tx`, which emits `comment.created`, so the world's comment refetch covers them. The
 first admin is made with a one-time setup code from `crewhub-setup-token` in the api container; a Mac installer,
 `scripts/install-mac.sh`, is in review (PR #550). Another agent is made by an admin with `POST /api/agents` or by
 the seed. Every test but one in-memory walk of the GET routes was removed on 2026-10-06 ("a fresh start",
 `a643fdb2`); `docs/integrators/README.md` still says "Tests pin what can be pinned". The builder confirms: no viewer
-role, no read-only scope, no CORS header anywhere (code and `infra/nginx.conf`), and no table, column, route,
-contract or plan for a level above projects (L22) in the repository.
+role, no read-only scope, and **CORS is still absent**: no `Access-Control-*` header anywhere in the code or in
+`infra/nginx.conf`; `CHL_ALLOWED_ORIGINS` is the Origin guard only, so a page on another origin gets 403. The
+host relay is therefore the only road for the world's data, and the phase 2 chat still needs L8. No table, column,
+route, contract or plan for a level above projects (L22) in the repository. The stale lines in
+`docs/integrators/` that cl-builder listed are the body of L23 in section 6.2, the item for `cl-lead`.
 
 **`/api/lane-creates` in `read-model.md`.** The doc's table of routes "not for integrators" (its line 125 at
 `053b5f47`) still lists `/api/lane-creates`, `/api/lane-creates/{action_id}`, `/api/agent-actions/launchable`,
