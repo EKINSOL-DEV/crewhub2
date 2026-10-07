@@ -1,20 +1,21 @@
 import { fileURLToPath } from "node:url";
-import { defineConfig } from "vite";
+import { defineConfig, type ProxyOptions } from "vite";
 import react from "@vitejs/plugin-react";
 
 /** The host's port: CREWHUB_WORLD_PORT, default 5180 (the host's own default). */
-function worldApiProxy() {
+function worldApiProxy(): ProxyOptions {
   const port = Number(process.env["CREWHUB_WORLD_PORT"] ?? 5180);
   return {
     target: `http://127.0.0.1:${port}`,
     changeOrigin: true,
-    // Proxy errors (no host) are answered as 204 with no body: the probe reads an empty answer as "no host", and the
-    // browser logs nothing (a 502 would be a console error on every start without a host).
-    configure(proxy: { on(event: "error", handler: (err: Error, req: unknown, res: { headersSent?: boolean; writeHead(status: number): void; end(): void } | undefined) => void): void; on(event: "proxyReq", handler: (proxyReq: { setHeader(name: string, value: string): void }) => void): void }) {
+    configure(proxy) {
+      // Proxy errors (no host) are answered as 204 with no body: the probe reads an empty answer as "no host", and the
+      // browser logs nothing (a 502 would be a console error on every start without a host).
       proxy.on("error", (_err, _req, res) => {
-        if (res && !res.headersSent && typeof res.writeHead === "function") {
-          res.writeHead(204, { "x-world-host": "unreachable" });
-          res.end();
+        const out = res as { headersSent?: boolean; writeHead?: (status: number, headers: Record<string, string>) => void; end?: () => void };
+        if (out && !out.headersSent && typeof out.writeHead === "function") {
+          out.writeHead(204, { "x-world-host": "unreachable" });
+          out.end?.();
         }
       });
       // The stream must not be compressed or buffered on its way through: ask the host for plain bytes.
