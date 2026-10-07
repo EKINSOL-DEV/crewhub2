@@ -1,8 +1,9 @@
 /**
  * crewhub-loops wire types, transcribed from `docs/integrators/read-model.md` "Schemas" and
  * `docs/integrators/events.md` (loops commit a1bed0f), and checked against the loops code at
- * f55d1288 where the documents and the code differ (docs/LOOPS_GAP_ANALYSIS.md, D1 to D3 and D5):
- * the agents answer, `RichBody.v`, `labelsCleared` and a ticket's `resolution`. `?` keys are optional
+ * 053b5f47 where the documents and the code differ (docs/LOOPS_GAP_ANALYSIS.md, D1 to D3 and D5):
+ * the agents answer, `RichBody.v`, `labelsCleared`, a ticket's `resolution` and the `grill` kind
+ * (CL-245, `contracts/common.py`, which the documents do not print yet). `?` keys are optional
  * properties; `| null` stays. Only the models CrewHub World reads are here. Bodies the world never
  * reads are `unknown`.
  */
@@ -10,7 +11,8 @@
 export const TICKET_STATUSES = ["backlog", "planned", "in_progress", "review", "done"] as const;
 export type TicketStatus = (typeof TICKET_STATUSES)[number];
 
-export const TICKET_KINDS = ["task", "feature", "bug", "question"] as const;
+/** `contracts/common.py` `Kind`; `grill` is CL-245 (a list of questions with an answer each). */
+export const TICKET_KINDS = ["task", "feature", "bug", "question", "grill"] as const;
 export type TicketKind = (typeof TICKET_KINDS)[number];
 
 export const TICKET_PRIORITIES = ["urgent", "high", "normal", "low"] as const;
@@ -569,6 +571,29 @@ export interface PrincipalOut {
 
 export interface PrincipalsResponse {
   principals: PrincipalOut[];
+}
+
+/**
+ * `GET /api/delegations/pending` (CL-240, `contracts/delegations.py`): one of the owner's bound requests that waits
+ * for the owner's click (the cards of the chat). Owner only; read-only here, and the world does not read it yet.
+ */
+export interface PendingRequest {
+  id: string;
+  /** The owner's message the request is bound to: the card sits next to it. */
+  messageId: string;
+  /** The lead that asks. */
+  agent: string;
+  agentName: string;
+  /** `agents.create`, `restart`, ...: the card says it in plain words. */
+  action: string;
+  target: string;
+  expiresAt: string;
+  /** A short excerpt of the owner's own message. */
+  text: string;
+}
+
+export interface PendingRequestsResponse {
+  requests: PendingRequest[];
 }
 
 // Events (events.md)

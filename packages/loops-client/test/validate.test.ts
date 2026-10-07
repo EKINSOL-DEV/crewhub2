@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
+  resetWarnings,
   toWorldEvent,
   validateAgents,
   validateBoardResponse,
@@ -10,6 +11,7 @@ import {
   validateDmThreadsResponse,
   validateEnvelope,
   validateMilestonesResponse,
+  validatePendingRequests,
   validateProgressResponse,
   validateProjectGroupsResponse,
   validateProjectOut,
@@ -101,14 +103,70 @@ test("a project missing its lead is rejected with the path", () => {
   assert.equal(failure(validateProjectsResponse({ projects: [project] })).path, "$.projects[0].lead");
 });
 
-test("a card with an unknown ticket status is rejected", () => {
+/** Captures console.warn for one test. */
+function capturingWarnings(run: () => void): string[] {
+  const lines: string[] = [];
+  const original = console.warn;
+  console.warn = (...args: unknown[]) => lines.push(args.map(String).join(" "));
+  resetWarnings();
+  try {
+    run();
+  } finally {
+    console.warn = original;
+    resetWarnings();
+  }
+  return lines;
+}
+
+test("a card with an unknown ticket status warns once and passes through (loops readiness)", () => {
   const board = fixture("board.json");
   const columns = board.columns as { status: string; tickets: Record<string, unknown>[] }[];
   const card = { ...columns[2]!.tickets[0], status: "doing" };
-  const bad = { columns: [{ status: "in_progress", tickets: [card] }] };
-  const error = failure(validateBoardResponse(bad));
-  assert.equal(error.path, "$.columns[0].tickets[0].status");
-  assert.match(error.message, /one of backlog/);
+  const input = { columns: [{ status: "in_progress", tickets: [card, { ...card, id: "tk_2", key: "CL-2" }] }] };
+  const warnings = capturingWarnings(() => {
+    const out = value(validateBoardResponse(input));
+    assert.equal(out.columns[0]?.tickets[0]?.status, "doing");
+    assert.equal(out.columns[0]?.tickets.length, 2);
+    value(validateBoardResponse(input));
+  });
+  assert.equal(warnings.length, 1, warnings.join("\n"));
+  assert.match(warnings[0]!, /unknown ticket status "doing"/);
+  assert.equal(failure(validateBoardResponse({ columns: [{ status: 7, tickets: [] }] })).path, "$.columns[0].status");
+});
+
+test("a grill ticket is known (CL-245); an unknown kind warns once and never drops the snapshot", () => {
+  const grill = value(validateTicket(fixture("ticket-grill.json")));
+  assert.equal(grill.kind, "grill");
+  const board = fixture("board.json");
+  const columns = board.columns as { status: string; tickets: Record<string, unknown>[] }[];
+  const card = { ...columns[2]!.tickets[0], kind: "epic" };
+  const warnings = capturingWarnings(() => {
+    assert.equal(value(validateTicket({ ...fixture("ticket.json"), kind: "epic" })).kind, "epic");
+    const out = value(validateBoardResponse({ columns: [{ status: "in_progress", tickets: [card] }] }));
+    assert.equal(out.columns[0]?.tickets[0]?.kind, "epic");
+    const created = value(validateEnvelope({ ...fixture("envelope-ticket-moved.json"), type: "ticket.created", payload: { kind: "epic", status: "backlog", assigneeId: null } }));
+    const typed = value(toWorldEvent(created)!);
+    if (typed.type === "ticket.created") assert.equal(typed.payload.kind, "epic");
+  });
+  assert.equal(warnings.length, 1, warnings.join("\n"));
+  assert.match(warnings[0]!, /unknown ticket kind "epic"/);
+});
+
+test("an event type events.md does not list warns once; a listed one the world skips is quiet", () => {
+  const base = fixture("envelope-ticket-moved.json");
+  const warnings = capturingWarnings(() => {
+    assert.equal(toWorldEvent(value(validateEnvelope({ ...base, type: "label.created" }))), null);
+    assert.equal(toWorldEvent(value(validateEnvelope({ ...base, type: "widget.spun" }))), null);
+    assert.equal(toWorldEvent(value(validateEnvelope({ ...base, type: "widget.spun", seq: 4712 }))), null);
+  });
+  assert.equal(warnings.length, 1, warnings.join("\n"));
+  assert.match(warnings[0]!, /unknown event type "widget.spun"/);
+});
+
+test("GET /api/delegations/pending (CL-240) validates", () => {
+  const out = value(validatePendingRequests(fixture("pending-requests.json")));
+  assert.equal(out.requests[0]?.action, "agents.create");
+  assert.equal(failure(validatePendingRequests({ requests: [{ id: "dg_1" }] })).path, "$.requests[0].messageId");
 });
 
 test("the read-model fixtures follow the schema blocks", () => {
