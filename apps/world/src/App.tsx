@@ -34,7 +34,7 @@ import type { ConnectionState } from "@crewhub/loops-client";
 import { buildingTemplate } from "./world/buildingTemplate";
 import type { Pick } from "./world/buildingView";
 import { firstRoom, roomNeighbor } from "./world/interiorLayout";
-import { roomName, roomSummary } from "./world/roomWords";
+import { roomName, roomSummary, zoomedTo } from "./world/roomWords";
 import { useBuildingPlan } from "./state/buildingPlan";
 import { DirectorLog } from "./components/DirectorLog";
 import { PresenceSettings } from "./components/PresenceSettings";
@@ -339,9 +339,9 @@ function World() {
     (kind: RoomKind, zoom: boolean) => {
       setRoom(kind);
       if (zoom) setZoomed(kind);
-      setAnnouncement(`${zoom ? "Zoomed to the " : ""}${summary(kind)}${zoom ? " Escape goes back to the building." : ""}`);
+      setAnnouncement(zoom ? `${zoomedTo(summary(kind), kind, rooms)} Escape goes back to the building.` : summary(kind));
     },
-    [summary],
+    [summary, rooms],
   );
   const pick = useCallback(
     (target: Pick | null, hover: boolean) => {
