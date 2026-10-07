@@ -1,7 +1,7 @@
 /**
  * HostSource: the live crewhub-loops behind the WorldSource seam, read through the world's own host
- * (`apps/host`, `/world-api`). Snapshot first, then events by `seq` over SSE; a `reset` or a gap in `seq` means
- * `catching-up` and a fresh snapshot; heartbeats keep it `live`; silence makes it `stale`; the host's `status`
+ * (`apps/host`, `/world-api`). Snapshot first, then events by `seq` over SSE; a `reset` (or, when asked, a gap in
+ * `seq`) means `catching-up` and a fresh snapshot; heartbeats keep it `live`; silence makes it `stale`; the host's `status`
  * messages say when loops is down or the key is refused. `now()` is the wall clock; there is no playback.
  *
  * This is the one file in the browser that may fetch (scripts/scan-model-calls.ts, NETWORK_ALLOWLIST): it reads
@@ -92,7 +92,7 @@ export async function probeHost(baseUrl = "", timeoutMs = 1500): Promise<HostHea
 export function createHostSource(options: HostSourceOptions = {}): WorldSource {
   const base = options.baseUrl ?? "";
   const timings: HostSourceTimings = { ...DEFAULT_TIMINGS, ...stripUndefined(options.timings ?? {}) };
-  const resnapshotOnGap = options.resnapshotOnGap ?? true;
+  const resnapshotOnGap = options.resnapshotOnGap ?? false;
 
   const listeners = new Set<(message: SourceMessage) => void>();
   const changeListeners = new Set<() => void>();
