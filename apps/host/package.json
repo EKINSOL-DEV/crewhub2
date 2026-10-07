@@ -1,0 +1,11 @@
+{
+  "name": "@crewhub/host",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The world's relay to crewhub-loops: holds the key, serves /world-api and the built world.",
+  "scripts": {
+    "start": "node src/main.ts",
+    "test": "node --test test/*.test.ts"
+  }
+}

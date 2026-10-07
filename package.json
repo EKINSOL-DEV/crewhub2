@@ -9,6 +9,7 @@
     "npm": ">=11 <12"
   },
   "workspaces": [
+    "apps/host",
     "apps/world",
     "packages/cast-*",
     "packages/demo",
@@ -28,8 +29,10 @@
     "check:design": "node scripts/check-design-system.mjs",
     "check:copy": "node scripts/check-bubbles-copy.ts",
     "check": "npm run typecheck && npm test && npm run check:docs && npm run check:design && npm run check:copy && npm run build",
-    "test": "node --test packages/*/test/*.test.ts apps/world/test/*.test.ts scripts/test/*.test.ts",
-    "prop:validate": "node scripts/prop-validate.ts"
+    "test": "node --test packages/*/test/*.test.ts apps/world/test/*.test.ts apps/host/test/*.test.ts scripts/test/*.test.ts",
+    "prop:validate": "node scripts/prop-validate.ts",
+    "host": "node apps/host/src/main.ts",
+    "host:start": "npm run build && NODE_ENV=production node apps/host/src/main.ts"
   },
   "devDependencies": {
     "@types/node": "22.20.1",
