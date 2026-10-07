@@ -5,6 +5,8 @@ import { CIVIC_WORDS, describeTownDocument, describeWorld, ruleProps, zoningOf, 
 import type { PropModel } from "@crewhub/world-engine";
 import { Bubbles } from "./components/bubbles/Bubbles";
 import { TownSettings } from "./components/TownSettings";
+import { SourceSettings } from "./components/SourceSettings";
+import { ConnectionChip, connectionLine } from "./components/ConnectionChip";
 import { JumpList } from "./components/JumpList";
 import { IconSprite } from "./components/Icon";
 import { Button, Card, Chip, Field, Menu } from "./components/primitives";
@@ -25,7 +27,10 @@ import { useBuildMode } from "./state/build";
 import { useDark, useTheme } from "./state/theme";
 import { townRuntime, useTown } from "./state/town";
 import type { TownLayer } from "./world/propLayer";
-import { scenarioChoices, useWorld, worldRuntime } from "./state/world";
+import { scenarioChoices, useConnection, useWorld, worldRuntime } from "./state/world";
+import { DEFAULT_LOOPS_URL } from "./state/source";
+import { translate } from "./i18n";
+import type { ConnectionState } from "@crewhub/loops-client";
 import { buildingTemplate } from "./world/buildingTemplate";
 import type { Pick } from "./world/buildingView";
 import { firstRoom, roomName, roomNeighbor, roomSummary } from "./world/interiorLayout";
@@ -486,6 +491,7 @@ function World() {
   }, []);
 
   const demo = model.mode === "demo";
+  const connection = useConnection();
   const onGo = useStable(go);
   const trailNames = { home: homeName(districts), district: here?.name ?? null, building: inside?.name ?? null, room: inside && zoomed ? roomName(inside, zoomed) : null };
   const trail = useMemo(
@@ -549,7 +555,7 @@ function World() {
         )}
       </main>
 
-      <Corner demo={demo} graphicsFailed={graphicsFailed} trail={trail} onGo={onGo} onJump={openJump} jumpOpen={jumpOpen} />
+      <Corner demo={demo} connection={connection} graphicsFailed={graphicsFailed} trail={trail} onGo={onGo} onJump={openJump} jumpOpen={jumpOpen} />
 
       {jumpOpen && <JumpList entries={jumps} onJump={jump} onClose={closeJump} />}
 
@@ -564,8 +570,9 @@ function World() {
           />
           <Card.Body>
             <RoleSettings model={model} overrides={overrides} onChange={setOverrides} />
+            <SourceSettings />
             <TownSettings town={town} />
-            <p className="sign-muted">Agent settings live in the crewhub-loops web app; the demo has none.</p>
+            <p className="sign-muted">{translate(demo ? "world.settings.agentsDemo" : "world.settings.agentsLive")}</p>
             <PresenceSettings reducedMotion={reducedMotion} />
           </Card.Body>
         </Card>
@@ -601,11 +608,11 @@ function World() {
 
       {!graphicsFailed && <CameraToolbar camera={camera} />}
 
-      <ChatCorner narrow={narrow} demo={demo} />
+      <ChatCorner narrow={narrow} demo={demo} connection={connection} />
 
       {playback && <PlaybackBar playback={playback} />}
 
-      {(textOpen || graphicsFailed) && <TextView civic={civic} ref={textRegion} lines={textLines} fallback={graphicsFailed} onClose={graphicsFailed ? null : closeText} districts={districts} onGo={graphicsFailed ? null : onGo} />}
+      {(textOpen || graphicsFailed) && <TextView civic={civic} ref={textRegion} lines={textLines} connection={connection} fallback={graphicsFailed} onClose={graphicsFailed ? null : closeText} districts={districts} onGo={graphicsFailed ? null : onGo} />}
     </div>
   );
 }
@@ -694,6 +701,7 @@ const SCENARIO_CHOICES = scenarioChoices();
 
 const Corner = memo(function Corner({
   demo,
+  connection,
   graphicsFailed,
   trail,
   onGo,
@@ -701,6 +709,8 @@ const Corner = memo(function Corner({
   jumpOpen,
 }: {
   demo: boolean;
+  /** The live source's state, where the Demo chip stands in demo mode; null for the demo. */
+  connection: ConnectionState | null;
   graphicsFailed: boolean;
   /** Where you are, outermost first: region or town, district, building, room. */
   trail: Crumb[];
@@ -741,6 +751,7 @@ const Corner = memo(function Corner({
             ]}
           />
         )}
+        {!demo && connection && <ConnectionChip state={connection} />}
       </div>
       {!graphicsFailed && (
         <nav className="world-breadcrumb" aria-label="Where you are" data-levels={trail.length}>
@@ -830,15 +841,23 @@ const CameraToolbar = memo(function CameraToolbar({ camera }: { camera: (type: C
   );
 });
 
-const ChatCorner = memo(function ChatCorner({ narrow, demo }: { narrow: boolean; demo: boolean }) {
+/* In demo mode the copied dock and its "replies are scripted" note; in live mode the plan's sign-in link to the loops web
+   app instead (the world's own chat is phase 2; a session cookie never reaches the world). */
+const ChatCorner = memo(function ChatCorner({ narrow, demo, connection }: { narrow: boolean; demo: boolean; connection: ConnectionState | null }) {
+  if (!demo)
+    return (
+      <div className="world-chat">
+        <Chip className="demo-chat-chip chat-sign-in" href={DEFAULT_LOOPS_URL} title={translate("world.chat.signInHint")} data-connection={connection ?? undefined} icon={<MessageCircle className="icon" aria-hidden="true" />}>
+          {translate("world.chat.signIn")}
+        </Chip>
+      </div>
+    );
   return (
     <div className="world-chat">
       <Bubbles narrow={narrow} />
-      {demo && (
-        <Chip className="demo-chat-chip" icon={<MessageCircle className="icon" aria-hidden="true" />}>
-          Demo: replies are scripted
-        </Chip>
-      )}
+      <Chip className="demo-chat-chip" icon={<MessageCircle className="icon" aria-hidden="true" />}>
+        Demo: replies are scripted
+      </Chip>
     </div>
   );
 });
@@ -897,7 +916,7 @@ function PlaybackPosition({ playback }: { playback: PlaybackControls }) {
 
 const KIND_WORD: Record<TextLine["kind"], string> = { fact: "fact", inference: "inference", cosmetic: "cosmetic", demo: "demo" };
 
-function TextView({ lines, civic, fallback, onClose, districts, onGo, ref }: { lines: TextLine[]; civic: CivicWords; fallback: boolean; onClose: (() => void) | null; districts: DistrictPlace[]; onGo: ((place: Place) => void) | null; ref: Ref<HTMLElement> }) {
+function TextView({ lines, civic, connection, fallback, onClose, districts, onGo, ref }: { lines: TextLine[]; civic: CivicWords; connection: ConnectionState | null; fallback: boolean; onClose: (() => void) | null; districts: DistrictPlace[]; onGo: ((place: Place) => void) | null; ref: Ref<HTMLElement> }) {
   const sections = new Map<string, TextLine[]>();
   for (const line of lines) sections.set(line.section, [...(sections.get(line.section) ?? []), line]);
   // The town first, then every building's sections under its district, then the rest (casts, zones, the town document).
@@ -934,6 +953,11 @@ function TextView({ lines, civic, fallback, onClose, districts, onGo, ref }: { l
       />
       <Card.Body>
         {fallback && <p className="text-note">3D graphics are not available here, so the world is shown as text.</p>}
+        {connection && (
+          <p className="text-note text-connection" role="status" data-connection={connection}>
+            {connectionLine(connection)}
+          </p>
+        )}
         <WhereForm civic={civic} />
         {before.map((section) => block(section, 3))}
         {districts.map((d) => {

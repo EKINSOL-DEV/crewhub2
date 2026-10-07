@@ -50,3 +50,5 @@ export {
   validateTicketSummary,
   validateWatchdogResponse,
 } from "./validate.ts";
+export { createHostSource, probeHost } from "./hostSource.ts";
+export type { HostHealth } from "./hostSource.ts";
