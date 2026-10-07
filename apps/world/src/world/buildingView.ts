@@ -1203,6 +1203,17 @@ export class BuildingView {
     if (robot) ring.position.copy(robot.handle.object.position).add(this.#lift(robot)).y += 0.01;
   }
 
+  /**
+   * The figure of one agent, for the follow camera and the card's portrait: its handle, its standing height in world
+   * units and where it stands (world units, at its feet), or null when it has no figure here.
+   */
+  figureOf(key: string): { handle: FigureHandle; height: number; at: THREE.Vector3 } | null {
+    const robot = this.#robots.get(key);
+    if (!robot) return null;
+    const at = robot.handle.object.getWorldPosition(new THREE.Vector3()).add(this.#lift(robot));
+    return { handle: robot.handle, height: robot.handle.anchors.height * robot.handle.body.scale.y * ROBOT_SCALE, at };
+  }
+
   /** A figure of this building as the labels see it, in world units: from its label anchor down to its feet, and its ground radius. */
   get figureBox(): { height: number; half: number } | null {
     for (const robot of this.#robots.values()) {

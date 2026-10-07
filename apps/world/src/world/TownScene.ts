@@ -168,7 +168,21 @@ interface Callbacks {
   ready?: () => void;
   /** Walk mode: the visitor walked through a front door, into this building (its slug) or out to the town (null). */
   walkPlace?: (slug: string | null) => void;
+  /**
+   * The followed figure walked somewhere else: into the town (null) or into a building (its slug). The app sets the
+   * level to match; the camera already follows.
+   */
+  followed?: (building: string | null) => void;
+  /** Following ended by itself: the figure left the world, or the person dragged the camera. */
+  followStopped?: () => void;
 }
+
+/** The frustum height (world units) the follow camera settles on: about a building, the figure well in view. */
+const FOLLOW_SPAN = 15;
+/** Past a building's bounds by this much the followed figure is in the town (hysteresis against the door). */
+const FOLLOW_MARGIN = 1.6;
+/** The portrait's square on the drawing buffer, in device pixels. */
+const PORTRAIT_PX = 160;
 
 /** While the town is first laid out, one task builds buildings for about this long, then yields (no long task). */
 const LAYOUT_SLICE_MS = 30;
@@ -397,6 +411,12 @@ export class TownScene {
   #floorHit = new THREE.Vector3();
   #buildCell = "";
   #dragging = false;
+  /** The agent the camera follows (TownScene.follow), the level last asked of the app, and the zoom it settles on. */
+  #following: string | null = null;
+  #followAsked: string | null | undefined = undefined;
+  #followZoom: number | null = null;
+  #portraitCamera: THREE.OrthographicCamera | null = null;
+  #size = new THREE.Vector2();
   #stopIntents: () => void;
   /** Walk mode (visitor.ts): the visitor, its figure and the follow camera; null outside the mode. */
   #walk: {
@@ -794,7 +814,7 @@ export class TownScene {
       this.#continueLayout();
       return;
     }
-    this.walks.update(model, { entered: this.view.entered, reducedMotion: this.view.reducedMotion, ambient: this.view.ambient, plan, walkways: this.#walkways() });
+    this.walks.update(model, { entered: this.view.entered, following: this.#following, reducedMotion: this.view.reducedMotion, ambient: this.view.ambient, plan, walkways: this.#walkways() });
     const seen = new Set<string>();
     this.#anchors.clear();
     model.buildings.forEach((b) => {
@@ -1024,7 +1044,7 @@ export class TownScene {
     const previous = new Map(this.#labels.map((l) => [l.el, l]));
     this.#labels = [...this.#labelsHost.querySelectorAll<HTMLElement>("[data-anchor]")].map(
       (el) =>
-        previous.get(el) ?? { el, id: "", half: 0, height: 0, stack: false, sign: false, robot: false, picked: false, shown: false, x: Number.NaN, y: Number.NaN, nx: 0, ny: 0, ay: 0, visible: false, far: false, yields: false },
+        previous.get(el) ?? { el, id: "", half: 0, height: 0, stack: false, sign: false, robot: false, picked: false, card: false, shown: false, x: Number.NaN, y: Number.NaN, nx: 0, ny: 0, ay: 0, visible: false, far: false, yields: false },
     );
     for (const l of this.#labels) {
       l.id = l.el.dataset.anchor ?? "";
@@ -1035,6 +1055,7 @@ export class TownScene {
       l.sign = l.id.startsWith("r:");
       l.robot = l.id.startsWith("a:");
       l.picked = l.el.classList.contains("picked");
+      l.card = l.id.startsWith("card:");
       l.x = Number.NaN;
     }
     this.invalidate();
@@ -1075,17 +1096,21 @@ export class TownScene {
       }
     }
     else if (previous.reducedMotion !== view.reducedMotion || previous.ambient !== view.ambient)
-      this.walks.update(view.model, { entered: view.entered, reducedMotion: view.reducedMotion, ambient: view.ambient, plan: view.plan, walkways: this.#walkways() });
+      this.walks.update(view.model, { entered: view.entered, following: this.#following, reducedMotion: view.reducedMotion, ambient: view.ambient, plan: view.plan, walkways: this.#walkways() });
     if (previous.entered !== view.entered) {
       // The overlay's window describes one view: start it again.
       this.#frames.clear();
       // While walking the camera follows the visitor: nothing is framed.
       if (walking) this.#walkRects = null;
+      // While following a figure the camera stays on it through the door: the level changes, the frame does not.
+      else if (this.#following) this.#tween = null;
       else if (view.entered) this.frameBuilding(view.entered, view.zoomed);
       else this.#frameOutside();
       this.fitShadow();
     } else if (walking) this.invalidate();
-    else if (view.entered && previous.zoomed !== view.zoomed) this.frameBuilding(view.entered, view.zoomed);
+    else if (this.#following) {
+      // A room focus or a district change under a follow does not pull the camera away either.
+    } else if (view.entered && previous.zoomed !== view.zoomed) this.frameBuilding(view.entered, view.zoomed);
     else if (!view.entered && (previous.district ?? null) !== (view.district ?? null)) this.#frameOutside();
     if (previous.walking && !walking) this.#endWalk(true);
     this.#life.configure({ ambient: view.ambient, reducedMotion: view.reducedMotion, quality: view.quality });
@@ -1326,6 +1351,18 @@ export class TownScene {
       this.invalidate();
       return;
     }
+    if (this.#following) {
+      // Under a follow the target is the figure's: zoom settles through the follow, a turn is a cut about the figure.
+      const zoom = this.#followZoom ?? this.camera.zoom;
+      if (action === "zoom-in") this.#followZoom = Math.min(this.controls.maxZoom, zoom * 1.25);
+      else if (action === "zoom-out") this.#followZoom = Math.max(this.controls.minZoom, zoom / 1.25);
+      else if (action === "rotate-left" || action === "rotate-right") {
+        const offset = this.camera.position.clone().sub(this.controls.target).applyAxisAngle(UP, action === "rotate-left" ? Math.PI / 2 : -Math.PI / 2);
+        this.camera.position.copy(this.controls.target).add(offset);
+      } else this.#followZoom = THREE.MathUtils.clamp(this.#span / FOLLOW_SPAN, this.controls.minZoom, this.controls.maxZoom);
+      this.invalidate();
+      return;
+    }
     if (action === "home") {
       if (this.view.entered) this.frameBuilding(this.view.entered, this.view.zoomed);
       else this.#frameOutside();
@@ -1347,6 +1384,138 @@ export class TownScene {
   cancelTween = () => {
     this.#tween = null;
   };
+
+  /* ── Following a figure ─────────────────────────────────────────────────── */
+
+  /** Keeps the camera on an agent's figure (null stops). The figure is looked for among every building's robots. */
+  follow(key: string | null) {
+    if (key === this.#following) return;
+    this.#following = key;
+    this.#followAsked = undefined;
+    if (!key) {
+      this.#followZoom = null;
+      return;
+    }
+    this.#tween = null;
+    this.#atHome = false;
+    // Close enough to see the figure, no closer than the person already is.
+    const settle = THREE.MathUtils.clamp(this.#span / FOLLOW_SPAN, this.controls.minZoom, this.controls.maxZoom);
+    this.#followZoom = Math.max(settle, this.camera.zoom);
+    this.invalidate();
+  }
+  get following(): string | null {
+    return this.#following;
+  }
+  #stopFollowing() {
+    if (!this.#following) return;
+    this.follow(null);
+    this.callbacks.followStopped?.();
+  }
+  /** Where the followed figure stands this frame (world units, at its feet) and the building whose figure it is. */
+  #followedFigure(): { x: number; y: number; z: number; slug: string | null } | null {
+    const key = this.#following;
+    if (!key) return null;
+    const walker = this.walks.walker(key);
+    if (walker) return { x: walker.x, y: walker.y, z: walker.z, slug: walker.building };
+    for (const [slug, view] of this.#buildings) {
+      const figure = view.figureOf(key);
+      if (figure) return { x: figure.at.x, y: figure.at.y, z: figure.at.z, slug };
+    }
+    return null;
+  }
+  /** Every frame under a follow: glides the camera after the figure (a cut under reduced motion) and asks the app for the level the figure is at. */
+  #followTick(dt: number) {
+    if (!this.#following) return;
+    const figure = this.#followedFigure();
+    if (!figure) {
+      this.#stopFollowing();
+      return;
+    }
+    // Inside its building (past the door, with a margin against flapping) the level is the building; else the town.
+    const view = figure.slug ? this.#buildings.get(figure.slug) : undefined;
+    let want: string | null = null;
+    if (view && figure.slug) {
+      const b = view.bounds(null);
+      const m = this.view.entered === figure.slug ? FOLLOW_MARGIN : -0.3;
+      if (figure.x >= b.minX - m && figure.x <= b.maxX + m && figure.z >= b.minZ - m && figure.z <= b.maxZ + m) want = figure.slug;
+    }
+    if (want !== this.view.entered && want !== this.#followAsked) {
+      this.#followAsked = want;
+      this.callbacks.followed?.(want);
+    }
+    // A glide of about a fifth of a second; at a fast playback the figure outruns it, so the glide keeps pace.
+    const rate = 5 * Math.max(1, this.view.speed() / 2);
+    const alpha = this.view.reducedMotion ? 1 : 1 - Math.exp(-dt * rate);
+    const delta = this.#v.set(figure.x, figure.y + 0.6, figure.z).sub(this.controls.target).multiplyScalar(alpha);
+    this.controls.target.add(delta);
+    this.camera.position.add(delta);
+    if (this.#followZoom !== null) {
+      this.camera.zoom = this.view.reducedMotion ? this.#followZoom : THREE.MathUtils.lerp(this.camera.zoom, this.#followZoom, alpha);
+      this.camera.updateProjectionMatrix();
+      if (Math.abs(this.camera.zoom - this.#followZoom) < 0.002) this.#followZoom = null;
+    }
+  }
+
+  /**
+   * Draws a small portrait of an agent's figure onto `canvas` (a 2D canvas, square): the figure seen from its front,
+   * with its desk, in the scene's own light. Rendered in a corner of the drawing buffer and copied, so tone mapping and
+   * colour stay the scene's; the frame is drawn again at once. False when the agent has no figure in the entered building.
+   */
+  portrait(key: string, canvas: HTMLCanvasElement): boolean {
+    const view = this.view.entered ? this.#buildings.get(this.view.entered) : undefined;
+    const figure = view?.figureOf(key);
+    const context = canvas.getContext("2d");
+    if (!figure || !context) return false;
+    const { height, at } = figure;
+    const cam = (this.#portraitCamera ??= new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 60));
+    const span = Math.max(height * 1.5, 1.2);
+    cam.left = -span / 2;
+    cam.right = span / 2;
+    cam.top = span / 2;
+    cam.bottom = -span / 2;
+    cam.zoom = 1;
+    cam.updateProjectionMatrix();
+    // Seen as on screen (the town camera's direction), so a desk's screen never stands between the two; a little closer
+    // to level, so the face reads.
+    const direction = this.camera.position.clone().sub(this.controls.target).normalize();
+    direction.y = Math.max(0.45, direction.y * 0.8);
+    direction.normalize();
+    const centre = this.#v.set(at.x, at.y + height * 0.55, at.z);
+    cam.position.copy(centre).addScaledVector(direction, 14);
+    cam.lookAt(centre);
+    cam.updateMatrixWorld();
+    const renderer = this.renderer;
+    const gl = renderer.domElement;
+    // three's viewport and scissor take CSS pixels; the drawing buffer is that times the pixel ratio.
+    const ratio = renderer.getPixelRatio();
+    const size = renderer.getSize(this.#size);
+    const css = Math.min(PORTRAIT_PX / ratio, size.x, size.y);
+    const px = Math.round(css * ratio);
+    renderer.setScissorTest(true);
+    renderer.setViewport(0, 0, css, css);
+    renderer.setScissor(0, 0, css, css);
+    renderer.clear();
+    let drawn = false;
+    try {
+      renderer.render(this.scene, cam);
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(gl, 0, gl.height - px, px, px, 0, 0, canvas.width, canvas.height);
+      drawn = true;
+    } catch {
+      drawn = false;
+    }
+    renderer.setScissorTest(false);
+    renderer.setViewport(0, 0, size.x, size.y);
+    renderer.setScissor(0, 0, size.x, size.y);
+    // The corner must not show the portrait for a frame: the town is drawn again now.
+    try {
+      renderer.render(this.scene, this.camera);
+    } catch {
+      this.callbacks.error();
+    }
+    this.invalidate();
+    return drawn;
+  }
   #leftHome = () => {
     this.#atHome = false;
   };
@@ -1448,7 +1617,11 @@ export class TownScene {
       }
       if (this.#dragging) return;
     }
-    if (event.buttons) return;
+    if (event.buttons) {
+      // A drag (not a click) takes the camera back from the follow.
+      if (this.#following && Math.hypot(event.clientX - this.#down.x, event.clientY - this.#down.y) > 6) this.#stopFollowing();
+      return;
+    }
     if (this.view.entered) {
       // A room under the pointer is a hover target too: it reveals that room's labels.
       const target = this.pickAt(event);
@@ -1550,6 +1723,7 @@ export class TownScene {
     this.walks.tick(dt * Math.max(0, this.view.speed()), this.view.now());
     this.#followPostman(dt);
     const strolling = this.#walkStep(dt);
+    this.#followTick(dt);
     if (this.#tween) {
       const alpha = this.view.reducedMotion ? 1 : 1 - Math.exp(-dt * 6);
       this.camera.position.lerp(this.#tween.position, alpha);
@@ -1643,7 +1817,7 @@ export class TownScene {
       this.#measure(total);
     }
     this.#dirtyFrames--;
-    if (!this.#raf && (this.#tween || moving || this.#dirtyFrames > 0)) this.#raf = requestAnimationFrame(this.animate);
+    if (!this.#raf && (this.#tween || moving || this.#dirtyFrames > 0 || this.#following)) this.#raf = requestAnimationFrame(this.animate);
     if (!this.#raf) this.#rested = true;
   };
 
@@ -1906,6 +2080,12 @@ export class TownScene {
       this.#box.max.set(b.maxX + 1, 5, b.maxZ + 1);
       if (this.#frustum.intersectsBox(this.#box)) this.#seen.add(slug);
     }
+    // A followed figure on its way through the town belongs to a building that may be off screen: that building's
+    // robots still follow their walkers and are drawn, or the figure would vanish on the path.
+    if (this.#following) {
+      const walker = this.walks.walker(this.#following);
+      if (walker?.building && this.#buildings.has(walker.building)) this.#seen.add(walker.building);
+    }
   }
 
   /** A number that changes whenever a building's shadow casters seen from the town changed, or a building came or went. */
@@ -2046,7 +2226,8 @@ export class TownScene {
     }
     if (districts > 1 && !this.view.entered) this.#districts.place(this.#anchors, this.camera);
     for (const label of this.#labels) {
-      const anchor = this.#anchors.get(label.id);
+      // The agent card hangs from its figure's own anchor.
+      const anchor = this.#anchors.get(label.card ? `a:${label.id.slice(5)}` : label.id);
       let visible = false,
         x = 0,
         y = 0;
@@ -2055,7 +2236,14 @@ export class TownScene {
         x = (this.#v.x * 0.5 + 0.5) * width;
         y = (-this.#v.y * 0.5 + 0.5) * height;
         visible = this.#v.z > -1 && this.#v.z < 1 && x > 8 && x < width - 8 && y > 8 && y < height - 8;
-        if (label.half * 2 + 16 < width) x = THREE.MathUtils.clamp(x, label.half + 8, width - label.half - 8);
+        if (label.card) {
+          // Beside the figure, on the side with room, and whole on screen: it is read, not glanced at.
+          const side = x + 24 + label.half * 2 + 8 > width ? "left" : "right";
+          if (label.el.dataset.side !== side) label.el.dataset.side = side;
+          visible = this.#v.z > -1 && this.#v.z < 1;
+          x = THREE.MathUtils.clamp(x, side === "left" ? label.half * 2 + 32 : 8, side === "left" ? width - 8 : width - label.half * 2 - 32);
+          y = THREE.MathUtils.clamp(y, label.height / 2 + 8, Math.max(label.height / 2 + 8, height - label.height / 2 - 8));
+        } else if (label.half * 2 + 16 < width) x = THREE.MathUtils.clamp(x, label.half + 8, width - label.half - 8);
       }
       label.nx = x;
       label.ny = y;

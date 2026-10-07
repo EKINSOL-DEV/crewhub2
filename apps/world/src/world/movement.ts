@@ -58,6 +58,8 @@ export interface MovementOptions {
   reducedMotion: boolean;
   /** The building whose interior is shown, or null for the town view. */
   entered: string | null;
+  /** The agent the camera follows, if any: its walk between buildings is planned even from inside one. */
+  following?: string | null;
 }
 
 /** The hand-over: to the review pile, a short pause, back to the desk. */
@@ -102,8 +104,9 @@ export function planMovement(prev: WorldModel | null, next: WorldModel, options:
       intents.push({ type: "enter", agent: key, building: now.slug, walk });
       placed.add(key);
     } else if (before.slug !== now.slug) {
-      // The town path is visible only in the town view; inside a building the other one is offscreen.
-      intents.push({ type: "switch", agent: key, from: before.slug, to: now.slug, walk: walk && options.entered === null });
+      // The town path is visible only in the town view; inside a building the other one is offscreen. A followed figure
+      // walks it anyway: the camera goes along, and the level follows the figure.
+      intents.push({ type: "switch", agent: key, from: before.slug, to: now.slug, walk: walk && (options.entered === null || options.following === key) });
       placed.add(key);
     } else if (before.agent.room !== now.agent.room || (before.agent.posture === "relaxed" && now.agent.posture !== "relaxed")) {
       // A new home room (a role override), or no longer at rest: back to the desk, whatever the errand.

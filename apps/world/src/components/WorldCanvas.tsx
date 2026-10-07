@@ -1,7 +1,10 @@
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
+import { memo, useCallback, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 import { Archive, Check, CircleHelp, Clock, Flag, Hand, MessageSquare, Play, RefreshCw, Sprout, TriangleAlert, Trophy } from "lucide-react";
-import type { AgentPlacement, Building, ProgressKind, RoleSource, WorkObject, WorldModel } from "@crewhub/world-model";
-import { STRESS, worldRuntime } from "../state/world";
+import { agentCardFacts, type AgentPlacement, type Building, type ProgressKind, type RoleSource, type WorkObject, type WorldModel } from "@crewhub/world-model";
+import { SOURCE, STRESS, worldRuntime } from "../state/world";
+import { loopsWebUrl } from "../state/source";
+import { AgentCard } from "./AgentCard";
+import { renderAgentCard } from "../world/agentCard/registry";
 import { useDark } from "../state/theme";
 import { useQuality } from "../state/quality";
 import { useCast } from "../state/cast";
@@ -60,6 +63,16 @@ interface Props {
   onPick: (target: Pick | null, hover: boolean) => void;
   onError: () => void;
   town: TownLayer | null;
+  /** The agent card is open for the selected agent (components/AgentCard). */
+  card: boolean;
+  onCloseCard: () => void;
+  /** The agent the camera follows, or null. */
+  following: string | null;
+  onFollow: (key: string | null) => void;
+  /** The followed figure walked into the town (null) or a building: the app sets the level. */
+  onFollowed: (building: string | null) => void;
+  /** The follow ended in the scene (a drag, the figure left). */
+  onFollowStopped: () => void;
   /** Says something on the polite status line (a building moved). */
   onAnnounce?: (text: string) => void;
   onBuild: (kind: BuildPointer, at: { room: RoomKind; cell: { x: number; z: number } } | null, pick: Pick | null) => void;
@@ -214,6 +227,8 @@ export default function WorldCanvas(props: Props) {
         pick: (target, hover) => latest.current.onPick(target, hover),
         error: () => latest.current.onError(),
         build: (kind, at, pick) => latest.current.onBuild(kind, at, pick),
+        followed: (building) => latest.current.onFollowed(building),
+        followStopped: () => latest.current.onFollowStopped(),
         // The town lays itself out over a few tasks; the loading note stays until it is done.
         ready: () => setReady(true),
         walkPlace: (slug) => latest.current.onWalkPlace(slug),
@@ -237,10 +252,15 @@ export default function WorldCanvas(props: Props) {
   useEffect(() => {
     if (props.flight.id) scene.current?.flyToAnchor(props.flight.anchor);
   }, [props.flight]);
+  useEffect(() => {
+    scene.current?.follow(props.following);
+  }, [props.following, ready]);
+  const portrait = useCallback((canvas: HTMLCanvasElement) => scene.current?.portrait(latest.current.selection.selected?.kind === "agent" ? latest.current.selection.selected.key : "", canvas) ?? false, []);
 
   const { model, entered } = props;
   const inside = model.buildings.find((b) => b.slug === entered) ?? null;
   const compact = useCompact();
+  const card = useAgentCard(props, inside, compact, portrait);
   const go = useRef({ onEnter: props.onEnter, onHover: props.onHover });
   go.current = { onEnter: props.onEnter, onHover: props.onHover };
   return (
@@ -253,6 +273,7 @@ export default function WorldCanvas(props: Props) {
         </div>
       )}
       {STRESS && ready && <FrameOverlay scene={scene} />}
+      {inside && compact && card && card.element}
       {fps && ready && <FpsOverlay scene={scene} />}
       {props.walking && ready && <WalkControls scene={scene} />}
       <div ref={labels} className="world-labels">
@@ -310,6 +331,11 @@ export default function WorldCanvas(props: Props) {
         })}
         {!inside && <Wayfinding districts={props.districts} district={props.district} onDistrict={props.onDistrict} onEnter={props.onEnter} />}
         {inside && !inside.archived && <Interior building={inside} model={model} props={props} compact={compact} />}
+        {inside && !compact && card && (
+          <div className="anchor card-anchor" data-anchor={`card:${inside.slug}:${card.key}`}>
+            {card.element}
+          </div>
+        )}
         {!inside && (
           <>
             <div className="anchor" data-anchor="c:town-hall">
@@ -333,6 +359,33 @@ export default function WorldCanvas(props: Props) {
       </div>
     </>
   );
+}
+
+/** The agent card for the selected agent of the entered building, when it is open: its facts from the projection, its
+    sections from the registry. Null when there is nothing to show (no agent selected, the agent is not here). */
+function useAgentCard(props: Props, inside: Building | null, compact: boolean, portrait: (canvas: HTMLCanvasElement) => boolean): { key: string; element: ReactNode } | null {
+  const key = props.card && props.selection.selected?.kind === "agent" ? props.selection.selected.key : null;
+  const { model } = props;
+  const demo = model.mode === "demo";
+  const facts = useMemo(() => (key && inside ? agentCardFacts(model, worldRuntime().projection.facts, key) : null), [key, inside, model]);
+  const sections = useMemo(() => (facts ? renderAgentCard(facts, { now: model.now, freshness: model.freshness, loopsUrl: demo ? null : loopsWebUrl(SOURCE.health) }) : []), [facts, model.now, model.freshness, demo]);
+  if (!key || !facts || !inside || !inside.agents.some((a) => a.key === key)) return null;
+  return {
+    key,
+    element: (
+      <AgentCard
+        facts={facts}
+        sections={sections}
+        freshness={model.freshness}
+        demo={demo}
+        following={props.following === key}
+        sheet={compact}
+        onFollow={() => props.onFollow(props.following === key ? null : key)}
+        onClose={props.onCloseCard}
+        portrait={portrait}
+      />
+    ),
+  };
 }
 
 /* A building's sign. Memoised on plain values: the model is new many times a second, a sign changes rarely, and a
@@ -478,7 +531,8 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
   const nameOf = (slug: string | null) => model.buildings.find((x) => x.slug === slug)?.name ?? slug ?? "another building";
   // A hovered room reveals its labels; a nameplate is for the agent or object under the pointer, else the selected one.
   const hovered = props.selection.hover?.kind === "room" ? null : props.selection.hover;
-  const shown = hovered ?? props.selection.selected;
+  // With the card open the selected agent's plate gives way to it; a hovered agent keeps its own.
+  const shown = hovered ?? (props.card && props.selection.selected?.kind === "agent" ? null : props.selection.selected);
   const published = b.releases.filter((r) => r.publishedAt);
   const focusedRoom = props.room ?? props.zoomed;
   const picked = (target: Pick) => same(props.selection.hover, target) || same(props.selection.selected, target);

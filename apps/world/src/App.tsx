@@ -1,5 +1,5 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type Ref } from "react";
-import { ArrowLeft, ChevronRight, FlaskConical, Hammer, MessageCircle, Minus, Monitor, Moon, Pause, Plus, RotateCcw, RotateCw, Footprints, Scan, Search, Settings, Sprout, Sun, Tags, X } from "lucide-react";
+import { ArrowLeft, ChevronRight, Eye, FlaskConical, Hammer, MessageCircle, Minus, Monitor, Moon, Pause, Plus, RotateCcw, RotateCw, Footprints, Scan, Search, Settings, Sprout, Sun, Tags, X } from "lucide-react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { CIVIC_WORDS, describeTownDocument, describeWorld, ruleProps, zoningOf, type AgentPlacement, type CivicWords, type PlaybackControls, type PlaybackSpeed, type RoleId, type RoomKind, type TextLine, type WorldModel } from "@crewhub/world-model";
 import type { PropModel } from "@crewhub/world-engine";
@@ -108,6 +108,9 @@ function World() {
   // Walk mode: the person walks a visitor through the world. The level it began on is kept for the way back.
   const [walking, setWalking] = useState(false);
   const walkBack = useRef<{ entered: string | null; room: RoomKind | null; zoomed: RoomKind | null; district: string | null } | null>(null);
+  // The agent card (open for the selected agent) and the agent the camera follows (components/AgentCard).
+  const [card, setCard] = useState(false);
+  const [following, setFollowing] = useState<string | null>(null);
   const [overrides, setOverrides] = useState<Record<string, RoleId>>(readRoleOverrides);
   const ambient = useAmbient();
   const details = useDetails();
@@ -236,6 +239,8 @@ function World() {
       setRoom(null);
       setZoomed(null);
       setSelection({ hover: null, selected: null });
+      setCard(false);
+      setFollowing(null);
       setAnnouncement(`Inside ${b.name} (${b.key}). ${b.agents.filter((a) => a.presence === "real").length} agents here. Escape or Backspace returns to the town.`);
     },
     [buildings, districtOfBuilding],
@@ -246,11 +251,16 @@ function World() {
     setRoom(null);
     setZoomed(null);
     setSelection({ hover: null, selected: null });
+    setCard(false);
+    setFollowing(null);
     // In a region a building steps out to its district; Escape once more shows the region.
     setAnnouncement(here ? `${describeDistrict(here)} Escape shows the region.` : `The town. ${describe(focused)}`);
   }, [describe, describeDistrict, focused, here]);
   const startWalk = useCallback(() => {
     walkBack.current = { entered, room, zoomed, district };
+    // A walk takes the camera: a follow ends and the agent card closes.
+    setFollowing(null);
+    setCard(false);
     setSelection({ hover: null, selected: null });
     setRingVisible(false);
     setWalking(true);
@@ -281,6 +291,8 @@ function World() {
       setRoom(b ? place.room : null);
       setZoomed(b ? place.room : null);
       setSelection({ hover: null, selected: b && agent ? { kind: "agent", key: agent } : null });
+      setCard(false);
+      setFollowing(null);
       if (b) {
         setFocused(buildings.indexOf(b));
         setAnnouncement(`Inside ${b.name} (${b.key})${place.room ? `, ${roomName(b, place.room)}` : ""}. Escape steps back out.`);
@@ -338,10 +350,48 @@ function World() {
         focusRoom(target.room, true);
         return;
       }
+      // A click on an agent selects it and opens its card; a click elsewhere (or on the selected object) clears.
+      if (target?.kind === "agent") {
+        setSelection((s) => ({ hover: s.hover, selected: target }));
+        setCard(true);
+        return;
+      }
+      setCard(false);
       setSelection((s) => ({ hover: s.hover, selected: target && JSON.stringify(target) !== JSON.stringify(s.selected) ? target : null }));
     },
     [focusRoom],
   );
+  const selectedAgent = selection.selected?.kind === "agent" ? selection.selected.key : null;
+  const agentName = useCallback(
+    (key: string) => [...model.buildings.flatMap((b) => b.agents), ...model.townHall, ...model.postOffice].find((a) => a.key === key)?.displayName ?? key,
+    [model],
+  );
+  const follow = useCallback(
+    (key: string | null) => {
+      setFollowing(key);
+      setAnnouncement(key ? `Following ${agentName(key)}. Escape, Shift+F or a drag stops following.` : "Stopped following.");
+    },
+    [agentName],
+  );
+  /* The followed figure walked somewhere else: the level follows it; the selection and the card stay. */
+  const followedTo = useCallback(
+    (slug: string | null) => {
+      const b = slug ? buildings.find((x) => x.slug === slug) : undefined;
+      setEntered(b?.slug ?? null);
+      if (b) {
+        setDistrict(districtOfBuilding(b.slug));
+        setFocused(buildings.indexOf(b));
+      }
+      setRoom(null);
+      setZoomed(null);
+      setAnnouncement(following ? `${agentName(following)} ${b ? `walked into ${b.name} (${b.key})` : "is walking through the town"}.` : "");
+    },
+    [agentName, buildings, districtOfBuilding, following],
+  );
+  const followStopped = useCallback(() => {
+    setFollowing(null);
+    setAnnouncement("Stopped following.");
+  }, []);
 
   const openText = useCallback(() => {
     returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -444,8 +494,16 @@ function World() {
         build.toggle();
         return;
       }
+      // Shift+F follows the selected agent (F alone is the frame rate overlay).
+      if (e.key.toLowerCase() === "f" && e.shiftKey && !graphicsFailed && (selectedAgent || following)) {
+        e.preventDefault();
+        follow(following ? null : selectedAgent);
+        return;
+      }
       if (e.key === "Escape") {
         if (textOpen) closeText();
+        else if (following) follow(null);
+        else if (card) setCard(false);
         else if (selection.selected) setSelection((s) => ({ ...s, selected: null }));
         else if (zoomed) {
           setZoomed(null);
@@ -466,7 +524,7 @@ function World() {
         setAnnouncement(toggleDetails() ? "Details on: every label shows." : "Details off: names and one bubble per robot.");
         return;
       }
-      if (e.key.toLowerCase() === "f" && !graphicsFailed) {
+      if (e.key.toLowerCase() === "f" && !e.shiftKey && !graphicsFailed) {
         e.preventDefault();
         setAnnouncement(toggleFps() ? "Frame rate overlay on." : "Frame rate overlay off.");
         return;
@@ -487,7 +545,7 @@ function World() {
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [back, build, camera, closeJump, closeSettings, closeText, editing, entered, go, graphicsFailed, here, inside, jumpOpen, openJump, openText, redo, selection.selected, settingsOpen, startWalk, stopWalk, textOpen, undo, walking, zoomed]);
+  }, [back, build, camera, card, closeJump, closeSettings, closeText, editing, entered, follow, following, go, graphicsFailed, here, inside, jumpOpen, openJump, openText, redo, selectedAgent, selection.selected, settingsOpen, startWalk, stopWalk, textOpen, undo, walking, zoomed]);
 
   // Arrow keys and Enter move the focus ring between plots while the scene has keyboard focus.
   const sceneKey = (e: ReactKeyboardEvent) => {
@@ -503,7 +561,9 @@ function World() {
         focusRoom(room ? roomNeighbor(template, room, e.key) : firstRoom(template), false);
       } else if (e.key === "Enter" && onCanvas) {
         e.preventDefault();
-        focusRoom(room ?? firstRoom(buildingTemplate(inside)), true);
+        // Enter on a selected agent opens its card; else it zooms to the focused room.
+        if (selectedAgent && !card) setCard(true);
+        else focusRoom(room ?? firstRoom(buildingTemplate(inside)), true);
       }
       return;
     }
@@ -588,13 +648,19 @@ function World() {
                 onBuild={build.pointer}
                 walking={walking}
                 onWalkPlace={(slug) => (slug ? enter(slug) : back())}
+                card={card}
+                onCloseCard={() => setCard(false)}
+                following={following}
+                onFollow={follow}
+                onFollowed={followedTo}
+                onFollowStopped={followStopped}
               />
             </Suspense>
           </SceneBoundary>
         )}
       </main>
 
-      <Corner demo={demo} connection={connection} graphicsFailed={graphicsFailed} trail={trail} onGo={onGo} onJump={openJump} jumpOpen={jumpOpen} />
+      <Corner demo={demo} connection={connection} graphicsFailed={graphicsFailed} trail={trail} onGo={onGo} onJump={openJump} jumpOpen={jumpOpen} following={following ? agentName(following) : null} onStopFollow={() => follow(null)} />
 
       {jumpOpen && <JumpList entries={jumps} onJump={jump} onClose={closeJump} />}
 
@@ -746,6 +812,8 @@ const Corner = memo(function Corner({
   onGo,
   onJump,
   jumpOpen,
+  following,
+  onStopFollow,
 }: {
   demo: boolean;
   /** The live source's state, where the Demo chip stands in demo mode; null for the demo. */
@@ -756,6 +824,9 @@ const Corner = memo(function Corner({
   onGo: (place: Place) => void;
   onJump: () => void;
   jumpOpen: boolean;
+  /** The name of the agent the camera follows, or null. */
+  following: string | null;
+  onStopFollow: () => void;
 }) {
   const scenario = SCENARIO_CHOICES.find((choice) => choice.current)?.name ?? "";
   // One step out is the button Escape presses; the levels above it are plain crumbs to click.
@@ -819,6 +890,16 @@ const Corner = memo(function Corner({
           <Button className="jump-button" size="sm" variant="ghost" icon={<Search className="icon" aria-hidden="true" />} aria-label="Jump to a district, project or agent" title="Jump to… (/ or Ctrl+K)" expanded={jumpOpen} onClick={onJump} kbd="/">
             <span className="jump-word">Jump to</span>
           </Button>
+          {following && (
+            <span className="crumb crumb-follow" role="status">
+              <ChevronRight className="icon icon-sm crumb-sep" aria-hidden="true" />
+              <span className="crumb-current">
+                <Eye className="icon icon-sm" aria-hidden="true" />
+                Following {following}
+              </span>
+              <Button size="sm" variant="ghost" iconOnly aria-label={`Stop following ${following}`} title="Stop following (Esc)" icon={<X className="icon" aria-hidden="true" />} onClick={onStopFollow} />
+            </span>
+          )}
         </nav>
       )}
     </header>

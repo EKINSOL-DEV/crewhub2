@@ -10,6 +10,7 @@ function label(id: string, x: number, y: number, half = 30, height = 20, extra: 
     half,
     height,
     stack: !id.startsWith("r:"),
+    card: false,
     sign: id.startsWith("r:"),
     robot: id.startsWith("a:"),
     picked: false,

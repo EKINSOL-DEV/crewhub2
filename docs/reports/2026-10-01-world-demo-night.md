@@ -783,6 +783,7 @@ fake, because crewhub-loops is not yet running on this Mac.
   reload brings the pair page.
 - The fake serves the pending request, but the world does not read it yet.
 - A run against the real install.
+
 ## Walk mode (2026-10-07)
 
 A mode to walk around inside the world: the Walk button in the camera toolbar, or `W` when nothing is selected. A
@@ -807,6 +808,15 @@ navigation world, not the source) and asks the resolved cast for its figure like
   walked route between districts' far ends is a long walk (there is no bus for the visitor), and the mode was looked at
   in the demo only, with the default cast, at 1440 and 375 wide (no live host was running; the other casts, the
   larger tiers, reduced motion and a real touch on the stick were not looked at in a browser).
+
+## The agent card and the follow camera (2026-10-07)
+
+A click on a figure opens a card beside it (a bottom sheet on a phone): where it is and its state in the text view's
+words, the ticket on its desk with its loops link, chips and the last progress line, what loops knows of its lane
+(kind, model, effort, permission mode, lifecycle, drift), its projects and its last five facts. Sections come from a
+registry (one file each, pure rows, tested); the portrait is the figure itself, rendered from the scene. **Follow**
+(the card's button or Shift+F) keeps the camera on the figure through doors and into other buildings; the breadcrumb
+says who is followed, a drag or Escape stops. See [AGENT_CARD.md](../AGENT_CARD.md).
 
 
 ## Challenges with docs/integrators
