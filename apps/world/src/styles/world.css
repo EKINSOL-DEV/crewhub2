@@ -229,6 +229,44 @@
   padding: var(--space-1);
 }
 
+/* ── Walk mode: the visitor's tag and the virtual stick (touch and narrow screens) ── */
+.you-pill {
+  padding-left: var(--space-2);
+  font-weight: var(--weight-semibold);
+}
+.walk-stick {
+  display: none;
+  position: absolute;
+  left: var(--space-4);
+  bottom: calc(var(--space-4) + 4.5rem);
+  z-index: 5;
+  width: 7rem;
+  height: 7rem;
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklab, var(--surface) 70%, transparent);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  touch-action: none;
+  user-select: none;
+}
+.walk-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin: -1.375rem 0 0 -1.375rem;
+  border-radius: var(--radius-pill);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+@media (pointer: coarse), (max-width: 600px) {
+  .walk-stick {
+    display: block;
+  }
+}
+
 /* ── Playback bar: shown only when the source offers playback ─────────────── */
 .playback-bar {
   position: absolute;

@@ -28,7 +28,7 @@ import { dressPlan, planPaths, planPieces, settlementDressing, STAKED_SIGN, type
 import { LAWN_Y } from "./townDressing";
 import { InstanceCuller, instanceStatic } from "./instanceStatic";
 import { mergeStatic } from "./mergeStatic";
-import { plotDoor, plotObstacles } from "./navigation";
+import { plotDoor, plotObstacles, POST_OFFICE_CELL, TOWN_ROOM } from "./navigation";
 import { onPlayIntent } from "./intentPlayer";
 import { Walks } from "./walks";
 import { AmbientLife } from "./ambientLife";
@@ -42,6 +42,7 @@ import { isDistant, isRemote, labelDetail, type LabelDetail } from "./wayfinding
 import { castRegistry } from "./cast";
 import { buildingLook, townLook, zoneLook, type LookContext } from "./worldLook";
 import { figureRole, figureState, type FigureFacts, type FigurePlace } from "./figureState";
+import { Visitor, walkTilt, WALK_TILTS, worldDirection, type WalkInput } from "./visitor";
 
 export interface TownView {
   model: WorldModel;
@@ -92,6 +93,8 @@ export interface TownView {
    * bar's preview (`?look=`, `?looks=`), else the style as it stands.
    */
   looks?: TownLooks | null;
+  /** Walk mode: the person walks a visitor figure around and the camera follows it (visitor.ts). */
+  walking?: boolean;
 }
 export type BuildPointer = "move" | "click" | "drag" | "drop";
 
@@ -163,6 +166,8 @@ interface Callbacks {
   build: (kind: BuildPointer, at: { room: RoomKind; cell: { x: number; z: number } } | null, pick: Pick | null) => void;
   /** The town is laid out (its first build is spread over several tasks) and about to draw. */
   ready?: () => void;
+  /** Walk mode: the visitor walked through a front door, into this building (its slug) or out to the town (null). */
+  walkPlace?: (slug: string | null) => void;
 }
 
 /** While the town is first laid out, one task builds buildings for about this long, then yields (no long task). */
@@ -197,6 +202,17 @@ const FIXED_FRAME: Bounds | null = (() => {
   const [minX, maxX, minZ, maxZ] = (new URLSearchParams(globalThis.location?.search ?? "").get("frame") ?? "").split(",").map(Number);
   return [minX, maxX, minZ, maxZ].every((n) => typeof n === "number" && Number.isFinite(n)) ? { minX: minX!, maxX: maxX!, minZ: minZ!, maxZ: maxZ! } : null;
 })();
+/* Walk mode's follow camera: the frustum's height in world units on the street and inside a building (a portrait
+   screen gets more, so its narrow width still shows the way ahead), how far the wheel may change it, and how fast the
+   camera catches up (1/s). */
+const WALK_SPAN = { town: 15, inside: 8.5 };
+const WALK_SPAN_RANGE = { min: 0.6, max: 2 };
+const WALK_FOLLOW = 7;
+/** The camera aims this far above the visitor's feet, and looks no flatter than this when dragged (radians from straight down). */
+const WALK_AIM = 0.5;
+const WALK_FLATTEST = 1.15;
+/** Radians of turn per pixel dragged, and per pixel of a sideways trackpad scroll. */
+const WALK_LOOK = 0.007;
 const HIT_GEOMETRY = new THREE.BoxGeometry(PLOT_SIZE, 2, PLOT_SIZE);
 const HIT_MATERIAL = new THREE.MeshBasicMaterial();
 /** The widest ground the town's shadow map covers at once (about today's town); a larger settlement gets a window of it. */
@@ -382,6 +398,31 @@ export class TownScene {
   #buildCell = "";
   #dragging = false;
   #stopIntents: () => void;
+  /** Walk mode (visitor.ts): the visitor, its figure and the follow camera; null outside the mode. */
+  #walk: {
+    visitor: Visitor;
+    handle: FigureHandle;
+    cast: Cast;
+    /** The building the App was last told the visitor is in. */
+    told: string | null;
+    y: number;
+    activity: string;
+    anchor: THREE.Vector3;
+    target: THREE.Vector3;
+    /** Where the camera stands around the visitor, its tilt now and the flattest one the person chose, and the wheel's zoom. */
+    yaw: number;
+    tilt: number;
+    pitch: number;
+    reach: number;
+    settled: boolean;
+  } | null = null;
+  /** The keys and the stick, as WorldCanvas last gave them. */
+  #walkInput: WalkInput = { x: 0, y: 0, hurry: false };
+  /** The camera as it stood when walk mode began: Escape returns to it. */
+  #walkBack: { position: THREE.Vector3; target: THREE.Vector3; zoom: number; entered: string | null; zoomed: RoomKind | null; district: string | null } | null = null;
+  #walkDir = { x: 0, z: 0 };
+  #walkRects: { plan: TownPlan; entered: string | null; rects: Bounds[] } | null = null;
+  #looking: { x: number; y: number } | null = null;
 
   constructor(host: HTMLElement, labels: HTMLElement, view: TownView, callbacks: Callbacks) {
     this.view = view;
@@ -401,7 +442,7 @@ export class TownScene {
     canvas.setAttribute("role", "application");
     canvas.setAttribute(
       "aria-label",
-      "The town. Arrow keys move between buildings, Enter goes inside. Inside a building arrow keys move between rooms, Enter zooms to a room, Escape goes back one level. Plus and minus zoom, brackets rotate, H returns home. D shows every label. T opens the text view. Slash opens the jump list.",
+      "The town. Arrow keys move between buildings, Enter goes inside. Inside a building arrow keys move between rooms, Enter zooms to a room, Escape goes back one level. Plus and minus zoom, brackets rotate, H returns home. D shows every label. W walks you around (W A S D or arrow keys, Escape stops). T opens the text view. Slash opens the jump list.",
     );
     host.appendChild(canvas);
     this.camera.position.copy(HOME_OFFSET);
@@ -441,6 +482,7 @@ export class TownScene {
     canvas.addEventListener("pointermove", this.pointerMove);
     canvas.addEventListener("pointerleave", this.pointerLeave);
     canvas.addEventListener("webglcontextlost", this.contextLost);
+    canvas.addEventListener("wheel", this.wheel, { passive: false });
     document.addEventListener("visibilitychange", this.visibility);
     // Dev builds: the scene on `window.__town` for headless checks of walks and frame statistics.
     if (import.meta.env.DEV) (window as unknown as { __town?: TownScene }).__town = this;
@@ -1004,6 +1046,15 @@ export class TownScene {
     const previous = this.view;
     this.view = view;
     this.controls.enableDamping = !view.reducedMotion;
+    const walking = !!view.walking;
+    if (walking && !previous.walking) {
+      // The pose to return to: where the camera stands, or where it was flying to.
+      const t = this.#tween;
+      this.#walkBack = { position: (t?.position ?? this.camera.position).clone(), target: (t?.target ?? this.controls.target).clone(), zoom: t?.zoom ?? this.camera.zoom, entered: previous.entered, zoomed: previous.zoomed, district: previous.district ?? null };
+      this.#tween = null;
+      this.#atHome = false;
+      this.invalidate();
+    }
     if (previous.theme !== view.theme) this.applyTheme(view.theme);
     if (previous.quality !== view.quality) {
       this.applyQuality(view.quality);
@@ -1028,11 +1079,15 @@ export class TownScene {
     if (previous.entered !== view.entered) {
       // The overlay's window describes one view: start it again.
       this.#frames.clear();
-      if (view.entered) this.frameBuilding(view.entered, view.zoomed);
+      // While walking the camera follows the visitor: nothing is framed.
+      if (walking) this.#walkRects = null;
+      else if (view.entered) this.frameBuilding(view.entered, view.zoomed);
       else this.#frameOutside();
       this.fitShadow();
-    } else if (view.entered && previous.zoomed !== view.zoomed) this.frameBuilding(view.entered, view.zoomed);
+    } else if (walking) this.invalidate();
+    else if (view.entered && previous.zoomed !== view.zoomed) this.frameBuilding(view.entered, view.zoomed);
     else if (!view.entered && (previous.district ?? null) !== (view.district ?? null)) this.#frameOutside();
+    if (previous.walking && !walking) this.#endWalk(true);
     this.#life.configure({ ambient: view.ambient, reducedMotion: view.reducedMotion, quality: view.quality });
     if (previous.theme !== view.theme || previous.quality !== view.quality || previous.reducedMotion !== view.reducedMotion || previous.dayNight !== view.dayNight) this.#drift();
     if (previous.entered !== view.entered || !view.entered !== !this.#lifeInside) {
@@ -1259,6 +1314,18 @@ export class TownScene {
   }
 
   cameraAction(action: CameraAction) {
+    const walk = this.#walk;
+    if (walk) {
+      // While walking the camera follows the visitor: the buttons turn it about the visitor and change its reach.
+      if (action === "rotate-left") walk.yaw += Math.PI / 2;
+      if (action === "rotate-right") walk.yaw -= Math.PI / 2;
+      if (action === "zoom-in") walk.reach = Math.max(WALK_SPAN_RANGE.min, walk.reach / 1.25);
+      if (action === "zoom-out") walk.reach = Math.min(WALK_SPAN_RANGE.max, walk.reach * 1.25);
+      if (action === "home") walk.reach = 1;
+      walk.settled = false;
+      this.invalidate();
+      return;
+    }
     if (action === "home") {
       if (this.view.entered) this.frameBuilding(this.view.entered, this.view.zoomed);
       else this.#frameOutside();
@@ -1322,6 +1389,12 @@ export class TownScene {
   }
   pointerDown = (event: PointerEvent) => {
     this.#down = { x: event.clientX, y: event.clientY };
+    if (this.view.walking) {
+      // A drag looks around (the camera turns about the visitor); nothing is picked while walking.
+      this.#looking = { x: event.clientX, y: event.clientY };
+      this.renderer.domElement.setPointerCapture?.(event.pointerId);
+      return;
+    }
     if (event.button !== 0 || !this.#building) return;
     // Pressing on the selected prop drags it instead of panning the camera.
     const hit = this.pickAt(event);
@@ -1333,6 +1406,10 @@ export class TownScene {
     }
   };
   pointerUp = (event: PointerEvent) => {
+    if (this.#looking || this.view.walking) {
+      this.#looking = null;
+      return;
+    }
     if (this.#dragging) {
       this.#dragging = false;
       this.controls.enabled = true;
@@ -1354,6 +1431,14 @@ export class TownScene {
     if (b) this.callbacks.enter(b.slug);
   };
   pointerMove = (event: PointerEvent) => {
+    if (this.view.walking) {
+      const from = this.#looking;
+      if (!from || !event.buttons) return;
+      this.walkLook(event.clientX - from.x, event.clientY - from.y);
+      from.x = event.clientX;
+      from.y = event.clientY;
+      return;
+    }
     if (this.#dragging || (!event.buttons && this.#building)) {
       const at = this.buildCellAt(event);
       const key = at ? `${at.room}:${at.cell.x},${at.cell.z}` : "";
@@ -1464,6 +1549,7 @@ export class TownScene {
     // Walks run in simulation seconds: paused with the playback, faster with it (the engine caps one tick).
     this.walks.tick(dt * Math.max(0, this.view.speed()), this.view.now());
     this.#followPostman(dt);
+    const strolling = this.#walkStep(dt);
     if (this.#tween) {
       const alpha = this.view.reducedMotion ? 1 : 1 - Math.exp(-dt * 6);
       this.camera.position.lerp(this.#tween.position, alpha);
@@ -1472,7 +1558,7 @@ export class TownScene {
       this.camera.updateProjectionMatrix();
       if (this.camera.position.distanceTo(this.#tween.position) < 0.005 && Math.abs(this.camera.zoom - this.#tween.zoom) < 0.002) this.#tween = null;
     }
-    let moving = this.walks.moving || this.view.measure;
+    let moving = this.walks.moving || this.view.measure || strolling;
     // Landmarks animate (the fountain) on frames drawn anyway; they never keep the loop running on their own.
     if (!this.view.reducedMotion && dt)
       for (const object of this.#landmarks.children) (object.userData.animate as ModelAnimation | undefined)?.(dt);
@@ -1560,6 +1646,199 @@ export class TownScene {
     if (!this.#raf && (this.#tween || moving || this.#dirtyFrames > 0)) this.#raf = requestAnimationFrame(this.animate);
     if (!this.#raf) this.#rested = true;
   };
+
+  /* ── Walk mode ─────────────────────────────────────────────────────────── */
+
+  /** The keys and the stick: a direction on screen (x right, y away from the camera) and whether to hurry. */
+  walkInput(x: number, y: number, hurry: boolean) {
+    const input = this.#walkInput;
+    if (input.x === x && input.y === y && input.hurry === hurry) return;
+    input.x = x;
+    input.y = y;
+    input.hurry = hurry;
+    this.invalidate();
+  }
+
+  /** Where the visitor stands (headless checks and tests of the mode); null outside walk mode. */
+  get visitor(): { room: string; x: number; z: number; building: string | null; moving: boolean } | null {
+    const v = this.#walk?.visitor;
+    return v ? { room: v.room, x: v.x, z: v.z, building: v.building, moving: v.moving } : null;
+  }
+
+  /** A drag or a sideways scroll, in pixels: the camera turns about the visitor and tilts. */
+  walkLook(dx: number, dy: number) {
+    const w = this.#walk;
+    if (!w) return;
+    w.yaw -= dx * WALK_LOOK;
+    w.pitch = THREE.MathUtils.clamp(w.pitch - dy * WALK_LOOK * 0.6, WALK_TILTS[WALK_TILTS.length - 1]!, WALK_FLATTEST);
+    w.settled = false;
+    this.invalidate();
+  }
+
+  wheel = (event: WheelEvent) => {
+    const w = this.#walk;
+    if (!w) return;
+    // The orbit controls are off while walking: a sideways scroll looks around, an up and down one (or a pinch) zooms.
+    event.preventDefault();
+    if (Math.abs(event.deltaX) > Math.abs(event.deltaY) && !event.ctrlKey) this.walkLook(-event.deltaX, 0);
+    else {
+      w.reach = THREE.MathUtils.clamp(w.reach * Math.exp(event.deltaY * 0.002), WALK_SPAN_RANGE.min, WALK_SPAN_RANGE.max);
+      w.settled = false;
+      this.invalidate();
+    }
+  };
+
+  /** Where a walk starts: the entered building's lobby, else the street in front of the building nearest the view, else the post office. */
+  #walkStart() {
+    const nav = this.walks.nav;
+    const inside = this.view.entered ? nav.lobby(this.view.entered) : null;
+    if (inside) return inside;
+    const t = this.controls.target;
+    let best: ReturnType<typeof nav.front> = null,
+      distance = Infinity;
+    for (const lot of this.view.plan.lots) {
+      const front = nav.front(lot.slug);
+      const d = Math.hypot(lot.centre.x - t.x, lot.centre.z - t.z);
+      if (front && d < distance && nav.graph.room(front.room)) {
+        best = front;
+        distance = d;
+      }
+    }
+    return best ?? { room: TOWN_ROOM, cell: POST_OFFICE_CELL };
+  }
+
+  /** The visitor's figure: the town's cast (the viewer's choice first), a plain worker with no project colour. */
+  #walkFigure(cast: Cast): FigureHandle {
+    const handle = cast.figure({ key: "visitor", accent: null, role: "worker" });
+    handle.object.scale.setScalar(ROBOT_SCALE * 1.15);
+    handle.setState(IDLE_STATE);
+    // As the postman: it walks the whole town, and a sun shadow would hold the town's shadow map on every step.
+    handle.object.traverse((o) => (o.castShadow = false));
+    this.scene.add(handle.object);
+    return handle;
+  }
+
+  #beginWalk() {
+    const cast = this.#townCast();
+    const visitor = new Visitor(this.walks.nav, this.#walkStart());
+    const offset = this.#v.copy(this.camera.position).sub(this.controls.target);
+    const tilt = THREE.MathUtils.clamp(Math.acos(THREE.MathUtils.clamp(offset.y / (offset.length() || 1), -1, 1)), WALK_TILTS[WALK_TILTS.length - 1]!, WALK_FLATTEST);
+    this.controls.enabled = false;
+    this.renderer.domElement.style.cursor = "";
+    return (this.#walk = {
+      visitor,
+      handle: this.#walkFigure(cast),
+      cast,
+      told: this.view.entered,
+      y: Number.NaN,
+      activity: "idle",
+      anchor: new THREE.Vector3(),
+      target: this.controls.target.clone(),
+      yaw: Math.atan2(offset.x, offset.z),
+      tilt,
+      pitch: WALK_TILTS[0]!,
+      reach: 1,
+      settled: false,
+    });
+  }
+
+  /** Leaves walk mode: the figure goes, the orbit controls come back and the camera returns to where it was. */
+  #endWalk(restore: boolean) {
+    const w = this.#walk;
+    this.#walk = null;
+    this.#looking = null;
+    const back = this.#walkBack;
+    this.#walkBack = null;
+    if (w) {
+      this.scene.remove(w.handle.object);
+      w.handle.dispose();
+      this.#anchors.delete("you");
+      this.controls.enabled = true;
+    }
+    if (!restore) return;
+    // Back at the level the walk began on: the camera returns to where it stood. Anywhere else, that place is framed.
+    const view = this.view;
+    if (back && back.entered === view.entered && back.zoomed === view.zoomed && back.district === (view.district ?? null)) this.moveTo(back.target, back.position, back.zoom, false);
+    else if (view.entered) this.frameBuilding(view.entered, view.zoomed);
+    else this.#frameOutside();
+  }
+
+  /** The buildings the follow camera must see over: every one but the entered one, whose walls give way themselves. */
+  #walkObstacles(): Bounds[] {
+    const { plan, entered } = this.view;
+    const cached = this.#walkRects;
+    if (cached && cached.plan === plan && cached.entered === entered) return cached.rects;
+    const rects = plan.lots.filter((l) => !l.archived && l.slug !== entered).map((l) => plotObstacles(l.cell)[0]!);
+    this.#walkRects = { plan, entered, rects };
+    return rects;
+  }
+
+  /**
+   * One frame of walk mode: the visitor steps where the keys or the stick push, a front door crossed tells the App
+   * (which enters or leaves the building as a click would), the figure follows, and the camera follows the figure:
+   * it turns only when the person looks around, tilts steeper when a building stands between it and the visitor
+   * (orthographic, so it is never inside a wall; steeper is its way to pull in) and cuts under reduced motion.
+   * Returns true while something still moves.
+   */
+  #walkStep(dt: number): boolean {
+    if (!this.view.walking) return false;
+    const w = this.#walk ?? this.#beginWalk();
+    const v = w.visitor,
+      reduced = this.view.reducedMotion;
+    const cast = this.#townCast();
+    if (cast !== w.cast) {
+      this.scene.remove(w.handle.object);
+      w.handle.dispose();
+      w.handle = this.#walkFigure((w.cast = cast));
+      w.activity = "idle";
+    }
+    // Its building was rebuilt or left the town under its feet: back to a place that exists.
+    if (!v.valid) v.place(this.#walkStart());
+    const dir = worldDirection(this.#walkInput, w.yaw, this.#walkDir);
+    const moved = v.step(dir.x, dir.z, dt, this.#walkInput.hurry);
+    const building = v.building;
+    if (building !== w.told) {
+      w.told = building;
+      if (building !== this.view.entered) this.callbacks.walkPlace?.(building);
+    }
+    const alpha = reduced || !dt ? 1 : 1 - Math.exp(-dt * WALK_FOLLOW);
+    const ground = this.walks.nav.groundAt(v.x, v.z) + (building ? FLOOR_RISE : 0) + 0.02;
+    w.y = Number.isNaN(w.y) || reduced ? ground : w.y + (ground - w.y) * Math.min(1, alpha * 2);
+    const object = w.handle.object;
+    object.position.set(v.x, w.y, v.z);
+    object.rotation.y = v.heading;
+    const activity = moved ? "walking" : "idle";
+    if (activity !== w.activity) {
+      w.activity = activity;
+      this.#walkState.activity = activity;
+      w.handle.setState(this.#walkState);
+      object.traverse((o) => (o.castShadow = false));
+    }
+    if (moved && !reduced) w.handle.update(dt);
+    const scale = object.scale.y;
+    w.anchor.set(v.x, w.y + w.handle.anchors.label[1] * scale, v.z);
+    this.#anchors.set("you", w.anchor);
+    // The camera.
+    this.#tween = null;
+    const canvas = this.renderer.domElement;
+    const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
+    const span = (building ? WALK_SPAN.inside : WALK_SPAN.town) * w.reach * (aspect < 1 ? Math.min(1.6, 0.8 / aspect) : 1);
+    const zoom = Math.min(this.controls.maxZoom, this.#span / span);
+    const tilt = Math.min(w.pitch, walkTilt(v.x, w.y + WALK_AIM, v.z, w.yaw, this.#walkObstacles(), BUILDING_FRAME_HEIGHT));
+    w.tilt += (tilt - w.tilt) * alpha;
+    this.#v.set(v.x, w.y + WALK_AIM, v.z);
+    w.target.lerp(this.#v, alpha);
+    if (Math.abs(this.camera.zoom - zoom) > 1e-4) {
+      this.camera.zoom += (zoom - this.camera.zoom) * alpha;
+      this.camera.updateProjectionMatrix();
+    }
+    const sin = Math.sin(w.tilt);
+    this.controls.target.copy(w.target);
+    this.camera.position.set(w.target.x + sin * Math.sin(w.yaw) * CAMERA_DISTANCE, w.target.y + Math.cos(w.tilt) * CAMERA_DISTANCE, w.target.z + sin * Math.cos(w.yaw) * CAMERA_DISTANCE);
+    w.settled = Math.abs(tilt - w.tilt) < 0.002 && w.target.distanceToSquared(this.#v) < 1e-5 && Math.abs(this.camera.zoom - zoom) < 0.002 && Math.abs(ground - w.y) < 0.002;
+    return moved || v.crossing || !w.settled || this.#walkInput.x !== 0 || this.#walkInput.y !== 0;
+  }
+  #walkState: FigureState = { ...IDLE_STATE };
 
   /** `performance.mark`s for the startup measurement: the first drawn frame, and the first with the town dressed. */
   #mark() {
@@ -1859,6 +2138,8 @@ export class TownScene {
     canvas.removeEventListener("pointermove", this.pointerMove);
     canvas.removeEventListener("pointerleave", this.pointerLeave);
     canvas.removeEventListener("webglcontextlost", this.contextLost);
+    canvas.removeEventListener("wheel", this.wheel);
+    this.#endWalk(false);
     for (const view of this.#buildings.values()) view.dispose();
     for (const robot of this.#civicRobots) robot.handle.dispose();
     this.#crowd.dispose();

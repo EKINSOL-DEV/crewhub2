@@ -1,4 +1,4 @@
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 import { Archive, Check, CircleHelp, Clock, Flag, Hand, MessageSquare, Play, RefreshCw, Sprout, TriangleAlert, Trophy } from "lucide-react";
 import type { AgentPlacement, Building, ProgressKind, RoleSource, WorkObject, WorldModel } from "@crewhub/world-model";
 import { STRESS, worldRuntime } from "../state/world";
@@ -16,6 +16,7 @@ import { TownScene, type BuildPointer, type CameraAction, type FrameStats } from
 import { resolveBuildingPlacements } from "../world/placements";
 import type { TownLayer } from "../world/propLayer";
 import type { Ambient } from "../world/movement";
+import { keysDirection } from "../world/visitor";
 import { LaneChip } from "../world/lane";
 import { clockTime, countsLine, laneWords } from "../world/townLayout";
 import { civicLabel, civicWords } from "../world/settlementDressing";
@@ -62,6 +63,9 @@ interface Props {
   /** Says something on the polite status line (a building moved). */
   onAnnounce?: (text: string) => void;
   onBuild: (kind: BuildPointer, at: { room: RoomKind; cell: { x: number; z: number } } | null, pick: Pick | null) => void;
+  /** Walk mode: the person walks a visitor through the world; a front door crossed reports the building (or null for the town). */
+  walking: boolean;
+  onWalkPlace: (slug: string | null) => void;
 }
 
 /* Above this many buildings, Details leaves the town's signs as quiet names (only the focused one expands). */
@@ -70,6 +74,81 @@ const now = () => worldRuntime().source.now();
 /* The live source has no playback: it runs at the wall clock, 1x. */
 const speed = () => worldRuntime().source.playback?.speed() ?? 1;
 const dayClock = () => worldRuntime().source.now() - worldRuntime().epochMs;
+
+const typing = (target: EventTarget | null) => target instanceof HTMLElement && (target.matches("input, select, textarea") || target.isContentEditable);
+const WALK_KEYS = new Set(["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"]);
+
+/**
+ * Walk mode's input: W A S D or the arrow keys (Shift hurries), and a virtual stick where there is no keyboard (a
+ * coarse pointer or a narrow screen; CSS decides). It only tells the scene which way is wanted; the scene walks.
+ */
+function WalkControls({ scene }: { scene: RefObject<TownScene | null> }) {
+  const stick = useRef<HTMLDivElement>(null),
+    knob = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const held = new Set<string>();
+    let hurry = false;
+    const send = () => {
+      const d = keysDirection(held);
+      const length = Math.hypot(d.x, d.y) || 1;
+      scene.current?.walkInput(d.x / length, d.y / length, hurry);
+    };
+    const key = (e: KeyboardEvent) => {
+      const down = e.type === "keydown";
+      if (e.key === "Shift") hurry = down;
+      else {
+        const name = e.key.toLowerCase();
+        if (!WALK_KEYS.has(name)) return;
+        if (down && (typing(e.target) || e.ctrlKey || e.metaKey || e.altKey)) return;
+        if (down) {
+          held.add(name);
+          // The arrow keys would scroll a sheet or move the focus ring.
+          e.preventDefault();
+        } else held.delete(name);
+      }
+      send();
+    };
+    const release = () => {
+      held.clear();
+      hurry = false;
+      send();
+    };
+    window.addEventListener("keydown", key);
+    window.addEventListener("keyup", key);
+    window.addEventListener("blur", release);
+    return () => {
+      window.removeEventListener("keydown", key);
+      window.removeEventListener("keyup", key);
+      window.removeEventListener("blur", release);
+      scene.current?.walkInput(0, 0, false);
+    };
+  }, [scene]);
+  const push = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const el = stick.current;
+    if (!el || (e.type === "pointermove" && !el.hasPointerCapture(e.pointerId))) return;
+    if (e.type === "pointerdown") el.setPointerCapture(e.pointerId);
+    const box = el.getBoundingClientRect();
+    const radius = box.width / 2;
+    let x = (e.clientX - box.left - radius) / radius,
+      y = (e.clientY - box.top - radius) / radius;
+    const length = Math.hypot(x, y);
+    if (length > 1) {
+      x /= length;
+      y /= length;
+    }
+    if (knob.current) knob.current.style.transform = `translate(${(x * radius * 0.6).toFixed(1)}px, ${(y * radius * 0.6).toFixed(1)}px)`;
+    scene.current?.walkInput(x, -y, false);
+  };
+  const rest = () => {
+    if (knob.current) knob.current.style.transform = "";
+    scene.current?.walkInput(0, 0, false);
+  };
+  return (
+    <div ref={stick} className="walk-stick" role="application" aria-label="Walk: drag to move" onPointerDown={push} onPointerMove={push} onPointerUp={rest} onPointerCancel={rest} onLostPointerCapture={rest}>
+      <span ref={knob} className="walk-knob" aria-hidden="true" />
+    </div>
+  );
+}
 
 /** The Three.js town and its HTML labels. Labels carry words for every fact they show; the scene only positions them. */
 export default function WorldCanvas(props: Props) {
@@ -124,6 +203,7 @@ export default function WorldCanvas(props: Props) {
     selectedAgent: props.selection.selected?.kind === "agent" ? props.selection.selected.key : null,
     districts: districtViews,
     district: props.district,
+    walking: props.walking,
   };
   useEffect(() => {
     if (!host.current || !labels.current) return;
@@ -136,6 +216,7 @@ export default function WorldCanvas(props: Props) {
         build: (kind, at, pick) => latest.current.onBuild(kind, at, pick),
         // The town lays itself out over a few tasks; the loading note stays until it is done.
         ready: () => setReady(true),
+        walkPlace: (slug) => latest.current.onWalkPlace(slug),
       });
     } catch {
       latest.current.onError();
@@ -173,7 +254,15 @@ export default function WorldCanvas(props: Props) {
       )}
       {STRESS && ready && <FrameOverlay scene={scene} />}
       {fps && ready && <FpsOverlay scene={scene} />}
+      {props.walking && ready && <WalkControls scene={scene} />}
       <div ref={labels} className="world-labels">
+        {props.walking && (
+          <div className="anchor agent-anchor picked" data-anchor="you">
+            <span className="agent-stack">
+              <span className="name-pill you-pill">You</span>
+            </span>
+          </div>
+        )}
         {movingBuilding &&
           free.map((lot) => (
             <div key={`lot:${lotKey(lot.cell)}`} className="anchor raised" data-anchor={`lot:${lotKey(lot.cell)}`}>

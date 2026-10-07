@@ -84,6 +84,10 @@ built.
 | 5. Build mode: layout and props | Local town document with undo and export/import, prop catalogue, the `crewhub-prop/1` format and the `prop-builder` skill | Built in demo mode (2026-10-01) |
 | 6. Director and awareness | A scripted intent feed through the validated intent list, `where`, the settings block, the no-model-call guard | Built in demo mode (2026-10-01) |
 
+Walk mode (2026-10-07, built in demo mode): the person walks a visitor figure through the town and into buildings over
+the navigation world, with a follow camera ("Walk mode" in
+[the night report](reports/2026-10-01-world-demo-night.md)).
+
 ## Open: the host
 
 Everything below is planned and not built. Each item needs crewhub-loops running.

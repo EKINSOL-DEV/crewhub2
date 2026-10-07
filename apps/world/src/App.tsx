@@ -1,5 +1,5 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type Ref } from "react";
-import { ArrowLeft, ChevronRight, FlaskConical, Hammer, MessageCircle, Minus, Monitor, Moon, Pause, Plus, RotateCcw, RotateCw, Scan, Search, Settings, Sprout, Sun, Tags, X } from "lucide-react";
+import { ArrowLeft, ChevronRight, FlaskConical, Hammer, MessageCircle, Minus, Monitor, Moon, Pause, Plus, RotateCcw, RotateCw, Footprints, Scan, Search, Settings, Sprout, Sun, Tags, X } from "lucide-react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { CIVIC_WORDS, describeTownDocument, describeWorld, ruleProps, zoningOf, type AgentPlacement, type CivicWords, type PlaybackControls, type PlaybackSpeed, type RoleId, type RoomKind, type TextLine, type WorldModel } from "@crewhub/world-model";
 import type { PropModel } from "@crewhub/world-engine";
@@ -105,6 +105,9 @@ function World() {
   const [jumpOpen, setJumpOpen] = useState(false);
   const [flight, setFlight] = useState<{ id: number; anchor: string }>({ id: 0, anchor: "" });
   const [selection, setSelection] = useState<Selection>({ hover: null, selected: null });
+  // Walk mode: the person walks a visitor through the world. The level it began on is kept for the way back.
+  const [walking, setWalking] = useState(false);
+  const walkBack = useRef<{ entered: string | null; room: RoomKind | null; zoomed: RoomKind | null; district: string | null } | null>(null);
   const [overrides, setOverrides] = useState<Record<string, RoleId>>(readRoleOverrides);
   const ambient = useAmbient();
   const details = useDetails();
@@ -246,9 +249,31 @@ function World() {
     // In a region a building steps out to its district; Escape once more shows the region.
     setAnnouncement(here ? `${describeDistrict(here)} Escape shows the region.` : `The town. ${describe(focused)}`);
   }, [describe, describeDistrict, focused, here]);
+  const startWalk = useCallback(() => {
+    walkBack.current = { entered, room, zoomed, district };
+    setSelection({ hover: null, selected: null });
+    setRingVisible(false);
+    setWalking(true);
+    setAnnouncement("Walking. W A S D or the arrow keys move you, Shift hurries, drag to look around. Walk through a door to go in or out. Escape stops.");
+  }, [district, entered, room, zoomed]);
+  /* Escape: back to the level the walk began on. */
+  const stopWalk = useCallback(() => {
+    const was = walkBack.current;
+    walkBack.current = null;
+    setWalking(false);
+    if (was) {
+      setEntered(was.entered && buildings.some((b) => b.slug === was.entered) ? was.entered : null);
+      setRoom(was.room);
+      setZoomed(was.zoomed);
+      setDistrict(was.district);
+    }
+    setAnnouncement("Walking stopped.");
+  }, [buildings]);
   /* Goes to a place of any level (the breadcrumb, the jump list, a district's label, the text view). */
   const go = useCallback(
     (place: Place, agent?: string) => {
+      // Going somewhere by name ends a walk there.
+      setWalking(false);
       const b = place.building ? buildings.find((x) => x.slug === place.building) : undefined;
       const d = isRegion(districts) ? (districts.find((x) => x.id === place.district) ?? null) : null;
       setDistrict(b ? districtOfBuilding(b.slug) : (d?.id ?? null));
@@ -374,6 +399,8 @@ function World() {
         if (e.key === "Escape") setEditing(null);
         return;
       }
+      // While walking, the movement keys are the walk's (WorldCanvas), and the mode keys that share them wait.
+      if (walking && /^(w|a|s|d|b|shift|arrow(up|down|left|right)|enter)$/i.test(e.key)) return;
       if (e.key.toLowerCase() === "b" && !graphicsFailed) {
         e.preventDefault();
         build.toggle();
@@ -402,6 +429,16 @@ function World() {
         e.preventDefault();
         return;
       }
+      if (e.key === "Escape" && walking) {
+        e.preventDefault();
+        stopWalk();
+        return;
+      }
+      if (e.key.toLowerCase() === "w" && !graphicsFailed && !build.state.on && !textOpen && !settingsOpen && !selection.selected) {
+        e.preventDefault();
+        startWalk();
+        return;
+      }
       if (e.key === "Escape" && build.state.on) {
         e.preventDefault();
         build.toggle();
@@ -419,7 +456,7 @@ function World() {
         e.preventDefault();
         return;
       }
-      if (e.key === "Backspace" && entered) {
+      if (e.key === "Backspace" && entered && !walking) {
         e.preventDefault();
         back();
         return;
@@ -450,11 +487,11 @@ function World() {
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [back, build, camera, closeJump, closeSettings, closeText, editing, entered, go, graphicsFailed, here, inside, jumpOpen, openJump, openText, redo, selection.selected, settingsOpen, textOpen, undo, zoomed]);
+  }, [back, build, camera, closeJump, closeSettings, closeText, editing, entered, go, graphicsFailed, here, inside, jumpOpen, openJump, openText, redo, selection.selected, settingsOpen, startWalk, stopWalk, textOpen, undo, walking, zoomed]);
 
   // Arrow keys and Enter move the focus ring between plots while the scene has keyboard focus.
   const sceneKey = (e: ReactKeyboardEvent) => {
-    if (typing(e.target) || e.altKey || e.ctrlKey || e.metaKey) return;
+    if (typing(e.target) || e.altKey || e.ctrlKey || e.metaKey || walking) return;
     // Build mode moves the chosen or selected prop with the arrow keys (the window listener handles them).
     if (build.state.on && inside && (build.state.propId || build.state.selected)) return;
     if (inside) {
@@ -549,6 +586,8 @@ function World() {
                 onAnnounce={setAnnouncement}
                 town={townLayer}
                 onBuild={build.pointer}
+                walking={walking}
+                onWalkPlace={(slug) => (slug ? enter(slug) : back())}
               />
             </Suspense>
           </SceneBoundary>
@@ -606,7 +645,7 @@ function World() {
         </Suspense>
       )}
 
-      {!graphicsFailed && <CameraToolbar camera={camera} />}
+      {!graphicsFailed && <CameraToolbar camera={camera} walking={walking} toggleWalk={walking ? stopWalk : build.state.on ? null : startWalk} />}
 
       <ChatCorner narrow={narrow} demo={demo} connection={connection} />
 
@@ -829,9 +868,20 @@ const CornerTools = memo(function CornerTools(props: {
   );
 });
 
-const CameraToolbar = memo(function CameraToolbar({ camera }: { camera: (type: CameraAction) => void }) {
+const CameraToolbar = memo(function CameraToolbar({ camera, walking, toggleWalk }: { camera: (type: CameraAction) => void; walking: boolean; toggleWalk: (() => void) | null }) {
   return (
     <div className="camera-toolbar" role="toolbar" aria-label="Camera">
+      <Button
+        variant="ghost"
+        size="sm"
+        iconOnly
+        aria-label={walking ? "Stop walking (Escape)" : "Walk (W)"}
+        title={walking ? "Stop walking (Esc)" : "Walk around (W)"}
+        pressed={walking}
+        disabled={!toggleWalk}
+        icon={<Footprints className="icon" aria-hidden="true" />}
+        onClick={() => toggleWalk?.()}
+      />
       <Button variant="ghost" size="sm" iconOnly aria-label="Zoom in" title="Zoom in (+)" icon={<Plus className="icon" aria-hidden="true" />} onClick={() => camera("zoom-in")} />
       <Button variant="ghost" size="sm" iconOnly aria-label="Zoom out" title="Zoom out (−)" icon={<Minus className="icon" aria-hidden="true" />} onClick={() => camera("zoom-out")} />
       <Button variant="ghost" size="sm" iconOnly aria-label="Rotate left" title="Rotate left ([)" icon={<RotateCcw className="icon" aria-hidden="true" />} onClick={() => camera("rotate-left")} />

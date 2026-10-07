@@ -740,6 +740,31 @@ error, and the key in no response, log or bundle file.
 Pairing (plan 3.5), the chat (phase 2), a viewer role (L1), project groups (L22), and a run against the real
 install, which did not exist yet.
 
+## Walk mode (2026-10-07)
+
+A mode to walk around inside the world: the Walk button in the camera toolbar, or `W` when nothing is selected. A
+visitor figure of the town's cast (a plain worker, no project colour, tagged "You") is walked with W A S D or the arrow
+keys, `Shift` hurries, a drag or a sideways trackpad scroll looks around, and a virtual stick shows on touch and narrow
+screens. The visitor keeps to the navigation world's open cells (`apps/world/src/world/visitor.ts`: free positions
+inside a room, a radius test against the same occupancy the agents use, sliding along walls) and changes rooms only
+through the graph's doors; a front door crossed enters or leaves the building exactly as a click does. Escape returns
+to the level and the camera pose the walk began on. It works in demo and live mode alike (it reads the scene's
+navigation world, not the source) and asks the resolved cast for its figure like any other renderer.
+
+- **The camera stays orthographic.** It follows from where the person turned it, with W always away from the camera,
+  rather than a perspective chase camera: the labels, the far crowd, the shadow fit and the level-of-detail steps all
+  read the orthographic zoom. An orthographic camera is never inside a wall; when a building stands between it and the
+  visitor it tilts steeper to see over it (its way to pull in), and the entered building's back walls already give way.
+- **The visitor is no actor of the simulation**: agents do not wait for it or walk around it, and it can stand where
+  an agent stands.
+- **Measured** on the stress fixture (`?stress=1`, Pretty, headed Chromium on the Mac, uncapped loop, four-second
+  windows): no frame over 33 ms while hurrying along the street or walking inside a stress building (p95 4.6 ms).
+  A phone was not measured.
+- **Not done**: a hurry control on the stick (it walks; the stick's deflection sets the pace up to a stroll), a
+  walked route between districts' far ends is a long walk (there is no bus for the visitor), and the mode was looked at
+  in the demo only, with the default cast, at 1440 and 375 wide (no live host was running; the other casts, the
+  larger tiers, reduced motion and a real touch on the stick were not looked at in a browser).
+
 ## Challenges with docs/integrators
 
 Read at crewhub-loops `a1bed0f`. Each item names the document, what was unclear, contradictory, missing or marked
