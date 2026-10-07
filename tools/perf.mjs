@@ -2,7 +2,8 @@
 
    Usage:
      node tools/perf.mjs --port <port> [scenario...] [--quality pretty|fast] [--theme light|dark] [--cast <id>]
-                         [--scenario <id>] [--stress <n>] [--rooms three|classic] [--json <file>] [--minutes <n>] [--preview] [--out <dir>] [--swiftshader]
+                         [--scenario <id>] [--stress <n>] [--rooms three|classic] [--json <file>] [--minutes <n>]
+                         [--preview] [--out <dir>] [--swiftshader]
 
    With no scenario it runs them all (about three minutes):
      demo-town      the normal demo, town view, 1x
@@ -39,9 +40,10 @@
    Options: --quality forces the Graphics setting (phone-fast is always Fast), --theme the colour scheme (light by
    default), --cast the viewer's cast choice (Settings > Town > Cast), --scenario the demo scenario of the demo-*,
    phone-*, startup and view-change scenarios by its id (the page's ?scenario=<id>; left out: the default storyline),
+   --rooms the building plan (the page's ?rooms=three|classic, Settings > Town > Buildings; left out: the viewer's
+   setting, so the default plan in a fresh context),
    --stress the fixture's size as the page's ?stress=<n> (1 by default: 12 buildings, ~100 agents; 20: 20 buildings,
-   200 agents in four groups), --rooms the building plan of the page (?rooms=three|classic: the three halls of the
-   spec addendum or the classic ten rooms), --json writes every result as
+   200 agents in four groups), --json writes every result as
    JSON (a bare file name lands in --out), --minutes the length of `long`.
 
    Production numbers (--preview): measure what users get, a minified production build, instead of the Vite dev
@@ -71,6 +73,7 @@ const castId = opts.cast;
 const stressSize = opts.stress ?? "1";
 /** The phone scenarios run the stress fixture (at 4x) only when --stress is given; otherwise the demo, as --scenario says. */
 const phoneStress = opts.stress !== null;
+if (opts.rooms !== null && !["three", "classic"].includes(opts.rooms)) opts.fail(`--rooms must be three or classic, not "${opts.rooms}"`);
 const build = preview ? "preview" : "dev";
 /** Scenarios that need the dev-only stress fixture. */
 const STRESS_ONLY = ["stress-town", "stress-inside", "stress-16x", "view-change-stress", "long"];
@@ -137,7 +140,7 @@ const results = [];
 const mb = (bytes) => (bytes == null ? "?" : `${(bytes / 1048576).toFixed(0)}MB`);
 const n1 = (v) => v.toFixed(1);
 function line(name, r) {
-  results.push({ scenario: name, quality: name.startsWith("phone-fast") ? "fast" : name.startsWith("phone-pretty") ? "pretty" : quality, theme, build, ...(castId ? { cast: castId } : {}), ...(name.includes("stress") || (name.startsWith("phone") && phoneStress) ? { stress: stressSize } : opts.scenario ? { scenario: opts.scenario } : {}), ...r });
+  results.push({ scenario: name, quality: name.startsWith("phone-fast") ? "fast" : name.startsWith("phone-pretty") ? "pretty" : quality, theme, build, ...(castId ? { cast: castId } : {}), ...(opts.rooms ? { rooms: opts.rooms } : {}), ...(name.includes("stress") || (name.startsWith("phone") && phoneStress) ? { stress: stressSize } : opts.scenario ? { scenario: opts.scenario } : {}), ...r });
   // Dev runs print exactly as before; a production run marks each line.
   const mark = preview ? " [preview]" : "";
   if (name.startsWith("view-change")) {

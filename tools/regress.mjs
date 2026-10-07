@@ -17,7 +17,7 @@
            (default 5180, Vite's default proxy target) and the browser opens your Vite, which must have been started
            with CREWHUB_WORLD_PORT=<host-port>. About half a minute.
      rooms the three-room building (`?rooms=three`, whatever the viewer's Buildings setting): three room signs
-           (Administration, The floor, Lead's office), the arrow keys between the three halls, the text view naming the
+           (Administration, The floor, Lead's office) and a rack sign with its count, the arrow keys between the three halls, the text view naming the
            racks and the desks with a package on each, the lead's office beacon, the agent card on a figure at a desk,
            and walk mode in through the front door into Administration and on to the floor. About one minute.
    Besides the checks it fails on any page error, console error or request that leaves the page's own origin, and
@@ -585,11 +585,16 @@ await group("rooms", async () => {
   const slug = await entered(p);
   await p.keyboard.press("d");
   await p.waitForTimeout(900);
-  const signs = (await p.locator(".world-labels .room-sign strong").allInnerTexts()).map((t) => t.trim());
+  // The halls' signs; the four racks in Administration carry signs of their own (`.rack-sign`), counted apart.
+  const signs = (await p.locator(".world-labels .room-sign:not(.rack-sign) strong").allInnerTexts()).map((t) => t.trim());
+  const racks = (await p.locator(".world-labels .rack-sign").allInnerTexts()).map((t) => t.trim());
   await shot(p, "26-rooms-signs");
   await p.keyboard.press("d");
   await p.waitForTimeout(400);
   ok("rooms: three room signs in a building", signs.length === 3 && HALLS.every((h) => signs.includes(h)), `${signs.join(", ")} (in ${slug})`);
+  // The label layout keeps the rack signs from overlapping, so it shows one or more of the four at a time.
+  const RACKS = ["Backlog", "Planning", "Review", "Done"];
+  ok("rooms: a rack sign in Administration with its count", racks.length > 0 && racks.every((r) => RACKS.some((n) => r.startsWith(n)) && /\d+ tickets?$/.test(r)), racks.join(", "));
 
   // 17. The arrow keys move the focus between the three halls; the status line sums each hall up.
   const first = await announced(p, "ArrowRight");

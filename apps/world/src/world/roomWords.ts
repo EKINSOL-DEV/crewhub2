@@ -23,6 +23,18 @@ export function roomSummary(building: Building, kind: RoomKind, laneWords: (agen
   return `${hallSummary(building, hallOf(kind), laneWords)}.`;
 }
 
+/**
+ * The zoom announcement: "Zoomed to the Workers room: …" (classic), "Zoomed to Administration: …", "Zoomed to the
+ * floor: …", "Zoomed to the lead's office: …" (three-rooms): the article fits the hall's name.
+ */
+export function zoomedTo(summary: string, kind: RoomKind, rooms: RoomWording = "classic"): string {
+  if (rooms === "classic") return `Zoomed to the ${summary}`;
+  const hall = hallOf(kind);
+  if (hall === "administration") return `Zoomed to ${summary}`;
+  const lower = `${summary.charAt(0).toLowerCase()}${summary.slice(1)}`;
+  return `Zoomed to ${lower.startsWith("the ") ? lower : `the ${lower}`}`;
+}
+
 /** Whether a label in room `a` shows when room `b` is revealed: the same room, or the same hall in three-rooms. */
 export const sameRoom = (a: RoomKind, b: RoomKind, rooms: RoomWording = "classic"): boolean => sameSign(a, b, rooms);
 
