@@ -1,7 +1,7 @@
 /**
  * The host's configuration from the environment, as a pure function so a test can run it: which key file to read
- * (the configured one, the default, or the shared builder key as a loud fallback), the port, the loops URL and the
- * extra origins. The key's text is returned to the caller and nowhere else.
+ * (the configured one, the default, or the shared builder key as a loud fallback), the port, the loops URL, the
+ * extra origins and the pairing switches. The key's text is returned to the caller and nowhere else.
  */
 import { homedir } from "node:os";
 import path from "node:path";
@@ -64,6 +64,14 @@ export interface ServerConfig {
   port: number;
   allowedOrigins: string[];
   production: boolean;
+  /** `off` only outside production, and loudly (see `warnings`). */
+  pairing: "on" | "off";
+  /** The file that keeps the pairing secret across restarts; none means a per-run secret. */
+  pairingFile: string | null;
+  /** Where a browser reaches the host behind a TLS proxy; https means a `Secure` cookie. */
+  publicUrl: string | null;
+  /** Lines for the log at start. Never a secret. */
+  warnings: string[];
 }
 
 export function loadServerConfig(env: Record<string, string | undefined>): ServerConfig {
@@ -76,5 +84,28 @@ export function loadServerConfig(env: Record<string, string | undefined>): Serve
     .split(",")
     .map((s) => s.trim())
     .filter((s) => s !== "");
-  return { loopsUrl, port, allowedOrigins, production: env.NODE_ENV === "production" };
+  const production = env.NODE_ENV === "production";
+  const pairingText = (env.CREWHUB_WORLD_PAIRING ?? "on").trim().toLowerCase();
+  if (pairingText !== "on" && pairingText !== "off") throw new ConfigError(`CREWHUB_WORLD_PAIRING must be on or off, got ${pairingText}`);
+  if (pairingText === "off" && production) throw new ConfigError("CREWHUB_WORLD_PAIRING=off is refused with NODE_ENV=production: pairing is what keeps other pages and processes out of the world's data");
+  const warnings: string[] = [];
+  if (pairingText === "off") {
+    warnings.push("WARNING: CREWHUB_WORLD_PAIRING=off: any page or process on this machine can read the world's data through /world-api.");
+    warnings.push("WARNING: this is for development only (the Vite proxy); production refuses it.");
+  }
+  const pairingFileText = (env.CREWHUB_WORLD_PAIRING_FILE ?? "").trim();
+  const pairingFile = pairingFileText === "" ? null : path.resolve(pairingFileText);
+  const publicUrlText = (env.CREWHUB_WORLD_PUBLIC_URL ?? "").trim();
+  let publicUrl: string | null = null;
+  if (publicUrlText !== "") {
+    let parsed: URL;
+    try {
+      parsed = new URL(publicUrlText);
+    } catch {
+      throw new ConfigError("CREWHUB_WORLD_PUBLIC_URL must be an http(s) URL");
+    }
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") throw new ConfigError("CREWHUB_WORLD_PUBLIC_URL must be an http(s) URL");
+    publicUrl = parsed.origin;
+  }
+  return { loopsUrl, port, allowedOrigins, production, pairing: pairingText, pairingFile, publicUrl, warnings };
 }

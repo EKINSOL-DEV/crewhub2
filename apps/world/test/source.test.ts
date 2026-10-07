@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { HostHealth } from "@crewhub/loops-client";
-import { decideSource, DEFAULT_LOOPS_URL, hrefWithoutOverride, LIVE_TOWN_KEY, loopsWebUrl, needsProbe, parseSourceOverride, parseSourceSetting, PROBE_TIMEOUT_MS, readSourceSetting, resolveSource, SOURCE_SETTING_KEY, townKeyFor, writeSourceSetting } from "../src/state/source.ts";
+import {
+  needsPairing, decideSource, DEFAULT_LOOPS_URL, hrefWithoutOverride, LIVE_TOWN_KEY, loopsWebUrl, needsProbe, parseSourceOverride, parseSourceSetting, PROBE_TIMEOUT_MS, readSourceSetting, resolveSource, SOURCE_SETTING_KEY, townKeyFor, writeSourceSetting } from "../src/state/source.ts";
 
 const HEALTH: HostHealth = { loops: "ok", keyName: "crewhub-world", sharedKey: false };
 
@@ -61,13 +62,30 @@ test("decide: a silent or failing probe is the demo, quietly", async () => {
   assert.equal(failing.health, null);
 });
 
-test("decide: a fixed setting or a URL override never probes", async () => {
-  const probe = async () => {
+test("decide: a fixed demo never probes; a fixed live stays live whatever the host says, but asks it once for paired", async () => {
+  const never = async () => {
     throw new Error("must not be asked");
   };
-  assert.equal((await decideSource({ param: null, setting: "live", probe })).source, "live");
-  assert.equal((await decideSource({ param: "demo", setting: "live", probe })).source, "demo");
-  assert.equal((await decideSource({ param: "live", setting: "demo", probe })).source, "live");
+  assert.equal((await decideSource({ param: "demo", setting: "live", probe: never })).source, "demo");
+  assert.equal((await decideSource({ param: null, setting: "demo", probe: never })).source, "demo");
+  let asked = 0;
+  const unpaired = async () => (asked += 1, { loops: "ok" as const, keyName: "crewhub-world", sharedKey: false, paired: false, pairing: "on" as const });
+  const live = await decideSource({ param: null, setting: "live", probe: unpaired });
+  assert.equal(live.source, "live");
+  assert.equal(live.reason, "setting");
+  assert.equal(asked, 1);
+  assert.equal(live.health?.paired, false);
+  assert.equal((await decideSource({ param: "live", setting: "demo", probe: never })).source, "live", "a failing probe does not change a fixed live");
+});
+
+test("needsPairing: live, a host that answered with pairing on, and this browser not paired", () => {
+  const health = { loops: "ok" as const, keyName: "crewhub-world", sharedKey: false };
+  assert.equal(needsPairing({ source: "live", health: { ...health, paired: false, pairing: "on" } }), true);
+  assert.equal(needsPairing({ source: "live", health: { ...health, paired: true, pairing: "on" } }), false);
+  assert.equal(needsPairing({ source: "live", health: { ...health, paired: true, pairing: "off" } }), false);
+  assert.equal(needsPairing({ source: "live", health: { ...health } }), false, "a host from before pairing never asks");
+  assert.equal(needsPairing({ source: "live", health: null }), false, "a silent host is the demo's business, not pairing's");
+  assert.equal(needsPairing({ source: "demo", health: { ...health, paired: false, pairing: "on" } }), false, "the demo never asks");
 });
 
 test("the town document key: live has its own, the demo keeps the scenario's and the stress fixture's", () => {

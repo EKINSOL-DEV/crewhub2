@@ -48,6 +48,10 @@ export interface HostHealth {
   cursor?: number;
   /** The origin of crewhub-loops' web app (the API's URL; on the Mac both share 8091), for the sign-in link. */
   loopsWebUrl?: string;
+  /** Whether this browser carries a valid pairing cookie (plan 3.5). Absent on a host from before pairing. */
+  paired?: boolean;
+  /** `off` only in development; then every request counts as paired. */
+  pairing?: "on" | "off";
 }
 
 /** The source's clocks, with their defaults. Tests inject short ones. */
@@ -86,6 +90,8 @@ export async function probeHost(baseUrl = "", timeoutMs = 1500): Promise<HostHea
     if (typeof body.loopsCommit === "string") health.loopsCommit = body.loopsCommit;
     if (typeof body.cursor === "number") health.cursor = body.cursor;
     if (typeof body.loopsWebUrl === "string" && /^https?:\/\//.test(body.loopsWebUrl)) health.loopsWebUrl = body.loopsWebUrl;
+    if (typeof body.paired === "boolean") health.paired = body.paired;
+    if (body.pairing === "on" || body.pairing === "off") health.pairing = body.pairing;
     return health;
   } catch {
     return null;
@@ -94,6 +100,7 @@ export async function probeHost(baseUrl = "", timeoutMs = 1500): Promise<HostHea
 
 export function createHostSource(options: HostSourceOptions = {}): WorldSource {
   const base = options.baseUrl ?? "";
+  const extraHeaders = options.headers ?? {};
   const timings: HostSourceTimings = { ...DEFAULT_TIMINGS, ...stripUndefined(options.timings ?? {}) };
   const resnapshotOnGap = options.resnapshotOnGap ?? false;
 
@@ -132,7 +139,7 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
 
   const url = (path: string) => `${base}${PREFIX}${path}`;
   const get = (path: string, signal?: AbortSignal) =>
-    fetch(url(path), { signal: signal ?? null, headers: { accept: "application/json" } });
+    fetch(url(path), { signal: signal ?? null, headers: { ...extraHeaders, accept: "application/json" } });
 
   /** Any message from the host: the stream is alive. Silence past `staleMs` is not. */
   function touched(): void {
@@ -198,7 +205,7 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
   async function readStream(signal: AbortSignal): Promise<"resnapshot" | "ended"> {
     let response: Response;
     try {
-      response = await fetch(url(`/stream?cursor=${cursor}`), { signal, headers: { accept: "text/event-stream" } });
+      response = await fetch(url(`/stream?cursor=${cursor}`), { signal, headers: { ...extraHeaders, accept: "text/event-stream" } });
     } catch {
       return "ended";
     }

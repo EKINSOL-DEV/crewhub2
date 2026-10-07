@@ -39,7 +39,8 @@ export default defineConfig({
     // The world's host (apps/host) answers /world-api; in dev Vite forwards it there, the SSE stream included. The host
     // checks the Host header against its own port, so the origin is changed. Without a host the proxy answers an error
     // the app treats as "no host" (the source decision falls back to the demo).
-    proxy: { "/world-api": worldApiProxy() },
+    // `/pair/<token>` too, so a link minted for this origin (`npm run host -- open --origin http://127.0.0.1:5173`) pairs here.
+    proxy: { "/world-api": worldApiProxy(), "/pair": worldApiProxy() },
   },
   preview: { host: "127.0.0.1", port: 4173, strictPort: true },
 });

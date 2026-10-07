@@ -9,7 +9,7 @@ describe("snapshot assembly", () => {
   let host: Host;
   before(async () => {
     stub = await createLoopsStub({ ...installation(), events: [envelope(40, "ticket.created")] });
-    host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", retryMs: { min: 20, max: 100 } });
+    host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 } });
     await fetch(`${host.url}/world-api/health`);
     stub.emit({ type: "project.archived", project: { slug: "old", key: "OLD" }, ticket: null, actor: { id: "nicky", kind: "user" }, recipientIds: [], payload: {} });
     for (let i = 0; i < 50; i += 1) {
@@ -49,7 +49,7 @@ describe("snapshot assembly", () => {
 
   it("answers 503 unauthorized when the key is refused", async () => {
     const wrong = await createLoopsStub(installation());
-    const other = await createHost({ loopsUrl: wrong.url, key: "chl_not_the_key", keyName: "crewhub-world", retryMs: { min: 20, max: 100 } });
+    const other = await createHost({ loopsUrl: wrong.url, key: "chl_not_the_key", keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 } });
     try {
       const res = await fetch(`${other.url}/world-api/snapshot`);
       assert.equal(res.status, 503);

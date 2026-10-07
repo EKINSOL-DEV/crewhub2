@@ -23,12 +23,15 @@ storyline in real time. Three terminals:
 
 ```sh
 npm run loops:fake -- --port 8091          # writes its key to tools/out/loops-fake.key (0600); prints how to start the host
-CREWHUB_WORLD_KEY_FILE=tools/out/loops-fake.key npm run host
+CREWHUB_WORLD_PAIRING=off CREWHUB_WORLD_KEY_FILE=tools/out/loops-fake.key npm run host
 npm run dev                                 # then open http://127.0.0.1:5173/?source=live
 ```
 
+`CREWHUB_WORLD_PAIRING=off` skips the pairing cookie for development (the host says so loudly at start; production
+refuses it). To try pairing itself against the fake, leave it on and follow the "Pair this browser" step of section 3.
 The fake prints the two env lines for the host and never the key; the key file is reused on a restart, so a running
-host stays valid. `--scenario fresh|one|small-team|studio` picks the demo scenario and `--speed 0|1|4|16` the pace.
+host stays valid. `npm run loops:fake -- --builder-key` makes the key behave like loops' builder key (tickets,
+comments, auth/me only; everything else 403), so the host shows Unauthorized. `--scenario fresh|one|small-team|studio` picks the demo scenario and `--speed 0|1|4|16` the pace.
 The switch to the real install later changes only the URL and the key file (section 3).
 
 ## 1. What crewhub-loops must have
@@ -176,9 +179,12 @@ The host reads these; every one has a default that matches the quickstart.
 | `CREWHUB_WORLD_KEY_FILE` | `~/.config/crewhub-loops/secrets/agent-crewhub-world.key` | The key the host sends as `Authorization: Bearer`. Missing: falls back to `agent-builder.key` in the same folder, with a warning; that key only diagnoses (Unauthorized), see section 1 step 4. Read once, never logged, never in a response or the bundle (a test checks). |
 | `CREWHUB_WORLD_PORT` | `5180` | The host's own port, bound to `127.0.0.1` only. |
 | `CREWHUB_WORLD_ALLOWED_ORIGINS` | none | A comma list of extra browser origins the host accepts besides `http://127.0.0.1:<port>` and `http://localhost:<port>`; in development the Vite dev server's origin, for example `http://127.0.0.1:5173`. |
+| `CREWHUB_WORLD_PAIRING` | `on` | `off` drops the pairing cookie gate: development only, logged loudly at start, refused with `NODE_ENV=production`. |
+| `CREWHUB_WORLD_PAIRING_FILE` | none | A file (created, mode 0600) that keeps the pairing secret across host restarts, so paired browsers stay paired. Without it the secret is per run: a restart means pairing again. |
+| `CREWHUB_WORLD_PUBLIC_URL` | none | The URL a browser reaches the host at when a TLS proxy stands in front; `https` makes the cookie `Secure`, and that origin passes the Host/Origin guard. |
 
-The Vite dev server proxies `/world-api` to `http://127.0.0.1:${CREWHUB_WORLD_PORT ?? 5180}` with `changeOrigin`,
-so the Host header the host checks is its own.
+The Vite dev server proxies `/world-api` and `/pair` to `http://127.0.0.1:${CREWHUB_WORLD_PORT ?? 5180}` with
+`changeOrigin`, so the Host header the host checks is its own.
 
 ## 3. Run the world in live mode
 
@@ -194,6 +200,28 @@ In production the host also serves the built bundle:
 ```sh
 npm run host:start                                    # builds the world, then serves apps/world/dist; open http://127.0.0.1:5180/
 ```
+
+### Pair this browser
+
+The host answers `/world-api` only to a browser it has paired (plan 3.5): without the cookie every data route is
+`401 {"error":"not_paired"}`, only `/world-api/health` stays open, and the world shows a "Pair this browser" page
+instead of the town. Pairing is one command and one click:
+
+```sh
+npm run host -- open                                  # a running host on the port, or starts one; prints a one-time link
+npm run host:start -- open                            # the same in production (builds first)
+```
+
+The link is `http://127.0.0.1:5180/pair/<token>`, good for 10 minutes and once. Opening it sets an `HttpOnly`,
+`SameSite=Strict` cookie for `127.0.0.1` and lands on `/`; the page never shows the link itself, and the host never
+logs the token or the cookie. A used or expired link gets a plain "This link has expired or was already used" page:
+run the command again. Each browser (and each profile) pairs once. The cookie is signed with a per-run secret, so a
+host restart asks for pairing again unless `CREWHUB_WORLD_PAIRING_FILE` keeps the secret (section 2).
+
+In development the world runs on the Vite origin, and cookies ignore ports: a browser paired on `127.0.0.1:5180` is
+paired on `127.0.0.1:5173` too. Either open the link as printed, or ask for one on the Vite origin, which proxies
+`/pair` to the host: `npm run host -- open --origin http://127.0.0.1:5173`. Or skip pairing in development:
+`CREWHUB_WORLD_PAIRING=off npm run host`.
 
 The source setting is `auto` by default: Live when a host answers `/world-api/health` within 1.5 s, else Demo.
 `?source=live` or `?source=demo` overrides it; Settings > Source shows the choice, the host URL and why the source was
@@ -218,7 +246,8 @@ curl http://127.0.0.1:5180/world-api/health
 is `true` when the builder key is the fallback; `loopsCommit` is loops' own version from its health read; `cursor`
 is the last `seq` the host holds; `loopsWebUrl` is the origin of the loops URL, where the chat dock's sign-in link
 points (on the Mac the web app and the API share 8091). The key itself is never in the answer. A request with a foreign Host header gets
-421 and one with a foreign Origin 403: the guard against other sites and DNS rebinding, not pairing.
+421 and one with a foreign Origin 403: the guard against other sites and DNS rebinding. `paired` says whether the
+request's cookie is a valid pairing (`curl` has none, so `false`); `pairing` is `on` or `off`.
 
 ## 5. The chip says X, do Y
 
@@ -238,9 +267,9 @@ browser's storage under its own key. The loops side is the quickstart's "Taking 
 
 ## What is not there yet
 
-- **Pairing.** The plan's one-time link exchanged for an HttpOnly cookie (plan 3.5) is not built; this round the
-  host trusts loopback and checks Host and Origin only. Any page in the same browser can read `/world-api` on
-  `127.0.0.1:5180`. The host's README says the same.
+- **Pairing beyond one machine.** The one-time link pairs a browser with the host on `127.0.0.1` (section 3); a
+  host behind a TLS proxy sets `CREWHUB_WORLD_PUBLIC_URL` for a `Secure` cookie, but nothing hands out links to a
+  remote person yet: the command runs where the host runs.
 - **A viewer role** (L1). The key is `probe`, which could write the team snapshot if the host were ever broken;
   the host's allow-list and a test keep every unsafe method out.
 - **The chat** (phase 2) needs CORS in crewhub-loops (L8). `CHL_ALLOWED_ORIGINS` is in the loops env (the
