@@ -22,7 +22,7 @@ import type {
   WatchdogResponse,
   WorldSource,
 } from "@crewhub/loops-client";
-import { applyAction } from "./actions.ts";
+import { type Action, applyAction } from "./actions.ts";
 import { type ProjectGroupSeed, DEMO_BASE_CURSOR, DEMO_SEQ_STRIDE } from "./content.ts";
 import { type DemoScenario, type ScenarioId, DEFAULT_SCENARIO, demoScenario } from "./scenarios.ts";
 import { type ScriptEntry, DEMO_SEED, DM_ENTRY_STRIDE, buildDmExchange, buildPropRequest, buildStory } from "./script.ts";
@@ -36,6 +36,8 @@ const TICK_MS = 100;
 const MAX_WALL_STEP_MS = 5 * SECOND;
 /** Ids of on-demand actions start here, far above the script's. */
 const EXTRA_FIRST_ID = 100_000;
+/** Ids of outside actions (`act`, the fake crewhub-loops) start here: above the script, below the chat's. */
+const ACT_FIRST_ID = 300_000;
 /** Ids of the person's chat actions start here and are never reused, so they survive a loop. */
 const CHAT_FIRST_ID = 500_000;
 
@@ -80,6 +82,14 @@ export interface DemoSource extends WorldSource {
   getDeliveries(): Promise<DeliveryOut[]>;
   /** `GET /api/agents`. */
   getAgents(): Promise<AgentOut[]>;
+  /** `GET /api/projects/{slug}/features`: which optional parts the project has on; null for an unknown project. */
+  getProjectFeatures(slug: string): Promise<{ milestones: boolean; releases: boolean; watchdog_nudge: boolean } | null>;
+  /**
+   * Applies one loops-level action now, from outside the script (a test, the fake crewhub-loops' `moveTicket`):
+   * the store changes and the envelopes loops would write go to the listeners at once. The loops rules of
+   * `actions.ts` hold: a move an agent may not make, or to the ticket's own column, throws.
+   */
+  act(action: Action): void;
   /** `GET /api/agents/{name}/summary`; `baseUrl` stands for loops' public URL in the links. */
   getAgentSummary(agentId: string, baseUrl: string): Promise<AgentSummary>;
   /**
@@ -114,6 +124,7 @@ export function createDemoSource(options: DemoSourceOptions): DemoSource {
   let interval: unknown = null;
   let nextExtraId = EXTRA_FIRST_ID;
   let nextChatId = CHAT_FIRST_ID;
+  let nextActId = ACT_FIRST_ID;
   const listeners = new Set<(message: SourceMessage) => void>();
   const changeListeners = new Set<() => void>();
 
@@ -267,6 +278,12 @@ export function createDemoSource(options: DemoSourceOptions): DemoSource {
     getDmMessages: (agentId) => answer(current().dmMessages(agentId)),
     getDeliveries: () => answer(current().deliveries()),
     getAgents: () => answer(current().agents()),
+    getProjectFeatures: (slug) => answer(current().features(slug)),
+    act(action) {
+      playNow({ id: nextActId, at: position, action });
+      nextActId += 1;
+      changed();
+    },
     getAgentSummary: (agentId, baseUrl) => answer(current().agentSummary(agentId, baseUrl)),
     sendDm(agentId, text, clientId) {
       const mine = () =>
