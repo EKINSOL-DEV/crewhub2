@@ -213,20 +213,20 @@ describe("pairing off and the public URL", () => {
   it("CREWHUB_WORLD_PAIRING=off is refused under NODE_ENV=production and warns loudly otherwise; the file and the public URL are read", () => {
     assert.throws(() => loadServerConfig({ CREWHUB_WORLD_PAIRING: "off", NODE_ENV: "production" }), ConfigError);
     assert.throws(() => loadServerConfig({ CREWHUB_WORLD_PAIRING: "maybe" }), ConfigError);
-    assert.throws(() => loadServerConfig({ CREWHUB_WORLD_PUBLIC_URL: "world.example" }), ConfigError);
+    assert.throws(() => loadServerConfig({ CREWHUB_WORLD_PUBLIC_URL: "localhost" }), ConfigError);
     const dev = loadServerConfig({ CREWHUB_WORLD_PAIRING: "off" });
     assert.equal(dev.pairing, "off");
     assert.ok(dev.warnings.some((line) => line.includes("WARNING") && line.includes("CREWHUB_WORLD_PAIRING=off")));
-    const prod = loadServerConfig({ NODE_ENV: "production", CREWHUB_WORLD_PAIRING_FILE: "run/pairing.secret", CREWHUB_WORLD_PUBLIC_URL: "https://world.example/" });
+    const prod = loadServerConfig({ NODE_ENV: "production", CREWHUB_WORLD_PAIRING_FILE: "run/pairing.secret", CREWHUB_WORLD_PUBLIC_URL: "https://localhost:9443/" });
     assert.equal(prod.pairing, "on");
     assert.equal(prod.pairingFile, path.resolve("run/pairing.secret"));
-    assert.equal(prod.publicUrl, "https://world.example");
+    assert.equal(prod.publicUrl, "https://localhost:9443");
     assert.deepEqual(prod.warnings, []);
   });
 
   it("an https public URL makes the cookie Secure and allows that Host and Origin", async () => {
     const stub = await createLoopsStub(installation());
-    const host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", publicUrl: "https://world.example", retryMs: { min: 20, max: 100 } });
+    const host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", publicUrl: "https://localhost:9443", retryMs: { min: 20, max: 100 } });
     try {
       const { setCookie } = await pair(host.mintPairLink());
       assert.match(setCookie, /; Secure$/);
@@ -236,9 +236,9 @@ describe("pairing off and the public URL", () => {
           req.on("error", reject);
           req.end();
         });
-      assert.equal(await raw({ host: "world.example" }), 200);
-      assert.equal(await raw({ host: `127.0.0.1:${host.port}`, origin: "https://world.example" }), 200);
-      assert.equal(await raw({ host: "other.example" }), 421);
+      assert.equal(await raw({ host: "localhost:9443" }), 200);
+      assert.equal(await raw({ host: `127.0.0.1:${host.port}`, origin: "https://localhost:9443" }), 200);
+      assert.equal(await raw({ host: "localhost:9444" }), 421);
     } finally {
       await host.close();
       await stub.close();

@@ -56,9 +56,19 @@ export function townKeyFor(input: { source: SourceId; scenarioTownKey: string; s
 }
 
 /**
+ * Whether the world must show the "Pair this browser" page instead of starting: live mode, a host that answered, pairing
+ * on, and this browser not paired. A silent host (null health) is not a pairing problem; a host from before pairing
+ * (no `pairing` field) never asks.
+ */
+export function needsPairing(decision: Pick<SourceDecision, "source" | "health">): boolean {
+  return decision.source === "live" && decision.health?.pairing === "on" && decision.health.paired === false;
+}
+
+/**
  * Makes the decision: parses the inputs, asks the host only when `auto` needs it (the probe answers null when nothing is
  * there within the timeout, never throws), and never reports more than one line. A silent probe is the normal case on a
- * machine without a host, so it is not an error.
+ * machine without a host, so it is not an error. A fixed `live` (setting or URL) is live whatever the host says, but the
+ * host is still asked once, for `health.paired`: the pairing page needs it.
  */
 export async function decideSource(input: {
   param: string | null;
@@ -76,6 +86,13 @@ export async function decideSource(input: {
     }
   }
   const { source, reason } = resolveSource({ override, setting, probed: health !== null });
+  if (source === "live" && !needsProbe({ override, setting })) {
+    try {
+      health = await input.probe(PROBE_TIMEOUT_MS);
+    } catch {
+      health = null;
+    }
+  }
   return { source, setting, override, health, reason };
 }
 
