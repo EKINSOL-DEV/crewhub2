@@ -27,6 +27,8 @@ CREWHUB_WORLD_KEY_FILE=tools/out/loops-fake.key npm run host
 npm run dev                                 # then open http://127.0.0.1:5173/?source=live
 ```
 
+The fake prints the two env lines for the host and never the key; the key file is reused on a restart, so a running
+host stays valid. `--scenario fresh|one|small-team|studio` picks the demo scenario and `--speed 0|1|4|16` the pace.
 The switch to the real install later changes only the URL and the key file (section 3).
 
 ## 1. What crewhub-loops must have
