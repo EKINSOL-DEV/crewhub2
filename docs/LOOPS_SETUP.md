@@ -128,8 +128,7 @@ npm run dev                                           # Vite; open http://127.0.
 In production the host also serves the built bundle:
 
 ```sh
-npm run build
-npm run host:start                                    # then open http://127.0.0.1:5180/
+npm run host:start                                    # builds the world, then serves apps/world/dist; open http://127.0.0.1:5180/
 ```
 
 The source setting is `auto` by default: Live when a host answers `/world-api/health` within 1.5 s, else Demo.
@@ -151,8 +150,10 @@ curl http://127.0.0.1:5180/world-api/health
 {"loops":"ok","keyName":"crewhub-world","sharedKey":false,"loopsCommit":"...","cursor":1234}
 ```
 
-`loops` is `ok`, `down` or `unauthorized`; `keyName` is the key file's agent name; `sharedKey` is `true` when the
-builder key is the fallback; `cursor` is the last `seq` the host holds. The key itself is never in the answer.
+`loops` is `ok`, `down` or `unauthorized` (a loops 401 or 403); `keyName` is the key file's agent name; `sharedKey`
+is `true` when the builder key is the fallback; `loopsCommit` is loops' own version from its health read; `cursor`
+is the last `seq` the host holds. The key itself is never in the answer. A request with a foreign Host header gets
+421 and one with a foreign Origin 403: the guard against other sites and DNS rebinding, not pairing.
 
 ## 5. The chip says X, do Y
 
