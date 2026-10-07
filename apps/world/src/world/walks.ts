@@ -15,6 +15,8 @@ import { isTownRoom, NavWorld, POST_OFFICE_CELL, POSTMAN_PRIORITY, TOWN_HALL_CEL
 
 export interface WalkOptions {
   entered: string | null;
+  /** The agent the camera follows (TownScene.follow): its walk between buildings is visible even from inside one. */
+  following?: string | null;
   reducedMotion: boolean;
   ambient: Ambient;
   /** Where the buildings stand (townPlan.ts); without one, each building stands where the allocation would put it. */

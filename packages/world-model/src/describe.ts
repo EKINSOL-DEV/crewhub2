@@ -120,6 +120,11 @@ function agentState(agent: AgentPlacement): string {
   return `${LANE_WORDS[agent.laneStatus]}, posture ${POSTURE_WORDS[agent.posture]}`;
 }
 
+/** The text view's sentence for an agent's state (lane status and posture, in words); the agent card shows the same. */
+export function agentStateWords(agent: AgentPlacement): string {
+  return agentState(agent);
+}
+
 function describeCaption(section: string, agent: AgentPlacement, add: Add): void {
   if (!agent.caption) return;
   const lasting = agent.caption.kind === "question" ? ", staying until its next line" : "";

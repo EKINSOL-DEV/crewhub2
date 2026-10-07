@@ -18,6 +18,8 @@ export interface Label {
   robot: boolean;
   /** The hovered or selected robot's plate: placed first, never faded or hidden. */
   picked: boolean;
+  /** The agent card (`card:<slug>:<key>`): beside its figure, kept whole on screen, never nudged or faded. */
+  card: boolean;
   /** The visibility last written to the element. */
   shown: boolean;
   /** The anchor's screen y this frame, before nudging. */

@@ -740,6 +740,15 @@ error, and the key in no response, log or bundle file.
 Pairing (plan 3.5), the chat (phase 2), a viewer role (L1), project groups (L22), and a run against the real
 install, which did not exist yet.
 
+### The agent card and the follow camera (2026-10-07, `task/agentcard`)
+
+A click on a figure opens a card beside it (a bottom sheet on a phone): where it is and its state in the text view's
+words, the ticket on its desk with its loops link, chips and the last progress line, what loops knows of its lane
+(kind, model, effort, permission mode, lifecycle, drift), its projects and its last five facts. Sections come from a
+registry (one file each, pure rows, tested); the portrait is the figure itself, rendered from the scene. **Follow**
+(the card's button or Shift+F) keeps the camera on the figure through doors and into other buildings; the breadcrumb
+says who is followed, a drag or Escape stops. See [AGENT_CARD.md](../AGENT_CARD.md).
+
 ## Challenges with docs/integrators
 
 Read at crewhub-loops `a1bed0f`. Each item names the document, what was unclear, contradictory, missing or marked

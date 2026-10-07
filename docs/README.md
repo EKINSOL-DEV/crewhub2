@@ -10,6 +10,7 @@ These are the active documents for the browser-world rebuild. All are in English
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Target architecture, what is built (demo mode), boundaries. Updated for ADR 0005 |
 | [GRID_ENGINE.md](GRID_ENGINE.md) | Coordinates, footprints, placement, navigation, and semantic world contract |
 | [WORLD_STYLES.md](WORLD_STYLES.md) | The world style seam: manifest, semantic model keys, per-building resolution, Greenhouse; and casts, the swappable figures that stand for agents |
+| [AGENT_CARD.md](AGENT_CARD.md) | The agent card (what an agent does now, sections from a registry, the portrait) and the follow camera |
 | [ROOM_REVIEW.md](ROOM_REVIEW.md) | Historical: the first room's design and verification notes |
 | [COST_POLICY.md](COST_POLICY.md) | Zero-model-cost presentation and optional AI controls |
 | [ROADMAP.md](ROADMAP.md) | Milestones, the loops phases and their status, the open host work |
