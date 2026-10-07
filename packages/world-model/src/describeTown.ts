@@ -4,6 +4,7 @@
  * failed requests come from loops facts (`fact`).
  */
 import { roomLabel } from "./rooms.ts";
+import { hallOf, HALL_KINDS, HALL_LABELS, type RoomWording } from "./halls.ts";
 import type { Catalogue } from "./catalogue.ts";
 import type { TextLine } from "./model.ts";
 import type { RuleProp } from "./ruleProps.ts";
@@ -19,8 +20,14 @@ export interface InvalidPropRequest {
 
 const ROTATION_WORDS = ["not turned", "turned a quarter", "turned half", "turned three quarters"] as const;
 
-function where(p: PlacedProp): string {
-  return "town" in p.at ? "in the town square" : `in ${p.at.building}, ${roomLabel(p.at.room)}`;
+/** "in crewhub, Lobby"; in halls "in crewhub, Administration", or "in crewhub, The floor (the analyst zone)" when the
+    placement names a room the hall hosts. */
+function where(p: PlacedProp, rooms: RoomWording): string {
+  if ("town" in p.at) return "in the town square";
+  if (rooms === "classic") return `in ${p.at.building}, ${roomLabel(p.at.room)}`;
+  const hall = hallOf(p.at.room);
+  const zone = HALL_KINDS[hall] === p.at.room ? "" : ` (the ${roomLabel(p.at.room).replace(/ room$/, "").toLowerCase()} zone)`;
+  return `in ${p.at.building}, ${HALL_LABELS[hall]}${zone}`;
 }
 
 function attached(p: PlacedProp): string {
@@ -33,8 +40,9 @@ function attached(p: PlacedProp): string {
 export function describeTownDocument(
   doc: TownDocument,
   catalogue: Catalogue,
-  extra: { ruleProps?: readonly RuleProp[]; invalidRequests?: readonly InvalidPropRequest[] } = {},
+  extra: { ruleProps?: readonly RuleProp[]; invalidRequests?: readonly InvalidPropRequest[]; rooms?: RoomWording } = {},
 ): TextLine[] {
+  const rooms: RoomWording = extra.rooms ?? "classic";
   const lines: TextLine[] = [];
   const line = (section: string, text: string, kind: TextLine["kind"]) => lines.push({ section, text, kind });
 
@@ -44,7 +52,7 @@ export function describeTownDocument(
   for (const p of doc.placements) {
     const entry = catalogue.get(p.propId);
     const name = entry ? `${entry.name} (${p.propId})` : p.propId;
-    line("Build: placed props", `${name} ${where(p)} at cell ${p.cell.x},${p.cell.z}, ${ROTATION_WORDS[p.rotation]}${attached(p)}.`, "cosmetic");
+    line("Build: placed props", `${name} ${where(p, rooms)} at cell ${p.cell.x},${p.cell.z}, ${ROTATION_WORDS[p.rotation]}${attached(p)}.`, "cosmetic");
   }
   for (const prop of doc.userProps) {
     const from = prop.provenance?.kind === "ticket" ? `from ticket ${prop.provenance.ticketKey}` : "made locally";

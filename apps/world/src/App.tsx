@@ -1,7 +1,7 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type Ref } from "react";
 import { ArrowLeft, ChevronRight, Eye, FlaskConical, Hammer, MessageCircle, Minus, Monitor, Moon, Pause, Plus, RotateCcw, RotateCw, Footprints, Scan, Search, Settings, Sprout, Sun, Tags, X } from "lucide-react";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { CIVIC_WORDS, describeTownDocument, describeWorld, ruleProps, zoningOf, type AgentPlacement, type CivicWords, type PlaybackControls, type PlaybackSpeed, type RoleId, type RoomKind, type TextLine, type WorldModel } from "@crewhub/world-model";
+import { CIVIC_WORDS, describeTownDocument, describeWorld, ruleProps, zoningOf, type AgentPlacement, type CivicWords, type PlaybackControls, type PlaybackSpeed, type RoleId, type RoomKind, type RoomWording, type TextLine, type WorldModel } from "@crewhub/world-model";
 import type { PropModel } from "@crewhub/world-engine";
 import { Bubbles } from "./components/bubbles/Bubbles";
 import { TownSettings } from "./components/TownSettings";
@@ -33,7 +33,9 @@ import { translate } from "./i18n";
 import type { ConnectionState } from "@crewhub/loops-client";
 import { buildingTemplate } from "./world/buildingTemplate";
 import type { Pick } from "./world/buildingView";
-import { firstRoom, roomName, roomNeighbor, roomSummary } from "./world/interiorLayout";
+import { firstRoom, roomNeighbor } from "./world/interiorLayout";
+import { roomName, roomSummary } from "./world/roomWords";
+import { useBuildingPlan } from "./state/buildingPlan";
 import { DirectorLog } from "./components/DirectorLog";
 import { PresenceSettings } from "./components/PresenceSettings";
 import { WhereForm } from "./components/WhereForm";
@@ -119,6 +121,8 @@ function World() {
     worldRuntime().setRoleOverrides(overrides);
   }, [overrides]);
   const town = useTown();
+  // The building template this viewer sees decides the words for places: rooms, or the three halls.
+  const rooms = useBuildingPlan();
   const dark = useDark();
   const [editing, setEditing] = useState<{ prop: PropModel | null } | null>(null);
   useEffect(() => townRuntime().onAnnounce(setAnnouncement), []);
@@ -164,7 +168,7 @@ function World() {
   const textShown = textOpen || graphicsFailed;
   const textLines = useMemo(
     () => !textShown ? [] : [
-      ...(civic.hall === CIVIC_WORDS.hall && civic.post === CIVIC_WORDS.post ? text : describeWorld(model, civic)),
+      ...(civic.hall === CIVIC_WORDS.hall && civic.post === CIVIC_WORDS.post && rooms === "classic" ? text : describeWorld(model, civic, { rooms })),
       ...describeCasts(castRegistry, {
         viewer: cast,
         town: town.doc.castId,
@@ -181,9 +185,9 @@ function World() {
         lookOf: (zone) => [...Object.values(zone.look.styleOptions ?? {}), ...(zone.look.castId ? [castRegistry.listCasts().find((m) => m.id === zone.look.castId)?.name ?? zone.look.castId] : [])].join(", "),
       }),
       ...describePlan(plan, (slug) => model.buildings.find((b) => b.slug === slug)?.name ?? slug),
-      ...describeTownDocument(town.doc, town.catalogue, { ruleProps: rules, invalidRequests: town.invalid }),
+      ...describeTownDocument(town.doc, town.catalogue, { ruleProps: rules, invalidRequests: town.invalid, rooms }),
     ],
-    [textShown, text, civic, cast, town.doc, town.catalogue, rules, town.invalid, model.zones, model.buildings, plan],
+    [textShown, text, civic, rooms, cast, town.doc, town.catalogue, rules, town.invalid, model.zones, model.buildings, plan],
   );
   const undo = useCallback(() => {
     townRuntime().undo();
@@ -295,13 +299,13 @@ function World() {
       setFollowing(null);
       if (b) {
         setFocused(buildings.indexOf(b));
-        setAnnouncement(`Inside ${b.name} (${b.key})${place.room ? `, ${roomName(b, place.room)}` : ""}. Escape steps back out.`);
+        setAnnouncement(`Inside ${b.name} (${b.key})${place.room ? `, ${roomName(b, place.room, rooms)}` : ""}. Escape steps back out.`);
       } else if (d) {
         setRingVisible(false);
         setAnnouncement(`${describeDistrict(d)} Escape shows the region.`);
       } else setAnnouncement(isRegion(districts) ? `The region: ${districts.map((x) => x.name).join(", ")}.` : "The town.");
     },
-    [buildings, describeDistrict, districtOfBuilding, districts],
+    [buildings, describeDistrict, districtOfBuilding, districts, rooms],
   );
   const jump = useCallback(
     (entry: JumpEntry) => {
@@ -328,8 +332,8 @@ function World() {
     if (district && !here) setDistrict(null);
   }, [district, here]);
   const summary = useCallback(
-    (kind: RoomKind) => (inside ? roomSummary(inside, kind, (a: AgentPlacement) => laneWords(a.laneStatus, model.freshness)) : ""),
-    [inside, model.freshness],
+    (kind: RoomKind) => (inside ? roomSummary(inside, kind, (a: AgentPlacement) => laneWords(a.laneStatus, model.freshness), rooms) : ""),
+    [inside, model.freshness, rooms],
   );
   const focusRoom = useCallback(
     (kind: RoomKind, zoom: boolean) => {
@@ -507,7 +511,7 @@ function World() {
         else if (selection.selected) setSelection((s) => ({ ...s, selected: null }));
         else if (zoomed) {
           setZoomed(null);
-          setAnnouncement(`Inside ${inside?.name ?? "the building"}. Arrow keys move between rooms.`);
+          setAnnouncement(`Inside ${inside?.name ?? "the building"}. Arrow keys move between ${rooms === "classic" ? "rooms" : "the halls"}.`);
         } else if (entered) back();
         else if (here) go(stepOut({ district: here.id, building: null, room: null })!);
         else return;
@@ -545,7 +549,7 @@ function World() {
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [back, build, camera, card, closeJump, closeSettings, closeText, editing, entered, follow, following, go, graphicsFailed, here, inside, jumpOpen, openJump, openText, redo, selectedAgent, selection.selected, settingsOpen, startWalk, stopWalk, textOpen, undo, walking, zoomed]);
+  }, [back, build, camera, card, closeJump, closeSettings, closeText, editing, entered, follow, following, go, graphicsFailed, here, inside, jumpOpen, openJump, openText, redo, rooms, selectedAgent, selection.selected, settingsOpen, startWalk, stopWalk, textOpen, undo, walking, zoomed]);
 
   // Arrow keys and Enter move the focus ring between plots while the scene has keyboard focus.
   const sceneKey = (e: ReactKeyboardEvent) => {
@@ -590,7 +594,7 @@ function World() {
   const demo = model.mode === "demo";
   const connection = useConnection();
   const onGo = useStable(go);
-  const trailNames = { home: homeName(districts), district: here?.name ?? null, building: inside?.name ?? null, room: inside && zoomed ? roomName(inside, zoomed) : null };
+  const trailNames = { home: homeName(districts), district: here?.name ?? null, building: inside?.name ?? null, room: inside && zoomed ? roomName(inside, zoomed, rooms) : null };
   const trail = useMemo(
     () => crumbs({ district: here?.id ?? null, building: inside?.slug ?? null, room: inside ? zoomed : null }, trailNames),
     // The names decide; the object is new each render.
@@ -717,7 +721,7 @@ function World() {
 
       {playback && <PlaybackBar playback={playback} />}
 
-      {(textOpen || graphicsFailed) && <TextView civic={civic} ref={textRegion} lines={textLines} connection={connection} fallback={graphicsFailed} onClose={graphicsFailed ? null : closeText} districts={districts} onGo={graphicsFailed ? null : onGo} />}
+      {(textOpen || graphicsFailed) && <TextView civic={civic} rooms={rooms} ref={textRegion} lines={textLines} connection={connection} fallback={graphicsFailed} onClose={graphicsFailed ? null : closeText} districts={districts} onGo={graphicsFailed ? null : onGo} />}
     </div>
   );
 }
@@ -1047,7 +1051,7 @@ function PlaybackPosition({ playback }: { playback: PlaybackControls }) {
 
 const KIND_WORD: Record<TextLine["kind"], string> = { fact: "fact", inference: "inference", cosmetic: "cosmetic", demo: "demo" };
 
-function TextView({ lines, civic, connection, fallback, onClose, districts, onGo, ref }: { lines: TextLine[]; civic: CivicWords; connection: ConnectionState | null; fallback: boolean; onClose: (() => void) | null; districts: DistrictPlace[]; onGo: ((place: Place) => void) | null; ref: Ref<HTMLElement> }) {
+function TextView({ lines, civic, rooms, connection, fallback, onClose, districts, onGo, ref }: { lines: TextLine[]; civic: CivicWords; rooms: RoomWording; connection: ConnectionState | null; fallback: boolean; onClose: (() => void) | null; districts: DistrictPlace[]; onGo: ((place: Place) => void) | null; ref: Ref<HTMLElement> }) {
   const sections = new Map<string, TextLine[]>();
   for (const line of lines) sections.set(line.section, [...(sections.get(line.section) ?? []), line]);
   // The town first, then every building's sections under its district, then the rest (casts, zones, the town document).
@@ -1089,7 +1093,7 @@ function TextView({ lines, civic, connection, fallback, onClose, districts, onGo
             {connectionLine(connection)}
           </p>
         )}
-        <WhereForm civic={civic} />
+        <WhereForm civic={civic} rooms={rooms} />
         {before.map((section) => block(section, 3))}
         {districts.map((d) => {
           const summary = summarise(d.buildings);

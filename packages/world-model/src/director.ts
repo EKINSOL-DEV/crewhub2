@@ -8,6 +8,7 @@
  * shape is rejected, so there is nowhere to put text that could appear as an agent's speech).
  */
 import { roomLabel } from "./rooms.ts";
+import { roomPlaceWords, type RoomWording } from "./halls.ts";
 import type { AgentKey, AgentPlacement, Building, RoomKind, WorldModel } from "./model.ts";
 
 export const MAX_INTENTS_PER_PLAN = 8;
@@ -248,17 +249,27 @@ const TAG_WORDS: Readonly<Record<string, string>> = {
   gather: "meeting table",
 };
 
-/** One sentence for the text view, e.g. "cr-dev-1 goes to the coffee machine in the lobby". No speech. */
-export function describeIntent(model: WorldModel, intent: Intent): string {
+/** The thing a prop tag stands for when the building has three halls: the piles are racks, the meeting table a huddle. */
+const HALL_TAG_WORDS: Readonly<Record<string, string>> = {
+  planning: "Planning rack",
+  review: "Review rack",
+  storage: "Backlog rack",
+  dispatch: "Done rack",
+  gather: "huddle table",
+};
+
+/** One sentence for the text view, e.g. "cr-dev-1 goes to the coffee machine in the lobby" (classic) or "… in
+    Administration" (three-rooms: the room's hall). No speech. */
+export function describeIntent(model: WorldModel, intent: Intent, rooms: RoomWording = "classic"): string {
   const name = (key: AgentKey) => locate(model, key)?.agent.displayName ?? key;
-  const words = (tag: string) => TAG_WORDS[tag] ?? tag.replace(/-/g, " ");
+  const words = (tag: string) => (rooms === "three-rooms" ? HALL_TAG_WORDS[tag] : undefined) ?? TAG_WORDS[tag] ?? tag.replace(/-/g, " ");
   switch (intent.kind) {
     case "goToProp":
-      return `${name(intent.agent)} goes to the ${words(intent.tag)} in the ${roomLabel(intent.room).toLowerCase()}`;
+      return `${name(intent.agent)} goes to the ${words(intent.tag)} ${roomPlaceWords(intent.room, rooms)}`;
     case "visitAgent":
       return `${name(intent.agent)} visits ${name(intent.target)}`;
     case "gather":
-      return `${intent.agents.map(name).join(", ")} gather in the meeting room`;
+      return `${intent.agents.map(name).join(", ")} gather ${rooms === "classic" ? "in the meeting room" : "at the huddle table"}`;
     case "stay":
       return `${name(intent.agent)} stays where it is`;
   }
