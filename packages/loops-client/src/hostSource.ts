@@ -85,6 +85,7 @@ export async function probeHost(baseUrl = "", timeoutMs = 1500): Promise<HostHea
     const health: HostHealth = { loops: body.loops as HostHealth["loops"], keyName: body.keyName, sharedKey: body.sharedKey === true };
     if (typeof body.loopsCommit === "string") health.loopsCommit = body.loopsCommit;
     if (typeof body.cursor === "number") health.cursor = body.cursor;
+    if (typeof body.loopsWebUrl === "string" && /^https?:\/\//.test(body.loopsWebUrl)) health.loopsWebUrl = body.loopsWebUrl;
     return health;
   } catch {
     return null;

@@ -37,7 +37,7 @@ unless a script says otherwise; a phone is 375 x 812 with touch.
 
 | Script | What it does | Writes |
 | --- | --- | --- |
-| `regress.mjs` | The browser regression pass: 38 checks along a visitor's walk through the demo (keyboard, text view, Details, timeline, chat, build mode, settings, the where form, reduced motion, themes, a phone), failing on any page error, console error or request that leaves the page. Prints `regress: <passed>/<total>` last; exit code 0 only at full marks. Needs a dev server (two checks read `window.__town`). About two minutes. | `<tag>-NN-<stop>.png`, `<tag>-results.json`, `<tag>.log` |
+| `regress.mjs` | The browser regression pass, in three groups (`--groups`, default all): `walk`, 38 checks along a visitor's walk through the demo (keyboard, text view, Details, timeline, chat, build mode, settings, the where form, reduced motion, themes, a phone); `demo`, 11 checks of the jump list, the scenario picker and the Studio scenario's Region level (district cards, beacon, pin, Escape chain); `live`, live mode against a fake crewhub-loops and a host the tool starts itself (the Live chip, the sign-in link, Loops down, Live again, and the pairing checks once the host has pairing). Fails on any page error, console error or request that leaves the page. Prints `regress: <passed>/<total>` last; exit code 0 only at full marks. Needs a dev server (some checks read `window.__town`). Times: `walk` about 120 s, `demo` about 30 s, `live` about 3 s; the three together about 150 s, so a check under the one-minute budget runs `--groups demo,live`. | `<tag>-NN-<stop>.png`, `<tag>-results.json`, `<tag>.log` |
 | `perf.mjs` | Frame time, work per frame, draw calls, triangles and heap per scenario (`demo-town`, `demo-inside`, `stress-town`, `stress-inside`, `phone-fast`, `startup`, and more: see its header). `--preview` for a production build, `--cast`, `--quality`, `--theme`, `--scenario`, `--stress`. | The table on stdout; `--json <file>` for every number |
 | `memory.mjs` | Heap after GC, GPU geometries and textures, DOM nodes and listeners over a long 16x run (`demo` or `stress`), and the growth after warm-up. | Lines on stdout; `--json <file>` |
 | `shots.mjs` | The world in screenshots: `--views` (`town`, `building`, `room`, `walk`, `stress`) x `--theme` x `--width`, in any `--scenario`. `walk` is the critical walk through every building and room. | `<tag>-<view>-<theme>-<width>.png` |
@@ -47,10 +47,18 @@ unless a script says otherwise; a phone is 375 x 812 with touch.
 `lib/world.mjs` is what they share (the command line, the browser, the error and request watch, seeking and
 playback); `lib/shots.mjs` is the view walker behind `shots.mjs` and `castworld.mjs`.
 
+**The live group of `regress.mjs`.** It starts its own fake (`packages/loops-fake`, a free port) and its own host
+(`apps/host`), both on `127.0.0.1`, and closes them at the end. When `apps/world/dist` exists (after `npm run build`)
+the host serves it on a free port and the browser opens the host directly. Otherwise the host listens on `--host-port`
+(default 5180, the Vite proxy's default target) and the browser opens your Vite, so start that Vite with
+`CREWHUB_WORLD_PORT=<host-port>`; the port must be free. The page is opened without `?source=live`: the source is
+`auto`, the probe finds the host, and the health it answers is what the sign-in link follows.
+
 Examples:
 
 ```sh
 node tools/regress.mjs --port 5180
+node tools/regress.mjs --port 5180 --groups demo,live --host-port 5181   # Vite started with CREWHUB_WORLD_PORT=5181
 node tools/perf.mjs --port 5180 stress-town stress-inside --cast potlings --json perf-potlings.json
 node tools/memory.mjs --port 5180 stress --minutes 5
 node tools/shots.mjs --port 5180 --tag before --views town,building,room --width 1440,375

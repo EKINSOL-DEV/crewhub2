@@ -81,7 +81,7 @@ async function startHost(): Promise<FakeHost> {
   };
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
     const url = new URL(req.url ?? "/", host.url);
-    if (url.pathname === "/world-api/health") return json(res, 200, { loops: "ok", keyName: "agent-crewhub-world", sharedKey: false, cursor: host.cursor });
+    if (url.pathname === "/world-api/health") return json(res, 200, { loops: "ok", keyName: "agent-crewhub-world", sharedKey: false, cursor: host.cursor, loopsWebUrl: "http://127.0.0.1:8091", extra: "ignored" });
     if (url.pathname === "/world-api/snapshot") {
       host.snapshots += 1;
       if (host.snapshotStatus !== 200) return json(res, host.snapshotStatus, { error: "loops_down" });
@@ -314,7 +314,8 @@ test("reads: ticket {ticket}, 404 → null, 409 feature_off → [], groups []", 
 test("probeHost answers the health, and null when nothing listens or the answer is not a host's", async () => {
   const host = await startHost();
   const health = await probeHost(host.url, 500);
-  assert.deepEqual(health, { loops: "ok", keyName: "agent-crewhub-world", sharedKey: false, cursor: 100 });
+  // The web URL rides along for the sign-in link (an http(s) string only); anything the type does not name is dropped.
+  assert.deepEqual(health, { loops: "ok", keyName: "agent-crewhub-world", sharedKey: false, cursor: 100, loopsWebUrl: "http://127.0.0.1:8091" });
   await host.close();
   assert.equal(await probeHost(host.url, 500), null);
   const other = createServer((_req, res) => {
