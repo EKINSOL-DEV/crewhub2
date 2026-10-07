@@ -1,9 +1,9 @@
-/* regress.mjs: the browser regression pass of the integrated world, in three groups.
+/* regress.mjs: the browser regression pass of the integrated world, in four groups.
 
    Usage:
-     node tools/regress.mjs --port <port> [--groups walk,demo,live] [--host-port 5180] [--tag pass] [--out <dir>] [--swiftshader]
+     node tools/regress.mjs --port <port> [--groups walk,demo,live,rooms] [--host-port 5180] [--tag pass] [--out <dir>] [--swiftshader]
 
-   Groups (--groups, default all three, in this order):
+   Groups (--groups, default all four, in this order):
      walk  38 checks along a visitor's walk through the demo (keyboard, the text view, the timeline, chat, build mode,
            settings, the where form, reduced motion, a phone, both themes). About two minutes.
      demo  the jump list (/ opens it, a building's name, Enter lands inside), the scenario picker (the Demo chip, One
@@ -16,6 +16,10 @@
            it on a free port and the browser opens the host directly; otherwise the host listens on --host-port
            (default 5180, Vite's default proxy target) and the browser opens your Vite, which must have been started
            with CREWHUB_WORLD_PORT=<host-port>. About half a minute.
+     rooms the three-room building (`?rooms=three`, whatever the viewer's Buildings setting): three room signs
+           (Administration, The floor, Lead's office), the arrow keys between the three halls, the text view naming the
+           racks and the desks with a package on each, the lead's office beacon, the agent card on a figure at a desk,
+           and walk mode in through the front door into Administration and on to the floor. About one minute.
    Besides the checks it fails on any page error, console error or request that leaves the page's own origin, and
    on a group that stops before its end.
 
@@ -29,8 +33,8 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { cli, dressed, launch, list, problemLines, seek, speed, watch } from "./lib/world.mjs";
 
-const GROUPS = ["walk", "demo", "live"];
-const USAGE = "node tools/regress.mjs --port <port> [--groups walk,demo,live] [--host-port 5180] [--tag pass] [--out <dir>] [--swiftshader]";
+const GROUPS = ["walk", "demo", "live", "rooms"];
+const USAGE = "node tools/regress.mjs --port <port> [--groups walk,demo,live,rooms] [--host-port 5180] [--tag pass] [--out <dir>] [--swiftshader]";
 const opts = cli(USAGE, { options: { tag: "pass", groups: GROUPS.join(","), "host-port": "5180" } });
 const groups = list(opts.groups, GROUPS, opts.fail, "group");
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -109,6 +113,56 @@ const labels = (p, selector = ".world-labels .anchor *") =>
     return [...document.querySelectorAll(selector)].filter((e) => e.children.length === 0 || e.matches(".room-sign, .town-sign")).filter(shown).length;
   }, selector);
 const walkersWalking = (p) => p.evaluate(() => [...(globalThis.__town?.walks?.walkers?.() ?? [])].filter((x) => x.walking).length).catch(() => -1);
+/** What the polite status line says after a key, as one string. */
+const announced = async (p, key, settle = 500) => {
+  await p.keyboard.press(key);
+  await p.waitForTimeout(settle);
+  return (await p.locator("[aria-live=polite]").allInnerTexts()).join(" ").replace(/\s+/g, " ").trim();
+};
+/** Where the visitor stands in walk mode (`__town.visitor`: room id, world x and z, building), or null outside it. */
+const visitor = (p) => p.evaluate(() => globalThis.__town?.visitor ?? null).catch(() => null);
+/**
+ * Walk mode: holds the arrow keys towards `stop` (a room id of the navigation grid and a cell of it) until the visitor
+ * stands within half a cell of it or `seconds` pass, and answers where it stands then. The keys are the world's axes
+ * while the camera is not turned: up is north (-z), right is east (+x). A stop in another room is reached through its
+ * door only when the straight line goes through that door, so a walk is a list of stops, one or two per room.
+ */
+async function walkTo(p, stop, seconds) {
+  const held = new Set();
+  const hold = async (wanted) => {
+    for (const key of ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]) {
+      if (wanted.has(key) && !held.has(key)) {
+        await p.keyboard.down(key);
+        held.add(key);
+      } else if (!wanted.has(key) && held.has(key)) {
+        await p.keyboard.up(key);
+        held.delete(key);
+      }
+    }
+  };
+  const deadline = Date.now() + seconds * 1000;
+  let at = null;
+  while (Date.now() < deadline) {
+    at = await p
+      .evaluate((stop) => {
+        const t = globalThis.__town;
+        const v = t?.visitor;
+        if (!v || !t?.walks?.nav?.toWorld) return null;
+        const w = t.walks.nav.toWorld(stop);
+        return { room: v.room, building: v.building, dx: w.x - v.x, dz: w.z - v.z };
+      }, stop)
+      .catch(() => null);
+    if (!at) break;
+    if (at.room === stop.room && Math.hypot(at.dx, at.dz) < 0.35) break;
+    const wanted = new Set();
+    if (Math.abs(at.dx) > 0.12) wanted.add(at.dx > 0 ? "ArrowRight" : "ArrowLeft");
+    if (Math.abs(at.dz) > 0.12) wanted.add(at.dz > 0 ? "ArrowDown" : "ArrowUp");
+    await hold(wanted);
+    await p.waitForTimeout(100);
+  }
+  await hold(new Set());
+  return at;
+}
 
 await group("walk", async () => {
   // 1. Town, Demo label, text view completeness
@@ -515,6 +569,107 @@ await group("live", async () => {
     await host.close().catch(() => {});
     await fake.close().catch(() => {});
   }
+});
+
+await group("rooms", async () => {
+  // 16. The three-room building, behind `?rooms=three` whatever this browser's Buildings setting says. The halls are the
+  // spec addendum's: Administration (the racks, the mailbox, the archive counter), the floor (desks, the huddle), the
+  // lead's office. Their navigation ids are the hall's own model kind: lobby, workers, lead-office.
+  const HALLS = ["Administration", "The floor", "Lead's office"];
+  let p = await open();
+  await town(p, 3000, `${BASE}?rooms=three`);
+  await canvas(p).focus();
+  await p.keyboard.press("ArrowRight");
+  await p.keyboard.press("Enter");
+  await p.waitForTimeout(2000);
+  const slug = await entered(p);
+  await p.keyboard.press("d");
+  await p.waitForTimeout(900);
+  const signs = (await p.locator(".world-labels .room-sign strong").allInnerTexts()).map((t) => t.trim());
+  await shot(p, "26-rooms-signs");
+  await p.keyboard.press("d");
+  await p.waitForTimeout(400);
+  ok("rooms: three room signs in a building", signs.length === 3 && HALLS.every((h) => signs.includes(h)), `${signs.join(", ")} (in ${slug})`);
+
+  // 17. The arrow keys move the focus between the three halls; the status line sums each hall up.
+  const first = await announced(p, "ArrowRight");
+  const north = await announced(p, "ArrowUp");
+  const west = await announced(p, "ArrowLeft");
+  const halls = [first, north, west].map((t) => HALLS.find((h) => t.includes(`${h}:`)) ?? "?");
+  ok("rooms: arrow keys move between the three halls", new Set(halls).size === 3 && !halls.includes("?"), `${halls.join(" → ")}; "${west.slice(0, 100)}"`);
+  await shot(p, "27-rooms-focus");
+
+  // 18. The text view tells the halls' story: racks with counts, desks with tickets, a package on a rack and one on a desk.
+  const tv = await text(p);
+  const admin = (tv.match(/Administration: Backlog \d+, Planning \d+, Review \d+, Done \d+[^\n]*/) ?? [""])[0];
+  const floor = (tv.match(/The floor: [^\n]*/) ?? [""])[0];
+  ok("rooms: the text view names the racks and the desks", admin !== "" && /at its desk on [A-Z]+-\d+/.test(floor) && /Lead's office: /.test(tv), `${admin} | ${floor.slice(0, 90)}`);
+  const onRack = (tv.match(/([A-Z]+-\d+) "[^\n]*; on the (Backlog|Planning|Review|Done) rack\./) ?? [])[0] ?? "";
+  const onDesk = (tv.match(/([A-Z]+-\d+) "[^\n]*; on ([^\n;]+)'s desk\./) ?? [])[0] ?? "";
+  ok("rooms: a package on a rack and one on a desk", onRack !== "" && onDesk !== "", `${onRack.slice(0, 60)}… | ${onDesk.slice(0, 60)}…`);
+
+  // 19. The lead's office beacon: CL-44 needs attention from 8:00 in the demo script, so the office summary names it.
+  ok("seek attention (rooms)", await seek(p, 510000));
+  await p.waitForTimeout(1500);
+  const tvLater = await text(p);
+  const office = (tvLater.match(/Lead's office: [^\n]*beacon: [^\n]*/) ?? [""])[0];
+  ok("rooms: the lead's office beacon", office !== "", office.slice(0, 120));
+  await p.context().close();
+
+  // 20. The agent card on a figure at a desk: the jump list lands beside the agent with it selected, Enter opens the card,
+  // and its Now line says the floor and the desk.
+  p = await open();
+  await town(p, 2500, `${BASE}?rooms=three`);
+  await canvas(p).focus();
+  await p.keyboard.press("/");
+  const dialog = p.getByRole("dialog", { name: "Jump to" });
+  await dialog.waitFor({ timeout: 3000 }).catch(() => {});
+  await p.keyboard.type("cr-dev-1");
+  await p.waitForTimeout(400);
+  await p.keyboard.press("Enter");
+  await p.waitForFunction(() => globalThis.__town?.view?.entered != null, null, { timeout: 8000 }).catch(() => {});
+  await p.waitForTimeout(1200);
+  await canvas(p).focus();
+  await p.keyboard.press("Enter");
+  await p.waitForTimeout(800);
+  const card = p.locator(".agent-card");
+  const cardText = (await card.innerText().catch(() => "")).replace(/\s+/g, " ");
+  ok("rooms: the agent card opens on a figure at a desk", (await card.count()) > 0 && /on the floor at an? \w+ desk/.test(cardText), cardText.slice(0, 120));
+  await shot(p, "28-rooms-card");
+  await p.keyboard.press("Escape");
+  await p.waitForTimeout(300);
+  await p.keyboard.press("Escape");
+  await p.waitForTimeout(300);
+  await p.keyboard.press("Escape");
+  await p.waitForTimeout(1200);
+
+  // 21. Walk mode: W starts on the street before the nearest building; north goes through the front door into
+  // Administration (its navigation room is `<slug>/lobby`), then along the racks to the door at administration cell
+  // (18, 0) and through it onto the floor (`<slug>/workers`).
+  await canvas(p).focus();
+  await p.keyboard.press("w");
+  await p.waitForTimeout(800);
+  await p.keyboard.down("ArrowUp");
+  let inside = null;
+  for (let i = 0; i < 120 && !inside; i++) {
+    await p.waitForTimeout(100);
+    const v = await visitor(p);
+    if (v?.building) inside = v;
+  }
+  await p.keyboard.up("ArrowUp");
+  ok("rooms: walk mode enters through the front door into Administration", !!inside && /\/lobby$/.test(inside.room), inside ? `${inside.room} (x ${inside.x.toFixed(1)}, z ${inside.z.toFixed(1)})` : "never entered a building");
+  await shot(p, "29-rooms-walk-in");
+  let onFloor = null;
+  if (inside) {
+    const b = inside.building;
+    await walkTo(p, { room: `${b}/lobby`, cell: { x: 15, z: 7 } }, 8);
+    await walkTo(p, { room: `${b}/lobby`, cell: { x: 18, z: 2 } }, 10);
+    onFloor = await walkTo(p, { room: `${b}/workers`, cell: { x: 9, z: 15 } }, 10);
+  }
+  ok("rooms: walking on reaches the floor", !!onFloor && /\/workers$/.test(onFloor.room), onFloor ? onFloor.room : "no walk");
+  await shot(p, "30-rooms-walk-floor");
+  await p.keyboard.press("Escape");
+  await p.context().close();
 });
 
 const external = problems.filter((x) => x.kind === "external").map((x) => x.text);
