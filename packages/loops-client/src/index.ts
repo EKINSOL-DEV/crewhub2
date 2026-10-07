@@ -29,6 +29,8 @@ export {
 export { groupOf, sortProjectGroups } from "./groups.ts";
 export type { Result, Shape, Validator } from "./validate.ts";
 export {
+  lenientOneOf,
+  resetWarnings,
   toWorldEvent,
   validateAgents,
   validateBoardResponse,
@@ -39,6 +41,7 @@ export {
   validateEnvelope,
   validateLoopsSnapshot,
   validateMilestonesResponse,
+  validatePendingRequests,
   validatePrincipals,
   validateProgressResponse,
   validateProjectGroupsResponse,
@@ -49,4 +52,7 @@ export {
   validateTicket,
   validateTicketSummary,
   validateWatchdogResponse,
+  warnOnce,
 } from "./validate.ts";
+export { createHostSource, probeHost } from "./hostSource.ts";
+export type { HostHealth, HostSourceTimings } from "./hostSource.ts";

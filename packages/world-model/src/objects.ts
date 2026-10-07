@@ -16,6 +16,8 @@ const LOOKS: Record<TicketKind, ObjectLook> = {
   feature: "box",
   bug: "bug-crate",
   question: "envelope",
+  /** CL-245: a list of questions with an answer each; it reads as mail, like a question. */
+  grill: "envelope",
 };
 
 const STATUS_ROOMS: Record<Exclude<TicketStatus, "in_progress">, RoomKind> = {
@@ -125,7 +127,8 @@ function toObject(
     key: card.key,
     title: card.title,
     kind: card.kind,
-    look: LOOKS[card.kind],
+    // A kind the validators let through with a warning (newer than this build) looks like a task.
+    look: LOOKS[card.kind] ?? "folder",
     status: card.status,
     room: place.room,
     deskOf: place.deskOf,
