@@ -1,8 +1,8 @@
 /* The one seam between the world's data and its presentation. Everything else in apps/world reads the WorldModel
-   contract only (packages/world-model). The source is the scripted demo tonight; a future host source replaces
-   `createDemoSource` and nothing else changes. */
+   contract only (packages/world-model). The source is the scripted demo, or the live host (`createHostSource`,
+   /world-api) when the page's source decision says so (state/source.ts, made in main.tsx before this module loads). */
 import { useSyncExternalStore } from "react";
-import type { WorldSource } from "@crewhub/loops-client";
+import { createHostSource, type ConnectionState, type ConnectionStatus, type WorldSource } from "@crewhub/loops-client";
 import {
   browserScheduler,
   createDemoSource,
@@ -30,6 +30,7 @@ import {
   type TownZoning,
   type WorldModel,
 } from "@crewhub/world-model";
+import { sourceDecision, townKeyFor, type SourceDecision } from "./source";
 
 export interface WorldState {
   model: WorldModel;
@@ -67,8 +68,12 @@ const BUILDING_LIMIT = import.meta.env.DEV ? Math.max(0, Math.floor(Number(PARAM
 /** `?scenario=<id>`: which demo installation the world shows; the default storyline without it. */
 export const SCENARIO: DemoScenario = demoScenario(parseScenarioId(PARAMS.get("scenario")));
 
-/** The storage key of the town document on this page: one town per scenario and per stress fixture. */
-export const TOWN_KEY = STRESS_SIZE === null ? SCENARIO.townKey : `crewhub-world.stress-${STRESS_SIZE}`;
+/** The source this page runs on, decided before mount (main.tsx): the demo, or the live host. */
+export const SOURCE: SourceDecision = sourceDecision();
+export const LIVE = SOURCE.source === "live";
+
+/** The storage key of the town document on this page: the live town, else one per scenario and per stress fixture. */
+export const TOWN_KEY = townKeyFor({ source: SOURCE.source, scenarioTownKey: SCENARIO.townKey, stressSize: STRESS_SIZE });
 
 export interface ScenarioChoice {
   id: string;
@@ -108,14 +113,19 @@ export function scenarioChoices(): ScenarioChoice[] {
   return choices;
 }
 
-type Source = WorldSource & { readonly mode: "demo"; readonly playback: Playback };
+type DemoLike = WorldSource & { readonly mode: "demo"; readonly playback: Playback };
 
 class WorldRuntime {
-  readonly source: Source;
+  readonly source: WorldSource;
   /** Source time at the first loop's start (ms): the day-night drift counts the time of day from it. */
   readonly epochMs: number;
-  /** The chat dock's demo source: the world's own, or (stress fixture) a separate scripted demo for the dock only. */
-  readonly chat: DemoSource;
+  /**
+   * The chat dock's demo source: the world's own, or (stress fixture) a separate scripted demo for the dock only. Null in
+   * live mode: the dock then shows the sign-in link (the chat is phase 2).
+   */
+  readonly chat: DemoSource | null;
+  /** The live source's standing with its host; null for the demo, which is always there. */
+  readonly connection: ConnectionStatus | null;
   readonly projection: Projection;
   #memory = emptyMemory();
   #roleOverrides: Record<string, RoleId> = {};
@@ -134,9 +144,16 @@ class WorldRuntime {
     // The script starts at the minute the page opened, so the copied chat's relative times read naturally.
     const epochMs = Math.floor(Date.now() / 60_000) * 60_000;
     this.epochMs = epochMs;
-    const demo = createDemoSource({ scheduler: browserScheduler(), epochMs, scenario: SCENARIO.id });
-    this.chat = demo;
-    this.source = STRESS_SIZE !== null ? createStressSource({ scheduler: browserScheduler(), epochMs, size: STRESS_SIZE }) : demo;
+    if (LIVE) {
+      this.chat = null;
+      this.source = createHostSource();
+    } else {
+      const demo = createDemoSource({ scheduler: browserScheduler(), epochMs, scenario: SCENARIO.id });
+      this.chat = demo;
+      const demoLike: DemoLike = STRESS_SIZE !== null ? createStressSource({ scheduler: browserScheduler(), epochMs, size: STRESS_SIZE }) : demo;
+      this.source = demoLike;
+    }
+    this.connection = this.source.connection ?? null;
     this.projection = new Projection(this.source);
     this.source.start((message) => this.projection.apply(message));
     this.projection.onChange(() => this.#schedule());
@@ -151,9 +168,9 @@ class WorldRuntime {
     return this.#state;
   }
 
-  /** The scripted demo behind the world, or null when the world runs the stress fixture. */
+  /** The scripted demo behind the world, or null when the world runs the stress fixture or the live host. */
   get demo(): DemoSource | null {
-    return this.source === this.chat ? this.chat : null;
+    return this.chat !== null && this.source === this.chat ? this.chat : null;
   }
 
   setRoleOverrides(overrides: Record<string, RoleId>) {
@@ -220,4 +237,12 @@ export function worldRuntime(): WorldRuntime {
 export function useWorld(): WorldState {
   const world = worldRuntime();
   return useSyncExternalStore(world.subscribe, () => world.state);
+}
+
+const NONE = () => () => {};
+
+/** The live source's connection state for the chip; null in demo mode. */
+export function useConnection(): ConnectionState | null {
+  const connection = worldRuntime().connection;
+  return useSyncExternalStore(connection ? (listener) => connection.onChange(listener) : NONE, () => (connection ? connection.state() : null));
 }

@@ -27,6 +27,8 @@ CREWHUB_WORLD_KEY_FILE=tools/out/loops-fake.key npm run host
 npm run dev                                 # then open http://127.0.0.1:5173/?source=live
 ```
 
+The fake prints the two env lines for the host and never the key; the key file is reused on a restart, so a running
+host stays valid. `--scenario fresh|one|small-team|studio` picks the demo scenario and `--speed 0|1|4|16` the pace.
 The switch to the real install later changes only the URL and the key file (section 3).
 
 ## 1. What crewhub-loops must have
@@ -60,7 +62,10 @@ All of this is `loops:docs/porting/MAC-QUICKSTART.md`, sections 0 to 5 and 8. In
    (proposal L1 is open); the role for a process that only reads is still spelled `probe`
    (`loops:.../contracts/common.py`, `AgentRole`). A `probe` key may `GET` like any agent and may `PUT` only the
    four team and lane-watch routes in `PROBE_WRITES` (`loops:.../auth/deps.py`), which the host never calls and
-   its allow-list cannot reach. `crewhub-agents register` refuses a name the seed does not know
+   its allow-list cannot reach. Every route the host reads takes any authenticated principal (`require_user` on
+   projects, board, tickets, team, releases and the stream; `PrincipalDep` on milestones; any agent on the
+   watchdog: `loops:.../api/routers/`), and the project list has no per-agent filter, so a plain `probe` sees the
+   whole installation. `crewhub-agents register` refuses a name the seed does not know
    (`unknown agent 'crewhub-world' (add it to config/agents.yaml)`), so the agent is added to the seed first, as a
    plain `probe` with no other flag, then imported, then given a key:
 
@@ -128,7 +133,8 @@ npm run host:start                                    # then open http://127.0.0
 ```
 
 The source setting is `auto` by default: Live when a host answers `/world-api/health` within 1.5 s, else Demo.
-`?source=live` or `?source=demo` overrides it; Settings > Source shows the choice and the host URL. In live mode the
+`?source=live` or `?source=demo` overrides it; Settings > Source shows the choice, the host URL and why the source was
+chosen, and changing it reloads the page (the source is decided once, before the world starts). In live mode the
 Demo chip, the scenario picker and the playback bar are hidden, the chat dock shows the "sign in to crewhub-loops"
 link (the chat is phase 2), and the connection chip sits where the Demo chip was. The text view says the same.
 
@@ -154,7 +160,7 @@ builder key is the fallback; `cursor` is the last `seq` the host holds. The key 
 | --- | --- | --- |
 | **Live** | The snapshot is loaded and events arrive; a heartbeat came in the last 40 s. | Nothing. A ticket move in loops (`crewhub ticket move <KEY> in_progress`) changes the building's counts within 2 s. |
 | **Connecting** | The browser has not yet reached the host, or the host has not yet answered its first `status`. | Wait a few seconds. Longer: is the host running (`npm run host`)? Does `curl http://127.0.0.1:5180/world-api/health` answer? In dev, is the Vite proxy pointing at the host's port (`CREWHUB_WORLD_PORT`)? |
-| **Catching up** | The host sent `reset` (loops answered 410, or the host reconnected past its buffer, or the asked cursor is too old) or the browser saw a gap in `seq`; the browser loads a new snapshot and replays from it. | Nothing. It clears by itself within a few seconds. If it repeats every minute, the host is reconnecting over and over: read its log. |
+| **Catching up** | The host sent `reset` (loops answered 410, or the host reconnected past its buffer, or the asked cursor is too old), or loops came back after Loops down or Unauthorized; the browser loads a new snapshot and replays from it. A gap in `seq` is normal (loops filters events per key) and is not a reason. | Nothing. It clears by itself within a few seconds. If it repeats every minute, the host is reconnecting over and over: read its log. |
 | **Stale** | No event and no heartbeat for 40 s. Loops sends a heartbeat every 15 s, so three were missed. The scene is the last known state. | Check loops: `curl -s http://127.0.0.1:8091/api/health`. If it answers, the host's stream is wedged: restart `npm run host`; the browser recovers without a reload. If it does not, see "Loops down". |
 | **Loops down** | The host cannot reach crewhub-loops (`loops: "down"`). The host retries with backoff and re-snapshots when loops is back; the browser keeps the last state. | `source ~/.config/crewhub-loops/mac.env && chl_compose ps`. Not up: `cd "$checkout" && chl_compose up -d`. After a Mac restart: start Docker Desktop first, then the same. Wrong port: `CREWHUB_WORLD_LOOPS_URL`. |
 | **Unauthorized** | Loops answered 401 or 403 (`loops: "unauthorized"`): the key file is missing, revoked or not registered, or it is the builder key, which may not read projects, boards, the team or the stream. | `curl http://127.0.0.1:5180/world-api/health`: `sharedKey: true` means the builder fallback, so register the `crewhub-world` agent (section 1, step 3). Else `ls -l ~/.config/crewhub-loops/secrets` and `chl_compose exec -T api crewhub-agents list`: the key's agent must be listed with an active fingerprint. After a new file: restart `npm run host`; the key is read once at start. |

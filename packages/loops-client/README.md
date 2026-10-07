@@ -6,7 +6,8 @@ runtime validators, the event allowlist, the `WorldSource` seam, and the two sou
 
 - `src/source.ts`: `WorldSource`, `LoopsSnapshot`, `SourceMessage`, `ConnectionStatus` (the live chip's states).
 - `src/hostSource.ts`: `createHostSource(options)` reads the world's own host (`apps/host`) at `/world-api`: one
-  snapshot, then SSE events by `seq`; a `reset` or a `seq` gap re-snapshots (`catching-up`); heartbeats keep it
+  snapshot, then SSE events by `seq`; a `reset` re-snapshots (`catching-up`; a `seq` gap too with
+  `resnapshotOnGap`, off by default since loops filters the stream per key); heartbeats keep it
   `live`; 40 s of silence is `stale`; the host's `status` says `loops-down` or `unauthorized`. `probeHost(baseUrl?,
   timeoutMs?)` answers `GET /world-api/health` or `null`. The only file in the browser that may fetch
   (`scripts/scan-model-calls.ts`). `options.timings` shortens the clocks for tests.
