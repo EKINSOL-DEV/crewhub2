@@ -83,6 +83,19 @@ test("a tool only addresses this machine, and keeps every other rule", () => {
   assert.deepEqual(scanSource("packages/demo/src/x.ts", 'const docs = "https://example.com/";'), []);
 });
 
+test("the host and the fake may use the network on this machine only; in the browser only the live source may", () => {
+  for (const file of ["apps/host/src/relay.ts", "packages/loops-fake/src/server.ts"]) {
+    const at = (text: string) => scanSource(file, text).map((f) => f.rule);
+    assert.deepEqual(at("const r = await fetch(`http://127.0.0.1:${port}/api/health`);"), [], file);
+    assert.deepEqual(at('const loops = "http://localhost:8091";'), [], file);
+    assert.deepEqual(at('await fetch("https://example.com/");'), ["tooling-address"], file);
+    assert.deepEqual(at('import Anthropic from "@anthropic-ai/sdk";'), ["ai-sdk-import"], file);
+  }
+  assert.deepEqual(scanSource("packages/loops-client/src/hostSource.ts", "await fetch(`${base}/world-api/snapshot`);"), []);
+  assert.deepEqual(scanSource("packages/loops-client/src/validate.ts", "await fetch(url);").map((f) => f.rule), ["network"]);
+  assert.deepEqual(scanSource("apps/world/src/x.ts", "await fetch('/world-api/health');").map((f) => f.rule), ["network"]);
+});
+
 test("the real tree: playwright-core is imported under tools/ and nowhere under apps/ or packages/", async () => {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
   const importers: string[] = [];

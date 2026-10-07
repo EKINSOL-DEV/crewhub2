@@ -541,3 +541,56 @@ mix plots. In "Fresh install" and "One project" the chat, the drone, the prop re
 - A second full style.
 - Building the loops side of L22.
 - Re-syncing the chat copy (D9, D10 of the gap analysis).
+
+## Addendum: loops readiness (2026-10-07)
+
+Nicky installs a fresh crewhub-loops on this Mac soon (`loops:docs/porting/MAC-QUICKSTART.md`, commit `053b5f47`), and
+the world must hook in the same day. This round builds the plan's phase 1 data path (`docs/LOOPS_INTEGRATION_PLAN.md`
+section 10) without the parts that need a person: pairing and the chat stay out.
+
+**Principles.**
+
+1. **The reducer and the projection never learn that there is a host.** The seam stays `WorldSource`. A live source is
+   one more implementation of it, next to the demo; the only addition is an optional `connection` beside `playback`,
+   which the UI reads for its chip.
+2. **The key never leaves the host.** The browser talks to the world's own relay (`apps/host`, the integrator doc's
+   Option A); the relay holds the loops key, reads it once, and never logs or returns it. A test greps the built
+   bundle and the host's responses for it.
+3. **Nothing is written to crewhub-loops.** The host's routes come from one allow-list of loops `GET` paths; every
+   other path and every other method answers 404 or 405. A test sends each unsafe method.
+4. **Runs today, before the install.** A fake crewhub-loops (`packages/loops-fake`) plays the demo storyline in real
+   time with the real routes, bearer auth, `seq`, heartbeats and a 410 past its buffer. Switching to the real install
+   changes only the URL and the key file.
+5. **`npm test` stays offline.** The host and the fake may use the network on loopback only (the scanner's
+   `NETWORK_ROOTS`); in the browser only `hostSource.ts` may fetch, and only its own host.
+
+**Shape.**
+
+```text
+crewhub-loops :8091  --bearer key-->  apps/host :5180 (127.0.0.1)  --/world-api-->  browser (HostSource)
+(or loops-fake)                       one stream, a ring buffer,                    snapshot, then events by seq;
+                                      snapshot assembly, allow-list                 reset or a seq gap: re-snapshot
+```
+
+- `GET /world-api/snapshot` is one `LoopsSnapshot`, assembled by read-model.md "Loading a snapshot" so no event falls
+  between the reads and the stream.
+- `GET /world-api/stream?cursor=N` is SSE. The host keeps one loops stream for every tab, replays from its buffer, and
+  sends `reset` when loops answers 410 or the host reconnected past its buffer. Messages are the seam's own
+  (`event`, `heartbeat`) plus `reset` and `status`.
+- The thin-event refetches, `GET /world-api/team`, `GET /world-api/project-groups` (`{groups: []}` until L22) and
+  `GET /world-api/health` (`loops: ok | down | unauthorized`, the key's name, never the key).
+- Host and Origin are checked against `127.0.0.1:<port>` and `localhost:<port>`. Pairing (a one-time link exchanged
+  for an HttpOnly cookie, plan 3.5) is a written known gap: this round the host trusts loopback.
+
+**In the world.** A source setting, Demo (default) or Live (`?source=live`, Settings > Source). Live hides the Demo
+chip, the scenario picker and the playback bar; a connection chip (Live, Catching up, Stale, Loops down, Unauthorized)
+takes the Demo chip's place and the text view says the same. The chat dock shows the plan's "sign in to crewhub-loops"
+link. The town document is keyed by source, so a live town never inherits a demo layout. Every live project sits in
+the default zone until L22 exists; manual zones still work.
+
+**What crewhub-loops changed** (`f55d1288` to `053b5f47`): the read model the world uses is unchanged; new are the
+`grill` ticket kind and its route, pending delegations, key scopes and agent deletion; the executor routes
+(`/api/agent-actions*`, `/api/lane-creates*`, `POST /api/onboarding/lead`) are gone. The validators accept an unknown
+`kind`, `status` or event `type` with one warning, so the next such addition does not break the world.
+
+**Out of scope this round:** pairing, the chat (phase 2), a viewer role (L1), writing anything to loops, Tailscale.

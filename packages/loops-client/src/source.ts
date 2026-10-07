@@ -1,6 +1,6 @@
 /**
  * The seam between a source of crewhub-loops data and the world model. The demo (`packages/demo`)
- * implements it tonight; a future host source (`GET /world-api/snapshot` + SSE) implements it later.
+ * implements it for the demo; the host source (`GET /world-api/snapshot` + SSE, `hostSource.ts`) for a real crewhub-loops.
  */
 import type {
   AgentOut,
@@ -95,9 +95,23 @@ export interface WorldSource {
   getProgress(ref: string): Promise<ProgressItem[]>;
   /** Present for a scripted or recorded source; null for live. */
   readonly playback: PlaybackControls | null;
+  /** Present for a live source (the connection chip); absent or null for the demo, which is always there. */
+  readonly connection?: ConnectionStatus | null;
 }
 
-/** Types only: the future host source (`GET /world-api/snapshot` + SSE). Not implemented tonight. */
+/**
+ * How a live source stands with its host and the host with crewhub-loops. `connecting` until the first snapshot;
+ * `catching-up` while it re-snapshots after a reset or a gap; `stale` when the stream is quiet past two heartbeats
+ * or the host is unreachable; `loops-down` and `unauthorized` as the host reports them (GET /world-api/health).
+ */
+export type ConnectionState = "connecting" | "live" | "catching-up" | "stale" | "loops-down" | "unauthorized";
+export interface ConnectionStatus {
+  state(): ConnectionState;
+  onChange(listener: () => void): () => void;
+}
+
+/** The live source (`packages/loops-client/src/hostSource.ts`): the world's own host at `/world-api`. */
 export interface HostSourceOptions {
-  baseUrl: string;
+  /** The host's origin, e.g. `http://127.0.0.1:5180`. Default "" (same origin: Vite proxies /world-api in dev). */
+  baseUrl?: string;
 }

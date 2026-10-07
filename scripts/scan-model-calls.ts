@@ -15,6 +15,12 @@
  *   - outside tools/ nothing may import a browser driver, and no workspace's package.json may depend on one. The
  *     world's apps and packages never see it.
  *
+ * Loops readiness: the world reads crewhub-loops through a relay of its own (`apps/host`), tested against a fake
+ * crewhub-loops (`packages/loops-fake`). Both may use the network (NETWORK_ROOTS) and, like tools/, spell out only this
+ * machine's addresses: the host's loops URL is configuration, never a literal elsewhere. In the browser, one file may
+ * fetch: the live source, which only reads its own host's `/world-api` (NETWORK_ALLOWLIST). A test that starts a server
+ * on 127.0.0.1 and talks to it is loopback to itself, not a network call.
+ *
  * It runs in `npm test` through
  * packages/world-model/test/noModelCalls.test.ts, and directly: `node scripts/scan-model-calls.ts`.
  *
@@ -25,8 +31,16 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-/** Files allowed to use the network, with the reason. Empty: the demo has no network at all. */
-export const NETWORK_ALLOWLIST: Readonly<Record<string, string>> = {};
+/** Files allowed to use the network, with the reason. The demo has no network at all. */
+export const NETWORK_ALLOWLIST: Readonly<Record<string, string>> = {
+  "packages/loops-client/src/hostSource.ts": "the live source: reads its own host's /world-api (same origin by default), nothing else",
+};
+
+/** Folders allowed to use the network, with the reason. Their addresses must be this machine's, as under tools/. */
+export const NETWORK_ROOTS: Readonly<Record<string, string>> = {
+  "apps/host/": "the relay: holds the loops key and reads crewhub-loops on the configured URL (127.0.0.1:8091 by default)",
+  "packages/loops-fake/": "the fake crewhub-loops: a server on 127.0.0.1 for tests and for running before the install",
+};
 
 /** The scanner and its test hold the patterns and their fixtures, so they would flag themselves. */
 export const SELF: readonly string[] = ["scripts/scan-model-calls.ts", "packages/world-model/test/noModelCalls.test.ts"];
@@ -73,23 +87,24 @@ export function scanSource(file: string, text: string, allowlist: Readonly<Recor
   const findings: Finding[] = [];
   const lines = text.split("\n");
   const tooling = file.startsWith(TOOLING_ROOT);
+  const networkRoot = Object.keys(NETWORK_ROOTS).some((root) => file.startsWith(root));
   lines.forEach((content, index) => {
     const line = index + 1;
     for (const match of content.matchAll(IMPORT_SPECIFIER)) {
       if (AI_PACKAGE.test(match[1]!)) findings.push({ file, line, rule: "ai-sdk-import", detail: `imports ${match[1]}` });
       if (!tooling && BROWSER_PACKAGE.test(match[1]!)) findings.push({ file, line, rule: "browser-import", detail: `imports ${match[1]}: a browser driver belongs under ${TOOLING_ROOT} only` });
     }
-    if (tooling) {
+    if (tooling || networkRoot) {
       for (const match of content.matchAll(ADDRESS)) {
         // An address built from a variable cannot be checked: a tool spells its host out.
         const host = match[1] === "${" ? "a computed host" : match[1]!;
-        if (!LOCAL_HOSTS.has(host)) findings.push({ file, line, rule: "tooling-address", detail: `addresses ${host}: a tool only opens 127.0.0.1 or localhost` });
+        if (!LOCAL_HOSTS.has(host)) findings.push({ file, line, rule: "tooling-address", detail: `addresses ${host}: ${tooling ? "a tool" : "the host and the fake"} only open 127.0.0.1 or localhost` });
       }
     }
     for (const endpoint of ENDPOINTS) {
       if (endpoint.test(content)) findings.push({ file, line, rule: "model-endpoint", detail: `mentions ${endpoint.source.replace(/\\/g, "")}` });
     }
-    if (!(file in allowlist)) {
+    if (!(file in allowlist) && !networkRoot) {
       for (const { rule, pattern } of NETWORK) {
         if (pattern.test(content)) findings.push({ file, line, rule: "network", detail: `uses ${rule} and ${file} is not on the network allowlist` });
       }
