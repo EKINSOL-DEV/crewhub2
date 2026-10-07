@@ -96,7 +96,7 @@ No React Three Fiber or physics engine is needed for this slice.
 ## Tools: looking at and measuring the running world
 
 [`tools/`](../tools/README.md) holds the scripts that open the running world in a headless browser: the browser
-regression pass (`regress.mjs`, 38 checks), the frame and memory measurements (`perf.mjs`, `memory.mjs`) and the
+regression pass (`regress.mjs`: the demo walk, the demo's wayfinding and picker, and live mode against the fake, 53 checks), the frame and memory measurements (`perf.mjs`, `memory.mjs`) and the
 screenshot helpers (`shots.mjs`, `castshots.mjs`, `castworld.mjs`). They are plain `.mjs` files run with `node`
 against a Vite server on a port of your own, and write to the git-ignored `tools/out/` unless told otherwise. They
 are not part of `npm run check`: they need a browser and a running server.
