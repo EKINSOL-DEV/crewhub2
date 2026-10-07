@@ -148,6 +148,8 @@ export function statusRack(kit: Kit): THREE.Group {
   put(g, kit.box(width + 0.04, 0.05, 0.05, "timber-trim", 0.01), 0, top + 0.22, -depth / 2 + 0.03);
   put(g, kit.box(0.74, 0.22, 0.03, "cream", 0.006), 0, top + 0.37, -depth / 2 + 0.03);
   put(g, kit.box(0.8, 0.26, 0.02, "timber-trim", 0.008), 0, top + 0.37, -depth / 2 + 0.005);
+  // The view reads the shelf rise from the model, so a style with other shelves keeps the boxes on them.
+  g.userData.shelfPitch = RACK_SHELF_PITCH;
   return g;
 }
 

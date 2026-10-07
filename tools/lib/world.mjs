@@ -112,6 +112,14 @@ export const speed = (page, label) => page.getByRole("button", { name: `Play at 
 
 /**
  * The world's page address: `?stress=<n>` for a stress fixture (dev builds only: 1 or 20), `?scenario=<id>` for a demo
- * scenario (the Demo chip's picker), nothing for the default storyline.
+ * scenario (the Demo chip's picker), nothing for the default storyline; `rooms` adds `&rooms=three|classic`, the
+ * building plan (Settings > Town > Buildings) for that page.
  */
-export const worldUrl = (base, stress, scenario) => `${base}${stress ? `?stress=${encodeURIComponent(stress)}` : scenario ? `?scenario=${encodeURIComponent(scenario)}` : ""}`;
+export const worldUrl = (base, stress, scenario, rooms = null) => {
+  const params = new URLSearchParams();
+  if (stress) params.set("stress", stress);
+  else if (scenario) params.set("scenario", scenario);
+  if (rooms) params.set("rooms", rooms);
+  const query = params.toString();
+  return `${base}${query ? `?${query}` : ""}`;
+};

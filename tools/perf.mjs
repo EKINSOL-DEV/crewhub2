@@ -2,7 +2,7 @@
 
    Usage:
      node tools/perf.mjs --port <port> [scenario...] [--quality pretty|fast] [--theme light|dark] [--cast <id>]
-                         [--scenario <id>] [--stress <n>] [--json <file>] [--minutes <n>] [--preview] [--out <dir>] [--swiftshader]
+                         [--scenario <id>] [--stress <n>] [--rooms three|classic] [--json <file>] [--minutes <n>] [--preview] [--out <dir>] [--swiftshader]
 
    With no scenario it runs them all (about three minutes):
      demo-town      the normal demo, town view, 1x
@@ -40,7 +40,8 @@
    default), --cast the viewer's cast choice (Settings > Town > Cast), --scenario the demo scenario of the demo-*,
    phone-*, startup and view-change scenarios by its id (the page's ?scenario=<id>; left out: the default storyline),
    --stress the fixture's size as the page's ?stress=<n> (1 by default: 12 buildings, ~100 agents; 20: 20 buildings,
-   200 agents in four groups), --json writes every result as
+   200 agents in four groups), --rooms the building plan of the page (?rooms=three|classic: the three halls of the
+   spec addendum or the classic ten rooms), --json writes every result as
    JSON (a bare file name lands in --out), --minutes the length of `long`.
 
    Production numbers (--preview): measure what users get, a minified production build, instead of the Vite dev
@@ -58,8 +59,8 @@ import path from "node:path";
 import { castChoice, cli, launch, seek, speed, store, worldUrl } from "./lib/world.mjs";
 
 const opts = cli(
-  "node tools/perf.mjs --port <port> [scenario...] [--quality pretty|fast] [--theme light|dark] [--cast <id>] [--scenario <id>] [--stress <n>] [--json <file>] [--minutes <n>] [--preview] [--out <dir>] [--swiftshader]",
-  { options: { quality: "pretty", theme: "light", json: null, minutes: "10", cast: null, scenario: null, stress: null }, flags: ["preview"] },
+  "node tools/perf.mjs --port <port> [scenario...] [--quality pretty|fast] [--theme light|dark] [--cast <id>] [--scenario <id>] [--stress <n>] [--rooms three|classic] [--json <file>] [--minutes <n>] [--preview] [--out <dir>] [--swiftshader]",
+  { options: { quality: "pretty", theme: "light", json: null, minutes: "10", cast: null, scenario: null, stress: null, rooms: null }, flags: ["preview"] },
 );
 const { port, quality, theme, preview, base } = opts;
 const jsonOut = opts.json && (path.isAbsolute(opts.json) || opts.json.includes(path.sep) ? opts.json : path.join(opts.out, opts.json));
@@ -103,7 +104,7 @@ async function open({ phone = false, stress = phone && phoneStress, fast = false
     const cdp = await context.newCDPSession(page);
     await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
   }
-  await page.goto(worldUrl(base, stress ? stressSize : null, opts.scenario));
+  await page.goto(worldUrl(base, stress ? stressSize : null, opts.scenario, opts.rooms));
   await page.waitForFunction((fps) => performance.getEntriesByName("world:town-dressed").length > 0 && (!fps || window.__worldPerfWindow), fps, { timeout: 60000 });
   if (phone && stress) await speed(page, "4x");
   return { context, page };
@@ -295,7 +296,7 @@ const run = {
   },
 };
 
-console.log(`perf.mjs  port ${port}  quality ${quality}  theme ${theme}${castId ? `  cast ${castId}` : ""}${opts.scenario ? `  scenario ${opts.scenario}` : ""}${opts.stress !== null ? `  stress ${stressSize}` : ""}${opts.swiftshader ? "  swiftshader" : ""}  ${new Date().toISOString()}${preview ? "  build preview (production)" : ""}`);
+console.log(`perf.mjs  port ${port}  quality ${quality}  theme ${theme}${castId ? `  cast ${castId}` : ""}${opts.scenario ? `  scenario ${opts.scenario}` : ""}${opts.stress !== null ? `  stress ${stressSize}` : ""}${opts.rooms ? `  rooms ${opts.rooms}` : ""}${opts.swiftshader ? "  swiftshader" : ""}  ${new Date().toISOString()}${preview ? "  build preview (production)" : ""}`);
 for (const name of scenarios) {
   if (preview && STRESS_ONLY.includes(name)) {
     console.log(`${name.padEnd(14)} skipped: the stress fixture exists in dev builds only`);
