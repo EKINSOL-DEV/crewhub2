@@ -13,6 +13,7 @@
     "packages/cast-*",
     "packages/demo",
     "packages/loops-client",
+    "packages/loops-fake",
     "packages/style-greenhouse",
     "packages/world-cast",
     "packages/world-engine",
@@ -29,7 +30,8 @@
     "check:copy": "node scripts/check-bubbles-copy.ts",
     "check": "npm run typecheck && npm test && npm run check:docs && npm run check:design && npm run check:copy && npm run build",
     "test": "node --test packages/*/test/*.test.ts apps/world/test/*.test.ts scripts/test/*.test.ts",
-    "prop:validate": "node scripts/prop-validate.ts"
+    "prop:validate": "node scripts/prop-validate.ts",
+    "loops:fake": "node packages/loops-fake/src/main.ts"
   },
   "devDependencies": {
     "@types/node": "22.20.1",
