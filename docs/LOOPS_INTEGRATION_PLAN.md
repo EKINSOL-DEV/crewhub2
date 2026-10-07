@@ -910,12 +910,12 @@ install changes only a URL and a key file. The runbook is [LOOPS_SETUP.md](LOOPS
 
 | Criterion | Status |
 | --- | --- |
-| A ticket move changes the counts within 2 s | Met against the fake only (the end-to-end test: fake, host, `HostSource`, projection). Against the real install: not yet; the fresh crewhub-loops is not installed on this Mac. |
-| A restart of the loops API recovers without a page reload | Met against the fake only (a fake restart in the end-to-end test; the host re-snapshots, the browser sees Catching up or Stale meanwhile). |
-| A restart of the host recovers without a page reload | Met against the fake only (`HostSource` reconnects with backoff and re-snapshots). |
-| Two browser tabs share one loops stream | Met (the host holds one upstream stream for every client; a test opens two). |
-| Nothing is written to crewhub-loops | Met (the allow-list holds `GET` paths only; a test sends each unsafe method and gets 404 or 405). |
-| The key appears in no bundle, log or response | Met (a test greps the built bundle and the host's responses for the key). |
+| A ticket move changes the counts within 2 s | Met against the fake only, by hand (`npm run loops:fake`, the host, `?source=live`); the end-to-end test (fake, host, `HostSource`, projection, `apps/host/test/e2e.test.ts`) was still being written at the end of the round. Against the real install: not yet; the fresh crewhub-loops is not installed on this Mac. |
+| A restart of the loops API recovers without a page reload | Met against a loops stub (the host test "goes down and comes back": status messages, host heartbeats, a reset when the tail went backwards; the browser sees Loops down, then Catching up). Against the fake end to end: the same test as above, pending. |
+| A restart of the host recovers without a page reload | Met against the fake only (`HostSource` reconnects with backoff, `?cursor=`, and re-snapshots on `reset`). |
+| Two browser tabs share one loops stream | Met (the host test "holds one upstream stream for two clients and delivers events in order with an id"). |
+| Nothing is written to crewhub-loops | Met (the allow-list holds `GET` paths only; the test sends POST, PUT, PATCH, DELETE, HEAD and OPTIONS, gets 405, and nothing reaches loops). |
+| The key appears in no bundle, log or response | Met for responses (the host test, with a loops stub that echoes the Authorization header); the bundle grep is the lead's check at merge time. |
 | No UI beyond navigation | Met in the sense of this round: live mode hides the demo UI; the chip and the source setting are the only additions. The demo's own UI stays for demo mode. |
 | Pairing | Not yet. |
 
