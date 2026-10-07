@@ -740,6 +740,49 @@ error, and the key in no response, log or bundle file.
 Pairing (plan 3.5), the chat (phase 2), a viewer role (L1), project groups (L22), and a run against the real
 install, which did not exist yet.
 
+## Readiness hardening (2026-10-07, afternoon)
+
+Spec addendum "Readiness hardening" (`be5ab0d`). The readiness round's four known gaps are closed, still against the
+fake, because crewhub-loops is not yet running on this Mac.
+
+- **Team:** four developers (Fable 5.1 at effort medium) from 14:45, with a hard stop at 15:44. Two more, started by
+  the coordinator, worked in parallel: walk (the next section) and agentcard.
+
+### What was built
+
+- **Pairing** ([host README](../../apps/host/README.md), [LOOPS_SETUP.md](../LOOPS_SETUP.md), "Pair this
+  browser"). The flow:
+  1. `npm run host -- open` prints a one-time link `http://127.0.0.1:5180/pair/<token>`, valid for 10 minutes and
+     usable once.
+  2. Opening it sets an HttpOnly `SameSite=Strict` cookie and lands on the world, live.
+  3. Opened again, the link shows "expired or already used".
+
+  Without the cookie, every `/world-api` route except `health` answers 401, and the world shows "Pair this browser"
+  with the command and "Use the demo". `open` works with a host that is already running. A host restart ends
+  pairings unless `CREWHUB_WORLD_PAIRING_FILE` keeps the secret; `CREWHUB_WORLD_PAIRING=off` serves development and
+  is refused in production. A test proves that the token, the cookie and the secret appear in no response and no
+  log.
+- **A more faithful fake.** Streams end after 300 s as loops' do, and a test proves no event is lost across the
+  reconnect. New reads: `/api/tickets/{ref}/grill`, `/api/delegations/pending` and `/api/auth/me`. With
+  `--builder-key` the fake answers like loops' builder key, so the Unauthorized chip can be tested. The small-team
+  storyline now meets a grill ticket and a pending request.
+- **The browser regression pass** (`tools/regress.mjs`) has three groups: `walk` (the 38 checks), `demo` and `live`.
+  - **demo:** the jump list, the scenario picker, and in Studio the Region level with district cards, a beacon pin
+    and the Escape chain.
+  - **live:** the pass starts its own fake and host and checks the Live chip, the sign-in link, Loops down, Live
+    again, the pairing page and the world after pairing.
+  - **Count:** 56 of 56 on `11ca428`: walk 36 checks in 119 s, demo 11 in 26 s, live 7 in 5 s, and 2 global ones.
+    The full run takes 151 s; the 60 s budget holds only for the new groups, which `--groups demo,live` runs alone.
+- **The allocation undo gap.** A lot, once given, is carried forward through undo and redo, so an undo past a hand
+  move never re-allocates a project. Tidy the town keeps its own undo step. The stability test now mixes undo and
+  redo into its sequences ([TOWN_PLAN.md](../TOWN_PLAN.md) section 11).
+
+### Still open
+
+- No chip state for a pairing that dies mid-session: a host restart without the pairing file shows Stale until a
+  reload brings the pair page.
+- The fake serves the pending request, but the world does not read it yet.
+- A run against the real install.
 ## Walk mode (2026-10-07)
 
 A mode to walk around inside the world: the Walk button in the camera toolbar, or `W` when nothing is selected. A
@@ -764,6 +807,7 @@ navigation world, not the source) and asks the resolved cast for its figure like
   walked route between districts' far ends is a long walk (there is no bus for the visitor), and the mode was looked at
   in the demo only, with the default cast, at 1440 and 375 wide (no live host was running; the other casts, the
   larger tiers, reduced motion and a real touch on the stick were not looked at in a browser).
+
 
 ## Challenges with docs/integrators
 
