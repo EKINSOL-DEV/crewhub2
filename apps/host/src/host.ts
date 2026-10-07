@@ -45,6 +45,8 @@ export interface HostHealth {
   sharedKey: boolean;
   loopsCommit?: string;
   cursor?: number;
+  /** The origin of the loops URL: the web app for the sign-in link (on the Mac the web app and the API share 8091). */
+  loopsWebUrl: string;
 }
 
 const MIME: Record<string, string> = {
@@ -81,6 +83,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
   if (options.heartbeatMs !== undefined) upstreamOptions.heartbeatMs = options.heartbeatMs;
   const upstream = createUpstream(client, upstreamOptions);
   const sharedKey = options.sharedKey ?? false;
+  const loopsWebUrl = new URL(options.loopsUrl).origin;
   const staticDir = options.staticDir === undefined ? null : path.resolve(options.staticDir);
   const streams = new Set<ServerResponse>();
   let port = 0;
@@ -222,7 +225,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
     switch (route.pattern) {
       case "/health": {
         await upstream.start();
-        const health: HostHealth = { loops: upstream.state(), keyName: options.keyName, sharedKey };
+        const health: HostHealth = { loops: upstream.state(), keyName: options.keyName, sharedKey, loopsWebUrl };
         const version = upstream.loopsVersion();
         if (version !== undefined) health.loopsCommit = version;
         if (upstream.cursor() >= 0) health.cursor = upstream.cursor();

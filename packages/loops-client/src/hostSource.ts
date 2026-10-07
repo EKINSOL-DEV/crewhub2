@@ -46,6 +46,8 @@ export interface HostHealth {
   sharedKey: boolean;
   loopsCommit?: string;
   cursor?: number;
+  /** The origin of crewhub-loops' web app (the API's URL; on the Mac both share 8091), for the sign-in link. */
+  loopsWebUrl?: string;
 }
 
 /** The source's clocks, with their defaults. Tests inject short ones. */
