@@ -6,7 +6,8 @@ import test from "node:test";
 import { approachCells, occupancy, validateLayout, type Cell, type Definitions, type WorldLayout, type WorldProp } from "@crewhub/world-engine";
 import type { RoomKind } from "@crewhub/world-model";
 import { interiorDefinitions, LOADING, type BuildingTemplate, type DressingZone, type TemplateRoom } from "../src/world/buildingTemplate.ts";
-import { deskZoneOf, DRESS_PREFIX, dressingSeed, dressRooms, isThreeRoom, lampLane, RACKS, roomDecor } from "../src/world/roomDressing.ts";
+import { DRESS_PREFIX, dressingSeed, dressRooms, isThreeRoom, lampLane, RACKS, roomDecor } from "../src/world/roomDressing.ts";
+import { deskZone as deskZoneOf } from "../src/world/buildingTemplate.ts";
 import { agent } from "./fixtures.ts";
 
 /** The addendum's pieces, as the template defines them (threeRoomTemplate.ts); here until that file lands. */
