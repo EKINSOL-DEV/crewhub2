@@ -248,18 +248,18 @@ export function roleDesk(kit: Kit, role: DeskRole, seed = 0): THREE.Group {
     // A drawing board on two trestles, leaning on the desk's far side and tilted to the camera: a sketch, three
     // colour swatches and a cup of pencils on its ledge.
     const board = new THREE.Group();
-    for (const x of [-0.18, 0.18]) put(board, kit.box(0.03, 0.4, 0.2, "timber", 0.006), x, 0.2, 0);
+    for (const x of [-0.18, 0.18]) put(board, kit.box(0.03, 0.56, 0.2, "timber", 0.006), x, 0.28, 0);
     const tilt = -0.42;
-    const top = put(board, kit.box(0.5, 0.025, 0.36, "timber-light", 0.006), 0, 0.42, 0);
+    const top = put(board, kit.box(0.5, 0.025, 0.36, "timber-light", 0.006), 0, 0.59, 0);
     top.rotation.x = tilt;
-    const sheet = put(board, kit.box(0.36, 0.006, 0.26, "paper", 0.002), 0, 0.436, -0.004);
+    const sheet = put(board, kit.box(0.36, 0.006, 0.26, "paper", 0.002), 0, 0.606, -0.004);
     sheet.rotation.x = tilt;
     put(sheet, kit.box(0.2, 0.004, 0.004, "ink", 0.001), -0.03, 0.004, -0.04).rotation.y = 0.4;
     put(sheet, kit.box(0.14, 0.004, 0.004, "ink", 0.001), 0.05, 0.004, 0.03).rotation.y = -0.7;
     for (let i = 0; i < 3; i++) put(sheet, kit.box(0.045, 0.004, 0.045, ["coral", "sage", "tangerine"][i]!, 0.001), -0.1 + i * 0.1, 0.004, 0.09);
-    const ledge = put(board, kit.box(0.5, 0.02, 0.03, "timber", 0.004), 0, 0.345, -0.17);
+    const ledge = put(board, kit.box(0.5, 0.02, 0.03, "timber", 0.004), 0, 0.515, -0.17);
     ledge.rotation.x = tilt;
-    put(board, kit.cylinder(0.025, 0.022, 0.07, "clay"), 0.2, 0.395, -0.15);
+    put(board, kit.cylinder(0.025, 0.022, 0.07, "clay"), 0.2, 0.565, -0.15);
     put(g, board, 0.14, 0, -0.34);
   }
   return g;
