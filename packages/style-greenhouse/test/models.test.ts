@@ -12,7 +12,7 @@ const manifest = JSON.parse(readFileSync(path.join(ROOT, "style.json"), "utf8"))
   palette: Record<string, string>;
   lighting: Record<string, unknown>;
 };
-const VARIANTS = ["archived", "dim", "urgent", "high", "star"];
+const VARIANTS = ["archived", "dim", "urgent", "high", "star", "working", "waiting", "idle", "off"];
 const files = readdirSync(path.join(ROOT, "models")).filter((f) => f.endsWith(".json"));
 
 test("every model file is a valid crewhub-prop/1 model", () => {

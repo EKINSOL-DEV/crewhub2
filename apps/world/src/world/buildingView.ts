@@ -34,7 +34,7 @@ import { cellAt, footprintPose, resolveBuildingPlacements, type BuildingPlacemen
 import { PropLayer, type TownLayer } from "./propLayer";
 import { figureRole, figureState, type FigureFacts } from "./figureState";
 import type { RobotCrowd } from "./robotCrowd";
-import { deskItems, DRESS_PREFIX, dressingSeed, roomDecor, type DecorItem } from "./roomDressing";
+import { deskItems, deskZoneOf, DRESS_PREFIX, dressingSeed, isThreeRoom, lampLane, RACKS, roomDecor, type DecorItem } from "./roomDressing";
 import type { Bounds } from "./townLayout";
 import type { Walker, WorkSpot } from "./walks";
 import { deskClutter, HOME_VIEW, WORK_FURNITURE, workPlace, type Circle, type WorkAt } from "./workPlaces";
@@ -93,6 +93,13 @@ const FAR_FURNITURE: Record<string, string> = {
   "parcel-cart": "crate",
   "crate-stack": "crate",
   "autumn-vase": "plant",
+  // The three-room plan (addendum): the status racks, the huddle and the archive counter.
+  "rack-backlog": "shelf",
+  "rack-planning": "shelf",
+  "rack-review": "shelf",
+  "rack-done": "shelf",
+  "huddle-table": "table",
+  "archive-counter": "table",
 };
 /** The room edge a wall piece hangs on. */
 type WallFace = "north" | "west" | "south" | "east";
@@ -132,6 +139,10 @@ const FLOOR_VARIANT: Partial<Record<RoomKind, string>> = {
   storage: "concrete",
   dispatch: "concrete",
 };
+/** The three halls' floors (addendum): Administration's tiles, the floor's cool cells, the office's wood. */
+const HALL_FLOOR: Partial<Record<RoomKind, string>> = { lobby: "tile", workers: "mist", "lead-office": "wood" };
+/** The shelf rise of a status rack when the style's model does not say (furniture.ts RACK_SHELF_PITCH). */
+const SHELF_PITCH = 0.36;
 /** Ivy on an archived building, building cells: the back wall's outer face, the front corners. */
 const IVY: { x: number; z: number; width: number; height: number; rotation: number }[] = [
   { x: -0.15, z: 5, width: 2.2, height: 1.5, rotation: -Math.PI / 2 },
@@ -184,9 +195,11 @@ interface Robot {
 /** What a ticket pile takes of a table top, world units. */
 const PILE_RADIUS = 0.13;
 
-const surfaceHeights = new WeakMap<ResolvedStyle, Record<Surface, number>>();
+/** The surfaces' heights, and the rise from one rack shelf to the next (`shelfPitch`). */
+type Surfaces = Record<Surface, number> & { shelfPitch: number };
+const surfaceHeights = new WeakMap<ResolvedStyle, Surfaces>();
 
-function surfacesOf(style: ResolvedStyle): Record<Surface, number> {
+function surfacesOf(style: ResolvedStyle): Surfaces {
   let s = surfaceHeights.get(style);
   if (!s) {
     const top = (key: ModelKey, scale = 1) => {
@@ -194,9 +207,12 @@ function surfacesOf(style: ResolvedStyle): Record<Surface, number> {
       if (typeof object.userData.surface === "number") return object.userData.surface * scale;
       return new THREE.Box3().setFromObject(object).max.y * scale;
     };
+    const rack = style.model("furniture.rack-backlog");
     s = {
       floor: 0.02,
       rack: top("furniture.rack"),
+      shelf: top("furniture.rack-backlog"),
+      shelfPitch: typeof rack.userData.shelfPitch === "number" ? rack.userData.shelfPitch : SHELF_PITCH,
       table: top("furniture.planning-table"),
       pile: top("furniture.review-pile") * 0.6,
       pallet: top("furniture.pallet"),
@@ -296,6 +312,7 @@ export class BuildingView {
       reducedMotion: ctx.reducedMotion,
       truck: this.#truckTarget,
       surface: (s) => surfacesOf(ctx.style)[s],
+      shelfPitch: () => surfacesOf(ctx.style).shelfPitch,
     });
     this.#props = new PropLayer({
       style: ctx.style,
@@ -401,12 +418,13 @@ export class BuildingView {
       this.#shellStatic.add(object);
       return object;
     };
+    const threeRoom = isThreeRoom(this.template);
     for (const room of this.template.rooms) {
       const { width, depth } = room.layout.grid;
       const present = b.rooms.find((r) => r.kind === room.kind)?.present ?? true;
       const cx = room.origin.x + width / 2,
         cz = room.origin.z + depth / 2;
-      const look = b.archived || !present ? "dim" : FLOOR_VARIANT[room.kind];
+      const look = b.archived || !present ? "dim" : threeRoom ? HALL_FLOOR[room.kind] : FLOOR_VARIANT[room.kind];
       const floor = style.model("floor", { size: { width: width * CELL, height: 0, depth: depth * CELL }, ...(look ? { variant: look } : {}) });
       floor.position.copy(this.local(cx, cz, 0.02));
       // Drawn from the static batch (one mesh per floor material); the room-tagged original stays as the pick target,
@@ -586,6 +604,7 @@ export class BuildingView {
    */
   *#furnitureSteps(): Generator<void, void> {
     const { style } = this.ctx;
+    const threeRoom = isThreeRoom(this.template);
     const g = new THREE.Group();
     const yielded = (kind: RoomKind) => this.placements.rooms.get(kind)?.yielded ?? [];
     for (const room of this.template.rooms)
@@ -594,12 +613,16 @@ export class BuildingView {
         const definition = interiorDefinitions[def];
         if (!definition || yielded(room.kind).includes(prop.id)) continue;
         const dressing = prop.id.startsWith(DRESS_PREFIX);
-        const model = style.model(`furniture.${def}`, { seed: dressing ? dressingSeed(prop.id) % 97 : prop.id.length });
+        // The floor's desks by role (addendum): the zone a desk's id carries picks the analyst's or the designer's desk.
+        const zone = def === "workdesk" && threeRoom ? deskZoneOf(prop) : null;
+        const variant = zone === "analyst" || zone === "design" ? { variant: zone } : {};
+        const model = style.model(`furniture.${def}`, { seed: dressing ? dressingSeed(prop.id) % 97 : prop.id.length, ...variant });
         const pose = footprintPose(definition, prop.cell, prop.rotation);
         model.position.copy(this.local(room.origin.x + pose.x, room.origin.z + pose.z, 0.02));
         model.rotation.y = pose.rotationY;
-        // Desks face their seat to the north, so the agent looks over the desk towards the camera.
-        if (def === "workdesk" || def === "lead-desk") model.rotation.y = Math.PI;
+        // Desks face their seat to the north, so the agent looks over the desk towards the camera; so does the
+        // archive counter, whose clerk's side is the north (its approach).
+        if (def === "workdesk" || def === "lead-desk" || def === "archive-counter") model.rotation.y = Math.PI;
         if (def === "plant") model.scale.setScalar(dressing ? ROBOT_SCALE * (0.8 + (dressingSeed(prop.id) % 5) * 0.08) : ROBOT_SCALE);
         if (def === "bench" || def === "coffee-machine") model.scale.setScalar(0.7);
         g.add(model);
@@ -1069,26 +1092,37 @@ export class BuildingView {
       stalledDesks.set(slot, [...(stalledDesks.get(slot) ?? []), o.ticketId]);
     }
     const published = b.releases.some((r) => r.publishedAt);
+    const threeRoom = isThreeRoom(this.template);
+    // The floor's lamps show the lane (addendum): static until a lane changes, then the signals merge again.
+    const laneOf = (desk: DeskSlot, stalled: boolean) => {
+      const agent = b.agents.find((a) => a.key === desk.agentKey) ?? null;
+      const waiting = !!agent && agent.deskTicketKey !== null && b.objects.some((o) => o.key === agent.deskTicketKey && o.waitingOnHuman);
+      return lampLane(agent, waiting, stalled);
+    };
     const signature = JSON.stringify([
-      [...this.desks.values()].map((d) => d.propId + d.room),
+      [...this.desks.values()].map((d) => d.propId + d.room + (threeRoom ? laneOf(d, false) : "")),
       [...stalledDesks],
       b.beacons.length,
       published,
       b.mailbox.map((l) => l.deliveryId),
       this.layout.pallets.map((p) => `${p.room}${p.count}`),
+      threeRoom,
     ]);
     if (signature === this.#signatures.signals) return;
     this.#signatures.signals = signature;
     this.#signals.clear();
     for (const geometry of this.#signalsMerged) geometry.dispose();
-    for (const key of [...this.anchors.keys()]) if (/^(c|beacon|banner|mail|p):/.test(key)) this.anchors.delete(key);
+    for (const key of [...this.anchors.keys()]) if (/^(c|beacon|banner|mail|p|archive):/.test(key) || /^r:[^:]+:rack-/.test(key)) this.anchors.delete(key);
+    const surfaces = surfacesOf(style);
     // A lamp on every desk; a stalled ticket's desk dims its lamp and shows the quiet clock.
+    const seated = new Set<string>();
     for (const desk of this.desks.values()) {
+      seated.add(`${desk.room}/${desk.propId}`);
       const slot = `desk:${desk.agentKey}`;
       const stalled = stalledDesks.get(slot) ?? (desk.agentKey === b.lead.id ? stalledDesks.get("inbox") : undefined);
-      const lamp = style.model("desk-lamp", stalled ? { variant: "dim" } : {});
+      const lamp = style.model("desk-lamp", threeRoom ? { variant: laneOf(desk, !!stalled) } : stalled ? { variant: "dim" } : {});
       const lead = desk.definitionId === "lead-desk";
-      lamp.position.copy(this.local(desk.desk.x + (lead ? -1.1 : -0.7), desk.desk.z + 0.2, surfacesOf(style)[lead ? "lead-desk" : "desk"] + 0.02));
+      lamp.position.copy(this.local(desk.desk.x + (lead ? -1.1 : -0.7), desk.desk.z + 0.2, surfaces[lead ? "lead-desk" : "desk"] + 0.02));
       this.#signals.add(lamp);
       if (stalled) {
         const clock = style.model("quiet-clock");
@@ -1096,6 +1130,24 @@ export class BuildingView {
         this.#signals.add(clock);
         for (const id of stalled) this.anchors.set(`c:${b.slug}:${id}`, this.world(desk.desk.x + (lead ? -0.4 : 0.2), desk.desk.z + 0.9, 0.45));
       }
+    }
+    if (threeRoom) {
+      // A desk nobody sits at has its lamp off; the racks carry their signs (labels of the view, like room signs).
+      for (const room of this.template.rooms)
+        for (const prop of room.layout.props) {
+          const def = interiorDefinitions[prop.definitionId];
+          if (def?.tags.includes("desk") && !seated.has(`${room.kind}/${prop.id}`)) {
+            const pose = footprintPose(def, prop.cell, prop.rotation);
+            const lead = prop.definitionId === "lead-desk";
+            const lamp = style.model("desk-lamp", { variant: "off" });
+            lamp.position.copy(this.local(room.origin.x + pose.x + (lead ? -1.1 : -0.7), room.origin.z + pose.z + 0.2, surfaces[lead ? "lead-desk" : "desk"] + 0.02));
+            this.#signals.add(lamp);
+          }
+          if (def && RACKS.some((r) => r.definitionId === prop.definitionId)) {
+            const pose = footprintPose(def, prop.cell, prop.rotation);
+            this.anchors.set(`r:${b.slug}:${prop.definitionId}`, this.world(room.origin.x + pose.x, room.origin.z + pose.z - 0.3, surfaces.shelf + 3 * surfaces.shelfPitch + 0.42));
+          }
+        }
     }
     const office = roomOf(this.template, "lead-office");
     if (office && b.beacons.length) {
@@ -1107,21 +1159,36 @@ export class BuildingView {
     }
     // The trophy on the lead's desk is a rule prop (release-trophy), drawn by the prop layer.
     const lobby = roomOf(this.template, "lobby");
+    // In Administration (the three-room plan) the mailbox and the counter say where the letters, the banner and the
+    // archived count go; the classic lobby keeps its spots.
+    const prop = (id: string) => {
+      const found = lobby && threeRoom ? lobby.layout.props.find((p) => p.definitionId === id) : undefined;
+      if (!found || !lobby) return null;
+      const pose = footprintPose(interiorDefinitions[id]!, found.cell, found.rotation);
+      return { x: lobby.origin.x + pose.x, z: lobby.origin.z + pose.z };
+    };
+    const counter = prop("archive-counter"),
+      mailbox = prop("mailbox");
     if (lobby && published) {
+      const at = counter ? { x: counter.x + 2.2, z: counter.z - 0.6 } : { x: lobby.origin.x + 5.2, z: lobby.origin.z + 1.0 };
       const banner = style.model("banner", { accent: (b.color ?? null) as PaletteName | null });
-      banner.position.copy(this.local(lobby.origin.x + 5.2, lobby.origin.z + 1.0, 0.02));
+      banner.position.copy(this.local(at.x, at.z, 0.02));
       this.#signals.add(banner);
-      this.anchors.set(`banner:${b.slug}`, this.world(lobby.origin.x + 5.2, lobby.origin.z + 1.0, 1.55));
+      this.anchors.set(`banner:${b.slug}`, this.world(at.x, at.z, 1.55));
     }
     if (lobby && b.mailbox.length) {
+      // The letters lie on the floor east of the mailbox (the dressing keeps those cells free).
+      const at = mailbox ? { x: mailbox.x + 0.8, z: mailbox.z - 0.4 } : { x: lobby.origin.x + 2.3, z: lobby.origin.z + 5.6 };
       b.mailbox.forEach((letter, i) => {
         const model = style.model(letter.flagged ? "letter.flagged" : "letter");
-        model.position.copy(this.local(lobby.origin.x + 2.3 + (i % 3) * 0.45, lobby.origin.z + 5.6 + Math.floor(i / 3) * 0.4, 0.03));
+        model.position.copy(this.local(at.x + (i % 3) * 0.45, at.z + Math.floor(i / 3) * 0.4, 0.03));
         model.rotation.y = (i % 2 ? 0.2 : -0.15);
         this.#signals.add(model);
       });
-      this.anchors.set(`mail:${b.slug}`, this.world(lobby.origin.x + 1.5, lobby.origin.z + 5.5, 1.2));
+      this.anchors.set(`mail:${b.slug}`, mailbox ? this.world(mailbox.x, mailbox.z, 1.2) : this.world(lobby.origin.x + 1.5, lobby.origin.z + 5.5, 1.2));
     }
+    // The archived count stands over the counter (the lobby's sign said it in the classic plan).
+    if (counter) this.anchors.set(`archive:${b.slug}`, this.world(counter.x, counter.z, 1.0));
     for (const pallet of this.layout.pallets) {
       const model = style.model("pallet");
       model.position.copy(this.local(pallet.x, pallet.z, 0.02));

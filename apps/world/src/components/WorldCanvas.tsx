@@ -16,6 +16,7 @@ import type { Pick } from "../world/buildingView";
 import { buildingTemplate } from "../world/buildingTemplate";
 import { assignDesks, placeObjects } from "../world/interiorLayout";
 import { roomName, sameRoom, shortRoomName, signState } from "../world/roomWords";
+import { isThreeRoom, RACKS } from "../world/roomDressing";
 import { useBuildingPlan } from "../state/buildingPlan";
 import { TownScene, type BuildPointer, type CameraAction, type FrameStats } from "../world/TownScene";
 import { resolveBuildingPlacements } from "../world/placements";
@@ -547,6 +548,10 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
   const shows = (room: RoomKind | null | undefined) => props.details || (!!room && [...revealed].some((r) => sameRoom(r, room, rooms)));
   const roomOfAgent = (key: string) => b.agents.find((a) => a.key === key)?.room ?? null;
   const editing = !!props.town?.build;
+  // The three-room plan (addendum): the racks carry their signs, the counter the archived count.
+  const threeRoom = isThreeRoom(template);
+  const racks = threeRoom ? template.rooms.flatMap((r) => r.layout.props.filter((p) => RACKS.some((rack) => rack.definitionId === p.definitionId)).map((p) => ({ room: r.kind, prop: p }))) : [];
+  const counter = threeRoom && template.rooms.some((r) => r.layout.props.some((p) => p.definitionId === "archive-counter"));
   return (
     <>
       {template.rooms.map((r) => {
@@ -558,11 +563,33 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
             <span className={`room-sign${sign.dimmed ? " dimmed" : ""}${focused ? " focused" : ""}`}>
               <strong>{compact ? shortRoomName(r.kind, rooms) : roomName(b, r.kind, rooms)}</strong>
               {sign.note && <span className="sign-muted">{sign.note}</span>}
-              {r.kind === "lobby" && b.archivedCount > 0 && <span className="sign-muted">{b.archivedCount} archived</span>}
+              {r.kind === "lobby" && !counter && b.archivedCount > 0 && <span className="sign-muted">{b.archivedCount} archived</span>}
             </span>
           </div>
         );
       })}
+      {racks
+        .filter(({ room }) => shows(room) || compact)
+        .map(({ prop }) => {
+          const rack = RACKS.find((r) => r.definitionId === prop.definitionId)!;
+          const count = b.objects.filter((o) => o.room === rack.room).length;
+          return (
+            <div key={prop.id} className="anchor" data-anchor={`r:${b.slug}:${prop.definitionId}`}>
+              <span className="room-sign rack-sign">
+                <strong>{rack.sign}</strong>
+                {!compact && <span className="sign-muted">{count === 1 ? "1 ticket" : `${count} tickets`}</span>}
+              </span>
+            </div>
+          );
+        })}
+      {counter && b.archivedCount > 0 && shows("lobby") && (
+        <div className="anchor" data-anchor={`archive:${b.slug}`}>
+          <span className="signal-tag">
+            <Archive className="icon icon-sm" aria-hidden="true" />
+            {b.archivedCount} archived
+          </span>
+        </div>
+      )}
       {b.agents.map((a) => (
         <AgentLabel
           key={a.key}

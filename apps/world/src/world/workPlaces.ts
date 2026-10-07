@@ -14,6 +14,8 @@ export const WORK_FURNITURE: Record<string, { pose: WorkPose; key: ModelKey }> =
   "meeting-table": { pose: "meeting-table", key: "furniture.meeting-table" },
   "planning-table": { pose: "planning-table", key: "furniture.planning-table" },
   "review-pile": { pose: "review-table", key: "furniture.review-pile" },
+  // The floor's huddle (addendum "three rooms"): places all round a small table, stood at as the meeting table is.
+  "huddle-table": { pose: "meeting-table", key: "furniture.huddle-table" },
 };
 
 export interface Circle {
@@ -151,7 +153,7 @@ export function templateWorkPlaces(surfaces: Partial<Record<ModelKey, WorkSurfac
     const { width, depth } = definition.footprint;
     const desk = pose === "desk" || pose === "lead-desk";
     // The meeting table has places all round it; the others are stood at from their approach cell.
-    const approach = pose === "meeting-table" ? { x: 1, z: -1 } : (definition.approaches[0] ?? { x: 0, z: -1 });
+    const approach = pose === "meeting-table" ? { x: Math.floor(width / 2), z: -1 } : (definition.approaches[0] ?? { x: 0, z: -1 });
     const stand = { x: (approach.x + 0.5 - width / 2) * CELL, z: (approach.z + 0.5 - depth / 2) * CELL };
     const occupied = desk ? deskClutter(id).map((c) => ({ x: c.x * CELL, z: c.z * CELL, radius: c.radius * CELL })) : [];
     places.push(workPlace(pose, surface, { x: 0, z: 0, rotation: desk ? Math.PI : 0 }, stand, scale, occupied, HOME_VIEW).place);

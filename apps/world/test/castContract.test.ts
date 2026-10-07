@@ -20,7 +20,8 @@ const places = styles.flatMap((style) => templateWorkPlaces(style.workSurfaces ?
 
 test("every style gives a top for every work pose", () => {
   assert.ok(styles.length > 0);
-  for (const style of styles) assert.deepEqual(templateWorkPlaces(style.workSurfaces ?? {}, FIGURE_SCALE).map((p) => p.pose), [...WORK_POSES], style.id);
+  // Two pieces may share a pose (the meeting table and the huddle table): every pose, each at least once.
+  for (const style of styles) assert.deepEqual([...new Set(templateWorkPlaces(style.workSurfaces ?? {}, FIGURE_SCALE).map((p) => p.pose))], [...WORK_POSES], style.id);
 });
 
 test("the fallback cast is registered", () => {
