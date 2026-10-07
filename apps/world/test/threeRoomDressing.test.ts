@@ -6,7 +6,7 @@ import test from "node:test";
 import { approachCells, occupancy, validateLayout, type Cell, type Definitions, type WorldLayout, type WorldProp } from "@crewhub/world-engine";
 import type { RoomKind } from "@crewhub/world-model";
 import { interiorDefinitions, LOADING, type BuildingTemplate, type DressingZone, type TemplateRoom } from "../src/world/buildingTemplate.ts";
-import { deskZoneOf, DRESS_PREFIX, dressingSeed, dressRooms, hallName, isThreeRoom, lampLane, RACKS, roomDecor } from "../src/world/roomDressing.ts";
+import { deskZoneOf, DRESS_PREFIX, dressingSeed, dressRooms, isThreeRoom, lampLane, RACKS, roomDecor } from "../src/world/roomDressing.ts";
 import { agent } from "./fixtures.ts";
 
 /** The addendum's pieces, as the template defines them (threeRoomTemplate.ts); here until that file lands. */
@@ -152,8 +152,8 @@ test("the classic template is not a three-room one, and its dressing is untouche
   assert.equal(isThreeRoom({ rooms: [{ kind: "lobby", origin: { x: 0, z: 0 }, layout: layout(3, 3, { x: 0, z: 0 }, [prop("mailbox", "mailbox", 1, 1)]) }] }), false);
 });
 
-test("the halls' names, the racks' signs and the desks' zones", () => {
-  assert.deepEqual(["lobby", "workers", "lead-office", "storage"].map((k) => hallName(k as RoomKind)), ["Administration", "The floor", "Lead's office", null]);
+test("the racks' signs and the desks' zones", () => {
+  assert.deepEqual(RACKS.map((r) => r.definitionId), ["rack-backlog", "rack-planning", "rack-review", "rack-done"]);
   assert.deepEqual(RACKS.map((r) => r.sign), ["Backlog", "Planning", "Review", "Done"]);
   assert.deepEqual(RACKS.map((r) => r.room), ["storage", "planning", "review", "dispatch"]);
   assert.equal(deskZoneOf({ id: "desk-analyst-3" }), "analyst");

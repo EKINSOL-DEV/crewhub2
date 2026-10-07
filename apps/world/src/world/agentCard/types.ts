@@ -1,7 +1,7 @@
 /* The agent card's registry contract. A section is one file under `sections/`: it says when it applies and renders
    rows from the facts. Rows are a small data vocabulary, not React, so sections stay pure and testable with node; the
    AgentCard component draws them with the kit's primitives. A row never shows a fact the facts do not have. */
-import type { AgentCardFacts, Freshness, LaneStatus } from "@crewhub/world-model";
+import type { AgentCardFacts, Freshness, LaneStatus, RoomWording } from "@crewhub/world-model";
 
 export interface CardContext {
   /** Source time now (ms), for "x min ago". */
@@ -9,6 +9,8 @@ export interface CardContext {
   freshness: Freshness;
   /** The loops web app a ticket link opens in; null in demo mode (there is no web app to open). */
   loopsUrl: string | null;
+  /** How places are named: the classic rooms (default) or the three halls, as the building is drawn. */
+  rooms?: RoomWording;
 }
 
 export type CardRow =

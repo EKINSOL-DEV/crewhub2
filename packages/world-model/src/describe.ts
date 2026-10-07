@@ -3,6 +3,7 @@
  * section per building, one per room). Inferences say so; statuses are always words.
  */
 import { roomLabel } from "./rooms.ts";
+import { DESK_WORDS, HALL_LABELS, HALL_PLACES, RACK_KINDS, RACK_NAMES, ROLE_DESK_WORDS, hallOf, isRackKind, placeWords as placeWordsOf, type Hall, type RoomWording, type WordingOptions } from "./halls.ts";
 import type {
   AgentPlacement,
   Building,
@@ -75,7 +76,12 @@ export interface CivicWords {
 }
 export const CIVIC_WORDS: CivicWords = { hall: "town hall", post: "post office" };
 
-export function describeWorld(model: WorldModel, civic: CivicWords = CIVIC_WORDS): TextLine[] {
+/**
+ * `options.rooms` picks the wording of places: `classic` (default) names the ten rooms; `three-rooms` tells the story
+ * of the three halls (Administration with its racks, the floor with its desks and the huddle, the lead's office).
+ */
+export function describeWorld(model: WorldModel, civic: CivicWords = CIVIC_WORDS, options: WordingOptions = {}): TextLine[] {
+  const rooms: RoomWording = options.rooms ?? "classic";
   const lines: TextLine[] = [];
   const add = (section: string, text: string, kind: TextLine["kind"] = "fact") => lines.push({ section, text, kind });
   const nameOf = new Map<string, string>();
@@ -110,7 +116,7 @@ export function describeWorld(model: WorldModel, civic: CivicWords = CIVIC_WORDS
     );
   }
 
-  for (const building of model.buildings) describeBuilding(building, add, buildingName);
+  for (const building of model.buildings) describeBuilding(building, add, buildingName, rooms);
   return lines;
 }
 
@@ -131,7 +137,7 @@ function describeCaption(section: string, agent: AgentPlacement, add: Add): void
   add(section, `${agent.displayName} says (${agent.caption.kind}, on ${agent.caption.ticketKey}${lasting}): "${agent.caption.text}"`);
 }
 
-function describeBuilding(building: Building, add: Add, buildingName: (slug: string | null) => string): void {
+function describeBuilding(building: Building, add: Add, buildingName: (slug: string | null) => string, rooms: RoomWording): void {
   const section = buildingSection(building);
   add(section, `${section}, led by ${building.lead.displayName}.${building.archived ? " Boarded up: archived." : ""}`);
   if (building.color || building.icon) {
@@ -149,22 +155,29 @@ function describeBuilding(building: Building, add: Add, buildingName: (slug: str
     add(
       section,
       r.publishedAt
-        ? `${name}: published at ${r.publishedAt}; a banner hangs in the lobby.`
+        ? `${name}: published at ${r.publishedAt}; a banner hangs in ${rooms === "classic" ? "the lobby" : "Administration"}.`
         : `${name}: ${r.state}.`,
     );
   }
   for (const beacon of building.beacons) add(section, `Amber beacon over the lead's office on ${beacon.ticketKey}: ${beacon.text}.`);
   if (building.archivedCount > 0) {
-    add(section, `${building.archivedCount} ${building.archivedCount === 1 ? "ticket" : "tickets"} archived from Dispatch; the truck took them away and the lobby keeps the count.`);
+    const n = `${building.archivedCount} ${building.archivedCount === 1 ? "ticket" : "tickets"}`;
+    add(
+      section,
+      rooms === "classic"
+        ? `${n} archived from Dispatch; the truck took them away and the lobby keeps the count.`
+        : `${n} archived from the Done rack; the truck took them away and the archive counter in Administration keeps the count.`,
+    );
   }
 
-  for (const agent of building.agents) describeAgent(section, agent, add, buildingName);
-  for (const room of building.rooms) describeRoom(building, room, add);
+  for (const agent of building.agents) describeAgent(section, agent, add, buildingName, rooms);
+  if (rooms === "classic") for (const room of building.rooms) describeRoom(building, room, add);
+  else describeHalls(building, add);
 }
 
-function describeAgent(section: string, agent: AgentPlacement, add: Add, buildingName: (slug: string | null) => string): void {
-  const where = agent.room ? roomLabel(agent.room) : "the town";
-  add(section, `${agent.displayName} is ${roleText(agent.role, agent.roleSource)}; home place in the ${where}.`, agent.roleSource === "name-rule" ? "inference" : "fact");
+function describeAgent(section: string, agent: AgentPlacement, add: Add, buildingName: (slug: string | null) => string, rooms: RoomWording): void {
+  const where = !agent.room ? "in the town" : rooms === "classic" ? `in the ${roomLabel(agent.room)}` : homePlace(agent);
+  add(section, `${agent.displayName} is ${roleText(agent.role, agent.roleSource)}; home place ${where}.`, agent.roleSource === "name-rule" ? "inference" : "fact");
   if (agent.presence === "proxy") {
     add(section, `${agent.displayName} is a translucent proxy here: working in ${buildingName(agent.workingIn)}, inferred from recent events.`, "inference");
   } else {
@@ -176,6 +189,12 @@ function describeAgent(section: string, agent: AgentPlacement, add: Add, buildin
   }
   if (agent.deskTicketKey) add(section, `${agent.displayName} has ${agent.deskTicketKey} on its desk.`);
   for (const alert of agent.alerts) add(section, `${agent.displayName} is lit: ${alert}.`);
+}
+
+/** Three-rooms: "on the floor, at a worker desk", "in the lead's office", "in Administration". */
+function homePlace(agent: AgentPlacement): string {
+  const hall = hallOf(agent.room!);
+  return hall === "floor" ? `${HALL_PLACES.floor}, at ${DESK_WORDS[agent.role]}` : HALL_PLACES[hall];
 }
 
 function describeRoom(building: Building, room: Room, add: Add): void {
@@ -200,18 +219,82 @@ function describeRoom(building: Building, room: Room, add: Add): void {
     return;
   }
   if (statusRoom) add(section, `${room.label}: ${objects.length} ${objects.length === 1 ? "ticket" : "tickets"} in the pile.`);
-  for (const object of objects) describeObject(section, object, building, add);
+  for (const object of objects) describeObject(section, object, building, add, "classic");
 }
 
-function placeWords(place: TransitPlace): string {
-  if (place === "truck") return "the truck";
-  const label = roomLabel(place);
-  // "the planning room", "the lead's office"; Storage, Dispatch and the Lobby are names.
-  if (!/room$|office$/.test(label)) return place === "lobby" ? "the lobby" : label;
-  return `the ${label.charAt(0).toLowerCase()}${label.slice(1)}`;
+const FLOOR_ORDER: Record<string, number> = { workers: 0, analyst: 1, design: 2, meeting: 3 };
+
+/** The ticket on the huddle table: the meeting room's label carries the key ("Meeting room: discussing CH-12"). */
+function huddleKey(building: Building): string | null {
+  const meeting = building.rooms.find((r) => r.kind === "meeting");
+  return meeting ? (meeting.label.match(/discussing (\S+)$/)?.[1] ?? null) : null;
 }
 
-function describeObject(section: string, object: WorkObject, building: Building, add: Add): void {
+/**
+ * One sentence per hall, the way the three-rooms text view and the room focus status line say it:
+ * "Administration: Backlog 4, Planning 2, Review 1, Done 3; 2 flagged letters; 5 archived",
+ * "The floor: Ada at its desk on CH-12 (working), Bo (idle), the analyst desk empty; a huddle at the round table
+ * about CH-12", "Lead's office: Lin (working); beacon: …". `laneWords` says an agent's state in brackets; the text
+ * view uses its own words, the app the status line's.
+ */
+export function hallSummary(building: Building, hall: Hall, laneWords: (agent: AgentPlacement) => string = (a) => LANE_WORDS[a.laneStatus]): string {
+  const name = HALL_LABELS[hall];
+  const parts: string[] = [];
+  const seat = (a: AgentPlacement) => {
+    if (a.presence === "proxy") return `${a.displayName} (a proxy)`;
+    const desk = a.deskTicketKey ? ` at its desk on ${a.deskTicketKey}` : "";
+    return `${a.displayName}${desk} (${laneWords(a)})`;
+  };
+  if (hall === "administration") {
+    parts.push(RACK_KINDS.map((k) => `${RACK_NAMES[k]} ${building.objects.filter((o) => o.room === k).length}`).join(", "));
+    if (building.mailbox.length) parts.push(`${building.mailbox.length} flagged ${building.mailbox.length === 1 ? "letter" : "letters"}`);
+    if (building.archivedCount) parts.push(`${building.archivedCount} archived`);
+    for (const r of building.releases) if (r.publishedAt) parts.push(`release ${r.version ?? r.number} published`);
+  } else if (hall === "floor") {
+    const seats = building.agents
+      .filter((a) => a.room && hallOf(a.room) === "floor")
+      .sort((a, b) => (FLOOR_ORDER[a.room!] ?? 9) - (FLOOR_ORDER[b.room!] ?? 9) || a.displayName.localeCompare(b.displayName))
+      .map(seat);
+    const empty = building.rooms.filter((r) => !r.present && r.kind in ROLE_DESK_WORDS).map((r) => `${ROLE_DESK_WORDS[r.kind as keyof typeof ROLE_DESK_WORDS]} empty`);
+    if (seats.length || empty.length) parts.push([...seats, ...empty].join(", "));
+    const key = huddleKey(building);
+    if (key) parts.push(`a huddle at the round table about ${key}`);
+  } else {
+    const here = building.agents.filter((a) => a.room === "lead-office").map(seat);
+    if (here.length) parts.push(here.join(", "));
+    for (const beacon of building.beacons) parts.push(`beacon: ${beacon.text}`);
+  }
+  return `${name}: ${parts.join("; ") || "quiet"}`;
+}
+
+/** The three-rooms text view: one section per hall, its summary first, then what stands in it. */
+function describeHalls(building: Building, add: Add): void {
+  const sectionOf = (hall: Hall) => `${buildingSection(building)}: ${HALL_LABELS[hall]}`;
+  const inHall = (hall: Hall) => building.objects.filter((o) => hallOf(o.room) === hall);
+
+  const admin = sectionOf("administration");
+  add(admin, `${hallSummary(building, "administration")}.`);
+  for (const letter of building.mailbox) {
+    add(admin, `Flagged letter in the mailbox for ${letter.recipientId} (${letter.reason.replace("_", " ")}): ${letter.state}.`);
+  }
+  for (const kind of RACK_KINDS) for (const object of building.objects.filter((o) => o.room === kind)) describeObject(admin, object, building, add, "three-rooms");
+
+  const floor = sectionOf("floor");
+  add(floor, `${hallSummary(building, "floor")}.`);
+  const key = huddleKey(building);
+  if (key) add(floor, `A huddle at the round table about ${key}, inferred from recent comments and progress lines.`, "inference");
+  for (const object of inHall("floor")) describeObject(floor, object, building, add, "three-rooms");
+
+  const office = sectionOf("office");
+  add(office, `${hallSummary(building, "office")}.`);
+  for (const object of inHall("office")) describeObject(office, object, building, add, "three-rooms");
+}
+
+function placeWords(place: TransitPlace, rooms: RoomWording): string {
+  return placeWordsOf(place, rooms);
+}
+
+function describeObject(section: string, object: WorkObject, building: Building, add: Add, rooms: RoomWording): void {
   const parts = [`${object.key} "${object.title}": ${object.kind} as a ${LOOK_WORDS[object.look]}, ${STATUS_WORDS[object.status]}`];
   if (object.rejected) {
     const reason = object.rejected.reason ? `: "${object.rejected.reason}"` : "";
@@ -238,15 +321,15 @@ function describeObject(section: string, object: WorkObject, building: Building,
     if (object.deskOf === null) parts.push("in the lead's inbox tray, no agent on it");
     else {
       const holder = building.agents.find((a) => a.key === object.deskOf)?.displayName ?? object.deskOf;
-      parts.push(`on the desk of ${holder}`);
+      parts.push(rooms === "classic" ? `on the desk of ${holder}` : `on ${holder}'s desk`);
     }
-  }
+  } else if (rooms === "three-rooms" && isRackKind(object.room)) parts.push(`on the ${RACK_NAMES[object.room]} rack`);
   add(section, `${parts.join("; ")}.`);
   if (object.deskInferred) add(section, `${object.key} is on that desk because the agent's status line names it: an inference.`, "inference");
   if (object.speechMarkUntil !== null) add(section, `${object.key} has a new comment (speech mark until ${clock(object.speechMarkUntil)}).`);
   if (object.celebrateUntil !== null) add(section, `${object.key} was just moved to done by a person.`);
   if (object.turnedDownUntil !== null) add(section, `${object.key} was just turned down by a person: no celebration.`);
   if (object.transit) {
-    add(section, `${object.key} is in transit from ${placeWords(object.transit.fromRoom)} to ${placeWords(object.transit.toRoom)}: the ticket drone carries it.`, "cosmetic");
+    add(section, `${object.key} is in transit from ${placeWords(object.transit.fromRoom, rooms)} to ${placeWords(object.transit.toRoom, rooms)}: the ticket drone carries it.`, "cosmetic");
   }
 }

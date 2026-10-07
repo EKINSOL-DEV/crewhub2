@@ -12,7 +12,7 @@
    Everything is placed relative to each room's rectangle, its doors, its existing furniture and the template's
    dressing zones, never against fixed coordinates, so the dressing follows the template when it changes. */
 import { approachCells, cellKey, occupancy, propCells, type Cell, type Definitions, type PropDefinition, type Rotation, type WorldProp } from "@crewhub/world-engine";
-import type { AgentPlacement, RoomKind } from "@crewhub/world-model";
+import { RACK_NAMES, type AgentPlacement, type RoomKind } from "@crewhub/world-model";
 import type { ModelKey } from "@crewhub/world-style";
 import type { BuildingTemplate, DressingZone, TemplateRoom } from "./buildingTemplate.ts";
 
@@ -82,24 +82,17 @@ const roomSeed = (seed: number, kind: RoomKind) => dressingSeed(`${seed}:${kind}
 /* ── The three-room plan (spec addendum "three rooms per building") ───── */
 
 /** The status racks of Administration, in the order they stand along the north wall, and the model room each holds. */
-export const RACKS = [
-  { definitionId: "rack-backlog", room: "storage", sign: "Backlog" },
-  { definitionId: "rack-planning", room: "planning", sign: "Planning" },
-  { definitionId: "rack-review", room: "review", sign: "Review" },
-  { definitionId: "rack-done", room: "dispatch", sign: "Done" },
-] as const satisfies readonly { definitionId: string; room: RoomKind; sign: string }[];
-export type RackDefinition = (typeof RACKS)[number]["definitionId"];
+export const RACKS = (["storage", "planning", "review", "dispatch"] as const).map((room) => ({
+  definitionId: `rack-${room === "storage" ? "backlog" : room === "dispatch" ? "done" : room}`,
+  room,
+  /** The sign's words (the world model's names, shared with the text view). */
+  sign: RACK_NAMES[room],
+}));
 export const RACK_DEFINITIONS: readonly string[] = RACKS.map((r) => r.definitionId);
 
 /** True for the three-room plan: a template that says so, or (before the plan is on the template) one with the racks. */
 export function isThreeRoom(template: Pick<BuildingTemplate, "rooms"> & { plan?: string }): boolean {
   return template.plan === "three-rooms" || template.rooms.some((r) => r.layout.props.some((p) => p.definitionId === "rack-backlog"));
-}
-
-/** The halls' names: what their signs say (the hall's own kind is the key, as the addendum maps it). */
-const HALL_NAMES: Partial<Record<RoomKind, string>> = { lobby: "Administration", workers: "The floor", "lead-office": "Lead's office" };
-export function hallName(kind: RoomKind): string | null {
-  return HALL_NAMES[kind] ?? null;
 }
 
 /**

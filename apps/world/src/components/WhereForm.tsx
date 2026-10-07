@@ -1,12 +1,13 @@
 /* "Where is …?" in the text view: agent awareness (LOOPS_INTEGRATION_PLAN.md section 7.2) as text. The answer is the
    pure `where` of the world model, about 40 tokens, in zone labels; it is announced politely when it changes. */
 import { useId, useMemo, useState } from "react";
-import { where, type AgentPlacement, type CivicWords } from "@crewhub/world-model";
+import { where, type AgentPlacement, type CivicWords, type RoomWording } from "@crewhub/world-model";
 import { Field } from "./primitives";
 import { useWorld } from "../state/world";
 
-/** `civic`: what the town hall and the post office are called at the town's size (the lodge, the mailbox). */
-export function WhereForm({ civic }: { civic?: CivicWords }) {
+/** `civic`: what the town hall and the post office are called at the town's size (the lodge, the mailbox). `rooms`: the
+    words for places, the classic rooms or the three halls, as the building is drawn. */
+export function WhereForm({ civic, rooms = "classic" }: { civic?: CivicWords; rooms?: RoomWording }) {
   const { model } = useWorld();
   const [chosen, setChosen] = useState("");
   const answerId = useId(),
@@ -29,7 +30,7 @@ export function WhereForm({ civic }: { civic?: CivicWords }) {
         ))}
       </Field>
       <p id={answerId} className="where-answer" aria-live="polite">
-        {selected ? where(model, selected, civic) : "No agents are in the world yet."}
+        {selected ? where(model, selected, civic, rooms) : "No agents are in the world yet."}
       </p>
     </form>
   );

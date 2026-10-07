@@ -7,7 +7,25 @@ export { emptyFacts } from "./facts.ts";
 export { emptyMemory } from "./memory.ts";
 export { Projection } from "./projection.ts";
 export { freshnessOf, reduceWorld } from "./reducer.ts";
-export { CIVIC_WORDS, agentStateWords, describeWorld } from "./describe.ts";
+export { CIVIC_WORDS, agentStateWords, describeWorld, hallSummary } from "./describe.ts";
+export {
+  DESK_WORDS,
+  HALLS,
+  HALL_KINDS,
+  HALL_LABELS,
+  HALL_OF,
+  HALL_PLACES,
+  RACK_KINDS,
+  RACK_NAMES,
+  hallOf,
+  isRackKind,
+  placeWords,
+  rackWords,
+  roomPlaceWords,
+  roomSign,
+  sameSign,
+} from "./halls.ts";
+export type { Hall, RackKind, RoomWording, WordingOptions } from "./halls.ts";
 export { RECENT_LIMIT, agentCardFacts, laneFacts, recentFacts } from "./agentCard.ts";
 export type { AgentCardFacts, AgentLaneFacts, AgentLoopsFacts, AgentProgress, RecentFact } from "./agentCard.ts";
 export type { CivicWords } from "./describe.ts";
