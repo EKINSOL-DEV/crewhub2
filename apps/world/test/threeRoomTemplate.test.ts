@@ -249,13 +249,13 @@ test("roomOf resolves every RoomKind to its hall, and the classic template is un
     assert.equal(hallOf(t, kind), expected[kind], kind);
   }
   for (const room of t.rooms) assert.deepEqual(room.hosts, HALL_HOSTS[room.kind as keyof typeof HALL_HOSTS], room.kind);
-  const classic = buildingTemplate(team(2, 1, 1, ["meeting"]));
+  const classic = buildingTemplate(team(2, 1, 1, ["meeting"]), "classic");
   assert.equal(classic.plan, "classic");
   assert.equal(classic.rooms.length, 10);
   for (const room of classic.rooms) assert.deepEqual(room.hosts, []);
   for (const kind of ALL_KINDS) assert.equal(roomOf(classic, kind)?.kind, kind);
   assert.equal(hallOf(classic, "meeting"), "meeting");
-  assert.equal(hallOf(buildingTemplate(team(1)), "meeting"), null);
+  assert.equal(hallOf(buildingTemplate(team(1), "classic"), "meeting"), null);
   // Keyboard focus moves between the halls; the first focus is Administration, where you come in.
   assert.equal(firstRoom(t), "lobby");
   assert.equal(roomNeighbor(t, "lobby", "ArrowUp"), "workers");
@@ -299,7 +299,7 @@ test("piles: a rack per status with three slots on four shelves, a counted palle
   assert.equal(layout.targets.get("f1")?.surface, "shelf");
   assert.equal(layout.placements.get("d1")?.surface, "desk");
   // The classic piles are the classic template's own.
-  const classic = buildingTemplate(b);
+  const classic = buildingTemplate(b, "classic");
   assert.equal(pileCapacity("review", classic.piles), pileCapacity("review"));
   assert.equal(placeObjects(b, classic, assignDesks(b, classic)).placements.get("b0")!.surface, "rack");
 });
@@ -342,7 +342,7 @@ test("determinism: the same building gives the same template, and the cache keys
     b = three(team(4, 2, 1));
   assert.deepEqual(a, b);
   assert.equal(a, b, "the same inputs share one template");
-  assert.notEqual(buildingTemplate(team(4, 2, 1)).plan, a.plan);
+  assert.notEqual(buildingTemplate(team(4, 2, 1), "classic").plan, a.plan);
   assert.deepEqual(three(team(4, 2, 1)), a);
 });
 

@@ -101,6 +101,7 @@ test("importing the demo's prop tickets places each prop through the engine and 
       ticket,
       comments: await source.getComments(request.ticketKey),
       placementId: `00000000-0000-4000-8000-${String(++id).padStart(12, "0")}`,
+      buildingPlan: "classic",
     });
     if (result.ok) doc = result.doc;
     else invalid.push(`${result.invalid.ticketKey} in ${result.invalid.slug}/${result.invalid.room}`);
@@ -116,7 +117,7 @@ test("importing the demo's prop tickets places each prop through the engine and 
   // Every placement the import made is one the engine accepts in the building as it is.
   const building = model.buildings.find((b) => b.slug === "crewhub")!;
   const defs = placementDefinitions(createCatalogue(definitions, doc).definitions);
-  const resolved = resolveBuildingPlacements(doc, "crewhub", buildingTemplate(building), defs);
+  const resolved = resolveBuildingPlacements(doc, "crewhub", buildingTemplate(building, "classic"), defs);
   assert.deepEqual(resolved.errors, []);
   assert.equal(resolved.rooms.get("lobby")!.placed.length, 1);
   assert.equal(resolved.rooms.get("storage")!.placed.length, 1);

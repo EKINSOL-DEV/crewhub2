@@ -6,7 +6,7 @@ import { agent, building } from "./fixtures.ts";
 
 const world = () => {
   const nav = new NavWorld();
-  nav.sync([building("p0", [agent("p0/dev-0", "workers"), agent("p0-analyst-1", "analyst")]), building("p1", [agent("p1/dev-0", "workers")])]);
+  nav.sync([building("p0", [agent("p0/dev-0", "workers"), agent("p0-analyst-1", "analyst")]), building("p1", [agent("p1/dev-0", "workers")])], undefined, undefined, "classic");
   return nav;
 };
 const STEP = 1 / 60;
@@ -87,7 +87,7 @@ test("a visitor whose room left the graph is no longer valid", () => {
   const nav = world();
   const v = new Visitor(nav, nav.lobby("p1")!);
   assert.equal(v.valid, true);
-  nav.sync([building("p0", [agent("p0/dev-0", "workers")])]);
+  nav.sync([building("p0", [agent("p0/dev-0", "workers")])], undefined, undefined, "classic");
   assert.equal(v.valid, false);
 });
 

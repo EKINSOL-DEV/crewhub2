@@ -22,7 +22,7 @@ const model = (o = onDesk, extra: Partial<WorldModel> = {}) =>
 
 test("the hand-over walk crosses the building's doors to the review pile and comes back to the desk", () => {
   const walks = new Walks();
-  const options = { entered: "cr", reducedMotion: false, ambient: "off" as const };
+  const options = { entered: "cr", reducedMotion: false, ambient: "off" as const, buildingPlan: "classic" as const };
   walks.update(model(), options);
   run(walks, 1);
   const seat = walks.nav.sim.actor("cr/dev-1")!.location;
@@ -38,7 +38,7 @@ test("the hand-over walk crosses the building's doors to the review pile and com
 
 test("the postman walks a letter along the town path to the building's door and back, in the town view", () => {
   const walks = new Walks();
-  const options = { entered: null, reducedMotion: false, ambient: "on" as const };
+  const options = { entered: null, reducedMotion: false, ambient: "on" as const, buildingPlan: "classic" as const };
   walks.update(model(), options);
   run(walks, 1);
   const home = walks.nav.sim.actor("postman")!.location;
@@ -59,12 +59,12 @@ test("the postman walks a letter along the town path to the building's door and 
 
 test("under reduced motion a new worker appears at its desk at once", () => {
   const walks = new Walks();
-  walks.update(model(), { entered: "cr", reducedMotion: true, ambient: "on" });
+  walks.update(model(), { entered: "cr", reducedMotion: true, ambient: "on", buildingPlan: "classic" as const });
   run(walks, 0.5);
   const joined = world([building("cr", [agent("cr/dev-1", "workers"), agent("cr/dev-2", "workers"), agent("cr/dev-3", "workers")], [onDesk]), building("ops")], {
     postOffice: [postman],
   });
-  walks.update(joined, { entered: "cr", reducedMotion: true, ambient: "on" });
+  walks.update(joined, { entered: "cr", reducedMotion: true, ambient: "on", buildingPlan: "classic" as const });
   run(walks, 1 / 30);
   assert.equal(roomOf(walks, "cr/dev-3"), roomId("cr", "workers"));
   assert.equal(walks.walker("cr/dev-3")!.walking, false);
@@ -84,7 +84,7 @@ const idleModel = (extra: { meeting?: boolean; desk?: boolean } = {}) =>
     ],
     { postOffice: [postman] },
   );
-const inside = { entered: "cr", reducedMotion: false, ambient: "off" as const };
+const inside = { entered: "cr", reducedMotion: false, ambient: "off" as const, buildingPlan: "classic" as const };
 const at = (walks: Walks, key: string, spot: { room: string; cell: { x: number; z: number } }) => {
   const l = walks.nav.sim.actor(key)!.location;
   return l.room === spot.room && l.cell.x === spot.cell.x && l.cell.z === spot.cell.z;

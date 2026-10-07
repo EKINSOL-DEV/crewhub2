@@ -29,7 +29,7 @@ function building(): Building {
   };
 }
 
-const template = buildingTemplate(building());
+const template = buildingTemplate(building(), "classic");
 const doc0 = emptyTownDocument();
 const defs = placementDefinitions(createCatalogue(builtins, doc0).definitions);
 let n = 0;

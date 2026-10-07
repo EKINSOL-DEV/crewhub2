@@ -38,7 +38,7 @@ import { threeRoomTemplate, threeRoomZones } from "./threeRoomTemplate.ts";
 /** Which building template a viewer sees (state/buildingPlan.ts): the three halls of the addendum, or the ten rooms. */
 export type BuildingPlan = "three-rooms" | "classic";
 /** What a viewer gets before choosing: the lead flips it to "three-rooms" once the round passes its gate. */
-export const DEFAULT_BUILDING_PLAN: BuildingPlan = "classic";
+export const DEFAULT_BUILDING_PLAN: BuildingPlan = "three-rooms";
 
 /** World units per building cell: the Greenhouse grid. */
 export const BUILDING_CELL = 0.6;
