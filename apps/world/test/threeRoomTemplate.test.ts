@@ -22,10 +22,11 @@ import {
 import { ADMIN, ADMIN_DOOR, floorCapacity, floorColumns, HALL_HOSTS, OFFICE, OFFICE_DOOR, RACKS, RACK_SHELVES, RACK_SLOTS } from "../src/world/threeRoomTemplate.ts";
 import { assignDesks, pileCapacity, placeObjects, roomNeighbor, firstRoom } from "../src/world/interiorLayout.ts";
 import { DRESS_PREFIX } from "../src/world/roomDressing.ts";
-import { NavWorld, POST_OFFICE_CELL, TOWN_ROOM } from "../src/world/navigation.ts";
+import { NavWorld, POST_OFFICE_CELL, roomId, TOWN_ROOM } from "../src/world/navigation.ts";
+import { Walks } from "../src/world/walks.ts";
 import { freeCellIn, resolveBuildingPlacements, placementDefinitions } from "../src/world/placements.ts";
 import { emptyTownDocument } from "@crewhub/world-model";
-import { agent, building as fixtureBuilding, object } from "./fixtures.ts";
+import { agent, building as fixtureBuilding, object, world } from "./fixtures.ts";
 
 const ALL_KINDS: RoomKind[] = ["lobby", "lead-office", "workers", "analyst", "design", "storage", "planning", "review", "dispatch", "meeting"];
 
@@ -388,4 +389,38 @@ test("placements in a hosted model room land in its hall; one that no longer fit
   assert.equal(resolved.errors.length, 1);
   assert.equal(resolved.errors[0]!.placement.id, "p2", "on the backlog rack: refused");
   assert.equal(resolved.errors[0]!.room, "storage");
+});
+
+test("walks under the three-room plan: the hand-over walk crosses the floor's door to the review rack and comes back; a plan switch keeps the walker", () => {
+  const T = 5_000_000;
+  const walks = new Walks();
+  const run = (seconds: number, until?: () => boolean) => {
+    for (let i = 0; i < seconds * 30; i++) {
+      walks.tick(1 / 30, T + i * 33);
+      if (until?.()) return i / 30;
+    }
+    return seconds;
+  };
+  const where = (key: string) => walks.nav.sim.actor(key)?.location.room;
+  const onDesk = object("t1", "analyst", { key: "CR-1", deskOf: "cr-analyst-1" });
+  const model = (o = onDesk) => world([fixtureBuilding("cr", [agent("cr/dev-1", "workers"), agent("cr-analyst-1", "analyst")], [o]), fixtureBuilding("ops")]);
+  const options = { entered: "cr", reducedMotion: false, ambient: "off" as const, buildingPlan: "three-rooms" as const };
+  walks.update(model(), options);
+  run(1);
+  const seat = walks.nav.sim.actor("cr-analyst-1")!.location;
+  assert.equal(seat.room, roomId("cr", "workers"), "the analyst sits on the floor");
+  walks.update(model({ ...onDesk, transit: { fromRoom: "analyst", toRoom: "review", toDeskOf: null, startedAt: T, until: T + 3000 } }), options);
+  const reached = run(30, () => where("cr-analyst-1") === roomId("cr", "lobby"));
+  assert.ok(reached < 30, "reaches Administration through the floor's door");
+  run(40, () => !walks.moving);
+  assert.deepEqual(walks.nav.sim.actor("cr-analyst-1")!.location, seat, "back at the desk");
+  // Switching the plan rebuilds the building around its walkers: a walker whose cell is gone starts again from the
+  // lobby and walks to its desk of the new plan; nobody is lost.
+  walks.update(model(), { ...options, buildingPlan: "classic" });
+  assert.ok(where("cr-analyst-1")?.startsWith("cr/"), "still inside after the switch to classic");
+  assert.ok(run(30, () => where("cr-analyst-1") === roomId("cr", "analyst")) < 30, "walks to the classic analyst room");
+  walks.update(model(), options);
+  assert.ok(where("cr-analyst-1")?.startsWith("cr/"), "still inside after the switch back");
+  assert.ok(run(30, () => where("cr-analyst-1") === roomId("cr", "workers")) < 30, "walks to the floor");
+  assert.equal(walks.nav.rooms("cr").length, 3);
 });
