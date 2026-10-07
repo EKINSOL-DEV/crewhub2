@@ -405,3 +405,62 @@ lot. A second test checks that one batch and one-by-one arrival give the same to
 its own (175 by 150 cells of 1.2 units), and never changes size or place. The streets of a district always join at
 its main crossing; the roads run crossing to crossing, and a portal door (`road/<x>,<z>`) stands where a road crosses
 the border between two district rooms.
+
+## 12. The three-room building
+
+Status: the wording, the setting and the regression checks are built (2026-10-07); the template itself lands with the
+same round. The design is the addendum "Three rooms per building" in
+[the demo-mode spec](superpowers/specs/2026-10-01-world-demo-mode-design.md), with the floor plan; this section says
+what the rules are and where they live.
+
+**Why.** Ten rooms per project mixed two orderings (rooms per role, rooms per ticket status, plus a lobby, an office
+and a meeting room), so what was being worked on was spread over the whole building. A building now has three halls,
+each with one meaning.
+
+**The halls.**
+
+| Hall | What stands there | Hosts (model rooms) | Its own kind |
+| --- | --- | --- | --- |
+| Administration | Four racks on the north wall: **Backlog, Planning, Review, Done**; the mailbox and the archive counter by the front door. No agent works here. | storage, planning, review, dispatch, lobby | `lobby` |
+| The floor | One open space, a desk per working agent (the desk shows the role: screens for an analyst, a drawing table for design, plain for a worker), a lamp per desk for the lane, and the huddle, a small round table that replaces the meeting room. | workers, analyst, design, meeting | `workers` |
+| Lead's office | A separate room with the lead's desk, the amber attention beacon above it, a door and a window onto the floor. | lead-office | `lead-office` |
+
+The handover is the building's story: work starts and the box leaves the rack for a desk; done, it goes back to the
+Review rack; approved, one rack further to Done; rejected, back to the desk.
+
+**The floor plan** (building cells, one cell 0.6 world units): the lead's office at the north-west, 9 by 18; the floor
+east of it, 18 deep and 12 to 24 wide in 6-cell module columns (the huddle takes the module by the office door, every
+other module two desks, a role's desks contiguous: workers, then analyst, then design); Administration along the south,
+21 by 10, with the four racks at x 1, 5, 9 and 13 (three slots on four shelves each, a pallet with a count past 12).
+The front door and the loading door are where they were, so plots, roads and the truck apron do not move; the widest
+building is still 33 cells. The addendum has the drawing.
+
+**The hall mapping.** The model keeps its ten `RoomKind`s, `TransitPlace`, the flights and the memory of role rooms:
+nothing a fact produces changes. `packages/world-model/src/halls.ts` is the mapping as data: `hallOf(kind)` gives
+`administration`, `floor` or `office`; `HALL_LABELS` the signs; `RACK_NAMES` the rack per status room; `placeWords`
+and `roomPlaceWords` the words for a place in either wording. The template resolves a model room to its hall
+(`roomOf(template, kind)` answers the hall that hosts `kind`), desks carry their role zone, and the piles are part of
+the template, so the classic building keeps its own.
+
+**The words.** The text view tells the same story as the scene. `describeWorld`, `where`, `describeIntent` and
+`describeTownDocument` take a wording, `{ rooms: "three-rooms" | "classic" }`, default classic; in three-rooms wording
+they say "Administration: Backlog 4, Planning 2, Review 1, Done 3; 2 flagged letters; 5 archived", "The floor: Ada at
+its desk on CH-12 (working), Bo (idle), the analyst desk empty; a huddle at the round table about CH-12", "Lead's
+office: Lin (working); beacon: …", a ticket "on the Review rack" or "on Ada's desk", and a flight "from the Planning
+rack to the lead's office". `hallSummary` is the one line per hall; the app's room focus status line and the 2D room
+signs (`apps/world/src/world/roomWords.ts`), the agent card's Now line and the where form use the same wording.
+
+**The setting.** `BuildingPlan = "three-rooms" | "classic"` is a per-viewer setting (Settings > Town > Buildings,
+`apps/world/src/state/buildingPlan.ts`, kept like the Old quarter setting); `?rooms=three|classic` in the URL
+overrides it for the page. `buildingTemplate(building, plan)` returns the classic template unchanged for `classic`.
+Both stay selectable so they can be compared side by side; the default becomes `three-rooms` once the round passes
+the lead's gate.
+
+**The classic template** is the alternative: ten rooms (the lobby, the lead's office, the role rooms, the four status
+rooms and the meeting room) as drawn at the top of `apps/world/src/world/buildingTemplate.ts`. It renders and behaves
+exactly as before under `classic`, with its own piles and its own words, and its tests do not change.
+
+**Checks.** `tools/regress.mjs --groups rooms` opens the world with `?rooms=three` and checks the three room signs, the
+arrow keys between the halls, the text view's racks and desks with a package on each, the lead's office beacon, the
+agent card on a figure at a desk, and walk mode through the front door into Administration and on to the floor. The
+wording has its own tests (`packages/world-model/test/halls.test.ts`, `apps/world/test/roomWords.test.ts`).

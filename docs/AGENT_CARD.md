@@ -50,7 +50,7 @@ The sections shipped:
 
 | Section | When | Shows |
 | --- | --- | --- |
-| Now | always | Where it is (building, room; "inferred" when it is), the lane chip and posture, a proxy note, the stale note, the status line, the lit alerts. |
+| Now | always | Where it is (building, room, or in a three-room building the hall and the desk: "on the floor at a worker desk"; "inferred" when it is), the lane chip and posture, a proxy note, the stale note, the status line, the lit alerts. |
 | Work | a ticket or a line | The ticket (linked), its status and chips (priority, blocked, held, waiting on, stall), the project, the last progress line with its age. |
 | Lane | loops gave a lane or a flag, or it is a worker | Runs on (kind, model, effort), permission mode, lifecycle, what the probe observed, the drift; the loops role and flags, the session; for a worker, whose it is. |
 | Projects | any building or project | Each building with the agent's part in it (leads it, member, works here), and projects loops names that have no building here. |

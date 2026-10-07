@@ -25,7 +25,20 @@ import {
 } from "@crewhub/world-engine";
 import { applyEdit, emptyTownDocument } from "@crewhub/world-model";
 import type { AgentKey, Building, DistrictSlot, GridCell, RoomKind } from "@crewhub/world-model";
-import { BUILDING_CELL, buildingTemplate, DEPTH, ENTRANCE, interiorDefinitions, LOADING, MAX_WIDTH, PLOT_MARGIN, roomOf, type BuildingTemplate } from "./buildingTemplate.ts";
+import {
+  BUILDING_CELL,
+  buildingTemplate,
+  DEFAULT_BUILDING_PLAN,
+  DEPTH,
+  ENTRANCE,
+  interiorDefinitions,
+  LOADING,
+  MAX_WIDTH,
+  PLOT_MARGIN,
+  roomOf,
+  type BuildingPlan,
+  type BuildingTemplate,
+} from "./buildingTemplate.ts";
 import { assignDesks, type DeskSlot } from "./interiorLayout.ts";
 import { allocationEdit, CENTRAL_SLOT, DISTRICT_SPAN, lotCentre, lotKey, reservedSpot, slotBounds, slotKey, type Segment } from "./settlement.ts";
 import { planTown, type PlanBuilding, type TownPlan } from "./townPlan.ts";
@@ -337,8 +350,14 @@ export class NavWorld {
    * Brings the graph in line with the buildings on the plan's lots (`standalonePlan` when none is given). Only
    * changed districts, buildings and rooms are touched. An archived building has no rooms: nobody walks into it.
    * `walkways` is the paving the walkers keep to, in world units: the dressing's own once it paves by plan.
+   * `buildingPlan` picks the building template; a switch rebuilds every building (its structure changes).
    */
-  sync(buildings: readonly Building[], plan: TownPlan = standalonePlan(buildings), walkways: readonly Bounds[] = townWalkways(plan)): NavSyncResult {
+  sync(
+    buildings: readonly Building[],
+    plan: TownPlan = standalonePlan(buildings),
+    walkways: readonly Bounds[] = townWalkways(plan),
+    buildingPlan: BuildingPlan = DEFAULT_BUILDING_PLAN,
+  ): NavSyncResult {
     const result: NavSyncResult = { rebuilt: [], removed: [] };
     const wanted = new Map<string, { building: Building; cell: GridCell }>();
     const lots = new Map(plan.lots.map((l) => [l.slug, l]));
@@ -361,7 +380,7 @@ export class NavWorld {
     const last = this.#townSynced;
     if (!last || last.plan !== plan || last.walkways !== walkways || last.standing !== standing) this.#townSynced = this.#syncTown(plan, walkways) ? { plan, walkways, standing } : null;
     for (const [slug, { building, cell }] of wanted) {
-      const template = buildingTemplate(building);
+      const template = buildingTemplate(building, buildingPlan);
       const structure = structureKey(template);
       let entry = this.#entries.get(slug);
       if (!entry || entry.structure !== structure) {
@@ -398,13 +417,15 @@ export class NavWorld {
     return { room: roomId(slug, room.kind), cell: { x: Math.floor(room.layout.grid.width / 2), z: room.layout.grid.depth - 2 } };
   }
 
-  /** Approach cells of every prop with `tag` in a building (optionally one room), in template order. */
+  /** Approach cells of every prop with `tag` in a building (optionally one model room, resolved to its hall), in template order. */
   spots(slug: string, tag: string, kind?: RoomKind): Location[] {
     const entry = this.#entries.get(slug);
     if (!entry) return [];
     const out: Location[] = [];
+    const only = kind ? roomOf(entry.template, kind) : undefined;
+    if (kind && !only) return [];
     for (const room of entry.template.rooms) {
-      if (kind && room.kind !== kind) continue;
+      if (only && room !== only) continue;
       for (const prop of room.layout.props) {
         const def = this.definitions[prop.definitionId];
         if (!def?.tags.includes(tag)) continue;
@@ -440,7 +461,7 @@ export class NavWorld {
     for (const prop of room.layout.props) {
       const def = this.definitions[prop.definitionId];
       if (!def) continue;
-      const open = def.approaches.some((a) => this.#walkable(roomId(slug, kind), { x: prop.cell.x + a.x, z: prop.cell.z + a.z }));
+      const open = def.approaches.some((a) => this.#walkable(roomId(slug, room.kind), { x: prop.cell.x + a.x, z: prop.cell.z + a.z }));
       if (open) for (const tag of def.tags) out.add(tag);
     }
     return [...out];
@@ -454,7 +475,7 @@ export class NavWorld {
     const entry = this.#entries.get(slug);
     const room = entry && roomOf(entry.template, kind);
     if (!entry || !room) return [];
-    const id = roomId(slug, kind);
+    const id = roomId(slug, room.kind);
     const seen = new Set<string>();
     const out: Location[] = [];
     for (const prop of room.layout.props) {
@@ -748,11 +769,15 @@ export class NavWorld {
     return evacuees;
   }
 
-  /** Puts an evacuee back where it stood when that room still exists, else in the lobby; a street walker stays put. */
+  /**
+   * Puts an evacuee back where it stood when that room (or the hall now hosting it) still exists and the cell is still
+   * inside it, else in the lobby; a street walker stays put.
+   */
   #return(entry: Entry, e: Evacuee): void {
     let location: Location;
+    const room = e.kind === null ? undefined : roomOf(entry.template, e.kind);
     if (e.kind === null) location = e.location;
-    else if (roomOf(entry.template, e.kind)) location = { room: roomId(entry.slug, e.kind), cell: e.location.cell };
+    else if (room && e.location.cell.x < room.layout.grid.width && e.location.cell.z < room.layout.grid.depth) location = { room: roomId(entry.slug, room.kind), cell: e.location.cell };
     else location = this.lobby(entry.slug)!;
     this.sim.addActor({ id: e.id, priority: e.priority, location });
   }

@@ -24,11 +24,21 @@
    Dressing zones: every room keeps free floor that no desk, pile, door or seat needs, for the homely props (sofa corner
    in the lead's office, coffee corner in the lobby, plants between desks, shelving in the status rooms). They are named
    per room in ZONES below; `dressingZones(template)` returns them in building cells.
+
+   Two plans (`BuildingPlan`): "classic" is the building above; "three-rooms" (threeRoomTemplate.ts) is the spec
+   addendum's floor plan, where one physical room, a hall, hosts several model rooms (`TemplateRoom.hosts`) and
+   `roomOf` resolves a hosted kind to its hall.
 */
 import type { Cell, Definitions, WorldLayout, WorldProp } from "@crewhub/world-engine";
 import type { Building, RoomKind } from "@crewhub/world-model";
 import { PILE_ROOMS } from "./interiorLayout.ts";
 import { dressingDefinitions, dressingSeed, dressRooms } from "./roomDressing.ts";
+import { threeRoomTemplate, threeRoomZones } from "./threeRoomTemplate.ts";
+
+/** Which building template a viewer sees (state/buildingPlan.ts): the three halls of the addendum, or the ten rooms. */
+export type BuildingPlan = "three-rooms" | "classic";
+/** What a viewer gets before choosing: the lead flips it to "three-rooms" once the round passes its gate. */
+export const DEFAULT_BUILDING_PLAN: BuildingPlan = "classic";
 
 /** World units per building cell: the Greenhouse grid. */
 export const BUILDING_CELL = 0.6;
@@ -62,11 +72,27 @@ export const STATUS_ROOMS = ["storage", "planning", "review", "dispatch"] as con
 
 export interface TemplateRoom {
   kind: RoomKind;
+  /** Model rooms this physical room stands for besides its own kind (a hall of the three-room plan); empty in classic. */
+  hosts: readonly RoomKind[];
   /** The room's north-west cell in building cells. */
   origin: Cell;
   /** The room's own interior grid and furniture; `entrance` is its first door cell. */
   layout: WorldLayout;
 }
+
+/** Where a model room's loose objects stand: slots in fill order, each stacking (or shelving) up to `height`. */
+export interface PileRoom {
+  /** Slot centres in the room's own cells (the hall's, when hosted), in fill order. */
+  slots: { x: number; z: number }[];
+  /** Objects per slot: stacked on each other, or one per shelf level when `surface` is "shelf". */
+  height: number;
+  surface: Surface;
+  /** Where the pallet stands when the pile overflows, room cells. */
+  pallet: { x: number; z: number };
+}
+/** What an object stands on; the renderer adds that surface's height ("shelf": the rack's bottom shelf, then `level` shelves up). */
+export type Surface = "floor" | "rack" | "shelf" | "table" | "pile" | "pallet" | "desk" | "lead-desk";
+export type Piles = Readonly<Partial<Record<RoomKind, PileRoom>>>;
 
 export interface DoorSide {
   room: RoomKind | "town";
@@ -81,10 +107,13 @@ export interface TemplateDoor {
 }
 
 export interface BuildingTemplate {
+  plan: BuildingPlan;
   /** In building cells. */
   size: { width: number; depth: number };
   rooms: TemplateRoom[];
   doors: TemplateDoor[];
+  /** The piles per model room: the classic status rooms' own, or a rack per status in Administration. */
+  piles: Piles;
 }
 
 /* Interior furniture, in building cells. Collision comes from these footprints, never from meshes. */
@@ -154,6 +183,37 @@ export const interiorDefinitions: Definitions = {
     tags: ["gather"],
     approaches: [{ x: 0, z: -1 }],
   },
+  // The three-room plan's pieces (threeRoomTemplate.ts). A status rack is approached from the south, its middle cell.
+  "rack-backlog": statusRack("rack-backlog", "Backlog rack", "storage"),
+  "rack-planning": statusRack("rack-planning", "Planning rack", "planning"),
+  "rack-review": statusRack("rack-review", "Review rack", "review"),
+  "rack-done": statusRack("rack-done", "Done rack", "dispatch"),
+  "huddle-table": {
+    id: "huddle-table",
+    label: "Huddle table",
+    footprint: { width: 2, depth: 2 },
+    blocksMovement: true,
+    tags: ["gather"],
+    // Places all round: every edge cell but the corners.
+    approaches: [
+      { x: 0, z: -1 },
+      { x: 1, z: -1 },
+      { x: 2, z: 0 },
+      { x: 2, z: 1 },
+      { x: 0, z: 2 },
+      { x: 1, z: 2 },
+      { x: -1, z: 0 },
+      { x: -1, z: 1 },
+    ],
+  },
+  "archive-counter": {
+    id: "archive-counter",
+    label: "Archive counter",
+    footprint: { width: 3, depth: 1 },
+    blocksMovement: true,
+    tags: ["archive", "counter"],
+    approaches: [{ x: 1, z: -1 }],
+  },
   bench: {
     id: "bench",
     label: "Oak bench",
@@ -183,10 +243,24 @@ export const interiorDefinitions: Definitions = {
   ...dressingDefinitions,
 };
 
-const prop = (id: string, definitionId: string, x: number, z: number): WorldProp => ({ id, definitionId, cell: { x, z }, rotation: 0 });
+/** A status rack of the three-room plan: 3 x 1 against Administration's north wall, tagged with its model room. */
+function statusRack(id: string, label: string, room: RoomKind) {
+  return { id, label, footprint: { width: 3, depth: 1 }, blocksMovement: true, tags: [room, "pile"], approaches: [{ x: 1, z: 1 }] };
+}
 
-function layout(width: number, depth: number, entrance: Cell, props: WorldProp[]): WorldLayout {
+export const prop = (id: string, definitionId: string, x: number, z: number): WorldProp => ({ id, definitionId, cell: { x, z }, rotation: 0 });
+
+export function layout(width: number, depth: number, entrance: Cell, props: WorldProp[]): WorldLayout {
   return { version: 1, grid: { width, depth, cellSize: BUILDING_CELL }, props, entrance };
+}
+
+/**
+ * The role zone a desk carries in its id (`desk-analyst-3` on the three-room floor), or null for a desk whose zone is
+ * its room (classic `desk-0`, the office's `side-desk-0`).
+ */
+export function deskZone(desk: Pick<WorldProp, "id">): RoleRoom | null {
+  const m = /^desk-(workers|analyst|design)-\d+$/.exec(desk.id);
+  return m ? (m[1] as RoleRoom) : null;
 }
 
 /** Workstations of a role room: two per module, staggered so every seat and door stays reachable. */
@@ -232,16 +306,16 @@ const OFFICE_SIDE_DESKS = 2;
  * office and the four status rooms always exist (an archived building keeps its shell); a role room exists once the
  * model has it (an agent of that role has been present); the meeting room only while the model infers a meeting.
  */
-export function buildingTemplate(building: Building): BuildingTemplate {
-  // The template reads only the slug, the room kinds and each role room's desk count. The renderer asks for it on every
-  // model update of every building, so the same inputs return the same (shared, read-only) template.
-  const key = `${building.slug}|${building.rooms.map((r) => r.kind).join()}|${ROLE_ROOMS.map((kind) => deskCount(building, kind)).join()}`;
+export function buildingTemplate(building: Building, plan: BuildingPlan = DEFAULT_BUILDING_PLAN): BuildingTemplate {
+  // The template reads only the plan, the slug, the room kinds and each role room's desk count. The renderer asks for
+  // it on every model update of every building, so the same inputs return the same (shared, read-only) template.
+  const key = `${plan}|${building.slug}|${building.rooms.map((r) => r.kind).join()}|${ROLE_ROOMS.map((kind) => deskCount(building, kind)).join()}`;
   let template = templates.get(key);
   if (template) {
     // Most recently used last, so the oldest goes first when the cache is full.
     templates.delete(key);
   } else {
-    template = makeTemplate(building);
+    template = plan === "three-rooms" ? threeRoomTemplate(building) : makeTemplate(building);
     if (templates.size >= TEMPLATE_CACHE) templates.delete(templates.keys().next().value!);
   }
   templates.set(key, template);
@@ -261,6 +335,7 @@ function makeTemplate(building: Building): BuildingTemplate {
   // Centre column: an entrance hall, the lead's office behind it, the meeting room at the back.
   rooms.push({
     kind: "lobby",
+    hosts: [],
     origin: { x: WEST, z: 17 },
     layout: layout(CENTRE, 11, { x: 6, z: 10 }, [
       prop("mailbox", "mailbox", 1, 9),
@@ -271,6 +346,7 @@ function makeTemplate(building: Building): BuildingTemplate {
   });
   rooms.push({
     kind: "lead-office",
+    hosts: [],
     origin: { x: WEST, z: 7 },
     layout: layout(CENTRE, 10, { x: 6, z: 9 }, [
       prop("lead-desk", "lead-desk", 5, 3),
@@ -282,13 +358,14 @@ function makeTemplate(building: Building): BuildingTemplate {
   door("entrance", { room: "lobby", cell: { x: ENTRANCE.x - WEST, z: 10 } }, { room: "town", cell: ENTRANCE });
   door("lobby-office", { room: "lobby", cell: { x: 6, z: 0 } }, { room: "lead-office", cell: { x: 6, z: 9 } });
   if (kinds.has("meeting")) {
-    rooms.push({ kind: "meeting", origin: { x: WEST, z: 0 }, layout: layout(CENTRE, 7, { x: 8, z: 6 }, [prop("table", "meeting-table", 4, 2)]) });
+    rooms.push({ kind: "meeting", hosts: [], origin: { x: WEST, z: 0 }, layout: layout(CENTRE, 7, { x: 8, z: 6 }, [prop("table", "meeting-table", 4, 2)]) });
     door("office-meeting", { room: "lead-office", cell: { x: 8, z: 0 } }, { room: "meeting", cell: { x: 8, z: 6 } });
   }
 
   // West column: the work flows north to south, storage to dispatch.
   rooms.push({
     kind: "storage",
+    hosts: [],
     origin: { x: 0, z: 0 },
     layout: layout(WEST, 7, { x: 4, z: 6 }, [
       prop("rack-0", "rack", 0, 0),
@@ -299,10 +376,11 @@ function makeTemplate(building: Building): BuildingTemplate {
       prop("rack-5", "rack", 2, 3),
     ]),
   });
-  rooms.push({ kind: "planning", origin: { x: 0, z: 7 }, layout: layout(WEST, 7, { x: 8, z: 2 }, [prop("table", "planning-table", 2, 4)]) });
-  rooms.push({ kind: "review", origin: { x: 0, z: 14 }, layout: layout(WEST, 7, { x: 8, z: 1 }, [prop("pile", "review-pile", 3, 2)]) });
+  rooms.push({ kind: "planning", hosts: [], origin: { x: 0, z: 7 }, layout: layout(WEST, 7, { x: 8, z: 2 }, [prop("table", "planning-table", 2, 4)]) });
+  rooms.push({ kind: "review", hosts: [], origin: { x: 0, z: 14 }, layout: layout(WEST, 7, { x: 8, z: 1 }, [prop("pile", "review-pile", 3, 2)]) });
   rooms.push({
     kind: "dispatch",
+    hosts: [],
     origin: { x: 0, z: 21 },
     layout: layout(WEST, 7, { x: 8, z: 2 }, [prop("pallet-0", "pallet", 1, 3), prop("pallet-1", "pallet", 4, 3)]),
   });
@@ -319,13 +397,17 @@ function makeTemplate(building: Building): BuildingTemplate {
     const columns = roleColumns(kind, deskCount(building, kind));
     const rows = ROLE_ROWS[kind];
     const d = ROLE_DOORS[kind];
-    rooms.push({ kind, origin: { x: EAST_X, z: ROLE_Z[kind] }, layout: layout(columns * MODULE, rows * MODULE, d.own, roleDesks(columns, rows)) });
+    rooms.push({ kind, hosts: [], origin: { x: EAST_X, z: ROLE_Z[kind] }, layout: layout(columns * MODULE, rows * MODULE, d.own, roleDesks(columns, rows)) });
     door(`${d.room}-${kind}`, { room: d.room, cell: d.other }, { room: kind, cell: d.own });
     width = Math.max(width, EAST_X + columns * MODULE);
   }
-  const template = { size: { width, depth: DEPTH }, rooms, doors };
-  // The homely dressing: its blocking pieces join the room layouts (roomDressing.ts).
-  const dressing = { definitions: interiorDefinitions, seed: dressingSeed(building.slug), zones: dressingZones(template), loading: LOADING, piles: PILE_ROOMS };
+  const template: BuildingTemplate = { plan: "classic", size: { width, depth: DEPTH }, rooms, doors, piles: PILE_ROOMS };
+  return dressTemplate(template, building.slug);
+}
+
+/** The homely dressing: its blocking pieces join the room layouts (roomDressing.ts). */
+export function dressTemplate(template: BuildingTemplate, slug: string): BuildingTemplate {
+  const dressing = { definitions: interiorDefinitions, seed: dressingSeed(slug), zones: dressingZones(template), loading: LOADING, piles: template.piles };
   return { ...template, rooms: dressRooms(template, dressing) };
 }
 
@@ -361,6 +443,7 @@ const MODULE_ZONES: Zone[] = [zone("plants between desks", 4, 0, 2, 2), zone("pl
 
 /** The dressing zones of a template's rooms, in building cells, in room order. */
 export function dressingZones(template: BuildingTemplate): DressingZone[] {
+  if (template.plan === "three-rooms") return threeRoomZones(template);
   const out: DressingZone[] = [];
   for (const room of template.rooms) {
     const { width, depth } = room.layout.grid;
@@ -382,8 +465,14 @@ export function officeSideDesks(): number {
   return OFFICE_SIDE_DESKS;
 }
 
+/** The template room whose own kind is `kind`, else the hall that hosts it (the analyst room is the floor). */
 export function roomOf(template: BuildingTemplate, kind: RoomKind): TemplateRoom | undefined {
-  return template.rooms.find((r) => r.kind === kind);
+  return template.rooms.find((r) => r.kind === kind) ?? template.rooms.find((r) => r.hosts.includes(kind));
+}
+
+/** The kind of the physical room a model room is in (its own, or its hall's), or null when the building lacks it. */
+export function hallOf(template: BuildingTemplate, kind: RoomKind): RoomKind | null {
+  return roomOf(template, kind)?.kind ?? null;
 }
 
 /** A room cell in building cells. */

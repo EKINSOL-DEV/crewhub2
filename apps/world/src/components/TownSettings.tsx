@@ -10,6 +10,8 @@ import { setCast, useCast } from "../state/cast";
 import { castRegistry } from "../world/cast";
 import { setDayNight, useDayNight } from "../state/daynight";
 import { setOldQuarter, useOldQuarter } from "../state/oldQuarter";
+import { BUILDING_PLAN_PARAM, setBuildingPlan, useBuildingPlan } from "../state/buildingPlan";
+import type { BuildingPlan } from "../world/buildingTemplate";
 import { useWorld } from "../state/world";
 import { setFps, useFps } from "../state/fps";
 import type { TownState } from "../state/town";
@@ -35,6 +37,7 @@ export function TownSettings({ town }: { town: TownState }) {
   const dayNight = useDayNight(model.mode);
   const fps = useFps();
   const oldQuarter = useOldQuarter();
+  const buildingPlan = useBuildingPlan();
   const [importNote, setImportNote] = useState<{ ok: boolean; text: string } | null>(null);
   const style = styleRegistry.getStyle(town.doc.styleId).manifest;
   const cast = useCast();
@@ -123,6 +126,22 @@ export function TownSettings({ town }: { town: TownState }) {
         >
           <option value="off">Stay on their plots</option>
           <option value="on">Fold into the old quarter</option>
+        </Field>
+        <Field
+          control="select"
+          size="sm"
+          label="Buildings"
+          className="building-plan-setting"
+          hint={
+            buildingPlan === "three-rooms"
+              ? `Three rooms per building: Administration with the four racks, the open floor with a desk per agent and the huddle, and the lead's office. Only you see this; kept in this browser. ?${BUILDING_PLAN_PARAM}=three in the address bar picks it for a page.`
+              : `The classic building: a room per role, a room per ticket status, a lobby, the lead's office and a meeting room. Kept in this browser. ?${BUILDING_PLAN_PARAM}=classic in the address bar picks it for a page.`
+          }
+          value={buildingPlan}
+          onChange={(e) => setBuildingPlan(e.currentTarget.value as BuildingPlan)}
+        >
+          <option value="three-rooms">Three rooms</option>
+          <option value="classic">Classic, ten rooms</option>
         </Field>
         <Field
           control="checkbox"

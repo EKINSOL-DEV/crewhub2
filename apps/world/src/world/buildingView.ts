@@ -23,6 +23,7 @@ import {
   roomOf,
   STATUS_ROOMS,
   wallRuns,
+  type BuildingPlan,
   type BuildingTemplate,
   type WallRun,
 } from "./buildingTemplate";
@@ -155,6 +156,8 @@ export interface BuildingContext {
   style: ResolvedStyle;
   /** The cast whose figures stand for this building's agents (`setCast` swaps it live). */
   cast: Cast;
+  /** The viewer's building template (state/buildingPlan.ts); a switch rebuilds the building on its next update. */
+  buildingPlan: () => BuildingPlan;
   /** Source time now (ms). */
   now: () => number;
   reducedMotion: () => boolean;
@@ -301,7 +304,7 @@ export class BuildingView {
   constructor(building: Building, centre: { x: number; z: number }, plotSize: number, ctx: BuildingContext) {
     this.ctx = ctx;
     this.building = building;
-    this.template = buildingTemplate(building);
+    this.template = buildingTemplate(building, ctx.buildingPlan());
     this.#archivedCount = building.archivedCount;
     // The north-west corner never moves: role rooms grow east inside the reserved plot.
     // The floors stand on the slab, FLOOR_RISE above the lawn.
@@ -337,7 +340,7 @@ export class BuildingView {
   update(building: Building, detailed: boolean, town: TownLayer | null = null, zone: ZoneMark | null = null) {
     this.building = building;
     this.#zone = zone && (zone.color || zone.emblem) ? zone : null;
-    this.template = buildingTemplate(building);
+    this.template = buildingTemplate(building, this.ctx.buildingPlan());
     this.desks = assignDesks(building, this.template);
     this.layout = placeObjects(building, this.template, this.desks);
     const shape = JSON.stringify(this.template.rooms.map((r) => [r.kind, r.origin, r.layout.grid.width, r.layout.grid.depth]));
@@ -421,7 +424,10 @@ export class BuildingView {
     const threeRoom = isThreeRoom(this.template);
     for (const room of this.template.rooms) {
       const { width, depth } = room.layout.grid;
-      const present = b.rooms.find((r) => r.kind === room.kind)?.present ?? true;
+      // A hall is present while any model room it stands for is (the floor dims only when no role room is).
+      const kinds = [room.kind, ...room.hosts];
+      const known = b.rooms.filter((r) => kinds.includes(r.kind));
+      const present = known.length ? known.some((r) => r.present) : true;
       const cx = room.origin.x + width / 2,
         cz = room.origin.z + depth / 2;
       const look = b.archived || !present ? "dim" : threeRoom ? HALL_FLOOR[room.kind] : FLOOR_VARIANT[room.kind];
@@ -1069,7 +1075,9 @@ export class BuildingView {
       const room = roomOf(this.template, kind);
       if (!count || !room) return;
       const pile = this.ctx.style.model("pallet");
-      const c = roomCentre(room);
+      // A hosted status (a rack in Administration) shows its pile in front of its rack; a classic room in its middle.
+      const rack = room.kind === kind ? undefined : room.layout.props.find((p) => interiorDefinitions[p.definitionId]?.tags.includes(kind));
+      const c = rack ? { x: room.origin.x + rack.cell.x + 1.5, z: room.origin.z + rack.cell.z + 2.3 } : roomCentre(room);
       pile.position.copy(this.local(c.x, c.z - 0.3, 0.02));
       // Height follows the pile: one wrapped layer per four tickets, capped so a big pile stays on its plot.
       pile.scale.set(1.2, Math.min(4, 0.35 + count / 4), 1.2);
