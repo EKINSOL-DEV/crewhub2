@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { approachCells, occupancy, validateLayout, type Cell } from "@crewhub/world-engine";
-import type { RoomKind } from "@crewhub/world-model";
+import type { Building, RoomKind } from "@crewhub/world-model";
 import { buildingTemplate, dressingZones, interiorDefinitions, LOADING, type BuildingTemplate } from "../src/world/buildingTemplate.ts";
 import { NavWorld } from "../src/world/navigation.ts";
 import { DRESS_PREFIX, dressingSeed, roomDecor } from "../src/world/roomDressing.ts";
 import { agent, building } from "./fixtures.ts";
+
+/** These tests mean the classic template, whatever plan is the default. */
+const classicTemplate = (b: Building) => buildingTemplate(b, "classic");
 
 /** Buildings with every room kind, at several agent counts, and a few slugs (the dressing is seeded per building). */
 const variants = [0, 1, 2, 3, 5, 8].flatMap((n) =>
@@ -54,8 +57,8 @@ function reachable(layout: BuildingTemplate["rooms"][number]["layout"]): (c: Cel
 test("every room kind is dressed, and the dressing is deterministic per building", () => {
   const dressedKinds = new Set<RoomKind>();
   for (const b of variants) {
-    const template = buildingTemplate(b);
-    assert.deepEqual(buildingTemplate(b), template, `${b.slug}: the same building dresses the same way`);
+    const template = classicTemplate(b);
+    assert.deepEqual(classicTemplate(b), template, `${b.slug}: the same building dresses the same way`);
     const decor = roomDecor(template, { definitions: interiorDefinitions, seed: dressingSeed(b.slug), zones: dressingZones(template), loading: LOADING });
     for (const room of template.rooms) {
       const pieces = room.layout.props.filter((p) => p.id.startsWith(DRESS_PREFIX)).length + decor.filter((d) => d.room === room.kind).length;
@@ -66,13 +69,13 @@ test("every room kind is dressed, and the dressing is deterministic per building
   }
   assert.deepEqual([...dressedKinds].sort(), ["analyst", "design", "dispatch", "lead-office", "lobby", "meeting", "planning", "review", "storage", "workers"]);
   // Neighbouring buildings vary a little.
-  const looks = new Set(["cr3", "ops3", "lab3"].map((slug) => JSON.stringify(buildingTemplate(variants.find((b) => b.slug === slug)!).rooms.map((r) => r.layout.props))));
+  const looks = new Set(["cr3", "ops3", "lab3"].map((slug) => JSON.stringify(classicTemplate(variants.find((b) => b.slug === slug)!).rooms.map((r) => r.layout.props))));
   assert.ok(looks.size > 1, "different buildings dress differently");
 });
 
 test("the dressing keeps every door, seat, desk approach and pile approach of every room reachable", () => {
   for (const b of variants) {
-    const template = buildingTemplate(b);
+    const template = classicTemplate(b);
     const bare = undressed(template);
     for (const room of template.rooms) {
       assert.doesNotThrow(() => validateLayout(room.layout, interiorDefinitions), `${b.slug}/${room.kind}: no overlaps, inside the room`);
@@ -91,7 +94,7 @@ test("through the building navigation, every seat, pile and the mailbox can be r
   for (const b of variants) {
     // One building per town: the town has plots for a dozen buildings, not for every variant at once.
     const nav = new NavWorld();
-    nav.sync([b]);
+    nav.sync([b], undefined, undefined, "classic");
     const lobby = nav.lobby(b.slug)!;
     for (const a of b.agents) {
       const home = nav.home(b.slug, a.key, a.room);

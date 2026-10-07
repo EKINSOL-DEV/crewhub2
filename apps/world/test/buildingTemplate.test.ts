@@ -4,7 +4,7 @@ import { occupancy, validateLayout, type Cell } from "@crewhub/world-engine";
 import type { AgentPlacement, Building, RoomKind, WorkObject } from "@crewhub/world-model";
 import {
   BUILDING_CELL,
-  buildingTemplate,
+  buildingTemplate as templateOf,
   DEPTH,
   doorCell,
   doorOpenings,
@@ -20,6 +20,9 @@ import {
 import { PLOT_SIZE } from "../src/world/townLayout.ts";
 import { DRESS_PREFIX } from "../src/world/roomDressing.ts";
 import { assignDesks, pileCapacity, placeObjects, roomNeighbor } from "../src/world/interiorLayout.ts";
+
+/** These tests mean the classic template, whatever plan is the default. */
+const buildingTemplate = (b: Building) => templateOf(b, "classic");
 
 const agent = (key: string, room: RoomKind, extra: Partial<AgentPlacement> = {}): AgentPlacement => ({
   key,

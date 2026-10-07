@@ -70,7 +70,7 @@ test("the postman's and the town hall's cells are paved at every tier", () => {
 test("walkers in the town only ever step on the paving", () => {
   const nav = new NavWorld();
   const buildings = Array.from({ length: 12 }, (_, i) => building(`p${i}`, [], []));
-  nav.sync(buildings);
+  nav.sync(buildings, undefined, undefined, "classic");
   const cells = townOpenCells(standalonePlan(buildings));
   const post = { room: TOWN_ROOM, cell: POST_OFFICE_CELL };
   for (const slug of nav.slugs()) {

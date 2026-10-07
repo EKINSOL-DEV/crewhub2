@@ -14,7 +14,7 @@ const town = (n: number) =>
 
 test("the town graph reaches every room of every building from the post office", () => {
   const nav = new NavWorld();
-  nav.sync(town(12));
+  nav.sync(town(12), undefined, undefined, "classic");
   const post = { room: TOWN_ROOM, cell: POST_OFFICE_CELL };
   let rooms = 0;
   for (const slug of nav.slugs()) {
@@ -45,7 +45,7 @@ test("the town graph reaches every room of every building from the post office",
 
 test("every door joins two open cells, and the town doors are the buildings' front doors", () => {
   const nav = new NavWorld();
-  nav.sync(town(12));
+  nav.sync(town(12), undefined, undefined, "classic");
   const open = (room: string, cell: { x: number; z: number }) => {
     const state = nav.graph.room(room);
     if (!state) return false;
@@ -68,14 +68,14 @@ test("every door joins two open cells, and the town doors are the buildings' fro
 test("a grown room rebuilds its building and keeps the actors inside; an unchanged shape touches nothing", () => {
   const nav = new NavWorld();
   const small = building("cr", [agent("cr/dev-1", "workers")]);
-  nav.sync([small]);
+  nav.sync([small], undefined, undefined, "classic");
   const seat = nav.home("cr", "cr/dev-1", "workers")!;
   assert.ok(nav.sim.addActor({ id: "cr/dev-1", location: seat }).ok);
   const topology = nav.graph.topologyRevision;
 
   // Five workers need a second module column: the workers room is replaced, its actor stays where it stood.
   const grown = building("cr", Array.from({ length: 5 }, (_, i) => agent(`cr/dev-${i + 1}`, "workers")));
-  const result = nav.sync([grown]);
+  const result = nav.sync([grown], undefined, undefined, "classic");
   assert.deepEqual(result.rebuilt, ["cr"]);
   assert.ok(nav.graph.topologyRevision > topology);
   assert.equal(nav.graph.room(roomId("cr", "workers"))!.layout.grid.width, 12);
@@ -83,18 +83,18 @@ test("a grown room rebuilds its building and keeps the actors inside; an unchang
 
   // The same shape again touches nothing.
   const before = nav.graph.topologyRevision;
-  assert.deepEqual(nav.sync([grown]), { rebuilt: [], removed: [] });
+  assert.deepEqual(nav.sync([grown], undefined, undefined, "classic"), { rebuilt: [], removed: [] });
   assert.equal(nav.graph.topologyRevision, before);
 
   // Archiving the building removes its rooms and the actors in them.
-  nav.sync([{ ...grown, archived: true }]);
+  nav.sync([{ ...grown, archived: true }], undefined, undefined, "classic");
   assert.equal(nav.graph.room(roomId("cr", "lobby")), undefined);
   assert.equal(nav.sim.actor("cr/dev-1"), undefined);
 });
 
 test("director reachability: a room's visitable tags have reachable approach cells, other rooms have none", () => {
   const nav = new NavWorld();
-  nav.sync([building("cr", [agent("cr/dev-1", "workers")], [], ["meeting"])]);
+  nav.sync([building("cr", [agent("cr/dev-1", "workers")], [], ["meeting"])], undefined, undefined, "classic");
   const seat = nav.home("cr", "cr/dev-1", "workers")!;
   const lobby = nav.tags("cr", "lobby");
   for (const tag of ["coffee", "rest", "greenery", "mail"]) {
@@ -112,7 +112,7 @@ test("a region is walked district by district: every district is a room, and the
   const buildings = town(20).map((b, i) => ({ ...b, zoneId: `zone-${i % 4}` }));
   const plan = standalonePlan(buildings);
   assert.equal(plan.districts.length, 4);
-  nav.sync(buildings, plan);
+  nav.sync(buildings, plan, undefined, "classic");
   assert.deepEqual(nav.townRooms().sort(), plan.districts.map((d) => townRoomId(d.slot)).sort());
   for (const id of nav.townRooms()) {
     const { width, depth } = nav.graph.room(id)!.layout.grid;
@@ -137,7 +137,7 @@ test("a region is walked district by district: every district is a room, and the
   assert.equal(nav.graph.doors().filter((d) => d.id.startsWith("road/")).length, plan.roads.length);
   // The same plan again touches nothing.
   const topology = nav.graph.topologyRevision;
-  nav.sync(buildings, plan);
+  nav.sync(buildings, plan, undefined, "classic");
   assert.equal(nav.graph.topologyRevision, topology);
 });
 
@@ -145,7 +145,7 @@ test("the bus between districts: a figure changing district steps off at the new
   const nav = new NavWorld();
   const buildings = town(20).map((b, i) => ({ ...b, zoneId: `zone-${i % 4}` }));
   const plan = standalonePlan(buildings);
-  nav.sync(buildings, plan);
+  nav.sync(buildings, plan, undefined, "classic");
   const slugs = nav.slugs();
   const roomOf = (slug: string) => nav.front(slug)!.room;
   const home = slugs.find((s) => roomOf(s) === TOWN_ROOM)!;
@@ -171,11 +171,11 @@ test("the bus between districts: a figure changing district steps off at the new
 test("a growing town only adds: a building keeps its rooms when neighbours and districts arrive", () => {
   const nav = new NavWorld();
   const all = town(24).map((b, i) => ({ ...b, zoneId: i < 18 ? "default" : "labs" }));
-  nav.sync(all.slice(0, 1), standalonePlan(all.slice(0, 1)));
+  nav.sync(all.slice(0, 1), standalonePlan(all.slice(0, 1)), undefined, "classic");
   const lobby = nav.lobby("p0")!;
   assert.ok(nav.sim.addActor({ id: "p0-lead", location: lobby }).ok);
   for (const count of [2, 5, 10, 17, 24]) {
-    const result = nav.sync(all.slice(0, count), standalonePlan(all.slice(0, count)));
+    const result = nav.sync(all.slice(0, count), standalonePlan(all.slice(0, count)), undefined, "classic");
     assert.deepEqual(result, { rebuilt: [], removed: [] }, `at ${count} buildings nothing that stood is rebuilt`);
     assert.deepEqual(nav.sim.actor("p0-lead")?.location, lobby);
     assert.equal(nav.slugs().length, count);
@@ -192,13 +192,13 @@ test("an archived building has no rooms; a moved building is rebuilt on its new 
   const nav = new NavWorld();
   const [a, b] = town(2);
   const plan = standalonePlan([a!, b!]);
-  nav.sync([a!, { ...b!, archived: true }], plan);
+  nav.sync([a!, { ...b!, archived: true }], plan, undefined, "classic");
   assert.deepEqual(nav.slugs(), ["p0"]);
-  nav.sync([a!, b!], plan);
+  nav.sync([a!, b!], plan, undefined, "classic");
   assert.deepEqual(nav.slugs().sort(), ["p0", "p1"]);
   const before = nav.toWorld(nav.front("p1")!);
   const moved = { ...plan, lots: plan.lots.map((l) => (l.slug === "p1" ? { ...l, cell: { x: 66, z: 64 }, centre: lotCentre({ x: 66, z: 64 }) } : l)) };
-  const result = nav.sync([a!, b!], moved);
+  const result = nav.sync([a!, b!], moved, undefined, "classic");
   assert.deepEqual(result.removed, ["p1"]);
   assert.ok(nav.entry("p1"), "it stands again at once");
   assert.equal(Math.round(nav.toWorld(nav.front("p1")!).x - before.x), 30);
