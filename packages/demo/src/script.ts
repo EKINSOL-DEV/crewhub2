@@ -263,6 +263,27 @@ function storyline(s: ScriptBuilder): void {
   s.add("12:34", { type: "progress", ticket: "CL-44", agent: "cl-lead", worker: "cl-dev-2", kind: "update", text: "docs for the tail endpoint" });
   s.add("12:44", { type: "move", by: "nicky", ticket: "MK-7", to: "done" });
   s.add("12:50", { type: "progress", ticket: "MK-12", agent: "analyst", kind: "question", text: "should a returning visitor count once per day?" });
+  // A grill (CL-245): the lead puts a set of questions to Nicky on a `grill` ticket; each question is a comment, an
+  // answer is a reply to it. Nicky answers the last one; the others wait (`GET /api/tickets/{ref}/grill`).
+  const grill = s.add("12:36", {
+    type: "createTicket",
+    by: "cr-lead",
+    project: "crewhub",
+    title: "Grill: the mailbox flag and the letter model",
+    kind: "grill",
+    priority: "normal",
+    status: "in_progress",
+    assignee: "cr-lead",
+    body: "Three questions before the mailbox lands; answer each one as a reply.",
+  });
+  s.add("12:40", { type: "comment", by: "cr-lead", ticket: `@${grill}`, text: "Should the flag go up for an unroutable letter too, or only for an uncertain one?" });
+  s.add("12:42", { type: "comment", by: "cr-lead", ticket: `@${grill}`, text: "Does the letter keep its coloured band once it is read?" });
+  s.add("12:45", { type: "comment", by: "cr-lead", ticket: `@${grill}`, text: "May the mailbox stand outside the building, by the door?" });
+  s.add("12:52", { type: "comment", by: "nicky", ticket: `@${grill}`, text: "Yes, by the door: a postman never goes inside.", replyToLast: true });
+  // A bound request (CL-240): Nicky asks g-man for a restart; the lead may not do it alone and asks for a click.
+  const restart = s.post("12:56", { type: "dm", from: "nicky", agent: "g-man", text: "Please restart cr-dev-2; it has been stuck since the merge." });
+  s.add("13:02", { type: "dmReply", agent: "g-man", replyToClientId: `demo-a${restart}`, text: "I can restart cr-dev-2 for you. Confirm it on the card and I will do it right away." });
+  s.add("13:03", { type: "delegationRequest", agent: "g-man", action: "restart", target: "cr-dev-2", expiresInMs: 10 * 60 * SECOND });
   s.post("12:58", { type: "comment", by: "nicky", ticket: "MK-12", text: "Once per day is fine." });
   s.add("13:00", { type: "lane", name: "cl-dev-2", status: "idle", contextLine: null });
   s.add("13:06", { type: "progress", ticket: "CR-23", agent: "cr-lead", kind: "done", text: "freshness label done; opening it for review" });

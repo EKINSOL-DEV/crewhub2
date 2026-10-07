@@ -80,6 +80,11 @@ export type Action =
   | { type: "dmReply"; agent: string; text: string; replyToClientId?: string }
   /** The demo person reads a thread up to the message with `clientId` (a read cursor only moves forward). */
   | { type: "dmRead"; agent: string; clientId: string }
+  /**
+   * A lead asks the owner to confirm an act it may not do alone (CL-240): the request binds to the owner's last
+   * message in the agent's thread and waits for a click until it lapses. No envelope; only the pending read sees it.
+   */
+  | { type: "delegationRequest"; agent: string; action: string; target: string; expiresInMs: number }
   | { type: "milestoneCreate"; by: string; project: string; title: string; targetDate: string | null }
   | { type: "milestoneAttach"; by: string; milestone: string; tickets: string[] }
   | { type: "milestoneState"; by: string; milestone: string; state: MilestoneState }
@@ -636,6 +641,23 @@ const HANDLERS: Handlers = {
     thread.lastMessageAt = reply.createdAt;
     emit(ctx, "dm.created", a.agent, { project: null }, { threadId: thread.id, messageId: reply.id, agentId: a.agent });
     emit(ctx, "dm.answered", a.agent, { project: null }, { threadId: thread.id, messageId: parent.id, agentId: a.agent });
+  },
+
+  delegationRequest(ctx, a) {
+    const { state } = ctx;
+    const thread = state.dmThreads.find((t) => t.agentId === a.agent);
+    const bound = state.dmMessages.filter((m) => m.threadId === thread?.id && m.author.kind === "user").at(-1);
+    if (thread === undefined || bound === undefined) throw new Error(`No owner message to bind a request to in ${a.agent}'s thread`);
+    state.pendingDelegations.push({
+      id: nextId(state, "dg"),
+      messageId: bound.id,
+      agent: a.agent,
+      agentName: principalRef(state, a.agent).displayName,
+      action: a.action,
+      target: a.target,
+      expiresAt: iso(state.now + a.expiresInMs),
+      text: bound.bodyText.split(/\s+/).join(" ").slice(0, 140),
+    });
   },
 
   dmRead(ctx, a) {

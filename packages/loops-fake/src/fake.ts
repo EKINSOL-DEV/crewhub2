@@ -12,7 +12,7 @@ import { randomBytes } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { type DemoSource, type ScenarioId, DEMO_PERSON, createDemoSource } from "@crewhub/demo";
-import type { Envelope, LoopsSnapshot, PlaybackSpeed, PrincipalRef, TicketStatus } from "@crewhub/loops-client";
+import type { CommentOut, Envelope, LoopsSnapshot, PlaybackSpeed, PrincipalRef, TicketStatus } from "@crewhub/loops-client";
 import { TICKET_STATUSES } from "@crewhub/loops-client";
 
 export interface LoopsFakeOptions {
@@ -26,8 +26,21 @@ export interface LoopsFakeOptions {
   scenario?: ScenarioId;
   /** Playback speed against wall time: 1 is real time. Default 1. */
   speed?: PlaybackSpeed;
+  /** The storyline position to start at, ms into the loop. Default 0. */
+  startAt?: number;
   /** Silence on a stream before a heartbeat line. Default 15000, as loops. */
   heartbeatMs?: number;
+  /**
+   * A stream ends this long after it opened, as loops' `Timing.max_age` (300 s): the response closes without a
+   * closing line and the client reconnects with `after=` its last seq. Default 300000; tests use 1–2 s.
+   */
+  streamMaxMs?: number;
+  /**
+   * The key behaves like loops' builder key (CL-120): it reads a ticket, its comments and `GET /api/auth/me`, and
+   * every other route (health included) answers 403 `forbidden` "This key reads tickets, comments and attachments
+   * only". Default false: the key is a probe agent's and reads everything the host reads.
+   */
+  builderKey?: boolean;
   /** How many envelopes the fake keeps for `after=`; an older `after` answers 410. Default 2000. */
   bufferSize?: number;
   /**
@@ -46,6 +59,8 @@ export interface LoopsFake {
   lastSeq(): number;
   /** How many event streams are open right now (a host holds one for all its browser tabs). */
   openStreams(): number;
+  /** How many event streams were opened since the fake started (a reconnect after `streamMaxMs` adds one). */
+  streamsOpened(): number;
   /** Moves a ticket as a person would (`ticket.moved` on the stream; the board and ticket reads follow). */
   moveTicket(ref: string, status: string): Promise<void>;
   close(): Promise<void>;
@@ -70,6 +85,10 @@ export const EVENT_TYPES: readonly string[] = [
 /** What the fake reports as loops' version: the reference commit the shapes were checked against. */
 export const FAKE_LOOPS_VERSION = "0.0.0+fake.053b5f47";
 const DEFAULT_HEARTBEAT_MS = 15_000;
+/** Loops' `Timing.max_age`: a stream ends after 300 s and the client reconnects at its cursor. */
+const DEFAULT_STREAM_MAX_MS = 300_000;
+/** Loops' message for the builder key on any route outside its table (`auth/builder.py`). */
+export const BUILDER_KEY_MESSAGE = "This key reads tickets, comments and attachments only";
 const DEFAULT_BUFFER = 2000;
 /** A demo loop resets the storyline; the fake moves the log past the gap so every older cursor is expired. */
 const LOOP_STRIDE = 1000;
@@ -99,6 +118,8 @@ interface OpenStream {
   res: ServerResponse;
   lastSent: number;
   timer: ReturnType<typeof setTimeout> | null;
+  /** Ends the stream at `streamMaxMs`, as loops does at 300 s. */
+  maxAge: ReturnType<typeof setTimeout>;
   closed: boolean;
 }
 
@@ -106,6 +127,8 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
   const key = options.key ?? `chl_${randomBytes(24).toString("hex")}`;
   const keyName = options.keyName ?? "crewhub-world";
   const heartbeatMs = options.heartbeatMs ?? DEFAULT_HEARTBEAT_MS;
+  const streamMaxMs = Math.max(1, options.streamMaxMs ?? DEFAULT_STREAM_MAX_MS);
+  const builderKey = options.builderKey === true;
   const bufferSize = Math.max(1, options.bufferSize ?? DEFAULT_BUFFER);
   const principal: PrincipalRef = { id: keyName, kind: "agent", displayName: keyName };
 
@@ -115,6 +138,7 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
   let floor = seq;
   const buffer: Envelope[] = [];
   const streams = new Set<OpenStream>();
+  let streamsOpened = 0;
   let snapshots = 0;
 
   const source: DemoSource = createDemoSource({
@@ -126,6 +150,7 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     epochMs: Date.now(),
     ...(options.scenario === undefined ? {} : { scenario: options.scenario }),
     ...(options.speed === undefined ? {} : { speed: options.speed }),
+    ...(options.startAt === undefined ? {} : { startAt: options.startAt }),
   });
 
   function append(envelope: Envelope): void {
@@ -178,6 +203,7 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     if (stream.closed) return;
     stream.closed = true;
     if (stream.timer !== null) clearTimeout(stream.timer);
+    clearTimeout(stream.maxAge);
     streams.delete(stream);
     stream.res.end();
   }
@@ -185,8 +211,9 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
   function openStream(res: ServerResponse, after: number): void {
     res.writeHead(200, { "content-type": "application/x-ndjson", "cache-control": "no-cache", "x-accel-buffering": "no" });
     res.flushHeaders();
-    const stream: OpenStream = { res, lastSent: after, timer: null, closed: false };
+    const stream: OpenStream = { res, lastSent: after, timer: null, maxAge: setTimeout(() => endStream(stream), streamMaxMs), closed: false };
     streams.add(stream);
+    streamsOpened += 1;
     for (const envelope of buffer) if (envelope.seq > after) writeLine(stream, envelope, envelope.seq);
     armHeartbeat(stream);
     res.on("close", () => endStream(stream));
@@ -253,10 +280,17 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     const known =
       at("health") || at("auth", "me") || at("projects") || at("projects", "*") || at("projects", "*", "features") ||
       at("projects", "*", "milestones") || at("projects", "*", "releases") || at("board", "*") || at("tickets", "*") ||
-      at("tickets", "*", "comments") || at("tickets", "*", "progress") || at("team") || at("agents") ||
-      at("principals") || at("watchdog") || at("events") || at("events", "stream");
+      at("tickets", "*", "comments") || at("tickets", "*", "progress") || at("tickets", "*", "grill") || at("team") ||
+      at("agents") || at("principals") || at("watchdog") || at("events") || at("events", "stream") ||
+      at("delegations", "pending");
     if (!known) throw notFound();
     if (req.method !== "GET" && req.method !== "HEAD") throw new ApiError(405, "method_not_allowed", "Method not allowed");
+    // The builder key (CL-120) opens an exact table of reads and nothing else; of the routes the fake serves, these.
+    // Loops' guard refuses it on a public route too, before any handler.
+    const builderRead = at("tickets", "*") || at("tickets", "*", "comments") || at("auth", "me");
+    if (builderKey && !builderRead && req.headers.authorization !== undefined && authenticate(req) !== null) {
+      throw new ApiError(403, "forbidden", BUILDER_KEY_MESSAGE);
+    }
 
     if (at("health")) {
       // Public: with a valid key the caller is named; without credentials it is an anonymous read.
@@ -279,7 +313,8 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
 
     const slug = parts[2] ?? "";
     const ref = parts[2] ?? "";
-    if (at("auth", "me")) return { principal: { ...caller, role: "probe", theme: "system", themeDefault: true } };
+    // `principal_out`: an agent's `role` is its agent role and its `theme` is null; `themeDefault` is the install's.
+    if (at("auth", "me")) return { principal: { ...caller, role: "probe", theme: null, themeDefault: "system" } };
     if (at("projects")) {
       if (url.searchParams.get("includeArchived") === "true") throw new ApiError(403, "forbidden", "Archived projects are for admins");
       const snapshot = await snapshotOf();
@@ -326,6 +361,12 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
       if (ticket === null) throw notFound();
       return { ticket };
     }
+    if (at("tickets", "*", "grill")) {
+      const ticket = await source.getTicket(ref);
+      if (ticket === null) throw notFound();
+      return { grill: grillOf(ticket.kind === "grill" ? await source.getComments(ref) : []) };
+    }
+    if (at("delegations", "pending")) return { requests: await source.getPendingDelegations() };
     if (at("tickets", "*", "comments") || at("tickets", "*", "progress")) {
       if ((await source.getTicket(ref)) === null) throw notFound();
       if (parts[3] === "comments") {
@@ -354,6 +395,31 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     if (req.method === "HEAD") throw new ApiError(405, "method_not_allowed", "Method not allowed");
     openStream(res, after);
     return undefined;
+  }
+
+  /**
+   * `GET /api/tickets/{ref}/grill` (`domain/grill.py` `read`, `contracts/grill.py` `GrillOut`): the questions are an
+   * agent's top-level comments on the ticket, in order; an answer is a person's reply to one. Nothing is `sent` until
+   * the person sends the set, which the demo never does.
+   */
+  function grillOf(comments: CommentOut[]) {
+    const live = comments.filter((c) => c.kind === "normal" && !c.deletedAt);
+    const questions = live
+      .filter((c) => c.author.kind === "agent" && (c.parentId ?? null) === null)
+      .map((q, index) => {
+        const answer = live.find((c) => c.parentId === q.id && c.author.kind === "user");
+        return {
+          position: index + 1,
+          questionCommentId: q.id,
+          question: q.bodyMarkdown ?? "",
+          answer: answer?.bodyMarkdown ?? null,
+          answerCommentId: answer?.id ?? null,
+          answeredAt: answer?.createdAt ?? null,
+          sent: false,
+        };
+      });
+    const answered = questions.filter((q) => q.answerCommentId !== null).length;
+    return { questions, total: questions.length, answered, unsent: answered };
   }
 
   /** One read of everything the demo serves at once (a listener's first message is a snapshot). */
@@ -400,6 +466,7 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     keyName,
     lastSeq: () => seq,
     openStreams: () => streams.size,
+    streamsOpened: () => streamsOpened,
     async moveTicket(ref, status) {
       if (!(TICKET_STATUSES as readonly string[]).includes(status)) throw new Error(`Unknown status ${status}`);
       if ((await source.getTicket(ref)) === null) throw new Error(`Unknown ticket ${ref}`);

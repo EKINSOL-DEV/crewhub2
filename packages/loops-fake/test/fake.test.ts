@@ -21,7 +21,7 @@ import {
   validateWatchdogResponse,
 } from "@crewhub/loops-client";
 import type { Envelope, Result } from "@crewhub/loops-client";
-import { type LoopsFake, createLoopsFake } from "../src/index.ts";
+import { BUILDER_KEY_MESSAGE, type LoopsFake, createLoopsFake } from "../src/index.ts";
 
 const fakes: LoopsFake[] = [];
 after(async () => {
@@ -252,4 +252,98 @@ test("the key appears in no response body", async () => {
     const res = await fetch(`${fake.url}${path}`, { headers: headers(fake) });
     assert.ok(!(await res.text()).includes(fake.key), path);
   }
+});
+
+test("GET /api/auth/me answers loops' PrincipalOut for an agent key", async () => {
+  const fake = await start();
+  const me = await get(fake, "/api/auth/me");
+  assert.equal(me.status, 200);
+  assert.deepEqual(me.body, {
+    principal: { id: fake.keyName, kind: "agent", displayName: fake.keyName, role: "probe", theme: null, themeDefault: "system" },
+  });
+});
+
+test("GET /api/tickets/{ref}/grill: the storyline's grill ticket, its questions and the one answer (CL-245)", async () => {
+  // 13:20 of the small-team storyline: the grill was asked at 12:36 and Nicky answered the last question at 12:52.
+  const fake = await start({ speed: 0, startAt: 13 * 60_000 + 20_000 });
+  const board = (await get(fake, "/api/board/crewhub")).body;
+  const card = board.columns.flatMap((c: { tickets: { key: string; kind: string }[] }) => c.tickets).find((t: { kind: string }) => t.kind === "grill");
+  assert.ok(card, "the board shows a grill ticket");
+  const res = await get(fake, `/api/tickets/${card.key}/grill`);
+  assert.equal(res.status, 200);
+  const { grill } = res.body;
+  assert.deepEqual(Object.keys(grill).sort(), ["answered", "questions", "total", "unsent"]);
+  assert.equal(grill.total, 3);
+  assert.equal(grill.answered, 1);
+  assert.equal(grill.unsent, 1);
+  assert.deepEqual(grill.questions.map((q: { position: number }) => q.position), [1, 2, 3]);
+  for (const q of grill.questions) {
+    assert.deepEqual(Object.keys(q).sort(), ["answer", "answerCommentId", "answeredAt", "position", "question", "questionCommentId", "sent"]);
+    assert.equal(typeof q.question, "string");
+    assert.equal(q.sent, false);
+  }
+  const last = grill.questions[2];
+  assert.match(last.answer, /by the door/);
+  assert.equal(typeof last.answerCommentId, "string");
+  assert.equal(typeof last.answeredAt, "string");
+  assert.equal(grill.questions[0].answer, null);
+  // The question and answer comments are ordinary comments of the thread.
+  const comments = (await get(fake, `/api/tickets/${card.key}/comments`)).body.comments;
+  assert.ok(comments.some((c: { id: string }) => c.id === last.answerCommentId));
+  // A ticket that is no grill has no questions; an unknown ticket is 404.
+  assert.deepEqual((await get(fake, "/api/tickets/CR-19/grill")).body, { grill: { questions: [], total: 0, answered: 0, unsent: 0 } });
+  assert.equal((await get(fake, "/api/tickets/CR-9999/grill")).status, 404);
+});
+
+test("GET /api/delegations/pending: the storyline's bound request, in loops' PendingRequestOut shape (CL-240)", async () => {
+  const before = await start({ speed: 0, startAt: 12 * 60_000 });
+  assert.deepEqual((await get(before, "/api/delegations/pending")).body, { requests: [] });
+  const fake = await start({ speed: 0, startAt: 13 * 60_000 + 20_000 });
+  const res = await get(fake, "/api/delegations/pending");
+  assert.equal(res.status, 200);
+  assert.equal(res.body.requests.length, 1);
+  const [request] = res.body.requests;
+  assert.deepEqual(Object.keys(request).sort(), ["action", "agent", "agentName", "expiresAt", "id", "messageId", "target", "text"]);
+  assert.equal(request.agent, "g-man");
+  assert.equal(request.action, "restart");
+  assert.equal(request.target, "cr-dev-2");
+  assert.match(request.text, /restart cr-dev-2/);
+  assert.match(request.messageId, /^dm_/);
+  assert.ok(Date.parse(request.expiresAt) > 0);
+});
+
+test("--builder-key: the key reads a ticket, its comments and auth/me; everything else is loops' 403", async () => {
+  const fake = await start({ builderKey: true, speed: 0 });
+  assert.equal((await get(fake, "/api/tickets/CR-19")).status, 200);
+  assert.equal((await get(fake, "/api/tickets/CR-19/comments")).status, 200);
+  assert.equal((await get(fake, "/api/auth/me")).status, 200);
+  for (const path of ["/api/projects", "/api/board/crewhub", "/api/team", "/api/events?types=attachment.added", "/api/events/stream", "/api/tickets/CR-19/progress", "/api/health"]) {
+    const res = await get(fake, path);
+    assert.equal(res.status, 403, path);
+    assert.deepEqual(res.body, { error: { code: "forbidden", message: BUILDER_KEY_MESSAGE, detail: null } }, path);
+  }
+  // Without the key, health is still public and a read is still 401; an unknown route is still 404.
+  assert.equal((await fetch(`${fake.url}/api/health`)).status, 200);
+  assert.equal((await fetch(`${fake.url}/api/projects`)).status, 401);
+  assert.equal((await get(fake, "/api/nope")).status, 404);
+  assert.equal((await get(fake, "/api/projects", { headers: { authorization: "Bearer chl_wrong" } })).status, 401);
+});
+
+test("a stream ends after streamMaxMs without a closing line, as loops' 300 s; after= picks up where it ended", async () => {
+  const fake = await start({ speed: 0, streamMaxMs: 300, heartbeatMs: 50 });
+  const tail = fake.lastSeq();
+  const started = Date.now();
+  const res = await fetch(`${fake.url}/api/events/stream?after=${tail}`, { headers: headers(fake) });
+  assert.equal(fake.openStreams(), 1);
+  const lines = await readLines(res, 1000, 2000);
+  const took = Date.now() - started;
+  assert.ok(took >= 250 && took < 1500, `the stream ended after ${took} ms`);
+  assert.ok(lines.every((l) => l["type"] === "heartbeat"), "nothing but heartbeats, and no closing line");
+  assert.equal(fake.openStreams(), 0);
+  assert.equal(fake.streamsOpened(), 1);
+  await fake.moveTicket("CR-19", "review");
+  const again = await fetch(`${fake.url}/api/events/stream?after=${tail}`, { headers: headers(fake) });
+  const [moved] = await readLines(again, 1, 1000);
+  assert.equal(moved?.["type"], "ticket.moved");
+  assert.equal(fake.streamsOpened(), 2);
 });
