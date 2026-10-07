@@ -27,6 +27,8 @@ export interface HostOptions {
   allowedOrigins?: string[];
   bufferSize?: number;
   retryMs?: { min: number; max: number };
+  /** The host's own heartbeat while loops is down. Default 15 s. */
+  heartbeatMs?: number;
   /** Server-side log line; never the key. Default: console.error. */
   log?: (line: string) => void;
 }
@@ -76,6 +78,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
   const upstreamOptions: Parameters<typeof createUpstream>[1] = { log };
   if (options.bufferSize !== undefined) upstreamOptions.bufferSize = options.bufferSize;
   if (options.retryMs !== undefined) upstreamOptions.retryMs = options.retryMs;
+  if (options.heartbeatMs !== undefined) upstreamOptions.heartbeatMs = options.heartbeatMs;
   const upstream = createUpstream(client, upstreamOptions);
   const sharedKey = options.sharedKey ?? false;
   const staticDir = options.staticDir === undefined ? null : path.resolve(options.staticDir);
