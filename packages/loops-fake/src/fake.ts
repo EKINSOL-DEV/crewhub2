@@ -44,6 +44,8 @@ export interface LoopsFake {
   readonly keyName: string;
   /** The tail of the log: the seq of the last event, or `firstSeq` before the first. */
   lastSeq(): number;
+  /** How many event streams are open right now (a host holds one for all its browser tabs). */
+  openStreams(): number;
   /** Moves a ticket as a person would (`ticket.moved` on the stream; the board and ticket reads follow). */
   moveTicket(ref: string, status: string): Promise<void>;
   close(): Promise<void>;
@@ -397,6 +399,7 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     key,
     keyName,
     lastSeq: () => seq,
+    openStreams: () => streams.size,
     async moveTicket(ref, status) {
       if (!(TICKET_STATUSES as readonly string[]).includes(status)) throw new Error(`Unknown status ${status}`);
       if ((await source.getTicket(ref)) === null) throw new Error(`Unknown ticket ${ref}`);
