@@ -58,6 +58,12 @@ const WALLS: Record<WallRun["side"], [ModelKey, number, number]> = {
   east: ["wall.low", 0.22, 0.12],
   inner: ["building.partition", 0.52, 0.1],
 };
+/**
+ * The partitions between the three halls stand a little higher than the classic rooms': the halls are big, and a
+ * 0.52 partition of these lengths did not draw at all from the merged shell (bisected: 0.53 and up draw; the cause
+ * in the static merge is open, see the racks report).
+ */
+const HALL_PARTITION = 0.56;
 /** The remote tier (see `#applyDistance`): pieces smaller than this, world units, are not drawn; they go to this layer. */
 const REMOTE_PIECE = 3;
 const REMOTE_LAYER = 30;
@@ -451,7 +457,8 @@ export class BuildingView {
     for (const run of wallRuns(this.template)) {
       const horizontal = run.z1 === run.z2;
       const length = (horizontal ? run.x2 - run.x1 : run.z2 - run.z1) * CELL;
-      const [key, height, depth] = WALLS[run.side];
+      const [key, wallHeight, depth] = WALLS[run.side];
+      const height = run.side === "inner" && threeRoom ? HALL_PARTITION : wallHeight;
       const wall = add(style.model(key, opt({ size: { width: length + depth, height, depth } })), (run.x1 + run.x2) / 2, (run.z1 + run.z2) / 2, 0, horizontal ? 0 : Math.PI / 2);
       if (run.side === "north" || run.side === "west") {
         const [lowKey, lowHeight, lowDepth] = WALLS.south;
