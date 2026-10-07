@@ -4,7 +4,7 @@ For Nicky. The world's side of the Mac install: what crewhub-loops must have bef
 the world's host relay reaches it, how to run the world in live mode, and what each state chip means. Written
 against crewhub-loops `053b5f47` (2026-10-07) and the world's phase 1 build of the same day
 ([integration plan](LOOPS_INTEGRATION_PLAN.md) section 10). Every loops command below is copied verbatim from
-`loops:docs/porting/MAC-QUICKSTART.md`, except the two lines in step 3 that are marked as not from there; the
+`loops:docs/porting/MAC-QUICKSTART.md`, except the lines in steps 2 and 3 that are marked as not from there; the
 world's commands are this repository's.
 
 **The shape.** The browser never talks to crewhub-loops. It talks to the world's own relay, `apps/host`, which holds
@@ -55,8 +55,18 @@ All of this is `loops:docs/porting/MAC-QUICKSTART.md`, sections 0 to 5 and 8. In
    `GET /api/health` is the liveness read; the host's own health read (section 4) reports it as `loops: "ok"`.
 
 2. **The first admin, in the browser.** A fresh stack asks for it: open `http://127.0.0.1:8091`
-   (`/api/setup/status` says `{"needsSetup":true}` until then). The world does not need the admin for reading, but
-   admin keys cannot be registered before a human admin exists.
+   (`/api/setup/status` says `{"needsSetup":true}` until then). The setup screen asks for a one-time setup code
+   (`chs_…`, 24 h, single use) that the api container issues; the quickstart on `main` does not say so yet
+   (the installer of PR #550 will keep it in `~/.config/crewhub-loops/secrets/setup-token`). Until then, from a
+   terminal with `mac.env` sourced, the command prints the code once on stdout and nothing else there:
+
+   ```sh
+   chl_compose exec -T api crewhub-setup-token
+   ```
+
+   (This line is from `loops:docs/install.md`'s setup row and `loops:.../auth/setup_token.py`, not from the
+   quickstart.) The world does not need the admin for reading, but admin keys cannot be registered before a human
+   admin exists, and only an admin can create an agent through the API.
 
 3. **A key the host can use: a dedicated agent `crewhub-world`.** There is no viewer role at `053b5f47`
    (proposal L1 is open); the role for a process that only reads is still spelled `probe`
@@ -78,6 +88,10 @@ All of this is `loops:docs/porting/MAC-QUICKSTART.md`, sections 0 to 5 and 8. In
    ```
 
    This leaves `~/.config/crewhub-loops/secrets/agent-crewhub-world.key` (0400), the host's default key file.
+   The seed is one of two ways to make the agent; the other is an admin's `POST /api/agents` (body `name`,
+   `displayName`, `herdrSession`, `role`; `loops:.../api/routers/agents.py`), which needs the admin's browser
+   session, so from a terminal the seed line is the simpler one. Settings > Agents in the loops web app is a
+   read-only list since CL-233 and cannot make one.
    `--digest-stdin` registers with scope `agent` (CL-244); never give the world an `admin` scope key. The
    `crewhub-seed --import-missing` command is the seed's own (`loops:.../seed/features.py`); the quickstart does
    not run it, so that line and the YAML line are the two things here that are not verbatim from the quickstart.
@@ -128,8 +142,7 @@ npm run dev                                           # Vite; open http://127.0.
 In production the host also serves the built bundle:
 
 ```sh
-npm run build
-npm run host:start                                    # then open http://127.0.0.1:5180/
+npm run host:start                                    # builds the world, then serves apps/world/dist; open http://127.0.0.1:5180/
 ```
 
 The source setting is `auto` by default: Live when a host answers `/world-api/health` within 1.5 s, else Demo.
@@ -151,8 +164,10 @@ curl http://127.0.0.1:5180/world-api/health
 {"loops":"ok","keyName":"crewhub-world","sharedKey":false,"loopsCommit":"...","cursor":1234}
 ```
 
-`loops` is `ok`, `down` or `unauthorized`; `keyName` is the key file's agent name; `sharedKey` is `true` when the
-builder key is the fallback; `cursor` is the last `seq` the host holds. The key itself is never in the answer.
+`loops` is `ok`, `down` or `unauthorized` (a loops 401 or 403); `keyName` is the key file's agent name; `sharedKey`
+is `true` when the builder key is the fallback; `loopsCommit` is loops' own version from its health read; `cursor`
+is the last `seq` the host holds. The key itself is never in the answer. A request with a foreign Host header gets
+421 and one with a foreign Origin 403: the guard against other sites and DNS rebinding, not pairing.
 
 ## 5. The chip says X, do Y
 

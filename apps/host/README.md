@@ -22,7 +22,8 @@ What it does:
   `/tickets/{ref}/comments|progress`, `/projects/{slug}`, `/projects/{slug}/milestones|releases`, `/board/{slug}`,
   `/watchdog`, `/team`. Only `limit` and `cursor` of a query string are passed. `/world-api/project-groups`
   answers `{ "groups": [] }` locally.
-- **Health** `GET /world-api/health`: `{ loops, keyName, sharedKey, loopsCommit?, cursor? }`.
+- **Health** `GET /world-api/health`: `{ loops, keyName, sharedKey, loopsWebUrl, loopsCommit?, cursor? }`;
+  `loopsWebUrl` is the origin of the loops URL, for the world's "sign in to crewhub-loops" link.
 - **Allow-list** in `src/allowList.ts`: the loops routes the host may read and the browser routes it answers,
   in one file. Every other path is 404, every method but GET is 405, and nothing reaches loops for either.
 - **Host and Origin guard**: the `Host` header must be `127.0.0.1:<port>` or `localhost:<port>` (else 421), an

@@ -13,6 +13,7 @@ describe("health", () => {
       assert.equal(health.keyName, "builder");
       assert.equal(health.sharedKey, true);
       assert.equal(health.cursor, 0);
+      assert.equal(health.loopsWebUrl, stub.url, "the loops origin, for the sign-in link");
       for (let i = 0; i < 20 && health.loopsCommit === undefined; i += 1) {
         await new Promise((r) => setTimeout(r, 20));
         Object.assign(health, await (await fetch(`${host.url}/world-api/health`)).json());
