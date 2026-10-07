@@ -609,6 +609,10 @@
 .world-corner-left:has(.demo-chip[aria-expanded="true"]) {
   z-index: var(--z-menu);
 }
+/* The connection chip of live mode stands where the Demo chip stands; one word, never wrapped. */
+.connection-chip {
+  white-space: nowrap;
+}
 .demo-note {
   font-size: var(--text-2xs);
   color: var(--text-muted);
@@ -619,10 +623,17 @@
 .daynight-setting {
   margin-bottom: var(--space-4);
 }
-.role-settings {
+.role-settings,
+.source-settings {
   border: 0;
   margin: 0 0 var(--space-3);
   padding: 0;
+}
+/* Settings > Source: the legend is the heading, the select is unlabelled (hidden label), like the Roles rows. */
+.source-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 .role-settings ul {
   list-style: none;
@@ -696,6 +707,10 @@
   /* With four toolbar buttons beside it the brand keeps one line: the demo chip keeps its icon (and its label). */
   .demo-word,
   .demo-chip .menu-caret {
+    display: none;
+  }
+  /* The connection chip keeps its word when something is wrong; "Live" is its icon alone (the label says it). */
+  .connection-chip[data-connection="live"] > span {
     display: none;
   }
   /* The town is small on a phone: an unfocused sign shows its key only, the focused one expands. */

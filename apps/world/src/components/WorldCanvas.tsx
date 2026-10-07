@@ -67,7 +67,8 @@ interface Props {
 /* Above this many buildings, Details leaves the town's signs as quiet names (only the focused one expands). */
 const QUIET_TOWN = 6;
 const now = () => worldRuntime().source.now();
-const speed = () => worldRuntime().source.playback.speed();
+/* The live source has no playback: it runs at the wall clock, 1x. */
+const speed = () => worldRuntime().source.playback?.speed() ?? 1;
 const dayClock = () => worldRuntime().source.now() - worldRuntime().epochMs;
 
 /** The Three.js town and its HTML labels. Labels carry words for every fact they show; the scene only positions them. */
