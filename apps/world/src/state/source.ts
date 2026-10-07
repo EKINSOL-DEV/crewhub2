@@ -113,7 +113,7 @@ export function hostUrl(origin: string): string {
  * Where "Sign in to crewhub-loops" goes: the loops web app the host names in its health (`loopsWebUrl`, optional; the
  * host adds it), else DEFAULT_LOOPS_URL. Only an http(s) URL is trusted for a link.
  */
-export function loopsWebUrl(health: (HostHealth & { loopsWebUrl?: string }) | null | undefined): string {
+export function loopsWebUrl(health: HostHealth | null | undefined): string {
   const url = health?.loopsWebUrl;
   return typeof url === "string" && /^https?:\/\//.test(url) ? url : DEFAULT_LOOPS_URL;
 }
