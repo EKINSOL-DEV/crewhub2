@@ -819,6 +819,26 @@ registry (one file each, pure rows, tested); the portrait is the figure itself, 
 says who is followed, a drag or Escape stops. See [AGENT_CARD.md](../AGENT_CARD.md).
 
 
+## Three rooms per building (2026-10-07, evening)
+
+Each building now has three rooms, each with one meaning; before, it had ten rooms that sorted work two ways at once.
+
+- **Administration** holds four racks: Backlog, Planning, Review and Done. Every package not in someone's hands stands on
+  its rack's shelves, and past twelve the rest go on a pallet with a count. The mailbox, the archive counter and a
+  waiting corner stand by the front door.
+- **The floor** is one open space with a desk per agent. Desks are grouped by role: a worker desk is plain, an analyst
+  desk has screens, a design desk has a drawing table. Each desk has a lamp that shows the agent's lane: green working,
+  amber waiting on the operator, grey idle, off when gone. A round huddle table takes the meeting room's place.
+- **The lead's office** has the lead's desk with the beacon above it, a sofa corner and bookshelves, and a door onto the
+  floor.
+
+The model did not change: a building template may host several model rooms in one hall, and `roomOf` resolves them.
+The text view, the agent card, the room-focus line and the where answer speak in halls and racks ("on the Review rack",
+"Zoomed to the floor"). The ten-room template stays selectable (Settings > Town > Buildings, `?rooms=classic`).
+Three rooms is the default. Buildings are smaller: a small team's is 21 cells wide instead of 27. They also draw less:
+at stress=20 on a phone profile, 334 draw calls against 413, and 5.6 ms of work against 7.5 ms. See the spec addendum
+and [TOWN_PLAN.md](../TOWN_PLAN.md) section 12.
+
 ## Challenges with docs/integrators
 
 Read at crewhub-loops `a1bed0f`. Each item names the document, what was unclear, contradictory, missing or marked
