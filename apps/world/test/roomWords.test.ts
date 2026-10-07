@@ -4,7 +4,7 @@ import type { AgentPlacement, Building } from "@crewhub/world-model";
 import { readBuildingPlan, planFromSearch, writeBuildingPlan, BUILDING_PLAN_KEY } from "../src/state/buildingPlan.ts";
 import { whereWords } from "../src/world/agentCard/sections/now.ts";
 import { renderAgentCard } from "../src/world/agentCard/registry.ts";
-import { roomName, roomSummary, sameRoom, shortRoomName, signState } from "../src/world/roomWords.ts";
+import { roomName, roomSummary, sameRoom, shortRoomName, signState, zoomedTo } from "../src/world/roomWords.ts";
 import { agent, building, object } from "./fixtures.ts";
 
 const lane = (a: AgentPlacement) => (a.laneStatus === "unknown" ? "status unknown" : a.laneStatus);
@@ -51,6 +51,15 @@ test("the room focus status line sums up a hall the way the text view does", () 
   // Classic is untouched: the old words, from interiorLayout.
   assert.equal(roomSummary(b, "storage", lane), "storage: 2 tickets.");
   assert.equal(roomSummary(b, "analyst", lane), "analyst: empty and dimmed, no analyst agents active.");
+});
+
+test("the zoom announcement puts the right article before a hall", () => {
+  const b = house();
+  const line = (kind: "storage" | "design" | "lead-office" | "workers", rooms?: "three-rooms") => zoomedTo(roomSummary(b, kind, lane, rooms), kind, rooms);
+  assert.match(line("storage", "three-rooms"), /^Zoomed to Administration: Backlog 2/);
+  assert.match(line("design", "three-rooms"), /^Zoomed to the floor: cr-dev-1/);
+  assert.match(line("lead-office", "three-rooms"), /^Zoomed to the lead's office: cr-lead/);
+  assert.equal(line("workers"), "Zoomed to the workers: cr-dev-1 working, 1 ticket on the desks.");
 });
 
 test("the agent card's Now line names the hall and the desk in three-rooms wording", () => {
