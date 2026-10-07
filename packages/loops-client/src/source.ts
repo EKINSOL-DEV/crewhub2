@@ -114,4 +114,13 @@ export interface ConnectionStatus {
 export interface HostSourceOptions {
   /** The host's origin, e.g. `http://127.0.0.1:5180`. Default "" (same origin: Vite proxies /world-api in dev). */
   baseUrl?: string;
+  /** The clocks of the source (tests make them short); see `HostSourceTimings` in `hostSource.ts`. */
+  timings?: {
+    staleMs?: number;
+    teamPollMs?: number;
+    retryMinMs?: number;
+    retryMaxMs?: number;
+  };
+  /** Re-snapshot when an event's `seq` skips past `cursor + 1`. Default true. */
+  resnapshotOnGap?: boolean;
 }

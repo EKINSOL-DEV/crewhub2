@@ -3,6 +3,8 @@
 Status: proposal, revised the same day after Nicky's answers to the first
 round of open questions (2026-09-30). This document changes no code. The
 decision record is [ADR 0005](decisions/0005-crewhub-world-on-loops.md).
+Phase 1's data path was built on 2026-10-07 (section 10); the runbook for the
+fresh Mac install is [LOOPS_SETUP.md](LOOPS_SETUP.md).
 
 Citations: `loops:<path>` is a file in the crewhub-loops repository at commit
 `79ecfa0`. `loops:.../` abbreviates `loops:services/api/src/crewhub_loops/`.
@@ -862,12 +864,60 @@ makes zero model calls, except phase 6 once it is switched on.
 
 | Phase | Deliverable | Acceptance criteria |
 | --- | --- | --- |
-| 1. First light | `apps/host`: key file, socket client, stream-first projection, SSE, pairing, static bundle. `packages/loops-client`. The browser shows one plain building per project with name, key and counts per status, and each lead in its building with its team status. Navigation only: overview, enter a building, back. | On one machine without Tailscale, against crewhub-loops `make dev` and its seed: `crewhub ticket move CL-1 in_progress` changes the counts within 2 s. A restart of the loops API and a restart of the host both recover without a page reload. Two browser tabs share one loops stream. Nothing is written to crewhub-loops. The key appears in no bundle, log or response. No UI beyond navigation. |
+| 1. First light | `apps/host`: key file, socket client, stream-first projection, SSE, pairing, static bundle. `packages/loops-client`. The browser shows one plain building per project with name, key and counts per status, and each lead in its building with its team status. Navigation only: overview, enter a building, back. **Built 2026-10-07, in part** (see below). | On one machine without Tailscale, against crewhub-loops `make dev` and its seed: `crewhub ticket move CL-1 in_progress` changes the counts within 2 s. A restart of the loops API and a restart of the host both recover without a page reload. Two browser tabs share one loops stream. Nothing is written to crewhub-loops. The key appears in no bundle, log or response. No UI beyond navigation. |
 | 2. Chat bubbles | The port of the loops dock and chat card (4.7), with the person's session and L8 | Side by side with the loops web app, at the same loops commit, the dock and chat look and behave the same: the same heads, badges, presence dots, activity strip, message states and composer. A message sent from the world appears in the loops chat and the reply appears in the world without a reload. Pins and read markers changed in one UI show in the other. The copied files are unchanged from the recorded loops commit. Signed out, only the sign-in link shows. |
 | 3. Buildings | World database with migrations and backup; role catalogue with overrides; lead's office, role rooms, status rooms, work objects and piles, lobby; the movement table of 4.3; the real agent with proxies; stall, attention, waiting-on-person and progress captions; nameplates; "open in loops" on selection; the hidden text view. Remove `apps/bridge`, `packages/protocol`, the mock crew and scenarios; add replay fixtures recorded with `crewhub watch --json`. | A scripted run of CLI commands (new, move, progress, wait, done, comment) produces the expected rooms, objects and postures in a recorded test. A lead of two projects shows one solid avatar and one proxy. A stale snapshot is shown as stale. Every scene fact is in the text view. No panels were added. |
 | 4. Town and dynamic pathfinding | Portal graph, doors, town paths, postman walks between buildings, wait budget and step-aside, heap A*, detail levels with one detailed interior at a time | 12 buildings and 100 agents from a replay stay within the 33 ms frame budget on the reference device. No actor waits more than 5 s in the corridor stress test. Offscreen buildings do no cosmetic routing. |
 | 5. Build mode: layout and props | The build-mode toggle and palette, layout editing, the prop catalogue, the parts editor, parts-JSON import and attachments (section 6), all in the world database with undo and export/import | A host restart restores the same town. An invalid import leaves the previous revision intact. A user-made prop blocks exactly its declared footprint. A ticket-attached sticker follows its object into the review pile. With build mode off, no build UI is visible. |
 | 6. Director and awareness | The `crewhub-world` CLI (`where`, `plan-input`, `plan-submit`, `usage`), the host's watcher, the `world-director` Haiku lane, the settings of section 7 behind the settings button, and L7 | Off by default. When on, plans stay within the caps and the usage shows in settings. The kill switch stops prompts within one interval. Rejected intents are logged, not played. After a week the measured cost is recorded here. |
+
+### Phase 1 as built (2026-10-07)
+
+Built in the loops-readiness round against crewhub-loops `053b5f47`, before the fresh Mac install, so that the
+install changes only a URL and a key file. The runbook is [LOOPS_SETUP.md](LOOPS_SETUP.md); the spec addendum
+"Loops readiness" in [the demo-mode spec](superpowers/specs/2026-10-01-world-demo-mode-design.md) has the shape.
+
+**In.**
+
+- **The host relay**, `apps/host` (3.5, the integrator doc's Option A): one agent key read once from
+  `CREWHUB_WORLD_KEY_FILE`, one loops stream shared by every tab with a ring buffer, the snapshot assembled
+  stream-first as `read-model.md` "Loading a snapshot" says, SSE on `/world-api/stream?cursor=N` with `status`,
+  `event`, `heartbeat` and `reset`, the thin-event refetch routes, `/world-api/project-groups` as `{groups: []}`,
+  `/world-api/health`, an allow-list of loops `GET` paths in one file, Host and Origin checked against loopback,
+  reconnect with backoff, the static bundle in production. `npm run host`, `npm run host:start`.
+- **The live source**, `createHostSource` in `packages/loops-client`: `WorldSource` with `mode: "live"`,
+  snapshot then events by `seq`, a reset or a gap re-snapshots, `connection` for the chip, `probeHost`.
+  The validators accept an unknown `kind`, `status` or event `type` with one warning. Fixtures checked
+  against `053b5f47` (a `grill` ticket, a `PendingRequest`).
+- **The fake**, `packages/loops-fake`: an in-process crewhub-loops with the real routes, bearer auth, `seq`,
+  heartbeats and a 410 past its buffer, replaying the demo storyline; the end-to-end test and `npm run loops:fake`.
+- **Live mode in the world**: the source setting (auto, demo, live), the connection chip in the Demo chip's place,
+  the demo UI hidden, the chat dock's "sign in to crewhub-loops" link, the town document keyed by source.
+- **The setup runbook**, [LOOPS_SETUP.md](LOOPS_SETUP.md).
+
+**Not in.**
+
+- **Pairing** (the one-time link exchanged for an HttpOnly cookie, 3.5): the host trusts loopback and checks Host
+  and Origin only. A written known gap in the host's README.
+- **The chat** (phase 2): needs L8, which crewhub-loops has not built.
+- **The "socket client"**: on a Mac the API is reached on `127.0.0.1:8091` over loopback TCP; the Unix socket does
+  not cross Docker Desktop (`loops:docs/porting/MAC-QUICKSTART.md`). The host is a TCP client; a socket transport
+  can come with the Linux deploy.
+- **A viewer role** (L1): the key is a seeded `probe` agent `crewhub-world` with scope `agent`; the builder key
+  does not work for the world (its route table has no project list, board, team or stream).
+
+**The acceptance criteria.**
+
+| Criterion | Status |
+| --- | --- |
+| A ticket move changes the counts within 2 s | Met against the fake only (the end-to-end test: fake, host, `HostSource`, projection). Against the real install: not yet; the fresh crewhub-loops is not installed on this Mac. |
+| A restart of the loops API recovers without a page reload | Met against the fake only (a fake restart in the end-to-end test; the host re-snapshots, the browser sees Catching up or Stale meanwhile). |
+| A restart of the host recovers without a page reload | Met against the fake only (`HostSource` reconnects with backoff and re-snapshots). |
+| Two browser tabs share one loops stream | Met (the host holds one upstream stream for every client; a test opens two). |
+| Nothing is written to crewhub-loops | Met (the allow-list holds `GET` paths only; a test sends each unsafe method and gets 404 or 405). |
+| The key appears in no bundle, log or response | Met (a test greps the built bundle and the host's responses for the key). |
+| No UI beyond navigation | Met in the sense of this round: live mode hides the demo UI; the chip and the source setting are the only additions. The demo's own UI stays for demo mode. |
+| Pairing | Not yet. |
 
 ## 11. Risks and open questions
 
