@@ -14,7 +14,9 @@ import { useFps } from "../state/fps";
 import { FpsOverlay } from "./FpsOverlay";
 import type { Pick } from "../world/buildingView";
 import { buildingTemplate } from "../world/buildingTemplate";
-import { assignDesks, placeObjects, roomName, shortRoomName } from "../world/interiorLayout";
+import { assignDesks, placeObjects } from "../world/interiorLayout";
+import { roomName, sameRoom, shortRoomName, signState } from "../world/roomWords";
+import { useBuildingPlan } from "../state/buildingPlan";
 import { TownScene, type BuildPointer, type CameraAction, type FrameStats } from "../world/TownScene";
 import { resolveBuildingPlacements } from "../world/placements";
 import type { TownLayer } from "../world/propLayer";
@@ -368,7 +370,8 @@ function useAgentCard(props: Props, inside: Building | null, compact: boolean, p
   const { model } = props;
   const demo = model.mode === "demo";
   const facts = useMemo(() => (key && inside ? agentCardFacts(model, worldRuntime().projection.facts, key) : null), [key, inside, model]);
-  const sections = useMemo(() => (facts ? renderAgentCard(facts, { now: model.now, freshness: model.freshness, loopsUrl: demo ? null : loopsWebUrl(SOURCE.health) }) : []), [facts, model.now, model.freshness, demo]);
+  const rooms = useBuildingPlan();
+  const sections = useMemo(() => (facts ? renderAgentCard(facts, { now: model.now, freshness: model.freshness, loopsUrl: demo ? null : loopsWebUrl(SOURCE.health), rooms }) : []), [facts, model.now, model.freshness, demo, rooms]);
   if (!key || !facts || !inside || !inside.agents.some((a) => a.key === key)) return null;
   return {
     key,
@@ -526,6 +529,8 @@ const same = (a: Pick | null, b: Pick | null) => !!a && !!b && JSON.stringify(a)
 
 /** Labels inside the entered building. */
 function Interior({ building: b, model, props, compact }: { building: Building; model: WorldModel; props: Props; compact: boolean }) {
+  // The words for the signs: a room's own name, or its hall's when the building has three halls.
+  const rooms = useBuildingPlan();
   const template = buildingTemplate(b);
   const layout = placeObjects(b, template, assignDesks(b, template));
   const nameOf = (slug: string | null) => model.buildings.find((x) => x.slug === slug)?.name ?? slug ?? "another building";
@@ -539,20 +544,20 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
   const revealed = new Set<RoomKind>();
   for (const room of [props.room, props.zoomed]) if (room) revealed.add(room);
   if (!compact) for (const target of [props.selection.hover, props.selection.selected]) if (target?.kind === "room") revealed.add(target.room);
-  const shows = (room: RoomKind | null | undefined) => props.details || (!!room && revealed.has(room));
+  const shows = (room: RoomKind | null | undefined) => props.details || (!!room && [...revealed].some((r) => sameRoom(r, room, rooms)));
   const roomOfAgent = (key: string) => b.agents.find((a) => a.key === key)?.room ?? null;
   const editing = !!props.town?.build;
   return (
     <>
       {template.rooms.map((r) => {
-        const room = b.rooms.find((x) => x.kind === r.kind);
-        const focused = props.room === r.kind;
-        if (compact ? r.kind !== focusedRoom : !shows(r.kind)) return null;
+        const sign = signState(b, r.kind, rooms);
+        const focused = !!props.room && sameRoom(props.room, r.kind, rooms);
+        if (compact ? !focusedRoom || !sameRoom(focusedRoom, r.kind, rooms) : !shows(r.kind)) return null;
         return (
           <div key={r.kind} className="anchor" data-anchor={`r:${b.slug}:${r.kind}`}>
-            <span className={`room-sign${room && !room.present ? " dimmed" : ""}${focused ? " focused" : ""}`}>
-              <strong>{compact ? shortRoomName(r.kind) : roomName(b, r.kind)}</strong>
-              {room && !room.present && <span className="sign-muted">{room.emptyLabel}</span>}
+            <span className={`room-sign${sign.dimmed ? " dimmed" : ""}${focused ? " focused" : ""}`}>
+              <strong>{compact ? shortRoomName(r.kind, rooms) : roomName(b, r.kind, rooms)}</strong>
+              {sign.note && <span className="sign-muted">{sign.note}</span>}
               {r.kind === "lobby" && b.archivedCount > 0 && <span className="sign-muted">{b.archivedCount} archived</span>}
             </span>
           </div>
