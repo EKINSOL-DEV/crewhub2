@@ -17,7 +17,7 @@ import {
 import { definitions } from "../world/definitions";
 import { placementDefinitions } from "../world/placements";
 import { importPropRequest, type InvalidRequest } from "../world/propImport";
-import { allocationEdit } from "../world/settlement";
+import { allocationEdit, carryAllocations } from "../world/settlement";
 import { styleRegistry } from "../world/style";
 import { createTownStore, seededTown, type TownStore } from "./townStore";
 import { SCENARIO, STRESS, TOWN_KEY, worldRuntime } from "./world";
@@ -53,11 +53,12 @@ class TownRuntime {
   constructor() {
     // A scenario's town starts with its zones' looks (Studio's four districts); the stress fixtures start empty.
     const initial = STRESS ? undefined : seededTown(SCENARIO.townZones, this.context);
-    this.store = createTownStore({ context: this.context, name: TOWN_KEY, ...(initial ? { initial } : {}) });
+    // Lots are facts of the town, not edits: an undo or redo carries them into the revision it restores.
+    this.store = createTownStore({ context: this.context, name: TOWN_KEY, carry: carryAllocations, ...(initial ? { initial } : {}) });
     this.#state = this.#derive();
     this.store.subscribe(() => {
       this.#refresh();
-      // An undo may go back to before a project had its lot: it gets one again at once.
+      // An imported town may lack a project's lot: it gets one at once. An undo never does (see `carryAllocations`).
       this.#allocate();
     });
     void this.store.load().then(() => {
@@ -124,7 +125,8 @@ class TownRuntime {
 
   /**
    * Gives every project the world sees for the first time its lot (`settlement.ts`), in the current revision: where
-   * a building stands is the world's record, not a person's edit, so it adds no undo step.
+   * a building stands is the world's record, not a person's edit, so it adds no undo step, and an undo past this
+   * point keeps the lot (the store carries allocations forward).
    */
   #allocate() {
     if (!this.store.state.loaded) return;

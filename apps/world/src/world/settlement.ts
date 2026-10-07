@@ -17,9 +17,10 @@
 
    Nothing here moves a building. `allocate` only adds: a project gets the next free lot of its zone's sequence the
    first time it is seen, and keeps it. `tidy` and a hand move are the only ways a lot changes, and both are explicit
-   edits of the town document. */
+   edits of the town document. An allocation is a fact of the town, not an edit: it stays out of the undo history
+   (`carryAllocations` brings the lots given since along when a revision is restored). */
 import { DEFAULT_ZONE_ID } from "@crewhub/world-model";
-import type { District, DistrictSlot, GridCell, PlotLot, TownDocument, TownEdit } from "@crewhub/world-model";
+import type { District, DistrictSlot, GridCell, Plot, PlotLot, TownDocument, TownEdit } from "@crewhub/world-model";
 import { GREEN_BELT, PITCH, PLOT_SIZE, STREET, type Bounds, type PlotSpot } from "./townLayout.ts";
 
 /* ── Lots ─────────────────────────────────────────────────────────────── */
@@ -616,4 +617,45 @@ export function moveEdit(doc: Pick<TownDocument, "plots" | "districts">, slug: s
   const slot = slotOf(to.cell);
   const open = settlement.districts.some((d) => slotKey(d.slot) === slotKey(slot));
   return { type: "move-plot", slug, cell: { ...to.cell }, ...(open ? {} : { districts: [{ zoneId: zoneOf(current), slot }] }) };
+}
+
+/**
+ * Carries the allocations made since `to` was current forward into it, for an undo or a redo from `from`: every
+ * project that has a plot in `from` but none in `to` keeps that plot (style and cast included), and the district it
+ * stands in comes along where `to` has none on that slot. The restored plots (the hand edit being undone or redone)
+ * keep their order, so the founding project stays the same; one whose lot a carried project took meanwhile takes its
+ * zone's next free lot instead: it was moved by hand, the newcomer was not. Returns `to` itself when there is nothing
+ * to carry. The revision number is `to`'s: the store replaces that revision in place.
+ */
+export function carryAllocations(from: TownDocument, to: TownDocument): TownDocument {
+  const known = new Set(to.plots.map((p) => p.slug));
+  const carried = from.plots.filter((p) => !known.has(p.slug));
+  if (!carried.length) return to;
+  const districts: District[] = [...(to.districts ?? [])];
+  const slots = new Set(districts.map((d) => slotKey(d.slot)));
+  for (const plot of carried) {
+    const slot = slotOf(plot.cell);
+    if (slots.has(slotKey(slot))) continue;
+    const district = (from.districts ?? []).find((d) => slotKey(d.slot) === slotKey(slot));
+    if (!district) continue;
+    districts.push(district);
+    slots.add(slotKey(slot));
+  }
+  const taken = new Set(carried.map((p) => lotKey(p.cell)));
+  // Everyone whose lot is still free stands as restored; only then are the others rehoused, so nobody is pushed off.
+  const kept = to.plots.filter((p) => !taken.has(lotKey(p.cell)));
+  const standing: Plot[] = [...kept, ...carried];
+  const rehoused = new Map<string, Plot>();
+  for (const plot of to.plots) {
+    if (!taken.has(lotKey(plot.cell))) continue;
+    const found = nextFreeLot({ plots: standing, districts }, zoneOf(plot));
+    // Only a full lattice leaves a building without a lot; the next allocation pass gives it one.
+    if (!found) continue;
+    districts.push(...found.districts);
+    const moved = { ...plot, cell: found.cell };
+    standing.push(moved);
+    rehoused.set(plot.slug, moved);
+  }
+  const restored = to.plots.flatMap((p) => (taken.has(lotKey(p.cell)) ? (rehoused.has(p.slug) ? [rehoused.get(p.slug)!] : []) : [p]));
+  return { ...to, plots: [...restored, ...carried], districts };
 }
