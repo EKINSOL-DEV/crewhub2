@@ -4,7 +4,8 @@ For Nicky. The world's side of the Mac install: what crewhub-loops must have bef
 the world's host relay reaches it, how to run the world in live mode, and what each state chip means. Written
 against crewhub-loops `053b5f47` (2026-10-07) and the world's phase 1 build of the same day
 ([integration plan](LOOPS_INTEGRATION_PLAN.md) section 10). Every loops command below is copied verbatim from
-`loops:docs/porting/MAC-QUICKSTART.md`; the world's commands are this repository's.
+`loops:docs/porting/MAC-QUICKSTART.md`, except the two lines in step 3 that are marked as not from there; the
+world's commands are this repository's.
 
 **The shape.** The browser never talks to crewhub-loops. It talks to the world's own relay, `apps/host`, which holds
 one agent key, keeps one event stream open and serves `/world-api` on loopback. Nothing is written to crewhub-loops.
@@ -34,11 +35,8 @@ All of this is `loops:docs/porting/MAC-QUICKSTART.md`, sections 0 to 5 and 8. In
 
 1. **The stack up on 8091, with the three compose files, always** (`compose.yaml`, `compose.local.yaml`,
    `compose.mac.yaml`; without the Mac overlay the database sits on a bind mount and gets damaged). The quickstart
-   makes `~/.config/crewhub-loops/mac.env`, which defines `chl_compose` with all three. In every new terminal:
-
-   ```sh
-   source ~/.config/crewhub-loops/mac.env
-   ```
+   makes `~/.config/crewhub-loops/mac.env`, which defines `chl_compose` with all three and is sourced first in
+   every new terminal:
 
    ```sh
    source ~/.config/crewhub-loops/mac.env
