@@ -60,7 +60,10 @@ All of this is `loops:docs/porting/MAC-QUICKSTART.md`, sections 0 to 5 and 8. In
    (proposal L1 is open); the role for a process that only reads is still spelled `probe`
    (`loops:.../contracts/common.py`, `AgentRole`). A `probe` key may `GET` like any agent and may `PUT` only the
    four team and lane-watch routes in `PROBE_WRITES` (`loops:.../auth/deps.py`), which the host never calls and
-   its allow-list cannot reach. `crewhub-agents register` refuses a name the seed does not know
+   its allow-list cannot reach. Every route the host reads takes any authenticated principal (`require_user` on
+   projects, board, tickets, team, releases and the stream; `PrincipalDep` on milestones; any agent on the
+   watchdog: `loops:.../api/routers/`), and the project list has no per-agent filter, so a plain `probe` sees the
+   whole installation. `crewhub-agents register` refuses a name the seed does not know
    (`unknown agent 'crewhub-world' (add it to config/agents.yaml)`), so the agent is added to the seed first, as a
    plain `probe` with no other flag, then imported, then given a key:
 
