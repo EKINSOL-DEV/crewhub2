@@ -51,6 +51,13 @@ export const CODE_KEYS: readonly ModelKey[] = [
   "furniture.shelf",
   "furniture.workdesk",
   "furniture.lead-desk",
+  "furniture.rack-backlog",
+  "furniture.rack-planning",
+  "furniture.rack-review",
+  "furniture.rack-done",
+  "furniture.huddle-table",
+  "furniture.archive-counter",
+  "decor.office-window",
   "ticket.strap",
   "ticket.seal",
   "ticket.band",
@@ -98,6 +105,13 @@ export const SURFACES: Partial<Record<ModelKey, number>> = {
   "furniture.workdesk": 0.565,
   "furniture.lead-desk": 0.635,
   "furniture.desk": 0.92,
+  // A status rack's first shelf; the shelves above it are `RACK_SHELF_PITCH` apart (furniture.ts).
+  "furniture.rack-backlog": 0.09,
+  "furniture.rack-planning": 0.09,
+  "furniture.rack-review": 0.09,
+  "furniture.rack-done": 0.09,
+  "furniture.huddle-table": 0.532,
+  "furniture.archive-counter": 0.542,
 };
 
 /** A pool of lamp light: its radius, and its height and offset in the model's own frame (origin: footprint centre). */

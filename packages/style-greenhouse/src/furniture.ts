@@ -119,3 +119,146 @@ export function leadDesk(kit: Kit): THREE.Group {
   put(g, tray, -0.45, 0.645, 0.18);
   return g;
 }
+
+/* ── The three-room building (spec addendum "three rooms per building") ──────────────────────────────────────────── */
+
+/** The shelves of a status rack: the first shelf's top above the floor, and the rise from one shelf to the next. */
+export const RACK_SHELF_TOP = 0.09;
+export const RACK_SHELF_PITCH = 0.36;
+const RACK_SHELVES = 4;
+
+/**
+ * A status rack of Administration: three cells wide and one deep (1.8 x 0.6 at the interior scale), four open timber
+ * shelves on a slate frame, a sign board on top. The sign's words are a label of the view (a real text label, like a
+ * room sign), never baked in. Boxes stand on the shelves: `RACK_SHELF_TOP + level * RACK_SHELF_PITCH`.
+ */
+export function statusRack(kit: Kit): THREE.Group {
+  const g = new THREE.Group();
+  const width = 1.68,
+    depth = 0.46;
+  const top = RACK_SHELF_TOP + (RACK_SHELVES - 1) * RACK_SHELF_PITCH;
+  for (let i = 0; i < RACK_SHELVES; i++) {
+    const y = RACK_SHELF_TOP + i * RACK_SHELF_PITCH;
+    put(g, kit.box(width, 0.035, depth, i % 2 ? "timber-light" : "timber", 0.008), 0, y - 0.0175, 0);
+  }
+  // Four slate uprights and a back rail per shelf, so the rack reads as a frame from the home camera.
+  for (const x of [-width / 2 + 0.03, width / 2 - 0.03]) for (const z of [-depth / 2 + 0.03, depth / 2 - 0.03]) put(g, kit.box(0.04, top + 0.2, 0.04, "slate", 0.008), x, (top + 0.2) / 2, z);
+  for (let i = 1; i < RACK_SHELVES; i++) put(g, kit.box(width - 0.08, 0.025, 0.02, "slate", 0.004), 0, RACK_SHELF_TOP + i * RACK_SHELF_PITCH - 0.14, -depth / 2 + 0.05);
+  // The sign board: a cream plaque on a timber rail across the top of the frame.
+  put(g, kit.box(width + 0.04, 0.05, 0.05, "timber-trim", 0.01), 0, top + 0.22, -depth / 2 + 0.03);
+  put(g, kit.box(0.74, 0.22, 0.03, "cream", 0.006), 0, top + 0.37, -depth / 2 + 0.03);
+  put(g, kit.box(0.8, 0.26, 0.02, "timber-trim", 0.008), 0, top + 0.37, -depth / 2 + 0.005);
+  return g;
+}
+
+/**
+ * The huddle: a small round table on the floor where the agents gather (it replaces the meeting room). Two cells
+ * square; places all round it. Its top is a work surface in the manifest (`furniture.huddle-table`).
+ */
+export function huddleTable(kit: Kit): THREE.Group {
+  const g = new THREE.Group();
+  put(g, kit.cylinder(0.2, 0.26, 0.04, "sage"), 0, 0.02, 0);
+  put(g, kit.cylinder(0.05, 0.07, 0.46, "sage"), 0, 0.27, 0);
+  put(g, kit.cylinder(0.52, 0.52, 0.02, "timber"), 0, 0.5, 0);
+  put(g, kit.cylinder(0.5, 0.5, 0.025, "timber-light"), 0, 0.52, 0);
+  // A jug of flowers in the middle and a few notes: the table is in use.
+  put(g, kit.cylinder(0.045, 0.035, 0.11, "cup"), 0, 0.585, 0);
+  for (let i = 0; i < 3; i++) {
+    const a = i * 2.1 + 0.4;
+    const bloom = put(g, kit.sphere(0.03, ["blossom", "blossom-deep", "blossom-white"][i]!), Math.sin(a) * 0.035, 0.66 + (i % 2) * 0.02, Math.cos(a) * 0.035);
+    bloom.castShadow = false;
+  }
+  put(g, kit.box(0.14, 0.01, 0.1, "paper", 0.003), 0.26, 0.535, -0.12).rotation.y = 0.5;
+  put(g, kit.box(0.14, 0.01, 0.1, "paper", 0.003), -0.22, 0.535, 0.2).rotation.y = -0.3;
+  return g;
+}
+
+/**
+ * Administration's archive counter: a chalk counter with a timber top, a ledger and a small brass bell. The archived
+ * count stands over it as a label of the view. Two cells wide, one deep; its front faces +z.
+ */
+export function archiveCounter(kit: Kit): THREE.Group {
+  const g = new THREE.Group();
+  put(g, kit.box(1.1, 0.5, 0.42, "chalk", 0.025), 0, 0.25, 0);
+  put(g, kit.box(1.18, 0.045, 0.5, "timber", 0.012), 0, 0.52, 0);
+  put(g, kit.box(1.1, 0.03, 0.02, "timber-trim", 0.006), 0, 0.3, 0.2);
+  // A ledger open on the top, a stack of filed cards, the bell.
+  put(g, kit.box(0.3, 0.02, 0.22, "book-a", 0.004), -0.25, 0.552, 0.03).rotation.y = 0.12;
+  put(g, kit.box(0.26, 0.012, 0.19, "paper", 0.003), -0.25, 0.568, 0.03).rotation.y = 0.12;
+  for (let i = 0; i < 3; i++) put(g, kit.box(0.2, 0.05, 0.14, ["book-b", "book-c", "book-a"][i]!, 0.006), 0.22 + i * 0.015, 0.567 + i * 0.05, -0.08);
+  put(g, kit.cylinder(0.035, 0.045, 0.03, "brass"), 0.42, 0.557, 0.1);
+  put(g, kit.sphere(0.035, "brass"), 0.42, 0.6, 0.1);
+  return g;
+}
+
+/**
+ * The window in the lead's office's east wall, onto the floor: a timber frame with four panes standing on the
+ * partition, so the lead sees the floor and the floor sees the lead. Hangs on a partition like the small art pieces
+ * (its origin is its footprint centre at floor level; its face is +z).
+ */
+export function officeWindow(kit: Kit): THREE.Group {
+  const g = new THREE.Group();
+  const width = 1.16,
+    height = 0.74,
+    base = 0.5;
+  put(g, kit.box(width, 0.06, 0.12, "timber", 0.012), 0, base + 0.03, 0);
+  for (const x of [-width / 2 + 0.03, width / 2 - 0.03]) put(g, kit.box(0.06, height, 0.08, "timber", 0.01), x, base + height / 2, 0);
+  put(g, kit.box(width, 0.06, 0.1, "timber", 0.012), 0, base + height - 0.03, 0);
+  put(g, kit.box(0.04, height - 0.12, 0.06, "timber-trim", 0.008), 0, base + height / 2, 0);
+  put(g, kit.box(width - 0.12, 0.04, 0.06, "timber-trim", 0.008), 0, base + height / 2, 0);
+  const pane = put(g, kit.box(width - 0.12, height - 0.12, 0.012, "glass", 0.002), 0, base + height / 2, 0);
+  pane.material = kit.material("glass", { transparent: 0.35 });
+  pane.castShadow = false;
+  // A small plant on the sill, on the office side.
+  const pot = plant(kit, 3);
+  pot.scale.setScalar(0.22);
+  put(g, pot, width / 2 - 0.2, base + 0.06, 0.1);
+  return g;
+}
+
+/** A desk by role (addendum "three rooms"): the analyst's screens, the designer's drawing table. */
+export type DeskRole = "analyst" | "design";
+
+/**
+ * A workstation of the floor, by its zone: the plain desk (`workdesk`), with a second screen and a chart stand for the
+ * analyst, or a small drawing board on trestles beside it for the designer. The footprint stays 2 x 1: what is added
+ * stands on the desk's top or within its cells.
+ */
+export function roleDesk(kit: Kit, role: DeskRole, seed = 0): THREE.Group {
+  const g = workdesk(kit, seed);
+  // The desk's own frame, at its scale: the seat is at +z, the camera at -z, the top at 0.565; the lamp stands at
+  // (+0.42, -0.12), the ticket stack at (-0.21, 0), the pad at (-0.35, +0.07), the mug and the plant at +0.38.
+  if (role === "analyst") {
+    // A second monitor at the desk's east end, turned to the seat, and a chart on a stand before the screens.
+    const monitor = new THREE.Group();
+    put(monitor, kit.box(0.28, 0.21, 0.03, "graphite"), 0, 0.105, 0);
+    const screen = put(monitor, kit.box(0.25, 0.17, 0.008, "glass"), 0, 0.115, 0.017);
+    screen.material = kit.material("glass", { glow: "screen-glow" });
+    for (let i = 0; i < 3; i++) put(monitor, kit.box(0.06 + i * 0.04, 0.012, 0.004, i ? "code" : "code-hi", 0.001), -0.07 + i * 0.02, 0.165 - i * 0.035, 0.022);
+    put(monitor, kit.box(0.04, 0.06, 0.03, "slate"), 0, -0.03, -0.005);
+    put(monitor, kit.box(0.14, 0.012, 0.09, "slate"), 0, -0.06, -0.005);
+    monitor.rotation.y = 0.5;
+    put(g, monitor, -0.44, 0.63, -0.12);
+    const chart = put(g, kit.box(0.1, 0.075, 0.005, "paper", 0.001), 0.1, 0.63, -0.02);
+    chart.rotation.set(0.35, 0.15, 0);
+    for (let i = 0; i < 4; i++) put(chart, kit.box(0.012, 0.02 + i * 0.01, 0.003, ["sage", "coral", "tangerine", "circle"][i]!, 0.001), -0.03 + i * 0.018, -0.025 + (0.02 + i * 0.01) / 2, 0.003);
+  } else {
+    // A drawing board on two trestles, leaning on the desk's far side and tilted to the camera: a sketch, three
+    // colour swatches and a cup of pencils on its ledge.
+    const board = new THREE.Group();
+    for (const x of [-0.18, 0.18]) put(board, kit.box(0.03, 0.4, 0.2, "timber", 0.006), x, 0.2, 0);
+    const tilt = -0.42;
+    const top = put(board, kit.box(0.5, 0.025, 0.36, "timber-light", 0.006), 0, 0.42, 0);
+    top.rotation.x = tilt;
+    const sheet = put(board, kit.box(0.36, 0.006, 0.26, "paper", 0.002), 0, 0.436, -0.004);
+    sheet.rotation.x = tilt;
+    put(sheet, kit.box(0.2, 0.004, 0.004, "ink", 0.001), -0.03, 0.004, -0.04).rotation.y = 0.4;
+    put(sheet, kit.box(0.14, 0.004, 0.004, "ink", 0.001), 0.05, 0.004, 0.03).rotation.y = -0.7;
+    for (let i = 0; i < 3; i++) put(sheet, kit.box(0.045, 0.004, 0.045, ["coral", "sage", "tangerine"][i]!, 0.001), -0.1 + i * 0.1, 0.004, 0.09);
+    const ledge = put(board, kit.box(0.5, 0.02, 0.03, "timber", 0.004), 0, 0.345, -0.17);
+    ledge.rotation.x = tilt;
+    put(board, kit.cylinder(0.025, 0.022, 0.07, "clay"), 0.2, 0.395, -0.15);
+    put(g, board, 0.14, 0, -0.34);
+  }
+  return g;
+}

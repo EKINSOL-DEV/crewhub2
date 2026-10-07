@@ -21,7 +21,7 @@ import * as civic from "./civic.ts";
 import * as life from "./life.ts";
 import { compileLights, type Light, type Lights } from "./daylight.ts";
 import { environment } from "./environment.ts";
-import { bench, desk, lamp, leadDesk, shelf, sofa, table, workdesk } from "./furniture.ts";
+import { archiveCounter, bench, desk, huddleTable, lamp, leadDesk, officeWindow, roleDesk, shelf, sofa, statusRack, table, workdesk } from "./furniture.ts";
 import { Kit, type GreenhouseManifestData } from "./kit.ts";
 import { BLOB_SHADOWS, LIGHT_POOLS, SURFACES } from "./keys.ts";
 import { compileLook, type Look, type LooksData, type MaterialSwap } from "./looks.ts";
@@ -316,9 +316,21 @@ class GreenhouseStyle implements WorldStyle {
       case "furniture.shelf":
         return shelf(kit);
       case "furniture.workdesk":
-        return workdesk(kit, o.seed ?? 0);
+        // The floor's desks by role: the analyst's screens, the designer's drawing board (addendum "three rooms").
+        return o.variant === "analyst" || o.variant === "design" ? roleDesk(kit, o.variant, o.seed ?? 0) : workdesk(kit, o.seed ?? 0);
       case "furniture.lead-desk":
         return leadDesk(kit);
+      case "furniture.rack-backlog":
+      case "furniture.rack-planning":
+      case "furniture.rack-review":
+      case "furniture.rack-done":
+        return statusRack(kit);
+      case "furniture.huddle-table":
+        return huddleTable(kit);
+      case "furniture.archive-counter":
+        return archiveCounter(kit);
+      case "decor.office-window":
+        return officeWindow(kit);
       case "ticket.strap":
         return pieces.straps(kit, o);
       case "ticket.seal":

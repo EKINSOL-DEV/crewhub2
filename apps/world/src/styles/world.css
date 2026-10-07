@@ -438,6 +438,11 @@
   gap: 0;
   background: color-mix(in oklab, var(--surface-raised) 88%, transparent);
 }
+/* A rack's sign hangs centred over the rack's top rail. */
+.room-sign.rack-sign {
+  transform: translate(-50%, -100%);
+  align-items: center;
+}
 .room-sign.dimmed {
   background: var(--surface-sunken);
   color: var(--text-muted);

@@ -67,7 +67,8 @@ export function assignDesks(building: Building, template: BuildingTemplate): Map
   return slots;
 }
 
-export type Surface = "floor" | "rack" | "table" | "pile" | "pallet" | "desk" | "lead-desk";
+/** What an object stands on; "shelf" is a status rack's bottom shelf, `level` shelves up (the three-room plan). */
+export type Surface = "floor" | "rack" | "shelf" | "table" | "pile" | "pallet" | "desk" | "lead-desk";
 
 export interface Placement {
   room: RoomKind;

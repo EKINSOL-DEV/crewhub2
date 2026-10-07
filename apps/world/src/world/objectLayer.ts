@@ -120,6 +120,8 @@ export interface ObjectLayerContext {
   truck: THREE.Vector3;
   /** Surface heights for the furniture objects stand on. */
   surface: (surface: Surface) => number;
+  /** The rise from one rack shelf to the next: an object on a "shelf" stands `level` shelves up, not on a stack. */
+  shelfPitch: () => number;
 }
 
 export class ObjectLayer {
@@ -207,6 +209,8 @@ export class ObjectLayer {
   }
 
   #restOf(p: Placement, stacked: Map<string, number>, height: number): THREE.Vector3 {
+    // On a rack's shelves the level is the shelf; elsewhere the objects below it in the same stack.
+    if (p.surface === "shelf") return new THREE.Vector3(p.x * BUILDING_CELL, this.#ctx.surface("shelf") + p.level * this.#ctx.shelfPitch(), p.z * BUILDING_CELL);
     const below = stacked.get(p.slot) ?? 0;
     stacked.set(p.slot, below + height + 0.005);
     return new THREE.Vector3(p.x * BUILDING_CELL, this.#ctx.surface(p.surface) + below, p.z * BUILDING_CELL);
@@ -225,7 +229,7 @@ export class ObjectLayer {
     }
     const target = layout.targets.get(state.object.ticketId);
     const to = transit.toRoom === "truck" ? this.#ctx.truck.clone() : target ? this.#restOf(target, new Map(), 0) : state.rest?.clone() ?? state.pos.clone();
-    if (target) to.y += target.level * this.#body(state.object).height * OBJECT_SCALE;
+    if (target && target.surface !== "shelf") to.y += target.level * this.#body(state.object).height * OBJECT_SCALE;
     if (!state.flight) {
       state.flight = { from: (state.rest ?? state.pos).clone(), to, startedAt: transit.startedAt, until: transit.until, retargetAt: transit.startedAt };
     } else if (state.flight.to.distanceToSquared(to) > 1e-6 || state.flight.until !== transit.until) {

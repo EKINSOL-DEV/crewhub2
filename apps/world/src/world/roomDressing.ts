@@ -12,7 +12,7 @@
    Everything is placed relative to each room's rectangle, its doors, its existing furniture and the template's
    dressing zones, never against fixed coordinates, so the dressing follows the template when it changes. */
 import { approachCells, cellKey, occupancy, propCells, type Cell, type Definitions, type PropDefinition, type Rotation, type WorldProp } from "@crewhub/world-engine";
-import type { RoomKind } from "@crewhub/world-model";
+import type { AgentPlacement, RoomKind } from "@crewhub/world-model";
 import type { ModelKey } from "@crewhub/world-style";
 import type { BuildingTemplate, DressingZone, TemplateRoom } from "./buildingTemplate.ts";
 
@@ -78,6 +78,54 @@ function random(seed: number): () => number {
 }
 
 const roomSeed = (seed: number, kind: RoomKind) => dressingSeed(`${seed}:${kind}`);
+
+/* ── The three-room plan (spec addendum "three rooms per building") ───── */
+
+/** The status racks of Administration, in the order they stand along the north wall, and the model room each holds. */
+export const RACKS = [
+  { definitionId: "rack-backlog", room: "storage", sign: "Backlog" },
+  { definitionId: "rack-planning", room: "planning", sign: "Planning" },
+  { definitionId: "rack-review", room: "review", sign: "Review" },
+  { definitionId: "rack-done", room: "dispatch", sign: "Done" },
+] as const satisfies readonly { definitionId: string; room: RoomKind; sign: string }[];
+export type RackDefinition = (typeof RACKS)[number]["definitionId"];
+export const RACK_DEFINITIONS: readonly string[] = RACKS.map((r) => r.definitionId);
+
+/** True for the three-room plan: a template that says so, or (before the plan is on the template) one with the racks. */
+export function isThreeRoom(template: Pick<BuildingTemplate, "rooms"> & { plan?: string }): boolean {
+  return template.plan === "three-rooms" || template.rooms.some((r) => r.layout.props.some((p) => p.definitionId === "rack-backlog"));
+}
+
+/** The halls' names: what their signs say (the hall's own kind is the key, as the addendum maps it). */
+const HALL_NAMES: Partial<Record<RoomKind, string>> = { lobby: "Administration", workers: "The floor", "lead-office": "Lead's office" };
+export function hallName(kind: RoomKind): string | null {
+  return HALL_NAMES[kind] ?? null;
+}
+
+/**
+ * The role zone a floor desk carries in its id (`desk-analyst-3`; threeRoomTemplate.ts), or null for a desk whose zone
+ * is its room. The view draws the analyst's screens and the designer's drawing board from it.
+ */
+export function deskZoneOf(desk: Pick<WorldProp, "id">): "workers" | "analyst" | "design" | null {
+  const m = /^desk-(workers|analyst|design)-\d+$/.exec(desk.id);
+  return m ? (m[1] as "workers" | "analyst" | "design") : null;
+}
+
+/** What a desk lamp shows: the lane of the agent at the desk, or that the ticket there has stalled. */
+export type LampLane = "working" | "waiting" | "idle" | "off" | "dim";
+
+/**
+ * The desk lamp's lane (the floor, addendum): green working, amber waiting on the operator, grey idle, off when the
+ * agent is gone; a stalled ticket dims it whatever the lane (and the quiet clock stands by). A proxy's desk idles.
+ */
+export function lampLane(agent: Pick<AgentPlacement, "presence" | "posture" | "laneStatus"> | null, deskWaiting: boolean, stalled: boolean): LampLane {
+  if (stalled) return "dim";
+  if (!agent) return "off";
+  if (agent.presence === "proxy") return "idle";
+  if (deskWaiting || agent.posture === "raised-hand" || agent.laneStatus === "blocked") return "waiting";
+  if (agent.posture === "focused" || agent.laneStatus === "working") return "working";
+  return "idle";
+}
 
 /* ── Room facts ───────────────────────────────────────────────────────── */
 
@@ -158,6 +206,12 @@ interface Want {
 
 const SIDE_COST: Record<Side, number> = { north: 0, west: 0.5, east: 3, south: 4 };
 
+/** The piles a room holds: its own kind's, and those of the model rooms it hosts (a hall of the three-room plan). */
+function pilesOf(room: TemplateRoom & { hosts?: readonly RoomKind[] }, piles: DressOptions["piles"]): { pallet: { x: number; z: number } }[] {
+  if (!piles) return [];
+  return [room.kind, ...(room.hosts ?? [])].flatMap((kind) => (piles[kind] ? [piles[kind]!] : []));
+}
+
 class Planner {
   readonly props: WorldProp[];
   readonly #defs: Definitions;
@@ -197,8 +251,7 @@ class Planner {
         for (let z = -1; z <= def.footprint.depth; z++) for (let x = -1; x <= def.footprint.width; x++) keep(p.cell.x + x, p.cell.z + z);
     }
     // An overflowing pile's pallet, and where an agent without a desk waits.
-    const pile = piles?.[facts.room.kind];
-    if (pile) for (const [dx, dz] of [[-1, -1], [0, -1], [-1, 0], [0, 0]] as const) keep(Math.floor(pile.pallet.x + 0.5) + dx, Math.floor(pile.pallet.z + 0.5) + dz);
+    for (const pile of pilesOf(facts.room, piles)) for (const [dx, dz] of [[-1, -1], [0, -1], [-1, 0], [0, 0]] as const) keep(Math.floor(pile.pallet.x + 0.5) + dx, Math.floor(pile.pallet.z + 0.5) + dz);
     const home = { x: Math.floor(width / 2), z: depth - 2 };
     for (const dx of [-1, 0, 1]) keep(home.x + dx, home.z);
     this.#reach.push(home);
@@ -333,7 +386,7 @@ const offset = (p: { x: number; z: number; front: { x: number; z: number } }, ah
 });
 
 /** What each room wants, in order; later pieces may anchor on earlier ones. */
-function plan(kind: RoomKind, facts: RoomFacts, planner: Planner, defs: Definitions, rand: () => number) {
+function plan(kind: RoomKind, facts: RoomFacts, planner: Planner, defs: Definitions, rand: () => number, threeRoom = false) {
   const place = (want: Want) => planner.place(want);
   const centre = { x: facts.width / 2, z: facts.depth / 2 };
   const plants = (n: number, word = "plant") => {
@@ -343,6 +396,10 @@ function plan(kind: RoomKind, facts: RoomFacts, planner: Planner, defs: Definiti
       place({ def: "plant", at: "free", anchor: zone ? { x: zone.x + (rand() < 0.5 ? 0.5 : zone.width - 0.5), z: zone.z + (rand() < 0.5 ? 0.5 : zone.depth - 0.5) } : null });
     }
   };
+  if (threeRoom && kind !== "lead-office") {
+    planHall(kind, facts, planner, defs, rand, plants);
+    return;
+  }
   switch (kind) {
     case "lead-office": {
       const sofa = place({ def: "lounge-sofa", at: "wall", anchor: zoneCentre(facts, "sofa") ?? centre, sides: ["west", "north", "east", "south"] });
@@ -456,6 +513,8 @@ function plan(kind: RoomKind, facts: RoomFacts, planner: Planner, defs: Definiti
   // stretch of a room of 60 cells or more, a big planter in storage and dispatch.
   // Not in the lobby (it has its own seats) nor the workers room, where the stretch lies between the desk rows.
   const stretch = kind !== "lobby" && kind !== "workers" && facts.width * facts.depth >= 60 ? planner.bareStretch(3) : null;
+  // The office of the three-room plan is 9 x 18: room for the nook too, but the sofa corner is its rest; keep it calm.
+  if (threeRoom) return;
   if (!stretch) return;
   if (kind === "storage" || kind === "dispatch") {
     place({ def: "planter", at: "free", anchor: stretch, tag: "nook" });
@@ -466,6 +525,48 @@ function plan(kind: RoomKind, facts: RoomFacts, planner: Planner, defs: Definiti
   place({ def: "side-table", at: "free", anchor: { x: chair.cell.x + 1.5, z: chair.cell.z + 0.5 }, tag: "nook" });
   place({ def: rand() < 0.5 ? "reading-lamp" : "floor-lamp", at: "free", anchor: { x: chair.cell.x - 0.5, z: chair.cell.z - 0.5 }, tag: "nook" });
   if (rand() < 0.6) place({ def: "plant", at: "free", anchor: { x: chair.cell.x + 2.5, z: chair.cell.z - 0.5 }, tag: "nook" });
+}
+
+/**
+ * The halls of the three-room plan. Administration (kind `lobby`): the racks, the mailbox and the counter are the
+ * template's; the dressing adds what an office's back room has (a filing cabinet, a parcel cart by the loading door,
+ * crates, plants by the front door). The floor (kind `workers`): plants between the desks, a water cooler, a board.
+ */
+function planHall(kind: RoomKind, facts: RoomFacts, planner: Planner, defs: Definitions, rand: () => number, plants: (n: number, word?: string) => void) {
+  const place = (want: Want) => planner.place(want);
+  const entrance = facts.room.layout.entrance;
+  if (kind === "lobby") {
+    const counter = facts.room.layout.props.find((p) => p.definitionId === "archive-counter");
+    const mailbox = facts.room.layout.props.find((p) => p.definitionId === "mailbox");
+    // Plants flank the front door; an umbrella stand just inside it.
+    place({ def: "plant", at: "free", anchor: { x: entrance.x - 1.5, z: entrance.z - 0.5 } });
+    place({ def: "plant", at: "free", anchor: { x: entrance.x + 2.5, z: entrance.z - 0.5 } });
+    place({ def: "umbrella-stand", at: "free", anchor: { x: entrance.x + 1.5, z: entrance.z - 1.5 } });
+    // The archive's own shelving: a filing cabinet by the counter, against the south wall.
+    if (counter) place({ def: "filing-cabinet", at: "wall", anchor: { x: counter.cell.x + 4, z: facts.depth }, sides: ["south", "east"] });
+    // By the loading door: a parcel cart and a crate stack, where the truck's packages wait.
+    place({ def: "parcel-cart", at: "free", anchor: { x: 2.5, z: facts.depth - 2.5 } });
+    place({ def: "crate-stack", at: "wall", anchor: { x: 0, z: facts.depth - 3 }, sides: ["west"] });
+    // A plant between the mailbox and the counter, and one in the quiet east end.
+    if (mailbox) place({ def: "plant", at: "free", anchor: { x: mailbox.cell.x + 2.5, z: mailbox.cell.z + 1.5 } });
+    place({ def: "plant", at: "free", anchor: { x: facts.width - 1.5, z: 3.5 } });
+    if (rand() < 0.75) place({ def: "autumn-vase", at: "free", anchor: { x: entrance.x - 2.5, z: entrance.z - 1.5 } });
+    return;
+  }
+  if (kind === "workers") {
+    // Plants in the modules' corners, one and a half per module as in the role rooms; the huddle keeps its ring clear.
+    const modules = facts.zones.filter((z) => z.use.includes("plants")).length / 2 || 1;
+    plants(Math.max(2, Math.round(modules * 1.5)), "plants");
+    place({ def: "water-cooler", at: "wall", anchor: { x: facts.width, z: facts.depth - 2 }, sides: ["east", "south"] });
+    if (!facts.tall.north.size) place({ def: "board-stand", at: "wall", anchor: null, sides: ["north"] });
+    const huddle = facts.room.layout.props.find((p) => defs[p.definitionId]?.tags.includes("gather"));
+    // A floor lamp and a side table by the huddle, outside its ring.
+    if (huddle) {
+      place({ def: "floor-lamp", at: "free", anchor: { x: huddle.cell.x - 1.5, z: huddle.cell.z + 3.5 }, tag: "huddle" });
+      place({ def: "side-table", at: "free", anchor: { x: huddle.cell.x + 3.5, z: huddle.cell.z + 3.5 }, tag: "huddle" });
+    }
+    return;
+  }
 }
 
 export interface DressOptions {
@@ -490,7 +591,7 @@ export function dressRooms(template: BuildingTemplate, options: DressOptions): T
     const facts = factsOf(template, room, options.zones, options.loading ?? null);
     const seed = roomSeed(options.seed, room.kind);
     const planner = new Planner(facts, options.definitions, seed, options.piles);
-    plan(room.kind, facts, planner, options.definitions, random(seed ^ 0x5bd1e995));
+    plan(room.kind, facts, planner, options.definitions, random(seed ^ 0x5bd1e995), isThreeRoom(template));
     return { ...room, layout: { ...room.layout, props: planner.props } };
   });
   if (memo.size > 256) memo.clear();
@@ -582,7 +683,7 @@ const RUG_SIZE: Partial<Record<ModelKey, [number, number]>> = {
 };
 const RUG_MARGIN = 0.15;
 /** Pieces low enough to hang art above. */
-const LOW = new Set(["lounge-sofa", "armchair", "side-table", "coffee-table", "bench", "workdesk", "mailbox"]);
+const LOW = new Set(["lounge-sofa", "armchair", "side-table", "coffee-table", "bench", "workdesk", "mailbox", "archive-counter"]);
 /** Where a partition piece's footprint centre stands off the partition, in cells: its back against the face. */
 const PARTITION_OFFSET = 0.485;
 /** Small pieces for the partitions between rooms (0.6 high), by room kind, in the order a room wants them. */
@@ -645,6 +746,7 @@ const PARTITION_ART: Partial<Record<RoomKind, [ModelKey, number][]>> = {
 export function roomDecor(template: BuildingTemplate, options: Omit<DressOptions, "definitions"> & { definitions: Definitions }): DecorItem[] {
   const out: DecorItem[] = [];
   const defs = options.definitions;
+  const threeRoom = isThreeRoom(template);
   for (const room of template.rooms) {
     const facts = factsOf(template, room, options.zones, options.loading ?? null);
     const rand = random(roomSeed(options.seed, room.kind) ^ 0x2545f491);
@@ -701,8 +803,7 @@ export function roomDecor(template: BuildingTemplate, options: Omit<DressOptions
       const pose = poseOf(p, defs);
       rug("decor.rug-long", pose.x, pose.z, 0, { scale: { x: (def.footprint.width + 1.5) / 2.77, y: 1, z: (def.footprint.depth + 1.2) / 1.77 } });
     }
-    const pallet = options.piles?.[room.kind]?.pallet;
-    if (pallet) at("decor.floor-bay", pallet.x, pallet.z);
+    for (const pile of pilesOf(room, options.piles)) at("decor.floor-bay", pile.pallet.x, pile.pallet.z);
 
     // Chairs all around the meeting table, tucked in.
     for (const p of props.filter((q) => q.definitionId === "meeting-table")) {
@@ -726,7 +827,7 @@ export function roomDecor(template: BuildingTemplate, options: Omit<DressOptions
       const c = offset(pose, 1);
       rug("decor.rug-long", c.x, c.z, Math.atan2(pose.front.x, pose.front.z), { scale: { x: 1, y: 1, z: 1.1 } });
     }
-    if (room.kind === "lobby") {
+    if (room.kind === "lobby" && !threeRoom) {
       const e = room.layout.entrance;
       rug("decor.rug-runner", e.x + 0.5, e.z - 1, 0, { scale: { x: 1, y: 1, z: 1.2 } });
       const waiting = zoneCentre(facts, "waiting");
@@ -776,6 +877,37 @@ export function roomDecor(template: BuildingTemplate, options: Omit<DressOptions
       if (free) rug(room.kind === "design" ? "decor.rug-round" : "decor.rug-long", free.x + free.width / 2 + 1, free.z + free.depth / 2 + 1, 0, { scale: { x: 0.7, y: 1, z: 0.7 } });
     }
 
+    if (threeRoom) {
+      // The huddle: a round rug under the table and its ring, a pendant above it.
+      for (const p of props.filter((q) => q.definitionId === "huddle-table")) {
+        const pose = poseOf(p, defs);
+        rug("decor.rug-round", pose.x, pose.z, 0, { scale: { x: 1.45, y: 1, z: 1.45 } });
+        pendant(pose.x, pose.z);
+      }
+      // The office's window onto the floor, in its east wall; the furniture layer draws it whichever way the camera turns.
+      if (room.kind === "lead-office") {
+        const sill = facts.partition.east.size ? [...facts.partition.east].sort((a, b) => a - b) : [];
+        // The middle of the longest clear stretch of the partition, away from the door and the desks beside it.
+        let best: [number, number] | null = null;
+        for (let i = 0; i < sill.length; ) {
+          let j = i;
+          while (j + 1 < sill.length && sill[j + 1] === sill[j]! + 1) j++;
+          if (!best || j - i > best[1] - best[0]) best = [sill[i]!, sill[j]!];
+          i = j + 1;
+        }
+        if (best && best[1] - best[0] >= 1) at("decor.office-window", facts.width, (best[0] + best[1] + 1) / 2, Math.PI / 2);
+      }
+      // A runner from the front door into Administration, and a small rug before the counter.
+      if (room.kind === "lobby") {
+        const e = room.layout.entrance;
+        rug("decor.rug-runner", e.x + 0.5, e.z - 1, 0, { scale: { x: 1, y: 1, z: 1.2 } });
+        const counter = props.find((q) => q.definitionId === "archive-counter");
+        if (counter) {
+          const pose = poseOf(counter, defs);
+          rug("decor.rug-long", pose.x, pose.z - 1.1, 0, { scale: { x: 0.9, y: 1, z: 0.8 } });
+        }
+      }
+    }
     // Wall art along the tall back walls.
     const art = [...(WALL_ART[room.kind] ?? [])];
     const used = new Set<string>();
@@ -868,7 +1000,7 @@ export function roomDecor(template: BuildingTemplate, options: Omit<DressOptions
     }
 
     // Dispatch's loading door gets its roller door, half open.
-    if (options.loading && room.kind === "dispatch" && room.origin.z + facts.depth === template.size.depth) {
+    if (options.loading && (room.kind === "dispatch" || (threeRoom && room.kind === "lobby")) && room.origin.z + facts.depth === template.size.depth) {
       const x1 = Math.max(options.loading.x1, room.origin.x) - room.origin.x,
         x2 = Math.min(options.loading.x2, room.origin.x + facts.width) - room.origin.x;
       if (x2 > x1) at("decor.truck-door", (x1 + x2) / 2, facts.depth - 0.5, Math.PI, { scale: { x: (x2 - x1) / 3, y: 1, z: 1 } });
