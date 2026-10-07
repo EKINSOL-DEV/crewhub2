@@ -10,6 +10,7 @@ import type { EmblemName, ModelKey, PaletteName, ResolvedStyle } from "@crewhub/
 import {
   BACK_WALL_HEIGHT,
   BUILDING_CELL as CELL,
+  deskZone,
   buildingTemplate,
   DEPTH,
   doorOpenings,
@@ -35,7 +36,7 @@ import { cellAt, footprintPose, resolveBuildingPlacements, type BuildingPlacemen
 import { PropLayer, type TownLayer } from "./propLayer";
 import { figureRole, figureState, type FigureFacts } from "./figureState";
 import type { RobotCrowd } from "./robotCrowd";
-import { deskItems, deskZoneOf, DRESS_PREFIX, dressingSeed, isThreeRoom, lampLane, RACKS, roomDecor, type DecorItem } from "./roomDressing";
+import { deskItems, DRESS_PREFIX, dressingSeed, isThreeRoom, lampLane, RACKS, roomDecor, type DecorItem } from "./roomDressing";
 import type { Bounds } from "./townLayout";
 import type { Walker, WorkSpot } from "./walks";
 import { deskClutter, HOME_VIEW, WORK_FURNITURE, workPlace, type Circle, type WorkAt } from "./workPlaces";
@@ -620,7 +621,7 @@ export class BuildingView {
         if (!definition || yielded(room.kind).includes(prop.id)) continue;
         const dressing = prop.id.startsWith(DRESS_PREFIX);
         // The floor's desks by role (addendum): the zone a desk's id carries picks the analyst's or the designer's desk.
-        const zone = def === "workdesk" && threeRoom ? deskZoneOf(prop) : null;
+        const zone = def === "workdesk" && threeRoom ? deskZone(prop) : null;
         const variant = zone === "analyst" || zone === "design" ? { variant: zone } : {};
         const model = style.model(`furniture.${def}`, { seed: dressing ? dressingSeed(prop.id) % 97 : prop.id.length, ...variant });
         const pose = footprintPose(definition, prop.cell, prop.rotation);

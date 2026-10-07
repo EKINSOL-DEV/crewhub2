@@ -95,15 +95,6 @@ export function isThreeRoom(template: Pick<BuildingTemplate, "rooms"> & { plan?:
   return template.plan === "three-rooms" || template.rooms.some((r) => r.layout.props.some((p) => p.definitionId === "rack-backlog"));
 }
 
-/**
- * The role zone a floor desk carries in its id (`desk-analyst-3`; threeRoomTemplate.ts), or null for a desk whose zone
- * is its room. The view draws the analyst's screens and the designer's drawing board from it.
- */
-export function deskZoneOf(desk: Pick<WorldProp, "id">): "workers" | "analyst" | "design" | null {
-  const m = /^desk-(workers|analyst|design)-\d+$/.exec(desk.id);
-  return m ? (m[1] as "workers" | "analyst" | "design") : null;
-}
-
 /** What a desk lamp shows: the lane of the agent at the desk, or that the ticket there has stalled. */
 export type LampLane = "working" | "waiting" | "idle" | "off" | "dim";
 
