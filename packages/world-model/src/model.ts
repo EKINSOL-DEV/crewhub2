@@ -7,7 +7,7 @@
  */
 
 export type TicketStatus = "backlog" | "planned" | "in_progress" | "review" | "done";
-export type TicketKind = "task" | "feature" | "bug" | "question";
+export type TicketKind = "task" | "feature" | "bug" | "question" | "grill";
 export type TicketPriority = "urgent" | "high" | "normal" | "low";
 export type LaneStatus = "working" | "idle" | "done" | "blocked" | "unknown";
 export type ProjectColor = "coral" | "tangerine" | "circle" | "mist" | "ink";

@@ -2,7 +2,9 @@
  * Hand-written runtime validators for the loops wire shapes (loops publishes no schemas yet,
  * proposal L2). Unknown keys are ignored and dropped (stability.md "ignore what you do not know").
  * New values of `reason`, `state` and `resolution` in event payloads are tolerated; a `v` other
- * than 1 on an envelope, a team snapshot or a rich body fails loudly.
+ * than 1 on an envelope, a team snapshot or a rich body fails loudly. A ticket `kind`, a ticket `status` and an
+ * event `type` the package does not know warn once per value (`lenientOneOf`, `warnOnce`) and pass through, so the
+ * next addition in crewhub-loops (as `grill` was, CL-245) never drops a snapshot.
  */
 import type { LoopsSnapshot } from "./source.ts";
 import {
@@ -26,6 +28,7 @@ import {
   TICKET_PRIORITIES,
   TICKET_STATUSES,
   WATCHDOG_MODES,
+  WORLD_EVENT_TYPES,
   isWorldEventType,
 } from "./types.ts";
 import type {
@@ -51,6 +54,8 @@ import type {
   MilestoneRef,
   MilestoneSummary,
   MilestonesResponse,
+  PendingRequest,
+  PendingRequestsResponse,
   PrincipalOut,
   PrincipalRef,
   PrincipalsResponse,
@@ -128,6 +133,30 @@ export function oneOf<const T extends string>(values: readonly T[]): Validator<T
     typeof input === "string" && (values as readonly string[]).includes(input)
       ? ok(input as T)
       : fail(path, `expected one of ${values.join(", ")}, got ${JSON.stringify(input)}`);
+}
+
+/**
+ * An enum the world reads but crewhub-loops may extend (stability.md "new values can appear"): a known value is
+ * typed, an unknown string is warned about once per value and passed through as it came.
+ */
+export function lenientOneOf<const T extends string>(values: readonly T[], what: string): Validator<T> {
+  return (input, path) => {
+    if (typeof input !== "string") return fail(path, `expected one of ${values.join(", ")}, got ${describe(input)}`);
+    if (!(values as readonly string[]).includes(input)) warnOnce(`${what}:${input}`, `unknown ${what} ${JSON.stringify(input)} at ${path}: passed through; the world knows ${values.join(", ")}`);
+    return ok(input as T);
+  };
+}
+
+const warned = new Set<string>();
+/** Warns once per key for the life of the page (a validator runs on every event; a log line per value is enough). */
+export function warnOnce(key: string, message: string): void {
+  if (warned.has(key)) return;
+  warned.add(key);
+  console.warn(`[loops-client] ${message}`);
+}
+/** Forgets what was warned about (tests). */
+export function resetWarnings(): void {
+  warned.clear();
 }
 
 export function nullable<T>(validator: Validator<T>): Validator<T | null> {
@@ -312,8 +341,8 @@ const cardShape: Shape<TicketCard> = {
   id: str,
   key: str,
   title: str,
-  kind: oneOf(TICKET_KINDS),
-  status: oneOf(TICKET_STATUSES),
+  kind: lenientOneOf(TICKET_KINDS, "ticket kind"),
+  status: lenientOneOf(TICKET_STATUSES, "ticket status"),
   resolution: optional(nullable(str)),
   resolutionReason: optional(nullable(str)),
   priority: oneOf(TICKET_PRIORITIES),
@@ -357,7 +386,7 @@ const relationRef = object<RelationRef>({
   id: str,
   key: str,
   title: str,
-  status: oneOf(TICKET_STATUSES),
+  status: lenientOneOf(TICKET_STATUSES, "ticket status"),
   active: bool,
 });
 
@@ -421,7 +450,7 @@ const progressItem = object<ProgressItem>({
 });
 
 const boardColumn = object<BoardColumn>({
-  status: oneOf(TICKET_STATUSES),
+  status: lenientOneOf(TICKET_STATUSES, "ticket status"),
   tickets: arrayOf(ticketCard),
 });
 
@@ -602,7 +631,11 @@ const projectChange = object<WorldEventPayloads["project.updated"]>(
 );
 
 const payloadValidators: { [T in WorldEventType]: Validator<WorldEventPayloads[T]> } = {
-  "ticket.created": object({ kind: oneOf(TICKET_KINDS), status: oneOf(TICKET_STATUSES), assigneeId: nullable(str) }),
+  "ticket.created": object({
+    kind: lenientOneOf(TICKET_KINDS, "ticket kind"),
+    status: lenientOneOf(TICKET_STATUSES, "ticket status"),
+    assigneeId: nullable(str),
+  }),
   "ticket.updated": object({
     changed: arrayOf(str),
     newMentions: optional(unknownValue),
@@ -614,8 +647,8 @@ const payloadValidators: { [T in WorldEventType]: Validator<WorldEventPayloads[T
     code: optional(str),
   }),
   "ticket.moved": object({
-    from: oneOf(TICKET_STATUSES),
-    to: oneOf(TICKET_STATUSES),
+    from: lenientOneOf(TICKET_STATUSES, "ticket status"),
+    to: lenientOneOf(TICKET_STATUSES, "ticket status"),
     position: num,
     renumbered: optional(unknownValue),
     waitingOnCleared: optional(bool),
@@ -689,15 +722,53 @@ const payloadValidators: { [T in WorldEventType]: Validator<WorldEventPayloads[T
 
 // Public entry points
 
+/** Every type events.md lists at 053b5f47 (read-model.md `Envelope.type`), the world's allowlist included. */
+const KNOWN_EVENT_TYPES = [
+  ...WORLD_EVENT_TYPES,
+  "link.added",
+  "link.updated",
+  "link.removed",
+  "attachment.added",
+  "deploy.updated",
+  "label.created",
+  "label.updated",
+  "label.deleted",
+  "repo.created",
+  "repo.updated",
+  "repo.retired",
+  "repo.unretired",
+  "milestone.deleted",
+  "lane.alert",
+  "lane-watch.updated",
+  "host.reported",
+  "onboarding.updated",
+  "agent.created",
+  "agent.updated",
+  "agent-membership.updated",
+  "agent-right.granted",
+  "agent-right.revoked",
+  "lane.updated",
+  "profile.updated",
+  "policy.created",
+  "feature.updated",
+  "delegation.consumed",
+] as const;
+
 /** The envelope only; the payload stays a loose record. `v` other than 1 fails. */
 export const validateEnvelope = run(envelope);
 
 /**
  * Types a valid envelope by its payload. `null` when the type is not on the world's allowlist
- * (skip it, never an error); a failure when an allowlisted payload does not match events.md.
+ * (skip it, never an error; a type events.md does not list either is warned about once); a failure when an
+ * allowlisted payload does not match events.md.
  */
 export function toWorldEvent(env: Envelope): Result<WorldEvent> | null {
-  if (!isWorldEventType(env.type)) return null;
+  if (!isWorldEventType(env.type)) {
+    if (!(KNOWN_EVENT_TYPES as readonly string[]).includes(env.type)) {
+      warnOnce(`event type:${env.type}`, `unknown event type ${JSON.stringify(env.type)} (seq ${env.seq}): skipped; events.md at 053b5f47 does not list it`);
+    }
+    return null;
+  }
   const payload = payloadValidators[env.type](env.payload, "$.payload");
   if (!payload.ok) return payload;
   return ok({ ...env, type: env.type, payload: payload.value } as WorldEvent);
@@ -739,6 +810,19 @@ export const validateDeliveryOut = run(deliveryOut);
 export const validateAgents = run(object<AgentsResponse>({ agents: arrayOf(agentOut) }));
 /** `GET /api/principals`: `{principals: [...]}`. */
 export const validatePrincipals = run(object<PrincipalsResponse>({ principals: arrayOf(principalOut) }));
+
+const pendingRequest = object<PendingRequest>({
+  id: str,
+  messageId: str,
+  agent: str,
+  agentName: str,
+  action: str,
+  target: str,
+  expiresAt: str,
+  text: str,
+});
+/** `GET /api/delegations/pending` (CL-240): `{requests: [...]}`. Read-only; the world does not read it yet. */
+export const validatePendingRequests = run(object<PendingRequestsResponse>({ requests: arrayOf(pendingRequest) }));
 
 export const validateLoopsSnapshot = run(
   object<LoopsSnapshot>({
