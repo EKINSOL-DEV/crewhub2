@@ -9,7 +9,7 @@ describe("the allow-list", () => {
   let host: Host;
   beforeEach(async () => {
     stub = await createLoopsStub(installation());
-    host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", retryMs: { min: 20, max: 100 } });
+    host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 } });
   });
   afterEach(async () => {
     await host.close();

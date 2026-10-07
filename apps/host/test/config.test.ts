@@ -40,12 +40,12 @@ describe("the key file", () => {
 
 describe("the server config", () => {
   it("has the plan's defaults", () => {
-    assert.deepEqual(loadServerConfig({}), { loopsUrl: "http://127.0.0.1:8091", port: 5180, allowedOrigins: [], production: false });
+    assert.deepEqual(loadServerConfig({}), { loopsUrl: "http://127.0.0.1:8091", port: 5180, allowedOrigins: [], production: false, pairing: "on", pairingFile: null, publicUrl: null, warnings: [] });
   });
 
   it("reads the environment and rejects a bad port or URL", () => {
     const config = loadServerConfig({ CREWHUB_WORLD_PORT: "5190", CREWHUB_WORLD_LOOPS_URL: "http://localhost:8091/", CREWHUB_WORLD_ALLOWED_ORIGINS: "http://localhost:5173, http://127.0.0.1:5173", NODE_ENV: "production" });
-    assert.deepEqual(config, { loopsUrl: "http://localhost:8091/", port: 5190, allowedOrigins: ["http://localhost:5173", "http://127.0.0.1:5173"], production: true });
+    assert.deepEqual(config, { loopsUrl: "http://localhost:8091/", port: 5190, allowedOrigins: ["http://localhost:5173", "http://127.0.0.1:5173"], production: true, pairing: "on", pairingFile: null, publicUrl: null, warnings: [] });
     assert.throws(() => loadServerConfig({ CREWHUB_WORLD_PORT: "world" }), ConfigError);
     assert.throws(() => loadServerConfig({ CREWHUB_WORLD_LOOPS_URL: "ftp://x" }), ConfigError);
   });

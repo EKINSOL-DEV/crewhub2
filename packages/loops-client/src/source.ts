@@ -114,6 +114,11 @@ export interface ConnectionStatus {
 export interface HostSourceOptions {
   /** The host's origin, e.g. `http://127.0.0.1:5180`. Default "" (same origin: Vite proxies /world-api in dev). */
   baseUrl?: string;
+  /**
+   * Extra request headers on every read. A browser needs none: the pairing cookie rides along same-origin. A Node
+   * caller (the e2e test, a tool) passes `{ cookie: "crewhub_world_pair=…" }` after pairing.
+   */
+  headers?: Record<string, string>;
   /** The clocks of the source (tests make them short); see `HostSourceTimings` in `hostSource.ts`. */
   timings?: {
     staleMs?: number;

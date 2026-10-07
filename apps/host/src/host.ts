@@ -3,6 +3,7 @@
  * `/world-api` (plan 3.5, integrator Option A). It reads loops through the allow-list only, shares one upstream
  * stream between every tab, and in production serves the built world with an SPA fallback.
  */
+import { timingSafeEqual } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
@@ -10,6 +11,7 @@ import type { AddressInfo } from "node:net";
 import path from "node:path";
 import { WORLD_API_PREFIX, fillPattern, matchWorldRoute } from "./allowList.ts";
 import { createLoopsClient, isUnauthorized } from "./loops.ts";
+import { PAIR_PATH_PREFIX, PAIR_REFUSED_HTML, type Pairing, createPairing, pairCookieHeader } from "./pairing.ts";
 import { SnapshotError, assembleSnapshot } from "./snapshot.ts";
 import { type HostMessage, type LoopsState, createUpstream } from "./stream.ts";
 
@@ -31,11 +33,29 @@ export interface HostOptions {
   heartbeatMs?: number;
   /** Server-side log line; never the key. Default: console.error. */
   log?: (line: string) => void;
+  /** Pairing (plan 3.5): `on` (the default) gates `/world-api/*` behind the cookie; `off` is for development only. */
+  pairing?: "on" | "off";
+  /** The secret cookies are signed with (from CREWHUB_WORLD_PAIRING_FILE); a per-run random one when absent. */
+  pairingSecret?: Buffer;
+  /** Where the browser reaches the host when a TLS proxy stands in front (CREWHUB_WORLD_PUBLIC_URL): https → `Secure` cookie; its origin is allowed. */
+  publicUrl?: string;
+  /**
+   * A loopback-only mint secret: a request `GET /pair-mint` with the header `x-crewhub-world-mint: <secret>` answers a
+   * fresh link, so `npm run host -- open` can pair a browser with a host that already runs (main.ts keeps it in a 0600 run file).
+   */
+  mintSecret?: string;
+  /** The clock, for tests of the link's expiry. */
+  now?: () => number;
 }
+
+export const MINT_PATH = "/pair-mint";
+export const MINT_HEADER = "x-crewhub-world-mint";
 
 export interface Host {
   url: string;
   port: number;
+  /** A one-time link (10 minutes, single use) that pairs the browser opening it. `origin` is the host's own unless given (a Vite dev server that proxies `/pair`). */
+  mintPairLink(origin?: string): string;
   close(): Promise<void>;
 }
 
@@ -47,6 +67,9 @@ export interface HostHealth {
   cursor?: number;
   /** The origin of the loops URL: the web app for the sign-in link (on the Mac the web app and the API share 8091). */
   loopsWebUrl: string;
+  /** Whether THIS request carries a valid pairing cookie (always true with pairing off). */
+  paired: boolean;
+  pairing: "on" | "off";
 }
 
 const MIME: Record<string, string> = {
@@ -86,10 +109,54 @@ export async function createHost(options: HostOptions): Promise<Host> {
   const loopsWebUrl = new URL(options.loopsUrl).origin;
   const staticDir = options.staticDir === undefined ? null : path.resolve(options.staticDir);
   const streams = new Set<ServerResponse>();
+  const pairingMode = options.pairing ?? "on";
+  const pairingOptions: Parameters<typeof createPairing>[0] = {};
+  if (options.pairingSecret !== undefined) pairingOptions.secret = options.pairingSecret;
+  if (options.now !== undefined) pairingOptions.now = options.now;
+  const pairing: Pairing = createPairing(pairingOptions);
+  const publicUrl = options.publicUrl === undefined ? null : new URL(options.publicUrl);
+  const secureCookie = publicUrl?.protocol === "https:";
   let port = 0;
 
-  const allowedHosts = () => new Set([`127.0.0.1:${port}`, `localhost:${port}`]);
-  const allowedOrigins = () => new Set([`http://127.0.0.1:${port}`, `http://localhost:${port}`, ...(options.allowedOrigins ?? [])]);
+  const allowedHosts = () => new Set([`127.0.0.1:${port}`, `localhost:${port}`, ...(publicUrl === null ? [] : [publicUrl.host])]);
+  const allowedOrigins = () =>
+    new Set([`http://127.0.0.1:${port}`, `http://localhost:${port}`, ...(publicUrl === null ? [] : [publicUrl.origin]), ...(options.allowedOrigins ?? [])]);
+  const paired = (req: IncomingMessage) => pairingMode === "off" || pairing.isPaired(req.headers.cookie);
+  const mintPairLink = (origin?: string) => `${origin === undefined ? `http://127.0.0.1:${port}` : origin.replace(/\/$/, "")}${PAIR_PATH_PREFIX}${pairing.mintToken()}`;
+
+  /** `GET /pair/<token>`: the cookie and a 303 to `/`, or the refused page. With pairing off the link is not needed: straight to `/`. */
+  function pair(res: ServerResponse, token: string): void {
+    if (pairingMode === "off") {
+      res.writeHead(303, { location: "/", "cache-control": "no-store" });
+      res.end();
+      return;
+    }
+    const value = pairing.redeem(token);
+    if (value === null) {
+      res.writeHead(403, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+      res.end(PAIR_REFUSED_HTML);
+      return;
+    }
+    res.writeHead(303, { location: "/", "set-cookie": pairCookieHeader(value, secureCookie), "cache-control": "no-store" });
+    res.end();
+  }
+
+  /** `GET /pair-mint` from a loopback tool that knows the run file's secret: a fresh link. No Origin (never a browser page). */
+  function mint(req: IncomingMessage, res: ServerResponse): void {
+    const given = req.headers[MINT_HEADER];
+    const expected = options.mintSecret;
+    const ok =
+      expected !== undefined &&
+      typeof given === "string" &&
+      req.headers.origin === undefined &&
+      given.length === expected.length &&
+      timingSafeEqual(Buffer.from(given), Buffer.from(expected));
+    if (!ok) {
+      sendJson(res, 404, { error: "not_found" });
+      return;
+    }
+    sendJson(res, 200, { link: mintPairLink() });
+  }
 
   /** The Host and Origin guard against DNS rebinding and other sites: 421 for a foreign Host, 403 for a foreign Origin. */
   function guard(req: IncomingMessage, res: ServerResponse): boolean {
@@ -208,6 +275,14 @@ export async function createHost(options: HostOptions): Promise<Host> {
       sendJson(res, 405, { error: "method_not_allowed", message: "The host answers GET only" }, { allow: "GET" });
       return;
     }
+    if (url.pathname.startsWith(PAIR_PATH_PREFIX)) {
+      pair(res, url.pathname.slice(PAIR_PATH_PREFIX.length));
+      return;
+    }
+    if (url.pathname === MINT_PATH) {
+      mint(req, res);
+      return;
+    }
     if (!isApi) {
       await serveStatic(url.pathname, res);
       return;
@@ -218,6 +293,11 @@ export async function createHost(options: HostOptions): Promise<Host> {
       return;
     }
     const { route, params, query } = match;
+    // The pairing gate: everything under /world-api but health needs the cookie (the browser sends it same-origin).
+    if (route.pattern !== "/health" && !paired(req)) {
+      sendJson(res, 401, { error: "not_paired" });
+      return;
+    }
     if (route.kind === "loops") {
       await passthrough(res, fillPattern(route.loopsPattern as string, params), query);
       return;
@@ -225,7 +305,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
     switch (route.pattern) {
       case "/health": {
         await upstream.start();
-        const health: HostHealth = { loops: upstream.state(), keyName: options.keyName, sharedKey, loopsWebUrl };
+        const health: HostHealth = { loops: upstream.state(), keyName: options.keyName, sharedKey, loopsWebUrl, paired: paired(req), pairing: pairingMode };
         const version = upstream.loopsVersion();
         if (version !== undefined) health.loopsCommit = version;
         if (upstream.cursor() >= 0) health.cursor = upstream.cursor();
@@ -265,6 +345,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
   return {
     url: `http://127.0.0.1:${port}`,
     port,
+    mintPairLink,
     async close() {
       await upstream.stop();
       for (const res of streams) res.end();

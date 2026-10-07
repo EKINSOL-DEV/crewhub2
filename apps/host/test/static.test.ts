@@ -17,7 +17,7 @@ describe("static files and the host's own heartbeat", () => {
     await writeFile(path.join(dir, "index.html"), "<!doctype html><title>World</title>");
     await writeFile(path.join(dir, "assets", "index-a1b2c3d4e5.js"), "console.log(1)");
     stub = await createLoopsStub(installation());
-    host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", staticDir: dir, retryMs: { min: 20, max: 100 }, heartbeatMs: 100 });
+    host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairing: "off", staticDir: dir, retryMs: { min: 20, max: 100 }, heartbeatMs: 100 });
   });
   after(async () => {
     await host.close();

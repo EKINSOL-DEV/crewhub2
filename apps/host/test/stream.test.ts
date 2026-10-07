@@ -17,7 +17,7 @@ describe("the shared stream", () => {
   });
   async function start(stubOptions: Parameters<typeof createLoopsStub>[0] = {}, hostOptions: Partial<Parameters<typeof createHost>[0]> = {}) {
     const stub = await createLoopsStub({ ...installation(), ...stubOptions });
-    const host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", retryMs: { min: 20, max: 100 }, ...hostOptions });
+    const host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, ...hostOptions });
     cleanup.push(() => stub.close(), () => host.close());
     return { stub, host };
   }
@@ -86,7 +86,7 @@ describe("the shared stream", () => {
     await a.next(isEvent(150));
     const gone = await createLoopsStub({ ...installation(), events: [envelope(150, "ticket.created")], minAfter: 151 });
     cleanup.push(() => gone.close());
-    const goneHost = await createHost({ loopsUrl: gone.url, key: gone.key, keyName: "crewhub-world", retryMs: { min: 20, max: 100 } });
+    const goneHost = await createHost({ loopsUrl: gone.url, key: gone.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 } });
     cleanup.push(() => goneHost.close());
     // the host's first connection asks after=150 (the tail), which loops says is gone: the clients re-snapshot
     const b = await openSse(`${goneHost.url}/world-api/stream?cursor=150`);
@@ -96,7 +96,7 @@ describe("the shared stream", () => {
 
   it("goes down and comes back: status messages, host heartbeats, and a reset when the tail went backwards", async () => {
     const first = await createLoopsStub({ ...installation(), events: [envelope(1, "ticket.created"), envelope(2, "ticket.created")] });
-    const host = await createHost({ loopsUrl: first.url, key: first.key, keyName: "crewhub-world", retryMs: { min: 20, max: 60 } });
+    const host = await createHost({ loopsUrl: first.url, key: first.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 60 } });
     cleanup.push(() => host.close());
     const a = await openSse(`${host.url}/world-api/stream?cursor=2`);
     cleanup.push(async () => a.close());
