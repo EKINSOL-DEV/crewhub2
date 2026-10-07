@@ -738,6 +738,12 @@ export class DemoReads {
   }
 
   /** FUTURE (proposal L22): `GET /api/project-groups`. Crewhub-loops has no such route today. */
+  /** The project's feature flags (`GET /api/projects/{slug}/features`); null for an unknown project. */
+  features(slug: string): { milestones: boolean; releases: boolean; watchdog_nudge: boolean } | null {
+    const p = this.state.projects.find((x) => x.slug === slug);
+    return p === undefined ? null : { ...p.features };
+  }
+
   projectGroups(): ProjectGroupSeed[] {
     return this.state.content.groups.map((g) => ({ ...g })).sort((a, b) => a.order - b.order);
   }
