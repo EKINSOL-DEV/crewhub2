@@ -571,7 +571,9 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
         );
       })}
       {racks
-        .filter(({ room }) => shows(room) || compact)
+        // The racks' signs say the status of everything on them: shown whenever the building is entered; on a phone
+        // only with Administration in focus.
+        .filter(({ room }) => !compact || shows(room))
         .map(({ prop }) => {
           const rack = RACKS.find((r) => r.definitionId === prop.definitionId)!;
           const count = b.objects.filter((o) => o.room === rack.room).length;
