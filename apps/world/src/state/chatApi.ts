@@ -28,6 +28,8 @@ function savePins(pins: string[]): void {
 let chatApi: DemoApi | null = null;
 
 export function demoChatApi(): DemoApi {
-  chatApi ??= createDemoApi(worldRuntime().chat, { pins: savedPins(), onPinsChange: savePins, baseUrl: DEMO_LOOPS_URL });
+  const chat = worldRuntime().chat;
+  if (!chat) throw new Error("The demo chat API has no demo source in live mode (the chat is phase 2).");
+  chatApi ??= createDemoApi(chat, { pins: savedPins(), onPinsChange: savePins, baseUrl: DEMO_LOOPS_URL });
   return chatApi;
 }

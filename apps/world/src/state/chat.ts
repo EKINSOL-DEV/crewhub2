@@ -27,7 +27,9 @@ export function chatInvalidations(e: Pick<Envelope, "type" | "payload">): QueryK
 export function useChatEvents(): void {
   const qc = useQueryClient();
   useEffect(() => {
-    return worldRuntime().chat.start((message) => {
+    const chat = worldRuntime().chat;
+    if (!chat) return;
+    return chat.start((message) => {
       if (message.type === "snapshot") {
         for (const key of [["dm-threads"], ["dm-messages"], ["dm-summary"], ["agents"]]) void qc.invalidateQueries({ queryKey: key });
       } else if (message.type === "event") {
@@ -41,6 +43,7 @@ export function useChatEvents(): void {
 export function useChatView(leadId: string | null): void {
   const qc = useQueryClient();
   useEffect(() => {
+    if (!worldRuntime().chat) return;
     demoChatApi().setView({ leadId });
     void qc.invalidateQueries({ queryKey: dmKeys.pins });
   }, [qc, leadId]);
