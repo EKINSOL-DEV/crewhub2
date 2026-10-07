@@ -64,6 +64,18 @@ export interface StoredProject {
   nextReleaseNumber: number;
 }
 
+/** `contracts/delegations.py` `PendingRequestOut`: the card beside the owner's message in the chat. */
+export interface PendingRequest {
+  id: string;
+  messageId: string;
+  agent: string;
+  agentName: string;
+  action: string;
+  target: string;
+  expiresAt: string;
+  text: string;
+}
+
 export interface StallEpisode {
   state: "stalled" | "attention";
   episode: number;
@@ -177,6 +189,11 @@ export interface DemoState {
   dmMessages: DmMessage[];
   /** The demo person's read cursor per thread id: the last message they have read. */
   dmReads: Record<string, string>;
+  /**
+   * The owner's bound requests that wait for a click (CL-240), as `GET /api/delegations/pending` lists them. Only
+   * the fake crewhub-loops serves them; the world does not read them yet. No envelope announces one.
+   */
+  pendingDelegations: PendingRequest[];
   lanes: StoredLane[];
   team: TeamSnapshot;
   events: Envelope[];
@@ -240,6 +257,7 @@ export function initialState(base: number, cursor: number, content: DemoContent 
     dmThreads: [],
     dmMessages: [],
     dmReads: {},
+    pendingDelegations: [],
     lanes: content.lanes.map((l, index) => ({
       name: l.name,
       status: l.status,
@@ -937,6 +955,12 @@ export class DemoReads {
 
   deliveries(): DeliveryOut[] {
     return structuredClone(this.state.deliveries);
+  }
+
+  /** `GET /api/delegations/pending` (`delegations.pending_for_owner`): the requests that have not lapsed, oldest first. */
+  pendingDelegations(): PendingRequest[] {
+    const now = iso(this.state.now);
+    return structuredClone(this.state.pendingDelegations.filter((r) => r.expiresAt > now));
   }
 
   snapshot(): LoopsSnapshot {
