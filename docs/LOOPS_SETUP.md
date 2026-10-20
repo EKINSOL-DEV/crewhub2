@@ -47,12 +47,12 @@ the routes the host reads, with bearer auth, `seq` and heartbeats, and plays the
 terminals:
 
 ```sh
-npm run loops:fake -- --port 8091          # writes its key to tools/out/loops-fake.key (0600); prints how to start the host
-CREWHUB_WORLD_PAIRING=off CREWHUB_WORLD_KEY_FILE=tools/out/loops-fake.key npm run host
+npm run loops:fake -- --port 8391          # writes its key to tools/out/loops-fake.key (0600); prints how to start the host
+CREWHUB_WORLD_LOOPS_URL=http://127.0.0.1:8391 CREWHUB_WORLD_PAIRING=off CREWHUB_WORLD_KEY_FILE=tools/out/loops-fake.key npm run host
 npm run dev                                 # then open http://127.0.0.1:5173/?source=live
 ```
 
-Pick another port for the fake while the app runs: 8091 is the app's. `CREWHUB_WORLD_PAIRING=off` skips the
+Never put the fake on 8091: that port is the app's, and the host's discovery would take the fake for the app. `CREWHUB_WORLD_PAIRING=off` skips the
 pairing cookie for development (the host says so loudly at start; production refuses it). The fake prints the two
 env lines for the host and never the key. `npm run loops:fake -- --builder-key` makes the key behave like loops'
 tickets-only keys (the builder key and the CL-313 reader key: tickets, comments, auth/me; everything else 403), so

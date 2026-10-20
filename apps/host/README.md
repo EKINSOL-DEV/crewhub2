@@ -129,8 +129,8 @@ for the development instance. Under Docker Desktop the socket is inside the VM a
 Against the fake crewhub-loops (`packages/loops-fake`), before the real install:
 
 ```sh
-npm run loops:fake -- --port 8091        # writes the key to tools/out/loops-fake.key and prints the next line
-CREWHUB_WORLD_PAIRING=off CREWHUB_WORLD_KEY_FILE=tools/out/loops-fake.key npm run host
+npm run loops:fake -- --port 8391        # never 8091, the app's port; writes the key to tools/out/loops-fake.key and prints the next lines
+CREWHUB_WORLD_LOOPS_URL=http://127.0.0.1:8391 CREWHUB_WORLD_PAIRING=off CREWHUB_WORLD_KEY_FILE=tools/out/loops-fake.key npm run host
 npm run dev                              # Vite proxies /world-api and /pair to 127.0.0.1:5180; open with ?source=live
 ```
 
