@@ -4,18 +4,41 @@
 
    Usage:
      node tools/liveshots.mjs --port <port> [--tag live] [--theme light,dark] [--width 1440,375] [--state live]
-                              [--settle 6000] [--out <dir>] [--swiftshader]
+                              [--settle 6000] [--views town,chip,settings,text,card] [--card <agent>] [--out <dir>] [--swiftshader]
    --state names the files (live, stale, loops-down, unauthorized, catching-up); the page decides the chip itself.
+   --card <agent> opens the agent card of that agent (the jump list lands beside it, Enter opens the card) and adds the
+   `card` view: the page with the card open and the card itself. Several agents: a comma list, one file each.
    Output: <tag>-<state>-town-<theme>-<width>.png, <tag>-<state>-chip-<theme>-<width>.png, <tag>-<state>-settings-<theme>-<width>.png,
-   <tag>-<state>-text-<theme>-<width>.png. */
+   <tag>-<state>-text-<theme>-<width>.png, <tag>-<state>-card-<agent>-<theme>-<width>.png (the page) and
+   <tag>-<state>-cardonly-<agent>-<theme>-<width>.png (the card). The card's text goes on stdout, so a check can read it. */
 import { cli, launch, list, problemLines, watch } from "./lib/world.mjs";
 
-const opts = cli("node tools/liveshots.mjs --port <port> [--tag live] [--theme light,dark] [--width 1440,375] [--state live] [--settle 6000] [--out <dir>] [--swiftshader]", {
-  options: { tag: "live", theme: "light,dark", width: "1440", state: "live", settle: "6000", views: "town,chip,settings,text" },
+const opts = cli("node tools/liveshots.mjs --port <port> [--tag live] [--theme light,dark] [--width 1440,375] [--state live] [--settle 6000] [--views town,chip,settings,text,card] [--card <agent>] [--out <dir>] [--swiftshader]", {
+  options: { tag: "live", theme: "light,dark", width: "1440", state: "live", settle: "6000", views: "town,chip,settings,text", card: "" },
 });
 const widths = list(opts.width).map(Number);
 const themes = list(opts.theme, ["light", "dark"], opts.fail, "theme");
-const views = list(opts.views, ["town", "chip", "settings", "text"], opts.fail, "view");
+const cards = opts.card ? list(opts.card) : [];
+const views = list(cards.length && !opts.views.includes("card") ? `${opts.views},card` : opts.views, ["town", "chip", "settings", "text", "card"], opts.fail, "view");
+if (views.includes("card") && !cards.length) opts.fail("the card view needs --card <agent>");
+
+/** Opens the card of `agent` from the town: the jump list (/) lands beside the figure with it selected, Enter opens the card. */
+async function openCard(p, agent) {
+  const canvas = p.locator("canvas").first();
+  await canvas.focus();
+  await p.keyboard.press("/");
+  await p.getByRole("dialog", { name: "Jump to" }).waitFor({ timeout: 3000 }).catch(() => {});
+  await p.keyboard.type(agent);
+  await p.waitForTimeout(400);
+  await p.keyboard.press("Enter");
+  await p.waitForFunction(() => globalThis.__town?.view?.entered != null, null, { timeout: 8000 }).catch(() => {});
+  await p.waitForTimeout(1500);
+  await canvas.focus();
+  await p.keyboard.press("Enter");
+  await p.locator(".agent-card").waitFor({ timeout: 3000 }).catch(() => {});
+  await p.waitForTimeout(800);
+  return p.locator(".agent-card");
+}
 const viewport = (width) => (width <= 480 ? { viewport: { width, height: 812 }, isMobile: true, hasTouch: true } : { viewport: { width, height: 900 } });
 const browser = await launch(opts);
 const problems = [];
@@ -51,7 +74,35 @@ for (const theme of themes)
       await p.waitForSelector(".text-connection", { timeout: 5000 }).catch(() => notes.push(`${theme} ${width}: no text connection line`));
       await p.screenshot({ path: name("text", theme, width) });
       count++;
+      await p.keyboard.press("t");
+      await p.waitForTimeout(300);
     }
+    if (views.includes("card"))
+      for (const agent of cards) {
+        // Back to the town between agents: Escape closes the card, Escape again leaves the building.
+        const card = await openCard(p, agent);
+        const text = (await card.innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+        if (!(await card.count())) notes.push(`${theme} ${width}: no card for ${agent}`);
+        else {
+          notes.push(`${theme} ${width}: card ${agent}: ${text}`);
+          await p.screenshot({ path: name(`card-${agent}`, theme, width) });
+          await card.screenshot({ path: name(`cardonly-${agent}`, theme, width) });
+          count += 2;
+          // The card body scrolls: a third shot with the Lane section at the top, when there is one.
+          const lane = card.locator(".agent-card-section").filter({ has: p.locator("h3", { hasText: /^Lane$/ }) }).first();
+          if (await lane.count()) {
+            await lane.evaluate((el) => el.scrollIntoView({ block: "start" }));
+            await p.waitForTimeout(300);
+            await card.screenshot({ path: name(`cardlane-${agent}`, theme, width) });
+            count++;
+          }
+        }
+        for (let i = 0; i < 3; i++) {
+          await p.keyboard.press("Escape");
+          await p.waitForTimeout(400);
+        }
+        await p.waitForTimeout(1200);
+      }
     await ctx.close();
   }
 await browser.close();
