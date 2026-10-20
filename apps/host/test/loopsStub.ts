@@ -152,7 +152,11 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
         // CL-390: `lastSeq` is the last row returned, else the `after` sent: a filter that matches nothing says `after`.
         return send(res, 200, withCursor({ events: [], lastSeq: older ? lastSeq() : after }, after, lastSeq()));
       }
-      const page = events.filter((e) => e.seq > after);
+      // `types` is a comma list (or repeated), `limit` 1..500 with 500 the default (routers/events.py); `lastSeq` is
+      // the last row returned, else the `after` sent.
+      const types = url.searchParams.getAll("types").flatMap((v) => v.split(",")).map((v) => v.trim()).filter((v) => v !== "");
+      const limit = Math.min(500, Math.max(1, Number(url.searchParams.get("limit") ?? "500") || 500));
+      const page = events.filter((e) => e.seq > after && (types.length === 0 || types.includes(e.type))).slice(0, limit);
       const seen = page.length === 0 ? after : (page[page.length - 1] as Envelope).seq;
       return send(res, 200, withCursor({ events: page, lastSeq: seen }, seen, lastSeq()));
     }

@@ -59,12 +59,43 @@ async function featured<T>(client: LoopsClient, path: string, pick: (page: Recor
   return allPages(client, path, pick);
 }
 
-/** Reads the projects, with the archived ones when the key may see them (an agent key gets 403 for `includeArchived`). */
-async function readProjects(client: LoopsClient): Promise<ProjectOut[]> {
+/**
+ * Reads the projects, with the archived ones when the key may see them (an agent key gets 403 for `includeArchived`;
+ * then `complete` is false and the archived ones are found through the event log).
+ */
+async function readProjects(client: LoopsClient): Promise<{ projects: ProjectOut[]; complete: boolean }> {
   const withArchived = await client.getJson<{ projects: ProjectOut[] }>("/api/projects", { includeArchived: "true" });
-  if (withArchived.status === 200 && withArchived.body !== null) return withArchived.body.projects;
+  if (withArchived.status === 200 && withArchived.body !== null) return { projects: withArchived.body.projects, complete: true };
   if (withArchived.status === 401) throw new SnapshotError("unauthorized", "/api/projects answered 401");
-  return (await must<{ projects: ProjectOut[] }>(client, "/api/projects")).projects;
+  return { projects: (await must<{ projects: ProjectOut[] }>(client, "/api/projects")).projects, complete: false };
+}
+
+/** loops' page of `GET /api/events`: `limit` is 1..500, default 500 (`routers/events.py`); a full page may have more behind it. */
+const EVENTS_PAGE = 500;
+const ARCHIVE_TYPES = "project.archived,project.restored";
+
+/**
+ * Slugs of the projects archived now, learnt from the event log: an agent key may not list archived projects
+ * (`includeArchived` is for human admins), but the log is never pruned, and the last of `project.archived` and
+ * `project.restored` per slug says where it stands. Pages with `after=` (`lastSeq` is the last row returned, else
+ * the `after` sent) until a page is short of loops' 500, or `lastSeq` stops moving.
+ */
+export async function archivedSlugsFromEvents(client: LoopsClient): Promise<string[]> {
+  const last = new Map<string, string>();
+  let after = 0;
+  for (let guard = 0; guard < 1000; guard += 1) {
+    const page = await must<{ events?: unknown; lastSeq?: unknown }>(client, "/api/events", { types: ARCHIVE_TYPES, after: String(after), limit: String(EVENTS_PAGE) });
+    const events = Array.isArray(page.events) ? (page.events as { type?: unknown; project?: { slug?: unknown } | null }[]) : [];
+    for (const event of events) {
+      const slug = event.project?.slug;
+      if (typeof slug !== "string" || typeof event.type !== "string") continue;
+      last.set(slug, event.type);
+    }
+    const lastSeq = typeof page.lastSeq === "number" ? page.lastSeq : after;
+    if (events.length < EVENTS_PAGE || lastSeq <= after) break;
+    after = lastSeq;
+  }
+  return [...last.entries()].filter(([, type]) => type === "project.archived").map(([slug]) => slug);
 }
 
 export interface SnapshotOptions {
@@ -75,12 +106,15 @@ export interface SnapshotOptions {
 }
 
 export async function assembleSnapshot(client: LoopsClient, options: SnapshotOptions): Promise<LoopsSnapshot> {
-  const listed = await readProjects(client);
+  const { projects: listed, complete } = await readProjects(client);
   const projects = listed.filter((p) => p.archivedAt === null || p.archivedAt === undefined);
   const archivedProjects = listed.filter((p) => typeof p.archivedAt === "string");
   const seen = new Set(listed.map((p) => p.slug));
-  for (const slug of options.knownArchivedSlugs ?? []) {
+  // Archived projects the list left out: the ones the log says are archived, and the ones the host's stream saw.
+  const fromLog = complete ? [] : await archivedSlugsFromEvents(client);
+  for (const slug of new Set([...fromLog, ...(options.knownArchivedSlugs ?? [])])) {
     if (seen.has(slug)) continue;
+    seen.add(slug);
     const one = await client.getJson<{ project: ProjectOut }>("/api/projects/{slug}".replace("{slug}", encodeURIComponent(slug)));
     if (one.status === 200 && one.body?.project !== undefined && typeof one.body.project.archivedAt === "string") {
       archivedProjects.push(one.body.project);
