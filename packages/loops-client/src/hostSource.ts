@@ -48,6 +48,8 @@ export interface HostHealth {
   cursor?: number;
   /** The origin of crewhub-loops' web app (the API's URL; on the Mac both share 8091), for the sign-in link. */
   loopsWebUrl?: string;
+  /** How the host reaches loops: `tcp` (the URL) or `unix` (the app's socket). Absent on a host from before the seam. */
+  transport?: "tcp" | "unix";
   /** Whether this browser carries a valid pairing cookie (plan 3.5). Absent on a host from before pairing. */
   paired?: boolean;
   /** `off` only in development; then every request counts as paired. */
@@ -90,6 +92,7 @@ export async function probeHost(baseUrl = "", timeoutMs = 1500): Promise<HostHea
     if (typeof body.loopsCommit === "string") health.loopsCommit = body.loopsCommit;
     if (typeof body.cursor === "number") health.cursor = body.cursor;
     if (typeof body.loopsWebUrl === "string" && /^https?:\/\//.test(body.loopsWebUrl)) health.loopsWebUrl = body.loopsWebUrl;
+    if (body.transport === "tcp" || body.transport === "unix") health.transport = body.transport;
     if (typeof body.paired === "boolean") health.paired = body.paired;
     if (body.pairing === "on" || body.pairing === "off") health.pairing = body.pairing;
     return health;

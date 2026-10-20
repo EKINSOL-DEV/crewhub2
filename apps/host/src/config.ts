@@ -1,8 +1,9 @@
 /**
  * The host's configuration from the environment, as a pure function so a test can run it: which key file to read
- * (the configured one, the default, or the shared builder key as a loud fallback), the port, the loops URL, the
- * extra origins and the pairing switches. The key's text is returned to the caller and nowhere else.
+ * (the configured one, the default, or the shared builder key as a loud fallback), the port, the loops URL or Unix
+ * socket, the extra origins and the pairing switches. The key's text is returned to the caller and nowhere else.
  */
+import { statSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 
@@ -59,8 +60,40 @@ export function loadKey(env: Record<string, string | undefined>, read: (file: st
   };
 }
 
+/** What a path on disk is, for the socket check: `null` when nothing is there. */
+export type PathKind = { isSocket: boolean } | null;
+
+export function statPath(file: string): PathKind {
+  try {
+    return { isSocket: statSync(file).isSocket() };
+  } catch {
+    return null;
+  }
+}
+
+/** A leading `~/` is the home folder; the rest is resolved against the working directory. */
+function expandHome(text: string): string {
+  return text === "~" || text.startsWith("~/") ? path.join(homedir(), text.slice(1)) : text;
+}
+
+/**
+ * `CREWHUB_WORLD_LOOPS_SOCKET`: the socket path, which must exist and be a socket right now (loops is up before the
+ * host; a missing socket is a configuration error, not something to wait for). Never guessed: the app's socket lives in
+ * its data folder and the host only uses it when told to.
+ */
+export function validateSocketPath(text: string, probe: (file: string) => PathKind = statPath): string {
+  const socket = path.resolve(expandHome(text.trim()));
+  const kind = probe(socket);
+  if (kind === null) throw new ConfigError(`CREWHUB_WORLD_LOOPS_SOCKET: ${socket} does not exist (is crewhub-loops running, and is this its socket?)`);
+  if (!kind.isSocket) throw new ConfigError(`CREWHUB_WORLD_LOOPS_SOCKET: ${socket} is not a Unix socket`);
+  return socket;
+}
+
 export interface ServerConfig {
+  /** crewhub-loops' URL: the TCP transport, and the web app's origin for the sign-in link (also with the socket). */
   loopsUrl: string;
+  /** The Unix socket to read loops over instead of TCP (`CREWHUB_WORLD_LOOPS_SOCKET`); null means TCP. */
+  loopsSocket: string | null;
   port: number;
   allowedOrigins: string[];
   production: boolean;
@@ -74,12 +107,18 @@ export interface ServerConfig {
   warnings: string[];
 }
 
-export function loadServerConfig(env: Record<string, string | undefined>): ServerConfig {
+export function loadServerConfig(env: Record<string, string | undefined>, probe: (file: string) => PathKind = statPath): ServerConfig {
   const portText = env.CREWHUB_WORLD_PORT ?? "";
   const port = portText === "" ? DEFAULT_PORT : Number(portText);
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new ConfigError(`CREWHUB_WORLD_PORT must be a port number, got ${portText}`);
-  const loopsUrl = env.CREWHUB_WORLD_LOOPS_URL ?? DEFAULT_LOOPS_URL;
+  const loopsUrlText = env.CREWHUB_WORLD_LOOPS_URL ?? "";
+  const socketText = env.CREWHUB_WORLD_LOOPS_SOCKET ?? "";
+  if (loopsUrlText !== "" && socketText.trim() !== "") {
+    throw new ConfigError("CREWHUB_WORLD_LOOPS_URL and CREWHUB_WORLD_LOOPS_SOCKET are both set: the host reads loops over TCP or over the Unix socket, not both. Unset one.");
+  }
+  const loopsUrl = loopsUrlText === "" ? DEFAULT_LOOPS_URL : loopsUrlText;
   if (!/^https?:\/\//.test(loopsUrl)) throw new ConfigError("CREWHUB_WORLD_LOOPS_URL must start with http:// or https://");
+  const loopsSocket = socketText.trim() === "" ? null : validateSocketPath(socketText, probe);
   const allowedOrigins = (env.CREWHUB_WORLD_ALLOWED_ORIGINS ?? "")
     .split(",")
     .map((s) => s.trim())
@@ -107,5 +146,5 @@ export function loadServerConfig(env: Record<string, string | undefined>): Serve
     if (parsed.protocol !== "https:" && parsed.protocol !== "http:") throw new ConfigError("CREWHUB_WORLD_PUBLIC_URL must be an http(s) URL");
     publicUrl = parsed.origin;
   }
-  return { loopsUrl, port, allowedOrigins, production, pairing: pairingText, pairingFile, publicUrl, warnings };
+  return { loopsUrl, loopsSocket, port, allowedOrigins, production, pairing: pairingText, pairingFile, publicUrl, warnings };
 }

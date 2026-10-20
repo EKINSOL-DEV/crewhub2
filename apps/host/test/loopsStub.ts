@@ -1,7 +1,8 @@
 /**
  * A tiny crewhub-loops for the host's tests: loops' routes and shapes for the reads the host makes, bearer auth,
  * an NDJSON stream with `after=`, heartbeats and 410 for a too-old cursor. It records every request it sees.
- * On 127.0.0.1 port 0: loopback to the test itself, no network. (The full fake is `packages/loops-fake`.)
+ * On 127.0.0.1 port 0: loopback to the test itself, no network; or on a Unix socket (`socketPath`) for the host's
+ * socket transport. (The full fake is `packages/loops-fake`.)
  */
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -10,6 +11,8 @@ export interface StubRequest {
   method: string;
   path: string;
   authorization: string | undefined;
+  /** The `Host` header as sent (the socket transport must send `127.0.0.1`). */
+  host: string | undefined;
 }
 
 export interface Envelope {
@@ -38,11 +41,16 @@ export interface StubOptions {
   echoAuth?: boolean;
   /** A fixed port (the restart case); default 0. */
   port?: number;
+  /** Listen on this Unix socket instead of TCP; `url` is then empty and `socketPath` set. */
+  socketPath?: string;
 }
 
 export interface LoopsStub {
+  /** `http://127.0.0.1:<port>`, or "" for a stub on a socket. */
   url: string;
   port: number;
+  /** The socket the stub listens on, or null for TCP. */
+  socketPath: string | null;
   key: string;
   requests: StubRequest[];
   /** Open stream connections right now. */
@@ -93,7 +101,7 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
   function handle(req: IncomingMessage, res: ServerResponse): void {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     const auth = req.headers.authorization;
-    requests.push({ method: req.method ?? "", path: url.pathname + url.search, authorization: auth });
+    requests.push({ method: req.method ?? "", path: url.pathname + url.search, authorization: auth, host: req.headers.host });
     const detail = options.echoAuth ? ` (auth: ${auth ?? "none"})` : "";
     if (auth === undefined) return send(res, 401, error("unauthenticated", `No credentials${detail}`));
     if (req.headers.cookie !== undefined) return send(res, 400, error("ambiguous_auth", `Send one or the other${detail}`));
@@ -138,15 +146,18 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
   }
 
   const server: Server = createServer(handle);
+  const socketPath = options.socketPath ?? null;
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
-    server.listen(options.port ?? 0, "127.0.0.1", resolve);
+    if (socketPath !== null) server.listen(socketPath, resolve);
+    else server.listen(options.port ?? 0, "127.0.0.1", resolve);
   });
-  const port = (server.address() as AddressInfo).port;
+  const port = socketPath === null ? (server.address() as AddressInfo).port : 0;
 
   return {
-    url: `http://127.0.0.1:${port}`,
+    url: socketPath === null ? `http://127.0.0.1:${port}` : "",
     port,
+    socketPath,
     key,
     requests,
     openStreams: () => streams.size,
