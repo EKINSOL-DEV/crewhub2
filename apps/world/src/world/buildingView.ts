@@ -28,6 +28,7 @@ import {
   type BuildingTemplate,
   type WallRun,
 } from "./buildingTemplate";
+import { ADMIN_DOOR, officeWindowRun } from "./threeRoomTemplate";
 import { assignDesks, placeObjects, roomCentre, SHELF_PITCH, type DeskSlot, type ObjectLayout, type Surface } from "./interiorLayout";
 import { mergeStatic } from "./mergeStatic";
 import { restMatrices } from "./matrixPass";
@@ -59,12 +60,6 @@ const WALLS: Record<WallRun["side"], [ModelKey, number, number]> = {
   east: ["wall.low", 0.22, 0.12],
   inner: ["building.partition", 0.52, 0.1],
 };
-/**
- * The partitions between the three halls stand a little higher than the classic rooms': the halls are big, and a
- * 0.52 partition of these lengths did not draw at all from the merged shell (bisected: 0.53 and up draw; the cause
- * in the static merge is open, see the racks report).
- */
-const HALL_PARTITION = 0.56;
 /** The remote tier (see `#applyDistance`): pieces smaller than this, world units, are not drawn; they go to this layer. */
 const REMOTE_PIECE = 3;
 const REMOTE_LAYER = 30;
@@ -449,18 +444,25 @@ export class BuildingView {
       // Soft contact shade where the walls meet this room's floor.
       add(style.model("building.floor-shade", { size: { width: width * CELL, height: 0, depth: depth * CELL } }), cx, cz, 0.026);
       add(style.model("building.slab", opt({ size: { width: width * CELL, height: FLOOR_RISE, depth: depth * CELL }, accent })), cx, cz);
-      const at = this.#signSpot(room.kind);
-      add(style.model("room.sign"), at.x, at.z, 0.02);
-      this.anchors.set(`r:${b.slug}:${room.kind}`, this.world(at.x, at.z, 0.35));
+      // The lead's office's sign hangs over its door onto the floor (addendum); the other halls' signs lie on a floor
+      // plate by their south-west corner.
+      const door = threeRoom && room.kind === "lead-office" ? doorOpenings(this.template).find((o) => o.id === "office-floor") : undefined;
+      if (door) this.anchors.set(`r:${b.slug}:${room.kind}`, this.world((door.x1 + door.x2) / 2, (door.z1 + door.z2) / 2, DOOR_FRAME + 0.2));
+      else {
+        const at = this.#signSpot(room.kind);
+        add(style.model("room.sign"), at.x, at.z, 0.02);
+        this.anchors.set(`r:${b.slug}:${room.kind}`, this.world(at.x, at.z, 0.35));
+      }
     }
     // North and west are the tall back walls (the glass wall and the chalk wall), south and east low rims to look in
     // over, and the partitions between rooms in between.
     for (const run of wallRuns(this.template)) {
       const horizontal = run.z1 === run.z2;
       const length = (horizontal ? run.x2 - run.x1 : run.z2 - run.z1) * CELL;
-      const [key, wallHeight, depth] = WALLS[run.side];
-      const height = run.side === "inner" && threeRoom ? HALL_PARTITION : wallHeight;
-      const wall = add(style.model(key, opt({ size: { width: length + depth, height, depth } })), (run.x1 + run.x2) / 2, (run.z1 + run.z2) / 2, 0, horizontal ? 0 : Math.PI / 2);
+      const [key, height, depth] = WALLS[run.side];
+      // The office's window onto the floor: that partition is glazed above the partition height (archived wins).
+      const glazed = run.side === "inner" && officeWindowRun(this.template, run) ? { variant: "glazed" } : {};
+      const wall = add(style.model(key, opt({ size: { width: length + depth, height, depth }, ...glazed })), (run.x1 + run.x2) / 2, (run.z1 + run.z2) / 2, 0, horizontal ? 0 : Math.PI / 2);
       if (run.side === "north" || run.side === "west") {
         const [lowKey, lowHeight, lowDepth] = WALLS.south;
         const low = style.model(lowKey, opt({ size: { width: length + lowDepth, height: lowHeight, depth: lowDepth } }));
@@ -597,9 +599,14 @@ export class BuildingView {
     return side === "north" ? camera.position.z > o.z + (DEPTH * CELL) / 2 : camera.position.x > o.x + (this.template.size.width * CELL) / 2;
   }
 
+  /**
+   * Where a hall's or room's sign plate lies: its south-west corner, or, for the three-room floor, beside its door
+   * down to Administration (east of the Done rack, whose sign the corner plate's label used to crowd).
+   */
   #signSpot(kind: RoomKind): { x: number; z: number } {
     const room = roomOf(this.template, kind)!;
-    return { x: room.origin.x + 1.1, z: room.origin.z + room.layout.grid.depth - 0.45 };
+    const x = isThreeRoom(this.template) && room.kind === "workers" ? ADMIN_DOOR.floor.x + 1.6 : 1.1;
+    return { x: room.origin.x + x, z: room.origin.z + room.layout.grid.depth - 0.45 };
   }
 
   /* The furniture layer: the template's furniture with its blocking dressing, and the dressing that never blocks

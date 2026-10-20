@@ -32,15 +32,16 @@ const definitions: Definitions = {
 const prop = (id: string, definitionId: string, x: number, z: number): WorldProp => ({ id, definitionId, cell: { x, z }, rotation: 0 });
 const layout = (width: number, depth: number, entrance: Cell, props: WorldProp[]) => ({ version: 1 as const, grid: { width, depth, cellSize: 0.6 }, props, entrance });
 
-/** The addendum's floor plan with `columns` module columns on the floor (2 to 4). */
-function threeRooms(columns: number): BuildingTemplate & { plan: string } {
+/** The addendum's floor plan with `columns` module columns on the floor (2 to 4), `deskModules` of them with desks. */
+function threeRooms(columns: number, deskModules = Infinity): BuildingTemplate & { plan: string } {
   const floorWidth = 6 * columns;
   const desks: WorldProp[] = [];
   const roles = ["workers", "analyst", "design"] as const;
   let n = 0;
-  for (let row = 0; row < 3; row++)
+  for (let row = 2; row >= 0; row--)
     for (let column = 0; column < columns; column++) {
       if (row === 2 && column === 0) continue; // the huddle's module
+      if (n >= deskModules) continue; // an empty module: a breakout corner
       const role = roles[Math.min(2, Math.floor(n / 2))]!;
       const x = column * 6,
         z = row * 6;
@@ -49,7 +50,7 @@ function threeRooms(columns: number): BuildingTemplate & { plan: string } {
     }
   const rooms: TemplateRoom[] = [
     { kind: "lead-office", hosts: [], origin: { x: 0, z: 0 }, layout: layout(9, 18, { x: 8, z: 14 }, [prop("lead-desk", "lead-desk", 3, 2), prop("side-desk-0", "workdesk", 5, 8), prop("side-desk-1", "workdesk", 5, 11)]) },
-    { kind: "workers", hosts: ["analyst", "design", "meeting"], origin: { x: 9, z: 0 }, layout: layout(floorWidth, 18, { x: 0, z: 14 }, [...desks, prop("huddle", "huddle-table", 2, 14)]) },
+    { kind: "workers", hosts: ["analyst", "design", "meeting"], origin: { x: 9, z: 0 }, layout: layout(floorWidth, 18, { x: 0, z: 14 }, [...desks, prop("huddle", "huddle-table", 3, 13)]) },
     {
       kind: "lobby",
       // Administration hosts the status rooms (and the model's lobby): `TemplateRoom.hosts` of the three-room template.
@@ -113,9 +114,9 @@ function reachable(l: WorldLayout): (c: Cell) => boolean {
 }
 
 test("the three halls are dressed, deterministically, and every rack, desk, huddle place, mailbox and door stays reachable", () => {
-  for (const columns of [2, 3, 4])
+  for (const [columns, deskModules] of [[2, 1], [2, 5], [3, 2], [3, 8], [4, 11]] as const)
     for (const slug of ["cr", "ops", "lab"]) {
-      const template = threeRooms(columns);
+      const template = threeRooms(columns, deskModules);
       assert.ok(isThreeRoom(template));
       const options = { definitions, seed: dressingSeed(slug), zones: zonesOf(template), loading: LOADING, piles };
       const rooms = dressRooms(template, options);
@@ -138,12 +139,21 @@ test("the three halls are dressed, deterministically, and every rack, desk, hudd
           for (const dx of [1, 2]) assert.ok(free(mailbox.cell.x + dx, mailbox.cell.z), `${slug}: the letters' floor east of the mailbox is free`);
         }
       }
-      // The decor: a rug and a pendant at the huddle, the office window on the east wall, a runner from the front door.
-      const decor = roomDecor(template, options);
+      // The floor's modules without desks are breakout corners (a lounge, then a green corner, in turn), never a void.
+      const floor = rooms.find((r) => r.kind === "workers")!;
+      const empties = columns * 3 - 1 - deskModules;
+      const lounges = floor.layout.props.filter((p) => p.id.startsWith(`${DRESS_PREFIX}breakout-side-table`)).length;
+      const greens = floor.layout.props.filter((p) => p.id.startsWith(`${DRESS_PREFIX}green-planter`)).length;
+      assert.equal(lounges, Math.ceil(empties / 2), `${slug}: ${empties} empty modules with ${columns} columns: lounges`);
+      assert.equal(greens, Math.floor(empties / 2), `${slug}: ${empties} empty modules with ${columns} columns: green corners`);
+      // The decor: a rug and a pendant at the huddle, a rug under each breakout, a runner from the front door. The
+      // office's window onto the floor is the glazed partition itself, not a decor piece.
+      // The decor reads the dressed rooms, as the building view does (threeRoomTemplate dresses its template).
+      const decor = roomDecor({ ...template, rooms }, options);
       assert.ok(decor.some((d) => d.room === "workers" && d.key === "decor.rug-round"), "a rug under the huddle");
+      assert.equal(decor.filter((d) => d.room === "workers" && d.key === "decor.rug-round").length, 1 + lounges, "a rug under the huddle and under each lounge");
       assert.ok(decor.some((d) => d.room === "workers" && d.key === "decor.pendant-lamp"), "a pendant over the huddle");
-      const window = decor.find((d) => d.key === "decor.office-window");
-      assert.ok(window && Math.abs(window.x - 9) < 1e-9 && window.z > 0 && window.z < 18, "the office window stands in the east wall");
+      assert.ok(!decor.some((d) => d.key === "decor.office-window"), "no office window piece: the partition is glazed");
       assert.ok(decor.some((d) => d.room === "lobby" && d.key === "decor.rug-runner"), "a runner inside the front door");
       assert.ok(!decor.some((d) => d.key === "decor.station-clock"), "no station clock: that is the classic lobby's");
       for (const pile of Object.values(piles)) assert.ok(decor.some((d) => d.key === "decor.floor-bay" && d.x === pile.pallet.x && d.z === 18 + pile.pallet.z), "a painted bay at each rack's pallet");

@@ -19,7 +19,7 @@ import {
   wallRuns,
   type TemplateRoom,
 } from "../src/world/buildingTemplate.ts";
-import { ADMIN, ADMIN_DOOR, floorCapacity, floorColumns, HALL_HOSTS, OFFICE, OFFICE_DOOR, RACKS, RACK_SHELVES, RACK_SLOTS } from "../src/world/threeRoomTemplate.ts";
+import { ADMIN, ADMIN_DOOR, floorCapacity, floorColumns, HALL_HOSTS, HUDDLE_CELL, HUDDLE_MODULE, moduleOrder, OFFICE, OFFICE_DOOR, officeWindowRun, RACKS, RACK_SHELVES, RACK_SLOTS } from "../src/world/threeRoomTemplate.ts";
 import { assignDesks, pileCapacity, placeObjects, roomNeighbor, firstRoom } from "../src/world/interiorLayout.ts";
 import { DRESS_PREFIX } from "../src/world/roomDressing.ts";
 import { NavWorld, POST_OFFICE_CELL, roomId, TOWN_ROOM } from "../src/world/navigation.ts";
@@ -41,8 +41,8 @@ function team(workers: number, analysts = 0, designers = 0, extra: RoomKind[] = 
 }
 const three = (b: Building) => buildingTemplate(b, "three-rooms");
 
-/** Cells of a room reachable from `from` on the room's own (dressed) occupancy. */
-function reachable(room: TemplateRoom, from: Cell): Set<string> {
+/** Cells of a room reachable from `from` on the room's own (dressed) occupancy, `taken` cells counted as blocked. */
+function reachable(room: TemplateRoom, from: Cell, taken = new Set<string>()): Set<string> {
   const blocked = occupancy(room.layout, interiorDefinitions);
   const { width, depth } = room.layout.grid;
   const seen = new Set<string>([`${from.x},${from.z}`]);
@@ -56,7 +56,7 @@ function reachable(room: TemplateRoom, from: Cell): Set<string> {
       [0, -1],
     ] as const) {
       const n = { x: c.x + dx, z: c.z + dz };
-      if (n.x < 0 || n.z < 0 || n.x >= width || n.z >= depth || blocked[n.z * width + n.x] !== -1 || seen.has(`${n.x},${n.z}`)) continue;
+      if (n.x < 0 || n.z < 0 || n.x >= width || n.z >= depth || blocked[n.z * width + n.x] !== -1 || seen.has(`${n.x},${n.z}`) || taken.has(`${n.x},${n.z}`)) continue;
       seen.add(`${n.x},${n.z}`);
       queue.push(n);
     }
@@ -168,6 +168,66 @@ test("every door, seat, rack approach and huddle place is reachable inside its h
   }
 });
 
+test("the huddle stands in its module by the office door, its ring clear of every doorway's mouth; a huddle in session cuts no seat or door off", () => {
+  for (const [name, b] of variants) {
+    const t = three(b);
+    const floor = roomOf(t, "workers")!;
+    const huddle = floor.layout.props.find((p) => p.definitionId === "huddle-table")!;
+    assert.deepEqual(huddle.cell, { x: HUDDLE_MODULE.column * MODULE + HUDDLE_CELL.x, z: HUDDLE_MODULE.row * MODULE + HUDDLE_CELL.z }, name);
+    const def = interiorDefinitions["huddle-table"]!;
+    // The ring: every cell round the footprint, where gathered agents stand.
+    const ring = new Set<string>();
+    for (let z = -1; z <= def.footprint.depth; z++) for (let x = -1; x <= def.footprint.width; x++) if (x < 0 || z < 0 || x >= def.footprint.width || z >= def.footprint.depth) ring.add(`${huddle.cell.x + x},${huddle.cell.z + z}`);
+    // The floor's doors: the cell in the doorway and the cell just inside it stay out of the ring.
+    const doors = t.doors.flatMap((d) => [d.a, d.b]).filter((s) => s.room === "workers").map((s) => s.cell);
+    assert.equal(doors.length, 2, name);
+    for (const d of doors)
+      for (const [dx, dz] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]] as const) assert.ok(!ring.has(`${d.x + dx},${d.z + dz}`), `${name}: the ring stays out of the doorway at ${d.x},${d.z}`);
+    // With every ring place taken, each seat and both doors are still reached from either door.
+    for (const from of doors) {
+      const open = reachable(floor, from, ring);
+      for (const d of doors) assert.ok(open.has(`${d.x},${d.z}`), `${name}: the door at ${d.x},${d.z} is reached past a huddle in session`);
+      for (const p of floor.layout.props) {
+        if (p.id.startsWith(DRESS_PREFIX) || p === huddle) continue;
+        for (const a of interiorDefinitions[p.definitionId]!.approaches) assert.ok(open.has(`${p.cell.x + a.x},${p.cell.z + a.z}`), `${name}: ${p.id} is reached past a huddle in session`);
+      }
+    }
+    // The way from the office door to the floor's door down to Administration is no longer than two cells more than
+    // with nobody at the huddle.
+    const steps = (taken: Set<string>) => {
+      const [a, c] = doors as [Cell, Cell];
+      const dist = new Map<string, number>([[`${a.x},${a.z}`, 0]]);
+      const queue = [a];
+      const blocked = occupancy(floor.layout, interiorDefinitions);
+      const { width, depth } = floor.layout.grid;
+      while (queue.length) {
+        const cur = queue.shift()!;
+        const d = dist.get(`${cur.x},${cur.z}`)!;
+        for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+          const n = { x: cur.x + dx, z: cur.z + dz };
+          const key = `${n.x},${n.z}`;
+          if (n.x < 0 || n.z < 0 || n.x >= width || n.z >= depth || blocked[n.z * width + n.x] !== -1 || dist.has(key) || taken.has(key)) continue;
+          dist.set(key, d + 1);
+          queue.push(n);
+        }
+      }
+      return dist.get(`${c.x},${c.z}`) ?? Infinity;
+    };
+    assert.ok(steps(ring) <= steps(new Set()) + 2, `${name}: the huddle does not stand in the lead's way (${steps(ring)} steps against ${steps(new Set())})`);
+  }
+});
+
+test("the office's window onto the floor is the east partition run north of the office door, and no other run", () => {
+  for (const [name, b] of variants) {
+    const t = three(b);
+    const runs = wallRuns(t).filter((r) => officeWindowRun(t, r));
+    assert.equal(runs.length, 1, `${name}: one glazed run`);
+    const [run] = runs;
+    assert.ok(run!.x1 === run!.x2 && run!.x1 === OFFICE.width && run!.z1 === 0 && run!.z2 === OFFICE_DOOR.office.z, `${name}: ${JSON.stringify(run)}`);
+  }
+  assert.equal(wallRuns(buildingTemplate(team(2), "classic")).some((r) => officeWindowRun(buildingTemplate(team(2), "classic"), r)), false, "the classic plan has no glazed partition");
+});
+
 test("desks by role: each agent sits at a desk of its own room kind, roles contiguous in fill order", () => {
   const b = team(3, 2, 1);
   const t = three(b);
@@ -184,9 +244,11 @@ test("desks by role: each agent sits at a desk of its own room kind, roles conti
   const floor = roomOf(t, "workers")!;
   const order = floor.layout.props.filter((p) => p.definitionId === "workdesk").map((p) => deskZone(p));
   assert.deepEqual(order, ["workers", "workers", "workers", "workers", "analyst", "analyst", "design", "design"]);
-  // Two agents of one role sit at desks of one module: the first two desks are the first module's.
+  // Two agents of one role sit at desks of one module: the first two desks are the first module's, the front one east
+  // of the huddle (by the door down to Administration); the fill goes row by row from the front, west to east.
   const firstModule = floor.layout.props.filter((p) => deskZone(p) === "workers").slice(0, 2);
-  assert.ok(firstModule.every((p) => p.cell.x < MODULE && p.cell.z < MODULE), "the first module is the back-west one");
+  assert.ok(firstModule.every((p) => p.cell.x >= MODULE && p.cell.x < 2 * MODULE && p.cell.z >= 2 * MODULE), "the first module is the front one east of the huddle");
+  assert.deepEqual(moduleOrder(2), [{ column: 1, row: 2 }, { column: 0, row: 1 }, { column: 1, row: 1 }, { column: 0, row: 0 }, { column: 1, row: 0 }]);
   // A role room the model has keeps a module even without an agent; one it lacks gets none.
   const empty = three(fixtureBuilding("cr", [agent("cr/dev-0", "workers")], [], ["design"]));
   const zones = roomOf(empty, "workers")!.layout.props.filter((p) => p.definitionId === "workdesk").map((p) => deskZone(p));
