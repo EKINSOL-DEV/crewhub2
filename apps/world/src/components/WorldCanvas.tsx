@@ -562,7 +562,7 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
         if (compact ? !focusedRoom || !sameRoom(focusedRoom, r.kind, rooms) : !shows(r.kind)) return null;
         return (
           <div key={r.kind} className="anchor" data-anchor={`r:${b.slug}:${r.kind}`}>
-            <span className={`room-sign${sign.dimmed ? " dimmed" : ""}${focused ? " focused" : ""}`}>
+            <span className={`room-sign${sign.dimmed ? " dimmed" : ""}${focused ? " focused" : ""}${threeRoom && r.kind === "lead-office" ? " door-sign" : ""}`}>
               <strong>{compact ? shortRoomName(r.kind, rooms) : roomName(b, r.kind, rooms)}</strong>
               {sign.note && <span className="sign-muted">{sign.note}</span>}
               {r.kind === "lobby" && !counter && b.archivedCount > 0 && <span className="sign-muted">{b.archivedCount} archived</span>}

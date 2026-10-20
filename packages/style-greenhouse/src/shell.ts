@@ -173,13 +173,31 @@ export function rim(kit: Kit, o: ModelOptions): THREE.Group {
 
 /**
  * A soft partition between rooms: lower than the outer walls, in a quieter tone than the chalk outer walls (from the
- * town the rooms read as places, not as white lines), with a timber cap.
+ * town the rooms read as places, not as white lines), with a timber cap. The "glazed" variant is a window onto the
+ * next room (the lead's office's, onto the floor): a strip of the glass wall's glass and slim mullions stands on the
+ * cap between two timber posts, so the partition reads as a window from the overview, not as a taller wall.
  */
-export function partition(kit: Kit, o: ModelOptions): THREE.Group {
+export function partition(kit: Kit, o: ModelOptions, glass: THREE.Material): THREE.Group {
   const { width, height, depth } = size(o, { width: 2, height: 0.52, depth: 0.1 });
   const g = new THREE.Group();
   put(g, kit.box(width, height, depth, archived(o) ? "chalk-dim" : "partition", 0.02), 0, height / 2, 0);
   put(g, kit.box(width + 0.01, 0.035, depth + 0.035, "timber-trim", 0.012), 0, height + 0.0175, 0);
+  if (o.variant === "glazed" && width > 1.6) {
+    const inset = 0.45,
+      rise = 0.42;
+    const span = width - 2 * inset;
+    const base = height + 0.035;
+    const bays = Math.max(1, Math.round(span / 1.2));
+    const bay = span / bays;
+    const pane = kit.geometry(`partition-pane:${bay.toFixed(3)},${rise}`, () => new THREE.PlaneGeometry(bay - 0.04, rise - 0.06));
+    for (let i = 0; i < bays; i++) {
+      const x = -span / 2 + (i + 0.5) * bay;
+      put(g, new THREE.Mesh(pane, glass), x, base + rise / 2, 0);
+      if (i > 0) put(g, kit.box(0.035, rise, 0.06, "mullion", 0.01), x - bay / 2, base + rise / 2, 0);
+    }
+    put(g, kit.box(span + 0.04, 0.035, 0.07, "mullion", 0.01), 0, base + rise, 0);
+    for (const s of [-1, 1]) put(g, kit.box(0.07, rise + 0.02, depth + 0.04, "timber-trim", 0.012), s * (span / 2 + 0.035), base + rise / 2 + 0.01, 0);
+  }
   return g;
 }
 

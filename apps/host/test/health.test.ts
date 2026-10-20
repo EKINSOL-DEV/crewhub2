@@ -4,14 +4,16 @@ import { createHost } from "../src/host.ts";
 import { createLoopsStub, installation } from "./loopsStub.ts";
 
 describe("health", () => {
-  it("reports ok with the key name, whether it is the shared key, loops' version and the cursor", async () => {
+  it("reports ok with the key name, loops' version, the cursor and the connection's states", async () => {
     const stub = await createLoopsStub({ ...installation() });
-    const host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "builder", sharedKey: true, retryMs: { min: 20, max: 100 } });
+    const host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", keySource: "env", retryMs: { min: 20, max: 100 } });
     try {
       const health = (await (await fetch(`${host.url}/world-api/health`)).json()) as Record<string, unknown>;
       assert.equal(health.loops, "ok");
-      assert.equal(health.keyName, "builder");
-      assert.equal(health.sharedKey, true);
+      assert.equal(health.keyName, "crewhub-world");
+      assert.equal(health.sharedKey, false);
+      assert.equal(health.transport, "tcp");
+      assert.deepEqual(health.connection, { discovery: { state: "found", via: "env-url" }, key: { state: "ok" }, stream: { state: "ok", reconnects: 0 } }, "an unpaired request sees the states only");
       assert.equal(health.cursor, 0);
       assert.equal(health.loopsWebUrl, stub.url, "the loops origin, for the sign-in link");
       for (let i = 0; i < 20 && health.loopsCommit === undefined; i += 1) {

@@ -1,7 +1,7 @@
 /* regress.mjs: the browser regression pass of the integrated world, in five groups.
 
    Usage:
-     node tools/regress.mjs --port <port> [--groups walk,demo,live,rooms,real] [--host-port 5180] [--loops-env <file>] [--tag pass] [--out <dir>] [--swiftshader]
+     node tools/regress.mjs --port <port> [--groups walk,demo,live,rooms,real] [--host-port 5180] [--loops-env <file>] [--loops-socket <path>] [--tag pass] [--out <dir>] [--swiftshader]
 
    Groups (--groups, default all five, in this order):
      walk  38 checks along a visitor's walk through the demo (keyboard, the text view, the timeline, chat, build mode,
@@ -21,14 +21,18 @@
            racks and the desks with a package on each, the lead's office beacon, the agent card on a figure at a desk,
            and walk mode in through the front door into Administration and on to the floor. About one minute.
      real  live mode against the REAL development crewhub-loops (tools/loops-dev.sh, 127.0.0.1:8291): it reads
-           --loops-env (default tools/out/loops-dev.env of the main checkout: LOOPS_DEV_URL and LOOPS_DEV_KEY_FILE, the
-           admin lines are never read), skips cleanly with one INFO line when that loops does not answer (counted as
-           neither pass nor fail), else starts its own host on --host-port against it with that key (so Vite must have
-           been started with CREWHUB_WORLD_PORT=<host-port>) and checks in the browser: the chip says Live, the town
-           shows the real projects by name, a building shows its real tickets, the text view names them, and when a
-           ticket moves during the run (the seed tool, a person in the loops web) the building's count follows the
-           board (a moved ticket flies to its rack first, so that check allows 12 s). Under a minute. Run it while no
-           other host of yours is open against that loops (4 streams per key).
+           --loops-env (default: the first tools/out/loops-dev.env of this worktree, the main checkout or
+           ~/Documents/GitHub/crewhub2-world-demo; LOOPS_DEV_URL and LOOPS_DEV_KEY_FILE, the admin lines are never
+           read), skips cleanly with one INFO line when that loops does not answer (counted as neither pass nor fail),
+           else starts its own host on --host-port against it with that key (so Vite must have been started with
+           CREWHUB_WORLD_PORT=<host-port>) and checks in the browser: the chip says Live, the town shows the real
+           projects by name, a building shows its real tickets, the text view names them, and when a ticket moves
+           during the run (the seed tool, a person in the loops web) the building's count follows the board (a moved
+           ticket flies to its rack first, so that check allows 12 s). Then, with that host closed, a second host reads
+           the same loops over its Unix socket (--loops-socket, default ~/crewhub-loops-dev/run/api.sock, the
+           development instance's; CREWHUB_WORLD_LOOPS_SOCKET for the host): its health says transport unix and its
+           snapshot has the same projects as over TCP; skipped with an INFO line when there is no socket at that path.
+           Under a minute. Run it while no other host of yours is open against that loops (4 streams per key).
    Besides the checks it fails on any page error, console error or request that leaves the page's own origin, and
    on a group that stops before its end.
 
@@ -38,14 +42,14 @@
 
    Run it against a dev server (Vite): some checks read the scene through `window.__town`, which only dev builds set. */
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { cli, dressed, launch, list, problemLines, seek, speed, watch } from "./lib/world.mjs";
 
 const GROUPS = ["walk", "demo", "live", "rooms", "real"];
-const USAGE = "node tools/regress.mjs --port <port> [--groups walk,demo,live,rooms,real] [--host-port 5180] [--loops-env <file>] [--tag pass] [--out <dir>] [--swiftshader]";
-const opts = cli(USAGE, { options: { tag: "pass", groups: GROUPS.join(","), "host-port": "5180", "loops-env": "" } });
+const USAGE = "node tools/regress.mjs --port <port> [--groups walk,demo,live,rooms,real] [--host-port 5180] [--loops-env <file>] [--loops-socket <path>] [--tag pass] [--out <dir>] [--swiftshader]";
+const opts = cli(USAGE, { options: { tag: "pass", groups: GROUPS.join(","), "host-port": "5180", "loops-env": "", "loops-socket": "" } });
 const groups = list(opts.groups, GROUPS, opts.fail, "group");
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const { tag, out: OUT, base: BASE, origin } = opts;
@@ -742,14 +746,16 @@ await group("real", async () => {
   const hostPort = Number(opts["host-port"]);
   if (!Number.isInteger(hostPort) || hostPort <= 0) opts.fail("--host-port <port> must be a port number");
   const keyName = path.basename(keyFile).replace(/^agent-/, "").replace(/\.key$/, "");
-  const host = await createHost({ loopsUrl, key, keyName, port: hostPort, allowedOrigins: [origin], pairing: "off", retryMs: { min: 200, max: 2000 }, log: () => undefined });
-  key = "";
+  const hostOptions = { loopsUrl, keyName, pairing: "off", retryMs: { min: 200, max: 2000 }, log: () => undefined };
+  const host = await createHost({ ...hostOptions, key, port: hostPort, allowedOrigins: [origin] });
   info(`real: loops on 127.0.0.1:${loopsPort} (version ${health.version}), host on 127.0.0.1:${host.port} behind the Vite proxy on ${origin}, key ${keyName}`);
   // The host's answers through the Vite proxy, as the page reads them.
   const hostApi = (p) => pg.request.get(`${origin}/world-api${p}`).then((r) => r.json());
   const chip = pg.locator(".connection-chip").first();
+  let tcpProjects = -1;
   try {
     const snapshot = await hostApi("/snapshot");
+    tcpProjects = Array.isArray(snapshot.projects) ? snapshot.projects.length : -1;
     ok("real: the host assembles a snapshot from the real loops", Array.isArray(snapshot.projects) && snapshot.projects.length > 0 && typeof snapshot.cursor === "number", `cursor ${snapshot.cursor}, ${snapshot.projects?.length} projects`);
     const projects = snapshot.projects ?? [];
     const names = projects.map((p) => `${p.name} (${p.key})`);
@@ -807,21 +813,65 @@ await group("real", async () => {
     } else info("real: no project has tickets, the building checks are skipped");
     const after = await hostApi("/health");
     ok("real: the host stayed on the real loops", after.loops === "ok" && typeof after.cursor === "number" && after.cursor >= snapshot.cursor, `loops ${after.loops}, cursor ${snapshot.cursor} → ${after.cursor}`);
-    await pg.context().close();
   } finally {
     await host.close().catch(() => {});
   }
+  // The socket: with the TCP host closed (one upstream stream of this key at a time), a second host reads the same
+  // loops over its Unix socket (CREWHUB_WORLD_LOOPS_SOCKET): the same key, the same projects, `transport: "unix"`.
+  const socketPath = loopsSocketPath();
+  let unixHost = null;
+  try {
+    if (!isUnixSocket(socketPath)) {
+      info(`real: socket check skipped, no Unix socket at ${socketPath} (--loops-socket names another)`);
+      return;
+    }
+    unixHost = await createHost({ ...hostOptions, key, loopsSocket: socketPath, port: 0 });
+    key = "";
+    const unixApi = (p) => pg.request.get(`${unixHost.url}/world-api${p}`).then((r) => r.json());
+    let unixHealth = await unixApi("/health");
+    for (let attempt = 0; attempt < 25 && unixHealth.loops !== "ok"; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      unixHealth = await unixApi("/health");
+    }
+    ok("real: a host over the Unix socket reads the same loops", unixHealth.transport === "unix" && unixHealth.loops === "ok" && typeof unixHealth.cursor === "number", `transport ${unixHealth.transport}, loops ${unixHealth.loops}, cursor ${unixHealth.cursor}, socket ${socketPath}`);
+    const unixSnapshot = await unixApi("/snapshot");
+    const unixProjects = Array.isArray(unixSnapshot.projects) ? unixSnapshot.projects.length : -1;
+    ok("real: the socket host's snapshot has the projects the TCP host had", unixProjects > 0 && unixProjects === tcpProjects, `${unixProjects} over the socket, ${tcpProjects} over TCP`);
+  } finally {
+    key = "";
+    if (unixHost !== null) await unixHost.close().catch(() => {});
+    await ctx.close().catch(() => {});
+  }
 });
 
-/** The env file of the development loops: --loops-env, else tools/out/loops-dev.env of the main checkout (this worktree's own when it is the main one). */
+/**
+ * The env file of the development loops: --loops-env, else the first `tools/out/loops-dev.env` that exists in this
+ * worktree, in the main checkout (through the common git dir) or in ~/Documents/GitHub/crewhub2-world-demo (where
+ * the night's phase 0 wrote it); when none exists, this worktree's path, so the skip line names a real place.
+ */
 function loopsEnvFile() {
   if (opts["loops-env"]) return path.resolve(opts["loops-env"]);
-  let main = REPO;
+  const candidates = [REPO];
   try {
     const common = execFileSync("git", ["rev-parse", "--git-common-dir"], { cwd: REPO, encoding: "utf8" }).trim();
-    main = path.dirname(path.resolve(REPO, common));
+    candidates.push(path.dirname(path.resolve(REPO, common)));
   } catch {}
-  return path.join(main, "tools", "out", "loops-dev.env");
+  candidates.push(path.join(process.env.HOME ?? "~", "Documents", "GitHub", "crewhub2-world-demo"));
+  const files = candidates.map((dir) => path.join(dir, "tools", "out", "loops-dev.env"));
+  return files.find((file) => existsSync(file)) ?? files[0];
+}
+/** The development loops' Unix socket: --loops-socket, else `tools/loops-dev.sh`'s `~/crewhub-loops-dev/run/api.sock`. */
+function loopsSocketPath() {
+  const given = opts["loops-socket"];
+  const text = given || "~/crewhub-loops-dev/run/api.sock";
+  return path.resolve(text.replace(/^~(?=\/|$)/, process.env.HOME ?? "~"));
+}
+function isUnixSocket(file) {
+  try {
+    return statSync(file).isSocket();
+  } catch {
+    return false;
+  }
 }
 /** `KEY=value` lines of a dotenv-style file; only the two keys the group needs are kept, the rest never leaves this function. */
 function readEnvFile(file) {

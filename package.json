@@ -34,6 +34,7 @@
     "prop:validate": "node scripts/prop-validate.ts",
     "host": "node apps/host/src/main.ts",
     "host:start": "npm run build && NODE_ENV=production node apps/host/src/main.ts",
+    "world": "node apps/host/src/main.ts world",
     "loops:fake": "node packages/loops-fake/src/main.ts"
   },
   "devDependencies": {

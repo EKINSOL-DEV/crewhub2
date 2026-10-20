@@ -531,6 +531,9 @@ function plan(kind: RoomKind, facts: RoomFacts, planner: Planner, defs: Definiti
  * template's; the dressing adds what an office's back room has (a filing cabinet, a parcel cart by the loading door,
  * crates, plants by the front door). The floor (kind `workers`): plants between the desks, a water cooler, a board.
  */
+/** The floor's module side (threeRoomTemplate.ts MODULE_SIDE), a literal here: this module and buildingTemplate.ts import each other. */
+const FLOOR_MODULE = 6;
+
 function planHall(kind: RoomKind, facts: RoomFacts, planner: Planner, defs: Definitions, rand: () => number, plants: (n: number, word?: string) => void) {
   const place = (want: Want) => planner.place(want);
   const entrance = facts.room.layout.entrance;
@@ -568,11 +571,40 @@ function planHall(kind: RoomKind, facts: RoomFacts, planner: Planner, defs: Defi
     place({ def: "water-cooler", at: "wall", anchor: { x: facts.width, z: facts.depth - 2 }, sides: ["east", "south"] });
     if (!facts.tall.north.size) place({ def: "board-stand", at: "wall", anchor: null, sides: ["north"] });
     const huddle = facts.room.layout.props.find((p) => defs[p.definitionId]?.tags.includes("gather"));
-    // A floor lamp and a side table by the huddle, outside its ring.
+    // A floor lamp and a side table by the huddle, against the office's partition either side of its door: outside the
+    // ring and off the way from that door to the floor's door down to Administration.
     if (huddle) {
-      place({ def: "floor-lamp", at: "free", anchor: { x: huddle.cell.x - 1.5, z: huddle.cell.z + 3.5 }, tag: "huddle" });
-      place({ def: "side-table", at: "free", anchor: { x: huddle.cell.x + 3.5, z: huddle.cell.z + 3.5 }, tag: "huddle" });
+      place({ def: "floor-lamp", at: "free", anchor: { x: huddle.cell.x - 2.5, z: huddle.cell.z - 0.5 }, tag: "huddle" });
+      place({ def: "side-table", at: "free", anchor: { x: huddle.cell.x - 2.5, z: huddle.cell.z + 3.5 }, tag: "huddle" });
     }
+    // A module without a desk (a small team's floor has several) is a breakout corner, not a void: in turn a lounge
+    // (two armchairs round a side table, on a rug from the decor) and a green corner (a planter, plants, a bench).
+    const desks = facts.room.layout.props.filter((p) => defs[p.definitionId]?.tags.includes("desk"));
+    const columns = Math.floor(facts.width / FLOOR_MODULE),
+      rows = Math.floor(facts.depth / FLOOR_MODULE);
+    let empties = 0;
+    for (let row = 0; row < rows; row++)
+      for (let column = 0; column < columns; column++) {
+        const x0 = column * FLOOR_MODULE,
+          z0 = row * FLOOR_MODULE;
+        const inside = (c: Cell) => c.x >= x0 && c.x < x0 + FLOOR_MODULE && c.z >= z0 && c.z < z0 + FLOOR_MODULE;
+        if (desks.some((d) => inside(d.cell)) || (huddle && inside(huddle.cell))) continue;
+        const centre = { x: x0 + FLOOR_MODULE / 2, z: z0 + FLOOR_MODULE / 2 };
+        if (empties++ % 2 === 0) {
+          const table = place({ def: "side-table", at: "free", anchor: centre, tag: "breakout" });
+          if (table) {
+            place({ def: "armchair", at: "free", anchor: { x: table.cell.x - 1, z: table.cell.z + 0.5 }, tag: "breakout" });
+            place({ def: "armchair", at: "free", anchor: { x: table.cell.x + 2, z: table.cell.z + 0.5 }, tag: "breakout" });
+          }
+        } else {
+          const planter = place({ def: "planter", at: "free", anchor: centre, tag: "green" });
+          if (planter) {
+            place({ def: "plant", at: "free", anchor: { x: planter.cell.x - 1, z: planter.cell.z + 0.5 }, tag: "green" });
+            place({ def: "plant", at: "free", anchor: { x: planter.cell.x + 2, z: planter.cell.z + 0.5 }, tag: "green" });
+            place({ def: "bench", at: "free", anchor: { x: planter.cell.x + 0.5, z: planter.cell.z + 2.5 }, tag: "green" });
+          }
+        }
+      }
     return;
   }
 }
@@ -892,23 +924,15 @@ export function roomDecor(template: BuildingTemplate, options: Omit<DressOptions
         rug("decor.rug-round", pose.x, pose.z, 0, { scale: { x: 1.45, y: 1, z: 1.45 } });
         pendant(pose.x, pose.z);
       }
-      // The office's window onto the floor, in its east wall; the furniture layer draws it whichever way the camera turns.
-      if (room.kind === "lead-office") {
-        const sill = facts.partition.east.size ? [...facts.partition.east].sort((a, b) => a - b) : [];
-        // The middle of the longest clear stretch of the partition, away from the door and the desks beside it.
-        let best: [number, number] | null = null;
-        for (let i = 0; i < sill.length; ) {
-          let j = i;
-          while (j + 1 < sill.length && sill[j + 1] === sill[j]! + 1) j++;
-          if (!best || j - i > best[1] - best[0]) best = [sill[i]!, sill[j]!];
-          i = j + 1;
-        }
-        if (best && best[1] - best[0] >= 1) at("decor.office-window", facts.width, (best[0] + best[1] + 1) / 2, Math.PI / 2);
-      }
-      // The office lounge's table and the waiting corner's chairs stand on round rugs.
+      // The office's window onto the floor is the glazed partition itself (threeRoomTemplate.ts officeWindowRun).
+      // The office lounge's table, the waiting corner's chairs and the floor's breakout tables stand on round rugs.
       for (const p of props.filter((q) => q.id.startsWith(`${DRESS_PREFIX}lounge-round-table`))) {
         const pose = poseOf(p, defs);
         rug("decor.rug-round", pose.x, pose.z + 0.3, 0, { scale: { x: 1.3, y: 1, z: 1.2 } });
+      }
+      for (const p of props.filter((q) => q.id.startsWith(`${DRESS_PREFIX}breakout-side-table`))) {
+        const pose = poseOf(p, defs);
+        rug("decor.rug-round", pose.x + 0.5, pose.z + 0.3, 0, { scale: { x: 1.25, y: 1, z: 1 } });
       }
       const waitingChair = props.find((q) => q.id.startsWith(`${DRESS_PREFIX}waiting-armchair`));
       if (waitingChair) {
