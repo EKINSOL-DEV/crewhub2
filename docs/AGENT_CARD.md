@@ -7,7 +7,12 @@ figure keeps walking while the card follows its anchor.
 
 The card reads the projection, never the source, so it is the same in demo and live mode: the demo gives what its
 script knows, a real crewhub-loops gives more (the lane, the flags). An absent fact is simply not shown; nothing is
-invented. In demo mode a ticket has no link, and the footer says the facts are scripted.
+invented, and when loops knows nothing the card says so ("No lane", "Team says nothing", "Seen by loops never"). In
+demo mode a ticket has no link, and the footer says the facts are scripted. The fake crewhub-loops (`packages/loops-fake`)
+scripts lanes for the demo's agents (desired and observed values, some drift, a closed lane, a needs-login) and lists
+its own key as the external bot it is, so live mode against the fake shows the whole card; `node tools/liveshots.mjs
+--port <port> --card cr-lead,crewhub-world` photographs it. On the development crewhub-loops every agent is laneless
+and the team snapshot is empty, so there the card says exactly that.
 
 ## Where the facts come from
 
@@ -20,9 +25,10 @@ it:
 | `agent`, `building`, `stateWords` | The reducer's `AgentPlacement` (the real one when the agent is in a building), and the text view's sentence: lane status and posture, in words. |
 | `work`, `workProject` | The ticket on its desk (`deskTicketKey`), else the in-progress ticket loops assigned to it. |
 | `progress` | Its last `ticket.progress` line (a worker's line without the `"<worker>: "` prefix, through `linesOf`). |
-| `team` | Its lane in the team snapshot (`GET /api/team`): status, the status line, the lead it works for. |
-| `loops` | `GET /api/agents`: role, `isCrewhubLead`, `isCoordinator`, `isOperator`, the herdr session, `projects {lead, member}`. Null for a worker. |
-| `lane` | `AgentDetailOut.lane` (`contracts/agents.py`, `AgentLane`), read defensively from the wire (`laneFacts`): kind, model, effort, permission mode, lifecycle, what the probe observed, the drift. The client types keep `lane` as `unknown`; the card never trusts a field it did not check. |
+| `team` | Its lane in the team snapshot (`GET /api/team`): herdr's status word, the status line, the lead it works for, text typed and not sent. |
+| `teamSession` | The snapshot session that lane sits in: its name and its computer (`TeamSession.computer`, CL-459). |
+| `loops` | `GET /api/agents` (`AgentDetailOut` at loops `4cdcd383`): role, `isCrewhubLead`, `isCoordinator`, `isOperator`, `disabled`, `external` (CL-314: a bot on another machine, no lane), `reader` (CL-313: reads tickets only), `notPickedUp`, `needsLoginSince` (CL-329), `lastSeenAt` (when loops last saw its key), the herdr session (`"external:none"` for an external bot), the computer, `projects {lead, member}`. Null for a worker. |
+| `lane` | `AgentDetailOut.lane` (`contracts/agents.py`, `AgentLane`), typed on the client and still read defensively (`laneFacts`): kind, session and pane, the desired model, effort, account and permission mode, lifecycle and restarting, what was observed (and by what: the probe, or how loops started it), when, and the drift as loops names it. Null for an external bot and for every agent on the development instance tonight. |
 | `homes` | The buildings it belongs to (where it stands, a proxy's home, loops' project membership). |
 | `recent` | The last `RECENT_LIMIT` (5) facts that name it, newest first: its progress lines, moves and comments it made, deliveries for it. |
 
@@ -50,9 +56,9 @@ The sections shipped:
 
 | Section | When | Shows |
 | --- | --- | --- |
-| Now | always | Where it is (building, room, or in a three-room building the hall and the desk: "on the floor at a worker desk"; "inferred" when it is), the lane chip and posture, a proxy note, the stale note, the status line, the lit alerts. |
+| Now | always | Where it is (building, room, or in a three-room building the hall and the desk: "on the floor at a worker desk"; "inferred" when it is), the lane chip and posture, a proxy note, the stale note ("No team snapshot: no team probe has reported to this crewhub-loops" when none ever came, as on the development instance); **Team says** the team's own status word (an old snapshot's word is "Team said ..., in a snapshot that is old now"; "nothing: not in the team snapshot" when the team does not know the agent, and for an external bot "nothing: an external bot has no pane for the team to watch"), the status line; **Seen by loops** from `lastSeenAt` ("3 min ago", "never", or "Not seen by loops: for 2 h"), with "not known to be working" whenever nothing fresher than 5 minutes says so; the lit alerts. Text, never colour alone. |
 | Work | a ticket or a line | The ticket (linked), its status and chips (priority, blocked, held, waiting on, stall), the project, the last progress line with its age. |
-| Lane | loops gave a lane or a flag, or it is a worker | Runs on (kind, model, effort), permission mode, lifecycle, what the probe observed, the drift; the loops role and flags, the session; for a worker, whose it is. |
+| Lane | loops gave a lane or a flag, the team named a computer, or it is a worker | **Set up as** (kind, model, effort) and **Permission mode**: the desired lane. **Seen running**: what was observed, by the probe or from its start, how long ago; then either "No drift: it runs as set up", or a `drift in model, permission mode` chip with one row per field ("model drift: set up as claude-fable-5-1, seen claude-opus-5-5"), in loops' own drift words. "Never seen running" when there is no observation. **Lifecycle** (fixed or closed, "restarting now"), **Session** and pane, **Computer** ("This computer, where loops runs" or "buildbox, remote"). An external bot has no lane and says so: "External bot: no lane, it runs elsewhere" ("; reads only" for a reader); a laneless agent: "No lane: loops has not tied this agent to a pane". **In loops**: the role and flags (CrewHub lead, coordinator, operator, external bot, disabled); attention chips for "needs login, since 40 min ago" and "3 deliveries not picked up for over a day". For a worker, whose it is. |
 | Projects | any building or project | Each building with the agent's part in it (leads it, member, works here), and projects loops names that have no building here. |
 | Recent | any fact | The last five facts about it, newest first, with their age in source time. |
 
