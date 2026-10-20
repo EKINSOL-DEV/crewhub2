@@ -34,6 +34,7 @@ import { fileURLToPath } from "node:url";
 /** Files allowed to use the network, with the reason. The demo has no network at all. */
 export const NETWORK_ALLOWLIST: Readonly<Record<string, string>> = {
   "packages/loops-client/src/hostSource.ts": "the live source: reads its own host's /world-api (same origin by default), nothing else",
+  "tools/loops-seed.mjs": "the seed: writes the demo storyline into the development crewhub-loops on this machine (spec addendum, live on the Mac); the tooling-address rule still applies",
 };
 
 /** Folders allowed to use the network, with the reason. Their addresses must be this machine's, as under tools/. */
