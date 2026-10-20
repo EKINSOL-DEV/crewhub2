@@ -4,7 +4,8 @@
  * heartbeats that carry a cursor, 429 `too_many_streams` on demand, 410 for a cursor that does not open or a too-old
  * `after`, and the honest `lastSeq` of CL-390 (a filter that matches nothing answers `after`, so the old tail trick
  * says 0). It records every request it sees with its time, and the most streams that were ever open at once.
- * On 127.0.0.1 port 0: loopback to the test itself, no network. (The full fake is `packages/loops-fake`.)
+ * On 127.0.0.1 port 0: loopback to the test itself, no network; or on a Unix socket (`socketPath`) for the host's
+ * socket transport. (The full fake is `packages/loops-fake`.)
  */
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -15,6 +16,8 @@ export interface StubRequest {
   authorization: string | undefined;
   /** `Date.now()` when the request arrived. */
   at: number;
+  /** The `Host` header as sent (the socket transport must send `127.0.0.1`). */
+  host: string | undefined;
 }
 
 export interface Envelope {
@@ -50,11 +53,16 @@ export interface StubOptions {
   older?: boolean;
   /** Answers 429 `too_many_streams` with this `Retry-After` to the next `count` stream requests. */
   busy?: { count: number; retryAfter: string };
+  /** Listen on this Unix socket instead of TCP; `url` is then empty and `socketPath` set. */
+  socketPath?: string;
 }
 
 export interface LoopsStub {
+  /** `http://127.0.0.1:<port>`, or "" for a stub on a socket. */
   url: string;
   port: number;
+  /** The socket the stub listens on, or null for TCP. */
+  socketPath: string | null;
   key: string;
   requests: StubRequest[];
   /** Open stream connections right now. */
@@ -121,7 +129,7 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
   function handle(req: IncomingMessage, res: ServerResponse): void {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     const auth = req.headers.authorization;
-    requests.push({ method: req.method ?? "", path: url.pathname + url.search, authorization: auth, at: Date.now() });
+    requests.push({ method: req.method ?? "", path: url.pathname + url.search, authorization: auth, at: Date.now(), host: req.headers.host });
     const detail = options.echoAuth ? ` (auth: ${auth ?? "none"})` : "";
     if (auth === undefined) return send(res, 401, error("unauthenticated", `No credentials${detail}`));
     if (req.headers.cookie !== undefined) return send(res, 400, error("ambiguous_auth", `Send one or the other${detail}`));
@@ -193,15 +201,18 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
   }
 
   const server: Server = createServer(handle);
+  const socketPath = options.socketPath ?? null;
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
-    server.listen(options.port ?? 0, "127.0.0.1", resolve);
+    if (socketPath !== null) server.listen(socketPath, resolve);
+    else server.listen(options.port ?? 0, "127.0.0.1", resolve);
   });
-  const port = (server.address() as AddressInfo).port;
+  const port = socketPath === null ? (server.address() as AddressInfo).port : 0;
 
   return {
-    url: `http://127.0.0.1:${port}`,
+    url: socketPath === null ? `http://127.0.0.1:${port}` : "",
     port,
+    socketPath,
     key,
     requests,
     openStreams: () => streams.size,

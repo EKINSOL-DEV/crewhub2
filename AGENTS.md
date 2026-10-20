@@ -9,10 +9,12 @@ rooms by status. The decision is [ADR 0005](docs/decisions/0005-crewhub-world-on
 the full plan is [docs/LOOPS_INTEGRATION_PLAN.md](docs/LOOPS_INTEGRATION_PLAN.md) and
 tonight's build is [the demo-mode spec](docs/superpowers/specs/2026-10-01-world-demo-mode-design.md).
 
-**Tonight the world runs only in demo mode.** A scripted in-browser source
+**The world runs in demo mode by default.** A scripted in-browser source
 produces data in exactly the shapes crewhub-loops serves. There is no network
-call, no account and no model call. `apps/host` (the process that would read
-crewhub-loops) is planned, not built. Implement the scope the user actually
+call, no account and no model call. Live mode is built: `apps/host` reads a real
+crewhub-loops with an external bot key (over loopback TCP, or the app's Unix
+socket when told) and never writes to it; the runbook is
+[docs/LOOPS_SETUP.md](docs/LOOPS_SETUP.md). Implement the scope the user actually
 assigns; do not describe planned parts as implemented.
 
 Start with [docs/README.md](docs/README.md) for the document index and
@@ -45,9 +47,12 @@ proposals, and implemented behavior.
 - `apps/world` owns presentation. Keep credentials, keys, and machine access out of
   it. All data arrives through a `WorldSource`; in the planned design it comes from
   the CrewHub host, never from a runtime.
-- `apps/host` is planned, not built. It would be CrewHub's only process: it reads
-  crewhub-loops over its socket with a read-only key, owns the world database and
-  serves the world. It never controls agents or holds provider secrets.
+- `apps/host` is CrewHub's only process: it reads crewhub-loops with one agent key
+  (an external bot's, which could write; the host's `GET`-only allow-list is what
+  keeps the world read-only until crewhub-loops has a viewer key) over loopback TCP
+  or the app's Unix socket, serves and pairs the browser, and never writes to
+  crewhub-loops. The world database is planned, not built. It never controls
+  agents or holds provider secrets.
 - `packages/loops-client` holds the crewhub-loops types, hand-written runtime
   validators for every response and event, and the `WorldSource` seam. It stays free
   of React, Three.js, the DOM, the network, and runtime dependencies. It replaces

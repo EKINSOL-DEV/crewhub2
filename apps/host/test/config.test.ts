@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { ConfigError, keyNameOf, loadKey, loadServerConfig } from "../src/config.ts";
+import { homedir } from "node:os";
+import path from "node:path";
+import { ConfigError, keyNameOf, loadKey, loadServerConfig, resolveLoopsWebUrl, validateSocketPath } from "../src/config.ts";
 
 const files = { defaultKey: "/secrets/agent-crewhub-world.key", builderKey: "/secrets/agent-builder.key" };
 const disk = (contents: Record<string, string>) => (file: string) => contents[file] ?? null;
@@ -40,13 +42,60 @@ describe("the key file", () => {
 
 describe("the server config", () => {
   it("has the plan's defaults", () => {
-    assert.deepEqual(loadServerConfig({}), { loopsUrl: "http://127.0.0.1:8091", port: 5180, allowedOrigins: [], production: false, pairing: "on", pairingFile: null, publicUrl: null, warnings: [] });
+    assert.deepEqual(loadServerConfig({}), { loopsUrl: "http://127.0.0.1:8091", loopsSocket: null, loopsWebUrl: "http://127.0.0.1:8091", port: 5180, allowedOrigins: [], production: false, pairing: "on", pairingFile: null, publicUrl: null, warnings: [] });
   });
 
   it("reads the environment and rejects a bad port or URL", () => {
     const config = loadServerConfig({ CREWHUB_WORLD_PORT: "5190", CREWHUB_WORLD_LOOPS_URL: "http://localhost:8091/", CREWHUB_WORLD_ALLOWED_ORIGINS: "http://localhost:5173, http://127.0.0.1:5173", NODE_ENV: "production" });
-    assert.deepEqual(config, { loopsUrl: "http://localhost:8091/", port: 5190, allowedOrigins: ["http://localhost:5173", "http://127.0.0.1:5173"], production: true, pairing: "on", pairingFile: null, publicUrl: null, warnings: [] });
+    assert.deepEqual(config, { loopsUrl: "http://localhost:8091/", loopsSocket: null, loopsWebUrl: "http://localhost:8091", port: 5190, allowedOrigins: ["http://localhost:5173", "http://127.0.0.1:5173"], production: true, pairing: "on", pairingFile: null, publicUrl: null, warnings: [] });
     assert.throws(() => loadServerConfig({ CREWHUB_WORLD_PORT: "world" }), ConfigError);
     assert.throws(() => loadServerConfig({ CREWHUB_WORLD_LOOPS_URL: "ftp://x" }), ConfigError);
+  });
+});
+
+describe("the loops socket", () => {
+  /** A disk with one socket and one plain file. */
+  const probe = (file: string) => (file === "/run/api.sock" ? { isSocket: true } : file === "/run/serve.pid" ? { isSocket: false } : null);
+
+  it("validates the path: it must exist and be a socket, and ~ is the home folder", () => {
+    assert.equal(validateSocketPath("/run/api.sock", probe), "/run/api.sock");
+    assert.equal(validateSocketPath(" /run/api.sock ", probe), "/run/api.sock", "surrounding whitespace is dropped");
+    assert.throws(() => validateSocketPath("/run/nothing.sock", probe), (e: unknown) => e instanceof ConfigError && /does not exist/.test(e.message));
+    assert.throws(() => validateSocketPath("/run/serve.pid", probe), (e: unknown) => e instanceof ConfigError && /not a Unix socket/.test(e.message));
+    const seen: string[] = [];
+    assert.throws(() => validateSocketPath("~/crewhub-loops-dev/run/api.sock", (f) => (seen.push(f), null)));
+    assert.deepEqual(seen, [path.join(homedir(), "crewhub-loops-dev", "run", "api.sock")]);
+  });
+
+  it("is explicit only: unset means TCP, set means the socket, and never both", () => {
+    assert.equal(loadServerConfig({}, probe).loopsSocket, null);
+    assert.equal(loadServerConfig({ CREWHUB_WORLD_LOOPS_SOCKET: "" }, probe).loopsSocket, null, "empty is unset");
+    const unix = loadServerConfig({ CREWHUB_WORLD_LOOPS_SOCKET: "/run/api.sock" }, probe);
+    assert.equal(unix.loopsSocket, "/run/api.sock");
+    assert.equal(unix.loopsUrl, "http://127.0.0.1:8091", "the URL keeps its default: it names the web app for the sign-in link");
+    assert.equal(unix.loopsWebUrl, "http://127.0.0.1:8091");
+    assert.equal(loadServerConfig({ CREWHUB_WORLD_LOOPS_SOCKET: "/run/api.sock", CREWHUB_WORLD_LOOPS_WEB_URL: "http://127.0.0.1:8291/" }, probe).loopsWebUrl, "http://127.0.0.1:8291", "socket mode can name another web app");
+    assert.throws(
+      () => loadServerConfig({ CREWHUB_WORLD_LOOPS_SOCKET: "/run/api.sock", CREWHUB_WORLD_LOOPS_URL: "http://127.0.0.1:8291" }, probe),
+      (e: unknown) => e instanceof ConfigError && /both set/.test(e.message) && /Unset one/.test(e.message),
+    );
+    assert.throws(() => loadServerConfig({ CREWHUB_WORLD_LOOPS_SOCKET: "/run/missing.sock" }, probe), ConfigError);
+  });
+
+  it("checks the real disk by default (a plain file is refused)", () => {
+    assert.throws(() => loadServerConfig({ CREWHUB_WORLD_LOOPS_SOCKET: new URL(import.meta.url).pathname }), /not a Unix socket/);
+    assert.throws(() => loadServerConfig({ CREWHUB_WORLD_LOOPS_SOCKET: "/nowhere/at/all.sock" }), /does not exist/);
+  });
+});
+
+describe("the loops web URL", () => {
+  it("is the loops URL's origin unless CREWHUB_WORLD_LOOPS_WEB_URL names another http(s) origin", () => {
+    assert.equal(resolveLoopsWebUrl(undefined, "http://localhost:8091/"), "http://localhost:8091");
+    assert.equal(resolveLoopsWebUrl("  ", "http://127.0.0.1:8291"), "http://127.0.0.1:8291", "blank is unset");
+    assert.equal(resolveLoopsWebUrl("https://localhost:8443/app/", "http://127.0.0.1:8091"), "https://localhost:8443", "only the origin");
+    assert.throws(() => resolveLoopsWebUrl("localhost:8091", "http://127.0.0.1:8091"), (e: unknown) => e instanceof ConfigError && /http\(s\) URL/.test(e.message));
+    assert.throws(() => resolveLoopsWebUrl("ftp://x", "http://127.0.0.1:8091"), ConfigError);
+    assert.equal(loadServerConfig({ CREWHUB_WORLD_LOOPS_URL: "http://127.0.0.1:8291", CREWHUB_WORLD_LOOPS_WEB_URL: "http://localhost:8291" }).loopsWebUrl, "http://localhost:8291");
+    assert.throws(() => loadServerConfig({ CREWHUB_WORLD_LOOPS_WEB_URL: "nope" }), ConfigError);
   });
 });

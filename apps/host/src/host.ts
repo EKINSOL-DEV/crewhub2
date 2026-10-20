@@ -16,7 +16,12 @@ import { SnapshotError, assembleSnapshot } from "./snapshot.ts";
 import { type HostMessage, type LoopsState, createUpstream } from "./stream.ts";
 
 export interface HostOptions {
+  /** crewhub-loops' URL: read over TCP, and in any case the web app's origin for the sign-in link. */
   loopsUrl: string;
+  /** Read loops over this Unix socket instead of TCP (`CREWHUB_WORLD_LOOPS_SOCKET`); `loopsUrl` then only names the web app. */
+  loopsSocket?: string;
+  /** The web app's origin for the sign-in link (`CREWHUB_WORLD_LOOPS_WEB_URL`); default: `loopsUrl`'s origin. */
+  loopsWebUrl?: string;
   key: string;
   keyName: string;
   /** True when the shared builder key is in use (the fallback). */
@@ -70,6 +75,8 @@ export interface HostHealth {
   cursor?: number;
   /** The origin of the loops URL: the web app for the sign-in link (on the Mac the web app and the API share 8091). */
   loopsWebUrl: string;
+  /** How the host reaches loops: over TCP (the URL) or over its Unix socket. */
+  transport: "tcp" | "unix";
   /** Whether THIS request carries a valid pairing cookie (always true with pairing off). */
   paired: boolean;
   pairing: "on" | "off";
@@ -102,7 +109,7 @@ function sendJson(res: ServerResponse, status: number, body: unknown, headers: R
 
 export async function createHost(options: HostOptions): Promise<Host> {
   const log = options.log ?? ((line: string) => console.error(`[host] ${line}`));
-  const client = createLoopsClient(options.loopsUrl, options.key);
+  const client = createLoopsClient(options.loopsSocket === undefined ? { transport: "tcp", url: options.loopsUrl } : { transport: "unix", socketPath: options.loopsSocket }, options.key);
   const upstreamOptions: Parameters<typeof createUpstream>[1] = { log };
   if (options.bufferSize !== undefined) upstreamOptions.bufferSize = options.bufferSize;
   if (options.retryMs !== undefined) upstreamOptions.retryMs = options.retryMs;
@@ -110,7 +117,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
   if (options.heartbeatMs !== undefined) upstreamOptions.heartbeatMs = options.heartbeatMs;
   const upstream = createUpstream(client, upstreamOptions);
   const sharedKey = options.sharedKey ?? false;
-  const loopsWebUrl = new URL(options.loopsUrl).origin;
+  const loopsWebUrl = new URL(options.loopsWebUrl ?? options.loopsUrl).origin;
   const staticDir = options.staticDir === undefined ? null : path.resolve(options.staticDir);
   const streams = new Set<ServerResponse>();
   const pairingMode = options.pairing ?? "on";
@@ -309,7 +316,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
     switch (route.pattern) {
       case "/health": {
         await upstream.start();
-        const health: HostHealth = { loops: upstream.state(), keyName: options.keyName, sharedKey, loopsWebUrl, paired: paired(req), pairing: pairingMode };
+        const health: HostHealth = { loops: upstream.state(), keyName: options.keyName, sharedKey, loopsWebUrl, transport: client.transport, paired: paired(req), pairing: pairingMode };
         const version = upstream.loopsVersion();
         if (version !== undefined) health.loopsCommit = version;
         if (upstream.cursor() >= 0) health.cursor = upstream.cursor();

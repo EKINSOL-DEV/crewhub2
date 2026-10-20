@@ -3,9 +3,9 @@
 A small Node program (Node 22, no dependencies beyond Node itself) that stands between the browser and
 crewhub-loops: integrator "Option A" of loops' `docs/integrators/identity-and-access.md`, section 3.5 of
 [docs/LOOPS_INTEGRATION_PLAN.md](../../docs/LOOPS_INTEGRATION_PLAN.md). It holds the one agent key (an external
-bot's, see [docs/LOOPS_SETUP.md](../../docs/LOOPS_SETUP.md)), reads crewhub-loops with safe methods only, and answers
-the browser under `/world-api` on `127.0.0.1`. What the real crewhub-loops stream does and how the host follows it is
-in [docs/LOOPS_REAL_VS_FAKE.md](../../docs/LOOPS_REAL_VS_FAKE.md).
+bot's, which could write: the host is what keeps it read-only), reads crewhub-loops with safe methods only (over
+loopback TCP or over loops' Unix socket), and answers the browser under `/world-api` on `127.0.0.1`. What the real
+crewhub-loops stream does and how the host follows it is in [docs/LOOPS_REAL_VS_FAKE.md](../../docs/LOOPS_REAL_VS_FAKE.md).
 
 What it does:
 
@@ -28,9 +28,10 @@ What it does:
   `/tickets/{ref}/comments|progress`, `/projects/{slug}`, `/projects/{slug}/milestones|releases`, `/board/{slug}`,
   `/watchdog`, `/team`. Only `limit` and `cursor` of a query string are passed. `/world-api/project-groups`
   answers `{ "groups": [] }` locally.
-- **Health** `GET /world-api/health`: `{ loops, keyName, sharedKey, loopsWebUrl, paired, pairing, loopsCommit?, cursor? }`;
-  `loopsWebUrl` is the origin of the loops URL, for the world's "sign in to crewhub-loops" link; `paired` is whether
-  this request carries a valid pairing cookie; `pairing` is `on` or `off`. Health carries no data and needs no cookie.
+- **Health** `GET /world-api/health`: `{ loops, keyName, sharedKey, loopsWebUrl, transport, paired, pairing, loopsCommit?, cursor? }`;
+  `loopsWebUrl` is the origin of the loops URL, for the world's "sign in to crewhub-loops" link; `transport` is `tcp`
+  (the URL) or `unix` (the socket); `paired` is whether this request carries a valid pairing cookie; `pairing` is `on`
+  or `off`. Health carries no data and needs no cookie.
 - **Pairing** (plan 3.5, `src/pairing.ts`): every other `/world-api` route answers `401 {"error":"not_paired"}`
   unless the request carries the cookie `crewhub_world_pair` (`HttpOnly; SameSite=Strict; Path=/`, plus `Secure`
   when `CREWHUB_WORLD_PUBLIC_URL` is https). `GET /pair/<token>` sets it and answers `303 Location: /`; a used,
@@ -47,12 +48,19 @@ What it does:
 - **Static files**: with `NODE_ENV=production` the host serves `apps/world/dist` with an SPA fallback to `index.html`.
 - **The key** is read once from the key file, kept in memory, never logged, never in a response (a test greps every
   response for it; loops' error bodies pass through scrubbed of it).
+- **Transport seam** (`src/transport.ts`): one `request(path, query, { accept, signal, timeoutMs })` that resolves with
+  a web `Response` (status, headers, body stream). `tcp` is `fetch` against the loops URL; `unix` is `node:http` with
+  `socketPath` and `Host: 127.0.0.1`. Both run the allow-list, send the same headers (the bearer key, an `Accept`, never
+  an Origin), follow no redirect and honour the same signal and timeout, so `loops.ts` and the stream never know which
+  one they read. The tests run the stub loops on a socket in a temp folder (`test/unixsock.test.ts`).
 
 ## Environment
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `CREWHUB_WORLD_LOOPS_URL` | `http://127.0.0.1:8091` | crewhub-loops' API. On the Mac this is loopback TCP into Docker Desktop: the plan's "socket client" does not apply across Docker Desktop, so the host speaks HTTP to `127.0.0.1:8091`. |
+| `CREWHUB_WORLD_LOOPS_URL` | `http://127.0.0.1:8091` | crewhub-loops' API over loopback TCP (the Mac app serves `127.0.0.1:8091`; so does the loops nginx under Docker Desktop, where the socket is not reachable). Its origin is also `loopsWebUrl`, the sign-in link, unless `CREWHUB_WORLD_LOOPS_WEB_URL` says otherwise. Not together with `CREWHUB_WORLD_LOOPS_SOCKET`. |
+| `CREWHUB_WORLD_LOOPS_SOCKET` | none | Read loops over its Unix socket instead of TCP (the same allow-list, headers, stream and timeouts; `Host: 127.0.0.1`). The path must exist and be a socket when the host starts, else a clear error; `~/` is the home folder. **Explicit only: the host never guesses a socket.** `--loops-socket <path>` on the command line is the same and wins. Setting both the URL and the socket is a configuration error. See "The socket" below. |
+| `CREWHUB_WORLD_LOOPS_WEB_URL` | the origin of `CREWHUB_WORLD_LOOPS_URL` | Where "sign in to crewhub-loops" goes (`health.loopsWebUrl`), as an origin. The default is right for the app (API and web on 8091); set it in socket mode when the web app is elsewhere, e.g. `http://127.0.0.1:8291` for the development instance. |
 | `CREWHUB_WORLD_KEY_FILE` | `~/.config/crewhub-loops/secrets/agent-crewhub-world.key` | The agent key file. When it is missing and nothing is configured, the host falls back to `agent-builder.key` in the same folder with a loud warning (see below). |
 | `CREWHUB_WORLD_PORT` | `5180` | The port on `127.0.0.1`. |
 | `CREWHUB_WORLD_ALLOWED_ORIGINS` | none | Comma list of extra origins, e.g. the Vite dev server `http://localhost:5173`. |
@@ -63,9 +71,29 @@ What it does:
 
 **The builder key is not a working fallback.** crewhub-loops limits the shared `builder` key to the tickets,
 comments and attachments of its member projects; `/api/projects`, `/api/board`, `/api/team` and the event stream
-answer 403, so the world shows "Unauthorized" and `health.sharedKey` is `true`. The working setup is an external bot
-`crewhub-world` (not read-only; its key is a lead's, the `probe` road is closed since CL-295); the runbook is
+answer 403, so the world shows "Unauthorized" and `health.sharedKey` is `true`. The working setup at crewhub-loops
+`4cdcd383` is an **external bot** `crewhub-world`, made by the owner in Settings > Agents, **not** read-only (the
+CL-313 reader key is tickets-only, and a `probe` agent reads nothing since CL-295); the runbook is
 [docs/LOOPS_SETUP.md](../../docs/LOOPS_SETUP.md).
+
+## The socket
+
+The Mac app (`Crewhub.app`) serves the same API on a Unix socket in its data folder:
+`~/Library/Application Support/be.ekinsol.crewhub/run/api.sock`, or `$TMPDIR/chl-<uid>-<port>/api.sock` when that
+path is over 100 bytes (macOS caps a socket path at 104). The socket is mode 0600, owned by the user who runs the
+app: the host runs as that user, so the mode is no obstacle, and no other user on the machine can reach it. Use it
+when you want nothing of the world's reads on a TCP port, or when the app's port is not loopback-only on your
+machine. The host only uses a socket you name:
+
+```sh
+CREWHUB_WORLD_LOOPS_SOCKET="$HOME/Library/Application Support/be.ekinsol.crewhub/run/api.sock" npm run host:start
+npm run host -- --loops-socket ~/crewhub-loops-dev/run/api.sock      # the development instance of tools/loops-dev.sh
+curl -s http://127.0.0.1:5180/world-api/health                        # "transport":"unix"
+```
+
+The sign-in link is `CREWHUB_WORLD_LOOPS_URL`'s origin (its default is the app's `http://127.0.0.1:8091`): a socket
+has no origin a browser can open. When the web app is elsewhere, name it: `CREWHUB_WORLD_LOOPS_WEB_URL=http://127.0.0.1:8291`
+for the development instance. Under Docker Desktop the socket is inside the VM and not reachable; use the URL.
 
 ## Running
 
@@ -77,7 +105,7 @@ CREWHUB_WORLD_PAIRING=off CREWHUB_WORLD_KEY_FILE=tools/out/loops-fake.key npm ru
 npm run dev                              # Vite proxies /world-api and /pair to 127.0.0.1:5180; open with ?source=live
 ```
 
-Against the real install on this Mac (after [docs/LOOPS_SETUP.md](../../docs/LOOPS_SETUP.md)):
+Against the Mac app (after [docs/LOOPS_SETUP.md](../../docs/LOOPS_SETUP.md)):
 
 ```sh
 npm run host                             # dev: the world comes from Vite, the data from the host

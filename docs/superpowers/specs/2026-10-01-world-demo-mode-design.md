@@ -776,3 +776,93 @@ development instance only. `npm test` stays offline; tests against the real inst
 
 **Out of scope:** the chat (L8), pending delegations (they need the owner's session, not a key), TLS, writes from the
 host, any change to the Mac app, its data folder, port 8091 or launchd.
+
+## Addendum: a person in the world, and closed buildings (2026-10-21, round 2 of the night)
+
+From what the real crewhub-loops taught tonight.
+
+**1. A person carries work into Done.** In loops a move into Done is a person's act: an agent's move answers 403
+`human_only_done` (`domain/tickets.py` `require_human_for_done`). The world shows that.
+
+- When a `ticket.moved` into `done` arrives whose `actor.kind` is `user`, that person appears at the building's front
+  door as a figure of the town's cast (plain clothes, no project colour, a name tag with the principal's
+  `displayName` from `/api/principals`, the word "person" in the text view). They walk to the package on its rack or
+  desk, carry it to the Done rack, and leave by the front door. The drone does not fly that package.
+- A rejection (resolution `rejected`) is carried the same way, and its package gets the existing "turned down" mark.
+  There is no celebration for a rejection.
+- A person is no resident. They never sit at a desk, they are not an agent and the agent card does not open on them;
+  a click says who they are and what they just did. At most one person figure per building at a time. A second
+  move during the walk queues; past three queued moves, they land at once.
+- The model records the visit as a fact with source time (pure, tested). The renderer walks it. Under reduced motion
+  the package lands directly and the text view says "<name> moved <key> to Done".
+- Demo mode shows it through the storyline's person moves (`DEMO_PERSON`); live mode through the real events.
+
+**2. Closed buildings, and opening again.** An archived project is a closed building: boarded up as now, its lights off,
+a sign "Closed" with the date it was archived, no packages and no agents inside. Clicking it says it is archived and
+since when; it can still be entered.
+
+- `project.archived` plays a short closing: the lights go out and the boards come down. `project.restored` plays the
+  reverse. Reduced motion cuts.
+- The demo storyline restores ops-tooling at 5:00.
+- **Live mode learns archived projects.** An agent key may not list them (`includeArchived` is for human admins), but
+  the event log is never pruned and `GET /api/projects/{slug}` resolves an archived project. So the host's snapshot
+  reads `GET /api/events?types=project.archived,project.restored&after=0` (paged) to find the slugs, and reads each one
+  that is archived now.
+
+Out of scope: a person doing anything else in the world (no person chat, no person at a desk), and the person's own
+figure choice.
+
+## Addendum: a smooth connection (2026-10-21, round 2, from the user: the first priority)
+
+The measure: a person with Crewhub.app running opens the world and sees their real projects **within two minutes,
+without reading a runbook**. Four parts, one contract between them.
+
+**1. The host finds loops by itself.** Without `CREWHUB_WORLD_LOOPS_URL` or `_SOCKET`, the host looks for the Mac app's
+data folder (`~/Library/Application Support/be.ekinsol.crewhub`, overridable with `CREWHUB_WORLD_LOOPS_APP_DATA` for
+tests and the development instance). The host only reads that folder and never writes to it. The order is:
+1. an explicit URL or socket (the scripted road);
+2. the app's socket `<data>/run/api.sock`, when it exists and answers `GET /api/health`;
+3. `http://127.0.0.1:<port>`, with the port from `<data>/settings.json` (default 8091), when it answers;
+4. nothing found.
+
+The web URL for the sign-in link follows the port found. The host looks again every 5 s while nothing is found, so
+starting the app after the world needs no restart. `tools/loops-dev.sh` writes a `settings.json` with its port into
+its own data folder, so the development instance is found the same way.
+
+**2. The key without a file dance.** The host starts **without a key**. It reads a key from the first of these that
+exists:
+1. `CREWHUB_WORLD_KEY_FILE`;
+2. the host's own stored key `~/.config/crewhub-world/loops-key` (folder 0700, file 0600);
+3. the old default `~/.config/crewhub-loops/secrets/agent-crewhub-world.key`.
+
+The builder-key fallback goes. With no key the world shows a **Connect screen**:
+- one short instruction, in the loops web's own words (Settings > Agents > New external bot, name `crewhub-world`,
+  "Read only" off, no projects; copy the key, it is shown once);
+- a button that opens the loops web there;
+- a paste field.
+
+`POST /world-api/connect {key}` (paired browser, same Origin, JSON) checks the key with `GET /api/auth/me`. It refuses
+a probe or reader key with the reason. It stores the key 0600 and switches the host to it without a restart. The key is
+never logged, echoed or returned. `DELETE /world-api/connect` forgets a stored key. These are the host's only writes,
+and they are to its own folder.
+
+**3. One command.** `npm run world` builds if needed, starts the host with pairing on, mints a pairing link and opens
+the default browser on it (macOS `open`; `--no-open` prints it instead). A second run finds the running host and only
+opens a new link.
+
+**4. Honest states.** `GET /world-api/health` grows a `connection` object, which the world reads:
+`{ discovery: { state: "found" | "searching", via: "env-url" | "env-socket" | "app-socket" | "app-port", target },
+key: { state: "none" | "checking" | "rejected" | "ok", name, source: "env" | "stored" | "default", reason? },
+stream: { state, cursor, lastEventAt, reconnects } }`. Until the browser is paired, health shows the states and
+nothing else (no target paths, no names). The world shows one screen per state:
+- no loops found (what was looked for; it keeps looking);
+- pair this browser (exists);
+- connect (paste the key);
+- key rejected (why; paste again);
+- connected (the town).
+
+A Connection panel (the chip opens it) lists discovery, the key's name, the cursor, the last event and the
+reconnects. `npm run host -- doctor` prints the same states in the terminal.
+
+**Not tonight (proposed, loops side):** a "Connect CrewHub World" button in the loops web that creates the bot and
+hands the key to the host, on the `world/viewer-key` branch's road.

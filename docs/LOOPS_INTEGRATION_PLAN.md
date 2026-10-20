@@ -131,7 +131,9 @@ agents' Herdr panes.
   Dev already allows `http://127.0.0.1:5173` (`loops:compose.dev.yaml:9`).
 - The `probe` agent role may only read and PUT the team snapshot, inputs and
   runtime observations. There is no read-only role for any other client
-  (`loops:.../auth/deps.py:139-172`).
+  (`loops:.../auth/deps.py:139-172`). *Stale since CL-295 (2026-10-07): a `probe`
+  agent other than `team-probe` and `lane-watch` reads nothing; the world's credential
+  is an external bot (CL-314), see section 10, "Phase 1 against the Mac app".*
 - OpenAPI is switched off (`docs_url=None`, `openapi_url=None`,
   `loops:.../api/main.py:123-125`). Only the team snapshot has a published JSON
   schema (`loops:docs/team.schema.json`).
@@ -210,7 +212,7 @@ types and runtime validation). It stores data in SQLite through Node's built-in
 
 | Responsibility | Detail |
 | --- | --- |
-| Read crewhub-loops | The Unix socket by default; loopback TCP (`127.0.0.1:8091/api` through the loops nginx, or `127.0.0.1:8000` under `make dev`) where the socket is not reachable, for example when a container runtime does not share Unix sockets with the host. Both transports need `Authorization: Bearer` the key, with key file checks like the CLI's (regular file, owned by the user, mode 0400, `O_NOFOLLOW`). The host does not shell out to `crewhub`, because the CLI has no command for the project list, the board, the team snapshot or the agent list (section 2.3). |
+| Read crewhub-loops | *As built (2026-10-21): loopback TCP by default (the Mac app's `127.0.0.1:8091`), the app's Unix socket with `CREWHUB_WORLD_LOOPS_SOCKET`, explicit only.* As planned: the Unix socket by default; loopback TCP (`127.0.0.1:8091/api` through the loops nginx, or `127.0.0.1:8000` under `make dev`) where the socket is not reachable, for example when a container runtime does not share Unix sockets with the host. Both transports need `Authorization: Bearer` the key, with key file checks like the CLI's (regular file, owned by the user, mode 0400, `O_NOFOLLOW`). The host does not shell out to `crewhub`, because the CLI has no command for the project list, the board, the team snapshot or the agent list (section 2.3). |
 | Keep facts in memory only | A normalised projection keyed by loops ids. It is never written to the world database, and it is rebuilt on every host start. crewhub-loops remains the only truth. |
 | Keep the world database | World data only: see 3.4. |
 | Serve the browser | The static bundle; `GET /world-api/snapshot` (facts projection, world state, host seq); `GET /world-api/stream` (SSE with the host seq, `Last-Event-ID` resume from a ring buffer of 2,000 deltas, otherwise a new snapshot); world edits with revision compare-and-swap; an allowlisted read-only passthrough for one ticket's detail (`/api/tickets/{ref}`, `/comments`, `/progress`), fetched only when a person opens it. |
@@ -276,10 +278,12 @@ not change; only the allowed Origins and the cookie's `Secure` flag follow the
 public URL.
 
 
-- **Host to crewhub-loops.** An agent `crewhub-world` with a read-only key. The
-  `probe` role works today: it allows safe methods only, plus three team PUTs
-  that the host never calls (`loops:.../auth/deps.py:139-172`). L1 replaces it
-  with a proper `viewer` role.
+- **Host to crewhub-loops.** An agent `crewhub-world` with a read-only key. *As
+  written on 2026-09-30* the `probe` role did that: safe methods only, plus three
+  team PUTs the host never calls (`loops:.../auth/deps.py:139-172`). *Since CL-295
+  (2026-10-07) a probe reads nothing; at `4cdcd383` the key is an external bot's
+  (CL-314), not read-only, a lead-grade key, and the host's `GET`-only allow-list is
+  what keeps the world read-only.* L1 replaces it with a proper `viewer` key.
 - **Browser to host.**
   - The host binds `127.0.0.1` only.
   - `crewhub-world open` prints, or opens, a one-time link, valid for 10
@@ -843,7 +847,7 @@ when it is needed. None of them blocks phase 1.
 
 | # | Proposal | Reason | Needed by |
 | --- | --- | --- | --- |
-| L1 | A read-only agent role `viewer`: safe methods only, no writes at all | The host's key today must be `probe`, which can write the team snapshot (`loops:.../auth/deps.py:139-172`), or a `lead`, which can write tickets. A viewer should be unable to write anything. | Before production |
+| L1 | A read-only agent role `viewer`: safe methods only, no writes at all | The host's key today is a lead-grade external bot key (CL-314), which can write tickets; the `probe` road (which could write the team snapshot) is closed since CL-295. A viewer should be unable to write anything. The worked proposal of 2026-10-21 is a `viewer` flag on an external bot, next to CL-313's `reader`, with a route table ([gap analysis](LOOPS_GAP_ANALYSIS.md), section 6.1). | Before production |
 | L2 | Publish JSON Schemas (or generated TypeScript types) for `Envelope`, `ProjectOut`, `TicketCard`, `BoardResponse`, `TeamSnapshot`, `AgentOut`, with a drift test, as already done for `team.schema.json` | OpenAPI is disabled (`loops:.../api/main.py:123-125`). The host must validate every response at runtime and should not hand-maintain the schemas. | Phase 1 (hand-written validators until then) |
 | L3 | `TeamAgent.ticketKey` (derived, nullable): the in-progress ticket a lane or worker is on, using the server's existing key rule | The server already credits workers to tickets (`loops:.../domain/progress.py`). Re-parsing `contextLine` in CrewHub duplicates a rule that can drift. | Phase 3 |
 | L4 | `ticket.updated` payload: the new `assigneeId` and `waitingOnId` when those changed | Saves a ticket re-read for the two changes that move agents and objects. | Phase 3 (optional) |
@@ -901,10 +905,12 @@ install changes only a URL and a key file. The runbook is [LOOPS_SETUP.md](LOOPS
   and Origin only. A written known gap in the host's README.
 - **The chat** (phase 2): needs L8, which crewhub-loops has not built.
 - **The "socket client"**: on a Mac the API is reached on `127.0.0.1:8091` over loopback TCP; the Unix socket does
-  not cross Docker Desktop (`loops:docs/porting/MAC-QUICKSTART.md`). The host is a TCP client; a socket transport
+  not cross Docker Desktop (`loops:docs/porting/MAC-QUICKSTART.md`). The host is a TCP client *(as built on
+  2026-10-07; since 2026-10-21 TCP by default, the Unix socket with `CREWHUB_WORLD_LOOPS_SOCKET`)*; a socket transport
   can come with the Linux deploy.
-- **A viewer role** (L1): the key is a seeded `probe` agent `crewhub-world` with scope `agent`; the builder key
-  does not work for the world (its route table has no project list, board, team or stream).
+- **A viewer role** (L1): the key was a seeded `probe` agent `crewhub-world` with scope `agent`; the builder key
+  does not work for the world (its route table has no project list, board, team or stream). *CL-295, the same
+  evening, closed the probe road; see the next subsection.*
 
 **The acceptance criteria.**
 
@@ -918,6 +924,69 @@ install changes only a URL and a key file. The runbook is [LOOPS_SETUP.md](LOOPS
 | The key appears in no bundle, log or response | Met for responses (the host test, with a loops stub that echoes the Authorization header); the bundle grep is the lead's check at merge time. |
 | No UI beyond navigation | Met in the sense of this round: live mode hides the demo UI; the chip and the source setting are the only additions. The demo's own UI stays for demo mode. |
 | Pairing | Not yet. |
+
+### Phase 1 against the Mac app (2026-10-21)
+
+The live-on-the-Mac round, against crewhub-loops `4cdcd383` (316 commits past `053b5f47`), which now runs on this
+Mac as `Crewhub.app`: a Tauri shell around one Python sidecar that serves `http://127.0.0.1:8091` and a Unix socket
+in its data folder. The round worked against a private development instance of the same commit (port 8291,
+`tools/loops-dev.sh`), never against the app; the app is Nicky's, in the morning, by [the runbook](LOOPS_SETUP.md).
+The addendum "live on the Mac crewhub-loops" of [the demo-mode spec](superpowers/specs/2026-10-01-world-demo-mode-design.md)
+is the plan of the round; [the gap analysis](LOOPS_GAP_ANALYSIS.md) section 2c is what loops changed.
+
+**What the real instance showed** (the host of 2026-10-07, unchanged, pointed at 8291 on 2026-10-21):
+
+- **The `probe` key is dead.** CL-295, nine hours after `053b5f47`, limits a `probe` agent to an exact table by
+  identity; any other probe reads nothing (403 "A probe key reads its own routes only"). The seeded `probe` agent
+  of the first runbook could not have read a single route of the app.
+- **The external bot key works.** An external bot (CL-314) made by the owner, *not* read-only, role `lead`, scope
+  `agent`, no lane: `GET /api/auth/me` answers `role: "lead"`, the snapshot loads (projects, boards, team, agents,
+  watchdog) and the stream flows; the host's health says `loops: "ok"`, `sharedKey: false`. A random key answers
+  401 `invalid_api_key` and the host says `loops: "unauthorized"`. The CL-313 "Read only" box makes a tickets-only
+  key that may never read the stream, so it is not the world's.
+- **The key could write.** It is a lead-grade key: tickets, comments, progress in any project (not Done, not
+  projects). The host's allow-list of `GET` paths, the 405 on every other method and the test that sends them are
+  what keep the world read-only. L1 is sharper for it.
+- **The stream** is NDJSON on `GET /api/events/stream` as built; the real one ends after 300 s, re-checks the
+  credential every 60 s, admits 4 streams per principal (429 `too_many_streams`, `Retry-After: 5`), carries a sealed
+  `cursor` on every heartbeat (CL-406), answers `GET /api/events?from=tail` for "now", has no buffer (the only 410
+  is `cursor_expired`), and a `lastSeq` below the stored cursor means a restored database. The fake of 2026-10-07
+  had a buffer and a 410 past it; the real one does not.
+- **No viewer role (L1), no CORS (L8), no project groups (L22)**, still. The health's `loopsCommit` is loops'
+  `version` string (`0.1.0`), not a commit.
+
+**Built in the round** (one track each; `unixsock` is merged; for the others the Lead's merge report of the night
+says which merged, and a track not named there is planned):
+
+- `realrun`: the host and `HostSource` follow the real stream: `from=tail` at start, the sealed cursor sent back
+  when no event followed it (else `after=`), a 1.5 to 3 s jittered reconnect after the 300 s end (CL-378), 429
+  with `Retry-After`, 410 `cursor_expired`, restore detection, unknown event types pass; one upstream stream per
+  host process, tested; the fake matches the real stream where it differed; a regress group `real` against 8291.
+- `seed`: `tools/loops-seed.mjs`, the demo storyline replayed into the development instance through the bot's key
+  (tickets, moves, comments, progress), idempotent by title; it refuses port 8091.
+- `unixsock` (**merged**): `CREWHUB_WORLD_LOOPS_SOCKET=<path>` (or `--loops-socket`), the host over the app's Unix
+  socket through a transport seam (`apps/host/src/transport.ts`; `node:http` with `socketPath`, Host `127.0.0.1`),
+  same allow-list, same stream, same timeouts, explicit only and never together with the URL; `health.transport`
+  says `unix` or `tcp`; tested against a stub on a socket. `CREWHUB_WORLD_LOOPS_WEB_URL`, the sign-in link for
+  socket mode, is coming.
+- `lanefacts`: the agent card's Lane section and `Now` from the real `GET /api/agents` lane and `GET /api/team`;
+  an external bot says it has no lane; freshness from `lastSeenAt`.
+- `setupdocs`: this section, [the runbook](LOOPS_SETUP.md) for the app, the gap analysis to `4cdcd383`.
+- `viewer`: in the loops checkout, branch `world/viewer-key` (not pushed), a proposal for L1 with tests in loops'
+  style: a flag on an external bot that may read projects, board, team, agents, tickets and the stream and write
+  nothing. The ask for `cl-lead`.
+
+**What remains.**
+
+- **L1, the viewer key**, in crewhub-loops: until it lands the world runs on a key that could write, behind the
+  host's allow-list. The proposal exists on the loops branch; the decision is `cl-lead`'s.
+- **L8, CORS**, for the chat (phase 2): nothing changed at `4cdcd383`; the dock shows the sign-in link only.
+  Pending delegations need the owner's session, not a key, and stay out with it.
+- **L22, project groups**: zones stay in the browser's town document.
+- **The world database** (phases 3 and 5 in live form), the real director (phase 6): not started.
+- **The first run against the app itself**, by Nicky, with the runbook: the acceptance criterion "a ticket move
+  changes the counts within 2 s" is met against the development instance of the same commit, not yet against the
+  app.
 
 ## 11. Risks and open questions
 

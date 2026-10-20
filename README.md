@@ -8,9 +8,10 @@ work objects that move through the rooms by status. Nothing in it controls an ag
 
 ## Current state
 
-**The world runs only in demo mode.** A scripted in-browser source produces data in
+**The world runs in demo mode by default.** A scripted in-browser source produces data in
 exactly the shapes crewhub-loops serves, loops forever and is labelled as demo
-everywhere. There is no network call, no account and no model call.
+everywhere. There is no network call, no account and no model call. Live mode, against a
+real crewhub-loops through the host, is below.
 
 Built in demo mode (the status of each phase is listed in the [roadmap](docs/ROADMAP.md)):
 
@@ -20,9 +21,9 @@ Built in demo mode (the status of each phase is listed in the [roadmap](docs/ROA
 - Build mode with a local town document, and props made with the `prop-builder` skill.
 - A scripted director, a "Where is ...?" lookup and a hidden text view of every fact.
 
-Planned, **not built**: `apps/host` (the process that would read a live crewhub-loops),
-its world database, the real chat and the real director. See the
-[architecture](docs/ARCHITECTURE.md).
+Live mode: `apps/host`, the relay that reads a real crewhub-loops with one agent key and serves the world, is
+built and runs against the Mac app ([the runbook](docs/LOOPS_SETUP.md)). Planned, **not built**: its world
+database, the real chat and the real director. See the [architecture](docs/ARCHITECTURE.md).
 
 ## Start locally
 
