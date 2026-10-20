@@ -7,7 +7,8 @@ bot's, which could write: the host is what keeps it read-only), reads crewhub-lo
 loopback TCP or over loops' Unix socket), and answers the browser under `/world-api` on `127.0.0.1`. What the real
 crewhub-loops stream does and how the host follows it is in [docs/LOOPS_REAL_VS_FAKE.md](../../docs/LOOPS_REAL_VS_FAKE.md).
 
-What it does:
+What it does (since the spec addendum "a smooth connection" it starts without loops and without a key: see "The
+smooth connection" below):
 
 - **Snapshot** `GET /world-api/snapshot`: one `LoopsSnapshot` (the seam's type in `packages/loops-client`),
   assembled by read-model.md "Loading a snapshot": the stream's position first, then projects, boards per active
@@ -58,10 +59,12 @@ What it does:
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `CREWHUB_WORLD_LOOPS_URL` | `http://127.0.0.1:8091` | crewhub-loops' API over loopback TCP (the Mac app serves `127.0.0.1:8091`; so does the loops nginx under Docker Desktop, where the socket is not reachable). Its origin is also `loopsWebUrl`, the sign-in link, unless `CREWHUB_WORLD_LOOPS_WEB_URL` says otherwise. Not together with `CREWHUB_WORLD_LOOPS_SOCKET`. |
-| `CREWHUB_WORLD_LOOPS_SOCKET` | none | Read loops over its Unix socket instead of TCP (the same allow-list, headers, stream and timeouts; `Host: 127.0.0.1`). The path must exist and be a socket when the host starts, else a clear error; `~/` is the home folder. **Explicit only: the host never guesses a socket.** `--loops-socket <path>` on the command line is the same and wins. Setting both the URL and the socket is a configuration error. See "The socket" below. |
-| `CREWHUB_WORLD_LOOPS_WEB_URL` | the origin of `CREWHUB_WORLD_LOOPS_URL` | Where "sign in to crewhub-loops" goes (`health.loopsWebUrl`), as an origin. The default is right for the app (API and web on 8091); set it in socket mode when the web app is elsewhere, e.g. `http://127.0.0.1:8291` for the development instance. |
-| `CREWHUB_WORLD_KEY_FILE` | `~/.config/crewhub-loops/secrets/agent-crewhub-world.key` | The agent key file. When it is missing and nothing is configured, the host falls back to `agent-builder.key` in the same folder with a loud warning (see below). |
+| `CREWHUB_WORLD_LOOPS_URL` | none: the discovery | crewhub-loops' API over loopback TCP (the Mac app serves `127.0.0.1:8091`; so does the loops nginx under Docker Desktop, where the socket is not reachable). Unset, with no socket, the host finds the app itself (`src/discovery.ts`): `<data>/run/api.sock` when it exists and answers `GET /api/health`, else `http://127.0.0.1:<port>` from `<data>/settings.json` (default 8091), `<data>` being `CREWHUB_WORLD_LOOPS_APP_DATA` or `~/Library/Application Support/be.ekinsol.crewhub`, read only; nothing found: again every 5 s. Not together with `CREWHUB_WORLD_LOOPS_SOCKET`. |
+| `CREWHUB_WORLD_LOOPS_APP_DATA` | the app's data folder | What the discovery reads. Tests inject a temp folder; the development instance is `~/crewhub-loops-dev` (`tools/loops-dev.sh` writes its `settings.json`). |
+| `CREWHUB_WORLD_LOOPS_SOCKET` | none | Read loops over its Unix socket instead of TCP (the same allow-list, headers, stream and timeouts; `Host: 127.0.0.1`). The path must exist and be a socket when the host starts, else a clear error; `~/` is the home folder. **Explicit only: the host never guesses a socket outside the app's data folder.** `--loops-socket <path>` on the command line is the same and wins. Setting both the URL and the socket is a configuration error. See "The socket" below. |
+| `CREWHUB_WORLD_LOOPS_WEB_URL` | the URL's origin, or the port found | Where "sign in to crewhub-loops" goes (`health.loopsWebUrl`), as an origin. With a socket from the env the default is the app's `http://127.0.0.1:8091`; set it when the web app is elsewhere, e.g. `http://127.0.0.1:8291` for the development instance. |
+| `CREWHUB_WORLD_KEY_FILE` | none | The agent key file, first in line. Unset: the stored key `<CREWHUB_WORLD_CONFIG_DIR>/loops-key` (what `POST /world-api/connect` saved), then the old default `~/.config/crewhub-loops/secrets/agent-crewhub-world.key`; none: the host starts without a key (`connection.key.state: "none"`) and waits for a paste. A configured file that cannot be read is an error. The builder-key fallback is gone. |
+| `CREWHUB_WORLD_CONFIG_DIR` | `~/.config/crewhub-world` | The host's own folder for the stored key (0700; the file 0600). Tests and developers' runs point it elsewhere. |
 | `CREWHUB_WORLD_PORT` | `5180` | The port on `127.0.0.1`. |
 | `CREWHUB_WORLD_ALLOWED_ORIGINS` | none | Comma list of extra origins, e.g. the Vite dev server `http://localhost:5173`. |
 | `CREWHUB_WORLD_PAIRING` | `on` | `off` removes the cookie gate: development only (the Vite proxy), logged loudly at start, refused with `NODE_ENV=production`. |
@@ -69,12 +72,38 @@ What it does:
 | `CREWHUB_WORLD_PUBLIC_URL` | none | The URL a browser reaches the host at behind a TLS proxy: `https` makes the cookie `Secure`; its host and origin pass the guard. |
 | `NODE_ENV` | | `production` serves `apps/world/dist`. |
 
-**The builder key is not a working fallback.** crewhub-loops limits the shared `builder` key to the tickets,
-comments and attachments of its member projects; `/api/projects`, `/api/board`, `/api/team` and the event stream
-answer 403, so the world shows "Unauthorized" and `health.sharedKey` is `true`. The working setup at crewhub-loops
-`4cdcd383` is an **external bot** `crewhub-world`, made by the owner in Settings > Agents, **not** read-only (the
-CL-313 reader key is tickets-only, and a `probe` agent reads nothing since CL-295); the runbook is
-[docs/LOOPS_SETUP.md](../../docs/LOOPS_SETUP.md).
+**The key is an external bot's.** The working setup at crewhub-loops `4cdcd383` is an **external bot** `crewhub-world`,
+made by the owner in Settings > Agents, **not** read-only (the CL-313 reader key is tickets-only, a `probe` agent reads
+nothing since CL-295, and the shared builder key reads tickets of its member projects only; the host refuses all three
+with the reason, `src/keyCheck.ts`); the runbook is [docs/LOOPS_SETUP.md](../../docs/LOOPS_SETUP.md).
+
+## The smooth connection
+
+The host starts with neither loops nor a key and reports the honest states; the world shows one screen per state.
+
+- **Discovery** (`src/discovery.ts`, pure, tested with an injected folder): the env's URL or socket is taken as given;
+  else the app's socket, then its port from `settings.json`, each probed with `GET /api/health` (public, no key);
+  else searching, again every 5 s. The web URL for the sign-in link follows what was found. Loops going away later
+  (the stream reports down) makes the host look again.
+- **The key** (`src/config.ts` `loadKey`): `CREWHUB_WORLD_KEY_FILE`, then the stored key, then the old default file;
+  none: keyless. Every key is checked with `GET /api/auth/me` and one board read (`src/keyCheck.ts`): a probe key, a
+  reader (read-only bot), the builder key and an unknown key are `rejected` with a reason in the loops web's words.
+- **`POST /world-api/connect`** `{"key": "chl_…"}` from a paired browser on an allowed origin, `application/json`, at
+  most 4 KB: the key is checked against the loops found (403 `key_rejected` with `reason`; 503 `no_loops` or
+  `loops_down`), stored by `src/keyStore.ts` (`<configDir>/loops-key`, 0700/0600, written whole) and the host switches
+  to it: the old upstream stream is stopped first, the new one opened, every tab gets a `reset` and re-snapshots. One
+  upstream stream per host process stays the rule. **`DELETE /world-api/connect`** forgets the stored key and goes
+  keyless. Both are local routes on the allow-list; the loops allow-list stays GET only. The key is never logged,
+  echoed or returned; `test/connect.test.ts` greps every response and log line.
+- **Health** carries `connection: { discovery: { state, via?, target? }, key: { state, name?, source?, reason? },
+  stream: { state, cursor?, lastEventAt?, reconnects } }` (the type in `packages/loops-client`, `HostConnection`).
+  Before pairing only the states are there (no target paths, no names). `loops` keeps the old tri-state for the world
+  from before: `down` while searching, `unauthorized` without a key or with a rejected one.
+- **`npm run world`** (`main.ts world`): builds when `apps/world/dist` is older than the sources, serves it with
+  pairing on, mints a link and opens the default browser on it (`--no-open` prints it). A second run finds the running
+  host through the run file and only opens a new link.
+- **`npm run host -- doctor`** (`src/doctor.ts`): the same states in the terminal, one line per check, `ok` or the
+  fix; exit 0 only when all pass. Read only, never the stream; tests run it against the stub.
 
 ## The socket
 
@@ -108,6 +137,8 @@ npm run dev                              # Vite proxies /world-api and /pair to 
 Against the Mac app (after [docs/LOOPS_SETUP.md](../../docs/LOOPS_SETUP.md)):
 
 ```sh
+npm run world                            # the morning: build if needed, serve, open the browser on the pairing link; paste the key once
+npm run host -- doctor                   # the preflight: one line per check
 npm run host                             # dev: the world comes from Vite, the data from the host
 npm run host -- open                     # prints a one-time pairing link (starts the host when none runs on the port)
 npm run host:start                       # production: builds the world and serves apps/world/dist on 127.0.0.1:5180

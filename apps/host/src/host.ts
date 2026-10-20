@@ -285,7 +285,8 @@ export async function createHost(options: HostOptions): Promise<Host> {
       const upstream = createUpstream(client, upstreamOptions);
       link = { found, client, upstream };
       for (const tab of tabs.values()) attach(tab);
-      void upstream.start().then(() => {
+      // The first attempt decides the states a connect answers with; it is bounded by the read timeout.
+      await upstream.start().then(() => {
         if (link?.upstream !== upstream) return;
         // The stream is the second opinion on the key: 401/403 there means rejected, ok means ok.
         if (upstream.state() === "unauthorized" && mine.state !== "rejected") {

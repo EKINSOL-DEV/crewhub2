@@ -96,7 +96,10 @@ agent key over loopback TCP (the Mac app's `127.0.0.1:8091`) or over the app's U
 (`CREWHUB_WORLD_LOOPS_SOCKET`, explicit only), keeps one event stream, serves `/world-api` as SSE
 with pairing and the static bundle, and `createHostSource` is the live `WorldSource`. The key is an external bot's
 (CL-314), lead-grade; the host's `GET`-only allow-list keeps the world read-only until crewhub-loops has a viewer key
-(L1).
+(L1). Since the round of 2026-10-21 ("a smooth connection") the host finds the app by itself (its socket or port from
+its data folder, read only), starts without a key, takes one pasted in the world's Connect screen
+(`POST /world-api/connect`, checked with loops, stored 0600 in `~/.config/crewhub-world`), reports the states in
+`health.connection`, and `npm run world` is the one command; `npm run host -- doctor` is the terminal view.
 
 ## Open
 
