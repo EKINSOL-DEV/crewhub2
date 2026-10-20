@@ -98,6 +98,13 @@ with pairing and the static bundle, and `createHostSource` is the live `WorldSou
 (CL-314), lead-grade; the host's `GET`-only allow-list keeps the world read-only until crewhub-loops has a viewer key
 (L1).
 
+Closed buildings (2026-10-21, round 2): an archived project is a closed building, boarded up with its lights off, a
+Closed sign that carries the archive date, no packages and no agents; the sign, the click and the text view say
+since when and by whom, and it can still be entered. `project.archived` plays a short closing (the lights go out,
+the boards come down), `project.restored` the reverse; reduced motion cuts. The host learns archived projects
+from the event log (`GET /api/events?types=project.archived,project.restored`, paged) and reads each with
+`GET /api/projects/{slug}`, since an agent key may not list them (L16).
+
 ## Open
 
 Everything below is planned and not built. Each item needs crewhub-loops running.

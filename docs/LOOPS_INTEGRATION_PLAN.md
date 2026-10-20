@@ -350,8 +350,10 @@ public URL.
 - **Building.** One per non-archived project.
   - The sign shows `name` and `key`. The loops `color` and `icon` choose the
     facade trim and the emblem.
-  - An archived project's building is boarded up (`project.archived`). It stays
-    until the user removes it, and it comes back on `project.restored`.
+  - An archived project's building is closed (`project.archived`): boarded up, its
+    lights off, a Closed sign with the archive date, no packages and no agents; it
+    says since when and by whom, and it can still be entered. The archive plays a
+    short closing, `project.restored` the reverse, and the building is active again.
 - **Shared places.**
   - The post office is the postman's home and the start of every delivery walk.
   - The town hall is where registered agents stay while they are active in no
