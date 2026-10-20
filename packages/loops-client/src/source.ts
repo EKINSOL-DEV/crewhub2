@@ -102,9 +102,10 @@ export interface WorldSource {
 /**
  * How a live source stands with its host and the host with crewhub-loops. `connecting` until the first snapshot;
  * `catching-up` while it re-snapshots after a reset or a gap; `stale` when the stream is quiet past two heartbeats
- * or the host is unreachable; `loops-down` and `unauthorized` as the host reports them (GET /world-api/health).
+ * or the host is unreachable; `loops-down` and `unauthorized` as the host reports them (GET /world-api/health);
+ * `stream-busy` when loops refused the host's stream with 429 `too_many_streams` (another host or tab uses the key).
  */
-export type ConnectionState = "connecting" | "live" | "catching-up" | "stale" | "loops-down" | "unauthorized";
+export type ConnectionState = "connecting" | "live" | "catching-up" | "stale" | "loops-down" | "unauthorized" | "stream-busy";
 export interface ConnectionStatus {
   state(): ConnectionState;
   onChange(listener: () => void): () => void;

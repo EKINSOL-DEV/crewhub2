@@ -112,6 +112,12 @@ export function ConnectionPanel({ state, initial, onClose, pollMs = PANEL_POLL_M
               <dd>{keyWords}</dd>
               <dt>{t("world.connection.panel.stream")}</dt>
               <dd>{t(`world.connection.panel.stream.${connection.stream.state}`)}</dd>
+              {connection.stream.reason && (
+                <>
+                  <dt>{t("world.connection.panel.reason")}</dt>
+                  <dd>{connection.stream.reason}</dd>
+                </>
+              )}
               <dt>{t("world.connection.panel.cursor")}</dt>
               <dd>{cursor === undefined ? t("world.connection.panel.never") : String(cursor)}</dd>
               <dt>{t("world.connection.panel.lastEvent")}</dt>

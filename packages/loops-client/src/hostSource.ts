@@ -351,8 +351,14 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
     touched();
     switch (message.type) {
       case "status": {
+        // A 429 on the host's stream: loops answers reads, so the host says `loops: "down"` for a world from before and
+        // `stream: "busy"` for us. Events are missed meanwhile, so `ok` again re-snapshots, as after loops-down.
+        if (message.stream === "busy") {
+          setState("stream-busy");
+          return "ok";
+        }
         if (message.loops === "ok") {
-          if (state === "loops-down" || state === "unauthorized") {
+          if (state === "loops-down" || state === "unauthorized" || state === "stream-busy") {
             setState("catching-up");
             return "resnapshot";
           }
