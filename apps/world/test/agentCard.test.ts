@@ -156,8 +156,10 @@ test("Now: the team's word and the last sighting, and old facts are never read a
   // Fresh: the team's word, its line, and a sighting 2 min old.
   assert.deepEqual(now(bare({ team: { name: "cl-lead", status: "working", contextLine: "CL-7 wiring", unsentInput: "typed" }, loops: loopsOf({ lastSeenAt: new Date(NOW - 2 * 60_000).toISOString() }) })), ["Team says|working; text typed in its input, not sent", '"CL-7 wiring"', "Seen by loops|2 min ago"]);
   // Stale snapshot: the word is history; a sighting 2 h old with nothing fresher is not working.
-  const stale = { freshness: { teamTs: null, ageSeconds: 900, stale: true } };
+  const stale = { freshness: { teamTs: "2026-10-07T11:45:00Z", ageSeconds: 900, stale: true } };
   assert.deepEqual(now(bare({ team: { name: "cl-lead", status: "working" }, loops: loopsOf({ lastSeenAt: new Date(NOW - 2 * 3_600_000).toISOString() }) }), stale), ["|The team snapshot is older than 5 minutes: the lane status is unknown.", "Team said|working, in a snapshot that is old now", "Not seen by loops|for 2 h; not known to be working"]);
+  // No snapshot at all (the development instance answers ts ""): said as missing, not as old.
+  assert.deepEqual(now(bare({ loops: loopsOf() }), { freshness: { teamTs: null, ageSeconds: null, stale: true } }), ["|No team snapshot yet: the lane status is unknown.", "Team says|nothing: not in the team snapshot", "Seen by loops|never; not known to be working"]);
   // Not in the team snapshot at all, never seen: said plainly. An external bot: the team cannot watch it.
   assert.deepEqual(now(bare({ loops: loopsOf() })), ["Team says|nothing: not in the team snapshot", "Seen by loops|never; not known to be working"]);
   assert.deepEqual(now(bare({ loops: loopsOf({ external: true, lastSeenAt: new Date(NOW - 10_000).toISOString() }) })), ["Team says|nothing: an external bot has no pane for the team to watch", "Seen by loops|just now"]);
@@ -189,7 +191,7 @@ test("Projects and Recent: the buildings with the agent's part in each, and the 
 test("Now: a proxy, an inferred place, a stale snapshot, the status line and the alerts each add one row", () => {
   const proxy = renderAgentCard(bare({ agent: agent({ presence: "proxy", workingIn: "crewhub" }) }), ctx())[0]!;
   assert.deepEqual(texts(proxy.rows), ["Where|crewhub-loops, Lead's office", "|A translucent proxy here: the real figure works in another building."]);
-  const stale = renderAgentCard(bare({ agent: agent({ locationInferred: true, alerts: ["CL-3 waits on Nicky"] }), team: { name: "cl-lead", status: "working", contextLine: "CL-7 wiring" } }), ctx({ freshness: { teamTs: null, ageSeconds: null, stale: true } }))[0]!;
+  const stale = renderAgentCard(bare({ agent: agent({ locationInferred: true, alerts: ["CL-3 waits on Nicky"] }), team: { name: "cl-lead", status: "working", contextLine: "CL-7 wiring" } }), ctx({ freshness: { teamTs: "2026-10-07T11:45:00Z", ageSeconds: 900, stale: true } }))[0]!;
   assert.deepEqual(texts(stale.rows), ["Where|crewhub-loops, Lead's office (inferred from recent events)", "lane working", "posture focused", "|The team snapshot is older than 5 minutes: the lane status is unknown.", "Team said|working, in a snapshot that is old now", '"CL-7 wiring"', "CL-3 waits on Nicky"]);
 });
 
