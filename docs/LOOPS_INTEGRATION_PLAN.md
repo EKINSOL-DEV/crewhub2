@@ -212,7 +212,7 @@ types and runtime validation). It stores data in SQLite through Node's built-in
 
 | Responsibility | Detail |
 | --- | --- |
-| Read crewhub-loops | The Unix socket by default; loopback TCP (`127.0.0.1:8091/api` through the loops nginx, or `127.0.0.1:8000` under `make dev`) where the socket is not reachable, for example when a container runtime does not share Unix sockets with the host. Both transports need `Authorization: Bearer` the key, with key file checks like the CLI's (regular file, owned by the user, mode 0400, `O_NOFOLLOW`). The host does not shell out to `crewhub`, because the CLI has no command for the project list, the board, the team snapshot or the agent list (section 2.3). |
+| Read crewhub-loops | *As built (2026-10-21): loopback TCP by default (the Mac app's `127.0.0.1:8091`), the app's Unix socket with `CREWHUB_WORLD_LOOPS_SOCKET`, explicit only.* As planned: the Unix socket by default; loopback TCP (`127.0.0.1:8091/api` through the loops nginx, or `127.0.0.1:8000` under `make dev`) where the socket is not reachable, for example when a container runtime does not share Unix sockets with the host. Both transports need `Authorization: Bearer` the key, with key file checks like the CLI's (regular file, owned by the user, mode 0400, `O_NOFOLLOW`). The host does not shell out to `crewhub`, because the CLI has no command for the project list, the board, the team snapshot or the agent list (section 2.3). |
 | Keep facts in memory only | A normalised projection keyed by loops ids. It is never written to the world database, and it is rebuilt on every host start. crewhub-loops remains the only truth. |
 | Keep the world database | World data only: see 3.4. |
 | Serve the browser | The static bundle; `GET /world-api/snapshot` (facts projection, world state, host seq); `GET /world-api/stream` (SSE with the host seq, `Last-Event-ID` resume from a ring buffer of 2,000 deltas, otherwise a new snapshot); world edits with revision compare-and-swap; an allowlisted read-only passthrough for one ticket's detail (`/api/tickets/{ref}`, `/comments`, `/progress`), fetched only when a person opens it. |
@@ -905,7 +905,8 @@ install changes only a URL and a key file. The runbook is [LOOPS_SETUP.md](LOOPS
   and Origin only. A written known gap in the host's README.
 - **The chat** (phase 2): needs L8, which crewhub-loops has not built.
 - **The "socket client"**: on a Mac the API is reached on `127.0.0.1:8091` over loopback TCP; the Unix socket does
-  not cross Docker Desktop (`loops:docs/porting/MAC-QUICKSTART.md`). The host is a TCP client; a socket transport
+  not cross Docker Desktop (`loops:docs/porting/MAC-QUICKSTART.md`). The host is a TCP client *(as built on
+  2026-10-07; since 2026-10-21 TCP by default, the Unix socket with `CREWHUB_WORLD_LOOPS_SOCKET`)*; a socket transport
   can come with the Linux deploy.
 - **A viewer role** (L1): the key was a seeded `probe` agent `crewhub-world` with scope `agent`; the builder key
   does not work for the world (its route table has no project list, board, team or stream). *CL-295, the same
@@ -954,8 +955,8 @@ is the plan of the round; [the gap analysis](LOOPS_GAP_ANALYSIS.md) section 2c i
 - **No viewer role (L1), no CORS (L8), no project groups (L22)**, still. The health's `loopsCommit` is loops'
   `version` string (`0.1.0`), not a commit.
 
-**Built in the round** (one track each; the Lead's merge report of the night says which merged; a track not named
-there is planned):
+**Built in the round** (one track each; `unixsock` is merged; for the others the Lead's merge report of the night
+says which merged, and a track not named there is planned):
 
 - `realrun`: the host and `HostSource` follow the real stream: `from=tail` at start, the sealed cursor sent back
   when no event followed it (else `after=`), a 1.5 to 3 s jittered reconnect after the 300 s end (CL-378), 429
@@ -963,9 +964,11 @@ there is planned):
   host process, tested; the fake matches the real stream where it differed; a regress group `real` against 8291.
 - `seed`: `tools/loops-seed.mjs`, the demo storyline replayed into the development instance through the bot's key
   (tickets, moves, comments, progress), idempotent by title; it refuses port 8091.
-- `unixsock`: `CREWHUB_WORLD_LOOPS_SOCKET=<path>`, the host over the app's Unix socket (`node:http` with
-  `socketPath`, Host `127.0.0.1`), same allow-list, same stream, explicit only; `health.transport` says `unix` or
-  `tcp`.
+- `unixsock` (**merged**): `CREWHUB_WORLD_LOOPS_SOCKET=<path>` (or `--loops-socket`), the host over the app's Unix
+  socket through a transport seam (`apps/host/src/transport.ts`; `node:http` with `socketPath`, Host `127.0.0.1`),
+  same allow-list, same stream, same timeouts, explicit only and never together with the URL; `health.transport`
+  says `unix` or `tcp`; tested against a stub on a socket. `CREWHUB_WORLD_LOOPS_WEB_URL`, the sign-in link for
+  socket mode, is coming.
 - `lanefacts`: the agent card's Lane section and `Now` from the real `GET /api/agents` lane and `GET /api/team`;
   an external bot says it has no lane; freshness from `lastSeenAt`.
 - `setupdocs`: this section, [the runbook](LOOPS_SETUP.md) for the app, the gap analysis to `4cdcd383`.

@@ -92,10 +92,11 @@ the navigation world, with a follow camera ("Walk mode" in
 
 Built on 2026-10-07 and brought to the Mac app on 2026-10-21 (plan section 10, "Phase 1 as built" and "Phase 1
 against the Mac app"; the runbook is [LOOPS_SETUP.md](LOOPS_SETUP.md)): `apps/host` reads crewhub-loops with one
-agent key over loopback TCP (the Mac app's `127.0.0.1:8091`), keeps one event stream, serves `/world-api` as SSE
+agent key over loopback TCP (the Mac app's `127.0.0.1:8091`) or over the app's Unix socket
+(`CREWHUB_WORLD_LOOPS_SOCKET`, explicit only), keeps one event stream, serves `/world-api` as SSE
 with pairing and the static bundle, and `createHostSource` is the live `WorldSource`. The key is an external bot's
 (CL-314), lead-grade; the host's `GET`-only allow-list keeps the world read-only until crewhub-loops has a viewer key
-(L1). A transport over the app's Unix socket is on the `unixsock` track of 2026-10-21 (planned until merged).
+(L1).
 
 ## Open
 

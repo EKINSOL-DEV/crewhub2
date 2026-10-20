@@ -6,9 +6,10 @@ is gone. This is the current handoff for CrewHub World.
 ## What exists
 
 CrewHub World is a thin 3D layer on crewhub-loops ([ADR 0005](decisions/0005-crewhub-world-on-loops.md)).
-Tonight it runs **only in demo mode**: a scripted in-browser source with the shapes
-crewhub-loops serves, no network, no account and no model call. `apps/host` is
-planned, not built. Every demo screen is labelled as demo.
+It runs in **demo mode by default**: a scripted in-browser source with the shapes
+crewhub-loops serves, no network, no account and no model call. Live mode is built:
+`apps/host` reads a real crewhub-loops with an external bot key and never writes
+([LOOPS_SETUP.md](LOOPS_SETUP.md)). Every demo screen is labelled as demo.
 
 ## Where to start
 
