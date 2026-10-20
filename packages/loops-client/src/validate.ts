@@ -29,15 +29,23 @@ import {
   TICKET_STATUSES,
   WATCHDOG_MODES,
   WORLD_EVENT_TYPES,
+  COMPUTER_KINDS,
+  LANE_KINDS,
+  LANE_LIFECYCLES,
+  OBSERVED_SOURCES,
   isWorldEventType,
 } from "./types.ts";
 import type {
   ActorRef,
+  AgentLane,
   AgentOut,
   AgentProjects,
   AgentsResponse,
   BoardColumn,
   BoardResponse,
+  ComputerOut,
+  LaneDesired,
+  LaneObserved,
   CommentOut,
   CommentsResponse,
   DeliveryOut,
@@ -506,7 +514,10 @@ const teamAgent = object<TeamAgent>({
   unsentInput: optional(nullable(oneOf(["typed", "unknown"] as const))),
 });
 
-const teamSession = object<TeamSession>({ name: str, agents: arrayOf(teamAgent) });
+/** `ComputerOut` (CL-459): a new kind passes with one warning. */
+const computerOut = object<ComputerOut>({ name: str, kind: lenientOneOf(COMPUTER_KINDS, "computer kind") });
+
+const teamSession = object<TeamSession>({ name: str, computer: optional(nullable(computerOut)), agents: arrayOf(teamAgent) });
 
 const teamSnapshot = object<TeamSnapshot>({
   v: optional(bodyVersion),
@@ -579,11 +590,44 @@ const watchdogResponse = object<WatchdogResponse>({
   open: optional(arrayOf(watchdogItem)),
 });
 
+// The lane (`contracts/agents.py` at 4cdcd383, `AgentLane`). Its enums are lenient: a new kind, lifecycle or
+// observation source passes with one warning, as the stability rules ask for strings loops may extend.
+const laneDesired = object<LaneDesired>({
+  model: nullable(str),
+  effort: nullable(str),
+  account: nullable(int),
+  permissionMode: str,
+});
+
+const laneObserved = object<LaneObserved>({
+  kind: nullable(lenientOneOf(LANE_KINDS, "lane kind")),
+  model: nullable(str),
+  effort: nullable(str),
+  account: nullable(int),
+  permissionMode: nullable(str),
+  source: lenientOneOf(OBSERVED_SOURCES, "observation source"),
+});
+
+export const agentLane = object<AgentLane>({
+  id: str,
+  kind: lenientOneOf(LANE_KINDS, "lane kind"),
+  session: str,
+  name: str,
+  pane: nullable(str),
+  desired: laneDesired,
+  observed: nullable(laneObserved),
+  observedAt: nullable(str),
+  drift: nullable(arrayOf(str)),
+  lifecycle: lenientOneOf(LANE_LIFECYCLES, "lane lifecycle"),
+  restarting: bool,
+});
+
 const agentOut = object<AgentOut>({
   id: str,
   displayName: str,
   role: str,
   herdrSession: nullable(str),
+  computer: optional(nullable(computerOut)),
   disabled: bool,
   lastSeenAt: nullable(str),
   keys: nullable(arrayOf(unknownValue)),
@@ -593,8 +637,12 @@ const agentOut = object<AgentOut>({
   isLauncher: optional(bool),
   isBuilderReader: optional(bool),
   successorId: optional(nullable(str)),
+  external: optional(bool),
+  reader: optional(bool),
+  notPickedUp: optional(int),
+  needsLoginSince: optional(nullable(str)),
   projects: object<AgentProjects>({ lead: arrayOf(projectRef), member: arrayOf(projectRef) }),
-  lane: optional(unknownValue),
+  lane: optional(nullable(agentLane)),
   rights: optional(unknownValue),
   revision: optional(int),
 });
@@ -813,8 +861,10 @@ export const validateProgressResponse = run(
   object<ProgressResponse>({ nextCursor: optional(nullable(str)), progress: arrayOf(progressItem) }),
 );
 export const validateDeliveryOut = run(deliveryOut);
-/** `GET /api/agents`: `{agents: [...]}`. */
-export const validateAgents = run(object<AgentsResponse>({ agents: arrayOf(agentOut) }));
+/** `GET /api/agents`: `{agents: [...], lanesAuthority, agentHome}` (`AgentsDetailResponse`); the two extras are optional here. */
+export const validateAgents = run(object<AgentsResponse>({ agents: arrayOf(agentOut), lanesAuthority: optional(str), agentHome: optional(nullable(str)) }));
+/** One `AgentLane`, for tests and for anything that reads a lane on its own. */
+export const validateAgentLane = run(agentLane);
 /** `GET /api/principals`: `{principals: [...]}`. */
 export const validatePrincipals = run(object<PrincipalsResponse>({ principals: arrayOf(principalOut) }));
 

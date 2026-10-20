@@ -69,7 +69,7 @@ test("the agent card's Now line names the hall and the desk in three-rooms wordi
   assert.equal(whereWords(dev, b, "three-rooms"), "cr, on the floor at a worker desk");
   assert.equal(whereWords(b.agents[0]!, b, "three-rooms"), "cr, in the lead's office");
   assert.equal(whereWords({ ...dev, building: null, room: null }, null, "three-rooms"), "the town");
-  const facts = { key: dev.key, name: dev.name, displayName: dev.displayName, registered: false, agent: dev, building: b, homes: [], work: null, workProject: null, stateWords: "working", progress: null, team: null, loops: null, lane: null, recent: [] };
+  const facts = { key: dev.key, name: dev.name, displayName: dev.displayName, registered: false, agent: dev, building: b, homes: [], work: null, workProject: null, stateWords: "working", progress: null, team: null, teamSession: null, loops: null, lane: null, recent: [] };
   const ctx = { now: 0, freshness: { teamTs: null, ageSeconds: 0, stale: false }, loopsUrl: null };
   const row = (rooms?: "three-rooms" | "classic") => renderAgentCard(facts, rooms ? { ...ctx, rooms } : ctx).find((s) => s.id === "now")!.rows[0];
   assert.deepEqual(row("three-rooms"), { kind: "text", label: "Where", text: "cr, on the floor at a worker desk" });
