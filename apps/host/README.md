@@ -2,8 +2,9 @@
 
 A small Node program (Node 22, no dependencies beyond Node itself) that stands between the browser and
 crewhub-loops: integrator "Option A" of loops' `docs/integrators/identity-and-access.md`, section 3.5 of
-[docs/LOOPS_INTEGRATION_PLAN.md](../../docs/LOOPS_INTEGRATION_PLAN.md). It holds the one read-only agent key,
-reads crewhub-loops with safe methods only, and answers the browser under `/world-api` on `127.0.0.1`.
+[docs/LOOPS_INTEGRATION_PLAN.md](../../docs/LOOPS_INTEGRATION_PLAN.md). It holds the one agent key (an external
+bot's, which could write: the host is what keeps it read-only), reads crewhub-loops with safe methods only, and
+answers the browser under `/world-api` on `127.0.0.1`.
 
 What it does:
 
@@ -43,7 +44,7 @@ What it does:
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `CREWHUB_WORLD_LOOPS_URL` | `http://127.0.0.1:8091` | crewhub-loops' API. On the Mac this is loopback TCP into Docker Desktop: the plan's "socket client" does not apply across Docker Desktop, so the host speaks HTTP to `127.0.0.1:8091`. |
+| `CREWHUB_WORLD_LOOPS_URL` | `http://127.0.0.1:8091` | crewhub-loops' API: the Mac app (`Crewhub.app`) serves it on loopback TCP, port 8091 by default. A transport over the app's Unix socket (`CREWHUB_WORLD_LOOPS_SOCKET`) is planned on the `unixsock` track of 2026-10-21. |
 | `CREWHUB_WORLD_KEY_FILE` | `~/.config/crewhub-loops/secrets/agent-crewhub-world.key` | The agent key file. When it is missing and nothing is configured, the host falls back to `agent-builder.key` in the same folder with a loud warning (see below). |
 | `CREWHUB_WORLD_PORT` | `5180` | The port on `127.0.0.1`. |
 | `CREWHUB_WORLD_ALLOWED_ORIGINS` | none | Comma list of extra origins, e.g. the Vite dev server `http://localhost:5173`. |
@@ -54,8 +55,10 @@ What it does:
 
 **The builder key is not a working fallback.** crewhub-loops limits the shared `builder` key to the tickets,
 comments and attachments of its member projects; `/api/projects`, `/api/board`, `/api/team` and the event stream
-answer 403, so the world shows "Unauthorized" and `health.sharedKey` is `true`. The working setup is a seeded agent
-`crewhub-world` with a `probe`-role key; the runbook is [docs/LOOPS_SETUP.md](../../docs/LOOPS_SETUP.md).
+answer 403, so the world shows "Unauthorized" and `health.sharedKey` is `true`. The working setup at crewhub-loops
+`4cdcd383` is an **external bot** `crewhub-world`, made by the owner in Settings > Agents, **not** read-only (the
+CL-313 reader key is tickets-only, and a `probe` agent reads nothing since CL-295); the runbook is
+[docs/LOOPS_SETUP.md](../../docs/LOOPS_SETUP.md).
 
 ## Running
 
@@ -67,7 +70,7 @@ CREWHUB_WORLD_PAIRING=off CREWHUB_WORLD_KEY_FILE=tools/out/loops-fake.key npm ru
 npm run dev                              # Vite proxies /world-api and /pair to 127.0.0.1:5180; open with ?source=live
 ```
 
-Against the real install on this Mac (after [docs/LOOPS_SETUP.md](../../docs/LOOPS_SETUP.md)):
+Against the Mac app (after [docs/LOOPS_SETUP.md](../../docs/LOOPS_SETUP.md)):
 
 ```sh
 npm run host                             # dev: the world comes from Vite, the data from the host
