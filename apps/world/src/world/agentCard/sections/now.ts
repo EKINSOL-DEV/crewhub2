@@ -31,7 +31,7 @@ export const nowSection: AgentCardSection = {
     if (agent.presence === "proxy") rows.push({ kind: "text", label: "", text: "A translucent proxy here: the real figure works in another building.", muted: true });
     else rows.push({ kind: "chips", chips: [{ kind: "lane", status: agent.laneStatus }, { kind: "plain", text: `posture ${agent.posture === "raised-hand" ? "hand raised" : agent.posture}` }] });
     const stale = ctx.freshness.stale;
-    if (stale) rows.push({ kind: "text", label: "", text: ctx.freshness.teamTs === null ? "No team snapshot yet: the lane status is unknown." : "The team snapshot is older than 5 minutes: the lane status is unknown.", muted: true });
+    if (stale) rows.push({ kind: "text", label: "", text: ctx.freshness.teamTs === null ? "No team snapshot: no team probe has reported to this crewhub-loops, so the lane status is unknown." : "The team snapshot is older than 5 minutes: the lane status is unknown.", muted: true });
     // The team's own word, as herdr reported it; an old snapshot's word is history, not now.
     const team = facts.team;
     if (team) {
