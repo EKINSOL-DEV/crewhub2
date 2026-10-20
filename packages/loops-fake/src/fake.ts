@@ -14,6 +14,7 @@ import type { AddressInfo } from "node:net";
 import { type DemoSource, type ScenarioId, DEMO_PERSON, createDemoSource } from "@crewhub/demo";
 import type { CommentOut, Envelope, LoopsSnapshot, PlaybackSpeed, PrincipalRef, TicketStatus } from "@crewhub/loops-client";
 import { TICKET_STATUSES } from "@crewhub/loops-client";
+import { agentsWithLanes, teamWithComputers } from "./lanes.ts";
 
 export interface LoopsFakeOptions {
   /** TCP port on 127.0.0.1; 0 (the default) picks a free one. */
@@ -376,8 +377,8 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
       const paged = page(await source.getProgress(ref), url);
       return { progress: paged.items, nextCursor: paged.nextCursor };
     }
-    if (at("team")) return (await snapshotOf()).team;
-    if (at("agents")) return { agents: await source.getAgents(), lanesAuthority: "db" };
+    if (at("team")) return teamWithComputers((await snapshotOf()).team);
+    if (at("agents")) return { agents: agentsWithLanes(await source.getAgents(), keyName, new Date()), lanesAuthority: "db", agentHome: null };
     if (at("principals")) return { principals: (await snapshotOf()).principals };
     if (at("watchdog")) return source.getWatchdog();
     if (at("events")) {

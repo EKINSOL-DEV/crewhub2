@@ -146,7 +146,19 @@ test("archived projects are readable one by one; the snapshot's lists match the 
   const fake = await start();
   const agents = (await get(fake, "/api/agents")).body;
   assert.equal(agents.lanesAuthority, "db");
+  assert.equal(agents.agentHome, null);
   assert.ok(agents.agents.some((a: { isCrewhubLead: boolean }) => a.isCrewhubLead));
+  // 4cdcd383: lanes with desired and observed values (some drift), computers, and the key's principal as an external bot.
+  const laned = agents.agents.filter((a: { lane: unknown }) => a.lane !== null);
+  assert.ok(laned.length >= 5, `${laned.length} laned agents`);
+  assert.ok(laned.some((a: { lane: { drift: string[] | null } }) => (a.lane.drift ?? []).length > 0), "some lane drifts");
+  assert.ok(laned.every((a: { lane: { desired: { permissionMode: string } } }) => typeof a.lane.desired.permissionMode === "string"));
+  assert.ok(agents.agents.every((a: { computer: { kind: string } | null }) => a.computer?.kind === "this"));
+  const bot = agents.agents.find((a: { id: string }) => a.id === fake.keyName);
+  assert.equal(bot?.external, true);
+  assert.equal(bot?.lane, null);
+  const team = (await get(fake, "/api/team")).body;
+  assert.ok(team.sessions.length > 0 && team.sessions.every((s: { computer: { name: string } | null }) => s.computer?.name === "This computer"));
 });
 
 test("the tail recipe, GET /api/events paging and types validation", async () => {
