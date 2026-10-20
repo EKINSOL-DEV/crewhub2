@@ -1,6 +1,8 @@
 /**
  * Starts the host from the environment (see `config.ts` and the README):
- *   CREWHUB_WORLD_LOOPS_URL        crewhub-loops' URL (default http://127.0.0.1:8091, loopback TCP to Docker Desktop)
+ *   CREWHUB_WORLD_LOOPS_URL        crewhub-loops' URL (default http://127.0.0.1:8091, loopback TCP to the Mac app)
+ *   CREWHUB_WORLD_LOOPS_SOCKET     read loops over this Unix socket instead of TCP (never guessed; not together with
+ *                                  the URL); `--loops-socket <path>` on the command line is the same
  *   CREWHUB_WORLD_KEY_FILE         the key file (default ~/.config/crewhub-loops/secrets/agent-crewhub-world.key;
  *                                  falls back to agent-builder.key in the same folder, with a loud warning)
  *   CREWHUB_WORLD_PORT             the port on 127.0.0.1 (default 5180)
@@ -11,7 +13,7 @@
  *   NODE_ENV=production            serve apps/world/dist with an SPA fallback
  * The key is read once and kept in memory. It is never printed.
  *
- * `node src/main.ts open [--origin <url>]` prints a one-time pairing link (10 minutes, single use) on stdout: for a host
+ * `node src/main.ts [--loops-socket <path>] open [--origin <url>]` prints a one-time pairing link (10 minutes, single use) on stdout: for a host
  * that already runs on the port it asks that host (through the run file's mint secret, loopback only), else it starts
  * the host and prints the link. `--origin` makes the link open on another origin that proxies `/pair` (the Vite dev
  * server): cookies ignore ports, so a browser paired on 127.0.0.1:5173 is paired on 127.0.0.1:5180 too.
@@ -38,10 +40,12 @@ function readFileOrNull(file: string): string | null {
 interface Args {
   command: "serve" | "open";
   origin: string | null;
+  /** `--loops-socket <path>`: the same as CREWHUB_WORLD_LOOPS_SOCKET, and wins over it. */
+  loopsSocket: string | null;
 }
 
 function parseArgs(argv: string[]): Args {
-  const args: Args = { command: "serve", origin: null };
+  const args: Args = { command: "serve", origin: null, loopsSocket: null };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i] as string;
     if (arg === "open") args.command = "open";
@@ -50,7 +54,12 @@ function parseArgs(argv: string[]): Args {
       if (value === undefined || !/^https?:\/\//.test(value)) throw new ConfigError("--origin needs an http(s) URL");
       args.origin = new URL(value).origin;
       i += 1;
-    } else throw new ConfigError(`unknown argument ${arg} (usage: node apps/host/src/main.ts [open [--origin <url>]])`);
+    } else if (arg === "--loops-socket") {
+      const value = argv[i + 1];
+      if (value === undefined || value === "" || value.startsWith("--")) throw new ConfigError("--loops-socket needs a path");
+      args.loopsSocket = value;
+      i += 1;
+    } else throw new ConfigError(`unknown argument ${arg} (usage: node apps/host/src/main.ts [--loops-socket <path>] [open [--origin <url>]])`);
   }
   return args;
 }
@@ -87,7 +96,7 @@ let sharedKey: boolean;
 let config: ReturnType<typeof loadServerConfig>;
 try {
   args = parseArgs(process.argv.slice(2));
-  config = loadServerConfig(process.env);
+  config = loadServerConfig(args.loopsSocket === null ? process.env : { ...process.env, CREWHUB_WORLD_LOOPS_SOCKET: args.loopsSocket });
   if (args.command === "open") {
     const link = await mintFromRunning(config.port, args.origin);
     if (link !== null) {
@@ -109,6 +118,7 @@ const pairingSecret = config.pairingFile === null ? undefined : loadPairingSecre
 const mintSecret = randomBytes(32).toString("base64url");
 const host = await createHost({
   loopsUrl: config.loopsUrl,
+  ...(config.loopsSocket === null ? {} : { loopsSocket: config.loopsSocket }),
   key,
   keyName,
   sharedKey,
@@ -127,7 +137,7 @@ try {
   log(`cannot write the run file ${runFile(host.port)}: "open" cannot reach this host while it runs`);
 }
 log(
-  `listening on ${host.url} (loops ${config.loopsUrl}, key ${keyName}${sharedKey ? ", the shared builder key" : ""}${config.production ? ", serving apps/world/dist" : ""}, pairing ${config.pairing}${config.pairingFile === null ? "" : ", secret kept in " + config.pairingFile})`,
+  `listening on ${host.url} (loops ${config.loopsSocket === null ? config.loopsUrl : `unix socket ${config.loopsSocket}, web ${config.loopsUrl}`}, key ${keyName}${sharedKey ? ", the shared builder key" : ""}${config.production ? ", serving apps/world/dist" : ""}, pairing ${config.pairing}${config.pairingFile === null ? "" : ", secret kept in " + config.pairingFile})`,
 );
 if (args.command === "open") {
   if (config.pairing === "off") log("pairing is off: no link needed, open the world directly");
