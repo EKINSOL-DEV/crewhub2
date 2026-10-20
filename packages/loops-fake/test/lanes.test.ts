@@ -35,7 +35,10 @@ test("the fake's agents carry lanes in loops' shape: desired and observed, drift
   assert.equal(bot.herdrSession, "external:none");
   assert.equal(bot.lane, null);
   assert.equal(bot.lastSeenAt, NOW.toISOString());
+  assert.deepEqual(bot.projects, { lead: [], member: [] });
   assert.equal(out.length, 9);
+  const withProject = agentsWithLanes([{ ...agent("cr-lead"), projects: { lead: [{ slug: "creator", key: "CR" }], member: [] } }], "crewhub-world", NOW);
+  assert.deepEqual(withProject[1]?.projects, { lead: [], member: [{ slug: "creator", key: "CR" }] });
   // Not twice when the demo lists it already; an agent of another scenario gets the default lane, deterministic.
   assert.equal(agentsWithLanes([agent("crewhub-world")], "crewhub-world", NOW).length, 1);
   const fn = laneOf(agent("fn-lead"), 3, NOW);

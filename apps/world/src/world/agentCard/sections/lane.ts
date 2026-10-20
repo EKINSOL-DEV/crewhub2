@@ -59,11 +59,13 @@ export const laneSection: AgentCardSection = {
         const how = [by, when].filter((x): x is string => x !== null).join(", ");
         rows.push({ kind: "text", label: "Seen running", text: `${seen.length ? seen.join(", ") : "nothing readable"}${how ? ` (${how})` : ""}`, mono: true });
         if (lane.drift.length) {
-          const chips: CardChip[] = lane.drift.map((key) => {
+          // One short chip names the drifting fields (a chip does not wrap); a text row per field gives both values.
+          const words = lane.drift.map((key) => DRIFT_WORDS[key] ?? key);
+          rows.push({ kind: "chips", chips: [{ kind: "attention", text: `drift in ${words.join(", ")}` }] });
+          for (const key of lane.drift) {
             const [wanted, saw] = driftValues(lane, key);
-            return { kind: "attention", text: `${DRIFT_WORDS[key] ?? key} drifts: set up as ${wanted ?? "unset"}, seen ${saw ?? "unknown"}` };
-          });
-          rows.push({ kind: "chips", chips });
+            rows.push({ kind: "text", label: `${DRIFT_WORDS[key] ?? key} drift`, text: `set up as ${wanted ?? "unset"}, seen ${saw ?? "unknown"}`, mono: true });
+          }
         } else rows.push({ kind: "text", label: "", text: "No drift: it runs as set up.", muted: true });
       } else if (setUp.length || lane.permissionMode) rows.push({ kind: "text", label: "", text: "Never seen running: no probe has observed this lane.", muted: true });
       if (lane.lifecycle || lane.restarting) rows.push({ kind: "text", label: "Lifecycle", text: `${lane.lifecycle ?? "unknown"}${lane.restarting ? ", restarting now" : ""}` });

@@ -92,7 +92,9 @@ export function laneOf(agent: AgentOut, index: number, now: Date): AgentLane | n
 /**
  * `GET /api/agents` as 4cdcd383 answers it: every demo agent with its lane, computer and flags, and the key's own
  * principal as the external bot it is (CL-314: `external`, `herdrSession: "external:none"`, no lane, seen just now),
- * unless the demo already lists an agent by that name.
+ * unless the demo already lists an agent by that name. The bot is a member of the first project a lead leads, so it
+ * stands in a building where its card can open (the development instance's bots belong to no project and stand in
+ * the town hall).
  */
 export function agentsWithLanes(agents: AgentOut[], keyName: string, now: Date): AgentOut[] {
   const out = agents.map((agent, index): AgentOut => {
@@ -128,7 +130,7 @@ export function agentsWithLanes(agents: AgentOut[], keyName: string, now: Date):
       reader: false,
       notPickedUp: 0,
       needsLoginSince: null,
-      projects: { lead: [], member: [] },
+      projects: { lead: [], member: agents.flatMap((a) => a.projects.lead).slice(0, 1) },
       lane: null,
       rights: null,
       revision: 1,

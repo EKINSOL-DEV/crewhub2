@@ -43,6 +43,7 @@ unless a script says otherwise; a phone is 375 x 812 with touch.
 | `shots.mjs` | The world in screenshots: `--views` (`town`, `building`, `room`, `walk`, `stress`) x `--theme` x `--width`, in any `--scenario`. `walk` is the critical walk through every building and room. | `<tag>-<view>-<theme>-<width>.png` |
 | `castshots.mjs` | The casting room (`/cast-preview`): every cast in every state, the scenes, dusk, reduced motion, Fast, far, the drone, and the side-by-side view. `--cast`, `--states`, `--only` narrow it. | `room-<cast>-<what>-<theme>.png` |
 | `castworld.mjs` | The world as each cast draws it (the viewer's choice): town, building, room per theme and width, and the stress fixture with the dev overlay's numbers. | `<tag>-<cast>-<view>-<theme>-<width>.png` |
+| `liveshots.mjs` | The world in live mode (`?source=live`) against whatever host your Vite proxies to: the town, the connection chip, Settings > Source, the text view's connection line, and with `--card <agent>` the agent card of each named agent (the page, the card, and the card scrolled to its Lane section), its text on stdout. `--state` only names the files. | `<tag>-<state>-<view>-<theme>-<width>.png`, `<tag>-<state>-card-<agent>-...png`, `...-cardonly-...`, `...-cardlane-...` |
 
 `lib/world.mjs` is what they share (the command line, the browser, the error and request watch, seeking and
 playback); `lib/shots.mjs` is the view walker behind `shots.mjs` and `castworld.mjs`.

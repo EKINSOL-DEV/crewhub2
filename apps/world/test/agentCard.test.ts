@@ -101,8 +101,9 @@ test("Lane: set up as versus seen running, each drift in words, lifecycle, sessi
     "Set up as|claude, opus, effort high",
     "Permission mode|auto",
     "Seen running|claude, sonnet, effort high, mode plan (by the probe, 3 min ago)",
-    "model drifts: set up as opus, seen sonnet",
-    "permission mode drifts: set up as auto, seen plan",
+    "drift in model, permission mode",
+    "model drift|set up as opus, seen sonnet",
+    "permission mode drift|set up as auto, seen plan",
     "Lifecycle|fixed",
     "Session|ekinsol, pane w1:p2",
     "Computer|This computer, where loops runs",
@@ -130,8 +131,9 @@ test("Lane: set up as versus seen running, each drift in words, lifecycle, sessi
   assert.deepEqual(texts(some!.rows), ["Set up as|claude", "|Never seen running: no probe has observed this lane."]);
   // The drift keys loops may add are passed through in its own words, with unknown values said so.
   const odd = renderAgentCard(bare({ lane: laneOf({ drift: ["account", "cwd"], observed: { kind: null, model: null, effort: null, account: null, permissionMode: null, source: null } }) }), ctx()).find((s) => s.id === "lane");
-  assert.ok(texts(odd!.rows).includes("account drifts: set up as 2, seen unknown"));
-  assert.ok(texts(odd!.rows).includes("cwd drifts: set up as unset, seen unknown"));
+  assert.ok(texts(odd!.rows).includes("drift in account, cwd"));
+  assert.ok(texts(odd!.rows).includes("account drift|set up as 2, seen unknown"));
+  assert.ok(texts(odd!.rows).includes("cwd drift|set up as unset, seen unknown"));
 });
 
 test("Lane: an external bot has no lane and says so; a laneless agent says so; a worker says whose it is; nothing without facts", () => {
