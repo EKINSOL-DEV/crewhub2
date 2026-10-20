@@ -736,3 +736,43 @@ now host several model rooms in one physical room, the **hall**:
   four casts; the prop editor and rule props (a placement site naming a model room resolves to its hall; a placement
   that no longer fits is dropped with the usual notice).
 - **The text view tells the same story as the scene.**
+
+## Addendum: live on the Mac crewhub-loops (2026-10-20, night)
+
+crewhub-loops now runs on this Mac as the desktop app (`Crewhub.app`: a Tauri shell around one Python sidecar that
+serves `http://127.0.0.1:8091` and a Unix socket in its data folder). The world was built against `053b5f47`; loops'
+`origin/main` is `4cdcd383`, 316 commits later. Tonight the world runs against a **private development instance** of
+that commit (`tools/loops-dev.sh`: own checkout, port 8291, data folder `~/crewhub-loops-dev`, socket
+`~/crewhub-loops-dev/run/api.sock`), never against the app. The app is Nicky's, in the morning.
+
+**What loops changed that the world must follow.**
+
+1. **The `probe` road is dead** (CL-295): a probe agent other than team-probe and lane-watch reads nothing. The
+   world's credential is an **external bot** (CL-314), made by the owner in the web, role `lead`, scope `agent`, *not*
+   read-only: it reads projects, boards, the team, agents, tickets and the stream. It could also write like a lead; the
+   host holds it on loopback and forwards an allow-list of `GET`s only. The CL-313 "Read only" key is tickets-only and
+   unusable for the world.
+2. **The stream** is still `GET /api/events/stream` (NDJSON). It ends after 300 s, beats every 15 s, re-checks the
+   credential every 60 s, admits 4 streams per principal (429 `too_many_streams`, `Retry-After: 5`), and since CL-406
+   carries a sealed `cursor` on heartbeats and on `GET /api/events`; `GET /api/events?from=tail` answers "now". There is
+   no buffer: the only 410 is `cursor_expired`. A `lastSeq` below our cursor means a restored database.
+3. **Still no viewer role (L1), no CORS (L8), no project groups (L22).** The relay stays the only road.
+
+**Principles (unchanged, restated).** The reducer and the projection never learn about the host. The key never leaves
+the host. **The host never writes to loops**: only `tools/loops-seed.mjs` writes, as the admin session, to the
+development instance only. `npm test` stays offline; tests against the real instance live in `tools/regress.mjs
+--groups real` and skip cleanly when it is down.
+
+**The round, six tracks.**
+
+| Track | Delivers |
+| --- | --- |
+| realrun | A written list of what the real API does that the fake does not; then the relay and `HostSource` follow it: `from=tail` at start, the sealed cursor sent back when no event followed it (else `after=`), a 1.5 to 3 s jittered reconnect after the 300 s end, 429 with `Retry-After`, 410 `cursor_expired`, restore detection, unknown event types pass. **One upstream stream per host process**, tested. The fake matches the real stream where it differs. A regress group `real` against 8291. |
+| seed | `tools/loops-seed.mjs`: the demo storyline replayed into the development loops through the admin session (projects, tickets, moves, comments, progress), idempotent by title, `--speed`, `--scenario`; it refuses port 8091. |
+| unixsock | `CREWHUB_WORLD_LOOPS_SOCKET=<path>`: the host reads loops over the Unix socket (`node:http` with `socketPath`, Host `127.0.0.1`), same allow-list, same stream. Explicit only, never guessed. `health` reports `transport: "unix" \| "tcp"`. |
+| lanefacts | The agent card's Lane section and `Now` from the real `GET /api/agents` lane (`desired`/`observed`, effort, permission mode, drift, lifecycle, `lastSeenAt`, `computer`) and `GET /api/team` (`status`, `contextLine`); an external bot says it has no lane; freshness from `lastSeenAt`. The fake serves the same shape. |
+| setupdocs | `docs/LOOPS_SETUP.md` rewritten for the Mac app (external bot, key file, `npm run host:start`, pairing, TCP or socket), with the development instance as the developer's section; the gap analysis and integration plan section 10 brought to `4cdcd383`. |
+| viewer | In the loops repository, branch `world/viewer-key` (never pushed): a proposal for L1, an external bot flag that may read projects, board, team, agents, tickets and the stream and write nothing, with loops-style tests. The ask for cl-lead. The world keeps working with the plain external key. |
+
+**Out of scope:** the chat (L8), pending delegations (they need the owner's session, not a key), TLS, writes from the
+host, any change to the Mac app, its data folder, port 8091 or launchd.
