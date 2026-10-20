@@ -1,0 +1,52 @@
+# crewhub-loops 4cdcd383 against the fake: what the real stream does that the fake did not
+
+Written on the night of 2026-10-20 from a run of `apps/host` against the development crewhub-loops on
+`127.0.0.1:8291` (loops `origin/main` 4cdcd383, an external-bot key, role `lead`) and from `curl` with the same key,
+compared with `packages/loops-fake` and `apps/host/test/loopsStub.ts` as they were at the start of the night (written
+against 053b5f47). Paths are relative to the loops checkout; `api/` means `services/api/src/crewhub_loops/api/`.
+"Observed" means seen on 8291; "code" means read in loops, not provoked.
+
+| # | The real crewhub-loops | The fake and the host before tonight | Source |
+| --- | --- | --- | --- |
+| 1 | **The old tail trick is broken.** `GET /api/events?types=attachment.added&limit=1` answers `lastSeq: 0`: since CL-390 `lastSeq` is the last row returned, else the `after` sent, so a filter that matches nothing answers `after` (0). The host then opened the stream with `after=0` and **replayed the whole log on every start** (observed: the host's cursor went 0 → 13 by replay). | The fake answered the real tail for that trick; the host relied on it. | `api/routers/events.py:118-155` ("`lastSeq` is the seq to pass as the next `after`: the seq of the last row returned, else the `after` sent"); observed |
+| 2 | **`GET /api/events?from=tail`** answers `{"events":[],"lastSeq":N,"cursor":"…"}`: "now" for this caller, no events. `lastSeq` is the newest event the caller may see (0 when none), never the global tail. | Neither the fake nor the host knew `from=tail`. | `api/routers/events.py:143-145`; observed |
+| 3 | **Every `GET /api/events` answer carries a sealed `cursor`** (about 60 URL-safe characters). `cursor=<token>` resumes exactly where that answer's judgement ended; `cursor` and `after` together are 400 `validation_error` "Send either cursor or after, not both" (`detail.field` = `cursor`). | No `cursor` field, no `cursor=` query. | `api/routers/events.py:96-115, 143-155`; `api/cursor.py` (`CursorBox.seal`/`open`); observed |
+| 4 | **Heartbeats carry `cursor`**: `{"v":1,"type":"heartbeat","seq":13,"cursor":"…","ts":"…"}`. `seq` is the last envelope sent, or the start position; the token says "everything up to now is judged". The web client sends it back as `cursor=` only while no event followed that heartbeat, else `after=<last seq>`. | The fake's heartbeats had no `cursor`; the host ignored one. | `api/stream.py:343-350, 425-428`; `apps/web/src/api/stream.ts:110-111, 128, 150-152`; observed |
+| 5 | **A stream without `after` or `cursor` is live only**: nothing replayed, the first line is a heartbeat after 15 s with `seq` = the newest visible event. | The fake did the same (started at its tail). The stub replayed from its tail too. Kept. | `api/routers/events.py:192-198`; `api/stream.py:312-336`; observed |
+| 6 | **No buffer, no retention 410.** `after=0` replays the whole log (observed seq 3, 4, 5, 6, 13 for this key). The only 410 is `cursor_expired` for a sealed cursor that does not open: forged, another caller's or filter's, an older key, damaged, or a watermark above the log's tail (a restored backup). Message: "The cursor cannot be used: fetch the events again and continue from there". | The fake answered 410 for an `after` below its ring buffer (and still does at a storyline loop: the demo rebuilds its state then, see its README). | `api/cursor.py:1-22`; `api/routers/events.py:79-93`; observed with `cursor=bogus` |
+| 7 | **Gaps in `seq` are normal.** Visibility is per principal in SQL: this key saw 3, 4, 5, 6, 13; 1, 2 and 7 to 12 were somebody else's (admin events, another agent's chat). | The fake's log is contiguous. `HostSource` already treats a gap as normal (`resnapshotOnGap` false by default). | `api/stream.py:145-229`; observed |
+| 8 | **The stream ends after 300 s** (`max_age`), the response is bounded at 310 s, a write to a stalled reader at 10 s. After a normal end the web client waits **1.5 to 3 s with jitter** before reconnecting (CL-378: an instant retry meets a 502 during a deploy); on errors it backs off `1.5 s · 2^(n-1) · (1 + random)` capped at 30 s; on 401/403/404 it waits 120 s; no bytes for 45 s is a dead connection. | The fake ends at `streamMaxMs` (kept). The host reconnected **at once** after a normal end. | `api/stream.py:34-42, 99-110`; `apps/web/src/api/stream.ts:78-85, 176-194`; code |
+| 9 | **4 streams per principal, 64 in total**, else 429 `too_many_streams` with `Retry-After: 5`. The slot is taken before the seed query and given back when the response closes. | No limit in the fake; the host did not read `Retry-After`. | `api/stream.py:50-51`; `api/routers/events.py:181-188`; code (never provoked on 8291: each developer has their own key and budget) |
+| 10 | **The credential is re-checked every 60 s** on an open stream; a revoked key or disabled agent ends the stream silently (no error line), and the reconnect gets the 401/403. | Not simulated; the host already treats a silent end as a normal end and a 401/403 as `unauthorized`. | `api/stream.py:40, 393-408`; `api/routers/events.py:200-209`; code |
+| 11 | **`GET /api/team` with no probe snapshot is `{"v":1,"ts":"","sessions":[]}`**: `ts` is an empty string, not a timestamp. The validators accept it (`ts: str`); the world's reducer reads an empty `ts` as "no snapshot" and the text view says "No team snapshot yet". | The fake always has the demo's snapshot. | observed; `packages/world-model/src/reducer.ts:67-69` |
+| 12 | **Additive response fields.** Projects: `herdrSession`, `assigneeCounts`, `releaseScheme`, `releaseRepo`, `appNote`, `rootFolder`, `extraFolders`, `type`, `revision`, `color`, `icon`, `description`, `archivedBy`, `repoCount`, `ticketTotal`, `keyLocked`; the list carries `orderRevision` and `linkTypesVersion`. Agents: `external`, `reader`, `notPickedUp`, `needsLoginSince`, `computer`, `lane` (null for an external bot), `lanesAuthority`, `agentHome`. Board cards: `openQuestions`. All pass the loops-client validators unchanged (unknown keys are allowed). | The fake serves the 053b5f47 shapes; the `lanefacts` track brings `GET /api/agents` and `GET /api/team` up to date. | observed (`/world-api/snapshot` validated with `validateLoopsSnapshot`) |
+| 13 | **New event types** since 053b5f47: `automation.ran`, `ticket.quiet` (both visible to an agent key), `owner-request.updated` (the owner only). `ticket.updated` has new causes (`checklist`), and a payload written by an automation carries `automation: {id, name}`. | The fake's `EVENT_TYPES` and the client's `KNOWN_EVENT_TYPES` did not list them; the client warned once per unknown type and skipped it; the host passed them through. | `contracts/events.py:18-159`; `domain/automation_run.py:719-727`; `domain/automation_quiet.py:466-483`; code |
+| 14 | **`GET /api/health`**: `version` is `"0.1.0"` (a package version, not a commit); `checks` has `db`, `uploads`, `socket`, `tcp`, `laneWatch{state, ageS, …}` and the top level `laneWakesForcedOff`; with a key, `principal` is the bot and `watchdog` is filled. | The fake's `version` named the commit it was written against. | observed |
+| 15 | **`GET /api/auth/me`** for an external bot: `{"principal":{"id","kind":"agent","displayName","role":"lead","theme":null,"themeDefault":"system"}}`. The `probe` road is dead (CL-295): the world's key is a lead's. | The fake answered `role: "probe"`. | `domain/agent_admin.py:84-92`; observed |
+| 16 | The stream accepts `limit` (ignored), `project`, `types`, `for=me`, `notify` (people only) and a `Last-Event-ID` header (an integer is `after`, anything else a sealed cursor). | The fake knows `after` and `types`. The host sends `after` or `cursor` only. | `api/routers/events.py:55-63, 96-115, 159-170`; code |
+
+## What the host does now (`apps/host/src/stream.ts`)
+
+- Starts with `GET /api/events?from=tail` and keeps both `lastSeq` and the sealed `cursor`. An older loops that does
+  not know `from=tail` answers a page of events instead of an empty list; then the host falls back to the old
+  `types=attachment.added&limit=1` read.
+- Opens the stream with `cursor=<token>` while the newest token was made at the host's current position (a heartbeat
+  carried it and no event followed), else `after=<last seq>`; never both. A 410 drops the token, resets the tabs
+  (`gone`) and continues from the tail.
+- `lastSeq` below the host's cursor at any reconnect means a restored or fresh database: a `reset` with reason
+  `reconnected`.
+- After a normal end (the 300 s close, the 60 s credential check, a server stop) it reconnects after 1.5 to 3 s with
+  jitter; on an error with the usual backoff; on 429 after `Retry-After` (default 5 s); 401/403 stays `unauthorized`
+  with the long retry.
+- Unknown event types pass to the browser unchanged; the client warns once per type and skips it.
+- Exactly one upstream stream per host process, whatever the tabs do: the body of a finished stream is cancelled
+  before the next one opens, and `test/stream.test.ts` counts concurrent streams on the stub through reconnects,
+  snapshot reloads and a 429.
+
+## What the fake does now (`packages/loops-fake`)
+
+Sealed-looking opaque cursors on heartbeats and on `GET /api/events` (it opens its own and nothing else: a foreign or
+damaged token is 410 `cursor_expired`), `GET /api/events?from=tail`, `cursor=` on both routes (`cursor` and `after`
+together are 400), a 429 `too_many_streams` with `Retry-After: 5` at the fifth stream of its key, `role: "lead"` on
+`/api/auth/me`, the new event types in `types=`. A start without `after` was already live only. Its one deliberate
+difference stays: at a demo storyline loop it jumps its log and expires every older `after` (loops has no buffer).
