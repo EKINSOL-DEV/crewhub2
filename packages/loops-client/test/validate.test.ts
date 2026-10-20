@@ -202,6 +202,70 @@ test("GET /api/agents: projects is {lead, member} of {slug, key}", () => {
   assert.equal(failure(validateAgents(old)).path, "$.agents[0].projects");
 });
 
+test("GET /api/agents at 4cdcd383: the lane is typed, the external bot and the flags are read, the extras are optional", () => {
+  // loops:.../contracts/agents.py (AgentLane, LaneDesired, LaneObserved, AgentDetailOut), contracts/computers.py (ComputerOut).
+  const out = value(validateAgents(fixture("agents.json")));
+  assert.equal(out.lanesAuthority, "db");
+  assert.equal(out.agentHome, null);
+  const [crLead, gMan, world, oldLead, marky] = out.agents;
+  assert.equal(crLead?.lane?.desired.model, "claude-fable-5-1");
+  assert.equal(crLead?.lane?.observed?.model, "claude-opus-5-5");
+  assert.deepEqual(crLead?.lane?.drift, ["model", "permissionMode"]);
+  assert.equal(crLead?.lane?.observed?.source, "probe");
+  assert.deepEqual(crLead?.computer, { name: "This computer", kind: "this" });
+  assert.equal(gMan?.lane, null);
+  assert.equal(world?.external, true);
+  assert.equal(world?.herdrSession, "external:none");
+  assert.equal(oldLead?.disabled, true);
+  assert.equal(oldLead?.lane?.lifecycle, "closed");
+  assert.equal(oldLead?.lane?.observed, null);
+  assert.equal(oldLead?.lane?.drift, null);
+  assert.equal(marky?.needsLoginSince, "2026-09-30T20:12:00Z");
+  assert.equal(marky?.lane?.restarting, true);
+  assert.equal(marky?.lane?.observed?.source, "started");
+  assert.equal(marky?.computer?.kind, "remote");
+  // The 053b5f47 shape (no computer, external, reader, notPickedUp, needsLoginSince, lanesAuthority) still passes.
+  const base = (fixture("agents.json").agents as Record<string, unknown>[])[1]!;
+  const { computer: _c, external: _e, reader: _r, notPickedUp: _n, needsLoginSince: _s, ...older } = base;
+  assert.equal(value(validateAgents({ agents: [older] })).agents[0]?.external, undefined);
+  // A lane that is not an object, or a desired block without its permission mode, is a failure, not a guess.
+  assert.equal(failure(validateAgents({ agents: [{ ...base, lane: "la_1" }] })).path, "$.agents[0].lane");
+  const lane = (fixture("agents.json").agents as { lane: Record<string, unknown> }[])[0]!.lane;
+  assert.equal(failure(validateAgents({ agents: [{ ...base, lane: { ...lane, desired: { model: null, effort: null, account: null } } }] })).path, "$.agents[0].lane.desired.permissionMode");
+});
+
+test("a new lane kind, lifecycle, observation source or computer kind passes with one warning each", () => {
+  resetWarnings();
+  const warnings: string[] = [];
+  const original = console.warn;
+  console.warn = (line: string) => warnings.push(line);
+  try {
+    const lane = (fixture("agents.json").agents as { lane: Record<string, unknown> }[])[0]!.lane;
+    const observed = lane.observed as Record<string, unknown>;
+    const odd = { ...lane, kind: "gemini", lifecycle: "parked", observed: { ...observed, kind: "gemini", source: "guessed" } };
+    const base = (fixture("agents.json").agents as Record<string, unknown>[])[0]!;
+    const out = value(validateAgents({ agents: [{ ...base, lane: odd, computer: { name: "cloud", kind: "virtual" } }, { ...base, lane: odd }] }));
+    assert.equal(out.agents[0]?.lane?.kind, "gemini");
+    assert.equal(out.agents[0]?.lane?.lifecycle, "parked");
+    assert.equal(out.agents[0]?.computer?.kind, "virtual");
+    assert.deepEqual(
+      warnings.map((w) => w.replace(/ at \$.*$/, "")),
+      ["[loops-client] unknown computer kind \"virtual\"", "[loops-client] unknown lane kind \"gemini\"", "[loops-client] unknown observation source \"guessed\"", "[loops-client] unknown lane lifecycle \"parked\""],
+    );
+  } finally {
+    console.warn = original;
+  }
+});
+
+test("GET /api/team at 4cdcd383: a session names its computer (CL-459); an older snapshot without it passes", () => {
+  const snapshot = value(validateTeamSnapshot(fixture("team-snapshot.json")));
+  assert.deepEqual(snapshot.sessions[1]?.computer, { name: "buildbox", kind: "remote" });
+  assert.equal(snapshot.sessions[1]?.agents[0]?.status, "blocked");
+  const sessions = (fixture("team-snapshot.json").sessions as Record<string, unknown>[]).map(({ computer: _c, ...rest }) => rest);
+  assert.equal(value(validateTeamSnapshot({ ...fixture("team-snapshot.json"), sessions })).sessions[0]?.computer, undefined);
+  assert.equal(failure(validateTeamSnapshot({ ...fixture("team-snapshot.json"), sessions: [{ ...sessions[0], computer: "here" }] })).path, "$.sessions[0].computer");
+});
+
 test("a body's v is the number 1; the string the documents print passes too, 2 fails", () => {
   // loops:services/api/src/crewhub_loops/contracts/richtext.py: RichBody and SystemCommentBody, `v: Literal[1] = 1`.
   // The ticket body is the one loops:services/api/tests/test_api_releases_publish.py sends.

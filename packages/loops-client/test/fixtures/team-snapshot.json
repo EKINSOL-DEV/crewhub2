@@ -1,2 +1,5 @@
-{"v":1,"ts":"2026-09-30T21:00:00Z","sessions":[{"name":"ekinsol","agents":[
-  {"name":"cl-lead","status":"working","paneId":"p1","workspaceId":"w1","contextLine":"CL-85: writing docs","lead":null,"unsentInput":null}]}]}
+{"v":1,"ts":"2026-09-30T21:00:00Z","sessions":[{"name":"ekinsol","computer":{"name":"This computer","kind":"this"},"agents":[
+  {"name":"cl-lead","status":"working","paneId":"p1","workspaceId":"w1","contextLine":"CL-85: writing docs","lead":null,"unsentInput":null},
+  {"name":"cr-lead","status":"idle","paneId":"p2","workspaceId":"w1","contextLine":null,"lead":null,"unsentInput":"typed"}]},
+ {"name":"buildbox","computer":{"name":"buildbox","kind":"remote"},"agents":[
+  {"name":"marky","status":"blocked","paneId":"p1","workspaceId":"w3","contextLine":"MK-4: login expired","lead":null,"unsentInput":null}]}]}

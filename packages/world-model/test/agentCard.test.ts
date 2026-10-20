@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { Envelope } from "@crewhub/loops-client";
+import type { AgentLane, Envelope } from "@crewhub/loops-client";
 import { agentCardFacts, laneFacts, RECENT_LIMIT } from "../src/agentCard.ts";
 import { emptyMemory } from "../src/memory.ts";
 import type { WorldModel } from "../src/model.ts";
@@ -19,7 +19,7 @@ function world(input: WorldInput) {
 
 const CL = project("crewhub-loops", "CL", "cl-lead");
 const CR = project("crewhub", "CR", "cr-lead");
-const LANE = { id: "lane-1", kind: "claude", session: "ekinsol", name: "cl-lead", desired: { model: "opus", effort: "high", permissionMode: "auto" }, observed: { kind: "claude", model: "sonnet", effort: "high", permissionMode: "auto", source: "probe" }, observedAt: iso(T0), drift: ["model"], lifecycle: "fixed", restarting: false };
+const LANE: AgentLane = { id: "lane-1", kind: "claude", session: "ekinsol", name: "cl-lead", pane: "w1:p1", desired: { model: "opus", effort: "high", account: null, permissionMode: "auto" }, observed: { kind: "claude", model: "sonnet", effort: "high", account: null, permissionMode: "auto", source: "probe" }, observedAt: iso(T0), drift: ["model"], lifecycle: "fixed", restarting: false };
 
 test("the card gathers the agent's placement, work, lane, loops flags, projects and recent facts; nothing is invented", () => {
   const w = world({
