@@ -8,10 +8,11 @@ figure keeps walking while the card follows its anchor.
 The card reads the projection, never the source, so it is the same in demo and live mode: the demo gives what its
 script knows, a real crewhub-loops gives more (the lane, the flags). An absent fact is simply not shown; nothing is
 invented, and when loops knows nothing the card says so ("No lane", "Team says nothing", "Seen by loops never"). In
-demo mode a ticket has no link, and the footer says the facts are scripted. The fake crewhub-loops (`packages/loops-fake`)
-scripts lanes for the demo's agents (desired and observed values, some drift, a closed lane, a needs-login) and lists
-its own key as the external bot it is, so live mode against the fake shows the whole card; `node tools/liveshots.mjs
---port <port> --card cr-lead,crewhub-world` photographs it. On the development crewhub-loops every agent is laneless
+demo mode a ticket has no link, and the footer says the facts are scripted. The demo scripts lanes for its agents
+(`packages/demo/src/lanes.ts`: desired and observed values, some drift, a closed lane, a needs-login, the pane the
+demo's team runs the agent in), so the Lane section shows in demo mode too; the fake crewhub-loops (`packages/loops-fake`)
+serves the same lanes and lists its own key as the external bot it is. `node tools/liveshots.mjs --port <port> --card
+cr-lead,marky` photographs the card against the fake. On the development crewhub-loops every agent is laneless
 and the team snapshot is empty, so there the card says exactly that.
 
 ## Where the facts come from
