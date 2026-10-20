@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { AgentCardFacts, AgentPlacement, Building, WorkObject } from "@crewhub/world-model";
+import type { AgentCardFacts, AgentLaneFacts, AgentLoopsFacts, AgentPlacement, Building, WorkObject } from "@crewhub/world-model";
 import { AGENT_CARD_SECTIONS, renderAgentCard } from "../src/world/agentCard/registry.ts";
 import type { AgentCardSection, CardContext, CardRow } from "../src/world/agentCard/types.ts";
-import { agoWords, ticketHref } from "../src/world/agentCard/words.ts";
+import { agoWords, spanWords, ticketHref } from "../src/world/agentCard/words.ts";
 
 const NOW = Date.parse("2026-10-07T12:00:00Z");
 const ctx = (over: Partial<CardContext> = {}): CardContext => ({ now: NOW, freshness: { teamTs: null, ageSeconds: 10, stale: false }, loopsUrl: "http://127.0.0.1:8091", ...over });
@@ -50,6 +50,7 @@ const bare = (over: Partial<AgentCardFacts> = {}): AgentCardFacts => ({
   stateWords: "working, posture focused",
   progress: null,
   team: null,
+  teamSession: null,
   loops: null,
   lane: null,
   recent: [],
@@ -90,18 +91,78 @@ test("Work: the ticket with its link into loops, its chips, the project and the 
   assert.equal(demo?.kind === "ticket" && demo.href, null);
 });
 
-test("Lane: only the facts loops gave; drift is flagged; a worker says whose it is", () => {
-  const full = bare({
-    lane: { kind: "claude", lifecycle: "fixed", restarting: false, model: "opus", effort: "high", permissionMode: "auto", observed: { kind: "claude", model: "sonnet", effort: null, permissionMode: null }, observedAt: null, drift: ["model"] },
-    loops: { role: "lead", isCrewhubLead: true, isCoordinator: false, isOperator: false, lastSeenAt: null, herdrSession: "ekinsol", projects: { lead: [], member: [] } },
-  });
+const loopsOf = (over: Partial<AgentLoopsFacts> = {}): AgentLoopsFacts => ({ role: "lead", isCrewhubLead: false, isCoordinator: false, isOperator: false, disabled: false, external: false, reader: false, notPickedUp: 0, needsLoginSince: null, lastSeenAt: null, herdrSession: "ekinsol", computer: null, projects: { lead: [], member: [] }, ...over });
+const laneOf = (over: Partial<AgentLaneFacts> = {}): AgentLaneFacts => ({ kind: "claude", session: "ekinsol", pane: "w1:p2", lifecycle: "fixed", restarting: false, model: "opus", effort: "high", account: 2, permissionMode: "auto", observed: { kind: "claude", model: "sonnet", effort: "high", account: 2, permissionMode: "plan", source: "probe" }, observedAt: new Date(NOW - 3 * 60_000).toISOString(), drift: ["model", "permissionMode"], ...over });
+
+test("Lane: set up as versus seen running, each drift in words, lifecycle, session and pane, the computer, the flags", () => {
+  const full = bare({ lane: laneOf(), loops: loopsOf({ isCrewhubLead: true, computer: { name: "This computer", kind: "this" } }) });
   const lane = renderAgentCard(full, ctx()).find((s) => s.id === "lane");
-  assert.deepEqual(texts(lane!.rows), ["Runs on|claude, opus, effort high", "Permission mode|auto", "Lifecycle|fixed", "Observed|claude, sonnet", "drift: model", "In loops|lead, CrewHub lead", "Session|ekinsol"]);
-  const some = renderAgentCard(bare({ lane: { kind: "codex", lifecycle: null, restarting: null, model: null, effort: null, permissionMode: null, observed: null, observedAt: null, drift: [] } }), ctx()).find((s) => s.id === "lane");
-  assert.deepEqual(texts(some!.rows), ["Runs on|codex", "|Never observed by the probe."]);
+  assert.deepEqual(texts(lane!.rows), [
+    "Set up as|claude, opus, effort high",
+    "Permission mode|auto",
+    "Seen running|claude, sonnet, effort high, mode plan (by the probe, 3 min ago)",
+    "model drifts: set up as opus, seen sonnet",
+    "permission mode drifts: set up as auto, seen plan",
+    "Lifecycle|fixed",
+    "Session|ekinsol, pane w1:p2",
+    "Computer|This computer, where loops runs",
+    "In loops|lead, CrewHub lead",
+  ]);
+  // No drift says so; an observation from the start, a restart, and the alerts of needs-login and deliveries not picked up.
+  const started = bare({
+    lane: laneOf({ observed: { kind: "claude", model: "opus", effort: null, account: null, permissionMode: null, source: "started" }, observedAt: null, drift: [], restarting: true }),
+    loops: loopsOf({ needsLoginSince: new Date(NOW - 2 * 3_600_000).toISOString(), notPickedUp: 1, computer: { name: "buildbox", kind: "remote" } }),
+  });
+  assert.deepEqual(texts(renderAgentCard(started, ctx()).find((s) => s.id === "lane")!.rows), [
+    "Set up as|claude, opus, effort high",
+    "Permission mode|auto",
+    "Seen running|claude, opus (from its start)",
+    "|No drift: it runs as set up.",
+    "Lifecycle|fixed, restarting now",
+    "Session|ekinsol, pane w1:p2",
+    "Computer|buildbox, remote",
+    "In loops|lead",
+    "needs login, since 2 h ago",
+    "1 delivery not picked up for over a day",
+  ]);
+  // A lane never seen running, with only its kind known.
+  const some = renderAgentCard(bare({ lane: laneOf({ session: null, pane: null, lifecycle: null, restarting: null, model: null, effort: null, account: null, permissionMode: null, observed: null, observedAt: null, drift: [] }) }), ctx()).find((s) => s.id === "lane");
+  assert.deepEqual(texts(some!.rows), ["Set up as|claude", "|Never seen running: no probe has observed this lane."]);
+  // The drift keys loops may add are passed through in its own words, with unknown values said so.
+  const odd = renderAgentCard(bare({ lane: laneOf({ drift: ["account", "cwd"], observed: { kind: null, model: null, effort: null, account: null, permissionMode: null, source: null } }) }), ctx()).find((s) => s.id === "lane");
+  assert.ok(texts(odd!.rows).includes("account drifts: set up as 2, seen unknown"));
+  assert.ok(texts(odd!.rows).includes("cwd drifts: set up as unset, seen unknown"));
+});
+
+test("Lane: an external bot has no lane and says so; a laneless agent says so; a worker says whose it is; nothing without facts", () => {
+  const bot = renderAgentCard(bare({ loops: loopsOf({ external: true, herdrSession: "external:none", computer: { name: "This computer", kind: "this" } }) }), ctx()).find((s) => s.id === "lane");
+  assert.deepEqual(texts(bot!.rows), ["|External bot: no lane, it runs elsewhere.", "Computer|This computer, where loops runs", "In loops|lead, external bot"]);
+  const reader = renderAgentCard(bare({ loops: loopsOf({ external: true, reader: true, herdrSession: "external:none" }) }), ctx()).find((s) => s.id === "lane");
+  assert.deepEqual(texts(reader!.rows), ["|External bot: no lane, it runs elsewhere; reads only.", "In loops|lead, external bot, reads only"]);
+  const laneless = renderAgentCard(bare({ loops: loopsOf({ isOperator: true, disabled: true }) }), ctx()).find((s) => s.id === "lane");
+  assert.deepEqual(texts(laneless!.rows), ["|No lane: loops has not tied this agent to a pane.", "Session|ekinsol", "In loops|lead, operator, disabled"]);
+  // The team session's computer counts when loops names none.
+  const fromTeam = renderAgentCard(bare({ team: { name: "cl-lead", status: "idle" }, teamSession: { name: "ekinsol", computer: { name: "mini", kind: "this" } } }), ctx()).find((s) => s.id === "lane");
+  assert.deepEqual(texts(fromTeam!.rows), ["Computer|mini, where loops runs"]);
   const worker = renderAgentCard(bare({ registered: false, team: { name: "cl-dev-1", status: "working", lead: "cl-lead" } }), ctx()).find((s) => s.id === "lane");
   assert.deepEqual(texts(worker!.rows), ["In loops|a worker of cl-lead, not registered"]);
   assert.equal(renderAgentCard(bare(), ctx()).some((s) => s.id === "lane"), false);
+});
+
+test("Now: the team's word and the last sighting, and old facts are never read as working", () => {
+  const now = (facts: AgentCardFacts, over: Partial<CardContext> = {}) => texts(renderAgentCard(facts, ctx(over))[0]!.rows).slice(3);
+  // Fresh: the team's word, its line, and a sighting 2 min old.
+  assert.deepEqual(now(bare({ team: { name: "cl-lead", status: "working", contextLine: "CL-7 wiring", unsentInput: "typed" }, loops: loopsOf({ lastSeenAt: new Date(NOW - 2 * 60_000).toISOString() }) })), ["Team says|working; text typed in its input, not sent", '"CL-7 wiring"', "Seen by loops|2 min ago"]);
+  // Stale snapshot: the word is history; a sighting 2 h old with nothing fresher is not working.
+  const stale = { freshness: { teamTs: null, ageSeconds: 900, stale: true } };
+  assert.deepEqual(now(bare({ team: { name: "cl-lead", status: "working" }, loops: loopsOf({ lastSeenAt: new Date(NOW - 2 * 3_600_000).toISOString() }) }), stale), ["|The team snapshot is older than 5 minutes: the lane status is unknown.", "Team said|working, in a snapshot that is old now", "Not seen by loops|for 2 h; not known to be working"]);
+  // Not in the team snapshot at all, never seen: said plainly. An external bot: the team cannot watch it.
+  assert.deepEqual(now(bare({ loops: loopsOf() })), ["Team says|nothing: not in the team snapshot", "Seen by loops|never; not known to be working"]);
+  assert.deepEqual(now(bare({ loops: loopsOf({ external: true, lastSeenAt: new Date(NOW - 10_000).toISOString() }) })), ["Team says|nothing: an external bot has no pane for the team to watch", "Seen by loops|just now"]);
+  // A fresh team word outranks an old sighting: no "not known to be working" then.
+  assert.deepEqual(now(bare({ team: { name: "cl-lead", status: "idle" }, loops: loopsOf({ lastSeenAt: new Date(NOW - 3 * 3_600_000).toISOString() }) })), ["Team says|idle", "Not seen by loops|for 3 h"]);
+  // Without loops facts (the demo's workers) nothing about sightings is said.
+  assert.deepEqual(now(bare({ registered: false, team: { name: "cl-dev-1", status: "working", lead: "cl-lead" } })), ["Team says|working"]);
 });
 
 test("Projects and Recent: the buildings with the agent's part in each, and the last facts with their age", () => {
@@ -110,7 +171,7 @@ test("Projects and Recent: the buildings with the agent's part in each, and the 
       { slug: "crewhub-loops", name: "crewhub-loops", key: "CL" },
       { slug: "crewhub", name: "CrewHub product", key: "CR" },
     ],
-    loops: { role: "lead", isCrewhubLead: false, isCoordinator: false, isOperator: false, lastSeenAt: null, herdrSession: null, projects: { lead: [{ slug: "crewhub-loops", key: "CL" }], member: [{ slug: "crewhub", key: "CR" }, { slug: "gone", key: "GO" }] } },
+    loops: loopsOf({ herdrSession: null, projects: { lead: [{ slug: "crewhub-loops", key: "CL" }], member: [{ slug: "crewhub", key: "CR" }, { slug: "gone", key: "GO" }] } }),
     recent: [
       { ts: NOW - 20_000, kind: "progress", ticketKey: "CL-7", text: "update on CL-7: done" },
       { ts: NOW - 2 * 3_600_000, kind: "comment", ticketKey: "CL-2", text: "commented on CL-2" },
@@ -127,7 +188,7 @@ test("Now: a proxy, an inferred place, a stale snapshot, the status line and the
   const proxy = renderAgentCard(bare({ agent: agent({ presence: "proxy", workingIn: "crewhub" }) }), ctx())[0]!;
   assert.deepEqual(texts(proxy.rows), ["Where|crewhub-loops, Lead's office", "|A translucent proxy here: the real figure works in another building."]);
   const stale = renderAgentCard(bare({ agent: agent({ locationInferred: true, alerts: ["CL-3 waits on Nicky"] }), team: { name: "cl-lead", status: "working", contextLine: "CL-7 wiring" } }), ctx({ freshness: { teamTs: null, ageSeconds: null, stale: true } }))[0]!;
-  assert.deepEqual(texts(stale.rows), ["Where|crewhub-loops, Lead's office (inferred from recent events)", "lane working", "posture focused", "|The team snapshot is older than 5 minutes: the lane status is unknown.", '"CL-7 wiring"', "CL-3 waits on Nicky"]);
+  assert.deepEqual(texts(stale.rows), ["Where|crewhub-loops, Lead's office (inferred from recent events)", "lane working", "posture focused", "|The team snapshot is older than 5 minutes: the lane status is unknown.", "Team said|working, in a snapshot that is old now", '"CL-7 wiring"', "CL-3 waits on Nicky"]);
 });
 
 test("a section of a third party plugs in through the registry's list, and an empty render is left out", () => {
@@ -146,6 +207,8 @@ test("words: ages read in source time, and the ticket link is the loops web app'
   assert.equal(agoWords(NOW - 90_000, NOW), "2 min ago");
   assert.equal(agoWords(NOW - 25 * 3_600_000, NOW), "yesterday");
   assert.equal(agoWords(NOW + 5000, NOW), "just now");
+  assert.equal(agoWords(NOW - 3 * 86_400_000, NOW), "3 days ago");
+  assert.deepEqual([spanWords(10_000), spanWords(90_000), spanWords(2 * 3_600_000), spanWords(25 * 3_600_000), spanWords(72 * 3_600_000)], ["<1 min", "2 min", "2 h", "1 day", "3 days"]);
   assert.equal(ticketHref("http://127.0.0.1:8091/", "CL-7"), "http://127.0.0.1:8091/t/CL-7");
   assert.equal(ticketHref(null, "CL-7"), null);
 });
