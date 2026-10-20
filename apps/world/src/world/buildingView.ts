@@ -28,7 +28,7 @@ import {
   type BuildingTemplate,
   type WallRun,
 } from "./buildingTemplate";
-import { officeWindowRun } from "./threeRoomTemplate";
+import { ADMIN_DOOR, officeWindowRun } from "./threeRoomTemplate";
 import { assignDesks, placeObjects, roomCentre, SHELF_PITCH, type DeskSlot, type ObjectLayout, type Surface } from "./interiorLayout";
 import { mergeStatic } from "./mergeStatic";
 import { restMatrices } from "./matrixPass";
@@ -599,9 +599,14 @@ export class BuildingView {
     return side === "north" ? camera.position.z > o.z + (DEPTH * CELL) / 2 : camera.position.x > o.x + (this.template.size.width * CELL) / 2;
   }
 
+  /**
+   * Where a hall's or room's sign plate lies: its south-west corner, or, for the three-room floor, beside its door
+   * down to Administration (east of the Done rack, whose sign the corner plate's label used to crowd).
+   */
   #signSpot(kind: RoomKind): { x: number; z: number } {
     const room = roomOf(this.template, kind)!;
-    return { x: room.origin.x + 1.1, z: room.origin.z + room.layout.grid.depth - 0.45 };
+    const x = isThreeRoom(this.template) && room.kind === "workers" ? ADMIN_DOOR.floor.x + 1.6 : 1.1;
+    return { x: room.origin.x + x, z: room.origin.z + room.layout.grid.depth - 0.45 };
   }
 
   /* The furniture layer: the template's furniture with its blocking dressing, and the dressing that never blocks
