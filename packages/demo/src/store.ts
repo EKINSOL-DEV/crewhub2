@@ -770,6 +770,16 @@ export class DemoReads {
     return this.state.order.map((slug) => this.project(slug) as ProjectOut);
   }
 
+  /**
+   * `GET /api/labels` (slug null: the global labels) and `GET /api/projects/{slug}/labels` (the globals and the
+   * project's own, as loops lists them together); null for an unknown project.
+   */
+  labels(slug: string | null): LabelOut[] | null {
+    const project = slug === null ? null : (this.state.projects.find((p) => p.slug === slug) ?? null);
+    if (slug !== null && project === null) return null;
+    return this.state.labels.filter((l) => (l.projectId ?? null) === null || (project !== null && l.projectId === project.id)).map((l) => ({ ...l }));
+  }
+
   archivedProjects(): ProjectOut[] {
     return this.state.projects.filter((p) => p.archivedAt !== null).map((p) => this.project(p.slug) as ProjectOut);
   }
