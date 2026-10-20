@@ -53,6 +53,7 @@ import {
   type RoleRoom,
   type TemplateDoor,
   type TemplateRoom,
+  type WallRun,
 } from "./buildingTemplate.ts";
 
 /* The module side and the building depth as literals: this module and buildingTemplate.ts import each other, so
@@ -71,6 +72,13 @@ export const MIN_COLUMNS = 2;
 export const MAX_COLUMNS = 4;
 /** The huddle's module: column 0 of the last row, by the office door. */
 export const HUDDLE_MODULE = { column: 0, row: 2 } as const;
+/**
+ * The huddle table's cell in its module. Its ring of places (one cell all round its 2 x 2 footprint) then covers
+ * module cells x 2..5, z 0..3: clear of the office door's mouth (floor cell (0, 14), the module's (0, 2)) and of the
+ * way from that door along the module's south side to the floor's door down to Administration, so a huddle in
+ * session blocks nobody's path.
+ */
+export const HUDDLE_CELL = { x: 3, z: 1 } as const;
 /** Desks per module: two, staggered. */
 const DESKS_PER_MODULE = 2;
 /** Shelves per rack, and slots per shelf. */
@@ -115,13 +123,26 @@ export function floorColumns(building: Building): number {
   return columns;
 }
 
-/** The desk modules of a floor in fill order: row by row from the back (north), the huddle's module left out. */
-function moduleOrder(columns: number): { column: number; row: number }[] {
+/**
+ * The desk modules of a floor in fill order: row by row from the front (south: the doors' side, nearest the camera and
+ * the racks), west to east, the huddle's module left out. A small team's desks then stand by the huddle and the door
+ * down to Administration, and the modules left empty lie at the back, where they read as room to grow rather than as
+ * a void in front of the desks (the dressing turns them into breakout corners, roomDressing.ts).
+ */
+export function moduleOrder(columns: number): { column: number; row: number }[] {
   const out: { column: number; row: number }[] = [];
-  for (let row = 0; row < FLOOR.rows; row++)
+  for (let row = FLOOR.rows - 1; row >= 0; row--)
     for (let column = 0; column < columns; column++)
       if (row !== HUDDLE_MODULE.row || column !== HUDDLE_MODULE.column) out.push({ column, row });
   return out;
+}
+
+/**
+ * The office's window onto the floor (spec addendum): the partition run on the office's east side north of its door
+ * is glazed above the partition height. The short run south of the door stays plain.
+ */
+export function officeWindowRun(template: Pick<BuildingTemplate, "plan">, run: WallRun): boolean {
+  return template.plan === "three-rooms" && run.side === "inner" && run.x1 === run.x2 && run.x1 === OFFICE.x + OFFICE.width && run.z1 >= OFFICE.z && run.z2 <= OFFICE.z + OFFICE_DOOR.office.z;
 }
 
 /** The two staggered desks of a module, in the floor's cells. Seats lie north of the desks. */
@@ -133,7 +154,7 @@ function moduleDesks(kind: RoleRoom, first: number, module: { column: number; ro
 
 /** The floor's furniture: the huddle table and the role desks, each role contiguous, workers first. */
 function floorProps(building: Building, columns: number): WorldProp[] {
-  const props: WorldProp[] = [prop("huddle", "huddle-table", HUDDLE_MODULE.column * MODULE + 2, HUDDLE_MODULE.row * MODULE + 2)];
+  const props: WorldProp[] = [prop("huddle", "huddle-table", HUDDLE_MODULE.column * MODULE + HUDDLE_CELL.x, HUDDLE_MODULE.row * MODULE + HUDDLE_CELL.z)];
   const modules = moduleOrder(columns);
   let next = 0;
   for (const kind of ROLE_ROOMS) {

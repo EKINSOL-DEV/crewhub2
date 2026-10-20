@@ -28,6 +28,7 @@ import {
   type BuildingTemplate,
   type WallRun,
 } from "./buildingTemplate";
+import { officeWindowRun } from "./threeRoomTemplate";
 import { assignDesks, placeObjects, roomCentre, SHELF_PITCH, type DeskSlot, type ObjectLayout, type Surface } from "./interiorLayout";
 import { mergeStatic } from "./mergeStatic";
 import { restMatrices } from "./matrixPass";
@@ -443,9 +444,15 @@ export class BuildingView {
       // Soft contact shade where the walls meet this room's floor.
       add(style.model("building.floor-shade", { size: { width: width * CELL, height: 0, depth: depth * CELL } }), cx, cz, 0.026);
       add(style.model("building.slab", opt({ size: { width: width * CELL, height: FLOOR_RISE, depth: depth * CELL }, accent })), cx, cz);
-      const at = this.#signSpot(room.kind);
-      add(style.model("room.sign"), at.x, at.z, 0.02);
-      this.anchors.set(`r:${b.slug}:${room.kind}`, this.world(at.x, at.z, 0.35));
+      // The lead's office's sign hangs over its door onto the floor (addendum); the other halls' signs lie on a floor
+      // plate by their south-west corner.
+      const door = threeRoom && room.kind === "lead-office" ? doorOpenings(this.template).find((o) => o.id === "office-floor") : undefined;
+      if (door) this.anchors.set(`r:${b.slug}:${room.kind}`, this.world((door.x1 + door.x2) / 2, (door.z1 + door.z2) / 2, DOOR_FRAME + 0.2));
+      else {
+        const at = this.#signSpot(room.kind);
+        add(style.model("room.sign"), at.x, at.z, 0.02);
+        this.anchors.set(`r:${b.slug}:${room.kind}`, this.world(at.x, at.z, 0.35));
+      }
     }
     // North and west are the tall back walls (the glass wall and the chalk wall), south and east low rims to look in
     // over, and the partitions between rooms in between.
@@ -453,7 +460,9 @@ export class BuildingView {
       const horizontal = run.z1 === run.z2;
       const length = (horizontal ? run.x2 - run.x1 : run.z2 - run.z1) * CELL;
       const [key, height, depth] = WALLS[run.side];
-      const wall = add(style.model(key, opt({ size: { width: length + depth, height, depth } })), (run.x1 + run.x2) / 2, (run.z1 + run.z2) / 2, 0, horizontal ? 0 : Math.PI / 2);
+      // The office's window onto the floor: that partition is glazed above the partition height (archived wins).
+      const glazed = run.side === "inner" && officeWindowRun(this.template, run) ? { variant: "glazed" } : {};
+      const wall = add(style.model(key, opt({ size: { width: length + depth, height, depth }, ...glazed })), (run.x1 + run.x2) / 2, (run.z1 + run.z2) / 2, 0, horizontal ? 0 : Math.PI / 2);
       if (run.side === "north" || run.side === "west") {
         const [lowKey, lowHeight, lowDepth] = WALLS.south;
         const low = style.model(lowKey, opt({ size: { width: length + lowDepth, height: lowHeight, depth: lowDepth } }));

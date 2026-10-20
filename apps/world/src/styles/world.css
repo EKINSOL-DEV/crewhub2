@@ -443,6 +443,11 @@
   transform: translate(-50%, -100%);
   align-items: center;
 }
+/* The lead's office's sign hangs over its door onto the floor, centred on the frame. */
+.room-sign.door-sign {
+  transform: translate(-50%, -100%);
+  align-items: center;
+}
 /* From the building view the four rack signs stand close: one word each, in the small type, so all four read. */
 .room-sign.rack-sign-small {
   padding: 1px var(--space-1);
