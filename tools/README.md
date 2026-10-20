@@ -37,7 +37,7 @@ unless a script says otherwise; a phone is 375 x 812 with touch.
 
 | Script | What it does | Writes |
 | --- | --- | --- |
-| `regress.mjs` | The browser regression pass, in four groups (`--groups`, default all): `walk`, 36 checks along a visitor's walk through the demo (keyboard, text view, Details, timeline, chat, build mode, settings, the where form, reduced motion, themes, a phone); `demo`, 11 checks of the jump list, the scenario picker and the Studio scenario's Region level (district cards, beacon, pin, Escape chain); `live`, 7 checks of live mode against a fake crewhub-loops and a host the tool starts itself (the pairing page without a cookie, the one-time link, the Live chip, the sign-in link, Loops down, Live again); `rooms`, 10 checks of the three-room building behind `?rooms=three` (three room signs and a rack sign with its count, the arrow keys between the halls, the text view's racks and desks with a package on each, the lead's office beacon, the agent card on a figure at a desk, walk mode through the front door into Administration and on to the floor). Fails on any page error, console error or request that leaves the page. Prints `regress: <passed>/<total>` last; exit code 0 only at full marks. Needs a dev server (some checks read `window.__town`). Times: `walk` about 120 s, `demo` about 30 s, `live` about 6 s, `rooms` about 50 s; the four together about 205 s, so a check under the one-minute budget runs `--groups demo,live`. | `<tag>-NN-<stop>.png`, `<tag>-results.json`, `<tag>.log` |
+| `regress.mjs` | The browser regression pass, in five groups (`--groups`, default all): `walk`, 36 checks along a visitor's walk through the demo (keyboard, text view, Details, timeline, chat, build mode, settings, the where form, reduced motion, themes, a phone); `demo`, 11 checks of the jump list, the scenario picker and the Studio scenario's Region level (district cards, beacon, pin, Escape chain); `live`, 7 checks of live mode against a fake crewhub-loops and a host the tool starts itself (the pairing page without a cookie, the one-time link, the Live chip, the sign-in link, Loops down, Live again); `rooms`, 10 checks of the three-room building behind `?rooms=three` (three room signs and a rack sign with its count, the arrow keys between the halls, the text view's racks and desks with a package on each, the lead's office beacon, the agent card on a figure at a desk, walk mode through the front door into Administration and on to the floor); `real`, up to 5 checks of live mode against the real development crewhub-loops on 8291 (the Live chip, the real projects by name, a building's real tickets in the text view, the counts following a move, the host staying on loops), skipped with one INFO line when that loops is down. Fails on any page error, console error or request that leaves the page. Prints `regress: <passed>/<total>` last; exit code 0 only at full marks. Needs a dev server (some checks read `window.__town`). Times: `walk` about 120 s, `demo` about 30 s, `live` about 6 s, `rooms` about 50 s, `real` under 60 s; together about 265 s, so a check under the one-minute budget runs `--groups demo,live`. | `<tag>-NN-<stop>.png`, `<tag>-results.json`, `<tag>.log` |
 | `perf.mjs` | Frame time, work per frame, draw calls, triangles and heap per scenario (`demo-town`, `demo-inside`, `stress-town`, `stress-inside`, `phone-fast`, `startup`, and more: see its header). `--preview` for a production build, `--cast`, `--quality`, `--theme`, `--scenario`, `--stress`. | The table on stdout; `--json <file>` for every number |
 | `memory.mjs` | Heap after GC, GPU geometries and textures, DOM nodes and listeners over a long 16x run (`demo` or `stress`), and the growth after warm-up. | Lines on stdout; `--json <file>` |
 | `shots.mjs` | The world in screenshots: `--views` (`town`, `building`, `room`, `walk`, `stress`) x `--theme` x `--width`, in any `--scenario`. `walk` is the critical walk through every building and room. | `<tag>-<view>-<theme>-<width>.png` |
@@ -55,11 +55,23 @@ the host serves it on a free port and the browser opens the host directly. Other
 `CREWHUB_WORLD_PORT=<host-port>`; the port must be free. The page is opened without `?source=live`: the source is
 `auto`, the probe finds the host, and the health it answers is what the sign-in link follows.
 
+**The real group of `regress.mjs`.** It talks to the real development crewhub-loops (`tools/loops-dev.sh`, port
+8291; never the Mac app on 8091). It reads `--loops-env` (default `tools/out/loops-dev.env` of the main checkout,
+found through `git rev-parse --git-common-dir`), takes only `LOOPS_DEV_URL` (loopback) and `LOOPS_DEV_KEY_FILE` from
+it (the admin lines are never read or printed), and when that loops does not answer `/api/health` it prints
+`INFO real: skipped, 8291 is down` and counts nothing. Otherwise it starts its own host on `--host-port` with that
+key (the key never reaches a log, a screenshot or the results), so start Vite with `CREWHUB_WORLD_PORT=<host-port>`,
+and the browser opens your Vite. The count check needs a `ticket.moved` during its 15 s window: run
+`tools/loops-seed.mjs` alongside, or move a ticket in the loops web; without one it prints an INFO line. Loops admits
+4 streams per key: do not run it while another host of yours follows the same loops with the same key.
+
 Examples:
 
 ```sh
 node tools/regress.mjs --port 5180
 node tools/regress.mjs --port 5180 --groups demo,live --host-port 5181   # Vite started with CREWHUB_WORLD_PORT=5181
+node tools/regress.mjs --port 5281 --groups real --host-port 5181        # the real dev loops; Vite started with CREWHUB_WORLD_PORT=5181
+node tools/regress.mjs --port 5281 --groups real --host-port 5181 --loops-env ~/my-loops.env
 node tools/regress.mjs --port 5180 --groups rooms                        # the three-room building, ?rooms=three
 node tools/perf.mjs --port 5180 stress-town stress-inside --cast potlings --json perf-potlings.json
 node tools/memory.mjs --port 5180 stress --minutes 5

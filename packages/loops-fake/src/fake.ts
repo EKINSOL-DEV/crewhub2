@@ -1,14 +1,16 @@
 /**
  * A fake crewhub-loops: an HTTP server on 127.0.0.1 that answers the routes the world's host reads, in loops'
- * shapes (`docs/integrators/read-model.md`, `events.md` at 053b5f47), from the demo's own scripted source played
- * on wall time. Bearer-key auth, loops' error bodies, `GET /api/events` with the tail recipe, the NDJSON stream
- * with `after=`, heartbeats, and a 410 `cursor_expired` for an `after` older than the buffer it keeps.
+ * shapes (`docs/integrators/read-model.md`, `events.md`; the stream as crewhub-loops 4cdcd383 serves it, see
+ * docs/LOOPS_REAL_VS_FAKE.md), from the demo's own scripted source played on wall time. Bearer-key auth, loops'
+ * error bodies, `GET /api/events` with `from=tail` and a sealed opaque `cursor` (CL-406), the NDJSON stream with
+ * `after=` or `cursor=`, heartbeats that carry a cursor, 429 `too_many_streams` at the fifth stream of the key, and a
+ * 410 `cursor_expired` for a cursor that does not open or an `after` older than the buffer it keeps.
  *
  * Nothing here talks to a real crewhub-loops; it is for tests and for running the world in live mode before the
  * install. It reads the demo through `DemoSource` and renumbers the demo's `seq` into one continuous log
  * (`firstSeq`), so a restart that keeps the log and a fresh install can both be played.
  */
-import { randomBytes } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { type DemoSource, type ScenarioId, DEMO_PERSON, createDemoSource } from "@crewhub/demo";
@@ -79,17 +81,23 @@ export const EVENT_TYPES: readonly string[] = [
   "milestone.tickets_attached", "milestone.tickets_detached", "milestone.handoff", "milestone.handoff_withdrawn",
   "lane.alert", "lane-watch.updated", "host.reported", "onboarding.updated", "agent.created", "agent.updated",
   "agent-membership.updated", "agent-right.granted", "agent-right.revoked", "lane.updated", "profile.updated",
-  "policy.created", "feature.updated", "delegation.consumed",
+  "policy.created", "feature.updated", "delegation.consumed", "automation.ran", "ticket.quiet", "owner-request.updated",
 ];
 
-/** What the fake reports as loops' version: the reference commit the shapes were checked against. */
-export const FAKE_LOOPS_VERSION = "0.0.0+fake.053b5f47";
+/** What the fake reports as loops' version: loops says its package version (`0.1.0`); the fake adds the commit it follows. */
+export const FAKE_LOOPS_VERSION = "0.1.0+fake.4cdcd383";
 const DEFAULT_HEARTBEAT_MS = 15_000;
 /** Loops' `Timing.max_age`: a stream ends after 300 s and the client reconnects at its cursor. */
 const DEFAULT_STREAM_MAX_MS = 300_000;
 /** Loops' message for the builder key on any route outside its table (`auth/builder.py`). */
 export const BUILDER_KEY_MESSAGE = "This key reads tickets, comments and attachments only";
 const DEFAULT_BUFFER = 2000;
+/** Loops admits 4 open streams per principal (`api/stream.py` `MAX_STREAMS_PER_PRINCIPAL`), the fifth is 429. */
+export const MAX_STREAMS_PER_KEY = 4;
+/** Loops' `Retry-After` on 429 `too_many_streams`. */
+export const RETRY_AFTER_S = 5;
+/** Loops' message for a sealed cursor that cannot be used (`api/cursor.py` `expired`). */
+export const CURSOR_EXPIRED_MESSAGE = "The cursor cannot be used: fetch the events again and continue from there";
 /** A demo loop resets the storyline; the fake moves the log past the gap so every older cursor is expired. */
 const LOOP_STRIDE = 1000;
 const PAGE_DEFAULT = 50;
@@ -100,10 +108,12 @@ const SESSION_COOKIE = "chl_session";
 class ApiError extends Error {
   readonly status: number;
   readonly code: string;
-  constructor(status: number, code: string, message: string) {
+  readonly headers: Record<string, string>;
+  constructor(status: number, code: string, message: string, headers: Record<string, string> = {}) {
     super(message);
     this.status = status;
     this.code = code;
+    this.headers = headers;
   }
 }
 
@@ -116,6 +126,7 @@ function encode(line: unknown): string {
 
 interface OpenStream {
   res: ServerResponse;
+  /** The public position: the seq of the last envelope written, or the start (`S` of CL-406). */
   lastSent: number;
   timer: ReturnType<typeof setTimeout> | null;
   /** Ends the stream at `streamMaxMs`, as loops does at 300 s. */
@@ -140,6 +151,38 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
   const streams = new Set<OpenStream>();
   let streamsOpened = 0;
   let snapshots = 0;
+
+  // The sealed cursor (CL-406): `(S, W)` = (the newest seq the caller saw, the tail up to which everything is judged),
+  // sealed with a per-fake secret so it is opaque and a token from another fake (another install, a rotated key) does
+  // not open. Fixed width, a fresh nonce per token: two tokens for the same state differ, as loops' do.
+  const cursorSecret = randomBytes(32);
+  function sealCursor(seen: number, checked: number): string {
+    const nonce = randomBytes(6);
+    const body = Buffer.alloc(16);
+    body.writeBigUInt64BE(BigInt(seen), 0);
+    body.writeBigUInt64BE(BigInt(Math.max(seen, checked)), 8);
+    const mac = createHmac("sha256", cursorSecret).update(nonce).update(body).digest().subarray(0, 12);
+    return Buffer.concat([nonce, body, mac]).toString("base64url");
+  }
+  /** `(S, W)` of a token this fake sealed and whose watermark is not above the log, else the one 410. */
+  function openCursor(token: string): { seen: number; checked: number } {
+    const expired = () => new ApiError(410, "cursor_expired", CURSOR_EXPIRED_MESSAGE);
+    let raw: Buffer;
+    try {
+      raw = Buffer.from(token, "base64url");
+    } catch {
+      throw expired();
+    }
+    if (raw.length !== 34) throw expired();
+    const nonce = raw.subarray(0, 6);
+    const body = raw.subarray(6, 22);
+    const mac = createHmac("sha256", cursorSecret).update(nonce).update(body).digest().subarray(0, 12);
+    if (!timingSafeEqual(mac, raw.subarray(22))) throw expired();
+    const seen = Number(body.readBigUInt64BE(0));
+    const checked = Number(body.readBigUInt64BE(8));
+    if (seen > checked || checked > seq) throw expired(); // a watermark above the tail: a restored backup
+    return { seen, checked };
+  }
 
   const source: DemoSource = createDemoSource({
     scheduler: {
@@ -194,7 +237,8 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     stream.timer = setTimeout(() => {
       stream.timer = null;
       if (stream.closed) return;
-      const line = { v: 1, type: "heartbeat", seq: stream.lastSent, ts: new Date().toISOString() };
+      // CL-406: the heartbeat's cursor says "everything up to the tail is judged" for the public position.
+      const line = { v: 1, type: "heartbeat", seq: stream.lastSent, cursor: sealCursor(stream.lastSent, seq), ts: new Date().toISOString() };
       writeLine(stream, line, stream.lastSent);
     }, heartbeatMs);
   }
@@ -208,13 +252,14 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     stream.res.end();
   }
 
-  function openStream(res: ServerResponse, after: number): void {
-    res.writeHead(200, { "content-type": "application/x-ndjson", "cache-control": "no-cache", "x-accel-buffering": "no" });
+  /** `after` is the public position (`S`); `scanFrom` (`W`, a sealed cursor's watermark) is where the replay starts. */
+  function openStream(res: ServerResponse, after: number, scanFrom = after): void {
+    res.writeHead(200, { "content-type": "application/x-ndjson", "cache-control": "private, no-store", "x-accel-buffering": "no" });
     res.flushHeaders();
     const stream: OpenStream = { res, lastSent: after, timer: null, maxAge: setTimeout(() => endStream(stream), streamMaxMs), closed: false };
     streams.add(stream);
     streamsOpened += 1;
-    for (const envelope of buffer) if (envelope.seq > after) writeLine(stream, envelope, envelope.seq);
+    for (const envelope of buffer) if (envelope.seq > Math.max(after, scanFrom)) writeLine(stream, envelope, envelope.seq);
     armHeartbeat(stream);
     res.on("close", () => endStream(stream));
   }
@@ -266,8 +311,21 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     if (raw === null) return null;
     const value = Number(raw);
     if (!/^\d+$/.test(raw) || !Number.isSafeInteger(value)) throw invalid("Invalid after");
-    if (value < floor) throw new ApiError(410, "cursor_expired", "The cursor is older than the retained log");
+    if (value < floor) throw new ApiError(410, "cursor_expired", CURSOR_EXPIRED_MESSAGE);
     return value;
+  }
+
+  /**
+   * Where a read or a stream resumes (`routers/events.py` `resolve_resume` and `open_cursor`): `after=` or
+   * `cursor=`, never both (400). `S` is the public position, `W` where the scanning starts.
+   */
+  function resumeOf(url: URL): { after: number | null; scanFrom: number | null } {
+    const token = url.searchParams.get("cursor");
+    if (token === null) return { after: afterOf(url), scanFrom: null };
+    if (url.searchParams.has("after")) throw invalid("Send either cursor or after, not both");
+    if (token.length > 512) throw new ApiError(410, "cursor_expired", CURSOR_EXPIRED_MESSAGE);
+    const { seen, checked } = openCursor(token);
+    return { after: seen, scanFrom: checked };
   }
 
   // Routes
@@ -314,7 +372,8 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     const slug = parts[2] ?? "";
     const ref = parts[2] ?? "";
     // `principal_out`: an agent's `role` is its agent role and its `theme` is null; `themeDefault` is the install's.
-    if (at("auth", "me")) return { principal: { ...caller, role: "probe", theme: null, themeDefault: "system" } };
+    // The world's key is an external bot's (CL-314): loops forces its role to `lead` (the `probe` road is dead, CL-295).
+    if (at("auth", "me")) return { principal: { ...caller, role: "lead", theme: null, themeDefault: "system" } };
     if (at("projects")) {
       if (url.searchParams.get("includeArchived") === "true") throw new ApiError(403, "forbidden", "Archived projects are for admins");
       const snapshot = await snapshotOf();
@@ -382,18 +441,32 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     if (at("watchdog")) return source.getWatchdog();
     if (at("events")) {
       const types = typesOf(url);
-      const after = afterOf(url) ?? 0;
+      const resume = resumeOf(url);
       const limit = intQuery(url, "limit", 1, EVENTS_LIMIT_MAX, EVENTS_LIMIT_MAX);
-      const matching = buffer.filter((e) => e.seq > after && (types.length === 0 || types.includes(e.type)));
+      const from = url.searchParams.get("from");
+      if (from !== null && from !== "tail") throw invalid("Invalid from");
+      // CL-390 `from=tail`: no events, the newest seq this caller may see (the fake hides nothing: the tail) and
+      // the sealed cursor of "now".
+      if (from === "tail") return { events: [], lastSeq: seq, cursor: sealCursor(seq, seq) };
+      const start = resume.after ?? 0;
+      const scan = Math.max(start, resume.scanFrom ?? start);
+      const matching = buffer.filter((e) => e.seq > scan && (types.length === 0 || types.includes(e.type)));
       const events = matching.slice(0, limit);
-      const lastSeq = events.length === limit ? (events[events.length - 1] as Envelope).seq : Math.max(after, seq);
-      return { events, lastSeq };
+      // `lastSeq` is the last row returned, else the `after` sent (CL-390): it never passes a row the filter dropped,
+      // so a filter that matches nothing answers `after` (the old tail trick says 0). `from=tail` is the tail.
+      const lastSeq = events.length === 0 ? start : (events[events.length - 1] as Envelope).seq;
+      const judged = events.length >= limit ? lastSeq : Math.max(seq, lastSeq, scan);
+      return { events, lastSeq, cursor: sealCursor(lastSeq, judged) };
     }
-    // The stream: `after` replays `seq > after` from the buffer, then live; without it, live from the tail.
+    // The stream: `after` replays `seq > after` from the buffer, then live; a sealed `cursor` replays from its
+    // watermark; without either, live from the tail. At most MAX_STREAMS_PER_KEY open streams per key.
     typesOf(url);
-    const after = afterOf(url) ?? seq;
+    const resume = resumeOf(url);
     if (req.method === "HEAD") throw new ApiError(405, "method_not_allowed", "Method not allowed");
-    openStream(res, after);
+    if (streams.size >= MAX_STREAMS_PER_KEY) {
+      throw new ApiError(429, "too_many_streams", "Too many open event streams", { "retry-after": String(RETRY_AFTER_S) });
+    }
+    openStream(res, resume.after ?? seq, resume.scanFrom ?? resume.after ?? seq);
     return undefined;
   }
 
@@ -444,7 +517,7 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
       .catch((error: unknown) => {
         const api = error instanceof ApiError ? error : new ApiError(500, "internal", "Internal error");
         const text = JSON.stringify({ error: { code: api.code, message: api.message, detail: null } });
-        res.writeHead(api.status, { "content-type": "application/json", "content-length": Buffer.byteLength(text) });
+        res.writeHead(api.status, { "content-type": "application/json", "content-length": Buffer.byteLength(text), ...api.headers });
         res.end(text);
       });
   });

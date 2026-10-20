@@ -25,6 +25,7 @@ These are the active documents for the browser-world rebuild. All are in English
 | [LOOPS_INTEGRATION_PLAN.md](LOOPS_INTEGRATION_PLAN.md) | The plan: CrewHub World as a thin 3D layer on crewhub-loops |
 | [LOOPS_SETUP.md](LOOPS_SETUP.md) | The runbook for the Mac app (`Crewhub.app`) from the world's side: the external bot and its key, the env, the host, pairing, live mode, what each state chip means, and the developers' private crewhub-loops |
 | [LOOPS_GAP_ANALYSIS.md](LOOPS_GAP_ANALYSIS.md) | What crewhub-loops provides today against what the world needs: phase verdict, drift, what changed up to `4cdcd383`, and the list of what is still missing |
+| [LOOPS_REAL_VS_FAKE.md](LOOPS_REAL_VS_FAKE.md) | What crewhub-loops 4cdcd383 does on the wire that the fake did not (from a run against the development instance), and how the host and the fake follow it now |
 | [superpowers/specs/2026-10-01-world-demo-mode-design.md](superpowers/specs/2026-10-01-world-demo-mode-design.md) | Accepted spec for the demo-mode build: the plan's phases, scripted |
 | [../skills/prop-builder/SKILL.md](../skills/prop-builder/SKILL.md) | The `prop-builder` skill: requests become valid `crewhub-prop/1` props |
 | [decisions/0005-crewhub-world-on-loops.md](decisions/0005-crewhub-world-on-loops.md) | Decision record for the crewhub-loops integration |

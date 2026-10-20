@@ -34,7 +34,7 @@ describe("the Unix socket transport", () => {
     cleanup.push(() => rmSync(dir, { recursive: true, force: true }));
     const stub = await createLoopsStub({ ...installation(), socketPath: path.join(dir, "loops.sock"), ...stubOptions });
     cleanup.push(() => stub.close());
-    const host = await createHost({ loopsUrl: "http://127.0.0.1:8091", loopsSocket: stub.socketPath as string, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, ...hostOptions });
+    const host = await createHost({ loopsUrl: "http://127.0.0.1:8091", loopsSocket: stub.socketPath as string, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 20, max: 40 }, ...hostOptions });
     cleanup.push(() => host.close());
     return { stub, host, dir };
   }
@@ -81,8 +81,10 @@ describe("the Unix socket transport", () => {
     assert.equal(stub.streamsOpened(), 2, "reopened after the end");
     stub.emit({ type: "ticket.updated", project: null, ticket: null, actor: { id: "x", kind: "user" }, recipientIds: [], payload: {} });
     await sse.next((m) => m.type === "event" && (m.envelope as { seq: number }).seq === 3);
+    // The first stream opens with the tail's sealed cursor, the reconnect with the heartbeat's (no event followed it).
     const streamReads = stub.requests.filter((r) => r.path.startsWith("/api/events/stream"));
-    assert.deepEqual(streamReads.map((r) => r.path), ["/api/events/stream?after=1", "/api/events/stream?after=2"], "the cursor is sent back on the reconnect");
+    assert.deepEqual(streamReads.map((r) => new URL(r.path, "http://127.0.0.1").searchParams.has("cursor")), [true, true], "the sealed cursor is sent back on the reconnect");
+    assert.ok(streamReads.every((r) => !r.path.includes("after=")), "never after= while the cursor stands");
   });
 
   it("keeps the key out of every response and the allow-list in front of every path", async () => {

@@ -1,7 +1,8 @@
 /**
  * Loops ends every event stream after 300 s (`Timing.max_age`); the fake does the same at `streamMaxMs`. Through
  * the real host (`createHost`) and the real browser-side source (`createHostSource`): a stream that ends in the
- * middle of a storyline loses no event, because the host reconnects at once with `after=` its cursor.
+ * middle of a storyline loses no event, because the host reconnects after a short pause (CL-378, 1.5 to 3 s in
+ * production, tens of ms here) from where it was: the sealed cursor of the last heartbeat, or `after=` its last seq.
  * Loopback only: the fake and the host start on 127.0.0.1 port 0.
  */
 import assert from "node:assert/strict";
@@ -21,9 +22,9 @@ async function waitFor(what: string, predicate: () => boolean, timeoutMs: number
   }
 }
 
-test("a stream that ends mid-storyline (streamMaxMs) loses no event: the host reconnects with after= at once", async () => {
+test("a stream that ends mid-storyline (streamMaxMs) loses no event: the host reconnects from its cursor after a short pause", async () => {
   const fake = await createLoopsFake({ speed: 0, heartbeatMs: 100, streamMaxMs: 400 });
-  const host = await createHost({ loopsUrl: fake.url, key: fake.key, keyName: fake.keyName, pairing: "off", retryMs: { min: 50, max: 200 }, log: () => undefined });
+  const host = await createHost({ loopsUrl: fake.url, key: fake.key, keyName: fake.keyName, pairing: "off", retryMs: { min: 50, max: 200 }, reconnectMs: { min: 30, max: 60 }, log: () => undefined });
   const source = createHostSource({ baseUrl: host.url, timings: TIMINGS });
   const connection = source.connection!;
   const received: Envelope[] = [];
