@@ -43,8 +43,16 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
   async function health() {
     const base = { keyName: "", sharedKey: false, pairing: "on", transport: "tcp" };
     switch (current) {
-      case "older":
-        return { loops: "ok", keyName: "crewhub-world", sharedKey: false, pairing: "on", paired: true, transport: "tcp", loopsWebUrl: APP_PORT_TARGET, cursor: 41 };
+      case "older": {
+        const { fake, host } = await ensureInner();
+        let real = null;
+        try {
+          real = await (await fetch(`${host.url}/world-api/health`)).json();
+        } catch {
+          real = null;
+        }
+        return { loops: real?.loops ?? "ok", keyName: "crewhub-world", sharedKey: false, pairing: "on", paired: true, transport: "tcp", loopsWebUrl: fake.url, cursor: real?.cursor ?? 0 };
+      }
       case "no-loops":
         return { ...base, loops: "down", paired: false, connection: { discovery: { state: "searching" }, key: { state: "none" }, stream: { state: "idle", reconnects: 0 } } };
       case "pair":
@@ -168,7 +176,7 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
       return send(res, 200, { state: current });
     }
     if (url.pathname.startsWith("/world-api/")) {
-      if (current !== "connected") return send(res, 503, { error: current === "rejected" ? "unauthorized" : "loops_down" });
+      if (current !== "connected" && current !== "older") return send(res, 503, { error: current === "rejected" ? "unauthorized" : "loops_down" });
       const { host } = await ensureInner();
       return proxy(req, res, host.url);
     }
@@ -182,7 +190,7 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
     clearTimeout(pending);
     current = next;
     startedAt = Date.now();
-    if (next === "connected") await ensureInner();
+    if (next === "connected" || next === "older") await ensureInner();
   }
 
   return {

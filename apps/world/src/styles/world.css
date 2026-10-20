@@ -759,7 +759,7 @@
     display: none;
   }
   /* The connection chip keeps its word when something is wrong; "Live" is its icon alone (the label says it). */
-  .connection-chip[data-connection="live"] > span {
+  .connection-chip[data-connection="live"] .chip > span {
     display: none;
   }
   /* The town is small on a phone: an unfocused sign shows its key only, the focused one expands. */

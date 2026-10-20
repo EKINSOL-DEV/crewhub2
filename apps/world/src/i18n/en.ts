@@ -158,6 +158,7 @@ export const EN: Record<string, string> = {
   "world.connection.panel.stream.ok": "streaming",
   "world.connection.panel.stream.down": "down; the host retries",
   "world.connection.panel.stream.unauthorized": "refused by crewhub-loops",
+  "world.connection.panel.stream.busy": "stream budget exhausted: another host or tab uses this key (crewhub-loops admits 4 streams per key)",
   "world.connection.panel.cursor": "Cursor",
   "world.connection.panel.lastEvent": "Last event",
   "world.connection.panel.never": "none yet",
