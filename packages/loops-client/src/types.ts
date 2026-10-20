@@ -49,6 +49,20 @@ export type ProgressSource = (typeof PROGRESS_SOURCES)[number];
 export const LANE_STATUSES = ["working", "idle", "done", "blocked", "unknown"] as const;
 export type LaneStatus = (typeof LANE_STATUSES)[number];
 
+/** `contracts/agents.py` at 4cdcd383: the kinds of lane, a lane's lifecycle and where an observation came from. */
+export const LANE_KINDS = ["claude", "codex", "opencode"] as const;
+export type LaneKind = (typeof LANE_KINDS)[number];
+
+export const LANE_LIFECYCLES = ["fixed", "closed"] as const;
+export type LaneLifecycle = (typeof LANE_LIFECYCLES)[number];
+
+export const OBSERVED_SOURCES = ["probe", "started"] as const;
+export type ObservedSource = (typeof OBSERVED_SOURCES)[number];
+
+/** `contracts/computers.py` (CL-459): the machine an agent or a herdr session runs on; `this` is the loops machine. */
+export const COMPUTER_KINDS = ["this", "remote"] as const;
+export type ComputerKind = (typeof COMPUTER_KINDS)[number];
+
 export const DELIVERY_STATES = [
   "pending",
   "claimed",
@@ -431,8 +445,17 @@ export interface TeamAgent {
   unsentInput?: "typed" | "unknown" | null;
 }
 
+/** `ComputerOut` (CL-459): name and kind only. */
+export interface ComputerOut {
+  name: string;
+  /** One of `COMPUTER_KINDS` today; a new value passes with one warning. */
+  kind: ComputerKind;
+}
+
 export interface TeamSession {
   name: string;
+  /** The machine the herdr session runs on (CL-459); absent before it, null when unknown. */
+  computer?: ComputerOut | null;
   agents: TeamAgent[];
 }
 
@@ -534,17 +557,59 @@ export interface AgentProjects {
   member: ProjectRef[];
 }
 
+/** `LaneDesired` (`contracts/agents.py`): the installation's choice for the lane. `permissionMode` is always set. */
+export interface LaneDesired {
+  model: string | null;
+  effort: string | null;
+  account: number | null;
+  permissionMode: string;
+}
+
+/** `LaneObserved`: what was seen at `observedAt`; every value may be unknown (null). */
+export interface LaneObserved {
+  kind: LaneKind | null;
+  model: string | null;
+  effort: string | null;
+  account: number | null;
+  permissionMode: string | null;
+  /** `probe`: the lane watch saw it running; `started`: taken from how loops started it. */
+  source: ObservedSource;
+}
+
 /**
- * An item of `GET /api/agents` (`contracts/agents.py`, `AgentDetailOut`). read-model.md names the
- * keys but has no schema block; the shapes are read from the loops code. `lane` and `rights` are
- * not read by the world.
+ * `AgentLane` (`contracts/agents.py` at 4cdcd383): the lane that runs an agent. `observed` null is never seen;
+ * `drift` names the observed values that differ from the desired ones (`kind`, `model`, `effort`, `account`,
+ * `permissionMode`), null when never seen.
+ */
+export interface AgentLane {
+  id: string;
+  kind: LaneKind;
+  session: string;
+  name: string;
+  pane: string | null;
+  desired: LaneDesired;
+  observed: LaneObserved | null;
+  observedAt: string | null;
+  drift: string[] | null;
+  lifecycle: LaneLifecycle;
+  restarting: boolean;
+}
+
+/**
+ * An item of `GET /api/agents` (`contracts/agents.py`, `AgentDetailOut` at 4cdcd383). read-model.md names the
+ * keys but has no schema block; the shapes are read from the loops code. `rights` and `keys` are admins only
+ * (null for a key) and not read by the world.
  */
 export interface AgentOut {
   id: string;
   displayName: string;
   role: string;
+  /** An external bot's reads `"external:none"` (CL-314); a laned agent's is its herdr session. */
   herdrSession: string | null;
+  /** The machine it runs on (CL-459); absent before it. */
+  computer?: ComputerOut | null;
   disabled: boolean;
+  /** When loops last saw its key, or null: never. */
   lastSeenAt: string | null;
   keys: unknown[] | null;
   isCrewhubLead: boolean;
@@ -553,14 +618,26 @@ export interface AgentOut {
   isLauncher?: boolean;
   isBuilderReader?: boolean;
   successorId?: string | null;
+  /** CL-314: a bot on another machine, with no lane and no pane. Absent before it. */
+  external?: boolean;
+  /** CL-313: an external bot that only reads tickets. */
+  reader?: boolean;
+  /** CL-314: deliveries it has not acked for more than a day. */
+  notPickedUp?: number;
+  /** CL-329: its tool says the login expired; since when. */
+  needsLoginSince?: string | null;
   projects: AgentProjects;
-  lane?: unknown;
+  /** Null for an agent without a lane (every external bot, and every agent on the dev instance tonight). */
+  lane?: AgentLane | null;
   rights?: unknown;
   revision?: number;
 }
 
+/** `AgentsDetailResponse`: the list, who decides the agents, and the agents' home folder (human admins only). */
 export interface AgentsResponse {
   agents: AgentOut[];
+  lanesAuthority?: string;
+  agentHome?: string | null;
 }
 
 export interface PrincipalOut {
