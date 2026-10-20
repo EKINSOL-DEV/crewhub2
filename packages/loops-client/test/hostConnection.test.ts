@@ -23,6 +23,11 @@ test("readConnection answers the states only for an unpaired browser, and null f
     key: { state: "none" },
     stream: { state: "idle", reconnects: 0 },
   });
+  assert.deepEqual(
+    readConnection({ discovery: { state: "found", via: "app-port" }, key: { state: "ok" }, stream: { state: "busy", reason: "stream budget exhausted (429): another host or tab uses this key", reconnects: 3 } }),
+    { discovery: { state: "found", via: "app-port" }, key: { state: "ok" }, stream: { state: "busy", reason: "stream budget exhausted (429): another host or tab uses this key", reconnects: 3 } },
+    "a 429 from loops is its own state, with the reason",
+  );
   assert.equal(readConnection(undefined), null);
   assert.equal(readConnection({ discovery: { state: "lost" }, key: { state: "ok" }, stream: { state: "ok" } }), null);
   assert.deepEqual(readConnection({ discovery: { state: "found", via: "carrier-pigeon" }, key: { state: "rejected", reason: "A probe key reads nothing" }, stream: { state: "unauthorized", reconnects: 1 } }), {

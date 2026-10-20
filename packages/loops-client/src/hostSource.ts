@@ -61,8 +61,14 @@ export interface HostKeyState {
 
 /** The host's one upstream stream. */
 export interface HostStreamState {
-  /** `idle`: no stream (no loops found or no key yet); the rest as `HostHealth.loops`. */
-  state: "idle" | "ok" | "down" | "unauthorized";
+  /**
+   * `idle`: no stream (no loops found or no key yet); `busy`: loops refused the stream with 429 `too_many_streams`
+   * (four streams per key: another host or tab uses this key; the host retries after `Retry-After`); the rest as
+   * `HostHealth.loops`.
+   */
+  state: "idle" | "ok" | "down" | "unauthorized" | "busy";
+  /** Why the stream is not ok, in words a person can act on (`busy`: "stream budget exhausted (429): …"). */
+  reason?: string;
   /** The last `seq` the host holds (paired only). */
   cursor?: number;
   /** When the last event arrived, ISO 8601 (paired only). */
@@ -115,7 +121,7 @@ const PREFIX = "/world-api";
 
 /** What the host puts on the stream (ready-team-map: "Host → browser"). */
 type StreamMessage =
-  | { type: "status"; loops: HostHealth["loops"] }
+  | { type: "status"; loops: HostHealth["loops"]; stream?: HostStreamState["state"]; reason?: string }
   | { type: "event"; envelope: unknown }
   | { type: "heartbeat"; seq: number; ts: string }
   | { type: "reset"; reason: string };
@@ -128,7 +134,7 @@ export function readConnection(value: unknown): HostConnection | null {
   const raw = value as { discovery?: Partial<HostDiscovery>; key?: Partial<HostKeyState>; stream?: Partial<HostStreamState> };
   const discoveryState = oneOf(raw.discovery?.state, ["found", "searching"]);
   const keyState = oneOf(raw.key?.state, ["none", "checking", "rejected", "ok"]);
-  const streamState = oneOf(raw.stream?.state, ["idle", "ok", "down", "unauthorized"]);
+  const streamState = oneOf(raw.stream?.state, ["idle", "ok", "down", "unauthorized", "busy"]);
   if (discoveryState === undefined || keyState === undefined || streamState === undefined) return null;
   const discovery: HostDiscovery = { state: discoveryState };
   const via = oneOf(raw.discovery?.via, ["env-url", "env-socket", "app-socket", "app-port"]);
@@ -142,6 +148,7 @@ export function readConnection(value: unknown): HostConnection | null {
   const stream: HostStreamState = { state: streamState, reconnects: typeof raw.stream?.reconnects === "number" ? raw.stream.reconnects : 0 };
   if (typeof raw.stream?.cursor === "number") stream.cursor = raw.stream.cursor;
   if (typeof raw.stream?.lastEventAt === "string") stream.lastEventAt = raw.stream.lastEventAt;
+  if (typeof raw.stream?.reason === "string") stream.reason = raw.stream.reason;
   return { discovery, key, stream };
 }
 

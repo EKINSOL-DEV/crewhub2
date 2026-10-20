@@ -229,7 +229,7 @@ export async function runDoctor(io: DoctorIo): Promise<DoctorReport> {
     const problem =
       state === "ok"
         ? null
-        : `it says ${connection?.discovery?.state === "searching" ? "loops not found" : connection?.key?.state === "none" ? "no key" : connection?.key?.state === "rejected" ? "the key was rejected" : `loops ${String(state)}`}`;
+        : `it says ${connection?.discovery?.state === "searching" ? "loops not found" : connection?.key?.state === "none" ? "no key" : connection?.key?.state === "rejected" ? "the key was rejected" : state === "busy" ? "the stream budget is exhausted (429): another host or tab uses this key; close it" : `loops ${String(state)}`}`;
     if (problem === null) ok("port", `a host already runs on 127.0.0.1:${config.port} (loops ok, key ${String(h.keyName ?? "?")}); npm run world or npm run host -- open asks it for a link`);
     else fix("port", `a host already runs on 127.0.0.1:${config.port} but ${problem}: fix that, then restart it (Ctrl+C in its terminal; npm run world)`);
   } else fix("port", `something else listens on 127.0.0.1:${config.port}: stop it, or run the host on another port (CREWHUB_WORLD_PORT=5181)`);
