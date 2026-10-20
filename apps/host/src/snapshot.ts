@@ -78,13 +78,17 @@ const ARCHIVE_TYPES = "project.archived,project.restored";
  * Slugs of the projects archived now, learnt from the event log: an agent key may not list archived projects
  * (`includeArchived` is for human admins), but the log is never pruned, and the last of `project.archived` and
  * `project.restored` per slug says where it stands. Pages with `after=` (`lastSeq` is the last row returned, else
- * the `after` sent) until a page is short of loops' 500, or `lastSeq` stops moving.
+ * the `after` sent) until a page is short of loops' 500, or `lastSeq` stops moving. Best effort: a refused key is
+ * `unauthorized`, but any other answer than 200 (a loops that will not read its log from `after=0`, as the fake
+ * answers 410 after a restart) ends the search with what it found; the stream's own archive events still count.
  */
 export async function archivedSlugsFromEvents(client: LoopsClient): Promise<string[]> {
   const last = new Map<string, string>();
   let after = 0;
   for (let guard = 0; guard < 1000; guard += 1) {
-    const page = await must<{ events?: unknown; lastSeq?: unknown }>(client, "/api/events", { types: ARCHIVE_TYPES, after: String(after), limit: String(EVENTS_PAGE) });
+    const { status, body: page } = await client.getJson<{ events?: unknown; lastSeq?: unknown }>("/api/events", { types: ARCHIVE_TYPES, after: String(after), limit: String(EVENTS_PAGE) });
+    if (isUnauthorized(status)) throw new SnapshotError("unauthorized", `/api/events answered ${status}`);
+    if (status !== 200 || page === null) break;
     const events = Array.isArray(page.events) ? (page.events as { type?: unknown; project?: { slug?: unknown } | null }[]) : [];
     for (const event of events) {
       const slug = event.project?.slug;
