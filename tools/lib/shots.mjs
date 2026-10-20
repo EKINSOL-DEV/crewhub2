@@ -19,11 +19,12 @@ const viewport = (width) => (width <= 480 ? { viewport: { width, height: 812 }, 
  *   (just before a move into Done by the storyline's person), building `building` is entered, and `frames` shots
  *   follow, `everyMs` apart, at 1x; each frame's note says where the person is (dev builds: `window.__town`). With
  *   `zoom` the hall number `room` is zoomed first (ArrowRight and Enter), and at the first frame that finds the person
- *   holding the package its figure is clicked (under its name pill) for a shot of its plate.
+ *   holding the package its figure is clicked (under its name pill) for a shot of its plate. `personSpeed` ("1x",
+ *   "4x" or "16x") is the playback speed the frames are taken at.
  * `scenario` is the demo scenario of every view but stress (left out: the default storyline).
  * Returns { count, notes }: how many files were written and what to tell (the overlay lines).
  */
-export async function worldShots(browser, { base, origin, out, views, themes, widths, cast = null, scenario = null, stress = "1", plan = null, building = 0, room = 0, buildings = 6, rooms = 7, settle = 3500, seekMs = 200000, frames = 12, everyMs = 2000, zoom = false, problems, name }) {
+export async function worldShots(browser, { base, origin, out, views, themes, widths, cast = null, scenario = null, stress = "1", plan = null, building = 0, room = 0, buildings = 6, rooms = 7, settle = 3500, seekMs = 200000, frames = 12, everyMs = 2000, zoom = false, personSpeed = "1x", problems, name }) {
   const notes = [];
   let count = 0;
   for (const theme of themes) {
@@ -85,6 +86,7 @@ export async function worldShots(browser, { base, origin, out, views, themes, wi
       if (views.includes("person")) {
         const p = await open(worldUrl(base, null, scenario, plan));
         if (!(await seek(p, seekMs))) notes.push(`${theme} ${width}: no timeline slider to seek with`);
+        if (personSpeed !== "1x") await speed(p, personSpeed).catch(() => notes.push(`${theme} ${width}: no "Play at ${personSpeed}" button`));
         await enter(p, building);
         if (zoom) {
           for (let k = 0; k <= room; k++) await p.keyboard.press("ArrowRight");
