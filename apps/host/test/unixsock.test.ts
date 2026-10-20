@@ -46,6 +46,9 @@ describe("the Unix socket transport", () => {
     assert.equal(health.loops, "ok");
     assert.equal(health.cursor, 1);
     assert.equal(health.loopsWebUrl, "http://127.0.0.1:8091", "the URL still names the web app for the sign-in link");
+    const named = await createHost({ loopsUrl: "http://127.0.0.1:8091", loopsWebUrl: "http://127.0.0.1:8291/", loopsSocket: stub.socketPath as string, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 } });
+    cleanup.push(() => named.close());
+    assert.equal(((await (await fetch(`${named.url}/world-api/health`)).json()) as { loopsWebUrl: string }).loopsWebUrl, "http://127.0.0.1:8291", "loopsWebUrl names another web app when given");
     const snapshot = (await (await fetch(`${host.url}/world-api/snapshot`)).json()) as { projects: { slug: string }[]; milestones: Record<string, unknown[]>; cursor: number };
     assert.deepEqual(snapshot.projects.map((p) => p.slug), ["atlas", "beacon"]);
     assert.equal(snapshot.milestones.atlas?.length, 3, "paged lists are followed over the socket too");

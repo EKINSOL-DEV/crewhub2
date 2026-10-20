@@ -89,11 +89,31 @@ export function validateSocketPath(text: string, probe: (file: string) => PathKi
   return socket;
 }
 
+/**
+ * `CREWHUB_WORLD_LOOPS_WEB_URL`: where "sign in to crewhub-loops" goes (`health.loopsWebUrl`), as an origin. Unset, it
+ * is the loops URL's origin, which is right for the app (API and web on 8091); set, it lets socket mode name another
+ * web app (the development instance on 8291).
+ */
+export function resolveLoopsWebUrl(text: string | undefined, loopsUrl: string): string {
+  const wanted = (text ?? "").trim();
+  if (wanted === "") return new URL(loopsUrl).origin;
+  let parsed: URL;
+  try {
+    parsed = new URL(wanted);
+  } catch {
+    throw new ConfigError("CREWHUB_WORLD_LOOPS_WEB_URL must be an http(s) URL");
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") throw new ConfigError("CREWHUB_WORLD_LOOPS_WEB_URL must be an http(s) URL");
+  return parsed.origin;
+}
+
 export interface ServerConfig {
   /** crewhub-loops' URL: the TCP transport, and the web app's origin for the sign-in link (also with the socket). */
   loopsUrl: string;
   /** The Unix socket to read loops over instead of TCP (`CREWHUB_WORLD_LOOPS_SOCKET`); null means TCP. */
   loopsSocket: string | null;
+  /** The origin of loops' web app, for the sign-in link (`CREWHUB_WORLD_LOOPS_WEB_URL`; default: the loops URL's origin). */
+  loopsWebUrl: string;
   port: number;
   allowedOrigins: string[];
   production: boolean;
@@ -119,6 +139,7 @@ export function loadServerConfig(env: Record<string, string | undefined>, probe:
   const loopsUrl = loopsUrlText === "" ? DEFAULT_LOOPS_URL : loopsUrlText;
   if (!/^https?:\/\//.test(loopsUrl)) throw new ConfigError("CREWHUB_WORLD_LOOPS_URL must start with http:// or https://");
   const loopsSocket = socketText.trim() === "" ? null : validateSocketPath(socketText, probe);
+  const loopsWebUrl = resolveLoopsWebUrl(env.CREWHUB_WORLD_LOOPS_WEB_URL, loopsUrl);
   const allowedOrigins = (env.CREWHUB_WORLD_ALLOWED_ORIGINS ?? "")
     .split(",")
     .map((s) => s.trim())
@@ -146,5 +167,5 @@ export function loadServerConfig(env: Record<string, string | undefined>, probe:
     if (parsed.protocol !== "https:" && parsed.protocol !== "http:") throw new ConfigError("CREWHUB_WORLD_PUBLIC_URL must be an http(s) URL");
     publicUrl = parsed.origin;
   }
-  return { loopsUrl, loopsSocket, port, allowedOrigins, production, pairing: pairingText, pairingFile, publicUrl, warnings };
+  return { loopsUrl, loopsSocket, loopsWebUrl, port, allowedOrigins, production, pairing: pairingText, pairingFile, publicUrl, warnings };
 }

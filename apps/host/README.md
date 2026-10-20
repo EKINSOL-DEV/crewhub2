@@ -50,8 +50,9 @@ What it does:
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `CREWHUB_WORLD_LOOPS_URL` | `http://127.0.0.1:8091` | crewhub-loops' API over loopback TCP (the Mac app serves `127.0.0.1:8091`; so does the loops nginx under Docker Desktop, where the socket is not reachable). Its origin is also `loopsWebUrl`, the sign-in link, with the socket too. Not together with `CREWHUB_WORLD_LOOPS_SOCKET`. |
+| `CREWHUB_WORLD_LOOPS_URL` | `http://127.0.0.1:8091` | crewhub-loops' API over loopback TCP (the Mac app serves `127.0.0.1:8091`; so does the loops nginx under Docker Desktop, where the socket is not reachable). Its origin is also `loopsWebUrl`, the sign-in link, unless `CREWHUB_WORLD_LOOPS_WEB_URL` says otherwise. Not together with `CREWHUB_WORLD_LOOPS_SOCKET`. |
 | `CREWHUB_WORLD_LOOPS_SOCKET` | none | Read loops over its Unix socket instead of TCP (the same allow-list, headers, stream and timeouts; `Host: 127.0.0.1`). The path must exist and be a socket when the host starts, else a clear error; `~/` is the home folder. **Explicit only: the host never guesses a socket.** `--loops-socket <path>` on the command line is the same and wins. Setting both the URL and the socket is a configuration error. See "The socket" below. |
+| `CREWHUB_WORLD_LOOPS_WEB_URL` | the origin of `CREWHUB_WORLD_LOOPS_URL` | Where "sign in to crewhub-loops" goes (`health.loopsWebUrl`), as an origin. The default is right for the app (API and web on 8091); set it in socket mode when the web app is elsewhere, e.g. `http://127.0.0.1:8291` for the development instance. |
 | `CREWHUB_WORLD_KEY_FILE` | `~/.config/crewhub-loops/secrets/agent-crewhub-world.key` | The agent key file. When it is missing and nothing is configured, the host falls back to `agent-builder.key` in the same folder with a loud warning (see below). |
 | `CREWHUB_WORLD_PORT` | `5180` | The port on `127.0.0.1`. |
 | `CREWHUB_WORLD_ALLOWED_ORIGINS` | none | Comma list of extra origins, e.g. the Vite dev server `http://localhost:5173`. |
@@ -82,8 +83,9 @@ npm run host -- --loops-socket ~/crewhub-loops-dev/run/api.sock      # the devel
 curl -s http://127.0.0.1:5180/world-api/health                        # "transport":"unix"
 ```
 
-The sign-in link stays `CREWHUB_WORLD_LOOPS_URL`'s origin (its default is the app's `http://127.0.0.1:8091`): a socket
-has no origin a browser can open. Under Docker Desktop the socket is inside the VM and not reachable; use the URL.
+The sign-in link is `CREWHUB_WORLD_LOOPS_URL`'s origin (its default is the app's `http://127.0.0.1:8091`): a socket
+has no origin a browser can open. When the web app is elsewhere, name it: `CREWHUB_WORLD_LOOPS_WEB_URL=http://127.0.0.1:8291`
+for the development instance. Under Docker Desktop the socket is inside the VM and not reachable; use the URL.
 
 ## Running
 
