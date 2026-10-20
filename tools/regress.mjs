@@ -1,9 +1,9 @@
-/* regress.mjs: the browser regression pass of the integrated world, in four groups.
+/* regress.mjs: the browser regression pass of the integrated world, in five groups.
 
    Usage:
-     node tools/regress.mjs --port <port> [--groups walk,demo,live,rooms] [--host-port 5180] [--tag pass] [--out <dir>] [--swiftshader]
+     node tools/regress.mjs --port <port> [--groups walk,demo,live,rooms,real] [--host-port 5180] [--loops-env <file>] [--tag pass] [--out <dir>] [--swiftshader]
 
-   Groups (--groups, default all four, in this order):
+   Groups (--groups, default all five, in this order):
      walk  38 checks along a visitor's walk through the demo (keyboard, the text view, the timeline, chat, build mode,
            settings, the where form, reduced motion, a phone, both themes). About two minutes.
      demo  the jump list (/ opens it, a building's name, Enter lands inside), the scenario picker (the Demo chip, One
@@ -20,6 +20,15 @@
            (Administration, The floor, Lead's office) and a rack sign with its count, the arrow keys between the three halls, the text view naming the
            racks and the desks with a package on each, the lead's office beacon, the agent card on a figure at a desk,
            and walk mode in through the front door into Administration and on to the floor. About one minute.
+     real  live mode against the REAL development crewhub-loops (tools/loops-dev.sh, 127.0.0.1:8291): it reads
+           --loops-env (default tools/out/loops-dev.env of the main checkout: LOOPS_DEV_URL and LOOPS_DEV_KEY_FILE, the
+           admin lines are never read), skips cleanly with one INFO line when that loops does not answer (counted as
+           neither pass nor fail), else starts its own host on --host-port against it with that key (so Vite must have
+           been started with CREWHUB_WORLD_PORT=<host-port>) and checks in the browser: the chip says Live, the town
+           shows the real projects by name, a building shows its real tickets, the text view names them, and when a
+           ticket moves during the run (the seed tool, a person in the loops web) the building's count follows the
+           board (a moved ticket flies to its rack first, so that check allows 12 s). Under a minute. Run it while no
+           other host of yours is open against that loops (4 streams per key).
    Besides the checks it fails on any page error, console error or request that leaves the page's own origin, and
    on a group that stops before its end.
 
@@ -28,14 +37,15 @@
    `regress: <passed>/<total>`; the exit code is 0 only when every check passed.
 
    Run it against a dev server (Vite): some checks read the scene through `window.__town`, which only dev builds set. */
-import { existsSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { cli, dressed, launch, list, problemLines, seek, speed, watch } from "./lib/world.mjs";
 
-const GROUPS = ["walk", "demo", "live", "rooms"];
-const USAGE = "node tools/regress.mjs --port <port> [--groups walk,demo,live,rooms] [--host-port 5180] [--tag pass] [--out <dir>] [--swiftshader]";
-const opts = cli(USAGE, { options: { tag: "pass", groups: GROUPS.join(","), "host-port": "5180" } });
+const GROUPS = ["walk", "demo", "live", "rooms", "real"];
+const USAGE = "node tools/regress.mjs --port <port> [--groups walk,demo,live,rooms,real] [--host-port 5180] [--loops-env <file>] [--tag pass] [--out <dir>] [--swiftshader]";
+const opts = cli(USAGE, { options: { tag: "pass", groups: GROUPS.join(","), "host-port": "5180", "loops-env": "" } });
 const groups = list(opts.groups, GROUPS, opts.fail, "group");
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const { tag, out: OUT, base: BASE, origin } = opts;
@@ -501,7 +511,7 @@ await group("live", async () => {
   if (!served && (!Number.isInteger(hostPort) || hostPort <= 0)) opts.fail("--host-port <port> must be a port number");
   const fakeOptions = { heartbeatMs: 1000 };
   let fake = await createLoopsFake(fakeOptions);
-  const hostOptions = { loopsUrl: fake.url, key: fake.key, keyName: fake.keyName, retryMs: { min: 100, max: 500 }, heartbeatMs: 1000, log: () => undefined };
+  const hostOptions = { loopsUrl: fake.url, key: fake.key, keyName: fake.keyName, retryMs: { min: 100, max: 500 }, reconnectMs: { min: 100, max: 300 }, heartbeatMs: 1000, log: () => undefined };
   const host = await createHost(served ? { ...hostOptions, staticDir: dist } : { ...hostOptions, port: hostPort, allowedOrigins: [origin] });
   const liveOrigin = served ? host.url : origin;
   // The page is opened without `?source=live`: the source is `auto`, the probe finds the host and the health it answers
@@ -542,7 +552,8 @@ await group("live", async () => {
 
     const pg = await openLive();
     if (pairing) {
-      const link = host.mintPairLink();
+      // Behind the Vite proxy the link must open on Vite's origin (it proxies /pair); on the host's own when it serves dist.
+      const link = host.mintPairLink(served ? undefined : origin);
       await pg.goto(link);
       await pg.waitForTimeout(500);
       ok("pairing: the one-time link lands on /", new URL(pg.url()).pathname === "/" && new URL(pg.url()).origin === liveOrigin, new URL(pg.url()).pathname);
@@ -676,6 +687,166 @@ await group("rooms", async () => {
   await p.keyboard.press("Escape");
   await p.context().close();
 });
+
+await group("real", async () => {
+  // 22. Live mode against the real development crewhub-loops: the env file names it and the key file; the host is
+  // started here, on --host-port, with that key; the browser opens your Vite (started with CREWHUB_WORLD_PORT).
+  const envFile = loopsEnvFile();
+  const env = readEnvFile(envFile);
+  const loopsUrl = (env.LOOPS_DEV_URL ?? "").replace(/\/+$/, "");
+  const keyFile = env.LOOPS_DEV_KEY_FILE ?? "";
+  const parsed = (() => {
+    try {
+      return new URL(loopsUrl);
+    } catch {
+      return null;
+    }
+  })();
+  // This machine only: the development loops is loopback, as every address a tool opens.
+  const loopback = parsed !== null && parsed.protocol === "http:" && ["127.0.0.1", "localhost"].includes(parsed.hostname) && parsed.port !== "";
+  if (!loopback || keyFile === "") {
+    info(`real: skipped, no loopback LOOPS_DEV_URL and LOOPS_DEV_KEY_FILE in ${envFile}`);
+    return;
+  }
+  const loopsPort = parsed.port;
+  // Every read of this group goes through the browser's request context (a tool makes no network call of its own).
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
+  const pg = await ctx.newPage();
+  watch(pg, origin, problems, "real");
+  const health = await pg.request.get(`${loopsUrl}/api/health`, { timeout: 2000 }).then((r) => (r.ok() ? r.json() : null)).catch(() => null);
+  if (!health?.ok) {
+    info(`real: skipped, ${loopsPort} is down`);
+    await ctx.close();
+    return;
+  }
+  let key = "";
+  try {
+    key = readFileSync(keyFile, "utf8").trim();
+  } catch {}
+  if (key === "") {
+    info(`real: skipped, cannot read the key file named by ${envFile}`);
+    await ctx.close();
+    return;
+  }
+  const { createHost } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "host.ts")).href);
+  const hostPort = Number(opts["host-port"]);
+  if (!Number.isInteger(hostPort) || hostPort <= 0) opts.fail("--host-port <port> must be a port number");
+  const keyName = path.basename(keyFile).replace(/^agent-/, "").replace(/\.key$/, "");
+  const host = await createHost({ loopsUrl, key, keyName, port: hostPort, allowedOrigins: [origin], pairing: "off", retryMs: { min: 200, max: 2000 }, log: () => undefined });
+  key = "";
+  info(`real: loops on 127.0.0.1:${loopsPort} (version ${health.version}), host on 127.0.0.1:${host.port} behind the Vite proxy on ${origin}, key ${keyName}`);
+  // The host's answers through the Vite proxy, as the page reads them.
+  const hostApi = (p) => pg.request.get(`${origin}/world-api${p}`).then((r) => r.json());
+  const chip = pg.locator(".connection-chip").first();
+  try {
+    const snapshot = await hostApi("/snapshot");
+    ok("real: the host assembles a snapshot from the real loops", Array.isArray(snapshot.projects) && snapshot.projects.length > 0 && typeof snapshot.cursor === "number", `cursor ${snapshot.cursor}, ${snapshot.projects?.length} projects`);
+    const projects = snapshot.projects ?? [];
+    const names = projects.map((p) => `${p.name} (${p.key})`);
+    await pg.goto(BASE);
+    await pg.waitForSelector("canvas", { timeout: 60000 }).catch(() => {});
+    await pg.waitForSelector('.connection-chip[data-connection="live"]', { timeout: 20000 }).catch(() => {});
+    const state = await chip.getAttribute("data-connection").catch(() => null);
+    ok("real: the chip says Live against the real loops", state === "live", `${state}: ${(await chip.innerText().catch(() => "")).trim()}`);
+    await shot(pg, "31-real-town");
+    const tv = await text(pg);
+    ok("real: the town shows the real projects by name", names.length > 0 && names.every((n) => tv.includes(n)) && !/Demo mode/.test(tv), `${names.join(", ")}${names.every((n) => tv.includes(n)) ? "" : " | " + tv.slice(0, 160).replace(/\n/g, " | ")}`);
+    // The building with the most tickets: its real tickets, by key, in the text view and in the scene.
+    const withBoard = projects.map((p) => ({ p, keys: (snapshot.boards?.[p.slug]?.columns ?? []).flatMap((c) => c.tickets.map((t) => t.key)) })).sort((a, b) => b.keys.length - a.keys.length)[0];
+    if (withBoard && withBoard.keys.length > 0) {
+      await canvas(pg).focus();
+      await pg.keyboard.press("/");
+      const dialog = pg.getByRole("dialog", { name: "Jump to" });
+      await dialog.waitFor({ timeout: 3000 }).catch(() => {});
+      await pg.keyboard.type(withBoard.p.name);
+      await pg.waitForTimeout(400);
+      await pg.keyboard.press("Enter");
+      await pg.waitForFunction(() => globalThis.__town?.view?.entered != null, null, { timeout: 8000 }).catch(() => {});
+      await pg.waitForTimeout(1200);
+      const inside = await entered(pg);
+      const tvInside = await text(pg);
+      const named = withBoard.keys.filter((k) => tvInside.includes(k));
+      ok("real: a building shows its real tickets and the text view names them", inside === withBoard.p.slug && named.length === withBoard.keys.length, `${inside}: ${named.length}/${withBoard.keys.length} of ${withBoard.keys.join(", ")}`);
+      await shot(pg, "32-real-building");
+      // A move during the run (the seed tool or a person): the building's count follows the board within the budget.
+      // The racks are read between two board reads that agree, so a board that moves meanwhile (a fast seed) is read again.
+      const moved = await waitForMove(hostApi, withBoard.p.slug, 15000);
+      if (moved === null) info("real: no ticket moved during the run, the count check is skipped (run tools/loops-seed.mjs alongside to see it)");
+      else {
+        await pg.waitForTimeout(1500);
+        const rackCounts = async () => {
+          const board = await hostApi(`/board/${encodeURIComponent(moved.slug)}`);
+          const by = Object.fromEntries((board.columns ?? []).map((c) => [c.status, c.tickets.length]));
+          return ["backlog", "planned", "review", "done"].map((k) => by[k] ?? 0);
+        };
+        // A moved ticket flies to its new rack first (world-model flights, a few seconds at real time), so the racks are
+        // given up to 12 s to agree with a board that stands still.
+        let racks = [];
+        let board = [];
+        for (let attempt = 0; attempt < 12; attempt += 1) {
+          const before = await rackCounts();
+          const tvMoved = await text(pg);
+          racks = (tvMoved.match(/Administration: Backlog (\d+), Planning (\d+), Review (\d+), Done (\d+)/) ?? []).slice(1).map(Number);
+          board = await rackCounts();
+          if (before.join("/") === board.join("/") && racks.join("/") === board.join("/")) break;
+          await pg.waitForTimeout(1000);
+        }
+        ok("real: after a ticket moved, the building's counts follow the board", racks.length === 4 && racks.join("/") === board.join("/"), `${moved.key} ${moved.from} → ${moved.to}; racks ${racks.join("/")} vs board ${board.join("/")}`);
+        await shot(pg, "33-real-moved");
+      }
+    } else info("real: no project has tickets, the building checks are skipped");
+    const after = await hostApi("/health");
+    ok("real: the host stayed on the real loops", after.loops === "ok" && typeof after.cursor === "number" && after.cursor >= snapshot.cursor, `loops ${after.loops}, cursor ${snapshot.cursor} → ${after.cursor}`);
+    await pg.context().close();
+  } finally {
+    await host.close().catch(() => {});
+  }
+});
+
+/** The env file of the development loops: --loops-env, else tools/out/loops-dev.env of the main checkout (this worktree's own when it is the main one). */
+function loopsEnvFile() {
+  if (opts["loops-env"]) return path.resolve(opts["loops-env"]);
+  let main = REPO;
+  try {
+    const common = execFileSync("git", ["rev-parse", "--git-common-dir"], { cwd: REPO, encoding: "utf8" }).trim();
+    main = path.dirname(path.resolve(REPO, common));
+  } catch {}
+  return path.join(main, "tools", "out", "loops-dev.env");
+}
+/** `KEY=value` lines of a dotenv-style file; only the two keys the group needs are kept, the rest never leaves this function. */
+function readEnvFile(file) {
+  const out = {};
+  let text = "";
+  try {
+    text = readFileSync(file, "utf8");
+  } catch {
+    return out;
+  }
+  for (const line of text.split("\n")) {
+    const m = /^\s*(?:export\s+)?(LOOPS_DEV_URL|LOOPS_DEV_KEY_FILE)\s*=\s*(.*?)\s*$/.exec(line);
+    if (m) out[m[1]] = m[2].replace(/^(["'])(.*)\1$/, "$2").replace(/^~(?=\/|$)/, process.env.HOME ?? "~");
+  }
+  return out;
+}
+/** Polls the host's board of `slug` for up to `ms` and answers the first ticket whose column changed (slug, key, from, to), or null. */
+async function waitForMove(hostApi, slug, ms) {
+  const columnsOf = async () => {
+    const board = await hostApi(`/board/${encodeURIComponent(slug)}`);
+    return new Map((board.columns ?? []).flatMap((c) => c.tickets.map((t) => [t.key, c.status])));
+  };
+  const deadline = Date.now() + ms;
+  let before = await columnsOf();
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const now = await columnsOf();
+    for (const [key, status] of now) {
+      const was = before.get(key);
+      if (was !== undefined && was !== status) return { slug, key, from: was, to: status };
+    }
+    before = now;
+  }
+  return null;
+}
 
 const external = problems.filter((x) => x.kind === "external").map((x) => x.text);
 const errors = problemLines(problems.filter((x) => x.kind !== "external"));

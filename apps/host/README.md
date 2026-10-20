@@ -4,7 +4,8 @@ A small Node program (Node 22, no dependencies beyond Node itself) that stands b
 crewhub-loops: integrator "Option A" of loops' `docs/integrators/identity-and-access.md`, section 3.5 of
 [docs/LOOPS_INTEGRATION_PLAN.md](../../docs/LOOPS_INTEGRATION_PLAN.md). It holds the one agent key (an external
 bot's, which could write: the host is what keeps it read-only), reads crewhub-loops with safe methods only (over
-loopback TCP or over loops' Unix socket), and answers the browser under `/world-api` on `127.0.0.1`.
+loopback TCP or over loops' Unix socket), and answers the browser under `/world-api` on `127.0.0.1`. What the real
+crewhub-loops stream does and how the host follows it is in [docs/LOOPS_REAL_VS_FAKE.md](../../docs/LOOPS_REAL_VS_FAKE.md).
 
 What it does:
 
@@ -13,12 +14,16 @@ What it does:
   project, principals, agents, team, watchdog, and milestones and releases where the project has the feature on.
   Paged lists are followed to the last page. `groups` is `[]` until loops has project groups (L22).
 - **Stream** `GET /world-api/stream?cursor=N`: Server-Sent Events, `data: <json>` per message, `id: <seq>` on
-  events. ONE upstream `GET /api/events/stream` is shared by every browser tab; a ring buffer of the last 2000
-  envelopes catches a tab up from its cursor. Messages: `status` (`ok` / `down` / `unauthorized`), `event`
-  (loops' envelope unchanged), `heartbeat` (loops' passed through, the host's own every 15 s while loops is
-  down), `reset` with a reason (`gone`: loops answered 410; `reconnected`: the log's tail went backwards, a
-  restore or a fresh install; `cursor`: the tab asked for a cursor the buffer no longer covers). On a reset the
-  client re-snapshots.
+  events. ONE upstream `GET /api/events/stream` is shared by every browser tab, and never more than one is open
+  (a test counts); a ring buffer of the last 2000 envelopes catches a tab up from its cursor. Messages: `status`
+  (`ok` / `down` / `unauthorized`), `event` (loops' envelope unchanged, unknown types included), `heartbeat` (loops'
+  passed through as `{seq, ts}`, the host's own every 15 s while loops is down), `reset` with a reason (`gone`:
+  loops answered 410 `cursor_expired`; `reconnected`: the log's tail went below the host's cursor, a restore or a
+  fresh install; `cursor`: the tab asked for a cursor the buffer no longer covers). On a reset the client
+  re-snapshots. Upstream the host follows loops' own rules (events.md, CL-378, CL-406): it reads
+  `GET /api/events?from=tail` before every connection (an older loops without it gets the old filter trick), opens
+  the stream with the sealed `cursor` loops gave while no event followed it and with `after=<seq>` otherwise, never
+  both, and keeps the sealed cursor to itself.
 - **Refetch routes** passed through with loops' status and body: `/world-api/tickets/{ref}`,
   `/tickets/{ref}/comments|progress`, `/projects/{slug}`, `/projects/{slug}/milestones|releases`, `/board/{slug}`,
   `/watchdog`, `/team`. Only `limit` and `cursor` of a query string are passed. `/world-api/project-groups`
@@ -35,8 +40,11 @@ What it does:
   in one file. Every other path is 404, every method but GET is 405, and nothing reaches loops for either.
 - **Host and Origin guard**: the `Host` header must be `127.0.0.1:<port>` or `localhost:<port>` (else 421), an
   `Origin` header when present must be the host's own or one from `CREWHUB_WORLD_ALLOWED_ORIGINS` (else 403).
-- **Reconnect**: when loops goes away the host retries with backoff (1 s doubling to 30 s), reconnects from its
-  cursor so nothing is lost, and tells the tabs `status: down` and then `ok` (the world shows "stale" meanwhile).
+- **Reconnect**: loops ends every stream after 300 s (and at a credential re-check or a stop); the host waits 1.5 to
+  3 s with jitter and reconnects from its cursor, so nothing is lost and no tab hears of it. When loops goes away
+  (a network error, a 5xx, a 200 that closed without a line) the host retries with backoff (1 s doubling to 30 s)
+  and tells the tabs `status: down` and then `ok` (the world shows "stale" meanwhile). A 429 `too_many_streams`
+  waits loops' `Retry-After` (5 s); 401 and 403 are `unauthorized` with the long retry.
 - **Static files**: with `NODE_ENV=production` the host serves `apps/world/dist` with an SPA fallback to `index.html`.
 - **The key** is read once from the key file, kept in memory, never logged, never in a response (a test greps every
   response for it; loops' error bodies pass through scrubbed of it).
@@ -135,6 +143,7 @@ Development: `CREWHUB_WORLD_PAIRING=off` drops the gate (loud warning at start; 
 or pair through the Vite origin, which proxies `/pair`: `npm run host -- open --origin http://127.0.0.1:5173`.
 Cookies ignore ports, so a browser paired on `127.0.0.1:5180` is paired on `127.0.0.1:5173` as well.
 
-Programmatic: `createHost` takes `pairing?: "on" | "off"`, `pairingSecret?`, `publicUrl?`, `mintSecret?` and `now?`,
+Programmatic: `createHost` takes `pairing?: "on" | "off"`, `pairingSecret?`, `publicUrl?`, `mintSecret?`, `now?`,
+`retryMs?` (the error backoff) and `reconnectMs?` (the pause after a normal stream end; tests make both short),
 and returns `mintPairLink(origin?)`. `createHostSource` (loops-client) takes `headers` for a Node caller's cookie;
 the browser sends it same-origin. Tests: `test/pairing.test.ts`.

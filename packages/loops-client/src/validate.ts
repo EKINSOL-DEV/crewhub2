@@ -722,7 +722,11 @@ const payloadValidators: { [T in WorldEventType]: Validator<WorldEventPayloads[T
 
 // Public entry points
 
-/** Every type events.md lists at 053b5f47 (read-model.md `Envelope.type`), the world's allowlist included. */
+/**
+ * Every type `contracts/events.py` lists at 4cdcd383 (`EVENT_TYPES`; events.md at 053b5f47 plus `automation.ran`,
+ * `ticket.quiet` and `owner-request.updated`), the world's allowlist included. A type outside it is warned about once
+ * and skipped: loops adds types; the world never breaks on one.
+ */
 const KNOWN_EVENT_TYPES = [
   ...WORLD_EVENT_TYPES,
   "link.added",
@@ -752,6 +756,9 @@ const KNOWN_EVENT_TYPES = [
   "policy.created",
   "feature.updated",
   "delegation.consumed",
+  "automation.ran",
+  "ticket.quiet",
+  "owner-request.updated",
 ] as const;
 
 /** The envelope only; the payload stays a loose record. `v` other than 1 fails. */
@@ -765,7 +772,7 @@ export const validateEnvelope = run(envelope);
 export function toWorldEvent(env: Envelope): Result<WorldEvent> | null {
   if (!isWorldEventType(env.type)) {
     if (!(KNOWN_EVENT_TYPES as readonly string[]).includes(env.type)) {
-      warnOnce(`event type:${env.type}`, `unknown event type ${JSON.stringify(env.type)} (seq ${env.seq}): skipped; events.md at 053b5f47 does not list it`);
+      warnOnce(`event type:${env.type}`, `unknown event type ${JSON.stringify(env.type)} (seq ${env.seq}): skipped; crewhub-loops at 4cdcd383 does not list it`);
     }
     return null;
   }
