@@ -210,7 +210,7 @@ describe("the smooth connection", () => {
     })();
     const paired = (body: unknown, headers: Record<string, string>) => fetch(`${host.url}/world-api/connect`, { method: "POST", headers: { cookie, ...headers }, body: typeof body === "string" ? body : JSON.stringify(body) });
     assert.equal((await paired({ key: stub.key }, { "content-type": "application/json" })).status, 403, "no Origin: not the world's page");
-    assert.equal((await paired({ key: stub.key }, { origin: "http://evil.example", "content-type": "application/json" })).status, 403);
+    assert.equal((await paired({ key: stub.key }, { origin: "http://127.0.0.1:1", "content-type": "application/json" })).status, 403, "another origin on this machine: the guard");
     assert.equal((await paired({ key: stub.key }, { origin: host.url, "content-type": "text/plain" })).status, 415);
     assert.equal((await paired("{not json", { origin: host.url, "content-type": "application/json" })).status, 400);
     assert.equal((await paired({ key: "not a key" }, { origin: host.url, "content-type": "application/json" })).status, 400);

@@ -109,7 +109,7 @@ describe("the doctor", () => {
     const down = await runDoctor({ env: { CREWHUB_WORLD_LOOPS_APP_DATA: dir }, probePort: free });
     const lines = byId(down);
     assert.equal(down.ok, false);
-    assert.match(lines.loops!.text, new RegExp(`nothing answers; looked for app-port http://127\\.0\\.0\\.1:${closed}\\. Open Crewhub\\.app`));
+    assert.ok(lines.loops!.text.startsWith(`nothing answers; looked for app-port http://127.0.0.1:${closed}. Open Crewhub.app`), lines.loops!.text);
     assert.equal(lines.health!.status, "skip");
     assert.equal(lines.auth!.status, "skip");
     assert.match(formatDoctor(down).at(-1) as string, /doctor: \d+ to fix, \d+ skipped/);
