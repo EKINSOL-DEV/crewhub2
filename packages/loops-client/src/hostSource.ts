@@ -511,3 +511,48 @@ function stripUndefined<T extends object>(input: T): Partial<T> {
   for (const [key, value] of Object.entries(input)) if (value !== undefined) (out as Record<string, unknown>)[key] = value;
   return out;
 }
+
+/** What the host answered a connect request with: the status and the JSON body (null when there is none). Never the key. */
+export interface HostAnswer {
+  /** 0 when nothing answered (no host, a refused connection, a timeout). */
+  status: number;
+  body: unknown;
+}
+
+/**
+ * `POST /world-api/connect {key}` (spec addendum "a smooth connection", part 2): hands a pasted access key to the host,
+ * which checks it with loops, stores it and switches to it. Same origin, JSON, the pairing cookie travels with it. The
+ * key is in the request body and nowhere else: not in the URL, not in the answer, not in a log. Never throws.
+ */
+export async function connectHost(key: string, baseUrl = "", timeoutMs = 10_000): Promise<HostAnswer> {
+  return hostRequest("POST", `${baseUrl}${PREFIX}/connect`, JSON.stringify({ key }), timeoutMs);
+}
+
+/** `DELETE /world-api/connect`: the host forgets its stored key (the world then asks for one again). Never throws. */
+export async function forgetHostKey(baseUrl = "", timeoutMs = 10_000): Promise<HostAnswer> {
+  return hostRequest("DELETE", `${baseUrl}${PREFIX}/connect`, null, timeoutMs);
+}
+
+async function hostRequest(method: "POST" | "DELETE", url: string, body: string | null, timeoutMs: number): Promise<HostAnswer> {
+  try {
+    const response = await fetch(url, {
+      method,
+      body,
+      credentials: "same-origin",
+      signal: AbortSignal.timeout(timeoutMs),
+      headers: body === null ? { accept: "application/json" } : { accept: "application/json", "content-type": "application/json" },
+    });
+    const text = await response.text().catch(() => "");
+    let parsed: unknown = null;
+    if (text !== "") {
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        parsed = null;
+      }
+    }
+    return { status: response.status, body: parsed };
+  } catch {
+    return { status: 0, body: null };
+  }
+}
