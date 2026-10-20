@@ -39,6 +39,7 @@ import type { RobotCrowd } from "./robotCrowd";
 import { deskItems, DRESS_PREFIX, dressingSeed, isThreeRoom, lampLane, RACKS, roomDecor, type DecorItem } from "./roomDressing";
 import type { Bounds } from "./townLayout";
 import type { Walker, WorkSpot } from "./walks";
+import type { PersonWalker } from "./personWalks";
 import { deskClutter, HOME_VIEW, WORK_FURNITURE, workPlace, type Circle, type WorkAt } from "./workPlaces";
 import { workSurfaceOf } from "./workSurface";
 
@@ -168,12 +169,23 @@ export interface BuildingContext {
   reducedMotion: () => boolean;
   /** The walk runtime's interpolated position of an agent, when it has one (walks.ts). */
   walker: (key: string) => Walker | undefined;
+  /** The people in a building right now (personWalks.ts): a person carrying a package into Done, at most one. */
+  persons: (slug: string) => Iterable<PersonWalker>;
 }
 
 /** What a building shows of its zone: the district's colour and emblem, on a medallion by the door. */
 export type ZoneMark = { color: ProjectColor | null; emblem: ProjectIcon | null };
 
-export type Pick = { kind: "agent"; key: string } | { kind: "object"; ticketId: string } | { kind: "room"; room: RoomKind } | { kind: "prop"; id: string };
+export type Pick = { kind: "agent"; key: string } | { kind: "person"; id: string } | { kind: "object"; ticketId: string } | { kind: "room"; room: RoomKind } | { kind: "prop"; id: string };
+
+interface Person {
+  handle: FigureHandle;
+  walker: PersonWalker;
+  /** The cast the figure was made by: another cast swaps it where it walks. */
+  castId: string;
+  /** The ticket id in its hands, while it holds one. */
+  held: string | null;
+}
 
 interface Robot {
   handle: FigureHandle;
@@ -286,6 +298,10 @@ export class BuildingView {
   /** The facts of the figure being followed (reused every frame). */
   #facts: FigureFacts = { agent: null as unknown as AgentPlacement };
   #state: FigureState = { ...IDLE_STATE };
+  /** The people in the building (spec addendum "a person in the world"), by visit id: a plain figure of the cast and the package it holds. */
+  #people = new Map<string, Person>();
+  #personState: FigureState = { ...IDLE_STATE };
+  #carryAt = new THREE.Vector3();
   #objects: ObjectLayer;
   #props: PropLayer;
   /** The town document's placements resolved into this building's rooms, and what they were resolved from. */
@@ -367,6 +383,7 @@ export class BuildingView {
     this.#personal.visible = this.detailed;
     this.#objects.group.visible = this.detailed;
     this.#applyDistance();
+    if (!this.detailed) this.#dropPeople();
     if (this.detailed) {
       this.#syncSignals();
       this.#syncPersonal();
@@ -1260,7 +1277,7 @@ export class BuildingView {
   }
   setSelected(key: string | null) {
     if (key === this.#selectedKey) return;
-    if (this.#selectedKey) this.#robots.get(this.#selectedKey)?.handle.setHighlight("none");
+    if (this.#selectedKey) this.#selectedHandle()?.setHighlight("none");
     this.#selectedKey = key;
     if (!key) {
       this.#selection?.removeFromParent();
@@ -1273,15 +1290,107 @@ export class BuildingView {
     }
     this.#placeSelection();
   }
+  /** The selected figure's handle: an agent's robot, or a person (selected by visit id). */
+  #selectedHandle(): FigureHandle | undefined {
+    if (!this.#selectedKey) return undefined;
+    return this.#robots.get(this.#selectedKey)?.handle ?? this.#people.get(this.#selectedKey)?.handle;
+  }
   #placeSelection() {
     const ring = this.#selection;
     if (!ring) return;
     const robot = this.#selectedKey ? this.#robots.get(this.#selectedKey) : undefined;
-    ring.visible = !!robot;
-    if (robot) ring.scale.setScalar((robot.handle.anchors.ground * robot.handle.body.scale.x) / RING_GROUND);
-    robot?.handle.setHighlight("selected");
-    // The ring follows the figure up on its perch.
+    const handle = robot?.handle ?? this.#selectedHandle();
+    ring.visible = !!handle;
+    if (handle) ring.scale.setScalar((handle.anchors.ground * handle.body.scale.x) / RING_GROUND);
+    handle?.setHighlight("selected");
+    // The ring follows the figure up on its perch; a person stands on the floor.
     if (robot) ring.position.copy(robot.handle.object.position).add(this.#lift(robot)).y += 0.01;
+    else if (handle) ring.position.copy(handle.object.position).y += 0.01;
+  }
+
+  /* ── People: a person carries a package into Done (personWalks.ts) ──────────────────────────────── */
+
+  /**
+   * Every frame of the entered building: the figures follow their person walkers, the package rides at the carry anchor
+   * while it is held and stands on the Done rack once put down. A person is a plain figure of the building's cast
+   * (a worker, no project colour), picked as a person, never as an agent.
+   */
+  #followPeople(seconds: number, reduced: boolean) {
+    const slug = this.building.slug;
+    const seen = new Set<string>();
+    const o = this.group.position;
+    const castId = this.ctx.cast.manifest.id;
+    for (const w of this.ctx.persons(slug)) {
+      if (w.building !== slug) continue;
+      seen.add(w.id);
+      let person = this.#people.get(w.id);
+      if (!person || person.castId !== castId) {
+        person?.handle.dispose();
+        person = { handle: this.#personFigure(w), walker: w, castId, held: person?.held ?? null };
+        this.#people.set(w.id, person);
+      }
+      person.walker = w;
+      const handle = person.handle;
+      handle.object.position.set(w.x - o.x, w.y - o.y + FLOOR_LIFT, w.z - o.z);
+      handle.object.rotation.y = w.heading;
+      const state = this.#personState;
+      state.activity = w.walking ? "walking" : "idle";
+      state.waiting = state.alert = state.proxy = false;
+      state.carrying = w.holding;
+      handle.setState(state);
+      if (!reduced) handle.update(seconds);
+      // The name tag hangs over the head, like an agent's.
+      const head = w.y + 2 * FLOOR_LIFT + handle.anchors.label[1] * handle.body.scale.y * ROBOT_SCALE;
+      const id = `a:${slug}:${w.id}`;
+      const anchor = this.anchors.get(id);
+      if (anchor) anchor.set(w.x, head, w.z);
+      else this.anchors.set(id, new THREE.Vector3(w.x, head, w.z));
+      if (w.holding) {
+        person.held = w.visit.ticketId;
+        this.#objects.carry(w.visit.ticketId, this.#carryAnchor(handle, this.#carryAt));
+      } else if (person.held) {
+        if (w.delivered) this.#objects.deliver(person.held);
+        this.#objects.carry(person.held, null);
+        person.held = null;
+      }
+    }
+    for (const [id, person] of this.#people) if (!seen.has(id)) this.#dropPerson(id, person);
+  }
+
+  /** The carry anchor of a figure standing on the floor, building-local: turned with the figure, at its scale. */
+  #carryAnchor(handle: FigureHandle, out: THREE.Vector3): THREE.Vector3 {
+    const [cx, cy, cz] = handle.anchors.carry;
+    const turn = handle.object.rotation.y;
+    const cos = Math.cos(turn),
+      sin = Math.sin(turn);
+    const p = handle.object.position;
+    return out.set(p.x + (cx * cos + cz * sin) * ROBOT_SCALE, p.y + cy * ROBOT_SCALE, p.z + (cz * cos - cx * sin) * ROBOT_SCALE);
+  }
+
+  /** A person's figure: the building's cast, a plain worker without the project colour, pickable as a person. */
+  #personFigure(w: PersonWalker): FigureHandle {
+    const handle = this.ctx.cast.figure({ key: `person:${w.visit.personId}`, role: "worker", accent: null });
+    handle.object.scale.setScalar(ROBOT_SCALE);
+    handle.setDetail("near");
+    handle.object.traverse((o) => {
+      o.userData.personVisit = w.id;
+    });
+    this.#agents.add(handle.object);
+    return handle;
+  }
+
+  #dropPerson(id: string, person: Person) {
+    if (person.held) {
+      if (person.walker.delivered) this.#objects.deliver(person.held);
+      this.#objects.carry(person.held, null);
+    }
+    person.handle.dispose();
+    this.#people.delete(id);
+    this.anchors.delete(`a:${this.building.slug}:${id}`);
+  }
+
+  #dropPeople() {
+    for (const [id, person] of this.#people) this.#dropPerson(id, person);
   }
 
   /**
@@ -1307,7 +1416,7 @@ export class BuildingView {
   /** True while something here moves. */
   get animating(): boolean {
     const idle = !this.ctx.reducedMotion() && this.#robots.size > 0;
-    return (this.detailed && (this.#objects.animating || this.#props.animating || idle)) || this.#truckDrive !== null || this.#truckPending;
+    return (this.detailed && (this.#objects.animating || this.#props.animating || idle || this.#people.size > 0)) || this.#truckDrive !== null || this.#truckPending;
   }
 
   /**
@@ -1347,6 +1456,7 @@ export class BuildingView {
       if (!reduced && (this.detailed || walking)) robot.handle.update(seconds);
     }
     if (this.detailed) {
+      this.#followPeople(seconds, reduced);
       this.#objects.update(seconds);
       this.#props.tick(seconds);
       for (const child of this.#signals.children) (child.userData.animate as ((s: number) => void) | undefined)?.(seconds);
@@ -1406,6 +1516,8 @@ export class BuildingView {
     if (prop) return { kind: "prop", id: prop };
     const ticket = this.#objects.pick(hit);
     if (ticket) return { kind: "object", ticketId: ticket };
+    const person = hit.object.userData.personVisit as string | undefined;
+    if (person) return { kind: "person", id: person };
     const agent = hit.object.userData.agentId as string | undefined;
     if (agent) return { kind: "agent", key: agent };
     const room = hit.object.userData.room as RoomKind | undefined;
@@ -1429,6 +1541,7 @@ export class BuildingView {
     this.cancelPrepare();
     for (const robot of this.#robots.values()) robot.handle.dispose();
     this.#robots.clear();
+    this.#dropPeople();
     this.#objects.dispose();
     this.#props.dispose();
     for (const geometry of [...this.#merged, ...this.#furnitureMerged, ...this.#pilesMerged, ...this.#silhouetteMerged, ...this.#personalMerged, ...this.#signalsMerged, ...this.#cordsMerged]) geometry.dispose();

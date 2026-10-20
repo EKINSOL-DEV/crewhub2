@@ -1,6 +1,6 @@
 import { memo, useCallback, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
-import { Archive, Check, CircleHelp, Clock, Flag, Hand, MessageSquare, Play, RefreshCw, Sprout, TriangleAlert, Trophy } from "lucide-react";
-import { agentCardFacts, type AgentPlacement, type Building, type ProgressKind, type RoleSource, type WorkObject, type WorldModel } from "@crewhub/world-model";
+import { Archive, Check, CircleHelp, Clock, Flag, Hand, MessageSquare, Play, RefreshCw, Sprout, TriangleAlert, Trophy, User } from "lucide-react";
+import { agentCardFacts, doneWord, type AgentPlacement, type Building, type PersonVisit, type ProgressKind, type RoleSource, type RoomWording, type WorkObject, type WorldModel } from "@crewhub/world-model";
 import { SOURCE, STRESS, worldRuntime } from "../state/world";
 import { loopsWebUrl } from "../state/source";
 import { AgentCard } from "./AgentCard";
@@ -218,7 +218,7 @@ export default function WorldCanvas(props: Props) {
     ambient: props.ambient,
     measure: STRESS,
     fps,
-    selectedAgent: props.selection.selected?.kind === "agent" ? props.selection.selected.key : null,
+    selectedAgent: props.selection.selected?.kind === "agent" ? props.selection.selected.key : props.selection.selected?.kind === "person" ? props.selection.selected.id : null,
     districts: districtViews,
     district: props.district,
     walking: props.walking,
@@ -610,6 +610,9 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
           pill={!compact || shows(a.room) || picked({ kind: "agent", key: a.key })}
         />
       ))}
+      {b.visits.map((v) => (
+        <PersonLabel key={v.id} slug={b.slug} visit={v} building={b} rooms={rooms} plate={same(shown, { kind: "person", id: v.id })} />
+      ))}
       {b.objects.map((o) =>
         (o.nameTag && shows(o.room)) || same(shown, { kind: "object", ticketId: o.ticketId }) ? (
           <div key={o.ticketId} className="anchor" data-anchor={`o:${b.slug}:${o.ticketId}`}>
@@ -855,6 +858,39 @@ function AgentLabel({
 
 const STATUS_WORDS = { backlog: "backlog", planned: "planned", in_progress: "in progress", review: "review", done: "done" } as const;
 
+/**
+ * A person in the building (spec addendum "a person in the world"): a plain name pill over the figure's head while the
+ * scene has a figure for the visit (the anchor is the figure's; without one the label stays hidden), and when picked a
+ * small plate that says who they are and what they are doing. Never the agent card: a person is no agent.
+ */
+function PersonLabel({ slug, visit, building, rooms, plate }: { slug: string; visit: PersonVisit; building: Building; rooms: RoomWording; plate: boolean }) {
+  const done = doneWord(rooms);
+  const doing =
+    visit.phase === "queued" ? `on the way in to carry ${visit.ticketKey} to ${done}` : visit.phase === "carrying" ? `carrying ${visit.ticketKey} to ${done}` : `moved ${visit.ticketKey} to ${done}${visit.rejected ? " as won't do" : ""}`;
+  const object = building.objects.find((o) => o.ticketId === visit.ticketId);
+  return (
+    <div className={`anchor agent-anchor${plate ? " picked" : ""}`} data-anchor={`a:${slug}:${visit.id}`}>
+      <span className="agent-stack">
+        {plate ? (
+          <span className="agent-plate person-plate">
+            <span className="plate-name">
+              <strong>{visit.displayName}</strong>
+              <span className="sign-muted">person</span>
+            </span>
+            <span className="plate-title">{`${visit.displayName} ${visit.phase === "landed" ? doing : `is ${doing}`}.`}</span>
+            {object && <span className="sign-muted">{`${object.key}: ${object.title}`}</span>}
+          </span>
+        ) : (
+          <span className="name-pill person" title={`${visit.displayName}, a person: ${doing}`}>
+            <User className="icon icon-sm" aria-hidden="true" />
+            {visit.displayName}
+          </span>
+        )}
+      </span>
+    </div>
+  );
+}
+
 function ObjectPlate({ object: o, building, model }: { object: WorkObject; building: Building; model: WorldModel }) {
   const holder = o.deskOf ? (building.agents.find((a) => a.key === o.deskOf)?.displayName ?? o.deskOf) : null;
   return (
@@ -879,7 +915,7 @@ function ObjectPlate({ object: o, building, model }: { object: WorkObject; build
       {o.status === "in_progress" && <span className="sign-muted">{holder ? `On the desk of ${holder}${o.deskInferred ? " (inferred from its status line)" : ""}` : "In the lead's inbox tray"}</span>}
       {o.rejected?.reason && <span className="sign-muted">Turned down: {o.rejected.reason}</span>}
       {o.milestone && <span className="sign-muted">Milestone {o.milestone.key}</span>}
-      {o.transit && <span className="sign-muted">In transit: the ticket drone carries it</span>}
+      {o.transit && <span className="sign-muted">{o.transit.carrier === "person" ? `In transit: ${building.visits.find((v) => v.ticketId === o.ticketId)?.displayName ?? "a person"} carries it` : "In transit: the ticket drone carries it"}</span>}
       <DemoNote model={model} />
     </span>
   );

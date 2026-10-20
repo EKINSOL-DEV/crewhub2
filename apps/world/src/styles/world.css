@@ -2030,3 +2030,17 @@ a.agent-ticket-link:focus-visible {
     }
   }
 }
+
+/* A person in the building (spec addendum "a person in the world"): the pill carries a small person icon instead of a
+   status dot, and the plate says what they carry; neither is an agent's, so there is no lane colour. */
+.name-pill.person {
+  color: var(--text-muted);
+}
+.name-pill.person .icon {
+  width: 10px;
+  height: 10px;
+  flex: none;
+}
+.person-plate .plate-title {
+  color: var(--text);
+}

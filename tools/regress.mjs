@@ -630,6 +630,16 @@ await group("rooms", async () => {
   const tvLater = await text(p);
   const office = (tvLater.match(/Lead's office: [^\n]*beacon: [^\n]*/) ?? [""])[0];
   ok("rooms: the lead's office beacon", office !== "", office.slice(0, 120));
+
+  // 19b. A person carries work into Done (spec addendum "a person in the world"): the storyline's person moves CR-37
+  // and CR-18 to Done from 3:24 on; the text view tells the carry, and the scene has a person figure walking it.
+  ok("seek person (rooms)", await seek(p, 200000));
+  await p.waitForTimeout(9500);
+  const tvPerson = await text(p);
+  const carry = (tvPerson.match(/\S+, a person, (is carrying|is on the way in to carry|moved) [A-Z]+-\d+ to Done[^\n]*/) ?? [""])[0];
+  const person = await p.evaluate(() => [...(globalThis.__town?.persons?.persons?.() ?? [])].map((w) => `${w.visit.displayName} ${w.phase}${w.holding ? " holding" : ""}`).join("; ")).catch(() => "");
+  ok("rooms: a person carries a package to the Done rack", carry !== "" && /^\S+ (to-package|to-rack|leaving)/.test(person), `${carry.slice(0, 80)} | figure: ${person || "none"}`);
+  await shot(p, "27b-rooms-person");
   await p.context().close();
 
   // 20. The agent card on a figure at a desk: the jump list lands beside the agent with it selected, Enter opens the card,
