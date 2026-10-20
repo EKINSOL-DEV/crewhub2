@@ -4,7 +4,7 @@
  */
 import { CIVIC_WORDS, type CivicWords } from "./describe.ts";
 import { roomPlaceWords, type RoomWording } from "./halls.ts";
-import type { AgentPlacement, Building, WorldModel } from "./model.ts";
+import type { AgentPlacement, Building, PersonVisit, WorldModel } from "./model.ts";
 
 const MAX_NEARBY = 3;
 
@@ -65,7 +65,11 @@ export function where(model: WorldModel, agentName: string, civic: CivicWords = 
   const found = wanted === "" ? [] : everyPlacement(model).filter((p) => matches(p.agent, wanted));
   const real = found.find((p) => p.agent.presence === "real");
   const proxies = found.filter((p) => p.agent.presence === "proxy");
-  if (!real && proxies.length === 0) return `No agent called "${agentName.trim().slice(0, 40)}" is in CrewHub World.`;
+  if (!real && proxies.length === 0) {
+    const visit = wanted === "" ? undefined : personVisit(model, wanted);
+    if (visit) return wherePerson(visit.visit, visit.building, rooms);
+    return `No agent called "${agentName.trim().slice(0, 40)}" is in CrewHub World.`;
+  }
 
   if (!real) {
     // Only echoes are left, for example an archived building: point at the real avatar's building.
@@ -90,4 +94,24 @@ export function where(model: WorldModel, agentName: string, civic: CivicWords = 
       : "";
   const lead = `${proxies.length > 0 ? "Your real avatar is" : "You are"} ${preposition(agent, rooms)}`;
   return `${lead} ${placeIn(building, agent, rooms)}${inferred}${nearby(building, agent)}${letters(model, building, agent, rooms)}${proxyText}.`;
+}
+
+/* ── People (spec addendum "a person in the world") ─────────────────────── */
+
+/** The visit of a person asked for by principal id or display name: the one carrying first, then the queue, then landed. */
+function personVisit(model: WorldModel, wanted: string): { visit: PersonVisit; building: Building } | undefined {
+  const order: PersonVisit["phase"][] = ["carrying", "queued", "landed"];
+  const all = model.buildings.flatMap((building) => building.visits.map((visit) => ({ visit, building })));
+  return all
+    .filter(({ visit }) => [visit.personId, visit.displayName].some((n) => n.toLowerCase() === wanted))
+    .sort((a, b) => order.indexOf(a.visit.phase) - order.indexOf(b.visit.phase))[0];
+}
+
+/** A person is no resident: the answer says what they are doing with the package, in the third person. */
+function wherePerson(visit: PersonVisit, building: Building, rooms: RoomWording): string {
+  const done = rooms === "classic" ? "Dispatch" : "the Done rack";
+  const who = `${visit.displayName} is a person`;
+  if (visit.phase === "queued") return `${who} at the door of ${building.name}, waiting to carry ${visit.ticketKey} to ${done}.`;
+  if (visit.phase === "carrying") return `${who} in ${building.name}, carrying ${visit.ticketKey} to ${done}.`;
+  return `${who} in ${building.name}; they just moved ${visit.ticketKey} to ${done}${visit.rejected ? " as won't do" : ""}.`;
 }

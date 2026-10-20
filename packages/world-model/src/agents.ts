@@ -36,6 +36,8 @@ export interface ReduceContext {
   now: number;
   stale: boolean;
   roleOverrides: Record<AgentKey, RoleId>;
+  /** The viewer prefers reduced motion: a person's package lands at once (the drone still flies; the renderer fades it). */
+  reducedMotion: boolean;
 }
 
 /** Ticket keys named in a line of text, in order. */

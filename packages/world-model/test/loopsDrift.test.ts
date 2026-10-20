@@ -9,6 +9,7 @@ import { test } from "node:test";
 import { validateAgents, validateBoardResponse, validateCommentsResponse, validateTicket } from "@crewhub/loops-client";
 import type { LabelOut, Result, TicketCard } from "@crewhub/loops-client";
 import { describeWorld } from "../src/describe.ts";
+import { PERSON_CARRY_MS } from "../src/flights.ts";
 import { emptyMemory } from "../src/memory.ts";
 import { Projection } from "../src/projection.ts";
 import { extractPropRequest, propRequestsFromFacts } from "../src/propRequests.ts";
@@ -153,14 +154,17 @@ test("D5: a rejection goes to Dispatch without a celebration, and says so in the
   assert.equal(projection.facts.invalidEvents, 0);
   assert.deepEqual([projection.facts.cards.t_1?.card.resolution, projection.facts.cards.t_1?.card.resolutionReason], ["rejected", WHY]);
 
-  const after = T0 + 5_000; // both drones have landed
+  // A move into Done is carried by a person (person.test.ts); this helper reduces without memory, so both carries
+  // start at their move and have landed one carry later.
+  const after = T0 + PERSON_CARRY_MS + 1_000;
+  const later = after;
   const turnedDown = object("CR-1", after);
   assert.deepEqual([turnedDown.room, turnedDown.status], ["dispatch", "done"]);
   assert.equal(turnedDown.celebrateUntil, null);
   assert.deepEqual(turnedDown.rejected, { reason: WHY });
   assert.ok(turnedDown.turnedDownUntil !== null);
   // A plain Done by a person is celebrated as before.
-  const closed = object("CR-3", after);
+  const closed = object("CR-3", later);
   assert.ok(closed.celebrateUntil !== null);
   assert.deepEqual([closed.rejected, closed.turnedDownUntil], [null, null]);
 
@@ -168,7 +172,7 @@ test("D5: a rejection goes to Dispatch without a celebration, and says so in the
   assert.ok(lines.some((t) => t.includes(`CR-1`) && t.includes(`turned down (closed as won't do: "${WHY}")`)), lines.join("\n"));
   assert.ok(lines.some((t) => t === "CR-1 was just turned down by a person: no celebration."));
   assert.ok(!lines.some((t) => t.startsWith("CR-1 was just moved to done")));
-  assert.ok(lines.some((t) => t === "CR-3 was just moved to done by a person."));
+  assert.ok(describeWorld(reduce(later)).some((l) => l.text === "CR-3 was just moved to done by a person."));
   // Later the gesture is over; the object keeps its look.
   assert.equal(object("CR-1", T0 + 60_000).turnedDownUntil, null);
   assert.deepEqual(object("CR-1", T0 + 60_000).rejected, { reason: WHY });
@@ -180,7 +184,7 @@ test("D5: a Done ticket rejected afterwards (from == to == done), a reorder, a r
   // test_an_explicit_null_makes_a_rejected_ticket_a_plain_done. The payload keys are those of `_apply_move`.
   const { projection, move, object } = world([card("t_1", "CR-1", "review")]);
   move("t_1", "CR-1", { from: "review", to: "done", position: 1000.0 }, T0);
-  assert.ok(object("CR-1", T0 + 5_000).celebrateUntil !== null);
+  assert.ok(object("CR-1", T0 + PERSON_CARRY_MS + 1_000).celebrateUntil !== null);
 
   const t1 = T0 + 60_000;
   move("t_1", "CR-1", { from: "done", to: "done", position: 1000.0, resolution: "rejected", resolutionReason: WHY }, t1);

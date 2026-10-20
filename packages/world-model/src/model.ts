@@ -123,6 +123,38 @@ export interface Building {
   mailbox: Letter[];
   /** Tickets archived from Dispatch, kept as a lobby count. */
   archivedCount: number;
+  /**
+   * People carrying work into Done (spec addendum "a person in the world"): the one carrying now, the queue behind
+   * them, and those whose package just landed. In the order they carry.
+   */
+  visits: PersonVisit[];
+}
+
+/**
+ * A person's visit: a `ticket.moved` into Done by a user. A person is no resident: they come in through the front
+ * door, carry the package from its rack or desk to the Done rack and leave. The fact is the move (`movedAt`, source
+ * time); the carry itself is cosmetic and deterministic, in source time, like a drone flight.
+ */
+export interface PersonVisit {
+  /** `${ticketId}:${movedAt}`: one visit per move. */
+  id: string;
+  /** The person's principal id (the move's `actor.id`). */
+  personId: string;
+  /** From `/api/principals`; the id when the principal is not listed there. */
+  displayName: string;
+  ticketId: string;
+  ticketKey: string;
+  /** The move's source time. */
+  movedAt: number;
+  /** When the carry begins (after the person before, when queued) and when the package stands on the Done rack. */
+  startedAt: number;
+  until: number;
+  /** Where the package was picked up: a status room (a rack) or an agent's desk. */
+  from: { room: RoomKind; deskOf: AgentKey | null };
+  /** Closed as won't do (CL-89): the package gets the turned-down mark and no celebration. */
+  rejected: boolean;
+  /** `queued`: another person is still in the building; `carrying`; `landed`: on the Done rack, the person on the way out. */
+  phase: "queued" | "carrying" | "landed";
 }
 
 export interface Room {
@@ -150,6 +182,8 @@ export interface Transit {
   toDeskOf: AgentKey | null;
   startedAt: number;
   until: number;
+  /** Who carries it: the drone when left out; a person for a move into Done by a user (`Building.visits` says who). */
+  carrier?: "person";
 }
 
 export interface WorkObject {

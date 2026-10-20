@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Envelope, TeamSnapshot, TicketCard } from "@crewhub/loops-client";
 import { describeWorld } from "../src/describe.ts";
+import { PERSON_CARRY_MS } from "../src/flights.ts";
 import { emptyMemory } from "../src/memory.ts";
 import type { PresentationMemory } from "../src/memory.ts";
 import type { AgentKey, RoleId, WorldModel } from "../src/model.ts";
@@ -170,8 +171,11 @@ test("a done lane is relaxed and never a ticket success; only a person's move to
   event(move(102, "t2", "CL-2", { id: "nicky", kind: "user" }));
   const objects = building(reduce(T0 + 1_000)).objects;
   assert.equal(objects.find((o) => o.key === "CL-1")?.celebrateUntil, null);
-  assert.equal(objects.find((o) => o.key === "CL-2")?.celebrateUntil, T0 + 6_000);
-  assert.equal(building(reduce(T0 + 7_000)).objects.find((o) => o.key === "CL-2")?.celebrateUntil, null);
+  // A person carries CL-2 to the Done rack first; the celebration follows the landing (person.test.ts).
+  assert.equal(objects.find((o) => o.key === "CL-2")?.celebrateUntil, null);
+  assert.equal(objects.find((o) => o.key === "CL-2")?.transit?.carrier, "person");
+  assert.equal(building(reduce(T0 + PERSON_CARRY_MS)).objects.find((o) => o.key === "CL-2")?.celebrateUntil, T0 + PERSON_CARRY_MS + 6_000);
+  assert.equal(building(reduce(T0 + PERSON_CARRY_MS + 7_000)).objects.find((o) => o.key === "CL-2")?.celebrateUntil, null);
 });
 
 test("an override beats the name rule", () => {
