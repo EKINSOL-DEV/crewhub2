@@ -237,7 +237,10 @@ only: no target, no name, no cursor. `npm run host -- doctor` prints the same in
 `transport` is `tcp` or `unix`; `keyName` is the key's agent name (from the file name `agent-<name>.key`, or the
 principal loops answered; empty without a key); `sharedKey` is always `false` now; `loopsCommit` is what
 loops' own health read calls its `version` (the app says `0.1.0`, not a commit); `cursor` is the last `seq` the host
-holds; `loopsWebUrl` is the origin of the loops URL, where the chat dock's sign-in link points (the app's web and
+holds: at start the host asks `GET /api/events?from=tail` for "now" (the newest `seq` this key may see, and a sealed
+opaque `cursor` token), opens the stream with that token, and afterwards sends back the sealed `cursor` of the last
+heartbeat or `after=<seq>` of the last event, never both; a key sees gaps in `seq` (loops filters events per
+principal), which is normal and not a reset; `loopsWebUrl` is the origin of the loops URL, where the chat dock's sign-in link points (the app's web and
 its API share 8091). The key itself is never in the answer. A request with a foreign Host header gets 421 and one
 with a foreign Origin 403: the guard against other sites and DNS rebinding. `paired` says whether the request's
 cookie is a valid pairing (`curl` has none, so `false` with pairing on); `pairing` is `on` or `off`.
