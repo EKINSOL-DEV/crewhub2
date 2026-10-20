@@ -695,14 +695,28 @@ await group("real", async () => {
   const env = readEnvFile(envFile);
   const loopsUrl = (env.LOOPS_DEV_URL ?? "").replace(/\/+$/, "");
   const keyFile = env.LOOPS_DEV_KEY_FILE ?? "";
-  if (!/^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(loopsUrl) || keyFile === "") {
-    info(`real: skipped, no LOOPS_DEV_URL (loopback) and LOOPS_DEV_KEY_FILE in ${envFile}`);
+  const parsed = (() => {
+    try {
+      return new URL(loopsUrl);
+    } catch {
+      return null;
+    }
+  })();
+  // This machine only: the development loops is loopback, as every address a tool opens.
+  const loopback = parsed !== null && parsed.protocol === "http:" && ["127.0.0.1", "localhost"].includes(parsed.hostname) && parsed.port !== "";
+  if (!loopback || keyFile === "") {
+    info(`real: skipped, no loopback LOOPS_DEV_URL and LOOPS_DEV_KEY_FILE in ${envFile}`);
     return;
   }
-  const loopsPort = new URL(loopsUrl).port;
-  const health = await fetch(`${loopsUrl}/api/health`, { signal: AbortSignal.timeout(2000) }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  const loopsPort = parsed.port;
+  // Every read of this group goes through the browser's request context (a tool makes no network call of its own).
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
+  const pg = await ctx.newPage();
+  watch(pg, origin, problems, "real");
+  const health = await pg.request.get(`${loopsUrl}/api/health`, { timeout: 2000 }).then((r) => (r.ok() ? r.json() : null)).catch(() => null);
   if (!health?.ok) {
     info(`real: skipped, ${loopsPort} is down`);
+    await ctx.close();
     return;
   }
   let key = "";
@@ -711,6 +725,7 @@ await group("real", async () => {
   } catch {}
   if (key === "") {
     info(`real: skipped, cannot read the key file named by ${envFile}`);
+    await ctx.close();
     return;
   }
   const { createHost } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "host.ts")).href);
@@ -720,13 +735,8 @@ await group("real", async () => {
   const host = await createHost({ loopsUrl, key, keyName, port: hostPort, allowedOrigins: [origin], pairing: "off", retryMs: { min: 200, max: 2000 }, log: () => undefined });
   key = "";
   info(`real: loops on 127.0.0.1:${loopsPort} (version ${health.version}), host on 127.0.0.1:${host.port} behind the Vite proxy on ${origin}, key ${keyName}`);
-  const hostApi = (p) => fetch(`${host.url}/world-api${p}`).then((r) => r.json());
-  const pg = await (async () => {
-    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
-    const page = await ctx.newPage();
-    watch(page, origin, problems, "real");
-    return page;
-  })();
+  // The host's answers through the Vite proxy, as the page reads them.
+  const hostApi = (p) => pg.request.get(`${origin}/world-api${p}`).then((r) => r.json());
   const chip = pg.locator(".connection-chip").first();
   try {
     const snapshot = await hostApi("/snapshot");
@@ -760,7 +770,7 @@ await group("real", async () => {
       await shot(pg, "32-real-building");
       // A move during the run (the seed tool or a person): the building's count follows the board within the budget.
       // The racks are read between two board reads that agree, so a board that moves meanwhile (a fast seed) is read again.
-      const moved = await waitForMove(host.url, snapshot.cursor, 15000);
+      const moved = await waitForMove(hostApi, withBoard.p.slug, 15000);
       if (moved === null) info("real: no ticket moved during the run, the count check is skipped (run tools/loops-seed.mjs alongside to see it)");
       else {
         await pg.waitForTimeout(1500);
@@ -818,37 +828,22 @@ function readEnvFile(file) {
   }
   return out;
 }
-/** Follows the host's stream from `cursor` for up to `ms` and answers the first ticket.moved (slug, key, from, to), or null. */
-async function waitForMove(hostUrl, cursor, ms) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), ms);
-  try {
-    const res = await fetch(`${hostUrl}/world-api/stream?cursor=${cursor}`, { signal: controller.signal });
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let pending = "";
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      pending += decoder.decode(value, { stream: true });
-      let at = pending.indexOf("\n\n");
-      while (at !== -1) {
-        const chunk = pending.slice(0, at);
-        pending = pending.slice(at + 2);
-        const data = chunk.split("\n").find((l) => l.startsWith("data: "));
-        if (data) {
-          const m = JSON.parse(data.slice(6));
-          if (m.type === "event" && m.envelope?.type === "ticket.moved" && m.envelope.project && m.envelope.ticket) {
-            return { slug: m.envelope.project.slug, key: m.envelope.ticket.key, from: m.envelope.payload?.from, to: m.envelope.payload?.to };
-          }
-        }
-        at = pending.indexOf("\n\n");
-      }
+/** Polls the host's board of `slug` for up to `ms` and answers the first ticket whose column changed (slug, key, from, to), or null. */
+async function waitForMove(hostApi, slug, ms) {
+  const columnsOf = async () => {
+    const board = await hostApi(`/board/${encodeURIComponent(slug)}`);
+    return new Map((board.columns ?? []).flatMap((c) => c.tickets.map((t) => [t.key, c.status])));
+  };
+  const deadline = Date.now() + ms;
+  let before = await columnsOf();
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    const now = await columnsOf();
+    for (const [key, status] of now) {
+      const was = before.get(key);
+      if (was !== undefined && was !== status) return { slug, key, from: was, to: status };
     }
-  } catch {
-    // the budget ran out
-  } finally {
-    clearTimeout(timer);
+    before = now;
   }
   return null;
 }
