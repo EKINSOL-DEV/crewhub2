@@ -4,7 +4,7 @@
    themselves; the gate (main.tsx) swaps in the world when the screen is gone. The key field holds a pasted key in component
    state only, masked, until the request is sent and not a moment longer; the page never shows more than its last four
    characters. Copy from the i18n file; the kit's Card, Button and Field; the Pair screen's content comes from PairPage.tsx. */
-import { ExternalLink, KeyRound, RefreshCw, ShieldAlert, Search } from "lucide-react";
+import { ExternalLink, KeyRound, RefreshCw, ShieldAlert, Search, Unplug } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { connectHost, probeHost, type HostHealth } from "@crewhub/loops-client";
 import { useT } from "../i18n";
@@ -72,9 +72,21 @@ export function ConnectPage({ screen, health, onHealth, pollMs = CONNECT_POLL_MS
   );
 
   const title =
-    screen === "no-loops" ? t("world.connect.noLoops.title") : screen === "pair" ? t("world.pair.title") : screen === "checking" ? t("world.connect.checking.title") : screen === "rejected" ? t("world.connect.rejected.title") : t("world.connect.connect.title");
-  const Icon = screen === "no-loops" ? Search : screen === "rejected" ? ShieldAlert : screen === "checking" ? RefreshCw : KeyRound;
+    screen === "no-loops"
+      ? t("world.connect.noLoops.title")
+      : screen === "pair"
+        ? t("world.pair.title")
+        : screen === "checking"
+          ? t("world.connect.checking.title")
+          : screen === "rejected"
+            ? t("world.connect.rejected.title")
+            : screen === "loops-down"
+              ? t("world.connect.loopsDown.title")
+              : t("world.connect.connect.title");
+  const Icon = screen === "no-loops" ? Search : screen === "rejected" ? ShieldAlert : screen === "checking" ? RefreshCw : screen === "loops-down" ? Unplug : KeyRound;
   const connection = health.connection;
+  const asked = relativeTime(new Date(askedAt).toISOString(), now);
+  const where = connection?.discovery.target ? t("world.connect.connect.where", { target: connection.discovery.target }) : "";
 
   return (
     <main className="pair-page connect-page" data-screen={screen} aria-labelledby="connect-title" aria-label={t("world.connect.label")}>
@@ -101,7 +113,24 @@ export function ConnectPage({ screen, health, onHealth, pollMs = CONNECT_POLL_MS
               </ol>
               <p className="hint pair-note">{t("world.connect.noLoops.note")}</p>
               <p className="connect-status" role="status" aria-live="polite">
-                {relativeTime(new Date(askedAt).toISOString(), now) === "just now" ? t("world.connect.noLoops.lookingNow") : t("world.connect.noLoops.looking", { ago: relativeTime(new Date(askedAt).toISOString(), now) ?? "" })}
+                {asked === "just now" ? t("world.connect.noLoops.lookingNow") : t("world.connect.noLoops.looking", { ago: asked ?? "" })}
+              </p>
+            </Card.Body>
+            <Card.Footer>
+              <Button variant="primary" onClick={() => void ask()} icon={<RefreshCw className="icon icon-sm" aria-hidden="true" />}>
+                {t("world.connect.noLoops.again")}
+              </Button>
+              <Button onClick={switchToDemo}>{t("world.connect.demo")}</Button>
+            </Card.Footer>
+          </>
+        )}
+        {screen === "loops-down" && (
+          <>
+            <Card.Body>
+              <p className="pair-lead">{t("world.connect.loopsDown.lead", { where })}</p>
+              <p className="hint pair-note">{t("world.connect.loopsDown.hint")}</p>
+              <p className="connect-status" role="status" aria-live="polite">
+                {asked === "just now" ? t("world.connect.noLoops.lookingNow") : t("world.connect.loopsDown.waiting", { ago: asked ?? "" })}
               </p>
             </Card.Body>
             <Card.Footer>
@@ -129,7 +158,7 @@ export function ConnectPage({ screen, health, onHealth, pollMs = CONNECT_POLL_MS
                 </p>
               ) : (
                 <>
-                  <p className="pair-lead">{t("world.connect.connect.lead", { where: connection?.discovery.target ? t("world.connect.connect.where", { target: connection.discovery.target }) : "" })}</p>
+                  <p className="pair-lead">{t("world.connect.connect.lead", { where })}</p>
                   <ol className="connect-steps">
                     <li>{t("world.connect.connect.step1")}</li>
                     <li>{t("world.connect.connect.step2")}</li>

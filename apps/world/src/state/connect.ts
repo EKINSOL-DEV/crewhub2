@@ -5,18 +5,22 @@
 import { needsPairing, type SourceDecision } from "./source.ts";
 
 /** The screens between the demo decision and the town, in the order the person meets them. `null` is the town. */
-export type ConnectScreen = "no-loops" | "pair" | "connect" | "checking" | "rejected";
+export type ConnectScreen = "no-loops" | "pair" | "connect" | "checking" | "rejected" | "loops-down";
 
 /**
  * Which screen stands in for the town. The demo never has one; a silent host neither (the chip says what it knows). A
  * host from before the smooth connection only knows pairing. Otherwise: no loops found comes first (pairing cannot
- * help yet), then this browser's pairing, then the key: none (connect), being checked, rejected. A good key is the town,
- * whatever the stream does afterwards: that is the chip's story.
+ * help yet), then this browser's pairing, then the key: none (connect), being checked, rejected. With a good key the
+ * host must still be reading loops (`loops: "ok"`) before the town shows: an empty clearing over a loops that is down or
+ * refuses the key would say "no projects", which is not known. Once the town runs, the chip tells the stream's story.
  */
 export function connectScreen(decision: Pick<SourceDecision, "source" | "health">): ConnectScreen | null {
   if (decision.source !== "live" || decision.health === null) return null;
   const connection = decision.health.connection;
-  if (connection === undefined) return needsPairing(decision) ? "pair" : null;
+  if (connection === undefined) {
+    if (needsPairing(decision)) return "pair";
+    return decision.health.loops === "down" ? "loops-down" : decision.health.loops === "unauthorized" ? "rejected" : null;
+  }
   if (connection.discovery.state === "searching") return "no-loops";
   if (needsPairing(decision)) return "pair";
   switch (connection.key.state) {
@@ -27,7 +31,7 @@ export function connectScreen(decision: Pick<SourceDecision, "source" | "health"
     case "rejected":
       return "rejected";
     default:
-      return null;
+      return decision.health.loops === "down" ? "loops-down" : decision.health.loops === "unauthorized" ? "rejected" : null;
   }
 }
 

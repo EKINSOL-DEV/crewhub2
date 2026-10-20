@@ -20,6 +20,8 @@ test("screen: a host from before the smooth connection only knows pairing", () =
   delete old.connection;
   assert.equal(connectScreen({ source: "live", health: old }), "pair");
   assert.equal(connectScreen({ source: "live", health: { ...old, paired: true } }), null);
+  assert.equal(connectScreen({ source: "live", health: { ...old, paired: true, loops: "down" } }), "loops-down", "never the empty clearing over a loops that is down");
+  assert.equal(connectScreen({ source: "live", health: { ...old, paired: true, loops: "unauthorized" } }), "rejected");
   const beforePairing = health({ paired: false });
   delete beforePairing.connection;
   delete beforePairing.pairing;
@@ -38,7 +40,8 @@ test("screen: then pairing, then the key", () => {
   assert.equal(connectScreen({ source: "live", health: health({ connection: connection({ key: { state: "checking" }, stream: { state: "idle" } }) }) }), "checking");
   assert.equal(connectScreen({ source: "live", health: health({ connection: connection({ key: { state: "rejected", reason: "a read-only key" }, stream: { state: "idle" } }) }) }), "rejected");
   assert.equal(connectScreen({ source: "live", health: health() }), null, "a good key: the town");
-  assert.equal(connectScreen({ source: "live", health: health({ loops: "down", connection: connection({ stream: { state: "down" } }) }) }), null, "loops gone after a good key: the town with its chip");
+  assert.equal(connectScreen({ source: "live", health: health({ loops: "down", connection: connection({ stream: { state: "down" } }) }) }), "loops-down", "a good key but loops not answering: not the empty clearing");
+  assert.equal(connectScreen({ source: "live", health: health({ loops: "unauthorized", connection: connection({ stream: { state: "unauthorized" } }) }) }), "rejected", "a key the stream refuses");
 });
 
 test("screen: pairing off in development never asks to pair", () => {

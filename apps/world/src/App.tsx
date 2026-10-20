@@ -7,6 +7,7 @@ import { Bubbles } from "./components/bubbles/Bubbles";
 import { TownSettings } from "./components/TownSettings";
 import { SourceSettings } from "./components/SourceSettings";
 import { ConnectionChip, connectionLine } from "./components/ConnectionChip";
+import { ConnectionPanel } from "./components/ConnectionPanel";
 import { JumpList } from "./components/JumpList";
 import { IconSprite } from "./components/Icon";
 import { Button, Card, Chip, Field, Menu } from "./components/primitives";
@@ -98,6 +99,7 @@ function World() {
   const [graphicsFailed, setGraphicsFailed] = useState(false);
   const [textOpen, setTextOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [connectionOpen, setConnectionOpen] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const [action, setAction] = useState<{ id: number; type: CameraAction }>({ id: 0, type: "home" });
   const [room, setRoom] = useState<RoomKind | null>(null);
@@ -413,6 +415,15 @@ function World() {
     setSettingsOpen(false);
     returnFocus.current?.focus();
   }, []);
+  // The Connection panel (live mode): the chip opens it; Escape and its close button return the focus to the chip.
+  const openConnection = useCallback(() => {
+    returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setConnectionOpen(true);
+  }, []);
+  const closeConnection = useCallback(() => {
+    setConnectionOpen(false);
+    returnFocus.current?.focus();
+  }, []);
   useEffect(() => {
     if (textOpen) textRegion.current?.focus();
   }, [textOpen]);
@@ -472,6 +483,11 @@ function World() {
       if (e.key === "/") {
         e.preventDefault();
         openJump();
+        return;
+      }
+      if (e.key === "Escape" && connectionOpen) {
+        e.preventDefault();
+        closeConnection();
         return;
       }
       if (e.key === "Escape" && settingsOpen) {
@@ -549,7 +565,7 @@ function World() {
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [back, build, camera, card, closeJump, closeSettings, closeText, editing, entered, follow, following, go, graphicsFailed, here, inside, jumpOpen, openJump, openText, redo, rooms, selectedAgent, selection.selected, settingsOpen, startWalk, stopWalk, textOpen, undo, walking, zoomed]);
+  }, [back, build, camera, card, closeConnection, closeJump, closeSettings, closeText, connectionOpen, editing, entered, follow, following, go, graphicsFailed, here, inside, jumpOpen, openJump, openText, redo, rooms, selectedAgent, selection.selected, settingsOpen, startWalk, stopWalk, textOpen, undo, walking, zoomed]);
 
   // Arrow keys and Enter move the focus ring between plots while the scene has keyboard focus.
   const sceneKey = (e: ReactKeyboardEvent) => {
@@ -664,7 +680,9 @@ function World() {
         )}
       </main>
 
-      <Corner demo={demo} connection={connection} graphicsFailed={graphicsFailed} trail={trail} onGo={onGo} onJump={openJump} jumpOpen={jumpOpen} following={following ? agentName(following) : null} onStopFollow={() => follow(null)} />
+      <Corner demo={demo} connection={connection} connectionOpen={connectionOpen} onOpenConnection={openConnection} graphicsFailed={graphicsFailed} trail={trail} onGo={onGo} onJump={openJump} jumpOpen={jumpOpen} following={following ? agentName(following) : null} onStopFollow={() => follow(null)} />
+
+      {connectionOpen && connection && <ConnectionPanel state={connection} initial={SOURCE.health} onClose={closeConnection} />}
 
       {jumpOpen && <JumpList entries={jumps} onJump={jump} onClose={closeJump} />}
 
@@ -811,6 +829,8 @@ const SCENARIO_CHOICES = scenarioChoices();
 const Corner = memo(function Corner({
   demo,
   connection,
+  connectionOpen,
+  onOpenConnection,
   graphicsFailed,
   trail,
   onGo,
@@ -822,6 +842,9 @@ const Corner = memo(function Corner({
   demo: boolean;
   /** The live source's state, where the Demo chip stands in demo mode; null for the demo. */
   connection: ConnectionState | null;
+  /** Whether the Connection panel is open; the chip opens it. */
+  connectionOpen: boolean;
+  onOpenConnection: () => void;
   graphicsFailed: boolean;
   /** Where you are, outermost first: region or town, district, building, room. */
   trail: Crumb[];
@@ -865,7 +888,7 @@ const Corner = memo(function Corner({
             ]}
           />
         )}
-        {!demo && connection && <ConnectionChip state={connection} />}
+        {!demo && connection && <ConnectionChip state={connection} open={connectionOpen} onOpen={onOpenConnection} />}
       </div>
       {!graphicsFailed && (
         <nav className="world-breadcrumb" aria-label="Where you are" data-levels={trail.length}>

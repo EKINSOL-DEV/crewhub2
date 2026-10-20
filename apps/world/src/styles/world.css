@@ -2030,3 +2030,162 @@ a.agent-ticket-link:focus-visible {
     }
   }
 }
+
+/* ── The Connect screens and the Connection panel (spec addendum "a smooth connection") ───────────────────────────
+   The Connect page is the pairing page's shell (one card, centred, see .pair-page above) with a state in data-screen; the
+   numbered steps are the loops web's own words; the key field and its button sit on one row that wraps on a phone. */
+.connect-card {
+  width: min(100%, 36rem);
+}
+.connect-title-icon {
+  color: var(--text-muted);
+}
+.connect-page[data-screen="rejected"] .connect-title-icon {
+  color: var(--danger);
+}
+.connect-sub {
+  margin: var(--space-3) 0 var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+.connect-steps {
+  margin: 0;
+  padding-left: 1.5rem;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  display: grid;
+  gap: var(--space-1);
+}
+.connect-rejected {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--danger);
+  background: var(--danger-soft);
+}
+.connect-open {
+  margin-top: var(--space-3);
+}
+.connect-form {
+  margin-top: var(--space-2);
+}
+.connect-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.connect-key {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+.connect-key .input {
+  font-family: var(--font-mono);
+  width: 100%;
+}
+/* The button lines up with the input, under the field's label. */
+.connect-row > .btn {
+  margin-top: calc(var(--text-sm) * 1.5 + var(--space-1));
+}
+.connect-status {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+.connect-status[role="alert"] {
+  color: var(--danger);
+}
+/* The checking icon turns while the host asks loops; not under reduced motion (the words say it). */
+.connect-title-icon[data-spin] {
+  animation: connect-spin 1.6s linear infinite;
+}
+@keyframes connect-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .connect-title-icon[data-spin] {
+    animation: none;
+  }
+}
+@media (max-width: 600px) {
+  .connect-row > .btn {
+    margin-top: 0;
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* The chip as a button: the button is invisible, the chip inside it is what shows; the focus ring sits on the chip. */
+.chip-button {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  border-radius: var(--radius-pill, 999px);
+}
+.chip-button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.chip-button:hover > .chip {
+  border-color: var(--border-strong);
+}
+/* The Connection panel: a sheet under the chip, on the left where the chip stands; a dl of facts. */
+.connection-sheet {
+  top: 4.25rem;
+  left: var(--space-4);
+  width: min(24rem, calc(100% - 2 * var(--space-4)));
+  max-height: calc(100dvh - 9rem);
+  overflow-y: auto;
+}
+.connection-facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+}
+.connection-facts dt {
+  color: var(--text-muted);
+  font-weight: var(--weight-medium);
+}
+.connection-facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.connection-note {
+  margin: var(--space-3) 0 0;
+}
+.connection-error {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-sm);
+  color: var(--danger);
+}
+.connection-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.connection-confirm p {
+  margin: 0 0 var(--space-2);
+}
+.connection-confirm-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+@media (max-width: 600px) {
+  .connection-sheet {
+    left: var(--space-3);
+    right: var(--space-3);
+    width: auto;
+    top: 3.75rem;
+  }
+}
