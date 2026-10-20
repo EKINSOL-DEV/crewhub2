@@ -2,6 +2,7 @@
  * The world reducer: `Facts` and a small presentation memory in, a complete `WorldModel` out.
  * Pure: the input memory is not changed; the returned memory replaces it.
  */
+import { closingOf } from "./archive.ts";
 import type { ProjectOut } from "@crewhub/loops-client";
 import {
   captionOf,
@@ -213,6 +214,9 @@ function activeBuilding(
     color: project.color ?? null,
     icon: project.icon ?? null,
     archived: false,
+    archivedAt: null,
+    archivedBy: null,
+    closing: closingOf(facts.projectChanges[slug], ctx.now),
     counts: { ...project.counts },
     lead: { id: project.lead.id, displayName: project.lead.displayName },
     rooms: buildRooms(slug, agents, meeting, ctx),
@@ -236,6 +240,9 @@ function archivedBuilding(project: ProjectOut, ctx: ReduceContext): Building {
     color: project.color ?? null,
     icon: project.icon ?? null,
     archived: true,
+    archivedAt: project.archivedAt ?? null,
+    archivedBy: project.archivedBy?.displayName ?? null,
+    closing: closingOf(facts.projectChanges[project.slug], ctx.now),
     counts: { ...project.counts },
     lead: { id: project.lead.id, displayName: project.lead.displayName },
     rooms: [],

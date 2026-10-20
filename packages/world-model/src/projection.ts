@@ -404,6 +404,7 @@ export class Projection {
         facts.order = facts.order.filter((s) => s !== slug);
         if (!facts.archivedOrder.includes(slug)) facts.archivedOrder.push(slug);
         for (const [id, fact] of Object.entries(facts.cards)) if (fact.slug === slug) delete facts.cards[id];
+        facts.projectChanges[slug] = { kind: "closing", ts, seq: event.seq };
         return;
       }
       case "project.restored": {
@@ -411,6 +412,7 @@ export class Projection {
         const project = facts.projects[slug];
         if (project) facts.projects[slug] = { ...project, archivedAt: null };
         facts.archivedOrder = facts.archivedOrder.filter((s) => s !== slug);
+        facts.projectChanges[slug] = { kind: "opening", ts, seq: event.seq };
         if (!facts.order.includes(slug)) facts.order.push(slug);
         this.refetch(`board:${slug}`, () => this.refetchBoard(slug));
         return;
