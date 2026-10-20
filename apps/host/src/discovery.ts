@@ -157,6 +157,7 @@ export function createDiscovery(input: DiscoveryInput, options: DiscoveryOptions
   let timer: ReturnType<typeof setTimeout> | null = null;
   let stopped = false;
   let pass: Promise<Found | null> | null = null;
+  let first = true;
 
   const same = (a: Found | null, b: Found | null) => (a === null || b === null ? a === b : a.via === b.via && targetText(a.target) === targetText(b.target));
 
@@ -164,11 +165,12 @@ export function createDiscovery(input: DiscoveryInput, options: DiscoveryOptions
     looked = candidates(input).map((c) => `${c.via} ${targetText(c.target)}`);
     const found = await discoverOnce(input);
     if (stopped) return current;
-    if (!same(found, current)) {
+    if (!same(found, current) || (first && found === null)) {
       current = found;
       log(found === null ? `loops not found (looked for ${looked.join(", ")}); looking again every ${intervalMs / 1000} s` : `loops found via ${found.via} at ${targetText(found.target)} (web ${found.webUrl})`);
-      options.onChange?.(found);
+      if (!first || found !== null) options.onChange?.(found);
     }
+    first = false;
     if (found === null && !stopped) {
       if (timer !== null) clearTimeout(timer);
       timer = setTimeout(() => void refresh(), intervalMs);

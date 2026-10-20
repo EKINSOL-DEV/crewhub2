@@ -192,13 +192,13 @@ export async function runDoctor(io: DoctorIo): Promise<DoctorReport> {
     else if (verdict.state === "rejected") fix("auth", verdict.reason);
     else ok("auth", `${verdict.name} (${verdict.displayName}), role lead: an external bot's key. It could write; the host forwards an allow-list of GETs only.`);
     const authOk = verdict.state === "ok";
-    const read = async <T>(id: string, loopsPath: string, describe: (body: T) => string): Promise<T | null> => {
+    const read = async <T>(id: string, loopsPath: string, describe: (body: T) => string, query: Record<string, string> = {}): Promise<T | null> => {
       if (!authOk) {
         skip(id, "the key was refused");
         return null;
       }
       try {
-        const answer = await loops!.getJson<T>(loopsPath);
+        const answer = await loops!.getJson<T>(loopsPath, query);
         if (answer.status === 200 && answer.body !== null) {
           ok(id, describe(answer.body));
           return answer.body;
@@ -217,7 +217,7 @@ export async function runDoctor(io: DoctorIo): Promise<DoctorReport> {
       return `${b.agents.length} agent${b.agents.length === 1 ? "" : "s"}${about}`;
     });
     await read<{ sessions: unknown[] }>("team", "/api/team", (b) => `${b.sessions.length} session${b.sessions.length === 1 ? "" : "s"} in the team snapshot`);
-    await read<{ lastSeq: number; cursor?: string }>("events", "/api/events?from=tail", (b) => `the event log's tail is seq ${b.lastSeq}${typeof b.cursor === "string" ? " (sealed cursor present)" : ""}`);
+    await read<{ lastSeq: number; cursor?: string }>("events", "/api/events", (b) => `the event log's tail is seq ${b.lastSeq}${typeof b.cursor === "string" ? " (sealed cursor present)" : ""}`, { from: "tail" });
   }
   // 5. The host's port.
   const port = await probePort(config.port);

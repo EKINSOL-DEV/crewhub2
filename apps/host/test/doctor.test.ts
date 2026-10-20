@@ -1,0 +1,130 @@
+/**
+ * `npm run host -- doctor`: the terminal view of the connection's states. Run against the stub with an injected disk
+ * and port probe: every line's status and the fix it names; never the key; never the stream.
+ */
+import assert from "node:assert/strict";
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { createServer } from "node:net";
+import type { AddressInfo } from "node:net";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { afterEach, describe, it } from "node:test";
+import { type DoctorIo, formatDoctor, runDoctor } from "../src/doctor.ts";
+import { PROBE_REASON } from "../src/keyCheck.ts";
+import { createLoopsStub, installation } from "./loopsStub.ts";
+
+async function freePort(): Promise<number> {
+  const server = createServer();
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const port = (server.address() as AddressInfo).port;
+  await new Promise<void>((resolve) => server.close(() => resolve()));
+  return port;
+}
+
+const byId = (report: Awaited<ReturnType<typeof runDoctor>>) => Object.fromEntries(report.lines.map((l) => [l.id, l]));
+
+describe("the doctor", () => {
+  const cleanup: (() => Promise<void> | void)[] = [];
+  afterEach(async () => {
+    for (const fn of cleanup.reverse()) await fn();
+    cleanup.length = 0;
+  });
+
+  function folder(): string {
+    const dir = mkdtempSync(path.join(tmpdir(), "chw-doc-"));
+    cleanup.push(() => rmSync(dir, { recursive: true, force: true }));
+    return dir;
+  }
+  const free: DoctorIo["probePort"] = () => Promise.resolve({ kind: "free" });
+
+  it("passes with a good key file, a reachable loops and a free port, and names what it read", async () => {
+    const stub = await createLoopsStub({ ...installation() });
+    cleanup.push(() => stub.close());
+    const dir = folder();
+    const keyFile = path.join(dir, "agent-crewhub-world.key");
+    writeFileSync(keyFile, `${stub.key}\n`, { mode: 0o600 });
+    const report = await runDoctor({ env: { CREWHUB_WORLD_LOOPS_URL: stub.url, CREWHUB_WORLD_KEY_FILE: keyFile, CREWHUB_WORLD_PORT: "5187" }, probePort: free });
+    const lines = byId(report);
+    assert.equal(report.ok, true, formatDoctor(report).join("\n"));
+    assert.deepEqual(report.lines.map((l) => l.id), ["loops", "health", "key", "auth", "projects", "agents", "team", "events", "port", "pairing"]);
+    assert.match(lines.loops!.text, /found via env-url/);
+    assert.match(lines.health!.text, /version 053b5f47/);
+    assert.match(lines.key!.text, /mode 0600, yours, looks like an access key/);
+    assert.match(lines.auth!.text, /crewhub-world \(World\), role lead: an external bot's key/);
+    assert.match(lines.projects!.text, /2 projects: atlas, beacon/);
+    assert.match(lines.agents!.text, /1 agent/);
+    assert.match(lines.team!.text, /0 sessions/);
+    assert.match(lines.events!.text, /tail is seq 0 \(sealed cursor present\)/);
+    assert.match(lines.port!.text, /5187 is free/);
+    assert.match(lines.pairing!.text, /^on/);
+    assert.equal(stub.streamsOpened(), 0, "the doctor never opens the stream");
+    assert.ok(stub.requests.every((r) => r.method === "GET"), "the doctor never writes");
+    const text = formatDoctor(report).join("\n");
+    assert.ok(!text.includes(stub.key), "never the key");
+    assert.match(text, /doctor: all 10 checks ok/);
+  });
+
+  it("names the fix: a missing key (the Connect screen), a world-readable file, a bogus key, a probe key", async () => {
+    const stub = await createLoopsStub({ ...installation() });
+    cleanup.push(() => stub.close());
+    const dir = folder();
+    const base = { CREWHUB_WORLD_LOOPS_URL: stub.url, CREWHUB_WORLD_CONFIG_DIR: path.join(dir, "cw") };
+    const none = byId(await runDoctor({ env: base, probePort: free, keyFiles: { storedKey: path.join(dir, "cw", "loops-key"), defaultKey: path.join(dir, "none.key") } }));
+    assert.equal(none.key!.status, "fix");
+    assert.match(none.key!.text, /no key yet .*Connect screen.*New external bot/);
+    assert.equal(none.auth!.status, "skip");
+
+    const open = path.join(dir, "open.key");
+    writeFileSync(open, stub.key);
+    chmodSync(open, 0o644);
+    const readable = byId(await runDoctor({ env: { ...base, CREWHUB_WORLD_KEY_FILE: open }, probePort: free }));
+    assert.equal(readable.key!.status, "fix");
+    assert.match(readable.key!.text, /mode 0644 lets others read it: chmod 600/);
+    assert.equal(readable.auth!.status, "ok", "the key itself works; the file's mode is the fix");
+
+    const bogus = path.join(dir, "bogus.key");
+    writeFileSync(bogus, "chl_nope\n", { mode: 0o600 });
+    const wrong = byId(await runDoctor({ env: { ...base, CREWHUB_WORLD_KEY_FILE: bogus }, probePort: free }));
+    assert.equal(wrong.key!.status, "fix");
+    assert.match(wrong.key!.text, /not an access key/);
+    assert.equal(wrong.auth!.status, "fix");
+    assert.match(wrong.auth!.text, /does not know this key/);
+
+    const probe = await createLoopsStub({ ...installation(), routes: { ...installation().routes, "/api/auth/me": { principal: { id: "crewhub-world", kind: "agent", displayName: "World", role: "probe" } } } });
+    cleanup.push(() => probe.close());
+    const good = path.join(dir, "agent-crewhub-world.key");
+    writeFileSync(good, probe.key, { mode: 0o600 });
+    const probed = byId(await runDoctor({ env: { CREWHUB_WORLD_LOOPS_URL: probe.url, CREWHUB_WORLD_KEY_FILE: good }, probePort: free }));
+    assert.equal(probed.auth!.text, PROBE_REASON);
+    assert.equal(probed.projects!.status, "skip");
+    const missing = byId(await runDoctor({ env: { ...base, CREWHUB_WORLD_KEY_FILE: path.join(dir, "gone.key") }, probePort: free }));
+    assert.match(missing.key!.text, /cannot read the key file .*gone\.key/);
+  });
+
+  it("says what it looked for when nothing answers, and what listens on the host's port", async () => {
+    const dir = folder();
+    mkdirSync(path.join(dir, "run"));
+    const closed = await freePort();
+    writeFileSync(path.join(dir, "settings.json"), `{"port": ${closed}}`);
+    const down = await runDoctor({ env: { CREWHUB_WORLD_LOOPS_APP_DATA: dir }, probePort: free });
+    const lines = byId(down);
+    assert.equal(down.ok, false);
+    assert.match(lines.loops!.text, new RegExp(`nothing answers; looked for app-port http://127\\.0\\.0\\.1:${closed}\\. Open Crewhub\\.app`));
+    assert.equal(lines.health!.status, "skip");
+    assert.equal(lines.auth!.status, "skip");
+    assert.match(formatDoctor(down).at(-1) as string, /doctor: \d+ to fix, \d+ skipped/);
+
+    const stub = await createLoopsStub({ ...installation() });
+    cleanup.push(() => stub.close());
+    const env = { CREWHUB_WORLD_LOOPS_URL: stub.url, CREWHUB_WORLD_KEY_FILE: path.join(dir, "k.key") };
+    writeFileSync(env.CREWHUB_WORLD_KEY_FILE, stub.key, { mode: 0o600 });
+    const running = byId(await runDoctor({ env, probePort: () => Promise.resolve({ kind: "host", health: { loops: "ok", keyName: "crewhub-world", connection: { stream: { state: "ok" }, key: { state: "ok" } } } }) }));
+    assert.equal(running.port!.status, "ok");
+    assert.match(running.port!.text, /a host already runs .* asks it for a link/);
+    const keyless = byId(await runDoctor({ env, probePort: () => Promise.resolve({ kind: "host", health: { loops: "unauthorized", keyName: "", connection: { stream: { state: "idle" }, key: { state: "none" } } } }) }));
+    assert.equal(keyless.port!.status, "fix");
+    assert.match(keyless.port!.text, /it says no key/);
+    const taken = byId(await runDoctor({ env, probePort: () => Promise.resolve({ kind: "taken" }) }));
+    assert.match(taken.port!.text, /something else listens/);
+  });
+});
