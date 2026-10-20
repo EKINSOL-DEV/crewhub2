@@ -103,16 +103,22 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
     const auth = req.headers.authorization;
     requests.push({ method: req.method ?? "", path: url.pathname + url.search, authorization: auth, host: req.headers.host });
     const detail = options.echoAuth ? ` (auth: ${auth ?? "none"})` : "";
+    // Health is public on crewhub-loops (the discovery probes it without a key); everything else needs the key.
+    if (url.pathname === "/api/health" && req.method === "GET" && auth === undefined && options.routes?.["/api/health"] === undefined) {
+      return send(res, 200, { ok: true, version: "053b5f47", checks: {}, principal: null, watchdog: null });
+    }
     if (auth === undefined) return send(res, 401, error("unauthenticated", `No credentials${detail}`));
     if (req.headers.cookie !== undefined) return send(res, 400, error("ambiguous_auth", `Send one or the other${detail}`));
     if (auth !== `Bearer ${key}`) return send(res, 401, error("invalid_api_key", `Unknown key${detail}`));
     if (req.method !== "GET") return send(res, 405, error("method_not_allowed", "GET only"));
     const p = url.pathname;
-    if (p === "/api/health") return send(res, 200, { ok: true, version: "053b5f47", checks: {}, principal: { id: "crewhub-world", kind: "agent", displayName: "World" } });
-    if (p === "/api/auth/me") return send(res, 200, { principal: { id: "crewhub-world", kind: "agent", displayName: "World", role: "probe" } });
+    const given = options.routes?.[p];
+    if (p === "/api/health" && given === undefined) return send(res, 200, { ok: true, version: "053b5f47", checks: {}, principal: { id: "crewhub-world", kind: "agent", displayName: "World" } });
+    // An external bot's key: role lead (a `routes` entry for the path overrides it, e.g. a probe or a reader).
+    if (p === "/api/auth/me" && given === undefined) return send(res, 200, { principal: { id: "crewhub-world", kind: "agent", displayName: "World", role: "lead" } });
     if (p === "/api/events") {
       const after = Number(url.searchParams.get("after") ?? "0");
-      if (url.searchParams.get("types") === "attachment.added") return send(res, 200, { events: [], lastSeq: lastSeq() });
+      if (url.searchParams.get("from") === "tail" || url.searchParams.get("types") === "attachment.added") return send(res, 200, { events: [], lastSeq: lastSeq(), cursor: "sealed-cursor" });
       return send(res, 200, { events: events.filter((e) => e.seq > after), lastSeq: lastSeq() });
     }
     if (p === "/api/events/stream") {

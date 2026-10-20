@@ -53,7 +53,7 @@ export interface HostKeyState {
   state: "none" | "checking" | "rejected" | "ok";
   /** The key's agent name (`agent-<name>.key`, or the principal loops answered); paired browsers only. */
   name?: string;
-  /** Where the key came from: `CREWHUB_WORLD_KEY_FILE`, the host's stored key, or the old default file. Paired only. */
+  /** Where the key came from: the environment's file, the host's stored key, or the old default file. Paired only. */
   source?: "env" | "stored" | "default";
   /** Why loops rejected it, in words a person can act on (a probe or reader key, an unknown key). Never the key. */
   reason?: string;

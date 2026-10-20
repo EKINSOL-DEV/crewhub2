@@ -1,7 +1,8 @@
 /**
  * The one list of crewhub-loops routes the host may call, and of the browser routes it answers under `/world-api`.
  * Every loops call the host makes goes through `allowedLoopsPath`; every browser request through `matchWorldRoute`.
- * Anything else is 404, every method but GET is 405. Safe methods only: the host never writes to crewhub-loops.
+ * Anything else is 404, every method a route does not name is 405 (GET unless `methods` says otherwise; only the
+ * local `/connect` takes POST and DELETE). Safe methods only towards loops: the host never writes to crewhub-loops.
  */
 
 /** A path segment of a loops ref or slug: a ticket key (`CL-85`, `CL-111.2`), an id (`tk_…`), a slug. */
@@ -21,7 +22,7 @@ export interface LoopsRead {
 export const LOOPS_READS: readonly LoopsRead[] = [
   { pattern: "/api/health", query: [] },
   { pattern: "/api/auth/me", query: [] },
-  { pattern: "/api/events", query: ["after", "limit", "types"] },
+  { pattern: "/api/events", query: ["after", "from", "limit", "types"] },
   { pattern: "/api/events/stream", query: ["after"] },
   { pattern: "/api/projects", query: ["includeArchived"] },
   { pattern: "/api/projects/{slug}", query: [] },
@@ -45,6 +46,8 @@ export interface WorldRoute {
   kind: "local" | "loops";
   loopsPattern?: string;
   query: readonly string[];
+  /** The methods the route answers; GET when absent. Only `/connect` takes a write, and that write never reaches loops. */
+  methods?: readonly string[];
 }
 
 /** Routes the browser may ask the host for (`/world-api` + pattern). */
@@ -53,6 +56,7 @@ export const WORLD_ROUTES: readonly WorldRoute[] = [
   { pattern: "/snapshot", kind: "local", query: [] },
   { pattern: "/stream", kind: "local", query: ["cursor"] },
   { pattern: "/project-groups", kind: "local", query: [] },
+  { pattern: "/connect", kind: "local", query: [], methods: ["POST", "DELETE"] },
   { pattern: "/tickets/{ref}", kind: "loops", loopsPattern: "/api/tickets/{ref}", query: [] },
   { pattern: "/tickets/{ref}/comments", kind: "loops", loopsPattern: "/api/tickets/{ref}/comments", query: PAGE_QUERY },
   { pattern: "/tickets/{ref}/progress", kind: "loops", loopsPattern: "/api/tickets/{ref}/progress", query: PAGE_QUERY },
