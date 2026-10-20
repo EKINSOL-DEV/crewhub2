@@ -33,7 +33,10 @@ export interface HostOptions {
   /** Extra origins allowed besides the host's own (the Vite dev server). */
   allowedOrigins?: string[];
   bufferSize?: number;
+  /** Backoff after an error upstream (loops away): doubling from min to max. Default 1 s to 30 s. */
   retryMs?: { min: number; max: number };
+  /** The pause before reconnecting after loops' normal 300 s end: min to max with jitter. Default 1.5 to 3 s. */
+  reconnectMs?: { min: number; max: number };
   /** The host's own heartbeat while loops is down. Default 15 s. */
   heartbeatMs?: number;
   /** Server-side log line; never the key. Default: console.error. */
@@ -110,6 +113,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
   const upstreamOptions: Parameters<typeof createUpstream>[1] = { log };
   if (options.bufferSize !== undefined) upstreamOptions.bufferSize = options.bufferSize;
   if (options.retryMs !== undefined) upstreamOptions.retryMs = options.retryMs;
+  if (options.reconnectMs !== undefined) upstreamOptions.reconnectMs = options.reconnectMs;
   if (options.heartbeatMs !== undefined) upstreamOptions.heartbeatMs = options.heartbeatMs;
   const upstream = createUpstream(client, upstreamOptions);
   const sharedKey = options.sharedKey ?? false;
