@@ -56,6 +56,7 @@ export const EN: Record<string, string> = {
   "world.source.reason.probe-answered": "The host answered.",
   "world.source.reason.probe-silent": "No host answered within {ms} ms.",
   "world.source.keyName": "Key: {name}",
+  "world.source.observer": "{name} (this world's key) is not shown as a figure: it is the observer, not a worker.",
   "world.source.sharedKey": "The host uses the shared builder key.",
   "world.connection.connecting": "Connecting",
   "world.connection.live": "Live",

@@ -57,7 +57,8 @@ export function listAgents(facts: Readonly<Facts>): AgentEntity[] {
     for (const agent of session.agents) if (!lanesByName.has(agent.name)) lanesByName.set(agent.name, agent);
   }
   for (const agent of facts.agents) {
-    if (agent.disabled || agent.role === "probe") continue;
+    // The source's own principal watches; it is no worker and gets no figure.
+    if (agent.disabled || agent.role === "probe" || agent.id === facts.observer) continue;
     byKey.set(agent.id, {
       key: agent.id,
       name: agent.id,
@@ -72,7 +73,7 @@ export function listAgents(facts: Readonly<Facts>): AgentEntity[] {
   // A lead missing from GET /api/agents is still a registered principal (ProjectOut.lead).
   for (const slug of facts.order) {
     const lead = facts.projects[slug]?.lead;
-    if (lead && !byKey.has(lead.id)) {
+    if (lead && !byKey.has(lead.id) && lead.id !== facts.observer) {
       byKey.set(lead.id, {
         key: lead.id,
         name: lead.id,

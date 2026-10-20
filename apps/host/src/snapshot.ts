@@ -72,6 +72,8 @@ export interface SnapshotOptions {
   cursor: number;
   /** Slugs of projects the host saw archived through events: read one by one, since the list leaves them out. */
   knownArchivedSlugs?: Iterable<string>;
+  /** The host's own principal (the key's agent, as loops named it): the observer the world hides from the figures. */
+  observer?: string | null;
 }
 
 export async function assembleSnapshot(client: LoopsClient, options: SnapshotOptions): Promise<LoopsSnapshot> {
@@ -117,6 +119,7 @@ export async function assembleSnapshot(client: LoopsClient, options: SnapshotOpt
     boards: Object.fromEntries(perProject.map((p) => [p.slug, p.board])),
     team,
     agents: agents.agents,
+    observer: options.observer ?? null,
     principals: principals.principals,
     watchdog,
     milestones: Object.fromEntries(perProject.filter((p) => p.milestones !== null).map((p) => [p.slug, p.milestones as MilestoneSummary[]])),

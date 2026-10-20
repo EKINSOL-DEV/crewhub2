@@ -137,6 +137,7 @@ export class Projection {
     facts.teamRevision = this.state.teamRevision + 1;
     facts.snapshots = this.state.snapshots + 1;
     facts.agents = snapshot.agents;
+    facts.observer = snapshot.observer ?? null;
     facts.principals = snapshot.principals;
     facts.watchdog = snapshot.watchdog;
     for (const item of snapshot.watchdog.open ?? []) {

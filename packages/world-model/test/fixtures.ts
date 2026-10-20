@@ -91,6 +91,7 @@ export function world(buildings: Building[], extra: Partial<WorldModel> = {}): W
     townHall: [],
     postOffice: [],
     deliveries: [],
+    observer: null,
     ...extra,
   };
 }

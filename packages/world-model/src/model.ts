@@ -70,6 +70,8 @@ export interface WorldModel {
   postOffice: AgentPlacement[];
   /** Deliveries in flight or parked at a mailbox (plan 4.3). */
   deliveries: DeliveryWalk[];
+  /** The source's own principal (the host's key), hidden from the figures and the counts: the observer, not a worker. Null for the demo. */
+  observer: string | null;
 }
 
 /**

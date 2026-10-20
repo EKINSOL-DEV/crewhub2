@@ -49,6 +49,11 @@ export interface LoopsSnapshot {
   team: TeamSnapshot;
   /** GET /api/agents: every registered agent with `isCrewhubLead` and the projects it leads or is a member of. */
   agents: AgentOut[];
+  /**
+   * The source's own principal (the host's key, as `GET /api/auth/me` named it): the observer, which the world never
+   * shows as a figure. Absent or null when the source has none (the demo).
+   */
+  observer?: string | null;
   /** GET /api/principals. */
   principals: PrincipalOut[];
   /** GET /api/watchdog. */

@@ -126,6 +126,8 @@ export interface Facts {
   /** Counts team snapshots received; the debounce counts consecutive snapshots with it. */
   teamRevision: number;
   agents: AgentOut[];
+  /** The source's own principal (the host's key): the observer, never a figure. Null for the demo. */
+  observer: string | null;
   principals: PrincipalOut[];
   watchdog: WatchdogResponse | null;
   /** Open stalls by ticket key. */
@@ -167,6 +169,7 @@ export function emptyFacts(): Facts {
     teamReceivedAt: null,
     teamRevision: 0,
     agents: [],
+    observer: null,
     principals: [],
     watchdog: null,
     stalls: {},
