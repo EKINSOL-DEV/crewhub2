@@ -15,6 +15,7 @@ import { afterEach, describe, it } from "node:test";
 import { type HostOptions, createHost } from "../src/host.ts";
 import { PROBE_REASON, READER_REASON, UNKNOWN_REASON } from "../src/keyCheck.ts";
 import type { KeyStore } from "../src/keyStore.ts";
+import { BUSY_REASON } from "../src/stream.ts";
 import { createLoopsStub, installation } from "./loopsStub.ts";
 import { openSse } from "./sse.ts";
 
@@ -184,6 +185,25 @@ describe("the smooth connection", () => {
     assert.equal(read.status, 403);
     assert.deepEqual(await read.json(), { error: "key_rejected", reason: READER_REASON });
     assert.ok(/Read only/.test(READER_REASON) && /New external bot/.test(READER_REASON));
+  });
+
+  it("says busy, with the reason, while loops refuses the stream with 429, and ok afterwards", async () => {
+    const stub = await createLoopsStub({ ...installation(), busy: { count: 2, retryAfter: "1" } });
+    cleanup.push(() => stub.close());
+    const { health, host } = await startHost({ appData: appData(stub.port), key: stub.key, keyName: "crewhub-world", keySource: "env" });
+    await waitFor("the 429", async () => (await health()).connection.stream.state === "busy");
+    const busy = await health();
+    assert.equal(busy.loops, "down", "the world from before sees down, never stale");
+    assert.equal(busy.connection.stream.reason, BUSY_REASON);
+    assert.equal(busy.connection.key.state, "ok", "the key is fine: the budget is the problem");
+    const tab = await openSse(`${host.url}/world-api/stream?cursor=0`);
+    cleanup.push(() => tab.close());
+    const status = await tab.next((m) => m.type === "status");
+    assert.deepEqual(status, { type: "status", loops: "down", stream: "busy", reason: BUSY_REASON });
+    await waitFor("the stream after Retry-After", async () => (await health()).connection.stream.state === "ok", 6000);
+    assert.equal((await health()).connection.stream.reason, undefined);
+    await tab.next((m) => m.type === "status" && m.loops === "ok");
+    assert.ok((await health()).connection.stream.reconnects >= 2);
   });
 
   it("reports a key from a file that loops rejects, and keeps the stream closed", async () => {
