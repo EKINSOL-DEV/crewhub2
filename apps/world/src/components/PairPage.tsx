@@ -3,8 +3,7 @@
    where the host runs, in a code chip with a copy button; it never shows a link itself (the host prints the one-time link
    on the terminal, and it is single use). "Use the demo" keeps the demo as this browser's source and reloads; "I opened the
    link" asks the host again. Copy from the i18n file; the kit's Card and Button. `PairContent` is the body and footer the
-   Connect page (ConnectPage.tsx) shows for this state; `PairPage` is the whole page, for a host from before the smooth
-   connection. */
+   Connect page (ConnectPage.tsx) shows for this state (a host from before the smooth connection lands there too). */
 import { Check, Copy, Link2 } from "lucide-react";
 import { useState } from "react";
 import { useT } from "../i18n";
@@ -51,17 +50,5 @@ export function PairContent({ onRetry }: { onRetry: () => void }) {
         <Button onClick={switchToDemo}>{t("world.pair.demo")}</Button>
       </Card.Footer>
     </>
-  );
-}
-
-export function PairPage() {
-  const { t } = useT();
-  return (
-    <main className="pair-page connect-page" data-screen="pair" aria-labelledby="connect-title" aria-label={t("world.pair.label")}>
-      <Card className="pair-card connect-card">
-        <Card.Header title={t("world.pair.title")} titleId="connect-title" />
-        <PairContent onRetry={() => globalThis.location.reload()} />
-      </Card>
-    </main>
   );
 }

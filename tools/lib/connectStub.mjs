@@ -41,17 +41,32 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
     return inner;
   }
 
+  /** GET a JSON answer from the inner host (node:http, like the proxy; tools/ never use fetch). Null when it does not answer. */
+  function getJson(target) {
+    return new Promise((resolve) => {
+      const url = new URL(target);
+      const req = httpRequest({ host: url.hostname, port: url.port, method: "GET", path: url.pathname, headers: { accept: "application/json" } }, (answer) => {
+        let text = "";
+        answer.on("data", (chunk) => (text += chunk.toString()));
+        answer.on("end", () => {
+          try {
+            resolve(JSON.parse(text));
+          } catch {
+            resolve(null);
+          }
+        });
+      });
+      req.on("error", () => resolve(null));
+      req.end();
+    });
+  }
+
   async function health() {
     const base = { keyName: "", sharedKey: false, pairing: "on", transport: "tcp" };
     switch (current) {
       case "older": {
         const { fake, host } = await ensureInner();
-        let real = null;
-        try {
-          real = await (await fetch(`${host.url}/world-api/health`)).json();
-        } catch {
-          real = null;
-        }
+        const real = await getJson(`${host.url}/world-api/health`);
         return { loops: real?.loops ?? "ok", keyName: "crewhub-world", sharedKey: false, pairing: "on", paired: true, transport: "tcp", loopsWebUrl: fake.url, cursor: real?.cursor ?? 0 };
       }
       case "no-loops":
@@ -69,12 +84,7 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
       case "busy":
       case "connected": {
         const { fake, host } = await ensureInner();
-        let real = null;
-        try {
-          real = await (await fetch(`${host.url}/world-api/health`)).json();
-        } catch {
-          real = null;
-        }
+        const real = await getJson(`${host.url}/world-api/health`);
         const cursor = typeof real?.cursor === "number" ? real.cursor : fake.lastSeq();
         if (typeof real?.cursor === "number" && real.cursor > 0) lastEventAt = lastEventAt ?? new Date().toISOString();
         return {
