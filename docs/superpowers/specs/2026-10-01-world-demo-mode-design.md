@@ -776,3 +776,38 @@ development instance only. `npm test` stays offline; tests against the real inst
 
 **Out of scope:** the chat (L8), pending delegations (they need the owner's session, not a key), TLS, writes from the
 host, any change to the Mac app, its data folder, port 8091 or launchd.
+
+## Addendum: a person in the world, and closed buildings (2026-10-21, round 2 of the night)
+
+From what the real crewhub-loops taught tonight.
+
+**1. A person carries work into Done.** In loops a move into Done is a person's act: an agent's move answers 403
+`human_only_done` (`domain/tickets.py` `require_human_for_done`). The world shows that.
+
+- When a `ticket.moved` into `done` arrives whose `actor.kind` is `user`, that person appears at the building's front
+  door as a figure of the town's cast (plain clothes, no project colour, a name tag with the principal's
+  `displayName` from `/api/principals`, the word "person" in the text view). They walk to the package on its rack or
+  desk, carry it to the Done rack, and leave by the front door. The drone does not fly that package.
+- A rejection (resolution `rejected`) is carried the same way, and its package gets the existing "turned down" mark.
+  There is no celebration for a rejection.
+- A person is no resident. They never sit at a desk, they are not an agent and the agent card does not open on them;
+  a click says who they are and what they just did. At most one person figure per building at a time. A second
+  move during the walk queues; past three queued moves, they land at once.
+- The model records the visit as a fact with source time (pure, tested). The renderer walks it. Under reduced motion
+  the package lands directly and the text view says "<name> moved <key> to Done".
+- Demo mode shows it through the storyline's person moves (`DEMO_PERSON`); live mode through the real events.
+
+**2. Closed buildings, and opening again.** An archived project is a closed building: boarded up as now, its lights off,
+a sign "Closed" with the date it was archived, no packages and no agents inside. Clicking it says it is archived and
+since when; it can still be entered.
+
+- `project.archived` plays a short closing: the lights go out and the boards come down. `project.restored` plays the
+  reverse. Reduced motion cuts.
+- The demo storyline restores ops-tooling at 5:00.
+- **Live mode learns archived projects.** An agent key may not list them (`includeArchived` is for human admins), but
+  the event log is never pruned and `GET /api/projects/{slug}` resolves an archived project. So the host's snapshot
+  reads `GET /api/events?types=project.archived,project.restored&after=0` (paged) to find the slugs, and reads each one
+  that is archived now.
+
+Out of scope: a person doing anything else in the world (no person chat, no person at a desk), and the person's own
+figure choice.
