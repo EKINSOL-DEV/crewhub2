@@ -1,63 +1,86 @@
 /**
- * The host's configuration from the environment, as a pure function so a test can run it: which key file to read
- * (the configured one, the default, or the shared builder key as a loud fallback), the port, the loops URL or Unix
- * socket, the extra origins and the pairing switches. The key's text is returned to the caller and nowhere else.
+ * The host's configuration from the environment, as a pure function so a test can run it: which key to read (the
+ * configured file, the host's own stored key, or the old default file; or none: the host starts without a key and the
+ * world shows the Connect screen), the port, the loops URL or Unix socket (or neither: the host finds the Mac app by
+ * itself, see `discovery.ts`), the extra origins and the pairing switches. The key's text is returned to the caller and
+ * nowhere else.
  */
 import { statSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 
+/** The Mac app's default port, and the URL the discovery tries when its data folder names no other port. */
 export const DEFAULT_LOOPS_URL = "http://127.0.0.1:8091";
 export const DEFAULT_PORT = 5180;
+/** The Mac app's data folder (read only, never written; `CREWHUB_WORLD_LOOPS_APP_DATA` overrides it). */
+export const DEFAULT_APP_DATA = path.join(homedir(), "Library", "Application Support", "be.ekinsol.crewhub");
+/** The host's own folder (`CREWHUB_WORLD_CONFIG_DIR` overrides it): the stored key lives here, mode 0700/0600. */
+export const DEFAULT_CONFIG_DIR = path.join(homedir(), ".config", "crewhub-world");
+export const STORED_KEY_NAME = "loops-key";
 export const SECRETS_DIR = path.join(homedir(), ".config", "crewhub-loops", "secrets");
+/** The old default: the key file of the runbook before the Connect screen. Still read, third in line. */
 export const DEFAULT_KEY_FILE = path.join(SECRETS_DIR, "agent-crewhub-world.key");
-export const BUILDER_KEY_FILE = path.join(SECRETS_DIR, "agent-builder.key");
 
-export interface KeyConfig {
+export type KeySource = "env" | "stored" | "default";
+
+export interface LoadedKey {
   key: string;
+  /** The agent name from the file name (`agent-<name>.key`); the stored key is named after the principal once loops answered. */
   keyName: string;
-  sharedKey: boolean;
-  /** Lines for the log: the fallback's warning. Never the key. */
-  warnings: string[];
+  source: KeySource;
+  /** The file the key came from. For the log; never the key. */
+  file: string;
 }
 
-/** `agent-<name>.key` → `<name>`; any other file name stays, without `.key`. */
+/** `agent-<name>.key` → `<name>`; `loops-key` (the stored key) → `crewhub-world`; any other file name stays, without `.key`. */
 export function keyNameOf(file: string): string {
   const base = path.basename(file);
+  if (base === STORED_KEY_NAME) return "crewhub-world";
   const match = /^agent-(.+)\.key$/.exec(base);
   return match?.[1] ?? base.replace(/\.key$/, "");
 }
 
 export class ConfigError extends Error {}
 
+/** `~/` is the home folder; the rest is resolved against the working directory. */
+export function expandHome(text: string): string {
+  return text === "~" || text.startsWith("~/") ? path.join(homedir(), text.slice(1)) : text;
+}
+
+/** The host's own folder, from `CREWHUB_WORLD_CONFIG_DIR` or the default. */
+export function configDirOf(env: Record<string, string | undefined>): string {
+  const text = (env.CREWHUB_WORLD_CONFIG_DIR ?? "").trim();
+  return text === "" ? DEFAULT_CONFIG_DIR : path.resolve(expandHome(text));
+}
+
+export const storedKeyFile = (configDir: string) => path.join(configDir, STORED_KEY_NAME);
+
+export interface KeyFiles {
+  storedKey: string;
+  defaultKey: string;
+}
+
+export const keyFilesOf = (env: Record<string, string | undefined>): KeyFiles => ({ storedKey: storedKeyFile(configDirOf(env)), defaultKey: DEFAULT_KEY_FILE });
+
 /**
- * Picks and reads the key. `read` returns a file's text or null when it cannot be read.
- * A configured file that cannot be read is an error; only the default falls back to the builder key.
+ * Picks and reads the key, in the order of the spec addendum "a smooth connection": `CREWHUB_WORLD_KEY_FILE`, then
+ * the host's stored key, then the old default file. `read` returns a file's text or null when it cannot be read. A
+ * configured file that cannot be read is an error (no silent fallback); none of the others readable means the host
+ * starts without a key (null): the world shows the Connect screen. There is no builder-key fallback any more.
  */
-export function loadKey(env: Record<string, string | undefined>, read: (file: string) => string | null, files = { defaultKey: DEFAULT_KEY_FILE, builderKey: BUILDER_KEY_FILE }): KeyConfig {
+export function loadKey(env: Record<string, string | undefined>, read: (file: string) => string | null, files: KeyFiles = keyFilesOf(env)): LoadedKey | null {
   const configured = env.CREWHUB_WORLD_KEY_FILE;
-  const wanted = configured === undefined || configured === "" ? files.defaultKey : configured;
-  const key = read(wanted)?.trim() ?? "";
-  if (key !== "") {
-    const keyName = keyNameOf(wanted);
-    return { key, keyName, sharedKey: keyName === "builder", warnings: [] };
+  if (configured !== undefined && configured !== "") {
+    const file = path.resolve(expandHome(configured));
+    const key = read(file)?.trim() ?? "";
+    if (key === "") throw new ConfigError(`cannot read the key file ${file} (CREWHUB_WORLD_KEY_FILE)`);
+    return { key, keyName: keyNameOf(file), source: "env", file };
   }
-  if (configured !== undefined && configured !== "") throw new ConfigError(`cannot read the key file ${wanted}`);
-  const builder = read(files.builderKey)?.trim() ?? "";
-  if (builder === "") {
-    throw new ConfigError(`no key: neither ${files.defaultKey} nor ${files.builderKey} is readable. Make an external bot crewhub-world in crewhub-loops and save its key (see docs/LOOPS_SETUP.md and apps/host/README.md).`);
-  }
-  return {
-    key: builder,
-    keyName: "builder",
-    sharedKey: true,
-    warnings: [
-      `WARNING: ${files.defaultKey} is missing, using the shared builder key ${files.builderKey}.`,
-      "WARNING: crewhub-loops limits the builder key to tickets, comments and attachments of its member projects:",
-      "WARNING: /api/projects, /api/board, /api/team and the event stream answer 403, so the world will show Unauthorized.",
-      "WARNING: make an external bot crewhub-world (not read-only) in Settings > Agents and save its key instead (docs/LOOPS_SETUP.md, apps/host/README.md).",
-    ],
-  };
+  const stored = read(files.storedKey)?.trim() ?? "";
+  if (stored !== "") return { key: stored, keyName: keyNameOf(files.storedKey), source: "stored", file: files.storedKey };
+  const fallback = read(files.defaultKey)?.trim() ?? "";
+  if (fallback !== "") return { key: fallback, keyName: keyNameOf(files.defaultKey), source: "default", file: files.defaultKey };
+  return null;
 }
 
 /** What a path on disk is, for the socket check: `null` when nothing is there. */
@@ -69,11 +92,6 @@ export function statPath(file: string): PathKind {
   } catch {
     return null;
   }
-}
-
-/** A leading `~/` is the home folder; the rest is resolved against the working directory. */
-function expandHome(text: string): string {
-  return text === "~" || text.startsWith("~/") ? path.join(homedir(), text.slice(1)) : text;
 }
 
 /**
@@ -92,11 +110,11 @@ export function validateSocketPath(text: string, probe: (file: string) => PathKi
 /**
  * `CREWHUB_WORLD_LOOPS_WEB_URL`: where "sign in to crewhub-loops" goes (`health.loopsWebUrl`), as an origin. Unset, it
  * is the loops URL's origin, which is right for the app (API and web on 8091); set, it lets socket mode name another
- * web app (the development instance on 8291).
+ * web app (the development instance on 8291). Null when neither is given: the discovery names it from the port found.
  */
-export function resolveLoopsWebUrl(text: string | undefined, loopsUrl: string): string {
+export function resolveLoopsWebUrl(text: string | undefined, loopsUrl: string | null): string | null {
   const wanted = (text ?? "").trim();
-  if (wanted === "") return new URL(loopsUrl).origin;
+  if (wanted === "") return loopsUrl === null ? null : new URL(loopsUrl).origin;
   let parsed: URL;
   try {
     parsed = new URL(wanted);
@@ -108,12 +126,16 @@ export function resolveLoopsWebUrl(text: string | undefined, loopsUrl: string): 
 }
 
 export interface ServerConfig {
-  /** crewhub-loops' URL: the TCP transport, and the web app's origin for the sign-in link (also with the socket). */
-  loopsUrl: string;
-  /** The Unix socket to read loops over instead of TCP (`CREWHUB_WORLD_LOOPS_SOCKET`); null means TCP. */
+  /** crewhub-loops' URL (`CREWHUB_WORLD_LOOPS_URL`): the TCP transport. Null (with no socket): the host finds loops itself. */
+  loopsUrl: string | null;
+  /** The Unix socket to read loops over instead of TCP (`CREWHUB_WORLD_LOOPS_SOCKET`); null means TCP or discovery. */
   loopsSocket: string | null;
-  /** The origin of loops' web app, for the sign-in link (`CREWHUB_WORLD_LOOPS_WEB_URL`; default: the loops URL's origin). */
-  loopsWebUrl: string;
+  /** The origin of loops' web app, for the sign-in link (`CREWHUB_WORLD_LOOPS_WEB_URL`; default: the loops URL's origin; null: from the discovery). */
+  loopsWebUrl: string | null;
+  /** The Mac app's data folder the discovery reads (`CREWHUB_WORLD_LOOPS_APP_DATA`; default the app's). Never written. */
+  appData: string;
+  /** The host's own folder for the stored key (`CREWHUB_WORLD_CONFIG_DIR`). */
+  configDir: string;
   port: number;
   allowedOrigins: string[];
   production: boolean;
@@ -136,10 +158,14 @@ export function loadServerConfig(env: Record<string, string | undefined>, probe:
   if (loopsUrlText !== "" && socketText.trim() !== "") {
     throw new ConfigError("CREWHUB_WORLD_LOOPS_URL and CREWHUB_WORLD_LOOPS_SOCKET are both set: the host reads loops over TCP or over the Unix socket, not both. Unset one.");
   }
-  const loopsUrl = loopsUrlText === "" ? DEFAULT_LOOPS_URL : loopsUrlText;
-  if (!/^https?:\/\//.test(loopsUrl)) throw new ConfigError("CREWHUB_WORLD_LOOPS_URL must start with http:// or https://");
+  const loopsUrl = loopsUrlText === "" ? null : loopsUrlText;
+  if (loopsUrl !== null && !/^https?:\/\//.test(loopsUrl)) throw new ConfigError("CREWHUB_WORLD_LOOPS_URL must start with http:// or https://");
   const loopsSocket = socketText.trim() === "" ? null : validateSocketPath(socketText, probe);
-  const loopsWebUrl = resolveLoopsWebUrl(env.CREWHUB_WORLD_LOOPS_WEB_URL, loopsUrl);
+  // With the socket from the env the web app is the app's default port unless named: a socket has no origin a browser can open.
+  const loopsWebUrl = resolveLoopsWebUrl(env.CREWHUB_WORLD_LOOPS_WEB_URL, loopsUrl ?? (loopsSocket === null ? null : DEFAULT_LOOPS_URL));
+  const appDataText = (env.CREWHUB_WORLD_LOOPS_APP_DATA ?? "").trim();
+  const appData = appDataText === "" ? DEFAULT_APP_DATA : path.resolve(expandHome(appDataText));
+  const configDir = configDirOf(env);
   const allowedOrigins = (env.CREWHUB_WORLD_ALLOWED_ORIGINS ?? "")
     .split(",")
     .map((s) => s.trim())
@@ -167,5 +193,5 @@ export function loadServerConfig(env: Record<string, string | undefined>, probe:
     if (parsed.protocol !== "https:" && parsed.protocol !== "http:") throw new ConfigError("CREWHUB_WORLD_PUBLIC_URL must be an http(s) URL");
     publicUrl = parsed.origin;
   }
-  return { loopsUrl, loopsSocket, loopsWebUrl, port, allowedOrigins, production, pairing: pairingText, pairingFile, publicUrl, warnings };
+  return { loopsUrl, loopsSocket, loopsWebUrl, appData, configDir, port, allowedOrigins, production, pairing: pairingText, pairingFile, publicUrl, warnings };
 }
