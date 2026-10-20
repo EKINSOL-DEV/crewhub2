@@ -55,4 +55,5 @@ export {
   warnOnce,
 } from "./validate.ts";
 export { createHostSource, probeHost } from "./hostSource.ts";
-export type { HostHealth, HostSourceTimings } from "./hostSource.ts";
+export type { HostConnection, HostDiscovery, HostHealth, HostKeyState, HostSourceTimings, HostStreamState } from "./hostSource.ts";
+export { readConnection } from "./hostSource.ts";
