@@ -43,6 +43,7 @@ unless a script says otherwise; a phone is 375 x 812 with touch.
 | `shots.mjs` | The world in screenshots: `--views` (`town`, `building`, `room`, `walk`, `stress`) x `--theme` x `--width`, in any `--scenario`. `walk` is the critical walk through every building and room. | `<tag>-<view>-<theme>-<width>.png` |
 | `castshots.mjs` | The casting room (`/cast-preview`): every cast in every state, the scenes, dusk, reduced motion, Fast, far, the drone, and the side-by-side view. `--cast`, `--states`, `--only` narrow it. | `room-<cast>-<what>-<theme>.png` |
 | `castworld.mjs` | The world as each cast draws it (the viewer's choice): town, building, room per theme and width, and the stress fixture with the dev overlay's numbers. | `<tag>-<cast>-<view>-<theme>-<width>.png` |
+| `loops-seed.mjs` | No browser: replays a demo scenario's storyline (`packages/demo`) into the **development** crewhub-loops through its API, as an external bot (`--key-file`, or `CREWHUB_WORLD_KEY_FILE`; a lead agent's key, never a person's cookie), so the world shows real data that moves. `--url` (default `http://127.0.0.1:8291`; only this machine, never port 8091, 8000 or 9443), `--scenario <id>`, `--speed <n>` (16 = a minute a pass), `--once`, `--projects <n>`, `--dry-run` (reads, prints the plan, writes nothing), `--restart`, `--no-rewind`. Idempotent: projects by slug (never created: the plan prints the admin's request), tickets by title, a stopped run resumes. Whatever a lead agent may not write (a move into Done, projects, labels, milestones, releases, lanes, the chat) is skipped with the loops rule that refuses it. Without `--once` it loops until Ctrl+C: press it once and the run stops after the current entry. Pure helpers in `lib/seed.ts`, tested by `scripts/test/loops-seed.test.ts`. | `loops-seed.state.json` (where it stopped), `loops-seed-person-only.json` (the Done moves a person must make) |
 
 `lib/world.mjs` is what they share (the command line, the browser, the error and request watch, seeking and
 playback); `lib/shots.mjs` is the view walker behind `shots.mjs` and `castworld.mjs`.
@@ -72,7 +73,8 @@ node tools/castworld.mjs --port 5180 --cast potlings,sprouts --views town,buildi
 - **Tooling only.** Nothing under `apps/` or `packages/` imports `playwright-core` or this folder, and no workspace
   lists a browser driver. `scripts/scan-model-calls.ts` (run by `npm test`) enforces it.
 - **This machine only.** A tool addresses `127.0.0.1` or `localhost`, spelled out, and uses no network call of its
-  own. The same scanner checks every address under `tools/`. No model call, as everywhere.
+  own. The same scanner checks every address under `tools/`. No model call, as everywhere. The one exception is
+  `loops-seed.mjs`, which talks to the development crewhub-loops on loopback and is on the scanner's allowlist for it.
 - **No absolute paths.** Output goes to `--out`; nothing is read from or written to a path outside the repository
   unless the caller names it.
 - **Parameters, not copies.** A new need is an option on a script here, not a copy of it somewhere else. If you
