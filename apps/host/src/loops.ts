@@ -17,11 +17,17 @@ export interface LoopsClient {
   get(path: string, query?: Record<string, string>, timeoutMs?: number): Promise<LoopsResponse>;
   /** The same, parsed; `body` is null when the body is not JSON. */
   getJson<T = unknown>(path: string, query?: Record<string, string>): Promise<{ status: number; body: T | null }>;
-  /** Opens the NDJSON stream; the caller reads the body. Throws on a network error. */
-  stream(after: number, signal: AbortSignal): Promise<Response>;
+  /**
+   * Opens the NDJSON stream from `resume` (`after=<seq>`, or `cursor=<sealed token>` from a heartbeat or
+   * `GET /api/events`; never both); the caller reads the body. Throws on a network error.
+   */
+  stream(resume: StreamResume, signal: AbortSignal): Promise<Response>;
   /** Replaces every occurrence of the key in `text`. */
   scrub(text: string): string;
 }
+
+/** Where a stream resumes: the last applied seq, or the sealed cursor loops gave for exactly that position (CL-406). */
+export type StreamResume = { after: number } | { cursor: string };
 
 const READ_TIMEOUT_MS = 10_000;
 
@@ -49,8 +55,9 @@ export function createLoopsClient(loopsUrl: string, key: string): LoopsClient {
       }
       return { status: response.status, body };
     },
-    stream(after, signal) {
-      const url = base + allowedLoopsPath("/api/events/stream", { after: String(after) });
+    stream(resume, signal) {
+      const query = "cursor" in resume ? { cursor: resume.cursor } : { after: String(resume.after) };
+      const url = base + allowedLoopsPath("/api/events/stream", query);
       return fetch(url, { method: "GET", headers: { ...headers, Accept: "application/x-ndjson" }, signal, redirect: "error" });
     },
     scrub,

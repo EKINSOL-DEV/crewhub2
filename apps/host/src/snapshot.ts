@@ -126,9 +126,24 @@ export async function assembleSnapshot(client: LoopsClient, options: SnapshotOpt
   return snapshot;
 }
 
-/** The tail of the event log (events.md "How to resume", step 1): a filter that matches nothing answers `lastSeq`. */
-export async function readTail(client: LoopsClient): Promise<number> {
-  const { lastSeq } = await must<{ lastSeq: number }>(client, "/api/events", { types: "attachment.added", limit: "1" });
-  if (typeof lastSeq !== "number") throw new SnapshotError("loops_down", "/api/events answered without lastSeq");
-  return lastSeq;
+/** Where the event log stands for this key: `lastSeq` (the newest event it may see) and, since CL-406, a sealed cursor for "now". */
+export interface LogTail {
+  lastSeq: number;
+  /** The opaque token `GET /api/events?from=tail` gave; null from an older loops. */
+  cursor: string | null;
+}
+
+/**
+ * The tail of the event log (events.md "How to resume", step 1): `GET /api/events?from=tail` answers "now" for this
+ * caller with no events. An older loops without `from=tail` ignores the parameter and answers a page of events
+ * instead; then the old recipe (a filter that matches nothing) is read, whose `lastSeq` is honest on that loops.
+ */
+export async function readTail(client: LoopsClient): Promise<LogTail> {
+  const tail = await must<{ events?: unknown; lastSeq?: unknown; cursor?: unknown }>(client, "/api/events", { from: "tail" });
+  if (Array.isArray(tail.events) && tail.events.length === 0 && typeof tail.lastSeq === "number") {
+    return { lastSeq: tail.lastSeq, cursor: typeof tail.cursor === "string" && tail.cursor !== "" ? tail.cursor : null };
+  }
+  const older = await must<{ lastSeq?: unknown }>(client, "/api/events", { types: "attachment.added", limit: "1" });
+  if (typeof older.lastSeq !== "number") throw new SnapshotError("loops_down", "/api/events answered without lastSeq");
+  return { lastSeq: older.lastSeq, cursor: null };
 }

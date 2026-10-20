@@ -1,6 +1,9 @@
 /**
  * A tiny crewhub-loops for the host's tests: loops' routes and shapes for the reads the host makes, bearer auth,
- * an NDJSON stream with `after=`, heartbeats and 410 for a too-old cursor. It records every request it sees.
+ * `GET /api/events?from=tail` with a sealed-looking cursor (CL-406), an NDJSON stream with `after=` or `cursor=`,
+ * heartbeats that carry a cursor, 429 `too_many_streams` on demand, 410 for a cursor that does not open or a too-old
+ * `after`, and the honest `lastSeq` of CL-390 (a filter that matches nothing answers `after`, so the old tail trick
+ * says 0). It records every request it sees with its time, and the most streams that were ever open at once.
  * On 127.0.0.1 port 0: loopback to the test itself, no network. (The full fake is `packages/loops-fake`.)
  */
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
@@ -10,6 +13,8 @@ export interface StubRequest {
   method: string;
   path: string;
   authorization: string | undefined;
+  /** `Date.now()` when the request arrived. */
+  at: number;
 }
 
 export interface Envelope {
@@ -38,6 +43,13 @@ export interface StubOptions {
   echoAuth?: boolean;
   /** A fixed port (the restart case); default 0. */
   port?: number;
+  /**
+   * Behaves like a loops before CL-406: no `from=tail` (the parameter is ignored and a page of events comes back),
+   * no `cursor` anywhere, and the old `types=attachment.added` trick answers the real tail.
+   */
+  older?: boolean;
+  /** Answers 429 `too_many_streams` with this `Retry-After` to the next `count` stream requests. */
+  busy?: { count: number; retryAfter: string };
 }
 
 export interface LoopsStub {
@@ -49,6 +61,8 @@ export interface LoopsStub {
   openStreams(): number;
   /** Streams opened since start. */
   streamsOpened(): number;
+  /** The most streams that were ever open at the same time: the host must keep this at 1. */
+  maxConcurrentStreams(): number;
   lastSeq(): number;
   emit(event: Omit<Envelope, "v" | "seq" | "ts"> & { seq?: number }): Envelope;
   heartbeat(): void;
@@ -82,8 +96,22 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
   const events: Envelope[] = [...(options.events ?? [])];
   const streams = new Set<ServerResponse>();
   let opened = 0;
+  let maxConcurrent = 0;
+  let busyLeft = options.busy?.count ?? 0;
   const pageIndex: Record<string, number> = {};
   const lastSeq = () => (events.length === 0 ? 0 : (events[events.length - 1] as Envelope).seq);
+  const older = options.older === true;
+  /** A sealed-looking cursor: `(S, W)` plus noise, URL-safe; the stub opens its own and nothing else. */
+  const seal = (seen: number, checked: number) => `s${seen}w${Math.max(seen, checked)}x${Math.random().toString(36).slice(2, 10)}${Math.random().toString(36).slice(2, 10)}`;
+  const open = (token: string): { seen: number; checked: number } | null => {
+    const match = /^s(\d+)w(\d+)x[a-z0-9]+$/.exec(token);
+    if (match === null) return null;
+    const seen = Number(match[1]);
+    const checked = Number(match[2]);
+    if (checked > lastSeq()) return null; // a watermark above the tail: a restored backup
+    return { seen, checked };
+  };
+  const withCursor = (body: Record<string, unknown>, seen: number, checked: number) => (older ? body : { ...body, cursor: seal(seen, checked) });
 
   function send(res: ServerResponse, status: number, body: unknown): void {
     res.writeHead(status, { "content-type": "application/json" });
@@ -93,7 +121,7 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
   function handle(req: IncomingMessage, res: ServerResponse): void {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     const auth = req.headers.authorization;
-    requests.push({ method: req.method ?? "", path: url.pathname + url.search, authorization: auth });
+    requests.push({ method: req.method ?? "", path: url.pathname + url.search, authorization: auth, at: Date.now() });
     const detail = options.echoAuth ? ` (auth: ${auth ?? "none"})` : "";
     if (auth === undefined) return send(res, 401, error("unauthenticated", `No credentials${detail}`));
     if (req.headers.cookie !== undefined) return send(res, 400, error("ambiguous_auth", `Send one or the other${detail}`));
@@ -103,18 +131,45 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
     if (p === "/api/health") return send(res, 200, { ok: true, version: "053b5f47", checks: {}, principal: { id: "crewhub-world", kind: "agent", displayName: "World" } });
     if (p === "/api/auth/me") return send(res, 200, { principal: { id: "crewhub-world", kind: "agent", displayName: "World", role: "probe" } });
     if (p === "/api/events") {
-      const after = Number(url.searchParams.get("after") ?? "0");
-      if (url.searchParams.get("types") === "attachment.added") return send(res, 200, { events: [], lastSeq: lastSeq() });
-      return send(res, 200, { events: events.filter((e) => e.seq > after), lastSeq: lastSeq() });
+      const token = url.searchParams.get("cursor");
+      if (token !== null && url.searchParams.has("after")) return send(res, 400, error("validation_error", "Send either cursor or after, not both"));
+      let after = Number(url.searchParams.get("after") ?? "0");
+      if (token !== null) {
+        const opened = older ? null : open(token);
+        if (opened === null) return send(res, 410, error("cursor_expired", `The cursor cannot be used${detail}`));
+        after = opened.checked;
+      }
+      if (url.searchParams.get("from") === "tail" && !older) return send(res, 200, withCursor({ events: [], lastSeq: lastSeq() }, lastSeq(), lastSeq()));
+      if (url.searchParams.get("types") === "attachment.added") {
+        // CL-390: `lastSeq` is the last row returned, else the `after` sent: a filter that matches nothing says `after`.
+        return send(res, 200, withCursor({ events: [], lastSeq: older ? lastSeq() : after }, after, lastSeq()));
+      }
+      const page = events.filter((e) => e.seq > after);
+      const seen = page.length === 0 ? after : (page[page.length - 1] as Envelope).seq;
+      return send(res, 200, withCursor({ events: page, lastSeq: seen }, seen, lastSeq()));
     }
     if (p === "/api/events/stream") {
-      const after = Number(url.searchParams.get("after") ?? String(lastSeq()));
+      const token = url.searchParams.get("cursor");
+      if (token !== null && url.searchParams.has("after")) return send(res, 400, error("validation_error", "Send either cursor or after, not both"));
+      let after = Number(url.searchParams.get("after") ?? String(lastSeq()));
+      if (token !== null) {
+        const opened = older ? null : open(token);
+        if (opened === null) return send(res, 410, error("cursor_expired", `The cursor cannot be used${detail}`));
+        after = opened.checked;
+      }
       if (options.minAfter !== undefined && after < options.minAfter) return send(res, 410, error("cursor_expired", `after=${after} is gone${detail}`));
+      if (busyLeft > 0) {
+        busyLeft -= 1;
+        res.writeHead(429, { "content-type": "application/json", "retry-after": options.busy?.retryAfter ?? "5" });
+        res.end(JSON.stringify(error("too_many_streams", "Too many open event streams")));
+        return;
+      }
       opened += 1;
       res.writeHead(200, { "content-type": "application/x-ndjson" });
       res.flushHeaders();
       for (const e of events) if (e.seq > after) res.write(`${JSON.stringify(e)}\n`);
       streams.add(res);
+      maxConcurrent = Math.max(maxConcurrent, streams.size);
       res.on("close", () => streams.delete(res));
       return;
     }
@@ -151,6 +206,7 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
     requests,
     openStreams: () => streams.size,
     streamsOpened: () => opened,
+    maxConcurrentStreams: () => maxConcurrent,
     lastSeq,
     emit(event) {
       const seq = event.seq ?? lastSeq() + 1;
@@ -160,8 +216,12 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
       return full;
     },
     heartbeat() {
-      const line = JSON.stringify({ v: 1, type: "heartbeat", seq: lastSeq(), ts: new Date().toISOString() });
-      for (const res of streams) res.write(`${line}\n`);
+      const line = JSON.stringify(withCursor({ v: 1, type: "heartbeat", seq: lastSeq() }, lastSeq(), lastSeq()));
+      // `ts` last, as loops writes it
+      const beat = JSON.parse(line) as Record<string, unknown>;
+      beat.ts = new Date().toISOString();
+      const text = JSON.stringify(beat);
+      for (const res of streams) res.write(`${text}\n`);
     },
     endStreams() {
       for (const res of streams) res.end();

@@ -8,6 +8,20 @@ const isEvent = (seq: number) => (m: Record<string, unknown>) => m.type === "eve
 const isReset = (reason: string) => (m: Record<string, unknown>) => m.type === "reset" && m.reason === reason;
 const isStatus = (loops: string) => (m: Record<string, unknown>) => m.type === "status" && m.loops === loops;
 const settle = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const streamRequests = (stub: LoopsStub) => stub.requests.filter((r) => r.path.startsWith("/api/events/stream"));
+const resumeOf = (path: string) => {
+  const query = new URL(path, "http://127.0.0.1").searchParams;
+  return query.has("cursor") ? "cursor" : query.has("after") ? `after=${query.get("after")}` : "live";
+};
+const anEvent = (type = "ticket.updated") => ({ type, project: null, ticket: null, actor: { id: "x", kind: "user" }, recipientIds: [], payload: {} });
+/** Waits until `stub` saw `count` stream requests, or fails after `timeoutMs`. */
+async function streamsSeen(stub: LoopsStub, count: number, timeoutMs = 3000): Promise<void> {
+  const started = Date.now();
+  while (streamRequests(stub).length < count) {
+    if (Date.now() - started > timeoutMs) throw new Error(`only ${streamRequests(stub).length} of ${count} stream requests after ${timeoutMs} ms`);
+    await settle(10);
+  }
+}
 
 describe("the shared stream", () => {
   const cleanup: (() => Promise<void>)[] = [];
@@ -15,9 +29,10 @@ describe("the shared stream", () => {
     for (const fn of cleanup.reverse()) await fn();
     cleanup.length = 0;
   });
+  const quick = { retryMs: { min: 20, max: 100 }, reconnectMs: { min: 20, max: 40 } };
   async function start(stubOptions: Parameters<typeof createLoopsStub>[0] = {}, hostOptions: Partial<Parameters<typeof createHost>[0]> = {}) {
     const stub = await createLoopsStub({ ...installation(), ...stubOptions });
-    const host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, ...hostOptions });
+    const host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairing: "off", ...quick, log: () => undefined, ...hostOptions });
     cleanup.push(() => stub.close(), () => host.close());
     return { stub, host };
   }
@@ -29,8 +44,8 @@ describe("the shared stream", () => {
     cleanup.push(async () => a.close(), async () => b.close());
     await a.next(isStatus("ok"));
     await b.next(isStatus("ok"));
-    stub.emit({ type: "ticket.moved", project: null, ticket: null, actor: { id: "x", kind: "user" }, recipientIds: [], payload: { from: "planned", to: "in_progress" } });
-    stub.emit({ type: "ticket.updated", project: null, ticket: null, actor: { id: "x", kind: "user" }, recipientIds: [], payload: {} });
+    stub.emit({ ...anEvent("ticket.moved"), payload: { from: "planned", to: "in_progress" } });
+    stub.emit(anEvent());
     await a.next(isEvent(12));
     await b.next(isEvent(12));
     assert.deepEqual(a.messages.filter((m) => m.type === "event").map((m) => (m.envelope as { seq: number }).seq), [11, 12]);
@@ -38,6 +53,33 @@ describe("the shared stream", () => {
     stub.heartbeat();
     const beat = await a.next((m) => m.type === "heartbeat");
     assert.equal(beat.seq, 12);
+    assert.equal("cursor" in beat, false, "the sealed cursor stays in the host; the tabs count in seqs");
+  });
+
+  it("starts from GET /api/events?from=tail and opens the stream with its sealed cursor, never the old tail trick", async () => {
+    const { stub, host } = await start({ events: [envelope(10, "ticket.created")] });
+    const a = await openSse(`${host.url}/world-api/stream?cursor=10`);
+    cleanup.push(async () => a.close());
+    await a.next(isStatus("ok"));
+    const paths = stub.requests.map((r) => r.path);
+    assert.ok(paths.includes("/api/events?from=tail"), `reads the tail with from=tail: ${paths.join(" ")}`);
+    assert.ok(!paths.some((p) => p.includes("attachment.added")), "the old trick (lastSeq 0 since CL-390) is not used on a loops that knows from=tail");
+    assert.deepEqual(streamRequests(stub).map((r) => resumeOf(r.path)), ["cursor"], "the tail's sealed cursor is an exact 'now'");
+    const health = (await (await fetch(`${host.url}/world-api/health`)).json()) as { cursor: number };
+    assert.equal(health.cursor, 10, "the cursor is the tail's lastSeq, not 0");
+  });
+
+  it("falls back to the old tail read on an older loops without from=tail, and resumes with after=", async () => {
+    const { stub, host } = await start({ older: true, events: [envelope(7, "ticket.created")] });
+    const a = await openSse(`${host.url}/world-api/stream?cursor=7`);
+    cleanup.push(async () => a.close());
+    await a.next(isStatus("ok"));
+    const paths = stub.requests.map((r) => r.path);
+    assert.ok(paths.includes("/api/events?from=tail"), "tries from=tail first");
+    assert.ok(paths.some((p) => p.includes("types=attachment.added")), "then the filter that matches nothing");
+    assert.deepEqual(streamRequests(stub).map((r) => resumeOf(r.path)), ["after=7"]);
+    stub.emit(anEvent());
+    await a.next(isEvent(8));
   });
 
   it("catches a client up from its cursor out of the buffer, and resets one whose cursor is too old", async () => {
@@ -45,7 +87,7 @@ describe("the shared stream", () => {
     const warm = await openSse(`${host.url}/world-api/stream`);
     cleanup.push(async () => warm.close());
     await warm.next(isStatus("ok"));
-    for (let i = 0; i < 5; i += 1) stub.emit({ type: "ticket.updated", project: null, ticket: null, actor: { id: "x", kind: "user" }, recipientIds: [], payload: {} });
+    for (let i = 0; i < 5; i += 1) stub.emit(anEvent());
     await warm.next(isEvent(6));
     const late = await openSse(`${host.url}/world-api/stream?cursor=4`);
     cleanup.push(async () => late.close());
@@ -60,43 +102,110 @@ describe("the shared stream", () => {
     assert.equal((await fetch(`${host.url}/world-api/stream?cursor=-1`)).status, 400);
   });
 
-  it("reconnects from the cursor when loops ends the stream, without a reset", async () => {
+  it("sends the sealed cursor back only while no event followed the heartbeat that carried it, else after=<seq>", async () => {
     const { stub, host } = await start({ events: [envelope(1, "ticket.created")] });
     const a = await openSse(`${host.url}/world-api/stream?cursor=1`);
     cleanup.push(async () => a.close());
     await a.next(isStatus("ok"));
+    // Round 1: a heartbeat with a cursor, nothing after it, loops ends the stream: the reconnect carries cursor=,
+    // and an event written while the host was away is replayed from the cursor's watermark, without a reset.
+    stub.heartbeat();
+    await a.next((m) => m.type === "heartbeat");
     stub.endStreams();
-    await settle(50);
-    stub.emit({ type: "ticket.updated", project: null, ticket: null, actor: { id: "x", kind: "user" }, recipientIds: [], payload: {} });
+    stub.emit(anEvent());
     await a.next(isEvent(2));
-    assert.ok(stub.streamsOpened() >= 2);
-    assert.equal(a.messages.filter((m) => m.type === "reset").length, 0);
-    assert.ok(stub.requests.some((r) => r.path === "/api/events/stream?after=1"), "reconnects with after=<cursor>");
+    await streamsSeen(stub, 2);
+    // Round 2: an event follows the heartbeat: the token is void, the reconnect says after=<last seq>.
+    stub.heartbeat();
+    await a.next((m) => m.type === "heartbeat" && m.seq === 2);
+    stub.emit(anEvent());
+    await a.next(isEvent(3));
+    stub.endStreams();
+    await streamsSeen(stub, 3);
+    assert.deepEqual(streamRequests(stub).map((r) => resumeOf(r.path)), ["cursor", "cursor", "after=3"]);
+    assert.ok(!stub.requests.some((r) => r.path.includes("cursor=") && r.path.includes("after=")), "never both");
+    assert.equal(a.messages.filter((m) => m.type === "reset").length, 0, "a normal end is no reset");
   });
 
-  it("resets with 'gone' when loops answers 410", async () => {
+  it("pauses with jitter before reconnecting after a normal end (CL-378), not at once", async () => {
+    const { stub, host } = await start({ events: [envelope(1, "ticket.created")] }, { reconnectMs: { min: 250, max: 250 } });
+    const a = await openSse(`${host.url}/world-api/stream?cursor=1`);
+    cleanup.push(async () => a.close());
+    await a.next(isStatus("ok"));
+    stub.heartbeat();
+    await a.next((m) => m.type === "heartbeat");
+    const ended = Date.now();
+    stub.endStreams();
+    await streamsSeen(stub, 2, 2000);
+    const [, second] = streamRequests(stub);
+    const gap = (second as { at: number }).at - ended;
+    assert.ok(gap >= 230, `the reconnect waited ${gap} ms, at least the pause`);
+    assert.ok(gap < 1500, `the reconnect waited ${gap} ms, not the error backoff`);
+    const okAt = a.messages.findIndex(isStatus("ok"));
+    assert.ok(!a.messages.slice(okAt + 1).some((m) => m.type === "status"), "loops stays ok through the pause");
+  });
+
+  it("honours Retry-After on 429 too_many_streams and connects afterwards", async () => {
+    const { stub, host } = await start({ events: [envelope(1, "ticket.created")], busy: { count: 1, retryAfter: "1" } });
+    const a = await openSse(`${host.url}/world-api/stream?cursor=1`);
+    cleanup.push(async () => a.close());
+    await a.next(isStatus("ok"), 4000);
+    const [refused, accepted] = streamRequests(stub) as { at: number }[];
+    assert.ok(refused && accepted, "a refused and an accepted stream request");
+    const waited = accepted.at - refused.at;
+    assert.ok(waited >= 900 && waited < 3000, `waited ${waited} ms for Retry-After: 1`);
+    assert.equal(stub.streamsOpened(), 1);
+    stub.emit(anEvent());
+    await a.next(isEvent(2));
+  });
+
+  it("opens exactly one upstream stream whatever the tabs do: reconnects, snapshot reloads, a 429, late tabs", async () => {
+    const { stub, host } = await start({ events: [envelope(1, "ticket.created")], busy: { count: 1, retryAfter: "1" } }, { reconnectMs: { min: 30, max: 60 } });
+    const tabs = await Promise.all([1, 2, 3].map(() => openSse(`${host.url}/world-api/stream?cursor=1`)));
+    for (const tab of tabs) cleanup.push(async () => tab.close());
+    // Snapshot reloads and health reads race the first connection (the 429 is in the way of it).
+    await Promise.all([fetch(`${host.url}/world-api/snapshot`), fetch(`${host.url}/world-api/health`), fetch(`${host.url}/world-api/snapshot`)]);
+    await tabs[0]!.next(isStatus("ok"), 4000);
+    for (let round = 0; round < 4; round += 1) {
+      const late = await openSse(`${host.url}/world-api/stream?cursor=${stub.lastSeq()}`);
+      cleanup.push(async () => late.close());
+      stub.heartbeat();
+      stub.emit(anEvent());
+      await late.next(isEvent(stub.lastSeq()));
+      void fetch(`${host.url}/world-api/snapshot`);
+      stub.endStreams();
+      await streamsSeen(stub, 3 + round, 3000);
+      await settle(30);
+    }
+    stub.emit(anEvent());
+    await tabs[2]!.next(isEvent(stub.lastSeq()));
+    assert.ok(stub.streamsOpened() >= 5, `${stub.streamsOpened()} streams opened over the rounds`);
+    assert.equal(stub.maxConcurrentStreams(), 1, "never two upstream streams at once");
+    assert.equal(stub.openStreams(), 1);
+    assert.deepEqual(stub.requests.filter((r) => r.path.startsWith("/api/events?")).map((r) => r.path), stub.requests.filter((r) => r.path.startsWith("/api/events?")).map(() => "/api/events?from=tail"), "every tail read is from=tail");
+  });
+
+  it("resets with 'gone' when loops answers 410 for its cursor, and continues from the tail", async () => {
     const { stub, host } = await start({ events: [envelope(100, "ticket.created")], minAfter: 100 });
     const a = await openSse(`${host.url}/world-api/stream?cursor=100`);
     cleanup.push(async () => a.close());
     await a.next(isStatus("ok"));
-    stub.endStreams();
-    (stub as unknown as { minAfterBump?: boolean }).minAfterBump = true;
-    // loops forgot the log up to 150: the next reconnect from 100 is 410
-    stub.emit({ seq: 150, type: "ticket.created", project: null, ticket: null, actor: { id: "x", kind: "user" }, recipientIds: [], payload: {} });
+    stub.emit({ ...anEvent("ticket.created"), seq: 150 });
     await a.next(isEvent(150));
-    const gone = await createLoopsStub({ ...installation(), events: [envelope(150, "ticket.created")], minAfter: 151 });
+    // loops forgot the log up to 150: a host whose first stream asks for 150 is told 410, the clients re-snapshot
+    const gone = await createLoopsStub({ ...installation(), older: true, events: [envelope(150, "ticket.created")], minAfter: 151 });
     cleanup.push(() => gone.close());
-    const goneHost = await createHost({ loopsUrl: gone.url, key: gone.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 } });
+    const goneHost = await createHost({ loopsUrl: gone.url, key: gone.key, keyName: "crewhub-world", pairing: "off", ...quick, log: () => undefined });
     cleanup.push(() => goneHost.close());
-    // the host's first connection asks after=150 (the tail), which loops says is gone: the clients re-snapshot
     const b = await openSse(`${goneHost.url}/world-api/stream?cursor=150`);
     cleanup.push(async () => b.close());
     await b.next(isReset("gone"));
+    await b.next(isStatus("ok"));
   });
 
   it("goes down and comes back: status messages, host heartbeats, and a reset when the tail went backwards", async () => {
     const first = await createLoopsStub({ ...installation(), events: [envelope(1, "ticket.created"), envelope(2, "ticket.created")] });
-    const host = await createHost({ loopsUrl: first.url, key: first.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 60 } });
+    const host = await createHost({ loopsUrl: first.url, key: first.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 60 }, reconnectMs: { min: 20, max: 40 }, log: () => undefined });
     cleanup.push(() => host.close());
     const a = await openSse(`${host.url}/world-api/stream?cursor=2`);
     cleanup.push(async () => a.close());
@@ -112,6 +221,17 @@ describe("the shared stream", () => {
     cleanup.push(() => second.close());
     await a.next(isReset("reconnected"), 3000);
     await a.next(isStatus("ok"));
+    assert.equal(((await (await fetch(`${host.url}/world-api/health`)).json()) as { cursor: number }).cursor, 1, "the cursor is the new tail");
+  });
+
+  it("passes an event type it does not know to the browser unchanged", async () => {
+    const { stub, host } = await start({ events: [envelope(1, "ticket.created")] });
+    const a = await openSse(`${host.url}/world-api/stream?cursor=1`);
+    cleanup.push(async () => a.close());
+    await a.next(isStatus("ok"));
+    stub.emit({ ...anEvent("automation.ran"), payload: { runId: "run_1", automationId: "au_1", outcome: "done", automation: { id: "au_1", name: "Quiet" } } });
+    const message = await a.next(isEvent(2));
+    assert.equal((message.envelope as { type: string }).type, "automation.ran");
   });
 });
 
