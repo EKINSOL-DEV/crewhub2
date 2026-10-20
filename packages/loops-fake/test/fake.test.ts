@@ -1,6 +1,7 @@
 /**
  * The fake crewhub-loops against loops' contract: auth and error bodies, the read shapes through the loops-client
- * validators, the tail recipe, the NDJSON stream with `after=`, heartbeats and the 410 past the buffer.
+ * validators, `from=tail` and the sealed cursor, the NDJSON stream with `after=` or `cursor=`, heartbeats with a
+ * cursor, the 429 at the fifth stream, and the 410 past the buffer.
  * Loopback only: every test starts its own fake on 127.0.0.1 port 0.
  */
 import assert from "node:assert/strict";
@@ -21,7 +22,7 @@ import {
   validateWatchdogResponse,
 } from "@crewhub/loops-client";
 import type { Envelope, Result } from "@crewhub/loops-client";
-import { BUILDER_KEY_MESSAGE, type LoopsFake, createLoopsFake } from "../src/index.ts";
+import { BUILDER_KEY_MESSAGE, CURSOR_EXPIRED_MESSAGE, MAX_STREAMS_PER_KEY, type LoopsFake, createLoopsFake } from "../src/index.ts";
 
 const fakes: LoopsFake[] = [];
 after(async () => {
@@ -149,15 +150,20 @@ test("archived projects are readable one by one; the snapshot's lists match the 
   assert.ok(agents.agents.some((a: { isCrewhubLead: boolean }) => a.isCrewhubLead));
 });
 
-test("the tail recipe, GET /api/events paging and types validation", async () => {
+test("from=tail, the honest lastSeq of CL-390, GET /api/events paging, the sealed cursor and types validation", async () => {
   const fake = await start({ firstSeq: 4000 });
-  const tail = await get(fake, "/api/events?types=attachment.added");
+  const tail = await get(fake, "/api/events?from=tail");
   assert.equal(tail.status, 200);
   assert.deepEqual(tail.body.events, []);
   assert.equal(tail.body.lastSeq, fake.lastSeq());
   assert.ok(tail.body.lastSeq >= 4000);
+  assert.match(tail.body.cursor, /^[A-Za-z0-9_-]{40,128}$/, "a sealed-looking opaque cursor");
+  // The old tail trick is broken on the real loops: a filter that matches nothing answers `after`, so lastSeq is 0.
+  const trick = await get(fake, "/api/events?types=attachment.added&limit=1");
+  assert.deepEqual([trick.body.events, trick.body.lastSeq], [[], 0]);
   const bad = await get(fake, "/api/events?types=no.such");
   assert.deepEqual([bad.status, bad.body.error.code], [400, "validation_error"]);
+  assert.equal((await get(fake, "/api/events?from=head")).status, 400);
   await fake.moveTicket("CR-21", "planned");
   const moved = fake.lastSeq();
   await fake.moveTicket("CR-21", "in_progress");
@@ -166,8 +172,19 @@ test("the tail recipe, GET /api/events paging and types validation", async () =>
   assert.equal(list.body.lastSeq, list.body.events[0].seq);
   const rest = await get(fake, `/api/events?after=${list.body.lastSeq}&types=ticket.moved`);
   assert.ok(rest.body.events.every((e: Envelope) => e.type === "ticket.moved" && e.seq > list.body.lastSeq));
-  assert.equal(rest.body.lastSeq, fake.lastSeq());
+  assert.equal(rest.body.lastSeq, rest.body.events.at(-1).seq, "the last row returned");
   for (const e of [...list.body.events, ...rest.body.events]) valid(validateEnvelope(e), `#${e.seq}`);
+  // The sealed cursor resumes exactly where that answer's judgement ended: nothing before it, everything after.
+  const resumed = await get(fake, `/api/events?cursor=${encodeURIComponent(tail.body.cursor)}`);
+  assert.equal(resumed.status, 200);
+  assert.ok(resumed.body.events.length >= 2 && resumed.body.events[0].seq === tail.body.lastSeq + 1, "the moves after the tail read");
+  assert.equal(resumed.body.lastSeq, fake.lastSeq());
+  const both = await get(fake, `/api/events?cursor=${encodeURIComponent(tail.body.cursor)}&after=1`);
+  assert.deepEqual([both.status, both.body.error.code, both.body.error.message], [400, "validation_error", "Send either cursor or after, not both"]);
+  for (const foreign of ["bogus", tail.body.cursor.slice(0, -2) + "zz", (await start({ firstSeq: 4000 })).lastSeq() && (await get(fakes.at(-1)!, "/api/events?from=tail")).body.cursor]) {
+    const gone = await get(fake, `/api/events?cursor=${encodeURIComponent(foreign)}`);
+    assert.deepEqual([gone.status, gone.body.error.code, gone.body.error.message], [410, "cursor_expired", CURSOR_EXPIRED_MESSAGE], `foreign ${foreign.slice(0, 12)}`);
+  }
 });
 
 test("moveTicket emits ticket.moved on the stream and the board and ticket reads follow", async () => {
@@ -213,6 +230,8 @@ test("the stream replays after= from the buffer, then goes live; heartbeats carr
   assert.equal(beat["v"], 1);
   assert.equal(beat["seq"], fake.lastSeq());
   assert.equal(typeof beat["ts"], "string");
+  assert.match(String(beat["cursor"]), /^[A-Za-z0-9_-]{40,128}$/, "the heartbeat carries a sealed cursor");
+  assert.deepEqual(Object.keys(beat), ["v", "type", "seq", "cursor", "ts"], "ts last, as loops writes it");
   // A fresh stream that has sent nothing yet beats with its `after`.
   const quiet = await fetch(`${fake.url}/api/events/stream?after=${fake.lastSeq()}`, { headers: headers(fake) });
   const [first] = await readLines(quiet, 1, 1000);
@@ -222,6 +241,38 @@ test("the stream replays after= from the buffer, then goes live; heartbeats carr
   const live = await fetch(`${fake.url}/api/events/stream`, { headers: headers(fake) });
   const [onlyBeat] = await readLines(live, 1, 1000);
   assert.equal(onlyBeat?.["type"], "heartbeat");
+  // `cursor=` from that heartbeat reopens the stream where it stood: a move after it is replayed, nothing before.
+  await fake.moveTicket("CR-22", "review");
+  const resumed = await fetch(`${fake.url}/api/events/stream?cursor=${encodeURIComponent(String(onlyBeat?.["cursor"]))}`, { headers: headers(fake) });
+  assert.equal(resumed.status, 200);
+  const [replayed] = await readLines(resumed, 1, 1000);
+  assert.equal(replayed?.["type"], "ticket.moved");
+  assert.equal(replayed?.["seq"], Number(onlyBeat?.["seq"]) + 1);
+  const both = await fetch(`${fake.url}/api/events/stream?cursor=${encodeURIComponent(String(onlyBeat?.["cursor"]))}&after=1`, { headers: headers(fake) });
+  assert.equal(both.status, 400);
+  const foreign = await fetch(`${fake.url}/api/events/stream?cursor=not-a-cursor-at-all`, { headers: headers(fake) });
+  assert.equal(foreign.status, 410);
+  assert.equal((await foreign.json()).error.code, "cursor_expired");
+});
+
+test("the fifth open stream of the key is 429 too_many_streams with Retry-After: 5; a closed one frees its slot", async () => {
+  const fake = await start({ speed: 0, heartbeatMs: 50 });
+  const open: Response[] = [];
+  for (let i = 0; i < MAX_STREAMS_PER_KEY; i += 1) {
+    const res = await fetch(`${fake.url}/api/events/stream`, { headers: headers(fake) });
+    assert.equal(res.status, 200, `stream ${i + 1}`);
+    open.push(res);
+  }
+  assert.equal(fake.openStreams(), MAX_STREAMS_PER_KEY);
+  const fifth = await fetch(`${fake.url}/api/events/stream`, { headers: headers(fake) });
+  assert.equal(fifth.status, 429);
+  assert.equal(fifth.headers.get("retry-after"), "5");
+  assert.deepEqual(await fifth.json(), { error: { code: "too_many_streams", message: "Too many open event streams", detail: null } });
+  await open[0]!.body!.cancel();
+  for (let i = 0; i < 50 && fake.openStreams() === MAX_STREAMS_PER_KEY; i += 1) await new Promise((r) => setTimeout(r, 20));
+  const again = await fetch(`${fake.url}/api/events/stream`, { headers: headers(fake) });
+  assert.equal(again.status, 200, "the freed slot admits a new stream");
+  for (const res of [...open.slice(1), again]) await res.body?.cancel();
 });
 
 test("an after= older than the buffer answers 410 cursor_expired; a fresh fake continues or restarts the log", async () => {
@@ -254,12 +305,12 @@ test("the key appears in no response body", async () => {
   }
 });
 
-test("GET /api/auth/me answers loops' PrincipalOut for an agent key", async () => {
+test("GET /api/auth/me answers loops' PrincipalOut for an external bot's key: role lead", async () => {
   const fake = await start();
   const me = await get(fake, "/api/auth/me");
   assert.equal(me.status, 200);
   assert.deepEqual(me.body, {
-    principal: { id: fake.keyName, kind: "agent", displayName: fake.keyName, role: "probe", theme: null, themeDefault: "system" },
+    principal: { id: fake.keyName, kind: "agent", displayName: fake.keyName, role: "lead", theme: null, themeDefault: "system" },
   });
 });
 

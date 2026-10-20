@@ -501,7 +501,7 @@ await group("live", async () => {
   if (!served && (!Number.isInteger(hostPort) || hostPort <= 0)) opts.fail("--host-port <port> must be a port number");
   const fakeOptions = { heartbeatMs: 1000 };
   let fake = await createLoopsFake(fakeOptions);
-  const hostOptions = { loopsUrl: fake.url, key: fake.key, keyName: fake.keyName, retryMs: { min: 100, max: 500 }, heartbeatMs: 1000, log: () => undefined };
+  const hostOptions = { loopsUrl: fake.url, key: fake.key, keyName: fake.keyName, retryMs: { min: 100, max: 500 }, reconnectMs: { min: 100, max: 300 }, heartbeatMs: 1000, log: () => undefined };
   const host = await createHost(served ? { ...hostOptions, staticDir: dist } : { ...hostOptions, port: hostPort, allowedOrigins: [origin] });
   const liveOrigin = served ? host.url : origin;
   // The page is opened without `?source=live`: the source is `auto`, the probe finds the host and the health it answers

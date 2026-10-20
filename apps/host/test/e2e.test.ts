@@ -65,6 +65,7 @@ test("fake → host → HostSource → projection: a move, a fake restart, no ke
     key,
     keyName: fake.keyName,
     retryMs: { min: 50, max: 200 },
+    reconnectMs: { min: 50, max: 100 },
     log: () => undefined,
   });
   assert.equal((await fetch(`${host.url}/world-api/snapshot`)).status, 401, "unpaired: no data");
