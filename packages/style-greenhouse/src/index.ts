@@ -270,7 +270,7 @@ class GreenhouseStyle implements WorldStyle {
       case "building.ivy":
         return shell.ivy(kit, o);
       case "building.closed-sign":
-        return shell.closedSign(kit);
+        return shell.closedSign(kit, o);
       case "building.name-sign":
         return shell.nameSign(kit, o);
       case "building.wall-lamp":

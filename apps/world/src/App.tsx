@@ -1,7 +1,7 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type Ref } from "react";
 import { ArrowLeft, ChevronRight, Eye, FlaskConical, Hammer, MessageCircle, Minus, Monitor, Moon, Pause, Plus, RotateCcw, RotateCw, Footprints, Scan, Search, Settings, Sprout, Sun, Tags, X } from "lucide-react";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { CIVIC_WORDS, describeTownDocument, describeWorld, ruleProps, zoningOf, type AgentPlacement, type CivicWords, type PlaybackControls, type PlaybackSpeed, type RoleId, type RoomKind, type RoomWording, type TextLine, type WorldModel } from "@crewhub/world-model";
+import { archivedWords, CIVIC_WORDS, describeTownDocument, describeWorld, ruleProps, zoningOf, type AgentPlacement, type CivicWords, type PlaybackControls, type PlaybackSpeed, type RoleId, type RoomKind, type RoomWording, type TextLine, type WorldModel } from "@crewhub/world-model";
 import type { PropModel } from "@crewhub/world-engine";
 import { Bubbles } from "./components/bubbles/Bubbles";
 import { TownSettings } from "./components/TownSettings";
@@ -226,11 +226,11 @@ function World() {
     (index: number) => {
       const b = buildings[index];
       if (!b) return "";
-      if (b.archived) return `${b.name} (${b.key}), archived. ${countsLine(b.counts)}. Enter to look inside.`;
+      if (b.archived) return `${b.name} (${b.key}), archived: ${archivedWords(b.archivedAt, model.now)}${b.archivedBy ? ` by ${b.archivedBy}` : ""}. ${countsLine(b.counts)}. Enter to look inside.`;
       const lead = b.agents.find((a) => a.key === b.lead.id && a.presence === "real");
       return `${b.name} (${b.key}). ${countsLine(b.counts)}. Lead ${b.lead.displayName}, ${lead ? laneWords(lead.laneStatus, model.freshness) : "not in the building"}. Enter to go inside.`;
     },
-    [buildings, model.freshness],
+    [buildings, model.freshness, model.now],
   );
   const enter = useCallback(
     (slug: string) => {

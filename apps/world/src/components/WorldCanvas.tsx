@@ -1,6 +1,6 @@
 import { memo, useCallback, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 import { Archive, Check, CircleHelp, Clock, Flag, Hand, MessageSquare, Play, RefreshCw, Sprout, TriangleAlert, Trophy } from "lucide-react";
-import { agentCardFacts, type AgentPlacement, type Building, type ProgressKind, type RoleSource, type WorkObject, type WorldModel } from "@crewhub/world-model";
+import { archivedWords, agentCardFacts, type AgentPlacement, type Building, type ProgressKind, type RoleSource, type WorkObject, type WorldModel } from "@crewhub/world-model";
 import { SOURCE, STRESS, worldRuntime } from "../state/world";
 import { loopsWebUrl } from "../state/source";
 import { AgentCard } from "./AgentCard";
@@ -323,6 +323,7 @@ export default function WorldCanvas(props: Props) {
               name={b.name}
               projectKey={b.key}
               archived={b.archived}
+              closedSince={b.archived ? archivedWords(b.archivedAt, model.now) : ""}
               expanded={expanded}
               inside={!!inside}
               counts={expanded ? countsLine(b.counts) : ""}
@@ -402,6 +403,8 @@ const TownSign = memo(function TownSign(props: {
   name: string;
   projectKey: string;
   archived: boolean;
+  /** "closed since 9 Oct 2026 (11 days)" for an archived building, shown when the sign is expanded. */
+  closedSince: string;
   expanded: boolean;
   inside: boolean;
   counts: string;
@@ -429,6 +432,7 @@ const TownSign = memo(function TownSign(props: {
           {archived && <span className="sign-archived">archived</span>}
         </span>
         {expanded && <span className="sign-counts">{props.counts}</span>}
+        {expanded && archived && <span className="sign-lead">{props.closedSince.charAt(0).toUpperCase() + props.closedSince.slice(1)}</span>}
         {expanded && !archived && (
           <span className="sign-lead">
             Lead {props.leadName}

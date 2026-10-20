@@ -399,7 +399,10 @@ export class Projection {
         const project = facts.projects[slug];
         if (project) {
           const archivedAt = readString(event.payload.new, "archivedAt") ?? event.ts;
-          facts.projects[slug] = { ...project, archivedAt };
+          // The actor is who archived it; the principals list has the name (the envelope carries only the id).
+          const who = facts.principals.find((p) => p.id === event.actor.id);
+          const archivedBy = { id: event.actor.id, kind: event.actor.kind, displayName: who?.displayName ?? event.actor.id };
+          facts.projects[slug] = { ...project, archivedAt, archivedBy };
         }
         facts.order = facts.order.filter((s) => s !== slug);
         if (!facts.archivedOrder.includes(slug)) facts.archivedOrder.push(slug);
@@ -410,7 +413,7 @@ export class Projection {
       case "project.restored": {
         if (!slug) return;
         const project = facts.projects[slug];
-        if (project) facts.projects[slug] = { ...project, archivedAt: null };
+        if (project) facts.projects[slug] = { ...project, archivedAt: null, archivedBy: null };
         facts.archivedOrder = facts.archivedOrder.filter((s) => s !== slug);
         facts.projectChanges[slug] = { kind: "opening", ts, seq: event.seq };
         if (!facts.order.includes(slug)) facts.order.push(slug);
