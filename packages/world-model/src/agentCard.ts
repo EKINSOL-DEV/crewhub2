@@ -89,6 +89,8 @@ export interface AgentCardFacts {
   agent: AgentPlacement;
   /** The building the real figure is in, or null (the town hall, the post office). */
   building: Building | null;
+  /** Where the figure stands when it is in no building: the town hall or the post office. */
+  civic: "town-hall" | "post-office" | null;
   /** The buildings the agent belongs to, in project order. */
   homes: { slug: string; name: string; key: string }[];
   /** The ticket on its desk, else the in-progress ticket assigned to it. */
@@ -246,6 +248,7 @@ export function agentCardFacts(model: WorldModel, facts: Readonly<Facts>, key: s
     registered: entity.registered,
     agent,
     building: real.building,
+    civic: real.building ? null : model.postOffice.some((a) => a.key === key) ? "post-office" : model.townHall.some((a) => a.key === key) ? "town-hall" : null,
     homes,
     work,
     workProject: project ? { slug: project.slug, key: project.key, name: project.name } : null,

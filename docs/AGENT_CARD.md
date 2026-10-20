@@ -1,8 +1,9 @@
 # The agent card and the follow camera
 
-Click an agent's figure inside a building and a card opens beside it (a bottom sheet on a phone): what the agent is
-doing now, from the facts the projection holds. Enter on a selected agent opens it too (the jump list lands with the
-agent selected). Escape and a tap outside close it. The card is not modal: the world stays live behind it, and the
+Click an agent's figure, in a building or in the town (the agents in the town hall, the postman), and a card opens
+beside it (a bottom sheet on a phone): what the agent is doing now, from the facts the projection holds. Enter on a
+selected agent opens it too (the jump list lands with the agent selected: in its room, or in the town beside its
+figure). Escape and a tap outside close it. The card is not modal: the world stays live behind it, and the
 figure keeps walking while the card follows its anchor.
 
 The card reads the projection, never the source, so it is the same in demo and live mode: the demo gives what its

@@ -105,7 +105,7 @@ function World() {
   // The district the view is in (a region only): the level between the home view and a building.
   const [district, setDistrict] = useState<string | null>(null);
   const [jumpOpen, setJumpOpen] = useState(false);
-  const [flight, setFlight] = useState<{ id: number; anchor: string }>({ id: 0, anchor: "" });
+  const [flight, setFlight] = useState<{ id: number; anchor: string; reach?: number }>({ id: 0, anchor: "" });
   const [selection, setSelection] = useState<Selection>({ hover: null, selected: null });
   // Walk mode: the person walks a visitor through the world. The level it began on is kept for the way back.
   const [walking, setWalking] = useState(false);
@@ -294,7 +294,8 @@ function World() {
       setEntered(b?.slug ?? null);
       setRoom(b ? place.room : null);
       setZoomed(b ? place.room : null);
-      setSelection({ hover: null, selected: b && agent ? { kind: "agent", key: agent } : null });
+      // The agent to land beside: in its building, or in the town (the town hall's agents, the postman).
+      setSelection({ hover: null, selected: agent ? { kind: "agent", key: agent } : null });
       setCard(false);
       setFollowing(null);
       if (b) {
@@ -311,7 +312,11 @@ function World() {
     (entry: JumpEntry) => {
       setJumpOpen(false);
       go(entry.place, entry.agent);
-      if (entry.civic) {
+      if (entry.agent && !entry.place.building) {
+        // A figure outside the buildings: the camera lands close beside it, selected; Enter opens its card.
+        setFlight((f) => ({ id: f.id + 1, anchor: `a:town:${entry.agent}`, reach: 5 }));
+        setAnnouncement(`${entry.label}. ${entry.detail} Enter opens its card.`);
+      } else if (entry.civic) {
         setFlight((f) => ({ id: f.id + 1, anchor: `c:${entry.civic}` }));
         setAnnouncement(`${entry.label}. ${entry.detail}`);
       }
@@ -581,6 +586,11 @@ function World() {
     }
     if (e.key === "Enter" && e.target === e.currentTarget.querySelector("canvas")) {
       e.preventDefault();
+      // Enter on a selected town figure (after a jump to it) opens its card; else it enters the focused building.
+      if (selectedAgent && !card) {
+        setCard(true);
+        return;
+      }
       const b = buildings[focused];
       if (b) enter(b.slug);
     }

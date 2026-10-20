@@ -10,9 +10,9 @@ import { agoWords, spanWords, stampOf } from "../words.ts";
 /** A sighting older than this, with no fresh team status, is not read as working (the team snapshot's own limit). */
 export const SEEN_FRESH_MS = 300_000;
 
-/** "crewhub-loops, Workers room" (classic) or "crewhub-loops, on the floor at a worker desk" (three-rooms). */
-export function whereWords(agent: AgentPlacement, building: Building | null, rooms: "three-rooms" | "classic"): string {
-  if (!building) return agent.presence === "proxy" ? "elsewhere" : "the town";
+/** "crewhub-loops, Workers room" (classic), "crewhub-loops, on the floor at a worker desk" (three-rooms), "the town hall". */
+export function whereWords(agent: AgentPlacement, building: Building | null, rooms: "three-rooms" | "classic", civic: "town-hall" | "post-office" | null = null): string {
+  if (!building) return agent.presence === "proxy" ? "elsewhere" : civic === "post-office" ? "the post office" : civic === "town-hall" ? "the town hall, active in no building" : "the town";
   if (!agent.room) return building.name;
   if (rooms === "classic") return `${building.name}, ${building.rooms.find((r) => r.kind === agent.room)?.label ?? agent.room}`;
   const hall = hallOf(agent.room);
@@ -26,7 +26,7 @@ export const nowSection: AgentCardSection = {
   render(facts, ctx) {
     const { agent } = facts;
     const rows: CardRow[] = [];
-    const where = whereWords(agent, facts.building, ctx.rooms ?? "classic");
+    const where = whereWords(agent, facts.building, ctx.rooms ?? "classic", facts.civic);
     rows.push({ kind: "text", label: "Where", text: `${where}${agent.locationInferred ? " (inferred from recent events)" : ""}` });
     if (agent.presence === "proxy") rows.push({ kind: "text", label: "", text: "A translucent proxy here: the real figure works in another building.", muted: true });
     else rows.push({ kind: "chips", chips: [{ kind: "lane", status: agent.laneStatus }, { kind: "plain", text: `posture ${agent.posture === "raised-hand" ? "hand raised" : agent.posture}` }] });
