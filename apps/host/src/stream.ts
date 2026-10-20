@@ -12,8 +12,12 @@ import { SnapshotError, readTail } from "./snapshot.ts";
 
 export type LoopsState = "ok" | "down" | "unauthorized";
 
+/** Why the stream is `busy`: loops admits four streams per key. */
+export const BUSY_REASON = "stream budget exhausted (429): another host or tab uses this key";
+
 export type HostMessage =
-  | { type: "status"; loops: LoopsState }
+  /** `stream: "busy"` with the reason when loops refused the stream with 429 (`loops` stays `down` for the world from before). */
+  | { type: "status"; loops: LoopsState; stream?: "busy"; reason?: string }
   | { type: "event"; envelope: Envelope }
   | { type: "heartbeat"; seq: number; ts: string }
   | { type: "reset"; reason: "gone" | "reconnected" | "cursor" };
@@ -43,6 +47,8 @@ export interface Upstream {
   archivedSlugs(): ReadonlySet<string>;
   /** Connection attempts after the first one (loops' 300 s end counts, so does every retry while down). */
   reconnects(): number;
+  /** The reason while loops refuses the stream with 429 `too_many_streams`; null otherwise. */
+  busy(): string | null;
   /** When the last event arrived (loops' `ts`), ISO 8601; undefined before the first. */
   lastEventAt(): string | undefined;
   /**
@@ -95,6 +101,7 @@ export function createUpstream(client: LoopsClient, options: UpstreamOptions = {
   let version: string | undefined;
   let attempts = 0;
   let lastEventAt: string | undefined;
+  let busyReason: string | null = null;
   const archived = new Set<string>();
   const listeners = new Set<(message: HostMessage) => void>();
   /** Clients that subscribed with a cursor before the host knew its own: judged at the first connection. */
@@ -109,10 +116,19 @@ export function createUpstream(client: LoopsClient, options: UpstreamOptions = {
     for (const listener of [...listeners]) listener(message);
   };
   const setState = (next: LoopsState) => {
-    if (state === next) return;
+    const wasBusy = busyReason !== null;
+    busyReason = null;
+    if (state === next && !wasBusy) return;
     state = next;
     log(`loops ${next}`);
     broadcast({ type: "status", loops: next });
+  };
+  /** 429: the world from before sees `down`; the connection states say `busy` and why. */
+  const setBusy = () => {
+    const changed = busyReason === null || state !== "down";
+    busyReason = BUSY_REASON;
+    state = "down";
+    if (changed) broadcast({ type: "status", loops: "down", stream: "busy", reason: BUSY_REASON });
   };
   const clearBuffer = (from: number) => {
     buffer.length = 0;
@@ -283,6 +299,7 @@ export function createUpstream(client: LoopsClient, options: UpstreamOptions = {
       const waitMs = retryAfterMs(response);
       await discard(response);
       log(`loops stream: 429 too_many_streams, retry in ${Math.round(waitMs / 1000)} s`);
+      setBusy();
       ready();
       return { kind: "busy", waitMs };
     }
@@ -342,8 +359,9 @@ export function createUpstream(client: LoopsClient, options: UpstreamOptions = {
     archivedSlugs: () => archived,
     reconnects: () => Math.max(0, attempts - 1),
     lastEventAt: () => lastEventAt,
+    busy: () => busyReason,
     subscribe(from, listener) {
-      listener({ type: "status", loops: state });
+      listener(busyReason === null ? { type: "status", loops: state } : { type: "status", loops: state, stream: "busy", reason: busyReason });
       if (from !== null) {
         if (cursor === -1) pending.set(listener, from);
         else if (from < bufferFrom || from > cursor) listener({ type: "reset", reason: "cursor" });

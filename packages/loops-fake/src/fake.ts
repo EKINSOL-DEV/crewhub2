@@ -3,8 +3,10 @@
  * shapes (`docs/integrators/read-model.md`, `events.md`; the stream as crewhub-loops 4cdcd383 serves it, see
  * docs/LOOPS_REAL_VS_FAKE.md), from the demo's own scripted source played on wall time. Bearer-key auth, loops'
  * error bodies, `GET /api/events` with `from=tail` and a sealed opaque `cursor` (CL-406), the NDJSON stream with
- * `after=` or `cursor=`, heartbeats that carry a cursor, 429 `too_many_streams` at the fifth stream of the key, and a
- * 410 `cursor_expired` for a cursor that does not open or an `after` older than the buffer it keeps.
+ * `after=` or `cursor=` or a `Last-Event-ID` header, heartbeats that carry a cursor, 429 `too_many_streams` at the
+ * fifth stream of the key, a 410 `cursor_expired` for a cursor that does not open or an `after` older than the buffer
+ * it keeps, and the per-principal visibility of a lead agent's key (`api/stream.py` `event_visibility_sql`): chat,
+ * lane alerts to other leads and the admin-only types are rows the key never sees, so its `seq` has gaps.
  *
  * Nothing here talks to a real crewhub-loops; it is for tests and for running the world in live mode before the
  * install. It reads the demo through `DemoSource` and renumbers the demo's `seq` into one continuous log
@@ -48,9 +50,24 @@ export interface LoopsFakeOptions {
   bufferSize?: number;
   /**
    * The tail of the log when the fake starts: the first event gets `firstSeq + 1`. A restart that keeps the log
-   * passes the old fake's `lastSeq()`; a lower value plays a fresh install. Default 0.
+   * passes the old fake's `lastSeq()`; a lower value plays a fresh install. Default 0. A fresh install (0) starts its
+   * log with the install's history: two admin-only rows for the making of the key's bot (hidden from the key, so
+   * its first visible seq is 3, as on a real instance) and a `project.archived` row for every project archived at
+   * the start, so a client can learn the archived slugs from the log.
    */
   firstSeq?: number;
+  /**
+   * What the key is served of the log. `principal` (the default) is loops' rule for a lead agent's key
+   * (`api/stream.py` `event_visibility_sql`): no chat it is not part of, no lane alert addressed to another lead, no
+   * lane-wake delivery for somebody else, no `host.reported`, `onboarding.updated`, `owner-request.updated`, old
+   * agent-action rows or `ADMIN_EVENT_TYPES`; every hidden row is a gap in `seq`. `all` serves every row (an admin's view).
+   */
+  visibility?: "principal" | "all";
+  /**
+   * `GET /api/team` answers `{"v":1,"ts":"","sessions":[]}`, as an instance where no team probe has reported (the
+   * development instance on 8291), and the demo's team snapshot is never served. Default false.
+   */
+  emptyTeam?: boolean;
 }
 
 export interface LoopsFake {
@@ -58,14 +75,20 @@ export interface LoopsFake {
   readonly port: number;
   readonly key: string;
   readonly keyName: string;
-  /** The tail of the log: the seq of the last event, or `firstSeq` before the first. */
+  /** The tail of the log: the seq of the last event, hidden rows included, or `firstSeq` before the first. */
   lastSeq(): number;
+  /** The newest seq the key may see: what `from=tail` and a live stream's first heartbeat say (`firstSeq` before the first). */
+  lastVisibleSeq(): number;
   /** How many event streams are open right now (a host holds one for all its browser tabs). */
   openStreams(): number;
   /** How many event streams were opened since the fake started (a reconnect after `streamMaxMs` adds one). */
   streamsOpened(): number;
-  /** Moves a ticket as a person would (`ticket.moved` on the stream; the board and ticket reads follow). */
-  moveTicket(ref: string, status: string): Promise<void>;
+  /**
+   * Moves a ticket as the demo person would (`ticket.moved` with `actor.kind: "user"` on the stream; the board and
+   * ticket reads follow). Only a person moves into Done in loops (`human_only_done`), and the fake's agents never do.
+   * `rejected` turns a move into Done down with that reason (`resolution: "rejected"` in the payload).
+   */
+  moveTicket(ref: string, status: string, options?: { rejected?: string }): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -85,6 +108,20 @@ export const EVENT_TYPES: readonly string[] = [
   "policy.created", "feature.updated", "delegation.consumed", "automation.ran", "ticket.quiet", "owner-request.updated",
 ];
 
+/** Written by the administration of agents and rights (CL-124): human admins only, never an agent key (`contracts/events.py`). */
+export const ADMIN_EVENT_TYPES: readonly string[] = [
+  "agent.created", "agent.updated", "agent-membership.updated", "agent-right.granted", "agent-right.revoked", "lane.updated",
+  "profile.updated", "policy.created", "feature.updated", "delegation.consumed",
+];
+/** Served to human admins only besides `ADMIN_EVENT_TYPES` (`api/stream.py` `event_visibility_sql`); a lead key never sees them. */
+export const ADMIN_ONLY_EVENT_TYPES: readonly string[] = [
+  ...ADMIN_EVENT_TYPES, "agent_action.ambiguous", "agent_action.expired", "agent-action.updated", "host.reported",
+  "onboarding.updated", "owner-request.updated",
+];
+/** Label names no project label may take (`domain/labels.py` `RESERVED_LABELS`); the globals among them are what `GET /api/labels` lists. */
+export const RESERVED_LABELS: readonly string[] = ["smoke", "awaiting-deploy", "release", "tutorial"];
+/** Loops' message when a key asks for archived projects (`api/routers/projects.py` `list_projects`). */
+export const INCLUDE_ARCHIVED_MESSAGE = "Only an admin lists archived projects";
 /** What the fake reports as loops' version: loops says its package version (`0.1.0`); the fake adds the commit it follows. */
 export const FAKE_LOOPS_VERSION = "0.1.0+fake.4cdcd383";
 const DEFAULT_HEARTBEAT_MS = 15_000;
@@ -142,10 +179,14 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
   const streamMaxMs = Math.max(1, options.streamMaxMs ?? DEFAULT_STREAM_MAX_MS);
   const builderKey = options.builderKey === true;
   const bufferSize = Math.max(1, options.bufferSize ?? DEFAULT_BUFFER);
+  const visibility = options.visibility ?? "principal";
+  const emptyTeam = options.emptyTeam === true;
   const principal: PrincipalRef = { id: keyName, kind: "agent", displayName: keyName };
 
-  // The log: the demo's envelopes renumbered into one continuous sequence from `firstSeq`.
+  // The log: the demo's envelopes renumbered into one continuous sequence from `firstSeq`. Every row is kept, the
+  // hidden ones too (they are the gaps); `visibleTail` is the newest seq the key may see.
   let seq = options.firstSeq ?? 0;
+  let visibleTail = seq;
   /** The oldest `after` the buffer can still answer: anything lower is 410. */
   let floor = seq;
   const buffer: Envelope[] = [];
@@ -197,6 +238,22 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     ...(options.startAt === undefined ? {} : { startAt: options.startAt }),
   });
 
+  /**
+   * Loops' per-principal visibility for a lead agent's key (`api/stream.py` `event_visibility_sql`, the rows of
+   * explore-api's event table). The fake's key takes part in no chat thread, so chat is visible only when a row names
+   * the key as the thread's agent or the delivery's recipient.
+   */
+  function visibleToKey(e: Envelope): boolean {
+    if (visibility === "all") return true;
+    if (!EVENT_TYPES.includes(e.type) || ADMIN_ONLY_EVENT_TYPES.includes(e.type)) return false;
+    const p = e.payload;
+    const chat = e.type.startsWith("dm.") || (p["dmThreadId"] ?? null) !== null;
+    if (chat && p["agentId"] !== keyName && p["recipientId"] !== keyName) return false;
+    if (e.type === "lane.alert" && p["leadId"] !== keyName) return false;
+    if ((p["laneAlertId"] ?? null) !== null && p["recipientId"] !== keyName) return false;
+    return true;
+  }
+
   function append(envelope: Envelope): void {
     seq += 1;
     const renumbered: Envelope = { ...envelope, seq };
@@ -205,12 +262,33 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
       buffer.splice(0, buffer.length - bufferSize);
       floor = Math.max(floor, (buffer[0] as Envelope).seq - 1);
     }
+    if (!visibleToKey(renumbered)) return; // a gap for the key
+    visibleTail = seq;
     for (const stream of streams) writeLine(stream, renumbered, renumbered.seq);
+  }
+
+  /**
+   * A fresh install's log before the storyline: the owner made the key's bot (two admin-only rows, the key's first
+   * gap, as seq 1 and 2 were on the development instance) and archived what the scenario starts with archived (a
+   * `project.archived` the key may see, so the archived slugs can be learned from the log, as the host does).
+   */
+  function writeHistory(snapshot: LoopsSnapshot): void {
+    const owner = { id: DEMO_PERSON, kind: "user" as const };
+    const row = (type: string, ts: string, project: Envelope["project"], payload: Record<string, unknown>): Envelope =>
+      ({ v: 1, seq: 0, ts, type, project, ticket: null, actor: owner, recipientIds: [], payload });
+    const madeAt = new Date(Date.now() - 60_000).toISOString();
+    append(row("agent.created", madeAt, null, { agentId: keyName }));
+    append(row("agent-membership.updated", madeAt, null, { agentId: keyName }));
+    for (const p of snapshot.archivedProjects) {
+      if (typeof p.archivedAt !== "string") continue;
+      append(row("project.archived", p.archivedAt, { slug: p.slug, key: p.key }, { changed: ["archivedAt"], old: { archivedAt: null }, new: { archivedAt: p.archivedAt } }));
+    }
   }
 
   /** A demo loop rebuilt the storyline: the log jumps and every cursor from before is expired. */
   function loopReset(): void {
     seq += LOOP_STRIDE;
+    visibleTail = seq;
     floor = seq;
     buffer.length = 0;
     for (const stream of [...streams]) endStream(stream);
@@ -220,7 +298,8 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     if (message.type === "event") append(message.envelope);
     else if (message.type === "snapshot") {
       snapshots += 1;
-      if (snapshots > 1) loopReset();
+      if (snapshots === 1 && seq === 0) writeHistory(message.snapshot);
+      else if (snapshots > 1) loopReset();
     }
   });
 
@@ -260,7 +339,7 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     const stream: OpenStream = { res, lastSent: after, timer: null, maxAge: setTimeout(() => endStream(stream), streamMaxMs), closed: false };
     streams.add(stream);
     streamsOpened += 1;
-    for (const envelope of buffer) if (envelope.seq > Math.max(after, scanFrom)) writeLine(stream, envelope, envelope.seq);
+    for (const envelope of buffer) if (envelope.seq > Math.max(after, scanFrom) && visibleToKey(envelope)) writeLine(stream, envelope, envelope.seq);
     armHeartbeat(stream);
     res.on("close", () => endStream(stream));
   }
@@ -310,23 +389,38 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
   function afterOf(url: URL): number | null {
     const raw = url.searchParams.get("after");
     if (raw === null) return null;
-    const value = Number(raw);
-    if (!/^\d+$/.test(raw) || !Number.isSafeInteger(value)) throw invalid("Invalid after");
+    if (!/^\d+$/.test(raw) || !Number.isSafeInteger(Number(raw))) throw invalid("Invalid after");
+    return afterAt(Number(raw));
+  }
+
+  function afterAt(value: number): number {
     if (value < floor) throw new ApiError(410, "cursor_expired", CURSOR_EXPIRED_MESSAGE);
     return value;
   }
 
   /**
    * Where a read or a stream resumes (`routers/events.py` `resolve_resume` and `open_cursor`): `after=` or
-   * `cursor=`, never both (400). `S` is the public position, `W` where the scanning starts.
+   * `cursor=`, never both (400); else a `Last-Event-ID` header, an integer as `after` and anything else judged as a
+   * sealed cursor (the `after` query wins over the header, CL-403). `S` is the public position, `W` where the
+   * scanning starts.
    */
-  function resumeOf(url: URL): { after: number | null; scanFrom: number | null } {
+  function resumeOf(url: URL, req: IncomingMessage): { after: number | null; scanFrom: number | null } {
+    const opened = (token: string) => {
+      if (token.length > 512) throw new ApiError(410, "cursor_expired", CURSOR_EXPIRED_MESSAGE);
+      const { seen, checked } = openCursor(token);
+      return { after: seen, scanFrom: checked };
+    };
     const token = url.searchParams.get("cursor");
-    if (token === null) return { after: afterOf(url), scanFrom: null };
-    if (url.searchParams.has("after")) throw invalid("Send either cursor or after, not both");
-    if (token.length > 512) throw new ApiError(410, "cursor_expired", CURSOR_EXPIRED_MESSAGE);
-    const { seen, checked } = openCursor(token);
-    return { after: seen, scanFrom: checked };
+    if (token !== null) {
+      if (url.searchParams.has("after")) throw invalid("Send either cursor or after, not both");
+      return opened(token);
+    }
+    const after = afterOf(url);
+    const header = req.headers["last-event-id"];
+    if (after !== null || header === undefined) return { after, scanFrom: null };
+    const text = String(header).trim();
+    if (/^\d+$/.test(text) && Number.isSafeInteger(Number(text))) return { after: afterAt(Number(text)), scanFrom: null };
+    return opened(text);
   }
 
   // Routes
@@ -338,7 +432,8 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
       parts.length === expected.length + 1 && expected.every((p, i) => p === "*" || parts[i + 1] === p);
     const known =
       at("health") || at("auth", "me") || at("projects") || at("projects", "*") || at("projects", "*", "features") ||
-      at("projects", "*", "milestones") || at("projects", "*", "releases") || at("board", "*") || at("tickets", "*") ||
+      at("projects", "*", "milestones") || at("projects", "*", "releases") || at("projects", "*", "labels") || at("labels") ||
+      at("board", "*") || at("tickets", "*") ||
       at("tickets", "*", "comments") || at("tickets", "*", "progress") || at("tickets", "*", "grill") || at("team") ||
       at("agents") || at("principals") || at("watchdog") || at("events") || at("events", "stream") ||
       at("delegations", "pending");
@@ -362,6 +457,7 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
       return {
         ok: true,
         version: FAKE_LOOPS_VERSION,
+        laneWakesForcedOff: false,
         checks: { db: true, uploads: true, socket: false, tcp: true, laneWatch: { state: "off" } },
         principal: caller,
         watchdog: caller === null ? null : { mode: (await source.getWatchdog()).mode, stopped: false },
@@ -376,7 +472,7 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     // The world's key is an external bot's (CL-314): loops forces its role to `lead` (the `probe` road is dead, CL-295).
     if (at("auth", "me")) return { principal: { ...caller, role: "lead", theme: null, themeDefault: "system" } };
     if (at("projects")) {
-      if (url.searchParams.get("includeArchived") === "true") throw new ApiError(403, "forbidden", "Archived projects are for admins");
+      if (url.searchParams.get("includeArchived") === "true") throw new ApiError(403, "forbidden", INCLUDE_ARCHIVED_MESSAGE);
       const snapshot = await snapshotOf();
       return { projects: snapshot.projects, orderRevision: 3 };
     }
@@ -398,6 +494,13 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
           flag("watchdog_nudge", "Watchdog nudges", features.watchdog_nudge),
         ],
       };
+    }
+    // Labels: the globals (loops' reserved built-ins) alone, or with a project's own (`api/routers/projects.py`).
+    if (at("labels")) return { labels: await source.getLabels(null) };
+    if (at("projects", "*", "labels")) {
+      const labels = await source.getLabels(slug);
+      if (labels === null) throw notFound();
+      return { labels };
     }
     if (at("projects", "*", "milestones") || at("projects", "*", "releases")) {
       const features = await source.getProjectFeatures(slug);
@@ -436,22 +539,24 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
       const paged = page(await source.getProgress(ref), url);
       return { progress: paged.items, nextCursor: paged.nextCursor };
     }
+    // An instance where no team probe has reported answers an empty snapshot with `ts` an empty string (observed on 8291).
+    if (at("team") && emptyTeam) return { v: 1, ts: "", sessions: [] };
     if (at("team")) return teamWithComputers((await snapshotOf()).team);
     if (at("agents")) return { agents: agentsWithLanes(await source.getAgents(), keyName, new Date()), lanesAuthority: "db", agentHome: null };
     if (at("principals")) return { principals: (await snapshotOf()).principals };
     if (at("watchdog")) return source.getWatchdog();
     if (at("events")) {
       const types = typesOf(url);
-      const resume = resumeOf(url);
+      const resume = resumeOf(url, req);
       const limit = intQuery(url, "limit", 1, EVENTS_LIMIT_MAX, EVENTS_LIMIT_MAX);
       const from = url.searchParams.get("from");
       if (from !== null && from !== "tail") throw invalid("Invalid from");
-      // CL-390 `from=tail`: no events, the newest seq this caller may see (the fake hides nothing: the tail) and
-      // the sealed cursor of "now".
-      if (from === "tail") return { events: [], lastSeq: seq, cursor: sealCursor(seq, seq) };
+      // CL-390 `from=tail`: no events, the newest seq this caller may see (not the log's tail when the newest rows
+      // are hidden from it) and the sealed cursor of "now", whose watermark is the real tail.
+      if (from === "tail") return { events: [], lastSeq: visibleTail, cursor: sealCursor(visibleTail, seq) };
       const start = resume.after ?? 0;
       const scan = Math.max(start, resume.scanFrom ?? start);
-      const matching = buffer.filter((e) => e.seq > scan && (types.length === 0 || types.includes(e.type)));
+      const matching = buffer.filter((e) => e.seq > scan && visibleToKey(e) && (types.length === 0 || types.includes(e.type)));
       const events = matching.slice(0, limit);
       // `lastSeq` is the last row returned, else the `after` sent (CL-390): it never passes a row the filter dropped,
       // so a filter that matches nothing answers `after` (the old tail trick says 0). `from=tail` is the tail.
@@ -460,14 +565,15 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
       return { events, lastSeq, cursor: sealCursor(lastSeq, judged) };
     }
     // The stream: `after` replays `seq > after` from the buffer, then live; a sealed `cursor` replays from its
-    // watermark; without either, live from the tail. At most MAX_STREAMS_PER_KEY open streams per key.
+    // watermark; without either, live from the tail (`S` the newest seq the key may see, `W` the real tail). At most
+    // MAX_STREAMS_PER_KEY open streams per key.
     typesOf(url);
-    const resume = resumeOf(url);
+    const resume = resumeOf(url, req);
     if (req.method === "HEAD") throw new ApiError(405, "method_not_allowed", "Method not allowed");
     if (streams.size >= MAX_STREAMS_PER_KEY) {
       throw new ApiError(429, "too_many_streams", "Too many open event streams", { "retry-after": String(RETRY_AFTER_S) });
     }
-    openStream(res, resume.after ?? seq, resume.scanFrom ?? resume.after ?? seq);
+    openStream(res, resume.after ?? visibleTail, resume.scanFrom ?? resume.after ?? seq);
     return undefined;
   }
 
@@ -539,12 +645,14 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     key,
     keyName,
     lastSeq: () => seq,
+    lastVisibleSeq: () => visibleTail,
     openStreams: () => streams.size,
     streamsOpened: () => streamsOpened,
-    async moveTicket(ref, status) {
+    async moveTicket(ref, status, moveOptions = {}) {
       if (!(TICKET_STATUSES as readonly string[]).includes(status)) throw new Error(`Unknown status ${status}`);
       if ((await source.getTicket(ref)) === null) throw new Error(`Unknown ticket ${ref}`);
-      source.act({ type: "move", by: DEMO_PERSON, ticket: ref, to: status as TicketStatus });
+      const rejected = moveOptions.rejected;
+      source.act({ type: "move", by: DEMO_PERSON, ticket: ref, to: status as TicketStatus, ...(rejected === undefined ? {} : { rejected }) });
     },
     async close() {
       stop();

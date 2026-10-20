@@ -96,7 +96,10 @@ The host starts with neither loops nor a key and reports the honest states; the 
   keyless. Both are local routes on the allow-list; the loops allow-list stays GET only. The key is never logged,
   echoed or returned; `test/connect.test.ts` greps every response and log line.
 - **Health** carries `connection: { discovery: { state, via?, target? }, key: { state, name?, source?, reason? },
-  stream: { state, cursor?, lastEventAt?, reconnects } }` (the type in `packages/loops-client`, `HostConnection`).
+  stream: { state, reason?, cursor?, lastEventAt?, reconnects } }` (the type in `packages/loops-client`, `HostConnection`).
+  `stream.state` is `busy` with the reason "stream budget exhausted (429): another host or tab uses this key" while
+  loops refuses the stream with 429 `too_many_streams` (four per key; the host retries after `Retry-After`); the
+  status message on `/world-api/stream` carries `stream: "busy"` and the reason too, next to the old `loops: "down"`.
   Before pairing only the states are there (no target paths, no names). `loops` keeps the old tri-state for the world
   from before: `down` while searching, `unauthorized` without a key or with a rejected one.
 - **`npm run world`** (`main.ts world`): builds when `apps/world/dist` is older than the sources, serves it with

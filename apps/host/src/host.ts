@@ -221,7 +221,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
     linked: boolean;
   }
   const tabs = new Map<ServerResponse, Tab>();
-  const streamState = (): HostConnection["stream"]["state"] => (link === null ? "idle" : link.upstream.state());
+  const streamState = (): HostConnection["stream"]["state"] => (link === null ? "idle" : link.upstream.busy() !== null ? "busy" : link.upstream.state());
   /** The legacy tri-state the world from before reads: no loops is down, no key or a rejected key is unauthorized. */
   const legacyState = (): LoopsState => {
     if (link !== null) return link.upstream.state();
@@ -321,6 +321,8 @@ export async function createHost(options: HostOptions): Promise<Host> {
       stream: { state: streamState(), reconnects: link?.upstream.reconnects() ?? 0 },
     };
     if (found !== null) out.discovery.via = found.via;
+    const busy = link?.upstream.busy() ?? null;
+    if (busy !== null) out.stream.reason = busy;
     if (!detailed) return out;
     if (found !== null) out.discovery.target = targetText(found.target);
     if (holder !== null) {

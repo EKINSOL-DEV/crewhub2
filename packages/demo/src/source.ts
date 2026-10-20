@@ -11,6 +11,7 @@ import type {
   DeliveryOut,
   DmMessage,
   DmThread,
+  LabelOut,
   MilestoneSummary,
   PlaybackControls,
   PlaybackSpeed,
@@ -84,6 +85,8 @@ export interface DemoSource extends WorldSource {
   getPendingDelegations(): Promise<PendingRequest[]>;
   /** `GET /api/agents`. */
   getAgents(): Promise<AgentOut[]>;
+  /** The global labels (slug null) or a project's labels with the globals, as loops lists them; null for an unknown project. */
+  getLabels(slug: string | null): Promise<LabelOut[] | null>;
   /** `GET /api/projects/{slug}/features`: which optional parts the project has on; null for an unknown project. */
   getProjectFeatures(slug: string): Promise<{ milestones: boolean; releases: boolean; watchdog_nudge: boolean } | null>;
   /**
@@ -281,6 +284,7 @@ export function createDemoSource(options: DemoSourceOptions): DemoSource {
     getDeliveries: () => answer(current().deliveries()),
     getPendingDelegations: () => answer(current().pendingDelegations()),
     getAgents: () => answer(current().agents()),
+    getLabels: (slug) => answer(current().labels(slug)),
     getProjectFeatures: (slug) => answer(current().features(slug)),
     act(action) {
       playNow({ id: nextActId, at: position, action });

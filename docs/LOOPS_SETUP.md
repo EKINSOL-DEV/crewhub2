@@ -237,7 +237,10 @@ only: no target, no name, no cursor. `npm run host -- doctor` prints the same in
 `transport` is `tcp` or `unix`; `keyName` is the key's agent name (from the file name `agent-<name>.key`, or the
 principal loops answered; empty without a key); `sharedKey` is always `false` now; `loopsCommit` is what
 loops' own health read calls its `version` (the app says `0.1.0`, not a commit); `cursor` is the last `seq` the host
-holds; `loopsWebUrl` is the origin of the loops URL, where the chat dock's sign-in link points (the app's web and
+holds: at start the host asks `GET /api/events?from=tail` for "now" (the newest `seq` this key may see, and a sealed
+opaque `cursor` token), opens the stream with that token, and afterwards sends back the sealed `cursor` of the last
+heartbeat or `after=<seq>` of the last event, never both; a key sees gaps in `seq` (loops filters events per
+principal), which is normal and not a reset; `loopsWebUrl` is the origin of the loops URL, where the chat dock's sign-in link points (the app's web and
 its API share 8091). The key itself is never in the answer. A request with a foreign Host header gets 421 and one
 with a foreign Origin 403: the guard against other sites and DNS rebinding. `paired` says whether the request's
 cookie is a valid pairing (`curl` has none, so `false` with pairing on); `pairing` is `on` or `off`.
@@ -253,12 +256,10 @@ cookie is a valid pairing (`curl` has none, so `false` with pairing on); `pairin
 | **Loops down** | The host cannot reach crewhub-loops (`loops: "down"`). The host retries with backoff and re-snapshots when loops is back; the browser keeps the last state. | Is `Crewhub.app` open? Open it (it starts its engine itself). After a Mac restart: open the app. Another port: the app's menu says which; set `CREWHUB_WORLD_LOOPS_URL=http://127.0.0.1:<port>` and restart the host. |
 | **Connect** (no key) | The host found crewhub-loops and has no key (`connection.key.state: "none"`), or loops rejected the one it had (`rejected`, with the reason on screen: an unknown key, a probe key, a read-only bot). | Make the external bot (first section) and paste its access key. A rejected key: paste a new one (Settings > Agents > `crewhub-world` > **New access key**). |
 | **No loops found** | The host has not found crewhub-loops (`discovery.state: "searching"`): nothing answers on the app's socket or port. It keeps looking every 5 s. | Open `Crewhub.app`. Another port or install: `CREWHUB_WORLD_LOOPS_URL`. `npm run host -- doctor` lists what was looked for. |
+| **Busy** (stream budget) | Loops refused the host's stream with 429 `too_many_streams` (`connection.stream.state: "busy"`, reason "stream budget exhausted (429): another host or tab uses this key"): loops admits four streams per key, and other hosts on this key (a second `npm run world`, a developer's host on your key) hold them. The host retries after `Retry-After` (5 s); the chip must say Busy, not Loops down or Stale. | Close the other hosts; one host serves every tab. `npm run host -- doctor` says when a host already runs on the port. |
 | **Unauthorized** | Loops answered 401 or 403 (`loops: "unauthorized"`). 401 `invalid_api_key`: the key file holds a wrong, mistyped or revoked key (a bogus key gave exactly this on 2026-10-21). 403: a key that may not read these routes: a read-only bot ("This key reads tickets, comments and attachments only"), a `probe` agent ("A probe key reads its own routes only") or the builder key. | `npm run host -- doctor` names the problem. In the app, Settings > Agents > `crewhub-world`: it must be an external bot without the "Read only" chip, with an active key under **API keys**. Wrong kind of bot: make a new one (the read-only flag cannot be changed) and paste its key in Connect (no restart; the host switches to it). |
 
-Two more answers the host may meet, both from the stream: **429 `too_many_streams`** (`Retry-After: 5`): loops
-admits four open streams per key; the host opens one, so a 429 means other hosts run on the same key (a second
-`npm run host`, a developer's host on your key). Close them; one host serves every tab. And a **401 or 403 one
-minute in**: loops re-checks the credential every 60 s and ends the stream silently when the key was revoked; the
+One more answer the host may meet from the stream: a **401 or 403 one minute in**: loops re-checks the credential every 60 s and ends the stream silently when the key was revoked; the
 reconnect gets the error and the chip says Unauthorized.
 
 ## 6. Taking it away

@@ -1,7 +1,9 @@
 /**
  * The fake crewhub-loops against loops' contract: auth and error bodies, the read shapes through the loops-client
  * validators, `from=tail` and the sealed cursor, the NDJSON stream with `after=` or `cursor=`, heartbeats with a
- * cursor, the 429 at the fifth stream, and the 410 past the buffer.
+ * cursor, the 429 at the fifth stream, the 410 past the buffer, and what the live round taught (docs/LOOPS_REAL_VS_FAKE.md):
+ * per-principal visibility with gaps, person-only moves into Done, archived projects in the log, the empty team
+ * snapshot, the reserved labels, `Last-Event-ID` and the two faces of `/api/health`.
  * Loopback only: every test starts its own fake on 127.0.0.1 port 0.
  */
 import assert from "node:assert/strict";
@@ -22,7 +24,16 @@ import {
   validateWatchdogResponse,
 } from "@crewhub/loops-client";
 import type { Envelope, Result } from "@crewhub/loops-client";
-import { BUILDER_KEY_MESSAGE, CURSOR_EXPIRED_MESSAGE, MAX_STREAMS_PER_KEY, type LoopsFake, createLoopsFake } from "../src/index.ts";
+import {
+  ADMIN_ONLY_EVENT_TYPES,
+  BUILDER_KEY_MESSAGE,
+  CURSOR_EXPIRED_MESSAGE,
+  INCLUDE_ARCHIVED_MESSAGE,
+  MAX_STREAMS_PER_KEY,
+  RESERVED_LABELS,
+  type LoopsFake,
+  createLoopsFake,
+} from "../src/index.ts";
 
 const fakes: LoopsFake[] = [];
 after(async () => {
@@ -409,4 +420,167 @@ test("a stream ends after streamMaxMs without a closing line, as loops' 300 s; a
   const [moved] = await readLines(again, 1, 1000);
   assert.equal(moved?.["type"], "ticket.moved");
   assert.equal(fake.streamsOpened(), 2);
+});
+
+/** Polls `predicate` every 20 ms for up to `timeoutMs`. */
+async function until(what: string, predicate: () => boolean, timeoutMs = 4000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!predicate()) {
+    if (Date.now() > deadline) throw new Error(`Timed out waiting for ${what}`);
+    await new Promise((r) => setTimeout(r, 20));
+  }
+}
+
+test("visibility: the key does not see every seq. The install's history hides seq 1 and 2, chat is a gap, from=tail and the heartbeat say the visible tail; visibility: all shows every row", async () => {
+  // A fresh install (firstSeq 0) starts with the owner making the key's bot: two admin-only rows the key never sees,
+  // then the archived project of the small team as a `project.archived` the key may see.
+  const fake = await start({ speed: 0 });
+  assert.equal(fake.lastSeq(), 3);
+  assert.equal(fake.lastVisibleSeq(), 3);
+  const list = await get(fake, "/api/events?after=0");
+  assert.deepEqual(list.body.events.map((e: Envelope) => [e.seq, e.type]), [[3, "project.archived"]], "seq 1 and 2 are a gap");
+  assert.equal(list.body.lastSeq, 3);
+  const tail = await get(fake, "/api/events?from=tail");
+  assert.equal(tail.body.lastSeq, 3);
+  const all = await start({ speed: 0, visibility: "all" });
+  const every = await get(all, "/api/events?after=0");
+  assert.deepEqual(every.body.events.map((e: Envelope) => [e.seq, e.type]), [[1, "agent.created"], [2, "agent-membership.updated"], [3, "project.archived"]]);
+  assert.ok(every.body.events.slice(0, 2).every((e: Envelope) => ADMIN_ONLY_EVENT_TYPES.includes(e.type) && e.actor.kind === "user"));
+  // A restart that keeps the log (firstSeq = the old tail) writes no history again.
+  const kept = await start({ speed: 0, firstSeq: 3 });
+  assert.deepEqual([kept.lastSeq(), kept.lastVisibleSeq()], [3, 3]);
+  // The storyline's chat (3:52 a dm from the person to g-man, 4:21 the reply) is a thread the key is no part of:
+  // hidden rows, so the visible seqs have gaps where a fake that hides nothing has `dm.created`.
+  const hidden = await start({ speed: 16, startAt: 3 * 60_000 + 50_000 });
+  const shown = await start({ speed: 16, startAt: 3 * 60_000 + 50_000, visibility: "all" });
+  await until("the reply at 4:21", () => shown.lastSeq() - 3 >= 2 && hidden.lastSeq() - 3 >= 2, 6000);
+  await new Promise((r) => setTimeout(r, 2500)); // 40 storyline seconds more, past 4:21
+  const seen = (await get(hidden, "/api/events?after=0")).body.events as Envelope[];
+  const log = (await get(shown, "/api/events?after=0")).body.events as Envelope[];
+  assert.ok(log.filter((e) => e.type === "dm.created").length >= 2, `the log holds the chat (${log.map((e) => e.type).join(", ")})`);
+  assert.ok(seen.every((e) => !e.type.startsWith("dm.")), "the key sees no chat");
+  assert.ok(seen.length > 1 && seen.some((e, i) => i > 0 && e.seq > (seen[i - 1] as Envelope).seq + 1), `gaps in ${seen.map((e) => e.seq).join(" ")}`);
+  // `from=tail` and a live stream's first heartbeat say the newest seq the key may see, never a hidden row.
+  const tailNow = await get(hidden, "/api/events?from=tail");
+  assert.equal(tailNow.body.lastSeq, hidden.lastVisibleSeq());
+  assert.ok(hidden.lastVisibleSeq() <= hidden.lastSeq());
+  const later = await get(hidden, `/api/events?cursor=${encodeURIComponent(tailNow.body.cursor)}`);
+  assert.ok(later.body.events.every((e: Envelope) => e.seq > tailNow.body.lastSeq));
+});
+
+test("human_only_done: the storyline's moves into Done are a person's, with the principal; a rejected move too; the fake's agents never move into Done", async () => {
+  // 3:28 of the small-team storyline: Nicky moves CR-18 to Done (the Done moves are all the person's: loops' 403
+  // `human_only_done` for an agent, `domain/tickets.py` `require_human_for_done`, which the demo's script obeys).
+  const fake = await start({ speed: 16, startAt: 3 * 60_000 + 20_000 });
+  const res = await fetch(`${fake.url}/api/events/stream?after=${fake.lastSeq()}`, { headers: headers(fake) });
+  const lines = await readLines(res, 40, 4000);
+  const moves = lines.filter((l) => l["type"] === "ticket.moved") as unknown as Envelope[];
+  const done = moves.filter((e) => e.payload["to"] === "done");
+  assert.ok(done.length >= 1, `a move into Done arrived (${moves.map((e) => `${e.ticket?.key}→${e.payload["to"]}`).join(", ")})`);
+  for (const e of done) assert.deepEqual(e.actor, { id: "nicky", kind: "user" }, `${e.ticket?.key} into Done carries the person`);
+  assert.ok(done.some((e) => e.ticket?.key === "CR-18"));
+  const principals = (await get(fake, "/api/principals")).body.principals as { id: string; kind: string; displayName: string }[];
+  assert.deepEqual(principals.find((p) => p.id === "nicky"), { id: "nicky", kind: "user", displayName: "Nicky" }, "the principal the world names");
+  assert.ok(moves.filter((e) => e.actor.kind === "agent").every((e) => e.payload["to"] !== "done"), "no agent moved into Done");
+  // The fake's own move is the person's too, and `rejected` turns the work down with the reason in the payload.
+  const still = await start({ speed: 0 });
+  const stream = await fetch(`${still.url}/api/events/stream?after=${still.lastSeq()}`, { headers: headers(still) });
+  await still.moveTicket("CR-19", "done");
+  await still.moveTicket("CR-21", "done", { rejected: "The sign already shows the counts." });
+  const [approved, rejected] = (await readLines(stream, 2)) as unknown as Envelope[];
+  assert.deepEqual([approved?.type, approved?.actor, approved?.payload["to"], approved?.payload["resolution"]], ["ticket.moved", { id: "nicky", kind: "user" }, "done", undefined]);
+  assert.deepEqual([rejected?.type, rejected?.actor, rejected?.payload["to"], rejected?.payload["resolution"], rejected?.payload["resolutionReason"]], ["ticket.moved", { id: "nicky", kind: "user" }, "done", "rejected", "The sign already shows the counts."]);
+  assert.equal((await get(still, "/api/tickets/CR-21")).body.ticket.resolution, "rejected");
+});
+
+test("archived projects: hidden from the list, 403 with loops' words for includeArchived, resolved by slug, and in the log from the start; project.restored at 5:00 and project.archived at 13:44 play on the stream", async () => {
+  const fake = await start({ speed: 0 });
+  const listed = (await get(fake, "/api/projects")).body.projects.map((p: { slug: string }) => p.slug);
+  assert.ok(!listed.includes("ops-tooling"), `ops-tooling is archived and not listed (${listed.join(", ")})`);
+  const forbidden = await get(fake, "/api/projects?includeArchived=true");
+  assert.deepEqual([forbidden.status, forbidden.body.error], [403, { code: "forbidden", message: INCLUDE_ARCHIVED_MESSAGE, detail: null }]);
+  const one = await get(fake, "/api/projects/ops-tooling");
+  assert.equal(one.status, 200);
+  valid(validateProjectOut(one.body.project), "an archived project");
+  assert.equal(typeof one.body.project.archivedAt, "string");
+  // The host learns archived slugs from the log: `types=project.archived,project.restored&after=0` names it from the start.
+  const history = await get(fake, "/api/events?after=0&types=project.archived,project.restored");
+  assert.deepEqual(history.body.events.map((e: Envelope) => [e.type, e.project?.slug, e.payload["new"]]), [["project.archived", "ops-tooling", { archivedAt: one.body.project.archivedAt }]]);
+  valid(validateEnvelope(history.body.events[0]), "project.archived");
+  // 5:00: the person restores it; the stream says so and the list shows it again.
+  const restoring = await start({ speed: 16, startAt: 4 * 60_000 + 58_000 });
+  const res = await fetch(`${restoring.url}/api/events/stream?after=${restoring.lastSeq()}`, { headers: headers(restoring) });
+  const lines = await readLines(res, 1, 3000);
+  assert.deepEqual([lines[0]?.["type"], (lines[0]?.["project"] as { slug: string })?.slug, (lines[0]?.["actor"] as { kind: string })?.kind], ["project.restored", "ops-tooling", "user"]);
+  const back = (await get(restoring, "/api/projects")).body.projects.find((p: { slug: string }) => p.slug === "ops-tooling");
+  assert.equal(back?.archivedAt, null);
+  assert.equal((await get(restoring, "/api/board/ops-tooling")).status, 200);
+  // 13:44: archived again; the list drops it, the slug still resolves, archivedAt is set.
+  const closing = await start({ speed: 16, startAt: 13 * 60_000 + 42_000 });
+  const res2 = await fetch(`${closing.url}/api/events/stream?after=${closing.lastSeq()}&types=project.archived`, { headers: headers(closing) });
+  const [archived] = await readLines(res2, 1, 3000);
+  assert.deepEqual([archived?.["type"], (archived?.["project"] as { slug: string })?.slug], ["project.archived", "ops-tooling"]);
+  assert.ok(!(await get(closing, "/api/projects")).body.projects.some((p: { slug: string }) => p.slug === "ops-tooling"));
+  assert.equal(typeof (await get(closing, "/api/projects/ops-tooling")).body.project.archivedAt, "string");
+});
+
+test("emptyTeam: GET /api/team is {v:1, ts:'', sessions:[]} as on an instance without a team probe; the validators accept it", async () => {
+  const fake = await start({ speed: 0, emptyTeam: true });
+  const team = await get(fake, "/api/team");
+  assert.deepEqual(team.body, { v: 1, ts: "", sessions: [] });
+  valid(validateTeamSnapshot(team.body), "the empty snapshot");
+  assert.ok((await get(await start({ speed: 0 }), "/api/team")).body.sessions.length > 0, "the default still serves the demo's snapshot");
+});
+
+test("labels: GET /api/labels lists the global labels, all reserved names; a project's list adds its own; an unknown project is 404", async () => {
+  const fake = await start({ speed: 0 });
+  const globals = (await get(fake, "/api/labels")).body.labels as { name: string; projectId: string | null }[];
+  assert.ok(globals.length >= 2);
+  assert.ok(globals.every((l) => l.projectId === null && RESERVED_LABELS.includes(l.name)), globals.map((l) => l.name).join(", "));
+  const project = (await get(fake, "/api/projects/crewhub/labels")).body.labels as { name: string; projectId: string | null }[];
+  assert.ok(globals.every((g) => project.some((l) => l.name === g.name)), "the globals are in a project's list");
+  assert.ok(project.some((l) => l.projectId !== null && !RESERVED_LABELS.includes(l.name)), "and the project's own");
+  for (const l of project) assert.deepEqual(Object.keys(l).sort(), ["color", "id", "name", "projectId", "revision"]);
+  assert.equal((await get(fake, "/api/projects/nope/labels")).status, 404);
+});
+
+test("Last-Event-ID: an integer header is after, anything else a sealed cursor (410 when it does not open); the after query wins over the header", async () => {
+  const fake = await start({ speed: 0, heartbeatMs: 100 });
+  const before = fake.lastSeq();
+  await fake.moveTicket("CR-22", "review");
+  await fake.moveTicket("CR-22", "in_progress");
+  const byHeader = await fetch(`${fake.url}/api/events/stream`, { headers: headers(fake, { "last-event-id": String(before) }) });
+  const lines = await readLines(byHeader, 3, 1500);
+  const events = lines.filter((l) => l["type"] !== "heartbeat");
+  assert.deepEqual(events.map((e) => e["seq"]), [before + 1, before + 2], "replayed from the header's position");
+  const beat = lines.find((l) => l["type"] === "heartbeat");
+  assert.ok(beat, "a heartbeat with a cursor");
+  await fake.moveTicket("CR-22", "review");
+  const byCursor = await fetch(`${fake.url}/api/events/stream`, { headers: headers(fake, { "last-event-id": String(beat?.["cursor"]) }) });
+  const [resumed] = await readLines(byCursor, 1, 1000);
+  assert.deepEqual([resumed?.["type"], resumed?.["seq"]], ["ticket.moved", before + 3], "the header's cursor resumes where the heartbeat stood");
+  const queryWins = await fetch(`${fake.url}/api/events/stream?after=${before + 2}`, { headers: headers(fake, { "last-event-id": String(before) }) });
+  const [afterQuery] = await readLines(queryWins, 1, 1000);
+  assert.equal(afterQuery?.["seq"], before + 3, "the after query wins over the header");
+  const bogus = await fetch(`${fake.url}/api/events/stream`, { headers: headers(fake, { "last-event-id": "not-a-cursor" }) });
+  assert.deepEqual([bogus.status, (await bogus.json()).error.code], [410, "cursor_expired"]);
+  // The list route reads the header the same way.
+  const list = await get(fake, "/api/events", { headers: headers(fake, { "last-event-id": String(before + 1) }) });
+  assert.deepEqual(list.body.events.map((e: Envelope) => e.seq), [before + 2, before + 3]);
+  const both = await get(fake, "/api/events?cursor=x&after=1", { headers: headers(fake, { "last-event-id": "1" }) });
+  assert.equal(both.status, 400, "cursor and after together stay a 400 whatever the header says");
+});
+
+test("GET /api/health: anonymous carries the version and no principal or watchdog; with the key the bot is named and the watchdog filled", async () => {
+  const fake = await start({ speed: 0 });
+  const anonymous = await (await fetch(`${fake.url}/api/health`)).json();
+  assert.deepEqual([anonymous.ok, typeof anonymous.version, anonymous.principal, anonymous.watchdog, anonymous.laneWakesForcedOff], [true, "string", null, null, false]);
+  assert.deepEqual(Object.keys(anonymous.checks).sort(), ["db", "laneWatch", "socket", "tcp", "uploads"]);
+  const named = (await get(fake, "/api/health")).body;
+  assert.equal(named.version, anonymous.version);
+  assert.deepEqual(named.principal, { id: fake.keyName, kind: "agent", displayName: fake.keyName });
+  assert.equal(typeof named.watchdog?.mode, "string");
+  const wrong = await fetch(`${fake.url}/api/health`, { headers: { authorization: "Bearer chl_wrong" } });
+  assert.equal(wrong.status, 200, "health stays public with a wrong key");
+  assert.equal((await wrong.json()).principal, null);
 });
