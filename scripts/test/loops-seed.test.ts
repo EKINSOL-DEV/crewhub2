@@ -9,6 +9,8 @@ import {
   NOT_REPLAYED,
   PERSON_ONLY_DONE,
   REPLAYED,
+  actorOf,
+  agentKeyFile,
   assignRequest,
   checkUrl,
   classify,
@@ -24,6 +26,7 @@ import {
   seedTicketRequest,
   tally,
   waitOnRequest,
+  writerFor,
 } from "../../tools/lib/seed.ts";
 
 const resolve: Resolve = {
@@ -163,4 +166,22 @@ test("the tally counts results and groups what was not done by reason", () => {
   ]);
   assert.deepEqual(t.results, { done: 1, skipped: 2, refused: 0, person: 1, failed: 0 });
   assert.equal(t.reasons[`lane: ${laneReason}`], 2);
+});
+
+test("the author of an action is its demo actor; with that agent's own key the seed writes as it, else as the seed bot", () => {
+  assert.equal(actorOf({ type: "comment", by: "cr-lead", ticket: "CR-21", text: "Looks right." }), "cr-lead");
+  assert.equal(actorOf({ type: "progress", ticket: "CR-21", agent: "cl-lead", kind: "update", text: "x" }), "cl-lead");
+  assert.equal(actorOf({ type: "move", by: "nicky", ticket: "CR-21", to: "done" }), "nicky");
+  assert.equal(actorOf({ type: "dmReply", agent: "g-man", text: "x" }), null);
+  // Every replayed action of the storyline names an actor, so the right author can write it.
+  for (const entry of buildStory(SMALL_TEAM_STORY, DEMO_SEED)) if (classify(entry.action.type).replay) assert.notEqual(actorOf(entry.action), null, entry.action.type);
+  assert.equal(agentKeyFile("/keys/", "cr-lead"), "/keys/agent-cr-lead.key");
+  assert.equal(agentKeyFile("/keys", "ux-lead"), "/keys/agent-ux-lead.key");
+  assert.equal(agentKeyFile("/keys", "../etc/passwd"), null);
+  assert.equal(agentKeyFile("/keys", "a/b"), null);
+  const keys = new Map([["cr-lead", "chl_cr"]]);
+  assert.deepEqual(writerFor("cr-lead", keys), { as: "cr-lead", key: "chl_cr" });
+  assert.equal(writerFor("cl-lead", keys), null, "no key: the seed bot writes");
+  assert.equal(writerFor("nicky", keys), null, "a person never writes through the seed");
+  assert.equal(writerFor(null, keys), null);
 });

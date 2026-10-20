@@ -340,3 +340,28 @@ export function clock(ms: number): string {
   const total = Math.floor(ms / 1000);
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
+
+// The author: a storyline action is written with its demo author's own key when the seed has one (`--agent-keys`).
+
+/** The demo principal that performs an action (`by`; a progress line's `agent`), or null for actions without one. */
+export function actorOf(action: Action): string | null {
+  if (action.type === "progress") return action.agent;
+  if ("by" in action && typeof action.by === "string") return action.by;
+  return null;
+}
+
+/** An agent id that is safe as a file name component (loops agent ids are such names). */
+const SAFE_ID = /^[a-z0-9][a-z0-9_.-]*$/i;
+
+/** The key file of an agent in `dir`, as the Lead lays them out (`agent-<id>.key`); null for an id no file name should carry. */
+export function agentKeyFile(dir: string, agentId: string): string | null {
+  if (!SAFE_ID.test(agentId) || agentId.includes("..")) return null;
+  return `${dir.replace(/\/+$/, "")}/agent-${agentId}.key`;
+}
+
+/** The writer of an action: the actor's own key when the seed holds one, else null (the seed bot writes, as before). */
+export function writerFor(actor: string | null, keys: ReadonlyMap<string, string>): { as: string; key: string } | null {
+  if (actor === null) return null;
+  const key = keys.get(actor);
+  return key === undefined ? null : { as: actor, key };
+}
