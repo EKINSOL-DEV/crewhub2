@@ -11,7 +11,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
-export const STUB_STATES = ["no-loops", "pair", "connect", "checking", "rejected", "loops-down", "connected", "older"];
+export const STUB_STATES = ["no-loops", "pair", "connect", "checking", "rejected", "loops-down", "connected", "busy", "older"];
+const BUSY_REASON = "stream budget exhausted (429): another host or tab uses this key; crewhub-loops admits four streams per key";
 const APP_PORT_TARGET = "http://127.0.0.1:8091";
 const APP_SOCKET_TARGET = "~/Library/Application Support/be.ekinsol.crewhub/run/api.sock";
 const REJECT_REASON = "crewhub-loops answered 403 for GET /api/team: a Read only key cannot read the team. Make an external bot with Read only off.";
@@ -65,6 +66,7 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
         return { ...base, loops: "down", keyName: "crewhub-world", paired: true, loopsWebUrl: APP_PORT_TARGET, cursor: 41, connection: { discovery: { state: "found", via: "app-port", target: APP_PORT_TARGET }, key: { state: "ok", name: "crewhub-world", source: "stored" }, stream: { state: "down", cursor: 41, lastEventAt: new Date(Date.now() - 400_000).toISOString(), reconnects: 3 } } };
       case "rejected":
         return { ...base, loops: "unauthorized", keyName: "crewhub-world", paired: true, loopsWebUrl: APP_PORT_TARGET, connection: { discovery: { state: "found", via: "app-port", target: APP_PORT_TARGET }, key: { state: "rejected", name: "crewhub-world", source: "stored", reason: REJECT_REASON }, stream: { state: "unauthorized", reconnects: 0 } } };
+      case "busy":
       case "connected": {
         const { fake, host } = await ensureInner();
         let real = null;
@@ -88,7 +90,10 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
           connection: {
             discovery: { state: "found", via: "app-socket", target: APP_SOCKET_TARGET },
             key: { state: "ok", name: "crewhub-world", source: "stored" },
-            stream: { state: real?.loops ?? "ok", cursor, lastEventAt: new Date(Date.now() - 23_000).toISOString(), reconnects },
+            stream:
+              current === "busy"
+                ? { state: "busy", reason: BUSY_REASON, cursor, lastEventAt: new Date(Date.now() - 400_000).toISOString(), reconnects: 7 }
+                : { state: real?.loops ?? "ok", cursor, lastEventAt: new Date(Date.now() - 23_000).toISOString(), reconnects },
           },
         };
       }
@@ -136,6 +141,15 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
     send(res, 204);
   }
 
+  /* The busy state's own stream: the status a host sends when loops answered its stream with 429, then heartbeats. */
+  function busyStream(res) {
+    res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-store", connection: "keep-alive" });
+    const write = (message) => res.write(`data: ${JSON.stringify(message)}\n\n`);
+    write({ type: "status", loops: "down", stream: "busy", reason: BUSY_REASON });
+    const beat = setInterval(() => write({ type: "heartbeat", seq: 0, ts: new Date().toISOString() }), 1000);
+    res.on("close", () => clearInterval(beat));
+  }
+
   function proxy(req, res, target) {
     const url = new URL(target);
     const upstream = httpRequest(
@@ -176,8 +190,9 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
       return send(res, 200, { state: current });
     }
     if (url.pathname.startsWith("/world-api/")) {
-      if (current !== "connected" && current !== "older") return send(res, 503, { error: current === "rejected" ? "unauthorized" : "loops_down" });
+      if (current !== "connected" && current !== "older" && current !== "busy") return send(res, 503, { error: current === "rejected" ? "unauthorized" : "loops_down" });
       const { host } = await ensureInner();
+      if (current === "busy" && url.pathname === "/world-api/stream") return busyStream(res);
       return proxy(req, res, host.url);
     }
     send(res, 404, { error: "not_found" });
@@ -190,7 +205,7 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
     clearTimeout(pending);
     current = next;
     startedAt = Date.now();
-    if (next === "connected" || next === "older") await ensureInner();
+    if (next === "connected" || next === "older" || next === "busy") await ensureInner();
   }
 
   return {

@@ -13,6 +13,11 @@ import { loopsWebUrl } from "../state/source";
 import { PairContent, switchToDemo } from "./PairPage";
 import { Button, Card, Field } from "./primitives";
 
+/** The loops web's own words in a step are marked **like this** in the copy and set in bold here. */
+function emphasised(text: string) {
+  return text.split("**").map((part, index) => (index % 2 === 1 ? <strong key={index}>{part}</strong> : part));
+}
+
 /** How often the page asks the host while a screen shows; the host itself looks for loops every 5 s. */
 export const CONNECT_POLL_MS = 2500;
 /** The loops web page where an external bot is made (apps/web/src/routes.tsx: /settings/agents). */
@@ -160,9 +165,9 @@ export function ConnectPage({ screen, health, onHealth, pollMs = CONNECT_POLL_MS
                 <>
                   <p className="pair-lead">{t("world.connect.connect.lead", { where })}</p>
                   <ol className="connect-steps">
-                    <li>{t("world.connect.connect.step1")}</li>
-                    <li>{t("world.connect.connect.step2")}</li>
-                    <li>{t("world.connect.connect.step3")}</li>
+                    <li>{emphasised(t("world.connect.connect.step1"))}</li>
+                    <li>{emphasised(t("world.connect.connect.step2"))}</li>
+                    <li>{emphasised(t("world.connect.connect.step3"))}</li>
                   </ol>
                 </>
               )}
