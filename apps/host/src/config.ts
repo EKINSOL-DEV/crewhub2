@@ -45,7 +45,7 @@ export function loadKey(env: Record<string, string | undefined>, read: (file: st
   if (configured !== undefined && configured !== "") throw new ConfigError(`cannot read the key file ${wanted}`);
   const builder = read(files.builderKey)?.trim() ?? "";
   if (builder === "") {
-    throw new ConfigError(`no key: neither ${files.defaultKey} nor ${files.builderKey} is readable. Register an agent crewhub-world (see apps/host/README.md and docs/LOOPS_SETUP.md).`);
+    throw new ConfigError(`no key: neither ${files.defaultKey} nor ${files.builderKey} is readable. Make an external bot crewhub-world in crewhub-loops and save its key (see docs/LOOPS_SETUP.md and apps/host/README.md).`);
   }
   return {
     key: builder,
@@ -55,7 +55,7 @@ export function loadKey(env: Record<string, string | undefined>, read: (file: st
       `WARNING: ${files.defaultKey} is missing, using the shared builder key ${files.builderKey}.`,
       "WARNING: crewhub-loops limits the builder key to tickets, comments and attachments of its member projects:",
       "WARNING: /api/projects, /api/board, /api/team and the event stream answer 403, so the world will show Unauthorized.",
-      "WARNING: register an agent crewhub-world with a probe key instead (docs/LOOPS_SETUP.md, apps/host/README.md).",
+      "WARNING: make an external bot crewhub-world (not read-only) in Settings > Agents and save its key instead (docs/LOOPS_SETUP.md, apps/host/README.md).",
     ],
   };
 }

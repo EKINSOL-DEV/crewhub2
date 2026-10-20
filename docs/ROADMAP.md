@@ -88,13 +88,19 @@ Walk mode (2026-10-07, built in demo mode): the person walks a visitor figure th
 the navigation world, with a follow camera ("Walk mode" in
 [the night report](reports/2026-10-01-world-demo-night.md)).
 
-## Open: the host
+## The host
+
+Built on 2026-10-07 and brought to the Mac app on 2026-10-21 (plan section 10, "Phase 1 as built" and "Phase 1
+against the Mac app"; the runbook is [LOOPS_SETUP.md](LOOPS_SETUP.md)): `apps/host` reads crewhub-loops with one
+agent key over loopback TCP (the Mac app's `127.0.0.1:8091`), keeps one event stream, serves `/world-api` as SSE
+with pairing and the static bundle, and `createHostSource` is the live `WorldSource`. The key is an external bot's
+(CL-314), lead-grade; the host's `GET`-only allow-list keeps the world read-only until crewhub-loops has a viewer key
+(L1). A transport over the app's Unix socket is on the `unixsock` track of 2026-10-21 (planned until merged).
+
+## Open
 
 Everything below is planned and not built. Each item needs crewhub-loops running.
 
-- **Host.** `apps/host`: key file, socket client, stream-first projection, SSE,
-  pairing, the static bundle, and a `host` `WorldSource`. Phase 1 of the plan in
-  live form.
 - **World database.** SQLite with migrations and backup replaces the browser's
   IndexedDB town document (phase 3 and 5 of the plan in live form).
 - **Real chat.** The bubbles talk to crewhub-loops as the person; this needs CORS

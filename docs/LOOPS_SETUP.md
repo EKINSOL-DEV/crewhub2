@@ -1,25 +1,27 @@
-# CrewHub World on a fresh crewhub-loops: the setup runbook
+# CrewHub World on the Mac crewhub-loops: the setup runbook
 
-For Nicky. The world's side of the Mac install: what crewhub-loops must have before the world can hook in, how
-the world's host relay reaches it, how to run the world in live mode, and what each state chip means. Written
-against crewhub-loops `053b5f47` (2026-10-07) and the world's phase 1 build of the same day
-([integration plan](LOOPS_INTEGRATION_PLAN.md) section 10). Every loops command below is copied verbatim from
-`loops:docs/porting/MAC-QUICKSTART.md`, except the lines in steps 2, 3 and 4 that say where they come from; the
-world's commands are this repository's.
+For Nicky, with `Crewhub.app` on this Mac. The world's side of it: the one credential crewhub-loops must have, how
+the world's host relay reaches the app, how to run the world in live mode, and what each state chip means.
+Written against crewhub-loops `4cdcd383` (`origin/main`, 2026-10-20) and the world's live-on-the-Mac round of
+2026-10-21 ([integration plan](LOOPS_INTEGRATION_PLAN.md) section 10, the addendum "live on the Mac crewhub-loops"
+of [the demo-mode spec](superpowers/specs/2026-10-01-world-demo-mode-design.md)). The loops facts below are from
+the loops code at that commit (`loops:docs/external-bot.md`, `loops:apps/desktop/README.md`,
+`loops:.../auth/probe.py`, `loops:.../auth/builder.py`, `loops:.../api/stream.py`); the world's commands are this
+repository's. Section 7 is for developers: it describes a private crewhub-loops next to the app, never the app.
 
 **The shape.** The browser never talks to crewhub-loops. It talks to the world's own relay, `apps/host`, which holds
-one agent key, keeps one event stream open and serves `/world-api` on loopback. Nothing is written to crewhub-loops.
+one agent key, keeps one event stream open and serves `/world-api` on loopback. The host never writes to crewhub-loops.
 
 ```text
-crewhub-loops :8091  --bearer key-->  apps/host :5180 (127.0.0.1)  --/world-api-->  browser
-(or the fake)                         one stream, a ring buffer, an allow-list   snapshot, then events by seq
+Crewhub.app :8091  --bearer key-->  apps/host :5180 (127.0.0.1)  --/world-api-->  browser
+(the Mac app)                       one stream, an allow-list of GETs           snapshot, then events by seq
 ```
 
-## 0. Before the install: run the world against the fake
+## 0. Before the app: run the world against the fake
 
 You do not need crewhub-loops to see live mode. `packages/loops-fake` is an in-process crewhub-loops that speaks
-the routes the host reads, with bearer auth, `seq`, heartbeats and a 410 past its buffer, and plays the demo
-storyline in real time. Three terminals:
+the routes the host reads, with bearer auth, `seq` and heartbeats, and plays the demo storyline in real time. Three
+terminals:
 
 ```sh
 npm run loops:fake -- --port 8091          # writes its key to tools/out/loops-fake.key (0600); prints how to start the host
@@ -27,156 +29,87 @@ CREWHUB_WORLD_PAIRING=off CREWHUB_WORLD_KEY_FILE=tools/out/loops-fake.key npm ru
 npm run dev                                 # then open http://127.0.0.1:5173/?source=live
 ```
 
-`CREWHUB_WORLD_PAIRING=off` skips the pairing cookie for development (the host says so loudly at start; production
-refuses it). To try pairing itself against the fake, leave it on and follow the "Pair this browser" step of section 3.
-The fake prints the two env lines for the host and never the key; the key file is reused on a restart, so a running
-host stays valid. `npm run loops:fake -- --builder-key` makes the key behave like loops' builder key (tickets,
-comments, auth/me only; everything else 403), so the host shows Unauthorized. `--scenario fresh|one|small-team|studio` picks the demo scenario and `--speed 0|1|4|16` the pace.
-The switch to the real install later changes only the URL and the key file (section 3).
+Pick another port for the fake while the app runs: 8091 is the app's. `CREWHUB_WORLD_PAIRING=off` skips the
+pairing cookie for development (the host says so loudly at start; production refuses it). The fake prints the two
+env lines for the host and never the key. `npm run loops:fake -- --builder-key` makes the key behave like loops'
+tickets-only keys (the builder key and the CL-313 reader key: tickets, comments, auth/me; everything else 403), so
+the host shows Unauthorized. `--scenario fresh|one|small-team|studio` picks the demo scenario and `--speed 0|1|4|16`
+the pace. The switch to the app later changes only the key file (section 3).
 
 ## 1. What crewhub-loops must have
 
-All of this is `loops:docs/porting/MAC-QUICKSTART.md`, sections 0 to 5 and 8. In short:
+### 1.1 The app is the engine: nothing to install
 
-1. **The stack up on 8091, with the three compose files, always** (`compose.yaml`, `compose.local.yaml`,
-   `compose.mac.yaml`; without the Mac overlay the database sits on a bind mount and gets damaged). The quickstart
-   makes `~/.config/crewhub-loops/mac.env`, which defines `chl_compose` with all three and is sourced first in
-   every new terminal:
+`Crewhub.app` is a Tauri shell around one frozen Python sidecar that is the whole API, with the web app built in.
+Open it. It serves `http://127.0.0.1:8091` (the port is in `settings.json` of its data folder, default 8091; the
+app offers another port when 8091 is taken and never changes it silently) and a Unix socket
+`~/Library/Application Support/be.ekinsol.crewhub/run/api.sock`. No Docker, no compose files, no `mac.env`.
+The first account is made in the app's own setup page: the app hands the setup code to the page itself.
 
-   ```sh
-   source ~/.config/crewhub-loops/mac.env
-   cd "$checkout" && chl_compose up -d --build
-   ```
+Check, from a terminal:
 
-   Check:
+```sh
+curl -s http://127.0.0.1:8091/api/health
+```
 
-   ```sh
-   chl_compose ps --format '{{.Name}}\t{{.Status}}\t{{.Ports}}'
-   curl -s http://127.0.0.1:$port/api/health
-   ```
+`{"ok":true,...}` is the liveness read; the host's own health read (section 4) reports it as `loops: "ok"`.
 
-   `GET /api/health` is the liveness read; the host's own health read (section 4) reports it as `loops: "ok"`.
+### 1.2 The credential: an external bot `crewhub-world`, not read-only
 
-2. **The first admin, in the browser.** A fresh stack asks for it: open `http://127.0.0.1:8091`
-   (`/api/setup/status` says `{"needsSetup":true}` until then). The setup screen asks for a one-time setup code
-   (`chs_…`, 24 h, single use) that the api container issues; the quickstart on `main` does not say so yet
-   (the Mac installer of PR #550, `scripts/install-mac.sh`, keeps it in
-   `~/.config/crewhub-loops/secrets/setup-token`, 0400; #550 may not be merged when you read this). From a
-   terminal with `mac.env` sourced, the command prints the code once on stdout and nothing else there:
+The world reads as an agent. At `4cdcd383` the only key that may read projects, boards, the team, agents, tickets
+**and** the event stream, without a lane and without a pane, is an **external bot** (CL-314). The two read-only
+keys loops has cannot be used: the CL-313 "Read only" box makes a reader key that reads the tickets, comments and
+rules of its member projects and nothing else (`/api/projects`, `/api/board`, `/api/team`, `/api/agents` and
+`/api/events` are refused at boot for it, `READER_NEVER_PREFIXES` in `loops:.../auth/builder.py`); and a `probe`
+agent other than `team-probe` and `lane-watch` reads nothing at all since CL-295 (`loops:.../auth/probe.py`). The
+old runbook's "agent `crewhub-world`, role `probe`" is dead: such a key gets 403 on every read.
 
-   ```sh
-   chl_compose exec -T api crewhub-setup-token
-   ```
+In the app, signed in as the owner:
 
-   (This line is from `loops:docs/install.md`'s setup row and `loops:.../auth/setup_token.py`, not from the
-   quickstart.) The world does not need the admin for reading, but admin keys cannot be registered before a human
-   admin exists, and only an admin can create an agent through the API (step 3).
-
-3. **Create the agent `crewhub-world`, role `probe`.** There is no viewer role at `053b5f47` (proposal L1 is
-   open); the role for a process that only reads is still spelled `probe` (`loops:.../contracts/common.py`,
-   `AgentRole`). A `probe` key may `GET` like any agent and may `PUT` only the four team and lane-watch routes in
-   `PROBE_WRITES` (`loops:.../auth/deps.py`), which the host never calls and its allow-list cannot reach. Every
-   route the host reads takes any authenticated principal (`require_user` on projects, board, tickets, team,
-   releases and the stream; `PrincipalDep` on milestones; any agent on the watchdog: `loops:.../api/routers/`),
-   and the project list has no per-agent filter, so a plain `probe` sees the whole installation.
-
-   The agent must exist before a key can be registered: `crewhub-agents register` refuses an unknown name
-   (`unknown agent 'crewhub-world' (add it to config/agents.yaml)`). Two ways; **the seed is the simpler one from
-   a terminal**, because the API way needs the admin's browser session and the web's Settings > Agents is a
-   read-only list since CL-233 (#508).
-
-   - **By the seed** (the simpler one). On the Mac stack the api reads its seed from `/app/config/generic`
-     (`loops:compose.local.yaml`, `CHL_CONFIG_DIR: /app/config/generic`), and `config/` is copied INTO the api
-     image at build time (`loops:infra/api.Dockerfile` line 14, no bind mount). So the line goes into
-     `config/generic/agents.yaml`, with `session: default` like the generic agents there (`crewhub-lead`,
-     `postman`, `team-probe`, `builder`), and the api image must be rebuilt before the seed can see it:
-
-     ```sh
-     source ~/.config/crewhub-loops/mac.env
-     cd "$checkout"
-     printf '  - { name: crewhub-world, session: default, role: probe }\n' >> config/generic/agents.yaml
-     chl_compose up -d --build
-     chl_compose exec -T api crewhub-seed --import-missing --dry-run
-     chl_compose exec -T api crewhub-seed --import-missing
-     ```
-
-     The `printf` appends to the `agents:` list, which is the last thing in that file; open it once to see the
-     line sits under `builder`. `chl_compose up -d --build` is the quickstart's own line (section 3 there): it
-     rebuilds the api image with the new file and restarts the containers; the database in the docker volume is
-     kept. `--dry-run` lists what the import would add and writes nothing; the second line adds it. A plain
-     `probe` with no other flag: never `builder_read: true`. (`config/agents.yaml` at the checkout's root is the
-     team's own seed, not the one this stack reads.)
-
-   - **By an admin, through the API:** `POST /api/agents` with `{"name": "crewhub-world", "displayName":
-     "CrewHub World", "herdrSession": "default", "role": "probe"}` (`loops:.../api/routers/agents.py`,
-     `AgentCreateRequest`, camelCase on the wire). It needs the admin's session cookie. There is no CSRF token in
-     crewhub-loops: the check on a cookie write is the Host/Origin guard (`loops:.../api/security.py`,
-     `HostOriginGuard`), so a same-origin request from a signed-in tab passes. In the devtools console of the loops
-     tab at `http://127.0.0.1:8091`:
-
-     ```js
-     await fetch("/api/agents", { method: "POST", headers: { "content-type": "application/json" },
-       body: JSON.stringify({ name: "crewhub-world", displayName: "CrewHub World", herdrSession: "default", role: "probe" }) })
-       .then((r) => r.status);
-     ```
-
-     `201` is the answer. No rebuild, no seed; but the row is then not in the seed file, which is fine (the seed
-     is bootstrap only, read once on a fresh database).
-
-   Apart from `chl_compose up -d --build`, these lines are not in the quickstart; they are from
-   `loops:compose.local.yaml`, `loops:infra/api.Dockerfile`, `loops:config/generic/agents.yaml`,
-   `loops:.../seed/features.py`, `loops:.../api/routers/agents.py` and `loops:.../api/security.py` at `053b5f47`.
-
-4. **Its key: the operator's two commands**, verbatim from the loops builder's answer of 2026-10-07 (the same
-   line as the quickstart's step 5, for one agent, with the secrets folder spelled out; `<agent>` is
-   `crewhub-world`):
+1. **Settings > Agents > New external bot.** Name `crewhub-world` (lower-case, cannot be changed).
+2. **Member of these projects:** tick none, or all; it does not matter for the world. Membership decides what is
+   *delivered* to the bot and where it is shown as a member; reads are not project-scoped (any agent key lists every
+   project and reads every board: `loops:docs/external-bot.md`, "What membership does and does not do").
+3. **Leave "Read only" unticked.** A read-only bot is tickets-only (above) and the world would show Unauthorized.
+4. **Make the bot and its access key.** The key (`chl_` + 43 characters) is made in the app's window and shown
+   **once**, with a copy button; only its digest reaches the server, which can never show it again. Press the copy
+   button, then in a terminal, before copying anything else:
 
    ```sh
-   bash scripts/gen-agent-key.sh --print-digest <agent> ~/.config/crewhub-loops/secrets | sed -n 's/^gen-agent-key: digest //p' | chl_compose exec -T api crewhub-agents register <agent> --digest-stdin
+   mkdir -p -m 700 ~/.config/crewhub-loops/secrets
+   umask 077 && pbpaste > ~/.config/crewhub-loops/secrets/agent-crewhub-world.key
+   chmod 400 ~/.config/crewhub-loops/secrets/agent-crewhub-world.key
+   wc -c ~/.config/crewhub-loops/secrets/agent-crewhub-world.key      # 47 (a newline more is fine; the host trims)
    ```
 
-   So, in the checkout with `mac.env` sourced:
+   That path is the host's default key file. Any other path works with `CREWHUB_WORLD_KEY_FILE=<path>`. The
+   folder `~/.config/crewhub-loops/secrets` is the world's, not the app's: the app keeps its own keys in its data
+   folder and never reads or writes that folder (`loops:apps/desktop/README.md`, "secrets").
 
-   ```sh
-   bash scripts/gen-agent-key.sh --print-digest crewhub-world ~/.config/crewhub-loops/secrets | sed -n 's/^gen-agent-key: digest //p' | chl_compose exec -T api crewhub-agents register crewhub-world --digest-stdin
-   ```
+   Lost the key? The agent's page has **New key**; the old one keeps working until it is revoked under **API keys**.
 
-   ```
-   registered key <12 characters> for crewhub-world
-   ```
+**Say it plainly: this key can write.** An external bot that is not read-only is an ordinary `lead` agent key: it
+could create and move tickets, comment and write progress in any project (not move to Done, not create projects).
+What keeps the world read-only is the host: it holds the key on `127.0.0.1`, forwards an allow-list of `GET` paths
+only (`apps/host/src/allowList.ts`; every other method is 405 and never reaches loops; a test sends them), and the
+key is never in a response, a log or the bundle. Never paste the key into a browser page or a shared file. A viewer
+key that cannot write is proposal L1 for crewhub-loops ([gap analysis](LOOPS_GAP_ANALYSIS.md), section 6.1), asked
+again this round with a worked proposal; until then this is the credential.
 
-   This leaves `~/.config/crewhub-loops/secrets/agent-crewhub-world.key` (0400, never printed), the host's default
-   key file. `--digest-stdin` registers with scope `agent` (CL-244); never give the world an `admin` scope key.
-   `gen-agent-key.sh` refuses a file that exists, so the line is safe to run twice.
+### 1.3 Something to look at
 
-   **The builder key is a diagnosis, not a fallback to use.** The quickstart's step 5 registers `builder`, and
-   the host falls back to `agent-builder.key` with a warning (`health.sharedKey: true`) when no `crewhub-world`
-   key exists, so that it starts and says what is wrong. `builder` is a `probe` flagged `is_builder_reader`, and
-   that flag limits its key to an exact table of eight `GET` routes (tickets of a member project, one ticket, its
-   comments, history and rules, a project's rules, an attachment, `/api/auth/me`: `loops:.../auth/builder.py`,
-   `BUILDER_READ_ROUTES`). Every other route, among them `/api/projects`, `/api/board/{slug}`, `/api/team` and
-   `/api/events/stream`, is `403 forbidden` ("This key reads tickets, comments and attachments only"). With the
-   builder key the chip says Unauthorized; the cure is step 3 and this step.
-
-   Check, names and fingerprints only:
-
-   ```sh
-   ls -l "$conf/secrets"
-   chl_compose exec -T api crewhub-agents list
-   ```
-
-5. **Something to look at.** A fresh install has no projects. The world shows one building per project; until the
-   first project exists (the loops web app, or `crewhub lead new` from the quickstart's section 8), live mode shows
-   an empty town with a Live chip. That is correct.
+The world shows one building per project. The app's first project is the Inbox; until a project of yours exists,
+live mode shows that one building and a Live chip. That is correct.
 
 ## 2. The world's environment
 
-The host reads these; every one has a default that matches the quickstart.
+The host reads these; every one has a default that matches the app.
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `CREWHUB_WORLD_LOOPS_URL` | `http://127.0.0.1:8091` | Where crewhub-loops answers (`CREWHUB_LOOPBACK_PORT` in `mac.env`, 8091). |
-| `CREWHUB_WORLD_KEY_FILE` | `~/.config/crewhub-loops/secrets/agent-crewhub-world.key` | The key the host sends as `Authorization: Bearer`. Missing: falls back to `agent-builder.key` in the same folder, with a warning; that key only diagnoses (Unauthorized), see section 1 step 4. Read once, never logged, never in a response or the bundle (a test checks). |
+| `CREWHUB_WORLD_LOOPS_URL` | `http://127.0.0.1:8091` | Where crewhub-loops answers, over loopback TCP. Change it only when the app runs on another port. |
+| `CREWHUB_WORLD_LOOPS_SOCKET` | none | **Planned (built tonight on the `unixsock` track; the Lead marks it built on merge).** The path of the app's Unix socket (`~/Library/Application Support/be.ekinsol.crewhub/run/api.sock`): the host then reads loops over the socket (`node:http` with `socketPath`, Host `127.0.0.1`), same allow-list, same stream. Explicit only, never guessed; the health read says `transport: "unix"` or `"tcp"`. |
+| `CREWHUB_WORLD_KEY_FILE` | `~/.config/crewhub-loops/secrets/agent-crewhub-world.key` | The key the host sends as `Authorization: Bearer`. Read once, never logged, never in a response or the bundle (a test checks). Missing: the host falls back to `agent-builder.key` in the same folder with a warning; that key only diagnoses (Unauthorized), and the app never makes it, so on the Mac the fallback simply fails loudly. |
 | `CREWHUB_WORLD_PORT` | `5180` | The host's own port, bound to `127.0.0.1` only. |
 | `CREWHUB_WORLD_ALLOWED_ORIGINS` | none | A comma list of extra browser origins the host accepts besides `http://127.0.0.1:<port>` and `http://localhost:<port>`; in development the Vite dev server's origin, for example `http://127.0.0.1:5173`. |
 | `CREWHUB_WORLD_PAIRING` | `on` | `off` drops the pairing cookie gate: development only, logged loudly at start, refused with `NODE_ENV=production`. |
@@ -188,17 +121,24 @@ The Vite dev server proxies `/world-api` and `/pair` to `http://127.0.0.1:${CREW
 
 ## 3. Run the world in live mode
 
-Against the real install (after section 1):
-
-```sh
-npm run host                                          # the relay, development; reads the env above
-npm run dev                                           # Vite; open http://127.0.0.1:5173/?source=live
-```
-
-In production the host also serves the built bundle:
+With the app open and the key file in place (section 1):
 
 ```sh
 npm run host:start                                    # builds the world, then serves apps/world/dist; open http://127.0.0.1:5180/
+```
+
+`host:start` is production: pairing on, the bundle served by the host, TCP to `127.0.0.1:8091` by default. For
+development, Vite serves the world and the host serves the data:
+
+```sh
+npm run host                                          # the relay; reads the env of section 2
+npm run dev                                           # Vite; open http://127.0.0.1:5173/?source=live
+```
+
+Over the app's socket instead of TCP, once the `unixsock` track is merged (section 2):
+
+```sh
+CREWHUB_WORLD_LOOPS_SOCKET="$HOME/Library/Application Support/be.ekinsol.crewhub/run/api.sock" npm run host:start
 ```
 
 ### Pair this browser
@@ -208,8 +148,8 @@ The host answers `/world-api` only to a browser it has paired (plan 3.5): withou
 instead of the town. Pairing is one command and one click:
 
 ```sh
-npm run host -- open                                  # a running host on the port, or starts one; prints a one-time link
-npm run host:start -- open                            # the same in production (builds first)
+npm run host:start -- open                            # a running host on the port, or starts one; prints a one-time link
+npm run host -- open                                  # the same in development
 ```
 
 The link is `http://127.0.0.1:5180/pair/<token>`, good for 10 minutes and once. Opening it sets an `HttpOnly`,
@@ -227,7 +167,8 @@ The source setting is `auto` by default: Live when a host answers `/world-api/he
 `?source=live` or `?source=demo` overrides it; Settings > Source shows the choice, the host URL and why the source was
 chosen, and changing it reloads the page (the source is decided once, before the world starts). In live mode the
 Demo chip, the scenario picker and the playback bar are hidden, the chat dock shows the "sign in to crewhub-loops"
-link (the chat is phase 2), and the connection chip sits where the Demo chip was. The text view says the same.
+link (the chat is phase 2 and needs CORS in loops, L8), and the connection chip sits where the Demo chip was. The
+text view says the same.
 
 Zones: every live project sits in the default zone until crewhub-loops has project groups (L22); zones drawn by
 hand in build mode are kept in the live town document, which is separate from the demo scenarios' documents.
@@ -235,46 +176,127 @@ hand in build mode are kept in the live town document, which is separate from th
 ## 4. The health read
 
 ```sh
-curl http://127.0.0.1:5180/world-api/health
+curl -s http://127.0.0.1:5180/world-api/health
 ```
+
+What it answered on 2026-10-21 against the development instance (section 7), with pairing off and a developer's
+track key (yours says `crewhub-world`):
 
 ```json
-{"loops":"ok","keyName":"crewhub-world","sharedKey":false,"loopsCommit":"...","cursor":1234,"loopsWebUrl":"http://127.0.0.1:8091"}
+{"loops":"ok","keyName":"crewhub-world-setupdocs","sharedKey":false,"loopsWebUrl":"http://127.0.0.1:8291","paired":true,"pairing":"off","loopsCommit":"0.1.0","cursor":13}
 ```
 
-`loops` is `ok`, `down` or `unauthorized` (a loops 401 or 403); `keyName` is the key file's agent name; `sharedKey`
-is `true` when the builder key is the fallback; `loopsCommit` is loops' own version from its health read; `cursor`
-is the last `seq` the host holds; `loopsWebUrl` is the origin of the loops URL, where the chat dock's sign-in link
-points (on the Mac the web app and the API share 8091). The key itself is never in the answer. A request with a foreign Host header gets
-421 and one with a foreign Origin 403: the guard against other sites and DNS rebinding. `paired` says whether the
-request's cookie is a valid pairing (`curl` has none, so `false`); `pairing` is `on` or `off`.
+`loops` is `ok`, `down` or `unauthorized` (a loops 401 or 403); `keyName` is the key file's agent name (from the
+file name `agent-<name>.key`); `sharedKey` is `true` when the builder key is the fallback; `loopsCommit` is what
+loops' own health read calls its `version` (the app says `0.1.0`, not a commit); `cursor` is the last `seq` the host
+holds; `loopsWebUrl` is the origin of the loops URL, where the chat dock's sign-in link points (the app's web and
+its API share 8091). The key itself is never in the answer. A request with a foreign Host header gets 421 and one
+with a foreign Origin 403: the guard against other sites and DNS rebinding. `paired` says whether the request's
+cookie is a valid pairing (`curl` has none, so `false` with pairing on); `pairing` is `on` or `off`.
 
 ## 5. The chip says X, do Y
 
 | The chip says | What it means | Do |
 | --- | --- | --- |
-| **Live** | The snapshot is loaded and events arrive; a heartbeat came in the last 40 s. | Nothing. A ticket move in loops (`crewhub ticket move <KEY> in_progress`) changes the building's counts within 2 s. |
-| **Connecting** | The browser has not yet reached the host, or the host has not yet answered its first `status`. | Wait a few seconds. Longer: is the host running (`npm run host`)? Does `curl http://127.0.0.1:5180/world-api/health` answer? In dev, is the Vite proxy pointing at the host's port (`CREWHUB_WORLD_PORT`)? |
-| **Catching up** | The host sent `reset` (loops answered 410, or the host reconnected past its buffer, or the asked cursor is too old), or loops came back after Loops down or Unauthorized; the browser loads a new snapshot and replays from it. A gap in `seq` is normal (loops filters events per key) and is not a reason. | Nothing. It clears by itself within a few seconds. If it repeats every minute, the host is reconnecting over and over: read its log. |
-| **Stale** | No event and no heartbeat for 40 s. Loops sends a heartbeat every 15 s, so three were missed. The scene is the last known state. | Check loops: `curl -s http://127.0.0.1:8091/api/health`. If it answers, the host's stream is wedged: restart `npm run host`; the browser recovers without a reload. If it does not, see "Loops down". |
-| **Loops down** | The host cannot reach crewhub-loops (`loops: "down"`). The host retries with backoff and re-snapshots when loops is back; the browser keeps the last state. | `source ~/.config/crewhub-loops/mac.env && chl_compose ps`. Not up: `cd "$checkout" && chl_compose up -d`. After a Mac restart: start Docker Desktop first, then the same. Wrong port: `CREWHUB_WORLD_LOOPS_URL`. |
-| **Unauthorized** | Loops answered 401 or 403 (`loops: "unauthorized"`): the key file is missing, revoked or not registered, or it is the builder key, which may not read projects, boards, the team or the stream. | `curl http://127.0.0.1:5180/world-api/health`: `sharedKey: true` means the builder fallback, so create the `crewhub-world` agent and its key (section 1, steps 3 and 4). Else `ls -l ~/.config/crewhub-loops/secrets` and `chl_compose exec -T api crewhub-agents list`: the key's agent must be listed with an active fingerprint. After a new file: restart `npm run host`; the key is read once at start. |
+| **Live** | The snapshot is loaded and events arrive; a heartbeat came in the last 40 s. | Nothing. A ticket move in the app (or `crewhub ticket move <KEY> in_progress` from the app's own CLI) changes the building's counts within 2 s. |
+| **Connecting** | The browser has not yet reached the host, or the host has not yet answered its first `status`. | Wait a few seconds. Longer: is the host running (`npm run host:start`)? Does `curl http://127.0.0.1:5180/world-api/health` answer? In dev, is the Vite proxy pointing at the host's port (`CREWHUB_WORLD_PORT`)? |
+| **Catching up** | The host sent `reset`: loops answered 410 `cursor_expired` (a sealed cursor that no longer opens, for example after a restored backup), the log's tail went backwards (a restored database), the tab asked for a cursor the host's buffer no longer covers, or loops came back after Loops down or Unauthorized; the browser loads a new snapshot and replays from it. A gap in `seq` is normal (loops filters events per key) and is not a reason. | Nothing. It clears by itself within a few seconds. If it repeats every minute, the host is reconnecting over and over: read its log. |
+| **Stale** | No event and no heartbeat for 40 s. Loops sends a heartbeat every 15 s and ends every stream after 300 s (the host reopens it); three heartbeats were missed. The scene is the last known state. | Check loops: `curl -s http://127.0.0.1:8091/api/health`. If it answers, the host's stream is wedged: restart the host; the browser recovers without a reload. If it does not, see "Loops down". |
+| **Loops down** | The host cannot reach crewhub-loops (`loops: "down"`). The host retries with backoff and re-snapshots when loops is back; the browser keeps the last state. | Is `Crewhub.app` open? Open it (it starts its engine itself). After a Mac restart: open the app. Another port: the app's menu says which; set `CREWHUB_WORLD_LOOPS_URL=http://127.0.0.1:<port>` and restart the host. |
+| **Unauthorized** | Loops answered 401 or 403 (`loops: "unauthorized"`). 401 `invalid_api_key`: the key file holds a wrong, mistyped or revoked key (a bogus key gave exactly this on 2026-10-21). 403: a key that may not read these routes: a read-only bot ("This key reads tickets, comments and attachments only"), a `probe` agent ("A probe key reads its own routes only") or the builder key. | `curl http://127.0.0.1:5180/world-api/health`: `keyName` must be `crewhub-world` and `sharedKey` `false`. In the app, Settings > Agents > `crewhub-world`: it must be an external bot without the "Read only" chip, with an active key under **API keys**. Wrong kind of bot: make a new one (the read-only flag cannot be changed), save its key (section 1.2) and restart the host; the key is read once at start. |
+
+Two more answers the host may meet, both from the stream: **429 `too_many_streams`** (`Retry-After: 5`): loops
+admits four open streams per key; the host opens one, so a 429 means other hosts run on the same key (a second
+`npm run host`, a developer's host on your key). Close them; one host serves every tab. And a **401 or 403 one
+minute in**: loops re-checks the credential every 60 s and ends the stream silently when the key was revoked; the
+reconnect gets the error and the chip says Unauthorized.
 
 ## 6. Taking it away
 
-The world keeps nothing in crewhub-loops. Stop the host and the dev server; the live town document stays in the
-browser's storage under its own key. The loops side is the quickstart's "Taking it away again".
+The world keeps nothing in crewhub-loops. Stop the host; the live town document stays in the browser's storage
+under its own key. In the app, Settings > Agents > `crewhub-world` > **API keys** > revoke, and delete
+`~/.config/crewhub-loops/secrets/agent-crewhub-world.key`. The app itself is untouched by any of this.
+
+## 7. For developers: the private crewhub-loops next to the app
+
+Development never runs against the app. `tools/loops-dev.sh` runs a second crewhub-loops from a checkout, with its
+own port, data folder and socket; the app, its data folder and its port are never touched.
+
+| | |
+| --- | --- |
+| Checkout | `~/Documents/GitHub/crewhub-loops-world` (branch `world/dev-instance` at `4cdcd383`; `services/api` synced with `uv`, `apps/web` built). Override: `LOOPS_DEV_CHECKOUT`. |
+| Port | **8291** (`LOOPS_DEV_PORT`; 8091, 8000 and 9443 are refused: the app, `make dev-api`, nginx https). |
+| Data | `~/crewhub-loops-dev` (`LOOPS_DEV_DATA`, 0700): `state/crewhub.db`, `uploads/`, `run/api.sock`, `run/serve.pid`, `serve.log`, `plugin-secrets.key`. |
+| Seed | `config/generic` of the checkout: the Inbox project and the agents `crewhub-lead`, `postman`, `team-probe`, `builder`; no people. First account id `nicky` (`LOOPS_DEV_OWNER`). |
+| Web | the checkout's built `apps/web/dist`, served by the API itself at `http://127.0.0.1:8291`. |
+
+```sh
+tools/loops-dev.sh start          # uv run python -m crewhub_loops.serve with the CHL_* env of `env`; waits for /api/health
+tools/loops-dev.sh status         # pid and GET /api/setup/status
+tools/loops-dev.sh log [n]        # the last n lines of serve.log
+tools/loops-dev.sh stop
+tools/loops-dev.sh setup-token    # crewhub-setup-token on the same database: the one-time setup code, printed once
+tools/loops-dev.sh env            # the CHL_* lines, for a CLI against the same database
+```
+
+**How the first admin and the world's bot were made** (the recipe of 2026-10-20; the Lead runs it, once, on a fresh
+data folder). Every write with the admin session needs `-H "Origin: http://127.0.0.1:8291"` (the Host/Origin guard;
+there is no CSRF token). The admin password and the cookie jar live in `tools/out/loops-dev.env` and
+`tools/out/loops-dev.cookies` (0600, git-ignored); developers' panes use bearer keys only.
+
+```sh
+TOKEN=$(tools/loops-dev.sh setup-token)
+curl -s -c tools/out/loops-dev.cookies -H "Origin: http://127.0.0.1:8291" -H "content-type: application/json" \
+  -d "{\"token\":\"$TOKEN\",\"id\":\"nicky\",\"name\":\"Nicky\",\"password\":\"<test password>\"}" \
+  http://127.0.0.1:8291/api/setup/admin                                            # 201, session cookies
+curl -s -b tools/out/loops-dev.cookies -H "Origin: http://127.0.0.1:8291" -H "content-type: application/json" \
+  -d '{"name":"crewhub-lead","session":"default"}' http://127.0.0.1:8291/api/setup/lead
+curl -s -b tools/out/loops-dev.cookies -H "Origin: http://127.0.0.1:8291" -H "content-type: application/json" \
+  -d '{"name":"crewhub-world","displayName":"CrewHub World","external":true}' http://127.0.0.1:8291/api/agents   # 201
+# the key is made locally, like the app's window does: chl_ + 43 base64url characters of 32 random bytes
+KEY="chl_$(head -c 32 /dev/urandom | base64 | tr '+/' '-_' | tr -d '=\n')"
+DIGEST=$(printf '%s' "$KEY" | shasum -a 256 | cut -d' ' -f1)                        # sha256 of the whole string, chl_ included
+(umask 077 && printf '%s' "$KEY" > ~/crewhub-loops-dev/agent-crewhub-world.key && chmod 400 ~/crewhub-loops-dev/agent-crewhub-world.key)
+curl -s -b tools/out/loops-dev.cookies -H "Origin: http://127.0.0.1:8291" -H "content-type: application/json" \
+  -d "{\"digest\":\"$DIGEST\"}" http://127.0.0.1:8291/api/agents/crewhub-world/keys    # 201, scope agent
+unset KEY
+```
+
+`POST /api/agents` with `external: true` must come from a human session (an agent key gets 403: "An external bot is
+made by the owner in the web"); the role is forced to `lead` and `herdrSession` to `external:none`.
+`POST /api/agents/{name}/keys` registers the digest with scope `agent`; `crewhub-agents register` refuses an
+external bot's digest on purpose. Project creation is admin-only too (403 for any key). One bot per developer
+(`crewhub-world-<track>`, key `~/crewhub-loops-dev/agent-crewhub-world-<track>.key`) gives each host its own
+four-stream budget.
+
+A host against the development instance, on a port of your own:
+
+```sh
+CREWHUB_WORLD_LOOPS_URL=http://127.0.0.1:8291 CREWHUB_WORLD_KEY_FILE=~/crewhub-loops-dev/agent-crewhub-world.key \
+CREWHUB_WORLD_PORT=5185 CREWHUB_WORLD_PAIRING=off npm run host
+curl -s http://127.0.0.1:5185/world-api/health
+```
+
+**The never-touch list**, for every developer and every agent on this Mac: `~/Library/Application Support/be.ekinsol.crewhub`
+(the app's data folder: database, keys, socket, lock), port 8091 (and 8092, the app's sharing port), port 8000
+(taken) and 9443, `/Applications/Crewhub.app`, `~/.local/bin/crewhub` (the app re-installs its wrapper at every
+start), `~/Library/LaunchAgents` (a `dev.crewhub.*` plist there stops the app from starting that job), and
+`scripts/install-mac.sh` of the loops checkout (it writes exactly those plists). Never stop or restart a shared
+development instance that another developer tests against.
 
 ## What is not there yet
 
+- **The socket transport** (`CREWHUB_WORLD_LOOPS_SOCKET`): planned on the `unixsock` track of 2026-10-21; TCP to
+  8091 works today and stays the default.
+- **A viewer role** (L1). The key is a lead-grade external bot; the host's allow-list and a test keep every unsafe
+  method out. A read-only key that may read the board, the team, agents and the stream is proposed to loops on the
+  branch `world/viewer-key` of the loops checkout (not pushed), the ask for `cl-lead`.
+- **The chat** (phase 2) needs CORS in crewhub-loops (L8). There is still no `Access-Control-Allow-Origin` anywhere
+  in `loops:.../api/security.py`; `CHL_ALLOWED_ORIGINS` feeds the Host/Origin guard only. A bearer key must never
+  reach a browser and the person's session is an HttpOnly cookie, so the relay is the way for data and the chat stays
+  out.
+- **Pending delegations** need the owner's session, not a key: out.
+- **Project groups** (L22): zones live in the browser until crewhub-loops offers them.
 - **Pairing beyond one machine.** The one-time link pairs a browser with the host on `127.0.0.1` (section 3); a
   host behind a TLS proxy sets `CREWHUB_WORLD_PUBLIC_URL` for a `Secure` cookie, but nothing hands out links to a
   remote person yet: the command runs where the host runs.
-- **A viewer role** (L1). The key is `probe`, which could write the team snapshot if the host were ever broken;
-  the host's allow-list and a test keep every unsafe method out.
-- **The chat** (phase 2) needs CORS in crewhub-loops (L8). `CHL_ALLOWED_ORIGINS` is in the loops env (the
-  quickstart's `env` file sets it to the two loopback origins on 8091), but it feeds the Host/Origin guard only:
-  there is still no `Access-Control-Allow-Origin` anywhere in `loops:.../api/security.py`. A bearer key must never
-  reach a browser and the person's session is an HttpOnly cookie, so the relay is the way for data and the chat
-  stays out.
-- **Project groups** (L22): zones live in the browser until crewhub-loops offers them.

@@ -67,6 +67,18 @@ node tools/castshots.mjs --port 5180 --cast sprouts --only states --theme light
 node tools/castworld.mjs --port 5180 --cast potlings,sprouts --views town,building,room
 ```
 
+## The development crewhub-loops
+
+One script here is not a browser check: it runs the crewhub-loops the live checks and the host are developed
+against, next to the Mac app and never inside it.
+
+| Script | What it does | Writes |
+| --- | --- | --- |
+| `loops-dev.sh` | `start`, `stop`, `status`, `log [n]`, `setup-token`, `env`: a private crewhub-loops from a checkout (`LOOPS_DEV_CHECKOUT`, default `~/Documents/GitHub/crewhub-loops-world`, `services/api` synced with `uv` and `apps/web` built), on port **8291** (`LOOPS_DEV_PORT`; 8091, 8000 and 9443 are refused), with its own data folder `~/crewhub-loops-dev` (`LOOPS_DEV_DATA`: database, uploads, the Unix socket `run/api.sock`, the pid file and `serve.log`) and the `config/generic` seed. `setup-token` prints the one-time setup code for the first admin; `env` prints the `CHL_*` lines for a loops CLI against the same database. The recipe for the first admin and the world's external bot, and the never-touch list (the app's data folder, port 8091, launchd, `install-mac.sh`), are in [docs/LOOPS_SETUP.md](../docs/LOOPS_SETUP.md), section 7. | `~/crewhub-loops-dev/` (outside the repository, on purpose: a database is not a tool output) |
+
+`loops-dev.sh` is a plain `bash` script, not a `node` one, and takes no `--port`: its knobs are the environment
+variables above. It never touches `~/Library/Application Support/be.ekinsol.crewhub`, port 8091 or launchd.
+
 ## Rules for a tool
 
 - **Tooling only.** Nothing under `apps/` or `packages/` imports `playwright-core` or this folder, and no workspace
