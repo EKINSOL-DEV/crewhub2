@@ -130,7 +130,7 @@ export const EN: Record<string, string> = {
   "world.connect.key.failed": "The host did not answer. Is it still running?",
   "world.connect.key.failedWhy": "The host could not take the key: {reason}",
   "world.connect.key.notPaired": "This browser is not paired with the host any more. Pair it again, then paste the key.",
-  "world.connect.source.env": "CREWHUB_WORLD_KEY_FILE",
+  "world.connect.source.env": "the key file named in the environment",
   "world.connect.source.stored": "the host's stored key",
   "world.connect.source.default": "the default key file",
   // The Connection panel: the chip opens it.

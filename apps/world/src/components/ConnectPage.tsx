@@ -214,7 +214,9 @@ function KeyForm({ busy, outcome, lead, onSubmit }: { busy: boolean; outcome: Co
           : t("world.connect.key.failed")
         : outcome?.kind === "not-paired"
           ? t("world.connect.key.notPaired")
-          : null;
+          : outcome?.kind === "rejected"
+            ? (outcome.reason ? t("world.connect.rejected.reason", { reason: outcome.reason }) : t("world.connect.rejected.fallback"))
+            : null;
   return (
     <form className="connect-form" onSubmit={submit} aria-describedby={words ? "connect-outcome" : undefined}>
       <p className="connect-sub" id="connect-paste">
@@ -244,7 +246,7 @@ function KeyForm({ busy, outcome, lead, onSubmit }: { busy: boolean; outcome: Co
         </Button>
       </div>
       {words && (
-        <p className="connect-status" id="connect-outcome" role={outcome !== "sent" && outcome?.kind !== "ok" ? "alert" : "status"} aria-live="polite">
+        <p className={outcome !== "sent" && outcome?.kind === "rejected" ? "connect-status connect-rejected" : "connect-status"} id="connect-outcome" role={outcome !== "sent" && outcome?.kind !== "ok" ? "alert" : "status"} aria-live="polite">
           {words}
         </p>
       )}

@@ -37,7 +37,7 @@ export function connectScreen(decision: Pick<SourceDecision, "source" | "health"
 
 /**
  * A pasted key as loops shows it: whitespace and line breaks a terminal wrapped it with go, so do surrounding quotes and
- * backticks and the `Authorization: Bearer` line the loops dialog shows next to the key.
+ * backticks and the bearer header line the loops dialog shows next to the key.
  */
 export function normaliseKey(raw: string): string {
   let key = raw.replace(/\s+/g, " ").trim();
