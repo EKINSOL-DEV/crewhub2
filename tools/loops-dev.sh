@@ -43,6 +43,8 @@ prepare() {
   umask 077
   mkdir -p "$DATA/state" "$DATA/uploads" "$DATA/run"
   chmod 700 "$DATA" "$DATA/run"
+  # The app writes <data>/settings.json with its port; the world's host finds loops by it (CREWHUB_WORLD_LOOPS_APP_DATA=$DATA).
+  printf '{"port": %s}\n' "$PORT" > "$DATA/settings.json"
   if [ ! -f "$DATA/plugin-secrets.key" ]; then
     head -c 32 /dev/urandom > "$DATA/plugin-secrets.key"
     chmod 400 "$DATA/plugin-secrets.key"

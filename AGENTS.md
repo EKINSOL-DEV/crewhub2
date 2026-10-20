@@ -47,12 +47,14 @@ proposals, and implemented behavior.
 - `apps/world` owns presentation. Keep credentials, keys, and machine access out of
   it. All data arrives through a `WorldSource`; in the planned design it comes from
   the CrewHub host, never from a runtime.
-- `apps/host` is CrewHub's only process: it reads crewhub-loops with one agent key
-  (an external bot's, which could write; the host's `GET`-only allow-list is what
-  keeps the world read-only until crewhub-loops has a viewer key) over loopback TCP
-  or the app's Unix socket, serves and pairs the browser, and never writes to
-  crewhub-loops. The world database is planned, not built. It never controls
-  agents or holds provider secrets.
+- `apps/host` is CrewHub's only process: it finds crewhub-loops by itself (the Mac
+  app's socket or port from its data folder, read only; or the env's URL or socket),
+  reads it with one agent key (an external bot's, which could write; the host's
+  `GET`-only allow-list is what keeps the world read-only until crewhub-loops has a
+  viewer key) over loopback TCP or the Unix socket, takes that key from a file or
+  from the world's Connect screen (stored in its own folder, 0600, never logged),
+  serves and pairs the browser, and never writes to crewhub-loops. The world
+  database is planned, not built. It never controls agents or holds provider secrets.
 - `packages/loops-client` holds the crewhub-loops types, hand-written runtime
   validators for every response and event, and the `WorldSource` seam. It stays free
   of React, Three.js, the DOM, the network, and runtime dependencies. It replaces

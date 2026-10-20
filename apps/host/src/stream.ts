@@ -41,6 +41,10 @@ export interface Upstream {
   loopsVersion(): string | undefined;
   /** Slugs the host saw archived through `project.archived` events since it started. */
   archivedSlugs(): ReadonlySet<string>;
+  /** Connection attempts after the first one (loops' 300 s end counts, so does every retry while down). */
+  reconnects(): number;
+  /** When the last event arrived (loops' `ts`), ISO 8601; undefined before the first. */
+  lastEventAt(): string | undefined;
   /**
    * Subscribes a browser tab. `cursor` is the tab's last seq: envelopes after it still in the buffer are replayed,
    * or a `reset` is sent when the buffer no longer reaches back that far. Returns unsubscribe.
@@ -89,6 +93,8 @@ export function createUpstream(client: LoopsClient, options: UpstreamOptions = {
   let bufferFrom = -1;
   const buffer: Envelope[] = [];
   let version: string | undefined;
+  let attempts = 0;
+  let lastEventAt: string | undefined;
   const archived = new Set<string>();
   const listeners = new Set<(message: HostMessage) => void>();
   /** Clients that subscribed with a cursor before the host knew its own: judged at the first connection. */
@@ -136,6 +142,7 @@ export function createUpstream(client: LoopsClient, options: UpstreamOptions = {
     const envelope = line as unknown as Envelope;
     if (envelope.seq <= cursor) return;
     cursor = envelope.seq;
+    lastEventAt = typeof envelope.ts === "string" ? envelope.ts : new Date().toISOString();
     sealed = null;
     buffer.push(envelope);
     while (buffer.length > bufferSize) {
@@ -309,6 +316,7 @@ export function createUpstream(client: LoopsClient, options: UpstreamOptions = {
       }
     };
     while (!stopped) {
+      attempts += 1;
       const outcome = await attempt(done);
       if (stopped) break;
       if (outcome.kind === "ended" || outcome.kind === "gone") {
@@ -332,6 +340,8 @@ export function createUpstream(client: LoopsClient, options: UpstreamOptions = {
     cursor: () => cursor,
     loopsVersion: () => version,
     archivedSlugs: () => archived,
+    reconnects: () => Math.max(0, attempts - 1),
+    lastEventAt: () => lastEventAt,
     subscribe(from, listener) {
       listener({ type: "status", loops: state });
       if (from !== null) {
