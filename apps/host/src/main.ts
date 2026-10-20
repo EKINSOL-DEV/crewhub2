@@ -3,6 +3,7 @@
  *   CREWHUB_WORLD_LOOPS_URL        crewhub-loops' URL (default http://127.0.0.1:8091, loopback TCP to the Mac app)
  *   CREWHUB_WORLD_LOOPS_SOCKET     read loops over this Unix socket instead of TCP (never guessed; not together with
  *                                  the URL); `--loops-socket <path>` on the command line is the same
+ *   CREWHUB_WORLD_LOOPS_WEB_URL    the loops web app for the sign-in link (default: the loops URL's origin)
  *   CREWHUB_WORLD_KEY_FILE         the key file (default ~/.config/crewhub-loops/secrets/agent-crewhub-world.key;
  *                                  falls back to agent-builder.key in the same folder, with a loud warning)
  *   CREWHUB_WORLD_PORT             the port on 127.0.0.1 (default 5180)
@@ -118,6 +119,7 @@ const pairingSecret = config.pairingFile === null ? undefined : loadPairingSecre
 const mintSecret = randomBytes(32).toString("base64url");
 const host = await createHost({
   loopsUrl: config.loopsUrl,
+  loopsWebUrl: config.loopsWebUrl,
   ...(config.loopsSocket === null ? {} : { loopsSocket: config.loopsSocket }),
   key,
   keyName,
@@ -137,7 +139,7 @@ try {
   log(`cannot write the run file ${runFile(host.port)}: "open" cannot reach this host while it runs`);
 }
 log(
-  `listening on ${host.url} (loops ${config.loopsSocket === null ? config.loopsUrl : `unix socket ${config.loopsSocket}, web ${config.loopsUrl}`}, key ${keyName}${sharedKey ? ", the shared builder key" : ""}${config.production ? ", serving apps/world/dist" : ""}, pairing ${config.pairing}${config.pairingFile === null ? "" : ", secret kept in " + config.pairingFile})`,
+  `listening on ${host.url} (loops ${config.loopsSocket === null ? config.loopsUrl : `unix socket ${config.loopsSocket}, web ${config.loopsWebUrl}`}, key ${keyName}${sharedKey ? ", the shared builder key" : ""}${config.production ? ", serving apps/world/dist" : ""}, pairing ${config.pairing}${config.pairingFile === null ? "" : ", secret kept in " + config.pairingFile})`,
 );
 if (args.command === "open") {
   if (config.pairing === "off") log("pairing is off: no link needed, open the world directly");

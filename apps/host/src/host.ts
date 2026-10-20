@@ -20,6 +20,8 @@ export interface HostOptions {
   loopsUrl: string;
   /** Read loops over this Unix socket instead of TCP (`CREWHUB_WORLD_LOOPS_SOCKET`); `loopsUrl` then only names the web app. */
   loopsSocket?: string;
+  /** The web app's origin for the sign-in link (`CREWHUB_WORLD_LOOPS_WEB_URL`); default: `loopsUrl`'s origin. */
+  loopsWebUrl?: string;
   key: string;
   keyName: string;
   /** True when the shared builder key is in use (the fallback). */
@@ -111,7 +113,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
   if (options.heartbeatMs !== undefined) upstreamOptions.heartbeatMs = options.heartbeatMs;
   const upstream = createUpstream(client, upstreamOptions);
   const sharedKey = options.sharedKey ?? false;
-  const loopsWebUrl = new URL(options.loopsUrl).origin;
+  const loopsWebUrl = new URL(options.loopsWebUrl ?? options.loopsUrl).origin;
   const staticDir = options.staticDir === undefined ? null : path.resolve(options.staticDir);
   const streams = new Set<ServerResponse>();
   const pairingMode = options.pairing ?? "on";
