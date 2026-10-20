@@ -21,7 +21,7 @@ flowchart LR
   Probe["team-probe"] -- "PUT /api/team/snapshot" --> Loops
   Postman["postman lane"] -- "deliver next" --> Loops
   People["Nicky, loops web app"] --> Loops
-  Host["CrewHub host (apps/host)"] -- "socket, read-only key: REST + NDJSON" --> Loops
+  Host["CrewHub host (apps/host)"] -- "loopback TCP or Unix socket, external bot key, GET only: REST + NDJSON" --> Loops
   Host --- DB[("World database (SQLite)")]
   Browser["CrewHub World (browser)"] -- "loopback HTTP: snapshot + SSE (Tailscale optional)" --> Host
   Browser -- "chat bubbles only: DM routes as the person (CORS, L8)" --> Loops
@@ -83,7 +83,7 @@ external loading, an editor.
 | --- | --- | --- |
 | World | Scene, characters, input, view state, accessible alternatives | Process control, credentials, runtime details |
 | World engine | Grid, footprints, placement, pathfinding, movement, semantics | React, Three.js, host and runtime details |
-| Host (planned) | Reading crewhub-loops with a read-only key, the world database, serving and pairing the browser | Rendering, movement, agent control, provider secrets |
+| Host (built; the world database is planned) | Reading crewhub-loops with an external bot key, `GET` only, never a write; serving and pairing the browser; later the world database | Rendering, movement, agent control, provider secrets |
 | loops client | crewhub-loops types, runtime validation of every response and event, the `WorldSource` seam | React, Three.js, the DOM, the network |
 | crewhub-loops (external) | Every fact: projects, tickets, agents, deliveries, messages, team presence | CrewHub's code; it is read, never edited |
 
@@ -108,10 +108,11 @@ nothing outside `tools/` import it and no workspace depend on it, and holds the 
 ## Integration order
 
 The phases of plan section 10 are listed in [the roadmap](ROADMAP.md). The demo phases
-come first; the host phases stay open.
+came first; the host is built (live mode), the world database, chat and director stay open.
 
-The host would reach crewhub-loops over its Unix socket; browsers reach the host over
-loopback HTTP and SSE (plan section 3). Browsers cannot open a Unix socket.
+The host reaches crewhub-loops over loopback TCP (the Mac app's `127.0.0.1:8091`) or, when
+told with `CREWHUB_WORLD_LOOPS_SOCKET`, over the app's Unix socket; browsers reach the host
+over loopback HTTP and SSE (plan section 3). Browsers cannot open a Unix socket.
 
 ## Identity and commands
 

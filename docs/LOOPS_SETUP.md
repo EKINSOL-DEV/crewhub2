@@ -67,9 +67,10 @@ old runbook's "agent `crewhub-world`, role `probe`" is dead: such a key gets 403
 In the app, signed in as the owner:
 
 1. **Settings > Agents > New external bot.** Name `crewhub-world` (lower-case, cannot be changed).
-2. **Member of these projects:** tick none, or all; it does not matter for the world. Membership decides what is
-   *delivered* to the bot and where it is shown as a member; reads are not project-scoped (any agent key lists every
-   project and reads every board: `loops:docs/external-bot.md`, "What membership does and does not do").
+2. **Member of these projects:** tick **none**. Reads are not project-scoped (any agent key lists every project and
+   reads every board: `loops:docs/external-bot.md`, "What membership does and does not do"); membership only
+   decides what is *delivered* to the bot, and the host never acknowledges a delivery, so a member bot would pile up
+   unacknowledged deliveries that show as a counter on its card after a day.
 3. **Leave "Read only" unticked.** A read-only bot is tickets-only (above) and the world would show Unauthorized.
 4. **Make the bot and its access key.** The key (`chl_` + 43 characters) is made in the app's window and shown
    **once**, with a copy button; only its digest reaches the server, which can never show it again. Press the copy
@@ -108,7 +109,7 @@ The host reads these; every one has a default that matches the app.
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `CREWHUB_WORLD_LOOPS_URL` | `http://127.0.0.1:8091` | Where crewhub-loops answers, over loopback TCP. Change it only when the app runs on another port. |
-| `CREWHUB_WORLD_LOOPS_SOCKET` | none | **Planned (built tonight on the `unixsock` track; the Lead marks it built on merge).** The path of the app's Unix socket (`~/Library/Application Support/be.ekinsol.crewhub/run/api.sock`): the host then reads loops over the socket (`node:http` with `socketPath`, Host `127.0.0.1`), same allow-list, same stream. Explicit only, never guessed; the health read says `transport: "unix"` or `"tcp"`. |
+| `CREWHUB_WORLD_LOOPS_SOCKET` | none | The path of the app's Unix socket (`~/Library/Application Support/be.ekinsol.crewhub/run/api.sock`; `~/` is the home folder): the host then reads loops over the socket instead of TCP (`node:http` with `socketPath`, Host `127.0.0.1`), same allow-list, same stream, same timeouts. Explicit only, never guessed; the path must exist and be a socket when the host starts (so open the app first), else a clear error; set together with `CREWHUB_WORLD_LOOPS_URL` it is a configuration error. `--loops-socket <path>` on the command line is the same. The health read says `transport: "unix"` or `"tcp"`. The sign-in link (`loopsWebUrl`) stays the default URL's origin, `http://127.0.0.1:8091`; an override for socket mode, `CREWHUB_WORLD_LOOPS_WEB_URL`, is coming (the Lead says when it is merged). |
 | `CREWHUB_WORLD_KEY_FILE` | `~/.config/crewhub-loops/secrets/agent-crewhub-world.key` | The key the host sends as `Authorization: Bearer`. Read once, never logged, never in a response or the bundle (a test checks). Missing: the host falls back to `agent-builder.key` in the same folder with a warning; that key only diagnoses (Unauthorized), and the app never makes it, so on the Mac the fallback simply fails loudly. |
 | `CREWHUB_WORLD_PORT` | `5180` | The host's own port, bound to `127.0.0.1` only. |
 | `CREWHUB_WORLD_ALLOWED_ORIGINS` | none | A comma list of extra browser origins the host accepts besides `http://127.0.0.1:<port>` and `http://localhost:<port>`; in development the Vite dev server's origin, for example `http://127.0.0.1:5173`. |
@@ -135,10 +136,11 @@ npm run host                                          # the relay; reads the env
 npm run dev                                           # Vite; open http://127.0.0.1:5173/?source=live
 ```
 
-Over the app's socket instead of TCP, once the `unixsock` track is merged (section 2):
+Over the app's socket instead of TCP (section 2; the app must be open, the socket exists only while it runs):
 
 ```sh
 CREWHUB_WORLD_LOOPS_SOCKET="$HOME/Library/Application Support/be.ekinsol.crewhub/run/api.sock" npm run host:start
+curl -s http://127.0.0.1:5180/world-api/health                        # "transport":"unix"
 ```
 
 ### Pair this browser
@@ -186,7 +188,8 @@ track key (yours says `crewhub-world`):
 {"loops":"ok","keyName":"crewhub-world-setupdocs","sharedKey":false,"loopsWebUrl":"http://127.0.0.1:8291","paired":true,"pairing":"off","loopsCommit":"0.1.0","cursor":13}
 ```
 
-`loops` is `ok`, `down` or `unauthorized` (a loops 401 or 403); `keyName` is the key file's agent name (from the
+`loops` is `ok`, `down` or `unauthorized` (a loops 401 or 403); `transport` is `tcp` or `unix` (the host of this
+run predates the field); `keyName` is the key file's agent name (from the
 file name `agent-<name>.key`); `sharedKey` is `true` when the builder key is the fallback; `loopsCommit` is what
 loops' own health read calls its `version` (the app says `0.1.0`, not a commit); `cursor` is the last `seq` the host
 holds; `loopsWebUrl` is the origin of the loops URL, where the chat dock's sign-in link points (the app's web and
@@ -286,8 +289,8 @@ development instance that another developer tests against.
 
 ## What is not there yet
 
-- **The socket transport** (`CREWHUB_WORLD_LOOPS_SOCKET`): planned on the `unixsock` track of 2026-10-21; TCP to
-  8091 works today and stays the default.
+- **A sign-in link of its own in socket mode**: `loopsWebUrl` is the default URL's origin unless
+  `CREWHUB_WORLD_LOOPS_URL` is set, which the socket refuses; `CREWHUB_WORLD_LOOPS_WEB_URL` is coming for that.
 - **A viewer role** (L1). The key is a lead-grade external bot; the host's allow-list and a test keep every unsafe
   method out. A read-only key that may read the board, the team, agents and the stream is proposed to loops on the
   branch `world/viewer-key` of the loops checkout (not pushed), the ask for `cl-lead`.
