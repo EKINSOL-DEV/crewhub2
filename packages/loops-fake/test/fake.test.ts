@@ -174,7 +174,8 @@ test("archived projects are readable one by one; the snapshot's lists match the 
 });
 
 test("from=tail, the honest lastSeq of CL-390, GET /api/events paging, the sealed cursor and types validation", async () => {
-  const fake = await start({ firstSeq: 4000 });
+  // Speed 0: the storyline stands still, so the log holds exactly the moves below and every seq is known.
+  const fake = await start({ firstSeq: 4000, speed: 0 });
   const tail = await get(fake, "/api/events?from=tail");
   assert.equal(tail.status, 200);
   assert.deepEqual(tail.body.events, []);
@@ -204,7 +205,8 @@ test("from=tail, the honest lastSeq of CL-390, GET /api/events paging, the seale
   assert.equal(resumed.body.lastSeq, fake.lastSeq());
   const both = await get(fake, `/api/events?cursor=${encodeURIComponent(tail.body.cursor)}&after=1`);
   assert.deepEqual([both.status, both.body.error.code, both.body.error.message], [400, "validation_error", "Send either cursor or after, not both"]);
-  for (const foreign of ["bogus", tail.body.cursor.slice(0, -2) + "zz", (await start({ firstSeq: 4000 })).lastSeq() && (await get(fakes.at(-1)!, "/api/events?from=tail")).body.cursor]) {
+  const other = await start({ firstSeq: 4000, speed: 0 });
+  for (const foreign of ["bogus", tail.body.cursor.slice(0, -2) + "zz", (await get(other, "/api/events?from=tail")).body.cursor]) {
     const gone = await get(fake, `/api/events?cursor=${encodeURIComponent(foreign)}`);
     assert.deepEqual([gone.status, gone.body.error.code, gone.body.error.message], [410, "cursor_expired", CURSOR_EXPIRED_MESSAGE], `foreign ${foreign.slice(0, 12)}`);
   }
@@ -422,13 +424,32 @@ test("a stream ends after streamMaxMs without a closing line, as loops' 300 s; a
   assert.equal(fake.streamsOpened(), 2);
 });
 
-/** Polls `predicate` every 20 ms for up to `timeoutMs`. */
-async function until(what: string, predicate: () => boolean, timeoutMs = 4000): Promise<void> {
+/** Reads NDJSON lines until one satisfies `wanted` (that line is the last returned) or `timeoutMs` passed. */
+async function readUntil(res: Response, wanted: (line: Record<string, unknown>) => boolean, timeoutMs: number): Promise<Record<string, unknown>[]> {
+  const lines: Record<string, unknown>[] = [];
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let pending = "";
   const deadline = Date.now() + timeoutMs;
-  while (!predicate()) {
-    if (Date.now() > deadline) throw new Error(`Timed out waiting for ${what}`);
-    await new Promise((r) => setTimeout(r, 20));
+  let found = false;
+  while (!found && Date.now() < deadline) {
+    const chunk = await Promise.race([
+      reader.read(),
+      new Promise<{ done: true; value: undefined }>((resolve) => setTimeout(() => resolve({ done: true, value: undefined }), deadline - Date.now())),
+    ]);
+    if (chunk.done) break;
+    pending += decoder.decode(chunk.value, { stream: true });
+    const parts = pending.split("\n");
+    pending = parts.pop() ?? "";
+    for (const part of parts) {
+      if (part.trim() === "" || found) continue;
+      const line = JSON.parse(part) as Record<string, unknown>;
+      lines.push(line);
+      if (wanted(line)) found = true;
+    }
   }
+  await reader.cancel().catch(() => undefined);
+  return lines;
 }
 
 test("visibility: the key does not see every seq. The install's history hides seq 1 and 2, chat is a gap, from=tail and the heartbeat say the visible tail; visibility: all shows every row", async () => {
@@ -453,10 +474,15 @@ test("visibility: the key does not see every seq. The install's history hides se
   // hidden rows, so the visible seqs have gaps where a fake that hides nothing has `dm.created`.
   const hidden = await start({ speed: 16, startAt: 3 * 60_000 + 50_000 });
   const shown = await start({ speed: 16, startAt: 3 * 60_000 + 50_000, visibility: "all" });
-  await until("the reply at 4:21", () => shown.lastSeq() - 3 >= 2 && hidden.lastSeq() - 3 >= 2, 6000);
-  await new Promise((r) => setTimeout(r, 2500)); // 40 storyline seconds more, past 4:21
+  // Both play the same storyline from the same position, so the same seqs; wait until the reply at 4:21 is in the
+  // shown fake's log and the hidden fake has played at least as far (the demo's clock may lag wall time under load).
+  let log: Envelope[] = [];
+  const pollLog = async () => {
+    log = (await get(shown, "/api/events?after=0")).body.events as Envelope[];
+    return log.filter((e) => e.type === "dm.created").length >= 2 && hidden.lastSeq() >= shown.lastSeq();
+  };
+  for (let i = 0; i < 300 && !(await pollLog()); i += 1) await new Promise((r) => setTimeout(r, 50));
   const seen = (await get(hidden, "/api/events?after=0")).body.events as Envelope[];
-  const log = (await get(shown, "/api/events?after=0")).body.events as Envelope[];
   assert.ok(log.filter((e) => e.type === "dm.created").length >= 2, `the log holds the chat (${log.map((e) => e.type).join(", ")})`);
   assert.ok(seen.every((e) => !e.type.startsWith("dm.")), "the key sees no chat");
   assert.ok(seen.length > 1 && seen.some((e, i) => i > 0 && e.seq > (seen[i - 1] as Envelope).seq + 1), `gaps in ${seen.map((e) => e.seq).join(" ")}`);
@@ -473,7 +499,8 @@ test("human_only_done: the storyline's moves into Done are a person's, with the 
   // `human_only_done` for an agent, `domain/tickets.py` `require_human_for_done`, which the demo's script obeys).
   const fake = await start({ speed: 16, startAt: 3 * 60_000 + 20_000 });
   const res = await fetch(`${fake.url}/api/events/stream?after=${fake.lastSeq()}`, { headers: headers(fake) });
-  const lines = await readLines(res, 40, 4000);
+  // Read until Nicky's 3:28 move of CR-18 (a prop ticket's Done move by the person comes first).
+  const lines = await readUntil(res, (l) => l["type"] === "ticket.moved" && (l["ticket"] as { key: string } | null)?.key === "CR-18" && (l["payload"] as { to: string }).to === "done", 15_000);
   const moves = lines.filter((l) => l["type"] === "ticket.moved") as unknown as Envelope[];
   const done = moves.filter((e) => e.payload["to"] === "done");
   assert.ok(done.length >= 1, `a move into Done arrived (${moves.map((e) => `${e.ticket?.key}→${e.payload["to"]}`).join(", ")})`);
@@ -510,15 +537,16 @@ test("archived projects: hidden from the list, 403 with loops' words for include
   // 5:00: the person restores it; the stream says so and the list shows it again.
   const restoring = await start({ speed: 16, startAt: 4 * 60_000 + 58_000 });
   const res = await fetch(`${restoring.url}/api/events/stream?after=${restoring.lastSeq()}`, { headers: headers(restoring) });
-  const lines = await readLines(res, 1, 3000);
-  assert.deepEqual([lines[0]?.["type"], (lines[0]?.["project"] as { slug: string })?.slug, (lines[0]?.["actor"] as { kind: string })?.kind], ["project.restored", "ops-tooling", "user"]);
+  const lines = await readUntil(res, (l) => l["type"] === "project.restored", 15_000);
+  assert.deepEqual(lines.map((l) => l["type"]), ["project.restored"], "the restore is the first line after 4:58");
+  assert.deepEqual([(lines[0]?.["project"] as { slug: string })?.slug, (lines[0]?.["actor"] as { kind: string })?.kind], ["ops-tooling", "user"]);
   const back = (await get(restoring, "/api/projects")).body.projects.find((p: { slug: string }) => p.slug === "ops-tooling");
   assert.equal(back?.archivedAt, null);
   assert.equal((await get(restoring, "/api/board/ops-tooling")).status, 200);
   // 13:44: archived again; the list drops it, the slug still resolves, archivedAt is set.
   const closing = await start({ speed: 16, startAt: 13 * 60_000 + 42_000 });
   const res2 = await fetch(`${closing.url}/api/events/stream?after=${closing.lastSeq()}&types=project.archived`, { headers: headers(closing) });
-  const [archived] = await readLines(res2, 1, 3000);
+  const [archived] = await readUntil(res2, (l) => l["type"] === "project.archived", 15_000);
   assert.deepEqual([archived?.["type"], (archived?.["project"] as { slug: string })?.slug], ["project.archived", "ops-tooling"]);
   assert.ok(!(await get(closing, "/api/projects")).body.projects.some((p: { slug: string }) => p.slug === "ops-tooling"));
   assert.equal(typeof (await get(closing, "/api/projects/ops-tooling")).body.project.archivedAt, "string");
