@@ -260,6 +260,18 @@ test("status messages → loops-down / unauthorized; ok again re-snapshots", asy
   await host.close();
 });
 
+test("status stream busy (loops 429 too_many_streams) → stream-busy, not loops-down; ok again re-snapshots", async () => {
+  const host = await startHost();
+  const run = observe(host.url);
+  await run.until(() => host.cursors.length === 1, "the stream");
+  host.push({ type: "status", loops: "down", stream: "busy", reason: "stream budget exhausted (429): another host or tab uses this key" });
+  await run.until(() => run.state() === "stream-busy", "stream-busy");
+  host.push({ type: "status", loops: "ok" });
+  await run.until(() => count(run.messages, "snapshot") === 2 && run.state() === "live", "re-snapshot and live");
+  run.stop();
+  await host.close();
+});
+
 test("a 503 snapshot → loops-down and retries until it answers", async () => {
   const host = await startHost();
   host.snapshotStatus = 503;
