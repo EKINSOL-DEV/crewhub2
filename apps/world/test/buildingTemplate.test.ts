@@ -92,6 +92,7 @@ function building(agents: AgentPlacement[], extraRooms: RoomKind[] = [], objects
     beacons: [],
     mailbox: [],
     archivedCount: 0,
+    visits: [],
   };
 }
 

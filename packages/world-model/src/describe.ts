@@ -8,6 +8,7 @@ import type {
   AgentPlacement,
   Building,
   LaneStatus,
+  PersonVisit,
   Posture,
   RoleId,
   RoleSource,
@@ -171,8 +172,26 @@ function describeBuilding(building: Building, add: Add, buildingName: (slug: str
   }
 
   for (const agent of building.agents) describeAgent(section, agent, add, buildingName, rooms);
+  for (const visit of building.visits) describeVisit(section, visit, add, rooms);
   if (rooms === "classic") for (const room of building.rooms) describeRoom(building, room, add);
   else describeHalls(building, add);
+}
+
+/** Where a person puts the package: the Done rack, or Dispatch in the classic building. */
+export function doneWord(rooms: RoomWording): string {
+  return rooms === "classic" ? "Dispatch" : "Done";
+}
+
+/**
+ * A person's visit (spec addendum "a person in the world"): the carry is cosmetic (the model walks nobody; the move
+ * is the fact), the landing is the move itself.
+ */
+function describeVisit(section: string, visit: PersonVisit, add: Add, rooms: RoomWording): void {
+  const done = doneWord(rooms);
+  const who = `${visit.displayName}, a person,`;
+  if (visit.phase === "queued") add(section, `${who} is on the way in to carry ${visit.ticketKey} to ${done}.`, "cosmetic");
+  else if (visit.phase === "carrying") add(section, `${who} is carrying ${visit.ticketKey} to ${done}.`, "cosmetic");
+  else add(section, `${who} moved ${visit.ticketKey} to ${done}${visit.rejected ? " as won't do" : ""}.`);
 }
 
 function describeAgent(section: string, agent: AgentPlacement, add: Add, buildingName: (slug: string | null) => string, rooms: RoomWording): void {
@@ -330,6 +349,8 @@ function describeObject(section: string, object: WorkObject, building: Building,
   if (object.celebrateUntil !== null) add(section, `${object.key} was just moved to done by a person.`);
   if (object.turnedDownUntil !== null) add(section, `${object.key} was just turned down by a person: no celebration.`);
   if (object.transit) {
-    add(section, `${object.key} is in transit from ${placeWords(object.transit.fromRoom, rooms)} to ${placeWords(object.transit.toRoom, rooms)}: the ticket drone carries it.`, "cosmetic");
+    const person = object.transit.carrier === "person" ? building.visits.find((v) => v.ticketId === object.ticketId) : undefined;
+    const carrier = person ? `${person.displayName} carries it` : object.transit.carrier === "person" ? "a person carries it" : "the ticket drone carries it";
+    add(section, `${object.key} is in transit from ${placeWords(object.transit.fromRoom, rooms)} to ${placeWords(object.transit.toRoom, rooms)}: ${carrier}.`, "cosmetic");
   }
 }

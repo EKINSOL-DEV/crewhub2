@@ -162,6 +162,8 @@ function World() {
   const cast = useCast();
   // The town document's zones and manual assignments decide each building's zone, before the source's groups.
   useEffect(() => worldRuntime().setZoning(zoningOf(town.doc)), [town.doc]);
+  // A person's package lands at once under reduced motion: the reducer decides that, so it must know.
+  useEffect(() => worldRuntime().setReducedMotion(reducedMotion), [reducedMotion]);
   // The civic places go by what stands there at this size: the lodge, the mailbox, the mail hut.
   const civic = useMemo(() => civicWords(plan.civic), [plan.civic.hall, plan.civic.post]);
   // Only while the text view shows: describing a region on every model update is felt on a phone.

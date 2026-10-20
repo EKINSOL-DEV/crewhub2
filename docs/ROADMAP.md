@@ -88,6 +88,13 @@ Walk mode (2026-10-07, built in demo mode): the person walks a visitor figure th
 the navigation world, with a follow camera ("Walk mode" in
 [the night report](reports/2026-10-01-world-demo-night.md)).
 
+A person in the world (2026-10-21, spec addendum "a person in the world, and closed buildings", part 1): a
+`ticket.moved` into Done by a user is a person's act in loops, so the world shows a person: a plain figure of the
+building's cast comes in by the front door, carries the package from its rack or desk to the Done rack and leaves. The
+model records the visit (`Building.visits`, one person per building, a queue of three, the rest land at once; the
+celebration follows the landing), the text view and `where` tell it, a click says who and what. Under reduced motion
+the package lands at once. Part 2 (closed buildings) is open.
+
 ## The host
 
 Built on 2026-10-07 and brought to the Mac app on 2026-10-21 (plan section 10, "Phase 1 as built" and "Phase 1
