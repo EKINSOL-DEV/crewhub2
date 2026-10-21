@@ -34,7 +34,7 @@ import { moveBuilding, plotLabel } from "./LayoutPanel";
 import { townRuntime } from "../state/town";
 import type { LaneStatus, RoomKind, RuleProp } from "@crewhub/world-model";
 import { Chip } from "./primitives";
-import { needsOf, needsTotal, needsWords, summarise, summaryWords, activeWords, type DistrictPlace } from "../world/wayfinding";
+import { needsOf, needsPinWords, needsTotal, needsWords, summarise, summaryWords, activeWords, type DistrictPlace } from "../world/wayfinding";
 
 export interface Selection {
   hover: Pick | null;
@@ -484,7 +484,7 @@ function Wayfinding({ districts, district, onDistrict, onEnter }: { districts: D
     d.buildings.flatMap((b) => {
       const needs = needsOf(b);
       const total = needsTotal(needs);
-      return total ? [{ slug: b.slug, name: b.name, total, words: needsWords(needs) }] : [];
+      return total ? [{ slug: b.slug, name: b.name, total, words: needsWords(needs), pin: needsPinWords(needs) }] : [];
     }),
   );
   const key = JSON.stringify([cards, pins]);
@@ -526,7 +526,7 @@ function Wayfinding({ districts, district, onDistrict, onEnter }: { districts: D
             <button type="button" className="need-pin" aria-label={`${b.name} needs a person: ${b.words}. Go inside.`} title={`${b.name}: ${b.words}`} onClick={() => go.current.onEnter(b.slug)}>
               <TriangleAlert className="icon icon-sm" aria-hidden="true" />
               <span className="need-count">{b.total}</span>
-              <span className="need-words">{b.words}</span>
+              <span className="need-words">{b.pin}</span>
             </button>
           </div>
         ))}

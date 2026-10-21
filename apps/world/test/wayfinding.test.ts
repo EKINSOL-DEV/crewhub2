@@ -13,6 +13,7 @@ import {
   labelDetail,
   levelOf,
   needsOf,
+  needsPinWords,
   needsWords,
   searchJumps,
   stepOut,
@@ -94,6 +95,13 @@ test("a beacon lights for waiting on a person, attention and stalled; an archive
   assert.deepEqual(needsOf({ ...asking, archived: true }), { waiting: 0, attention: 0, stalled: 0 });
   assert.equal(needsWords(needsOf(asking)), "1 waiting on a person, 1 needs attention, 1 stalled");
   assert.equal(needsWords(needsOf(quiet)), "");
+  // The pin says the total already: one kind of need goes without its count, several keep theirs.
+  assert.equal(needsPinWords({ waiting: 2, attention: 0, stalled: 0 }), "waiting on a person");
+  assert.equal(needsPinWords({ waiting: 0, attention: 1, stalled: 0 }), "needs attention");
+  assert.equal(needsPinWords({ waiting: 0, attention: 3, stalled: 0 }), "need attention");
+  assert.equal(needsPinWords({ waiting: 0, attention: 0, stalled: 1 }), "stalled");
+  assert.equal(needsPinWords({ waiting: 2, attention: 0, stalled: 1 }), "2 waiting on a person, 1 stalled");
+  assert.equal(needsPinWords(needsOf(quiet)), "");
   const summary = summarise([quiet, asking, { ...loose, archived: true }]);
   assert.equal(summary.buildings, 2);
   assert.equal(summary.agents, 4);

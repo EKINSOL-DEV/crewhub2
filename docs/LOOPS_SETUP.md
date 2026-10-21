@@ -14,11 +14,11 @@ describes a private crewhub-loops next to the app, never the app.
 With `Crewhub.app` open (it serves `127.0.0.1:8091` and a Unix socket in its data folder; the world finds both by
 itself, read only) and a terminal in this repository:
 
-1. `npm ci` once, then **`npm run world`**. It starts the host on `127.0.0.1:5180` (`CREWHUB_WORLD_PORT` picks another) with pairing on, opens your browser
-   on a one-time pairing link, and builds the world meanwhile when the build is missing or older than the sources (the
-   browser says "Building the world…" and opens it when the build is done). The terminal shows the steps as they
-   complete, with ticks and times: loops found, the key, the stream, the first snapshot, "the world is up". Run it
-   again later: it finds the running host and only opens a new link.
+1. `npm ci` once, then **`npm run world`**. It starts the host on `127.0.0.1:5180` (`CREWHUB_WORLD_PORT` picks
+   another) with pairing on, opens your browser on a one-time pairing link, and builds the world meanwhile when the
+   build is missing or older than the sources (the browser says "Building the world…" and opens it when the build is
+   done). The terminal shows the steps as they complete, with ticks and times: loops found, the key, the stream, the
+   first snapshot, "the world is up". Run it again later: it finds the running host and only opens a new link.
 2. The world shows **Connect**: it has found crewhub-loops and has no key yet. In the app, signed in as the owner:
    **Settings > Agents > New external bot**. Fill in **Name** `crewhub-world`, leave **Read only** unticked, tick no
    project under **Member of these projects**, press **Make the bot and its access key**. The window "The access key
