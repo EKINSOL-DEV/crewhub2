@@ -632,8 +632,8 @@
   background: var(--warm-soft);
   color: var(--text);
 }
-/* A ticket waiting on a person: a squared tag with a speech icon on the waiting colour, so it never reads as a robot's
-   round name pill. */
+/* A ticket waiting on a person: a squared tag with a speech icon on the waiting colour, saying "waits on <name>", so it
+   never reads as a robot's round name pill or as the person's own pill (a person icon and the name). */
 .name-tag {
   transform: translate(-50%, -100%);
   font-weight: var(--weight-semibold);

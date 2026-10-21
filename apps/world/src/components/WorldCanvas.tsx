@@ -646,7 +646,7 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
             ) : (
               <span className="name-tag" title={`${o.key} waits on ${o.nameTag}`}>
                 <MessageSquare className="icon icon-sm" aria-hidden="true" />
-                {o.nameTag}
+                {`waits on ${o.nameTag}`}
               </span>
             )}
           </div>
