@@ -68,7 +68,7 @@ smooth connection" below):
 | `CREWHUB_WORLD_PORT` | `5180` | The port on `127.0.0.1`. |
 | `CREWHUB_WORLD_ALLOWED_ORIGINS` | none | Comma list of extra origins, e.g. the Vite dev server `http://localhost:5173`. |
 | `CREWHUB_WORLD_PAIRING` | `on` | `off` removes the cookie gate: development only (the Vite proxy), logged loudly at start, refused with `NODE_ENV=production`. |
-| `CREWHUB_WORLD_PAIRING_FILE` | none | Keeps the pairing secret across restarts (created with mode 0600). Without it the secret is per run and a restart invalidates every pairing. |
+| `CREWHUB_WORLD_PAIRING_FILE` | none; `npm run world`: `<CREWHUB_WORLD_CONFIG_DIR>/pairing-secret` | Keeps the pairing secret across restarts (created with mode 0600). Without it the secret is per run and a restart invalidates every pairing (an open tab is left on Stale). `npm run world` keeps it in the host's own folder unless this names another file (`worldEnv` in `src/config.ts`). |
 | `CREWHUB_WORLD_PUBLIC_URL` | none | The URL a browser reaches the host at behind a TLS proxy: `https` makes the cookie `Secure`; its host and origin pass the guard. |
 | `NODE_ENV` | | `production` serves `apps/world/dist`. |
 
@@ -103,7 +103,8 @@ The host starts with neither loops nor a key and reports the honest states; the 
   Before pairing only the states are there (no target paths, no names). `loops` keeps the old tri-state for the world
   from before: `down` while searching, `unauthorized` without a key or with a rejected one.
 - **`npm run world`** (`main.ts world`): builds when `apps/world/dist` is older than the sources, serves it with
-  pairing on, mints a link and opens the default browser on it (`--no-open` prints it). A second run finds the running
+  pairing on and the pairing secret kept in `<configDir>/pairing-secret` (so a host restart keeps every paired browser),
+  mints a link and opens the default browser on it (`--no-open` prints it). A second run finds the running
   host through the run file and only opens a new link.
 - **`npm run host -- doctor`** (`src/doctor.ts`): the same states in the terminal, one line per check, `ok` or the
   fix; exit 0 only when all pass. Read only, never the stream; tests run it against the stub.

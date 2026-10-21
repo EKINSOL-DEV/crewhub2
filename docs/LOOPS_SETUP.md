@@ -20,10 +20,14 @@ itself, read only) and a terminal in this repository:
 2. The world shows **Connect**: it has found crewhub-loops and has no key yet. In the app, signed in as the owner:
    **Settings > Agents > New external bot**. Fill in **Name** `crewhub-world`, leave **Read only** unticked, tick no
    project under **Member of these projects**, press **Make the bot and its access key**. The window "The access key
-   of crewhub-world" shows the key once: press **Copy the access key**, then **I have saved the access key, close**.
+   of crewhub-world" shows the key once: press the copy button beside the **Access key** field, then **I have saved
+   the access key, close**. (The browser asks you to sign in as the owner first when it has no session; the app's own
+   window is signed in already and works as well.)
 3. Paste it in the world's Connect screen. The host checks it with crewhub-loops, stores it in
    `~/.config/crewhub-world/loops-key` (folder 0700, file 0600, never logged), and connects: the chip says **Live**
-   and your projects stand as buildings. From then on `npm run world` is the whole morning.
+   and your projects stand as buildings. From then on `npm run world` is the whole morning: it keeps its pairing
+   secret in `~/.config/crewhub-world/pairing-secret`, so a browser paired yesterday is paired after a host restart
+   too (rehearsed on 2026-10-21: clone to the town in under two minutes, the paste to the Live chip in one second).
 
 If a step was missed, **`npm run host -- doctor`** says which, one line per check (loops found, its health, the key
 file, what loops says about the key, the projects, agents and team reads, the event log, the host's port, pairing),
@@ -142,7 +146,7 @@ The host reads these; every one has a default that matches the app.
 | `CREWHUB_WORLD_PORT` | `5180` | The host's own port, bound to `127.0.0.1` only. |
 | `CREWHUB_WORLD_ALLOWED_ORIGINS` | none | A comma list of extra browser origins the host accepts besides `http://127.0.0.1:<port>` and `http://localhost:<port>`; in development the Vite dev server's origin, for example `http://127.0.0.1:5173`. |
 | `CREWHUB_WORLD_PAIRING` | `on` | `off` drops the pairing cookie gate: development only, logged loudly at start, refused with `NODE_ENV=production`. |
-| `CREWHUB_WORLD_PAIRING_FILE` | none | A file (created, mode 0600) that keeps the pairing secret across host restarts, so paired browsers stay paired. Without it the secret is per run: a restart means pairing again. |
+| `CREWHUB_WORLD_PAIRING_FILE` | none; `npm run world`: `~/.config/crewhub-world/pairing-secret` | A file (created, mode 0600) that keeps the pairing secret across host restarts, so paired browsers stay paired. Without it the secret is per run: a restart means pairing again (an open tab is left on Stale). `npm run world` keeps it in the host's own folder unless this names another file. |
 | `CREWHUB_WORLD_PUBLIC_URL` | none | The URL a browser reaches the host at when a TLS proxy stands in front; `https` makes the cookie `Secure`, and that origin passes the Host/Origin guard. |
 
 The Vite dev server proxies `/world-api` and `/pair` to `http://127.0.0.1:${CREWHUB_WORLD_PORT ?? 5180}` with
@@ -190,7 +194,8 @@ The link is `http://127.0.0.1:5180/pair/<token>`, good for 10 minutes and once. 
 `SameSite=Strict` cookie for `127.0.0.1` and lands on `/`; the page never shows the link itself, and the host never
 logs the token or the cookie. A used or expired link gets a plain "This link has expired or was already used" page:
 run the command again. Each browser (and each profile) pairs once. The cookie is signed with a per-run secret, so a
-host restart asks for pairing again unless `CREWHUB_WORLD_PAIRING_FILE` keeps the secret (section 2).
+host restart asks for pairing again unless `CREWHUB_WORLD_PAIRING_FILE` keeps the secret (section 2); `npm run world`
+keeps it by default.
 
 In development the world runs on the Vite origin, and cookies ignore ports: a browser paired on `127.0.0.1:5180` is
 paired on `127.0.0.1:5173` too. Either open the link as printed, or ask for one on the Vite origin, which proxies
@@ -266,8 +271,9 @@ reconnect gets the error and the chip says Unauthorized.
 
 The world keeps nothing in crewhub-loops. Stop the host; the live town document stays in the browser's storage
 under its own key. In the app, Settings > Agents > `crewhub-world` > **Access keys** > revoke, and delete the stored
-key `~/.config/crewhub-world/loops-key` (or `DELETE /world-api/connect` from the world's page does it) and, if you made
-one, `~/.config/crewhub-loops/secrets/agent-crewhub-world.key`. The app itself is untouched by any of this.
+key `~/.config/crewhub-world/loops-key` (or `DELETE /world-api/connect` from the world's page does it), the pairing
+secret `~/.config/crewhub-world/pairing-secret` and, if you made one,
+`~/.config/crewhub-loops/secrets/agent-crewhub-world.key`. The app itself is untouched by any of this.
 
 ## 7. For developers: the private crewhub-loops next to the app
 

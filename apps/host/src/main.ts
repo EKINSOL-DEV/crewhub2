@@ -24,7 +24,8 @@
  *                          proxies `/pair` (the Vite dev server): cookies ignore ports, so a browser paired on
  *                          127.0.0.1:5173 is paired on 127.0.0.1:5180 too.
  *   world [--no-open]      `npm run world`: builds the world when apps/world/dist is older than the sources, serves it in
- *                          production mode with pairing on, mints a link and opens the default browser on it (`--no-open`
+ *                          production mode with pairing on (the secret kept in <config dir>/pairing-secret, so a restart
+ *                          keeps every paired browser), mints a link and opens the default browser on it (`--no-open`
  *                          prints it). A second run finds the running host and only opens a new link.
  *   doctor                 a read-only preflight: one line per check (loops, health, key, auth, reads, events, port,
  *                          pairing), ok or the fix; exit 0 only when all pass. Never opens the stream, never writes.
@@ -35,7 +36,7 @@ import { readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from "
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { ConfigError, type ServerConfig, loadKey, loadServerConfig } from "./config.ts";
+import { ConfigError, type ServerConfig, loadKey, loadServerConfig, worldEnv } from "./config.ts";
 import { formatDoctor, runDoctor } from "./doctor.ts";
 import { MINT_HEADER, MINT_PATH, createHost } from "./host.ts";
 import { createKeyStore } from "./keyStore.ts";
@@ -177,7 +178,8 @@ let config: ServerConfig;
 let key: ReturnType<typeof loadKey>;
 try {
   args = parseArgs(process.argv.slice(2));
-  const env = { ...process.env, ...(args.loopsSocket === null ? {} : { CREWHUB_WORLD_LOOPS_SOCKET: args.loopsSocket }), ...(args.command === "world" ? { NODE_ENV: "production" } : {}) };
+  const base = { ...process.env, ...(args.loopsSocket === null ? {} : { CREWHUB_WORLD_LOOPS_SOCKET: args.loopsSocket }) };
+  const env = args.command === "world" ? worldEnv(base) : base;
   if (args.command === "doctor") {
     const report = await runDoctor({ env });
     for (const line of formatDoctor(report)) console.log(line);
