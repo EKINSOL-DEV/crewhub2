@@ -102,7 +102,7 @@ async function run(env, browser, index) {
       const line = stderr.slice(0, nl);
       stderr = stderr.slice(nl + 1);
       hostLines.push({ ms: Date.now() - t0, line });
-      if (/^(\[host\]|  [✓✗…·])/.test(line)) console.log(`  ${ms(Date.now() - t0)}  host: ${line.replace(/^\[host\] /, "").trim().slice(0, 150)}`);
+      if (/^(\[host\]|  [✓✗…·]|    \S)/.test(line)) console.log(`  ${ms(Date.now() - t0)}  host: ${line.replace(/^\[host\] /, "").trim().slice(0, 150)}`);
     }
   });
   const exited = new Promise((resolve) => child.once("exit", (code) => resolve(code)));

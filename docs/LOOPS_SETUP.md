@@ -293,7 +293,9 @@ The world keeps nothing in crewhub-loops. Stop the host; the live town document 
 under its own key. In the app, Settings > Agents > `crewhub-world` > **Access keys** > revoke, and delete the stored
 key `~/.config/crewhub-world/loops-key` (or `DELETE /world-api/connect` from the world's page does it), the pairing
 secret `~/.config/crewhub-world/pairing-secret` and, if you made one,
-`~/.config/crewhub-loops/secrets/agent-crewhub-world.key`. The app itself is untouched by any of this.
+`~/.config/crewhub-loops/secrets/agent-crewhub-world.key`. **Forget** in the world's Connection panel removes only the
+key: the host's folder `~/.config/crewhub-world` also keeps the pairing secret and `archived.json` (the slugs of the
+closed buildings it learnt), so delete the whole folder to remove everything. The app itself is untouched by any of this.
 
 ## 7. For developers: the private crewhub-loops next to the app
 
