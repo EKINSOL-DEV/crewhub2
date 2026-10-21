@@ -33,8 +33,11 @@ function savePresence(settings: PresenceSettings) {
 /* Reachability is the navigation world's: the building templates' rooms, props and doors, kept in step with every
    model. A prop tag is reachable in a room when one of its approach cells can be reached from the agent's seat; a
    visit needs a free cell beside the target's seat, a gather a place around the meeting table. The director's own
-   copy of the graph holds no walkers, so other agents never make a prop "unreachable". */
-const nav = new NavWorld();
+   copy of the graph holds no walkers, so other agents never make a prop "unreachable". It is built the first time the
+   director asks (the first sync with the director on, or a query): a `NavWorld` lays out the standalone town room in
+   its constructor, ~15 ms, which at import stood on the road to the first frame for a director that is off by default. */
+let navWorld: NavWorld | null = null;
+const nav = () => (navWorld ??= new NavWorld());
 let current: WorldModel | null = null;
 
 function roomOf(slug: string, key: AgentKey) {
@@ -42,20 +45,20 @@ function roomOf(slug: string, key: AgentKey) {
 }
 
 const reachable: Reachable = (query) => {
-  const from = nav.home(query.building, query.agent, roomOf(query.building, query.agent));
+  const from = nav().home(query.building, query.agent, roomOf(query.building, query.agent));
   if (!from) return false;
   switch (query.kind) {
     case "prop":
-      return nav.reachableSpots(query.building, query.tag, query.room, from).length > 0;
+      return nav().reachableSpots(query.building, query.tag, query.room, from).length > 0;
     case "agent":
-      return nav.beside(query.building, query.target, roomOf(query.building, query.target)).some((cell) => nav.canReach(from, cell));
+      return nav().beside(query.building, query.target, roomOf(query.building, query.target)).some((cell) => nav().canReach(from, cell));
     case "room":
-      return nav.around(query.building, "gather", query.room).some((cell) => nav.canReach(from, cell));
+      return nav().around(query.building, "gather", query.room).some((cell) => nav().canReach(from, cell));
   }
 };
 
 /** The tags the script may choose in a room: visitable props (not desks) with an approach reachable from the lobby. */
-const propTags: PropTags = (slug, room) => nav.tags(slug, room).filter((tag) => VISIT_TAGS.includes(tag) && nav.reachableSpots(slug, tag, room).length > 0);
+const propTags: PropTags = (slug, room) => nav().tags(slug, room).filter((tag) => VISIT_TAGS.includes(tag) && nav().reachableSpots(slug, tag, room).length > 0);
 
 export interface DirectorState {
   settings: PresenceSettings;
@@ -106,7 +109,7 @@ class DirectorRuntime {
   #onModel(model: WorldModel) {
     current = model;
     // Only the director asks; a switched-off director costs no graph work.
-    if (this.#settings.directorEnabled) nav.sync(model.buildings, undefined, undefined, buildingPlanNow());
+    if (this.#settings.directorEnabled) nav().sync(model.buildings, undefined, undefined, buildingPlanNow());
     const made = this.#script.step(model);
     for (const plan of made) for (const intent of plan.accepted) playIntent(intent, model);
     if (made.length > 0) this.#plans = [...made.reverse(), ...this.#plans].slice(0, LOG_LIMIT);
