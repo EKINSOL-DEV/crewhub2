@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, utimesSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
-import { distState, freshness, stampOf, worldSources } from "../src/build.ts";
+import { buildCommand, distState, freshness, stampOf, worldSources } from "../src/build.ts";
 
 const at = (ms: number) => ({ path: "x", mtimeMs: ms });
 
@@ -27,6 +27,12 @@ describe("the build freshness check", () => {
     assert.match(freshness({ distMtimeMs: 400, sources: [...sources, at(50)], stamp }).reason, /source set changed/);
     // Three files as before, but the newest is another mtime (one file replaced by an older copy): a change.
     assert.equal(freshness({ distMtimeMs: 400, sources: [at(100), at(200), at(250)], stamp }).fresh, false);
+  });
+
+  it("the build runs vite's bin straight, in apps/world; npm run build only when the bin is not there", () => {
+    const direct = buildCommand("/repo", (file) => file === path.join("/repo", "node_modules", "vite", "bin", "vite.js"), "/usr/bin/node");
+    assert.deepEqual(direct, { file: "/usr/bin/node", args: [path.join("/repo", "node_modules", "vite", "bin", "vite.js"), "build"], cwd: path.join("/repo", "apps", "world") });
+    assert.deepEqual(buildCommand("/repo", () => false, "/usr/bin/node"), { file: "npm", args: ["run", "build"], cwd: "/repo" });
   });
 
   it("the walk takes the world's sources and config, every package, the lockfile; never node_modules, dist, tests or dotfiles", () => {

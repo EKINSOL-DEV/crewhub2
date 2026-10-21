@@ -41,6 +41,26 @@ describe("static files and the host's own heartbeat", () => {
     assert.equal((await fetch(`${host.url}/world-api/nothing`)).status, 404, "the API prefix never falls back to the app");
   });
 
+  it("while the world is being built, every page is the Building page with its header; after, the world", async () => {
+    host.setBuilding(true);
+    try {
+      const page = await fetch(`${host.url}/`);
+      assert.equal(page.status, 200);
+      assert.equal(page.headers.get("x-world-building"), "1");
+      const html = await page.text();
+      assert.match(html, /Building the world…/);
+      assert.match(html, /fetch\(location\.href/, "the page asks the host for its own URL");
+      assert.match(html, /<noscript><meta http-equiv="refresh" content="1">/, "without scripts it refreshes");
+      assert.equal((await fetch(`${host.url}/building/atlas`)).headers.get("x-world-building"), "1", "an app route too");
+      assert.equal((await fetch(`${host.url}/world-api/health`)).headers.get("x-world-building"), null, "the API is not the page");
+    } finally {
+      host.setBuilding(false);
+    }
+    const index = await fetch(`${host.url}/`);
+    assert.equal(index.headers.get("x-world-building"), null, "the world's page carries no building header");
+    assert.equal(await index.text(), "<!doctype html><title>World</title>");
+  });
+
   it("beats on its own while loops is down, with the last seq", async () => {
     const sse = await openSse(`${host.url}/world-api/stream`);
     try {

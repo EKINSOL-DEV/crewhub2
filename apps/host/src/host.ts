@@ -92,12 +92,20 @@ export interface HostStep {
   ms?: number;
 }
 
-/** The page the host serves instead of the world while `npm run world` is still building it: it reloads itself. */
+/** The header the host puts on the Building page (and nothing else): the page asks for its own URL and reloads once the header is gone. */
+export const BUILDING_HEADER = "x-world-building";
+/**
+ * The page the host serves instead of the world while `npm run world` is still building it. It asks the host every
+ * quarter second whether the build is done (a GET of its own URL: the world's index.html carries no `x-world-building`)
+ * and reloads then; without scripts it reloads every second. Same-origin, no key, nothing but this page's own URL.
+ */
 export const BUILDING_HTML = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CrewHub World</title><meta http-equiv="refresh" content="1">
+<title>CrewHub World</title><noscript><meta http-equiv="refresh" content="1"></noscript>
 <style>html{color-scheme:light dark}body{margin:0;min-height:100vh;display:grid;place-items:center;font:15px/1.5 system-ui,sans-serif;color:GrayText;background:Canvas}p{margin:0;padding:0 16px;text-align:center}</style>
-</head><body><p role="status">Building the world… this page opens it as soon as the build is done.</p></body></html>
+</head><body><p role="status">Building the world… this page opens it as soon as the build is done.</p>
+<script>(async()=>{for(;;){await new Promise((r)=>setTimeout(r,250));try{const r=await fetch(location.href,{cache:"no-store"});if(r.ok&&r.headers.get("${BUILDING_HEADER}")===null){location.reload();return;}}catch{}}})();</script>
+</body></html>
 `;
 /** A pasted key: loops' keys are `chl_` and base64url; the fake's are hex. Bounded, one line, no spaces. */
 const KEY_SHAPE = /^chl_[A-Za-z0-9_-]{8,200}$/;
@@ -597,7 +605,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
 
   async function serveStatic(pathname: string, res: ServerResponse): Promise<void> {
     if (building) {
-      res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", [BUILDING_HEADER]: "1" });
       res.end(BUILDING_HTML);
       return;
     }

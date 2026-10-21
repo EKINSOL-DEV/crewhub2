@@ -6,9 +6,13 @@
  * count). The sources are the world's `src`, `index.html`, `vite.config.ts` and `package.json`, every package under
  * `packages/` (without node_modules, dist, tests and dotfiles) and the root `package-lock.json` (a dependency change
  * is a change). Pure where it decides: `freshness` takes the files; the walk and the build are separate.
+ *
+ * The build itself runs vite straight from `node_modules` (`node node_modules/vite/bin/vite.js build` in `apps/world`,
+ * the same command `npm run build` ends in) rather than through `npm run build`: the two nested npm starts cost about
+ * 0.3 s of a 1 s build. `npm run build` stays the road when vite's bin is not where npm hoists it.
  */
 import { spawn } from "node:child_process";
-import { readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 export interface SourceFile {
@@ -118,14 +122,31 @@ export function checkBuild(repoRoot: string, distDir: string): Freshness & { ms:
   return { ...verdict, ms: performance.now() - started, sources };
 }
 
+export interface BuildCommand {
+  file: string;
+  args: string[];
+  cwd: string;
+}
+
 /**
- * `npm run build` in `repoRoot`, its output passed line by line to `onLine` (vite's lines, for the terminal), the
- * stamp written after a success. Resolves with the exit code and the time; never throws.
+ * The command of the build: vite's own bin under the root `node_modules` run by this Node, in `apps/world`; without
+ * it (another layout), `npm run build` at the root. `exists` and `node` are parameters for the test.
+ */
+export function buildCommand(repoRoot: string, exists: (file: string) => boolean = existsSync, node: string = process.execPath): BuildCommand {
+  const viteBin = path.join(repoRoot, "node_modules", "vite", "bin", "vite.js");
+  if (exists(viteBin)) return { file: node, args: [viteBin, "build"], cwd: path.join(repoRoot, "apps", "world") };
+  return { file: "npm", args: ["run", "build"], cwd: repoRoot };
+}
+
+/**
+ * The world's build in `repoRoot` (`buildCommand`), its output passed line by line to `onLine` (vite's lines, for the
+ * terminal), the stamp written after a success. Resolves with the exit code and the time; never throws.
  */
 export function buildWorld(repoRoot: string, distDir: string, onLine: (line: string) => void): Promise<{ code: number; ms: number }> {
   const started = performance.now();
   return new Promise((resolve) => {
-    const child = spawn("npm", ["run", "build"], { cwd: repoRoot, stdio: ["ignore", "pipe", "pipe"] });
+    const command = buildCommand(repoRoot);
+    const child = spawn(command.file, command.args, { cwd: command.cwd, stdio: ["ignore", "pipe", "pipe"] });
     const feed = (chunk: Buffer) => {
       for (const line of chunk.toString().split("\n")) if (line.trim() !== "") onLine(line);
     };
