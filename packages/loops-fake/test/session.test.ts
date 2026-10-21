@@ -124,3 +124,23 @@ test("a loops whose viewer key may read the chat (keyReadsChat): the key gets th
   const byId = (await (await asKey(`/api/dm/messages/${answer.payload.messageId}`)).json()) as { message: { author: { id: string } } };
   assert.equal(byId.message.author.id, "g-man");
 });
+
+test("sendDm: the person's message to an agent in a building brings that agent's scripted reply on the stream, 8 s later in demo time", async () => {
+  // 3:20 of the story, at 16x: the reply is due half a second after the send.
+  const fake = await createLoopsFake({ speed: 16, startAt: 200_000, heartbeatMs: 200, keyReadsChat: true });
+  fakes.push(fake);
+  const asKey = (p: string, init: RequestInit = {}) => fetch(`${fake.url}${p}`, { ...init, headers: { authorization: `Bearer ${fake.key}`, ...(init.headers ?? {}) } });
+  const stream = await asKey("/api/events/stream?types=dm.created", { headers: { accept: "application/x-ndjson" } });
+  assert.equal(stream.status, 200);
+  fake.sendDm("cr-lead", "Is the nook done?");
+  const lines = await readLines(stream, 4, 6000);
+  const created = lines.filter((l) => l["type"] === "dm.created") as { actor: { id: string; kind: string }; payload: { messageId: string; agentId: string } }[];
+  assert.equal(created[0]?.actor.kind, "user", "the person's own message first");
+  const reply = created.find((e) => e.actor.kind === "agent");
+  assert.ok(reply, `cr-lead's reply on the stream: ${JSON.stringify(lines).slice(0, 300)}`);
+  assert.equal(reply.actor.id, "cr-lead");
+  assert.equal(reply.payload.agentId, "cr-lead");
+  const byId = (await (await asKey(`/api/dm/messages/${reply.payload.messageId}`)).json()) as { message: { bodyText: string; author: { id: string; kind: string } } };
+  assert.equal(byId.message.author.id, "cr-lead");
+  assert.match(byId.message.bodyText, /^\(demo reply\) /, "the demo's own labelled reply");
+});

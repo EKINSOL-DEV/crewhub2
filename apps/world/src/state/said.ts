@@ -60,6 +60,26 @@ export function saidBy(agentId: string, nowMs = Date.now(), map: SaidMap = snaps
   return { ...said, fading: said.until - nowMs <= SAID_FADE_MS };
 }
 
+/** The bubble's words: "<name> says: <line>", the title of the bubble and the first part of its accessible name. */
+export function saidWords(name: string, text: string): string {
+  return `${name} says: ${text}`;
+}
+
+/**
+ * Two sentences joined without doubling terminal punctuation (round 14): a line that already ends with ., !, ? or … (a
+ * closing quote or bracket after it allowed) gets no second full stop before the next sentence.
+ */
+export function joinSentences(first: string, second: string): string {
+  const a = first.trimEnd();
+  if (a === "") return second;
+  return /[.!?\u2026]["'\u2019\u201d)\]]*$/.test(a) ? `${a} ${second}` : `${a}. ${second}`;
+}
+
+/** The bubble's accessible name: what the agent says, then what a tap does. */
+export function saidLabel(name: string, text: string, action: string): string {
+  return joinSentences(saidWords(name, text), action);
+}
+
 /** Forgets everything (a new source, the tests). */
 export function clearSaid(): void {
   lines.clear();

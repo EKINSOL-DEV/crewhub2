@@ -272,8 +272,9 @@ the cookie travels into the frame; signed out, loops' own sign-in shows inside i
 
 The panel's words are honest, because two things are true today: opened from a card, the frame asks loops for that
 agent's chat (`?chat=<agent id>`, which a loops of world/viewer-key cb163004 or later turns into its dock's own open
-and an older loops ignores), so the panel also says which head to open; and it needs the person signed in with loops'
-bubbles feature on. The world handles no password and keeps no session; the frame's
+and an older loops ignores), so the panel also says which head to open; and typing in it needs the person signed in to
+loops in this browser with loops' bubbles feature on. The world handles no password; what the speech bubbles need is
+told per road below, in the same words in the panel's small print, the Connection panel and the text view; the frame's
 sandbox is no wider than the chat needs (`CHAT_FRAME_SANDBOX`, each token with its reason), it never gets
 `allow-top-navigation` or `allow-modals`, and "Open in the crewhub-loops app" stays beside the frame as the fallback.
 Escape closes the panel while the focus is outside the frame; the focus returns to the opener. Loops' chat dock lists
@@ -286,8 +287,14 @@ world's key is not a participant of the person's thread, so it never sees `dm.*`
 options. The one that needs no loops change is built, off by default: the Connection panel's Chat section takes a
 sign-in once and the host keeps only loops' session cookie, for chat reads alone; where loops lets the world's own key
 read the chat (the viewer key of world/viewer-key), no sign-in is needed. An agent's answer then shows for a few
-seconds as a speech bubble over its figure, and a tap on the bubble opens the Chat panel on that agent. The honest road
-is on the loops side (section 8).
+seconds as a speech bubble over its figure (at most three lines; the whole line in its title and accessible name), and a
+tap on the bubble opens the Chat panel on that agent. The real proof came on 8292 on the key road (round 14): since then
+the text view carries "<name> says: <first line>" with the place while the bubble lives, a small chat mark stands over
+the building from the town (the figure inside is not drawn there; a tap enters the building; the text view's building
+row says "<name> answered"), and the three places that speak of the sign-in tell one story per road: on the key road
+the bubbles need no sign-in and the world keeps no session; on the session road the host keeps the person's session for
+chat reads only; typing in the framed chat is loops' own and always needs the person signed in to loops in this browser.
+The honest road is on the loops side (section 8).
 
 ![The live town over the fake crewhub-loops with a speech bubble over G-Man's figure at the lodge, "Busy and calm. CR finished the reading no...": the first line of the agent's answer as the bubble, which a tap turns into the Chat panel on G-Man; the Chat chip at the top right.](images/chat-bubble.jpg)
 

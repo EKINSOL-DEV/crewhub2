@@ -33,7 +33,8 @@ import { setMovingBuilding, useMovingBuilding } from "../state/layoutMove";
 import { moveBuilding, plotLabel } from "./LayoutPanel";
 import { townRuntime } from "../state/town";
 import type { LaneStatus, RoomKind, RuleProp } from "@crewhub/world-model";
-import { type Said, type SaidMap, saidBy } from "../state/said";
+import { type Said, type SaidMap, saidBy, saidLabel } from "../state/said";
+import { markLabel, type SaidMark } from "../world/saidText";
 import { Chip } from "./primitives";
 import { needsOf, needsPinWords, needsTotal, needsWords, summarise, summaryWords, activeWords, type DistrictPlace } from "../world/wayfinding";
 
@@ -48,6 +49,8 @@ interface Props {
   said: SaidMap;
   /** A tap on that bubble: the Chat panel for the agent (live), else its card. */
   onSaidTap: (key: string) => void;
+  /** The agents inside a building with a line in flight (round 14, world/saidText): a chat mark over the building from the town. */
+  marks: SaidMark[];
   /** Where every building stands (state/plan.ts). */
   plan: TownPlan;
   entered: string | null;
@@ -343,7 +346,7 @@ export default function WorldCanvas(props: Props) {
             />
           );
         })}
-        {!inside && <Wayfinding districts={props.districts} district={props.district} onDistrict={props.onDistrict} onEnter={props.onEnter} />}
+        {!inside && <Wayfinding districts={props.districts} district={props.district} marks={props.marks} onDistrict={props.onDistrict} onEnter={props.onEnter} />}
         {inside && !inside.archived && <Interior building={inside} model={model} props={props} compact={compact} />}
         {!compact && card && (
           <div className="anchor card-anchor" data-anchor={`card:${inside ? inside.slug : "town"}:${card.key}`}>
@@ -423,7 +426,7 @@ function TownFigures({ model, selection, card, said, onSaidTap }: { model: World
           <div key={agent.key} className={`anchor agent-anchor${agent.key === shown ? " picked" : ""}`} data-anchor={`a:town:${agent.key}`}>
             <span className="agent-stack">
               {line && (
-                <button type="button" className={`bubble said${line.fading ? " fading" : ""}`} title={`${agent.displayName} says: ${line.text}`} aria-label={`${agent.displayName} says: ${line.text}. Open ${agent.displayName}`} data-said-agent={agent.name} onClick={() => onSaidTap(agent.key)}>
+                <button type="button" className={`bubble said${line.fading ? " fading" : ""}`} title={`${agent.displayName} says: ${line.text}`} aria-label={saidLabel(agent.displayName, line.text, `Open ${agent.displayName}`)} data-said-agent={agent.name} onClick={() => onSaidTap(agent.key)}>
                   <MessageCircle className="icon icon-sm" aria-hidden="true" />
                   <span className="bubble-text">{line.text}</span>
                 </button>
@@ -494,9 +497,11 @@ const TownSign = memo(function TownSign(props: {
 
 /* What the town says from a distance. A region's districts each carry one card (the name, how much lives there, the
    open work) with one beacon when anything inside needs a person; a building that needs a person carries a small pin
-   over its roof. The scene shows the cards from far and the building signs nearer (`data-detail` on the labels host,
-   `labelDetail` in wayfinding.ts); every fact here is also a sentence in the text view. */
-function Wayfinding({ districts, district, onDistrict, onEnter }: { districts: DistrictPlace[]; district: string | null; onDistrict: (id: string) => void; onEnter: (slug: string) => void }) {
+   over its roof, and (round 14) a building whose figure inside just answered the person carries a chat mark there for
+   as long as the bubble lives (the figure is not drawn from the town); both in one row when both. The scene shows the
+   cards from far and the building signs nearer (`data-detail` on the labels host, `labelDetail` in wayfinding.ts);
+   every fact here is also a sentence in the text view. */
+function Wayfinding({ districts, district, marks, onDistrict, onEnter }: { districts: DistrictPlace[]; district: string | null; marks: SaidMark[]; onDistrict: (id: string) => void; onEnter: (slug: string) => void }) {
   // The model is new many times a second and these labels rarely change: they are worked out as plain values and
   // drawn again only when one of those differs.
   const cards =
@@ -513,7 +518,9 @@ function Wayfinding({ districts, district, onDistrict, onEnter }: { districts: D
       return total ? [{ slug: b.slug, name: b.name, total, words: needsWords(needs), pin: needsPinWords(needs) }] : [];
     }),
   );
-  const key = JSON.stringify([cards, pins]);
+  // One row over a roof: its pin, its marks, or both side by side (never one on top of the other).
+  const roofs = [...new Set([...pins.map((p) => p.slug), ...marks.map((m) => m.slug)])].map((slug) => ({ slug, pin: pins.find((p) => p.slug === slug) ?? null, marks: marks.filter((m) => m.slug === slug) }));
+  const key = JSON.stringify([cards, roofs]);
   const go = useRef({ onDistrict, onEnter });
   go.current = { onDistrict, onEnter };
   return useMemo(
@@ -547,15 +554,33 @@ function Wayfinding({ districts, district, onDistrict, onEnter }: { districts: D
             </button>
           </div>
         ))}
-        {pins.map((b) => (
-          <div key={b.slug} className="anchor need-anchor" data-anchor={`n:${b.slug}`}>
-            <button type="button" className="need-pin" aria-label={`${b.name} needs a person: ${b.words}. Go inside.`} title={`${b.name}: ${b.words}`} onClick={() => go.current.onEnter(b.slug)}>
+        {roofs.map((r) => {
+          const pin = r.pin && (
+            <button type="button" className="need-pin" aria-label={`${r.pin.name} needs a person: ${r.pin.words}. Go inside.`} title={`${r.pin.name}: ${r.pin.words}`} onClick={() => go.current.onEnter(r.slug)}>
               <TriangleAlert className="icon icon-sm" aria-hidden="true" />
-              <span className="need-count">{b.total}</span>
-              <span className="need-words">{b.pin}</span>
+              <span className="need-count">{r.pin.total}</span>
+              <span className="need-words">{r.pin.pin}</span>
             </button>
-          </div>
-        ))}
+          );
+          const chat = r.marks.map((m) => (
+            <button key={m.agent} type="button" className={`chat-mark${m.fading ? " fading" : ""}`} aria-label={markLabel(m)} title={`${m.name} says: ${m.text}`} data-said-mark={m.agent} onClick={() => go.current.onEnter(r.slug)}>
+              <MessageCircle className="icon icon-sm" aria-hidden="true" />
+              <span className="chat-mark-name">{m.name}</span>
+            </button>
+          ));
+          return (
+            <div key={r.slug} className="anchor need-anchor" data-anchor={`n:${r.slug}`}>
+              {pin && chat.length > 0 ? (
+                <span className="roof-row">
+                  {pin}
+                  {chat}
+                </span>
+              ) : (
+                pin ?? chat
+              )}
+            </div>
+          );
+        })}
       </>
     ),
     // The values decide; the arrays are new each render.
@@ -879,7 +904,7 @@ function AgentLabel({
     <div className={`anchor agent-anchor${plate ? " picked" : ""}`} data-anchor={`a:${slug}:${agent.key}`}>
       <span className="agent-stack">
         {said && (
-          <button type="button" className={`bubble said${said.fading ? " fading" : ""}`} title={`${agent.displayName} says: ${said.text}`} aria-label={`${agent.displayName} says: ${said.text}. Open ${agent.displayName}`} data-said-agent={agent.name} onClick={onTap}>
+          <button type="button" className={`bubble said${said.fading ? " fading" : ""}`} title={`${agent.displayName} says: ${said.text}`} aria-label={saidLabel(agent.displayName, said.text, `Open ${agent.displayName}`)} data-said-agent={agent.name} onClick={onTap}>
             <MessageCircle className="icon icon-sm" aria-hidden="true" />
             <span className="bubble-text">{said.text}</span>
           </button>

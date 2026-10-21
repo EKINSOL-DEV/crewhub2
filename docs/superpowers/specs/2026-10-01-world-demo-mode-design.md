@@ -1078,6 +1078,22 @@ form, a sign-in answers 409 `not_needed`, a session kept from another loops stay
 joined the key's read allow-list) and shown as the same bubble. A loops that refuses the key the chat keeps the
 session road. When loops' own feed (option 1) ships everywhere, the session road can go.
 
+**Round 14 (after the real proof on 8292: the bubble and its words).** One story per road: `chatWords` in
+`apps/world/src/state/chatPanel.ts` gives the Connection panel's Chat section, the Chat panel's small print and the text
+view's Chat line the same two sentences, by `connection.session.state`: what the bubbles need (nothing on the key road,
+where the world keeps no session; "Not signed in: no bubbles" and where to sign in; "Signed in as <name>" with the host
+keeping that session for chat reads only, never "the world keeps no session" there; expired; a host from before keeps
+none) and what typing needs (the framed chat is loops' own on every road: the person signed in to loops in this browser,
+with loops' bubbles feature on; the world handles no password). The text view carries "<name> says: <first line> (in the
+lead's office of Inbox)" in its Town section while the bubble lives (`world/saidText.ts`, from the same `said` store; no
+live region, the text view announces no such lines). The bubble wraps to at most three lines (the whole line stays in
+its title and accessible name), fits a phone's width and keeps a gap above the name label; its accessible name joins the
+line and "Open <name>" without doubling a terminal full stop, exclamation or question mark (`saidLabel`). From the town
+the figure inside a building is not drawn, so a chat mark stands over that building while the bubble lives (the pin's
+anchor, in one row with the pin when both; "<name> answered: open <building>"; a tap or Enter enters the building), and
+the text view's building row carries "<name> answered". The regress `chat` group proves each over the fake, whose
+`sendDm` lets the tools have an agent inside a building answer on cue.
+
 ### Bubbles themselves
 
 The world's speech bubbles exist in demo mode. A message from an agent to the person becomes a bubble over the

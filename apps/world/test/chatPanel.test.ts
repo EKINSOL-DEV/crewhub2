@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { HostHealth } from "@crewhub/loops-client";
-import { CHAT_FRAME_ALLOW, CHAT_FRAME_SANDBOX, CHAT_PARAM, chatCardNote, chatFrameUrl, chatPlaceLine, chatTargetOf } from "../src/state/chatPanel.ts";
+import { CHAT_FRAME_ALLOW, CHAT_FRAME_SANDBOX, CHAT_PARAM, CHAT_TYPING_WORDS, chatCardNote, chatFrameUrl, chatPlaceLine, chatTargetOf, chatWords, chatWordsLine } from "../src/state/chatPanel.ts";
 import { DEFAULT_LOOPS_URL } from "../src/state/source.ts";
 
 const health = (loopsWebUrl?: string): HostHealth => ({ loops: "ok", keyName: "crewhub-world", sharedKey: false, pairing: "off", paired: true, ...(loopsWebUrl === undefined ? {} : { loopsWebUrl }) });
@@ -31,11 +31,40 @@ test("the frame's sandbox is no wider than loops' chat needs: never top navigati
   assert.equal(CHAT_FRAME_ALLOW, "clipboard-write", "the permissions policy: the clipboard write of loops' copy buttons, nothing else");
 });
 
-test("the text view says where chat lives: the panel in live mode, the scripted dock in the demo", () => {
-  assert.match(chatPlaceLine("live"), /^Chat: crewhub-loops' own chat, framed in the world's Chat panel/);
-  assert.match(chatPlaceLine("live"), /signed in to crewhub-loops as a person in this browser; the world keeps no session\.$/);
+test("the text view says where chat lives: the panel in live mode with the road's story, the scripted dock in the demo", () => {
+  assert.match(chatPlaceLine("live", { state: "key" }), /^Chat: crewhub-loops' own chat, framed in the world's Chat panel/);
+  assert.equal(chatPlaceLine("live", { state: "key" }), `Chat: crewhub-loops' own chat, framed in the world's Chat panel (the Chat chip, or Chat with an agent on its card): open the agent's chat head in the dock there. ${chatWordsLine({ state: "key" })}`);
+  assert.match(chatPlaceLine("live"), /This host keeps no session and shows no bubbles\./, "a host from before: no session state");
   assert.match(chatPlaceLine("demo"), /^Chat: the demo's own scripted chat, in the dock/);
-  assert.doesNotMatch(chatPlaceLine("demo"), /panel/);
+  assert.doesNotMatch(chatPlaceLine("demo"), /panel|signed in/);
+});
+
+test("chatWords: one story per road, the same words for the Connection panel, the Chat panel and the text view", () => {
+  const typing = "Typing in the framed chat is crewhub-loops' own: it needs you signed in to crewhub-loops as a person in this browser, with chat bubbles switched on there (Settings > Features); signed out, crewhub-loops' own sign-in shows in the frame, and the world handles no password.";
+  assert.equal(CHAT_TYPING_WORDS, typing);
+  // The framed chat is loops' own on every road: the typing sentence never changes.
+  for (const session of [undefined, { state: "key" }, { state: "signed-out" }, { state: "signed-in", name: "Nicky" }, { state: "expired", name: "Nicky" }] as const) assert.equal(chatWords(session).typing, typing, JSON.stringify(session));
+  // The key road: the bubbles need no sign-in, and the world keeps no session.
+  const key = chatWords({ state: "key" });
+  assert.equal(key.bubbles, "A sign-in is not needed for the bubbles: this crewhub-loops lets the world's key read the chat, so the agents' answers show as bubbles and the world keeps no session.");
+  // Signed out: no bubbles, and where the sign-in is; the host would keep the session for chat reads only.
+  const out = chatWords({ state: "signed-out" });
+  assert.match(out.bubbles, /^Not signed in: no bubbles\. Sign in in the Connection panel's Chat section/);
+  assert.match(out.bubbles, /chat reads only \(never the password\)/);
+  assert.doesNotMatch(out.bubbles, /keeps no session/);
+  // Signed in: the host keeps that session, so "keeps no session" is never said here.
+  const named = chatWords({ state: "signed-in", name: "Nicky" });
+  assert.equal(named.bubbles, "Signed in as Nicky: the agents' answers show as bubbles. The host keeps that session for chat reads only (never the password, never a message).");
+  assert.match(chatWords({ state: "signed-in" }).bubbles, /^Signed in: the agents' answers show as bubbles\./, "an unpaired browser: no name");
+  assert.doesNotMatch(chatWordsLine({ state: "signed-in", name: "Nicky" }), /keeps no session/);
+  // Expired: sign in again; nothing is kept until then.
+  assert.equal(chatWords({ state: "expired", name: "Nicky" }).bubbles, "The session of Nicky is no longer accepted by crewhub-loops: sign in again in the Connection panel's Chat section for bubbles; the host keeps nothing until then.");
+  assert.match(chatWords({ state: "expired" }).bubbles, /^The session is no longer accepted/);
+  // A host from before round 12 says nothing about a session: it keeps none and shows no bubbles.
+  assert.equal(chatWords(undefined).bubbles, "This host keeps no session and shows no bubbles.");
+  assert.equal(chatWords(null).bubbles, chatWords(undefined).bubbles);
+  // The line the Chat panel and the text view carry: both sentences, in that order.
+  assert.equal(chatWordsLine({ state: "key" }), `${key.bubbles} ${typing}`);
 });
 
 test("a card's Chat names only an agent loops' dock can open: the lead itself, a worker's lead, nobody for the postman; the card's words say why", () => {
