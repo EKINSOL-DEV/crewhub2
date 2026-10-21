@@ -255,7 +255,9 @@ Data first, code where it needs code.
 | | `furniture.ts`: the Greenhouse furniture with a glowing screen; a plant's leaves are plain meshes on a theme-following `tint` material, so the renderer batches them across plants (desk, plant, bench, lamp, sofa, table, shelf, workdesk, lead desk). |
 | | `index.ts`: the code hooks on data models (the drone's rotor blades, the fountain's water) and the lamp pools. |
 
-Every model file passes `validatePropModel` (`packages/style-greenhouse/test/models.test.ts`). Small decorations get
+Every model file passes `validatePropModel` (`packages/style-greenhouse/test/models.test.ts`); at runtime a model is
+validated the first time it is drawn (`src/models.ts`, not at import: that cost ~30 ms before the first frame), and
+an invalid one is reported then and skipped. Small decorations get
 the validator's coverage warning (the parts cover little of a 1 x 1 footprint); that is expected and not an error.
 Converting the older code furniture (desk, sofa, shelf and the rest) to parts-JSON is not done yet. The large
 landmarks stay code: a building 8 or 10 units across exceeds the format's limits (a footprint of at most 3.6 units,

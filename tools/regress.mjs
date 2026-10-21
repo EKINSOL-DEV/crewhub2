@@ -39,9 +39,10 @@
      rooms the three-room building (`?rooms=three`, whatever the viewer's Buildings setting): three room signs
            (Administration, The floor, Lead's office) and a rack sign with its count, the arrow keys between the three halls, the text view naming the
            racks and the desks with a package on each, the lead's office beacon, the agent card on a figure at a desk,
-           and walk mode in through the front door into Administration and on to the floor, steered stop by stop
-           (`walkTo`: the keys push on screen, so the wanted direction is turned through the camera's yaw and held in
-           bounded bursts; --cpu-throttle 16 is the slow machine it must hold on). About 35 s.
+           no figure moving when the walkers land after the first frame (and W or a follow in the first frame working,
+           3 checks on pages of their own), and walk mode in through the front door into Administration and on to the
+           floor, steered stop by stop (`walkTo`: the keys push on screen, so the wanted direction is turned through
+           the camera's yaw and held in bounded bursts; --cpu-throttle 16 is the slow machine it must hold on). About 45 s.
      real  live mode against the REAL development crewhub-loops (tools/loops-dev.sh, 127.0.0.1:8291): it reads
            --loops-env (default: the first tools/out/loops-dev.env of this worktree, the main checkout or
            ~/Documents/GitHub/crewhub2-world-demo; LOOPS_DEV_URL and LOOPS_DEV_KEY_FILE, the admin lines are never
@@ -986,6 +987,73 @@ await group("rooms", async () => {
   ok("rooms: a person carries a package to the Done rack", carry !== "" && /^\S+ (to-package|to-rack|leaving)/.test(person), `${carry.slice(0, 80)} | figure: ${person || "none"}`);
   await shot(p, "27b-rooms-person");
   await p.context().close();
+
+  // 19c. The walkers land after the first drawn frame (TownScene: the navigation graph and the walk runtime follow it
+  // in a task of their own, marked world:walks), and every figure must already stand where its walker starts: no
+  // figure may move or turn between the first frame, the walkers' arrival and a moment later unless its walker walks.
+  // W pressed in the first frame begins walk mode, and a follow asked in the first frame holds (both bring the walkers
+  // at once). Each page's figures are read at the marks by a hook on performance.mark set before the page loads.
+  for (const action of ["none", "walk", "follow"]) {
+    p = await open();
+    await p.addInitScript(`(() => {
+      const samples = (window.__figures = {});
+      const sample = (name) => {
+        const t = globalThis.__town;
+        if (!t) return;
+        const out = {};
+        t.scene.traverse((o) => {
+          const id = o.userData && o.userData.agentId;
+          if (!id || out[id]) return;
+          o.updateWorldMatrix(true, false);
+          const p = new o.position.constructor();
+          o.getWorldPosition(p);
+          const w = t.walks.walker(id);
+          out[id] = { x: p.x, y: p.y, z: p.z, ry: o.rotation.y, walking: !!(w && w.walking) };
+        });
+        samples[name] = out;
+      };
+      window.__sampleFigures = sample;
+      const mark = performance.mark.bind(performance);
+      performance.mark = (name, ...rest) => {
+        const r = mark(name, ...rest);
+        if (name === "world:first-frame") {
+          sample(name);
+          if (${JSON.stringify(action)} === "walk") window.dispatchEvent(new KeyboardEvent("keydown", { key: "w", bubbles: true }));
+          if (${JSON.stringify(action)} === "follow") {
+            const t = globalThis.__town;
+            const agent = t.view.model.buildings.flatMap((b) => b.agents).find((a) => a.presence === "real");
+            if (agent) t.follow((window.__followKey = agent.key));
+          }
+        } else if (name === "world:walks") sample(name);
+        return r;
+      };
+    })();`);
+    await town(p, 1500, `${BASE}?rooms=three`);
+    await p.evaluate(() => globalThis.__sampleFigures("later"));
+    const figures = await p.evaluate(() => globalThis.__figures);
+    const first = figures["world:first-frame"] ?? {};
+    const moved = [];
+    for (const name of ["world:walks", "later"]) {
+      for (const [id, f] of Object.entries(figures[name] ?? {})) {
+        const before = first[id];
+        if (!before) continue;
+        const d = Math.hypot(f.x - before.x, f.y - before.y, f.z - before.z);
+        if ((d > 1e-3 || Math.abs(f.ry - before.ry) > 1e-3) && !f.walking) moved.push(`${id} ${d.toFixed(3)} at ${name}`);
+      }
+    }
+    const n = Object.keys(first).length;
+    const landed = !!figures["world:walks"];
+    if (action === "none") ok("rooms: no figure moves when the walkers land after the first frame", n > 0 && landed && moved.length === 0, `${n} figures at the first frame, walkers ${landed ? "landed" : "NOT landed"}; moved ${moved.length}${moved.length ? ": " + moved.slice(0, 5).join(", ") : ""}`);
+    else if (action === "walk") {
+      const v = await visitor(p);
+      ok("rooms: W in the first frame begins walk mode, no figure moves", v !== null && typeof v.room === "string" && moved.length === 0, `visitor ${v ? `in ${v.room}` : "null"}; moved ${moved.length}`);
+      await shot(p, "27c-rooms-first-frame-walk");
+    } else {
+      const f = await p.evaluate(() => ({ asked: window.__followKey ?? null, following: globalThis.__town?.following ?? null }));
+      ok("rooms: a follow asked in the first frame holds, no figure moves", f.asked !== null && f.following === f.asked && moved.length === 0, `${f.asked} → ${f.following}; moved ${moved.length}`);
+    }
+    await p.context().close();
+  }
 
   // 20. The agent card on a figure at a desk: the jump list lands beside the agent with it selected, Enter opens the card,
   // and its Now line says the floor and the desk.

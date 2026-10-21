@@ -2,7 +2,6 @@
    presets are data (../style.json); simple models are parts-JSON (../models/<key>.json) drawn by the shared parts
    renderer; code draws only what needs it (shaders, stretchable walls and floors, instanced leaves). */
 import * as THREE from "three";
-import { validatePropModel, type PropModel } from "@crewhub/world-engine";
 import type { CastManifest, FigureKit } from "@crewhub/world-cast";
 import type {
   EmblemName,
@@ -25,6 +24,8 @@ import { archiveCounter, bench, desk, huddleTable, lamp, leadDesk, officeWindow,
 import { Kit, type GreenhouseManifestData } from "./kit.ts";
 import { BLOB_SHADOWS, LIGHT_POOLS, SURFACES } from "./keys.ts";
 import { compileLook, type Look, type LooksData, type MaterialSwap } from "./looks.ts";
+import type { PropModel } from "@crewhub/world-engine";
+import { ModelStore } from "./models.ts";
 import { partsModel } from "./parts.ts";
 import * as pieces from "./pieces.ts";
 import * as shell from "./shell.ts";
@@ -35,14 +36,13 @@ import * as town from "./town.ts";
 type ManifestFile = StyleManifest & GreenhouseManifestData & { looks?: LooksData; materialSets?: Record<string, MaterialSwap[]> };
 const manifest = manifestJson as unknown as ManifestFile;
 
-/** Data models by file name without `.json`: `<key>` or `<key>.<variant>`. Invalid files are skipped with a warning. */
-const dataModels = new Map<string, PropModel>();
-for (const [path, json] of Object.entries(import.meta.glob<unknown>("../models/*.json", { eager: true, import: "default" }))) {
-  const name = path.slice(path.lastIndexOf("/") + 1, -".json".length);
-  const checked = validatePropModel(json);
-  if (checked.ok) dataModels.set(name, checked.value);
-  else console.warn(`Greenhouse style: ${name}.json is not a valid crewhub-prop/1 model`, checked.errors);
-}
+/**
+ * Data models by file name without `.json`: `<key>` or `<key>.<variant>`, validated the first time one is drawn
+ * (models.ts); an invalid file is reported then and skipped.
+ */
+const dataModels = new ModelStore(
+  new Map(Object.entries(import.meta.glob<unknown>("../models/*.json", { eager: true, import: "default" })).map(([path, json]) => [path.slice(path.lastIndexOf("/") + 1, -".json".length), json])),
+);
 
 /** What draws a model: the style itself, or one of its looks (its own kit for what it recolours, and its data). */
 interface Dresser {
