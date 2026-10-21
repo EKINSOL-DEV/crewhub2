@@ -45,6 +45,7 @@ import { ConfigError, type ServerConfig, loadKey, loadServerConfig, worldEnv } f
 import { formatDoctor, runDoctor } from "./doctor.ts";
 import { createArchiveStore } from "./archiveStore.ts";
 import { createSessionStore } from "./session.ts";
+import { nodeWarningLine, runningNodeVersion } from "./nodeVersion.ts";
 import { type HostStep, MINT_HEADER, MINT_PATH, createHost } from "./host.ts";
 import { createStepPrinter, instructionLine, seconds, stepLine as formatStep } from "./steps.ts";
 import { createKeyStore } from "./keyStore.ts";
@@ -152,6 +153,9 @@ let key: ReturnType<typeof loadKey>;
 let build: ReturnType<typeof checkBuild> | null = null;
 try {
   args = parseArgs(process.argv.slice(2));
+  // Another Node major than .nvmrc's: one warning line and on (the doctor lists it as a check instead).
+  const nodeWarn = args.command === "doctor" ? null : nodeWarningLine(runningNodeVersion(process.env));
+  if (nodeWarn !== null) log(nodeWarn);
   const base = { ...process.env, ...(args.loopsSocket === null ? {} : { CREWHUB_WORLD_LOOPS_SOCKET: args.loopsSocket }) };
   const env = args.command === "world" ? worldEnv(base) : base;
   if (args.command === "doctor") {

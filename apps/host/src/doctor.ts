@@ -13,8 +13,9 @@ import { ConfigError, type KeyFiles, type LoadedKey, type PathKind, type ServerC
 import { type DiscoveryInput, type Found, candidates, discoverOnce, loopsHealth, targetText } from "./discovery.ts";
 import { checkKey } from "./keyCheck.ts";
 import { type LoopsClient, type LoopsTarget, createLoopsClient } from "./loops.ts";
+import { nodeWarningLine, readNvmrc, runningNodeVersion } from "./nodeVersion.ts";
 
-export type DoctorStatus = "ok" | "fix" | "skip";
+export type DoctorStatus = "ok" | "fix" | "skip" | "warn";
 
 export interface DoctorLine {
   /** `loops`, `health`, `key`, `auth`, `projects`, `agents`, `team`, `events`, `archive`, `port`, `pairing`. */
@@ -50,6 +51,8 @@ export interface DoctorIo {
   probePort?: (port: number) => Promise<PortState>;
   /** The key files (tests point them into a temp folder). Default: from the env. */
   keyFiles?: KeyFiles;
+  /** The Node version to judge against `.nvmrc` (tests fake one). Default: the running Node (`nodeVersion.ts`). */
+  nodeVersion?: string;
 }
 
 export const KEY_SHAPE = /^chl_[A-Za-z0-9_-]{8,200}$/;
@@ -108,6 +111,12 @@ export async function runDoctor(io: DoctorIo): Promise<DoctorReport> {
   const ok = (id: string, text: string) => lines.push({ id, status: "ok", text });
   const fix = (id: string, text: string) => lines.push({ id, status: "fix", text });
   const skip = (id: string, text: string) => lines.push({ id, status: "skip", text });
+  const warn = (id: string, text: string) => lines.push({ id, status: "warn", text });
+  // The Node first (round 12): another major than .nvmrc's is a warning, never a fix; the host runs on it today.
+  const nodeFound = io.nodeVersion ?? runningNodeVersion(io.env);
+  const nodeWarn = nodeWarningLine(nodeFound, readNvmrc());
+  if (nodeWarn === null) ok("node", `Node v${nodeFound.replace(/^v/, "")}, the major CrewHub World is tested on (.nvmrc)`);
+  else warn("node", nodeWarn);
   const uid = io.uid === undefined ? (typeof process.getuid === "function" ? process.getuid() : null) : io.uid;
   const statFile = io.statFile ?? realStatFile;
   const readFile = io.readFile ?? realReadFile;
@@ -260,7 +269,7 @@ export async function runDoctor(io: DoctorIo): Promise<DoctorReport> {
   return { lines, ok: lines.every((l) => l.status === "ok") };
 }
 
-const LABEL: Record<DoctorStatus, string> = { ok: "ok  ", fix: "FIX ", skip: "skip" };
+const LABEL: Record<DoctorStatus, string> = { ok: "ok  ", fix: "FIX ", skip: "skip", warn: "warn" };
 
 /** The last line of the report: what to do next. A host that already runs is up; `npm run world` opens a new link on it. */
 export function nextStep(report: DoctorReport): string {
@@ -274,6 +283,8 @@ export function formatDoctor(report: DoctorReport): string[] {
   const out = report.lines.map((l) => `${LABEL[l.status]}  ${l.id.padEnd(width)}  ${l.text}`);
   const fixes = report.lines.filter((l) => l.status === "fix").length;
   const skips = report.lines.filter((l) => l.status === "skip").length;
-  out.push(report.ok ? `doctor: all ${report.lines.length} checks ok. ${nextStep(report)}` : `doctor: ${fixes} to fix${skips > 0 ? `, ${skips} skipped` : ""}, ${report.lines.length - fixes - skips} ok`);
+  const warns = report.lines.filter((l) => l.status === "warn").length;
+  const warned = warns > 0 ? ` (${warns} warning${warns === 1 ? "" : "s"})` : "";
+  out.push(report.ok ? `doctor: all ${report.lines.length} checks ok${warned}. ${nextStep(report)}` : `doctor: ${fixes} to fix${skips > 0 ? `, ${skips} skipped` : ""}, ${report.lines.length - fixes - skips} ok${warned}`);
   return out;
 }

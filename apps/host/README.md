@@ -170,6 +170,9 @@ The host starts with neither loops nor a key and reports the honest states; the 
   (0600, the folder 0700; `worldEnv` in `src/config.ts`), so a host restart keeps every paired browser: an open tab
   goes Stale for the restart and is Live again a few seconds later. `tools/timeworld.mjs` measures the whole road.
 - **`npm run host -- doctor`** (`src/doctor.ts`): the same states in the terminal, one line per check, `ok` or the
+  On another Node major than `.nvmrc`'s (24) the host says one line at its start, "Node 24 is what CrewHub World is tested on
+  (.nvmrc); this is v22.22.0: run nvm use if anything misbehaves.", and goes on; the doctor lists it as a `warn` check
+  (`src/nodeVersion.ts`, the rule shared with `scripts/check-node.mjs`).
   fix; exit 0 only when all pass. Read only, never the stream; tests run it against the stub.
 
 ## The socket
