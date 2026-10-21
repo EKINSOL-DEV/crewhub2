@@ -182,7 +182,8 @@ No React Three Fiber or physics engine is needed for this slice.
 
 [`tools/`](../tools/README.md) holds the scripts that open the running world in a headless browser: the browser
 regression pass (`regress.mjs`: the demo walk, the demo's wayfinding and picker, live mode against the fake with
-pairing, the three-room building, 69 checks offline, plus up to 8 against the real development crewhub-loops), the
+pairing, the connect flow against a stub host, the three-room building, 82 checks offline, plus up to 16 against the
+real development crewhub-loops: the connect flow through a keyless host, and live mode over TCP and the socket), the
 frame and memory measurements (`perf.mjs`, `memory.mjs`, in demo and live mode), the time from `npm run world` to
 the dressed town (`timeworld.mjs`), and the screenshot helpers (`shots.mjs`, `castshots.mjs`, `castworld.mjs`,
 `connectshots.mjs`, `liveshots.mjs`). Two are not browser checks: `loops-seed.mjs` replays the demo storyline into

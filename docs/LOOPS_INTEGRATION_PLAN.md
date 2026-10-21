@@ -926,7 +926,7 @@ install changes only a URL and a key file. The runbook is [LOOPS_SETUP.md](LOOPS
 | Nothing is written to crewhub-loops | Met (the allow-list holds `GET` paths only; the test sends POST, PUT, PATCH, DELETE, HEAD and OPTIONS, gets 405, and nothing reaches loops). |
 | The key appears in no bundle, log or response | Met for responses (the host test, with a loops stub that echoes the Authorization header); the bundle grep is the lead's check at merge time. *Since 2026-10-21 `apps/host/test/bundle.test.ts` greps the browser code and the built bundle, and the connect tests grep every log line.* |
 | No UI beyond navigation | Met in the sense of this round: live mode hides the demo UI; the chip and the source setting are the only additions. The demo's own UI stays for demo mode. |
-| Pairing | Not yet. *Built 2026-10-21: the one-time link, the HttpOnly cookie, the Host and Origin guard, the secret kept across restarts by `npm run world` (`apps/host/test/pairing.test.ts`; the `live` group of `tools/regress.mjs`).* |
+| Pairing | Not yet. *Built 2026-10-21: the one-time link, the HttpOnly cookie, the Host and Origin guard, the secret kept across restarts by `npm run world` (`apps/host/test/pairing.test.ts`; the `live` group of `tools/regress.mjs`, and its `connect` group, which restarts a host with the kept secret under an open tab against the development loops and sees it Live again without a new link).* |
 
 ### Phase 1 against the Mac app (2026-10-21)
 
