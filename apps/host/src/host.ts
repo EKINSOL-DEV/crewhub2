@@ -445,6 +445,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
     const out = await assembleSnapshot(client, {
       cursor: upstream.cursor(),
       knownArchivedSlugs: upstream.archivedSlugs(),
+      observer: holder === null ? null : holder.name,
       ...(options.snapshotConcurrency === undefined ? {} : { concurrency: options.snapshotConcurrency }),
       onProgress: (progress) => {
         if (snapshotState.state !== "reading") return;
@@ -471,6 +472,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
       return;
     }
     try {
+      // The key's own principal rides along as the observer: the world never shows it as a figure.
       const { snapshot: body, stats } = await assemble(client, upstream);
       sendJson(res, 200, body);
       step("snapshot", true, snapshotText(stats), stats.ms);

@@ -118,12 +118,47 @@ async function featured<T>(client: Reader, path: string, pick: (page: Record<str
   return allPages(client, path, pick, first.body);
 }
 
-/** Reads the projects, with the archived ones when the key may see them (an agent key gets 403 for `includeArchived`). */
-async function readProjects(client: Reader): Promise<ProjectOut[]> {
+/**
+ * Reads the projects, with the archived ones when the key may see them (an agent key gets 403 for `includeArchived`;
+ * then `complete` is false and the archived ones are found through the event log).
+ */
+async function readProjects(client: Reader): Promise<{ projects: ProjectOut[]; complete: boolean }> {
   const withArchived = await client.getJson<{ projects: ProjectOut[] }>("/api/projects", { includeArchived: "true" });
-  if (withArchived.status === 200 && withArchived.body !== null) return withArchived.body.projects;
+  if (withArchived.status === 200 && withArchived.body !== null) return { projects: withArchived.body.projects, complete: true };
   if (withArchived.status === 401) throw new SnapshotError("unauthorized", "/api/projects answered 401");
-  return (await must<{ projects: ProjectOut[] }>(client, "/api/projects")).projects;
+  return { projects: (await must<{ projects: ProjectOut[] }>(client, "/api/projects")).projects, complete: false };
+}
+
+/** loops' page of `GET /api/events`: `limit` is 1..500, default 500 (`routers/events.py`); a full page may have more behind it. */
+const EVENTS_PAGE = 500;
+const ARCHIVE_TYPES = "project.archived,project.restored";
+
+/**
+ * Slugs of the projects archived now, learnt from the event log: an agent key may not list archived projects
+ * (`includeArchived` is for human admins), but the log is never pruned, and the last of `project.archived` and
+ * `project.restored` per slug says where it stands. Pages with `after=` (`lastSeq` is the last row returned, else
+ * the `after` sent) until a page is short of loops' 500, or `lastSeq` stops moving. Best effort: a refused key is
+ * `unauthorized`, but any other answer than 200 (a loops that will not read its log from `after=0`, as the fake
+ * answers 410 after a restart) ends the search with what it found; the stream's own archive events still count.
+ */
+export async function archivedSlugsFromEvents(client: Reader): Promise<string[]> {
+  const last = new Map<string, string>();
+  let after = 0;
+  for (let guard = 0; guard < 1000; guard += 1) {
+    const { status, body: page } = await client.getJson<{ events?: unknown; lastSeq?: unknown }>("/api/events", { types: ARCHIVE_TYPES, after: String(after), limit: String(EVENTS_PAGE) });
+    if (isUnauthorized(status)) throw new SnapshotError("unauthorized", `/api/events answered ${status}`);
+    if (status !== 200 || page === null) break;
+    const events = Array.isArray(page.events) ? (page.events as { type?: unknown; project?: { slug?: unknown } | null }[]) : [];
+    for (const event of events) {
+      const slug = event.project?.slug;
+      if (typeof slug !== "string" || typeof event.type !== "string") continue;
+      last.set(slug, event.type);
+    }
+    const lastSeq = typeof page.lastSeq === "number" ? page.lastSeq : after;
+    if (events.length < EVENTS_PAGE || lastSeq <= after) break;
+    after = lastSeq;
+  }
+  return [...last.entries()].filter(([, type]) => type === "project.archived").map(([slug]) => slug);
 }
 
 export interface SnapshotOptions {
@@ -131,6 +166,8 @@ export interface SnapshotOptions {
   cursor: number;
   /** Slugs of projects the host saw archived through events: read one by one, since the list leaves them out. */
   knownArchivedSlugs?: Iterable<string>;
+  /** The host's own principal (the key's agent, as loops named it): the observer the world hides from the figures. */
+  observer?: string | null;
   /** Reads in flight at most (default 6). */
   concurrency?: number;
   /** Every read as it finishes, with its time. */
@@ -165,13 +202,16 @@ export async function assembleSnapshot(client: LoopsClient, options: SnapshotOpt
   });
   const limit = options.concurrency ?? DEFAULT_CONCURRENCY;
 
-  const listed = await readProjects(reader);
+  const { projects: listed, complete } = await readProjects(reader);
   const projects = listed.filter((p) => p.archivedAt === null || p.archivedAt === undefined);
   const archivedProjects = listed.filter((p) => typeof p.archivedAt === "string");
   progress.projects = projects.length;
   options.onProgress?.({ ...progress });
   const seen = new Set(listed.map((p) => p.slug));
-  const unseen = [...(options.knownArchivedSlugs ?? [])].filter((slug) => !seen.has(slug));
+  // Archived projects the list left out: the ones the log says are archived, and the ones the host's stream saw;
+  // read one by one under the same cap, in order, counted and timed like every other read.
+  const fromLog = complete ? [] : await archivedSlugsFromEvents(reader);
+  const unseen = [...new Set([...fromLog, ...(options.knownArchivedSlugs ?? [])])].filter((slug) => !seen.has(slug));
   const ones = await mapLimit(unseen, limit, (slug) => reader.getJson<{ project: ProjectOut }>("/api/projects/{slug}".replace("{slug}", encodeURIComponent(slug))));
   for (const one of ones) {
     if (one.status === 200 && one.body?.project !== undefined && typeof one.body.project.archivedAt === "string") archivedProjects.push(one.body.project);
@@ -222,6 +262,7 @@ export async function assembleSnapshot(client: LoopsClient, options: SnapshotOpt
     boards: Object.fromEntries(perProject.map((p) => [p.slug, p.board])),
     team,
     agents: agents.agents,
+    observer: options.observer ?? null,
     principals: principals.principals,
     watchdog,
     milestones: Object.fromEntries(perProject.filter((p) => p.milestones !== null).map((p) => [p.slug, p.milestones as MilestoneSummary[]])),

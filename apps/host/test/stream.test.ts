@@ -182,7 +182,9 @@ describe("the shared stream", () => {
     assert.ok(stub.streamsOpened() >= 5, `${stub.streamsOpened()} streams opened over the rounds`);
     assert.equal(stub.maxConcurrentStreams(), 1, "never two upstream streams at once");
     assert.equal(stub.openStreams(), 1);
-    assert.deepEqual(stub.requests.filter((r) => r.path.startsWith("/api/events?")).map((r) => r.path), stub.requests.filter((r) => r.path.startsWith("/api/events?")).map(() => "/api/events?from=tail"), "every tail read is from=tail");
+    // The snapshot's own read of the archive events (`types=project.archived,...`, snapshot.ts) is not a tail read.
+    const tailReads = stub.requests.filter((r) => r.path.startsWith("/api/events?") && !r.path.includes("types=project.archived")).map((r) => r.path);
+    assert.deepEqual(tailReads, tailReads.map(() => "/api/events?from=tail"), "every tail read is from=tail");
   });
 
   it("resets with 'gone' when loops answers 410 for its cursor, and continues from the tail", async () => {

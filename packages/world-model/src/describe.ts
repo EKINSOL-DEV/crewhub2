@@ -2,6 +2,7 @@
  * The hidden text view: every fact the scene shows as a sentence, grouped by section (Town, one
  * section per building, one per room). Inferences say so; statuses are always words.
  */
+import { archivedWords } from "./archive.ts";
 import { roomLabel } from "./rooms.ts";
 import { DESK_WORDS, HALL_LABELS, HALL_PLACES, RACK_KINDS, RACK_NAMES, ROLE_DESK_WORDS, hallOf, isRackKind, placeWords as placeWordsOf, type Hall, type RoomWording, type WordingOptions } from "./halls.ts";
 import type {
@@ -104,12 +105,17 @@ export function describeWorld(model: WorldModel, civic: CivicWords = CIVIC_WORDS
     "Town",
     `${active.length} ${active.length === 1 ? "building" : "buildings"} in project order: ${active.map(buildingSection).join(", ") || "none"}.`,
   );
-  for (const building of archived) add("Town", `${buildingSection(building)} is boarded up: the project is archived.`);
+  for (const building of archived) add("Town", `${buildingSection(building)} is boarded up: the project is archived, ${archivedWords(building.archivedAt, model.now)}.`);
+  for (const building of model.buildings) {
+    if (!building.closing) continue;
+    add("Town", building.closing.kind === "closing" ? `${buildingSection(building)} is closing: the lights go out and the boards come down.` : `${buildingSection(building)} opens again: the boards come off and the lights come on.`);
+  }
   for (const agent of model.postOffice) add("Town", `${agent.displayName} is the postman, at the ${civic.post}: ${agentState(agent)}.`);
   for (const agent of model.townHall) {
     add("Town", `${agent.displayName} is in the ${civic.hall}, active in no building: ${agentState(agent)}.`);
     describeCaption("Town", agent, add);
   }
+  if (model.observer !== null) add("Town", `${model.observer} (this world's key) is not shown: it is the observer, not a worker.`);
   for (const walk of model.deliveries) {
     add(
       "Town",
@@ -117,7 +123,7 @@ export function describeWorld(model: WorldModel, civic: CivicWords = CIVIC_WORDS
     );
   }
 
-  for (const building of model.buildings) describeBuilding(building, add, buildingName, rooms);
+  for (const building of model.buildings) describeBuilding(building, add, buildingName, rooms, model.now);
   return lines;
 }
 
@@ -138,9 +144,10 @@ function describeCaption(section: string, agent: AgentPlacement, add: Add): void
   add(section, `${agent.displayName} says (${agent.caption.kind}, on ${agent.caption.ticketKey}${lasting}): "${agent.caption.text}"`);
 }
 
-function describeBuilding(building: Building, add: Add, buildingName: (slug: string | null) => string, rooms: RoomWording): void {
+function describeBuilding(building: Building, add: Add, buildingName: (slug: string | null) => string, rooms: RoomWording, now: number): void {
   const section = buildingSection(building);
-  add(section, `${section}, led by ${building.lead.displayName}.${building.archived ? " Boarded up: archived." : ""}`);
+  const closed = building.archived ? ` Boarded up: archived, ${archivedWords(building.archivedAt, now)}${building.archivedBy ? `, by ${building.archivedBy}` : ""}. It can still be entered.` : "";
+  add(section, `${section}, led by ${building.lead.displayName}.${closed}`);
   if (building.color || building.icon) {
     add(section, `Facade ${building.color ?? "plain"}, emblem ${building.icon ?? "none"}.`, "cosmetic");
   }

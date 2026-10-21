@@ -104,6 +104,13 @@ export interface DeliveryFact {
   updatedAt: number;
 }
 
+/** The last `project.archived` (a closing) or `project.restored` (an opening) of a project, for the renderer's window. */
+export interface ProjectChangeFact {
+  kind: "closing" | "opening";
+  ts: number;
+  seq: number;
+}
+
 export interface Facts {
   /** False until the first snapshot. */
   loaded: boolean;
@@ -116,6 +123,8 @@ export interface Facts {
   order: string[];
   /** Archived project slugs in the order they were archived or loaded. */
   archivedOrder: string[];
+  /** The last archive or restore per project slug since the snapshot (a snapshot plays no closing). */
+  projectChanges: Record<string, ProjectChangeFact>;
   /** FUTURE (proposal L22): the source's project groups; always empty with a real crewhub-loops today. */
   groups: ProjectGroup[];
   /** Open cards by ticket id. */
@@ -126,6 +135,8 @@ export interface Facts {
   /** Counts team snapshots received; the debounce counts consecutive snapshots with it. */
   teamRevision: number;
   agents: AgentOut[];
+  /** The source's own principal (the host's key): the observer, never a figure. Null for the demo. */
+  observer: string | null;
   principals: PrincipalOut[];
   watchdog: WatchdogResponse | null;
   /** Open stalls by ticket key. */
@@ -161,12 +172,14 @@ export function emptyFacts(): Facts {
     projects: {},
     order: [],
     archivedOrder: [],
+    projectChanges: {},
     groups: [],
     cards: {},
     team: null,
     teamReceivedAt: null,
     teamRevision: 0,
     agents: [],
+    observer: null,
     principals: [],
     watchdog: null,
     stalls: {},

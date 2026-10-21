@@ -43,6 +43,7 @@ export function SourceSettings() {
       <p className="hint source-host">
         {t("world.source.hostUrl", { url: hostUrl(globalThis.location?.origin ?? "") })}
         {SOURCE.health && ` ${t("world.source.keyName", { name: SOURCE.health.keyName })}`}
+        {SOURCE.health?.keyName && SOURCE.source === "live" && ` ${t("world.source.observer", { name: SOURCE.health.keyName })}`}
         {SOURCE.health?.sharedKey && ` ${t("world.source.sharedKey")}`}
       </p>
     </fieldset>

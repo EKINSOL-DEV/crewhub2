@@ -6,7 +6,7 @@
    Groups (--groups, default all five, in this order):
      walk  38 checks along a visitor's walk through the demo (keyboard, the text view, the timeline, chat, build mode,
            settings, the where form, reduced motion, a phone, both themes). About two minutes.
-     demo  the jump list (/ opens it, a building's name, Enter lands inside), the scenario picker (the Demo chip, One
+     demo  the jump list (/ opens it, a building's name, Enter lands inside; the postman's card in the town), the scenario picker (the Demo chip, One
            project, back to Small team) and the Studio scenario's Region level (district cards, a beacon, a pin, a
            district, a building, the Escape chain back to the Region). About half a minute.
      live  live mode against a fake crewhub-loops the tool starts itself (`packages/loops-fake`, port 0) behind a host it
@@ -429,6 +429,21 @@ await group("demo", async () => {
   const where = await crumbs(p);
   ok("jump list: Enter lands inside the named building", slug != null && /crewhub-loops/.test(where) && !(await dialog.isVisible().catch(() => false)), `"${top.slice(0, 50)}" → ${where} (entered: ${slug})`);
   await shot(p, "15-jumped");
+  // 12b. A figure outside the buildings: the jump list lands beside the postman in the town, selected; Enter opens its card there.
+  await canvas(p).focus();
+  await p.keyboard.press("/");
+  await dialog.waitFor({ timeout: 3000 }).catch(() => {});
+  await p.keyboard.type("postman");
+  await p.waitForTimeout(400);
+  await p.keyboard.press("Enter");
+  await p.waitForTimeout(1500);
+  await canvas(p).focus();
+  await p.keyboard.press("Enter");
+  const townCard = p.locator(".agent-card");
+  await townCard.first().waitFor({ timeout: 3000 }).catch(() => {});
+  const townCardText = (await townCard.first().innerText().catch(() => "")).replace(/\s+/g, " ");
+  ok("jump list: the postman's card opens in the town", (await entered(p)) == null && (await townCard.count()) > 0 && /the post office/.test(townCardText), townCardText.slice(0, 100) || "no card");
+  await shot(p, "15b-town-card");
   await p.context().close();
 
   // 13. The scenario picker: the Demo chip opens it, One project changes the town, Small team brings it back.

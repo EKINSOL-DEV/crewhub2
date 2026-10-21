@@ -1,12 +1,13 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type Ref } from "react";
 import { ArrowLeft, ChevronRight, Eye, FlaskConical, Hammer, MessageCircle, Minus, Monitor, Moon, Pause, Plus, RotateCcw, RotateCw, Footprints, Scan, Search, Settings, Sprout, Sun, Tags, X } from "lucide-react";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { CIVIC_WORDS, describeTownDocument, describeWorld, ruleProps, zoningOf, type AgentPlacement, type CivicWords, type PlaybackControls, type PlaybackSpeed, type RoleId, type RoomKind, type RoomWording, type TextLine, type WorldModel } from "@crewhub/world-model";
+import { archivedWords, CIVIC_WORDS, describeTownDocument, describeWorld, ruleProps, zoningOf, type AgentPlacement, type CivicWords, type PlaybackControls, type PlaybackSpeed, type RoleId, type RoomKind, type RoomWording, type TextLine, type WorldModel } from "@crewhub/world-model";
 import type { PropModel } from "@crewhub/world-engine";
 import { Bubbles } from "./components/bubbles/Bubbles";
 import { TownSettings } from "./components/TownSettings";
 import { SourceSettings } from "./components/SourceSettings";
 import { ConnectionChip, connectionLine } from "./components/ConnectionChip";
+import { ConnectionPanel } from "./components/ConnectionPanel";
 import { FirstSnapshot } from "./components/FirstSnapshot";
 import { JumpList } from "./components/JumpList";
 import { IconSprite } from "./components/Icon";
@@ -99,6 +100,7 @@ function World() {
   const [graphicsFailed, setGraphicsFailed] = useState(false);
   const [textOpen, setTextOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [connectionOpen, setConnectionOpen] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const [action, setAction] = useState<{ id: number; type: CameraAction }>({ id: 0, type: "home" });
   const [room, setRoom] = useState<RoomKind | null>(null);
@@ -106,7 +108,7 @@ function World() {
   // The district the view is in (a region only): the level between the home view and a building.
   const [district, setDistrict] = useState<string | null>(null);
   const [jumpOpen, setJumpOpen] = useState(false);
-  const [flight, setFlight] = useState<{ id: number; anchor: string }>({ id: 0, anchor: "" });
+  const [flight, setFlight] = useState<{ id: number; anchor: string; reach?: number }>({ id: 0, anchor: "" });
   const [selection, setSelection] = useState<Selection>({ hover: null, selected: null });
   // Walk mode: the person walks a visitor through the world. The level it began on is kept for the way back.
   const [walking, setWalking] = useState(false);
@@ -229,11 +231,11 @@ function World() {
     (index: number) => {
       const b = buildings[index];
       if (!b) return "";
-      if (b.archived) return `${b.name} (${b.key}), archived. ${countsLine(b.counts)}. Enter to look inside.`;
+      if (b.archived) return `${b.name} (${b.key}), archived: ${archivedWords(b.archivedAt, model.now)}${b.archivedBy ? ` by ${b.archivedBy}` : ""}. ${countsLine(b.counts)}. Enter to look inside.`;
       const lead = b.agents.find((a) => a.key === b.lead.id && a.presence === "real");
       return `${b.name} (${b.key}). ${countsLine(b.counts)}. Lead ${b.lead.displayName}, ${lead ? laneWords(lead.laneStatus, model.freshness) : "not in the building"}. Enter to go inside.`;
     },
-    [buildings, model.freshness],
+    [buildings, model.freshness, model.now],
   );
   const enter = useCallback(
     (slug: string) => {
@@ -297,7 +299,8 @@ function World() {
       setEntered(b?.slug ?? null);
       setRoom(b ? place.room : null);
       setZoomed(b ? place.room : null);
-      setSelection({ hover: null, selected: b && agent ? { kind: "agent", key: agent } : null });
+      // The agent to land beside: in its building, or in the town (the town hall's agents, the postman).
+      setSelection({ hover: null, selected: agent ? { kind: "agent", key: agent } : null });
       setCard(false);
       setFollowing(null);
       if (b) {
@@ -314,7 +317,11 @@ function World() {
     (entry: JumpEntry) => {
       setJumpOpen(false);
       go(entry.place, entry.agent);
-      if (entry.civic) {
+      if (entry.agent && !entry.place.building) {
+        // A figure outside the buildings: the camera lands close beside it, selected; Enter opens its card.
+        setFlight((f) => ({ id: f.id + 1, anchor: `a:town:${entry.agent}`, reach: 5 }));
+        setAnnouncement(`${entry.label}. ${entry.detail} Enter opens its card.`);
+      } else if (entry.civic) {
         setFlight((f) => ({ id: f.id + 1, anchor: `c:${entry.civic}` }));
         setAnnouncement(`${entry.label}. ${entry.detail}`);
       }
@@ -416,6 +423,15 @@ function World() {
     setSettingsOpen(false);
     returnFocus.current?.focus();
   }, []);
+  // The Connection panel (live mode): the chip opens it; Escape and its close button return the focus to the chip.
+  const openConnection = useCallback(() => {
+    returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setConnectionOpen(true);
+  }, []);
+  const closeConnection = useCallback(() => {
+    setConnectionOpen(false);
+    returnFocus.current?.focus();
+  }, []);
   useEffect(() => {
     if (textOpen) textRegion.current?.focus();
   }, [textOpen]);
@@ -475,6 +491,11 @@ function World() {
       if (e.key === "/") {
         e.preventDefault();
         openJump();
+        return;
+      }
+      if (e.key === "Escape" && connectionOpen) {
+        e.preventDefault();
+        closeConnection();
         return;
       }
       if (e.key === "Escape" && settingsOpen) {
@@ -552,7 +573,7 @@ function World() {
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [back, build, camera, card, closeJump, closeSettings, closeText, editing, entered, follow, following, go, graphicsFailed, here, inside, jumpOpen, openJump, openText, redo, rooms, selectedAgent, selection.selected, settingsOpen, startWalk, stopWalk, textOpen, undo, walking, zoomed]);
+  }, [back, build, camera, card, closeConnection, closeJump, closeSettings, closeText, connectionOpen, editing, entered, follow, following, go, graphicsFailed, here, inside, jumpOpen, openJump, openText, redo, rooms, selectedAgent, selection.selected, settingsOpen, startWalk, stopWalk, textOpen, undo, walking, zoomed]);
 
   // Arrow keys and Enter move the focus ring between plots while the scene has keyboard focus.
   const sceneKey = (e: ReactKeyboardEvent) => {
@@ -584,6 +605,11 @@ function World() {
     }
     if (e.key === "Enter" && e.target === e.currentTarget.querySelector("canvas")) {
       e.preventDefault();
+      // Enter on a selected town figure (after a jump to it) opens its card; else it enters the focused building.
+      if (selectedAgent && !card) {
+        setCard(true);
+        return;
+      }
       const b = buildings[focused];
       if (b) enter(b.slug);
     }
@@ -668,7 +694,9 @@ function World() {
         {!demo && connection === "connecting" && <FirstSnapshot />}
       </main>
 
-      <Corner demo={demo} connection={connection} graphicsFailed={graphicsFailed} trail={trail} onGo={onGo} onJump={openJump} jumpOpen={jumpOpen} following={following ? agentName(following) : null} onStopFollow={() => follow(null)} />
+      <Corner demo={demo} connection={connection} connectionOpen={connectionOpen} onOpenConnection={openConnection} graphicsFailed={graphicsFailed} trail={trail} onGo={onGo} onJump={openJump} jumpOpen={jumpOpen} following={following ? agentName(following) : null} onStopFollow={() => follow(null)} />
+
+      {connectionOpen && connection && <ConnectionPanel state={connection} initial={SOURCE.health} onClose={closeConnection} />}
 
       {jumpOpen && <JumpList entries={jumps} onJump={jump} onClose={closeJump} />}
 
@@ -815,6 +843,8 @@ const SCENARIO_CHOICES = scenarioChoices();
 const Corner = memo(function Corner({
   demo,
   connection,
+  connectionOpen,
+  onOpenConnection,
   graphicsFailed,
   trail,
   onGo,
@@ -826,6 +856,9 @@ const Corner = memo(function Corner({
   demo: boolean;
   /** The live source's state, where the Demo chip stands in demo mode; null for the demo. */
   connection: ConnectionState | null;
+  /** Whether the Connection panel is open; the chip opens it. */
+  connectionOpen: boolean;
+  onOpenConnection: () => void;
   graphicsFailed: boolean;
   /** Where you are, outermost first: region or town, district, building, room. */
   trail: Crumb[];
@@ -869,7 +902,7 @@ const Corner = memo(function Corner({
             ]}
           />
         )}
-        {!demo && connection && <ConnectionChip state={connection} />}
+        {!demo && connection && <ConnectionChip state={connection} open={connectionOpen} onOpen={onOpenConnection} />}
       </div>
       {!graphicsFailed && (
         <nav className="world-breadcrumb" aria-label="Where you are" data-levels={trail.length}>

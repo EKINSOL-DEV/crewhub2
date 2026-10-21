@@ -124,6 +124,12 @@ key is never in a response, a log or the bundle. Never paste the key into a brow
 key that cannot write is proposal L1 for crewhub-loops ([gap analysis](LOOPS_GAP_ANALYSIS.md), section 6.1), asked
 again this round with a worked proposal; until then this is the credential.
 
+**The bot is the observer, not a worker.** Loops lists `crewhub-world` among the agents (an external bot in no
+project), but the world never shows the host's own principal as a figure: the host names it on the snapshot
+(`observer`, the id loops answered to `GET /api/auth/me`), the model leaves it out of the figures and the agent
+counts, and the text view and the Source panel say "`crewhub-world` (this world's key) is not shown". Other external
+bots are real bots elsewhere and stay in the town hall.
+
 ### 1.3 Something to look at
 
 The world shows one building per project. The app's first project is the Inbox; until a project of yours exists,

@@ -121,3 +121,19 @@ test("the 4cdcd383 facts: an external bot, a disabled flag, needs-login, the com
   assert.equal(bot.teamSession, null);
   assert.equal(bot.loops.herdrSession, "external:none");
 });
+
+test("the card knows where a figure outside the buildings stands: the town hall or the post office", () => {
+  const w = world({
+    projects: [CL],
+    agents: [registered("cl-lead"), registered("postman", "router"), registered("crewhub-world-seed", "lead", { external: true, herdrSession: "external:none" })],
+    team: team(T0, [lane("cl-lead", "working")]),
+  });
+  const model = w.reduce();
+  const postman = agentCardFacts(model, w.projection.facts, "postman")!;
+  assert.equal(postman.building, null);
+  assert.equal(postman.civic, "post-office");
+  const bot = agentCardFacts(model, w.projection.facts, "crewhub-world-seed")!;
+  assert.equal(bot.civic, "town-hall");
+  assert.equal(bot.loops?.external, true);
+  assert.equal(agentCardFacts(model, w.projection.facts, "cl-lead")!.civic, null);
+});

@@ -36,6 +36,9 @@ export function building(slug: string, agents: AgentPlacement[], extra: Partial<
     color: null,
     icon: null,
     archived: false,
+    archivedAt: null,
+    archivedBy: null,
+    closing: null,
     counts: { backlog: 0, planned: 0, in_progress: 0, review: 0, done: 0 },
     lead: { id: "lead", displayName: "lead" },
     rooms: (["lobby", "lead-office", "workers", "review"] as const).map((k) => room(k, slug)),
@@ -92,6 +95,7 @@ export function world(buildings: Building[], extra: Partial<WorldModel> = {}): W
     townHall: [],
     postOffice: [],
     deliveries: [],
+    observer: null,
     ...extra,
   };
 }
