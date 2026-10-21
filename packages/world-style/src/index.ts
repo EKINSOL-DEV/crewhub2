@@ -336,3 +336,41 @@ export type ModelAnimation = (seconds: number) => void;
  * ambient life places the `town.steam` and `town.window-glow` models there; a style without spots simply has none.
  */
 export type LifeSpot = "steam" | "window";
+
+/**
+ * Convention for static parts (round 15, the Object3D cut): a model made of many small static pieces (a data model's
+ * parts) may come back as a node that holds those pieces as data, `staticParts`, instead of a mesh each. A renderer
+ * that batches static meshes (apps/world's `mergeStatic` and `instanceStatic`) reads the parts straight from the
+ * node, in order, before the node's own children (`rawChildren`), with `node.matrixWorld × part.matrix` as each
+ * part's world matrix, and takes what it drew another way out with `takeParts`. Any other use of the node (drawing
+ * it, `traverse`, `children`, a raycast, a bounding box) gives it the parts as real meshes first, the same meshes
+ * the style would have made, in front of its other children: a renderer that knows nothing of the convention sees
+ * the model it always saw.
+ */
+export interface StaticPart {
+  geometry: THREE.BufferGeometry;
+  material: THREE.Material;
+  /** The part in its node's frame: what the mesh's `position`, `rotation` and `scale` would be. */
+  position: THREE.Vector3;
+  rotation: THREE.Euler;
+  scale: THREE.Vector3;
+  /** `compose(position, quaternion, scale)`: what the mesh's `matrix` would be, worked out once. */
+  matrix: THREE.Matrix4;
+  castShadow: boolean;
+  receiveShadow: boolean;
+}
+
+export interface StaticPartsHolder extends THREE.Object3D {
+  /** The parts not yet drawn another way or made into meshes, in order. A batcher may change a part's `geometry`, `castShadow` in place. */
+  staticParts: StaticPart[];
+  /** The node's own children, without making meshes of the parts. */
+  readonly rawChildren: readonly THREE.Object3D[];
+  /** Takes parts out: a batcher drew them (merged or instanced). The rest still become meshes when asked. */
+  takeParts(parts: Iterable<StaticPart>): void;
+}
+
+/** The node as a holder of static parts, or null for any other object. */
+export function staticPartsOf(object: THREE.Object3D): StaticPartsHolder | null {
+  const o = object as Partial<StaticPartsHolder>;
+  return Array.isArray(o.staticParts) && typeof o.takeParts === "function" ? (object as StaticPartsHolder) : null;
+}

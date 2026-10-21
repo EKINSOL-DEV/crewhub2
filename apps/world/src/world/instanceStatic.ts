@@ -2,18 +2,17 @@
    blob, a fence post), and the style builds them from shared geometry and materials. Meshes under `root` that share
    both become one InstancedMesh, so each kind of part is one draw call however many trees the town has; kinds with
    few triangles in all are left for mergeStatic, which bakes them into their material's one merged mesh.
-   Style-agnostic, like mergeStatic: it works on whatever the style returned. Run mergeStatic afterwards for the
-   one-off pieces it leaves (paving and lawns of one size each). */
+   Style-agnostic, like mergeStatic: it works on whatever the style returned, the parts a model holds as data
+   (`StaticParts`, @crewhub/world-style) read as data. Run mergeStatic afterwards for the one-off pieces it leaves
+   (paving and lawns of one size each). */
 import * as THREE from "three";
-import { removeBaked } from "./mergeStatic.ts";
+import { removeBaked, setCastShadow, staticPieces, type Piece } from "./mergeStatic.ts";
 import { useInstancedMaterials } from "./instancedMaterial.ts";
 
 /** World radius under which an instanced part casts no shadow. */
 const TINY = 0.09;
 
 const triangles = (g: THREE.BufferGeometry) => (g.index ? g.index.count : g.attributes.position!.count) / 3;
-/** What mergeStatic can bake: plain geometry (no attributes of a style's own, such as decals'), not live. */
-const mergeable = (mesh: THREE.Mesh) => !mesh.userData.live && !mesh.userData.room && Object.keys(mesh.geometry.attributes).every((name) => name === "position" || name === "normal" || name === "uv");
 
 /** Replaces repeated static meshes under `root` with instanced meshes; returns them (to dispose). */
 export function instanceStatic(root: THREE.Group, minimum = 3, budget = 2000): THREE.InstancedMesh[] {
@@ -31,14 +30,14 @@ const INSTANCE_CHUNK = 12;
 export function* instanceStaticSteps(root: THREE.Group, minimum = 3, budget = 2000): Generator<void, THREE.InstancedMesh[]> {
   root.updateMatrixWorld(true);
   const inverse = new THREE.Matrix4().copy(root.matrixWorld).invert();
-  const groups = new Map<string, THREE.Mesh[]>();
-  root.traverse((o) => {
-    if (!(o instanceof THREE.Mesh) || o instanceof THREE.InstancedMesh || Array.isArray(o.material)) return;
-    const key = `${o.geometry.uuid}|${o.material.uuid}`;
+  const groups = new Map<string, Piece[]>();
+  // Every plain mesh, and the parts models hold as data (mergeStatic's staticPieces), by geometry and material.
+  for (const piece of staticPieces(root, true)) {
+    const key = `${piece.geometry.uuid}|${piece.material.uuid}`;
     const list = groups.get(key);
-    if (list) list.push(o);
-    else groups.set(key, [o]);
-  });
+    if (list) list.push(piece);
+    else groups.set(key, [piece]);
+  }
   const created: THREE.InstancedMesh[] = [];
   const matrix = new THREE.Matrix4();
   let kinds = 0;
@@ -48,12 +47,12 @@ export function* instanceStaticSteps(root: THREE.Group, minimum = 3, budget = 20
     const first = meshes[0]!;
     // A kind with few triangles in all (a handful of signposts, a row of fence posts) costs a draw call of its own as an
     // instanced mesh; left as meshes, mergeStatic folds it into its material's merged mesh instead.
-    if (meshes.length * triangles(first.geometry) < budget && mergeable(first)) {
+    if (meshes.length * triangles(first.geometry) < budget && first.mergeable) {
       if (!first.geometry.boundingSphere) first.geometry.computeBoundingSphere();
-      for (const mesh of meshes) if ((first.geometry.boundingSphere?.radius ?? 1) * mesh.matrixWorld.getMaxScaleOnAxis() < TINY) mesh.castShadow = false;
+      for (const mesh of meshes) if ((first.geometry.boundingSphere?.radius ?? 1) * mesh.matrixWorld.getMaxScaleOnAxis() < TINY) setCastShadow(mesh, false);
       continue;
     }
-    const instanced = new THREE.InstancedMesh(first.geometry, first.material as THREE.Material, meshes.length);
+    const instanced = new THREE.InstancedMesh(first.geometry, first.material, meshes.length);
     meshes.forEach((mesh, i) => instanced.setMatrixAt(i, matrix.multiplyMatrices(inverse, mesh.matrixWorld)));
     removeBaked(root, meshes);
     instanced.instanceMatrix.needsUpdate = true;

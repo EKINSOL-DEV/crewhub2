@@ -3,7 +3,7 @@
    furniture are parts-JSON (../models/town.*.json). Origins: a piece's footprint centre on the ground it stands on;
    stretchable pieces run along x. Every repeated part uses the kit's shared geometry, so a renderer can instance it. */
 import * as THREE from "three";
-import type { ModelOptions } from "@crewhub/world-style";
+import { staticPartsOf, type ModelOptions } from "@crewhub/world-style";
 import { put, type FlowerBed, type Kit, type Swatch } from "./kit.ts";
 import { decalMaterial, GRASS_GOLDEN, GRASS_NIGHT, WATER_GLINT, grassShader, pavingShader, waterShader } from "./shaders.ts";
 
@@ -582,20 +582,36 @@ const TINY = 0.09;
 
 export function townDetail(kit: Kit, object: THREE.Object3D, key: string) {
   const shadow = !SHADOWLESS.has(key);
-  object.traverse((o) => {
-    if (!(o instanceof THREE.Mesh)) return;
-    if (!shadow) o.castShadow = false;
-    const g = o.geometry;
-    if (g instanceof THREE.SphereGeometry && g.parameters.thetaLength === Math.PI && g.parameters.radius * Math.max(o.scale.x, o.scale.y, o.scale.z) < TINY) {
+  /** The lighter geometry a round piece gets at town distance, or null when it keeps its own. */
+  const lighter = (g: THREE.BufferGeometry, scale: THREE.Vector3): THREE.BufferGeometry | null => {
+    if (g instanceof THREE.SphereGeometry && g.parameters.thetaLength === Math.PI && g.parameters.radius * Math.max(scale.x, scale.y, scale.z) < TINY) {
       // Flower heads, fruit and berries: a few pixels across, so a 6 × 4 ball (36 triangles, not 80) reads the same.
       const r = g.parameters.radius;
-      o.geometry = kit.geometry(`sphere-tiny:${r}`, () => new THREE.SphereGeometry(r, 6, 4));
-    } else if (g instanceof THREE.SphereGeometry && g.parameters.widthSegments > 8) {
-      const r = g.parameters.radius;
-      o.geometry = kit.geometry(`sphere-low:${r}`, () => new THREE.SphereGeometry(r, 7, 5));
-    } else if (g instanceof THREE.CylinderGeometry && g.parameters.radialSegments > 10) {
-      const { radiusTop, radiusBottom, height } = g.parameters;
-      o.geometry = kit.geometry(`cylinder-low:${radiusTop},${radiusBottom},${height}`, () => new THREE.CylinderGeometry(radiusTop, radiusBottom, height, 10));
+      return kit.geometry(`sphere-tiny:${r}`, () => new THREE.SphereGeometry(r, 6, 4));
     }
-  });
+    if (g instanceof THREE.SphereGeometry && g.parameters.widthSegments > 8) {
+      const r = g.parameters.radius;
+      return kit.geometry(`sphere-low:${r}`, () => new THREE.SphereGeometry(r, 7, 5));
+    }
+    if (g instanceof THREE.CylinderGeometry && g.parameters.radialSegments > 10) {
+      const { radiusTop, radiusBottom, height } = g.parameters;
+      return kit.geometry(`cylinder-low:${radiusTop},${radiusBottom},${height}`, () => new THREE.CylinderGeometry(radiusTop, radiusBottom, height, 10));
+    }
+    return null;
+  };
+  // A data model's parts are read as data (StaticParts): the model stays one node.
+  const visit = (o: THREE.Object3D) => {
+    const holder = staticPartsOf(o);
+    if (holder)
+      for (const part of holder.staticParts) {
+        if (!shadow) part.castShadow = false;
+        part.geometry = lighter(part.geometry, part.scale) ?? part.geometry;
+      }
+    else if (o instanceof THREE.Mesh) {
+      if (!shadow) o.castShadow = false;
+      o.geometry = lighter(o.geometry, o.scale) ?? o.geometry;
+    }
+    for (const child of holder ? holder.rawChildren : o.children) visit(child);
+  };
+  visit(object);
 }
