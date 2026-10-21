@@ -220,9 +220,10 @@ Everything below is planned and not built. Each item needs crewhub-loops running
   World" card** in Settings > Agents that makes the viewer bot and shows its key once with
   the world's address. The other proposals of plan section 9 (L2 to L8) stand as written.
 
-Three things wait for Nicky, not for code: `--test-timeout=120000` in `npm test`, so a hung test fails by name
-(branch `task/r5-testtimeout`, unmerged); the Greenhouse models' Object3D count, the next first-paint cut, which
-touches the style package; and the viewer key's merge in crewhub-loops.
+Two things wait for Nicky, not for code: `--test-timeout=120000` in `npm test`, so a hung test fails by name
+(branch `task/r5-testtimeout`, unmerged); and the viewer key's merge in crewhub-loops. The Greenhouse models' Object3D
+count, the last first-paint cut, is built (round 15, Nicky's decision 7): a data model is one node holding its parts
+as data, pixel-identical by construction (`docs/WORLD_STYLES.md`, "parts as data"; the numbers in `COST_POLICY.md`).
 
 ## Later scope
 

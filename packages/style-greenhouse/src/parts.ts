@@ -5,8 +5,9 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { PROP_LIMITS, type PropModel, type PropPart } from "@crewhub/world-engine";
-import type { PaletteName } from "@crewhub/world-style";
+import type { PaletteName, StaticPart } from "@crewhub/world-style";
 import type { Kit } from "./kit.ts";
+import { PartsNode } from "./partsNode.ts";
 
 const DEG = Math.PI / 180;
 /* Small parts at full detail cost most of a room's triangles (a calendar's day squares, a plant's leaves) and read the
@@ -15,49 +16,66 @@ const PLAIN_BEVEL = 0.012;
 const SMALL_SPHERE = 0.05;
 const SMALL_CYLINDER = 0.04;
 
-export function partMesh(kit: Kit, part: Pick<PropPart, "shape" | "size" | "position" | "rotation" | "radius" | "sweep"> & Partial<Pick<PropPart, "emissive" | "material">>, color: string): THREE.Mesh {
+/** The shape of a part: the kit's shared geometry and material for it, and the scale a sphere part takes. */
+function partShape(kit: Kit, part: Pick<PropPart, "shape" | "size" | "radius" | "sweep"> & Partial<Pick<PropPart, "emissive" | "material">>, color: string): { geometry: THREE.BufferGeometry; material: THREE.Material; scale: readonly [number, number, number] | null } {
   const [a, b, c] = part.size;
-  let mesh: THREE.Mesh;
+  let geometry: THREE.BufferGeometry;
+  let scale: readonly [number, number, number] | null = null;
   switch (part.shape) {
     case "box": {
       const radius = part.radius ?? PROP_LIMITS.cornerRadiusDefault;
-      mesh =
-        Math.min(radius, a / 3, b / 3, c / 3) <= PLAIN_BEVEL
-          ? kit.mesh(kit.geometry(`prop-plain-box:${a},${b},${c}`, () => new THREE.BoxGeometry(a, b, c)), kit.material(color))
-          : kit.box(a, b, c, color, radius);
+      geometry = Math.min(radius, a / 3, b / 3, c / 3) <= PLAIN_BEVEL ? kit.geometry(`prop-plain-box:${a},${b},${c}`, () => new THREE.BoxGeometry(a, b, c)) : kit.boxGeometry(a, b, c, radius);
       break;
     }
     case "cylinder":
-      mesh =
-        Math.max(a, c) <= SMALL_CYLINDER
-          ? kit.mesh(kit.geometry(`prop-small-cylinder:${a},${c},${b}`, () => new THREE.CylinderGeometry(a, c, b, 10)), kit.material(color))
-          : kit.cylinder(a, c, b, color);
+      geometry = Math.max(a, c) <= SMALL_CYLINDER ? kit.geometry(`prop-small-cylinder:${a},${c},${b}`, () => new THREE.CylinderGeometry(a, c, b, 10)) : kit.cylinderGeometry(a, c, b);
       break;
     case "cone":
-      mesh = kit.cylinder(0, a, b, color);
+      geometry = kit.cylinderGeometry(0, a, b);
       break;
     case "sphere":
-      mesh = Math.max(a, b, c) <= SMALL_SPHERE ? kit.mesh(kit.geometry("prop-small-sphere", () => new THREE.SphereGeometry(1, 8, 6)), kit.material(color)) : kit.sphere(1, color);
-      mesh.scale.set(a, b, c);
+      geometry = Math.max(a, b, c) <= SMALL_SPHERE ? kit.geometry("prop-small-sphere", () => new THREE.SphereGeometry(1, 8, 6)) : kit.sphereGeometry(1);
+      scale = [a, b, c];
       break;
     case "torus":
-      mesh = kit.mesh(
-        kit.geometry(`prop-torus:${a},${b}`, () => new THREE.TorusGeometry(a, b, 10, 32).rotateX(Math.PI / 2)),
-        kit.material(color),
-      );
+      geometry = kit.geometry(`prop-torus:${a},${b}`, () => new THREE.TorusGeometry(a, b, 10, 32).rotateX(Math.PI / 2));
       break;
     case "wedge": {
       const sweep = part.sweep ?? 360;
-      mesh = kit.mesh(kit.geometry(`prop-wedge:${a},${b},${c},${sweep}`, () => wedgeGeometry(a, c, b, sweep)), kit.material(color));
+      geometry = kit.geometry(`prop-wedge:${a},${b},${c},${sweep}`, () => wedgeGeometry(a, c, b, sweep));
       break;
     }
   }
-  if (part.emissive) mesh.material = kit.material(color, { glow: 0.6 });
-  else if (part.material === "glass") mesh.material = kit.material(color, { transparent: 0.55 });
+  // The plain material is made (and kept by the kit) before a glow or glass takes its place, as it always was.
+  let material: THREE.Material = kit.material(color);
+  if (part.emissive) material = kit.material(color, { glow: 0.6 });
+  else if (part.material === "glass") material = kit.material(color, { transparent: 0.55 });
+  return { geometry, material, scale };
+}
+
+/** A part as a mesh (the figure kits draw their figures this way). */
+export function partMesh(kit: Kit, part: Pick<PropPart, "shape" | "size" | "position" | "rotation" | "radius" | "sweep"> & Partial<Pick<PropPart, "emissive" | "material">>, color: string): THREE.Mesh {
+  const { geometry, material, scale } = partShape(kit, part, color);
+  const mesh = kit.mesh(geometry, material);
+  if (scale) mesh.scale.set(...scale);
   mesh.position.set(...part.position);
   const [rx, ry, rz] = part.rotation ?? [0, 0, 0];
   mesh.rotation.set(rx * DEG, ry * DEG, rz * DEG, "XYZ");
   return mesh;
+}
+
+/**
+ * A part as data (`StaticPart`): the same geometry, material, position, rotation and scale `partMesh` gives its mesh,
+ * and the matrix that mesh would compose from them, so a batcher reading the part draws what the mesh would have.
+ */
+export function staticPart(kit: Kit, part: Pick<PropPart, "shape" | "size" | "position" | "rotation" | "radius" | "sweep"> & Partial<Pick<PropPart, "emissive" | "material">>, color: string): StaticPart {
+  const { geometry, material, scale } = partShape(kit, part, color);
+  const position = new THREE.Vector3(...part.position);
+  const [rx, ry, rz] = part.rotation ?? [0, 0, 0];
+  const rotation = new THREE.Euler(rx * DEG, ry * DEG, rz * DEG, "XYZ");
+  const size = scale ? new THREE.Vector3(...scale) : new THREE.Vector3(1, 1, 1);
+  const matrix = new THREE.Matrix4().compose(position, new THREE.Quaternion().setFromEuler(rotation), size);
+  return { geometry, material, position, rotation, scale: size, matrix, castShadow: true, receiveShadow: true };
 }
 
 /**
@@ -108,15 +126,20 @@ export function wedgeGeometry(top: number, bottom: number, height: number, sweep
   return merged;
 }
 
-/** The group's origin is the footprint centre on the floor; the front faces +z. Pass only validated models. */
-export function partsModel(model: PropModel, kit: Kit, accent: PaletteName | null = null, swap: Record<string, string> | null = null): THREE.Group {
-  const g = new THREE.Group();
-  g.name = model.id;
+/**
+ * The model's origin is the footprint centre on the floor; the front faces +z. Pass only validated models. The node
+ * holds its parts as data (`StaticParts`, world-style): read `children` or draw it and they are meshes.
+ */
+export function partsModel(model: PropModel, kit: Kit, accent: PaletteName | null = null, swap: Record<string, string> | null = null): PartsNode {
   const accented = model.tags.find((t) => t.startsWith("accent-"))?.slice("accent-".length) ?? null;
+  const parts: StaticPart[] = [];
   for (const part of model.parts) {
     // A look may swap materials for swatches of its own (blossom for leaves); the caller's accent still wins.
     const color = accent && part.material === accented ? accent : (swap?.[part.material] ?? part.material);
-    g.add(partMesh(kit, part, color));
+    parts.push(staticPart(kit, part, color));
   }
+  // The parts as data, not a mesh each (partsNode.ts): the batchers read them, anyone else gets the meshes.
+  const g = new PartsNode(parts);
+  g.name = model.id;
   return g;
 }

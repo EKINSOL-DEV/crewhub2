@@ -6,8 +6,12 @@
    Plain opaque materials that differ only by colour (a chalk wall, a timber trim, a sage sill) merge into one mesh
    per look: each vertex carries its source material's index, and the merged material reads the colour from a palette
    of the source materials' own colour objects, so a theme change that re-colours them shows at once. Other materials
-   (a style's shader, glass, a glowing window) merge per material, as before. */
+   (a style's shader, glass, a glowing window) merge per material, as before.
+
+   A model that holds its parts as data (`StaticParts`, @crewhub/world-style) is read as data: each part joins its
+   batch with the matrix its mesh would have had, and never becomes a mesh here. */
 import * as THREE from "three";
+import { staticPartsOf, type StaticPart, type StaticPartsHolder } from "@crewhub/world-style";
 
 const MERGED = ["position", "normal", "uv"];
 /** Colours per palette batch; a look with more starts another batch. */
@@ -107,6 +111,59 @@ export function mergeStatic(root: THREE.Group, options: { keepData?: boolean } =
 /** Source meshes a step of `mergeStaticSteps` writes before it yields. */
 const MERGE_CHUNK = 150;
 
+/** What is batched: a static mesh, or a part a model holds as data, each with the world matrix its mesh has or would have. */
+export interface Piece {
+  geometry: THREE.BufferGeometry;
+  material: THREE.Material;
+  matrixWorld: THREE.Matrix4;
+  castShadow: boolean;
+  receiveShadow: boolean;
+  renderOrder: number;
+  /** What `mergeStatic` can bake: not live, not a room's pick target, no attributes of a style's own (a decal's shape). */
+  mergeable: boolean;
+  /** The mesh, or the holder and the part it came from. */
+  mesh: THREE.Mesh | null;
+  holder: StaticPartsHolder | null;
+  part: StaticPart | null;
+}
+
+/** Only position, normal and uv: what a batch can take (a style's own attributes, a decal's shape, keep their mesh). */
+const plainGeometry = (geometry: THREE.BufferGeometry) => Object.keys(geometry.attributes).every((name) => MERGED.includes(name));
+/** Already merged, its vertex data on the GPU only: it stays as it is. */
+const uploaded = (geometry: THREE.BufferGeometry) => !geometry.attributes.position?.array;
+
+/**
+ * The pieces under `root` in traversal order (a node, then its parts as data, then its children), without making a
+ * mesh of any part: every plain mesh (not instanced, not with a material list) and every part, `all`; or only what
+ * `mergeStatic` takes (`mergeable`, and the vertex data not yet on the GPU only). `root.updateMatrixWorld(true)`
+ * first: a part's world matrix is its holder's times its own, as an update gives a mesh.
+ */
+export function staticPieces(root: THREE.Object3D, all = false): Piece[] {
+  const pieces: Piece[] = [];
+  const visit = (o: THREE.Object3D) => {
+    const holder = staticPartsOf(o);
+    if (holder) {
+      for (const part of holder.staticParts) {
+        const mergeable = plainGeometry(part.geometry);
+        if (all || (mergeable && !uploaded(part.geometry))) pieces.push({ geometry: part.geometry, material: part.material, matrixWorld: new THREE.Matrix4().multiplyMatrices(holder.matrixWorld, part.matrix), castShadow: part.castShadow, receiveShadow: part.receiveShadow, renderOrder: 0, mergeable, mesh: null, holder, part });
+      }
+    } else if (o instanceof THREE.Mesh && !(o instanceof THREE.InstancedMesh) && !Array.isArray(o.material)) {
+      const mergeable = !o.userData.room && !o.userData.live && plainGeometry(o.geometry);
+      if (all || (mergeable && !uploaded(o.geometry))) pieces.push({ geometry: o.geometry, material: o.material, matrixWorld: o.matrixWorld, castShadow: o.castShadow, receiveShadow: o.receiveShadow, renderOrder: o.renderOrder, mergeable, mesh: o, holder: null, part: null });
+    }
+    for (const child of holder ? holder.rawChildren : o.children) visit(child);
+  };
+  visit(root);
+  return pieces;
+}
+
+/** A piece's shadow flag, written back to its mesh or its part. */
+export function setCastShadow(piece: Piece, value: boolean) {
+  piece.castShadow = value;
+  if (piece.mesh) piece.mesh.castShadow = value;
+  else if (piece.part) piece.part.castShadow = value;
+}
+
 /** A source mesh's place in its batch: its geometry, its transform into the root's space, its palette index. */
 interface Source {
   geometry: THREE.BufferGeometry;
@@ -133,18 +190,12 @@ export function* mergeStaticSteps(root: THREE.Group, options: { keepData?: boole
   root.updateMatrixWorld(true);
   const inverse = new THREE.Matrix4().copy(root.matrixWorld).invert();
   const batches = new Map<unknown, Batch[]>();
-  const merged: THREE.Mesh[] = [];
-  root.traverse((o) => {
-    // Live meshes (a style's moving parts, `userData.live`) keep their own transforms.
-    if (!(o instanceof THREE.Mesh) || o instanceof THREE.InstancedMesh || Array.isArray(o.material) || o.userData.room || o.userData.live) return;
-    if (Object.keys(o.geometry.attributes).some((name) => !MERGED.includes(name))) return;
-    // Already merged, its vertex data on the GPU only: it stays as it is.
-    if (!o.geometry.attributes.position?.array) return;
-    merged.push(o);
-  });
-  for (const o of merged) {
+  // Live meshes (a style's moving parts, `userData.live`) keep their own transforms; a mesh already merged, its vertex
+  // data on the GPU only, stays as it is (staticPieces).
+  const pieces = staticPieces(root);
+  for (const o of pieces) {
     const matrix = new THREE.Matrix4().multiplyMatrices(inverse, o.matrixWorld);
-    const material = o.material as THREE.Material;
+    const material = o.material;
     const key = look(material, o.castShadow);
     const list = batches.get(key ?? material) ?? [];
     batches.set(key ?? material, list);
@@ -163,7 +214,7 @@ export function* mergeStaticSteps(root: THREE.Group, options: { keepData?: boole
     batch.sources.push({ geometry: o.geometry, matrix, swatch });
   }
   yield;
-  removeBaked(root, merged);
+  removeBaked(root, pieces);
   const created: THREE.BufferGeometry[] = [];
   let written = 0;
   for (const list of batches.values())
@@ -295,17 +346,40 @@ function computedNormals(geometry: THREE.BufferGeometry): THREE.BufferAttribute 
 }
 
 /**
- * Takes baked meshes out of the tree, then the groups they leave empty (a style model's wrappers): the renderer walks
- * and updates every node each frame, and the town has thousands of them. Groups with an animation hook stay.
+ * Takes baked pieces out of the tree (a mesh from its parent, a part from its holder), then the groups they leave
+ * empty (a style model's wrappers, a holder with nothing left): the renderer walks and updates every node each frame,
+ * and the town has thousands of them. Groups with an animation hook stay.
  */
-export function removeBaked(root: THREE.Object3D, meshes: readonly THREE.Object3D[]) {
+export function removeBaked(root: THREE.Object3D, pieces: readonly (Piece | THREE.Object3D)[]) {
   const parents = new Set<THREE.Object3D>();
+  const taken = new Map<StaticPartsHolder, StaticPart[]>();
+  const meshes: THREE.Object3D[] = [];
+  for (const piece of pieces) {
+    const mesh = piece instanceof THREE.Object3D ? piece : piece.mesh;
+    if (mesh) meshes.push(mesh);
+    else if (!(piece instanceof THREE.Object3D) && piece.holder && piece.part) {
+      const list = taken.get(piece.holder) ?? [];
+      list.push(piece.part);
+      taken.set(piece.holder, list);
+    }
+  }
+  // The parts first: a mesh taken out of a holder reads the holder's children, which would make meshes of parts
+  // still there, and those parts were batched a moment ago.
+  for (const [holder, parts] of taken) {
+    holder.takeParts(parts);
+    parents.add(holder);
+  }
   for (const mesh of meshes) {
     if (mesh.parent) parents.add(mesh.parent);
     mesh.removeFromParent();
   }
+  // Emptiness read without materialising a holder's parts (its `children` would make meshes of what is left).
+  const empty = (node: THREE.Object3D) => {
+    const holder = staticPartsOf(node);
+    return holder ? holder.staticParts.length === 0 && holder.rawChildren.length === 0 : node.children.length === 0;
+  };
   for (let node of parents) {
-    while (node !== root && node.children.length === 0 && (node.type === "Group" || node.type === "Object3D") && !node.userData.animate && node.parent) {
+    while (node !== root && empty(node) && (node.type === "Group" || node.type === "Object3D") && !node.userData.animate && node.parent) {
       const parent: THREE.Object3D = node.parent;
       node.removeFromParent();
       node = parent;

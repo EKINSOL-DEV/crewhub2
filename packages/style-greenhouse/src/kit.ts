@@ -307,27 +307,28 @@ export class Kit {
     mesh.receiveShadow = true;
     return mesh;
   }
-  box(w: number, h: number, d: number, color: Swatch, radius = 0.04) {
+  /** The shared rounded box of a size and corner radius (what `box` draws). */
+  boxGeometry(w: number, h: number, d: number, radius = 0.04) {
     // A bevel of 3 cm or less reads the same with one segment; walls and trims are mostly that, at a third the triangles.
     // The bevel a thin box gets is a third of its thinnest side, whatever it asks for (a desk top, a shelf board).
     const bevel = Math.min(radius, w / 3, h / 3, d / 3);
     const segments = bevel <= 0.03 ? 1 : 2;
-    return this.mesh(
-      this.geometry(`box:${w},${h},${d},${radius}`, () => roundedBoxGeometry(w, h, d, segments, bevel)),
-      this.material(color),
-    );
+    return this.geometry(`box:${w},${h},${d},${radius}`, () => roundedBoxGeometry(w, h, d, segments, bevel));
+  }
+  sphereGeometry(r: number) {
+    return this.geometry(`sphere:${r}`, () => new THREE.SphereGeometry(r, 12, 10));
+  }
+  cylinderGeometry(top: number, bottom: number, h: number) {
+    return this.geometry(`cylinder:${top},${bottom},${h}`, () => new THREE.CylinderGeometry(top, bottom, h, 20));
+  }
+  box(w: number, h: number, d: number, color: Swatch, radius = 0.04) {
+    return this.mesh(this.boxGeometry(w, h, d, radius), this.material(color));
   }
   sphere(r: number, color: Swatch) {
-    return this.mesh(
-      this.geometry(`sphere:${r}`, () => new THREE.SphereGeometry(r, 12, 10)),
-      this.material(color),
-    );
+    return this.mesh(this.sphereGeometry(r), this.material(color));
   }
   cylinder(top: number, bottom: number, h: number, color: Swatch) {
-    return this.mesh(
-      this.geometry(`cylinder:${top},${bottom},${h}`, () => new THREE.CylinderGeometry(top, bottom, h, 20)),
-      this.material(color),
-    );
+    return this.mesh(this.cylinderGeometry(top, bottom, h), this.material(color));
   }
   dispose() {
     this.#materials.forEach((e) => e.material.dispose());

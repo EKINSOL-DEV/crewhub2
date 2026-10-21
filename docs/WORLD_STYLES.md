@@ -191,6 +191,14 @@ them or accept plain crates drifting by. Covering them is the expected choice.
   - Small parts may be drawn at lower detail; they read the same. Greenhouse draws a box whose bevel is 1.2 cm or less
     as a plain box, a sphere of 5 cm or less with 8 x 6 segments, and a cylinder of 4 cm or less with 10 sides, and its
     kit box takes only the bevel segments the bevel actually gets.
+  - A model may come back as one node holding its parts as data instead of a mesh per part: the `StaticParts`
+    convention (`StaticPart`, `StaticPartsHolder`, `staticPartsOf` in `@crewhub/world-style`; Greenhouse's
+    `partsNode.ts`, round 15). Each part is its geometry, material, position, rotation, scale, the matrix its mesh
+    would compose and its shadow flags. The batchers read the parts as data; anything else that looks at the node
+    (`children`, `traverse`, drawing it, a raycast, a bounding box) gets the same meshes the style made before, in
+    front of the node's other children, so a renderer that knows nothing of the convention sees the model it always
+    saw. A town built its models in the thousands of three.js objects before the first frame and took them apart
+    again at once; now they are never made.
 
 ## What batches, and what a style must do for it
 
@@ -223,6 +231,12 @@ them. A style keeps its world cheap by keeping its materials batchable.
 - **Town dressing** (`instanceStatic.ts`). Repeated pieces are instanced one mesh per part and material and culled by
   12 m ground cells; a kind with fewer than about 2,000 triangles in all is merged instead. Model groups the bakers empty
   are removed, so they cost nothing per frame; a group with `userData.animate` stays.
+- **Parts as data** (`StaticParts`, above). Both bakers read a model's parts straight from its node, in traversal
+  order, with `node.matrixWorld × part.matrix` as the part's world matrix (what an update gives a mesh), and take what
+  they drew out of the node (`takeParts`); a node left with nothing is swept like an empty group. Nothing of a
+  model's parts becomes a three.js object on this road. The parity test
+  (`apps/world/test/staticPartsParity.test.ts`) pins that a tree of such nodes merges and instances to the bit what
+  the same tree of meshes does.
 - **Matrices only for what moved** (`matrixPass.ts`). TownScene updates world matrices itself, instead of three.js
   recomposing every object every frame: an object's local matrix is recomposed only when its position, rotation
   (quaternion) or scale changed since the last frame, and world matrices are multiplied only below a change. Nothing
