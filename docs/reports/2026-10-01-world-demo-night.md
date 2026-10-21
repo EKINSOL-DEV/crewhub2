@@ -1147,6 +1147,28 @@ Round 10 ends at `a8ea5c5`, with 765 tests and the browser pass at 134 of 134.
   Connect screen within a second, and a key revoked while Live still shows the rejected screen with loops' reason. Two
   checks in the `connect` group pin it.
 
+## Round 11: what still needed no decision (2026-10-21, evening)
+
+Round 11 ends at `a816264`, with 778 tests and the browser pass at 141 of 141.
+
+- **Merge-ready.** `main` (the loops design-system PR) was already contained in the branch, so the pull request merges
+  without conflicts. CI was green; its two deprecation notes are fixed: the three.js chunk moved to vite's
+  `codeSplitting` (the built files are identical, byte for byte), and the checkout and setup-node actions moved to the
+  major that runs on Node 24.
+- **The host says "no key" on the stream** (r11-keystatus). The stream's status message carries the host's own word on
+  its key (none, unchecked, checking, rejected, ok), the same word its health gives. The world prefers it over a health
+  read, so after a Forget in another tab the host and the world agree without asking twice.
+- **Zones in a live town** (r11-zones, r11-zonecopy). Loops has no project groups and the world database is not built,
+  so this is the addendum's third road: a person makes districts by hand in build mode, as in the demo. The live town
+  is kept per crewhub-loops installation, never mixed with another one or with the demo, and a town kept under the
+  earlier single key is copied once. The Connection panel, build mode and the text view all say "made by hand in this
+  browser; crewhub-loops has no project groups; not shared with other browsers". With no zone made, nothing is said.
+- **The scripted director in live mode** (r11-director). The same scripted feed as the demo, with its own opt-in, off
+  by default; the demo's switch never carries into live. Its plans come from the live facts, its intents are
+  validated as in the demo and move only the world's own figures. "Scripted" is on every intent line, in the text
+  view and in the director log, so it cannot be mistaken for real behaviour. Six regress checks prove it, including
+  that the page sends nothing but reads while it runs.
+
 ## Challenges with docs/integrators
 
 Read at crewhub-loops `a1bed0f`. Each item names the document, what was unclear, contradictory, missing or marked
