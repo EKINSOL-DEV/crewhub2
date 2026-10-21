@@ -12,6 +12,12 @@ import { writeWhole } from "./keyStore.ts";
 
 export const ARCHIVE_MEMORY_NAME = "archived.json";
 
+/** An ISO time as a person reads it: `2026-10-21 04:56:46 UTC`, never milliseconds; anything else as it is. */
+export function plainTime(iso: string): string {
+  const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})(?:\.\d+)?Z$/.exec(iso);
+  return m === null ? iso : `${m[1]} ${m[2]} UTC`;
+}
+
 export interface ArchiveMemory {
   /** Sorted, unique. */
   slugs: string[];

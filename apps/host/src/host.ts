@@ -22,7 +22,7 @@ import type { AddressInfo } from "node:net";
 import path from "node:path";
 import type { HostArchiveState, HostConnection, HostKeyState, HostSnapshotState } from "@crewhub/loops-client";
 import { WORLD_API_PREFIX, fillPattern, matchWorldRoute } from "./allowList.ts";
-import { type ArchiveStore, normaliseSlugs } from "./archiveStore.ts";
+import { type ArchiveStore, normaliseSlugs, plainTime } from "./archiveStore.ts";
 import { DEFAULT_LOOPS_URL, type KeySource } from "./config.ts";
 import { type Discovery, type DiscoveryInput, type Found, createDiscovery, loopsAnswers, targetText } from "./discovery.ts";
 import { checkKey } from "./keyCheck.ts";
@@ -281,7 +281,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
   // --- The closed buildings the host knows. ---
   const remembered = options.archiveStore?.read() ?? null;
   const archive: ArchiveMemoryState = remembered === null ? { source: "none", slugs: new Set() } : { source: "remembered", slugs: new Set(remembered.slugs), at: remembered.at };
-  if (remembered !== null) log(`remembered ${remembered.slugs.length} archived project${remembered.slugs.length === 1 ? "" : "s"} from ${options.archiveStore?.file} (learnt ${remembered.at || "at an unknown time"})`);
+  if (remembered !== null) log(`remembered ${remembered.slugs.length} archived project${remembered.slugs.length === 1 ? "" : "s"} from ${options.archiveStore?.file} (learnt ${remembered.at === "" ? "at an unknown time" : plainTime(remembered.at)})`);
   /** Keeps the set (and its source), and writes the file only when the set changed. */
   function rememberArchive(next: Iterable<string>, source: HostArchiveState["source"] | null): void {
     const slugs = normaliseSlugs(next);

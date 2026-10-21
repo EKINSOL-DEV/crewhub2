@@ -8,7 +8,7 @@ import { readFileSync, statSync } from "node:fs";
 import { createConnection } from "node:net";
 import { homedir } from "node:os";
 import path from "node:path";
-import { ARCHIVE_MEMORY_NAME, parseArchiveMemory } from "./archiveStore.ts";
+import { ARCHIVE_MEMORY_NAME, parseArchiveMemory, plainTime } from "./archiveStore.ts";
 import { ConfigError, type KeyFiles, type LoadedKey, type PathKind, type ServerConfig, keyFilesOf, loadKey, loadServerConfig, statPath } from "./config.ts";
 import { type DiscoveryInput, type Found, candidates, discoverOnce, loopsHealth, targetText } from "./discovery.ts";
 import { checkKey } from "./keyCheck.ts";
@@ -261,12 +261,6 @@ export async function runDoctor(io: DoctorIo): Promise<DoctorReport> {
 }
 
 const LABEL: Record<DoctorStatus, string> = { ok: "ok  ", fix: "FIX ", skip: "skip" };
-
-/** An ISO time as a person reads it: `2026-10-21 04:56:46 UTC`, never milliseconds; anything else as it is. */
-export function plainTime(iso: string): string {
-  const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})(?:\.\d+)?Z$/.exec(iso);
-  return m === null ? iso : `${m[1]} ${m[2]} UTC`;
-}
 
 /** The last line of the report: what to do next. A host that already runs is up; `npm run world` opens a new link on it. */
 export function nextStep(report: DoctorReport): string {

@@ -9,7 +9,8 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, it } from "node:test";
-import { type DoctorIo, formatDoctor, nextStep, plainTime, runDoctor } from "../src/doctor.ts";
+import { plainTime } from "../src/archiveStore.ts";
+import { type DoctorIo, formatDoctor, nextStep, runDoctor } from "../src/doctor.ts";
 import { PROBE_REASON } from "../src/keyCheck.ts";
 import { createLoopsStub, installation } from "./loopsStub.ts";
 
