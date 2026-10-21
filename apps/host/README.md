@@ -35,8 +35,10 @@ smooth connection" below):
   `/tickets/{ref}/comments|progress`, `/projects/{slug}`, `/projects/{slug}/milestones|releases`, `/board/{slug}`,
   `/watchdog`, `/team`. Only `limit` and `cursor` of a query string are passed. `/world-api/project-groups`
   answers `{ "groups": [] }` locally.
-- **Health** `GET /world-api/health`: `{ loops, keyName, sharedKey, loopsWebUrl, transport, paired, pairing, loopsCommit?, cursor?, connection }`
-  (`connection` is under "The smooth connection" below);
+- **Health** `GET /world-api/health`: `{ loops, keyName, sharedKey, loopsWebUrl, transport, paired, pairing, loopsCommit?, loopsCommitBefore?, cursor?, connection }`
+  (`connection` is under "The smooth connection" below; `loopsCommitBefore` is the version the host read first this
+  run, present only when loops has answered another since: loops was updated under the running host, which logs the
+  change once and reads everything again after the restart that came with it);
   `loopsWebUrl` is the origin of the loops URL, for the world's "sign in to crewhub-loops" link; `transport` is `tcp`
   (the URL) or `unix` (the socket); `paired` is whether this request carries a valid pairing cookie; `pairing` is `on`
   or `off`. Health carries no data and needs no cookie.

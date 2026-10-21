@@ -138,6 +138,17 @@ loops: the dressed town about 1.1 s after `npm run world` warm and about 2.4 s c
 a developer following the runbook: about 90 s hands on, including the loops dialog; the measure was two minutes.
 Nicky's first run against the app itself is still to come.
 
+Round 7 (2026-10-21, the live operations road): three things done to crewhub-loops under a running host, each with
+its honest screen and a regress check that needs nobody (`tools/regress.mjs --groups ops`, over the fake): loops
+stopped and started (the Loops down chip over the last known town, the panel's "down; the host retries", Live again
+without a reload with the cursor going on), the key revoked while Live (the rejected screen over the live tab with
+loops' reason, the kept key and Forget; a new key pasted brings the town back by itself, stored by the host) and loops
+upgraded, a different `/api/health` `version` (health's `loopsCommitBefore`, the panel's "it was 0.1.0 when this host
+started", the host's log line). The `real` group checks what the development loops can show without being stopped:
+its version in health and in the panel. Rehearsed on 8291 with crewy stopping and starting it and revoking the key at
+named times (request 9); a version change on 8291 is not possible (the package version is baked into its uv
+environment), so that road is the fake's and the stub's.
+
 ## Open
 
 Everything below is planned and not built. Each item needs crewhub-loops running.

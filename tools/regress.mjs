@@ -1,9 +1,9 @@
-/* regress.mjs: the browser regression pass of the integrated world, in six groups.
+/* regress.mjs: the browser regression pass of the integrated world, in seven groups.
 
    Usage:
-     node tools/regress.mjs --port <port> [--groups connect,walk,demo,live,rooms,real] [--host-port 5180] [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--cpu-throttle <rate>] [--tag pass] [--out <dir>] [--swiftshader]
+     node tools/regress.mjs --port <port> [--groups connect,walk,demo,live,ops,rooms,real] [--host-port 5180] [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--cpu-throttle <rate>] [--tag pass] [--out <dir>] [--swiftshader]
 
-   Groups (--groups, default all six, in this order; connect first, the connection being the first priority):
+   Groups (--groups, default all seven, in this order; connect first, the connection being the first priority):
      connect the connect flow (spec addendum "a smooth connection"), 21 checks in two halves, both behind your Vite
            (started with CREWHUB_WORLD_PORT=<host-port>; apps/world/dist is never looked at here, whatever the live
            group does with it). Against the stub host of lib/connectStub.mjs, on --host-port, always: one page meets
@@ -36,6 +36,17 @@
            it on a free port and the browser opens the host directly; otherwise the host listens on --host-port
            (default 5180, Vite's default proxy target) and the browser opens your Vite, which must have been started
            with CREWHUB_WORLD_PORT=<host-port>. About half a minute.
+     ops   the live operations road (round 7): a host the tool starts on --host-port over a fake it starts itself (a
+           key store in a folder under --out, removed at the end), the browser on your Vite, and three things done to
+           loops under the running host, each with its honest screen: (a) the fake closed and reopened on its port:
+           the Loops down chip over the last known town and the panel's "down; the host retries", then Live again
+           without a reload with the key still accepted and the cursor going on; (b) the fake reopened with another
+           key (the host's key revoked while Live, a 401 from a loops whose health answers): the rejected screen over
+           the live tab with loops' reason, the kept key and Forget, the host's key state rejected; the new key
+           pasted: the town back by itself without a reload, the new key stored, neither key anywhere; (c) the fake
+           reopened with another `/api/health` version (loops upgraded): Live, health's `loopsCommit` and
+           `loopsCommitBefore`, the panel saying crewhub-loops was updated under the host. Needs nobody and never
+           touches the development loops. About a minute.
      rooms the three-room building (`?rooms=three`, whatever the viewer's Buildings setting): three room signs
            (Administration, The floor, Lead's office) and a rack sign with its count, the arrow keys between the three halls, the text view naming the
            racks and the desks with a package on each, the lead's office beacon, the agent card on a figure at a desk,
@@ -55,6 +66,8 @@
            the same loops over its Unix socket (--loops-socket, default ~/crewhub-loops-dev/run/api.sock, the
            development instance's; CREWHUB_WORLD_LOOPS_SOCKET for the host): its health says transport unix and its
            snapshot has the same projects as over TCP; skipped with an INFO line when there is no socket at that path.
+           Round 7: the host's `loopsCommit` is what that loops' own health says as `version`, and the panel names it
+           (what 8291 can show without being stopped; the stop/start, revoke and upgrade roads are the ops group's).
            Under a minute. Run it while no other host of yours is open against that loops (4 streams per key).
    --cpu-throttle <rate> slows every page's CPU that many times (the browser's own throttle): the timed checks must
    hold at 16. Besides the checks it fails on any page error, console error or request that leaves the page's own
@@ -74,8 +87,8 @@ import { cli, dressed, launch, list, problemLines, seek, speed, watch } from "./
 import { createConnectStub } from "./lib/connectStub.mjs";
 
 // The connect group first: the connection is the first priority, so a default pass fails on it first.
-const GROUPS = ["connect", "walk", "demo", "live", "rooms", "real"];
-const USAGE = "node tools/regress.mjs --port <port> [--groups walk,demo,live,connect,rooms,real] [--host-port 5180] [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--cpu-throttle <rate>] [--tag pass] [--out <dir>] [--swiftshader]";
+const GROUPS = ["connect", "walk", "demo", "live", "ops", "rooms", "real"];
+const USAGE = "node tools/regress.mjs --port <port> [--groups walk,demo,live,ops,connect,rooms,real] [--host-port 5180] [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--cpu-throttle <rate>] [--tag pass] [--out <dir>] [--swiftshader]";
 const opts = cli(USAGE, { options: { tag: "pass", groups: GROUPS.join(","), "host-port": "5180", "loops-env": "", "loops-socket": "", "loops-app-data": "", "cpu-throttle": "1" } });
 const cpuThrottle = Number(opts["cpu-throttle"]);
 if (!(cpuThrottle >= 1)) opts.fail("--cpu-throttle <rate> must be 1 (none) or more");
@@ -640,6 +653,144 @@ await group("live", async () => {
   } finally {
     await host.close().catch(() => {});
     await fake.close().catch(() => {});
+  }
+});
+
+await group("ops", async () => {
+  // 16. The live operations road (round 7): loops stopped and started, the key revoked while Live and another pasted,
+  // loops upgraded (another health version), each under a running host over the fake, each with its honest screen.
+  // The host listens on --host-port behind your Vite; the fake is reopened on its own port for every act.
+  const { createLoopsFake } = await import(pathToFileURL(path.join(REPO, "packages", "loops-fake", "src", "index.ts")).href);
+  const { createHost } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "host.ts")).href);
+  const { createKeyStore } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "keyStore.ts")).href);
+  // As the live group: with apps/world/dist built the host serves it on a free port and the browser opens the host
+  // directly (no port of yours is taken); otherwise the host listens on --host-port behind your Vite.
+  const dist = path.join(REPO, "apps", "world", "dist");
+  const served = existsSync(path.join(dist, "index.html"));
+  const hostPort = Number(opts["host-port"]);
+  if (!served && (!Number.isInteger(hostPort) || hostPort <= 0)) opts.fail("--host-port <port> must be a port number");
+  const configDir = path.join(OUT, `${tag}-ops-config`);
+  rmSync(configDir, { recursive: true, force: true });
+  mkdirSync(configDir, { recursive: true, mode: 0o700 });
+  const store = createKeyStore(configDir);
+  const fakeOptions = { heartbeatMs: 1000, version: "0.1.0+fake.ops" };
+  let fake = await createLoopsFake(fakeOptions);
+  const { port, keyName } = fake;
+  const firstKey = fake.key;
+  let lastSeq = fake.lastSeq();
+  const hostOptions = { loopsUrl: fake.url, key: firstKey, keyName, keySource: "stored", keyStore: store, pairing: "off", retryMs: { min: 100, max: 500 }, reconnectMs: { min: 100, max: 300 }, heartbeatMs: 1000, log: () => undefined };
+  const host = await createHost(served ? { ...hostOptions, staticDir: dist } : { ...hostOptions, port: hostPort, allowedOrigins: [origin] });
+  const opsOrigin = served ? host.url : origin;
+  const opsBase = `${opsOrigin}/`;
+  info(`ops: fake on 127.0.0.1:${port}, host on 127.0.0.1:${host.port} ${served ? "serving apps/world/dist" : `behind the Vite proxy on ${origin} (Vite started with CREWHUB_WORLD_PORT=${hostPort})`}, the key store under ${configDir}`);
+  const own = [];
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
+  const pg = await ctx.newPage();
+  watch(pg, opsOrigin, own, "ops");
+  const chip = pg.locator(".connection-chip").first();
+  const chipState = () => chip.getAttribute("data-connection").catch(() => null);
+  const until = async (wanted, timeout) => {
+    await pg.waitForSelector(`.connection-chip[data-connection="${wanted}"]`, { timeout }).catch(() => {});
+    return chipState();
+  };
+  const screen = (which, timeout) =>
+    pg
+      .waitForSelector(`.connect-page[data-screen="${which}"]`, { timeout })
+      .then(() => true)
+      .catch(() => false);
+  const hostApi = (p) => pg.request.get(`${opsOrigin}/world-api${p}`).then((r) => r.json());
+  /** Opens the Connection panel, reads its facts as one line and closes it with Escape. */
+  const panelFacts = async () => {
+    await chip.click();
+    await pg.waitForSelector(".connection-sheet", { timeout: 5000 }).catch(() => {});
+    const facts = (await pg.locator(".connection-facts").innerText().catch(() => "")).replace(/\s+/g, " ");
+    await pg.keyboard.press("Escape");
+    await pg.waitForTimeout(200);
+    return facts;
+  };
+  const mark = () => pg.evaluate(() => ((globalThis.__opsMarker = "set"), undefined));
+  const marked = () => pg.evaluate(() => globalThis.__opsMarker ?? null).catch(() => null);
+  const leaked = async (key) => {
+    const part = key.slice(4, 24);
+    const html = await pg.content();
+    const stored = await pg.evaluate(() => JSON.stringify(Object.entries(localStorage)) + JSON.stringify(Object.entries(sessionStorage))).catch(() => "");
+    return html.includes(part) || stored.includes(part) || pg.url().includes(part);
+  };
+  /** Polls the host's health until `test` holds, for `ms`; answers the last health read. */
+  const healthUntil = async (test, ms) => {
+    const deadline = Date.now() + ms;
+    let h = await hostApi("/health").catch(() => null);
+    while (!(h && test(h)) && Date.now() < deadline) {
+      await pg.waitForTimeout(500);
+      h = await hostApi("/health").catch(() => null);
+    }
+    return h;
+  };
+  try {
+    await pg.goto(opsBase);
+    await pg.waitForSelector("canvas", { timeout: 60000 }).catch(() => {});
+    const live0 = await until("live", 20000);
+    ok("ops: Live over the fake before anything happens", live0 === "live", `${live0}`);
+    await mark();
+
+    // (a) loops stops and starts under the host.
+    lastSeq = fake.lastSeq();
+    await fake.close();
+    const down = await until("loops-down", 20000);
+    const factsDown = await panelFacts();
+    ok("ops (a): loops stopped under the host: the Loops down chip over the last known town, the panel says the stream is down and the host retries, the key still accepted", down === "loops-down" && /down; the host retries/.test(factsDown) && /accepted/.test(factsDown), `${down}; ${factsDown.slice(0, 160)}`);
+    await shot(pg, "47-ops-loops-stopped");
+    fake = await createLoopsFake({ ...fakeOptions, port, key: firstKey, keyName, firstSeq: lastSeq });
+    const back = await until("live", 30000);
+    const healthBack = await healthUntil((h) => h.loops === "ok" && typeof h.cursor === "number", 10000);
+    ok("ops (a): loops started again: Live without a reload, the key still accepted, the cursor goes on", back === "live" && (await marked()) === "set" && healthBack?.connection?.key?.state === "ok" && healthBack?.cursor >= lastSeq, `${back}, marker ${await marked()}, key ${healthBack?.connection?.key?.state}, cursor ${lastSeq} → ${healthBack?.cursor}`);
+    await shot(pg, "48-ops-loops-back");
+
+    // (b) the key revoked while Live: the fake comes back on its port with another key, so the host's key gets 401
+    // from a loops whose health answers (a verdict), not a loops that is down.
+    lastSeq = fake.lastSeq();
+    await fake.close();
+    fake = await createLoopsFake({ ...fakeOptions, port, keyName, firstSeq: lastSeq });
+    const rejected = await screen("rejected", 30000);
+    // The screen asks the host at once for loops' reason; give that read a moment.
+    let reason = "";
+    for (let attempt = 0; attempt < 16 && !/refused the key on the event stream/.test(reason); attempt += 1) {
+      await pg.waitForTimeout(250);
+      reason = (await pg.locator(".connect-rejected").first().innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+    }
+    const forgetButtons = await pg.getByRole("button", { name: "Forget this key" }).count();
+    const healthRejected = await healthUntil((h) => h.connection?.key?.state === "rejected", 10000);
+    ok("ops (b): the key revoked while Live: the rejected screen over the live tab with loops' reason, the kept key and Forget; the host's key state is rejected", rejected && /refused the key on the event stream/.test(reason) && forgetButtons === 1 && healthRejected?.connection?.key?.state === "rejected" && healthRejected?.loops === "unauthorized", `${rejected ? "rejected screen" : `no rejected screen (chip ${await chipState()})`}; key ${healthRejected?.connection?.key?.state}; ${reason.slice(0, 100)}`);
+    await shot(pg, "49-ops-key-revoked");
+    const secondKey = fake.key;
+    await pg.getByLabel("Access key").fill(secondKey);
+    await pg.keyboard.press("Enter");
+    const liveAgain = await until("live", 30000);
+    let storedKey = "";
+    try {
+      storedKey = readFileSync(store.file, "utf8").trim();
+    } catch {}
+    const healthNew = await healthUntil((h) => h.connection?.key?.state === "ok" && h.connection?.stream?.state === "ok", 10000);
+    ok("ops (b): the new key pasted: the town is back by itself without a reload, the host stores the new key and streams with it, neither key is anywhere in the page", liveAgain === "live" && (await marked()) === "set" && storedKey === secondKey && healthNew?.connection?.key?.state === "ok" && !(await leaked(firstKey)) && !(await leaked(secondKey)), `${liveAgain}, marker ${await marked()}, stored ${storedKey === secondKey}, key ${healthNew?.connection?.key?.state}`);
+    storedKey = "";
+    await shot(pg, "50-ops-new-key");
+
+    // (c) loops upgraded: the fake comes back on its port with another health version.
+    lastSeq = fake.lastSeq();
+    await fake.close();
+    fake = await createLoopsFake({ ...fakeOptions, version: "0.2.0+fake.ops", port, key: secondKey, keyName, firstSeq: lastSeq });
+    const liveUpgraded = await until("live", 30000);
+    const healthUpgraded = await healthUntil((h) => h.loopsCommit === "0.2.0+fake.ops", 15000);
+    const factsUpgraded = await panelFacts();
+    ok("ops (c): loops upgraded under the host: Live, health says the new version and the one the host read first, the panel says crewhub-loops was updated under the host", liveUpgraded === "live" && healthUpgraded?.loopsCommit === "0.2.0+fake.ops" && healthUpgraded?.loopsCommitBefore === "0.1.0+fake.ops" && /crewhub-loops version 0\.2\.0\+fake\.ops; it was 0\.1\.0\+fake\.ops when this host started/.test(factsUpgraded), `${liveUpgraded}; ${healthUpgraded?.loopsCommitBefore ?? "no before"} → ${healthUpgraded?.loopsCommit}; ${factsUpgraded.slice(0, 160)}`);
+    await shot(pg, "51-ops-upgraded");
+    // The revoked key's 401 and the refused reads it causes are console errors in the browser, what they are meant to be.
+    problems.push(...own.filter((x) => !(x.kind === "console" && /status of (401|403|503)/.test(x.text))));
+  } finally {
+    await ctx.close().catch(() => {});
+    await host.close().catch(() => {});
+    await fake.close().catch(() => {});
+    rmSync(configDir, { recursive: true, force: true });
   }
 });
 
@@ -1224,6 +1375,14 @@ await group("real", async () => {
     } else info("real: no project has tickets, the building checks are skipped");
     const after = await hostApi("/health");
     ok("real: the host stayed on the real loops", after.loops === "ok" && typeof after.cursor === "number" && after.cursor >= snapshot.cursor, `loops ${after.loops}, cursor ${snapshot.cursor} → ${after.cursor}`);
+    // Round 7: loops' version as that loops' own health says it, in the host's health and in the panel (what 8291 can
+    // show without being stopped; the stop/start, revoke and upgrade roads are the ops group's, over the fake).
+    await chip.click();
+    await pg.waitForSelector(".connection-sheet", { timeout: 5000 }).catch(() => {});
+    const facts = (await pg.locator(".connection-facts").innerText().catch(() => "")).replace(/\s+/g, " ");
+    await pg.keyboard.press("Escape");
+    await pg.waitForTimeout(200);
+    ok("real: the host reports loops' version as its health says it, with no earlier version, and the panel names it", after.loopsCommit === health.version && after.loopsCommitBefore === undefined && facts.includes(`crewhub-loops version ${health.version}`), `${after.loopsCommit} (loops says ${health.version}); panel: ${facts.replace(/.*crewhub-loops version/, "crewhub-loops version").slice(0, 80)}`);
   } finally {
     await host.close().catch(() => {});
   }
