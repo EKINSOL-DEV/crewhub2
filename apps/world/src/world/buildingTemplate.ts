@@ -470,6 +470,17 @@ export function roomOf(template: BuildingTemplate, kind: RoomKind): TemplateRoom
   return template.rooms.find((r) => r.kind === kind) ?? template.rooms.find((r) => r.hosts.includes(kind));
 }
 
+/**
+ * Where an agent past its room's desks stands: near the middle of the back of its room (its model room's hall, else
+ * the lobby), in that room's own cells. Navigation's home for an agent without a desk, and where the building view
+ * puts its figure before its walker says: one place, so the figure never hops when the walker arrives.
+ */
+export function standingSpot(template: BuildingTemplate, kind: RoomKind | null): { room: TemplateRoom; cell: Cell } | null {
+  const room = roomOf(template, kind ?? "lobby") ?? roomOf(template, "lobby");
+  if (!room) return null;
+  return { room, cell: { x: Math.floor(room.layout.grid.width / 2), z: room.layout.grid.depth - 2 } };
+}
+
 /** The kind of the physical room a model room is in (its own, or its hall's), or null when the building lacks it. */
 export function hallOf(template: BuildingTemplate, kind: RoomKind): RoomKind | null {
   return roomOf(template, kind)?.kind ?? null;

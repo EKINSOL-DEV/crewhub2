@@ -22,6 +22,7 @@ import {
   MAX_WIDTH,
   PLOT_MARGIN,
   roomOf,
+  standingSpot,
   STATUS_ROOMS,
   wallRuns,
   type BuildingPlan,
@@ -38,6 +39,7 @@ import { ObjectLayer } from "./objectLayer";
 import { cellAt, footprintPose, resolveBuildingPlacements, type BuildingPlacements } from "./placements";
 import { PropLayer, type TownLayer } from "./propLayer";
 import { figureRole, figureState, type FigureFacts } from "./figureState";
+import { LAWN_PAVING } from "./navigation";
 import type { RobotCrowd } from "./robotCrowd";
 import { deskItems, DRESS_PREFIX, dressingSeed, isThreeRoom, lampLane, RACKS, roomDecor, type DecorItem } from "./roomDressing";
 import type { Bounds } from "./townLayout";
@@ -1064,7 +1066,12 @@ export class BuildingView {
       robot.agent = agent;
       robot.deskWaiting = agent.deskTicketKey !== null && b.objects.some((o) => o.key === agent.deskTicketKey && o.waitingOnHuman);
       const desk = this.desks.get(agent.key);
-      const seat = desk?.seat ?? this.#looseSpot(agent, loose);
+      // Without a desk: a proxy at a loose spot of its room; a real agent where navigation puts its walker (the same
+      // standing spot), so the figure stands still when the walker arrives after the first frame. The loose count
+      // runs on for both, so the proxies keep their places.
+      const looseSpot = desk ? null : this.#looseSpot(agent, loose);
+      const stand = desk || !robot.real ? null : standingSpot(this.template, agent.room);
+      const seat = desk?.seat ?? (stand ? { x: stand.room.origin.x + stand.cell.x, z: stand.room.origin.z + stand.cell.z } : looseSpot!);
       // A figure at rest far away whose state and place are what they were is left as it is: nothing to pose or move.
       const facts = `${agent.presence}|${agent.posture}|${agent.laneStatus}|${agent.alerts.length}|${robot.deskWaiting}|${seat.x},${seat.z}`;
       if (robot.resting && !this.detailed && robot.facts === facts && !robot.departing) continue;
@@ -1073,7 +1080,10 @@ export class BuildingView {
       // Seen from the town, a figure is a few pixels tall: the cast drops its small parts and shadows.
       robot.handle.setDetail(this.detailed ? "near" : "far");
       robot.departing = false;
-      robot.handle.object.position.copy(this.local(seat.x + 0.5, seat.z + 0.5, FLOOR_LIFT));
+      // A real figure stands where its walker puts it (`#follow`): on the lawn's paving, FLOOR_LIFT above it, its label
+      // anchor another FLOOR_LIFT up; a proxy, which never has a walker, on the floor as it always did.
+      const floor = robot.real ? LAWN_PAVING + FLOOR_LIFT : FLOOR_LIFT;
+      robot.handle.object.position.copy(this.local(seat.x + 0.5, seat.z + 0.5, floor));
       robot.handle.object.rotation.y = 0;
       robot.handle.setState(figureState(robot));
       // Its work place at its desk, for the near view only: the far crowd stands on the floor, as cheap as ever.
@@ -1085,7 +1095,7 @@ export class BuildingView {
       // Until its walker says otherwise it is at its place; a walker puts it where it really is.
       this.#settle(robot, undefined, true);
       const lift = this.#lift(robot);
-      const head = FLOOR_LIFT + robot.handle.anchors.label[1] * robot.handle.body.scale.y * ROBOT_SCALE + lift.y;
+      const head = floor + (robot.real ? FLOOR_LIFT : 0) + robot.handle.anchors.label[1] * robot.handle.body.scale.y * ROBOT_SCALE + lift.y;
       const anchor = this.anchors.get(`a:${b.slug}:${agent.key}`);
       if (anchor) anchor.copy(this.world(seat.x + 0.5, seat.z + 0.5, head)).add(lift.setY(0));
       else this.anchors.set(`a:${b.slug}:${agent.key}`, this.world(seat.x + 0.5, seat.z + 0.5, head).add(lift.setY(0)));

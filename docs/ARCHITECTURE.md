@@ -182,8 +182,13 @@ the world nothing suspends before the first render: the world's module is awaite
 live, the host's snapshot is asked for at once and handed to the source as its first
 read, `prefetchSnapshot`), so the first model has the town and the scene lays it out
 once; a React Suspense fallback would hold the commit for up to 300 ms (the retry
-throttle). The side pages and the Connect screens still load the world lazily. An
-imperative scene controller owns frame updates outside React. React owns
+throttle). The first layout draws the town before the navigation graph and the walkers
+exist: the scene builds them in a task of their own right after the first frame
+(`world:walks`), and until then every figure stands where its walker will start (its
+desk seat, the standing spot of an agent without a desk, the postman's post office
+cell), so nothing moves when they land; a walk, a follow or a director's intent asked
+earlier brings them at once. The side pages and the Connect screens still load the
+world lazily. An imperative scene controller owns frame updates outside React. React owns
 the accessible controls, the chat bubbles and the text view. The renderer consumes the same grid
 used for prop placement and navigation; see [GRID_ENGINE.md](GRID_ENGINE.md).
 No React Three Fiber or physics engine is needed for this slice.

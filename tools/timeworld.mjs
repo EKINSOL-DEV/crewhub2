@@ -165,7 +165,7 @@ async function run(env, browser, index) {
   projects = names.filter((n) => tv.includes(n)).length;
   at("text view read", `${projects} of ${names.length} projects named; ${/Demo mode/.test(tv) ? "DEMO MODE" : "live"}`);
   const marks = await page.evaluate(() => performance.getEntriesByType("mark").map((m) => ({ name: m.name, ms: Math.round(m.startTime) })));
-  for (const mark of marks.filter((m) => /^world:(snapshot|town-dressed)$/.test(m.name))) console.log(`  page mark ${mark.name} at ${mark.ms} ms after navigation`);
+  for (const mark of marks.filter((m) => /^world:(snapshot|first-frame|walks|town-dressed)$/.test(m.name))) console.log(`  page mark ${mark.name} at ${mark.ms} ms after navigation`);
   const nav = await page.evaluate(() => {
     const n = performance.getEntriesByType("navigation")[0];
     return n ? { responseEnd: Math.round(n.responseEnd), domContentLoaded: Math.round(n.domContentLoadedEventEnd), load: Math.round(n.loadEventEnd) } : null;
