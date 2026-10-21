@@ -46,7 +46,7 @@ within 1.5 s, else demo; `?source=live|demo` overrides).
 | `packages/world-model` | Projection, `reduceWorld`, `describeWorld` (text view), town document, catalogue, director intents, `where`, the agent card's facts, the quiet facts and the board cards (`board.ts`); it never knows which source feeds it |
 | `packages/world-engine` | Grid, footprints, placement, pathfinding, the prop format (`crewhub-prop/1`) and its validator |
 | `packages/world-style`, `packages/style-greenhouse`, `packages/world-cast`, `packages/cast-*` | The style and cast seams and their data ("World styles" below) |
-| `apps/world` | The browser app: Three.js town and building scenes, the minimal UI, the chat bubbles mirrored from crewhub-loops, the `useWorld` seam, the Connect screens and the Connection panel |
+| `apps/world` | The browser app: Three.js town and building scenes, the minimal UI, the chat bubbles mirrored from crewhub-loops, the `useWorld` seam, the Connect screens and the Connection panel, the dust on a quiet package (`dust.ts`, the object layer) |
 | `apps/host` | The relay to crewhub-loops ("The host" below) |
 
 Data flow, the same in both modes:
@@ -85,7 +85,10 @@ One Node process, no dependency beyond Node, loopback only. Its parts, each a fi
   the loops web's words. A verdict on the key needs a definite 401 or 403 from a loops
   whose health answers; a timeout, a refused connection or a 5xx is `down` and the key
   stays `unchecked` or `ok`. A rejected stored key is kept with its reason until a person
-  pastes another or forgets it. The stored key is written whole, 0700/0600, never logged
+  pastes another or forgets it; while it waits the host leaves loops alone (no stream retries)
+  and asks about the kept key every 5 min, a keyless health probe first and at most one probe
+  a minute (`RECHECK_MS`; health's `key.recheckAt` says when), so a bot re-enabled in loops
+  comes back by itself (round 8). The stored key is written whole, 0700/0600, never logged
   or echoed (tests grep every response and log line).
 - **The connect routes** (`host.ts`): `POST /world-api/connect {key}` from a paired browser
   on an allowed origin checks the key, stores it and switches the host to it without a
@@ -100,7 +103,16 @@ One Node process, no dependency beyond Node, loopback only. Its parts, each a fi
   first, then projects, boards, principals, agents, team, watchdog, milestones and
   releases, the archived projects from the event log), paged lists followed to the end,
   the reads in parallel under a cap of 6 in the projects' order, timed and counted; the
-  host's own principal is named as the `observer` so the world does not draw it. The
+  host's own principal is named as the `observer` so the world does not draw it. Since round
+  9 the snapshot also carries what only the log holds (`readLogFacts`, the picking shared with
+  the demo in `loops-client/src/logFacts.ts`): the open quiet stretches and the latest
+  automation runs, read from `GET /api/events?types=ticket.quiet,automation.ran` in a window
+  of 20 000 seqs before the cursor (at most 20 pages of 500), bounded to the open tickets in
+  planned, in progress and review, then the ticket and comment events from the oldest
+  candidate on, a stretch dropped when a person or an agent touched the ticket since (a
+  `system` row never ends one, as loops' own `people_activity` rule says); the facts travel as
+  the envelopes they are (`quiet`, `automationRuns`), the step line says "from the log 2
+  quiet, 3 runs", and past the page cap no quiet is handed over, the runs read so far are. The
   archived slugs it learnt are remembered in `<config dir>/archived.json` (0600), so a
   loops that will not read its log from the start still shows its closed buildings on the
   next start; health's `connection.archived` says where the list came from.
@@ -153,7 +165,13 @@ back (chip word "Pair again") and the town returns by itself when a new link is 
 refusing the host's key after the town was up (revoked, its bot disabled: `unauthorized`)
 brings the Key rejected screen with loops' reason, the kept key, "Forget this key" and a
 field, and a new key pasted makes the host switch and the town return without a reload (round
-7). The runbook's chip and screen table is [LOOPS_SETUP.md](LOOPS_SETUP.md), section 5.
+7); the screen says when the host asks loops about the kept key again. For a screen reader
+(round 8) the Connect page has one sr-only live region that says each screen once as it
+arrives and the answer to a pasted key, the panel's facts are a definition list with the
+ticking "Updated" line not live, and the page's own status region says a connection change
+over the town once ("Connection: Stream busy. Another host or tab uses this key…"), never on
+load; links that open a new tab say so; `tools/a11y.mjs` asks a headless browser for all of it.
+The runbook's chip and screen table is [LOOPS_SETUP.md](LOOPS_SETUP.md), section 5.
 
 ## World styles
 
@@ -221,9 +239,11 @@ No React Three Fiber or physics engine is needed for this slice.
 [`tools/`](../tools/README.md) holds the scripts that open the running world in a headless browser: the browser
 regression pass (`regress.mjs`, seven groups: the connect flow against a stub host, the demo walk, the demo's
 wayfinding, picker and the new loops events, live mode against the fake with pairing, the operations road over the
-fake (loops stopped, the key revoked, loops upgraded under the host), the three-room building, 108 checks offline,
-plus up to 16 against the real development crewhub-loops: the connect flow through a keyless host, and live mode
-over TCP and the socket with loops' version), the frame and memory measurements (`perf.mjs`, `memory.mjs`, in demo
+fake (loops stopped, the key revoked, loops upgraded under the host), the three-room building, 114 checks offline,
+plus up to 18 against the real development crewhub-loops: the connect flow through a keyless host, and live mode
+over TCP and the socket with loops' version and the log's quiet facts in a fresh tab), the accessibility pass
+(`a11y.mjs`: what a screen reader is given on every Connect screen, the panel and the town's labels, the keyboard,
+contrast, a phone, reduced motion), the frame and memory measurements (`perf.mjs`, `memory.mjs`, in demo
 and live mode), the first paint's CPU profile resolved to source files (`profile.mjs`), the time from `npm run
 world` to the dressed town (`timeworld.mjs`), and the screenshot helpers (`shots.mjs`, `castshots.mjs`, `castworld.mjs`,
 `connectshots.mjs`, `liveshots.mjs`). Two are not browser checks: `loops-seed.mjs` replays the demo storyline into
@@ -271,13 +291,17 @@ response and event at runtime, bound buffers, and keep rendering independent of 
 frequency. The differences found on the wire are in [LOOPS_REAL_VS_FAKE.md](LOOPS_REAL_VS_FAKE.md).
 
 Three event types loops added since `053b5f47` are shown since round 7, each as a small presence that moves no
-ticket and no agent: `ticket.quiet` lays dust and a clock tag ("quiet 30 min") on the package until a person or an
+ticket and no agent: `ticket.quiet` lays dust on the package and a clock tag ("quiet 30 min") until a person or an
 agent next changes the ticket (a change by `system`, an automation answering the quiet fact 6 ms later on the
-development loops, leaves the dust; a snapshot starts the quiet facts afresh); `automation.ran` pins a card on the
+development loops, leaves the dust); the dust is the object layer's, not the style's (round 9, `dust.ts`): an unlit
+grey veil in the style's own colours over the whole package, so it reads as grey among cream ones at the hall's
+zoom, and a few motes drifting before its face in wall time, none under reduced motion. A snapshot starts the quiet
+facts afresh and, since round 9, carries the open stretches and the latest runs read from the log ("The host"
+above), so a fresh tab, a seek in the demo and a reconnect show the dust and the cards; `automation.ran` pins a card on the
 building's board by the front door for 8 s of source time, queued four at most, a failure said in words, and the
 text view keeps the last runs as lines; `owner-request.updated` is served to the owner person only, so the world's
 key never receives it, and the world knows the type and draws nothing. The demo's storyline and the fake emit them
-the loops way (actor `system`), and 17 regress checks cover them.
+the loops way (actor `system`), and 23 regress checks cover them (the three of round 9 seek to a fresh snapshot).
 
 ## Local access (built)
 
