@@ -86,5 +86,15 @@ the breadcrumb and the labels follow the figure, while the frame does not jump: 
 under a follow. The breadcrumb shows "Following <name>" with a stop control. A drag, Escape, Shift+F, the stop
 control, a jump or entering a building by hand stops following; so does the figure leaving the world.
 
+## Chat
+
+In live mode the card's **Chat** button ("Chat with <name>" to a screen reader) opens the world's Chat panel
+(`components/ChatPanel.tsx`): crewhub-loops' own chat, framed from the loops web app the host names, titled "Chat with
+<name>". Loops cannot be told from outside which chat to open (its open-chat event is in-page), so the panel says which
+chat head to open in loops' dock, what it needs (signed in to loops as a person in this browser, chat bubbles on), and
+links to the app as the fallback. The frame's sandbox and the reasons for each token are in `state/chatPanel.ts`.
+The panel's close button, or Escape while the focus is outside the frame, returns the focus to the card's button. The
+demo's card has no Chat button: the demo's chat is its own scripted dock.
+
 Calm-label rules hold: the card replaces the selected agent's nameplate, nothing else changes; the town and the
 building keep their quiet signs.

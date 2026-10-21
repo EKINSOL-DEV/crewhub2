@@ -943,3 +943,49 @@ real work could be mistaken for real behaviour (the demo labels it; live would n
 intent and in the text view), and whether it is worth it before the real director.
 Recommendation: build it only with that label and only off by default; else wait for the real director.
 Built that way in round 11 (see the status line above); the real director stays on the roadmap.
+
+## Addendum: chat with the agents (2026-10-21, round 12, from the user: the first requirement)
+
+The person chats with the agents from the world, and **the UI may be exactly crewhub-loops' own**. Two roads: road A
+is built in round 12; road B is written down here and not built in that round.
+
+**What loops offers (4cdcd383, checked in the source).** The chat is the bubbles overlay (`apps/web/src/components/
+bubbles/Bubbles.tsx`): chat heads in a dock, mounted in the app shell for admins when the `bubbles` feature is on.
+There is no DM page route; a chat opens by an in-page `CustomEvent("crewhub:open-chat", { agentId })`
+(`bubbles/queries.ts`), which a cross-origin parent cannot send. Sending a message (`POST /api/dm/threads/{agent}/
+messages`) is the owner's (AdminDep); a key reads only the threads it is part of, so the world's external-bot key never
+sees the person's chats. The session cookie is HttpOnly and `SameSite=Lax` (`api/routers/auth.py`); nothing in the
+API or the web sets `X-Frame-Options` or `frame-ancestors`. The world on `127.0.0.1:<port>` and loops on
+`127.0.0.1:8091` are one site (the port does not count), so a Lax cookie travels into a frame.
+
+**Road A (built): the Chat panel frames loops' own web app.** A panel of the world (a sheet at the right; the whole
+screen on a phone, as loops' own chat is below its narrow width) holds an `<iframe>` on the root of the loops web app
+the host names (`health.loopsWebUrl`, origin only): the app shell with its chat dock, which at the panel's width is
+loops' "Agent chats" menu. The person is signed in to loops in the same browser, so the frame carries their session;
+signed out, loops' own sign-in shows inside the frame. **The world handles no password and keeps no session.** The panel
+opens from the Chat chip (the live town's chat corner) and from an agent's card ("Chat with <name>"); the agent cannot be
+preselected (the open-chat event is in-page), so the panel says which chat head to open. Its words are honest: this is
+crewhub-loops' own chat; open <name>'s head in the dock; it needs you signed in to loops as a person in this browser
+with chat bubbles switched on in loops; the world handles no password. The link "Open in the crewhub-loops app" (a new
+tab) is always there: the fallback for a frame that never loads, the day loops refuses framing. The frame's `sandbox`
+is no wider than the chat needs (`state/chatPanel.ts` says each token's reason): `allow-same-origin` (the cookie and
+loops' storage), `allow-scripts`, `allow-forms` (sign-in, compose), `allow-popups` and
+`allow-popups-to-escape-sandbox` (a link in a message opens a real tab), `allow-downloads` (attachments); never
+`allow-top-navigation` (loops cannot navigate the world away) or `allow-modals`; `allow="clipboard-write"` only.
+Escape closes the panel while the focus is outside the frame (a key pressed inside a cross-origin frame never reaches
+the world; the panel says so), the close button always; the focus returns to the opener. The text view says where chat
+lives. The demo keeps its own scripted chat (the copied dock); the demo's card has no Chat button.
+Checks: the pure parts in `apps/world/test/chatPanel.test.ts`; the regress `live` group frames a stub loops web page
+(`tools/lib/loopsWebStub.mjs`, which records that it was fetched as a frame) and checks the src, the words, the link, the
+sandbox, Escape and the focus, the card road and the phone; `tools/liveshots.mjs --views chat` shows the panel against
+a real loops (its sign-in, in a headless browser that is signed in nowhere); `tools/a11y.mjs` checks the chip, the
+dialog and the focus.
+A loops-side `?chat=<agent>` parameter (asked for separately) would let the panel open the right head: one line in
+`chatFrameUrl`.
+
+**Road B (not built): bubbles in the world, the world as the person.** A bubble over boing's figure when boing answers
+needs the person's view of the `dm.*` events, which the bot key never gets. In order of honesty: a loops-side feed for
+the viewer key scoped to the owner (or CORS for the world's loopback origin), or the host signed in as the person once
+(a Sign-in step on the Connect screen; the host keeps only the session cookie, 0600, next to the key, never the
+password, never logged; reads only, DM only; honest states). Polling the frame is not a road. Written in the round's
+direction; a track of its own once its addendum is written.

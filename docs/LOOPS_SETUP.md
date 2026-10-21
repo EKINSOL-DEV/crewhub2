@@ -150,7 +150,7 @@ The host reads these; every one has a default that matches the app.
 | `CREWHUB_WORLD_LOOPS_URL` | none: found | Where crewhub-loops answers, over loopback TCP. Unset (and no socket), the host finds the app by itself: the socket `<data>/run/api.sock` when it exists and answers `GET /api/health`, else `http://127.0.0.1:<port>` with the port from `<data>/settings.json` (default 8091), where `<data>` is the app's data folder `~/Library/Application Support/be.ekinsol.crewhub` (read only, never written). Nothing found: it looks again every 5 s, so opening the app later needs no restart. Set it only for another install. |
 | `CREWHUB_WORLD_LOOPS_APP_DATA` | the app's data folder | The folder the discovery reads (`settings.json`, `run/api.sock`). For tests and the development instance (`~/crewhub-loops-dev`, section 7); never point it anywhere the host should not read. |
 | `CREWHUB_WORLD_LOOPS_SOCKET` | none | The path of the app's Unix socket (`~/Library/Application Support/be.ekinsol.crewhub/run/api.sock`; `~/` is the home folder): the host then reads loops over the socket instead of TCP (`node:http` with `socketPath`, Host `127.0.0.1`), same allow-list, same stream, same timeouts. Explicit only; the path must exist and be a socket when the host starts (so open the app first), else a clear error; set together with `CREWHUB_WORLD_LOOPS_URL` it is a configuration error. `--loops-socket <path>` on the command line is the same. The health read says `transport: "unix"` or `"tcp"`. |
-| `CREWHUB_WORLD_LOOPS_WEB_URL` | the URL's origin, or the port found | Where the chat chip ("Chat: in the crewhub-loops app") and the card's ticket links go (`loopsWebUrl`). A socket has no origin: with `CREWHUB_WORLD_LOOPS_SOCKET` the default is `http://127.0.0.1:8091`; the development instance names `http://127.0.0.1:8291`. |
+| `CREWHUB_WORLD_LOOPS_WEB_URL` | the URL's origin, or the port found | Where the Chat panel's frame and its "Open in the crewhub-loops app" link, and the card's ticket links, go (`loopsWebUrl`). A socket has no origin: with `CREWHUB_WORLD_LOOPS_SOCKET` the default is `http://127.0.0.1:8091`; the development instance names `http://127.0.0.1:8291`. |
 | `CREWHUB_WORLD_KEY_FILE` | none | The key the host sends as `Authorization: Bearer`, read once, never logged, never in a response or the bundle (a test checks). Unset, the host reads its own stored key `~/.config/crewhub-world/loops-key` (what the Connect screen saved), then the old default `~/.config/crewhub-loops/secrets/agent-crewhub-world.key`; none of them: the host starts without a key and the world shows Connect. A configured file that cannot be read is an error, never a fallback. There is no builder-key fallback any more. |
 | `CREWHUB_WORLD_CONFIG_DIR` | `~/.config/crewhub-world` | The host's own folder: the stored key lives here (folder 0700, file 0600). Tests and developers point it elsewhere. |
 | `CREWHUB_WORLD_PORT` | `5180` | The host's own port, bound to `127.0.0.1` only. |
@@ -215,10 +215,12 @@ paired on `127.0.0.1:5173` too. Either open the link as printed, or ask for one 
 The source setting is `auto` by default: Live when a host answers `/world-api/health` within 1.5 s, else Demo.
 `?source=live` or `?source=demo` overrides it; Settings > Source shows the choice, the host URL and why the source was
 chosen, and changing it reloads the page (the source is decided once, before the world starts). In live mode the
-Demo chip, the scenario picker and the playback bar are hidden, the chat corner is one chip, "Chat: in the
-crewhub-loops app", which opens the loops web app in a new tab (the world's own chat is phase 2 and needs CORS in
-loops, L8), and the connection chip sits where the Demo chip was. The
-text view says the same.
+Demo chip, the scenario picker and the playback bar are hidden, the chat corner is one chip, "Chat", which opens the
+Chat panel: crewhub-loops' own chat, framed in the world (round 12; also "Chat with <name>" on an agent's card). The
+frame carries your own loops session (sign in to loops in this browser as a person, with chat bubbles switched on in
+loops); signed out, loops' own sign-in shows in the frame, and the world never sees a password or a session. The
+panel says which chat head to open (loops cannot be told which from outside) and always links to the app, the fallback
+for a frame that never loads. The connection chip sits where the Demo chip was. The text view says where chat lives.
 
 Zones: every live project sits in the default zone until crewhub-loops has project groups (L22); zones drawn by
 hand in build mode are kept in the live town document of this installation (one per crewhub-loops web app the host
@@ -415,10 +417,12 @@ development instance that another developer tests against.
   once next to the world's address and a button that opens the world, so steps 2 and 3 above become one dialog:
   worked out on the same branch on 2026-10-21 (web only, on top of the viewer flag), a proposal until loops accepts it.
   The key is still pasted in the world's Connect screen; nothing hands it to the host behind the person's back.
-- **The chat** (phase 2) needs CORS in crewhub-loops (L8). There is still no `Access-Control-Allow-Origin` anywhere
-  in `loops:.../api/security.py`; `CHL_ALLOWED_ORIGINS` feeds the Host/Origin guard only. A bearer key must never
-  reach a browser and the person's session is an HttpOnly cookie, so the relay is the way for data and the chat stays
-  out.
+- **The chat** is loops' own, framed in the Chat panel (round 12, road A of the spec addendum "chat with the
+  agents"): the person's session cookie (`SameSite=Lax`, one site on 127.0.0.1 whatever the port) travels into the
+  frame, and nothing in loops sets `frame-ancestors` or `X-Frame-Options`. What is still out: **bubbles over the figures
+  when an agent answers** (road B), because the world's bot key never sees the person's DM threads and there is still no
+  `Access-Control-Allow-Origin` anywhere in `loops:.../api/security.py` (`CHL_ALLOWED_ORIGINS` feeds the Host/Origin
+  guard only): that needs a loops-side feed for the viewer key, or the host signed in as the person.
 - **Pending delegations** need the owner's session, not a key: out.
 - **Project groups** (L22): zones live in the browser until crewhub-loops offers them, or until the host's world
   database keeps them per installation (the roads are in the spec addendum of round 7; the per-browser road is what
