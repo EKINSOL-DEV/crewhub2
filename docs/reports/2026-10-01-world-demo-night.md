@@ -1205,6 +1205,45 @@ ends at `7ffcb46` in the merge worktree (parked while Nicky uses the checkout), 
   empty-plans line says when nobody can be moved, and why. Round 12 then ends at `4722c7b` with 810 tests and the
   browser pass at 155 of 155.
 
+## Round 13: small and safe (2026-10-21, late evening)
+
+One developer. A card's Chat button only for an agent crewhub-loops' chat dock can open: loops lists enabled agents of
+its own role `lead`, so loops' role decides, not the world's role words. Any other card says why ("crewhub-loops chats
+with leads only") and offers its lead's chat. Two Chat pictures went into the introduction. `5b6b7a3`, 812 tests.
+
+## Round 14: the real bubble, and what it showed (2026-10-21, late evening)
+
+crewy proved the bubble on a real crewhub-loops: on the second development loops (8292, the viewer key, dispatch
+open), crewhub-lead's reply showed as a bubble over its figure inside Inbox, with no sign-in, and a click opened its
+chat on `/?chat=crewhub-lead`. One developer then fixed what the proof showed:
+
+- the Connection panel, the Chat panel and the text view now say the same thing per road;
+- an answer gets a line in the text view;
+- the bubble wraps to three lines clear of the name, and its spoken name has no double full stop;
+- a chat mark stands over the building from the town while a bubble lives inside, and opens it.
+
+Loops answers 200, not 201, to a DM reply. `e2cd5d0`, 817 tests, the browser pass at 162 of 162.
+
+## Round 15: Nicky's decisions (2026-10-21 late evening to 2026-10-22, past midnight)
+
+Nicky answered the ten decisions of the night document. Four developers built them, three at a time, plus one merge by
+the Lead.
+
+- **"Where is …?" in the third person** for a name a person picks; the second person only for an agent asking about
+  itself.
+- **The viewer key, prepared.** The Connect screen, the Key row and the setup docs say what a viewer key changes. The
+  plan to drop the chat sign-in once loops' viewer key lands is written where the sign-in lives; nothing removed yet.
+- **Tooling.** fsevents' install scripts are denied, so `npm ci` is quiet. vite 8.3.4 clears `npm audit`, and the
+  town loads in 11 JS requests instead of 19. `npm test` has a per-test timeout.
+- **The Object3D cut, pixel-identical.** A model is one node holding its parts as data, and the batchers read them
+  straight from it. 98 picture pairs (light and dark, desktop and phone) differ in 0 pixels. The objects made before
+  the town is dressed are halved, and 12 ms come off the warm start.
+- **The soft wall tint.** The outer walls take a third of the project colour; a colour close to chalk gets a floor of
+  difference. Archived buildings keep their boarded look, and labels stay at 8.5:1 or better.
+
+The merge order kept the Object3D cut's pixel proof apart from the tint. One merge failed the full check on a test the
+track had not run; it was undone, fixed and merged again. `92f4a91`, 829 tests, the browser pass at 162 of 162.
+
 ## Challenges with docs/integrators
 
 Read at crewhub-loops `a1bed0f`. Each item names the document, what was unclear, contradictory, missing or marked
