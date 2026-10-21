@@ -409,14 +409,15 @@ realises a look inside is its own business.
 
 ## Casts
 
-Status: implemented on the demo branch (2026-10-05). A cast is the set of figures that stand for agents, the postman
-and the town-hall agents. It is swappable apart from the style, through its own contract and registry. Loading a cast
-from outside the repository and an agent choosing its own figure are **not built**.
+Status: implemented on the demo branch (2026-10-05; the person since 2026-10-21). A cast is the set of figures that
+stand for agents, the postman and the town-hall agents, and since 2026-10-21 the one figure that is no agent: the
+person (see "The person" below). It is swappable apart from the style, through its own contract and registry. Loading
+a cast from outside the repository and an agent choosing its own figure are **not built**.
 
 | Piece | Where | What it is |
 | --- | --- | --- |
 | Contract and runtime | `packages/world-cast` (`@crewhub/world-cast`) | The types (`Cast`, `FigureHandle`, `FigureKit`, the two data formats), the validators, the generic figure runtime (`createCast`), a plain reference kit and the contract check. It knows no style and no cast. |
-| A cast | `packages/cast-<id>` | `cast.json`, `figure.json` and an `index.ts` of a few lines that exports them as `cast`. Code only where data cannot say it. |
+| A cast | `packages/cast-<id>` | `cast.json`, `figure.json`, optionally `person.json`, and an `index.ts` of a few lines that exports them as `cast`. Code only where data cannot say it. |
 | Registry | `apps/world/src/world/castRegistry.ts` | Casts register by manifest; `extends` resolves here; a choice resolves to a cast id. |
 | Registration | `apps/world/src/world/cast.ts` | The only module outside the cast packages that imports a cast: one import and one `registerCast` line each. |
 
@@ -520,6 +521,34 @@ A cast that sets `extends` in its manifest re-dresses another cast: its `figure.
 that recolours, drops and adds parts and may replace poses, motions, looks, colourways and anchors. The rig is the
 base's. The registry applies the patch; the cast never imports its base.
 
+### The person: a figure that is no agent
+
+Since 2026-10-21 a person walks in the world: the owner who carries a finished package to the Done rack (spec
+addendum "a person in the world"), and walk mode's visitor ("You"). Before, the person was the cast's plain worker,
+so in the default cast a person read as one more robot carrying a box. Now **each cast brings a person figure of its
+own**, in the cast's language but clearly not an agent: no screen face, no antenna, no growth or plant, softer
+proportions, plain clothes in muted colours, no project colour, no role. Small, soft and readable from the
+orthographic camera, like the rest of the Greenhouse figures.
+
+- **Data**: `person.json` in the cast package, a `crewhub-figure/1` with a rig of its own (or a
+  `crewhub-figure-patch/1` over the person of the cast this one `extends`, the way the overgrown bots re-dress the
+  classic person into a gardener with a straw hat). The factory exports it as `person` next to `figure`.
+- **Contract**: `Cast.person({ key })` builds it; the key (the principal id, or `visitor`) seeds the clothes, so the
+  same person dresses the same on every load. `Cast.hasPerson` says whether the cast brought one. **A cast without
+  `person.json` falls back to its plain worker without a project colour** (today's behaviour), so a fifth cast needs
+  no person to register. `validatePerson` refuses person data that wears `accent` or `soft:accent` anywhere, limits
+  parts to `roles` or gives a colourway a lead's or roles' colour, or brings a `perch`: a person never sits at a desk.
+  The contract test holds the person to the same anchors, states (every activity, near and far, batchable far) and
+  budget as the roles; it is not put at the work places.
+- **Who draws it**: the entered building's person figure (`buildingView.ts`, picked as a person, never as an agent)
+  and the visitor (`TownScene.ts`) call `cast.person`. The casting room stands a `Person` beside the roles; in "carry
+  on" they idle or hold a package, never work, block or stall.
+- **The four casts**: the classic person is a cream-faced figure with a hair cap, a jumper in sage, mist or clay and
+  slate trousers; the overgrown person is the gardener, the classic one in oat, rain or celadon under a straw hat with
+  a leaf in the band; the sprouts' person has the sprouts' cheeks, dot eyes with glints and brown legs, a tunic in the
+  seed tones and a bun; the potlings' person is the potter in a headscarf with a knot at the back, a glazed tunic and
+  a clay-dusted apron.
+
 ### Perches: how a small figure reaches its work
 
 A sprout or a potling is too small to see the screen on a desk. Figures do not grow and desks do not shrink: **each
@@ -608,9 +637,10 @@ perch". The casting room's scene "At the desk" shows one desk from close by, per
 ### Adding a cast
 
 1. Copy a cast folder to `packages/cast-<id>` and give it its id and name in `package.json` and `cast.json`.
-2. Edit `cast.json` (colours, budget) and `figure.json` (with a `perch` if the figure cannot see over a desk).
+2. Edit `cast.json` (colours, budget) and `figure.json` (with a `perch` if the figure cannot see over a desk), and
+   `person.json` if the cast draws a person of its own (without one its plain worker stands in for the person).
    `index.ts` stays as it is:
-   `import figure from "../figure.json" with { type: "json" }` and `export const cast = { manifest, figure }`.
+   `import figure from "../figure.json" with { type: "json" }` and `export const cast = { manifest, figure, person }`.
 3. Add `"@crewhub/cast-<id>": "0.0.0"` to `apps/world/package.json`, run `npm install`, and add one import and one
    `registerCast` line to `apps/world/src/world/cast.ts`.
 4. Run `npm test`. The cast shows in Settings and in the casting room.
@@ -638,7 +668,9 @@ cast).
   the table, on its perch if it needs one; a figure on its perch still fits the budget, step and all.
 - Decide meaning. Roles, states and where a figure stands come from the world model; a cast only draws them. Status
   is never colour alone: a pose, a part or the halo carries it too.
-- Draw a human, or copy a franchise's characters.
+- Draw an agent as a human, or copy a franchise's characters. The person (`person.json`) is the one figure that
+  stands for a person: soft and stylised like the rest of the cast, never a realistic human, and never an agent's
+  look (no screen face, no antenna, no growth, no project colour).
 
 ### Later, not built: an agent choosing its own figure
 

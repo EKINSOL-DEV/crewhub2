@@ -21,7 +21,8 @@ export interface Spot {
 export interface CastMember {
   /** The agent key: seeds colourways and rhythms, the same on every load. */
   key: string;
-  role: CastRole;
+  /** A cast role, or the person: the owner in plain clothes (`Cast.person`), no role and no desk. */
+  role: CastRole | "person";
   name: string;
   accent: PaletteName | null;
   /** Where it stands or sits when it is not walking. */
@@ -61,7 +62,7 @@ export const LEAD_DESK = { x: 9, z: 7 };
 /** The desk the "At the desk" scene looks at closely: the first worker's. */
 export const CLOSE_DESK = "cast:worker-ada";
 
-/** Every role stands in the room; three workers, so colourways and the line behind the lead show. */
+/** Every role stands in the room, and the person; three workers, so colourways and the line behind the lead show. */
 export const MEMBERS: readonly CastMember[] = [
   { key: "cast:lead", role: "lead", name: "Lead", accent: ROOM_ACCENT, home: seat(LEAD_DESK.x, LEAD_DESK.z), follows: false },
   { key: "cast:worker-ada", role: "worker", name: "Worker", accent: ROOM_ACCENT, home: seat(1, 3), follows: true },
@@ -72,6 +73,7 @@ export const MEMBERS: readonly CastMember[] = [
   { key: "cast:unknown", role: "unknown", name: "Unknown", accent: ROOM_ACCENT, home: { x: 3.4, z: 7.1, heading: -0.5 }, follows: false },
   { key: "cast:postman", role: "postman", name: "Postman", accent: null, home: { x: 12.8, z: 7.7, heading: -0.3 }, follows: false },
   { key: "cast:operator", role: "operator", name: "Operator", accent: null, home: { x: 13.1, z: 0.8, heading: -0.4 }, follows: false },
+  { key: "cast:person", role: "person", name: "Person", accent: null, home: { x: 7.6, z: 8.8, heading: -0.25 }, follows: false },
 ];
 
 /** The room's furniture: four desks under the window, the lead's desk, one more desk, and a sofa corner. */
@@ -235,6 +237,9 @@ const OWN_WAYS: readonly FigureState[] = [
   state("working", { alert: true }),
 ];
 
+/** What the person draws from: a person never works, blocks or stalls here; now and then they hold a package. */
+const PERSON_WAYS: readonly FigureState[] = [state("idle"), state("idle"), state("idle", { carrying: true })];
+
 /**
  * A member's state in "carry on" at `seconds`: each holds a state for its own 4 to 8 seconds and then draws the next,
  * seeded by its key, so the room never changes in step and looks the same on every load.
@@ -243,7 +248,8 @@ export function carryOnState(member: CastMember, seconds: number): FigureState {
   const seed = hash(member.key);
   const hold = 4 + (seed % 41) / 10;
   const turn = Math.floor((seconds + (seed % 97) / 10) / hold);
-  return OWN_WAYS[hash(`${member.key}:${turn}`) % OWN_WAYS.length]!;
+  const ways = member.role === "person" ? PERSON_WAYS : OWN_WAYS;
+  return ways[hash(`${member.key}:${turn}`) % ways.length]!;
 }
 
 /** The state a member shows: walking on the loop wins; "carry on" draws its own; else the chosen state. */

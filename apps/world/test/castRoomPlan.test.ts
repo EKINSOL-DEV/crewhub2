@@ -22,8 +22,16 @@ import {
 
 const inside = (p: { x: number; z: number }) => p.x > 0 && p.x < ROOM.width && p.z > 0 && p.z < ROOM.depth;
 
-test("every role stands in the room, each member on its own spot inside the walls", () => {
+test("every role stands in the room, and the person, each member on its own spot inside the walls", () => {
   for (const role of CAST_ROLES) assert.ok(MEMBERS.some((m) => m.role === role), `no ${role} in the room`);
+  const person = MEMBERS.find((m) => m.role === "person")!;
+  assert.ok(person && person.accent === null && !person.follows, "the person wears no project colour and follows no lead");
+  // In "carry on" a person idles or holds a package; they never work, block or stall.
+  for (let seconds = 0; seconds < 120; seconds += 0.5) {
+    const s = carryOnState(person, seconds);
+    assert.ok(s.activity === "idle" && !s.waiting && !s.alert && !s.proxy, `the person at ${seconds} s: ${s.activity}`);
+  }
+  assert.ok([0, 10, 20, 30, 40, 50, 60, 70, 80, 90].some((seconds) => carryOnState(person, seconds).carrying), "now and then a package");
   assert.equal(new Set(MEMBERS.map((m) => m.key)).size, MEMBERS.length);
   const spots = new Set(MEMBERS.map((m) => `${m.home.x},${m.home.z}`));
   assert.equal(spots.size, MEMBERS.length);

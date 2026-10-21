@@ -85,3 +85,62 @@ test("one cast instance per style; an unknown id draws the fallback with one war
   r.registerCast({ manifest: manifest("loop-b", { extends: "loop-a" }), figure: { format: "crewhub-figure-patch/1" } });
   assert.equal(r.castFor(style, "loop-a").manifest.id, "pegs", "a cast that extends in a circle draws the fallback");
 });
+
+/* ── The person ───────────────────────────────────────────────────────── */
+
+const person: FigureSpec = {
+  format: "crewhub-figure/1",
+  joints: [{ id: "body", position: [0, 0.2, 0] }],
+  parts: [
+    { id: "coat", joint: "body", shape: "cylinder", size: [0.15, 0.5, 0.18], position: [0, 0.25, 0], color: "slot:coat" },
+    { id: "head", joint: "body", shape: "sphere", size: [0.15, 0.16, 0.15], position: [0, 0.6, 0], color: "wood" },
+  ],
+  poses: {},
+  motions: {},
+  colorways: { coat: { others: ["wood"] } },
+  anchors: { label: [0, 1, 0], carry: [0, 0.4, 0.2], ground: 0.2, height: 0.9 },
+};
+const meshes = (handle: { object: { getObjectsByProperty(name: string, value: string): unknown[] } }) => handle.object.getObjectsByProperty("type", "Mesh").length;
+
+test("a cast without a person draws its plain worker for one; a cast with person.json draws that", () => {
+  const { r } = registry();
+  r.registerCast(pegs);
+  r.registerCast({ manifest: manifest("people-pegs"), figure, person });
+  const plain = r.castFor(style, "pegs");
+  assert.equal(plain.hasPerson, false);
+  assert.equal(r.personOf("pegs"), null);
+  assert.equal(meshes(plain.person({ key: "visitor" })), 3, "the peg, the shadow and the halo: the plain worker");
+  const people = r.castFor(style, "people-pegs");
+  assert.equal(people.hasPerson, true);
+  assert.equal(r.personOf("people-pegs"), person);
+  assert.equal(meshes(people.person({ key: "visitor" })), 4, "coat, head, the shadow and the halo");
+});
+
+test("a person is inherited down the extends chain, re-dressed by a person patch, and refused when it breaks", () => {
+  const { r, warnings } = registry();
+  r.registerCast({ manifest: manifest("people-pegs"), figure, person });
+  // A re-dress without a person of its own wears its base's person; one with a patch re-dresses it.
+  r.registerCast({ manifest: manifest("mossy-people", { extends: "people-pegs", colors: { moss: { day: "#49634f", lamplight: "#49634f" } } }), figure: { format: "crewhub-figure-patch/1" } });
+  r.registerCast({
+    manifest: manifest("hatted-people", { extends: "mossy-people", colors: { moss: { day: "#49634f", lamplight: "#49634f" } } }),
+    figure: { format: "crewhub-figure-patch/1" },
+    person: { format: "crewhub-figure-patch/1", recolor: { wood: "moss" }, add: [{ id: "hat", joint: "body", shape: "cone", size: [0.2, 0.2, 0], position: [0, 0.8, 0], color: "moss" }] },
+  });
+  assert.equal(r.personOf("mossy-people"), person);
+  const hatted = r.personOf("hatted-people")!;
+  assert.deepEqual(hatted.parts.map((p) => p.id), ["coat", "head", "hat"]);
+  assert.deepEqual(hatted.colorways.coat!.others, ["moss"]);
+  assert.equal(r.castFor(style, "hatted-people").hasPerson, true);
+  assert.equal(meshes(r.castFor(style, "hatted-people").person({ key: "visitor" })), 5);
+  // A person patch over a base without a person, and a patch that dresses the person in the project colour: refused, the plain worker stands in.
+  r.registerCast({ manifest: manifest("pegs"), figure });
+  r.registerCast({ manifest: manifest("orphan", { extends: "pegs" }), figure: { format: "crewhub-figure-patch/1" }, person: { format: "crewhub-figure-patch/1", recolor: { wood: "moss" } } });
+  assert.equal(r.personOf("orphan"), null);
+  assert.equal(r.castFor(style, "orphan").hasPerson, false);
+  r.registerCast({ manifest: manifest("vain", { extends: "people-pegs" }), figure: { format: "crewhub-figure-patch/1" }, person: { format: "crewhub-figure-patch/1", colorways: { coat: { lead: "accent", others: ["wood"] } } } });
+  assert.equal(r.personOf("vain"), null);
+  assert.equal(warnings.filter((w) => /person/.test(w)).length, 2);
+  // Person data that is no person is refused at registration, as broken figure data is.
+  assert.equal(r.registerCast({ manifest: manifest("proud"), figure, person: { ...person, halo: "accent" } }), false);
+  assert.equal(r.registerCast({ manifest: manifest("patchy"), figure, person: { format: "crewhub-figure-patch/1" } }), false, "a person patch needs a cast to extend");
+});

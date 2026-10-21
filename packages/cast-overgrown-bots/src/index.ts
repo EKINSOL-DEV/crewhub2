@@ -3,6 +3,7 @@
 import type { CastFactory, CastManifest, FigurePatch } from "@crewhub/world-cast";
 import manifest from "../cast.json" with { type: "json" };
 import figure from "../figure.json" with { type: "json" };
+import person from "../person.json" with { type: "json" };
 
-export const cast: CastFactory = { manifest: manifest as CastManifest, figure: figure as unknown as FigurePatch };
+export const cast: CastFactory = { manifest: manifest as CastManifest, figure: figure as unknown as FigurePatch, person: person as unknown as FigurePatch };
 export default cast;

@@ -3,6 +3,7 @@
 import type { CastFactory, CastManifest, FigureExtension, FigureSpec } from "@crewhub/world-cast";
 import manifest from "../cast.json" with { type: "json" };
 import figure from "../figure.json" with { type: "json" };
+import person from "../person.json" with { type: "json" };
 
 /** How high the postman rides under its seed head, and how fast it takes off and lands (per second). */
 const LIFT = 0.11;
@@ -38,5 +39,5 @@ const drift: FigureExtension = ({ options, joints, state }) => {
   };
 };
 
-export const cast: CastFactory = { manifest: manifest as CastManifest, figure: figure as unknown as FigureSpec, extend: drift };
+export const cast: CastFactory = { manifest: manifest as CastManifest, figure: figure as unknown as FigureSpec, person: person as unknown as FigureSpec, extend: drift };
 export default cast;

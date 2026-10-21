@@ -9,6 +9,7 @@ import {
   validateCastManifest,
   validateFigure,
   validateFigurePatch,
+  validatePerson,
   wave,
   type CastManifest,
   type FigureSpec,
@@ -317,4 +318,85 @@ test("a re-dress keeps its base's perch, recoloured, unless it brings its own", 
   const own = applyFigurePatch(base, { format: "crewhub-figure-patch/1", perch: { default: { kind: "floor" } } });
   assert.deepEqual(own.perch, { default: { kind: "floor" } });
   assert.equal("perch" in applyFigurePatch(figure(), { format: "crewhub-figure-patch/1" }), false);
+});
+
+/* ── The person ───────────────────────────────────────────────────────── */
+
+/** A person in the pegs' language: a peg in a coat with a round head, no accent, no role, no perch. */
+const person = (): FigureSpec => ({
+  format: "crewhub-figure/1",
+  joints: [
+    { id: "body", position: [0, 0.2, 0] },
+    { id: "head", parent: "body", position: [0, 0.5, 0] },
+  ],
+  parts: [
+    { id: "coat", joint: "body", shape: "cylinder", size: [0.18, 0.5, 0.2], position: [0, 0.25, 0], color: "slot:coat" },
+    { id: "head", joint: "head", shape: "sphere", size: [0.16, 0.18, 0.16], position: [0, 0.1, 0], color: "pale" },
+    { id: "hair", joint: "head", shape: "sphere", size: [0.17, 0.08, 0.16], position: [0, 0.2, -0.02], color: "wood", detail: "near" },
+  ],
+  poses: { carrying: { body: { rotation: [5, 0, 0] } } },
+  motions: { walking: [{ joint: "body", channel: "offset.y", wave: "bounce", amplitude: 0.05, period: 1 }] },
+  colorways: { coat: { others: ["wood", "pale"] } },
+  anchors: { label: [0, 1.05, 0], carry: [0, 0.4, 0.25], ground: 0.2, height: 0.95 },
+});
+
+test("a person wears no project colour, has no role and never sits at a desk: the validator says so", () => {
+  assert.equal(validatePerson(person()).ok, true);
+  const bad = person();
+  bad.parts[0]!.color = "soft:accent";
+  bad.parts[1]!.roles = ["lead"];
+  bad.parts[2]!.glow = "accent";
+  bad.colorways.coat = { lead: "accent", roles: { worker: "pale" }, others: ["wood"] };
+  bad.looks = { selected: { parts: { head: { color: "accent" } } } };
+  bad.halo = "soft:accent";
+  bad.perch = { default: { kind: "surface" } };
+  const checked = validatePerson(bad);
+  assert.equal(checked.ok, false);
+  const errors = checked.ok ? [] : checked.errors;
+  for (const path of ["person.parts[0].color", "person.parts[1].roles", "person.parts[2].glow", "person.colorways.coat.lead", "person.colorways.coat.roles", "person.looks.selected.parts.head.color", "person.halo", "person.perch"])
+    assert.ok(errors.some((e) => e.startsWith(path)), `${path} in\n${errors.join("\n")}`);
+  assert.equal(errors.length, 8);
+  // A figure that is not a figure at all fails as a figure first.
+  assert.equal(validatePerson({ ...person(), format: "crewhub-cast/1" }).ok, false);
+});
+
+test("a cast without a person draws its plain worker for one; with person data it draws that, seeded by the key", () => {
+  const kit = referenceKit(manifest.colors);
+  const plain = createCast(manifest, figure(), kit);
+  assert.equal(plain.hasPerson, false);
+  const stood = plain.person({ key: "visitor" });
+  assert.equal(measureFigure(stood).meshes, measureFigure(plain.figure({ key: "visitor", role: "worker", accent: null })).meshes, "the plain worker: peg, knob, nose");
+  const own = createCast(manifest, figure(), kit, undefined, person());
+  assert.equal(own.hasPerson, true);
+  const handle = own.person({ key: "person:nicky" });
+  assert.equal(measureFigure(handle).meshes, 3, "coat, head, hair");
+  handle.setDetail("far");
+  assert.equal(measureFigure(handle).meshes, 2, "the hair is dropped far");
+  assert.deepEqual(handle.anchors, person().anchors);
+  // The coat's colour is seeded by the key, the same on every load, and never the project colour.
+  const coat = (key: string) =>
+    (own.person({ key }).object.getObjectsByProperty("type", "Mesh") as import("three").Mesh[]).find((m) => (m.material as import("three").Material).type === "MeshStandardMaterial")!.material;
+  assert.equal(coat("person:nicky"), coat("person:nicky"));
+  assert.ok([kit.material("wood"), kit.material("pale")].includes(coat("person:sam") as import("three").MeshStandardMaterial));
+  // The person figure poses and moves like any figure: the carrying pose and the walk.
+  handle.setState(state({ activity: "walking", carrying: true }));
+  handle.update(0.25);
+  const body = handle.body.children.find((c) => c.type === "Group")!;
+  assert.ok(Math.abs(body.rotation.x - (5 * Math.PI) / 180) < 1e-6, "the carrying pose");
+  assert.ok(body.position.y > 0.2, "the walk's bounce");
+});
+
+test("the contract holds the person to the anchors and the budget, in every state, near and far", () => {
+  const kit = referenceKit(manifest.colors);
+  // A budget the pegs themselves fit (the manifest's own is a toy one the lead already breaks).
+  const roomy: CastManifest = { ...manifest, budget: { nearTriangles: 2000, farTriangles: 1200, nearMeshes: 8, farMeshes: 6 } };
+  assert.deepEqual(castProblems(createCast(roomy, figure(), kit, undefined, person())), []);
+  const tall = person();
+  tall.anchors = { ...tall.anchors, label: [0, 3, 0] };
+  assert.match(castProblems(createCast(roomy, figure(), kit, undefined, tall)).join("\n"), /^pegs person: the label anchor/m);
+  const heavy = person();
+  for (let i = 0; i < 6; i++) heavy.parts.push({ id: `button-${i}`, joint: "body", shape: "sphere", size: [0.03, 0.03, 0.03], position: [0, 0.07 * i, 0.2], color: "pale" });
+  const problems = castProblems(createCast(roomy, figure(), kit, undefined, heavy));
+  assert.ok(problems.some((p) => /^pegs person: 9 meshes near, over the budget of 8/.test(p)), problems.join("\n"));
+  assert.ok(problems.every((p) => p.startsWith("pegs person")), "the roles are untouched by the person");
 });

@@ -410,7 +410,7 @@ export class CastRoomScene {
       add(model, piece.x, piece.z, piece.y ?? 0.02, piece.rotation ?? 0);
     }
     const figures = MEMBERS.map((member): Figure => {
-      const handle = cast.figure({ key: member.key, role: member.role, accent: member.accent });
+      const handle = member.role === "person" ? cast.person({ key: member.key }) : cast.figure({ key: member.key, role: member.role, accent: member.accent });
       handle.object.scale.setScalar(FIGURE_SCALE);
       handle.setDetail(this.view.far ? "far" : "near");
       // What a figure carries rides at its carry anchor: the postman's letter, a ticket for anyone else.

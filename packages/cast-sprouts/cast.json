@@ -29,7 +29,8 @@
     "sprout-fluff": { "day": "#f7f5ea", "lamplight": "#fbeed2" },
     "sprout-stalk": { "day": "#f0e6cc", "lamplight": "#f2dfbc" },
     "sprout-ripe": { "day": "#f0b545", "lamplight": "#f2ad3f" },
-    "sprout-reed": { "day": "#7a5236", "lamplight": "#7a5236" }
+    "sprout-reed": { "day": "#7a5236", "lamplight": "#7a5236" },
+    "hair-straw": { "day": "#cbb27f", "lamplight": "#cdae76" }
   },
   "budget": { "nearTriangles": 5200, "farTriangles": 2200, "nearMeshes": 28, "farMeshes": 12 }
 }

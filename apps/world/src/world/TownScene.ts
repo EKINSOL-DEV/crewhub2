@@ -1948,9 +1948,9 @@ export class TownScene {
     return best ?? { room: TOWN_ROOM, cell: POST_OFFICE_CELL };
   }
 
-  /** The visitor's figure: the town's cast (the viewer's choice first), a plain worker with no project colour. */
+  /** The visitor's figure: the person of the town's cast (the viewer's choice first); no project colour, no role. */
   #walkFigure(cast: Cast): FigureHandle {
-    const handle = cast.figure({ key: "visitor", accent: null, role: "worker" });
+    const handle = cast.person({ key: "visitor" });
     handle.object.scale.setScalar(ROBOT_SCALE * 1.15);
     handle.setState(IDLE_STATE);
     // As the postman: it walks the whole town, and a sun shadow would hold the town's shadow map on every step.

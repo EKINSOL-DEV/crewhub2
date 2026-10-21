@@ -298,6 +298,39 @@ export function validateFigure(value: unknown): CastValidation<FigureSpec> {
   return r.done(value);
 }
 
+/** Whether a colour name is the project colour (a person never wears it). */
+const isAccent = (value: unknown) => value === "accent" || value === "soft:accent";
+
+/**
+ * A person figure (`person.json`, or a person patch applied to its base): a figure that wears no project colour (no
+ * `accent` or `soft:accent` in a part, a look, a colourway or the halo), has no role (no `roles` on parts, no lead's or
+ * roles' colours in a colourway) and never sits at a desk (no `perch`). Everything else is as `validateFigure`.
+ */
+export function validatePerson(value: unknown): CastValidation<FigureSpec> {
+  const checked = validateFigure(value);
+  if (!checked.ok) return checked;
+  const r = new Report();
+  const spec = value as Bag;
+  const NO_ACCENT = "a person wears no project colour";
+  (spec.parts as Bag[]).forEach((part, i) => {
+    if (isAccent(part.color)) r.error(`person.parts[${i}].color`, NO_ACCENT);
+    if (isAccent(part.glow)) r.error(`person.parts[${i}].glow`, NO_ACCENT);
+    if ("roles" in part) r.error(`person.parts[${i}].roles`, "a person has no role");
+  });
+  for (const [key, look] of Object.entries((spec.looks as Record<string, { parts: Record<string, Bag> }> | undefined) ?? {}))
+    for (const [id, change] of Object.entries(look.parts)) {
+      if (isAccent(change.color)) r.error(`person.looks.${key}.parts.${id}.color`, NO_ACCENT);
+      if (isAccent(change.glow)) r.error(`person.looks.${key}.parts.${id}.glow`, NO_ACCENT);
+    }
+  for (const [slot, way] of Object.entries(spec.colorways as Record<string, Bag>)) {
+    if ("lead" in way) r.error(`person.colorways.${slot}.lead`, "a person has no role");
+    if ("roles" in way) r.error(`person.colorways.${slot}.roles`, "a person has no role");
+  }
+  if (isAccent(spec.halo)) r.error("person.halo", NO_ACCENT);
+  if ("perch" in spec) r.error("person.perch", "a person never sits at a desk: no perch");
+  return r.done(value);
+}
+
 /** A patch is checked on its own shape; whether its joints and part ids exist is checked on the patched figure. */
 export function validateFigurePatch(value: unknown): CastValidation<FigurePatch> {
   const r = new Report();
