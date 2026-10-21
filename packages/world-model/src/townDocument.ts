@@ -41,6 +41,23 @@ export const TOWN_LIMITS = { cellMax: 127, plotsMax: 256, placementsMax: 2000, u
 export const ZONE_COLORS: readonly ProjectColor[] = ["coral", "tangerine", "circle", "mist", "ink"];
 export const ZONE_EMBLEMS: readonly ProjectIcon[] = ["home", "inbox", "bot", "spark", "users", "star", "folder"];
 
+/**
+ * The mark a new hand-made zone gets so a district reads marked from the start: the next colour and the next emblem,
+ * in the sets' order, that no zone given wears (a removed zone's mark is free again); when every one is worn, the one
+ * worn least, the earliest first. Only for a zone being made: an existing zone without a mark keeps none, and a mark a
+ * person cleared stays cleared (`set-zone` writes what it is given).
+ */
+export function nextZoneMark(zones: readonly { color: ProjectColor | null; emblem: ProjectIcon | null }[]): { color: ProjectColor; emblem: ProjectIcon } {
+  const least = <T extends string>(set: readonly T[], worn: readonly (T | null)[]): T => {
+    const counts = new Map<T, number>(set.map((value) => [value, 0]));
+    for (const value of worn) if (value !== null && counts.has(value)) counts.set(value, (counts.get(value) ?? 0) + 1);
+    let best = set[0] as T;
+    for (const value of set) if ((counts.get(value) ?? 0) < (counts.get(best) ?? 0)) best = value;
+    return best;
+  };
+  return { color: least(ZONE_COLORS, zones.map((z) => z.color)), emblem: least(ZONE_EMBLEMS, zones.map((z) => z.emblem)) };
+}
+
 export interface GridCell {
   x: number;
   z: number;

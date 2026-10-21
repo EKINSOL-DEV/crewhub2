@@ -8,6 +8,7 @@ import { describeTownDocument } from "../src/describeTown.ts";
 import {
   applyEdit,
   emptyTownDocument,
+  nextZoneMark,
   exportTownDocument,
   importTownDocument,
   validateTownDocument,
@@ -268,4 +269,41 @@ test("the layout edits: allocate adds only, tidy re-lays in one revision, a hand
   const gone = edit(moved, { type: "remove-zone", id: "studio" });
   assert.deepEqual([gone.zones, gone.assignments, gone.plots[1]?.cell], [undefined, undefined, { x: 70, z: 63 }], "removing a zone moves nothing");
   assert.deepEqual(applyEdit(gone, { type: "assign", slug: "alpha", zoneId: null }, CONTEXT), { ok: false, error: "alpha has no manual zone." });
+});
+
+test("a new hand-made zone gets the next free mark; two new zones never look alike; a removed zone's mark is free again", () => {
+  const zone = (color: string | null, emblem: string | null) => ({ color: color as never, emblem: emblem as never });
+  // Nothing worn yet: the first of each set.
+  assert.deepEqual(nextZoneMark([]), { color: "coral", emblem: "home" });
+  // A group zone of the demo wears Coral and Star: the next zone takes Tangerine and the first free emblem.
+  const first = nextZoneMark([zone("coral", "star"), zone(null, null)]);
+  assert.deepEqual(first, { color: "tangerine", emblem: "home" });
+  const second = nextZoneMark([zone("coral", "star"), zone(first.color, first.emblem)]);
+  assert.deepEqual(second, { color: "circle", emblem: "inbox" });
+  assert.notDeepEqual(first, second, "two new zones differ in both colour and emblem");
+  // The second zone removed: its mark is free again, and the next new zone takes it.
+  assert.deepEqual(nextZoneMark([zone("coral", "star"), zone(first.color, first.emblem)]), second);
+  // Every colour worn: the one worn least, the earliest in the set first.
+  const worn = [zone("coral", "home"), zone("tangerine", "inbox"), zone("circle", "bot"), zone("mist", "spark"), zone("ink", "users"), zone("tangerine", "star")];
+  assert.deepEqual(nextZoneMark(worn), { color: "coral", emblem: "folder" });
+  assert.deepEqual(nextZoneMark([...worn, zone("coral", "folder")]), { color: "circle", emblem: "home" });
+});
+
+test("a mark a person cleared stays cleared, and an existing zone without a mark keeps none", () => {
+  const doc0 = emptyTownDocument();
+  const mark = nextZoneMark([]);
+  const made = applyEdit(doc0, { type: "set-zone", zone: { id: "zone-1", name: "Zone 1", order: 0, color: mark.color, emblem: mark.emblem, look: {} } }, CONTEXT);
+  assert.ok(made.ok);
+  assert.deepEqual([made.doc.zones?.[0]?.color, made.doc.zones?.[0]?.emblem], ["coral", "home"]);
+  // Settings sets the colour to None: the document keeps null, and nothing puts a mark back.
+  const cleared = applyEdit(made.doc, { type: "set-zone", zone: { ...made.doc.zones![0]!, color: null, emblem: null } }, CONTEXT);
+  assert.ok(cleared.ok);
+  assert.deepEqual([cleared.doc.zones?.[0]?.color, cleared.doc.zones?.[0]?.emblem], [null, null]);
+  const renamed = applyEdit(cleared.doc, { type: "set-zone", zone: { ...cleared.doc.zones![0]!, name: "East" } }, CONTEXT);
+  assert.ok(renamed.ok);
+  assert.deepEqual([renamed.doc.zones?.[0]?.name, renamed.doc.zones?.[0]?.color, renamed.doc.zones?.[0]?.emblem], ["East", null, null]);
+  // A zone from before this round (no mark) is left as it is by the resolver: only a zone being made gets one.
+  const older = applyEdit(doc0, { type: "set-zone", zone: { id: "old", name: "Old", order: 0, color: null, emblem: null, look: {} } }, CONTEXT);
+  assert.ok(older.ok);
+  assert.deepEqual([older.doc.zones?.[0]?.color, older.doc.zones?.[0]?.emblem], [null, null]);
 });

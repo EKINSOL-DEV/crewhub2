@@ -4,7 +4,7 @@
    crewhub-loops group keeps the group's name; its look, and a colour or emblem the group lacks, are kept here. */
 import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
-import { DEFAULT_ZONE_ID, ZONE_COLORS, ZONE_EMBLEMS, zoneById, type Building, type TownZone, type WorldModel, type Zone, type ZoneLook } from "@crewhub/world-model";
+import { DEFAULT_ZONE_ID, ZONE_COLORS, ZONE_EMBLEMS, nextZoneMark, zoneById, type Building, type TownZone, type WorldModel, type Zone, type ZoneLook } from "@crewhub/world-model";
 import { useCast } from "../state/cast";
 import { setStyleOption, useStyleOptions } from "../state/styleOptions";
 import type { TownState } from "../state/town";
@@ -69,7 +69,9 @@ function useZoneEdits(town: TownState) {
       let n = 1;
       while (taken.has(`zone-${n}`)) n++;
       const order = Math.max(-1, ...zones.filter((z) => z.source !== "default").map((z) => z.order)) + 1;
-      return run({ type: "set-zone", zone: { id: `zone-${n}`, name: `Zone ${n}`, order, color: null, emblem: null, look: {} } });
+      // A new district reads marked from the start: the next free colour and emblem (nextZoneMark), changeable here.
+      const mark = nextZoneMark(zones);
+      return run({ type: "set-zone", zone: { id: `zone-${n}`, name: `Zone ${n}`, order, color: mark.color, emblem: mark.emblem, look: {} } });
     },
     assign: (slug: string, zoneId: string | null) => run({ type: "assign", slug, zoneId }),
   };
