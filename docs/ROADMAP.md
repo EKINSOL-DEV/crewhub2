@@ -168,6 +168,19 @@ stand in the town hall, the agent card draws above the corner chips, and the dif
 (the demo's playback bar, the chip and chat corner, lanes and a team snapshot the development loops lacks, colours
 and milestones the seed may not write).
 
+Rounds 8 and 9 (2026-10-21, midday and early afternoon): a rejected key waits instead of retrying its stream every
+30 s; the host asks loops about the kept key every five minutes after a keyless health probe, so a bot re-enabled in
+loops comes back by itself, and the screen and the panel say when the next check is. An accessibility pass over the
+night's UI: a connection change over the town is said once, the Connect screens and the panel no longer read a
+ticking clock, Keep returns the focus, pills and tags say in words what a colour showed, the failed card has its dark
+contrast back, new-tab links say so, chips are 40 px on a phone; `tools/a11y.mjs` asks a headless browser for all of
+it. The demo's person makes their Done moves from one table, at least 100 s apart in a building, and Studio keeps a
+closed building that opens and closes again. The snapshot carries what only loops' event log holds (the open quiet
+stretches and the latest automation runs, bounded to open tickets; a `system` row never ends a stretch), so a fresh
+tab, a seek and a reconnect show the dust and the cards; and the dust is a grey veil in the style's colours with a
+few motes before the package, so a quiet package reads as quiet at the hall's zoom. The facade colour at town level
+stays Nicky's eye (two mocks on a branch that is never merged).
+
 ## Open
 
 Everything below is planned and not built. Each item needs crewhub-loops running.

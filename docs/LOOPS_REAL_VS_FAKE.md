@@ -40,8 +40,15 @@ against 053b5f47). Paths are relative to the loops checkout; `api/` means `servi
 - `lastSeq` below the host's cursor at any reconnect means a restored or fresh database: a `reset` with reason
   `reconnected`.
 - After a normal end (the 300 s close, the 60 s credential check, a server stop) it reconnects after 1.5 to 3 s with
-  jitter; on an error with the usual backoff; on 429 after `Retry-After` (default 5 s); 401/403 stays `unauthorized`
-  with the long retry.
+  jitter; on an error with the usual backoff; on 429 after `Retry-After` (default 5 s). A 401/403 from a loops whose
+  health answers is `unauthorized` and ends the retries (round 8): the host drops the stream and waits for a new key,
+  a Forget or a discovery change, asking loops about the kept key every 5 min (a keyless health probe first, at most
+  one a minute); a bot re-enabled in loops comes back by itself.
+- At snapshot time it reads what only the log holds (round 9): the open quiet stretches and the latest automation
+  runs, `GET /api/events?types=ticket.quiet,automation.ran` from 20 000 seqs before the cursor (at most 20 pages),
+  bounded to the open tickets in planned, in progress and review, then the ticket and comment events from the oldest
+  candidate on; a stretch a person or an agent touched since is dropped, a `system` row never ends one. The fake
+  serves its log the same way, so nothing in it changed.
 - Unknown event types pass to the browser unchanged; the client warns once per type and skips it.
 - Exactly one upstream stream per host process, whatever the tabs do: the body of a finished stream is cancelled
   before the next one opens, and `test/stream.test.ts` counts concurrent streams on the stub through reconnects,

@@ -248,7 +248,8 @@ Since the smooth connection the answer also carries `connection`:
 
 `discovery.state` is `found` or `searching` (`via`: `env-url`, `env-socket`, `app-socket`, `app-port`); `key.state` is
 `none` (the Connect screen), `unchecked` (the host holds a key but loops has not answered about it: down, restarting,
-a timeout), `checking`, `rejected` (with `reason`, in words to act on) or `ok` (`source`: `env`, `stored`, `default`);
+a timeout), `checking`, `rejected` (with `reason`, in words to act on, and `recheckAt`: when the host asks loops about the
+kept key again, every 5 min, a keyless health probe first) or `ok` (`source`: `env`, `stored`, `default`);
 `stream.state` is `idle`, `ok`, `down`, `unauthorized` or `busy` (loops' 429, with the reason); `snapshot.state` is
 `idle`, `reading` (the reads so far, the project count once the list is in), `ready` (projects, reads, ms) or `failed`
 (the reason): what the page's first-snapshot line shows. Health answers within a second even while the key check is
@@ -295,12 +296,14 @@ reconnect gets the error and the Key rejected screen stands over the town.
 
 **The Connection panel** (the chip opens it) has these rows: **Now** (the chip's state and its reason), **crewhub-loops**
 (found through its socket or its port, the Mac app's, or the env's URL or socket; or not found yet), **Key** (its name,
-state and source: env, stored, default), **Stream** (streaming, down, refused, busy), **Cursor**, **Last event**,
+state and source: env, stored, default; a rejected key adds "checked again in 4 min"), **Stream** (streaming, down, refused, busy), **Cursor**, **Last event**,
 **Reconnects**, **Closed buildings** (how many and where the list came from: listed by loops, its event log, remembered
 from an earlier run), **crewhub-loops version** (and, after an upgrade under the host, "it was 0.1.0 when this host
 started: crewhub-loops was updated under the host, which read everything again"), **Host** (over TCP or the Unix
 socket) and **Forget this key**. It asks the host the moment the connection's state changes and every 5 s otherwise;
-an unpaired browser sees the states only.
+an unpaired browser sees the states only. For a screen reader (round 8) the rows are a definition list, the "Updated
+3 s ago" line is visible but not live, and one small live region says once when the host stops answering or answers
+again; a connection change over the town (Live to Loops down, Stream busy, Catching up) is said once by the page.
 
 ## 6. Taking it away
 
@@ -339,7 +342,9 @@ the server running was crewy's root cause that morning): `start` refuses a port 
 "already running" when the listener is crewhub-loops, exit 1 when it is something else) and writes `run/serve.pid` only
 once health answers 200, with the pid of the process that serves the port; `stop` kills that listener, its `uv` wrapper
 and whatever the pid file names, waits until the port is free (SIGKILL after 20 s), removes the pid file, and never
-kills a listener that is not crewhub-loops; `status` names the listener's pid and a stale pid file.
+kills a listener that is not crewhub-loops; `status` names the listener's pid and a stale pid file. Since round 8 a
+piped `start` (`tools/loops-dev.sh start | cat`) returns once health answers: the server's stdio goes to the log, not
+to the caller's pipe.
 
 **How the first admin and the world's bot were made** (the recipe of 2026-10-20; the Lead runs it, once, on a fresh
 data folder). Every write with the admin session needs `-H "Origin: http://127.0.0.1:8291"` (the Host/Origin guard;

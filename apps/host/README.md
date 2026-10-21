@@ -12,8 +12,10 @@ smooth connection" below):
 
 - **Snapshot** `GET /world-api/snapshot`: one `LoopsSnapshot` (the seam's type in `packages/loops-client`),
   assembled by read-model.md "Loading a snapshot": the stream's position first, then projects, boards per active
-  project, principals, agents, team, watchdog, and milestones and releases where the project has the feature on.
-  Paged lists are followed to the last page. `groups` is `[]` until loops has project groups (L22). The reads run in
+  project, principals, agents, team, watchdog, and milestones and releases where the project has the feature on;
+  then the archived projects from the event log (round 2) and, round 9, the open quiet stretches and the latest
+  automation runs from the log ("The snapshot carries what only the log holds" below), handed over as `quiet` and
+  `automationRuns`. Paged lists are followed to the last page. `groups` is `[]` until loops has project groups (L22). The reads run in
   parallel under a cap (`snapshotConcurrency`, default 6; `mapLimit` in `src/snapshot.ts` keeps the projects' order)
   and are timed and counted; health's `connection.snapshot` says how far the assembly is (`idle`, `reading` with
   the reads done and the project count once the list is in, `ready` with what it cost, `failed` with the reason), so
@@ -42,7 +44,7 @@ smooth connection" below):
   itself; at most one probe a minute); `loopsCommitBefore` is the version the host read first this
   run, present only when loops has answered another since: loops was updated under the running host, which logs the
   change once and reads everything again after the restart that came with it);
-  `loopsWebUrl` is the origin of the loops URL, for the world's "sign in to crewhub-loops" link; `transport` is `tcp`
+  `loopsWebUrl` is the origin of the loops URL, for the world's chat chip ("Chat: in the crewhub-loops app") and the card's ticket links; `transport` is `tcp`
   (the URL) or `unix` (the socket); `paired` is whether this request carries a valid pairing cookie; `pairing` is `on`
   or `off`. Health carries no data and needs no cookie.
 - **Pairing** (plan 3.5, `src/pairing.ts`): every other `/world-api` route answers `401 {"error":"not_paired"}`
@@ -57,7 +59,9 @@ smooth connection" below):
   3 s with jitter and reconnects from its cursor, so nothing is lost and no tab hears of it. When loops goes away
   (a network error, a 5xx, a 200 that closed without a line) the host retries with backoff (1 s doubling to 30 s)
   and tells the tabs `status: down` and then `ok` (the chip says Loops down meanwhile). A 429 `too_many_streams`
-  waits loops' `Retry-After` (5 s); 401 and 403 are `unauthorized` with the long retry.
+  waits loops' `Retry-After` (5 s). A 401 or 403 from a loops whose health answers is `unauthorized` and ends the
+  retries (round 8): the host drops the stream, waits for a new key, a Forget or a discovery change, and re-checks the
+  kept key every 5 min (`recheckAt` in health).
 - **Static files**: with `NODE_ENV=production` the host serves `apps/world/dist` with an SPA fallback to `index.html`.
 - **The key** is read once from the key file, kept in memory, never logged, never in a response (a test greps every
   response for it; loops' error bodies pass through scrubbed of it).
@@ -74,7 +78,7 @@ smooth connection" below):
 | `CREWHUB_WORLD_LOOPS_URL` | none: the discovery | crewhub-loops' API over loopback TCP (the Mac app serves `127.0.0.1:8091`; so does the loops nginx under Docker Desktop, where the socket is not reachable). Unset, with no socket, the host finds the app itself (`src/discovery.ts`): `<data>/run/api.sock` when it exists and answers `GET /api/health`, else `http://127.0.0.1:<port>` from `<data>/settings.json` (default 8091), `<data>` being `CREWHUB_WORLD_LOOPS_APP_DATA` or `~/Library/Application Support/be.ekinsol.crewhub`, read only; nothing found: again every 5 s. Not together with `CREWHUB_WORLD_LOOPS_SOCKET`. |
 | `CREWHUB_WORLD_LOOPS_APP_DATA` | the app's data folder | What the discovery reads. Tests inject a temp folder; the development instance is `~/crewhub-loops-dev` (`tools/loops-dev.sh` writes its `settings.json`). |
 | `CREWHUB_WORLD_LOOPS_SOCKET` | none | Read loops over its Unix socket instead of TCP (the same allow-list, headers, stream and timeouts; `Host: 127.0.0.1`). The path must exist and be a socket when the host starts, else a clear error; `~/` is the home folder. **Explicit only: the host never guesses a socket outside the app's data folder.** `--loops-socket <path>` on the command line is the same and wins. Setting both the URL and the socket is a configuration error. See "The socket" below. |
-| `CREWHUB_WORLD_LOOPS_WEB_URL` | the URL's origin, or the port found | Where "sign in to crewhub-loops" goes (`health.loopsWebUrl`), as an origin. With a socket from the env the default is the app's `http://127.0.0.1:8091`; set it when the web app is elsewhere, e.g. `http://127.0.0.1:8291` for the development instance. |
+| `CREWHUB_WORLD_LOOPS_WEB_URL` | the URL's origin, or the port found | Where the chat chip and the card's ticket links go (`health.loopsWebUrl`), as an origin. With a socket from the env the default is the app's `http://127.0.0.1:8091`; set it when the web app is elsewhere, e.g. `http://127.0.0.1:8291` for the development instance. |
 | `CREWHUB_WORLD_KEY_FILE` | none | The agent key file, first in line. Unset: the stored key `<CREWHUB_WORLD_CONFIG_DIR>/loops-key` (what `POST /world-api/connect` saved), then the old default `~/.config/crewhub-loops/secrets/agent-crewhub-world.key`; none: the host starts without a key (`connection.key.state: "none"`) and waits for a paste. A configured file that cannot be read is an error. The builder-key fallback is gone. |
 | `CREWHUB_WORLD_CONFIG_DIR` | `~/.config/crewhub-world` | The host's own folder for the stored key and the archive memory `archived.json` (0700; the files 0600). Tests and developers' runs point it elsewhere. |
 | `CREWHUB_WORLD_PORT` | `5180` | The port on `127.0.0.1`. |
@@ -129,7 +133,7 @@ The host starts with neither loops nor a key and reports the honest states; the 
   upstream stream per host process stays the rule. **`DELETE /world-api/connect`** forgets the stored key and goes
   keyless. Both are local routes on the allow-list; the loops allow-list stays GET only. The key is never logged,
   echoed or returned; `test/connect.test.ts` greps every response and log line.
-- **Health** carries `connection: { discovery: { state, via?, target? }, key: { state, name?, source?, reason? },
+- **Health** carries `connection: { discovery: { state, via?, target? }, key: { state, name?, source?, reason?, recheckAt? },
   stream: { state, reason?, cursor?, lastEventAt?, reconnects }, archived: { source, count, at?, slugs? },
   snapshot: { state, projects?, reads?, ms?, reason? } }` (the type in `packages/loops-client`, `HostConnection`;
   `key.state` is `none`, `unchecked`, `checking`, `rejected` or `ok`).
@@ -183,7 +187,7 @@ All from the repository root; the env of the table above applies to each.
 | Command | What it does |
 | --- | --- |
 | `npm run world` | The morning: starts the host in production mode with pairing on, opens the default browser on a one-time pairing link, builds `apps/world/dist` beside it when it is missing or stale, prints the step list. `-- --no-open` prints the link instead. A second run finds the running host and only mints a new link. The pairing secret is kept in `<config dir>/pairing-secret`. |
-| `npm run host -- doctor` | The preflight: one line per check (loops found, its health, the key file, what loops says about the key, the projects, agents and team reads, the event log, the host's port, pairing), `ok` or the fix; exit 0 only when all pass. Reads only, never the stream. |
+| `npm run host -- doctor` | The preflight: one line per check (loops found, its health, the key file, what loops says about the key, the projects, agents and team reads, the event log, the remembered archive, the host's port, pairing), `ok` or the fix; exit 0 only when all pass. Reads only, never the stream. |
 | `npm run host -- open` | Prints a one-time pairing link: asks a host already running on the port (a loopback-only `GET /pair-mint` guarded by a per-run mint secret in a 0600 run file), else starts one. `--origin <url>` mints the link on another origin (the Vite dev server, which proxies `/pair`). It prints and never opens a browser; the whole usage is `node apps/host/src/main.ts [--loops-socket <path>] [open [--origin <url>] \| world [--no-open] \| doctor]`. |
 | `npm run host` | Serve mode for development: the data from the host, the world from Vite (`npm run dev`, opened with `?source=live`); the pairing secret is per run. `-- --loops-socket <path>` reads loops over that Unix socket. |
 | `npm run host:start` | Production serve mode: builds the world, then serves `apps/world/dist` on `127.0.0.1:5180` with pairing on. `-- open` also prints the link. |
@@ -230,7 +234,7 @@ Development: `CREWHUB_WORLD_PAIRING=off` drops the gate (loud warning at start; 
 or pair through the Vite origin, which proxies `/pair`: `npm run host -- open --origin http://127.0.0.1:5173`.
 Cookies ignore ports, so a browser paired on `127.0.0.1:5180` is paired on `127.0.0.1:5173` as well.
 
-Programmatic: `createHost` takes `pairing?: "on" | "off"`, `pairingSecret?`, `publicUrl?`, `mintSecret?`, `now?`,
+Programmatic: `createHost` takes `pairing?: "on" | "off"`, `pairingSecret?`, `publicUrl?`, `mintSecret?`, `now?`, `recheckMs?` (the rejected key's re-check, 5 min),
 `retryMs?` (the error backoff) and `reconnectMs?` (the pause after a normal stream end; tests make both short),
 and returns `mintPairLink(origin?)`. `createHostSource` (loops-client) takes `headers` for a Node caller's cookie;
 the browser sends it same-origin. Tests: `test/pairing.test.ts`.
