@@ -38,6 +38,7 @@ import {
   roomOf,
   type BuildingPlan,
   type BuildingTemplate,
+  standingSpot,
 } from "./buildingTemplate.ts";
 import { assignDesks, type DeskSlot } from "./interiorLayout.ts";
 import { allocationEdit, CENTRAL_SLOT, DISTRICT_SPAN, lotCentre, lotKey, reservedSpot, slotBounds, slotKey, type Segment } from "./settlement.ts";
@@ -176,9 +177,12 @@ export const POST_OFFICE_CELL = townCellAt(POST.x - 0.5, POST.z + 1);
 /** Where the postman leaves a letter for a recipient who works in no building: the town hall's forecourt. */
 export const TOWN_HALL_CELL = townCellAt(HALL.x + 3, HALL.z + 2.2);
 
+/** The paving on a lawn stands this much above it: a walker on a plot or a civic lot stands on the paving. */
+export const LAWN_PAVING = 0.04;
+
 /** Height of the ground under a walker: the paving on a used plot's or a civic lot's lawn, else the street's paving. */
 export function groundAt(x: number, z: number, usedLots: ReadonlySet<string>): number {
-  const LAWN = LAWN_Y + 0.04,
+  const LAWN = LAWN_Y + LAWN_PAVING,
     STREET = COBBLE_Y;
   for (const c of [POST, HALL]) if (Math.abs(x - c.x) <= CIVIC_LOT / 2 && Math.abs(z - c.z) <= CIVIC_LOT / 2) return LAWN;
   // The lot of the lattice cell under the position; its plot is the cell without the street around it.
@@ -412,9 +416,8 @@ export class NavWorld {
     if (!entry) return null;
     const desk = entry.desks.get(key);
     if (desk) return this.#local(entry, desk.seat);
-    const room = roomOf(entry.template, kind ?? "lobby") ?? roomOf(entry.template, "lobby");
-    if (!room) return null;
-    return { room: roomId(slug, room.kind), cell: { x: Math.floor(room.layout.grid.width / 2), z: room.layout.grid.depth - 2 } };
+    const stand = standingSpot(entry.template, kind);
+    return stand ? { room: roomId(slug, stand.room.kind), cell: stand.cell } : null;
   }
 
   /** Approach cells of every prop with `tag` in a building (optionally one model room, resolved to its hall), in template order. */

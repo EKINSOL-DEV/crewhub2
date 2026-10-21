@@ -369,7 +369,14 @@ export class TownScene {
   #frames = new FrameRing(2048);
   #rested = true;
   /** Startup marks for the measurement script: the first drawn frame, the first with the town dressed. */
-  #marked = { first: false, dressed: false };
+  #marked = { first: false, dressed: false, walks: false };
+  /**
+   * The walk runtime's update is owed: the first layout leaves the navigation graph and the walkers (walks.ts,
+   * personWalks.ts) for after the first drawn frame, in a task of their own (`#mark`). The views place every figure
+   * where its walker will start (its desk seat, the standing spot, the postman's post office cell), so nothing moves
+   * when it lands. Anything that needs a walker before then asks for it (`#ensureWalks`).
+   */
+  #walksDue = false;
   /** The shaders compile in parallel (`compileAsync`) before the first frame, rather than one by one inside it. */
   #warm: "cold" | "warming" | "warm" = "cold";
   #hits = new THREE.Group();
@@ -534,8 +541,10 @@ export class TownScene {
     if (new URLSearchParams(window.location.search).has("perf")) this.#perf = { frames: 0, total: 0, worst: 0, since: performance.now() };
     // Accepted director intents walk through the walk runtime (entered building only, never under reduced motion).
     this.#stopIntents = onPlayIntent((played) => {
-      if (played) this.walks.direct(played.intent);
-      else this.walks.endDirected();
+      if (played) {
+        this.#ensureWalks();
+        this.walks.direct(played.intent);
+      } else this.walks.endDirected();
       this.invalidate();
     });
     this.#resize = new ResizeObserver(this.resize);
@@ -909,8 +918,7 @@ export class TownScene {
       this.#continueLayout();
       return;
     }
-    this.walks.update(model, { entered: this.view.entered, following: this.#following, reducedMotion: this.view.reducedMotion, ambient: this.view.ambient, plan, walkways: this.#walkways(), buildingPlan: this.view.buildingPlan });
-    this.persons.update(model, { entered: this.view.entered, reducedMotion: this.view.reducedMotion });
+    this.#syncWalks();
     const seen = new Set<string>();
     this.#anchors.clear();
     model.buildings.forEach((b) => {
@@ -1002,6 +1010,31 @@ export class TownScene {
     this.#prepareInterior();
     this.#followShells();
     performance.measure("world:sync", { start: started, detail: { created, deferred } });
+  }
+
+  /** The walk runtime follows the model and the view; before the first drawn frame it is owed instead (see `#walksDue`). */
+  #syncWalks() {
+    if (!this.#marked.first) {
+      this.#walksDue = true;
+      return;
+    }
+    this.#updateWalks();
+  }
+
+  #updateWalks() {
+    this.#walksDue = false;
+    const view = this.view;
+    this.walks.update(view.model, { entered: view.entered, following: this.#following, reducedMotion: view.reducedMotion, ambient: view.ambient, plan: view.plan, walkways: this.#walkways(), buildingPlan: view.buildingPlan });
+    this.persons.update(view.model, { entered: view.entered, reducedMotion: view.reducedMotion });
+    if (!this.#marked.walks) {
+      this.#marked.walks = true;
+      performance.mark("world:walks");
+    }
+  }
+
+  /** The owed update now: for what needs a walker (a walk, a follow, a director's intent) before the task that brings it. */
+  #ensureWalks() {
+    if (this.#walksDue) this.#updateWalks();
   }
 
   /** The next slice of the first layout, in a task of its own, so the page stays responsive while the town builds. */
@@ -1152,6 +1185,13 @@ export class TownScene {
         return letter;
       });
       this.#postman = { handle, key: postman.key, letters };
+      // Where its walker starts (walks.ts puts it at the post office cell) and how it stands between rounds, so the
+      // figure does not move when the walker arrives after the first frame.
+      const home = this.walks.nav.toWorld({ room: TOWN_ROOM, cell: POST_OFFICE_CELL });
+      handle.object.position.set(home.x, this.walks.nav.groundAt(home.x, home.z) + 0.02, home.z);
+      const state = figureState({ agent: postman });
+      state.activity = "idle";
+      handle.setState(state);
       this.#unshadowPostman();
     }
     model.townHall.slice(0, 5).forEach((a, i) => place(a, hall.x - 1.6 + i * 0.8, hall.z + 1.3, "town-hall"));
@@ -1277,9 +1317,8 @@ export class TownScene {
         this.invalidate();
       }
     }
-    else if (previous.reducedMotion !== view.reducedMotion || previous.ambient !== view.ambient)
-      this.walks.update(view.model, { entered: view.entered, following: this.#following, reducedMotion: view.reducedMotion, ambient: view.ambient, plan: view.plan, walkways: this.#walkways(), buildingPlan: view.buildingPlan });
-      this.persons.update(view.model, { entered: view.entered, reducedMotion: view.reducedMotion });
+    else if (previous.reducedMotion !== view.reducedMotion || previous.ambient !== view.ambient) this.#syncWalks();
+    if (!this.#walksDue) this.persons.update(view.model, { entered: view.entered, reducedMotion: view.reducedMotion });
     if (previous.entered !== view.entered) {
       // The overlay's window describes one view: start it again.
       this.#frames.clear();
@@ -1579,6 +1618,7 @@ export class TownScene {
       this.#followZoom = null;
       return;
     }
+    this.#ensureWalks();
     this.#tween = null;
     this.#atHome = false;
     // Close enough to see the figure, no closer than the person already is.
@@ -2107,6 +2147,7 @@ export class TownScene {
   }
 
   #beginWalk() {
+    this.#ensureWalks();
     const cast = this.#townCast();
     const visitor = new Visitor(this.walks.nav, this.#walkStart());
     const offset = this.#v.copy(this.camera.position).sub(this.controls.target);
@@ -2233,6 +2274,13 @@ export class TownScene {
     if (!this.#marked.first) {
       this.#marked.first = true;
       performance.mark("world:first-frame");
+      // The graph and the walkers in a task of their own, once this frame is on screen.
+      if (this.#walksDue)
+        setTimeout(() => {
+          if (this.#disposed || !this.#walksDue) return;
+          this.#updateWalks();
+          this.invalidate();
+        }, 0);
       this.#prepareInterior();
     }
     // A clearing is a dressed town too: without a building, the mark waits a moment in case the first snapshot is
