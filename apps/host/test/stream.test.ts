@@ -3,25 +3,19 @@ import { afterEach, describe, it } from "node:test";
 import { createHost } from "../src/host.ts";
 import { type LoopsStub, createLoopsStub, envelope, installation } from "./loopsStub.ts";
 import { openSse } from "./sse.ts";
+import { GENEROUS_MS, POLL_MS, waitFor } from "./wait.ts";
 
 const isEvent = (seq: number) => (m: Record<string, unknown>) => m.type === "event" && (m.envelope as { seq: number }).seq === seq;
 const isReset = (reason: string) => (m: Record<string, unknown>) => m.type === "reset" && m.reason === reason;
 const isStatus = (loops: string) => (m: Record<string, unknown>) => m.type === "status" && m.loops === loops;
-const settle = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const streamRequests = (stub: LoopsStub) => stub.requests.filter((r) => r.path.startsWith("/api/events/stream"));
 const resumeOf = (path: string) => {
   const query = new URL(path, "http://127.0.0.1").searchParams;
   return query.has("cursor") ? "cursor" : query.has("after") ? `after=${query.get("after")}` : "live";
 };
 const anEvent = (type = "ticket.updated") => ({ type, project: null, ticket: null, actor: { id: "x", kind: "user" }, recipientIds: [], payload: {} });
-/** Waits until `stub` saw `count` stream requests, or fails after `timeoutMs`. */
-async function streamsSeen(stub: LoopsStub, count: number, timeoutMs = 3000): Promise<void> {
-  const started = Date.now();
-  while (streamRequests(stub).length < count) {
-    if (Date.now() - started > timeoutMs) throw new Error(`only ${streamRequests(stub).length} of ${count} stream requests after ${timeoutMs} ms`);
-    await settle(10);
-  }
-}
+/** Waits until `stub` saw `count` stream requests. */
+const streamsSeen = (stub: LoopsStub, count: number) => waitFor(`${count} stream requests`, () => streamRequests(stub).length >= count);
 
 describe("the shared stream", () => {
   const cleanup: (() => Promise<void>)[] = [];
@@ -136,24 +130,30 @@ describe("the shared stream", () => {
     await a.next((m) => m.type === "heartbeat");
     const ended = Date.now();
     stub.endStreams();
-    await streamsSeen(stub, 2, 2000);
+    await streamsSeen(stub, 2);
     const [, second] = streamRequests(stub);
     const gap = (second as { at: number }).at - ended;
+    // A timer never fires early: the lower bound proves the pause. No upper bound on the clock (a loaded machine
+    // stretches it); that the end was taken for a normal one, not an error, shows in the status messages below.
     assert.ok(gap >= 230, `the reconnect waited ${gap} ms, at least the pause`);
-    assert.ok(gap < 1500, `the reconnect waited ${gap} ms, not the error backoff`);
     const okAt = a.messages.findIndex(isStatus("ok"));
-    assert.ok(!a.messages.slice(okAt + 1).some((m) => m.type === "status"), "loops stays ok through the pause");
+    assert.ok(!a.messages.slice(okAt + 1).some((m) => m.type === "status"), "loops stays ok through the pause: a normal end, never the error road");
+    assert.equal(resumeOf((second as { path: string }).path), "cursor", "and the reconnect resumes from the sealed cursor");
   });
 
   it("honours Retry-After on 429 too_many_streams and connects afterwards", async () => {
-    const { stub, host } = await start({ events: [envelope(1, "ticket.created")], busy: { count: 1, retryAfter: "1" } });
+    const lines: string[] = [];
+    const { stub, host } = await start({ events: [envelope(1, "ticket.created")], busy: { count: 1, retryAfter: "1" } }, { log: (line) => lines.push(line) });
     const a = await openSse(`${host.url}/world-api/stream?cursor=1`);
     cleanup.push(async () => a.close());
-    await a.next(isStatus("ok"), 4000);
+    await a.next(isStatus("ok"));
     const [refused, accepted] = streamRequests(stub) as { at: number }[];
     assert.ok(refused && accepted, "a refused and an accepted stream request");
     const waited = accepted.at - refused.at;
-    assert.ok(waited >= 900 && waited < 3000, `waited ${waited} ms for Retry-After: 1`);
+    // The header was read (the host says what it will wait, 1 s and not its 5 s default) and the wait was kept (a
+    // timer never fires early). No upper bound on the clock: a loaded machine stretches it.
+    assert.ok(lines.some((l) => /429 too_many_streams, retry in 1 s/.test(l)), lines.join("\n"));
+    assert.ok(waited >= 900, `waited ${waited} ms for Retry-After: 1`);
     assert.equal(stub.streamsOpened(), 1);
     stub.emit(anEvent());
     await a.next(isEvent(2));
@@ -165,20 +165,24 @@ describe("the shared stream", () => {
     for (const tab of tabs) cleanup.push(async () => tab.close());
     // Snapshot reloads and health reads race the first connection (the 429 is in the way of it).
     await Promise.all([fetch(`${host.url}/world-api/snapshot`), fetch(`${host.url}/world-api/health`), fetch(`${host.url}/world-api/snapshot`)]);
-    await tabs[0]!.next(isStatus("ok"), 4000);
+    await tabs[0]!.next(isStatus("ok"));
+    // Every round a snapshot reload races the reconnect; the reloads are awaited at the end (a reload still in flight
+    // when the host closes would be a dangling rejection after the test, which node --test counts as a failure).
+    const reloads: Promise<number>[] = [];
     for (let round = 0; round < 4; round += 1) {
       const late = await openSse(`${host.url}/world-api/stream?cursor=${stub.lastSeq()}`);
       cleanup.push(async () => late.close());
       stub.heartbeat();
       stub.emit(anEvent());
       await late.next(isEvent(stub.lastSeq()));
-      void fetch(`${host.url}/world-api/snapshot`);
+      reloads.push(fetch(`${host.url}/world-api/snapshot`).then((r) => r.text().then(() => r.status)));
       stub.endStreams();
-      await streamsSeen(stub, 3 + round, 3000);
-      await settle(30);
+      await streamsSeen(stub, 3 + round);
+      await waitFor("the reconnected stream to be open", () => stub.openStreams() === 1);
     }
     stub.emit(anEvent());
     await tabs[2]!.next(isEvent(stub.lastSeq()));
+    assert.deepEqual(await Promise.all(reloads), [200, 200, 200, 200], "every reload got its snapshot, whichever stream it raced");
     assert.ok(stub.streamsOpened() >= 5, `${stub.streamsOpened()} streams opened over the rounds`);
     assert.equal(stub.maxConcurrentStreams(), 1, "never two upstream streams at once");
     assert.equal(stub.openStreams(), 1);
@@ -214,14 +218,14 @@ describe("the shared stream", () => {
     await a.next(isStatus("ok"));
     const port = first.port;
     await first.close();
-    await a.next(isStatus("down"), 3000);
+    await a.next(isStatus("down"));
     const health = (await (await fetch(`${host.url}/world-api/health`)).json()) as { loops: string };
     assert.equal(health.loops, "down");
     assert.equal((await fetch(`${host.url}/world-api/snapshot`)).status, 503);
     // a fresh install on the same port: the tail is lower than our cursor
     const second = await createLoopsStubOnPort(port, { ...installation(), events: [envelope(1, "ticket.created")] });
     cleanup.push(() => second.close());
-    await a.next(isReset("reconnected"), 3000);
+    await a.next(isReset("reconnected"));
     await a.next(isStatus("ok"));
     assert.equal(((await (await fetch(`${host.url}/world-api/health`)).json()) as { cursor: number }).cursor, 1, "the cursor is the new tail");
   });
@@ -239,12 +243,13 @@ describe("the shared stream", () => {
 
 /** A stub bound to a given port, for the restart case. */
 async function createLoopsStubOnPort(port: number, options: Parameters<typeof createLoopsStub>[0]): Promise<LoopsStub> {
-  for (let i = 0; i < 20; i += 1) {
+  const deadline = Date.now() + GENEROUS_MS;
+  for (;;) {
     const stub = await createLoopsStubWithPort(port, options);
     if (stub !== null) return stub;
-    await settle(50);
+    if (Date.now() > deadline) throw new Error(`port ${port} not free after ${GENEROUS_MS} ms`);
+    await new Promise((r) => setTimeout(r, POLL_MS));
   }
-  throw new Error(`port ${port} not free`);
 }
 async function createLoopsStubWithPort(port: number, options: Parameters<typeof createLoopsStub>[0]): Promise<LoopsStub | null> {
   const { createLoopsStub: make } = await import("./loopsStub.ts");

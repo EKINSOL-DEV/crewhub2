@@ -1,4 +1,5 @@
 /** Reads the host's SSE stream in a test: parsed `data:` messages, with a wait for the next one that matches. */
+import { GENEROUS_MS } from "./wait.ts";
 
 export interface SseReader {
   messages: Record<string, unknown>[];
@@ -39,7 +40,7 @@ export async function openSse(url: string, headers: Record<string, string> = {})
   let from = 0;
   return {
     messages,
-    next(test, timeoutMs = 3000) {
+    next(test, timeoutMs = GENEROUS_MS) {
       return new Promise((resolve, reject) => {
         const check = () => {
           for (; from < messages.length; from += 1) {

@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { appPortOf, candidates, createDiscovery, discoverOnce, targetText } from "../src/discovery.ts";
 import type { LoopsTarget } from "../src/transport.ts";
+import { waitFor } from "./wait.ts";
 
 const disk = (files: Record<string, string>, sockets: string[] = []) => ({
   readFile: (file: string) => files[file] ?? null,
@@ -62,19 +63,32 @@ describe("the discovery", () => {
 
   it("keeps looking every interval until something answers, and says so once", async () => {
     let up = false;
+    let probes = 0;
     const changes: (string | null)[] = [];
     const lines: string[] = [];
     const discovery = createDiscovery(
-      { loopsUrl: null, loopsSocket: null, loopsWebUrl: null, appData: "/data", ...disk({}), answers: () => Promise.resolve(up) },
+      {
+        loopsUrl: null,
+        loopsSocket: null,
+        loopsWebUrl: null,
+        appData: "/data",
+        ...disk({}),
+        answers: () => {
+          probes += 1;
+          return Promise.resolve(up);
+        },
+      },
       { intervalMs: 20, onChange: (found) => changes.push(found === null ? null : found.via), log: (line) => lines.push(line) },
     );
     try {
       assert.equal(await discovery.start(), null);
       assert.deepEqual(discovery.lookedFor(), ["app-port http://127.0.0.1:8091"]);
-      await new Promise((r) => setTimeout(r, 70));
+      // It keeps looking: two more probes after the first pass, each answered "nobody", and still nothing found.
+      const afterStart = probes;
+      await waitFor("two more probes", () => probes >= afterStart + 2);
       assert.equal(discovery.current(), null, "still searching");
       up = true;
-      await new Promise((r) => setTimeout(r, 70));
+      await waitFor("loops found", () => discovery.current() !== null);
       assert.equal(discovery.current()?.via, "app-port");
       assert.deepEqual(changes, ["app-port"], "null → null is no change; found once");
       assert.ok(lines.some((l) => /looking again every 0.02 s/.test(l)));

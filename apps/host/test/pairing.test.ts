@@ -14,6 +14,7 @@ import { ConfigError, loadServerConfig } from "../src/config.ts";
 import { MINT_HEADER, MINT_PATH, createHost, type Host } from "../src/host.ts";
 import { PAIR_COOKIE, PAIR_TTL_MS, createPairing, loadPairingSecret, readCookie } from "../src/pairing.ts";
 import { type LoopsStub, createLoopsStub, installation } from "./loopsStub.ts";
+import { waitFor } from "./wait.ts";
 
 const ROUTES = ["/world-api/snapshot", "/world-api/stream?cursor=0", "/world-api/project-groups", "/world-api/board/crewhub", "/world-api/tickets/CL-85", "/world-api/team"];
 
@@ -51,6 +52,8 @@ describe("pairing", () => {
   before(async () => {
     stub = await createLoopsStub(installation());
     host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", retryMs: { min: 20, max: 100 }, now: () => clock, mintSecret: "mint-secret-for-the-test", log: (line) => logs.push(line) });
+    // The tests below read `loops: "ok"` from health: wait for the stream, never for health's bounded wait.
+    await waitFor("the stream", async () => ((await (await fetch(`${host.url}/world-api/health`)).json()) as { loops: string }).loops === "ok");
   });
   after(async () => {
     await host.close();

@@ -3,6 +3,7 @@ import { after, before, describe, it } from "node:test";
 import type { LoopsSnapshot } from "@crewhub/loops-client";
 import { createHost, type Host } from "../src/host.ts";
 import { type LoopsStub, createLoopsStub, envelope, installation } from "./loopsStub.ts";
+import { waitFor } from "./wait.ts";
 
 describe("snapshot assembly", () => {
   let stub: LoopsStub;
@@ -10,13 +11,11 @@ describe("snapshot assembly", () => {
   before(async () => {
     stub = await createLoopsStub({ ...installation(), events: [envelope(40, "ticket.created")] });
     host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 } });
-    await fetch(`${host.url}/world-api/health`);
+    const cursor = async () => ((await (await fetch(`${host.url}/world-api/health`)).json()) as { cursor?: number }).cursor;
+    // The stream is open at the tail (40) before the archive event is emitted, so the host hears it on the stream.
+    await waitFor("the stream at the tail", async () => (await cursor()) === 40);
     stub.emit({ type: "project.archived", project: { slug: "old", key: "OLD" }, ticket: null, actor: { id: "nicky", kind: "user" }, recipientIds: [], payload: {} });
-    for (let i = 0; i < 50; i += 1) {
-      const health = (await (await fetch(`${host.url}/world-api/health`)).json()) as { cursor?: number };
-      if (health.cursor === 41) break;
-      await new Promise((r) => setTimeout(r, 20));
-    }
+    await waitFor("the archive event on the stream", async () => (await cursor()) === 41);
   });
   after(async () => {
     await host.close();

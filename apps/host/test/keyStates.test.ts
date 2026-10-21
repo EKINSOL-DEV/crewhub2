@@ -16,8 +16,10 @@ import { type HostOptions, STREAM_REFUSED_REASON, createHost } from "../src/host
 import { UNKNOWN_REASON } from "../src/keyCheck.ts";
 import type { KeyStore } from "../src/keyStore.ts";
 import { createLoopsStub, installation } from "./loopsStub.ts";
+import { waitFor } from "./wait.ts";
 
-const settle = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/** A soak, not a wait: the test expects nothing to happen in this time. It can only make the test slower, never fail it. */
+const soak = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function freePort(): Promise<number> {
   const server = createServer();
@@ -27,13 +29,6 @@ async function freePort(): Promise<number> {
   return port;
 }
 
-async function waitFor(what: string, predicate: () => Promise<boolean> | boolean, timeoutMs = 4000): Promise<void> {
-  const started = Date.now();
-  while (!(await predicate())) {
-    if (Date.now() - started > timeoutMs) throw new Error(`timed out waiting for ${what}`);
-    await settle(25);
-  }
-}
 
 function memoryStore(): KeyStore & { forgotten: number } {
   const store = {
@@ -65,7 +60,9 @@ describe("the key's state, honestly", () => {
   async function startHost(options: Partial<HostOptions>) {
     const lines: string[] = [];
     const store = memoryStore();
-    const host = await createHost({ keyStore: store, keyName: "crewhub-world", keySource: "stored", pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 10, max: 20 }, readTimeoutMs: 300, log: (line) => lines.push(line), ...options });
+    // The read timeout stays the host's default (10 s): a slow read on a loaded machine must never pass for loops being
+    // down in these tests. The one test about a timeout sets a short one itself, against a stub that hangs.
+    const host = await createHost({ keyStore: store, keyName: "crewhub-world", keySource: "stored", pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 10, max: 20 }, log: (line) => lines.push(line), ...options });
     cleanup.push(() => host.close());
     const health = async () => (await (await fetch(`${host.url}/world-api/health`)).json()) as Record<string, any>;
     const key = async () => (await health()).connection.key as { state: string; reason?: string; source?: string };
@@ -83,7 +80,7 @@ describe("the key's state, honestly", () => {
     assert.equal(rejected.source, "stored");
     assert.equal((await health()).loops, "unauthorized");
     assert.equal((await health()).connection.stream.state, "idle", "a rejected key opens no stream");
-    await settle(200);
+    await soak(200);
     assert.equal(store.forgotten, 0, "never forgotten by itself");
     assert.equal((await key()).state, "rejected", "and still rejected");
     assert.ok(lines.some((l) => /rejected by loops .* \(the key is kept; paste a new one or forget it\)/.test(l)), lines.join("\n"));
@@ -128,7 +125,7 @@ describe("the key's state, honestly", () => {
     const stub = await createLoopsStub({ ...installation() });
     cleanup.push(() => stub.close());
     stub.outage({ status: 0, hang: true, healthOk: true });
-    const { health, key, lines } = await startHost({ loopsUrl: stub.url, key: stub.key });
+    const { health, key, lines } = await startHost({ loopsUrl: stub.url, key: stub.key, readTimeoutMs: 1000 });
     await waitFor("the first attempt (the read timeout)", async () => (await health()).connection.stream.state === "down");
     assert.equal((await key()).state, "unchecked");
     assert.ok(lines.some((l) => /did not answer \(a timeout or a refused connection\)/.test(l)), lines.join("\n"));
