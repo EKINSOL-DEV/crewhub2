@@ -72,7 +72,8 @@ export interface HostKeyState {
  * (sign in again); `signed-out` means no session. Never the cookie, never a password.
  */
 export interface HostSessionState {
-  state: "signed-out" | "signed-in" | "expired";
+  /** `key`: this loops lets the world's own key read the chat (a viewer key), so no sign-in is needed and none is used. */
+  state: "signed-out" | "signed-in" | "expired" | "key";
   /** The person's display name and account id; paired browsers only. */
   name?: string;
   id?: string;
@@ -242,7 +243,7 @@ export function readConnection(value: unknown): HostConnection | null {
 /** The host's `connection.session`, strictly: a known state, the name, id and time when strings; anything else dropped. */
 export function readSessionState(value: unknown): HostSessionState | null {
   const raw = value as { state?: unknown; name?: unknown; id?: unknown; at?: unknown } | null | undefined;
-  const state = oneOf(raw?.state, ["signed-out", "signed-in", "expired"]);
+  const state = oneOf(raw?.state, ["signed-out", "signed-in", "expired", "key"]);
   if (state === undefined) return null;
   const out: HostSessionState = { state };
   if (typeof raw?.name === "string") out.name = raw.name;

@@ -275,7 +275,7 @@ function ChatSession({ session, paired, onHealth }: { session: HostSessionState;
     setBusy(null);
   };
   if (words === null) return null;
-  const state = words.kind === "signed-out" ? t("world.connection.panel.session.signed-out") : words.name === null ? t(`world.connection.panel.session.${words.kind}.unnamed`) : t(`world.connection.panel.session.${words.kind}`, { name: words.name });
+  const state = words.kind === "signed-out" || words.kind === "key" ? t(`world.connection.panel.session.${words.kind}`) : words.name === null ? t(`world.connection.panel.session.${words.kind}.unnamed`) : t(`world.connection.panel.session.${words.kind}`, { name: words.name });
   return (
     <section className="connection-session" aria-labelledby="connection-session-title" data-session={words.kind}>
       <h3 id="connection-session-title" className="connection-session-title">
@@ -285,7 +285,7 @@ function ChatSession({ session, paired, onHealth }: { session: HostSessionState;
         {state}
       </p>
       {words.kind === "signed-out" && <p className="hint connection-note">{t("world.connection.panel.session.lead")}</p>}
-      {paired ? (
+      {words.kind === "key" ? null : paired ? (
         <>
           {words.kind !== "signed-in" && (
             <form className="connection-session-form" onSubmit={(e) => void signIn(e)}>

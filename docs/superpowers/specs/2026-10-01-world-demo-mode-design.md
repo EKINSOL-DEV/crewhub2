@@ -1051,6 +1051,17 @@ signed out (no bubbles), signed in as <name>, expired (loops refused the kept co
 a new sign-in). Forget the session signs out at loops and deletes the file. A host without a config folder keeps no
 session and answers 503 to a sign-in.
 
+**The key road (the same round, after `world/viewer-key`).** Where crewhub-loops lets the world's own key read the
+chat (a viewer key, L1: the key's own entry in `GET /api/agents` says `viewer: true` and `GET /api/dm/threads` answers
+200 to it, as on the second dev instance on 8292; a plain external bot gets that 200 too, with its own empty threads,
+so the flag decides), no person's session is needed or used: the host finds out at the key check (two reads), says
+`session: key` in health, the
+Connection panel's Chat section says "Not needed: this crewhub-loops lets the world's key read the chat" with no
+form, a sign-in answers 409 `not_needed`, a session kept from another loops stays on disk unused, and an agent's
+`dm.created` on the key's own stream is read by id with the key (`/api/dm/threads` and `/api/dm/messages/{id}`
+joined the key's read allow-list) and shown as the same bubble. A loops that refuses the key the chat keeps the
+session road. When loops' own feed (option 1) ships everywhere, the session road can go.
+
 ### Bubbles themselves
 
 The world's speech bubbles exist in demo mode. A message from an agent to the person becomes a bubble over the

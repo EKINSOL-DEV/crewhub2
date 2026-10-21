@@ -30,7 +30,7 @@ import type { KeyStore } from "./keyStore.ts";
 import { type LoopsClient, createLoopsClient, isUnauthorized } from "./loops.ts";
 import { PAIR_PATH_PREFIX, PAIR_REFUSED_HTML, type Pairing, createPairing, pairCookieHeader } from "./pairing.ts";
 import { type ArchiveReport, type AssembledSnapshot, SnapshotError, type SnapshotStats, assembleSnapshot } from "./snapshot.ts";
-import { type Session, type SessionStore, createSession } from "./session.ts";
+import { type ChatLine, type Session, type SessionStore, createSession, firstLine } from "./session.ts";
 import { type HostMessage, type LoopsState, type Upstream, createUpstream } from "./stream.ts";
 
 export interface HostOptions {
@@ -337,6 +337,40 @@ export async function createHost(options: HostOptions): Promise<Host> {
           ...(options.reconnectMs === undefined ? {} : { reconnectMs: options.reconnectMs }),
         });
 
+  /**
+   * Whether the current loops lets the key read the chat: a VIEWER key (`world/viewer-key`, L1: the key's own entry in
+   * `GET /api/agents` says `viewer: true`; a loops from before has no such field) whose `GET /api/dm/threads` answers
+   * 200. A plain external bot gets 200 there too, with its own (empty) threads, which is why the flag decides.
+   */
+  let keyReadsChat = false;
+  async function readsChat(client: LoopsClient, name: string): Promise<boolean> {
+    try {
+      const agents = await client.getJson<{ agents?: { id?: unknown; viewer?: unknown }[] }>("/api/agents");
+      const mine = agents.status === 200 ? agents.body?.agents?.find((a) => a.id === name) : undefined;
+      if (mine?.viewer !== true) return false;
+      return (await client.getJson("/api/dm/threads")).status === 200;
+    } catch {
+      return false;
+    }
+  }
+  /** An agent's `dm.created` on the key's stream: the message read by id with the key, as one chat line; null when not readable. */
+  async function chatLineFromKey(client: LoopsClient, payload: Record<string, unknown>): Promise<ChatLine | null> {
+    const messageId = payload["messageId"];
+    const threadId = payload["threadId"];
+    const agentId = payload["agentId"];
+    if (typeof messageId !== "string" || typeof threadId !== "string" || typeof agentId !== "string") return null;
+    try {
+      const { status, body } = await client.getJson<{ message?: { bodyText?: unknown; createdAt?: unknown; author?: { displayName?: unknown } } }>(`/api/dm/messages/${encodeURIComponent(messageId)}`);
+      if (status !== 200 || typeof body?.message?.bodyText !== "string") return null;
+      const text = firstLine(body.message.bodyText);
+      if (text === "") return null;
+      const name = body.message.author?.displayName;
+      return { agentId, ...(typeof name === "string" ? { agentName: name } : {}), text, at: typeof body.message.createdAt === "string" ? body.message.createdAt : new Date().toISOString(), messageId, threadId };
+    } catch {
+      return null;
+    }
+  }
+
   // --- A rejected key waits (round 8). No stream retries: each was a 401 and a health probe every 30 s. The host waits
   // for a new key, a Forget or a discovery change (every one goes through relink, which cancels the wait), and
   // re-checks the kept key slowly (recheckMs, 5 min by default: one keyless health probe, and only when loops answers
@@ -425,9 +459,11 @@ export async function createHost(options: HostOptions): Promise<Host> {
         }
         await old.upstream.stop();
       }
-      // The chat session rides the same road as the key: the discovery's target, or none.
-      session?.follow(found === null ? null : found.target);
+      keyReadsChat = false;
+      // The chat session rides the same road as the key: the discovery's target, or none. With a key it waits for the
+      // key check below: on a loops whose key reads the chat (the key road) a kept session is never used.
       if (found === null || holder === null) {
+        session?.follow(found === null ? null : found.target);
         for (const tab of tabs.values()) attach(tab);
         return;
       }
@@ -447,6 +483,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
         step("key", false, `key ${mine.name} (${mine.source}) rejected by loops at ${targetText(found.target)}: ${scrub(verdict.reason)} (the key is kept; paste a new one or forget it)`, performance.now() - keyStarted);
         for (const tab of tabs.values()) attach(tab);
         scheduleRecheck(mine);
+        session?.follow(found.target);
         return;
       }
       if (verdict.state === "ok") {
@@ -454,10 +491,17 @@ export async function createHost(options: HostOptions): Promise<Host> {
         delete mine.reason;
         mine.name = verdict.name;
         step("key", true, `key ${mine.name} (${mine.source}) accepted by loops at ${targetText(found.target)}`, performance.now() - keyStarted);
+        // Does this loops let the key read the chat (a viewer key, round 12)? Then the bubbles come over the key's own
+        // stream and no person's session is needed or used; a loops that answers anything else keeps the session road.
+        keyReadsChat = await readsChat(client, mine.name);
+        if (closed || holder !== mine || discovery.current() !== found) return;
+        if (keyReadsChat) log(`the key reads the chat on this crewhub-loops: the agents' answers come over its stream, no sign-in needed`);
+        session?.follow(keyReadsChat ? null : found.target);
       } else {
         // Nothing is known about the key: it keeps the state it had (a fresh key stays unchecked), never rejected.
         mine.state = before === "checking" ? "unchecked" : before;
         log(`key ${mine.name} (${mine.source}) ${mine.state}: ${scrub(verdict.reason)}; the stream keeps trying`);
+        session?.follow(found.target);
       }
       const upstreamOptions: Parameters<typeof createUpstream>[1] = { log: (line) => log(scrub(line)), healthy, onVersion: sawVersion };
       if (options.bufferSize !== undefined) upstreamOptions.bufferSize = options.bufferSize;
@@ -506,6 +550,12 @@ export async function createHost(options: HostOptions): Promise<Host> {
           } else if (message.stream !== "busy" && appRoads) void discovery.refresh();
           return;
         }
+        if (message.type === "event" && keyReadsChat && message.envelope.type === "dm.created" && message.envelope.actor.kind === "agent") {
+          void chatLineFromKey(client, message.envelope.payload).then((line) => {
+            if (line !== null && link?.upstream === upstream) for (const tab of tabs.values()) tab.send({ type: "chat", chat: line });
+          });
+          return;
+        }
         if (message.type !== "event" || message.envelope.project === null) return;
         const slug = message.envelope.project.slug;
         if (message.envelope.type === "project.archived") rememberArchive([...archive.slugs, slug], null);
@@ -546,7 +596,8 @@ export async function createHost(options: HostOptions): Promise<Host> {
       archived: { source: archive.source, count: archive.slugs.size, ...(archive.at === undefined ? {} : { at: archive.at }) },
     };
     out.snapshot = snapshotState;
-    if (session !== null) {
+    if (keyReadsChat && link !== null) out.session = { state: "key" };
+    else if (session !== null) {
       const who = session.state();
       out.session = detailed ? who : { state: who.state };
     }
@@ -803,6 +854,11 @@ export async function createHost(options: HostOptions): Promise<Host> {
     if (session === null) {
       req.resume();
       sendJson(res, 503, { error: "no_session_store", message: "This host keeps no chat session (no config folder)" });
+      return;
+    }
+    if (req.method === "POST" && keyReadsChat && link !== null) {
+      req.resume();
+      sendJson(res, 409, { error: "not_needed", message: "This crewhub-loops lets the world's key read the chat: no sign-in is needed, the bubbles come by themselves." });
       return;
     }
     if (req.method === "DELETE") {

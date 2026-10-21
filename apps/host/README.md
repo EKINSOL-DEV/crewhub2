@@ -44,7 +44,9 @@ smooth connection" below):
   in to crewhub-loops as the person for the chat's bubbles and keeps only the session cookie in `<CREWHUB_WORLD_CONFIG_DIR>/loops-session`
   (0600); the password is never stored, logged or returned. With it the host reads the chat only (`src/session.ts` `SESSION_ROUTES`: the
   threads, a thread's messages, a message by id, the events with `types=dm.*`) and sends nothing; an agent's answer reaches the tabs as a
-  `chat` stream message. `connection.session` says `signed-out`, `signed-in` (with the name for paired browsers) or `expired`.
+  `chat` stream message. `connection.session` says `signed-out`, `signed-in` (with the name for paired browsers), `expired`, or `key`: this
+  loops lets the world's key read the chat (a viewer key, L1: its own entry in `GET /api/agents` says `viewer: true` and `GET /api/dm/threads` answers 200), so the bubbles come over the key's own
+  stream and a sign-in is refused as not needed (409).
 - **Health** `GET /world-api/health`: `{ loops, keyName, sharedKey, loopsWebUrl, transport, paired, pairing, loopsCommit?, loopsCommitBefore?, cursor?, connection }`
   (`connection` is under "The smooth connection" below; `connection.key.recheckAt` says when a rejected key is re-checked (round 8: the host
   makes no stream retry with a refused key; it waits for a new key, a Forget or a discovery change and asks loops about the kept key

@@ -232,6 +232,7 @@ export const EN: Record<string, string> = {
   "world.connection.panel.session.signed-in.unnamed": "Signed in: the agents' answers show as bubbles.",
   "world.connection.panel.session.expired": "The session of {name} is no longer accepted by crewhub-loops: sign in again for bubbles.",
   "world.connection.panel.session.expired.unnamed": "The session is no longer accepted by crewhub-loops: sign in again for bubbles.",
+  "world.connection.panel.session.key": "Not needed: this crewhub-loops lets the world's key read the chat, so the agents' answers show as bubbles without a sign-in.",
   "world.connection.panel.session.id": "Account id",
   "world.connection.panel.session.password": "Password",
   "world.connection.panel.session.signIn": "Sign in",

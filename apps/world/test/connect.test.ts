@@ -80,6 +80,7 @@ test("sessionWords: the chat session's state for the panel; a host from before h
   assert.deepEqual(sessionWords({ state: "signed-in", name: "Nicky", id: "nicky" }), { kind: "signed-in", name: "Nicky" });
   assert.deepEqual(sessionWords({ state: "signed-in" }), { kind: "signed-in", name: null }, "an unpaired browser: the state only");
   assert.deepEqual(sessionWords({ state: "expired", name: "Nicky" }), { kind: "expired", name: "Nicky" });
+  assert.deepEqual(sessionWords({ state: "key" }), { kind: "key", name: null }, "this loops lets the key read the chat: no sign-in");
 });
 
 test("untilTime: when the host re-checks a rejected key, in words", () => {

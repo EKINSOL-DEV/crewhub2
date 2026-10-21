@@ -37,6 +37,9 @@ export const LOOPS_READS: readonly LoopsRead[] = [
   { pattern: "/api/agents", query: [] },
   { pattern: "/api/team", query: [] },
   { pattern: "/api/watchdog", query: [] },
+  // The chat, where loops lets the world's key read it (a viewer key, round 12): the threads (the probe) and a message by id.
+  { pattern: "/api/dm/threads", query: [] },
+  { pattern: "/api/dm/messages/{id}", query: [] },
 ];
 
 export interface WorldRoute {

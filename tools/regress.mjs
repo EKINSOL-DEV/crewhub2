@@ -61,7 +61,10 @@
            password in the host's log, the page or the host's answers), "Signed in as Nicky"; an agent's scripted
            answer (g-man at 4:21 of the story, the fake started just before it) shows as a speech bubble over its
            figure with the first line; a tap on it opens the Chat panel on that agent; Forget the session signs out
-           (the fake's session count 0, the file gone, "Not signed in"). Needs nobody. About a minute.
+           (the fake's session count 0, the file gone, "Not signed in"). Then the key road, over a second fake whose
+           viewer key may read the chat (`keyReadsChat`): no sign-in, the panel's Chat section says "Not needed" with
+           no form, g-man's answer as a bubble over the key's own stream, a tap to the Chat panel. Needs nobody.
+           About two minutes.
      rooms the three-room building (`?rooms=three`, whatever the viewer's Buildings setting): three room signs
            (Administration, The floor, Lead's office) and a rack sign with its count, the arrow keys between the three halls, the text view naming the
            racks and the desks with a package on each, the lead's office beacon, the agent card on a figure at a desk,
@@ -1016,6 +1019,51 @@ await group("chat", async () => {
     await fake.close().catch(() => {});
     await web.close().catch(() => {});
     rmSync(configDir, { recursive: true, force: true });
+  }
+
+  // The key road: a loops whose viewer key may read the chat (world/viewer-key, 8292): no sign-in at all.
+  const keyDir = path.join(OUT, `${tag}-chatkey-config`);
+  rmSync(keyDir, { recursive: true, force: true });
+  mkdirSync(keyDir, { recursive: true, mode: 0o700 });
+  const fake2 = await createLoopsFake({ heartbeatMs: 1000, speed: 1, startAt: 200_000, keyReadsChat: true });
+  const web2 = await createLoopsWebStub();
+  const lines2 = [];
+  const hostOptions2 = { loopsUrl: fake2.url, loopsWebUrl: web2.url, key: fake2.key, keyName: fake2.keyName, sessionStore: createSessionStore(keyDir), pairing: "off", retryMs: { min: 100, max: 500 }, reconnectMs: { min: 100, max: 300 }, heartbeatMs: 1000, log: (line) => lines2.push(line) };
+  const host2 = await createHost(served ? { ...hostOptions2, staticDir: dist } : { ...hostOptions2, port: hostPort, allowedOrigins: [origin] });
+  const keyOrigin = served ? host2.url : origin;
+  info(`chat (key road): fake on 127.0.0.1:${fake2.port} whose key reads the chat, host on 127.0.0.1:${host2.port}`);
+  const own2 = [];
+  const ctx2 = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
+  const pg2 = await ctx2.newPage();
+  watch(pg2, keyOrigin, own2, "chat key");
+  try {
+    await pg2.goto(`${keyOrigin}/`);
+    await pg2.waitForSelector("canvas", { timeout: 60000 }).catch(() => {});
+    await pg2.waitForSelector('.connection-chip[data-connection="live"]', { timeout: 20000 }).catch(() => {});
+    const health2 = await pg2.request.get(`${keyOrigin}/world-api/health`).then((r) => r.json());
+    await pg2.locator(".connection-chip").first().click();
+    await pg2.waitForSelector(".connection-session", { timeout: 5000 }).catch(() => {});
+    const words = (await pg2.locator(".connection-session").innerText().catch(() => "")).replace(/\s+/g, " ");
+    ok("chat (key road): health says session key, the panel's Chat section says not needed and shows no sign-in form, the host's log says the key reads the chat", health2.connection?.session?.state === "key" && /Not needed: this crewhub-loops lets the world's key read the chat/.test(words) && (await pg2.getByLabel("Password").count()) === 0 && lines2.some((l) => /the key reads the chat on this crewhub-loops/.test(l)), `${health2.connection?.session?.state}; ${words.slice(0, 100)}`);
+    await shot(pg2, "57-chat-key-not-needed");
+    await pg2.keyboard.press("Escape");
+    const bubble2 = pg2.locator('.bubble.said[data-said-agent="g-man"]');
+    await bubble2.waitFor({ timeout: 90000 }).catch(() => {});
+    const said2 = (await bubble2.innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+    ok("chat (key road): an agent's answer comes over the key's own stream and shows as a bubble, with no session anywhere", /Busy and calm/.test(said2) && fake2.sessionsOpen() === 0 && !existsSync(path.join(keyDir, "loops-session")), said2.slice(0, 100) || `no bubble; host: ${lines2.slice(-4).join(" | ").slice(0, 200)}`);
+    await shot(pg2, "58-chat-key-bubble");
+    await bubble2.click().catch(() => {});
+    await pg2.waitForSelector(".chat-sheet", { timeout: 5000 }).catch(() => {});
+    const agent2 = await pg2.locator(".chat-sheet").getAttribute("data-agent").catch(() => null);
+    ok("chat (key road): a tap on the bubble opens the Chat panel on that agent", agent2 !== null && /g-man/.test(agent2), `data-agent ${agent2}`);
+    await pg2.keyboard.press("Escape");
+    problems.push(...own2.filter((x) => !(x.kind === "external" && x.text.includes(web2.url))));
+  } finally {
+    await ctx2.close().catch(() => {});
+    await host2.close().catch(() => {});
+    await fake2.close().catch(() => {});
+    await web2.close().catch(() => {});
+    rmSync(keyDir, { recursive: true, force: true });
   }
 });
 

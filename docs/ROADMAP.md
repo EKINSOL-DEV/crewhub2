@@ -158,7 +158,9 @@ once, from the Connection panel's Chat section (off by default), keep only the s
 read the chat as that person under its own allow-list (the dm reads and the `dm.*` stream, never a send or anything
 else) and show an agent's answer as a speech bubble over its figure (12 s; a tap opens the Chat panel); honest states
 (signed in as, expired, signed out), Forget the session. Tested with the stub, the fake (which learnt login and the dm
-routes) and a regress check over the fake; the real sign-in on 8291 is a person's act (request 15), not mine.
+routes) and a regress check over the fake; the real sign-in on 8291 was done by crewy (request 15: sign-in and
+Forget pass, the bubble waits for dispatch to be opened). The key road: where loops lets the world's key read the
+chat (the viewer key on 8292), no session is needed and the bubbles come over the key's own stream (`session: key`).
 
 Round 7 (2026-10-21, the live operations road): three things done to crewhub-loops under a running host, each with
 its honest screen and a regress check that needs nobody (`tools/regress.mjs --groups ops`, over the fake): loops

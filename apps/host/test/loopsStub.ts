@@ -70,6 +70,8 @@ export interface StubOptions {
   dm?: { threads?: unknown[]; messages?: Record<string, Record<string, unknown>> };
   /** `POST /api/auth/login` answers 429 `too_many_attempts` (loops' pacing) while true. */
   loginBusy?: boolean;
+  /** A loops whose key may read the chat (a viewer key): `GET /api/dm/threads` and a message by id answer the key. Default: 403 for the key. */
+  keyReadsChat?: boolean;
 }
 
 /** A stub-wide outage: every request answers `status` (health too unless `healthOk`), or never answers (`hang`). */
@@ -260,6 +262,18 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
     if (p === "/api/health" && given === undefined) return send(res, 200, { ok: true, version: options.version ?? "053b5f47", checks: {}, principal: { id: "crewhub-world", kind: "agent", displayName: "World" } });
     // An external bot's key: role lead (a `routes` entry for the path overrides it, e.g. a probe or a reader).
     if (p === "/api/auth/me" && given === undefined) return send(res, 200, { principal: { id: "crewhub-world", kind: "agent", displayName: "World", role: "lead" } });
+    // A viewer key's loops (L1): the key's own agent entry says `viewer: true`; the host's probe reads it there.
+    if (p === "/api/agents" && options.keyReadsChat) {
+      const listed = ((given as { agents?: Record<string, unknown>[] } | undefined)?.agents ?? []).filter((a) => a["id"] !== "crewhub-world");
+      return send(res, 200, { agents: [...listed, { id: "crewhub-world", displayName: "World", role: "lead", external: true, viewer: true, herdrSession: null, disabled: false, lastSeenAt: null, keys: null, isCrewhubLead: false, projects: { lead: [], member: [] } }] });
+    }
+    if (p === "/api/dm/threads" && given === undefined) return options.keyReadsChat ? send(res, 200, { threads: options.dm?.threads ?? [] }) : send(res, 403, error("forbidden", `Not a participant${detail}`));
+    const keyMessage = /^\/api\/dm\/messages\/([^/]+)$/.exec(p);
+    if (keyMessage !== null && given === undefined) {
+      if (!options.keyReadsChat) return send(res, 403, error("forbidden", `Not a participant${detail}`));
+      const message = options.dm?.messages?.[decodeURIComponent(keyMessage[1] as string)];
+      return message === undefined ? send(res, 404, error("not_found", "No such message")) : send(res, 200, { message });
+    }
     if (p === "/api/events") {
       const token = url.searchParams.get("cursor");
       if (token !== null && url.searchParams.has("after")) return send(res, 400, error("validation_error", "Send either cursor or after, not both"));

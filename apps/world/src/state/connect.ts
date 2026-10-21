@@ -97,7 +97,7 @@ export function withStreamKey(health: HostHealth | null, key: HostKeyState["stat
  * The person's chat session the host holds (round 12), in words for the panel: off (signed out), signed in as <name>,
  * expired (sign in again); null for a host from before, which keeps none.
  */
-export function sessionWords(session: HostSessionState | undefined): { kind: "signed-out" | "signed-in" | "expired"; name: string | null } | null {
+export function sessionWords(session: HostSessionState | undefined): { kind: "signed-out" | "signed-in" | "expired" | "key"; name: string | null } | null {
   if (session === undefined) return null;
   return { kind: session.state, name: session.name ?? null };
 }

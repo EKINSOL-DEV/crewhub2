@@ -156,7 +156,7 @@ export interface Session {
   stop(): Promise<void>;
 }
 
-const firstLine = (text: string): string => {
+export const firstLine = (text: string): string => {
   const line = text.replace(/\r/g, "").split("\n").find((l) => l.trim() !== "")?.trim() ?? "";
   return line.length > LINE_MAX ? `${line.slice(0, LINE_MAX - 1)}…` : line;
 };

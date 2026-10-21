@@ -75,6 +75,8 @@ export interface LoopsFakeOptions {
    * for this run (`fake.person` says it, for the tools). A session cookie then reads as an admin: every event, the chat.
    */
   person?: { id: string; password: string; displayName: string };
+  /** A loops whose viewer key may read the chat (round 12, `world/viewer-key`): the key gets the threads, the messages and the dm.* rows. */
+  keyReadsChat?: boolean;
 }
 
 export interface LoopsFake {
@@ -222,6 +224,7 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
   const bufferSize = Math.max(1, options.bufferSize ?? DEFAULT_BUFFER);
   const visibility = options.visibility ?? "principal";
   const emptyTeam = options.emptyTeam === true;
+  const keyReadsChat = options.keyReadsChat === true;
   const principal: PrincipalRef = { id: keyName, kind: "agent", displayName: keyName };
   const person = options.person ?? { id: "nicky", password: `demo-${randomBytes(9).toString("base64url")}`, displayName: "Nicky" };
   const personPrincipal: PrincipalRef = { id: person.id, kind: "user", displayName: person.displayName };
@@ -293,7 +296,7 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     if (!EVENT_TYPES.includes(e.type) || ADMIN_ONLY_EVENT_TYPES.includes(e.type)) return false;
     const p = e.payload;
     const chat = e.type.startsWith("dm.") || (p["dmThreadId"] ?? null) !== null;
-    if (chat && p["agentId"] !== keyName && p["recipientId"] !== keyName) return false;
+    if (chat && !keyReadsChat && p["agentId"] !== keyName && p["recipientId"] !== keyName) return false;
     if (e.type === "lane.alert" && p["leadId"] !== keyName) return false;
     if ((p["laneAlertId"] ?? null) !== null && p["recipientId"] !== keyName) return false;
     return true;
@@ -545,13 +548,14 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     if (caller === null) throw new ApiError(401, "unauthenticated", "Authentication required");
     const viewer: "key" | "person" = caller.kind === "user" ? "person" : "key";
     // The chat (dm.py): any principal reads, but a key reads only the threads it is part of; the fake's key is in none.
-    if (at("dm", "threads")) return { threads: viewer === "person" ? await source.getDmThreads() : [] };
+    const readsChat = viewer === "person" || keyReadsChat;
+    if (at("dm", "threads")) return { threads: readsChat ? await source.getDmThreads() : [] };
     if (at("dm", "threads", "*", "messages")) {
-      if (viewer !== "person") throw new ApiError(403, "forbidden", "Not a participant of this thread");
+      if (!readsChat) throw new ApiError(403, "forbidden", "Not a participant of this thread");
       return { messages: await source.getDmMessages(parts[3] ?? ""), nextCursor: null };
     }
     if (at("dm", "messages", "*")) {
-      if (viewer !== "person") throw new ApiError(403, "forbidden", "Not a participant of this thread");
+      if (!readsChat) throw new ApiError(403, "forbidden", "Not a participant of this thread");
       for (const thread of await source.getDmThreads()) {
         const message = (await source.getDmMessages(thread.agentId)).find((m) => m.id === parts[3]);
         if (message !== undefined) return { message };
@@ -635,7 +639,8 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     // An instance where no team probe has reported answers an empty snapshot with `ts` an empty string (observed on 8291).
     if (at("team") && emptyTeam) return { v: 1, ts: "", sessions: [] };
     if (at("team")) return (await snapshotOf()).team;
-    if (at("agents")) return { agents: withKeyBot(await source.getAgents(), keyName, new Date()), lanesAuthority: "db", agentHome: null };
+    // A viewer key's loops (L1) marks the key's own bot `viewer: true` in the agents list: the host's probe reads it there.
+    if (at("agents")) return { agents: withKeyBot(await source.getAgents(), keyName, new Date()).map((a) => (keyReadsChat && a.id === keyName ? { ...a, viewer: true } : a)), lanesAuthority: "db", agentHome: null };
     if (at("principals")) return { principals: (await snapshotOf()).principals };
     if (at("watchdog")) return source.getWatchdog();
     if (at("events")) {

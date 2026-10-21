@@ -110,3 +110,17 @@ test("a person's stream filtered to dm.* gets an agent's answer as it happens, a
   assert.equal(byId.message.author.id, "g-man");
   assert.match(byId.message.bodyText, /Busy and calm/);
 });
+
+test("a loops whose viewer key may read the chat (keyReadsChat): the key gets the threads, a message by id, and dm.* on its stream", async () => {
+  const fake = await createLoopsFake({ speed: 16, startAt: 258_000, heartbeatMs: 200, keyReadsChat: true });
+  fakes.push(fake);
+  const asKey = (p: string, init: RequestInit = {}) => fetch(`${fake.url}${p}`, { ...init, headers: { authorization: `Bearer ${fake.key}`, ...(init.headers ?? {}) } });
+  const threads = (await (await asKey("/api/dm/threads")).json()) as { threads: { agentId: string }[] };
+  assert.ok(threads.threads.length > 0, "the chats, for the key");
+  const stream = await asKey("/api/events/stream?types=dm.created", { headers: { accept: "application/x-ndjson" } });
+  const lines = await readLines(stream, 3, 6000);
+  const answer = lines.find((l) => l["type"] === "dm.created" && (l["actor"] as { kind: string }).kind === "agent") as { payload: { messageId: string } } | undefined;
+  assert.ok(answer, "g-man's answer reaches the key's stream");
+  const byId = (await (await asKey(`/api/dm/messages/${answer.payload.messageId}`)).json()) as { message: { author: { id: string } } };
+  assert.equal(byId.message.author.id, "g-man");
+});
