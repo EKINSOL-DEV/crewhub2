@@ -28,9 +28,12 @@
            settings, the where form, reduced motion, a phone, both themes). About two minutes.
      demo  the jump list (/ opens it, a building's name, Enter lands inside; the postman's card in the town), the scenario picker (the Demo chip, One
            project, back to Small team) and the Studio scenario's Region level (district cards, a beacon, a pin, a
-           district, a building, the Escape chain back to the Region). About half a minute.
+           district, a building, the Escape chain back to the Region); and 17 checks of the new loops events (round 7):
+           the storyline played to the quiet fact (the dusty package, its clock tag, the text view's line), the card an
+           automation run pins on the board by the front door with its lines, the failed run's card, each waiting for
+           the model's state and entering its building by slug. About 50 s.
      live  live mode against a fake crewhub-loops the tool starts itself (`packages/loops-fake`, port 0) behind a host it
-           starts itself (`apps/host`): the Live chip, the sign-in link, Loops down after the fake closes, Live again
+           starts itself (`apps/host`): the Live chip, the chat chip's link into the loops web, Loops down after the fake closes, Live again
            after a new fake on the same port, and, when the host has pairing, the pairing page without a cookie and
            the world after the one-time link. When `apps/world/dist` exists (after `npm run build`) the host serves
            it on a free port and the browser opens the host directly; otherwise the host listens on --host-port

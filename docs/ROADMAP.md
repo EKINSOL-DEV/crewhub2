@@ -81,11 +81,11 @@ they are not built.
 | Phase | Deliverable | Status |
 | --- | --- | --- |
 | 1. First light | `packages/loops-client`, `WorldSource`, the demo source, one building per project, navigation, hidden text view | Built in demo mode (2026-10-01); live since 2026-10-07 (against the fake) and against crewhub-loops `4cdcd383` since 2026-10-21 |
-| 2. Chat bubbles | The loops chat mirrored verbatim, backed by an in-browser demo chat API | Built in demo mode (2026-10-01). Live: not built, blocked on CORS in crewhub-loops (L8); the dock shows the sign-in link only |
-| 3. Buildings | Rooms by role, tickets as objects in rooms, the ticket drone, postures and captions, the `WorldStyle` seam | Built in demo mode (2026-10-01); live from the same model, with the real lane facts on the card, a person carrying work into Done and closed buildings (2026-10-21). Not built: the world database |
+| 2. Chat bubbles | The loops chat mirrored verbatim, backed by an in-browser demo chat API | Built in demo mode (2026-10-01). Live: not built, blocked on CORS in crewhub-loops (L8); the live town's chat corner is one chip, "Chat: in the crewhub-loops app", which opens the loops web app in a new tab |
+| 3. Buildings | Rooms by role, tickets as objects in rooms, the ticket drone, postures and captions, the `WorldStyle` seam | Built in demo mode (2026-10-01); live from the same model, with the real lane facts on the card, a person carrying work into Done and closed buildings (2026-10-21); since round 7 a quiet ticket gathers dust and a clock tag, and an automation's run pins a card on the building's board, in the demo and live alike. Not built: the world database |
 | 4. Town and dynamic pathfinding | Doors, town paths, heap A*, wait budget, detail levels, stress fixture | Built in demo mode (2026-10-01); live from the same model |
 | 5. Build mode: layout and props | Local town document with undo and export/import, prop catalogue, the `crewhub-prop/1` format and the `prop-builder` skill | Built in demo mode (2026-10-01); live mode keeps its own town document in the browser. Not built: the world database |
-| 6. Director and awareness | A scripted intent feed through the validated intent list, `where`, the settings block, the no-model-call guard | Built in demo mode (2026-10-01); `where` works live. Not built: the real director |
+| 6. Director and awareness | A scripted intent feed through the validated intent list, `where`, the settings block, the no-model-call guard | Built in demo mode (2026-10-01); `where` works live. Not built: the real director; the scripted feed in live mode is a proposal ("Open" below) |
 
 Walk mode (2026-10-07, built in demo mode): the person walks a visitor figure through the town and into buildings over
 the navigation world, with a follow camera ("Walk mode" in
@@ -138,6 +138,21 @@ loops: the dressed town about 1.1 s after `npm run world` warm and about 2.4 s c
 a developer following the runbook: about 90 s hands on, including the loops dialog; the measure was two minutes.
 Nicky's first run against the app itself is still to come.
 
+Rounds 4 to 6 (2026-10-21, until late morning): the morning was rehearsed from a fresh clone three more times, the
+sixth holding every timing (the Connect screen's first paint in about 70 ms, the paste to the Live chip in 0.83 s, a
+host restart with the kept secret back at Live in 1.3 s, a tab whose host restarted without its secret back 1.3 s after
+the new link, where it took 5.4 s before round 5); "the world is up" is printed once, timed from the host's start; the
+doctor and the step list read as a person reads; the live town's chat corner is one chip, "Chat: in the crewhub-loops
+app", which opens the loops web in a new tab. The `connect` group of the regress pass walks every Connect screen
+against a stub and the road against the development loops. The first paint was cut structurally, each cut measured
+before and after with the town the same to the pixel (round 4: no Suspense on the road to the town, the snapshot read
+ahead, the world's chunks preloaded, three.js in its own chunk; round 5: `mergeStatic` writes every vertex once, the
+navigation graph and the walkers follow the first drawn frame, the Greenhouse models are validated on first use;
+round 6: the director's graph is built on first use, the scene's graph starts empty), the numbers in
+[COST_POLICY.md](COST_POLICY.md) and the order of the first frame in [ARCHITECTURE.md](ARCHITECTURE.md);
+`tools/profile.mjs` keeps the profiler. Labels stack on a phone instead of piling up, a person's pill climbs over the
+rack tags, a tag glides instead of hopping, a need pin says its count once, a waiting tag says "waits on <name>".
+
 Round 7 (2026-10-21, the live operations road): three things done to crewhub-loops under a running host, each with
 its honest screen and a regress check that needs nobody (`tools/regress.mjs --groups ops`, over the fake): loops
 stopped and started (the Loops down chip over the last known town, the panel's "down; the host retries", Live again
@@ -147,7 +162,11 @@ upgraded, a different `/api/health` `version` (health's `loopsCommitBefore`, the
 started", the host's log line). The `real` group checks what the development loops can show without being stopped:
 its version in health and in the panel. Rehearsed on 8291 with crewy stopping and starting it and revoking the key at
 named times (request 9); a version change on 8291 is not possible (the package version is baked into its uv
-environment), so that road is the fake's and the stub's.
+environment), so that road is the fake's and the stub's. The same round made demo and live look alike: the world's
+own key is the demo's observer too (hidden, as on an install), a CI bot stands in the lodge as other external bots
+stand in the town hall, the agent card draws above the corner chips, and the differences that remain are by design
+(the demo's playback bar, the chip and chat corner, lanes and a team snapshot the development loops lacks, colours
+and milestones the seed may not write).
 
 ## Open
 
@@ -158,16 +177,27 @@ Everything below is planned and not built. Each item needs crewhub-loops running
 - **Real chat.** The bubbles talk to crewhub-loops as the person; this needs CORS
   for the CrewHub origin (proposal L8).
 - **Real director.** The `crewhub-world` CLI, the watcher and the `world-director`
-  lane, off by default, capped and measured. No model call exists today.
+  lane, off by default, capped and measured. No model call exists today. A middle road without a
+  model, the demo's scripted feed in live mode, off by default and labelled scripted on every intent
+  and in the text view, is written down as a proposal in the spec addendum of round 7; Nicky decides
+  whether it is worth it before the real director.
 - **Project groups (L22).** Zones stay in each browser's town document until
-  crewhub-loops has a level above projects ([gap analysis](LOOPS_GAP_ANALYSIS.md), section 5.8).
+  crewhub-loops has a level above projects ([gap analysis](LOOPS_GAP_ANALYSIS.md), section 5.8). The
+  spec addendum of round 7 lists the roads: wait for loops, or the host's world database keeps the
+  zones per installation so every paired browser shares them; per browser until one of the two exists.
 - **Proposals on the loops side**, worked out with tests on the unpushed branch
-  `world/viewer-key` of the world's loops checkout (2026-10-21) and accepted by nobody
+  `world/viewer-key` of the world's loops checkout (nine commits on `4cdcd383`, 2026-10-21),
+  packaged for `cl-lead` in `docs/proposals/crewhub-world-viewer.md` on that branch (round 7:
+  the routes, the migration, the tests and how to try it on a dev instance) and accepted by nobody
   yet: the **viewer key** (L1: an external bot flag that may read exactly the host's read
   list and the stream and write nothing; until it lands the world runs on a lead-grade
   key behind the host's `GET`-only allow-list) and, on top of it, a **"Connect CrewHub
   World" card** in Settings > Agents that makes the viewer bot and shows its key once with
   the world's address. The other proposals of plan section 9 (L2 to L8) stand as written.
+
+Three things wait for Nicky, not for code: `--test-timeout=120000` in `npm test`, so a hung test fails by name
+(branch `task/r5-testtimeout`, unmerged); the Greenhouse models' Object3D count, the next first-paint cut, which
+touches the style package; and the viewer key's merge in crewhub-loops.
 
 ## Later scope
 

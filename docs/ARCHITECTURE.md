@@ -40,10 +40,10 @@ within 1.5 s, else demo; `?source=live|demo` overrides).
 
 | Package | Role |
 | --- | --- |
-| `packages/loops-client` | crewhub-loops types, hand-written runtime validators, the event allowlist, the `WorldSource` seam, and the live source `createHostSource` (snapshot, then SSE events by `seq`; `ConnectionState` for the chip; `probeHost`, `connectHost`, `forgetHostKey`) |
-| `packages/demo` | `DemoSource`: a deterministic, in-memory crewhub-loops with a 16-minute storyline, four scenarios, its own lanes, playback controls and the chat API the bubbles call |
+| `packages/loops-client` | crewhub-loops types, hand-written runtime validators, the event allowlist (`ticket.quiet` and `automation.ran` with typed payloads since round 7; `owner-request.updated` known and skipped), the `WorldSource` seam, and the live source `createHostSource` (snapshot, then SSE events by `seq`; `ConnectionState` for the chip; `probeHost`, `connectHost`, `forgetHostKey`) |
+| `packages/demo` | `DemoSource`: a deterministic, in-memory crewhub-loops with a 16-minute storyline, four scenarios, its own lanes, the world's key as its observer and a CI bot (as loops answers external bots), the quiet and automation events in the storyline, playback controls and the chat API the bubbles call |
 | `packages/loops-fake` | The same storyline served over HTTP the way crewhub-loops `4cdcd383` serves it (bearer keys, `from=tail`, sealed cursors, per-key visibility, 429, archived projects): the host's end-to-end test and the live browser checks run against it ([LOOPS_REAL_VS_FAKE.md](LOOPS_REAL_VS_FAKE.md)) |
-| `packages/world-model` | Projection, `reduceWorld`, `describeWorld` (text view), town document, catalogue, director intents, `where`, the agent card's facts; it never knows which source feeds it |
+| `packages/world-model` | Projection, `reduceWorld`, `describeWorld` (text view), town document, catalogue, director intents, `where`, the agent card's facts, the quiet facts and the board cards (`board.ts`); it never knows which source feeds it |
 | `packages/world-engine` | Grid, footprints, placement, pathfinding, the prop format (`crewhub-prop/1`) and its validator |
 | `packages/world-style`, `packages/style-greenhouse`, `packages/world-cast`, `packages/cast-*` | The style and cast seams and their data ("World styles" below) |
 | `apps/world` | The browser app: Three.js town and building scenes, the minimal UI, the chat bubbles mirrored from crewhub-loops, the `useWorld` seam, the Connect screens and the Connection panel |
@@ -117,7 +117,12 @@ One Node process, no dependency beyond Node, loopback only. Its parts, each a fi
   allowed one (403).
 - **Health** (`GET /world-api/health`): the old tri-state `loops` plus `connection`
   (`discovery`, `key`, `stream` with `busy` on loops' 429, `snapshot` with the reads so
-  far), answered within a second even while the key check is under way.
+  far, `archived` with where the closed buildings came from), answered within a second even
+  while the key check is under way. `loopsCommit` is loops' own `version`, read on every stream
+  open; `loopsCommitBefore` is the first one of this run, present only when loops has answered
+  another since (loops upgraded under the host, logged once; the restart that came with it
+  re-snapshots the world as any Loops down does). A 401 on the stream from a loops whose health
+  answers (the key revoked while Live, its bot disabled) makes the key `rejected` with that reason.
 - **`npm run world`** (`main.ts`, `build.ts`): starts the host with pairing on, opens the
   browser on a pairing link and, when `apps/world/dist` is missing or older than the
   sources, builds the world beside it behind a "Building the world…" page; prints a step
@@ -138,11 +143,17 @@ field that keeps nothing; the key goes to `POST /world-api/connect` and nowhere 
 polls health every 2.5 s and mounts the world without a reload the moment the screen is
 gone; a first-snapshot line then says how far the host's assembly is. Once the town runs,
 the chip tells the stream's story (Connecting, Live, Catching up, Stale, Loops down,
-Unauthorized, Stream busy) and opens a Connection panel (discovery, key, stream, cursor,
-last event, reconnects, transport, "Forget this key"); a 401 `not_paired` from the
-snapshot or the stream brings the Pair screen back (chip word "Pair again") and the town
-returns by itself when a new link is opened. The runbook's chip table is
-[LOOPS_SETUP.md](LOOPS_SETUP.md), section 5.
+Stream busy) and opens a Connection panel (now, where loops was found, the key, the stream,
+cursor, last event, reconnects, the closed buildings and where their list came from,
+crewhub-loops' version and the one the host started with after an upgrade, the transport,
+"Forget this key"); the panel asks the host the moment the connection's state changes and
+every 5 s otherwise. Two states send the person back to a screen over the live tab
+(`liveScreen`): a 401 `not_paired` from the snapshot or the stream brings the Pair screen
+back (chip word "Pair again") and the town returns by itself when a new link is opened; loops
+refusing the host's key after the town was up (revoked, its bot disabled: `unauthorized`)
+brings the Key rejected screen with loops' reason, the kept key, "Forget this key" and a
+field, and a new key pasted makes the host switch and the town return without a reload (round
+7). The runbook's chip and screen table is [LOOPS_SETUP.md](LOOPS_SETUP.md), section 5.
 
 ## World styles
 
@@ -187,8 +198,20 @@ exist: the scene builds them in a task of their own right after the first frame
 (`world:walks`), and until then every figure stands where its walker will start (its
 desk seat, the standing spot of an agent without a desk, the postman's post office
 cell), so nothing moves when they land; a walk, a follow or a director's intent asked
-earlier brings them at once. The side pages and the Connect screens still load the
-world lazily. An imperative scene controller owns frame updates outside React. React owns
+earlier brings them at once. Two import-time costs left that road in rounds 5 and 6: the
+Greenhouse style validates a model's JSON the first time it is asked for, not at import
+(`ModelStore`), and the scripted director's own navigation graph is built on its first use
+(the director is off by default); the scene's `NavWorld` starts with an empty graph and the
+town rooms come with the first sync, since nothing reads them before it. `mergeStatic` writes
+every merged vertex once and transforms plain attributes inline (a parity test pins the
+geometry to the bit). In order, on a warm live start: the page's HTML with its preload
+links; the world's module and the host's snapshot fetched side by side (`world:snapshot`);
+the scene made with an empty graph; the first layout slices draw the town
+(`world:first-frame`, the same instant as `world:town-dressed` on a small town); right after
+it, in a task of its own, the navigation graph and the walkers (`world:walks`, about 30 ms
+later); models validated and interiors prepared as they are first needed. The cost of each
+cut is in [COST_POLICY.md](COST_POLICY.md). The side pages and the Connect screens still load
+the world lazily. An imperative scene controller owns frame updates outside React. React owns
 the accessible controls, the chat bubbles and the text view. The renderer consumes the same grid
 used for prop placement and navigation; see [GRID_ENGINE.md](GRID_ENGINE.md).
 No React Three Fiber or physics engine is needed for this slice.
@@ -196,11 +219,13 @@ No React Three Fiber or physics engine is needed for this slice.
 ## Tools: looking at and measuring the running world
 
 [`tools/`](../tools/README.md) holds the scripts that open the running world in a headless browser: the browser
-regression pass (`regress.mjs`: the demo walk, the demo's wayfinding and picker, live mode against the fake with
-pairing, the connect flow against a stub host, the three-room building, 82 checks offline, plus up to 16 against the
-real development crewhub-loops: the connect flow through a keyless host, and live mode over TCP and the socket), the
-frame and memory measurements (`perf.mjs`, `memory.mjs`, in demo and live mode), the time from `npm run world` to
-the dressed town (`timeworld.mjs`), and the screenshot helpers (`shots.mjs`, `castshots.mjs`, `castworld.mjs`,
+regression pass (`regress.mjs`, seven groups: the connect flow against a stub host, the demo walk, the demo's
+wayfinding, picker and the new loops events, live mode against the fake with pairing, the operations road over the
+fake (loops stopped, the key revoked, loops upgraded under the host), the three-room building, 108 checks offline,
+plus up to 16 against the real development crewhub-loops: the connect flow through a keyless host, and live mode
+over TCP and the socket with loops' version), the frame and memory measurements (`perf.mjs`, `memory.mjs`, in demo
+and live mode), the first paint's CPU profile resolved to source files (`profile.mjs`), the time from `npm run
+world` to the dressed town (`timeworld.mjs`), and the screenshot helpers (`shots.mjs`, `castshots.mjs`, `castworld.mjs`,
 `connectshots.mjs`, `liveshots.mjs`). Two are not browser checks: `loops-seed.mjs` replays the demo storyline into
 the development crewhub-loops, and `loops-dev.sh` runs that instance next to the Mac app. They are plain `.mjs`
 files run with `node` against a server on a port of your own, and write to the git-ignored `tools/out/` unless told
@@ -225,7 +250,8 @@ SSE (plan section 3). Browsers cannot open a Unix socket.
 Identity is the loops principal id; a worker's identity is its session and name. The
 host sends no commands. The chat bubbles send DMs as the person through loops' own
 routes (in demo mode, an in-browser fake answers them and the reply is scripted; in live
-mode the dock shows the sign-in link only, until L8). Everything else a person does opens
+mode the chat corner is one chip, "Chat: in the crewhub-loops app", which opens the loops web
+app in a new tab, until L8). Everything else a person does opens
 the loops web app. The host's own principal, the external bot `crewhub-world`, is the
 observer and is never drawn as a figure.
 
@@ -243,6 +269,15 @@ key (429 with `Retry-After`), no buffer (the only 410 is `cursor_expired`), gaps
 per key are normal. The host follows it; the fake emits the same. Validate every
 response and event at runtime, bound buffers, and keep rendering independent of event
 frequency. The differences found on the wire are in [LOOPS_REAL_VS_FAKE.md](LOOPS_REAL_VS_FAKE.md).
+
+Three event types loops added since `053b5f47` are shown since round 7, each as a small presence that moves no
+ticket and no agent: `ticket.quiet` lays dust and a clock tag ("quiet 30 min") on the package until a person or an
+agent next changes the ticket (a change by `system`, an automation answering the quiet fact 6 ms later on the
+development loops, leaves the dust; a snapshot starts the quiet facts afresh); `automation.ran` pins a card on the
+building's board by the front door for 8 s of source time, queued four at most, a failure said in words, and the
+text view keeps the last runs as lines; `owner-request.updated` is served to the owner person only, so the world's
+key never receives it, and the world knows the type and draws nothing. The demo's storyline and the fake emit them
+the loops way (actor `system`), and 17 regress checks cover them.
 
 ## Local access (built)
 

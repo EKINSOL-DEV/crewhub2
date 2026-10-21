@@ -95,7 +95,7 @@ The host starts with neither loops nor a key and reports the honest states; the 
 
 - **Discovery** (`src/discovery.ts`, pure, tested with an injected folder): the env's URL or socket is taken as given;
   else the app's socket, then its port from `settings.json`, each probed with `GET /api/health` (public, no key);
-  else searching, again every 5 s. The web URL for the sign-in link follows what was found. Loops going away later
+  else searching, again every 5 s. The web URL for the chat chip ("Chat: in the crewhub-loops app") follows what was found. Loops going away later
   (the stream reports down) makes the host look again.
 - **The key** (`src/config.ts` `loadKey`): `CREWHUB_WORLD_KEY_FILE`, then the stored key, then the old default file;
   none: keyless. Every key is checked with `GET /api/auth/me` and one board read (`src/keyCheck.ts`): a probe key, a
@@ -163,7 +163,7 @@ npm run host -- --loops-socket ~/crewhub-loops-dev/run/api.sock      # the devel
 curl -s http://127.0.0.1:5180/world-api/health                        # "transport":"unix"
 ```
 
-The sign-in link is `CREWHUB_WORLD_LOOPS_URL`'s origin (its default is the app's `http://127.0.0.1:8091`): a socket
+The chat chip's link (and the card's ticket links) is `CREWHUB_WORLD_LOOPS_URL`'s origin (its default is the app's `http://127.0.0.1:8091`): a socket
 has no origin a browser can open. When the web app is elsewhere, name it: `CREWHUB_WORLD_LOOPS_WEB_URL=http://127.0.0.1:8291`
 for the development instance. Under Docker Desktop the socket is inside the VM and not reachable; use the URL.
 
