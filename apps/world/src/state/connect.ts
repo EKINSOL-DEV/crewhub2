@@ -9,10 +9,13 @@ export type ConnectScreen = "no-loops" | "pair" | "connect" | "checking" | "reje
 
 /**
  * Which screen stands in for the town. The demo never has one; a silent host neither (the chip says what it knows). A
- * host from before the smooth connection only knows pairing. Otherwise: no loops found comes first (pairing cannot
- * help yet), then this browser's pairing, then the key: none (connect), being checked, rejected. With a good key the
- * host must still be reading loops (`loops: "ok"`) before the town shows: an empty clearing over a loops that is down or
- * refuses the key would say "no projects", which is not known. Once the town runs, the chip tells the stream's story.
+ * host from before the smooth connection only knows pairing and the legacy `loops` word. Otherwise the connection's
+ * own states decide, and nothing else: no loops found comes first (pairing cannot help yet), then this browser's
+ * pairing, then the key: none (connect), being checked, rejected (loops refused it: a definite 401/403 from a loops
+ * that was up). With a key that is ok or not yet checked the host must still be reading loops (the stream `ok`, or
+ * `busy`: the town shows and the chip says so) before the town shows: an empty clearing over a loops that is down would
+ * say "no projects", which is not known. A stream loops refuses is a rejected key, never "loops down"; a stream that is
+ * down, or none yet, is loops down, never a verdict on the key. Once the town runs, the chip tells the stream's story.
  */
 export function connectScreen(decision: Pick<SourceDecision, "source" | "health">): ConnectScreen | null {
   if (decision.source !== "live" || decision.health === null) return null;
@@ -31,7 +34,15 @@ export function connectScreen(decision: Pick<SourceDecision, "source" | "health"
     case "rejected":
       return "rejected";
     default:
-      return decision.health.loops === "down" ? "loops-down" : decision.health.loops === "unauthorized" ? "rejected" : null;
+      switch (connection.stream.state) {
+        case "ok":
+        case "busy":
+          return null;
+        case "unauthorized":
+          return "rejected";
+        default:
+          return "loops-down";
+      }
   }
 }
 

@@ -6,7 +6,7 @@
    characters. Copy from the i18n file; the kit's Card, Button and Field; the Pair screen's content comes from PairPage.tsx. */
 import { ExternalLink, KeyRound, RefreshCw, ShieldAlert, Search, Unplug } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { connectHost, probeHost, type HostHealth } from "@crewhub/loops-client";
+import { connectHost, forgetHostKey, probeHost, type HostHealth } from "@crewhub/loops-client";
 import { useT } from "../i18n";
 import { connectOutcome, keyTail, looksLikeKey, normaliseKey, relativeTime, type ConnectOutcome, type ConnectScreen } from "../state/connect";
 import { loopsWebUrl } from "../state/source";
@@ -37,6 +37,7 @@ export function ConnectPage({ screen, health, onHealth, pollMs = CONNECT_POLL_MS
   const [now, setNow] = useState<number>(() => Date.now());
   const [outcome, setOutcome] = useState<ConnectOutcome | "sent" | null>(null);
   const [busy, setBusy] = useState(false);
+  const [forgetting, setForgetting] = useState<"busy" | "done" | string | null>(null);
   const live = useRef(true);
 
   const ask = useCallback(async () => {
@@ -75,6 +76,16 @@ export function ConnectPage({ screen, health, onHealth, pollMs = CONNECT_POLL_MS
     },
     [ask],
   );
+
+  /** The rejected screen's "Forget this key": the host drops its stored key and this screen becomes the Connect screen. */
+  const forget = useCallback(async () => {
+    setForgetting("busy");
+    const answer = await forgetHostKey();
+    if (!live.current) return;
+    const result = connectOutcome(answer.status, answer.body);
+    setForgetting(result.kind === "ok" ? "done" : result.kind === "not-paired" ? t("world.connect.key.notPaired") : (result.reason ?? t("world.connect.key.failed")));
+    void ask();
+  }, [ask, t]);
 
   const title =
     screen === "no-loops"
@@ -133,6 +144,7 @@ export function ConnectPage({ screen, health, onHealth, pollMs = CONNECT_POLL_MS
           <>
             <Card.Body>
               <p className="pair-lead">{t("world.connect.loopsDown.lead", { where })}</p>
+              {connection?.key.state === "unchecked" && <p className="connect-sub">{t("world.connect.loopsDown.unchecked")}</p>}
               <p className="hint pair-note">{t("world.connect.loopsDown.hint")}</p>
               <p className="connect-status" role="status" aria-live="polite">
                 {asked === "just now" ? t("world.connect.noLoops.lookingNow") : t("world.connect.loopsDown.waiting", { ago: asked ?? "" })}
@@ -156,6 +168,19 @@ export function ConnectPage({ screen, health, onHealth, pollMs = CONNECT_POLL_MS
                   </p>
                   {connection?.key.source && <p className="hint pair-note">{t("world.connect.rejected.source", { source: t(`world.connect.source.${connection.key.source}`) })}</p>}
                   <p className="connect-sub">{t("world.connect.rejected.fix")}</p>
+                  {connection?.key.source === "stored" && (
+                    <div className="connect-forget">
+                      <p className="hint pair-note">{t("world.connect.rejected.kept")}</p>
+                      <Button variant="danger" size="sm" disabled={forgetting === "busy"} onClick={() => void forget()}>
+                        {forgetting === "busy" ? t("world.connect.rejected.forgetBusy") : t("world.connect.rejected.forget")}
+                      </Button>
+                      {forgetting !== null && forgetting !== "busy" && (
+                        <p className={forgetting === "done" ? "connect-status" : "connect-status connect-rejected"} role={forgetting === "done" ? "status" : "alert"} aria-live="polite">
+                          {forgetting === "done" ? t("world.connect.rejected.forgotten") : t("world.connection.panel.forgetFailed", { reason: forgetting })}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </>
               ) : screen === "checking" ? (
                 <p className="pair-lead" role="status" aria-live="polite">

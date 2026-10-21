@@ -44,6 +44,21 @@ test("screen: then pairing, then the key", () => {
   assert.equal(connectScreen({ source: "live", health: health({ loops: "unauthorized", connection: connection({ stream: { state: "unauthorized" } }) }) }), "rejected", "a key the stream refuses");
 });
 
+test("screen: the key's state and the stream's state decide, never the legacy loops word, and never mixed", () => {
+  // Loops down (a timeout, a refused connection, a 5xx, a restart): never the rejected screen, whatever the key knows.
+  assert.equal(connectScreen({ source: "live", health: health({ loops: "down", connection: connection({ key: { state: "unchecked" }, stream: { state: "down" } }) }) }), "loops-down", "a key loops has not answered about");
+  assert.equal(connectScreen({ source: "live", health: health({ loops: "down", connection: connection({ key: { state: "unchecked" }, stream: { state: "idle" } }) }) }), "loops-down", "the key held, no stream yet");
+  assert.equal(connectScreen({ source: "live", health: health({ loops: "down", connection: connection({ key: { state: "ok" }, stream: { state: "idle" } }) }) }), "loops-down");
+  assert.equal(connectScreen({ source: "live", health: health({ loops: "unauthorized", connection: connection({ key: { state: "ok" }, stream: { state: "down" } }) }) }), "loops-down", "a stale legacy word never makes a rejected screen");
+  // Loops refused the key: the rejected screen, whatever the legacy word says, and however the stream stands.
+  assert.equal(connectScreen({ source: "live", health: health({ loops: "down", connection: connection({ key: { state: "rejected", reason: "revoked", source: "stored" }, stream: { state: "idle" } }) }) }), "rejected", "a kept rejected key");
+  assert.equal(connectScreen({ source: "live", health: health({ loops: "ok", connection: connection({ key: { state: "rejected", reason: "revoked" }, stream: { state: "ok" } }) }) }), "rejected");
+  assert.equal(connectScreen({ source: "live", health: health({ loops: "down", connection: connection({ key: { state: "ok" }, stream: { state: "unauthorized" } }) }) }), "rejected", "a stream loops refuses is a verdict on the key");
+  // The town: a good (or not yet checked) key with a stream that runs, or one only the budget holds back.
+  assert.equal(connectScreen({ source: "live", health: health({ loops: "down", connection: connection({ key: { state: "ok" }, stream: { state: "busy", reason: "stream budget exhausted (429)" } }) }) }), null, "busy: the town and the chip say so");
+  assert.equal(connectScreen({ source: "live", health: health({ loops: "ok", connection: connection({ key: { state: "unchecked" }, stream: { state: "ok" } }) }) }), null);
+});
+
 test("screen: pairing off in development never asks to pair", () => {
   assert.equal(connectScreen({ source: "live", health: health({ pairing: "off", paired: true, connection: connection({ key: { state: "none" } }) }) }), "connect");
 });
