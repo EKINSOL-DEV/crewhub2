@@ -227,6 +227,7 @@ export function ConnectPage({ screen, health, onHealth, pollMs = CONNECT_POLL_MS
                     <li>{emphasised(t("world.connect.connect.step2"))}</li>
                     <li>{emphasised(t("world.connect.connect.step3"))}</li>
                   </ol>
+                  <p className="hint connect-sub">{emphasised(t("world.connect.connect.viewer"))}</p>
                 </>
               )}
               <div className="connect-open">

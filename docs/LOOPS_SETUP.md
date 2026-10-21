@@ -130,6 +130,15 @@ key that cannot write is proposal L1 for crewhub-loops ([gap analysis](LOOPS_GAP
 out on the loops branch `world/viewer-key` and packaged for `cl-lead` in `docs/proposals/crewhub-world-viewer.md`
 there (round 7); until it lands this is the credential.
 
+**What changes with a viewer key** (decision 1 of 21 October, prepared; nothing switches before `world/viewer-key` is
+merged in loops). The switch is a new key file or a new paste, nothing else: `CREWHUB_WORLD_KEY_FILE` names the viewer
+bot's key, or its key is pasted in the Connect screen (the loops card "Connect CrewHub World" makes the bot and shows the
+key once); the bot's name stays `crewhub-world` (decision 6). That key reads what the world needs and writes nothing
+(loops refuses the rest before the route runs), the Connection panel's Key row says so (the host sees `viewer: true` on
+its own entry in `GET /api/agents` at the key check; no extra call), and the chat's bubbles need no sign-in
+(`connection.session` says `key`). The host, its allow-list and the world's screens stay as they are; the Connect screen
+already says this under its steps.
+
 **The bot is the observer, not a worker.** Loops lists `crewhub-world` among the agents (an external bot in no
 project), but the world never shows the host's own principal as a figure: the host names it on the snapshot
 (`observer`, the id loops answered to `GET /api/auth/me`), the model leaves it out of the figures and the agent
@@ -276,7 +285,11 @@ section). The host keeps that session in `<config>/loops-session` (0600) and use
 (`apps/host/src/session.ts`); your password is handed to crewhub-loops once and is in no file and no log. "Forget
 the session" in the same section signs out at crewhub-loops and deletes the file. On a crewhub-loops whose viewer
 key may read the chat (`world/viewer-key`), health says `key` instead and the section says "Not needed": the bubbles
-come over the world's own key, with no session at all.
+come over the world's own key, with no session at all. **Planned (decision 9):** once the viewer key is merged in loops
+and the world has switched to it, the session road goes, in that same track: `apps/host/src/session.ts` and its file,
+`POST`/`DELETE /world-api/session`, the Connection panel's sign-in form and Forget the session, the `signed-out`,
+`signed-in` and `expired` states and the regress chat group's session half (the plan, in full, is in the spec addendum
+"chat with the agents" and in `session.ts`'s header). Until then it stays as it is.
 
 `loops` is `ok`, `down` or `unauthorized` (a loops 401 or 403; also no key yet, for the world from before);
 `transport` is `tcp` or `unix`; `keyName` is the key's agent name (from the file name `agent-<name>.key`, or the
@@ -421,7 +434,8 @@ development instance that another developer tests against.
   method out. A read-only key that may read the board, the team, agents and the stream is proposed to loops on the
   branch `world/viewer-key` of the loops checkout (not pushed, tests green), packaged for `cl-lead` in
   `docs/proposals/crewhub-world-viewer.md` on that branch (round 7: the routes, the migration, the tests and how to
-  try it on a dev instance).
+  try it on a dev instance). The world's switch is prepared: a new key file or a paste, nothing else (section 3, "What
+  changes with a viewer key").
 - **A "Connect CrewHub World" card in the loops web** (Settings > Agents) that makes the viewer bot and shows its key
   once next to the world's address and a button that opens the world, so steps 2 and 3 above become one dialog:
   worked out on the same branch on 2026-10-21 (web only, on top of the viewer flag), a proposal until loops accepts it.
