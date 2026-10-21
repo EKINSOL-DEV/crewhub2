@@ -74,17 +74,26 @@ async function readProjects(client: LoopsClient): Promise<{ projects: ProjectOut
 const EVENTS_PAGE = 500;
 const ARCHIVE_TYPES = "project.archived,project.restored";
 
+/** What the log read found: the slugs archived now, and whether the whole log was read (else the host's memory matters). */
+export interface ArchiveLogRead {
+  slugs: string[];
+  /** True when every page answered 200 up to the end; false when loops would not read its log (a 410 or another answer). */
+  complete: boolean;
+}
+
 /**
  * Slugs of the projects archived now, learnt from the event log: an agent key may not list archived projects
  * (`includeArchived` is for human admins), but the log is never pruned, and the last of `project.archived` and
  * `project.restored` per slug says where it stands. Pages with `after=` (`lastSeq` is the last row returned, else
  * the `after` sent) until a page is short of loops' 500, or `lastSeq` stops moving. Best effort: a refused key is
  * `unauthorized`, but any other answer than 200 (a loops that will not read its log from `after=0`, as the fake
- * answers 410 after a restart) ends the search with what it found; the stream's own archive events still count.
+ * answers 410 after a restart) ends the search with what it found and `complete: false`; the stream's own archive
+ * events and the host's memory of an earlier run still count.
  */
-export async function archivedSlugsFromEvents(client: LoopsClient): Promise<string[]> {
+export async function readArchivedSlugsFromEvents(client: LoopsClient): Promise<ArchiveLogRead> {
   const last = new Map<string, string>();
   let after = 0;
+  let complete = false;
   for (let guard = 0; guard < 1000; guard += 1) {
     const { status, body: page } = await client.getJson<{ events?: unknown; lastSeq?: unknown }>("/api/events", { types: ARCHIVE_TYPES, after: String(after), limit: String(EVENTS_PAGE) });
     if (isUnauthorized(status)) throw new SnapshotError("unauthorized", `/api/events answered ${status}`);
@@ -96,10 +105,26 @@ export async function archivedSlugsFromEvents(client: LoopsClient): Promise<stri
       last.set(slug, event.type);
     }
     const lastSeq = typeof page.lastSeq === "number" ? page.lastSeq : after;
-    if (events.length < EVENTS_PAGE || lastSeq <= after) break;
+    if (events.length < EVENTS_PAGE || lastSeq <= after) {
+      complete = true;
+      break;
+    }
     after = lastSeq;
   }
-  return [...last.entries()].filter(([, type]) => type === "project.archived").map(([slug]) => slug);
+  return { slugs: [...last.entries()].filter(([, type]) => type === "project.archived").map(([slug]) => slug), complete };
+}
+
+/** The slugs alone (the callers from before the archive memory). */
+export async function archivedSlugsFromEvents(client: LoopsClient): Promise<string[]> {
+  return (await readArchivedSlugsFromEvents(client)).slugs;
+}
+
+/** Where a snapshot's archived projects came from, for the host's memory and the Connection panel. */
+export interface ArchiveReport {
+  /** `list`: loops listed them; `log`: the event log, read whole; `remembered`: the log could not be read whole and the host's memory filled in; `none`: nothing known. */
+  source: "list" | "log" | "remembered" | "none";
+  /** The slugs loops confirmed archived now (the list, or `GET /api/projects/{slug}` with `archivedAt`). */
+  slugs: string[];
 }
 
 export interface SnapshotOptions {
@@ -107,8 +132,12 @@ export interface SnapshotOptions {
   cursor: number;
   /** Slugs of projects the host saw archived through events: read one by one, since the list leaves them out. */
   knownArchivedSlugs?: Iterable<string>;
+  /** Slugs the host remembered from an earlier run (`archiveStore.ts`): read one by one too, and confirmed by loops. */
+  rememberedSlugs?: Iterable<string>;
   /** The host's own principal (the key's agent, as loops named it): the observer the world hides from the figures. */
   observer?: string | null;
+  /** Told where the archived projects came from, once per snapshot. */
+  onArchive?: (report: ArchiveReport) => void;
 }
 
 export async function assembleSnapshot(client: LoopsClient, options: SnapshotOptions): Promise<LoopsSnapshot> {
@@ -116,9 +145,11 @@ export async function assembleSnapshot(client: LoopsClient, options: SnapshotOpt
   const projects = listed.filter((p) => p.archivedAt === null || p.archivedAt === undefined);
   const archivedProjects = listed.filter((p) => typeof p.archivedAt === "string");
   const seen = new Set(listed.map((p) => p.slug));
-  // Archived projects the list left out: the ones the log says are archived, and the ones the host's stream saw.
-  const fromLog = complete ? [] : await archivedSlugsFromEvents(client);
-  for (const slug of new Set([...fromLog, ...(options.knownArchivedSlugs ?? [])])) {
+  // Archived projects the list left out: the ones the log says are archived, the ones the host's stream saw, and
+  // the ones the host remembered (they matter when loops would not read its log whole).
+  const fromLog = complete ? { slugs: [], complete: true } : await readArchivedSlugsFromEvents(client);
+  const remembered = [...(options.rememberedSlugs ?? [])];
+  for (const slug of new Set([...fromLog.slugs, ...(options.knownArchivedSlugs ?? []), ...remembered])) {
     if (seen.has(slug)) continue;
     seen.add(slug);
     const one = await client.getJson<{ project: ProjectOut }>("/api/projects/{slug}".replace("{slug}", encodeURIComponent(slug)));
@@ -126,6 +157,7 @@ export async function assembleSnapshot(client: LoopsClient, options: SnapshotOpt
       archivedProjects.push(one.body.project);
     }
   }
+  options.onArchive?.({ source: complete ? "list" : fromLog.complete ? "log" : remembered.length > 0 ? "remembered" : "none", slugs: archivedProjects.map((p) => p.slug).sort() });
 
   const perProject = await Promise.all(
     projects.map(async (project) => {

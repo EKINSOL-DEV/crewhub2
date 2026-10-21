@@ -55,6 +55,17 @@ export interface StubOptions {
   busy?: { count: number; retryAfter: string };
   /** Listen on this Unix socket instead of TCP; `url` is then empty and `socketPath` set. */
   socketPath?: string;
+  /** `GET /api/events` (the page read, not the tail) with `after` below this answers 410 `cursor_expired`: the fake after a restart. */
+  logMinAfter?: number;
+}
+
+/** A stub-wide outage: every request answers `status` (health too unless `healthOk`), or never answers (`hang`). */
+export interface Outage {
+  status: number;
+  /** The keyless `GET /api/health` keeps answering 200: loops is up but in trouble (a 5xx) or refusing the key. */
+  healthOk?: boolean;
+  /** Requests are left open without an answer (a timeout for the caller). */
+  hang?: boolean;
 }
 
 export interface LoopsStub {
@@ -76,6 +87,10 @@ export interface LoopsStub {
   heartbeat(): void;
   /** Ends every open stream (loops' 300 s end). */
   endStreams(): void;
+  /** Starts (or with null ends) an outage: see `Outage`. Open streams are ended when one starts. */
+  outage(outage: Outage | null): void;
+  /** The key is revoked: every keyed request answers 401 `invalid_api_key` from now on, and open streams end (loops' 60 s re-check). */
+  revoke(): void;
   close(): Promise<void>;
 }
 
@@ -100,6 +115,9 @@ export function envelope(seq: number, type: string, extra: Partial<Envelope> = {
 
 export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsStub> {
   const key = options.key ?? DEFAULT_KEY;
+  let revoked = false;
+  let outage: Outage | null = null;
+  const hanging = new Set<ServerResponse>();
   const requests: StubRequest[] = [];
   const events: Envelope[] = [...(options.events ?? [])];
   const streams = new Set<ServerResponse>();
@@ -131,13 +149,22 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
     const auth = req.headers.authorization;
     requests.push({ method: req.method ?? "", path: url.pathname + url.search, authorization: auth, at: Date.now(), host: req.headers.host });
     const detail = options.echoAuth ? ` (auth: ${auth ?? "none"})` : "";
+    const publicHealth = url.pathname === "/api/health" && req.method === "GET" && auth === undefined && options.routes?.["/api/health"] === undefined;
+    if (outage !== null && !(publicHealth && outage.healthOk === true)) {
+      if (outage.hang === true) {
+        hanging.add(res);
+        res.on("close", () => hanging.delete(res));
+        return;
+      }
+      return send(res, outage.status, error(outage.status === 401 ? "invalid_api_key" : "unavailable", `Outage ${outage.status}${detail}`));
+    }
     // Health is public on crewhub-loops (the discovery probes it without a key); everything else needs the key.
-    if (url.pathname === "/api/health" && req.method === "GET" && auth === undefined && options.routes?.["/api/health"] === undefined) {
+    if (publicHealth) {
       return send(res, 200, { ok: true, version: "053b5f47", checks: {}, principal: null, watchdog: null });
     }
     if (auth === undefined) return send(res, 401, error("unauthenticated", `No credentials${detail}`));
     if (req.headers.cookie !== undefined) return send(res, 400, error("ambiguous_auth", `Send one or the other${detail}`));
-    if (auth !== `Bearer ${key}`) return send(res, 401, error("invalid_api_key", `Unknown key${detail}`));
+    if (revoked || auth !== `Bearer ${key}`) return send(res, 401, error("invalid_api_key", `Unknown key${detail}`));
     if (req.method !== "GET") return send(res, 405, error("method_not_allowed", "GET only"));
     const p = url.pathname;
     const given = options.routes?.[p];
@@ -160,6 +187,7 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
       }
       // `types` is a comma list (or repeated), `limit` 1..500 with 500 the default (routers/events.py); `lastSeq` is
       // the last row returned, else the `after` sent.
+      if (options.logMinAfter !== undefined && token === null && after < options.logMinAfter) return send(res, 410, error("cursor_expired", `after=${after} is below the log's floor${detail}`));
       const types = url.searchParams.getAll("types").flatMap((v) => v.split(",")).map((v) => v.trim()).filter((v) => v !== "");
       const limit = Math.min(500, Math.max(1, Number(url.searchParams.get("limit") ?? "500") || 500));
       const page = events.filter((e) => e.seq > after && (types.length === 0 || types.includes(e.type))).slice(0, limit);
@@ -248,9 +276,26 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
       for (const res of streams) res.end();
       streams.clear();
     },
+    outage(next) {
+      outage = next;
+      if (next !== null) {
+        for (const res of streams) res.destroy();
+        streams.clear();
+      } else {
+        for (const res of hanging) res.destroy();
+        hanging.clear();
+      }
+    },
+    revoke() {
+      revoked = true;
+      for (const res of streams) res.end();
+      streams.clear();
+    },
     async close() {
       for (const res of streams) res.destroy();
       streams.clear();
+      for (const res of hanging) res.destroy();
+      hanging.clear();
       await new Promise<void>((resolve) => {
         server.close(() => resolve());
         server.closeAllConnections();

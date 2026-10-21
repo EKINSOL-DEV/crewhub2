@@ -48,6 +48,6 @@ test("readConnection keeps the key's unchecked state and the archive memory, and
     },
     "loops down: the key is unchecked, not rejected; the closed buildings come from the host's memory",
   );
-  assert.deepEqual(readConnection({ discovery: { state: "found" }, key: { state: "ok" }, stream: { state: "ok" }, archived: { source: "log", count: 2 } }).archived, { source: "log", count: 2 });
-  assert.equal(readConnection({ discovery: { state: "found" }, key: { state: "ok" }, stream: { state: "ok" }, archived: { source: "guess", count: 2 } }).archived, undefined);
+  assert.deepEqual(readConnection({ discovery: { state: "found" }, key: { state: "ok" }, stream: { state: "ok" }, archived: { source: "log", count: 2 } })?.archived, { source: "log", count: 2 });
+  assert.equal(readConnection({ discovery: { state: "found" }, key: { state: "ok" }, stream: { state: "ok" }, archived: { source: "guess", count: 2 } })?.archived, undefined);
 });

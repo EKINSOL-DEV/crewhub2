@@ -6,7 +6,13 @@
  * Since the spec addendum "a smooth connection" it starts without loops and without a key: a discovery finds the Mac
  * app (or the env names loops), the key comes from a file or from `POST /world-api/connect` (a paired browser pastes
  * it; the host checks it with loops, stores it and switches to it without a restart), and `GET /world-api/health`
- * carries the honest states (`connection`: discovery, key, stream).
+ * carries the honest states (`connection`: discovery, key, stream, archived).
+ *
+ * The key's state is never confused with loops being down: only a definite 401 or 403 from a loops whose health
+ * answers makes it `rejected` (the key check, the tail read and the stream alike); a timeout, a refused connection, a
+ * 5xx or a restarting loops leaves it `unchecked` or as it was. A rejected stored key stays on disk with its reason
+ * until a new one is pasted or `DELETE /world-api/connect` forgets it. The host also remembers the closed buildings it
+ * learnt (`archiveStore.ts`), so a loops that will not read its log from the start still shows them on the next start.
  */
 import { timingSafeEqual } from "node:crypto";
 import { createReadStream } from "node:fs";
@@ -14,15 +20,16 @@ import { stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import path from "node:path";
-import type { HostConnection, HostKeyState } from "@crewhub/loops-client";
+import type { HostArchiveState, HostConnection, HostKeyState } from "@crewhub/loops-client";
 import { WORLD_API_PREFIX, fillPattern, matchWorldRoute } from "./allowList.ts";
+import { type ArchiveStore, normaliseSlugs } from "./archiveStore.ts";
 import { DEFAULT_LOOPS_URL, type KeySource } from "./config.ts";
-import { type Discovery, type DiscoveryInput, type Found, createDiscovery, targetText } from "./discovery.ts";
+import { type Discovery, type DiscoveryInput, type Found, createDiscovery, loopsAnswers, targetText } from "./discovery.ts";
 import { checkKey } from "./keyCheck.ts";
 import type { KeyStore } from "./keyStore.ts";
 import { type LoopsClient, createLoopsClient, isUnauthorized } from "./loops.ts";
 import { PAIR_PATH_PREFIX, PAIR_REFUSED_HTML, type Pairing, createPairing, pairCookieHeader } from "./pairing.ts";
-import { SnapshotError, assembleSnapshot } from "./snapshot.ts";
+import { type ArchiveReport, SnapshotError, assembleSnapshot } from "./snapshot.ts";
 import { type HostMessage, type LoopsState, type Upstream, createUpstream } from "./stream.ts";
 
 export interface HostOptions {
@@ -40,6 +47,10 @@ export interface HostOptions {
   keySource?: KeySource;
   /** Where a pasted key is kept (`POST /world-api/connect`). Absent: a pasted key lives for this run only. */
   keyStore?: KeyStore;
+  /** The memory of the closed buildings (`archived.json` beside the key). Absent: remembered for this run only. */
+  archiveStore?: ArchiveStore;
+  /** How long one read of loops may take before it counts as not answering. Default 10 s; tests shorten it. */
+  readTimeoutMs?: number;
   /** 0 (the default) picks a free port. */
   port?: number;
   /** Serve this folder (the built world) for every path outside `/world-api`, with `index.html` as the fallback. */
@@ -73,6 +84,8 @@ export interface HostOptions {
 export const MINT_PATH = "/pair-mint";
 export const MINT_HEADER = "x-crewhub-world-mint";
 export const CONNECT_PATH = `${WORLD_API_PREFIX}/connect`;
+/** The reason on a key the stream refused after it was accepted (revoked meanwhile, or disabled). */
+export const STREAM_REFUSED_REASON = "crewhub-loops refused the key on the event stream (401 or 403): it was revoked or its bot disabled meanwhile. Paste a new access key, or forget this one.";
 /** A pasted key: loops' keys are `chl_` and base64url; the fake's are hex. Bounded, one line, no spaces. */
 const KEY_SHAPE = /^chl_[A-Za-z0-9_-]{8,200}$/;
 const CONNECT_BODY_LIMIT = 4096;
@@ -164,8 +177,16 @@ interface KeyHolder {
   /** The agent name from the file, or the principal loops answered. */
   name: string;
   source: KeySource;
+  /** `unchecked` until loops answered about it; `checking` only while a check runs. */
   state: HostKeyState["state"];
   reason?: string;
+}
+
+/** What the host knows about the closed buildings, and where it came from. */
+interface ArchiveMemoryState {
+  source: HostArchiveState["source"];
+  slugs: Set<string>;
+  at?: string;
 }
 
 /** The link to loops: a client and the one upstream stream, for one target and one key. */
@@ -207,7 +228,32 @@ export async function createHost(options: HostOptions): Promise<Host> {
 
   // --- The key. ---
   let holder: KeyHolder | null =
-    options.key === undefined ? null : { key: options.key, name: options.keyName ?? "crewhub-world", source: options.keySource ?? "env", state: "checking" };
+    options.key === undefined ? null : { key: options.key, name: options.keyName ?? "crewhub-world", source: options.keySource ?? "env", state: "unchecked" };
+  const readTimeoutMs = options.readTimeoutMs;
+  const clientFor = (found: Found, key: string): LoopsClient => createLoopsClient(found.target, key, readTimeoutMs === undefined ? {} : { readTimeoutMs });
+
+  // --- The closed buildings the host knows. ---
+  const remembered = options.archiveStore?.read() ?? null;
+  const archive: ArchiveMemoryState = remembered === null ? { source: "none", slugs: new Set() } : { source: "remembered", slugs: new Set(remembered.slugs), at: remembered.at };
+  if (remembered !== null) log(`remembered ${remembered.slugs.length} archived project${remembered.slugs.length === 1 ? "" : "s"} from ${options.archiveStore?.file} (learnt ${remembered.at || "at an unknown time"})`);
+  /** Keeps the set (and its source), and writes the file only when the set changed. */
+  function rememberArchive(next: Iterable<string>, source: HostArchiveState["source"] | null): void {
+    const slugs = normaliseSlugs(next);
+    const changed = slugs.join("\n") !== normaliseSlugs(archive.slugs).join("\n");
+    archive.slugs = new Set(slugs);
+    if (source !== null) archive.source = source;
+    if (!changed && archive.at !== undefined) return;
+    archive.at = new Date().toISOString();
+    const store = options.archiveStore;
+    if (store === undefined) return;
+    try {
+      const found = discovery.current();
+      store.save({ slugs, at: archive.at, ...(found === null ? {} : { target: targetText(found.target) }) });
+      log(`remembered ${slugs.length} archived project${slugs.length === 1 ? "" : "s"} in ${store.file}`);
+    } catch (error) {
+      log(`cannot write the archive memory ${store.file}: ${error instanceof Error ? error.message : "unknown error"}`);
+    }
+  }
 
   // --- The link and the tabs. ---
   let link: Link | null = null;
@@ -259,41 +305,75 @@ export async function createHost(options: HostOptions): Promise<Host> {
         for (const tab of tabs.values()) attach(tab);
         return;
       }
-      const client = createLoopsClient(found.target, holder.key);
+      const client = clientFor(found, holder.key);
+      const healthy = () => loopsAnswers(found.target);
       const mine = holder;
+      const before = mine.state;
       mine.state = "checking";
-      delete mine.reason;
-      const verdict = await checkKey(client);
+      const verdict = await checkKey(client, healthy);
       if (closed || holder !== mine || discovery.current() !== found) return;
       if (verdict.state === "rejected") {
         mine.state = "rejected";
         mine.reason = verdict.reason;
-        log(`key ${mine.name} (${mine.source}) rejected: ${scrub(verdict.reason)}`);
+        log(`key ${mine.name} (${mine.source}) rejected by loops at ${targetText(found.target)}: ${scrub(verdict.reason)} (the key is kept; paste a new one or forget it)`);
         for (const tab of tabs.values()) attach(tab);
         return;
       }
       if (verdict.state === "ok") {
         mine.state = "ok";
+        delete mine.reason;
         mine.name = verdict.name;
         log(`key ${mine.name} (${mine.source}) accepted by loops at ${targetText(found.target)}`);
-      } else log(`key ${mine.name} (${mine.source}): loops at ${targetText(found.target)} did not answer; the stream keeps trying`);
-      const upstreamOptions: Parameters<typeof createUpstream>[1] = { log: (line) => log(scrub(line)) };
+      } else {
+        // Nothing is known about the key: it keeps the state it had (a fresh key stays unchecked), never rejected.
+        mine.state = before === "checking" ? "unchecked" : before;
+        log(`key ${mine.name} (${mine.source}) ${mine.state}: ${scrub(verdict.reason)}; the stream keeps trying`);
+      }
+      const upstreamOptions: Parameters<typeof createUpstream>[1] = { log: (line) => log(scrub(line)), healthy };
       if (options.bufferSize !== undefined) upstreamOptions.bufferSize = options.bufferSize;
       if (options.retryMs !== undefined) upstreamOptions.retryMs = options.retryMs;
       if (options.reconnectMs !== undefined) upstreamOptions.reconnectMs = options.reconnectMs;
       upstreamOptions.heartbeatMs = heartbeatMs;
       const upstream = createUpstream(client, upstreamOptions);
       link = { found, client, upstream };
+      // The host's own ear on its stream, for as long as this link lives: the stream is the second opinion on the key
+      // (a confirmed 401/403 is rejected, ok is ok, down says nothing), loops going away sends the discovery looking
+      // again on the app's roads, and the archive events keep the memory of the closed buildings.
+      const appRoads = discoveryInput.loopsUrl === null && discoveryInput.loopsSocket === null;
+      let first = true;
+      upstream.subscribe(null, (message) => {
+        if (first) {
+          first = false;
+          return;
+        }
+        if (link?.upstream !== upstream) return;
+        if (message.type === "status") {
+          if (message.loops === "unauthorized") {
+            if (mine.state !== "rejected") {
+              mine.state = "rejected";
+              mine.reason = STREAM_REFUSED_REASON;
+              log(`key ${mine.name} (${mine.source}) rejected on the stream (the key is kept; paste a new one or forget it)`);
+            }
+          } else if (message.loops === "ok") {
+            if (mine.state !== "ok") {
+              mine.state = "ok";
+              delete mine.reason;
+              log(`key ${mine.name} (${mine.source}) accepted on the stream`);
+            }
+          } else if (message.stream !== "busy" && appRoads) void discovery.refresh();
+          return;
+        }
+        if (message.type !== "event" || message.envelope.project === null) return;
+        const slug = message.envelope.project.slug;
+        if (message.envelope.type === "project.archived") rememberArchive([...archive.slugs, slug], null);
+        else if (message.envelope.type === "project.restored") rememberArchive([...archive.slugs].filter((s) => s !== slug), null);
+      });
       for (const tab of tabs.values()) attach(tab);
-      // The first attempt decides the states a connect answers with; it is bounded by the read timeout.
+      // The first attempt decides the states a connect answers with; it is bounded by the read timeout. A first
+      // attempt that finds loops down is no state change the listener hears (the stream starts down).
       await upstream.start().then(() => {
         if (link?.upstream !== upstream) return;
-        // The stream is the second opinion on the key: 401/403 there means rejected, ok means ok.
-        if (upstream.state() === "unauthorized" && mine.state !== "rejected") {
-          mine.state = "rejected";
-          mine.reason = "crewhub-loops refused the key on the event stream (401 or 403). Paste a new access key.";
-        } else if (upstream.state() === "ok") mine.state = "ok";
-        else if (upstream.state() === "down" && discoveryInput.loopsUrl === null && discoveryInput.loopsSocket === null) void discovery.refresh();
+        if (upstream.state() === "down" && upstream.busy() === null && appRoads) void discovery.refresh();
       });
     });
     return relinking;
@@ -319,12 +399,14 @@ export async function createHost(options: HostOptions): Promise<Host> {
       discovery: { state: found === null ? "searching" : "found" },
       key: { state: holder === null ? "none" : holder.state },
       stream: { state: streamState(), reconnects: link?.upstream.reconnects() ?? 0 },
+      archived: { source: archive.source, count: archive.slugs.size, ...(archive.at === undefined ? {} : { at: archive.at }) },
     };
     if (found !== null) out.discovery.via = found.via;
     const busy = link?.upstream.busy() ?? null;
     if (busy !== null) out.stream.reason = busy;
     if (!detailed) return out;
     if (found !== null) out.discovery.target = targetText(found.target);
+    (out.archived as HostArchiveState).slugs = normaliseSlugs(archive.slugs);
     if (holder !== null) {
       out.key.name = holder.name;
       out.key.source = holder.source;
@@ -411,7 +493,13 @@ export async function createHost(options: HostOptions): Promise<Host> {
     }
     try {
       // The key's own principal rides along as the observer: the world never shows it as a figure.
-      const body = await assembleSnapshot(client, { cursor: upstream.cursor(), knownArchivedSlugs: upstream.archivedSlugs(), observer: holder === null ? null : holder.name });
+      const body = await assembleSnapshot(client, {
+        cursor: upstream.cursor(),
+        knownArchivedSlugs: upstream.archivedSlugs(),
+        rememberedSlugs: archive.slugs,
+        observer: holder === null ? null : holder.name,
+        onArchive: (report: ArchiveReport) => rememberArchive(report.slugs, report.source),
+      });
       sendJson(res, 200, body);
     } catch (error) {
       const reason = error instanceof SnapshotError ? error.reason : "loops_down";
@@ -506,9 +594,9 @@ export async function createHost(options: HostOptions): Promise<Host> {
       sendJson(res, 503, { error: "no_loops", message: "crewhub-loops is not found yet: open Crewhub.app, then paste again." });
       return;
     }
-    const verdict = await checkKey(createLoopsClient(found.target, pasted));
+    const verdict = await checkKey(clientFor(found, pasted), () => loopsAnswers(found.target));
     if (verdict.state === "unreachable") {
-      sendJson(res, 503, { error: "loops_down", message: "crewhub-loops did not answer: is Crewhub.app open?" });
+      sendJson(res, 503, { error: "loops_down", message: `crewhub-loops did not answer, so nothing is known about the key (${verdict.reason}). Is Crewhub.app open? Then paste again.` });
       return;
     }
     if (verdict.state === "rejected") {
@@ -525,7 +613,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
         log(`cannot store the key in ${options.keyStore.file}: ${error instanceof Error ? error.message : "unknown error"} (it is used for this run only)`);
       }
     }
-    holder = { key: pasted, name: verdict.name, source: stored ? "stored" : "env", state: "checking" };
+    holder = { key: pasted, name: verdict.name, source: stored ? "stored" : "env", state: "ok" };
     log(`key ${verdict.name} accepted from the browser${stored ? `, stored in ${options.keyStore?.file}` : ""}`);
     await relink();
     sendJson(res, 200, { ok: true, connection: connection(true) });

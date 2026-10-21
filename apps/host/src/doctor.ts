@@ -188,7 +188,7 @@ export async function runDoctor(io: DoctorIo): Promise<DoctorReport> {
   else {
     loops = client(found.target, loaded.key);
     const verdict = await checkKey(loops);
-    if (verdict.state === "unreachable") fix("auth", "loops stopped answering during the key check");
+    if (verdict.state === "unreachable") fix("auth", `nothing is known about the key yet: ${verdict.reason}. Run this again once crewhub-loops answers.`);
     else if (verdict.state === "rejected") fix("auth", verdict.reason);
     else ok("auth", `${verdict.name} (${verdict.displayName}), role lead: an external bot's key. It could write; the host forwards an allow-list of GETs only.`);
     const authOk = verdict.state === "ok";
@@ -224,12 +224,12 @@ export async function runDoctor(io: DoctorIo): Promise<DoctorReport> {
   if (port.kind === "free") ok("port", `127.0.0.1:${config.port} is free for the host`);
   else if (port.kind === "host") {
     const h = port.health;
-    const connection = h.connection as { discovery?: { state?: string }; key?: { state?: string }; stream?: { state?: string } } | undefined;
+    const connection = h.connection as { discovery?: { state?: string }; key?: { state?: string }; stream?: { state?: string }; archived?: { source?: string; count?: number } } | undefined;
     const state = connection?.stream?.state ?? h.loops;
     const problem =
       state === "ok"
         ? null
-        : `it says ${connection?.discovery?.state === "searching" ? "loops not found" : connection?.key?.state === "none" ? "no key" : connection?.key?.state === "rejected" ? "the key was rejected" : state === "busy" ? "the stream budget is exhausted (429): another host or tab uses this key; close it" : `loops ${String(state)}`}`;
+        : `it says ${connection?.discovery?.state === "searching" ? "loops not found" : connection?.key?.state === "none" ? "no key" : connection?.key?.state === "rejected" ? "the key was rejected (it is kept; paste a new one or forget it in the world's Connection panel)" : connection?.key?.state === "unchecked" ? "loops has not answered about the key yet" : state === "busy" ? "the stream budget is exhausted (429): another host or tab uses this key; close it" : `loops ${String(state)}`}`;
     if (problem === null) ok("port", `a host already runs on 127.0.0.1:${config.port} (loops ok, key ${String(h.keyName ?? "?")}); npm run world or npm run host -- open asks it for a link`);
     else fix("port", `a host already runs on 127.0.0.1:${config.port} but ${problem}: fix that, then restart it (Ctrl+C in its terminal; npm run world)`);
   } else fix("port", `something else listens on 127.0.0.1:${config.port}: stop it, or run the host on another port (CREWHUB_WORLD_PORT=5181)`);
