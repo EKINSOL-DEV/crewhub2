@@ -28,6 +28,18 @@ export function checkNode(found, required) {
   return `Node ${want} required (.nvmrc), found v${String(found).replace(/^v/, "")}: run nvm use`;
 }
 
+/**
+ * The host's softer word (round 12, hostnodewarn): one warning line when the running major is not `.nvmrc`'s, never a
+ * stop (the host works on another Node today; the chat session's stream was the one thing seen to differ on Node 22).
+ * Null on the right major, and null when `.nvmrc` names no major (nothing to compare with).
+ */
+export function nodeWarning(found, required) {
+  const have = majorOf(found);
+  const want = majorOf(required);
+  if (want === null || have === want) return null;
+  return `Node ${want} is what CrewHub World is tested on (.nvmrc); this is v${String(found).replace(/^v/, "")}: run nvm use if anything misbehaves.`;
+}
+
 const isMain = process.argv[1] !== undefined && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
   const nvmrc = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".nvmrc");
