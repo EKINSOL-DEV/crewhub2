@@ -14,6 +14,9 @@ import { createLoopsClient } from "../src/loops.ts";
 import { createUnixTransport } from "../src/transport.ts";
 import { createLoopsStub, envelope, installation } from "./loopsStub.ts";
 import { openSse } from "./sse.ts";
+import { waitFor } from "./wait.ts";
+
+const read = async (url: string) => (await (await fetch(`${url}/world-api/health`)).json()) as Record<string, any>;
 
 /** A short temp folder: macOS limits a socket path to 104 bytes. */
 function socketDir(): string {
@@ -36,6 +39,8 @@ describe("the Unix socket transport", () => {
     cleanup.push(() => stub.close());
     const host = await createHost({ loopsUrl: "http://127.0.0.1:8091", loopsSocket: stub.socketPath as string, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 20, max: 40 }, ...hostOptions });
     cleanup.push(() => host.close());
+    // A settled host: the key checked and the stream open over the socket (never assumed from the clock).
+    await waitFor("the stream over the socket", async () => (await read(host.url)).connection.stream.state === "ok");
     return { stub, host, dir };
   }
 
@@ -77,8 +82,8 @@ describe("the Unix socket transport", () => {
     assert.equal(beat.seq, 2);
     assert.equal(stub.streamsOpened(), 1, "one upstream stream");
     stub.endStreams();
-    for (let i = 0; i < 50 && stub.streamsOpened() < 2; i += 1) await new Promise((r) => setTimeout(r, 20));
-    assert.equal(stub.streamsOpened(), 2, "reopened after the end");
+    await waitFor("the reconnect", () => stub.streamsOpened() >= 2);
+    assert.equal(stub.streamsOpened(), 2, "reopened after the end, once");
     stub.emit({ type: "ticket.updated", project: null, ticket: null, actor: { id: "x", kind: "user" }, recipientIds: [], payload: {} });
     await sse.next((m) => m.type === "event" && (m.envelope as { seq: number }).seq === 3);
     // The first stream opens with the tail's sealed cursor, the reconnect with the heartbeat's (no event followed it).
@@ -112,17 +117,15 @@ describe("the Unix socket transport", () => {
     const socketPath = path.join(dir, "loops.sock");
     const host = await createHost({ loopsUrl: "http://127.0.0.1:8091", loopsSocket: socketPath, key: "chl_x", keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 60 } });
     cleanup.push(() => host.close());
-    const down = (await (await fetch(`${host.url}/world-api/health`)).json()) as Record<string, unknown>;
-    assert.equal(down.loops, "down");
+    // Down once the host's first attempt on the socket was refused (waited for; never read off health's bounded wait).
+    await waitFor("loops down over the socket", async () => (await read(host.url)).loops === "down");
+    const down = await read(host.url);
     assert.equal(down.transport, "unix");
+    assert.equal(down.connection.key.state, "unchecked", "nothing answered: no verdict on the key");
     const stub = await createLoopsStub({ ...installation(), key: "chl_x", socketPath });
     cleanup.push(() => stub.close());
-    let health = down;
-    for (let i = 0; i < 50 && health.loops !== "ok"; i += 1) {
-      await new Promise((r) => setTimeout(r, 20));
-      health = (await (await fetch(`${host.url}/world-api/health`)).json()) as Record<string, unknown>;
-    }
-    assert.equal(health.loops, "ok");
+    await waitFor("loops ok over the socket", async () => (await read(host.url)).loops === "ok");
+    assert.equal((await read(host.url)).transport, "unix");
   });
 
   it("times out a read that gets no answer, aborts on the signal, and refuses a path outside the allow-list before connecting", async () => {
@@ -161,9 +164,8 @@ describe("health over TCP", () => {
     const stub = await createLoopsStub(installation());
     const host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", retryMs: { min: 20, max: 100 } });
     try {
-      const health = (await (await fetch(`${host.url}/world-api/health`)).json()) as Record<string, unknown>;
-      assert.equal(health.transport, "tcp");
-      assert.equal(health.loops, "ok");
+      await waitFor("the stream", async () => (await read(host.url)).loops === "ok");
+      assert.equal((await read(host.url)).transport, "tcp");
     } finally {
       await host.close();
       await stub.close();

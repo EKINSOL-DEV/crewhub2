@@ -13,16 +13,8 @@ import { afterEach, describe, it } from "node:test";
 import { type ArchiveStore, createArchiveStore } from "../src/archiveStore.ts";
 import { type HostOptions, createHost } from "../src/host.ts";
 import { type LoopsStub, createLoopsStub, envelope, installation } from "./loopsStub.ts";
+import { waitFor } from "./wait.ts";
 
-const settle = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-async function waitFor(what: string, predicate: () => Promise<boolean> | boolean, timeoutMs = 3000): Promise<void> {
-  const started = Date.now();
-  while (!(await predicate())) {
-    if (Date.now() - started > timeoutMs) throw new Error(`timed out waiting for ${what}`);
-    await settle(25);
-  }
-}
 
 function change(seq: number, type: "project.archived" | "project.restored", slug: string) {
   return envelope(seq, type, { project: { slug, key: slug.toUpperCase() }, actor: { id: "nicky", kind: "user" }, payload: { changed: ["archivedAt"], old: {}, new: { archivedAt: type === "project.archived" ? "2026-10-20T22:14:27Z" : null } } });

@@ -18,8 +18,7 @@ import type { KeyStore } from "../src/keyStore.ts";
 import { BUSY_REASON } from "../src/stream.ts";
 import { createLoopsStub, installation } from "./loopsStub.ts";
 import { openSse } from "./sse.ts";
-
-const settle = (ms: number) => new Promise((r) => setTimeout(r, ms));
+import { waitFor } from "./wait.ts";
 
 async function freePort(): Promise<number> {
   const server = createServer();
@@ -45,13 +44,6 @@ function memoryStore(): KeyStore & { saved: string[]; forgotten: number } {
   return store;
 }
 
-async function waitFor(what: string, predicate: () => Promise<boolean> | boolean, timeoutMs = 3000): Promise<void> {
-  const started = Date.now();
-  while (!(await predicate())) {
-    if (Date.now() - started > timeoutMs) throw new Error(`timed out waiting for ${what}`);
-    await settle(25);
-  }
-}
 
 describe("the smooth connection", () => {
   const cleanup: (() => Promise<void> | void)[] = [];
@@ -200,7 +192,7 @@ describe("the smooth connection", () => {
     cleanup.push(() => tab.close());
     const status = await tab.next((m) => m.type === "status");
     assert.deepEqual(status, { type: "status", loops: "down", stream: "busy", reason: BUSY_REASON });
-    await waitFor("the stream after Retry-After", async () => (await health()).connection.stream.state === "ok", 6000);
+    await waitFor("the stream after Retry-After", async () => (await health()).connection.stream.state === "ok");
     assert.equal((await health()).connection.stream.reason, undefined);
     await tab.next((m) => m.type === "status" && m.loops === "ok");
     assert.ok((await health()).connection.stream.reconnects >= 2);

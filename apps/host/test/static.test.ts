@@ -66,7 +66,7 @@ describe("static files and the host's own heartbeat", () => {
     try {
       await sse.next((m) => m.type === "status" && m.loops === "ok");
       await stub.close();
-      const beat = await sse.next((m) => m.type === "heartbeat", 3000);
+      const beat = await sse.next((m) => m.type === "heartbeat");
       assert.equal(beat.seq, 0);
       assert.equal(typeof beat.ts, "string");
     } finally {
