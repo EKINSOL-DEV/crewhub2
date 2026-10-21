@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Envelope, TeamSnapshot, TicketCard } from "@crewhub/loops-client";
+import { CLOSING_MS } from "../src/archive.ts";
 import { describeWorld } from "../src/describe.ts";
 import { PERSON_CARRY_MS } from "../src/flights.ts";
 import { emptyMemory } from "../src/memory.ts";
@@ -358,4 +359,36 @@ test("the source's own principal (the observer) gets no figure and no count, and
   const text = describeWorld(model).map((l) => l.text);
   assert.ok(text.includes("crewhub-world (this world's key) is not shown: it is the observer, not a worker."), text.join("\n"));
   assert.ok(!text.some((l) => /crewhub-world is in the/.test(l)));
+});
+
+test("a closed building says since when and by whom, and plays a closing or an opening once after the event", () => {
+  const archivedProject = project("old-site", "OS", "os-lead", { archivedAt: "2026-09-20T08:00:00Z", archivedBy: userRef("nicky", "Nicky") });
+  const { reduce, event } = world({ projects: [CL], archivedProjects: [archivedProject], agents: [registered("cl-lead")] });
+  const closed = building(reduce(), "old-site");
+  assert.equal(closed.archived, true);
+  assert.equal(closed.archivedAt, "2026-09-20T08:00:00Z");
+  assert.equal(closed.archivedBy, "Nicky");
+  assert.equal(closed.closing, null, "a snapshot plays no closing");
+  const text = describeWorld(reduce()).map((l) => l.text).join("\n");
+  assert.match(text, /OS\) is boarded up: the project is archived, closed since 20 Sep 2026 \(11 days\)/);
+  assert.match(text, /Boarded up: archived, closed since 20 Sep 2026 \(11 days\), by Nicky\. It can still be entered\./);
+
+  // The active building closes: its window starts at the event's time and ends CLOSING_MS later.
+  const at = T0 + 60_000;
+  event(envelope("project.archived", { changed: ["archivedAt"], old: { archivedAt: null }, new: { archivedAt: new Date(at).toISOString() } }, { seq: 1101, ts: new Date(at).toISOString() }));
+  const closing = building(reduce(at + 500));
+  assert.equal(closing.archived, true);
+  assert.equal(closing.archivedAt, new Date(at).toISOString());
+  assert.deepEqual(closing.closing, { kind: "closing", at, until: at + CLOSING_MS });
+  assert.match(describeWorld(reduce(at + 500)).map((l) => l.text).join("\n"), /CL\) is closing: the lights go out and the boards come down/);
+  assert.equal(building(reduce(at + CLOSING_MS)).closing, null, "the window is over");
+
+  // Restored: an opening, and the building is active again without a date.
+  const back = at + 120_000;
+  event(envelope("project.restored", { changed: ["archivedAt"], old: {}, new: { archivedAt: null } }, { seq: 1102, ts: new Date(back).toISOString() }));
+  const opening = building(reduce(back + 10));
+  assert.equal(opening.archived, false);
+  assert.equal(opening.archivedAt, null);
+  assert.deepEqual(opening.closing, { kind: "opening", at: back, until: back + CLOSING_MS });
+  assert.match(describeWorld(reduce(back + 10)).map((l) => l.text).join("\n"), /CL\) opens again: the boards come off/);
 });

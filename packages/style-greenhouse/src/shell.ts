@@ -25,7 +25,14 @@ function boardUp(kit: Kit, g: THREE.Object3D, width: number, height: number, x: 
   ] as const) {
     const plank = put(g, kit.box(length, 0.09, 0.035, "plank", 0.012), x, y, z + dz);
     plank.rotation.z = sign * tilt * 0.8;
+    // A closing drops the boards into place and an opening lifts them away (world-style: `userData.board`).
+    plank.userData.board = true;
   }
+}
+
+/** A window or lamp that a closing turns off and an opening turns on (world-style: `userData.pane`). */
+function lightTag(mesh: THREE.Object3D, lit: THREE.Material, dark: THREE.Material): void {
+  mesh.userData.pane = { lit, dark };
 }
 
 /** Chalk pilasters at both ends of a tall wall: the corners and the wall's end at the front look finished. */
@@ -105,7 +112,8 @@ export function tallWall(kit: Kit, o: ModelOptions, glass: THREE.Material): THRE
     // A warm pane: pale glass by day, lit from inside in the evening (its glow follows the theme), with a patch of
     // window light on the floor below it inside (+z), a lamp-pool decal that only shows in lamplight.
     const pane = kit.geometry(`window-pane:${ww}`, () => new THREE.PlaneGeometry(ww - 0.04, head - sill - 0.04));
-    put(g, new THREE.Mesh(pane, archived(o) ? glass : kit.material("window-lit", { glow: "window-light" })), c, (sill + head) / 2, 0);
+    const lit = kit.material("window-lit", { glow: "window-light" });
+    lightTag(put(g, new THREE.Mesh(pane, archived(o) ? glass : lit), c, (sill + head) / 2, 0), lit, glass);
     if (!archived(o)) {
       // Ambient life's window spot: a lit window glows here in lamplight, facing into the room (+z).
       lifeSpot(g, "window", c, (sill + head) / 2, depth / 2 + 0.01);
@@ -339,15 +347,30 @@ export function ivy(kit: Kit, o: ModelOptions): THREE.Group {
   return g;
 }
 
-/** A small timber board hanging from a bracket: "closed". The origin is the bracket's top. */
-export function closedSign(kit: Kit): THREE.Group {
+/**
+ * A small timber board hanging from a bracket: "closed", and under it a second, smaller board with `text` (the date
+ * the project was archived, "since 9 Oct 2026") painted on it. The origin is the bracket's top.
+ */
+export function closedSign(kit: Kit, o: ModelOptions = {}): THREE.Group {
   const g = new THREE.Group();
-  for (const x of [-0.16, 0.16]) put(g, kit.box(0.012, 0.16, 0.012, "pole", 0.004), x, -0.08, 0);
-  put(g, kit.box(0.5, 0.2, 0.035, "timber", 0.02), 0, -0.25, 0);
-  put(g, kit.box(0.44, 0.14, 0.012, "cream", 0.008), 0, -0.25, 0.02);
-  // "CLOSED", lettered as five short strokes and a bar: the board reads as a sign without a texture.
-  for (let i = 0; i < 6; i++) put(g, kit.box(0.035, 0.07, 0.008, "circle", 0.004), -0.15 + i * 0.06, -0.25, 0.028);
-  put(g, kit.box(0.4, 0.014, 0.008, "circle", 0.003), 0, -0.3, 0.028);
+  // Big enough to read from the town's near view: the board is about half a door wide.
+  for (const x of [-0.28, 0.28]) put(g, kit.box(0.014, 0.16, 0.014, "pole", 0.004), x, -0.08, 0);
+  put(g, kit.box(0.84, 0.28, 0.04, "timber", 0.02), 0, -0.3, 0);
+  put(g, kit.box(0.76, 0.2, 0.014, "cream", 0.008), 0, -0.3, 0.022);
+  // "CLOSED", lettered as six short strokes and a bar: the board reads as a sign without a texture.
+  for (let i = 0; i < 6; i++) put(g, kit.box(0.06, 0.1, 0.008, "circle", 0.004), -0.27 + i * 0.108, -0.29, 0.032);
+  put(g, kit.box(0.7, 0.018, 0.008, "circle", 0.003), 0, -0.365, 0.032);
+  const text = (o.text ?? "").trim();
+  if (text && typeof document !== "undefined") {
+    // The date board hangs from the sign on two short cords, the date painted on it.
+    for (const x of [-0.24, 0.24]) put(g, kit.box(0.01, 0.07, 0.01, "pole", 0.003), x, -0.475, 0);
+    const width = 0.8,
+      height = 0.17;
+    put(g, kit.box(width, height, 0.035, "timber", 0.012), 0, -0.6, 0);
+    const face = new THREE.Mesh(kit.geometry(`closed-date:${width.toFixed(2)}`, () => new THREE.PlaneGeometry(width - 0.06, height - 0.04)), lettering(kit, text, width - 0.06, height - 0.04));
+    face.position.set(0, -0.6, 0.02);
+    g.add(face);
+  }
   return g;
 }
 
@@ -385,7 +408,9 @@ export function wallLamp(kit: Kit, o: ModelOptions): THREE.Group {
   put(g, kit.box(0.09, 0.14, 0.03, "lamp-base", 0.01), 0, y, 0.015);
   put(g, kit.box(0.025, 0.025, 0.14, "lamp-base", 0.008), 0, y + 0.04, 0.09);
   put(g, kit.box(0.11, 0.025, 0.11, "lamp-base", 0.008), 0, y + 0.03, 0.17);
-  put(g, kit.mesh(kit.geometry("wall-lamp:glass", () => new THREE.CylinderGeometry(0.055, 0.05, 0.14, 10)), kit.material("lamp-glow", { glow: archived(o) ? 0.05 : 0.9 })), 0, y - 0.04, 0.17);
+  const lit = kit.material("lamp-glow", { glow: 0.9 }),
+    dark = kit.material("lamp-glow", { glow: 0.05 });
+  lightTag(put(g, kit.mesh(kit.geometry("wall-lamp:glass", () => new THREE.CylinderGeometry(0.055, 0.05, 0.14, 10)), archived(o) ? dark : lit), 0, y - 0.04, 0.17), lit, dark);
   put(g, kit.cylinder(0.01, 0.065, 0.05, "lamp-base"), 0, y + 0.06, 0.17);
   g.traverse((m) => (m.castShadow = false));
   return g;

@@ -90,8 +90,20 @@ export interface ModelOptions {
    * room's floor, a stalled desk's lamp), "urgent" or "high" (priority tags), "star" (the prop sticker).
    */
   variant?: string;
-  /** Words a style may paint on a piece, such as a building's name on its sign. Plain text, short. */
+  /** Words a style may paint on a piece, such as a building's name on its sign or the date on a closed sign. Plain text, short. */
   text?: string;
+}
+
+/**
+ * What a closing or an opening animates (a project archived or restored while the town stands). A style may tag the
+ * pieces of a building's shell that the renderer moves: `userData.board = true` on every plank it nails over an
+ * opening in the "archived" variant (a closing drops them into place, an opening lifts them away), and
+ * `userData.pane = { lit, dark }` on a window pane or a lamp's glass with the material it shows lit and the one it
+ * shows dark (the lights go out one by one, and come back on). A style that tags nothing plays a cut.
+ */
+export interface LightTag {
+  lit: THREE.Material;
+  dark: THREE.Material;
 }
 
 /**

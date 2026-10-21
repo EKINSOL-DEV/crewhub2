@@ -74,7 +74,7 @@ faces +z, and one world unit is one metre (a grid cell is 0.6).
 | `floor` | A room floor. | `size`, `variant`: `wood`, `oak` (dark planks), `tile`, `sage` (sage tiles), `concrete`, `mist` (cool cells), `dim` (an empty room) or none (cream cells) |
 | `room.sign` | The small floor plaque where a room's HTML label stands. | |
 | `building.flag`, `building.planks` | The project flag (half-mast when archived), planks across a boarded-up door. | `accent`, `variant`, `size` |
-| `building.<piece>` | The rest of the shell: `slab` (the cream block under the rooms), `partition` and `door-frame` (inside walls and their openings), `apron` and `loading-door` (dispatch's truck bay), `wall-lamp` (by a door, with a light pool), `bike`, `name-sign` (the building's name painted over the front door), `silhouette` (far-detail furniture stand-ins by `variant`), `ivy`, `closed-sign`, `dust-sheet` and `chair-stack` (archived buildings), `floor-shade` (the soft shade along a room's walls, `size` the room). | `size`, `accent`, `variant`, `text` (the name sign's words) |
+| `building.<piece>` | The rest of the shell: `slab` (the cream block under the rooms), `partition` and `door-frame` (inside walls and their openings), `apron` and `loading-door` (dispatch's truck bay), `wall-lamp` (by a door, with a light pool), `bike`, `name-sign` (the building's name painted over the front door), `silhouette` (far-detail furniture stand-ins by `variant`), `ivy`, `closed-sign` (its `text` is the archive date, painted on a second board), `dust-sheet` and `chair-stack` (archived buildings), `floor-shade` (the soft shade along a room's walls, `size` the room). | `size`, `accent`, `variant`, `text` (the name sign's words, the closed sign's date) |
 | `emblem.<icon>` | The loops project icon as a sculpture: `home`, `inbox`, `bot`, `spark`, `users`, `star`, `folder`. | `accent` |
 | `post-office`, `town-hall` | The civic buildings, each with an open forecourt at its front for the robots that stand there. | |
 | `civic.<landmark>` | The town's landmarks and their parts: `square` (with the fountain), `cafe`, `bus-stop`, `greenhouse`, `windmill`, `welcome-sign`, `clock-post`, `duck`, and pieces such as `fountain`, `park-bench`, `planter`, `flower-bed`, `cafe-table`, `menu-board`, `notice-board`, `parcel-stack`. | |
@@ -231,6 +231,13 @@ them. A style keeps its world cheap by keeping its materials batchable.
   directly sets `matrixAutoUpdate = false` (for `matrix`) and `matrixWorldNeedsUpdate = true` after each write, as in
   plain three.js; a one-draw change in `onBeforeRender` (the back walls' collapse) also sets `matrixWorldNeedsUpdate`
   so the next pass restores the matrix.
+- **What a closing moves** (`closing.ts`, world-style `LightTag`). A project archived or restored while the town
+  stands plays a closing or an opening on its building's shell: the lights go out (or come on) one by one and the
+  boards drop into place (or lift away). The renderer rebuilds the shell for each phase and, just before the static
+  merge, moves the pieces the style tagged out of the batches: `userData.board = true` on every plank the "archived"
+  variant nails over an opening, `userData.pane = { lit, dark }` on a window pane or a lamp's glass with the material
+  it shows lit and the one it shows dark. Once the phase is over the shell is rebuilt and merged as usual, so the tags
+  cost nothing while nothing closes. A style that tags nothing plays a cut; reduced motion always cuts.
 
 ## How Greenhouse implements it
 

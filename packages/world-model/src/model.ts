@@ -110,6 +110,12 @@ export interface Building {
   icon: ProjectIcon | null;
   /** Boarded up while archived; comes back on `project.restored`. */
   archived: boolean;
+  /** When the project was archived (`ProjectOut.archivedAt`, ISO), null while active. */
+  archivedAt: string | null;
+  /** Who archived it (`ProjectOut.archivedBy`, display name), when loops says. */
+  archivedBy: string | null;
+  /** The closing or the opening playing right now (the short window after `project.archived` or `project.restored`). */
+  closing: BuildingClosing | null;
   /** `ProjectOut.counts`, a fact. */
   counts: Record<TicketStatus, number>;
   lead: { id: string; displayName: string };
@@ -157,6 +163,16 @@ export interface PersonVisit {
   rejected: boolean;
   /** `queued`: another person is still in the building; `carrying`; `landed`: on the Done rack, the person on the way out. */
   phase: "queued" | "carrying" | "landed";
+}
+
+/**
+ * A building closes or opens again (source-time ms): `project.archived` plays a closing (the lights go out, the
+ * boards come down), `project.restored` an opening (the reverse). The renderer plays each `at` once; reduced motion cuts.
+ */
+export interface BuildingClosing {
+  kind: "closing" | "opening";
+  at: number;
+  until: number;
 }
 
 export interface Room {

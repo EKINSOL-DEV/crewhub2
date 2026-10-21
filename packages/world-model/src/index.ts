@@ -32,6 +32,7 @@ export type { CivicWords } from "./describe.ts";
 export { DEFAULT_ZONE_ID, resolveZones, zoneById, zoningOf } from "./zones.ts";
 export type { TownZone, TownZoning, ZoneProject, ZoneReason, ZoneResolution } from "./zones.ts";
 export { flightMs, FLIGHT_MAX_MS, FLIGHT_MIN_MS, PERSON_CARRY_MS, PERSON_LANDED_MS, PERSON_QUEUE_MAX } from "./flights.ts";
+export { CLOSING_MS, archivedSince, archivedWords, closingOf } from "./archive.ts";
 export type * from "./townDocument.ts";
 export type * from "./history.ts";
 export type * from "./catalogue.ts";
