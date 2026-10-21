@@ -7,14 +7,18 @@
    chat head to open in loops' dock. The link to the app is always
    there, the fallback for a frame that never loads (the day loops refuses framing). A sheet at the right of the world;
    the whole screen on a phone. Not modal: Escape (with the focus outside the frame) and the close button close it, and
-   the focus returns to the opener (App). */
+   the focus returns to the opener (App). Above the frame, since round 16, the Recent answers list (components/RecentAnswers):
+   a missed bubble is not lost, and a row opens that agent's chat here. */
 import { ExternalLink, X } from "lucide-react";
 import { useEffect, useId, useRef } from "react";
 import type { HostHealth } from "@crewhub/loops-client";
 import { useT } from "../i18n";
 import { CHAT_FRAME_ALLOW, CHAT_FRAME_SANDBOX, chatFrameUrl, chatWordsLine } from "../state/chatPanel";
+import type { AnswerTarget } from "../state/recentAnswers";
+import type { Answer } from "../state/said";
 import { loopsWebUrl } from "../state/source";
 import { Button, Card } from "./primitives";
+import { RecentAnswers } from "./RecentAnswers";
 
 interface Props {
   /** The agent whose chat the person asked for (from its card), or null from the chip. The frame cannot preselect it. */
@@ -23,10 +27,15 @@ interface Props {
   health: HostHealth | null;
   /** The whole screen (a phone) instead of a sheet at the right. */
   full: boolean;
+  /** The Recent answers list (round 16): the answers, the empty state's words for this road, and where a row goes. */
+  answers: readonly Answer[];
+  recentEmpty: string;
+  targetOf: (answer: Answer) => AnswerTarget;
+  onAnswer: (answer: Answer, target: AnswerTarget) => void;
   onClose: () => void;
 }
 
-export function ChatPanel({ agent, health, full, onClose }: Props) {
+export function ChatPanel({ agent, health, full, answers, recentEmpty, targetOf, onAnswer, onClose }: Props) {
   const { t } = useT();
   const id = useId();
   const close = useRef<HTMLButtonElement>(null);
@@ -49,6 +58,7 @@ export function ChatPanel({ agent, health, full, onClose }: Props) {
           {agent ? t("world.chat.panel.leadWith", { name: agent.name }) : t("world.chat.panel.lead")}
         </p>
         <p className="sign-muted chat-sheet-needs">{chatWordsLine(health?.connection?.session)}</p>
+        <RecentAnswers as="details" answers={answers} empty={recentEmpty} targetOf={targetOf} onOpen={onAnswer} />
         <iframe className="chat-frame" src={src} title={t("world.chat.panel.frame")} sandbox={CHAT_FRAME_SANDBOX.join(" ")} allow={CHAT_FRAME_ALLOW} referrerPolicy="strict-origin-when-cross-origin" />
       </Card.Body>
       <Card.Footer className="chat-sheet-foot">

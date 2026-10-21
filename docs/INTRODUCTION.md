@@ -297,7 +297,9 @@ the building from the town (the figure inside is not drawn there; a tap enters t
 row says "<name> answered"), and the three places that speak of the sign-in tell one story per road: on the key road
 the bubbles need no sign-in and the world keeps no session; on the session road the host keeps the person's session for
 chat reads only; typing in the framed chat is loops' own and always needs the person signed in to loops in this browser.
-The honest road is on the loops side (section 8). Once the viewer key is merged and the world has switched to it, the
+A missed bubble is not lost (round 16): the Chat panel and the text view carry a "Recent answers" list, the last ten
+first lines this page saw with their times, newest first, each a button that opens that agent's chat; nothing of it is
+written anywhere, and a reload starts empty. The honest road is on the loops side (section 8). Once the viewer key is merged and the world has switched to it, the
 sign-in road goes in that same track (the plan: the spec addendum "chat with the agents", planned removal); until then it
 stays as it is.
 
