@@ -1,21 +1,9 @@
 /* regress.mjs: the browser regression pass of the integrated world, in six groups.
 
    Usage:
-     node tools/regress.mjs --port <port> [--groups walk,demo,live,connect,rooms,real] [--host-port 5180] [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--tag pass] [--out <dir>] [--swiftshader]
+     node tools/regress.mjs --port <port> [--groups connect,walk,demo,live,rooms,real] [--host-port 5180] [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--tag pass] [--out <dir>] [--swiftshader]
 
-   Groups (--groups, default all six, in this order):
-     walk  36 checks along a visitor's walk through the demo (keyboard, the text view, the timeline, chat, build mode,
-           settings, the where form, reduced motion, a phone, both themes). About two minutes.
-     demo  the jump list (/ opens it, a building's name, Enter lands inside; the postman's card in the town), the scenario picker (the Demo chip, One
-           project, back to Small team) and the Studio scenario's Region level (district cards, a beacon, a pin, a
-           district, a building, the Escape chain back to the Region). About half a minute.
-     live  live mode against a fake crewhub-loops the tool starts itself (`packages/loops-fake`, port 0) behind a host it
-           starts itself (`apps/host`): the Live chip, the sign-in link, Loops down after the fake closes, Live again
-           after a new fake on the same port, and, when the host has pairing, the pairing page without a cookie and
-           the world after the one-time link. When `apps/world/dist` exists (after `npm run build`) the host serves
-           it on a free port and the browser opens the host directly; otherwise the host listens on --host-port
-           (default 5180, Vite's default proxy target) and the browser opens your Vite, which must have been started
-           with CREWHUB_WORLD_PORT=<host-port>. About half a minute.
+   Groups (--groups, default all six, in this order; connect first, the connection being the first priority):
      connect the connect flow (spec addendum "a smooth connection"), 21 checks in two halves, both behind your Vite
            (started with CREWHUB_WORLD_PORT=<host-port>; apps/world/dist is never looked at here, whatever the live
            group does with it). Against the stub host of lib/connectStub.mjs, on --host-port, always: one page meets
@@ -36,6 +24,18 @@
            are named, the key is nowhere; the host closed and started again with the stored key and the same secret
            file is Live again without a new link; the panel's Forget this key hands the Connect screen back and the
            stored key is gone. Under half a minute. One host at a time against that loops (4 streams per key).
+     walk  36 checks along a visitor's walk through the demo (keyboard, the text view, the timeline, chat, build mode,
+           settings, the where form, reduced motion, a phone, both themes). About two minutes.
+     demo  the jump list (/ opens it, a building's name, Enter lands inside; the postman's card in the town), the scenario picker (the Demo chip, One
+           project, back to Small team) and the Studio scenario's Region level (district cards, a beacon, a pin, a
+           district, a building, the Escape chain back to the Region). About half a minute.
+     live  live mode against a fake crewhub-loops the tool starts itself (`packages/loops-fake`, port 0) behind a host it
+           starts itself (`apps/host`): the Live chip, the sign-in link, Loops down after the fake closes, Live again
+           after a new fake on the same port, and, when the host has pairing, the pairing page without a cookie and
+           the world after the one-time link. When `apps/world/dist` exists (after `npm run build`) the host serves
+           it on a free port and the browser opens the host directly; otherwise the host listens on --host-port
+           (default 5180, Vite's default proxy target) and the browser opens your Vite, which must have been started
+           with CREWHUB_WORLD_PORT=<host-port>. About half a minute.
      rooms the three-room building (`?rooms=three`, whatever the viewer's Buildings setting): three room signs
            (Administration, The floor, Lead's office) and a rack sign with its count, the arrow keys between the three halls, the text view naming the
            racks and the desks with a package on each, the lead's office beacon, the agent card on a figure at a desk,
@@ -69,7 +69,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { cli, dressed, launch, list, problemLines, seek, speed, watch } from "./lib/world.mjs";
 import { createConnectStub } from "./lib/connectStub.mjs";
 
-const GROUPS = ["walk", "demo", "live", "connect", "rooms", "real"];
+// The connect group first: the connection is the first priority, so a default pass fails on it first.
+const GROUPS = ["connect", "walk", "demo", "live", "rooms", "real"];
 const USAGE = "node tools/regress.mjs --port <port> [--groups walk,demo,live,connect,rooms,real] [--host-port 5180] [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--tag pass] [--out <dir>] [--swiftshader]";
 const opts = cli(USAGE, { options: { tag: "pass", groups: GROUPS.join(","), "host-port": "5180", "loops-env": "", "loops-socket": "", "loops-app-data": "" } });
 const groups = list(opts.groups, GROUPS, opts.fail, "group");

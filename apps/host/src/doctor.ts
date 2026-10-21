@@ -8,6 +8,7 @@ import { readFileSync, statSync } from "node:fs";
 import { createConnection } from "node:net";
 import { homedir } from "node:os";
 import path from "node:path";
+import { ARCHIVE_MEMORY_NAME, parseArchiveMemory } from "./archiveStore.ts";
 import { ConfigError, type KeyFiles, type LoadedKey, type PathKind, type ServerConfig, keyFilesOf, loadKey, loadServerConfig, statPath } from "./config.ts";
 import { type DiscoveryInput, type Found, candidates, discoverOnce, loopsHealth, targetText } from "./discovery.ts";
 import { checkKey } from "./keyCheck.ts";
@@ -16,7 +17,7 @@ import { type LoopsClient, type LoopsTarget, createLoopsClient } from "./loops.t
 export type DoctorStatus = "ok" | "fix" | "skip";
 
 export interface DoctorLine {
-  /** `loops`, `health`, `key`, `auth`, `projects`, `agents`, `team`, `events`, `port`, `pairing`. */
+  /** `loops`, `health`, `key`, `auth`, `projects`, `agents`, `team`, `events`, `archive`, `port`, `pairing`. */
   id: string;
   status: DoctorStatus;
   text: string;
@@ -121,7 +122,7 @@ export async function runDoctor(io: DoctorIo): Promise<DoctorReport> {
     config = loadServerConfig(io.env, io.statPath ?? statPath);
   } catch (error) {
     fix("loops", error instanceof ConfigError ? error.message : "the configuration failed");
-    for (const id of ["health", "key", "auth", "projects", "agents", "team", "events", "port", "pairing"]) skip(id, "the configuration failed");
+    for (const id of ["health", "key", "auth", "projects", "agents", "team", "events", "archive", "port", "pairing"]) skip(id, "the configuration failed");
     return { lines, ok: false };
   }
   const input: DiscoveryInput = {
@@ -219,7 +220,20 @@ export async function runDoctor(io: DoctorIo): Promise<DoctorReport> {
     await read<{ sessions: unknown[] }>("team", "/api/team", (b) => `${b.sessions.length} session${b.sessions.length === 1 ? "" : "s"} in the team snapshot`);
     await read<{ lastSeq: number; cursor?: string }>("events", "/api/events", (b) => `the event log's tail is seq ${b.lastSeq}${typeof b.cursor === "string" ? " (sealed cursor present)" : ""}`, { from: "tail" });
   }
-  // 5. The host's port.
+  // 5. The remembered archive (archiveStore.ts): the closed buildings the host learnt, with where it learnt them.
+  const archiveFile = path.join(config.configDir, ARCHIVE_MEMORY_NAME);
+  const archiveText = readFile(archiveFile);
+  if (archiveText === null) ok("archive", `no archived projects remembered yet (${tilde(archiveFile, home)}): the host learns them from loops' event log and the stream and keeps them there`);
+  else {
+    const memory = parseArchiveMemory(archiveText);
+    if (memory === null) fix("archive", `${tilde(archiveFile, home)} is not an archive memory: delete it, the host writes it again`);
+    else {
+      const n = memory.slugs.length;
+      ok("archive", `remembers ${n} archived project${n === 1 ? "" : "s"}${n === 0 ? "" : ` (${memory.slugs.join(", ")})`} from ${memory.target === undefined ? "an unnamed loops" : tilde(memory.target, home)}${memory.at === "" ? "" : `, learnt ${memory.at}`}; loops is asked about each at every snapshot`);
+    }
+  }
+
+  // 6. The host's port.
   const port = await probePort(config.port);
   if (port.kind === "free") ok("port", `127.0.0.1:${config.port} is free for the host`);
   else if (port.kind === "host") {
@@ -239,7 +253,7 @@ export async function runDoctor(io: DoctorIo): Promise<DoctorReport> {
     else fix("port", `${runs} but loops is ${String(state)}: the host retries by itself; if it stays so, read its terminal`);
   } else fix("port", `something else listens on 127.0.0.1:${config.port}: stop it, or run the host on another port (CREWHUB_WORLD_PORT=5181)`);
 
-  // 6. Pairing.
+  // 7. Pairing.
   if (config.pairing === "on") ok("pairing", "on: npm run world opens the browser on a one-time link (or npm run host -- open prints one)");
   else ok("pairing", "off (development only: any page on this machine can read the world's data; production refuses it)");
 

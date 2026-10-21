@@ -216,7 +216,9 @@ export function roleOf(
   if (entity.crewhubLead) return { role: "lead", source: "crewhub-lead" };
   if (entity.loopsRole === "router") return { role: "worker", source: "router" };
   if (entity.external) return { role: "worker", source: "external" };
-  if (/^.+-lead$/.test(entity.name)) return { role: "lead", source: "name-suffix" };
+  // A name never outranks loops: the suffix counts for a registered agent whose loops role (`lead`) says nothing more,
+  // after every loops fact above; a worker in the team snapshot is what the snapshot says.
+  if (entity.registered && entity.loopsRole === "lead" && /^.+-lead$/.test(entity.name)) return { role: "lead", source: "name-suffix" };
   if (/^.+-design-\d+$/.test(entity.name)) return { role: "design", source: "name-rule" };
   if ((entity.registered && entity.name === "analyst") || /^.+-analyst-\d+$/.test(entity.name)) {
     return { role: "analyst", source: "name-rule" };

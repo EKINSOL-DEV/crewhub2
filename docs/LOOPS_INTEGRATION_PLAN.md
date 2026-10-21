@@ -377,7 +377,7 @@ catalogue, predefined and stored in the world database:
 
 | Role | Room | Default rule (applied in order) | Room exists |
 | --- | --- | --- | --- |
-| lead | Lead's office, at the centre of the building | The project's `lead` (a fact, "the project lead"); the CrewHub lead (`isCrewhubLead`); a name ending in `-lead` ("from the -lead in its name") | always |
+| lead | Lead's office, at the centre of the building | The project's `lead` (a fact, "the project lead"); the CrewHub lead (`isCrewhubLead`); a registered agent of loops role `lead` whose name ends in `-lead` ("from the -lead in its name"; a name never outranks a loops fact, and a worker in the team snapshot is what the snapshot says) | always |
 | design | Design room | A worker named `<stem>-design-<n>` | once a design agent has been present |
 | analyst | Analyst room | The registered agent `analyst`, or a worker `<stem>-analyst-<n>` | once an analyst has been present |
 | worker | Workers room | The postman (loops role `router`, "the postman"), an external bot ("an external bot"), a worker `<stem>-dev-<n>`, then any registered agent no rule matched ("a registered agent (loops role lead)") or a worker under its lead in the team snapshot ("under its lead in the team snapshot") | once a worker has been present |

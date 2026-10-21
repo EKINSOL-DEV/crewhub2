@@ -46,7 +46,7 @@ describe("the doctor", () => {
     const report = await runDoctor({ env: { CREWHUB_WORLD_LOOPS_URL: stub.url, CREWHUB_WORLD_KEY_FILE: keyFile, CREWHUB_WORLD_PORT: "5187" }, probePort: free });
     const lines = byId(report);
     assert.equal(report.ok, true, formatDoctor(report).join("\n"));
-    assert.deepEqual(report.lines.map((l) => l.id), ["loops", "health", "key", "auth", "projects", "agents", "team", "events", "port", "pairing"]);
+    assert.deepEqual(report.lines.map((l) => l.id), ["loops", "health", "key", "auth", "projects", "agents", "team", "events", "archive", "port", "pairing"]);
     assert.match(lines.loops!.text, /found via env-url/);
     assert.match(lines.health!.text, /version 053b5f47/);
     assert.match(lines.key!.text, /mode 0600, yours, looks like an access key/);
@@ -55,13 +55,33 @@ describe("the doctor", () => {
     assert.match(lines.agents!.text, /1 agent/);
     assert.match(lines.team!.text, /0 sessions/);
     assert.match(lines.events!.text, /tail is seq 0 \(sealed cursor present\)/);
+    assert.match(lines.archive!.text, /^no archived projects remembered yet/);
     assert.match(lines.port!.text, /5187 is free/);
     assert.match(lines.pairing!.text, /^on/);
     assert.equal(stub.streamsOpened(), 0, "the doctor never opens the stream");
     assert.ok(stub.requests.every((r) => r.method === "GET"), "the doctor never writes");
     const text = formatDoctor(report).join("\n");
     assert.ok(!text.includes(stub.key), "never the key");
-    assert.match(text, /doctor: all 10 checks ok/);
+    assert.match(text, /doctor: all 11 checks ok/);
+  });
+
+  it("names the remembered archive: its count and the loops it was learnt from; a broken memory is a fix", async () => {
+    const stub = await createLoopsStub({ ...installation() });
+    cleanup.push(() => stub.close());
+    const dir = folder();
+    const keyFile = path.join(dir, "agent-crewhub-world.key");
+    writeFileSync(keyFile, `${stub.key}\n`, { mode: 0o600 });
+    const configDir = path.join(dir, "cw");
+    mkdirSync(configDir, { mode: 0o700 });
+    const env = { CREWHUB_WORLD_LOOPS_URL: stub.url, CREWHUB_WORLD_KEY_FILE: keyFile, CREWHUB_WORLD_CONFIG_DIR: configDir };
+    writeFileSync(path.join(configDir, "archived.json"), JSON.stringify({ v: 1, slugs: ["ops-tooling", "beacon"], at: "2026-10-21T01:50:06Z", target: stub.url }), { mode: 0o600 });
+    const remembered = byId(await runDoctor({ env, probePort: free }));
+    assert.equal(remembered.archive!.status, "ok");
+    assert.match(remembered.archive!.text, /^remembers 2 archived projects \(beacon, ops-tooling\) from http:\/\/127\.0\.0\.1:\d+, learnt 2026-10-21T01:50:06Z/);
+    writeFileSync(path.join(configDir, "archived.json"), "{not json", { mode: 0o600 });
+    const broken = byId(await runDoctor({ env, probePort: free }));
+    assert.equal(broken.archive!.status, "fix");
+    assert.match(broken.archive!.text, /is not an archive memory: delete it/);
   });
 
   it("names the fix: a missing key (the Connect screen), a world-readable file, a bogus key, a probe key", async () => {

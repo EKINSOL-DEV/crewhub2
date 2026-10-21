@@ -32,7 +32,8 @@ itself, read only) and a terminal in this repository:
    too (rehearsed on 2026-10-21: clone to the town in under two minutes, the paste to the Live chip in one second).
 
 If a step was missed, **`npm run host -- doctor`** says which, one line per check (loops found, its health, the key
-file, what loops says about the key, the projects, agents and team reads, the event log, the host's port, pairing),
+file, what loops says about the key, the projects, agents and team reads, the event log, the remembered archive
+(how many closed projects and from which loops), the host's port, pairing),
 `ok` or the fix. It reads only and never opens the stream. The table in section 5 says what each chip means. The
 scripted road (a key file and an explicit URL or socket in the environment) is section 2; everything there keeps working.
 
