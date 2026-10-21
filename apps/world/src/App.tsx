@@ -1,5 +1,5 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type Ref } from "react";
-import { ArrowLeft, ChevronRight, Eye, FlaskConical, Hammer, MessageCircle, Minus, Monitor, Moon, Pause, Plus, RotateCcw, RotateCw, Footprints, Scan, Search, Settings, Sprout, Sun, Tags, X } from "lucide-react";
+import { ArrowLeft, ChevronRight, Eye, FlaskConical, Hammer, MessageCircle, Minus, Monitor, Moon, Pause, Plus, RotateCcw, RotateCw, Footprints, Scan, Search, Settings, Sun, Tags, X } from "lucide-react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { archivedWords, CIVIC_WORDS, describeTownDocument, describeWorld, roleWords, ruleProps, zoningOf, type AgentPlacement, type CivicWords, type PlaybackControls, type PlaybackSpeed, type RoleId, type RoomKind, type RoomWording, type TextLine, type WorldModel } from "@crewhub/world-model";
 import type { PropModel } from "@crewhub/world-engine";
@@ -15,7 +15,7 @@ import { JumpList } from "./components/JumpList";
 import { IconSprite } from "./components/Icon";
 import { Button, Card, Chip, Field, Menu } from "./components/primitives";
 import { SceneBoundary } from "./components/SceneBoundary";
-import type { Selection } from "./components/WorldCanvas";
+import WorldCanvas, { type Selection } from "./components/WorldCanvas";
 import { createChatQueryClient, useChatEvents, useChatNavigation, useChatView } from "./state/chat";
 import { useAmbient } from "./state/ambient";
 import { useCast } from "./state/cast";
@@ -50,7 +50,6 @@ import { countsLine, laneWords, mmss } from "./world/townLayout";
 import { describePlan, moveFocus } from "./world/townPlan";
 import { useTownPlan } from "./state/plan";
 
-const WorldCanvas = lazy(() => import("./components/WorldCanvas"));
 // Build mode and the prop editor are not needed for the first frame: they load when first opened.
 const BuildPanel = lazy(() => import("./components/BuildPanel").then(({ BuildPanel }) => ({ default: BuildPanel })));
 const PropEditor = lazy(() => import("./components/PropEditor").then(({ PropEditor }) => ({ default: PropEditor })));
@@ -657,48 +656,39 @@ function World() {
       <main className="world-stage" onKeyDown={sceneKey} aria-label="CrewHub World">
         {graphicsFailed ? null : (
           <SceneBoundary onError={() => setGraphicsFailed(true)}>
-            <Suspense
-              fallback={
-                <div className="room-loading">
-                  <Sprout size={28} aria-hidden="true" />
-                  Laying out the town…
-                </div>
-              }
-            >
-              <WorldCanvas
-                model={model}
-                plan={plan}
-                entered={entered}
-                focused={focused}
-                ringVisible={ringVisible}
-                room={room}
-                zoomed={zoomed}
-                selection={selection}
-                onPick={pick}
-                reducedMotion={reducedMotion}
-                ambient={ambient}
-                details={details}
-                action={action}
-                districts={districts}
-                district={here?.id ?? null}
-                flight={flight}
-                onDistrict={(id) => onGo({ district: id, building: null, room: null })}
-                onEnter={enter}
-                onHover={hover}
-                onError={() => setGraphicsFailed(true)}
-                onAnnounce={setAnnouncement}
-                town={townLayer}
-                onBuild={build.pointer}
-                walking={walking}
-                onWalkPlace={(slug) => (slug ? enter(slug) : back())}
-                card={card}
-                onCloseCard={() => setCard(false)}
-                following={following}
-                onFollow={follow}
-                onFollowed={followedTo}
-                onFollowStopped={followStopped}
-              />
-            </Suspense>
+            <WorldCanvas
+              model={model}
+              plan={plan}
+              entered={entered}
+              focused={focused}
+              ringVisible={ringVisible}
+              room={room}
+              zoomed={zoomed}
+              selection={selection}
+              onPick={pick}
+              reducedMotion={reducedMotion}
+              ambient={ambient}
+              details={details}
+              action={action}
+              districts={districts}
+              district={here?.id ?? null}
+              flight={flight}
+              onDistrict={(id) => onGo({ district: id, building: null, room: null })}
+              onEnter={enter}
+              onHover={hover}
+              onError={() => setGraphicsFailed(true)}
+              onAnnounce={setAnnouncement}
+              town={townLayer}
+              onBuild={build.pointer}
+              walking={walking}
+              onWalkPlace={(slug) => (slug ? enter(slug) : back())}
+              card={card}
+              onCloseCard={() => setCard(false)}
+              following={following}
+              onFollow={follow}
+              onFollowed={followedTo}
+              onFollowStopped={followStopped}
+            />
           </SceneBoundary>
         )}
         {!demo && connection === "connecting" && <FirstSnapshot />}

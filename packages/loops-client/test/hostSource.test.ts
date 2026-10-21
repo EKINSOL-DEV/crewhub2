@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { after, test } from "node:test";
-import { createHostSource, probeHost } from "../src/hostSource.ts";
+import { createHostSource, prefetchSnapshot, probeHost } from "../src/hostSource.ts";
 import type { ConnectionState, LoopsSnapshot, SourceMessage } from "../src/source.ts";
 
 const fixture = (name: string): Record<string, unknown> =>
@@ -393,4 +393,34 @@ test("before the first snapshot the retry is capped at firstRetryMaxMs; after it
   await run.until(() => run.state() === "live", "live");
   run.stop();
   await host.close();
+});
+
+test("a snapshot read ahead (prefetchSnapshot): its body is the first message, synchronously at start; the stream opens at its cursor and the host is not asked again", async () => {
+  const host = await startHost();
+  const body: unknown = await (await prefetchSnapshot(host.url)).json();
+  assert.equal(host.snapshots, 1);
+  const { messages, states, stop, until, state } = observe(host.url, { firstSnapshot: { body } });
+  // Before any await: the first model has the town.
+  assert.equal(messages.length, 1);
+  assert.equal(messages[0]!.type, "snapshot");
+  assert.equal(state(), "live");
+  await until(() => host.cursors.length === 1, "the stream");
+  assert.deepEqual(host.cursors, [String(host.cursor)]);
+  assert.equal(host.snapshots, 1, "the source read no snapshot of its own");
+  assert.ok(states.includes("live"));
+  stop();
+});
+
+test("a snapshot read ahead that is still pending is the source's first read; one that does not validate is read again", async () => {
+  const host = await startHost();
+  const pending = observe(host.url, { firstSnapshot: { response: prefetchSnapshot(host.url) } });
+  assert.equal(pending.messages.length, 0);
+  await pending.until(() => count(pending.messages, "snapshot") === 1, "the snapshot");
+  assert.equal(host.snapshots, 1, "the pending response was the first read");
+  pending.stop();
+  const broken = observe(host.url, { firstSnapshot: { body: { not: "a snapshot" } } });
+  assert.equal(broken.messages.length, 0);
+  await broken.until(() => count(broken.messages, "snapshot") === 1, "the source's own snapshot");
+  assert.equal(host.snapshots, 2);
+  broken.stop();
 });

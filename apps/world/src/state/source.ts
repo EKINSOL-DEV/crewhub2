@@ -3,7 +3,7 @@
    `?source=demo|live` in the URL, the viewer's setting (Settings > Source, kept in this browser), and, for `auto`, whether
    a host answers `probeHost()` within PROBE_TIMEOUT_MS. Pure functions here; the browser reads are in `readSourceSetting`
    and the decision in `decideSource`. The world's runtime (world.ts) reads the decision; the demo is the default. */
-import type { HostHealth } from "@crewhub/loops-client";
+import type { HostHealth, HostSourceOptions } from "@crewhub/loops-client";
 
 export type SourceSetting = "auto" | "demo" | "live";
 export type SourceId = "demo" | "live";
@@ -140,6 +140,20 @@ let decision: SourceDecision | null = null;
 /** main.tsx records the decision before the app's modules load. */
 export function setSourceDecision(value: SourceDecision): void {
   decision = value;
+}
+
+/** A first snapshot read ahead by main.tsx (`prefetchSnapshot`), for the host source the world's module creates at import. */
+let firstSnapshot: HostSourceOptions["firstSnapshot"];
+
+export function setFirstSnapshot(value: HostSourceOptions["firstSnapshot"]): void {
+  firstSnapshot = value;
+}
+
+/** The snapshot read ahead, once: state/world.ts takes it when it creates the host source. */
+export function takeFirstSnapshot(): HostSourceOptions["firstSnapshot"] {
+  const value = firstSnapshot;
+  firstSnapshot = undefined;
+  return value;
 }
 
 /** The decision made before mount; the demo when nothing decided (a side page, a test). */

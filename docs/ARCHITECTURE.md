@@ -172,8 +172,18 @@ external loading, an editor.
 | loops client | crewhub-loops types, runtime validation of every response and event, the `WorldSource` seam, the live source | React, Three.js, the DOM |
 | crewhub-loops (external) | Every fact: projects, tickets, agents, deliveries, messages, team presence | CrewHub's code; it is read, never edited |
 
-React, TypeScript, and Vite host the browser app. Three.js is lazy-loaded for the
-town; an imperative scene controller owns frame updates outside React. React owns
+React, TypeScript, and Vite host the browser app. Three.js arrives with the world's
+module, which `main.tsx` imports only once the source is decided (the demo, or the
+host's health); the production `index.html` preloads that module graph (a Vite plugin
+in `vite.config.ts` writes the `modulepreload` links from the bundle), so the browser
+fetches and compiles it while the host is probed, and three.js sits in a chunk of its
+own that survives a rebuild of the world in the browser's cache. On the direct road to
+the world nothing suspends before the first render: the world's module is awaited (and,
+live, the host's snapshot is asked for at once and handed to the source as its first
+read, `prefetchSnapshot`), so the first model has the town and the scene lays it out
+once; a React Suspense fallback would hold the commit for up to 300 ms (the retry
+throttle). The side pages and the Connect screens still load the world lazily. An
+imperative scene controller owns frame updates outside React. React owns
 the accessible controls, the chat bubbles and the text view. The renderer consumes the same grid
 used for prop placement and navigation; see [GRID_ENGINE.md](GRID_ENGINE.md).
 No React Three Fiber or physics engine is needed for this slice.
