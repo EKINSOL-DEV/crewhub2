@@ -976,9 +976,9 @@ loops web the host names (`loopsWebUrl`). Inside the frame is loops' own app she
 width: the chat is exactly loops' own because it is loops. Signed out, loops' own sign-in shows in the frame. The
 world handles no password and no session, and reads nothing from the frame.
 
-- It cannot open boing's chat by itself (no address for it), so the panel says "open <name>'s chat head in the dock".
-  A small loops change would fix that: a `?chat=<agent>` parameter that the shell turns into its own open-chat event.
-  It is asked for on the loops proposal branch, not built here.
+- It opens boing's chat by itself on a loops that has the deep link (`?chat=<agent id>`, world/viewer-key cb163004:
+  the shell opens the dock's chat through its own rule and drops the parameter; the login redirect keeps it). An older
+  loops ignores the parameter, so the panel also says "open <name>'s chat head in the dock".
 - It needs the person signed in to crewhub-loops in this browser and the bubbles feature on; the panel says so.
 - "Open in the app" stays beside the frame, as the fallback if a later loops refuses to be framed.
 - The demo keeps its scripted chat.
@@ -988,9 +988,11 @@ screen on a phone, as loops' own chat is below its narrow width) holds an `<ifra
 the host names (`health.loopsWebUrl`, origin only): the app shell with its chat dock, which at the panel's width is
 loops' "Agent chats" menu. The person is signed in to loops in the same browser, so the frame carries their session;
 signed out, loops' own sign-in shows inside the frame. **The world handles no password and keeps no session.** The panel
-opens from the Chat chip (the live town's chat corner) and from an agent's card ("Chat with <name>"); the agent cannot be
-preselected (the open-chat event is in-page), so the panel says which chat head to open. Its words are honest: this is
-crewhub-loops' own chat; open <name>'s head in the dock; it needs you signed in to loops as a person in this browser
+opens from the Chat chip (the live town's chat corner, the frame on `/`) and from an agent's card ("Chat with <name>",
+the frame on `/?chat=<loops agent id>`: a loops of world/viewer-key cb163004 or later opens that agent's chat through the
+dock's own rule and drops the parameter from the address, an older loops ignores it). Its words are honest for both: this
+is crewhub-loops' own chat, it opens <name>'s chat, on an older loops open <name>'s head in the dock; it needs you
+signed in to loops as a person in this browser
 with chat bubbles switched on in loops; the world handles no password. The link "Open in the crewhub-loops app" (a new
 tab) is always there: the fallback for a frame that never loads, the day loops refuses framing. The frame's `sandbox`
 is no wider than the chat needs (`state/chatPanel.ts` says each token's reason): `allow-same-origin` (the cookie and
@@ -1005,8 +1007,9 @@ Checks: the pure parts in `apps/world/test/chatPanel.test.ts`; the regress `live
 sandbox, Escape and the focus, the card road and the phone; `tools/liveshots.mjs --views chat` shows the panel against
 a real loops (its sign-in, in a headless browser that is signed in nowhere); `tools/a11y.mjs` checks the chip, the
 dialog and the focus.
-A loops-side `?chat=<agent>` parameter (asked for separately) would let the panel open the right head: one line in
-`chatFrameUrl`.
+The loops side (world/viewer-key): `?chat=<agent id>` (cb163004) and `frame-ancestors 'self' http://127.0.0.1:*
+http://localhost:*` on every HTML answer (41c8d102), the allowance the panel's frame needs once loops has a policy at
+all. The world's agent key is loops' agent id for a registered agent, so `chatFrameUrl(health, key)` is the whole link.
 
 The sandbox keeps `allow-same-origin` with `allow-scripts`, which together let a framed page lift its own sandbox; that is
 acceptable here because the frame is another origin than the world (another port), so it can never reach the world's

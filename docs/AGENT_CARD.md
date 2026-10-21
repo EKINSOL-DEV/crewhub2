@@ -90,9 +90,10 @@ control, a jump or entering a building by hand stops following; so does the figu
 
 In live mode the card's **Chat** button ("Chat with <name>" to a screen reader) opens the world's Chat panel
 (`components/ChatPanel.tsx`): crewhub-loops' own chat, framed from the loops web app the host names, titled "Chat with
-<name>". Loops cannot be told from outside which chat to open (its open-chat event is in-page), so the panel says which
-chat head to open in loops' dock, what it needs (signed in to loops as a person in this browser, chat bubbles on), and
-links to the app as the fallback. The frame's sandbox and the reasons for each token are in `state/chatPanel.ts`.
+<name>". The frame asks loops for that agent's chat (`/?chat=<loops agent id>`, the world's key of a registered agent;
+a loops of world/viewer-key cb163004 or later opens it through its dock's own rule, an older loops ignores it), so the
+panel also says which chat head to open in loops' dock, what it needs (signed in to loops as a person in this browser,
+chat bubbles on), and links to the app as the fallback. The frame's sandbox and the reasons for each token are in `state/chatPanel.ts`.
 The panel's close button, or Escape while the focus is outside the frame, returns the focus to the card's button. The
 demo's card has no Chat button: the demo's chat is its own scripted dock.
 

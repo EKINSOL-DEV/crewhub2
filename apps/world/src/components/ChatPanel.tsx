@@ -1,8 +1,9 @@
 /* The Chat panel (spec addendum "chat with the agents", road A): the chat with the agents is crewhub-loops' own web
    app, framed here, so the UI is exactly loops'. The frame carries the person's own loops session (the cookie is
    SameSite=Lax; the world and loops on 127.0.0.1 are one site); signed out, loops' own sign-in shows in the frame. The
-   world handles no password and keeps no session. Loops has no chat route and its open-chat event is in-page, so the
-   agent cannot be preselected: the panel says which chat head to open in loops' dock. The link to the app is always
+   world handles no password and keeps no session. Opened for an agent, the frame asks loops for that agent's chat
+   (`?chat=<id>`, a loops of world/viewer-key cb163004 or later); an older loops ignores it, so the panel also says which
+   chat head to open in loops' dock. The link to the app is always
    there, the fallback for a frame that never loads (the day loops refuses framing). A sheet at the right of the world;
    the whole screen on a phone. Not modal: Escape (with the focus outside the frame) and the close button close it, and
    the focus returns to the opener (App). */
@@ -33,7 +34,7 @@ export function ChatPanel({ agent, health, full, onClose }: Props) {
   useEffect(() => {
     close.current?.focus();
   }, []);
-  const src = chatFrameUrl(health);
+  const src = chatFrameUrl(health, agent?.key ?? null);
   const app = loopsWebUrl(health);
   return (
     <Card className={`world-sheet chat-sheet${full ? " chat-sheet-full" : ""}`} role="dialog" aria-modal="false" aria-labelledby={`${id}-title`} aria-describedby={`${id}-lead`} data-agent={agent?.key}>

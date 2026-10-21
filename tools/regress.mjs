@@ -786,6 +786,10 @@ await group("live", async () => {
     await pg.waitForSelector(".chat-sheet", { timeout: 5000 }).catch(() => {});
     const title = (await pg.locator(".chat-sheet .card-title").first().innerText().catch(() => "")).trim();
     const forAgent = await pg.locator(".chat-sheet").getAttribute("data-agent").catch(() => null);
+    const cardSrc = await frame.getAttribute("src").catch(() => null);
+    await pg.frameLocator(".chat-sheet iframe.chat-frame").locator("[data-stub=loops-web]").waitFor({ timeout: 10000 }).catch(() => {});
+    const asked = web.requests.filter((r) => r.path === "/?chat=cl-lead" && r.dest === "iframe");
+    ok("live: from a card the frame asks loops for that agent's chat (?chat=<id>), and the stub was fetched so as a frame", cardSrc === `${web.url}/?chat=cl-lead` && asked.length > 0, `src ${cardSrc}; ${asked.length} framed request(s) with the query`);
     await shot(pg, "23c-chat-from-card");
     await pg.getByRole("button", { name: "Close the chat panel" }).click().catch(() => {});
     await pg.waitForTimeout(300);
