@@ -1,5 +1,7 @@
 /* "Where is …?" in the text view: agent awareness (LOOPS_INTEGRATION_PLAN.md section 7.2) as text. The answer is the
-   pure `where` of the world model, about 40 tokens, in zone labels; it is announced politely when it changes. */
+   pure `where` of the world model, about 40 tokens, in zone labels; it is announced politely when it changes. The asker
+   here is a person picking a name (never the agent itself), so the answer is in the third person: "cr-lead is on the floor
+   of …" (decision 8, round 15). */
 import { useId, useMemo, useState } from "react";
 import { where, type AgentPlacement, type CivicWords, type RoomWording } from "@crewhub/world-model";
 import { Field } from "./primitives";
