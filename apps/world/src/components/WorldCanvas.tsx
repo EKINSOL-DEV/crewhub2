@@ -411,6 +411,7 @@ function TownFigures({ model, selection, card }: { model: WorldModel; selection:
         <span className="name-pill" title={`${agent.displayName}: ${laneWords(agent.laneStatus, model.freshness)}`}>
           <span className="pill-dot" data-tone={dotTone(agent, model)} aria-hidden="true" />
           {agent.displayName}
+          <span className="sr-only">: {laneWords(agent.laneStatus, model.freshness)}</span>
         </span>
       </span>
     </div>
@@ -648,6 +649,7 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
             ) : (
               <span className="name-tag" title={`${o.key} waits on ${o.nameTag}`}>
                 <MessageSquare className="icon icon-sm" aria-hidden="true" />
+                <span className="sr-only">{o.key} </span>
                 {`waits on ${o.nameTag}`}
               </span>
             )}
@@ -672,6 +674,7 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
           <div key={`quiet-${o.ticketId}`} className="anchor" data-anchor={`o:${b.slug}:${o.ticketId}`}>
             <span className="signal-tag quiet-tag" title={`${o.key} has been quiet in ${o.quiet!.status.replace("_", " ")} for ${quietWords(o.quiet!.minutes)}`}>
               <Clock className="icon icon-sm" aria-hidden="true" />
+              <span className="sr-only">{o.key} </span>
               quiet {quietWords(o.quiet!.minutes)}
             </span>
           </div>
@@ -835,6 +838,7 @@ function AgentLabel({
     <span className={`name-pill${agent.presence === "proxy" ? " proxy" : ""}`} title={`${agent.displayName}: ${words}`}>
       <span className="pill-dot" data-tone={dotTone(agent, model)} aria-hidden="true" />
       {agent.displayName}
+      <span className="sr-only">: {words}</span>
     </span>
   );
   if (!pill && !bubble && !plate && !(full && (tag || caption || alerts.length))) return null;
@@ -925,6 +929,7 @@ function PersonLabel({ slug, visit, building, rooms, plate }: { slug: string; vi
           <span className="name-pill person" title={`${visit.displayName}, a person: ${doing}`}>
             <User className="icon icon-sm" aria-hidden="true" />
             {visit.displayName}
+            <span className="sr-only">, a person</span>
           </span>
         )}
       </span>

@@ -208,4 +208,8 @@ export const EN: Record<string, string> = {
   "world.connection.panel.forgetNo": "Keep",
   "world.connection.panel.forgetFailed": "The host did not forget the key: {reason}",
   "world.connection.panel.forgetBusy": "Forgetting…",
+  "world.connection.panel.answering": "The host answers again.",
+  "world.connection.changed": "Connection: {state}. {hint}",
+  "world.newTab": "Opens in a new tab.",
+  "world.connect.spoken": "{title}. {lead}",
 };

@@ -708,12 +708,14 @@
 .board-card .icon {
   color: var(--accent);
 }
+/* A failed run: the card stays paper (it is pinned paper in both themes), tinted coral, so its ink text keeps its contrast
+   where --danger-soft would turn dark under the dark theme. */
 .board-card.failed {
-  border-left: 3px solid var(--danger);
-  background: var(--danger-soft);
+  border-left: 3px solid var(--coral-text);
+  background: color-mix(in oklab, var(--coral) 14%, var(--paper));
 }
 .board-card.failed .icon {
-  color: var(--danger);
+  color: var(--coral-text);
 }
 @media (prefers-reduced-motion: no-preference) {
   .board-card {
@@ -815,7 +817,10 @@
   .camera-toolbar .btn {
     min-width: var(--control-h-touch);
   }
-  /* The visible pill may stay small; an invisible pad gives every building sign a 40 x 40 px hit area. */
+  /* The visible pill may stay small; an invisible pad gives every building sign, the connection chip and the chat chip a
+     40 x 40 px hit area. */
+  .chip-button::after,
+  .demo-chat-chip[href]::after,
   .town-sign::after {
     content: "";
     position: absolute;
@@ -968,6 +973,7 @@
   right: 0;
 }
 .demo-chat-chip {
+  position: relative;
   background: var(--surface);
   box-shadow: var(--shadow-sm);
 }
@@ -2246,6 +2252,7 @@ a.agent-ticket-link:focus-visible {
 
 /* The chip as a button: the button is invisible, the chip inside it is what shows; the focus ring sits on the chip. */
 .chip-button {
+  position: relative;
   appearance: none;
   background: none;
   border: 0;
