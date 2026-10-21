@@ -124,6 +124,13 @@ export interface WorldSource {
 export type ConnectionState = "connecting" | "live" | "catching-up" | "stale" | "loops-down" | "unauthorized" | "stream-busy" | "unpaired";
 export interface ConnectionStatus {
   state(): ConnectionState;
+  /**
+   * The host's own word on its key from the last status message on the stream (`HostKeyState["state"]`: none, unchecked,
+   * checking, rejected, ok), or null when the host has not said (a host from before round 11, or no stream yet). The world
+   * prefers it over a health read: after a Forget in another tab the stream says `key: "none"` at once.
+   */
+  key(): "none" | "unchecked" | "checking" | "rejected" | "ok" | null;
+  /** Fires when the state or the key's word changes. */
   onChange(listener: () => void): () => void;
 }
 

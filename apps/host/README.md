@@ -25,7 +25,10 @@ smooth connection" below):
 - **Stream** `GET /world-api/stream?cursor=N`: Server-Sent Events, `data: <json>` per message, `id: <seq>` on
   events. ONE upstream `GET /api/events/stream` is shared by every browser tab, and never more than one is open
   (a test counts); a ring buffer of the last 2000 envelopes catches a tab up from its cursor. Messages: `status`
-  (`ok` / `down` / `unauthorized`), `event` (loops' envelope unchanged, unknown types included), `heartbeat` (loops'
+  (`loops`: `ok` / `down` / `unauthorized`, and `key`: the host's own word on its key, `none`, `unchecked`,
+  `checking`, `rejected` or `ok`, the same as health's `connection.key.state`; `loops` says `unauthorized` for no key
+  and for a rejected key alike, so a tab reads `key`: `none` after a Forget in another tab is the Connect screen,
+  `rejected` the rejected screen), `event` (loops' envelope unchanged, unknown types included), `heartbeat` (loops'
   passed through as `{seq, ts}`, the host's own every 15 s while loops is down), `reset` with a reason (`gone`:
   loops answered 410 `cursor_expired`; `reconnected`: the log's tail went below the host's cursor, a restore or a
   fresh install; `cursor`: the tab asked for a cursor the buffer no longer covers). On a reset the client
@@ -139,7 +142,8 @@ The host starts with neither loops nor a key and reports the honest states; the 
   `key.state` is `none`, `unchecked`, `checking`, `rejected` or `ok`).
   `stream.state` is `busy` with the reason "stream budget exhausted (429): another host or tab uses this key" while
   loops refuses the stream with 429 `too_many_streams` (four per key; the host retries after `Retry-After`); the
-  status message on `/world-api/stream` carries `stream: "busy"` and the reason too, next to the old `loops: "down"`.
+  status message on `/world-api/stream` carries `stream: "busy"` and the reason too, next to the old `loops: "down"`, and
+  always `key` (the host's word on its key, as above).
   Before pairing only the states are there (no target paths, no names). `loops` keeps the old tri-state for the world
   from before: `down` while searching, `unauthorized` without a key or with a rejected one.
 - **`npm run world`** (`main.ts world`): starts the host at once (production mode, pairing on), mints a link and opens

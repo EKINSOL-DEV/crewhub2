@@ -2,7 +2,7 @@
    panel. `connectScreen` maps the host's health to the one screen the world shows instead of the town; the key helpers
    handle a pasted access key (trimmed, shaped, only its tail ever shown); `connectOutcome` turns the host's answer to
    `POST /world-api/connect` into words. Nothing here keeps a key, logs or touches the DOM. */
-import type { ConnectionState, HostHealth } from "@crewhub/loops-client";
+import type { ConnectionState, HostHealth, HostKeyState } from "@crewhub/loops-client";
 import { needsPairing, type SourceDecision } from "./source.ts";
 
 /** The screens between the demo decision and the town, in the order the person meets them. `null` is the town. */
@@ -77,6 +77,20 @@ export function liveScreen(state: ConnectionState | null, health?: Pick<HostHeal
     default:
       return null;
   }
+}
+
+/**
+ * The health with the key's state the stream said (the host's own word on its key, on every status message since round 11),
+ * which is fresher than any health read: after a Forget in another tab the stream says `none` at once. The rest of the
+ * health (the reason, the name, the source) stays the read's. A health without a connection (an older host's read) gets one
+ * with the states only, so the screens can decide; null stays null (nothing is known).
+ */
+export function withStreamKey(health: HostHealth | null, key: HostKeyState["state"] | null): HostHealth | null {
+  if (health === null || key === null) return health;
+  const connection = health.connection;
+  if (connection === undefined) return { ...health, connection: { discovery: { state: "found" }, key: { state: key }, stream: { state: "idle", reconnects: 0 } } };
+  if (connection.key.state === key) return health;
+  return { ...health, connection: { ...connection, key: { ...connection.key, state: key } } };
 }
 
 /** The host's `loopsCommit` (loops' own `version`) and, when the host saw another version first, that one: loops was updated under the host. */

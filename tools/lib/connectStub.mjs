@@ -163,7 +163,7 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
   function busyStream(res) {
     res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-store", connection: "keep-alive" });
     const write = (message) => res.write(`data: ${JSON.stringify(message)}\n\n`);
-    write({ type: "status", loops: "down", stream: "busy", reason: BUSY_REASON });
+    write({ type: "status", loops: "down", stream: "busy", reason: BUSY_REASON, key: "ok" });
     const beat = setInterval(() => write({ type: "heartbeat", seq: 0, ts: new Date().toISOString() }), 1000);
     res.on("close", () => clearInterval(beat));
   }
@@ -216,7 +216,7 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
       log("connect: the stored key forgotten");
       // As the real host (host.ts legacyState): the tabs' open streams hear "unauthorized", its legacy word for no key as
       // for a rejected key; then the streams end here (a real host keeps them), so a reconnect meets the 503 no_key below.
-      tellStreams({ type: "status", loops: "unauthorized" });
+      tellStreams({ type: "status", loops: "unauthorized", key: "none" });
       endStreams();
       return send(res, 204);
     }

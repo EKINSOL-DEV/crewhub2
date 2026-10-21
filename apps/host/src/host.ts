@@ -367,6 +367,10 @@ export async function createHost(options: HostOptions): Promise<Host> {
   }
   const tabs = new Map<ServerResponse, Tab>();
   const streamState = (): HostConnection["stream"]["state"] => (link === null ? "idle" : link.upstream.busy() !== null ? "busy" : link.upstream.state());
+  /** The host's own word on its key, on every status a tab gets (the stream's `key`): what health's `connection.key.state` says. */
+  const keyWord = (): HostKeyState["state"] => (holder === null ? "none" : holder.state);
+  /** A status from the upstream, with the key's word added, as a tab hears it. */
+  const withKey = (message: HostMessage): HostMessage => (message.type === "status" ? { ...message, key: keyWord() } : message);
   /** The legacy tri-state the world from before reads: no loops is down, no key or a rejected key is unauthorized. */
   const legacyState = (): LoopsState => {
     if (link !== null) return link.upstream.state();
@@ -377,11 +381,11 @@ export async function createHost(options: HostOptions): Promise<Host> {
 
   function attach(tab: Tab): void {
     if (link === null) {
-      tab.send({ type: "status", loops: legacyState() });
+      tab.send({ type: "status", loops: legacyState(), key: keyWord() });
       return;
     }
     if (tab.linked) tab.send({ type: "reset", reason: "reconnected" });
-    tab.unsubscribe = link.upstream.subscribe(tab.linked ? null : tab.cursor, tab.send);
+    tab.unsubscribe = link.upstream.subscribe(tab.linked ? null : tab.cursor, (message) => tab.send(withKey(message)));
     tab.linked = true;
     void link.upstream.start();
   }

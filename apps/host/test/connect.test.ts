@@ -115,7 +115,8 @@ describe("the smooth connection", () => {
     await waitFor("the discovery", async () => (await health()).connection.discovery.state === "found");
     const tab = await openSse(`${host.url}/world-api/stream?cursor=0`);
     cleanup.push(() => tab.close());
-    await tab.next((m) => m.type === "status" && m.loops === "unauthorized");
+    const noKey = await tab.next((m) => m.type === "status" && m.loops === "unauthorized");
+    assert.equal(noKey.key, "none", "the status says the host's own word on its key: none, next to the legacy unauthorized");
 
     const refused = await connect({ key: "chl_wrong_key_0123456789" });
     assert.equal(refused.status, 403);
@@ -139,7 +140,8 @@ describe("the smooth connection", () => {
     assert.equal(live.connection.key.source, "stored");
     assert.equal(host.connection().stream.cursor, 0);
     assert.equal((await fetch(`${host.url}/world-api/snapshot`)).status, 200);
-    await tab.next((m) => m.type === "status" && m.loops === "ok");
+    const okStatus = await tab.next((m) => m.type === "status" && m.loops === "ok");
+    assert.equal(okStatus.key, "ok", "the upstream's status reaches the tab with the key's word added");
     assert.equal(stub.streamsOpened(), 1, "one upstream stream");
 
     // The same key pasted again: the old stream stops before the new one opens; the tab is told to re-snapshot.
@@ -158,6 +160,9 @@ describe("the smooth connection", () => {
     assert.equal((await health()).connection.key.state, "none");
     assert.equal((await health()).connection.stream.state, "idle");
     await waitFor("the stream closed", () => stub.openStreams() === 0);
+    // The tabs hear the Forget as the host's own word, not only the legacy "unauthorized" that also means a rejected key.
+    const afterForget = await tab.next((m) => m.type === "status" && m.key === "none");
+    assert.equal(afterForget.loops, "unauthorized", "the legacy word stays for the world from before");
   });
 
   it("refuses a probe key and a read-only bot's key with the reason, in the loops web's words", async () => {
@@ -191,7 +196,7 @@ describe("the smooth connection", () => {
     const tab = await openSse(`${host.url}/world-api/stream?cursor=0`);
     cleanup.push(() => tab.close());
     const status = await tab.next((m) => m.type === "status");
-    assert.deepEqual(status, { type: "status", loops: "down", stream: "busy", reason: BUSY_REASON });
+    assert.deepEqual(status, { type: "status", loops: "down", stream: "busy", reason: BUSY_REASON, key: "ok" });
     await waitFor("the stream after Retry-After", async () => (await health()).connection.stream.state === "ok");
     assert.equal((await health()).connection.stream.reason, undefined);
     await tab.next((m) => m.type === "status" && m.loops === "ok");

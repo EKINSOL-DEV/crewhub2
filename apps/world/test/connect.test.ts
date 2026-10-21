@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { HostConnection, HostHealth } from "@crewhub/loops-client";
-import { connectOutcome, connectScreen, keyTail, liveScreen, looksLikeKey, loopsVersion, normaliseKey, relativeTime, untilTime } from "../src/state/connect.ts";
+import { connectOutcome, connectScreen, keyTail, liveScreen, looksLikeKey, loopsVersion, normaliseKey, relativeTime, untilTime, withStreamKey } from "../src/state/connect.ts";
 
 const connection = (over: { discovery?: Partial<HostConnection["discovery"]>; key?: Partial<HostConnection["key"]>; stream?: Partial<HostConnection["stream"]> } = {}): HostConnection => ({
   discovery: { state: "found", via: "app-port", target: "http://127.0.0.1:8091", ...over.discovery },
@@ -53,6 +53,25 @@ test("screen: once the town runs, an unpaired source sends the person back to th
     assert.equal(liveScreen(state, health("none")), null, `${state} with a health that lags`);
   }
   assert.equal(liveScreen(null), null);
+});
+
+test("screen: the stream's word on the key is preferred over the health read; a host that does not say leaves the read", () => {
+  const read = health({ connection: connection({ key: { state: "ok", name: "crewhub-world", source: "stored" } }) });
+  // After a Forget in another tab the stream says none before any health read does: the Connect screen at once.
+  const forgotten = withStreamKey(read, "none");
+  assert.equal(forgotten?.connection?.key.state, "none");
+  assert.equal(forgotten?.connection?.key.name, "crewhub-world", "the rest of the read stays");
+  assert.equal(liveScreen("unauthorized", forgotten), "connect");
+  assert.equal(liveScreen("unauthorized", withStreamKey(read, "rejected")), "rejected", "the key revoked while Live");
+  assert.equal(liveScreen("unauthorized", withStreamKey(read, "checking")), "checking");
+  // A host from before round 11 says nothing: the health read decides as before.
+  assert.equal(withStreamKey(read, null), read);
+  assert.equal(withStreamKey(read, "ok"), read, "the same word: the same object");
+  assert.equal(withStreamKey(null, "none"), null, "nothing known stays nothing");
+  // An older host's read has no connection; the stream's word still gives the screens a key to go on.
+  const older: HostHealth = { loops: "unauthorized", keyName: "", sharedKey: false, pairing: "on", paired: true };
+  assert.equal(liveScreen("unauthorized", withStreamKey(older, "none")), "connect");
+  assert.equal(liveScreen("unauthorized", older), "rejected");
 });
 
 test("untilTime: when the host re-checks a rejected key, in words", () => {

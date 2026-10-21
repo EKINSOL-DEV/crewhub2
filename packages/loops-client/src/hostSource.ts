@@ -163,7 +163,8 @@ const PREFIX = "/world-api";
 
 /** What the host puts on the stream (ready-team-map: "Host → browser"). */
 type StreamMessage =
-  | { type: "status"; loops: HostHealth["loops"]; stream?: HostStreamState["state"]; reason?: string }
+  /** `key`: the host's own word on its key (round 11); a host from before sends none. */
+  | { type: "status"; loops: HostHealth["loops"]; stream?: HostStreamState["state"]; reason?: string; key?: unknown }
   | { type: "event"; envelope: unknown }
   | { type: "heartbeat"; seq: number; ts: string }
   | { type: "reset"; reason: string };
@@ -272,6 +273,8 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
   const listeners = new Set<(message: SourceMessage) => void>();
   const changeListeners = new Set<() => void>();
   let state: ConnectionState = "connecting";
+  /** The host's word on its key from the last status that carried one; null until then. */
+  let keyWord: HostKeyState["state"] | null = null;
   let running = false;
   let abort: AbortController | null = null;
   let cursor = -1;
@@ -284,9 +287,7 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
   let teamTimer: ReturnType<typeof setInterval> | null = null;
   let wake: (() => void) | null = null;
 
-  const setState = (next: ConnectionState) => {
-    if (state === next) return;
-    state = next;
+  const changed = () => {
     for (const listener of [...changeListeners]) {
       try {
         listener();
@@ -294,6 +295,16 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
         console.warn("[loops-client] a connection listener threw", error);
       }
     }
+  };
+  const setState = (next: ConnectionState) => {
+    if (state === next) return;
+    state = next;
+    changed();
+  };
+  const setKeyWord = (next: HostKeyState["state"] | null) => {
+    if (keyWord === next) return;
+    keyWord = next;
+    changed();
   };
   const send = (message: SourceMessage) => {
     for (const listener of [...listeners]) {
@@ -456,6 +467,9 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
     touched();
     switch (message.type) {
       case "status": {
+        // The host's own word on its key, when the status carries one (a host from before says nothing: null stays).
+        const key = oneOf(message.key, ["none", "unchecked", "checking", "rejected", "ok"]);
+        if (key !== undefined) setKeyWord(key);
         // A 429 on the host's stream: loops answers reads, so the host says `loops: "down"` for a world from before and
         // `stream: "busy"` for us. Events are missed meanwhile, so `ok` again re-snapshots, as after loops-down.
         if (message.stream === "busy") {
@@ -565,6 +579,7 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
 
   const connection: ConnectionStatus = {
     state: () => state,
+    key: () => keyWord,
     onChange(listener) {
       changeListeners.add(listener);
       return () => changeListeners.delete(listener);
