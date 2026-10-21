@@ -1,6 +1,6 @@
 import { memo, useCallback, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
-import { Archive, Check, CircleHelp, Clock, Flag, Hand, MessageSquare, Play, RefreshCw, Sprout, TriangleAlert, Trophy, User } from "lucide-react";
-import { archivedWords, agentCardFacts, doneWord, roleWords, type AgentPlacement, type Building, type PersonVisit, type ProgressKind, type RoomWording, type WorkObject, type WorldModel } from "@crewhub/world-model";
+import { Archive, Check, CircleHelp, Clock, Flag, Hand, MessageSquare, Play, RefreshCw, Sprout, TriangleAlert, Trophy, User, Zap } from "lucide-react";
+import { archivedWords, agentCardFacts, doneWord, pinnedCard, quietWords, roleWords, runWords, type AgentPlacement, type Building, type PersonVisit, type ProgressKind, type RoomWording, type WorkObject, type WorldModel } from "@crewhub/world-model";
 import { SOURCE, STRESS, worldRuntime } from "../state/world";
 import { loopsWebUrl } from "../state/source";
 import { AgentCard } from "./AgentCard";
@@ -580,6 +580,8 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
   const threeRoom = isThreeRoom(template);
   const racks = threeRoom ? template.rooms.flatMap((r) => r.layout.props.filter((p) => RACKS.some((rack) => rack.definitionId === p.definitionId)).map((p) => ({ room: r.kind, prop: p }))) : [];
   const counter = threeRoom && template.rooms.some((r) => r.layout.props.some((p) => p.definitionId === "archive-counter"));
+  // The card pinned on the board by the front door right now (`automation.ran`), if any.
+  const pinned = pinnedCard(b.board, model.now);
   return (
     <>
       {template.rooms.map((r) => {
@@ -663,6 +665,27 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
             </span>
           </div>
         ))}
+      {b.objects
+        // `ticket.quiet`: the clock tag on a dusty package, in words from the event's minutes.
+        .filter((o) => o.quiet !== null && !o.transit && shows(o.room))
+        .map((o) => (
+          <div key={`quiet-${o.ticketId}`} className="anchor" data-anchor={`o:${b.slug}:${o.ticketId}`}>
+            <span className="signal-tag quiet-tag" title={`${o.key} has been quiet in ${o.quiet!.status.replace("_", " ")} for ${quietWords(o.quiet!.minutes)}`}>
+              <Clock className="icon icon-sm" aria-hidden="true" />
+              quiet {quietWords(o.quiet!.minutes)}
+            </span>
+          </div>
+        ))}
+      {pinned && (
+        // `automation.ran`: a small card pinned on the board by the front door for a few seconds, on a phone too (it is
+        // one short card, and gone again); a failure says so.
+        <div key={`board-${pinned.runId}`} className="anchor" data-anchor={`board:${b.slug}`}>
+          <span className={`board-card${pinned.outcome === "failed" ? " failed" : ""}`} role="status">
+            <Zap className="icon icon-sm" aria-hidden="true" />
+            {runWords(pinned)}
+          </span>
+        </div>
+      )}
       {layout.pallets.filter((p) => shows(p.room)).map((p) => (
         <div key={`pallet-${p.room}`} className="anchor" data-anchor={`p:${b.slug}:${p.room}`}>
           <span className="pallet-count" title={`${p.count} more tickets wrapped on a pallet`}>

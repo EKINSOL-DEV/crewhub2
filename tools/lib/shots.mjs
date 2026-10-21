@@ -2,7 +2,7 @@
    run) and castworld.mjs (one run per cast). */
 import { castChoice, dressed, seek, speed, store, watch, worldUrl } from "./world.mjs";
 
-export const VIEWS = ["town", "building", "room", "walk", "stress", "person"];
+export const VIEWS = ["town", "building", "room", "walk", "stress", "person", "events"];
 
 /** A phone is a touch device with a tall screen; every other width is a desktop window 900 high. */
 const viewport = (width) => (width <= 480 ? { viewport: { width, height: 812 }, isMobile: true, hasTouch: true } : { viewport: { width, height: 900 } });
@@ -144,6 +144,50 @@ export async function worldShots(browser, { base, origin, out, views, themes, wi
             await p.keyboard.press("Escape");
           }
         }
+        await p.context().close();
+      }
+      if (views.includes("events")) {
+        // The new loops events (spec addendum, round 7): the quiet fact's dust and tag on CR-17 (8:10), the card an
+        // automation run pins on the board by the front door (8:40 on CR-20; 8:52 failed on CL-76). Each shot waits
+        // for the model's state (dev builds, `window.__town`), never for the clock, with the playback paused for it.
+        const p = await open(worldUrl(base, null, scenario, plan));
+        const model = (fn) => p.evaluate((src) => { const t = globalThis.__town; const m = t?.view?.model; return m ? new Function("m", "t", `return (${src})(m, t)`)(m, t) : null; }, fn.toString()).catch(() => null);
+        const untilModel = async (check, ms = 20000) => { const d = Date.now() + ms; while (Date.now() < d) { if (await model(check)) return true; await p.waitForTimeout(250); } return false; };
+        const pause = () => p.getByRole("button", { name: "Pause", exact: true }).click().catch(() => notes.push(`${theme} ${width}: no Pause button`));
+        const enterSlug = async (slug) => {
+          await p.locator("canvas").first().focus();
+          for (let i = 0; i < 8; i++) {
+            await p.keyboard.press("Enter");
+            await p.waitForFunction(() => globalThis.__town?.view?.entered != null, null, { timeout: 4000 }).catch(() => {});
+            await p.waitForTimeout(1500);
+            if ((await p.evaluate(() => globalThis.__town?.view?.entered).catch(() => null)) === slug) return true;
+            for (let k = 0; k < 3; k++) await p.keyboard.press("Escape");
+            await p.waitForTimeout(800);
+            await p.locator("canvas").first().focus();
+            await p.keyboard.press("ArrowRight");
+          }
+          notes.push(`${theme} ${width}: could not enter ${slug}`);
+          return false;
+        };
+        const leave = async () => {
+          for (let k = 0; k < 3; k++) await p.keyboard.press("Escape");
+          await p.waitForTimeout(1200);
+        };
+        const stage = async (tag, seekMs, playback, ready, slug, details) => {
+          if (!(await seek(p, seekMs))) notes.push(`${theme} ${width}: no timeline slider to seek with`);
+          await speed(p, playback).catch(() => notes.push(`${theme} ${width}: no "Play at ${playback}" button`));
+          if (!(await untilModel(ready))) notes.push(`${theme} ${width}: ${tag} did not come within 20 s of play`);
+          await pause();
+          await enterSlug(slug);
+          if (details) await p.keyboard.press("d");
+          await p.waitForTimeout(1500);
+          await shot(p, tag);
+          if (details) await p.keyboard.press("d");
+          await leave();
+        };
+        await stage("events-quiet", 485000, "16x", (m) => m.buildings.some((b) => b.objects.some((o) => o.quiet)), "crewhub", true);
+        await stage("events-board", 519000, "4x", (m) => m.buildings.some((b) => b.slug === "crewhub" && b.board.some((c) => c.from <= m.now)), "crewhub", false);
+        await stage("events-board-failed", 530000, "4x", (m) => m.buildings.some((b) => b.slug === "crewhub-loops" && b.board.some((c) => c.outcome === "failed" && c.from <= m.now)), "crewhub-loops", false);
         await p.context().close();
       }
       if (views.includes("stress")) {

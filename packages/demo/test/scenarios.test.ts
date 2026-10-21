@@ -78,7 +78,8 @@ for (const id of SCENARIO_IDS) {
       if (message.type === "event") {
         valid(validateEnvelope(message.envelope), `${message.envelope.type} #${message.envelope.seq}`);
         const typed = toWorldEvent(message.envelope);
-        assert.notEqual(typed, null, `${message.envelope.type} is on the world's allowlist`);
+        // `owner-request.updated` is the one type the world knows and skips by design (the owner's alone, CL-298).
+        if (message.envelope.type !== "owner-request.updated") assert.notEqual(typed, null, `${message.envelope.type} is on the world's allowlist`);
         if (typed !== null) valid(typed, `${message.envelope.type} #${message.envelope.seq} payload`);
       }
     }
@@ -89,7 +90,9 @@ for (const id of SCENARIO_IDS) {
     assert.equal(JSON.stringify(play(id, duration, 7).messages), JSON.stringify(play(id, duration, 7).messages));
     const { projection } = await worldAt(id, duration - 20_000);
     assert.equal(projection.facts.invalidEvents, 0);
-    assert.equal(projection.facts.skippedEvents, 0);
+    // Skipped by design: `owner-request.updated`, the owner's alone (CL-298); nothing else.
+    const byDesign = play(id, duration - 20_000, 7).messages.filter((m) => m.type === "event" && m.envelope.type === "owner-request.updated").length;
+    assert.equal(projection.facts.skippedEvents, byDesign);
     projection.dispose();
   });
 }

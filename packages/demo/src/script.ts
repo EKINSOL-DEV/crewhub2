@@ -209,6 +209,11 @@ function storyline(s: ScriptBuilder): void {
   // 8:00 to 10:10: attention on CL-44; Dispatch's truck; CL-M3 completes; the broken sign.
   s.add("8:00", { type: "stall", ticket: "CL-44", reason: "attention", quietMinutes: 3, nudge: false });
   s.add("8:06", { type: "archiveDone", by: "nicky", project: "marketing", tickets: ["MK-3", "MK-4", "MK-5"] });
+  // The new loops events (spec addendum, round 7): the quiet job sees CR-17 untouched in Review since before the
+  // morning began (the package gathers dust until cr-lead's comment at 11:20); three automation runs pin their cards
+  // on crewhub's and loops' boards (one adds the label, one changes nothing, one fails); the owner's request is a
+  // person's event the world's key never receives.
+  s.add("8:10", { type: "quiet", ticket: "CR-17", minutes: 30 });
   s.add("8:14", { type: "progress", ticket: "MK-10", agent: "marky", kind: "update", text: "phone screenshots cropped" });
   propFlow(s, at("8:20"), {
     title: "Prop: a broken sign",
@@ -221,7 +226,10 @@ function storyline(s: ScriptBuilder): void {
   s.add("8:26", { type: "move", by: "nicky", ticket: "CL-81", to: "done" });
   s.add("8:30", { type: "move", by: "nicky", ticket: "CL-80", to: "done" });
   s.add("8:40", { type: "milestoneState", by: "nicky", milestone: "CL-M3", state: "done" });
+  s.add("8:40", { type: "automationRun", ticket: "CR-20", automation: { id: "au_demo_stale", name: "Label stale bugs" }, outcome: "ok", runId: "run_demo_1", addLabel: "stale" });
+  s.add("8:43", { type: "automationRun", ticket: "CR-21", automation: { id: "au_demo_review_date", name: "Ask for a review date" }, outcome: "ok", runId: "run_demo_2" });
   s.add("8:44", { type: "lane", name: "cl-lead", status: "working", contextLine: "OPS-4: restarting the probe" });
+  s.add("8:52", { type: "automationRun", ticket: "CL-76", automation: { id: "au_demo_nudge", name: "Nudge the reviewer" }, outcome: "failed", runId: "run_demo_3" });
   s.add("8:58", { type: "lane", name: "cr-scout", status: "working", contextLine: "CR-38: building the prop" });
   s.add("9:06", { type: "lane", name: "cl-dev-2", status: "working", contextLine: "CL-44: tail route registered" });
   s.add("9:10", { type: "unarchive", by: "sam", ticket: "MK-5" });
@@ -231,6 +239,8 @@ function storyline(s: ScriptBuilder): void {
   s.post("9:31", { type: "assign", by: "nicky", ticket: "MK-16", assignee: "ux-lead" }, "unroutable", "no pane for ux-lead in session ekinsol");
   s.add("9:36", { type: "progress", ticket: "CL-44", agent: "cl-lead", worker: "cl-dev-2", kind: "update", text: "tail route registered; docs next" });
   s.add("9:40", { type: "milestoneCreate", by: "nicky", project: "crewhub-loops", title: "Host stream resume", targetDate: "2026-10-20" });
+  s.add("9:42", { type: "ownerRequest", userId: "nicky", requestId: "or_demo_1", state: "pending" });
+  s.add("9:50", { type: "ownerRequest", userId: "nicky", requestId: "or_demo_1", state: "approved" });
   s.add("9:45", { type: "milestoneAttach", by: "nicky", milestone: "CL-M4", tickets: ["CL-84", "CL-86"] });
   s.post("9:53", { type: "move", by: "nicky", ticket: "CL-86", to: "planned" });
   s.post("10:04", { type: "releaseRequestPublish", by: "nicky", project: "crewhub" });
@@ -250,6 +260,7 @@ function storyline(s: ScriptBuilder): void {
     version: "0.9.0",
     tickets: ["CL-70", "CL-71", "CL-72"],
   });
+  s.add("11:20", { type: "comment", by: "cr-lead", ticket: "CR-17", text: "The sign shows the key as well now; ready for a look." });
   s.add("11:28", { type: "progress", ticket: `@${release}`, agent: "cl-lead", kind: "start", text: "writing the notes for 0.9.0" });
   s.add("11:34", { type: "move", by: "nicky", ticket: "CR-20", to: "done" });
   s.add("11:40", { type: "progress", ticket: "MK-9", agent: "ux-lead", kind: "update", text: "hero exported in light and dark" });

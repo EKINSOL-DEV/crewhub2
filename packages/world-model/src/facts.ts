@@ -38,6 +38,47 @@ export interface StallFact {
   nudges: number;
 }
 
+/**
+ * `ticket.quiet` (CL-312): the ticket stayed in `status` without activity for `minutes`, the stretch starting at
+ * `since`. A fact about the ticket, not a stall. Cleared by the ticket's next change by a person or an agent (any
+ * `ticket.*` or `comment.*` event on it whose actor is not `system`: an automation's answer to the quiet leaves it)
+ * and by a snapshot, which starts the facts afresh.
+ */
+export interface QuietFact {
+  ticketKey: string;
+  ticketId: string | null;
+  slug: string | null;
+  status: string;
+  minutes: number;
+  since: string;
+  seq: number;
+  ts: number;
+}
+
+/** `automation.ran` (CL-312): one automation run on a ticket, with what its `ticket.updated` changed, when one came. */
+export interface AutomationRunFact {
+  seq: number;
+  ts: number;
+  slug: string | null;
+  ticketId: string | null;
+  ticketKey: string | null;
+  runId: string;
+  automationId: string;
+  name: string | null;
+  /** `ok`, `partial` or `failed` at 4cdcd383; the wire's string. */
+  outcome: string;
+  /** The `changed` of a `ticket.updated` the same automation wrote on the ticket just before the run was announced. */
+  changed: string[] | null;
+}
+
+/** A `ticket.updated` written by an automation, kept until its run is announced (loops writes the change first). */
+export interface AutomationChangeFact {
+  seq: number;
+  ticketId: string;
+  automationId: string;
+  changed: string[];
+}
+
 export interface ProgressFact {
   seq: number;
   ts: number;
@@ -141,6 +182,12 @@ export interface Facts {
   watchdog: WatchdogResponse | null;
   /** Open stalls by ticket key. */
   stalls: Record<string, StallFact>;
+  /** Quiet stretches by ticket key (`ticket.quiet`), until the ticket changes. */
+  quiet: Record<string, QuietFact>;
+  /** Recent automation runs, oldest first, capped. */
+  automationRuns: AutomationRunFact[];
+  /** Automation changes not yet matched to their run, oldest first, capped. */
+  automationChanges: AutomationChangeFact[];
   milestones: Record<string, MilestoneSummary[]>;
   releases: Record<string, ReleaseSummary[]>;
   /** Milestone id to the lane its tickets were handed to. */
@@ -183,6 +230,9 @@ export function emptyFacts(): Facts {
     principals: [],
     watchdog: null,
     stalls: {},
+    quiet: {},
+    automationRuns: [],
+    automationChanges: [],
     milestones: {},
     releases: {},
     handoffs: {},

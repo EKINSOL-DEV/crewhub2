@@ -667,6 +667,69 @@
   border-radius: var(--radius-xs);
   background: var(--surface-sunken);
 }
+/* `ticket.quiet`: the clock tag on a dusty package, greyed like the dust. */
+.signal-tag.quiet-tag {
+  color: var(--text-muted);
+  background: var(--surface-sunken);
+  border-color: var(--border);
+}
+/* `automation.ran`: a small card pinned on the board by the front door, a pin at its top, slightly askew. */
+.board-card {
+  position: absolute;
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  width: max-content;
+  max-width: 18rem;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--paper);
+  color: var(--ink-card);
+  font-size: var(--text-2xs);
+  line-height: var(--leading-snug);
+  white-space: normal;
+  box-shadow: var(--shadow-md);
+  transform: translate(-50%, -100%) rotate(-2deg);
+}
+.board-card::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  left: 50%;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--coral);
+  transform: translateX(-50%);
+  box-shadow: var(--shadow-sm);
+}
+.board-card .icon {
+  color: var(--accent);
+}
+.board-card.failed {
+  border-left: 3px solid var(--danger);
+  background: var(--danger-soft);
+}
+.board-card.failed .icon {
+  color: var(--danger);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .board-card {
+    animation: board-pin var(--duration-base) var(--ease);
+  }
+  @keyframes board-pin {
+    from {
+      opacity: 0;
+      transform: translate(-50%, -100%) rotate(-2deg) translateY(-6px) scale(0.92);
+    }
+    to {
+      opacity: 1;
+      transform: translate(-50%, -100%) rotate(-2deg);
+    }
+  }
+}
 .pallet-count {
   transform: translate(-50%, -100%);
   font-family: var(--font-mono);

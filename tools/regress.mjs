@@ -451,6 +451,77 @@ await group("walk", async () => {
 });
 
 await group("demo", async () => {
+  // 15. The new loops events (spec addendum, round 7): the storyline's quiet fact (CR-17 at 8:10) puts dust and a
+  // clock tag on the package and a line in the text view; an automation run (8:40 on CR-20, 8:52 failed on CL-76)
+  // pins a card on the board by the front door and leaves a line. Each check waits for the model's state (a quiet
+  // object, a pinned card), never for the clock, and enters the building by its slug (Enter walks the town in its
+  // own order).
+  const model = (fn) => p.evaluate((src) => { const t = globalThis.__town; const m = t?.view?.model; return m ? new Function("m", "t", `return (${src})(m, t)`)(m, t) : null; }, fn.toString()).catch(() => null);
+  const untilModel = async (check, ms = 20000) => { const d = Date.now() + ms; while (Date.now() < d) { if (await model(check)) return true; await p.waitForTimeout(250); } return false; };
+  const pause = () => p.getByRole("button", { name: "Pause", exact: true }).click().catch((e) => log.push("pause " + e.message.split("\n")[0]));
+  const enterSlug = async (slug) => {
+    await canvas(p).focus();
+    for (let i = 0; i < 8; i++) {
+      await p.keyboard.press("Enter");
+      await p.waitForFunction(() => globalThis.__town?.view?.entered != null, null, { timeout: 4000 }).catch(() => {});
+      await p.waitForTimeout(1200);
+      if ((await entered(p)) === slug) return true;
+      for (let k = 0; k < 3; k++) await p.keyboard.press("Escape");
+      await p.waitForTimeout(800);
+      await canvas(p).focus();
+      await p.keyboard.press("ArrowRight");
+    }
+    return false;
+  };
+  let p = await open();
+  await town(p, 2500);
+  // a. ticket.quiet: dust and the words
+  ok("seek before the quiet fact", await seek(p, 485000));
+  await speed(p, "16x").catch((e) => log.push("16x " + e.message.split("\n")[0]));
+  ok("a quiet object in the model within 20 s of play", await untilModel((m) => m.buildings.some((b) => b.objects.some((o) => o.quiet))));
+  await pause();
+  const quiet = await model((m) => m.buildings.flatMap((b) => b.objects.filter((o) => o.quiet).map((o) => `${o.key} ${o.quiet.status} ${o.quiet.minutes} min`)));
+  ok("the quiet fact is CR-17 in review for 30 min", (quiet ?? []).includes("CR-17 review 30 min"), JSON.stringify(quiet));
+  ok("entered crewhub", await enterSlug("crewhub"));
+  await p.keyboard.press("d");
+  await p.waitForTimeout(1200);
+  const tags = await p.locator(".world-labels .quiet-tag").allInnerTexts().catch(() => []);
+  ok("the clock tag on the dusty package says quiet 30 min", tags.some((t) => /quiet 30 min/.test(t)), tags.join(" | "));
+  const quietText = await text(p);
+  ok("quiet in the text view", /CR-17 has been quiet in Review for 30 min \(since \d\d:\d\d\): dust on it, a clock tag "quiet 30 min"\./.test(quietText), (quietText.match(/CR-17 has been quiet[^\n]*/) ?? [""])[0]);
+  await shot(p, "16-quiet");
+  await p.keyboard.press("d");
+  for (let k = 0; k < 3; k++) await p.keyboard.press("Escape");
+  await p.waitForTimeout(1200);
+  // b. automation.ran: the card on the board and the lines
+  ok("seek before the first run", await seek(p, 519000));
+  await speed(p, "4x").catch((e) => log.push("4x " + e.message.split("\n")[0]));
+  ok("a card pinned on crewhub's board within 20 s of play", await untilModel((m) => m.buildings.some((b) => b.slug === "crewhub" && b.board.some((c) => c.from <= m.now))));
+  await pause();
+  ok("entered crewhub again", await enterSlug("crewhub"));
+  const cards = await p.locator(".world-labels .board-card").allInnerTexts().catch(() => []);
+  ok("the card by the front door names the run and its change", cards.some((c) => /Automation "Label stale bugs" ran on CR-20: done; labels changed by the automation/.test(c)), cards.join(" | "));
+  const boardText = await text(p);
+  ok("the card in the text view", /A card on the board by the front door: Automation "Label stale bugs" ran on CR-20: done/.test(boardText), (boardText.match(/A card on the board[^\n]*/) ?? [""])[0]);
+  ok("the run as a line in the text view", /^Automation "Label stale bugs" ran on CR-20: done; labels changed by the automation\.$/m.test(boardText));
+  await shot(p, "16-board");
+  for (let k = 0; k < 3; k++) await p.keyboard.press("Escape");
+  await p.waitForTimeout(1200);
+  // c. a failed run says so in words
+  ok("seek before the failed run", await seek(p, 530000));
+  await speed(p, "4x").catch((e) => log.push("4x " + e.message.split("\n")[0]));
+  ok("a failed card pinned on crewhub-loops' board within 20 s of play", await untilModel((m) => m.buildings.some((b) => b.slug === "crewhub-loops" && b.board.some((c) => c.outcome === "failed" && c.from <= m.now))));
+  await pause();
+  ok("entered crewhub-loops", await enterSlug("crewhub-loops"));
+  const failed = await p.locator(".world-labels .board-card.failed").allInnerTexts().catch(() => []);
+  ok("the failed card says failed", failed.some((c) => /Automation "Nudge the reviewer" ran on CL-76: failed/.test(c)), failed.join(" | "));
+  const failedText = await text(p);
+  ok("the failure in the text view", /Automation "Nudge the reviewer" ran on CL-76: failed\./.test(failedText));
+  await shot(p, "16-board-failed");
+  await p.context().close();
+});
+
+await group("demo", async () => {
   // 12. The jump list: / opens it, a building's name narrows it, Enter lands inside that building.
   let p = await open();
   await town(p, 2500);

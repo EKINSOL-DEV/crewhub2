@@ -168,6 +168,7 @@ export const LABELS: LabelOut[] = [
   { id: "lb_prop", projectId: "pr_demo00000001", name: "prop", color: "circle", revision: 1 },
   { id: "lb_renderer", projectId: "pr_demo00000001", name: "renderer", color: "mist", revision: 1 },
   { id: "lb_pathfinding", projectId: "pr_demo00000001", name: "pathfinding", color: "ink", revision: 1 },
+  { id: "lb_stale", projectId: "pr_demo00000001", name: "stale", color: "mist", revision: 1 },
   { id: "lb_api", projectId: "pr_demo00000002", name: "api", color: "ink", revision: 1 },
   { id: "lb_docs", projectId: "pr_demo00000002", name: "docs", color: "mist", revision: 1 },
   { id: "lb_copy", projectId: "pr_demo00000003", name: "copy", color: "tangerine", revision: 1 },

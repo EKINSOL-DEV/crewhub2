@@ -118,6 +118,8 @@ export interface StoredTicket {
   bodyMarkdown: string;
   stall: StallEpisode | null;
   episodes: number;
+  /** The quiet stretch `ticket.quiet` announced (status, minutes, since), so it is announced once. */
+  quietAnnounced: string | null;
 }
 
 export interface StoredMilestone {
@@ -312,6 +314,7 @@ export function initialState(base: number, cursor: number, content: DemoContent 
       bodyMarkdown: seed.body,
       stall: null,
       episodes: 0,
+      quietAnnounced: null,
     });
   }
   for (const seed of content.releases) {

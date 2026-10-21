@@ -30,7 +30,8 @@ test("every snapshot, envelope and team message of a loop passes the loops-clien
       const { envelope } = message;
       valid(validateEnvelope(envelope), `${envelope.type} #${envelope.seq}`);
       const typed = toWorldEvent(envelope);
-      assert.notEqual(typed, null, `${envelope.type} is on the world's allowlist`);
+      // `owner-request.updated` is the one type the world knows and skips by design (the owner's alone, CL-298).
+      if (envelope.type !== "owner-request.updated") assert.notEqual(typed, null, `${envelope.type} is on the world's allowlist`);
       if (typed !== null) valid(typed, `${envelope.type} #${envelope.seq} payload`);
     }
   }

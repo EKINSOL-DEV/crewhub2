@@ -100,6 +100,10 @@ function toObject(
     stall = { state: stallState, quietSince, quietMinutes, nudges: openStall?.nudges ?? card.stall?.nudges ?? 0 };
   }
 
+  // A quiet stretch holds while the ticket is still where the quiet job saw it; a move since then makes it stale.
+  const quietFact = facts.quiet[card.key];
+  const quiet = quietFact && quietFact.status === card.status ? { status: card.status, minutes: quietFact.minutes, since: quietFact.since } : null;
+
   let speechMarkUntil: number | null = null;
   for (const comment of facts.comments) {
     if (comment.ticketId === card.id && comment.ts + SPEECH_MARK_MS > now) {
@@ -138,6 +142,7 @@ function toObject(
     blocked: card.blocked === true,
     sealed: card.held === true,
     stall,
+    quiet,
     nameTag: waitingOn?.kind === "user" ? waitingOn.displayName : null,
     waitingOnHuman: card.waitingOnHuman === true,
     milestone: card.milestone ? { id: card.milestone.id, key: card.milestone.key, title: card.milestone.title } : null,

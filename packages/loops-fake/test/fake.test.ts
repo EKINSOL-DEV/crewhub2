@@ -632,3 +632,36 @@ test("GET /api/health: anonymous carries the version and no principal or watchdo
   assert.equal(wrong.status, 200, "health stays public with a wrong key");
   assert.equal((await wrong.json()).principal, null);
 });
+
+test("round 7: ticket.quiet and automation.ran reach the key the loops way; owner-request.updated never does (a person's alone)", async () => {
+  // Start just before the storyline's quiet fact (8:10) at 16x: the fact, three runs and the owner's two changes
+  // (9:42, 9:50) pass within seven wall seconds. Wait for the state (the last run), never for the clock.
+  const startAt = (8 * 60 + 8) * 1000;
+  const fake = await start({ startAt, speed: 16, heartbeatMs: 100 });
+  const from = fake.lastVisibleSeq();
+  const res = await fetch(`${fake.url}/api/events/stream?after=${from}`, { headers: headers(fake) });
+  assert.equal(res.status, 200);
+  const lines = await readUntil(res, (l) => l["type"] === "automation.ran" && (l["payload"] as { runId: string }).runId === "run_demo_3", 30_000);
+  const quiet = lines.filter((l) => l["type"] === "ticket.quiet") as unknown as Envelope[];
+  assert.equal(quiet.length, 1, "one quiet fact");
+  assert.deepEqual(quiet[0]!.actor, { id: "system", kind: "system" });
+  assert.deepEqual(Object.keys(quiet[0]!.payload).sort(), ["minutes", "since", "status", "ticket"]);
+  assert.equal(quiet[0]!.ticket?.key, "CR-17");
+  const runs = lines.filter((l) => l["type"] === "automation.ran") as unknown as Envelope[];
+  assert.deepEqual(runs.map((e) => [e.ticket?.key, e.payload["outcome"], e.actor.kind]), [["CR-20", "ok", "system"], ["CR-21", "ok", "system"], ["CL-76", "failed", "system"]]);
+  assert.deepEqual((runs[0]!.payload["automation"] as { name: string }).name, "Label stale bugs");
+  const flagged = lines.find((l) => l["type"] === "ticket.updated" && (l["payload"] as { automation?: unknown }).automation !== undefined) as unknown as Envelope | undefined;
+  assert.ok(flagged && flagged.seq < runs[0]!.seq, "the automation's label change comes before its run");
+  for (const e of [...quiet, ...runs, flagged!]) valid(validateEnvelope(e), `#${e.seq}`);
+  // The list route serves the same rows to the key; the owner's event is in the log but never the key's.
+  const listed = (await get(fake, `/api/events?after=${from}&types=ticket.quiet,automation.ran,owner-request.updated`)).body;
+  assert.deepEqual(listed.events.map((e: Envelope) => e.type), ["ticket.quiet", "automation.ran", "automation.ran", "automation.ran"]);
+  const all = await start({ startAt, speed: 16, visibility: "all" });
+  const allRes = await fetch(`${all.url}/api/events/stream?after=${all.lastSeq()}`, { headers: headers(all) });
+  const owner = await readUntil(allRes, (l) => l["type"] === "owner-request.updated" && (l["payload"] as { state: string }).state === "approved", 30_000);
+  const requests = owner.filter((l) => l["type"] === "owner-request.updated") as unknown as Envelope[];
+  assert.deepEqual(requests.map((e) => [e.actor.kind, e.payload["state"], e.ticket, e.project]), [["user", "pending", null, null], ["user", "approved", null, null]]);
+  assert.ok(fake.lastSeq() >= requests[1]!.seq || (await readUntil(res, (l) => (l["seq"] as number) >= requests[1]!.seq, 30_000)).length >= 0, "the key's fake has played past them too");
+  const hidden = (await get(fake, `/api/events?after=${from}&types=owner-request.updated`)).body;
+  assert.deepEqual(hidden.events, [], "a lead key never receives the owner's request");
+});

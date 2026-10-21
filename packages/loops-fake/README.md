@@ -117,3 +117,8 @@ Everything else is 404 `not_found`; any method but GET or HEAD on a known route 
   does not serve (404). A ticket of a project the builder is no member of is 404 in loops; the fake's builder reads
   every project.
 - `moveTicket` moves as the demo person: a move to `planned` also writes the `planned` delivery's `delivery.created`.
+- The storyline carries the three event types of CL-312 and CL-298 the loops way: `ticket.quiet` (actor `system`,
+  `{status, minutes, since, ticket}`, CR-17 at 8:10) and `automation.ran` (actor `system`, `{runId, automationId,
+  outcome, automation:{id, name}}`, three runs from 8:40, one `failed`; the label an automation adds comes first as a
+  `ticket.updated` flagged with `automation`), both served to the key; `owner-request.updated` (a person's, 9:42 and
+  9:50) is in the log and never served to the key, as loops shows it to that owner alone (`visibility: "all"` serves it).
