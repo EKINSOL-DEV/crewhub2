@@ -114,10 +114,13 @@ export const speed = (page, label) => page.getByRole("button", { name: `Play at 
  * The world's page address: `?stress=<n>` for a stress fixture (dev builds only: 1 or 20), `?scenario=<id>` for a demo
  * scenario (the Demo chip's picker), nothing for the default storyline. `rooms` ("three" or "classic") adds the
  * building plan override (`?rooms=`, Settings > Town > Buildings); left out, the page uses the viewer's setting.
+ * `source` ("live") adds `?source=live`: the live host behind the page's `/world-api` (see lib/live.mjs), whatever the
+ * viewer's Source setting says; the stress fixture and the scenario are the demo's and are left out then.
  */
-export const worldUrl = (base, stress, scenario, rooms = null) => {
+export const worldUrl = (base, stress, scenario, rooms = null, source = null) => {
   const params = new URLSearchParams();
-  if (stress) params.set("stress", String(stress));
+  if (source === "live") params.set("source", "live");
+  else if (stress) params.set("stress", String(stress));
   else if (scenario) params.set("scenario", scenario);
   if (rooms) params.set("rooms", rooms);
   const query = params.toString();
