@@ -213,12 +213,14 @@ pixels differ, the walking figures' bands aside) and the regress pass at full ma
 | Round 5, cut 3: the Greenhouse models validated on first use | the 35 ms task at 53 ms after navigation is 26 ms, with `validatePropModel` out of it | 401 → 380 ms |
 | Round 6: the director's graph built on first use | the App chunk's 15 ms evaluation task gone; `world:snapshot` 50 → 35 ms | 382 → 373 ms |
 | Round 6: the scene's `NavWorld` starts with an empty graph | about 10 ms out of the scene's constructor | 394 → 383 and 399 → 374 ms |
+| Round 15 (22 October), the Greenhouse models' Object3D cut (Nicky's decision 7): a data model is one node holding its parts as data (`StaticParts`, `docs/WORLD_STYLES.md`) | the three.js objects made until the demo's town is dressed 12,614 → 6,417 (the parts, 6,420, no longer made; 22,617 → 9,520 once the interiors are built); in the profile the Object3D constructor's own time 10.5 → 5.7 ms, `three.core.js` 109 → 93 ms, the style's `kit.ts` 44 → 35 and `parts.ts` 25 → 17 ms inclusive, the page's own CPU until dressed 305 → 293 ms (medians of five) | 389 → 377 ms (medians of 35 runs each, five alternating pairs of seven; quartiles 379 to 403 → 371 to 383); every picture the same to the pixel: 98 pairs, 0 differing pixels (town, town hall, a building and each of its rooms, the three previews, light and dark, 1440 and 375, walkers frozen) |
 
 From the command (`tools/timeworld.mjs`, warm, against the development loops' 5 projects): the town drawn and dressed
 about 750 ms after `npm run world` before round 5's cuts and about 700 ms after them on a quiet Mac, 1.6 s cold; the
 sixth rehearsal on a busier Mac read 1.33 s warm and 1.78 s cold, the machine and not the code. What is left on the
 road to the first frame is worth a few milliseconds per item (`computeBoundingSphere` over the merged batches, the cast
-registry's validation at import) or touches the style package (the Greenhouse models' Object3D count, Nicky's call).
+registry's validation at import); the Greenhouse models' Object3D count, the one cut that touched the style package,
+was Nicky's call and is built (round 15, the last row of the table).
 
 **The Pretty/Fast switch** costs one long frame of shader recompiles (about 150 ms at 4 projects, 450 ms at 20): a
 setting, not a stream event, left as is (crewy, 21 October).
