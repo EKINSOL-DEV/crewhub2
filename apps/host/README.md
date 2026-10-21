@@ -1,6 +1,6 @@
 # `@crewhub/host`: the world's relay to crewhub-loops
 
-A small Node program (Node 22, no dependencies beyond Node itself) that stands between the browser and
+A small Node program (Node 24, as the repository requires; no dependencies beyond Node itself) that stands between the browser and
 crewhub-loops: integrator "Option A" of loops' `docs/integrators/identity-and-access.md`, section 3.5 of
 [docs/LOOPS_INTEGRATION_PLAN.md](../../docs/LOOPS_INTEGRATION_PLAN.md). It holds the one agent key (an external
 bot's, which could write: the host is what keeps it read-only), reads crewhub-loops with safe methods only (over
@@ -35,7 +35,8 @@ smooth connection" below):
   `/tickets/{ref}/comments|progress`, `/projects/{slug}`, `/projects/{slug}/milestones|releases`, `/board/{slug}`,
   `/watchdog`, `/team`. Only `limit` and `cursor` of a query string are passed. `/world-api/project-groups`
   answers `{ "groups": [] }` locally.
-- **Health** `GET /world-api/health`: `{ loops, keyName, sharedKey, loopsWebUrl, transport, paired, pairing, loopsCommit?, cursor? }`;
+- **Health** `GET /world-api/health`: `{ loops, keyName, sharedKey, loopsWebUrl, transport, paired, pairing, loopsCommit?, cursor?, connection }`
+  (`connection` is under "The smooth connection" below);
   `loopsWebUrl` is the origin of the loops URL, for the world's "sign in to crewhub-loops" link; `transport` is `tcp`
   (the URL) or `unix` (the socket); `paired` is whether this request carries a valid pairing cookie; `pairing` is `on`
   or `off`. Health carries no data and needs no cookie.
@@ -50,7 +51,7 @@ smooth connection" below):
 - **Reconnect**: loops ends every stream after 300 s (and at a credential re-check or a stop); the host waits 1.5 to
   3 s with jitter and reconnects from its cursor, so nothing is lost and no tab hears of it. When loops goes away
   (a network error, a 5xx, a 200 that closed without a line) the host retries with backoff (1 s doubling to 30 s)
-  and tells the tabs `status: down` and then `ok` (the world shows "stale" meanwhile). A 429 `too_many_streams`
+  and tells the tabs `status: down` and then `ok` (the chip says Loops down meanwhile). A 429 `too_many_streams`
   waits loops' `Retry-After` (5 s); 401 and 403 are `unauthorized` with the long retry.
 - **Static files**: with `NODE_ENV=production` the host serves `apps/world/dist` with an SPA fallback to `index.html`.
 - **The key** is read once from the key file, kept in memory, never logged, never in a response (a test greps every
@@ -110,8 +111,8 @@ The host starts with neither loops nor a key and reports the honest states; the 
   from before: `down` while searching, `unauthorized` without a key or with a rejected one.
 - **`npm run world`** (`main.ts world`): starts the host at once (production mode, pairing on), mints a link and opens
   the default browser on it (`--no-open` prints it), and builds the world meanwhile when `apps/world/dist` is missing
-  or older than the sources: the browser shows "Building the world…" (a one-line page that reloads itself) and opens
-  the world the moment the build is done. The freshness check (`src/build.ts`, pure and tested) walks the world's
+  or older than the sources: the browser shows "Building the world…" (a one-line page that asks the host every quarter
+  second) and opens the world the moment the build is done. The freshness check (`src/build.ts`, pure and tested) walks the world's
   `src`, `index.html`, `vite.config.ts` and `package.json`, every package and the root lockfile (about 450 files in
   under 10 ms), compares the newest mtime with `dist/index.html` and, when the host built the dist itself, the file
   count and newest mtime it stamped in `dist/.crewhub-world-build.json` (a deleted or added source is a rebuild). The
@@ -144,9 +145,19 @@ The sign-in link is `CREWHUB_WORLD_LOOPS_URL`'s origin (its default is the app's
 has no origin a browser can open. When the web app is elsewhere, name it: `CREWHUB_WORLD_LOOPS_WEB_URL=http://127.0.0.1:8291`
 for the development instance. Under Docker Desktop the socket is inside the VM and not reachable; use the URL.
 
-## Running
+## Commands
 
-Against the fake crewhub-loops (`packages/loops-fake`), before the real install:
+All from the repository root; the env of the table above applies to each.
+
+| Command | What it does |
+| --- | --- |
+| `npm run world` | The morning: starts the host in production mode with pairing on, opens the default browser on a one-time pairing link, builds `apps/world/dist` beside it when it is missing or stale, prints the step list. `-- --no-open` prints the link instead. A second run finds the running host and only mints a new link. The pairing secret is kept in `<config dir>/pairing-secret`. |
+| `npm run host -- doctor` | The preflight: one line per check (loops found, its health, the key file, what loops says about the key, the projects, agents and team reads, the event log, the host's port, pairing), `ok` or the fix; exit 0 only when all pass. Reads only, never the stream. |
+| `npm run host -- open` | Prints a one-time pairing link: asks a host already running on the port (a loopback-only `GET /pair-mint` guarded by a per-run mint secret in a 0600 run file), else starts one. `--origin <url>` mints the link on another origin (the Vite dev server, which proxies `/pair`). It prints and never opens a browser; the whole usage is `node apps/host/src/main.ts [--loops-socket <path>] [open [--origin <url>] \| world [--no-open] \| doctor]`. |
+| `npm run host` | Serve mode for development: the data from the host, the world from Vite (`npm run dev`, opened with `?source=live`); the pairing secret is per run. `-- --loops-socket <path>` reads loops over that Unix socket. |
+| `npm run host:start` | Production serve mode: builds the world, then serves `apps/world/dist` on `127.0.0.1:5180` with pairing on. `-- open` also prints the link. |
+
+Against the fake crewhub-loops (`packages/loops-fake`), without any install:
 
 ```sh
 npm run loops:fake -- --port 8391        # never 8091, the app's port; writes the key to tools/out/loops-fake.key and prints the next lines
@@ -154,17 +165,8 @@ CREWHUB_WORLD_LOOPS_URL=http://127.0.0.1:8391 CREWHUB_WORLD_PAIRING=off CREWHUB_
 npm run dev                              # Vite proxies /world-api and /pair to 127.0.0.1:5180; open with ?source=live
 ```
 
-Against the Mac app (after [docs/LOOPS_SETUP.md](../../docs/LOOPS_SETUP.md)):
-
-```sh
-npm run world                            # the morning: build if needed, serve, open the browser on the pairing link; paste the key once
-npm run host -- doctor                   # the preflight: one line per check
-npm run host                             # dev: the world comes from Vite, the data from the host
-npm run host -- open                     # prints a one-time pairing link (starts the host when none runs on the port)
-npm run host:start                       # production: builds the world and serves apps/world/dist on 127.0.0.1:5180
-npm run host:start -- open               # the same, and prints the link
-curl -s http://127.0.0.1:5180/world-api/health
-```
+Against the Mac app (the runbook is [docs/LOOPS_SETUP.md](../../docs/LOOPS_SETUP.md)): `npm run world`, then
+`curl -s http://127.0.0.1:5180/world-api/health` to look at the states.
 
 Tests: `node --test apps/host/test/*.test.ts` (part of `npm test`). They start a tiny loops stub on `127.0.0.1`
 port 0 and talk to it over loopback only. The end-to-end test against `packages/loops-fake` is `test/e2e.test.ts`
@@ -181,14 +183,17 @@ The host answers `/world-api` data routes only to a browser it has paired. The f
 2. Opening the link once, within 10 minutes, sets the cookie and lands on `/`. The page never shows the link; the
    host never logs the token, the cookie or the secret (a test greps every response and log line).
 3. A used or expired link gets "This link has expired or was already used. Run `npm run host -- open` for a new one."
-4. Until then the world (live mode) shows its "Pair this browser" page with the command and a "Use the demo" button;
-   `health.paired` is what it checks.
+4. Until then the world (live mode) shows its "Pair this browser" page with the command (`npm run world`) and a "Use
+   the demo" button; `health.paired` is what it checks. A tab that was live and gets 401 `not_paired` later (a host
+   restarted without its secret) shows the same page with the chip word "Pair again" and comes back by itself once a
+   new link is opened in that browser.
 
 How it holds: the token is 32 random bytes (base64url); only its hash is kept, with its expiry, and redeeming
 deletes it. The cookie is `<id>.<HMAC-SHA256(secret, id)>`, verified with a constant-time compare, so nothing about a
-cookie is stored: the secret alone decides. Per run by default, so a restart asks for pairing again;
-`CREWHUB_WORLD_PAIRING_FILE` keeps the secret (0600) across restarts. The Host/Origin guard stays in front of
-everything, pairing included.
+cookie is stored: the secret alone decides. `npm run host` and `npm run host:start` use a per-run secret, so a
+restart asks for pairing again; `npm run world` keeps it in `<config dir>/pairing-secret` (0600), and
+`CREWHUB_WORLD_PAIRING_FILE` names another file for any mode. The Host/Origin guard stays in front of everything,
+pairing included.
 
 Development: `CREWHUB_WORLD_PAIRING=off` drops the gate (loud warning at start; refused with `NODE_ENV=production`),
 or pair through the Vite origin, which proxies `/pair`: `npm run host -- open --origin http://127.0.0.1:5173`.
