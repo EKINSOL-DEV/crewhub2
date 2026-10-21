@@ -1,8 +1,10 @@
 /* The director in the text view: each plan with its trigger, building, estimated input size and rejections, then the
    intents that were played ("director: cr-dev-1 goes to the coffee machine in the lobby"). Every line carries the mode's
    tag: "demo" in demo mode, "scripted" in live mode, where the same script plays over real facts and must never read as
-   real behaviour. */
+   real behaviour. The empty-plans line is `noPlanLine`: with nobody idle it says so and why, instead of promising a
+   scheduled plan that cannot come. */
 import { useSyncExternalStore } from "react";
+import { noPlanLine } from "@crewhub/world-model";
 import { playedIntents, subscribeIntents } from "../world/intentPlayer";
 import { useDirector } from "../state/director";
 import { useWorld } from "../state/world";
@@ -17,7 +19,7 @@ function summary(raw: unknown): string {
 
 export function DirectorLog() {
   const { model } = useWorld();
-  const { enabled, plans } = useDirector();
+  const { enabled, plans, settings } = useDirector();
   const played = useSyncExternalStore(subscribeIntents, playedIntents);
   const buildingName = (slug: string) => model.buildings.find((b) => b.slug === slug)?.name ?? slug;
   const live = model.mode === "live";
@@ -69,7 +71,7 @@ export function DirectorLog() {
           {plans.length === 0 && (
             <li>
               {tag}
-              <span>No plan yet: the first one comes with the next scheduled interval or a ticket move.</span>
+              <span>{noPlanLine(model, settings.quickPlans)}</span>
             </li>
           )}
         </ul>
