@@ -6,10 +6,11 @@
    Usage:
      node tools/connectshots.mjs --port <vite port> --stub-port <port> [--states ...] [--theme light,dark] [--width 1440,375]
                                  [--tag ""] [--no-flow] [--out <dir>] [--swiftshader]
-   Start the Vite with CREWHUB_WORLD_PORT=<stub port> so /world-api reaches the stub. States (default all):
+   Start the Vite with CREWHUB_WORLD_PORT=<stub port> so /world-api reaches the stub. States (default: all of these):
      no-loops, pair, connect, pasted (a key in the field), invalid (not a key, Enter), checking, rejected, loops-down, connected,
      panel (the Connection panel open), forget (its confirm), busy and busy-panel (loops refused the host's stream with
      429: the Stream busy chip, and the panel with the reason), older (a host from before the smooth connection).
+     rejected-readonly exists only with --real (the stub knows no Read only bot); asking the stub for it is refused up front.
    --real: no stub; the host behind the Vite proxy is a real one (apps/host against crewhub-loops). Then --pair-link <url>
      (one one-time link from `npm run host -- open --origin <vite origin> --no-open`; visited once, its cookie copied to
      every context) and --key-file <path> (the key pasted for the connected step; read here, typed into the field, never
@@ -22,15 +23,18 @@ import { cli, launch, list, problemLines, watch } from "./lib/world.mjs";
 import { createConnectStub } from "./lib/connectStub.mjs";
 
 const STATES = ["no-loops", "pair", "connect", "pasted", "invalid", "checking", "rejected", "rejected-readonly", "loops-down", "connected", "panel", "forget", "busy", "busy-panel", "older"];
+/** States only a real host can show (the stub knows no Read only bot); the stub run's default list leaves them out. */
+const REAL_ONLY = ["rejected-readonly"];
 const opts = cli("node tools/connectshots.mjs --port <vite port> --stub-port <port> [--states ...] [--theme light,dark] [--width 1440,375] [--tag \"\"] [--no-flow] [--out <dir>] [--swiftshader]", {
-  options: { "stub-port": null, states: STATES.join(","), theme: "light,dark", width: "1440,375", tag: "", "pair-link": null, "key-file": null, "readonly-key-file": null },
+  options: { "stub-port": null, states: null, theme: "light,dark", width: "1440,375", tag: "", "pair-link": null, "key-file": null, "readonly-key-file": null },
   flags: ["no-flow", "real"],
 });
 const stubPort = Number(opts["stub-port"]);
 if (!opts.real && (!Number.isInteger(stubPort) || stubPort <= 0)) opts.fail("--stub-port <port> is required: the port the Vite proxy forwards /world-api to (CREWHUB_WORLD_PORT)");
 const widths = list(opts.width).map(Number);
 const themes = list(opts.theme, ["light", "dark"], opts.fail, "theme");
-const states = list(opts.states, STATES, opts.fail, "state");
+const states = list(opts.states ?? (opts.real ? STATES : STATES.filter((s) => !REAL_ONLY.includes(s))).join(","), STATES, opts.fail, "state");
+if (!opts.real) for (const s of states) if (REAL_ONLY.includes(s)) opts.fail(`state "${s}" needs --real (and --readonly-key-file): the stub host knows no Read only bot`);
 const viewport = (width) => (width <= 480 ? { viewport: { width, height: 812 }, isMobile: true, hasTouch: true } : { viewport: { width, height: 900 } });
 const GOOD_KEY = "chl_" + "goodKEY-_0123456789abcdefghijklmnopqrstuv".slice(0, 43);
 const BAD_KEY = "chl_bad" + "x".repeat(40);
