@@ -120,12 +120,19 @@ function readFileOrNull(file: string): string | null {
   }
 }
 
-/** One pass over the roads: the first that counts, or null. */
+/**
+ * One pass over the roads: the first that counts, or null. The roads that need a probe are probed at the same time
+ * (a socket that hangs costs no serial 1.5 s before the port is tried); the order still decides which one counts.
+ */
 export async function discoverOnce(input: DiscoveryInput): Promise<Found | null> {
   const answers = input.answers ?? loopsAnswers;
-  for (const candidate of candidates(input)) {
-    const { probe, ...found } = candidate;
-    if (!probe || (await answers(found.target))) return found;
+  const roads = candidates(input);
+  const probes = roads.map(({ probe, ...found }) => (probe ? answers(found.target).catch(() => false) : Promise.resolve(true)));
+  for (let i = 0; i < roads.length; i += 1) {
+    if (await probes[i]) {
+      const { probe: _probe, ...found } = roads[i] as Candidate;
+      return found;
+    }
   }
   return null;
 }

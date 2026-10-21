@@ -13,7 +13,7 @@ describe("health", () => {
       assert.equal(health.keyName, "crewhub-world");
       assert.equal(health.sharedKey, false);
       assert.equal(health.transport, "tcp");
-      assert.deepEqual(health.connection, { discovery: { state: "found", via: "env-url" }, key: { state: "ok" }, stream: { state: "ok", reconnects: 0 }, archived: { source: "none", count: 0 } }, "an unpaired request sees the states only (no archived slugs)");
+      assert.deepEqual(health.connection, { discovery: { state: "found", via: "env-url" }, key: { state: "ok" }, stream: { state: "ok", reconnects: 0 }, archived: { source: "none", count: 0 }, snapshot: { state: "idle" } }, "an unpaired request sees the states only (no archived slugs)");
       assert.equal(health.cursor, 0);
       assert.equal(health.loopsWebUrl, stub.url, "the loops origin, for the sign-in link");
       for (let i = 0; i < 20 && health.loopsCommit === undefined; i += 1) {

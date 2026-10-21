@@ -76,6 +76,13 @@ export const EN: Record<string, string> = {
   "world.connection.hint.stream-busy": "Another host or tab uses this key: crewhub-loops admits four streams per key. Close one; the host retries by itself.",
   "world.chat.signIn": "Sign in to crewhub-loops",
   // The pairing page (plan 3.5): shown instead of the world when the host has not paired this browser.
+  "world.firstSnapshot.connecting": "Connecting to the world's host…",
+  "world.firstSnapshot.listing": "Listing the projects of crewhub-loops…",
+  "world.firstSnapshot.reading": "Reading {count} {projects} from crewhub-loops… ({reads} reads)",
+  "world.firstSnapshot.ready": "{count} {projects} read; laying out the town…",
+  "world.firstSnapshot.failed": "The host could not read crewhub-loops ({reason}); trying again.",
+  "world.firstSnapshot.project": "project",
+  "world.firstSnapshot.projects": "projects",
   "world.pair.title": "Pair this browser",
   "world.pair.lead": "The world's host answers only browsers it has paired. Run this where the host runs, then open the link it prints in this browser:",
   "world.pair.command": "npm run host -- open",

@@ -43,7 +43,7 @@ describe("archived projects from the event log", () => {
   it("the snapshot reads each archived project the list left out, once, marked archived", async () => {
     const client = createLoopsClient(stub.url, stub.key);
     stub.requests.length = 0;
-    const snapshot = await assembleSnapshot(client, { cursor: 999, knownArchivedSlugs: ["old", "flip"] });
+    const { snapshot } = await assembleSnapshot(client, { cursor: 999, knownArchivedSlugs: ["old", "flip"] });
     assert.deepEqual(snapshot.projects.map((p) => p.slug), ["atlas", "beacon"]);
     assert.deepEqual(snapshot.archivedProjects.map((p) => p.slug).sort(), ["flip", "old"]);
     assert.ok(snapshot.archivedProjects.every((p) => typeof p.archivedAt === "string"));

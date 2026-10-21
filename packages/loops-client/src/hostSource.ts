@@ -98,6 +98,17 @@ export interface HostArchiveState {
   slugs?: string[];
 }
 
+/**
+ * The host's last snapshot assembly, so the page can say "Reading 12 projects from crewhub-loops…" while the first
+ * snapshot loads: `idle` before any, `reading` with the reads done so far (and the project count once the list is
+ * in), `ready` with what it cost, `failed` with the reason the snapshot route answered.
+ */
+export type HostSnapshotState =
+  | { state: "idle" }
+  | { state: "reading"; reads: number; projects?: number }
+  | { state: "ready"; projects: number; reads: number; ms: number }
+  | { state: "failed"; reason: string };
+
 /** The honest states of the connection (spec addendum "a smooth connection", part 4). Before pairing: states only. */
 export interface HostConnection {
   discovery: HostDiscovery;
@@ -105,6 +116,8 @@ export interface HostConnection {
   stream: HostStreamState;
   /** Absent on a host from before the archive memory. */
   archived?: HostArchiveState;
+  /** Absent on a host from before the step list. */
+  snapshot?: HostSnapshotState;
 }
 
 /** `GET /world-api/health`. Never the key. */
@@ -137,9 +150,11 @@ export interface HostSourceTimings {
   /** Reconnect backoff, doubling from min to max. Defaults 500 ms and 10 s. */
   retryMinMs: number;
   retryMaxMs: number;
+  /** The backoff's cap while the source has no snapshot yet (the host is linking): default 2 s. */
+  firstRetryMaxMs: number;
 }
 
-const DEFAULT_TIMINGS: HostSourceTimings = { staleMs: 40_000, teamPollMs: 30_000, retryMinMs: 500, retryMaxMs: 10_000 };
+const DEFAULT_TIMINGS: HostSourceTimings = { staleMs: 40_000, teamPollMs: 30_000, retryMinMs: 500, retryMaxMs: 10_000, firstRetryMaxMs: 2000 };
 const PREFIX = "/world-api";
 
 /** What the host puts on the stream (ready-team-map: "Host → browser"). */
@@ -154,7 +169,7 @@ const oneOf = <T extends string>(value: unknown, values: readonly T[]): T | unde
 /** The `connection` object of a health answer, or null when it is missing or malformed (an older host). Never the key. */
 export function readConnection(value: unknown): HostConnection | null {
   if (value === null || typeof value !== "object") return null;
-  const raw = value as { discovery?: Partial<HostDiscovery>; key?: Partial<HostKeyState>; stream?: Partial<HostStreamState>; archived?: Partial<HostArchiveState> };
+  const raw = value as { discovery?: Partial<HostDiscovery>; key?: Partial<HostKeyState>; stream?: Partial<HostStreamState>; archived?: Partial<HostArchiveState>; snapshot?: unknown };
   const discoveryState = oneOf(raw.discovery?.state, ["found", "searching"]);
   const keyState = oneOf(raw.key?.state, ["none", "unchecked", "checking", "rejected", "ok"]);
   const streamState = oneOf(raw.stream?.state, ["idle", "ok", "down", "unauthorized", "busy"]);
@@ -180,7 +195,30 @@ export function readConnection(value: unknown): HostConnection | null {
     if (Array.isArray(raw.archived?.slugs)) archived.slugs = raw.archived.slugs.filter((s): s is string => typeof s === "string");
     out.archived = archived;
   }
+  const snapshot = readSnapshotState(raw.snapshot);
+  if (snapshot !== null) out.snapshot = snapshot;
   return out;
+}
+
+/** The `snapshot` of a connection, or null when it is missing or malformed. */
+export function readSnapshotState(value: unknown): HostSnapshotState | null {
+  if (value === null || typeof value !== "object") return null;
+  const raw = value as { state?: unknown; reads?: unknown; projects?: unknown; ms?: unknown; reason?: unknown };
+  const count = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : undefined);
+  switch (raw.state) {
+    case "idle":
+      return { state: "idle" };
+    case "reading": {
+      const projects = count(raw.projects);
+      return { state: "reading", reads: count(raw.reads) ?? 0, ...(projects === undefined ? {} : { projects }) };
+    }
+    case "ready":
+      return { state: "ready", projects: count(raw.projects) ?? 0, reads: count(raw.reads) ?? 0, ms: count(raw.ms) ?? 0 };
+    case "failed":
+      return { state: "failed", reason: typeof raw.reason === "string" ? raw.reason : "" };
+    default:
+      return null;
+  }
 }
 
 /** Asks the host for its health. `null` when nothing answers within `timeoutMs` or the answer is not a host's. */
@@ -452,7 +490,8 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
       if (needSnapshot) {
         if (!(await loadSnapshot(signal))) {
           await sleep(retryMs, signal);
-          retryMs = Math.min(timings.retryMaxMs, retryMs * 2);
+          // Before the first snapshot the host is most likely still linking: ask again soon, never ten seconds later.
+          retryMs = Math.min(haveSnapshot ? timings.retryMaxMs : Math.min(timings.retryMaxMs, timings.firstRetryMaxMs), retryMs * 2);
           continue;
         }
         needSnapshot = false;

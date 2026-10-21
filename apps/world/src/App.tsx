@@ -8,6 +8,7 @@ import { TownSettings } from "./components/TownSettings";
 import { SourceSettings } from "./components/SourceSettings";
 import { ConnectionChip, connectionLine } from "./components/ConnectionChip";
 import { ConnectionPanel } from "./components/ConnectionPanel";
+import { FirstSnapshot } from "./components/FirstSnapshot";
 import { JumpList } from "./components/JumpList";
 import { IconSprite } from "./components/Icon";
 import { Button, Card, Chip, Field, Menu } from "./components/primitives";
@@ -690,6 +691,7 @@ function World() {
             </Suspense>
           </SceneBoundary>
         )}
+        {!demo && connection === "connecting" && <FirstSnapshot />}
       </main>
 
       <Corner demo={demo} connection={connection} connectionOpen={connectionOpen} onOpenConnection={openConnection} graphicsFailed={graphicsFailed} trail={trail} onGo={onGo} onJump={openJump} jumpOpen={jumpOpen} following={following ? agentName(following) : null} onStopFollow={() => follow(null)} />

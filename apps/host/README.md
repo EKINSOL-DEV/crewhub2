@@ -13,7 +13,13 @@ smooth connection" below):
 - **Snapshot** `GET /world-api/snapshot`: one `LoopsSnapshot` (the seam's type in `packages/loops-client`),
   assembled by read-model.md "Loading a snapshot": the stream's position first, then projects, boards per active
   project, principals, agents, team, watchdog, and milestones and releases where the project has the feature on.
-  Paged lists are followed to the last page. `groups` is `[]` until loops has project groups (L22).
+  Paged lists are followed to the last page. `groups` is `[]` until loops has project groups (L22). The reads run in
+  parallel under a cap (`snapshotConcurrency`, default 6; `mapLimit` in `src/snapshot.ts` keeps the projects' order)
+  and are timed and counted; health's `connection.snapshot` says how far the assembly is (`idle`, `reading` with
+  the reads done and the project count once the list is in, `ready` with what it cost, `failed` with the reason), so
+  the world can say "Reading 12 projects from crewhub-loops…" while the first snapshot loads. Health itself answers
+  within a second even while the key check or the first stream attempt is still on its way (`HEALTH_WAIT_MS`): the
+  page's 1.5 s probe never takes a slow loops for a missing host.
 - **Stream** `GET /world-api/stream?cursor=N`: Server-Sent Events, `data: <json>` per message, `id: <seq>` on
   events. ONE upstream `GET /api/events/stream` is shared by every browser tab, and never more than one is open
   (a test counts); a ring buffer of the last 2000 envelopes catches a tab up from its cursor. Messages: `status`
@@ -109,16 +115,26 @@ The host starts with neither loops nor a key and reports the honest states; the 
   keyless. Both are local routes on the allow-list; the loops allow-list stays GET only. The key is never logged,
   echoed or returned; `test/connect.test.ts` greps every response and log line.
 - **Health** carries `connection: { discovery: { state, via?, target? }, key: { state, name?, source?, reason? },
-  stream: { state, reason?, cursor?, lastEventAt?, reconnects }, archived: { source, count, at?, slugs? } }` (the type
-  in `packages/loops-client`, `HostConnection`; `key.state` is `none`, `unchecked`, `checking`, `rejected` or `ok`).
+  stream: { state, reason?, cursor?, lastEventAt?, reconnects }, archived: { source, count, at?, slugs? },
+  snapshot: { state, projects?, reads?, ms?, reason? } }` (the type in `packages/loops-client`, `HostConnection`;
+  `key.state` is `none`, `unchecked`, `checking`, `rejected` or `ok`).
   `stream.state` is `busy` with the reason "stream budget exhausted (429): another host or tab uses this key" while
   loops refuses the stream with 429 `too_many_streams` (four per key; the host retries after `Retry-After`); the
   status message on `/world-api/stream` carries `stream: "busy"` and the reason too, next to the old `loops: "down"`.
   Before pairing only the states are there (no target paths, no names). `loops` keeps the old tri-state for the world
   from before: `down` while searching, `unauthorized` without a key or with a rejected one.
-- **`npm run world`** (`main.ts world`): builds when `apps/world/dist` is older than the sources, serves it with
-  pairing on, mints a link and opens the default browser on it (`--no-open` prints it). A second run finds the running
-  host through the run file and only opens a new link.
+- **`npm run world`** (`main.ts world`): starts the host at once (production mode, pairing on), mints a link and opens
+  the default browser on it (`--no-open` prints it), and builds the world meanwhile when `apps/world/dist` is missing
+  or older than the sources: the browser shows "Building the world…" (a one-line page that reloads itself) and opens
+  the world the moment the build is done. The freshness check (`src/build.ts`, pure and tested) walks the world's
+  `src`, `index.html`, `vite.config.ts` and `package.json`, every package and the root lockfile (about 450 files in
+  under 10 ms), compares the newest mtime with `dist/index.html` and, when the host built the dist itself, the file
+  count and newest mtime it stamped in `dist/.crewhub-world-build.json` (a deleted or added source is a rebuild). The
+  terminal gets a short step list with ticks and times and nothing else: the build check, the host listening, the
+  browser, loops found, the key's verdict, the stream open at its seq, the first snapshot ("5 projects, 16 reads in
+  33 ms, slowest /api/board/crewhub 16 ms") and "the world is up, 1.3 s after the host started". `createHost` takes
+  `onStep` for that list; without it (serve mode) the same facts are log lines as before. A second run finds the
+  running host through the run file and only opens a new link. `tools/timeworld.mjs` measures the whole road.
 - **`npm run host -- doctor`** (`src/doctor.ts`): the same states in the terminal, one line per check, `ok` or the
   fix; exit 0 only when all pass. Read only, never the stream; tests run it against the stub.
 

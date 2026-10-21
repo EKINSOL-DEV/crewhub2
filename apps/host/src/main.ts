@@ -23,26 +23,35 @@
  *                          it starts the host and prints the link. `--origin` makes the link open on another origin that
  *                          proxies `/pair` (the Vite dev server): cookies ignore ports, so a browser paired on
  *                          127.0.0.1:5173 is paired on 127.0.0.1:5180 too.
- *   world [--no-open]      `npm run world`: builds the world when apps/world/dist is older than the sources, serves it in
- *                          production mode with pairing on, mints a link and opens the default browser on it (`--no-open`
- *                          prints it). A second run finds the running host and only opens a new link.
+ *   world [--no-open]      `npm run world`: starts the host at once (production mode, pairing on), opens the default
+ *                          browser on a one-time link (`--no-open` prints it) and, when apps/world/dist is missing or
+ *                          older than the sources (`build.ts`), builds it meanwhile: the browser shows "Building the
+ *                          world…" and opens the world when the build is done. Prints the steps as a list with ticks and
+ *                          times (loops found, the key, the stream, the snapshot). A second run finds the running host
+ *                          and only opens a new link.
  *   doctor                 a read-only preflight: one line per check (loops, health, key, auth, reads, events, port,
  *                          pairing), ok or the fix; exit 0 only when all pass. Never opens the stream, never writes.
  */
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { buildWorld, checkBuild } from "./build.ts";
 import { ConfigError, type ServerConfig, loadKey, loadServerConfig } from "./config.ts";
 import { formatDoctor, runDoctor } from "./doctor.ts";
-import { MINT_HEADER, MINT_PATH, createHost } from "./host.ts";
 import { createArchiveStore } from "./archiveStore.ts";
+import { type HostStep, MINT_HEADER, MINT_PATH, createHost } from "./host.ts";
 import { createKeyStore } from "./keyStore.ts";
 import { loadPairingSecret } from "./pairing.ts";
 
-const log = (line: string) => console.error(`[host] ${line}`);
+const world = process.argv.includes("world");
+/** The log; in world mode the step list carries the story and the stream's "loops ok" is a step already. */
+const log = (line: string) => {
+  if (world && line === "loops ok") return;
+  console.error(world ? `  · ${line}` : `[host] ${line}`);
+};
 
 function readFileOrNull(file: string): string | null {
   try {
@@ -112,53 +121,17 @@ async function mintFromRunning(port: number, origin: string | null): Promise<str
 const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
 const distDir = path.join(repoRoot, "apps", "world", "dist");
 
-/** The newest mtime under `dir` (files only; node_modules, dist and tests skipped). */
-function newestMtime(dir: string): number {
-  let newest = 0;
-  let entries: import("node:fs").Dirent[];
-  try {
-    entries = readdirSync(dir, { withFileTypes: true });
-  } catch {
-    return 0;
+/** The step list of `npm run world`: one line per step, a tick or a cross, the time it took. Quiet otherwise. */
+const seconds = (ms: number) => (ms >= 1000 ? `${(ms / 1000).toFixed(1)} s` : `${Math.round(ms)} ms`);
+const stepLine = (ok: boolean, text: string, ms?: number) => console.error(`  ${ok ? "✓" : "✗"} ${text}${ms === undefined ? "" : ` (${seconds(ms)})`}`);
+let worldUp = false;
+const printStep = (step: HostStep) => {
+  stepLine(step.ok, step.text, step.ms);
+  if (step.step === "snapshot" && step.ok && !worldUp) {
+    worldUp = true;
+    stepLine(true, `the world is up, ${seconds(performance.now())} after the host started`);
   }
-  for (const entry of entries) {
-    if (entry.name === "node_modules" || entry.name === "dist" || entry.name === "test" || entry.name.startsWith(".")) continue;
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) newest = Math.max(newest, newestMtime(full));
-    else if (entry.isFile()) {
-      try {
-        newest = Math.max(newest, statSync(full).mtimeMs);
-      } catch {
-        // gone meanwhile
-      }
-    }
-  }
-  return newest;
-}
-
-/** `npm run world`: the built world is older than the sources, or missing → `npm run build`. */
-function buildIfStale(): void {
-  let built = 0;
-  try {
-    built = statSync(path.join(distDir, "index.html")).mtimeMs;
-  } catch {
-    built = 0;
-  }
-  const sources = Math.max(newestMtime(path.join(repoRoot, "apps", "world", "src")), newestMtime(path.join(repoRoot, "packages")), (() => {
-    try {
-      return statSync(path.join(repoRoot, "apps", "world", "index.html")).mtimeMs;
-    } catch {
-      return 0;
-    }
-  })());
-  if (built > 0 && built >= sources) {
-    log("apps/world/dist is up to date");
-    return;
-  }
-  log(built === 0 ? "building the world (apps/world/dist is missing)" : "building the world (apps/world/dist is older than the sources)");
-  const result = spawnSync("npm", ["run", "build"], { cwd: repoRoot, stdio: "inherit" });
-  if (result.status !== 0) throw new ConfigError("the build failed; see above");
-}
+};
 
 /** Opens the default browser on the link (macOS `open`, else `xdg-open`); false when that is not possible here. */
 function openBrowser(link: string): boolean {
@@ -176,6 +149,8 @@ function openBrowser(link: string): boolean {
 let args: Args;
 let config: ServerConfig;
 let key: ReturnType<typeof loadKey>;
+/** `world`: the build check's verdict (the build itself runs after the host listens). */
+let build: ReturnType<typeof checkBuild> | null = null;
 try {
   args = parseArgs(process.argv.slice(2));
   const env = { ...process.env, ...(args.loopsSocket === null ? {} : { CREWHUB_WORLD_LOOPS_SOCKET: args.loopsSocket }), ...(args.command === "world" ? { NODE_ENV: "production" } : {}) };
@@ -193,7 +168,11 @@ try {
       process.exit(0);
     }
   }
-  if (args.command === "world") buildIfStale();
+  if (args.command === "world") {
+    build = checkBuild(repoRoot, distDir);
+    if (build.fresh) stepLine(true, `${build.reason}`, build.ms);
+    else console.error(`  … building the world: ${build.reason}`);
+  }
   key = loadKey(env, readFileOrNull);
   for (const warning of config.warnings) log(warning);
 } catch (error) {
@@ -204,6 +183,7 @@ try {
 const staticDir = config.production ? distDir : undefined;
 const pairingSecret = config.pairingFile === null ? undefined : loadPairingSecret(config.pairingFile);
 const mintSecret = randomBytes(32).toString("base64url");
+const listenStarted = performance.now();
 const host = await createHost({
   ...(config.loopsUrl === null ? {} : { loopsUrl: config.loopsUrl }),
   ...(config.loopsSocket === null ? {} : { loopsSocket: config.loopsSocket }),
@@ -217,10 +197,12 @@ const host = await createHost({
   pairing: config.pairing,
   mintSecret,
   log,
+  ...(world ? { onStep: printStep } : {}),
   ...(staticDir === undefined ? {} : { staticDir }),
   ...(pairingSecret === undefined ? {} : { pairingSecret }),
   ...(config.publicUrl === null ? {} : { publicUrl: config.publicUrl }),
 });
+if (build !== null && !build.fresh) host.setBuilding(true);
 try {
   writeFileSync(runFile(host.port), JSON.stringify({ pid: process.pid, url: host.url, mintSecret }) + "\n", { mode: 0o600 });
 } catch {
@@ -228,17 +210,33 @@ try {
 }
 const loopsText = config.loopsSocket !== null ? `unix socket ${config.loopsSocket}` : config.loopsUrl !== null ? config.loopsUrl : `looking in ${config.appData}`;
 const keyText = key === null ? "no key yet (the world shows the Connect screen)" : `key ${key.keyName} from ${key.file}`;
-log(`listening on ${host.url} (loops ${loopsText}, ${keyText}${config.production ? ", serving apps/world/dist" : ""}, pairing ${config.pairing}${config.pairingFile === null ? "" : ", secret kept in " + config.pairingFile})`);
-if (args.command === "open" || args.command === "world") {
+if (world) stepLine(true, `host listening on ${host.url} (loops ${loopsText}, ${keyText}, pairing ${config.pairing})`, performance.now() - listenStarted);
+else log(`listening on ${host.url} (loops ${loopsText}, ${keyText}${config.production ? ", serving apps/world/dist" : ""}, pairing ${config.pairing}${config.pairingFile === null ? "" : ", secret kept in " + config.pairingFile})`);
+if (args.command === "open" || world) {
   if (config.pairing === "off") log("pairing is off: no link needed, open the world directly");
   else {
     const link = host.mintPairLink(args.origin ?? undefined);
-    if (args.command === "world" && !args.noOpen && openBrowser(link)) log("opened the browser on the one-time pairing link (10 minutes, once)");
+    if (world && !args.noOpen && openBrowser(link)) stepLine(true, "browser opened on the one-time pairing link (10 minutes, once)");
     else {
-      log("open this link in the browser to pair it (10 minutes, once):");
+      if (world) stepLine(true, "open this link in the browser to pair it (10 minutes, once):");
+      else log("open this link in the browser to pair it (10 minutes, once):");
       console.log(link);
     }
   }
+}
+if (build !== null && !build.fresh) {
+  // The build runs while the host finds loops, checks the key and opens the stream; the browser shows "Building the
+  // world…" until it is done. Vite's lines are kept for a failure.
+  const lines: string[] = [];
+  const result = await buildWorld(repoRoot, distDir, (line) => lines.push(line));
+  if (result.code !== 0) {
+    stepLine(false, `the build failed after ${seconds(result.ms)}:`);
+    for (const line of lines) console.error(`    ${line}`);
+    await host.close();
+    process.exit(1);
+  }
+  host.setBuilding(false);
+  stepLine(true, "world built, the browser opens it", result.ms);
 }
 
 const shutdown = () => {
