@@ -1105,9 +1105,24 @@ anchor, in one row with the pin when both; "<name> answered: open <building>"; a
 the text view's building row carries "<name> answered". The regress `chat` group proves each over the fake, whose
 `sendDm` lets the tools have an agent inside a building answer on cue.
 
+**Round 16 (a missed answer is not lost: Recent answers).** The bubble lives 12 s, so the same `said` store now also
+keeps the last 10 lines the page saw (`RECENT_ANSWERS`, newest first, a replayed message id once, nothing more than a
+bubble holds, nothing on disk, gone with the page). They show as a "Recent answers" list (`components/RecentAnswers`,
+words in `state/recentAnswers.ts`): in the Chat panel a compact collapsible block above the frame (open while it has
+answers), and in the text view a section of its own after the Chat line. A row is the time loops wrote the answer, the
+agent and the first line, a button whose accessible name is "<name> at HH:MM:SS: <line>. Chat with <name>"; a tap opens
+the Chat panel on that agent by the card's rule of round 13 (`chatTargetOf`: the agent's own chat when loops' dock has
+a head for it, else its lead's with the row saying so, else the panel without an agent), the card in the demo. Empty,
+the list says per road whether an answer can arrive (key and signed in: yes, it will show as a bubble and stay here;
+signed out and expired: no, with the way to the sign-in; a host from before keeps no session; the demo's chat is its
+own dock). The regress `chat` group proves the empty state signed out, the answer kept past the bubble and past Forget
+the session with its row opening the panel, the text view's section with both answers newest first, and the block on a
+phone.
+
 ### Bubbles themselves
 
 The world's speech bubbles exist in demo mode. A message from an agent to the person becomes a bubble over the
 agent's figure with its first line; a tap opens the Chat panel. A message the person sent shows nothing over the
-person. Nothing of the conversation is kept by the world beyond the bubble's few seconds.
+person. Nothing of the conversation is kept by the world beyond the bubble's few seconds, except (round 16) the last
+10 first lines in the Recent answers list, for the page's life.
 

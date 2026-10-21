@@ -1,7 +1,8 @@
 /* What an agent just said to the person (round 12, the host's chat session): one line per agent, shown as a speech
-   bubble over the agent's figure for a few seconds, then gone. Nothing of the conversation is kept beyond that: the
-   store holds the newest line per agent until it expires, and the page keeps nothing else. A tap on the bubble opens
-   the agent (its card; the Chat panel once it lands). */
+   bubble over the agent's figure for a few seconds, then gone. A tap on the bubble opens the agent (its card; the Chat
+   panel once it lands). Since round 16 a missed answer is not lost: the last RECENT_ANSWERS lines, newest first, stay for
+   the page's life as the "Recent answers" list (the Chat panel, the text view), from the same lines the bubbles show and
+   holding nothing more than a bubble does. Nothing is written to disk; a reload starts empty. */
 import { useSyncExternalStore } from "react";
 import type { ChatLine } from "@crewhub/loops-client";
 
@@ -21,8 +22,19 @@ export interface Said {
 
 export type SaidMap = ReadonlyMap<string, Said>;
 
+/** One answer in the Recent answers list: what the bubble held, plus when loops wrote it (`ChatLine.at`). */
+export interface Answer extends Said {
+  agentId: string;
+  /** When loops wrote it (ISO), for the list's time; `shownAt` is when the page saw it. */
+  at: string;
+}
+
+/** How many answers the list keeps (the newest). */
+export const RECENT_ANSWERS = 10;
+
 const lines = new Map<string, Said>();
 let snapshot: SaidMap = new Map();
+let recent: readonly Answer[] = [];
 const listeners = new Set<() => void>();
 let timer: ReturnType<typeof setTimeout> | null = null;
 
@@ -46,9 +58,15 @@ function sweep(nowMs: number): void {
   if (changed) publish();
 }
 
-/** Remembers an agent's line (the newest replaces an older one of the same agent) for SAID_MS. */
+/**
+ * Remembers an agent's line: the bubble (the newest replaces an older one of the same agent) for SAID_MS, and the
+ * Recent answers list (newest first, RECENT_ANSWERS at most, for the page's life). A line the page saw already (the same
+ * message id: a stream that replayed) is not listed twice.
+ */
 export function rememberSaid(line: ChatLine, nowMs = Date.now()): void {
-  lines.set(line.agentId, { text: line.text, agentName: line.agentName ?? null, messageId: line.messageId, threadId: line.threadId, shownAt: nowMs, until: nowMs + SAID_MS });
+  const said: Said = { text: line.text, agentName: line.agentName ?? null, messageId: line.messageId, threadId: line.threadId, shownAt: nowMs, until: nowMs + SAID_MS };
+  lines.set(line.agentId, said);
+  if (!recent.some((a) => a.messageId === line.messageId)) recent = [{ ...said, agentId: line.agentId, at: line.at }, ...recent].slice(0, RECENT_ANSWERS);
   sweep(nowMs);
   publish();
 }
@@ -80,9 +98,10 @@ export function saidLabel(name: string, text: string, action: string): string {
   return joinSentences(saidWords(name, text), action);
 }
 
-/** Forgets everything (a new source, the tests). */
+/** Forgets everything, the list too (a new source, the tests). */
 export function clearSaid(): void {
   lines.clear();
+  recent = [];
   if (timer !== null) clearTimeout(timer);
   timer = null;
   publish();
@@ -98,4 +117,10 @@ export const getSaid = () => snapshot;
 /** The lines in flight, for the canvas (re-rendered when one arrives or goes). */
 export function useSaid(): SaidMap {
   return useSyncExternalStore(subscribeSaid, getSaid, getSaid);
+}
+
+/** The Recent answers list: the last RECENT_ANSWERS lines the page saw, newest first; the same array until one arrives. */
+export const getRecentAnswers = () => recent;
+export function useRecentAnswers(): readonly Answer[] {
+  return useSyncExternalStore(subscribeSaid, getRecentAnswers, getRecentAnswers);
 }

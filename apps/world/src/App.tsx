@@ -1,7 +1,7 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type Ref } from "react";
 import { ArrowLeft, ChevronRight, Eye, FlaskConical, Hammer, MessageCircle, Minus, Monitor, Moon, Pause, Plus, RotateCcw, RotateCw, Footprints, Scan, Search, Settings, Sun, Tags, X } from "lucide-react";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { archivedWords, CIVIC_WORDS, describeTownDocument, describeWorld, roleWords, ruleProps, zoningOf, type AgentPlacement, type CivicWords, type PlaybackControls, type PlaybackSpeed, type RoleId, type RoomKind, type RoomWording, type TextLine, type WorldModel } from "@crewhub/world-model";
+import { agentCardFacts, archivedWords, CIVIC_WORDS, describeTownDocument, describeWorld, roleWords, ruleProps, zoningOf, type AgentPlacement, type CivicWords, type PlaybackControls, type PlaybackSpeed, type RoleId, type RoomKind, type RoomWording, type TextLine, type WorldModel } from "@crewhub/world-model";
 import type { PropModel } from "@crewhub/world-engine";
 import { Bubbles } from "./components/bubbles/Bubbles";
 import { TownSettings } from "./components/TownSettings";
@@ -13,10 +13,12 @@ import { chatPlaceLine } from "./state/chatPanel";
 import { FirstSnapshot } from "./components/FirstSnapshot";
 import { CONNECT_POLL_MS, ConnectPage } from "./components/ConnectPage";
 import { liveScreen, withStreamKey } from "./state/connect";
-import { useSaid } from "./state/said";
+import { useRecentAnswers, useSaid, type Answer } from "./state/said";
+import { answerTarget, recentEmptyWords, type AnswerTarget } from "./state/recentAnswers";
 import { rememberHealth, useHostHealth } from "./state/health";
 import { markWords, saidLines, saidMarks, type SaidMark } from "./world/saidText";
 import { JumpList } from "./components/JumpList";
+import { RecentAnswers } from "./components/RecentAnswers";
 import { IconSprite } from "./components/Icon";
 import { Button, Card, Chip, Field, Menu } from "./components/primitives";
 import { SceneBoundary } from "./components/SceneBoundary";
@@ -181,6 +183,9 @@ function World() {
   // view's "says" lines and the chat marks over the buildings from the town.
   const said = useSaid();
   const marks = useMemo(() => saidMarks(model, said, Date.now()), [model, said]);
+  // The Recent answers list (round 16, state/recentAnswers.ts): the last answers the page saw, in the Chat panel and the
+  // text view; a row opens that agent's chat by the card's rule (round 13), or its card in the demo.
+  const answers = useRecentAnswers();
   // The host's health as last read (the chat session's state for the Chat panel and the text view's Chat line); null in demo mode.
   const hostHealth = useHostHealth();
   // Only while the text view shows: describing a region on every model update is felt on a phone.
@@ -415,6 +420,19 @@ function World() {
     setChat(null);
     chatReturn.current?.focus();
   }, []);
+  const placementOf = (agentId: string) => [...model.buildings.flatMap((b) => b.agents), ...model.townHall, ...model.postOffice].find((a) => a.name === agentId || a.key === agentId) ?? null;
+  const answerTargetOf = useStable((a: Answer): AnswerTarget => {
+    const placed = placementOf(a.agentId);
+    if (model.mode === "demo") {
+      const name = placed?.displayName ?? a.agentName ?? a.agentId;
+      return { agent: { key: placed?.key ?? a.agentId, name }, action: `Open ${name}'s card`, note: null };
+    }
+    return answerTarget(a, placed ? agentCardFacts(model, worldRuntime().projection.facts, placed.key) : null);
+  });
+  const openAnswer = useStable((a: Answer, target: AnswerTarget) => {
+    if (model.mode === "demo") pick({ kind: "agent", key: target.agent?.key ?? a.agentId }, false);
+    else openChat(target.agent?.key ?? null);
+  });
   /* The followed figure walked somewhere else: the level follows it; the selection and the card stay. */
   const followedTo = useCallback(
     (slug: string | null) => {
@@ -775,7 +793,7 @@ function World() {
 
       {connectionOpen && connection && <ConnectionPanel state={connection} initial={SOURCE.health} onClose={closeConnection} />}
 
-      {chat && !demo && <ChatPanel agent={chat.agent} health={hostHealth} full={narrow} onClose={closeChat} />}
+      {chat && !demo && <ChatPanel agent={chat.agent} health={hostHealth} full={narrow} answers={answers} recentEmpty={recentEmptyWords("live", hostHealth?.connection?.session)} targetOf={answerTargetOf} onAnswer={openAnswer} onClose={closeChat} />}
 
       {jumpOpen && <JumpList entries={jumps} onJump={jump} onClose={closeJump} />}
 
@@ -832,7 +850,7 @@ function World() {
 
       {playback && <PlaybackBar playback={playback} />}
 
-      {(textOpen || graphicsFailed) && <TextView civic={civic} rooms={rooms} ref={textRegion} lines={textLines} connection={connection} chat={chatPlaceLine(demo ? "demo" : "live", hostHealth?.connection?.session)} marks={marks} fallback={graphicsFailed} onClose={graphicsFailed ? null : closeText} districts={districts} onGo={graphicsFailed ? null : onGo} />}
+      {(textOpen || graphicsFailed) && <TextView civic={civic} rooms={rooms} ref={textRegion} lines={textLines} connection={connection} chat={chatPlaceLine(demo ? "demo" : "live", hostHealth?.connection?.session)} marks={marks} answers={answers} recentEmpty={recentEmptyWords(demo ? "demo" : "live", hostHealth?.connection?.session)} targetOf={answerTargetOf} onAnswer={openAnswer} fallback={graphicsFailed} onClose={graphicsFailed ? null : closeText} districts={districts} onGo={graphicsFailed ? null : onGo} />}
     </div>
   );
 }
@@ -1168,7 +1186,7 @@ function PlaybackPosition({ playback }: { playback: PlaybackControls }) {
 
 const KIND_WORD: Record<TextLine["kind"], string> = { fact: "fact", inference: "inference", cosmetic: "cosmetic", demo: "demo" };
 
-function TextView({ lines, civic, rooms, connection, chat, marks, fallback, onClose, districts, onGo, ref }: { lines: TextLine[]; civic: CivicWords; rooms: RoomWording; connection: ConnectionState | null; /** Where chat lives (state/chatPanel `chatPlaceLine`). */ chat: string; /** The agents inside a building with a bubble in flight (world/saidText): a chip beside the building, as the mark over it. */ marks: SaidMark[]; fallback: boolean; onClose: (() => void) | null; districts: DistrictPlace[]; onGo: ((place: Place) => void) | null; ref: Ref<HTMLElement> }) {
+function TextView({ lines, civic, rooms, connection, chat, marks, answers, recentEmpty, targetOf, onAnswer, fallback, onClose, districts, onGo, ref }: { lines: TextLine[]; civic: CivicWords; rooms: RoomWording; connection: ConnectionState | null; /** Where chat lives (state/chatPanel `chatPlaceLine`). */ chat: string; /** The agents inside a building with a bubble in flight (world/saidText): a chip beside the building, as the mark over it. */ marks: SaidMark[]; /** The Recent answers section (round 16, components/RecentAnswers). */ answers: readonly Answer[]; recentEmpty: string; targetOf: (answer: Answer) => AnswerTarget; onAnswer: (answer: Answer, target: AnswerTarget) => void; fallback: boolean; onClose: (() => void) | null; districts: DistrictPlace[]; onGo: ((place: Place) => void) | null; ref: Ref<HTMLElement> }) {
   const sections = new Map<string, TextLine[]>();
   for (const line of lines) sections.set(line.section, [...(sections.get(line.section) ?? []), line]);
   // The town first, then every building's sections under its district, then the rest (casts, zones, the town document).
@@ -1211,6 +1229,7 @@ function TextView({ lines, civic, rooms, connection, chat, marks, fallback, onCl
           </p>
         )}
         <p className="text-note text-chat">{chat}</p>
+        <RecentAnswers as="section" answers={answers} empty={recentEmpty} targetOf={targetOf} onOpen={onAnswer} />
         <WhereForm civic={civic} rooms={rooms} />
         {before.map((section) => block(section, 3))}
         {districts.map((d) => {

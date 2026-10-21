@@ -2264,6 +2264,132 @@ a.agent-ticket-link:focus-visible {
   max-height: none;
   border-radius: 0;
 }
+/* ── Recent answers (components/RecentAnswers, round 16) ─────
+   In the Chat panel a compact block above the frame (collapsible; the list scrolls past a few rows); in the text view a
+   section. A row: the time, the agent, the first line cut with an ellipsis (the full text in the title). */
+.chat-recent {
+  flex: none;
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-xs);
+}
+.chat-recent > summary {
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+.chat-recent > summary:focus-visible {
+  outline: 0;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+.chat-recent .recent-list {
+  max-height: 9.5rem;
+  overflow: auto;
+}
+.recent-note,
+.recent-empty {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-xs);
+}
+.recent-empty {
+  color: var(--text);
+}
+.recent-list {
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-1);
+}
+.recent-row {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-xs);
+  text-align: left;
+  cursor: pointer;
+}
+.recent-row:hover {
+  border-color: var(--border-hover);
+  background: var(--accent-soft, var(--surface-raised));
+}
+.recent-row:focus-visible {
+  outline: 0;
+  box-shadow: var(--focus-ring);
+}
+.recent-time {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.recent-name {
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+.recent-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recent-row .icon {
+  align-self: center;
+  color: var(--accent-text);
+}
+.recent-lead {
+  grid-column: 1 / -1;
+  color: var(--text-muted);
+  font-size: var(--text-2xs);
+}
+/* The text view's rows and a phone's: the time, the name and the icon on one line, the whole text under them (the text
+   view reads it in full; the phone within two lines). The text view's own list rule (a kind column) does not apply. */
+.text-recent {
+  margin-bottom: var(--space-4);
+}
+.text-recent li {
+  display: block;
+}
+.text-recent .recent-row {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  font-size: var(--text-sm);
+}
+.text-recent .recent-text {
+  grid-column: 1 / -1;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.text-recent .recent-row .icon {
+  grid-row: 1;
+  grid-column: 3;
+}
+@media (max-width: 600px) {
+  .recent-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .recent-row .icon {
+    grid-row: 1;
+    grid-column: 3;
+  }
+  .recent-text {
+    grid-column: 1 / -1;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow-wrap: anywhere;
+  }
+}
 /* The breadcrumb says who the camera follows, with its stop control. */
 .crumb-follow {
   display: inline-flex;

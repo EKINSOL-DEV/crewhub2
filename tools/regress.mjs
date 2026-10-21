@@ -68,8 +68,12 @@
            over its building from the town (named, beside the pin), the text view's says line with the place and the
            "answered" chip, the mark entering the building, the bubble there wrapped to at most three lines and clear
            of the name label, its accessible name without a double full stop, the mark gone with the bubble, and the
-           same on a phone in the dark theme. Needs nobody.
-           About two minutes.
+           same on a phone in the dark theme; and (round 16) the Recent answers list (components/RecentAnswers,
+           the bubbles' own store kept for the page's life): the Chat panel's block empty and signed out saying no
+           answer can arrive, g-man's answer still listed with its time after the bubble expired and the session was
+           forgotten with the row opening the Chat panel on g-man, the text view's section listing both answers
+           newest first and opening the panel from a row, and the block on the phone. Needs nobody.
+           About three minutes.
      rooms the three-room building (`?rooms=three`, whatever the viewer's Buildings setting): three room signs
            (Administration, The floor, Lead's office) and a rack sign with its count, the arrow keys between the three halls, the text view naming the
            racks and the desks with a package on each, the lead's office beacon, the agent card on a figure at a desk,
@@ -1003,6 +1007,21 @@ await group("chat", async () => {
     const off = await sessionText();
     ok("chat: Live with no session: the panel's Chat section says not signed in and offers the sign-in", before.connection?.session?.state === "signed-out" && /Not signed in/.test(off) && (await pg.getByLabel("Account id").count()) === 1 && (await pg.getByLabel("Password").getAttribute("type").catch(() => null)) === "password", `${before.connection?.session?.state}; ${off.slice(0, 120)}`);
     await shot(pg, "52-chat-signed-out");
+    // Round 16: the Chat panel's Recent answers list (components/RecentAnswers) before any answer, signed out: the empty
+    // state says no answer can arrive and where the sign-in is. The block is collapsed while empty; its summary opens it.
+    const recentOpen = async (p) => {
+      await p.locator(".chat-open").click();
+      await p.waitForSelector(".chat-recent", { timeout: 5000 }).catch(() => {});
+      if (!(await p.locator(".chat-recent").evaluate((el) => el.open).catch(() => false))) await p.locator(".chat-recent > summary").click().catch(() => {});
+      return (await p.locator(".chat-recent").innerText().catch(() => "")).replace(/\s+/g, " ");
+    };
+    await closePanel();
+    const emptyWords = await recentOpen(pg);
+    ok("chat (round 16): the Chat panel's Recent answers block, empty and signed out, says no answer can arrive and points to the sign-in", /^Recent answers The last 10 answers this page saw, newest first/.test(emptyWords) && /No answers can arrive: not signed in\. Sign in in the Connection panel's Chat section/.test(emptyWords) && (await pg.locator(".recent-row").count()) === 0, emptyWords.slice(0, 160));
+    await shot(pg, "64-chat-recent-empty");
+    await pg.keyboard.press("Escape");
+    await pg.waitForSelector(".chat-sheet", { state: "detached", timeout: 5000 }).catch(() => {});
+    await openPanel();
     await pg.getByLabel("Account id").fill(fake.person.id);
     await pg.getByLabel("Password").fill(fake.person.password);
     await pg.getByRole("button", { name: "Sign in" }).click();
@@ -1042,6 +1061,23 @@ await group("chat", async () => {
     ok("chat: Forget the session: the host signed out at loops (no session open there), the file is gone, the panel and health say signed out", after.connection?.session?.state === "signed-out" && fake.sessionsOpen() === 0 && !existsSync(file) && /Not signed in/.test(await sessionText()), `session ${after.connection?.session?.state}; open at the fake ${fake.sessionsOpen()}; file ${existsSync(file) ? "still there" : "gone"}`);
     await shot(pg, "56-chat-forgotten");
     await closePanel();
+    // Round 16: the bubble is gone (12 s) and the session forgotten, but the answer is not lost: the Recent answers block
+    // lists it with its time and name, newest first, and the row opens the Chat panel on that agent.
+    await pg.waitForSelector('.bubble.said[data-said-agent="g-man"]', { state: "detached", timeout: 20000 }).catch(() => {});
+    const bubbleExpired = (await pg.locator('.bubble.said[data-said-agent="g-man"]').count()) === 0;
+    const recentWords = await recentOpen(pg);
+    const row = pg.locator(".recent-row").first();
+    const rowAgent = await row.getAttribute("data-answer-agent").catch(() => null);
+    const rowName = (await row.locator(".recent-name").innerText().catch(() => "")).trim();
+    const rowTime = (await row.locator(".recent-time").innerText().catch(() => "")).trim();
+    const rowLabel = (await row.getAttribute("aria-label").catch(() => null)) ?? "";
+    await shot(pg, "65-chat-recent-after-bubble");
+    await row.click().catch(() => {});
+    await pg.waitForFunction(() => /g-man/.test(document.querySelector(".chat-sheet")?.getAttribute("data-agent") ?? ""), null, { timeout: 5000 }).catch(() => {});
+    const rowOpened = await pg.locator(".chat-sheet").getAttribute("data-agent").catch(() => null);
+    ok("chat (round 16): after the bubble expired (and the session was forgotten) the Recent answers block still lists g-man's answer with its time, and the row opens the Chat panel on g-man", bubbleExpired && /^Recent answers \(1\)/.test(recentWords) && (await pg.locator(".recent-row").count()) === 1 && rowAgent === "g-man" && rowName !== "" && /^\d\d:\d\d:\d\d$/.test(rowTime) && new RegExp(`^${rowName} at ${rowTime}: Busy and calm.*\\. Chat with ${rowName}$`).test(rowLabel) && !/\.\./.test(rowLabel) && rowOpened !== null && /g-man/.test(rowOpened), `bubble gone ${bubbleExpired}; ${recentWords.slice(0, 120)}; row ${rowAgent} "${rowName}" ${rowTime}; label ${rowLabel.slice(0, 100)}; opened ${rowOpened}`);
+    await pg.keyboard.press("Escape");
+    await pg.waitForSelector(".chat-sheet", { state: "detached", timeout: 5000 }).catch(() => {});
     // The Chat panel's frame is the one request that leaves the page's origin, by design (the loops web stub).
     problems.push(...own.filter((x) => !(x.kind === "external" && x.text.includes(web.url)) && !(x.kind === "console" && /status of (401|403)/.test(x.text))));
   } finally {
@@ -1155,6 +1191,21 @@ await group("chat", async () => {
     const markGone = (await pg2.locator('.chat-mark[data-said-mark="cr-lead"]').count()) === 0;
     const bubbleGone = (await pg2.locator('.bubble.said[data-said-agent="cr-lead"]').count()) === 0;
     ok("chat (key road, round 14): back in the town the mark stands while the bubble lives and goes when it expires", markBack && markGone && bubbleGone, `mark on return ${markBack}, gone ${markGone}, bubble gone ${bubbleGone}`);
+    // Round 16: the text view's Recent answers section lists both answers newest first (cr-lead's, then g-man's) with
+    // their times, after both bubbles went; its row opens the Chat panel on that agent.
+    await pg2.keyboard.press("t");
+    await pg2.waitForSelector("#text-view .text-recent", { timeout: 5000 }).catch(() => {});
+    const recentSection = (await pg2.locator("#text-view .text-recent").innerText().catch(() => "")).replace(/\s+/g, " ");
+    const recentAgents = await pg2.locator("#text-view .text-recent .recent-row").evaluateAll((els) => els.map((el) => el.getAttribute("data-answer-agent"))).catch(() => []);
+    await shot(pg2, "66-chat-recent-text-view");
+    await pg2.locator("#text-view .text-recent .recent-row").first().click().catch(() => {});
+    await pg2.waitForSelector(".chat-sheet", { timeout: 5000 }).catch(() => {});
+    const fromText = await pg2.locator(".chat-sheet").getAttribute("data-agent").catch(() => null);
+    ok("chat (key road, round 16): the text view's Recent answers section lists both answers, newest first, with their times, and its first row opens the Chat panel on cr-lead", /^Recent answers \(2\)/.test(recentSection) && recentAgents.length === 2 && recentAgents[0] === "cr-lead" && recentAgents[1] === "g-man" && /\d\d:\d\d:\d\d CR Lead \(demo reply\)/.test(recentSection) && /\d\d:\d\d:\d\d [^ ]+ Busy and calm/.test(recentSection) && fromText === "cr-lead", `${recentAgents.join(", ")}; ${recentSection.slice(0, 160)}; opened ${fromText}`);
+    await pg2.keyboard.press("Escape");
+    await pg2.waitForSelector(".chat-sheet", { state: "detached", timeout: 5000 }).catch(() => {});
+    await pg2.keyboard.press("Escape");
+    await pg2.waitForSelector("#text-view", { state: "detached", timeout: 5000 }).catch(() => {});
     // A phone, dark: the same answer; the bubble fits the width and stays clear of the label there too.
     const phoneCtx = await browser.newContext({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true, colorScheme: "dark" });
     const ph2 = await phoneCtx.newPage();
@@ -1172,6 +1223,15 @@ await group("chat", async () => {
       const phoneFacts = await bubbleFacts(phoneBubble);
       await shot(ph2, "63-chat-bubble-phone-dark");
       ok("chat (key road, round 14): on a phone in the dark theme the mark enters the building and the bubble fits the width, wraps within three lines and stays clear of the name label", phoneFacts !== null && phoneFacts.bubble.x >= 0 && phoneFacts.bubble.x + phoneFacts.bubble.width <= phoneFacts.viewport && phoneFacts.lines <= 3 && !phoneFacts.clipped && noOverlap(phoneFacts.bubble, phoneFacts.label), phoneFacts ? `${phoneFacts.lines} line(s), x ${Math.round(phoneFacts.bubble.x)} to ${Math.round(phoneFacts.bubble.x + phoneFacts.bubble.width)} of ${phoneFacts.viewport}, label ${phoneFacts.label ? "clear" : "none"}` : `no bubble on the phone; level ${await level(ph2)}`);
+      // Round 16: the Chat panel on the phone (the whole screen) lists the answer; the row fits the width.
+      await ph2.keyboard.press("Escape");
+      await ph2.waitForTimeout(300);
+      await ph2.locator(".chat-open").click().catch(() => {});
+      await ph2.waitForSelector(".chat-recent .recent-row", { timeout: 5000 }).catch(() => {});
+      const phoneRow = await ph2.locator(".chat-recent .recent-row").first().boundingBox().catch(() => null);
+      const phoneRows = await ph2.locator(".chat-recent .recent-row").evaluateAll((els) => els.map((el) => el.getAttribute("data-answer-agent"))).catch(() => []);
+      await shot(ph2, "67-chat-recent-phone-dark");
+      ok("chat (key road, round 16): on the phone the Chat panel's Recent answers block lists cr-lead's answer in a row that fits the width", phoneRows.length === 1 && phoneRows[0] === "cr-lead" && phoneRow !== null && phoneRow.x >= 0 && phoneRow.x + phoneRow.width <= 375, `${phoneRows.join(", ")}; row ${phoneRow ? `${Math.round(phoneRow.x)} to ${Math.round(phoneRow.x + phoneRow.width)}` : "none"}`);
     } finally {
       await phoneCtx.close().catch(() => {});
     }
