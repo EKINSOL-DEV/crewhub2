@@ -100,7 +100,27 @@ export function chatWords(session: Pick<HostSessionState, "state" | "name"> | nu
   }
 }
 
-/** Both sentences in one line, for the Chat panel's small print and the text view. */
+/**
+ * The Chat panel's one line to act on (round 17): the one thing the person must do on this road, under "crewhub-loops'
+ * own chat, framed here". Typing always needs loops' own sign-in in the frame; the bubbles' side is one clause by the
+ * road. The whole story (`chatWordsLine`) stays behind the panel's "About this chat" disclosure, in the Connection
+ * panel and in the text view.
+ */
+export function chatGlance(session: Pick<HostSessionState, "state" | "name"> | null | undefined): string {
+  if (!session) return "Sign in to crewhub-loops below to type; this host shows no bubbles.";
+  switch (session.state) {
+    case "key":
+      return "Sign in to crewhub-loops below to type; the answers come as bubbles without it.";
+    case "signed-in":
+      return `Sign in to crewhub-loops below to type; the answers come as bubbles${session.name ? ` (signed in as ${session.name})` : ""}.`;
+    case "expired":
+      return "Sign in to crewhub-loops below to type; for bubbles, sign in again in the Connection panel's Chat section.";
+    default:
+      return "Sign in to crewhub-loops below to type; for bubbles, sign in in the Connection panel's Chat section.";
+  }
+}
+
+/** Both sentences in one line, for the Chat panel's disclosure, the Connection panel and the text view. */
 export function chatWordsLine(session: Pick<HostSessionState, "state" | "name"> | null | undefined): string {
   const words = chatWords(session);
   return `${words.bubbles} ${words.typing}`;

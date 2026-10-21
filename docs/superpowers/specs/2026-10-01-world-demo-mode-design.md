@@ -1119,6 +1119,20 @@ own dock). The regress `chat` group proves the empty state signed out, the answe
 the session with its row opening the panel, the text view's section with both answers newest first, and the block on a
 phone.
 
+**Round 17 (the Chat panel in one glance; the demo's dock feeds Recent answers).** The panel opens on two short lines
+above the list: what this is ("crewhub-loops' own chat, framed here.", with the agent's name from a card) and the one
+thing to do on this road (`chatGlance` in `state/chatPanel.ts`, one story with `chatWords`: "Sign in to crewhub-loops
+below to type; the answers come as bubbles without it" on the key road; "… the answers come as bubbles (signed in as
+<name>)" signed in; "… for bubbles, sign in in the Connection panel's Chat section" signed out, "sign in again" expired;
+"this host shows no bubbles" for a host from before). Everything else (the dock hint and the older-loops line, the road's
+whole story `chatWordsLine`) sits behind an "About this chat" disclosure (`<details>`, its summary a focusable control
+Enter opens; the words stay in full in the Connection panel and the text view). The footer's link to the app stays. In
+pure demo mode the scripted replies of the demo's own dock now feed the same `said` store (`state/demoSaid.ts`: the
+reply's `dm.created` from the demo source, read back from the thread, the first line cut as the host cuts it), so the demo
+shows the bubble over the agent, the text view's "says" line, the chat mark from the town and the Recent answers row, a
+row opening the agent's card; the demo's empty state says to write to an agent in the dock. The bubble in the demo fell
+out of the shared store and was kept.
+
 ### Bubbles themselves
 
 The world's speech bubbles exist in demo mode. A message from an agent to the person becomes a bubble over the

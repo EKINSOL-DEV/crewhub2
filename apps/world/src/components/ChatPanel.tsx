@@ -8,12 +8,14 @@
    there, the fallback for a frame that never loads (the day loops refuses framing). A sheet at the right of the world;
    the whole screen on a phone. Not modal: Escape (with the focus outside the frame) and the close button close it, and
    the focus returns to the opener (App). Above the frame, since round 16, the Recent answers list (components/RecentAnswers):
-   a missed bubble is not lost, and a row opens that agent's chat here. */
+   a missed bubble is not lost, and a row opens that agent's chat here. In one glance (round 17): two short lines above the
+   list, what this is and the one thing to do on this road (`chatGlance`); the whole story (the dock, the road's words,
+   `chatWordsLine`) behind an "About this chat" disclosure, a details element the keyboard and a screen reader reach. */
 import { ExternalLink, X } from "lucide-react";
 import { useEffect, useId, useRef } from "react";
 import type { HostHealth } from "@crewhub/loops-client";
 import { useT } from "../i18n";
-import { CHAT_FRAME_ALLOW, CHAT_FRAME_SANDBOX, chatFrameUrl, chatWordsLine } from "../state/chatPanel";
+import { CHAT_FRAME_ALLOW, CHAT_FRAME_SANDBOX, chatFrameUrl, chatGlance, chatWordsLine } from "../state/chatPanel";
 import type { AnswerTarget } from "../state/recentAnswers";
 import type { Answer } from "../state/said";
 import { loopsWebUrl } from "../state/source";
@@ -55,9 +57,14 @@ export function ChatPanel({ agent, health, full, answers, recentEmpty, targetOf,
       />
       <Card.Body className="chat-sheet-body">
         <p className="chat-sheet-lead" id={`${id}-lead`}>
-          {agent ? t("world.chat.panel.leadWith", { name: agent.name }) : t("world.chat.panel.lead")}
+          <span className="chat-sheet-what">{agent ? t("world.chat.panel.whatWith", { name: agent.name }) : t("world.chat.panel.what")}</span>
+          <span className="chat-sheet-todo">{chatGlance(health?.connection?.session)}</span>
         </p>
-        <p className="sign-muted chat-sheet-needs">{chatWordsLine(health?.connection?.session)}</p>
+        <details className="chat-about">
+          <summary>{t("world.chat.panel.about")}</summary>
+          <p className="chat-sheet-dock">{agent ? t("world.chat.panel.leadWith", { name: agent.name }) : t("world.chat.panel.lead")}</p>
+          <p className="sign-muted chat-sheet-needs">{chatWordsLine(health?.connection?.session)}</p>
+        </details>
         <RecentAnswers as="details" answers={answers} empty={recentEmpty} targetOf={targetOf} onOpen={onAnswer} />
         <iframe className="chat-frame" src={src} title={t("world.chat.panel.frame")} sandbox={CHAT_FRAME_SANDBOX.join(" ")} allow={CHAT_FRAME_ALLOW} referrerPolicy="strict-origin-when-cross-origin" />
       </Card.Body>

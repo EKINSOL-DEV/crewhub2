@@ -30,8 +30,8 @@ test("recent answers: the last 10 lines stay newest first for the page's life, p
   assert.deepEqual(getRecentAnswers(), []);
 });
 
-test("recent answers: the empty state says per road whether an answer can arrive, and the demo's own dock", () => {
-  assert.match(recentEmptyWords("demo", null), /^No answers here: the demo's chat is its own scripted dock/);
+test("recent answers: the empty state says per road whether an answer can arrive, and the demo's own dock since round 17", () => {
+  assert.match(recentEmptyWords("demo", null), /^No answers yet: write to an agent in the demo's chat dock .* its scripted reply shows as a bubble and stays here/);
   assert.match(recentEmptyWords("live", null), /^No answers can arrive: this host keeps no session/);
   assert.match(recentEmptyWords("live", { state: "key" }), /^No answers yet: this crewhub-loops lets the world's key read the chat/);
   assert.match(recentEmptyWords("live", { state: "signed-in", name: "Nicky" }), /^No answers yet: signed in as Nicky/);

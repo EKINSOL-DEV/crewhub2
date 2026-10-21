@@ -74,7 +74,9 @@
            the bubbles' own store kept for the page's life): the Chat panel's block empty and signed out saying no
            answer can arrive, g-man's answer still listed with its time after the bubble expired and the session was
            forgotten with the row opening the Chat panel on g-man, the text view's section listing both answers
-           newest first and opening the panel from a row, and the block on the phone. Needs nobody.
+           newest first and opening the panel from a row, and the block on the phone; and (round 17) the panel in one
+           glance: two short lines (crewhub-loops' own chat; the one thing to do on this road) above Recent answers, the
+           whole story behind About this chat, signed out and on the key road. Needs nobody.
            About three minutes.
      rooms the three-room building (`?rooms=three`, whatever the viewer's Buildings setting): three room signs
            (Administration, The floor, Lead's office) and a rack sign with its count, the arrow keys between the three halls, the text view naming the
@@ -592,6 +594,30 @@ await group("demo", async () => {
   const ended = await text(p);
   ok("after the comment the snapshot carries no quiet for CR-17", !/CR-17 has been quiet/.test(ended));
   await p.context().close();
+  // 14. Round 17: the demo's dock answers feed the same store as the live bubbles: a message to an agent in the dock, its
+  // scripted reply as a bubble over the agent, the text view's Recent answers row, and that row opening the agent's card.
+  p = await open();
+  await town(p, 2000);
+  await p.locator("aside.dock button").first().click().catch(() => {});
+  await p.waitForTimeout(800);
+  await p.locator("textarea").first().fill("Is the reading nook done? (regress, round 17)");
+  await p.getByRole("button", { name: "Send" }).click().catch(() => {});
+  const demoBubble = p.locator(".bubble.said");
+  await demoBubble.first().waitFor({ timeout: 20000 }).catch(() => {});
+  const demoBubbleAgent = await demoBubble.first().getAttribute("data-said-agent").catch(() => null);
+  const demoBubbleText = (await demoBubble.first().innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+  await p.keyboard.press("Escape");
+  await p.waitForTimeout(300);
+  await p.keyboard.press("t");
+  await p.waitForSelector("#text-view .text-recent", { timeout: 5000 }).catch(() => {});
+  const demoRecent = (await p.locator("#text-view .text-recent").innerText().catch(() => "")).replace(/\s+/g, " ");
+  const demoRows = await p.locator("#text-view .text-recent .recent-row").evaluateAll((els) => els.map((el) => ({ agent: el.getAttribute("data-answer-agent"), label: el.getAttribute("aria-label") }))).catch(() => []);
+  await shot(p, "19-demo-recent-answers");
+  await p.locator("#text-view .text-recent .recent-row").first().click().catch(() => {});
+  await p.locator(".agent-card").first().waitFor({ timeout: 3000 }).catch(() => {});
+  const demoCard = (await p.locator(".agent-card").first().innerText().catch(() => "")).replace(/\s+/g, " ");
+  ok("demo (round 17): the dock's scripted reply shows as a bubble over the agent, the text view's Recent answers lists it with the demo reply's words, and its row opens that agent's card", demoBubbleAgent !== null && /\(demo reply\)/.test(demoBubbleText) && /^Recent answers \(1\)/.test(demoRecent) && demoRows.length === 1 && demoRows[0].agent === demoBubbleAgent && /\(demo reply\)/.test(demoRows[0].label ?? "") && /Open .*'s card$/.test(demoRows[0].label ?? "") && demoCard !== "", `bubble over ${demoBubbleAgent}: "${demoBubbleText.slice(0, 60)}"; rows ${JSON.stringify(demoRows).slice(0, 160)}; card: ${demoCard.slice(0, 60) || "none"}`);
+  await p.context().close();
 });
 
 await group("demo", async () => {
@@ -783,9 +809,20 @@ await group("live", async () => {
     await pg.frameLocator(".chat-sheet iframe.chat-frame").locator("[data-stub=loops-web]").waitFor({ timeout: 10000 }).catch(() => {});
     const framed = web.requests.filter((r) => r.dest === "iframe");
     ok("live: the Chat chip opens the Chat panel, which frames the loops web the host names", src === `${web.url}/` && framed.length > 0, `src ${src}; ${web.requests.length} requests to the stub, ${framed.length} as a frame (Sec-Fetch-Site ${framed[0]?.site ?? "none"})`);
+    // Round 17: in one glance, two short lines (what this is, the one thing to do on this road) above Recent answers; the
+    // whole story behind "About this chat", a details element the keyboard opens (Tab to its summary, Enter). This group's
+    // host keeps no session store, so its health carries no session and the road's line is a host from before's: "this
+    // host shows no bubbles" (the chat group checks the signed-out and key roads).
+    const glance = async (p) => p.locator(".chat-sheet-lead").evaluate((el) => { const lh = parseFloat(getComputedStyle(el).lineHeight) || 20; const lines = (sel) => Math.round(el.querySelector(sel).getBoundingClientRect().height / lh); return { what: el.querySelector(".chat-sheet-what")?.textContent ?? "", todo: el.querySelector(".chat-sheet-todo")?.textContent ?? "", whatLines: lines(".chat-sheet-what"), todoLines: lines(".chat-sheet-todo"), aboveList: Math.round(el.closest(".card-body").querySelector(".chat-recent").getBoundingClientRect().top - el.getBoundingClientRect().top), aboutOpen: el.closest(".card-body").querySelector(".chat-about")?.open ?? null }; }).catch(() => null);
+    const g = await glance(pg);
+    const closedText = (await pg.locator(".chat-sheet").innerText().catch(() => "")).replace(/\s+/g, " ");
+    await pg.locator(".chat-about > summary").focus().catch(() => {});
+    await pg.keyboard.press("Enter");
+    await pg.waitForTimeout(200);
     const panelText = (await pg.locator(".chat-sheet").innerText().catch(() => "")).replace(/\s+/g, " ");
+    const aboutOpen = await pg.locator(".chat-about").evaluate((el) => el.open).catch(() => null);
     const appHref = await pg.locator(".chat-sheet .chat-open-app").getAttribute("href").catch(() => null);
-    ok("live: the panel says it is crewhub-loops' own chat, what it needs, and links to the app", /crewhub-loops' own chat/.test(panelText) && /signed in to crewhub-loops as a person/.test(panelText) && /no password/.test(panelText) && appHref === web.url, `${appHref}; ${panelText.slice(0, 140)}`);
+    ok("live (round 17): the panel reads in one glance: crewhub-loops' own chat and the one thing to do on this road (a host without a session store: this host shows no bubbles), two short lines above Recent answers; the whole story (what typing needs, no password) behind About this chat, which Enter on its summary opens; the link to the app", g !== null && /^crewhub-loops' own chat, framed here\.$/.test(g.what) && /^Sign in to crewhub-loops below to type; this host shows no bubbles\.$/.test(g.todo) && g.whatLines === 1 && g.todoLines <= 2 && g.aboutOpen === false && !/signed in to crewhub-loops as a person/.test(closedText) && aboutOpen === true && /signed in to crewhub-loops as a person/.test(panelText) && /no password/.test(panelText) && /chat head in loops' dock/.test(panelText) && appHref === web.url, g ? `"${g.what}" / "${g.todo}" (${g.whatLines}+${g.todoLines} lines, the list ${g.aboveList} px below); about open before ${g.aboutOpen}, after Enter ${aboutOpen}; ${appHref}` : "no lead");
     const sandbox = await frame.getAttribute("sandbox").catch(() => null);
     const allow = await frame.getAttribute("allow").catch(() => null);
     ok("live: the frame's sandbox is no wider than the chat needs", sandbox === "allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads" && allow === "clipboard-write", `sandbox "${sandbox}", allow "${allow}"`);
@@ -1037,6 +1074,14 @@ await group("chat", async () => {
     const emptyWords = await recentOpen(pg);
     ok("chat (round 16): the Chat panel's Recent answers block, empty and signed out, says no answer can arrive and points to the sign-in", /^Recent answers The last 10 answers this page saw, newest first/.test(emptyWords) && /No answers can arrive: not signed in\. Sign in in the Connection panel's Chat section/.test(emptyWords) && (await pg.locator(".recent-row").count()) === 0, emptyWords.slice(0, 160));
     await shot(pg, "64-chat-recent-empty");
+    // Round 17: the glance on the session road, signed out, and the words behind About this chat (the same story as the
+    // Connection panel's Chat section).
+    const glanceOff = await pg.locator(".chat-sheet-lead").evaluate((el) => ({ what: el.querySelector(".chat-sheet-what")?.textContent ?? "", todo: el.querySelector(".chat-sheet-todo")?.textContent ?? "", aboutOpen: el.closest(".card-body").querySelector(".chat-about")?.open ?? null })).catch(() => null);
+    await pg.locator(".chat-about > summary").click().catch(() => {});
+    await pg.waitForTimeout(200);
+    const aboutOff = (await pg.locator(".chat-about").innerText().catch(() => "")).replace(/\s+/g, " ");
+    ok("chat (round 17): signed out, the panel's glance says sign in below to type and, for bubbles, the Connection panel's Chat section; About this chat (closed at first) holds the road's whole story", glanceOff !== null && glanceOff.what === "crewhub-loops' own chat, framed here." && glanceOff.todo === "Sign in to crewhub-loops below to type; for bubbles, sign in in the Connection panel's Chat section." && glanceOff.aboutOpen === false && /Not signed in: no bubbles\. Sign in in the Connection panel's Chat section/.test(aboutOff) && /Typing in the framed chat is crewhub-loops' own/.test(aboutOff), glanceOff ? `"${glanceOff.todo}"; about: ${aboutOff.slice(0, 120)}` : "no lead");
+    await shot(pg, "64b-chat-glance-about");
     await pg.keyboard.press("Escape");
     await pg.waitForSelector(".chat-sheet", { state: "detached", timeout: 5000 }).catch(() => {});
     await openPanel();
@@ -1132,6 +1177,14 @@ await group("chat", async () => {
     ok("chat (key road): health says session key, the panel's Chat section says a sign-in is not needed for the bubbles and shows no sign-in form, the host's log says the key reads the chat", health2.connection?.session?.state === "key" && /A sign-in is not needed for the bubbles: this crewhub-loops lets the world's key read the chat/.test(words) && (await pg2.getByLabel("Password").count()) === 0 && lines2.some((l) => /the key reads the chat on this crewhub-loops/.test(l)), `${health2.connection?.session?.state}; ${words.slice(0, 100)}`);
     await shot(pg2, "57-chat-key-not-needed");
     await pg2.keyboard.press("Escape");
+    // Round 17: the glance on the key road says the bubbles need no sign-in, in one clause.
+    await pg2.locator(".chat-open").click();
+    await pg2.waitForSelector(".chat-sheet-lead", { timeout: 5000 }).catch(() => {});
+    const glanceKey = await pg2.locator(".chat-sheet-lead").evaluate((el) => ({ what: el.querySelector(".chat-sheet-what")?.textContent ?? "", todo: el.querySelector(".chat-sheet-todo")?.textContent ?? "", aboutOpen: el.closest(".card-body").querySelector(".chat-about")?.open ?? null })).catch(() => null);
+    ok("chat (key road, round 17): the panel's glance says sign in below to type and that the answers come as bubbles without it, About this chat closed", glanceKey !== null && glanceKey.what === "crewhub-loops' own chat, framed here." && glanceKey.todo === "Sign in to crewhub-loops below to type; the answers come as bubbles without it." && glanceKey.aboutOpen === false, glanceKey ? `"${glanceKey.todo}"` : "no lead");
+    await shot(pg2, "57b-chat-key-glance");
+    await pg2.keyboard.press("Escape");
+    await pg2.waitForSelector(".chat-sheet", { state: "detached", timeout: 5000 }).catch(() => {});
     const bubble2 = pg2.locator('.bubble.said[data-said-agent="g-man"]');
     await bubble2.waitFor({ timeout: 90000 }).catch(() => {});
     const said2 = (await bubble2.innerText().catch(() => "")).replace(/\s+/g, " ").trim();
