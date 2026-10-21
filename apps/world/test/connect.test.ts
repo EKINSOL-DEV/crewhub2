@@ -28,10 +28,30 @@ test("screen: a host from before the smooth connection only knows pairing", () =
   assert.equal(connectScreen({ source: "live", health: beforePairing }), null);
 });
 
-test("screen: once the town runs, an unpaired source sends the person back to the Pair screen and a refused key to the rejected screen; the rest is the chip's story", () => {
+test("screen: once the town runs, an unpaired source sends the person back to the Pair screen; the host's key state decides between the Connect screen and the rejected screen; the rest is the chip's story", () => {
+  const health = (key: "none" | "checking" | "rejected" | "ok" | "unchecked") => ({ connection: { discovery: { state: "found" as const }, key: { state: key }, stream: { state: "idle" as const, reconnects: 0 } } });
   assert.equal(liveScreen("unpaired"), "pair");
-  assert.equal(liveScreen("unauthorized"), "rejected", "the key revoked while Live");
-  for (const state of ["connecting", "live", "catching-up", "stale", "loops-down", "stream-busy"] as const) assert.equal(liveScreen(state), null, state);
+  assert.equal(liveScreen("unpaired", health("none")), "pair");
+  // The key revoked while Live: loops refused it, the host marked it rejected.
+  assert.equal(liveScreen("unauthorized", health("rejected")), "rejected", "the key revoked while Live");
+  assert.equal(liveScreen("unauthorized"), "rejected", "a host from before the smooth connection: unauthorized is rejected");
+  assert.equal(liveScreen("unauthorized", {}), "rejected", "an older host's health");
+  // Forget this key in another tab: the host says "unauthorized" to the streams it holds (its legacy word for no key) and
+  // 503 no_key to a stream that reconnects (loops down to the source); the key is none, so the Connect screen, never rejected.
+  assert.equal(liveScreen("unauthorized", health("none")), "connect", "forgotten elsewhere, the stream's word");
+  assert.equal(liveScreen("loops-down", health("none")), "connect", "forgotten elsewhere, the reconnected stream's 503");
+  assert.equal(liveScreen("unauthorized", health("checking")), "checking", "a key pasted elsewhere is being checked");
+  assert.equal(liveScreen("loops-down", health("checking")), "checking");
+  // A health from before the change still says ok: no screen yet (the chip says it) until the next read.
+  assert.equal(liveScreen("unauthorized", health("ok")), null);
+  assert.equal(liveScreen("unauthorized", health("unchecked")), null);
+  // Loops down with a key that stands: the chip's story over the last known town (round 7's ops road).
+  assert.equal(liveScreen("loops-down", health("ok")), null);
+  assert.equal(liveScreen("loops-down"), null);
+  for (const state of ["connecting", "live", "catching-up", "stale", "stream-busy"] as const) {
+    assert.equal(liveScreen(state), null, state);
+    assert.equal(liveScreen(state, health("none")), null, `${state} with a health that lags`);
+  }
   assert.equal(liveScreen(null), null);
 });
 

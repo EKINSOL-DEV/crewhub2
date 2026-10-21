@@ -4,7 +4,7 @@
      node tools/regress.mjs --port <port> [--groups connect,walk,demo,live,ops,rooms,real] [--host-port 5180] [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--cpu-throttle <rate>] [--tag pass] [--out <dir>] [--swiftshader]
 
    Groups (--groups, default all seven, in this order; connect first, the connection being the first priority):
-     connect the connect flow (spec addendum "a smooth connection"), 21 checks in two halves, both behind your Vite
+     connect the connect flow (spec addendum "a smooth connection"), 23 checks in two halves, both behind your Vite
            (started with CREWHUB_WORLD_PORT=<host-port>; apps/world/dist is never looked at here, whatever the live
            group does with it). Against the stub host of lib/connectStub.mjs, on --host-port, always: one page meets
            every screen in order (No crewhub-loops found, Pair this browser naming `npm run world`, Connect with a
@@ -933,7 +933,9 @@ await group("connect", async () => {
   const mark = (pg) => pg.evaluate(() => ((globalThis.__connectMarker = "set"), undefined));
   const marked = (pg) => pg.evaluate(() => globalThis.__connectMarker ?? null).catch(() => null);
   /** The browser logs every 4xx a fetch meets: the refused key's 403 and the unpaired tab's 401 are what they are meant to be. */
-  const expected = (x) => x.kind === "console" && /status of (401|403)/.test(x.text);
+  // The browser logs every 4xx and 5xx a fetch meets: the refused key's 403, the unpaired tab's 401, and the 503 no_key the
+  // other tab's stream meets when it reconnects after a Forget elsewhere (the stub ends the streams; a real host keeps them).
+  const expected = (x) => x.kind === "console" && (/status of (401|403)/.test(x.text) || (/\[connect stub other tab\]/.test(x.text) && /status of 503/.test(x.text)));
   const own = [];
   const openConnect = async (label) => {
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
@@ -996,6 +998,26 @@ await group("connect", async () => {
       await pg.waitForTimeout(200);
       const closed = (await pg.locator(".connection-sheet").count()) === 0 && (await pg.evaluate(() => document.activeElement?.classList.contains("connection-chip")).catch(() => false)) === true;
       ok("connect: the panel names where loops was found, the key and the stream; Escape hands the focus back to the chip", /found/.test(facts) && /crewhub-world/.test(facts) && /socket/.test(facts) && /streaming/.test(facts) && inPanel && closed, facts.slice(0, 140));
+      // Forget this key in one tab (round 10, r10-sheet): the other live tabs lose the host's key, not their standing with
+      // loops: they show the Connect screen (the host's key is none), never "crewhub-loops rejected the key", and without a
+      // reload. The forgetting tab reloads onto the Connect screen itself.
+      const other = await pg.context().newPage();
+      watch(other, origin, own, "connect stub other tab");
+      await other.goto(BASE);
+      const otherLive = await until(other, "live", 30000);
+      await mark(other);
+      await chip(pg).click();
+      await pg.getByRole("button", { name: "Forget this key" }).click();
+      await pg.getByRole("button", { name: "Forget", exact: true }).click();
+      const otherConnect = await screen(other, "connect", 15000);
+      const otherRejected = (await other.locator('.connect-page[data-screen="rejected"]').count()) > 0;
+      ok("connect: Forget this key in one tab sends the other live tab to the Connect screen (the host has no key), never to rejected, without a reload", otherLive === "live" && otherConnect && !otherRejected && stub.state === "connect" && (await marked(other)) === "set", `other: live ${otherLive}, connect ${otherConnect}, rejected ${otherRejected}; stub ${stub.state}`);
+      await shot(other, "39b-connect-other-tab-after-forget");
+      await other.close();
+      await stub.setState("connected");
+      const relive = await until(pg, "live", 30000);
+      ok("connect: after the forget, a key again brings the forgetting tab's town back", relive === "live", relive);
+      await mark(pg);
       // A host that no longer knows this browser (a restart without its secret): the tab shows Pair this browser, not
       // Stale, and comes back by itself once it is paired again.
       await stub.setState("unpaired");

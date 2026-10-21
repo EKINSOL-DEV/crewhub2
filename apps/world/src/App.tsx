@@ -9,7 +9,7 @@ import { SourceSettings } from "./components/SourceSettings";
 import { ConnectionChip, connectionLine, connectionWord } from "./components/ConnectionChip";
 import { ConnectionPanel } from "./components/ConnectionPanel";
 import { FirstSnapshot } from "./components/FirstSnapshot";
-import { ConnectPage } from "./components/ConnectPage";
+import { CONNECT_POLL_MS, ConnectPage } from "./components/ConnectPage";
 import { liveScreen } from "./state/connect";
 import { JumpList } from "./components/JumpList";
 import { IconSprite } from "./components/Icon";
@@ -34,7 +34,7 @@ import type { TownLayer } from "./world/propLayer";
 import { scenarioChoices, SOURCE, useConnection, useWorld, worldRuntime } from "./state/world";
 import { loopsWebUrl } from "./state/source";
 import { translate } from "./i18n";
-import type { ConnectionState, HostHealth } from "@crewhub/loops-client";
+import { probeHost, type ConnectionState, type HostHealth } from "@crewhub/loops-client";
 import { buildingTemplate } from "./world/buildingTemplate";
 import type { Pick } from "./world/buildingView";
 import { firstRoom, roomNeighbor } from "./world/interiorLayout";
@@ -644,7 +644,25 @@ function World() {
   // Unpaired (state/connect.ts `liveScreen`): the host answered 401 not_paired after the town was up (a host restarted
   // without its pairing secret, or the cookie gone). The Pair screen stands in for the town until the source, which keeps
   // asking every couple of seconds, is live again with the new link's cookie; then the town comes back by itself.
-  const screen = demo ? null : liveScreen(connection);
+  // Unauthorized or loops down: the host's health says what the key is (none after a Forget in another tab: the Connect
+  // screen; rejected: the rejected screen), so while the source says so and no screen shows yet, the health is read again
+  // every few seconds (the Connect page reads it itself once it shows).
+  const screen = demo ? null : liveScreen(connection, health);
+  const degraded = !demo && (connection === "unauthorized" || connection === "loops-down") && screen === null;
+  useEffect(() => {
+    if (!degraded) return;
+    let live = true;
+    const ask = async () => {
+      const fresh = await probeHost("", 1500);
+      if (live && fresh !== null) setHealth(fresh);
+    };
+    void ask();
+    const timer = setInterval(() => void ask(), CONNECT_POLL_MS);
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, [degraded]);
   if (screen !== null) return <ConnectPage screen={screen} health={health} onHealth={setHealth} />;
 
   return (
