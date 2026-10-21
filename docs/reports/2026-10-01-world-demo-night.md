@@ -1033,6 +1033,28 @@ Round 5 ends at `7da78dc`, with 734 tests and the browser pass at 100 of 100.
 - **A proposal, unmerged**: `task/r5-testtimeout` adds `--test-timeout=120000` to `npm test`, so a hung test fails by
   name. Nicky decides.
 
+## Round 6: the last safe work (morning of 2026-10-21)
+
+Round 6 ends at `5bdd17d`, with 734 tests and the browser pass at 100 of 100. It closes the night.
+
+- **Import-time work named by a whole-stack profile** (r6-paint, r6-paint2).
+  - The director's own navigation graph was built when its module loaded, about 14 ms, although the director is off by
+    default. It is now built on first use, and the director, switched on, makes the same plans.
+  - The scene's navigation graph starts empty, and the town rooms come with the first sync. Nothing reads them before
+    it, as the walkers-landing checks show, also under CPU throttling. The town is identical to the pixel.
+  - `tools/profile.mjs` keeps the profiler, so the next cut can be found the same way.
+- **The sixth rehearsal** (r6-friction) held every timing:
+  - the Connect screen's first paint at 72 ms;
+  - paste to Live at 0.83 s;
+  - a restart back at Live in 1.3 s.
+
+  It fixed a need pin that said its count twice.
+- **Rack tags glide** (r6-tags). A label's offset from its anchor eases over about 300 ms, so a tag no longer jumps
+  when a neighbour's package is carried off. Figures' pills, a moving camera and reduced motion snap.
+
+What is left on the first paint is worth a few milliseconds per item, or touches the style package (the Greenhouse
+models' object count, Nicky's call), so the night's work stops here.
+
 ## Challenges with docs/integrators
 
 Read at crewhub-loops `a1bed0f`. Each item names the document, what was unclear, contradictory, missing or marked
