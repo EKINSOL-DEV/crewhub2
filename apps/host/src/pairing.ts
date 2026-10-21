@@ -113,7 +113,7 @@ export function pairCookieHeader(value: string, secure: boolean): string {
 export const PAIR_REFUSED_HTML = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>CrewHub World: link expired</title>
 <style>body{font-family:system-ui,sans-serif;margin:3rem auto;max-width:36rem;padding:0 1rem;line-height:1.5}code{padding:.1em .3em;border-radius:.3em;background:rgba(127,127,127,.18)}</style></head>
-<body><h1>This link has expired or was already used.</h1><p>Run <code>npm run host -- open</code> for a new one.</p></body></html>
+<body><h1>This link has expired or was already used.</h1><p>Run <code>npm run world</code> for a new one.</p></body></html>
 `;
 
 /**

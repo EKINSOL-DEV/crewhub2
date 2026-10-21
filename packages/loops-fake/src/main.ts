@@ -1,5 +1,5 @@
 /**
- * `npm run loops:fake -- --port 8091 [--scenario small-team] [--speed 1] [--builder-key]`: a fake crewhub-loops on
+ * `npm run loops:fake -- --port 8391 [--scenario small-team] [--speed 1] [--builder-key]`: a fake crewhub-loops on
  * 127.0.0.1 for running the world in live mode before the install. `--builder-key` makes the key behave like loops'
  * builder key (tickets, comments and `auth/me` only; everything else 403), so the host shows Unauthorized. The key lives in `tools/out/loops-fake.key` (mode 0600; reused
  * when it exists, so a restarted fake keeps the host's key valid) and is never printed.
@@ -22,7 +22,7 @@ function option(name: string): string | undefined {
 }
 
 const builderKey = process.argv.includes("--builder-key");
-const port = Number(option("port") ?? "8091");
+const port = Number(option("port") ?? "8391"); // never 8091 by default: that is the Mac app's port, and the host's discovery would take a fake there for the app
 if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error("--port must be a port number");
 const scenario = parseScenarioId(option("scenario"));
 const speed = Number(option("speed") ?? "1");

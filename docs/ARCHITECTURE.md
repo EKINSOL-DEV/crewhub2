@@ -82,8 +82,11 @@ One Node process, no dependency beyond Node, loopback only. Its parts, each a fi
   else the stored key `<config dir>/loops-key`, else the old default file; none: the host
   starts keyless. Every key is checked with `GET /api/auth/me` and one board read; a probe
   key, a Read-only bot, the builder key and an unknown key are rejected with the reason in
-  the loops web's words. The stored key is written whole, 0700/0600, never logged or
-  echoed (tests grep every response and log line).
+  the loops web's words. A verdict on the key needs a definite 401 or 403 from a loops
+  whose health answers; a timeout, a refused connection or a 5xx is `down` and the key
+  stays `unchecked` or `ok`. A rejected stored key is kept with its reason until a person
+  pastes another or forgets it. The stored key is written whole, 0700/0600, never logged
+  or echoed (tests grep every response and log line).
 - **The connect routes** (`host.ts`): `POST /world-api/connect {key}` from a paired browser
   on an allowed origin checks the key, stores it and switches the host to it without a
   restart (the old upstream stream stopped first, every tab reset); `DELETE` forgets it.
@@ -97,7 +100,10 @@ One Node process, no dependency beyond Node, loopback only. Its parts, each a fi
   first, then projects, boards, principals, agents, team, watchdog, milestones and
   releases, the archived projects from the event log), paged lists followed to the end,
   the reads in parallel under a cap of 6 in the projects' order, timed and counted; the
-  host's own principal is named as the `observer` so the world does not draw it.
+  host's own principal is named as the `observer` so the world does not draw it. The
+  archived slugs it learnt are remembered in `<config dir>/archived.json` (0600), so a
+  loops that will not read its log from the start still shows its closed buildings on the
+  next start; health's `connection.archived` says where the list came from.
 - **The stream** (`stream.ts`, `loops.ts`, `transport.ts`): one upstream `GET /api/events/stream`
   per host process, whatever the tabs do, opened from `from=tail` with the sealed cursor or
   `after=`, reconnected after the 300 s end with 1.5 to 3 s of jitter, backoff on errors,
@@ -127,7 +133,8 @@ In live mode the page shows one screen instead of the town until the connection 
 found** (what the host looked for; it keeps looking), **Pair this browser** (the command
 and a "Use the demo" button), **Connect** (the loops dialog's steps word for word and a key
 field that keeps nothing; the key goes to `POST /world-api/connect` and nowhere else),
-**Checking**, **Key rejected** (loops' reason, paste again) and **Loops down**. The gate
+**Checking**, **Key rejected** (loops' reason, paste again or "Forget this key") and
+**Loops down** (which says when the key is not checked yet). The gate
 polls health every 2.5 s and mounts the world without a reload the moment the screen is
 gone; a first-snapshot line then says how far the host's assembly is. Once the town runs,
 the chip tells the stream's story (Connecting, Live, Catching up, Stale, Loops down,
@@ -149,7 +156,9 @@ The figures that stand for agents are a cast, a second seam next to the style (`
 and the generic figure runtime, `packages/cast-*` the casts as data, `apps/world/src/world/cast.ts` the only
 importer). A building wears its own cast, else its zone's, else the viewer's choice, else the town's, else the style's default.
 A figure too small to see over a desk brings its own perch as data (a step, or a place on the top); the style only
-says where each top is, and furniture never changes with the cast.
+says where each top is, and furniture never changes with the cast. Each cast also brings a person figure
+(`person.json`: no project colour, no role, never at a desk) for the owner who carries work into Done and for walk
+mode's visitor; a cast without one falls back to its plain worker.
 Built: the seam, the registry, the Greenhouse style and four casts. Not built: a second style,
 external loading, an editor.
 

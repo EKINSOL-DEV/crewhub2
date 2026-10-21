@@ -85,7 +85,7 @@ describe("pairing", () => {
     const again = await status(link);
     assert.equal(again.status, 403);
     assert.match(again.body, /This link has expired or was already used/);
-    assert.match(again.body, /npm run host -- open/);
+    assert.match(again.body, /npm run world/);
     assert.equal(again.setCookie, "");
   });
 
