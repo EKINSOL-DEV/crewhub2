@@ -264,6 +264,9 @@ const DISTRICT_CARD = { desktop: 128, phone: 40 };
 /* Labels that hang above their anchor (bottom centred on it): robots' stacks, tags, chips and counts. Building, civic
    and room signs sit beside their anchors and keep their places. */
 const HANGING = /^(a|o|rule|err|p|beacon|mail|banner):|^c:[^:]+:/;
+/* The town's labels (building signs, the civic labels, need pins, district cards): stacks among themselves, so on a
+   phone with Details on the signs climb instead of piling; never faded or hidden for it. */
+const TOWN = /^(b|n|d):|^c:[^:]+$/;
 /* The HTML chrome over the canvas, in CSS pixels (App's corners, playback bar and camera toolbar): framing keeps its
    subject in the free area between them. Phones stack the corner rows and the camera buttons differently. */
 interface Insets {
@@ -377,6 +380,8 @@ export class TownScene {
   #lifted: string | null = null;
   #anchors = new Map<string, THREE.Vector3>();
   #labelsHost: HTMLElement;
+  /** The persons' label ids (`a:<slug>:<visit>`): their figures push no tag aside (labelLayout). */
+  #persons = new Set<string>();
   /** The fixed UI's boxes over the canvas (`#measureChrome`), and when they were last measured. */
   #chrome: Rect[] = [];
   #chromeAt = 0;
@@ -1193,8 +1198,9 @@ export class TownScene {
     const previous = new Map(this.#labels.map((l) => [l.el, l]));
     this.#labels = [...this.#labelsHost.querySelectorAll<HTMLElement>("[data-anchor]")].map(
       (el) =>
-        previous.get(el) ?? { el, id: "", half: 0, height: 0, ox: 0, oy: 0, stack: false, sign: false, robot: false, picked: false, card: false, shown: false, x: Number.NaN, y: Number.NaN, nx: 0, ny: 0, ay: 0, visible: false, far: false, yields: false },
+        previous.get(el) ?? { el, id: "", half: 0, height: 0, ox: 0, oy: 0, stack: false, town: false, sign: false, robot: false, person: false, picked: false, card: false, shown: false, x: Number.NaN, y: Number.NaN, nx: 0, ny: 0, ay: 0, visible: false, far: false, yields: false },
     );
+    this.#persons.clear();
     for (const l of this.#labels) {
       l.id = l.el.dataset.anchor ?? "";
       const box = l.el.firstElementChild as HTMLElement | null;
@@ -1205,9 +1211,12 @@ export class TownScene {
       l.height = rect?.height ?? 0;
       l.ox = rect && at ? rect.left - at.left : 0;
       l.oy = rect && at ? rect.top - at.top : 0;
-      l.stack = HANGING.test(l.id);
+      l.town = TOWN.test(l.id);
+      l.stack = l.town || HANGING.test(l.id);
       l.sign = l.id.startsWith("r:");
       l.robot = l.id.startsWith("a:");
+      l.person = l.robot && l.el.dataset.person !== undefined;
+      if (l.person) this.#persons.add(l.id);
       l.picked = l.el.classList.contains("picked");
       l.card = l.id.startsWith("card:");
       l.x = Number.NaN;
@@ -2473,9 +2482,9 @@ export class TownScene {
     for (const label of this.#labels) {
       const x = label.nx,
         y = label.ny,
-        visible = label.visible && !(label.stack && !label.picked && label.ay - y > hideBeyond);
+        visible = label.visible && !(label.stack && !label.picked && !label.town && label.ay - y > hideBeyond);
       // Quiet when many: a label pushed far from its anchor fades; a room sign over a robot or its stack steps back.
-      const far = visible && label.stack && !label.picked && label.ay - y > FAR_LABEL;
+      const far = visible && label.stack && !label.picked && !label.town && label.ay - y > FAR_LABEL;
       if (far !== label.far) label.el.classList.toggle("label-far", (label.far = far));
       const yields = visible && label.sign && overRobot(label, stacks, this.#robotBoxes, robots);
       if (yields !== label.yields) label.el.classList.toggle("label-yield", (label.yields = yields));
@@ -2503,6 +2512,7 @@ export class TownScene {
     let n = 0;
     for (const [id, anchor] of view.anchors) {
       if (id.charCodeAt(0) !== 97 || id.charCodeAt(1) !== 58) continue; // "a:"
+      if (this.#persons.has(id)) continue; // a person walking through: the labels hold still, its pill climbs
       this.#v.copy(anchor).project(this.camera);
       if (this.#v.z < -1 || this.#v.z > 1) continue;
       const x = (this.#v.x * 0.5 + 0.5) * width,

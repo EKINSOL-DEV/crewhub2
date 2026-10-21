@@ -329,7 +329,11 @@ Settings has a **Graphics** choice: **Pretty** (the default) or **Fast**. It is 
   camera toolbar, the playback bar, the chat chip, the walk stick; `data-chrome` in the page): one that would sit
   under them moves the shortest way out, kept on the canvas, and a hanging label the chrome sends back onto a sign
   hangs below the sign instead. A label that lists people (the town hall, the post office) shows the first three
-  names and "+N more"; the full list stays in the text view and the jump list.
+  names and "+N more"; the full list stays in the text view and the jump list. The town's labels (building signs,
+  civic labels, need pins, district cards) are stacks among themselves: on a phone with Details on, a sign that would
+  cover the one in front moves up above it, and they never fade or hide for it. A person's pill is placed last and
+  climbs over the tags it passes; the person's figure pushes no tag aside, so the rack's "waits on" tags hold still
+  in a film.
 - **A label never hides its robot** (`apps/world/src/world/labelLayout.ts`). The robots are the hero of each room.
   - The hovered or selected robot's plate is placed first, then every robot's own stack, each just over its head: the
     name pill stays closest.

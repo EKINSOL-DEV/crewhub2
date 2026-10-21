@@ -14,9 +14,11 @@ function label(id: string, x: number, y: number, half = 30, height = 20, extra: 
     ox: sign ? -half * 0.2 : -half,
     oy: sign ? -height / 2 : -height,
     stack: !id.startsWith("r:"),
+    town: false,
     card: false,
     sign: id.startsWith("r:"),
     robot: id.startsWith("a:"),
+    person: false,
     picked: false,
     shown: false,
     x: Number.NaN,
@@ -141,4 +143,28 @@ test("a tag that cannot go up above a sign (the corner sits there) hangs below t
   keepStacksOffChrome([tag2], [sign2], [corner], 1440, 900);
   assert.ok(clearOf(tag2, corner), `out of the corner (${tag2.nx}, ${tag2.ny})`);
   assert.ok(clearOf(tag2, { left: 558, right: 618, top: 113, bottom: 143 }), `clear of the sign (${tag2.nx}, ${tag2.ny})`);
+});
+
+test("a person's pill goes last and climbs over the tags it meets; the tags hold still", () => {
+  const tag1 = label("o:hq:CR-17", 809, 324, 60, 18);
+  const tag2 = label("o:hq:CR-18", 842, 350, 60, 18);
+  const pill = label("a:hq:visit-1", 830, 345, 30, 18, { person: true });
+  const stacks = [pill, tag2, tag1];
+  nudgeStacks(stacks, [], [], 0);
+  assert.deepEqual([tag1.nx, tag1.ny], [809, 324], "the first tag kept its place");
+  assert.deepEqual([tag2.nx, tag2.ny], [842, 350], "the second tag kept its place");
+  assert.equal(pill.nx, 830, "the pill stays over the person's head sideways");
+  assert.ok(pill.ny <= tag1.ny - tag1.height - 3, `the pill climbed above both tags (${pill.ny})`);
+});
+
+test("town signs standing under their anchors stack instead of piling: the back one moves up above the front one", () => {
+  // A town sign's box is below its anchor (translate(-50%, 8px)); two expanded signs 70 px tall on a phone.
+  const front = label("b:launch", 150, 420, 135, 70, { ox: -135, oy: 8, town: true });
+  const back = label("b:inbox", 170, 400, 135, 70, { ox: -135, oy: 8, town: true });
+  const pin = label("n:world", 200, 440, 20, 24, { town: true }); // a need pin hanging over a roof, in the front sign's box
+  nudgeStacks([back, front, pin], [], [], 0);
+  assert.deepEqual([front.nx, front.ny], [150, 420], "the front sign keeps its place");
+  assert.ok(back.ny + 8 + 70 + 3 <= front.ny + 8, `the back sign sits above the front one (${back.ny})`);
+  assert.equal(back.nx, 170, "straight up");
+  assert.ok(pin.ny - 24 >= front.ny + 8 + 70 + 3 || pin.ny <= front.ny + 8 - 3, `the pin is clear of the sign (${pin.ny})`);
 });

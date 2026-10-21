@@ -887,7 +887,7 @@ function PersonLabel({ slug, visit, building, rooms, plate }: { slug: string; vi
     visit.phase === "queued" ? `on the way in to carry ${visit.ticketKey} to ${done}` : visit.phase === "carrying" ? `carrying ${visit.ticketKey} to ${done}` : `moved ${visit.ticketKey} to ${done}${visit.rejected ? " as won't do" : ""}`;
   const object = building.objects.find((o) => o.ticketId === visit.ticketId);
   return (
-    <div className={`anchor agent-anchor${plate ? " picked" : ""}`} data-anchor={`a:${slug}:${visit.id}`}>
+    <div className={`anchor agent-anchor${plate ? " picked" : ""}`} data-anchor={`a:${slug}:${visit.id}`} data-person="">
       <span className="agent-stack">
         {plate ? (
           <span className="agent-plate person-plate">

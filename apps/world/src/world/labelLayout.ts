@@ -18,12 +18,16 @@ export interface Label {
    */
   ox: number;
   oy: number;
-  /** A hanging label (a robot's pill and bubble, a tag), which keeps clear of its neighbours. */
+  /** A label that keeps clear of its neighbours: a hanging one (a robot's pill and bubble, a tag) or a town label. */
   stack: boolean;
+  /** A town label (a building sign, a civic label, a need pin, a district card): nudges like a stack, never fades or hides. */
+  town: boolean;
   /** A room sign: it keeps its place, and hanging labels keep clear of it. */
   sign: boolean;
   /** A robot's own stack (name pill, bubble): it stays just over its robot's head. */
   robot: boolean;
+  /** A person's pill (also `robot`): placed last, it climbs over the labels it meets; the tags it passes hold still. */
+  person: boolean;
   /** The hovered or selected robot's plate: placed first, never faded or hidden. */
   picked: boolean;
   /** The agent card (`card:<slug>:<key>`): beside its figure, kept whole on screen, never nudged or faded. */
@@ -61,11 +65,8 @@ export interface Rect {
   bottom: number;
 }
 
-/** A hanging label's box (bottom centred on its anchor) over a box. */
-const overlaps = (l: Label, left: number, right: number, top: number, bottom: number) =>
-  l.nx + l.half + LABEL_GAP > left && l.nx - l.half - LABEL_GAP < right && l.ny + LABEL_GAP > top && l.ny - l.height - LABEL_GAP < bottom;
-
-/** Any label's box, from its measured offset: a room sign beside its anchor, a rack sign hanging over its rail. */
+/** Any label's box, from its measured offset: a room sign beside its anchor, a rack sign hanging over its rail, a
+    town sign standing under it. */
 const box = (l: Label, out: Rect): Rect => {
   out.left = l.nx + l.ox;
   out.right = out.left + l.half * 2;
@@ -73,8 +74,11 @@ const box = (l: Label, out: Rect): Rect => {
   out.bottom = out.top + l.height;
   return out;
 };
+/** Two boxes closer than the gap. */
+const hits = (a: Rect, b: Rect) => a.right + LABEL_GAP > b.left && a.left - LABEL_GAP < b.right && a.bottom + LABEL_GAP > b.top && a.top - LABEL_GAP < b.bottom;
 const signBox: Rect = { left: 0, right: 0, top: 0, bottom: 0 };
 const ownBox: Rect = { left: 0, right: 0, top: 0, bottom: 0 };
+const otherBox: Rect = { left: 0, right: 0, top: 0, bottom: 0 };
 
 /** A room sign's box over a robot or a robot's own stack. */
 export function overRobot(s: Label, stacks: readonly Label[], robots: readonly RobotBox[], count: number): boolean {
@@ -83,7 +87,11 @@ export function overRobot(s: Label, stacks: readonly Label[], robots: readonly R
     const r = robots[i]!;
     if (right > r.left && left < r.right && bottom > r.top && top < r.bottom) return true;
   }
-  for (const l of stacks) if (l.robot && l.visible && right > l.nx - l.half && left < l.nx + l.half && bottom > l.ny - l.height && top < l.ny) return true;
+  for (const l of stacks) {
+    if (!l.robot || !l.visible) continue;
+    const b = box(l, otherBox);
+    if (right > b.left && left < b.right && bottom > b.top && top < b.bottom) return true;
+  }
   return false;
 }
 
@@ -97,41 +105,52 @@ export function overRobot(s: Label, stacks: readonly Label[], robots: readonly R
  *   a room sign moves up above it.
  * - A room sign keeps its place (a rack's sign over its rail as much as a hall's sign beside its anchor); robots'
  *   stacks pay it no heed, and it steps back instead (placeLabels: label-yield).
+ * - A person's pill goes last: it climbs over whatever it meets, so the tags it passes hold still (the person's figure
+ *   is not among `robots`: TownScene leaves persons out).
+ * - Town labels (building signs, which stand under their anchors, civic labels, need pins, district cards) are stacks
+ *   among themselves: on a phone with Details on, a sign that would cover the one in front moves up above it.
+ * Every box is the measured one, so the rules hold for any label kind.
  */
 export function nudgeStacks(stacks: Label[], signs: readonly Label[], robots: readonly RobotBox[], count: number) {
-  // The picked robot's plate first, then robots' stacks, then the rest; each group from the front of the scene back.
-  const rank = (l: Label) => (l.picked ? 0 : l.robot ? 1 : 2);
-  stacks.sort((a, b) => rank(a) - rank(b) || b.ny - a.ny || (a.id < b.id ? -1 : 1));
+  // The picked robot's plate first, then robots' stacks, then the rest, then persons' pills; each group from the front
+  // of the scene back.
+  const rank = (l: Label) => (l.picked ? 0 : l.person ? 3 : l.robot ? 1 : 2);
+  // Lowest on screen by the box's bottom edge: a town sign stands under its anchor, a hanging label over it.
+  const bottom = (l: Label) => l.ny + l.oy + l.height;
+  stacks.sort((a, b) => rank(a) - rank(b) || bottom(b) - bottom(a) || (a.id < b.id ? -1 : 1));
   for (let i = 0; i < stacks.length; i++) {
     const l = stacks[i]!;
     for (let pass = 0; pass < 6; pass++) {
       let moved = false;
+      const a = box(l, ownBox);
       // Sideways first: a desk label over a robot steps to the side of the robot its anchor is on. A robot's own stack
       // pays other robots no heed: moving it would only take it away from its own robot.
       if (!l.robot)
         for (let k = 0; k < count; k++) {
           const r = robots[k]!;
-          if (!overlaps(l, r.left, r.right, r.top, r.bottom)) continue;
-          l.nx = l.nx < r.x ? r.left - l.half - LABEL_GAP : r.right + l.half + LABEL_GAP;
+          if (!hits(a, r)) continue;
+          l.nx += l.nx < r.x ? r.left - LABEL_GAP - a.right : r.right + LABEL_GAP - a.left;
+          box(l, a);
           moved = true;
         }
       for (let j = 0; j < i; j++) {
         const o = stacks[j]!;
-        if (Math.abs(l.nx - o.nx) < l.half + o.half + LABEL_GAP && l.ny > o.ny - o.height - LABEL_GAP && l.ny - l.height < o.ny + LABEL_GAP) {
-          // A desk's label meeting a robot's stack steps aside like it does for the robot; otherwise the one further
-          // back moves up.
-          if (o.robot && !l.robot) l.nx = l.nx < o.nx ? o.nx - o.half - l.half - LABEL_GAP : o.nx + o.half + l.half + LABEL_GAP;
-          else l.ny = o.ny - o.height - LABEL_GAP;
-          moved = true;
-        }
+        const b = box(o, otherBox);
+        if (!hits(a, b)) continue;
+        // A desk's label meeting a robot's stack steps aside like it does for the robot; otherwise the one further
+        // back moves up.
+        if (o.robot && !l.robot) l.nx += l.nx < o.nx ? b.left - LABEL_GAP - a.right : b.right + LABEL_GAP - a.left;
+        else l.ny += b.top - LABEL_GAP - a.bottom;
+        box(l, a);
+        moved = true;
       }
       if (!l.robot)
         for (const s of signs) {
-          const { left, right, top, bottom } = box(s, signBox);
-          if (overlaps(l, left, right, top, bottom)) {
-            l.ny = top - LABEL_GAP;
-            moved = true;
-          }
+          const b = box(s, signBox);
+          if (!hits(a, b)) continue;
+          l.ny += b.top - LABEL_GAP - a.bottom;
+          box(l, a);
+          moved = true;
         }
       if (!moved) break;
     }
@@ -189,9 +208,13 @@ export function keepOffChrome(l: Label, chrome: readonly Rect[], width: number, 
 export function keepStacksOffChrome(stacks: readonly Label[], signs: readonly Label[], chrome: readonly Rect[], width: number, height: number) {
   for (const l of stacks) {
     if (!keepOffChrome(l, chrome, width, height)) continue;
+    const a = box(l, ownBox);
     for (const s of signs) {
-      const { left, right, top, bottom } = box(s, signBox);
-      if (overlaps(l, left, right, top, bottom)) l.ny = bottom + l.height + LABEL_GAP;
+      const b = box(s, signBox);
+      if (hits(a, b)) {
+        l.ny += b.bottom + LABEL_GAP - a.top;
+        box(l, a);
+      }
     }
   }
 }
