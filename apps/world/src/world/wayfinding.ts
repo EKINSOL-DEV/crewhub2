@@ -2,7 +2,7 @@
    zoomed out (a summary and one beacon per district and per building) and the jump list. Pure (no Three.js, no DOM),
    so it runs under `node --test`; the scene, the breadcrumb, the jump list and the text view all read it. See
    "Finding your way at scale" in the demo-mode spec. */
-import type { AgentPlacement, Building, RoomKind, TicketStatus, WorldModel, Zone } from "@crewhub/world-model";
+import { roleNoun, type AgentPlacement, type Building, type RoomKind, type TicketStatus, type WorldModel, type Zone } from "@crewhub/world-model";
 
 /* ── Districts ────────────────────────────────────────────────────────── */
 
@@ -244,7 +244,7 @@ export function jumpEntries(model: Pick<WorldModel, "zones" | "buildings" | "tow
           kind: "agent",
           id: `agent:${a.key}`,
           label: a.displayName,
-          detail: `${a.role} in ${b.name}${region ? `, ${d.name}` : ""}. ${stateWords(a)}`,
+          detail: `${roleNoun(a.role, a.roleSource)} in ${b.name}${region ? `, ${d.name}` : ""}. ${stateWords(a)}`,
           place: { district: region ? d.id : null, building: b.slug, room: a.room },
           agent: a.key,
           needs: asksHelp(a) ? 1 : 0,
@@ -255,7 +255,7 @@ export function jumpEntries(model: Pick<WorldModel, "zones" | "buildings" | "tow
   const townAgent = (a: AgentPlacement, civic: "town-hall" | "post-office", where: string) => {
     if (!real(a) || seen.has(a.key)) return;
     seen.add(a.key);
-    entries.push({ kind: "agent", id: `agent:${a.key}`, label: a.displayName, detail: `${a.role} at the ${where}. ${stateWords(a)}`, place: HOME, agent: a.key, civic, needs: asksHelp(a) ? 1 : 0, keywords: `${a.name} ${a.role} ${where} agent`.toLowerCase() });
+    entries.push({ kind: "agent", id: `agent:${a.key}`, label: a.displayName, detail: `${roleNoun(a.role, a.roleSource)} at the ${where}. ${stateWords(a)}`, place: HOME, agent: a.key, civic, needs: asksHelp(a) ? 1 : 0, keywords: `${a.name} ${a.role} ${where} agent`.toLowerCase() });
   };
   for (const a of model.postOffice) townAgent(a, "post-office", "post office");
   for (const a of model.townHall) townAgent(a, "town-hall", "town hall");

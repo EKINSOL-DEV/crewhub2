@@ -18,7 +18,7 @@ const threeRoomBuilding = () =>
     [
       agent("Ada", { role: "worker", room: "workers", laneStatus: "working", posture: "focused", deskTicketKey: "CH-12" }),
       agent("Bo", { role: "worker", room: "workers" }),
-      agent("Lin", { role: "lead", roleSource: "fact", room: "lead-office", laneStatus: "working" }),
+      agent("Lin", { role: "lead", roleSource: "project-lead", room: "lead-office", laneStatus: "working" }),
     ],
     {
       rooms: [
@@ -96,6 +96,7 @@ test("the three-rooms text view tells the halls' story: racks, desks, the huddle
   // The building's own lines speak in halls too.
   const own = lines.filter((l) => l.section === "CH product (CH)").map((l) => l.text).join("\n");
   assert.match(own, /Ada is worker, from its name; home place on the floor, at a worker desk\./);
+  assert.equal(lines.find((l) => l.text.startsWith("Ada is worker"))?.kind, "inference");
   assert.match(own, /Lin is lead, the project lead; home place in the lead's office\./);
   assert.match(own, /5 tickets archived from the Done rack; .* the archive counter in Administration keeps the count\./);
   // No classic room section is left.

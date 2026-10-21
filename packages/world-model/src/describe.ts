@@ -3,6 +3,7 @@
  * section per building, one per room). Inferences say so; statuses are always words.
  */
 import { archivedWords } from "./archive.ts";
+import { roleInferred, roleWords } from "./roleWords.ts";
 import { roomLabel } from "./rooms.ts";
 import { DESK_WORDS, HALL_LABELS, HALL_PLACES, RACK_KINDS, RACK_NAMES, ROLE_DESK_WORDS, hallOf, isRackKind, placeWords as placeWordsOf, type Hall, type RoomWording, type WordingOptions } from "./halls.ts";
 import type {
@@ -11,8 +12,6 @@ import type {
   LaneStatus,
   PersonVisit,
   Posture,
-  RoleId,
-  RoleSource,
   Room,
   TextLine,
   TicketStatus,
@@ -51,13 +50,7 @@ const LOOK_WORDS: Record<WorkObject["look"], string> = {
   envelope: "envelope with a question mark",
 };
 
-const ROLE_WORDS: Record<RoleId, string> = { lead: "lead", worker: "worker", analyst: "analyst", design: "design" };
 
-function roleText(role: RoleId, source: RoleSource): string {
-  if (source === "fact") return `${ROLE_WORDS[role]}, the project lead`;
-  if (source === "override") return `${ROLE_WORDS[role]}, set by a person`;
-  return `${ROLE_WORDS[role]}, from its name`;
-}
 
 export function buildingSection(building: Building): string {
   return `${building.name} (${building.key})`;
@@ -203,7 +196,7 @@ function describeVisit(section: string, visit: PersonVisit, add: Add, rooms: Roo
 
 function describeAgent(section: string, agent: AgentPlacement, add: Add, buildingName: (slug: string | null) => string, rooms: RoomWording): void {
   const where = !agent.room ? "in the town" : rooms === "classic" ? `in the ${roomLabel(agent.room)}` : homePlace(agent);
-  add(section, `${agent.displayName} is ${roleText(agent.role, agent.roleSource)}; home place ${where}.`, agent.roleSource === "name-rule" ? "inference" : "fact");
+  add(section, `${agent.displayName} is ${roleWords(agent.role, agent.roleSource)}; home place ${where}.`, roleInferred(agent.roleSource) ? "inference" : "fact");
   if (agent.presence === "proxy") {
     add(section, `${agent.displayName} is a translucent proxy here: working in ${buildingName(agent.workingIn)}, inferred from recent events.`, "inference");
   } else {

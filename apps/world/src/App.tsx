@@ -1,7 +1,7 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type Ref } from "react";
 import { ArrowLeft, ChevronRight, Eye, FlaskConical, Hammer, MessageCircle, Minus, Monitor, Moon, Pause, Plus, RotateCcw, RotateCw, Footprints, Scan, Search, Settings, Sprout, Sun, Tags, X } from "lucide-react";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { archivedWords, CIVIC_WORDS, describeTownDocument, describeWorld, ruleProps, zoningOf, type AgentPlacement, type CivicWords, type PlaybackControls, type PlaybackSpeed, type RoleId, type RoomKind, type RoomWording, type TextLine, type WorldModel } from "@crewhub/world-model";
+import { archivedWords, CIVIC_WORDS, describeTownDocument, describeWorld, roleWords, ruleProps, zoningOf, type AgentPlacement, type CivicWords, type PlaybackControls, type PlaybackSpeed, type RoleId, type RoomKind, type RoomWording, type TextLine, type WorldModel } from "@crewhub/world-model";
 import type { PropModel } from "@crewhub/world-engine";
 import { Bubbles } from "./components/bubbles/Bubbles";
 import { TownSettings } from "./components/TownSettings";
@@ -825,7 +825,7 @@ function RoleSettings({ model, overrides, onChange }: { model: WorldModel; overr
                 onChange(next);
               }}
             >
-              <option value="">{a.roleSource === "override" ? "From the rules" : `${a.role}, ${a.roleSource === "fact" ? "a fact" : "from its name"}`}</option>
+              <option value="">{a.roleSource === "override" ? "From the rules" : roleWords(a.role, a.roleSource, "you")}</option>
               {ROLE_CHOICES.map((role) => (
                 <option key={role} value={role}>
                   {role}, set by you

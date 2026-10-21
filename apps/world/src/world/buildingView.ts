@@ -168,6 +168,8 @@ export interface BuildingContext {
   walker: (key: string) => Walker | undefined;
   /** The people in a building right now (personWalks.ts): a person carrying a package into Done, at most one. */
   persons: (slug: string) => Iterable<PersonWalker>;
+  /** Asks the town for another frame: a variant built mid-render (#lowRim, #farFace) draws on the next one. */
+  redraw: () => void;
 }
 
 /** What a building shows of its zone: the district's colour and emblem, on a medallion by the door. */
@@ -252,6 +254,8 @@ export class BuildingView {
   detailed = false;
   /** Counts shell rebuilds, so the town knows when to gather the window spots again. */
   shellRevision = 0;
+  /** The look the shell shows now: an archived building's boarded look, or, while a closing plays, the phase it is in. */
+  shownArchived = false;
   #zone: ZoneMark | null = null;
   /** Bumps whenever something that casts a shadow seen from the town changed: the town then redraws its shadow map. */
   shadowRevision = 0;
@@ -267,6 +271,14 @@ export class BuildingView {
     west: { tall: new THREE.Group(), low: new THREE.Group() },
   };
   #merged: THREE.BufferGeometry[] = [];
+  /**
+   * The low stand-ins not built yet, per side: a back wall's low rim is made and merged the first time the camera
+   * looks from that side (`#lowRim`); most visits never turn the camera, and until then it costs nothing, not even
+   * the JS copy of its vertices a hidden mesh keeps.
+   */
+  #lowPending: Record<"north" | "west", (() => THREE.Object3D)[]> = { north: [], west: [] };
+  /** Wall art on the far face of a partition, not built yet: made on first sight (`#farFace`), as the low rims are. */
+  #farPending: Record<"south" | "east", DecorItem[]> = { south: [], east: [] };
   /** The shell pieces a closing or an opening moves (world-style `LightTag`), kept out of the static batches. */
   #transition = new THREE.Group();
   #closing: Closing | null = null;
@@ -295,6 +307,9 @@ export class BuildingView {
   #remoteApplied = "";
   #silhouetteMerged: THREE.BufferGeometry[] = [];
   #silhouetteSignature = "";
+  /** The silhouette the model asks for (built when first shown, #showLazy); the piles' counts likewise. */
+  #silhouetteWanted = "";
+  #pilesWanted = "";
   #piles = new THREE.Group();
   #signals = new THREE.Group();
   #agents = new THREE.Group();
@@ -352,6 +367,9 @@ export class BuildingView {
     const back = this.#backWalls;
     this.group.add(back.north.tall, back.north.low, back.west.tall, back.west.low, this.#silhouette);
     this.group.add(this.#shell, this.#shellStatic, this.#transition, this.#piles, this.#agents, this.#signals, this.#personal, this.#objects.group, this.#props.group);
+    // Named for the measuring tools (a scene census says which layer holds what).
+    for (const [name, g] of Object.entries({ "wall-north-tall": back.north.tall, "wall-north-low": back.north.low, "wall-west-tall": back.west.tall, "wall-west-low": back.west.low, silhouette: this.#silhouette, shell: this.#shell, "shell-static": this.#shellStatic, transition: this.#transition, piles: this.#piles, agents: this.#agents, signals: this.#signals, personal: this.#personal, objects: this.#objects.group, props: this.#props.group }))
+      g.name = name;
   }
 
   /** Building cells to building-local world units. */
@@ -445,6 +463,7 @@ export class BuildingView {
   }
 
   #buildShell(pull: "lights" | "boards" | null = null): { lights: THREE.Mesh[]; boards: THREE.Object3D[] } {
+    const started = performance.now();
     this.shellRevision++;
     this.shadowRevision++;
     const { style } = this.ctx;
@@ -452,8 +471,10 @@ export class BuildingView {
     this.#shellStatic.clear();
     this.#transition.clear();
     for (const side of Object.values(this.#backWalls)) for (const g of [side.tall, side.low]) g.clear();
+    this.#lowPending = { north: [], west: [] };
     for (const g of this.#merged) g.dispose();
     const b = { ...this.building, archived: this.#shellArchived ?? this.building.archived };
+    this.shownArchived = b.archived;
     // An archived building keeps its colour out of the shell: muted sage and timber, never dark.
     const accent = b.archived ? null : ((b.color ?? null) as PaletteName | null);
     const variant = b.archived ? "archived" : undefined;
@@ -508,11 +529,14 @@ export class BuildingView {
       const wall = add(style.model(key, opt({ size: { width: length + depth, height, depth }, ...glazed })), (run.x1 + run.x2) / 2, (run.z1 + run.z2) / 2, 0, horizontal ? 0 : Math.PI / 2);
       if (run.side === "north" || run.side === "west") {
         const [lowKey, lowHeight, lowDepth] = WALLS.south;
-        const low = style.model(lowKey, opt({ size: { width: length + lowDepth, height: lowHeight, depth: lowDepth } }));
-        low.position.copy(wall.position);
-        low.rotation.y = wall.rotation.y;
         this.#backWalls[run.side].tall.add(wall);
-        this.#backWalls[run.side].low.add(low);
+        // Its low stand-in, on first sight (#lowRim).
+        this.#lowPending[run.side].push(() => {
+          const low = style.model(lowKey, opt({ size: { width: length + lowDepth, height: lowHeight, depth: lowDepth } }));
+          low.position.copy(wall.position);
+          low.rotation.y = wall.rotation.y;
+          return low;
+        });
       }
     }
     for (const opening of doorOpenings(this.template)) {
@@ -586,44 +610,79 @@ export class BuildingView {
     // The truck moves only as a whole: its parts merge per material under its own root (perf). It can be picked, so
     // its merged geometry keeps its vertex data for the raycast.
     if (this.#truck) this.#merged.push(...mergeStatic(this.#truck as THREE.Group, { keepData: true }));
-    for (const [side, walls] of Object.entries(this.#backWalls) as ["north" | "west", { tall: THREE.Group; low: THREE.Group }][])
-      for (const tall of [true, false]) {
-        const group = tall ? walls.tall : walls.low;
-        this.#merged.push(...mergeStatic(group));
-        for (const mesh of group.children) {
-          // The low stand-in is a rim: its shadow is lost under the slab's lip anyway.
-          if (!tall) mesh.castShadow = false;
-          // The frame a rotation crosses a side, the wrong variant is still visible: it collapses for that draw.
-          mesh.onBeforeRender = (_renderer, _scene, camera) => {
-            if (this.#seesInside(side, camera) === tall) return;
-            mesh.matrixWorld.makeScale(0, 0, 0);
-            // The matrix pass recomputes only what changed (matrixPass.ts): restore it next frame.
-            mesh.matrixWorldNeedsUpdate = true;
-          };
-        }
-      }
-    // Each draw of the shell sets which variant the next frames draw, so only one of them costs draw calls.
+    for (const [side, walls] of Object.entries(this.#backWalls) as ["north" | "west", { tall: THREE.Group; low: THREE.Group }][]) {
+      this.#merged.push(...mergeStatic(walls.tall));
+      this.#collapseUnless(walls.tall, side, true);
+    }
+    // Each draw of the shell sets which variant the next frames draw, so only one of them costs draw calls; a variant
+    // not built yet (a low rim, a partition's far face) is built the first time it is to be drawn.
     const probe = this.#shellStatic.children.find((c) => c instanceof THREE.Mesh);
     if (probe)
       probe.onBeforeRender = (_renderer, _scene, camera) => {
         for (const [side, walls] of Object.entries(this.#backWalls) as ["north" | "west", { tall: THREE.Group; low: THREE.Group }][]) {
           const inside = this.#seesInside(side, camera);
+          if (!inside) this.#lowRim(side);
           walls.tall.visible = inside;
           walls.low.visible = !inside;
           if (this.#wallDecor) {
-            this.#wallDecor[side].visible = inside;
             // A partition's other face, the one a room's south or east edge carries, shows from the far side.
-            this.#wallDecor[side === "north" ? "south" : "east"].visible = !inside;
+            const far = side === "north" ? "south" : "east";
+            if (!inside) this.#farFace(far);
+            this.#wallDecor[side].visible = inside;
+            this.#wallDecor[far].visible = !inside;
           }
         }
       };
     for (const walls of Object.values(this.#backWalls)) walls.low.visible = false;
     this.#applyFocus();
+    performance.measure("world:shell-built", { start: started, detail: { slug: this.building.slug, pull, archived: b.archived } });
     return pulled;
   }
 
-  /** Adds a piece by the doors to the static batch, at building cells with a yaw and a sideways lean (its light pool
-   *  decal stays unbatched). */
+  /**
+   * The frame a rotation crosses a side, the wrong variant is still visible: each merged mesh under `group` collapses
+   * for that draw unless the camera sees the inside of `side` as `inside` says.
+   */
+  #collapseUnless(group: THREE.Group, side: "north" | "west", inside: boolean) {
+    for (const mesh of group.children)
+      mesh.onBeforeRender = (_renderer, _scene, camera) => {
+        if (this.#seesInside(side, camera) === inside) return;
+        mesh.matrixWorld.makeScale(0, 0, 0);
+        // The matrix pass recomputes only what changed (matrixPass.ts): restore it next frame.
+        mesh.matrixWorldNeedsUpdate = true;
+      };
+  }
+
+  /** A tall back wall's low stand-in, made and merged the first time the camera looks from its side (#lowPending). */
+  #lowRim(side: "north" | "west") {
+    const pending = this.#lowPending[side];
+    if (pending.length === 0) return;
+    this.#lowPending[side] = [];
+    const group = this.#backWalls[side].low;
+    for (const make of pending) group.add(make());
+    this.#merged.push(...mergeStatic(group));
+    // The low stand-in is a rim: its shadow is lost under the slab's lip anyway.
+    for (const mesh of group.children) mesh.castShadow = false;
+    this.#collapseUnless(group, side, false);
+    // Made mid-render: its world matrices now, not by the next matrix pass (a resting building is not walked).
+    group.updateMatrixWorld(true);
+    this.ctx.redraw();
+  }
+
+  /** The wall art on a partition's far face, made and merged the first time the camera looks from that side (#farPending). */
+  #farFace(face: "south" | "east") {
+    const items = this.#farPending[face];
+    if (items.length === 0 || !this.#wallDecor) return;
+    this.#farPending[face] = [];
+    const group = this.#wallDecor[face];
+    for (const item of items) group.add(this.#decor(item));
+    this.#furnitureMerged.push(...mergeStatic(group));
+    this.#collapseUnless(group, face === "south" ? "north" : "west", false);
+    group.updateMatrixWorld(true);
+    this.shadowRevision++;
+    this.ctx.redraw();
+  }
+
   /**
    * Moves the pieces a Closing animates out of the groups about to be batched (world-style `LightTag`): the lights
    * (`userData.pane`) or the boards (`userData.board`), keeping their place in the building.
@@ -718,9 +777,12 @@ export class BuildingView {
     const wallDecor: Record<WallFace, THREE.Group> = { north: new THREE.Group(), west: new THREE.Group(), south: new THREE.Group(), east: new THREE.Group() };
     // Pendant cords and ceiling roses read as posts from the building camera: they draw only with a room in focus.
     const cords = new THREE.Group();
+    // Art on a partition's far face is made on first sight (#farFace): the home camera never sees it.
+    const farPending: Record<"south" | "east", DecorItem[]> = { south: [], east: [] };
     for (const item of roomDecor(this.template, { definitions: interiorDefinitions, seed: dressingSeed(this.building.slug), zones: dressingZones(this.template), loading: LOADING, piles: this.template.piles })) {
       const side = item.wall ?? this.#mountedOn(item);
-      (item.key === "decor.pendant-cord" ? cords : side ? wallDecor[side] : g).add(this.#decor(item));
+      if (side === "south" || side === "east") farPending[side].push(item);
+      else (item.key === "decor.pendant-cord" ? cords : side ? wallDecor[side] : g).add(this.#decor(item));
     }
     yield;
     let cordsMerged: THREE.BufferGeometry[] = [];
@@ -734,15 +796,9 @@ export class BuildingView {
       // partition shows only on the face turned to the camera.
       for (const side of ["north", "west", "south", "east"] as const) {
         g.add(wallDecor[side]);
+        if (side === "south" || side === "east") continue;
         merged.push(...mergeStatic(wallDecor[side]));
-        const wall = side === "south" ? "north" : side === "east" ? "west" : side;
-        const facing = side === wall;
-        for (const mesh of wallDecor[side].children)
-          mesh.onBeforeRender = (_renderer, _scene, camera) => {
-            if (this.#seesInside(wall, camera) === facing) return;
-            mesh.matrixWorld.makeScale(0, 0, 0);
-            mesh.matrixWorldNeedsUpdate = true; // restored by the next matrix pass (matrixPass.ts)
-          };
+        this.#collapseUnless(wallDecor[side], side, true);
       }
       // Swap the new interior in.
       this.shadowRevision++;
@@ -757,6 +813,7 @@ export class BuildingView {
       this.#furniture = g;
       this.#furnitureMerged = merged;
       this.#wallDecor = wallDecor;
+      this.#farPending = farPending;
       this.group.add(g);
       swapped = true;
     } finally {
@@ -780,15 +837,19 @@ export class BuildingView {
   prepareInterior(more: () => boolean = () => true): boolean {
     if (this.building.archived) return false;
     if (this.#pending && this.#pending.shape !== this.#shape) this.cancelPrepare();
+    const fresh = !this.#pending;
     if (!this.#pending) {
       if (this.#shape === this.#signatures.furniture) return false;
       this.#pending = { steps: this.#furnitureSteps(), shape: this.#shape };
     }
     const pending = this.#pending;
+    const started = performance.now();
     do {
       if (pending.steps.next().done) {
         this.#pending = null;
         this.#signatures.furniture = pending.shape;
+        // For the measuring tools: `atOnce` is a build that ran whole in this call (an enter, a layout change inside).
+        performance.measure("world:interior-built", { start: started, detail: { slug: this.building.slug, atOnce: fresh, detailed: this.detailed } });
         return true;
       }
     } while (more());
@@ -815,6 +876,7 @@ export class BuildingView {
     this.#furniture.removeFromParent();
     this.#furniture = null;
     this.#wallDecor = null;
+    this.#farPending = { south: [], east: [] };
     this.#cords.removeFromParent();
     this.#cords = new THREE.Group();
     this.#personal.clear();
@@ -859,11 +921,18 @@ export class BuildingView {
   #syncSilhouette(shape: string) {
     const far = !this.detailed && !this.building.archived;
     this.#silhouette.visible = far;
-    if (!far) return;
     // Cheap: it runs on every model update of every building. The dressing follows the shape; a placed prop that
     // makes dressing step aside changes a room's prop count.
     let signature = shape;
     for (const room of this.template.rooms) signature += `|${room.layout.props.length}`;
+    // Built on the first frame it is drawn (#showLazy, from tick): seen from a region's overview it is hidden, and a
+    // hidden merged mesh keeps the JS copy of its vertices until its upload.
+    this.#silhouetteWanted = signature;
+  }
+
+  /** The silhouette for the wanted signature, unless it stands already. */
+  #buildSilhouette() {
+    const signature = this.#silhouetteWanted;
     if (signature === this.#silhouetteSignature) return;
     this.#silhouetteSignature = signature;
     this.shadowRevision++;
@@ -892,6 +961,23 @@ export class BuildingView {
       g.add(model);
     }
     this.#silhouetteMerged = mergeStatic(g);
+    g.updateMatrixWorld(true);
+  }
+
+  /**
+   * The layers hidden from far (the furnished silhouette, the piles) are built on the first frame they are drawn (the
+   * tick of a building in view), not when the model says so: at a region's overview every building keeps them hidden,
+   * and a merged mesh that was never drawn keeps the JS copy of its vertices (7 MB of silhouettes and 1.4 MB of piles
+   * at 20 projects). A building that comes into view builds its own then, one or a few a frame as the camera moves.
+   */
+  showLazy() {
+    if (this.#silhouette.visible && this.#silhouetteSignature !== this.#silhouetteWanted) this.#buildSilhouette();
+    if (this.#piles.visible && this.#signatures.piles !== this.#pilesWanted) this.#buildPiles();
+  }
+
+  /** True while a shown layer waits to be built (`showLazy`); the town spreads the builds over its frames. */
+  get lazyPending(): boolean {
+    return (this.#silhouette.visible && this.#silhouetteSignature !== this.#silhouetteWanted) || (this.#piles.visible && this.#signatures.piles !== this.#pilesWanted);
   }
 
   /* ── Distance ───────────────────────────────────────────────────────────── */
@@ -1143,11 +1229,17 @@ export class BuildingView {
 
   /* ── Pile heights (town view) ───────────────────────────────────────────── */
 
+  /** The piles' counts the model asks for; hidden inside a building and from far, they are built when first drawn (#showLazy). */
   #syncPiles() {
-    const counts = STATUS_ROOMS.map((kind) => this.building.objects.filter((o) => o.room === kind).length);
-    const signature = counts.join();
+    this.#pilesWanted = STATUS_ROOMS.map((kind) => this.building.objects.filter((o) => o.room === kind).length).join();
+  }
+
+  /** The piles for the wanted counts, unless they stand already. */
+  #buildPiles() {
+    const signature = this.#pilesWanted;
     if (signature === this.#signatures.piles) return;
     this.#signatures.piles = signature;
+    const counts = signature === "" ? [] : signature.split(",").map(Number);
     this.shadowRevision++;
     this.#piles.clear();
     for (const geometry of this.#pilesMerged) geometry.dispose();
@@ -1166,6 +1258,7 @@ export class BuildingView {
     });
     // Static until the counts change: one merged mesh per material instead of every pallet part (perf).
     this.#pilesMerged = mergeStatic(this.#piles);
+    this.#piles.updateMatrixWorld(true);
   }
 
   /* ── Signals (entered building) ─────────────────────────────────────────── */

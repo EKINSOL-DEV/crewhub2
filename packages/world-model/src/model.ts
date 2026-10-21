@@ -23,8 +23,14 @@ export type DeliveryState =
 
 /** Roles are a CrewHub catalogue (plan 4.2), not a loops fact. */
 export type RoleId = "lead" | "worker" | "analyst" | "design";
-/** Where a role came from: a loops fact (the project lead), a name rule, or a person's override. */
-export type RoleSource = "fact" | "name-rule" | "override";
+/**
+ * Where a role came from, in the order the rules are tried: a person's override; the project's lead (`ProjectOut.lead`);
+ * the CrewHub lead (`isCrewhubLead`); the postman (loops role `router`); an external bot (CL-314); a `-lead` suffix
+ * in the name; the naming convention (`<stem>-design-<n>`, `<stem>-analyst-<n>`, the registered `analyst`,
+ * `<stem>-dev-<n>`); a registered agent with no rule matched (its loops role, `lead`); a worker under its lead in the
+ * team snapshot. `roleWords` says each in words; only the two name rules are inferences.
+ */
+export type RoleSource = "override" | "project-lead" | "crewhub-lead" | "router" | "external" | "name-suffix" | "name-rule" | "loops-role" | "team-worker";
 
 export type RoomKind =
   | "lobby"

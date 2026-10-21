@@ -17,6 +17,18 @@ const mergeable = (mesh: THREE.Mesh) => !mesh.userData.live && !mesh.userData.ro
 
 /** Replaces repeated static meshes under `root` with instanced meshes; returns them (to dispose). */
 export function instanceStatic(root: THREE.Group, minimum = 3, budget = 2000): THREE.InstancedMesh[] {
+  const steps = instanceStaticSteps(root, minimum, budget);
+  for (;;) {
+    const next = steps.next();
+    if (next.done) return next.value;
+  }
+}
+
+/** Kinds of part a step of `instanceStaticSteps` takes on before it yields. */
+const INSTANCE_CHUNK = 12;
+
+/** `instanceStatic` in steps, for a build spread over frames: a yield every `INSTANCE_CHUNK` kinds; the result is the return value. */
+export function* instanceStaticSteps(root: THREE.Group, minimum = 3, budget = 2000): Generator<void, THREE.InstancedMesh[]> {
   root.updateMatrixWorld(true);
   const inverse = new THREE.Matrix4().copy(root.matrixWorld).invert();
   const groups = new Map<string, THREE.Mesh[]>();
@@ -29,8 +41,10 @@ export function instanceStatic(root: THREE.Group, minimum = 3, budget = 2000): T
   });
   const created: THREE.InstancedMesh[] = [];
   const matrix = new THREE.Matrix4();
+  let kinds = 0;
   for (const meshes of groups.values()) {
     if (meshes.length < minimum) continue;
+    if (++kinds % INSTANCE_CHUNK === 0) yield;
     const first = meshes[0]!;
     // A kind with few triangles in all (a handful of signposts, a row of fence posts) costs a draw call of its own as an
     // instanced mesh; left as meshes, mergeStatic folds it into its material's merged mesh instead.

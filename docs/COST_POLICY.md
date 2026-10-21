@@ -167,11 +167,42 @@ host, a production build served by the host; the heap here is read without a GC,
 | One project | town | 18.3 / 18.7 ms (steady 60) | 0.8 / 1.0 ms | 106 | 0.31M | 47 MB |
 | One project | inside | 18.2 / 18.7 ms | 1.7 / 2.0 ms | 506 | 0.64M | 32 MB |
 | Small team, 4 | town | 18.2 / 25.6 ms | 1.6 / 1.8 ms | 206 | 0.62M | 46 MB |
-| Small team, 4 | inside | 18.2 / 100 ms, 2 slow (the interior merged at Enter) | 2.2 / 2.6 ms | 591 | 0.97M | 43 MB |
+| Small team, 4 | inside | 18.2 / 100 ms, 2 slow (see below: the settlement dressing rebuilt at a restore) | 2.2 / 2.6 ms | 591 | 0.97M | 43 MB |
 | Studio, 20 | town | 18.2 / 18.8 ms | 4.2 / 4.8 ms | 674 | 2.83M | 88 MB |
 | Studio, 20 | inside | 18.1 / 18.7 ms | 2.9 / 3.7 ms | 520 | 1.50M | 127 MB |
 
 The un-collected heap (88 to 127 MB for the studio) against 33 MB after a GC is the gap the 6 October note fell into.
+
+**The slow frames of the small team inside (21 October).** They were not the Enter: the interior had been prepared in
+idle time 2 s before it (`world:interior-built`, 1 ms for its last step). They were the settlement dressing rebuilt
+whole, at once, twice: when the storyline restored a project (every lawn, hedge, tree and garden of the town made
+again, instanced and merged, 55 ms in a 71 ms sync at 4 projects, about 240 ms at 20) and once more 3 s later when
+the project order changed (the restored project back in its place; the plot index seeds a garden, so pumpkins moved
+house and the town was rebuilt for nothing). Since then the dressing's lots are in slug order (a reorder rebuilds
+nothing), a plot wears the look its building's shell shows (a closing keeps its baskets until the boards come, an
+opening gets them back with its lights), and a rebuild after the first is built in steps over the frames (the pieces,
+their models in chunks, the instancing and the merge in chunks too: `instanceStaticSteps`, `mergeStaticSteps`, at
+most about 4 ms of steps a frame, one step at least) while the old dressing stays: no step is over 8 ms at 4
+projects or 22 ms at 20. The same run after: inside, small team, frame max 26.6 ms, 0 slow. The idle interior build
+now runs its step after at most 400 ms even without idle time (a busy stream leaves none), for 12 ms of work, so
+four steps are through in under 2 s instead of 6. A quality switch (Pretty to Fast) still costs one long task: the
+shaders recompile for every material (about 150 ms at 4 projects, 450 ms at 20); it is a setting, not a stream
+event. The world leaves measures for the tools: `world:sync`, `world:shell-built`, `world:dressing-built`,
+`world:dressing-step` and `world:interior-built` (`performance.getEntriesByName`, each with a `detail`).
+
+**Hidden copies (21 October).** A merged mesh that was never drawn keeps the JS copy of its vertices until its first
+upload. A scene census of the studio town at its home view (dev build, `window.__town`) found 24.0 MB of geometry
+arrays, of which the hidden ones were not the walls' inside variants but the furnished silhouettes (7.1 MB: every
+building keeps its silhouette hidden at a region's overview, where it would be a pixel), the piles (1.4 MB, hidden
+likewise), the low rims of the tall back walls (0.5 MB, shown only when the camera turns to look from the north or
+the west) and the one interior prepared ahead for the enter (4.1 MB, meant). Since then the silhouette and the piles
+are built on the first frame they are drawn (buildingView `showLazy`, for the buildings in view, at most about 4 ms
+of them a frame so a zoom into a region builds a few a frame: zoom frame max 58 to 26 ms), the low rims and the wall
+art on a partition's far face the first time the camera looks from that side (`#lowRim`, `#farFace`, built inside
+the shell's draw callback with a frame asked for the settled picture). Arrays 24.0 to 15.4 MB at the studio's home
+view; draw calls and triangles unchanged (729, 3.55M); pictures before and after the same at the home view, inside
+and turned (the pixel difference along a lazily built rim is edge noise under half a percent). What remains hidden
+is the prepared interior.
 
 Live mode, the night of 2026-10-20 (`b0cb111`; `memory.mjs live`, a forced GC every 60 s, the fake crewhub-loops
 playing a scenario at 16x behind the host, 30 minutes each, heap snapshots at 0, 10 and 30 minutes summed by

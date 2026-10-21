@@ -64,6 +64,13 @@ streams per key.
 `lib/world.mjs` is what they share (the command line, the browser, the error and request watch, seeking and
 playback); `lib/shots.mjs` is the view walker behind `shots.mjs` and `castworld.mjs`.
 
+**What the page leaves for a script.** Besides the `world:town-dressed` mark the scripts wait for, the world records
+performance measures (`performance.getEntriesByName(name)`, each with a `detail`): `world:sync` (a model sync;
+`created`, `deferred`), `world:shell-built` (a building's shell; `slug`, `pull`, `archived`), `world:dressing-built`
+(the settlement dressing, wall time from its first step; `pieces`, `atOnce`), `world:dressing-step` (one frame's
+share of a stepped rebuild) and `world:interior-built` (an interior; `slug`, `atOnce`, `detailed`). A long frame can
+be laid beside them to see what it was.
+
 **The live group of `regress.mjs`.** It starts its own fake (`packages/loops-fake`, a free port) and its own host
 (`apps/host`), both on `127.0.0.1`, and closes them at the end. When `apps/world/dist` exists (after `npm run build`)
 the host serves it on a free port and the browser opens the host directly. Otherwise the host listens on `--host-port`

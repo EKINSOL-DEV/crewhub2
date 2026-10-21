@@ -8,6 +8,8 @@ export { emptyMemory } from "./memory.ts";
 export { Projection } from "./projection.ts";
 export { freshnessOf, reduceWorld } from "./reducer.ts";
 export { CIVIC_WORDS, agentStateWords, describeWorld, doneWord, hallSummary } from "./describe.ts";
+export { roleInferred, roleNoun, roleWords } from "./roleWords.ts";
+export type { RoleVoice } from "./roleWords.ts";
 export {
   DESK_WORDS,
   HALLS,

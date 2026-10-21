@@ -23,6 +23,10 @@ export interface AgentEntity {
   registered: boolean;
   /** The loops agent role (`lead`, `router`, `probe`) of a registered agent. */
   loopsRole: string | null;
+  /** `AgentOut.isCrewhubLead`: the one CrewHub lead. */
+  crewhubLead: boolean;
+  /** `AgentOut.external` (CL-314): a bot on another machine, with no lane and no pane. */
+  external: boolean;
   /** A worker's lead (from the team snapshot). */
   lead: string | null;
   lane: TeamAgent | null;
@@ -67,6 +71,8 @@ export function listAgents(facts: Readonly<Facts>): AgentEntity[] {
       displayName: agent.displayName,
       registered: true,
       loopsRole: agent.role,
+      crewhubLead: agent.isCrewhubLead === true,
+      external: agent.external === true,
       lead: null,
       lane: lanesByName.get(agent.id) ?? null,
       homes: [],
@@ -82,6 +88,8 @@ export function listAgents(facts: Readonly<Facts>): AgentEntity[] {
         displayName: lead.displayName,
         registered: true,
         loopsRole: "lead",
+        crewhubLead: false,
+        external: false,
         lead: null,
         lane: lanesByName.get(lead.id) ?? null,
         homes: [],
@@ -101,6 +109,8 @@ export function listAgents(facts: Readonly<Facts>): AgentEntity[] {
         displayName: agent.name,
         registered: false,
         loopsRole: null,
+        crewhubLead: false,
+        external: false,
         lead: agent.lead,
         lane: agent,
         homes: [],
@@ -189,7 +199,12 @@ export function linesOf(entity: AgentEntity, facts: Readonly<Facts>): { line: Pr
   return (entity.registered ? byOwner.get(registeredOwner(entity.key)) : entity.lead ? byOwner.get(workerOwner(entity.lead, entity.name)) : undefined) ?? NO_LINES;
 }
 
-/** Plan 4.2, in order: override, the project lead (fact), then the name rules. */
+/**
+ * Plan 4.2, in order: a person's override; the project's lead (a fact); the CrewHub lead; the postman (loops role
+ * `router`); an external bot; a `-lead` suffix; the naming convention (design, analyst, dev); then what loops does say
+ * (a registered agent, loops role `lead`) or the team snapshot (a worker under its lead). Each source has its own
+ * words (`roleWords`), so no agent is called "worker, from its name" unless its name said so.
+ */
 export function roleOf(
   entity: AgentEntity,
   building: ProjectOut | null,
@@ -197,12 +212,17 @@ export function roleOf(
 ): { role: RoleId; source: RoleSource } {
   const override = overrides[entity.key];
   if (override) return { role: override, source: "override" };
-  if (building && building.lead.id === entity.key) return { role: "lead", source: "fact" };
+  if (building && building.lead.id === entity.key) return { role: "lead", source: "project-lead" };
+  if (entity.crewhubLead) return { role: "lead", source: "crewhub-lead" };
+  if (entity.loopsRole === "router") return { role: "worker", source: "router" };
+  if (entity.external) return { role: "worker", source: "external" };
+  if (/^.+-lead$/.test(entity.name)) return { role: "lead", source: "name-suffix" };
   if (/^.+-design-\d+$/.test(entity.name)) return { role: "design", source: "name-rule" };
   if ((entity.registered && entity.name === "analyst") || /^.+-analyst-\d+$/.test(entity.name)) {
     return { role: "analyst", source: "name-rule" };
   }
-  return { role: "worker", source: "name-rule" };
+  if (/^.+-dev-\d+$/.test(entity.name)) return { role: "worker", source: "name-rule" };
+  return { role: "worker", source: entity.registered ? "loops-role" : "team-worker" };
 }
 
 export function roomOfRole(role: RoleId): RoomKind {
