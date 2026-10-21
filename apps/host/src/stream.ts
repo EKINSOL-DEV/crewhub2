@@ -8,6 +8,7 @@
  */
 import type { Envelope, HostKeyState } from "@crewhub/loops-client";
 import { type LoopsClient, type StreamResume, isUnauthorized } from "./loops.ts";
+import type { ChatLine } from "./session.ts";
 import { SnapshotError, readTail } from "./snapshot.ts";
 
 export type LoopsState = "ok" | "down" | "unauthorized";
@@ -26,6 +27,8 @@ export type HostMessage =
   | { type: "status"; loops: LoopsState; stream?: "busy"; reason?: string; key?: HostKeyState["state"] }
   | { type: "event"; envelope: Envelope }
   | { type: "heartbeat"; seq: number; ts: string }
+  /** An agent's message to the person, read by the host as the signed-in person (round 12, session.ts): a bubble. */
+  | { type: "chat"; chat: ChatLine }
   | { type: "reset"; reason: "gone" | "reconnected" | "cursor" };
 
 export interface UpstreamOptions {

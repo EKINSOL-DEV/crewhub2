@@ -1,5 +1,5 @@
 import { memo, useCallback, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
-import { Archive, Check, CircleHelp, Clock, Flag, Hand, MessageSquare, Play, RefreshCw, Sprout, TriangleAlert, Trophy, User, Zap } from "lucide-react";
+import { Archive, Check, CircleHelp, Clock, Flag, Hand, MessageCircle, MessageSquare, Play, RefreshCw, Sprout, TriangleAlert, Trophy, User, Zap } from "lucide-react";
 import { archivedWords, agentCardFacts, doneWord, pinnedCard, quietWords, roleWords, runWords, type AgentPlacement, type Building, type PersonVisit, type ProgressKind, type RoomWording, type WorkObject, type WorldModel } from "@crewhub/world-model";
 import { SOURCE, STRESS, worldRuntime } from "../state/world";
 import { loopsWebUrl } from "../state/source";
@@ -33,6 +33,7 @@ import { setMovingBuilding, useMovingBuilding } from "../state/layoutMove";
 import { moveBuilding, plotLabel } from "./LayoutPanel";
 import { townRuntime } from "../state/town";
 import type { LaneStatus, RoomKind, RuleProp } from "@crewhub/world-model";
+import { type Said, type SaidMap, saidBy } from "../state/said";
 import { Chip } from "./primitives";
 import { needsOf, needsPinWords, needsTotal, needsWords, summarise, summaryWords, activeWords, type DistrictPlace } from "../world/wayfinding";
 
@@ -43,6 +44,8 @@ export interface Selection {
 
 interface Props {
   model: WorldModel;
+  /** What an agent just said to the person (round 12, state/said.ts): a speech bubble over its figure. */
+  said: SaidMap;
   /** Where every building stands (state/plan.ts). */
   plan: TownPlan;
   entered: string | null;
@@ -636,6 +639,8 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
           plate={same(shown, { kind: "agent", key: a.key })}
           full={(shows(a.room) && !compact) || picked({ kind: "agent", key: a.key })}
           pill={!compact || shows(a.room) || picked({ kind: "agent", key: a.key })}
+          said={a.presence === "real" ? saidBy(a.name, model.now, props.said) : null}
+          onTap={() => props.onPick({ kind: "agent", key: a.key }, false)}
         />
       ))}
       {b.visits.map((v) => (
@@ -816,11 +821,17 @@ function AgentLabel({
   plate,
   full,
   pill: showPill,
+  said,
+  onTap,
 }: {
   slug: string;
   agent: AgentPlacement;
   model: WorldModel;
   workingIn: string;
+  /** The line the agent just said to the person (the host's chat session), or null. */
+  said?: (Said & { fading: boolean }) | null;
+  /** A tap on that bubble: the agent is picked (its card; the Chat panel once it lands). */
+  onTap?: () => void;
   plate: boolean;
   /** The agent's room is revealed, the agent is picked, or Details is on: its update card and every tag show. */
   full: boolean;
@@ -841,10 +852,16 @@ function AgentLabel({
       <span className="sr-only">: {words}</span>
     </span>
   );
-  if (!pill && !bubble && !plate && !(full && (tag || caption || alerts.length))) return null;
+  if (!pill && !bubble && !said && !plate && !(full && (tag || caption || alerts.length))) return null;
   return (
     <div className={`anchor agent-anchor${plate ? " picked" : ""}`} data-anchor={`a:${slug}:${agent.key}`}>
       <span className="agent-stack">
+        {said && (
+          <button type="button" className={`bubble said${said.fading ? " fading" : ""}`} title={`${agent.displayName} says: ${said.text}`} aria-label={`${agent.displayName} says: ${said.text}. Open ${agent.displayName}`} data-said-agent={agent.name} onClick={onTap}>
+            <MessageCircle className="icon icon-sm" aria-hidden="true" />
+            <span className="bubble-text">{said.text}</span>
+          </button>
+        )}
         {bubble && (
           <span className={`bubble ${bubble.tone}`} title={bubble.title}>
             <bubble.icon className="icon icon-sm" aria-hidden="true" />

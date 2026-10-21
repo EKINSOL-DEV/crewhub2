@@ -11,9 +11,9 @@
    in this browser and kept there (crewhub-loops has no project groups, proposal L22), never shared. */
 import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { forgetHostKey, probeHost, type ConnectionState, type HostHealth } from "@crewhub/loops-client";
+import { forgetHostKey, forgetHostSession, probeHost, signInHost, type ConnectionState, type HostHealth, type HostSessionState } from "@crewhub/loops-client";
 import { useT } from "../i18n";
-import { connectOutcome, loopsVersion, relativeTime, untilTime } from "../state/connect";
+import { connectOutcome, loopsVersion, relativeTime, sessionWords, untilTime } from "../state/connect";
 import { useTown } from "../state/town";
 import { useWorld } from "../state/world";
 import { zonesOriginWords } from "../world/zoneText";
@@ -198,6 +198,7 @@ export function ConnectionPanel({ state, initial, onClose, pollMs = PANEL_POLL_M
           <dt>{t("world.connection.panel.zones")}</dt>
           <dd className="connection-zones">{zoneWords}</dd>
         </dl>
+        {connection?.session && <ChatSession session={connection.session} paired={paired} onHealth={setHealth} />}
         {health && !connection && <p className="hint connection-note">{t("world.connection.panel.older")}</p>}
         {connection && !paired && <p className="hint connection-note">{t("world.connection.panel.unpaired")}</p>}
         <p className="hint connection-note">{silent ? t("world.connection.panel.silent") : askedAt === null ? "" : t("world.connection.panel.updated", { ago: relativeTime(new Date(askedAt).toISOString(), now) ?? "" })}</p>
@@ -228,5 +229,94 @@ export function ConnectionPanel({ state, initial, onClose, pollMs = PANEL_POLL_M
         </Card.Footer>
       )}
     </Card>
+  );
+}
+
+
+/**
+ * The chat session (round 12, road B option 2): off until the person signs in here. The id and password go to the
+ * host on this computer in one request and are dropped by this page at once (the fields are cleared); the host keeps
+ * only loops' session cookie. The section says the state plainly and offers Forget the session.
+ */
+function ChatSession({ session, paired, onHealth }: { session: HostSessionState; paired: boolean; onHealth: (health: HostHealth) => void }) {
+  const { t } = useT();
+  const [id, setId] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState<"in" | "out" | null>(null);
+  const [said, setSaid] = useState<{ tone: "status" | "alert"; text: string } | null>(null);
+  const words = sessionWords(session);
+  const refresh = async () => {
+    const fresh = await probeHost("", 1500);
+    if (fresh !== null) onHealth(fresh);
+  };
+  const signIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (busy !== null || id.trim() === "" || password === "") return;
+    setBusy("in");
+    setSaid(null);
+    const answer = await signInHost(id.trim(), password);
+    setPassword("");
+    const outcome = connectOutcome(answer.status, answer.body);
+    if (outcome.kind === "ok") setId("");
+    else if (outcome.kind === "not-paired") setSaid({ tone: "alert", text: t("world.connection.panel.session.unpaired") });
+    else if (outcome.kind === "rejected") setSaid({ tone: "alert", text: t("world.connection.panel.session.refused", { reason: outcome.reason ?? "" }) });
+    else setSaid({ tone: "alert", text: t("world.connection.panel.session.failed", { reason: outcome.reason ?? "" }) });
+    await refresh();
+    setBusy(null);
+  };
+  const forget = async () => {
+    if (busy !== null) return;
+    setBusy("out");
+    setSaid(null);
+    const answer = await forgetHostSession();
+    const outcome = connectOutcome(answer.status, answer.body);
+    setSaid(outcome.kind === "ok" ? { tone: "status", text: t("world.connection.panel.session.forgotten") } : { tone: "alert", text: t("world.connection.panel.session.failed", { reason: outcome.kind === "not-paired" ? t("world.connect.key.notPaired") : (outcome.reason ?? "") }) });
+    await refresh();
+    setBusy(null);
+  };
+  if (words === null) return null;
+  const state = words.kind === "signed-out" ? t("world.connection.panel.session.signed-out") : words.name === null ? t(`world.connection.panel.session.${words.kind}.unnamed`) : t(`world.connection.panel.session.${words.kind}`, { name: words.name });
+  return (
+    <section className="connection-session" aria-labelledby="connection-session-title" data-session={words.kind}>
+      <h3 id="connection-session-title" className="connection-session-title">
+        {t("world.connection.panel.session")}
+      </h3>
+      <p className="connection-session-state" role="status">
+        {state}
+      </p>
+      {words.kind === "signed-out" && <p className="hint connection-note">{t("world.connection.panel.session.lead")}</p>}
+      {paired ? (
+        <>
+          {words.kind !== "signed-in" && (
+            <form className="connection-session-form" onSubmit={(e) => void signIn(e)}>
+              <label>
+                <span>{t("world.connection.panel.session.id")}</span>
+                <input name="id" type="text" autoComplete="username" value={id} onChange={(e) => setId(e.target.value)} disabled={busy !== null} required />
+              </label>
+              <label>
+                <span>{t("world.connection.panel.session.password")}</span>
+                <input name="password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={busy !== null} required />
+              </label>
+              <Button type="submit" variant="primary" size="sm" disabled={busy !== null || id.trim() === "" || password === ""}>
+                {busy === "in" ? t("world.connection.panel.session.signingIn") : t("world.connection.panel.session.signIn")}
+              </Button>
+            </form>
+          )}
+          {words.kind !== "signed-out" && (
+            <Button variant="danger" size="sm" disabled={busy !== null} onClick={() => void forget()}>
+              {busy === "out" ? t("world.connection.panel.session.forgetting") : t("world.connection.panel.session.forget")}
+            </Button>
+          )}
+          <p className="hint connection-note">{t("world.connection.panel.session.what")}</p>
+        </>
+      ) : (
+        <p className="hint connection-note">{t("world.connection.panel.session.unpaired")}</p>
+      )}
+      {said && (
+        <p className={said.tone === "alert" ? "connection-error" : "hint connection-note"} role={said.tone} aria-live="polite">
+          {said.text}
+        </p>
+      )}
+    </section>
   );
 }

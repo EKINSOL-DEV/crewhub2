@@ -58,8 +58,8 @@ export {
   validateWatchdogResponse,
   warnOnce,
 } from "./validate.ts";
-export { connectHost, createHostSource, forgetHostKey, prefetchSnapshot, probeHost } from "./hostSource.ts";
-export type { HostAnswer, HostArchiveState, HostConnection, HostDiscovery, HostHealth, HostKeyState, HostSnapshotState, HostSourceTimings, HostStreamState } from "./hostSource.ts";
+export { connectHost, createHostSource, forgetHostKey, forgetHostSession, prefetchSnapshot, probeHost, signInHost } from "./hostSource.ts";
+export type { HostAnswer, HostArchiveState, HostChatLine, HostConnection, HostDiscovery, HostHealth, HostKeyState, HostSessionState, HostSnapshotState, HostSourceTimings, HostStreamState } from "./hostSource.ts";
 export { readConnection } from "./hostSource.ts";
 export { ACTIVITY_TYPES, ACTIVITY_TYPES_QUERY, LOG_FACT_STATUSES, LOG_FACT_TYPES, LOG_RUNS_KEPT, openTicketsOf, quietCandidates, selectLogFacts } from "./logFacts.ts";
 export type { LogFacts, OpenTicket } from "./logFacts.ts";

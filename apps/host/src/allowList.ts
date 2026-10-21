@@ -46,7 +46,7 @@ export interface WorldRoute {
   kind: "local" | "loops";
   loopsPattern?: string;
   query: readonly string[];
-  /** The methods the route answers; GET when absent. Only `/connect` takes a write, and that write never reaches loops. */
+  /** The methods the route answers; GET when absent. Only `/connect` and `/session` take a write; the key never writes to loops, the session only signs itself in and out (session.ts). */
   methods?: readonly string[];
 }
 
@@ -57,6 +57,7 @@ export const WORLD_ROUTES: readonly WorldRoute[] = [
   { pattern: "/stream", kind: "local", query: ["cursor"] },
   { pattern: "/project-groups", kind: "local", query: [] },
   { pattern: "/connect", kind: "local", query: [], methods: ["POST", "DELETE"] },
+  { pattern: "/session", kind: "local", query: [], methods: ["POST", "DELETE"] },
   { pattern: "/tickets/{ref}", kind: "loops", loopsPattern: "/api/tickets/{ref}", query: [] },
   { pattern: "/tickets/{ref}/comments", kind: "loops", loopsPattern: "/api/tickets/{ref}/comments", query: PAGE_QUERY },
   { pattern: "/tickets/{ref}/progress", kind: "loops", loopsPattern: "/api/tickets/{ref}/progress", query: PAGE_QUERY },

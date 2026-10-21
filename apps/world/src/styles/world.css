@@ -617,6 +617,29 @@
 .bubble.done .icon {
   color: var(--status-done);
 }
+/* What the agent just said to the person (round 12): a tappable speech bubble, the first line, gone after a while. */
+.bubble.said {
+  pointer-events: auto;
+  cursor: pointer;
+  max-width: 16rem;
+  font: inherit;
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-medium);
+  background: var(--accent-soft, var(--surface-raised));
+  border-color: var(--accent-strong);
+  color: var(--text);
+  transition: opacity 400ms ease;
+}
+.bubble.said .icon {
+  color: var(--accent-text);
+}
+.bubble.said.fading {
+  opacity: 0.45;
+}
+.bubble.said:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 2px;
+}
 .status-tag {
   background: var(--surface-sunken);
   color: var(--text-muted);
@@ -2324,4 +2347,41 @@ a.agent-ticket-link:focus-visible {
     width: auto;
     top: 3.75rem;
   }
+}
+
+/* The Connection panel's Chat section (round 12): the session's state, the sign-in form, Forget the session. */
+.connection-session {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.connection-session-title {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+.connection-session-state {
+  margin: 0;
+}
+.connection-session-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.connection-session-form label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+}
+.connection-session-form input {
+  font: inherit;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--surface);
+  color: var(--text);
 }

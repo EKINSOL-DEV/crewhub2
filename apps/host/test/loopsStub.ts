@@ -7,6 +7,7 @@
  * On 127.0.0.1 port 0: loopback to the test itself, no network; or on a Unix socket (`socketPath`) for the host's
  * socket transport. (The full fake is `packages/loops-fake`.)
  */
+import { randomBytes } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 
@@ -18,6 +19,10 @@ export interface StubRequest {
   at: number;
   /** The `Host` header as sent (the socket transport must send `127.0.0.1`). */
   host: string | undefined;
+  /** The `Cookie` header as sent (a person's session), if any. */
+  cookie?: string;
+  /** The body of a POST (the sign-in), as sent: the tests prove where a password went and where it did not. */
+  body?: string;
 }
 
 export interface Envelope {
@@ -59,6 +64,12 @@ export interface StubOptions {
   socketPath?: string;
   /** `GET /api/events` (the page read, not the tail) with `after` below this answers 410 `cursor_expired`: the fake after a restart. */
   logMinAfter?: number;
+  /** A person who can sign in (`POST /api/auth/login`, round 12); without one every sign-in is 401 `bad_credentials`. */
+  person?: { id: string; password: string; displayName: string };
+  /** The chat a person's session reads: `GET /api/dm/messages/{id}` by id; the threads list. */
+  dm?: { threads?: unknown[]; messages?: Record<string, Record<string, unknown>> };
+  /** `POST /api/auth/login` answers 429 `too_many_attempts` (loops' pacing) while true. */
+  loginBusy?: boolean;
 }
 
 /** A stub-wide outage: every request answers `status` (health too unless `healthOk`), or never answers (`hang`). */
@@ -93,6 +104,10 @@ export interface LoopsStub {
   outage(outage: Outage | null): void;
   /** The key is revoked: every keyed request answers 401 `invalid_api_key` from now on, and open streams end (loops' 60 s re-check). */
   revoke(on?: boolean): void;
+  /** Every session cookie handed out so far is no longer accepted (the person signed out elsewhere, or 30 days passed). */
+  expireSessions(): void;
+  /** The session cookies handed out (the tests check what the host kept and what it never logged). */
+  sessionCookies(): string[];
   close(): Promise<void>;
 }
 
@@ -118,6 +133,12 @@ export function envelope(seq: number, type: string, extra: Partial<Envelope> = {
 export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsStub> {
   const key = options.key ?? DEFAULT_KEY;
   let revoked = false;
+  let loginBusy = options.loginBusy === true;
+  /** The session cookies handed out and still accepted. */
+  const sessions = new Set<string>();
+  const handedOut: string[] = [];
+  /** The `types=` filter of each open stream (a person's dm.* stream), none for the key's. */
+  const streamTypes = new Map<ServerResponse, string[]>();
   let outage: Outage | null = null;
   const hanging = new Set<ServerResponse>();
   const requests: StubRequest[] = [];
@@ -149,7 +170,9 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
   function handle(req: IncomingMessage, res: ServerResponse): void {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     const auth = req.headers.authorization;
-    requests.push({ method: req.method ?? "", path: url.pathname + url.search, authorization: auth, at: Date.now(), host: req.headers.host });
+    const record: StubRequest = { method: req.method ?? "", path: url.pathname + url.search, authorization: auth, at: Date.now(), host: req.headers.host };
+    if (req.headers.cookie !== undefined) record.cookie = req.headers.cookie;
+    requests.push(record);
     const detail = options.echoAuth ? ` (auth: ${auth ?? "none"})` : "";
     const publicHealth = url.pathname === "/api/health" && req.method === "GET" && auth === undefined && options.routes?.["/api/health"] === undefined;
     if (outage !== null && !(publicHealth && outage.healthOk === true)) {
@@ -163,6 +186,70 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
     // Health is public on crewhub-loops (the discovery probes it without a key); everything else needs the key.
     if (publicHealth) {
       return send(res, 200, { ok: true, version: options.version ?? "053b5f47", checks: {}, principal: null, watchdog: null });
+    }
+    // The person's sign-in (public, no CSRF: an absent Origin is fine on loops) and the session's reads (round 12).
+    if (url.pathname === "/api/auth/login" && req.method === "POST") {
+      const chunks: Buffer[] = [];
+      req.on("data", (chunk: Buffer) => chunks.push(chunk));
+      req.on("end", () => {
+        const text = Buffer.concat(chunks).toString("utf8");
+        record.body = text;
+        let body: { id?: unknown; password?: unknown } = {};
+        try {
+          body = JSON.parse(text) as { id?: unknown; password?: unknown };
+        } catch {
+          return send(res, 422, error("validation_error", "not JSON"));
+        }
+        if (loginBusy) return send(res, 429, error("too_many_attempts", "Too many login attempts, wait a moment"));
+        const person = options.person;
+        if (person === undefined || body.id !== person.id || body.password !== person.password) return send(res, 401, error("bad_credentials", "Unknown account or wrong password"));
+        const token = `sess_${randomBytes(12).toString("hex")}`;
+        sessions.add(token);
+        handedOut.push(token);
+        res.writeHead(200, { "content-type": "application/json", "set-cookie": [`chl_session=${token}; HttpOnly; Max-Age=2592000; Path=/; SameSite=lax`, `chl_device=dev_${randomBytes(6).toString("hex")}; HttpOnly; Max-Age=31536000; Path=/api/auth; SameSite=lax`] });
+        res.end(JSON.stringify({ user: { id: person.id, kind: "user", displayName: person.displayName, role: "admin", theme: null, themeDefault: "system", activitySeenSeq: 0, isOwner: true } }));
+      });
+      return;
+    }
+    const sessionToken = (req.headers.cookie ?? "").split(";").map((c) => c.trim()).find((c) => c.startsWith("chl_session="))?.slice("chl_session=".length);
+    if (auth === undefined && sessionToken !== undefined) {
+      if (!sessions.has(sessionToken)) return send(res, 401, error("unauthenticated", `Session expired${detail}`));
+      const p = url.pathname;
+      if (p === "/api/auth/logout" && req.method === "POST") {
+        sessions.delete(sessionToken);
+        res.writeHead(204);
+        res.end();
+        return;
+      }
+      if (req.method !== "GET") return send(res, 405, error("method_not_allowed", "GET only"));
+      if (p === "/api/dm/threads") return send(res, 200, { threads: options.dm?.threads ?? [] });
+      const byId = /^\/api\/dm\/messages\/([^/]+)$/.exec(p);
+      if (byId !== null) {
+        const message = options.dm?.messages?.[decodeURIComponent(byId[1] as string)];
+        return message === undefined ? send(res, 404, error("not_found", "No such message")) : send(res, 200, { message });
+      }
+      const thread = /^\/api\/dm\/threads\/([^/]+)\/messages$/.exec(p);
+      if (thread !== null) {
+        const agent = decodeURIComponent(thread[1] as string);
+        const messages = Object.values(options.dm?.messages ?? {}).filter((m) => m["agentId"] === agent || (m["author"] as { id?: string } | undefined)?.id === agent);
+        return send(res, 200, { messages, nextCursor: null });
+      }
+      if (p === "/api/events/stream") {
+        const types = (url.searchParams.get("types") ?? "").split(",").filter((t) => t !== "");
+        opened += 1;
+        res.writeHead(200, { "content-type": "application/x-ndjson" });
+        res.flushHeaders();
+        streams.add(res);
+        streamTypes.set(res, types);
+        maxConcurrent = Math.max(maxConcurrent, streams.size);
+        res.on("close", () => {
+          streams.delete(res);
+          streamTypes.delete(res);
+        });
+        return;
+      }
+      // A person's session may do much more on loops; the host must never ask for it. The stub says so loudly.
+      return send(res, 403, error("forbidden", `The world's session asked for ${p}, which is not a chat read${detail}`));
     }
     if (auth === undefined) return send(res, 401, error("unauthenticated", `No credentials${detail}`));
     if (req.headers.cookie !== undefined) return send(res, 400, error("ambiguous_auth", `Send one or the other${detail}`));
@@ -263,7 +350,11 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
       const seq = event.seq ?? lastSeq() + 1;
       const full = envelope(seq, event.type, { ...event, seq });
       events.push(full);
-      for (const res of streams) res.write(`${JSON.stringify(full)}\n`);
+      for (const res of streams) {
+        const types = streamTypes.get(res);
+        if (types !== undefined && types.length > 0 && !types.includes(full.type)) continue;
+        res.write(`${JSON.stringify(full)}\n`);
+      }
       return full;
     },
     heartbeat() {
@@ -288,6 +379,10 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
         hanging.clear();
       }
     },
+    expireSessions() {
+      sessions.clear();
+    },
+    sessionCookies: () => [...handedOut],
     revoke(on = true) {
       revoked = on;
       if (!on) return; // the bot re-enabled: the key answers again

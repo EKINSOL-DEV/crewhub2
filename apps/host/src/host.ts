@@ -30,6 +30,7 @@ import type { KeyStore } from "./keyStore.ts";
 import { type LoopsClient, createLoopsClient, isUnauthorized } from "./loops.ts";
 import { PAIR_PATH_PREFIX, PAIR_REFUSED_HTML, type Pairing, createPairing, pairCookieHeader } from "./pairing.ts";
 import { type ArchiveReport, type AssembledSnapshot, SnapshotError, type SnapshotStats, assembleSnapshot } from "./snapshot.ts";
+import { type Session, type SessionStore, createSession } from "./session.ts";
 import { type HostMessage, type LoopsState, type Upstream, createUpstream } from "./stream.ts";
 
 export interface HostOptions {
@@ -49,6 +50,11 @@ export interface HostOptions {
   keyStore?: KeyStore;
   /** The memory of the closed buildings (`archived.json` beside the key). Absent: remembered for this run only. */
   archiveStore?: ArchiveStore;
+  /**
+   * Where the person's chat session is kept (round 12): without a store the host takes no sign-in (`POST /session`
+   * answers 503) and shows no bubbles. The cookie never leaves the host; the password never reaches a file or a log.
+   */
+  sessionStore?: SessionStore;
   /** How long one read of loops may take before it counts as not answering. Default 10 s; tests shorten it. */
   readTimeoutMs?: number;
   /** 0 (the default) picks a free port. */
@@ -317,6 +323,20 @@ export async function createHost(options: HostOptions): Promise<Host> {
     versions.last = version;
   };
 
+  // --- The person's chat session (round 12, session.ts): off until a person signs in; follows the discovery's road.
+  const session: Session | null =
+    options.sessionStore === undefined
+      ? null
+      : createSession({
+          store: options.sessionStore,
+          log,
+          onChat: (line) => {
+            for (const tab of tabs.values()) tab.send({ type: "chat", chat: line });
+          },
+          ...(options.readTimeoutMs === undefined ? {} : { readTimeoutMs: options.readTimeoutMs }),
+          ...(options.reconnectMs === undefined ? {} : { reconnectMs: options.reconnectMs }),
+        });
+
   // --- A rejected key waits (round 8). No stream retries: each was a 401 and a health probe every 30 s. The host waits
   // for a new key, a Forget or a discovery change (every one goes through relink, which cancels the wait), and
   // re-checks the kept key slowly (recheckMs, 5 min by default: one keyless health probe, and only when loops answers
@@ -405,6 +425,8 @@ export async function createHost(options: HostOptions): Promise<Host> {
         }
         await old.upstream.stop();
       }
+      // The chat session rides the same road as the key: the discovery's target, or none.
+      session?.follow(found === null ? null : found.target);
       if (found === null || holder === null) {
         for (const tab of tabs.values()) attach(tab);
         return;
@@ -524,6 +546,10 @@ export async function createHost(options: HostOptions): Promise<Host> {
       archived: { source: archive.source, count: archive.slugs.size, ...(archive.at === undefined ? {} : { at: archive.at }) },
     };
     out.snapshot = snapshotState;
+    if (session !== null) {
+      const who = session.state();
+      out.session = detailed ? who : { state: who.state };
+    }
     if (recheckAt !== undefined && holder?.state === "rejected") out.key.recheckAt = recheckAt;
     if (found !== null) out.discovery.via = found.via;
     const busy = link?.upstream.busy() ?? null;
@@ -763,6 +789,59 @@ export async function createHost(options: HostOptions): Promise<Host> {
     sendJson(res, 200, { ok: true, connection: connection(true) });
   }
 
+  /**
+   * `POST /world-api/session {id, password}` (round 12): a paired browser on an allowed origin signs the host in to
+   * crewhub-loops as the person, for the chat's bubbles. The password is read once, handed to loops over loopback and
+   * dropped: never stored, logged, echoed or returned; only the session cookie is kept (session.ts). `DELETE` signs
+   * out and forgets it. The answers carry the states, never the cookie.
+   */
+  async function sessionRoute(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    if (req.headers.origin === undefined) {
+      sendJson(res, 403, { error: "origin_required", message: "Sign-in is for the world's own page: send the Origin header" });
+      return;
+    }
+    if (session === null) {
+      req.resume();
+      sendJson(res, 503, { error: "no_session_store", message: "This host keeps no chat session (no config folder)" });
+      return;
+    }
+    if (req.method === "DELETE") {
+      req.resume();
+      await session.forget();
+      sendJson(res, 200, { ok: true, connection: connection(true) });
+      return;
+    }
+    if (!/^application\/json\b/i.test(req.headers["content-type"] ?? "")) {
+      req.resume();
+      sendJson(res, 415, { error: "unsupported_media_type", message: 'Send application/json: {"id": "…", "password": "…"}' });
+      return;
+    }
+    const body = await readJsonBody(req, CONNECT_BODY_LIMIT);
+    const id = typeof body?.id === "string" ? body.id.trim() : "";
+    const password = typeof body?.password === "string" ? body.password : "";
+    if (id === "" || id.length > 64 || password === "" || password.length > 256) {
+      sendJson(res, 400, { error: "validation_error", message: "Give the account id and the password you sign in to crewhub-loops with." });
+      return;
+    }
+    await relinking;
+    const found = discovery.current();
+    if (found === null) {
+      sendJson(res, 503, { error: "no_loops", message: "crewhub-loops is not found yet: open Crewhub.app, then sign in again." });
+      return;
+    }
+    const outcome = await session.signIn(found.target, id, password);
+    if (outcome.kind === "unreachable") {
+      sendJson(res, 503, { error: "loops_down", message: `crewhub-loops did not answer the sign-in (${outcome.reason}). Is Crewhub.app open? Then sign in again.` });
+      return;
+    }
+    if (outcome.kind === "refused") {
+      log(`a sign-in for the chat was refused by crewhub-loops: ${outcome.code}`);
+      sendJson(res, outcome.status === 429 ? 429 : 401, { error: outcome.code, reason: outcome.message });
+      return;
+    }
+    sendJson(res, 200, { ok: true, connection: connection(true) });
+  }
+
   async function serveStatic(pathname: string, res: ServerResponse): Promise<void> {
     if (building) {
       res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", [BUILDING_HEADER]: "1" });
@@ -879,6 +958,9 @@ export async function createHost(options: HostOptions): Promise<Host> {
       case "/connect":
         await connect(req, res);
         return;
+      case "/session":
+        await sessionRoute(req, res);
+        return;
       default:
         sendJson(res, 404, { error: "not_found" });
     }
@@ -913,6 +995,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
       closed = true;
       clearInterval(idleBeat);
       clearRecheck();
+      await session?.stop();
       discovery.stop();
       await relinking;
       if (link !== null) await link.upstream.stop();

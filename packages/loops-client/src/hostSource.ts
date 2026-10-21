@@ -20,7 +20,7 @@ import type {
   Ticket,
   WatchdogResponse,
 } from "./types.ts";
-import type { ConnectionState, ConnectionStatus, HostSourceOptions, LoopsSnapshot, SourceMessage, WorldSource } from "./source.ts";
+import type { ChatLine, ConnectionState, ConnectionStatus, HostSourceOptions, LoopsSnapshot, SourceMessage, WorldSource } from "./source.ts";
 import {
   type Result,
   validateBoardResponse,
@@ -64,6 +64,20 @@ export interface HostKeyState {
   reason?: string;
   /** When the host re-checks a rejected key with loops by itself (ISO time): a bot re-enabled in loops comes back then. */
   recheckAt?: string;
+}
+
+/**
+ * The person's session the host may hold for the chat's bubbles (round 12, road B option 2): off until a person signs
+ * in through the host; `signed-in` names the person (paired browsers); `expired` means loops refused the kept cookie
+ * (sign in again); `signed-out` means no session. Never the cookie, never a password.
+ */
+export interface HostSessionState {
+  state: "signed-out" | "signed-in" | "expired";
+  /** The person's display name and account id; paired browsers only. */
+  name?: string;
+  id?: string;
+  /** When the session was made (ISO); paired only. */
+  at?: string;
 }
 
 /** The host's one upstream stream. */
@@ -120,6 +134,8 @@ export interface HostConnection {
   archived?: HostArchiveState;
   /** Absent on a host from before the step list. */
   snapshot?: HostSnapshotState;
+  /** The person's chat session the host holds, if any (round 12); absent on a host from before. */
+  session?: HostSessionState;
 }
 
 /** `GET /world-api/health`. Never the key. */
@@ -167,14 +183,28 @@ type StreamMessage =
   | { type: "status"; loops: HostHealth["loops"]; stream?: HostStreamState["state"]; reason?: string; key?: unknown }
   | { type: "event"; envelope: unknown }
   | { type: "heartbeat"; seq: number; ts: string }
-  | { type: "reset"; reason: string };
+  | { type: "reset"; reason: string }
+  /** An agent's message to the person (round 12), read by the host as the signed-in person. */
+  | { type: "chat"; chat: unknown };
+
+/** An agent's line as the host sends it (`ChatLine` of the source, the same shape). */
+export type HostChatLine = ChatLine;
+
+/** A chat line from the host, strictly: the ids and the text as non-empty strings, the name when given. */
+export function readChatLine(value: unknown): ChatLine | null {
+  const raw = value as Partial<Record<keyof ChatLine, unknown>> | null | undefined;
+  if (!raw || typeof raw.agentId !== "string" || raw.agentId === "" || typeof raw.text !== "string" || raw.text === "" || typeof raw.at !== "string" || typeof raw.messageId !== "string" || typeof raw.threadId !== "string") return null;
+  const out: ChatLine = { agentId: raw.agentId, text: raw.text, at: raw.at, messageId: raw.messageId, threadId: raw.threadId };
+  if (typeof raw.agentName === "string" && raw.agentName !== "") out.agentName = raw.agentName;
+  return out;
+}
 
 const oneOf = <T extends string>(value: unknown, values: readonly T[]): T | undefined => (values.includes(value as T) ? (value as T) : undefined);
 
 /** The `connection` object of a health answer, or null when it is missing or malformed (an older host). Never the key. */
 export function readConnection(value: unknown): HostConnection | null {
   if (value === null || typeof value !== "object") return null;
-  const raw = value as { discovery?: Partial<HostDiscovery>; key?: Partial<HostKeyState>; stream?: Partial<HostStreamState>; archived?: Partial<HostArchiveState>; snapshot?: unknown };
+  const raw = value as { discovery?: Partial<HostDiscovery>; key?: Partial<HostKeyState>; stream?: Partial<HostStreamState>; archived?: Partial<HostArchiveState>; snapshot?: unknown; session?: unknown };
   const discoveryState = oneOf(raw.discovery?.state, ["found", "searching"]);
   const keyState = oneOf(raw.key?.state, ["none", "unchecked", "checking", "rejected", "ok"]);
   const streamState = oneOf(raw.stream?.state, ["idle", "ok", "down", "unauthorized", "busy"]);
@@ -203,10 +233,24 @@ export function readConnection(value: unknown): HostConnection | null {
   }
   const snapshot = readSnapshotState(raw.snapshot);
   if (snapshot !== null) out.snapshot = snapshot;
+  const session = readSessionState(raw.session);
+  if (session !== null) out.session = session;
   return out;
 }
 
 /** The `snapshot` of a connection, or null when it is missing or malformed. */
+/** The host's `connection.session`, strictly: a known state, the name, id and time when strings; anything else dropped. */
+export function readSessionState(value: unknown): HostSessionState | null {
+  const raw = value as { state?: unknown; name?: unknown; id?: unknown; at?: unknown } | null | undefined;
+  const state = oneOf(raw?.state, ["signed-out", "signed-in", "expired"]);
+  if (state === undefined) return null;
+  const out: HostSessionState = { state };
+  if (typeof raw?.name === "string") out.name = raw.name;
+  if (typeof raw?.id === "string") out.id = raw.id;
+  if (typeof raw?.at === "string") out.at = raw.at;
+  return out;
+}
+
 export function readSnapshotState(value: unknown): HostSnapshotState | null {
   if (value === null || typeof value !== "object") return null;
   const raw = value as { state?: unknown; reads?: unknown; projects?: unknown; ms?: unknown; reason?: unknown };
@@ -495,6 +539,11 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
         setState("catching-up");
         return "resnapshot";
       }
+      case "chat": {
+        const chat = readChatLine(message.chat);
+        if (chat !== null) send({ type: "chat", chat });
+        return "ok";
+      }
       case "event": {
         const result: Result<Envelope> = validateEnvelope(message.envelope);
         if (!result.ok) {
@@ -683,6 +732,20 @@ export async function connectHost(key: string, baseUrl = "", timeoutMs = 10_000)
 /** `DELETE /world-api/connect`: the host forgets its stored key (the world then asks for one again). Never throws. */
 export async function forgetHostKey(baseUrl = "", timeoutMs = 10_000): Promise<HostAnswer> {
   return hostRequest("DELETE", `${baseUrl}${PREFIX}/connect`, null, timeoutMs);
+}
+
+/**
+ * `POST /world-api/session {id, password}` (round 12): the host signs in to crewhub-loops as the person for the chat's
+ * bubbles and keeps only the session cookie. The password goes to the host on this computer and nowhere else; the page
+ * keeps nothing. Never throws.
+ */
+export async function signInHost(id: string, password: string, baseUrl = "", timeoutMs = 15_000): Promise<HostAnswer> {
+  return hostRequest("POST", `${baseUrl}${PREFIX}/session`, JSON.stringify({ id, password }), timeoutMs);
+}
+
+/** `DELETE /world-api/session`: the host signs out at loops and deletes the kept session. Never throws. */
+export async function forgetHostSession(baseUrl = "", timeoutMs = 10_000): Promise<HostAnswer> {
+  return hostRequest("DELETE", `${baseUrl}${PREFIX}/session`, null, timeoutMs);
 }
 
 async function hostRequest(method: "POST" | "DELETE", url: string, body: string | null, timeoutMs: number): Promise<HostAnswer> {
