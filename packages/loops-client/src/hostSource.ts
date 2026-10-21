@@ -160,6 +160,8 @@ export interface HostHealth {
   paired?: boolean;
   /** `off` only in development; then every request counts as paired. */
   pairing?: "on" | "off";
+  /** The id of the checkout the host runs from (apps/host `checkout.ts`): a dev server refuses another checkout's host. */
+  checkout?: string;
 }
 
 /** The source's clocks, with their defaults. Tests inject short ones. */
@@ -291,6 +293,7 @@ export async function probeHost(baseUrl = "", timeoutMs = 1500): Promise<HostHea
     if (body.transport === "tcp" || body.transport === "unix") health.transport = body.transport;
     if (typeof body.paired === "boolean") health.paired = body.paired;
     if (body.pairing === "on" || body.pairing === "off") health.pairing = body.pairing;
+    if (typeof body.checkout === "string" && /^[0-9a-f]{6,64}$/.test(body.checkout)) health.checkout = body.checkout;
     const connection = readConnection(body.connection);
     if (connection !== null) health.connection = connection;
     return health;

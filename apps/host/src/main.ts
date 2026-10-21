@@ -41,6 +41,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildWorld, checkBuild } from "./build.ts";
+import { checkoutId } from "./checkout.ts";
 import { ConfigError, type ServerConfig, loadKey, loadServerConfig, worldEnv } from "./config.ts";
 import { formatDoctor, runDoctor } from "./doctor.ts";
 import { createArchiveStore } from "./archiveStore.ts";
@@ -212,6 +213,7 @@ const host = await createHost({
   port: config.port,
   allowedOrigins: config.allowedOrigins,
   pairing: config.pairing,
+  checkout: checkoutId(repoRoot),
   mintSecret,
   log,
   ...(world ? { onStep: printStep } : {}),

@@ -22,6 +22,7 @@ describe("health", () => {
       assert.deepEqual(health.connection, { discovery: { state: "found", via: "env-url" }, key: { state: "ok" }, stream: { state: "ok", reconnects: 0 }, archived: { source: "none", count: 0 }, snapshot: { state: "idle" } }, "an unpaired request sees the states only (no archived slugs)");
       assert.equal(health.cursor, 0);
       assert.equal(health.loopsWebUrl, stub.url, "the loops origin, for the sign-in link");
+      assert.equal(health.checkout, undefined, "no checkout id unless the host was given one");
       // loops' version is read beside the stream (information only): it shows once that read answered.
       await waitFor("loops' version", async () => (await read(host.url)).loopsCommit !== undefined);
       assert.equal((await read(host.url)).loopsCommit, "053b5f47");

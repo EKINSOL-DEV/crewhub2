@@ -42,6 +42,8 @@ export interface HostOptions {
   loopsWebUrl?: string;
   /** The discovery's input when neither URL nor socket is given: the app's data folder, and (tests) the disk and the probe. */
   discovery?: Partial<Omit<DiscoveryInput, "loopsUrl" | "loopsSocket" | "loopsWebUrl">> & { intervalMs?: number };
+  /** The checkout id of the repository this host runs from (`checkout.ts`), in health as `checkout`; absent: not said. */
+  checkout?: string;
   /** The key at start, when a file had one. Absent: the host waits for `POST /world-api/connect`. */
   key?: string;
   keyName?: string;
@@ -165,6 +167,8 @@ export interface HostHealth {
   pairing: "on" | "off";
   /** Discovery, key and stream: the states always, the details (paths, names, cursor) for a paired browser only. */
   connection: HostConnection;
+  /** The checkout id this host runs from (`checkout.ts`), when it was given one: a dev server of another checkout refuses this host. */
+  checkout?: string;
 }
 
 const MIME: Record<string, string> = {
@@ -991,6 +995,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
           pairing: pairingMode,
           connection: connection(isPaired),
         };
+        if (options.checkout !== undefined) health.checkout = options.checkout;
         const found = discovery.current();
         if (found !== null) health.transport = found.target.transport;
         const version = link?.upstream.loopsVersion();

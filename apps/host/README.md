@@ -49,8 +49,10 @@ smooth connection" below):
   stream and a sign-in is refused as not needed (409). Planned (decision 9): once the viewer key is merged in loops and the world has
   switched to it, the session road goes in that same track (`src/session.ts`, its file, the `/world-api/session` routes, the panel's
   form, the `signed-out`/`signed-in`/`expired` states, the regress chat group's session half); the plan is in `session.ts`'s header.
-- **Health** `GET /world-api/health`: `{ loops, keyName, sharedKey, loopsWebUrl, transport, paired, pairing, loopsCommit?, loopsCommitBefore?, cursor?, connection }`
-  (`connection` is under "The smooth connection" below; `connection.key.recheckAt` says when a rejected key is re-checked (round 8: the host
+- **Health** `GET /world-api/health`: `{ loops, keyName, sharedKey, loopsWebUrl, transport, paired, pairing, checkout?, loopsCommit?, loopsCommitBefore?, cursor?, connection }`
+  (`checkout` is the id of the checkout the host runs from, `src/checkout.ts`: the first 12 hex characters of SHA-256 over the
+  repository root's real path, never the path itself, since health answers before the pairing gate; `npm run dev` of another
+  checkout reads it and refuses to proxy to this host; `connection` is under "The smooth connection" below; `connection.key.recheckAt` says when a rejected key is re-checked (round 8: the host
   makes no stream retry with a refused key; it waits for a new key, a Forget or a discovery change and asks loops about the kept key
   every 5 min, one keyless health probe first and the key check only when loops answers, so a bot re-enabled in loops comes back by
   itself; at most one probe a minute); `loopsCommitBefore` is the version the host read first this
