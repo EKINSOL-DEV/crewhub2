@@ -5,7 +5,7 @@ export type { DemoSource, DemoSourceOptions } from "./source.ts";
 export { DEFAULT_SCENARIO, SCENARIO_IDS, demoScenario, demoScenarios, parseScenarioId } from "./scenarios.ts";
 export type { DemoScenario, ScenarioId } from "./scenarios.ts";
 export type { DemoContent, ProjectGroupSeed } from "./content.ts";
-export { DEMO_SEED, PROBE_SILENCE, SCRIPT_DURATION_MS, buildScript } from "./script.ts";
+export { DEMO_SEED, FIRST_PERSON_DONE_MS, PERSON_DONE_AT, PERSON_DONE_GAP_MS, PROBE_SILENCE, SCRIPT_DURATION_MS, buildScript } from "./script.ts";
 export type { ScriptEntry } from "./script.ts";
 export type { Action } from "./actions.ts";
 export { browserScheduler, createManualScheduler } from "./scheduler.ts";

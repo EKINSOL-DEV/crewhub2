@@ -7,7 +7,8 @@
  * FUTURE (proposal L22 "project groups"): the groups are the one field here that crewhub-loops does not have today.
  * They leave the source as `ProjectOut.groupId`, `LoopsSnapshot.groups` and `listProjectGroups()`. The looks of the
  * four districts are not loops data at all: they are this scenario's town document seed (`STUDIO_TOWN_ZONES`).
- * All of it is fiction; see CONTENT.md.
+ * One of the twenty is closed at the loop start (`STUDIO_ARCHIVED`): a boarded-up building that opens and closes again
+ * over the loop, as OPS does in the small team. All of it is fiction; see CONTENT.md.
  */
 import type { ProgressKind, ProjectColor, ProjectIcon } from "@crewhub/loops-client";
 import type { TownZone } from "@crewhub/world-model";
@@ -138,7 +139,17 @@ function plans(): Plan[] {
   return out;
 }
 
-const PLANS = plans();
+/**
+ * The project archived at the loop start, restored at `restoreAt` and archived again at `archiveAt` (script time). It
+ * is Translations in Lab: Lab is the quiet district by the storyline's own word (g-man's answer names Brand and Lab),
+ * so its region card still reads with four live buildings and one closed one, and a translation pass is the kind of
+ * work that is shelved for a season and picked up again. While it is closed nothing happens in it: its lead idles
+ * (a registered agent whose only project is closed stands in the town hall), its workers are not in the snapshot.
+ */
+export const STUDIO_ARCHIVED = { key: "TR", archivedAgo: 9 * DAY, restoreAt: "5:30", archiveAt: "14:20" } as const;
+
+const PLANS = plans().map((p) => (p.key === STUDIO_ARCHIVED.key ? { ...p, seed: { ...p.seed, archivedAgo: STUDIO_ARCHIVED.archivedAgo } } : p));
+const closed = (p: Plan) => p.key === STUDIO_ARCHIVED.key;
 /** Projects whose review ticket (number 3) waits on Nicky at the start: a name tag in five buildings. */
 const reviewWaits = (p: Plan) => p.index % 4 === 0;
 /** Projects whose quiet ticket (number 5) waits on a person at the start: waiting on a human in four buildings. */
@@ -205,14 +216,19 @@ export const STUDIO_CONTENT: DemoContent = {
   nextTicketNumber: Object.fromEntries(PLANS.map((p) => [p.key, 9])),
   lanes: [
     { name: "g-man", status: "idle", contextLine: null },
-    ...PLANS.flatMap((p): LaneSeed[] => [
-      { name: p.lead, status: "working", contextLine: `${p.key}-4: ${(WORK[(p.index * 5 + 4) % WORK.length] as [string, string])[0].toLowerCase()}`, workspace: `w${1 + Math.floor(p.index / 5)}` },
-      ...p.workers.map((name, w): LaneSeed => ({ name, status: idle(p, w) ? "idle" : "working", contextLine: idle(p, w) ? null : `${p.key}-${4 + (w % 2)}: on it`, workspace: `w${1 + Math.floor(p.index / 5)}` })),
-    ]),
+    ...PLANS.flatMap((p): LaneSeed[] =>
+      closed(p)
+        ? // The closed project's lead idles; its workers come with the restore.
+          [{ name: p.lead, status: "idle", contextLine: null, workspace: `w${1 + Math.floor(p.index / 5)}` }]
+        : [
+            { name: p.lead, status: "working", contextLine: `${p.key}-4: ${(WORK[(p.index * 5 + 4) % WORK.length] as [string, string])[0].toLowerCase()}`, workspace: `w${1 + Math.floor(p.index / 5)}` },
+            ...p.workers.map((name, w): LaneSeed => ({ name, status: idle(p, w) ? "idle" : "working", contextLine: idle(p, w) ? null : `${p.key}-${4 + (w % 2)}: on it`, workspace: `w${1 + Math.floor(p.index / 5)}` })),
+          ],
+    ),
     { name: "postman", status: "idle", contextLine: null },
   ],
   comments: PLANS.filter(reviewWaits).map((p) => ({ ticket: `${p.key}-3`, author: p.lead, ago: (30 + p.index * 7) * MINUTE, text: "Ready for review. One open point is in the description." })),
-  progress: PLANS.map((p) => ({ ticket: `${p.key}-4`, agent: p.lead, kind: "start" as ProgressKind, text: "picked up; first pass today", ago: (40 + p.index * 9) * MINUTE })),
+  progress: PLANS.filter((p) => !closed(p)).map((p) => ({ ticket: `${p.key}-4`, agent: p.lead, kind: "start" as ProgressKind, text: "picked up; first pass today", ago: (40 + p.index * 9) * MINUTE })),
   dmHistory: [
     { agent: "g-man", author: "nicky", ago: 16 * 60 * MINUTE, text: "Twenty projects now. Tell me where I am needed, not everything." },
     { agent: "g-man", author: "g-man", ago: 16 * 60 * MINUTE - 2 * MINUTE, text: "Will do: only what waits on a person, per group." },
@@ -234,28 +250,34 @@ function storyline(s: ScriptBuilder): void {
   const pick = <T>(list: readonly T[]) => list[Math.floor(random() * list.length)] as T;
   const end = DURATION_MS - 12 * SECOND;
   const by = (key: string) => PLANS.find((p) => p.key === key) as Plan;
+  // The closed project lives only between its restore and its second archive: nothing is written to it outside that.
+  const open = { from: at(STUDIO_ARCHIVED.restoreAt) + 20 * SECOND, to: at(STUDIO_ARCHIVED.archiveAt) - 30 * SECOND };
+  const live = (p: Plan, t: number) => !closed(p) || (t >= open.from && t < open.to);
 
   for (const p of PLANS) {
     const t4 = `${p.key}-4`;
     const t5 = `${p.key}-5`;
     // Steady work in every building: a progress line on the busy ticket about every 45 s.
     for (let t = 3 * SECOND + p.index * 2100; t < end; t += 41 * SECOND + Math.floor(random() * 9 * SECOND)) {
-      s.add(t, { type: "progress", ticket: t4, agent: p.lead, worker: pick(p.workers), kind: "update", text: pick(STEPS) });
+      if (live(p, t)) s.add(t, { type: "progress", ticket: t4, agent: p.lead, worker: pick(p.workers), kind: "update", text: pick(STEPS) });
     }
     // Workers come and go between working and idle.
     for (let t = 20 * SECOND + p.index * 3700; t < end; t += 70 * SECOND + Math.floor(random() * 40 * SECOND)) {
       const name = pick(p.workers);
       const working = random() < 0.6;
-      s.add(t, { type: "lane", name, status: working ? "working" : "idle", contextLine: working ? `${t4}: ${pick(STEPS)}` : null });
+      if (live(p, t)) s.add(t, { type: "lane", name, status: working ? "working" : "idle", contextLine: working ? `${t4}: ${pick(STEPS)}` : null });
     }
 
     // Somewhere a person is needed, all loop long. The quiet ticket of each project has one or two episodes.
     const person = personFor(p);
     const ask = (t: number) => {
+      if (!live(p, t)) return;
       s.add(t, { type: "progress", ticket: t5, agent: p.lead, kind: "question", text: pick(QUESTIONS) });
       s.add(t + 2 * SECOND, { type: "waitOn", by: p.lead, ticket: t5, on: person });
     };
-    const answer = (t: number) => s.post(t, { type: "comment", by: person, ticket: t5, text: pick(ANSWERS) });
+    const answer = (t: number) => {
+      if (live(p, t)) s.post(t, { type: "comment", by: person, ticket: t5, text: pick(ANSWERS) });
+    };
     if (startsWaiting(p)) {
       // Waits on a person from the start; answered, and asked again later.
       const answered = (70 + ((p.index * 97) % 240)) * SECOND;
@@ -270,6 +292,8 @@ function storyline(s: ScriptBuilder): void {
         if ((p.index + round) % 3 === 2) {
           ask(t);
           answer(t + 150 * SECOND);
+        } else if (!live(p, t) || !live(p, t + 170 * SECOND)) {
+          // An episode that would start or end while the project is closed is left out.
         } else if ((p.index + round) % 2 === 0) {
           s.post(t, { type: "stall", ticket: t5, reason: "stalled", quietMinutes: 20 + (p.index % 9), nudge: true });
           s.add(t + 140 * SECOND, { type: "progress", ticket: t5, agent: p.lead, kind: "update", text: "back on it after the nudge" });
@@ -281,8 +305,9 @@ function storyline(s: ScriptBuilder): void {
       }
     }
 
-    // One piece of traffic with a person per project, spread over the loop: each sends the postman out.
-    const when = (50 + ((p.index * 43) % 800)) * SECOND;
+    // One piece of traffic with a person per project, spread over the loop: each sends the postman out. The closed
+    // project's comes once it is open again.
+    const when = closed(p) ? open.from + 90 * SECOND : (50 + ((p.index * 43) % 800)) * SECOND;
     if (reviewWaits(p)) {
       // Nicky closes the review that waited on them; the lead sends the next ticket to review, waiting again.
       const next = `${p.key}-6`;
@@ -301,6 +326,17 @@ function storyline(s: ScriptBuilder): void {
       s.post(when, { type: "createTicket", by: "sam", project: p.seed.slug, title: `Bug: ${p.seed.name} shows yesterday's data after waking up`, kind: "bug", priority: "high", body: "Seen twice this week on a laptop that slept overnight." });
     }
   }
+
+  // The closed project (STUDIO_ARCHIVED): Nicky opens it again, its workers come back and start, and near the end
+  // of the loop they leave and Nicky closes it once more, so the loop ends where it began.
+  const shelved = by(STUDIO_ARCHIVED.key);
+  s.add(STUDIO_ARCHIVED.restoreAt, { type: "projectRestore", by: "nicky", project: shelved.seed.slug });
+  s.add(at(STUDIO_ARCHIVED.restoreAt) + 6 * SECOND, { type: "lane", name: shelved.lead, status: "working", contextLine: `${shelved.key}-4: picking the translation pass back up` });
+  shelved.workers.forEach((name, w) => s.add(at(STUDIO_ARCHIVED.restoreAt) + (9 + 3 * w) * SECOND, { type: "laneJoin", name, status: "working", contextLine: `${shelved.key}-${4 + (w % 2)}: on it` }));
+  s.add(at(STUDIO_ARCHIVED.restoreAt) + 16 * SECOND, { type: "progress", ticket: `${shelved.key}-4`, agent: shelved.lead, kind: "start", text: "back from the shelf: the autumn languages first" });
+  shelved.workers.forEach((name, w) => s.add(at(STUDIO_ARCHIVED.archiveAt) - (24 - 3 * w) * SECOND, { type: "laneLeave", name }));
+  s.add(at(STUDIO_ARCHIVED.archiveAt) - 12 * SECOND, { type: "lane", name: shelved.lead, status: "idle", contextLine: null });
+  s.add(STUDIO_ARCHIVED.archiveAt, { type: "projectArchive", by: "nicky", project: shelved.seed.slug });
 
   // Releases and archive batches: the truck visits three districts.
   const sync = by("SY");

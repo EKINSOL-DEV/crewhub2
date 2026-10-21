@@ -4,6 +4,7 @@ import type { Envelope, TeamSnapshot } from "@crewhub/loops-client";
 import { applyAction } from "../src/actions.ts";
 import type { Output } from "../src/actions.ts";
 import { initialState, requireTicket } from "../src/store.ts";
+import { FIRST_PERSON_DONE_MS, PERSON_DONE_AT, PERSON_DONE_GAP_MS } from "../src/script.ts";
 import { at } from "../src/time.ts";
 import { envelopes, firstLoop, playLoop, startDemo } from "./helpers.ts";
 
@@ -122,12 +123,33 @@ test("a person turns one ticket down, in the shape of loops' ticket.moved (CL-89
   );
   assert.equal(typeof rejection?.payload["resolutionReason"], "string");
   const run = startDemo();
-  run.play(at("7:00"));
+  run.play(at(PERSON_DONE_AT["CR-25"] as string) + 20_000);
   const done = ((await run.source.getBoard("crewhub"))?.columns ?? []).find((c) => c.status === "done")?.tickets ?? [];
   assert.deepEqual(done.filter((t) => t.resolution === "rejected").map((t) => [t.key, t.resolutionReason]), [
     ["CR-25", rejection?.payload["resolutionReason"]],
   ]);
   assert.equal((await run.source.getTicket("CR-25"))?.resolution, "rejected");
+});
+
+test("the person's Done moves are the table's, one per ticket, spaced like a person who comes back minutes later", () => {
+  // PERSON_DONE_AT is the one source: the storyline, the fake's test and the tools' seeks read it. Within one building
+  // (one hall) two visits never meet: at least PERSON_DONE_GAP_MS apart, the jitter allowed for.
+  const done = of("ticket.moved").filter((e) => e.payload["to"] === "done" && e.actor.kind === "user");
+  const times = new Map<string, number>();
+  for (const e of done) {
+    const key = e.ticket?.key ?? "";
+    assert.ok(!times.has(key), `${key} is moved into Done once`);
+    times.set(key, Date.parse(e.ts) - T0);
+  }
+  assert.deepEqual([...times.keys()].sort(), Object.keys(PERSON_DONE_AT).sort(), "every move into Done is in the table and the table names no other");
+  for (const [key, clock] of Object.entries(PERSON_DONE_AT)) assert.ok(Math.abs((times.get(key) ?? 0) - at(clock)) <= 1_500, `${key} at ${clock}`);
+  assert.equal(FIRST_PERSON_DONE_MS, at(PERSON_DONE_AT["CR-37"] as string));
+  const byBuilding = new Map<string, number[]>();
+  for (const [key, ms] of times) byBuilding.set(key.split("-")[0] as string, [...(byBuilding.get(key.split("-")[0] as string) ?? []), ms]);
+  for (const [building, list] of byBuilding) {
+    list.sort((a, b) => a - b);
+    for (let i = 1; i < list.length; i++) assert.ok((list[i] as number) - (list[i - 1] as number) >= PERSON_DONE_GAP_MS - 2_500, `${building}: ${list[i - 1]} and ${list[i]} are too close`);
+  }
 });
 
 test("a ticket that leaves In progress loses only its awaiting-deploy label, named in the payload", () => {

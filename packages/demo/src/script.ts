@@ -21,6 +21,36 @@ export const PROBE_SILENCE = { from: at("10:10"), to: at("15:40") } as const;
 const JITTER_MS = 1200;
 const MIN_GAP_MS = 150;
 
+/**
+ * When the storyline's person (Nicky) moves work into Done, in script time, by ticket key: the one source for the
+ * storyline below (the moves, and the prop flows' `doneAfter`), for the tests that name these moments and for the
+ * tools that seek to a person's visit (tools/regress.mjs, tools/shots.mjs). A person carries one package and comes back
+ * minutes later: within one building the moves are at least `PERSON_DONE_GAP_MS` apart, well over a visit (about
+ * 15 s, door to door), so no two visits ever meet in a hall. The seeded jitter moves each by at most 1.2 s.
+ */
+export const PERSON_DONE_AT: Readonly<Record<string, string>> = {
+  "CR-37": "3:22",
+  "CR-18": "5:30",
+  "CL-81": "6:20",
+  "CR-35": "7:38",
+  "CL-80": "8:30",
+  "CR-25": "9:30",
+  "CR-20": "11:34",
+  "MK-7": "12:44",
+  "CR-19": "13:30",
+  "OPS-4": "13:36",
+  "CL-76": "14:10",
+  "CR-38": "15:20",
+};
+/** The least time between two of the person's Done moves in one building. */
+export const PERSON_DONE_GAP_MS = 100 * SECOND;
+/** The first of them (ms from the script start): where a tool seeks to watch a person come in. */
+export const FIRST_PERSON_DONE_MS = Math.min(...Object.values(PERSON_DONE_AT).map(at));
+/** The script time of the person's Done move of a ticket, for a storyline entry. */
+const personDone = (key: string): string => PERSON_DONE_AT[key] as string;
+/** A prop flow's `doneAfter` (seconds from its start) that puts its Done move at the table's time. */
+const doneAfter = (key: string, start: string): number => (at(personDone(key)) - at(start)) / SECOND;
+
 export interface ScriptEntry {
   /** Stable id: the authoring order. Delivery and ticket handles (`@id`) refer to it. */
   id: number;
@@ -131,7 +161,7 @@ function storyline(s: ScriptBuilder): void {
     body: "A low armchair, a rug and a standing lamp. Place it in the lead's office.",
     json: DEMO_PROPS.readingNook,
     worker: "cr-design-1",
-    doneAfter: 176,
+    doneAfter: doneAfter("CR-37", "0:26"),
   });
   s.add("0:30", { type: "progress", ticket: "CR-22", agent: "cr-lead", worker: "cr-dev-2", kind: "update", text: "pallets instanced; count label next" });
   s.add("0:34", { type: "comment", by: "cl-lead", ticket: "CL-76", text: "The heartbeat now reuses the last sent seq; a test covers it." });
@@ -161,14 +191,14 @@ function storyline(s: ScriptBuilder): void {
   s.add("3:04", { type: "comment", by: "cl-lead", ticket: "CL-83", text: "Yes for the envelope first; payload schemas later." });
   s.add("3:10", { type: "laneJoin", name: "cl-dev-3", status: "unknown", contextLine: null });
   s.add("3:14", { type: "progress", ticket: "CL-81", agent: "cl-lead", kind: "update", text: "catalogue complete; checking it against the drift test" });
-  s.add("3:28", { type: "move", by: "nicky", ticket: "CR-18", to: "done" });
+  s.add(personDone("CR-18"), { type: "move", by: "nicky", ticket: "CR-18", to: "done" });
   s.add("3:34", { type: "progress", ticket: "CL-40", agent: "analyst", kind: "update", text: "deliveries and DMs mapped to the postman" });
   s.add("3:40", { type: "lane", name: "cl-dev-3", status: "working", contextLine: "CL-44: tests for the tail recipe" });
   s.add("3:44", { type: "comment", by: "cl-lead", ticket: "CL-44", text: "cl-dev-3 joins for the tests." });
   const morning = s.post("3:52", { type: "dm", from: "nicky", agent: "g-man", text: "Morning! How is the town looking?" });
 
   // 4:00 to 6:00: the fern; OPS comes back; a review reply.
-  propFlow(s, at("3:48"), { ticket: "CR-35", json: DEMO_PROPS.tallFern, worker: "cr-dev-1", doneAfter: 230 });
+  propFlow(s, at("3:48"), { ticket: "CR-35", json: DEMO_PROPS.tallFern, worker: "cr-dev-1", doneAfter: doneAfter("CR-35", "3:48") });
   s.add("4:10", { type: "progress", ticket: "CL-44", agent: "cl-lead", worker: "cl-dev-3", kind: "start", text: "writing tests for the tail recipe" });
   s.add("4:21", { type: "dmReply", agent: "g-man", replyToClientId: `demo-a${morning}`, text: "Busy and calm. CR finished the reading nook, CL is closing the integrator docs, and CR-24 has been quiet for a while." });
   s.add("4:25", { type: "lane", name: "cr-dev-1", status: "working", contextLine: "CR-35: building the prop" });
@@ -221,10 +251,10 @@ function storyline(s: ScriptBuilder): void {
     body: "An old signpost for the town square.",
     json: DEMO_PROPS.brokenSign,
     worker: "cr-scout",
-    doneAfter: 230,
+    doneAfter: doneAfter("CR-38", "8:20"),
   });
-  s.add("8:26", { type: "move", by: "nicky", ticket: "CL-81", to: "done" });
-  s.add("8:30", { type: "move", by: "nicky", ticket: "CL-80", to: "done" });
+  s.add(personDone("CL-81"), { type: "move", by: "nicky", ticket: "CL-81", to: "done" });
+  s.add(personDone("CL-80"), { type: "move", by: "nicky", ticket: "CL-80", to: "done" });
   s.add("8:40", { type: "milestoneState", by: "nicky", milestone: "CL-M3", state: "done" });
   s.add("8:40", { type: "automationRun", ticket: "CR-20", automation: { id: "au_demo_stale", name: "Label stale bugs" }, outcome: "ok", runId: "run_demo_1", addLabel: "stale" });
   s.add("8:43", { type: "automationRun", ticket: "CR-21", automation: { id: "au_demo_review_date", name: "Ask for a review date" }, outcome: "ok", runId: "run_demo_2" });
@@ -262,9 +292,9 @@ function storyline(s: ScriptBuilder): void {
   });
   s.add("11:20", { type: "comment", by: "cr-lead", ticket: "CR-17", text: "The sign shows the key as well now; ready for a look." });
   s.add("11:28", { type: "progress", ticket: `@${release}`, agent: "cl-lead", kind: "start", text: "writing the notes for 0.9.0" });
-  s.add("11:34", { type: "move", by: "nicky", ticket: "CR-20", to: "done" });
+  s.add(personDone("CR-20"), { type: "move", by: "nicky", ticket: "CR-20", to: "done" });
   s.add("11:40", { type: "progress", ticket: "MK-9", agent: "ux-lead", kind: "update", text: "hero exported in light and dark" });
-  s.add("11:46", { type: "move", by: "nicky", ticket: "CR-19", to: "done" });
+  s.add(personDone("CR-19"), { type: "move", by: "nicky", ticket: "CR-19", to: "done" });
   s.add("11:52", { type: "comment", by: "marky", ticket: "MK-11", text: "The draft is in the ticket body." });
   s.add("11:58", { type: "progress", ticket: "CL-40", agent: "analyst", kind: "done", text: "mapping done: 35 types, 12 of them skipped" });
   s.add("12:04", { type: "move", by: "analyst", ticket: "CL-40", to: "review" });
@@ -272,7 +302,7 @@ function storyline(s: ScriptBuilder): void {
   s.post("12:26", { type: "comment", by: "sam", ticket: "CR-24", text: "The flag reads well at overview zoom." });
   s.add("12:30", { type: "lane", name: "cr-design-1", status: "idle", contextLine: null });
   s.add("12:34", { type: "progress", ticket: "CL-44", agent: "cl-lead", worker: "cl-dev-2", kind: "update", text: "docs for the tail endpoint" });
-  s.add("12:44", { type: "move", by: "nicky", ticket: "MK-7", to: "done" });
+  s.add(personDone("MK-7"), { type: "move", by: "nicky", ticket: "MK-7", to: "done" });
   s.add("12:50", { type: "progress", ticket: "MK-12", agent: "analyst", kind: "question", text: "should a returning visitor count once per day?" });
   // A grill (CL-245): the lead puts a set of questions to Nicky on a `grill` ticket; each question is a comment, an
   // answer is a reply to it. Nicky answers the last one; the others wait (`GET /api/tickets/{ref}/grill`).
@@ -301,11 +331,11 @@ function storyline(s: ScriptBuilder): void {
   s.add("13:12", { type: "move", by: "cr-lead", ticket: "CR-23", to: "review" });
   s.add("13:20", { type: "progress", ticket: "OPS-4", agent: "cl-lead", kind: "done", text: "the probe runs on the new key; the old key is revoked" });
   s.add("13:28", { type: "move", by: "cl-lead", ticket: "OPS-4", to: "review" });
-  s.add("13:36", { type: "move", by: "nicky", ticket: "OPS-4", to: "done" });
+  s.add(personDone("OPS-4"), { type: "move", by: "nicky", ticket: "OPS-4", to: "done" });
   s.add("13:44", { type: "projectArchive", by: "nicky", project: "ops-tooling" });
   s.add("13:52", { type: "progress", ticket: "MK-10", agent: "marky", kind: "update", text: "tour order: town, building, review pile" });
   s.add("14:00", { type: "comment", by: "cl-lead", ticket: "CL-76", text: "Deployed with the stream fixes." });
-  s.add("14:10", { type: "move", by: "nicky", ticket: "CL-76", to: "done" });
+  s.add(personDone("CL-76"), { type: "move", by: "nicky", ticket: "CL-76", to: "done" });
   s.add("14:18", { type: "progress", ticket: "CR-24", agent: "cr-lead", worker: "cr-design-1", kind: "update", text: "mailbox ready; waiting for the letter model" });
   s.add("14:30", { type: "lane", name: "marky", status: "idle", contextLine: null });
   s.add("14:36", { type: "progress", ticket: "MK-13", agent: "marky", kind: "update", text: "six of seven posts drafted" });
@@ -345,7 +375,7 @@ function storyline(s: ScriptBuilder): void {
   s.add("15:56", { type: "comment", by: "cl-lead", ticket: `@${release}`, text: "Notes ready for 0.9.0." });
   // A person turns a ticket down (CL-89): it goes to Done as "won't do", which is no celebration. Added last and
   // without jitter, so every action above keeps its id and its time.
-  s.add("6:49", { type: "move", by: "nicky", ticket: "CR-25", to: "done", rejected: "The building sign already shows the counts." }, false);
+  s.add(personDone("CR-25"), { type: "move", by: "nicky", ticket: "CR-25", to: "done", rejected: "The building sign already shows the counts." }, false);
 }
 
 /** Adds jitter and keeps the authored order; probe and poll stay on their 30 s grid. */
