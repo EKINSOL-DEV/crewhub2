@@ -193,6 +193,7 @@ function World() {
       }),
       ...describePlan(plan, (slug) => model.buildings.find((b) => b.slug === slug)?.name ?? slug),
       ...describeTownDocument(town.doc, town.catalogue, { ruleProps: rules, invalidRequests: town.invalid, rooms }),
+      ...(town.storageNote ? [{ section: "Town document", text: town.storageNote, kind: "fact" as const }] : []),
     ],
     [textShown, text, civic, rooms, cast, town.doc, town.catalogue, rules, town.invalid, model.zones, model.buildings, plan],
   );

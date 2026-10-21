@@ -70,6 +70,13 @@ export interface TownStoreOptions {
   /** Defaults to `globalThis.indexedDB`; pass null to force memory. */
   indexedDB?: IDBFactory | null;
   /**
+   * The name of an earlier database to copy once, the first time this one is opened and holds nothing (a live town
+   * made before the key carried the installation). The earlier one is never moved, changed or deleted; a database that
+   * already holds a revision is never overwritten; without `IDBFactory.databases()` nothing is copied (so the earlier
+   * name is never created by the look). Left out, or the same name: no copy.
+   */
+  copyFrom?: string;
+  /**
    * What an undo or redo carries from the revision it leaves (`from`) into the one it restores (`to`): the town's own
    * facts (a project's lot) are not a person's edit, so they are not undone with it. The result replaces the restored
    * revision in place; returning `to` itself changes nothing. The town runtime passes `carryAllocations`.
@@ -99,6 +106,27 @@ function openDatabase(factory: IDBFactory, name: string): Promise<IDBDatabase> {
 }
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+/** What the store says once, after the one-time copy; the Settings card and the text view show it. */
+export const copiedNote = (from: string): string => `Copied once from the town kept under the earlier key "${from}" (the earlier copy is kept as it was).`;
+
+/** True when the factory lists a database of that name; false when it cannot list (nothing is ever created to find out). */
+async function databaseExists(factory: IDBFactory, name: string): Promise<boolean> {
+  if (typeof factory.databases !== "function") return false;
+  try {
+    return (await factory.databases()).some((d) => d.name === name);
+  } catch {
+    return false;
+  }
+}
+
+/** Every record of a database's town store, as stored (keys and values), for the one-time copy. */
+async function readRaw(database: IDBDatabase): Promise<[IDBValidKey, unknown][]> {
+  const tx = database.transaction(TOWN_STORE_NAME, "readonly");
+  const store = tx.objectStore(TOWN_STORE_NAME);
+  const [keys, values] = await Promise.all([request(store.getAllKeys()), request(store.getAll())]);
+  return keys.map((key, i) => [key, values[i]]);
+}
 
 export function createTownStore(options: TownStoreOptions): TownStore {
   const factory = options.indexedDB === undefined ? (globalThis.indexedDB ?? null) : options.indexedDB;
@@ -188,15 +216,32 @@ export function createTownStore(options: TownStoreOptions): TownStore {
       loading ??= (async () => {
         if (factory) {
           try {
-            db = await openDatabase(factory, options.name ?? TOWN_DB_NAME);
-            const { docs, head, skipped } = await readStored(db);
+            const name = options.name ?? TOWN_DB_NAME;
+            db = await openDatabase(factory, name);
+            let { docs, head, skipped } = await readStored(db);
+            let copied: string | null = null;
+            // A town kept under an earlier key, found once: copied into this one, which holds nothing yet.
+            if (options.copyFrom && options.copyFrom !== name && docs.length === 0 && head === null && (await databaseExists(factory, options.copyFrom))) {
+              const earlier = await openDatabase(factory, options.copyFrom);
+              const records = await readRaw(earlier);
+              earlier.close();
+              if (records.length) {
+                const tx = db.transaction(TOWN_STORE_NAME, "readwrite");
+                const target = tx.objectStore(TOWN_STORE_NAME);
+                for (const [key, value] of records) target.put(value, key);
+                await done(tx);
+                ({ docs, head, skipped } = await readStored(db));
+                copied = options.copyFrom;
+              }
+            }
             for (const doc of docs) stored.add(doc.revision);
             const restored = restoreHistory(docs, head);
             if (restored) history = restored;
-            publish({
-              loaded: true,
-              storageNote: skipped ? `${skipped} stored revision${skipped === 1 ? " was" : "s were"} invalid and skipped.` : null,
-            });
+            const notes = [
+              copied ? copiedNote(copied) : null,
+              skipped ? `${skipped} stored revision${skipped === 1 ? " was" : "s were"} invalid and skipped.` : null,
+            ].filter((n): n is string => n !== null);
+            publish({ loaded: true, storageNote: notes.length ? notes.join(" ") : null });
             return state.doc;
           } catch (e) {
             toMemory(message(e));

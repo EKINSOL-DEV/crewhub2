@@ -21,7 +21,7 @@ import { importPropRequest, type InvalidRequest } from "../world/propImport";
 import { allocationEdit, carryAllocations } from "../world/settlement";
 import { styleRegistry } from "../world/style";
 import { createTownStore, seededTown, type TownStore } from "./townStore";
-import { SCENARIO, STRESS, TOWN_KEY, worldRuntime } from "./world";
+import { SCENARIO, STRESS, TOWN_COPY_FROM, TOWN_KEY, worldRuntime } from "./world";
 
 export interface TownState {
   doc: TownDocument;
@@ -55,7 +55,7 @@ class TownRuntime {
     // A scenario's town starts with its zones' looks (Studio's four districts); the stress fixtures start empty.
     const initial = STRESS ? undefined : seededTown(SCENARIO.townZones, this.context);
     // Lots are facts of the town, not edits: an undo or redo carries them into the revision it restores.
-    this.store = createTownStore({ context: this.context, name: TOWN_KEY, carry: carryAllocations, ...(initial ? { initial } : {}) });
+    this.store = createTownStore({ context: this.context, name: TOWN_KEY, carry: carryAllocations, ...(initial ? { initial } : {}), ...(TOWN_COPY_FROM ? { copyFrom: TOWN_COPY_FROM } : {}) });
     this.#state = this.#derive();
     this.store.subscribe(() => {
       this.#refresh();
