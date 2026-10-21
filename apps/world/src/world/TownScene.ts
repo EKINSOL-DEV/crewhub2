@@ -267,6 +267,11 @@ const HANGING = /^(a|o|rule|err|p|beacon|mail|banner):|^c:[^:]+:/;
 /* The town's labels (building signs, the civic labels, need pins, district cards): stacks among themselves, so on a
    phone with Details on the signs climb instead of piling; never faded or hidden for it. */
 const TOWN = /^(b|n|d):|^c:[^:]+$/;
+/* A label's offset from its anchor (what the nudge and the chrome gave it) eases with this time constant (about 95 %
+   of the way in 300 ms), so a tag sent to a new place when a neighbour goes glides instead of hopping; the anchor's
+   own motion (the camera, a carried package) shows at once. Robots' and persons' pills, cards, reduced motion and a
+   moving camera snap: the labels must stay with the scene. */
+const EASE_TAU_MS = 100;
 /* The HTML chrome over the canvas, in CSS pixels (App's corners, playback bar and camera toolbar): framing keeps its
    subject in the free area between them. Phones stack the corner rows and the camera buttons differently. */
 interface Insets {
@@ -387,6 +392,9 @@ export class TownScene {
   #lifted: string | null = null;
   #anchors = new Map<string, THREE.Vector3>();
   #labelsHost: HTMLElement;
+  /** The camera as the labels last saw it (position, target, zoom): a change snaps every label to its place. */
+  #camLast = new Float64Array(7);
+  #easeLast = 0;
   /** The persons' label ids (`a:<slug>:<visit>`): their figures push no tag aside (labelLayout). */
   #persons = new Set<string>();
   /** The fixed UI's boxes over the canvas (`#measureChrome`), and when they were last measured. */
@@ -1238,7 +1246,7 @@ export class TownScene {
     const previous = new Map(this.#labels.map((l) => [l.el, l]));
     this.#labels = [...this.#labelsHost.querySelectorAll<HTMLElement>("[data-anchor]")].map(
       (el) =>
-        previous.get(el) ?? { el, id: "", half: 0, height: 0, ox: 0, oy: 0, stack: false, town: false, sign: false, robot: false, person: false, picked: false, card: false, shown: false, x: Number.NaN, y: Number.NaN, nx: 0, ny: 0, ay: 0, visible: false, far: false, yields: false },
+        previous.get(el) ?? { el, id: "", half: 0, height: 0, ox: 0, oy: 0, stack: false, town: false, sign: false, robot: false, person: false, picked: false, card: false, shown: false, x: Number.NaN, y: Number.NaN, nx: 0, ny: 0, ax: 0, ay: 0, visible: false, far: false, yields: false, odx: 0, ody: 0 },
     );
     this.#persons.clear();
     for (const l of this.#labels) {
@@ -2514,6 +2522,7 @@ export class TownScene {
       }
       label.nx = x;
       label.ny = y;
+      label.ax = x;
       label.ay = y;
       label.visible = visible;
       // Out from under the fixed UI (the corners, the camera toolbar, the playback bar); the card keeps its own rule.
@@ -2527,10 +2536,39 @@ export class TownScene {
       if (chrome.length) keepStacksOffChrome(stacks, signs, chrome, width, height);
     }
     const hideBeyond = width < NARROW_CANVAS ? FAR_LABEL : HIDDEN_LABEL;
+    // Eases run only while the camera stands still: a pan or a zoom moves every label with the scene at once.
+    const cam = this.#camLast,
+      p = this.camera.position,
+      t = this.controls.target;
+    const still = cam[0] === p.x && cam[1] === p.y && cam[2] === p.z && cam[3] === t.x && cam[4] === t.y && cam[5] === t.z && cam[6] === this.camera.zoom;
+    cam[0] = p.x;
+    cam[1] = p.y;
+    cam[2] = p.z;
+    cam[3] = t.x;
+    cam[4] = t.y;
+    cam[5] = t.z;
+    cam[6] = this.camera.zoom;
+    const easing = still && !this.view.reducedMotion;
+    const now = performance.now();
+    const rate = 1 - Math.exp(-Math.min(50, now - this.#easeLast) / EASE_TAU_MS);
+    this.#easeLast = now;
+    let easingNow = false;
     for (const label of this.#labels) {
-      const x = label.nx,
-        y = label.ny,
-        visible = label.visible && !(label.stack && !label.picked && !label.town && label.ay - y > hideBeyond);
+      let x = label.nx,
+        y = label.ny;
+      const visible = label.visible && !(label.stack && !label.picked && !label.town && label.ay - y > hideBeyond);
+      const dx = x - label.ax,
+        dy = y - label.ay;
+      if (easing && visible && label.shown && !label.robot && !label.card && (Math.abs(dx - label.odx) > 0.5 || Math.abs(dy - label.ody) > 0.5)) {
+        label.odx += (dx - label.odx) * rate;
+        label.ody += (dy - label.ody) * rate;
+        x = label.ax + label.odx;
+        y = label.ay + label.ody;
+        easingNow = true;
+      } else {
+        label.odx = dx;
+        label.ody = dy;
+      }
       // Quiet when many: a label pushed far from its anchor fades; a room sign over a robot or its stack steps back.
       const far = visible && label.stack && !label.picked && !label.town && label.ay - y > FAR_LABEL;
       if (far !== label.far) label.el.classList.toggle("label-far", (label.far = far));
@@ -2547,6 +2585,8 @@ export class TownScene {
         label.y = y;
       }
     }
+    // An ease needs the next frames drawn.
+    if (easingNow) this.#dirtyFrames = Math.max(this.#dirtyFrames, 2);
   }
 
   /** The entered building's robots as screen boxes (head to feet), from their label anchors; none in the town. */
