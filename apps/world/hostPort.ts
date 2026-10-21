@@ -43,3 +43,66 @@ export function hostPortPlan(env: Readonly<Record<string, string | undefined>>, 
   if (port === null) throw new Error(`${HOST_PORT_VAR}=${raw.trim()} is not a port number (1 to 65535): the ${server} server does not start`);
   return { proxy: true, port };
 }
+
+/**
+ * The second question of the dev server (`npm run dev`), round 17: whose host is on that port? On a shared machine the
+ * default 5180 holds somebody's host, and a page from this checkout over another checkout's host is a mismatch nobody
+ * sees. The host says which checkout it runs from in health (`checkout`, apps/host `checkout.ts`: a short hash of the
+ * repository root, never the path). The dev server asks the port once before it listens and
+ *   - goes on when nothing answers (the page runs the demo until a host comes), when the answer is not a host's, when
+ *     the host is this checkout's, or when the host is from before the id (it cannot tell, and says so);
+ *   - refuses when the host names another checkout: the line names the port, both checkouts (this one by its path,
+ *     the other by its id and key name) and the way out.
+ * Pure: `devHostVerdict` takes the answer; `probeHostCheckout` fetches it (Node, loopback).
+ */
+
+/** What the port answered: nothing, not a host, or a host with what health tells. */
+export type HostAnswer = { kind: "silent" } | { kind: "not-a-host" } | { kind: "host"; checkout: string | null; keyName: string };
+
+export type DevHostVerdict = { ok: true; line: string } | { ok: false; line: string };
+
+/** The one line of `npm run dev` about its host, or the refusal. `explicit`: the port came from CREWHUB_WORLD_PORT. */
+export function devHostVerdict(input: { port: number; explicit: boolean; local: { root: string; id: string }; answer: HostAnswer }): DevHostVerdict {
+  const where = `127.0.0.1:${input.port}`;
+  const named = input.explicit ? `${HOST_PORT_VAR}=${input.port}` : `the default, ${HOST_PORT_VAR}=<port> names another`;
+  const head = `dev: /world-api and /pair go to the host on ${where} (${named})`;
+  const key = (name: string) => (name === "" ? "no key yet" : `key ${name}`);
+  switch (input.answer.kind) {
+    case "silent":
+      return { ok: true, line: `${head}: nothing answers there now, the page runs the demo until a host does.` };
+    case "not-a-host":
+      return { ok: true, line: `${head}: what answers there is not the world's host, the page runs the demo.` };
+    case "host": {
+      const { checkout, keyName } = input.answer;
+      if (checkout === null) return { ok: true, line: `${head}: a host answers (${key(keyName)}) from before the checkout id in health, so whose it is cannot be told; going on.` };
+      if (checkout === input.local.id) return { ok: true, line: `${head}: this checkout's host (${key(keyName)}).` };
+      return {
+        ok: false,
+        line:
+          `The host on ${where} (${named}) belongs to another checkout: checkout id ${checkout}, ${key(keyName)}. ` +
+          `This checkout is ${input.local.root} (checkout id ${input.local.id}). The dev server does not start. ` +
+          `Start this checkout's host on a port of yours (${HOST_PORT_VAR}=<port> npm run host) and this Vite with the same ${HOST_PORT_VAR}, or stop that host if it is yours.`,
+      };
+    }
+  }
+}
+
+/** Health's body as an answer: a host's when it has the shape the page's probe accepts, else not a host. */
+export function answerFromHealth(body: unknown): HostAnswer {
+  if (body === null || typeof body !== "object") return { kind: "not-a-host" };
+  const health = body as Record<string, unknown>;
+  if (!["ok", "down", "unauthorized"].includes(health["loops"] as string) || typeof health["keyName"] !== "string") return { kind: "not-a-host" };
+  const checkout = typeof health["checkout"] === "string" && /^[0-9a-f]{6,64}$/.test(health["checkout"]) ? health["checkout"] : null;
+  return { kind: "host", checkout, keyName: health["keyName"] };
+}
+
+/** Asks `127.0.0.1:port/world-api/health` once (loopback, `timeoutMs`); silent on any failure. */
+export async function probeHostCheckout(port: number, timeoutMs = 1500): Promise<HostAnswer> {
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/world-api/health`, { signal: AbortSignal.timeout(timeoutMs), headers: { accept: "application/json" } });
+    if (!response.ok) return { kind: "not-a-host" };
+    return answerFromHealth(await response.json());
+  } catch {
+    return { kind: "silent" };
+  }
+}
