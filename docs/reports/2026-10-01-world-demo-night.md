@@ -1199,6 +1199,11 @@ ends at `7ffcb46` in the merge worktree (parked while Nicky uses the checkout), 
   chat and its events, read only; a review page for cl-lead. A second development loops on 8292 runs that branch.
 - **An introduction to CrewHub World** (r12-intro): `docs/INTRODUCTION.md`, for a reader who knows crewhub-loops, with a
   table of every loops fact and what it becomes in the world, and twelve pictures.
+- **Small and safe, after chat.** `npm run check` and `npm test` stop at once with "Node 24 required" on another Node
+  (a check run on Node 22 had failed one chat test by timing out); the host prints one warning line on another Node and
+  goes on, and the doctor lists it. A new hand-made zone gets the next free colour and emblem. The scripted director's
+  empty-plans line says when nobody can be moved, and why. Round 12 then ends at `4722c7b` with 810 tests and the
+  browser pass at 155 of 155.
 
 ## Challenges with docs/integrators
 
