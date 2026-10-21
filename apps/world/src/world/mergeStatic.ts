@@ -95,6 +95,7 @@ function release(this: THREE.BufferAttribute) {
  *
  * The merged geometries keep their bounds but let their vertex data go once it is on the GPU, which is most of a
  * town's memory: nothing reads it again. `keepData` keeps it, for meshes that are picked (raycast) under `root`.
+ * A palette batch carries no uv at all: its materials have no map.
  */
 export function mergeStatic(root: THREE.Group, options: { keepData?: boolean } = {}): THREE.BufferGeometry[] {
   root.updateMatrixWorld(true);
@@ -150,6 +151,9 @@ export function mergeStatic(root: THREE.Group, options: { keepData?: boolean } =
       if (!geometry) continue;
       geometry.computeBoundingBox();
       geometry.computeBoundingSphere();
+      // A palette batch has no map (see `look`), so nothing reads its uv: dropped, a quarter of every vertex on the GPU
+      // and in the JS copy a hidden mesh (a wall's inside variant, an interior not yet entered) keeps until its upload.
+      if (palette) geometry.deleteAttribute("uv");
       if (!options.keepData) for (const attribute of Object.values(geometry.attributes)) (attribute as THREE.BufferAttribute).onUpload(release);
       let drawn = material;
       if (palette) {
