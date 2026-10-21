@@ -54,6 +54,12 @@ one-time pairing link and shows a Connect screen that asks for the bot's key onc
 ```bash
 npm run check       # typecheck, tests, doc links, design and copy guards, build
 npm test            # all package and app tests (offline)
+```
+
+Both stop at once on another Node major than `.nvmrc`'s ("Node 24 required (.nvmrc), found v22.22.0: run nvm use",
+`scripts/check-node.mjs`): an older Node runs the tests without a syntax error and fails them slowly instead.
+
+```bash
 npm run prop:validate -- path/to/prop.json
 npm run preview     # serve the built world at http://127.0.0.1:4173
 ```
