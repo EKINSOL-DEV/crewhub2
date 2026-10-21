@@ -949,7 +949,7 @@ Built that way in round 11 (see the status line above); the real director stays 
 Nicky chatted with his agent `boing` in the crewhub-loops app while the world was open against his own Crewhub.app,
 and the world showed no bubble over boing. He asked for chat with the agents as the first requirement, and said the
 UI may be exactly crewhub-loops' own. This addendum records what loops offers (read in loops `4cdcd383`) and the two
-roads. **Status: road A built in round 12 (r12-chatpanel); road B option 2 in progress in round 12, off by default; option 1 written for loops (`docs/proposals/crewhub-world-viewer-3.md` on `world/viewer-key`).**
+roads. **Status: road A built in round 12 (r12-chatpanel); road B option 2 built in round 12 (r12-chatsession, below, off by default behind its Sign-in step); option 1 written for loops (`docs/proposals/crewhub-world-viewer-3.md` on `world/viewer-key`).**
 
 ### What loops has
 
@@ -1037,6 +1037,33 @@ in order of honesty:
 only, the cookie on the host's disk only, a Forget), and option 1 is written for loops in parallel; when loops offers
 1, the world switches to it and drops the stored session. Nicky decides whether option 2 may ship; until he says so,
 it stays off by default behind its own Sign-in step.
+
+**As built (round 12, option 2).** The Connection panel's Chat section takes the account id and password once and
+hands them to the host (`POST /world-api/session`, a paired browser on the world's origin), which signs in at loops'
+`POST /api/auth/login` over the road it reads with (loopback TCP or the app's socket; loops needs no CSRF token and
+accepts an absent Origin) and keeps only loops' `chl_session` cookie, with the person's id and name and the time, in
+`<config>/loops-session` (0600, written whole); the device cookie is dropped, the password is dropped at once and is
+in no file, no log line and no answer (tested). The session's own allow-list (`apps/host/src/session.ts`
+`SESSION_ROUTES`) admits the sign-in, the sign-out, `GET /api/dm/threads`, a thread's messages, one message by id and
+the events reads with `types=dm.*` only; its transport refuses anything else before a byte is sent, and the key's
+transport stays GET-only. The host opens the dm stream live from now; a `dm.created` whose actor is an agent is read
+by id (`bodyText`) and sent to every tab as a `chat` line with the first line; the person's own messages show
+nothing. The world keeps the line for 12 s as a speech bubble over the agent's figure (`state/said.ts`; fading in the
+last 4 s); a tap opens the Chat panel on that agent. States in health (`connection.session`) and the panel:
+signed out (no bubbles), signed in as <name>, expired (loops refused the kept cookie: the host retries nothing until
+a new sign-in). Forget the session signs out at loops and deletes the file. A host without a config folder keeps no
+session and answers 503 to a sign-in.
+
+**The key road (the same round, after `world/viewer-key`).** Where crewhub-loops lets the world's own key read the
+chat (a viewer key, L1: the key's own entry in `GET /api/agents` says `viewer: true` and `GET /api/dm/threads` answers
+200 to it, as on the second dev instance on 8292; a plain external bot gets that 200 too, with its own empty threads,
+so the flag decides), no person's session is needed or used: the host finds out at the key check (two reads), says
+`session: key` in health, the
+Connection panel's Chat section says "Not needed: this crewhub-loops lets the world's key read the chat" with no
+form, a sign-in answers 409 `not_needed`, a session kept from another loops stays on disk unused, and an agent's
+`dm.created` on the key's own stream is read by id with the key (`/api/dm/threads` and `/api/dm/messages/{id}`
+joined the key's read allow-list) and shown as the same bubble. A loops that refuses the key the chat keeps the
+session road. When loops' own feed (option 1) ships everywhere, the session road can go.
 
 ### Bubbles themselves
 

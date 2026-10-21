@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { HostConnection, HostHealth } from "@crewhub/loops-client";
-import { connectOutcome, connectScreen, keyTail, liveScreen, looksLikeKey, loopsVersion, normaliseKey, relativeTime, untilTime, withStreamKey } from "../src/state/connect.ts";
+import { connectOutcome, connectScreen, keyTail, liveScreen, looksLikeKey, loopsVersion, normaliseKey, relativeTime, sessionWords, untilTime, withStreamKey } from "../src/state/connect.ts";
 
 const connection = (over: { discovery?: Partial<HostConnection["discovery"]>; key?: Partial<HostConnection["key"]>; stream?: Partial<HostConnection["stream"]> } = {}): HostConnection => ({
   discovery: { state: "found", via: "app-port", target: "http://127.0.0.1:8091", ...over.discovery },
@@ -72,6 +72,15 @@ test("screen: the stream's word on the key is preferred over the health read; a 
   const older: HostHealth = { loops: "unauthorized", keyName: "", sharedKey: false, pairing: "on", paired: true };
   assert.equal(liveScreen("unauthorized", withStreamKey(older, "none")), "connect");
   assert.equal(liveScreen("unauthorized", older), "rejected");
+});
+
+test("sessionWords: the chat session's state for the panel; a host from before has none", () => {
+  assert.equal(sessionWords(undefined), null);
+  assert.deepEqual(sessionWords({ state: "signed-out" }), { kind: "signed-out", name: null });
+  assert.deepEqual(sessionWords({ state: "signed-in", name: "Nicky", id: "nicky" }), { kind: "signed-in", name: "Nicky" });
+  assert.deepEqual(sessionWords({ state: "signed-in" }), { kind: "signed-in", name: null }, "an unpaired browser: the state only");
+  assert.deepEqual(sessionWords({ state: "expired", name: "Nicky" }), { kind: "expired", name: "Nicky" });
+  assert.deepEqual(sessionWords({ state: "key" }), { kind: "key", name: null }, "this loops lets the key read the chat: no sign-in");
 });
 
 test("untilTime: when the host re-checks a rejected key, in words", () => {

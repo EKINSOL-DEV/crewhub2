@@ -268,7 +268,14 @@ Connection panel). `archived` says where the closed buildings came from: `list` 
 `log` (loops' event log, read in this run), `remembered` (the host's own file `~/.config/crewhub-world/archived.json`
 from an earlier run, for a loops that will not read its log from the start; each slug confirmed with loops before it
 counts) or `none`. An unpaired browser gets the states only: no target, no name, no cursor, no slugs.
-`npm run host -- doctor` prints the same in the terminal.
+`npm run host -- doctor` prints the same in the terminal. `connection.session` (round 12) says whether the host holds
+your chat session for the bubbles: `signed-out` (the default: no bubbles), `signed-in` (as you; the name for paired
+browsers), `expired` (crewhub-loops no longer accepts the kept cookie: sign in again in the Connection panel's Chat
+section). The host keeps that session in `<config>/loops-session` (0600) and uses it for reads of your chats only
+(`apps/host/src/session.ts`); your password is handed to crewhub-loops once and is in no file and no log. "Forget
+the session" in the same section signs out at crewhub-loops and deletes the file. On a crewhub-loops whose viewer
+key may read the chat (`world/viewer-key`), health says `key` instead and the section says "Not needed": the bubbles
+come over the world's own key, with no session at all.
 
 `loops` is `ok`, `down` or `unauthorized` (a loops 401 or 403; also no key yet, for the world from before);
 `transport` is `tcp` or `unix`; `keyName` is the key's agent name (from the file name `agent-<name>.key`, or the

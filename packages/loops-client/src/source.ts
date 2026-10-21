@@ -83,7 +83,23 @@ export type SourceMessage =
   | { type: "event"; envelope: Envelope }
   | { type: "heartbeat"; seq: number; ts: string }
   /** A re-read of GET /api/team: after team.updated and on the 30 s poll. */
-  | { type: "team"; team: TeamSnapshot };
+  | { type: "team"; team: TeamSnapshot }
+  /**
+   * An agent's message to the person (round 12, the host's chat session): a speech bubble over that agent's figure with
+   * the first line. Only the live host sends it; the demo's chat is its own (the copied dock).
+   */
+  | { type: "chat"; chat: ChatLine };
+
+/** One line an agent said to the person, as the world shows it. Nothing more of the conversation reaches the page. */
+export interface ChatLine {
+  agentId: string;
+  agentName?: string;
+  text: string;
+  /** When it was written (ISO). */
+  at: string;
+  messageId: string;
+  threadId: string;
+}
 
 export interface WorldSource {
   readonly mode: "demo" | "live";

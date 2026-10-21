@@ -2,7 +2,7 @@
    panel. `connectScreen` maps the host's health to the one screen the world shows instead of the town; the key helpers
    handle a pasted access key (trimmed, shaped, only its tail ever shown); `connectOutcome` turns the host's answer to
    `POST /world-api/connect` into words. Nothing here keeps a key, logs or touches the DOM. */
-import type { ConnectionState, HostHealth, HostKeyState } from "@crewhub/loops-client";
+import type { ConnectionState, HostHealth, HostKeyState, HostSessionState } from "@crewhub/loops-client";
 import { needsPairing, type SourceDecision } from "./source.ts";
 
 /** The screens between the demo decision and the town, in the order the person meets them. `null` is the town. */
@@ -91,6 +91,15 @@ export function withStreamKey(health: HostHealth | null, key: HostKeyState["stat
   if (connection === undefined) return { ...health, connection: { discovery: { state: "found" }, key: { state: key }, stream: { state: "idle", reconnects: 0 } } };
   if (connection.key.state === key) return health;
   return { ...health, connection: { ...connection, key: { ...connection.key, state: key } } };
+}
+
+/**
+ * The person's chat session the host holds (round 12), in words for the panel: off (signed out), signed in as <name>,
+ * expired (sign in again); null for a host from before, which keeps none.
+ */
+export function sessionWords(session: HostSessionState | undefined): { kind: "signed-out" | "signed-in" | "expired" | "key"; name: string | null } | null {
+  if (session === undefined) return null;
+  return { kind: session.state, name: session.name ?? null };
 }
 
 /** The host's `loopsCommit` (loops' own `version`) and, when the host saw another version first, that one: loops was updated under the host. */

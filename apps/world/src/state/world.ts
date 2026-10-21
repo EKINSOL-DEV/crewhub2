@@ -3,6 +3,7 @@
    /world-api) when the page's source decision says so (state/source.ts, made in main.tsx before this module loads). */
 import { useSyncExternalStore } from "react";
 import { createHostSource, type ConnectionState, type ConnectionStatus, type WorldSource } from "@crewhub/loops-client";
+import { rememberSaid } from "./said";
 import {
   browserScheduler,
   createDemoSource,
@@ -166,6 +167,11 @@ class WorldRuntime {
       if (firstSnapshot && message.type === "snapshot") {
         firstSnapshot = false;
         performance.mark("world:snapshot");
+      }
+      // An agent's line to the person (round 12): a bubble over its figure, kept beside the model, not in it.
+      if (message.type === "chat") {
+        rememberSaid(message.chat);
+        return;
       }
       this.projection.apply(message);
     });

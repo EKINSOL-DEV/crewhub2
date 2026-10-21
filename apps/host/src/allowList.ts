@@ -37,6 +37,9 @@ export const LOOPS_READS: readonly LoopsRead[] = [
   { pattern: "/api/agents", query: [] },
   { pattern: "/api/team", query: [] },
   { pattern: "/api/watchdog", query: [] },
+  // The chat, where loops lets the world's key read it (a viewer key, round 12): the threads (the probe) and a message by id.
+  { pattern: "/api/dm/threads", query: [] },
+  { pattern: "/api/dm/messages/{id}", query: [] },
 ];
 
 export interface WorldRoute {
@@ -46,7 +49,7 @@ export interface WorldRoute {
   kind: "local" | "loops";
   loopsPattern?: string;
   query: readonly string[];
-  /** The methods the route answers; GET when absent. Only `/connect` takes a write, and that write never reaches loops. */
+  /** The methods the route answers; GET when absent. Only `/connect` and `/session` take a write; the key never writes to loops, the session only signs itself in and out (session.ts). */
   methods?: readonly string[];
 }
 
@@ -57,6 +60,7 @@ export const WORLD_ROUTES: readonly WorldRoute[] = [
   { pattern: "/stream", kind: "local", query: ["cursor"] },
   { pattern: "/project-groups", kind: "local", query: [] },
   { pattern: "/connect", kind: "local", query: [], methods: ["POST", "DELETE"] },
+  { pattern: "/session", kind: "local", query: [], methods: ["POST", "DELETE"] },
   { pattern: "/tickets/{ref}", kind: "loops", loopsPattern: "/api/tickets/{ref}", query: [] },
   { pattern: "/tickets/{ref}/comments", kind: "loops", loopsPattern: "/api/tickets/{ref}/comments", query: PAGE_QUERY },
   { pattern: "/tickets/{ref}/progress", kind: "loops", loopsPattern: "/api/tickets/{ref}/progress", query: PAGE_QUERY },

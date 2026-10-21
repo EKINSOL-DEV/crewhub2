@@ -16,11 +16,26 @@ export type LoopsTarget = { transport: "tcp"; url: string } | { transport: "unix
 export interface RequestOptions {
   /** The `Accept` header: `application/json` for a read, `application/x-ndjson` for the stream. */
   accept: string;
+  /**
+   * GET unless said otherwise. A POST is only for the session's sign-in and sign-out (round 12), and only a transport
+   * made with its own `allow` (the session's list) accepts one: the key's transport is GET-only, always.
+   */
+  method?: "GET" | "POST";
+  /** The JSON body of a POST. */
+  body?: string;
   /** Aborting it drops the connection (the stream). */
   signal?: AbortSignal;
   /** No answer (headers) within this long is a failure; none means no timeout (the stream). */
   timeoutMs?: number;
 }
+
+/** The gate a transport puts every request through: the method, path and query in, the request target out, or a throw. */
+export type Allow = (method: "GET" | "POST", path: string, query: Record<string, string>) => string;
+/** The key's gate: the read allow-list, GET only. */
+const readsOnly: Allow = (method, path, query) => {
+  if (method !== "GET") throw new Error(`the key's transport never ${method}s`);
+  return allowedLoopsPath(path, query);
+};
 
 export interface LoopsTransport {
   readonly kind: "tcp" | "unix";
@@ -32,9 +47,12 @@ export interface LoopsTransport {
   request(path: string, query: Record<string, string>, options: RequestOptions): Promise<Response>;
 }
 
-/** The host sends the key as a bearer and never an Origin: loops treats the request as an agent's, not a browser's. */
-export function createTransport(target: LoopsTarget, headers: Record<string, string>): LoopsTransport {
-  return target.transport === "tcp" ? createTcpTransport(target.url, headers) : createUnixTransport(target.socketPath, headers);
+/**
+ * The host sends the key as a bearer and never an Origin: loops treats the request as an agent's, not a browser's.
+ * `allow` is the gate (default: the read allow-list, GET only); the session's transport brings its own.
+ */
+export function createTransport(target: LoopsTarget, headers: Record<string, string>, allow: Allow = readsOnly): LoopsTransport {
+  return target.transport === "tcp" ? createTcpTransport(target.url, headers, allow) : createUnixTransport(target.socketPath, headers, allow);
 }
 
 function combinedSignal(signal: AbortSignal | undefined, timeoutMs: number | undefined): AbortSignal | undefined {
@@ -45,14 +63,16 @@ function combinedSignal(signal: AbortSignal | undefined, timeoutMs: number | und
   return signals.length === 1 ? signals[0] : AbortSignal.any(signals);
 }
 
-export function createTcpTransport(loopsUrl: string, headers: Record<string, string>): LoopsTransport {
+export function createTcpTransport(loopsUrl: string, headers: Record<string, string>, allow: Allow = readsOnly): LoopsTransport {
   const base = loopsUrl.replace(/\/+$/, "");
   return {
     kind: "tcp",
     async request(path, query, options) {
-      const url = base + allowedLoopsPath(path, query);
+      const method = options.method ?? "GET";
+      const url = base + allow(method, path, query);
       const signal = combinedSignal(options.signal, options.timeoutMs);
-      return fetch(url, { method: "GET", headers: { ...headers, Accept: options.accept }, redirect: "error", ...(signal === undefined ? {} : { signal }) });
+      const bodyHeaders = options.body === undefined ? {} : { "Content-Type": "application/json" };
+      return fetch(url, { method, headers: { ...headers, ...bodyHeaders, Accept: options.accept }, redirect: "error", ...(options.body === undefined ? {} : { body: options.body }), ...(signal === undefined ? {} : { signal }) });
     },
   };
 }
@@ -65,27 +85,31 @@ function toHeaders(incoming: IncomingMessage): Headers {
   const out = new Headers();
   for (const [name, value] of Object.entries(incoming.headers)) {
     if (value === undefined) continue;
-    out.set(name, Array.isArray(value) ? value.join(", ") : value);
+    // Set-Cookie is the one header that must stay one per line (`getSetCookie()`): a cookie's attributes carry commas.
+    if (Array.isArray(value)) for (const one of value) out.append(name, one);
+    else out.set(name, value);
   }
   return out;
 }
 
-export function createUnixTransport(socketPath: string, headers: Record<string, string>): LoopsTransport {
+export function createUnixTransport(socketPath: string, headers: Record<string, string>, allow: Allow = readsOnly): LoopsTransport {
   return {
     kind: "unix",
     async request(path, query, options) {
-      const target = allowedLoopsPath(path, query);
+      const method = options.method ?? "GET";
+      const target = allow(method, path, query);
       const signal = combinedSignal(options.signal, options.timeoutMs);
       return new Promise<Response>((resolve, reject) => {
         if (signal?.aborted) {
           reject(signal.reason instanceof Error ? signal.reason : new Error("aborted"));
           return;
         }
+        const body = options.body === undefined ? null : Buffer.from(options.body, "utf8");
         const req = httpRequest({
           socketPath,
           path: target,
-          method: "GET",
-          headers: { ...headers, Accept: options.accept, Host: "127.0.0.1" },
+          method,
+          headers: { ...headers, Accept: options.accept, Host: "127.0.0.1", ...(body === null ? {} : { "Content-Type": "application/json", "Content-Length": String(body.length) }) },
           ...(signal === undefined ? {} : { signal }),
         });
         req.once("response", (incoming) => {
@@ -110,7 +134,8 @@ export function createUnixTransport(socketPath: string, headers: Record<string, 
           // abort rejects with the signal's reason: `TimeoutError` for the timeout, `AbortError` for the caller's abort.
           reject(signal?.aborted && signal.reason instanceof Error ? signal.reason : error);
         });
-        req.end();
+        if (body === null) req.end();
+        else req.end(body);
       });
     },
   };

@@ -13,6 +13,7 @@ import { chatPlaceLine } from "./state/chatPanel";
 import { FirstSnapshot } from "./components/FirstSnapshot";
 import { CONNECT_POLL_MS, ConnectPage } from "./components/ConnectPage";
 import { liveScreen, withStreamKey } from "./state/connect";
+import { useSaid } from "./state/said";
 import { JumpList } from "./components/JumpList";
 import { IconSprite } from "./components/Icon";
 import { Button, Card, Chip, Field, Menu } from "./components/primitives";
@@ -645,6 +646,7 @@ function World() {
 
   const demo = model.mode === "demo";
   const connection = useConnection();
+  const said = useSaid();
   // A change of the connection's state (Live, Loops down, Catching up, Stream busy, back to Live) is said once in the live
   // region: the chip changes its word, and a screen reader would otherwise hear nothing. Not the first value on load.
   const spokenConnection = useRef<ConnectionState | null>(null);
@@ -708,6 +710,8 @@ function World() {
           <SceneBoundary onError={() => setGraphicsFailed(true)}>
             <WorldCanvas
               model={model}
+              said={said}
+              onSaidTap={(key) => (demo ? pick({ kind: "agent", key }, false) : openChat(key))}
               plan={plan}
               entered={entered}
               focused={focused}

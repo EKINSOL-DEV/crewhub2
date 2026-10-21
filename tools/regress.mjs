@@ -1,9 +1,9 @@
-/* regress.mjs: the browser regression pass of the integrated world, in seven groups.
+/* regress.mjs: the browser regression pass of the integrated world, in eight groups.
 
    Usage:
      node tools/regress.mjs --port <port> [--groups connect,walk,demo,live,ops,rooms,real] [--host-port 5180] [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--cpu-throttle <rate>] [--tag pass] [--out <dir>] [--swiftshader]
 
-   Groups (--groups, default all seven, in this order; connect first, the connection being the first priority):
+   Groups (--groups, default all eight, in this order; connect first, the connection being the first priority):
      connect the connect flow (spec addendum "a smooth connection"), 23 checks in two halves, both behind your Vite
            (started with CREWHUB_WORLD_PORT=<host-port>; apps/world/dist is never looked at here, whatever the live
            group does with it). Against the stub host of lib/connectStub.mjs, on --host-port, always: one page meets
@@ -55,6 +55,16 @@
            reopened with another `/api/health` version (loops upgraded): Live, health's `loopsCommit` and
            `loopsCommitBefore`, the panel saying crewhub-loops was updated under the host. Needs nobody and never
            touches the development loops. About a minute.
+     chat  the chat session (round 12, road B option 2) over the fake, which has a person who can sign in: Live, the
+           Connection panel's Chat section says not signed in, the person's id and password typed there and Sign in
+           (the host signs in at the fake's login and keeps only the cookie: the file 0600 with no password, no
+           password in the host's log, the page or the host's answers), "Signed in as Nicky"; an agent's scripted
+           answer (g-man at 4:21 of the story, the fake started just before it) shows as a speech bubble over its
+           figure with the first line; a tap on it opens the Chat panel on that agent; Forget the session signs out
+           (the fake's session count 0, the file gone, "Not signed in"). Then the key road, over a second fake whose
+           viewer key may read the chat (`keyReadsChat`): no sign-in, the panel's Chat section says "Not needed" with
+           no form, g-man's answer as a bubble over the key's own stream, a tap to the Chat panel. Needs nobody.
+           About two minutes.
      rooms the three-room building (`?rooms=three`, whatever the viewer's Buildings setting): three room signs
            (Administration, The floor, Lead's office) and a rack sign with its count, the arrow keys between the three halls, the text view naming the
            racks and the desks with a package on each, the lead's office beacon, the agent card on a figure at a desk,
@@ -96,8 +106,8 @@ import { createConnectStub } from "./lib/connectStub.mjs";
 import { createLoopsWebStub } from "./lib/loopsWebStub.mjs";
 
 // The connect group first: the connection is the first priority, so a default pass fails on it first.
-const GROUPS = ["connect", "walk", "demo", "live", "ops", "rooms", "real"];
-const USAGE = "node tools/regress.mjs --port <port> [--groups walk,demo,live,ops,connect,rooms,real] [--host-port 5180] [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--cpu-throttle <rate>] [--tag pass] [--out <dir>] [--swiftshader]";
+const GROUPS = ["connect", "walk", "demo", "live", "ops", "chat", "rooms", "real"];
+const USAGE = "node tools/regress.mjs --port <port> [--groups walk,demo,live,ops,chat,connect,rooms,real] [--host-port 5180] [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--cpu-throttle <rate>] [--tag pass] [--out <dir>] [--swiftshader]";
 const opts = cli(USAGE, { options: { tag: "pass", groups: GROUPS.join(","), "host-port": "5180", "loops-env": "", "loops-socket": "", "loops-app-data": "", "cpu-throttle": "1" } });
 const cpuThrottle = Number(opts["cpu-throttle"]);
 if (!(cpuThrottle >= 1)) opts.fail("--cpu-throttle <rate> must be 1 (none) or more");
@@ -908,6 +918,156 @@ await group("live", async () => {
     const framed = problems.filter((x) => x.kind === "external" && x.text.includes(web.url));
     for (const x of framed) problems.splice(problems.indexOf(x), 1);
     info(`live: ${framed.length} request(s) left the page for the loops web stub, the Chat panel's frame, as designed`);
+  }
+});
+
+await group("chat", async () => {
+  // 17. The chat session (round 12, road B option 2) over the fake: sign in from the Connection panel, an agent's
+  // answer as a bubble, a tap to the Chat panel, Forget the session. The host serves the built world on a free port
+  // (or listens on --host-port behind your Vite, as the live and ops groups do).
+  const { createLoopsFake } = await import(pathToFileURL(path.join(REPO, "packages", "loops-fake", "src", "index.ts")).href);
+  const { createHost } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "host.ts")).href);
+  const { createSessionStore } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "session.ts")).href);
+  const dist = path.join(REPO, "apps", "world", "dist");
+  const served = existsSync(path.join(dist, "index.html"));
+  const hostPort = Number(opts["host-port"]);
+  if (!served && (!Number.isInteger(hostPort) || hostPort <= 0)) opts.fail("--host-port <port> must be a port number");
+  const configDir = path.join(OUT, `${tag}-chat-config`);
+  rmSync(configDir, { recursive: true, force: true });
+  mkdirSync(configDir, { recursive: true, mode: 0o700 });
+  const sessionStore = createSessionStore(configDir);
+  // 4:21 of the story is g-man's answer to the morning's message (packages/demo script.ts); the fake starts 61 s before it.
+  // 61 s before it, so the sign-in (a page load, Live, the panel) always lands before the answer: the host reads the
+  // chat live from the sign-in on, nothing from before.
+  const fake = await createLoopsFake({ heartbeatMs: 1000, speed: 1, startAt: 200_000 });
+  const fakeStartedAt = Date.now();
+  const web = await createLoopsWebStub();
+  const lines = [];
+  const hostOptions = { loopsUrl: fake.url, loopsWebUrl: web.url, key: fake.key, keyName: fake.keyName, sessionStore, pairing: "off", retryMs: { min: 100, max: 500 }, reconnectMs: { min: 100, max: 300 }, heartbeatMs: 1000, log: (line) => lines.push(line) };
+  const host = await createHost(served ? { ...hostOptions, staticDir: dist } : { ...hostOptions, port: hostPort, allowedOrigins: [origin] });
+  const chatOrigin = served ? host.url : origin;
+  info(`chat: fake on 127.0.0.1:${fake.port} (a person who can sign in: ${fake.person.id}), host on 127.0.0.1:${host.port} ${served ? "serving apps/world/dist" : `behind the Vite proxy on ${origin}`}, the session store under ${configDir}`);
+  const own = [];
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
+  const pg = await ctx.newPage();
+  watch(pg, chatOrigin, own, "chat");
+  const chip = pg.locator(".connection-chip").first();
+  const hostApi = (p) => pg.request.get(`${chatOrigin}/world-api${p}`).then((r) => r.json());
+  const openPanel = async () => {
+    await chip.click();
+    await pg.waitForSelector(".connection-session", { timeout: 5000 }).catch(() => {});
+  };
+  const sessionText = async () => (await pg.locator(".connection-session").innerText().catch(() => "")).replace(/\s+/g, " ");
+  const closePanel = async () => {
+    await pg.keyboard.press("Escape");
+    await pg.waitForTimeout(200);
+  };
+  const leaked = async (secret) => {
+    const html = await pg.content();
+    const stored = await pg.evaluate(() => JSON.stringify(Object.entries(localStorage)) + JSON.stringify(Object.entries(sessionStorage))).catch(() => "");
+    return html.includes(secret) || stored.includes(secret) || pg.url().includes(secret);
+  };
+  try {
+    await pg.goto(`${chatOrigin}/`);
+    await pg.waitForSelector("canvas", { timeout: 60000 }).catch(() => {});
+    await pg.waitForSelector('.connection-chip[data-connection="live"]', { timeout: 20000 }).catch(() => {});
+    const before = await hostApi("/health");
+    await openPanel();
+    const off = await sessionText();
+    ok("chat: Live with no session: the panel's Chat section says not signed in and offers the sign-in", before.connection?.session?.state === "signed-out" && /Not signed in/.test(off) && (await pg.getByLabel("Account id").count()) === 1 && (await pg.getByLabel("Password").getAttribute("type").catch(() => null)) === "password", `${before.connection?.session?.state}; ${off.slice(0, 120)}`);
+    await shot(pg, "52-chat-signed-out");
+    await pg.getByLabel("Account id").fill(fake.person.id);
+    await pg.getByLabel("Password").fill(fake.person.password);
+    await pg.getByRole("button", { name: "Sign in" }).click();
+    await pg.waitForFunction(() => /Signed in as/.test(document.querySelector(".connection-session")?.textContent ?? ""), null, { timeout: 15000 }).catch(() => {});
+    const on = await sessionText();
+    const signedInAfter = Math.round((Date.now() - fakeStartedAt) / 1000);
+    const signedIn = await hostApi("/health");
+    const file = path.join(configDir, "loops-session");
+    let mode = -1;
+    let fileText = "";
+    try {
+      mode = statSync(file).mode & 0o777;
+      fileText = readFileSync(file, "utf8");
+    } catch {}
+    const everything = [...lines, JSON.stringify(signedIn)].join("\n");
+    ok("chat: Sign in: the panel says Signed in as Nicky, health says signed-in with the name, the host keeps the cookie in a 0600 file, and the password is in no file, log line, answer, page or storage", /Signed in as Nicky/.test(on) && signedIn.connection?.session?.state === "signed-in" && signedIn.connection?.session?.name === "Nicky" && mode === 0o600 && fileText.includes("\"cookie\":\"sess_") && !fileText.includes(fake.person.password) && !everything.includes(fake.person.password) && !(await leaked(fake.person.password)) && (await pg.getByLabel("Password").count()) === 0, `${on.slice(0, 80)}; session ${signedIn.connection?.session?.state}; file mode ${mode.toString(8)}`);
+    await shot(pg, "53-chat-signed-in");
+    await closePanel();
+    // g-man's scripted answer arrives on the person's dm stream: a bubble over its figure with the first line.
+    const bubble = pg.locator('.bubble.said[data-said-agent="g-man"]');
+    await bubble.waitFor({ timeout: 90000 }).catch(() => {});
+    const said = (await bubble.innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+    ok("chat: an agent's answer shows as a speech bubble over its figure, with the message's first line", /Busy and calm/.test(said), said.slice(0, 120) || `no bubble ${Math.round((Date.now() - fakeStartedAt) / 1000)} s after the fake started (signed in at +${signedInAfter} s); session ${(await hostApi("/health")).connection?.session?.state}; host: ${lines.slice(-6).join(" | ").slice(0, 400)}`);
+    await shot(pg, "54-chat-bubble");
+    await bubble.click().catch(() => {});
+    await pg.waitForSelector(".chat-sheet", { timeout: 5000 }).catch(() => {});
+    const sheetAgent = await pg.locator(".chat-sheet").getAttribute("data-agent").catch(() => null);
+    ok("chat: a tap on the bubble opens the Chat panel on that agent", sheetAgent !== null && /g-man/.test(sheetAgent), `data-agent ${sheetAgent}`);
+    await shot(pg, "55-chat-panel-from-bubble");
+    await pg.keyboard.press("Escape");
+    await pg.waitForTimeout(300);
+    // Forget the session: signed out at the fake, the file gone, the panel says so.
+    await openPanel();
+    await pg.getByRole("button", { name: "Forget the session" }).click();
+    await pg.waitForFunction(() => /Not signed in/.test(document.querySelector(".connection-session")?.textContent ?? ""), null, { timeout: 10000 }).catch(() => {});
+    const after = await hostApi("/health");
+    ok("chat: Forget the session: the host signed out at loops (no session open there), the file is gone, the panel and health say signed out", after.connection?.session?.state === "signed-out" && fake.sessionsOpen() === 0 && !existsSync(file) && /Not signed in/.test(await sessionText()), `session ${after.connection?.session?.state}; open at the fake ${fake.sessionsOpen()}; file ${existsSync(file) ? "still there" : "gone"}`);
+    await shot(pg, "56-chat-forgotten");
+    await closePanel();
+    // The Chat panel's frame is the one request that leaves the page's origin, by design (the loops web stub).
+    problems.push(...own.filter((x) => !(x.kind === "external" && x.text.includes(web.url)) && !(x.kind === "console" && /status of (401|403)/.test(x.text))));
+  } finally {
+    await ctx.close().catch(() => {});
+    await host.close().catch(() => {});
+    await fake.close().catch(() => {});
+    await web.close().catch(() => {});
+    rmSync(configDir, { recursive: true, force: true });
+  }
+
+  // The key road: a loops whose viewer key may read the chat (world/viewer-key, 8292): no sign-in at all.
+  const keyDir = path.join(OUT, `${tag}-chatkey-config`);
+  rmSync(keyDir, { recursive: true, force: true });
+  mkdirSync(keyDir, { recursive: true, mode: 0o700 });
+  const fake2 = await createLoopsFake({ heartbeatMs: 1000, speed: 1, startAt: 200_000, keyReadsChat: true });
+  const web2 = await createLoopsWebStub();
+  const lines2 = [];
+  const hostOptions2 = { loopsUrl: fake2.url, loopsWebUrl: web2.url, key: fake2.key, keyName: fake2.keyName, sessionStore: createSessionStore(keyDir), pairing: "off", retryMs: { min: 100, max: 500 }, reconnectMs: { min: 100, max: 300 }, heartbeatMs: 1000, log: (line) => lines2.push(line) };
+  const host2 = await createHost(served ? { ...hostOptions2, staticDir: dist } : { ...hostOptions2, port: hostPort, allowedOrigins: [origin] });
+  const keyOrigin = served ? host2.url : origin;
+  info(`chat (key road): fake on 127.0.0.1:${fake2.port} whose key reads the chat, host on 127.0.0.1:${host2.port}`);
+  const own2 = [];
+  const ctx2 = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
+  const pg2 = await ctx2.newPage();
+  watch(pg2, keyOrigin, own2, "chat key");
+  try {
+    await pg2.goto(`${keyOrigin}/`);
+    await pg2.waitForSelector("canvas", { timeout: 60000 }).catch(() => {});
+    await pg2.waitForSelector('.connection-chip[data-connection="live"]', { timeout: 20000 }).catch(() => {});
+    const health2 = await pg2.request.get(`${keyOrigin}/world-api/health`).then((r) => r.json());
+    await pg2.locator(".connection-chip").first().click();
+    await pg2.waitForSelector(".connection-session", { timeout: 5000 }).catch(() => {});
+    const words = (await pg2.locator(".connection-session").innerText().catch(() => "")).replace(/\s+/g, " ");
+    ok("chat (key road): health says session key, the panel's Chat section says not needed and shows no sign-in form, the host's log says the key reads the chat", health2.connection?.session?.state === "key" && /Not needed: this crewhub-loops lets the world's key read the chat/.test(words) && (await pg2.getByLabel("Password").count()) === 0 && lines2.some((l) => /the key reads the chat on this crewhub-loops/.test(l)), `${health2.connection?.session?.state}; ${words.slice(0, 100)}`);
+    await shot(pg2, "57-chat-key-not-needed");
+    await pg2.keyboard.press("Escape");
+    const bubble2 = pg2.locator('.bubble.said[data-said-agent="g-man"]');
+    await bubble2.waitFor({ timeout: 90000 }).catch(() => {});
+    const said2 = (await bubble2.innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+    ok("chat (key road): an agent's answer comes over the key's own stream and shows as a bubble, with no session anywhere", /Busy and calm/.test(said2) && fake2.sessionsOpen() === 0 && !existsSync(path.join(keyDir, "loops-session")), said2.slice(0, 100) || `no bubble; host: ${lines2.slice(-4).join(" | ").slice(0, 200)}`);
+    await shot(pg2, "58-chat-key-bubble");
+    await bubble2.click().catch(() => {});
+    await pg2.waitForSelector(".chat-sheet", { timeout: 5000 }).catch(() => {});
+    const agent2 = await pg2.locator(".chat-sheet").getAttribute("data-agent").catch(() => null);
+    ok("chat (key road): a tap on the bubble opens the Chat panel on that agent", agent2 !== null && /g-man/.test(agent2), `data-agent ${agent2}`);
+    await pg2.keyboard.press("Escape");
+    problems.push(...own2.filter((x) => !(x.kind === "external" && x.text.includes(web2.url))));
+  } finally {
+    await ctx2.close().catch(() => {});
+    await host2.close().catch(() => {});
+    await fake2.close().catch(() => {});
+    await web2.close().catch(() => {});
+    rmSync(keyDir, { recursive: true, force: true });
   }
 });
 

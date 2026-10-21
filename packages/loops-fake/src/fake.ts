@@ -70,6 +70,13 @@ export interface LoopsFakeOptions {
   emptyTeam?: boolean;
   /** What `GET /api/health` says as `version`; default `FAKE_LOOPS_VERSION`. Another value after a restart on the same port is a loops upgraded under a running host. */
   version?: string;
+  /**
+   * The person who can sign in (`POST /api/auth/login`, round 12): the demo's person by default, with a password made
+   * for this run (`fake.person` says it, for the tools). A session cookie then reads as an admin: every event, the chat.
+   */
+  person?: { id: string; password: string; displayName: string };
+  /** A loops whose viewer key may read the chat (round 12, `world/viewer-key`): the key gets the threads, the messages and the dm.* rows. */
+  keyReadsChat?: boolean;
 }
 
 export interface LoopsFake {
@@ -91,6 +98,10 @@ export interface LoopsFake {
    * `rejected` turns a move into Done down with that reason (`resolution: "rejected"` in the payload).
    */
   moveTicket(ref: string, status: string, options?: { rejected?: string }): Promise<void>;
+  /** The person who can sign in, and the password of this run (a fake's secret, for the tools and the tests). */
+  readonly person: { id: string; password: string; displayName: string };
+  /** The session cookies handed out and still accepted. */
+  sessionsOpen(): number;
   close(): Promise<void>;
 }
 
@@ -164,8 +175,38 @@ function encode(line: unknown): string {
   return `${JSON.stringify(line)}\n`;
 }
 
+/** A small JSON body (the sign-in), or null when it is not JSON; more than 8 kB is refused as loops refuses it. */
+function readJson(req: IncomingMessage): Promise<Record<string, unknown> | null> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    req.on("data", (chunk: Buffer) => {
+      size += chunk.length;
+      if (size > 8192) {
+        reject(new ApiError(413, "payload_too_large", "The request body is limited to 8192 bytes"));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => {
+      try {
+        const value: unknown = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+        resolve(value !== null && typeof value === "object" ? (value as Record<string, unknown>) : null);
+      } catch {
+        resolve(null);
+      }
+    });
+    req.on("error", reject);
+  });
+}
+
 interface OpenStream {
   res: ServerResponse;
+  /** Who reads it: the key (loops' per-principal view) or a signed-in person (an admin: everything). */
+  viewer: "key" | "person";
+  /** The `types=` filter, if any. */
+  types: string[];
   /** The public position: the seq of the last envelope written, or the start (`S` of CL-406). */
   lastSent: number;
   timer: ReturnType<typeof setTimeout> | null;
@@ -183,7 +224,12 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
   const bufferSize = Math.max(1, options.bufferSize ?? DEFAULT_BUFFER);
   const visibility = options.visibility ?? "principal";
   const emptyTeam = options.emptyTeam === true;
+  const keyReadsChat = options.keyReadsChat === true;
   const principal: PrincipalRef = { id: keyName, kind: "agent", displayName: keyName };
+  const person = options.person ?? { id: "nicky", password: `demo-${randomBytes(9).toString("base64url")}`, displayName: "Nicky" };
+  const personPrincipal: PrincipalRef = { id: person.id, kind: "user", displayName: person.displayName };
+  /** The session cookies handed out by `POST /api/auth/login` and still accepted (a logout removes one). */
+  const sessions = new Set<string>();
 
   // The log: the demo's envelopes renumbered into one continuous sequence from `firstSeq`. Every row is kept, the
   // hidden ones too (they are the gaps); `visibleTail` is the newest seq the key may see.
@@ -250,11 +296,14 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     if (!EVENT_TYPES.includes(e.type) || ADMIN_ONLY_EVENT_TYPES.includes(e.type)) return false;
     const p = e.payload;
     const chat = e.type.startsWith("dm.") || (p["dmThreadId"] ?? null) !== null;
-    if (chat && p["agentId"] !== keyName && p["recipientId"] !== keyName) return false;
+    if (chat && !keyReadsChat && p["agentId"] !== keyName && p["recipientId"] !== keyName) return false;
     if (e.type === "lane.alert" && p["leadId"] !== keyName) return false;
     if ((p["laneAlertId"] ?? null) !== null && p["recipientId"] !== keyName) return false;
     return true;
   }
+
+  /** What a reader may see: a person (an admin) everything, the key its own view. */
+  const visibleTo = (viewer: "key" | "person", e: Envelope): boolean => (viewer === "person" ? true : visibleToKey(e));
 
   function append(envelope: Envelope): void {
     seq += 1;
@@ -264,9 +313,12 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
       buffer.splice(0, buffer.length - bufferSize);
       floor = Math.max(floor, (buffer[0] as Envelope).seq - 1);
     }
-    if (!visibleToKey(renumbered)) return; // a gap for the key
-    visibleTail = seq;
-    for (const stream of streams) writeLine(stream, renumbered, renumbered.seq);
+    if (visibleToKey(renumbered)) visibleTail = seq; // else a gap for the key
+    for (const stream of streams) {
+      if (!visibleTo(stream.viewer, renumbered)) continue;
+      if (stream.types.length > 0 && !stream.types.includes(renumbered.type)) continue;
+      writeLine(stream, renumbered, renumbered.seq);
+    }
   }
 
   /**
@@ -335,13 +387,17 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
   }
 
   /** `after` is the public position (`S`); `scanFrom` (`W`, a sealed cursor's watermark) is where the replay starts. */
-  function openStream(res: ServerResponse, after: number, scanFrom = after): void {
+  function openStream(res: ServerResponse, after: number, scanFrom = after, viewer: "key" | "person" = "key", types: string[] = []): void {
     res.writeHead(200, { "content-type": "application/x-ndjson", "cache-control": "private, no-store", "x-accel-buffering": "no" });
     res.flushHeaders();
-    const stream: OpenStream = { res, lastSent: after, timer: null, maxAge: setTimeout(() => endStream(stream), streamMaxMs), closed: false };
+    const stream: OpenStream = { res, viewer, types, lastSent: after, timer: null, maxAge: setTimeout(() => endStream(stream), streamMaxMs), closed: false };
     streams.add(stream);
     streamsOpened += 1;
-    for (const envelope of buffer) if (envelope.seq > Math.max(after, scanFrom) && visibleToKey(envelope)) writeLine(stream, envelope, envelope.seq);
+    for (const envelope of buffer) {
+      if (envelope.seq <= Math.max(after, scanFrom) || !visibleTo(viewer, envelope)) continue;
+      if (types.length > 0 && !types.includes(envelope.type)) continue;
+      writeLine(stream, envelope, envelope.seq);
+    }
     armHeartbeat(stream);
     res.on("close", () => endStream(stream));
   }
@@ -353,8 +409,10 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     const cookies = req.headers.cookie ?? "";
     const hasSession = cookies.split(";").some((part) => part.trim().startsWith(`${SESSION_COOKIE}=`));
     if (header === undefined) {
-      if (hasSession) throw new ApiError(401, "unauthenticated", "Authentication required");
-      return null;
+      if (!hasSession) return null;
+      const token = cookies.split(";").map((c) => c.trim()).find((c) => c.startsWith(`${SESSION_COOKIE}=`))?.slice(SESSION_COOKIE.length + 1) ?? "";
+      if (!sessions.has(token)) throw new ApiError(401, "unauthenticated", "Authentication required");
+      return personPrincipal;
     }
     const [scheme, token] = header.split(/\s+/, 2);
     if (scheme?.toLowerCase() !== "bearer" || token !== key) throw new ApiError(401, "invalid_api_key", "Invalid API key");
@@ -438,8 +496,29 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
       at("board", "*") || at("tickets", "*") ||
       at("tickets", "*", "comments") || at("tickets", "*", "progress") || at("tickets", "*", "grill") || at("team") ||
       at("agents") || at("principals") || at("watchdog") || at("events") || at("events", "stream") ||
-      at("delegations", "pending");
+      at("delegations", "pending") || at("auth", "login") || at("auth", "logout") || at("dm", "threads") ||
+      at("dm", "threads", "*", "messages") || at("dm", "messages", "*");
     if (!known) throw notFound();
+    // The person's sign-in (public; loops: no CSRF, an absent Origin is fine) and sign-out (round 12).
+    if (at("auth", "login")) {
+      if (req.method !== "POST") throw new ApiError(405, "method_not_allowed", "Method not allowed");
+      const body = await readJson(req);
+      if (body?.["id"] !== person.id || body?.["password"] !== person.password) throw new ApiError(401, "bad_credentials", "Unknown account or wrong password");
+      const token = `sess_${randomBytes(16).toString("hex")}`;
+      sessions.add(token);
+      res.setHeader("set-cookie", [`${SESSION_COOKIE}=${token}; HttpOnly; Max-Age=2592000; Path=/; SameSite=lax`, `chl_device=dev_${randomBytes(6).toString("hex")}; HttpOnly; Max-Age=31536000; Path=/api/auth; SameSite=lax`]);
+      return { user: { ...personPrincipal, role: "admin", theme: null, themeDefault: "system", activitySeenSeq: 0, isOwner: true } };
+    }
+    if (at("auth", "logout")) {
+      if (req.method !== "POST") throw new ApiError(405, "method_not_allowed", "Method not allowed");
+      const who = authenticate(req);
+      if (who === null || who.kind !== "user") throw new ApiError(401, "unauthenticated", "Authentication required");
+      const token = (req.headers.cookie ?? "").split(";").map((c) => c.trim()).find((c) => c.startsWith(`${SESSION_COOKIE}=`))?.slice(SESSION_COOKIE.length + 1) ?? "";
+      sessions.delete(token);
+      res.statusCode = 204;
+      res.end();
+      return undefined;
+    }
     if (req.method !== "GET" && req.method !== "HEAD") throw new ApiError(405, "method_not_allowed", "Method not allowed");
     // The builder key (CL-120) opens an exact table of reads and nothing else; of the routes the fake serves, these.
     // Loops' guard refuses it on a public route too, before any handler.
@@ -467,6 +546,22 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     }
     const caller = authenticate(req);
     if (caller === null) throw new ApiError(401, "unauthenticated", "Authentication required");
+    const viewer: "key" | "person" = caller.kind === "user" ? "person" : "key";
+    // The chat (dm.py): any principal reads, but a key reads only the threads it is part of; the fake's key is in none.
+    const readsChat = viewer === "person" || keyReadsChat;
+    if (at("dm", "threads")) return { threads: readsChat ? await source.getDmThreads() : [] };
+    if (at("dm", "threads", "*", "messages")) {
+      if (!readsChat) throw new ApiError(403, "forbidden", "Not a participant of this thread");
+      return { messages: await source.getDmMessages(parts[3] ?? ""), nextCursor: null };
+    }
+    if (at("dm", "messages", "*")) {
+      if (!readsChat) throw new ApiError(403, "forbidden", "Not a participant of this thread");
+      for (const thread of await source.getDmThreads()) {
+        const message = (await source.getDmMessages(thread.agentId)).find((m) => m.id === parts[3]);
+        if (message !== undefined) return { message };
+      }
+      throw notFound();
+    }
 
     const slug = parts[2] ?? "";
     const ref = parts[2] ?? "";
@@ -544,7 +639,8 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     // An instance where no team probe has reported answers an empty snapshot with `ts` an empty string (observed on 8291).
     if (at("team") && emptyTeam) return { v: 1, ts: "", sessions: [] };
     if (at("team")) return (await snapshotOf()).team;
-    if (at("agents")) return { agents: withKeyBot(await source.getAgents(), keyName, new Date()), lanesAuthority: "db", agentHome: null };
+    // A viewer key's loops (L1) marks the key's own bot `viewer: true` in the agents list: the host's probe reads it there.
+    if (at("agents")) return { agents: withKeyBot(await source.getAgents(), keyName, new Date()).map((a) => (keyReadsChat && a.id === keyName ? { ...a, viewer: true } : a)), lanesAuthority: "db", agentHome: null };
     if (at("principals")) return { principals: (await snapshotOf()).principals };
     if (at("watchdog")) return source.getWatchdog();
     if (at("events")) {
@@ -558,7 +654,7 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
       if (from === "tail") return { events: [], lastSeq: visibleTail, cursor: sealCursor(visibleTail, seq) };
       const start = resume.after ?? 0;
       const scan = Math.max(start, resume.scanFrom ?? start);
-      const matching = buffer.filter((e) => e.seq > scan && visibleToKey(e) && (types.length === 0 || types.includes(e.type)));
+      const matching = buffer.filter((e) => e.seq > scan && visibleTo(viewer, e) && (types.length === 0 || types.includes(e.type)));
       const events = matching.slice(0, limit);
       // `lastSeq` is the last row returned, else the `after` sent (CL-390): it never passes a row the filter dropped,
       // so a filter that matches nothing answers `after` (the old tail trick says 0). `from=tail` is the tail.
@@ -569,13 +665,13 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     // The stream: `after` replays `seq > after` from the buffer, then live; a sealed `cursor` replays from its
     // watermark; without either, live from the tail (`S` the newest seq the key may see, `W` the real tail). At most
     // MAX_STREAMS_PER_KEY open streams per key.
-    typesOf(url);
+    const streamTypes = typesOf(url);
     const resume = resumeOf(url, req);
     if (req.method === "HEAD") throw new ApiError(405, "method_not_allowed", "Method not allowed");
-    if (streams.size >= MAX_STREAMS_PER_KEY) {
+    if ([...streams].filter((x) => x.viewer === viewer).length >= MAX_STREAMS_PER_KEY) {
       throw new ApiError(429, "too_many_streams", "Too many open event streams", { "retry-after": String(RETRY_AFTER_S) });
     }
-    openStream(res, resume.after ?? visibleTail, resume.scanFrom ?? resume.after ?? seq);
+    openStream(res, resume.after ?? (viewer === "person" ? seq : visibleTail), resume.scanFrom ?? resume.after ?? seq, viewer, streamTypes);
     return undefined;
   }
 
@@ -648,6 +744,8 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     keyName,
     lastSeq: () => seq,
     lastVisibleSeq: () => visibleTail,
+    person,
+    sessionsOpen: () => sessions.size,
     openStreams: () => streams.size,
     streamsOpened: () => streamsOpened,
     async moveTicket(ref, status, moveOptions = {}) {
