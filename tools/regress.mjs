@@ -1209,10 +1209,12 @@ await group("rooms", async () => {
   const office = (tvLater.match(/Lead's office: [^\n]*beacon: [^\n]*/) ?? [""])[0];
   ok("rooms: the lead's office beacon", office !== "", office.slice(0, 120));
 
-  // 19b. A person carries work into Done (spec addendum "a person in the world"): the storyline's person moves CR-37
-  // and CR-18 to Done from 3:24 on; the text view tells the carry, and the scene has a person figure walking it.
-  ok("seek person (rooms)", await seek(p, 200000));
-  await p.waitForTimeout(9500);
+  // 19b. A person carries work into Done (spec addendum "a person in the world"): the storyline's first move into Done
+  // by its person (PERSON_DONE_AT in packages/demo/src/script.ts, CR-37 at 3:22); the text view tells the carry, and
+  // the scene has a person figure walking it. Sought to 4 s before it, read 12 s later (the move has 1.2 s of jitter).
+  const { FIRST_PERSON_DONE_MS } = await import(pathToFileURL(path.join(REPO, "packages", "demo", "src", "script.ts")).href);
+  ok("seek person (rooms)", await seek(p, FIRST_PERSON_DONE_MS - 4000));
+  await p.waitForTimeout(12000);
   const tvPerson = await text(p);
   const carry = (tvPerson.match(/\S+, a person, (is carrying|is on the way in to carry|moved) [A-Z]+-\d+ to Done[^\n]*/) ?? [""])[0];
   const person = await p.evaluate(() => [...(globalThis.__town?.persons?.persons?.() ?? [])].map((w) => `${w.visit.displayName} ${w.phase}${w.holding ? " holding" : ""}`).join("; ")).catch(() => "");

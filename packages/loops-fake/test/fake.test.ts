@@ -24,6 +24,7 @@ import {
   validateWatchdogResponse,
 } from "@crewhub/loops-client";
 import type { Envelope, Result } from "@crewhub/loops-client";
+import { PERSON_DONE_AT } from "@crewhub/demo";
 import {
   ADMIN_ONLY_EVENT_TYPES,
   BUILDER_KEY_MESSAGE,
@@ -515,11 +516,12 @@ test("visibility: the key does not see every seq. The install's history hides se
 });
 
 test("human_only_done: the storyline's moves into Done are a person's, with the principal; a rejected move too; the fake's agents never move into Done", async () => {
-  // 3:28 of the small-team storyline: Nicky moves CR-18 to Done (the Done moves are all the person's: loops' 403
-  // `human_only_done` for an agent, `domain/tickets.py` `require_human_for_done`, which the demo's script obeys).
-  const fake = await start({ speed: 16, startAt: 3 * 60_000 + 20_000 });
+  // The small-team storyline's move of CR-18 into Done by Nicky (PERSON_DONE_AT; the Done moves are all the person's:
+  // loops' 403 `human_only_done` for an agent, `domain/tickets.py` `require_human_for_done`, which the demo's script obeys).
+  const [minutes, seconds] = (PERSON_DONE_AT["CR-18"] as string).split(":").map(Number) as [number, number];
+  const fake = await start({ speed: 16, startAt: (minutes * 60 + seconds) * 1000 - 10_000 });
   const res = await fetch(`${fake.url}/api/events/stream?after=${fake.lastSeq()}`, { headers: headers(fake) });
-  // Read until Nicky's 3:28 move of CR-18 (a prop ticket's Done move by the person comes first).
+  // Read until Nicky's move of CR-18.
   const lines = await readUntil(res, (l) => l["type"] === "ticket.moved" && (l["ticket"] as { key: string } | null)?.key === "CR-18" && (l["payload"] as { to: string }).to === "done", 15_000);
   const moves = lines.filter((l) => l["type"] === "ticket.moved") as unknown as Envelope[];
   const done = moves.filter((e) => e.payload["to"] === "done");
