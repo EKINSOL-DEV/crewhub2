@@ -29,6 +29,8 @@ function building(): Building {
     beacons: [],
     mailbox: [],
     archivedCount: 0,
+    board: [],
+    automationRuns: [],
     visits: [],
   };
 }

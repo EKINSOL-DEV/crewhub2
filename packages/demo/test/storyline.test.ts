@@ -25,6 +25,7 @@ test("every event type the world reacts to occurs in one loop", () => {
     "milestone.created", "milestone.updated", "milestone.tickets_attached", "milestone.handoff", "milestone.completed",
     "release.created", "release.updated", "release.published",
     "project.archived", "project.restored", "project.updated", "project.reordered",
+    "ticket.quiet", "automation.ran", "owner-request.updated",
   ], "types");
 });
 

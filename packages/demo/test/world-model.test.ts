@@ -15,7 +15,13 @@ test("a full loop through the projection and the reducer: no invalid or skipped 
   const projection = new Projection(source, { coalesceMs: 0 });
   let memory = emptyMemory();
   let lines = 0;
-  source.start((message) => projection.apply(message));
+  let byDesign = 0; // `owner-request.updated`: the world knows it and skips it (the owner's alone, CL-298)
+  let skippedSeen = 0; // the facts start afresh at the loop's end: the count is read along the way
+  source.start((message) => {
+    if (message.type === "event" && message.envelope.type === "owner-request.updated") byDesign += 1;
+    projection.apply(message);
+    skippedSeen = Math.max(skippedSeen, projection.facts.skippedEvents);
+  });
   for (let wall = 0; wall < SCRIPT_DURATION_MS / 16 - 1_000; wall += 2_000) {
     scheduler.advance(2_000);
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -25,7 +31,8 @@ test("a full loop through the projection and the reducer: no invalid or skipped 
   }
   const facts = projection.facts;
   assert.equal(facts.invalidEvents, 0);
-  assert.equal(facts.skippedEvents, 0);
+  assert.equal(skippedSeen, byDesign, "nothing skipped but the owner's request");
+  assert.ok(byDesign > 0, "the storyline has the owner's request");
   assert.ok(facts.cursor > 4_900);
   assert.deepEqual(facts.order, ["crewhub", "crewhub-loops", "marketing"]);
   assert.ok(lines > 20);

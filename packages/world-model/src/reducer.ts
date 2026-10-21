@@ -3,6 +3,7 @@
  * Pure: the input memory is not changed; the returned memory replaces it.
  */
 import { closingOf } from "./archive.ts";
+import { BOARD_LINES, boardOf } from "./board.ts";
 import type { ProjectOut } from "@crewhub/loops-client";
 import {
   captionOf,
@@ -210,6 +211,7 @@ function activeBuilding(
   }
 
   const meeting = meetingKey(slug, project.lead.id, entities, ctx);
+  const runs = facts.automationRuns.filter((run) => run.slug === slug);
   return {
     slug,
     zoneId: DEFAULT_ZONE_ID,
@@ -231,6 +233,8 @@ function activeBuilding(
     beacons: beaconsOf(built, facts),
     mailbox: [],
     archivedCount: facts.archivedTickets[slug] ?? 0,
+    board: boardOf(runs, ctx.now),
+    automationRuns: runs.slice(-BOARD_LINES),
     visits: visitsOf(slug, ctx),
   };
 }
@@ -258,6 +262,8 @@ function archivedBuilding(project: ProjectOut, ctx: ReduceContext): Building {
     beacons: [],
     mailbox: [],
     archivedCount: facts.archivedTickets[project.slug] ?? 0,
+    board: [],
+    automationRuns: [],
     visits: [],
   };
 }

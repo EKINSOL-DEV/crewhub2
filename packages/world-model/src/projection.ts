@@ -206,6 +206,12 @@ export class Projection {
     const facts = this.state;
     const ts = parseTs(event.ts, this.source.now());
     const slug = event.project?.slug ?? null;
+    // A quiet stretch ends at the ticket's next change by a person or an agent: any ticket or comment event on it.
+    // Not one by `system`: the quiet job's own fact, the watchdog's stall, and the change an automation makes in answer
+    // to the quiet (on 8291 the label came 6 ms after the fact; the ticket is still quiet of people and agents).
+    if (event.ticket && event.actor.kind !== "system" && (event.type.startsWith("ticket.") || event.type.startsWith("comment."))) {
+      delete facts.quiet[event.ticket.key];
+    }
     switch (event.type) {
       case "ticket.created": {
         if (!event.ticket || !slug) return;
@@ -235,6 +241,10 @@ export class Projection {
       case "ticket.unarchived":
       case "comment.updated":
       case "comment.deleted": {
+        // A change an automation wrote: remembered until its `automation.ran` names the run (loops writes it first).
+        if (event.type === "ticket.updated" && event.ticket && event.payload.automation) {
+          pushCapped(facts.automationChanges, { seq: event.seq, ticketId: event.ticket.id, automationId: event.payload.automation.id, changed: [...event.payload.changed] });
+        }
         if (event.type === "ticket.unarchived" && slug) {
           facts.archivedTickets[slug] = Math.max(0, (facts.archivedTickets[slug] ?? 0) - 1);
         }
@@ -351,6 +361,38 @@ export class Projection {
       case "ticket.resumed": {
         delete facts.stalls[event.payload.ticket];
         this.patchCardByKey(event.payload.ticket, (card) => ({ ...card, stall: null }));
+        return;
+      }
+      case "ticket.quiet": {
+        // One per ticket, status, minutes and stretch (CL-312 7a): the newest stretch is the one that holds.
+        facts.quiet[event.payload.ticket] = {
+          ticketKey: event.payload.ticket,
+          ticketId: event.ticket?.id ?? null,
+          slug,
+          status: event.payload.status,
+          minutes: event.payload.minutes,
+          since: event.payload.since,
+          seq: event.seq,
+          ts,
+        };
+        return;
+      }
+      case "automation.ran": {
+        const ticketId = event.ticket?.id ?? null;
+        const at = ticketId === null ? -1 : facts.automationChanges.findIndex((c) => c.ticketId === ticketId && c.automationId === event.payload.automationId);
+        const change = at >= 0 ? facts.automationChanges.splice(at, 1)[0]! : null;
+        pushCapped(facts.automationRuns, {
+          seq: event.seq,
+          ts,
+          slug,
+          ticketId,
+          ticketKey: event.ticket?.key ?? null,
+          runId: event.payload.runId,
+          automationId: event.payload.automationId,
+          name: event.payload.automation?.name ?? null,
+          outcome: event.payload.outcome,
+          changed: change?.changed ?? null,
+        });
         return;
       }
       case "delivery.created": {

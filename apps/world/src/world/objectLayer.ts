@@ -111,6 +111,8 @@ interface ObjectState {
   hop: { t: number; until: number; sparkle: THREE.Object3D } | null;
   /** How far a turned-down object has been set aside, 0 to 1. */
   aside: number;
+  /** How far the dust of a quiet ticket has settled, 0 to 1 (wall time; 1 at once under reduced motion). */
+  dust: number;
   anchor: THREE.Vector3;
 }
 
@@ -168,6 +170,23 @@ export class ObjectLayer {
     return this.#template(`ticket.${o.kind}` as ModelKey);
   }
 
+  /** The dust film for a body of that size: the layer's own thin grey slab, no style model (the style stays as it is). */
+  #dust(body: Template): Template {
+    const id = `dust|${body.size.x.toFixed(3)},${body.size.z.toFixed(3)}`;
+    let t = this.#templates.get(id);
+    if (!t) {
+      const film = new THREE.Mesh(
+        new THREE.BoxGeometry(body.size.x * 0.92, 0.008, body.size.z * 0.92),
+        new THREE.MeshStandardMaterial({ color: new THREE.Color("darkgray"), roughness: 1, metalness: 0, transparent: true, opacity: 0.62 }),
+      );
+      film.position.y = 0.004;
+      film.castShadow = false;
+      t = new Template(film);
+      this.#templates.set(id, t);
+    }
+    return t;
+  }
+
   /** Called when the model or the layout changed. */
   sync(building: Building, layout: ObjectLayout) {
     this.#milestoneAccent = new Map(building.milestones.map((m, i) => [m.id, MILESTONE_ACCENTS[i % MILESTONE_ACCENTS.length]!]));
@@ -184,7 +203,7 @@ export class ObjectLayer {
         const pos = rest ? rest.clone() : new THREE.Vector3();
         // One that was turned down before it came into view is askew already; a fresh rejection turns in view.
         const aside = object.rejected && object.turnedDownUntil === null ? 1 : 0;
-        state = { object, rest, pos, ease: null, flight: null, drone: null, hop: null, aside, anchor: new THREE.Vector3() };
+        state = { object, rest, pos, ease: null, flight: null, drone: null, hop: null, aside, dust: 0, anchor: new THREE.Vector3() };
         this.#states.set(object.ticketId, state);
       } else if (rest && state.rest && !state.flight && !object.transit && rest.distanceToSquared(state.rest) > 1e-6 && !this.#ctx.reducedMotion()) {
         state.ease = { from: state.pos.clone(), t: 0 };
@@ -315,7 +334,7 @@ export class ObjectLayer {
   /** True while something moves (a flight, an ease, a hop, a turned-down object being set aside). */
   get animating(): boolean {
     if (this.#carried.size) return true;
-    for (const s of this.#states.values()) if ((s.flight && s.drone) || s.ease || s.hop || (s.object.rejected && s.aside < 1)) return true;
+    for (const s of this.#states.values()) if ((s.flight && s.drone) || s.ease || s.hop || (s.object.rejected && s.aside < 1) || (s.object.quiet !== null && s.dust < 1)) return true;
     return false;
   }
 
@@ -331,6 +350,9 @@ export class ObjectLayer {
 
   #move(state: ObjectState, seconds: number, now: number, reduced: boolean) {
     const { pos } = state;
+    // A quiet ticket's dust settles over a second and a half; it lifts at once when the ticket changes.
+    if (state.object.quiet !== null) state.dust = reduced ? 1 : Math.min(1, state.dust + seconds / 1.4);
+    else state.dust = 0;
     const carried = this.#carried.get(state.object.ticketId);
     if (carried) {
       // In a person's hands: wherever they are, until they let go.
@@ -422,6 +444,8 @@ export class ObjectLayer {
       this.#place.compose(state.pos, this.#q, this.#s);
       this.#put(body, o.ticketId);
       const size = { width: body.size.x + 0.02, height: body.height + 0.004, depth: body.size.z + 0.02 };
+      // `ticket.quiet`: a thin grey film of dust on the package, settling from a little above it (the clock tag is a label).
+      if (o.quiet !== null) this.#put(this.#dust(body), o.ticketId, false, 0, body.height + (1 - state.dust) * 0.12, 0);
       // Struck through: one thin dark band from corner to corner (a milestone band runs straight and is coloured).
       if (o.rejected) {
         const strike = { width: Math.hypot(body.size.x, body.size.z) * 0.94, height: size.height + 0.004, depth: 0.03 };

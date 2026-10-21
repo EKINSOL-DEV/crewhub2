@@ -1,7 +1,7 @@
 /* shots.mjs: the world in screenshots, a list of views x themes x widths.
 
    Usage:
-     node tools/shots.mjs --port <port> [--tag shots] [--views town,building,room] [--theme light,dark]
+     node tools/shots.mjs --port <port> [--tag shots] [--views town,building,room,walk,stress,person,events] [--theme light,dark]
                           [--width 1440,375] [--cast <id>] [--scenario <id>] [--building <n>] [--room <n>] [--buildings <n>]
                           [--rooms <n>] [--stress <n>] [--plan three|classic] [--seek <ms>] [--frames <n>] [--every <ms>]
                           [--zoom] [--speed 1x|4x|16x] [--out <dir>] [--swiftshader]
@@ -13,6 +13,9 @@
      walk      the first --buildings buildings (6) and each one's --rooms rooms (7), a shot per stop: the critical walk
      stress    the stress fixture (?stress=<n>, dev builds only) at 4x after 12 s: the town, and inside the second
                building; the dev overlay's numbers are printed
+     events    the new loops events (round 7): the storyline played to the quiet fact (dust and a clock tag on CR-17,
+               Details on), to the card an automation run pins on crewhub's board by the front door, and to the failed
+               run's card in crewhub-loops: three shots, each waiting for the model's state, playback paused for it
      person    a person carrying work into Done: the demo sought to --seek ms (200000, 3:20, just before the
                storyline's first move into Done at 3:28), Enter on --building, then --frames shots (12) --every ms
                (2000) at --speed (1x; 4x or 16x to check the walk at a faster playback); a line per frame says where
@@ -29,7 +32,7 @@ import { cli, launch, list, problemLines } from "./lib/world.mjs";
 import { VIEWS, worldShots } from "./lib/shots.mjs";
 
 const opts = cli(
-  "node tools/shots.mjs --port <port> [--tag shots] [--views town,building,room] [--theme light,dark] [--width 1440,375] [--cast <id>] [--scenario <id>] [--building <n>] [--room <n>] [--buildings <n>] [--rooms <n>] [--stress <n>] [--plan three|classic] [--seek <ms>] [--frames <n>] [--every <ms>] [--zoom] [--speed 1x|4x|16x] [--out <dir>] [--swiftshader]",
+  "node tools/shots.mjs --port <port> [--tag shots] [--views town,building,room,walk,stress,person,events] [--theme light,dark] [--width 1440,375] [--cast <id>] [--scenario <id>] [--building <n>] [--room <n>] [--buildings <n>] [--rooms <n>] [--stress <n>] [--plan three|classic] [--seek <ms>] [--frames <n>] [--every <ms>] [--zoom] [--speed 1x|4x|16x] [--out <dir>] [--swiftshader]",
   { options: { tag: "shots", views: "town,building,room", theme: "light,dark", width: "1440", cast: null, scenario: null, building: "0", room: "0", buildings: "6", rooms: "7", stress: "1", plan: null, seek: "200000", frames: "12", every: "2000", speed: "1x" }, flags: ["zoom"] },
 );
 const widths = list(opts.width).map(Number);

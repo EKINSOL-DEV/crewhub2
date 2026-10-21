@@ -1304,7 +1304,7 @@ export class BuildingView {
     this.#signatures.signals = signature;
     this.#signals.clear();
     for (const geometry of this.#signalsMerged) geometry.dispose();
-    for (const key of [...this.anchors.keys()]) if (/^(c|beacon|banner|mail|p|archive):/.test(key) || /^r:[^:]+:rack-/.test(key)) this.anchors.delete(key);
+    for (const key of [...this.anchors.keys()]) if (/^(c|beacon|banner|mail|p|archive|board):/.test(key) || /^r:[^:]+:rack-/.test(key)) this.anchors.delete(key);
     const surfaces = surfacesOf(style);
     // A lamp on every desk; a stalled ticket's desk dims its lamp and shows the quiet clock.
     const seated = new Set<string>();
@@ -1381,6 +1381,11 @@ export class BuildingView {
     }
     // The archived count stands over the counter (the lobby's sign said it in the classic plan).
     if (counter) this.anchors.set(`archive:${b.slug}`, this.world(counter.x, counter.z, 1.0));
+    // The board by the front door (`automation.ran`): a card label hangs just inside the entrance, west of the way in.
+    if (lobby) {
+      const door = lobby.layout.entrance;
+      this.anchors.set(`board:${b.slug}`, this.world(lobby.origin.x + door.x - 1.6, lobby.origin.z + door.z - 0.7, 1.45));
+    }
     for (const pallet of this.layout.pallets) {
       const model = style.model("pallet");
       model.position.copy(this.local(pallet.x, pallet.z, 0.02));

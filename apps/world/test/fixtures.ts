@@ -36,6 +36,7 @@ export const object = (id: string, room: RoomKind, extra: Partial<WorkObject> = 
   blocked: false,
   sealed: false,
   stall: null,
+  quiet: null,
   nameTag: null,
   waitingOnHuman: false,
   milestone: null,
@@ -75,6 +76,8 @@ export function building(slug: string, agents: AgentPlacement[] = [], objects: W
     beacons: [],
     mailbox: [],
     archivedCount: 0,
+    board: [],
+    automationRuns: [],
     visits: [],
   };
 }

@@ -741,6 +741,8 @@ export const WORLD_EVENT_TYPES = [
   "release.updated",
   "release.published",
   "release.deleted",
+  "ticket.quiet",
+  "automation.ran",
 ] as const;
 export type WorldEventType = (typeof WORLD_EVENT_TYPES)[number];
 
@@ -767,6 +769,37 @@ export interface TicketUpdatedPayload {
   unblockedBy?: unknown;
   how?: string;
   code?: string;
+  /** A change an automation made (CL-312): every event a run writes carries the rule's id and name. */
+  automation?: AutomationRef;
+}
+
+/** The automation that wrote an event (`domain/automation_run.py` `_flag`). */
+export interface AutomationRef {
+  id: string;
+  name: string;
+}
+
+/**
+ * `ticket.quiet` (CL-312 7a, `domain/automation_quiet.py`): a ticket stayed in `status` without activity for
+ * `minutes`, the stretch starting at `since`; actor `system`, one per ticket, status, minutes and stretch. A fact about
+ * the ticket, not a stall.
+ */
+export interface TicketQuietPayload {
+  status: TicketStatus;
+  minutes: number;
+  since: string;
+  ticket: string;
+}
+
+/**
+ * `automation.ran` (CL-312 S4, `domain/automation_run.py` `_announce`): one per run, on the ticket, actor `system`.
+ * `outcome` is `ok`, `partial` or `failed` at 4cdcd383, typed as the wire's string. It triggers nothing.
+ */
+export interface AutomationRanPayload {
+  runId: string;
+  automationId: string;
+  outcome: string;
+  automation?: AutomationRef;
 }
 
 export interface TicketMovedPayload {
@@ -961,6 +994,8 @@ export interface WorldEventPayloads {
   "release.updated": ReleaseUpdatedPayload;
   "release.published": ReleasePublishedPayload;
   "release.deleted": ReleaseDeletedPayload;
+  "ticket.quiet": TicketQuietPayload;
+  "automation.ran": AutomationRanPayload;
 }
 
 /** An envelope whose type is on the allowlist, with its payload typed. */

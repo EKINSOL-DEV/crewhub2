@@ -3,6 +3,7 @@
  * section per building, one per room). Inferences say so; statuses are always words.
  */
 import { archivedWords } from "./archive.ts";
+import { pinnedCard, quietWords, runWords } from "./board.ts";
 import { roleInferred, roleWords } from "./roleWords.ts";
 import { roomLabel } from "./rooms.ts";
 import { DESK_WORDS, HALL_LABELS, HALL_PLACES, RACK_KINDS, RACK_NAMES, ROLE_DESK_WORDS, hallOf, isRackKind, placeWords as placeWordsOf, type Hall, type RoomWording, type WordingOptions } from "./halls.ts";
@@ -51,6 +52,15 @@ const LOOK_WORDS: Record<WorkObject["look"], string> = {
 };
 
 
+
+/** Where a quiet ticket has stayed, as the column is called. */
+const QUIET_PLACE: Record<TicketStatus, string> = {
+  backlog: "the Backlog",
+  planned: "Planned",
+  in_progress: "In progress",
+  review: "Review",
+  done: "Done",
+};
 
 export function buildingSection(building: Building): string {
   return `${building.name} (${building.key})`;
@@ -161,6 +171,10 @@ function describeBuilding(building: Building, add: Add, buildingName: (slug: str
     );
   }
   for (const beacon of building.beacons) add(section, `Amber beacon over the lead's office on ${beacon.ticketKey}: ${beacon.text}.`);
+  // The board by the front door: the card pinned now, then the last few runs as lines (`automation.ran`).
+  const pinned = pinnedCard(building.board, now);
+  if (pinned) add(section, `A card on the board by the front door: ${runWords(pinned)}.`);
+  for (const run of building.automationRuns) add(section, `${runWords(run)}.`);
   if (building.archivedCount > 0) {
     const n = `${building.archivedCount} ${building.archivedCount === 1 ? "ticket" : "tickets"}`;
     add(
@@ -345,6 +359,11 @@ function describeObject(section: string, object: WorkObject, building: Building,
   } else if (rooms === "three-rooms" && isRackKind(object.room)) parts.push(`on the ${RACK_NAMES[object.room]} rack`);
   add(section, `${parts.join("; ")}.`);
   if (object.deskInferred) add(section, `${object.key} is on that desk because the agent's status line names it: an inference.`, "inference");
+  if (object.quiet) {
+    const since = Date.parse(object.quiet.since);
+    const sinceWords = Number.isNaN(since) ? "" : ` (since ${clock(since)})`;
+    add(section, `${object.key} has been quiet in ${QUIET_PLACE[object.quiet.status]} for ${quietWords(object.quiet.minutes)}${sinceWords}: dust on it, a clock tag "quiet ${quietWords(object.quiet.minutes)}".`);
+  }
   if (object.speechMarkUntil !== null) add(section, `${object.key} has a new comment (speech mark until ${clock(object.speechMarkUntil)}).`);
   if (object.celebrateUntil !== null) add(section, `${object.key} was just moved to done by a person.`);
   if (object.turnedDownUntil !== null) add(section, `${object.key} was just turned down by a person: no celebration.`);

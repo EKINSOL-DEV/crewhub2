@@ -139,10 +139,43 @@ export interface Building {
   /** Tickets archived from Dispatch, kept as a lobby count. */
   archivedCount: number;
   /**
+   * The board by the front door (`automation.ran`): a card per run, pinned for a few seconds (source time), each
+   * queued behind the one before; the one whose `from` has come is the one pinned now.
+   */
+  board: BoardCard[];
+  /** The last few automation runs on the building's tickets, oldest first, for the text view. */
+  automationRuns: AutomationRunLine[];
+  /**
    * People carrying work into Done (spec addendum "a person in the world"): the one carrying now, the queue behind
    * them, and those whose package just landed. In the order they carry.
    */
   visits: PersonVisit[];
+}
+
+/** One automation run on a building's ticket (`automation.ran`), as the text view keeps it. */
+export interface AutomationRunLine {
+  seq: number;
+  ts: number;
+  ticketKey: string | null;
+  runId: string;
+  automationId: string;
+  name: string | null;
+  outcome: string;
+  /** What a `ticket.updated` by the same automation changed just before, if any. */
+  changed: string[] | null;
+}
+
+/** A card on the board by the front door: one automation run, in words, with its window (source time, ms). */
+export interface BoardCard {
+  runId: string;
+  ticketKey: string | null;
+  automationId: string;
+  name: string | null;
+  /** `ok`, `partial`, `failed` (4cdcd383) or a newer word. */
+  outcome: string;
+  changed: string[] | null;
+  from: number;
+  until: number;
 }
 
 /**
@@ -232,6 +265,12 @@ export interface WorkObject {
   sealed: boolean;
   /** The watchdog state; `nudges` counts the nudges loops actually sent (a counter by the quiet clock). */
   stall: { state: "stalled" | "attention"; quietSince: string; quietMinutes: number | null; nudges: number } | null;
+  /**
+   * `ticket.quiet` (CL-312): the ticket has stayed in its status without activity for `minutes` since `since`. The
+   * package gathers dust and wears a small clock tag. A fact about the ticket, not a stall; gone at its next change
+   * by a person or an agent (an automation's own answer to the quiet leaves the dust).
+   */
+  quiet: { status: TicketStatus; minutes: number; since: string } | null;
   /** Name tag of the person it waits on (`waitingOn` of kind user). */
   nameTag: string | null;
   waitingOnHuman: boolean;

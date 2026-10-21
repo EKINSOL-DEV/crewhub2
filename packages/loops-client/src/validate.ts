@@ -36,6 +36,7 @@ import {
   isWorldEventType,
 } from "./types.ts";
 import type {
+  AutomationRef,
   ActorRef,
   AgentLane,
   AgentOut,
@@ -678,6 +679,8 @@ const projectChange = object<WorldEventPayloads["project.updated"]>(
   changePayload as Shape<WorldEventPayloads["project.updated"]>,
 );
 
+const automationRef = object<AutomationRef>({ id: str, name: str });
+
 const payloadValidators: { [T in WorldEventType]: Validator<WorldEventPayloads[T]> } = {
   "ticket.created": object({
     kind: lenientOneOf(TICKET_KINDS, "ticket kind"),
@@ -693,6 +696,7 @@ const payloadValidators: { [T in WorldEventType]: Validator<WorldEventPayloads[T
     unblockedBy: optional(unknownValue),
     how: optional(str),
     code: optional(str),
+    automation: optional(automationRef),
   }),
   "ticket.moved": object({
     from: lenientOneOf(TICKET_STATUSES, "ticket status"),
@@ -766,6 +770,9 @@ const payloadValidators: { [T in WorldEventType]: Validator<WorldEventPayloads[T
   "release.updated": object({ releaseId: str, revision: int, changed: arrayOf(str), code: optional(str) }),
   "release.published": object({ releaseId: str, revision: int, version: nullable(str) }),
   "release.deleted": object({ releaseId: str, tombstone: bool }),
+  // CL-312: the quiet job's fact and an automation's run (docs/LOOPS_REAL_VS_FAKE.md row 13).
+  "ticket.quiet": object({ status: lenientOneOf(TICKET_STATUSES, "ticket status"), minutes: int, since: str, ticket: str }),
+  "automation.ran": object({ runId: str, automationId: str, outcome: str, automation: optional(automationRef) }),
 };
 
 // Public entry points
@@ -804,8 +811,7 @@ const KNOWN_EVENT_TYPES = [
   "policy.created",
   "feature.updated",
   "delegation.consumed",
-  "automation.ran",
-  "ticket.quiet",
+  // `owner-request.updated` (CL-298) is served to the owner person only; the world knows it, draws nothing, says nothing.
   "owner-request.updated",
 ] as const;
 

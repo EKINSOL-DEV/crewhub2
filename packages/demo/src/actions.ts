@@ -68,6 +68,20 @@ export type Action =
   | { type: "archiveDone"; by: string; project: string; tickets: string[] }
   | { type: "unarchive"; by: string; ticket: string }
   | { type: "stall"; ticket: string; reason: "stalled" | "attention"; quietMinutes: number; nudge: boolean }
+  /**
+   * The quiet job's fact (CL-312 7a, `domain/automation_quiet.py`): the ticket stayed in its status without activity
+   * for `minutes`; `since` is its last change. Actor `system`, one per ticket, status, minutes and stretch; a ticket
+   * that has not been quiet that long throws, as loops would not emit it.
+   */
+  | { type: "quiet"; ticket: string; minutes: number }
+  /**
+   * An automation run on the ticket (CL-312 S4, `domain/automation_run.py`): the change it made first (a
+   * `ticket.updated` by `system` flagged with the automation, when `addLabel` names a label the ticket lacks), then
+   * one `automation.ran`. `outcome` is loops' word: `ok`, `partial` or `failed`.
+   */
+  | { type: "automationRun"; ticket: string; automation: { id: string; name: string }; outcome: "ok" | "partial" | "failed"; runId: string; addLabel?: string }
+  /** CL-298: a person's owner request changed; ids and a state word only, served to that owner alone. */
+  | { type: "ownerRequest"; userId: string; requestId: string; state: "pending" | "approved" | "declined" }
   | { type: "resume"; ticket: string; resolution: "activity" | "attending" | "excluded" | "reassigned" }
   | { type: "lane"; name: string; status?: string; contextLine?: string | null }
   | { type: "laneJoin"; name: string; status: string; contextLine: string | null }
@@ -303,6 +317,7 @@ const HANDLERS: Handlers = {
       bodyMarkdown: a.body,
       stall: null,
       episodes: 0,
+      quietAnnounced: null,
     };
     t.position = bottom(ctx, t, status);
     state.tickets.push(t);
@@ -510,6 +525,40 @@ const HANDLERS: Handlers = {
       nudge: a.nudge ? 1 : 0,
     });
     if (a.nudge && a.reason === "stalled") t.stall.deliveryId = deliver(ctx, event, t.assigneeId, "stalled", t).id;
+  },
+
+  quiet(ctx, a) {
+    const { state } = ctx;
+    const t = ticketOf(ctx, a.ticket);
+    assertActiveProject(ctx, t);
+    if (t.archivedAt !== null) throw new Error(`${t.key} is archived`);
+    const since = t.updatedAt;
+    if (state.now - since < a.minutes * MINUTE) throw new Error(`${t.key} has not been quiet for ${a.minutes} min`);
+    const stretch = `${t.status}|${a.minutes}|${since}`;
+    if (t.quietAnnounced === stretch) throw new Error(`${t.key}: this quiet stretch was announced already`);
+    t.quietAnnounced = stretch;
+    // No `touch`: the fact is no activity on the ticket.
+    emit(ctx, "ticket.quiet", "system", { ticket: t }, { status: t.status, minutes: a.minutes, since: iso(since), ticket: t.key });
+  },
+
+  automationRun(ctx, a) {
+    const t = ticketOf(ctx, a.ticket);
+    assertActiveProject(ctx, t);
+    const automation = { id: a.automation.id, name: a.automation.name };
+    if (a.addLabel !== undefined) {
+      const label = labelByName(ctx.state, a.addLabel);
+      if (!t.labelIds.includes(label.id)) {
+        t.labelIds.push(label.id);
+        touch(ctx, t);
+        emit(ctx, "ticket.updated", "system", { ticket: t }, { changed: ["labels"], automation });
+      }
+    }
+    emit(ctx, "automation.ran", "system", { ticket: t }, { runId: a.runId, automationId: a.automation.id, outcome: a.outcome, automation });
+  },
+
+  ownerRequest(ctx, a) {
+    if (isAgent(ctx.state, a.userId)) throw new Error(`${a.userId} is an agent: an owner request is a person's`);
+    emit(ctx, "owner-request.updated", a.userId, { project: null }, { userId: a.userId, requestId: a.requestId, state: a.state });
   },
 
   resume(ctx, a) {
@@ -802,6 +851,7 @@ const HANDLERS: Handlers = {
       bodyMarkdown: `Release carrier. Members: ${members.map((t) => t.key).join(", ")}.`,
       stall: null,
       episodes: 0,
+      quietAnnounced: null,
     };
     carrier.position = bottom(ctx, carrier, "in_progress");
     state.tickets.push(carrier);

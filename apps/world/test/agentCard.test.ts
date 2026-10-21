@@ -78,7 +78,7 @@ test("the registry is ordered and every section has a distinct id", () => {
 });
 
 test("Work: the ticket with its link into loops, its chips, the project and the last line; no link in the demo", () => {
-  const work = { ticketId: "t1", key: "CL-7", title: "Agent card", kind: "task", look: "folder", status: "in_progress", room: "lead-office", deskOf: "cl-lead", deskInferred: false, position: 1, priorityTag: "high", blocked: false, sealed: false, stall: { state: "stalled", quietSince: "", quietMinutes: 12, nudges: 1 }, nameTag: "Nicky", waitingOnHuman: true, milestone: null, labels: [], speechMarkUntil: null, celebrateUntil: null, rejected: null, turnedDownUntil: null, transit: null } satisfies WorkObject;
+  const work = { ticketId: "t1", key: "CL-7", title: "Agent card", kind: "task", look: "folder", status: "in_progress", room: "lead-office", deskOf: "cl-lead", deskInferred: false, position: 1, priorityTag: "high", blocked: false, sealed: false, stall: { state: "stalled", quietSince: "", quietMinutes: 12, nudges: 1 }, quiet: null, nameTag: "Nicky", waitingOnHuman: true, milestone: null, labels: [], speechMarkUntil: null, celebrateUntil: null, rejected: null, turnedDownUntil: null, transit: null } satisfies WorkObject;
   const facts = bare({ work: { ...work }, workProject: { slug: "crewhub-loops", key: "CL", name: "crewhub-loops" }, progress: { ts: NOW - 3 * 60_000, kind: "update", ticketKey: "CL-7", text: "sections from a registry" } });
   const section = renderAgentCard(facts, ctx()).find((s) => s.id === "work");
   assert.ok(section);

@@ -59,6 +59,7 @@ const object = (id: string, room: RoomKind, extra: Partial<WorkObject> = {}): Wo
   blocked: false,
   sealed: false,
   stall: null,
+  quiet: null,
   nameTag: null,
   waitingOnHuman: false,
   milestone: null,
@@ -95,6 +96,8 @@ function building(agents: AgentPlacement[], extraRooms: RoomKind[] = [], objects
     beacons: [],
     mailbox: [],
     archivedCount: 0,
+    board: [],
+    automationRuns: [],
     visits: [],
   };
 }

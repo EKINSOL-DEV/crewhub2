@@ -49,6 +49,8 @@ export function building(slug: string, agents: AgentPlacement[], extra: Partial<
     beacons: [],
     mailbox: [],
     archivedCount: 0,
+    board: [],
+    automationRuns: [],
     visits: [],
     ...extra,
   };
@@ -70,6 +72,7 @@ export function object(key: string, extra: Partial<WorkObject> = {}): WorkObject
     blocked: false,
     sealed: false,
     stall: null,
+  quiet: null,
     nameTag: null,
     waitingOnHuman: false,
     milestone: null,
