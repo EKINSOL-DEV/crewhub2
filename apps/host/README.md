@@ -40,6 +40,11 @@ smooth connection" below):
   `/tickets/{ref}/comments|progress`, `/projects/{slug}`, `/projects/{slug}/milestones|releases`, `/board/{slug}`,
   `/watchdog`, `/team`. Only `limit` and `cursor` of a query string are passed. `/world-api/project-groups`
   answers `{ "groups": [] }` locally.
+- **Session** `POST /world-api/session {id, password}` and `DELETE /world-api/session` (round 12, a paired browser on an allowed origin): the host signs
+  in to crewhub-loops as the person for the chat's bubbles and keeps only the session cookie in `<CREWHUB_WORLD_CONFIG_DIR>/loops-session`
+  (0600); the password is never stored, logged or returned. With it the host reads the chat only (`src/session.ts` `SESSION_ROUTES`: the
+  threads, a thread's messages, a message by id, the events with `types=dm.*`) and sends nothing; an agent's answer reaches the tabs as a
+  `chat` stream message. `connection.session` says `signed-out`, `signed-in` (with the name for paired browsers) or `expired`.
 - **Health** `GET /world-api/health`: `{ loops, keyName, sharedKey, loopsWebUrl, transport, paired, pairing, loopsCommit?, loopsCommitBefore?, cursor?, connection }`
   (`connection` is under "The smooth connection" below; `connection.key.recheckAt` says when a rejected key is re-checked (round 8: the host
   makes no stream retry with a refused key; it waits for a new key, a Forget or a discovery change and asks loops about the kept key

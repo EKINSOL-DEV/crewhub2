@@ -153,6 +153,13 @@ round 6: the director's graph is built on first use, the scene's graph starts em
 `tools/profile.mjs` keeps the profiler. Labels stack on a phone instead of piling up, a person's pill climbs over the
 rack tags, a tag glides instead of hopping, a need pin says its count once, a waiting tag says "waits on <name>".
 
+Round 12 (2026-10-21, chat with the agents, road B option 2): the host can sign in to crewhub-loops as the person,
+once, from the Connection panel's Chat section (off by default), keep only the session cookie (0600, beside the key),
+read the chat as that person under its own allow-list (the dm reads and the `dm.*` stream, never a send or anything
+else) and show an agent's answer as a speech bubble over its figure (12 s; a tap opens the Chat panel); honest states
+(signed in as, expired, signed out), Forget the session. Tested with the stub, the fake (which learnt login and the dm
+routes) and a regress check over the fake; the real sign-in on 8291 is a person's act (request 15), not mine.
+
 Round 7 (2026-10-21, the live operations road): three things done to crewhub-loops under a running host, each with
 its honest screen and a regress check that needs nobody (`tools/regress.mjs --groups ops`, over the fake): loops
 stopped and started (the Loops down chip over the last known town, the panel's "down; the host retries", Live again

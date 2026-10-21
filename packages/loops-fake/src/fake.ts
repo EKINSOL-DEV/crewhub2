@@ -513,6 +513,7 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
       const token = (req.headers.cookie ?? "").split(";").map((c) => c.trim()).find((c) => c.startsWith(`${SESSION_COOKIE}=`))?.slice(SESSION_COOKIE.length + 1) ?? "";
       sessions.delete(token);
       res.statusCode = 204;
+      res.end();
       return undefined;
     }
     if (req.method !== "GET" && req.method !== "HEAD") throw new ApiError(405, "method_not_allowed", "Method not allowed");

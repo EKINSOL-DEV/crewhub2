@@ -711,6 +711,7 @@ function World() {
             <WorldCanvas
               model={model}
               said={said}
+              onSaidTap={(key) => (demo ? pick({ kind: "agent", key }, false) : openChat(key))}
               plan={plan}
               entered={entered}
               focused={focused}

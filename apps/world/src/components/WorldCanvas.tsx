@@ -46,6 +46,8 @@ interface Props {
   model: WorldModel;
   /** What an agent just said to the person (round 12, state/said.ts): a speech bubble over its figure. */
   said: SaidMap;
+  /** A tap on that bubble: the Chat panel for the agent (live), else its card. */
+  onSaidTap: (key: string) => void;
   /** Where every building stands (state/plan.ts). */
   plan: TownPlan;
   entered: string | null;
@@ -350,7 +352,7 @@ export default function WorldCanvas(props: Props) {
         )}
         {!inside && (
           <>
-            <TownFigures model={model} selection={props.selection} card={props.card} />
+            <TownFigures model={model} selection={props.selection} card={props.card} said={props.said} onSaidTap={props.onSaidTap} />
             <div className="anchor" data-anchor="c:town-hall">
               <span className="town-sign civic">
                 <span className="sign-title">
@@ -407,20 +409,37 @@ function useAgentCard(props: Props, inside: Building | null, compact: boolean, p
 
 /** The town's own figures (the postman, the town hall's agents) carry a name pill while hovered or selected; with the
     card open the pill of the selected one yields to it. The pill hangs from the figure's anchor (`a:town:<key>`). */
-function TownFigures({ model, selection, card }: { model: WorldModel; selection: Selection; card: boolean }) {
+function TownFigures({ model, selection, card, said, onSaidTap }: { model: WorldModel; selection: Selection; card: boolean; said: SaidMap; onSaidTap: (key: string) => void }) {
   const shown = selection.hover?.kind === "agent" ? selection.hover.key : !card && selection.selected?.kind === "agent" ? selection.selected.key : null;
-  const agent = shown ? [...model.postOffice, ...model.townHall].find((a) => a.key === shown) : undefined;
-  if (!agent) return null;
+  const figures = [...model.postOffice, ...model.townHall];
+  // Every town figure that just said something to the person carries its bubble (round 12); the shown one its pill too.
+  const labelled = figures.filter((a) => a.key === shown || saidBy(a.name, model.now, said) !== null);
+  if (labelled.length === 0) return null;
   return (
-    <div className="anchor agent-anchor picked" data-anchor={`a:town:${agent.key}`}>
-      <span className="agent-stack">
-        <span className="name-pill" title={`${agent.displayName}: ${laneWords(agent.laneStatus, model.freshness)}`}>
-          <span className="pill-dot" data-tone={dotTone(agent, model)} aria-hidden="true" />
-          {agent.displayName}
-          <span className="sr-only">: {laneWords(agent.laneStatus, model.freshness)}</span>
-        </span>
-      </span>
-    </div>
+    <>
+      {labelled.map((agent) => {
+        const line = saidBy(agent.name, model.now, said);
+        return (
+          <div key={agent.key} className={`anchor agent-anchor${agent.key === shown ? " picked" : ""}`} data-anchor={`a:town:${agent.key}`}>
+            <span className="agent-stack">
+              {line && (
+                <button type="button" className={`bubble said${line.fading ? " fading" : ""}`} title={`${agent.displayName} says: ${line.text}`} aria-label={`${agent.displayName} says: ${line.text}. Open ${agent.displayName}`} data-said-agent={agent.name} onClick={() => onSaidTap(agent.key)}>
+                  <MessageCircle className="icon icon-sm" aria-hidden="true" />
+                  <span className="bubble-text">{line.text}</span>
+                </button>
+              )}
+              {agent.key === shown && (
+                <span className="name-pill" title={`${agent.displayName}: ${laneWords(agent.laneStatus, model.freshness)}`}>
+                  <span className="pill-dot" data-tone={dotTone(agent, model)} aria-hidden="true" />
+                  {agent.displayName}
+                  <span className="sr-only">: {laneWords(agent.laneStatus, model.freshness)}</span>
+                </span>
+              )}
+            </span>
+          </div>
+        );
+      })}
+    </>
   );
 }
 
@@ -643,7 +662,7 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
           full={(shows(a.room) && !compact) || picked({ kind: "agent", key: a.key })}
           pill={!compact || shows(a.room) || picked({ kind: "agent", key: a.key })}
           said={a.presence === "real" ? saidBy(a.name, model.now, props.said) : null}
-          onTap={() => props.onPick({ kind: "agent", key: a.key }, false)}
+          onTap={() => props.onSaidTap(a.key)}
         />
       ))}
       {b.visits.map((v) => (
