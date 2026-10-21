@@ -76,7 +76,7 @@ export const EN: Record<string, string> = {
   "world.connection.hint.unauthorized": "crewhub-loops refused the host's key.",
   "world.connection.hint.stream-busy": "Another host or tab uses this key: crewhub-loops admits four streams per key. Close one; the host retries by itself.",
   "world.connection.hint.unpaired": "The host no longer knows this browser's pairing (a restart without its secret, or the cookie is gone). Run npm run world for a new link; the world follows by itself.",
-  "world.chat.signIn": "Sign in to crewhub-loops",
+  "world.chat.signIn": "Chat: in the crewhub-loops app",
   // The pairing page (plan 3.5): shown instead of the world when the host has not paired this browser.
   "world.firstSnapshot.connecting": "Connecting to the world's host…",
   "world.firstSnapshot.listing": "Listing the projects of crewhub-loops…",
@@ -94,7 +94,7 @@ export const EN: Record<string, string> = {
   "world.pair.demo": "Use the demo",
   "world.pair.retry": "I opened the link",
   "world.pair.label": "Pairing with the world's host",
-  "world.chat.signInHint": "Agent chats live in the crewhub-loops web app; the world's chat is phase 2.",
+  "world.chat.signInHint": "The world's own chat is phase 2. The agents' chats are in the crewhub-loops web app; this opens it in a new tab.",
   "world.settings.agentsDemo": "Agent settings live in the crewhub-loops web app; the demo has none.",
   "world.settings.agentsLive": "Agent settings live in the crewhub-loops web app.",
 

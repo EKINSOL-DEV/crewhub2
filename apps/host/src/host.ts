@@ -98,7 +98,8 @@ export const HEALTH_WAIT_MS = 1000;
 
 /** One step of the connection, done: for the step list of `npm run world`. `ms` is what the step took, when it was timed. */
 export interface HostStep {
-  step: "discovery" | "key" | "stream" | "snapshot";
+  /** `browser`: a paired browser opened the stream at a cursor it already had (a tab back after a host restart). */
+  step: "discovery" | "key" | "stream" | "snapshot" | "browser";
   ok: boolean;
   /** One line, in words: "crewhub-loops found via the app's socket …". Never the key. */
   text: string;
@@ -596,6 +597,9 @@ export async function createHost(options: HostOptions): Promise<Host> {
     const tab: Tab = { send, cursor, unsubscribe: null, linked: false };
     tabs.set(res, tab);
     attach(tab);
+    // For the step list only (serve mode stays quiet): a tab that comes back at its cursor asks for no snapshot, yet the
+    // world is up for it; the list marks that once.
+    if (cursor !== null && onStep !== undefined) onStep({ step: "browser", ok: true, text: `a paired browser is back at seq ${cursor}` });
     const end = () => {
       tab.unsubscribe?.();
       tab.unsubscribe = null;

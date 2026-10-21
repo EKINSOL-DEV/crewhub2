@@ -16,8 +16,9 @@ export type KitStatus = "backlog" | "planned" | "progress" | "review" | "done";
 
 type SpanProps = Omit<ComponentPropsWithoutRef<"span">, "children">;
 
-/* With an `href` the base chip is a plain anchor (`a.chip`), e.g. a jump link to another part of the page. */
-function ChipRoot({ children, icon, className, href, ...rest }: SpanProps & { children: ReactNode; icon?: ReactNode; href?: string }) {
+/* With an `href` the base chip is a plain anchor (`a.chip`), e.g. a jump link to another part of the page, or with
+   `target`/`rel` a link that opens elsewhere. */
+function ChipRoot({ children, icon, className, href, ...rest }: SpanProps & { children: ReactNode; icon?: ReactNode; href?: string; target?: string; rel?: string }) {
   if (href !== undefined)
     return (
       <a className={cx("chip", className)} href={href} {...(rest as object)}>
