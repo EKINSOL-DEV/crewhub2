@@ -209,6 +209,8 @@ const IDLE_TIMEOUT_MS = 400;
 const DRESS_STEP_MS = 4;
 /** Dressing models made per step of a rebuild. */
 const DRESS_CHUNK = 120;
+/** The buildings in view build their first-sight layers for this long a frame, ms (one building at least). */
+const LAZY_STEP_MS = 4;
 const BUILDING_FRAME_HEIGHT = FLOOR_RISE + BACK_WALL_HEIGHT + 0.6; // the slab, the tall walls and a little headroom
 const ROOM_FRAME_HEIGHT = 1.1;
 /** On a portrait phone a room or building frame crops its diamond's outer corner tips (below 1: tighter). */
@@ -931,6 +933,8 @@ export class TownScene {
           reducedMotion: () => this.view.reducedMotion,
           walker: (key) => this.walks.walker(key),
           persons: () => this.persons.persons(),
+          // Mid-render (the frame's count is about to be decremented): two more frames, the flip and the settled one.
+          redraw: () => void (this.#dirtyFrames = Math.max(this.#dirtyFrames, 2)),
         });
         view.group.userData.lot = lotKey(lot.cell);
         created++;
@@ -1904,8 +1908,16 @@ export class TownScene {
       else this.#constructions.delete(slug);
       this.#shadowSoft = true;
     }
+    // Layers built on first sight (a building's silhouette and piles, buildingView `showLazy`): the buildings in view
+    // build theirs before this frame's render, for `LAZY_STEP_MS` (one at least); the rest wait a frame.
+    const lazyUntil = performance.now() + LAZY_STEP_MS;
     for (const [slug, view] of this.#buildings.entries()) {
-      view.tick(dt, this.#seen.has(slug));
+      const seen = this.#seen.has(slug);
+      view.tick(dt, seen);
+      if (seen && view.lazyPending) {
+        if (performance.now() < lazyUntil) view.showLazy();
+        if (view.lazyPending) moving = true;
+      }
       if (view.animating) moving = true;
       if (this.#lift(slug, view, dt)) moving = true;
     }

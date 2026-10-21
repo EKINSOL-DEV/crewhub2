@@ -190,6 +190,20 @@ shaders recompile for every material (about 150 ms at 4 projects, 450 ms at 20);
 event. The world leaves measures for the tools: `world:sync`, `world:shell-built`, `world:dressing-built`,
 `world:dressing-step` and `world:interior-built` (`performance.getEntriesByName`, each with a `detail`).
 
+**Hidden copies (21 October).** A merged mesh that was never drawn keeps the JS copy of its vertices until its first
+upload. A scene census of the studio town at its home view (dev build, `window.__town`) found 24.0 MB of geometry
+arrays, of which the hidden ones were not the walls' inside variants but the furnished silhouettes (7.1 MB: every
+building keeps its silhouette hidden at a region's overview, where it would be a pixel), the piles (1.4 MB, hidden
+likewise), the low rims of the tall back walls (0.5 MB, shown only when the camera turns to look from the north or
+the west) and the one interior prepared ahead for the enter (4.1 MB, meant). Since then the silhouette and the piles
+are built on the first frame they are drawn (buildingView `showLazy`, for the buildings in view, at most about 4 ms
+of them a frame so a zoom into a region builds a few a frame: zoom frame max 58 to 26 ms), the low rims and the wall
+art on a partition's far face the first time the camera looks from that side (`#lowRim`, `#farFace`, built inside
+the shell's draw callback with a frame asked for the settled picture). Arrays 24.0 to 15.4 MB at the studio's home
+view; draw calls and triangles unchanged (729, 3.55M); pictures before and after the same at the home view, inside
+and turned (the pixel difference along a lazily built rim is edge noise under half a percent). What remains hidden
+is the prepared interior.
+
 Live mode, the night of 2026-10-20 (`b0cb111`; `memory.mjs live`, a forced GC every 60 s, the fake crewhub-loops
 playing a scenario at 16x behind the host, 30 minutes each, heap snapshots at 0, 10 and 30 minutes summed by
 constructor):
