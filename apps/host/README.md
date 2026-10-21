@@ -110,8 +110,8 @@ The host starts with neither loops nor a key and reports the honest states; the 
   from before: `down` while searching, `unauthorized` without a key or with a rejected one.
 - **`npm run world`** (`main.ts world`): starts the host at once (production mode, pairing on), mints a link and opens
   the default browser on it (`--no-open` prints it), and builds the world meanwhile when `apps/world/dist` is missing
-  or older than the sources: the browser shows "Building the world…" (a one-line page that reloads itself) and opens
-  the world the moment the build is done. The freshness check (`src/build.ts`, pure and tested) walks the world's
+  or older than the sources: the browser shows "Building the world…" (a one-line page that asks the host every quarter
+  second) and opens the world the moment the build is done. The freshness check (`src/build.ts`, pure and tested) walks the world's
   `src`, `index.html`, `vite.config.ts` and `package.json`, every package and the root lockfile (about 450 files in
   under 10 ms), compares the newest mtime with `dist/index.html` and, when the host built the dist itself, the file
   count and newest mtime it stamped in `dist/.crewhub-world-build.json` (a deleted or added source is a rebuild). The
