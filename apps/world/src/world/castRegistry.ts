@@ -8,6 +8,7 @@ import {
   validateCastManifest,
   validateFigure,
   validateFigurePatch,
+  validatePerson,
   type Cast,
   type CastFactory,
   type CastManifest,
@@ -44,6 +45,12 @@ export interface CastRegistry {
   has(id: string): boolean;
   /** The figure of a cast with its `extends` chain resolved, or null (unknown, code-only or a broken chain). */
   figureOf(id: string): FigureSpec | null;
+  /**
+   * The person figure of a cast with its `extends` chain resolved: the nearest person of its own down the chain, with
+   * the patches above it applied; null when no cast in the chain has one (the plain worker stands in), when a patch
+   * re-dresses a person its base does not have, or when the result is no person (`validatePerson`).
+   */
+  personOf(id: string): FigureSpec | null;
   /** The cast id a choice resolves to, and the ids that were asked for but are not registered. */
   resolve(choice: CastChoice): { id: string; unknown: string[] };
   /** The cast as drawn in a style; one instance per style and cast. An unknown id draws the fallback. */
@@ -83,6 +90,13 @@ export function createCastRegistry(fallbackId: string, warn: (message: string) =
         if (manifest.ok && (factory.figure.format === "crewhub-figure-patch/1") !== (factory.manifest.extends !== undefined))
           errors.push("cast: a cast that extends another ships a crewhub-figure-patch/1, any other a crewhub-figure/1");
       } else if (!factory.create) errors.push("cast: needs a figure (data) or create (code)");
+      if (factory.person) {
+        // A person of its own is checked as a person here; a patch is checked as a person once applied (personOf).
+        const person = factory.person.format === "crewhub-figure-patch/1" ? validateFigurePatch(factory.person) : validatePerson(factory.person);
+        if (!person.ok) errors.push(...person.errors);
+        if (manifest.ok && factory.person.format === "crewhub-figure-patch/1" && factory.manifest.extends === undefined)
+          errors.push("cast: a person patch (crewhub-figure-patch/1) needs a cast to extend; a cast of its own ships a crewhub-figure/1 person");
+      }
       if (errors.length) {
         warn(`Cast "${String(factory.manifest?.id)}" is not registered:\n  ${errors.join("\n  ")}`);
         return false;
@@ -107,6 +121,35 @@ export function createCastRegistry(fallbackId: string, warn: (message: string) =
         const checked = validateFigure(spec);
         if (!checked.ok) {
           once(`Cast "${id}" does not fit the cast it extends:\n  ${checked.errors.join("\n  ")}`);
+          return null;
+        }
+      }
+      return spec;
+    },
+    personOf(id) {
+      const links = chain(id);
+      if (!links) return null;
+      let spec: FigureSpec | null = null;
+      let patched = false;
+      for (let i = links.length - 1; i >= 0; i--) {
+        const person = links[i]!.person;
+        if (!person) continue;
+        if (person.format === "crewhub-figure/1") {
+          spec = person;
+          patched = false;
+          continue;
+        }
+        if (!spec) {
+          once(`Cast "${id}" re-dresses a person that "${links[i]!.manifest.id}" extends no person for; its plain worker stands in.`);
+          return null;
+        }
+        spec = applyFigurePatch(spec, person);
+        patched = true;
+      }
+      if (spec && patched) {
+        const checked = validatePerson(spec);
+        if (!checked.ok) {
+          once(`Cast "${id}": its person does not fit the person it re-dresses; its plain worker stands in:\n  ${checked.errors.join("\n  ")}`);
           return null;
         }
       }
@@ -155,7 +198,7 @@ export function createCastRegistry(fallbackId: string, warn: (message: string) =
                   dispose: () => parts.forEach((p) => p.dispose?.()),
                 };
               };
-        cast = createCast(factory.manifest, spec, kit, extend);
+        cast = createCast(factory.manifest, spec, kit, extend, registry.personOf(known));
       }
       casts.set(known, cast);
       return cast;
