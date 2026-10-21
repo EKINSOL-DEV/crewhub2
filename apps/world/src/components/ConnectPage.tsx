@@ -49,6 +49,9 @@ export function ConnectPage({ screen, health, onHealth, pollMs = CONNECT_POLL_MS
 
   useEffect(() => {
     live.current = true;
+    // Ask at once: over a live tab (the key revoked while Live) the health the App holds is from before, without
+    // loops' reason; the gate's screens get a fresh read too, which costs one request.
+    void ask();
     const timer = setInterval(() => void ask(), pollMs);
     const clock = setInterval(() => setNow(Date.now()), 1000);
     return () => {

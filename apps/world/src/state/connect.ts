@@ -2,7 +2,7 @@
    panel. `connectScreen` maps the host's health to the one screen the world shows instead of the town; the key helpers
    handle a pasted access key (trimmed, shaped, only its tail ever shown); `connectOutcome` turns the host's answer to
    `POST /world-api/connect` into words. Nothing here keeps a key, logs or touches the DOM. */
-import type { ConnectionState } from "@crewhub/loops-client";
+import type { ConnectionState, HostHealth } from "@crewhub/loops-client";
 import { needsPairing, type SourceDecision } from "./source.ts";
 
 /** The screens between the demo decision and the town, in the order the person meets them. `null` is the town. */
@@ -48,13 +48,24 @@ export function connectScreen(decision: Pick<SourceDecision, "source" | "health"
 }
 
 /**
- * Once the town runs, the live source's state can still send the person back to one screen: `unpaired` (the host answered
+ * Once the town runs, the live source's state can still send the person back to a screen: `unpaired` (the host answered
  * 401 `not_paired` to the snapshot or the stream: a host restarted without its pairing secret, or the cookie gone) is the
- * Pair screen, not a Stale chip. The App applies it (the gate above it decided once, from the first health read); the
- * source keeps asking, so a new link brings the town back by itself. Every other state is the chip's story.
+ * Pair screen, not a Stale chip; `unauthorized` (loops refused the host's key after the town was up: the key revoked
+ * while Live, confirmed by a loops whose health answers) is the rejected screen, with loops' reason, the kept key and
+ * a field for another key, not an Unauthorized chip over a town that will never move again. The App applies it (the
+ * gate above it decided once, from the first health read); the source keeps asking, so a new link, or a new key the
+ * host switched to, brings the town back by itself. Every other state is the chip's story: Loops down and Stale keep
+ * the last known town, which is still true as far as it goes.
  */
 export function liveScreen(state: ConnectionState | null): ConnectScreen | null {
-  return state === "unpaired" ? "pair" : null;
+  return state === "unpaired" ? "pair" : state === "unauthorized" ? "rejected" : null;
+}
+
+/** The host's `loopsCommit` (loops' own `version`) and, when the host saw another version first, that one: loops was updated under the host. */
+export function loopsVersion(health: Pick<HostHealth, "loopsCommit" | "loopsCommitBefore"> | null | undefined): { version: string; before: string | null } | null {
+  if (!health || typeof health.loopsCommit !== "string" || health.loopsCommit === "") return null;
+  const before = typeof health.loopsCommitBefore === "string" && health.loopsCommitBefore !== "" && health.loopsCommitBefore !== health.loopsCommit ? health.loopsCommitBefore : null;
+  return { version: health.loopsCommit, before };
 }
 
 /**
