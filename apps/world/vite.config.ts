@@ -2,8 +2,8 @@ import { fileURLToPath } from "node:url";
 import { defineConfig, type HtmlTagDescriptor, type Plugin, type ProxyOptions, type Rollup } from "vite";
 import react from "@vitejs/plugin-react";
 import { realpathSync } from "node:fs";
-import { checkoutId } from "../host/src/checkout.ts";
-import { devHostVerdict, hostPortPlan, probeHostCheckout } from "./hostPort.ts";
+import { checkoutId, probeCheckout } from "../host/src/checkout.ts";
+import { devHostVerdict, hostPortPlan } from "./hostPort.ts";
 
 /** The proxy to the world's host on `port` (hostPort.ts decides the port: CREWHUB_WORLD_PORT, or the dev default 5180). */
 function worldApiProxy(port: number): ProxyOptions {
@@ -94,7 +94,7 @@ function devHost(port: number, explicit: boolean): Plugin {
     name: "crewhub:dev-host",
     async configureServer(server) {
       const root = realpathSync(fileURLToPath(new URL("../..", import.meta.url)));
-      const verdict = devHostVerdict({ port, explicit, local: { root, id: checkoutId(root) }, answer: await probeHostCheckout(port) });
+      const verdict = devHostVerdict({ port, explicit, local: { root, id: checkoutId(root) }, answer: await probeCheckout(port) });
       if (!verdict.ok) {
         // The line, plainly, and no server: a thrown error would print it under a stack trace.
         server.config.logger.error(`\n  ${verdict.line}\n`, { timestamp: false });

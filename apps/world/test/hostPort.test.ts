@@ -31,7 +31,7 @@ describe("the host port Vite proxies to", () => {
   });
 });
 
-import { answerFromHealth, devHostVerdict } from "../hostPort.ts";
+import { devHostVerdict } from "../hostPort.ts";
 
 describe("whose host is on the dev proxy's port", () => {
   const local = { root: "/Users/me/crewhub2-task-x", id: "1b2c3d4e5f60" };
@@ -58,14 +58,5 @@ describe("whose host is on the dev proxy's port", () => {
       "The host on 127.0.0.1:5180 (the default, CREWHUB_WORLD_PORT=<port> names another) belongs to another checkout: checkout id 9f2c1a7b3d4e, key crewhub-world. This checkout is /Users/me/crewhub2-task-x (checkout id 1b2c3d4e5f60). The dev server does not start. Start this checkout's host on a port of yours (CREWHUB_WORLD_PORT=<port> npm run host) and this Vite with the same CREWHUB_WORLD_PORT, or stop that host if it is yours.",
     );
     assert.match(devHostVerdict({ port: 5195, explicit: true, local, answer: { kind: "host", checkout: "9f2c1a7b3d4e", keyName: "" } }).line, /^The host on 127\.0\.0\.1:5195 \(CREWHUB_WORLD_PORT=5195\) belongs to another checkout: checkout id 9f2c1a7b3d4e, no key yet\./);
-  });
-
-  it("reads health as the page's probe does: a host needs loops and keyName; the id only when it looks like one", () => {
-    assert.deepEqual(answerFromHealth({ loops: "ok", keyName: "crewhub-world", checkout: "9f2c1a7b3d4e" }), { kind: "host", checkout: "9f2c1a7b3d4e", keyName: "crewhub-world" });
-    assert.deepEqual(answerFromHealth({ loops: "down", keyName: "" }), { kind: "host", checkout: null, keyName: "" });
-    assert.deepEqual(answerFromHealth({ loops: "ok", keyName: "x", checkout: "/Users/me/repo" }), { kind: "host", checkout: null, keyName: "x" }, "a path is not an id");
-    assert.deepEqual(answerFromHealth({ status: "ok" }), { kind: "not-a-host" });
-    assert.deepEqual(answerFromHealth("<html>"), { kind: "not-a-host" });
-    assert.deepEqual(answerFromHealth(null), { kind: "not-a-host" });
   });
 });

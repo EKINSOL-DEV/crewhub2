@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { CHECKOUT_ID_LENGTH, checkoutId } from "../src/checkout.ts";
+import { CHECKOUT_ID_LENGTH, answerFromHealth, checkoutId, probeCheckout } from "../src/checkout.ts";
 
 describe("the checkout id", () => {
   it("is 12 hex characters of the root's real path: the same root the same id, another root another, never the path", () => {
@@ -33,5 +33,27 @@ describe("health's checkout", () => {
     } finally {
       await host.close();
     }
+  });
+});
+
+describe("what a port answers a dev server", () => {
+  it("reads health as the page's probe does: a host needs loops and keyName; the id only when it looks like one", () => {
+    assert.deepEqual(answerFromHealth({ loops: "ok", keyName: "crewhub-world", checkout: "9f2c1a7b3d4e" }), { kind: "host", checkout: "9f2c1a7b3d4e", keyName: "crewhub-world" });
+    assert.deepEqual(answerFromHealth({ loops: "down", keyName: "" }), { kind: "host", checkout: null, keyName: "" });
+    assert.deepEqual(answerFromHealth({ loops: "ok", keyName: "x", checkout: "/Users/me/repo" }), { kind: "host", checkout: null, keyName: "x" }, "a path is not an id");
+    assert.deepEqual(answerFromHealth({ status: "ok" }), { kind: "not-a-host" });
+    assert.deepEqual(answerFromHealth("<html>"), { kind: "not-a-host" });
+    assert.deepEqual(answerFromHealth(null), { kind: "not-a-host" });
+  });
+
+  it("the probe: a host with its id, and silence where nothing listens", async () => {
+    const { createHost } = await import("../src/host.ts");
+    const host = await createHost({ loopsUrl: "http://127.0.0.1:1", checkout: "9f2c1a7b3d4e", retryMs: { min: 20, max: 100 }, log: () => undefined });
+    try {
+      assert.deepEqual(await probeCheckout(host.port), { kind: "host", checkout: "9f2c1a7b3d4e", keyName: "" });
+    } finally {
+      await host.close();
+    }
+    assert.deepEqual(await probeCheckout(host.port, 500), { kind: "silent" }, "closed: nothing answers");
   });
 });
