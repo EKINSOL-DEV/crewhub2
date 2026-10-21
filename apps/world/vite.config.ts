@@ -1,7 +1,9 @@
 import { fileURLToPath } from "node:url";
 import { defineConfig, type HtmlTagDescriptor, type Plugin, type ProxyOptions, type Rollup } from "vite";
 import react from "@vitejs/plugin-react";
-import { hostPortPlan } from "./hostPort.ts";
+import { realpathSync } from "node:fs";
+import { checkoutId, probeCheckout } from "../host/src/checkout.ts";
+import { devHostVerdict, hostPortPlan } from "./hostPort.ts";
 
 /** The proxy to the world's host on `port` (hostPort.ts decides the port: CREWHUB_WORLD_PORT, or the dev default 5180). */
 function worldApiProxy(port: number): ProxyOptions {
@@ -81,12 +83,34 @@ function previewWithoutHost(note: string): Plugin {
   };
 }
 
+/**
+ * The dev server's one line about its host, or its refusal (hostPort.ts, `devHostVerdict`): before the server listens
+ * it asks the port's `/world-api/health` once and compares the host's checkout id with this checkout's (apps/host
+ * `checkout.ts`, the same hash of the repository root the host puts in health). Another checkout's host: the line, and
+ * the dev server does not start (exit 1).
+ */
+function devHost(port: number, explicit: boolean): Plugin {
+  return {
+    name: "crewhub:dev-host",
+    async configureServer(server) {
+      const root = realpathSync(fileURLToPath(new URL("../..", import.meta.url)));
+      const verdict = devHostVerdict({ port, explicit, local: { root, id: checkoutId(root) }, answer: await probeCheckout(port) });
+      if (!verdict.ok) {
+        // The line, plainly, and no server: a thrown error would print it under a stack trace.
+        server.config.logger.error(`\n  ${verdict.line}\n`, { timestamp: false });
+        process.exit(1);
+      }
+      server.config.logger.info(`  ${verdict.line}`);
+    },
+  };
+}
+
 export default defineConfig(({ isPreview }) => {
   // The dev server defaults to the host's 5180; the preview proxies only to a port named in the environment.
   const plan = hostPortPlan(process.env, isPreview ? "preview" : "dev");
   const proxy = plan.proxy ? { "/world-api": worldApiProxy(plan.port), "/pair": worldApiProxy(plan.port) } : {};
   return {
-  plugins: [react(), preloadWorld(), ...(plan.proxy ? [] : [previewWithoutHost(plan.note)])],
+  plugins: [react(), preloadWorld(), ...(plan.proxy ? [devHost(plan.port, process.env["CREWHUB_WORLD_PORT"] !== undefined && process.env["CREWHUB_WORLD_PORT"].trim() !== "")] : [previewWithoutHost(plan.note)])],
   resolve: {
     alias: {
       // The copied loops chat imports `useNavigate`; the world has no router (see src/shims/react-router-dom.ts).
