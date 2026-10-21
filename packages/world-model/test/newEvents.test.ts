@@ -107,3 +107,27 @@ test("owner-request.updated is known and skipped: no warning, nothing drawn, not
   assert.equal(projection.facts.cursor, 101);
   assert.ok(!lines(T0).some((l) => /owner|request/i.test(l)));
 });
+
+test("round 9: a snapshot carries the quiet stretches and the runs the source read from the log; the model starts them as facts", () => {
+  const source = new FakeSource();
+  const projection = new Projection(source, { scheduler: new ManualScheduler() });
+  const at = T0 + 60_000;
+  projection.apply({
+    type: "snapshot",
+    snapshot: {
+      ...snapshot({ cursor: 200, projects: [project("crewhub-loops", "CL", "cl-lead")], boards: { "crewhub-loops": board([card("tk_85", "CL-85", "review")]) } }),
+      quiet: [envelope("ticket.quiet", { status: "review", minutes: 45, since: iso(T0 - 45 * 60_000), ticket: "CL-85" }, { seq: 150, ticket: ticketRef, actor: system })],
+      automationRuns: [envelope("automation.ran", { runId: "run_9", automationId: "au_1", outcome: "ok", automation }, { seq: 151, ticket: ticketRef, actor: system, ts: iso(at) })],
+    },
+  });
+  assert.equal(projection.facts.cursor, 200, "the carried envelopes are below the cursor and leave it");
+  assert.equal(projection.facts.quiet["CL-85"]?.minutes, 45);
+  assert.deepEqual(projection.facts.automationRuns.map((r) => [r.runId, r.changed]), [["run_9", null]]);
+  const model = reduceWorld(projection.facts, emptyMemory(), { now: at + 1000, mode: "demo", roleOverrides: {} }).model;
+  const b = model.buildings[0]!;
+  assert.deepEqual(b.objects[0]!.quiet, { status: "review", minutes: 45, since: iso(T0 - 45 * 60_000) });
+  assert.equal(pinnedCard(b.board, at + 1000)?.runId, "run_9");
+  const lines = describeWorld(model, undefined, { rooms: "three-rooms" }).map((l) => l.text);
+  assert.ok(lines.some((l) => /^CL-85 has been quiet in Review for 45 min/.test(l)), lines.join("\n"));
+  assert.ok(lines.includes('Automation "Label stale bugs" ran on CL-85: done.'));
+});

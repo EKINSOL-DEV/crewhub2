@@ -7,7 +7,9 @@ import { envelopes, startDemo } from "./helpers.ts";
 async function picture(source: DemoSource): Promise<unknown> {
   const events: string[] = [];
   const stop = source.start((m) => {
-    if (m.type === "snapshot") events.push(JSON.stringify({ ...m.snapshot, cursor: null }));
+    // The cursor and the seqs of the carried log facts (round 9) are renumbered by a seek, like a delivery's eventSeq.
+    const unnumbered = (list: { seq: number }[] | undefined) => (list ?? []).map((e) => ({ ...e, seq: null }));
+    if (m.type === "snapshot") events.push(JSON.stringify({ ...m.snapshot, cursor: null, quiet: unnumbered(m.snapshot.quiet), automationRuns: unnumbered(m.snapshot.automationRuns) }));
   });
   stop();
   const keys = ["CR-21", "CR-24", "CR-35", "CR-37", "CL-80", "CL-44", "MK-5", "MK-12", "OPS-4"];

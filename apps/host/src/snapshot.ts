@@ -17,6 +17,7 @@ import type {
   TeamSnapshot,
   WatchdogResponse,
 } from "@crewhub/loops-client";
+import { ACTIVITY_TYPES_QUERY, LOG_FACT_TYPES, openTicketsOf, quietCandidates, selectLogFacts, type Envelope, type LogFacts, type OpenTicket } from "@crewhub/loops-client";
 import { type LoopsClient, isUnauthorized } from "./loops.ts";
 
 export class SnapshotError extends Error {
@@ -173,6 +174,56 @@ export async function readArchivedSlugsFromEvents(client: Reader): Promise<Archi
   return { slugs: [...last.entries()].filter(([, type]) => type === "project.archived").map(([slug]) => slug), complete };
 }
 
+/** How far back the log is read for quiet stretches and runs: a window of seqs before the cursor (a busy day), not the whole log. */
+const LOG_WINDOW_SEQ = 20_000;
+/** Pages of 500 read at most per log question: the quiet and run rows, then the activity after the oldest quiet. */
+const LOG_PAGES = 20;
+
+/** What the log reads found, for the step line and the health. */
+export interface LogRead {
+  quiet: number;
+  runs: number;
+  /** Pages read, both questions together. */
+  pages: number;
+  /** True when the activity read reached the log's end (else no quiet is handed over: undecided is not shown). */
+  complete: boolean;
+}
+
+/** Pages of `GET /api/events` with `types` from `after` on, until a short page, a stalled `lastSeq`, the page cap or an answer that is not 200. */
+async function readPages(client: Reader, types: string, after: number, cap: number): Promise<{ events: Envelope[]; complete: boolean; pages: number }> {
+  const events: Envelope[] = [];
+  let pages = 0;
+  for (; pages < cap; pages += 1) {
+    const { status, body: page } = await client.getJson<{ events?: unknown; lastSeq?: unknown }>("/api/events", { types, after: String(after), limit: String(EVENTS_PAGE) });
+    if (isUnauthorized(status)) throw new SnapshotError("unauthorized", `/api/events answered ${status}`);
+    if (status !== 200 || page === null) return { events, complete: false, pages: pages + 1 };
+    const rows = Array.isArray(page.events) ? (page.events as Envelope[]) : [];
+    events.push(...rows);
+    const lastSeq = typeof page.lastSeq === "number" ? page.lastSeq : after;
+    if (rows.length < EVENTS_PAGE || lastSeq <= after) return { events, complete: true, pages: pages + 1 };
+    after = lastSeq;
+  }
+  return { events, complete: false, pages };
+}
+
+/**
+ * The open quiet stretches and the latest automation runs (CL-312), from the log: no read carries them, so a tab
+ * opened after the quiet job spoke would show no dust and no card. One paged read of `ticket.quiet,automation.ran`
+ * from `LOG_WINDOW_SEQ` before the cursor, bounded to the open tickets of the boards; then, for the quiet candidates,
+ * a paged read of the ticket and comment events from the oldest candidate on, and a candidate is dropped when a
+ * person or an agent touched its ticket after it (the model's rule; `people_activity` in loops counts no `system`
+ * row, so the ticket's `updatedAt`, which an automation's own label bumps, would drop the very stretches that matter;
+ * the log decides). Capped at `LOG_PAGES` per question: past the cap no quiet is handed over, the runs read so far are.
+ */
+export async function readLogFacts(client: Reader, cursor: number, open: Map<string, OpenTicket>): Promise<{ facts: LogFacts; report: LogRead }> {
+  const rows = await readPages(client, LOG_FACT_TYPES, Math.max(0, cursor - LOG_WINDOW_SEQ), LOG_PAGES);
+  const candidates = quietCandidates(rows.events, open);
+  const oldest = candidates.length === 0 ? null : (candidates[0] as Envelope).seq;
+  const activity = oldest === null ? { events: [], complete: true, pages: 0 } : await readPages(client, ACTIVITY_TYPES_QUERY, oldest, LOG_PAGES);
+  const facts = selectLogFacts(rows.events, activity.events, open, activity.complete);
+  return { facts, report: { quiet: facts.quiet.length, runs: facts.automationRuns.length, pages: rows.pages + activity.pages, complete: activity.complete } };
+}
+
 /** The slugs alone (the callers from before the archive memory). */
 export async function archivedSlugsFromEvents(client: LoopsClient): Promise<string[]> {
   return (await readArchivedSlugsFromEvents(client)).slugs;
@@ -197,6 +248,8 @@ export interface SnapshotOptions {
   observer?: string | null;
   /** Told where the archived projects came from, once per snapshot. */
   onArchive?: (report: ArchiveReport) => void;
+  /** Told what the log reads found, once per snapshot. */
+  onLog?: (report: LogRead) => void;
   /** Reads in flight at most (default 6). */
   concurrency?: number;
   /** Every read as it finishes, with its time. */
@@ -212,6 +265,8 @@ export interface SnapshotStats {
   ms: number;
   /** The slowest read, when there was one. */
   slowest: SnapshotRead | null;
+  /** The quiet stretches and runs read from the log. */
+  log: LogRead;
 }
 
 export interface AssembledSnapshot {
@@ -280,6 +335,10 @@ export async function assembleSnapshot(client: LoopsClient, options: SnapshotOpt
     releases: seconds[index * 2 + 1] as ReleaseSummary[] | null,
   }));
 
+  // The facts only the log holds, bounded to the open tickets of the boards just read.
+  const log = await readLogFacts(reader, options.cursor, openTicketsOf(Object.fromEntries(perProject.map((p) => [p.slug, p.board]))));
+  options.onLog?.(log.report);
+
   const [principals, agents, team, watchdog] = await Promise.all([
     must<{ principals: PrincipalOut[] }>(reader, "/api/principals"),
     must<{ agents: AgentOut[] }>(reader, "/api/agents"),
@@ -300,8 +359,10 @@ export async function assembleSnapshot(client: LoopsClient, options: SnapshotOpt
     milestones: Object.fromEntries(perProject.filter((p) => p.milestones !== null).map((p) => [p.slug, p.milestones as MilestoneSummary[]])),
     releases: Object.fromEntries(perProject.filter((p) => p.releases !== null).map((p) => [p.slug, p.releases as ReleaseSummary[]])),
     groups: [],
+    quiet: log.facts.quiet,
+    automationRuns: log.facts.automationRuns,
   };
-  return { snapshot, stats: { projects: projects.length, reads: progress.reads, ms: performance.now() - started, slowest } };
+  return { snapshot, stats: { projects: projects.length, reads: progress.reads, ms: performance.now() - started, slowest, log: log.report } };
 }
 
 /** Where the event log stands for this key: `lastSeq` (the newest event it may see) and, since CL-406, a sealed cursor for "now". */

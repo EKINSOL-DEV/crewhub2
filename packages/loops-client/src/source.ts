@@ -67,6 +67,14 @@ export interface LoopsSnapshot {
    * demo fills it so a seek or a loop resets the groups with everything else.
    */
   groups?: ProjectGroup[];
+  /**
+   * Facts the event log holds that no read carries (CL-312; `logFacts.ts`): the open quiet stretches, one `ticket.quiet`
+   * envelope per ticket, on open tickets a person or an agent has not touched since; and the latest `automation.ran`
+   * envelopes on open tickets. Absent from a source that did not read its log; the model applies them as the events
+   * they are, below the cursor.
+   */
+  quiet?: Envelope[];
+  automationRuns?: Envelope[];
 }
 
 export type SourceMessage =

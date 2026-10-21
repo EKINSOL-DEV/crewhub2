@@ -901,5 +901,7 @@ export const validateLoopsSnapshot = run(
     milestones: recordOf(arrayOf(milestoneSummary)),
     releases: recordOf(arrayOf(releaseSummary)),
     groups: optional(arrayOf(projectGroup)),
+    quiet: optional(arrayOf(envelope)),
+    automationRuns: optional(arrayOf(envelope)),
   }),
 );

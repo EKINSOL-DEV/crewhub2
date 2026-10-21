@@ -107,6 +107,15 @@ The host starts with neither loops nor a key and reports the honest states; the 
   its state: `unchecked` (held, loops has not answered about it) or `ok` as before. A rejected stored key stays on
   disk with its reason (health `key.reason`) until a new one is pasted or `DELETE /world-api/connect` forgets it; the
   host never drops a key by itself. `test/keyStates.test.ts` runs every path against the stub.
+- **The snapshot carries what only the log holds** (round 9, `src/snapshot.ts` `readLogFacts`): no read model
+  carries a quiet stretch (`ticket.quiet`, CL-312) or an automation's run (`automation.ran`), so a tab opened after the
+  quiet job spoke would show no dust and no card. The host reads `GET /api/events?types=ticket.quiet,automation.ran`
+  from 20 000 seqs before the cursor, paged (at most 20 pages), bounded to the open tickets of the boards (planned, in
+  progress, review); then the ticket and comment events from the oldest candidate quiet on, and drops a stretch a
+  person or an agent touched since (a `system` row, an automation's own answer, does not count: loops'
+  `people_activity` says the same, which is why the ticket's `updatedAt` cannot decide it). The facts go with the
+  snapshot as the envelopes they are (`quiet`, `automationRuns`); the step line says "from the log 2 quiet, 3 runs";
+  past the page cap no quiet is handed over (undecided is never shown), the runs read so far are.
 - **The closed buildings are remembered** (`src/archiveStore.ts`): the slugs the event log or the stream taught go
   to `<configDir>/archived.json` (0600, written whole, only when the set changed), so a loops that will not read its
   log from the start (the fake after a restart answers 410) still shows them on the next start; every remembered
