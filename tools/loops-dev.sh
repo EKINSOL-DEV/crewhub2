@@ -4,6 +4,11 @@
 #
 #   tools/loops-dev.sh start | stop | status | log | setup-token | env
 #
+# `start` refuses a port that is already served (and says so when the server is ours), and writes the pid file only
+# once health answers 200, with the pid of the process that serves the port. `stop` kills that listener (found by the
+# port, plus its uv wrapper and whatever the pid file names), waits until the port is free and removes the pid file;
+# it never kills a listener that is not crewhub-loops. `status` names the listener's pid.
+#
 # Env (all optional): LOOPS_DEV_CHECKOUT (a crewhub-loops checkout with services/api synced by uv and apps/web built),
 # LOOPS_DEV_DATA (0700 folder), LOOPS_DEV_PORT (default 8291), LOOPS_DEV_OWNER (first account id, default nicky).
 set -euo pipefail
@@ -51,28 +56,63 @@ prepare() {
   fi
 }
 
-running() {
-  [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null
+# The process that serves the port (the python child of `uv run`, which also serves the socket), found by the port,
+# never by the pid file alone: the pid file used to hold the uv wrapper, and killing it left the server running (round 7).
+listener() { lsof -nP -iTCP:"$PORT" -sTCP:LISTEN -t 2>/dev/null | sort -u | tr '\n' ' ' | sed 's/ $//' || true; } # lsof exits 1 when nothing listens: no failure under pipefail
+ours() { # true when pid $1 is a crewhub-loops server (its command names crewhub_loops.serve) or its uv wrapper
+  ps -o command= -p "$1" 2>/dev/null | grep -q -E 'crewhub_loops\.serve|uv run'
 }
+running() { [ -n "$(listener)" ]; }
+port_free() { ! running; }
 
 case "${1:-status}" in
   env) loops_env ;;
   start)
-    if running; then echo "loops-dev: already running, pid $(cat "$PID_FILE"), http://127.0.0.1:$PORT"; exit 0; fi
+    if running; then
+      PIDS="$(listener)"
+      if ours "${PIDS%% *}"; then echo "loops-dev: already running, listener pid $PIDS, http://127.0.0.1:$PORT"; exit 0; fi
+      echo "loops-dev: port $PORT is already served by pid $PIDS, which is not crewhub-loops: refusing to start (stop that process first)" >&2; exit 1
+    fi
     prepare
+    rm -f "$PID_FILE"
     ( cd "$CHECKOUT/services/api" && set -a && eval "$(loops_env | sed 's/^/export /')" && set +a \
-      && nohup uv run python -m crewhub_loops.serve >> "$LOG_FILE" 2>&1 & echo $! > "$PID_FILE" )
+      && nohup uv run python -m crewhub_loops.serve >> "$LOG_FILE" 2>&1 & echo $! > "$DATA/run/serve.wrapper.pid" )
+    WRAPPER="$(cat "$DATA/run/serve.wrapper.pid")"
     for _ in $(seq 1 40); do
       if curl -s -m 1 -o /dev/null "http://127.0.0.1:$PORT/api/health"; then
+        # The pid file is written only now, with the listener (the server itself), never a wrapper that failed.
+        LISTENER="$(listener)"; echo "${LISTENER:-$WRAPPER}" > "$PID_FILE"; rm -f "$DATA/run/serve.wrapper.pid"
         echo "loops-dev: up, pid $(cat "$PID_FILE"), http://127.0.0.1:$PORT, socket $DATA/run/api.sock, log $LOG_FILE"; exit 0
       fi
+      if ! kill -0 "$WRAPPER" 2>/dev/null; then break; fi
       sleep 0.5
     done
-    echo "loops-dev: did not answer on $PORT within 20 s; see $LOG_FILE" >&2; exit 1 ;;
+    kill "$WRAPPER" 2>/dev/null || true; rm -f "$DATA/run/serve.wrapper.pid"
+    echo "loops-dev: did not answer on $PORT within 20 s (no pid file written); the log ends with:" >&2; tail -n 5 "$LOG_FILE" >&2; exit 1 ;;
   stop)
-    if running; then kill "$(cat "$PID_FILE")"; rm -f "$PID_FILE"; echo "loops-dev: stopped"; else echo "loops-dev: not running"; fi ;;
+    PIDS="$(listener)"
+    FILED="$( [ -f "$PID_FILE" ] && cat "$PID_FILE" || true )"
+    if [ -z "$PIDS" ] && { [ -z "$FILED" ] || ! kill -0 "$FILED" 2>/dev/null; }; then rm -f "$PID_FILE"; echo "loops-dev: not running"; exit 0; fi
+    for P in $PIDS; do
+      if ! ours "$P" && [ "$P" != "$FILED" ]; then echo "loops-dev: port $PORT is served by pid $P, which is not crewhub-loops: not killed (stop that process yourself)" >&2; exit 1; fi
+    done
+    # The listener, its uv wrapper (the parent, when it is one) and whatever the pid file names, then wait for the port.
+    TARGETS="$PIDS"
+    for P in $PIDS; do PARENT="$(ps -o ppid= -p "$P" 2>/dev/null | tr -d ' ')"; [ -n "$PARENT" ] && [ "$PARENT" != 1 ] && ours "$PARENT" && TARGETS="$TARGETS $PARENT"; done
+    [ -n "$FILED" ] && kill -0 "$FILED" 2>/dev/null && TARGETS="$TARGETS $FILED"
+    kill $TARGETS 2>/dev/null || true
+    for _ in $(seq 1 40); do port_free && break; sleep 0.5; done
+    if running; then kill -9 $(listener) 2>/dev/null || true; sleep 1; fi
+    rm -f "$PID_FILE" "$DATA/run/serve.wrapper.pid"
+    if running; then echo "loops-dev: port $PORT is still served by pid $(listener)" >&2; exit 1; fi
+    echo "loops-dev: stopped (pids $TARGETS)" ;;
   status)
-    if running; then echo "loops-dev: running, pid $(cat "$PID_FILE")"; curl -s -m 2 "http://127.0.0.1:$PORT/api/setup/status"; echo; else echo "loops-dev: not running"; fi ;;
+    if running; then
+      echo "loops-dev: running, listener pid $(listener)$( [ -f "$PID_FILE" ] && echo " (pid file: $(cat "$PID_FILE"))" || echo " (no pid file)")"
+      curl -s -m 2 "http://127.0.0.1:$PORT/api/setup/status"; echo
+    else
+      echo "loops-dev: not running$( [ -f "$PID_FILE" ] && echo " (a stale pid file names $(cat "$PID_FILE"))" || true)"
+    fi ;;
   log) tail -n "${2:-40}" "$LOG_FILE" ;;
   setup-token)
     ( cd "$CHECKOUT/services/api" && set -a && eval "$(loops_env | sed 's/^/export /')" && set +a && uv run crewhub-setup-token ) ;;

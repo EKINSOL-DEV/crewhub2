@@ -68,6 +68,8 @@ export interface LoopsFakeOptions {
    * development instance on 8291), and the demo's team snapshot is never served. Default false.
    */
   emptyTeam?: boolean;
+  /** What `GET /api/health` says as `version`; default `FAKE_LOOPS_VERSION`. Another value after a restart on the same port is a loops upgraded under a running host. */
+  version?: string;
 }
 
 export interface LoopsFake {
@@ -456,7 +458,7 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
       }
       return {
         ok: true,
-        version: FAKE_LOOPS_VERSION,
+        version: options.version ?? FAKE_LOOPS_VERSION,
         laneWakesForcedOff: false,
         checks: { db: true, uploads: true, socket: false, tcp: true, laneWatch: { state: "off" } },
         principal: caller,

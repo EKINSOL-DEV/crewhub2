@@ -1,14 +1,15 @@
 /* The Connection panel (spec addendum "a smooth connection", part 4): the chip opens it. A sheet like Settings, listing
    what the host's health says: where crewhub-loops was found (via and target), the key's name and source, the stream's
    state, cursor, last event (relative) and reconnects, the closed buildings and where that list came from (loops' event
-   log, or remembered from an earlier run), and how the host reaches loops. It asks the host every 5 s while open.
+   log, or remembered from an earlier run), loops' version (and the one the host saw first, when loops was updated under
+   it), and how the host reaches loops. It asks the host every 5 s while open.
    "Forget this key" asks in the panel itself (no browser dialog), then DELETEs the stored key and reloads: the gate
    then shows the Connect screen. Before pairing the host tells states only, and the panel says so. Never the key. */
 import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { forgetHostKey, probeHost, type ConnectionState, type HostHealth } from "@crewhub/loops-client";
 import { useT } from "../i18n";
-import { connectOutcome, relativeTime } from "../state/connect";
+import { connectOutcome, loopsVersion, relativeTime } from "../state/connect";
 import { connectionWord } from "./ConnectionChip";
 import { Button, Card } from "./primitives";
 
@@ -91,6 +92,7 @@ export function ConnectionPanel({ state, initial, onClose, pollMs = PANEL_POLL_M
   const cursor = connection?.stream.cursor ?? health?.cursor;
   const stored = connection?.key.source === "stored" || (connection?.key.state === "rejected" && connection.key.source !== "env");
   const archived = connection?.archived;
+  const version = loopsVersion(health);
   const archivedWords = archived
     ? t("world.connection.panel.archived.from", {
         count: archived.count === 0 ? t("world.connection.panel.archived.zero") : archived.count === 1 ? t("world.connection.panel.archived.one") : t("world.connection.panel.archived.many", { count: archived.count }),
@@ -150,6 +152,12 @@ export function ConnectionPanel({ state, initial, onClose, pollMs = PANEL_POLL_M
                   <dd>{String(cursor)}</dd>
                 </>
               )}
+            </>
+          )}
+          {version && (
+            <>
+              <dt>{t("world.connection.panel.version")}</dt>
+              <dd>{version.before === null ? version.version : t("world.connection.panel.version.updated", { version: version.version, before: version.before })}</dd>
             </>
           )}
           {health?.transport && (

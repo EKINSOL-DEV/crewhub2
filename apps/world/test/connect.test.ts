@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { HostConnection, HostHealth } from "@crewhub/loops-client";
-import { connectOutcome, connectScreen, keyTail, liveScreen, looksLikeKey, normaliseKey, relativeTime } from "../src/state/connect.ts";
+import { connectOutcome, connectScreen, keyTail, liveScreen, looksLikeKey, loopsVersion, normaliseKey, relativeTime } from "../src/state/connect.ts";
 
 const connection = (over: { discovery?: Partial<HostConnection["discovery"]>; key?: Partial<HostConnection["key"]>; stream?: Partial<HostConnection["stream"]> } = {}): HostConnection => ({
   discovery: { state: "found", via: "app-port", target: "http://127.0.0.1:8091", ...over.discovery },
@@ -28,10 +28,20 @@ test("screen: a host from before the smooth connection only knows pairing", () =
   assert.equal(connectScreen({ source: "live", health: beforePairing }), null);
 });
 
-test("screen: once the town runs, only an unpaired source sends the person back, to the Pair screen", () => {
+test("screen: once the town runs, an unpaired source sends the person back to the Pair screen and a refused key to the rejected screen; the rest is the chip's story", () => {
   assert.equal(liveScreen("unpaired"), "pair");
-  for (const state of ["connecting", "live", "catching-up", "stale", "loops-down", "unauthorized", "stream-busy"] as const) assert.equal(liveScreen(state), null, state);
+  assert.equal(liveScreen("unauthorized"), "rejected", "the key revoked while Live");
+  for (const state of ["connecting", "live", "catching-up", "stale", "loops-down", "stream-busy"] as const) assert.equal(liveScreen(state), null, state);
   assert.equal(liveScreen(null), null);
+});
+
+test("loops' version: the host's loopsCommit, and the version it saw first when loops was updated under it", () => {
+  assert.equal(loopsVersion(null), null);
+  assert.equal(loopsVersion(health()), null, "a host from before says no version");
+  assert.deepEqual(loopsVersion(health({ loopsCommit: "0.1.0" })), { version: "0.1.0", before: null });
+  assert.deepEqual(loopsVersion(health({ loopsCommit: "0.1.0", loopsCommitBefore: "0.1.0" })), { version: "0.1.0", before: null }, "the same version is no update");
+  assert.deepEqual(loopsVersion(health({ loopsCommit: "0.2.0", loopsCommitBefore: "0.1.0" })), { version: "0.2.0", before: "0.1.0" });
+  assert.equal(loopsVersion(health({ loopsCommitBefore: "0.1.0" })), null, "no current version, nothing to say");
 });
 
 test("screen: no loops found comes first, even before pairing", () => {

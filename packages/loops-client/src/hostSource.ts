@@ -130,6 +130,8 @@ export interface HostHealth {
   /** Discovery, key and stream states; absent on a host from before the smooth connection. */
   connection?: HostConnection;
   loopsCommit?: string;
+  /** The version the host read first in this run, when loops answered another since (loops updated under the host). */
+  loopsCommitBefore?: string;
   cursor?: number;
   /** The origin of crewhub-loops' web app (the API's URL; on the Mac both share 8091), for the sign-in link. */
   loopsWebUrl?: string;
@@ -234,6 +236,7 @@ export async function probeHost(baseUrl = "", timeoutMs = 1500): Promise<HostHea
     if (!["ok", "down", "unauthorized"].includes(body.loops as string) || typeof body.keyName !== "string") return null;
     const health: HostHealth = { loops: body.loops as HostHealth["loops"], keyName: body.keyName, sharedKey: body.sharedKey === true };
     if (typeof body.loopsCommit === "string") health.loopsCommit = body.loopsCommit;
+    if (typeof body.loopsCommitBefore === "string") health.loopsCommitBefore = body.loopsCommitBefore;
     if (typeof body.cursor === "number") health.cursor = body.cursor;
     if (typeof body.loopsWebUrl === "string" && /^https?:\/\//.test(body.loopsWebUrl)) health.loopsWebUrl = body.loopsWebUrl;
     if (body.transport === "tcp" || body.transport === "unix") health.transport = body.transport;

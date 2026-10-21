@@ -53,6 +53,8 @@ export interface StubOptions {
   older?: boolean;
   /** Answers 429 `too_many_streams` with this `Retry-After` to the next `count` stream requests. */
   busy?: { count: number; retryAfter: string };
+  /** What `GET /api/health` says as `version`; default "053b5f47". Another one on a stub reopened on the same port is loops upgraded. */
+  version?: string;
   /** Listen on this Unix socket instead of TCP; `url` is then empty and `socketPath` set. */
   socketPath?: string;
   /** `GET /api/events` (the page read, not the tail) with `after` below this answers 410 `cursor_expired`: the fake after a restart. */
@@ -160,7 +162,7 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
     }
     // Health is public on crewhub-loops (the discovery probes it without a key); everything else needs the key.
     if (publicHealth) {
-      return send(res, 200, { ok: true, version: "053b5f47", checks: {}, principal: null, watchdog: null });
+      return send(res, 200, { ok: true, version: options.version ?? "053b5f47", checks: {}, principal: null, watchdog: null });
     }
     if (auth === undefined) return send(res, 401, error("unauthenticated", `No credentials${detail}`));
     if (req.headers.cookie !== undefined) return send(res, 400, error("ambiguous_auth", `Send one or the other${detail}`));
@@ -168,7 +170,7 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
     if (req.method !== "GET") return send(res, 405, error("method_not_allowed", "GET only"));
     const p = url.pathname;
     const given = options.routes?.[p];
-    if (p === "/api/health" && given === undefined) return send(res, 200, { ok: true, version: "053b5f47", checks: {}, principal: { id: "crewhub-world", kind: "agent", displayName: "World" } });
+    if (p === "/api/health" && given === undefined) return send(res, 200, { ok: true, version: options.version ?? "053b5f47", checks: {}, principal: { id: "crewhub-world", kind: "agent", displayName: "World" } });
     // An external bot's key: role lead (a `routes` entry for the path overrides it, e.g. a probe or a reader).
     if (p === "/api/auth/me" && given === undefined) return send(res, 200, { principal: { id: "crewhub-world", kind: "agent", displayName: "World", role: "lead" } });
     if (p === "/api/events") {
