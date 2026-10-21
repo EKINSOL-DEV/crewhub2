@@ -56,6 +56,7 @@ export {
   exportTownDocument,
   formatTownIssue,
   importTownDocument,
+  nextZoneMark,
   validateTownDocument,
 } from "./townDocument.ts";
 export {
