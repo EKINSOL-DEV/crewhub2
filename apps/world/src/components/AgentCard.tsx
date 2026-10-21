@@ -7,6 +7,7 @@ import { useT } from "../i18n";
 import { roleWords, type AgentCardFacts, type Freshness } from "@crewhub/world-model";
 import { LaneChip } from "../world/lane";
 import type { CardChip, CardRow, RenderedSection } from "../world/agentCard/types";
+import { chatCardNote, chatTargetOf } from "../state/chatPanel";
 import { Button, Card, Chip } from "./primitives";
 
 const STATUS_KIT = { backlog: "backlog", planned: "planned", in_progress: "progress", review: "review", done: "done" } as const;
@@ -23,8 +24,11 @@ interface Props {
   /** A bottom sheet (phone) instead of a card beside the figure. */
   sheet: boolean;
   onFollow: () => void;
-  /** Opens the Chat panel for this agent (live mode: crewhub-loops' own chat, framed); null in the demo, whose chat is its own dock. */
-  onChat: (() => void) | null;
+  /**
+   * Opens the Chat panel for an agent (live mode: crewhub-loops' own chat, framed): this agent when loops' dock has a
+   * head for it, else its lead (`state/chatPanel` `chatTargetOf`). Null in the demo, whose chat is its own dock.
+   */
+  onChat: ((key: string) => void) | null;
   onClose: () => void;
   /** Draws the figure's portrait onto the canvas; false when there is no figure to draw. */
   portrait: (canvas: HTMLCanvasElement) => boolean;
@@ -83,14 +87,32 @@ export function AgentCard({ facts, sections, freshness, demo, following, sheet, 
         <Button size="sm" pressed={following} icon={<Eye className="icon" aria-hidden="true" />} onClick={onFollow} kbd="⇧F" title={following ? "Stop following (Shift+F or Escape)" : "The camera follows this figure wherever it walks (Shift+F)"}>
           {following ? "Following" : "Follow"}
         </Button>
-        {onChat && (
-          <Button size="sm" className="agent-chat" icon={<MessageCircle className="icon" aria-hidden="true" />} aria-label={t("world.chat.card", { name: facts.displayName })} title={t("world.chat.cardHint", { name: facts.displayName })} onClick={onChat}>
+        {onChat && facts.chat.self && (
+          <Button size="sm" className="agent-chat" icon={<MessageCircle className="icon" aria-hidden="true" />} aria-label={t("world.chat.card", { name: facts.displayName })} title={t("world.chat.cardHint", { name: facts.displayName })} onClick={() => onChat(facts.key)}>
             Chat
           </Button>
         )}
         {demo && <span className="demo-note">Demo: scripted facts</span>}
+        {onChat && !facts.chat.self && <ChatNote facts={facts} onChat={onChat} />}
       </Card.Footer>
     </Card>
+  );
+}
+
+/* Loops' chat dock lists enabled agents of loops role lead only (round 13), so a card whose agent has no chat head there
+   shows no "Chat with <name>" (it would pretend) and says why; when loops lists its lead, a button for the lead's chat. */
+function ChatNote({ facts, onChat }: { facts: AgentCardFacts; onChat: (key: string) => void }) {
+  const { t } = useT();
+  const target = chatTargetOf(facts);
+  return (
+    <p className="agent-chat-note sign-muted" data-chat="leads-only">
+      <span>{chatCardNote(facts)}</span>
+      {target && (
+        <Button size="sm" className="agent-chat agent-chat-lead" icon={<MessageCircle className="icon" aria-hidden="true" />} aria-label={t("world.chat.card", { name: target.name })} title={t("world.chat.cardHint", { name: target.name })} onClick={() => onChat(target.key)}>
+          {t("world.chat.leadButton", { name: target.name })}
+        </Button>
+      )}
+    </p>
   );
 }
 

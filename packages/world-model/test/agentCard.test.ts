@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { AgentLane, Envelope } from "@crewhub/loops-client";
-import { agentCardFacts, computerFacts, laneFacts, RECENT_LIMIT } from "../src/agentCard.ts";
+import { agentCardFacts, chatFacts, computerFacts, laneFacts, RECENT_LIMIT } from "../src/agentCard.ts";
 import { emptyMemory } from "../src/memory.ts";
 import type { WorldModel } from "../src/model.ts";
 import { Projection } from "../src/projection.ts";
@@ -136,4 +136,31 @@ test("the card knows where a figure outside the buildings stands: the town hall 
   assert.equal(bot.civic, "town-hall");
   assert.equal(bot.loops?.external, true);
   assert.equal(agentCardFacts(model, w.projection.facts, "cl-lead")!.civic, null);
+});
+
+test("chat facts: loops' dock lists enabled agents of loops role lead only, so the card offers that agent's chat, else its lead's, else nobody's and says why", () => {
+  const w = world({
+    projects: [CL],
+    team: team(T0, [lane("cl-lead", "working"), lane("cl-dev-1", "working", { lead: "cl-lead" })]),
+    agents: [registered("cl-lead", "lead", { displayName: "CL Lead" }), registered("postman", "router")],
+  });
+  const model = w.reduce();
+  const facts = w.projection.facts;
+  // A lead: its own head in the dock.
+  assert.deepEqual(agentCardFacts(model, facts, "cl-lead")?.chat, { self: true, why: null, lead: null });
+  // A worker: no entry of its own; its lead from the team snapshot, which loops lists.
+  assert.deepEqual(agentCardFacts(model, facts, "ekinsol/cl-dev-1")?.chat, { self: false, why: "a worker, not an agent registered in crewhub-loops", lead: { key: "cl-lead", displayName: "CL Lead" } });
+  // The postman (loops role router) at the post office: no head, no building, no lead to offer.
+  assert.deepEqual(agentCardFacts(model, facts, "postman")?.chat, { self: false, why: "the postman (loops role router)", lead: null });
+  // The pure rule (a disabled agent and a probe have no figure, so no card, but the rule knows them): loops' role decides, never the
+  // world's; the building's lead is never the agent itself; a lead loops does not list (ProjectOut.lead only) is said so and offers
+  // nobody; the worker's lead wins over the building's when loops lists both; a disabled lead is skipped for the building's.
+  const agents = [registered("a-lead", "lead", { displayName: "A" }), registered("b-lead", "lead", { displayName: "B" }), registered("probe-1", "probe"), registered("gone-lead", "lead", { disabled: true })];
+  const building = { lead: { id: "b-lead", displayName: "B" } };
+  assert.deepEqual(chatFacts(agents, { key: "probe-1", registered: true, lead: null }, building), { self: false, why: "of loops role probe, not a lead", lead: { key: "b-lead", displayName: "B" } });
+  assert.deepEqual(chatFacts(agents, { key: "ekinsol/w", registered: false, lead: "a-lead" }, building).lead, { key: "a-lead", displayName: "A" });
+  assert.deepEqual(chatFacts(agents, { key: "ekinsol/w", registered: false, lead: "gone-lead" }, building).lead, { key: "b-lead", displayName: "B" }, "a disabled lead is skipped for the building's");
+  assert.deepEqual(chatFacts(agents, { key: "b-lead", registered: true, lead: null }, { lead: { id: "b-lead", displayName: "B" } }), { self: true, why: null, lead: null });
+  assert.deepEqual(chatFacts(agents, { key: "x-lead", registered: true, lead: null }, { lead: { id: "x-lead", displayName: "X" } }), { self: false, why: "a registered agent crewhub-loops does not list", lead: null }, "the building's lead is never the agent itself");
+  assert.deepEqual(chatFacts(agents, { key: "ekinsol/w", registered: false, lead: null }, null), { self: false, why: "a worker, not an agent registered in crewhub-loops", lead: null });
 });

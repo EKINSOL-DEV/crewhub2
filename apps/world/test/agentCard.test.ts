@@ -55,6 +55,7 @@ const bare = (over: Partial<AgentCardFacts> = {}): AgentCardFacts => ({
   loops: null,
   lane: null,
   recent: [],
+  chat: { self: true, why: null, lead: null },
   ...over,
 });
 

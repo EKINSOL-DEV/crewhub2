@@ -81,6 +81,9 @@ export const EN: Record<string, string> = {
   "world.chat.openHint": "Chat with the agents: crewhub-loops' own chat, framed in a panel here.",
   "world.chat.card": "Chat with {name}",
   "world.chat.cardHint": "Opens the Chat panel: crewhub-loops' own chat, where you open {name}'s chat head.",
+  // Round 13: loops' dock lists enabled agents of loops role lead only; a card without a chat head says why
+  // (state/chatPanel `chatCardNote`) and, when loops lists its lead, offers that one's chat.
+  "world.chat.leadButton": "Chat with {name}",
   "world.chat.panel.title": "Chat",
   "world.chat.panel.titleWith": "Chat with {name}",
   "world.chat.panel.lead": "This is crewhub-loops' own chat, framed here. Open an agent's chat head in its dock (the Agent chats menu at this width).",

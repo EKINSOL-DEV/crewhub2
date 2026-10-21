@@ -2123,9 +2123,20 @@ a.agent-ticket-link:focus-visible {
 }
 .agent-card-foot {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
+}
+/* Round 13: the line of a card whose agent has no chat head in loops (leads only), with the lead's button when there is one. */
+.agent-chat-note {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-2xs);
 }
 .agent-card .demo-note {
   font-size: var(--text-2xs);

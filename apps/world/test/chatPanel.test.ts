@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { HostHealth } from "@crewhub/loops-client";
-import { CHAT_FRAME_ALLOW, CHAT_FRAME_SANDBOX, CHAT_PARAM, chatFrameUrl, chatPlaceLine } from "../src/state/chatPanel.ts";
+import { CHAT_FRAME_ALLOW, CHAT_FRAME_SANDBOX, CHAT_PARAM, chatCardNote, chatFrameUrl, chatPlaceLine, chatTargetOf } from "../src/state/chatPanel.ts";
 import { DEFAULT_LOOPS_URL } from "../src/state/source.ts";
 
 const health = (loopsWebUrl?: string): HostHealth => ({ loops: "ok", keyName: "crewhub-world", sharedKey: false, pairing: "off", paired: true, ...(loopsWebUrl === undefined ? {} : { loopsWebUrl }) });
@@ -36,4 +36,22 @@ test("the text view says where chat lives: the panel in live mode, the scripted 
   assert.match(chatPlaceLine("live"), /signed in to crewhub-loops as a person in this browser; the world keeps no session\.$/);
   assert.match(chatPlaceLine("demo"), /^Chat: the demo's own scripted chat, in the dock/);
   assert.doesNotMatch(chatPlaceLine("demo"), /panel/);
+});
+
+test("a card's Chat names only an agent loops' dock can open: the lead itself, a worker's lead, nobody for the postman; the card's words say why", () => {
+  const h = health("http://127.0.0.1:8291");
+  const lead = { key: "cl-lead", displayName: "CL Lead", chat: { self: true, why: null, lead: null } };
+  const worker = { key: "ekinsol/cl-dev-1", displayName: "cl-dev-1", chat: { self: false, why: "a worker, not an agent registered in crewhub-loops", lead: { key: "cl-lead", displayName: "CL Lead" } } };
+  const postman = { key: "postman", displayName: "Postman", chat: { self: false, why: "the postman (loops role router)", lead: null } };
+  const disabled = { key: "cl-old", displayName: "Old Lead", chat: { self: false, why: "disabled in crewhub-loops", lead: { key: "cl-lead", displayName: "CL Lead" } } };
+  assert.deepEqual(chatTargetOf(lead), { key: "cl-lead", name: "CL Lead" });
+  assert.equal(chatFrameUrl(h, chatTargetOf(lead)?.key ?? null), "http://127.0.0.1:8291/?chat=cl-lead");
+  assert.deepEqual(chatTargetOf(worker), { key: "cl-lead", name: "CL Lead" }, "a worker's card chats with its lead");
+  assert.equal(chatFrameUrl(h, chatTargetOf(worker)?.key ?? null), "http://127.0.0.1:8291/?chat=cl-lead", "never ?chat=<worker>: loops' dock has no head for it");
+  assert.equal(chatTargetOf(postman), null, "the postman has no head and no lead: no Chat button at all");
+  assert.equal(chatFrameUrl(h, chatTargetOf(postman)?.key ?? null), "http://127.0.0.1:8291/", "the chip's root is all that is left");
+  assert.equal(chatCardNote(lead), null, "a lead's card has the Chat button and no note");
+  assert.equal(chatCardNote(worker), "crewhub-loops chats with leads only: cl-dev-1 is a worker, not an agent registered in crewhub-loops; chat with its lead CL Lead.");
+  assert.equal(chatCardNote(postman), "crewhub-loops chats with leads only: Postman is the postman (loops role router).");
+  assert.equal(chatCardNote(disabled), "crewhub-loops chats with leads only: Old Lead is disabled in crewhub-loops; chat with its lead CL Lead.");
 });
