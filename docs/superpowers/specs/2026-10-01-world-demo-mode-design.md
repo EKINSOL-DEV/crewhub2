@@ -943,3 +943,71 @@ real work could be mistaken for real behaviour (the demo labels it; live would n
 intent and in the text view), and whether it is worth it before the real director.
 Recommendation: build it only with that label and only off by default; else wait for the real director.
 Built that way in round 11 (see the status line above); the real director stays on the roadmap.
+
+## Addendum: chat with the agents (2026-10-21, round 12, from the user: the first requirement)
+
+Nicky chatted with his agent `boing` in the crewhub-loops app while the world was open against his own Crewhub.app,
+and the world showed no bubble over boing. He asked for chat with the agents as the first requirement, and said the
+UI may be exactly crewhub-loops' own. This addendum records what loops offers (read in loops `4cdcd383`) and the two
+roads. **Status: road A in progress (round 12); road B proposed below.**
+
+### What loops has
+
+- **Chat in loops is not a page.** It is the bubbles overlay (`apps/web/src/components/bubbles/Bubbles.tsx`): chat
+  heads in a dock, mounted by the app shell for an admin (a person) when the `bubbles` feature is on (off by default,
+  migration 024). "Bubbles" in loops means these chat heads and the pinned list (`GET/PUT /api/me/bubbles`), not the
+  world's speech bubbles. A chat opens by an in-page event (`crewhub:open-chat` with the agent's id), which no other
+  page can send: there is no address that opens one agent's chat.
+- **Who may do what** (`api/routers/dm.py`): reading threads and messages takes any principal, but a key reads only
+  threads it is part of; sending to an agent, marking read and the pinned bubbles take a person (admin); a reply takes
+  an agent.
+- **Who sees the events.** `dm.*` events and chat deliveries reach only the participants of the thread (the
+  `chat_participant` clause in `api/stream.py`). The world's key is an external bot, not part of Nicky's thread with
+  boing, so the world never sees that conversation. That is why there was no bubble; nothing in the world was broken.
+- **Framing.** loops sets no `X-Frame-Options` and no `frame-ancestors` (only the attachments have a CSP). Its session
+  cookie is `HttpOnly`, `SameSite=Lax`, 30 days (`routers/auth.py`, `auth/service.py`). The world on
+  `127.0.0.1:<port>` and loops on `127.0.0.1:8091` are the same site (the port does not count), so a frame of loops
+  inside the world carries the person's own session.
+
+### Road A: the chat is loops' own, in a frame (built first)
+
+A **Chat panel** in the world, opened from an agent's card ("Chat with <name>") and from the chat chip, frames the
+loops web the host names (`loopsWebUrl`). Inside the frame is loops' own app shell with its chat dock, at the panel's
+width: the chat is exactly loops' own because it is loops. Signed out, loops' own sign-in shows in the frame. The
+world handles no password and no session, and reads nothing from the frame.
+
+- It cannot open boing's chat by itself (no address for it), so the panel says "open <name>'s chat head in the dock".
+  A small loops change would fix that: a `?chat=<agent>` parameter that the shell turns into its own open-chat event.
+  It is asked for on the loops proposal branch, not built here.
+- It needs the person signed in to crewhub-loops in this browser and the bubbles feature on; the panel says so.
+- "Open in the app" stays beside the frame, as the fallback if a later loops refuses to be framed.
+- The demo keeps its scripted chat.
+
+### Road B: speech bubbles in the world (needs the person's view)
+
+A speech bubble over boing when boing answers needs the conversation, and only a participant sees it. Three options,
+in order of honesty:
+
+1. **loops gives the world the person's chat events** (a proposal for cl-lead on `world/viewer-key`): either a `dm.*`
+   feed for the world's key scoped to the owner's threads (read only), or CORS for the world's loopback origin, so the
+   page itself can read as the signed-in person. Written now; it waits for loops.
+2. **The host signs in as the person, once.** The Connect screen gets a Sign-in step. The host forwards the id and
+   password to loops over loopback, keeps only the session cookie (0600, beside the key, never the password, never
+   logged), and reads `GET /api/dm/threads`, the messages and the `dm.*` events as the person. It drives the bubbles
+   only. The honest cost: that cookie is a full person's session (an admin's, for 30 days) at rest on the Mac. So the
+   host must use it for **reads of the chat only**: an allow-list of the DM read routes and the stream with
+   `types=dm.*`, never a send, a mark-read or any other route, tested. Its states are said plainly: signed in as …,
+   session expired (sign in again), signed out (Forget the session). The bot key stays for everything else.
+3. Reading the frame is not a road: the world cannot and must not read another origin's page.
+
+**Recommendation:** road A now. For road B, option 2 is buildable tonight if it stays that small (reads of the chat
+only, the cookie on the host's disk only, a Forget), and option 1 is written for loops in parallel; when loops offers
+1, the world switches to it and drops the stored session. Nicky decides whether option 2 may ship; until he says so,
+it stays off by default behind its own Sign-in step.
+
+### Bubbles themselves
+
+The world's speech bubbles exist in demo mode. A message from an agent to the person becomes a bubble over the
+agent's figure with its first line; a tap opens the Chat panel. A message the person sent shows nothing over the
+person. Nothing of the conversation is kept by the world beyond the bubble's few seconds.
+
