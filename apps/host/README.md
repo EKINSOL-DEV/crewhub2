@@ -36,7 +36,10 @@ smooth connection" below):
   `/watchdog`, `/team`. Only `limit` and `cursor` of a query string are passed. `/world-api/project-groups`
   answers `{ "groups": [] }` locally.
 - **Health** `GET /world-api/health`: `{ loops, keyName, sharedKey, loopsWebUrl, transport, paired, pairing, loopsCommit?, loopsCommitBefore?, cursor?, connection }`
-  (`connection` is under "The smooth connection" below; `loopsCommitBefore` is the version the host read first this
+  (`connection` is under "The smooth connection" below; `connection.key.recheckAt` says when a rejected key is re-checked (round 8: the host
+  makes no stream retry with a refused key; it waits for a new key, a Forget or a discovery change and asks loops about the kept key
+  every 5 min, one keyless health probe first and the key check only when loops answers, so a bot re-enabled in loops comes back by
+  itself; at most one probe a minute); `loopsCommitBefore` is the version the host read first this
   run, present only when loops has answered another since: loops was updated under the running host, which logs the
   change once and reads everything again after the restart that came with it);
   `loopsWebUrl` is the origin of the loops URL, for the world's "sign in to crewhub-loops" link; `transport` is `tcp`

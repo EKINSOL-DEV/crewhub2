@@ -92,7 +92,7 @@ export interface LoopsStub {
   /** Starts (or with null ends) an outage: see `Outage`. Open streams are ended when one starts. */
   outage(outage: Outage | null): void;
   /** The key is revoked: every keyed request answers 401 `invalid_api_key` from now on, and open streams end (loops' 60 s re-check). */
-  revoke(): void;
+  revoke(on?: boolean): void;
   close(): Promise<void>;
 }
 
@@ -288,8 +288,9 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
         hanging.clear();
       }
     },
-    revoke() {
-      revoked = true;
+    revoke(on = true) {
+      revoked = on;
+      if (!on) return; // the bot re-enabled: the key answers again
       for (const res of streams) res.end();
       streams.clear();
     },

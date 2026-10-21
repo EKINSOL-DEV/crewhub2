@@ -8,7 +8,7 @@ import { ExternalLink, KeyRound, RefreshCw, ShieldAlert, Search, Unplug } from "
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { connectHost, forgetHostKey, probeHost, type HostHealth } from "@crewhub/loops-client";
 import { useT } from "../i18n";
-import { connectOutcome, keyTail, looksLikeKey, normaliseKey, relativeTime, type ConnectOutcome, type ConnectScreen } from "../state/connect";
+import { connectOutcome, keyTail, looksLikeKey, normaliseKey, relativeTime, untilTime, type ConnectOutcome, type ConnectScreen } from "../state/connect";
 import { loopsWebUrl } from "../state/source";
 import { PairContent, switchToDemo } from "./PairPage";
 import { Button, Card, Field } from "./primitives";
@@ -172,6 +172,7 @@ export function ConnectPage({ screen, health, onHealth, pollMs = CONNECT_POLL_MS
                   </p>
                   {connection?.key.source && <p className="hint pair-note">{t("world.connect.rejected.source", { source: t(`world.connect.source.${connection.key.source}`) })}</p>}
                   <p className="connect-sub">{t("world.connect.rejected.fix")}</p>
+                  {untilTime(connection?.key.recheckAt, now) && <p className="hint pair-note">{t("world.connect.rejected.recheck", { when: untilTime(connection?.key.recheckAt, now) ?? "" })}</p>}
                   {connection?.key.source === "stored" && (
                     <div className="connect-forget">
                       <p className="hint pair-note">{t("world.connect.rejected.kept")}</p>

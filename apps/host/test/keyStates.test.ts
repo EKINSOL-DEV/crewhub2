@@ -65,7 +65,7 @@ describe("the key's state, honestly", () => {
     const host = await createHost({ keyStore: store, keyName: "crewhub-world", keySource: "stored", pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 10, max: 20 }, log: (line) => lines.push(line), ...options });
     cleanup.push(() => host.close());
     const health = async () => (await (await fetch(`${host.url}/world-api/health`)).json()) as Record<string, any>;
-    const key = async () => (await health()).connection.key as { state: string; reason?: string; source?: string };
+    const key = async () => (await health()).connection.key as { state: string; reason?: string; source?: string; recheckAt?: string };
     const forget = () => fetch(`${host.url}/world-api/connect`, { method: "DELETE", headers: { origin: host.url } });
     return { host, lines, store, health, key, forget };
   }
@@ -84,9 +84,12 @@ describe("the key's state, honestly", () => {
     assert.equal(store.forgotten, 0, "never forgotten by itself");
     assert.equal((await key()).state, "rejected", "and still rejected");
     assert.ok(lines.some((l) => /rejected by loops .* \(the key is kept; paste a new one or forget it\)/.test(l)), lines.join("\n"));
+    const at = Date.parse((await key()).recheckAt ?? "");
+    assert.ok(at > Date.now() + 60_000, "the kept key is re-checked later, not polled: recheckAt is minutes away");
     assert.equal((await forget()).status, 200);
     assert.equal(store.forgotten, 1);
     assert.equal((await key()).state, "none");
+    assert.equal((await key()).recheckAt, undefined, "Forget cancels the re-check");
   });
 
   it("the start-up check: loops in trouble (503, health answering) leaves the key unchecked and the stream down; ok once loops recovers", async () => {
@@ -159,13 +162,51 @@ describe("the key's state, honestly", () => {
     await waitFor("the verdict", async () => (await key()).state === "rejected");
     assert.equal((await key()).reason, STREAM_REFUSED_REASON);
     assert.equal((await health()).loops, "unauthorized");
-    assert.equal((await health()).connection.stream.state, "unauthorized");
     assert.equal(store.forgotten, 0);
     assert.ok(lines.some((l) => /rejected on the stream \(the key is kept/.test(l)), lines.join("\n"));
+    // The stream stops: no retry with a refused key (each was a 401 and a health probe every 30 s); the host waits.
+    await waitFor("the stream stopped", async () => (await health()).connection.stream.state === "idle" && stub.openStreams() === 0);
+    const requestsAfterVerdict = stub.requests.length;
+    const recheckAt = Date.parse((await key()).recheckAt ?? "");
+    assert.ok(recheckAt > Date.now() + 60_000, "re-checked minutes later, said in health");
+    await soak(400);
+    assert.equal(stub.requests.length, requestsAfterVerdict, "nothing asked of loops while the key waits");
     assert.equal((await forget()).status, 200);
     assert.equal(store.forgotten, 1);
     assert.equal((await key()).state, "none");
-    await waitFor("the stream closed", () => stub.openStreams() === 0);
+    assert.equal((await key()).recheckAt, undefined, "Forget cancels the re-check");
+    await soak(400);
+    assert.ok(!stub.requests.slice(requestsAfterVerdict).some((r) => r.authorization !== undefined), "and no re-check with the forgotten key");
+  });
+
+  it("a rejected key is re-checked slowly, with a health probe first, and a bot re-enabled in loops comes back by itself", async () => {
+    const stub = await createLoopsStub({ ...installation() });
+    cleanup.push(() => stub.close());
+    const { health, key, lines } = await startHost({ loopsUrl: stub.url, key: stub.key, recheckMs: 300 });
+    await waitFor("the stream", async () => (await health()).connection.stream.state === "ok");
+    stub.revoke();
+    await waitFor("the verdict", async () => (await key()).state === "rejected");
+    await waitFor("the stream stopped", async () => (await health()).connection.stream.state === "idle");
+    const seen = stub.requests.length;
+    // Loops down at re-check time: one keyless health probe, no key check, still rejected, a new time said.
+    stub.outage({ status: 503 });
+    const firstAt = (await key()).recheckAt ?? "";
+    await waitFor("the probe that found loops down", () => lines.some((l) => /not re-checked: crewhub-loops does not answer its health/.test(l)));
+    const sinceRejected = stub.requests.slice(seen);
+    assert.ok(sinceRejected.every((r) => r.path === "/api/health" && r.authorization === undefined), `only keyless health probes: ${sinceRejected.map((r) => r.path).join(" ")}`);
+    assert.equal((await key()).state, "rejected");
+    await waitFor("a later re-check time", async () => ((await key()).recheckAt ?? "") > firstAt);
+    // Loops back and the bot re-enabled: the next re-check (a probe, then the key check) brings the stream back, no paste.
+    stub.outage(null);
+    stub.revoke(false);
+    await waitFor("the key accepted again", async () => (await key()).state === "ok");
+    await waitFor("the stream back", async () => (await health()).connection.stream.state === "ok");
+    assert.equal((await key()).recheckAt, undefined);
+    assert.ok(lines.some((l) => /re-checking the kept key crewhub-world \(stored\)/.test(l)), lines.join("\n"));
+    const probes = stub.requests.slice(seen).filter((r) => r.path === "/api/health" && r.authorization === undefined).length;
+    const streamTries = stub.requests.slice(seen).filter((r) => r.path.startsWith("/api/events/stream")).length;
+    assert.ok(probes >= 2 && probes <= 6, `a probe per re-check, not a poll: ${probes}`);
+    assert.equal(streamTries, 1, "one stream request: the one that came back, never a retry with the refused key");
   });
 
   it("the discovery losing loops (the app's road): the host looks again, the key stays ok, and it is ok when loops is back", async () => {

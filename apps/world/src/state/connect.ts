@@ -107,6 +107,19 @@ export function connectOutcome(status: number, body: unknown): ConnectOutcome {
 }
 
 /** "just now", "40 s ago", "3 min ago", "3 h ago", "3 d ago"; null for no time or one that does not parse. */
+/** "now", "in 40 s", "in 4 min", "in 2 h"; null for no time or one that does not parse. For the host's next re-check of a rejected key. */
+export function untilTime(iso: string | undefined, nowMs: number): string | null {
+  if (iso === undefined) return null;
+  const then = Date.parse(iso);
+  if (Number.isNaN(then)) return null;
+  const seconds = Math.ceil((then - nowMs) / 1000);
+  if (seconds <= 0) return "now";
+  if (seconds < 60) return `in ${seconds} s`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `in ${minutes} min`;
+  return `in ${Math.round(minutes / 60)} h`;
+}
+
 export function relativeTime(iso: string | undefined, nowMs: number): string | null {
   if (iso === undefined) return null;
   const then = Date.parse(iso);

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { HostConnection, HostHealth } from "@crewhub/loops-client";
-import { connectOutcome, connectScreen, keyTail, liveScreen, looksLikeKey, loopsVersion, normaliseKey, relativeTime } from "../src/state/connect.ts";
+import { connectOutcome, connectScreen, keyTail, liveScreen, looksLikeKey, loopsVersion, normaliseKey, relativeTime, untilTime } from "../src/state/connect.ts";
 
 const connection = (over: { discovery?: Partial<HostConnection["discovery"]>; key?: Partial<HostConnection["key"]>; stream?: Partial<HostConnection["stream"]> } = {}): HostConnection => ({
   discovery: { state: "found", via: "app-port", target: "http://127.0.0.1:8091", ...over.discovery },
@@ -33,6 +33,18 @@ test("screen: once the town runs, an unpaired source sends the person back to th
   assert.equal(liveScreen("unauthorized"), "rejected", "the key revoked while Live");
   for (const state of ["connecting", "live", "catching-up", "stale", "loops-down", "stream-busy"] as const) assert.equal(liveScreen(state), null, state);
   assert.equal(liveScreen(null), null);
+});
+
+test("untilTime: when the host re-checks a rejected key, in words", () => {
+  const now = Date.parse("2026-10-21T12:00:00Z");
+  const at = (s: number) => new Date(now + s * 1000).toISOString();
+  assert.equal(untilTime(undefined, now), null);
+  assert.equal(untilTime("soon", now), null);
+  assert.equal(untilTime(at(-5), now), "now");
+  assert.equal(untilTime(at(0), now), "now");
+  assert.equal(untilTime(at(40), now), "in 40 s");
+  assert.equal(untilTime(at(299), now), "in 5 min");
+  assert.equal(untilTime(at(7200), now), "in 2 h");
 });
 
 test("loops' version: the host's loopsCommit, and the version it saw first when loops was updated under it", () => {
