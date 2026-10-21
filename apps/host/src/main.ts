@@ -44,6 +44,7 @@ import { ConfigError, type ServerConfig, loadKey, loadServerConfig, worldEnv } f
 import { formatDoctor, runDoctor } from "./doctor.ts";
 import { createArchiveStore } from "./archiveStore.ts";
 import { type HostStep, MINT_HEADER, MINT_PATH, createHost } from "./host.ts";
+import { createStepPrinter, instructionLine, seconds, stepLine as formatStep } from "./steps.ts";
 import { createKeyStore } from "./keyStore.ts";
 import { loadPairingSecret } from "./pairing.ts";
 
@@ -123,15 +124,10 @@ const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
 const distDir = path.join(repoRoot, "apps", "world", "dist");
 
 /** The step list of `npm run world`: one line per step, a tick or a cross, the time it took. Quiet otherwise. */
-const seconds = (ms: number) => (ms >= 1000 ? `${(ms / 1000).toFixed(1)} s` : `${Math.round(ms)} ms`);
-const stepLine = (ok: boolean, text: string, ms?: number) => console.error(`  ${ok ? "✓" : "✗"} ${text}${ms === undefined ? "" : ` (${seconds(ms)})`}`);
-let worldUp = false;
+const stepLine = (ok: boolean, text: string, ms?: number) => console.error(formatStep(ok, text, ms));
+const stepPrinter = createStepPrinter(() => performance.now());
 const printStep = (step: HostStep) => {
-  stepLine(step.ok, step.text, step.ms);
-  if (step.step === "snapshot" && step.ok && !worldUp) {
-    worldUp = true;
-    stepLine(true, `the world is up, ${seconds(performance.now())} after the host started`);
-  }
+  for (const line of stepPrinter.lines(step)) console.error(line);
 };
 
 /** Opens the default browser on the link (macOS `open`, else `xdg-open`); false when that is not possible here. */
@@ -230,7 +226,7 @@ if (args.command === "open" || world) {
     const link = host.mintPairLink(args.origin ?? undefined);
     if (world && !args.noOpen && openBrowser(link)) stepLine(true, "browser opened on the one-time pairing link (10 minutes, once)");
     else {
-      if (world) stepLine(true, "open this link in the browser to pair it (10 minutes, once):");
+      if (world) console.error(instructionLine("open this link in the browser to pair it (10 minutes, once):"));
       else log("open this link in the browser to pair it (10 minutes, once):");
       console.log(link);
     }
