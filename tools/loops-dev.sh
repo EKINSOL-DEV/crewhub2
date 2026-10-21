@@ -7,7 +7,8 @@
 # `start` refuses a port that is already served (and says so when the server is ours), and writes the pid file only
 # once health answers 200, with the pid of the process that serves the port. `stop` kills that listener (found by the
 # port, plus its uv wrapper and whatever the pid file names), waits until the port is free and removes the pid file;
-# it never kills a listener that is not crewhub-loops. `status` names the listener's pid.
+# it never kills a listener that is not crewhub-loops. `status` names the listener's pid. The server started by
+# `start` never holds the caller's stdout or stderr (they go to the log, stdin from /dev/null): piping `start` is safe.
 #
 # Env (all optional): LOOPS_DEV_CHECKOUT (a crewhub-loops checkout with services/api synced by uv and apps/web built),
 # LOOPS_DEV_DATA (0700 folder), LOOPS_DEV_PORT (default 8291), LOOPS_DEV_OWNER (first account id, default nicky).
@@ -75,8 +76,10 @@ case "${1:-status}" in
     fi
     prepare
     rm -f "$PID_FILE"
-    ( cd "$CHECKOUT/services/api" && set -a && eval "$(loops_env | sed 's/^/export /')" && set +a \
-      && nohup uv run python -m crewhub_loops.serve >> "$LOG_FILE" 2>&1 & echo $! > "$DATA/run/serve.wrapper.pid" )
+    # The server gets the log as stdout and stderr and /dev/null as stdin, inside a subshell whose own stdio is the
+    # same, so nothing it starts holds the caller's pipe (`tools/loops-dev.sh start | cat` returns at once).
+    ( exec >> "$LOG_FILE" 2>&1 < /dev/null; cd "$CHECKOUT/services/api" && set -a && eval "$(loops_env | sed 's/^/export /')" && set +a \
+      && nohup uv run python -m crewhub_loops.serve & echo $! > "$DATA/run/serve.wrapper.pid" )
     WRAPPER="$(cat "$DATA/run/serve.wrapper.pid")"
     for _ in $(seq 1 40); do
       if curl -s -m 1 -o /dev/null "http://127.0.0.1:$PORT/api/health"; then
