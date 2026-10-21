@@ -196,6 +196,7 @@ export const EN: Record<string, string> = {
   "world.connection.panel.version": "crewhub-loops version",
   "world.connection.panel.version.updated": "{version}; it was {before} when this host started: crewhub-loops was updated under the host, which read everything again",
   "world.connection.panel.host": "Host",
+  "world.connection.panel.zones": "Zones",
   "world.connection.panel.transport.tcp": "over TCP",
   "world.connection.panel.transport.unix": "over the Unix socket",
   "world.connection.panel.older": "This host is from before the smooth connection and reports no connection details.",

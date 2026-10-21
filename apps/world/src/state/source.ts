@@ -49,9 +49,25 @@ export function needsProbe(input: { override: SourceId | null; setting: SourceSe
   return input.override === null && input.setting === "auto";
 }
 
-/** The storage key of the town document: the live town, else the scenario's (or the stress fixture's). */
-export function townKeyFor(input: { source: SourceId; scenarioTownKey: string; stressSize: number | null }): string {
-  if (input.source === "live") return LIVE_TOWN_KEY;
+/**
+ * The storage key of the live town document for one crewhub-loops installation: `LIVE_TOWN_KEY` plus the host and
+ * port of the installation's web app, as the host's health names it (`loopsWebUrl`), so two installations seen from
+ * one browser (the Mac app on 8091, a development instance on 8291) keep towns of their own. A host that names no
+ * web app (one from before the smooth connection) gets the plain live key. Never a demo scenario's key.
+ */
+export function liveTownKey(loopsWebUrl: string | null | undefined): string {
+  if (!loopsWebUrl) return LIVE_TOWN_KEY;
+  try {
+    const host = new URL(loopsWebUrl).host.toLowerCase().replace(/[^a-z0-9.]+/g, "-");
+    return host ? `${LIVE_TOWN_KEY}.${host}` : LIVE_TOWN_KEY;
+  } catch {
+    return LIVE_TOWN_KEY;
+  }
+}
+
+/** The storage key of the town document: the live town of this installation, else the scenario's (or the stress fixture's). */
+export function townKeyFor(input: { source: SourceId; scenarioTownKey: string; stressSize: number | null; loopsWebUrl?: string | null }): string {
+  if (input.source === "live") return liveTownKey(input.loopsWebUrl);
   return input.stressSize === null ? input.scenarioTownKey : `crewhub-world.stress-${input.stressSize}`;
 }
 

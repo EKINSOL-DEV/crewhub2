@@ -72,8 +72,8 @@ export const SCENARIO: DemoScenario = demoScenario(parseScenarioId(PARAMS.get("s
 export const SOURCE: SourceDecision = sourceDecision();
 export const LIVE = SOURCE.source === "live";
 
-/** The storage key of the town document on this page: the live town, else one per scenario and per stress fixture. */
-export const TOWN_KEY = townKeyFor({ source: SOURCE.source, scenarioTownKey: SCENARIO.townKey, stressSize: STRESS_SIZE });
+/** The storage key of the town document on this page: the live town of this crewhub-loops installation, else one per scenario and per stress fixture. */
+export const TOWN_KEY = townKeyFor({ source: SOURCE.source, scenarioTownKey: SCENARIO.townKey, stressSize: STRESS_SIZE, loopsWebUrl: SOURCE.health?.loopsWebUrl ?? null });
 
 export interface ScenarioChoice {
   id: string;

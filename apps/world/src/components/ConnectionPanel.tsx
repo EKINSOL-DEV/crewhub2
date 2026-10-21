@@ -7,12 +7,16 @@
    "Forget this key" asks in the panel itself (no browser dialog), then DELETEs the stored key and reloads: the gate
    then shows the Connect screen. Before pairing the host tells states only, and the panel says so. Never the key.
    The "Updated 3 s ago" line ticks but is not live; a small sr-only region says once when the host stops answering,
-   answers again, or did not forget the key. */
+   answers again, or did not forget the key. A "Zones" row says where a live town's districts come from: made by hand
+   in this browser and kept there (crewhub-loops has no project groups, proposal L22), never shared. */
 import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { forgetHostKey, probeHost, type ConnectionState, type HostHealth } from "@crewhub/loops-client";
 import { useT } from "../i18n";
 import { connectOutcome, loopsVersion, relativeTime, untilTime } from "../state/connect";
+import { useTown } from "../state/town";
+import { useWorld } from "../state/world";
+import { zonesOriginWords } from "../world/zoneText";
 import { connectionWord } from "./ConnectionChip";
 import { Button, Card } from "./primitives";
 
@@ -28,6 +32,9 @@ interface ConnectionPanelProps {
 
 export function ConnectionPanel({ state, initial, onClose, pollMs = PANEL_POLL_MS }: ConnectionPanelProps) {
   const { t } = useT();
+  const { model } = useWorld();
+  const town = useTown();
+  const zoneWords = zonesOriginWords({ zones: model.zones, assignments: town.doc.assignments });
   const [health, setHealth] = useState<HostHealth | null>(initial);
   const [askedAt, setAskedAt] = useState<number | null>(null);
   const [silent, setSilent] = useState(false);
@@ -188,6 +195,8 @@ export function ConnectionPanel({ state, initial, onClose, pollMs = PANEL_POLL_M
               <dd>{t(`world.connection.panel.transport.${health.transport}`)}</dd>
             </>
           )}
+          <dt>{t("world.connection.panel.zones")}</dt>
+          <dd className="connection-zones">{zoneWords}</dd>
         </dl>
         {health && !connection && <p className="hint connection-note">{t("world.connection.panel.older")}</p>}
         {connection && !paired && <p className="hint connection-note">{t("world.connection.panel.unpaired")}</p>}
