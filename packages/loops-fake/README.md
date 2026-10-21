@@ -97,7 +97,10 @@ Everything else is 404 `not_found`; any method but GET or HEAD on a known route 
   every event and answers 410 only for a sealed cursor that does not open; an `after` below the fake's buffer is the
   fake's own 410.
 - The sealed cursor is sealed with a per-fake secret: a token from another fake (a restart) is 410, like a token
-  made under a rotated `device-cookie.key` in loops.
+  made under a rotated `device-cookie.key` in loops. The token is 34 bytes in 46 base64url chars, so its last char
+  carries two bits and four of padding that the decoder drops, in the fake as in loops' `urlsafe_b64decode`: a token
+  that differs only there is the same token and opens. A test that wants a foreign token must change a char whose
+  bits all count (the fake's own test changes one inside the MAC).
 - **Visibility is per principal, as in loops** (`api/stream.py` `event_visibility_sql`, for a lead agent's key): the
   key is not served chat it is no part of (`dm.*`, anything with a `dmThreadId`, unless the row names the key as the
   thread's agent or the delivery's recipient), a `lane.alert` whose `leadId` is another agent, a lane-wake delivery

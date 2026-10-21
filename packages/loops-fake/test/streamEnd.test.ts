@@ -46,6 +46,9 @@ test("a stream that ends mid-storyline (streamMaxMs) loses no event: the host re
     assert.ok(last - first >= moves.length, "every move wrote at least one event");
     await waitFor("every move to reach the source", () => received.some((e) => e.seq === last), 5000);
     assert.ok(fake.streamsOpened() >= 3, `the fake opened ${fake.streamsOpened()} streams: the host reconnected after each end`);
+    // The fake ends its stream every 400 ms and the host pauses 30 to 60 ms before the next: at any instant the
+    // upstream may be between two streams (0 open), so wait for the state, not the clock. Never more than one.
+    await waitFor("one upstream stream open again", () => fake.openStreams() === 1, 2000);
     assert.equal(fake.openStreams(), 1, "one upstream stream is open again");
     const seqs = received.map((e) => e.seq).filter((seq) => seq > first);
     assert.deepEqual(seqs, Array.from({ length: last - first }, (_, i) => first + 1 + i), "every seq once, in order, none lost");

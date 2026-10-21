@@ -56,9 +56,25 @@ interface FakeHost {
 }
 
 const servers: Server[] = [];
+const stops: (() => void)[] = [];
 after(async () => {
-  for (const server of servers) await new Promise((resolve) => server.close(resolve));
+  // Every source started by `observe` is stopped here, so a test that failed before its own stop leaves no retry loop
+  // behind: one did, under load, and the file never exited (node runs the suite without a test timeout).
+  for (const stop of stops) stop();
+  for (const server of servers) {
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+  }
 });
+
+/** Polls on real I/O turns only (no timers, so it works under mock timers too) until `check` holds, within `ms` of wall time. */
+async function settle(check: () => boolean, what: string, ms = 5000): Promise<void> {
+  const deadline = Date.now() + ms;
+  while (!check()) {
+    if (Date.now() > deadline) assert.fail(`timed out waiting for ${what}`);
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+}
 
 async function startHost(): Promise<FakeHost> {
   const streams = new Set<ServerResponse>();
@@ -78,7 +94,12 @@ async function startHost(): Promise<FakeHost> {
       for (const stream of streams) stream.end();
       streams.clear();
     },
-    close: () => new Promise((resolve) => server.close(() => resolve())),
+    close: () =>
+      new Promise((resolve) => {
+        // A test server: nothing waits for a client's idle keep-alive socket, so a failed test cannot hang here.
+        server.closeAllConnections();
+        server.close(() => resolve());
+      }),
   };
   const json = (res: ServerResponse, status: number, body: unknown) => {
     res.writeHead(status, { "content-type": "application/json" });
@@ -125,6 +146,7 @@ function observe(url: string, extra: Record<string, unknown> = {}) {
   const source = createHostSource({ baseUrl: url, timings: TIMINGS, ...extra });
   source.connection!.onChange(() => states.push(source.connection!.state()));
   const stop = source.start((message) => messages.push(message));
+  stops.push(stop);
   const until = async (check: () => boolean, what: string, ms = 2000): Promise<void> => {
     const deadline = Date.now() + ms;
     while (!check()) {
@@ -379,20 +401,55 @@ test("probeHost answers the health, and null when nothing listens or the answer 
   assert.equal(await probeHost(`http://127.0.0.1:${(other.address() as AddressInfo).port}`, 500), null);
 });
 
-test("before the first snapshot the retry is capped at firstRetryMaxMs; after it the full backoff applies", async () => {
+test("before the first snapshot the retry is capped at firstRetryMaxMs; after it the full backoff applies", async (t) => {
+  // The retry pause is a setTimeout. Under mock timers it fires only when the test ticks, and a spy on the mocked
+  // setTimeout records the delay the source asked for: the check is on that state (the exact pause, then the ask
+  // after a tick of that length and none after a shorter one), not on measured gaps, which under load grew past
+  // any wall-clock bound. Only the source's own timers count, and not its stale timer (a minute here): fetch keeps
+  // its own on setTimeout too (a keep-alive refresh, the parser's timeouts).
   const host = await startHost();
   host.snapshotStatus = 503;
-  const asks: number[] = [];
-  const started = Date.now();
-  host.onSnapshot = () => asks.push(Date.now() - started);
-  const run = observe(host.url, { timings: { ...TIMINGS, retryMinMs: 10, retryMaxMs: 400, firstRetryMaxMs: 30 } });
-  await run.until(() => host.snapshots >= 6, "six asks under the first cap", 1500);
-  const gaps = asks.slice(1).map((t, i) => t - (asks[i] as number));
-  assert.ok(gaps.slice(2).every((gap) => gap < 150), `the gaps stay near the 30 ms cap, never the 400 ms backoff: ${gaps.join(",")}`);
-  host.snapshotStatus = 200;
-  await run.until(() => run.state() === "live", "live");
-  run.stop();
-  await host.close();
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const pauses: number[] = [];
+  const mocked = globalThis.setTimeout;
+  const spy = (fn: (...args: unknown[]) => void, ms?: number, ...args: unknown[]) => {
+    if (typeof ms === "number" && ms < 1000 && (new Error().stack ?? "").includes("/src/hostSource.ts")) pauses.push(ms);
+    return mocked(fn, ms, ...args);
+  };
+  globalThis.setTimeout = spy as unknown as typeof setTimeout;
+  const run = observe(host.url, { timings: { ...TIMINGS, staleMs: 60_000, retryMinMs: 10, retryMaxMs: 400, firstRetryMaxMs: 30 } });
+  let taken = 0; // the pauses checked so far: each call takes the next one (a reset asks at once, without a pause)
+  const askAfterPause = async (n: number, delay: number): Promise<void> => {
+    await settle(() => pauses.length > taken, `the pause before ask ${n}`);
+    assert.equal(pauses[taken++], delay, `the pause before ask ${n}: ${pauses.join(",")}`);
+    t.mock.timers.tick(delay - 1);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(host.snapshots, n - 1, `no ask ${n} before its ${delay} ms`);
+    t.mock.timers.tick(1);
+    await settle(() => host.snapshots === n, `ask ${n} after ${delay} ms`);
+  };
+  try {
+    await settle(() => host.snapshots === 1, "the first ask");
+    // Before the first snapshot: 10, 20, then the 30 ms cap, never the 400 ms backoff.
+    for (const [n, delay] of [[2, 10], [3, 20], [4, 30], [5, 30], [6, 30]] as const) await askAfterPause(n, delay);
+    host.snapshotStatus = 200;
+    await askAfterPause(7, 30);
+    await settle(() => run.state() === "live" && host.cursors.length === 1, "live, the stream open");
+    // After the first snapshot the full backoff applies: a reset asks again at once, then 10, 20, 40, 80 ms apart.
+    host.snapshotStatus = 503;
+    host.push({ type: "reset", reason: "gone" });
+    await settle(() => host.snapshots === 8, "the ask after the reset");
+    for (const [n, delay] of [[9, 10], [10, 20], [11, 40], [12, 80]] as const) await askAfterPause(n, delay);
+    host.snapshotStatus = 200;
+    await askAfterPause(13, 160);
+    await settle(() => run.state() === "live", "live again");
+  } finally {
+    run.stop();
+    globalThis.setTimeout = mocked;
+    t.mock.timers.reset();
+    host.endStreams();
+    await host.close();
+  }
 });
 
 test("a snapshot read ahead (prefetchSnapshot): its body is the first message, synchronously at start; the stream opens at its cursor and the host is not asked again", async () => {
