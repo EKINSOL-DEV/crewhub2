@@ -1,6 +1,6 @@
 import { memo, useCallback, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 import { Archive, Check, CircleHelp, Clock, Flag, Hand, MessageSquare, Play, RefreshCw, Sprout, TriangleAlert, Trophy, User } from "lucide-react";
-import { archivedWords, agentCardFacts, doneWord, type AgentPlacement, type Building, type PersonVisit, type ProgressKind, type RoleSource, type RoomWording, type WorkObject, type WorldModel } from "@crewhub/world-model";
+import { archivedWords, agentCardFacts, doneWord, roleWords, type AgentPlacement, type Building, type PersonVisit, type ProgressKind, type RoomWording, type WorkObject, type WorldModel } from "@crewhub/world-model";
 import { SOURCE, STRESS, worldRuntime } from "../state/world";
 import { loopsWebUrl } from "../state/source";
 import { AgentCard } from "./AgentCard";
@@ -627,7 +627,6 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
           key={a.key}
           slug={b.slug}
           agent={a}
-          building={b}
           model={model}
           workingIn={nameOf(a.workingIn)}
           plate={same(shown, { kind: "agent", key: a.key })}
@@ -748,11 +747,6 @@ function TownLabels({ building: b, town, errors, shows }: { building: Building; 
 
 const CAPTION_ICON: Record<ProgressKind, typeof Play> = { start: Play, update: RefreshCw, done: Check, question: CircleHelp };
 
-function roleWords(role: string, source: RoleSource): string {
-  if (source === "fact") return `${role}, a fact`;
-  if (source === "override") return `${role}, set by you`;
-  return `${role}, from its name`;
-}
 
 function statusTag(agent: AgentPlacement, model: WorldModel, workingIn: string) {
   if (agent.presence === "proxy") return `working in ${workingIn}${agent.locationInferred ? " (inferred)" : ""}`;
@@ -790,7 +784,6 @@ function bubbleFor(agent: AgentPlacement, model: WorldModel): { icon: typeof Pla
 function AgentLabel({
   slug,
   agent,
-  building,
   model,
   workingIn,
   plate,
@@ -799,7 +792,6 @@ function AgentLabel({
 }: {
   slug: string;
   agent: AgentPlacement;
-  building: Building;
   model: WorldModel;
   workingIn: string;
   plate: boolean;
@@ -844,7 +836,7 @@ function AgentLabel({
           <span className={`agent-plate${agent.presence === "proxy" ? " proxy" : ""}`}>
             <span className="plate-name">
               <strong>{agent.displayName}</strong>
-              <span className="sign-muted">{roleWords(agent.key === building.lead.id && agent.roleSource === "fact" ? "lead" : agent.role, agent.roleSource)}</span>
+              <span className="sign-muted">{roleWords(agent.role, agent.roleSource, "you")}</span>
             </span>
             {agent.presence === "proxy" ? (
               <span className="sign-muted">{tag}</span>

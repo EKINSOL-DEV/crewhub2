@@ -14,7 +14,7 @@ const agent = (over: Partial<AgentPlacement> = {}): AgentPlacement => ({
   displayName: "CL Lead",
   registered: true,
   role: "lead",
-  roleSource: "fact",
+  roleSource: "project-lead",
   building: "crewhub-loops",
   room: "lead-office",
   presence: "real",

@@ -220,6 +220,8 @@ export function agentCardFacts(model: WorldModel, facts: Readonly<Facts>, key: s
     displayName: agent.displayName,
     registered: agent.registered,
     loopsRole: null,
+    crewhubLead: false,
+    external: false,
     lead: null,
     lane: null,
     homes: [],

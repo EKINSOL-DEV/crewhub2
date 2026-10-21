@@ -8,6 +8,7 @@ import { emptyMemory } from "../src/memory.ts";
 import type { PresentationMemory } from "../src/memory.ts";
 import type { AgentKey, RoleId, WorldModel } from "../src/model.ts";
 import { Projection } from "../src/projection.ts";
+import { roleNoun, roleWords } from "../src/roleWords.ts";
 import { reduceWorld } from "../src/reducer.ts";
 import {
   FakeSource,
@@ -188,6 +189,52 @@ test("an override beats the name rule", () => {
   assert.deepEqual([byRule?.role, byRule?.roleSource, byRule?.room], ["worker", "name-rule", "workers"]);
   const overridden = building(reduce(T0, { "ekinsol/cl-dev-2": "design" })).agents.find((a) => a.name === "cl-dev-2");
   assert.deepEqual([overridden?.role, overridden?.roleSource, overridden?.room], ["design", "override", "design"]);
+});
+
+test("each role says where it came from: the project lead, the CrewHub lead, the postman, an external bot, a -lead suffix, the naming convention, loops' own role, the team snapshot", () => {
+  const { reduce } = world({
+    projects: [CL],
+    agents: [
+      registered("cl-lead"),
+      registered("chief", "lead", { isCrewhubLead: true, projects: { lead: [], member: [{ slug: "crewhub-loops", key: "CL" }] } }),
+      registered("postman", "router"),
+      registered("seed-bot", "lead", { external: true, projects: { lead: [], member: [{ slug: "crewhub-loops", key: "CL" }] } }),
+      registered("ux-lead", "lead", { projects: { lead: [], member: [{ slug: "crewhub-loops", key: "CL" }] } }),
+      registered("g-man", "lead", { projects: { lead: [], member: [{ slug: "crewhub-loops", key: "CL" }] } }),
+    ],
+    team: team(T0, [lane("cl-lead", "working"), lane("cl-dev-2", "working", { lead: "cl-lead" }), lane("cl-design-1", "working", { lead: "cl-lead" }), lane("Ada", "working", { lead: "cl-lead" })]),
+  });
+  const model = reduce();
+  const inBuilding = building(model).agents;
+  const of = (name: string) => {
+    const a = [...inBuilding, ...model.postOffice, ...model.townHall].find((x) => x.name === name);
+    return [a?.role, a?.roleSource, a?.room];
+  };
+  assert.deepEqual(of("cl-lead"), ["lead", "project-lead", "lead-office"]);
+  assert.deepEqual(of("chief"), ["lead", "crewhub-lead", "lead-office"]);
+  assert.deepEqual(of("postman"), ["worker", "router", null]);
+  assert.deepEqual(of("seed-bot"), ["worker", "external", "workers"]);
+  assert.deepEqual(of("ux-lead"), ["lead", "name-suffix", "lead-office"]);
+  assert.deepEqual(of("g-man"), ["worker", "loops-role", "workers"]);
+  assert.deepEqual(of("cl-dev-2"), ["worker", "name-rule", "workers"]);
+  assert.deepEqual(of("cl-design-1"), ["design", "name-rule", "design"]);
+  assert.deepEqual(of("Ada"), ["worker", "team-worker", "workers"]);
+  // The words say the same, and only the name rules are inferences.
+  const lines = describeWorld(model);
+  const line = (name: string) => lines.find((l) => l.text.startsWith(`${name} is `))!;
+  assert.match(line("cl-lead").text, /^cl-lead is lead, the project lead; /);
+  assert.match(line("chief").text, /^chief is lead, the CrewHub lead; /);
+  assert.match(line("seed-bot").text, /^seed-bot is an external bot; /);
+  assert.match(line("ux-lead").text, /^ux-lead is lead, from the -lead in its name; /);
+  assert.match(line("g-man").text, /^g-man is worker, a registered agent \(loops role lead\); /);
+  assert.match(line("cl-dev-2").text, /^cl-dev-2 is worker, from its name; /);
+  assert.match(line("Ada").text, /^Ada is worker, under its lead in the team snapshot; /);
+  assert.deepEqual(
+    ["cl-lead", "chief", "seed-bot", "ux-lead", "g-man", "cl-dev-2", "Ada"].map((n) => line(n).kind),
+    ["fact", "fact", "fact", "inference", "fact", "inference", "fact"],
+  );
+  assert.match(lines.find((l) => l.text.startsWith("postman is the postman"))?.text ?? "", /^postman is the postman, at the post office: /);
+  assert.deepEqual([roleWords("lead", "override", "you"), roleWords("design", "override"), roleNoun("worker", "router"), roleNoun("worker", "external"), roleNoun("lead", "project-lead")], ["lead, set by you", "design, set by a person", "postman", "external bot", "lead"]);
 });
 
 test("name rules and places: design, analyst, postman, town hall", () => {

@@ -73,8 +73,10 @@ test("D1: an agent is placed in the buildings it leads and the ones it is a memb
   const model = reduceWorld(projection.facts, emptyMemory(), { now: T0, mode: "demo", roleOverrides: {} }).model;
   const where = (slug: string) => model.buildings.find((b) => b.slug === slug)!.agents.filter((a) => a.key === "cr-lead").map((a) => a.role);
   assert.deepEqual(where("creator"), ["lead"]);
-  // A member, not the lead: placed by the name rules (plan 4.2), in the building its membership names.
-  assert.deepEqual(where("inbox"), ["worker"]);
+  // A member, not the lead: placed by the name rules (plan 4.2), in the building its membership names; the `-lead`
+  // suffix makes it a lead there too (at a side desk in that office).
+  assert.deepEqual(where("inbox"), ["lead"]);
+  assert.deepEqual(model.buildings.find((b) => b.slug === "inbox")!.agents.filter((a) => a.key === "cr-lead").map((a) => a.roleSource), ["name-suffix"]);
   // g-man leads `inbox` in this world's projects (ProjectOut.lead) and is a member of nothing: one building.
   assert.deepEqual(model.buildings.flatMap((b) => b.agents.filter((a) => a.key === "g-man").map(() => b.slug)), ["inbox"]);
 });

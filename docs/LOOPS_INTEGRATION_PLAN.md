@@ -377,17 +377,23 @@ catalogue, predefined and stored in the world database:
 
 | Role | Room | Default rule (applied in order) | Room exists |
 | --- | --- | --- | --- |
-| lead | Lead's office, at the centre of the building | The project's `lead` (a fact) | always |
+| lead | Lead's office, at the centre of the building | The project's `lead` (a fact, "the project lead"); the CrewHub lead (`isCrewhubLead`); a name ending in `-lead` ("from the -lead in its name") | always |
 | design | Design room | A worker named `<stem>-design-<n>` | once a design agent has been present |
 | analyst | Analyst room | The registered agent `analyst`, or a worker `<stem>-analyst-<n>` | once an analyst has been present |
-| worker | Workers room | A worker `<stem>-dev-<n>`, and any worker that no earlier rule matched | once a worker has been present |
+| worker | Workers room | The postman (loops role `router`, "the postman"), an external bot ("an external bot"), a worker `<stem>-dev-<n>`, then any registered agent no rule matched ("a registered agent (loops role lead)") or a worker under its lead in the team snapshot ("under its lead in the team snapshot") | once a worker has been present |
 
 - **Where the rules come from.** Worker naming comes from crewhub-loops
   (`cl-dev-2`, `cl-design-7` in `loops:docs/agents.md`), and a worker's lead
   comes from the `lead` field of `/api/team` (`loops:.../contracts/team.py`).
-- **Inferred roles are labelled.** A role derived from a name is an inference
-  and its nameplate says so ("design, from its name"). A person can override it per agent, and the
-  override is stored in the world database.
+- **Every role says where it came from.** The rule order and the words are one
+  source (`roleOf`, `roleWords` in `packages/world-model`): a person's override
+  ("set by you" on the page, "set by a person" in the text view), the project's
+  lead, the CrewHub lead, the postman, an external bot, the `-lead` suffix, the
+  naming convention, and last what loops itself says (a registered agent's
+  loops role) or the team snapshot (a worker under its lead). Only the two name
+  rules are inferences, and their lines say so ("design, from its name"); the
+  text view marks those lines as inferences, the rest as facts. A person can
+  override the role per agent, and the override is stored in the world database.
 - **Adding roles.** A new role is a catalogue row plus a room template.
 - **Recheck.** Nicky accepted the four roles and their rules. Recheck them
   once crewhub-loops documents agent roles; see also L6.

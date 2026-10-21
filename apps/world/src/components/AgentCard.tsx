@@ -3,7 +3,7 @@
    its anchor), a bottom sheet on a phone. Not modal: Escape and a tap outside close it (App), the world stays live. */
 import { useEffect, useId, useRef } from "react";
 import { Circle, CircleCheck, CircleDot, CircleEllipsis, Clock, Contrast, Eye, ExternalLink, Flag, MessageSquare, TriangleAlert, X } from "lucide-react";
-import type { AgentCardFacts, Freshness } from "@crewhub/world-model";
+import { roleWords, type AgentCardFacts, type Freshness } from "@crewhub/world-model";
 import { LaneChip } from "../world/lane";
 import type { CardChip, CardRow, RenderedSection } from "../world/agentCard/types";
 import { Button, Card, Chip } from "./primitives";
@@ -47,7 +47,7 @@ export function AgentCard({ facts, sections, freshness, demo, following, sheet, 
     if (sheet) card.current?.querySelector<HTMLElement>("button")?.focus();
   }, [sheet, facts.key]);
   const { agent } = facts;
-  const role = agent.roleSource === "override" ? `${agent.role}, set by you` : agent.roleSource === "fact" ? agent.role : `${agent.role}, from its name`;
+  const role = roleWords(agent.role, agent.roleSource, "you");
   return (
     <Card ref={card} className={`agent-card${sheet ? " agent-card-sheet" : ""}${agent.presence === "proxy" ? " proxy" : ""}`} role="dialog" aria-modal="false" aria-labelledby={`${id}-title`}>
       <header className="agent-card-head">
