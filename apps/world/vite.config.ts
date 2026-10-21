@@ -86,8 +86,8 @@ function previewWithoutHost(note: string): Plugin {
 /**
  * The dev server's one line about its host, or its refusal (hostPort.ts, `devHostVerdict`): before the server listens
  * it asks the port's `/world-api/health` once and compares the host's checkout id with this checkout's (apps/host
- * `checkout.ts`, the same hash of the repository root the host puts in health). Another checkout's host: an error, and
- * the dev server does not start.
+ * `checkout.ts`, the same hash of the repository root the host puts in health). Another checkout's host: the line, and
+ * the dev server does not start (exit 1).
  */
 function devHost(port: number, explicit: boolean): Plugin {
   return {
@@ -95,7 +95,11 @@ function devHost(port: number, explicit: boolean): Plugin {
     async configureServer(server) {
       const root = realpathSync(fileURLToPath(new URL("../..", import.meta.url)));
       const verdict = devHostVerdict({ port, explicit, local: { root, id: checkoutId(root) }, answer: await probeHostCheckout(port) });
-      if (!verdict.ok) throw new Error(verdict.line);
+      if (!verdict.ok) {
+        // The line, plainly, and no server: a thrown error would print it under a stack trace.
+        server.config.logger.error(`\n  ${verdict.line}\n`, { timestamp: false });
+        process.exit(1);
+      }
       server.config.logger.info(`  ${verdict.line}`);
     },
   };
