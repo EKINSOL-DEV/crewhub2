@@ -893,8 +893,8 @@ install changes only a URL and a key file. The runbook is [LOOPS_SETUP.md](LOOPS
 
 - **The host relay**, `apps/host` (3.5, the integrator doc's Option A): one agent key read once from
   `CREWHUB_WORLD_KEY_FILE`, one loops stream shared by every tab with a ring buffer, the snapshot assembled
-  stream-first as `read-model.md` "Loading a snapshot" says, SSE on `/world-api/stream?cursor=N` with `status`,
-  `event`, `heartbeat` and `reset`, the thin-event refetch routes, `/world-api/project-groups` as `{groups: []}`,
+  stream-first as `read-model.md` "Loading a snapshot" says, SSE on `/world-api/stream?cursor=N` with `status`
+  (`loops` and, since round 11, `key`: the host's own word on its key), `event`, `heartbeat` and `reset`, the thin-event refetch routes, `/world-api/project-groups` as `{groups: []}`,
   `/world-api/health`, an allow-list of loops `GET` paths in one file, Host and Origin checked against loopback,
   reconnect with backoff, the static bundle in production. `npm run host`, `npm run host:start`.
 - **The live source**, `createHostSource` in `packages/loops-client`: `WorldSource` with `mode: "live"`,

@@ -10,7 +10,7 @@ import { ConnectionChip, connectionLine, connectionWord } from "./components/Con
 import { ConnectionPanel } from "./components/ConnectionPanel";
 import { FirstSnapshot } from "./components/FirstSnapshot";
 import { CONNECT_POLL_MS, ConnectPage } from "./components/ConnectPage";
-import { liveScreen } from "./state/connect";
+import { liveScreen, withStreamKey } from "./state/connect";
 import { JumpList } from "./components/JumpList";
 import { IconSprite } from "./components/Icon";
 import { Button, Card, Chip, Field, Menu } from "./components/primitives";
@@ -31,7 +31,7 @@ import { useBuildMode } from "./state/build";
 import { useDark, useTheme } from "./state/theme";
 import { townRuntime, useTown } from "./state/town";
 import type { TownLayer } from "./world/propLayer";
-import { scenarioChoices, SOURCE, useConnection, useWorld, worldRuntime } from "./state/world";
+import { scenarioChoices, SOURCE, useConnection, useConnectionKey, useWorld, worldRuntime } from "./state/world";
 import { loopsWebUrl } from "./state/source";
 import { translate } from "./i18n";
 import { probeHost, type ConnectionState, type HostHealth } from "@crewhub/loops-client";
@@ -644,11 +644,13 @@ function World() {
   // Unpaired (state/connect.ts `liveScreen`): the host answered 401 not_paired after the town was up (a host restarted
   // without its pairing secret, or the cookie gone). The Pair screen stands in for the town until the source, which keeps
   // asking every couple of seconds, is live again with the new link's cookie; then the town comes back by itself.
-  // Unauthorized or loops down: the host's health says what the key is (none after a Forget in another tab: the Connect
-  // screen; rejected: the rejected screen), so while the source says so and no screen shows yet, the health is read again
-  // every few seconds (the Connect page reads it itself once it shows).
-  const screen = demo ? null : liveScreen(connection, health);
-  const degraded = !demo && (connection === "unauthorized" || connection === "loops-down") && screen === null;
+  // Unauthorized or loops down: the host's own word on its key says what it is (none after a Forget in another tab: the
+  // Connect screen; rejected: the rejected screen). The stream's status carries that word since round 11 and is preferred
+  // over the health read; a host from before says nothing, so while the source says so and no screen shows yet, the health
+  // is read again every few seconds (the Connect page reads it itself once it shows).
+  const streamKey = useConnectionKey();
+  const screen = demo ? null : liveScreen(connection, withStreamKey(health, streamKey));
+  const degraded = !demo && streamKey === null && (connection === "unauthorized" || connection === "loops-down") && screen === null;
   useEffect(() => {
     if (!degraded) return;
     let live = true;

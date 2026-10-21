@@ -158,7 +158,7 @@ function observe(url: string, extra: Record<string, unknown> = {}) {
       await new Promise((resolve) => setTimeout(resolve, 5));
     }
   };
-  return { source, messages, states, stop, until, state: () => source.connection!.state() };
+  return { source, messages, states, stop, until, state: () => source.connection!.state(), key: () => source.connection!.key() };
 }
 
 const count = (messages: SourceMessage[], type: SourceMessage["type"]) => messages.filter((m) => m.type === type).length;
@@ -290,6 +290,32 @@ test("status messages → loops-down / unauthorized; ok again re-snapshots", asy
   await run.until(() => run.state() === "unauthorized", "unauthorized");
   host.push({ type: "status", loops: "ok" });
   await run.until(() => count(run.messages, "snapshot") === 2 && run.state() === "live", "re-snapshot and live");
+  run.stop();
+  await host.close();
+});
+
+test("the status's key: the host's own word kept and exposed, null from a host that does not say, a word it does not know ignored, a change notifies", async () => {
+  const host = await startHost();
+  const run = observe(host.url);
+  let changes = 0;
+  run.source.connection!.onChange(() => (changes += 1));
+  await run.until(() => host.cursors.length === 1, "the stream");
+  assert.equal(run.key(), null, "the welcome status (a host from before) says nothing about the key");
+  host.push({ type: "status", loops: "ok", key: "ok" });
+  await run.until(() => run.key() === "ok", "key ok");
+  const before = changes;
+  host.push({ type: "status", loops: "ok", key: "ok" });
+  host.push({ type: "status", loops: "ok", key: "banana" });
+  host.push({ type: "status", loops: "ok" });
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  assert.equal(run.key(), "ok", "the same word, an unknown word and a status without one leave it");
+  assert.equal(changes, before, "and nothing fires for them");
+  // Forget this key in another tab: the host says unauthorized (its legacy word for no key) with key none.
+  host.push({ type: "status", loops: "unauthorized", key: "none" });
+  await run.until(() => run.state() === "unauthorized" && run.key() === "none", "unauthorized with key none");
+  assert.ok(changes > before, "the key's change notifies the listeners");
+  host.push({ type: "status", loops: "unauthorized", key: "rejected" });
+  await run.until(() => run.key() === "rejected", "key rejected");
   run.stop();
   await host.close();
 });

@@ -6,7 +6,7 @@
  * short jittered pause, on errors a backoff, on 429 `Retry-After`, on 410 a reset. Exactly one stream is open at any
  * time. While loops is down the host beats itself every `heartbeatMs`.
  */
-import type { Envelope } from "@crewhub/loops-client";
+import type { Envelope, HostKeyState } from "@crewhub/loops-client";
 import { type LoopsClient, type StreamResume, isUnauthorized } from "./loops.ts";
 import { SnapshotError, readTail } from "./snapshot.ts";
 
@@ -16,8 +16,14 @@ export type LoopsState = "ok" | "down" | "unauthorized";
 export const BUSY_REASON = "stream budget exhausted (429): another host or tab uses this key";
 
 export type HostMessage =
-  /** `stream: "busy"` with the reason when loops refused the stream with 429 (`loops` stays `down` for the world from before). */
-  | { type: "status"; loops: LoopsState; stream?: "busy"; reason?: string }
+  /**
+   * `stream: "busy"` with the reason when loops refused the stream with 429 (`loops` stays `down` for the world from before).
+   * `key` is the host's own word on its key (`HostConnection.key.state`: none, unchecked, checking, rejected, ok), stamped by
+   * the host on every status it sends a tab: `loops` keeps one legacy word, "unauthorized", for no key and for a rejected
+   * key alike, so after a Forget in another tab a tab hears `unauthorized, key none` and shows the Connect screen, and for a
+   * key loops revoked `unauthorized, key rejected`. The upstream itself sends no key; the host adds it.
+   */
+  | { type: "status"; loops: LoopsState; stream?: "busy"; reason?: string; key?: HostKeyState["state"] }
   | { type: "event"; envelope: Envelope }
   | { type: "heartbeat"; seq: number; ts: string }
   | { type: "reset"; reason: "gone" | "reconnected" | "cursor" };

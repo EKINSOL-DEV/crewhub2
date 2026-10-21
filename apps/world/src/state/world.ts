@@ -265,3 +265,9 @@ export function useConnection(): ConnectionState | null {
   const connection = worldRuntime().connection;
   return useSyncExternalStore(connection ? (listener) => connection.onChange(listener) : NONE, () => (connection ? connection.state() : null));
 }
+
+/** The host's own word on its key from the stream's last status (none, checking, rejected, ok…); null in demo mode or from a host that does not say. */
+export function useConnectionKey(): ReturnType<ConnectionStatus["key"]> {
+  const connection = worldRuntime().connection;
+  return useSyncExternalStore(connection ? (listener) => connection.onChange(listener) : NONE, () => (connection ? connection.key() : null));
+}
