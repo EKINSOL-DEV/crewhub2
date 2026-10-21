@@ -171,9 +171,22 @@ export interface FigureOptions {
   accent: PaletteName | null;
 }
 
+/** A person: the principal id or "visitor" seeds the clothes, so the same person dresses the same on every load. */
+export interface PersonOptions {
+  key: string;
+}
+
 export interface Cast {
   readonly manifest: CastManifest;
   figure(options: FigureOptions): FigureHandle;
+  /**
+   * A person in the world (the owner who carries work into Done, walk mode's visitor): the cast's own person figure
+   * (`person.json`, see `CastFactory.person`), in the cast's language but clearly not an agent: no project colour, no
+   * role. A cast without one draws its plain worker without a project colour, as before there were people.
+   */
+  person(options: PersonOptions): FigureHandle;
+  /** Whether `person` draws a figure of its own (false: the plain worker stands in). */
+  readonly hasPerson: boolean;
   dispose(): void;
 }
 
@@ -182,6 +195,12 @@ export interface CastFactory {
   readonly manifest: CastManifest;
   /** The cast's figure data (a `FigurePatch` when the manifest `extends` another cast); absent for a code-only cast. */
   readonly figure?: FigureSpec | FigurePatch;
+  /**
+   * The cast's person figure data (`person.json`, optional): a `crewhub-figure/1` of its own rig, or a
+   * `crewhub-figure-patch/1` over the person of the cast this one `extends`. A person wears no project colour and has
+   * no role (`validatePerson`). Left out: the base's person when the cast extends one, else the plain worker.
+   */
+  readonly person?: FigureSpec | FigurePatch;
   /** Code for what data cannot say (optional). With `figure`, the runtime builds the figure and then calls this. */
   readonly extend?: FigureExtension;
   /** A cast drawn wholly in code (no `figure`): build it with the style's kit. */
@@ -412,7 +431,7 @@ export interface FigurePatch {
 }
 
 export { applyFigurePatch, figureColor, figureEyes, hashKey, perchFor, perchPlacement, wave, type PerchPlacement } from "./figure.ts";
-export { validateCastManifest, validateFigure, validateFigurePatch, type CastValidation } from "./validate.ts";
+export { validateCastManifest, validateFigure, validateFigurePatch, validatePerson, type CastValidation } from "./validate.ts";
 export { createCast } from "./runtime.ts";
 export { referenceKit } from "./referenceKit.ts";
 export { castProblems, measureFigure, sightProblems } from "./contract.ts";

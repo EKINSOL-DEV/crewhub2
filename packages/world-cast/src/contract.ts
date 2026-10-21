@@ -91,74 +91,96 @@ export function sightProblems(handle: FigureHandle, place: WorkPlace, at: string
   return problems;
 }
 
+/** The figure's budget as it stands now, and whether a far pose can be batched. */
+interface Budget {
+  near: number;
+  far: number;
+  nearMeshes: number;
+  farMeshes: number;
+}
+
+/**
+ * Why one figure breaks the contract: its anchors, every state near and far (it draws, the far crowd can batch it, the
+ * pose is finite), the highlights, and at each work place (the figure works there: a role) its sight and its budget on
+ * its perch. The largest counts seen go into `budget`.
+ */
+function figureProblems(handle: FigureHandle, at: string, places: readonly WorkPlace[], budget: Budget): string[] {
+  const problems: string[] = [];
+  const a = handle.anchors;
+  const finite = [...a.label, ...a.carry, a.ground, a.height].every(Number.isFinite);
+  if (!finite || a.ground <= 0 || a.height <= 0) problems.push(`${at}: anchors must be finite, with a ground radius and a height above 0`);
+  else {
+    if (a.label[1] < a.height * 0.8 || a.label[1] > a.height * 1.5) problems.push(`${at}: the label anchor (${a.label[1]}) must sit just above the head (height ${a.height})`);
+    if (a.carry[1] < 0 || a.carry[1] > a.height) problems.push(`${at}: the carry anchor must be between the feet and the head`);
+    if (a.ground > a.height) problems.push(`${at}: the ground radius is larger than the figure is tall`);
+  }
+  for (const state of everyState()) {
+    const name = `${at} ${state.activity}${state.waiting ? " waiting" : ""}${state.alert ? " alert" : ""}${state.proxy ? " proxy" : ""}${state.carrying ? " carrying" : ""}`;
+    try {
+      handle.setState(state);
+      handle.setDetail("near");
+      handle.update(0.3);
+      const n = measureFigure(handle);
+      handle.setDetail("far");
+      const f = measureFigure(handle);
+      budget.near = Math.max(budget.near, n.triangles);
+      budget.far = Math.max(budget.far, f.triangles);
+      budget.nearMeshes = Math.max(budget.nearMeshes, n.meshes);
+      budget.farMeshes = Math.max(budget.farMeshes, f.meshes);
+      if (!n.meshes || !f.meshes) problems.push(`${name}: draws nothing`);
+      // A proxy and a stale figure are see-through by the runtime's own treatment; every other far figure batches.
+      if (!state.proxy && state.activity !== "stale" && f.unbatched) problems.push(`${name}: ${f.unbatched} far part(s) the crowd cannot batch (use the kit's plain materials)`);
+      const box = new THREE.Box3().setFromObject(handle.object);
+      if (![box.min.x, box.min.y, box.min.z, box.max.x, box.max.y, box.max.z].every(Number.isFinite)) problems.push(`${name}: the pose is not finite`);
+    } catch (error) {
+      problems.push(`${name}: throws (${(error as Error).message})`);
+    }
+  }
+  for (const highlight of ["hover", "selected", "none"] as const) handle.setHighlight(highlight);
+  for (const place of places) {
+    try {
+      problems.push(...sightProblems(handle, place, `${at} at the ${place.pose}`));
+      // On its perch the figure still fits its budget, step and all.
+      handle.setPerch(place, true);
+      const perched = measureFigure(handle);
+      budget.near = Math.max(budget.near, perched.triangles);
+      budget.nearMeshes = Math.max(budget.nearMeshes, perched.meshes);
+      handle.setPerch(null, true);
+    } catch (error) {
+      problems.push(`${at} at the ${place.pose}: throws (${(error as Error).message})`);
+    }
+  }
+  return problems;
+}
+
 /**
  * Why a cast breaks the contract, one line per problem; empty when it passes. `places` are the world's work places
- * (one of each pose is enough): every role must see its work at each.
+ * (one of each pose is enough): every role must see its work at each. A cast's own person (`hasPerson`) is held to
+ * the same anchors, states and budget; it never works at a surface, so it is not put at the places.
  */
 export function castProblems(cast: Cast, places: readonly WorkPlace[] = []): string[] {
   const problems: string[] = [];
   const { id, budget } = cast.manifest;
-  for (const role of CAST_ROLES) {
-    const at = `${id} ${role}`;
+  const figures: { at: string; build: () => FigureHandle; places: readonly WorkPlace[] }[] = CAST_ROLES.map((role) => ({
+    at: `${id} ${role}`,
+    build: () => cast.figure({ key: `contract:${role}`, role, accent: role === "unknown" ? null : "coral" }),
+    places,
+  }));
+  if (cast.hasPerson) figures.push({ at: `${id} person`, build: () => cast.person({ key: "contract:person" }), places: [] });
+  for (const { at, build, places: at_ } of figures) {
     let handle: FigureHandle;
     try {
-      handle = cast.figure({ key: `contract:${role}`, role, accent: role === "unknown" ? null : "coral" });
+      handle = build();
     } catch (error) {
       problems.push(`${at}: does not build (${(error as Error).message})`);
       continue;
     }
-    const a = handle.anchors;
-    const finite = [...a.label, ...a.carry, a.ground, a.height].every(Number.isFinite);
-    if (!finite || a.ground <= 0 || a.height <= 0) problems.push(`${at}: anchors must be finite, with a ground radius and a height above 0`);
-    else {
-      if (a.label[1] < a.height * 0.8 || a.label[1] > a.height * 1.5) problems.push(`${at}: the label anchor (${a.label[1]}) must sit just above the head (height ${a.height})`);
-      if (a.carry[1] < 0 || a.carry[1] > a.height) problems.push(`${at}: the carry anchor must be between the feet and the head`);
-      if (a.ground > a.height) problems.push(`${at}: the ground radius is larger than the figure is tall`);
-    }
-    let near = 0,
-      far = 0,
-      nearMeshes = 0,
-      farMeshes = 0;
-    for (const state of everyState()) {
-      const name = `${at} ${state.activity}${state.waiting ? " waiting" : ""}${state.alert ? " alert" : ""}${state.proxy ? " proxy" : ""}${state.carrying ? " carrying" : ""}`;
-      try {
-        handle.setState(state);
-        handle.setDetail("near");
-        handle.update(0.3);
-        const n = measureFigure(handle);
-        handle.setDetail("far");
-        const f = measureFigure(handle);
-        near = Math.max(near, n.triangles);
-        far = Math.max(far, f.triangles);
-        nearMeshes = Math.max(nearMeshes, n.meshes);
-        farMeshes = Math.max(farMeshes, f.meshes);
-        if (!n.meshes || !f.meshes) problems.push(`${name}: draws nothing`);
-        // A proxy and a stale figure are see-through by the runtime's own treatment; every other far figure batches.
-        if (!state.proxy && state.activity !== "stale" && f.unbatched) problems.push(`${name}: ${f.unbatched} far part(s) the crowd cannot batch (use the kit's plain materials)`);
-        const box = new THREE.Box3().setFromObject(handle.object);
-        if (![box.min.x, box.min.y, box.min.z, box.max.x, box.max.y, box.max.z].every(Number.isFinite)) problems.push(`${name}: the pose is not finite`);
-      } catch (error) {
-        problems.push(`${name}: throws (${(error as Error).message})`);
-      }
-    }
-    for (const highlight of ["hover", "selected", "none"] as const) handle.setHighlight(highlight);
-    for (const place of places) {
-      try {
-        problems.push(...sightProblems(handle, place, `${at} at the ${place.pose}`));
-        // On its perch the figure still fits its budget, step and all.
-        handle.setPerch(place, true);
-        const perched = measureFigure(handle);
-        near = Math.max(near, perched.triangles);
-        nearMeshes = Math.max(nearMeshes, perched.meshes);
-        handle.setPerch(null, true);
-      } catch (error) {
-        problems.push(`${at} at the ${place.pose}: throws (${(error as Error).message})`);
-      }
-    }
-    if (near > budget.nearTriangles) problems.push(`${at}: ${near} triangles near, over the budget of ${budget.nearTriangles}`);
-    if (far > budget.farTriangles) problems.push(`${at}: ${far} triangles far, over the budget of ${budget.farTriangles}`);
-    if (nearMeshes > budget.nearMeshes) problems.push(`${at}: ${nearMeshes} meshes near, over the budget of ${budget.nearMeshes}`);
-    if (farMeshes > budget.farMeshes) problems.push(`${at}: ${farMeshes} meshes far, over the budget of ${budget.farMeshes}`);
+    const seen: Budget = { near: 0, far: 0, nearMeshes: 0, farMeshes: 0 };
+    problems.push(...figureProblems(handle, at, at_, seen));
+    if (seen.near > budget.nearTriangles) problems.push(`${at}: ${seen.near} triangles near, over the budget of ${budget.nearTriangles}`);
+    if (seen.far > budget.farTriangles) problems.push(`${at}: ${seen.far} triangles far, over the budget of ${budget.farTriangles}`);
+    if (seen.nearMeshes > budget.nearMeshes) problems.push(`${at}: ${seen.nearMeshes} meshes near, over the budget of ${budget.nearMeshes}`);
+    if (seen.farMeshes > budget.farMeshes) problems.push(`${at}: ${seen.farMeshes} meshes far, over the budget of ${budget.farMeshes}`);
     handle.dispose();
   }
   return problems;

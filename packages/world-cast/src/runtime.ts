@@ -398,12 +398,18 @@ function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend
   };
 }
 
-/** A cast from its data: every figure is built by the runtime with the style's kit, then handed to `extend`. */
-export function createCast(manifest: CastManifest, spec: FigureSpec, kit: FigureKit, extend?: FigureExtension): Cast {
+/**
+ * A cast from its data: every figure is built by the runtime with the style's kit, then handed to `extend`. A person
+ * is the cast's own person figure (`person`), or its plain worker without a project colour when it has none; `extend`
+ * runs only on the worker (it is written for the cast's agents).
+ */
+export function createCast(manifest: CastManifest, spec: FigureSpec, kit: FigureKit, extend?: FigureExtension, person: FigureSpec | null = null): Cast {
   const steps: StepCache = new Map();
   return {
     manifest,
     figure: (options) => figure(spec, kit, options, extend, steps),
+    person: ({ key }) => (person ? figure(person, kit, { key, role: "worker", accent: null }, undefined, steps) : figure(spec, kit, { key, role: "worker", accent: null }, extend, steps)),
+    hasPerson: person !== null,
     dispose() {},
   };
 }
