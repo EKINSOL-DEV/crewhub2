@@ -32,7 +32,7 @@
  */
 import { spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -203,6 +203,15 @@ try {
 }
 
 const staticDir = config.production ? distDir : undefined;
+// The host's own folder is 0700 before anything lands in it (the pairing secret of `world` comes before the stored key).
+if (args.command === "world") {
+  try {
+    mkdirSync(config.configDir, { recursive: true, mode: 0o700 });
+    chmodSync(config.configDir, 0o700);
+  } catch {
+    // The pairing secret's own write says what is wrong.
+  }
+}
 const pairingSecret = config.pairingFile === null ? undefined : loadPairingSecret(config.pairingFile);
 const mintSecret = randomBytes(32).toString("base64url");
 const host = await createHost({
