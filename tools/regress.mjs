@@ -770,11 +770,21 @@ await group("ops", async () => {
       .then(() => true)
       .catch(() => false);
   const hostApi = (p) => pg.request.get(`${opsOrigin}/world-api${p}`).then((r) => r.json());
-  /** Opens the Connection panel, reads its facts as one line and closes it with Escape. */
-  const panelFacts = async () => {
+  /**
+   * Opens the Connection panel, waits until its facts (one line) satisfy `wanted` (the panel asks the host when it
+   * opens and on every state change, then every 5 s: up to its poll and a margin), closes it with Escape and
+   * answers the facts as last read.
+   */
+  const panelFacts = async (wanted = () => true) => {
     await chip.click();
     await pg.waitForSelector(".connection-sheet", { timeout: 5000 }).catch(() => {});
-    const facts = (await pg.locator(".connection-facts").innerText().catch(() => "")).replace(/\s+/g, " ");
+    let facts = "";
+    const deadline = Date.now() + 8000;
+    for (;;) {
+      facts = (await pg.locator(".connection-facts").innerText().catch(() => "")).replace(/\s+/g, " ");
+      if (wanted(facts) || Date.now() > deadline) break;
+      await pg.waitForTimeout(250);
+    }
     await pg.keyboard.press("Escape");
     await pg.waitForTimeout(200);
     return facts;
@@ -808,7 +818,7 @@ await group("ops", async () => {
     lastSeq = fake.lastSeq();
     await fake.close();
     const down = await until("loops-down", 20000);
-    const factsDown = await panelFacts();
+    const factsDown = await panelFacts((f) => /down; the host retries/.test(f));
     ok("ops (a): loops stopped under the host: the Loops down chip over the last known town, the panel says the stream is down and the host retries, the key still accepted", down === "loops-down" && /down; the host retries/.test(factsDown) && /accepted/.test(factsDown), `${down}; ${factsDown.slice(0, 160)}`);
     await shot(pg, "47-ops-loops-stopped");
     fake = await createLoopsFake({ ...fakeOptions, port, key: firstKey, keyName, firstSeq: lastSeq });
@@ -852,7 +862,7 @@ await group("ops", async () => {
     fake = await createLoopsFake({ ...fakeOptions, version: "0.2.0+fake.ops", port, key: secondKey, keyName, firstSeq: lastSeq });
     const liveUpgraded = await until("live", 30000);
     const healthUpgraded = await healthUntil((h) => h.loopsCommit === "0.2.0+fake.ops", 15000);
-    const factsUpgraded = await panelFacts();
+    const factsUpgraded = await panelFacts((f) => /it was 0\.1\.0\+fake\.ops when this host started/.test(f));
     ok("ops (c): loops upgraded under the host: Live, health says the new version and the one the host read first, the panel says crewhub-loops was updated under the host", liveUpgraded === "live" && healthUpgraded?.loopsCommit === "0.2.0+fake.ops" && healthUpgraded?.loopsCommitBefore === "0.1.0+fake.ops" && /crewhub-loops version 0\.2\.0\+fake\.ops; it was 0\.1\.0\+fake\.ops when this host started/.test(factsUpgraded), `${liveUpgraded}; ${healthUpgraded?.loopsCommitBefore ?? "no before"} → ${healthUpgraded?.loopsCommit}; ${factsUpgraded.slice(0, 160)}`);
     await shot(pg, "51-ops-upgraded");
     // The revoked key's 401 and the refused reads it causes are console errors in the browser, what they are meant to be.

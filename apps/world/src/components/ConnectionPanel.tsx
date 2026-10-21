@@ -2,7 +2,8 @@
    what the host's health says: where crewhub-loops was found (via and target), the key's name and source, the stream's
    state, cursor, last event (relative) and reconnects, the closed buildings and where that list came from (loops' event
    log, or remembered from an earlier run), loops' version (and the one the host saw first, when loops was updated under
-   it), and how the host reaches loops. It asks the host every 5 s while open.
+   it), and how the host reaches loops. It asks the host every 5 s while open, and at once when the connection's state
+   changes.
    "Forget this key" asks in the panel itself (no browser dialog), then DELETEs the stored key and reloads: the gate
    then shows the Connect screen. Before pairing the host tells states only, and the panel says so. Never the key. */
 import { X } from "lucide-react";
@@ -52,7 +53,9 @@ export function ConnectionPanel({ state, initial, onClose, pollMs = PANEL_POLL_M
       clearInterval(timer);
       clearInterval(clock);
     };
-  }, [pollMs]);
+    // The connection's state is a dependency on purpose: a change (loops down, back, catching up, refused) asks the
+    // host at once instead of waiting for the poll, so the facts never lag the chip by up to five seconds.
+  }, [pollMs, state]);
 
   useEffect(() => {
     card.current?.querySelector<HTMLElement>("button")?.focus();
