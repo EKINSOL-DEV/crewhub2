@@ -534,6 +534,22 @@ await group("demo", async () => {
   const failedText = await text(p);
   ok("the failure in the text view", /Automation "Nudge the reviewer" ran on CL-76: failed\./.test(failedText));
   await shot(p, "16-board-failed");
+  for (let k = 0; k < 3; k++) await p.keyboard.press("Escape");
+  await p.waitForTimeout(1200);
+  // d. Round 9: a snapshot carries the facts the log holds. A seek loads a fresh snapshot, nothing plays: the quiet
+  // fact and the runs are there at once, as in a tab opened after the quiet job spoke.
+  ok("seek after the quiet fact, paused", await seek(p, 500000));
+  await p.waitForTimeout(1500);
+  const carriedQuiet = await text(p);
+  ok("a fresh snapshot carries the quiet fact: the dust is there without playing", /CR-17 has been quiet in Review for 30 min/.test(carriedQuiet), (carriedQuiet.match(/CR-17 has been quiet[^\n]*/) ?? ["no quiet line"])[0]);
+  ok("seek just after the first run, paused", await seek(p, 521000));
+  await p.waitForTimeout(1500);
+  const carriedRuns = await text(p);
+  ok("a fresh snapshot carries the run: the card is pinned and the line is there", /A card on the board by the front door: Automation "Label stale bugs" ran on CR-20: done/.test(carriedRuns) && /^Automation "Label stale bugs" ran on CR-20: done/m.test(carriedRuns), (carriedRuns.match(/A card on the board[^\n]*/) ?? ["no card line"])[0]);
+  ok("seek past the comment that ends the quiet stretch", await seek(p, 700000));
+  await p.waitForTimeout(1500);
+  const ended = await text(p);
+  ok("after the comment the snapshot carries no quiet for CR-17", !/CR-17 has been quiet/.test(ended));
   await p.context().close();
 });
 
@@ -1415,6 +1431,14 @@ await group("real", async () => {
     await shot(pg, "31-real-town");
     const tv = await text(pg);
     ok("real: the town shows the real projects by name", names.length > 0 && names.every((n) => tv.includes(n)) && !/Demo mode/.test(tv), `${names.join(", ")}${names.every((n) => tv.includes(n)) ? "" : " | " + tv.slice(0, 160).replace(/\n/g, " | ")}`);
+    // Round 9: the facts the log holds come with the snapshot, so a fresh tab shows the dust of a quiet ticket and
+    // the last runs' lines; skipped with an INFO line when this loops has none open right now.
+    const carriedQuiet = Array.isArray(snapshot.quiet) ? snapshot.quiet : [];
+    const carriedRuns = Array.isArray(snapshot.automationRuns) ? snapshot.automationRuns : [];
+    if (carriedQuiet.length > 0) ok("real: a fresh tab shows the dust of the quiet tickets the host read from the log", carriedQuiet.every((e) => new RegExp(`${e.ticket?.key} has been quiet in `).test(tv)), carriedQuiet.map((e) => `${e.ticket?.key} ${e.payload?.minutes} min`).join(", "));
+    else info("real: no open quiet stretch on this loops right now, the dust check is skipped");
+    if (carriedRuns.length > 0) ok("real: a fresh tab lists the last automation runs the host read from the log", carriedRuns.slice(-3).every((e) => tv.includes(`ran on ${e.ticket?.key}: `)), carriedRuns.slice(-3).map((e) => `${e.ticket?.key} ${e.payload?.outcome}`).join(", "));
+    else info("real: no automation run on an open ticket on this loops, the run lines check is skipped");
     // The building with the most tickets: its real tickets, by key, in the text view and in the scene.
     const withBoard = projects.map((p) => ({ p, keys: (snapshot.boards?.[p.slug]?.columns ?? []).flatMap((c) => c.tickets.map((t) => t.key)) })).sort((a, b) => b.keys.length - a.keys.length)[0];
     if (withBoard && withBoard.keys.length > 0) {

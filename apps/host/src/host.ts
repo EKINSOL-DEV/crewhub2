@@ -617,7 +617,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
     return out;
   }
   const snapshotText = (stats: SnapshotStats) =>
-    `snapshot: ${stats.projects} project${stats.projects === 1 ? "" : "s"}, ${stats.reads} reads in ${Math.round(stats.ms)} ms${stats.slowest === null ? "" : ` (slowest ${stats.slowest.path} ${Math.round(stats.slowest.ms)} ms)`}`;
+    `snapshot: ${stats.projects} project${stats.projects === 1 ? "" : "s"}, ${stats.reads} reads in ${Math.round(stats.ms)} ms${stats.slowest === null ? "" : ` (slowest ${stats.slowest.path} ${Math.round(stats.slowest.ms)} ms)`}${stats.log.quiet + stats.log.runs > 0 ? `, from the log ${stats.log.quiet} quiet, ${stats.log.runs} run${stats.log.runs === 1 ? "" : "s"}` : ""}${stats.log.complete ? "" : " (the log was not read whole: no quiet handed over)"}`;
 
   async function snapshot(res: ServerResponse): Promise<void> {
     await relinking;

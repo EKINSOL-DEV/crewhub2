@@ -3,6 +3,7 @@
  * event log, and answers reads in exactly the shapes of read-model.md. Mutations live in
  * `actions.ts`; they change this state and append the envelopes loops would write.
  */
+import { ACTIVITY_TYPES, openTicketsOf, selectLogFacts } from "@crewhub/loops-client";
 import type {
   ActorRef,
   AgentOut,
@@ -988,13 +989,22 @@ export class DemoReads {
   snapshot(): LoopsSnapshot {
     const featured = (feature: "milestones" | "releases") =>
       this.state.projects.filter((p) => p.archivedAt === null && p.features[feature]).map((p) => p.slug);
+    const boards = Object.fromEntries(this.state.order.map((slug) => [slug, this.board(slug) as BoardResponse]));
+    // What the log alone holds (CL-312), as the live host reads it from `GET /api/events`: the open quiet stretches
+    // and the latest runs on open tickets, the same picking (`@crewhub/loops-client` logFacts.ts) over the loop's log.
+    const log = selectLogFacts(
+      this.state.events.filter((e) => e.type === "ticket.quiet" || e.type === "automation.ran"),
+      this.state.events.filter((e) => (ACTIVITY_TYPES as readonly string[]).includes(e.type)),
+      openTicketsOf(boards),
+      true,
+    );
     return {
       cursor: this.state.seq,
       // The demo host's own principal, as the live host sets it from its key: the world hides it (the observer).
       observer: this.state.content.observer,
       projects: this.projects(),
       archivedProjects: this.archivedProjects(),
-      boards: Object.fromEntries(this.state.order.map((slug) => [slug, this.board(slug) as BoardResponse])),
+      boards,
       team: this.team(),
       agents: this.agents(),
       principals: this.principals(),
@@ -1003,6 +1013,8 @@ export class DemoReads {
       releases: Object.fromEntries(featured("releases").map((slug) => [slug, this.releases(slug)])),
       // FUTURE (proposal L22): absent in crewhub-loops today, so absent here unless the scenario has groups.
       ...(this.state.content.groups.length === 0 ? {} : { groups: this.projectGroups() }),
+      quiet: log.quiet,
+      automationRuns: log.automationRuns,
     };
   }
 }

@@ -155,6 +155,16 @@ export class Projection {
     facts.releases = { ...snapshot.releases };
     facts.groups = snapshot.groups ? [...snapshot.groups] : [];
     this.state = facts;
+    // Facts only the log holds (CL-312): the source hands the open quiet stretches and the latest runs with the
+    // snapshot, as the envelopes they are, all below the cursor; they are applied like any event, so a fresh tab shows
+    // the dust and the recent cards. A source that read no log hands none.
+    const carried = [...(snapshot.quiet ?? []), ...(snapshot.automationRuns ?? [])].sort((a, b) => a.seq - b.seq);
+    for (const envelope of carried) {
+      const checked = validateEnvelope(envelope);
+      if (!checked.ok) continue;
+      const event = toWorldEvent(checked.value);
+      if (event?.ok) this.applyEvent(event.value);
+    }
     if (!snapshot.groups) void this.loadGroups();
   }
 

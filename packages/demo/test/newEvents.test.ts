@@ -10,7 +10,7 @@ import { toWorldEvent } from "@crewhub/loops-client";
 import { applyAction } from "../src/actions.ts";
 import { initialState, requireTicket } from "../src/store.ts";
 import { MINUTE } from "../src/time.ts";
-import { envelopes, firstLoop, playLoop } from "./helpers.ts";
+import { envelopes, firstLoop, playLoop, startDemo } from "./helpers.ts";
 
 const T0 = Date.parse("2026-10-01T08:00:00Z");
 
@@ -82,4 +82,25 @@ test("owner-request.updated: a person's event with ids and a state word, no tick
   }
   const state = initialState(T0, 0);
   assert.throws(() => applyAction(state, { type: "ownerRequest", userId: "cr-lead", requestId: "x", state: "pending" }, 1), /is an agent/);
+});
+
+test("round 9: the demo's snapshot carries the open quiet stretches and the latest runs, as the live host reads them from the log", () => {
+  const at = (m: number, s = 0) => (m * 60 + s) * 1000;
+  const snapshotAt = (ms: number) => {
+    const run = startDemo({ startAt: ms, speed: 1 });
+    const first = run.messages.find((m) => m.type === "snapshot");
+    assert.ok(first && first.type === "snapshot", "the first message is the snapshot");
+    return first.snapshot;
+  };
+  const early = snapshotAt(at(8, 20));
+  assert.deepEqual(early.quiet?.map((e) => [e.ticket?.key, e.payload["status"], e.payload["minutes"]]), [["CR-17", "review", 30]]);
+  assert.deepEqual(early.automationRuns, []);
+  const mid = snapshotAt(at(8, 45));
+  assert.deepEqual(mid.quiet?.map((e) => e.ticket?.key), ["CR-17"]);
+  assert.deepEqual(mid.automationRuns?.map((e) => e.payload["runId"]), ["run_demo_1", "run_demo_2"]);
+  const late = snapshotAt(at(11, 25));
+  assert.deepEqual(late.quiet, [], "cr-lead's comment at 11:20 ended the stretch");
+  assert.deepEqual(late.automationRuns?.map((e) => e.payload["runId"]), ["run_demo_1", "run_demo_2", "run_demo_3"]);
+  const before = snapshotAt(at(8, 0));
+  assert.deepEqual([before.quiet, before.automationRuns], [[], []]);
 });
