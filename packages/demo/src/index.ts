@@ -19,3 +19,5 @@ export { DEMO_PERSON } from "./store.ts";
 export type { AgentSummary, PendingRequest } from "./store.ts";
 export { QUICK_DEBOUNCE_MS, QUICK_MIN_GAP_MS, createDirectorFeed, movementSignals, scriptPlan } from "./director.ts";
 export type { DirectorFeed, DirectorFeedOptions, FeedUsage, PlanRecord, PlanTrigger, PropTags } from "./director.ts";
+export { DEMO_COMPUTER, laneOf, teamWithComputers, withLanes } from "./lanes.ts";
+export type { PaneOf } from "./lanes.ts";

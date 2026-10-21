@@ -110,6 +110,7 @@ export function describeWorld(model: WorldModel, civic: CivicWords = CIVIC_WORDS
     add("Town", `${agent.displayName} is in the ${civic.hall}, active in no building: ${agentState(agent)}.`);
     describeCaption("Town", agent, add);
   }
+  if (model.observer !== null) add("Town", `${model.observer} (this world's key) is not shown: it is the observer, not a worker.`);
   for (const walk of model.deliveries) {
     add(
       "Town",

@@ -58,8 +58,8 @@ interface Props {
   /** The districts in use (one for a single settlement) and the one the view is in, if any. */
   districts: DistrictPlace[];
   district: string | null;
-  /** A camera flight to a label anchor (the jump list's civic buildings). */
-  flight: { id: number; anchor: string };
+  /** A camera flight to a label anchor (the jump list's civic buildings and the town's figures); `reach` is the ground framed around it. */
+  flight: { id: number; anchor: string; reach?: number };
   onDistrict: (id: string) => void;
   onEnter: (slug: string) => void;
   onHover: (index: number | null) => void;
@@ -255,7 +255,7 @@ export default function WorldCanvas(props: Props) {
     if (props.action.id) scene.current?.cameraAction(props.action.type);
   }, [props.action]);
   useEffect(() => {
-    if (props.flight.id) scene.current?.flyToAnchor(props.flight.anchor);
+    if (props.flight.id) scene.current?.flyToAnchor(props.flight.anchor, props.flight.reach);
   }, [props.flight]);
   useEffect(() => {
     scene.current?.follow(props.following);
@@ -278,7 +278,7 @@ export default function WorldCanvas(props: Props) {
         </div>
       )}
       {STRESS && ready && <FrameOverlay scene={scene} />}
-      {inside && compact && card && card.element}
+      {compact && card && card.element}
       {fps && ready && <FpsOverlay scene={scene} />}
       {props.walking && ready && <WalkControls scene={scene} />}
       <div ref={labels} className="world-labels">
@@ -336,13 +336,14 @@ export default function WorldCanvas(props: Props) {
         })}
         {!inside && <Wayfinding districts={props.districts} district={props.district} onDistrict={props.onDistrict} onEnter={props.onEnter} />}
         {inside && !inside.archived && <Interior building={inside} model={model} props={props} compact={compact} />}
-        {inside && !compact && card && (
-          <div className="anchor card-anchor" data-anchor={`card:${inside.slug}:${card.key}`}>
+        {!compact && card && (
+          <div className="anchor card-anchor" data-anchor={`card:${inside ? inside.slug : "town"}:${card.key}`}>
             {card.element}
           </div>
         )}
         {!inside && (
           <>
+            <TownFigures model={model} selection={props.selection} card={props.card} />
             <div className="anchor" data-anchor="c:town-hall">
               <span className="town-sign civic">
                 <span className="sign-title">
@@ -366,16 +367,18 @@ export default function WorldCanvas(props: Props) {
   );
 }
 
-/** The agent card for the selected agent of the entered building, when it is open: its facts from the projection, its
-    sections from the registry. Null when there is nothing to show (no agent selected, the agent is not here). */
+/** The agent card for the selected agent, when it is open: a figure of the entered building, or in the town one of the
+    civic figures (the town hall's agents, the postman). Its facts come from the projection, its sections from the
+    registry. Null when there is nothing to show (no agent selected, the agent is not at this level). */
 function useAgentCard(props: Props, inside: Building | null, compact: boolean, portrait: (canvas: HTMLCanvasElement) => boolean): { key: string; element: ReactNode } | null {
   const key = props.card && props.selection.selected?.kind === "agent" ? props.selection.selected.key : null;
   const { model } = props;
   const demo = model.mode === "demo";
-  const facts = useMemo(() => (key && inside ? agentCardFacts(model, worldRuntime().projection.facts, key) : null), [key, inside, model]);
+  const facts = useMemo(() => (key ? agentCardFacts(model, worldRuntime().projection.facts, key) : null), [key, model]);
   const rooms = useBuildingPlan();
   const sections = useMemo(() => (facts ? renderAgentCard(facts, { now: model.now, freshness: model.freshness, loopsUrl: demo ? null : loopsWebUrl(SOURCE.health), rooms }) : []), [facts, model.now, model.freshness, demo, rooms]);
-  if (!key || !facts || !inside || !inside.agents.some((a) => a.key === key)) return null;
+  const here = inside ? inside.agents.some((a) => a.key === key) : [...model.townHall, ...model.postOffice].some((a) => a.key === key);
+  if (!key || !facts || !here) return null;
   return {
     key,
     element: (
@@ -392,6 +395,24 @@ function useAgentCard(props: Props, inside: Building | null, compact: boolean, p
       />
     ),
   };
+}
+
+/** The town's own figures (the postman, the town hall's agents) carry a name pill while hovered or selected; with the
+    card open the pill of the selected one yields to it. The pill hangs from the figure's anchor (`a:town:<key>`). */
+function TownFigures({ model, selection, card }: { model: WorldModel; selection: Selection; card: boolean }) {
+  const shown = selection.hover?.kind === "agent" ? selection.hover.key : !card && selection.selected?.kind === "agent" ? selection.selected.key : null;
+  const agent = shown ? [...model.postOffice, ...model.townHall].find((a) => a.key === shown) : undefined;
+  if (!agent) return null;
+  return (
+    <div className="anchor agent-anchor picked" data-anchor={`a:town:${agent.key}`}>
+      <span className="agent-stack">
+        <span className="name-pill" title={`${agent.displayName}: ${laneWords(agent.laneStatus, model.freshness)}`}>
+          <span className="pill-dot" data-tone={dotTone(agent, model)} aria-hidden="true" />
+          {agent.displayName}
+        </span>
+      </span>
+    </div>
+  );
 }
 
 /* A building's sign. Memoised on plain values: the model is new many times a second, a sign changes rarely, and a

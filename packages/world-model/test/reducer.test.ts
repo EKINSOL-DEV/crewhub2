@@ -341,3 +341,21 @@ test("a stall counts its nudges and the text view names them, the dimmed lamp an
   assert.match(text, /Review room: 2 tickets in the pile\./);
   assert.match(text, /CL-10 .*a star sticker: a prop request/);
 });
+
+test("the source's own principal (the observer) gets no figure and no count, and the text view says it is not shown", () => {
+  const w = world({
+    projects: [CL],
+    agents: [registered("cl-lead"), registered("crewhub-world", "lead", { external: true, herdrSession: "external:none" }), registered("crewhub-world-seed", "lead", { external: true, herdrSession: "external:none" })],
+    team: team(T0, [lane("cl-lead", "working")]),
+  });
+  const shown = () => [...w.reduce().buildings.flatMap((b) => b.agents), ...w.reduce().townHall, ...w.reduce().postOffice].map((a) => a.key).sort();
+  assert.deepEqual(shown(), ["cl-lead", "crewhub-world", "crewhub-world-seed"], "without an observer every external bot stands in the town hall");
+  assert.equal(w.reduce().observer, null);
+  w.projection.apply({ type: "snapshot", snapshot: { ...snapshot({ projects: [CL], agents: [registered("cl-lead"), registered("crewhub-world", "lead", { external: true }), registered("crewhub-world-seed", "lead", { external: true })], team: team(T0, [lane("cl-lead", "working")]) }), observer: "crewhub-world" } });
+  const model = w.reduce();
+  assert.deepEqual(shown(), ["cl-lead", "crewhub-world-seed"], "the observer is hidden; the other external bot stays");
+  assert.equal(model.observer, "crewhub-world");
+  const text = describeWorld(model).map((l) => l.text);
+  assert.ok(text.includes("crewhub-world (this world's key) is not shown: it is the observer, not a worker."), text.join("\n"));
+  assert.ok(!text.some((l) => /crewhub-world is in the/.test(l)));
+});

@@ -1007,9 +1007,17 @@ export class TownScene {
       hall = civicCenter("town-hall");
     this.#anchors.set("c:post-office", new THREE.Vector3(post.x, 0.2, post.z + CIVIC_LAWN / 2));
     this.#anchors.set("c:town-hall", new THREE.Vector3(hall.x, 0.2, hall.z + CIVIC_LAWN / 2));
-    if (signature === this.#civicSignature) return;
-    this.#civicSignature = signature;
-    this.#shadowDirty = true;
+    if (signature !== this.#civicSignature) {
+      this.#civicSignature = signature;
+      this.#shadowDirty = true;
+      this.#placeCivic(model, cast, post, hall);
+    }
+    // The figures' label anchors (`a:town:<key>`): the agent card and the name pill hang from them, as in a building.
+    for (const robot of this.#civicRobots) this.#civicAnchor(robot);
+  }
+
+  /** Builds the civic figures anew: the postman (with its letters) at the post office, the agents in the town hall. */
+  #placeCivic(model: WorldModel, cast: Cast, post: { x: number; z: number }, hall: { x: number; z: number }) {
     for (const robot of this.#civicRobots) robot.handle.dispose();
     this.#civicRobots = [];
     this.#postman = null;
@@ -1018,6 +1026,10 @@ export class TownScene {
       handle.object.position.set(x, 0.2, z);
       handle.object.scale.setScalar(ROBOT_SCALE * 1.4);
       handle.setState(figureState({ agent }));
+      // Pickable as its agent, as a building's figures are: a click in the town opens its card.
+      handle.object.traverse((o) => {
+        o.userData.agentId = agent.key;
+      });
       this.#civic.add(handle.object);
       this.#civicRobots.push({ handle, agent });
     };
@@ -1040,6 +1052,37 @@ export class TownScene {
       this.#unshadowPostman();
     }
     model.townHall.slice(0, 5).forEach((a, i) => place(a, hall.x - 1.6 + i * 0.8, hall.z + 1.3, "town-hall"));
+  }
+
+  /** A civic figure's label anchor (`a:town:<key>`): above its head, where it stands now. */
+  #civicAnchor(robot: { handle: FigureHandle; agent: AgentPlacement }) {
+    const o = robot.handle.object;
+    const head = robot.handle.anchors.label[1] * robot.handle.body.scale.y * o.scale.y;
+    const id = `a:town:${robot.agent.key}`;
+    const anchor = this.#anchors.get(id);
+    if (anchor) anchor.set(o.position.x, o.position.y + head, o.position.z);
+    else this.#anchors.set(id, new THREE.Vector3(o.position.x, o.position.y + head, o.position.z));
+  }
+
+  /** A civic figure as `BuildingView.figureOf` gives one: its handle, its height and its feet, for the portrait and the follow. */
+  #civicFigure(key: string): { handle: FigureHandle; height: number; at: THREE.Vector3 } | null {
+    const robot = this.#civicRobots.find((r) => r.agent.key === key);
+    if (!robot) return null;
+    const o = robot.handle.object;
+    return { handle: robot.handle, height: robot.handle.anchors.height * robot.handle.body.scale.y * o.scale.y, at: o.position.clone() };
+  }
+
+  /** In the town: the civic figure (the postman, a town hall agent) under the pointer, as a pick of its agent. */
+  #civicAt(event: PointerEvent): Pick | null {
+    if (this.#civicRobots.length === 0) return null;
+    this.#setPointer(event);
+    this.#ray.intersectObject(this.#civic, true, this.#hitList);
+    for (const hit of this.#hitList) {
+      if (!hit.object.visible) continue;
+      const key = hit.object.userData.agentId as string | undefined;
+      if (key) return { kind: "agent", key };
+    }
+    return null;
   }
 
   /** The postman walks the whole town: its soft blob shadow goes along, a sun shadow would hold the town's map on every step. */
@@ -1430,7 +1473,8 @@ export class TownScene {
       const figure = view.figureOf(key);
       if (figure) return { x: figure.at.x, y: figure.at.y, z: figure.at.z, slug };
     }
-    return null;
+    const civic = this.#civicFigure(key);
+    return civic ? { x: civic.at.x, y: civic.at.y, z: civic.at.z, slug: null } : null;
   }
   /** Every frame under a follow: glides the camera after the figure (a cut under reduced motion) and asks the app for the level the figure is at. */
   #followTick(dt: number) {
@@ -1468,11 +1512,12 @@ export class TownScene {
   /**
    * Draws a small portrait of an agent's figure onto `canvas` (a 2D canvas, square): the figure seen from its front,
    * with its desk, in the scene's own light. Rendered in a corner of the drawing buffer and copied, so tone mapping and
-   * colour stay the scene's; the frame is drawn again at once. False when the agent has no figure in the entered building.
+   * colour stay the scene's; the frame is drawn again at once. False when the agent has no figure in the entered building
+   * nor among the town's civic figures.
    */
   portrait(key: string, canvas: HTMLCanvasElement): boolean {
     const view = this.view.entered ? this.#buildings.get(this.view.entered) : undefined;
-    const figure = view?.figureOf(key);
+    const figure = view?.figureOf(key) ?? this.#civicFigure(key);
     const context = canvas.getContext("2d");
     if (!figure || !context) return false;
     const { height, at } = figure;
@@ -1541,10 +1586,10 @@ export class TownScene {
     const plot = this.#hitList[0]?.object.userData.plot as number | undefined;
     return plot !== undefined && plot < this.view.model.buildings.length ? plot : null;
   }
-  /** Inside the entered building: the agent, object or room under the pointer. */
+  /** Inside the entered building: the agent, object or room under the pointer. In the town: a civic figure's agent. */
   pickAt(event: PointerEvent): Pick | null {
     const view = this.view.entered ? this.#buildings.get(this.view.entered) : undefined;
-    if (!view) return null;
+    if (!view) return this.#civicAt(event);
     this.#setPointer(event);
     this.#ray.intersectObjects(view.pickables(), true, this.#hitList);
     for (const hit of this.#hitList) {
@@ -1604,6 +1649,10 @@ export class TownScene {
       this.callbacks.pick(this.pickAt(event), false);
       return;
     }
+    // In the town a click on a civic figure picks its agent (the card opens); any other click clears the pick first.
+    const figure = this.#civicAt(event);
+    this.callbacks.pick(figure, false);
+    if (figure) return;
     const plot = this.plotAt(event);
     const b = plot === null ? undefined : this.view.model.buildings[plot];
     if (b) this.callbacks.enter(b.slug);
@@ -1642,10 +1691,18 @@ export class TownScene {
       this.callbacks.pick(target, true);
       return;
     }
-    const plot = this.plotAt(event);
+    // A civic figure under the pointer is a hover target (its name pill); else the plot under it lifts.
+    const figure = this.#civicAt(event);
+    const figureKey = figure ? JSON.stringify(figure) : "";
+    if (figureKey !== this.#hoverPick) {
+      this.#hoverPick = figureKey;
+      this.callbacks.pick(figure, true);
+    }
+    const plot = figure ? null : this.plotAt(event);
+    const cursor = figure || plot !== null ? "pointer" : "";
+    if (this.renderer.domElement.style.cursor !== cursor) this.renderer.domElement.style.cursor = cursor;
     if (plot === this.#hovered) return;
     this.#hovered = plot;
-    this.renderer.domElement.style.cursor = plot === null ? "" : "pointer";
     this.callbacks.hover(plot);
     this.#prepareInterior();
   };
@@ -2134,6 +2191,8 @@ export class TownScene {
     const object = p.handle.object;
     object.position.set(walker.x, walker.y + 0.02, walker.z);
     object.rotation.y = walker.walking || walker.carrying ? walker.heading : 0;
+    const robot = this.#civicRobots.find((r) => r.agent.key === p.key);
+    if (robot) this.#civicAnchor(robot);
     const facts = this.#postmanFacts;
     facts.agent = this.#civicRobots[0]!.agent;
     facts.walker = walker;

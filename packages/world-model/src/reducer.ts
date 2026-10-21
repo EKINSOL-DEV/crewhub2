@@ -142,6 +142,7 @@ export function reduceWorld(facts: Readonly<Facts>, memory: PresentationMemory, 
     townHall: sortPlacements(townHall),
     postOffice: sortPlacements(postOffice),
     deliveries: walks,
+    observer: facts.observer,
   };
   return { model, memory: ctx.memory };
 }

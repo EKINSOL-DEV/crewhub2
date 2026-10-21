@@ -44,6 +44,7 @@ const bare = (over: Partial<AgentCardFacts> = {}): AgentCardFacts => ({
   registered: true,
   agent: agent(),
   building,
+  civic: null,
   homes: [],
   work: null,
   workProject: null,

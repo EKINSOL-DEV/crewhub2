@@ -2,11 +2,15 @@
  * loops-seed: replays a demo scenario's storyline (`packages/demo`) into the DEVELOPMENT crewhub-loops through its API,
  * so the world shows real data that moves. It writes as an external bot (a lead agent's key), never as a person.
  *
- *   node tools/loops-seed.mjs [--url http://127.0.0.1:8291] [--key-file <file>] [--scenario small-team] [--speed 16]
- *                             [--once] [--projects <n>] [--dry-run] [--restart] [--no-rewind] [--out tools/out]
+ *   node tools/loops-seed.mjs [--url http://127.0.0.1:8291] [--key-file <file>] [--agent-keys <dir>] [--scenario small-team]
+ *                             [--speed 16] [--once] [--projects <n>] [--dry-run] [--restart] [--no-rewind] [--out tools/out]
  *
  *   --url        The development loops. Only this machine, only plain http, never port 8091, 8000 or 9443.
  *   --key-file   The bot's key file (default $CREWHUB_WORLD_KEY_FILE). The key is a bearer token; no Origin is sent.
+ *   --agent-keys A folder of the demo agents' own keys (`agent-<id>.key`, as the Lead lays them out). An action is then
+ *                written as its demo author when that agent's key is there and loops confirms it (GET /api/auth/me),
+ *                so the world shows the right author and the agent's lastSeenAt moves; otherwise the seed bot writes,
+ *                as without the option. A person's actions are always the seed bot's (Done moves stay a person's).
  *   --scenario   A demo scenario id (`fresh`, `one`, `small-team`, `studio`); default the demo's default.
  *   --speed      1 = the storyline's own pace (16 minutes a pass), 16 = a minute a pass (default).
  *   --once       One pass, then stop. Without it the storyline loops until Ctrl+C.
@@ -27,10 +31,10 @@ import { parseArgs } from "node:util";
 
 const TOOLS = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(TOOLS, "..");
-const USAGE = "node tools/loops-seed.mjs [--url <origin>] [--key-file <file>] [--scenario <id>] [--speed <n>] [--once] [--projects <n>] [--dry-run] [--restart] [--no-rewind] [--out <dir>]";
+const USAGE = "node tools/loops-seed.mjs [--url <origin>] [--key-file <file>] [--agent-keys <dir>] [--scenario <id>] [--speed <n>] [--once] [--projects <n>] [--dry-run] [--restart] [--no-rewind] [--out <dir>]";
 
 const seedLib = await import(pathToFileURL(path.join(TOOLS, "lib", "seed.ts")).href);
-const { DEFAULT_URL, checkUrl, readKey, classify, seedTicketRequest, createTicketRequest, moveRequest, assignRequest, waitOnRequest, labelsRequest, commentRequest, progressRequest, resolveHandle, convergeMoves, schedule, tally, clock, PERSON_ONLY_DONE } = seedLib;
+const { DEFAULT_URL, checkUrl, readKey, classify, seedTicketRequest, createTicketRequest, moveRequest, assignRequest, waitOnRequest, labelsRequest, commentRequest, progressRequest, resolveHandle, convergeMoves, schedule, tally, clock, PERSON_ONLY_DONE, actorOf, agentKeyFile, writerFor } = seedLib;
 const { demoScenario, demoScenarios, parseScenarioId, SCENARIO_IDS } = await import(pathToFileURL(path.join(REPO, "packages", "demo", "src", "scenarios.ts")).href);
 const { DEMO_SEED, buildStory } = await import(pathToFileURL(path.join(REPO, "packages", "demo", "src", "script.ts")).href);
 
@@ -42,6 +46,7 @@ try {
     options: {
       url: { type: "string", default: DEFAULT_URL },
       "key-file": { type: "string" },
+      "agent-keys": { type: "string" },
       scenario: { type: "string" },
       speed: { type: "string", default: "16" },
       once: { type: "boolean", default: false },
@@ -91,13 +96,16 @@ try {
   fail(`cannot use the key file ${keyFile}: ${error.message}`);
 }
 
-// The client: a bearer key, JSON in and out, no Origin header (an agent key is not a browser).
+// The client: a bearer key, JSON in and out, no Origin header (an agent key is not a browser). Reads are the seed
+// bot's; a write goes out with the author's own key when `--agent-keys` holds one (`authorKeys`).
 
 const counts = { reads: 0, writes: 0 };
+/** demo agent id -> that agent's own key, confirmed by loops; empty without --agent-keys. */
+const authorKeys = new Map();
 
-async function api(method, route, body) {
+async function api(method, route, body, key = KEY) {
   counts[method === "GET" ? "reads" : "writes"] += 1;
-  const headers = { authorization: `Bearer ${KEY}`, accept: "application/json" };
+  const headers = { authorization: `Bearer ${key}`, accept: "application/json" };
   if (body !== undefined) headers["content-type"] = "application/json";
   const response = await fetch(`${ORIGIN}${route}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   const text = await response.text();
@@ -200,6 +208,39 @@ async function whoAmI() {
   return p;
 }
 
+/**
+ * `--agent-keys <dir>`: the demo agents' own keys, each confirmed with loops (`GET /api/auth/me` must answer that very
+ * agent). A missing file is the normal case (the seed bot writes); a file that cannot be read or belongs to someone
+ * else is said and skipped. Keys are never printed.
+ */
+async function loadAuthorKeys() {
+  const dir = args["agent-keys"];
+  if (dir === undefined) return;
+  const found = [];
+  const skipped = [];
+  for (const agent of content.agents) {
+    const file = agentKeyFile(dir, agent.id);
+    if (file === null || !existsSync(file)) continue;
+    let key;
+    try {
+      key = readKey(readFileSync(file, "utf8"));
+    } catch (error) {
+      skipped.push(`${agent.id}: ${error.message}`);
+      continue;
+    }
+    const reply = await api("GET", "/api/auth/me", undefined, key);
+    const p = reply.status === 200 ? reply.body.principal : null;
+    if (p === null) skipped.push(`${agent.id}: loops refused its key (${errorText(reply)})`);
+    else if (p.kind !== "agent" || p.id !== agent.id) skipped.push(`${agent.id}: the key belongs to ${p.kind} ${p.id}, not to ${agent.id}`);
+    else {
+      authorKeys.set(agent.id, key);
+      found.push(`${agent.id} (${p.role})`);
+    }
+  }
+  log(`agent keys in ${dir}: ${found.length ? `writing as ${found.join(", ")}` : "none"}; everything else as ${me.id}`);
+  for (const line of skipped) log(`  skipped key ${line}`);
+}
+
 async function loadProjects() {
   for (const seed of projectSeeds) {
     const reply = await api("GET", `/api/projects/${seed.slug}`);
@@ -275,15 +316,19 @@ function remember(slug, ticket) {
   index.set(slug, titles);
 }
 
-/** One write, with its outcome; a 429 waits once for Retry-After (at most 10 s) and tries again. */
-async function write(method, route, body, what) {
+/**
+ * One write, with its outcome; a 429 waits once for Retry-After (at most 10 s) and tries again. `author` (from
+ * `writerFor`) makes the write the demo author's own, with its key; without one the seed bot writes.
+ */
+async function write(method, route, body, what, author = null) {
   if (dryRun) return { ok: true, dry: true };
-  let reply = await api(method, route, body);
+  const key = author === null ? KEY : author.key;
+  let reply = await api(method, route, body, key);
   if (reply.status === 429 && reply.body?.error?.code !== "progress_rate") {
     const wait = Math.min(10_000, Math.max(1000, reply.retryAfter * 1000));
     log(`  429 on ${what}: waiting ${wait} ms`);
     await sleep(wait);
-    reply = await api(method, route, body);
+    reply = await api(method, route, body, key);
   }
   if (reply.status >= 200 && reply.status < 300) return { ok: true, body: reply.body };
   return { ok: false, reason: errorText(reply), status: reply.status, code: reply.body?.error?.code };
@@ -379,27 +424,30 @@ async function perform(entry) {
   const verdict = classify(action.type);
   if (!verdict.replay) return { id: entry.id, type: action.type, result: "skipped", reason: verdict.reason };
   if ("project" in action && !projectSlugs.has(action.project)) return { id: entry.id, type: action.type, result: "skipped", reason: `${action.project} is outside --projects` };
+  // The demo author's own key when the seed holds it; else the seed bot, as before.
+  const author = writerFor(actorOf(action), authorKeys);
+  const signed = (o) => (author === null ? o : { ...o, as: author.as });
 
   if (action.type === "createTicket") {
     if (!projects.has(action.project)) return { id: entry.id, type: action.type, result: "skipped", reason: `project ${action.project} does not exist in loops` };
     const existing = index.get(action.project)?.get(action.title);
     if (existing !== undefined) return { id: entry.id, type: action.type, result: "skipped", key: existing.key, reason: "a ticket with this title exists (idempotent)" };
     const built = createTicketRequest(action, resolve);
-    const result = await write("POST", "/api/tickets", built.body, `create "${action.title}"`);
-    if (!result.ok) return { id: entry.id, type: action.type, result: "refused", reason: result.reason };
+    const result = await write("POST", "/api/tickets", built.body, `create "${action.title}"`, author);
+    if (!result.ok) return signed({ id: entry.id, type: action.type, result: "refused", reason: result.reason });
     if (result.dry) {
       index.get(action.project).set(action.title, { id: `dry:${entry.id}`, key: `${projects.get(action.project).key}-?`, status: built.body.status, version: 1, assigneeId: null, waitingOnId: null, labelIds: [], resolution: null });
-      return { id: entry.id, type: action.type, result: "done", key: "(dry)", reason: built.notes.join("; ") || undefined };
+      return signed({ id: entry.id, type: action.type, result: "done", key: "(dry)", reason: built.notes.join("; ") || undefined });
     }
     const made = ticketRef(result.body.ticket);
     index.get(action.project).set(action.title, made);
-    return { id: entry.id, type: action.type, result: "done", key: made.key, reason: built.notes.join("; ") || undefined };
+    return signed({ id: entry.id, type: action.type, result: "done", key: made.key, reason: built.notes.join("; ") || undefined });
   }
 
   const found = await findTicket(resolveHandle(action.ticket, entries));
   if (found.ticket === null) return { id: entry.id, type: action.type, result: "skipped", reason: found.reason };
   const { ticket, slug } = found;
-  const outcome = (result, extra = {}) => ({ id: entry.id, type: action.type, result, key: ticket.key, ...extra });
+  const outcome = (result, extra = {}) => signed({ id: entry.id, type: action.type, result, key: ticket.key, ...extra });
 
   if (action.type === "move") {
     const move = moveRequest(ticket, action.to);
@@ -408,7 +456,7 @@ async function perform(entry) {
       notePersonOnly(ticket, "done", action.rejected === undefined ? move.personOnly : `${move.personOnly}; rejected: ${action.rejected}`, clock(entry.at));
       return outcome("person", { reason: move.personOnly });
     }
-    const result = await write("POST", `/api/tickets/${ticket.key}/move`, move.body, `move ${ticket.key}`);
+    const result = await write("POST", `/api/tickets/${ticket.key}/move`, move.body, `move ${ticket.key}`, author);
     if (!result.ok) return outcome("refused", { reason: result.reason });
     if (!result.dry) remember(slug, { ...ticket, status: action.to, version: result.body.ticket.version });
     return outcome("done", { reason: `${ticket.status} -> ${action.to}` });
@@ -420,7 +468,7 @@ async function perform(entry) {
       : action.type === "waitOn" ? waitOnRequest(ticket, action.on, resolve)
       : labelsRequest(ticket, slug, action.labels, resolve);
     if ("skip" in built) return outcome("skipped", { reason: built.skip });
-    const result = await write("PATCH", `/api/tickets/${ticket.key}`, built.body, `${action.type} ${ticket.key}`);
+    const result = await write("PATCH", `/api/tickets/${ticket.key}`, built.body, `${action.type} ${ticket.key}`, author);
     if (!result.ok) return outcome("refused", { reason: result.reason });
     if (!result.dry) remember(slug, ticketRef(result.body.ticket));
     return outcome("done", { reason: built.notes.join("; ") || undefined });
@@ -429,7 +477,7 @@ async function perform(entry) {
   if (action.type === "block") {
     const blocker = await findTicket(resolveHandle(action.blocker, entries));
     if (blocker.ticket === null) return outcome("skipped", { reason: `blocker: ${blocker.reason}` });
-    const result = await write("POST", `/api/tickets/${ticket.key}/blockers`, { by: blocker.ticket.key }, `block ${ticket.key}`);
+    const result = await write("POST", `/api/tickets/${ticket.key}/blockers`, { by: blocker.ticket.key }, `block ${ticket.key}`, author);
     if (!result.ok) return outcome(result.code === "relation_exists" ? "skipped" : "refused", { reason: result.reason });
     return outcome("done", { reason: `blocked by ${blocker.ticket.key}` });
   }
@@ -441,13 +489,13 @@ async function perform(entry) {
       const last = comments.filter((c) => c.deletedAt === null).at(-1);
       parentId = last?.id ?? null;
     }
-    const result = await write("POST", `/api/tickets/${ticket.key}/comments`, commentRequest(action.text, parentId), `comment on ${ticket.key}`);
+    const result = await write("POST", `/api/tickets/${ticket.key}/comments`, commentRequest(action.text, parentId), `comment on ${ticket.key}`, author);
     if (!result.ok) return outcome("refused", { reason: result.reason });
     return outcome("done", { reason: parentId === null ? undefined : "a reply" });
   }
 
   if (action.type === "progress") {
-    const result = await write("POST", `/api/tickets/${ticket.key}/progress`, progressRequest(action), `progress on ${ticket.key}`);
+    const result = await write("POST", `/api/tickets/${ticket.key}/progress`, progressRequest(action), `progress on ${ticket.key}`, author);
     if (!result.ok) return outcome(result.code === "progress_rate" ? "skipped" : "refused", { reason: result.code === "progress_rate" ? "progress_rate: one line per ticket every 3 minutes (domain/progress.py RATE_SECONDS)" : result.reason });
     return outcome("done", { reason: result.body?.progress === undefined ? undefined : `${action.kind}${result.body.waitChanged ? ", waits on a person" : ""}` });
   }
@@ -458,12 +506,17 @@ function describe(entry, o) {
   const a = entry.action;
   const target = a.ticket ?? a.project ?? a.name ?? "";
   const extra = o.reason === undefined ? "" : ` (${o.reason})`;
-  return `[${clock(entry.at)}] #${entry.id} ${a.type} ${target}${o.key ? ` -> ${o.key}` : ""}: ${o.result}${extra}`;
+  const as = o.as === undefined ? "" : ` as ${o.as}`;
+  return `[${clock(entry.at)}] #${entry.id} ${a.type} ${target}${o.key ? ` -> ${o.key}` : ""}: ${o.result}${as}${extra}`;
 }
 
 function printTally(label, outcomes) {
   const t = tally(outcomes);
   log(`${label}: ${Object.entries(t.results).map(([k, v]) => `${k} ${v}`).join(", ")}`);
+  const byAuthor = {};
+  for (const o of outcomes) if (o.result === "done") byAuthor[o.as ?? "(the seed bot)"] = (byAuthor[o.as ?? "(the seed bot)"] ?? 0) + 1;
+  const authors = Object.entries(byAuthor).sort((a, b) => b[1] - a[1]);
+  if (authors.length > 0) log(`  written as: ${authors.map(([who, n]) => `${who} ${n}`).join(", ")}`);
   const reasons = Object.entries(t.reasons).sort((a, b) => b[1] - a[1]);
   for (const [reason, n] of reasons) log(`  ${String(n).padStart(3)} x ${reason}`);
 }
@@ -471,6 +524,7 @@ function printTally(label, outcomes) {
 // Main
 
 const me = await whoAmI();
+await loadAuthorKeys();
 await loadProjects();
 await loadPrincipals();
 await loadLabels();

@@ -158,7 +158,7 @@ export function createDemoApi(source: DemoChatSource, options: DemoApiOptions = 
     }
     if (at("agents")) {
       only("GET");
-      return ok({ agents: await source.getAgents() });
+      return ok({ agents: await source.getAgents(), lanesAuthority: "db", agentHome: null });
     }
     if (at("agents", "*", "summary")) {
       only("GET");

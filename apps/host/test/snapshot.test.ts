@@ -37,6 +37,7 @@ describe("snapshot assembly", () => {
     assert.deepEqual(snapshot.releases, {}, "a 409 feature_off is no release list");
     assert.equal(snapshot.principals.length, 2);
     assert.equal(snapshot.agents[0]?.isCrewhubLead, true);
+    assert.equal(snapshot.observer, "crewhub-world", "the host's own principal, as loops named it at the key check, rides along as the observer");
     assert.equal(snapshot.team.ts, "2026-10-07T10:00:00Z");
     assert.equal(snapshot.watchdog.mode, "observe");
     assert.deepEqual(snapshot.groups, []);

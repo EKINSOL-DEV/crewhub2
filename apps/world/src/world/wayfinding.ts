@@ -188,8 +188,9 @@ export interface JumpEntry {
   detail: string;
   /** The place the camera flies to. */
   place: Place;
-  /** The agent to select on arrival, or the civic building to frame. */
+  /** The agent to select on arrival (in its building, or in the town beside the civic building named). */
   agent?: string;
+  /** The civic building to frame; with `agent` set, where that figure stands. */
   civic?: "town-hall" | "post-office";
   /** How much it needs a person: sorts the list when nothing is typed. */
   needs: number;
@@ -232,23 +233,32 @@ export function jumpEntries(model: Pick<WorldModel, "zones" | "buildings" | "tow
       });
     }
   const seen = new Set<string>();
+  const asksHelp = (a: AgentPlacement) => a.posture === "raised-hand" || a.laneStatus === "blocked" || a.caption?.kind === "question";
+  const stateWords = (a: AgentPlacement) => (asksHelp(a) ? "Asks for help." : `${a.laneStatus === "unknown" ? "Status unknown" : a.laneStatus[0]!.toUpperCase() + a.laneStatus.slice(1)}.`);
   for (const d of districts)
     for (const b of d.buildings)
       for (const a of b.agents) {
         if (!real(a) || seen.has(a.key)) continue;
         seen.add(a.key);
-        const asks = a.posture === "raised-hand" || a.laneStatus === "blocked" || a.caption?.kind === "question";
         entries.push({
           kind: "agent",
           id: `agent:${a.key}`,
           label: a.displayName,
-          detail: `${a.role} in ${b.name}${region ? `, ${d.name}` : ""}. ${asks ? "Asks for help." : `${a.laneStatus === "unknown" ? "Status unknown" : a.laneStatus[0]!.toUpperCase() + a.laneStatus.slice(1)}.`}`,
+          detail: `${a.role} in ${b.name}${region ? `, ${d.name}` : ""}. ${stateWords(a)}`,
           place: { district: region ? d.id : null, building: b.slug, room: a.room },
           agent: a.key,
-          needs: asks ? 1 : 0,
+          needs: asksHelp(a) ? 1 : 0,
           keywords: `${a.name} ${a.role} ${b.name} ${b.key} agent`.toLowerCase(),
         });
       }
+  // The figures outside the buildings: a jump lands beside them in the town, selected, with their card on Enter.
+  const townAgent = (a: AgentPlacement, civic: "town-hall" | "post-office", where: string) => {
+    if (!real(a) || seen.has(a.key)) return;
+    seen.add(a.key);
+    entries.push({ kind: "agent", id: `agent:${a.key}`, label: a.displayName, detail: `${a.role} at the ${where}. ${stateWords(a)}`, place: HOME, agent: a.key, civic, needs: asksHelp(a) ? 1 : 0, keywords: `${a.name} ${a.role} ${where} agent`.toLowerCase() });
+  };
+  for (const a of model.postOffice) townAgent(a, "post-office", "post office");
+  for (const a of model.townHall) townAgent(a, "town-hall", "town hall");
   const civic = (id: "town-hall" | "post-office", label: string, agents: readonly AgentPlacement[], empty: string) =>
     entries.push({ kind: "civic", id: `civic:${id}`, label, detail: agents.length ? agents.map((a) => a.displayName).join(", ") : empty, place: HOME, civic: id, needs: 0, keywords: `civic ${agents.map((a) => `${a.displayName} ${a.name}`).join(" ")}`.toLowerCase() });
   civic("town-hall", "Town hall", model.townHall, "Nobody here.");

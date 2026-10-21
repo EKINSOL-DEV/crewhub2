@@ -889,6 +889,7 @@ export const validateLoopsSnapshot = run(
     boards: recordOf(boardResponse),
     team: teamSnapshot,
     agents: arrayOf(agentOut),
+    observer: optional(nullable(str)),
     principals: arrayOf(principalOut),
     watchdog: watchdogResponse,
     milestones: recordOf(arrayOf(milestoneSummary)),

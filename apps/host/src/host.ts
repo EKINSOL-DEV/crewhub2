@@ -410,7 +410,8 @@ export async function createHost(options: HostOptions): Promise<Host> {
       return;
     }
     try {
-      const body = await assembleSnapshot(client, { cursor: upstream.cursor(), knownArchivedSlugs: upstream.archivedSlugs() });
+      // The key's own principal rides along as the observer: the world never shows it as a figure.
+      const body = await assembleSnapshot(client, { cursor: upstream.cursor(), knownArchivedSlugs: upstream.archivedSlugs(), observer: holder === null ? null : holder.name });
       sendJson(res, 200, body);
     } catch (error) {
       const reason = error instanceof SnapshotError ? error.reason : "loops_down";

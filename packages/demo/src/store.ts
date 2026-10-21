@@ -37,6 +37,7 @@ import type {
   WatchdogResponse,
 } from "@crewhub/loops-client";
 import { type DemoContent, type ProjectGroupSeed, type ProjectSeed, SMALL_TEAM } from "./content.ts";
+import { teamWithComputers, withLanes } from "./lanes.ts";
 import { DAY, MINUTE, SECOND, iso } from "./time.ts";
 
 export const STATUSES: readonly TicketStatus[] = ["backlog", "planned", "in_progress", "review", "done"];
@@ -574,7 +575,8 @@ export function uploadSnapshot(state: DemoState, at: number): TeamSnapshot {
       unsentInput: null,
     };
   });
-  return { v: 1, ts: iso(at), sessions: [{ name: state.content.session, agents }] };
+  // CL-459: loops names the computer the probe reported from on every session.
+  return teamWithComputers({ v: 1, ts: iso(at), sessions: [{ name: state.content.session, agents }] });
 }
 
 // Reads
@@ -806,7 +808,12 @@ export class DemoReads {
     // Archived projects are left out of both lists, as in loops (`domain/agents.py`, `agent_extras`).
     const active = this.state.projects.filter((p) => p.archivedAt === null);
     const ref = (p: StoredProject) => ({ slug: p.slug, key: p.key });
-    return this.state.content.agents.map((a) => ({
+    // The lane an agent runs in is the one the team knows it by (`lanes.ts` scripts what loops would say about it).
+    const paneOf = (id: string) => {
+      const lane = this.state.lanes.find((l) => l.name === id);
+      return lane === undefined ? null : `${lane.workspaceId}:${lane.paneId}`;
+    };
+    const listed = this.state.content.agents.map((a): AgentOut => ({
       id: a.id,
       displayName: a.displayName,
       role: a.role,
@@ -824,6 +831,7 @@ export class DemoReads {
       rights: [],
       revision: 1,
     }));
+    return withLanes(listed, new Date(this.state.now), paneOf);
   }
 
   principals(): PrincipalOut[] {
