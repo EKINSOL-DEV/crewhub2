@@ -21,7 +21,7 @@ import type { StyledPlot } from "./styleRegistry";
 import { lookAt, looksSignature, previewLooks, type TownLooks } from "./townLooks";
 import type { Ambient } from "./movement";
 import { CIVIC_LOT, civicCenter, PLOT_SIZE, type Bounds } from "./townLayout";
-import { Construction } from "./construction";
+import { Construction, goesUp } from "./construction";
 import { lotCentre, lotKey } from "./settlement";
 import { homeRects, planKey, type TownPlan } from "./townPlan";
 import { dressedLots, dressPlan, planPaths, planPieces, settlementDressing, STAKED_SIGN, type DressPlan } from "./settlementDressing";
@@ -422,6 +422,8 @@ export class TownScene {
   /** Buildings going up (construction.ts), and the slugs the town has shown: a new one gets scaffolding first. */
   readonly #constructions = new Map<string, Construction>();
   readonly #known = new Set<string>();
+  /** `model.snapshots` at the last sync: a sync with a new snapshot is a reset, and its new buildings do not go up. */
+  #lastSnapshots = -1;
   #layoutTimer: ReturnType<typeof setTimeout> | 0 = 0;
   #down = { x: 0, y: 0 };
   #hovered: number | null = null;
@@ -915,6 +917,7 @@ export class TownScene {
       deferred = false;
     const model = this.view.model,
       plan = this.view.plan;
+    const reset = model.snapshots !== this.#lastSnapshots;
     this.#dress();
     this.#layHits();
     this.#fitPlan();
@@ -965,10 +968,11 @@ export class TownScene {
         created++;
         this.#buildings.set(b.slug, view);
         this.scene.add(view.group);
-        // A project that joins a standing town goes up in scaffolding; the first layout and a re-dress do not.
+        // A project that joins a standing town goes up in scaffolding; the first layout, a re-dress and a new
+        // snapshot (a reset: every building is new to the scene again after a key change) do not.
         this.#constructions.get(b.slug)?.finish();
         this.#constructions.delete(b.slug);
-        if (!this.#layingOut && !this.#known.has(b.slug) && this.view.entered !== b.slug) {
+        if (!this.#known.has(b.slug) && goesUp({ layingOut: this.#layingOut, reset, entered: this.view.entered === b.slug })) {
           const going = new Construction(this.townStyle, view.group, view.bounds(null), LAWN_Y, this.view.theme, this.view.reducedMotion);
           this.#constructions.set(b.slug, going);
           this.scene.add(going.group);
@@ -1008,6 +1012,7 @@ export class TownScene {
         this.#contacts.delete(slug);
       }
     this.syncCivic();
+    this.#lastSnapshots = model.snapshots;
     if (this.#layingOut) {
       if (deferred) this.#continueLayout();
       else {

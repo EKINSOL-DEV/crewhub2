@@ -17,6 +17,16 @@ const STAND = 1.8,
 /** How tall the scaffolding stands: a little over a building's walls and roof line. */
 const HEIGHT = 2.5;
 
+/**
+ * Whether a building the scene has not shown goes up in scaffolding. Only a project that joins a standing town by an
+ * event does. The first layout does not, nor a building that arrives with a new snapshot (`model.snapshots` moved: a
+ * seek, a new loop, a key pasted after Forget or after loops rejected the old one): a snapshot is a reset, not a
+ * project appearing, as the walkers read it too. A building entered at once stands whole.
+ */
+export function goesUp(args: { layingOut: boolean; reset: boolean; entered: boolean }): boolean {
+  return !args.layingOut && !args.reset && !args.entered;
+}
+
 const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 const unit = (t: number) => Math.min(1, Math.max(0, t));

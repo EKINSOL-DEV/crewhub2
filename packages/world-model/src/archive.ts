@@ -22,11 +22,13 @@ export function archivedSince(archivedAt: string, now: number): { date: string; 
   return { date, days };
 }
 
-/** "closed since 9 Oct 2026 (11 days)", "closed since 20 Oct 2026 (today)"; just "closed" without a readable date. */
+/** "closed since 9 Oct 2026 (11 days)", "closed since 20 Oct 2026 (under a day)"; just "closed" without a readable
+ *  date. Under a day is not "today": the date is the UTC day, and a project closed late in the evening shows the day
+ *  before the reader's. */
 export function archivedWords(archivedAt: string | null | undefined, now: number): string {
   const since = archivedAt ? archivedSince(archivedAt, now) : null;
   if (!since) return "closed";
-  const days = since.days === 0 ? "today" : since.days === 1 ? "1 day" : `${since.days} days`;
+  const days = since.days === 0 ? "under a day" : since.days === 1 ? "1 day" : `${since.days} days`;
   return `closed since ${since.date} (${days})`;
 }
 
