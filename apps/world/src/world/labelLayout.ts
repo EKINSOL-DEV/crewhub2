@@ -1,5 +1,6 @@
 /* Label layout on screen (TownScene.placeLabels): hanging labels keep off each other, off room signs and off the
-   entered building's robots. Pure: boxes in CSS pixels in, positions out; no Three.js, no DOM. */
+   entered building's robots, and every label keeps out of the fixed UI's boxes (the corners, the camera toolbar, the
+   playback bar). Pure: boxes in CSS pixels in, positions out; no Three.js, no DOM. */
 
 /* Pixels between two hanging labels before the one further back moves up. */
 export const LABEL_GAP = 3;
@@ -10,6 +11,13 @@ export interface Label {
   /** Half the width and the height of the label's box, measured when React renders it. */
   half: number;
   height: number;
+  /**
+   * The box's left and top from the anchor point, measured with the size: the label kind's CSS transform. A hanging
+   * label sits at (-half, -height), a room sign at (-0.2 half, -height / 2), a rack sign hangs, a town sign stands
+   * just under its anchor.
+   */
+  ox: number;
+  oy: number;
   /** A hanging label (a robot's pill and bubble, a tag), which keeps clear of its neighbours. */
   stack: boolean;
   /** A room sign: it keeps its place, and hanging labels keep clear of it. */
@@ -45,16 +53,32 @@ export interface RobotBox {
   bottom: number;
 }
 
+/** A box on screen in CSS pixels. */
+export interface Rect {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+/** A hanging label's box (bottom centred on its anchor) over a box. */
 const overlaps = (l: Label, left: number, right: number, top: number, bottom: number) =>
   l.nx + l.half + LABEL_GAP > left && l.nx - l.half - LABEL_GAP < right && l.ny + LABEL_GAP > top && l.ny - l.height - LABEL_GAP < bottom;
 
-/** A room sign's box (from 10 % of its width left of its anchor, centred on it vertically: world.css) over a robot or
-    a robot's own stack. */
+/** Any label's box, from its measured offset: a room sign beside its anchor, a rack sign hanging over its rail. */
+const box = (l: Label, out: Rect): Rect => {
+  out.left = l.nx + l.ox;
+  out.right = out.left + l.half * 2;
+  out.top = l.ny + l.oy;
+  out.bottom = out.top + l.height;
+  return out;
+};
+const signBox: Rect = { left: 0, right: 0, top: 0, bottom: 0 };
+const ownBox: Rect = { left: 0, right: 0, top: 0, bottom: 0 };
+
+/** A room sign's box over a robot or a robot's own stack. */
 export function overRobot(s: Label, stacks: readonly Label[], robots: readonly RobotBox[], count: number): boolean {
-  const left = s.nx - s.half * 0.2,
-    right = left + s.half * 2,
-    top = s.ny - s.height / 2,
-    bottom = s.ny + s.height / 2;
+  const { left, right, top, bottom } = box(s, signBox);
   for (let i = 0; i < count; i++) {
     const r = robots[i]!;
     if (right > r.left && left < r.right && bottom > r.top && top < r.bottom) return true;
@@ -71,7 +95,8 @@ export function overRobot(s: Label, stacks: readonly Label[], robots: readonly R
  * - Then the other hanging labels (desk tags, rule chips, ticket chips) from the front back: one that would cover a
  *   robot or a robot's stack steps aside, to the side its anchor is on; one that would overlap another placed label or
  *   a room sign moves up above it.
- * - A room sign keeps its place; robots' stacks pay it no heed, and it steps back instead (placeLabels: label-yield).
+ * - A room sign keeps its place (a rack's sign over its rail as much as a hall's sign beside its anchor); robots'
+ *   stacks pay it no heed, and it steps back instead (placeLabels: label-yield).
  */
 export function nudgeStacks(stacks: Label[], signs: readonly Label[], robots: readonly RobotBox[], count: number) {
   // The picked robot's plate first, then robots' stacks, then the rest; each group from the front of the scene back.
@@ -102,14 +127,71 @@ export function nudgeStacks(stacks: Label[], signs: readonly Label[], robots: re
       }
       if (!l.robot)
         for (const s of signs) {
-          const left = s.nx - s.half * 0.2,
-            top = s.ny - s.height / 2;
-          if (overlaps(l, left, left + s.half * 2, top, s.ny + s.height / 2)) {
+          const { left, right, top, bottom } = box(s, signBox);
+          if (overlaps(l, left, right, top, bottom)) {
             l.ny = top - LABEL_GAP;
             moved = true;
           }
         }
       if (!moved) break;
+    }
+  }
+}
+
+/**
+ * Keeps a label out of the fixed UI's boxes (`chrome`: the corners, the camera toolbar, the playback bar, in the
+ * canvas's pixels). A label whose box would sit under one moves the shortest way out of it that keeps the box on the
+ * canvas (`width` x `height`): sideways from the toolbar's column, down from the top corners. One that fits nowhere
+ * stays where it is. Returns true when the label moved.
+ */
+export function keepOffChrome(l: Label, chrome: readonly Rect[], width: number, height: number): boolean {
+  let moved = false;
+  for (let pass = 0; pass < 2; pass++) {
+    let hit = false;
+    for (const c of chrome) {
+      const b = box(l, ownBox);
+      if (b.right + LABEL_GAP <= c.left || b.left - LABEL_GAP >= c.right || b.bottom + LABEL_GAP <= c.top || b.top - LABEL_GAP >= c.bottom) continue;
+      const w = b.right - b.left,
+        h = b.bottom - b.top;
+      // The four ways out, each as the shift of the anchor, kept to those that leave the box on the canvas.
+      let best = 0,
+        bestX = 0,
+        bestY = 0;
+      const consider = (dx: number, dy: number) => {
+        const left = b.left + dx,
+          top = b.top + dy;
+        if (left < 0 || left + w > width || top < 0 || top + h > height) return;
+        const d = Math.abs(dx) + Math.abs(dy);
+        if (!best || d < best) {
+          best = d;
+          bestX = dx;
+          bestY = dy;
+        }
+      };
+      consider(c.left - LABEL_GAP - b.right, 0);
+      consider(c.right + LABEL_GAP - b.left, 0);
+      consider(0, c.top - LABEL_GAP - b.bottom);
+      consider(0, c.bottom + LABEL_GAP - b.top);
+      if (!best) continue;
+      l.nx += bestX;
+      l.ny += bestY;
+      moved = hit = true;
+    }
+    if (!hit) break;
+  }
+  return moved;
+}
+
+/**
+ * After the nudge: every stack out from under the chrome again. One that the chrome sends back onto a room sign (up
+ * was its way off the sign, and the corner sits there) hangs below the sign instead.
+ */
+export function keepStacksOffChrome(stacks: readonly Label[], signs: readonly Label[], chrome: readonly Rect[], width: number, height: number) {
+  for (const l of stacks) {
+    if (!keepOffChrome(l, chrome, width, height)) continue;
+    for (const s of signs) {
+      const { left, right, top, bottom } = box(s, signBox);
+      if (overlaps(l, left, right, top, bottom)) l.ny = bottom + l.height + LABEL_GAP;
     }
   }
 }

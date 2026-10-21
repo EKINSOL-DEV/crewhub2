@@ -160,7 +160,7 @@ function WalkControls({ scene }: { scene: RefObject<TownScene | null> }) {
     scene.current?.walkInput(0, 0, false);
   };
   return (
-    <div ref={stick} className="walk-stick" role="application" aria-label="Walk: drag to move" onPointerDown={push} onPointerMove={push} onPointerUp={rest} onPointerCancel={rest} onLostPointerCapture={rest}>
+    <div ref={stick} className="walk-stick" role="application" data-chrome="" aria-label="Walk: drag to move" onPointerDown={push} onPointerMove={push} onPointerUp={rest} onPointerCancel={rest} onLostPointerCapture={rest}>
       <span ref={knob} className="walk-knob" aria-hidden="true" />
     </div>
   );
