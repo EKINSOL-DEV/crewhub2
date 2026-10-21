@@ -283,6 +283,12 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
     });
   }
 
+  /** The host's 401 for a browser it has not paired (`{"error":"not_paired"}`), as opposed to any other 401. */
+  const notPaired = async (response: Response): Promise<boolean> => {
+    const body = (await response.json().catch(() => null)) as { error?: string } | null;
+    return body?.error === "not_paired";
+  };
+
   /** One snapshot read; false when it failed (the state says why) and the loop should back off. */
   async function loadSnapshot(signal: AbortSignal): Promise<boolean> {
     let response: Response;
@@ -295,6 +301,10 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
     if (response.status === 503) {
       const body = (await response.json().catch(() => null)) as { error?: string } | null;
       setState(body?.error === "unauthorized" ? "unauthorized" : "loops-down");
+      return false;
+    }
+    if (response.status === 401 && (await notPaired(response))) {
+      setState("unpaired");
       return false;
     }
     if (!response.ok) {
@@ -330,7 +340,7 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
       if (response.status === 503) {
         const body = (await response.json().catch(() => null)) as { error?: string } | null;
         setState(body?.error === "unauthorized" ? "unauthorized" : "loops-down");
-      }
+      } else if (response.status === 401 && (await notPaired(response))) setState("unpaired");
       return "ended";
     }
     retryMs = timings.retryMinMs;
@@ -459,7 +469,8 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
         if (!(await loadSnapshot(signal))) {
           await sleep(retryMs, signal);
           // Before the first snapshot the host is most likely still linking: ask again soon, never ten seconds later.
-          retryMs = Math.min(haveSnapshot ? timings.retryMaxMs : Math.min(timings.retryMaxMs, timings.firstRetryMaxMs), retryMs * 2);
+          // Unpaired, the same: the person is opening a new link and the world should follow within seconds.
+          retryMs = Math.min(haveSnapshot && state !== "unpaired" ? timings.retryMaxMs : Math.min(timings.retryMaxMs, timings.firstRetryMaxMs), retryMs * 2);
           continue;
         }
         needSnapshot = false;
@@ -471,6 +482,8 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
         continue;
       }
       // The stream ended or could not open: wait, then reconnect at the cursor (the host resets when it cannot continue).
+      // After a 401 the next try must re-snapshot: the host that refused the cookie may be a new one with no buffer.
+      if (state === "unpaired") needSnapshot = true;
       if (state === "live" || state === "catching-up") setState("stale");
       await sleep(retryMs, signal);
       retryMs = Math.min(timings.retryMaxMs, retryMs * 2);

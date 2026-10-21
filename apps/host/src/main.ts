@@ -218,7 +218,8 @@ try {
   log(`cannot write the run file ${runFile(host.port)}: "open" cannot reach this host while it runs`);
 }
 const loopsText = config.loopsSocket !== null ? `unix socket ${config.loopsSocket}` : config.loopsUrl !== null ? config.loopsUrl : `looking in ${config.appData}`;
-const keyText = key === null ? "no key yet (the world shows the Connect screen)" : `key ${key.keyName} from ${key.file}`;
+// The stored key's agent name is loops' to tell (the check logs it); the file names the others.
+const keyText = key === null ? "no key yet (the world shows the Connect screen)" : key.source === "stored" ? `the stored key from ${key.file}` : `key ${key.keyName} from ${key.file}`;
 if (world) stepLine(true, `host listening on ${host.url} (loops ${loopsText}, ${keyText}, pairing ${config.pairing})`, performance.now() - listenStarted);
 else log(`listening on ${host.url} (loops ${loopsText}, ${keyText}${config.production ? ", serving apps/world/dist" : ""}, pairing ${config.pairing}${config.pairingFile === null ? "" : ", secret kept in " + config.pairingFile})`);
 if (args.command === "open" || world) {

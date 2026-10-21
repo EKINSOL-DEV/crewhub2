@@ -65,6 +65,7 @@ export const EN: Record<string, string> = {
   "world.connection.loops-down": "Loops down",
   "world.connection.unauthorized": "Unauthorized",
   "world.connection.stream-busy": "Stream busy",
+  "world.connection.unpaired": "Pair again",
   "world.connection.label": "Live data from crewhub-loops: {state}",
   "world.connection.text": "Live data from crewhub-loops through the world's host: {state}.",
   "world.connection.hint.connecting": "Loading the first snapshot from the host.",
@@ -74,6 +75,7 @@ export const EN: Record<string, string> = {
   "world.connection.hint.loops-down": "The host cannot reach crewhub-loops.",
   "world.connection.hint.unauthorized": "crewhub-loops refused the host's key.",
   "world.connection.hint.stream-busy": "Another host or tab uses this key: crewhub-loops admits four streams per key. Close one; the host retries by itself.",
+  "world.connection.hint.unpaired": "The host no longer knows this browser's pairing (a restart without its secret, or the cookie is gone). Run npm run world for a new link; the world follows by itself.",
   "world.chat.signIn": "Sign in to crewhub-loops",
   // The pairing page (plan 3.5): shown instead of the world when the host has not paired this browser.
   "world.firstSnapshot.connecting": "Connecting to the world's host…",

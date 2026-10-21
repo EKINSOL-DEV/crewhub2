@@ -44,6 +44,8 @@ interface FakeHost {
   teamReads: number;
   cursor: number;
   snapshotStatus: number;
+  /** False: the host no longer knows this browser's cookie; the snapshot and the stream answer 401 not_paired. */
+  paired: boolean;
   /** Called at every snapshot ask (a test times the retries). */
   onSnapshot?: () => void;
   /** Sends one message on every open stream. */
@@ -67,6 +69,7 @@ async function startHost(): Promise<FakeHost> {
     teamReads: 0,
     cursor: 100,
     snapshotStatus: 200,
+    paired: true,
     push(message) {
       const text = JSON.stringify(message);
       for (const stream of streams) stream.write(`data: ${text}\n\n`);
@@ -87,6 +90,7 @@ async function startHost(): Promise<FakeHost> {
     if (url.pathname === "/world-api/snapshot") {
       host.snapshots += 1;
       host.onSnapshot?.();
+      if (!host.paired) return json(res, 401, { error: "not_paired" });
       if (host.snapshotStatus !== 200) return json(res, host.snapshotStatus, { error: "loops_down" });
       return json(res, 200, snapshotAt(host.cursor));
     }
@@ -96,6 +100,7 @@ async function startHost(): Promise<FakeHost> {
     }
     if (url.pathname === "/world-api/stream") {
       host.cursors.push(url.searchParams.get("cursor"));
+      if (!host.paired) return json(res, 401, { error: "not_paired" });
       res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });
       res.write(`: welcome\ndata: ${JSON.stringify({ type: "status", loops: "ok" })}\n\n`);
       streams.add(res);
@@ -284,6 +289,38 @@ test("a 503 snapshot → loops-down and retries until it answers", async () => {
   host.snapshotStatus = 200;
   await run.until(() => run.state() === "live", "live");
   assert.equal(count(run.messages, "snapshot"), 1);
+  run.stop();
+  await host.close();
+});
+
+test("a 401 not_paired snapshot → unpaired (not loops-down), asked again soon, live once the cookie is good", async () => {
+  const host = await startHost();
+  host.paired = false;
+  const run = observe(host.url);
+  await run.until(() => run.state() === "unpaired", "unpaired");
+  await run.until(() => host.snapshots >= 3, "retries while unpaired");
+  host.paired = true;
+  await run.until(() => run.state() === "live", "live");
+  assert.deepEqual(run.states.filter((s) => s !== "unpaired"), ["live"], "never loops-down or stale on the way");
+  run.stop();
+  await host.close();
+});
+
+test("a host that forgets the pairing under a live tab → unpaired, not stale; a new cookie brings a fresh snapshot", async () => {
+  const host = await startHost();
+  const run = observe(host.url);
+  await run.until(() => run.state() === "live", "live");
+  await run.until(() => host.cursors.length === 1, "the stream");
+  // The host restarted without its pairing secret: the open stream ends, the reconnect and the snapshot answer 401.
+  host.paired = false;
+  host.endStreams();
+  await run.until(() => run.state() === "unpaired", "unpaired");
+  assert.ok(!run.states.includes("loops-down"), `never loops-down: ${run.states.join(",")}`);
+  const before = host.snapshots;
+  host.paired = true;
+  await run.until(() => run.state() === "live", "live again");
+  assert.ok(host.snapshots > before, "the new host is read from a fresh snapshot, not the old cursor");
+  assert.equal(count(run.messages, "snapshot"), 2);
   run.stop();
   await host.close();
 });

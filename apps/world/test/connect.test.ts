@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { HostConnection, HostHealth } from "@crewhub/loops-client";
-import { connectOutcome, connectScreen, keyTail, looksLikeKey, normaliseKey, relativeTime } from "../src/state/connect.ts";
+import { connectOutcome, connectScreen, keyTail, liveScreen, looksLikeKey, normaliseKey, relativeTime } from "../src/state/connect.ts";
 
 const connection = (over: { discovery?: Partial<HostConnection["discovery"]>; key?: Partial<HostConnection["key"]>; stream?: Partial<HostConnection["stream"]> } = {}): HostConnection => ({
   discovery: { state: "found", via: "app-port", target: "http://127.0.0.1:8091", ...over.discovery },
@@ -26,6 +26,12 @@ test("screen: a host from before the smooth connection only knows pairing", () =
   delete beforePairing.connection;
   delete beforePairing.pairing;
   assert.equal(connectScreen({ source: "live", health: beforePairing }), null);
+});
+
+test("screen: once the town runs, only an unpaired source sends the person back, to the Pair screen", () => {
+  assert.equal(liveScreen("unpaired"), "pair");
+  for (const state of ["connecting", "live", "catching-up", "stale", "loops-down", "unauthorized", "stream-busy"] as const) assert.equal(liveScreen(state), null, state);
+  assert.equal(liveScreen(null), null);
 });
 
 test("screen: no loops found comes first, even before pairing", () => {
