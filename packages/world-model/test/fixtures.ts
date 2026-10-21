@@ -49,6 +49,7 @@ export function building(slug: string, agents: AgentPlacement[], extra: Partial<
     beacons: [],
     mailbox: [],
     archivedCount: 0,
+    visits: [],
     ...extra,
   };
 }

@@ -37,6 +37,7 @@ import { FrameRing } from "./frameRing";
 import { nudgeStacks, overRobot, type Label, type RobotBox } from "./labelLayout";
 import { restMatrices, updateMatrices } from "./matrixPass";
 import { RobotCrowd } from "./robotCrowd";
+import { PersonWalks } from "./personWalks";
 import { DistrictFrames, type DistrictView } from "./districtFrames";
 import { isDistant, isRemote, labelDetail, type LabelDetail } from "./wayfinding";
 import { castRegistry } from "./cast";
@@ -276,6 +277,8 @@ export class TownScene {
   readonly callbacks: Callbacks;
   readonly townStyle: ResolvedStyle;
   readonly walks = new Walks();
+  /** People carrying work into Done (personWalks.ts): they share the walks' navigation world. */
+  readonly persons = new PersonWalks(this.walks.nav);
   view: TownView;
   #environment: EnvironmentHandle;
   /**
@@ -817,6 +820,7 @@ export class TownScene {
       return;
     }
     this.walks.update(model, { entered: this.view.entered, following: this.#following, reducedMotion: this.view.reducedMotion, ambient: this.view.ambient, plan, walkways: this.#walkways(), buildingPlan: this.view.buildingPlan });
+    this.persons.update(model, { entered: this.view.entered, reducedMotion: this.view.reducedMotion });
     const seen = new Set<string>();
     this.#anchors.clear();
     model.buildings.forEach((b) => {
@@ -846,6 +850,7 @@ export class TownScene {
           now: () => this.view.now(),
           reducedMotion: () => this.view.reducedMotion,
           walker: (key) => this.walks.walker(key),
+          persons: () => this.persons.persons(),
         });
         view.group.userData.lot = lotKey(lot.cell);
         created++;
@@ -1100,6 +1105,7 @@ export class TownScene {
     }
     else if (previous.reducedMotion !== view.reducedMotion || previous.ambient !== view.ambient)
       this.walks.update(view.model, { entered: view.entered, following: this.#following, reducedMotion: view.reducedMotion, ambient: view.ambient, plan: view.plan, walkways: this.#walkways(), buildingPlan: view.buildingPlan });
+      this.persons.update(view.model, { entered: view.entered, reducedMotion: view.reducedMotion });
     if (previous.entered !== view.entered) {
       // The overlay's window describes one view: start it again.
       this.#frames.clear();
@@ -1724,6 +1730,7 @@ export class TownScene {
     this.#last = now;
     // Walks run in simulation seconds: paused with the playback, faster with it (the engine caps one tick).
     this.walks.tick(dt * Math.max(0, this.view.speed()), this.view.now());
+    this.persons.tick(dt * Math.max(0, this.view.speed()));
     this.#followPostman(dt);
     const strolling = this.#walkStep(dt);
     this.#followTick(dt);
@@ -1735,7 +1742,7 @@ export class TownScene {
       this.camera.updateProjectionMatrix();
       if (this.camera.position.distanceTo(this.#tween.position) < 0.005 && Math.abs(this.camera.zoom - this.#tween.zoom) < 0.002) this.#tween = null;
     }
-    let moving = this.walks.moving || this.view.measure || strolling;
+    let moving = this.walks.moving || this.persons.moving || this.view.measure || strolling;
     // Landmarks animate (the fountain) on frames drawn anyway; they never keep the loop running on their own.
     if (!this.view.reducedMotion && dt)
       for (const object of this.#landmarks.children) (object.userData.animate as ModelAnimation | undefined)?.(dt);

@@ -4,7 +4,10 @@
    objects along an arc in source time; a re-stack eases over a short tween; a person's move to done hops once with a
    sparkle. A ticket a person turned down (Done as "won't do") gets no hop and no sparkle: it is set aside, turned
    askew, with one dark band struck across it. Under reduced motion flights are a short fade, nothing hops and the turned-down
-   object is askew at once. The frame path allocates nothing. */
+   object is askew at once. A package a person carries into Done (`transit.carrier` "person") gets no drone: it waits
+   where it stood until the building view says the person holds it (`carry`), rides in their hands, and stands on the
+   Done rack once they have put it down (`deliver`), whatever the model's own clock says meanwhile. The frame path
+   allocates nothing. */
 import * as THREE from "three";
 import { useInstancedMaterials } from "./instancedMaterial";
 import { mergeStatic } from "./mergeStatic";
@@ -132,6 +135,10 @@ export class ObjectLayer {
   readonly #templates = new Map<string, Template>();
   readonly #states = new Map<string, ObjectState>();
   readonly #celebrated = new Set<string>();
+  /** Packages in a person's hands: where the carry anchor is this frame, building-local. */
+  readonly #carried = new Map<string, THREE.Vector3>();
+  /** Packages a person has put on the Done rack before the model landed them there. */
+  readonly #delivered = new Set<string>();
   #milestoneAccent = new Map<string, PaletteName>();
   /** Props riding on a work object, by ticket key (plan 6.3): stickers and small figures. */
   #riders = new Map<string, THREE.Object3D[]>();
@@ -184,6 +191,7 @@ export class ObjectLayer {
       }
       state.object = object;
       state.rest = rest;
+      if (!object.transit) this.#delivered.delete(object.ticketId);
       this.#syncFlight(state, layout);
       this.#syncHop(state);
       this.anchors.set(`o:${this.#slug}:${object.ticketId}`, state.anchor);
@@ -193,8 +201,33 @@ export class ObjectLayer {
         this.#dropDrone(state);
         if (state.hop) state.hop.sparkle.removeFromParent();
         this.#states.delete(id);
+        this.#carried.delete(id);
+        this.#delivered.delete(id);
         this.anchors.delete(`o:${this.#slug}:${id}`);
       }
+  }
+
+  /**
+   * A person holds the package: `at` is their carry anchor this frame (building-local; copied, not kept), null when
+   * they let go. On release the package eases to where the model has it.
+   */
+  carry(ticketId: string, at: THREE.Vector3 | null) {
+    const held = this.#carried.get(ticketId);
+    if (at) {
+      if (held) held.copy(at);
+      else this.#carried.set(ticketId, at.clone());
+      return;
+    }
+    if (!held) return;
+    this.#carried.delete(ticketId);
+    const state = this.#states.get(ticketId);
+    if (state && !this.#ctx.reducedMotion()) state.ease = { from: state.pos.clone(), t: 0 };
+    if (state) this.#syncHop(state);
+  }
+
+  /** The person has put the package on the Done rack: it is drawn at its new slot, even before the model lands it. */
+  deliver(ticketId: string) {
+    this.#delivered.add(ticketId);
   }
 
   /** Props that ride on work objects, by ticket key. They follow the object onto desks, piles and the drone's hook. */
@@ -230,6 +263,13 @@ export class ObjectLayer {
     const target = layout.targets.get(state.object.ticketId);
     const to = transit.toRoom === "truck" ? this.#ctx.truck.clone() : target ? this.#restOf(target, new Map(), 0) : state.rest?.clone() ?? state.pos.clone();
     if (target && target.surface !== "shelf") to.y += target.level * this.#body(state.object).height * OBJECT_SCALE;
+    if (transit.carrier === "person") {
+      // No drone: the package waits where it stood, or stands on the Done rack once the person has put it down.
+      this.#dropDrone(state);
+      if (!state.flight) state.flight = { from: (state.rest ?? state.pos).clone(), to, startedAt: transit.startedAt, until: transit.until, retargetAt: transit.startedAt };
+      else state.flight.to.copy(to);
+      return;
+    }
     if (!state.flight) {
       state.flight = { from: (state.rest ?? state.pos).clone(), to, startedAt: transit.startedAt, until: transit.until, retargetAt: transit.startedAt };
     } else if (state.flight.to.distanceToSquared(to) > 1e-6 || state.flight.until !== transit.until) {
@@ -263,7 +303,8 @@ export class ObjectLayer {
   #syncHop(state: ObjectState) {
     const until = state.object.celebrateUntil;
     const key = `${state.object.ticketId}:${until}`;
-    if (until === null || this.#celebrated.has(key) || this.#ctx.reducedMotion()) return;
+    // A package a person carries hops once it is out of their hands, on the rack.
+    if (until === null || this.#celebrated.has(key) || this.#ctx.reducedMotion() || state.object.transit || this.#carried.has(state.object.ticketId)) return;
     this.#celebrated.add(key);
     const sparkle = this.#ctx.style.model("sparkle");
     this.group.add(sparkle);
@@ -273,7 +314,8 @@ export class ObjectLayer {
 
   /** True while something moves (a flight, an ease, a hop, a turned-down object being set aside). */
   get animating(): boolean {
-    for (const s of this.#states.values()) if (s.flight || s.ease || s.hop || (s.object.rejected && s.aside < 1)) return true;
+    if (this.#carried.size) return true;
+    for (const s of this.#states.values()) if ((s.flight && s.drone) || s.ease || s.hop || (s.object.rejected && s.aside < 1)) return true;
     return false;
   }
 
@@ -289,7 +331,15 @@ export class ObjectLayer {
 
   #move(state: ObjectState, seconds: number, now: number, reduced: boolean) {
     const { pos } = state;
-    if (state.flight && state.drone) {
+    const carried = this.#carried.get(state.object.ticketId);
+    if (carried) {
+      // In a person's hands: wherever they are, until they let go.
+      pos.copy(carried);
+      state.ease = null;
+    } else if (state.flight && !state.drone) {
+      // A person's package, not in hand: on its old place, or on the Done rack once delivered.
+      pos.copy(this.#delivered.has(state.object.ticketId) ? state.flight.to : state.flight.from);
+    } else if (state.flight && state.drone) {
       const f = state.flight;
       const span = Math.max(1, f.until - f.retargetAt);
       const t = THREE.MathUtils.clamp((now - f.retargetAt) / span, 0, 1);
@@ -331,7 +381,7 @@ export class ObjectLayer {
     }
     // Set aside once it has landed: a slow turn, no hop. Taken back (reopened, or a plain Done after all), it straightens.
     if (!state.object.rejected) state.aside = 0;
-    else if (!state.flight && state.aside < 1) state.aside = reduced ? 1 : Math.min(1, state.aside + seconds / ASIDE_S);
+    else if (!state.flight && !carried && state.aside < 1) state.aside = reduced ? 1 : Math.min(1, state.aside + seconds / ASIDE_S);
     if (state.hop) {
       state.hop.t += seconds;
       const u = state.hop.t / state.hop.until;

@@ -58,5 +58,6 @@ export {
   validateWatchdogResponse,
   warnOnce,
 } from "./validate.ts";
-export { createHostSource, probeHost } from "./hostSource.ts";
-export type { HostHealth, HostSourceTimings } from "./hostSource.ts";
+export { connectHost, createHostSource, forgetHostKey, probeHost } from "./hostSource.ts";
+export type { HostAnswer, HostConnection, HostDiscovery, HostHealth, HostKeyState, HostSourceTimings, HostStreamState } from "./hostSource.ts";
+export { readConnection } from "./hostSource.ts";

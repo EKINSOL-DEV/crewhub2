@@ -38,12 +38,61 @@ import {
   warnOnce,
 } from "./validate.ts";
 
+/** How the host found crewhub-loops (spec addendum "a smooth connection", part 1). */
+export interface HostDiscovery {
+  /** `searching`: nothing answers yet; the host looks again every 5 s. */
+  state: "found" | "searching";
+  /** What found it: the env URL or socket (the scripted road), or the Mac app's socket or port from its data folder. */
+  via?: "env-url" | "env-socket" | "app-socket" | "app-port";
+  /** The URL or socket path (paired browsers only; absent before pairing). */
+  target?: string;
+}
+
+/** The host's key: none yet (the Connect screen), being checked, rejected by loops, or ok. */
+export interface HostKeyState {
+  state: "none" | "checking" | "rejected" | "ok";
+  /** The key's agent name (`agent-<name>.key`, or the principal loops answered); paired browsers only. */
+  name?: string;
+  /** Where the key came from: the environment's file, the host's stored key, or the old default file. Paired only. */
+  source?: "env" | "stored" | "default";
+  /** Why loops rejected it, in words a person can act on (a probe or reader key, an unknown key). Never the key. */
+  reason?: string;
+}
+
+/** The host's one upstream stream. */
+export interface HostStreamState {
+  /**
+   * `idle`: no stream (no loops found or no key yet); `busy`: loops refused the stream with 429 `too_many_streams`
+   * (four streams per key: another host or tab uses this key; the host retries after `Retry-After`); the rest as
+   * `HostHealth.loops`.
+   */
+  state: "idle" | "ok" | "down" | "unauthorized" | "busy";
+  /** Why the stream is not ok, in words a person can act on (`busy`: "stream budget exhausted (429): …"). */
+  reason?: string;
+  /** The last `seq` the host holds (paired only). */
+  cursor?: number;
+  /** When the last event arrived, ISO 8601 (paired only). */
+  lastEventAt?: string;
+  /** Reconnects since the host started (loops' 300 s end counts). */
+  reconnects: number;
+}
+
+/** The honest states of the connection (spec addendum "a smooth connection", part 4). Before pairing: states only. */
+export interface HostConnection {
+  discovery: HostDiscovery;
+  key: HostKeyState;
+  stream: HostStreamState;
+}
+
 /** `GET /world-api/health`. Never the key. */
 export interface HostHealth {
   loops: "ok" | "down" | "unauthorized";
+  /** The key's agent name; `""` while the host has no key (then `connection.key.state` is `none`). */
   keyName: string;
-  /** True when the host fell back to the shared builder key. */
+  /** Always false since the builder-key fallback went; kept for hosts from before. */
   sharedKey: boolean;
+  /** Discovery, key and stream states; absent on a host from before the smooth connection. */
+  connection?: HostConnection;
   loopsCommit?: string;
   cursor?: number;
   /** The origin of crewhub-loops' web app (the API's URL; on the Mac both share 8091), for the sign-in link. */
@@ -72,10 +121,36 @@ const PREFIX = "/world-api";
 
 /** What the host puts on the stream (ready-team-map: "Host → browser"). */
 type StreamMessage =
-  | { type: "status"; loops: HostHealth["loops"] }
+  | { type: "status"; loops: HostHealth["loops"]; stream?: HostStreamState["state"]; reason?: string }
   | { type: "event"; envelope: unknown }
   | { type: "heartbeat"; seq: number; ts: string }
   | { type: "reset"; reason: string };
+
+const oneOf = <T extends string>(value: unknown, values: readonly T[]): T | undefined => (values.includes(value as T) ? (value as T) : undefined);
+
+/** The `connection` object of a health answer, or null when it is missing or malformed (an older host). Never the key. */
+export function readConnection(value: unknown): HostConnection | null {
+  if (value === null || typeof value !== "object") return null;
+  const raw = value as { discovery?: Partial<HostDiscovery>; key?: Partial<HostKeyState>; stream?: Partial<HostStreamState> };
+  const discoveryState = oneOf(raw.discovery?.state, ["found", "searching"]);
+  const keyState = oneOf(raw.key?.state, ["none", "checking", "rejected", "ok"]);
+  const streamState = oneOf(raw.stream?.state, ["idle", "ok", "down", "unauthorized", "busy"]);
+  if (discoveryState === undefined || keyState === undefined || streamState === undefined) return null;
+  const discovery: HostDiscovery = { state: discoveryState };
+  const via = oneOf(raw.discovery?.via, ["env-url", "env-socket", "app-socket", "app-port"]);
+  if (via !== undefined) discovery.via = via;
+  if (typeof raw.discovery?.target === "string") discovery.target = raw.discovery.target;
+  const key: HostKeyState = { state: keyState };
+  if (typeof raw.key?.name === "string") key.name = raw.key.name;
+  const source = oneOf(raw.key?.source, ["env", "stored", "default"]);
+  if (source !== undefined) key.source = source;
+  if (typeof raw.key?.reason === "string") key.reason = raw.key.reason;
+  const stream: HostStreamState = { state: streamState, reconnects: typeof raw.stream?.reconnects === "number" ? raw.stream.reconnects : 0 };
+  if (typeof raw.stream?.cursor === "number") stream.cursor = raw.stream.cursor;
+  if (typeof raw.stream?.lastEventAt === "string") stream.lastEventAt = raw.stream.lastEventAt;
+  if (typeof raw.stream?.reason === "string") stream.reason = raw.stream.reason;
+  return { discovery, key, stream };
+}
 
 /** Asks the host for its health. `null` when nothing answers within `timeoutMs` or the answer is not a host's. */
 export async function probeHost(baseUrl = "", timeoutMs = 1500): Promise<HostHealth | null> {
@@ -95,6 +170,8 @@ export async function probeHost(baseUrl = "", timeoutMs = 1500): Promise<HostHea
     if (body.transport === "tcp" || body.transport === "unix") health.transport = body.transport;
     if (typeof body.paired === "boolean") health.paired = body.paired;
     if (body.pairing === "on" || body.pairing === "off") health.pairing = body.pairing;
+    const connection = readConnection(body.connection);
+    if (connection !== null) health.connection = connection;
     return health;
   } catch {
     return null;
@@ -274,8 +351,14 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
     touched();
     switch (message.type) {
       case "status": {
+        // A 429 on the host's stream: loops answers reads, so the host says `loops: "down"` for a world from before and
+        // `stream: "busy"` for us. Events are missed meanwhile, so `ok` again re-snapshots, as after loops-down.
+        if (message.stream === "busy") {
+          setState("stream-busy");
+          return "ok";
+        }
         if (message.loops === "ok") {
-          if (state === "loops-down" || state === "unauthorized") {
+          if (state === "loops-down" || state === "unauthorized" || state === "stream-busy") {
             setState("catching-up");
             return "resnapshot";
           }
@@ -440,4 +523,49 @@ function stripUndefined<T extends object>(input: T): Partial<T> {
   const out: Partial<T> = {};
   for (const [key, value] of Object.entries(input)) if (value !== undefined) (out as Record<string, unknown>)[key] = value;
   return out;
+}
+
+/** What the host answered a connect request with: the status and the JSON body (null when there is none). Never the key. */
+export interface HostAnswer {
+  /** 0 when nothing answered (no host, a refused connection, a timeout). */
+  status: number;
+  body: unknown;
+}
+
+/**
+ * `POST /world-api/connect {key}` (spec addendum "a smooth connection", part 2): hands a pasted access key to the host,
+ * which checks it with loops, stores it and switches to it. Same origin, JSON, the pairing cookie travels with it. The
+ * key is in the request body and nowhere else: not in the URL, not in the answer, not in a log. Never throws.
+ */
+export async function connectHost(key: string, baseUrl = "", timeoutMs = 10_000): Promise<HostAnswer> {
+  return hostRequest("POST", `${baseUrl}${PREFIX}/connect`, JSON.stringify({ key }), timeoutMs);
+}
+
+/** `DELETE /world-api/connect`: the host forgets its stored key (the world then asks for one again). Never throws. */
+export async function forgetHostKey(baseUrl = "", timeoutMs = 10_000): Promise<HostAnswer> {
+  return hostRequest("DELETE", `${baseUrl}${PREFIX}/connect`, null, timeoutMs);
+}
+
+async function hostRequest(method: "POST" | "DELETE", url: string, body: string | null, timeoutMs: number): Promise<HostAnswer> {
+  try {
+    const response = await fetch(url, {
+      method,
+      body,
+      credentials: "same-origin",
+      signal: AbortSignal.timeout(timeoutMs),
+      headers: body === null ? { accept: "application/json" } : { accept: "application/json", "content-type": "application/json" },
+    });
+    const text = await response.text().catch(() => "");
+    let parsed: unknown = null;
+    if (text !== "") {
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        parsed = null;
+      }
+    }
+    return { status: response.status, body: parsed };
+  } catch {
+    return { status: 0, body: null };
+  }
 }

@@ -7,7 +7,7 @@ export { emptyFacts } from "./facts.ts";
 export { emptyMemory } from "./memory.ts";
 export { Projection } from "./projection.ts";
 export { freshnessOf, reduceWorld } from "./reducer.ts";
-export { CIVIC_WORDS, agentStateWords, describeWorld, hallSummary } from "./describe.ts";
+export { CIVIC_WORDS, agentStateWords, describeWorld, doneWord, hallSummary } from "./describe.ts";
 export {
   DESK_WORDS,
   HALLS,
@@ -31,7 +31,7 @@ export type { AgentCardFacts, AgentLaneFacts, AgentLoopsFacts, AgentProgress, Ag
 export type { CivicWords } from "./describe.ts";
 export { DEFAULT_ZONE_ID, resolveZones, zoneById, zoningOf } from "./zones.ts";
 export type { TownZone, TownZoning, ZoneProject, ZoneReason, ZoneResolution } from "./zones.ts";
-export { flightMs, FLIGHT_MAX_MS, FLIGHT_MIN_MS } from "./flights.ts";
+export { flightMs, FLIGHT_MAX_MS, FLIGHT_MIN_MS, PERSON_CARRY_MS, PERSON_LANDED_MS, PERSON_QUEUE_MAX } from "./flights.ts";
 export { CLOSING_MS, archivedSince, archivedWords, closingOf } from "./archive.ts";
 export type * from "./townDocument.ts";
 export type * from "./history.ts";

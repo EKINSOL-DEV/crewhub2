@@ -2,52 +2,60 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { homedir } from "node:os";
 import path from "node:path";
-import { ConfigError, keyNameOf, loadKey, loadServerConfig, resolveLoopsWebUrl, validateSocketPath } from "../src/config.ts";
+import { ConfigError, DEFAULT_APP_DATA, keyFilesOf, keyNameOf, loadKey, loadServerConfig, resolveLoopsWebUrl, validateSocketPath } from "../src/config.ts";
 
-const files = { defaultKey: "/secrets/agent-crewhub-world.key", builderKey: "/secrets/agent-builder.key" };
+const files = { storedKey: "/me/.config/crewhub-world/loops-key", defaultKey: "/secrets/agent-crewhub-world.key" };
 const disk = (contents: Record<string, string>) => (file: string) => contents[file] ?? null;
 
 describe("the key file", () => {
-  it("reads the default file and names the key after it", () => {
+  it("reads the old default file third in line and names the key after it", () => {
     const loaded = loadKey({}, disk({ [files.defaultKey]: "chl_world\n" }), files);
-    assert.deepEqual(loaded, { key: "chl_world", keyName: "crewhub-world", sharedKey: false, warnings: [] });
+    assert.deepEqual(loaded, { key: "chl_world", keyName: "crewhub-world", source: "default", file: files.defaultKey });
   });
 
-  it("reads a configured file and fails loudly when it cannot be read (no silent fallback)", () => {
-    const loaded = loadKey({ CREWHUB_WORLD_KEY_FILE: "/tmp/loops-fake.key" }, disk({ "/tmp/loops-fake.key": "chl_fake" }), files);
-    assert.equal(loaded.key, "chl_fake");
-    assert.equal(loaded.keyName, "loops-fake");
-    assert.throws(() => loadKey({ CREWHUB_WORLD_KEY_FILE: "/nowhere.key" }, disk({ [files.builderKey]: "chl_builder" }), files), ConfigError);
+  it("prefers the stored key (the Connect screen's) over the old default file", () => {
+    const loaded = loadKey({}, disk({ [files.storedKey]: "chl_stored\n", [files.defaultKey]: "chl_world" }), files);
+    assert.deepEqual(loaded, { key: "chl_stored", keyName: "crewhub-world", source: "stored", file: files.storedKey });
   });
 
-  it("falls back to the shared builder key with a warning that loops will refuse it", () => {
-    const loaded = loadKey({}, disk({ [files.builderKey]: "chl_builder" }), files);
-    assert.equal(loaded.key, "chl_builder");
-    assert.equal(loaded.keyName, "builder");
-    assert.equal(loaded.sharedKey, true);
-    assert.ok(loaded.warnings.length >= 2);
-    assert.ok(loaded.warnings.some((w) => w.includes("403")));
-    assert.ok(loaded.warnings.every((w) => !w.includes("chl_builder")), "the warning never holds the key");
+  it("reads a configured file first and fails loudly when it cannot be read (no silent fallback)", () => {
+    const loaded = loadKey({ CREWHUB_WORLD_KEY_FILE: "/tmp/loops-fake.key" }, disk({ "/tmp/loops-fake.key": "chl_fake", [files.storedKey]: "chl_stored" }), files);
+    assert.equal(loaded?.key, "chl_fake");
+    assert.equal(loaded?.keyName, "loops-fake");
+    assert.equal(loaded?.source, "env");
+    assert.throws(() => loadKey({ CREWHUB_WORLD_KEY_FILE: "/nowhere.key" }, disk({ [files.storedKey]: "chl_stored" }), files), ConfigError);
   });
 
-  it("fails when no key file exists at all", () => {
-    assert.throws(() => loadKey({}, disk({}), files), /no key/);
+  it("starts without a key when no file has one: the Connect screen, no builder fallback", () => {
+    assert.equal(loadKey({}, disk({}), files), null);
+    assert.equal(loadKey({}, disk({ "/secrets/agent-builder.key": "chl_builder" }), files), null, "the builder key is never read");
+    assert.equal(loadKey({}, disk({ [files.storedKey]: "  \n" }), files), null, "an empty stored file is no key");
   });
 
   it("names keys by file", () => {
     assert.equal(keyNameOf("/x/agent-builder.key"), "builder");
     assert.equal(keyNameOf("loops-fake.key"), "loops-fake");
+    assert.equal(keyNameOf("/me/.config/crewhub-world/loops-key"), "crewhub-world");
+  });
+
+  it("puts the stored key in the host's own folder, CREWHUB_WORLD_CONFIG_DIR when set", () => {
+    assert.equal(keyFilesOf({}).storedKey, path.join(homedir(), ".config", "crewhub-world", "loops-key"));
+    assert.equal(keyFilesOf({ CREWHUB_WORLD_CONFIG_DIR: "/tmp/cw" }).storedKey, "/tmp/cw/loops-key");
+    assert.equal(keyFilesOf({ CREWHUB_WORLD_CONFIG_DIR: "~/cw" }).storedKey, path.join(homedir(), "cw", "loops-key"));
   });
 });
 
 describe("the server config", () => {
-  it("has the plan's defaults", () => {
-    assert.deepEqual(loadServerConfig({}), { loopsUrl: "http://127.0.0.1:8091", loopsSocket: null, loopsWebUrl: "http://127.0.0.1:8091", port: 5180, allowedOrigins: [], production: false, pairing: "on", pairingFile: null, publicUrl: null, warnings: [] });
+  const own = { appData: DEFAULT_APP_DATA, configDir: path.join(homedir(), ".config", "crewhub-world") };
+
+  it("has the plan's defaults: no URL means the discovery of the Mac app", () => {
+    assert.deepEqual(loadServerConfig({}), { loopsUrl: null, loopsSocket: null, loopsWebUrl: null, ...own, port: 5180, allowedOrigins: [], production: false, pairing: "on", pairingFile: null, publicUrl: null, warnings: [] });
+    assert.equal(loadServerConfig({ CREWHUB_WORLD_LOOPS_APP_DATA: "~/crewhub-loops-dev" }).appData, path.join(homedir(), "crewhub-loops-dev"));
   });
 
   it("reads the environment and rejects a bad port or URL", () => {
     const config = loadServerConfig({ CREWHUB_WORLD_PORT: "5190", CREWHUB_WORLD_LOOPS_URL: "http://localhost:8091/", CREWHUB_WORLD_ALLOWED_ORIGINS: "http://localhost:5173, http://127.0.0.1:5173", NODE_ENV: "production" });
-    assert.deepEqual(config, { loopsUrl: "http://localhost:8091/", loopsSocket: null, loopsWebUrl: "http://localhost:8091", port: 5190, allowedOrigins: ["http://localhost:5173", "http://127.0.0.1:5173"], production: true, pairing: "on", pairingFile: null, publicUrl: null, warnings: [] });
+    assert.deepEqual(config, { loopsUrl: "http://localhost:8091/", loopsSocket: null, loopsWebUrl: "http://localhost:8091", ...own, port: 5190, allowedOrigins: ["http://localhost:5173", "http://127.0.0.1:5173"], production: true, pairing: "on", pairingFile: null, publicUrl: null, warnings: [] });
     assert.throws(() => loadServerConfig({ CREWHUB_WORLD_PORT: "world" }), ConfigError);
     assert.throws(() => loadServerConfig({ CREWHUB_WORLD_LOOPS_URL: "ftp://x" }), ConfigError);
   });
@@ -72,8 +80,8 @@ describe("the loops socket", () => {
     assert.equal(loadServerConfig({ CREWHUB_WORLD_LOOPS_SOCKET: "" }, probe).loopsSocket, null, "empty is unset");
     const unix = loadServerConfig({ CREWHUB_WORLD_LOOPS_SOCKET: "/run/api.sock" }, probe);
     assert.equal(unix.loopsSocket, "/run/api.sock");
-    assert.equal(unix.loopsUrl, "http://127.0.0.1:8091", "the URL keeps its default: it names the web app for the sign-in link");
-    assert.equal(unix.loopsWebUrl, "http://127.0.0.1:8091");
+    assert.equal(unix.loopsUrl, null);
+    assert.equal(unix.loopsWebUrl, "http://127.0.0.1:8091", "a socket has no origin: the app's default port names the web app for the sign-in link");
     assert.equal(loadServerConfig({ CREWHUB_WORLD_LOOPS_SOCKET: "/run/api.sock", CREWHUB_WORLD_LOOPS_WEB_URL: "http://127.0.0.1:8291/" }, probe).loopsWebUrl, "http://127.0.0.1:8291", "socket mode can name another web app");
     assert.throws(
       () => loadServerConfig({ CREWHUB_WORLD_LOOPS_SOCKET: "/run/api.sock", CREWHUB_WORLD_LOOPS_URL: "http://127.0.0.1:8291" }, probe),
@@ -91,6 +99,7 @@ describe("the loops socket", () => {
 describe("the loops web URL", () => {
   it("is the loops URL's origin unless CREWHUB_WORLD_LOOPS_WEB_URL names another http(s) origin", () => {
     assert.equal(resolveLoopsWebUrl(undefined, "http://localhost:8091/"), "http://localhost:8091");
+    assert.equal(resolveLoopsWebUrl(undefined, null), null, "nothing named: the discovery names it");
     assert.equal(resolveLoopsWebUrl("  ", "http://127.0.0.1:8291"), "http://127.0.0.1:8291", "blank is unset");
     assert.equal(resolveLoopsWebUrl("https://localhost:8443/app/", "http://127.0.0.1:8091"), "https://localhost:8443", "only the origin");
     assert.throws(() => resolveLoopsWebUrl("localhost:8091", "http://127.0.0.1:8091"), (e: unknown) => e instanceof ConfigError && /http\(s\) URL/.test(e.message));

@@ -131,6 +131,7 @@ class WorldRuntime {
   #roleOverrides: Record<string, RoleId> = {};
   #zoning: TownZoning = {};
   #zoningSignature = "{}";
+  #reducedMotion = false;
   #state: WorldState;
   #listeners = new Set<() => void>();
   #frame = 0;
@@ -187,6 +188,13 @@ class WorldRuntime {
     this.#schedule();
   }
 
+  /** The viewer prefers reduced motion: a person's package lands at once instead of being carried (the reducer's call). */
+  setReducedMotion(on: boolean) {
+    if (on === this.#reducedMotion) return;
+    this.#reducedMotion = on;
+    this.#schedule();
+  }
+
   subscribe = (listener: () => void) => {
     this.#listeners.add(listener);
     return () => this.#listeners.delete(listener);
@@ -217,6 +225,7 @@ class WorldRuntime {
       mode: this.source.mode,
       roleOverrides: this.#roleOverrides,
       zoning: this.#zoning,
+      reducedMotion: this.#reducedMotion,
     });
     this.#memory = result.memory;
     this.#lastReduce = performance.now();

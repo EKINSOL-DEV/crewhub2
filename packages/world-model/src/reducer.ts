@@ -32,7 +32,7 @@ import type {
   RoleId,
   WorldModel,
 } from "./model.ts";
-import { finishFlights, flyObjects, startFlights } from "./flights.ts";
+import { finishFlights, flyObjects, startFlights, visitsOf } from "./flights.ts";
 import { buildObjects } from "./objects.ts";
 import type { BuiltObject, DeskHolder } from "./objects.ts";
 import { buildRooms, meetingKey } from "./rooms.ts";
@@ -49,6 +49,8 @@ export interface ReduceOptions {
   roleOverrides: Record<AgentKey, RoleId>;
   /** The town document's zones and manual assignments; absent means the source's groups alone decide. */
   zoning?: TownZoning;
+  /** The viewer prefers reduced motion: a person's package lands at once instead of being carried. */
+  reducedMotion?: boolean;
 }
 
 export interface ReduceResult {
@@ -83,6 +85,7 @@ export function reduceWorld(facts: Readonly<Facts>, memory: PresentationMemory, 
     now,
     stale: freshness.stale,
     roleOverrides: options.roleOverrides,
+    reducedMotion: options.reducedMotion === true,
   };
 
   startFlights(ctx);
@@ -227,6 +230,7 @@ function activeBuilding(
     beacons: beaconsOf(built, facts),
     mailbox: [],
     archivedCount: facts.archivedTickets[slug] ?? 0,
+    visits: visitsOf(slug, ctx),
   };
 }
 
@@ -253,6 +257,7 @@ function archivedBuilding(project: ProjectOut, ctx: ReduceContext): Building {
     beacons: [],
     mailbox: [],
     archivedCount: facts.archivedTickets[project.slug] ?? 0,
+    visits: [],
   };
 }
 

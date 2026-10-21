@@ -694,17 +694,30 @@ now host several model rooms in one physical room, the **hall**:
        x1-4           x15
 ```
 
-- **Lead's office:** origin (0, 0), 9 x 18.
+- **Lead's office:** origin (0, 0), 9 x 18. It keeps the floor's depth because the halls are rectangles on a 28-deep
+  plot (the floor's three module rows are 18 deep, Administration takes the other 10); its south half is the lead's
+  sitting room, so it reads as one room, not as a second hall.
   - The lead's desk is near the north wall, with the beacon above it.
   - Two side desks for agents a person set to lead (as today).
   - A bookshelf and a sofa corner.
-  - A window on the east wall onto the floor.
-  - The door to the floor is at office cell (8, 14), opening onto floor cell (0, 14).
+  - A window on the east wall onto the floor: the partition run north of the door is glazed above the partition
+    height (the glass wall's glass and mullions between timber posts on the cap, `building.partition` variant
+    `glazed`), so from the overview it reads as a window, not as a taller wall. Built 2026-10-21; it replaced the
+    small window piece the decor hung there.
+  - The door to the floor is at office cell (8, 14), opening onto floor cell (0, 14). The office's sign hangs over this
+    door (2026-10-21); the floor's lies beside its door down to Administration, Administration's by the loading door.
+    Partitions between the halls are the classic 0.52 high; the 0.56 of 7 October was a workaround for a partition
+    that no longer vanishes (`apps/world/test/mergeStatic.test.ts`).
 - **The floor:** origin (9, 0), 6 x c cells wide (c = 2 to 4 module columns) and 18 deep (three module rows).
   - The huddle is floor module (0, 2), the one by the office door: a small round table with places all round, tagged
-    `gather`.
-  - The other modules hold two desks each, filled row by row from the back. A role's desks are contiguous: workers,
-    then analyst, then design.
+    `gather`. It stands at (3, 1) in its module (built 2026-10-21), so its ring of places keeps out of the office
+    door's mouth and of the way from that door to the floor's door down to Administration: a huddle in session cuts
+    nobody off and lengthens the lead's way by two cells at most (a test walks it).
+  - The other modules hold two desks each, filled row by row from the front (the doors' side), west to east (built
+    2026-10-21; the first design said from the back, which left a small team's floor empty in front of its desks). A
+    role's desks are contiguous: workers, then analyst, then design.
+  - A module without desks is a breakout corner, not a void: in turn a lounge (two armchairs round a side table on a
+    rug) and a green corner (a planter, plants, a bench), placed by the dressing planner so every path stays open.
   - A role room the model has gets at least one module, even when it has no agent now (it stays dimmed, as today).
   - The column count is the smallest c ≥ 2 that fits every desk module plus the huddle, at most 4. That gives 10, 16
     and 22 desks.

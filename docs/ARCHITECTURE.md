@@ -56,7 +56,7 @@ Phase status, each to be confirmed at the end of the night:
 
 - Phase 1 (town, loops-client, demo source): built in demo mode
 - Phase 2 (chat mirror, backed by the demo chat API): built in demo mode
-- Phase 3 (interiors, ticket drone): built in demo mode
+- Phase 3 (interiors, ticket drone; a person carries work into Done since 2026-10-21): built in demo mode
 - Phase 4 (town paths and dynamic pathfinding): built in demo mode
 - Phase 5 (town document and build mode): built in demo mode
 - Phase 6 (scripted director and `where`): built in demo mode

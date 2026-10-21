@@ -258,7 +258,7 @@ class GreenhouseStyle implements WorldStyle {
       case "door":
         return shell.entrance(kit, o);
       case "building.partition":
-        return shell.partition(kit, o);
+        return shell.partition(kit, o, this.#glass);
       case "building.door-frame":
         return shell.doorFrame(kit, o);
       case "building.slab":

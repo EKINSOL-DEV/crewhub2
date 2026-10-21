@@ -839,6 +839,49 @@ Three rooms is the default. Buildings are smaller: a small team's is 21 cells wi
 at stress=20 on a phone profile, 334 draw calls against 413, and 5.6 ms of work against 7.5 ms. See the spec addendum
 and [TOWN_PLAN.md](../TOWN_PLAN.md) section 12.
 
+## Live on the Mac crewhub-loops (night of 2026-10-20 to 21)
+
+The first run against a real crewhub-loops. The engine is now the Mac app (`Crewhub.app`, 8091), 316 commits past the
+`053b5f47` the world was built for. The world ran against a **private development instance** of `4cdcd383` on 8291
+(`tools/loops-dev.sh`: its own checkout, data folder and socket), never against the app. The spec addendum is "live on the
+Mac crewhub-loops". There were six developers (Fable 5.1), and every merge was green before `feat/world-demo` moved.
+Round 1 ends at `58eaed5`, with 600 tests and the browser pass at 71 of 71, including a new group `real` against 8291.
+
+- **realrun.** The relay follows the real stream:
+  - `GET /api/events?from=tail` for "now". The old `types=attachment.added&limit=1` trick answers `lastSeq: 0` since
+    CL-390, so the host replayed the whole log on every start.
+  - The sealed `cursor` is sent back only while no event followed it.
+  - A 1.5 to 3 s jittered reconnect after loops' 300 s end (CL-378).
+  - 429 with `Retry-After`, a 410 reset, and restore detection.
+  - **At most one upstream stream per host**, proven through reconnects, reloads and late tabs.
+
+  The fake matches the real stream. [LOOPS_REAL_VS_FAKE.md](../LOOPS_REAL_VS_FAKE.md) lists what differs.
+- **unixsock.** `CREWHUB_WORLD_LOOPS_SOCKET` (or `--loops-socket`) reads loops over the app's Unix socket through a
+  small transport seam. `health.transport` says which road is used. `CREWHUB_WORLD_LOOPS_WEB_URL` names the web app for
+  the sign-in link.
+- **seed.** `tools/loops-seed.mjs` replays the demo storyline into the development loops with a lead key, so the world
+  shows real data that moves. Projects came from crewy, because creating them is admin-only.
+- **lanefacts.** The agent card reads the real `AgentLane`: set up as, seen running, drift, lifecycle, computer. It
+  also reads the external-bot and needs-login flags, and freshness from `lastSeenAt`. Without a team probe it says
+  "No team snapshot".
+- **setupdocs.** [LOOPS_SETUP.md](../LOOPS_SETUP.md) is written for the Mac app, the gap analysis's section 2c is at
+  `4cdcd383`, and the documents no longer call the host planned or the key a probe's.
+- **viewer** (loops repository, branch `world/viewer-key`, not pushed). A proposal for gap L1: an external bot flag
+  `viewer` that may read exactly the host's read list and the stream, write nothing, and is paced like the reader.
+  Its tests are green.
+
+**What the real API taught.**
+- The `probe` road is dead (CL-295). The world's key is an external bot (CL-314), role lead, which could write. The
+  host's GET allow-list keeps it read-only.
+- A move into Done is a person's act: an agent's move answers 403 `human_only_done`.
+- An agent key never lists archived projects, but the event log names them.
+- Seq gaps per key are normal.
+- `GET /api/team` is empty without a probe.
+- The socket behaves exactly like TCP.
+
+The Lead's report is in the session's scratchpad (`live-mac-report.md`). Round 2 follows: a smooth connection, a person
+in the world, closed buildings, the honest fake and the three-room polish.
+
 ## Challenges with docs/integrators
 
 Read at crewhub-loops `a1bed0f`. Each item names the document, what was unclear, contradictory, missing or marked

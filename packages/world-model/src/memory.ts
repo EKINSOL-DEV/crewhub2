@@ -15,6 +15,28 @@ export interface FlightMemory {
   until: number;
   /** For a flight to the truck: the card as it was archived (it is no longer on the board). */
   card: TicketCard | null;
+  /** A person carries it (a move into Done by a user): who, and the move; null for the drone. */
+  person: PersonCarry | null;
+}
+
+/** The person behind a carry: the move's actor, the move's source time, and whether it closed the ticket as won't do. */
+export interface PersonCarry {
+  id: string;
+  movedAt: number;
+  rejected: boolean;
+}
+
+/** A person's package that just landed on the Done rack: the visit lingers (`PersonVisit.phase` "landed") until `until`. */
+export interface LandedMemory {
+  slug: string;
+  ticketKey: string;
+  person: PersonCarry;
+  fromRoom: RoomKind;
+  fromDeskOf: AgentKey | null;
+  /** When the carry began and ended (source ms); `until` is the end of the landed phase. */
+  startedAt: number;
+  landedAt: number;
+  until: number;
 }
 
 /** Where a ticket's object was last shown. */
@@ -55,6 +77,8 @@ export interface PresentationMemory {
   unarchivePending: Record<string, number>;
   /** `Facts.snapshots` when the flights were last judged: a new snapshot ends every flight. */
   snapshots: number;
+  /** Packages a person just put on the Done rack, by ticket id, while the visit is still told. */
+  landed: Record<string, LandedMemory>;
 }
 
 export function emptyMemory(): PresentationMemory {
@@ -69,5 +93,6 @@ export function emptyMemory(): PresentationMemory {
     unarchiveSeen: 0,
     unarchivePending: {},
     snapshots: 0,
+    landed: {},
   };
 }

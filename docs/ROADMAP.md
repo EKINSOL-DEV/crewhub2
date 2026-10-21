@@ -88,6 +88,13 @@ Walk mode (2026-10-07, built in demo mode): the person walks a visitor figure th
 the navigation world, with a follow camera ("Walk mode" in
 [the night report](reports/2026-10-01-world-demo-night.md)).
 
+A person in the world (2026-10-21, spec addendum "a person in the world, and closed buildings", part 1): a
+`ticket.moved` into Done by a user is a person's act in loops, so the world shows a person: a plain figure of the
+building's cast comes in by the front door, carries the package from its rack or desk to the Done rack and leaves. The
+model records the visit (`Building.visits`, one person per building, a queue of three, the rest land at once; the
+celebration follows the landing), the text view and `where` tell it, a click says who and what. Under reduced motion
+the package lands at once. Part 2 (closed buildings) is open.
+
 ## The host
 
 Built on 2026-10-07 and brought to the Mac app on 2026-10-21 (plan section 10, "Phase 1 as built" and "Phase 1
@@ -96,7 +103,10 @@ agent key over loopback TCP (the Mac app's `127.0.0.1:8091`) or over the app's U
 (`CREWHUB_WORLD_LOOPS_SOCKET`, explicit only), keeps one event stream, serves `/world-api` as SSE
 with pairing and the static bundle, and `createHostSource` is the live `WorldSource`. The key is an external bot's
 (CL-314), lead-grade; the host's `GET`-only allow-list keeps the world read-only until crewhub-loops has a viewer key
-(L1).
+(L1). Since the round of 2026-10-21 ("a smooth connection") the host finds the app by itself (its socket or port from
+its data folder, read only), starts without a key, takes one pasted in the world's Connect screen
+(`POST /world-api/connect`, checked with loops, stored 0600 in `~/.config/crewhub-world`), reports the states in
+`health.connection`, and `npm run world` is the one command; `npm run host -- doctor` is the terminal view.
 
 Closed buildings (2026-10-21, round 2): an archived project is a closed building, boarded up with its lights off, a
 Closed sign that carries the archive date, no packages and no agents; the sign, the click and the text view say

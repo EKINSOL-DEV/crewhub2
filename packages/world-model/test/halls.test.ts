@@ -46,6 +46,7 @@ const threeRoomBuilding = () =>
         { deliveryId: "d2", recipientId: "Bo", reason: "review_reply", state: "pending", flagged: true },
       ],
       archivedCount: 5,
+      visits: [],
       beacons: [{ ticketKey: "CH-7", agent: "Lin", text: "CH-7 needs attention" }],
     },
   );

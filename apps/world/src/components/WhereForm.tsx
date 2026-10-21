@@ -18,7 +18,14 @@ export function WhereForm({ civic, rooms = "classic" }: { civic?: CivicWords; ro
     for (const agent of all) if (!byKey.has(agent.key) || agent.presence === "real") byKey.set(agent.key, agent);
     return [...byKey.values()].sort((a, b) => a.displayName.localeCompare(b.displayName));
   }, [model]);
-  const selected = agents.some((a) => a.key === chosen) ? chosen : (agents[0]?.key ?? "");
+  // People in the world right now (carrying work into Done): asked for by their principal id, like an agent.
+  const people = useMemo(() => {
+    const byId = new Map<string, string>();
+    for (const b of model.buildings) for (const v of b.visits) if (!byId.has(v.personId)) byId.set(v.personId, v.displayName);
+    return [...byId].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [model]);
+  const known = agents.some((a) => a.key === chosen) || people.some(([id]) => id === chosen);
+  const selected = known ? chosen : (agents[0]?.key ?? people[0]?.[0] ?? "");
   return (
     <form className="where-form" onSubmit={(e) => e.preventDefault()} aria-labelledby={titleId}>
       <h3 id={titleId}>Where is …?</h3>
@@ -26,6 +33,11 @@ export function WhereForm({ civic, rooms = "classic" }: { civic?: CivicWords; ro
         {agents.map((a) => (
           <option key={a.key} value={a.key}>
             {a.displayName}
+          </option>
+        ))}
+        {people.map(([id, name]) => (
+          <option key={`person:${id}`} value={id}>
+            {name} (person)
           </option>
         ))}
       </Field>

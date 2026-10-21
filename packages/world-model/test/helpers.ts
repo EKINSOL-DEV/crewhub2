@@ -5,6 +5,7 @@ import type {
   Envelope,
   LoopsSnapshot,
   MilestoneSummary,
+  PrincipalOut,
   PrincipalRef,
   ProjectOut,
   ReleaseSummary,
@@ -90,6 +91,7 @@ export interface WorldInput {
   agents?: AgentOut[];
   milestones?: Record<string, MilestoneSummary[]>;
   releases?: Record<string, ReleaseSummary[]>;
+  principals?: PrincipalOut[];
 }
 
 export function snapshot(input: WorldInput): LoopsSnapshot {
@@ -100,7 +102,7 @@ export function snapshot(input: WorldInput): LoopsSnapshot {
     boards: input.boards ?? {},
     team: input.team ?? team(T0, []),
     agents: input.agents ?? [],
-    principals: [],
+    principals: input.principals ?? [],
     watchdog: { mode: "observe", open: [] },
     milestones: input.milestones ?? {},
     releases: input.releases ?? {},

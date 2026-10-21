@@ -28,6 +28,7 @@ import {
   type BuildingTemplate,
   type WallRun,
 } from "./buildingTemplate";
+import { ADMIN_DOOR, officeWindowRun } from "./threeRoomTemplate";
 import { assignDesks, placeObjects, roomCentre, SHELF_PITCH, type DeskSlot, type ObjectLayout, type Surface } from "./interiorLayout";
 import { mergeStatic } from "./mergeStatic";
 import { Closing } from "./closing.ts";
@@ -41,6 +42,7 @@ import type { RobotCrowd } from "./robotCrowd";
 import { deskItems, DRESS_PREFIX, dressingSeed, isThreeRoom, lampLane, RACKS, roomDecor, type DecorItem } from "./roomDressing";
 import type { Bounds } from "./townLayout";
 import type { Walker, WorkSpot } from "./walks";
+import type { PersonWalker } from "./personWalks";
 import { deskClutter, HOME_VIEW, WORK_FURNITURE, workPlace, type Circle, type WorkAt } from "./workPlaces";
 import { workSurfaceOf } from "./workSurface";
 
@@ -61,12 +63,6 @@ const WALLS: Record<WallRun["side"], [ModelKey, number, number]> = {
   east: ["wall.low", 0.22, 0.12],
   inner: ["building.partition", 0.52, 0.1],
 };
-/**
- * The partitions between the three halls stand a little higher than the classic rooms': the halls are big, and a
- * 0.52 partition of these lengths did not draw at all from the merged shell (bisected: 0.53 and up draw; the cause
- * in the static merge is open, see the racks report).
- */
-const HALL_PARTITION = 0.56;
 /** The remote tier (see `#applyDistance`): pieces smaller than this, world units, are not drawn; they go to this layer. */
 const REMOTE_PIECE = 3;
 const REMOTE_LAYER = 30;
@@ -170,12 +166,23 @@ export interface BuildingContext {
   reducedMotion: () => boolean;
   /** The walk runtime's interpolated position of an agent, when it has one (walks.ts). */
   walker: (key: string) => Walker | undefined;
+  /** The people in a building right now (personWalks.ts): a person carrying a package into Done, at most one. */
+  persons: (slug: string) => Iterable<PersonWalker>;
 }
 
 /** What a building shows of its zone: the district's colour and emblem, on a medallion by the door. */
 export type ZoneMark = { color: ProjectColor | null; emblem: ProjectIcon | null };
 
-export type Pick = { kind: "agent"; key: string } | { kind: "object"; ticketId: string } | { kind: "room"; room: RoomKind } | { kind: "prop"; id: string };
+export type Pick = { kind: "agent"; key: string } | { kind: "person"; id: string } | { kind: "object"; ticketId: string } | { kind: "room"; room: RoomKind } | { kind: "prop"; id: string };
+
+interface Person {
+  handle: FigureHandle;
+  walker: PersonWalker;
+  /** The cast the figure was made by: another cast swaps it where it walks. */
+  castId: string;
+  /** The ticket id in its hands, while it holds one. */
+  held: string | null;
+}
 
 interface Robot {
   handle: FigureHandle;
@@ -295,6 +302,10 @@ export class BuildingView {
   /** The facts of the figure being followed (reused every frame). */
   #facts: FigureFacts = { agent: null as unknown as AgentPlacement };
   #state: FigureState = { ...IDLE_STATE };
+  /** The people in the building (spec addendum "a person in the world"), by visit id: a plain figure of the cast and the package it holds. */
+  #people = new Map<string, Person>();
+  #personState: FigureState = { ...IDLE_STATE };
+  #carryAt = new THREE.Vector3();
   #objects: ObjectLayer;
   #props: PropLayer;
   /** The town document's placements resolved into this building's rooms, and what they were resolved from. */
@@ -384,6 +395,7 @@ export class BuildingView {
     this.#personal.visible = this.detailed;
     this.#objects.group.visible = this.detailed;
     this.#applyDistance();
+    if (!this.detailed) this.#dropPeople();
     if (this.detailed) {
       this.#syncSignals();
       this.#syncPersonal();
@@ -475,18 +487,25 @@ export class BuildingView {
       // Soft contact shade where the walls meet this room's floor.
       add(style.model("building.floor-shade", { size: { width: width * CELL, height: 0, depth: depth * CELL } }), cx, cz, 0.026);
       add(style.model("building.slab", opt({ size: { width: width * CELL, height: FLOOR_RISE, depth: depth * CELL }, accent })), cx, cz);
-      const at = this.#signSpot(room.kind);
-      add(style.model("room.sign"), at.x, at.z, 0.02);
-      this.anchors.set(`r:${b.slug}:${room.kind}`, this.world(at.x, at.z, 0.35));
+      // The lead's office's sign hangs over its door onto the floor (addendum); the other halls' signs lie on a floor
+      // plate by their south-west corner.
+      const door = threeRoom && room.kind === "lead-office" ? doorOpenings(this.template).find((o) => o.id === "office-floor") : undefined;
+      if (door) this.anchors.set(`r:${b.slug}:${room.kind}`, this.world((door.x1 + door.x2) / 2, (door.z1 + door.z2) / 2, DOOR_FRAME + 0.2));
+      else {
+        const at = this.#signSpot(room.kind);
+        add(style.model("room.sign"), at.x, at.z, 0.02);
+        this.anchors.set(`r:${b.slug}:${room.kind}`, this.world(at.x, at.z, 0.35));
+      }
     }
     // North and west are the tall back walls (the glass wall and the chalk wall), south and east low rims to look in
     // over, and the partitions between rooms in between.
     for (const run of wallRuns(this.template)) {
       const horizontal = run.z1 === run.z2;
       const length = (horizontal ? run.x2 - run.x1 : run.z2 - run.z1) * CELL;
-      const [key, wallHeight, depth] = WALLS[run.side];
-      const height = run.side === "inner" && threeRoom ? HALL_PARTITION : wallHeight;
-      const wall = add(style.model(key, opt({ size: { width: length + depth, height, depth } })), (run.x1 + run.x2) / 2, (run.z1 + run.z2) / 2, 0, horizontal ? 0 : Math.PI / 2);
+      const [key, height, depth] = WALLS[run.side];
+      // The office's window onto the floor: that partition is glazed above the partition height (archived wins).
+      const glazed = run.side === "inner" && officeWindowRun(this.template, run) ? { variant: "glazed" } : {};
+      const wall = add(style.model(key, opt({ size: { width: length + depth, height, depth }, ...glazed })), (run.x1 + run.x2) / 2, (run.z1 + run.z2) / 2, 0, horizontal ? 0 : Math.PI / 2);
       if (run.side === "north" || run.side === "west") {
         const [lowKey, lowHeight, lowDepth] = WALLS.south;
         const low = style.model(lowKey, opt({ size: { width: length + lowDepth, height: lowHeight, depth: lowDepth } }));
@@ -648,9 +667,14 @@ export class BuildingView {
     return side === "north" ? camera.position.z > o.z + (DEPTH * CELL) / 2 : camera.position.x > o.x + (this.template.size.width * CELL) / 2;
   }
 
+  /**
+   * Where a hall's or room's sign plate lies: its south-west corner, or, for the three-room floor, beside its door
+   * down to Administration (east of the Done rack, whose sign the corner plate's label used to crowd).
+   */
   #signSpot(kind: RoomKind): { x: number; z: number } {
     const room = roomOf(this.template, kind)!;
-    return { x: room.origin.x + 1.1, z: room.origin.z + room.layout.grid.depth - 0.45 };
+    const x = isThreeRoom(this.template) && room.kind === "workers" ? ADMIN_DOOR.floor.x + 1.6 : 1.1;
+    return { x: room.origin.x + x, z: room.origin.z + room.layout.grid.depth - 0.45 };
   }
 
   /* The furniture layer: the template's furniture with its blocking dressing, and the dressing that never blocks
@@ -1311,7 +1335,7 @@ export class BuildingView {
   }
   setSelected(key: string | null) {
     if (key === this.#selectedKey) return;
-    if (this.#selectedKey) this.#robots.get(this.#selectedKey)?.handle.setHighlight("none");
+    if (this.#selectedKey) this.#selectedHandle()?.setHighlight("none");
     this.#selectedKey = key;
     if (!key) {
       this.#selection?.removeFromParent();
@@ -1324,15 +1348,107 @@ export class BuildingView {
     }
     this.#placeSelection();
   }
+  /** The selected figure's handle: an agent's robot, or a person (selected by visit id). */
+  #selectedHandle(): FigureHandle | undefined {
+    if (!this.#selectedKey) return undefined;
+    return this.#robots.get(this.#selectedKey)?.handle ?? this.#people.get(this.#selectedKey)?.handle;
+  }
   #placeSelection() {
     const ring = this.#selection;
     if (!ring) return;
     const robot = this.#selectedKey ? this.#robots.get(this.#selectedKey) : undefined;
-    ring.visible = !!robot;
-    if (robot) ring.scale.setScalar((robot.handle.anchors.ground * robot.handle.body.scale.x) / RING_GROUND);
-    robot?.handle.setHighlight("selected");
-    // The ring follows the figure up on its perch.
+    const handle = robot?.handle ?? this.#selectedHandle();
+    ring.visible = !!handle;
+    if (handle) ring.scale.setScalar((handle.anchors.ground * handle.body.scale.x) / RING_GROUND);
+    handle?.setHighlight("selected");
+    // The ring follows the figure up on its perch; a person stands on the floor.
     if (robot) ring.position.copy(robot.handle.object.position).add(this.#lift(robot)).y += 0.01;
+    else if (handle) ring.position.copy(handle.object.position).y += 0.01;
+  }
+
+  /* ── People: a person carries a package into Done (personWalks.ts) ──────────────────────────────── */
+
+  /**
+   * Every frame of the entered building: the figures follow their person walkers, the package rides at the carry anchor
+   * while it is held and stands on the Done rack once put down. A person is a plain figure of the building's cast
+   * (a worker, no project colour), picked as a person, never as an agent.
+   */
+  #followPeople(seconds: number, reduced: boolean) {
+    const slug = this.building.slug;
+    const seen = new Set<string>();
+    const o = this.group.position;
+    const castId = this.ctx.cast.manifest.id;
+    for (const w of this.ctx.persons(slug)) {
+      if (w.building !== slug) continue;
+      seen.add(w.id);
+      let person = this.#people.get(w.id);
+      if (!person || person.castId !== castId) {
+        person?.handle.dispose();
+        person = { handle: this.#personFigure(w), walker: w, castId, held: person?.held ?? null };
+        this.#people.set(w.id, person);
+      }
+      person.walker = w;
+      const handle = person.handle;
+      handle.object.position.set(w.x - o.x, w.y - o.y + FLOOR_LIFT, w.z - o.z);
+      handle.object.rotation.y = w.heading;
+      const state = this.#personState;
+      state.activity = w.walking ? "walking" : "idle";
+      state.waiting = state.alert = state.proxy = false;
+      state.carrying = w.holding;
+      handle.setState(state);
+      if (!reduced) handle.update(seconds);
+      // The name tag hangs over the head, like an agent's.
+      const head = w.y + 2 * FLOOR_LIFT + handle.anchors.label[1] * handle.body.scale.y * ROBOT_SCALE;
+      const id = `a:${slug}:${w.id}`;
+      const anchor = this.anchors.get(id);
+      if (anchor) anchor.set(w.x, head, w.z);
+      else this.anchors.set(id, new THREE.Vector3(w.x, head, w.z));
+      if (w.holding) {
+        person.held = w.visit.ticketId;
+        this.#objects.carry(w.visit.ticketId, this.#carryAnchor(handle, this.#carryAt));
+      } else if (person.held) {
+        if (w.delivered) this.#objects.deliver(person.held);
+        this.#objects.carry(person.held, null);
+        person.held = null;
+      }
+    }
+    for (const [id, person] of this.#people) if (!seen.has(id)) this.#dropPerson(id, person);
+  }
+
+  /** The carry anchor of a figure standing on the floor, building-local: turned with the figure, at its scale. */
+  #carryAnchor(handle: FigureHandle, out: THREE.Vector3): THREE.Vector3 {
+    const [cx, cy, cz] = handle.anchors.carry;
+    const turn = handle.object.rotation.y;
+    const cos = Math.cos(turn),
+      sin = Math.sin(turn);
+    const p = handle.object.position;
+    return out.set(p.x + (cx * cos + cz * sin) * ROBOT_SCALE, p.y + cy * ROBOT_SCALE, p.z + (cz * cos - cx * sin) * ROBOT_SCALE);
+  }
+
+  /** A person's figure: the building's cast, a plain worker without the project colour, pickable as a person. */
+  #personFigure(w: PersonWalker): FigureHandle {
+    const handle = this.ctx.cast.figure({ key: `person:${w.visit.personId}`, role: "worker", accent: null });
+    handle.object.scale.setScalar(ROBOT_SCALE);
+    handle.setDetail("near");
+    handle.object.traverse((o) => {
+      o.userData.personVisit = w.id;
+    });
+    this.#agents.add(handle.object);
+    return handle;
+  }
+
+  #dropPerson(id: string, person: Person) {
+    if (person.held) {
+      if (person.walker.delivered) this.#objects.deliver(person.held);
+      this.#objects.carry(person.held, null);
+    }
+    person.handle.dispose();
+    this.#people.delete(id);
+    this.anchors.delete(`a:${this.building.slug}:${id}`);
+  }
+
+  #dropPeople() {
+    for (const [id, person] of this.#people) this.#dropPerson(id, person);
   }
 
   /**
@@ -1358,7 +1474,7 @@ export class BuildingView {
   /** True while something here moves. */
   get animating(): boolean {
     const idle = !this.ctx.reducedMotion() && this.#robots.size > 0;
-    return (this.detailed && (this.#objects.animating || this.#props.animating || idle)) || this.#truckDrive !== null || this.#truckPending;
+    return (this.detailed && (this.#objects.animating || this.#props.animating || idle || this.#people.size > 0)) || this.#truckDrive !== null || this.#truckPending;
   }
 
   /**
@@ -1398,6 +1514,7 @@ export class BuildingView {
       if (!reduced && (this.detailed || walking)) robot.handle.update(seconds);
     }
     if (this.detailed) {
+      this.#followPeople(seconds, reduced);
       this.#objects.update(seconds);
       this.#props.tick(seconds);
       for (const child of this.#signals.children) (child.userData.animate as ((s: number) => void) | undefined)?.(seconds);
@@ -1462,6 +1579,8 @@ export class BuildingView {
     if (prop) return { kind: "prop", id: prop };
     const ticket = this.#objects.pick(hit);
     if (ticket) return { kind: "object", ticketId: ticket };
+    const person = hit.object.userData.personVisit as string | undefined;
+    if (person) return { kind: "person", id: person };
     const agent = hit.object.userData.agentId as string | undefined;
     if (agent) return { kind: "agent", key: agent };
     const room = hit.object.userData.room as RoomKind | undefined;
@@ -1486,6 +1605,7 @@ export class BuildingView {
     this.#closing = null;
     for (const robot of this.#robots.values()) robot.handle.dispose();
     this.#robots.clear();
+    this.#dropPeople();
     this.#objects.dispose();
     this.#props.dispose();
     for (const geometry of [...this.#merged, ...this.#furnitureMerged, ...this.#pilesMerged, ...this.#silhouetteMerged, ...this.#personalMerged, ...this.#signalsMerged, ...this.#cordsMerged]) geometry.dispose();

@@ -428,12 +428,16 @@ each with one meaning.
 The handover is the building's story: work starts and the box leaves the rack for a desk; done, it goes back to the
 Review rack; approved, one rack further to Done; rejected, back to the desk.
 
-**The floor plan** (building cells, one cell 0.6 world units): the lead's office at the north-west, 9 by 18; the floor
-east of it, 18 deep and 12 to 24 wide in 6-cell module columns (the huddle takes the module by the office door, every
-other module two desks, a role's desks contiguous: workers, then analyst, then design); Administration along the south,
-21 by 10, with the four racks at x 1, 5, 9 and 13 (three slots on four shelves each, a pallet with a count past 12).
-The front door and the loading door are where they were, so plots, roads and the truck apron do not move; the widest
-building is still 33 cells. The addendum has the drawing.
+**The floor plan** (building cells, one cell 0.6 world units): the lead's office at the north-west, 9 by 18, its south
+half a sitting room; the floor east of it, 18 deep and 12 to 24 wide in 6-cell module columns (the huddle takes the
+module by the office door, standing at (3, 1) in it so its ring keeps out of the doorways; every other module two desks,
+filled row by row from the front and west to east, a role's desks contiguous: workers, then analyst, then design; a
+module without desks is a breakout corner, a lounge or a green corner in turn); Administration along the south, 21 by
+10, with the four racks at x 1, 5, 9 and 13 (three slots on four shelves each, a pallet with a count past 12). The
+partitions between the halls are 0.52 high; the office's east run north of its door is glazed above that, the window
+onto the floor. The office's sign hangs over its door, the floor's lies beside its door down to Administration,
+Administration's by the loading door. The front door and the loading door are where they were, so plots, roads and the
+truck apron do not move; the widest building is still 33 cells. The addendum has the drawing.
 
 **The hall mapping.** The model keeps its ten `RoomKind`s, `TransitPlace`, the flights and the memory of role rooms:
 nothing a fact produces changes. `packages/world-model/src/halls.ts` is the mapping as data: `hallOf(kind)` gives
