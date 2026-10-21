@@ -1055,6 +1055,37 @@ Round 6 ends at `5bdd17d`, with 734 tests and the browser pass at 100 of 100. It
 What is left on the first paint is worth a few milliseconds per item, or touches the style package (the Greenhouse
 models' object count, Nicky's call), so the night's work stops here.
 
+## Round 7: the new events, the operations road, demo and live alike (2026-10-21, late morning)
+
+Round 7 ran lighter on the machine because Nicky works on it by day: three developers at most, no burners, and only the
+tests a track touched. It ends at `3d7a1f7`, with 747 tests.
+
+- **The new loops events in the town** (r7-events, spec addendum "the new loops events").
+  - A quiet ticket gathers dust and a clock tag, "quiet 15 min", until a person or an agent changes it.
+  - An automation's run pins a card on the building's board by the front door for a few seconds, and a failure says
+    so in words.
+  - `owner-request.updated` reaches only the owner person, so the world's key never sees it; the world knows the type
+    and draws nothing.
+  - The fake and the demo emit the events the loops way, and 17 regress checks cover them.
+  - Seen live on the development loops: crewy's automations ran on a quiet WD-3, and the dust, the board card and the
+    text lines appeared. The automation's own change came 6 ms after the quiet fact, which is why a `system` change
+    leaves the dust.
+- **The live operations road** (r7-ops).
+  - Loops stopped and started under a running host: Loops down, then Live again without a reload, the key untouched.
+  - A key revoked while Live: the rejected screen over the live tab with loops' reason, and a new key pasted, Live
+    again.
+  - Loops upgraded under the host: the panel names the old and new version.
+  - A regress group `ops` covers all three over the fake; the `real` group checks loops' version.
+  - `tools/loops-dev.sh` now works from the port: stop kills the real listener, start refuses a served port and writes
+    the pid file only after health answers. It was crewy's root cause of a stop that did not stop.
+- **Demo and live alike** (r7-alike).
+  - Side-by-side pictures, the same camera.
+  - The world's own key is the demo's observer too, as on Nicky's install, and a CI bot stands in the lodge.
+  - The agent card draws above the corner chips.
+  - The differences that are by design are listed.
+- **Proposals, not built**: the loops viewer key packaged for cl-lead (`docs/proposals/crewhub-world-viewer.md` on the
+  unpushed branch `world/viewer-key`), and an addendum with the options for project groups and the director in live mode.
+
 ## Challenges with docs/integrators
 
 Read at crewhub-loops `a1bed0f`. Each item names the document, what was unclear, contradictory, missing or marked
