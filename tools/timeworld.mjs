@@ -138,7 +138,12 @@ async function run(env, browser, index) {
         jump: [...document.querySelectorAll(".jump-list li, [data-building]")].length,
       }))
       .catch(() => null);
-    if (now === null) break;
+    if (now === null) {
+      // The Building page reloads itself into the world: an evaluate during that navigation fails; ask again.
+      if (page.isClosed()) break;
+      await page.waitForTimeout(50);
+      continue;
+    }
     for (const s of now.status) if (!seen.has("s:" + s)) (seen.add("s:" + s), at("page says", JSON.stringify(s.slice(0, 80))));
     if (now.chip && !seen.has("c:" + now.chip)) (seen.add("c:" + now.chip), at(`chip: ${now.chip}`));
     if (now.canvas && canvasAt === null) (canvasAt = true, at("canvas on screen"));
@@ -155,7 +160,7 @@ async function run(env, browser, index) {
   const names = (snapshot?.projects ?? []).map((p) => `${p.name} (${p.key})`);
   await page.keyboard.press("t");
   await page.waitForTimeout(300);
-  const tv = (await page.locator("#text-view").innerText().catch(() => "")) ?? "";
+  const tv = (await page.locator("#text-view").innerText({ timeout: 5000 }).catch(() => "")) ?? "";
   await page.keyboard.press("Escape");
   projects = names.filter((n) => tv.includes(n)).length;
   at("text view read", `${projects} of ${names.length} projects named; ${/Demo mode/.test(tv) ? "DEMO MODE" : "live"}`);
