@@ -8,6 +8,8 @@ import { TownSettings } from "./components/TownSettings";
 import { SourceSettings } from "./components/SourceSettings";
 import { ConnectionChip, connectionLine, connectionWord } from "./components/ConnectionChip";
 import { ConnectionPanel } from "./components/ConnectionPanel";
+import { ChatPanel } from "./components/ChatPanel";
+import { chatPlaceLine } from "./state/chatPanel";
 import { FirstSnapshot } from "./components/FirstSnapshot";
 import { CONNECT_POLL_MS, ConnectPage } from "./components/ConnectPage";
 import { liveScreen, withStreamKey } from "./state/connect";
@@ -32,7 +34,6 @@ import { useDark, useTheme } from "./state/theme";
 import { townRuntime, useTown } from "./state/town";
 import type { TownLayer } from "./world/propLayer";
 import { scenarioChoices, SOURCE, useConnection, useConnectionKey, useWorld, worldRuntime } from "./state/world";
-import { loopsWebUrl } from "./state/source";
 import { translate } from "./i18n";
 import { probeHost, type ConnectionState, type HostHealth } from "@crewhub/loops-client";
 import { buildingTemplate } from "./world/buildingTemplate";
@@ -117,6 +118,9 @@ function World() {
   // The agent card (open for the selected agent) and the agent the camera follows (components/AgentCard).
   const [card, setCard] = useState(false);
   const [following, setFollowing] = useState<string | null>(null);
+  // The Chat panel (components/ChatPanel, live mode): open, with the agent it was opened for (its card) or none (the chip).
+  const [chat, setChat] = useState<{ agent: { key: string; name: string } | null } | null>(null);
+  const chatReturn = useRef<HTMLElement | null>(null);
   const [overrides, setOverrides] = useState<Record<string, RoleId>>(readRoleOverrides);
   const ambient = useAmbient();
   const details = useDetails();
@@ -390,6 +394,17 @@ function World() {
     },
     [agentName],
   );
+  // The Chat panel opens from the chip (no agent) or from a card (that agent); Escape and its close button return the
+  // focus to the opener. Never in the demo, whose chat is its own scripted dock.
+  const openChat = useStable((key: string | null) => {
+    chatReturn.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setChat({ agent: key ? { key, name: agentName(key) } : null });
+    setAnnouncement(translate("world.chat.panel.announce"));
+  });
+  const closeChat = useCallback(() => {
+    setChat(null);
+    chatReturn.current?.focus();
+  }, []);
   /* The followed figure walked somewhere else: the level follows it; the selection and the card stay. */
   const followedTo = useCallback(
     (slug: string | null) => {
@@ -496,6 +511,11 @@ function World() {
         openJump();
         return;
       }
+      if (e.key === "Escape" && chat) {
+        e.preventDefault();
+        closeChat();
+        return;
+      }
       if (e.key === "Escape" && connectionOpen) {
         e.preventDefault();
         closeConnection();
@@ -576,7 +596,7 @@ function World() {
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [back, build, camera, card, closeConnection, closeJump, closeSettings, closeText, connectionOpen, editing, entered, follow, following, go, graphicsFailed, here, inside, jumpOpen, openJump, openText, redo, rooms, selectedAgent, selection.selected, settingsOpen, startWalk, stopWalk, textOpen, undo, walking, zoomed]);
+  }, [back, build, camera, card, chat, closeChat, closeConnection, closeJump, closeSettings, closeText, connectionOpen, editing, entered, follow, following, go, graphicsFailed, here, inside, jumpOpen, openJump, openText, redo, rooms, selectedAgent, selection.selected, settingsOpen, startWalk, stopWalk, textOpen, undo, walking, zoomed]);
 
   // Arrow keys and Enter move the focus ring between plots while the scene has keyboard focus.
   const sceneKey = (e: ReactKeyboardEvent) => {
@@ -714,6 +734,7 @@ function World() {
               onWalkPlace={(slug) => (slug ? enter(slug) : back())}
               card={card}
               onCloseCard={() => setCard(false)}
+              onChat={demo ? null : openChat}
               following={following}
               onFollow={follow}
               onFollowed={followedTo}
@@ -727,6 +748,8 @@ function World() {
       <Corner demo={demo} connection={connection} connectionOpen={connectionOpen} onOpenConnection={openConnection} graphicsFailed={graphicsFailed} trail={trail} onGo={onGo} onJump={openJump} jumpOpen={jumpOpen} following={following ? agentName(following) : null} onStopFollow={() => follow(null)} />
 
       {connectionOpen && connection && <ConnectionPanel state={connection} initial={SOURCE.health} onClose={closeConnection} />}
+
+      {chat && !demo && <ChatPanel agent={chat.agent} health={SOURCE.health} full={narrow} onClose={closeChat} />}
 
       {jumpOpen && <JumpList entries={jumps} onJump={jump} onClose={closeJump} />}
 
@@ -779,11 +802,11 @@ function World() {
 
       {!graphicsFailed && <CameraToolbar camera={camera} walking={walking} toggleWalk={walking ? stopWalk : build.state.on ? null : startWalk} />}
 
-      <ChatCorner narrow={narrow} demo={demo} connection={connection} />
+      <ChatCorner narrow={narrow} demo={demo} connection={connection} chatOpen={chat !== null} onOpenChat={() => openChat(null)} />
 
       {playback && <PlaybackBar playback={playback} />}
 
-      {(textOpen || graphicsFailed) && <TextView civic={civic} rooms={rooms} ref={textRegion} lines={textLines} connection={connection} fallback={graphicsFailed} onClose={graphicsFailed ? null : closeText} districts={districts} onGo={graphicsFailed ? null : onGo} />}
+      {(textOpen || graphicsFailed) && <TextView civic={civic} rooms={rooms} ref={textRegion} lines={textLines} connection={connection} chat={chatPlaceLine(demo ? "demo" : "live")} fallback={graphicsFailed} onClose={graphicsFailed ? null : closeText} districts={districts} onGo={graphicsFailed ? null : onGo} />}
     </div>
   );
 }
@@ -1043,17 +1066,16 @@ const CameraToolbar = memo(function CameraToolbar({ camera, walking, toggleWalk 
   );
 });
 
-/* In demo mode the copied dock and its "replies are scripted" note; in live mode a link to the chat in the loops web app
-   instead, worded so nobody expects more than the chat and opened in a new tab so the town stays (the world's own chat
-   is phase 2; a session cookie never reaches the world). */
-const ChatCorner = memo(function ChatCorner({ narrow, demo, connection }: { narrow: boolean; demo: boolean; connection: ConnectionState | null }) {
+/* In demo mode the copied dock and its "replies are scripted" note; in live mode the Chat chip, which opens the Chat
+   panel: crewhub-loops' own chat framed in the world (components/ChatPanel; a session cookie never reaches the world,
+   the frame carries the person's own). */
+const ChatCorner = memo(function ChatCorner({ narrow, demo, connection, chatOpen, onOpenChat }: { narrow: boolean; demo: boolean; connection: ConnectionState | null; chatOpen: boolean; onOpenChat: () => void }) {
   if (!demo)
     return (
       <div className="world-chat" data-chrome="">
-        <Chip className="demo-chat-chip chat-sign-in" href={loopsWebUrl(SOURCE.health)} target="_blank" rel="noreferrer" title={translate("world.chat.signInHint")} data-connection={connection ?? undefined} icon={<MessageCircle className="icon" aria-hidden="true" />}>
-          {translate("world.chat.signIn")}
-          <span className="sr-only"> ({translate("world.newTab")})</span>
-        </Chip>
+        <button type="button" className="chip-button chat-open" title={translate("world.chat.openHint")} aria-label={translate("world.chat.openHint")} aria-expanded={chatOpen} aria-haspopup="dialog" data-connection={connection ?? undefined} onClick={onOpenChat}>
+          <Chip className="demo-chat-chip" icon={<MessageCircle className="icon" aria-hidden="true" />}>{translate("world.chat.open")}</Chip>
+        </button>
       </div>
     );
   return (
@@ -1120,7 +1142,7 @@ function PlaybackPosition({ playback }: { playback: PlaybackControls }) {
 
 const KIND_WORD: Record<TextLine["kind"], string> = { fact: "fact", inference: "inference", cosmetic: "cosmetic", demo: "demo" };
 
-function TextView({ lines, civic, rooms, connection, fallback, onClose, districts, onGo, ref }: { lines: TextLine[]; civic: CivicWords; rooms: RoomWording; connection: ConnectionState | null; fallback: boolean; onClose: (() => void) | null; districts: DistrictPlace[]; onGo: ((place: Place) => void) | null; ref: Ref<HTMLElement> }) {
+function TextView({ lines, civic, rooms, connection, chat, fallback, onClose, districts, onGo, ref }: { lines: TextLine[]; civic: CivicWords; rooms: RoomWording; connection: ConnectionState | null; /** Where chat lives (state/chatPanel `chatPlaceLine`). */ chat: string; fallback: boolean; onClose: (() => void) | null; districts: DistrictPlace[]; onGo: ((place: Place) => void) | null; ref: Ref<HTMLElement> }) {
   const sections = new Map<string, TextLine[]>();
   for (const line of lines) sections.set(line.section, [...(sections.get(line.section) ?? []), line]);
   // The town first, then every building's sections under its district, then the rest (casts, zones, the town document).
@@ -1162,6 +1184,7 @@ function TextView({ lines, civic, rooms, connection, fallback, onClose, district
             {connectionLine(connection)}
           </p>
         )}
+        <p className="text-note text-chat">{chat}</p>
         <WhereForm civic={civic} rooms={rooms} />
         {before.map((section) => block(section, 3))}
         {districts.map((d) => {
