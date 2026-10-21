@@ -42,8 +42,10 @@
            the world after the one-time link. When `apps/world/dist` exists (after `npm run build`) the host serves
            it on a free port and the browser opens the host directly; otherwise the host listens on --host-port
            (default 5180, Vite's default proxy target) and the browser opens your Vite, which must have been started
-           with CREWHUB_WORLD_PORT=<host-port>. About a minute, most of it the wait for the quick plan (20 s after
-           the fake's first ticket move).
+           with CREWHUB_WORLD_PORT=<host-port>. A dist older than the world's sources (the host's own freshness
+           check, apps/host/src/build.ts) is refused before any group runs, with both times: run `npm run build`, or
+           remove the dist to run behind your Vite; the same holds for chat and ops. About a minute, most of it the
+           wait for the quick plan (20 s after the fake's first ticket move).
      ops   the live operations road (round 7): a host the tool starts on --host-port over a fake it starts itself (a
            key store in a folder under --out, removed at the end), the browser on your Vite, and three things done to
            loops under the running host, each with its honest screen: (a) the fake closed and reopened on its port:
@@ -119,6 +121,20 @@ if (!(cpuThrottle >= 1)) opts.fail("--cpu-throttle <rate> must be 1 (none) or mo
 const groups = list(opts.groups, GROUPS, opts.fail, "group");
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const { tag, out: OUT, base: BASE, origin } = opts;
+// The built world the live, chat and ops groups serve when it is there (the browser opens the host directly); without
+// it they run behind your Vite. A dist older than the world's sources is refused here, before anything starts, with
+// both times and the way out (apps/host/src/build.ts, the check `npm run world` makes): an old build would test an
+// old world, and a build is yours to make, not this tool's (it would change your tree while a host of yours may be
+// serving the dist). `distFresh` is the one-line verdict for the groups' INFO line.
+const DIST = path.join(REPO, "apps", "world", "dist");
+const DIST_SERVED = ["live", "chat", "ops"].some((name) => groups.includes(name)) && existsSync(path.join(DIST, "index.html"));
+let distFresh = "";
+if (DIST_SERVED) {
+  const { checkBuild, clock, describeStale } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "build.ts")).href);
+  const check = checkBuild(REPO, DIST);
+  if (!check.fresh) opts.fail(describeStale({ distMtimeMs: check.distMtimeMs, sources: check.sources, reason: check.reason }));
+  distFresh = `apps/world/dist built ${clock(check.distMtimeMs)}, ${check.reason}`;
+}
 const browser = await launch(opts);
 const log = [];
 const results = [];
@@ -690,10 +706,11 @@ await group("live", async () => {
   // 15. Live mode against a fake crewhub-loops behind the host, both started here on 127.0.0.1.
   const { createLoopsFake } = await import(pathToFileURL(path.join(REPO, "packages", "loops-fake", "src", "index.ts")).href);
   const { createHost } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "host.ts")).href);
-  const dist = path.join(REPO, "apps", "world", "dist");
-  const served = existsSync(path.join(dist, "index.html"));
+  const dist = DIST;
+  const served = DIST_SERVED;
   const hostPort = Number(opts["host-port"]);
   if (!served && (!Number.isInteger(hostPort) || hostPort <= 0)) opts.fail("--host-port <port> must be a port number");
+  if (served) info(`live: ${distFresh}`);
   const fakeOptions = { heartbeatMs: 1000 };
   let fake = await createLoopsFake(fakeOptions);
   // The loops web app the host names (`loopsWebUrl`), for the Chat panel's frame: a stub page that records how it was fetched.
@@ -955,10 +972,11 @@ await group("chat", async () => {
   const { createLoopsFake } = await import(pathToFileURL(path.join(REPO, "packages", "loops-fake", "src", "index.ts")).href);
   const { createHost } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "host.ts")).href);
   const { createSessionStore } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "session.ts")).href);
-  const dist = path.join(REPO, "apps", "world", "dist");
-  const served = existsSync(path.join(dist, "index.html"));
+  const dist = DIST;
+  const served = DIST_SERVED;
   const hostPort = Number(opts["host-port"]);
   if (!served && (!Number.isInteger(hostPort) || hostPort <= 0)) opts.fail("--host-port <port> must be a port number");
+  if (served) info(`chat: ${distFresh}`);
   const configDir = path.join(OUT, `${tag}-chat-config`);
   rmSync(configDir, { recursive: true, force: true });
   mkdirSync(configDir, { recursive: true, mode: 0o700 });
@@ -1194,10 +1212,11 @@ await group("ops", async () => {
   const { createKeyStore } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "keyStore.ts")).href);
   // As the live group: with apps/world/dist built the host serves it on a free port and the browser opens the host
   // directly (no port of yours is taken); otherwise the host listens on --host-port behind your Vite.
-  const dist = path.join(REPO, "apps", "world", "dist");
-  const served = existsSync(path.join(dist, "index.html"));
+  const dist = DIST;
+  const served = DIST_SERVED;
   const hostPort = Number(opts["host-port"]);
   if (!served && (!Number.isInteger(hostPort) || hostPort <= 0)) opts.fail("--host-port <port> must be a port number");
+  if (served) info(`ops: ${distFresh}`);
   const configDir = path.join(OUT, `${tag}-ops-config`);
   rmSync(configDir, { recursive: true, force: true });
   mkdirSync(configDir, { recursive: true, mode: 0o700 });

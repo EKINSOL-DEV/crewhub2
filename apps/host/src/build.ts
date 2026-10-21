@@ -115,11 +115,31 @@ export function distState(distDir: string): { distMtimeMs: number | null; stamp:
 }
 
 /** The whole check on disk, timed: for the step line "apps/world/dist is up to date (480 files, 9 ms)". */
-export function checkBuild(repoRoot: string, distDir: string): Freshness & { ms: number; sources: SourceFile[] } {
+export function checkBuild(repoRoot: string, distDir: string): Freshness & { ms: number; sources: SourceFile[]; distMtimeMs: number | null } {
   const started = performance.now();
   const sources = worldSources(repoRoot);
-  const verdict = freshness({ ...distState(distDir), sources });
-  return { ...verdict, ms: performance.now() - started, sources };
+  const state = distState(distDir);
+  const verdict = freshness({ ...state, sources });
+  return { ...verdict, ms: performance.now() - started, sources, distMtimeMs: state.distMtimeMs };
+}
+
+/** A time for a message, local, to the millisecond (a build and the touch that stales it can share a second): `2026-10-22 01:30:41.208`. */
+export function clock(ms: number): string {
+  const d = new Date(ms);
+  const two = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}:${two(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3, "0")}`;
+}
+
+/**
+ * The plain message a tool prints when it refuses a stale dist (tools/regress.mjs before its live, chat and ops groups
+ * serve `apps/world/dist`): why, both times (the dist's and the newest source's, the file named) and the way out.
+ * `format` is a parameter for the test.
+ */
+export function describeStale(input: { distMtimeMs: number; sources: readonly SourceFile[]; reason: string }, format: (ms: number) => string = clock): string {
+  let newest: SourceFile | null = null;
+  for (const file of input.sources) if (newest === null || file.mtimeMs > newest.mtimeMs) newest = file;
+  const sources = newest === null ? "no source found" : `the newest source ${newest.path} is from ${format(newest.mtimeMs)}`;
+  return `apps/world/dist is stale (${input.reason}): it was built ${format(input.distMtimeMs)}, ${sources}. Run npm run build, or remove apps/world/dist to run the groups behind your Vite.`;
 }
 
 export interface BuildCommand {

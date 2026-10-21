@@ -35,6 +35,12 @@ The Demo chip is a picker of demo scenarios (Fresh install, One project, Small t
 Studio); `?scenario=fresh|one|small-team|studio` chooses one by URL, and each keeps
 its own town document. See `packages/demo/CONTENT.md`.
 
+The host behind the page: in dev (`npm run dev`) Vite proxies `/world-api` and `/pair` to the world's host on
+`CREWHUB_WORLD_PORT`, default 5180 (the host's own default, so `npm run host` beside it needs no setting). `npm run
+preview` (the built world on 4173) proxies **only** to a port named in `CREWHUB_WORLD_PORT`: without it the preview
+says so once, answers `/world-api` as "no host" and the page runs the demo, so a preview never reaches a host that
+happens to listen on 5180 (`hostPort.ts`, the one decision, tested). A value that is not a port stops either server.
+
 Dev flags: `?perf` logs frame work every two seconds; `?stress=1` (dev builds only)
 swaps in a synthetic town of 12 buildings and 100 agents and shows a frame-time
 overlay; `?stress=20` is the region of 20 buildings and 200 agents in four groups. The scene is on `window.__town` in dev builds for headless checks.

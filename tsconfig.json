@@ -36,6 +36,7 @@
     "apps/world/src",
     "apps/world/test",
     "apps/world/vite.config.ts",
+    "apps/world/hostPort.ts",
     "packages/loops-client/src",
     "packages/loops-client/test",
     "packages/loops-fake/src",

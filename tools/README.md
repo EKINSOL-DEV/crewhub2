@@ -91,6 +91,13 @@ the host serves it on a free port and the browser opens the host directly. Other
 (default 5180, the Vite proxy's default target) and the browser opens your Vite, so start that Vite with
 `CREWHUB_WORLD_PORT=<host-port>`; the port must be free. The page is opened without `?source=live`: the source is
 `auto`, the probe finds the host, and the health it answers is what the chat chip's link into the loops web follows.
+**A stale dist is refused**: before any group runs, when `live`, `chat` or `ops` is asked for and a dist exists, the
+tool makes the host's own freshness check (`apps/host/src/build.ts`, what `npm run world` makes: the newest mtime of
+`apps/world/src`, `packages/*`, `index.html`, `vite.config.ts`, `package.json` and the lockfile against
+`dist/index.html`, and the host's build stamp when there is one) and stops with exit 2 and one line naming both times,
+the newest source and the way out (`npm run build`, or remove the dist to run those groups behind your Vite). An old
+build would test an old world; the tool never builds for you, because a build is a change to your tree while a host of
+yours may be serving that dist. A fresh dist is named in the group's first INFO line.
 
 **The connect group of `regress.mjs`.** Both halves sit behind your Vite, started with `CREWHUB_WORLD_PORT=<host-port>`:
 first the stub host (`lib/connectStub.mjs`) and then a real, keyless host (`apps/host`) listen on `--host-port`, and
