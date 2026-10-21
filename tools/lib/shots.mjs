@@ -93,14 +93,25 @@ export async function worldShots(browser, { base, origin, out, views, themes, wi
           await p.keyboard.press("Enter");
           await p.waitForTimeout(1500);
         }
-        /** Clicks just under the person's name pill (the figure's head), so the pick lands on the figure. */
+        /** Clicks the person's figure: its body, projected through the scene's camera (dev builds, `window.__town`), else
+            just under its name pill (the pill hangs over the head; but it climbs over the tags it passes, so under it
+            may be a sign). */
         const pickPerson = async () => {
           const box = await p
             .evaluate(() => {
+              const t = globalThis.__town;
+              const canvas = document.querySelector("canvas");
+              const w = t?.persons ? [...t.persons.persons()].find((x) => x.holding) ?? [...t.persons.persons()][0] : null;
+              if (w && canvas && t.camera) {
+                // The figure's body is about 0.6 up from its feet (what the camera follows); three's Vector3 through
+                // the camera's own position's class.
+                const v = new t.camera.position.constructor(w.x, w.y + 0.6, w.z).project(t.camera);
+                const r = canvas.getBoundingClientRect();
+                return { x: r.left + (v.x * 0.5 + 0.5) * canvas.clientWidth, y: r.top + (-v.y * 0.5 + 0.5) * canvas.clientHeight };
+              }
               const pill = [...document.querySelectorAll(".world-labels .name-pill.person")].find((e) => e.getBoundingClientRect().width > 0);
               if (!pill) return null;
               const r = pill.getBoundingClientRect();
-              // The pill hangs over the head; 24 px under it is the figure's body (closer is the rack's packages behind).
               return { x: r.left + r.width / 2, y: r.bottom + 24 };
             })
             .catch(() => null);
