@@ -11,10 +11,11 @@
 import * as THREE from "three";
 import { useInstancedMaterials } from "./instancedMaterial";
 import { mergeStatic } from "./mergeStatic";
-import type { ModelKey, ModelOptions, PaletteName, ResolvedStyle } from "@crewhub/world-style";
+import type { ModelKey, ModelOptions, PaletteName, ResolvedStyle, StyleTheme } from "@crewhub/world-style";
 import type { Building, WorkObject } from "@crewhub/world-model";
 import { BUILDING_CELL } from "./buildingTemplate";
 import type { ObjectLayout, Placement, Surface } from "./interiorLayout";
+import { MOTE_OPACITY, MOTE_SIZE, MOTE_TOWARDS_INK, VEIL_OPACITY, VEIL_TOWARDS_INK, mote, moteCount, type MotePlace } from "./dust";
 
 /** Ticket objects at the size of the Greenhouse props they sit on, so the work reads first among the desk things. */
 const OBJECT_SCALE = 1;
@@ -44,6 +45,8 @@ class Template {
   count = 0;
   /** Ticket id per instance, for picking (bodies only). */
   readonly ids: string[] = [];
+  /** Whether its instances cast and receive shadows (the dust's veil and motes do not). */
+  shadow = true;
   /** The geometry the bake made (the template's own). */
   readonly #baked: THREE.BufferGeometry[];
 
@@ -74,8 +77,8 @@ class Template {
     this.meshes.length = 0;
     for (const part of this.parts) {
       const mesh = new THREE.InstancedMesh(part.geometry, part.material, capacity);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
+      mesh.castShadow = this.shadow;
+      mesh.receiveShadow = this.shadow;
       mesh.count = 0;
       mesh.frustumCulled = false;
       mesh.userData.template = key;
@@ -127,6 +130,8 @@ export interface ObjectLayerContext {
   surface: (surface: Surface) => number;
   /** The rise from one rack shelf to the next: an object on a "shelf" stands `level` shelves up, not on a stack. */
   shelfPitch: () => number;
+  /** The theme now: the dust's grey is the style's mist in that theme (dust.ts). */
+  theme: () => StyleTheme;
 }
 
 export class ObjectLayer {
@@ -144,6 +149,14 @@ export class ObjectLayer {
   #milestoneAccent = new Map<string, PaletteName>();
   /** Props riding on a work object, by ticket key (plan 6.3): stickers and small figures. */
   #riders = new Map<string, THREE.Object3D[]>();
+  /** A quiet package's dust (dust.ts): the veil's and the motes' materials (unlit, so their grey is the grey whatever
+      the sun does; one each for every package), wall time for the motes' drift, and the theme they were last coloured
+      for (null before the first frame). */
+  readonly #veil = new THREE.MeshBasicMaterial({ transparent: true, opacity: VEIL_OPACITY, depthWrite: false, toneMapped: false });
+  readonly #moteMaterial = new THREE.MeshBasicMaterial({ transparent: true, opacity: MOTE_OPACITY, depthWrite: false, toneMapped: false });
+  #wall = 0;
+  #theme: StyleTheme | null = null;
+  readonly #motePlace: MotePlace = { x: 0, y: 0, z: 0 };
   // Scratch.
   readonly #m = new THREE.Matrix4();
   readonly #place = new THREE.Matrix4();
@@ -170,19 +183,54 @@ export class ObjectLayer {
     return this.#template(`ticket.${o.kind}` as ModelKey);
   }
 
-  /** The dust film for a body of that size: the layer's own thin grey slab, no style model (the style stays as it is). */
+  /**
+   * The dust on a package of that size: the layer's own grey veil, a translucent box a shade wider than the body that
+   * greys its top and its sides too, so the package reads as quiet from the hall's distance, where a film on the top
+   * alone is a sliver (round 9). No style model: the style's Object3D count stays what it is. Its grey is the style's
+   * mist, a way towards its ink, in the theme (`#recolour`).
+   */
   #dust(body: Template): Template {
-    const id = `dust|${body.size.x.toFixed(3)},${body.size.z.toFixed(3)}`;
+    const id = `dust|${body.size.x.toFixed(3)},${body.height.toFixed(3)},${body.size.z.toFixed(3)}`;
     let t = this.#templates.get(id);
     if (!t) {
-      const film = new THREE.Mesh(
-        new THREE.BoxGeometry(body.size.x * 0.92, 0.008, body.size.z * 0.92),
-        new THREE.MeshStandardMaterial({ color: new THREE.Color("darkgray"), roughness: 1, metalness: 0, transparent: true, opacity: 0.62 }),
-      );
-      film.position.y = 0.004;
-      film.castShadow = false;
-      t = new Template(film);
+      const height = body.height + 0.012;
+      const veil = new THREE.Mesh(new THREE.BoxGeometry(body.size.x + 0.024, height, body.size.z + 0.024), this.#veil);
+      veil.position.y = height / 2 - 0.002;
+      t = new Template(veil);
+      t.shadow = false;
       this.#templates.set(id, t);
+    }
+    return t;
+  }
+
+  /** The dust's colours follow the theme: the veil's grey (the style's mist a way towards its ink) and the motes' (a
+      lighter grey by day; chalk in lamplight, where a grey speck would vanish on a dim package). Both materials are
+      unlit and left out of the tone mapping (dust.ts says why). Allocates only on a theme change. */
+  #recolour(theme: StyleTheme) {
+    this.#theme = theme;
+    const style = this.#ctx.style;
+    const mist = style.color("mist", theme);
+    const ink = style.color("ink", theme);
+    this.#veil.color.copy(mist).lerp(ink, VEIL_TOWARDS_INK[theme]);
+    this.#moteMaterial.color.copy(theme === "lamplight" ? style.color("chalk", theme) : mist.clone().lerp(ink, MOTE_TOWARDS_INK));
+    // The bake may have given a template a copy of the material: every drawn one follows.
+    for (const [id, t] of this.#templates)
+      if (id === "mote" || id.startsWith("dust|"))
+        for (const mesh of t.meshes) for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) if (m instanceof THREE.MeshBasicMaterial) m.color.copy(id === "mote" ? this.#moteMaterial.color : this.#veil.color);
+  }
+
+  /**
+   * A mote: a small unlit sphere in the dust's pale colour, drawn instanced like every other decoration (a Points
+   * object would need the camera to size itself: the town's camera is orthographic). One template for every package.
+   */
+  #mote(): Template {
+    let t = this.#templates.get("mote");
+    if (!t) {
+      const sphere = new THREE.Mesh(new THREE.SphereGeometry(MOTE_SIZE / 2, 6, 4), this.#moteMaterial);
+      sphere.position.y = MOTE_SIZE / 2;
+      t = new Template(sphere);
+      t.shadow = false;
+      this.#templates.set("mote", t);
     }
     return t;
   }
@@ -331,10 +379,11 @@ export class ObjectLayer {
     state.hop = { t: 0, until: HOP_S, sparkle };
   }
 
-  /** True while something moves (a flight, an ease, a hop, a turned-down object being set aside). */
+  /** True while something moves (a flight, an ease, a hop, a turned-down object being set aside, dust settling or its motes drifting). */
   get animating(): boolean {
     if (this.#carried.size) return true;
-    for (const s of this.#states.values()) if ((s.flight && s.drone) || s.ease || s.hop || (s.object.rejected && s.aside < 1) || (s.object.quiet !== null && s.dust < 1)) return true;
+    const motes = moteCount(this.#ctx.reducedMotion()) > 0;
+    for (const s of this.#states.values()) if ((s.flight && s.drone) || s.ease || s.hop || (s.object.rejected && s.aside < 1) || (s.object.quiet !== null && (s.dust < 1 || motes))) return true;
     return false;
   }
 
@@ -342,10 +391,13 @@ export class ObjectLayer {
   update(seconds: number) {
     const now = this.#ctx.now();
     const reduced = this.#ctx.reducedMotion();
+    this.#wall += seconds;
+    const theme = this.#ctx.theme();
+    if (theme !== this.#theme) this.#recolour(theme);
     for (const state of this.#states.values()) this.#move(state, seconds, now, reduced);
     this.#regrown = false;
-    this.#write();
-    if (this.#regrown) this.#write();
+    this.#write(reduced);
+    if (this.#regrown) this.#write(reduced);
   }
 
   #move(state: ObjectState, seconds: number, now: number, reduced: boolean) {
@@ -428,7 +480,8 @@ export class ObjectLayer {
     if (this.group.parent) state.anchor.add(this.group.parent.position);
   }
 
-  #write() {
+  #write(reduced: boolean) {
+    const motes = moteCount(reduced);
     for (const t of this.#templates.values()) {
       t.count = 0;
       t.ids.length = 0;
@@ -444,8 +497,18 @@ export class ObjectLayer {
       this.#place.compose(state.pos, this.#q, this.#s);
       this.#put(body, o.ticketId);
       const size = { width: body.size.x + 0.02, height: body.height + 0.004, depth: body.size.z + 0.02 };
-      // `ticket.quiet`: a thin grey film of dust on the package, settling from a little above it (the clock tag is a label).
-      if (o.quiet !== null) this.#put(this.#dust(body), o.ticketId, false, 0, body.height + (1 - state.dust) * 0.12, 0);
+      // `ticket.quiet`: the grey veil of dust over the package, settling from a little above it, and a few motes
+      // hovering low before its face in wall time (none under reduced motion); the clock tag is a label.
+      if (o.quiet !== null) {
+        this.#put(this.#dust(body), o.ticketId, false, 0, (1 - state.dust) * 0.12, 0);
+        if (motes > 0 && state.dust > 0) {
+          const seed = hash(o.ticketId);
+          for (let i = 0; i < motes; i++) {
+            const m = mote(seed, i, this.#wall, body.size, this.#motePlace);
+            this.#put(this.#mote(), o.ticketId, false, m.x, body.height + m.y * state.dust, m.z);
+          }
+        }
+      }
       // Struck through: one thin dark band from corner to corner (a milestone band runs straight and is coloured).
       if (o.rejected) {
         const strike = { width: Math.hypot(body.size.x, body.size.z) * 0.94, height: size.height + 0.004, depth: 0.03 };
@@ -512,6 +575,8 @@ export class ObjectLayer {
   dispose() {
     for (const t of this.#templates.values()) t.dispose();
     this.#templates.clear();
+    this.#veil.dispose();
+    this.#moteMaterial.dispose();
     for (const state of this.#states.values()) {
       this.#dropDrone(state);
       state.hop?.sparkle.removeFromParent();

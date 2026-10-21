@@ -155,6 +155,10 @@ However richly a room is dressed, the eye goes to the robots and their tickets f
 - **Standing on the floor.** A soft contact shadow under every robot, in both quality settings.
 - **Tickets at prop size.** Ticket objects are as large as the props they sit on, so the work reads first among the
   books, mugs and plants of a desk.
+- **A quiet package is grey.** A ticket that has gone quiet (`ticket.quiet`) wears a translucent grey veil over its
+  top and its sides, the style's mist a way towards its ink, so it reads as dusty from the hall's distance without its
+  clock tag; a few pale motes drift slowly above it (none under reduced motion). The veil and the motes are the world's
+  own (`dust.ts`, the object layer), not the style's models: the style's Object3D count does not change.
 - **Nothing in front of the hero.** No pendant over a desk, no tall board between the camera and a desk, no partition
   art behind a seat.
 - **Hover and focus** stay soft: the card, the ring under the selected robot, the room's wash.

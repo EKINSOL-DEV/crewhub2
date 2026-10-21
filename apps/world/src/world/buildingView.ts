@@ -6,7 +6,7 @@
 import * as THREE from "three";
 import type { AgentPlacement, Building, ProjectColor, ProjectIcon, RoomKind } from "@crewhub/world-model";
 import { IDLE_STATE, type Cast, type CastRole, type FigureHandle, type FigureState } from "@crewhub/world-cast";
-import type { EmblemName, ModelKey, PaletteName, ResolvedStyle } from "@crewhub/world-style";
+import type { EmblemName, ModelKey, PaletteName, ResolvedStyle, StyleTheme } from "@crewhub/world-style";
 import {
   BACK_WALL_HEIGHT,
   BUILDING_CELL as CELL,
@@ -166,6 +166,8 @@ export interface BuildingContext {
   /** Source time now (ms). */
   now: () => number;
   reducedMotion: () => boolean;
+  /** The theme now (the dust on a quiet package is coloured for it). */
+  theme: () => StyleTheme;
   /** The walk runtime's interpolated position of an agent, when it has one (walks.ts). */
   walker: (key: string) => Walker | undefined;
   /** The people in a building right now (personWalks.ts): a person carrying a package into Done, at most one. */
@@ -355,6 +357,7 @@ export class BuildingView {
       style: ctx.style,
       now: ctx.now,
       reducedMotion: ctx.reducedMotion,
+      theme: ctx.theme,
       truck: this.#truckTarget,
       surface: (s) => surfacesOf(ctx.style)[s],
       shelfPitch: () => surfacesOf(ctx.style).shelfPitch,

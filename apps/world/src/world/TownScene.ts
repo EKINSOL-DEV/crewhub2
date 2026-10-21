@@ -955,6 +955,7 @@ export class TownScene {
           buildingPlan: () => this.view.buildingPlan,
           now: () => this.view.now(),
           reducedMotion: () => this.view.reducedMotion,
+          theme: () => this.view.theme,
           walker: (key) => this.walks.walker(key),
           persons: () => this.persons.persons(),
           // Mid-render (the frame's count is about to be decremented): two more frames, the flip and the settled one.
