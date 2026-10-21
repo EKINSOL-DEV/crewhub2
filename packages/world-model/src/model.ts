@@ -26,7 +26,8 @@ export type RoleId = "lead" | "worker" | "analyst" | "design";
 /**
  * Where a role came from, in the order the rules are tried: a person's override; the project's lead (`ProjectOut.lead`);
  * the CrewHub lead (`isCrewhubLead`); the postman (loops role `router`); an external bot (CL-314); a `-lead` suffix
- * in the name; the naming convention (`<stem>-design-<n>`, `<stem>-analyst-<n>`, the registered `analyst`,
+ * in the name of a registered agent whose loops role is `lead` (a name never outranks loops); the naming convention
+ * (`<stem>-design-<n>`, `<stem>-analyst-<n>`, the registered `analyst`,
  * `<stem>-dev-<n>`); a registered agent with no rule matched (its loops role, `lead`); a worker under its lead in the
  * team snapshot. `roleWords` says each in words; only the two name rules are inferences.
  */

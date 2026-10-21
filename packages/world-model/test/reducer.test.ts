@@ -201,8 +201,11 @@ test("each role says where it came from: the project lead, the CrewHub lead, the
       registered("seed-bot", "lead", { external: true, projects: { lead: [], member: [{ slug: "crewhub-loops", key: "CL" }] } }),
       registered("ux-lead", "lead", { projects: { lead: [], member: [{ slug: "crewhub-loops", key: "CL" }] } }),
       registered("g-man", "lead", { projects: { lead: [], member: [{ slug: "crewhub-loops", key: "CL" }] } }),
+      // A name never outranks loops: a router or an external bot named -lead is what loops says it is.
+      registered("mail-lead", "router"),
+      registered("bot-lead", "lead", { external: true, projects: { lead: [], member: [{ slug: "crewhub-loops", key: "CL" }] } }),
     ],
-    team: team(T0, [lane("cl-lead", "working"), lane("cl-dev-2", "working", { lead: "cl-lead" }), lane("cl-design-1", "working", { lead: "cl-lead" }), lane("Ada", "working", { lead: "cl-lead" })]),
+    team: team(T0, [lane("cl-lead", "working"), lane("cl-dev-2", "working", { lead: "cl-lead" }), lane("cl-design-1", "working", { lead: "cl-lead" }), lane("Ada", "working", { lead: "cl-lead" }), lane("review-lead", "working", { lead: "cl-lead" })]),
   });
   const model = reduce();
   const inBuilding = building(model).agents;
@@ -219,6 +222,10 @@ test("each role says where it came from: the project lead, the CrewHub lead, the
   assert.deepEqual(of("cl-dev-2"), ["worker", "name-rule", "workers"]);
   assert.deepEqual(of("cl-design-1"), ["design", "name-rule", "design"]);
   assert.deepEqual(of("Ada"), ["worker", "team-worker", "workers"]);
+  // The suffix is for registered agents only, and never over a loops fact.
+  assert.deepEqual(of("review-lead"), ["worker", "team-worker", "workers"]);
+  assert.deepEqual(of("mail-lead"), ["worker", "router", null]);
+  assert.deepEqual(of("bot-lead"), ["worker", "external", "workers"]);
   // The words say the same, and only the name rules are inferences.
   const lines = describeWorld(model);
   const line = (name: string) => lines.find((l) => l.text.startsWith(`${name} is `))!;
