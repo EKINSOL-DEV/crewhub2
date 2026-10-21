@@ -51,8 +51,8 @@
     "idle": [
       {"joint": "body", "channel": "offset.y", "wave": "sine", "amplitude": 0.006, "period": 3.5, "seeded": true},
       {"joint": "head", "channel": "rotation.y", "wave": "glance", "amplitude": 18, "period": 7, "seeded": true, "sided": true},
-      {"joint": "arm-left", "channel": "rotation.z", "wave": "sine", "amplitude": 1.5, "period": 4.2, "seeded": true},
-      {"joint": "arm-right", "channel": "rotation.z", "wave": "sine", "amplitude": -1.5, "period": 4.2, "seeded": true}
+      {"joint": "arm-left", "channel": "rotation.z", "wave": "sine", "amplitude": 1.5, "period": 4.2, "seeded": true, "carrying": false},
+      {"joint": "arm-right", "channel": "rotation.z", "wave": "sine", "amplitude": -1.5, "period": 4.2, "seeded": true, "carrying": false}
     ],
     "working": [
       {"joint": "body", "channel": "offset.y", "wave": "sine", "amplitude": 0.006, "period": 3.5, "seeded": true},
@@ -72,8 +72,8 @@
       {"joint": "foot-right", "channel": "offset.z", "wave": "sine", "amplitude": -0.085, "period": 0.72, "seeded": true},
       {"joint": "foot-left", "channel": "offset.y", "wave": "lift", "amplitude": 0.055, "period": 0.72, "seeded": true},
       {"joint": "foot-right", "channel": "offset.y", "wave": "lift", "amplitude": 0.055, "period": 0.72, "seeded": true, "phase": 0.5},
-      {"joint": "arm-left", "channel": "rotation.x", "wave": "sine", "amplitude": -16, "period": 0.72, "seeded": true},
-      {"joint": "arm-right", "channel": "rotation.x", "wave": "sine", "amplitude": 16, "period": 0.72, "seeded": true},
+      {"joint": "arm-left", "channel": "rotation.x", "wave": "sine", "amplitude": -16, "period": 0.72, "seeded": true, "carrying": false},
+      {"joint": "arm-right", "channel": "rotation.x", "wave": "sine", "amplitude": 16, "period": 0.72, "seeded": true, "carrying": false},
       {"joint": "body", "channel": "offset.y", "wave": "bounce", "amplitude": 0.03, "period": 0.72, "seeded": true},
       {"joint": "body", "channel": "rotation.z", "wave": "sine", "amplitude": 1.4, "period": 0.72, "seeded": true},
       {"joint": "head", "channel": "rotation.x", "wave": "sine", "amplitude": 1.2, "period": 0.36, "seeded": true}
