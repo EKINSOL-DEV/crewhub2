@@ -2006,10 +2006,14 @@ export class TownScene {
     this.invalidate();
   }
 
-  /** Where the visitor stands (headless checks and tests of the mode); null outside walk mode. */
-  get visitor(): { room: string; x: number; z: number; building: string | null; moving: boolean } | null {
-    const v = this.#walk?.visitor;
-    return v ? { room: v.room, x: v.x, z: v.z, building: v.building, moving: v.moving } : null;
+  /**
+   * Where the visitor stands (headless checks and tests of the mode); null outside walk mode. `yaw` is the follow
+   * camera's: the keys push on screen, so a check that wants a world direction turns it by this (`worldDirection`).
+   */
+  get visitor(): { room: string; x: number; z: number; building: string | null; moving: boolean; crossing: boolean; yaw: number } | null {
+    const w = this.#walk;
+    const v = w?.visitor;
+    return w && v ? { room: v.room, x: v.x, z: v.z, building: v.building, moving: v.moving, crossing: v.crossing, yaw: w.yaw } : null;
   }
 
   /** A drag or a sideways scroll, in pixels: the camera turns about the visitor and tilts. */
