@@ -141,4 +141,11 @@ export interface HostSourceOptions {
    * resumes with `after=` and sends `reset` when it cannot prove it). Tests turn it on.
    */
   resnapshotOnGap?: boolean;
+  /**
+   * A first snapshot read ahead of the source (`prefetchSnapshot`, started by the page as soon as it knows it is live,
+   * while the world's module still loads): the parsed body when it has arrived, applied synchronously in `start()`
+   * when it validates, so the very first model has the town; else the pending response, which the source takes as
+   * its first read instead of asking the host again. Used once; the source reads its own snapshot after that.
+   */
+  firstSnapshot?: { body: unknown } | { response: Promise<Response> };
 }

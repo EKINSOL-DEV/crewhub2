@@ -247,9 +247,19 @@ export async function probeHost(baseUrl = "", timeoutMs = 1500): Promise<HostHea
   }
 }
 
+/**
+ * Starts the one read of the host's snapshot ahead of the source (`HostSourceOptions.firstSnapshot`): the page calls it
+ * the moment the source decision says live, so the host assembles the snapshot while the world's module loads.
+ */
+export function prefetchSnapshot(baseUrl = ""): Promise<Response> {
+  return fetch(`${baseUrl}${PREFIX}/snapshot`, { headers: { accept: "application/json" } });
+}
+
 export function createHostSource(options: HostSourceOptions = {}): WorldSource {
   const base = options.baseUrl ?? "";
   const extraHeaders = options.headers ?? {};
+  /** The snapshot read ahead, taken once by the first `start()`. */
+  let ahead = options.firstSnapshot;
   const timings: HostSourceTimings = { ...DEFAULT_TIMINGS, ...stripUndefined(options.timings ?? {}) };
   const resnapshotOnGap = options.resnapshotOnGap ?? false;
 
@@ -321,11 +331,24 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
     return body?.error === "not_paired";
   };
 
-  /** One snapshot read; false when it failed (the state says why) and the loop should back off. */
-  async function loadSnapshot(signal: AbortSignal): Promise<boolean> {
+  /** A snapshot that validated: the model's new ground truth; the stream continues at its cursor. */
+  function accept(snapshot: LoopsSnapshot): void {
+    cursor = snapshot.cursor;
+    haveSnapshot = true;
+    retryMs = timings.retryMinMs;
+    send({ type: "snapshot", snapshot });
+    setState("live");
+    touched();
+  }
+
+  /**
+   * One snapshot read (`pending`: the response of the read ahead, in place of a request of its own); false when it
+   * failed (the state says why) and the loop should back off.
+   */
+  async function loadSnapshot(signal: AbortSignal, pending: Promise<Response> | null = null): Promise<boolean> {
     let response: Response;
     try {
-      response = await get("/snapshot", signal);
+      response = await (pending ?? get("/snapshot", signal));
     } catch {
       if (haveSnapshot) setState("stale");
       return false;
@@ -350,13 +373,7 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
       if (haveSnapshot) setState("stale");
       return false;
     }
-    const snapshot: LoopsSnapshot = { ...result.value, groups: result.value.groups ?? [] };
-    cursor = snapshot.cursor;
-    haveSnapshot = true;
-    retryMs = timings.retryMinMs;
-    send({ type: "snapshot", snapshot });
-    setState("live");
-    touched();
+    accept({ ...result.value, groups: result.value.groups ?? [] });
     return true;
   }
 
@@ -494,11 +511,12 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
     }
   }
 
-  async function run(signal: AbortSignal): Promise<void> {
-    let needSnapshot = true;
+  async function run(signal: AbortSignal, needSnapshot: boolean, pending: Promise<Response> | null): Promise<void> {
     while (!signal.aborted) {
       if (needSnapshot) {
-        if (!(await loadSnapshot(signal))) {
+        const read = loadSnapshot(signal, pending);
+        pending = null;
+        if (!(await read)) {
           await sleep(retryMs, signal);
           // Before the first snapshot the host is most likely still linking: ask again soon, never ten seconds later.
           // Unpaired, the same: the person is opening a new link and the world should follow within seconds.
@@ -572,7 +590,18 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
         haveSnapshot = false;
         retryMs = timings.retryMinMs;
         setState("connecting");
-        void run(abort.signal);
+        // The snapshot read ahead: a body that arrived is the first model, now; a pending response is the first read.
+        const first = ahead;
+        ahead = undefined;
+        let needSnapshot = true;
+        if (first && "body" in first) {
+          const result = validateLoopsSnapshot(first.body);
+          if (result.ok) {
+            accept({ ...result.value, groups: result.value.groups ?? [] });
+            needSnapshot = false;
+          } else console.warn(`[loops-client] the snapshot read ahead does not validate at ${result.path}: ${result.message}`);
+        }
+        void run(abort.signal, needSnapshot, first && "response" in first ? first.response : null);
         teamTimer = setInterval(() => void readTeam(), timings.teamPollMs);
       }
       return () => {
