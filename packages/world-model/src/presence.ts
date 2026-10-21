@@ -11,6 +11,13 @@
 export interface PresenceSettings {
   /** Off until a person switches it on. In demo mode it turns the scripted feed on. */
   directorEnabled: boolean;
+  /**
+   * Off until a person switches it on. In live mode it turns the same scripted feed on, planning from the live facts
+   * (who is idle in which building) and moving only the world's own figures, never anything in crewhub-loops; the
+   * world labels every intent and every log line "scripted". A demo switch left on never carries into live: the two
+   * are separate opt-ins (`effectivePresence`).
+   */
+  liveDirectorEnabled: boolean;
   /** Scheduled plan interval, minutes. Minimum 2. */
   intervalMinutes: number;
   quickPlans: boolean;
@@ -35,6 +42,7 @@ export const PRESENCE_LIMITS = {
 
 export const DEFAULT_PRESENCE: PresenceSettings = {
   directorEnabled: false,
+  liveDirectorEnabled: false,
   intervalMinutes: 5,
   quickPlans: true,
   plansPerHour: PRESENCE_LIMITS.plansPerHourMax,
@@ -55,6 +63,7 @@ export function normalizePresence(raw: unknown): PresenceSettings {
   const L = PRESENCE_LIMITS;
   return {
     directorEnabled: o.directorEnabled === true,
+    liveDirectorEnabled: o.liveDirectorEnabled === true,
     intervalMinutes: whole(o.intervalMinutes, L.intervalMinMinutes, L.intervalMaxMinutes, d.intervalMinutes),
     quickPlans: typeof o.quickPlans === "boolean" ? o.quickPlans : d.quickPlans,
     plansPerHour: whole(o.plansPerHour, 1, L.plansPerHourMax, d.plansPerHour),
@@ -62,4 +71,14 @@ export function normalizePresence(raw: unknown): PresenceSettings {
     inputBudget: whole(o.inputBudget, 100, L.inputBudgetMax, d.inputBudget),
     outputBudget: whole(o.outputBudget, 20, L.outputBudgetMax, d.outputBudget),
   };
+}
+
+/**
+ * The settings as the feed sees them in one mode: `directorEnabled` is the switch of that mode (the demo's in demo
+ * mode, the live opt-in in live mode), so the feed, which reads `directorEnabled` alone, never runs in live on the
+ * demo's switch. Everything else is shared.
+ */
+export function effectivePresence(settings: PresenceSettings, mode: "demo" | "live"): PresenceSettings {
+  const enabled = mode === "live" ? settings.liveDirectorEnabled : settings.directorEnabled;
+  return settings.directorEnabled === enabled ? settings : { ...settings, directorEnabled: enabled };
 }

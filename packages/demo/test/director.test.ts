@@ -1,7 +1,7 @@
 /** The scripted director feed, driven by models the demo itself produced (and by edited copies of them). */
 import assert from "node:assert/strict";
 import { before, test } from "node:test";
-import { DEFAULT_PRESENCE, Projection, emptyMemory, reduceWorld } from "@crewhub/world-model";
+import { DEFAULT_PRESENCE, Projection, effectivePresence, emptyMemory, immovableReason, movedAgents, reduceWorld } from "@crewhub/world-model";
 import type { AgentPlacement, PresenceSettings, WorldModel } from "@crewhub/world-model";
 import { QUICK_DEBOUNCE_MS, QUICK_MIN_GAP_MS, createDirectorFeed, movementSignals } from "../src/director.ts";
 import { createManualScheduler } from "../src/scheduler.ts";
@@ -43,6 +43,10 @@ before(async () => {
 
 const feedOf = (settings: PresenceSettings = on, seed = DEMO_SEED) => createDirectorFeed({ seed, reachable, propTags, settings });
 const runAll = (feed = feedOf()) => models.flatMap((m) => feed.step(m));
+
+/** The same facts as a live world would show them: mode "live", the wall clock as `now` (the host's models look like this). */
+const WALL_START = Date.UTC(2026, 9, 21, 9, 0, 0);
+const liveModels = (): WorldModel[] => models.map((m, i) => ({ ...m, mode: "live", now: WALL_START + i * 10 * SECOND }));
 
 test("the demo gives the feed a loop of models to work with", () => {
   assert.ok(models.length > 50);
@@ -155,4 +159,40 @@ test("time running backwards (a loop or a seek) starts every timer afresh", () =
   assert.deepEqual(feed.step(models[0]!), []);
   // The next 100 s of demo time are inside the 2 min interval that restarted with the jump.
   assert.deepEqual(models.slice(1, 11).flatMap((m) => feed.step(m)), []);
+});
+
+test("live mode: the feed plans from the live facts, every accepted intent moves an idle real agent of that building", () => {
+  const live = liveModels();
+  const feed = feedOf(effectivePresence({ ...DEFAULT_PRESENCE, liveDirectorEnabled: true }, "live"));
+  const plans = live.flatMap((m) => feed.step(m));
+  assert.ok(plans.length > 3, `expected plans over a live loop, got ${plans.length}`);
+  const byNow = new Map(live.map((m) => [m.now, m]));
+  for (const plan of plans) {
+    assert.ok(plan.at >= WALL_START, "a plan carries the live model's wall-clock time");
+    const model = byNow.get(plan.at);
+    assert.ok(model, "a plan's time is one of the models it was shown");
+    const building = model.buildings.find((b) => b.slug === plan.building);
+    assert.ok(building && !building.archived, `plan ${plan.id} is for a live building`);
+    for (const intent of plan.accepted) {
+      for (const key of movedAgents(intent)) {
+        const agent: AgentPlacement | undefined = building.agents.find((a) => a.key === key);
+        assert.ok(agent && agent.presence === "real", `${key} is a real agent of ${plan.building}`);
+        assert.equal(immovableReason({ agent, building }), null, `${key} was idle when plan ${plan.id} moved it`);
+      }
+    }
+  }
+  assert.ok(plans.some((p) => p.rejected.length > 0), "the deliberately invalid intent is rejected in live mode too");
+  assert.equal(feed.usage().plansTotal, plans.length);
+});
+
+test("live mode: the demo's switch left on makes no live plan; the live opt-in alone does", () => {
+  const live = liveModels();
+  const demoOnly = feedOf(effectivePresence({ ...DEFAULT_PRESENCE, directorEnabled: true }, "live"));
+  assert.deepEqual(live.flatMap((m) => demoOnly.step(m)), []);
+  assert.equal(demoOnly.usage().capReached, null);
+  const liveOnly = feedOf(effectivePresence({ ...DEFAULT_PRESENCE, liveDirectorEnabled: true }, "live"));
+  assert.ok(live.flatMap((m) => liveOnly.step(m)).length > 3);
+  // And the same stored settings in demo mode: the live opt-in alone runs nothing there.
+  const liveOnlyInDemo = feedOf(effectivePresence({ ...DEFAULT_PRESENCE, liveDirectorEnabled: true }, "demo"));
+  assert.deepEqual(runAll(liveOnlyInDemo), []);
 });

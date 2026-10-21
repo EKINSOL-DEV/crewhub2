@@ -912,7 +912,13 @@ board card and its words) in the demo group.
 ## Addendum: project groups and the director in live mode (2026-10-21, round 7): a proposal, not built
 
 Neither is covered by an accepted spec in a form that can be built without a decision; this addendum writes down the
-options so the decision is quick. **Status: proposed. Nothing below is built.**
+options so the decision is quick. **Status: project groups proposed, not built; the director in live mode built in
+round 11 (2026-10-21) as recommended below: the same scripted feed, its own opt-in in Settings off by default (a second
+flag, `liveDirectorEnabled`, so the demo's switch never carries into live), plans from the live facts, intents validated
+as in the demo and played only through the walk runtime, no loops change and no style change, the word "scripted" on
+every intent line, in the text view's director section and in the director log; `packages/demo/test/director.test.ts`
+(live plans, the demo's switch alone silent), `packages/world-model/test/presence.test.ts`,
+`apps/world/test/intentPlayer.test.ts` (the label), and six checks in the regress `live` group over the fake.**
 
 **Project groups (L22).** Today a live town puts every project in the default zone (`/world-api/project-groups` answers
 `{groups: []}`), and a person can make zones by hand in the town document, kept in that browser. Three roads:
@@ -930,3 +936,4 @@ the live facts (who is idle in which building). What needs a decision: whether a
 real work could be mistaken for real behaviour (the demo labels it; live would need the same "scripted" label on every
 intent and in the text view), and whether it is worth it before the real director.
 Recommendation: build it only with that label and only off by default; else wait for the real director.
+Built that way in round 11 (see the status line above); the real director stays on the roadmap.

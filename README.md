@@ -29,7 +29,7 @@ Built in demo mode and shown live from the same model:
 - A grid engine with doors, town paths and pathfinding; walk mode; four swappable casts.
 - Build mode with a local town document, and props made with the `prop-builder` skill.
 - A "Where is ...?" lookup, the agent card, and a hidden text view of every fact.
-- Demo only: the crewhub-loops chat bubbles (backed by a fake chat API) and a scripted director.
+- Demo only: the crewhub-loops chat bubbles (backed by a fake chat API). A scripted director, no model: in the demo, and in live mode as an opt-in that is off by default and says "scripted" on every line.
 
 ## Start locally
 

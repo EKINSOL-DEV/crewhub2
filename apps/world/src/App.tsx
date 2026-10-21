@@ -740,7 +740,7 @@ function World() {
             <RoleSettings model={model} overrides={overrides} onChange={setOverrides} />
             <TownSettings town={town} />
             <p className="sign-muted">{translate(demo ? "world.settings.agentsDemo" : "world.settings.agentsLive")}</p>
-            <PresenceSettings reducedMotion={reducedMotion} />
+            <PresenceSettings reducedMotion={reducedMotion} demo={demo} />
           </Card.Body>
         </Card>
       )}

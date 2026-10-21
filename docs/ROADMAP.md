@@ -85,7 +85,7 @@ they are not built.
 | 3. Buildings | Rooms by role, tickets as objects in rooms, the ticket drone, postures and captions, the `WorldStyle` seam | Built in demo mode (2026-10-01); live from the same model, with the real lane facts on the card, a person carrying work into Done and closed buildings (2026-10-21); since round 7 a quiet ticket gathers dust and a clock tag, and an automation's run pins a card on the building's board, in the demo and live alike. Not built: the world database |
 | 4. Town and dynamic pathfinding | Doors, town paths, heap A*, wait budget, detail levels, stress fixture | Built in demo mode (2026-10-01); live from the same model |
 | 5. Build mode: layout and props | Local town document with undo and export/import, prop catalogue, the `crewhub-prop/1` format and the `prop-builder` skill | Built in demo mode (2026-10-01); live mode keeps its own town document in the browser. Not built: the world database |
-| 6. Director and awareness | A scripted intent feed through the validated intent list, `where`, the settings block, the no-model-call guard | Built in demo mode (2026-10-01); `where` works live. Not built: the real director; the scripted feed in live mode is a proposal ("Open" below) |
+| 6. Director and awareness | A scripted intent feed through the validated intent list, `where`, the settings block, the no-model-call guard | Built in demo mode (2026-10-01); `where` works live; the scripted feed in live mode built 2026-10-21 (round 11): its own opt-in, off by default, plans from the live facts, "scripted" on every intent and in the text view. Not built: the real director |
 
 Walk mode (2026-10-07, built in demo mode): the person walks a visitor figure through the town and into buildings over
 the navigation world, with a follow camera ("Walk mode" in
@@ -190,10 +190,10 @@ Everything below is planned and not built. Each item needs crewhub-loops running
 - **Real chat.** The bubbles talk to crewhub-loops as the person; this needs CORS
   for the CrewHub origin (proposal L8).
 - **Real director.** The `crewhub-world` CLI, the watcher and the `world-director`
-  lane, off by default, capped and measured. No model call exists today. A middle road without a
+  lane, off by default, capped and measured. No model call exists today. The middle road without a
   model, the demo's scripted feed in live mode, off by default and labelled scripted on every intent
-  and in the text view, is written down as a proposal in the spec addendum of round 7; Nicky decides
-  whether it is worth it before the real director.
+  and in the text view, was built in round 11 (2026-10-21) as the spec addendum of round 7
+  recommended; it acts only on the world's own figures and is not the director this item names.
 - **Project groups (L22).** Zones stay in each browser's town document until
   crewhub-loops has a level above projects ([gap analysis](LOOPS_GAP_ANALYSIS.md), section 5.8). The
   spec addendum of round 7 lists the roads: wait for loops, or the host's world database keeps the

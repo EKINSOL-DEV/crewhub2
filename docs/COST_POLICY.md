@@ -13,8 +13,15 @@ or leaving a tab open must never start an agent or request inference.
 Implemented: the world makes zero model calls. crewhub-loops is its only source
 of facts, and in demo mode the scripted in-browser source stands in for it. The
 scripted director (deterministic code, no model) stands in for the optional
-director and plays its intents only inside an entered building. `npm test` fails
-on an AI SDK import or a model endpoint.
+director and plays its intents only inside an entered building. Since round 11
+(21 October) the same script can run in live mode: its own opt-in in Settings
+("Scripted director in live mode, no model"), off by default and never implied
+by the demo's switch; its plans are made from the live facts (who is idle in
+which building), its intents validated exactly as in the demo, and it moves only
+the world's own figures through the walk runtime, never reading or writing
+crewhub-loops. Every intent, every line of the text view's director section and
+the director log carry the word "scripted", so it cannot be read as real
+behaviour. `npm test` fails on an AI SDK import or a model endpoint.
 
 Existing sessions still incur their normal provider usage when they perform work
 in crewhub-loops. The world does not make that work free and must not duplicate

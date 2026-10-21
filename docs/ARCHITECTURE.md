@@ -67,7 +67,7 @@ Phase status (plan section 10; the dates and details are in [the roadmap](ROADMA
 - Phase 3 (interiors, three rooms, the ticket drone, a person carrying work into Done, closed buildings): built in demo mode and live; the world database is not built
 - Phase 4 (town paths and dynamic pathfinding): built in demo mode and live
 - Phase 5 (town document and build mode): built in demo mode; live mode keeps its own town document in the browser
-- Phase 6 (scripted director and `where`): built in demo mode; `where` works live; the real director is not built
+- Phase 6 (scripted director and `where`): built in demo mode; `where` works live; the scripted director also runs in live mode as its own opt-in, off by default and labelled "scripted" on every line (round 11); the real director is not built
 
 ## The host (`apps/host`)
 
