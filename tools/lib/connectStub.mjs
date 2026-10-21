@@ -81,9 +81,9 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
       case "unpaired":
         return { ...base, loops: "ok", paired: false, transport: "unix", loopsWebUrl: APP_PORT_TARGET, connection: { discovery: { state: "found" }, key: { state: "ok" }, stream: { state: "ok", reconnects: 0 } } };
       case "connect":
-        return { ...base, loops: "down", paired: true, loopsWebUrl: APP_PORT_TARGET, connection: { discovery: { state: "found", via: "app-port", target: APP_PORT_TARGET }, key: { state: "none" }, stream: { state: "idle", reconnects: 0 } } };
+        return { ...base, loops: "unauthorized", paired: true, loopsWebUrl: APP_PORT_TARGET, connection: { discovery: { state: "found", via: "app-port", target: APP_PORT_TARGET }, key: { state: "none" }, stream: { state: "idle", reconnects: 0 } } };
       case "checking":
-        return { ...base, loops: "down", keyName: "crewhub-world", paired: true, loopsWebUrl: APP_PORT_TARGET, connection: { discovery: { state: "found", via: "app-port", target: APP_PORT_TARGET }, key: { state: "checking", name: "crewhub-world", source: "stored" }, stream: { state: "idle", reconnects: 0 } } };
+        return { ...base, loops: "unauthorized", keyName: "crewhub-world", paired: true, loopsWebUrl: APP_PORT_TARGET, connection: { discovery: { state: "found", via: "app-port", target: APP_PORT_TARGET }, key: { state: "checking", name: "crewhub-world", source: "stored" }, stream: { state: "idle", reconnects: 0 } } };
       case "loops-down":
         return { ...base, loops: "down", keyName: "crewhub-world", paired: true, loopsWebUrl: APP_PORT_TARGET, cursor: 41, connection: { discovery: { state: "found", via: "app-port", target: APP_PORT_TARGET }, key: { state: "ok", name: "crewhub-world", source: "stored" }, stream: { state: "down", cursor: 41, lastEventAt: new Date(Date.now() - 400_000).toISOString(), reconnects: 3 } } };
       case "rejected":
@@ -192,6 +192,11 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
     });
   }
 
+  /** Writes one host message into every proxied stream (an SSE frame), as the host's own status broadcast does. */
+  function tellStreams(message) {
+    for (const entry of streams) entry.res.write(`data: ${JSON.stringify(message)}\n\n`);
+  }
+
   /** Ends every proxied stream cleanly (as loops' own 300 s end does), so the tab asks again and meets the new state. */
   function endStreams() {
     for (const entry of streams) {
@@ -209,6 +214,10 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
     if (url.pathname === "/world-api/connect" && req.method === "DELETE") {
       current = "connect";
       log("connect: the stored key forgotten");
+      // As the real host (host.ts legacyState): the tabs' open streams hear "unauthorized", its legacy word for no key as
+      // for a rejected key; then the streams end here (a real host keeps them), so a reconnect meets the 503 no_key below.
+      tellStreams({ type: "status", loops: "unauthorized" });
+      endStreams();
       return send(res, 204);
     }
     if (url.pathname === "/__stub/state" && req.method === "POST") {
@@ -226,7 +235,7 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
     }
     if (url.pathname.startsWith("/world-api/")) {
       if (current === "unpaired") return send(res, 401, { error: "not_paired" });
-      if (current !== "connected" && current !== "older" && current !== "busy") return send(res, 503, { error: current === "rejected" ? "unauthorized" : "loops_down" });
+      if (current !== "connected" && current !== "older" && current !== "busy") return send(res, 503, { error: current === "rejected" ? "unauthorized" : current === "no-loops" ? "no_loops" : current === "connect" || current === "pair" || current === "checking" ? "no_key" : "loops_down" });
       const { host } = await ensureInner();
       if (current === "busy" && url.pathname === "/world-api/stream") return busyStream(res);
       return proxy(req, res, host.url);

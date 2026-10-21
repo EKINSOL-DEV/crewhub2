@@ -50,15 +50,33 @@ export function connectScreen(decision: Pick<SourceDecision, "source" | "health"
 /**
  * Once the town runs, the live source's state can still send the person back to a screen: `unpaired` (the host answered
  * 401 `not_paired` to the snapshot or the stream: a host restarted without its pairing secret, or the cookie gone) is the
- * Pair screen, not a Stale chip; `unauthorized` (loops refused the host's key after the town was up: the key revoked
- * while Live, confirmed by a loops whose health answers) is the rejected screen, with loops' reason, the kept key and
- * a field for another key, not an Unauthorized chip over a town that will never move again. The App applies it (the
- * gate above it decided once, from the first health read); the source keeps asking, so a new link, or a new key the
- * host switched to, brings the town back by itself. Every other state is the chip's story: Loops down and Stale keep
- * the last known town, which is still true as far as it goes.
+ * Pair screen, not a Stale chip. When the source says `unauthorized` or `loops-down`, the host's health decides what
+ * the key is, not the stream's word: the host tells the tabs' streams one legacy word, "unauthorized", both for a key
+ * loops refused and for no key at all (after Forget this key in another tab), and a stream that then reconnects meets a
+ * 503 `no_key`, which reads as loops down. So: the key `none` is the Connect screen (paste a key; the host has none),
+ * `checking` the checking screen (a key pasted elsewhere is being checked), `rejected` the rejected screen with loops'
+ * reason, the kept key and a field for another key (the key revoked while Live). A key the health still calls ok under
+ * an `unauthorized` source is a health from before the change: no screen yet, the chip says Unauthorized until the App's
+ * next read. A host from before the smooth connection (no connection in its health) keeps the old rule: unauthorized is
+ * rejected. The App applies it; the source keeps asking, so a new link, or a new key the host switched to, brings the
+ * town back by itself. Every other state is the chip's story: Stale keeps the last known town, which is still true as
+ * far as it goes.
  */
-export function liveScreen(state: ConnectionState | null): ConnectScreen | null {
-  return state === "unpaired" ? "pair" : state === "unauthorized" ? "rejected" : null;
+export function liveScreen(state: ConnectionState | null, health?: Pick<HostHealth, "connection"> | null): ConnectScreen | null {
+  if (state === "unpaired") return "pair";
+  if (state !== "unauthorized" && state !== "loops-down") return null;
+  const connection = health?.connection;
+  if (connection === undefined) return state === "unauthorized" ? "rejected" : null;
+  switch (connection.key.state) {
+    case "none":
+      return "connect";
+    case "checking":
+      return "checking";
+    case "rejected":
+      return "rejected";
+    default:
+      return null;
+  }
 }
 
 /** The host's `loopsCommit` (loops' own `version`) and, when the host saw another version first, that one: loops was updated under the host. */
