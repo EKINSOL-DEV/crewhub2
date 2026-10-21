@@ -1,10 +1,10 @@
 import { fileURLToPath } from "node:url";
 import { defineConfig, type HtmlTagDescriptor, type Plugin, type ProxyOptions, type Rollup } from "vite";
 import react from "@vitejs/plugin-react";
+import { hostPortPlan } from "./hostPort.ts";
 
-/** The host's port: CREWHUB_WORLD_PORT, default 5180 (the host's own default). */
-function worldApiProxy(): ProxyOptions {
-  const port = Number(process.env["CREWHUB_WORLD_PORT"] ?? 5180);
+/** The proxy to the world's host on `port` (hostPort.ts decides the port: CREWHUB_WORLD_PORT, or the dev default 5180). */
+function worldApiProxy(port: number): ProxyOptions {
   return {
     target: `http://127.0.0.1:${port}`,
     changeOrigin: true,
@@ -57,8 +57,36 @@ function preloadWorld(): Plugin {
   };
 }
 
-export default defineConfig({
-  plugins: [react(), preloadWorld()],
+/**
+ * The preview without CREWHUB_WORLD_PORT (hostPort.ts): no proxy, and these answers in its place so the page meets what
+ * it meets behind the dev proxy with nothing listening: `/world-api` a 204 ("no host": the probe runs the demo),
+ * `/pair` the note as text. The note is printed once when the preview listens.
+ */
+function previewWithoutHost(note: string): Plugin {
+  return {
+    name: "crewhub:preview-without-host",
+    configurePreviewServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const url = req.url ?? "";
+        if (url === "/world-api" || url.startsWith("/world-api/")) {
+          res.writeHead(204, { "x-world-host": "unset" });
+          res.end();
+        } else if (url === "/pair" || url.startsWith("/pair/")) {
+          res.writeHead(503, { "content-type": "text/plain; charset=utf-8" });
+          res.end(`${note}\n`);
+        } else next();
+      });
+      server.httpServer?.once("listening", () => server.config.logger.info(`  ${note}`));
+    },
+  };
+}
+
+export default defineConfig(({ isPreview }) => {
+  // The dev server defaults to the host's 5180; the preview proxies only to a port named in the environment.
+  const plan = hostPortPlan(process.env, isPreview ? "preview" : "dev");
+  const proxy = plan.proxy ? { "/world-api": worldApiProxy(plan.port), "/pair": worldApiProxy(plan.port) } : {};
+  return {
+  plugins: [react(), preloadWorld(), ...(plan.proxy ? [] : [previewWithoutHost(plan.note)])],
   resolve: {
     alias: {
       // The copied loops chat imports `useNavigate`; the world has no router (see src/shims/react-router-dom.ts).
@@ -73,9 +101,10 @@ export default defineConfig({
     // checks the Host header against its own port, so the origin is changed. Without a host the proxy answers an error
     // the app treats as "no host" (the source decision falls back to the demo).
     // `/pair/<token>` too, so a link minted for this origin (`npm run host -- open --origin http://127.0.0.1:5173`) pairs here.
-    proxy: { "/world-api": worldApiProxy(), "/pair": worldApiProxy() },
+    proxy,
   },
-  preview: { host: "127.0.0.1", port: 4173, strictPort: true },
+  // The preview inherits `server.proxy` unless told otherwise; it is told: the same proxy, or none without the variable.
+  preview: { host: "127.0.0.1", port: 4173, strictPort: true, proxy },
   build: {
     // three.js in a chunk of its own: it changes with a dependency bump only, so a browser keeps it across rebuilds of
     // the world (the host serves hashed assets as immutable), and its compile runs beside the style's. The Greenhouse
@@ -84,4 +113,5 @@ export default defineConfig({
     chunkSizeWarningLimit: 1024,
     rollupOptions: { output: { codeSplitting: { groups: [{ name: "three", test: /node_modules[\\/]three[\\/]/ }] } } },
   },
+  };
 });

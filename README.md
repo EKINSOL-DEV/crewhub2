@@ -61,7 +61,7 @@ Both stop at once on another Node major than `.nvmrc`'s ("Node 24 required (.nvm
 
 ```bash
 npm run prop:validate -- path/to/prop.json
-npm run preview     # serve the built world at http://127.0.0.1:4173
+npm run preview     # serve the built world at http://127.0.0.1:4173 (CREWHUB_WORLD_PORT=<port> to reach a host; without it, the demo)
 ```
 
 Run commands from the repository root. Build output is `apps/world/dist`. The
