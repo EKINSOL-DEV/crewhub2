@@ -185,10 +185,12 @@ their models in chunks, the instancing and the merge in chunks too: `instanceSta
 most about 4 ms of steps a frame, one step at least) while the old dressing stays: no step is over 8 ms at 4
 projects or 22 ms at 20. The same run after: inside, small team, frame max 26.6 ms, 0 slow. The idle interior build
 now runs its step after at most 400 ms even without idle time (a busy stream leaves none), for 12 ms of work, so
-four steps are through in under 2 s instead of 6. A quality switch (Pretty to Fast) still costs one long task: the
-shaders recompile for every material (about 150 ms at 4 projects, 450 ms at 20); it is a setting, not a stream
-event. The world leaves measures for the tools: `world:sync`, `world:shell-built`, `world:dressing-built`,
-`world:dressing-step` and `world:interior-built` (`performance.getEntriesByName`, each with a `detail`).
+four steps are through in under 2 s instead of 6. The world leaves measures for the tools: `world:sync`,
+`world:shell-built`, `world:dressing-built`, `world:dressing-step` and `world:interior-built`
+(`performance.getEntriesByName`, each with a `detail`).
+
+**The Pretty/Fast switch** costs one long frame of shader recompiles (about 150 ms at 4 projects, 450 ms at 20): a
+setting, not a stream event, left as is (crewy, 21 October).
 
 **Hidden copies (21 October).** A merged mesh that was never drawn keeps the JS copy of its vertices until its first
 upload. A scene census of the studio town at its home view (dev build, `window.__town`) found 24.0 MB of geometry
