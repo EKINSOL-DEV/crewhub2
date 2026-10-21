@@ -5,8 +5,12 @@ Start it from the repository root with `npm run dev`.
 
 The renderer reads only the `WorldModel` contract from `packages/world-model`.
 `src/state/world.ts` (`useWorld`) is the one seam between data and presentation; it
-runs the scripted demo source (`@crewhub/demo`) through the projection, `reduceWorld` and
-`describeWorld`. Nothing reaches the network, and everything is labelled as demo.
+runs the scripted demo source (`@crewhub/demo`) or, in live mode, the host source
+(`createHostSource` from `@crewhub/loops-client`, which reads the world's own host at
+`/world-api`) through the projection, `reduceWorld` and `describeWorld`. In demo mode
+nothing reaches the network and everything is labelled as demo; in live mode the
+Connect screens (`src/state/connect.ts`, `components/ConnectPage.tsx`) stand in for the
+town until the host has found crewhub-loops, this browser is paired and the key is accepted.
 `src/world/TownScene.ts` owns the Three.js town, camera, picking and on-demand frame
 loop, built from the Greenhouse models, materials and lighting (`models.ts`,
 `shaders.ts`, and the scene palette in `data.ts`). `src/world/townLayout.ts` holds the
@@ -17,8 +21,9 @@ Keys: arrow keys move between buildings, Enter goes inside, Escape or Backspace 
 to the town, `+`/`-` zoom, `[`/`]` rotate, H returns home, T opens the text view. Drag
 pans, right-drag rotates, two fingers zoom and rotate on touch.
 
-There are no network connections, model calls or telemetry. The render loop is capped
-at 30 fps, draws only after a change, and stops while the tab is hidden.
+There are no model calls and no telemetry; the only network calls are the live source's
+reads of the world's own host on loopback. The render loop is capped at 30 fps, draws
+only after a change, and stops while the tab is hidden.
 
 Walks: `src/world/navigation.ts` builds the town's portal graph (the town grid and
 every building's rooms and doors), `movement.ts` turns model changes into walks

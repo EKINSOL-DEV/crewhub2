@@ -4,7 +4,7 @@
      node tools/regress.mjs --port <port> [--groups walk,demo,live,rooms,real] [--host-port 5180] [--loops-env <file>] [--loops-socket <path>] [--tag pass] [--out <dir>] [--swiftshader]
 
    Groups (--groups, default all five, in this order):
-     walk  38 checks along a visitor's walk through the demo (keyboard, the text view, the timeline, chat, build mode,
+     walk  36 checks along a visitor's walk through the demo (keyboard, the text view, the timeline, chat, build mode,
            settings, the where form, reduced motion, a phone, both themes). About two minutes.
      demo  the jump list (/ opens it, a building's name, Enter lands inside; the postman's card in the town), the scenario picker (the Demo chip, One
            project, back to Small team) and the Studio scenario's Region level (district cards, a beacon, a pin, a

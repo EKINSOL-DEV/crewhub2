@@ -11,11 +11,13 @@ tonight's build is [the demo-mode spec](docs/superpowers/specs/2026-10-01-world-
 
 **The world runs in demo mode by default.** A scripted in-browser source
 produces data in exactly the shapes crewhub-loops serves. There is no network
-call, no account and no model call. Live mode is built: `apps/host` reads a real
-crewhub-loops with an external bot key (over loopback TCP, or the app's Unix
-socket when told) and never writes to it; the runbook is
-[docs/LOOPS_SETUP.md](docs/LOOPS_SETUP.md). Implement the scope the user actually
-assigns; do not describe planned parts as implemented.
+call, no account and no model call. Live mode is built: `apps/host` finds the Mac
+app's crewhub-loops by itself, reads it with an external bot key (over the app's Unix
+socket or loopback TCP) and never writes to it; `npm run world` starts it, pairs the
+browser and asks for the key once on a Connect screen; the runbook is
+[docs/LOOPS_SETUP.md](docs/LOOPS_SETUP.md). Still planned, not built: the host's world
+database, the chat and the director in live form. Implement the scope the user
+actually assigns; do not describe planned parts as implemented.
 
 Start with [docs/README.md](docs/README.md) for the document index and
 [docs/ROADMAP.md](docs/ROADMAP.md) for what is built and what is open. All 2D UI
@@ -45,16 +47,25 @@ proposals, and implemented behavior.
 ## Implementation boundaries
 
 - `apps/world` owns presentation. Keep credentials, keys, and machine access out of
-  it. All data arrives through a `WorldSource`; in the planned design it comes from
-  the CrewHub host, never from a runtime.
+  it. All data arrives through a `WorldSource`: the demo source in demo mode, the
+  host source (`createHostSource`) in live mode, never a runtime. The one exception
+  is the key a person pastes on the Connect screen, which goes straight to the host
+  and is kept nowhere in the page.
 - `apps/host` is CrewHub's only process: it finds crewhub-loops by itself (the Mac
   app's socket or port from its data folder, read only; or the env's URL or socket),
   reads it with one agent key (an external bot's, which could write; the host's
   `GET`-only allow-list is what keeps the world read-only until crewhub-loops has a
-  viewer key) over loopback TCP or the Unix socket, takes that key from a file or
+  viewer key) over the Unix socket or loopback TCP, takes that key from a file or
   from the world's Connect screen (stored in its own folder, 0600, never logged),
-  serves and pairs the browser, and never writes to crewhub-loops. The world
-  database is planned, not built. It never controls agents or holds provider secrets.
+  assembles the snapshot under a read cap, keeps one upstream stream for every tab,
+  serves and pairs the browser (the pairing secret kept across restarts by
+  `npm run world`), reports its states in health, and never writes to crewhub-loops.
+  The world database is planned, not built. It never controls agents or holds
+  provider secrets.
+- `packages/loops-fake` is a fake crewhub-loops over HTTP for the host's tests and the
+  live browser checks: it serves the demo storyline the way crewhub-loops `4cdcd383`
+  serves it on the wire ([docs/LOOPS_REAL_VS_FAKE.md](docs/LOOPS_REAL_VS_FAKE.md)) and
+  never runs on the app's port 8091.
 - `packages/loops-client` holds the crewhub-loops types, hand-written runtime
   validators for every response and event, and the `WorldSource` seam. It stays free
   of React, Three.js, the DOM, the network, and runtime dependencies. It replaces

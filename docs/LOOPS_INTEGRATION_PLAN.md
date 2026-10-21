@@ -870,7 +870,7 @@ makes zero model calls, except phase 6 once it is switched on.
 
 | Phase | Deliverable | Acceptance criteria |
 | --- | --- | --- |
-| 1. First light | `apps/host`: key file, socket client, stream-first projection, SSE, pairing, static bundle. `packages/loops-client`. The browser shows one plain building per project with name, key and counts per status, and each lead in its building with its team status. Navigation only: overview, enter a building, back. **Built 2026-10-07, in part** (see below). | On one machine without Tailscale, against crewhub-loops `make dev` and its seed: `crewhub ticket move CL-1 in_progress` changes the counts within 2 s. A restart of the loops API and a restart of the host both recover without a page reload. Two browser tabs share one loops stream. Nothing is written to crewhub-loops. The key appears in no bundle, log or response. No UI beyond navigation. |
+| 1. First light | `apps/host`: key file, socket client, stream-first projection, SSE, pairing, static bundle. `packages/loops-client`. The browser shows one plain building per project with name, key and counts per status, and each lead in its building with its team status. Navigation only: overview, enter a building, back. **Built**: 2026-10-07 against the fake, 2026-10-21 against the real crewhub-loops `4cdcd383` with pairing, discovery and the Connect screen (the subsections below). | On one machine without Tailscale, against crewhub-loops `make dev` and its seed: `crewhub ticket move CL-1 in_progress` changes the counts within 2 s. A restart of the loops API and a restart of the host both recover without a page reload. Two browser tabs share one loops stream. Nothing is written to crewhub-loops. The key appears in no bundle, log or response. No UI beyond navigation. |
 | 2. Chat bubbles | The port of the loops dock and chat card (4.7), with the person's session and L8 | Side by side with the loops web app, at the same loops commit, the dock and chat look and behave the same: the same heads, badges, presence dots, activity strip, message states and composer. A message sent from the world appears in the loops chat and the reply appears in the world without a reload. Pins and read markers changed in one UI show in the other. The copied files are unchanged from the recorded loops commit. Signed out, only the sign-in link shows. |
 | 3. Buildings | World database with migrations and backup; role catalogue with overrides; lead's office, role rooms, status rooms, work objects and piles, lobby; the movement table of 4.3; the real agent with proxies; stall, attention, waiting-on-person and progress captions; nameplates; "open in loops" on selection; the hidden text view. Remove `apps/bridge`, `packages/protocol`, the mock crew and scenarios; add replay fixtures recorded with `crewhub watch --json`. | A scripted run of CLI commands (new, move, progress, wait, done, comment) produces the expected rooms, objects and postures in a recorded test. A lead of two projects shows one solid avatar and one proxy. A stale snapshot is shown as stale. Every scene fact is in the text view. No panels were added. |
 | 4. Town and dynamic pathfinding | Portal graph, doors, town paths, postman walks between buildings, wait budget and step-aside, heap A*, detail levels with one detailed interior at a time | 12 buildings and 100 agents from a replay stay within the 33 ms frame budget on the reference device. No actor waits more than 5 s in the corridor stress test. Offscreen buildings do no cosmetic routing. |
@@ -904,7 +904,8 @@ install changes only a URL and a key file. The runbook is [LOOPS_SETUP.md](LOOPS
 **Not in.**
 
 - **Pairing** (the one-time link exchanged for an HttpOnly cookie, 3.5): the host trusts loopback and checks Host
-  and Origin only. A written known gap in the host's README.
+  and Origin only. A written known gap in the host's README. *Built on 2026-10-21 (readiness hardening and the
+  rounds below): the link, the cookie, the secret kept across restarts by `npm run world`.*
 - **The chat** (phase 2): needs L8, which crewhub-loops has not built.
 - **The "socket client"**: on a Mac the API is reached on `127.0.0.1:8091` over loopback TCP; the Unix socket does
   not cross Docker Desktop (`loops:docs/porting/MAC-QUICKSTART.md`). The host is a TCP client *(as built on
@@ -918,14 +919,14 @@ install changes only a URL and a key file. The runbook is [LOOPS_SETUP.md](LOOPS
 
 | Criterion | Status |
 | --- | --- |
-| A ticket move changes the counts within 2 s | Met against the fake only, by hand (`npm run loops:fake`, the host, `?source=live`); the end-to-end test (fake, host, `HostSource`, projection, `apps/host/test/e2e.test.ts`) was still being written at the end of the round. Against the real install: not yet; the fresh crewhub-loops is not installed on this Mac. |
+| A ticket move changes the counts within 2 s | Met against the fake only, by hand (`npm run loops:fake`, the host, `?source=live`); the end-to-end test (fake, host, `HostSource`, projection, `apps/host/test/e2e.test.ts`) was still being written at the end of the round. Against the real install: not yet; the fresh crewhub-loops is not installed on this Mac. *Since 2026-10-21: the end-to-end test is in `npm test`; against the development instance of `4cdcd383` the `real` group of `tools/regress.mjs` follows a real move (the building's counts agree with the board; the package's flight to its rack is allowed 12 s). Against the app itself: Nicky's first run is still to come.* |
 | A restart of the loops API recovers without a page reload | Met against a loops stub (the host test "goes down and comes back": status messages, host heartbeats, a reset when the tail went backwards; the browser sees Loops down, then Catching up). Against the fake end to end: the same test as above, pending. |
-| A restart of the host recovers without a page reload | Met against the fake only (`HostSource` reconnects with backoff, `?cursor=`, and re-snapshots on `reset`). |
+| A restart of the host recovers without a page reload | Met against the fake only (`HostSource` reconnects with backoff, `?cursor=`, and re-snapshots on `reset`). *2026-10-21, against the real loops: Live again 3.5 s after the new host, no re-pair, because `npm run world` keeps the pairing secret.* |
 | Two browser tabs share one loops stream | Met (the host test "holds one upstream stream for two clients and delivers events in order with an id"). |
 | Nothing is written to crewhub-loops | Met (the allow-list holds `GET` paths only; the test sends POST, PUT, PATCH, DELETE, HEAD and OPTIONS, gets 405, and nothing reaches loops). |
-| The key appears in no bundle, log or response | Met for responses (the host test, with a loops stub that echoes the Authorization header); the bundle grep is the lead's check at merge time. |
+| The key appears in no bundle, log or response | Met for responses (the host test, with a loops stub that echoes the Authorization header); the bundle grep is the lead's check at merge time. *Since 2026-10-21 `apps/host/test/bundle.test.ts` greps the browser code and the built bundle, and the connect tests grep every log line.* |
 | No UI beyond navigation | Met in the sense of this round: live mode hides the demo UI; the chip and the source setting are the only additions. The demo's own UI stays for demo mode. |
-| Pairing | Not yet. |
+| Pairing | Not yet. *Built 2026-10-21: the one-time link, the HttpOnly cookie, the Host and Origin guard, the secret kept across restarts by `npm run world` (`apps/host/test/pairing.test.ts`; the `live` group of `tools/regress.mjs`).* |
 
 ### Phase 1 against the Mac app (2026-10-21)
 
@@ -957,8 +958,8 @@ is the plan of the round; [the gap analysis](LOOPS_GAP_ANALYSIS.md) section 2c i
 - **No viewer role (L1), no CORS (L8), no project groups (L22)**, still. The health's `loopsCommit` is loops'
   `version` string (`0.1.0`), not a commit.
 
-**Built in the round** (one track each; `unixsock` is merged; for the others the Lead's merge report of the night
-says which merged, and a track not named there is planned):
+**Built in the round**, one track each; the first five are merged into `feat/world-demo` (round 1 ends at
+`58eaed5`: 600 tests, the browser pass 71 of 71), the sixth is a proposal on a loops branch:
 
 - `realrun`: the host and `HostSource` follow the real stream: `from=tail` at start, the sealed cursor sent back
   when no event followed it (else `after=`), a 1.5 to 3 s jittered reconnect after the 300 s end (CL-378), 429
@@ -966,11 +967,11 @@ says which merged, and a track not named there is planned):
   host process, tested; the fake matches the real stream where it differed; a regress group `real` against 8291.
 - `seed`: `tools/loops-seed.mjs`, the demo storyline replayed into the development instance through the bot's key
   (tickets, moves, comments, progress), idempotent by title; it refuses port 8091.
-- `unixsock` (**merged**): `CREWHUB_WORLD_LOOPS_SOCKET=<path>` (or `--loops-socket`), the host over the app's Unix
+- `unixsock`: `CREWHUB_WORLD_LOOPS_SOCKET=<path>` (or `--loops-socket`), the host over the app's Unix
   socket through a transport seam (`apps/host/src/transport.ts`; `node:http` with `socketPath`, Host `127.0.0.1`),
   same allow-list, same stream, same timeouts, explicit only and never together with the URL; `health.transport`
-  says `unix` or `tcp`; tested against a stub on a socket. `CREWHUB_WORLD_LOOPS_WEB_URL`, the sign-in link for
-  socket mode, is coming.
+  says `unix` or `tcp`; tested against a stub on a socket. `CREWHUB_WORLD_LOOPS_WEB_URL` names the web app for the
+  sign-in link in socket mode.
 - `lanefacts`: the agent card's Lane section and `Now` from the real `GET /api/agents` lane and `GET /api/team`;
   an external bot says it has no lane; freshness from `lastSeenAt`.
 - `setupdocs`: this section, [the runbook](LOOPS_SETUP.md) for the app, the gap analysis to `4cdcd383`.
@@ -978,17 +979,46 @@ says which merged, and a track not named there is planned):
   style: a flag on an external bot that may read projects, board, team, agents, tickets and the stream and write
   nothing. The ask for `cl-lead`.
 
+### A smooth connection, rounds 2 and 3 (2026-10-21, the same night)
+
+Nicky's priority: someone with `Crewhub.app` running sees their projects within two minutes, without a runbook. The
+spec addenda are "a smooth connection" and "a person in the world, and closed buildings"; the night report has the
+detail. All of it is merged into `feat/world-demo` (round 2 ends at `295f77b`: 674 tests, the browser pass 76 of 76
+including the `real` group over TCP and the socket; round 3's tracks merged after it):
+
+- **The host finds the app and starts keyless** (r2-morning): discovery of the socket or the port from the app's data
+  folder, read only, again every 5 s; `POST`/`DELETE /world-api/connect` for a key pasted in the browser, checked
+  with loops and stored 0600; `health.connection`; `npm run world`; `npm run host -- doctor`; the `busy` state on 429.
+- **One screen per state in the world** (r2-connectui): no loops found, pair, Connect (the loops dialog's steps word
+  for word, a key field that keeps nothing), checking, key rejected, loops down; the Connection panel with "Forget
+  this key"; the stream-busy chip.
+- **A person carries work into Done** (r2-person) and **closed buildings** (r2-archive; the host learns archived
+  projects from the event log, L16). **Three rooms polished** (r2-halls). **An honest fake** (r2-fake: per-key
+  visibility and gaps, archived projects, the empty team, labels, `Last-Event-ID`). **Heap and long runs** (r2-perf:
+  no growth over 30 minutes at 16x; production after GC 18 to 33 MB).
+- **Cards everywhere** (r3-cards): the demo's own lanes, the card on any figure, the host's own key hidden as the
+  observer, the seed writing as the demo's authors.
+- **Time to world** (r3-fast): the snapshot under a read cap and timed, the build beside the host behind a "Building
+  the world…" page, parallel discovery probes, health within 1 s, the first-snapshot line, the step list of
+  `npm run world`, `tools/timeworld.mjs` (dressed town about 1.1 s warm, 2.4 s cold against the development loops).
+- **The morning rehearsed on a fresh clone** (r3-firstrun): the pairing secret kept across host restarts, an unpaired
+  tab shows "Pair this browser", the doctor never asks for a needless restart, the Connect and Pair screens and the
+  runbook match the real road; about 90 s hands on from the clone to the real buildings. (r3-coldclone then found
+  the "50 s first run" was the rehearsal's own latency, not the command's, and cut the nested npm start of the build.)
+- **Not built, proposed on the loops branch `world/viewer-key`** (r3-loopsbutton): a "Connect CrewHub World" card in
+  Settings > Agents that makes the viewer bot and shows its key once with the world's address.
+
 **What remains.**
 
 - **L1, the viewer key**, in crewhub-loops: until it lands the world runs on a key that could write, behind the
-  host's allow-list. The proposal exists on the loops branch; the decision is `cl-lead`'s.
+  host's allow-list. The proposal, and the "Connect CrewHub World" card on top of it, exist on the unpushed loops
+  branch `world/viewer-key`; the decision is `cl-lead`'s and Nicky's.
 - **L8, CORS**, for the chat (phase 2): nothing changed at `4cdcd383`; the dock shows the sign-in link only.
   Pending delegations need the owner's session, not a key, and stay out with it.
 - **L22, project groups**: zones stay in the browser's town document.
 - **The world database** (phases 3 and 5 in live form), the real director (phase 6): not started.
-- **The first run against the app itself**, by Nicky, with the runbook: the acceptance criterion "a ticket move
-  changes the counts within 2 s" is met against the development instance of the same commit, not yet against the
-  app.
+- **The first run against the app itself**, by Nicky, with the runbook: every criterion is met against the
+  development instance of the same commit and the morning is rehearsed from a fresh clone, not yet against the app.
 
 ## 11. Risks and open questions
 

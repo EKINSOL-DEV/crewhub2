@@ -71,18 +71,21 @@ oversight fixture and record device, frame-time, memory, and accessibility evide
 
 The phases of plan section 10, built first in demo mode: a scripted in-browser source
 with the shapes crewhub-loops serves, no network, no account and no model call
-([the demo-mode spec](superpowers/specs/2026-10-01-world-demo-mode-design.md)). The
-status lines are "built in demo mode" or "not built"; a host phase is never marked
-built.
+([the demo-mode spec](superpowers/specs/2026-10-01-world-demo-mode-design.md)). Since
+2026-10-07 the same world runs live through the host, and since 2026-10-21 against the
+real crewhub-loops ("The host" below). A status says "built in demo mode", "live" when
+the real data drives that part through the same reducer, or "not built"; the parts of a
+phase that need the host's world database, the chat or the director are named where
+they are not built.
 
 | Phase | Deliverable | Status |
 | --- | --- | --- |
-| 1. First light | `packages/loops-client`, `WorldSource`, the demo source, one building per project, navigation, hidden text view | Built in demo mode (2026-10-01) |
-| 2. Chat bubbles | The loops chat mirrored verbatim, backed by an in-browser demo chat API | Built in demo mode (2026-10-01) |
-| 3. Buildings | Rooms by role, tickets as objects in rooms, the ticket drone, postures and captions, the `WorldStyle` seam | Built in demo mode (2026-10-01) |
-| 4. Town and dynamic pathfinding | Doors, town paths, heap A*, wait budget, detail levels, stress fixture | Built in demo mode (2026-10-01) |
-| 5. Build mode: layout and props | Local town document with undo and export/import, prop catalogue, the `crewhub-prop/1` format and the `prop-builder` skill | Built in demo mode (2026-10-01) |
-| 6. Director and awareness | A scripted intent feed through the validated intent list, `where`, the settings block, the no-model-call guard | Built in demo mode (2026-10-01) |
+| 1. First light | `packages/loops-client`, `WorldSource`, the demo source, one building per project, navigation, hidden text view | Built in demo mode (2026-10-01); live since 2026-10-07 (against the fake) and against crewhub-loops `4cdcd383` since 2026-10-21 |
+| 2. Chat bubbles | The loops chat mirrored verbatim, backed by an in-browser demo chat API | Built in demo mode (2026-10-01). Live: not built, blocked on CORS in crewhub-loops (L8); the dock shows the sign-in link only |
+| 3. Buildings | Rooms by role, tickets as objects in rooms, the ticket drone, postures and captions, the `WorldStyle` seam | Built in demo mode (2026-10-01); live from the same model, with the real lane facts on the card, a person carrying work into Done and closed buildings (2026-10-21). Not built: the world database |
+| 4. Town and dynamic pathfinding | Doors, town paths, heap A*, wait budget, detail levels, stress fixture | Built in demo mode (2026-10-01); live from the same model |
+| 5. Build mode: layout and props | Local town document with undo and export/import, prop catalogue, the `crewhub-prop/1` format and the `prop-builder` skill | Built in demo mode (2026-10-01); live mode keeps its own town document in the browser. Not built: the world database |
+| 6. Director and awareness | A scripted intent feed through the validated intent list, `where`, the settings block, the no-model-call guard | Built in demo mode (2026-10-01); `where` works live. Not built: the real director |
 
 Walk mode (2026-10-07, built in demo mode): the person walks a visitor figure through the town and into buildings over
 the navigation world, with a follow camera ("Walk mode" in
@@ -93,9 +96,10 @@ A person in the world (2026-10-21, spec addendum "a person in the world, and clo
 building's cast comes in by the front door, carries the package from its rack or desk to the Done rack and leaves. The
 model records the visit (`Building.visits`, one person per building, a queue of three, the rest land at once; the
 celebration follows the landing), the text view and `where` tell it, a click says who and what. Under reduced motion
-the package lands at once. Part 2 (closed buildings) is open. Since round 3 of the same night the person looks like a
-person: each cast brings a person figure of its own (`person.json`, "The person" in [WORLD_STYLES.md](WORLD_STYLES.md)),
-clearly no agent; the walk-mode visitor is the same figure; a cast without one falls back to its plain worker.
+the package lands at once. Part 2, closed buildings, is built as well (round 2, below). Since round 3 of the same night
+the person looks like a person: each cast brings a person figure of its own (`person.json`, "The person" in
+[WORLD_STYLES.md](WORLD_STYLES.md)), clearly no agent; the walk-mode visitor is the same figure; a cast without one falls
+back to its plain worker.
 
 ## The host
 
@@ -121,6 +125,18 @@ still shows its closed buildings on the next start (the Connection panel says wh
 rejected key is never confused with loops being down (only a confirmed 401/403 rejects; a rejected stored key is
 kept, with Forget).
 
+Round 3 (2026-10-21, the same night): `npm run world` starts the host and opens the browser first and builds the
+world beside them when the build is missing or stale (a "Building the world…" page hands over by itself); the
+terminal prints a step list with times; the snapshot is assembled under a read cap and timed; health answers within
+a second and says how far the first snapshot is, which the page shows ("Reading 12 projects from crewhub-loops…");
+the pairing secret is kept in the host's folder, so a host restart keeps every paired browser, and an unpaired tab
+shows "Pair this browser" instead of a Stale chip; the doctor never asks for a restart the host does not need; the
+host's own principal is hidden as the observer; the demo scripts its own lanes and the agent card opens on any
+figure, in the town hall and at the post office too. Measured with `tools/timeworld.mjs` against the development
+loops: the dressed town about 1.1 s after `npm run world` warm and about 2.4 s cold. Rehearsed from a fresh clone by
+a developer following the runbook: about 90 s hands on, including the loops dialog; the measure was two minutes.
+Nicky's first run against the app itself is still to come.
+
 ## Open
 
 Everything below is planned and not built. Each item needs crewhub-loops running.
@@ -131,8 +147,15 @@ Everything below is planned and not built. Each item needs crewhub-loops running
   for the CrewHub origin (proposal L8).
 - **Real director.** The `crewhub-world` CLI, the watcher and the `world-director`
   lane, off by default, capped and measured. No model call exists today.
-- **Proposals for crewhub-loops** L1 to L8 (plan section 9), for example a read-only
-  `viewer` role and published schemas.
+- **Project groups (L22).** Zones stay in each browser's town document until
+  crewhub-loops has a level above projects ([gap analysis](LOOPS_GAP_ANALYSIS.md), section 5.8).
+- **Proposals on the loops side**, worked out with tests on the unpushed branch
+  `world/viewer-key` of the world's loops checkout (2026-10-21) and accepted by nobody
+  yet: the **viewer key** (L1: an external bot flag that may read exactly the host's read
+  list and the stream and write nothing; until it lands the world runs on a lead-grade
+  key behind the host's `GET`-only allow-list) and, on top of it, a **"Connect CrewHub
+  World" card** in Settings > Agents that makes the viewer bot and shows its key once with
+  the world's address. The other proposals of plan section 9 (L2 to L8) stand as written.
 
 ## Later scope
 
