@@ -676,8 +676,9 @@ function Interior({ building: b, model, props, compact }: { building: Building; 
             </span>
           </div>
         ))}
-      {pinned && (!compact || shows("lobby")) && (
-        // `automation.ran`: a small card pinned on the board by the front door for a few seconds; a failure says so.
+      {pinned && (
+        // `automation.ran`: a small card pinned on the board by the front door for a few seconds, on a phone too (it is
+        // one short card, and gone again); a failure says so.
         <div key={`board-${pinned.runId}`} className="anchor" data-anchor={`board:${b.slug}`}>
           <span className={`board-card${pinned.outcome === "failed" ? " failed" : ""}`} role="status">
             <Zap className="icon icon-sm" aria-hidden="true" />
