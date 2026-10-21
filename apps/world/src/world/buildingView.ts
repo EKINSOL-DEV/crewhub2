@@ -31,6 +31,8 @@ import {
 import { ADMIN_DOOR, officeWindowRun } from "./threeRoomTemplate";
 import { assignDesks, placeObjects, roomCentre, SHELF_PITCH, type DeskSlot, type ObjectLayout, type Surface } from "./interiorLayout";
 import { mergeStatic } from "./mergeStatic";
+import { Closing } from "./closing.ts";
+import { archivedSince } from "@crewhub/world-model";
 import { restMatrices } from "./matrixPass";
 import { ObjectLayer } from "./objectLayer";
 import { cellAt, footprintPose, resolveBuildingPlacements, type BuildingPlacements } from "./placements";
@@ -265,6 +267,13 @@ export class BuildingView {
     west: { tall: new THREE.Group(), low: new THREE.Group() },
   };
   #merged: THREE.BufferGeometry[] = [];
+  /** The shell pieces a closing or an opening moves (world-style `LightTag`), kept out of the static batches. */
+  #transition = new THREE.Group();
+  #closing: Closing | null = null;
+  /** The `at` of the last closing or opening played, so a model update never replays it. */
+  #playedClosing = 0;
+  /** While a Closing runs, the shell shows this instead of the model's `archived`. */
+  #shellArchived: boolean | null = null;
   #pilesMerged: THREE.BufferGeometry[] = [];
   /** Pendant cords, shown only with a room in focus. */
   #cords = new THREE.Group();
@@ -342,7 +351,7 @@ export class BuildingView {
     });
     const back = this.#backWalls;
     this.group.add(back.north.tall, back.north.low, back.west.tall, back.west.low, this.#silhouette);
-    this.group.add(this.#shell, this.#shellStatic, this.#piles, this.#agents, this.#signals, this.#personal, this.#objects.group, this.#props.group);
+    this.group.add(this.#shell, this.#shellStatic, this.#transition, this.#piles, this.#agents, this.#signals, this.#personal, this.#objects.group, this.#props.group);
   }
 
   /** Building cells to building-local world units. */
@@ -360,9 +369,17 @@ export class BuildingView {
     this.desks = assignDesks(building, this.template);
     this.layout = placeObjects(building, this.template, this.desks);
     const shape = JSON.stringify(this.template.rooms.map((r) => [r.kind, r.origin, r.layout.grid.width, r.layout.grid.depth]));
-    const shell = `${shape}|${building.rooms.map((r) => `${r.kind}${r.present}`).join()}|${building.archived}|${building.color}|${building.icon}|${this.#zone?.color ?? ""}|${this.#zone?.emblem ?? ""}`;
-    if (shell !== this.#signatures.shell) {
+    const shell = `${shape}|${building.rooms.map((r) => `${r.kind}${r.present}`).join()}|${building.archived}|${building.archivedAt ?? ""}|${building.color}|${building.icon}|${this.#zone?.color ?? ""}|${this.#zone?.emblem ?? ""}`;
+    // A project archived or restored while the town stands closes or opens again, once per event; reduced motion cuts.
+    const closing = building.closing;
+    if (closing && closing.at !== this.#playedClosing && this.#signatures.shell !== "" && !this.ctx.reducedMotion()) {
+      this.#playedClosing = closing.at;
+      this.#closing?.finish();
+      this.#closing = new Closing(closing.kind, (archived, pull) => this.#rebuildFor(archived, pull));
       this.#signatures.shell = shell;
+    } else if (shell !== this.#signatures.shell) {
+      this.#signatures.shell = shell;
+      if (this.#closing) this.#closing = (this.#closing.finish(), null);
       this.#buildShell();
     }
     this.detailed = detailed && !building.archived;
@@ -419,15 +436,24 @@ export class BuildingView {
 
   /* ── Shell: slab, floors, walls, doors, flag, emblem, room signs, the truck's apron ─────────────── */
 
-  #buildShell() {
+  /** A Closing's shell build: the look it asks for, with the tagged pieces it animates moved out of the batches. */
+  #rebuildFor(archived: boolean, pull: "lights" | "boards" | null): { lights: THREE.Mesh[]; boards: THREE.Object3D[] } {
+    this.#shellArchived = archived;
+    const pulled = this.#buildShell(pull);
+    this.#shellArchived = null;
+    return pulled;
+  }
+
+  #buildShell(pull: "lights" | "boards" | null = null): { lights: THREE.Mesh[]; boards: THREE.Object3D[] } {
     this.shellRevision++;
     this.shadowRevision++;
     const { style } = this.ctx;
     this.#shell.clear();
     this.#shellStatic.clear();
+    this.#transition.clear();
     for (const side of Object.values(this.#backWalls)) for (const g of [side.tall, side.low]) g.clear();
     for (const g of this.#merged) g.dispose();
-    const b = this.building;
+    const b = { ...this.building, archived: this.#shellArchived ?? this.building.archived };
     // An archived building keeps its colour out of the shell: muted sage and timber, never dark.
     const accent = b.archived ? null : ((b.color ?? null) as PaletteName | null);
     const variant = b.archived ? "archived" : undefined;
@@ -507,7 +533,10 @@ export class BuildingView {
         if (!b.archived && this.#zone)
           add(noShadow(style.model("town.zone-mark", { accent: (this.#zone.color ?? null) as PaletteName | null, ...(this.#zone.emblem ? { variant: this.#zone.emblem } : {}) })), x, z, 2.3, rotation);
         // The closed sign hangs from the awning's front edge.
-        if (b.archived) add(style.model("building.closed-sign"), x, z + 1.15, 1.4);
+        if (b.archived) {
+          const since = this.building.archivedAt ? archivedSince(this.building.archivedAt, this.ctx.now()) : null;
+          add(style.model("building.closed-sign", { text: since ? `since ${since.date}` : "" }), x, z + 1.15, 1.4);
+        }
       } else if (opening.id === "loading") {
         add(style.model("building.loading-door", opt({ size: { width, height: 1.2, depth: 0.16 } })), x, z, 0, rotation);
         this.#outside(style.model("building.wall-lamp", opt({})), x + width / CELL / 2 + 0.25, z + 0.2, 0);
@@ -552,6 +581,7 @@ export class BuildingView {
       this.#truckTarget.copy(this.#truckHome).setY(0.55 - FLOOR_RISE);
     } else this.#truck = null;
     this.anchors.set(`truck:${b.slug}`, this.world(TRUCK_SPOT.x, TRUCK_SPOT.z, 1 - FLOOR_RISE));
+    const pulled = this.#pull(pull);
     this.#merged = mergeStatic(this.#shellStatic);
     // The truck moves only as a whole: its parts merge per material under its own root (perf). It can be picked, so
     // its merged geometry keeps its vertex data for the raycast.
@@ -589,10 +619,31 @@ export class BuildingView {
       };
     for (const walls of Object.values(this.#backWalls)) walls.low.visible = false;
     this.#applyFocus();
+    return pulled;
   }
 
   /** Adds a piece by the doors to the static batch, at building cells with a yaw and a sideways lean (its light pool
    *  decal stays unbatched). */
+  /**
+   * Moves the pieces a Closing animates out of the groups about to be batched (world-style `LightTag`): the lights
+   * (`userData.pane`) or the boards (`userData.board`), keeping their place in the building.
+   */
+  #pull(pull: "lights" | "boards" | null): { lights: THREE.Mesh[]; boards: THREE.Object3D[] } {
+    const lights: THREE.Mesh[] = [];
+    const boards: THREE.Object3D[] = [];
+    if (pull === null) return { lights, boards };
+    this.group.updateMatrixWorld(true);
+    const roots = [this.#shellStatic, this.#backWalls.north.tall, this.#backWalls.west.tall];
+    const found: THREE.Object3D[] = [];
+    for (const root of roots) root.traverse((o) => void ((pull === "lights" ? o.userData.pane && o instanceof THREE.Mesh : o.userData.board) && found.push(o)));
+    for (const o of found) {
+      this.#transition.attach(o);
+      if (pull === "lights") lights.push(o as THREE.Mesh);
+      else boards.push(o);
+    }
+    return { lights, boards };
+  }
+
   #outside(object: THREE.Object3D, x: number, z: number, y: number, rotation = 0, lean = 0): THREE.Object3D {
     object.position.copy(this.local(x, z, y));
     object.rotation.set(lean, rotation, 0, "YXZ");
@@ -866,7 +917,7 @@ export class BuildingView {
    */
   #applyDistance() {
     const far = this.#distant && !this.detailed;
-    this.#silhouette.visible = !this.detailed && !this.building.archived && !far;
+    this.#silhouette.visible = !this.detailed && !(this.#closing?.interiorClosed() ?? this.building.archived) && !far;
     this.#piles.visible = !this.detailed && !far;
     const remote = far && this.#remote;
     // Nothing to do again while the tier and the shell are what they were (this runs on every model update).
@@ -1469,6 +1520,11 @@ export class BuildingView {
       for (const child of this.#signals.children) (child.userData.animate as ((s: number) => void) | undefined)?.(seconds);
     }
     this.#driveTruck(seconds, reduced);
+    if (this.#closing) {
+      if (!this.#closing.tick(seconds)) this.#closing = null;
+      // The furnished silhouette follows the boards: gone once they come, back once they are off.
+      this.#silhouette.visible = !this.detailed && !(this.#closing?.interiorClosed() ?? this.building.archived) && !(this.#distant && !this.detailed);
+    }
   }
 
   /** The truck leaves once every package bound for it has landed, then comes back. */
@@ -1546,6 +1602,7 @@ export class BuildingView {
 
   dispose() {
     this.cancelPrepare();
+    this.#closing = null;
     for (const robot of this.#robots.values()) robot.handle.dispose();
     this.#robots.clear();
     this.#dropPeople();

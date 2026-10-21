@@ -882,6 +882,46 @@ Round 1 ends at `58eaed5`, with 600 tests and the browser pass at 71 of 71, incl
 The Lead's report is in the session's scratchpad (`live-mac-report.md`). Round 2 follows: a smooth connection, a person
 in the world, closed buildings, the honest fake and the three-room polish.
 
+## A smooth connection, round 2 (night of 2026-10-21)
+
+Nicky's priority for the night: someone with Crewhub.app running sees their projects **within two minutes, without
+reading a runbook**. The spec addenda are "a smooth connection", "a person in the world, and closed buildings". There
+were six developers (Fable 5.1). Round 2 ends at `295f77b`, with 674 tests and the browser pass at 76 of 76, including
+`real` over TCP and the Unix socket against the development loops.
+
+- **The host side** (r2-morning).
+  - It finds the Mac app by itself: the socket in the app's data folder, else the port in its `settings.json`. It only
+    reads that folder and looks again every 5 s.
+  - It starts without a key. `POST /world-api/connect` checks a pasted key and refuses a probe or Read-only key with
+    the reason, stores the key 0600 in `~/.config/crewhub-world/`, and switches without a restart.
+  - `npm run world` builds, starts, pairs and opens. `npm run host -- doctor` prints the connection states.
+  - `health.connection` reports discovery, the key and the stream (`busy` on loops' 429).
+- **The world side** (r2-connectui). One screen per state: no loops found, pair, Connect, checking, key rejected,
+  loops down, then the town.
+  - The Connect screen gives the loops dialog's steps word for word (checked against screenshots of the real dialog)
+    and a key field that keeps nothing.
+  - The chip opens a Connection panel with "Forget this key".
+  - A refused or unreachable loops no longer shows the empty "Create a project" clearing.
+- **A person carries work into Done** (r2-person). Only a person moves a ticket into Done in loops (`human_only_done`),
+  so the person walks in, takes the package to the Done rack and leaves. Moves queue; reduced motion lands the package
+  at once; the plate and the text view name the person.
+- **Closed buildings** (r2-archive). Lights out, boards, a "Closed since …" sign; archive and restore play as
+  transitions. The host learns archived projects from the event log, because an agent key cannot list them. Filmed
+  live on the development loops.
+- **Three rooms, polished** (r2-halls). Partitions at 0.52 with a merge test, the office sign over its door, a glass
+  office partition, the huddle out of the doorways, and breakout corners instead of an empty floor.
+- **An honest fake** (r2-fake). Per-key visibility gaps, archived projects, the empty team, labels, `Last-Event-ID`; the
+  `real` regress group checks the socket.
+- **Heap and long runs** (r2-perf). No growth over 30 minutes at 16x with 1, 4 or 20 projects (production after GC: 18,
+  23 and 33 MB). The 300 MB of 6 October was an un-collected dev heap. Palette batches drop `uv`.
+- **Cards everywhere** (r3-cards).
+  - The demo scripts its own lanes.
+  - The card opens in the town hall and at the post office.
+  - The world's own key is hidden as the observer.
+  - The seed writes as the demo's authors.
+
+The viewer-key proposal for gap L1 stays on the unpushed loops branch `world/viewer-key`; accepting it is Nicky's call.
+
 ## Challenges with docs/integrators
 
 Read at crewhub-loops `a1bed0f`. Each item names the document, what was unclear, contradictory, missing or marked

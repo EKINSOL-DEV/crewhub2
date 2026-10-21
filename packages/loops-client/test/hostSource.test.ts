@@ -44,6 +44,8 @@ interface FakeHost {
   teamReads: number;
   cursor: number;
   snapshotStatus: number;
+  /** Called at every snapshot ask (a test times the retries). */
+  onSnapshot?: () => void;
   /** Sends one message on every open stream. */
   push(message: unknown): void;
   /** Ends every open stream (the host restarted). */
@@ -84,6 +86,7 @@ async function startHost(): Promise<FakeHost> {
     if (url.pathname === "/world-api/health") return json(res, 200, { loops: "ok", keyName: "agent-crewhub-world", sharedKey: false, cursor: host.cursor, loopsWebUrl: "http://127.0.0.1:8091", transport: "unix", extra: "ignored" });
     if (url.pathname === "/world-api/snapshot") {
       host.snapshots += 1;
+      host.onSnapshot?.();
       if (host.snapshotStatus !== 200) return json(res, host.snapshotStatus, { error: "loops_down" });
       return json(res, 200, snapshotAt(host.cursor));
     }
@@ -337,4 +340,20 @@ test("probeHost answers the health, and null when nothing listens or the answer 
   servers.push(other);
   await new Promise<void>((resolve) => other.listen(0, "127.0.0.1", resolve));
   assert.equal(await probeHost(`http://127.0.0.1:${(other.address() as AddressInfo).port}`, 500), null);
+});
+
+test("before the first snapshot the retry is capped at firstRetryMaxMs; after it the full backoff applies", async () => {
+  const host = await startHost();
+  host.snapshotStatus = 503;
+  const asks: number[] = [];
+  const started = Date.now();
+  host.onSnapshot = () => asks.push(Date.now() - started);
+  const run = observe(host.url, { timings: { ...TIMINGS, retryMinMs: 10, retryMaxMs: 400, firstRetryMaxMs: 30 } });
+  await run.until(() => host.snapshots >= 6, "six asks under the first cap", 1500);
+  const gaps = asks.slice(1).map((t, i) => t - (asks[i] as number));
+  assert.ok(gaps.slice(2).every((gap) => gap < 150), `the gaps stay near the 30 ms cap, never the 400 ms backoff: ${gaps.join(",")}`);
+  host.snapshotStatus = 200;
+  await run.until(() => run.state() === "live", "live");
+  run.stop();
+  await host.close();
 });

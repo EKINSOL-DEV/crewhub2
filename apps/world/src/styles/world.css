@@ -55,6 +55,39 @@
   font-size: var(--text-sm);
 }
 
+/* The first-snapshot line of live mode ("Reading 12 projects from crewhub-loops…"): the muted status style of
+   "Laying out the town…", on a raised pill so it reads over the clearing the town stands in meanwhile. */
+.first-snapshot {
+  pointer-events: none;
+}
+
+.first-snapshot > svg,
+.first-snapshot::after {
+  display: none;
+}
+
+.first-snapshot {
+  inset: auto;
+  top: var(--space-4);
+  left: 50%;
+  transform: translateX(-50%);
+  flex-direction: row;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-sm);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.first-snapshot > svg {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+}
+
 .world-corner {
   position: absolute;
   top: var(--space-4);
@@ -2074,6 +2107,10 @@ a.agent-ticket-link:focus-visible {
   line-height: 1.5;
   display: grid;
   gap: var(--space-1);
+}
+/* The loops web's own labels, as the kit sets a strong word (semibold). */
+.connect-steps strong {
+  font-weight: var(--weight-semibold);
 }
 .connect-rejected {
   padding: var(--space-2) var(--space-3);

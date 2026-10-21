@@ -159,6 +159,51 @@ Memory, read after a forced GC every 30 s:
   Geometries, textures, DOM nodes and listeners stay the same.
 - 5 minutes of the stress fixture at 16x: the heap grows 0.4 MB, and the rest stays the same.
 
+Live mode, frames (`perf.mjs --source live --preview`, the fake crewhub-loops playing a scenario at 16x behind the
+host, a production build served by the host; the heap here is read without a GC, as the overlay shows it):
+
+| Loops, projects | View | Frame p95 / max | Work mean / p95 | Draw calls | Triangles | Heap, no GC |
+| --- | --- | --- | --- | --- | --- | --- |
+| One project | town | 18.3 / 18.7 ms (steady 60) | 0.8 / 1.0 ms | 106 | 0.31M | 47 MB |
+| One project | inside | 18.2 / 18.7 ms | 1.7 / 2.0 ms | 506 | 0.64M | 32 MB |
+| Small team, 4 | town | 18.2 / 25.6 ms | 1.6 / 1.8 ms | 206 | 0.62M | 46 MB |
+| Small team, 4 | inside | 18.2 / 100 ms, 2 slow (the interior merged at Enter) | 2.2 / 2.6 ms | 591 | 0.97M | 43 MB |
+| Studio, 20 | town | 18.2 / 18.8 ms | 4.2 / 4.8 ms | 674 | 2.83M | 88 MB |
+| Studio, 20 | inside | 18.1 / 18.7 ms | 2.9 / 3.7 ms | 520 | 1.50M | 127 MB |
+
+The un-collected heap (88 to 127 MB for the studio) against 33 MB after a GC is the gap the 6 October note fell into.
+
+Live mode, the night of 2026-10-20 (`b0cb111`; `memory.mjs live`, a forced GC every 60 s, the fake crewhub-loops
+playing a scenario at 16x behind the host, 30 minutes each, heap snapshots at 0, 10 and 30 minutes summed by
+constructor):
+
+| Loops, projects | Build | Heap after GC at 0 / 10 / 30 min | Growth after warm-up | Geometries, textures, DOM, listeners |
+| --- | --- | --- | --- | --- |
+| One project | production | 13.7 / 17.8 / 18.1 MB | +0.6 MB | flat |
+| Small team, 4 projects | production | 17.0 / 22.4 / 23.0 MB | +1.3 MB | flat |
+| Studio, 20 projects | production | 29.2 / 32.9 / 32.9 MB | +0.5 MB | flat |
+| Studio, 20 projects | dev (Vite) | 53.0 / 55.6 / 54.9 MB | -0.3 MB | flat |
+| The development crewhub-loops on 8291, 5 projects, 10 min | production | 19.4 / 21.9 MB | +0.1 MB | flat |
+
+The first ten minutes are warm-up (shader programs, the interior the pointer prepares, JIT code). What grows from
+minute 10 to 30 is the browser's own, not the world's: Chromium's inspector keeps a record per network request while
+a CDP session is attached (one per refetch the host answers, about 1 700 in 20 minutes at 16x, 0.5 MB) and the JIT
+re-tiers code (0.3 to 0.5 MB). Nothing the world holds grows with events: the projection's history lists are capped
+(300 entries), deliveries at 500, the director's plan log at 40, the town document's undo history at 50, and the
+frame ring is a ring.
+
+Where the 20-project heap goes (production, after GC, the start of the studio town, 29 MB): vertex data in typed
+arrays is the largest kind (about 23 MB of `ArrayBuffer` backing in all, of which about 11 MB are the JS copies of
+merged meshes that are hidden at creation (a back wall's inside variant, art on a partition's far face) and so not yet
+uploaded; a merged mesh lets its copy go once the GPU has it), then the bundle's code (8 MB) and the model's objects
+and strings (5 MB). The dev build adds about 25 MB of module source and source-map strings and 10 MB more code: a
+dev-server number is not a user's. The "about 300 MB" noted on 6 October was the un-collected heap of a dev build
+(V8 lets garbage pile up to several times the live size between major collections; the overlay's heap number is read
+without a GC): after a forced GC it is 55 MB, and 62 MB on the stress-20 fixture. The one cut made: a palette batch
+(plain colours, no map) drops its uv after the merge, a quarter of every merged vertex on the GPU and in the hidden
+copies (the studio town's geometry arrays 26.2 to 23.0 MB; the look is the same, nothing read them). The rest of the
+hidden copies would need those variants built on first sight, which is a later round.
+
 ## Acceptance
 
 The world, in demo mode and when it later reads crewhub-loops through the host,

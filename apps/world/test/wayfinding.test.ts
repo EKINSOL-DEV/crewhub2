@@ -114,6 +114,12 @@ test("the jump list finds zones, projects and agents, and puts what needs a pers
   assert.deepEqual(searchJumps(entries, "quiet lead").map((e) => e.id), ["agent:quiet-lead"]);
   assert.deepEqual(searchJumps(entries, "zzz"), []);
   assert.equal(searchJumps(entries, "town hall")[0]!.civic, "town-hall");
+  // A figure outside the buildings is an agent entry too: it lands in the town, selected, beside its civic building.
+  const operator = entries.find((e) => e.id === "agent:operator")!;
+  assert.equal(operator.kind, "agent");
+  assert.deepEqual([operator.agent, operator.civic, operator.place], ["operator", "town-hall", { district: null, building: null, room: null }]);
+  assert.match(operator.detail, /at the town hall\. /);
+  assert.equal(searchJumps(entries, "Operator")[0]!.id, "agent:operator");
   // An agent's jump lands in its room, inside its district.
   assert.deepEqual(entries.find((e) => e.id === "agent:a-dev")!.place, { district: "garden", building: "asking", room: "workers" });
   assert.equal(searchJumps(entries, "", 2).length, 2);

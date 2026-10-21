@@ -84,7 +84,7 @@ describe("the smooth connection", () => {
   it("starts without loops and without a key, finds the app's port when it appears, and waits for a key", async () => {
     const port = await freePort();
     const { host, health, lines } = await startHost({ appData: appData(port) });
-    assert.deepEqual((await health()).connection, { discovery: { state: "searching" }, key: { state: "none" }, stream: { state: "idle", reconnects: 0 } });
+    assert.deepEqual((await health()).connection, { discovery: { state: "searching" }, key: { state: "none" }, stream: { state: "idle", reconnects: 0 }, snapshot: { state: "idle" } });
     assert.equal((await health()).loops, "down", "the world from before reads down");
     assert.equal((await (await fetch(`${host.url}/world-api/snapshot`)).json()).error, "no_loops");
     const stub = await createLoopsStub({ ...installation(), port });

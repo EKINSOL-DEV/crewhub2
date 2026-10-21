@@ -14,9 +14,11 @@ describes a private crewhub-loops next to the app, never the app.
 With `Crewhub.app` open (it serves `127.0.0.1:8091` and a Unix socket in its data folder; the world finds both by
 itself, read only) and a terminal in this repository:
 
-1. `npm ci` once, then **`npm run world`**. It builds the world when the build is older than the sources, starts the
-   host on `127.0.0.1:5180` with pairing on, and opens your browser on a one-time pairing link. Run it again later:
-   it finds the running host and only opens a new link.
+1. `npm ci` once, then **`npm run world`**. It starts the host on `127.0.0.1:5180` with pairing on, opens your browser
+   on a one-time pairing link, and builds the world meanwhile when the build is missing or older than the sources (the
+   browser says "Building the world…" and opens it when the build is done). The terminal shows the steps as they
+   complete, with ticks and times: loops found, the key, the stream, the first snapshot, "the world is up". Run it
+   again later: it finds the running host and only opens a new link.
 2. The world shows **Connect**: it has found crewhub-loops and has no key yet. In the app, signed in as the owner:
    **Settings > Agents > New external bot**. Fill in **Name** `crewhub-world`, leave **Read only** unticked, tick no
    project under **Member of these projects**, press **Make the bot and its access key**. The window "The access key
@@ -125,6 +127,12 @@ only (`apps/host/src/allowList.ts`; every other method is 405 and never reaches 
 key is never in a response, a log or the bundle. Never paste the key into a browser page or a shared file. A viewer
 key that cannot write is proposal L1 for crewhub-loops ([gap analysis](LOOPS_GAP_ANALYSIS.md), section 6.1), asked
 again this round with a worked proposal; until then this is the credential.
+
+**The bot is the observer, not a worker.** Loops lists `crewhub-world` among the agents (an external bot in no
+project), but the world never shows the host's own principal as a figure: the host names it on the snapshot
+(`observer`, the id loops answered to `GET /api/auth/me`), the model leaves it out of the figures and the agent
+counts, and the text view and the Source panel say "`crewhub-world` (this world's key) is not shown". Other external
+bots are real bots elsewhere and stay in the town hall.
 
 ### 1.3 Something to look at
 

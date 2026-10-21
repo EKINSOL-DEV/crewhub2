@@ -3,7 +3,8 @@
    Usage:
      node tools/perf.mjs --port <port> [scenario...] [--quality pretty|fast] [--theme light|dark] [--cast <id>]
                          [--scenario <id>] [--stress <n>] [--rooms three|classic] [--json <file>] [--minutes <n>]
-                         [--preview] [--out <dir>] [--swiftshader]
+                         [--preview] [--source demo|live] [--loops-url <url> --key-file <file>] [--fake-scenario <id>]
+                         [--fake-speed 0|1|4|16] [--host-port <port>] [--out <dir>] [--swiftshader]
 
    With no scenario it runs them all (about three minutes):
      demo-town      the normal demo, town view, 1x
@@ -59,12 +60,17 @@
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { castChoice, cli, launch, seek, speed, store, worldUrl } from "./lib/world.mjs";
+import { LIVE_OPTIONS, LIVE_USAGE, startLive } from "./lib/live.mjs";
 
 const opts = cli(
-  "node tools/perf.mjs --port <port> [scenario...] [--quality pretty|fast] [--theme light|dark] [--cast <id>] [--scenario <id>] [--stress <n>] [--rooms three|classic] [--json <file>] [--minutes <n>] [--preview] [--out <dir>] [--swiftshader]",
-  { options: { quality: "pretty", theme: "light", json: null, minutes: "10", cast: null, scenario: null, stress: null, rooms: null }, flags: ["preview"] },
+  `node tools/perf.mjs --port <port> [scenario...] [--quality pretty|fast] [--theme light|dark] [--cast <id>] [--scenario <id>] [--stress <n>] [--rooms three|classic] [--json <file>] [--minutes <n>] [--preview] ${LIVE_USAGE} [--out <dir>] [--swiftshader]`,
+  { options: { quality: "pretty", theme: "light", json: null, minutes: "10", cast: null, scenario: null, stress: null, rooms: null, ...LIVE_OPTIONS }, flags: ["preview"] },
 );
-const { port, quality, theme, preview, base } = opts;
+const { port, quality, theme, preview } = opts;
+if (!["demo", "live"].includes(opts.source)) opts.fail(`--source must be demo or live, not "${opts.source}"`);
+const live = opts.source === "live" ? await startLive(opts, { preview }) : null;
+/** The page to open: your Vite, or (live, preview) the host serving dist. */
+const base = live ? live.base : opts.base;
 const jsonOut = opts.json && (path.isAbsolute(opts.json) || opts.json.includes(path.sep) ? opts.json : path.join(opts.out, opts.json));
 const minutes = Number(opts.minutes);
 /** --cast <id>: the viewer's cast choice (Settings > Town > Cast). */
@@ -78,7 +84,7 @@ const build = preview ? "preview" : "dev";
 /** Scenarios that need the dev-only stress fixture. */
 const STRESS_ONLY = ["stress-town", "stress-inside", "stress-16x", "view-change-stress", "long"];
 const ALL = ["demo-town", "demo-inside", "stress-town", "stress-inside", "phone-fast", "startup"];
-const scenarios = opts.rest.length ? opts.rest : preview ? ALL.filter((s) => !STRESS_ONLY.includes(s)) : ALL;
+const scenarios = opts.rest.length ? opts.rest : preview || live ? ALL.filter((s) => !STRESS_ONLY.includes(s)) : ALL;
 const SETTLE_MS = 3000,
   SAMPLE_MS = 10000;
 
@@ -107,7 +113,8 @@ async function open({ phone = false, stress = phone && phoneStress, fast = false
     const cdp = await context.newCDPSession(page);
     await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
   }
-  await page.goto(worldUrl(base, stress ? stressSize : null, opts.scenario, opts.rooms));
+  if (live) await live.pair(page);
+  await page.goto(worldUrl(base, stress ? stressSize : null, opts.scenario, opts.rooms, opts.source));
   await page.waitForFunction((fps) => performance.getEntriesByName("world:town-dressed").length > 0 && (!fps || window.__worldPerfWindow), fps, { timeout: 60000 });
   if (phone && stress) await speed(page, "4x");
   return { context, page };
@@ -140,9 +147,9 @@ const results = [];
 const mb = (bytes) => (bytes == null ? "?" : `${(bytes / 1048576).toFixed(0)}MB`);
 const n1 = (v) => v.toFixed(1);
 function line(name, r) {
-  results.push({ scenario: name, quality: name.startsWith("phone-fast") ? "fast" : name.startsWith("phone-pretty") ? "pretty" : quality, theme, build, ...(castId ? { cast: castId } : {}), ...(opts.rooms ? { rooms: opts.rooms } : {}), ...(name.includes("stress") || (name.startsWith("phone") && phoneStress) ? { stress: stressSize } : opts.scenario ? { scenario: opts.scenario } : {}), ...r });
+  results.push({ scenario: name, quality: name.startsWith("phone-fast") ? "fast" : name.startsWith("phone-pretty") ? "pretty" : quality, theme, build, ...(castId ? { cast: castId } : {}), ...(opts.rooms ? { rooms: opts.rooms } : {}), ...(live ? { source: "live", loops: opts["loops-url"] || `fake:${opts["fake-scenario"]}@${opts["fake-speed"]}x` } : name.includes("stress") || (name.startsWith("phone") && phoneStress) ? { stress: stressSize } : opts.scenario ? { scenario: opts.scenario } : {}), ...r });
   // Dev runs print exactly as before; a production run marks each line.
-  const mark = preview ? " [preview]" : "";
+  const mark = `${preview ? " [preview]" : ""}${live ? " [live]" : ""}`;
   if (name.startsWith("view-change")) {
     console.log(`${name.padEnd(14)} frames over 33 ms ${r.slow} (max frame ${n1(r.frameMax)} ms, p95 ${n1(r.frameP95)} ms), long tasks ${r.longtasks.length} (total ${r.longtasks.reduce((a, b) => a + b, 0).toFixed(0)} ms, max ${Math.max(0, ...r.longtasks).toFixed(0)} ms: ${r.longtasks.map((d) => d.toFixed(0)).join(" ")})${mark}`);
     return;
@@ -300,9 +307,10 @@ const run = {
 };
 
 console.log(`perf.mjs  port ${port}  quality ${quality}  theme ${theme}${castId ? `  cast ${castId}` : ""}${opts.scenario ? `  scenario ${opts.scenario}` : ""}${opts.stress !== null ? `  stress ${stressSize}` : ""}${opts.rooms ? `  rooms ${opts.rooms}` : ""}${opts.swiftshader ? "  swiftshader" : ""}  ${new Date().toISOString()}${preview ? "  build preview (production)" : ""}`);
+if (live) console.log(live.describe);
 for (const name of scenarios) {
-  if (preview && STRESS_ONLY.includes(name)) {
-    console.log(`${name.padEnd(14)} skipped: the stress fixture exists in dev builds only`);
+  if ((preview || live) && STRESS_ONLY.includes(name)) {
+    console.log(`${name.padEnd(14)} skipped: the stress fixture exists in dev builds only${live ? ", and not in live mode" : ""}`);
     continue;
   }
   if (!run[name]) {
@@ -316,4 +324,5 @@ for (const name of scenarios) {
   }
 }
 await browser.close();
+if (live) await live.close();
 if (jsonOut) writeFileSync(jsonOut, JSON.stringify(results, null, 2));

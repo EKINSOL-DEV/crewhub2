@@ -62,6 +62,9 @@ export function building(slug: string, agents: AgentPlacement[] = [], objects: W
     color: "coral",
     icon: "home",
     archived: false,
+    archivedAt: null,
+    archivedBy: null,
+    closing: null,
     counts: { backlog: 0, planned: 0, in_progress: 0, review: 0, done: 0 },
     lead: { id: lead, displayName: lead },
     rooms: [...kinds].map((kind) => ({ id: `${slug}:${kind}`, kind, label: kind, present: true, emptyLabel: null })),
@@ -88,6 +91,7 @@ export function world(buildings: Building[], extra: Partial<WorldModel> = {}): W
     townHall: [],
     postOffice: [],
     deliveries: [],
+    observer: null,
     ...extra,
   };
 }

@@ -12,4 +12,4 @@ export {
   createLoopsFake,
 } from "./fake.ts";
 export type { LoopsFake, LoopsFakeOptions } from "./fake.ts";
-export { FAKE_COMPUTER, agentsWithLanes, laneOf, teamWithComputers } from "./lanes.ts";
+export { withKeyBot } from "./lanes.ts";
