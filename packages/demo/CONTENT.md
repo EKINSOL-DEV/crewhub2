@@ -151,7 +151,7 @@ same loops-client validators.
 | `fresh` | Fresh install | no project; Nicky, `g-man`, `fn-lead`, the postman, the probe | 10:00 | `crewhub-world.fresh` |
 | `one` | One project | Pocket Garden (PG): `pg-lead`, `pg-dev-1`, `pg-design-1`, 11 tickets | 10:00 | `crewhub-world.one` |
 | `small-team` | Small team (default) | the four projects above | 16:00 | `crewhub-world` |
-| `studio` | Studio | twenty projects in four groups, 20 leads and 56 workers | 16:00 | `crewhub-world.studio` |
+| `studio` | Studio | twenty projects in four groups, 20 leads and 56 workers; Translations (Lab) is closed at the start, open from 5:30 to 14:20 (`STUDIO_ARCHIVED`) | 16:00 | `crewhub-world.studio` |
 
 ### Fresh install
 

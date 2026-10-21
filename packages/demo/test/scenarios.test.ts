@@ -11,7 +11,9 @@ import { Projection, describeWorld, emptyMemory, reduceWorld } from "@crewhub/wo
 import type { WorldModel } from "@crewhub/world-model";
 import { createManualScheduler } from "../src/scheduler.ts";
 import { type ScenarioId, DEFAULT_SCENARIO, SCENARIO_IDS, demoScenario, demoScenarios, parseScenarioId } from "../src/scenarios.ts";
+import { STUDIO_ARCHIVED } from "../src/scenarios/studio.ts";
 import { createDemoSource } from "../src/source.ts";
+import { at } from "../src/time.ts";
 import { envelopes } from "./helpers.ts";
 
 function valid<T>(result: Result<T>, what: string): void {
@@ -173,12 +175,14 @@ test("Studio: twenty projects in four groups of five, as the future field of pro
   const { source, messages } = play("studio", 1_000);
   const first = messages[0];
   assert.ok(first?.type === "snapshot");
-  const { projects, groups } = first.snapshot;
-  assert.equal(projects.length, 20);
+  const { projects, archivedProjects, groups } = first.snapshot;
+  // Nineteen open and one closed at the start: Translations (Lab) is archived, as OPS is in the small team.
+  assert.equal(projects.length, 19);
+  assert.deepEqual(archivedProjects.map((p) => [p.key, p.groupId]), [[STUDIO_ARCHIVED.key, "pg_demo_lab"]]);
   assert.deepEqual(groups?.map((g) => [g.slug, g.order]), [["apps", 1], ["platform", 2], ["brand", 3], ["lab", 4]]);
   assert.deepEqual(await source.listProjectGroups(), groups);
-  for (const group of groups ?? []) assert.equal(projects.filter((p) => p.groupId === group.id).length, 5, group.name);
-  assert.equal(new Set(projects.map((p) => p.key)).size, 20);
+  for (const group of groups ?? []) assert.equal([...projects, ...archivedProjects].filter((p) => p.groupId === group.id).length, 5, group.name);
+  assert.equal(new Set([...projects, ...archivedProjects].map((p) => p.key)).size, 20);
   // The looks are the town document's, one zone entry per group, each a different district at a glance.
   const zones = demoScenario("studio").townZones;
   assert.deepEqual(zones.map((z) => z.id), groups?.map((g) => g.id));
@@ -208,9 +212,40 @@ test("Studio: the world is twenty buildings in four zones, dressed by the town d
     ["Lab", "group", "potlings"],
   ]);
   for (const zone of model.zones) assert.equal(model.buildings.filter((b) => b.zoneId === zone.id).length, 5);
+  // The closed building stands in Lab, boarded up, with nobody inside; its lead, whose only project is closed,
+  // stands in the town hall; its two workers are not in the snapshot until the restore.
+  const shelved = model.buildings.find((b) => b.key === STUDIO_ARCHIVED.key);
+  assert.ok(shelved?.archived && shelved.zoneId === "pg_demo_lab" && shelved.agents.length === 0 && shelved.objects.length === 0);
+  assert.equal(model.buildings.filter((b) => b.zoneId === "pg_demo_lab" && !b.archived).length, 4);
   const agents = new Set(model.buildings.flatMap((b) => b.agents.map((a) => a.key)));
-  assert.equal(agents.size, 76, "twenty leads and fifty-six workers");
+  assert.equal(agents.size, 73, "nineteen leads and fifty-four workers in the open buildings");
+  assert.ok(model.townHall.some((a) => a.key === shelved?.lead.id), "the closed project's lead is in the town hall");
   projection.dispose();
+});
+
+test("Studio: the closed project opens at 5:30 and closes again at 14:20, and nothing is written to it meanwhile", async () => {
+  const { source, scheduler, messages } = play("studio", 0);
+  const content = demoScenario("studio").content;
+  const shelved = content.projects.find((p) => p.key === STUDIO_ARCHIVED.key);
+  assert.ok(shelved && shelved.archivedAgo !== null);
+  assert.ok(!content.lanes.some((l) => l.name.startsWith(`${STUDIO_ARCHIVED.key.toLowerCase()}-dev`)), "its workers are not in the first snapshot");
+  const archivedAt = async () => (await source.getProject(shelved.slug))?.archivedAt ?? null;
+  assert.ok((await archivedAt()) !== null, "closed at the start");
+  scheduler.advance(at("6:00") / 16);
+  assert.equal(await archivedAt(), null, "open at 6:00");
+  scheduler.advance((at("15:00") - at("6:00")) / 16);
+  assert.ok((await archivedAt()) !== null, "closed again at 15:00");
+  const events = envelopes(messages);
+  const base = Math.min(...events.map((e) => Date.parse(e.ts)));
+  const restored = events.find((e) => e.type === "project.restored" && e.project?.key === STUDIO_ARCHIVED.key);
+  const archived = events.find((e) => e.type === "project.archived" && e.project?.key === STUDIO_ARCHIVED.key);
+  assert.ok(restored && archived && restored.actor.kind === "user" && archived.actor.kind === "user");
+  assert.ok(Math.abs(Date.parse(restored.ts) - base - at(STUDIO_ARCHIVED.restoreAt)) < 3_000);
+  assert.ok(Math.abs(Date.parse(archived.ts) - base - at(STUDIO_ARCHIVED.archiveAt)) < 3_000);
+  // Every event of the project between the two is inside the open window; none before or after.
+  const own = events.filter((e) => e.project?.key === STUDIO_ARCHIVED.key && e !== restored && e !== archived);
+  assert.ok(own.length >= 5, `the open building is alive (${own.length} events)`);
+  for (const e of own) assert.ok(Date.parse(e.ts) > Date.parse(restored.ts) && Date.parse(e.ts) < Date.parse(archived.ts), `${e.type} at ${e.ts} is inside the open window`);
 });
 
 test("Studio: a person is needed in at least two groups for almost the whole loop, and the truck comes by", async () => {
