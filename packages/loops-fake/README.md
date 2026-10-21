@@ -14,7 +14,7 @@ Nothing in it talks to a real crewhub-loops. It has no runtime dependency beyond
 ## By hand
 
 ```sh
-npm run loops:fake -- --port 8091 [--scenario small-team] [--speed 1] [--builder-key]
+npm run loops:fake -- --port 8391 [--scenario small-team] [--speed 1] [--builder-key]   # never 8091, the Mac app's port
 ```
 
 `npm run loops:fake -- --builder-key` plays the same storyline but the key behaves like loops' builder key (CL-120):
@@ -27,7 +27,7 @@ fake keeps a running host's key valid. The key is never printed. The command pri
 the host:
 
 ```text
-CREWHUB_WORLD_LOOPS_URL=http://127.0.0.1:8091
+CREWHUB_WORLD_LOOPS_URL=http://127.0.0.1:8391
 CREWHUB_WORLD_KEY_FILE=<repo>/tools/out/loops-fake.key
 ```
 

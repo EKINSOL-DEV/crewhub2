@@ -26,8 +26,8 @@ interaction. Delight is a core product requirement.
 - The main experience runs in a browser. An optional desktop shell may host the
   same experience later.
 - Show the crew as crewhub-loops knows it.
-- crewhub-loops is the service. A small CrewHub host (planned, not built) would read
-  it and serve the world.
+- crewhub-loops is the service. A small CrewHub host (`apps/host`, built) reads it
+  and serves the world.
 - Let ordinary code drive presentation. Watching agents incurs no model calls.
 - Give the new visual work freedom over layout, style, characters, and motion.
 - Keep an honest connection between real events and what the world communicates.
@@ -41,9 +41,9 @@ A person opens the world, notices their small crew, understands who is working o
 needs input, selects a character, and can inspect its activity. Completion has a
 small, readable celebration. Attention is clear without becoming intrusive.
 
-Tonight all activity comes from a scripted demo that uses the shapes crewhub-loops
-serves, and it is visibly labelled as demo. A live crewhub-loops would drive the
-same world through a host that is planned, not built.
+By default all activity comes from a scripted demo that uses the shapes crewhub-loops
+serves, and it is visibly labelled as demo. A live crewhub-loops drives the same
+world through the host ([the runbook](LOOPS_SETUP.md)).
 
 ## Success
 
