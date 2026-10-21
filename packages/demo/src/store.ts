@@ -987,6 +987,8 @@ export class DemoReads {
       this.state.projects.filter((p) => p.archivedAt === null && p.features[feature]).map((p) => p.slug);
     return {
       cursor: this.state.seq,
+      // The demo host's own principal, as the live host sets it from its key: the world hides it (the observer).
+      observer: this.state.content.observer,
       projects: this.projects(),
       archivedProjects: this.archivedProjects(),
       boards: Object.fromEntries(this.state.order.map((slug) => [slug, this.board(slug) as BoardResponse])),

@@ -11,7 +11,7 @@
  */
 import type { ProgressKind, ProjectColor, ProjectIcon } from "@crewhub/loops-client";
 import type { TownZone } from "@crewhub/world-model";
-import type { AgentSeed, DemoContent, LaneSeed, ProjectGroupSeed, ProjectSeed, TicketSeed } from "../content.ts";
+import { type AgentSeed, type DemoContent, type LaneSeed, type ProjectGroupSeed, type ProjectSeed, type TicketSeed, WORLD_KEY_BOT } from "../content.ts";
 import { mulberry32 } from "../prng.ts";
 import type { PropHome, ScriptBuilder, Story } from "../script.ts";
 import { DAY, MINUTE, SECOND, at } from "../time.ts";
@@ -183,6 +183,7 @@ const idle = (p: Plan, w: number) => (p.index + w) % 4 === 0;
 
 export const STUDIO_CONTENT: DemoContent = {
   session: "ekinsol",
+  observer: WORLD_KEY_BOT.id,
   people: [
     { id: "nicky", displayName: "Nicky", role: "admin" },
     { id: "sam", displayName: "Sam", role: "member" },
@@ -190,6 +191,7 @@ export const STUDIO_CONTENT: DemoContent = {
   agents: [
     { id: "g-man", displayName: "G-Man", role: "lead", isCrewhubLead: true, memberOf: [] },
     ...PLANS.map((p): AgentSeed => ({ id: p.lead, displayName: `${p.key} Lead`, role: "lead", isCrewhubLead: false, memberOf: [] })),
+    WORLD_KEY_BOT,
     { id: "postman", displayName: "Postman", role: "router", isCrewhubLead: false, memberOf: [] },
     { id: "team-probe", displayName: "Team probe", role: "probe", isCrewhubLead: false, memberOf: [] },
   ],
