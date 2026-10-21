@@ -130,9 +130,11 @@ test("where speaks in halls when asked", () => {
     mailbox: [{ deliveryId: "d1", recipientId: "cr-dev-1", reason: "planned", state: "pending", flagged: false }],
   });
   const m = world([b]);
-  assert.equal(where(m, "cr-dev-1"), "You are in the workers room of CR product at the CR-12 desk; nearby: cr-dev-2; the lobby has 1 letter for you.");
-  assert.equal(where(m, "cr-dev-1", undefined, "three-rooms"), "You are on the floor of CR product at the CR-12 desk; nearby: cr-dev-2; Administration has 1 letter for you.");
-  assert.equal(where(m, "boss", undefined, "three-rooms"), "You are in the lead's office of CR product.");
+  // The third person for a picked name (decision 8); the asker itself hears the second person.
+  assert.equal(where(m, "cr-dev-1"), "cr-dev-1 is in the workers room of CR product at the CR-12 desk; nearby: cr-dev-2; the lobby has 1 letter for cr-dev-1.");
+  assert.equal(where(m, "cr-dev-1", undefined, "three-rooms"), "cr-dev-1 is on the floor of CR product at the CR-12 desk; nearby: cr-dev-2; Administration has 1 letter for cr-dev-1.");
+  assert.equal(where(m, "cr-dev-1", undefined, "three-rooms", "cr-dev-1"), "You are on the floor of CR product at the CR-12 desk; nearby: cr-dev-2; Administration has 1 letter for you.");
+  assert.equal(where(m, "boss", undefined, "three-rooms"), "boss is in the lead's office of CR product.");
 });
 
 test("the director's sentences name the hall and the huddle in three-rooms wording", () => {

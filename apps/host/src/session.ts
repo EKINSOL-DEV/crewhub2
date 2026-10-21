@@ -13,6 +13,12 @@
  * States, said plainly in health (`connection.session`): `signed-out` (no session), `signed-in` (as <name>),
  * `expired` (loops refused the kept cookie: sign in again; the host never retries with an expired cookie). "Forget the
  * session" signs out at loops (best effort) and deletes the file.
+ *
+ * PLANNED REMOVAL (decision 9, 21 October): this road stays until `world/viewer-key` is merged in loops and the world
+ * has switched to the viewer key (a new key file or a paste); then, in that same track, this file and its tests go, with
+ * the session file, the `/world-api/session` routes (allowList.ts, host.ts), the `signed-out`/`signed-in`/`expired`
+ * states of `connection.session`, the Connection panel's Chat section and its words, the per-road `chatWords` and the
+ * regress chat group's session half. The full list is in the spec addendum "chat with the agents". Nothing goes before.
  */
 import path from "node:path";
 import { readFileSync, statSync } from "node:fs";

@@ -46,7 +46,9 @@ smooth connection" below):
   threads, a thread's messages, a message by id, the events with `types=dm.*`) and sends nothing; an agent's answer reaches the tabs as a
   `chat` stream message. `connection.session` says `signed-out`, `signed-in` (with the name for paired browsers), `expired`, or `key`: this
   loops lets the world's key read the chat (a viewer key, L1: its own entry in `GET /api/agents` says `viewer: true` and `GET /api/dm/threads` answers 200), so the bubbles come over the key's own
-  stream and a sign-in is refused as not needed (409).
+  stream and a sign-in is refused as not needed (409). Planned (decision 9): once the viewer key is merged in loops and the world has
+  switched to it, the session road goes in that same track (`src/session.ts`, its file, the `/world-api/session` routes, the panel's
+  form, the `signed-out`/`signed-in`/`expired` states, the regress chat group's session half); the plan is in `session.ts`'s header.
 - **Health** `GET /world-api/health`: `{ loops, keyName, sharedKey, loopsWebUrl, transport, paired, pairing, loopsCommit?, loopsCommitBefore?, cursor?, connection }`
   (`connection` is under "The smooth connection" below; `connection.key.recheckAt` says when a rejected key is re-checked (round 8: the host
   makes no stream retry with a refused key; it waits for a new key, a Forget or a discovery change and asks loops about the kept key
@@ -89,7 +91,7 @@ smooth connection" below):
 | `CREWHUB_WORLD_LOOPS_APP_DATA` | the app's data folder | What the discovery reads. Tests inject a temp folder; the development instance is `~/crewhub-loops-dev` (`tools/loops-dev.sh` writes its `settings.json`). |
 | `CREWHUB_WORLD_LOOPS_SOCKET` | none | Read loops over its Unix socket instead of TCP (the same allow-list, headers, stream and timeouts; `Host: 127.0.0.1`). The path must exist and be a socket when the host starts, else a clear error; `~/` is the home folder. **Explicit only: the host never guesses a socket outside the app's data folder.** `--loops-socket <path>` on the command line is the same and wins. Setting both the URL and the socket is a configuration error. See "The socket" below. |
 | `CREWHUB_WORLD_LOOPS_WEB_URL` | the URL's origin, or the port found | Where the chat chip and the card's ticket links go (`health.loopsWebUrl`), as an origin. With a socket from the env the default is the app's `http://127.0.0.1:8091`; set it when the web app is elsewhere, e.g. `http://127.0.0.1:8291` for the development instance. |
-| `CREWHUB_WORLD_KEY_FILE` | none | The agent key file, first in line. Unset: the stored key `<CREWHUB_WORLD_CONFIG_DIR>/loops-key` (what `POST /world-api/connect` saved), then the old default `~/.config/crewhub-loops/secrets/agent-crewhub-world.key`; none: the host starts without a key (`connection.key.state: "none"`) and waits for a paste. A configured file that cannot be read is an error. The builder-key fallback is gone. |
+| `CREWHUB_WORLD_KEY_FILE` | none | The agent key file, first in line. Unset: the stored key `<CREWHUB_WORLD_CONFIG_DIR>/loops-key` (what `POST /world-api/connect` saved), then the old default `~/.config/crewhub-loops/secrets/agent-crewhub-world.key`; none: the host starts without a key (`connection.key.state: "none"`) and waits for a paste. A configured file that cannot be read is an error. The builder-key fallback is gone. A viewer key (loops' `world/viewer-key`, when merged) is the same file or paste; the host sees `viewer: true` on its own entry at the key check and says `session: key`. |
 | `CREWHUB_WORLD_CONFIG_DIR` | `~/.config/crewhub-world` | The host's own folder for the stored key and the archive memory `archived.json` (0700; the files 0600). Tests and developers' runs point it elsewhere. |
 | `CREWHUB_WORLD_PORT` | `5180` | The port on `127.0.0.1`. |
 | `CREWHUB_WORLD_ALLOWED_ORIGINS` | none | Comma list of extra origins, e.g. the Vite dev server `http://localhost:5173`. |

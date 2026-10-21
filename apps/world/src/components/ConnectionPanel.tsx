@@ -123,7 +123,10 @@ export function ConnectionPanel({ state, initial, onClose, pollMs = PANEL_POLL_M
       : null;
   // A rejected key waits: the host says when it asks loops about it again.
   const recheck = connection?.key.state === "rejected" ? untilTime(connection.key.recheckAt, now) : null;
-  const keyWords = keyBase !== null && recheck !== null ? t("world.connection.panel.key.recheck", { words: keyBase, when: recheck }) : keyBase;
+  const keyChecked = keyBase !== null && recheck !== null ? t("world.connection.panel.key.recheck", { words: keyBase, when: recheck }) : keyBase;
+  // A viewer key (loops' world/viewer-key): the host saw `viewer: true` on its own entry and reads the chat with it, so it
+  // says so in health (`session: key`); the row then says what that key is: reads what the world needs, writes nothing.
+  const keyWords = keyChecked !== null && connection?.session?.state === "key" ? t("world.connection.panel.key.viewer", { words: keyChecked }) : keyChecked;
   const lastEvent = connection ? (relativeTime(connection.stream.lastEventAt, now) ?? t("world.connection.panel.never")) : null;
   const cursor = connection?.stream.cursor ?? health?.cursor;
   const stored = connection?.key.source === "stored" || (connection?.key.state === "rejected" && connection.key.source !== "env");

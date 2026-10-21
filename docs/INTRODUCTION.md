@@ -233,6 +233,9 @@ demo on `127.0.0.1:5173`), and `npm run host` with Vite proxying `/world-api` to
   tickets and the event stream without a lane is an external bot (CL-314); the Read-only bot (CL-313) reads tickets of
   its member projects only, and a probe key reads nothing since CL-295. Said plainly: this key could write. What keeps
   the world read-only is the host's `GET`-only allow-list, and that is why a **viewer key** is proposed (section 8).
+  When it lands, the switch is a new key file or a paste in the Connect screen, nothing else (the bot stays
+  `crewhub-world`): that key reads what the world needs and writes nothing, the Connection panel's Key row says so (the
+  host sees `viewer: true` on its own entry at the key check), and the chat's bubbles need no sign-in.
   Every key is checked with `GET /api/auth/me` and one board read; a wrong kind of key is rejected with the loops web's
   own words. A rejected key is never confused with loops being down: only a definite 401 or 403 from a loops whose
   health answers rejects, and a rejected key then waits (no retries) and is asked about again every five minutes, so a
@@ -294,7 +297,9 @@ the building from the town (the figure inside is not drawn there; a tap enters t
 row says "<name> answered"), and the three places that speak of the sign-in tell one story per road: on the key road
 the bubbles need no sign-in and the world keeps no session; on the session road the host keeps the person's session for
 chat reads only; typing in the framed chat is loops' own and always needs the person signed in to loops in this browser.
-The honest road is on the loops side (section 8).
+The honest road is on the loops side (section 8). Once the viewer key is merged and the world has switched to it, the
+sign-in road goes in that same track (the plan: the spec addendum "chat with the agents", planned removal); until then it
+stays as it is.
 
 ![The live town over the fake crewhub-loops with a speech bubble over G-Man's figure at the lodge, "Busy and calm. CR finished the reading no...": the first line of the agent's answer as the bubble, which a tap turns into the Chat panel on G-Man; the Chat chip at the top right.](images/chat-bubble.jpg)
 
@@ -329,7 +334,8 @@ without any of it; each item would make it more honest or more direct.
 - **The "Connect CrewHub World" card** (the same page). One button in Settings > Agents makes the bot `crewhub-world`
   as a viewer, with no project, and shows its key once with where to paste it, so steps 2 and 3 of the morning become
   one dialog. The key is still pasted in the world's Connect screen; nothing hands it to the host behind the person's
-  back.
+  back. The world's side of the switch is prepared (round 15): a new key file or a paste, and the Connect screen and the
+  setup guide already say what changes with a viewer key.
 - **Page two** (`crewhub-world-viewer-2.md`): a `ticket=` filter on `GET /api/events` (and the stream), so a fresh
   tab's quiet stretches are decided by one tiny read per ticket instead of a capped scan of everyone's activity; and
   `includeArchived=true` for a viewer key, so closed buildings come from the list, not from the whole log and a memory
