@@ -10,7 +10,7 @@ import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { forgetHostKey, probeHost, type ConnectionState, type HostHealth } from "@crewhub/loops-client";
 import { useT } from "../i18n";
-import { connectOutcome, loopsVersion, relativeTime } from "../state/connect";
+import { connectOutcome, loopsVersion, relativeTime, untilTime } from "../state/connect";
 import { connectionWord } from "./ConnectionChip";
 import { Button, Card } from "./primitives";
 
@@ -82,7 +82,7 @@ export function ConnectionPanel({ state, initial, onClose, pollMs = PANEL_POLL_M
   const via = connection?.discovery.via;
   const where = `${via ? ` ${t(`world.connection.panel.via.${via}`)}` : ""}${connection?.discovery.target ? t("world.connection.panel.target", { target: connection.discovery.target }) : ""}`;
   const keyState = connection ? t(`world.connection.panel.key.${connection.key.state}`) : null;
-  const keyWords = connection
+  const keyBase = connection
     ? connection.key.name && connection.key.source
       ? t("world.connection.panel.keyFrom", { name: connection.key.name, state: keyState ?? "", source: t(`world.connect.source.${connection.key.source}`) })
       : connection.key.name
@@ -91,6 +91,9 @@ export function ConnectionPanel({ state, initial, onClose, pollMs = PANEL_POLL_M
     : health?.keyName
       ? health.keyName
       : null;
+  // A rejected key waits: the host says when it asks loops about it again.
+  const recheck = connection?.key.state === "rejected" ? untilTime(connection.key.recheckAt, now) : null;
+  const keyWords = keyBase !== null && recheck !== null ? t("world.connection.panel.key.recheck", { words: keyBase, when: recheck }) : keyBase;
   const lastEvent = connection ? (relativeTime(connection.stream.lastEventAt, now) ?? t("world.connection.panel.never")) : null;
   const cursor = connection?.stream.cursor ?? health?.cursor;
   const stored = connection?.key.source === "stored" || (connection?.key.state === "rejected" && connection.key.source !== "env");

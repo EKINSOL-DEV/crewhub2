@@ -62,6 +62,8 @@ export interface HostKeyState {
   source?: "env" | "stored" | "default";
   /** Why loops rejected it, in words a person can act on (a probe or reader key, an unknown key). Never the key. */
   reason?: string;
+  /** When the host re-checks a rejected key with loops by itself (ISO time): a bot re-enabled in loops comes back then. */
+  recheckAt?: string;
 }
 
 /** The host's one upstream stream. */
@@ -185,6 +187,7 @@ export function readConnection(value: unknown): HostConnection | null {
   const source = oneOf(raw.key?.source, ["env", "stored", "default"]);
   if (source !== undefined) key.source = source;
   if (typeof raw.key?.reason === "string") key.reason = raw.key.reason;
+  if (typeof raw.key?.recheckAt === "string") key.recheckAt = raw.key.recheckAt;
   const stream: HostStreamState = { state: streamState, reconnects: typeof raw.stream?.reconnects === "number" ? raw.stream.reconnects : 0 };
   if (typeof raw.stream?.cursor === "number") stream.cursor = raw.stream.cursor;
   if (typeof raw.stream?.lastEventAt === "string") stream.lastEventAt = raw.stream.lastEventAt;

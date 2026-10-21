@@ -30,9 +30,9 @@ test("readConnection answers the states only for an unpaired browser, and null f
   );
   assert.equal(readConnection(undefined), null);
   assert.equal(readConnection({ discovery: { state: "lost" }, key: { state: "ok" }, stream: { state: "ok" } }), null);
-  assert.deepEqual(readConnection({ discovery: { state: "found", via: "carrier-pigeon" }, key: { state: "rejected", reason: "A probe key reads nothing" }, stream: { state: "unauthorized", reconnects: 1 } }), {
+  assert.deepEqual(readConnection({ discovery: { state: "found", via: "carrier-pigeon" }, key: { state: "rejected", reason: "A probe key reads nothing", recheckAt: "2026-10-21T12:05:00.000Z" }, stream: { state: "unauthorized", reconnects: 1 } }), {
     discovery: { state: "found" },
-    key: { state: "rejected", reason: "A probe key reads nothing" },
+    key: { state: "rejected", reason: "A probe key reads nothing", recheckAt: "2026-10-21T12:05:00.000Z" },
     stream: { state: "unauthorized", reconnects: 1 },
   });
 });

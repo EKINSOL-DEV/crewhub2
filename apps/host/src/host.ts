@@ -67,6 +67,8 @@ export interface HostOptions {
   bufferSize?: number;
   /** Backoff after an error upstream (loops away): doubling from min to max. Default 1 s to 30 s. */
   retryMs?: { min: number; max: number };
+  /** How long a rejected key waits before the host re-checks it with loops (a health probe first). Default 5 min. */
+  recheckMs?: number;
   /** The pause before reconnecting after loops' normal 300 s end: min to max with jitter. Default 1.5 to 3 s. */
   reconnectMs?: { min: number; max: number };
   /** The host's own heartbeat while loops is down. Default 15 s. */
@@ -93,6 +95,8 @@ export const MINT_HEADER = "x-crewhub-world-mint";
 export const CONNECT_PATH = `${WORLD_API_PREFIX}/connect`;
 /** The reason on a key the stream refused after it was accepted (revoked meanwhile, or disabled). */
 export const STREAM_REFUSED_REASON = "crewhub-loops refused the key on the event stream (401 or 403): it was revoked or its bot disabled meanwhile. Paste a new access key, or forget this one.";
+/** A rejected key is re-checked this often (one health probe, then the key check: well within one probe a minute). */
+export const RECHECK_MS = 5 * 60_000;
 /** How long health waits for a link in the making before it answers with the states as they are. */
 export const HEALTH_WAIT_MS = 1000;
 
@@ -313,6 +317,43 @@ export async function createHost(options: HostOptions): Promise<Host> {
     versions.last = version;
   };
 
+  // --- A rejected key waits (round 8). No stream retries: each was a 401 and a health probe every 30 s. The host waits
+  // for a new key, a Forget or a discovery change (every one goes through relink, which cancels the wait), and
+  // re-checks the kept key slowly (recheckMs, 5 min by default: one keyless health probe, and only when loops answers
+  // the key check, so a bot re-enabled in loops comes back by itself and a loops that is down is never a verdict).
+  // At most one probe a minute, as agreed with loops' keeper. Health says when (`connection.key.recheckAt`).
+  const recheckMs = options.recheckMs ?? RECHECK_MS;
+  let recheckTimer: ReturnType<typeof setTimeout> | null = null;
+  let recheckAt: string | undefined;
+  function clearRecheck(): void {
+    if (recheckTimer !== null) clearTimeout(recheckTimer);
+    recheckTimer = null;
+    recheckAt = undefined;
+  }
+  function scheduleRecheck(mine: KeyHolder): void {
+    clearRecheck();
+    recheckAt = new Date(Date.now() + recheckMs).toISOString();
+    recheckTimer = setTimeout(() => {
+      recheckTimer = null;
+      recheckAt = undefined;
+      void recheck(mine);
+    }, recheckMs);
+    recheckTimer.unref?.();
+  }
+  async function recheck(mine: KeyHolder): Promise<void> {
+    if (closed || holder !== mine || mine.state !== "rejected") return;
+    const found = discovery.current();
+    if (found === null) return; // the discovery's change relinks by itself
+    if (!(await loopsAnswers(found.target))) {
+      log(`the kept key ${mine.name} is not re-checked: crewhub-loops does not answer its health; again in ${Math.round(recheckMs / 1000)} s`);
+      if (!closed && holder === mine && mine.state === "rejected") scheduleRecheck(mine);
+      return;
+    }
+    if (closed || holder !== mine || mine.state !== "rejected") return;
+    log(`re-checking the kept key ${mine.name} (${mine.source}) with crewhub-loops at ${targetText(found.target)}`);
+    await relink(true);
+  }
+
   // --- The link and the tabs. ---
   let link: Link | null = null;
   let relinking: Promise<void> = Promise.resolve();
@@ -346,9 +387,10 @@ export async function createHost(options: HostOptions): Promise<Host> {
   }
 
   /** Builds the link for the current target and key, after stopping the old one: one upstream stream per host, always. */
-  function relink(): Promise<void> {
+  function relink(healthKnown = false): Promise<void> {
     relinking = relinking.then(async () => {
       if (closed) return;
+      clearRecheck();
       const found = discovery.current();
       const old = link;
       if (old !== null) {
@@ -364,7 +406,8 @@ export async function createHost(options: HostOptions): Promise<Host> {
         return;
       }
       const client = clientFor(found, holder.key);
-      const healthy = () => loopsAnswers(found.target);
+      // `healthKnown`: the re-check probed health a moment ago; a 401 now needs no second probe (the budget).
+      const healthy = healthKnown ? async () => true : () => loopsAnswers(found.target);
       const mine = holder;
       const before = mine.state;
       mine.state = "checking";
@@ -377,6 +420,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
         mine.reason = verdict.reason;
         step("key", false, `key ${mine.name} (${mine.source}) rejected by loops at ${targetText(found.target)}: ${scrub(verdict.reason)} (the key is kept; paste a new one or forget it)`, performance.now() - keyStarted);
         for (const tab of tabs.values()) attach(tab);
+        scheduleRecheck(mine);
         return;
       }
       if (verdict.state === "ok") {
@@ -414,6 +458,19 @@ export async function createHost(options: HostOptions): Promise<Host> {
               mine.reason = STREAM_REFUSED_REASON;
               log(`key ${mine.name} (${mine.source}) rejected on the stream (the key is kept; paste a new one or forget it)`);
             }
+            // The stream stops here: no retry with a key loops refused. The tabs hear "unauthorized" and the slow
+            // re-check takes over (see above).
+            relinking = relinking.then(async () => {
+              if (closed || link?.upstream !== upstream) return;
+              link = null;
+              for (const tab of tabs.values()) {
+                tab.unsubscribe?.();
+                tab.unsubscribe = null;
+              }
+              await upstream.stop();
+              for (const tab of tabs.values()) attach(tab);
+              if (holder === mine && mine.state === "rejected") scheduleRecheck(mine);
+            });
           } else if (message.loops === "ok") {
             if (mine.state !== "ok") {
               mine.state = "ok";
@@ -463,6 +520,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
       archived: { source: archive.source, count: archive.slugs.size, ...(archive.at === undefined ? {} : { at: archive.at }) },
     };
     out.snapshot = snapshotState;
+    if (recheckAt !== undefined && holder?.state === "rejected") out.key.recheckAt = recheckAt;
     if (found !== null) out.discovery.via = found.via;
     const busy = link?.upstream.busy() ?? null;
     if (busy !== null) out.stream.reason = busy;
@@ -850,6 +908,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
     async close() {
       closed = true;
       clearInterval(idleBeat);
+      clearRecheck();
       discovery.stop();
       await relinking;
       if (link !== null) await link.upstream.stop();
