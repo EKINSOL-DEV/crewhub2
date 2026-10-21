@@ -156,7 +156,15 @@ class WorldRuntime {
     }
     this.connection = this.source.connection ?? null;
     this.projection = new Projection(this.source);
-    this.source.start((message) => this.projection.apply(message));
+    let firstSnapshot = true;
+    this.source.start((message) => {
+      // The first snapshot is a mark for the tools that time the start (tools/timeworld.mjs).
+      if (firstSnapshot && message.type === "snapshot") {
+        firstSnapshot = false;
+        performance.mark("world:snapshot");
+      }
+      this.projection.apply(message);
+    });
     this.projection.onChange(() => this.#schedule());
     globalThis.setInterval(() => {
       if (document.hidden) return;
