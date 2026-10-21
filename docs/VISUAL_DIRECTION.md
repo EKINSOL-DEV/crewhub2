@@ -323,6 +323,13 @@ Settings has a **Graphics** choice: **Pretty** (the default) or **Fast**. It is 
 - **Quiet when many.** A label pushed more than 72 px from its anchor fades, beyond 160 px (72 on a phone) it hides;
   the picked plate never does. With Details on, a town of more than six buildings keeps its signs as quiet names, and
   only the focused one expands.
+- **Labels keep their place.** The layout measures where each label's CSS puts its box around its anchor (a hall's
+  sign beside it, a rack's sign hanging over its rail, a town sign standing under it), so a name tag on a package
+  never covers the rack's sign. Every label but the agent card keeps out of the fixed UI's boxes (the corners, the
+  camera toolbar, the playback bar, the chat chip, the walk stick; `data-chrome` in the page): one that would sit
+  under them moves the shortest way out, kept on the canvas, and a hanging label the chrome sends back onto a sign
+  hangs below the sign instead. A label that lists people (the town hall, the post office) shows the first three
+  names and "+N more"; the full list stays in the text view and the jump list.
 - **A label never hides its robot** (`apps/world/src/world/labelLayout.ts`). The robots are the hero of each room.
   - The hovered or selected robot's plate is placed first, then every robot's own stack, each just over its head: the
     name pill stays closest.

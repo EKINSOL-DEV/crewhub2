@@ -34,7 +34,7 @@ import { Walks } from "./walks";
 import { AmbientLife } from "./ambientLife";
 import { driftPhase, followPhase, type DriftFollow } from "./dayClock";
 import { FrameRing } from "./frameRing";
-import { nudgeStacks, overRobot, type Label, type RobotBox } from "./labelLayout";
+import { keepOffChrome, keepStacksOffChrome, nudgeStacks, overRobot, type Label, type Rect, type RobotBox } from "./labelLayout";
 import { restMatrices, updateMatrices } from "./matrixPass";
 import { RobotCrowd } from "./robotCrowd";
 import { PersonWalks } from "./personWalks";
@@ -377,6 +377,9 @@ export class TownScene {
   #lifted: string | null = null;
   #anchors = new Map<string, THREE.Vector3>();
   #labelsHost: HTMLElement;
+  /** The fixed UI's boxes over the canvas (`#measureChrome`), and when they were last measured. */
+  #chrome: Rect[] = [];
+  #chromeAt = 0;
   #labels: Label[] = [];
   #stacks: Label[] = [];
   #signs: Label[] = [];
@@ -1190,13 +1193,18 @@ export class TownScene {
     const previous = new Map(this.#labels.map((l) => [l.el, l]));
     this.#labels = [...this.#labelsHost.querySelectorAll<HTMLElement>("[data-anchor]")].map(
       (el) =>
-        previous.get(el) ?? { el, id: "", half: 0, height: 0, stack: false, sign: false, robot: false, picked: false, card: false, shown: false, x: Number.NaN, y: Number.NaN, nx: 0, ny: 0, ay: 0, visible: false, far: false, yields: false },
+        previous.get(el) ?? { el, id: "", half: 0, height: 0, ox: 0, oy: 0, stack: false, sign: false, robot: false, picked: false, card: false, shown: false, x: Number.NaN, y: Number.NaN, nx: 0, ny: 0, ay: 0, visible: false, far: false, yields: false },
     );
     for (const l of this.#labels) {
       l.id = l.el.dataset.anchor ?? "";
       const box = l.el.firstElementChild as HTMLElement | null;
-      l.half = (box?.offsetWidth ?? 0) / 2;
-      l.height = box?.offsetHeight ?? 0;
+      // The box's size and where the label kind's CSS puts it around the anchor point (the anchor element is a point).
+      const rect = box?.getBoundingClientRect();
+      const at = rect ? l.el.getBoundingClientRect() : null;
+      l.half = (rect?.width ?? 0) / 2;
+      l.height = rect?.height ?? 0;
+      l.ox = rect && at ? rect.left - at.left : 0;
+      l.oy = rect && at ? rect.top - at.top : 0;
       l.stack = HANGING.test(l.id);
       l.sign = l.id.startsWith("r:");
       l.robot = l.id.startsWith("a:");
@@ -1204,7 +1212,26 @@ export class TownScene {
       l.card = l.id.startsWith("card:");
       l.x = Number.NaN;
     }
+    this.#measureChrome();
     this.invalidate();
+  }
+
+  /**
+   * The fixed UI's boxes over the canvas (`[data-chrome]` in the page: the corners, the camera toolbar, the playback
+   * bar, the chat chip, the walk stick), in the labels' pixels, so labels keep out of them. Measured when the labels
+   * are picked up again, on a resize, and about once a second in between (a chip comes and goes without a label
+   * render); a hidden piece of chrome has no box.
+   */
+  #measureChrome() {
+    const chrome = this.#chrome;
+    chrome.length = 0;
+    const origin = this.#labelsHost.getBoundingClientRect();
+    for (const el of this.#labelsHost.ownerDocument.querySelectorAll<HTMLElement>("[data-chrome]")) {
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) continue;
+      chrome.push({ left: r.left - origin.left, right: r.right - origin.left, top: r.top - origin.top, bottom: r.bottom - origin.top });
+    }
+    this.#chromeAt = performance.now();
   }
 
   /* ── View, camera and input ────────────────────────────────────────────── */
@@ -1822,6 +1849,7 @@ export class TownScene {
       height = parent.clientHeight;
     if (!width || !height) return;
     this.renderer.setSize(width, height, false);
+    this.#measureChrome();
     // The home frame sets the zoom-1 frustum; every other view is a zoom of it.
     const target = this.controls.target.clone(),
       position = this.camera.position.clone();
@@ -2405,6 +2433,8 @@ export class TownScene {
       this.refreshLabels();
     }
     if (districts > 1 && !this.view.entered) this.#districts.place(this.#anchors, this.camera);
+    if (performance.now() - this.#chromeAt > 1000) this.#measureChrome();
+    const chrome = this.#chrome;
     for (const label of this.#labels) {
       // The agent card hangs from its figure's own anchor.
       const anchor = this.#anchors.get(label.card ? `a:${label.id.slice(5)}` : label.id);
@@ -2429,10 +2459,16 @@ export class TownScene {
       label.ny = y;
       label.ay = y;
       label.visible = visible;
+      // Out from under the fixed UI (the corners, the camera toolbar, the playback bar); the card keeps its own rule.
+      if (visible && !label.card && chrome.length) keepOffChrome(label, chrome, width, height);
       if (visible && label.stack) stacks.push(label);
       if (visible && label.sign) signs.push(label);
     }
-    if (stacks.length > 1 || (stacks.length && (signs.length || robots))) nudgeStacks(stacks, signs, this.#robotBoxes, robots);
+    if (stacks.length > 1 || (stacks.length && (signs.length || robots))) {
+      nudgeStacks(stacks, signs, this.#robotBoxes, robots);
+      // A stack nudged up or aside may have met the chrome: out again, below a sign when the chrome is above it.
+      if (chrome.length) keepStacksOffChrome(stacks, signs, chrome, width, height);
+    }
     const hideBeyond = width < NARROW_CANVAS ? FAR_LABEL : HIDDEN_LABEL;
     for (const label of this.#labels) {
       const x = label.nx,

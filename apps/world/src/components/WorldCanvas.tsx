@@ -26,6 +26,7 @@ import { keysDirection } from "../world/visitor";
 import { LaneChip } from "../world/lane";
 import { clockTime, countsLine, laneWords } from "../world/townLayout";
 import { civicLabel, civicWords } from "../world/settlementDressing";
+import { namesLine } from "../world/namesLine";
 import { freeLots, type TownPlan } from "../world/townPlan";
 import { lotKey } from "../world/settlement";
 import { setMovingBuilding, useMovingBuilding } from "../state/layoutMove";
@@ -160,7 +161,7 @@ function WalkControls({ scene }: { scene: RefObject<TownScene | null> }) {
     scene.current?.walkInput(0, 0, false);
   };
   return (
-    <div ref={stick} className="walk-stick" role="application" aria-label="Walk: drag to move" onPointerDown={push} onPointerMove={push} onPointerUp={rest} onPointerCancel={rest} onLostPointerCapture={rest}>
+    <div ref={stick} className="walk-stick" role="application" data-chrome="" aria-label="Walk: drag to move" onPointerDown={push} onPointerMove={push} onPointerUp={rest} onPointerCancel={rest} onLostPointerCapture={rest}>
       <span ref={knob} className="walk-knob" aria-hidden="true" />
     </div>
   );
@@ -350,7 +351,7 @@ export default function WorldCanvas(props: Props) {
                 <span className="sign-title">
                   <strong>{civicLabel(civicWords(props.plan.civic).hall)}</strong>
                 </span>
-                {props.details && <span className="sign-counts civic-names">{model.townHall.length ? model.townHall.map((a) => a.displayName).join(", ") : "nobody here"}</span>}
+                {props.details && <span className="sign-counts civic-names">{model.townHall.length ? namesLine(model.townHall.map((a) => a.displayName)) : "nobody here"}</span>}
               </span>
             </div>
             <div className="anchor" data-anchor="c:post-office">
@@ -358,7 +359,7 @@ export default function WorldCanvas(props: Props) {
                 <span className="sign-title">
                   <strong>{civicLabel(civicWords(props.plan.civic).post)}</strong>
                 </span>
-                {props.details && <span className="sign-counts civic-names">{model.postOffice.length ? model.postOffice.map((a) => a.displayName).join(", ") : "the postman is out"}</span>}
+                {props.details && <span className="sign-counts civic-names">{model.postOffice.length ? namesLine(model.postOffice.map((a) => a.displayName)) : "the postman is out"}</span>}
               </span>
             </div>
           </>

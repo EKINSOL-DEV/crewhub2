@@ -873,7 +873,7 @@ const Corner = memo(function Corner({
   // One step out is the button Escape presses; the levels above it are plain crumbs to click.
   const parent = trail.length > 1 ? trail[trail.length - 2]! : null;
   return (
-    <header className="world-corner world-corner-left">
+    <header className="world-corner world-corner-left" data-chrome="">
       <div className="world-brand">
         <span className="brand-mark" aria-hidden="true" />
         <strong>CrewHub World</strong>
@@ -961,7 +961,7 @@ const CornerTools = memo(function CornerTools(props: {
   const { theme, cycle, details, buildOn, toggleBuild, settingsOpen, openSettings, closeSettings, graphicsFailed } = props;
   const ThemeIcon = THEME_ICON[theme];
   return (
-    <div className="world-corner world-corner-right">
+    <div className="world-corner world-corner-right" data-chrome="">
       <Button variant="ghost" iconOnly aria-label={`Theme: ${theme}. Switch to ${NEXT_THEME[theme]}.`} title={`Theme: ${theme}`} icon={<ThemeIcon className="icon" aria-hidden="true" />} onClick={cycle} />
       {!graphicsFailed && (
         <Button
@@ -992,7 +992,7 @@ const CornerTools = memo(function CornerTools(props: {
 
 const CameraToolbar = memo(function CameraToolbar({ camera, walking, toggleWalk }: { camera: (type: CameraAction) => void; walking: boolean; toggleWalk: (() => void) | null }) {
   return (
-    <div className="camera-toolbar" role="toolbar" aria-label="Camera">
+    <div className="camera-toolbar" role="toolbar" aria-label="Camera" data-chrome="">
       <Button
         variant="ghost"
         size="sm"
@@ -1018,14 +1018,14 @@ const CameraToolbar = memo(function CameraToolbar({ camera, walking, toggleWalk 
 const ChatCorner = memo(function ChatCorner({ narrow, demo, connection }: { narrow: boolean; demo: boolean; connection: ConnectionState | null }) {
   if (!demo)
     return (
-      <div className="world-chat">
+      <div className="world-chat" data-chrome="">
         <Chip className="demo-chat-chip chat-sign-in" href={loopsWebUrl(SOURCE.health)} title={translate("world.chat.signInHint")} data-connection={connection ?? undefined} icon={<MessageCircle className="icon" aria-hidden="true" />}>
           {translate("world.chat.signIn")}
         </Chip>
       </div>
     );
   return (
-    <div className="world-chat">
+    <div className="world-chat" data-chrome="">
       <Bubbles narrow={narrow} />
       <Chip className="demo-chat-chip" icon={<MessageCircle className="icon" aria-hidden="true" />}>
         Demo: replies are scripted
@@ -1044,7 +1044,7 @@ function usePlaybackValue<T extends string | number>(playback: PlaybackControls,
 const PlaybackBar = memo(function PlaybackBar({ playback }: { playback: PlaybackControls }) {
   const speed = usePlaybackValue(playback, () => playback.speed()) as PlaybackSpeed;
   return (
-    <section className="playback-bar" aria-label="Demo playback">
+    <section className="playback-bar" aria-label="Demo playback" data-chrome="">
       <div className="segmented playback-speeds" role="group" aria-label="Playback speed">
         {SPEEDS.map((s) => (
           <Button key={s.speed} size="sm" className="btn-segmented" pressed={speed === s.speed} aria-label={s.speed ? `Play at ${s.label}` : "Pause"} onClick={() => playback.setSpeed(s.speed)}>
