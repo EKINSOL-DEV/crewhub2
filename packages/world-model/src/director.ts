@@ -322,3 +322,37 @@ export function planInput(
   }
   return { input, json, tokens: estimateTokens(json), truncated };
 }
+
+/** The scripted director's empty-plans line, true to the facts: when every real agent in a building is immovable,
+ * it says so and why, else the plain promise of a scheduled plan (and of a quick plan, when quick plans are on). */
+export const NO_PLAN_YET = "No plan yet: the first one comes with the next scheduled interval or a ticket move.";
+export const NO_PLAN_YET_SCHEDULED = "No plan yet: the first one comes with the next scheduled interval.";
+
+/**
+ * The text view's line while the director has no plan to show. A scheduled plan is made only for a building with an
+ * idle real agent (`immovableReason` null), so with nobody idle the plain line would promise what cannot come (the real
+ * loops with no team probe: every agent "status unknown" or "working"). Then the line says who cannot be moved and why,
+ * counts the reasons, names the missing or stale team probe behind a "status unknown", and says what a ticket move
+ * still brings (a quick plan that moves nobody) when quick plans are on. The same words in demo and live mode: the
+ * feed's rules are the same.
+ */
+export function noPlanLine(model: WorldModel, quickPlans: boolean): string {
+  const located: Located[] = model.buildings.filter((b) => !b.archived).flatMap((building) => building.agents.filter((a) => a.presence === "real").map((agent) => ({ agent, building })));
+  const reasons = located.map((l) => immovableReason(l));
+  if (reasons.some((r) => r === null)) return quickPlans ? NO_PLAN_YET : NO_PLAN_YET_SCHEDULED;
+  const quick = quickPlans ? " A ticket move still brings a quick plan, which then moves nobody." : "";
+  if (located.length === 0) return `No plan yet: no agent is in any building, so the scripted director has nobody to move; it plans when one is here and idle.${quick}`;
+  const counts = new Map<string, number>();
+  for (const reason of reasons) counts.set(reason as string, (counts.get(reason as string) ?? 0) + 1);
+  const order = ["status unknown", "working", "blocked", "stalled", "waiting on a person"];
+  const why = [...counts].sort((a, b) => b[1] - a[1] || order.indexOf(a[0]) - order.indexOf(b[0])).map(([reason, n]) => `${n} ${reason}`).join(", ");
+  const { freshness } = model;
+  const probe = !counts.has("status unknown")
+    ? ""
+    : freshness.teamTs === null
+      ? " No team probe has reported to this crewhub-loops, so a status stays unknown until one does."
+      : freshness.stale
+        ? ` The team snapshot is stale since ${freshness.teamTs}, so a status shows as unknown until a fresh one.`
+        : "";
+  return `No plan yet: no agent here is idle (${why}), so the scripted director has nobody to move; it plans when one is.${probe}${quick}`;
+}
