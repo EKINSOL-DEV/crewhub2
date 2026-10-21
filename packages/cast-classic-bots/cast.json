@@ -69,6 +69,34 @@
     "stale": {
       "day": "#a9aba3",
       "lamplight": "#a9aba3"
+    },
+    "face": {
+      "day": "#efe6d3",
+      "lamplight": "#efe6d3"
+    },
+    "eye-dot": {
+      "day": "#3a4a40",
+      "lamplight": "#3a4a40"
+    },
+    "shoe": {
+      "day": "#4e6657",
+      "lamplight": "#4e6657"
+    },
+    "hair-cocoa": {
+      "day": "#6b5444",
+      "lamplight": "#6b5444"
+    },
+    "hair-fair": {
+      "day": "#cfb58b",
+      "lamplight": "#cfb58b"
+    },
+    "hair-slate": {
+      "day": "#5f6d66",
+      "lamplight": "#5f6d66"
+    },
+    "hair-rust": {
+      "day": "#9a6b4f",
+      "lamplight": "#9a6b4f"
     }
   },
   "budget": {

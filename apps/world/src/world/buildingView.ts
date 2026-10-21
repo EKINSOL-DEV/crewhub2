@@ -1370,8 +1370,8 @@ export class BuildingView {
 
   /**
    * Every frame of the entered building: the figures follow their person walkers, the package rides at the carry anchor
-   * while it is held and stands on the Done rack once put down. A person is a plain figure of the building's cast
-   * (a worker, no project colour), picked as a person, never as an agent.
+   * while it is held and stands on the Done rack once put down. A person is the building's cast's person figure
+   * (no project colour, no role), picked as a person, never as an agent.
    */
   #followPeople(seconds: number, reduced: boolean) {
     const slug = this.building.slug;
@@ -1425,9 +1425,9 @@ export class BuildingView {
     return out.set(p.x + (cx * cos + cz * sin) * ROBOT_SCALE, p.y + cy * ROBOT_SCALE, p.z + (cz * cos - cx * sin) * ROBOT_SCALE);
   }
 
-  /** A person's figure: the building's cast, a plain worker without the project colour, pickable as a person. */
+  /** A person's figure: the building's cast's person (its plain worker when it has none), pickable as a person. */
   #personFigure(w: PersonWalker): FigureHandle {
-    const handle = this.ctx.cast.figure({ key: `person:${w.visit.personId}`, role: "worker", accent: null });
+    const handle = this.ctx.cast.person({ key: `person:${w.visit.personId}` });
     handle.object.scale.setScalar(ROBOT_SCALE);
     handle.setDetail("near");
     handle.object.traverse((o) => {

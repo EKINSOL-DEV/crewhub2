@@ -221,7 +221,7 @@ export default function CastPreview() {
         </p>
         <p className="hint">
           In the room: {MEMBERS.map((m) => m.name.toLowerCase()).join(", ")}. The lead and its three workers share the project colour; the postman and the operator
-          belong to the town. Drag to turn the view, scroll to zoom, select a figure to ring it.
+          belong to the town; the person is the owner in plain clothes, no agent. Drag to turn the view, scroll to zoom, select a figure to ring it.
         </p>
       </section>
     </main>
