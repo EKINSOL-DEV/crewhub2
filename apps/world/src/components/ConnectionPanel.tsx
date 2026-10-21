@@ -1,7 +1,8 @@
 /* The Connection panel (spec addendum "a smooth connection", part 4): the chip opens it. A sheet like Settings, listing
    what the host's health says: where crewhub-loops was found (via and target), the key's name and source, the stream's
-   state, cursor, last event (relative) and reconnects, and how the host reaches loops. It asks the host every 5 s while
-   open. "Forget this key" asks in the panel itself (no browser dialog), then DELETEs the stored key and reloads: the gate
+   state, cursor, last event (relative) and reconnects, the closed buildings and where that list came from (loops' event
+   log, or remembered from an earlier run), and how the host reaches loops. It asks the host every 5 s while open.
+   "Forget this key" asks in the panel itself (no browser dialog), then DELETEs the stored key and reloads: the gate
    then shows the Connect screen. Before pairing the host tells states only, and the panel says so. Never the key. */
 import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -89,6 +90,13 @@ export function ConnectionPanel({ state, initial, onClose, pollMs = PANEL_POLL_M
   const lastEvent = connection ? (relativeTime(connection.stream.lastEventAt, now) ?? t("world.connection.panel.never")) : null;
   const cursor = connection?.stream.cursor ?? health?.cursor;
   const stored = connection?.key.source === "stored" || (connection?.key.state === "rejected" && connection.key.source !== "env");
+  const archived = connection?.archived;
+  const archivedWords = archived
+    ? t("world.connection.panel.archived.from", {
+        count: archived.count === 0 ? t("world.connection.panel.archived.zero") : archived.count === 1 ? t("world.connection.panel.archived.one") : t("world.connection.panel.archived.many", { count: archived.count }),
+        source: t(`world.connection.panel.archived.${archived.source}`),
+      })
+    : null;
 
   return (
     <Card ref={card} className="world-sheet connection-sheet" role="dialog" aria-labelledby="connection-title" data-connection={state}>
@@ -124,6 +132,12 @@ export function ConnectionPanel({ state, initial, onClose, pollMs = PANEL_POLL_M
               <dd>{lastEvent}</dd>
               <dt>{t("world.connection.panel.reconnects")}</dt>
               <dd>{String(connection.stream.reconnects)}</dd>
+              {archivedWords && (
+                <>
+                  <dt>{t("world.connection.panel.archived")}</dt>
+                  <dd>{archivedWords}</dd>
+                </>
+              )}
             </>
           )}
           {!connection && health && (

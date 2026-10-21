@@ -48,9 +48,14 @@ export interface HostDiscovery {
   target?: string;
 }
 
-/** The host's key: none yet (the Connect screen), being checked, rejected by loops, or ok. */
+/**
+ * The host's key: none yet (the Connect screen), being checked, rejected by loops, ok, or `unchecked`: the host holds a
+ * key but crewhub-loops has not answered about it (down, restarting, a 5xx, a timeout); it is checked again when loops
+ * answers. Only a definite 401 or 403 from a loops whose health answers makes a key `rejected`; a rejected key stays on
+ * disk with its reason until a new one is pasted or it is forgotten.
+ */
 export interface HostKeyState {
-  state: "none" | "checking" | "rejected" | "ok";
+  state: "none" | "unchecked" | "checking" | "rejected" | "ok";
   /** The key's agent name (`agent-<name>.key`, or the principal loops answered); paired browsers only. */
   name?: string;
   /** Where the key came from: the environment's file, the host's stored key, or the old default file. Paired only. */
@@ -78,6 +83,22 @@ export interface HostStreamState {
 }
 
 /**
+ * Where the host's list of archived projects (closed buildings) comes from: `list`, loops listed them itself (a key that
+ * may ask `includeArchived`); `log`, read from loops' event log in this run; `remembered`, from the host's own file of an
+ * earlier run (this loops would not let the host read its log from the start); `none`, nothing known yet. The stream's
+ * own `project.archived` and `project.restored` events count on top of any of them.
+ */
+export interface HostArchiveState {
+  source: "list" | "log" | "remembered" | "none";
+  /** How many projects the host knows as archived. */
+  count: number;
+  /** When the list was learnt or last changed, ISO 8601. */
+  at?: string;
+  /** The slugs (paired browsers only). */
+  slugs?: string[];
+}
+
+/**
  * The host's last snapshot assembly, so the page can say "Reading 12 projects from crewhub-loops…" while the first
  * snapshot loads: `idle` before any, `reading` with the reads done so far (and the project count once the list is
  * in), `ready` with what it cost, `failed` with the reason the snapshot route answered.
@@ -93,6 +114,8 @@ export interface HostConnection {
   discovery: HostDiscovery;
   key: HostKeyState;
   stream: HostStreamState;
+  /** Absent on a host from before the archive memory. */
+  archived?: HostArchiveState;
   /** Absent on a host from before the step list. */
   snapshot?: HostSnapshotState;
 }
@@ -146,9 +169,9 @@ const oneOf = <T extends string>(value: unknown, values: readonly T[]): T | unde
 /** The `connection` object of a health answer, or null when it is missing or malformed (an older host). Never the key. */
 export function readConnection(value: unknown): HostConnection | null {
   if (value === null || typeof value !== "object") return null;
-  const raw = value as { discovery?: Partial<HostDiscovery>; key?: Partial<HostKeyState>; stream?: Partial<HostStreamState>; snapshot?: unknown };
+  const raw = value as { discovery?: Partial<HostDiscovery>; key?: Partial<HostKeyState>; stream?: Partial<HostStreamState>; archived?: Partial<HostArchiveState>; snapshot?: unknown };
   const discoveryState = oneOf(raw.discovery?.state, ["found", "searching"]);
-  const keyState = oneOf(raw.key?.state, ["none", "checking", "rejected", "ok"]);
+  const keyState = oneOf(raw.key?.state, ["none", "unchecked", "checking", "rejected", "ok"]);
   const streamState = oneOf(raw.stream?.state, ["idle", "ok", "down", "unauthorized", "busy"]);
   if (discoveryState === undefined || keyState === undefined || streamState === undefined) return null;
   const discovery: HostDiscovery = { state: discoveryState };
@@ -164,8 +187,17 @@ export function readConnection(value: unknown): HostConnection | null {
   if (typeof raw.stream?.cursor === "number") stream.cursor = raw.stream.cursor;
   if (typeof raw.stream?.lastEventAt === "string") stream.lastEventAt = raw.stream.lastEventAt;
   if (typeof raw.stream?.reason === "string") stream.reason = raw.stream.reason;
+  const out: HostConnection = { discovery, key, stream };
+  const archiveSource = oneOf(raw.archived?.source, ["list", "log", "remembered", "none"]);
+  if (archiveSource !== undefined) {
+    const archived: HostArchiveState = { source: archiveSource, count: typeof raw.archived?.count === "number" ? raw.archived.count : 0 };
+    if (typeof raw.archived?.at === "string") archived.at = raw.archived.at;
+    if (Array.isArray(raw.archived?.slugs)) archived.slugs = raw.archived.slugs.filter((s): s is string => typeof s === "string");
+    out.archived = archived;
+  }
   const snapshot = readSnapshotState(raw.snapshot);
-  return snapshot === null ? { discovery, key, stream } : { discovery, key, stream, snapshot };
+  if (snapshot !== null) out.snapshot = snapshot;
+  return out;
 }
 
 /** The `snapshot` of a connection, or null when it is missing or malformed. */

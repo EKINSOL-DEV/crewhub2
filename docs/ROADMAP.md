@@ -113,7 +113,11 @@ Closed sign that carries the archive date, no packages and no agents; the sign, 
 since when and by whom, and it can still be entered. `project.archived` plays a short closing (the lights go out,
 the boards come down), `project.restored` the reverse; reduced motion cuts. The host learns archived projects
 from the event log (`GET /api/events?types=project.archived,project.restored`, paged) and reads each with
-`GET /api/projects/{slug}`, since an agent key may not list them (L16).
+`GET /api/projects/{slug}`, since an agent key may not list them (L16). Round 3 (hostcare): the host remembers the
+slugs it learnt in `~/.config/crewhub-world/archived.json`, so a loops that will not read its log from the start
+still shows its closed buildings on the next start (the Connection panel says where the list came from); and a
+rejected key is never confused with loops being down (only a confirmed 401/403 rejects; a rejected stored key is
+kept, with Forget).
 
 ## Open
 

@@ -35,6 +35,12 @@ export interface UpstreamOptions {
   log?: (line: string) => void;
   /** The jitter's randomness, in [0, 1). Tests fix it. */
   random?: () => number;
+  /**
+   * Does loops answer its health (keyless `GET /api/health`) right now? Asked before a 401 or 403 counts as
+   * `unauthorized`: from a loops that does not answer its health (restarting) it is `down` instead, and the key stays
+   * what it was. Default: a 401/403 counts.
+   */
+  healthy?: () => Promise<boolean>;
 }
 
 export interface Upstream {
@@ -89,6 +95,7 @@ export function createUpstream(client: LoopsClient, options: UpstreamOptions = {
   const reconnect = options.reconnectMs ?? DEFAULT_RECONNECT_MS;
   const log = options.log ?? (() => {});
   const random = options.random ?? Math.random;
+  const healthy = options.healthy ?? (async () => true);
 
   let state: LoopsState = "down";
   let cursor = -1;
@@ -114,6 +121,12 @@ export function createUpstream(client: LoopsClient, options: UpstreamOptions = {
 
   const broadcast = (message: HostMessage) => {
     for (const listener of [...listeners]) listener(message);
+  };
+  /** A 401/403 is `unauthorized` only from a loops whose health answers; else it is `down` (restarting, a proxy). */
+  const refusedState = async (): Promise<LoopsState> => {
+    if (await healthy()) return "unauthorized";
+    log("loops refused the key (401 or 403) but its health does not answer: down, not a verdict on the key");
+    return "down";
   };
   const setState = (next: LoopsState) => {
     const wasBusy = busyReason !== null;
@@ -261,7 +274,7 @@ export function createUpstream(client: LoopsClient, options: UpstreamOptions = {
     try {
       tail = await readTail(client);
     } catch (error) {
-      setState(error instanceof SnapshotError && error.reason === "unauthorized" ? "unauthorized" : "down");
+      setState(error instanceof SnapshotError && error.reason === "unauthorized" ? await refusedState() : "down");
       ready();
       return { kind: "error" };
     }
@@ -305,7 +318,7 @@ export function createUpstream(client: LoopsClient, options: UpstreamOptions = {
     }
     if (response.status !== 200) {
       await discard(response);
-      setState(isUnauthorized(response.status) ? "unauthorized" : "down");
+      setState(isUnauthorized(response.status) ? await refusedState() : "down");
       ready();
       return { kind: "error" };
     }

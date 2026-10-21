@@ -34,14 +34,20 @@ export interface LoopsClient {
 /** Where a stream resumes: the last applied seq, or the sealed cursor loops gave for exactly that position (CL-406). */
 export type StreamResume = { after: number } | { cursor: string };
 
-const READ_TIMEOUT_MS = 10_000;
+export const READ_TIMEOUT_MS = 10_000;
+
+export interface LoopsClientOptions {
+  /** How long one read may take before it counts as loops not answering. Default 10 s; tests shorten it. */
+  readTimeoutMs?: number;
+}
 
 /** `target` is the URL (TCP) or the socket path (Unix); a plain string is a URL, for the callers from before the seam. */
-export function createLoopsClient(target: LoopsTarget | string, key: string): LoopsClient {
+export function createLoopsClient(target: LoopsTarget | string, key: string, options: LoopsClientOptions = {}): LoopsClient {
   const transport = createTransport(typeof target === "string" ? { transport: "tcp", url: target } : target, { Authorization: `Bearer ${key}` });
   const scrub = (text: string): string => (key.length > 0 && text.includes(key) ? text.split(key).join("[redacted]") : text);
+  const readTimeoutMs = options.readTimeoutMs ?? READ_TIMEOUT_MS;
 
-  async function get(path: string, query: Record<string, string> = {}, timeoutMs = READ_TIMEOUT_MS): Promise<LoopsResponse> {
+  async function get(path: string, query: Record<string, string> = {}, timeoutMs = readTimeoutMs): Promise<LoopsResponse> {
     const response = await transport.request(path, query, { accept: "application/json", timeoutMs });
     const text = await response.text();
     return { status: response.status, text: scrub(text), contentType: response.headers.get("content-type") ?? "application/json" };

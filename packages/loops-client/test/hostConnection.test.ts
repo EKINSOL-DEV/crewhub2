@@ -36,3 +36,18 @@ test("readConnection answers the states only for an unpaired browser, and null f
     stream: { state: "unauthorized", reconnects: 1 },
   });
 });
+
+test("readConnection keeps the key's unchecked state and the archive memory, and drops an archive source it does not know", () => {
+  assert.deepEqual(
+    readConnection({ discovery: { state: "found", via: "env-url" }, key: { state: "unchecked", name: "crewhub-world", source: "stored" }, stream: { state: "down", reconnects: 4 }, archived: { source: "remembered", count: 1, at: "2026-10-21T03:00:00.000Z", slugs: ["ops-tooling", 7] } }),
+    {
+      discovery: { state: "found", via: "env-url" },
+      key: { state: "unchecked", name: "crewhub-world", source: "stored" },
+      stream: { state: "down", reconnects: 4 },
+      archived: { source: "remembered", count: 1, at: "2026-10-21T03:00:00.000Z", slugs: ["ops-tooling"] },
+    },
+    "loops down: the key is unchecked, not rejected; the closed buildings come from the host's memory",
+  );
+  assert.deepEqual(readConnection({ discovery: { state: "found" }, key: { state: "ok" }, stream: { state: "ok" }, archived: { source: "log", count: 2 } })?.archived, { source: "log", count: 2 });
+  assert.equal(readConnection({ discovery: { state: "found" }, key: { state: "ok" }, stream: { state: "ok" }, archived: { source: "guess", count: 2 } })?.archived, undefined);
+});

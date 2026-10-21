@@ -188,7 +188,7 @@ export async function runDoctor(io: DoctorIo): Promise<DoctorReport> {
   else {
     loops = client(found.target, loaded.key);
     const verdict = await checkKey(loops);
-    if (verdict.state === "unreachable") fix("auth", "loops stopped answering during the key check");
+    if (verdict.state === "unreachable") fix("auth", `nothing is known about the key yet: ${verdict.reason}. Run this again once crewhub-loops answers.`);
     else if (verdict.state === "rejected") fix("auth", verdict.reason);
     else ok("auth", `${verdict.name} (${verdict.displayName}), role lead: an external bot's key. It could write; the host forwards an allow-list of GETs only.`);
     const authOk = verdict.state === "ok";
@@ -224,15 +224,17 @@ export async function runDoctor(io: DoctorIo): Promise<DoctorReport> {
   if (port.kind === "free") ok("port", `127.0.0.1:${config.port} is free for the host`);
   else if (port.kind === "host") {
     const h = port.health;
-    const connection = h.connection as { discovery?: { state?: string }; key?: { state?: string }; stream?: { state?: string } } | undefined;
+    const connection = h.connection as { discovery?: { state?: string }; key?: { state?: string }; stream?: { state?: string }; archived?: { source?: string; count?: number } } | undefined;
     const state = connection?.stream?.state ?? h.loops;
     const runs = `a host already runs on 127.0.0.1:${config.port}`;
     // The host follows every change by itself (it looks for loops every 5 s, takes a pasted key, retries the stream),
     // so no state below asks for a restart: the fix is the act the person must do, and the host picks it up.
     if (state === "ok") ok("port", `${runs} (loops ok, key ${String(h.keyName ?? "?")}); npm run world or npm run host -- open asks it for a link`);
     else if (connection?.discovery?.state === "searching") fix("port", `${runs} and has not found crewhub-loops: open Crewhub.app; the host looks again every 5 s, no restart needed`);
-    else if (connection?.key?.state === "none" || connection?.key?.state === "rejected")
-      ok("port", `${runs} and waits for a key${connection.key.state === "rejected" ? " (the last one was rejected)" : ""}: paste it in the world's Connect screen (npm run world opens the browser on it); no restart needed`);
+    else if (connection?.key?.state === "none") ok("port", `${runs} and waits for a key: paste it in the world's Connect screen (npm run world opens the browser on it); no restart needed`);
+    else if (connection?.key?.state === "rejected")
+      ok("port", `${runs} and keeps the key loops rejected: paste a new one in the world's Connect screen, or forget it in its Connection panel; no restart needed`);
+    else if (connection?.key?.state === "unchecked") fix("port", `${runs} but crewhub-loops has not answered about the key yet: the host retries by itself; if it stays so, read its terminal`);
     else if (state === "busy") fix("port", `${runs} but the stream budget is exhausted (429): another host or tab uses this key; close that one, the host retries by itself`);
     else fix("port", `${runs} but loops is ${String(state)}: the host retries by itself; if it stays so, read its terminal`);
   } else fix("port", `something else listens on 127.0.0.1:${config.port}: stop it, or run the host on another port (CREWHUB_WORLD_PORT=5181)`);

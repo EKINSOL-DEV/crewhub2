@@ -70,7 +70,7 @@ smooth connection" below):
 | `CREWHUB_WORLD_LOOPS_SOCKET` | none | Read loops over its Unix socket instead of TCP (the same allow-list, headers, stream and timeouts; `Host: 127.0.0.1`). The path must exist and be a socket when the host starts, else a clear error; `~/` is the home folder. **Explicit only: the host never guesses a socket outside the app's data folder.** `--loops-socket <path>` on the command line is the same and wins. Setting both the URL and the socket is a configuration error. See "The socket" below. |
 | `CREWHUB_WORLD_LOOPS_WEB_URL` | the URL's origin, or the port found | Where "sign in to crewhub-loops" goes (`health.loopsWebUrl`), as an origin. With a socket from the env the default is the app's `http://127.0.0.1:8091`; set it when the web app is elsewhere, e.g. `http://127.0.0.1:8291` for the development instance. |
 | `CREWHUB_WORLD_KEY_FILE` | none | The agent key file, first in line. Unset: the stored key `<CREWHUB_WORLD_CONFIG_DIR>/loops-key` (what `POST /world-api/connect` saved), then the old default `~/.config/crewhub-loops/secrets/agent-crewhub-world.key`; none: the host starts without a key (`connection.key.state: "none"`) and waits for a paste. A configured file that cannot be read is an error. The builder-key fallback is gone. |
-| `CREWHUB_WORLD_CONFIG_DIR` | `~/.config/crewhub-world` | The host's own folder for the stored key (0700; the file 0600). Tests and developers' runs point it elsewhere. |
+| `CREWHUB_WORLD_CONFIG_DIR` | `~/.config/crewhub-world` | The host's own folder for the stored key and the archive memory `archived.json` (0700; the files 0600). Tests and developers' runs point it elsewhere. |
 | `CREWHUB_WORLD_PORT` | `5180` | The port on `127.0.0.1`. |
 | `CREWHUB_WORLD_ALLOWED_ORIGINS` | none | Comma list of extra origins, e.g. the Vite dev server `http://localhost:5173`. |
 | `CREWHUB_WORLD_PAIRING` | `on` | `off` removes the cookie gate: development only (the Vite proxy), logged loudly at start, refused with `NODE_ENV=production`. |
@@ -94,6 +94,19 @@ The host starts with neither loops nor a key and reports the honest states; the 
 - **The key** (`src/config.ts` `loadKey`): `CREWHUB_WORLD_KEY_FILE`, then the stored key, then the old default file;
   none: keyless. Every key is checked with `GET /api/auth/me` and one board read (`src/keyCheck.ts`): a probe key, a
   reader (read-only bot), the builder key and an unknown key are `rejected` with a reason in the loops web's words.
+- **A rejected key is never confused with loops being down.** Only a definite 401 or 403 from a loops whose health
+  answers (a keyless `GET /api/health` right after) makes a key `rejected`: in the check, on the tail read and on the
+  stream alike (the 60 s credential re-check that ends a stream shows as a 401 on the next attempt). A timeout, a
+  refused connection, a 5xx, an answer that is not loops' or a loops that is restarting is `down`, and the key keeps
+  its state: `unchecked` (held, loops has not answered about it) or `ok` as before. A rejected stored key stays on
+  disk with its reason (health `key.reason`) until a new one is pasted or `DELETE /world-api/connect` forgets it; the
+  host never drops a key by itself. `test/keyStates.test.ts` runs every path against the stub.
+- **The closed buildings are remembered** (`src/archiveStore.ts`): the slugs the event log or the stream taught go
+  to `<configDir>/archived.json` (0600, written whole, only when the set changed), so a loops that will not read its
+  log from the start (the fake after a restart answers 410) still shows them on the next start; every remembered
+  slug is confirmed with `GET /api/projects/{slug}` before it counts, and a restored project leaves the file. Health
+  says where the list came from: `connection.archived: { source: "list" | "log" | "remembered" | "none", count, at? }`
+  (`slugs` for a paired browser).
 - **`POST /world-api/connect`** `{"key": "chl_…"}` from a paired browser on an allowed origin, `application/json`, at
   most 4 KB: the key is checked against the loops found (403 `key_rejected` with `reason`; 503 `no_loops` or
   `loops_down`), stored by `src/keyStore.ts` (`<configDir>/loops-key`, 0700/0600, written whole) and the host switches
@@ -102,7 +115,9 @@ The host starts with neither loops nor a key and reports the honest states; the 
   keyless. Both are local routes on the allow-list; the loops allow-list stays GET only. The key is never logged,
   echoed or returned; `test/connect.test.ts` greps every response and log line.
 - **Health** carries `connection: { discovery: { state, via?, target? }, key: { state, name?, source?, reason? },
-  stream: { state, reason?, cursor?, lastEventAt?, reconnects }, snapshot: { state, projects?, reads?, ms?, reason? } }` (the type in `packages/loops-client`, `HostConnection`).
+  stream: { state, reason?, cursor?, lastEventAt?, reconnects }, archived: { source, count, at?, slugs? },
+  snapshot: { state, projects?, reads?, ms?, reason? } }` (the type in `packages/loops-client`, `HostConnection`;
+  `key.state` is `none`, `unchecked`, `checking`, `rejected` or `ok`).
   `stream.state` is `busy` with the reason "stream budget exhausted (429): another host or tab uses this key" while
   loops refuses the stream with 429 `too_many_streams` (four per key; the host retries after `Retry-After`); the
   status message on `/world-api/stream` carries `stream: "busy"` and the reason too, next to the old `loops: "down"`.

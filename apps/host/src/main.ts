@@ -7,7 +7,7 @@
  *   CREWHUB_WORLD_LOOPS_WEB_URL    the loops web app for the sign-in link (default: the loops URL's origin, or the port found)
  *   CREWHUB_WORLD_KEY_FILE         the key file; unset: the stored key (~/.config/crewhub-world/loops-key), then the old
  *                                  default ~/.config/crewhub-loops/secrets/agent-crewhub-world.key; none: the Connect screen
- *   CREWHUB_WORLD_CONFIG_DIR       the host's own folder for the stored key (default ~/.config/crewhub-world)
+ *   CREWHUB_WORLD_CONFIG_DIR       the host's own folder for the stored key and the archive memory (default ~/.config/crewhub-world)
  *   CREWHUB_WORLD_PORT             the port on 127.0.0.1 (default 5180)
  *   CREWHUB_WORLD_ALLOWED_ORIGINS  comma list of extra origins (the Vite dev server), default none
  *   CREWHUB_WORLD_PAIRING          on (default) or off (development only; refused in production, logged loudly)
@@ -42,6 +42,7 @@ import { fileURLToPath } from "node:url";
 import { buildWorld, checkBuild } from "./build.ts";
 import { ConfigError, type ServerConfig, loadKey, loadServerConfig, worldEnv } from "./config.ts";
 import { formatDoctor, runDoctor } from "./doctor.ts";
+import { createArchiveStore } from "./archiveStore.ts";
 import { type HostStep, MINT_HEADER, MINT_PATH, createHost } from "./host.ts";
 import { createKeyStore } from "./keyStore.ts";
 import { loadPairingSecret } from "./pairing.ts";
@@ -201,6 +202,7 @@ const host = await createHost({
   discovery: { appData: config.appData },
   ...(key === null ? {} : { key: key.key, keyName: key.keyName, keySource: key.source }),
   keyStore: createKeyStore(config.configDir),
+  archiveStore: createArchiveStore(config.configDir),
   port: config.port,
   allowedOrigins: config.allowedOrigins,
   pairing: config.pairing,

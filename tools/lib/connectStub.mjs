@@ -100,6 +100,7 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
           connection: {
             discovery: { state: "found", via: "app-socket", target: APP_SOCKET_TARGET },
             key: { state: "ok", name: "crewhub-world", source: "stored" },
+            archived: { source: "log", count: 1, at: new Date(Date.now() - 60_000).toISOString(), slugs: ["ops-tooling"] },
             stream:
               current === "busy"
                 ? { state: "busy", reason: BUSY_REASON, cursor, lastEventAt: new Date(Date.now() - 400_000).toISOString(), reconnects: 7 }
