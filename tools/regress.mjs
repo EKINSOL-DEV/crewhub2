@@ -33,12 +33,17 @@
            automation run pins on the board by the front door with its lines, the failed run's card, each waiting for
            the model's state and entering its building by slug. About 50 s.
      live  live mode against a fake crewhub-loops the tool starts itself (`packages/loops-fake`, port 0) behind a host it
-           starts itself (`apps/host`): the Live chip, the chat chip's link into the loops web, Loops down after the fake closes, Live again
+           starts itself (`apps/host`): the Live chip, the chat chip's link into the loops web, the scripted director
+           in live mode (round 11: its own opt-in in Settings, off with the demo's switch stored on; the text view's
+           director section tagged "scripted" on every line, off and on; a quick plan over the fake's events whose
+           intents read "scripted director:"; the kill switch; no non-GET request from the page while it ran),
+           Loops down after the fake closes, Live again
            after a new fake on the same port, and, when the host has pairing, the pairing page without a cookie and
            the world after the one-time link. When `apps/world/dist` exists (after `npm run build`) the host serves
            it on a free port and the browser opens the host directly; otherwise the host listens on --host-port
            (default 5180, Vite's default proxy target) and the browser opens your Vite, which must have been started
-           with CREWHUB_WORLD_PORT=<host-port>. About half a minute.
+           with CREWHUB_WORLD_PORT=<host-port>. About a minute, most of it the wait for the quick plan (20 s after
+           the fake's first ticket move).
      ops   the live operations road (round 7): a host the tool starts on --host-port over a fake it starts itself (a
            key store in a folder under --out, removed at the end), the browser on your Vite, and three things done to
            loops under the running host, each with its honest screen: (a) the fake closed and reopened on its port:
@@ -729,6 +734,77 @@ await group("live", async () => {
     await shot(pg, "23-live");
     const href = await pg.locator(".chat-sign-in").first().getAttribute("href").catch(() => null);
     ok("live: the sign-in link goes to the loops web URL the host names", href === new URL(fake.url).origin, `${href} (fake ${fake.url})`);
+
+    // The scripted director in live mode (round 11): its own opt-in, off by default and not implied by the demo's switch
+    // (stored on here, before a reload); every line of the text view's director section tagged "scripted"; switched on,
+    // the plans section at once and, over the fake's events, a quick plan whose intents read "scripted director:";
+    // switched off, the kill switch: the section says off again. The director writes nothing: the page's only road to
+    // loops is the host, and every request the page sends while the director runs is counted; the world's only non-GET
+    // requests are Connect and Forget, neither of which happens here.
+    await pg.evaluate(() => localStorage.setItem("crewhub.presence.v1", JSON.stringify({ directorEnabled: true })));
+    await pg.reload();
+    await pg.waitForSelector("canvas", { timeout: 60000 }).catch(() => {});
+    await until(pg, "live", 20000);
+    const writes = [];
+    const countWrites = (request) => {
+      if (request.method() !== "GET" && request.method() !== "HEAD") writes.push(`${request.method()} ${new URL(request.url()).pathname}`);
+    };
+    pg.on("request", countWrites);
+    const openSettings = async () => {
+      await pg.getByRole("button", { name: /settings/i }).first().click();
+      await pg.waitForSelector(".settings-sheet", { timeout: 5000 }).catch(() => {});
+    };
+    const liveSwitch = () => pg.locator(".settings-sheet").getByLabel(/Scripted director in live mode/);
+    // Escape closes Settings from its button, not from a focused checkbox (the keys leave form controls alone): the close button, as a person would.
+    const closeSettings = async () => {
+      await pg.getByRole("button", { name: /close settings/i }).first().click().catch(() => pg.keyboard.press("Escape"));
+      await pg.waitForSelector(".settings-sheet", { state: "detached", timeout: 5000 }).catch(() => {});
+    };
+    await openSettings();
+    const settingsText = (await pg.locator(".settings-sheet").innerText().catch(() => "")).replace(/\s+/g, " ");
+    const switchCount = await liveSwitch().count();
+    const switchOn = switchCount === 1 ? await liveSwitch().isChecked() : null;
+    ok("live director: Settings offer the live opt-in, off, with the demo's switch stored on and not shown", switchCount === 1 && switchOn === false && !/Demo: scripted director/.test(settingsText) && /never touches crewhub-loops/.test(settingsText), `${switchCount} switch(es), checked ${switchOn}; ${settingsText.slice(0, 120)}`);
+    await shot(pg, "23b-live-settings-director");
+    await closeSettings();
+    const directorSection = () => sheet(pg).locator("section", { has: pg.locator("h3", { hasText: /^Scripted director/ }) });
+    const sectionTags = async () => {
+      const tags = await directorSection().locator(".text-kind").evaluateAll((els) => els.map((el) => el.getAttribute("data-kind")));
+      return { count: tags.length, allScripted: tags.length > 0 && tags.every((k) => k === "scripted") };
+    };
+    const off1 = await text(pg);
+    await pg.keyboard.press("t");
+    await pg.waitForTimeout(300);
+    const tagsOff = await sectionTags();
+    await pg.keyboard.press("Escape");
+    ok("live director: the text view says the scripted director is off, every line tagged scripted", /Scripted director/.test(off1) && /scripted director is off/i.test(off1) && /never anything in crewhub-loops/.test(off1) && tagsOff.allScripted, `${tagsOff.count} tag(s); ${(off1.match(/Scripted director[^\n]*\n[^\n]*/) ?? [""])[0].replace(/\n/g, " ").slice(0, 160)}`);
+    await openSettings();
+    await liveSwitch().check();
+    await closeSettings();
+    await pg.keyboard.press("t");
+    await pg.waitForTimeout(400);
+    const onText = (await sheet(pg).innerText().catch(() => "")).replace(/\s+/g, " ");
+    const tagsOn = await sectionTags();
+    ok("live director: switched on, the plans section is there at once, tagged scripted", /Scripted director plans/.test(onText) && /No plan yet|Plan \d+ \(/.test(onText) && tagsOn.allScripted, `${tagsOn.count} tag(s); ${(onText.match(/Scripted director plans.{0,140}/) ?? [""])[0]}`);
+    // A quick plan: 20 s after the fake's last movement-relevant event, at most one per building per minute.
+    const planLines = sheet(pg).locator("li", { hasText: /scripted director: / });
+    const planAt = Date.now();
+    await planLines.first().waitFor({ timeout: 90000 }).catch(() => {});
+    const planText = (await sheet(pg).innerText().catch(() => "")).replace(/\s+/g, " ");
+    const played = await planLines.count();
+    const tagsPlan = await sectionTags();
+    const demoTags = await sheet(pg).locator('.text-kind[data-kind="demo"]').count();
+    ok("live director: a quick plan over the fake's events, its intents read 'scripted director:', nothing tagged demo", played > 0 && /Plan \d+ \((quick|scheduled)/.test(planText) && tagsPlan.allScripted && demoTags === 0, `${played} intent line(s) after ${((Date.now() - planAt) / 1000).toFixed(1)} s, ${tagsPlan.count} scripted tag(s), ${demoTags} demo tag(s); ${(planText.match(/Plan \d+ \([^)]*\)[^.]*\./) ?? [""])[0]}`);
+    await directorSection().first().scrollIntoViewIfNeeded().catch(() => {});
+    await shot(pg, "23c-live-director-plan");
+    await pg.keyboard.press("Escape");
+    await openSettings();
+    await liveSwitch().uncheck();
+    await closeSettings();
+    const off2 = await text(pg);
+    ok("live director: switched off, the kill switch: the text view says off again over the kept plans and no intent is left", /scripted director is off/i.test(off2) && !/scripted director: /.test(off2), (off2.match(/Scripted director[^\n]*\n[^\n]*/) ?? [""])[0].replace(/\n/g, " ").slice(0, 120));
+    pg.off("request", countWrites);
+    ok("live director: the page sent no write while the director planned and played (GET and HEAD only)", writes.length === 0, writes.length === 0 ? "no non-GET request" : writes.slice(0, 3).join(", "));
     const { port, key, keyName } = fake;
     const lastSeq = fake.lastSeq();
     await fake.close();
