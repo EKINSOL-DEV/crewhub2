@@ -68,6 +68,8 @@ interface Wave {
   /** Seconds added to the figure's clock (a seeded motion), else 0. */
   offset: number;
   rests: boolean;
+  /** Runs only while carrying (true) or only while not (false); undefined: in both. */
+  carrying: boolean | undefined;
 }
 
 function writeJoint(joint: Joint, values: Float32Array, what = 7) {
@@ -173,6 +175,7 @@ function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend
           phase: m.phase ?? 0,
           offset: m.seeded ? clock : 0,
           rests: m.rests === true,
+          carrying: m.carrying,
         },
       ];
     });
@@ -254,6 +257,7 @@ function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend
     glance = null;
     for (const key of ["always", state.activity, asks ? "waiting" : ""])
       for (const w of compiled.get(key) ?? []) {
+        if (w.carrying !== undefined && w.carrying !== state.carrying) continue;
         waves.push(w);
         if (!moving.includes(w.joint)) moving.push(w.joint);
         w.joint.moves |= 1 << Math.floor(w.channel / 3);
