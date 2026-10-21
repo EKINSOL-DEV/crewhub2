@@ -133,8 +133,10 @@ The host starts with neither loops nor a key and reports the honest states; the 
   count and newest mtime it stamped in `dist/.crewhub-world-build.json` (a deleted or added source is a rebuild). The
   terminal gets a short step list with ticks and times and nothing else: the build check, the host listening, the
   browser, loops found, the key's verdict, the stream open at its seq, the first snapshot ("5 projects, 16 reads in
-  33 ms, slowest /api/board/crewhub 16 ms") and "the world is up, 1.3 s after the host started". `createHost` takes
-  `onStep` for that list; without it (serve mode) the same facts are log lines as before. A second run finds the
+  33 ms, slowest /api/board/crewhub 16 ms") and "the world is up, 1.3 s after the host started (0.8 s after the key)",
+  once, on the first paired browser that attaches (its snapshot, or its stream back at a cursor after a restart: "a
+  paired browser is back at seq 531"); a person's later tab is a quiet "snapshot again (2)" line or nothing. `createHost`
+  takes `onStep` for that list; without it (serve mode) the same facts are log lines as before. A second run finds the
   running host through the run file and only opens a new link. The pairing secret is kept in `<configDir>/pairing-secret`
   (0600, the folder 0700; `worldEnv` in `src/config.ts`), so a host restart keeps every paired browser: an open tab
   goes Stale for the restart and is Live again a few seconds later. `tools/timeworld.mjs` measures the whole road.

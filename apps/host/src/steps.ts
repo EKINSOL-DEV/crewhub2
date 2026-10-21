@@ -1,8 +1,10 @@
 /**
  * The step list `npm run world` prints: one line per step with a tick or a cross and the time it took, an
- * instruction line without a mark (something the person must do), "the world is up" once, counted from the key's
- * acceptance (the person pasting the key is not the host's time), and later snapshots (another tab, a re-snapshot)
- * as one quiet counted line instead of a ticked step each. Pure: the clock is injected, the lines are returned.
+ * instruction line without a mark (something the person must do), "the world is up" once, on the first paired browser
+ * that attaches (its snapshot, or its stream back at a cursor after a host restart), counted from the host's start and,
+ * when a key was accepted in this run, from the key as well (the person pasting the key is not the host's time); a
+ * person's later tab never moves it. Later snapshots (another tab, a re-snapshot) are one quiet counted line instead of
+ * a ticked step each, later attaches print nothing. Pure: the clock is injected, the lines are returned.
  */
 import type { HostStep } from "./host.ts";
 
@@ -26,15 +28,22 @@ export interface StepPrinter {
 export function createStepPrinter(now: () => number): StepPrinter {
   let keyAt: number | null = null;
   let snapshots = 0;
+  let up = false;
+  const upLine = () => {
+    up = true;
+    const sinceKey = keyAt === null ? "" : ` (${seconds(now() - keyAt)} after the key)`;
+    return stepLine(true, `the world is up, ${seconds(now())} after the host started${sinceKey}`);
+  };
   return {
     lines(step) {
       if (step.step === "key" && step.ok) keyAt = now();
       if (step.step === "snapshot" && step.ok) {
         snapshots += 1;
-        if (snapshots > 1) return [quietLine(`snapshot again (${snapshots}): ${step.text.replace(/^snapshot: /, "")}`)];
-        const since = keyAt === null ? `${seconds(now())} after the host started` : `${seconds(now() - keyAt)} after the key`;
-        return [stepLine(true, step.text, step.ms), stepLine(true, `the world is up, ${since}`)];
+        const lines = snapshots > 1 ? [quietLine(`snapshot again (${snapshots}): ${step.text.replace(/^snapshot: /, "")}`)] : [stepLine(true, step.text, step.ms)];
+        if (!up) lines.push(upLine());
+        return lines;
       }
+      if (step.step === "browser") return up ? [] : [stepLine(true, step.text), upLine()];
       return [stepLine(step.ok, step.text, step.ms)];
     },
   };

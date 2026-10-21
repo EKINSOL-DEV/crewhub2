@@ -1013,13 +1013,14 @@ const CameraToolbar = memo(function CameraToolbar({ camera, walking, toggleWalk 
   );
 });
 
-/* In demo mode the copied dock and its "replies are scripted" note; in live mode the plan's sign-in link to the loops web
-   app instead (the world's own chat is phase 2; a session cookie never reaches the world). */
+/* In demo mode the copied dock and its "replies are scripted" note; in live mode a link to the chat in the loops web app
+   instead, worded so nobody expects more than the chat and opened in a new tab so the town stays (the world's own chat
+   is phase 2; a session cookie never reaches the world). */
 const ChatCorner = memo(function ChatCorner({ narrow, demo, connection }: { narrow: boolean; demo: boolean; connection: ConnectionState | null }) {
   if (!demo)
     return (
       <div className="world-chat" data-chrome="">
-        <Chip className="demo-chat-chip chat-sign-in" href={loopsWebUrl(SOURCE.health)} title={translate("world.chat.signInHint")} data-connection={connection ?? undefined} icon={<MessageCircle className="icon" aria-hidden="true" />}>
+        <Chip className="demo-chat-chip chat-sign-in" href={loopsWebUrl(SOURCE.health)} target="_blank" rel="noreferrer" title={translate("world.chat.signInHint")} data-connection={connection ?? undefined} icon={<MessageCircle className="icon" aria-hidden="true" />}>
           {translate("world.chat.signIn")}
         </Chip>
       </div>
