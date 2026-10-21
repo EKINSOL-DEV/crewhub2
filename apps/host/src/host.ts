@@ -14,7 +14,7 @@ import { stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import path from "node:path";
-import type { HostConnection, HostKeyState } from "@crewhub/loops-client";
+import type { HostConnection, HostKeyState, HostSnapshotState } from "@crewhub/loops-client";
 import { WORLD_API_PREFIX, fillPattern, matchWorldRoute } from "./allowList.ts";
 import { DEFAULT_LOOPS_URL, type KeySource } from "./config.ts";
 import { type Discovery, type DiscoveryInput, type Found, createDiscovery, targetText } from "./discovery.ts";
@@ -22,7 +22,7 @@ import { checkKey } from "./keyCheck.ts";
 import type { KeyStore } from "./keyStore.ts";
 import { type LoopsClient, createLoopsClient, isUnauthorized } from "./loops.ts";
 import { PAIR_PATH_PREFIX, PAIR_REFUSED_HTML, type Pairing, createPairing, pairCookieHeader } from "./pairing.ts";
-import { SnapshotError, assembleSnapshot } from "./snapshot.ts";
+import { type AssembledSnapshot, SnapshotError, type SnapshotStats, assembleSnapshot } from "./snapshot.ts";
 import { type HostMessage, type LoopsState, type Upstream, createUpstream } from "./stream.ts";
 
 export interface HostOptions {
@@ -44,6 +44,13 @@ export interface HostOptions {
   port?: number;
   /** Serve this folder (the built world) for every path outside `/world-api`, with `index.html` as the fallback. */
   staticDir?: string;
+  /**
+   * The steps of a connection as they complete (`npm run world` prints them as a list with ticks and times): loops
+   * found, the key's verdict, the stream open, a snapshot served. Given, the host does not log those lines itself.
+   */
+  onStep?: (step: HostStep) => void;
+  /** Reads in flight at most while a snapshot is assembled (default 6). */
+  snapshotConcurrency?: number;
   /** Extra origins allowed besides the host's own (the Vite dev server). */
   allowedOrigins?: string[];
   bufferSize?: number;
@@ -73,6 +80,25 @@ export interface HostOptions {
 export const MINT_PATH = "/pair-mint";
 export const MINT_HEADER = "x-crewhub-world-mint";
 export const CONNECT_PATH = `${WORLD_API_PREFIX}/connect`;
+/** How long health waits for a link in the making before it answers with the states as they are. */
+export const HEALTH_WAIT_MS = 1000;
+
+/** One step of the connection, done: for the step list of `npm run world`. `ms` is what the step took, when it was timed. */
+export interface HostStep {
+  step: "discovery" | "key" | "stream" | "snapshot";
+  ok: boolean;
+  /** One line, in words: "crewhub-loops found via the app's socket …". Never the key. */
+  text: string;
+  ms?: number;
+}
+
+/** The page the host serves instead of the world while `npm run world` is still building it: it reloads itself. */
+export const BUILDING_HTML = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CrewHub World</title><meta http-equiv="refresh" content="1">
+<style>html{color-scheme:light dark}body{margin:0;min-height:100vh;display:grid;place-items:center;font:15px/1.5 system-ui,sans-serif;color:GrayText;background:Canvas}p{margin:0;padding:0 16px;text-align:center}</style>
+</head><body><p role="status">Building the world… this page opens it as soon as the build is done.</p></body></html>
+`;
 /** A pasted key: loops' keys are `chl_` and base64url; the fake's are hex. Bounded, one line, no spaces. */
 const KEY_SHAPE = /^chl_[A-Za-z0-9_-]{8,200}$/;
 const CONNECT_BODY_LIMIT = 4096;
@@ -84,6 +110,8 @@ export interface Host {
   mintPairLink(origin?: string): string;
   /** The states, as health reports them to a paired browser. */
   connection(): HostConnection;
+  /** While true (`npm run world` builds the world), every page request gets the "Building the world…" page. */
+  setBuilding(building: boolean): void;
   close(): Promise<void>;
 }
 
@@ -188,6 +216,15 @@ export async function createHost(options: HostOptions): Promise<Host> {
   const heartbeatMs = options.heartbeatMs ?? 15_000;
   let port = 0;
   let closed = false;
+  let building = false;
+  const onStep = options.onStep;
+  /** A step done: the list (world mode) or the log (serve mode), never both. */
+  const step = (kind: HostStep["step"], ok: boolean, text: string, ms?: number) => {
+    if (onStep !== undefined) onStep(ms === undefined ? { step: kind, ok, text } : { step: kind, ok, text, ms });
+    else log(text);
+  };
+  // The last snapshot assembled for a tab: for health's `connection.snapshot` (the page says "Reading 12 projects…").
+  let snapshotState: HostSnapshotState = { state: "idle" };
 
   // --- The discovery: where loops is. ---
   const discoveryInput: DiscoveryInput = {
@@ -199,9 +236,10 @@ export async function createHost(options: HostOptions): Promise<Host> {
     ...(options.discovery?.readFile === undefined ? {} : { readFile: options.discovery.readFile }),
     ...(options.discovery?.answers === undefined ? {} : { answers: options.discovery.answers }),
   };
+  const discoveryStarted = performance.now();
   const discovery: Discovery = createDiscovery(discoveryInput, {
     ...(options.discovery?.intervalMs === undefined ? {} : { intervalMs: options.discovery.intervalMs }),
-    log,
+    log: (line) => (line.startsWith("loops found") ? step("discovery", true, line, performance.now() - discoveryStarted) : log(line)),
     onChange: () => void relink(),
   });
 
@@ -263,19 +301,21 @@ export async function createHost(options: HostOptions): Promise<Host> {
       const mine = holder;
       mine.state = "checking";
       delete mine.reason;
+      snapshotState = { state: "idle" };
+      const keyStarted = performance.now();
       const verdict = await checkKey(client);
       if (closed || holder !== mine || discovery.current() !== found) return;
       if (verdict.state === "rejected") {
         mine.state = "rejected";
         mine.reason = verdict.reason;
-        log(`key ${mine.name} (${mine.source}) rejected: ${scrub(verdict.reason)}`);
+        step("key", false, `key ${mine.name} (${mine.source}) rejected: ${scrub(verdict.reason)}`, performance.now() - keyStarted);
         for (const tab of tabs.values()) attach(tab);
         return;
       }
       if (verdict.state === "ok") {
         mine.state = "ok";
         mine.name = verdict.name;
-        log(`key ${mine.name} (${mine.source}) accepted by loops at ${targetText(found.target)}`);
+        step("key", true, `key ${mine.name} (${mine.source}) accepted by loops at ${targetText(found.target)}`, performance.now() - keyStarted);
       } else log(`key ${mine.name} (${mine.source}): loops at ${targetText(found.target)} did not answer; the stream keeps trying`);
       const upstreamOptions: Parameters<typeof createUpstream>[1] = { log: (line) => log(scrub(line)) };
       if (options.bufferSize !== undefined) upstreamOptions.bufferSize = options.bufferSize;
@@ -286,8 +326,10 @@ export async function createHost(options: HostOptions): Promise<Host> {
       link = { found, client, upstream };
       for (const tab of tabs.values()) attach(tab);
       // The first attempt decides the states a connect answers with; it is bounded by the read timeout.
+      const streamStarted = performance.now();
       await upstream.start().then(() => {
         if (link?.upstream !== upstream) return;
+        if (upstream.state() === "ok") step("stream", true, `stream open at seq ${upstream.cursor()}`, performance.now() - streamStarted);
         // The stream is the second opinion on the key: 401/403 there means rejected, ok means ok.
         if (upstream.state() === "unauthorized" && mine.state !== "rejected") {
           mine.state = "rejected";
@@ -320,6 +362,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
       key: { state: holder === null ? "none" : holder.state },
       stream: { state: streamState(), reconnects: link?.upstream.reconnects() ?? 0 },
     };
+    out.snapshot = snapshotState;
     if (found !== null) out.discovery.via = found.via;
     const busy = link?.upstream.busy() ?? null;
     if (busy !== null) out.stream.reason = busy;
@@ -396,6 +439,24 @@ export async function createHost(options: HostOptions): Promise<Host> {
     return holder.state === "rejected" ? "unauthorized" : "loops_down";
   }
 
+  /** One assembly, with its progress in `snapshotState` as it goes (health shows it to the page). */
+  async function assemble(client: LoopsClient, upstream: Upstream): Promise<AssembledSnapshot> {
+    snapshotState = { state: "reading", reads: 0 };
+    const out = await assembleSnapshot(client, {
+      cursor: upstream.cursor(),
+      knownArchivedSlugs: upstream.archivedSlugs(),
+      ...(options.snapshotConcurrency === undefined ? {} : { concurrency: options.snapshotConcurrency }),
+      onProgress: (progress) => {
+        if (snapshotState.state !== "reading") return;
+        snapshotState = { state: "reading", reads: progress.reads, ...(progress.projects === null ? {} : { projects: progress.projects }) };
+      },
+    });
+    snapshotState = { state: "ready", projects: out.stats.projects, reads: out.stats.reads, ms: Math.round(out.stats.ms) };
+    return out;
+  }
+  const snapshotText = (stats: SnapshotStats) =>
+    `snapshot: ${stats.projects} project${stats.projects === 1 ? "" : "s"}, ${stats.reads} reads in ${Math.round(stats.ms)} ms${stats.slowest === null ? "" : ` (slowest ${stats.slowest.path} ${Math.round(stats.slowest.ms)} ms)`}`;
+
   async function snapshot(res: ServerResponse): Promise<void> {
     await relinking;
     const why = unavailable();
@@ -410,11 +471,13 @@ export async function createHost(options: HostOptions): Promise<Host> {
       return;
     }
     try {
-      const body = await assembleSnapshot(client, { cursor: upstream.cursor(), knownArchivedSlugs: upstream.archivedSlugs() });
+      const { snapshot: body, stats } = await assemble(client, upstream);
       sendJson(res, 200, body);
+      step("snapshot", true, snapshotText(stats), stats.ms);
     } catch (error) {
       const reason = error instanceof SnapshotError ? error.reason : "loops_down";
-      log(`snapshot failed: ${reason}`);
+      snapshotState = { state: "failed", reason };
+      step("snapshot", false, `snapshot failed: ${reason}`);
       sendJson(res, 503, { error: reason });
     }
   }
@@ -531,6 +594,11 @@ export async function createHost(options: HostOptions): Promise<Host> {
   }
 
   async function serveStatic(pathname: string, res: ServerResponse): Promise<void> {
+    if (building) {
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+      res.end(BUILDING_HTML);
+      return;
+    }
     if (staticDir === null) {
       sendJson(res, 404, { error: "not_found" });
       return;
@@ -605,8 +673,9 @@ export async function createHost(options: HostOptions): Promise<Host> {
     }
     switch (route.pattern) {
       case "/health": {
-        await relinking;
-        if (link !== null) await link.upstream.start();
+        // The states as they are, after a bounded wait for a link in the making: the page's probe gives the host
+        // 1.5 s before it takes the host for silent, and a slow loops must never send the world into demo mode.
+        await Promise.race([relinking.then(() => link?.upstream.start()), new Promise<void>((resolve) => setTimeout(resolve, HEALTH_WAIT_MS).unref())]);
         const isPaired = paired(req);
         const health: HostHealth = {
           loops: legacyState(),
@@ -664,6 +733,9 @@ export async function createHost(options: HostOptions): Promise<Host> {
     port,
     mintPairLink,
     connection: () => connection(true),
+    setBuilding(value) {
+      building = value;
+    },
     async close() {
       closed = true;
       clearInterval(idleBeat);
