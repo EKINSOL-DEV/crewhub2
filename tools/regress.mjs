@@ -76,7 +76,9 @@
            forgotten with the row opening the Chat panel on g-man, the text view's section listing both answers
            newest first and opening the panel from a row, and the block on the phone; and (round 17) the panel in one
            glance: two short lines (crewhub-loops' own chat; the one thing to do on this road) above Recent answers, the
-           whole story behind About this chat, signed out and on the key road. Needs nobody.
+           whole story behind About this chat, signed out and on the key road; (round 18) the list's own explanation
+           ("The last 10 answers this page saw …") behind that same disclosure, so the block starts with its rows, while
+           the text view's section keeps it. Needs nobody.
            About three minutes.
      rooms the three-room building (`?rooms=three`, whatever the viewer's Buildings setting): three room signs
            (Administration, The floor, Lead's office) and a rack sign with its count, the arrow keys between the three halls, the text view naming the
@@ -822,7 +824,7 @@ await group("live", async () => {
     const panelText = (await pg.locator(".chat-sheet").innerText().catch(() => "")).replace(/\s+/g, " ");
     const aboutOpen = await pg.locator(".chat-about").evaluate((el) => el.open).catch(() => null);
     const appHref = await pg.locator(".chat-sheet .chat-open-app").getAttribute("href").catch(() => null);
-    ok("live (round 17): the panel reads in one glance: crewhub-loops' own chat and the one thing to do on this road (a host without a session store: this host shows no bubbles), two short lines above Recent answers; the whole story (what typing needs, no password) behind About this chat, which Enter on its summary opens; the link to the app", g !== null && /^crewhub-loops' own chat, framed here\.$/.test(g.what) && /^Sign in to crewhub-loops below to type; this host shows no bubbles\.$/.test(g.todo) && g.whatLines === 1 && g.todoLines <= 2 && g.aboutOpen === false && !/signed in to crewhub-loops as a person/.test(closedText) && aboutOpen === true && /signed in to crewhub-loops as a person/.test(panelText) && /no password/.test(panelText) && /chat head in loops' dock/.test(panelText) && appHref === web.url, g ? `"${g.what}" / "${g.todo}" (${g.whatLines}+${g.todoLines} lines, the list ${g.aboveList} px below); about open before ${g.aboutOpen}, after Enter ${aboutOpen}; ${appHref}` : "no lead");
+    ok("live (round 17): the panel reads in one glance: crewhub-loops' own chat and the one thing to do on this road (a host without a session store: this host shows no bubbles), two short lines above Recent answers; the whole story (what typing needs, no password, and since round 18 what the Recent answers list is) behind About this chat, which Enter on its summary opens; the link to the app", g !== null && /^crewhub-loops' own chat, framed here\.$/.test(g.what) && /^Sign in to crewhub-loops below to type; this host shows no bubbles\.$/.test(g.todo) && g.whatLines === 1 && g.todoLines <= 2 && g.aboutOpen === false && !/signed in to crewhub-loops as a person/.test(closedText) && !/The last 10 answers this page saw/.test(closedText) && aboutOpen === true && /signed in to crewhub-loops as a person/.test(panelText) && /no password/.test(panelText) && /chat head in loops' dock/.test(panelText) && /The last 10 answers this page saw, newest first/.test(panelText) && appHref === web.url, g ? `"${g.what}" / "${g.todo}" (${g.whatLines}+${g.todoLines} lines, the list ${g.aboveList} px below); about open before ${g.aboutOpen}, after Enter ${aboutOpen}; ${appHref}` : "no lead");
     const sandbox = await frame.getAttribute("sandbox").catch(() => null);
     const allow = await frame.getAttribute("allow").catch(() => null);
     ok("live: the frame's sandbox is no wider than the chat needs", sandbox === "allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads" && allow === "clipboard-write", `sandbox "${sandbox}", allow "${allow}"`);
@@ -1072,7 +1074,7 @@ await group("chat", async () => {
     };
     await closePanel();
     const emptyWords = await recentOpen(pg);
-    ok("chat (round 16): the Chat panel's Recent answers block, empty and signed out, says no answer can arrive and points to the sign-in", /^Recent answers The last 10 answers this page saw, newest first/.test(emptyWords) && /No answers can arrive: not signed in\. Sign in in the Connection panel's Chat section/.test(emptyWords) && (await pg.locator(".recent-row").count()) === 0, emptyWords.slice(0, 160));
+    ok("chat (round 16): the Chat panel's Recent answers block, empty and signed out, starts with its words (no explanation first, round 18), says no answer can arrive and points to the sign-in", /^Recent answers No answers can arrive/.test(emptyWords) && !/The last 10 answers/.test(emptyWords) && /No answers can arrive: not signed in\. Sign in in the Connection panel's Chat section/.test(emptyWords) && (await pg.locator(".recent-row").count()) === 0, emptyWords.slice(0, 160));
     await shot(pg, "64-chat-recent-empty");
     // Round 17: the glance on the session road, signed out, and the words behind About this chat (the same story as the
     // Connection panel's Chat section).
@@ -1080,7 +1082,7 @@ await group("chat", async () => {
     await pg.locator(".chat-about > summary").click().catch(() => {});
     await pg.waitForTimeout(200);
     const aboutOff = (await pg.locator(".chat-about").innerText().catch(() => "")).replace(/\s+/g, " ");
-    ok("chat (round 17): signed out, the panel's glance says sign in below to type and, for bubbles, the Connection panel's Chat section; About this chat (closed at first) holds the road's whole story", glanceOff !== null && glanceOff.what === "crewhub-loops' own chat, framed here." && glanceOff.todo === "Sign in to crewhub-loops below to type; for bubbles, sign in in the Connection panel's Chat section." && glanceOff.aboutOpen === false && /Not signed in: no bubbles\. Sign in in the Connection panel's Chat section/.test(aboutOff) && /Typing in the framed chat is crewhub-loops' own/.test(aboutOff), glanceOff ? `"${glanceOff.todo}"; about: ${aboutOff.slice(0, 120)}` : "no lead");
+    ok("chat (round 17): signed out, the panel's glance says sign in below to type and, for bubbles, the Connection panel's Chat section; About this chat (closed at first) holds the road's whole story and, since round 18, what the Recent answers list is", glanceOff !== null && glanceOff.what === "crewhub-loops' own chat, framed here." && glanceOff.todo === "Sign in to crewhub-loops below to type; for bubbles, sign in in the Connection panel's Chat section." && glanceOff.aboutOpen === false && /Not signed in: no bubbles\. Sign in in the Connection panel's Chat section/.test(aboutOff) && /Typing in the framed chat is crewhub-loops' own/.test(aboutOff) && /The last 10 answers this page saw, newest first; a bubble shows each for a moment/.test(aboutOff), glanceOff ? `"${glanceOff.todo}"; about: ${aboutOff.slice(0, 120)}` : "no lead");
     await shot(pg, "64b-chat-glance-about");
     await pg.keyboard.press("Escape");
     await pg.waitForSelector(".chat-sheet", { state: "detached", timeout: 5000 }).catch(() => {});

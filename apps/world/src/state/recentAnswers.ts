@@ -10,7 +10,7 @@ import type { AgentCardFacts } from "@crewhub/world-model";
 import { chatCardNote, chatTargetOf } from "./chatPanel.ts";
 import { joinSentences, RECENT_ANSWERS, type Answer } from "./said.ts";
 
-/** What the list is, for its heading's hint. */
+/** What the list is: the text view's section opens with it; the Chat panel keeps it behind "About this chat" (round 18). */
 export const RECENT_NOTE = `The last ${RECENT_ANSWERS} answers this page saw, newest first; a bubble shows each for a moment, this list keeps them while the page is open and nothing longer.`;
 
 /**
