@@ -18,11 +18,12 @@ everywhere. There is no network call, no account and no model call.
 **Live mode is built.** `apps/host`, the world's relay, finds the Mac app (`Crewhub.app`) by
 itself, reads it with one external bot key over loopback TCP or the app's Unix socket, never
 writes to it, and serves the same world with the real projects: `npm run world` is the whole
-morning ([the runbook](docs/LOOPS_SETUP.md)), rehearsed from a fresh clone six times. It holds when
+morning ([the runbook](docs/LOOPS_SETUP.md)), rehearsed from a fresh clone eight times. It holds when
 loops stops, when the key is revoked while the town is open and when loops is upgraded under it,
-each with an honest screen. Planned, **not built**: the host's world
-database, the real chat (needs CORS in crewhub-loops, L8) and the real director. See the
-[architecture](docs/ARCHITECTURE.md) and the [roadmap](docs/ROADMAP.md).
+each with an honest screen. The chat is crewhub-loops' own, framed in the world's Chat panel, and an
+agent's answer shows as a speech bubble over its figure where the key may read the chat. Planned, **not built**:
+the host's world database, a chat of the world's own (needs CORS in crewhub-loops, L8) and the real director. See
+the [architecture](docs/ARCHITECTURE.md) and the [roadmap](docs/ROADMAP.md).
 
 Built in demo mode and shown live from the same model:
 
@@ -32,7 +33,8 @@ Built in demo mode and shown live from the same model:
 - A grid engine with doors, town paths and pathfinding; walk mode; four swappable casts.
 - Build mode with a local town document, and props made with the `prop-builder` skill.
 - A "Where is ...?" lookup, the agent card, and a hidden text view of every fact.
-- Demo only: the crewhub-loops chat bubbles (backed by a fake chat API). A scripted director, no model: in the demo, and in live mode as an opt-in that is off by default and says "scripted" on every line.
+- The chat: crewhub-loops' own chat framed in the Chat panel (from the Chat chip or a lead's card), an agent's answer as a speech bubble over its figure, a chat mark over its building from the town, and a Recent answers list; in the demo a scripted dock feeds the same.
+- A scripted director, no model: in the demo, and in live mode as an opt-in that is off by default and says "scripted" on every line.
 
 ## Start locally
 
