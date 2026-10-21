@@ -3,7 +3,9 @@
    polls the host's health every few seconds, so starting the app, pairing or a key the host checks all move the screen by
    themselves; the gate (main.tsx) swaps in the world when the screen is gone. The key field holds a pasted key in component
    state only, masked, until the request is sent and not a moment longer; the page never shows more than its last four
-   characters. Copy from the i18n file; the kit's Card, Button and Field; the Pair screen's content comes from PairPage.tsx. */
+   characters. Copy from the i18n file; the kit's Card, Button and Field; the Pair screen's content comes from PairPage.tsx.
+   One live region (sr-only, always mounted) says each screen once as it arrives (its title and one line) and the answer to
+   a pasted key; the words that tick ("last asked 3 s ago") are not live, so a screen reader is never read a clock. */
 import { ExternalLink, KeyRound, RefreshCw, ShieldAlert, Search, Unplug } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { connectHost, forgetHostKey, probeHost, type HostHealth } from "@crewhub/loops-client";
@@ -38,6 +40,7 @@ export function ConnectPage({ screen, health, onHealth, pollMs = CONNECT_POLL_MS
   const [outcome, setOutcome] = useState<ConnectOutcome | "sent" | null>(null);
   const [busy, setBusy] = useState(false);
   const [forgetting, setForgetting] = useState<"busy" | "done" | string | null>(null);
+  const [spoken, setSpoken] = useState("");
   const live = useRef(true);
 
   const ask = useCallback(async () => {
@@ -107,9 +110,40 @@ export function ConnectPage({ screen, health, onHealth, pollMs = CONNECT_POLL_MS
   const asked = relativeTime(new Date(askedAt).toISOString(), now);
   // The road, in the panel's words ("through the Mac app's socket"): the raw path is a detail for the Connection panel.
   const where = connection?.discovery.via ? t("world.connect.connect.where", { via: t(`world.connection.panel.via.${connection.discovery.via}`) }) : "";
+  const reason = connection?.key.reason;
+  const words = outcomeWords(outcome, t);
+
+  // What the live region says: the screen as it arrives (set after the commit, so it is a change the reader notices),
+  // then the key's answer or the forgetting's, each once.
+  useEffect(() => {
+    const lead =
+      screen === "no-loops"
+        ? t("world.connect.noLoops.lead")
+        : screen === "pair"
+          ? t("world.pair.lead")
+          : screen === "checking"
+            ? t("world.connect.checking.lead")
+            : screen === "rejected"
+              ? reason
+                ? t("world.connect.rejected.reason", { reason })
+                : t("world.connect.rejected.fallback")
+              : screen === "loops-down"
+                ? t("world.connect.loopsDown.hint")
+                : t("world.connect.connect.paste");
+    setSpoken(t("world.connect.spoken", { title, lead }));
+  }, [screen, reason, title, t]);
+  useEffect(() => {
+    if (words) setSpoken(words);
+  }, [words]);
+  useEffect(() => {
+    if (forgetting !== null && forgetting !== "busy") setSpoken(forgetting === "done" ? t("world.connect.rejected.forgotten") : t("world.connection.panel.forgetFailed", { reason: forgetting }));
+  }, [forgetting, t]);
 
   return (
-    <main className="pair-page connect-page" data-screen={screen} aria-labelledby="connect-title" aria-label={t("world.connect.label")}>
+    <main className="pair-page connect-page" data-screen={screen} aria-labelledby="connect-title">
+      <p className="sr-only" role="status" aria-live="polite">
+        {spoken}
+      </p>
       <Card className="pair-card connect-card">
         <Card.Header
           title={
@@ -132,9 +166,7 @@ export function ConnectPage({ screen, health, onHealth, pollMs = CONNECT_POLL_MS
                 <li>{t("world.connect.noLoops.appPort")}</li>
               </ol>
               <p className="hint pair-note">{t("world.connect.noLoops.note")}</p>
-              <p className="connect-status" role="status" aria-live="polite">
-                {asked === "just now" ? t("world.connect.noLoops.lookingNow") : t("world.connect.noLoops.looking", { ago: asked ?? "" })}
-              </p>
+              <p className="connect-status">{asked === "just now" ? t("world.connect.noLoops.lookingNow") : t("world.connect.noLoops.looking", { ago: asked ?? "" })}</p>
             </Card.Body>
             <Card.Footer>
               <Button variant="primary" onClick={() => void ask()} icon={<RefreshCw className="icon icon-sm" aria-hidden="true" />}>
@@ -150,9 +182,7 @@ export function ConnectPage({ screen, health, onHealth, pollMs = CONNECT_POLL_MS
               <p className="pair-lead">{t("world.connect.loopsDown.lead", { where })}</p>
               {connection?.key.state === "unchecked" && <p className="connect-sub">{t("world.connect.loopsDown.unchecked")}</p>}
               <p className="hint pair-note">{t("world.connect.loopsDown.hint")}</p>
-              <p className="connect-status" role="status" aria-live="polite">
-                {asked === "just now" ? t("world.connect.noLoops.lookingNow") : t("world.connect.loopsDown.waiting", { ago: asked ?? "" })}
-              </p>
+              <p className="connect-status">{asked === "just now" ? t("world.connect.noLoops.lookingNow") : t("world.connect.loopsDown.waiting", { ago: asked ?? "" })}</p>
             </Card.Body>
             <Card.Footer>
               <Button variant="primary" onClick={() => void ask()} icon={<RefreshCw className="icon icon-sm" aria-hidden="true" />}>
@@ -167,7 +197,7 @@ export function ConnectPage({ screen, health, onHealth, pollMs = CONNECT_POLL_MS
             <Card.Body>
               {screen === "rejected" ? (
                 <>
-                  <p className="pair-lead connect-rejected" role="alert">
+                  <p className="pair-lead connect-rejected">
                     {connection?.key.reason ? t("world.connect.rejected.reason", { reason: connection.key.reason }) : t("world.connect.rejected.fallback")}
                   </p>
                   {connection?.key.source && <p className="hint pair-note">{t("world.connect.rejected.source", { source: t(`world.connect.source.${connection.key.source}`) })}</p>}
@@ -179,7 +209,7 @@ export function ConnectPage({ screen, health, onHealth, pollMs = CONNECT_POLL_MS
                         {forgetting === "busy" ? t("world.connect.rejected.forgetBusy") : t("world.connect.rejected.forget")}
                       </Button>
                       {forgetting !== null && forgetting !== "busy" && (
-                        <p className={forgetting === "done" ? "connect-status" : "connect-status connect-rejected"} role={forgetting === "done" ? "status" : "alert"} aria-live="polite">
+                        <p className={forgetting === "done" ? "connect-status" : "connect-status connect-rejected"}>
                           {forgetting === "done" ? t("world.connect.rejected.forgotten") : t("world.connection.panel.forgetFailed", { reason: forgetting })}
                         </p>
                       )}
@@ -187,9 +217,7 @@ export function ConnectPage({ screen, health, onHealth, pollMs = CONNECT_POLL_MS
                   )}
                 </>
               ) : screen === "checking" ? (
-                <p className="pair-lead" role="status" aria-live="polite">
-                  {t("world.connect.checking.lead")}
-                </p>
+                <p className="pair-lead">{t("world.connect.checking.lead")}</p>
               ) : (
                 <>
                   <p className="pair-lead">{t("world.connect.connect.lead", { where })}</p>
@@ -203,9 +231,10 @@ export function ConnectPage({ screen, health, onHealth, pollMs = CONNECT_POLL_MS
               <div className="connect-open">
                 <Button href={`${loopsWebUrl(health)}${LOOPS_AGENTS_PATH}`} target="_blank" rel="noreferrer" icon={<ExternalLink className="icon icon-sm" aria-hidden="true" />}>
                   {t("world.connect.connect.open")}
+                  <span className="sr-only"> ({t("world.newTab")})</span>
                 </Button>
               </div>
-              <KeyForm busy={busy || screen === "checking"} outcome={outcome} lead={screen === "rejected" ? t("world.connect.rejected.paste") : t("world.connect.connect.paste")} onSubmit={(key) => void submit(key)} />
+              <KeyForm busy={busy || screen === "checking"} words={words} rejected={outcome !== "sent" && outcome?.kind === "rejected"} lead={screen === "rejected" ? t("world.connect.rejected.paste") : t("world.connect.connect.paste")} onSubmit={(key) => void submit(key)} />
             </Card.Body>
             <Card.Footer>
               <Button onClick={switchToDemo}>{t("world.connect.demo")}</Button>
@@ -222,7 +251,24 @@ export function ConnectPage({ screen, health, onHealth, pollMs = CONNECT_POLL_MS
  * last four characters and its length. The raw text lives in this component's state and is cleared the moment the
  * form submits; nothing is written to storage, the URL or the console.
  */
-function KeyForm({ busy, outcome, lead, onSubmit }: { busy: boolean; outcome: ConnectOutcome | "sent" | null; lead: string; onSubmit: (key: string) => void }) {
+/** The words for the last request's answer; null before one is sent. */
+function outcomeWords(outcome: ConnectOutcome | "sent" | null, t: (key: string, vars?: Record<string, string | number>) => string): string | null {
+  return outcome === "sent"
+    ? t("world.connect.key.sent")
+    : outcome?.kind === "failed"
+      ? outcome.reason
+        ? t("world.connect.key.failedWhy", { reason: outcome.reason })
+        : t("world.connect.key.failed")
+      : outcome?.kind === "not-paired"
+        ? t("world.connect.key.notPaired")
+        : outcome?.kind === "rejected"
+          ? outcome.reason
+            ? t("world.connect.rejected.reason", { reason: outcome.reason })
+            : t("world.connect.rejected.fallback")
+          : null;
+}
+
+function KeyForm({ busy, words, rejected, lead, onSubmit }: { busy: boolean; words: string | null; rejected: boolean; lead: string; onSubmit: (key: string) => void }) {
   const { t } = useT();
   const [raw, setRaw] = useState("");
   const [touched, setTouched] = useState(false);
@@ -239,18 +285,6 @@ function KeyForm({ busy, outcome, lead, onSubmit }: { busy: boolean; outcome: Co
     setTouched(false);
     onSubmit(key);
   };
-  const words =
-    outcome === "sent"
-      ? t("world.connect.key.sent")
-      : outcome?.kind === "failed"
-        ? outcome.reason
-          ? t("world.connect.key.failedWhy", { reason: outcome.reason })
-          : t("world.connect.key.failed")
-        : outcome?.kind === "not-paired"
-          ? t("world.connect.key.notPaired")
-          : outcome?.kind === "rejected"
-            ? (outcome.reason ? t("world.connect.rejected.reason", { reason: outcome.reason }) : t("world.connect.rejected.fallback"))
-            : null;
   return (
     <form className="connect-form" onSubmit={submit} aria-describedby={words ? "connect-outcome" : undefined}>
       <p className="connect-sub" id="connect-paste">
@@ -280,7 +314,7 @@ function KeyForm({ busy, outcome, lead, onSubmit }: { busy: boolean; outcome: Co
         </Button>
       </div>
       {words && (
-        <p className={outcome !== "sent" && outcome?.kind === "rejected" ? "connect-status connect-rejected" : "connect-status"} id="connect-outcome" role={outcome !== "sent" && outcome?.kind !== "ok" ? "alert" : "status"} aria-live="polite">
+        <p className={rejected ? "connect-status connect-rejected" : "connect-status"} id="connect-outcome">
           {words}
         </p>
       )}

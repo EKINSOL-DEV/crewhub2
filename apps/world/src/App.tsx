@@ -6,7 +6,7 @@ import type { PropModel } from "@crewhub/world-engine";
 import { Bubbles } from "./components/bubbles/Bubbles";
 import { TownSettings } from "./components/TownSettings";
 import { SourceSettings } from "./components/SourceSettings";
-import { ConnectionChip, connectionLine } from "./components/ConnectionChip";
+import { ConnectionChip, connectionLine, connectionWord } from "./components/ConnectionChip";
 import { ConnectionPanel } from "./components/ConnectionPanel";
 import { FirstSnapshot } from "./components/FirstSnapshot";
 import { ConnectPage } from "./components/ConnectPage";
@@ -623,6 +623,14 @@ function World() {
 
   const demo = model.mode === "demo";
   const connection = useConnection();
+  // A change of the connection's state (Live, Loops down, Catching up, Stream busy, back to Live) is said once in the live
+  // region: the chip changes its word, and a screen reader would otherwise hear nothing. Not the first value on load.
+  const spokenConnection = useRef<ConnectionState | null>(null);
+  useEffect(() => {
+    if (spokenConnection.current !== null && connection !== null && spokenConnection.current !== connection)
+      setAnnouncement(translate("world.connection.changed", { state: connectionWord(connection), hint: translate(`world.connection.hint.${connection}`) }));
+    spokenConnection.current = connection;
+  }, [connection]);
   // The host's health as the Pair screen last saw it (the gate's read first); the screen polls and keeps it fresh.
   const [health, setHealth] = useState<HostHealth>(() => SOURCE.health ?? { loops: "ok", keyName: "", sharedKey: false, pairing: "on", paired: false });
   const onGo = useStable(go);
@@ -1022,6 +1030,7 @@ const ChatCorner = memo(function ChatCorner({ narrow, demo, connection }: { narr
       <div className="world-chat" data-chrome="">
         <Chip className="demo-chat-chip chat-sign-in" href={loopsWebUrl(SOURCE.health)} target="_blank" rel="noreferrer" title={translate("world.chat.signInHint")} data-connection={connection ?? undefined} icon={<MessageCircle className="icon" aria-hidden="true" />}>
           {translate("world.chat.signIn")}
+          <span className="sr-only"> ({translate("world.newTab")})</span>
         </Chip>
       </div>
     );
