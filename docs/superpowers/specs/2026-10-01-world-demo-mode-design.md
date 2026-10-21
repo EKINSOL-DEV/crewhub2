@@ -879,3 +879,30 @@ reconnects. `npm run host -- doctor` prints the same states in the terminal.
 
 **Not tonight (proposed, loops side):** a "Connect CrewHub World" button in the loops web that creates the bot and
 hands the key to the host, on the `world/viewer-key` branch's road.
+
+## Addendum: the new loops events in the town (2026-10-21, round 7)
+
+crewhub-loops `4cdcd383` emits three event types the world did not show yet (`docs/LOOPS_REAL_VS_FAKE.md` row 13). Each
+gets one small, honest presence; none moves a ticket or an agent, and the projection stays the only reader of facts.
+
+1. **`ticket.quiet`** `{status, minutes, since, ticket}` (actor `system`, one per ticket, status, minutes and quiet
+   stretch; `domain/automation_quiet.py`). The package on its rack or desk gathers **dust**: a thin grey film and a small
+   clock tag "quiet 2 h" in words, from the event's `minutes` and `since`, until the ticket next changes (any
+   `ticket.*` event on it, or a snapshot that says otherwise). It is a fact about the ticket, not a stall: the stall
+   lamp (`ticket.stalled`) keeps its own meaning. The text view says "CR-12 has been quiet in Review for 2 h". Reduced
+   motion: the same, without the dust settling.
+2. **`automation.ran`** `{runId, automationId, outcome, automation:{id, name}}` (actor `system`, on the ticket). A short
+   visible act at the building's **board** by the front door: a small card pinned for a few seconds ("Automation
+   'Label stale bugs' ran on CR-12: done"), then gone; a failed outcome says so in words. Several runs queue on the
+   board. The text view keeps the last few as lines. A change the automation made arrives as its own event (a
+   `ticket.updated` with `automation`) and is shown as any change is; the payload's `automation` name may be quoted in
+   the text view ("labels changed by the automation 'Label stale bugs'").
+3. **`owner-request.updated`** `{userId, requestId, state}`: served **to the owner person only** (`api/stream.py`
+   visibility); the world's key (an external bot) never receives it. The world knows the type (no warning), draws
+   nothing, and says nothing. It becomes a note for the person only on a road where the world reads with the owner's
+   session, which does not exist (out of scope).
+
+**The fake** emits `ticket.quiet` and `automation.ran` the loops way (actor `system`, payload as above, on scripted
+tickets of the storyline) and `owner-request.updated` only to a non-agent principal (so a lead key never sees it, as
+on loops). **Demo** shows the same through the storyline. **Regress**: a check per visible event (dust and its words; the
+board card and its words) in the demo group.
