@@ -969,6 +969,44 @@ and no loops at all.
 - **Proposals on the unpushed loops branch `world/viewer-key`**: the viewer key (round 1) and a "Connect CrewHub World"
   card in loops' Settings › Agents (r3-loopsbutton). The card makes the bot as a viewer and hands its key over.
 
+## Round 4: regressions and polish (night of 2026-10-21, until about 07:00)
+
+Round 4 ends at `deeda56`, with 722 tests and the browser pass at 96 of 96. That includes the new `connect` group and
+`real` against the development loops.
+
+- **The connect flow under regress** (r4-connectregress). A `connect` group, 21 checks in about 23 s, always behind Vite.
+  - Against a stub host: every screen in order, the key in no DOM, storage or URL, Forget, the panel, Stream busy, and
+    Pair again.
+  - Against the development loops: a keyless host the tool starts itself, the Read only and bogus keys refused, the
+    pasted key Live with the real projects, the restart road without a re-pair, and Forget.
+- **The world's first paint** (r4-bundle). The page's part of a warm start went from about 0.93 s to 0.70 s, and the
+  Live chip shows about 0.5 s sooner. The cause was React 19's Suspense retry throttle: a lazy root committed 300 ms
+  after its fallback.
+  - No Suspense on the road to the town.
+  - The snapshot is read ahead.
+  - `modulepreload` covers the world's chunks.
+  - three.js has its own chunk.
+- **The person carries well** (r4-carry). A motion may be limited to `carrying`, so the arms hold the package steady
+  while the legs walk.
+- **Labels keep their place** (r4-labels, r4-waittag).
+  - Labels stay out of the fixed UI's boxes and off a rack sign's real box: in 24 pictures, 9 under the chrome and 1
+    over a sign before, 0 and 0 after.
+  - A list of people shows three names and "+N more".
+  - A waiting tag says "waits on Nicky (dev)", so it never reads as a queued person.
+- **crewy's answers** (r4-answers).
+  - The `-lead` name rule never outranks loops.
+  - The doctor prints the remembered archive.
+  - `connect` is first in regress.
+- **Five load flakes made deterministic** (r4-walkflake, r4-hostflake, r4-fakeflake), with the machine at load averages
+  of 40 to 114 under six developers.
+  - The walk check steers through the camera's yaw in bounded key bursts.
+  - The host's tests wait for states, not clocks.
+  - The fake's foreign cursor changes bits that count: the old one was the same token once in 256.
+  - A failed retry test can no longer hang the suite.
+- **The night in pictures** (r4-showcase). A contact sheet of 22 pictures, all live against the development loops,
+  including a person carrying live: crewy moved two tickets into Done, and the world showed "Nicky (dev)" walking them
+  to the Done rack.
+
 ## Challenges with docs/integrators
 
 Read at crewhub-loops `a1bed0f`. Each item names the document, what was unclear, contradictory, missing or marked
