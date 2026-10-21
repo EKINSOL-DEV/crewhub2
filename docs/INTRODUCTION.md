@@ -268,9 +268,10 @@ own app shell with its chat dock, so the chat is exactly loops' because it is lo
 the same browser, the session cookie is `SameSite=Lax`, and `127.0.0.1:<world>` and `127.0.0.1:8091` are one site, so
 the cookie travels into the frame; signed out, loops' own sign-in shows inside it.
 
-The panel's words are honest, because two things are true today: the world cannot open one agent's chat head by itself
-(loops has no address for a chat; the open-chat event is in-page), so the panel says which head to open; and it needs
-the person signed in with loops' bubbles feature on. The world handles no password and keeps no session; the frame's
+The panel's words are honest, because two things are true today: opened from a card, the frame asks loops for that
+agent's chat (`?chat=<agent id>`, which a loops of world/viewer-key cb163004 or later turns into its dock's own open
+and an older loops ignores), so the panel also says which head to open; and it needs the person signed in with loops'
+bubbles feature on. The world handles no password and keeps no session; the frame's
 sandbox is no wider than the chat needs (`CHAT_FRAME_SANDBOX`, each token with its reason), it never gets
 `allow-top-navigation` or `allow-modals`, and "Open in the crewhub-loops app" stays beside the frame as the fallback.
 Escape closes the panel while the focus is outside the frame; the focus returns to the opener.
