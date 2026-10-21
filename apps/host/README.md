@@ -197,7 +197,7 @@ The host answers `/world-api` data routes only to a browser it has paired. The f
    and prints the link.
 2. Opening the link once, within 10 minutes, sets the cookie and lands on `/`. The page never shows the link; the
    host never logs the token, the cookie or the secret (a test greps every response and log line).
-3. A used or expired link gets "This link has expired or was already used. Run `npm run host -- open` for a new one."
+3. A used or expired link gets "This link has expired or was already used. Run `npm run world` for a new one."
 4. Until then the world (live mode) shows its "Pair this browser" page with the command (`npm run world`) and a "Use
    the demo" button; `health.paired` is what it checks. A tab that was live and gets 401 `not_paired` later (a host
    restarted without its secret) shows the same page with the chip word "Pair again" and comes back by itself once a
