@@ -9,7 +9,7 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, it } from "node:test";
-import { type DoctorIo, formatDoctor, runDoctor } from "../src/doctor.ts";
+import { type DoctorIo, formatDoctor, nextStep, plainTime, runDoctor } from "../src/doctor.ts";
 import { PROBE_REASON } from "../src/keyCheck.ts";
 import { createLoopsStub, installation } from "./loopsStub.ts";
 
@@ -77,7 +77,7 @@ describe("the doctor", () => {
     writeFileSync(path.join(configDir, "archived.json"), JSON.stringify({ v: 1, slugs: ["ops-tooling", "beacon"], at: "2026-10-21T01:50:06Z", target: stub.url }), { mode: 0o600 });
     const remembered = byId(await runDoctor({ env, probePort: free }));
     assert.equal(remembered.archive!.status, "ok");
-    assert.match(remembered.archive!.text, /^remembers 2 archived projects \(beacon, ops-tooling\) from http:\/\/127\.0\.0\.1:\d+, learnt 2026-10-21T01:50:06Z/);
+    assert.match(remembered.archive!.text, /^remembers 2 archived projects \(beacon, ops-tooling\) from http:\/\/127\.0\.0\.1:\d+, learnt 2026-10-21 01:50:06 UTC/);
     writeFileSync(path.join(configDir, "archived.json"), "{not json", { mode: 0o600 });
     const broken = byId(await runDoctor({ env, probePort: free }));
     assert.equal(broken.archive!.status, "fix");
@@ -150,5 +150,19 @@ describe("the doctor", () => {
     assert.match(searching.port!.text, /open Crewhub.app; the host looks again every 5 s, no restart needed/);
     const taken = byId(await runDoctor({ env, probePort: () => Promise.resolve({ kind: "taken" }) }));
     assert.match(taken.port!.text, /something else listens/);
+  });
+});
+
+describe("the doctor's words", () => {
+  it("prints the archive's time as a person reads it, never with milliseconds", () => {
+    assert.equal(plainTime("2026-10-21T04:56:46.430Z"), "2026-10-21 04:56:46 UTC");
+    assert.equal(plainTime("2026-10-21T01:50:06Z"), "2026-10-21 01:50:06 UTC");
+    assert.equal(plainTime("yesterday"), "yesterday");
+  });
+  it("ends with the world being up when a host already runs, else with npm run world", () => {
+    const line = (text: string) => ({ lines: [{ id: "port", status: "ok" as const, text }], ok: true });
+    assert.equal(nextStep(line("a host already runs on 127.0.0.1:5195 (loops ok, key crewhub-world); npm run world or npm run host -- open asks it for a link")), "The world is up: npm run world opens the browser on a new link");
+    assert.equal(nextStep(line("127.0.0.1:5180 is free")), "Next: npm run world");
+    assert.match(formatDoctor(line("127.0.0.1:5180 is free")).at(-1)!, /all 1 checks ok\. Next: npm run world$/);
   });
 });
