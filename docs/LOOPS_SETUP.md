@@ -219,8 +219,9 @@ Demo chip, the scenario picker and the playback bar are hidden, the chat corner 
 Chat panel: crewhub-loops' own chat, framed in the world (round 12; also "Chat with <name>" on an agent's card). The
 frame carries your own loops session (sign in to loops in this browser as a person, with chat bubbles switched on in
 loops); signed out, loops' own sign-in shows in the frame, and the world never sees a password or a session. The
-panel says which chat head to open (loops cannot be told which from outside) and always links to the app, the fallback
-for a frame that never loads. The connection chip sits where the Demo chip was. The text view says where chat lives.
+panel opened from a card asks loops for that agent's chat (`?chat=<agent id>`, a loops of world/viewer-key cb163004
+or later; an older loops ignores it, so the panel also says which chat head to open) and always links to the app, the
+fallback for a frame that never loads. The connection chip sits where the Demo chip was. The text view says where chat lives.
 
 Zones: every live project sits in the default zone until crewhub-loops has project groups (L22); zones drawn by
 hand in build mode are kept in the live town document of this installation (one per crewhub-loops web app the host

@@ -84,7 +84,7 @@ export const EN: Record<string, string> = {
   "world.chat.panel.title": "Chat",
   "world.chat.panel.titleWith": "Chat with {name}",
   "world.chat.panel.lead": "This is crewhub-loops' own chat, framed here. Open an agent's chat head in its dock (the Agent chats menu at this width).",
-  "world.chat.panel.leadWith": "This is crewhub-loops' own chat, framed here. Open {name}'s chat head in its dock (the Agent chats menu at this width): the world cannot open it for you.",
+  "world.chat.panel.leadWith": "This is crewhub-loops' own chat, framed here: it opens {name}'s chat (one of loops' chat heads). If your crewhub-loops is older, open {name}'s chat head in its dock (the Agent chats menu at this width).",
   "world.chat.panel.needs": "It needs you signed in to crewhub-loops as a person in this browser, with chat bubbles switched on in crewhub-loops (Settings > Features). Signed out, crewhub-loops' own sign-in shows here; the world handles no password and keeps no session.",
   "world.chat.panel.frame": "crewhub-loops",
   "world.chat.panel.fallback": "If the frame stays empty:",
