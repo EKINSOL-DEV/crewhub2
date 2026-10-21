@@ -906,3 +906,25 @@ gets one small, honest presence; none moves a ticket or an agent, and the projec
 tickets of the storyline) and `owner-request.updated` only to a non-agent principal (so a lead key never sees it, as
 on loops). **Demo** shows the same through the storyline. **Regress**: a check per visible event (dust and its words; the
 board card and its words) in the demo group.
+
+## Addendum: project groups and the director in live mode (2026-10-21, round 7): a proposal, not built
+
+Neither is covered by an accepted spec in a form that can be built without a decision; this addendum writes down the
+options so the decision is quick. **Status: proposed. Nothing below is built.**
+
+**Project groups (L22).** Today a live town puts every project in the default zone (`/world-api/project-groups` answers
+`{groups: []}`), and a person can make zones by hand in the town document, kept in that browser. Three roads:
+1. *Wait for loops* (L22 in the gap analysis): a level above projects in crewhub-loops, read like any other fact.
+2. *The host keeps the groups*: the planned world database in `apps/host` stores zones per loops installation, so every
+   paired browser shares them; the host serves them on the existing route. Needs the world database (planned).
+3. *Keep it per browser* (today): no work, no sharing.
+Recommendation: 2 when the world database is built, 1 when loops has groups; 3 until then.
+
+**The director in live mode.** The scripted director (round 1, `docs/COST_POLICY.md`) runs only in demo mode, off by
+default; the real director (a model behind the host, `docs/ROADMAP.md`) is planned. A middle road needs no model and no
+database: **the same scripted feed in live mode**, off by default, its intents (`goToProp`, `visitAgent`, `gather`,
+`stay`) validated exactly as in the demo, acting only on the world's own figures (never on loops), its plans made from
+the live facts (who is idle in which building). What needs a decision: whether a scripted presence in a world that shows
+real work could be mistaken for real behaviour (the demo labels it; live would need the same "scripted" label on every
+intent and in the text view), and whether it is worth it before the real director.
+Recommendation: build it only with that label and only off by default; else wait for the real director.
