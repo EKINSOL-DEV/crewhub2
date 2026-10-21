@@ -99,7 +99,11 @@ The rules that keep it there:
   recently used keep their interiors; others drop them.
 - **Startup in slices.** Shaders compile in parallel before the first frame; the
   town's first layout yields between tasks of about 30 ms; build mode and the
-  prop editor load when first opened.
+  prop editor load when first opened. Nothing suspends on the road to the town,
+  the snapshot is read ahead and the world's chunks are preloaded; the navigation
+  graph and the walkers come in a task right after the first drawn frame; the
+  Greenhouse models are validated and the director's graph built on first use; the
+  merge writes every vertex once (rounds 4 to 6, the table below).
 - **State without waste.** Messages are coalesced into one reduction per frame,
   and under a heavy stream reductions are spaced by their own cost (20 times the
   last one's, at most 200 ms). The chrome around the scene renders only when its
@@ -188,6 +192,26 @@ now runs its step after at most 400 ms even without idle time (a busy stream lea
 four steps are through in under 2 s instead of 6. The world leaves measures for the tools: `world:sync`,
 `world:shell-built`, `world:dressing-built`, `world:dressing-step` and `world:interior-built`
 (`performance.getEntriesByName`, each with a `detail`).
+
+**The first paint, rounds 4 to 6 (21 October).** Each cut was measured before and after, back to back under the same
+load, on a production build served by the host against the fake's small team (the bench: 7 fresh contexts, the median
+`world:town-dressed` mark since navigation), with the town picture the same to the pixel (at most 51 of 1.3 million
+pixels differ, the walking figures' bands aside) and the regress pass at full marks; the profile is `tools/profile.mjs`.
+
+| Cut | What moved | Bench, before → after |
+| --- | --- | --- |
+| Round 4, `r4-bundle`: no Suspense on the road to the town, the snapshot read ahead, `modulepreload`, three.js in its own chunk | the page's part of a warm start 0.93 → 0.70 s; the Live chip about 0.5 s sooner | measured with `timeworld.mjs`, before the bench existed |
+| Round 5, cut 1: `mergeStatic` writes every vertex once, plain attributes inlined | the merge's share of a warm start 64 → 33 ms (the cost was the per-vertex method calls, not the copies) | 415 → 377 ms |
+| Round 5, cut 2: the navigation graph and the walkers after the first drawn frame | `navigation.ts` 60 → 24 ms and `walks.ts` 48 → 10 ms before dressed; `world:walks` about 30 ms after the first frame | 396 → 367 ms |
+| Round 5, cut 3: the Greenhouse models validated on first use | the 35 ms task at 53 ms after navigation is 26 ms, with `validatePropModel` out of it | 401 → 380 ms |
+| Round 6: the director's graph built on first use | the App chunk's 15 ms evaluation task gone; `world:snapshot` 50 → 35 ms | 382 → 373 ms |
+| Round 6: the scene's `NavWorld` starts with an empty graph | about 10 ms out of the scene's constructor | 394 → 383 and 399 → 374 ms |
+
+From the command (`tools/timeworld.mjs`, warm, against the development loops' 5 projects): the town drawn and dressed
+about 750 ms after `npm run world` before round 5's cuts and about 700 ms after them on a quiet Mac, 1.6 s cold; the
+sixth rehearsal on a busier Mac read 1.33 s warm and 1.78 s cold, the machine and not the code. What is left on the
+road to the first frame is worth a few milliseconds per item (`computeBoundingSphere` over the merged batches, the cast
+registry's validation at import) or touches the style package (the Greenhouse models' Object3D count, Nicky's call).
 
 **The Pretty/Fast switch** costs one long frame of shader recompiles (about 150 ms at 4 projects, 450 ms at 20): a
 setting, not a stream event, left as is (crewy, 21 October).

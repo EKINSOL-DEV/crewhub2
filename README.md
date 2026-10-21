@@ -15,7 +15,9 @@ everywhere. There is no network call, no account and no model call.
 **Live mode is built.** `apps/host`, the world's relay, finds the Mac app (`Crewhub.app`) by
 itself, reads it with one external bot key over loopback TCP or the app's Unix socket, never
 writes to it, and serves the same world with the real projects: `npm run world` is the whole
-morning ([the runbook](docs/LOOPS_SETUP.md)). Planned, **not built**: the host's world
+morning ([the runbook](docs/LOOPS_SETUP.md)), rehearsed from a fresh clone six times. It holds when
+loops stops, when the key is revoked while the town is open and when loops is upgraded under it,
+each with an honest screen. Planned, **not built**: the host's world
 database, the real chat (needs CORS in crewhub-loops, L8) and the real director. See the
 [architecture](docs/ARCHITECTURE.md) and the [roadmap](docs/ROADMAP.md).
 
@@ -23,6 +25,7 @@ Built in demo mode and shown live from the same model:
 
 - A town with one building per project, three rooms by role, and tickets as packages on racks and desks.
 - A person who carries finished work into Done; closed buildings for archived projects.
+- Dust and a clock tag on a ticket that has gone quiet; a card on the building's board when an automation runs.
 - A grid engine with doors, town paths and pathfinding; walk mode; four swappable casts.
 - Build mode with a local town document, and props made with the `prop-builder` skill.
 - A "Where is ...?" lookup, the agent card, and a hidden text view of every fact.
@@ -72,7 +75,7 @@ keep the Greenhouse style.
 | `packages/world-style`, `packages/style-greenhouse` | The style seam and the Greenhouse style ([WORLD_STYLES.md](docs/WORLD_STYLES.md)) | Implemented and tested |
 | `packages/world-cast`, `packages/cast-*` | The cast seam and the four casts | Implemented and tested |
 | [skills/prop-builder](skills/prop-builder/SKILL.md) | Skill: a prop request becomes a valid prop | Implemented and evaluated |
-| [tools](tools/README.md) | Browser checks, measurements, screenshots, the seed and the development crewhub-loops | Tooling, not shipped |
+| [tools](tools/README.md) | Browser checks, measurements, the first-paint profiler, screenshots, the seed and the development crewhub-loops | Tooling, not shipped |
 | [docs](docs/README.md) | Decisions, plan, runbook and handoff | Authoritative for this rebuild |
 
 ## Start the next build
