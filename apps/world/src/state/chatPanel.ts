@@ -7,13 +7,20 @@ import { loopsWebUrl } from "./source.ts";
 
 /**
  * The page the panel frames: the root of the loops web app the host names (`health.loopsWebUrl`), which is the app
- * shell with its chat dock (the "Agent chats" menu at the panel's width). Loops has no chat route and a cross-origin
- * parent cannot send its in-page open-chat event, so the agent is not preselected: the panel says which head to open.
- * Only the origin is used, so nothing else of the URL (a path, a query) reaches the frame.
+ * shell with its chat dock (the "Agent chats" menu at the panel's width). With an agent, `?chat=<loops agent id>`: loops'
+ * web (world/viewer-key cb163004) opens that agent's chat through the dock's own rule once its list is known and then
+ * drops the parameter from the address; the login redirect keeps the query, so the chat opens after a sign-in too. An
+ * older loops ignores the parameter, so the panel's words name the head to open as well. The world's agent key is
+ * loops' agent id for a registered agent; a worker's key (`session/name`) names nothing in the dock, and loops says
+ * nothing about an unknown name. Only the origin of the host's URL is used, so nothing else of it reaches the frame.
  */
-export function chatFrameUrl(health: HostHealth | null | undefined): string {
-  return `${new URL(loopsWebUrl(health)).origin}/`;
+export function chatFrameUrl(health: HostHealth | null | undefined, agent: string | null = null): string {
+  const root = `${new URL(loopsWebUrl(health)).origin}/`;
+  return agent ? `${root}?${CHAT_PARAM}=${encodeURIComponent(agent)}` : root;
 }
+
+/** Loops' query parameter for one agent's chat (`apps/web/src/components/bubbles/openChat.ts` `OPEN_CHAT_PARAM`). */
+export const CHAT_PARAM = "chat";
 
 /**
  * What the framed loops web may do, no wider than its chat needs. Each token and why:
