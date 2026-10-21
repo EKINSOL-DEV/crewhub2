@@ -34,7 +34,8 @@ export interface Label {
   card: boolean;
   /** The visibility last written to the element. */
   shown: boolean;
-  /** The anchor's screen y this frame, before nudging. */
+  /** The anchor's screen position this frame, before nudging. */
+  ax: number;
   ay: number;
   /** Faded: pushed far from its anchor (class label-far). A room sign over a robot or its stack (class label-yield). */
   far: boolean;
@@ -45,6 +46,13 @@ export interface Label {
   nx: number;
   ny: number;
   visible: boolean;
+  /**
+   * The offset from the anchor as applied: the layout's offset (`nx - ax`, `ny - ay`) eased over a few hundred
+   * milliseconds, so a label sent to a new place (a neighbour gone, its package on a freed slot) glides there while
+   * its anchor's own motion (the camera, a carried package) shows at once (placeLabels).
+   */
+  odx: number;
+  ody: number;
 }
 
 /** A robot on screen: its centre x and its box from just over its head to its feet. */

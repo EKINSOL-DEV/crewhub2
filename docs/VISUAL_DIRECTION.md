@@ -333,7 +333,10 @@ Settings has a **Graphics** choice: **Pretty** (the default) or **Fast**. It is 
   civic labels, need pins, district cards) are stacks among themselves: on a phone with Details on, a sign that would
   cover the one in front moves up above it, and they never fade or hide for it. A person's pill is placed last and
   climbs over the tags it passes; the person's figure pushes no tag aside, so the rack's "waits on" tags hold still
-  in a film.
+  in a film. A label's offset from its anchor (what the nudge and the chrome gave it) eases over about 300 ms, so a
+  tag sent to a new place when a neighbour goes glides there instead of hopping, while its anchor's own motion (the
+  camera, a carried package) shows at once; robots' and persons' pills, the card, reduced motion and a moving camera
+  snap.
 - **A label never hides its robot** (`apps/world/src/world/labelLayout.ts`). The robots are the hero of each room.
   - The hovered or selected robot's plate is placed first, then every robot's own stack, each just over its head: the
     name pill stays closest.

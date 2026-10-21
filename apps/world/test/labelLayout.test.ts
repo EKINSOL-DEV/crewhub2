@@ -25,10 +25,13 @@ function label(id: string, x: number, y: number, half = 30, height = 20, extra: 
     y: Number.NaN,
     nx: x,
     ny: y,
+    ax: x,
     ay: y,
     visible: true,
     far: false,
     yields: false,
+    odx: 0,
+    ody: 0,
     ...extra,
   };
 }
