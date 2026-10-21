@@ -3,6 +3,9 @@
    checked for a moment and then connected; the key itself is read and dropped, never logged) and `DELETE /world-api/connect`
    (back to the connect state). In the `connected` state everything else under `/world-api` goes to a real host (apps/host,
    pairing off) over the fake crewhub-loops (packages/loops-fake), both started here on 127.0.0.1, so the town is real.
+   The `unpaired` state is a host that no longer knows the browser's pairing (a restart without its secret): health says
+   `paired: false` with states only, and everything else under `/world-api` answers 401 `not_paired`. A state change ends
+   every stream the stub was proxying, so an open tab meets the new state at once, as it would after a host restart.
 
    Tooling only, like everything in tools/: it listens on 127.0.0.1 and reaches nothing but the fake and the host it starts. */
 import { createServer, request as httpRequest } from "node:http";
@@ -11,7 +14,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
-export const STUB_STATES = ["no-loops", "pair", "connect", "checking", "rejected", "loops-down", "connected", "busy", "older"];
+export const STUB_STATES = ["no-loops", "pair", "connect", "checking", "rejected", "loops-down", "connected", "busy", "older", "unpaired"];
 const BUSY_REASON = "stream budget exhausted (429): another host or tab uses this key; crewhub-loops admits four streams per key";
 const APP_PORT_TARGET = "http://127.0.0.1:8091";
 const APP_SOCKET_TARGET = "~/Library/Application Support/be.ekinsol.crewhub/run/api.sock";
@@ -29,6 +32,8 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
   let lastEventAt = null;
   let reconnects = 2;
   let pending = null;
+  /** The streams being proxied right now ({ res, upstream, answer }), ended on a state change. */
+  const streams = new Set();
 
   async function ensureInner() {
     if (inner) return inner;
@@ -73,6 +78,8 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
         return { ...base, loops: "down", paired: false, connection: { discovery: { state: "searching" }, key: { state: "none" }, stream: { state: "idle", reconnects: 0 } } };
       case "pair":
         return { ...base, loops: "down", paired: false, connection: { discovery: { state: "found" }, key: { state: "none" }, stream: { state: "idle", reconnects: 0 } } };
+      case "unpaired":
+        return { ...base, loops: "ok", paired: false, transport: "unix", loopsWebUrl: APP_PORT_TARGET, connection: { discovery: { state: "found" }, key: { state: "ok" }, stream: { state: "ok", reconnects: 0 } } };
       case "connect":
         return { ...base, loops: "down", paired: true, loopsWebUrl: APP_PORT_TARGET, connection: { discovery: { state: "found", via: "app-port", target: APP_PORT_TARGET }, key: { state: "none" }, stream: { state: "idle", reconnects: 0 } } };
       case "checking":
@@ -163,19 +170,36 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
 
   function proxy(req, res, target) {
     const url = new URL(target);
+    const entry = { res, upstream: null, answer: null };
     const upstream = httpRequest(
       { host: url.hostname, port: url.port, method: req.method, path: req.url, headers: { ...req.headers, host: url.host, "accept-encoding": "identity" } },
       (answer) => {
+        entry.answer = answer;
         res.writeHead(answer.statusCode ?? 502, answer.headers);
         answer.pipe(res);
       },
     );
+    entry.upstream = upstream;
     upstream.on("error", () => {
       if (!res.headersSent) send(res, 502, { error: "stub_proxy" });
       else res.end();
     });
     req.pipe(upstream);
-    res.on("close", () => upstream.destroy());
+    if (req.url?.startsWith("/world-api/stream")) streams.add(entry);
+    res.on("close", () => {
+      streams.delete(entry);
+      upstream.destroy();
+    });
+  }
+
+  /** Ends every proxied stream cleanly (as loops' own 300 s end does), so the tab asks again and meets the new state. */
+  function endStreams() {
+    for (const entry of streams) {
+      streams.delete(entry);
+      entry.answer?.unpipe(entry.res);
+      entry.res.end();
+      entry.upstream?.destroy();
+    }
   }
 
   const server = createServer(async (req, res) => {
@@ -201,6 +225,7 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
       return send(res, 200, { state: current });
     }
     if (url.pathname.startsWith("/world-api/")) {
+      if (current === "unpaired") return send(res, 401, { error: "not_paired" });
       if (current !== "connected" && current !== "older" && current !== "busy") return send(res, 503, { error: current === "rejected" ? "unauthorized" : "loops_down" });
       const { host } = await ensureInner();
       if (current === "busy" && url.pathname === "/world-api/stream") return busyStream(res);
@@ -214,9 +239,11 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
   async function setState(next) {
     if (!STUB_STATES.includes(next)) throw new Error(`unknown stub state ${next}`);
     clearTimeout(pending);
+    const changed = next !== current;
     current = next;
     startedAt = Date.now();
     if (next === "connected" || next === "older" || next === "busy") await ensureInner();
+    if (changed) endStreams();
   }
 
   return {
@@ -231,6 +258,7 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
     setState,
     async close() {
       clearTimeout(pending);
+      endStreams();
       await new Promise((resolve) => server.close(() => resolve()));
       if (inner) {
         await inner.host.close();
