@@ -2,6 +2,9 @@
  * Assembles one `LoopsSnapshot` the way read-model.md "Loading a snapshot" says: the cursor first (the stream's
  * position, so no event between the reads and the stream is lost), then projects, boards, people, agents, team,
  * watchdog, and milestones and releases where the feature is on. Lists are paged (`nextCursor`): every page is read.
+ * The reads of one snapshot run in parallel under a cap (`concurrency`, default 6: loops is one process, and a studio
+ * of twenty projects is forty board and feature reads), in the projects' order; every read is timed and counted, so
+ * the host can say "5 projects, 31 reads in 118 ms" and show the page how far it is (`onProgress`).
  */
 import type {
   AgentOut,
@@ -29,21 +32,73 @@ interface FeatureOut {
   value: unknown;
 }
 
+/** One read of loops during the assembly: the path and how long it took. */
+export interface SnapshotRead {
+  path: string;
+  ms: number;
+  status: number;
+}
+
+/** How far an assembly is: known once the project list is in. */
+export interface SnapshotProgress {
+  /** Active projects to read, once the list is in; null before. */
+  projects: number | null;
+  /** Reads finished so far. */
+  reads: number;
+}
+
+export const DEFAULT_CONCURRENCY = 6;
+
+/**
+ * `Promise.all(items.map(fn))` under a cap: never more than `limit` calls of `fn` in flight, started in the items'
+ * order, the results in the items' order. The first rejection rejects the whole (the rest finish on their own).
+ */
+export async function mapLimit<T, R>(items: readonly T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  const cap = Math.max(1, Math.floor(limit));
+  const results: R[] = new Array<R>(items.length);
+  let next = 0;
+  async function worker(): Promise<void> {
+    while (next < items.length) {
+      const index = next;
+      next += 1;
+      results[index] = await fn(items[index] as T, index);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(cap, items.length) }, () => worker()));
+  return results;
+}
+
+/** The client with the reads counted and timed. */
+interface Reader {
+  getJson<T>(path: string, query?: Record<string, string>): Promise<{ status: number; body: T | null }>;
+}
+
+function timed(client: LoopsClient, onRead: (read: SnapshotRead) => void): Reader {
+  return {
+    async getJson<T>(path: string, query: Record<string, string> = {}) {
+      const started = performance.now();
+      const out = await client.getJson<T>(path, query);
+      onRead({ path, ms: performance.now() - started, status: out.status });
+      return out;
+    },
+  };
+}
+
 /** A read that must succeed: 401/403 is `unauthorized`, anything else that is not 200 is `loops_down`. */
-async function must<T>(client: LoopsClient, path: string, query: Record<string, string> = {}): Promise<T> {
+async function must<T>(client: Reader, path: string, query: Record<string, string> = {}): Promise<T> {
   const { status, body } = await client.getJson<T>(path, query);
   if (status === 200 && body !== null) return body;
   if (isUnauthorized(status)) throw new SnapshotError("unauthorized", `${path} answered ${status}`);
   throw new SnapshotError("loops_down", `${path} answered ${status}`);
 }
 
-/** Follows `nextCursor` until the last page; `pick` names the list in each page. */
-async function allPages<T>(client: LoopsClient, path: string, pick: (page: Record<string, unknown>) => T[]): Promise<T[]> {
+/** Follows `nextCursor` until the last page; `pick` names the list in each page. `first` is the first page when it was read already. */
+async function allPages<T>(client: Reader, path: string, pick: (page: Record<string, unknown>) => T[], first: Record<string, unknown> | null = null): Promise<T[]> {
   const out: T[] = [];
   let cursor: string | null = null;
   for (let guard = 0; guard < 1000; guard += 1) {
     const query: Record<string, string> = cursor === null ? {} : { cursor };
-    const page = await must<Record<string, unknown>>(client, path, query);
+    const page = guard === 0 && first !== null ? first : await must<Record<string, unknown>>(client, path, query);
     out.push(...pick(page));
     const next = page.nextCursor;
     if (typeof next !== "string" || next === "") break;
@@ -53,17 +108,21 @@ async function allPages<T>(client: LoopsClient, path: string, pick: (page: Recor
 }
 
 /** Milestones or releases of a project: `[]` when the feature is off (409 `feature_off`). */
-async function featured<T>(client: LoopsClient, path: string, pick: (page: Record<string, unknown>) => T[]): Promise<T[] | null> {
+async function featured<T>(client: Reader, path: string, pick: (page: Record<string, unknown>) => T[]): Promise<T[] | null> {
   const first = await client.getJson<Record<string, unknown>>(path);
   if (first.status === 409) return null;
-  return allPages(client, path, pick);
+  if (first.status !== 200 || first.body === null) {
+    if (isUnauthorized(first.status)) throw new SnapshotError("unauthorized", `${path} answered ${first.status}`);
+    throw new SnapshotError("loops_down", `${path} answered ${first.status}`);
+  }
+  return allPages(client, path, pick, first.body);
 }
 
 /**
  * Reads the projects, with the archived ones when the key may see them (an agent key gets 403 for `includeArchived`;
  * then `complete` is false and the archived ones are found through the event log).
  */
-async function readProjects(client: LoopsClient): Promise<{ projects: ProjectOut[]; complete: boolean }> {
+async function readProjects(client: Reader): Promise<{ projects: ProjectOut[]; complete: boolean }> {
   const withArchived = await client.getJson<{ projects: ProjectOut[] }>("/api/projects", { includeArchived: "true" });
   if (withArchived.status === 200 && withArchived.body !== null) return { projects: withArchived.body.projects, complete: true };
   if (withArchived.status === 401) throw new SnapshotError("unauthorized", "/api/projects answered 401");
@@ -82,7 +141,7 @@ const ARCHIVE_TYPES = "project.archived,project.restored";
  * `unauthorized`, but any other answer than 200 (a loops that will not read its log from `after=0`, as the fake
  * answers 410 after a restart) ends the search with what it found; the stream's own archive events still count.
  */
-export async function archivedSlugsFromEvents(client: LoopsClient): Promise<string[]> {
+export async function archivedSlugsFromEvents(client: Reader): Promise<string[]> {
   const last = new Map<string, string>();
   let after = 0;
   for (let guard = 0; guard < 1000; guard += 1) {
@@ -109,45 +168,91 @@ export interface SnapshotOptions {
   knownArchivedSlugs?: Iterable<string>;
   /** The host's own principal (the key's agent, as loops named it): the observer the world hides from the figures. */
   observer?: string | null;
+  /** Reads in flight at most (default 6). */
+  concurrency?: number;
+  /** Every read as it finishes, with its time. */
+  onRead?: (read: SnapshotRead) => void;
+  /** How far the assembly is, after the project list and after every read. */
+  onProgress?: (progress: SnapshotProgress) => void;
 }
 
-export async function assembleSnapshot(client: LoopsClient, options: SnapshotOptions): Promise<LoopsSnapshot> {
-  const { projects: listed, complete } = await readProjects(client);
+/** What one assembly cost: for the step line and the health's `snapshot`. */
+export interface SnapshotStats {
+  projects: number;
+  reads: number;
+  ms: number;
+  /** The slowest read, when there was one. */
+  slowest: SnapshotRead | null;
+}
+
+export interface AssembledSnapshot {
+  snapshot: LoopsSnapshot;
+  stats: SnapshotStats;
+}
+
+export async function assembleSnapshot(client: LoopsClient, options: SnapshotOptions): Promise<AssembledSnapshot> {
+  const started = performance.now();
+  const progress: SnapshotProgress = { projects: null, reads: 0 };
+  let slowest: SnapshotRead | null = null;
+  const reader = timed(client, (read) => {
+    progress.reads += 1;
+    if (slowest === null || read.ms > slowest.ms) slowest = read;
+    options.onRead?.(read);
+    options.onProgress?.({ ...progress });
+  });
+  const limit = options.concurrency ?? DEFAULT_CONCURRENCY;
+
+  const { projects: listed, complete } = await readProjects(reader);
   const projects = listed.filter((p) => p.archivedAt === null || p.archivedAt === undefined);
   const archivedProjects = listed.filter((p) => typeof p.archivedAt === "string");
+  progress.projects = projects.length;
+  options.onProgress?.({ ...progress });
   const seen = new Set(listed.map((p) => p.slug));
-  // Archived projects the list left out: the ones the log says are archived, and the ones the host's stream saw.
-  const fromLog = complete ? [] : await archivedSlugsFromEvents(client);
-  for (const slug of new Set([...fromLog, ...(options.knownArchivedSlugs ?? [])])) {
-    if (seen.has(slug)) continue;
-    seen.add(slug);
-    const one = await client.getJson<{ project: ProjectOut }>("/api/projects/{slug}".replace("{slug}", encodeURIComponent(slug)));
-    if (one.status === 200 && one.body?.project !== undefined && typeof one.body.project.archivedAt === "string") {
-      archivedProjects.push(one.body.project);
-    }
+  // Archived projects the list left out: the ones the log says are archived, and the ones the host's stream saw;
+  // read one by one under the same cap, in order, counted and timed like every other read.
+  const fromLog = complete ? [] : await archivedSlugsFromEvents(reader);
+  const unseen = [...new Set([...fromLog, ...(options.knownArchivedSlugs ?? [])])].filter((slug) => !seen.has(slug));
+  const ones = await mapLimit(unseen, limit, (slug) => reader.getJson<{ project: ProjectOut }>("/api/projects/{slug}".replace("{slug}", encodeURIComponent(slug))));
+  for (const one of ones) {
+    if (one.status === 200 && one.body?.project !== undefined && typeof one.body.project.archivedAt === "string") archivedProjects.push(one.body.project);
   }
 
-  const perProject = await Promise.all(
-    projects.map(async (project) => {
+  // The reads of every project, flattened into one capped queue in the projects' order: the board and the features of
+  // every project first (two reads each), then the milestones and releases of those that have the feature on.
+  type Read = () => Promise<unknown>;
+  const firsts = await mapLimit(
+    projects.flatMap((project): Read[] => {
       const slug = encodeURIComponent(project.slug);
-      const [board, features] = await Promise.all([
-        must<BoardResponse>(client, `/api/board/${slug}`),
-        must<{ features: FeatureOut[] }>(client, `/api/projects/${slug}/features`),
-      ]);
-      const on = (key: string) => features.features.some((f) => f.key === key && f.value === true);
-      const [milestones, releases] = await Promise.all([
-        on("milestones") ? featured<MilestoneSummary>(client, `/api/projects/${slug}/milestones`, (p) => (p.milestones as MilestoneSummary[]) ?? []) : null,
-        on("releases") ? featured<ReleaseSummary>(client, `/api/projects/${slug}/releases`, (p) => (p.releases as ReleaseSummary[]) ?? []) : null,
-      ]);
-      return { slug: project.slug, board, milestones, releases };
+      return [() => must<BoardResponse>(reader, `/api/board/${slug}`), () => must<{ features: FeatureOut[] }>(reader, `/api/projects/${slug}/features`)];
     }),
+    limit,
+    (read) => read(),
   );
+  const seconds = await mapLimit(
+    projects.flatMap((project, index): Read[] => {
+      const slug = encodeURIComponent(project.slug);
+      const features = (firsts[index * 2 + 1] as { features: FeatureOut[] }).features;
+      const on = (key: string) => features.some((f) => f.key === key && f.value === true);
+      return [
+        on("milestones") ? () => featured<MilestoneSummary>(reader, `/api/projects/${slug}/milestones`, (p) => (p.milestones as MilestoneSummary[]) ?? []) : () => Promise.resolve(null),
+        on("releases") ? () => featured<ReleaseSummary>(reader, `/api/projects/${slug}/releases`, (p) => (p.releases as ReleaseSummary[]) ?? []) : () => Promise.resolve(null),
+      ];
+    }),
+    limit,
+    (read) => read(),
+  );
+  const perProject = projects.map((project, index) => ({
+    slug: project.slug,
+    board: firsts[index * 2] as BoardResponse,
+    milestones: seconds[index * 2] as MilestoneSummary[] | null,
+    releases: seconds[index * 2 + 1] as ReleaseSummary[] | null,
+  }));
 
   const [principals, agents, team, watchdog] = await Promise.all([
-    must<{ principals: PrincipalOut[] }>(client, "/api/principals"),
-    must<{ agents: AgentOut[] }>(client, "/api/agents"),
-    must<TeamSnapshot>(client, "/api/team"),
-    must<WatchdogResponse>(client, "/api/watchdog"),
+    must<{ principals: PrincipalOut[] }>(reader, "/api/principals"),
+    must<{ agents: AgentOut[] }>(reader, "/api/agents"),
+    must<TeamSnapshot>(reader, "/api/team"),
+    must<WatchdogResponse>(reader, "/api/watchdog"),
   ]);
 
   const snapshot: LoopsSnapshot = {
@@ -164,7 +269,7 @@ export async function assembleSnapshot(client: LoopsClient, options: SnapshotOpt
     releases: Object.fromEntries(perProject.filter((p) => p.releases !== null).map((p) => [p.slug, p.releases as ReleaseSummary[]])),
     groups: [],
   };
-  return snapshot;
+  return { snapshot, stats: { projects: projects.length, reads: progress.reads, ms: performance.now() - started, slowest } };
 }
 
 /** Where the event log stands for this key: `lastSeq` (the newest event it may see) and, since CL-406, a sealed cursor for "now". */
