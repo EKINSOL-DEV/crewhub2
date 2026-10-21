@@ -5,6 +5,9 @@ A playful 3D browser world for the AI agents you already use.
 CrewHub World is a thin 3D layer on [crewhub-loops](docs/decisions/0005-crewhub-world-on-loops.md).
 Every project is a building, agents sit in rooms by role, and tickets are physical
 work objects that move through the rooms by status. Nothing in it controls an agent.
+[The introduction](docs/INTRODUCTION.md) tells the whole of it for a reader who knows crewhub-loops:
+the town and what every loops fact becomes, demo and live mode, how it connects, the chat, and what is
+proposed on the loops side.
 
 ## Current state
 

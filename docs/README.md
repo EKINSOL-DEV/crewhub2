@@ -4,6 +4,7 @@ These are the active documents for the browser-world rebuild. All are in English
 
 | Document | Purpose |
 | --- | --- |
+| [INTRODUCTION.md](INTRODUCTION.md) | Start here: an extensive introduction for a reader who knows crewhub-loops and has never seen the world; the town and its parts, one table of loops object or event to world thing, demo and live mode, how it connects, the chat as built, the loops-side proposals, where to read next (with pictures) |
 | [VISION.md](VISION.md) | User goals, product principles, and success criteria |
 | [VISUAL_DIRECTION.md](VISUAL_DIRECTION.md) | Art direction, interactions, and visual quality bar |
 | [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) | The crewhub-loops design system: tokens, primitives, theme, status mapping and checks |
