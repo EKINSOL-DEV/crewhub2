@@ -817,11 +817,12 @@ export class DemoReads {
       id: a.id,
       displayName: a.displayName,
       role: a.role,
-      herdrSession: this.state.content.session,
+      herdrSession: a.external === true ? "external:none" : this.state.content.session,
       disabled: false,
       lastSeenAt: iso(this.state.now - 40 * SECOND),
       keys: null,
       isCrewhubLead: a.isCrewhubLead,
+      external: a.external === true,
       successorId: null,
       projects: {
         lead: active.filter((p) => p.leadId === a.id).map(ref),
@@ -986,6 +987,8 @@ export class DemoReads {
       this.state.projects.filter((p) => p.archivedAt === null && p.features[feature]).map((p) => p.slug);
     return {
       cursor: this.state.seq,
+      // The demo host's own principal, as the live host sets it from its key: the world hides it (the observer).
+      observer: this.state.content.observer,
       projects: this.projects(),
       archivedProjects: this.archivedProjects(),
       boards: Object.fromEntries(this.state.order.map((slug) => [slug, this.board(slug) as BoardResponse])),

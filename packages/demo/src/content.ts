@@ -37,12 +37,23 @@ export interface AgentSeed {
   isCrewhubLead: boolean;
   /** The projects the agent is a member of without leading them (`AgentOut.projects.member`), as slugs. */
   memberOf: string[];
+  /** An external bot (CL-314): a key used from another program, with no lane, no pane and no herdr session. */
+  external?: boolean;
 }
 
 export const PEOPLE: PersonSeed[] = [
   { id: "nicky", displayName: "Nicky", role: "admin" },
   { id: "sam", displayName: "Sam", role: "member" },
 ];
+
+/**
+ * The world's own key, as a live installation has it: an external bot of role lead, member of nothing. Every scenario
+ * lists it and names it as its observer (`DemoContent.observer`), so the world hides it from the figures and the
+ * counts and the text view says so, exactly as live with the host's key.
+ */
+export const WORLD_KEY_BOT: AgentSeed = { id: "crewhub-world", displayName: "CrewHub World", role: "lead", isCrewhubLead: false, memberOf: [], external: true };
+/** Another external bot (a CI runner with a key of its own): it stands in the town hall, as every other bot does on a live loops. */
+export const CI_BOT: AgentSeed = { id: "ci-bot", displayName: "CI bot", role: "lead", isCrewhubLead: false, memberOf: [], external: true };
 
 export const AGENTS: AgentSeed[] = [
   { id: "g-man", displayName: "G-Man", role: "lead", isCrewhubLead: true, memberOf: [] },
@@ -63,6 +74,8 @@ export const AGENTS: AgentSeed[] = [
     memberOf: ["crewhub-loops", "marketing"],
   },
   { id: "ux-lead", displayName: "UX Lead", role: "lead", isCrewhubLead: false, memberOf: ["marketing"] },
+  WORLD_KEY_BOT,
+  CI_BOT,
   { id: "postman", displayName: "Postman", role: "router", isCrewhubLead: false, memberOf: [] },
   { id: "team-probe", displayName: "Team probe", role: "probe", isCrewhubLead: false, memberOf: [] },
 ];
@@ -845,6 +858,11 @@ export const DM_HISTORY: DmSeed[] = [
 export interface DemoContent {
   /** The herdr session every lane runs in. */
   session: string;
+  /**
+   * The demo host's own principal (what `GET /api/auth/me` would name): the observer, which the world never shows as a
+   * figure, as the live host sets it from its key (`LoopsSnapshot.observer`). Null when a scenario has no such agent.
+   */
+  observer: string | null;
   people: PersonSeed[];
   agents: AgentSeed[];
   /** In sidebar order; archived ones are appended to the order when they are restored. */
@@ -866,6 +884,7 @@ export interface DemoContent {
 /** "Small team": the four projects of the original demo, the default scenario. */
 export const SMALL_TEAM: DemoContent = {
   session: DEMO_SESSION,
+  observer: WORLD_KEY_BOT.id,
   people: PEOPLE,
   agents: AGENTS,
   projects: PROJECTS,

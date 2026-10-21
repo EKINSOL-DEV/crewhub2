@@ -36,6 +36,13 @@ test("the demo's agents carry lanes in loops' shape: desired and observed, drift
   assert.equal(by("cl-lead").lane?.pane, "w2:p7");
   assert.equal(by("cr-lead").lane?.pane, "w1:p2");
   assert.equal(out.length, 8);
+  // An external bot (the world's own key on a live installation): the flag kept, no lane, no login or mail flags.
+  const bot = withLanes([{ ...agent("crewhub-world"), herdrSession: "external:none", external: true }], NOW)[0]!;
+  assert.equal(bot.external, true);
+  assert.equal(bot.lane, null);
+  assert.equal(bot.needsLoginSince, null);
+  assert.equal(bot.notPickedUp, 0);
+  assert.deepEqual(bot.computer, DEMO_COMPUTER);
   // An agent of another scenario gets the default lane, deterministic.
   const fn = laneOf(agent("fn-lead"), "w1:p4", NOW);
   assert.deepEqual(laneOf(agent("fn-lead"), "w1:p4", NOW), fn);

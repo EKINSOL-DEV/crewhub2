@@ -22,6 +22,8 @@ chip, or `?scenario=<id>`) are in [Scenarios](#scenarios) at the end.
 | `marky` | agent | lead | Leads MK. It has no `-lead` name, so no worker maps to it. |
 | `analyst` | agent | lead | A member of CL and MK (`projects.member`); holds in-progress tickets in CL (CL-40) and MK (MK-12): it works in two buildings. |
 | `ux-lead` | agent | lead | A member of MK; works there through MK-9; a delivery to it ends `unroutable`. |
+| `crewhub-world` | agent | lead, **external bot** | The world's own key, as a live installation has it: `external: true`, session `external:none`, no lane, member of nothing. The snapshot names it as the **observer** (`DemoContent.observer`, what the live host sets from its key), so the world hides it from the figures and the counts and the text view says "crewhub-world (this world's key) is not shown: it is the observer, not a worker". Every scenario lists it. |
+| `ci-bot` | agent | lead, **external bot** | A CI runner with a key of its own: another external bot, member of nothing, so it stands in the lodge (the town hall), as every other bot does on a live loops. |
 | `postman` | agent | router | Claims and forwards every delivery. |
 | `team-probe` | agent | probe | Uploads the team snapshot. Never shown. |
 

@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { toWorldEvent, validateEnvelope, validateLoopsSnapshot, validateTeamSnapshot } from "@crewhub/loops-client";
 import type { Result, SourceMessage } from "@crewhub/loops-client";
-import { Projection, emptyMemory, reduceWorld } from "@crewhub/world-model";
+import { Projection, describeWorld, emptyMemory, reduceWorld } from "@crewhub/world-model";
 import type { WorldModel } from "@crewhub/world-model";
 import { createManualScheduler } from "../src/scheduler.ts";
 import { type ScenarioId, DEFAULT_SCENARIO, SCENARIO_IDS, demoScenario, demoScenarios, parseScenarioId } from "../src/scenarios.ts";
@@ -65,7 +65,15 @@ for (const id of SCENARIO_IDS) {
     const { messages } = play(id, demoScenario(id).story.durationMs + 20_000);
     assert.equal(messages.filter((m) => m.type === "snapshot").length, 2);
     for (const message of messages) {
-      if (message.type === "snapshot") valid(validateLoopsSnapshot(message.snapshot), "snapshot");
+      if (message.type === "snapshot") {
+        valid(validateLoopsSnapshot(message.snapshot), "snapshot");
+        // The world's own key is the observer, as the live host sets it: listed as the external bot it is, hidden by the world.
+        assert.equal(message.snapshot.observer, "crewhub-world");
+        const bot = message.snapshot.agents.find((a) => a.id === "crewhub-world");
+        assert.equal(bot?.external, true);
+        assert.equal(bot?.lane, null);
+        assert.equal(bot?.herdrSession, "external:none");
+      }
       if (message.type === "team") valid(validateTeamSnapshot(message.team), "team");
       if (message.type === "event") {
         valid(validateEnvelope(message.envelope), `${message.envelope.type} #${message.envelope.seq}`);
@@ -232,4 +240,14 @@ test("no scenario but Studio has groups: the future field stays out of the strea
     assert.deepEqual(await source.listProjectGroups(), []);
     assert.ok(!JSON.stringify(messages).includes("groupId"));
   }
+});
+
+test("small team: the world's key is hidden as the observer and the text view says so; the other external bot stands in the town hall", async () => {
+  const { model } = await worldAt("small-team", 0);
+  assert.equal(model.observer, "crewhub-world");
+  const figures = [...model.townHall, ...model.postOffice, ...model.buildings.flatMap((b) => b.agents)].map((a) => a.name);
+  assert.ok(!figures.includes("crewhub-world"), `the observer is no figure: ${figures.join(", ")}`);
+  assert.ok(model.townHall.some((a) => a.name === "ci-bot"), `the CI bot stands in the town hall: ${model.townHall.map((a) => a.name).join(", ")}`);
+  const text = describeWorld(model).map((line) => line.text);
+  assert.ok(text.includes("crewhub-world (this world's key) is not shown: it is the observer, not a worker."), text.filter((l) => /observer|ci-bot|CI bot/i.test(l)).join("\n"));
 });
