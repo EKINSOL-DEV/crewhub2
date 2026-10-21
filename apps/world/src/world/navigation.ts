@@ -327,11 +327,16 @@ export class NavWorld {
   #townSynced: { plan: TownPlan; walkways: readonly Bounds[]; standing: string } | null = null;
   #usedLots = new Set<string>();
 
+  /**
+   * An empty graph: the town rooms come with the first `sync` (`#syncTown`; a plan always holds the central district,
+   * `planTown`, so the central room is always laid then). Laying out and validating the standalone empty town's room
+   * here cost ~10 ms in the scene's constructor for a room the first sync replaced, and nothing reads a town room
+   * before that sync: the walk runtime's ticks run an empty simulation, `toWorld` and `groundAt` are geometry, and a
+   * walk, a follow or a director's intent brings the sync first (TownScene `#ensureWalks`).
+   */
   constructor() {
     this.definitions = { ...interiorDefinitions };
     this.graph = new NavGraph(this.definitions as Definitions);
-    const plan = standalonePlan([]);
-    this.graph.addRoom({ id: TOWN_ROOM, layout: this.#townLayout(plan, CENTRAL_SLOT, townWalkways(plan))! });
     this.sim = new NavSimulation(this.graph, []);
   }
 
