@@ -44,6 +44,8 @@ interface FakeHost {
   teamReads: number;
   cursor: number;
   snapshotStatus: number;
+  /** Not 200: the stream request is refused with that status (the host is not well); a reconnect back-off grows on it. */
+  streamStatus: number;
   /** False: the host no longer knows this browser's cookie; the snapshot and the stream answer 401 not_paired. */
   paired: boolean;
   /** Called at every snapshot ask (a test times the retries). */
@@ -85,6 +87,7 @@ async function startHost(): Promise<FakeHost> {
     teamReads: 0,
     cursor: 100,
     snapshotStatus: 200,
+    streamStatus: 200,
     paired: true,
     push(message) {
       const text = JSON.stringify(message);
@@ -122,6 +125,7 @@ async function startHost(): Promise<FakeHost> {
     if (url.pathname === "/world-api/stream") {
       host.cursors.push(url.searchParams.get("cursor"));
       if (!host.paired) return json(res, 401, { error: "not_paired" });
+      if (host.streamStatus !== 200) return json(res, host.streamStatus, { error: "loops_down" });
       res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });
       res.write(`: welcome\ndata: ${JSON.stringify({ type: "status", loops: "ok" })}\n\n`);
       streams.add(res);
@@ -443,6 +447,59 @@ test("before the first snapshot the retry is capped at firstRetryMaxMs; after it
     host.snapshotStatus = 200;
     await askAfterPause(13, 160);
     await settle(() => run.state() === "live", "live again");
+  } finally {
+    run.stop();
+    globalThis.setTimeout = mocked;
+    t.mock.timers.reset();
+    host.endStreams();
+    await host.close();
+  }
+});
+
+test("unpaired after a back-off that grew while the host was away: the next ask comes at retryMinMs, then capped at firstRetryMaxMs", async (t) => {
+  // The morning's restart road: the host goes away, the tab's reconnects back off (10, 20, 40, 80 here; up to ten
+  // seconds in life), then the new host answers 401 not_paired. The person is opening the new link now, so the
+  // pauses must shrink at once, not ride the grown back-off (it kept the Pair screen and then the town waiting ~5 s).
+  const host = await startHost();
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const pauses: number[] = [];
+  const mocked = globalThis.setTimeout;
+  const spy = (fn: (...args: unknown[]) => void, ms?: number, ...args: unknown[]) => {
+    if (typeof ms === "number" && ms < 1000 && (new Error().stack ?? "").includes("/src/hostSource.ts")) pauses.push(ms);
+    return mocked(fn, ms, ...args);
+  };
+  globalThis.setTimeout = spy as unknown as typeof setTimeout;
+  const run = observe(host.url, { timings: { ...TIMINGS, staleMs: 60_000, retryMinMs: 10, retryMaxMs: 400, firstRetryMaxMs: 30 } });
+  const pauseThenTick = async (n: number, delay: number, what: string): Promise<void> => {
+    await settle(() => pauses.length >= n, `pause ${n} (${what})`);
+    assert.equal(pauses[n - 1], delay, `pause ${n} (${what}): ${pauses.join(",")}`);
+    t.mock.timers.tick(delay);
+  };
+  try {
+    await settle(() => run.state() === "live" && host.cursors.length === 1, "live, the stream open");
+    // The host is not well for a while: the stream ends and three reconnects are refused, each after a longer pause (10, 20, 40).
+    host.streamStatus = 503;
+    host.endStreams();
+    for (const [n, delay] of [[1, 10], [2, 20], [3, 40]] as const) {
+      await pauseThenTick(n, delay, "a refused reconnect");
+      await settle(() => host.cursors.length === n + 1, `reconnect ${n}`);
+    }
+    // Now it is back, without its pairing secret: the reconnect after the grown pause (80) meets 401.
+    host.paired = false;
+    host.streamStatus = 200;
+    await pauseThenTick(4, 80, "the reconnect that meets 401");
+    await settle(() => run.state() === "unpaired", "unpaired");
+    // Unpaired: the next ask comes after retryMinMs, not 160, and the pauses stay under firstRetryMaxMs.
+    await pauseThenTick(5, 10, "the first ask while unpaired");
+    await settle(() => host.snapshots === 2, "snapshot asked once unpaired");
+    await pauseThenTick(6, 20, "the second ask while unpaired");
+    await settle(() => host.snapshots === 3, "snapshot asked twice unpaired");
+    await pauseThenTick(7, 30, "the third ask while unpaired");
+    await settle(() => host.snapshots === 4, "snapshot asked thrice unpaired");
+    host.paired = true;
+    await pauseThenTick(8, 30, "the ask that meets the new cookie");
+    await settle(() => run.state() === "live", "live again");
+    assert.ok(pauses.slice(4).every((p) => p <= 30), `every pause while unpaired under the cap: ${pauses.join(",")}`);
   } finally {
     run.stop();
     globalThis.setTimeout = mocked;
