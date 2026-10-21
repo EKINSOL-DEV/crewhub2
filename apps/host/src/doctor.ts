@@ -8,7 +8,7 @@ import { readFileSync, statSync } from "node:fs";
 import { createConnection } from "node:net";
 import { homedir } from "node:os";
 import path from "node:path";
-import { ARCHIVE_MEMORY_NAME, parseArchiveMemory } from "./archiveStore.ts";
+import { ARCHIVE_MEMORY_NAME, parseArchiveMemory, plainTime } from "./archiveStore.ts";
 import { ConfigError, type KeyFiles, type LoadedKey, type PathKind, type ServerConfig, keyFilesOf, loadKey, loadServerConfig, statPath } from "./config.ts";
 import { type DiscoveryInput, type Found, candidates, discoverOnce, loopsHealth, targetText } from "./discovery.ts";
 import { checkKey } from "./keyCheck.ts";
@@ -229,7 +229,7 @@ export async function runDoctor(io: DoctorIo): Promise<DoctorReport> {
     if (memory === null) fix("archive", `${tilde(archiveFile, home)} is not an archive memory: delete it, the host writes it again`);
     else {
       const n = memory.slugs.length;
-      ok("archive", `remembers ${n} archived project${n === 1 ? "" : "s"}${n === 0 ? "" : ` (${memory.slugs.join(", ")})`} from ${memory.target === undefined ? "an unnamed loops" : tilde(memory.target, home)}${memory.at === "" ? "" : `, learnt ${memory.at}`}; loops is asked about each at every snapshot`);
+      ok("archive", `remembers ${n} archived project${n === 1 ? "" : "s"}${n === 0 ? "" : ` (${memory.slugs.join(", ")})`} from ${memory.target === undefined ? "an unnamed loops" : tilde(memory.target, home)}${memory.at === "" ? "" : `, learnt ${plainTime(memory.at)}`}; loops is asked about each at every snapshot`);
     }
   }
 
@@ -262,12 +262,18 @@ export async function runDoctor(io: DoctorIo): Promise<DoctorReport> {
 
 const LABEL: Record<DoctorStatus, string> = { ok: "ok  ", fix: "FIX ", skip: "skip" };
 
+/** The last line of the report: what to do next. A host that already runs is up; `npm run world` opens a new link on it. */
+export function nextStep(report: DoctorReport): string {
+  const running = report.lines.some((l) => l.id === "port" && l.status === "ok" && /already runs/.test(l.text));
+  return running ? "The world is up: npm run world opens the browser on a new link" : "Next: npm run world";
+}
+
 /** The report as lines for the terminal, with a summary last. */
 export function formatDoctor(report: DoctorReport): string[] {
   const width = Math.max(...report.lines.map((l) => l.id.length));
   const out = report.lines.map((l) => `${LABEL[l.status]}  ${l.id.padEnd(width)}  ${l.text}`);
   const fixes = report.lines.filter((l) => l.status === "fix").length;
   const skips = report.lines.filter((l) => l.status === "skip").length;
-  out.push(report.ok ? `doctor: all ${report.lines.length} checks ok. Next: npm run world` : `doctor: ${fixes} to fix${skips > 0 ? `, ${skips} skipped` : ""}, ${report.lines.length - fixes - skips} ok`);
+  out.push(report.ok ? `doctor: all ${report.lines.length} checks ok. ${nextStep(report)}` : `doctor: ${fixes} to fix${skips > 0 ? `, ${skips} skipped` : ""}, ${report.lines.length - fixes - skips} ok`);
   return out;
 }

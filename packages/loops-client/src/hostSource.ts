@@ -270,6 +270,9 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
   let abort: AbortController | null = null;
   let cursor = -1;
   let haveSnapshot = false;
+  /** The longest pause between two asks. Before the first snapshot the host is most likely still linking, and
+   *  unpaired the person is opening a new link: ask again within seconds, never ten seconds later. */
+  const retryCap = () => (haveSnapshot && state !== "unpaired" ? timings.retryMaxMs : Math.min(timings.retryMaxMs, timings.firstRetryMaxMs));
   let retryMs = timings.retryMinMs;
   let staleTimer: ReturnType<typeof setTimeout> | null = null;
   let teamTimer: ReturnType<typeof setInterval> | null = null;
@@ -518,9 +521,7 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
         pending = null;
         if (!(await read)) {
           await sleep(retryMs, signal);
-          // Before the first snapshot the host is most likely still linking: ask again soon, never ten seconds later.
-          // Unpaired, the same: the person is opening a new link and the world should follow within seconds.
-          retryMs = Math.min(haveSnapshot && state !== "unpaired" ? timings.retryMaxMs : Math.min(timings.retryMaxMs, timings.firstRetryMaxMs), retryMs * 2);
+          retryMs = Math.min(retryCap(), retryMs * 2);
           continue;
         }
         needSnapshot = false;
@@ -533,10 +534,15 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
       }
       // The stream ended or could not open: wait, then reconnect at the cursor (the host resets when it cannot continue).
       // After a 401 the next try must re-snapshot: the host that refused the cookie may be a new one with no buffer.
-      if (state === "unpaired") needSnapshot = true;
+      // And it asks again soon: the back-off that grew while the host was away (a restart) must not keep the Pair
+      // screen, or the town after the new link, waiting for it.
+      if (state === "unpaired") {
+        needSnapshot = true;
+        retryMs = timings.retryMinMs;
+      }
       if (state === "live" || state === "catching-up") setState("stale");
       await sleep(retryMs, signal);
-      retryMs = Math.min(timings.retryMaxMs, retryMs * 2);
+      retryMs = Math.min(retryCap(), retryMs * 2);
     }
   }
 

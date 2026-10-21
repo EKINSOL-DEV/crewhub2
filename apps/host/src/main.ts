@@ -162,7 +162,10 @@ try {
     const link = await mintFromRunning(config.port, args.origin);
     if (link !== null) {
       if (args.command === "world" && !args.noOpen && openBrowser(link)) log(`a host already runs on ${config.port}; opened the browser on a new link`);
-      else console.log(link);
+      else {
+        if (args.command === "world") log(`a host already runs on ${config.port}; open this link in the browser to pair it (10 minutes, once):`);
+        console.log(link);
+      }
       process.exit(0);
     }
   }
@@ -217,7 +220,7 @@ try {
 }
 const loopsText = config.loopsSocket !== null ? `unix socket ${config.loopsSocket}` : config.loopsUrl !== null ? config.loopsUrl : `looking in ${config.appData}`;
 // The stored key's agent name is loops' to tell (the check logs it); the file names the others.
-const keyText = key === null ? "no key yet (the world shows the Connect screen)" : key.source === "stored" ? `the stored key from ${key.file}` : `key ${key.keyName} from ${key.file}`;
+const keyText = key === null ? "no key yet: the world shows the Connect screen" : key.source === "stored" ? `the stored key from ${key.file}` : `key ${key.keyName} from ${key.file}`;
 if (world) stepLine(true, `host listening on ${host.url} (loops ${loopsText}, ${keyText}, pairing ${config.pairing})`, performance.now() - listenStarted);
 else log(`listening on ${host.url} (loops ${loopsText}, ${keyText}${config.production ? ", serving apps/world/dist" : ""}, pairing ${config.pairing}${config.pairingFile === null ? "" : ", secret kept in " + config.pairingFile})`);
 if (args.command === "open" || world) {
@@ -244,7 +247,7 @@ if (build !== null && !build.fresh) {
     process.exit(1);
   }
   host.setBuilding(false);
-  stepLine(true, "world built, the browser opens it", result.ms);
+  stepLine(true, args.noOpen ? "world built; open the link above" : "world built, the browser opens it", result.ms);
 }
 
 const shutdown = () => {

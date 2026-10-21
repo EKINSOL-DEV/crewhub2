@@ -86,7 +86,7 @@ export function describeWorld(model: WorldModel, civic: CivicWords = CIVIC_WORDS
   if (model.mode === "demo") add("Town", "Demo mode: scripted data, no live crewhub-loops session", "demo");
   const { freshness } = model;
   if (freshness.teamTs === null) {
-    add("Town", "No team snapshot yet: every agent's status is unknown.");
+    add("Town", "No team snapshot: no team probe has reported to this crewhub-loops, so every agent's status is unknown.");
   } else if (freshness.stale) {
     add("Town", `The team snapshot is stale since ${freshness.teamTs}: every agent's status shows as unknown.`);
   } else {
