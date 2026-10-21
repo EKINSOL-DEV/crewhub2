@@ -1110,6 +1110,21 @@ Round 8 ends at `da260d9`, with 751 tests and the browser pass at 124 of 124 ove
   dust film is not visible at the hall's zoom, and a tab opened after a quiet fact does not show it, because loops keeps
   that fact only in its event log.
 
+## Round 9: what only the log holds, and dust you can see (2026-10-21, early afternoon)
+
+Round 9 ends at `39e5d56`, with 763 tests and the browser pass at 132 of 132.
+
+- **The snapshot carries what only the event log holds** (r9-quietlog). At snapshot time the host reads the open quiet
+  stretches and the latest automation runs from loops' event log, the archives' road, bounded to open tickets in Review,
+  Planning or In progress. A stretch ends only when a person or an agent touches the ticket since, by loops' own rule:
+  an automation's write moves `updatedAt`, so that field cannot decide it. A fresh tab, a seek and a reconnect show the
+  dust and the cards. On the development loops a fresh tab showed three quiet tickets and three run lines at once.
+- **Dust you can see** (r9-dust). An unlit grey veil in the style's colours covers a quiet package, and a few motes drift
+  before its face (none under reduced motion). At the hall's zoom a quiet package reads as grey among cream ones. The
+  tag stays, and the style package's models are untouched.
+- **The facade colour at town level** stays Nicky's eye. Two mocks, a roof band and a wall tint, are pictured live
+  beside today's look in the coordinator's contact sheet, on a branch that is never merged (`mock/r9-facade`).
+
 ## Challenges with docs/integrators
 
 Read at crewhub-loops `a1bed0f`. Each item names the document, what was unclear, contradictory, missing or marked
