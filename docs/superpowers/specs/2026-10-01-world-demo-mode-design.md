@@ -1131,7 +1131,9 @@ pure demo mode the scripted replies of the demo's own dock now feed the same `sa
 reply's `dm.created` from the demo source, read back from the thread, the first line cut as the host cuts it), so the demo
 shows the bubble over the agent, the text view's "says" line, the chat mark from the town and the Recent answers row, a
 row opening the agent's card; the demo's empty state says to write to an agent in the dock. The bubble in the demo fell
-out of the shared store and was kept.
+out of the shared store and was kept. **Round 18:** the Recent answers block's own explanation ("The last 10 answers
+this page saw, newest first; …", `RECENT_NOTE`) moved behind the same "About this chat" disclosure, so the block starts
+with its rows (or its empty words); the text view's section keeps the sentence as its first line.
 
 ### Bubbles themselves
 

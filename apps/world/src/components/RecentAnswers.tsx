@@ -2,7 +2,9 @@
    agent answers this page saw, newest first, each a button that opens that agent's chat. In the Chat panel a compact,
    collapsible block above the frame (a details element, open while it has answers); in the text view a section. The
    same rows in both: the time loops wrote it, the agent, the first line (one line, the full text in the title), and
-   under a row whose chat is not the agent's own (round 13) the words that say whose chat opens instead. */
+   under a row whose chat is not the agent's own (round 13) the words that say whose chat opens instead. What the list
+   is (RECENT_NOTE) opens the text view's section; in the Chat panel it sits behind "About this chat" with the rest of
+   the story (round 18), so the block starts with its rows. */
 import { MessageCircle } from "lucide-react";
 import { answerLabel, answerName, answerTime, RECENT_NOTE, type AnswerTarget } from "../state/recentAnswers";
 import type { Answer } from "../state/said";
@@ -22,7 +24,7 @@ export function RecentAnswers({ answers, empty, targetOf, onOpen, as }: Props) {
   const title = `Recent answers${answers.length > 0 ? ` (${answers.length})` : ""}`;
   const body = (
     <>
-      <p className="sign-muted recent-note">{RECENT_NOTE}</p>
+      {as === "section" && <p className="sign-muted recent-note">{RECENT_NOTE}</p>}
       {answers.length === 0 ? (
         <p className="recent-empty" data-recent="empty">
           {empty}

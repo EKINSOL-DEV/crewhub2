@@ -1,8 +1,9 @@
 # An introduction to CrewHub World
 
-For a reader who knows crewhub-loops and has never seen the world. Everything here is as built on 2026-10-21; where a
-claim rests on a file, the file is named. The pictures are light-theme screenshots from the night's contact sheets,
-most of them live against the development crewhub-loops.
+For a reader who knows crewhub-loops and has never seen the world. Everything here is as built on 2026-10-22 (the
+night's round 18); where a claim rests on a file, the file is named. The pictures are light-theme screenshots, most of
+them live against the development crewhub-loops, the newer ones over the fake crewhub-loops or the demo; each caption
+says which.
 
 ## 1. What it is, and what it is not
 
@@ -37,7 +38,10 @@ One building per project, on a town plan that grows with the project count: a cl
 few buildings, a lodge and a mail hut), a village or a town (every building, a town hall and a post office on two civic
 lots and a square), and a region of districts when there are many (`apps/world/src/world/townPlan.ts`, `TIER_WORDS`).
 The home view is an orthographic overview; a click on a building enters it. A project's colour and icon from loops
-become a striped awning, a flag and an emblem on a plinth by the door.
+become a striped awning, a flag and an emblem on a plinth by the door, and since round 15 the outer walls take a soft
+wash of the project colour as well: a third of the way from the style's chalk, with a floor of difference for a colour
+that sits close to chalk (`packages/style-greenhouse/src/shell.ts`, `kit.ts`). From the town the tint is soft, up close
+it is plain; an archived building keeps its boarded, muted chalk.
 
 ![The live town against the development crewhub-loops: six project buildings with coloured awnings and flags, one of them boarded up, the town hall and the post office between them, the Live chip at the top right.](images/live-town.jpg)
 
@@ -53,8 +57,12 @@ Inside, a building has three halls (`packages/world-model/src/halls.ts`): **Admi
 floor**, and the **lead's office** at the back. Administration carries four racks on its north wall, one per status:
 Backlog, Planning, Review and Done; the floor holds the workers' desks (and the analysts' and designers' when such agents
 have been present); the lead sits in the office. A classic one-room-per-kind layout still exists behind `?rooms=classic`.
+The halls, the furniture and the figures are the Greenhouse style's models (`packages/style-greenhouse`); since round 15
+a model is one node holding its parts as data, which halved the objects made before the town is dressed (12,614 to
+6,417) with pictures that are pixel-identical to before, 98 pairs and 0 differing pixels
+([COST_POLICY.md](COST_POLICY.md)).
 
-![Inside the CR building: the coral awning and flag outside, the lead at its desk in the office, a bot on the floor, the racks of Administration at the front.](images/building.jpg)
+![Inside the CR building in the demo: the outer walls washed with the project's coral, the awning and flag outside, the lead at its desk in the office, the workers and the designer on the floor, the racks of Administration at the front, the truck at the dock.](images/building.jpg)
 
 ### 2.3 Racks and packages
 
@@ -89,7 +97,8 @@ too small for a desk brings its own perch. Only `apps/world/src/world/cast.ts` i
 it ([WORLD_STYLES.md](WORLD_STYLES.md), "Casts").
 
 A click on a figure opens the **agent card**: where it is, when loops last saw it, its work ticket with the lane facts,
-its latest progress line, and in live mode a Chat button ([AGENT_CARD.md](AGENT_CARD.md)).
+its latest progress line, and in live mode, on a lead's card, a Chat button: crewhub-loops chats with leads only, so a
+worker's or the postman's card names its lead's chat instead (section 6; [AGENT_CARD.md](AGENT_CARD.md)).
 
 ![The agent card of CR Lead over the building: where it is, seen by loops two minutes ago, its work ticket in progress, its latest progress line.](images/agent-card.jpg)
 
@@ -181,7 +190,7 @@ model is not built ([ROADMAP.md](ROADMAP.md), "Open").
 | `ticket.quiet` | Dust on the package and a clock tag, until a person or an agent touches the ticket |
 | `automation.ran` | A card on the board by the front door for 8 s; the last three as text lines |
 | `owner-request.updated` | Nothing: loops serves it to the owner only, and the world's key never receives it |
-| A DM thread, `dm.*` | In the demo, a speech bubble over the agent; live, the Chat panel (section 6) |
+| A DM thread, `dm.*` | An agent's answer as a speech bubble over its figure, a chat mark over its building from the town, a row in Recent answers; the Chat panel frames loops' own chat (section 6). Live where the key may read the chat (the viewer key), else after a sign-in in the Connection panel; in the demo from its scripted dock |
 | A person (a principal of kind user) | Shown only when they act: the carry into Done; the walk-mode visitor is the same figure |
 
 ## 4. Demo mode, live mode, and the fake
@@ -193,7 +202,8 @@ describeWorld`. Both emit loops-shaped envelopes with increasing `seq`; the mode
 - **Demo mode** is the default and needs nothing: a scripted in-browser crewhub-loops (`packages/demo`) with a sixteen-
   minute storyline and four scenarios (Fresh install, One project, Small team, Studio with twenty projects in four
   groups), a playback bar, its own lanes, the world's key as its observer and a CI bot, the quiet and automation events,
-  and a scripted chat. Everything is labelled as demo. [`packages/demo/CONTENT.md`](../packages/demo/CONTENT.md) tells the
+  and a scripted chat dock whose replies feed the same bubbles, chat mark and Recent answers as live (round 17).
+  Everything is labelled as demo. [`packages/demo/CONTENT.md`](../packages/demo/CONTENT.md) tells the
   storyline.
 - **Live mode** is the same browser app against the host, which reads a real crewhub-loops. The source is decided once at
   start: `auto` is live when a host answers `/world-api/health` within 1.5 s, else demo; `?source=live|demo` overrides.
@@ -210,8 +220,10 @@ the chat corner, the card's footer) or are the data's (lanes and a team snapshot
 
 **The morning is three steps** ([LOOPS_SETUP.md](LOOPS_SETUP.md), the first section). With `Crewhub.app` open:
 
-1. `npm ci` once, then `npm run world`. It starts the host on `127.0.0.1:5180`, opens your browser on a one-time pairing
-   link, and builds the world beside it when the build is missing or stale.
+1. On Node 24 (`.nvmrc`; `npm test` and `npm run check` refuse an older Node in one line, the host warns once and goes
+   on), `npm ci` once (quiet since round 15: no install script runs, `npm audit` is clean), then `npm run world`. It
+   starts the host on `127.0.0.1:5180`, opens your browser on a one-time pairing link, and builds the world beside it
+   when the build is missing or stale.
 2. The world shows **Connect**: it has found crewhub-loops and has no key. In the app, Settings > Agents > New external
    bot, name `crewhub-world`, Read only unticked, member of no project; copy the key it shows once.
 3. Paste it in the Connect screen. The host checks it with loops, stores it (0600, in its own folder), and the chip says
@@ -219,10 +231,14 @@ the chat corner, the card's footer) or are the data's (lanes and a team snapshot
 
 ![The Connect screen: "found crewhub-loops through its socket (the Mac app's)", the three steps of the loops dialog, and a key field.](images/connect.png)
 
-Rehearsed from a fresh clone seven times during the night; on 2026-10-21 at 18:50 Nicky ran it against his own
-Crewhub.app: loops found through the app's socket, the key ok, the stream ok, three projects in fifteen reads
-([the night report](reports/2026-10-01-world-demo-night.md), round 11). For development there is `npm run dev` (the
-demo on `127.0.0.1:5173`), and `npm run host` with Vite proxying `/world-api` to it.
+Rehearsed from a fresh clone eight times during the night and the morning after; on 2026-10-21 at 18:50 Nicky ran it
+against his own Crewhub.app: loops found through the app's socket, the key ok, the stream ok, three projects in fifteen
+reads ([the night report](reports/2026-10-01-world-demo-night.md), round 11). For development there is `npm run dev`
+(Vite on `127.0.0.1:5173`) beside `npm run host`: Vite proxies `/world-api` and `/pair` to the host on 5180, or on the
+port in `CREWHUB_WORLD_PORT`, prints that in one line at start with what answers there, and refuses to start on another
+checkout's host (health names a checkout by a short id, never by its path; `apps/world/vite.config.ts`, `hostPort.ts`,
+round 17). `npm run preview` proxies only to a port named in `CREWHUB_WORLD_PORT`; without one the page runs the demo and
+the preview says so once (round 16), so a preview on a shared Mac never reaches somebody else's host.
 
 **How it connects** (`apps/host`, one Node process without dependencies, loopback only):
 
@@ -264,20 +280,22 @@ and loops upgraded (the panel names the old and the new version). A regress grou
 ## 6. The chat, as built
 
 The world's own chat is phase 2 of the plan and needs CORS in loops (L8), which does not exist at `4cdcd383`; the demo
-keeps a scripted dock with speech bubbles. For live mode, round 12 built **road A**: a **Chat panel** that frames
+keeps a scripted dock whose replies feed the same bubbles, chat mark and Recent answers as live (round 17). For live
+mode, round 12 built **road A**: a **Chat panel** that frames
 crewhub-loops' own web app in the world (`apps/world/src/components/ChatPanel.tsx`, `state/chatPanel.ts`). It opens from
 the Chat chip at the top right of a live town and from an agent's card ("Chat with <name>"). Inside the frame is loops'
 own app shell with its chat dock, so the chat is exactly loops' because it is loops: the person is signed in to loops in
 the same browser, the session cookie is `SameSite=Lax`, and `127.0.0.1:<world>` and `127.0.0.1:8091` are one site, so
 the cookie travels into the frame; signed out, loops' own sign-in shows inside it.
 
-![The Chat panel opened from crewhub-lead's card, over the Lead's office of the Inbox building against the second development crewhub-loops (8292, world/viewer-key), signed out: the frame on /?chat=crewhub-lead shows loops' own sign-in form, the panel says it opens crewhub-lead's chat and what it needs, and links to the app below.](images/chat-panel.jpg)
+![The Chat panel over the live town, over the fake crewhub-loops on the key road: two lines (crewhub-loops' own chat, framed here; sign in below to type, the answers come as bubbles without it), "About this chat" closed, Recent answers with two rows, G-Man and CR Lead with their times, and the frame below them, here a stub sign-in page that stands in for loops' web app; the link to the app at the bottom.](images/chat-panel.jpg)
 
 The panel's words are honest, because two things are true today: opened from a card, the frame asks loops for that
 agent's chat (`?chat=<agent id>`, which a loops of world/viewer-key cb163004 or later turns into its dock's own open
 and an older loops ignores), so the panel also says which head to open; and typing in it needs the person signed in to
 loops in this browser with loops' bubbles feature on. The world handles no password; what the speech bubbles need is
-told per road below, in the same words in the panel's small print, the Connection panel and the text view; the frame's
+told per road below, in the same words behind the panel's "About this chat", in the Connection panel and in the text
+view; the frame's
 sandbox is no wider than the chat needs (`CHAT_FRAME_SANDBOX`, each token with its reason), it never gets
 `allow-top-navigation` or `allow-modals`, and "Open in the crewhub-loops app" stays beside the frame as the fallback.
 Escape closes the panel while the focus is outside the frame; the focus returns to the opener. Loops' chat dock lists
@@ -300,10 +318,13 @@ chat reads only; typing in the framed chat is loops' own and always needs the pe
 A missed bubble is not lost (round 16): the Chat panel and the text view carry a "Recent answers" list, the last ten
 first lines this page saw with their times, newest first, each a button that opens that agent's chat; nothing of it is
 written anywhere, and a reload starts empty. The panel itself reads in one glance (round 17): "crewhub-loops' own chat,
-framed here" and the one thing to do on this road, with the whole story behind "About this chat"; in the demo the dock's
-scripted replies feed the same list and bubbles. The honest road is on the loops side (section 8). Once the viewer key is merged and the world has switched to it, the
-sign-in road goes in that same track (the plan: the spec addendum "chat with the agents", planned removal); until then it
-stays as it is.
+framed here" and the one thing to do on this road, two short lines above Recent answers, with the whole story (and, since
+round 18, what the list is) behind "About this chat", so the list starts with its rows; in the demo the dock's scripted
+replies feed the same list, bubbles and mark. The honest road is on the loops side (section 8). Once the viewer key is
+merged and the world has switched to it, the sign-in road goes in that same track (the plan: the spec addendum "chat with
+the agents", planned removal); until then it stays as it is.
+
+![The live town over the fake crewhub-loops a second after CR Lead answered inside its building: a chat mark "CR Lead" beside the CrewHub World building's waiting pin, since the figure inside is not drawn from the town; a tap on the mark enters the building.](images/chat-mark.jpg)
 
 ![The live town over the fake crewhub-loops with a speech bubble over G-Man's figure at the lodge, "Busy and calm. CR finished the reading no...": the first line of the agent's answer as the bubble, which a tap turns into the Chat panel on G-Man; the Chat chip at the top right.](images/chat-bubble.jpg)
 
@@ -313,10 +334,13 @@ Every fact the scene shows is also a sentence. The **text view** (press T) descr
 connection line, each building with its racks and desks and what lies on them, who is where in which posture, the
 persons, the closed buildings, the dust, the board's last runs, the zones, the director's log
 (`packages/world-model/src/describe.ts`). A **Where is …?** form answers for one agent in zone labels, never
-coordinates (`where.ts`). The jump list (`/`) names every building; Details (D) shows every label; W begins walk mode;
+coordinates, and in the third person ("cr-dev-1 is in the workers room of CR product at the CR-12 desk; nearby: …");
+the second person is kept for an agent asking about itself, which nothing does today (`where.ts`, round 15). The jump
+list (`/`) names every building; Details (D) shows every label; W begins walk mode;
 Escape backs out of anything.
 
-What a screen reader is given was checked in round 8 (`tools/a11y.mjs`): one live region per Connect screen that says
+What a screen reader is given was checked in round 8 and again after each chat round (`tools/a11y.mjs`, 163 checks in
+round 17): one live region per Connect screen that says
 the screen once and nothing that ticks; a connection change over the town said once; the Connection panel's facts as a
 definition list; Tab reaching every control with a focus style, Enter on the chip opening the panel with the focus
 inside and Escape giving it back; pills and tags saying in words what a colour showed ("CR-17 waits on Nicky", "CR-17
@@ -326,9 +350,10 @@ and the person land at once, the checking icon stops, the dust shows no motes). 
 
 ## 8. What is proposed on the loops side, and why
 
-Nothing of this is merged in crewhub-loops. It lives on the branch `world/viewer-key` of a loops checkout (eleven
-commits on `4cdcd383` when this was written, more as the chat asks land), with tests, and three proposal pages for `cl-lead` under `docs/proposals/` there. The world runs
-without any of it; each item would make it more honest or more direct.
+Nothing of this is merged in crewhub-loops. It lives on the branch `world/viewer-key` of a loops checkout (fifteen
+commits on `4cdcd383` when this was written), with tests, three proposal pages and a review page for `cl-lead` under
+`docs/proposals/` there. The second development loops (8292) runs that branch. The world runs without any of it; each
+item would make it more honest or more direct.
 
 - **The viewer key** (gap L1; `crewhub-world-viewer.md`). A third kind of external bot, `agents.viewer`: its key opens
   exactly the table of `GET` routes the world's host reads, for the whole installation, and nothing else; every other
@@ -348,9 +373,11 @@ without any of it; each item would make it more honest or more direct.
   about ten lines, so the Chat panel can open the right head; (2) the person's DM threads for the viewer key, read only;
   (3) CORS for the world's loopback origin on the DM read routes only, with the writes still refused by loops' Origin
   guard. The page recommends (3), then (1), and not (2): the viewer key's worth is that it cannot read what a page does
-  not need, and the person's chat is the clearest case. **These asks are being turned into code on `world/viewer-key`
-  now** (a deep link to one agent's chat, an explicit framing allowance for loopback origins, the smallest honest chat
-  read for the viewer), each small, tested and reversible, for cl-lead to weigh; crewy pushes the branch when Nicky says.
+  not need, and the person's chat is the clearest case. **These asks are code on `world/viewer-key` now**: the deep link
+  `?chat=<agent id>` (cb163004), the framing allowance for loopback origins (`frame-ancestors`, 41c8d102), and the
+  viewer key's read of the chat the owner sees, never a send (79cb36a8), each small, tested and reversible, with a review
+  page for cl-lead (`crewhub-world-viewer-cl-lead.md`); crewy pushes the branch when Nicky says. The real bubble was
+  proven on that loops in round 14 and again in round 16.
 - **The older proposals** of the plan (L2 to L8, L22: project groups) stand as written in
   [LOOPS_GAP_ANALYSIS.md](LOOPS_GAP_ANALYSIS.md), section 6.
 
@@ -367,5 +394,5 @@ without any of it; each item would make it more honest or more direct.
   part, including "chat with the agents" and the proposal for project groups and the live director.
 - [LOOPS_REAL_VS_FAKE.md](LOOPS_REAL_VS_FAKE.md), [LOOPS_GAP_ANALYSIS.md](LOOPS_GAP_ANALYSIS.md),
   [LOOPS_INTEGRATION_PLAN.md](LOOPS_INTEGRATION_PLAN.md): the wire, the gaps, the plan.
-- [tools/README.md](../tools/README.md): the browser checks (the regress pass in seven groups), the measurements, the
+- [tools/README.md](../tools/README.md): the browser checks (the regress pass in eight groups), the measurements, the
   accessibility pass, the seed and the development crewhub-loops.

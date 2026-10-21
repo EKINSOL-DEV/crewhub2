@@ -10,13 +10,14 @@
    the focus returns to the opener (App). Above the frame, since round 16, the Recent answers list (components/RecentAnswers):
    a missed bubble is not lost, and a row opens that agent's chat here. In one glance (round 17): two short lines above the
    list, what this is and the one thing to do on this road (`chatGlance`); the whole story (the dock, the road's words,
-   `chatWordsLine`) behind an "About this chat" disclosure, a details element the keyboard and a screen reader reach. */
+   `chatWordsLine`, and since round 18 what the Recent answers list is, `RECENT_NOTE`) behind an "About this chat"
+   disclosure, a details element the keyboard and a screen reader reach; the list itself starts with its rows. */
 import { ExternalLink, X } from "lucide-react";
 import { useEffect, useId, useRef } from "react";
 import type { HostHealth } from "@crewhub/loops-client";
 import { useT } from "../i18n";
 import { CHAT_FRAME_ALLOW, CHAT_FRAME_SANDBOX, chatFrameUrl, chatGlance, chatWordsLine } from "../state/chatPanel";
-import type { AnswerTarget } from "../state/recentAnswers";
+import { RECENT_NOTE, type AnswerTarget } from "../state/recentAnswers";
 import type { Answer } from "../state/said";
 import { loopsWebUrl } from "../state/source";
 import { Button, Card } from "./primitives";
@@ -64,6 +65,7 @@ export function ChatPanel({ agent, health, full, answers, recentEmpty, targetOf,
           <summary>{t("world.chat.panel.about")}</summary>
           <p className="chat-sheet-dock">{agent ? t("world.chat.panel.leadWith", { name: agent.name }) : t("world.chat.panel.lead")}</p>
           <p className="sign-muted chat-sheet-needs">{chatWordsLine(health?.connection?.session)}</p>
+          <p className="sign-muted recent-note">{RECENT_NOTE}</p>
         </details>
         <RecentAnswers as="details" answers={answers} empty={recentEmpty} targetOf={targetOf} onOpen={onAnswer} />
         <iframe className="chat-frame" src={src} title={t("world.chat.panel.frame")} sandbox={CHAT_FRAME_SANDBOX.join(" ")} allow={CHAT_FRAME_ALLOW} referrerPolicy="strict-origin-when-cross-origin" />
