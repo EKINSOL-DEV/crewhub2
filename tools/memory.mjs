@@ -60,6 +60,9 @@ if (live) {
 }
 await page.goto(worldUrl(base, scenario === "stress" ? opts.stress : null, opts.scenario, null, opts.source));
 await page.waitForFunction(() => performance.getEntriesByName("world:town-dressed").length > 0 && window.__worldPerf, null, { timeout: 60000 });
+// The first frame: before it the shaders are still compiling, nothing is on the GPU and the JS still holds every
+// vertex copy, so a sample then is a pre-upload number, not the start.
+await page.waitForFunction(() => performance.getEntriesByName("world:first-frame").length > 0, null, { timeout: 60000 }).catch(() => undefined);
 if (live) {
   // The chip says Live: the snapshot is in and the stream open (20 s, else the run goes on and says so).
   const ok = await page.waitForSelector('.connection-chip[data-connection="live"]', { timeout: 20000 }).then(() => true).catch(() => false);
