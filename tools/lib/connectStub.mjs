@@ -11,6 +11,7 @@
 import { createServer, request as httpRequest } from "node:http";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { createLoopsWebStub } from "./loopsWebStub.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -22,12 +23,13 @@ const REJECT_REASON = "crewhub-loops answered 403 for GET /api/team: a Read only
 
 /**
  * Starts the stub on `port` (0 picks one). `origin` is the Vite origin the inner host must allow. `checkMs` is how long a
- * pasted key is "checking" before it connects. Returns { url, port, state, setState, close }.
+ * pasted key is "checking" before it connects. Returns { url, port, state, setState, webUrl, close }; `webUrl` is the loops
+ * web page the connected states name (`loopsWebUrl`), a stub page of lib/loopsWebStub.mjs that the Chat panel frames.
  */
 export async function createConnectStub({ port = 0, state = "no-loops", origin, checkMs = 1500, log = () => undefined } = {}) {
   if (!STUB_STATES.includes(state)) throw new Error(`unknown stub state ${state}`);
   let current = state;
-  let inner = null; // { fake, host } once the connected state needs them
+  let inner = null; // { fake, host, web } once the connected state needs them
   let startedAt = Date.now();
   let lastEventAt = null;
   let reconnects = 2;
@@ -40,8 +42,9 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
     const { createLoopsFake } = await import(pathToFileURL(path.join(REPO, "packages", "loops-fake", "src", "index.ts")).href);
     const { createHost } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "host.ts")).href);
     const fake = await createLoopsFake({ heartbeatMs: 1000, speed: 16 });
-    const host = await createHost({ loopsUrl: fake.url, key: fake.key, keyName: fake.keyName, pairing: "off", retryMs: { min: 100, max: 500 }, heartbeatMs: 1000, log, ...(origin ? { allowedOrigins: [origin] } : {}) });
-    inner = { fake, host };
+    const web = await createLoopsWebStub();
+    const host = await createHost({ loopsUrl: fake.url, loopsWebUrl: web.url, key: fake.key, keyName: fake.keyName, pairing: "off", retryMs: { min: 100, max: 500 }, heartbeatMs: 1000, log, ...(origin ? { allowedOrigins: [origin] } : {}) });
+    inner = { fake, host, web };
     lastEventAt = new Date().toISOString();
     return inner;
   }
@@ -70,9 +73,9 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
     const base = { keyName: "", sharedKey: false, pairing: "on", transport: "tcp" };
     switch (current) {
       case "older": {
-        const { fake, host } = await ensureInner();
+        const { host, web } = await ensureInner();
         const real = await getJson(`${host.url}/world-api/health`);
-        return { loops: real?.loops ?? "ok", keyName: "crewhub-world", sharedKey: false, pairing: "on", paired: true, transport: "tcp", loopsWebUrl: fake.url, cursor: real?.cursor ?? 0 };
+        return { loops: real?.loops ?? "ok", keyName: "crewhub-world", sharedKey: false, pairing: "on", paired: true, transport: "tcp", loopsWebUrl: web.url, cursor: real?.cursor ?? 0 };
       }
       case "no-loops":
         return { ...base, loops: "down", paired: false, connection: { discovery: { state: "searching" }, key: { state: "none" }, stream: { state: "idle", reconnects: 0 } } };
@@ -90,7 +93,7 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
         return { ...base, loops: "unauthorized", keyName: "crewhub-world", paired: true, loopsWebUrl: APP_PORT_TARGET, connection: { discovery: { state: "found", via: "app-port", target: APP_PORT_TARGET }, key: { state: "rejected", name: "crewhub-world", source: "stored", reason: REJECT_REASON }, stream: { state: "unauthorized", reconnects: 0 } } };
       case "busy":
       case "connected": {
-        const { fake, host } = await ensureInner();
+        const { fake, host, web } = await ensureInner();
         const real = await getJson(`${host.url}/world-api/health`);
         const cursor = typeof real?.cursor === "number" ? real.cursor : fake.lastSeq();
         if (typeof real?.cursor === "number" && real.cursor > 0) lastEventAt = lastEventAt ?? new Date().toISOString();
@@ -101,7 +104,7 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
           pairing: "on",
           paired: true,
           transport: "unix",
-          loopsWebUrl: fake.url,
+          loopsWebUrl: web.url,
           loopsCommit: real?.loopsCommit,
           cursor,
           connection: {
@@ -265,6 +268,8 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
       return startedAt;
     },
     setState,
+    /** The loops web page the connected states name; null until one was needed. */
+    webUrl: () => inner?.web.url ?? null,
     async close() {
       clearTimeout(pending);
       endStreams();
@@ -272,6 +277,7 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
       if (inner) {
         await inner.host.close();
         await inner.fake.close();
+        await inner.web.close();
       }
     },
   };
