@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { HostHealth } from "@crewhub/loops-client";
 import {
-  needsPairing, decideSource, DEFAULT_LOOPS_URL, hrefWithoutOverride, LIVE_TOWN_KEY, loopsWebUrl, needsProbe, parseSourceOverride, parseSourceSetting, PROBE_TIMEOUT_MS, readSourceSetting, resolveSource, SOURCE_SETTING_KEY, townKeyFor, writeSourceSetting } from "../src/state/source.ts";
+  needsPairing, decideSource, DEFAULT_LOOPS_URL, hrefWithoutOverride, LIVE_TOWN_KEY, liveTownKey, loopsWebUrl, needsProbe, parseSourceOverride, parseSourceSetting, PROBE_TIMEOUT_MS, readSourceSetting, resolveSource, SOURCE_SETTING_KEY, townKeyFor, writeSourceSetting } from "../src/state/source.ts";
 
 const HEALTH: HostHealth = { loops: "ok", keyName: "crewhub-world", sharedKey: false };
 
@@ -91,6 +91,13 @@ test("needsPairing: live, a host that answered with pairing on, and this browser
 test("the town document key: live has its own, the demo keeps the scenario's and the stress fixture's", () => {
   assert.equal(townKeyFor({ source: "live", scenarioTownKey: "crewhub-world.studio", stressSize: null }), LIVE_TOWN_KEY);
   assert.equal(townKeyFor({ source: "live", scenarioTownKey: "crewhub-world", stressSize: 20 }), LIVE_TOWN_KEY);
+  // One town per crewhub-loops installation: the host's health names the installation's web app.
+  assert.equal(townKeyFor({ source: "live", scenarioTownKey: "crewhub-world", stressSize: null, loopsWebUrl: "http://127.0.0.1:8091" }), `${LIVE_TOWN_KEY}.127.0.0.1-8091`);
+  assert.equal(liveTownKey("http://127.0.0.1:8291/"), `${LIVE_TOWN_KEY}.127.0.0.1-8291`);
+  assert.equal(liveTownKey("https://Loops.Example.org"), `${LIVE_TOWN_KEY}.loops.example.org`);
+  assert.equal(liveTownKey(""), LIVE_TOWN_KEY, "a host from before the smooth connection names no web app");
+  assert.equal(liveTownKey("not a url"), LIVE_TOWN_KEY);
+  assert.equal(townKeyFor({ source: "demo", scenarioTownKey: "crewhub-world", stressSize: null, loopsWebUrl: "http://127.0.0.1:8091" }), "crewhub-world", "a demo page keeps the scenario's town");
   assert.equal(townKeyFor({ source: "demo", scenarioTownKey: "crewhub-world.studio", stressSize: null }), "crewhub-world.studio");
   assert.equal(townKeyFor({ source: "demo", scenarioTownKey: "crewhub-world", stressSize: 20 }), "crewhub-world.stress-20");
   assert.notEqual(LIVE_TOWN_KEY, "crewhub-world");

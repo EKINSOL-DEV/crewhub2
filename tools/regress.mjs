@@ -729,6 +729,19 @@ await group("live", async () => {
     await shot(pg, "23-live");
     const href = await pg.locator(".chat-sign-in").first().getAttribute("href").catch(() => null);
     ok("live: the sign-in link goes to the loops web URL the host names", href === new URL(fake.url).origin, `${href} (fake ${fake.url})`);
+    // Zones in a live town (round 11, L22 option 3): the Connection panel says where districts come from, and with none
+    // made yet the text view says nothing about zones at all.
+    await chip(pg).click().catch(() => {});
+    await pg.waitForSelector(".connection-sheet", { timeout: 5000 }).catch(() => {});
+    const zonesRow = (await pg.locator(".connection-zones").innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+    await pg.keyboard.press("Escape");
+    await pg.waitForTimeout(300);
+    const liveText = await text(pg);
+    ok(
+      "live: the Connection panel says zones are made by hand here and crewhub-loops has none; the text view says nothing odd",
+      /^none yet: every building stands in the one district\./.test(zonesRow) && /crewhub-loops has no project groups/.test(zonesRow) && /kept in this browser/.test(zonesRow) && !/Unnamed zone|No zone|made by hand/.test(liveText),
+      zonesRow.slice(0, 120),
+    );
     const { port, key, keyName } = fake;
     const lastSeq = fake.lastSeq();
     await fake.close();

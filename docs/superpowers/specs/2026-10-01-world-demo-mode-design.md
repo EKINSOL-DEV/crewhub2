@@ -912,7 +912,13 @@ board card and its words) in the demo group.
 ## Addendum: project groups and the director in live mode (2026-10-21, round 7): a proposal, not built
 
 Neither is covered by an accepted spec in a form that can be built without a decision; this addendum writes down the
-options so the decision is quick. **Status: proposed. Nothing below is built.**
+options so the decision is quick. **Status: project groups: road 3 built on 2026-10-21 (round 11), as the
+recommendation says for as long as loops has no groups and the world database is not built: in a live town a person
+makes zones by hand in build mode exactly as in the demo; the live town document is kept per crewhub-loops
+installation (the host's `loopsWebUrl` in the storage key), apart from every demo scenario's; the text view, the
+Connection panel and build mode say where zones come from ("made by hand in this browser; crewhub-loops has no project
+groups; not shared with other browsers"); without any zone nothing is said. Roads 1 and 2 stay as written. The director
+in live mode: proposed, not built.**
 
 **Project groups (L22).** Today a live town puts every project in the default zone (`/world-api/project-groups` answers
 `{groups: []}`), and a person can make zones by hand in the town document, kept in that browser. Three roads:

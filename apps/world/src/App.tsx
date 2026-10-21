@@ -184,6 +184,7 @@ function World() {
         buildings: model.buildings,
       }),
       ...describeZones({
+        mode: model.mode,
         zones: model.zones,
         buildings: model.buildings,
         plots: town.doc.plots,

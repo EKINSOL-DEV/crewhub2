@@ -17,7 +17,28 @@ export function zoneReason(slug: string, zone: Pick<Zone, "id" | "source">, assi
   return zone.source === "group" ? "from its group in crewhub-loops" : zone.source === "default" ? "no zone" : "by hand";
 }
 
+/** Where hand-made zones live, said once and the same everywhere (the text view, the Connection panel, build mode). */
+export const ZONES_BY_HAND = "made by hand in this browser; crewhub-loops has no project groups; not shared with other browsers";
+
+/**
+ * The Connection panel's "Zones" line of a live town (and build mode's hint): how many zones a person made by hand
+ * and how many buildings they put in one, and where that lives. With none, a plain "none yet" that still says what
+ * is true: every building stands in the one district until someone makes a zone in build mode.
+ */
+export function zonesOriginWords(facts: { zones: readonly Pick<Zone, "source">[]; assignments: Readonly<Record<string, string>> | undefined }): string {
+  const made = facts.zones.filter((z) => z.source === "town").length;
+  const assigned = Object.keys(facts.assignments ?? {}).length;
+  if (made === 0 && assigned === 0) {
+    return "none yet: every building stands in the one district. crewhub-loops has no project groups; districts are made by hand in build mode and kept in this browser, not shared with other browsers.";
+  }
+  const zones = made === 1 ? "1 zone" : `${made} zones`;
+  const buildings = assigned === 1 ? "1 building assigned" : `${assigned} buildings assigned`;
+  return `${zones} ${ZONES_BY_HAND} (${buildings}).`;
+}
+
 export interface ZoneFacts {
+  /** The source behind the town: a live town's hand-made zones are said with the whole truth (`ZONES_BY_HAND`). */
+  mode?: "demo" | "live";
   zones: readonly Zone[];
   buildings: readonly { slug: string; name: string; zoneId: string }[];
   /** The town document's plots (the district a building stands in) and manual assignments. */
@@ -40,7 +61,7 @@ export function describeZones(facts: ZoneFacts): TextLine[] {
     const inside = buildings.filter((b) => b.zoneId === zone.id);
     const mark = [zone.color && `colour ${ZONE_COLOR_NAMES[zone.color]?.toLowerCase() ?? zone.color}`, zone.emblem && `emblem ${ZONE_EMBLEM_NAMES[zone.emblem]?.toLowerCase() ?? zone.emblem}`].filter(Boolean).join(", ");
     const look = facts.lookOf(zone);
-    const from = zone.source === "group" ? "a group in crewhub-loops" : zone.source === "town" ? "made in this town" : "buildings without a zone";
+    const from = zone.source === "group" ? "a group in crewhub-loops" : zone.source === "town" ? (facts.mode === "live" ? ZONES_BY_HAND : "made in this town") : "buildings without a zone";
     lines.push({
       section: "Zones",
       text: `${zoneLabel(zone)} (${from}): ${inside.length ? inside.map((b) => b.name).join(", ") : "no buildings"}.${mark ? ` Mark: ${mark}.` : ""}${look ? ` Look: ${look}.` : ""}`,

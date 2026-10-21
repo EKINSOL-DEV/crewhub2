@@ -198,6 +198,9 @@ Everything below is planned and not built. Each item needs crewhub-loops running
   crewhub-loops has a level above projects ([gap analysis](LOOPS_GAP_ANALYSIS.md), section 5.8). The
   spec addendum of round 7 lists the roads: wait for loops, or the host's world database keeps the
   zones per installation so every paired browser shares them; per browser until one of the two exists.
+  The per-browser road is built (2026-10-21, round 11): a live town's zones are made by hand in build
+  mode as in the demo, the live town document is kept per crewhub-loops installation, and the text
+  view, the Connection panel and build mode say so.
 - **Proposals on the loops side**, worked out with tests on the unpushed branch
   `world/viewer-key` of the world's loops checkout (nine commits on `4cdcd383`, 2026-10-21),
   packaged for `cl-lead` in `docs/proposals/crewhub-world-viewer.md` on that branch (round 7:

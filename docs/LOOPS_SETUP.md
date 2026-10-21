@@ -221,7 +221,9 @@ loops, L8), and the connection chip sits where the Demo chip was. The
 text view says the same.
 
 Zones: every live project sits in the default zone until crewhub-loops has project groups (L22); zones drawn by
-hand in build mode are kept in the live town document, which is separate from the demo scenarios' documents.
+hand in build mode are kept in the live town document of this installation (one per crewhub-loops web app the host
+names, in this browser's IndexedDB), separate from the demo scenarios' documents and never shared with another browser.
+The Connection panel's "Zones" line and the text view say so.
 
 ## 4. The health read
 
@@ -415,7 +417,8 @@ development instance that another developer tests against.
   out.
 - **Pending delegations** need the owner's session, not a key: out.
 - **Project groups** (L22): zones live in the browser until crewhub-loops offers them, or until the host's world
-  database keeps them per installation (the roads are in the spec addendum of round 7; neither is built).
+  database keeps them per installation (the roads are in the spec addendum of round 7; the per-browser road is what
+  runs today, per installation in that browser).
 - **Pairing beyond one machine.** The one-time link pairs a browser with the host on `127.0.0.1` (section 3); a
   host behind a TLS proxy sets `CREWHUB_WORLD_PUBLIC_URL` for a `Secure` cookie, but nothing hands out links to a
   remote person yet: the command runs where the host runs.

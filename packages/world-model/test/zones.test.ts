@@ -181,3 +181,26 @@ test("a town document from before zones gives an empty zoning; one with zones gi
   const zones = [{ id: "garden", name: "Garden" }];
   assert.deepEqual(zoningOf({ plots: [], zones, assignments: { cr: "garden" }, districts: {} }), { zones, assignments: { cr: "garden" } });
 });
+
+test("live facts (no groups): hand-made zones outlive the projects that come, go and come back; newcomers land in the default zone", () => {
+  // A live crewhub-loops lists no groups (L22), so a town's districts are the town document's alone.
+  const town: TownZoning = { zones: [{ id: "east", name: "East", order: 1 }, { id: "west", name: "West" }], assignments: { web: "east", api: "east", data: "west" } };
+  const before = resolveZones([{ slug: "web" }, { slug: "api" }, { slug: "data" }], [], town);
+  assert.deepEqual(before.zoneOf, { web: "east", api: "east", data: "west" });
+  assert.deepEqual(before.zones.map((z) => [z.id, z.source]), [["east", "town"], ["west", "town"]], "no building in the default zone: it is not listed");
+  // A project is archived (gone from the active list) and a new one joins: the assignments are untouched, the newcomer
+  // stands in the default zone, the emptied zone stays (the person made it; its look and name are theirs).
+  const during = resolveZones([{ slug: "web" }, { slug: "api" }, { slug: "fresh" }], [], town);
+  assert.deepEqual(during.zoneOf, { web: "east", api: "east", fresh: DEFAULT_ZONE_ID });
+  assert.equal(during.reasonOf["fresh"], "default");
+  assert.deepEqual(during.zones.map((z) => z.id), ["east", "west", DEFAULT_ZONE_ID]);
+  // Restored (or a reload, or a new snapshot after a key change): the same facts give the same answer.
+  const after = resolveZones([{ slug: "web" }, { slug: "api" }, { slug: "fresh" }, { slug: "data" }], [], town);
+  assert.equal(after.zoneOf["data"], "west");
+  assert.deepEqual(after.zoneOf, { ...during.zoneOf, data: "west" });
+  // An assignment to a zone the document no longer has falls back to the default zone, never to an error.
+  const orphan = resolveZones([{ slug: "web" }], [], { zones: [], assignments: { web: "east" } });
+  assert.deepEqual([orphan.zoneOf["web"], orphan.reasonOf["web"]], [DEFAULT_ZONE_ID, "default"]);
+  // Assignments for slugs the installation does not have (yet, or any more) are simply not asked about.
+  assert.deepEqual(Object.keys(resolveZones([{ slug: "web" }], [], town).zoneOf), ["web"]);
+});
