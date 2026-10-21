@@ -922,6 +922,53 @@ were six developers (Fable 5.1). Round 2 ends at `295f77b`, with 674 tests and t
 
 The viewer-key proposal for gap L1 stays on the unpushed loops branch `world/viewer-key`; accepting it is Nicky's call.
 
+## Round 3: the morning, rehearsed and made quick (night of 2026-10-21)
+
+Round 3 ends at `2ce6722`, with 715 tests and the browser pass at 76 of 76, including `real` against the development
+loops over TCP and the socket.
+
+**The measure is met.** A fresh clone follows only the README and the top of the runbook. The development loops' data
+folder stands in for the app's.
+
+| Step | Time |
+| --- | --- |
+| `npm run world` → the link | 0.5 s |
+| … → the Connect screen | 3.1 s, the cold build included |
+| a pasted key → **Live**, the town dressed | 0.8 s |
+| warm `npm run world` → the town | 1.05 s |
+| hands on, the loops dialog included | about 10 s of commands |
+
+Every unhappy road recovers by itself: a wrong key, a Read-only key, a second tab, a host restart, an unpaired browser,
+and no loops at all.
+
+- **Time to world** (r3-fast, r3-coldclone).
+  - Snapshot reads run under a cap and are timed: 5 projects in 18 reads, about 26 ms.
+  - The build runs while the host already serves a "Building the world…" page, which hands over in about 0.2 s.
+  - Vite runs directly, without two nested npm starts.
+  - The discovery probes run in parallel, and health never waits more than 1 s.
+  - A first-snapshot line shows in the page.
+  - A short step list in the terminal counts from the key's acceptance.
+  - `tools/timeworld.mjs` measures the whole road.
+- **The rehearsal's fixes** (r3-firstrun).
+  - Pairing survives a host restart.
+  - A tab that lost its pairing shows Pair this browser, not Stale, and recovers after a new link.
+  - The doctor never asks for a restart the host does not need.
+  - The screens and the runbook name the real road.
+- **Honest key verdicts** (r3-hostcare). A key is rejected only on a definite 401/403 while loops' health answers.
+  Loops down never touches the key. A rejected key is kept until Forget. Archived slugs are remembered in the host's
+  folder.
+- **A person looks like a person** (r3-people, r4-carry). Each cast brings a person figure (`person.json`), used for the
+  owner who carries work and for walk mode's visitor. A motion can be limited to carrying, so the arms hold the package
+  still.
+- **Loose ends** (r3-polish).
+  - Every role says where it came from.
+  - The slow frame in live mode was the town dressing rebuilt at once. It now rebuilds in small steps, so the worst
+    frame inside a building went from 66 ms to 25 ms.
+  - Hidden layers are built on first sight: 24 → 15 MB of geometry at 20 projects.
+- **The documents** (r3-docs) say what is built tonight. The fake defaults to 8391, never the app's port.
+- **Proposals on the unpushed loops branch `world/viewer-key`**: the viewer key (round 1) and a "Connect CrewHub World"
+  card in loops' Settings › Agents (r3-loopsbutton). The card makes the bot as a viewer and hands its key over.
+
 ## Challenges with docs/integrators
 
 Read at crewhub-loops `a1bed0f`. Each item names the document, what was unclear, contradictory, missing or marked
