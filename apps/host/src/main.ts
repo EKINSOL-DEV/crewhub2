@@ -27,19 +27,20 @@
  *                          browser on a one-time link (`--no-open` prints it) and, when apps/world/dist is missing or
  *                          older than the sources (`build.ts`), builds it meanwhile: the browser shows "Building the
  *                          world…" and opens the world when the build is done. Prints the steps as a list with ticks and
- *                          times (loops found, the key, the stream, the snapshot). A second run finds the running host
- *                          and only opens a new link.
+ *                          times (loops found, the key, the stream, the snapshot). The pairing secret is kept in
+ *                          <config dir>/pairing-secret, so a host restart keeps every paired browser (`worldEnv`). A
+ *                          second run finds the running host and only opens a new link.
  *   doctor                 a read-only preflight: one line per check (loops, health, key, auth, reads, events, port,
  *                          pairing), ok or the fix; exit 0 only when all pass. Never opens the stream, never writes.
  */
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildWorld, checkBuild } from "./build.ts";
-import { ConfigError, type ServerConfig, loadKey, loadServerConfig } from "./config.ts";
+import { ConfigError, type ServerConfig, loadKey, loadServerConfig, worldEnv } from "./config.ts";
 import { formatDoctor, runDoctor } from "./doctor.ts";
 import { type HostStep, MINT_HEADER, MINT_PATH, createHost } from "./host.ts";
 import { createKeyStore } from "./keyStore.ts";
@@ -152,7 +153,8 @@ let key: ReturnType<typeof loadKey>;
 let build: ReturnType<typeof checkBuild> | null = null;
 try {
   args = parseArgs(process.argv.slice(2));
-  const env = { ...process.env, ...(args.loopsSocket === null ? {} : { CREWHUB_WORLD_LOOPS_SOCKET: args.loopsSocket }), ...(args.command === "world" ? { NODE_ENV: "production" } : {}) };
+  const base = { ...process.env, ...(args.loopsSocket === null ? {} : { CREWHUB_WORLD_LOOPS_SOCKET: args.loopsSocket }) };
+  const env = args.command === "world" ? worldEnv(base) : base;
   if (args.command === "doctor") {
     const report = await runDoctor({ env });
     for (const line of formatDoctor(report)) console.log(line);
@@ -180,6 +182,15 @@ try {
 }
 
 const staticDir = config.production ? distDir : undefined;
+// The host's own folder is 0700 before anything lands in it (the pairing secret of `world` comes before the stored key).
+if (args.command === "world") {
+  try {
+    mkdirSync(config.configDir, { recursive: true, mode: 0o700 });
+    chmodSync(config.configDir, 0o700);
+  } catch {
+    // The pairing secret's own write says what is wrong.
+  }
+}
 const pairingSecret = config.pairingFile === null ? undefined : loadPairingSecret(config.pairingFile);
 const mintSecret = randomBytes(32).toString("base64url");
 const listenStarted = performance.now();
@@ -207,7 +218,8 @@ try {
   log(`cannot write the run file ${runFile(host.port)}: "open" cannot reach this host while it runs`);
 }
 const loopsText = config.loopsSocket !== null ? `unix socket ${config.loopsSocket}` : config.loopsUrl !== null ? config.loopsUrl : `looking in ${config.appData}`;
-const keyText = key === null ? "no key yet (the world shows the Connect screen)" : `key ${key.keyName} from ${key.file}`;
+// The stored key's agent name is loops' to tell (the check logs it); the file names the others.
+const keyText = key === null ? "no key yet (the world shows the Connect screen)" : key.source === "stored" ? `the stored key from ${key.file}` : `key ${key.keyName} from ${key.file}`;
 if (world) stepLine(true, `host listening on ${host.url} (loops ${loopsText}, ${keyText}, pairing ${config.pairing})`, performance.now() - listenStarted);
 else log(`listening on ${host.url} (loops ${loopsText}, ${keyText}${config.production ? ", serving apps/world/dist" : ""}, pairing ${config.pairing}${config.pairingFile === null ? "" : ", secret kept in " + config.pairingFile})`);
 if (args.command === "open" || world) {

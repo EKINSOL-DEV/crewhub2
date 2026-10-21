@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { homedir } from "node:os";
 import path from "node:path";
-import { ConfigError, DEFAULT_APP_DATA, keyFilesOf, keyNameOf, loadKey, loadServerConfig, resolveLoopsWebUrl, validateSocketPath } from "../src/config.ts";
+import { ConfigError, worldEnv, DEFAULT_APP_DATA, keyFilesOf, keyNameOf, loadKey, loadServerConfig, resolveLoopsWebUrl, validateSocketPath } from "../src/config.ts";
 
 const files = { storedKey: "/me/.config/crewhub-world/loops-key", defaultKey: "/secrets/agent-crewhub-world.key" };
 const disk = (contents: Record<string, string>) => (file: string) => contents[file] ?? null;
@@ -36,6 +36,15 @@ describe("the key file", () => {
     assert.equal(keyNameOf("/x/agent-builder.key"), "builder");
     assert.equal(keyNameOf("loops-fake.key"), "loops-fake");
     assert.equal(keyNameOf("/me/.config/crewhub-world/loops-key"), "crewhub-world");
+  });
+
+  it("npm run world keeps the pairing secret in the host's own folder unless a file is named", () => {
+    const env = worldEnv({ CREWHUB_WORLD_CONFIG_DIR: "/tmp/cw", HOME: "/me" });
+    assert.equal(env.NODE_ENV, "production");
+    assert.equal(env.CREWHUB_WORLD_PAIRING_FILE, "/tmp/cw/pairing-secret");
+    assert.equal(worldEnv({}).CREWHUB_WORLD_PAIRING_FILE, path.join(homedir(), ".config", "crewhub-world", "pairing-secret"));
+    assert.equal(worldEnv({ CREWHUB_WORLD_PAIRING_FILE: "/tmp/other" }).CREWHUB_WORLD_PAIRING_FILE, "/tmp/other");
+    assert.equal(loadServerConfig(worldEnv({ CREWHUB_WORLD_CONFIG_DIR: "/tmp/cw" })).pairingFile, "/tmp/cw/pairing-secret");
   });
 
   it("puts the stored key in the host's own folder, CREWHUB_WORLD_CONFIG_DIR when set", () => {

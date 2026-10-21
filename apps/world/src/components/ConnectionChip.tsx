@@ -1,7 +1,8 @@
 /* The connection chip of live mode: where the Demo chip stands in demo mode. It says how the live source stands with
    its host and the host with crewhub-loops (`ConnectionState`): Connecting, Live, Catching up, Stale, Loops down,
-   Unauthorized, Stream busy (loops' 429: another host or tab uses the key). Stale and Stream busy are the watchdog's muted
-   chip; Loops down and Unauthorized the attention chip; the rest a plain chip. With `onOpen` the chip is a button that opens the Connection panel (ConnectionPanel.tsx). Copy from the i18n file. */
+   Unauthorized, Stream busy (loops' 429: another host or tab uses the key), Pair again (the host answered 401 not_paired;
+   the App shows the Pair screen then). Stale and Stream busy are the watchdog's muted chip; Loops down, Unauthorized and
+   Pair again the attention chip; the rest a plain chip. With `onOpen` the chip is a button that opens the Connection panel (ConnectionPanel.tsx). Copy from the i18n file. */
 import { Radio } from "lucide-react";
 import type { ConnectionState } from "@crewhub/loops-client";
 import { translate } from "../i18n";
@@ -20,7 +21,7 @@ export function ConnectionChip({ state, onOpen, open, ref }: { state: Connection
   const chip =
     state === "stale" || state === "stream-busy" ? (
       onOpen ? <Chip.Stalled>{word}</Chip.Stalled> : <Chip.Stalled title={hint}>{word}</Chip.Stalled>
-    ) : state === "loops-down" || state === "unauthorized" ? (
+    ) : state === "loops-down" || state === "unauthorized" || state === "unpaired" ? (
       onOpen ? <Chip.Attention>{word}</Chip.Attention> : <Chip.Attention title={hint}>{word}</Chip.Attention>
     ) : (
       <Chip title={onOpen ? undefined : hint} icon={<Radio className="icon icon-sm" aria-hidden="true" />}>

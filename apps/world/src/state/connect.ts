@@ -2,6 +2,7 @@
    panel. `connectScreen` maps the host's health to the one screen the world shows instead of the town; the key helpers
    handle a pasted access key (trimmed, shaped, only its tail ever shown); `connectOutcome` turns the host's answer to
    `POST /world-api/connect` into words. Nothing here keeps a key, logs or touches the DOM. */
+import type { ConnectionState } from "@crewhub/loops-client";
 import { needsPairing, type SourceDecision } from "./source.ts";
 
 /** The screens between the demo decision and the town, in the order the person meets them. `null` is the town. */
@@ -33,6 +34,16 @@ export function connectScreen(decision: Pick<SourceDecision, "source" | "health"
     default:
       return decision.health.loops === "down" ? "loops-down" : decision.health.loops === "unauthorized" ? "rejected" : null;
   }
+}
+
+/**
+ * Once the town runs, the live source's state can still send the person back to one screen: `unpaired` (the host answered
+ * 401 `not_paired` to the snapshot or the stream: a host restarted without its pairing secret, or the cookie gone) is the
+ * Pair screen, not a Stale chip. The App applies it (the gate above it decided once, from the first health read); the
+ * source keeps asking, so a new link brings the town back by itself. Every other state is the chip's story.
+ */
+export function liveScreen(state: ConnectionState | null): ConnectScreen | null {
+  return state === "unpaired" ? "pair" : null;
 }
 
 /**

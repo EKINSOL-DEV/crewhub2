@@ -17,6 +17,8 @@ export const DEFAULT_APP_DATA = path.join(homedir(), "Library", "Application Sup
 /** The host's own folder (`CREWHUB_WORLD_CONFIG_DIR` overrides it): the stored key lives here, mode 0700/0600. */
 export const DEFAULT_CONFIG_DIR = path.join(homedir(), ".config", "crewhub-world");
 export const STORED_KEY_NAME = "loops-key";
+/** The pairing secret `npm run world` keeps in the host's own folder, so a host restart does not unpair every browser. */
+export const PAIRING_SECRET_NAME = "pairing-secret";
 export const SECRETS_DIR = path.join(homedir(), ".config", "crewhub-loops", "secrets");
 /** The old default: the key file of the runbook before the Connect screen. Still read, third in line. */
 export const DEFAULT_KEY_FILE = path.join(SECRETS_DIR, "agent-crewhub-world.key");
@@ -54,6 +56,17 @@ export function configDirOf(env: Record<string, string | undefined>): string {
 }
 
 export const storedKeyFile = (configDir: string) => path.join(configDir, STORED_KEY_NAME);
+
+/**
+ * The environment of `npm run world`: production (the built world is served), and the pairing secret kept in
+ * `<configDir>/pairing-secret` (0600) unless `CREWHUB_WORLD_PAIRING_FILE` names another file. Without a kept secret a
+ * host restart invalidates every pairing and an open tab is left on Stale (rehearsed on 2026-10-21); the morning's
+ * command keeps it, so the tab from yesterday recovers by itself.
+ */
+export function worldEnv(env: Record<string, string | undefined>): Record<string, string | undefined> {
+  const named = (env.CREWHUB_WORLD_PAIRING_FILE ?? "").trim();
+  return { ...env, NODE_ENV: "production", CREWHUB_WORLD_PAIRING_FILE: named === "" ? path.join(configDirOf(env), PAIRING_SECRET_NAME) : named };
+}
 
 export interface KeyFiles {
   storedKey: string;

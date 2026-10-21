@@ -122,8 +122,12 @@ describe("the doctor", () => {
     assert.equal(running.port!.status, "ok");
     assert.match(running.port!.text, /a host already runs .* asks it for a link/);
     const keyless = byId(await runDoctor({ env, probePort: () => Promise.resolve({ kind: "host", health: { loops: "unauthorized", keyName: "", connection: { stream: { state: "idle" }, key: { state: "none" } } } }) }));
-    assert.equal(keyless.port!.status, "fix");
-    assert.match(keyless.port!.text, /it says no key/);
+    assert.equal(keyless.port!.status, "ok", "no key is not a port problem: the paste fixes it without a restart");
+    assert.match(keyless.port!.text, /waits for a key: paste it in the world's Connect screen/);
+    assert.doesNotMatch(keyless.port!.text, /restart it/);
+    const searching = byId(await runDoctor({ env, probePort: () => Promise.resolve({ kind: "host", health: { loops: "down", keyName: "", connection: { discovery: { state: "searching" }, stream: { state: "idle" }, key: { state: "ok" } } } }) }));
+    assert.equal(searching.port!.status, "fix");
+    assert.match(searching.port!.text, /open Crewhub.app; the host looks again every 5 s, no restart needed/);
     const taken = byId(await runDoctor({ env, probePort: () => Promise.resolve({ kind: "taken" }) }));
     assert.match(taken.port!.text, /something else listens/);
   });

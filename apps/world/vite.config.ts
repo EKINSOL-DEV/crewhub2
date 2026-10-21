@@ -43,4 +43,7 @@ export default defineConfig({
     proxy: { "/world-api": worldApiProxy(), "/pair": worldApiProxy() },
   },
   preview: { host: "127.0.0.1", port: 4173, strictPort: true },
+  // The Greenhouse style chunk is about 960 kB by design (models as data); Vite's 500 kB warning on every build was
+  // the one line of noise in a first `npm run world`.
+  build: { chunkSizeWarningLimit: 1024 },
 });
