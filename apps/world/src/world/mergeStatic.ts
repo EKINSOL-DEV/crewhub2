@@ -8,7 +8,6 @@
    of the source materials' own colour objects, so a theme change that re-colours them shows at once. Other materials
    (a style's shader, glass, a glowing window) merge per material, as before. */
 import * as THREE from "three";
-import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
 const MERGED = ["position", "normal", "uv"];
 /** Colours per palette batch; a look with more starts another batch. */
@@ -16,7 +15,7 @@ const PALETTE = 32;
 const MAPS = ["map", "normalMap", "roughnessMap", "metalnessMap", "emissiveMap", "aoMap", "lightMap", "alphaMap", "bumpMap", "displacementMap", "envMap"] as const;
 
 interface Batch {
-  geometries: THREE.BufferGeometry[];
+  sources: Source[];
   shadow: boolean;
   /** Palette batches: the source materials, by palette index. */
   palette: THREE.MeshStandardMaterial[] | null;
@@ -105,78 +104,134 @@ export function mergeStatic(root: THREE.Group, options: { keepData?: boolean } =
   }
 }
 
-/** Source meshes a step of `mergeStaticSteps` takes on before it yields. */
+/** Source meshes a step of `mergeStaticSteps` writes before it yields. */
 const MERGE_CHUNK = 150;
 
+/** A source mesh's place in its batch: its geometry, its transform into the root's space, its palette index. */
+interface Source {
+  geometry: THREE.BufferGeometry;
+  matrix: THREE.Matrix4;
+  swatch: number;
+}
+
+/** An index past this needs 32 bits (three's own rule for `setIndex`, PRIMITIVE_RESTART_FIXED_INDEX included). */
+const UINT16_MAX_INDEX = 65535;
+
+/* Scratch for the writes; used between two yields only, so two merges in steps (a dressing, an interior) can share it. */
+const vertex = new THREE.Vector3();
+const normalMatrix = new THREE.Matrix3();
+
 /**
- * `mergeStatic` in steps, for a build spread over frames or idle time: the sources are gathered, transformed and
- * batched `MERGE_CHUNK` at a time, then each batch is merged, with a yield between; the result is the return value.
- * The tree is unchanged until the merge is through (nothing is taken out before every source is batched).
+ * `mergeStatic` in steps, for a build spread over frames or idle time: the sources are gathered and batched first
+ * (no vertex is touched), then each batch's arrays are allocated once and the sources are written into them
+ * `MERGE_CHUNK` at a time, with a yield between; the result is the return value. The tree is unchanged until every
+ * source is batched (nothing is taken out before). Each vertex is read from its source and written once, transformed
+ * on the way (its position by the source's matrix, its normal by the normal matrix, as `applyMatrix4` does), instead of
+ * a copy per source and then a copy per batch (`mergeGeometries`), which was most of the merge's time and garbage.
  */
 export function* mergeStaticSteps(root: THREE.Group, options: { keepData?: boolean } = {}): Generator<void, THREE.BufferGeometry[]> {
   root.updateMatrixWorld(true);
   const inverse = new THREE.Matrix4().copy(root.matrixWorld).invert();
   const batches = new Map<unknown, Batch[]>();
   const merged: THREE.Mesh[] = [];
-  const sources: THREE.Mesh[] = [];
   root.traverse((o) => {
     // Live meshes (a style's moving parts, `userData.live`) keep their own transforms.
     if (!(o instanceof THREE.Mesh) || o instanceof THREE.InstancedMesh || Array.isArray(o.material) || o.userData.room || o.userData.live) return;
     if (Object.keys(o.geometry.attributes).some((name) => !MERGED.includes(name))) return;
     // Already merged, its vertex data on the GPU only: it stays as it is.
     if (!o.geometry.attributes.position?.array) return;
-    sources.push(o);
+    merged.push(o);
   });
-  for (const [n, o] of sources.entries()) {
-    if (n > 0 && n % MERGE_CHUNK === 0) yield;
+  for (const o of merged) {
     const matrix = new THREE.Matrix4().multiplyMatrices(inverse, o.matrixWorld);
-    // Indexed throughout: a style's geometry shares its vertices between faces, so transforming and uploading it costs a
-    // third of a non-indexed copy (the merge of an interior is the bulk of entering a building).
-    // A plain copy of the attributes: `clone()` would first build a parametric geometry's default shape again.
-    const source = new THREE.BufferGeometry();
-    for (const name of MERGED) {
-      const attribute = o.geometry.attributes[name];
-      if (attribute) source.setAttribute(name, attribute.clone());
-    }
-    const index = o.geometry.index;
-    source.setIndex(index ? index.clone() : Array.from({ length: o.geometry.attributes.position!.count }, (_, i) => i));
-    if (!source.attributes.uv) source.setAttribute("uv", new THREE.Float32BufferAttribute(new Float32Array(source.attributes.position!.count * 2), 2));
-    if (!source.attributes.normal) source.computeVertexNormals();
-    source.applyMatrix4(matrix);
     const material = o.material as THREE.Material;
     const key = look(material, o.castShadow);
     const list = batches.get(key ?? material) ?? [];
     batches.set(key ?? material, list);
+    let batch: Batch;
+    let swatch = 0;
     if (key) {
       const standard = material as THREE.MeshStandardMaterial;
-      let batch = list.find((b) => b.palette!.includes(standard) || b.palette!.length < PALETTE);
-      if (!batch) list.push((batch = { geometries: [], shadow: o.castShadow, palette: [], material }));
-      let index = batch.palette!.indexOf(standard);
-      if (index < 0) index = batch.palette!.push(standard) - 1;
-      // One byte a vertex: the palette index, read as a float by the shader.
-      source.setAttribute("aSwatch", new THREE.BufferAttribute(new Uint8Array(source.attributes.position!.count).fill(index), 1));
-      batch.geometries.push(source);
+      batch = list.find((b) => b.palette!.includes(standard) || b.palette!.length < PALETTE) ?? list[list.push({ sources: [], shadow: o.castShadow, palette: [], material }) - 1]!;
+      swatch = batch.palette!.indexOf(standard);
+      if (swatch < 0) swatch = batch.palette!.push(standard) - 1;
     } else {
-      if (!list.length) list.push({ geometries: [], shadow: false, palette: null, material });
-      list[0]!.geometries.push(source);
-      list[0]!.shadow ||= o.castShadow;
+      if (!list.length) list.push({ sources: [], shadow: false, palette: null, material });
+      batch = list[0]!;
+      batch.shadow ||= o.castShadow;
     }
-    merged.push(o);
+    batch.sources.push({ geometry: o.geometry, matrix, swatch });
   }
   yield;
   removeBaked(root, merged);
   const created: THREE.BufferGeometry[] = [];
+  let written = 0;
   for (const list of batches.values())
-    for (const { geometries, shadow, palette, material } of list) {
+    for (const { sources, shadow, palette, material } of list) {
       yield;
-      const geometry = mergeGeometries(geometries, false);
-      for (const g of geometries) g.dispose();
-      if (!geometry) continue;
+      // The batch's arrays, sized once. Indexed throughout: a style's geometry shares its vertices between faces, so
+      // transforming and uploading it costs a third of a non-indexed copy (the merge of an interior is the bulk of
+      // entering a building). A palette batch has no map (see `look`), so nothing reads its uv: none is made, a
+      // quarter of every vertex on the GPU and in the JS copy a hidden mesh (a wall's inside variant, an interior not
+      // yet entered) keeps until its upload.
+      let vertices = 0;
+      let indices = 0;
+      for (const { geometry } of sources) {
+        const count = geometry.attributes.position!.count;
+        vertices += count;
+        indices += geometry.index ? geometry.index.count : count;
+      }
+      const position = new Float32Array(vertices * 3);
+      const normal = new Float32Array(vertices * 3);
+      const uv = palette ? null : new Float32Array(vertices * 2);
+      const swatches = palette ? new Uint8Array(vertices) : null;
+      const index = vertices > UINT16_MAX_INDEX ? new Uint32Array(indices) : new Uint16Array(indices);
+      let vertexAt = 0;
+      let indexAt = 0;
+      for (const source of sources) {
+        if (written > 0 && written % MERGE_CHUNK === 0) yield;
+        written++;
+        const { geometry, matrix, swatch } = source;
+        const sourcePosition = geometry.attributes.position!;
+        const count = sourcePosition.count;
+        // A geometry without normals (none of the styles' as yet) gets them worked out as before: on a copy, before
+        // the transform, so a non-uniform scale shades the same as it did.
+        const sourceNormal = geometry.attributes.normal ?? computedNormals(geometry);
+        normalMatrix.getNormalMatrix(matrix);
+        for (let i = 0; i < count; i++) {
+          const at = (vertexAt + i) * 3;
+          vertex.fromBufferAttribute(sourcePosition, i).applyMatrix4(matrix);
+          position[at] = vertex.x;
+          position[at + 1] = vertex.y;
+          position[at + 2] = vertex.z;
+          vertex.fromBufferAttribute(sourceNormal, i).applyNormalMatrix(normalMatrix);
+          normal[at] = vertex.x;
+          normal[at + 1] = vertex.y;
+          normal[at + 2] = vertex.z;
+        }
+        const sourceUv = geometry.attributes.uv;
+        if (uv && sourceUv)
+          for (let i = 0; i < count; i++) {
+            uv[(vertexAt + i) * 2] = sourceUv.getX(i);
+            uv[(vertexAt + i) * 2 + 1] = sourceUv.getY(i);
+          }
+        swatches?.fill(swatch, vertexAt, vertexAt + count);
+        const sourceIndex = geometry.index;
+        if (sourceIndex) for (let i = 0; i < sourceIndex.count; i++) index[indexAt + i] = sourceIndex.getX(i) + vertexAt;
+        else for (let i = 0; i < count; i++) index[indexAt + i] = vertexAt + i;
+        indexAt += sourceIndex ? sourceIndex.count : count;
+        vertexAt += count;
+      }
+      if (!vertices) continue;
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.BufferAttribute(position, 3));
+      geometry.setAttribute("normal", new THREE.BufferAttribute(normal, 3));
+      if (uv) geometry.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+      // One byte a vertex: the palette index, read as a float by the shader.
+      if (swatches) geometry.setAttribute("aSwatch", new THREE.BufferAttribute(swatches, 1));
+      geometry.setIndex(new THREE.BufferAttribute(index, 1));
       geometry.computeBoundingBox();
       geometry.computeBoundingSphere();
-      // A palette batch has no map (see `look`), so nothing reads its uv: dropped, a quarter of every vertex on the GPU
-      // and in the JS copy a hidden mesh (a wall's inside variant, an interior not yet entered) keeps until its upload.
-      if (palette) geometry.deleteAttribute("uv");
       if (!options.keepData) for (const attribute of Object.values(geometry.attributes)) (attribute as THREE.BufferAttribute).onUpload(release);
       let drawn = material;
       if (palette) {
@@ -190,6 +245,15 @@ export function* mergeStaticSteps(root: THREE.Group, options: { keepData?: boole
       created.push(geometry);
     }
   return created;
+}
+
+/** The vertex normals of a geometry that has none, worked out on a copy of its positions and index (its own is left alone). */
+function computedNormals(geometry: THREE.BufferGeometry): THREE.BufferAttribute {
+  const copy = new THREE.BufferGeometry();
+  copy.setAttribute("position", geometry.attributes.position!.clone());
+  if (geometry.index) copy.setIndex(geometry.index.clone());
+  copy.computeVertexNormals();
+  return copy.attributes.normal as THREE.BufferAttribute;
 }
 
 /**
