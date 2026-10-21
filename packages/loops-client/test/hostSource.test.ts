@@ -405,6 +405,19 @@ test("probeHost answers the health, and null when nothing listens or the answer 
   assert.equal(await probeHost(`http://127.0.0.1:${(other.address() as AddressInfo).port}`, 500), null);
 });
 
+test("probeHost reads loops' version and the one the host saw first when loops was updated under it", async () => {
+  const body = { loops: "ok", keyName: "crewhub-world", sharedKey: false, loopsCommit: "0.2.0", loopsCommitBefore: "0.1.0", paired: true, pairing: "off" };
+  const updated = createServer((_req, res) => {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify(body));
+  });
+  servers.push(updated);
+  await new Promise<void>((resolve) => updated.listen(0, "127.0.0.1", resolve));
+  const health = await probeHost(`http://127.0.0.1:${(updated.address() as AddressInfo).port}`, 500);
+  assert.equal(health?.loopsCommit, "0.2.0");
+  assert.equal(health?.loopsCommitBefore, "0.1.0");
+});
+
 test("before the first snapshot the retry is capped at firstRetryMaxMs; after it the full backoff applies", async (t) => {
   // The retry pause is a setTimeout. Under mock timers it fires only when the test ticks, and a spy on the mocked
   // setTimeout records the delay the source asked for: the check is on that state (the exact pause, then the ask

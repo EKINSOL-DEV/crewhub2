@@ -143,6 +143,8 @@ export interface HostHealth {
   /** Always false: the builder-key fallback is gone. Kept for the world from before. */
   sharedKey: boolean;
   loopsCommit?: string;
+  /** The version the host read first this run, only when loops has answered another since: loops updated under the host. */
+  loopsCommitBefore?: string;
   cursor?: number;
   /** The origin of the loops web app for the sign-in link (on the Mac the web app and the API share 8091). */
   loopsWebUrl: string;
@@ -302,6 +304,15 @@ export async function createHost(options: HostOptions): Promise<Host> {
     }
   }
 
+  // --- loops' version: the first one this run read and the last one, so an upgrade under the host is said (health's
+  // `loopsCommitBefore`) and logged once per change; the stream reads it each time it opens after being down.
+  const versions: { first?: string; last?: string } = {};
+  const sawVersion = (version: string) => {
+    versions.first ??= version;
+    if (versions.last !== undefined && versions.last !== version) log(`crewhub-loops version ${versions.last} → ${version}: loops was updated under the host, which reads everything again`);
+    versions.last = version;
+  };
+
   // --- The link and the tabs. ---
   let link: Link | null = null;
   let relinking: Promise<void> = Promise.resolve();
@@ -378,7 +389,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
         mine.state = before === "checking" ? "unchecked" : before;
         log(`key ${mine.name} (${mine.source}) ${mine.state}: ${scrub(verdict.reason)}; the stream keeps trying`);
       }
-      const upstreamOptions: Parameters<typeof createUpstream>[1] = { log: (line) => log(scrub(line)), healthy };
+      const upstreamOptions: Parameters<typeof createUpstream>[1] = { log: (line) => log(scrub(line)), healthy, onVersion: sawVersion };
       if (options.bufferSize !== undefined) upstreamOptions.bufferSize = options.bufferSize;
       if (options.retryMs !== undefined) upstreamOptions.retryMs = options.retryMs;
       if (options.reconnectMs !== undefined) upstreamOptions.reconnectMs = options.reconnectMs;
@@ -786,7 +797,10 @@ export async function createHost(options: HostOptions): Promise<Host> {
         const found = discovery.current();
         if (found !== null) health.transport = found.target.transport;
         const version = link?.upstream.loopsVersion();
-        if (version !== undefined) health.loopsCommit = version;
+        if (version !== undefined) {
+          health.loopsCommit = version;
+          if (versions.first !== undefined && versions.first !== version) health.loopsCommitBefore = versions.first;
+        }
         if (link !== null && link.upstream.cursor() >= 0) health.cursor = link.upstream.cursor();
         sendJson(res, 200, health);
         return;

@@ -41,6 +41,8 @@ export interface UpstreamOptions {
    * what it was. Default: a 401/403 counts.
    */
   healthy?: () => Promise<boolean>;
+  /** Told loops' `version` each time the stream opens after being down and health answered it (information only). */
+  onVersion?: (version: string) => void;
 }
 
 export interface Upstream {
@@ -228,7 +230,10 @@ export function createUpstream(client: LoopsClient, options: UpstreamOptions = {
   async function readVersion(): Promise<void> {
     try {
       const { status, body } = await client.getJson<{ version?: unknown }>("/api/health");
-      if (status === 200 && typeof body?.version === "string") version = body.version;
+      if (status === 200 && typeof body?.version === "string") {
+        version = body.version;
+        options.onVersion?.(version);
+      }
     } catch {
       // health is information only
     }
@@ -269,7 +274,6 @@ export function createUpstream(client: LoopsClient, options: UpstreamOptions = {
   async function attempt(ready: () => void): Promise<Outcome> {
     // Before every connection the tail says where the log stands for this key: the first position, a restore
     // (`lastSeq` below our cursor), and the sealed cursor of "now" when we have none of our own.
-    const wasDown = state !== "ok";
     let tail: { lastSeq: number; cursor: string | null };
     try {
       tail = await readTail(client);
@@ -322,7 +326,9 @@ export function createUpstream(client: LoopsClient, options: UpstreamOptions = {
       ready();
       return { kind: "error" };
     }
-    if (wasDown) void readVersion();
+    // loops' version is read on every open, not only after a down: a loops restarted and upgraded under the host can
+    // be back before the first reconnect, and the new version must still be known (health's loopsCommitBefore).
+    void readVersion();
     setState("ok");
     ready();
     let lines = 0;
