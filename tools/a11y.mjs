@@ -234,7 +234,19 @@ for (const [theme, width] of COMBOS) {
     writeFileSync(`${outDir}town-${theme}-${width}.txt`, await p.locator("header, .world-corner-left, .world-chat").ariaSnapshot().catch(() => ""));
     const chip = p.locator("button.connection-chip");
     ok(`${tag}: the chip is a button that names the state and what it opens`, /Live.*Open the connection panel/.test((await chip.getAttribute("aria-label")) ?? ""), (await chip.getAttribute("aria-label")) ?? "");
-    ok(`${tag}: the chat link says it opens a new tab`, (await p.getByRole("link", { name: /Chat: in the crewhub-loops app.*Opens in a new tab/ }).count()) === 1);
+    // The Chat chip (round 12): a button that names what it opens; Enter opens the Chat panel, a dialog with the focus
+    // inside, whose frame is titled and whose link to the app says it opens a new tab; Escape returns the focus to the chip.
+    const chatChip = p.locator("button.chat-open");
+    ok(`${tag}: the chat chip is a button that names what it opens`, /crewhub-loops' own chat/.test((await chatChip.getAttribute("aria-label")) ?? "") && (await chatChip.getAttribute("aria-haspopup")) === "dialog", (await chatChip.getAttribute("aria-label")) ?? "");
+    await chatChip.focus();
+    await p.keyboard.press("Enter");
+    await p.waitForSelector(".chat-sheet", { timeout: 5000 });
+    await p.waitForTimeout(400);
+    writeFileSync(`${outDir}chat-${theme}-${width}.txt`, await p.locator(".chat-sheet").ariaSnapshot());
+    ok(`${tag}: Enter on the chat chip opens the Chat panel, a dialog named Chat with the focus inside, its frame titled, its app link saying it opens a new tab`, await p.evaluate(() => { const d = document.querySelector(".chat-sheet"); const frame = d?.querySelector("iframe"); const link = d?.querySelector(".chat-open-app"); return !!d && d.getAttribute("role") === "dialog" && document.getElementById(d.getAttribute("aria-labelledby") ?? "")?.textContent === "Chat" && d.contains(document.activeElement) && !!frame?.getAttribute("title") && /Opens in a new tab/.test(link?.textContent ?? ""); }));
+    await p.keyboard.press("Escape");
+    await p.waitForTimeout(300);
+    ok(`${tag}: Escape closes the Chat panel and the focus returns to the chat chip`, (await p.locator(".chat-sheet").count()) === 0 && (await p.evaluate(() => document.activeElement?.classList.contains("chat-open") ?? false)));
     await chip.focus();
     await p.keyboard.press("Enter");
     await p.waitForSelector(".connection-sheet", { timeout: 5000 });
@@ -370,7 +382,9 @@ if (opts.demo) {
 }
 
 await browser.close();
-const lines = problemLines(problems.filter((x) => !(x.kind === "console" && /status of 403/.test(x.text))));
+// The Chat panel's frame is the one request that leaves the page by design: the loops web page the stub host names.
+const webUrl = stub.webUrl();
+const lines = problemLines(problems.filter((x) => !(x.kind === "console" && /status of 403/.test(x.text)) && !(x.kind === "external" && webUrl && x.text.includes(webUrl))));
 if (lines.length) console.log(lines.join("\n"));
 ok("no page errors, console errors or requests that leave the page", lines.length === 0, String(lines.length));
 console.log(`a11y: ${passed}/${total}`);

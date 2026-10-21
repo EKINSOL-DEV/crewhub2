@@ -4,22 +4,24 @@
 
    Usage:
      node tools/liveshots.mjs --port <port> [--tag live] [--theme light,dark] [--width 1440,375] [--state live]
-                              [--settle 6000] [--views town,chip,settings,text,card] [--card <agent>] [--out <dir>] [--swiftshader]
+                              [--settle 6000] [--views town,chip,settings,text,chat,card] [--card <agent>] [--out <dir>] [--swiftshader]
    --state names the files (live, stale, loops-down, unauthorized, catching-up); the page decides the chip itself.
    --card <agent> opens the agent card of that agent (the jump list lands beside it, Enter opens the card) and adds the
    `card` view: the page with the card open and the card itself. Several agents: a comma list, one file each.
+   The `chat` view opens the Chat panel from the chip: the frame shows the loops web the host names (its sign-in, in a
+   headless browser that is signed in nowhere), and the notes say which URL the frame holds.
    Output: <tag>-<state>-town-<theme>-<width>.png, <tag>-<state>-chip-<theme>-<width>.png, <tag>-<state>-settings-<theme>-<width>.png,
-   <tag>-<state>-text-<theme>-<width>.png, <tag>-<state>-card-<agent>-<theme>-<width>.png (the page) and
+   <tag>-<state>-text-<theme>-<width>.png, <tag>-<state>-chat-<theme>-<width>.png, <tag>-<state>-card-<agent>-<theme>-<width>.png (the page) and
    <tag>-<state>-cardonly-<agent>-<theme>-<width>.png (the card). The card's text goes on stdout, so a check can read it. */
 import { cli, launch, list, problemLines, watch } from "./lib/world.mjs";
 
-const opts = cli("node tools/liveshots.mjs --port <port> [--tag live] [--theme light,dark] [--width 1440,375] [--state live] [--settle 6000] [--views town,chip,settings,text,card] [--card <agent>] [--out <dir>] [--swiftshader]", {
+const opts = cli("node tools/liveshots.mjs --port <port> [--tag live] [--theme light,dark] [--width 1440,375] [--state live] [--settle 6000] [--views town,chip,settings,text,chat,card] [--card <agent>] [--out <dir>] [--swiftshader]", {
   options: { tag: "live", theme: "light,dark", width: "1440", state: "live", settle: "6000", views: "town,chip,settings,text", card: "" },
 });
 const widths = list(opts.width).map(Number);
 const themes = list(opts.theme, ["light", "dark"], opts.fail, "theme");
 const cards = opts.card ? list(opts.card) : [];
-const views = list(cards.length && !opts.views.includes("card") ? `${opts.views},card` : opts.views, ["town", "chip", "settings", "text", "card"], opts.fail, "view");
+const views = list(cards.length && !opts.views.includes("card") ? `${opts.views},card` : opts.views, ["town", "chip", "settings", "text", "chat", "card"], opts.fail, "view");
 if (views.includes("card") && !cards.length) opts.fail("the card view needs --card <agent>");
 
 /** Opens the card of `agent` from the town: the jump list (/) lands beside the figure with it selected, Enter opens the card. */
@@ -57,8 +59,8 @@ for (const theme of themes)
     const word = (await chip.count()) ? await chip.innerText() : "(no connection chip)";
     const demoChip = await p.locator(".demo-chip").count();
     const playback = await p.locator(".playback-bar").count();
-    const signIn = await p.locator(".chat-sign-in").count();
-    notes.push(`${theme} ${width}: chip "${word.trim()}", demo chip ${demoChip}, playback bar ${playback}, sign-in link ${signIn}`);
+    const chatChip = await p.locator(".chat-open").count();
+    notes.push(`${theme} ${width}: chip "${word.trim()}", demo chip ${demoChip}, playback bar ${playback}, chat chip ${chatChip}`);
     if (views.includes("town")) (await p.screenshot({ path: name("town", theme, width) }), count++);
     if (views.includes("chip") && (await chip.count())) (await p.locator(".world-brand").screenshot({ path: name("chip", theme, width) }), count++);
     if (views.includes("settings")) {
@@ -75,6 +77,19 @@ for (const theme of themes)
       await p.screenshot({ path: name("text", theme, width) });
       count++;
       await p.keyboard.press("t");
+      await p.waitForTimeout(300);
+    }
+    if (views.includes("chat")) {
+      // The Chat panel (round 12): the chip opens it; the frame is the loops web the host names, so the shot shows loops'
+      // own sign-in (or the chat, when this browser is signed in: never headless). The frame's URL goes in the notes.
+      await p.locator(".chat-open").click().catch(() => notes.push(`${theme} ${width}: no chat chip`));
+      await p.waitForSelector(".chat-sheet", { timeout: 5000 }).catch(() => notes.push(`${theme} ${width}: no chat panel`));
+      await p.waitForTimeout(Number(opts.settle));
+      const framed = p.frames().map((f) => f.url()).filter((u) => u !== "about:blank" && !u.startsWith(opts.origin));
+      notes.push(`${theme} ${width}: chat panel frames ${framed.length ? framed.join(", ") : "(nothing yet)"}`);
+      await p.screenshot({ path: name("chat", theme, width) });
+      count++;
+      await p.keyboard.press("Escape");
       await p.waitForTimeout(300);
     }
     if (views.includes("card"))

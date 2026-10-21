@@ -93,6 +93,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { cli, dressed, launch, list, problemLines, seek, speed, watch } from "./lib/world.mjs";
 import { createConnectStub } from "./lib/connectStub.mjs";
+import { createLoopsWebStub } from "./lib/loopsWebStub.mjs";
 
 // The connect group first: the connection is the first priority, so a default pass fails on it first.
 const GROUPS = ["connect", "walk", "demo", "live", "ops", "rooms", "real"];
@@ -680,14 +681,16 @@ await group("live", async () => {
   if (!served && (!Number.isInteger(hostPort) || hostPort <= 0)) opts.fail("--host-port <port> must be a port number");
   const fakeOptions = { heartbeatMs: 1000 };
   let fake = await createLoopsFake(fakeOptions);
-  const hostOptions = { loopsUrl: fake.url, key: fake.key, keyName: fake.keyName, retryMs: { min: 100, max: 500 }, reconnectMs: { min: 100, max: 300 }, heartbeatMs: 1000, log: () => undefined };
+  // The loops web app the host names (`loopsWebUrl`), for the Chat panel's frame: a stub page that records how it was fetched.
+  const web = await createLoopsWebStub();
+  const hostOptions = { loopsUrl: fake.url, loopsWebUrl: web.url, key: fake.key, keyName: fake.keyName, retryMs: { min: 100, max: 500 }, reconnectMs: { min: 100, max: 300 }, heartbeatMs: 1000, log: () => undefined };
   const host = await createHost(served ? { ...hostOptions, staticDir: dist } : { ...hostOptions, port: hostPort, allowedOrigins: [origin] });
   const liveOrigin = served ? host.url : origin;
   // The page is opened without `?source=live`: the source is `auto`, the probe finds the host and the health it answers
   // is what the sign-in link follows (an override skips the probe, and the link would fall back to the default URL).
   const liveBase = `${liveOrigin}/`;
   const pairing = typeof host.mintPairLink === "function";
-  info(`live: fake on 127.0.0.1:${fake.port}, host on 127.0.0.1:${host.port} ${served ? "serving apps/world/dist" : `behind the Vite proxy on ${origin} (Vite started with CREWHUB_WORLD_PORT=${hostPort})`}; pairing ${pairing ? "on" : "not present"}`);
+  info(`live: fake on 127.0.0.1:${fake.port}, loops web stub on 127.0.0.1:${web.port}, host on 127.0.0.1:${host.port} ${served ? "serving apps/world/dist" : `behind the Vite proxy on ${origin} (Vite started with CREWHUB_WORLD_PORT=${hostPort})`}; pairing ${pairing ? "on" : "not present"}`);
   const openLive = async (into = problems) => {
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
     const pg = await ctx.newPage();
@@ -732,8 +735,71 @@ await group("live", async () => {
     const live1 = await until(pg, "live", 20000);
     ok("live: the chip says Live against the fake", live1 === "live", `${live1}: ${(await chip(pg).innerText().catch(() => "")).trim()}`);
     await shot(pg, "23-live");
-    const href = await pg.locator(".chat-sign-in").first().getAttribute("href").catch(() => null);
-    ok("live: the sign-in link goes to the loops web URL the host names", href === new URL(fake.url).origin, `${href} (fake ${fake.url})`);
+    // The Chat panel (round 12, road A): the chip opens a panel that frames the loops web the host names (the stub page
+    // of lib/loopsWebStub.mjs here, which records how it was fetched), says it is loops' own chat and what it needs,
+    // keeps the link to the app, and grants the frame no more than the chat needs; the panel takes the focus, Escape
+    // closes it and the focus returns to the chip; from a card the panel is that agent's and its close button returns
+    // the focus to the card; on a phone the panel is the whole screen.
+    await pg.locator(".chat-open").click();
+    await pg.waitForSelector(".chat-sheet", { timeout: 5000 }).catch(() => {});
+    const frame = pg.locator(".chat-sheet iframe.chat-frame");
+    const src = await frame.getAttribute("src").catch(() => null);
+    await pg.frameLocator(".chat-sheet iframe.chat-frame").locator("[data-stub=loops-web]").waitFor({ timeout: 10000 }).catch(() => {});
+    const framed = web.requests.filter((r) => r.dest === "iframe");
+    ok("live: the Chat chip opens the Chat panel, which frames the loops web the host names", src === `${web.url}/` && framed.length > 0, `src ${src}; ${web.requests.length} requests to the stub, ${framed.length} as a frame (Sec-Fetch-Site ${framed[0]?.site ?? "none"})`);
+    const panelText = (await pg.locator(".chat-sheet").innerText().catch(() => "")).replace(/\s+/g, " ");
+    const appHref = await pg.locator(".chat-sheet .chat-open-app").getAttribute("href").catch(() => null);
+    ok("live: the panel says it is crewhub-loops' own chat, what it needs, and links to the app", /crewhub-loops' own chat/.test(panelText) && /signed in to crewhub-loops as a person/.test(panelText) && /no password/.test(panelText) && appHref === web.url, `${appHref}; ${panelText.slice(0, 140)}`);
+    const sandbox = await frame.getAttribute("sandbox").catch(() => null);
+    const allow = await frame.getAttribute("allow").catch(() => null);
+    ok("live: the frame's sandbox is no wider than the chat needs", sandbox === "allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads" && allow === "clipboard-write", `sandbox "${sandbox}", allow "${allow}"`);
+    await shot(pg, "23b-chat-panel");
+    const focusInside = await pg.evaluate(() => !!document.querySelector(".chat-sheet")?.contains(document.activeElement));
+    await pg.keyboard.press("Escape");
+    await pg.waitForTimeout(300);
+    const closed = (await pg.locator(".chat-sheet").count()) === 0;
+    const backOnChip = await pg.evaluate(() => document.activeElement?.classList.contains("chat-open") ?? false);
+    ok("live: the panel takes the focus; Escape closes it and the focus returns to the chip", focusInside && closed && backOnChip, `focus inside ${focusInside}, closed ${closed}, back on the chip ${backOnChip}`);
+    // From a card: the jump list lands beside cl-lead, Enter opens its card, its Chat button opens the panel for it.
+    await canvas(pg).focus();
+    await pg.keyboard.press("/");
+    await pg.getByRole("dialog", { name: "Jump to" }).waitFor({ timeout: 3000 }).catch(() => {});
+    await pg.keyboard.type("cl-lead");
+    await pg.waitForTimeout(400);
+    await pg.keyboard.press("Enter");
+    await pg.waitForFunction(() => globalThis.__town?.view?.entered != null, null, { timeout: 8000 }).catch(() => {});
+    await pg.waitForTimeout(1500);
+    await canvas(pg).focus();
+    await pg.keyboard.press("Enter");
+    await pg.locator(".agent-card").waitFor({ timeout: 3000 }).catch(() => {});
+    await pg.locator(".agent-card .agent-chat").click().catch(() => {});
+    await pg.waitForSelector(".chat-sheet", { timeout: 5000 }).catch(() => {});
+    const title = (await pg.locator(".chat-sheet .card-title").first().innerText().catch(() => "")).trim();
+    const forAgent = await pg.locator(".chat-sheet").getAttribute("data-agent").catch(() => null);
+    await shot(pg, "23c-chat-from-card");
+    await pg.getByRole("button", { name: "Close the chat panel" }).click().catch(() => {});
+    await pg.waitForTimeout(300);
+    const backOnCard = await pg.evaluate(() => document.activeElement?.classList.contains("agent-chat") ?? false);
+    ok("live: the card's Chat button opens the panel for that agent; its close button returns the focus to the card", /^Chat with /.test(title) && forAgent === "cl-lead" && (await pg.locator(".chat-sheet").count()) === 0 && backOnCard, `"${title}" for ${forAgent}, focus back on the card's button ${backOnCard}`);
+    for (let i = 0; i < 3; i++) {
+      await pg.keyboard.press("Escape");
+      await pg.waitForTimeout(300);
+    }
+    const phone = await browser.newContext({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true, colorScheme: "light" });
+    const ph = await phone.newPage();
+    watch(ph, liveOrigin, problems, "live phone");
+    // A new context has no pairing cookie: the phone pairs first, as the desktop page did.
+    if (pairing) await ph.goto(host.mintPairLink(served ? undefined : origin));
+    await ph.goto(liveBase);
+    await ph.waitForSelector("canvas", { timeout: 60000 }).catch(() => {});
+    await until(ph, "live", 20000);
+    await ph.locator(".chat-open").click().catch(() => {});
+    await ph.waitForSelector(".chat-sheet", { timeout: 5000 }).catch(() => {});
+    const box = await ph.locator(".chat-sheet").boundingBox().catch(() => null);
+    const fullClass = await ph.locator(".chat-sheet.chat-sheet-full").count();
+    ok("live: on a phone the Chat panel is the whole screen", fullClass === 1 && !!box && box.width >= 370 && box.height >= 800, box ? `${Math.round(box.width)}x${Math.round(box.height)}, full-screen class ${fullClass}` : "no panel");
+    await shot(ph, "23d-chat-phone");
+    await phone.close();
     // Zones in a live town (round 11, L22 option 3): the Connection panel says where districts come from, and with none
     // made yet the text view says nothing about zones at all.
     await chip(pg).click().catch(() => {});
@@ -832,6 +898,12 @@ await group("live", async () => {
   } finally {
     await host.close().catch(() => {});
     await fake.close().catch(() => {});
+    await web.close().catch(() => {});
+    // The Chat panel's frame is the one request that leaves the page's origin, by design: it is the loops web app
+    // (the stub here). Only those requests are expected; anything else leaving the page still fails the closing check.
+    const framed = problems.filter((x) => x.kind === "external" && x.text.includes(web.url));
+    for (const x of framed) problems.splice(problems.indexOf(x), 1);
+    info(`live: ${framed.length} request(s) left the page for the loops web stub, the Chat panel's frame, as designed`);
   }
 });
 

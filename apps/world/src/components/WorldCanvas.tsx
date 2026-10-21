@@ -72,6 +72,8 @@ interface Props {
   town: TownLayer | null;
   /** The agent card is open for the selected agent (components/AgentCard). */
   card: boolean;
+  /** The card's Chat button opens the Chat panel for that agent; null when there is none (the demo). */
+  onChat: ((key: string) => void) | null;
   onCloseCard: () => void;
   /** The agent the camera follows, or null. */
   following: string | null;
@@ -395,6 +397,7 @@ function useAgentCard(props: Props, inside: Building | null, compact: boolean, p
         following={props.following === key}
         sheet={compact}
         onFollow={() => props.onFollow(props.following === key ? null : key)}
+        onChat={props.onChat ? () => props.onChat?.(key) : null}
         onClose={props.onCloseCard}
         portrait={portrait}
       />
