@@ -1,9 +1,15 @@
 /* The director runtime: the scripted feed from @crewhub/demo, the AI-presence settings and the plan log. It watches the
    world through the same runtime every view uses, sends each new model to the feed and plays the accepted intents
-   through the intent player. No model call, no network; the settings only bound the script. */
+   through the intent player. No model call, no network; the settings only bound the script.
+
+   The feed runs on whatever model the world shows. In demo mode the demo's switch turns it on; in live mode its own
+   opt-in does (`liveDirectorEnabled`, off by default, never implied by the demo's switch): the same script, its plans
+   made from the live facts (who is idle in which building), its intents validated as in the demo, acting only on the
+   world's own figures through the walk runtime. It never reads or writes crewhub-loops: the intent player and the walks
+   are its only outlet, and the text view labels everything it does "scripted". */
 import { useEffect, useSyncExternalStore } from "react";
 import { createDirectorFeed, DEMO_SEED, type FeedUsage, type PlanRecord, type PropTags } from "@crewhub/demo";
-import { DEFAULT_PRESENCE, normalizePresence, type AgentKey, type PresenceSettings, type Reachable, type WorldModel } from "@crewhub/world-model";
+import { DEFAULT_PRESENCE, effectivePresence, normalizePresence, type AgentKey, type PresenceSettings, type Reachable, type WorldModel } from "@crewhub/world-model";
 import { clearIntents, playIntent } from "../world/intentPlayer";
 import { VISIT_TAGS } from "../world/movement";
 import { NavWorld } from "../world/navigation";
@@ -62,6 +68,10 @@ const propTags: PropTags = (slug, room) => nav().tags(slug, room).filter((tag) =
 
 export interface DirectorState {
   settings: PresenceSettings;
+  /** The mode of the last model seen, which decides which switch counts; "demo" before the first model. */
+  mode: WorldModel["mode"];
+  /** Whether the feed runs now: the switch of the current mode (`effectivePresence`). */
+  enabled: boolean;
   /** Newest first. */
   plans: readonly PlanRecord[];
   usage: FeedUsage;
@@ -69,7 +79,8 @@ export interface DirectorState {
 
 class DirectorRuntime {
   #settings = loadPresence();
-  #script = createDirectorFeed({ seed: DEMO_SEED, reachable, propTags, settings: this.#settings });
+  #mode: WorldModel["mode"] = "demo";
+  #script = createDirectorFeed({ seed: DEMO_SEED, reachable, propTags, settings: effectivePresence(this.#settings, this.#mode) });
   #plans: readonly PlanRecord[] = [];
   #state: DirectorState;
   #listeners = new Set<() => void>();
@@ -100,16 +111,29 @@ class DirectorRuntime {
   update(patch: Partial<PresenceSettings>) {
     this.#settings = normalizePresence({ ...this.#settings, ...patch });
     savePresence(this.#settings);
-    this.#script.setSettings(this.#settings);
-    // The kill switch works at once: no more plans, and no intent keeps steering anyone.
-    if (!this.#settings.directorEnabled) clearIntents();
+    this.#apply();
     this.#publish();
+  }
+
+  /** The feed's switch is the current mode's; off, the kill switch works at once: no more plans, no intent keeps steering anyone. */
+  #apply() {
+    this.#script.setSettings(effectivePresence(this.#settings, this.#mode));
+    if (!this.#enabled()) clearIntents();
+  }
+
+  #enabled(): boolean {
+    return effectivePresence(this.#settings, this.#mode).directorEnabled;
   }
 
   #onModel(model: WorldModel) {
     current = model;
+    if (model.mode !== this.#mode) {
+      // The source is decided before mount, so this is the first model; still, a mode is never trusted to stay.
+      this.#mode = model.mode;
+      this.#apply();
+    }
     // Only the director asks; a switched-off director costs no graph work.
-    if (this.#settings.directorEnabled) nav().sync(model.buildings, undefined, undefined, buildingPlanNow());
+    if (this.#enabled()) nav().sync(model.buildings, undefined, undefined, buildingPlanNow());
     const made = this.#script.step(model);
     for (const plan of made) for (const intent of plan.accepted) playIntent(intent, model);
     if (made.length > 0) this.#plans = [...made.reverse(), ...this.#plans].slice(0, LOG_LIMIT);
@@ -118,13 +142,13 @@ class DirectorRuntime {
   }
 
   #snapshot(): DirectorState {
-    return { settings: this.#settings, plans: this.#plans, usage: this.#script.usage() };
+    return { settings: this.#settings, mode: this.#mode, enabled: this.#enabled(), plans: this.#plans, usage: this.#script.usage() };
   }
 
   #publish() {
     const next = this.#snapshot();
     const prev = this.#state;
-    const same = prev.settings === next.settings && prev.plans === next.plans && JSON.stringify(prev.usage) === JSON.stringify(next.usage);
+    const same = prev.settings === next.settings && prev.mode === next.mode && prev.enabled === next.enabled && prev.plans === next.plans && JSON.stringify(prev.usage) === JSON.stringify(next.usage);
     if (same) return;
     this.#state = next;
     for (const listener of this.#listeners) listener();

@@ -438,7 +438,8 @@
   color: var(--text-muted);
   padding-top: 0.15em;
 }
-.text-kind[data-kind="demo"] {
+.text-kind[data-kind="demo"],
+.text-kind[data-kind="scripted"] {
   color: var(--accent-text);
 }
 

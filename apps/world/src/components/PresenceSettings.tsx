@@ -1,5 +1,7 @@
-/* The AI-presence block of the Settings card (LOOPS_INTEGRATION_PLAN.md section 7.3, the settings table). In demo mode
-   the director switch turns on a scripted feed: no model is called, which the label says. */
+/* The AI-presence block of the Settings card (LOOPS_INTEGRATION_PLAN.md section 7.3, the settings table). The director
+   switch turns on a scripted feed: no model is called, which the label says. Each mode has its own switch: the demo's,
+   and in live mode an opt-in of its own, off by default, whose label says the script then plays over real facts and
+   moves only the figures here. */
 import { useEffect, useState } from "react";
 import { DIRECTOR_MODEL, PRESENCE_LIMITS, type PresenceSettings as Settings } from "@crewhub/world-model";
 import { Chip, Field } from "./primitives";
@@ -39,7 +41,7 @@ function NumberField({ label, value, min, max, hint, onCommit }: { label: string
 const fmt = (n: number) => n.toLocaleString("en");
 const AMBIENT_LABELS: Record<Ambient, string> = { on: "On", reduced: "Reduced", off: "Off" };
 
-export function PresenceSettings({ reducedMotion }: { reducedMotion: boolean }) {
+export function PresenceSettings({ reducedMotion, demo }: { reducedMotion: boolean; demo: boolean }) {
   const { settings, usage } = useDirector();
   const ambient = useAmbient();
   const set = (patch: Partial<Settings>) => directorRuntime().update(patch);
@@ -68,13 +70,23 @@ export function PresenceSettings({ reducedMotion }: { reducedMotion: boolean }) 
           </option>
         ))}
       </Field>
-      <Field
-        control="checkbox"
-        label="Demo: scripted director, no model"
-        checked={settings.directorEnabled}
-        hint="Off until you switch it on. Plays a fixed script through the director's rules; nothing calls a model."
-        onChange={(e) => set({ directorEnabled: e.currentTarget.checked })}
-      />
+      {demo ? (
+        <Field
+          control="checkbox"
+          label="Demo: scripted director, no model"
+          checked={settings.directorEnabled}
+          hint="Off until you switch it on. Plays a fixed script through the director's rules; nothing calls a model."
+          onChange={(e) => set({ directorEnabled: e.currentTarget.checked })}
+        />
+      ) : (
+        <Field
+          control="checkbox"
+          label="Scripted director in live mode, no model"
+          checked={settings.liveDirectorEnabled}
+          hint="Off until you switch it on. The demo's fixed script plays over the live facts (who is idle in which building) through the director's rules. It moves only the figures in this world and is labelled scripted on every line; it never touches crewhub-loops and writes nothing. Nothing calls a model."
+          onChange={(e) => set({ liveDirectorEnabled: e.currentTarget.checked })}
+        />
+      )}
       {usage.capReached && (
         <p className="presence-cap" role="status">
           {usage.capReached === "hour" ? "The hourly plan cap is reached" : "The daily plan cap is reached"}: the director is paused.

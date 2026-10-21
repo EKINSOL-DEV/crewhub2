@@ -82,6 +82,6 @@ export default defineConfig({
     // style chunk is still about 300 kB by design (models as data); three.js itself is about 650 kB, over Vite's 500 kB
     // warning, which was the one line of noise in a first `npm run world`.
     chunkSizeWarningLimit: 1024,
-    rollupOptions: { output: { advancedChunks: { groups: [{ name: "three", test: /node_modules[\\/]three[\\/]/ }] } } },
+    rollupOptions: { output: { codeSplitting: { groups: [{ name: "three", test: /node_modules[\\/]three[\\/]/ }] } } },
   },
 });

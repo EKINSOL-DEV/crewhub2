@@ -67,7 +67,7 @@ Phase status (plan section 10; the dates and details are in [the roadmap](ROADMA
 - Phase 3 (interiors, three rooms, the ticket drone, a person carrying work into Done, closed buildings): built in demo mode and live; the world database is not built
 - Phase 4 (town paths and dynamic pathfinding): built in demo mode and live
 - Phase 5 (town document and build mode): built in demo mode; live mode keeps its own town document in the browser
-- Phase 6 (scripted director and `where`): built in demo mode; `where` works live; the real director is not built
+- Phase 6 (scripted director and `where`): built in demo mode; `where` works live; the scripted director also runs in live mode as its own opt-in, off by default and labelled "scripted" on every line (round 11); the real director is not built
 
 ## The host (`apps/host`)
 
@@ -238,8 +238,8 @@ No React Three Fiber or physics engine is needed for this slice.
 
 [`tools/`](../tools/README.md) holds the scripts that open the running world in a headless browser: the browser
 regression pass (`regress.mjs`, seven groups: the connect flow against a stub host, the demo walk, the demo's
-wayfinding, picker and the new loops events, live mode against the fake with pairing, the operations road over the
-fake (loops stopped, the key revoked, loops upgraded under the host), the three-room building, 114 checks offline,
+wayfinding, picker and the new loops events, live mode against the fake with pairing (with the Zones line and the scripted director in live mode), the operations road over the
+fake (loops stopped, the key revoked, loops upgraded under the host), the three-room building, 123 checks offline,
 plus up to 18 against the real development crewhub-loops: the connect flow through a keyless host, and live mode
 over TCP and the socket with loops' version and the log's quiet facts in a fresh tab), the accessibility pass
 (`a11y.mjs`: what a screen reader is given on every Connect screen, the panel and the town's labels, the keyboard,

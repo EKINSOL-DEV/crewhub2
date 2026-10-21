@@ -110,5 +110,5 @@ export {
   validateIntents,
 } from "./director.ts";
 export type { PresenceSettings } from "./presence.ts";
-export { DEFAULT_PRESENCE, DIRECTOR_MODEL, PRESENCE_LIMITS, normalizePresence } from "./presence.ts";
+export { DEFAULT_PRESENCE, DIRECTOR_MODEL, PRESENCE_LIMITS, effectivePresence, normalizePresence } from "./presence.ts";
 export { where } from "./where.ts";
