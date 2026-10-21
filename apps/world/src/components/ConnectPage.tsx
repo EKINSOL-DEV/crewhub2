@@ -91,7 +91,8 @@ export function ConnectPage({ screen, health, onHealth, pollMs = CONNECT_POLL_MS
   const Icon = screen === "no-loops" ? Search : screen === "rejected" ? ShieldAlert : screen === "checking" ? RefreshCw : screen === "loops-down" ? Unplug : KeyRound;
   const connection = health.connection;
   const asked = relativeTime(new Date(askedAt).toISOString(), now);
-  const where = connection?.discovery.target ? t("world.connect.connect.where", { target: connection.discovery.target }) : "";
+  // The road, in the panel's words ("through the Mac app's socket"): the raw path is a detail for the Connection panel.
+  const where = connection?.discovery.via ? t("world.connect.connect.where", { via: t(`world.connection.panel.via.${connection.discovery.via}`) }) : "";
 
   return (
     <main className="pair-page connect-page" data-screen={screen} aria-labelledby="connect-title" aria-label={t("world.connect.label")}>

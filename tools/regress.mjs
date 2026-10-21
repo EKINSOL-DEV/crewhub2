@@ -548,7 +548,7 @@ await group("live", async () => {
       const page = await bare.locator(".pair-page").count();
       const body = (await bare.locator("body").innerText().catch(() => "")).replace(/\s+/g, " ");
       ok("pairing: /world-api answers 401 without a cookie", status === 401, String(status));
-      ok("pairing: the world asks to pair this browser", page > 0 && /Pair this browser/i.test(body) && /npm run host -- open/.test(body) && !/\/pair\//.test(body), body.slice(0, 160));
+      ok("pairing: the world asks to pair this browser", page > 0 && /Pair this browser/i.test(body) && /npm run world/.test(body) && !/\/pair\//.test(body), body.slice(0, 160));
       await shot(bare, "22-pair-page");
       await bare.context().close();
       problems.push(...own.filter((x) => !/401/.test(x.text)));
