@@ -887,8 +887,10 @@ gets one small, honest presence; none moves a ticket or an agent, and the projec
 
 1. **`ticket.quiet`** `{status, minutes, since, ticket}` (actor `system`, one per ticket, status, minutes and quiet
    stretch; `domain/automation_quiet.py`). The package on its rack or desk gathers **dust**: a thin grey film and a small
-   clock tag "quiet 2 h" in words, from the event's `minutes` and `since`, until the ticket next changes (any
-   `ticket.*` event on it, or a snapshot that says otherwise). It is a fact about the ticket, not a stall: the stall
+   clock tag "quiet 2 h" in words, from the event's `minutes` and `since`, until a person or an agent next changes
+   the ticket (any `ticket.*` or `comment.*` event on it whose actor is not `system`), or a snapshot says otherwise. A
+   change by `system` (an automation answering the quiet fact, 6 ms later on 8291) leaves the dust: otherwise nobody
+   would ever see it. It is a fact about the ticket, not a stall: the stall
    lamp (`ticket.stalled`) keeps its own meaning. The text view says "CR-12 has been quiet in Review for 2 h". Reduced
    motion: the same, without the dust settling.
 2. **`automation.ran`** `{runId, automationId, outcome, automation:{id, name}}` (actor `system`, on the ticket). A short
