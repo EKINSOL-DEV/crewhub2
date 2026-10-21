@@ -97,5 +97,12 @@ chat bubbles on), and links to the app as the fallback. The frame's sandbox and 
 The panel's close button, or Escape while the focus is outside the frame, returns the focus to the card's button. The
 demo's card has no Chat button: the demo's chat is its own scripted dock.
 
+Loops' chat dock lists enabled agents of loops role `lead` only (round 13), so the button is there only when loops has
+a chat head for the agent (`AgentCardFacts.chat.self`). The card of a worker, the postman or a lead loops does not list
+has no Chat button of its own and a line in the footer that says why, in loops' own terms ("crewhub-loops chats with
+leads only: <name> is a worker, not an agent registered in crewhub-loops; chat with its lead <lead>"); when loops lists
+its lead (the worker's lead from the team snapshot, else the building's), a "Chat with <lead>" button opens the panel
+on that lead. Loops' role decides, not the card's role words (an analyst by its name is a lead to loops when loops says so).
+
 Calm-label rules hold: the card replaces the selected agent's nameplate, nothing else changes; the town and the
 building keep their quiet signs.

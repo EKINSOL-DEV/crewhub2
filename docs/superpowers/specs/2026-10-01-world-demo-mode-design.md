@@ -1002,9 +1002,22 @@ loops' storage), `allow-scripts`, `allow-forms` (sign-in, compose), `allow-popup
 Escape closes the panel while the focus is outside the frame (a key pressed inside a cross-origin frame never reaches
 the world; the panel says so), the close button always; the focus returns to the opener. The text view says where chat
 lives. The demo keeps its own scripted chat (the copied dock); the demo's card has no Chat button.
-Checks: the pure parts in `apps/world/test/chatPanel.test.ts`; the regress `live` group frames a stub loops web page
+**Leads only (round 13).** Loops' chat dock lists enabled agents of loops role `lead` only (`Bubbles.tsx`:
+`!a.disabled && a.role === "lead"` over `GET /api/agents`; `openChat.ts` opens nothing outside that list), so a card's
+Chat names only an agent that list holds (`AgentCardFacts.chat`, `packages/world-model/src/agentCard.ts` `chatFacts`;
+`state/chatPanel.ts` `chatTargetOf`): a lead's card has "Chat with <name>" and the frame on `/?chat=<id>`; the card of a
+worker (no entry of its own), the postman (role router) or a lead loops does not list has **no Chat button for itself**
+(one that framed the root under that name would pretend) and a line that says why in loops' own terms
+("crewhub-loops chats with leads only: <name> is a worker, not an agent registered in crewhub-loops; chat with its lead
+<lead>"), with a "Chat with <lead>" button when loops lists its lead (the worker's lead from the team snapshot, else the
+building's); the postman at the post office gets the line alone. Loops' role decides, never the world's role words: an
+agent the world calls an analyst by its name is a lead to loops when loops says so, and an enabled external bot of role
+lead is in loops' dock too. The chip's frame stays the root.
+Checks: the pure parts in `apps/world/test/chatPanel.test.ts` (the target and the words per role) and
+`packages/world-model/test/agentCard.test.ts` (the rule); the regress `live` group frames a stub loops web page
 (`tools/lib/loopsWebStub.mjs`, which records that it was fetched as a frame) and checks the src, the words, the link, the
-sandbox, Escape and the focus, the card road and the phone; `tools/liveshots.mjs --views chat` shows the panel against
+sandbox, Escape and the focus, the card road, the postman's card without a Chat button and with the line (and no
+`?chat=postman` ever asked), and the phone; `tools/liveshots.mjs --views chat` shows the panel against
 a real loops (its sign-in, in a headless browser that is signed in nowhere); `tools/a11y.mjs` checks the chip, the
 dialog and the focus.
 The loops side (world/viewer-key): `?chat=<agent id>` (cb163004) and `frame-ancestors 'self' http://127.0.0.1:*

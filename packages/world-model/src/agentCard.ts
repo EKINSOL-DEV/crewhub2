@@ -80,6 +80,25 @@ export interface AgentTeamSession {
   computer: ComputerFacts | null;
 }
 
+/**
+ * Whom crewhub-loops' own chat reaches from this card. Loops' chat dock lists enabled agents of loops role `lead` only
+ * (`apps/web/src/components/bubbles/Bubbles.tsx`: `!a.disabled && a.role === "lead"` over `GET /api/agents`), so only
+ * such an agent has a chat head, and `?chat=<id>` opens it; a worker (no entry of its own), the postman (role router),
+ * a probe, a disabled agent or a lead missing from that list has none. Loops' role decides, not the world's role words
+ * (an analyst by its name is a lead to loops when loops says so).
+ */
+export interface AgentChatFacts {
+  /** Loops' dock has a head for this agent, so "Chat with <name>" is honest. */
+  self: boolean;
+  /** Why loops has no head for it, after "<name> is"; null when `self`. */
+  why: string | null;
+  /**
+   * The lead to chat with instead, which has a head of its own: a worker's lead from the team snapshot, else the lead
+   * of the building the figure is in; null when there is none loops lists (the postman at the post office).
+   */
+  lead: { key: string; displayName: string } | null;
+}
+
 export interface AgentCardFacts {
   key: string;
   name: string;
@@ -107,6 +126,8 @@ export interface AgentCardFacts {
   loops: AgentLoopsFacts | null;
   lane: AgentLaneFacts | null;
   recent: RecentFact[];
+  /** Whom loops' chat reaches from here: this agent, or its lead, or nobody (with why). */
+  chat: AgentChatFacts;
 }
 
 export const RECENT_LIMIT = 5;
@@ -172,6 +193,34 @@ function loopsFacts(agent: AgentOut | undefined): AgentLoopsFacts | null {
     computer: computerFacts(agent.computer),
     projects: { lead: agent.projects?.lead ?? [], member: agent.projects?.member ?? [] },
   };
+}
+
+/** Loops' dock lists this entry of `GET /api/agents`: enabled, loops role `lead` (Bubbles.tsx). */
+const inDock = (agent: AgentOut): boolean => agent.role === "lead" && !agent.disabled;
+
+/**
+ * Whom loops' chat reaches from the card of `entity` (see `AgentChatFacts`). The reason reads loops' own entry, not the
+ * world's role words; the lead offered instead is the first loops lists of the worker's lead and the building's lead,
+ * and never the agent itself.
+ */
+export function chatFacts(agents: readonly AgentOut[], entity: Pick<AgentEntity, "key" | "registered" | "lead">, building: Pick<Building, "lead"> | null): AgentChatFacts {
+  const own = agents.find((a) => a.id === entity.key);
+  if (own && inDock(own)) return { self: true, why: null, lead: null };
+  const why = !own
+    ? entity.registered
+      ? "a registered agent crewhub-loops does not list"
+      : "a worker, not an agent registered in crewhub-loops"
+    : own.disabled
+      ? "disabled in crewhub-loops"
+      : own.role === "router"
+        ? "the postman (loops role router)"
+        : `of loops role ${own.role}, not a lead`;
+  for (const id of [entity.lead, building?.lead.id ?? null]) {
+    if (!id || id === entity.key) continue;
+    const lead = agents.find((a) => a.id === id);
+    if (lead && inDock(lead)) return { self: false, why, lead: { key: lead.id, displayName: lead.displayName } };
+  }
+  return { self: false, why, lead: null };
 }
 
 /** The team session that holds the agent's lane (by its name), with its computer. */
@@ -261,5 +310,6 @@ export function agentCardFacts(model: WorldModel, facts: Readonly<Facts>, key: s
     loops: loopsFacts(loops),
     lane: laneFacts(loops?.lane),
     recent: recentFacts(entity, facts),
+    chat: chatFacts(facts.agents, entity, real.building),
   };
 }

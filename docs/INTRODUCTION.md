@@ -268,18 +268,28 @@ own app shell with its chat dock, so the chat is exactly loops' because it is lo
 the same browser, the session cookie is `SameSite=Lax`, and `127.0.0.1:<world>` and `127.0.0.1:8091` are one site, so
 the cookie travels into the frame; signed out, loops' own sign-in shows inside it.
 
+![The Chat panel opened from crewhub-lead's card, over the Lead's office of the Inbox building against the second development crewhub-loops (8292, world/viewer-key), signed out: the frame on /?chat=crewhub-lead shows loops' own sign-in form, the panel says it opens crewhub-lead's chat and what it needs, and links to the app below.](images/chat-panel.jpg)
+
 The panel's words are honest, because two things are true today: opened from a card, the frame asks loops for that
 agent's chat (`?chat=<agent id>`, which a loops of world/viewer-key cb163004 or later turns into its dock's own open
 and an older loops ignores), so the panel also says which head to open; and it needs the person signed in with loops'
 bubbles feature on. The world handles no password and keeps no session; the frame's
 sandbox is no wider than the chat needs (`CHAT_FRAME_SANDBOX`, each token with its reason), it never gets
 `allow-top-navigation` or `allow-modals`, and "Open in the crewhub-loops app" stays beside the frame as the fallback.
-Escape closes the panel while the focus is outside the frame; the focus returns to the opener.
+Escape closes the panel while the focus is outside the frame; the focus returns to the opener. Loops' chat dock lists
+enabled agents of loops role `lead` only, so only a lead's card has "Chat with <name>": the card of a worker or of the
+postman has no Chat button of its own and says why ("crewhub-loops chats with leads only: <name> is a worker ...; chat
+with its lead <lead>"), with a button for the lead's chat when loops lists one.
 
 **Road B**, speech bubbles over the figures when an agent answers, needs the person's own view of the conversation (the
 world's key is not a participant of the person's thread, so it never sees `dm.*` for it). The spec addendum weighs the
-options; the one that needs no loops change (the host signed in as the person, for chat reads only, off by default) is
-**in progress** and not merged at this head. The honest road is on the loops side (section 8).
+options. The one that needs no loops change is built, off by default: the Connection panel's Chat section takes a
+sign-in once and the host keeps only loops' session cookie, for chat reads alone; where loops lets the world's own key
+read the chat (the viewer key of world/viewer-key), no sign-in is needed. An agent's answer then shows for a few
+seconds as a speech bubble over its figure, and a tap on the bubble opens the Chat panel on that agent. The honest road
+is on the loops side (section 8).
+
+![The live town over the fake crewhub-loops with a speech bubble over G-Man's figure at the lodge, "Busy and calm. CR finished the reading no...": the first line of the agent's answer as the bubble, which a tap turns into the Chat panel on G-Man; the Chat chip at the top right.](images/chat-bubble.jpg)
 
 ## 7. The text view and accessibility
 

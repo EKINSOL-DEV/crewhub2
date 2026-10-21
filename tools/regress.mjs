@@ -799,6 +799,28 @@ await group("live", async () => {
       await pg.keyboard.press("Escape");
       await pg.waitForTimeout(300);
     }
+    // Round 13: loops' chat dock lists enabled agents of loops role lead only, so the postman's card (loops role router, at
+    // the post office, no lead to offer) has no Chat button and says why; no ?chat= is ever asked for it.
+    await canvas(pg).focus();
+    await pg.keyboard.press("/");
+    await pg.getByRole("dialog", { name: "Jump to" }).waitFor({ timeout: 3000 }).catch(() => {});
+    await pg.keyboard.type("postman");
+    await pg.waitForTimeout(400);
+    await pg.keyboard.press("Enter");
+    await pg.waitForTimeout(1500);
+    await canvas(pg).focus();
+    await pg.keyboard.press("Enter");
+    await pg.locator(".agent-card").waitFor({ timeout: 3000 }).catch(() => {});
+    const postmanCard = (await pg.locator(".agent-card").innerText().catch(() => "")).replace(/\s+/g, " ");
+    const postmanChat = await pg.locator(".agent-card .agent-chat").count();
+    const postmanNote = (await pg.locator(".agent-card .agent-chat-note").innerText().catch(() => "")).replace(/\s+/g, " ");
+    const askedForPostman = web.requests.filter((r) => /chat=postman/.test(r.path)).length;
+    ok("live: the postman's card has no Chat button (loops chats with leads only) and says why; nothing asked loops for its chat", /Postman/.test(postmanCard) && postmanChat === 0 && /crewhub-loops chats with leads only: Postman is the postman \(loops role router\)\.$/.test(postmanNote) && askedForPostman === 0, `${postmanChat} Chat button(s); "${postmanNote}"; ${askedForPostman} request(s) with chat=postman`);
+    await shot(pg, "23e-card-leads-only");
+    for (let i = 0; i < 3; i++) {
+      await pg.keyboard.press("Escape");
+      await pg.waitForTimeout(300);
+    }
     const phone = await browser.newContext({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true, colorScheme: "light" });
     const ph = await phone.newPage();
     watch(ph, liveOrigin, problems, "live phone");

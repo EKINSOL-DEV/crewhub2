@@ -216,7 +216,8 @@ The source setting is `auto` by default: Live when a host answers `/world-api/he
 `?source=live` or `?source=demo` overrides it; Settings > Source shows the choice, the host URL and why the source was
 chosen, and changing it reloads the page (the source is decided once, before the world starts). In live mode the
 Demo chip, the scenario picker and the playback bar are hidden, the chat corner is one chip, "Chat", which opens the
-Chat panel: crewhub-loops' own chat, framed in the world (round 12; also "Chat with <name>" on an agent's card). The
+Chat panel: crewhub-loops' own chat, framed in the world (round 12; also "Chat with <name>" on a lead's card: loops
+chats with leads only, so a worker's card says so and offers its lead's chat instead). The
 frame carries your own loops session (sign in to loops in this browser as a person, with chat bubbles switched on in
 loops); signed out, loops' own sign-in shows in the frame, and the world never sees a password or a session. The
 panel opened from a card asks loops for that agent's chat (`?chat=<agent id>`, a loops of world/viewer-key cb163004

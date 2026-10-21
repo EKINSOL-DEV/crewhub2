@@ -3,6 +3,7 @@
    The world handles no password and no session: the frame carries the person's own crewhub-loops session (the cookie is
    SameSite=Lax and 127.0.0.1:<world> and 127.0.0.1:<loops> are one site), or loops' own sign-in shows inside it. */
 import type { HostHealth } from "@crewhub/loops-client";
+import type { AgentCardFacts } from "@crewhub/world-model";
 import { loopsWebUrl } from "./source.ts";
 
 /**
@@ -17,6 +18,29 @@ import { loopsWebUrl } from "./source.ts";
 export function chatFrameUrl(health: HostHealth | null | undefined, agent: string | null = null): string {
   const root = `${new URL(loopsWebUrl(health)).origin}/`;
   return agent ? `${root}?${CHAT_PARAM}=${encodeURIComponent(agent)}` : root;
+}
+
+/**
+ * The agent a card's Chat opens the panel for (round 13): the agent itself when loops' dock has a head for it
+ * (`AgentCardFacts.chat.self`: enabled, loops role lead), else its lead when loops lists that one, else nobody: the card
+ * shows no Chat button then and says why (`chatCardNote`). So `?chat=` only ever names an agent loops' dock can open,
+ * and "Chat with <name>" never pretends.
+ */
+export function chatTargetOf(facts: Pick<AgentCardFacts, "key" | "displayName" | "chat">): { key: string; name: string } | null {
+  if (facts.chat.self) return { key: facts.key, name: facts.displayName };
+  return facts.chat.lead ? { key: facts.chat.lead.key, name: facts.chat.lead.displayName } : null;
+}
+
+/**
+ * The card's line when loops has no chat head for the agent: why (loops' own reason, `AgentChatFacts.why`), and whose
+ * chat to use instead when loops lists its lead; null for an agent with a head. English here, as `chatPlaceLine`.
+ */
+export function chatCardNote(facts: Pick<AgentCardFacts, "displayName" | "chat">): string | null {
+  if (facts.chat.self) return null;
+  const why = facts.chat.why ?? "not a lead";
+  return facts.chat.lead
+    ? `crewhub-loops chats with leads only: ${facts.displayName} is ${why}; chat with its lead ${facts.chat.lead.displayName}.`
+    : `crewhub-loops chats with leads only: ${facts.displayName} is ${why}.`;
 }
 
 /** Loops' query parameter for one agent's chat (`apps/web/src/components/bubbles/openChat.ts` `OPEN_CHAT_PARAM`). */

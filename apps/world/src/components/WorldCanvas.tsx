@@ -399,7 +399,7 @@ function useAgentCard(props: Props, inside: Building | null, compact: boolean, p
         following={props.following === key}
         sheet={compact}
         onFollow={() => props.onFollow(props.following === key ? null : key)}
-        onChat={props.onChat ? () => props.onChat?.(key) : null}
+        onChat={props.onChat}
         onClose={props.onCloseCard}
         portrait={portrait}
       />
