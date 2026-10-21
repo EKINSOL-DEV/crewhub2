@@ -14,15 +14,16 @@
      (one one-time link from `npm run host -- open --origin <vite origin> --no-open`; visited once, its cookie copied to
      every context) and --key-file <path> (the key pasted for the connected step; read here, typed into the field, never
      printed) are needed, and the states run in order on one page per theme and width: connect, pasted, invalid, rejected
-     (a shaped key loops does not know), connected, panel, forget (which hands the Connect screen back). With --states
+     (a shaped key loops does not know), rejected-readonly (a real Read only bot's key from --readonly-key-file: the refusal
+     must say to make a new bot with Read only off), connected, panel, forget (which hands the Connect screen back). With --states
      no-loops or pair (no pair link) the host must be in that state itself.
    Output in --out: <tag><state>-<theme>-<width>.png. Prints connectshots: <passed>/<total> last; exit 0 at full marks. */
 import { cli, launch, list, problemLines, watch } from "./lib/world.mjs";
 import { createConnectStub } from "./lib/connectStub.mjs";
 
-const STATES = ["no-loops", "pair", "connect", "pasted", "invalid", "checking", "rejected", "loops-down", "connected", "panel", "forget", "busy", "busy-panel", "older"];
+const STATES = ["no-loops", "pair", "connect", "pasted", "invalid", "checking", "rejected", "rejected-readonly", "loops-down", "connected", "panel", "forget", "busy", "busy-panel", "older"];
 const opts = cli("node tools/connectshots.mjs --port <vite port> --stub-port <port> [--states ...] [--theme light,dark] [--width 1440,375] [--tag \"\"] [--no-flow] [--out <dir>] [--swiftshader]", {
-  options: { "stub-port": null, states: STATES.join(","), theme: "light,dark", width: "1440,375", tag: "", "pair-link": null, "key-file": null },
+  options: { "stub-port": null, states: STATES.join(","), theme: "light,dark", width: "1440,375", tag: "", "pair-link": null, "key-file": null, "readonly-key-file": null },
   flags: ["no-flow", "real"],
 });
 const stubPort = Number(opts["stub-port"]);
@@ -68,8 +69,9 @@ if (opts.real) {
 async function realRun() {
   const { readFileSync } = await import("node:fs");
   const realKey = opts["key-file"] ? readFileSync(opts["key-file"], "utf8").trim() : null;
+  const readonlyKey = opts["readonly-key-file"] ? readFileSync(opts["readonly-key-file"], "utf8").trim() : null;
   let cookies = null;
-  const REAL_ORDER = ["no-loops", "pair", "connect", "pasted", "invalid", "rejected", "connected", "panel", "forget"];
+  const REAL_ORDER = ["no-loops", "pair", "connect", "pasted", "invalid", "rejected", "rejected-readonly", "connected", "panel", "forget"];
   const wanted = REAL_ORDER.filter((s) => states.includes(s));
   for (const theme of themes)
     for (const width of widths) {
@@ -108,6 +110,21 @@ async function realRun() {
               await p.waitForSelector(".connect-rejected, .connect-page[data-screen=\"rejected\"]", { timeout: 15000 });
               const reason = await p.locator(".connect-rejected").first().innerText().catch(() => "");
               if (theme === themes[0] && width === widths[0]) ok("real: a key loops does not know is refused with the host's reason", reason.length > 10, reason.slice(0, 120));
+              await p.waitForTimeout(300);
+              break;
+            }
+            case "rejected-readonly": {
+              if (!readonlyKey) throw new Error("--readonly-key-file is needed for the rejected-readonly step");
+              await p.getByLabel("Access key").fill(readonlyKey);
+              await p.keyboard.press("Enter");
+              await p.waitForFunction(() => /Read only/.test(document.querySelector(".connect-rejected")?.textContent ?? ""), null, { timeout: 20000 }).catch(() => undefined);
+              const reason = await p.locator(".connect-rejected").first().innerText().catch(() => "");
+              if (theme === themes[0] && width === widths[0]) {
+                ok("real: a Read only bot's key is refused", reason.length > 10, reason.slice(0, 160));
+                ok("real: the refusal says to make a new bot with Read only off", /Read only/.test(reason) && /new|another/i.test(reason) && /off/.test(reason), reason.slice(0, 200));
+                const html = await p.content();
+                ok("real: the Read only key is in no DOM after the refusal", !html.includes(readonlyKey.slice(4, 20)));
+              }
               await p.waitForTimeout(300);
               break;
             }
