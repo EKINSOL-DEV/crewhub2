@@ -238,13 +238,17 @@ Since the smooth connection the answer also carries `connection`:
 ```json
 "connection":{"discovery":{"state":"found","via":"app-socket","target":"~/Library/Application Support/be.ekinsol.crewhub/run/api.sock"},
               "key":{"state":"ok","name":"crewhub-world","source":"stored"},
-              "stream":{"state":"ok","cursor":257,"lastEventAt":"2026-10-21T01:02:03.000Z","reconnects":0}}
+              "stream":{"state":"ok","cursor":257,"lastEventAt":"2026-10-21T01:02:03.000Z","reconnects":0},
+              "snapshot":{"state":"ready","projects":5,"reads":18,"ms":27}}
 ```
 
 `discovery.state` is `found` or `searching` (`via`: `env-url`, `env-socket`, `app-socket`, `app-port`); `key.state` is
 `none` (the Connect screen), `checking`, `rejected` (with `reason`, in words to act on) or `ok` (`source`: `env`,
-`stored`, `default`); `stream.state` is `idle`, `ok`, `down` or `unauthorized`. An unpaired browser gets the states
-only: no target, no name, no cursor. `npm run host -- doctor` prints the same in the terminal.
+`stored`, `default`); `stream.state` is `idle`, `ok`, `down`, `unauthorized` or `busy` (loops' 429, with the reason);
+`snapshot.state` is `idle`, `reading` (the reads so far, the project count once the list is in), `ready` (projects,
+reads, ms) or `failed` (the reason): what the page's first-snapshot line shows. Health answers within a second even
+while the key check is under way. An unpaired browser gets the states only: no target, no name, no cursor.
+`npm run host -- doctor` prints the same in the terminal.
 
 `loops` is `ok`, `down` or `unauthorized` (a loops 401 or 403; also no key yet, for the world from before);
 `transport` is `tcp` or `unix`; `keyName` is the key's agent name (from the file name `agent-<name>.key`, or the
@@ -360,11 +364,13 @@ development instance that another developer tests against.
 
 ## What is not there yet
 
-- **A "Connect CrewHub World" button in the loops web** that makes the bot and hands the key to the host, so nothing is
-  copied by hand: proposed for the `world/viewer-key` branch's road (loops side, not tonight).
 - **A viewer role** (L1). The key is a lead-grade external bot; the host's allow-list and a test keep every unsafe
   method out. A read-only key that may read the board, the team, agents and the stream is proposed to loops on the
-  branch `world/viewer-key` of the loops checkout (not pushed), the ask for `cl-lead`.
+  branch `world/viewer-key` of the loops checkout (not pushed, tests green), the ask for `cl-lead`.
+- **A "Connect CrewHub World" card in the loops web** (Settings > Agents) that makes the viewer bot and shows its key
+  once next to the world's address and a button that opens the world, so steps 2 and 3 above become one dialog:
+  worked out on the same branch on 2026-10-21 (web only, on top of the viewer flag), a proposal until loops accepts it.
+  The key is still pasted in the world's Connect screen; nothing hands it to the host behind the person's back.
 - **The chat** (phase 2) needs CORS in crewhub-loops (L8). There is still no `Access-Control-Allow-Origin` anywhere
   in `loops:.../api/security.py`; `CHL_ALLOWED_ORIGINS` feeds the Host/Origin guard only. A bearer key must never
   reach a browser and the person's session is an HttpOnly cookie, so the relay is the way for data and the chat stays
