@@ -1168,6 +1168,9 @@ Round 11 ends at `a816264`, with 778 tests and the browser pass at 141 of 141.
   validated as in the demo and move only the world's own figures. "Scripted" is on every intent line, in the text
   view and in the director log, so it cannot be mistaken for real behaviour. Six regress checks prove it, including
   that the page sends nothing but reads while it runs.
+- **Verified on the real app** (21 October, 18:50). Nicky ran `npm run world` on `b7babd4` against his own Crewhub.app
+  on 8091: crewhub-loops found through the app's socket, the key ok, the stream ok, 3 projects in 15 reads (41 ms) and
+  1 archived project from the log. In his words: it works.
 
 ## Challenges with docs/integrators
 
