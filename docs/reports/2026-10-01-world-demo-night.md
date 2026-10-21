@@ -1125,6 +1125,28 @@ Round 9 ends at `39e5d56`, with 763 tests and the browser pass at 132 of 132.
 - **The facade colour at town level** stays Nicky's eye. Two mocks, a roof band and a wall tint, are pictured live
   beside today's look in the coordinator's contact sheet, on a branch that is never merged (`mock/r9-facade`).
 
+## Round 10: consolidation, a seventh rehearsal and a Forget that read as a refusal (2026-10-21, afternoon)
+
+Round 10 ends at `a8ea5c5`, with 765 tests and the browser pass at 134 of 134.
+
+- **The documents tell the truth of rounds 8 and 9** (r10-docs): the runbook, the host README, the real-vs-fake list and
+  ARCHITECTURE now say that a rejected key waits and is re-checked every five minutes, that the snapshot reads the quiet
+  stretches and the automation runs from the event log (with its window and caps), what the dust is, and that
+  `tools/loops-dev.sh` stops what listens on its port.
+- **The viewer proposal got a second page** (r10-proposal, on the unpushed loops branch `world/viewer-key`, no code):
+  a `ticket=` filter on loops' events read, which would turn the snapshot's paged activity read into one small read per
+  quiet ticket, and the archived projects listed for a viewer key, which would replace the whole-log archive scan.
+- **The seventh rehearsal on a fresh clone** (r10-friction) held every timing: the Connect screen painted 164 ms after
+  the link, and the town was Live 0.83 s after the key. It found two things. After Forget this key and a new key, the
+  whole town went up in scaffolding as if every project had just joined: a building that arrives with a snapshot now
+  stands at once, and only a project that joins by an event goes up. A closed sign said "20 Oct 2026 (today)" on the 21st,
+  because the date is the UTC day; it now says "under a day".
+- **The last contact sheet** (r10-sheet), live against the development loops, found one more: with several tabs open,
+  Forget this key in one sent the others to "crewhub-loops rejected the key". The host's word on the stream is the same
+  for no key and a refused key, so the world now asks the host's own key state (r10-forgettab): the other tabs show the
+  Connect screen within a second, and a key revoked while Live still shows the rejected screen with loops' reason. Two
+  checks in the `connect` group pin it.
+
 ## Challenges with docs/integrators
 
 Read at crewhub-loops `a1bed0f`. Each item names the document, what was unclear, contradictory, missing or marked
