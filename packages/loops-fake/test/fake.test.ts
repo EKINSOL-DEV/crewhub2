@@ -205,12 +205,32 @@ test("from=tail, the honest lastSeq of CL-390, GET /api/events paging, the seale
   assert.equal(resumed.body.lastSeq, fake.lastSeq());
   const both = await get(fake, `/api/events?cursor=${encodeURIComponent(tail.body.cursor)}&after=1`);
   assert.deepEqual([both.status, both.body.error.code, both.body.error.message], [400, "validation_error", "Send either cursor or after, not both"]);
+  // A token is 34 bytes, 46 base64url chars: the last char carries two bits and four of padding, which the decoder
+  // (Node's and loops' urlsafe_b64decode alike) drops. So a token that differs only in its padding bits is the same
+  // token and opens, and a "corruption" of the last chars is none one time in 256: the corrupted token below changes
+  // a char whose six bits all count, inside the MAC, and the test proves the bytes differ before it asks.
+  const padded = tail.body.cursor.slice(0, -1) + otherPadding(tail.body.cursor.at(-1)!);
+  assert.notEqual(padded, tail.body.cursor);
+  assert.equal((await get(fake, `/api/events?cursor=${encodeURIComponent(padded)}`)).status, 200, "the same bytes under other padding bits");
   const other = await start({ firstSeq: 4000, speed: 0 });
-  for (const foreign of ["bogus", tail.body.cursor.slice(0, -2) + "zz", (await get(other, "/api/events?from=tail")).body.cursor]) {
+  for (const foreign of ["bogus", corrupted(tail.body.cursor), (await get(other, "/api/events?from=tail")).body.cursor]) {
+    assert.ok(!Buffer.from(foreign, "base64url").equals(Buffer.from(tail.body.cursor, "base64url")), "the foreign token is other bytes");
     const gone = await get(fake, `/api/events?cursor=${encodeURIComponent(foreign)}`);
-    assert.deepEqual([gone.status, gone.body.error.code, gone.body.error.message], [410, "cursor_expired", CURSOR_EXPIRED_MESSAGE], `foreign ${foreign.slice(0, 12)}`);
+    assert.deepEqual([gone.status, gone.body.error?.code, gone.body.error?.message], [410, "cursor_expired", CURSOR_EXPIRED_MESSAGE], `foreign ${foreign.slice(0, 12)}`);
   }
 });
+
+const BASE64URL = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+/** The token with one char of its MAC replaced by another: always other bytes, so the seal never matches. */
+function corrupted(token: string): string {
+  const at = 30; // chars 29–45 encode the 12 MAC bytes; char 30 carries six bits that all count
+  return token.slice(0, at) + BASE64URL[(BASE64URL.indexOf(token[at]!) + 1) % 64] + token.slice(at + 1);
+}
+/** Another last char with the same two significant bits: the same bytes, written differently. */
+function otherPadding(last: string): string {
+  const index = BASE64URL.indexOf(last);
+  return BASE64URL[(index & 0x30) | ((index + 4) & 0x0f)]!;
+}
 
 test("moveTicket emits ticket.moved on the stream and the board and ticket reads follow", async () => {
   const fake = await start({ speed: 0 });
