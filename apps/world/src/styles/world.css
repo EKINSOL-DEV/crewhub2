@@ -2237,8 +2237,43 @@ a.agent-ticket-link:focus-visible {
   overflow: hidden;
 }
 .chat-sheet-lead,
+.chat-sheet-dock,
 .chat-sheet-needs {
   margin: 0;
+}
+/* The glance (round 17): two short lines, what this is and the one thing to do; the rest behind "About this chat". */
+.chat-sheet-lead {
+  display: grid;
+  gap: 2px;
+  font-size: var(--text-sm);
+}
+.chat-sheet-todo {
+  color: var(--text-muted);
+}
+.chat-about {
+  flex: none;
+  margin: 0;
+  font-size: var(--text-xs);
+}
+.chat-about > summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+.chat-about > summary:focus-visible {
+  outline: 0;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+.chat-about[open] > summary {
+  margin-bottom: var(--space-1);
+}
+.chat-sheet-dock {
+  font-size: var(--text-xs);
+}
+.chat-sheet-dock + .chat-sheet-needs {
+  margin-top: var(--space-1);
 }
 .chat-sheet-needs {
   font-size: var(--text-xs);

@@ -4,6 +4,7 @@
 import { useSyncExternalStore } from "react";
 import { createHostSource, type ConnectionState, type ConnectionStatus, type WorldSource } from "@crewhub/loops-client";
 import { rememberSaid } from "./said";
+import { demoChatLine, isAgentDm } from "./demoSaid";
 import {
   browserScheduler,
   createDemoSource,
@@ -173,6 +174,16 @@ class WorldRuntime {
         rememberSaid(message.chat);
         return;
       }
+      // The demo's own dock answers (round 17, state/demoSaid.ts): the scripted reply's dm.created, read back from the
+      // demo's thread, feeds the same store, so the demo shows the bubble, the mark and the Recent answers row too.
+      if (message.type === "event" && this.chat !== null && this.source === this.chat && isAgentDm(message.envelope)) {
+        const { agentId } = message.envelope.payload;
+        const envelope = message.envelope;
+        void this.chat.getDmMessages(agentId).then((messages) => {
+          const line = demoChatLine(envelope, messages, this.#agentName(agentId));
+          if (line !== null) rememberSaid(line);
+        });
+      }
       this.projection.apply(message);
     });
     this.projection.onChange(() => this.#schedule());
@@ -185,6 +196,13 @@ class WorldRuntime {
 
   get state(): WorldState {
     return this.#state;
+  }
+
+  /** The display name of an agent in the current model (a figure anywhere), or null for one the model does not place. */
+  #agentName(agentId: string): string | null {
+    const model = this.#state.model;
+    for (const a of [...model.buildings.flatMap((b) => b.agents), ...model.townHall, ...model.postOffice]) if (a.name === agentId) return a.displayName;
+    return null;
   }
 
   /** The scripted demo behind the world, or null when the world runs the stress fixture or the live host. */

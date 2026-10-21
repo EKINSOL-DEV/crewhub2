@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { HostHealth } from "@crewhub/loops-client";
-import { CHAT_FRAME_ALLOW, CHAT_FRAME_SANDBOX, CHAT_PARAM, CHAT_TYPING_WORDS, chatCardNote, chatFrameUrl, chatPlaceLine, chatTargetOf, chatWords, chatWordsLine } from "../src/state/chatPanel.ts";
+import { CHAT_FRAME_ALLOW, CHAT_FRAME_SANDBOX, CHAT_PARAM, CHAT_TYPING_WORDS, chatCardNote, chatFrameUrl, chatGlance, chatPlaceLine, chatTargetOf, chatWords, chatWordsLine } from "../src/state/chatPanel.ts";
 import { DEFAULT_LOOPS_URL } from "../src/state/source.ts";
 
 const health = (loopsWebUrl?: string): HostHealth => ({ loops: "ok", keyName: "crewhub-world", sharedKey: false, pairing: "off", paired: true, ...(loopsWebUrl === undefined ? {} : { loopsWebUrl }) });
@@ -83,4 +83,23 @@ test("a card's Chat names only an agent loops' dock can open: the lead itself, a
   assert.equal(chatCardNote(worker), "crewhub-loops chats with leads only: cl-dev-1 is a worker, not an agent registered in crewhub-loops; chat with its lead CL Lead.");
   assert.equal(chatCardNote(postman), "crewhub-loops chats with leads only: Postman is the postman (loops role router).");
   assert.equal(chatCardNote(disabled), "crewhub-loops chats with leads only: Old Lead is disabled in crewhub-loops; chat with its lead CL Lead.");
+});
+
+test("chatGlance: the Chat panel's one line to act on, per road, short, one story with chatWords", () => {
+  assert.equal(chatGlance({ state: "key" }), "Sign in to crewhub-loops below to type; the answers come as bubbles without it.");
+  assert.equal(chatGlance({ state: "signed-in", name: "Nicky" }), "Sign in to crewhub-loops below to type; the answers come as bubbles (signed in as Nicky).");
+  assert.equal(chatGlance({ state: "signed-in" }), "Sign in to crewhub-loops below to type; the answers come as bubbles.");
+  assert.equal(chatGlance({ state: "signed-out" }), "Sign in to crewhub-loops below to type; for bubbles, sign in in the Connection panel's Chat section.");
+  assert.equal(chatGlance({ state: "expired", name: "Nicky" }), "Sign in to crewhub-loops below to type; for bubbles, sign in again in the Connection panel's Chat section.");
+  assert.equal(chatGlance(null), "Sign in to crewhub-loops below to type; this host shows no bubbles.");
+  assert.equal(chatGlance(undefined), chatGlance(null));
+  for (const session of [{ state: "key" as const }, { state: "signed-in" as const, name: "Nicky" }, { state: "signed-out" as const }, { state: "expired" as const }, null]) {
+    const line = chatGlance(session);
+    assert.ok(line.length <= 120, `short: ${line.length} characters`);
+    assert.match(line, /^Sign in to crewhub-loops below to type;/, "typing always needs loops' own sign-in in the frame");
+    const story = chatWords(session);
+    const bubbles = /bubbles/.test(line);
+    assert.ok(bubbles, "says what the bubbles need on this road");
+    assert.equal(/without it|signed in|shows no bubbles/.test(line), session === null || session.state === "key" || session.state === "signed-in", `one story with chatWords: ${story.bubbles.slice(0, 40)}`);
+  }
 });

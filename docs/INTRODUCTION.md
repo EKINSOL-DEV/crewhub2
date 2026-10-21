@@ -299,7 +299,9 @@ the bubbles need no sign-in and the world keeps no session; on the session road 
 chat reads only; typing in the framed chat is loops' own and always needs the person signed in to loops in this browser.
 A missed bubble is not lost (round 16): the Chat panel and the text view carry a "Recent answers" list, the last ten
 first lines this page saw with their times, newest first, each a button that opens that agent's chat; nothing of it is
-written anywhere, and a reload starts empty. The honest road is on the loops side (section 8). Once the viewer key is merged and the world has switched to it, the
+written anywhere, and a reload starts empty. The panel itself reads in one glance (round 17): "crewhub-loops' own chat,
+framed here" and the one thing to do on this road, with the whole story behind "About this chat"; in the demo the dock's
+scripted replies feed the same list and bubbles. The honest road is on the loops side (section 8). Once the viewer key is merged and the world has switched to it, the
 sign-in road goes in that same track (the plan: the spec addendum "chat with the agents", planned removal); until then it
 stays as it is.
 

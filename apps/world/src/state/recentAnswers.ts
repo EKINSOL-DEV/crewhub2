@@ -2,7 +2,8 @@
    RECENT_ANSWERS lines the page saw (state/said.ts, the bubbles' own store), newest first, for the page's life. Shown in
    the Chat panel (above the frame, collapsible) and in the text view ("Recent answers"), each answer a button that
    opens that agent's chat: the Chat panel on `?chat=<id>` when loops' dock has a head for it, else its lead's chat by
-   the card's rule of round 13 (`chatTargetOf`), the card in the demo. The pure parts: the empty state per road, the
+   the card's rule of round 13 (`chatTargetOf`), the card in the demo (whose dock's scripted replies feed the same store
+   since round 17, state/demoSaid.ts). The pure parts: the empty state per road, the
    time, the row's words and accessible name. English here, as `chatWords`. */
 import type { HostSessionState } from "@crewhub/loops-client";
 import type { AgentCardFacts } from "@crewhub/world-model";
@@ -13,12 +14,12 @@ import { joinSentences, RECENT_ANSWERS, type Answer } from "./said.ts";
 export const RECENT_NOTE = `The last ${RECENT_ANSWERS} answers this page saw, newest first; a bubble shows each for a moment, this list keeps them while the page is open and nothing longer.`;
 
 /**
- * The empty list in plain words, per road: in the demo nothing can come (its chat is its own dock); on a live page
+ * The empty list in plain words, per road: in the demo an answer comes from its own dock (round 17); on a live page
  * whether answers can arrive at all (`connection.session.state`: key and signed-in yes; signed-out and expired no, with
  * the way to the sign-in; a host from before keeps no session and reads no chat).
  */
 export function recentEmptyWords(mode: "demo" | "live", session: Pick<HostSessionState, "state" | "name"> | null | undefined): string {
-  if (mode === "demo") return "No answers here: the demo's chat is its own scripted dock (bottom right), where its replies show; the bubbles and this list are the live world's.";
+  if (mode === "demo") return "No answers yet: write to an agent in the demo's chat dock (bottom right) and its scripted reply shows as a bubble and stays here.";
   if (!session) return "No answers can arrive: this host keeps no session and reads no chat.";
   switch (session.state) {
     case "key":
