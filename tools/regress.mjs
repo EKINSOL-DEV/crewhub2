@@ -1,9 +1,9 @@
-/* regress.mjs: the browser regression pass of the integrated world, in five groups.
+/* regress.mjs: the browser regression pass of the integrated world, in six groups.
 
    Usage:
-     node tools/regress.mjs --port <port> [--groups walk,demo,live,rooms,real] [--host-port 5180] [--loops-env <file>] [--loops-socket <path>] [--tag pass] [--out <dir>] [--swiftshader]
+     node tools/regress.mjs --port <port> [--groups walk,demo,live,connect,rooms,real] [--host-port 5180] [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--tag pass] [--out <dir>] [--swiftshader]
 
-   Groups (--groups, default all five, in this order):
+   Groups (--groups, default all six, in this order):
      walk  36 checks along a visitor's walk through the demo (keyboard, the text view, the timeline, chat, build mode,
            settings, the where form, reduced motion, a phone, both themes). About two minutes.
      demo  the jump list (/ opens it, a building's name, Enter lands inside; the postman's card in the town), the scenario picker (the Demo chip, One
@@ -16,6 +16,26 @@
            it on a free port and the browser opens the host directly; otherwise the host listens on --host-port
            (default 5180, Vite's default proxy target) and the browser opens your Vite, which must have been started
            with CREWHUB_WORLD_PORT=<host-port>. About half a minute.
+     connect the connect flow (spec addendum "a smooth connection"), 21 checks in two halves, both behind your Vite
+           (started with CREWHUB_WORLD_PORT=<host-port>; apps/world/dist is never looked at here, whatever the live
+           group does with it). Against the stub host of lib/connectStub.mjs, on --host-port, always: one page meets
+           every screen in order (No crewhub-loops found, Pair this browser naming `npm run world`, Connect with a
+           masked field, a key typed and Enter: the field empty again and the host checking, rejected with loops'
+           reason and Forget this key, which brings Connect back, crewhub-loops not answering, then the town with the
+           Live chip and no reload), the key in no DOM, storage or URL, the Connection panel's facts and Escape, the
+           stub's `unpaired` state (a host that no longer knows the browser: Pair this browser over the live tab,
+           and the town back by itself once paired again) and, on a second page, the Stream busy chip over the town
+           (loops' 429). Against the REAL development loops (the env file and the skip rules of `real`, plus
+           --loops-app-data, default ~/crewhub-loops-dev, which must hold a settings.json): a keyless host the tool
+           starts on --host-port with the discovery through that folder, a fresh config folder under --out (removed at
+           the end), pairing on with the secret kept in <config>/pairing-secret as `npm run world` keeps it; the
+           one-time link on the Vite origin lands on the Connect screen (loops found, key none); the Read only bot's key
+           (LOOPS_DEV_READONLY_KEY_FILE, else the key file's name with -ro before .key; skipped with an INFO line
+           without one) is refused with the words to make a bot with "Read only" off; a bogus shaped key is refused
+           and the screen stays usable; the key file's key connects (Live, no reload, the key stored), the real projects
+           are named, the key is nowhere; the host closed and started again with the stored key and the same secret
+           file is Live again without a new link; the panel's Forget this key hands the Connect screen back and the
+           stored key is gone. Under half a minute. One host at a time against that loops (4 streams per key).
      rooms the three-room building (`?rooms=three`, whatever the viewer's Buildings setting): three room signs
            (Administration, The floor, Lead's office) and a rack sign with its count, the arrow keys between the three halls, the text view naming the
            racks and the desks with a package on each, the lead's office beacon, the agent card on a figure at a desk,
@@ -42,14 +62,16 @@
 
    Run it against a dev server (Vite): some checks read the scene through `window.__town`, which only dev builds set. */
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { cli, dressed, launch, list, problemLines, seek, speed, watch } from "./lib/world.mjs";
+import { createConnectStub } from "./lib/connectStub.mjs";
 
-const GROUPS = ["walk", "demo", "live", "rooms", "real"];
-const USAGE = "node tools/regress.mjs --port <port> [--groups walk,demo,live,rooms,real] [--host-port 5180] [--loops-env <file>] [--loops-socket <path>] [--tag pass] [--out <dir>] [--swiftshader]";
-const opts = cli(USAGE, { options: { tag: "pass", groups: GROUPS.join(","), "host-port": "5180", "loops-env": "", "loops-socket": "" } });
+const GROUPS = ["walk", "demo", "live", "connect", "rooms", "real"];
+const USAGE = "node tools/regress.mjs --port <port> [--groups walk,demo,live,connect,rooms,real] [--host-port 5180] [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--tag pass] [--out <dir>] [--swiftshader]";
+const opts = cli(USAGE, { options: { tag: "pass", groups: GROUPS.join(","), "host-port": "5180", "loops-env": "", "loops-socket": "", "loops-app-data": "" } });
 const groups = list(opts.groups, GROUPS, opts.fail, "group");
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const { tag, out: OUT, base: BASE, origin } = opts;
@@ -601,6 +623,291 @@ await group("live", async () => {
   }
 });
 
+await group("connect", async () => {
+  // 15b. The connect flow (spec addendum "a smooth connection"), always behind your Vite: first the stub host of
+  // lib/connectStub.mjs and then a real, keyless host listen on --host-port (CREWHUB_WORLD_PORT) and the browser opens
+  // your Vite. apps/world/dist is never looked at here, whatever the live group does when it exists: the stub has no
+  // static files, and a one-time pairing link must land on the Vite origin to pair the page that opens it.
+  const hostPort = Number(opts["host-port"]);
+  if (!Number.isInteger(hostPort) || hostPort <= 0) opts.fail("--host-port <port> must be a port number");
+  const GOOD_KEY = "chl_" + "stubKEY-_0123456789abcdefghijklmnopqrstuvwx".slice(0, 43);
+  const screen = (pg, which, timeout = 15000) =>
+    pg
+      .waitForSelector(`.connect-page[data-screen="${which}"]`, { timeout })
+      .then(() => true)
+      .catch(() => false);
+  const title = async (pg) => (await pg.locator("#connect-title").innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+  const chip = (pg) => pg.locator(".connection-chip").first();
+  const chipState = (pg) => chip(pg).getAttribute("data-connection").catch(() => null);
+  /** Waits for the connection chip to say `wanted` and answers what it says then. */
+  const until = async (pg, wanted, timeout) => {
+    await pg.waitForSelector(`.connection-chip[data-connection="${wanted}"]`, { timeout }).catch(() => {});
+    return chipState(pg);
+  };
+  const keyField = (pg) => pg.getByLabel("Access key");
+  /** Types a key into the field and submits it with Enter, as a person does. */
+  const paste = async (pg, key) => {
+    await keyField(pg).fill(key);
+    await pg.keyboard.press("Enter");
+  };
+  /** Whether a key shows anywhere it must not: the DOM, local or session storage, the URL (a middle slice: never its tail, which the hint names). */
+  const leaked = async (pg, key) => {
+    const part = key.slice(4, 24);
+    const html = await pg.content();
+    const stored = await pg.evaluate(() => JSON.stringify(Object.entries(localStorage)) + JSON.stringify(Object.entries(sessionStorage))).catch(() => "");
+    return html.includes(part) || stored.includes(part) || pg.url().includes(part);
+  };
+  const reasonText = async (pg) => (await pg.locator(".connect-rejected").first().innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+  /** A mark set on the window: still there at the end means the page never reloaded in between. */
+  const mark = (pg) => pg.evaluate(() => ((globalThis.__connectMarker = "set"), undefined));
+  const marked = (pg) => pg.evaluate(() => globalThis.__connectMarker ?? null).catch(() => null);
+  /** The browser logs every 4xx a fetch meets: the refused key's 403 and the unpaired tab's 401 are what they are meant to be. */
+  const expected = (x) => x.kind === "console" && /status of (401|403)/.test(x.text);
+  const own = [];
+  const openConnect = async (label) => {
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
+    const pg = await ctx.newPage();
+    watch(pg, origin, own, label);
+    return pg;
+  };
+
+  /** Half one: every screen in order against the stub, on one page; the stub decides the host's state, the page follows by polling. */
+  async function stubHalf() {
+    // "checking" holds until the tool moves the stub on (a real host would connect or refuse in a second).
+    const stub = await createConnectStub({ port: hostPort, state: "no-loops", origin, checkMs: 60_000, log: () => undefined });
+    info(`connect: stub host on 127.0.0.1:${stub.port} behind the Vite proxy on ${origin} (Vite started with CREWHUB_WORLD_PORT=${hostPort})`);
+    try {
+      const pg = await openConnect("connect stub");
+      await pg.goto(BASE);
+      const noLoops = await screen(pg, "no-loops");
+      ok("connect: No crewhub-loops found comes first", noLoops && /No crewhub-loops found/.test(await title(pg)), await title(pg));
+      await shot(pg, "34-connect-no-loops");
+      await stub.setState("pair");
+      const pair = await screen(pg, "pair");
+      const pairBody = (await pg.locator(".connect-page").innerText().catch(() => "")).replace(/\s+/g, " ");
+      ok("connect: Pair this browser names npm run world and never a link", pair && /Pair this browser/.test(pairBody) && /npm run world/.test(pairBody) && !/\/pair\//.test(pairBody), pairBody.slice(0, 120));
+      await stub.setState("connect");
+      const connect = await screen(pg, "connect");
+      ok("connect: the Connect screen offers a masked key field", connect && (await keyField(pg).getAttribute("type").catch(() => null)) === "password");
+      await shot(pg, "35-connect-connect");
+      await mark(pg);
+      await paste(pg, GOOD_KEY);
+      const checking = await screen(pg, "checking", 5000);
+      const fieldAfter = await keyField(pg).inputValue().catch(() => "?");
+      ok("connect: Enter posts the key, the field is empty again and the host says checking", checking && stub.state === "checking" && fieldAfter === "", `stub ${stub.state}, field "${fieldAfter}"`);
+      await stub.setState("rejected");
+      const rejected = await screen(pg, "rejected");
+      const reason = await reasonText(pg);
+      const forgetButton = pg.getByRole("button", { name: "Forget this key" });
+      ok("connect: the rejected screen gives loops' reason, keeps the key and offers Forget", rejected && /Read only/.test(reason) && (await forgetButton.count()) === 1, reason.slice(0, 100));
+      await shot(pg, "36-connect-rejected");
+      await forgetButton.click();
+      const back = await screen(pg, "connect", 10000);
+      ok("connect: Forget this key brings the Connect screen back", back && stub.state === "connect", `stub ${stub.state}`);
+      await stub.setState("loops-down");
+      const down = await screen(pg, "loops-down");
+      ok("connect: crewhub-loops not answering has its own screen, never an empty town", down && /not answering/.test(await title(pg)), await title(pg));
+      await shot(pg, "37-connect-loops-down");
+      await stub.setState("connected");
+      await pg.waitForSelector("canvas", { timeout: 30000 }).catch(() => {});
+      const live = await until(pg, "live", 30000);
+      const marker = await marked(pg);
+      ok("connect: the town appears with the Live chip, without a reload", live === "live" && marker === "set", `${live}, marker ${marker}`);
+      await dressed(pg, 30000).catch(() => {});
+      await shot(pg, "38-connect-town");
+      ok("connect: the key is in no DOM, storage or URL", !(await leaked(pg, GOOD_KEY)));
+      await chip(pg).click();
+      await pg.waitForSelector(".connection-sheet", { timeout: 5000 }).catch(() => {});
+      const facts = (await pg.locator(".connection-facts").innerText().catch(() => "")).replace(/\s+/g, " ");
+      const inPanel = await pg.evaluate(() => document.querySelector(".connection-sheet")?.contains(document.activeElement) === true).catch(() => false);
+      await shot(pg, "39-connect-panel");
+      await pg.keyboard.press("Escape");
+      await pg.waitForTimeout(200);
+      const closed = (await pg.locator(".connection-sheet").count()) === 0 && (await pg.evaluate(() => document.activeElement?.classList.contains("connection-chip")).catch(() => false)) === true;
+      ok("connect: the panel names where loops was found, the key and the stream; Escape hands the focus back to the chip", /found/.test(facts) && /crewhub-world/.test(facts) && /socket/.test(facts) && /streaming/.test(facts) && inPanel && closed, facts.slice(0, 140));
+      // A host that no longer knows this browser (a restart without its secret): the tab shows Pair this browser, not
+      // Stale, and comes back by itself once it is paired again.
+      await stub.setState("unpaired");
+      const pairAgain = await screen(pg, "pair", 20000);
+      ok("connect: a live tab the host no longer knows shows Pair this browser", pairAgain, pairAgain ? "" : `chip ${await chipState(pg)}`);
+      await shot(pg, "40-connect-pair-again");
+      await stub.setState("connected");
+      const again = await until(pg, "live", 20000);
+      const marker2 = await marked(pg);
+      ok("connect: paired again, the town comes back by itself without a reload", again === "live" && marker2 === "set", `${again}, marker ${marker2}`);
+      await pg.context().close();
+      // loops' 429 on the stream (another host or tab uses the key): the town with the Stream busy chip, on a fresh page.
+      await stub.setState("busy");
+      const busyPage = await openConnect("connect stub busy");
+      await busyPage.goto(BASE);
+      const busy = await until(busyPage, "stream-busy", 30000);
+      const word = (await chip(busyPage).innerText().catch(() => "")).trim();
+      const townDrawn = await dressed(busyPage, 20000).then(() => true).catch(() => false);
+      ok("connect: loops' 429 on the stream is the Stream busy chip over the town", busy === "stream-busy" && /Stream busy/.test(word) && townDrawn, `${busy}: ${word}; town drawn ${townDrawn}`);
+      await shot(busyPage, "41-connect-busy");
+      await busyPage.context().close();
+    } finally {
+      await stub.close().catch(() => {});
+    }
+  }
+
+  /** Half two: a keyless host the tool starts against the real development loops, found through its data folder. */
+  async function realHalf() {
+    const envFile = loopsEnvFile();
+    const env = readEnvFile(envFile);
+    const loopsUrl = (env.LOOPS_DEV_URL ?? "").replace(/\/+$/, "");
+    const keyFile = env.LOOPS_DEV_KEY_FILE ?? "";
+    const parsed = (() => {
+      try {
+        return new URL(loopsUrl);
+      } catch {
+        return null;
+      }
+    })();
+    const loopback = parsed !== null && parsed.protocol === "http:" && ["127.0.0.1", "localhost"].includes(parsed.hostname) && parsed.port !== "";
+    if (!loopback || keyFile === "") {
+      info(`connect: the 8291 half skipped, no loopback LOOPS_DEV_URL and LOOPS_DEV_KEY_FILE in ${envFile}`);
+      return;
+    }
+    const appData = loopsAppData();
+    if (!existsSync(path.join(appData, "settings.json"))) {
+      info(`connect: the 8291 half skipped, no settings.json in ${appData} (--loops-app-data names the development loops' data folder)`);
+      return;
+    }
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
+    const pg = await ctx.newPage();
+    watch(pg, origin, own, "connect 8291");
+    const health = await pg.request.get(`${loopsUrl}/api/health`, { timeout: 2000 }).then((r) => (r.ok() ? r.json() : null)).catch(() => null);
+    if (!health?.ok) {
+      info(`connect: the 8291 half skipped, ${parsed.port} is down`);
+      await ctx.close();
+      return;
+    }
+    const readKey = (file) => {
+      try {
+        return readFileSync(file, "utf8").trim();
+      } catch {
+        return "";
+      }
+    };
+    let key = readKey(keyFile);
+    if (key === "") {
+      info(`connect: the 8291 half skipped, cannot read the key file named by ${envFile}`);
+      await ctx.close();
+      return;
+    }
+    // The Read only bot's key: LOOPS_DEV_READONLY_KEY_FILE, else the key file's name with -ro before .key.
+    const readonlyFile = env.LOOPS_DEV_READONLY_KEY_FILE ?? keyFile.replace(/\.key$/, "-ro.key");
+    let readonlyKey = readKey(readonlyFile);
+    const { createHost } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "host.ts")).href);
+    const { createKeyStore } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "keyStore.ts")).href);
+    const { createArchiveStore } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "archiveStore.ts")).href);
+    const { loadPairingSecret } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "pairing.ts")).href);
+    const { PAIRING_SECRET_NAME, storedKeyFile } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "config.ts")).href);
+    // A fresh folder of the host's own for this run (the stored key and the pairing secret land here), removed at the end.
+    const configDir = path.join(OUT, `${tag}-connect-config`);
+    rmSync(configDir, { recursive: true, force: true });
+    mkdirSync(configDir, { recursive: true, mode: 0o700 });
+    const secretFile = path.join(configDir, PAIRING_SECRET_NAME);
+    const keyPath = storedKeyFile(configDir);
+    // What `npm run world` gives the host: the discovery through the data folder, its own stores, pairing on with the
+    // secret kept in a file (the second host reads the same file: that is what keeps every paired browser).
+    const hostOptions = () => ({
+      discovery: { appData, intervalMs: 1000 },
+      keyStore: createKeyStore(configDir),
+      archiveStore: createArchiveStore(configDir),
+      port: hostPort,
+      allowedOrigins: [origin],
+      pairing: "on",
+      pairingSecret: loadPairingSecret(secretFile),
+      retryMs: { min: 200, max: 2000 },
+      log: () => undefined,
+    });
+    let host = await createHost(hostOptions());
+    info(`connect: loops on 127.0.0.1:${parsed.port} (version ${health.version}); a keyless host on 127.0.0.1:${host.port} looking in ${appData}, its folder ${configDir}, pairing on, behind the Vite proxy on ${origin}`);
+    const hostApi = (p) => pg.request.get(`${origin}/world-api${p}`).then((r) => r.json());
+    try {
+      await pg.goto(host.mintPairLink(origin));
+      const landed = new URL(pg.url());
+      const connect = await screen(pg, "connect", 20000);
+      const first = await hostApi("/health").catch(() => null);
+      ok(
+        "connect (8291): the one-time link lands on the Connect screen of a keyless host that found loops",
+        landed.pathname === "/" && landed.origin === origin && connect && first?.paired === true && first?.connection?.discovery?.state === "found" && first?.connection?.key?.state === "none",
+        `${landed.pathname}; loops ${first?.connection?.discovery?.state} via ${first?.connection?.discovery?.via}, key ${first?.connection?.key?.state}`,
+      );
+      await shot(pg, "42-connect-real-connect");
+      await mark(pg);
+      if (readonlyKey === "") info(`connect: no Read only key at ${readonlyFile} (LOOPS_DEV_READONLY_KEY_FILE), that check is skipped`);
+      else {
+        await paste(pg, readonlyKey);
+        await pg.waitForFunction(() => /Read only/.test(document.querySelector(".connect-rejected")?.textContent ?? ""), null, { timeout: 20000 }).catch(() => {});
+        const roReason = await reasonText(pg);
+        ok("connect (8291): a Read only bot's key is refused with the words to make one with Read only off", /Read only/.test(roReason) && /"Read only" off/.test(roReason) && !(await leaked(pg, readonlyKey)), roReason.slice(0, 140));
+        readonlyKey = "";
+      }
+      const bogus = "chl_" + randomBytes(33).toString("base64url").slice(0, 43);
+      await paste(pg, bogus);
+      await pg.waitForFunction(() => /does not know/.test(document.querySelector(".connect-rejected")?.textContent ?? ""), null, { timeout: 20000 }).catch(() => {});
+      const bogusReason = await reasonText(pg);
+      const usable = (await screen(pg, "connect", 2000)) && (await keyField(pg).count()) === 1 && (await keyField(pg).isEnabled().catch(() => false));
+      ok("connect (8291): a key loops does not know is refused and the screen stays usable", /does not know this key/.test(bogusReason) && usable, bogusReason.slice(0, 100));
+      await shot(pg, "43-connect-real-refused");
+      await paste(pg, key);
+      await pg.waitForSelector("canvas", { timeout: 60000 }).catch(() => {});
+      const live = await until(pg, "live", 30000);
+      const marker = await marked(pg);
+      const stored = existsSync(keyPath);
+      ok("connect (8291): the pasted key connects: the Live chip without a reload, the key stored by the host", live === "live" && marker === "set" && stored, `${live}, marker ${marker}, stored ${stored}`);
+      await dressed(pg, 30000).catch(() => {});
+      await shot(pg, "44-connect-real-live");
+      const snapshot = await hostApi("/snapshot").catch(() => null);
+      const names = (snapshot?.projects ?? []).map((p) => `${p.name} (${p.key})`);
+      const tv = await text(pg);
+      ok("connect (8291): the town shows the real projects by name", names.length > 0 && names.every((n) => tv.includes(n)) && !/Demo mode/.test(tv), names.join(", ") || tv.slice(0, 120).replace(/\n/g, " | "));
+      ok("connect (8291): the key is in no DOM, storage or URL", !(await leaked(pg, key)));
+      // The host stopped and started again, as the morning after: the stored key and the same secret file, so the tab
+      // is Live again without a new link.
+      await host.close();
+      host = null;
+      const atStop = await until(pg, "stale", 10000);
+      const storedKey = readKey(keyPath);
+      const restarted = Date.now();
+      host = await createHost({ ...hostOptions(), key: storedKey, keyName: "crewhub-world", keySource: "stored" });
+      const again = await until(pg, "live", 30000);
+      const marker2 = await marked(pg);
+      const after = await hostApi("/health").catch(() => null);
+      ok(
+        "connect (8291): a restarted host with the kept pairing secret is Live again without a re-pair",
+        again === "live" && marker2 === "set" && after?.paired === true && after?.connection?.key?.state === "ok" && after?.connection?.key?.source === "stored",
+        `${atStop} at the stop, ${again} ${((Date.now() - restarted) / 1000).toFixed(1)} s after the new host; key ${after?.connection?.key?.state} (${after?.connection?.key?.source}), marker ${marker2}`,
+      );
+      await shot(pg, "45-connect-real-restarted");
+      await chip(pg).click();
+      await pg.waitForSelector(".connection-sheet", { timeout: 5000 }).catch(() => {});
+      await pg.getByRole("button", { name: "Forget this key" }).click();
+      await pg.getByRole("button", { name: "Forget", exact: true }).click();
+      const forgot = await screen(pg, "connect", 20000);
+      const fileGone = !existsSync(keyPath);
+      ok("connect (8291): Forget this key hands the Connect screen back and the stored key is gone", forgot && fileGone, `screen ${forgot ? "connect" : "not connect"}, file gone ${fileGone}`);
+      await shot(pg, "46-connect-real-forgotten");
+    } finally {
+      key = "";
+      readonlyKey = "";
+      if (host !== null) await host.close().catch(() => {});
+      rmSync(configDir, { recursive: true, force: true });
+      await ctx.close().catch(() => {});
+    }
+  }
+
+  try {
+    await stubHalf();
+    await realHalf();
+  } finally {
+    problems.push(...own.filter((x) => !expected(x)));
+  }
+});
+
 await group("rooms", async () => {
   // 16. The three-room building, behind `?rooms=three` whatever this browser's Buildings setting says. The halls are the
   // spec addendum's: Administration (the racks, the mailbox, the archive counter), the floor (desks, the huddle), the
@@ -881,6 +1188,11 @@ function loopsSocketPath() {
   const text = given || "~/crewhub-loops-dev/run/api.sock";
   return path.resolve(text.replace(/^~(?=\/|$)/, process.env.HOME ?? "~"));
 }
+/** The development loops' data folder the connect group's host looks in: --loops-app-data, else `tools/loops-dev.sh`'s `~/crewhub-loops-dev`. */
+function loopsAppData() {
+  const text = opts["loops-app-data"] || "~/crewhub-loops-dev";
+  return path.resolve(text.replace(/^~(?=\/|$)/, process.env.HOME ?? "~"));
+}
 function isUnixSocket(file) {
   try {
     return statSync(file).isSocket();
@@ -888,7 +1200,7 @@ function isUnixSocket(file) {
     return false;
   }
 }
-/** `KEY=value` lines of a dotenv-style file; only the two keys the group needs are kept, the rest never leaves this function. */
+/** `KEY=value` lines of a dotenv-style file; only the three keys the groups need are kept, the rest never leaves this function. */
 function readEnvFile(file) {
   const out = {};
   let text = "";
@@ -898,7 +1210,7 @@ function readEnvFile(file) {
     return out;
   }
   for (const line of text.split("\n")) {
-    const m = /^\s*(?:export\s+)?(LOOPS_DEV_URL|LOOPS_DEV_KEY_FILE)\s*=\s*(.*?)\s*$/.exec(line);
+    const m = /^\s*(?:export\s+)?(LOOPS_DEV_URL|LOOPS_DEV_KEY_FILE|LOOPS_DEV_READONLY_KEY_FILE)\s*=\s*(.*?)\s*$/.exec(line);
     if (m) out[m[1]] = m[2].replace(/^(["'])(.*)\1$/, "$2").replace(/^~(?=\/|$)/, process.env.HOME ?? "~");
   }
   return out;
