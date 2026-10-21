@@ -949,7 +949,7 @@ Built that way in round 11 (see the status line above); the real director stays 
 Nicky chatted with his agent `boing` in the crewhub-loops app while the world was open against his own Crewhub.app,
 and the world showed no bubble over boing. He asked for chat with the agents as the first requirement, and said the
 UI may be exactly crewhub-loops' own. This addendum records what loops offers (read in loops `4cdcd383`) and the two
-roads. **Status: road A in progress (round 12); road B proposed below.**
+roads. **Status: road A built in round 12 (r12-chatpanel); road B option 2 in progress in round 12, off by default; option 1 written for loops (`docs/proposals/crewhub-world-viewer-3.md` on `world/viewer-key`).**
 
 ### What loops has
 
@@ -982,6 +982,36 @@ world handles no password and no session, and reads nothing from the frame.
 - It needs the person signed in to crewhub-loops in this browser and the bubbles feature on; the panel says so.
 - "Open in the app" stays beside the frame, as the fallback if a later loops refuses to be framed.
 - The demo keeps its scripted chat.
+
+**As built (round 12).** A panel of the world (a sheet at the right; the whole
+screen on a phone, as loops' own chat is below its narrow width) holds an `<iframe>` on the root of the loops web app
+the host names (`health.loopsWebUrl`, origin only): the app shell with its chat dock, which at the panel's width is
+loops' "Agent chats" menu. The person is signed in to loops in the same browser, so the frame carries their session;
+signed out, loops' own sign-in shows inside the frame. **The world handles no password and keeps no session.** The panel
+opens from the Chat chip (the live town's chat corner) and from an agent's card ("Chat with <name>"); the agent cannot be
+preselected (the open-chat event is in-page), so the panel says which chat head to open. Its words are honest: this is
+crewhub-loops' own chat; open <name>'s head in the dock; it needs you signed in to loops as a person in this browser
+with chat bubbles switched on in loops; the world handles no password. The link "Open in the crewhub-loops app" (a new
+tab) is always there: the fallback for a frame that never loads, the day loops refuses framing. The frame's `sandbox`
+is no wider than the chat needs (`state/chatPanel.ts` says each token's reason): `allow-same-origin` (the cookie and
+loops' storage), `allow-scripts`, `allow-forms` (sign-in, compose), `allow-popups` and
+`allow-popups-to-escape-sandbox` (a link in a message opens a real tab), `allow-downloads` (attachments); never
+`allow-top-navigation` (loops cannot navigate the world away) or `allow-modals`; `allow="clipboard-write"` only.
+Escape closes the panel while the focus is outside the frame (a key pressed inside a cross-origin frame never reaches
+the world; the panel says so), the close button always; the focus returns to the opener. The text view says where chat
+lives. The demo keeps its own scripted chat (the copied dock); the demo's card has no Chat button.
+Checks: the pure parts in `apps/world/test/chatPanel.test.ts`; the regress `live` group frames a stub loops web page
+(`tools/lib/loopsWebStub.mjs`, which records that it was fetched as a frame) and checks the src, the words, the link, the
+sandbox, Escape and the focus, the card road and the phone; `tools/liveshots.mjs --views chat` shows the panel against
+a real loops (its sign-in, in a headless browser that is signed in nowhere); `tools/a11y.mjs` checks the chip, the
+dialog and the focus.
+A loops-side `?chat=<agent>` parameter (asked for separately) would let the panel open the right head: one line in
+`chatFrameUrl`.
+
+The sandbox keeps `allow-same-origin` with `allow-scripts`, which together let a framed page lift its own sandbox; that is
+acceptable here because the frame is another origin than the world (another port), so it can never reach the world's
+page or storage, and loops needs both for its session and its app. The sandbox's real work is what it withholds: top
+navigation and modal dialogs.
 
 ### Road B: speech bubbles in the world (needs the person's view)
 

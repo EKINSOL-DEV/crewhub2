@@ -2,7 +2,8 @@
    with a portrait of the figure, then the registry's sections as rows. Beside the figure on a desktop (the scene places
    its anchor), a bottom sheet on a phone. Not modal: Escape and a tap outside close it (App), the world stays live. */
 import { useEffect, useId, useRef } from "react";
-import { Circle, CircleCheck, CircleDot, CircleEllipsis, Clock, Contrast, Eye, ExternalLink, Flag, MessageSquare, TriangleAlert, X } from "lucide-react";
+import { Circle, CircleCheck, CircleDot, CircleEllipsis, Clock, Contrast, Eye, ExternalLink, Flag, MessageCircle, MessageSquare, TriangleAlert, X } from "lucide-react";
+import { useT } from "../i18n";
 import { roleWords, type AgentCardFacts, type Freshness } from "@crewhub/world-model";
 import { LaneChip } from "../world/lane";
 import type { CardChip, CardRow, RenderedSection } from "../world/agentCard/types";
@@ -22,12 +23,15 @@ interface Props {
   /** A bottom sheet (phone) instead of a card beside the figure. */
   sheet: boolean;
   onFollow: () => void;
+  /** Opens the Chat panel for this agent (live mode: crewhub-loops' own chat, framed); null in the demo, whose chat is its own dock. */
+  onChat: (() => void) | null;
   onClose: () => void;
   /** Draws the figure's portrait onto the canvas; false when there is no figure to draw. */
   portrait: (canvas: HTMLCanvasElement) => boolean;
 }
 
-export function AgentCard({ facts, sections, freshness, demo, following, sheet, onFollow, onClose, portrait }: Props) {
+export function AgentCard({ facts, sections, freshness, demo, following, sheet, onFollow, onChat, onClose, portrait }: Props) {
+  const { t } = useT();
   const id = useId();
   const canvas = useRef<HTMLCanvasElement>(null);
   const card = useRef<HTMLDivElement>(null);
@@ -79,6 +83,11 @@ export function AgentCard({ facts, sections, freshness, demo, following, sheet, 
         <Button size="sm" pressed={following} icon={<Eye className="icon" aria-hidden="true" />} onClick={onFollow} kbd="⇧F" title={following ? "Stop following (Shift+F or Escape)" : "The camera follows this figure wherever it walks (Shift+F)"}>
           {following ? "Following" : "Follow"}
         </Button>
+        {onChat && (
+          <Button size="sm" className="agent-chat" icon={<MessageCircle className="icon" aria-hidden="true" />} aria-label={t("world.chat.card", { name: facts.displayName })} title={t("world.chat.cardHint", { name: facts.displayName })} onClick={onChat}>
+            Chat
+          </Button>
+        )}
         {demo && <span className="demo-note">Demo: scripted facts</span>}
       </Card.Footer>
     </Card>

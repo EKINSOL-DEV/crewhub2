@@ -2119,6 +2119,52 @@ a.agent-ticket-link:focus-visible {
   z-index: 8;
   border-radius: var(--radius-lg) var(--radius-lg) var(--radius-md) var(--radius-md);
 }
+/* ── The Chat panel: crewhub-loops' own chat, framed (components/ChatPanel) ─────
+   A sheet at the right, above the agent card; the frame takes what the words leave. The whole screen on a phone, as
+   loops' own chat is below its narrow width. */
+.chat-sheet {
+  top: var(--space-4);
+  right: var(--space-4);
+  bottom: var(--space-4);
+  width: min(26rem, calc(100% - 2 * var(--space-4)));
+  z-index: 9;
+}
+.chat-sheet .card-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 0;
+  overflow: hidden;
+}
+.chat-sheet-lead,
+.chat-sheet-needs {
+  margin: 0;
+}
+.chat-sheet-needs {
+  font-size: var(--text-xs);
+}
+.chat-frame {
+  flex: 1;
+  width: 100%;
+  min-height: 12rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.chat-sheet-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.chat-sheet-full {
+  inset: 0;
+  width: auto;
+  max-height: none;
+  border-radius: 0;
+}
 /* The breadcrumb says who the camera follows, with its stop control. */
 .crumb-follow {
   display: inline-flex;

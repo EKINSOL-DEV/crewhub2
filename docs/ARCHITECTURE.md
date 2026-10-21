@@ -270,8 +270,8 @@ SSE (plan section 3). Browsers cannot open a Unix socket.
 Identity is the loops principal id; a worker's identity is its session and name. The
 host sends no commands. The chat bubbles send DMs as the person through loops' own
 routes (in demo mode, an in-browser fake answers them and the reply is scripted; in live
-mode the chat corner is one chip, "Chat: in the crewhub-loops app", which opens the loops web
-app in a new tab, until L8). Everything else a person does opens
+mode the Chat panel frames loops' own web app, so the chat is exactly loops' and runs on the
+person's own session, which never reaches the world). Everything else a person does opens
 the loops web app. The host's own principal, the external bot `crewhub-world`, is the
 observer and is never drawn as a figure.
 

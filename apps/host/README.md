@@ -47,7 +47,7 @@ smooth connection" below):
   itself; at most one probe a minute); `loopsCommitBefore` is the version the host read first this
   run, present only when loops has answered another since: loops was updated under the running host, which logs the
   change once and reads everything again after the restart that came with it);
-  `loopsWebUrl` is the origin of the loops URL, for the world's chat chip ("Chat: in the crewhub-loops app") and the card's ticket links; `transport` is `tcp`
+  `loopsWebUrl` is the origin of the loops URL, for the world's Chat panel (which frames that web app) and the card's ticket links; `transport` is `tcp`
   (the URL) or `unix` (the socket); `paired` is whether this request carries a valid pairing cookie; `pairing` is `on`
   or `off`. Health carries no data and needs no cookie.
 - **Pairing** (plan 3.5, `src/pairing.ts`): every other `/world-api` route answers `401 {"error":"not_paired"}`
@@ -102,7 +102,7 @@ The host starts with neither loops nor a key and reports the honest states; the 
 
 - **Discovery** (`src/discovery.ts`, pure, tested with an injected folder): the env's URL or socket is taken as given;
   else the app's socket, then its port from `settings.json`, each probed with `GET /api/health` (public, no key);
-  else searching, again every 5 s. The web URL for the chat chip ("Chat: in the crewhub-loops app") follows what was found. Loops going away later
+  else searching, again every 5 s. The web URL for the Chat panel's frame follows what was found. Loops going away later
   (the stream reports down) makes the host look again.
 - **The key** (`src/config.ts` `loadKey`): `CREWHUB_WORLD_KEY_FILE`, then the stored key, then the old default file;
   none: keyless. Every key is checked with `GET /api/auth/me` and one board read (`src/keyCheck.ts`): a probe key, a

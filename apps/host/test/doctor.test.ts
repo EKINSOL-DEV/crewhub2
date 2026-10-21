@@ -44,7 +44,8 @@ describe("the doctor", () => {
     const dir = folder();
     const keyFile = path.join(dir, "agent-crewhub-world.key");
     writeFileSync(keyFile, `${stub.key}\n`, { mode: 0o600 });
-    const report = await runDoctor({ env: { CREWHUB_WORLD_LOOPS_URL: stub.url, CREWHUB_WORLD_KEY_FILE: keyFile, CREWHUB_WORLD_PORT: "5187" }, probePort: free });
+    // The doctor reads the host's own folder for the archive memory: this test's folder, never the machine's ~/.config/crewhub-world (a real run leaves one there).
+    const report = await runDoctor({ env: { CREWHUB_WORLD_LOOPS_URL: stub.url, CREWHUB_WORLD_KEY_FILE: keyFile, CREWHUB_WORLD_PORT: "5187", CREWHUB_WORLD_CONFIG_DIR: dir }, probePort: free });
     const lines = byId(report);
     assert.equal(report.ok, true, formatDoctor(report).join("\n"));
     assert.deepEqual(report.lines.map((l) => l.id), ["loops", "health", "key", "auth", "projects", "agents", "team", "events", "archive", "port", "pairing"]);
