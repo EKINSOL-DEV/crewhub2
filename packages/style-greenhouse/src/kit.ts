@@ -37,6 +37,43 @@ export interface KitLook {
 /** A swatch or palette name. */
 export type Swatch = string;
 
+/**
+ * The soft wall tint (round 15, decision 5): the outer walls' chalk washed `WALL_WASH` of the way to the project colour.
+ * A colour that sits close to chalk (mist) would wash to nothing at a third, so the wash keeps a floor: at least
+ * `WALL_WASH_FLOOR` of perceptual distance (CIE76 ΔE in Lab) from plain chalk, the mix raised in steps of 0.05 up to
+ * the whole way until the wall differs that much. The far colours stay at a third.
+ */
+export const WALL_WASH = 1 / 3;
+export const WALL_WASH_FLOOR = 8;
+
+/** CIE Lab of a colour (from its linear components, D65), for the wash's floor. */
+function lab(c: THREE.Color): [number, number, number] {
+  const x = (0.4124 * c.r + 0.3576 * c.g + 0.1805 * c.b) / 0.95047;
+  const y = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+  const z = (0.0193 * c.r + 0.1192 * c.g + 0.9505 * c.b) / 1.08883;
+  const f = (t: number) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+  const [fx, fy, fz] = [f(x), f(y), f(z)];
+  return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
+}
+
+/** The perceptual distance between two colours (CIE76 ΔE). */
+export function deltaE(a: THREE.Color, b: THREE.Color): number {
+  const [l1, a1, b1] = lab(a), [l2, a2, b2] = lab(b);
+  return Math.hypot(l1 - l2, a1 - a2, b1 - b2);
+}
+
+/** `chalk` washed towards `colour` (hex strings): `mix` of the way, or further until it is `floor` ΔE from chalk. */
+export function washHex(chalk: string, colour: string, mix = WALL_WASH, floor = WALL_WASH_FLOOR): string {
+  const from = new THREE.Color(chalk), to = new THREE.Color(colour);
+  let t = mix;
+  let washed = from.clone().lerp(to, t);
+  while (t < 1 && deltaE(from, washed) < floor) {
+    t = Math.min(1, t + 0.05);
+    washed = from.clone().lerp(to, t);
+  }
+  return `#${washed.getHexString()}`;
+}
+
 interface Entry {
   material: THREE.MeshStandardMaterial;
   color: Swatch;
@@ -109,6 +146,8 @@ export class Kit {
    */
   hex(name: Swatch, theme: StyleTheme = this.theme): string {
     // An unknown or missing name falls back to the neutral swatch below, never throws.
+    // `wash:<name>`: the outer walls' chalk washed towards a project colour (the soft wall tint, `washHex`).
+    if (name?.startsWith("wash:")) return washHex(this.hex("chalk", theme), this.hex(name.slice("wash:".length), theme));
     if (name?.startsWith("soft:")) {
       const color = new THREE.Color(this.hex(name.slice("soft:".length), theme)).lerp(new THREE.Color(this.hex("cream", theme)), 0.45);
       return `#${color.getHexString()}`;
@@ -130,6 +169,7 @@ export class Kit {
   #recolours(name: Swatch | null | undefined): boolean {
     const look = this.#look;
     if (!look || !name) return false;
+    if (name.startsWith("wash:")) return this.#recolours("chalk") || this.#recolours(name.slice("wash:".length));
     const plain = name.startsWith("soft:") ? name.slice("soft:".length) : name;
     if (plain in look.swatches || plain in look.lamplightSwatches) return true;
     const alias = this.data.swatches[plain];

@@ -65,6 +65,14 @@ A building is a diorama on a slab, not a floor plan.
   flag, the name sign, the emblem, a thin soft-tinted slab trim and the lead robot. It is never a band along the wall
   tops: inside a building such a band reads as the saturated ribbon of the old floor plan. The lead wears a soft tint
   of the colour, 45% of the way to cream.
+  As built since round 15 (Nicky's decision 5, variant B, the soft wall tint): the outer walls' chalk (the tall wall,
+  the glass wall's knee and pilasters, the low front rims and their posts) is washed a third of the way to the project
+  colour (`wash:<colour>` in the kit, `wallChalk` in the shell), so a building's colour reads from the town at a
+  glance without a band. A colour that sits close to chalk is washed further, until the wall is at least ΔE 8 (CIE76)
+  from plain chalk (mist lands about four fifths of the way by day and under a half in lamplight); the far colours
+  stay at a third. Partitions, the
+  slab, the ledges and copings keep their own tones, an archived building keeps its muted chalk, and a building
+  without a colour keeps plain chalk.
 - **Archived buildings** are boarded up and grown with ivy. A closed sign hangs from the awning, the flag is at
   half-mast, and the colours are muted, never black. Inside, desks stand under pale dust sheets, chairs are stacked
   four high and crates wait (`building.dust-sheet`, `building.chair-stack`), so an archived building reads as closed
