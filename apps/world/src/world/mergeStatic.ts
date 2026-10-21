@@ -198,27 +198,34 @@ export function* mergeStaticSteps(root: THREE.Group, options: { keepData?: boole
         // the transform, so a non-uniform scale shades the same as it did.
         const sourceNormal = geometry.attributes.normal ?? computedNormals(geometry);
         normalMatrix.getNormalMatrix(matrix);
-        for (let i = 0; i < count; i++) {
-          const at = (vertexAt + i) * 3;
-          vertex.fromBufferAttribute(sourcePosition, i).applyMatrix4(matrix);
-          position[at] = vertex.x;
-          position[at + 1] = vertex.y;
-          position[at + 2] = vertex.z;
-          vertex.fromBufferAttribute(sourceNormal, i).applyNormalMatrix(normalMatrix);
-          normal[at] = vertex.x;
-          normal[at + 1] = vertex.y;
-          normal[at + 2] = vertex.z;
-        }
-        const sourceUv = geometry.attributes.uv;
-        if (uv && sourceUv)
+        if (plain(sourcePosition) && plain(sourceNormal)) transformPlain(sourcePosition.array, sourceNormal.array, count, matrix, normalMatrix, position, normal, vertexAt * 3);
+        else
           for (let i = 0; i < count; i++) {
-            uv[(vertexAt + i) * 2] = sourceUv.getX(i);
-            uv[(vertexAt + i) * 2 + 1] = sourceUv.getY(i);
+            const at = (vertexAt + i) * 3;
+            vertex.fromBufferAttribute(sourcePosition, i).applyMatrix4(matrix);
+            position[at] = vertex.x;
+            position[at + 1] = vertex.y;
+            position[at + 2] = vertex.z;
+            vertex.fromBufferAttribute(sourceNormal, i).applyNormalMatrix(normalMatrix);
+            normal[at] = vertex.x;
+            normal[at + 1] = vertex.y;
+            normal[at + 2] = vertex.z;
           }
+        const sourceUv = geometry.attributes.uv;
+        if (uv && sourceUv) {
+          if (plain(sourceUv) && sourceUv.itemSize === 2) uv.set(sourceUv.array as ArrayLike<number>, vertexAt * 2);
+          else
+            for (let i = 0; i < count; i++) {
+              uv[(vertexAt + i) * 2] = sourceUv.getX(i);
+              uv[(vertexAt + i) * 2 + 1] = sourceUv.getY(i);
+            }
+        }
         swatches?.fill(swatch, vertexAt, vertexAt + count);
         const sourceIndex = geometry.index;
-        if (sourceIndex) for (let i = 0; i < sourceIndex.count; i++) index[indexAt + i] = sourceIndex.getX(i) + vertexAt;
-        else for (let i = 0; i < count; i++) index[indexAt + i] = vertexAt + i;
+        if (sourceIndex) {
+          const from = sourceIndex.array;
+          for (let i = 0; i < sourceIndex.count; i++) index[indexAt + i] = from[i]! + vertexAt;
+        } else for (let i = 0; i < count; i++) index[indexAt + i] = vertexAt + i;
         indexAt += sourceIndex ? sourceIndex.count : count;
         vertexAt += count;
       }
@@ -245,6 +252,37 @@ export function* mergeStaticSteps(root: THREE.Group, options: { keepData?: boole
       created.push(geometry);
     }
   return created;
+}
+
+/** A plain attribute: its own typed array, one value per component (not interleaved, not normalized). */
+function plain(attribute: THREE.BufferAttribute | THREE.InterleavedBufferAttribute): attribute is THREE.BufferAttribute {
+  return attribute instanceof THREE.BufferAttribute && !attribute.normalized;
+}
+
+/**
+ * `count` positions and normals of a plain source written to `position` and `normal` from `at`, transformed. The same
+ * arithmetic, in the same order, as `Vector3.applyMatrix4` and `Vector3.applyNormalMatrix` (`applyMatrix3`, then
+ * `normalize`: a divide by the length, or by 1 for a zero normal), so the result is the one those give, to the bit, at
+ * a fraction of the calls per vertex (a town is a million of them).
+ */
+function transformPlain(from: ArrayLike<number>, fromNormal: ArrayLike<number>, count: number, matrix: THREE.Matrix4, normalMatrix: THREE.Matrix3, position: Float32Array, normal: Float32Array, at: number) {
+  const e = matrix.elements;
+  const n = normalMatrix.elements;
+  for (let i = 0; i < count * 3; i += 3) {
+    const x = from[i]!, y = from[i + 1]!, z = from[i + 2]!;
+    const w = 1 / (e[3]! * x + e[7]! * y + e[11]! * z + e[15]!);
+    position[at + i] = (e[0]! * x + e[4]! * y + e[8]! * z + e[12]!) * w;
+    position[at + i + 1] = (e[1]! * x + e[5]! * y + e[9]! * z + e[13]!) * w;
+    position[at + i + 2] = (e[2]! * x + e[6]! * y + e[10]! * z + e[14]!) * w;
+    const nx = fromNormal[i]!, ny = fromNormal[i + 1]!, nz = fromNormal[i + 2]!;
+    const tx = n[0]! * nx + n[3]! * ny + n[6]! * nz;
+    const ty = n[1]! * nx + n[4]! * ny + n[7]! * nz;
+    const tz = n[2]! * nx + n[5]! * ny + n[8]! * nz;
+    const scale = 1 / (Math.sqrt(tx * tx + ty * ty + tz * tz) || 1);
+    normal[at + i] = tx * scale;
+    normal[at + i + 1] = ty * scale;
+    normal[at + i + 2] = tz * scale;
+  }
 }
 
 /** The vertex normals of a geometry that has none, worked out on a copy of its positions and index (its own is left alone). */
