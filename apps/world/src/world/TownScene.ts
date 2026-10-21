@@ -931,7 +931,8 @@ export class TownScene {
    * has focused, so entering it only has to show it.
    */
   #prepareInterior() {
-    if (this.#cancelPrepare || this.#layingOut || this.view.entered) return;
+    // Not before the first frame is on screen: the idle time before it belongs to the shaders and the first draw.
+    if (this.#cancelPrepare || this.#layingOut || this.view.entered || !this.#marked.first) return;
     const run = (more: () => boolean) => {
       this.#cancelPrepare = null;
       if (this.#disposed || this.view.entered) return;
@@ -2086,6 +2087,7 @@ export class TownScene {
     if (!this.#marked.first) {
       this.#marked.first = true;
       performance.mark("world:first-frame");
+      this.#prepareInterior();
     }
     // A clearing is a dressed town too: without a building, the mark waits a moment in case the first snapshot is
     // still on its way.

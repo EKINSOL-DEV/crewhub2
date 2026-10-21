@@ -48,12 +48,16 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useLayoutEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
-    syncThemeColor();
-    if (theme !== "system") return;
+    // The browser chrome follows a frame later: a 2D canvas and a computed style are not for the first render's path.
+    const frame = requestAnimationFrame(syncThemeColor);
+    if (theme !== "system") return () => cancelAnimationFrame(frame);
     /* With `system` the resolved colour follows the OS scheme. */
     const query = window.matchMedia("(prefers-color-scheme: dark)");
     query.addEventListener("change", syncThemeColor);
-    return () => query.removeEventListener("change", syncThemeColor);
+    return () => {
+      cancelAnimationFrame(frame);
+      query.removeEventListener("change", syncThemeColor);
+    };
   }, [theme]);
 
   const setTheme = useCallback((next: Theme) => {
