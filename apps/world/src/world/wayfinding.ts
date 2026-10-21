@@ -157,6 +157,17 @@ export function needsWords(needs: Needs): string {
     .join(", ");
 }
 
+/**
+ * The words beside a need pin's count. The pin shows the total already, so with one kind of need the count is not said
+ * again ("waiting on a person", not "1  1 waiting on a person"); with several kinds each keeps its count, which the
+ * total alone does not tell ("2 waiting on a person, 1 stalled").
+ */
+export function needsPinWords(needs: Needs): string {
+  const kinds = [needs.waiting, needs.attention, needs.stalled].filter((n) => n > 0).length;
+  if (kinds !== 1) return needsWords(needs);
+  return needs.waiting ? "waiting on a person" : needs.attention ? (needs.attention === 1 ? "needs attention" : "need attention") : "stalled";
+}
+
 /** The open work in a few words, zeros left out: "4 in progress, 2 review, 6 planned". */
 export function workWords(counts: Record<TicketStatus, number>): string {
   const parts = [counts.in_progress && `${counts.in_progress} in progress`, counts.review && `${counts.review} review`, counts.planned && `${counts.planned} planned`, counts.backlog && `${counts.backlog} backlog`].filter(Boolean);
