@@ -1,7 +1,7 @@
 /* regress.mjs: the browser regression pass of the integrated world, in six groups.
 
    Usage:
-     node tools/regress.mjs --port <port> [--groups connect,walk,demo,live,rooms,real] [--host-port 5180] [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--tag pass] [--out <dir>] [--swiftshader]
+     node tools/regress.mjs --port <port> [--groups connect,walk,demo,live,rooms,real] [--host-port 5180] [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--cpu-throttle <rate>] [--tag pass] [--out <dir>] [--swiftshader]
 
    Groups (--groups, default all six, in this order; connect first, the connection being the first priority):
      connect the connect flow (spec addendum "a smooth connection"), 21 checks in two halves, both behind your Vite
@@ -39,7 +39,9 @@
      rooms the three-room building (`?rooms=three`, whatever the viewer's Buildings setting): three room signs
            (Administration, The floor, Lead's office) and a rack sign with its count, the arrow keys between the three halls, the text view naming the
            racks and the desks with a package on each, the lead's office beacon, the agent card on a figure at a desk,
-           and walk mode in through the front door into Administration and on to the floor. About one minute.
+           and walk mode in through the front door into Administration and on to the floor, steered stop by stop
+           (`walkTo`: the keys push on screen, so the wanted direction is turned through the camera's yaw and held in
+           bounded bursts; --cpu-throttle 16 is the slow machine it must hold on). About 35 s.
      real  live mode against the REAL development crewhub-loops (tools/loops-dev.sh, 127.0.0.1:8291): it reads
            --loops-env (default: the first tools/out/loops-dev.env of this worktree, the main checkout or
            ~/Documents/GitHub/crewhub2-world-demo; LOOPS_DEV_URL and LOOPS_DEV_KEY_FILE, the admin lines are never
@@ -53,8 +55,9 @@
            development instance's; CREWHUB_WORLD_LOOPS_SOCKET for the host): its health says transport unix and its
            snapshot has the same projects as over TCP; skipped with an INFO line when there is no socket at that path.
            Under a minute. Run it while no other host of yours is open against that loops (4 streams per key).
-   Besides the checks it fails on any page error, console error or request that leaves the page's own origin, and
-   on a group that stops before its end.
+   --cpu-throttle <rate> slows every page's CPU that many times (the browser's own throttle): the timed checks must
+   hold at 16. Besides the checks it fails on any page error, console error or request that leaves the page's own
+   origin, and on a group that stops before its end.
 
    Output in --out (default tools/out/): <tag>-NN-<stop>.png, <tag>-results.json (every check as { name, pass,
    detail }) and <tag>.log (what is printed, with each group's time as an INFO line). The last line printed is
@@ -71,8 +74,10 @@ import { createConnectStub } from "./lib/connectStub.mjs";
 
 // The connect group first: the connection is the first priority, so a default pass fails on it first.
 const GROUPS = ["connect", "walk", "demo", "live", "rooms", "real"];
-const USAGE = "node tools/regress.mjs --port <port> [--groups walk,demo,live,connect,rooms,real] [--host-port 5180] [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--tag pass] [--out <dir>] [--swiftshader]";
-const opts = cli(USAGE, { options: { tag: "pass", groups: GROUPS.join(","), "host-port": "5180", "loops-env": "", "loops-socket": "", "loops-app-data": "" } });
+const USAGE = "node tools/regress.mjs --port <port> [--groups walk,demo,live,connect,rooms,real] [--host-port 5180] [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--cpu-throttle <rate>] [--tag pass] [--out <dir>] [--swiftshader]";
+const opts = cli(USAGE, { options: { tag: "pass", groups: GROUPS.join(","), "host-port": "5180", "loops-env": "", "loops-socket": "", "loops-app-data": "", "cpu-throttle": "1" } });
+const cpuThrottle = Number(opts["cpu-throttle"]);
+if (!(cpuThrottle >= 1)) opts.fail("--cpu-throttle <rate> must be 1 (none) or more");
 const groups = list(opts.groups, GROUPS, opts.fail, "group");
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const { tag, out: OUT, base: BASE, origin } = opts;
@@ -102,6 +107,8 @@ async function open(options = {}) {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light", ...options });
   const p = await ctx.newPage();
   watch(p, origin, problems);
+  // --cpu-throttle: the page's CPU slowed through the browser's own throttle (a slow machine on purpose, for the timed checks).
+  if (cpuThrottle > 1) await (await ctx.newCDPSession(p)).send("Emulation.setCPUThrottlingRate", { rate: cpuThrottle });
   return p;
 }
 async function town(p, settle, url = BASE) {
@@ -156,27 +163,23 @@ const announced = async (p, key, settle = 500) => {
   await p.waitForTimeout(settle);
   return (await p.locator("[aria-live=polite]").allInnerTexts()).join(" ").replace(/\s+/g, " ").trim();
 };
-/** Where the visitor stands in walk mode (`__town.visitor`: room id, world x and z, building), or null outside it. */
+/** Where the visitor stands in walk mode (`__town.visitor`: room id, world x and z, building, the camera's yaw), or null outside it. */
 const visitor = (p) => p.evaluate(() => globalThis.__town?.visitor ?? null).catch(() => null);
+/** The visitor's stroll in world units a second (apps/world/src/world/visitor.ts WALK_SPEED). */
+const WALK_SPEED = 2.6;
 /**
- * Walk mode: holds the arrow keys towards `stop` (a room id of the navigation grid and a cell of it) until the visitor
- * stands within half a cell of it or `seconds` pass, and answers where it stands then. The keys are the world's axes
- * while the camera is not turned: up is north (-z), right is east (+x). A stop in another room is reached through its
- * door only when the straight line goes through that door, so a walk is a list of stops, one or two per room.
+ * Walk mode: steers the visitor to `stop` (a room id of the navigation grid and a cell of it) until it stands within
+ * `within` of the cell's centre (default 0.35, inside the cell) or `seconds` pass, and answers where it stands then.
+ * The arrow keys push on screen, and the follow camera stands at a yaw (45 degrees at the start: Up alone is
+ * north-west, Up+Right is north), so the wanted world direction is turned back into screen axes with the yaw the page
+ * reports, and the keys that cover each axis are held. Each burst is bounded by the distance left on its shortest axis
+ * (never more than 100 ms), then every key is released before the position is read again: an iteration's latency
+ * under load cannot carry the visitor past a cell, which is what used to leave it beside a door instead of in it.
+ * A stop in another room is reached through its door only when the straight line goes through that door, so a walk
+ * is a list of stops: the door cell, then the first cell beyond it.
  */
-async function walkTo(p, stop, seconds) {
-  const held = new Set();
-  const hold = async (wanted) => {
-    for (const key of ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]) {
-      if (wanted.has(key) && !held.has(key)) {
-        await p.keyboard.down(key);
-        held.add(key);
-      } else if (!wanted.has(key) && held.has(key)) {
-        await p.keyboard.up(key);
-        held.delete(key);
-      }
-    }
-  };
+async function walkTo(p, stop, seconds, within = 0.35) {
+  const KEYS = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
   const deadline = Date.now() + seconds * 1000;
   let at = null;
   while (Date.now() < deadline) {
@@ -186,18 +189,33 @@ async function walkTo(p, stop, seconds) {
         const v = t?.visitor;
         if (!v || !t?.walks?.nav?.toWorld) return null;
         const w = t.walks.nav.toWorld(stop);
-        return { room: v.room, building: v.building, dx: w.x - v.x, dz: w.z - v.z };
+        return { room: v.room, building: v.building, x: v.x, z: v.z, yaw: v.yaw, crossing: v.crossing, dx: w.x - v.x, dz: w.z - v.z };
       }, stop)
       .catch(() => null);
     if (!at) break;
-    if (at.room === stop.room && Math.hypot(at.dx, at.dz) < 0.35) break;
-    const wanted = new Set();
-    if (Math.abs(at.dx) > 0.12) wanted.add(at.dx > 0 ? "ArrowRight" : "ArrowLeft");
-    if (Math.abs(at.dz) > 0.12) wanted.add(at.dz > 0 ? "ArrowDown" : "ArrowUp");
-    await hold(wanted);
-    await p.waitForTimeout(100);
+    if (at.room === stop.room && Math.hypot(at.dx, at.dz) < within) break;
+    // Through a door the visitor glides by itself: wait for it, the keys do nothing meanwhile.
+    if (at.crossing) {
+      await p.waitForTimeout(50);
+      continue;
+    }
+    // The remaining way as the screen sees it: the inverse of worldDirection (visitor.ts) for the camera's yaw.
+    const sin = Math.sin(at.yaw ?? 0);
+    const cos = Math.cos(at.yaw ?? 0);
+    const right = cos * at.dx - sin * at.dz;
+    const forward = -sin * at.dx - cos * at.dz;
+    const wanted = [];
+    if (Math.abs(right) > 0.1) wanted.push(right > 0 ? "ArrowRight" : "ArrowLeft");
+    if (Math.abs(forward) > 0.1) wanted.push(forward > 0 ? "ArrowUp" : "ArrowDown");
+    if (wanted.length === 0) break;
+    // Hold for the time the shortest wanted axis needs at a stroll, at most 100 ms, then let go and look again.
+    const shortest = Math.min(...[Math.abs(right), Math.abs(forward)].filter((d) => d > 0.1));
+    const burst = Math.max(20, Math.min(100, (shortest / WALK_SPEED) * 1000));
+    for (const key of wanted) await p.keyboard.down(key);
+    await p.waitForTimeout(burst);
+    for (const key of wanted) await p.keyboard.up(key);
   }
-  await hold(new Set());
+  for (const key of KEYS) await p.keyboard.up(key).catch(() => {});
   return at;
 }
 
@@ -998,7 +1016,8 @@ await group("rooms", async () => {
 
   // 21. Walk mode: W starts on the street before the nearest building; north goes through the front door into
   // Administration (its navigation room is `<slug>/lobby`), then along the racks to the door at administration cell
-  // (18, 0) and through it onto the floor (`<slug>/workers`).
+  // (18, 0) and through it onto the floor (`<slug>/workers`, whose side of that door is cell (9, 17); the stop is the
+  // cell beyond it). Each stop is reached by `walkTo`, which steers through the camera's yaw in bounded bursts.
   await canvas(p).focus();
   await p.keyboard.press("w");
   await p.waitForTimeout(800);
@@ -1017,9 +1036,10 @@ await group("rooms", async () => {
     const b = inside.building;
     await walkTo(p, { room: `${b}/lobby`, cell: { x: 15, z: 7 } }, 8);
     await walkTo(p, { room: `${b}/lobby`, cell: { x: 18, z: 2 } }, 10);
-    onFloor = await walkTo(p, { room: `${b}/workers`, cell: { x: 9, z: 15 } }, 10);
+    await walkTo(p, { room: `${b}/lobby`, cell: { x: 18, z: 0 } }, 6);
+    onFloor = await walkTo(p, { room: `${b}/workers`, cell: { x: 9, z: 16 } }, 10);
   }
-  ok("rooms: walking on reaches the floor", !!onFloor && /\/workers$/.test(onFloor.room), onFloor ? onFloor.room : "no walk");
+  ok("rooms: walking on reaches the floor", !!onFloor && /\/workers$/.test(onFloor.room), onFloor ? `${onFloor.room} (x ${onFloor.x.toFixed(2)}, z ${onFloor.z.toFixed(2)}, ${Math.hypot(onFloor.dx, onFloor.dz).toFixed(2)} from the stop)` : "no walk");
   await shot(p, "30-rooms-walk-floor");
   await p.keyboard.press("Escape");
   await p.context().close();
