@@ -97,19 +97,22 @@ export type PaneOf = (agentId: string) => string | null;
 
 /**
  * `GET /api/agents` as 4cdcd383 answers it for an installation on this machine: every agent with its computer, its
- * flags and its lane. The pane is the one the demo's team runs the agent in, else the agent's place in the list.
+ * flags and its lane. The pane is the one the demo's team runs the agent in, else the agent's place in the list. An
+ * external bot (`AgentOut.external`) keeps its flag and has no lane, as on a real loops.
  */
 export function withLanes(agents: AgentOut[], now: Date, paneOf: PaneOf = () => null): AgentOut[] {
   return agents.map((agent, index): AgentOut => {
-    const script = agent.role === "probe" ? null : (SCRIPTS[agent.id] ?? DEFAULT_SCRIPT);
+    const external = agent.external === true;
+    const script = agent.role === "probe" || external ? null : (SCRIPTS[agent.id] ?? DEFAULT_SCRIPT);
     return {
       ...agent,
       computer: DEMO_COMPUTER,
-      external: false,
+      external,
       reader: false,
       notPickedUp: script?.notPickedUp ?? 0,
       needsLoginSince: script?.needsLoginMinutes === undefined ? null : new Date(now.getTime() - script.needsLoginMinutes * 60_000).toISOString(),
-      lane: laneOf(agent, paneOf(agent.id) ?? `w1:p${index + 1}`, now),
+      // An external bot has no lane (CL-314: it runs elsewhere, loops has no pane for it), as every probe.
+      lane: external ? null : laneOf(agent, paneOf(agent.id) ?? `w1:p${index + 1}`, now),
     };
   });
 }

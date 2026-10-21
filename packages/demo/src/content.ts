@@ -37,6 +37,8 @@ export interface AgentSeed {
   isCrewhubLead: boolean;
   /** The projects the agent is a member of without leading them (`AgentOut.projects.member`), as slugs. */
   memberOf: string[];
+  /** An external bot (CL-314): a key used from another program, with no lane, no pane and no herdr session. */
+  external?: boolean;
 }
 
 export const PEOPLE: PersonSeed[] = [
@@ -63,6 +65,8 @@ export const AGENTS: AgentSeed[] = [
     memberOf: ["crewhub-loops", "marketing"],
   },
   { id: "ux-lead", displayName: "UX Lead", role: "lead", isCrewhubLead: false, memberOf: ["marketing"] },
+  // The world's own key, as a live installation has it: an external bot of role lead, member of nothing, in the town hall.
+  { id: "crewhub-world", displayName: "CrewHub World", role: "lead", isCrewhubLead: false, memberOf: [], external: true },
   { id: "postman", displayName: "Postman", role: "router", isCrewhubLead: false, memberOf: [] },
   { id: "team-probe", displayName: "Team probe", role: "probe", isCrewhubLead: false, memberOf: [] },
 ];

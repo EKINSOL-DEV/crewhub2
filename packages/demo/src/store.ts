@@ -817,11 +817,12 @@ export class DemoReads {
       id: a.id,
       displayName: a.displayName,
       role: a.role,
-      herdrSession: this.state.content.session,
+      herdrSession: a.external === true ? "external:none" : this.state.content.session,
       disabled: false,
       lastSeenAt: iso(this.state.now - 40 * SECOND),
       keys: null,
       isCrewhubLead: a.isCrewhubLead,
+      external: a.external === true,
       successorId: null,
       projects: {
         lead: active.filter((p) => p.leadId === a.id).map(ref),

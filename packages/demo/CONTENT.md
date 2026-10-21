@@ -22,6 +22,7 @@ chip, or `?scenario=<id>`) are in [Scenarios](#scenarios) at the end.
 | `marky` | agent | lead | Leads MK. It has no `-lead` name, so no worker maps to it. |
 | `analyst` | agent | lead | A member of CL and MK (`projects.member`); holds in-progress tickets in CL (CL-40) and MK (MK-12): it works in two buildings. |
 | `ux-lead` | agent | lead | A member of MK; works there through MK-9; a delivery to it ends `unroutable`. |
+| `crewhub-world` | agent | lead, **external bot** | The world's own key, as a live installation has it: `external: true`, session `external:none`, no lane, member of nothing. It stands in the town hall (the lodge of a small town), as on a live crewhub-loops. |
 | `postman` | agent | router | Claims and forwards every delivery. |
 | `team-probe` | agent | probe | Uploads the team snapshot. Never shown. |
 
