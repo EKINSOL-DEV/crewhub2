@@ -14,6 +14,8 @@ import { FirstSnapshot } from "./components/FirstSnapshot";
 import { CONNECT_POLL_MS, ConnectPage } from "./components/ConnectPage";
 import { liveScreen, withStreamKey } from "./state/connect";
 import { useSaid } from "./state/said";
+import { rememberHealth, useHostHealth } from "./state/health";
+import { markWords, saidLines, saidMarks, type SaidMark } from "./world/saidText";
 import { JumpList } from "./components/JumpList";
 import { IconSprite } from "./components/Icon";
 import { Button, Card, Chip, Field, Menu } from "./components/primitives";
@@ -175,11 +177,18 @@ function World() {
   useEffect(() => worldRuntime().setReducedMotion(reducedMotion), [reducedMotion]);
   // The civic places go by what stands there at this size: the lodge, the mailbox, the mail hut.
   const civic = useMemo(() => civicWords(plan.civic), [plan.civic.hall, plan.civic.post]);
+  // What the agents just said to the person (round 12, state/said.ts): bubbles over the figures, and (round 14) the text
+  // view's "says" lines and the chat marks over the buildings from the town.
+  const said = useSaid();
+  const marks = useMemo(() => saidMarks(model, said, Date.now()), [model, said]);
+  // The host's health as last read (the chat session's state for the Chat panel and the text view's Chat line); null in demo mode.
+  const hostHealth = useHostHealth();
   // Only while the text view shows: describing a region on every model update is felt on a phone.
   const textShown = textOpen || graphicsFailed;
   const textLines = useMemo(
     () => !textShown ? [] : [
       ...(civic.hall === CIVIC_WORDS.hall && civic.post === CIVIC_WORDS.post && rooms === "classic" ? text : describeWorld(model, civic, { rooms })),
+      ...saidLines(model, said, Date.now(), civic, rooms),
       ...describeCasts(castRegistry, {
         viewer: cast,
         town: town.doc.castId,
@@ -200,7 +209,7 @@ function World() {
       ...describeTownDocument(town.doc, town.catalogue, { ruleProps: rules, invalidRequests: town.invalid, rooms }),
       ...(town.storageNote ? [{ section: "Town document", text: town.storageNote, kind: "fact" as const }] : []),
     ],
-    [textShown, text, civic, rooms, cast, town.doc, town.catalogue, rules, town.invalid, model.zones, model.buildings, plan],
+    [textShown, text, civic, rooms, cast, town.doc, town.catalogue, rules, town.invalid, model.zones, model.buildings, plan, said],
   );
   const undo = useCallback(() => {
     townRuntime().undo();
@@ -646,7 +655,6 @@ function World() {
 
   const demo = model.mode === "demo";
   const connection = useConnection();
-  const said = useSaid();
   // A change of the connection's state (Live, Loops down, Catching up, Stream busy, back to Live) is said once in the live
   // region: the chip changes its word, and a screen reader would otherwise hear nothing. Not the first value on load.
   const spokenConnection = useRef<ConnectionState | null>(null);
@@ -657,6 +665,19 @@ function World() {
   }, [connection]);
   // The host's health as the Pair screen last saw it (the gate's read first); the screen polls and keeps it fresh.
   const [health, setHealth] = useState<HostHealth>(() => SOURCE.health ?? { loops: "ok", keyName: "", sharedKey: false, pairing: "on", paired: false });
+  // The text view's Chat line and the Chat panel's small print say the chat session's state (round 14): one health read
+  // when either opens on a live page, so the words are the host's current ones, not the gate's first read.
+  const chatOpen = chat !== null;
+  useEffect(() => {
+    if (demo || !(textOpen || chatOpen)) return;
+    let live = true;
+    void probeHost("", 1500).then((fresh) => {
+      if (live && fresh !== null) rememberHealth(fresh);
+    });
+    return () => {
+      live = false;
+    };
+  }, [demo, textOpen, chatOpen]);
   const onGo = useStable(go);
   const trailNames = { home: homeName(districts), district: here?.name ?? null, building: inside?.name ?? null, room: inside && zoomed ? roomName(inside, zoomed, rooms) : null };
   const trail = useMemo(
@@ -712,6 +733,7 @@ function World() {
               model={model}
               said={said}
               onSaidTap={(key) => (demo ? pick({ kind: "agent", key }, false) : openChat(key))}
+              marks={marks}
               plan={plan}
               entered={entered}
               focused={focused}
@@ -753,7 +775,7 @@ function World() {
 
       {connectionOpen && connection && <ConnectionPanel state={connection} initial={SOURCE.health} onClose={closeConnection} />}
 
-      {chat && !demo && <ChatPanel agent={chat.agent} health={SOURCE.health} full={narrow} onClose={closeChat} />}
+      {chat && !demo && <ChatPanel agent={chat.agent} health={hostHealth} full={narrow} onClose={closeChat} />}
 
       {jumpOpen && <JumpList entries={jumps} onJump={jump} onClose={closeJump} />}
 
@@ -810,7 +832,7 @@ function World() {
 
       {playback && <PlaybackBar playback={playback} />}
 
-      {(textOpen || graphicsFailed) && <TextView civic={civic} rooms={rooms} ref={textRegion} lines={textLines} connection={connection} chat={chatPlaceLine(demo ? "demo" : "live")} fallback={graphicsFailed} onClose={graphicsFailed ? null : closeText} districts={districts} onGo={graphicsFailed ? null : onGo} />}
+      {(textOpen || graphicsFailed) && <TextView civic={civic} rooms={rooms} ref={textRegion} lines={textLines} connection={connection} chat={chatPlaceLine(demo ? "demo" : "live", hostHealth?.connection?.session)} marks={marks} fallback={graphicsFailed} onClose={graphicsFailed ? null : closeText} districts={districts} onGo={graphicsFailed ? null : onGo} />}
     </div>
   );
 }
@@ -1146,7 +1168,7 @@ function PlaybackPosition({ playback }: { playback: PlaybackControls }) {
 
 const KIND_WORD: Record<TextLine["kind"], string> = { fact: "fact", inference: "inference", cosmetic: "cosmetic", demo: "demo" };
 
-function TextView({ lines, civic, rooms, connection, chat, fallback, onClose, districts, onGo, ref }: { lines: TextLine[]; civic: CivicWords; rooms: RoomWording; connection: ConnectionState | null; /** Where chat lives (state/chatPanel `chatPlaceLine`). */ chat: string; fallback: boolean; onClose: (() => void) | null; districts: DistrictPlace[]; onGo: ((place: Place) => void) | null; ref: Ref<HTMLElement> }) {
+function TextView({ lines, civic, rooms, connection, chat, marks, fallback, onClose, districts, onGo, ref }: { lines: TextLine[]; civic: CivicWords; rooms: RoomWording; connection: ConnectionState | null; /** Where chat lives (state/chatPanel `chatPlaceLine`). */ chat: string; /** The agents inside a building with a bubble in flight (world/saidText): a chip beside the building, as the mark over it. */ marks: SaidMark[]; fallback: boolean; onClose: (() => void) | null; districts: DistrictPlace[]; onGo: ((place: Place) => void) | null; ref: Ref<HTMLElement> }) {
   const sections = new Map<string, TextLine[]>();
   for (const line of lines) sections.set(line.section, [...(sections.get(line.section) ?? []), line]);
   // The town first, then every building's sections under its district, then the rest (casts, zones, the town document).
@@ -1222,6 +1244,13 @@ function TextView({ lines, civic, rooms, connection, chat, fallback, onClose, di
                         <strong>{b.name}</strong>
                       )}
                       {needs && <Chip.Attention>Needs a person: {needs}</Chip.Attention>}
+                      {marks
+                        .filter((m) => m.slug === b.slug)
+                        .map((m) => (
+                          <Chip key={m.agent} className="text-answered" icon={<MessageCircle className="icon icon-sm" aria-hidden="true" />}>
+                            {markWords(m)}
+                          </Chip>
+                        ))}
                     </p>
                     {owned(b).map((section) => block(section, 4))}
                   </div>

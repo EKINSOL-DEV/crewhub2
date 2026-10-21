@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { SAID_FADE_MS, SAID_MS, clearSaid, getSaid, rememberSaid, saidBy, subscribeSaid } from "../src/state/said.ts";
+import { SAID_FADE_MS, SAID_MS, clearSaid, getSaid, joinSentences, rememberSaid, saidBy, saidLabel, saidWords, subscribeSaid } from "../src/state/said.ts";
 
 const line = (agentId: string, text: string) => ({ agentId, agentName: agentId.toUpperCase(), text, at: "2026-10-21T19:00:00.000Z", messageId: `dm_${agentId}`, threadId: `dmt_${agentId}` });
 
@@ -23,4 +23,18 @@ test("said: an agent's line shows over that agent for SAID_MS, fades at the end,
   off();
   clearSaid();
   assert.equal(getSaid().size, 0);
+});
+
+test("saidLabel: the bubble's accessible name joins the line and the action without doubling terminal punctuation", () => {
+  assert.equal(saidWords("crewhub-lead", "the bubble proof on 8292."), "crewhub-lead says: the bubble proof on 8292.");
+  assert.equal(saidLabel("crewhub-lead", "Answer from crewhub-lead: the bubble proof on 8292.", "Open crewhub-lead"), "crewhub-lead says: Answer from crewhub-lead: the bubble proof on 8292. Open crewhub-lead");
+  assert.equal(saidLabel("g-man", "Busy and calm", "Open g-man"), "g-man says: Busy and calm. Open g-man", "a line without an end gets the full stop");
+  assert.equal(joinSentences("Done!", "Open g-man"), "Done! Open g-man");
+  assert.equal(joinSentences("Is it?", "Open g-man"), "Is it? Open g-man");
+  assert.equal(joinSentences("Later\u2026", "Open g-man"), "Later\u2026 Open g-man");
+  assert.equal(joinSentences("He said \"done.\"", "Open g-man"), "He said \"done.\" Open g-man", "a closing quote after the stop");
+  assert.equal(joinSentences("(as agreed.)", "Open g-man"), "(as agreed.) Open g-man");
+  assert.equal(joinSentences("trailing space. ", "Open g-man"), "trailing space. Open g-man");
+  assert.equal(joinSentences("", "Open g-man"), "Open g-man");
+  assert.equal(joinSentences("a colon:", "Open g-man"), "a colon:. Open g-man", "only terminal punctuation counts");
 });

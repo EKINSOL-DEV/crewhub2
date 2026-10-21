@@ -98,6 +98,12 @@ export interface LoopsFake {
    * `rejected` turns a move into Done down with that reason (`resolution: "rejected"` in the payload).
    */
   moveTicket(ref: string, status: string, options?: { rejected?: string }): Promise<void>;
+  /**
+   * The person sends `text` to `agentId`'s chat (the demo's own exchange, `DemoSource.sendDm`): `dm.created` by the person
+   * now, the postman's claim and forward, and the agent's scripted reply 8 s later in demo time (`dm.created` with the
+   * agent as actor, which the world shows as a bubble). For the tools: an agent inside a building answering on cue.
+   */
+  sendDm(agentId: string, text: string): void;
   /** The person who can sign in, and the password of this run (a fake's secret, for the tools and the tests). */
   readonly person: { id: string; password: string; displayName: string };
   /** The session cookies handed out and still accepted. */
@@ -274,6 +280,8 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     return { seen, checked };
   }
 
+  /** Messages the tools sent through `sendDm`, for their client ids. */
+  let sentDms = 0;
   const source: DemoSource = createDemoSource({
     scheduler: {
       now: () => Date.now(),
@@ -745,6 +753,9 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     lastSeq: () => seq,
     lastVisibleSeq: () => visibleTail,
     person,
+    sendDm(agentId, text) {
+      source.sendDm(agentId, text, `fake-dm-${++sentDms}`);
+    },
     sessionsOpen: () => sessions.size,
     openStreams: () => streams.size,
     streamsOpened: () => streamsOpened,

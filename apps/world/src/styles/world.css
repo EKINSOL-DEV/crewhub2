@@ -617,11 +617,19 @@
 .bubble.done .icon {
   color: var(--status-done);
 }
-/* What the agent just said to the person (round 12): a tappable speech bubble, the first line, gone after a while. */
+/* What the agent just said to the person (round 12): a tappable speech bubble, the first line, gone after a while. It
+   wraps to at most three lines (round 14; the whole line stays in its title and accessible name), fits a phone's width,
+   and keeps clear of the name label under it. */
 .bubble.said {
   pointer-events: auto;
   cursor: pointer;
-  max-width: 16rem;
+  /* The stack it hangs in has no width of its own (an anchor is a point), so a wrapping bubble would shrink to its longest
+     word: it is as wide as its line, up to the cap. */
+  width: max-content;
+  max-width: min(16rem, calc(100vw - 2 * var(--space-4)));
+  align-items: flex-start;
+  text-align: left;
+  white-space: normal;
   font: inherit;
   font-size: var(--text-2xs);
   font-weight: var(--weight-medium);
@@ -630,8 +638,20 @@
   color: var(--text);
   transition: opacity 400ms ease;
 }
+.bubble.said .bubble-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
 .bubble.said .icon {
+  flex: none;
+  margin-top: 1px;
   color: var(--accent-text);
+}
+.agent-stack > .bubble.said {
+  margin-bottom: var(--space-1);
 }
 .bubble.said.fading {
   opacity: 0.45;
@@ -1816,6 +1836,50 @@
   display: none;
   font-weight: var(--weight-regular, 400);
 }
+/* The chat mark over a building (round 14): an agent inside answered and its bubble lives; it goes when the bubble does.
+   Placed as the pin (the same anchor); with a pin over the same roof the two stand in one row. */
+.chat-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px var(--space-2) 1px var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft, var(--surface-raised));
+  border: 1px solid var(--accent-strong);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+  pointer-events: auto;
+  position: absolute;
+  transform: translate(-50%, -100%);
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: opacity 400ms ease;
+}
+.chat-mark .icon {
+  color: var(--accent-text);
+}
+.chat-mark.fading {
+  opacity: 0.45;
+}
+.chat-mark:focus-visible {
+  outline: 0;
+  box-shadow: var(--focus-ring);
+}
+.roof-row {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.roof-row > .need-pin,
+.roof-row > .chat-mark {
+  position: static;
+  transform: none;
+}
 /* What shows at which distance (`labelDetail`): from far a region is its district cards and pins; nearer the building
    signs take over and a district keeps its name; close by the district names go and a pin says what it wants. */
 .world-labels[data-detail="districts"] .town-sign {
@@ -1920,7 +1984,8 @@
 }
 @media (max-width: 600px) {
   /* From far on a phone the district's beacon speaks for its buildings: twenty pins would bury the region. */
-  .world-labels[data-detail="districts"] .need-pin {
+  .world-labels[data-detail="districts"] .need-pin,
+  .world-labels[data-detail="districts"] .chat-mark {
     display: none;
   }
 }

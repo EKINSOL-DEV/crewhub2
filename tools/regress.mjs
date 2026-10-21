@@ -62,8 +62,13 @@
            answer (g-man at 4:21 of the story, the fake started just before it) shows as a speech bubble over its
            figure with the first line; a tap on it opens the Chat panel on that agent; Forget the session signs out
            (the fake's session count 0, the file gone, "Not signed in"). Then the key road, over a second fake whose
-           viewer key may read the chat (`keyReadsChat`): no sign-in, the panel's Chat section says "Not needed" with
-           no form, g-man's answer as a bubble over the key's own stream, a tap to the Chat panel. Needs nobody.
+           viewer key may read the chat (`keyReadsChat`): no sign-in, the panel's Chat section says a sign-in is not
+           needed for the bubbles with no form, g-man's answer as a bubble over the key's own stream, a tap to the Chat
+           panel; then (round 14) an agent inside a building answering (the fake's sendDm to cr-lead): the chat mark
+           over its building from the town (named, beside the pin), the text view's says line with the place and the
+           "answered" chip, the mark entering the building, the bubble there wrapped to at most three lines and clear
+           of the name label, its accessible name without a double full stop, the mark gone with the bubble, and the
+           same on a phone in the dark theme. Needs nobody.
            About two minutes.
      rooms the three-room building (`?rooms=three`, whatever the viewer's Buildings setting): three room signs
            (Administration, The floor, Lead's office) and a rack sign with its count, the arrow keys between the three halls, the text view naming the
@@ -1070,7 +1075,7 @@ await group("chat", async () => {
     await pg2.locator(".connection-chip").first().click();
     await pg2.waitForSelector(".connection-session", { timeout: 5000 }).catch(() => {});
     const words = (await pg2.locator(".connection-session").innerText().catch(() => "")).replace(/\s+/g, " ");
-    ok("chat (key road): health says session key, the panel's Chat section says not needed and shows no sign-in form, the host's log says the key reads the chat", health2.connection?.session?.state === "key" && /Not needed: this crewhub-loops lets the world's key read the chat/.test(words) && (await pg2.getByLabel("Password").count()) === 0 && lines2.some((l) => /the key reads the chat on this crewhub-loops/.test(l)), `${health2.connection?.session?.state}; ${words.slice(0, 100)}`);
+    ok("chat (key road): health says session key, the panel's Chat section says a sign-in is not needed for the bubbles and shows no sign-in form, the host's log says the key reads the chat", health2.connection?.session?.state === "key" && /A sign-in is not needed for the bubbles: this crewhub-loops lets the world's key read the chat/.test(words) && (await pg2.getByLabel("Password").count()) === 0 && lines2.some((l) => /the key reads the chat on this crewhub-loops/.test(l)), `${health2.connection?.session?.state}; ${words.slice(0, 100)}`);
     await shot(pg2, "57-chat-key-not-needed");
     await pg2.keyboard.press("Escape");
     const bubble2 = pg2.locator('.bubble.said[data-said-agent="g-man"]');
@@ -1083,6 +1088,93 @@ await group("chat", async () => {
     const agent2 = await pg2.locator(".chat-sheet").getAttribute("data-agent").catch(() => null);
     ok("chat (key road): a tap on the bubble opens the Chat panel on that agent", agent2 !== null && /g-man/.test(agent2), `data-agent ${agent2}`);
     await pg2.keyboard.press("Escape");
+    await pg2.waitForSelector(".chat-sheet", { state: "detached", timeout: 5000 }).catch(() => {});
+    // Round 14: an agent inside a building answers (the fake's sendDm: the person writes to cr-lead, in the lead's office
+    // of CrewHub World, and its scripted reply comes 8 s later). From the town the figure inside is not drawn, so a chat
+    // mark stands over the building (in one row with the pin when the building has one), the text view carries the
+    // line with its place and an "answered" chip beside the building, and the mark enters the building, where the
+    // bubble wraps to at most three lines, keeps clear of the name label, and has an accessible name that joins the
+    // sentences without a double full stop. The mark goes when the bubble does.
+    const noOverlap = (a, b) => !a || !b || a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y;
+    const bubbleFacts = (locator) =>
+      locator
+        .evaluate((el) => {
+          const text = el.querySelector(".bubble-text");
+          const cs = getComputedStyle(el);
+          const ts = getComputedStyle(text);
+          const label = el.parentElement?.querySelector(".name-pill, .agent-plate") ?? null;
+          const r = el.getBoundingClientRect();
+          const l = label?.getBoundingClientRect() ?? null;
+          const lineHeight = parseFloat(ts.lineHeight) || parseFloat(ts.fontSize) * 1.2;
+          return {
+            aria: el.getAttribute("aria-label"),
+            title: el.getAttribute("title"),
+            whiteSpace: cs.whiteSpace,
+            clamp: ts.webkitLineClamp,
+            lines: Math.round(text.getBoundingClientRect().height / lineHeight),
+            clipped: text.scrollHeight > text.clientHeight + 1,
+            bubble: { x: r.left, y: r.top, width: r.width, height: r.height, bottom: r.bottom },
+            label: l && { x: l.left, y: l.top, width: l.width, height: l.height, top: l.top, text: label.textContent },
+            viewport: innerWidth,
+          };
+        })
+        .catch(() => null);
+    const answered = async (p, label) => {
+      fake2.sendDm("cr-lead", `Is the reading nook done? (${label})`);
+      const mark = p.locator('.chat-mark[data-said-mark="cr-lead"]');
+      await mark.waitFor({ timeout: 30000 }).catch(() => {});
+      return mark;
+    };
+    const mark = await answered(pg2, "desk");
+    const markName = await mark.getAttribute("aria-label").catch(() => null);
+    const markBox = await mark.boundingBox().catch(() => null);
+    const pinBox = await pg2.locator('.need-anchor[data-anchor="n:crewhub"] .need-pin').boundingBox().catch(() => null);
+    const figureInside = await pg2.locator('.bubble.said[data-said-agent="cr-lead"]').count();
+    ok("chat (key road, round 14): an agent inside a building answered: from the town a chat mark stands over that building, named for a screen reader, not on the pin when both", markName === "CR Lead answered: open CrewHub World" && markBox !== null && figureInside === 0 && noOverlap(markBox, pinBox), `${markName}; mark ${markBox ? "shown" : "missing"}; pin ${pinBox ? "beside it" : "none"}; bubbles inside drawn from the town: ${figureInside}; host: ${lines2.slice(-2).join(" | ").slice(0, 160)}`);
+    await shot(pg2, "59-chat-mark-town");
+    await pg2.keyboard.press("t");
+    await pg2.waitForSelector("#text-view", { timeout: 5000 }).catch(() => {});
+    const tv = (await sheet(pg2).innerText().catch(() => "")).replace(/\s+/g, " ");
+    await shot(pg2, "60-chat-text-view");
+    await pg2.keyboard.press("Escape");
+    await pg2.waitForSelector("#text-view", { state: "detached", timeout: 5000 }).catch(() => {});
+    const saysLine = tv.match(/CR Lead says: .*?\(in the [^)]*\)/)?.[0] ?? null;
+    ok("chat (key road, round 14): the text view carries the agent's line with its place in the Town section and an 'answered' chip beside the building, from the same source as the bubble", saysLine !== null && /^CR Lead says: \(demo reply\) .*\(in the lead's office of CrewHub World\)$/.test(saysLine) && /CR Lead answered/.test(tv) && /Chat: crewhub-loops' own chat.*A sign-in is not needed for the bubbles/.test(tv), saysLine ?? tv.slice(0, 200));
+    await pg2.locator('.chat-mark[data-said-mark="cr-lead"]').click().catch(() => {});
+    await pg2.waitForFunction(() => /CrewHub World/.test(document.querySelector("nav.world-breadcrumb .crumb-current")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
+    const bubble3 = pg2.locator('.bubble.said[data-said-agent="cr-lead"]');
+    await bubble3.waitFor({ timeout: 5000 }).catch(() => {});
+    const facts = await bubbleFacts(bubble3);
+    await shot(pg2, "61-chat-bubble-wrapped");
+    ok("chat (key road, round 14): the mark enters the building; the bubble there wraps to two or three lines (clamped at three, nothing cut off) and stands clear above the name label", (await level(pg2)) === "CrewHub World" && facts !== null && facts.whiteSpace === "normal" && facts.clamp === "3" && facts.lines >= 2 && facts.lines <= 3 && !facts.clipped && facts.label !== null && noOverlap(facts.bubble, facts.label) && facts.bubble.bottom <= facts.label.top, facts ? `${facts.lines} line(s), clamp ${facts.clamp}, clipped ${facts.clipped}, bubble bottom ${Math.round(facts.bubble.bottom)} vs label top ${facts.label ? Math.round(facts.label.top) : "none"}` : `no bubble inside; level ${await level(pg2)}`);
+    ok("chat (key road, round 14): the bubble's accessible name joins the line and the action without a double full stop", facts !== null && /^CR Lead says: \(demo reply\) .*\. Open CR Lead$/.test(facts.aria ?? "") && !/\.\./.test(facts.aria ?? "") && facts.title === (facts.aria ?? "").replace(/ Open CR Lead$/, ""), facts?.aria ?? "no bubble");
+    await pg2.keyboard.press("Escape");
+    await pg2.waitForFunction(() => !/CrewHub World/.test(document.querySelector("nav.world-breadcrumb .crumb-current")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
+    const markBack = (await pg2.locator('.chat-mark[data-said-mark="cr-lead"]').count()) === 1;
+    await pg2.waitForSelector('.chat-mark[data-said-mark="cr-lead"]', { state: "detached", timeout: 20000 }).catch(() => {});
+    const markGone = (await pg2.locator('.chat-mark[data-said-mark="cr-lead"]').count()) === 0;
+    const bubbleGone = (await pg2.locator('.bubble.said[data-said-agent="cr-lead"]').count()) === 0;
+    ok("chat (key road, round 14): back in the town the mark stands while the bubble lives and goes when it expires", markBack && markGone && bubbleGone, `mark on return ${markBack}, gone ${markGone}, bubble gone ${bubbleGone}`);
+    // A phone, dark: the same answer; the bubble fits the width and stays clear of the label there too.
+    const phoneCtx = await browser.newContext({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true, colorScheme: "dark" });
+    const ph2 = await phoneCtx.newPage();
+    watch(ph2, keyOrigin, own2, "chat key phone");
+    try {
+      await ph2.goto(`${keyOrigin}/`);
+      await ph2.waitForSelector("canvas", { timeout: 60000 }).catch(() => {});
+      await ph2.waitForSelector('.connection-chip[data-connection="live"]', { timeout: 20000 }).catch(() => {});
+      const phoneMark = await answered(ph2, "phone");
+      await shot(ph2, "62-chat-mark-phone-dark");
+      await phoneMark.click().catch(() => {});
+      await ph2.waitForFunction(() => /CrewHub World/.test(document.querySelector("nav.world-breadcrumb .crumb-current")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
+      const phoneBubble = ph2.locator('.bubble.said[data-said-agent="cr-lead"]');
+      await phoneBubble.waitFor({ timeout: 5000 }).catch(() => {});
+      const phoneFacts = await bubbleFacts(phoneBubble);
+      await shot(ph2, "63-chat-bubble-phone-dark");
+      ok("chat (key road, round 14): on a phone in the dark theme the mark enters the building and the bubble fits the width, wraps within three lines and stays clear of the name label", phoneFacts !== null && phoneFacts.bubble.x >= 0 && phoneFacts.bubble.x + phoneFacts.bubble.width <= phoneFacts.viewport && phoneFacts.lines <= 3 && !phoneFacts.clipped && noOverlap(phoneFacts.bubble, phoneFacts.label), phoneFacts ? `${phoneFacts.lines} line(s), x ${Math.round(phoneFacts.bubble.x)} to ${Math.round(phoneFacts.bubble.x + phoneFacts.bubble.width)} of ${phoneFacts.viewport}, label ${phoneFacts.label ? "clear" : "none"}` : `no bubble on the phone; level ${await level(ph2)}`);
+    } finally {
+      await phoneCtx.close().catch(() => {});
+    }
     problems.push(...own2.filter((x) => !(x.kind === "external" && x.text.includes(web2.url))));
   } finally {
     await ctx2.close().catch(() => {});

@@ -13,7 +13,9 @@ import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { forgetHostKey, forgetHostSession, probeHost, signInHost, type ConnectionState, type HostHealth, type HostSessionState } from "@crewhub/loops-client";
 import { useT } from "../i18n";
+import { chatWords } from "../state/chatPanel";
 import { connectOutcome, loopsVersion, relativeTime, sessionWords, untilTime } from "../state/connect";
+import { rememberHealth } from "../state/health";
 import { useTown } from "../state/town";
 import { useWorld } from "../state/world";
 import { zonesOriginWords } from "../world/zoneText";
@@ -35,7 +37,12 @@ export function ConnectionPanel({ state, initial, onClose, pollMs = PANEL_POLL_M
   const { model } = useWorld();
   const town = useTown();
   const zoneWords = zonesOriginWords({ zones: model.zones, assignments: town.doc.assignments });
-  const [health, setHealth] = useState<HostHealth | null>(initial);
+  const [health, setOwnHealth] = useState<HostHealth | null>(initial);
+  // Every read the panel makes is kept for the Chat panel and the text view too (state/health.ts).
+  const setHealth = (fresh: HostHealth) => {
+    setOwnHealth(fresh);
+    rememberHealth(fresh);
+  };
   const [askedAt, setAskedAt] = useState<number | null>(null);
   const [silent, setSilent] = useState(false);
   const [now, setNow] = useState(() => Date.now());
@@ -236,7 +243,8 @@ export function ConnectionPanel({ state, initial, onClose, pollMs = PANEL_POLL_M
 /**
  * The chat session (round 12, road B option 2): off until the person signs in here. The id and password go to the
  * host on this computer in one request and are dropped by this page at once (the fields are cleared); the host keeps
- * only loops' session cookie. The section says the state plainly and offers Forget the session.
+ * only loops' session cookie. The section says the state plainly (the road's story, `chatWords`, the same words as the
+ * Chat panel and the text view), what typing in the framed chat needs, and offers Forget the session.
  */
 function ChatSession({ session, paired, onHealth }: { session: HostSessionState; paired: boolean; onHealth: (health: HostHealth) => void }) {
   const { t } = useT();
@@ -275,7 +283,9 @@ function ChatSession({ session, paired, onHealth }: { session: HostSessionState;
     setBusy(null);
   };
   if (words === null) return null;
-  const state = words.kind === "signed-out" || words.kind === "key" ? t(`world.connection.panel.session.${words.kind}`) : words.name === null ? t(`world.connection.panel.session.${words.kind}.unnamed`) : t(`world.connection.panel.session.${words.kind}`, { name: words.name });
+  // One story per road (round 14, state/chatPanel.ts `chatWords`): the same sentences as the Chat panel and the text view.
+  const story = chatWords(session);
+  const state = story.bubbles;
   return (
     <section className="connection-session" aria-labelledby="connection-session-title" data-session={words.kind}>
       <h3 id="connection-session-title" className="connection-session-title">
@@ -317,6 +327,7 @@ function ChatSession({ session, paired, onHealth }: { session: HostSessionState;
           {said.text}
         </p>
       )}
+      <p className="hint connection-note connection-typing">{story.typing}</p>
     </section>
   );
 }
