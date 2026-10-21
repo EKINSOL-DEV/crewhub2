@@ -18,7 +18,7 @@ test("archivedSince never goes negative and copes with a date it cannot read", (
 test("archivedWords says closed since when, with the days when there are any", () => {
   assert.equal(archivedWords("2026-10-09T15:30:00Z", NOW), "closed since 9 Oct 2026 (11 days)");
   assert.equal(archivedWords("2026-10-19T20:00:00Z", NOW), "closed since 19 Oct 2026 (1 day)");
-  assert.equal(archivedWords("2026-10-20T22:14:27Z", NOW), "closed since 20 Oct 2026 (today)");
+  assert.equal(archivedWords("2026-10-20T22:14:27Z", NOW), "closed since 20 Oct 2026 (under a day)", "never \"today\": the UTC day may be the reader's yesterday");
   assert.equal(archivedWords(null, NOW), "closed");
   assert.equal(archivedWords("nonsense", NOW), "closed");
 });
