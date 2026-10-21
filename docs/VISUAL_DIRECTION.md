@@ -200,9 +200,11 @@ of `townPlan.ts`, so it never decides where a lot, a street or a civic spot is, 
   (hay bales, sheep, pumpkins along a fence) and two clusters of cottages round a little yard, each with a footpath
   to the civic lane. Nothing empty waits for them.
 - **A building goes up** ([construction.ts](../apps/world/src/world/construction.ts)): when a project joins a
-  standing town, scaffolding (`town.scaffolding`) rises on its plot, the building grows inside it and the scaffolding
-  comes down. Under reduced motion nothing moves: the scaffolding stands round a plain wrap, then both fade away from
-  the finished building.
+  standing town by an event, scaffolding (`town.scaffolding`) rises on its plot, the building grows inside it and the
+  scaffolding comes down. Buildings that arrive with a snapshot stand at once: the first layout, a seek, a new loop,
+  a key pasted after Forget or after loops rejected the old one (a snapshot is a reset, not a project appearing).
+  Under reduced motion nothing moves: the scaffolding stands round a plain wrap, then both fade away from the
+  finished building.
 - **Paths.** A 3.2-wide cobbled lane runs down every street the plan has; crossings get a border of darker setts.
   Garden paths lead from each front door under a timber gate down to the lane. The navigation opens exactly the
   paving the dressing lays (`civicWalkways`), so the postman and walkers keep to it at every tier.
