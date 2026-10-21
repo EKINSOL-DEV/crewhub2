@@ -1086,6 +1086,30 @@ tests a track touched. It ends at `3d7a1f7`, with 747 tests.
 - **Proposals, not built**: the loops viewer key packaged for cl-lead (`docs/proposals/crewhub-world-viewer.md` on the
   unpushed branch `world/viewer-key`), and an addendum with the options for project groups and the director in live mode.
 
+## Round 8: quieter, kinder, truer (2026-10-21, midday)
+
+Round 8 ends at `da260d9`, with 751 tests and the browser pass at 124 of 124 over seven groups. That includes `ops`, and
+`real` against the development loops with the project colours crewy set.
+
+- **A rejected key waits** (r8-opspolish). The host stops retrying its stream. It waits for a new key, a Forget or a
+  discovery change, and re-checks the kept key every five minutes after a health probe, at most one probe a minute. A
+  bot re-enabled in loops comes back by itself, and the screen says when the next check is. `tools/loops-dev.sh start`
+  no longer blocks a pipe.
+- **An accessibility pass over the night's UI** (r8-a11y).
+  - A connection change is said once.
+  - The Connect screens and the panel stop reading a ticking clock.
+  - Keep returns the focus.
+  - Pills and tags say in words what a colour showed.
+  - The failed board card has its dark-theme contrast back.
+  - New-tab links say so, and chips are 40 px on a phone.
+  - `tools/a11y.mjs` asks a headless browser what a screen reader is given.
+- **The storyline as a person plays it** (r8-story). The person's Done moves come from one table, at least 100 s apart in
+  a building. Studio has a closed building (Translations) that opens and closes again.
+- **The documents** (r8-docs) tell the truth of rounds 5 to 7.
+- **A refreshed contact sheet** (r8-sheet), live, with the coloured facades. It found two things for the next round: the
+  dust film is not visible at the hall's zoom, and a tab opened after a quiet fact does not show it, because loops keeps
+  that fact only in its event log.
+
 ## Challenges with docs/integrators
 
 Read at crewhub-loops `a1bed0f`. Each item names the document, what was unclear, contradictory, missing or marked
