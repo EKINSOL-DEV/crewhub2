@@ -1172,6 +1172,34 @@ Round 11 ends at `a816264`, with 778 tests and the browser pass at 141 of 141.
   on 8091: crewhub-loops found through the app's socket, the key ok, the stream ok, 3 projects in 15 reads (41 ms) and
   1 archived project from the log. In his words: it works.
 
+## Round 12: chat with the agents (2026-10-21, evening)
+
+Nicky's new first requirement, after his run on the real app: chat with the agents from the world, in a UI that may be
+exactly crewhub-loops' own. He had chatted with `boing` in the app and seen no bubble in the world: the world's key is an
+external bot, and loops gives `dm.*` events only to the participants of a thread, so the world never saw it. Round 12
+ends at `7ffcb46` in the merge worktree (parked while Nicky uses the checkout), with 797 tests and the browser pass at
+155 of 155.
+
+- **The spec addendum "chat with the agents"**: what loops has (chat is its chat-head overlay, not a page; who may read
+  and send; who sees the events; framing allowed, a `SameSite=Lax` session), and two roads.
+- **Road A, the Chat panel** (r12-chatpanel, r12-chatlink). The world frames loops' own web app in a panel, opened from
+  the Chat chip and from "Chat with <name>" on an agent's card, so the chat is loops' own on the person's own session in
+  the same browser. The world handles no password and keeps no session. Opened for an agent, the frame asks loops for
+  that agent's chat (`?chat=<agent>`); an older loops ignores it and the panel says which chat head to open. "Open in
+  the crewhub-loops app" is always there.
+- **Road B, speech bubbles** (r12-chatsession). An agent's answer to the person is a bubble over its figure for a few
+  seconds; a tap opens the Chat panel. Where loops lets the world's key read the chat (the viewer key on the loops
+  branch), the host reads it with the key and needs nothing else. Elsewhere an optional sign-in in the Connection panel
+  lets the host read the chat as the person: it keeps only the session cookie, mode 0600, never the password, and an
+  allow-list lets that session read the chat and nothing else. Sign-in and Forget were proven on the development loops
+  by hand; the bubble itself was proven over the fake, because the development loops refuses messages to agents until
+  its dispatch is opened (Nicky's call).
+- **The loops side as code** (r12-loopschat, on the unpushed branch `world/viewer-key`, now 15 commits): the deep link
+  to one agent's chat, an explicit framing allowance for loopback origins with a test, and the viewer key reading the
+  chat and its events, read only; a review page for cl-lead. A second development loops on 8292 runs that branch.
+- **An introduction to CrewHub World** (r12-intro): `docs/INTRODUCTION.md`, for a reader who knows crewhub-loops, with a
+  table of every loops fact and what it becomes in the world, and twelve pictures.
+
 ## Challenges with docs/integrators
 
 Read at crewhub-loops `a1bed0f`. Each item names the document, what was unclear, contradictory, missing or marked
