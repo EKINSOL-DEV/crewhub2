@@ -1007,6 +1007,32 @@ Round 4 ends at `deeda56`, with 722 tests and the browser pass at 96 of 96. That
   including a person carrying live: crewy moved two tickets into Done, and the world showed "Nicky (dev)" walking them
   to the Done rack.
 
+## Round 5: small and safe (morning of 2026-10-21)
+
+Round 5 ends at `7da78dc`, with 734 tests and the browser pass at 100 of 100.
+
+- **The first paint, one structural cut at a time** (r5-paint1, r5-paint2, r5-paint3). Each cut has before/after timings
+  and pixels; the town picture differs in at most 51 of 1.3 million pixels.
+  - **`mergeStatic` writes every vertex once** and transforms plain attributes inline, so the geometry is the same to
+    the bit (a parity test). Its share of a warm start went from 64 to 33 ms; the cost was the per-vertex method calls,
+    not the copies.
+  - **The navigation graph and the walkers follow the first drawn frame.** Every figure already stands where its walker
+    starts, so nothing moves when the walkers land. W, Follow and the director's intents in the first frame bring the
+    walks at once.
+  - **The Greenhouse models are validated on first use**, not at import.
+  - The three cuts together take roughly 100 ms of CPU off the road to the first frame. Three new regress checks fail
+    if a figure moves when the walkers land.
+- **The morning, rehearsed a fifth time** (r5-friction, r5-friction2).
+  - A tab whose host restarted without its secret comes back 1.3 s after the new link (was 5.4 s).
+  - "the world is up" is printed once, timed from the host's start and from the key.
+  - The doctor and the step list read as a person reads.
+  - The live town's chat chip says "Chat: in the crewhub-loops app".
+- **Labels that hold still** (r5-labels).
+  - At 375 px with Details on, the town's labels stack instead of piling up.
+  - The waiting tags at a rack hold still while a person passes, and the person's pill climbs over them.
+- **A proposal, unmerged**: `task/r5-testtimeout` adds `--test-timeout=120000` to `npm test`, so a hung test fails by
+  name. Nicky decides.
+
 ## Challenges with docs/integrators
 
 Read at crewhub-loops `a1bed0f`. Each item names the document, what was unclear, contradictory, missing or marked
