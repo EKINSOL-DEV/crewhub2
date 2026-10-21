@@ -93,7 +93,9 @@ A person in the world (2026-10-21, spec addendum "a person in the world, and clo
 building's cast comes in by the front door, carries the package from its rack or desk to the Done rack and leaves. The
 model records the visit (`Building.visits`, one person per building, a queue of three, the rest land at once; the
 celebration follows the landing), the text view and `where` tell it, a click says who and what. Under reduced motion
-the package lands at once. Part 2 (closed buildings) is open.
+the package lands at once. Part 2 (closed buildings) is open. Since round 3 of the same night the person looks like a
+person: each cast brings a person figure of its own (`person.json`, "The person" in [WORLD_STYLES.md](WORLD_STYLES.md)),
+clearly no agent; the walk-mode visitor is the same figure; a cast without one falls back to its plain worker.
 
 ## The host
 
