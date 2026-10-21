@@ -531,13 +531,14 @@ export class BuildingView {
       const [key, height, depth] = WALLS[run.side];
       // The office's window onto the floor: that partition is glazed above the partition height (archived wins).
       const glazed = run.side === "inner" && officeWindowRun(this.template, run) ? { variant: "glazed" } : {};
-      const wall = add(style.model(key, opt({ size: { width: length + depth, height, depth }, ...glazed })), (run.x1 + run.x2) / 2, (run.z1 + run.z2) / 2, 0, horizontal ? 0 : Math.PI / 2);
+      // The outer walls take the project colour as a soft wash of their chalk (the style's `wallChalk`); a partition ignores it.
+      const wall = add(style.model(key, opt({ size: { width: length + depth, height, depth }, accent, ...glazed })), (run.x1 + run.x2) / 2, (run.z1 + run.z2) / 2, 0, horizontal ? 0 : Math.PI / 2);
       if (run.side === "north" || run.side === "west") {
         const [lowKey, lowHeight, lowDepth] = WALLS.south;
         this.#backWalls[run.side].tall.add(wall);
         // Its low stand-in, on first sight (#lowRim).
         this.#lowPending[run.side].push(() => {
-          const low = style.model(lowKey, opt({ size: { width: length + lowDepth, height: lowHeight, depth: lowDepth } }));
+          const low = style.model(lowKey, opt({ size: { width: length + lowDepth, height: lowHeight, depth: lowDepth }, accent }));
           low.position.copy(wall.position);
           low.rotation.y = wall.rotation.y;
           return low;

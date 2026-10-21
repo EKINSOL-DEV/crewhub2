@@ -11,6 +11,12 @@ type Size = { width: number; height: number; depth: number };
 const size = (o: ModelOptions, fallback: Size): Size => o.size ?? fallback;
 const accent = (o: ModelOptions): Swatch => o.accent ?? "no-project";
 const archived = (o: ModelOptions) => o.variant === "archived";
+/**
+ * The outer walls' chalk (the tall wall, the glass wall's knee and pilasters, the low rims and their posts): muted when
+ * archived, else washed a third of the way to the project colour (round 15, decision 5, the soft wall tint; `wash:` in
+ * kit.ts, with its floor for a colour close to chalk). A building without a colour keeps plain chalk.
+ */
+const wallChalk = (o: ModelOptions): Swatch => (archived(o) ? "chalk-dim" : o.accent ? `wash:${o.accent}` : "chalk");
 
 /** The slab's height above the lawn: the floor level of every building. Renderers read it from `userData.rise`. */
 export const SLAB = 0.24;
@@ -95,7 +101,7 @@ function windowBox(kit: Kit, wall: THREE.Object3D, x: number, sill: number, face
 export function tallWall(kit: Kit, o: ModelOptions, glass: THREE.Material): THREE.Group {
   const { width, height, depth } = size(o, { width: 4, height: 1.75, depth: 0.16 });
   const g = new THREE.Group();
-  const chalk = archived(o) ? "chalk-dim" : "chalk";
+  const chalk = wallChalk(o);
   const windows = width >= 2.4 ? Math.max(1, Math.floor(width / 3.2)) : 0;
   const ww = 0.9,
     sill = 0.55,
@@ -143,7 +149,7 @@ export function glassWall(kit: Kit, o: ModelOptions, glass: THREE.Material): THR
   const knee = 0.26;
   const bays = Math.max(1, Math.round(width / 1.1));
   const bay = width / bays;
-  put(g, kit.box(width, knee, depth, archived(o) ? "chalk-dim" : "chalk", 0.02), 0, knee / 2, 0);
+  put(g, kit.box(width, knee, depth, wallChalk(o), 0.02), 0, knee / 2, 0);
   put(g, kit.box(width + 0.02, 0.05, depth + 0.06, "mullion", 0.015), 0, knee, 0);
   const pane = kit.geometry(`glass-pane:${bay.toFixed(3)},${height}`, () => new THREE.PlaneGeometry(bay - 0.05, height - knee - 0.08));
   const transom = knee + (height - knee) * 0.64;
@@ -160,7 +166,7 @@ export function glassWall(kit: Kit, o: ModelOptions, glass: THREE.Material): THR
   put(g, kit.box(width + 0.06, 0.09, depth, "mullion", 0.02), 0, height - 0.02, 0);
   // A pale cap on the frame: from the town the glass wall's top catches the light like the chalk wall's ledge.
   put(g, kit.box(width + 0.08, 0.035, depth + 0.06, "cream", 0.012), 0, height + 0.04, 0);
-  pilasters(kit, g, width, height, depth, archived(o) ? "chalk-dim" : "chalk");
+  pilasters(kit, g, width, height, depth, wallChalk(o));
   return g;
 }
 
@@ -168,12 +174,12 @@ export function glassWall(kit: Kit, o: ModelOptions, glass: THREE.Material): THR
 export function rim(kit: Kit, o: ModelOptions): THREE.Group {
   const { width, height, depth } = size(o, { width: 2, height: 0.22, depth: 0.12 });
   const g = new THREE.Group();
-  put(g, kit.box(width, height, depth, archived(o) ? "chalk-dim" : "chalk", 0.02), 0, height / 2, 0);
+  put(g, kit.box(width, height, depth, wallChalk(o), 0.02), 0, height / 2, 0);
   // A timber coping: from the town the front walls draw the building's outline.
   put(g, kit.box(width + 0.02, 0.045, depth + 0.05, "coping", 0.012), 0, height + 0.0225, 0);
   // Square posts at both ends (the corners, and either side of a door), a little taller than the rim.
   for (const s of [-1, 1]) {
-    put(g, kit.box(depth + 0.08, height + 0.12, depth + 0.08, archived(o) ? "chalk-dim" : "chalk", 0.02), s * (width / 2 - depth / 2), (height + 0.12) / 2, 0);
+    put(g, kit.box(depth + 0.08, height + 0.12, depth + 0.08, wallChalk(o), 0.02), s * (width / 2 - depth / 2), (height + 0.12) / 2, 0);
     put(g, kit.box(depth + 0.12, 0.04, depth + 0.12, "coping", 0.012), s * (width / 2 - depth / 2), height + 0.14, 0);
   }
   return g;
