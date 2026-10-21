@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { FIXTURE_SIGN, fixturePlan } from "../src/world/planFixture.ts";
-import { civicLabel, civicWords, entranceRoad, planLanes, planPaths, planPieces, settlementDressing, streamRows } from "../src/world/settlementDressing.ts";
+import { civicLabel, civicWords, dressedLots, dressPlan, entranceRoad, planLanes, planPaths, planPieces, settlementDressing, streamRows } from "../src/world/settlementDressing.ts";
 import type { Dressing } from "../src/world/townDressing.ts";
 import type { Bounds } from "../src/world/townLayout.ts";
 
@@ -151,4 +151,35 @@ test("the civic places go by what stands there: the lodge and the mailbox before
   assert.deepEqual(words(3), { hall: "lodge", post: "mail hut" });
   assert.deepEqual(words(7), { hall: "town hall", post: "post office" });
   assert.equal(civicLabel(words(1).post), "Mail hut");
+});
+
+test("the dressing's lots are in slug order and wear the look the shell shows", () => {
+  const lots = [
+    { slug: "marketing", archived: false, cell: 1 },
+    { slug: "crewhub", archived: false, cell: 2 },
+    { slug: "ops-tooling", archived: true, cell: 3 },
+  ];
+  // Project order changed, nothing else: the same lots in the same order, the same gardens.
+  const a = dressedLots(lots, () => undefined);
+  const b = dressedLots([lots[2]!, lots[0]!, lots[1]!], () => undefined);
+  assert.deepEqual(
+    a.map((l) => l.slug),
+    ["crewhub", "marketing", "ops-tooling"],
+  );
+  assert.deepEqual(a, b);
+  assert.equal(a[2], lots[2], "an unchanged lot is the plan's own object");
+  // A closing has begun (the model says archived) but the shell still shows the open look: the garden stays.
+  const closing = dressedLots([{ slug: "ops-tooling", archived: true, cell: 3 }], (slug) => (slug === "ops-tooling" ? false : undefined));
+  assert.equal(closing[0]!.archived, false);
+  // The boards are on: the garden follows.
+  assert.equal(dressedLots([{ slug: "ops-tooling", archived: true, cell: 3 }], () => true)[0]!.archived, true);
+  // Through dressPlan, the plot index (a garden's seed) follows the slug order, not the project order.
+  const extras = { door: () => ({ x: 0, z: 0 }), obstacles: () => [], lotCentre: () => ({ x: 0, z: 0 }), stakedText: "" };
+  const base = fixturePlan(3).plan;
+  const plan = { ...base, lots: dressedLots(base.lots, () => undefined) };
+  const reordered = { ...base, lots: dressedLots([...base.lots].reverse(), () => undefined) };
+  assert.deepEqual(
+    dressPlan(plan, extras).lots.map((l) => [l.index, l.seed]),
+    dressPlan(reordered, extras).lots.map((l) => [l.index, l.seed]),
+  );
 });

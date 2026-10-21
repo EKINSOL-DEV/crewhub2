@@ -98,16 +98,37 @@ function release(this: THREE.BufferAttribute) {
  * A palette batch carries no uv at all: its materials have no map.
  */
 export function mergeStatic(root: THREE.Group, options: { keepData?: boolean } = {}): THREE.BufferGeometry[] {
+  const steps = mergeStaticSteps(root, options);
+  for (;;) {
+    const next = steps.next();
+    if (next.done) return next.value;
+  }
+}
+
+/** Source meshes a step of `mergeStaticSteps` takes on before it yields. */
+const MERGE_CHUNK = 150;
+
+/**
+ * `mergeStatic` in steps, for a build spread over frames or idle time: the sources are gathered, transformed and
+ * batched `MERGE_CHUNK` at a time, then each batch is merged, with a yield between; the result is the return value.
+ * The tree is unchanged until the merge is through (nothing is taken out before every source is batched).
+ */
+export function* mergeStaticSteps(root: THREE.Group, options: { keepData?: boolean } = {}): Generator<void, THREE.BufferGeometry[]> {
   root.updateMatrixWorld(true);
   const inverse = new THREE.Matrix4().copy(root.matrixWorld).invert();
   const batches = new Map<unknown, Batch[]>();
   const merged: THREE.Mesh[] = [];
+  const sources: THREE.Mesh[] = [];
   root.traverse((o) => {
     // Live meshes (a style's moving parts, `userData.live`) keep their own transforms.
     if (!(o instanceof THREE.Mesh) || o instanceof THREE.InstancedMesh || Array.isArray(o.material) || o.userData.room || o.userData.live) return;
     if (Object.keys(o.geometry.attributes).some((name) => !MERGED.includes(name))) return;
     // Already merged, its vertex data on the GPU only: it stays as it is.
     if (!o.geometry.attributes.position?.array) return;
+    sources.push(o);
+  });
+  for (const [n, o] of sources.entries()) {
+    if (n > 0 && n % MERGE_CHUNK === 0) yield;
     const matrix = new THREE.Matrix4().multiplyMatrices(inverse, o.matrixWorld);
     // Indexed throughout: a style's geometry shares its vertices between faces, so transforming and uploading it costs a
     // third of a non-indexed copy (the merge of an interior is the bulk of entering a building).
@@ -141,11 +162,13 @@ export function mergeStatic(root: THREE.Group, options: { keepData?: boolean } =
       list[0]!.shadow ||= o.castShadow;
     }
     merged.push(o);
-  });
+  }
+  yield;
   removeBaked(root, merged);
   const created: THREE.BufferGeometry[] = [];
   for (const list of batches.values())
     for (const { geometries, shadow, palette, material } of list) {
+      yield;
       const geometry = mergeGeometries(geometries, false);
       for (const g of geometries) g.dispose();
       if (!geometry) continue;

@@ -252,6 +252,8 @@ export class BuildingView {
   detailed = false;
   /** Counts shell rebuilds, so the town knows when to gather the window spots again. */
   shellRevision = 0;
+  /** The look the shell shows now: an archived building's boarded look, or, while a closing plays, the phase it is in. */
+  shownArchived = false;
   #zone: ZoneMark | null = null;
   /** Bumps whenever something that casts a shadow seen from the town changed: the town then redraws its shadow map. */
   shadowRevision = 0;
@@ -445,6 +447,7 @@ export class BuildingView {
   }
 
   #buildShell(pull: "lights" | "boards" | null = null): { lights: THREE.Mesh[]; boards: THREE.Object3D[] } {
+    const started = performance.now();
     this.shellRevision++;
     this.shadowRevision++;
     const { style } = this.ctx;
@@ -454,6 +457,7 @@ export class BuildingView {
     for (const side of Object.values(this.#backWalls)) for (const g of [side.tall, side.low]) g.clear();
     for (const g of this.#merged) g.dispose();
     const b = { ...this.building, archived: this.#shellArchived ?? this.building.archived };
+    this.shownArchived = b.archived;
     // An archived building keeps its colour out of the shell: muted sage and timber, never dark.
     const accent = b.archived ? null : ((b.color ?? null) as PaletteName | null);
     const variant = b.archived ? "archived" : undefined;
@@ -619,6 +623,7 @@ export class BuildingView {
       };
     for (const walls of Object.values(this.#backWalls)) walls.low.visible = false;
     this.#applyFocus();
+    performance.measure("world:shell-built", { start: started, detail: { slug: this.building.slug, pull, archived: b.archived } });
     return pulled;
   }
 
@@ -780,15 +785,19 @@ export class BuildingView {
   prepareInterior(more: () => boolean = () => true): boolean {
     if (this.building.archived) return false;
     if (this.#pending && this.#pending.shape !== this.#shape) this.cancelPrepare();
+    const fresh = !this.#pending;
     if (!this.#pending) {
       if (this.#shape === this.#signatures.furniture) return false;
       this.#pending = { steps: this.#furnitureSteps(), shape: this.#shape };
     }
     const pending = this.#pending;
+    const started = performance.now();
     do {
       if (pending.steps.next().done) {
         this.#pending = null;
         this.#signatures.furniture = pending.shape;
+        // For the measuring tools: `atOnce` is a build that ran whole in this call (an enter, a layout change inside).
+        performance.measure("world:interior-built", { start: started, detail: { slug: this.building.slug, atOnce: fresh, detailed: this.detailed } });
         return true;
       }
     } while (more());

@@ -24,10 +24,10 @@ import { CIVIC_LOT, civicCenter, PLOT_SIZE, type Bounds } from "./townLayout";
 import { Construction } from "./construction";
 import { lotCentre, lotKey } from "./settlement";
 import { homeRects, planKey, type TownPlan } from "./townPlan";
-import { dressPlan, planPaths, planPieces, settlementDressing, STAKED_SIGN, type DressPlan } from "./settlementDressing";
+import { dressedLots, dressPlan, planPaths, planPieces, settlementDressing, STAKED_SIGN, type DressPlan } from "./settlementDressing";
 import { LAWN_Y } from "./townDressing";
-import { InstanceCuller, instanceStatic } from "./instanceStatic";
-import { mergeStatic } from "./mergeStatic";
+import { InstanceCuller, instanceStaticSteps } from "./instanceStatic";
+import { mergeStatic, mergeStaticSteps } from "./mergeStatic";
 import { plotDoor, plotObstacles, POST_OFFICE_CELL, TOWN_ROOM } from "./navigation";
 import { onPlayIntent } from "./intentPlayer";
 import { Walks } from "./walks";
@@ -201,8 +201,14 @@ const UP = new THREE.Vector3(0, 1, 0);
 /* Framing heights: a building is seen up to its tall back walls, a room up to its people and desks. */
 /** Built interiors kept for a quick enter: the entered building's and the two most recently used others. */
 const KEPT_INTERIORS = 3;
-/** The idle time an interior build step needs left before it starts, ms. */
+/** The idle time an interior build step needs left before it starts, ms; also its budget when no idle time came. */
 const IDLE_STEP_MS = 12;
+/** An idle interior build step waits at most this long for idle time (a busy stream leaves little), ms. */
+const IDLE_TIMEOUT_MS = 400;
+/** A settlement dressing rebuild takes steps for this long per frame, ms (one step at least). */
+const DRESS_STEP_MS = 4;
+/** Dressing models made per step of a rebuild. */
+const DRESS_CHUNK = 120;
 const BUILDING_FRAME_HEIGHT = FLOOR_RISE + BACK_WALL_HEIGHT + 0.6; // the slab, the tall walls and a little headroom
 const ROOM_FRAME_HEIGHT = 1.1;
 /** On a portrait phone a room or building frame crops its diamond's outer corner tips (below 1: tighter). */
@@ -320,6 +326,10 @@ export class TownScene {
     instanced: [],
     merged: [],
   };
+  /** A settlement dressing being rebuilt in steps over the frames (the first one is built at once, before the town shows). */
+  #dressingBuild: { signature: string; steps: Generator<void, void> } | null = null;
+  /** The look each building's shell showed when the dressing last followed it (a closing turns the garden with the shell). */
+  #shownLooks = new Map<string, boolean>();
   /** Draws only the dressing near the view (a building close up draws its corner of the town, not all of it). */
   #culler: InstanceCuller | null = null;
   #sun: THREE.DirectionalLight | null | undefined;
@@ -662,10 +672,12 @@ export class TownScene {
   #dressed(): DressPlan {
     const plan = this.view.plan,
       zones = this.view.model.zones;
-    const key = `${planKey(plan)}|${zones.map((z) => `${z.id}:${z.name}:${z.color}:${z.emblem}`).join(";")}`;
+    // The lots in slug order, each wearing the look its building's shell shows (settlementDressing `dressedLots`).
+    const dressed = { ...plan, lots: dressedLots(plan.lots, (slug) => this.#buildings.get(slug)?.shownArchived) };
+    const key = `${planKey(dressed)}|${zones.map((z) => `${z.id}:${z.name}:${z.color}:${z.emblem}`).join(";")}`;
     if (this.#dressPlan?.key !== key) {
-      const cells = new Map(plan.lots.map((lot) => [lot.slug, lot.cell]));
-      const dress = dressPlan(plan, {
+      const cells = new Map(dressed.lots.map((lot) => [lot.slug, lot.cell]));
+      const dress = dressPlan(dressed, {
         door: (slug) => plotDoor(cells.get(slug)!),
         obstacles: (slug) => plotObstacles(cells.get(slug)!),
         zone: (id) => {
@@ -706,55 +718,123 @@ export class TownScene {
 
   /**
    * The ground, lawns, paths and dressing of the settlement (settlementDressing.ts): rebuilt only when the plan, a
-   * zone's name or colour, or a look changes. Repeated parts become instanced meshes, the one-off pieces merge per
-   * material.
+   * zone's name or colour, a building's shown look or a look changes. Repeated parts become instanced meshes, the
+   * one-off pieces merge per material. The first dressing is built at once, before the town shows; a later one is
+   * built in steps over the frames (`#dressingSteps`) while the old one stays, so an archive or a restore costs no
+   * long frame and a closing's garden turns a few frames after its shell.
    */
   #dress() {
     // Fast quality leaves out the small detail (grass tufts, wild flowers).
     const fast = this.view.quality === "fast";
     const townOptions = townLook(this.#lookContext()).styleOptions;
-    // Each building's own garden follows its slug, its lot and whether it is archived.
+    // Each building's own garden follows its slug, its lot and the look its shell shows.
     const dress = this.#dressed();
     this.#pieces(dress, townOptions);
     const signature = `${this.#dressPlan!.key}|${fast}|${looksSignature(this.#looks)}|${styleOptionsKey(townOptions)}`;
-    if (signature === this.#dressing.signature) return;
-    this.#disposeDressing();
-    this.#shadowDirty = true;
+    if (signature === this.#dressing.signature) {
+      this.#dressingBuild?.steps.return();
+      this.#dressingBuild = null;
+      return;
+    }
+    if (this.#dressingBuild?.signature === signature) return;
+    this.#dressingBuild?.steps.return();
+    this.#dressingBuild = null;
+    const steps = this.#dressingSteps(dress, fast, townOptions, signature);
+    if (this.#dressing.group) {
+      this.#dressingBuild = { signature, steps };
+      this.invalidate();
+    } else for (const _ of steps);
+  }
+
+  /** The next steps of a dressing rebuild, for `DRESS_STEP_MS` of this frame (one at least); true while one is pending. */
+  #stepDressing(): boolean {
+    const build = this.#dressingBuild;
+    if (!build) return false;
+    const started = performance.now();
+    const until = started + DRESS_STEP_MS;
+    let done = false;
+    do done = build.steps.next().done === true;
+    while (!done && performance.now() < until);
+    if (done && this.#dressingBuild === build) this.#dressingBuild = null;
+    performance.measure("world:dressing-step", { start: started, detail: { done } });
+    return this.#dressingBuild !== null;
+  }
+
+  /** A dressing rebuild once a building's shell shows another look than the garden wears (a closing, an opening). */
+  #followShells() {
+    let changed = false;
+    for (const [slug, view] of this.#buildings) {
+      if (this.#shownLooks.get(slug) === view.shownArchived) continue;
+      this.#shownLooks.set(slug, view.shownArchived);
+      changed = true;
+    }
+    for (const slug of [...this.#shownLooks.keys()]) if (!this.#buildings.has(slug)) this.#shownLooks.delete(slug);
+    if (changed) this.#dress();
+  }
+
+  /**
+   * A settlement dressing in steps: the pieces, their models in chunks, the instancing, the merge, then the swap.
+   * Nothing joins the scene before the swap; a build given up disposes what it made.
+   */
+  *#dressingSteps(dress: DressPlan, fast: boolean, townOptions: StyleOptionValues, signature: string): Generator<void, void> {
+    const started = performance.now();
+    const atOnce = this.#dressing.group === null;
     const group = new THREE.Group();
-    const dressing = settlementDressing(dress);
-    this.#life.setTown(dressing, this.#landmarks);
-    // A district's own turf lies on the town's ground, in its look's grass.
-    for (const { bounds } of this.#looks?.districts ?? []) {
-      const turf = this.#styleAt((bounds.minX + bounds.maxX) / 2, (bounds.minZ + bounds.maxZ) / 2, townOptions).model("town.turf", {
-        size: { width: bounds.maxX - bounds.minX, height: 0, depth: bounds.maxZ - bounds.minZ },
-      });
-      turf.position.set((bounds.minX + bounds.maxX) / 2, turf.position.y, (bounds.minZ + bounds.maxZ) / 2);
-      group.add(turf);
+    let instanced: THREE.InstancedMesh[] = [];
+    let merged: THREE.BufferGeometry[] = [];
+    let swapped = false;
+    try {
+      const dressing = settlementDressing(dress);
+      yield;
+      // A district's own turf lies on the town's ground, in its look's grass.
+      for (const { bounds } of this.#looks?.districts ?? []) {
+        const turf = this.#styleAt((bounds.minX + bounds.maxX) / 2, (bounds.minZ + bounds.maxZ) / 2, townOptions).model("town.turf", {
+          size: { width: bounds.maxX - bounds.minX, height: 0, depth: bounds.maxZ - bounds.minZ },
+        });
+        turf.position.set((bounds.minX + bounds.maxX) / 2, turf.position.y, (bounds.minZ + bounds.maxZ) / 2);
+        group.add(turf);
+      }
+      let made = 0;
+      for (const d of dressing) {
+        if (fast && d.detail) continue;
+        // The whole ground is the town's; everything else wears the look of the district it stands in.
+        const style = d.key === "ground" ? this.#styleAt(Infinity, Infinity, townOptions) : this.#styleAt(d.x, d.z, townOptions);
+        const object = style.model(d.key as ModelKey, {
+          ...(d.size ? { size: d.size } : {}),
+          ...(d.seed !== undefined ? { seed: d.seed } : {}),
+          ...(d.variant ? { variant: d.variant } : {}),
+          ...(d.text ? { text: d.text } : {}),
+          ...(d.accent ? { accent: d.accent as PaletteName } : {}),
+        });
+        object.position.set(d.x, d.y, d.z);
+        object.rotation.y = d.rotation;
+        object.scale.setScalar(d.scale);
+        group.add(object);
+        if (++made % DRESS_CHUNK === 0) yield;
+      }
+      yield;
+      instanced = yield* instanceStaticSteps(group);
+      yield;
+      merged = yield* mergeStaticSteps(group);
+      // The swap: the old dressing goes, the new one is laid.
+      this.#disposeDressing();
+      this.#shadowDirty = true;
+      this.#life.setTown(dressing, this.#landmarks);
+      this.scene.add(group);
+      this.#culler = new InstanceCuller(instanced);
+      this.#dressing = { signature, group, instanced, merged };
+      // The dressing never moves once it is laid (a change builds a new one): its matrices are worked out once, here.
+      group.updateMatrixWorld(true);
+      restMatrices(group, true);
+      swapped = true;
+      this.invalidate();
+      performance.measure("world:dressing-built", { start: started, detail: { pieces: dressing.length, atOnce } });
+    } finally {
+      if (!swapped) {
+        for (const mesh of instanced) mesh.dispose();
+        for (const geometry of merged) geometry.dispose();
+      }
     }
-    for (const d of dressing) {
-      if (fast && d.detail) continue;
-      // The whole ground is the town's; everything else wears the look of the district it stands in.
-      const style = d.key === "ground" ? this.#styleAt(Infinity, Infinity, townOptions) : this.#styleAt(d.x, d.z, townOptions);
-      const object = style.model(d.key as ModelKey, {
-        ...(d.size ? { size: d.size } : {}),
-        ...(d.seed !== undefined ? { seed: d.seed } : {}),
-        ...(d.variant ? { variant: d.variant } : {}),
-        ...(d.text ? { text: d.text } : {}),
-        ...(d.accent ? { accent: d.accent as PaletteName } : {}),
-      });
-      object.position.set(d.x, d.y, d.z);
-      object.rotation.y = d.rotation;
-      object.scale.setScalar(d.scale);
-      group.add(object);
-    }
-    const instanced = instanceStatic(group);
-    const merged = mergeStatic(group);
-    this.scene.add(group);
-    this.#culler = new InstanceCuller(instanced);
-    this.#dressing = { signature, group, instanced, merged };
-    // The dressing never moves once it is laid (a change builds a new one): its matrices are worked out once, here.
-    group.updateMatrixWorld(true);
-    restMatrices(group, true);
   }
 
   /** The look of the town and its districts: the view's, else the address bar's preview. */
@@ -908,6 +988,8 @@ export class TownScene {
     }
     this.invalidate();
     this.#prepareInterior();
+    this.#followShells();
+    performance.measure("world:sync", { start: started, detail: { created, deferred } });
   }
 
   /** The next slice of the first layout, in a task of its own, so the page stays responsive while the town builds. */
@@ -947,7 +1029,15 @@ export class TownScene {
       if (view.preparing) this.#prepareInterior();
     };
     if (typeof requestIdleCallback === "function") {
-      const id = requestIdleCallback((deadline) => run(() => deadline.timeRemaining() > IDLE_STEP_MS), { timeout: 1500 });
+      // A busy stream (a sync most frames) leaves no idle time: after `IDLE_TIMEOUT_MS` the step runs anyway, for
+      // `IDLE_STEP_MS` of work, so the build keeps up and the enter finds its interior ready.
+      const id = requestIdleCallback(
+        (deadline) => {
+          const start = performance.now();
+          run(() => (deadline.didTimeout ? performance.now() - start < IDLE_STEP_MS : deadline.timeRemaining() > IDLE_STEP_MS));
+        },
+        { timeout: IDLE_TIMEOUT_MS },
+      );
       this.#cancelPrepare = () => cancelIdleCallback(id);
     } else {
       const id = window.setTimeout(() => {
@@ -1819,6 +1909,9 @@ export class TownScene {
       if (view.animating) moving = true;
       if (this.#lift(slug, view, dt)) moving = true;
     }
+    // A closing's shell changed its look: the garden follows; a dressing rebuild takes its next steps.
+    this.#followShells();
+    if (this.#stepDressing()) moving = true;
     const ticked = performance.now();
     this.controls.update();
     // Keep panning inside the town.
@@ -2400,6 +2493,8 @@ export class TownScene {
     for (const view of this.#buildings.values()) view.dispose();
     for (const robot of this.#civicRobots) robot.handle.dispose();
     this.#crowd.dispose();
+    this.#dressingBuild?.steps.return();
+    this.#dressingBuild = null;
     this.#disposeDressing();
     clearInterval(this.#driftTimer);
     clearTimeout(this.#shadowTimer);

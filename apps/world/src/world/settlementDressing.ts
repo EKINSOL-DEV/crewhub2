@@ -147,6 +147,21 @@ export interface DressExtras {
   stakedText?: string;
 }
 
+/**
+ * The plan's lots as the dressing takes them: in slug order, so a change of project order moves no garden (the plot
+ * index seeds a garden) and rebuilds nothing; and each wearing the look its building's shell shows (`shown`), so a
+ * closing keeps its baskets and pumpkins until the boards come and an opening gets them back with its lights. A lot
+ * whose building shows nothing yet (`undefined`) wears the model's look.
+ */
+export function dressedLots<Lot extends { slug: string; archived: boolean }>(lots: readonly Lot[], shown: (slug: string) => boolean | undefined): Lot[] {
+  return [...lots]
+    .sort((a, b) => (a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0))
+    .map((lot) => {
+      const look = shown(lot.slug);
+      return look === undefined || look === lot.archived ? lot : { ...lot, archived: look };
+    });
+}
+
 /** The dressing's plan from the town plan. */
 export function dressPlan(plan: SettlementPlan, extras: DressExtras): DressPlan {
   const zone = (id: string): { name: string | null; accent: string | null; emblem?: string | null } => extras.zone?.(id) ?? { name: null, accent: null };
