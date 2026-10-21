@@ -99,7 +99,8 @@ celebration follows the landing), the text view and `where` tell it, a click say
 the package lands at once. Part 2, closed buildings, is built as well (round 2, below). Since round 3 of the same night
 the person looks like a person: each cast brings a person figure of its own (`person.json`, "The person" in
 [WORLD_STYLES.md](WORLD_STYLES.md)), clearly no agent; the walk-mode visitor is the same figure; a cast without one falls
-back to its plain worker.
+back to its plain worker. Round 4: carrying looks like carrying, a motion may be limited to `carrying` (true or false), and the
+persons' arms hold the package steady while the legs walk.
 
 ## The host
 

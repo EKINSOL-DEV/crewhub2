@@ -4,6 +4,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { Vector3 } from "three";
 import { castProblems, validateFigure, validatePerson, WORK_POSES } from "@crewhub/world-cast";
 import type { StyleManifest } from "@crewhub/world-style";
 import { castRegistry, FALLBACK_CAST_ID } from "../src/world/cast.ts";
@@ -63,5 +64,42 @@ test("every shipped cast draws a person of its own: no project colour, no role, 
         .join();
     assert.equal(dress("person:nicky"), dress("person:nicky"));
     assert.ok(new Set(["person:nicky", "person:sam", "person:ada", "person:ben", "visitor", "person:cy"].map(dress)).size > 1, `${id}: seeded clothes`);
+  }
+});
+
+/** Carrying looks like carrying (round 4 of the same night): the arms that hold the package do not swing with the walk. */
+test("every shipped person's walk leaves the joints of the carrying pose still while carrying", () => {
+  for (const id of castRegistry.listCasts().map((m) => m.id)) {
+    const person = castRegistry.personOf(id)!;
+    const held = Object.keys(person.poses.carrying ?? {});
+    assert.ok(held.length > 0, `${id}: the carrying pose holds the package with some joint`);
+    // In the data: a walk motion on a held joint is left out while carrying.
+    for (const motion of person.motions.walking ?? [])
+      if (held.includes(motion.joint)) assert.equal(motion.carrying, false, `${id}: the walk's ${motion.channel} on ${motion.joint} swings while carrying`);
+    // In the built figure: the held joints (found by their rest position; a walk moves them by rotation only) keep
+    // their rotation frame after frame while walking with the package, and swing with free hands.
+    const handle = castRegistry.castFor({ manifest: { id: "reference" } }, id).person({ key: "person:nicky" });
+    const groups: import("three").Object3D[] = [];
+    handle.body.traverse((o) => {
+      if (o.type === "Group" && o !== handle.body) groups.push(o);
+    });
+    const joints = held.map((joint) => {
+      const rest = person.joints.find((j) => j.id === joint)!.position;
+      const found = groups.filter((g) => g.position.distanceTo(new Vector3(...rest)) < 1e-9);
+      assert.equal(found.length, 1, `${id}: one joint rests at ${rest.join()} (${joint})`);
+      return found[0]!;
+    });
+    const turns = () => joints.map((g) => [g.rotation.x, g.rotation.y, g.rotation.z].map((n) => n.toFixed(6)).join()).join(";");
+    const walk = (carrying: boolean) => {
+      handle.setState({ activity: "walking", waiting: false, alert: false, proxy: false, carrying });
+      handle.update(0.1);
+      const a = turns();
+      handle.update(0.17);
+      return [a, turns()];
+    };
+    const [heldA, heldB] = walk(true);
+    assert.equal(heldA, heldB, `${id}: the held joints are still while carrying`);
+    const [freeA, freeB] = walk(false);
+    assert.notEqual(freeA, freeB, `${id}: the arms swing with free hands`);
   }
 });

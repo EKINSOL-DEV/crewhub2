@@ -508,8 +508,9 @@ activity, looks per state, colourways and anchors.
   activity's pose (not while walking). Under reduced motion the still pose is all a viewer sees, so it must read.
 - **Motions** are waves on joint channels: `sine`, `bounce`, `lift`, `blink`, `glance`. `always` runs in every
   activity. `seeded` motions run on the figure's own clock, so two figures never move in step; `sided` seeds a
-  glance's side; `rests` fades a motion while the activity's glance swells (typing in bursts). A stale figure and a
-  proxy stand still.
+  glance's side; `rests` fades a motion while the activity's glance swells (typing in bursts); `carrying: false` leaves
+  a motion out while the figure carries and `carrying: true` runs it only then (a walk's arm swing stops while the
+  hands hold a package; the legs walk on). A stale figure and a proxy stand still.
 - **Looks** recolour or light parts while they hold, layered: `near` (seen from close by; the far crowd, a proxy and
   a stale figure do without), the activity, `waiting`, `alert`, then `hover` or `selected`.
 - **`halo`** is the colour of the style's ground halo while the figure is blocked or waits on a person; while `alert`
@@ -548,6 +549,10 @@ orthographic camera, like the rest of the Greenhouse figures.
   a leaf in the band; the sprouts' person has the sprouts' cheeks, dot eyes with glints and brown legs, a tunic in the
   seed tones and a bun; the potlings' person is the potter in a headscarf with a knot at the back, a glazed tunic and
   a clay-dusted apron.
+- **Carrying looks like carrying**: the persons' walk swings the arms only with free hands (`carrying: false` on
+  those motions, in the three rigs; the gardener inherits the classic one's). With a package the arms hold it steady in the
+  carrying pose while the feet, body and head keep the walk. A test holds every shipped person to it: a walk motion on
+  a joint of the carrying pose is left out while carrying, and the built figure's held joints do not turn frame to frame.
 
 ### Perches: how a small figure reaches its work
 

@@ -128,6 +128,42 @@ test("motion plays over the still pose and stops for a proxy and a stale figure"
   }
 });
 
+test("a motion with `carrying` runs only while the figure carries, or only while it does not", () => {
+  // The validator: a boolean, nothing else.
+  const flagged = figure();
+  flagged.motions.walking = [
+    { joint: "body", channel: "offset.y", wave: "bounce", amplitude: 0.1, period: 1 },
+    { joint: "head", channel: "rotation.y", wave: "sine", amplitude: 30, period: 1, carrying: false },
+    { joint: "head", channel: "rotation.z", wave: "sine", amplitude: 10, period: 1, carrying: true },
+  ];
+  assert.equal(validateFigure(flagged).ok, true);
+  const bad = validateFigure({ ...flagged, motions: { walking: [{ ...flagged.motions.walking[1], carrying: "yes" }] } });
+  assert.equal(bad.ok, false);
+  assert.ok(!bad.ok && bad.errors.some((e) => e.startsWith("figure.motions.walking[0].carrying")), bad.ok ? "" : bad.errors.join("\n"));
+  // The runtime: the walk's head turn swings with free hands and holds still with a package; the walk's bounce runs
+  // in both; the carrying-only motion runs only with the package.
+  const kit = referenceKit(manifest.colors);
+  const handle = createCast(manifest, flagged, kit).figure({ key: "a:1", role: "worker", accent: null });
+  const body = handle.body.children.find((c) => c.type === "Group")!;
+  const head = body.children.find((c) => c.type === "Group")!;
+  handle.setState(state({ activity: "walking" }));
+  handle.update(0.25);
+  assert.ok(Math.abs(head.rotation.y - (30 * Math.PI) / 180) < 1e-6, "free hands: the head turns");
+  assert.equal(head.rotation.z, 0, "free hands: no carrying-only motion");
+  assert.ok(body.position.y > 0.2, "the bounce runs");
+  // The figure's clock runs on: three quarters in, the sine is at minus its amplitude.
+  handle.setState(state({ activity: "walking", carrying: true }));
+  handle.update(0.5);
+  assert.equal(head.rotation.y, 0, "carrying: the head turn is left out, the joint rests in its pose");
+  assert.ok(Math.abs(head.rotation.z + (10 * Math.PI) / 180) < 1e-6, "carrying: the carrying-only motion runs");
+  assert.ok(Math.abs(body.position.y - 0.4) < 1e-6, "the bounce peaks over the carrying pose (rest 0.2, carried 0.1, bounce 0.1)");
+  // Putting the package down alone re-poses: the turn is back (a period and a quarter in).
+  handle.setState(state({ activity: "walking" }));
+  handle.update(0.5);
+  assert.ok(Math.abs(head.rotation.y - (30 * Math.PI) / 180) < 1e-6);
+  assert.equal(head.rotation.z, 0);
+});
+
 test("looks swap shared materials; a proxy and a stale figure draw their own see-through copies", () => {
   const kit = referenceKit(manifest.colors);
   const handle = createCast(manifest, figure(), kit).figure({ key: "a:1", role: "worker", accent: null });

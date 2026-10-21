@@ -204,14 +204,14 @@ function motions(r: Report, value: unknown, path: string, joints: ReadonlySet<st
     list.forEach((motion: unknown, i) => {
       const at = `${path}.${key}[${i}]`;
       if (!isObject(motion)) return r.error(at, "must be an object");
-      r.keys(motion, ["joint", "channel", "wave", "amplitude", "period", "phase", "seeded", "sided", "rests"], at);
+      r.keys(motion, ["joint", "channel", "wave", "amplitude", "period", "phase", "seeded", "sided", "rests", "carrying"], at);
       if (!isText(motion.joint) || (joints && !joints.has(motion.joint))) r.error(`${at}.joint`, "must be a joint of the figure");
       if (!CHANNELS.includes(motion.channel as string)) r.error(`${at}.channel`, `must be one of ${CHANNELS.join(", ")}`);
       if (!WAVES.includes(motion.wave as string)) r.error(`${at}.wave`, `must be one of ${WAVES.join(", ")}`);
       if (!isNumber(motion.amplitude) || Math.abs(motion.amplitude) > 360) r.error(`${at}.amplitude`, "must be a number");
       if (!isNumber(motion.period) || motion.period < 0.1) r.error(`${at}.period`, "must be seconds, 0.1 or more");
       if ("phase" in motion && !isNumber(motion.phase)) r.error(`${at}.phase`, "must be a number of periods");
-      for (const flag of ["seeded", "sided", "rests"]) if (flag in motion && typeof motion[flag] !== "boolean") r.error(`${at}.${flag}`, "must be true or false");
+      for (const flag of ["seeded", "sided", "rests", "carrying"]) if (flag in motion && typeof motion[flag] !== "boolean") r.error(`${at}.${flag}`, "must be true or false");
     });
   }
 }

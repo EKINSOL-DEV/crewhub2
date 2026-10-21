@@ -358,6 +358,11 @@ export interface Motion {
   sided?: boolean;
   /** The motion fades out while the activity's glance swells (typing in bursts: the hands rest while it looks up). */
   rests?: boolean;
+  /**
+   * Only while carrying, or only while not (as a part's `carrying`): a walk's arm swing is left out while the hands hold
+   * a package, a motion of the held thing runs only then. Left out: in both.
+   */
+  carrying?: boolean;
 }
 
 /** Looks per state: parts that glow or swap colour while a state holds. */
@@ -378,7 +383,8 @@ export interface FigureSpec {
   poses: Partial<Record<FigureActivity | "waiting" | "carrying", Record<string, JointPose>>>;
   /**
    * The motion per activity (and `waiting`, layered); left out or empty: still. `always` runs in every activity (a
-   * blink). Never run under reduced motion; a stale figure and a proxy stand still whatever is listed.
+   * blink). A motion with `carrying` set runs only while the figure carries (true) or only while it does not (false).
+   * Never run under reduced motion; a stale figure and a proxy stand still whatever is listed.
    */
   motions: Partial<Record<FigureActivity | "waiting" | "always", Motion[]>>;
   /**
