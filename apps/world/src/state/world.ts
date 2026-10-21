@@ -30,7 +30,7 @@ import {
   type TownZoning,
   type WorldModel,
 } from "@crewhub/world-model";
-import { sourceDecision, takeFirstSnapshot, townKeyFor, type SourceDecision } from "./source";
+import { sourceDecision, takeFirstSnapshot, townCopySource, townKeyFor, type SourceDecision } from "./source";
 
 export interface WorldState {
   model: WorldModel;
@@ -74,6 +74,8 @@ export const LIVE = SOURCE.source === "live";
 
 /** The storage key of the town document on this page: the live town of this crewhub-loops installation, else one per scenario and per stress fixture. */
 export const TOWN_KEY = townKeyFor({ source: SOURCE.source, scenarioTownKey: SCENARIO.townKey, stressSize: STRESS_SIZE, loopsWebUrl: SOURCE.health?.loopsWebUrl ?? null });
+/** A live town made before the key carried the installation (the plain live key) is copied once into TOWN_KEY; null for a demo page. */
+export const TOWN_COPY_FROM = townCopySource({ source: SOURCE.source, townKey: TOWN_KEY });
 
 export interface ScenarioChoice {
   id: string;

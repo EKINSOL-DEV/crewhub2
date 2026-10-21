@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { HostHealth } from "@crewhub/loops-client";
 import {
-  needsPairing, decideSource, DEFAULT_LOOPS_URL, hrefWithoutOverride, LIVE_TOWN_KEY, liveTownKey, loopsWebUrl, needsProbe, parseSourceOverride, parseSourceSetting, PROBE_TIMEOUT_MS, readSourceSetting, resolveSource, SOURCE_SETTING_KEY, townKeyFor, writeSourceSetting } from "../src/state/source.ts";
+  needsPairing, decideSource, DEFAULT_LOOPS_URL, hrefWithoutOverride, LIVE_TOWN_KEY, liveTownKey, loopsWebUrl, townCopySource, needsProbe, parseSourceOverride, parseSourceSetting, PROBE_TIMEOUT_MS, readSourceSetting, resolveSource, SOURCE_SETTING_KEY, townKeyFor, writeSourceSetting } from "../src/state/source.ts";
 
 const HEALTH: HostHealth = { loops: "ok", keyName: "crewhub-world", sharedKey: false };
 
@@ -98,6 +98,10 @@ test("the town document key: live has its own, the demo keeps the scenario's and
   assert.equal(liveTownKey(""), LIVE_TOWN_KEY, "a host from before the smooth connection names no web app");
   assert.equal(liveTownKey("not a url"), LIVE_TOWN_KEY);
   assert.equal(townKeyFor({ source: "demo", scenarioTownKey: "crewhub-world", stressSize: null, loopsWebUrl: "http://127.0.0.1:8091" }), "crewhub-world", "a demo page keeps the scenario's town");
+  // The one-time copy of a town made under the plain live key: only for a live page now keyed per installation.
+  assert.equal(townCopySource({ source: "live", townKey: `${LIVE_TOWN_KEY}.127.0.0.1-8091` }), LIVE_TOWN_KEY);
+  assert.equal(townCopySource({ source: "live", townKey: LIVE_TOWN_KEY }), null, "still on the plain key: nothing to copy from");
+  assert.equal(townCopySource({ source: "demo", townKey: "crewhub-world.studio" }), null, "never for a demo page");
   assert.equal(townKeyFor({ source: "demo", scenarioTownKey: "crewhub-world.studio", stressSize: null }), "crewhub-world.studio");
   assert.equal(townKeyFor({ source: "demo", scenarioTownKey: "crewhub-world", stressSize: 20 }), "crewhub-world.stress-20");
   assert.notEqual(LIVE_TOWN_KEY, "crewhub-world");

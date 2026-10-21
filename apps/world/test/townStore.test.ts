@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { applyEdit, HISTORY_LIMIT, type TownContext, type TownDocument } from "@crewhub/world-model";
-import { createTownStore, seededTown, TOWN_DB_NAME, TOWN_STORE_NAME, type TownStore } from "../src/state/townStore.ts";
+import { copiedNote, createTownStore, seededTown, TOWN_DB_NAME, TOWN_STORE_NAME, type TownStore } from "../src/state/townStore.ts";
 
 const CONTEXT: TownContext = { knownStyles: ["greenhouse"], builtinIds: [] };
 
@@ -9,6 +9,12 @@ const CONTEXT: TownContext = { knownStyles: ["greenhouse"], builtinIds: [] };
 class FakeIndexedDB {
   readonly data = new Map<string, Map<IDBValidKey, unknown>>();
   failOpen = false;
+  /** `indexedDB.databases()`, as Chromium and WebKit answer it; `listable = false` is a browser without it. */
+  listable = true;
+  databases(): Promise<{ name: string }[]> {
+    if (!this.listable) throw new TypeError("databases is not a function");
+    return Promise.resolve([...this.data.keys()].map((name) => ({ name })));
+  }
   open(name: string) {
     const req: Record<string, unknown> & { result?: unknown } = {};
     setTimeout(() => {
@@ -169,4 +175,75 @@ test("a scenario's town starts from its seeded zones at revision 0; a stored tow
   await again.load();
   assert.deepEqual(again.state.doc.zones, zones);
   assert.deepEqual(again.state.doc.plots.map((p) => p.cell.x), [2]);
+});
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+test("a live town kept under the earlier plain key is copied once into the installation's key; the earlier copy is kept", async () => {
+  const idb = new FakeIndexedDB();
+  const factory = idb as unknown as IDBFactory;
+  const OLD = "crewhub-world.live";
+  const NEW = "crewhub-world.live.127.0.0.1-8091";
+  const old = createTownStore({ context: CONTEXT, indexedDB: factory, name: OLD });
+  await old.load();
+  await commitPlot(old, 4);
+  await commitPlot(old, 7);
+  await sleep(20);
+  const before = structuredClone(idb.data.get(OLD)!);
+
+  const first = createTownStore({ context: CONTEXT, indexedDB: factory, name: NEW, copyFrom: OLD });
+  const doc = await first.load();
+  assert.deepEqual([doc.revision, doc.plots[0]?.cell.x], [2, 7], "the town comes over, undo history included");
+  assert.equal(first.state.canUndo, true);
+  assert.equal(first.state.storageNote, copiedNote(OLD), "said once");
+  assert.deepEqual(idb.data.get(OLD), before, "the earlier database is exactly as it was");
+  assert.deepEqual([...idb.data.get(NEW)!.keys()].sort(), [...before.keys()].sort());
+
+  // Once: the next open finds the new town and copies nothing, whatever happened to the earlier one meanwhile.
+  await commitPlot(first, 9);
+  await sleep(20);
+  await commitPlot(old, 1);
+  await sleep(20);
+  const second = createTownStore({ context: CONTEXT, indexedDB: factory, name: NEW, copyFrom: OLD });
+  const again = await second.load();
+  assert.deepEqual([again.revision, again.plots[0]?.cell.x], [3, 9]);
+  assert.equal(second.state.storageNote, null, "nothing said the second time");
+});
+
+test("the copy never overwrites a new town that exists, never happens without a listable factory, and a demo page asks for none", async () => {
+  const idb = new FakeIndexedDB();
+  const factory = idb as unknown as IDBFactory;
+  const OLD = "crewhub-world.live";
+  const NEW = "crewhub-world.live.127.0.0.1-8291";
+  const old = createTownStore({ context: CONTEXT, indexedDB: factory, name: OLD });
+  await old.load();
+  await commitPlot(old, 4);
+  const own = createTownStore({ context: CONTEXT, indexedDB: factory, name: NEW });
+  await own.load();
+  await commitPlot(own, 11);
+  await sleep(20);
+  const kept = createTownStore({ context: CONTEXT, indexedDB: factory, name: NEW, copyFrom: OLD });
+  const doc = await kept.load();
+  assert.deepEqual([doc.revision, doc.plots[0]?.cell.x, kept.state.storageNote], [1, 11, null], "the new town stands");
+
+  // A browser whose IndexedDB cannot list databases: nothing is copied, and the earlier name is not created by looking.
+  const quiet = new FakeIndexedDB();
+  quiet.listable = false;
+  const blindOld = createTownStore({ context: CONTEXT, indexedDB: quiet as unknown as IDBFactory, name: OLD });
+  await blindOld.load();
+  await commitPlot(blindOld, 2);
+  await sleep(20);
+  const blind = createTownStore({ context: CONTEXT, indexedDB: quiet as unknown as IDBFactory, name: NEW, copyFrom: OLD });
+  assert.deepEqual((await blind.load()).plots, []);
+  assert.equal(blind.state.storageNote, null);
+  const none = new FakeIndexedDB();
+  const fresh = createTownStore({ context: CONTEXT, indexedDB: none as unknown as IDBFactory, name: NEW, copyFrom: OLD });
+  await fresh.load();
+  await sleep(20);
+  assert.deepEqual([...none.data.keys()], [NEW], "looking for the earlier town never creates it");
+
+  // The same name, or no copyFrom (a demo page): no copy, no note.
+  const same = createTownStore({ context: CONTEXT, indexedDB: factory, name: OLD, copyFrom: OLD });
+  await same.load();
+  assert.equal(same.state.storageNote, null);
 });

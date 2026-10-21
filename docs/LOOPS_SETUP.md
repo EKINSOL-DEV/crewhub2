@@ -223,7 +223,11 @@ text view says the same.
 Zones: every live project sits in the default zone until crewhub-loops has project groups (L22); zones drawn by
 hand in build mode are kept in the live town document of this installation (one per crewhub-loops web app the host
 names, in this browser's IndexedDB), separate from the demo scenarios' documents and never shared with another browser.
-The Connection panel's "Zones" line and the text view say so.
+The Connection panel's "Zones" line and the text view say so. A live town made before the key carried the
+installation (under the plain `crewhub-world.live`) is copied once into the installation's key the first time that
+key holds nothing; the earlier copy is kept as it was, a town already under the new key is never overwritten, a demo
+page never copies, and Settings > Town and the text view say "Copied once from the town kept under the earlier key" that
+once.
 
 ## 4. The health read
 

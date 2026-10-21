@@ -65,6 +65,15 @@ export function liveTownKey(loopsWebUrl: string | null | undefined): string {
   }
 }
 
+/**
+ * The earlier key a live town is copied from once (`TownStoreOptions.copyFrom`): the plain live key, for a live page
+ * whose town is now kept per installation and holds nothing yet. Null for a demo page (never), and for a live page
+ * that still runs on the plain key (nothing to copy from).
+ */
+export function townCopySource(input: { source: SourceId; townKey: string }): string | null {
+  return input.source === "live" && input.townKey !== LIVE_TOWN_KEY ? LIVE_TOWN_KEY : null;
+}
+
 /** The storage key of the town document: the live town of this installation, else the scenario's (or the stress fixture's). */
 export function townKeyFor(input: { source: SourceId; scenarioTownKey: string; stressSize: number | null; loopsWebUrl?: string | null }): string {
   if (input.source === "live") return liveTownKey(input.loopsWebUrl);
