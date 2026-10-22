@@ -8,6 +8,7 @@
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { isSegment } from "./allowList.ts";
 import { writeWhole } from "./keyStore.ts";
 
 export const ARCHIVE_MEMORY_NAME = "archived.json";
@@ -35,8 +36,12 @@ export interface ArchiveStore {
   save(memory: ArchiveMemory): void;
 }
 
-/** `slugs` as the file keeps them: unique, sorted, strings only. */
-export const normaliseSlugs = (slugs: Iterable<string>): string[] => [...new Set([...slugs].filter((s) => typeof s === "string" && s !== ""))].sort();
+/**
+ * `slugs` as the file keeps them: unique, sorted, and each one a path segment (review F8: a slug with a slash or another
+ * shape would make the snapshot's `GET /api/projects/{slug}` fall at the allow-list and every snapshot fail). The same
+ * filter on read and on write, so an edited file loses only its bad lines.
+ */
+export const normaliseSlugs = (slugs: Iterable<string>): string[] => [...new Set([...slugs].filter(isSegment))].sort();
 
 /** The file's JSON as a memory, or null when it is not one. */
 export function parseArchiveMemory(text: string): ArchiveMemory | null {

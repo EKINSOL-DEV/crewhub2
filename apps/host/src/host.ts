@@ -801,10 +801,13 @@ export async function createHost(options: HostOptions): Promise<Host> {
       sendJson(res, 200, body);
       step("snapshot", true, snapshotText(stats), stats.ms);
     } catch (error) {
-      const reason = error instanceof SnapshotError ? error.reason : "loops_down";
+      // loops' own failures keep their reason; anything else (a read the allow-list refused, a bug) is the host's
+      // own and says so (review F8), never "loops down" while loops answers.
+      const reason = error instanceof SnapshotError ? error.reason : "snapshot_failed";
+      const detail = error instanceof SnapshotError ? "" : `: ${scrub(error instanceof Error ? error.message : String(error))}`;
       snapshotState = { state: "failed", reason };
-      step("snapshot", false, `snapshot failed: ${reason}`);
-      sendJson(res, 503, { error: reason });
+      step("snapshot", false, `snapshot failed: ${reason}${detail}`);
+      sendJson(res, 503, { error: reason, ...(detail === "" ? {} : { message: `The host could not assemble the snapshot${detail}` }) });
     }
   }
 
@@ -813,6 +816,10 @@ export async function createHost(options: HostOptions): Promise<Host> {
     const cursor = raw === null ? null : Number(raw);
     if (cursor !== null && (!Number.isInteger(cursor) || cursor < 0)) {
       sendJson(res, 400, { error: "validation_error", message: "cursor must be a non-negative integer" });
+      return;
+    }
+    if (tabs.size >= MAX_TABS) {
+      sendJson(res, 503, { error: "too_many_tabs", message: `This host holds ${MAX_TABS} tabs on its stream already; close one` });
       return;
     }
     res.writeHead(200, {
