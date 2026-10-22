@@ -73,6 +73,7 @@ export {
   POLL_MAX_MS,
   POLL_MS,
   REPROBE_MS,
+  REPROBE_SLOW_MS,
   eventsUrl,
   firstLine,
   messageUrl,
@@ -84,6 +85,7 @@ export {
   readPageChatLine,
   readEvents,
   readThreads,
+  reprobeDelay,
   threadMessagesUrl,
   threadsUrl,
 } from "./pageChat.ts";

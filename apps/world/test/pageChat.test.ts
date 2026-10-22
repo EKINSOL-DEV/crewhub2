@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { ChatLine, ChatThreadFact, FetchLike, HostHealth, HostSessionState } from "@crewhub/loops-client";
-import { POLL_HIDDEN_MS, POLL_MS, REPROBE_MS } from "@crewhub/loops-client";
+import { POLL_HIDDEN_MS, POLL_MS, REPROBE_MS, REPROBE_SLOW_MS } from "@crewhub/loops-client";
 import { createPageChatRunner, hostKeyReadsChat, loopsOriginOf, type PageChatState } from "../src/state/pageChat.ts";
 
 const ORIGIN = "http://127.0.0.1:8293";
@@ -143,7 +143,7 @@ test("a 401 while polling: the road is off, the poll stops, the probe asks again
   r.stop();
 });
 
-test("a verdict other than on is asked again every REPROBE_MS; wake() asks at once", async () => {
+test("a verdict other than on is asked again: signed out every REPROBE_MS, a refused origin or nothing answering every REPROBE_SLOW_MS (each ask is a CORS line in the console); wake() asks at once", async () => {
   const l = loops({ signedIn: false });
   const { r, c } = runner({ hostKeyReadsChat: false, fetchFn: l.fetchFn });
   r.start();
@@ -154,6 +154,19 @@ test("a verdict other than on is asked again every REPROBE_MS; wake() asks at on
   await settle();
   assert.equal(l.calls.length, 2, "wake probed now");
   r.stop();
+  const refused = runner({ hostKeyReadsChat: false, fetchFn: async (_url, init) => (init?.mode === "no-cors" ? Response.error() : Promise.reject(new TypeError("Failed to fetch"))) });
+  refused.r.start();
+  await settle();
+  assert.equal(refused.r.state().probe, "origin-not-set");
+  assert.equal(refused.c.pending(), REPROBE_SLOW_MS, "a refused origin: asked again in 5 min, not 30 s");
+  assert.equal(REPROBE_SLOW_MS, 300_000);
+  refused.r.stop();
+  const gone = runner({ hostKeyReadsChat: false, fetchFn: async () => Promise.reject(new TypeError("Failed to fetch")) });
+  gone.r.start();
+  await settle();
+  assert.equal(gone.r.state().probe, "unreachable");
+  assert.equal(gone.c.pending(), REPROBE_SLOW_MS);
+  gone.r.stop();
 });
 
 test("hidden: the poll slows to a minute; offline: nothing is scheduled until wake() (the online event); a gone cursor starts again at the tail", async () => {

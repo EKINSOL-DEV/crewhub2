@@ -77,7 +77,21 @@ export interface LoopsFakeOptions {
   person?: { id: string; password: string; displayName: string };
   /** A loops whose viewer key may read the chat (round 12, `world/viewer-key`): the key gets the threads, the messages and the dm.* rows. */
   keyReadsChat?: boolean;
+  /**
+   * Loops main's `CHL_WORLD_ORIGIN` (CL-494 step 4, round 28): the one page origin that may read the signed-in person's
+   * chat from the browser. A request whose `Origin` equals it passes only as a GET without an authorization header on
+   * the four routes (`WORLD_ROUTES`), the events poll with its types forced to the two chat events and `limit` at most
+   * `WORLD_EVENTS_LIMIT`; the answer (a 401 included) carries the three CORS headers. Anything else from that origin,
+   * and any other `Origin` while this is set, is 403 `origin_forbidden` with no CORS header. Unset (the default): the
+   * fake ignores `Origin`, as before. `setWorldOrigin` changes it on a running fake (the page's port is known late).
+   */
+  worldOrigin?: string | null;
 }
+
+/** The four routes loops opens to the world's origin (`api/security.py` `WORLD_ROUTES`), exact paths. */
+export const WORLD_ROUTES: readonly RegExp[] = [/^\/api\/dm\/threads$/, /^\/api\/dm\/threads\/[a-z0-9][a-z0-9-]{0,31}\/messages$/, /^\/api\/dm\/messages\/[A-Za-z0-9_-]{1,64}$/, /^\/api\/events$/];
+export const WORLD_EVENT_TYPES: readonly string[] = ["dm.created", "dm.answered"];
+export const WORLD_EVENTS_LIMIT = 50;
 
 export interface LoopsFake {
   readonly url: string;
@@ -108,6 +122,8 @@ export interface LoopsFake {
   readonly person: { id: string; password: string; displayName: string };
   /** The session cookies handed out and still accepted. */
   sessionsOpen(): number;
+  /** Sets (or unsets, null) the world's origin on the running fake: `worldOrigin` of the options. */
+  setWorldOrigin(origin: string | null): void;
   close(): Promise<void>;
 }
 
@@ -718,19 +734,49 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
     });
   }
 
+  let worldOrigin: string | null = options.worldOrigin ?? null;
+  /**
+   * The world origin's guard (loops `HostOriginGuard._world`, CL-494 step 4): run before any route for a request whose
+   * `Origin` is the world's. The query of the events poll is rewritten as loops rewrites it (the types forced, the limit
+   * clamped); a refusal is the guard's own 403 with no CORS header.
+   */
+  function worldGate(req: IncomingMessage, url: URL): void {
+    const refused = (req.method !== "GET") || req.headers.authorization !== undefined || url.pathname.includes("%") || !WORLD_ROUTES.some((route) => route.test(url.pathname));
+    if (refused) throw new ApiError(403, "origin_forbidden", "Origin not allowed");
+    if (url.pathname === "/api/events") {
+      const wanted = url.searchParams.getAll("types").flatMap((v) => v.split(",")).map((v) => v.trim()).filter(Boolean);
+      if (wanted.some((type) => !WORLD_EVENT_TYPES.includes(type))) throw new ApiError(403, "origin_forbidden", "Origin not allowed");
+      const limitRaw = url.searchParams.get("limit");
+      const limit = limitRaw !== null && /^\d{1,4}$/.test(limitRaw) ? Math.min(Number(limitRaw), WORLD_EVENTS_LIMIT) || WORLD_EVENTS_LIMIT : WORLD_EVENTS_LIMIT;
+      url.searchParams.delete("types");
+      url.searchParams.delete("limit");
+      url.searchParams.set("types", (wanted.length > 0 ? wanted : WORLD_EVENT_TYPES).join(","));
+      url.searchParams.set("limit", String(limit));
+    }
+  }
+
   const server: Server = createServer((req, res) => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
-    route(req, res, url)
+    const origin = req.headers.origin;
+    const world = worldOrigin !== null && origin === worldOrigin;
+    // The three headers of a credentialed read through the world's origin, on every answer the route itself produced.
+    const cors = (code: string | null) => (world && code !== "origin_forbidden" ? { "access-control-allow-origin": worldOrigin as string, "access-control-allow-credentials": "true", vary: "Origin" } : {});
+    const handle = async (): Promise<unknown> => {
+      if (world) worldGate(req, url);
+      else if (worldOrigin !== null && origin !== undefined) throw new ApiError(403, "origin_forbidden", "Origin not allowed");
+      return route(req, res, url);
+    };
+    handle()
       .then((body) => {
         if (body === undefined) return;
         const text = JSON.stringify(body);
-        res.writeHead(200, { "content-type": "application/json", "content-length": Buffer.byteLength(text) });
+        res.writeHead(200, { "content-type": "application/json", "content-length": Buffer.byteLength(text), ...cors(null) });
         res.end(req.method === "HEAD" ? undefined : text);
       })
       .catch((error: unknown) => {
         const api = error instanceof ApiError ? error : new ApiError(500, "internal", "Internal error");
         const text = JSON.stringify({ error: { code: api.code, message: api.message, detail: null } });
-        res.writeHead(api.status, { "content-type": "application/json", "content-length": Buffer.byteLength(text), ...api.headers });
+        res.writeHead(api.status, { "content-type": "application/json", "content-length": Buffer.byteLength(text), ...api.headers, ...cors(api.code) });
         res.end(text);
       });
   });
@@ -757,6 +803,9 @@ export async function createLoopsFake(options: LoopsFakeOptions = {}): Promise<L
       source.sendDm(agentId, text, `fake-dm-${++sentDms}`);
     },
     sessionsOpen: () => sessions.size,
+    setWorldOrigin(origin) {
+      worldOrigin = origin;
+    },
     openStreams: () => streams.size,
     streamsOpened: () => streamsOpened,
     async moveTicket(ref, status, moveOptions = {}) {

@@ -327,6 +327,8 @@ chat (health `connection.session.state === "key"`), else `page` when the page's 
 with credentials) answers 200, else `none`. The probe's verdict stands in the Connection panel under Chat and behind
 the Chat panel's "About this chat": *on*; *signed out* (loops answered through the origin with a 401: sign in to loops
 in this browser, the Chat panel's frame will do, and the road comes on by itself within 30 s); *the origin is not set*
+(asked again every 5 minutes and when the page comes back into view: each ask is one CORS refusal the browser prints in
+the console, which the page cannot silence)
 (the browser hides a refused origin as one opaque failure, the same as a server that is not there, so the page asks the
 same route once more in `no-cors` mode: an opaque answer proves something answers, and the words then carry the exact
 value to set, `CHL_WORLD_ORIGIN=<this page's origin>`; a loops from before the setting lands here too); *unreachable*

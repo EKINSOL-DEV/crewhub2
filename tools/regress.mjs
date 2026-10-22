@@ -72,7 +72,12 @@
            without a session, /world-api/session gone, the Connection panel's Chat section, the Chat panel's glance and
            About this chat, Recent answers' empty state and the text view's Chat line saying this crewhub-loops does not
            let the world read the chat and how to make a viewer key, no form, and an agent's answer showing no mark and
-           no bubble. Needs nobody. About two and a half minutes.
+           no bubble (the page's probe of road 2 over that fake says the world's origin is not set, so the words are that
+           verdict's). Then road 2 (round 28) over a fake that names the page's origin as its CHL_WORLD_ORIGIN: signed in
+           at the fake's own login (the cookie in the browser context), the probe on, the road page while the host's key
+           reads no chat, the Chat section's words with this page's exact origin, an agent's answer through the page's
+           own poll (the mark, the bubble inside, the Recent answers row), every fetch to the fake a GET on the four
+           routes with the query loops forces, no CORS line. Needs nobody. About three minutes.
      rooms the three-room building (`?rooms=three`, whatever the viewer's Buildings setting): three room signs
            (Administration, The floor, Lead's office) and a rack sign with its count, the arrow keys between the three halls, the text view naming the
            racks and the desks with a package on each, the lead's office beacon, the agent card on a figure at a desk,
@@ -172,6 +177,52 @@ async function town(p, settle, url = BASE) {
   await p.waitForTimeout(settle);
 }
 const shot = (p, name) => p.screenshot({ path: `${OUT}${tag}-${name}.png` });
+/**
+ * The loops web origins the pages of this run may ask (round 28, road 2: the page probes `GET /api/dm/threads` at the
+ * origin the host names, and polls the four routes where the origin is set): every fake and every loops web stub
+ * started here, and the connect stub's web. The closing checks take a GET of the four routes at one of them as road
+ * 2's own ask, and the browser's CORS line for the probe at one of them as the expected refusal; nothing else.
+ */
+const loopsOrigins = new Set();
+/** Origins known only later (the connect stub's web starts with its connected state): read when a check asks. */
+const loopsOriginGetters = [];
+const allLoopsOrigins = () => new Set([...loopsOrigins, ...loopsOriginGetters.map((get) => get()).filter((o) => typeof o === "string" && o !== "")]);
+const noteLoops = (made) => {
+  loopsOrigins.add(made.url);
+  return made;
+};
+/** The real development loops of a run (the connect group's 8291 half, the real group): the page's probe asks it too. */
+const noteLoopsUrl = (url) => {
+  try {
+    loopsOrigins.add(new URL(url).origin);
+  } catch {
+    // not a URL: nothing to expect
+  }
+};
+const ROAD2_ROUTES = [/^\/api\/dm\/threads$/, /^\/api\/dm\/threads\/[a-z0-9][a-z0-9-]{0,31}\/messages$/, /^\/api\/dm\/messages\/[A-Za-z0-9_-]{1,64}$/, /^\/api\/events$/];
+const road2Ask = (x) => {
+  try {
+    const url = new URL(x.url);
+    return x.method === "GET" && allLoopsOrigins().has(url.origin) && ROAD2_ROUTES.some((route) => route.test(url.pathname));
+  } catch {
+    return false;
+  }
+};
+/**
+ * The probe's refusal as the browser prints it (the verdict origin-not-set or unreachable): exactly the CORS line for
+ * the threads route at a loops origin of this run from the page's own origin, and the browser's "Failed to load
+ * resource" line for that same URL (`net::ERR_FAILED` when nothing readable came back, "the server responded with a
+ * status of 401 (Unauthorized)" when loops answered the cookie-less ask and the browser then withheld it). Nothing else.
+ */
+const probeRefusal = (x) => {
+  if (x.kind !== "console") return false;
+  const text = x.text.replace(/^\[[^\]]*\] /, "");
+  for (const origin of allLoopsOrigins()) {
+    if (text === `Access to fetch at '${origin}/api/dm/threads' from origin '${x.pageOrigin}' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.`) return true;
+    if (x.url === `${origin}/api/dm/threads` && (text === "Failed to load resource: net::ERR_FAILED" || /^Failed to load resource: the server responded with a status of \d{3} \([A-Za-z ]+\)$/.test(text))) return true;
+  }
+  return false;
+};
 const sheet = (p) => p.locator("#text-view");
 /** Opens the text view (T), reads it and closes it again. */
 const text = async (p) => {
@@ -821,9 +872,9 @@ await group("live", async () => {
   if (!served && (!Number.isInteger(hostPort) || hostPort <= 0)) opts.fail("--host-port <port> must be a port number");
   if (served) info(`live: ${distFresh}`);
   const fakeOptions = { heartbeatMs: 1000 };
-  let fake = await createLoopsFake(fakeOptions);
+  let fake = noteLoops(await createLoopsFake(fakeOptions));
   // The loops web app the host names (`loopsWebUrl`), for the Chat panel's frame: a stub page that records how it was fetched.
-  const web = await createLoopsWebStub();
+  const web = noteLoops(await createLoopsWebStub());
   const hostOptions = { loopsUrl: fake.url, loopsWebUrl: web.url, key: fake.key, keyName: fake.keyName, retryMs: { min: 100, max: 500 }, reconnectMs: { min: 100, max: 300 }, heartbeatMs: 1000, log: () => undefined };
   const host = await createHost(served ? { ...hostOptions, staticDir: dist } : { ...hostOptions, port: hostPort, allowedOrigins: [origin] });
   const liveOrigin = served ? host.url : origin;
@@ -892,6 +943,9 @@ await group("live", async () => {
     // whole story behind "About this chat", a details element the keyboard opens (Tab to its summary, Enter). This group's
     // fake does not let the key read the chat, so the road's line says no bubbles here (the chat group checks the key road).
     const glance = async (p) => p.locator(".chat-sheet-lead").evaluate((el) => { const lh = parseFloat(getComputedStyle(el).lineHeight) || 20; const lines = (sel) => Math.round(el.querySelector(sel).getBoundingClientRect().height / lh); return { what: el.querySelector(".chat-sheet-what")?.textContent ?? "", todo: el.querySelector(".chat-sheet-todo")?.textContent ?? "", whatLines: lines(".chat-sheet-what"), todoLines: lines(".chat-sheet-todo"), aboveList: Math.round(el.closest(".card-body").querySelector(".chat-recent").getBoundingClientRect().top - el.getBoundingClientRect().top), aboutOpen: el.closest(".card-body").querySelector(".chat-about")?.open ?? null }; }).catch(() => null);
+    // Round 28: the page's own probe of road 2 asks the loops web origin the host names (the stub, which answers no CORS
+    // header), so its verdict is "the origin is not set" and the glance says so; wait for it, so the words are the verdict's.
+    await pg.waitForFunction(() => window.__worldStores?.().pageChat?.probe === "origin-not-set", null, { timeout: 10000 }).catch(() => {});
     const g = await glance(pg);
     const closedText = (await pg.locator(".chat-sheet").innerText().catch(() => "")).replace(/\s+/g, " ");
     await pg.locator(".chat-about > summary").focus().catch(() => {});
@@ -900,7 +954,7 @@ await group("live", async () => {
     const panelText = (await pg.locator(".chat-sheet").innerText().catch(() => "")).replace(/\s+/g, " ");
     const aboutOpen = await pg.locator(".chat-about").evaluate((el) => el.open).catch(() => null);
     const appHref = await pg.locator(".chat-sheet .chat-open-app").getAttribute("href").catch(() => null);
-    ok("live (round 17): the panel reads in one glance: crewhub-loops' own chat and the one thing to do on this road (no viewer key: no bubbles here), two short lines above Recent answers; the whole story (what typing needs, no password, and since round 18 what the Recent answers list is) behind About this chat, which Enter on its summary opens; the link to the app", g !== null && /^crewhub-loops' own chat, framed here\.$/.test(g.what) && /^Sign in to crewhub-loops below to type; no bubbles: a viewer key or the world's origin would read the chat\.$/.test(g.todo) && g.whatLines === 1 && g.todoLines <= 2 && g.aboutOpen === false && !/signed in to crewhub-loops as a person/.test(closedText) && !/The last 10 answers this page saw/.test(closedText) && aboutOpen === true && /signed in to crewhub-loops as a person/.test(panelText) && /no password/.test(panelText) && /chat head in loops' dock/.test(panelText) && /The last 10 answers this page saw, newest first/.test(panelText) && appHref === web.url, g ? `"${g.what}" / "${g.todo}" (${g.whatLines}+${g.todoLines} lines, the list ${g.aboveList} px below); about open before ${g.aboutOpen}, after Enter ${aboutOpen}; ${appHref}` : "no lead");
+    ok("live (round 17): the panel reads in one glance: crewhub-loops' own chat and the one thing to do on this road (no viewer key, and the page's probe of road 2 finds the world's origin not set on this loops: no bubbles here), two short lines above Recent answers; the whole story (what typing needs, no password, and since round 18 what the Recent answers list is) behind About this chat, which Enter on its summary opens; the link to the app", g !== null && /^crewhub-loops' own chat, framed here\.$/.test(g.what) && /^Sign in to crewhub-loops below to type; no bubbles: the world's origin is not set on crewhub-loops \(see About\)\.$/.test(g.todo) && g.whatLines === 1 && g.todoLines <= 2 && g.aboutOpen === false && !/signed in to crewhub-loops as a person/.test(closedText) && !/The last 10 answers this page saw/.test(closedText) && aboutOpen === true && /signed in to crewhub-loops as a person/.test(panelText) && /no password/.test(panelText) && /chat head in loops' dock/.test(panelText) && /The last 10 answers this page saw, newest first/.test(panelText) && appHref === web.url, g ? `"${g.what}" / "${g.todo}" (${g.whatLines}+${g.todoLines} lines, the list ${g.aboveList} px below); about open before ${g.aboutOpen}, after Enter ${aboutOpen}; ${appHref}` : "no lead");
     const sandbox = await frame.getAttribute("sandbox").catch(() => null);
     const allow = await frame.getAttribute("allow").catch(() => null);
     ok("live: the frame's sandbox is no wider than the chat needs", sandbox === "allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads" && allow === "clipboard-write", `sandbox "${sandbox}", allow "${allow}"`);
@@ -1090,7 +1144,7 @@ await group("live", async () => {
     const down = await until(pg, "loops-down", 20000);
     ok("live: Loops down after the fake closes", down === "loops-down", `${down}: ${(await chip(pg).innerText().catch(() => "")).trim()}`);
     await shot(pg, "24-loops-down");
-    fake = await createLoopsFake({ ...fakeOptions, port, key, keyName, firstSeq: lastSeq });
+    fake = noteLoops(await createLoopsFake({ ...fakeOptions, port, key, keyName, firstSeq: lastSeq }));
     const again = await until(pg, "live", 30000);
     ok("live: Live again after a new fake on the same port", again === "live", `${again}: ${(await chip(pg).innerText().catch(() => "")).trim()}`);
     await shot(pg, "25-live-again");
@@ -1119,8 +1173,8 @@ await group("chat", async () => {
   const hostPort = Number(opts["host-port"]);
   if (!served && (!Number.isInteger(hostPort) || hostPort <= 0)) opts.fail("--host-port <port> must be a port number");
   // The key road: a loops whose viewer key may read the chat (world/viewer-key, 8292): no sign-in at all.
-  const fake2 = await createLoopsFake({ heartbeatMs: 1000, speed: 1, startAt: 200_000, keyReadsChat: true });
-  const web2 = await createLoopsWebStub();
+  const fake2 = noteLoops(await createLoopsFake({ heartbeatMs: 1000, speed: 1, startAt: 200_000, keyReadsChat: true }));
+  const web2 = noteLoops(await createLoopsWebStub());
   const lines2 = [];
   const hostOptions2 = { loopsUrl: fake2.url, loopsWebUrl: web2.url, key: fake2.key, keyName: fake2.keyName, pairing: "off", retryMs: { min: 100, max: 500 }, reconnectMs: { min: 100, max: 300 }, heartbeatMs: 1000, log: (line) => lines2.push(line) };
   const host2 = await createHost(served ? { ...hostOptions2, staticDir: dist } : { ...hostOptions2, port: hostPort, allowedOrigins: [origin] });
@@ -1305,8 +1359,8 @@ await group("chat", async () => {
   // this chat, Recent answers' empty state and the text view's Chat line all say so and point to a viewer key; the
   // sign-in road is gone (a write to /world-api/session is refused by the write gate, 405; a read is 404); an agent's
   // answer on loops shows no mark and no bubble.
-  const fake3 = await createLoopsFake({ heartbeatMs: 1000, speed: 1, startAt: 200_000 });
-  const web3 = await createLoopsWebStub();
+  const fake3 = noteLoops(await createLoopsFake({ heartbeatMs: 1000, speed: 1, startAt: 200_000 }));
+  const web3 = noteLoops(await createLoopsWebStub());
   const lines3 = [];
   const hostOptions3 = { loopsUrl: fake3.url, loopsWebUrl: web3.url, key: fake3.key, keyName: fake3.keyName, pairing: "off", retryMs: { min: 100, max: 500 }, reconnectMs: { min: 100, max: 300 }, heartbeatMs: 1000, log: (line) => lines3.push(line) };
   const host3 = await createHost(served ? { ...hostOptions3, staticDir: dist } : { ...hostOptions3, port: hostPort, allowedOrigins: [origin] });
@@ -1320,6 +1374,9 @@ await group("chat", async () => {
     await pg3.goto(`${noneOrigin}/`);
     await pg3.waitForSelector("canvas", { timeout: 60000 }).catch(() => {});
     await pg3.waitForSelector('.connection-chip[data-connection="live"]', { timeout: 20000 }).catch(() => {});
+    // Round 28: the page's probe asks the loops web origin the host names (the stub: no CORS header), so the verdict is
+    // "the origin is not set"; the words of every place are that verdict's, with this page's origin as the value to set.
+    await pg3.waitForFunction(() => window.__worldStores?.().pageChat?.probe === "origin-not-set", null, { timeout: 10000 }).catch(() => {});
     const health3 = await pg3.request.get(`${noneOrigin}/world-api/health`).then((r) => r.json());
     const goneWrite = await pg3.request.post(`${noneOrigin}/world-api/session`, { headers: { origin: noneOrigin, "content-type": "application/json" }, data: { id: "nicky", password: "x" } }).then((r) => r.status()).catch(() => -1);
     const goneRead = await pg3.request.get(`${noneOrigin}/world-api/session`).then((r) => r.status()).catch(() => -1);
@@ -1329,7 +1386,7 @@ await group("chat", async () => {
     const road3 = await pg3.locator(".connection-chat").getAttribute("data-road").catch(() => null);
     const probe3 = await pg3.locator(".connection-chat").getAttribute("data-probe").catch(() => null);
     await shot(pg3, "68-chat-none-panel");
-    ok("chat (no chat road, round 19; round 28's words): health has no session, /world-api/session is gone (a write refused 405, a read 404), the panel's Chat section says this crewhub-loops does not let the world's key read the chat and points to a viewer key and to the world's origin setting with this page's origin (the probe unknown), with no sign-in form; the host's log says the same", health3.connection?.session === undefined && goneWrite === 405 && goneRead === 404 && road3 === "none" && /^No bubbles: this crewhub-loops does not let the world's key read the chat\. For the agents' answers as bubbles, make a viewer key in Settings > Agents > Connect CrewHub World \(it reads only the chat of the person who makes it\) and paste it in the world's Connect screen, or let this page read your own chat: set CHL_WORLD_ORIGIN=http:\/\/127\.0\.0\.1:\d+ on that crewhub-loops/.test(words3.replace(/^Chat /, "")) && probe3 === "unknown" && (await pg3.getByLabel("Password").count()) === 0 && (await pg3.getByRole("button", { name: /Sign in|Forget the session/ }).count()) === 0 && lines3.some((l) => /the key does not read the chat on this crewhub-loops \(no viewer key\): no bubbles over the key; make a viewer key .*, or set CHL_WORLD_ORIGIN/.test(l)), `session ${JSON.stringify(health3.connection?.session)}; /session write ${goneWrite}, read ${goneRead}; data-road ${road3}, data-probe ${probe3}; ${words3.slice(0, 120)}`);
+    ok("chat (no chat road, round 19; round 28's words): health has no session, /world-api/session is gone (a write refused 405, a read 404), the panel's Chat section says this crewhub-loops does not let the world's key read the chat and nor this page (the probe's verdict over the fake: the world's origin is not set there), and points first to the setting with this page's exact origin, then to a viewer key, with no sign-in form; the host's log says the same", health3.connection?.session === undefined && goneWrite === 405 && goneRead === 404 && road3 === "none" && /^No bubbles: this crewhub-loops does not let the world's key read the chat, nor this page: the world's origin is not set there\. For the agents' answers as bubbles, set CHL_WORLD_ORIGIN=http:\/\/127\.0\.0\.1:\d+ on that crewhub-loops and restart it, or make a viewer key in Settings > Agents > Connect CrewHub World \(it reads only the chat of the person who makes it\) and paste it in the world's Connect screen\./.test(words3.replace(/^Chat /, "")) && probe3 === "origin-not-set" && (await pg3.getByLabel("Password").count()) === 0 && (await pg3.getByRole("button", { name: /Sign in|Forget the session/ }).count()) === 0 && lines3.some((l) => /the key does not read the chat on this crewhub-loops \(no viewer key\): no bubbles over the key; make a viewer key .*, or set CHL_WORLD_ORIGIN/.test(l)), `session ${JSON.stringify(health3.connection?.session)}; /session write ${goneWrite}, read ${goneRead}; data-road ${road3}, data-probe ${probe3}; ${words3.slice(0, 120)}`);
     await pg3.keyboard.press("Escape");
     await pg3.waitForTimeout(200);
     await pg3.locator(".chat-open").click();
@@ -1342,7 +1399,7 @@ await group("chat", async () => {
     await pg3.waitForTimeout(200);
     const empty3 = (await pg3.locator('.chat-recent [data-recent="empty"]').innerText().catch(() => "")).replace(/\s+/g, " ");
     await shot(pg3, "69-chat-none-chat-panel");
-    ok("chat (no chat road, round 19; round 28's words): the Chat panel's glance says no bubbles here (a viewer key, or the world's origin, would), About this chat holds the same story as the Connection panel, and Recent answers' empty state says no answer can arrive, how to make a viewer key and the exact CHL_WORLD_ORIGIN value", glance3 !== null && glance3.what === "crewhub-loops' own chat, framed here." && glance3.todo === "Sign in to crewhub-loops below to type; no bubbles: a viewer key or the world's origin would read the chat." && glance3.aboutOpen === false && /No bubbles: this crewhub-loops does not let the world's key read the chat/.test(about3) && /Typing in the framed chat is crewhub-loops' own/.test(about3) && /^No answers can arrive: this crewhub-loops does not let the world's key read the chat\. For bubbles, make a viewer key in Settings > Agents > Connect CrewHub World/.test(empty3) && /CHL_WORLD_ORIGIN=http:\/\/127\.0\.0\.1:\d+/.test(empty3), glance3 ? `"${glance3.todo}"; about: ${about3.slice(0, 100)}; empty: ${empty3.slice(0, 100)}` : "no lead");
+    ok("chat (no chat road, round 19; round 28's words): the Chat panel's glance says no bubbles here (the world's origin is not set on this loops), About this chat holds the same story as the Connection panel, and Recent answers' empty state says no answer can arrive, the exact CHL_WORLD_ORIGIN value to set and how to make a viewer key", glance3 !== null && glance3.what === "crewhub-loops' own chat, framed here." && glance3.todo === "Sign in to crewhub-loops below to type; no bubbles: the world's origin is not set on crewhub-loops (see About)." && glance3.aboutOpen === false && /No bubbles: this crewhub-loops does not let the world's key read the chat, nor this page: the world's origin is not set there/.test(about3) && /Typing in the framed chat is crewhub-loops' own/.test(about3) && /^No answers can arrive: this crewhub-loops does not let the world's key read the chat, nor this page: the world's origin is not set there\. For bubbles, set CHL_WORLD_ORIGIN=http:\/\/127\.0\.0\.1:\d+ on that crewhub-loops and restart it, or make a viewer key in Settings > Agents > Connect CrewHub World/.test(empty3), glance3 ? `"${glance3.todo}"; about: ${about3.slice(0, 100)}; empty: ${empty3.slice(0, 100)}` : "no lead");
     await pg3.keyboard.press("Escape");
     await pg3.waitForSelector(".chat-sheet", { state: "detached", timeout: 5000 }).catch(() => {});
     // An agent answers on loops: the key's stream never carries it, so no mark and no bubble; the text view says why.
@@ -1363,6 +1420,95 @@ await group("chat", async () => {
     await fake3.close().catch(() => {});
     await web3.close().catch(() => {});
   }
+
+  // Road 2 (round 28): the page reads loops itself. The fake names the page's origin as its CHL_WORLD_ORIGIN (the
+  // guard and the CORS headers of loops main, packages/loops-fake); the host's key does not read the chat and the host
+  // names the fake as the loops web origin, so the page's probe asks the fake with the person's own cookie: signed in
+  // at the fake's own login (the cookie in this browser context; the world never sees a password), the probe says on
+  // and the road is page; an agent inside a building answers (the fake's sendDm to cr-lead) and the page's own poll
+  // brings it: the chat mark over the building, the bubble inside, the Recent answers row; every request the page
+  // made to the fake was a GET on the four routes with the events query loops forces, and the console has no CORS line.
+  const fake4 = noteLoops(await createLoopsFake({ heartbeatMs: 1000, speed: 1, startAt: 200_000 }));
+  const lines4 = [];
+  const hostOptions4 = { loopsUrl: fake4.url, key: fake4.key, keyName: fake4.keyName, pairing: "off", retryMs: { min: 100, max: 500 }, reconnectMs: { min: 100, max: 300 }, heartbeatMs: 1000, log: (line) => lines4.push(line) };
+  const host4 = await createHost(served ? { ...hostOptions4, staticDir: dist } : { ...hostOptions4, port: hostPort, allowedOrigins: [origin] });
+  const pageOrigin4 = served ? host4.url : origin;
+  fake4.setWorldOrigin(pageOrigin4);
+  info(`chat (road 2): fake on 127.0.0.1:${fake4.port} with CHL_WORLD_ORIGIN=${pageOrigin4}, host on 127.0.0.1:${host4.port} naming the fake as the loops web origin`);
+  const own4 = [];
+  const ctx4 = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
+  const pg4 = await ctx4.newPage();
+  watch(pg4, pageOrigin4, own4, "chat road 2");
+  const asks4 = [];
+  pg4.on("request", (r) => {
+    if (!r.url().startsWith(fake4.url)) return;
+    const url = new URL(r.url());
+    asks4.push({ method: r.method(), path: url.pathname, query: url.search, type: r.resourceType() });
+  });
+  try {
+    const login4 = await ctx4.request.post(`${fake4.url}/api/auth/login`, { data: { id: fake4.person.id, password: fake4.person.password } });
+    const cookies4 = (await ctx4.cookies(fake4.url)).map((c) => c.name);
+    await pg4.goto(`${pageOrigin4}/`);
+    await pg4.waitForSelector("canvas", { timeout: 60000 }).catch(() => {});
+    await pg4.waitForSelector('.connection-chip[data-connection="live"]', { timeout: 20000 }).catch(() => {});
+    await pg4.waitForFunction(() => window.__worldStores?.().pageChat?.probe === "on", null, { timeout: 15000 }).catch(() => {});
+    const stores4 = await pg4.evaluate(() => window.__worldStores?.().pageChat ?? null).catch(() => null);
+    const health4 = await pg4.request.get(`${pageOrigin4}/world-api/health`).then((r) => r.json());
+    await pg4.locator(".connection-chip").first().click();
+    await pg4.waitForSelector(".connection-chat", { timeout: 5000 }).catch(() => {});
+    await pg4.locator(".connection-chat").scrollIntoViewIfNeeded().catch(() => {});
+    const words4 = (await pg4.locator(".connection-chat").innerText().catch(() => "")).replace(/\s+/g, " ");
+    const road4 = await pg4.locator(".connection-chat").getAttribute("data-road").catch(() => null);
+    await shot(pg4, "71-chat-road2-panel");
+    const wanted4 = `^Chat The bubbles come from your own chat: this crewhub-loops lets this page read the chat as you, signed in there in this browser \\(the world's origin is set there, CHL_WORLD_ORIGIN=${pageOrigin4.replace(/[.]/g, "\\.")}\\), so the agents' answers to you show as bubbles; nothing of it goes through the host, and the world keeps nothing\\.`;
+    ok("chat (road 2, round 28): signed in at the fake in this browser (its own login; the cookie lives in the context, the world sees no password) with the fake naming this page's origin as CHL_WORLD_ORIGIN, the page's probe says on and the road is page while the host's key reads no chat (health has no session), and the panel's Chat section says the bubbles come from your own chat with this page's exact origin as the setting's value", login4.status() === 200 && cookies4.includes("chl_session") && health4.connection?.session === undefined && stores4?.probe === "on" && stores4?.road === "page" && stores4?.polling === true && road4 === "page" && new RegExp(wanted4).test(words4), `login ${login4.status()}, cookies ${cookies4.join(",")}; session ${JSON.stringify(health4.connection?.session)}; ${JSON.stringify(stores4)}; ${words4.slice(0, 140)}`);
+    await pg4.keyboard.press("Escape");
+    await pg4.waitForTimeout(200);
+    // An agent inside a building answers (the fake's sendDm to cr-lead: its scripted reply 8 s later in demo time): the
+    // page's own poll brings it, never the host (its key reads no chat): the chat mark over the building from the town,
+    // the bubble inside after a tap on the mark, the Recent answers row, the glance on this road.
+    fake4.sendDm("cr-lead", "Is the reading nook done? (road 2)");
+    const mark4 = pg4.locator('.chat-mark[data-said-mark="cr-lead"]');
+    await mark4.waitFor({ timeout: 30000 }).catch(() => {});
+    const markText4 = (await mark4.getAttribute("title").catch(() => null)) ?? "";
+    await shot(pg4, "72-chat-road2-mark");
+    await mark4.click().catch(() => {});
+    const bubble4 = pg4.locator('.bubble.said[data-said-agent="cr-lead"]');
+    await bubble4.waitFor({ timeout: 10000 }).catch(() => {});
+    const said4 = (await bubble4.innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+    await shot(pg4, "73-chat-road2-bubble");
+    const stores4b = await pg4.evaluate(() => window.__worldStores?.().pageChat ?? null).catch(() => null);
+    ok("chat (road 2): the agent's answer comes through the page's own poll (the host's log never says its key reads the chat): the chat mark over its building from the town, then the bubble inside with the message's first line", markText4 !== "" && said4 !== "" && (stores4b?.lines ?? 0) >= 1 && !lines4.some((l) => /the key reads the chat/.test(l)), `mark "${markText4.slice(0, 70)}"; bubble "${said4.slice(0, 70)}"; ${JSON.stringify(stores4b)}; host: ${lines4.slice(-3).join(" | ").slice(0, 200)}`);
+    await pg4.keyboard.press("Escape");
+    await pg4.waitForTimeout(300);
+    await pg4.locator(".chat-open").click();
+    await pg4.waitForSelector(".chat-recent", { timeout: 5000 }).catch(() => {});
+    if (!(await pg4.locator(".chat-recent").evaluate((el) => el.open).catch(() => false))) await pg4.locator(".chat-recent > summary").click().catch(() => {});
+    await pg4.waitForTimeout(200);
+    const rows4 = await pg4.locator(".recent-row").count();
+    const rowAgent4 = await pg4.locator(".recent-row").first().getAttribute("data-answer-agent").catch(() => null);
+    const glance4 = (await pg4.locator(".chat-sheet-todo").innerText().catch(() => "")).replace(/\s+/g, " ");
+    await shot(pg4, "74-chat-road2-recent");
+    ok("chat (road 2): Recent answers lists the answer with the agent, and the panel's glance says the answers come as bubbles because this page reads your own chat", rows4 >= 1 && rowAgent4 === "cr-lead" && glance4 === "Sign in to crewhub-loops below to type; the answers come as bubbles: this page reads your own chat.", `${rows4} row(s), first ${rowAgent4}; "${glance4}"`);
+    await pg4.keyboard.press("Escape");
+    await pg4.waitForSelector(".chat-sheet", { state: "detached", timeout: 5000 }).catch(() => {});
+    // The page's every ask of the fake (the Chat panel's frame asks the fake's root too: a document, not the page's own
+    // fetch; the fake answers it 404, the one console line this page is allowed).
+    const own4Asks = asks4.filter((a) => a.type === "fetch" || a.type === "xhr");
+    const bad4 = own4Asks.filter((a) => a.method !== "GET" || !ROAD2_ROUTES.some((route) => route.test(a.path)));
+    const events4 = own4Asks.filter((a) => a.path === "/api/events");
+    const badQuery4 = events4.filter((a) => {
+      const q = new URLSearchParams(a.query);
+      return q.get("types") !== "dm.created,dm.answered" || Number(q.get("limit")) !== 50 || q.has("after") || !(q.has("cursor") || q.get("from") === "tail");
+    });
+    const corsLines4 = own4.filter((x) => x.kind === "console" && /CORS|ERR_FAILED/.test(x.text));
+    ok("chat (road 2): every fetch the page made to the fake was a GET on the four routes (the threads, the events poll with types dm.created,dm.answered and limit 50, from=tail then the sealed cursor, a message by id); no CORS line in the console", own4Asks.length >= 3 && bad4.length === 0 && badQuery4.length === 0 && events4.length >= 1 && own4Asks.some((a) => a.path.startsWith("/api/dm/messages/")) && corsLines4.length === 0, `${own4Asks.length} fetches: ${[...new Set(own4Asks.map((a) => `${a.method} ${a.path.replace(/\/[A-Za-z0-9_-]+$/, (m) => (a.path.startsWith("/api/dm/messages/") ? "/<id>" : m))}`))].join(", ")}; ${bad4.length} off the shape, ${badQuery4.length} bad poll quer${badQuery4.length === 1 ? "y" : "ies"}; ${corsLines4.length} CORS line(s)`);
+    problems.push(...own4.filter((x) => !(x.kind === "external" && x.url === `${fake4.url}/`) && !(x.kind === "console" && /status of 404/.test(x.text))));
+  } finally {
+    await ctx4.close().catch(() => {});
+    await host4.close().catch(() => {});
+    await fake4.close().catch(() => {});
+  }
 });
 
 await group("town", async () => {
@@ -1378,7 +1524,7 @@ await group("town", async () => {
   const served = DIST_SERVED;
   const hostPort = Number(opts["host-port"]);
   if (!served && (!Number.isInteger(hostPort) || hostPort <= 0)) opts.fail("--host-port <port> must be a port number");
-  const fake = await createLoopsFake({ heartbeatMs: 1000 });
+  const fake = noteLoops(await createLoopsFake({ heartbeatMs: 1000 }));
   // One pairing secret for every host of this group, so a restart keeps the browsers paired; two databases: the first
   // host's, left behind, and the one the rest of the group runs on.
   const pairingSecret = randomBytes(32);
@@ -1622,7 +1768,7 @@ await group("ops", async () => {
   mkdirSync(configDir, { recursive: true, mode: 0o700 });
   const store = createKeyStore(configDir);
   const fakeOptions = { heartbeatMs: 1000, version: "0.1.0+fake.ops" };
-  let fake = await createLoopsFake(fakeOptions);
+  let fake = noteLoops(await createLoopsFake(fakeOptions));
   const { port, keyName } = fake;
   const firstKey = fake.key;
   let lastSeq = fake.lastSeq();
@@ -1698,7 +1844,7 @@ await group("ops", async () => {
     const factsDown = await panelFacts((f) => /down; the host retries/.test(f));
     ok("ops (a): loops stopped under the host: the Loops down chip over the last known town, the panel says the stream is down and the host retries, the key still accepted", down === "loops-down" && /down; the host retries/.test(factsDown) && /accepted/.test(factsDown), `${down}; ${factsDown.slice(0, 160)}`);
     await shot(pg, "47-ops-loops-stopped");
-    fake = await createLoopsFake({ ...fakeOptions, port, key: firstKey, keyName, firstSeq: lastSeq });
+    fake = noteLoops(await createLoopsFake({ ...fakeOptions, port, key: firstKey, keyName, firstSeq: lastSeq }));
     const back = await until("live", 30000);
     const healthBack = await healthUntil((h) => h.loops === "ok" && typeof h.cursor === "number", 10000);
     ok("ops (a): loops started again: Live without a reload, the key still accepted, the cursor goes on", back === "live" && (await marked()) === "set" && healthBack?.connection?.key?.state === "ok" && healthBack?.cursor >= lastSeq, `${back}, marker ${await marked()}, key ${healthBack?.connection?.key?.state}, cursor ${lastSeq} → ${healthBack?.cursor}`);
@@ -1708,7 +1854,7 @@ await group("ops", async () => {
     // from a loops whose health answers (a verdict), not a loops that is down.
     lastSeq = fake.lastSeq();
     await fake.close();
-    fake = await createLoopsFake({ ...fakeOptions, port, keyName, firstSeq: lastSeq });
+    fake = noteLoops(await createLoopsFake({ ...fakeOptions, port, keyName, firstSeq: lastSeq }));
     const rejected = await screen("rejected", 30000);
     // The screen asks the host at once for loops' reason; give that read a moment.
     let reason = "";
@@ -1736,7 +1882,7 @@ await group("ops", async () => {
     // (c) loops upgraded: the fake comes back on its port with another health version.
     lastSeq = fake.lastSeq();
     await fake.close();
-    fake = await createLoopsFake({ ...fakeOptions, version: "0.2.0+fake.ops", port, key: secondKey, keyName, firstSeq: lastSeq });
+    fake = noteLoops(await createLoopsFake({ ...fakeOptions, version: "0.2.0+fake.ops", port, key: secondKey, keyName, firstSeq: lastSeq }));
     const liveUpgraded = await until("live", 30000);
     const healthUpgraded = await healthUntil((h) => h.loopsCommit === "0.2.0+fake.ops", 15000);
     const factsUpgraded = await panelFacts((f) => /it was 0\.1\.0\+fake\.ops when this host started/.test(f));
@@ -1806,6 +1952,7 @@ await group("connect", async () => {
   async function stubHalf() {
     // "checking" holds until the tool moves the stub on (a real host would connect or refuse in a second).
     const stub = await createConnectStub({ port: hostPort, state: "no-loops", origin, checkMs: 60_000, log: () => undefined });
+    loopsOriginGetters.push(() => stub.webUrl());
     info(`connect: stub host on 127.0.0.1:${stub.port} behind the Vite proxy on ${origin} (Vite started with CREWHUB_WORLD_PORT=${hostPort})`);
     try {
       const pg = await openConnect("connect stub");
@@ -1907,6 +2054,7 @@ await group("connect", async () => {
     const envFile = loopsEnvFile();
     const env = readEnvFile(envFile);
     const loopsUrl = (env.LOOPS_DEV_URL ?? "").replace(/\/+$/, "");
+    noteLoopsUrl(loopsUrl);
     const keyFile = env.LOOPS_DEV_KEY_FILE ?? "";
     const parsed = (() => {
       try {
@@ -2252,6 +2400,7 @@ await group("real", async () => {
   const envFile = loopsEnvFile();
   const env = readEnvFile(envFile);
   const loopsUrl = (env.LOOPS_DEV_URL ?? "").replace(/\/+$/, "");
+    noteLoopsUrl(loopsUrl);
   const keyFile = env.LOOPS_DEV_KEY_FILE ?? "";
   const parsed = (() => {
     try {
@@ -2473,10 +2622,12 @@ async function waitForMove(hostApi, slug, ms) {
   return null;
 }
 
-const external = problems.filter((x) => x.kind === "external").map((x) => x.text);
-const errors = problemLines(problems.filter((x) => x.kind !== "external"));
-ok("no external requests", external.length === 0, [...new Set(external)].slice(0, 5).join(" "));
-ok("no page errors or console errors", errors.length === 0, errors.slice(0, 5).join(" | "));
+const road2Asks = problems.filter((x) => x.kind === "external" && road2Ask(x));
+const external = problems.filter((x) => x.kind === "external" && !road2Ask(x)).map((x) => x.text);
+const refusals = problems.filter(probeRefusal);
+const errors = problemLines(problems.filter((x) => x.kind !== "external" && !probeRefusal(x)));
+ok(`no external requests beyond road 2's own (${road2Asks.length} GET(s) of the four chat routes at the loops web origins the hosts named: the page's probe and, where the origin is set, its poll)`, external.length === 0, [...new Set(external)].slice(0, 5).join(" "));
+ok(`no page errors or console errors beyond the probe's CORS refusal where the fake does not name the page's origin (${refusals.length} line(s), the browser's own two for ${new Set(refusals.map((x) => x.pageOrigin)).size} page(s))`, errors.length === 0, errors.slice(0, 5).join(" | "));
 await browser.close();
 
 const passed = results.filter((r) => r.pass).length;
