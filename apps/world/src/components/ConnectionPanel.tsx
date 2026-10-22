@@ -207,6 +207,8 @@ export function ConnectionPanel({ state, initial, onClose, pollMs = PANEL_POLL_M
               <dd>{t(`world.connection.panel.transport.${health.transport}`)}</dd>
             </>
           )}
+          <dt>{t("world.connection.panel.pairing")}</dt>
+          <dd className="connection-pairing">{health?.pairing === "off" ? t("world.connection.panel.pairing.off") : `${t("world.connection.panel.pairing.tab")}${(health?.pairingIdleDays ?? 0) > 0 ? t("world.connection.panel.pairing.expiry", { days: health?.pairingIdleDays ?? 0 }) : ""}`}</dd>
           <dt>{t("world.connection.panel.town")}</dt>
           <dd className="connection-town">{townWords}</dd>
           <dt>{t("world.connection.panel.zones")}</dt>

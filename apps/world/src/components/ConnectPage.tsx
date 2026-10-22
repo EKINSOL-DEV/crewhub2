@@ -8,7 +8,7 @@
    a pasted key; the words that tick ("last asked 3 s ago") are not live, so a screen reader is never read a clock. */
 import { ExternalLink, KeyRound, RefreshCw, ShieldAlert, Search, Unplug } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { connectHost, forgetHostKey, probeHost, type HostHealth } from "@crewhub/loops-client";
+import { askTabsForPairing, connectHost, forgetHostKey, probeHost, readPairing, type HostHealth } from "@crewhub/loops-client";
 import { useT } from "../i18n";
 import { connectOutcome, keyTail, looksLikeKey, normaliseKey, relativeTime, untilTime, type ConnectOutcome, type ConnectScreen } from "../state/connect";
 import { loopsWebUrl } from "../state/source";
@@ -44,6 +44,9 @@ export function ConnectPage({ screen, health, onHealth, pollMs = CONNECT_POLL_MS
   const live = useRef(true);
 
   const ask = useCallback(async () => {
+    // "I opened the link" (round 27): the link opened in another tab of this browser, which holds the bearer now; ask
+    // the tabs for it before the host is asked again, so this tab is paired without a reload.
+    if (readPairing() === null) await askTabsForPairing();
     const fresh = await probeHost("", 1500);
     if (!live.current) return;
     setAskedAt(Date.now());
@@ -154,7 +157,7 @@ export function ConnectPage({ screen, health, onHealth, pollMs = CONNECT_POLL_MS
           }
           titleId="connect-title"
         />
-        {screen === "pair" && <PairContent onRetry={() => void ask()} />}
+        {screen === "pair" && <PairContent onRetry={() => void ask()} idleDays={health.pairingIdleDays} />}
         {screen === "no-loops" && (
           <>
             <Card.Body>

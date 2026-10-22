@@ -8,6 +8,7 @@
  * its own host and nothing else. Streams with `fetch` and a line reader over `response.body`: no EventSource, so
  * the cursor and the reconnect are ours. Nothing here ever throws out of the listener.
  */
+import { bearerHeaders } from "./pairingBearer.ts";
 import type {
   BoardResponse,
   CommentOut,
@@ -160,6 +161,8 @@ export interface HostHealth {
   paired?: boolean;
   /** `off` only in development; then every request counts as paired. */
   pairing?: "on" | "off";
+  /** How many days a pairing may go unused before the host refuses it (round 27); 0 never. */
+  pairingIdleDays?: number;
   /** The id of the checkout the host runs from (apps/host `checkout.ts`): a dev server refuses another checkout's host. */
   checkout?: string;
 }
@@ -294,7 +297,7 @@ export async function probeHost(baseUrl = "", timeoutMs = 1500): Promise<HostHea
   try {
     const response = await fetch(`${baseUrl}${PREFIX}/health`, {
       signal: AbortSignal.timeout(timeoutMs),
-      headers: { accept: "application/json" },
+      headers: { ...bearerHeaders(), accept: "application/json" },
     });
     if (!response.ok) return null;
     const body = (await response.json()) as Partial<HostHealth> | null;
@@ -308,6 +311,7 @@ export async function probeHost(baseUrl = "", timeoutMs = 1500): Promise<HostHea
     if (body.transport === "tcp" || body.transport === "unix") health.transport = body.transport;
     if (typeof body.paired === "boolean") health.paired = body.paired;
     if (body.pairing === "on" || body.pairing === "off") health.pairing = body.pairing;
+    if (typeof body.pairingIdleDays === "number" && body.pairingIdleDays >= 0) health.pairingIdleDays = body.pairingIdleDays;
     if (typeof body.checkout === "string" && /^[0-9a-f]{6,64}$/.test(body.checkout)) health.checkout = body.checkout;
     const connection = readConnection(body.connection);
     if (connection !== null) health.connection = connection;
@@ -322,7 +326,7 @@ export async function probeHost(baseUrl = "", timeoutMs = 1500): Promise<HostHea
  * the moment the source decision says live, so the host assembles the snapshot while the world's module loads.
  */
 export function prefetchSnapshot(baseUrl = ""): Promise<Response> {
-  return fetch(`${baseUrl}${PREFIX}/snapshot`, { headers: { accept: "application/json" } });
+  return fetch(`${baseUrl}${PREFIX}/snapshot`, { headers: { ...bearerHeaders(), accept: "application/json" } });
 }
 
 export function createHostSource(options: HostSourceOptions = {}): WorldSource {
@@ -381,7 +385,7 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
 
   const url = (path: string) => `${base}${PREFIX}${path}`;
   const get = (path: string, signal?: AbortSignal) =>
-    fetch(url(path), { signal: signal ?? null, headers: { ...extraHeaders, accept: "application/json" } });
+    fetch(url(path), { signal: signal ?? null, headers: { ...bearerHeaders(), ...extraHeaders, accept: "application/json" } });
 
   /** Any message from the host: the stream is alive. Silence past `staleMs` is not. */
   function touched(): void {
@@ -464,7 +468,7 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
   async function readStream(signal: AbortSignal): Promise<"resnapshot" | "ended"> {
     let response: Response;
     try {
-      response = await fetch(url(`/stream?cursor=${cursor}`), { signal, headers: { ...extraHeaders, accept: "text/event-stream" } });
+      response = await fetch(url(`/stream?cursor=${cursor}`), { signal, headers: { ...bearerHeaders(), ...extraHeaders, accept: "text/event-stream" } });
     } catch {
       return "ended";
     }
@@ -812,9 +816,8 @@ async function hostRequest(method: "GET" | "POST" | "PUT" | "DELETE", url: strin
     const response = await fetch(url, {
       method,
       body,
-      credentials: "same-origin",
       signal: AbortSignal.timeout(timeoutMs),
-      headers: body === null ? { accept: "application/json" } : { accept: "application/json", "content-type": "application/json" },
+      headers: body === null ? { ...bearerHeaders(), accept: "application/json" } : { ...bearerHeaders(), accept: "application/json", "content-type": "application/json" },
     });
     const text = await response.text().catch(() => "");
     let parsed: unknown = null;

@@ -5,14 +5,28 @@ import "./styles/world.css";
 import { lazy, StrictMode, Suspense, useState, type ComponentType } from "react";
 import { createRoot } from "react-dom/client";
 import { ThemeProvider } from "./state/theme";
-import { prefetchSnapshot, probeHost, type HostHealth, type HostSourceOptions } from "@crewhub/loops-client";
+import { answerTabs, askTabsForPairing, prefetchSnapshot, probeHost, readPairing, redeemPairToken, takeFragmentToken, type HostHealth, type HostSourceOptions } from "@crewhub/loops-client";
 import { decideSource, readSourceSetting, setFirstSnapshot, setSourceDecision, type SourceDecision } from "./state/source";
+import { pairingPlan } from "./state/pairing";
 import { connectScreen } from "./state/connect";
 import { ConnectPage } from "./components/ConnectPage";
+
+/* The tab's pairing first (round 27, per-tab bearer): a token in the URL fragment is exchanged for this tab's bearer and
+   taken out of the URL; a tab without one asks the other tabs of this origin for theirs (300 ms); a paired tab answers
+   such asks while it is open. The host's health is then asked with the bearer, so the decision sees `paired`. */
+async function pairedAtStart(): Promise<void> {
+  const plan = pairingPlan({ token: takeFragmentToken(), bearer: readPairing() });
+  if (plan.step === "redeem") {
+    const outcome = await redeemPairToken(plan.token);
+    if (outcome.kind === "refused") console.info(`CrewHub World: the pairing link was refused (${outcome.reason}).`);
+  } else if (plan.step === "ask") await askTabsForPairing();
+  answerTabs();
+}
 
 /* The source (demo or live) is decided before the app's modules load: state/world.ts reads it at import. `auto` asks the
    host once; a silent host is the demo, said in one info line. */
 async function decided() {
+  await pairedAtStart();
   const decision = await decideSource({ param: new URLSearchParams(window.location.search).get("source"), setting: readSourceSetting(), probe: (ms) => probeHost("", ms) });
   setSourceDecision(decision);
   if (decision.reason === "probe-silent") console.info("CrewHub World: no host answered /world-api/health; running the demo.");
