@@ -253,7 +253,12 @@ Chat panel, walk mode) and cut the two worst own-code costs on the road to the f
 placement search and the landmarks' bake, pixel-identical (98 pairs, 0 differing pixels); the town is dressed 1,353 →
 1,292 ms at 4x, the Chat panel opens in 30 ms and walk mode runs at 8 ms a frame there (`COST_POLICY.md`, the table). Round 22 took two more of the
 named costs, the theme-colour sync (to idle time) and the layout validation, pixel-identical again (98 pairs, 0
-differing pixels), and found the agents' name order costs what it costs (the collation, not the lookup).
+differing pixels), and found the agents' name order costs what it costs (the collation, not the lookup). Round 23 looked
+at the shader programs where no material changes and kept the findings, not code: the programs are shared and parallel
+already, all but one drawn by the first frame; the first entry into a building pays one program (the objects layer's,
+about 7 ms of GPU link), the rest of that hitch being the inside layers built at the enter (about 90 ms at 4x); an idle
+warm of the interior's programs and early location reads were tried and moved nothing or cost more; the next lead is the
+objects layer's instanced meshes made ahead of the enter (`COST_POLICY.md`, the table).
 
 ## Later scope
 
