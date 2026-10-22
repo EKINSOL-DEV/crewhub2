@@ -12,10 +12,11 @@ Towns and rooms are CrewHub's own; every fact is crewhub-loops'. See
 superseded. The [design system](DESIGN_SYSTEM.md) supplies the UI tokens and
 components.
 
-**The diagram below is the target.** Three of its arrows run today: the agents, probes
-and people writing to crewhub-loops (loops' own), the host reading crewhub-loops, and
-the browser reading the host. Not built: the world database, the chat bubbles' route to
-loops (blocked on CORS, L8) and the director lane.
+**The diagram below is the target.** Four of its arrows run today: the agents, probes
+and people writing to crewhub-loops (loops' own), the host reading crewhub-loops (and,
+where the key may read the chat, the agents' answers for the bubbles), the browser
+reading the host, and the browser framing loops' own web app in the Chat panel. The
+world database is in progress (round 20); not built: the director lane.
 
 ```mermaid
 flowchart LR
@@ -24,9 +25,9 @@ flowchart LR
   Postman["postman lane"] -- "deliver next" --> Loops
   People["Nicky, loops web app"] --> Loops
   Host["CrewHub host (apps/host)"] -- "Unix socket or loopback TCP, external bot key, GET only: REST + NDJSON" --> Loops
-  Host --- DB[("World database (SQLite), not built")]
+  Host --- DB[("World database (SQLite), in progress (round 20)")]
   Browser["CrewHub World (browser)"] -- "loopback HTTP: snapshot + SSE, pairing cookie" --> Host
-  Browser -. "chat bubbles only: DM routes as the person (needs CORS, L8; not built)" .-> Loops
+  Browser -. "the Chat panel: loops' own web app, framed, on the person's session" .-> Loops
   Director["world-director lane (Haiku), not built"] -. "crewhub-world CLI, host socket" .-> Host
 ```
 
@@ -63,10 +64,10 @@ description read only that model.
 Phase status (plan section 10; the dates and details are in [the roadmap](ROADMAP.md)):
 
 - Phase 1 (town, loops-client, demo source): built in demo mode; live since 2026-10-07, against the real crewhub-loops since 2026-10-21
-- Phase 2 (chat mirror, backed by the demo chat API): built in demo mode; live needs CORS in loops (L8), not built
-- Phase 3 (interiors, three rooms, the ticket drone, a person carrying work into Done, closed buildings): built in demo mode and live; the world database is not built
+- Phase 2 (the chat, backed by the demo chat API in demo mode): built in demo mode; live since round 12 as loops' own chat framed in the Chat panel, with the agents' answers as bubbles, a chat mark from the town and Recent answers where the key may read the chat (rounds 14 to 18; the session road stands in until the viewer key lands)
+- Phase 3 (interiors, three rooms, the ticket drone, a person carrying work into Done, closed buildings): built in demo mode and live; the world database is in progress (round 20)
 - Phase 4 (town paths and dynamic pathfinding): built in demo mode and live
-- Phase 5 (town document and build mode): built in demo mode; live mode keeps its own town document in the browser
+- Phase 5 (town document and build mode): built in demo mode; live mode keeps its own town document in the browser, per installation; the host's world database (in progress, round 20) will keep it for every paired browser
 - Phase 6 (scripted director and `where`): built in demo mode; `where` works live; the scripted director also runs in live mode as its own opt-in, off by default and labelled "scripted" on every line (round 11); the real director is not built
 
 ## The host (`apps/host`)

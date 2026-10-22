@@ -22,8 +22,9 @@ morning ([the runbook](docs/LOOPS_SETUP.md)), rehearsed from a fresh clone eight
 loops stops, when the key is revoked while the town is open and when loops is upgraded under it,
 each with an honest screen. The chat is crewhub-loops' own, framed in the world's Chat panel, and an
 agent's answer shows as a speech bubble over its figure where the key may read the chat. Planned, **not built**:
-the host's world database, a chat of the world's own (needs CORS in crewhub-loops, L8) and the real director. See
-the [architecture](docs/ARCHITECTURE.md) and the [roadmap](docs/ROADMAP.md).
+the host's world database (in progress, round 20) and the real director; the switch to crewhub-loops' viewer key is
+written and waits on that branch's merge in loops. See the [architecture](docs/ARCHITECTURE.md) and the
+[roadmap](docs/ROADMAP.md).
 
 Built in demo mode and shown live from the same model:
 
