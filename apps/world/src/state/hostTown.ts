@@ -97,9 +97,18 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
   };
   local.subscribe(publish);
 
-  const same = (a: TownDocument, b: TownDocument) => JSON.stringify(a) === JSON.stringify(b);
-  /** The same town, whatever revision number each copy carries (the browser's store stamps its own). */
-  const samePicture = (a: TownDocument, b: TownDocument) => JSON.stringify({ ...a, revision: 0 }) === JSON.stringify({ ...b, revision: 0 });
+  /**
+   * The same town: the revision stamp aside (the browser's store counts for itself, so an identical town read as a
+   * change) and whatever the key order (round 27, r27-townback: a come-back then sent the host's own town as a new revision,
+   * and the next undo took that copy instead of the person's last edit).
+   */
+  const canonical = (value: unknown): string =>
+    Array.isArray(value)
+      ? `[${value.map(canonical).join(",")}]`
+      : value !== null && typeof value === "object"
+        ? `{${Object.keys(value as Record<string, unknown>).sort().map((k) => `${JSON.stringify(k)}:${canonical((value as Record<string, unknown>)[k])}`).join(",")}}`
+        : JSON.stringify(value) ?? "undefined";
+  const same = (a: TownDocument, b: TownDocument) => canonical({ ...a, revision: 0 }) === canonical({ ...b, revision: 0 });
 
   /** The host's `canUndo`/`canRedo` from an answer, when it carries them. */
   const readCan = (body: unknown) => {
@@ -188,12 +197,22 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
         if (pending && knownRev !== null && body.rev === knownRev) {
           // The host is back and nobody else wrote meanwhile: this browser's edits go up as the next revision, the
           // document as it is when its turn comes (a person's edit made during this read goes first and carries it).
+          // Unless the town here is the host's own (the change was undone here, or recorded nothing new): an identical
+          // revision would be a step for nothing, and the next undo would take it instead of the person's last edit.
+          const theirs = validateTownDocument(body.document, context);
+          const person = pendingPerson;
           rev = knownRev;
-          offer = { person: pendingPerson, since: adopted };
           pending = false;
           pendingPerson = false;
           note = null;
-          void push({ offer: true });
+          if (theirs.ok && same(theirs.value, local.state.doc)) {
+            log(`the host is back at revision ${knownRev}, where this browser left it, with the town as it is here: nothing to send`);
+            offer = null;
+          } else {
+            log(`the host is back at revision ${knownRev}, where this browser left it: the change kept here goes up`);
+            offer = { person, since: adopted };
+            void push({ offer: true });
+          }
           publish();
           return;
         }
@@ -329,7 +348,7 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
         }
       } else if (move !== null && "doc" in move) {
         if (move.since !== adopted) {
-          if (!samePicture(move.before, local.state.doc)) {
+          if (!same(move.before, local.state.doc)) {
             // The person's edit was made on a picture the host has since replaced (another browser's town taken while
             // the edit waited, on no revision or on an old one): the host's town stands, as after a 409, and it is said.
             log(`an edit made before the host's town${rev === null ? "" : ` (revision ${rev})`} was taken is kept out; the host's town stands`);
@@ -347,6 +366,7 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
         doc = move.doc;
       }
       if (rev === null) {
+        log(`${op} kept here: the host is away`);
         pending = true;
         if (byPerson) pendingPerson = true;
         offer = null;
