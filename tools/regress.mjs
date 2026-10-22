@@ -939,12 +939,14 @@ await group("live", async () => {
     const leadCard = (await pg.locator(".agent-card").innerText().catch(() => "")).replace(/\s+/g, " ");
     const holds = /Holds\s*6 open tickets: 3 in progress, 2 review, 1 planned; 1 waits on Nicky/.test(leadCard);
     const listed = /CL-80 .*review, waits on Nicky/.test(leadCard) && /CL-81/.test(leadCard) && !/CL-45 .*in progress\b.*CL-45/.test(leadCard);
+    // Round 24: the fake's CL-40 (the analyst's, in progress) waits on cl-lead, so the card says who waits on it and who holds it.
+    const waited = /Waited on by\s*1 open ticket of others\s*CL-40 .*in progress, Analyst holds it/.test(leadCard);
     // The headings read uppercased (the eyebrow's text-transform), so the section names match case-insensitively.
     const answers = /Answers\s*(This key cannot read the chat and nobody is signed in: no answers can arrive here|No answers can arrive: this host keeps no session and reads no chat|No answer from it since this page opened)/i.test(leadCard);
     // The line is the agent's own from the fake's events (CL-81), else CL-45's read from the source, else the honest words.
     const progressSaid = /\b(start|update|done|question) on CL-\d+, (just now|\d+ (min|h) ago)|No progress line: none seen since this page opened, and CL-45 has none\./.test(leadCard);
     const moreClosed = (await pg.locator("details.agent-card-more:not([open])").count()) === 1 && !(await pg.locator(".agent-card h3", { hasText: /^Lane$/ }).isVisible().catch(() => true));
-    ok("live (round 22): the card says what cl-lead holds and whom it waits on, why no answer can be known with a plain key, and the progress line or its absence", holds && listed && answers && progressSaid, `holds ${holds}, listed ${listed}, answers ${answers}, progress ${progressSaid}: ${leadCard.slice(0, 1200)}`);
+    ok("live (round 22, 24): the card says what cl-lead holds and whom it waits on, who waits on it, why no answer can be known with a plain key, and the progress line or its absence", holds && listed && waited && answers && progressSaid, `holds ${holds}, listed ${listed}, waited on by ${waited}, answers ${answers}, progress ${progressSaid}: ${leadCard.slice(0, 1200)}`);
     await pg.locator("details.agent-card-more > summary").click().catch(() => {});
     await pg.waitForTimeout(200);
     const laneAfter = await pg.locator(".agent-card h3", { hasText: /^Lane$/ }).isVisible().catch(() => false);
@@ -1303,6 +1305,26 @@ await group("chat", async () => {
     ok("chat (key road): a tap on the bubble opens the Chat panel on that agent", agent2 !== null && /g-man/.test(agent2), `data-agent ${agent2}`);
     await pg2.keyboard.press("Escape");
     await pg2.waitForSelector(".chat-sheet", { state: "detached", timeout: 5000 }).catch(() => {});
+    // Round 24: the thread's own facts reach the card over the key road: the host read the threads again after the
+    // dm.* events and sent them to the tab, so G-Man's card says when the last message was written and that one is unread.
+    await canvas(pg2).focus();
+    await pg2.keyboard.press("/");
+    await pg2.getByRole("dialog", { name: "Jump to" }).waitFor({ timeout: 3000 }).catch(() => {});
+    await pg2.keyboard.type("G-Man");
+    await pg2.waitForTimeout(400);
+    await pg2.keyboard.press("Enter");
+    await pg2.waitForTimeout(1500);
+    await canvas(pg2).focus();
+    await pg2.keyboard.press("Enter");
+    await pg2.locator(".agent-card").waitFor({ timeout: 3000 }).catch(() => {});
+    await pg2.waitForFunction(() => /Chat\s*last message/.test(document.querySelector(".agent-card")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
+    const gmanCard = (await pg2.locator(".agent-card").innerText().catch(() => "")).replace(/\s+/g, " ");
+    ok("chat (key road, round 24): G-Man's card says the thread's own facts from the host (last message just now, 1 unread) above its answer", /Chat\s*last message (just now|\d+ min ago), 1 unread/.test(gmanCard) && /Busy and calm/.test(gmanCard), gmanCard.replace(/^.*?ANSWERS/, "ANSWERS").slice(0, 240));
+    await shot(pg2, "58b-chat-key-card-thread");
+    for (let i = 0; i < 3; i++) {
+      await pg2.keyboard.press("Escape");
+      await pg2.waitForTimeout(300);
+    }
     // Round 14: an agent inside a building answers (the fake's sendDm: the person writes to cr-lead, in the lead's office
     // of CrewHub World, and its scripted reply comes 8 s later). From the town the figure inside is not drawn, so a chat
     // mark stands over the building (in one row with the pin when the building has one), the text view carries the
