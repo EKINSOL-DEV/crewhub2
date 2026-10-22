@@ -1568,13 +1568,14 @@ await group("town", async () => {
     await first.locator(".restore-sheet").getByRole("button", { name: "Restore", exact: true }).click();
     await first.waitForTimeout(1500);
     const afterRestore = await first.request.get(`${liveOrigin}/world-api/town`).then((r) => r.json()).catch(() => null);
-    const note = (await first.locator(".settings-sheet").innerText().catch(() => "")).replace(/\s+/g, " ");
+    const restoreNote = (await first.locator(".settings-sheet").innerText().catch(() => "")).replace(/\s+/g, " ");
     await first.keyboard.press("Escape");
     await second.waitForTimeout(2000);
-    const secondSees = await zoneLines(second);
+    // The renamed zone no longer matches the "Zone n" filter: every hand-made zone line of the second browser is read.
+    const secondSees = (await text(second)).split("\n").filter((l) => /\(made by hand/.test(l));
     ok(
       "town: the confirmed restore is the next revision on the host, named Harbour in the other browser too, and Undo is offered",
-      afterRestore?.rev === current.rev + 1 && (afterRestore?.document?.zones ?? []).some((z) => z.name === "Harbour") && afterRestore?.canUndo === true && /Restored from harbour\.json/.test(note) && secondSees.some((l) => l.startsWith("Harbour (")),
+      afterRestore?.rev === current.rev + 1 && (afterRestore?.document?.zones ?? []).some((z) => z.name === "Harbour") && afterRestore?.canUndo === true && /Restored from harbour\.json/.test(restoreNote) && secondSees.some((l) => l.startsWith("Harbour (")),
       `rev ${current.rev} → ${afterRestore?.rev}; canUndo ${afterRestore?.canUndo}; second sees ${secondSees.map((l) => l.slice(0, 9)).join(", ")}`,
     );
   } finally {
