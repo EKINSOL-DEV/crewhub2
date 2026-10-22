@@ -78,18 +78,18 @@ test("chatWords: one story per road, the same words for the Connection panel, th
 
 test("chatGlance: the Chat panel's one line to act on, per road and per none case, short, one story with chatWords", () => {
   assert.equal(chatGlance(KEY), "Sign in to crewhub-loops below to type; the answers come as bubbles without it.");
-  assert.equal(chatGlance(PAGE), "Sign in to crewhub-loops below to type; the answers come as bubbles too: this page reads your own chat.");
-  assert.equal(chatGlance(NONE("unknown")), "Sign in to crewhub-loops below to type; no bubbles here: a viewer key, or the world's origin set on crewhub-loops, would read the chat.");
-  assert.equal(chatGlance(NONE("signed-out")), "Sign in to crewhub-loops below to type; signed in, the answers come as bubbles too: this page reads your own chat.");
-  assert.equal(chatGlance(NONE("origin-not-set")), "Sign in to crewhub-loops below to type; no bubbles here: set CHL_WORLD_ORIGIN=http://127.0.0.1:5180 on crewhub-loops, or make a viewer key.");
-  assert.equal(chatGlance(NONE("unreachable")), "Sign in to crewhub-loops below to type; no bubbles here: this page cannot reach crewhub-loops; a viewer key would read the chat.");
-  for (const v of [KEY, PAGE, ...NONE_PROBES.map(NONE)]) {
+  assert.equal(chatGlance(PAGE), "Sign in to crewhub-loops below to type; the answers come as bubbles: this page reads your own chat.");
+  assert.equal(chatGlance(NONE("unknown")), "Sign in to crewhub-loops below to type; no bubbles: a viewer key or the world's origin would read the chat.");
+  assert.equal(chatGlance(NONE("signed-out")), "Sign in to crewhub-loops below to type; signed in, the answers come as bubbles: this page reads your chat.");
+  assert.equal(chatGlance(NONE("origin-not-set")), "Sign in to crewhub-loops below to type; no bubbles: the world's origin is not set on crewhub-loops (see About).");
+  assert.equal(chatGlance(NONE("unreachable")), "Sign in to crewhub-loops below to type; no bubbles: this page cannot reach crewhub-loops (see About).");
+  for (const v of [KEY, PAGE, ...NONE_PROBES.map(NONE), view(false, "origin-not-set", "http://localhost:51234")]) {
     const line = chatGlance(v);
-    assert.ok(line.length <= 150, `short (${v.road}/${v.pageProbe}): ${line.length} characters`);
+    assert.ok(line.length <= 112, `two lines of the panel (${v.road}/${v.pageProbe}): ${line.length} characters`);
     assert.match(line, /^Sign in to crewhub-loops below to type;/, "typing always needs loops' own sign-in in the frame");
     const bubbles = v.road !== "none" || v.pageProbe === "signed-out";
     assert.equal(/come as bubbles/.test(line), bubbles, `bubbles where a road is open or one sign-in away (${v.road}/${v.pageProbe})`);
-    assert.equal(/no bubbles here/.test(line), !bubbles, `one story with chatWords: ${chatWords(v).bubbles.slice(0, 40)}`);
+    assert.equal(/no bubbles/.test(line), !bubbles, `one story with chatWords: ${chatWords(v).bubbles.slice(0, 40)}`);
   }
 });
 

@@ -120,21 +120,22 @@ export function chatWordsLine(view: ChatRoadView): string {
 /**
  * The Chat panel's one line to act on (round 17): the one thing the person must do on this road, under "crewhub-loops'
  * own chat, framed here". Typing always needs loops' own sign-in in the frame; the bubbles' side is one clause by the
- * road. Short: at most two lines of the panel. The whole story (`chatWordsLine`) stays behind "About this chat".
+ * road. Short: at most two lines of the panel (about 110 characters), so the exact origin setting is not in it; the
+ * whole story with the value (`chatWordsLine`) stays behind "About this chat".
  */
 export function chatGlance(view: ChatRoadView): string {
   const head = "Sign in to crewhub-loops below to type;";
   if (view.road === "key") return `${head} the answers come as bubbles without it.`;
-  if (view.road === "page") return `${head} the answers come as bubbles too: this page reads your own chat.`;
+  if (view.road === "page") return `${head} the answers come as bubbles: this page reads your own chat.`;
   switch (view.pageProbe) {
     case "signed-out":
-      return `${head} signed in, the answers come as bubbles too: this page reads your own chat.`;
+      return `${head} signed in, the answers come as bubbles: this page reads your chat.`;
     case "origin-not-set":
-      return `${head} no bubbles here: set ${worldOriginSetting(view.pageOrigin)} on crewhub-loops, or make a viewer key.`;
+      return `${head} no bubbles: the world's origin is not set on crewhub-loops (see About).`;
     case "unreachable":
-      return `${head} no bubbles here: this page cannot reach crewhub-loops; a viewer key would read the chat.`;
+      return `${head} no bubbles: this page cannot reach crewhub-loops (see About).`;
     default:
-      return `${head} no bubbles here: a viewer key, or the world's origin set on crewhub-loops, would read the chat.`;
+      return `${head} no bubbles: a viewer key or the world's origin would read the chat.`;
   }
 }
 
