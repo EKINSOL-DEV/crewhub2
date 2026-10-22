@@ -5,7 +5,7 @@
    Origins: the footprint centre on the ground; the front faces +z. A building stands at the back of its footprint and
    leaves the front open as a forecourt (post office: 8 x 8 with z 1..4 open; town hall: 9 x 9 with z 1.5..4.5 open). */
 import * as THREE from "three";
-import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+import { staticPartsOf } from "@crewhub/world-style";
 import { put, type Kit, type Swatch } from "./kit.ts";
 import { lamp, plant } from "./furniture.ts";
 import { wedgeGeometry } from "./parts.ts";
@@ -35,42 +35,146 @@ function spot(g: THREE.Group, life: "steam" | "window", x: number, y: number, z:
   g.add(marker);
 }
 
-/** The life spots under `root`, in its frame. */
+/** The life spots under `root`, in its frame (a model's parts as data are not walked: a part carries no spot). */
 function spots(root: THREE.Group): Spot[] {
   root.updateMatrixWorld(true);
   const out: Spot[] = [];
-  root.traverse((o) => {
-    if (typeof o.userData.life !== "string") return;
-    const position = new THREE.Vector3(),
-      quaternion = new THREE.Quaternion();
-    o.matrixWorld.decompose(position, quaternion, new THREE.Vector3());
-    out.push({ life: o.userData.life, position, quaternion });
-  });
+  const visit = (o: THREE.Object3D) => {
+    if (typeof o.userData.life === "string") {
+      const position = new THREE.Vector3(),
+        quaternion = new THREE.Quaternion();
+      o.matrixWorld.decompose(position, quaternion, new THREE.Vector3());
+      out.push({ life: o.userData.life, position, quaternion });
+    }
+    for (const child of staticPartsOf(o)?.rawChildren ?? o.children) visit(child);
+  };
+  visit(root);
   return out;
 }
 
-/** Merges the static meshes under `root` per material; the geometries live in the kit, so they go with it. */
-function bake(kit: Kit, name: string, root: THREE.Group): Baked[] {
+/** What the bake takes: a static mesh, or a part a model holds as data, with the world matrix its mesh has or would have. */
+interface BakeSource {
+  geometry: THREE.BufferGeometry;
+  material: THREE.Material;
+  matrixWorld: THREE.Matrix4;
+}
+const BAKED = ["position", "normal", "uv"];
+
+/**
+ * The static meshes under `root` in traversal order, and a model's parts as data read as data (`StaticParts`,
+ * world-style) without making their meshes, each part with its holder's world matrix times its own, the matrix an
+ * update gives the mesh. `root.updateMatrixWorld(true)` first. Instanced meshes and material lists are left out.
+ */
+function bakeSources(root: THREE.Object3D): BakeSource[] {
+  const out: BakeSource[] = [];
+  const visit = (o: THREE.Object3D) => {
+    const holder = staticPartsOf(o);
+    if (holder) for (const part of holder.staticParts) out.push({ geometry: part.geometry, material: part.material, matrixWorld: new THREE.Matrix4().multiplyMatrices(holder.matrixWorld, part.matrix) });
+    else if (o instanceof THREE.Mesh && !(o instanceof THREE.InstancedMesh) && !Array.isArray(o.material)) out.push({ geometry: o.geometry, material: o.material, matrixWorld: o.matrixWorld });
+    for (const child of holder ? holder.rawChildren : o.children) visit(child);
+  };
+  visit(root);
+  return out;
+}
+
+/** A plain attribute: its own typed array, one value per component (not interleaved, not normalized). */
+const plain = (attribute: THREE.BufferAttribute | THREE.InterleavedBufferAttribute | undefined): attribute is THREE.BufferAttribute => attribute instanceof THREE.BufferAttribute && !attribute.normalized;
+const normalMatrix = new THREE.Matrix3();
+
+/**
+ * One non-indexed geometry of `sources`, in order: each source's vertices unrolled by its index, its positions
+ * transformed by its matrix and its normals by the normal matrix (normalised), its uv copied (zeros for a source
+ * without), its other attributes left behind. The same arithmetic in the same order as `toNonIndexed`,
+ * `BufferGeometry.applyMatrix4` (`Vector3.applyMatrix4`, `applyNormalMatrix`) and `mergeGeometries` gave, so the
+ * result is theirs to the bit (the parity test holds them side by side), without a copy per source and then a copy
+ * per merge, a `Vector3` call per vertex, or a mesh made of every part a prop holds as data. A source whose
+ * attributes are not plain, or that has no normals, takes the old road (`unrolled`): none of the kit's does.
+ */
+export function bakeGeometry(sources: readonly BakeSource[]): THREE.BufferGeometry {
+  const geometry = new THREE.BufferGeometry();
+  if (sources.length === 0) return geometry;
+  let vertices = 0;
+  for (const { geometry: g } of sources) vertices += g.index ? g.index.count : g.attributes.position!.count;
+  const position = new Float32Array(vertices * 3);
+  const normal = new Float32Array(vertices * 3);
+  const uv = new Float32Array(vertices * 2);
+  let at = 0;
+  for (const source of sources) {
+    const g = source.geometry;
+    const sourcePosition = g.attributes.position;
+    const sourceNormal = g.attributes.normal;
+    const sourceUv = g.attributes.uv;
+    if (!plain(sourcePosition) || sourcePosition.itemSize !== 3 || !plain(sourceNormal) || sourceNormal.itemSize !== 3 || (sourceUv !== undefined && (!plain(sourceUv) || sourceUv.itemSize !== 2))) {
+      at += unrolled(source, position, normal, uv, at);
+      continue;
+    }
+    const e = source.matrixWorld.elements;
+    const n = normalMatrix.getNormalMatrix(source.matrixWorld).elements;
+    const index = g.index ? g.index.array : null;
+    const count = index ? index.length : sourcePosition.count;
+    const from = sourcePosition.array as ArrayLike<number>;
+    const fromNormal = sourceNormal.array as ArrayLike<number>;
+    const fromUv = sourceUv ? (sourceUv.array as ArrayLike<number>) : null;
+    for (let i = 0; i < count; i++) {
+      const v = (index ? index[i]! : i) * 3;
+      const o = (at + i) * 3;
+      const x = from[v]!, y = from[v + 1]!, z = from[v + 2]!;
+      const w = 1 / (e[3]! * x + e[7]! * y + e[11]! * z + e[15]!);
+      position[o] = (e[0]! * x + e[4]! * y + e[8]! * z + e[12]!) * w;
+      position[o + 1] = (e[1]! * x + e[5]! * y + e[9]! * z + e[13]!) * w;
+      position[o + 2] = (e[2]! * x + e[6]! * y + e[10]! * z + e[14]!) * w;
+      const nx = fromNormal[v]!, ny = fromNormal[v + 1]!, nz = fromNormal[v + 2]!;
+      const tx = n[0]! * nx + n[3]! * ny + n[6]! * nz;
+      const ty = n[1]! * nx + n[4]! * ny + n[7]! * nz;
+      const tz = n[2]! * nx + n[5]! * ny + n[8]! * nz;
+      const scale = 1 / (Math.sqrt(tx * tx + ty * ty + tz * tz) || 1);
+      normal[o] = tx * scale;
+      normal[o + 1] = ty * scale;
+      normal[o + 2] = tz * scale;
+      if (fromUv) {
+        const t = (index ? index[i]! : i) * 2;
+        uv[(at + i) * 2] = fromUv[t]!;
+        uv[(at + i) * 2 + 1] = fromUv[t + 1]!;
+      }
+    }
+    at += count;
+  }
+  // The attributes in the order the merge used to give them: the first source's, then what it lacked (uv, then normal).
+  const order = Object.keys(sources[0]!.geometry.attributes).filter((name) => BAKED.includes(name));
+  if (!order.includes("uv")) order.push("uv");
+  if (!order.includes("normal")) order.push("normal");
+  const arrays: Record<string, [Float32Array, number]> = { position: [position, 3], normal: [normal, 3], uv: [uv, 2] };
+  for (const name of order) geometry.setAttribute(name, new THREE.Float32BufferAttribute(arrays[name]![0], arrays[name]![1]));
+  return geometry;
+}
+
+/** The old road for one source: a non-indexed copy, its extra attributes dropped, uv and normals filled in, transformed. */
+function unrolled(source: BakeSource, position: Float32Array, normal: Float32Array, uv: Float32Array, at: number): number {
+  const copy = source.geometry.index ? source.geometry.toNonIndexed() : source.geometry.clone();
+  for (const attribute of Object.keys(copy.attributes)) if (!BAKED.includes(attribute)) copy.deleteAttribute(attribute);
+  if (!copy.attributes.uv) copy.setAttribute("uv", new THREE.Float32BufferAttribute(new Float32Array(copy.attributes.position!.count * 2), 2));
+  if (!copy.attributes.normal) copy.computeVertexNormals();
+  copy.applyMatrix4(source.matrixWorld);
+  const count = copy.attributes.position!.count;
+  position.set(copy.attributes.position!.array as ArrayLike<number>, at * 3);
+  normal.set(copy.attributes.normal!.array as ArrayLike<number>, at * 3);
+  uv.set(copy.attributes.uv!.array as ArrayLike<number>, at * 2);
+  copy.dispose();
+  return count;
+}
+
+/** Merges the static meshes under `root` per material (`bakeGeometry`); the geometries live in the kit, so they go with it. */
+export function bake(kit: Kit, name: string, root: THREE.Group): Baked[] {
   root.updateMatrixWorld(true);
-  const byMaterial = new Map<THREE.Material, THREE.BufferGeometry[]>();
-  root.traverse((o) => {
-    if (!(o instanceof THREE.Mesh) || o instanceof THREE.InstancedMesh || Array.isArray(o.material)) return;
-    const source = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
-    for (const attribute of Object.keys(source.attributes)) if (!["position", "normal", "uv"].includes(attribute)) source.deleteAttribute(attribute);
-    if (!source.attributes.uv) source.setAttribute("uv", new THREE.Float32BufferAttribute(new Float32Array(source.attributes.position!.count * 2), 2));
-    if (!source.attributes.normal) source.computeVertexNormals();
-    source.applyMatrix4(o.matrixWorld);
-    const list = byMaterial.get(o.material) ?? [];
-    list.push(source);
-    byMaterial.set(o.material, list);
-  });
+  const byMaterial = new Map<THREE.Material, BakeSource[]>();
+  for (const source of bakeSources(root)) {
+    const list = byMaterial.get(source.material);
+    if (list) list.push(source);
+    else byMaterial.set(source.material, [source]);
+  }
   const baked: Baked[] = [];
   let i = 0;
-  for (const [material, geometries] of byMaterial) {
-    const geometry = kit.geometry(`civic:${name}:${i++}`, () => mergeGeometries(geometries, false) ?? new THREE.BufferGeometry());
-    for (const g of geometries) g.dispose();
-    baked.push({ geometry, material });
-  }
+  for (const [material, sources] of byMaterial) baked.push({ geometry: kit.geometry(`civic:${name}:${i++}`, () => bakeGeometry(sources)), material });
   return baked;
 }
 
