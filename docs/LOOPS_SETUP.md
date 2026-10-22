@@ -143,7 +143,8 @@ only (`apps/host/src/allowList.ts`; every other method is 405 and never reaches 
 key is never in a response, a log or the bundle. Never paste the key into a browser page or a shared file. A viewer
 key that cannot write is proposal L1 for crewhub-loops ([gap analysis](LOOPS_GAP_ANALYSIS.md), section 6.1), worked
 out on the loops branch `world/viewer-key` and packaged for `cl-lead` in `docs/proposals/crewhub-world-viewer.md`
-there (round 7); until it lands this is the credential.
+there (round 7); it landed in crewhub-loops main (#959), and until the Mac app carries that loops this is the
+credential there.
 
 **The viewer key** (decision 1 of 21 October; built on `task/r19-viewer-switch` in round 19 and on this branch since
 round 28; crewhub-loops main carries the viewer key since #959). The switch is a new key file or a new paste, nothing else:
