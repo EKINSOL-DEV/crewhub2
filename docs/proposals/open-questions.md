@@ -38,7 +38,8 @@ the stream's cursor, loops' version, the checkout id and the trusted dev origins
 read it (a web page cannot). It is reconnaissance only. The reviewer's shape: keep the fields the dev server's probe
 needs (`loops`, `checkout`, an empty `keyName`) and blank the rest until paired.
 **Options.** `less`: that shape. `as-is`.
-**Recommendation:** none in the reports (kept as a question). **Default:** `as-is`.
+**Recommendation (the Lead, round 30):** `less`: the spec of the smooth connection already says that before pairing
+health shows the states and nothing else, and the dev probe keeps what it needs. **Default:** `as-is`.
 **Answer:** `3: less / as-is`
 
 ## 4. The dev-origin route, now that the switch has landed (round 26)
@@ -49,7 +50,8 @@ The older way, `npm run host -- open --origin http://127.0.0.1:5173`, proves the
 question was asked for after the viewer-key switch; the switch is on `feat/world-demo` since round 28, so it is live.
 **Options.** `keep`: the route stays. `remove`: the route goes and `npm run dev` beside a host needs the `open --origin`
 command or `CREWHUB_WORLD_ALLOWED_ORIGINS` once.
-**Recommendation:** none in the reports. **Default:** `keep`.
+**Recommendation (the Lead, round 30):** `keep`: it works with no setup and proves the same user since round 26;
+removing it brings back a command or an env for every `npm run dev`. **Default:** `keep`.
 **Answer:** `4: keep / remove`
 
 ## 5. The tour's first card comes 1.5 s after the town stands (rounds 21 and 22)
@@ -58,7 +60,8 @@ command or `CREWHUB_WORLD_ALLOWED_ORIGINS` once.
 phone at 4x the town stands at 1.3 s and the card at 1.95 s; on a desktop at 1.6 s. The phone pass said shortening it
 is a design call.
 **Options.** `1.5`: as it is. `<seconds>`: another beat (0 is at once).
-**Recommendation:** none in the reports. **Default:** 1.5 s.
+**Recommendation (the Lead, round 30):** `1.5`: a deliberate beat that lets the town be seen first, and no one has
+reported it as slow. **Default:** 1.5 s.
 **Answer:** `5: 1.5 / <seconds>`
 
 ## 6. Should build mode wait until the host's town has loaded? (round 27)
@@ -68,7 +71,8 @@ be on its way. Since round 27 an edit made on a town the host has since replaced
 stale town written over the host's, so no work is lost. What remains is the moment itself: the review proposed a Build
 button disabled with "reading the host's town…" until the host's revision is known.
 **Options.** `wait`: that disabled button. `at-once`: as it is.
-**Recommendation:** none in the reports. **Default:** `at-once`.
+**Recommendation (the Lead, round 30):** `at-once`: since round 27 no edit is lost and a conflict is said plainly; a
+disabled Build button is friction on every live load. **Default:** `at-once`.
 **Answer:** `6: wait / at-once`
 
 ## 7. The Connect and Pair screens over the scene, or in its place (round 27)
@@ -77,7 +81,8 @@ button disabled with "reading the host's town…" until the host's revision is k
 again from the home camera afterwards, and a person inside a building sees the flight repeated: a judder, not an error.
 A screen standing over a kept scene would keep the camera and the layout; the cost is a scene running behind a screen.
 **Options.** `over`: the screen over the scene. `replace`: as it is.
-**Recommendation:** none in the reports. **Default:** `replace`.
+**Recommendation (the Lead, round 30):** `replace`: the judder comes only on a re-pair, which is rare; a scene behind
+a screen costs on every screen. **Default:** `replace`.
 **Answer:** `7: over / replace`
 
 ## 8. Offline editing in two tabs of one browser (round 27)
@@ -87,7 +92,8 @@ records interleave; on reload the mixed chain is skipped with a note. With the h
 history rules. Nothing says today that offline editing is per tab.
 **Options.** `support`: the tabs tell each other (a storage event or a BroadcastChannel) and reload the local history.
 `say`: the rule "one tab edits while the host is away", written where the offline note shows. `as-is`.
-**Recommendation:** none in the reports. **Default:** `as-is`.
+**Recommendation (the Lead, round 30):** `say`: one sentence where the offline note shows; the case is rare and
+support is real work for little. **Default:** `as-is`.
 **Answer:** `8: support / say / as-is`
 
 ## 9. The chat's road 2: one poller per tab (round 29)
@@ -97,7 +103,8 @@ to the page's origin), each open world tab polls loops every 5 s while shown and
 three tabs are two or three pollers of the same conversation. Road 1 (the host's viewer key) is one stream for every tab.
 **Options.** `accept`: as it is (the hidden-tab rule already does most of the saving). `one-tab`: only one tab polls, by
 a BroadcastChannel lock.
-**Recommendation:** none in the reports. **Default:** `accept`.
+**Recommendation (the Lead, round 30):** `accept`: hidden tabs already poll once a minute, and a lock adds a moving
+part. **Default:** `accept`.
 **Answer:** `9: accept / one-tab`
 
 ## 10. Should the stream itself carry the host's chat word? (round 29, half answered)
@@ -107,7 +114,8 @@ and the page re-reads health when the stream goes live or the key's word changes
 page down the wrong road. What remains: the stream's `status` message could carry the chat word itself, so the road
 follows the stream and never a read.
 **Options.** `stream`: the status carries it. `re-read`: as it is.
-**Recommendation:** none in the reports. **Default:** `re-read`.
+**Recommendation (the Lead, round 30):** `re-read`: round 29 closed the real hole; a stream-carried word saves one
+GET at moments that are rare. **Default:** `re-read`.
 **Answer:** `10: stream / re-read`
 
 ## 11. Say "since this page opened" on Recent answers (round 29)
@@ -116,7 +124,8 @@ follows the stream and never a read.
 open is not in Recent answers, which can read as a bug. The list already says "The last 10 answers this page saw …
 while the page is open and nothing longer", but behind "About this chat" and in the text view, not on the block.
 **Options.** `show`: the words on the block itself (its heading or its empty line). `as-is`.
-**Recommendation:** none in the reports. **Default:** `as-is`.
+**Recommendation (the Lead, round 30):** `show`: one short line on the block prevents a missed answer from reading
+as a bug, and it is cheap. **Default:** `as-is`.
 **Answer:** `11: show / as-is`
 
 ## 12. The Connection panel's Chat section is below the fold (round 29)
