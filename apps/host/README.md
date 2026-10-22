@@ -47,7 +47,7 @@ smooth connection" below):
   `chat` stream message. Where the key reads the chat (below), the threads' own facts reach the tabs too (round 24): a `threads` stream
   message with, per agent, `lastMessageAt` and `unreadCount` from `GET /api/dm/threads`, sent whole when a tab attaches and again after a
   `dm.*` event the key's stream sees (read once more, at most once a second; never polled otherwise), for the agent card's
-  "last message in the chat 2 h ago, 1 unread". `connection.session` says `signed-out`, `signed-in` (with the name for paired browsers), `expired`, or `key`: this
+  "last message in the chat 2 h ago, 1 unread in the owner's view" (the count is the installation owner's, by loops' viewer rule: the only road the list travels). `connection.session` says `signed-out`, `signed-in` (with the name for paired browsers), `expired`, or `key`: this
   loops lets the world's key read the chat (a viewer key, L1: its own entry in `GET /api/agents` says `viewer: true` and `GET /api/dm/threads` answers 200), so the bubbles come over the key's own
   stream and a sign-in is refused as not needed (409). Planned (decision 9) and written on `task/r19-viewer-switch` (round 19): once crewhub-loops main carries
   `world/viewer-key` (on origin under `cl-lead`'s review) that branch merges and the session road goes with it (`src/session.ts`, its file, the `/world-api/session` routes, the panel's
