@@ -102,6 +102,26 @@ describe("the world database", () => {
   });
 });
 
+describe("the world database's history cap (review F7)", () => {
+  it("drops the oldest revisions before the current one when the history passes the byte cap, and never the current one", async () => {
+    const { HISTORY_MAX_BYTES, capHistory } = await import("../src/worldDb.ts");
+    const doc = (n: number, size: number) => ({ format: "crewhub-town/1", revision: n, styleId: "greenhouse", plots: [], placements: [], userProps: [], rules: {}, note: "x".repeat(size) }) as never;
+    const third = Math.ceil(HISTORY_MAX_BYTES / 3);
+    const history = { entries: [doc(1, third), doc(2, third), doc(3, third), doc(4, third)], index: 3 };
+    const capped = capHistory(history);
+    assert.ok(JSON.stringify(capped).length <= HISTORY_MAX_BYTES);
+    assert.equal(capped.index, capped.entries.length - 1);
+    assert.equal((capped.entries[capped.index] as { revision: number }).revision, 4, "the current one stays");
+    assert.ok(capped.entries.length < 4 && capped.entries.length >= 1);
+    // The cursor in the middle: the entries after it go first? No: the oldest before it go first; those after only when nothing is left before.
+    const mid = capHistory({ entries: [doc(1, third), doc(2, third), doc(3, third), doc(4, third)], index: 1 });
+    assert.equal((mid.entries[mid.index] as { revision: number }).revision, 2);
+    assert.ok(JSON.stringify(mid).length <= HISTORY_MAX_BYTES);
+    const small = { entries: [doc(1, 10), doc(2, 10)], index: 1 };
+    assert.equal(capHistory(small), small, "under the cap: the same object");
+  });
+});
+
 describe("the world database's history (round 21)", () => {
   it("keeps the undo history: a commit, an undo, a redo, an amend, each over its base revision; a step that cannot be taken changes nothing", () => {
     const dir = temp();

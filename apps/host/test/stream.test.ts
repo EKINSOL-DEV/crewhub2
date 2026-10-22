@@ -260,3 +260,45 @@ async function createLoopsStubWithPort(port: number, options: Parameters<typeof 
     return null;
   }
 }
+
+describe("the stream's tab cap and the snapshot's own failures (round 26)", () => {
+  it("holds at most MAX_TABS tabs; the next one is 503 too_many_tabs and the rest go on (review N3)", async () => {
+    const { MAX_TABS } = await import("../src/host.ts");
+    const stub = await createLoopsStub({ ...installation() });
+    const host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, log: () => undefined });
+    const tabs: { close(): void }[] = [];
+    try {
+      for (let i = 0; i < MAX_TABS; i++) tabs.push(await openSse(`${host.url}/world-api/stream?cursor=0`));
+      const next = await fetch(`${host.url}/world-api/stream?cursor=0`);
+      assert.equal(next.status, 503);
+      assert.equal(((await next.json()) as { error: string }).error, "too_many_tabs");
+      tabs.pop()!.close();
+      await waitFor("a slot free", async () => (await fetch(`${host.url}/world-api/stream?cursor=0`, { signal: AbortSignal.timeout(500) }).then((r) => (r.body?.cancel(), r.status)).catch(() => 0)) === 200);
+    } finally {
+      for (const tab of tabs) tab.close();
+      await host.close();
+      await stub.close();
+    }
+  });
+
+  it("a snapshot that fails for a reason of the host's own (a remembered slug no allow-list takes) says snapshot_failed, never loops_down (review F8)", async () => {
+    const stub = await createLoopsStub({ ...installation() });
+    const lines: string[] = [];
+    // A store that hands back a slug the file's own filter would have dropped: what an older file, or a bug, could do.
+    const archiveStore = { file: "(memory)", read: () => ({ slugs: ["a/b"], at: "2026-10-22T00:00:00Z" }), save: () => undefined };
+    const host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, archiveStore, log: (line) => lines.push(line) });
+    try {
+      await waitFor("the stream", async () => ((await (await fetch(`${host.url}/world-api/health`)).json()) as { loops: string }).loops === "ok");
+      const r = await fetch(`${host.url}/world-api/snapshot`);
+      assert.equal(r.status, 503);
+      const body = (await r.json()) as { error: string; message?: string };
+      assert.equal(body.error, "snapshot_failed");
+      assert.match(body.message ?? "", /allow-list/);
+      assert.ok(lines.some((l) => /snapshot failed: snapshot_failed: .*allow-list/.test(l)), lines.filter((l) => /snapshot/.test(l)).join(" | "));
+      assert.equal(((await (await fetch(`${host.url}/world-api/health`)).json()) as { loops: string }).loops, "ok", "loops is fine and health says so");
+    } finally {
+      await host.close();
+      await stub.close();
+    }
+  });
+});

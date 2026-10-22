@@ -12,6 +12,7 @@
 import { createHash } from "node:crypto";
 import { realpathSync } from "node:fs";
 import path from "node:path";
+import { readRunFile } from "./runFile.ts";
 
 export const CHECKOUT_ID_LENGTH = 12;
 
@@ -51,7 +52,7 @@ export async function probeCheckout(port: number, timeoutMs = 1500): Promise<Hos
 }
 
 /** What the host said when the dev server told it an origin (`POST /world-api/dev-origin`, devOrigin.ts). */
-export type TellOutcome = { kind: "accepted"; origins: string[] } | { kind: "refused"; status: number; message: string } | { kind: "no-route" } | { kind: "silent" };
+export type TellOutcome = { kind: "accepted"; origins: string[] } | { kind: "refused"; status: number; message: string } | { kind: "no-route" } | { kind: "no-run-file" } | { kind: "silent" };
 
 /** The outcome from a status and body: 200 accepted, 404 or 405 an older host without the route, else refused with its words. */
 export function tellOutcome(status: number, body: unknown): TellOutcome {
@@ -61,13 +62,18 @@ export function tellOutcome(status: number, body: unknown): TellOutcome {
   return { kind: "refused", status, message: typeof record["message"] === "string" ? record["message"] : `status ${status}` };
 }
 
-/** Tells the host on `port` the dev server's origin, as this checkout (loopback only, no Origin header: a program's request). */
-export async function tellDevOrigin(port: number, origin: string, checkout: string, timeoutMs = 1500): Promise<TellOutcome> {
+/**
+ * Tells the host on `port` the dev server's origin, as this checkout and this user (loopback only, no Origin header: a
+ * program's request; the run file's secret in the mint header, round 26). Without a readable run file the host cannot
+ * be told: `{ kind: "no-run-file" }`, and the dev server says so.
+ */
+export async function tellDevOrigin(port: number, origin: string, checkout: string, timeoutMs = 1500, secret: string | null = readRunFile(port)?.mintSecret ?? null): Promise<TellOutcome> {
+  if (secret === null) return { kind: "no-run-file" };
   try {
     const response = await fetch(`http://127.0.0.1:${port}/world-api/dev-origin`, {
       method: "POST",
       signal: AbortSignal.timeout(timeoutMs),
-      headers: { "content-type": "application/json", accept: "application/json" },
+      headers: { "content-type": "application/json", accept: "application/json", "x-crewhub-world-mint": secret },
       body: JSON.stringify({ origin, checkout }),
     });
     let body: unknown = null;

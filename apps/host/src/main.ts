@@ -38,7 +38,7 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { chmodSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildWorld, checkBuild } from "./build.ts";
@@ -51,6 +51,7 @@ import { nodeWarningLine, runningNodeVersion } from "./nodeVersion.ts";
 import { type HostStep, MINT_HEADER, MINT_PATH, createHost } from "./host.ts";
 import { createStepPrinter, instructionLine, seconds, stepLine as formatStep } from "./steps.ts";
 import { createKeyStore } from "./keyStore.ts";
+import { runFilePath } from "./runFile.ts";
 import { explainSqliteWarning, openWorldDb, type WorldDb } from "./worldDb.ts";
 import { loadPairingSecret } from "./pairing.ts";
 
@@ -101,8 +102,8 @@ function parseArgs(argv: string[]): Args {
   return args;
 }
 
-/** The run file: the mint secret of the host on this port, mode 0600, in the user's temp folder; removed at exit. */
-const runFile = (port: number) => path.join(tmpdir(), `crewhub-world-host-${port}.json`);
+/** The run file: the mint secret of the host on this port, mode 0600, in the user's temp folder; removed at exit (runFile.ts). */
+const runFile = runFilePath;
 
 /** Asks a host that already runs on the port for a link; null when none answers with that secret. */
 async function mintFromRunning(port: number, origin: string | null): Promise<string | null> {

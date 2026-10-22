@@ -7,6 +7,8 @@
 
 /** A path segment of a loops ref or slug: a ticket key (`CL-85`, `CL-111.2`), an id (`tk_…`), a slug. */
 const SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+/** Whether a string is one path segment of a loops ref or slug (the shape every remembered slug must have, review F8). */
+export const isSegment = (value: unknown): value is string => typeof value === "string" && SEGMENT.test(value);
 
 /** Query parameters a browser may pass through, per route kind. */
 const PAGE_QUERY = ["limit", "cursor"] as const;
