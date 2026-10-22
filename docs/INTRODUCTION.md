@@ -133,7 +133,9 @@ in SQLite through Node 24's `node:sqlite` (`world.db` in its own folder, 0600; m
 `world.db.bak-v<n>` copy before each schema change, an export), so every paired browser sees one town and a host
 restart keeps it (`apps/host/src/worldDb.ts`, `apps/world/src/state/hostTown.ts`); the Connection panel's Town row,
 Settings > Town, build mode and the text view say "Kept by the world's host for this crewhub-loops, shared by every
-paired browser" with the revision, or "Kept in this browser until the host is back". The browser's own town is
+paired browser" with the revision, or "Kept in this browser until the host is back. One tab edits while the host is
+away: two tabs of this browser would mix one local history" (the rule since round 31: offline edits share one local
+history per browser, so two tabs would interleave; with the host up the host's history rules). The browser's own town is
 imported once into a host that has none, never over one it has; the demo's town stays in the browser and never
 touches the host. The undo history is the host's too (round 21): an undo in one browser shows in every other and
 survives a restart, and a write made on a revision the host has left is a plain conflict, said so. Restore is never

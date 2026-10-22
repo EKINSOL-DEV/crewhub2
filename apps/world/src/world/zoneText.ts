@@ -30,21 +30,31 @@ export function zonesOriginWords(facts: { zones: readonly Pick<Zone, "source">[]
   const assigned = Object.keys(facts.assignments ?? {}).length;
   const kept = facts.kept ?? "browser";
   const where = kept === "host" ? "kept by the world's host for this crewhub-loops and shared by every paired browser" : kept === "offline" ? "kept in this browser until the host is back" : "kept in this browser, not shared with other browsers";
+  // Build mode's note while the host is away carries the one-tab rule too (round 31, question 8).
+  const rule = kept === "offline" ? ` ${OFFLINE_ONE_TAB}` : "";
   if (made === 0 && assigned === 0) {
-    return `none yet: every building stands in the one district. crewhub-loops has no project groups; districts are made by hand in build mode and ${where}.`;
+    return `none yet: every building stands in the one district. crewhub-loops has no project groups; districts are made by hand in build mode and ${where}.${rule}`;
   }
   const zones = made === 1 ? "1 zone" : `${made} zones`;
   const buildings = assigned === 1 ? "1 building assigned" : `${assigned} buildings assigned`;
   if (kept === "browser") return `${zones} ${ZONES_BY_HAND} (${buildings}).`;
-  return `${zones} made by hand, ${where}; crewhub-loops has no project groups (${buildings}).`;
+  return `${zones} made by hand, ${where}; crewhub-loops has no project groups (${buildings}).${rule}`;
 }
 
 /** Where a live town is kept right now: by the host (round 20), in this browser until the host is back, or in this browser only. */
 export type TownKeeping = "host" | "offline" | "browser";
 
+/**
+ * The rule while the host is away (round 31, question 8): two tabs of one browser would edit on one shared local
+ * history and their records interleave (the mixed chain is skipped with a note on reload); with the host up the host's
+ * history rules and this cannot happen. Said wherever the offline keeping words show: Settings > Town, the Connection
+ * panel's Town row, the text view and build mode's zones line.
+ */
+export const OFFLINE_ONE_TAB = "One tab edits while the host is away: two tabs of this browser would mix one local history.";
+
 /** The keeping words of a live town, from the store's storage: the Settings card, the Connection panel and the text view say the same. */
 export function townKeepingWords(kept: TownKeeping): string {
-  return kept === "host" ? "Kept by the world's host for this crewhub-loops, shared by every paired browser." : kept === "offline" ? "Kept in this browser until the host is back." : "Kept in this browser (IndexedDB).";
+  return kept === "host" ? "Kept by the world's host for this crewhub-loops, shared by every paired browser." : kept === "offline" ? `Kept in this browser until the host is back. ${OFFLINE_ONE_TAB}` : "Kept in this browser (IndexedDB).";
 }
 
 /** The text view's zone line of a live town's hand-made zone: `ZONES_BY_HAND` while the browser keeps it, the host's words once the host does. */

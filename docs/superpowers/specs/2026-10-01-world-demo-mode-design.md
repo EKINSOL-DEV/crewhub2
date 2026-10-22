@@ -1311,6 +1311,13 @@ host's archive memory and session stay files), a UI to delete the host's town.
 - **The demo's town is never the host's:** a demo page's runtime uses the browser's store only; tested.
 Still out: merging concurrent edits, a town per person, deleting the host's town.
 
+**Round 31 (answer branch `task/q8-offline-say`, question 8).** Offline, two tabs of one browser would edit on one
+shared local history and their records interleave (the mixed chain is skipped with a note on reload); with the host up
+the host's history rules. The rule is now said, one sentence, wherever the offline keeping words show (Settings >
+Town, the Connection panel's Town row, the text view, build mode's zones line): "One tab edits while the host is
+away: two tabs of this browser would mix one local history." (`zoneText.ts`, `OFFLINE_ONE_TAB`). Support (the tabs
+telling each other) stays out.
+
 ## Addendum: the agent card, live (2026-10-22, round 22)
 
 The card is the person's main way into an agent. Read against what crewhub-loops `4cdcd383` offers for **one agent**
