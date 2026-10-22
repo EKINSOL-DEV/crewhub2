@@ -171,6 +171,12 @@ function devHost(port: number, explicit: boolean, teller: DevOriginTeller): Plug
   };
 }
 
+/*
+ * The Host header on the way through the dev proxy (review N5): `changeOrigin: true` rewrites it to the host's own, so
+ * the host's own Host guard (421 for a foreign name) is not in play behind Vite. What stands there is Vite's own
+ * `server.allowedHosts` default (localhost, `*.localhost`, 127.0.0.1 and the like: a foreign name is 403 before the
+ * proxy), which this config leaves at its default on purpose; widening it would widen the DNS-rebinding surface.
+ */
 export default defineConfig(({ isPreview }) => {
   // The dev server defaults to the host's 5180; the preview proxies only to a port named in the environment.
   const plan = hostPortPlan(process.env, isPreview ? "preview" : "dev");

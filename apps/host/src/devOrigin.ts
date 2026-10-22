@@ -7,6 +7,9 @@
  *   - the request must come from a program on this machine, not a page: over loopback, with no `Origin` header (a
  *     browser always sends one on a POST) and a JSON content type (a page could not send it cross-origin without a
  *     preflight the host never answers);
+ *   - the program must be the same user (round 26, review F3): it sends the host's run file secret
+ *     (`$TMPDIR/crewhub-world-host-<port>.json`, mode 0600, as `open` does for the pairing link) in the mint header;
+ *     the checkout id alone is public in health and proves only the checkout;
  *   - the origin told must be a loopback http origin with a port (`http://127.0.0.1:<port>` or `localhost`, the two
  *     names the host answers to): never another host name, never https, never a wildcard;
  *   - the dev server must be this checkout's: the body carries the checkout id (`checkout.ts`, the same hash the host
@@ -45,9 +48,15 @@ export function devOriginVerdict(input: {
   remoteAddress: string | undefined;
   hostCheckout: string | undefined;
   known: ReadonlySet<string>;
+  /** Whether the request carried the run file's secret (the same-user proof, review F3); the host compares it. */
+  sameUser: boolean;
+  /** Whether this host has a run file secret at all (`npm run host` and `npm run world` do; a tool's in-process host may not). */
+  hasSecret: boolean;
 }): DevOriginVerdict {
   if (!isLoopbackAddress(input.remoteAddress)) return { ok: false, status: 403, error: "not_loopback", message: "The dev origin is told from a program on this machine only" };
   if (input.originHeader !== undefined) return { ok: false, status: 403, error: "not_a_program", message: "A page cannot tell the host its origin: this is for this checkout's dev server (npm run dev)" };
+  if (!input.hasSecret) return { ok: false, status: 404, error: "no_run_file", message: "This host has no run file, so no dev server can prove it is the same user; start the host with npm run host" };
+  if (!input.sameUser) return { ok: false, status: 403, error: "not_same_user", message: "The dev origin needs the host's run file secret in the x-crewhub-world-mint header (the dev server reads $TMPDIR/crewhub-world-host-<port>.json, 0600, as open does)" };
   if (!/^application\/json\b/i.test(input.contentType ?? "")) return { ok: false, status: 415, error: "json_required", message: "Send application/json" };
   if (input.body === null || typeof input.body !== "object") return { ok: false, status: 400, error: "bad_body", message: "Send {origin, checkout}" };
   const body = input.body as Record<string, unknown>;

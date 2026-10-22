@@ -870,12 +870,24 @@ export async function createHost(options: HostOptions): Promise<Host> {
 
   /**
    * `POST /world-api/dev-origin {origin, checkout}` (round 23, devOrigin.ts): this checkout's dev server tells the host
-   * the loopback origin it serves the page from, before the pairing gate (a program has no cookie). Accepted once
-   * per origin, with one log line; told again, silent.
+   * the loopback origin it serves the page from, before the pairing gate (a program has no cookie), with the run file's
+   * secret in the mint header as its proof of being the same user (round 26). Accepted once per origin, with one log
+   * line; told again, silent.
    */
   async function devOrigin(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const body = await readJsonBody(req, CONNECT_BODY_LIMIT);
-    const verdict = devOriginVerdict({ body, originHeader: req.headers.origin, contentType: req.headers["content-type"], remoteAddress: req.socket.remoteAddress, hostCheckout: options.checkout, known: devOrigins });
+    const secret = req.headers[MINT_HEADER];
+    const verdict = devOriginVerdict({
+      body,
+      originHeader: req.headers.origin,
+      contentType: req.headers["content-type"],
+      remoteAddress: req.socket.remoteAddress,
+      hostCheckout: options.checkout,
+      known: devOrigins,
+      // The same-user proof (review F3): the run file's secret, 0600 in the user's temp folder, as `open` sends it.
+      sameUser: options.mintSecret !== undefined && typeof secret === "string" && sameSecret(secret, options.mintSecret),
+      hasSecret: options.mintSecret !== undefined,
+    });
     if (!verdict.ok) {
       sendJson(res, verdict.status, { error: verdict.error, message: verdict.message });
       return;
