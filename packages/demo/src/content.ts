@@ -551,6 +551,8 @@ export const TICKETS: TicketSeed[] = [
     priority: "normal",
     status: "in_progress",
     assignee: "analyst",
+    // Round 24: a ticket that waits on an agent (loops' `waitingOn` of kind agent), for the lead's "Waited on by".
+    waitingOn: "cl-lead",
     labels: ["api"],
     body: "Which event moves which object; which ones the world skips.",
   },

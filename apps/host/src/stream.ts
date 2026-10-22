@@ -6,7 +6,7 @@
  * short jittered pause, on errors a backoff, on 429 `Retry-After`, on 410 a reset. Exactly one stream is open at any
  * time. While loops is down the host beats itself every `heartbeatMs`.
  */
-import type { Envelope, HostKeyState } from "@crewhub/loops-client";
+import type { Envelope, HostKeyState, ChatThreadFact } from "@crewhub/loops-client";
 import { type LoopsClient, type StreamResume, isUnauthorized } from "./loops.ts";
 import type { ChatLine } from "./chatLine.ts";
 import { SnapshotError, readTail } from "./snapshot.ts";
@@ -31,6 +31,8 @@ export type HostMessage =
   | { type: "chat"; chat: ChatLine }
   /** The installation's town document changed on the host (round 20, worldDb.ts): the browsers refetch `/world-api/town`. */
   | { type: "town"; rev: number }
+  /** The chat threads' facts (round 24), where loops lets the key read the chat: the whole list, at attach and after a `dm.*` event. */
+  | { type: "threads"; threads: ChatThreadFact[] }
   | { type: "reset"; reason: "gone" | "reconnected" | "cursor" };
 
 export interface UpstreamOptions {

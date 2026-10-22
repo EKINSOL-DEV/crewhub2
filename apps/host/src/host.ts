@@ -20,7 +20,7 @@ import { stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import path from "node:path";
-import type { HostArchiveState, HostConnection, HostKeyState, HostSnapshotState } from "@crewhub/loops-client";
+import type { HostArchiveState, HostConnection, HostKeyState, HostSnapshotState, ChatThreadFact } from "@crewhub/loops-client";
 import { WORLD_API_PREFIX, fillPattern, matchWorldRoute } from "./allowList.ts";
 import { DEV_ORIGINS_HEADER, devOriginAcceptedLine, devOriginVerdict } from "./devOrigin.ts";
 import { type ArchiveStore, normaliseSlugs, plainTime } from "./archiveStore.ts";
@@ -334,15 +334,53 @@ export async function createHost(options: HostOptions): Promise<Host> {
    * 200. A plain external bot gets 200 there too, with its own (empty) threads, which is why the flag decides.
    */
   let keyReadsChat = false;
-  async function readsChat(client: LoopsClient, name: string): Promise<boolean> {
+  /**
+   * The chat threads' facts (round 24) where the key reads the chat: per agent, `lastMessageAt` and `unreadCount` from
+   * `GET /api/dm/threads` (the probe's own answer at the key check, read again after a `dm.*` event the key's stream
+   * sees, at most once a second), sent whole to every tab; null where the key does not read the chat.
+   */
+  let threadFacts: ChatThreadFact[] | null = null;
+  const THREADS_REFRESH_MS = 1000;
+  let threadsTimer: ReturnType<typeof setTimeout> | null = null;
+  function threadFactsOf(body: unknown): ChatThreadFact[] {
+    const rows = (body as { threads?: unknown } | null)?.threads;
+    if (!Array.isArray(rows)) return [];
+    const out: ChatThreadFact[] = [];
+    for (const row of rows as { agentId?: unknown; lastMessageAt?: unknown; unreadCount?: unknown }[]) {
+      if (typeof row?.agentId !== "string" || row.agentId === "" || typeof row.lastMessageAt !== "string") continue;
+      out.push({ agentId: row.agentId, lastMessageAt: row.lastMessageAt, unreadCount: typeof row.unreadCount === "number" && Number.isInteger(row.unreadCount) && row.unreadCount >= 0 ? row.unreadCount : 0 });
+    }
+    return out;
+  }
+  function sendThreads(): void {
+    if (threadFacts === null) return;
+    for (const tab of tabs.values()) tab.send({ type: "threads", threads: threadFacts });
+  }
+  async function readsChat(client: LoopsClient, name: string): Promise<{ reads: boolean; threads: ChatThreadFact[] }> {
     try {
       const agents = await client.getJson<{ agents?: { id?: unknown; viewer?: unknown }[] }>("/api/agents");
       const mine = agents.status === 200 ? agents.body?.agents?.find((a) => a.id === name) : undefined;
-      if (mine?.viewer !== true) return false;
-      return (await client.getJson("/api/dm/threads")).status === 200;
+      if (mine?.viewer !== true) return { reads: false, threads: [] };
+      const threads = await client.getJson("/api/dm/threads");
+      return { reads: threads.status === 200, threads: threads.status === 200 ? threadFactsOf(threads.body) : [] };
     } catch {
-      return false;
+      return { reads: false, threads: [] };
     }
+  }
+  /** After a `dm.*` event: the threads read again once (coalesced within THREADS_REFRESH_MS) and sent when the read answers. */
+  function refreshThreads(client: LoopsClient, upstream: Upstream): void {
+    if (threadsTimer !== null) return;
+    threadsTimer = setTimeout(() => {
+      threadsTimer = null;
+      void client
+        .getJson("/api/dm/threads")
+        .then(({ status, body }) => {
+          if (status !== 200 || link?.upstream !== upstream || !keyReadsChat) return;
+          threadFacts = threadFactsOf(body);
+          sendThreads();
+        })
+        .catch(() => undefined);
+    }, THREADS_REFRESH_MS);
   }
   /** An agent's `dm.created` on the key's stream: the message read by id with the key, as one chat line; null when not readable. */
   async function chatLineFromKey(client: LoopsClient, payload: Record<string, unknown>): Promise<ChatLine | null> {
@@ -432,6 +470,8 @@ export async function createHost(options: HostOptions): Promise<Host> {
     if (tab.linked) tab.send({ type: "reset", reason: "reconnected" });
     tab.unsubscribe = link.upstream.subscribe(tab.linked ? null : tab.cursor, (message) => tab.send(withKey(message)));
     tab.linked = true;
+    // The chat threads' facts (round 24), when the key reads the chat: the tab gets the list as it stands.
+    if (threadFacts !== null) tab.send({ type: "threads", threads: threadFacts });
     void link.upstream.start();
   }
 
@@ -451,6 +491,11 @@ export async function createHost(options: HostOptions): Promise<Host> {
         await old.upstream.stop();
       }
       keyReadsChat = false;
+      threadFacts = null;
+      if (threadsTimer !== null) {
+        clearTimeout(threadsTimer);
+        threadsTimer = null;
+      }
       if (found === null || holder === null) {
         for (const tab of tabs.values()) attach(tab);
         return;
@@ -481,9 +526,11 @@ export async function createHost(options: HostOptions): Promise<Host> {
         // Does this loops let the key read the chat (a viewer key, round 12)? Then the bubbles come over the key's own
         // stream; a loops that answers anything else (an older loops, a plain external bot's key) shows no bubbles, and
         // health says so by leaving `connection.session` out (round 19: the sign-in road is gone).
-        keyReadsChat = await readsChat(client, mine.name);
+        const chat = await readsChat(client, mine.name);
         if (closed || holder !== mine || discovery.current() !== found) return;
-        if (keyReadsChat) log(`the key reads the chat on this crewhub-loops: the agents' answers come over its stream, no sign-in needed`);
+        keyReadsChat = chat.reads;
+        threadFacts = chat.reads ? chat.threads : null;
+        if (keyReadsChat) log(`the key reads the chat on this crewhub-loops: the agents' answers come over its stream, no sign-in needed; ${chat.threads.length} chat thread(s)`);
         else log(`the key does not read the chat on this crewhub-loops (no viewer key): no bubbles; make a viewer key in Settings > Agents > Connect CrewHub World on a crewhub-loops with world/viewer-key`);
       } else {
         // Nothing is known about the key: it keeps the state it had (a fresh key stays unchecked), never rejected.
@@ -537,6 +584,8 @@ export async function createHost(options: HostOptions): Promise<Host> {
           } else if (message.stream !== "busy" && appRoads) void discovery.refresh();
           return;
         }
+        // A `dm.*` event the key's stream sees (round 24): the threads' facts are read again once and sent to the tabs.
+        if (message.type === "event" && keyReadsChat && message.envelope.type.startsWith("dm.")) refreshThreads(client, upstream);
         if (message.type === "event" && keyReadsChat && message.envelope.type === "dm.created" && message.envelope.actor.kind === "agent") {
           void chatLineFromKey(client, message.envelope.payload).then((line) => {
             if (line !== null && link?.upstream === upstream) for (const tab of tabs.values()) tab.send({ type: "chat", chat: line });

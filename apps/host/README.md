@@ -48,7 +48,10 @@ smooth connection" below):
   road of rounds 12 to 18 (`POST`/`DELETE /world-api/session`, the person's session kept in `<config>/loops-session`, the states
   `signed-out`/`signed-in`/`expired`) was removed in round 19 (decision 9, on the branch `task/r19-viewer-switch`): a write to `/world-api/session`
   is refused by the write gate (405), a read is an unknown route (404), and a leftover `loops-session` file is deleted on start with one log
-  line (`src/leftovers.ts`).
+  line (`src/leftovers.ts`). Where the key reads the chat, the threads' own facts reach the tabs too (round 24): a `threads` stream
+  message with, per agent, `lastMessageAt` and `unreadCount` from `GET /api/dm/threads`, sent whole when a tab attaches and again after a
+  `dm.*` event the key's stream sees (read once more, at most once a second; never polled otherwise), for the agent card's
+  "last message in the chat 2 h ago, 1 unread"; on a loops that does not let the key read the chat, no `threads` message at all.
 - **Town** (round 20, the world database, spec addendum "the world database, first slice"): `GET /world-api/town`
   answers the installation's town document `{installation, rev, updatedAt, document}` (`rev` 0 and `document` null when
   the host has none yet: a first contact is no error; `rev` null with `reason` `no_loops` until a loops is found, since a

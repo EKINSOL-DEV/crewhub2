@@ -257,7 +257,10 @@ at the shader programs where no material changes and kept the findings, not code
 already, all but one drawn by the first frame; the first entry into a building pays one program (the objects layer's,
 about 7 ms of GPU link), the rest of that hitch being the inside layers built at the enter (about 90 ms at 4x); an idle
 warm of the interior's programs and early location reads were tried and moved nothing or cost more; the next lead is the
-objects layer's instanced meshes made ahead of the enter (`COST_POLICY.md`, the table).
+objects layer's instanced meshes made ahead of the enter (`COST_POLICY.md`, the table). Round 24 took that lead: the inside
+layers of the two likeliest buildings (the jump list's row, the pointer's, the keyboard's) are built ahead of the enter in
+idle time, bounded as the interior's build is, their programs warmed; the enter's worst frame 90 → 57 ms at 4x, 17 → 10
+unthrottled, pixel-identical (98 pairs, 0 differing pixels).
 Round 23 (2026-10-22) made the figures parts as data too (every cast and the persons, the far crowd reading the data, meshes only when a figure is drawn near), pixel-identical over the 98 pairs and 320 more of every cast in every state; the town's far agents are 13 objects each instead of 20 to 79 meshes.
 
 ## Later scope

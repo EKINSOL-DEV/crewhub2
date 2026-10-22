@@ -30,8 +30,9 @@ describe("the chat over the key, where loops allows it", () => {
     return { host, lines, health };
   }
 
-  it("a loops whose key reads the chat: health says key, an agent's message on the key's stream is a bubble line, and the sign-in road is gone", async () => {
-    const stub = await createLoopsStub({ ...installation(), keyReadsChat: true, dm: { threads: [{ id: "dmt_boing", agentId: "boing" }], messages: { [AGENT_MESSAGE.id]: AGENT_MESSAGE } } });
+  it("a loops whose key reads the chat: health says key, an agent's message on the key's stream is a bubble line, the threads' facts reach the tab (round 24), and the sign-in road is gone", async () => {
+    const THREAD = { id: "dmt_boing", agentId: "boing", createdAt: "2026-10-21T18:00:00.000Z", lastMessageAt: "2026-10-22T07:05:00.174Z", unreadCount: 1 };
+    const stub = await createLoopsStub({ ...installation(), keyReadsChat: true, dm: { threads: [THREAD, { id: "dmt_bad" }], messages: { [AGENT_MESSAGE.id]: AGENT_MESSAGE } } });
     cleanup.push(() => stub.close());
     const { host, lines, health } = await startHost(stub.url, stub.key);
     assert.deepEqual((await health()).connection.session, { state: "key" });
@@ -48,6 +49,12 @@ describe("the chat over the key, where loops allows it", () => {
     const tab = await openSse(`${host.url}/world-api/stream?cursor=0`);
     cleanup.push(() => tab.close());
     await tab.next((m) => m.type === "status" && m.loops === "ok");
+    // The threads' facts (round 24): the probe's own answer, sent to the tab as it attached; only the three fields, a row without them dropped.
+    await waitFor("the threads at attach", async () => tab.messages.some((m) => m.type === "threads"));
+    const threadsAtAttach = tab.messages.filter((m) => m.type === "threads");
+    assert.deepEqual(threadsAtAttach[0], { type: "threads", threads: [{ agentId: "boing", lastMessageAt: THREAD.lastMessageAt, unreadCount: 1 }] });
+    const threadReadsBefore = stub.requests.filter((r) => r.path === "/api/dm/threads").length;
+    assert.equal(threadReadsBefore, 1, "the probe's one read, nothing polled");
     stub.emit({ type: "dm.created", project: null, ticket: null, actor: { id: "nicky", kind: "user" }, recipientIds: ["boing"], payload: { threadId: "dmt_boing", messageId: "dm_p9", agentId: "boing" } });
     stub.emit({ type: "dm.created", project: null, ticket: null, actor: { id: "boing", kind: "agent" }, recipientIds: ["nicky"], payload: { threadId: "dmt_boing", messageId: AGENT_MESSAGE.id, agentId: "boing" } });
     const chat = await tab.next((m) => m.type === "chat");
@@ -56,6 +63,12 @@ describe("the chat over the key, where loops allows it", () => {
     const read = stub.requests.find((r) => r.path === `/api/dm/messages/${AGENT_MESSAGE.id}`);
     assert.ok(read && read.authorization !== undefined && read.cookie === undefined, "read by id with the key");
     assert.ok(!stub.requests.some((r) => r.path === "/api/dm/messages/dm_p9"), "the person's message never read");
+    // After the dm.* events the threads are read once more (the two events coalesced) and sent again, whole.
+    await waitFor("the threads after the events", async () => tab.messages.filter((m) => m.type === "threads").length > threadsAtAttach.length);
+    const again = tab.messages.filter((m) => m.type === "threads").at(-1);
+    assert.deepEqual(again, { type: "threads", threads: [{ agentId: "boing", lastMessageAt: THREAD.lastMessageAt, unreadCount: 1 }] });
+    assert.equal(stub.requests.filter((r) => r.path === "/api/dm/threads").length, 2, "one re-read for the two events, with the key");
+    assert.ok(stub.requests.filter((r) => r.path === "/api/dm/threads").every((r) => r.authorization !== undefined && r.cookie === undefined));
   });
 
   it("a loops that does not let the key read the chat: no session in health (no bubbles), a log line that says how to make a viewer key, and no sign-in road", async () => {
@@ -71,5 +84,11 @@ describe("the chat over the key, where loops allows it", () => {
     assert.ok(lines.some((l) => /the key does not read the chat on this crewhub-loops \(no viewer key\): no bubbles; make a viewer key in Settings > Agents > Connect CrewHub World/.test(l)), lines.join("\n"));
     assert.equal((await fetch(`${host.url}/world-api/session`, { method: "POST", headers: { origin: host.url, "content-type": "application/json" }, body: "{}" })).status, 405, "no sign-in road: the write gate knows /connect only");
     assert.equal((await fetch(`${host.url}/world-api/session`)).status, 404, "an unknown route");
+    // No threads message either (round 24): the card keeps its honest words.
+    const tab = await openSse(`${host.url}/world-api/stream?cursor=0`);
+    cleanup.push(() => tab.close());
+    await tab.next((m) => m.type === "status" && m.loops === "ok");
+    await new Promise((r) => setTimeout(r, 300));
+    assert.ok(!tab.messages.some((m) => m.type === "threads"), "no thread facts where the key cannot read the chat");
   });
 });

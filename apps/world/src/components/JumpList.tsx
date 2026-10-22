@@ -13,9 +13,11 @@ interface Props {
   entries: readonly JumpEntry[];
   onJump: (entry: JumpEntry) => void;
   onClose: () => void;
+  /** The active row as it moves (null when the list closes): the scene builds its building ahead of the jump. */
+  onActive?: ((entry: JumpEntry | null) => void) | undefined;
 }
 
-export function JumpList({ entries, onJump, onClose }: Props) {
+export function JumpList({ entries, onJump, onClose, onActive }: Props) {
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const id = useId();
@@ -28,6 +30,9 @@ export function JumpList({ entries, onJump, onClose }: Props) {
   useEffect(() => {
     list.current?.querySelector<HTMLElement>("[data-active]")?.scrollIntoView({ block: "nearest" });
   }, [current, results]);
+  const activeEntry = results[current] ?? null;
+  useEffect(() => onActive?.(activeEntry), [activeEntry, onActive]);
+  useEffect(() => () => onActive?.(null), [onActive]);
 
   const key = (e: KeyboardEvent) => {
     const move = (to: number) => {

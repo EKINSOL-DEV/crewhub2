@@ -9,11 +9,11 @@ import * as THREE from "three";
 import type { Definitions, PropModel, Rotation } from "@crewhub/world-engine";
 import type { Building, Catalogue, PlacedProp, RoomKind, RuleProp, TownDocument } from "@crewhub/world-model";
 import type { ModelKey, ResolvedStyle, StyleTheme } from "@crewhub/world-style";
-import { BUILDING_CELL as CELL, hallOf, roomOf, type BuildingTemplate } from "./buildingTemplate";
-import type { DeskSlot, Surface } from "./interiorLayout";
-import { roomCentre } from "./interiorLayout";
-import { footprintPose, freeSpots, isRider, turnedSize, type BuildingPlacements } from "./placements";
-import type { InvalidRequest } from "./propImport";
+import { BUILDING_CELL as CELL, hallOf, roomOf, type BuildingTemplate } from "./buildingTemplate.ts";
+import type { DeskSlot, Surface } from "./interiorLayout.ts";
+import { roomCentre } from "./interiorLayout.ts";
+import { footprintPose, freeSpots, isRider, turnedSize, type BuildingPlacements } from "./placements.ts";
+import type { InvalidRequest } from "./propImport.ts";
 
 const MATERIALISE_S = 1.2;
 /** Built-in looks drawn at the interiors' scale (as buildingView draws the template's plant and bench). */
@@ -69,6 +69,12 @@ export interface SyncInput {
   town: TownLayer;
   /** Only the entered building shows furniture and props. */
   detailed: boolean;
+  /**
+   * Ahead of the enter (buildingView.ts `prepareInside`, idle time): the props are built as the entered building
+   * would have them but stay hidden, nothing materialises (a fresh placement is left for the enter, which plays it)
+   * and the layer is not primed by it. They are kept across the syncs of the town view until `release`.
+   */
+  prepare?: boolean;
 }
 
 export class PropLayer {
@@ -78,6 +84,8 @@ export class PropLayer {
   readonly #items = new Map<string, Item>();
   readonly #riders = new Map<string, Item>();
   #primed = false;
+  /** Built ahead of the enter and kept while the building is not entered (`prepare`); cleared by a real sync or `release`. */
+  #prepared = false;
   #ghost: { object: THREE.Group; signature: string; materials: THREE.Material[] } | null = null;
   #selection: { object: THREE.Object3D; signature: string } | null = null;
 
@@ -92,12 +100,16 @@ export class PropLayer {
     const seenRiders = new Set<string>();
     this.anchors.clear();
     const riders = new Map<string, THREE.Object3D[]>();
-    this.group.visible = input.detailed;
+    const prepare = input.prepare === true;
+    this.group.visible = input.detailed && !prepare;
     if (!input.detailed || b.archived) {
-      this.#prune(seen, seenRiders);
+      // What was built ahead stands until the enter (or the release); an archived building's goes.
+      if (!this.#prepared || b.archived) this.#prune(seen, seenRiders);
       this.#syncGhost(null, template, town);
       return riders;
     }
+    if (prepare) this.#prepared = true;
+    else this.#prepared = false;
 
     // Placed props on their room grids.
     for (const room of placements.rooms.values())
@@ -105,6 +117,8 @@ export class PropLayer {
         const def = town.definitions[p.propId];
         if (!def) continue;
         const pose = footprintPose(def, p.cell, p.rotation);
+        // A fresh placement materialises at the enter, not ahead of it: left for then.
+        if (prepare && town.fresh.has(p.id)) continue;
         const item = this.#item(`p:${p.id}`, seen, this.#lookSignature(p.propId, town), () => this.#look(p.propId, town), town.fresh.has(p.id));
         town.fresh.delete(p.id);
         item.holder.position.set((room.site.origin.x + pose.x) * CELL, 0.02, (room.site.origin.z + pose.z) * CELL);
@@ -132,7 +146,7 @@ export class PropLayer {
       if (!spots.has(kind)) spots.set(kind, freeSpots(room, town.definitions, invalid.length));
       const c = spots.get(kind)!.shift() ?? { x: roomCentre(roomOf(template, kind)!).x - room.site.origin.x - 0.5 + i * 0.9, z: 0 };
       const at = new THREE.Vector3((room.site.origin.x + c.x + 0.5) * CELL, 0.02, (room.site.origin.z + c.z + 0.5) * CELL);
-      const item = this.#item(`i:${r.ticketKey}`, seen, "error-crate", () => this.#ctx.style.model("error-crate"), this.#primed);
+      const item = this.#item(`i:${r.ticketKey}`, seen, "error-crate", () => this.#ctx.style.model("error-crate"), this.#primed && !prepare);
       item.holder.position.copy(at);
       this.anchors.set(`err:${this.#ctx.slug}:${r.ticketKey}`, this.#ctx.toWorld(at.clone().setY(0.62)));
     });
@@ -186,7 +200,7 @@ export class PropLayer {
         const model = this.#ctx.style.model(key);
         if (key === "banner") model.scale.setScalar(0.8);
         return model;
-      }, this.#primed);
+      }, this.#primed && !prepare);
       item.holder.position.copy(at);
       this.anchors.set(`rule:${this.#ctx.slug}:${rule.id}`, this.#ctx.toWorld(at.clone().setY(at.y + (key === "banner" ? 1.2 : 0.4))));
     }
@@ -199,10 +213,20 @@ export class PropLayer {
     }
 
     this.#prune(seen, seenRiders);
-    this.#syncGhost(town.build?.on ? town.build.ghost : null, template, town);
-    this.#syncSelection(town.build?.on ? town.build.selected : null, placements, town);
-    this.#primed = true;
+    this.#syncGhost(!prepare && town.build?.on ? town.build.ghost : null, template, town);
+    this.#syncSelection(!prepare && town.build?.on ? town.build.selected : null, placements, town);
+    if (!prepare) this.#primed = true;
     return riders;
+  }
+
+  /** Drops what was built ahead (the interior is released): the next sync of the town view prunes it. */
+  release() {
+    this.#prepared = false;
+  }
+
+  /** True while the layer holds props built ahead of the enter. */
+  get prepared(): boolean {
+    return this.#prepared;
   }
 
   #lookSignature(propId: string, town: TownLayer): string {
