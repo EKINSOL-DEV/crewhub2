@@ -1420,7 +1420,8 @@ await group("town", async () => {
   // host's, left behind, and the one the rest of the group runs on.
   const pairingSecret = randomBytes(32);
   const dbs = [openWorldDb(mkdtempSync(path.join(tmpdir(), "chw-town-a-"))), openWorldDb(mkdtempSync(path.join(tmpdir(), "chw-town-b-")))];
-  const base = { loopsUrl: fake.url, key: fake.key, keyName: fake.keyName, retryMs: { min: 100, max: 500 }, reconnectMs: { min: 100, max: 300 }, heartbeatMs: 1000, log: () => undefined, pairingSecret };
+  const hostLog = [];
+  const base = { loopsUrl: fake.url, key: fake.key, keyName: fake.keyName, retryMs: { min: 100, max: 500 }, reconnectMs: { min: 100, max: 300 }, heartbeatMs: 1000, log: (line) => hostLog.push(line), pairingSecret };
   const start = (worldDb, port) => createHost(served ? { ...base, worldDb, staticDir: dist, ...(port ? { port } : {}) } : { ...base, worldDb, port: hostPort, allowedOrigins: [origin] });
   let host = await start(dbs[0]);
   const port = host.port;
@@ -1433,6 +1434,11 @@ await group("town", async () => {
     contexts.push(ctx);
     const pg = await ctx.newPage();
     watch(pg, liveOrigin, problems, "town");
+    // The town store's own log lines (`[town] …`), for the detail of a failed check.
+    pg.townLog = [];
+    pg.on("console", (m) => {
+      if (/\[town\]/.test(m.text())) pg.townLog.push(m.text().replace("[town] ", ""));
+    });
     if (typeof host.mintPairLink === "function") {
       await pg.goto(host.mintPairLink(served ? undefined : origin));
       await pg.waitForTimeout(300);
@@ -1504,7 +1510,22 @@ await group("town", async () => {
     const again = await hostTown(second);
     await atRev(first, again.rev);
     const seenByFirst = await zoneLines(first);
-    ok("town: two browsers on one host see one town; a zone made in one appears in the other", seenBySecond.some((l) => l.startsWith("Zone 1 (")) && seenByFirst.some((l) => l.startsWith("Zone 2 (")) && /kept by the world's host/.test(seenByFirst.join(" ")) && again.rev >= 2, `second saw ${seenBySecond.length} zone line(s); first now ${seenByFirst.map((l) => l.slice(0, 7)).join(", ")}; host rev ${again.rev}`);
+    const pair = seenBySecond.some((l) => l.startsWith("Zone 1 (")) && seenByFirst.some((l) => l.startsWith("Zone 2 (")) && /kept by the world's host/.test(seenByFirst.join(" ")) && again.rev >= 2;
+    ok("town: two browsers on one host see one town; a zone made in one appears in the other", pair, `second saw ${seenBySecond.length} zone line(s); first now ${seenByFirst.map((l) => l.slice(0, 7)).join(", ")}; host rev ${again.rev}`);
+    if (!pair) {
+      info(`town: the second browser's town log: ${second.townLog.join(" | ") || "(nothing)"}`);
+      info(`town: the first browser's town log: ${first.townLog.join(" | ") || "(nothing)"}`);
+      info(`town: the second browser's page revision ${await second.evaluate(() => document.documentElement.dataset.townRev ?? "none")}, storage words: ${(await second.locator(".connection-town").innerText().catch(() => "")).slice(0, 120)}`);
+      info(`town: the host's log: ${hostLog.filter((l) => /town of/.test(l)).join(" | ")}`);
+      const { DatabaseSync } = await import("node:sqlite");
+      const peek = new DatabaseSync(dbs[1].file, { readOnly: true });
+      const rows = peek.prepare("SELECT installation, rev, history FROM towns").all();
+      peek.close();
+      for (const row of rows) {
+        const h = JSON.parse(row.history ?? "null");
+        info(`town: the host's history of ${row.installation} at rev ${row.rev}: index ${h?.index}, entries ${(h?.entries ?? []).map((e) => `r${e.revision}[${(e.zones ?? []).map((z) => z.id).join(",")}|plots ${e.plots.length}]`).join(" ")}`);
+      }
+    }
     await shot(second, "32-town-second");
 
     // 4. A host restart on the same database keeps the town.

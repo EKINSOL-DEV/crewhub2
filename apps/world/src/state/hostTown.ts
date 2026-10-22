@@ -56,6 +56,8 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
   let knownRev: number | null = null;
   /** The local document changed while the host was away: offered again when it answers. */
   let pending = false;
+  /** Part of that change is a person's (a commit, an undo): if the host's town wins over it, that is said; the world's own record is not a person's loss. */
+  let pendingPerson = false;
   let note: string | null = null;
   let loading: Promise<TownDocument> | null = null;
   let retry: ReturnType<typeof setTimeout> | null = null;
@@ -91,12 +93,14 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
       log(`the host's town does not validate at ${result.errors[0]?.path ?? "?"}: ${result.errors[0]?.message ?? "?"}; this browser keeps its own`);
       return false;
     }
-    rev = hostRev;
-    knownRev = hostRev;
+    // The document first, the revision after: a move derived meanwhile sees the old revision (and waits or goes pending),
+    // never the new revision over the old document.
     if (!same(result.value, local.state.doc)) {
       await local.amend(() => result.value);
-      log(`town revision ${hostRev} taken from the host (${what})`);
+      log(`town revision ${hostRev} taken from the host (${what}: ${result.value.zones?.length ?? 0} zones, ${result.value.plots.length} plots)`);
     }
+    rev = hostRev;
+    knownRev = hostRev;
     return true;
   }
 
@@ -139,6 +143,11 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
     const answer = await transport.read();
     if (answer.status === 200) {
       const body = answer.body as { rev?: unknown; document?: unknown; reason?: unknown } | null;
+      if (typeof body?.rev === "number" && writing > 0) {
+        // A write is on its way: its answer decides the revision; what this read saw is looked at after it (settle).
+        announced = Math.max(announced ?? 0, body.rev);
+        return;
+      }
       if (typeof body?.rev === "number" && rev !== null && body.rev < rev) {
         // An answer older than what this browser already has (a slow read overtaken by a write's answer): nothing to take.
         log(`a read of revision ${body.rev} arrived after revision ${rev}; ignored`);
@@ -158,13 +167,15 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
           // The host is back and nobody else wrote meanwhile: this browser's edits go up as the next revision.
           rev = knownRev;
           pending = false;
+          pendingPerson = false;
           note = null;
-          await push(local.state.doc);
+          void push({ doc: local.state.doc, base: rev });
           publish();
           return;
         }
-        const lost = pending;
+        const lost = pendingPerson;
         pending = false;
+        pendingPerson = false;
         const taken = await adopt(body.document, body.rev, "read");
         if (!taken) return;
         // Edits made while the host was away meet a town another browser changed: the host's town wins, and it is said.
@@ -197,6 +208,7 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
         knownRev = rev;
         readCan(written.body);
         pending = false;
+        pendingPerson = false;
         note = IMPORTED_NOTE;
         log(`this browser's town was imported into the host as revision ${rev}`);
         publish();
@@ -222,24 +234,57 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
       readCan(body);
       note = CONFLICT_NOTE;
       pending = false;
+      pendingPerson = false;
     }
     publish();
   }
 
+  /** What a move is made of: a person's document with the revision it was made on, the world's own update, or nothing (undo, redo). */
+  type Move = { doc: TownDocument; base: number | null } | { update: (doc: TownDocument) => TownDocument | null } | null;
+
   /**
-   * One move of the host's history: a commit or an amend with `doc` as the next revision, or an undo or a redo (the host
-   * answers the document it restored, which the browser's store then shows). A conflict takes the host's town; no
-   * answer goes offline and keeps the change here. `byPerson` (a commit, an undo, a redo) also clears an old note.
+   * One move of the host's history: a commit with the document and the revision it was made on, an amend derived at
+   * send time from the document as it then is (the world's own record never carries a stale picture over the host's),
+   * or an undo or a redo (the host answers the document it restored, which the browser's store then shows). A move
+   * waits for a read on its way, so it is never based on a town about to be replaced. A commit made on a revision the
+   * host has since left is a conflict like a 409: the host's town is loaded and said. No answer goes offline and keeps
+   * the change here. `byPerson` (a commit, an undo, a redo) also clears an old note.
    */
-  function push(doc: TownDocument | null, op: HostTownOp = "commit", byPerson = false): Promise<void> {
+  function push(move: Move, op: HostTownOp = "commit", byPerson = false): Promise<void> {
     const run = async () => {
+      if (syncing) await syncing;
+      let doc: TownDocument | null = null;
+      if (move !== null && "update" in move) {
+        // Derived on the document as it is now; if the host's town arrived while deriving, derived again on that one.
+        for (let attempt = 0; ; attempt += 1) {
+          const seen = rev;
+          const before = local.state.doc;
+          doc = await local.amend(move.update);
+          if (doc === before) return;
+          if (rev === seen || attempt >= 3) break;
+          if (syncing) await syncing;
+        }
+      } else if (move !== null) doc = move.doc;
       if (rev === null) {
         pending = true;
+        if (byPerson) pendingPerson = true;
+        return;
+      }
+      if (move !== null && "base" in move && move.base !== null && move.base !== rev) {
+        // The person's edit was made on a town the host has since replaced (another browser wrote while the picture
+        // changed here): the host's town stands, as after a 409, and it is said.
+        log(`an edit made on revision ${move.base} meets revision ${rev}; the host's town is kept`);
+        pending = false;
+        pendingPerson = false;
+        await sync();
+        note = CONFLICT_NOTE;
+        publish();
         return;
       }
       writing += 1;
       let answer: HostAnswer;
       try {
+        log(`${op} sent on revision ${rev}${doc ? ` (${doc.zones?.length ?? 0} zones, ${doc.plots.length} plots)` : ""}`);
         answer = await transport.write(op, doc, rev);
       } finally {
         writing -= 1;
@@ -265,6 +310,7 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
         return;
       }
       pending = true;
+      if (byPerson) pendingPerson = true;
       offline(`write answered ${answer.status}`);
       publish();
     };
@@ -314,14 +360,15 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
     },
     sync,
     async commit(doc) {
+      // The revision this edit was made on, before anything else moves.
+      const base = rev;
       const current = await local.commit(doc);
-      await push(current, "commit", true);
+      await push({ doc: current, base }, "commit", true);
       return local.state.doc;
     },
     async amend(update) {
-      const before = local.state.doc;
-      const current = await local.amend(update);
-      if (current !== before) await push(current, "amend");
+      // The world's own record is derived when it is sent, on the document as it then is.
+      await push({ update }, "amend");
       return local.state.doc;
     },
     async undo() {
@@ -330,8 +377,9 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
         await push(null, "undo", true);
         return local.state.doc;
       }
+      const base = rev;
       const current = await local.undo();
-      await push(current, "commit", true);
+      await push({ doc: current, base }, "commit", true);
       return local.state.doc;
     },
     async redo() {
@@ -339,8 +387,9 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
         await push(null, "redo", true);
         return local.state.doc;
       }
+      const base = rev;
       const current = await local.redo();
-      await push(current, "commit", true);
+      await push({ doc: current, base }, "commit", true);
       return local.state.doc;
     },
     subscribe(listener) {
