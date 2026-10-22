@@ -39,11 +39,20 @@ Pictures (light, 1440), as the branch draws them:
 
 ## Code size
 
-The branch against `4d635b6`: sources 12 files changed, 157 insertions(+), 81 deletions(-), plus 138 lines in two new files; tests 3 files changed, 100 insertions(+), 95 deletions(-), plus 64 lines in two new test files; docs 2 files changed, 62 insertions(+), 71 deletions(-); tools 2 files changed, 7 insertions(+), 7 deletions(-) (words only). New: `packages/loops-client/src/pairingBearer.ts` (the
-fragment, the storage, the header, the hand-off), `apps/world/src/state/pairing.ts` (the start plan, pure). Changed:
-`apps/host/src/pairing.ts` (bearer, idle window, no cookie), `host.ts` (`POST /world-api/pair`, the gate reads the
-header), `config.ts` and `main.ts` (the idle days), the client's five host calls, `main.tsx` (the start), the Pair
-page and the panel's words, the host README, the runbook, the regress and a11y tools' words, the tests.
+The branch against `4d635b6` (`git diff --numstat`):
+
+| Area | Files | Lines | What |
+| --- | --- | --- | --- |
+| The pairing itself (host, client, page) | 14 | +295 −81 | new: `packages/loops-client/src/pairingBearer.ts` (117: the fragment, the storage, the header, the hand-off), `apps/world/src/state/pairing.ts` (21: the start plan, pure); changed: `apps/host/src/pairing.ts` (bearer, idle window, no cookie: +56 −44), `host.ts` (`POST /world-api/pair`, the gate reads the header: +38 −17), `config.ts` and `main.ts` (the idle days), the client's five host calls, `main.tsx` (the start), the Pair page, the panel and the words |
+| The dev server | 2 | +9 −11 | the `/pair` proxy and the preview's `/pair` answer gone (the fragment reaches no server) |
+| Tests | 8 | +221 −116 | the pairing tests rewritten on the new road, the e2e and connect tests adapted, two new files (the client's pairing, the start plan); 26 lines for the town store below |
+| Tools | 6 | +71 −36 | every tool that opens a link waits for the tab's bearer (`pairedTab`), every tool read at a paired host carries it (`hostGet`): Playwright's request context shared the cookie, it has no sessionStorage |
+| Docs | 3 | +134 −73 | the host README, the runbook, this note |
+
+One change on the branch is not the pairing's: the host-kept town store sent an identical revision when the host came
+back at the revision the browser left it (an amend kept before the load, the sameness check stricter than the host's
+stamp), which the regress town group's undo check met in 6 of 7 runs here; fixed with a test (23 lines). The cookie
+road has the same fault; it only showed because the tab's first load is a little faster on this road.
 
 ## Risks and what was not built
 
@@ -54,6 +63,10 @@ page and the panel's words, the host README, the runbook, the regress and a11y t
 - **The last use is in the host's memory**: after a host restart the idle window starts again at the first use (never
   shorter than the setting; a pairing that was already idle for 29 days gets another 30). Writing the last use beside the
   pairing secret would close that; not done.
+- **Every program that read the host with the browser's cookie needs the bearer now**: a tool's own request (Playwright's
+  request context, a curl reproduction) carries nothing by itself; on the branch the regress tools read it out of the
+  tab's sessionStorage. A tab that leaves the page in the moment between its load and the exchange (one request) spends
+  the link and keeps nothing; the tools wait for the bearer before they navigate on.
 - **The hand-off trusts any paired tab of the origin** (BroadcastChannel is per origin): a page on the same origin is
   the world itself; no other origin can ask.
 - **The old `/pair/<token>` links** (printed by an older host or kept in a terminal) are not understood by this host:
