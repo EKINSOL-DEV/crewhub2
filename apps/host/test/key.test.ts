@@ -22,7 +22,9 @@ describe("the key", () => {
       await sse.next((m) => m.type === "status");
       sse.close();
       assert.ok(!JSON.stringify(sse.messages).includes(stub.key));
-      assert.ok(stub.requests.every((r) => r.authorization === `Bearer ${stub.key}`), "every loops read carried the key");
+      // Every read carries the key but the public health route, read keyless since round 29 (loops main refuses it to a viewer key).
+      assert.ok(stub.requests.filter((r) => r.path !== "/api/health").every((r) => r.authorization === `Bearer ${stub.key}`), "every loops read but the public health carried the key");
+      assert.ok(stub.requests.some((r) => r.path === "/api/health") && stub.requests.filter((r) => r.path === "/api/health").every((r) => r.authorization === undefined), "the public health is read without the key");
     } finally {
       await host.close();
       await stub.close();

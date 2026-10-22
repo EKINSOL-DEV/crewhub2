@@ -82,6 +82,18 @@ describe("the chat over the key, where loops allows it", () => {
     assert.ok(stub.requests.filter((r) => r.path === "/api/dm/threads").every((r) => r.authorization !== undefined && r.cookie === undefined));
   });
 
+  it("a viewer key whose threads loops refuses (no maker, or the chat switched off; loops main #964): no session in health, and the log says why, not 'no viewer key'", async () => {
+    const stub = await createLoopsStub({ ...installation(), keyReadsChat: true, threadsStatus: 403 });
+    cleanup.push(() => stub.close());
+    const { health, lines } = await startHost(stub.url, stub.key);
+    await waitFor("the chat verdict", async () => lines.some((l) => /reads no chat|does not read the chat/.test(l)));
+    const h = await health();
+    assert.equal(h.connection.session, undefined, "no chat road");
+    assert.ok(stub.requests.some((r) => r.path === "/api/dm/threads" && r.authorization !== undefined), "the viewer's threads were asked");
+    assert.ok(lines.some((l) => /^the viewer key reads no chat on this crewhub-loops \(GET \/api\/dm\/threads answered 403\): no bubbles over the key; a viewer key reads only the chat of the person who made it/.test(l)), lines.join("\n"));
+    assert.ok(!lines.some((l) => /\(no viewer key\)/.test(l)), "not the plain key's line");
+  });
+
   it("a loops that does not let the key read the chat: no session in health (no bubbles), a log line that says how to make a viewer key, and no sign-in road", async () => {
     const stub = await createLoopsStub({ ...installation() });
     cleanup.push(() => stub.close());

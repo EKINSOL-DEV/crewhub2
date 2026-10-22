@@ -62,6 +62,10 @@ describe("the allow-list", () => {
     assert.equal(allowedLoopsPath("/api/tickets/AT-1/comments", { limit: "5", q: "x" }), "/api/tickets/AT-1/comments?limit=5");
     assert.throws(() => allowedLoopsPath("/api/deliveries"));
     assert.throws(() => allowedLoopsPath("/api/tickets/AT-1/history"));
+    // Round 29: `ticket=` on the events read travels (crewhub-loops main filters by it); a key is never registered by
+    // the world (loops main's `expectViewer` is the card's and the dialog's business): the keys route is not on the list.
+    assert.equal(allowedLoopsPath("/api/events", { ticket: "tk_1", after: "5", limit: "50", types: "comment.created", expectViewer: "true" }), "/api/events?after=5&limit=50&ticket=tk_1&types=comment.created");
+    assert.throws(() => allowedLoopsPath("/api/agents/crewhub-world/keys"));
     assert.equal(matchWorldRoute("/api/tickets/AT-1", new URLSearchParams()), null);
     assert.equal(matchWorldRoute("/world-api/tickets/a b", new URLSearchParams()), null);
   });

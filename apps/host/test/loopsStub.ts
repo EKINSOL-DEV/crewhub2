@@ -63,10 +63,19 @@ export interface StubOptions {
   socketPath?: string;
   /** `GET /api/events` (the page read, not the tail) with `after` below this answers 410 `cursor_expired`: the fake after a restart. */
   logMinAfter?: number;
+  /**
+   * `ticket=` on `GET /api/events` (crewhub-loops main, CL-494 step 3): that ticket's events only (by id or key), 404 for
+   * a ref that names no ticket. Default on; off (and on an `older` stub) the parameter is ignored, as loops 4cdcd383 does.
+   */
+  ticketFilter?: boolean;
   /** The chat the key reads where loops lets it (`keyReadsChat`): the threads list, `GET /api/dm/messages/{id}` by id. */
   dm?: { threads?: unknown[]; messages?: Record<string, Record<string, unknown>> };
   /** A loops whose key may read the chat (a viewer key): `GET /api/dm/threads` and a message by id answer the key. Default: 403 for the key. */
   keyReadsChat?: boolean;
+  /** crewhub-loops main (#959): the public `GET /api/health` refuses a limited key (403 with an Authorization header); keyless it answers as ever. */
+  healthRefusesKey?: boolean;
+  /** With `keyReadsChat`, what `GET /api/dm/threads` answers the key instead of 200 (a viewer with no maker, 403; the chat switched off, 409). */
+  threadsStatus?: number;
 }
 
 /** A stub-wide outage: every request answers `status` (health too unless `healthOk`), or never answers (`hang`). */
@@ -180,6 +189,7 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
     if (req.method !== "GET") return send(res, 405, error("method_not_allowed", "GET only"));
     const p = url.pathname;
     const given = options.routes?.[p];
+    if (p === "/api/health" && given === undefined && options.healthRefusesKey === true && auth !== undefined) return send(res, 403, error("forbidden", `A public route refuses a limited key${detail}`));
     if (p === "/api/health" && given === undefined) return send(res, 200, { ok: true, version: options.version ?? "053b5f47", checks: {}, principal: { id: "crewhub-world", kind: "agent", displayName: "World" } });
     // An external bot's key: role lead (a `routes` entry for the path overrides it, e.g. a probe or a reader).
     if (p === "/api/auth/me" && given === undefined) return send(res, 200, { principal: { id: "crewhub-world", kind: "agent", displayName: "World", role: "lead" } });
@@ -188,6 +198,7 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
       const listed = ((given as { agents?: Record<string, unknown>[] } | undefined)?.agents ?? []).filter((a) => a["id"] !== "crewhub-world");
       return send(res, 200, { agents: [...listed, { id: "crewhub-world", displayName: "World", role: "lead", external: true, viewer: true, herdrSession: null, disabled: false, lastSeenAt: null, keys: null, isCrewhubLead: false, projects: { lead: [], member: [] } }] });
     }
+    if (p === "/api/dm/threads" && given === undefined && options.keyReadsChat && options.threadsStatus !== undefined) return send(res, options.threadsStatus, error("forbidden", `No chat for this key${detail}`));
     if (p === "/api/dm/threads" && given === undefined) return options.keyReadsChat ? send(res, 200, { threads: options.dm?.threads ?? [] }) : send(res, 403, error("forbidden", `Not a participant${detail}`));
     const keyMessage = /^\/api\/dm\/messages\/([^/]+)$/.exec(p);
     if (keyMessage !== null && given === undefined) {
@@ -214,7 +225,11 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
       if (options.logMinAfter !== undefined && token === null && after < options.logMinAfter) return send(res, 410, error("cursor_expired", `after=${after} is below the log's floor${detail}`));
       const types = url.searchParams.getAll("types").flatMap((v) => v.split(",")).map((v) => v.trim()).filter((v) => v !== "");
       const limit = Math.min(500, Math.max(1, Number(url.searchParams.get("limit") ?? "500") || 500));
-      const page = events.filter((e) => e.seq > after && (types.length === 0 || types.includes(e.type))).slice(0, limit);
+      // `ticket=` (loops main): only that ticket's events; a ref no event and no board names is the ticket routes' 404.
+      const ticketRef = url.searchParams.get("ticket");
+      const filterByTicket = ticketRef !== null && options.ticketFilter !== false && !older;
+      if (filterByTicket && !events.some((e) => e.ticket?.id === ticketRef || e.ticket?.key === ticketRef)) return send(res, 404, error("not_found", `No ticket ${ticketRef}${detail}`));
+      const page = events.filter((e) => e.seq > after && (types.length === 0 || types.includes(e.type)) && (!filterByTicket || e.ticket?.id === ticketRef || e.ticket?.key === ticketRef)).slice(0, limit);
       const seen = page.length === 0 ? after : (page[page.length - 1] as Envelope).seq;
       return send(res, 200, withCursor({ events: page, lastSeq: seen }, seen, lastSeq()));
     }

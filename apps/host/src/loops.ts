@@ -23,6 +23,11 @@ export interface LoopsClient {
   /** The same, parsed; `body` is null when the body is not JSON. */
   getJson<T = unknown>(path: string, query?: Record<string, string>): Promise<{ status: number; body: T | null }>;
   /**
+   * A public read without the key (round 29): `GET /api/health` is public, and crewhub-loops main refuses it to a
+   * limited key (a viewer gets 403 there, #959), so the version is read keyless, as discovery probes it.
+   */
+  getPublicJson<T = unknown>(path: string, query?: Record<string, string>): Promise<{ status: number; body: T | null }>;
+  /**
    * Opens the NDJSON stream from `resume` (`after=<seq>`, or `cursor=<sealed token>` from a heartbeat or
    * `GET /api/events`; never both); the caller reads the body. Throws on a network error.
    */
@@ -43,7 +48,9 @@ export interface LoopsClientOptions {
 
 /** `target` is the URL (TCP) or the socket path (Unix); a plain string is a URL, for the callers from before the seam. */
 export function createLoopsClient(target: LoopsTarget | string, key: string, options: LoopsClientOptions = {}): LoopsClient {
-  const transport = createTransport(typeof target === "string" ? { transport: "tcp", url: target } : target, { Authorization: `Bearer ${key}` });
+  const resolved: LoopsTarget = typeof target === "string" ? { transport: "tcp", url: target } : target;
+  const transport = createTransport(resolved, { Authorization: `Bearer ${key}` });
+  const keyless = createTransport(resolved, {});
   const scrub = (text: string): string => (key.length > 0 && text.includes(key) ? text.split(key).join("[redacted]") : text);
   const readTimeoutMs = options.readTimeoutMs ?? READ_TIMEOUT_MS;
 
@@ -61,6 +68,16 @@ export function createLoopsClient(target: LoopsTarget | string, key: string, opt
       let body: T | null = null;
       try {
         body = JSON.parse(response.text) as T;
+      } catch {
+        body = null;
+      }
+      return { status: response.status, body };
+    },
+    async getPublicJson<T>(path: string, query: Record<string, string> = {}) {
+      const response = await keyless.request(path, query, { accept: "application/json", timeoutMs: readTimeoutMs });
+      let body: T | null = null;
+      try {
+        body = JSON.parse(await response.text()) as T;
       } catch {
         body = null;
       }

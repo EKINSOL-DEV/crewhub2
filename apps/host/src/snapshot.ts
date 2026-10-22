@@ -187,6 +187,47 @@ export interface LogRead {
   pages: number;
   /** True when the activity read reached the log's end (else no quiet is handed over: undecided is not shown). */
   complete: boolean;
+  /**
+   * How the quiet candidates were judged (round 29): `ticket`, one small read per candidate with `ticket=` (crewhub-loops
+   * main, CL-494 step 3); `pages`, the paged activity read from the oldest candidate on (an older loops, which ignores
+   * `ticket=`); absent when there was no candidate to judge.
+   */
+  road?: "ticket" | "pages";
+}
+
+/** The page asked per quiet candidate with `ticket=`: the activity after the stretch; a full page gives no verdict. */
+const TICKET_PAGE = 50;
+
+/**
+ * The activity after each quiet candidate, one read per ticket with `ticket=` (crewhub-loops main, CL-494 step 3:
+ * `GET /api/events?ticket=<ref>` lists that ticket's events only, 404 for a ref that names no ticket), instead of paging
+ * the whole log from the oldest candidate on. Null when this loops cannot be trusted with it, and the paged read decides:
+ * an older loops (4cdcd383) ignores `ticket=` and answers everyone's events, which shows as an event of another ticket
+ * in the page; a page that is full gives no verdict either; any answer but 200 or 404 ends it. A 404 (the ticket is gone
+ * since the boards were read) leaves the candidate to the rule as it stands: no activity read, the stretch stays.
+ */
+async function readTicketActivity(client: Reader, candidates: Envelope[]): Promise<{ events: Envelope[]; complete: boolean; pages: number } | null> {
+  const oldestPer = new Map<string, number>();
+  for (const q of candidates) {
+    const id = q.ticket?.id;
+    if (typeof id !== "string") continue;
+    const seen = oldestPer.get(id);
+    if (seen === undefined || q.seq < seen) oldestPer.set(id, q.seq);
+  }
+  const events: Envelope[] = [];
+  let pages = 0;
+  for (const [id, seq] of oldestPer) {
+    pages += 1;
+    const { status, body: page } = await client.getJson<{ events?: unknown }>("/api/events", { ticket: id, types: ACTIVITY_TYPES_QUERY, after: String(seq), limit: String(TICKET_PAGE) });
+    if (isUnauthorized(status)) throw new SnapshotError("unauthorized", `/api/events answered ${status}`);
+    if (status === 404) continue;
+    if (status !== 200 || page === null) return null;
+    const rows = Array.isArray(page.events) ? (page.events as Envelope[]) : [];
+    if (rows.some((row) => row.ticket?.id !== id)) return null;
+    if (rows.length >= TICKET_PAGE) return null;
+    events.push(...rows);
+  }
+  return { events, complete: true, pages };
 }
 
 /** Pages of `GET /api/events` with `types` from `after` on, until a short page, a stalled `lastSeq`, the page cap or an answer that is not 200. */
@@ -219,9 +260,12 @@ export async function readLogFacts(client: Reader, cursor: number, open: Map<str
   const rows = await readPages(client, LOG_FACT_TYPES, Math.max(0, cursor - LOG_WINDOW_SEQ), LOG_PAGES);
   const candidates = quietCandidates(rows.events, open);
   const oldest = candidates.length === 0 ? null : (candidates[0] as Envelope).seq;
-  const activity = oldest === null ? { events: [], complete: true, pages: 0 } : await readPages(client, ACTIVITY_TYPES_QUERY, oldest, LOG_PAGES);
+  // Round 29: one small read per candidate where loops filters by ticket (crewhub-loops main); the paged read where not.
+  const perTicket = oldest === null ? null : await readTicketActivity(client, candidates);
+  const activity = oldest === null ? { events: [], complete: true, pages: 0 } : (perTicket ?? (await readPages(client, ACTIVITY_TYPES_QUERY, oldest, LOG_PAGES)));
   const facts = selectLogFacts(rows.events, activity.events, open, activity.complete);
-  return { facts, report: { quiet: facts.quiet.length, runs: facts.automationRuns.length, pages: rows.pages + activity.pages, complete: activity.complete } };
+  const road: Pick<LogRead, "road"> = oldest === null ? {} : { road: perTicket === null ? "pages" : "ticket" };
+  return { facts, report: { quiet: facts.quiet.length, runs: facts.automationRuns.length, pages: rows.pages + activity.pages, complete: activity.complete, ...road } };
 }
 
 /** The slugs alone (the callers from before the archive memory). */

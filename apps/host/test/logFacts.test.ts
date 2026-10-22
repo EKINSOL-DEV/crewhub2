@@ -19,11 +19,12 @@ const ran = (seq: number, id: string, key: string, outcome = "ok") =>
 
 describe("the snapshot carries the quiet stretches and the runs from the log", () => {
   let stub: LoopsStub;
+  let stubEvents: ReturnType<typeof envelope>[] = [];
   before(async () => {
     // AT-1 and BC-1 are in progress on the boards. AT-1: an old stretch, then a newer one, then the automation's own
     // label change (system) and its run: still quiet. BC-1: quiet, then an agent's comment: not quiet. A run on a ticket
     // no board lists is left out; a quiet in another status than the ticket's is stale.
-    const events = [
+    stubEvents = [
       quiet(10, "tk_AT", "AT-1", "in_progress"),
       envelope(11, "ticket.moved", { ticket: { id: "tk_ZZ", key: "ZZ-1", title: "" }, actor: { id: "nicky", kind: "user" } }),
       quiet(12, "tk_AT", "AT-1", "in_progress"),
@@ -35,26 +36,63 @@ describe("the snapshot carries the quiet stretches and the runs from the log", (
       quiet(18, "tk_AT", "AT-1", "review"),
       ran(19, "tk_BC", "BC-1"),
     ];
-    stub = await createLoopsStub({ ...installation(), events });
+    stub = await createLoopsStub({ ...installation(), events: stubEvents });
   });
   after(async () => {
     await stub.close();
   });
 
-  it("reads the two types in one paged question, then the activity after the oldest candidate, and hands the facts over", async () => {
+  it("reads the two types in one paged question, then the activity after each candidate with ticket= (loops main, round 29), and hands the facts over", async () => {
     const client = createLoopsClient(stub.url, stub.key);
     stub.requests.length = 0;
     const { snapshot, stats } = await assembleSnapshot(client, { cursor: 19 });
     assert.deepEqual(snapshot.quiet?.map((e) => [e.seq, e.ticket?.key]), [[12, "AT-1"]], "the newest stretch of AT-1 in its status; BC-1's ended with the comment; the review one is stale");
     assert.deepEqual(snapshot.automationRuns?.map((e) => e.seq), [14, 19], "runs on open tickets, oldest first; ZZ-1 is on no board");
-    assert.deepEqual(stats.log, { quiet: 1, runs: 2, pages: 2, complete: true });
-    // The archive read comes first (the stub refuses includeArchived, as loops does for an agent key); then the two questions.
+    assert.deepEqual(stats.log, { quiet: 1, runs: 2, pages: 3, complete: true, road: "ticket" });
+    // The archive read comes first (the stub refuses includeArchived, as loops does for an agent key); then the facts
+    // question, then one small read per candidate ticket after its stretch (the newest per status), never the whole log.
     const reads = stub.requests.filter((r) => r.path.startsWith("/api/events?") && !r.path.includes("project.archived")).map((r) => decodeURIComponent(r.path));
     assert.deepEqual(reads, [
       "/api/events?after=0&limit=500&types=ticket.quiet,automation.ran",
-      "/api/events?after=12&limit=500&types=ticket.created,ticket.updated,ticket.moved,ticket.archived,ticket.unarchived,ticket.progress,comment.created,comment.updated,comment.deleted",
+      "/api/events?after=12&limit=50&ticket=tk_AT&types=ticket.created,ticket.updated,ticket.moved,ticket.archived,ticket.unarchived,ticket.progress,comment.created,comment.updated,comment.deleted",
+      "/api/events?after=15&limit=50&ticket=tk_BC&types=ticket.created,ticket.updated,ticket.moved,ticket.archived,ticket.unarchived,ticket.progress,comment.created,comment.updated,comment.deleted",
     ]);
     assert.ok(stats.reads >= 10, `every log page is a counted read: ${stats.reads}`);
+  });
+
+  it("an older loops ignores ticket= (everyone's events come back): the host sees another ticket's event and judges by the paged read instead, with the same facts", async () => {
+    const older = await createLoopsStub({ ...installation(), events: stubEvents, ticketFilter: false });
+    try {
+      const client = createLoopsClient(older.url, older.key);
+      const { snapshot, stats } = await assembleSnapshot(client, { cursor: 19 });
+      assert.deepEqual(snapshot.quiet?.map((e) => [e.seq, e.ticket?.key]), [[12, "AT-1"]]);
+      assert.deepEqual(stats.log, { quiet: 1, runs: 2, pages: 2, complete: true, road: "pages" }, "the ticket read tried is no page; the paged activity read is one");
+      const reads = older.requests.filter((r) => r.path.startsWith("/api/events?") && !r.path.includes("project.archived")).map((r) => decodeURIComponent(r.path));
+      assert.equal(reads.length, 3);
+      assert.match(reads[1] ?? "", /ticket=tk_AT/, "the first candidate's read, which answered ZZ-1's and BC-1's events too");
+      assert.equal(reads[2], "/api/events?after=12&limit=500&types=ticket.created,ticket.updated,ticket.moved,ticket.archived,ticket.unarchived,ticket.progress,comment.created,comment.updated,comment.deleted", "the paged read from the oldest candidate, as before round 29");
+    } finally {
+      await older.close();
+    }
+  });
+
+  it("a candidate whose ticket is gone (404 for ticket=) keeps the stretch; no candidate at all makes no ticket read and names no road", async () => {
+    const gone = await createLoopsStub({ ...installation(), events: stubEvents.filter((e) => e.ticket?.id !== "tk_BC" || e.type === "ticket.quiet") });
+    try {
+      const client = createLoopsClient(gone.url, gone.key);
+      const { snapshot, stats } = await assembleSnapshot(client, { cursor: 19 });
+      assert.deepEqual(snapshot.quiet?.map((e) => [e.seq, e.ticket?.key]), [[12, "AT-1"], [15, "BC-1"]], "BC-1's stretch stands: nobody touched it in this log");
+      assert.equal(stats.log.road, "ticket");
+      const none = await createLoopsStub({ ...installation(), events: [] });
+      try {
+        const bare = await assembleSnapshot(createLoopsClient(none.url, none.key), { cursor: 0 });
+        assert.deepEqual(bare.stats.log, { quiet: 0, runs: 0, pages: 1, complete: true });
+      } finally {
+        await none.close();
+      }
+    } finally {
+      await gone.close();
+    }
   });
 
   it("the window: the log is read from 20 000 seqs before the cursor, not from the beginning", async () => {

@@ -389,24 +389,24 @@ export async function createHost(options: HostOptions): Promise<Host> {
     if (threadFacts === null) return;
     for (const tab of tabs.values()) tab.send({ type: "threads", threads: threadFacts });
   }
-  async function readsChat(client: LoopsClient, name: string): Promise<{ reads: boolean; threads: ChatThreadFact[]; featureOff: boolean }> {
+  async function readsChat(client: LoopsClient, name: string): Promise<{ reads: boolean; threads: ChatThreadFact[]; viewer: boolean; status: number | null }> {
     try {
       const agents = await client.getJson<{ agents?: { id?: unknown; viewer?: unknown }[] }>("/api/agents");
       const mine = agents.status === 200 ? agents.body?.agents?.find((a) => a.id === name) : undefined;
-      if (mine?.viewer !== true) return { reads: false, threads: [], featureOff: false };
-      const threads = await client.getJson<{ error?: { code?: unknown } }>("/api/dm/threads");
-      // Loops' chat bubbles feature switched off (Settings > Features) answers 409 feature_off to every chat read (round
-      // 29, Medium 3): a viewer key that reads nothing until it is switched on, said as that and not as "no viewer key".
-      const featureOff = threads.status === 409;
-      return { reads: threads.status === 200, threads: threads.status === 200 ? threadFactsOf(threads.body) : [], featureOff };
+      if (mine?.viewer !== true) return { reads: false, threads: [], viewer: false, status: null };
+      const threads = await client.getJson("/api/dm/threads");
+      return { reads: threads.status === 200, threads: threads.status === 200 ? threadFactsOf(threads.body) : [], viewer: true, status: threads.status };
     } catch {
-      return { reads: false, threads: [], featureOff: false };
+      return { reads: false, threads: [], viewer: false, status: null };
     }
   }
   /** The host's one line on the key's chat road, after the question was asked (at the check, or on the stream's accept). */
-  function tellChat(chat: { reads: boolean; threads: ChatThreadFact[]; featureOff: boolean }): void {
+  function tellChat(chat: { reads: boolean; threads: ChatThreadFact[]; viewer: boolean; status: number | null }): void {
     if (chat.reads) log(`the key reads the chat on this crewhub-loops: only the chat of the person who made the key; their agents' answers come over its stream, no sign-in needed; ${chat.threads.length} chat thread(s)${chat.threads.length === 0 ? " (none yet is no error: the maker has not written to an agent)" : ""}`);
-    else if (chat.featureOff) log(`the key is a viewer but crewhub-loops' chat bubbles feature is switched off there (Settings > Features): no bubbles over the key until it is switched on (the host asks again at the next link)`);
+    // Loops' chat bubbles feature switched off (Settings > Features) answers 409 feature_off to every chat read (round
+    // 29, Medium 3): a viewer key that reads nothing until it is switched on, said as that and not as "no viewer key".
+    else if (chat.viewer && chat.status === 409) log(`the key is a viewer but crewhub-loops' chat bubbles feature is switched off there (Settings > Features): no bubbles over the key until it is switched on (the host asks again at the next link)`);
+    else if (chat.viewer) log(`the viewer key reads no chat on this crewhub-loops (GET /api/dm/threads answered ${chat.status}): no bubbles over the key; a viewer key reads only the chat of the person who made it, so a key with no maker, or whose maker is no longer an enabled admin, reads none (make a new one in Settings > Agents > Connect CrewHub World), and chat bubbles switched off in crewhub-loops (Settings > Features) close the chat for everyone`);
     else log(`the key does not read the chat on this crewhub-loops (no viewer key): no bubbles over the key; make a viewer key in Settings > Agents > Connect CrewHub World (it reads only its maker's chat), or set CHL_WORLD_ORIGIN to the world page's origin on that crewhub-loops so the page reads your own chat`);
   }
   /** After a `dm.*` event: the threads read again once (coalesced within THREADS_REFRESH_MS) and sent when the read answers. */
@@ -787,7 +787,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
     return out;
   }
   const snapshotText = (stats: SnapshotStats) =>
-    `snapshot: ${stats.projects} project${stats.projects === 1 ? "" : "s"}, ${stats.reads} reads in ${Math.round(stats.ms)} ms${stats.slowest === null ? "" : ` (slowest ${stats.slowest.path} ${Math.round(stats.slowest.ms)} ms)`}${stats.log.quiet + stats.log.runs > 0 ? `, from the log ${stats.log.quiet} quiet, ${stats.log.runs} run${stats.log.runs === 1 ? "" : "s"}` : ""}${stats.log.complete ? "" : " (the log was not read whole: no quiet handed over)"}`;
+    `snapshot: ${stats.projects} project${stats.projects === 1 ? "" : "s"}, ${stats.reads} reads in ${Math.round(stats.ms)} ms${stats.slowest === null ? "" : ` (slowest ${stats.slowest.path} ${Math.round(stats.slowest.ms)} ms)`}${stats.log.quiet + stats.log.runs > 0 ? `, from the log ${stats.log.quiet} quiet, ${stats.log.runs} run${stats.log.runs === 1 ? "" : "s"}` : ""}${stats.log.road === "ticket" ? " (the quiet judged per ticket, crewhub-loops filters by ticket)" : ""}${stats.log.complete ? "" : " (the log was not read whole: no quiet handed over)"}`;
 
   async function snapshot(res: ServerResponse): Promise<void> {
     await relinking;

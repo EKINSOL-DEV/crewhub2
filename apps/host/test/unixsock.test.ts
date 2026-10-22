@@ -62,7 +62,7 @@ describe("the Unix socket transport", () => {
     assert.equal(ticket.status, 200);
     assert.equal(((await ticket.json()) as { ticket: { key: string } }).ticket.key, "AT-1");
     assert.ok(stub.requests.length > 5);
-    assert.ok(stub.requests.every((r) => r.authorization === `Bearer ${stub.key}`), "every read carried the key");
+    assert.ok(stub.requests.filter((r) => r.path !== "/api/health").every((r) => r.authorization === `Bearer ${stub.key}`), "every read but the public health carried the key (the version is read keyless since round 29)");
     assert.ok(stub.requests.every((r) => r.host === "127.0.0.1"), `every read said Host: 127.0.0.1, got ${JSON.stringify([...new Set(stub.requests.map((r) => r.host))])}`);
     const stripped = await fetch(`${host.url}/world-api/tickets/AT-1/comments?limit=5&origin=x`);
     assert.equal(stripped.status, 200);
