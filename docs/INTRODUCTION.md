@@ -1,9 +1,9 @@
 # An introduction to CrewHub World
 
-For a reader who knows crewhub-loops and has never seen the world. Everything here is as built on 2026-10-22 (the
-night's round 18); where a claim rests on a file, the file is named. The pictures are light-theme screenshots, most of
-them live against the development crewhub-loops, the newer ones over the fake crewhub-loops or the demo; each caption
-says which.
+For a reader who knows crewhub-loops and has never seen the world. Everything here is as built on 2026-10-22 (round
+24 of the night and the day after); where a claim rests on a file, the file is named. The pictures are light-theme
+screenshots, most of them live against the development crewhub-loops, the newer ones over the fake crewhub-loops or the
+demo; each caption says which.
 
 ## 1. What it is, and what it is not
 
@@ -17,7 +17,7 @@ What it is not:
 
 - **Not a second source of truth.** Every fact on screen is a loops fact (a project, a board card, an agent, the team
   snapshot, an event). The world keeps no facts of its own beyond a small presentation memory (which drone is in the
-  air, which card was seen) and the town document a person draws in build mode.
+  air, which card was seen) and the town document a person draws in build mode (section 2.6).
 - **Not a control.** Nothing in the world starts, stops, wakes or steers an agent. The one optional "director" moves
   the world's own figures and is off by default (section 2.10).
 - **Read-only by construction, not by promise.** In live mode the browser never talks to loops. It talks to a small
@@ -60,7 +60,10 @@ have been present); the lead sits in the office. A classic one-room-per-kind lay
 The halls, the furniture and the figures are the Greenhouse style's models (`packages/style-greenhouse`); since round 15
 a model is one node holding its parts as data, which halved the objects made before the town is dressed (12,614 to
 6,417) with pictures that are pixel-identical to before, 98 pairs and 0 differing pixels
-([COST_POLICY.md](COST_POLICY.md)).
+([COST_POLICY.md](COST_POLICY.md)). The same rule was kept for every cut after it: the phone's first paint (rounds 21
+and 22), the figures as data (round 23) and the inside layers of the likely next building built ahead in idle time
+(round 24, the worst enter frame on a phone at 4x from 90 to 57 ms); since round 24 anyone reruns the proof with
+`tools/pixcheck.mjs` on two commits (74 label-free demo pairs and 324 cast pairs, a diff image per pair).
 
 ![Inside the CR building in the demo: the outer walls washed with the project's coral, the awning and flag outside, the lead at its desk in the office, the workers and the designer on the floor, the racks of Administration at the front, the truck at the dock.](images/building.jpg)
 
@@ -93,17 +96,21 @@ agent is "status unknown", which the text view says in those words.
 
 The figures are a **cast**, a seam of their own: four casts ship (Classic bots, Overgrown bots, Sprouts, Potlings;
 `packages/cast-*`), a building wears its own cast, else its zone's, else the viewer's choice, else the town's. A figure
-too small for a desk brings its own perch. Only `apps/world/src/world/cast.ts` imports a cast package; a test enforces
+too small for a desk brings its own perch. Since round 23 a figure's joints hold their parts as data until it is drawn
+near, and the far crowd reads them straight (a far figure is 13 objects instead of 20 to 79; pixel-identical over 320
+cast pairs). Only `apps/world/src/world/cast.ts` imports a cast package; a test enforces
 it ([WORLD_STYLES.md](WORLD_STYLES.md), "Casts").
 
 A click on a figure opens the **agent card**: where it is and its lead, when loops last saw it, the ticket on its desk
-and every open ticket loops assigns to it with whom each waits on (and the tickets of others that wait on it), its
-latest progress line (read once from loops when the page saw none), its last answers in the chat where the key or a
-session reads it, the lane facts behind a More disclosure, and in live mode, on a lead's card, a Chat button:
-crewhub-loops chats with leads only, so a worker's or the postman's card names its lead's chat instead. A fact loops
+and every open ticket loops assigns to it with whom each waits on (and the tickets of others that wait on it),
+its latest progress line (read once from loops when the page saw none), its last answers in the chat where the key or
+a session reads it (and, where the key reads it, the thread's last message time and unread count, from the threads list
+the host already reads; round 24), the lane facts behind a More disclosure, and in live mode, on a lead's card, a Chat
+button: crewhub-loops chats with leads only, so a worker's or the postman's card names its lead's chat instead. A fact
+loops
 does not give is said to be absent, in words (section 6; [AGENT_CARD.md](AGENT_CARD.md)).
 
-![The agent card of CR Lead over the building: where it is, seen by loops two minutes ago, its work ticket in progress, its latest progress line.](images/agent-card.jpg)
+![The agent card of CL Lead inside its building, live over the fake crewhub-loops: Now (where it is, working and focused, the team's word, its status line, seen by loops just now), Work (the ticket on its desk, its project, Holds with seven open tickets by state and one waiting on Nicky, the first of them listed), the Follow and Chat buttons.](images/agent-card.jpg)
 
 ### 2.5 Persons
 
@@ -118,11 +125,19 @@ walk-mode visitor is the same figure.
 ### 2.6 Zones
 
 A zone is a level above projects, drawn as a district of the town with its own look. crewhub-loops has no project
-groups yet (proposal L22), so today a zone comes from the town document a person draws in **build mode** (press B): the
-live town is kept per crewhub-loops installation in that browser, never mixed with another installation or with the
-demo, and the panel, build mode and the text view say "made by hand in this browser; not shared with other browsers"
-(`packages/world-model/src/zones.ts`; round 11). When loops has groups, a group is a zone with the group's id and the
-town document only gives it a look.
+groups yet (proposal L22), so today a zone comes from the town document a person draws in **build mode** (press B)
+(`packages/world-model/src/zones.ts`). Since round 20 the **host keeps the live town** per crewhub-loops installation,
+in SQLite through Node 24's `node:sqlite` (`world.db` in its own folder, 0600; migrations in a transaction, a
+`world.db.bak-v<n>` copy before each schema change, an export), so every paired browser sees one town and a host
+restart keeps it (`apps/host/src/worldDb.ts`, `apps/world/src/state/hostTown.ts`); the Connection panel's Town row,
+Settings > Town, build mode and the text view say "Kept by the world's host for this crewhub-loops, shared by every
+paired browser" with the revision, or "Kept in this browser until the host is back". The browser's own town is
+imported once into a host that has none, never over one it has; the demo's town stays in the browser and never
+touches the host. The undo history is the host's too (round 21): an undo in one browser shows in every other and
+survives a restart, and a write made on a revision the host has left is a plain conflict, said so. Restore is never
+silent: Settings > Town's "Import a town" and "Restore from a backup" preview what changes and ask, and a confirmed
+restore is one more revision, so Undo takes it back. When loops has groups, a group is a zone with the group's id and
+the town document only gives it a look.
 
 ![The live town tidied into a region of two districts, "Zone 1" with two buildings on their own ground and "Old town" with the four others, a notice saying the town is tidied and four buildings moved.](images/zones.jpg)
 
@@ -170,7 +185,7 @@ model is not built ([ROADMAP.md](ROADMAP.md), "Open").
 | --- | --- |
 | A project | A building; its colour and icon the awning, the flag and the emblem by the door |
 | `project.archived`, `project.restored` | A closed building (boards, lights off, a Closed sign with the date); the reverse |
-| A project group (none at `4cdcd383`) | A zone, a district of the town; until then zones are drawn by hand in build mode |
+| A project group (none at `4cdcd383`) | A zone, a district of the town; until then zones are drawn by hand in build mode and kept by the host per installation |
 | A ticket (kind task, feature, bug, question, grill) | A package: folder, box, bug crate, envelope, envelope |
 | A ticket's status (backlog, planned, review, done) | The rack it lies on in Administration |
 | A ticket in progress with an assignee | The package on that agent's desk (a worker whose status line names the key is more specific than its lead) |
@@ -237,11 +252,14 @@ the chat corner, the card's footer) or are the data's (lanes and a team snapshot
 Rehearsed from a fresh clone eight times during the night and the morning after; on 2026-10-21 at 18:50 Nicky ran it
 against his own Crewhub.app: loops found through the app's socket, the key ok, the stream ok, three projects in fifteen
 reads ([the night report](reports/2026-10-01-world-demo-night.md), round 11). For development there is `npm run dev`
-(Vite on `127.0.0.1:5173`) beside `npm run host`: Vite proxies `/world-api` and `/pair` to the host on 5180, or on the
-port in `CREWHUB_WORLD_PORT`, prints that in one line at start with what answers there, and refuses to start on another
-checkout's host (health names a checkout by a short id, never by its path; `apps/world/vite.config.ts`, `hostPort.ts`,
-round 17). `npm run preview` proxies only to a port named in `CREWHUB_WORLD_PORT`; without one the page runs the demo and
-the preview says so once (round 16), so a preview on a shared Mac never reaches somebody else's host.
+(Vite on `127.0.0.1:5173`) beside `npm run host`, with no setup: Vite proxies `/world-api` and `/pair` to the host on
+5180, or on the port in `CREWHUB_WORLD_PORT`, prints that in one line at start with what answers there, and refuses to
+start on another checkout's host (health names a checkout by a short id, never by its path; `apps/world/vite.config.ts`,
+`hostPort.ts`, round 17); once it listens it tells the host its own loopback origin (`POST /world-api/dev-origin`: a
+program on this machine, loopback only, the same checkout, at most eight per run; round 23), so the page's connect and
+town writes pass the host's origin guard in any start order. `npm run preview` proxies only to a port named in
+`CREWHUB_WORLD_PORT`; without one the page runs the demo and the preview says so once (round 16), so a preview on a
+shared Mac never reaches somebody else's host.
 
 **How it connects** (`apps/host`, one Node process without dependencies, loopback only):
 
@@ -266,15 +284,17 @@ the preview says so once (round 16), so a preview on a shared Mac never reaches 
   from `from=tail` with loops' sealed cursor, reconnected after loops' 300 s end with jitter, with a ring buffer of 2000
   envelopes to catch a tab up. The tabs get Server-Sent Events. It pairs each browser once with a one-time link and an
   `HttpOnly` cookie, and checks the `Host` and `Origin` headers of every request.
-- **What the host never does.** It never writes to loops (its only writes are the stored key, the pairing secret and
-  the archive memory in its own folder), never logs or echoes the key, never holds a provider secret, never opens a
-  second upstream stream, and never guesses a socket outside the app's data folder.
+- **What the host never does.** It never writes to loops (its only writes are the stored key, the pairing secret,
+  the archive memory and the town database `world.db` with its backups, all in its own folder), never logs or echoes
+  the key, never holds a provider secret, never opens a second upstream stream, and never guesses a socket outside the
+  app's data folder.
 - **The states are honest.** Health says where loops was found, what the key's state is (none, unchecked, checking,
   rejected, ok), how the stream is, how far the first snapshot is; the world shows one screen per state (No loops
   found, Pair this browser, Connect, Checking, Key rejected, Loops down) and, once the town runs, a chip (Live,
-  Catching up, Stale, Loops down, Stream busy, Pair again) that opens the **Connection panel**.
+  Catching up, Stale, Loops down, Stream busy, Pair again) that opens the **Connection panel** (with, since round 20,
+  a Town row: where the town is kept and its revision).
 
-![The Connection panel over the live town: Live, loops found through the Mac app's socket, the key from the stored key, streaming with its cursor, one archived project from loops' event log, crewhub-loops version 0.1.0, the host over the Unix socket, and the Forget this key button.](images/connection-panel.jpg)
+![The Connection panel over the live town (before round 20, so without its Town row): Live, loops found through the Mac app's socket, the key from the stored key, streaming with its cursor, one archived project from loops' event log, crewhub-loops version 0.1.0, the host over the Unix socket, and the Forget this key button.](images/connection-panel.jpg)
 
 Operations have been rehearsed under a running host: loops stopped and started (Loops down, then Live again without a
 reload), the key revoked while Live (the Key rejected screen over the live tab; a new key pasted brings the town back),
@@ -352,8 +372,13 @@ it describes, on a phone either; nothing moves the camera. After Skip or Done it
 window shows it again); Settings › Show the introduction and the "?" in the toolbar bring it back, and the "?" also opens
 this document on GitHub. A browser driven by a tool never gets it unless asked (`?tour=on`).
 
-What a screen reader is given was checked in round 8 and again after each chat round (`tools/a11y.mjs`, 163 checks in
-round 17): one live region per Connect screen that says
+![The tour's first step in the demo: the card "Step 1 of 6, The town" at the bottom with its one sentence and the Skip, Back and Next buttons, over the town of the Small team scenario.](images/tour.jpg)
+
+The whole world was walked with keys only (round 21), demo and live, from the tour to the restore dialog, and seven
+faults were fixed with a check each: the focus after a jump goes to the scene (Enter then opens a figure's card),
+closing a card or leaving build mode never loses it, a menu row's focus ring shows, Tab cycles in the tour's card,
+Escape from any Settings control closes the sheet. What a screen reader is given was checked in round 8 and again after
+each round since (`tools/a11y.mjs`, 188 checks in round 24): one live region per Connect screen that says
 the screen once and nothing that ticks; a connection change over the town said once; the Connection panel's facts as a
 definition list; Tab reaching every control with a focus style, Enter on the chip opening the panel with the focus
 inside and Escape giving it back; pills and tags saying in words what a colour showed ("CR-17 waits on Nicky", "CR-17
@@ -408,5 +433,6 @@ it; each item would make it more honest or more direct.
   part, including "chat with the agents" and the proposal for project groups and the live director.
 - [LOOPS_REAL_VS_FAKE.md](LOOPS_REAL_VS_FAKE.md), [LOOPS_GAP_ANALYSIS.md](LOOPS_GAP_ANALYSIS.md),
   [LOOPS_INTEGRATION_PLAN.md](LOOPS_INTEGRATION_PLAN.md): the wire, the gaps, the plan.
-- [tools/README.md](../tools/README.md): the browser checks (the regress pass in eight groups), the measurements, the
+- [tools/README.md](../tools/README.md): the browser checks (the regress pass in ten groups, 194 checks in all with the
+  two halves against the development loops), the pixel-identical proof (`pixcheck.mjs`), the measurements, the
   accessibility pass, the seed and the development crewhub-loops.
