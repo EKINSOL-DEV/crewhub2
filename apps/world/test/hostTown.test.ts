@@ -209,3 +209,155 @@ test("offline: the browser keeps editing and says so; when the host answers agai
   assert.deepEqual(store.state.doc.plots.map((p) => p.slug), ["elsewhere"]);
   assert.equal(store.state.storageNote, CONFLICT_NOTE);
 });
+
+test("round 22: reads are single file and never go backwards; a town message during the load makes one more read, not two side by side", async () => {
+  const empty = createTownStore({ context: CONTEXT, indexedDB: null }).state.doc;
+  const host = fakeHost({ rev: 1, document: empty });
+  // A slow first read: the answer of revision 1 arrives after a later write's answer (revision 2) would.
+  let release: (() => void) | null = null;
+  const slow = new Promise<void>((resolve) => (release = resolve));
+  const read = host.transport.read.bind(host.transport);
+  let reads = 0;
+  host.transport.read = async () => {
+    reads += 1;
+    const answer = await read();
+    if (reads === 1) await slow;
+    return answer;
+  };
+  const { store } = make(host);
+  const loading = store.load();
+  await flush();
+  // Meanwhile the host announces two more revisions (another browser): they coalesce into one more read after the first.
+  host.elsewhere(plot(empty, "a", 1));
+  host.elsewhere(plot(plot(empty, "a", 1), "b", 2));
+  await flush();
+  assert.equal(reads, 1, "the second ask waits for the first read");
+  release!();
+  await loading;
+  await flush();
+  await flush();
+  assert.equal(reads, 2, "one more read, not one per message");
+  assert.equal(store.rev, 3);
+  assert.deepEqual(store.state.doc.plots.map((p) => p.slug).sort(), ["a", "b"]);
+  // An answer older than what the browser has is ignored: a stale read lands after a write's answer.
+  host.transport.read = async () => ({ status: 200, body: { installation: "i", rev: 1, updatedAt: "t", document: empty, canUndo: false, canRedo: false } });
+  await store.sync();
+  assert.equal(store.rev, 3, "the stale revision did not take the town back");
+  assert.deepEqual(store.state.doc.plots.length, 2);
+});
+
+test("round 22: the host's echo of a browser's own import starts no second import and keeps the imported note", async () => {
+  const host = fakeHost(null);
+  const { local, store } = make(host);
+  await local.load();
+  await local.commit(plot(local.state.doc, "mine", 4));
+  // The host tells the tabs about revision 1 before the import's answer is back (the stream is faster than the response).
+  const write = host.transport.write.bind(host.transport);
+  host.transport.write = async (op, document, baseRev) => {
+    const answer = await write(op, document, baseRev);
+    if (baseRev === 0) for (const l of host.listeners) l(1);
+    return answer;
+  };
+  await store.load();
+  await flush();
+  await flush();
+  assert.deepEqual(host.writes.map((w) => [w.op, w.baseRev]), [["commit", 0]], "one import, no second one from the echo");
+  assert.equal(store.state.storageNote, IMPORTED_NOTE);
+  assert.equal(store.rev, 1);
+});
+
+test("round 22: the stream coming back up reads the town again, so a town message missed meanwhile is not lost", async () => {
+  const empty = createTownStore({ context: CONTEXT, indexedDB: null }).state.doc;
+  const host = fakeHost({ rev: 1, document: empty });
+  const connected = new Set<() => void>();
+  const local = createTownStore({ context: CONTEXT, indexedDB: null });
+  const store = createHostTownStore({ local, transport: host.transport, context: CONTEXT, onTown: host.onTown, onConnected: (l) => (connected.add(l), () => connected.delete(l)), retryMs: 20 });
+  await store.load();
+  // Another browser writes while this tab's stream was down: no message reaches it.
+  host.town = { rev: 2, document: plot(empty, "missed", 3) };
+  host.set(2, plot(empty, "missed", 3));
+  await flush();
+  assert.equal(store.rev, 1, "nothing heard");
+  for (const l of connected) l();
+  await flush();
+  await flush();
+  assert.equal(store.rev, 2, "read again on reconnect");
+  assert.deepEqual(store.state.doc.plots.map((p) => p.slug), ["missed"]);
+});
+
+test("round 22: the world's own amend during the load never carries the empty town over the host's; it is derived on the host's town once read", async () => {
+  const empty = createTownStore({ context: CONTEXT, indexedDB: null }).state.doc;
+  const hosted = { ...plot(empty, "web", 1), zones: [{ id: "east", name: "East", order: 0 }] } as TownDocument;
+  const host = fakeHost({ rev: 1, document: hosted });
+  let release: (() => void) | null = null;
+  const slow = new Promise<void>((resolve) => (release = resolve));
+  const read = host.transport.read.bind(host.transport);
+  host.transport.read = async () => {
+    const answer = await read();
+    await slow;
+    return answer;
+  };
+  const { store } = make(host);
+  const loading = store.load();
+  await flush();
+  // The runtime gives a new building its lot on the first publish of the local store: an amend on what it shows then (nothing).
+  const amending = store.amend((doc) => (doc.plots.some((p) => p.slug === "api") ? null : plot(doc, "api", 2)));
+  await flush();
+  release!();
+  await loading;
+  await amending;
+  await flush();
+  assert.deepEqual(host.writes.map((w) => [w.op, w.baseRev, (w.document?.zones ?? []).map((z) => z.id), w.document?.plots.map((p) => p.slug)]), [["amend", 1, ["east"], ["web", "api"]]], "one amend, on the host's town, with its zone kept");
+  assert.equal(store.rev, 2);
+  assert.deepEqual(store.state.doc.zones?.map((z) => z.id), ["east"]);
+  assert.equal(store.state.storageNote, null, "the world's own record is no person's loss: nothing is said");
+  // The same amend before the host is even asked (the runtime's first allocation): kept out of the way, nothing said.
+  const fresh = fakeHost({ rev: 1, document: hosted });
+  const f = make(fresh);
+  const load2 = f.store.load();
+  void f.store.amend((doc) => (doc.plots.some((p) => p.slug === "api") ? null : plot(doc, "api", 2)));
+  await load2;
+  await flush();
+  await flush();
+  assert.equal(f.store.state.storageNote, null);
+  assert.deepEqual(f.store.state.doc.zones?.map((z) => z.id), ["east"]);
+});
+
+test("round 22: a person's edit made on a revision the host has since left is kept out, the host's town loaded and said", async () => {
+  const empty = createTownStore({ context: CONTEXT, indexedDB: null }).state.doc;
+  const host = fakeHost({ rev: 1, document: empty });
+  const { store } = make(host);
+  await store.load();
+  // The first commit is on its way; the host announces another browser's revision meanwhile; a second edit is made on
+  // the picture of before that announcement is read.
+  const first = store.commit(plot(store.state.doc, "mine", 1));
+  host.elsewhere(plot(plot(empty, "mine", 1), "theirs", 5));
+  const second = store.commit(plot(store.state.doc, "late", 2));
+  await first;
+  await second;
+  await flush();
+  await flush();
+  // Both edits were made on revision 1, which the other browser's write left behind before either was sent: neither
+  // reaches the host (a 409 would have met them anyway), the host's town is shown and the note says so.
+  assert.equal(host.writes.length, 0, "no edit made on the old revision reached the host");
+  assert.equal(store.state.storageNote, CONFLICT_NOTE);
+  assert.deepEqual(store.state.doc.plots.map((p) => p.slug).sort(), ["mine", "theirs"]);
+  assert.equal(store.rev, 2);
+});
+
+test("round 22: an amend derived while the host's town arrives is derived again on it, never sent over it with the old picture", async () => {
+  const empty = createTownStore({ context: CONTEXT, indexedDB: null }).state.doc;
+  const hosted = { ...plot(empty, "web", 1), zones: [{ id: "east", name: "East", order: 0 }] } as TownDocument;
+  const host = fakeHost({ rev: 1, document: hosted });
+  const { store } = make(host);
+  // The runtime's allocation runs as soon as the browser's store has loaded, before the host is asked (a fast host).
+  const amending = store.amend((doc) => (doc.plots.some((p) => p.slug === "api") ? null : plot(doc, "api", 2)));
+  const loading = store.load();
+  await Promise.all([amending, loading]);
+  await flush();
+  await flush();
+  for (const w of host.writes) assert.equal((w.document?.zones ?? []).length, 1, `every write carries the host's zone: ${w.op} on ${w.baseRev}`);
+  assert.deepEqual(store.state.doc.zones?.map((z) => z.id), ["east"]);
+  assert.ok(store.state.doc.plots.some((p) => p.slug === "web"));
+  assert.deepEqual(host.town?.document.zones?.map((z) => z.id), ["east"], "the host's town still has its zone");
+});

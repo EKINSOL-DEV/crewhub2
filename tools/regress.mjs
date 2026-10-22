@@ -923,6 +923,26 @@ await group("live", async () => {
     await canvas(pg).focus();
     await pg.keyboard.press("Enter");
     await pg.locator(".agent-card").waitFor({ timeout: 3000 }).catch(() => {});
+    // Round 22: the card's Work says what cl-lead holds (the fake's board: six open tickets, CL-45 on its desk, CL-80
+    // in review waiting on Nicky), the Answers section says why no answer can be known on this road (the host keeps no
+    // session here, or a plain key with nobody signed in), and Lane, Projects and Recent sit behind a closed More
+    // disclosure that opens on a click.
+    await pg.waitForFunction(() => !/Reading the last progress line/.test(document.querySelector(".agent-card")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
+    const leadCard = (await pg.locator(".agent-card").innerText().catch(() => "")).replace(/\s+/g, " ");
+    const holds = /Holds\s*6 open tickets: 3 in progress, 2 review, 1 planned; 1 waits on Nicky/.test(leadCard);
+    const listed = /CL-80 .*review, waits on Nicky/.test(leadCard) && /CL-81/.test(leadCard) && !/CL-45 .*in progress\b.*CL-45/.test(leadCard);
+    // The headings read uppercased (the eyebrow's text-transform), so the section names match case-insensitively.
+    const answers = /Answers\s*(No answers can arrive here: this crewhub-loops does not let the world read the chat|No answer from it since this page opened)/i.test(leadCard);
+    // The line is the agent's own from the fake's events (CL-81), else CL-45's read from the source, else the honest words.
+    const progressSaid = /\b(start|update|done|question) on CL-\d+, (just now|\d+ (min|h) ago)|No progress line: none seen since this page opened, and CL-45 has none\./.test(leadCard);
+    const moreClosed = (await pg.locator("details.agent-card-more:not([open])").count()) === 1 && !(await pg.locator(".agent-card h3", { hasText: /^Lane$/ }).isVisible().catch(() => true));
+    ok("live (round 22): the card says what cl-lead holds and whom it waits on, why no answer can be known with a plain key, and the progress line or its absence", holds && listed && answers && progressSaid, `holds ${holds}, listed ${listed}, answers ${answers}, progress ${progressSaid}: ${leadCard.slice(0, 1200)}`);
+    await pg.locator("details.agent-card-more > summary").click().catch(() => {});
+    await pg.waitForTimeout(200);
+    const laneAfter = await pg.locator(".agent-card h3", { hasText: /^Lane$/ }).isVisible().catch(() => false);
+    const moreText = (await pg.locator("details.agent-card-more").innerText().catch(() => "")).replace(/\s+/g, " ");
+    ok("live (round 22): Lane, Projects and Recent sit behind More, closed at first and open on a click", moreClosed && laneAfter && /Lane/.test(moreText) && /Projects/.test(moreText), `closed before ${moreClosed}, Lane shown after ${laneAfter}; ${moreText.slice(0, 120)}`);
+    await shot(pg, "23c0-card-round22");
     await pg.locator(".agent-card .agent-chat").click().catch(() => {});
     await pg.waitForSelector(".chat-sheet", { timeout: 5000 }).catch(() => {});
     const title = (await pg.locator(".chat-sheet .card-title").first().innerText().catch(() => "")).trim();
@@ -957,6 +977,7 @@ await group("live", async () => {
     const postmanNote = (await pg.locator(".agent-card .agent-chat-note").innerText().catch(() => "")).replace(/\s+/g, " ");
     const askedForPostman = web.requests.filter((r) => /chat=postman/.test(r.path)).length;
     ok("live: the postman's card has no Chat button (loops chats with leads only) and says why; nothing asked loops for its chat", /Postman/.test(postmanCard) && postmanChat === 0 && /crewhub-loops chats with leads only: Postman is the postman \(loops role router\)\.$/.test(postmanNote) && askedForPostman === 0, `${postmanChat} Chat button(s); "${postmanNote}"; ${askedForPostman} request(s) with chat=postman`);
+    ok("live (round 22): the postman's card says in words that it holds no ticket and that no line and no answer were seen", /Holds\s*no ticket: crewhub-loops assigns it none right now/.test(postmanCard) && /No progress line: none seen since this page opened and no ticket on its desk/.test(postmanCard) && /(no answers can arrive|No answer from it since this page opened)/i.test(postmanCard), postmanCard.slice(0, 500));
     await shot(pg, "23e-card-leads-only");
     for (let i = 0; i < 3; i++) {
       await pg.keyboard.press("Escape");
@@ -1337,7 +1358,8 @@ await group("town", async () => {
   // host's, left behind, and the one the rest of the group runs on.
   const pairingSecret = randomBytes(32);
   const dbs = [openWorldDb(mkdtempSync(path.join(tmpdir(), "chw-town-a-"))), openWorldDb(mkdtempSync(path.join(tmpdir(), "chw-town-b-")))];
-  const base = { loopsUrl: fake.url, key: fake.key, keyName: fake.keyName, retryMs: { min: 100, max: 500 }, reconnectMs: { min: 100, max: 300 }, heartbeatMs: 1000, log: () => undefined, pairingSecret };
+  const hostLog = [];
+  const base = { loopsUrl: fake.url, key: fake.key, keyName: fake.keyName, retryMs: { min: 100, max: 500 }, reconnectMs: { min: 100, max: 300 }, heartbeatMs: 1000, log: (line) => hostLog.push(line), pairingSecret };
   const start = (worldDb, port) => createHost(served ? { ...base, worldDb, staticDir: dist, ...(port ? { port } : {}) } : { ...base, worldDb, port: hostPort, allowedOrigins: [origin] });
   let host = await start(dbs[0]);
   const port = host.port;
@@ -1350,6 +1372,11 @@ await group("town", async () => {
     contexts.push(ctx);
     const pg = await ctx.newPage();
     watch(pg, liveOrigin, problems, "town");
+    // The town store's own log lines (`[town] …`), for the detail of a failed check.
+    pg.townLog = [];
+    pg.on("console", (m) => {
+      if (/\[town\]/.test(m.text())) pg.townLog.push(m.text().replace("[town] ", ""));
+    });
     if (typeof host.mintPairLink === "function") {
       await pg.goto(host.mintPairLink(served ? undefined : origin));
       await pg.waitForTimeout(300);
@@ -1382,11 +1409,21 @@ await group("town", async () => {
     const body = r ? await r.json().catch(() => null) : null;
     return { status: r ? r.status() : 0, rev: body?.rev ?? null, zones: (body?.document?.zones ?? []).map((z) => z.id) };
   };
+  /**
+   * Waits for a browser to show the host's revision (round 22: state, never time): the page keeps the revision it is on
+   * in `<html data-town-rev>`; `min` left out means the revision the host has now. Answers the revision the page shows.
+   */
+  const atRev = async (pg, min = null, timeout = 15000) => {
+    const wanted = min ?? (await hostTown(pg)).rev ?? 0;
+    await pg.waitForFunction((w) => Number(document.documentElement.dataset.townRev ?? -1) >= w, wanted, { timeout }).catch(() => {});
+    return Number(await pg.evaluate(() => document.documentElement.dataset.townRev ?? "-1"));
+  };
   try {
     // 1. A first browser on a host whose database is empty: its empty town goes up once, a zone made here is the host's.
     const first = await openPaired();
     const before = await townRow(first);
     await addZone(first);
+    await atRev(first);
     const made = await hostTown(first);
     ok("town: the Connection panel says the host keeps the town, and a zone made here is on the host", /^Kept by the world's host for this crewhub-loops, shared by every paired browser\./.test(before) && made.status === 200 && made.zones.includes("zone-1"), `${before.slice(0, 90)} | host: ${made.status} rev ${made.rev} zones ${made.zones.join(",")}`);
     await shot(first, "31-town-host");
@@ -1397,19 +1434,36 @@ await group("town", async () => {
     host = await start(dbs[1], port);
     await first.reload();
     await first.waitForSelector(".connection-chip[data-connection=\"live\"]", { timeout: 30000 }).catch(() => {});
-    await first.waitForTimeout(2500);
+    await atRev(first, 1);
     const imported = await hostTown(first);
     const note = await townRow(first);
     ok("town: a browser with an older town of its own imports it once into a host that has none", imported.status === 200 && imported.rev === 1 && imported.zones.includes("zone-1") && /sent to the world's host once/.test(note), `host: ${imported.status} rev ${imported.rev} zones ${imported.zones.join(",")} | ${note.slice(0, 120)}`);
 
     // 3. A second paired browser sees the same town; a zone made there reaches the first through the stream.
     const second = await openPaired();
+    await atRev(second);
     const seenBySecond = await zoneLines(second);
     await addZone(second);
-    await first.waitForTimeout(2500);
-    const seenByFirst = await zoneLines(first);
+    await atRev(second);
     const again = await hostTown(second);
-    ok("town: two browsers on one host see one town; a zone made in one appears in the other", seenBySecond.some((l) => l.startsWith("Zone 1 (")) && seenByFirst.some((l) => l.startsWith("Zone 2 (")) && /kept by the world's host/.test(seenByFirst.join(" ")) && again.rev >= 2, `second saw ${seenBySecond.length} zone line(s); first now ${seenByFirst.map((l) => l.slice(0, 7)).join(", ")}; host rev ${again.rev}`);
+    await atRev(first, again.rev);
+    const seenByFirst = await zoneLines(first);
+    const pair = seenBySecond.some((l) => l.startsWith("Zone 1 (")) && seenByFirst.some((l) => l.startsWith("Zone 2 (")) && /kept by the world's host/.test(seenByFirst.join(" ")) && again.rev >= 2;
+    ok("town: two browsers on one host see one town; a zone made in one appears in the other", pair, `second saw ${seenBySecond.length} zone line(s); first now ${seenByFirst.map((l) => l.slice(0, 7)).join(", ")}; host rev ${again.rev}`);
+    if (!pair) {
+      info(`town: the second browser's town log: ${second.townLog.join(" | ") || "(nothing)"}`);
+      info(`town: the first browser's town log: ${first.townLog.join(" | ") || "(nothing)"}`);
+      info(`town: the second browser's page revision ${await second.evaluate(() => document.documentElement.dataset.townRev ?? "none")}, storage words: ${(await second.locator(".connection-town").innerText().catch(() => "")).slice(0, 120)}`);
+      info(`town: the host's log: ${hostLog.filter((l) => /town of/.test(l)).join(" | ")}`);
+      const { DatabaseSync } = await import("node:sqlite");
+      const peek = new DatabaseSync(dbs[1].file, { readOnly: true });
+      const rows = peek.prepare("SELECT installation, rev, history FROM towns").all();
+      peek.close();
+      for (const row of rows) {
+        const h = JSON.parse(row.history ?? "null");
+        info(`town: the host's history of ${row.installation} at rev ${row.rev}: index ${h?.index}, entries ${(h?.entries ?? []).map((e) => `r${e.revision}[${(e.zones ?? []).map((z) => z.id).join(",")}|plots ${e.plots.length}]`).join(" ")}`);
+      }
+    }
     await shot(second, "32-town-second");
 
     // 4. A host restart on the same database keeps the town.
@@ -1417,7 +1471,7 @@ await group("town", async () => {
     host = await start(dbs[1], port);
     await first.reload();
     await first.waitForSelector(".connection-chip[data-connection=\"live\"]", { timeout: 30000 }).catch(() => {});
-    await first.waitForTimeout(2500);
+    await atRev(first);
     const kept = await zoneLines(first);
     const row = await townRow(first);
     ok("town: a host restart keeps the town", kept.some((l) => l.startsWith("Zone 1 (")) && kept.some((l) => l.startsWith("Zone 2 (")) && /^Kept by the world's host/.test(row), `${kept.map((l) => l.slice(0, 7)).join(", ")} | ${row.slice(0, 80)}`);
@@ -1428,29 +1482,31 @@ await group("town", async () => {
     // the second sees Zone 2 again.
     await second.reload();
     await second.waitForSelector(".connection-chip[data-connection=\"live\"]", { timeout: 30000 }).catch(() => {});
-    await second.waitForTimeout(2000);
+    await atRev(second);
     await canvas(second).focus();
     await second.keyboard.press("b");
     await second.waitForTimeout(800);
+    const revBeforeUndo = (await hostTown(second)).rev;
     await second.locator(".build-sheet").getByRole("button", { name: "Undo", exact: true }).click();
-    await second.waitForTimeout(1500);
+    await atRev(second, revBeforeUndo + 1);
     await second.keyboard.press("Escape");
-    await first.waitForTimeout(2000);
+    await atRev(first, revBeforeUndo + 1);
     const afterUndo = await zoneLines(first);
     await host.close();
     host = await start(dbs[1], port);
     await first.reload();
     await first.waitForSelector(".connection-chip[data-connection=\"live\"]", { timeout: 30000 }).catch(() => {});
-    await first.waitForTimeout(2500);
+    await atRev(first);
     await canvas(first).focus();
     await first.keyboard.press("b");
     await first.waitForTimeout(800);
     const redoButton = first.locator(".build-sheet").getByRole("button", { name: "Redo", exact: true });
     const redoEnabled = await redoButton.isEnabled().catch(() => false);
+    const revBeforeRedo = (await hostTown(first)).rev;
     if (redoEnabled) await redoButton.click();
-    await first.waitForTimeout(1500);
+    await atRev(first, revBeforeRedo + 1);
     await first.keyboard.press("Escape");
-    await second.waitForTimeout(2500);
+    await atRev(second, revBeforeRedo + 1);
     const afterRedo = await zoneLines(second);
     ok(
       "town: an undo in one browser is seen in the other, and a redo after a host restart brings it back for both",
@@ -1487,11 +1543,11 @@ await group("town", async () => {
     await first.waitForSelector(".restore-sheet", { timeout: 5000 }).catch(() => {});
     await shot(first, "35-town-restore-preview");
     await first.locator(".restore-sheet").getByRole("button", { name: "Restore", exact: true }).click();
-    await first.waitForTimeout(1500);
+    await atRev(first, current.rev + 1);
     const afterRestore = await first.request.get(`${liveOrigin}/world-api/town`).then((r) => r.json()).catch(() => null);
     const restoreNote = (await first.locator(".settings-sheet").innerText().catch(() => "")).replace(/\s+/g, " ");
     await first.keyboard.press("Escape");
-    await second.waitForTimeout(2000);
+    await atRev(second, current.rev + 1);
     // The renamed zone no longer matches the "Zone n" filter: every hand-made zone line of the second browser is read.
     const secondSees = (await text(second)).split("\n").filter((l) => /\(made by hand/.test(l));
     ok(

@@ -1,8 +1,8 @@
 /* The agent card: what one agent is doing now, from the facts the projection holds (world/agentCard). The kit's Card
    with a portrait of the figure, then the registry's sections as rows. Beside the figure on a desktop (the scene places
    its anchor), a bottom sheet on a phone. Not modal: Escape and a tap outside close it (App), the world stays live. */
-import { useEffect, useId, useRef } from "react";
-import { Circle, CircleCheck, CircleDot, CircleEllipsis, Clock, Contrast, Eye, ExternalLink, Flag, MessageCircle, MessageSquare, TriangleAlert, X } from "lucide-react";
+import { useEffect, useId, useRef, useState } from "react";
+import { ChevronRight, Circle, CircleCheck, CircleDot, CircleEllipsis, Clock, Contrast, Eye, ExternalLink, Flag, MessageCircle, MessageSquare, TriangleAlert, X } from "lucide-react";
 import { useT } from "../i18n";
 import { roleWords, type AgentCardFacts, type Freshness } from "@crewhub/world-model";
 import { LaneChip } from "../world/lane";
@@ -14,6 +14,9 @@ const STATUS_KIT = { backlog: "backlog", planned: "planned", in_progress: "progr
 const PLAIN_ICON = { message: MessageSquare, clock: Clock, alert: TriangleAlert, flag: Flag } as const;
 /* Status icons as the kit draws them: shape first, colour second. */
 const STATUS_ICON = { backlog: Circle, planned: CircleDot, in_progress: Contrast, review: CircleEllipsis, done: CircleCheck } as const;
+
+/* The "More" disclosure (round 22) is closed at first and, once opened, stays open for every card of the page's life. */
+let moreOpen = false;
 
 interface Props {
   facts: AgentCardFacts;
@@ -56,6 +59,19 @@ export function AgentCard({ facts, sections, freshness, demo, following, sheet, 
   }, [sheet, facts.key]);
   const { agent } = facts;
   const role = roleWords(agent.role, agent.roleSource, "you");
+  const [more, setMore] = useState(moreOpen);
+  const open = sections.filter((s) => !s.more);
+  const detail = sections.filter((s) => s.more);
+  const section = (s: RenderedSection) => (
+    <section key={s.id} className="agent-card-section" aria-labelledby={`${id}-${s.id}`}>
+      <h3 className="eyebrow" id={`${id}-${s.id}`}>
+        {s.title}
+      </h3>
+      {s.rows.map((row, i) => (
+        <Row key={i} row={row} freshness={freshness} demo={demo} />
+      ))}
+    </section>
+  );
   return (
     <Card ref={card} className={`agent-card${sheet ? " agent-card-sheet" : ""}${agent.presence === "proxy" ? " proxy" : ""}`} role="dialog" aria-modal="false" aria-labelledby={`${id}-title`}>
       <header className="agent-card-head">
@@ -72,16 +88,24 @@ export function AgentCard({ facts, sections, freshness, demo, following, sheet, 
         <Button variant="ghost" size="sm" iconOnly aria-label={`Close the card of ${facts.displayName}`} icon={<X className="icon" aria-hidden="true" />} onClick={onClose} />
       </header>
       <Card.Body className="agent-card-body">
-        {sections.map((section) => (
-          <section key={section.id} className="agent-card-section" aria-labelledby={`${id}-${section.id}`}>
-            <h3 className="eyebrow" id={`${id}-${section.id}`}>
-              {section.title}
-            </h3>
-            {section.rows.map((row, i) => (
-              <Row key={i} row={row} freshness={freshness} demo={demo} />
-            ))}
-          </section>
-        ))}
+        {open.map(section)}
+        {detail.length > 0 && (
+          <details
+            className="agent-card-more"
+            open={more}
+            onToggle={(e) => {
+              moreOpen = e.currentTarget.open;
+              setMore(moreOpen);
+            }}
+          >
+            <summary className="agent-card-more-summary">
+              <ChevronRight className="icon icon-sm agent-card-more-mark" aria-hidden="true" />
+              <span>{more ? "Less" : "More"}</span>
+              <span className="sign-muted">{detail.map((s) => s.title).join(", ")}</span>
+            </summary>
+            {detail.map(section)}
+          </details>
+        )}
       </Card.Body>
       <Card.Footer className="agent-card-foot">
         <Button size="sm" pressed={following} icon={<Eye className="icon" aria-hidden="true" />} onClick={onFollow} kbd="⇧F" title={following ? "Stop following (Shift+F or Escape)" : "The camera follows this figure wherever it walks (Shift+F)"}>
@@ -166,6 +190,28 @@ function Row({ row, freshness, demo }: { row: CardRow; freshness: Freshness; dem
               <span className="sign-muted">{item.meta}</span>
             </li>
           ))}
+        </ul>
+      );
+    case "tickets":
+      return (
+        <ul className="agent-tickets">
+          {row.items.map((item) => (
+            <li key={item.key}>
+              {item.href ? (
+                <a className="agent-ticket-link agent-ticket-small" href={item.href} target="_blank" rel="noreferrer" title={`Open ${item.key} in crewhub-loops`}>
+                  <span className="agent-ticket-key">{item.key}</span>
+                  <span className="agent-ticket-title">{item.title}</span>
+                </a>
+              ) : (
+                <span className="agent-ticket-link agent-ticket-small" title={demo ? "Demo: there is no crewhub-loops web app to open" : undefined}>
+                  <span className="agent-ticket-key">{item.key}</span>
+                  <span className="agent-ticket-title">{item.title}</span>
+                </span>
+              )}
+              <span className="sign-muted agent-ticket-meta">{item.meta}</span>
+            </li>
+          ))}
+          {row.more > 0 && <li className="sign-muted">and {row.more} more</li>}
         </ul>
       );
   }

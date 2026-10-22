@@ -1245,3 +1245,43 @@ host's archive memory and session stay files), a UI to delete the host's town.
   the focus inside, Tab kept within, Escape to cancel, and says itself once to a reader.
 - **The demo's town is never the host's:** a demo page's runtime uses the browser's store only; tested.
 Still out: merging concurrent edits, a town per person, deleting the host's town.
+
+## Addendum: the agent card, live (2026-10-22, round 22)
+
+The card is the person's main way into an agent. Read against what crewhub-loops `4cdcd383` offers for **one agent**
+through what the host reads today (the GET allow-list, `apps/host/src/allowList.ts`), this is what the card shows, what
+it did not, and the honest words for a fact that is absent. Everything stays read-only; no new loops read is needed:
+every fact below is in the snapshot the host already composes, in the events it streams, in a browser read the host
+already forwards (`/world-api/tickets/{ref}/progress`), or in the page's own Recent answers store (round 16).
+
+| Fact about one agent | Where loops has it | On the card before round 22 | The card shows now | When absent, the card says |
+| --- | --- | --- | --- | --- |
+| Where it is, its state, posture | the team snapshot (`GET /api/team`), the reducer's placement | yes (Now) | unchanged | "Team says nothing: not in the team snapshot"; "No team snapshot: no team probe has reported" |
+| Its status line (the team's own words) | `GET /api/team` `contextLine` | yes | unchanged | nothing (no line, no row) |
+| When loops last saw its key | `GET /api/agents` `lastSeenAt` | yes | unchanged | "Seen by loops: never; not known to be working" |
+| Lane facts: set up as, seen running, drift, lifecycle, session and pane, computer | `GET /api/agents` `AgentDetailOut.lane`, `computer`; the team session's computer | yes (Lane) | unchanged, behind **More** | "No lane: loops has not tied this agent to a pane"; "Never seen running"; an external bot: "no lane, it runs elsewhere" |
+| Its flags: role, CrewHub lead, coordinator, operator, external, reader, disabled; needs login; deliveries not picked up | `GET /api/agents` | yes (Lane) | unchanged, behind More | nothing to say for a worker (loops has no entry): "a worker of <lead>, not registered" |
+| **Its lead** | the team snapshot (`lead` of a worker's lane); `ProjectOut.lead` of the building it works in | only a worker's, in the Lane section | **Lead** in Now: the worker's lead from the team snapshot, else the lead of the building it is in, by name; nothing for the lead itself | "loops names no lead for it" is never needed: an agent in a building has the building's lead; in the town hall or the post office the row is left out |
+| **The tickets it holds** | `GET /api/board/{slug}` of every project: cards whose `assignee` is the agent (loops assigns tickets to registered agents only) | one: the ticket on its desk, else the first in-progress one | **Holds**: a count by status ("3 open tickets: 2 in progress, 1 in review"), then the open tickets (not done), key and title linked into loops, the status and whom each waits on, in progress first, at most 5 with "and n more" | registered: "No ticket held: crewhub-loops assigns it none right now"; a worker: "No ticket of its own: crewhub-loops assigns tickets to its lead, <lead>; the one on its desk is inferred from its status line" |
+| **The tickets it waits on, and that wait on it** | the board cards' `waitingOn` (a person or an agent) and `waitingOnHuman` | the "waiting on <person>" chip of the one ticket | each held ticket says "waits on <name>" (a person or an agent); **Waited on by**: open tickets of others whose `waitingOn` is this agent, with who holds them | "Waits on nobody" is said in the Holds summary when it holds tickets and none waits; "nobody waits on it" likewise |
+| Its last progress line | `ticket.progress` events (the stream, from the tail: nothing from before the page opened); `GET /api/tickets/{ref}/progress` (the host forwards it, `WORLD_ROUTES`) | yes, from the events only: empty at open against a real loops | the newest line the page saw, else the **last line of the ticket on its desk read once from the source** (`getProgress`: the host's forwarded `/world-api/tickets/{ref}/progress` in live mode, the demo's data in the demo; read-only, one GET while the card is open, never retried by itself) | "No progress line: none seen since this page opened, and CL-9 has none" / "... and no ticket on its desk to read one from" / a read that fails: "... and the lines of CL-9 could not be read from the source" (never "none" for a refused read) |
+| **Its recent answers in the chat** | `dm.created` on the key's stream where loops lets the world's key read the chat (a viewer key, 8292; the person's session of round 12 went in round 19); `GET /api/dm/messages/{id}` | no (the Chat panel and the text view list the last 10 of every agent) | **Answers**: this agent's lines from the Recent answers store (the page's life, newest first, at most 3), each with its time; the Chat button opens its chat | per road (`cardAnswersEmpty`, two roads since round 19): key: "No answer from it since this page opened; this crewhub-loops lets the world's key read the chat"; none: "No answers can arrive here: this crewhub-loops does not let the world read the chat. For the agents' answers, make a viewer key in Settings > Agents > Connect CrewHub World …"; the demo: "No answer yet: write to it in the demo's chat dock" |
+| Its comments, moves, deliveries | the events | yes (Recent, the last 5 facts) | unchanged, behind More | nothing (no fact, no section) |
+| Projects it leads or belongs to | `GET /api/agents` `projects`; the buildings | yes (Projects) | unchanged, behind More | — |
+| Its keys, rights, the reader log (`/api/agents/{name}/keys`, `/reads`), its audit changes (`/changes`), lane-watch alerts (`/api/lane-watch/alerts`) | loops, for admins or the owner only | no | no: the world's key may not read them, and the card says nothing about what it cannot know | — |
+| The chat thread's own facts (`GET /api/dm/threads`: `lastMessageAt`, `unreadCount`) | loops, for the person or a viewer key | no (the host reads the list once at the key check, to learn whether the key reads the chat) | not yet: a follow-up could carry them in the snapshot where the key reads the chat, so the card says "last message in the chat 2 h ago, 1 unread" before any answer arrives | — |
+
+**Shape.** The card stays one card: Now (with the Lead row), Work (Holds, Waited on by, the progress line), Answers,
+then a **More** disclosure that holds Lane, Projects and Recent (closed at first, and kept open for the page once
+opened). Keyboard-complete as in round 21: the disclosure is a `details`/`summary` the Tab order reaches, the close
+button stays reachable, Escape closes the card. The leads-only Chat rule (round 13) is unchanged. Demo mode shows the
+same fields from the demo's data (its boards carry assignees and waiting-on, its dock's scripted replies feed the same
+answers store), with "Demo: scripted facts" in the footer as before.
+
+**Facts.** `agentCardFacts` gains `tickets` (`held`, `waitedOnBy`, each a `TicketBrief` with key, title, status,
+project, whom it waits on) and `lead`; the sections read them through `CardContext`, which gains the page's answers
+for the agent and the empty words (`answers`, `answersEmpty`) and the fetched progress line (`fetchedProgress`). Tests
+in `packages/world-model/test/agentCard.test.ts` and `apps/world/test/agentCard.test.ts`; the regress `live` group
+reads the new rows and the absent-fact words over the fake; `tools/a11y.mjs` reads the card's sections and the
+disclosure; pictures demo and live (8291 with a plain key: the honest words; 8292 with the viewer key: an answer on the
+card), light and dark, 1440 and 375.

@@ -244,8 +244,13 @@ export function validateLayout(value: unknown, defs: Definitions): WorldLayout {
     !inBounds(l.grid, l.entrance)
   )
     throw new Error("Invalid grid or layout version.");
-  const ids = new Set<string>(),
-    occupied = new Set<string>();
+  // One byte a cell for what is taken (a Set of "x,z" strings cost a string per cell per call), and the entrance
+  // read on the way: the same checks, in the same order, with the same errors.
+  const { width } = l.grid;
+  const occupied = new Uint8Array(width * l.grid.depth);
+  const entrance = l.entrance.z * width + l.entrance.x;
+  let entranceBlocked = false;
+  const ids = new Set<string>();
   for (const p of l.props) {
     if (
       !p ||
@@ -259,14 +264,16 @@ export function validateLayout(value: unknown, defs: Definitions): WorldLayout {
     )
       throw new Error("Invalid prop identity or definition.");
     ids.add(p.id);
+    const blocks = defs[p.definitionId]!.blocksMovement;
     for (const c of propCells(p, defs)) {
-      if (!inBounds(l.grid, c) || occupied.has(cellKey(c)))
+      const at = c.z * width + c.x;
+      if (!inBounds(l.grid, c) || occupied[at] === 1)
         throw new Error("Props overlap or extend beyond the grid.");
-      occupied.add(cellKey(c));
+      occupied[at] = 1;
+      if (blocks && at === entrance) entranceBlocked = true;
     }
   }
-  if (occupancy(l, defs)[l.entrance.z * l.grid.width + l.entrance.x] !== -1)
-    throw new Error("Keep the entrance open.");
+  if (entranceBlocked) throw new Error("Keep the entrance open.");
   return structuredClone(l);
 }
 /** Compact semantics for future tool consumers; never exposes meshes or screen pixels. */

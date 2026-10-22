@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { answerLabel, answerName, answerTarget, answerTime, RECENT_NOTE, recentEmptyWords } from "../src/state/recentAnswers.ts";
+import { cardAnswersEmpty, answerLabel, answerName, answerTarget, answerTime, RECENT_NOTE, recentEmptyWords } from "../src/state/recentAnswers.ts";
 import { clearSaid, getRecentAnswers, RECENT_ANSWERS, rememberSaid, SAID_MS, saidBy } from "../src/state/said.ts";
 
 const line = (agentId: string, text: string, n: number) => ({ agentId, agentName: agentId.toUpperCase(), text, at: new Date(Date.UTC(2026, 9, 22, 1, 2, n)).toISOString(), messageId: `dm_${n}`, threadId: `dmt_${agentId}` });
@@ -56,4 +56,11 @@ test("recent answers: the row's time, name, target and accessible name", () => {
   const nobody = answerTarget({ agentId: "postman", agentName: "Postman" }, { key: "postman", displayName: "Postman", chat: { self: false, why: "the postman (loops role router)", lead: null } });
   assert.deepEqual(nobody, { agent: null, action: "Open the chat", note: "crewhub-loops chats with leads only: Postman is the postman (loops role router)." });
   assert.deepEqual(answerTarget({ agentId: "gone", agentName: null }, null), { agent: { key: "gone", name: "gone" }, action: "Chat with gone", note: null }, "an agent no longer in the model: the panel for its id, loops decides");
+});
+
+test("recent answers (round 22): the card's words for an agent without an answer, per road", () => {
+  assert.match(cardAnswersEmpty("demo", null), /^No answer yet: write to it in the demo's chat dock/);
+  assert.match(cardAnswersEmpty("live", { state: "key" }), /^No answer from it since this page opened; this crewhub-loops lets the world's key read the chat/);
+  assert.match(cardAnswersEmpty("live", null), /^No answers can arrive here: this crewhub-loops does not let the world read the chat\. For the agents' answers, make a viewer key in Settings > Agents > Connect CrewHub World/);
+  assert.equal(cardAnswersEmpty("live", undefined), cardAnswersEmpty("live", null));
 });

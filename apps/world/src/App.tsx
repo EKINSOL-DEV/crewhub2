@@ -188,6 +188,11 @@ function World() {
   useEffect(() => worldRuntime().setZoning(zoningOf(town.doc)), [town.doc]);
   // A person's package lands at once under reduced motion: the reducer decides that, so it must know.
   useEffect(() => worldRuntime().setReducedMotion(reducedMotion), [reducedMotion]);
+  // The host's town revision this page shows, as page state (`<html data-town-rev>`): what a check waits for instead of time.
+  useEffect(() => {
+    if (town.hostRev === null) delete document.documentElement.dataset["townRev"];
+    else document.documentElement.dataset["townRev"] = String(town.hostRev);
+  }, [town.hostRev]);
   // The civic places go by what stands there at this size: the lodge, the mailbox, the mail hut.
   const civic = useMemo(() => civicWords(plan.civic), [plan.civic.hall, plan.civic.post]);
   // What the agents just said to the person (round 12, state/said.ts): bubbles over the figures, and (round 14) the text

@@ -250,7 +250,9 @@ parts as data, pixel-identical by construction (`docs/WORLD_STYLES.md`, "parts a
 `COST_POLICY.md`). Round 21 (2026-10-22) measured the phone under a 4x CPU throttle (first paint, Live, the tour, the
 Chat panel, walk mode) and cut the two worst own-code costs on the road to the first frame, the room dresser's
 placement search and the landmarks' bake, pixel-identical (98 pairs, 0 differing pixels); the town is dressed 1,353 →
-1,292 ms at 4x, the Chat panel opens in 30 ms and walk mode runs at 8 ms a frame there (`COST_POLICY.md`, the table).
+1,292 ms at 4x, the Chat panel opens in 30 ms and walk mode runs at 8 ms a frame there (`COST_POLICY.md`, the table). Round 22 took two more of the
+named costs, the theme-colour sync (to idle time) and the layout validation, pixel-identical again (98 pairs, 0
+differing pixels), and found the agents' name order costs what it costs (the collation, not the lookup).
 
 ## Later scope
 

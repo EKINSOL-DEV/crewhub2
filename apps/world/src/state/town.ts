@@ -23,7 +23,7 @@ import { allocationEdit, carryAllocations } from "../world/settlement";
 import { styleRegistry } from "../world/style";
 import { readHostTown, writeHostTown } from "@crewhub/loops-client";
 import { createHostTownStore, townStoreFor } from "./hostTown";
-import { onHostTown } from "./townBus";
+import { onHostConnected, onHostTown } from "./townBus";
 import { createTownStore, seededTown, type TownStore } from "./townStore";
 import { LIVE, SCENARIO, STRESS, TOWN_COPY_FROM, TOWN_KEY, worldRuntime } from "./world";
 
@@ -37,6 +37,8 @@ export interface TownState {
   storage: "host" | "indexeddb" | "memory";
   storageNote: string | null;
   loaded: boolean;
+  /** The host's revision this browser is on (round 20), null in demo mode and while the host is away. */
+  hostRev: number | null;
   /** Done prop tickets whose prop is invalid, while they are still done and not imported. */
   invalid: InvalidRequest[];
 }
@@ -64,7 +66,7 @@ class TownRuntime {
     this.store = townStoreFor({
       live: LIVE,
       local,
-      make: (own) => createHostTownStore({ local: own, context: this.context, onTown: onHostTown, transport: { read: () => readHostTown(), write: (op, document, baseRev) => writeHostTown(document, baseRev, "", 15_000, op) }, log: (line) => console.info(`[town] ${line}`) }),
+      make: (own) => createHostTownStore({ local: own, context: this.context, onTown: onHostTown, onConnected: onHostConnected, transport: { read: () => readHostTown(), write: (op, document, baseRev) => writeHostTown(document, baseRev, "", 15_000, op) }, log: (line) => console.info(`[town] ${line}`) }),
     });
     this.#state = this.#derive();
     this.store.subscribe(() => {
@@ -183,6 +185,7 @@ class TownRuntime {
       storage: s.storage,
       storageNote: s.storageNote,
       loaded: s.loaded,
+      hostRev: (this.store as { rev?: number | null }).rev ?? null,
       invalid: this.#visibleInvalid(),
     };
   }

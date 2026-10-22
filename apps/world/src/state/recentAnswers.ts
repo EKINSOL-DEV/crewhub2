@@ -24,6 +24,16 @@ export function recentEmptyWords(mode: "demo" | "live", session: Pick<HostSessio
   return `No answers can arrive: this crewhub-loops does not let the world read the chat. For bubbles, ${VIEWER_KEY_WORDS}.`;
 }
 
+/**
+ * The card's Answers section when the agent has no answer in the list (round 22): why none can be known, per road, in
+ * one sentence; the same facts as `recentEmptyWords`, said for one agent.
+ */
+export function cardAnswersEmpty(mode: "demo" | "live", session: Pick<HostSessionState, "state"> | null | undefined): string {
+  if (mode === "demo") return "No answer yet: write to it in the demo's chat dock (bottom right) and its scripted reply shows here.";
+  if (session?.state === "key") return "No answer from it since this page opened; this crewhub-loops lets the world's key read the chat, so one would show here.";
+  return `No answers can arrive here: this crewhub-loops does not let the world read the chat. For the agents' answers, ${VIEWER_KEY_WORDS}.`;
+}
+
 /** The answer's time as loops wrote it, local, HH:MM:SS (24 h); the page's own clock when `at` does not parse. */
 export function answerTime(answer: Pick<Answer, "at" | "shownAt">): string {
   const ms = Date.parse(answer.at);

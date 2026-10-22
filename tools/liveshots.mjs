@@ -103,7 +103,14 @@ for (const theme of themes)
           await p.screenshot({ path: name(`card-${agent}`, theme, width) });
           await card.screenshot({ path: name(`cardonly-${agent}`, theme, width) });
           count += 2;
-          // The card body scrolls: a third shot with the Lane section at the top, when there is one.
+          // The card body scrolls: a third shot with the Lane section at the top, when there is one (behind the More
+          // disclosure since round 22: opened first, so the shot shows it).
+          const more = card.locator("details.agent-card-more:not([open]) > summary");
+          if (await more.count()) {
+            await more.click();
+            await p.waitForTimeout(200);
+            notes.push(`${theme} ${width}: card ${agent} More opened: ${(await card.locator("details.agent-card-more").innerText().catch(() => "")).replace(/\s+/g, " ").trim().slice(0, 400)}`);
+          }
           const lane = card.locator(".agent-card-section").filter({ has: p.locator("h3", { hasText: /^Lane$/ }) }).first();
           if (await lane.count()) {
             await lane.evaluate((el) => el.scrollIntoView({ block: "start" }));
