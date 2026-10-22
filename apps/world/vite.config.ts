@@ -8,11 +8,13 @@ import { devHostVerdict, devOriginLine, devOriginsOf, hostPortPlan } from "./hos
 /**
  * The dev server's origin, told to the host (round 23; apps/host devOrigin.ts): once Vite listens, and again whenever
  * the proxied health shows the host no longer lists it (a host restarted after Vite, or started later). One line per
- * outcome that changes. `tell` is bounded: at most once every 5 s, one in flight.
+ * outcome that changes (a lost acceptance is said again when it is back). `tell` is bounded: at most once every 5 s,
+ * one in flight.
  */
 function devOriginTeller(port: number, checkout: string, logger: { info: (text: string) => void }) {
   let origins: string[] = [];
   let lastLine = "";
+  let accepted = false;
   let busy = false;
   let lastAt = 0;
   const say = (line: string) => {
@@ -28,10 +30,12 @@ function devOriginTeller(port: number, checkout: string, logger: { info: (text: 
       for (const origin of origins) {
         const outcome = await tellDevOrigin(port, origin, checkout);
         if (outcome.kind !== "accepted") {
+          accepted = false;
           say(devOriginLine(port, origins, outcome));
           return;
         }
       }
+      accepted = true;
       say(devOriginLine(port, origins, { kind: "accepted", origins }));
     } finally {
       busy = false;
@@ -48,8 +52,9 @@ function devOriginTeller(port: number, checkout: string, logger: { info: (text: 
     sawHealth(header: string | string[] | undefined) {
       const listed = (Array.isArray(header) ? header.join(",") : (header ?? "")).split(",").map((o) => o.trim());
       if (origins.length > 0 && origins.some((o) => !listed.includes(o))) {
-        // A host that forgot us (restarted, or started after Vite): tell again, and say so again when it accepts.
-        lastLine = "";
+        // A host that forgot us (restarted, or started after Vite): tell again, and say so again when it accepts. A
+        // host that keeps refusing (a stub, another checkout's) is told again as well, quietly: its line was printed.
+        if (accepted) lastLine = "";
         lastAt = Math.min(lastAt, Date.now() - 5000);
         void tell();
       }
