@@ -37,6 +37,11 @@ file, what loops says about the key, the projects, agents and team reads, the ev
 `ok` or the fix. It reads only and never opens the stream. The table in section 5 says what each chip means. The
 scripted road (a key file and an explicit URL or socket in the environment) is section 2; everything there keeps working.
 
+**Another crewhub-loops** (not the Mac app, for example a development instance on another port): name it, and the key
+file if you have one, in front of the same command:
+`CREWHUB_WORLD_LOOPS_URL=http://127.0.0.1:8291 CREWHUB_WORLD_KEY_FILE=~/path/to/the.key npm run world`. Without the key
+file the Connect screen asks for the key as above. Section 2 has the whole table.
+
 **The shape.** The browser never talks to crewhub-loops. It talks to the world's own relay, `apps/host`, which holds
 one agent key, keeps one event stream open and serves `/world-api` on loopback. The host never writes to crewhub-loops;
 its only writes are the stored key in its own folder.
