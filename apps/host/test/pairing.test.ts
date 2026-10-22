@@ -5,14 +5,14 @@
  * a running host mints a link for `open` through the run file's secret and nothing else.
  */
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { request } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, describe, it } from "node:test";
 import { ConfigError, loadServerConfig } from "../src/config.ts";
 import { MINT_HEADER, MINT_PATH, createHost, type Host } from "../src/host.ts";
-import { PAIR_COOKIE, PAIR_TTL_MS, createPairing, loadPairingSecret, readCookie } from "../src/pairing.ts";
+import { PAIR_COOKIE, PAIR_TTL_MS, createPairing, loadPairingSecret, readCookie, readCookies } from "../src/pairing.ts";
 import { type LoopsStub, createLoopsStub, installation } from "./loopsStub.ts";
 import { waitFor } from "./wait.ts";
 
@@ -143,6 +143,25 @@ describe("pairing", () => {
     }
   });
 
+  it("tries every pairing cookie in the header, so a junk cookie another loopback server set first cannot lock the browser out (review F2)", async () => {
+    const link = JSON.parse((await status(`${host.url}${MINT_PATH}`, { [MINT_HEADER]: "mint-secret-for-the-test" })).body).link as string;
+    const { value } = await pair(link);
+    assert.deepEqual(readCookies(`${PAIR_COOKIE}=junk; other=1; ${PAIR_COOKIE}=${value}`, PAIR_COOKIE), ["junk", value]);
+    assert.equal(readCookie(`${PAIR_COOKIE}=junk; ${PAIR_COOKIE}=${value}`, PAIR_COOKIE), "junk", "readCookie is still the first one");
+    assert.equal((await status(`${host.url}/world-api/snapshot`, { cookie: `${PAIR_COOKIE}=junk; ${PAIR_COOKIE}=${value}` })).status, 200, "the junk first (a longer path sorts first), the valid one pairs");
+    assert.equal((await status(`${host.url}/world-api/snapshot`, { cookie: `${PAIR_COOKIE}=${value}; ${PAIR_COOKIE}=junk` })).status, 200);
+    assert.equal((await status(`${host.url}/world-api/snapshot`, { cookie: `${PAIR_COOKIE}=junk; ${PAIR_COOKIE}=also.junk; ${PAIR_COOKIE}=a${value}` })).status, 401, "none verifies: not paired");
+    assert.equal((await status(`${host.url}/world-api/snapshot`, { cookie: `${PAIR_COOKIE}=${value}\u00e9` })).status, 401, "a non-ASCII byte in the value is unequal, never an error");
+  });
+
+  it("a mint header with a non-ASCII byte of the right character length is 404, never a 500 (review F5)", async () => {
+    const expected = "mint-secret-for-the-test";
+    const bad = `${expected.slice(0, -1)}\u00e9`;
+    assert.equal(bad.length, expected.length);
+    assert.equal((await status(`${host.url}${MINT_PATH}`, { [MINT_HEADER]: bad })).status, 404);
+    assert.equal(logs.filter((l) => /request failed/.test(l)).length, 0, "no failed request in the log");
+  });
+
   it("mints a link for another origin that proxies /pair (the Vite dev server)", () => {
     assert.match(host.mintPairLink("http://127.0.0.1:5173/"), /^http:\/\/127\.0\.0\.1:5173\/pair\/[A-Za-z0-9_-]{43}$/);
   });
@@ -193,6 +212,25 @@ describe("pairing across restarts", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
       await stub.close();
+    }
+  });
+});
+
+describe("the pairing secret file", () => {
+  it("a file whose text decodes to fewer than 32 bytes is replaced by a fresh secret (review N1), a whole one is kept", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "chw-secret-"));
+    try {
+      const file = path.join(dir, "pairing-secret");
+      writeFileSync(file, "A\n", { mode: 0o600 });
+      const fresh = loadPairingSecret(file);
+      assert.equal(fresh.length, 32);
+      assert.notEqual(readFileSync(file, "utf8").trim(), "A", "the file was rewritten");
+      assert.deepEqual(loadPairingSecret(file), fresh, "and read back whole");
+      writeFileSync(file, Buffer.alloc(31, 7).toString("base64url"), { mode: 0o600 });
+      assert.notDeepEqual(loadPairingSecret(file), Buffer.alloc(31, 7), "31 bytes is not a secret either");
+      assert.equal(loadPairingSecret(file).length, 32);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 });

@@ -23,6 +23,12 @@ describe("the archive memory file", () => {
       assert.equal(store.read(), null);
       writeFileSync(store.file, JSON.stringify({ v: 2, slugs: ["x"] }));
       assert.equal(store.read(), null, "a version this host does not know");
+      // A slug that is no path segment (an edited file) is dropped on read and on write (review F8): it would make
+      // every snapshot's `GET /api/projects/{slug}` fall at the allow-list.
+      writeFileSync(store.file, JSON.stringify({ v: 1, slugs: ["a/b", "crewhub", "", "..", "-x", "ok.slug_1", "a".repeat(129)], at: "2026-10-22T00:00:00Z" }));
+      assert.deepEqual(store.read()?.slugs, ["crewhub", "ok.slug_1"]);
+      store.save({ slugs: ["a/b", "crewhub"], at: "2026-10-22T00:00:00Z" });
+      assert.deepEqual(JSON.parse(readFileSync(store.file, "utf8")).slugs, ["crewhub"]);
     } finally {
       rmSync(base, { recursive: true, force: true });
     }

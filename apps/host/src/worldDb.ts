@@ -16,12 +16,57 @@
 import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { amendHistory, canRedo, canUndo, commitHistory, createHistory, currentDocument, redoHistory, undoHistory, type TownHistory } from "@crewhub/world-model";
+import { amendHistory, canRedo, canUndo, commitHistory, createHistory, currentDocument, redoHistory, undoHistory, type TownHistory, validateTownDocument } from "@crewhub/world-model";
 
 export const WORLD_DB_NAME = "world.db";
 export const TOWN_FORMAT = "crewhub-town/1";
 /** The largest document the host takes on `PUT /world-api/town` (the document's own limits keep a town far below). */
 export const TOWN_BODY_LIMIT = 4 * 1024 * 1024;
+/** The history column's cap in bytes (review F7): the oldest revisions go first, the current one is always kept. */
+export const HISTORY_MAX_BYTES = 8 * 1024 * 1024;
+
+/**
+ * The host's own check of a document before it keeps it (review F7): the world-model's `validateTownDocument`, the same
+ * code and limits the browsers apply (`TOWN_LIMITS`: plots, placements, zones, districts, user props, cells; the
+ * keys each record may carry; the prop models). What the host cannot know is the browser's registries: which styles
+ * are installed and which built-in props the catalogue ships; the document is taken at its word there (its own style
+ * id, the `builtin:` ids it names), and the browser still checks those against its registry when it adopts the town.
+ * Returns the first problem as a plain reason.
+ */
+export function validateTownForHost(document: unknown): { ok: true } | { ok: false; reason: string } {
+  const record = document as { styleId?: unknown; style?: unknown };
+  const styles = [record.styleId, record.style].filter((v): v is string => typeof v === "string");
+  const builtin = new Set<string>();
+  const walk = (value: unknown, depth: number): void => {
+    if (depth > 8 || value === null || typeof value !== "object") return;
+    for (const v of Object.values(value as Record<string, unknown>)) {
+      if (typeof v === "string") {
+        if (v.startsWith("builtin:")) builtin.add(v);
+      } else walk(v, depth + 1);
+    }
+  };
+  walk(document, 0);
+  const result = validateTownDocument(document, { knownStyles: styles, builtinIds: [...builtin] });
+  if (result.ok) return { ok: true };
+  const first = result.errors[0];
+  return { ok: false, reason: `${first?.path ?? "(root)"}: ${first?.message ?? "invalid"}${result.errors.length > 1 ? ` (and ${result.errors.length - 1} more)` : ""}` };
+}
+
+/** The history at most HISTORY_MAX_BYTES as JSON: the oldest entries before the current one go first; the current entry always stays. */
+export function capHistory(history: TownHistory): TownHistory {
+  let { entries, index } = history;
+  let text = JSON.stringify({ entries, index });
+  while (text.length > HISTORY_MAX_BYTES && entries.length > 1) {
+    if (index > 0) {
+      entries = entries.slice(1);
+      index -= 1;
+    } else {
+      entries = entries.slice(0, -1);
+    }
+    text = JSON.stringify({ entries, index });
+  }
+  return entries === history.entries ? history : { entries, index };
+}
 
 export type Migration = (db: DatabaseSync) => void;
 
@@ -267,10 +312,11 @@ export function openWorldDb(configDir: string, options: WorldDbOptions = {}): Wo
           db.exec("ROLLBACK");
           return { ok: true, rev: current, document: row.document, canUndo: canUndo(history), canRedo: canRedo(history), changed: false };
         }
-        const document = JSON.stringify(currentDocument(moved));
-        updateRow(document, JSON.stringify(moved), at, updatedBy, installation, baseRev);
+        const capped = capHistory(moved);
+        const document = JSON.stringify(currentDocument(capped));
+        updateRow(document, JSON.stringify(capped), at, updatedBy, installation, baseRev);
         db.exec("COMMIT");
-        return { ok: true, rev: current + 1, document, canUndo: canUndo(moved), canRedo: canRedo(moved), changed: true };
+        return { ok: true, rev: current + 1, document, canUndo: canUndo(capped), canRedo: canRedo(capped), changed: true };
       } catch (error) {
         db.exec("ROLLBACK");
         throw error;

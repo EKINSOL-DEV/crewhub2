@@ -28,7 +28,7 @@ import { DEFAULT_LOOPS_URL, type KeySource } from "./config.ts";
 import { type Discovery, type DiscoveryInput, type Found, createDiscovery, loopsAnswers, targetText } from "./discovery.ts";
 import { checkKey } from "./keyCheck.ts";
 import type { KeyStore } from "./keyStore.ts";
-import { BACKUP_NAME, TOWN_BODY_LIMIT, TOWN_FORMAT, installationKey, listBackups, readBackupTown, type TownOp, type WorldDb } from "./worldDb.ts";
+import { BACKUP_NAME, TOWN_BODY_LIMIT, TOWN_FORMAT, installationKey, listBackups, readBackupTown, type TownOp, type WorldDb, validateTownForHost } from "./worldDb.ts";
 import { type LoopsClient, createLoopsClient, isUnauthorized } from "./loops.ts";
 import { PAIR_PATH_PREFIX, PAIR_REFUSED_HTML, type Pairing, createPairing, pairCookieHeader } from "./pairing.ts";
 import { type ArchiveReport, type AssembledSnapshot, SnapshotError, type SnapshotStats, assembleSnapshot } from "./snapshot.ts";
@@ -104,6 +104,19 @@ export interface HostOptions {
 
 export const MINT_PATH = "/pair-mint";
 export const MINT_HEADER = "x-crewhub-world-mint";
+
+/**
+ * On every HTML page the host serves (review F6): the world may be framed by its own origin only, so a page on another
+ * loopback port cannot frame the paired world (a same-site frame would carry the cookie: clickjacking on build mode,
+ * Import, Restore, Forget). `frame-ancestors` is the CSP directive for it; `X-Frame-Options` is the same word for older
+ * engines. No `default-src` this round: the world loads blob workers, data images and the chat's frame from loops'
+ * origin, so a source list needs `'self' blob: data:` plus `frame-src <loops origin>` read from health, and a look at
+ * every inline style; that is a change to the page's behaviour, not to its headers.
+ */
+export const HTML_HEADERS: Readonly<Record<string, string>> = { "content-security-policy": "frame-ancestors 'self'", "x-frame-options": "SAMEORIGIN" };
+
+/** How many tabs may hold the stream at once (review N3); the next one is answered 503 with a reason. */
+export const MAX_TABS = 64;
 export const CONNECT_PATH = `${WORLD_API_PREFIX}/connect`;
 /** The reason on a key the stream refused after it was accepted (revoked meanwhile, or disabled). */
 export const STREAM_REFUSED_REASON = "crewhub-loops refused the key on the event stream (401 or 403): it was revoked or its bot disabled meanwhile. Paste a new access key, or forget this one.";
@@ -195,6 +208,16 @@ const MIME: Record<string, string> = {
   ".wasm": "application/wasm",
   ".glb": "model/gltf-binary",
 };
+
+/**
+ * A constant-time comparison of two secrets as bytes (review F5): the byte lengths first, so a header with a non-ASCII
+ * character (one UTF-16 unit, two bytes) is simply unequal, never a thrown RangeError from `timingSafeEqual`.
+ */
+export function sameSecret(given: string, expected: string): boolean {
+  const a = Buffer.from(given);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 function sendJson(res: ServerResponse, status: number, body: unknown, headers: Record<string, string> = {}): void {
   const text = JSON.stringify(body);
@@ -695,7 +718,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
     }
     const value = pairing.redeem(token);
     if (value === null) {
-      res.writeHead(403, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+      res.writeHead(403, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", ...HTML_HEADERS });
       res.end(PAIR_REFUSED_HTML);
       return;
     }
@@ -707,12 +730,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
   function mint(req: IncomingMessage, res: ServerResponse): void {
     const given = req.headers[MINT_HEADER];
     const expected = options.mintSecret;
-    const ok =
-      expected !== undefined &&
-      typeof given === "string" &&
-      req.headers.origin === undefined &&
-      given.length === expected.length &&
-      timingSafeEqual(Buffer.from(given), Buffer.from(expected));
+    const ok = expected !== undefined && typeof given === "string" && req.headers.origin === undefined && sameSecret(given, expected);
     if (!ok) {
       sendJson(res, 404, { error: "not_found" });
       return;
@@ -783,10 +801,13 @@ export async function createHost(options: HostOptions): Promise<Host> {
       sendJson(res, 200, body);
       step("snapshot", true, snapshotText(stats), stats.ms);
     } catch (error) {
-      const reason = error instanceof SnapshotError ? error.reason : "loops_down";
+      // loops' own failures keep their reason; anything else (a read the allow-list refused, a bug) is the host's
+      // own and says so (review F8), never "loops down" while loops answers.
+      const reason = error instanceof SnapshotError ? error.reason : "snapshot_failed";
+      const detail = error instanceof SnapshotError ? "" : `: ${scrub(error instanceof Error ? error.message : String(error))}`;
       snapshotState = { state: "failed", reason };
-      step("snapshot", false, `snapshot failed: ${reason}`);
-      sendJson(res, 503, { error: reason });
+      step("snapshot", false, `snapshot failed: ${reason}${detail}`);
+      sendJson(res, 503, { error: reason, ...(detail === "" ? {} : { message: `The host could not assemble the snapshot${detail}` }) });
     }
   }
 
@@ -795,6 +816,10 @@ export async function createHost(options: HostOptions): Promise<Host> {
     const cursor = raw === null ? null : Number(raw);
     if (cursor !== null && (!Number.isInteger(cursor) || cursor < 0)) {
       sendJson(res, 400, { error: "validation_error", message: "cursor must be a non-negative integer" });
+      return;
+    }
+    if (tabs.size >= MAX_TABS) {
+      sendJson(res, 503, { error: "too_many_tabs", message: `This host holds ${MAX_TABS} tabs on its stream already; close one` });
       return;
     }
     res.writeHead(200, {
@@ -845,12 +870,24 @@ export async function createHost(options: HostOptions): Promise<Host> {
 
   /**
    * `POST /world-api/dev-origin {origin, checkout}` (round 23, devOrigin.ts): this checkout's dev server tells the host
-   * the loopback origin it serves the page from, before the pairing gate (a program has no cookie). Accepted once
-   * per origin, with one log line; told again, silent.
+   * the loopback origin it serves the page from, before the pairing gate (a program has no cookie), with the run file's
+   * secret in the mint header as its proof of being the same user (round 26). Accepted once per origin, with one log
+   * line; told again, silent.
    */
   async function devOrigin(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const body = await readJsonBody(req, CONNECT_BODY_LIMIT);
-    const verdict = devOriginVerdict({ body, originHeader: req.headers.origin, contentType: req.headers["content-type"], remoteAddress: req.socket.remoteAddress, hostCheckout: options.checkout, known: devOrigins });
+    const secret = req.headers[MINT_HEADER];
+    const verdict = devOriginVerdict({
+      body,
+      originHeader: req.headers.origin,
+      contentType: req.headers["content-type"],
+      remoteAddress: req.socket.remoteAddress,
+      hostCheckout: options.checkout,
+      known: devOrigins,
+      // The same-user proof (review F3): the run file's secret, 0600 in the user's temp folder, as `open` sends it.
+      sameUser: options.mintSecret !== undefined && typeof secret === "string" && sameSecret(secret, options.mintSecret),
+      hasSecret: options.mintSecret !== undefined,
+    });
     if (!verdict.ok) {
       sendJson(res, verdict.status, { error: verdict.error, message: verdict.message });
       return;
@@ -1024,6 +1061,13 @@ export async function createHost(options: HostOptions): Promise<Host> {
       sendJson(res, 400, { error: "validation_error", message: `A ${kind} needs a document of format ${TOWN_FORMAT} under ${TOWN_BODY_LIMIT} bytes` });
       return;
     }
+    if (withDocument) {
+      const verdict = validateTownForHost(document);
+      if (!verdict.ok) {
+        sendJson(res, 400, { error: "validation_error", message: `The document does not validate: ${verdict.reason}` });
+        return;
+      }
+    }
     if (typeof baseRev !== "number" || !Number.isInteger(baseRev) || baseRev < 0) {
       sendJson(res, 400, { error: "validation_error", message: "baseRev must be the revision the document is based on (0 to create)" });
       return;
@@ -1114,7 +1158,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
 
   async function serveStatic(pathname: string, res: ServerResponse): Promise<void> {
     if (building) {
-      res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", [BUILDING_HEADER]: "1" });
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", [BUILDING_HEADER]: "1", ...HTML_HEADERS });
       res.end(BUILDING_HTML);
       return;
     }
@@ -1147,11 +1191,14 @@ export async function createHost(options: HostOptions): Promise<Host> {
       "content-type": type,
       "content-length": String(info.size),
       "cache-control": immutable ? "public, max-age=31536000, immutable" : "no-cache",
+      ...(type.startsWith("text/html") ? HTML_HEADERS : {}),
     });
     createReadStream(file).pipe(res);
   }
 
   async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    // On every answer (review F6): nothing the host sends is to be sniffed into another type.
+    res.setHeader("x-content-type-options", "nosniff");
     if (!guard(req, res)) return;
     // The Host header passed the guard; the base only serves to parse the path and query.
     const url = new URL(req.url ?? "/", "http://127.0.0.1");

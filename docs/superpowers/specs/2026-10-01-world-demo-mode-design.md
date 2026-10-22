@@ -1,7 +1,7 @@
 # CrewHub World in demo mode: the whole plan, scripted
 
 Date: 2026-10-01. Status: accepted by the user for an overnight build.
-Branch: `feat/world-demo` (worktree `/Users/ekinsol_nicky/Documents/GitHub/crewhub2-world-demo`),
+Branch: `feat/world-demo` (a worktree of this repository, `../crewhub2-world-demo` beside the main checkout),
 based on `docs/loops-integration-plan`, so the plan and ADR 0005 are in this tree.
 Delivery: one PR to `main` at the end of the night. Do not merge; the user reviews.
 
