@@ -303,12 +303,13 @@ enabled agents of loops role `lead` only, so only a lead's card has "Chat with <
 postman has no Chat button of its own and says why ("crewhub-loops chats with leads only: <name> is a worker ...; chat
 with its lead <lead>"), with a button for the lead's chat when loops lists one.
 
-**Road B**, speech bubbles over the figures when an agent answers, needs the person's own view of the conversation (the
-world's key is not a participant of the person's thread, so it never sees `dm.*` for it). The spec addendum weighs the
-options. The one that needs no loops change is built, off by default: the Connection panel's Chat section takes a
-sign-in once and the host keeps only loops' session cookie, for chat reads alone; where loops lets the world's own key
-read the chat (the viewer key of world/viewer-key), no sign-in is needed. An agent's answer then shows for a few
-seconds as a speech bubble over its figure (at most three lines; the whole line in its title and accessible name), and a
+**Road B**, speech bubbles over the figures when an agent answers, needs a view of the person's conversation (a plain
+external bot's key is not a participant of the person's thread, so it never sees `dm.*` for it). It is built (rounds 12
+to 18) on two roads. The key road: where loops lets the world's own key read the chat (the viewer key of
+`world/viewer-key`, on origin under review and running on 8292), the host reads an agent's answer on its own stream
+and no sign-in is needed. The session road, for today's Mac app: the Connection panel's Chat section takes a sign-in
+once and the host keeps only loops' session cookie, for chat reads alone, off by default. An agent's answer then shows
+for a few seconds as a speech bubble over its figure (at most three lines; the whole line in its title and accessible name), and a
 tap on the bubble opens the Chat panel on that agent. The real proof came on 8292 on the key road (round 14): since then
 the text view carries "<name> says: <first line>" with the place while the bubble lives, a small chat mark stands over
 the building from the town (the figure inside is not drawn there; a tap enters the building; the text view's building
@@ -320,9 +321,10 @@ first lines this page saw with their times, newest first, each a button that ope
 written anywhere, and a reload starts empty. The panel itself reads in one glance (round 17): "crewhub-loops' own chat,
 framed here" and the one thing to do on this road, two short lines above Recent answers, with the whole story (and, since
 round 18, what the list is) behind "About this chat", so the list starts with its rows; in the demo the dock's scripted
-replies feed the same list, bubbles and mark. The honest road is on the loops side (section 8). Once the viewer key is
-merged and the world has switched to it, the sign-in road goes in that same track (the plan: the spec addendum "chat with
-the agents", planned removal); until then it stays as it is.
+replies feed the same list, bubbles and mark. The honest road is on the loops side (section 8): the switch to the
+viewer key, which removes the session road (the spec addendum "chat with the agents", planned removal), is written on
+`task/r19-viewer-switch` (round 19) and merges when crewhub-loops main carries `world/viewer-key`; until then
+`feat/world-demo` keeps the session road.
 
 ![The live town over the fake crewhub-loops a second after CR Lead answered inside its building: a chat mark "CR Lead" beside the CrewHub World building's waiting pin, since the figure inside is not drawn from the town; a tap on the mark enters the building.](images/chat-mark.jpg)
 

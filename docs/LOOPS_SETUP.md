@@ -436,21 +436,25 @@ development instance that another developer tests against.
 ## What is not there yet
 
 - **A viewer role** (L1). The key is a lead-grade external bot; the host's allow-list and a test keep every unsafe
-  method out. A read-only key that may read the board, the team, agents and the stream is proposed to loops on the
-  branch `world/viewer-key` of the loops checkout (not pushed, tests green), packaged for `cl-lead` in
-  `docs/proposals/crewhub-world-viewer.md` on that branch (round 7: the routes, the migration, the tests and how to
-  try it on a dev instance). The world's switch is prepared: a new key file or a paste, nothing else (section 3, "What
-  changes with a viewer key").
+  method out. A viewer key that may read the board, the team, agents, the stream and the chat is written on
+  crewhub-loops' branch `world/viewer-key`, on origin under `cl-lead`'s review (15 commits on `4cdcd383`, tests green),
+  packaged for `cl-lead` in `docs/proposals/crewhub-world-viewer.md` and a review page there (round 7 and after: the
+  routes, the migration, the tests and how to try it on a dev instance). The world's side is prepared (a new key file
+  or a paste, nothing else; section 3, "What changes with a viewer key"), and the switch itself is written on
+  `task/r19-viewer-switch` (round 19), merged when loops main carries the branch.
 - **A "Connect CrewHub World" card in the loops web** (Settings > Agents) that makes the viewer bot and shows its key
   once next to the world's address and a button that opens the world, so steps 2 and 3 above become one dialog:
-  worked out on the same branch on 2026-10-21 (web only, on top of the viewer flag), a proposal until loops accepts it.
+  on the same loops branch (web only, on top of the viewer flag), under the same review.
   The key is still pasted in the world's Connect screen; nothing hands it to the host behind the person's back.
 - **The chat** is loops' own, framed in the Chat panel (round 12, road A of the spec addendum "chat with the
   agents"): the person's session cookie (`SameSite=Lax`, one site on 127.0.0.1 whatever the port) travels into the
-  frame, and nothing in loops sets `frame-ancestors` or `X-Frame-Options`. What is still out: **bubbles over the figures
-  when an agent answers** (road B), because the world's bot key never sees the person's DM threads and there is still no
-  `Access-Control-Allow-Origin` anywhere in `loops:.../api/security.py` (`CHL_ALLOWED_ORIGINS` feeds the Host/Origin
-  guard only): that needs a loops-side feed for the viewer key, or the host signed in as the person.
+  frame, and nothing in loops sets `frame-ancestors` or `X-Frame-Options`. **Bubbles over the figures when an agent
+  answers** (road B) are built (rounds 12 to 18) on two roads: where loops lets the world's key read the chat (the
+  viewer key of `world/viewer-key`, running on 8292) they come over the key's own stream with no sign-in; on today's Mac
+  app, whose bot key never sees the person's DM threads, the host signs in as the person once from the Connection
+  panel's Chat section and keeps only loops' session cookie for chat reads (the session road, which
+  `task/r19-viewer-switch` removes once loops merges the viewer key). There is still no `Access-Control-Allow-Origin`
+  in `loops:.../api/security.py` (`CHL_ALLOWED_ORIGINS` feeds the Host/Origin guard only), and none is needed for this.
 - **Pending delegations** need the owner's session, not a key: out.
 - **Project groups** (L22): zones live in the browser until crewhub-loops offers them, or until the host's world
   database keeps them per installation (the roads are in the spec addendum of round 7; the per-browser road is what

@@ -46,8 +46,8 @@ smooth connection" below):
   threads, a thread's messages, a message by id, the events with `types=dm.*`) and sends nothing; an agent's answer reaches the tabs as a
   `chat` stream message. `connection.session` says `signed-out`, `signed-in` (with the name for paired browsers), `expired`, or `key`: this
   loops lets the world's key read the chat (a viewer key, L1: its own entry in `GET /api/agents` says `viewer: true` and `GET /api/dm/threads` answers 200), so the bubbles come over the key's own
-  stream and a sign-in is refused as not needed (409). Planned (decision 9): once the viewer key is merged in loops and the world has
-  switched to it, the session road goes in that same track (`src/session.ts`, its file, the `/world-api/session` routes, the panel's
+  stream and a sign-in is refused as not needed (409). Planned (decision 9) and written on `task/r19-viewer-switch` (round 19): once crewhub-loops main carries
+  `world/viewer-key` (on origin under `cl-lead`'s review) that branch merges and the session road goes with it (`src/session.ts`, its file, the `/world-api/session` routes, the panel's
   form, the `signed-out`/`signed-in`/`expired` states, the regress chat group's session half); the plan is in `session.ts`'s header.
 - **Health** `GET /world-api/health`: `{ loops, keyName, sharedKey, loopsWebUrl, transport, paired, pairing, checkout?, loopsCommit?, loopsCommitBefore?, cursor?, connection }`
   (`checkout` is the id of the checkout the host runs from, `src/checkout.ts`: the first 12 hex characters of SHA-256 over the
