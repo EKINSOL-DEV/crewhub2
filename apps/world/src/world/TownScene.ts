@@ -36,6 +36,9 @@ import { driftPhase, followPhase, type DriftFollow } from "./dayClock";
 import { FrameRing } from "./frameRing";
 import { keepOffChrome, keepStacksOffChrome, nudgeStacks, overRobot, type Label, type Rect, type RobotBox } from "./labelLayout";
 import { restMatrices, updateMatrices } from "./matrixPass";
+import { likelyOrder } from "./prepareAhead";
+import { warmPrograms } from "./warmPrograms";
+import { whenIdle } from "../state/idle";
 import { RobotCrowd } from "./robotCrowd";
 import { PersonWalks } from "./personWalks";
 import { DistrictFrames, type DistrictView } from "./districtFrames";
@@ -55,6 +58,8 @@ export interface TownView {
   lotAnchors?: readonly { x: number; z: number }[] | undefined;
   /** Index (in `model.buildings`) of the building with the keyboard focus ring. */
   focused: number;
+  /** The jump list's active row's building while the list is open (Enter goes there): built ahead, likeliest of all. */
+  likely?: string | null;
   ringVisible: boolean;
   /** Inside a building: the room with the keyboard focus ring, and the room the camera frames. */
   room: RoomKind | null;
@@ -436,6 +441,8 @@ export class TownScene {
   #cancelPrepare: (() => void) | null = null;
   /** The building whose interior is being built in idle time. */
   #preparing: string | null = null;
+  /** What was warmed per building (its furniture group and inside revision), so a build ahead warms once. */
+  #warmed = new Map<string, string>();
   #hoverPick = "";
   #tween: { position: THREE.Vector3; target: THREE.Vector3; zoom: number } | null = null;
   #resize: ResizeObserver;
@@ -1067,9 +1074,17 @@ export class TownScene {
     while (this.#interiors.length > KEPT_INTERIORS) this.#buildings.get(this.#interiors.shift()!)?.releaseInterior();
   }
 
+  /** The buildings to build ahead, likeliest first (prepareAhead.ts): the jump list's row, the pointer's, the keyboard's. */
+  #likely(): string[] {
+    const slugOf = (index: number | null) => (index === null ? null : (this.view.model.buildings[index]?.slug ?? null));
+    // An archived building has no inside to build.
+    return likelyOrder([this.view.likely ?? null, slugOf(this.#hovered), slugOf(this.view.focused)], (slug) => this.#buildings.get(slug)?.building.archived === false);
+  }
+
   /**
-   * In the town, while the browser is idle, builds the interior of the building the pointer is over or the keyboard
-   * has focused, so entering it only has to show it.
+   * In the town, while the browser is idle, builds the interior and the inside layers of the likely next buildings
+   * (the jump list's active row, the building the pointer is over, the keyboard's focused one; prepareAhead.ts says
+   * how many) and warms their programs, so entering one only has to show it. One build at a time, in slices.
    */
   #prepareInterior() {
     // Not before the first frame is on screen: the idle time before it belongs to the shaders and the first draw.
@@ -1077,16 +1092,22 @@ export class TownScene {
     const run = (more: () => boolean) => {
       this.#cancelPrepare = null;
       if (this.#disposed || this.view.entered) return;
-      const index = this.#hovered ?? this.view.focused;
-      const slug = this.view.model.buildings[index]?.slug;
-      const view = slug ? this.#buildings.get(slug) : undefined;
-      if (!slug || !view) return;
-      // One build at a time: a build for a building the visitor has moved on from is given up.
-      if (this.#preparing !== slug) this.#buildings.get(this.#preparing ?? "")?.cancelPrepare();
-      this.#preparing = slug;
-      if (view.prepareInterior(more)) this.#useInterior(slug);
+      const likely = this.#likely();
+      // A build for a building the visitor has moved on from is given up (what stands stays for the next time).
+      if (this.#preparing && !likely.includes(this.#preparing)) this.#buildings.get(this.#preparing)?.cancelPrepare();
+      this.#preparing = null;
+      for (const slug of likely) {
+        const view = this.#buildings.get(slug)!;
+        this.#preparing = slug;
+        if (!(view.interiorReady || view.prepareInterior(more))) break;
+        this.#useInterior(slug);
+        if (!view.prepareInside(more, this.view.town)) break;
+        this.#warmInterior(slug, view);
+        this.#preparing = null;
+        if (!more()) break;
+      }
       // Not done in this slice: go on in the next idle time.
-      if (view.preparing) this.#prepareInterior();
+      if (this.#preparing !== null || likely.some((slug) => !this.#buildings.get(slug)!.ready)) this.#prepareInterior();
     };
     if (typeof requestIdleCallback === "function") {
       // A busy stream (a sync most frames) leaves no idle time: after `IDLE_TIMEOUT_MS` the step runs anyway, for
@@ -1106,6 +1127,25 @@ export class TownScene {
       }, 300);
       this.#cancelPrepare = () => window.clearTimeout(id);
     }
+  }
+
+  /**
+   * The shader programs of what was built ahead (the interior's batches, the objects layer's instanced meshes), compiled
+   * and their locations read in idle time (warmPrograms.ts), once per build, so the frame of the enter neither
+   * compiles nor waits for a link. Nothing about a material changes.
+   */
+  #warmInterior(slug: string, view: BuildingView) {
+    const key = `${view.interior?.id ?? 0}:${view.insideRevision}`;
+    if (this.#warmed.get(slug) === key) return;
+    this.#warmed.set(slug, key);
+    whenIdle(() => {
+      const alive = () => !this.#disposed && this.#buildings.get(slug) === view && this.#warmed.get(slug) === key;
+      if (!alive()) return;
+      const started = performance.now();
+      void warmPrograms(this.renderer, view.group, this.camera, this.scene, alive).then((programs) => {
+        if (alive()) performance.measure("world:interior-warmed", { start: started, detail: { slug, programs } });
+      });
+    });
   }
 
   /** The blob shadow under a building's slab follows its footprint (role rooms grow east). */

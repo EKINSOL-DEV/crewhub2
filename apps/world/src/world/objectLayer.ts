@@ -9,13 +9,13 @@
    Done rack once they have put it down (`deliver`), whatever the model's own clock says meanwhile. The frame path
    allocates nothing. */
 import * as THREE from "three";
-import { useInstancedMaterials } from "./instancedMaterial";
-import { mergeStatic } from "./mergeStatic";
+import { useInstancedMaterials } from "./instancedMaterial.ts";
+import { mergeStatic } from "./mergeStatic.ts";
 import type { ModelKey, ModelOptions, PaletteName, ResolvedStyle, StyleTheme } from "@crewhub/world-style";
 import type { Building, WorkObject } from "@crewhub/world-model";
-import { BUILDING_CELL } from "./buildingTemplate";
-import type { ObjectLayout, Placement, Surface } from "./interiorLayout";
-import { MOTE_OPACITY, MOTE_SIZE, MOTE_TOWARDS_INK, VEIL_OPACITY, VEIL_TOWARDS_INK, mote, moteCount, type MotePlace } from "./dust";
+import { BUILDING_CELL } from "./buildingTemplate.ts";
+import type { ObjectLayout, Placement, Surface } from "./interiorLayout.ts";
+import { MOTE_OPACITY, MOTE_SIZE, MOTE_TOWARDS_INK, VEIL_OPACITY, VEIL_TOWARDS_INK, mote, moteCount, type MotePlace } from "./dust.ts";
 
 /** Ticket objects at the size of the Greenhouse props they sit on, so the work reads first among the desk things. */
 const OBJECT_SCALE = 1;
@@ -495,47 +495,100 @@ export class ObjectLayer {
       const aside = state.aside * state.aside * (3 - 2 * state.aside);
       this.#q.setFromAxisAngle(this.#yAxis, ((o.position * 37 + o.key.length * 11) % 13) * 0.02 - 0.12 + aside * ASIDE_TURN);
       this.#place.compose(state.pos, this.#q, this.#s);
-      this.#put(body, o.ticketId);
-      const size = { width: body.size.x + 0.02, height: body.height + 0.004, depth: body.size.z + 0.02 };
-      // `ticket.quiet`: the grey veil of dust over the package, settling from a little above it, and a few motes
-      // hovering low before its face in wall time (none under reduced motion); the clock tag is a label.
-      if (o.quiet !== null) {
-        this.#put(this.#dust(body), o.ticketId, false, 0, (1 - state.dust) * 0.12, 0);
-        if (motes > 0 && state.dust > 0) {
-          const seed = hash(o.ticketId);
-          for (let i = 0; i < motes; i++) {
-            const m = mote(seed, i, this.#wall, body.size, this.#motePlace);
-            this.#put(this.#mote(), o.ticketId, false, m.x, body.height + m.y * state.dust, m.z);
-          }
-        }
-      }
-      // Struck through: one thin dark band from corner to corner (a milestone band runs straight and is coloured).
-      if (o.rejected) {
-        const strike = { width: Math.hypot(body.size.x, body.size.z) * 0.94, height: size.height + 0.004, depth: 0.03 };
-        this.#put(this.#template("ticket.band", { size: strike, accent: ASIDE_STRIKE }), o.ticketId, false, 0, 0, 0, Math.atan2(body.size.z, body.size.x));
-      }
-      if (o.blocked) this.#put(this.#template("ticket.strap", { size }), o.ticketId, false);
-      if (o.sealed) this.#put(this.#template("ticket.seal", { size: { width: 0.07, height: size.height, depth: size.depth } }), o.ticketId, false);
-      if (o.milestone) {
-        const accent = this.#milestoneAccent.get(o.milestone.id) ?? "sage";
-        this.#put(this.#template("ticket.band", { size: { width: 0.05, height: size.height, depth: size.depth }, accent }), o.ticketId, false, -body.size.x * 0.3);
-      }
-      if (o.priorityTag) {
-        const tag = this.#template("ticket.tag", { variant: o.priorityTag, accent: o.priorityTag === "urgent" ? "coral" : "tangerine" });
-        this.#put(tag, o.ticketId, false, body.size.x * 0.4, body.height, -body.size.z * 0.3);
-      }
-      o.labels.slice(0, 3).forEach((label, i) => {
-        const sticker = this.#template("ticket.sticker", label === "prop" ? { variant: "star" } : { accent: STICKER_ACCENTS[hash(label) % STICKER_ACCENTS.length]! });
-        this.#put(sticker, o.ticketId, false, -body.size.x * 0.25 + i * 0.07, body.height, body.size.z * 0.2);
-      });
-      if (o.nameTag || o.waitingOnHuman) this.#put(this.#template("ticket.nametag"), o.ticketId, false, body.size.x * 0.45, body.height * 0.2, body.size.z * 0.5);
-      if (o.speechMarkUntil !== null) this.#put(this.#template("ticket.speech"), o.ticketId, false, -body.size.x * 0.3, body.height + 0.12, 0);
+      this.#visit(o, body, state.dust, motes, true);
     }
     for (const t of this.#templates.values())
       for (const mesh of t.meshes) {
         mesh.count = t.count;
         mesh.instanceMatrix.needsUpdate = true;
       }
+  }
+
+  /**
+   * Every instance one object draws: its body and its decorations (dust and motes, the strike, the strap, the seal, the
+   * milestone band, the priority tag, the stickers, the name tag, the speech mark), each through `#emit`: written
+   * (`write`, the frame path, `#place` set) or only counted (`prepare`, ahead of the enter). One list, so what is
+   * made ahead is what the frame draws.
+   */
+  #visit(o: WorkObject, body: Template, dust: number, motes: number, write: boolean) {
+    this.#emit(write, body, o.ticketId);
+    const size = { width: body.size.x + 0.02, height: body.height + 0.004, depth: body.size.z + 0.02 };
+    // `ticket.quiet`: the grey veil of dust over the package, settling from a little above it, and a few motes
+    // hovering low before its face in wall time (none under reduced motion); the clock tag is a label.
+    if (o.quiet !== null) {
+      this.#emit(write, this.#dust(body), o.ticketId, false, 0, (1 - dust) * 0.12, 0);
+      if (motes > 0 && dust > 0) {
+        const seed = hash(o.ticketId);
+        for (let i = 0; i < motes; i++) {
+          const m = mote(seed, i, this.#wall, body.size, this.#motePlace);
+          this.#emit(write, this.#mote(), o.ticketId, false, m.x, body.height + m.y * dust, m.z);
+        }
+      }
+    }
+    // Struck through: one thin dark band from corner to corner (a milestone band runs straight and is coloured).
+    if (o.rejected) {
+      const strike = { width: Math.hypot(body.size.x, body.size.z) * 0.94, height: size.height + 0.004, depth: 0.03 };
+      this.#emit(write, this.#template("ticket.band", { size: strike, accent: ASIDE_STRIKE }), o.ticketId, false, 0, 0, 0, Math.atan2(body.size.z, body.size.x));
+    }
+    if (o.blocked) this.#emit(write, this.#template("ticket.strap", { size }), o.ticketId, false);
+    if (o.sealed) this.#emit(write, this.#template("ticket.seal", { size: { width: 0.07, height: size.height, depth: size.depth } }), o.ticketId, false);
+    if (o.milestone) {
+      const accent = this.#milestoneAccent.get(o.milestone.id) ?? "sage";
+      this.#emit(write, this.#template("ticket.band", { size: { width: 0.05, height: size.height, depth: size.depth }, accent }), o.ticketId, false, -body.size.x * 0.3);
+    }
+    if (o.priorityTag) {
+      const tag = this.#template("ticket.tag", { variant: o.priorityTag, accent: o.priorityTag === "urgent" ? "coral" : "tangerine" });
+      this.#emit(write, tag, o.ticketId, false, body.size.x * 0.4, body.height, -body.size.z * 0.3);
+    }
+    o.labels.slice(0, 3).forEach((label, i) => {
+      const sticker = this.#template("ticket.sticker", label === "prop" ? { variant: "star" } : { accent: STICKER_ACCENTS[hash(label) % STICKER_ACCENTS.length]! });
+      this.#emit(write, sticker, o.ticketId, false, -body.size.x * 0.25 + i * 0.07, body.height, body.size.z * 0.2);
+    });
+    if (o.nameTag || o.waitingOnHuman) this.#emit(write, this.#template("ticket.nametag"), o.ticketId, false, body.size.x * 0.45, body.height * 0.2, body.size.z * 0.5);
+    if (o.speechMarkUntil !== null) this.#emit(write, this.#template("ticket.speech"), o.ticketId, false, -body.size.x * 0.3, body.height + 0.12, 0);
+  }
+
+  #emit(write: boolean, t: Template, id: string, body = true, dx = 0, dy = 0, dz = 0, yaw = 0) {
+    if (write) this.#put(t, id, body, dx, dy, dz, yaw);
+    else this.#counts.set(t, (this.#counts.get(t) ?? 0) + 1);
+  }
+  readonly #counts = new Map<Template, number>();
+
+  /**
+   * Ahead of the enter (buildingView.ts `prepareInside`, idle time): bakes every template the building's objects draw
+   * with and makes its instanced meshes at the capacity they need (count 0, under the hidden group), so the frame of
+   * the enter neither bakes nor grows them and the renderer can compile their program before it. Nothing about the
+   * objects' states: those are made at the enter, as before. Yields after every object whose templates it baked (a
+   * bake is a merge); answers true when it made something.
+   */
+  *prepare(building: Building): Generator<void, boolean> {
+    this.#milestoneAccent = new Map(building.milestones.map((m, i) => [m.id, MILESTONE_ACCENTS[i % MILESTONE_ACCENTS.length]!]));
+    const before = this.#templates.size;
+    let templates = before;
+    this.#counts.clear();
+    // Dust at its fullest: the veil and every mote, as a package that has stood a while draws them.
+    for (const o of building.objects) {
+      this.#visit(o, this.#body(o), 1, moteCount(this.#ctx.reducedMotion()), false);
+      if (this.#templates.size !== templates) {
+        templates = this.#templates.size;
+        yield;
+      }
+    }
+    let grown = false;
+    for (const [t, n] of this.#counts)
+      if (n > t.capacity) {
+        t.ensure(n, this.group, "");
+        grown = true;
+      }
+    this.#counts.clear();
+    return grown || templates !== before;
+  }
+
+  /** How many templates stand baked and how many instanced meshes they hold (for the tests and the tools). */
+  get baked(): { templates: number; meshes: number } {
+    let meshes = 0;
+    for (const t of this.#templates.values()) meshes += t.meshes.length;
+    return { templates: this.#templates.size, meshes };
   }
 
   /** Adds one instance of a template, offset (and turned by `yaw`) in the object's local frame. */

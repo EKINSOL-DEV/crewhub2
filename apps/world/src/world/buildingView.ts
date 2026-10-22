@@ -407,7 +407,12 @@ export class BuildingView {
     }
     this.detailed = detailed && !building.archived;
     this.#shape = shape;
-    if (this.detailed) this.prepareInterior();
+    if (this.detailed) {
+      // Entered: the inside layers are synced below, and a build ahead in progress is moot.
+      this.#insidePending?.return();
+      this.#insidePending = null;
+      this.prepareInterior();
+    }
     if (this.#furniture) this.#furniture.visible = this.detailed;
     this.#cords.visible = this.detailed && this.#focusRoom !== null;
     this.#syncAgents();
@@ -835,6 +840,69 @@ export class BuildingView {
   }
 
   /**
+   * The inside layers, ahead of the enter (the town calls it in idle time after `prepareInterior`, for the likely
+   * next building): the figures' work places at their desks, the signals, the personal things, the props of the town
+   * document and the objects layer's templates and meshes, each as the enter would build it, hidden, and each
+   * cached by its own signature, so a repeated call after a model update costs the signatures and no more. With
+   * `more`, it stops between the layers once `more()` says no and goes on at the next call. True when every layer
+   * stands; `insideRevision` moves when a call made something (the town warms the programs then).
+   */
+  prepareInside(more: () => boolean = () => true, town: TownLayer | null = null): boolean {
+    if (this.building.archived || this.detailed) return false;
+    this.#insidePending ??= this.#insideSteps(town);
+    const pending = this.#insidePending;
+    const started = performance.now();
+    let done = false;
+    do {
+      if (pending.next().done) {
+        this.#insidePending = null;
+        this.#insideRan = this.#insideWanted();
+        done = true;
+        break;
+      }
+    } while (more());
+    // For the measuring tools: this slice of the build ahead (summed per building by them).
+    performance.measure("world:inside-step", { start: started, detail: { slug: this.building.slug, done } });
+    return done;
+  }
+  #insidePending: Generator<void, void> | null = null;
+  /** The model the inside layers were last run through for (`ready`): a new model wants another run. */
+  #insideRan: unknown = null;
+  #insideWanted(): unknown {
+    return this.building;
+  }
+  /** Moves when `prepareInside` built something: a new object template or mesh, a signal or personal batch, a prop. */
+  insideRevision = 0;
+
+  *#insideSteps(town: TownLayer | null): Generator<void, void> {
+    const signals = this.#signalsMerged,
+      personal = this.#personalMerged,
+      props = this.#props.group.children.length;
+    this.#prepareSeats();
+    yield;
+    this.#syncSignals();
+    yield;
+    this.#syncPersonal();
+    yield;
+    if (town) this.#props.sync({ building: this.building, template: this.template, placements: this.placements, desks: this.desks, town: { ...town, build: null }, detailed: true, prepare: true });
+    yield;
+    const grown = yield* this.#objects.prepare(this.building);
+    // A batch rebuilt is a new array; a prop made is a child more: the town warms the programs of what is new.
+    if (grown || signals !== this.#signalsMerged || personal !== this.#personalMerged || props !== this.#props.group.children.length) this.insideRevision++;
+  }
+
+  /** The figures' work places at their desks, as `#syncAgents` works them out when the building is entered. */
+  #prepareSeats() {
+    for (const [key, robot] of this.#robots) {
+      const desk = this.desks.get(key);
+      const seatKey = desk ? `${desk.definitionId}@${desk.desk.x},${desk.desk.z}` : "";
+      if (seatKey === robot.seatKey) continue;
+      robot.seatKey = seatKey;
+      robot.seat = desk && seatKey ? this.#deskAt(desk) : null;
+    }
+  }
+
+  /**
    * Builds the interior (the furniture layer with its decor) for the current layout unless it is built already; true
    * when this call finished it. The town calls it ahead, in idle time, for the building the visitor is about to enter,
    * so the enter itself only shows it: with `more`, it stops between steps once `more()` says no and goes on at the next
@@ -867,10 +935,27 @@ export class BuildingView {
     return this.#pending !== null;
   }
 
+  /** True while the built interior is the current layout's and no build is under way. */
+  get interiorReady(): boolean {
+    return this.#pending === null && this.#shape === this.#signatures.furniture;
+  }
+
+  /** True once the interior and the inside layers stand for the current model (`prepareInside` ran through). */
+  get ready(): boolean {
+    return this.interiorReady && this.#insidePending === null && this.#insideRan === this.#insideWanted();
+  }
+
+  /** The built interior's furniture group (a new one per build), null without one: the town warms its programs by it. */
+  get interior(): THREE.Object3D | null {
+    return this.#furniture;
+  }
+
   /** Gives up an interior build in progress (the visitor moved on, or the layout changed). */
   cancelPrepare() {
     this.#pending?.steps.return();
     this.#pending = null;
+    this.#insidePending?.return();
+    this.#insidePending = null;
   }
 
   /** Drops the interior: its furniture, decor, desk things and signals, rebuilt on the next visit. The town keeps
@@ -878,6 +963,9 @@ export class BuildingView {
   releaseInterior() {
     if (this.detailed) return;
     this.cancelPrepare();
+    this.#insidePending?.return();
+    this.#insidePending = null;
+    this.#props.release();
     if (!this.#furniture) return;
     this.#furniture.removeFromParent();
     this.#furniture = null;
@@ -1090,8 +1178,9 @@ export class BuildingView {
       robot.handle.object.position.copy(this.local(seat.x + 0.5, seat.z + 0.5, floor));
       robot.handle.object.rotation.y = 0;
       robot.handle.setState(figureState(robot));
-      // Its work place at its desk, for the near view only: the far crowd stands on the floor, as cheap as ever.
-      const seatKey = this.detailed && desk ? `${desk.definitionId}@${desk.desk.x},${desk.desk.z}` : "";
+      // Its work place at its desk, for the near view only: the far crowd stands on the floor, as cheap as ever. One
+      // worked out already (the near view, or `#prepareSeats` ahead of the enter) is kept while the desk is the same.
+      const seatKey = desk && (this.detailed || robot.seatKey) ? `${desk.definitionId}@${desk.desk.x},${desk.desk.z}` : "";
       if (seatKey !== robot.seatKey) {
         robot.seatKey = seatKey;
         robot.seat = desk && seatKey ? this.#deskAt(desk) : null;
