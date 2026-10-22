@@ -1452,7 +1452,8 @@ await group("chat", async () => {
   pg4.on("request", (r) => {
     if (!r.url().startsWith(fake4.url)) return;
     const url = new URL(r.url());
-    asks4.push({ method: r.method(), path: url.pathname, query: url.search, type: r.resourceType() });
+    // `pair`: whether the ask carried the tab's pairing header (round 31: the bearer is for the host, never for loops).
+    asks4.push({ method: r.method(), path: url.pathname, query: url.search, type: r.resourceType(), pair: r.headers()["x-world-pair"] !== undefined });
   });
   try {
     const login4 = await ctx4.request.post(`${fake4.url}/api/auth/login`, { data: { id: fake4.person.id, password: fake4.person.password } });
@@ -1512,6 +1513,8 @@ await group("chat", async () => {
     });
     const corsLines4 = own4.filter((x) => x.kind === "console" && /CORS|ERR_FAILED/.test(x.text));
     ok("chat (road 2): every fetch the page made to the fake was a GET on the four routes (the threads, the events poll with types dm.created,dm.answered and limit 50, from=tail then the sealed cursor, a message by id); no CORS line in the console", own4Asks.length >= 3 && bad4.length === 0 && badQuery4.length === 0 && events4.length >= 1 && own4Asks.some((a) => a.path.startsWith("/api/dm/messages/")) && corsLines4.length === 0, `${own4Asks.length} fetches: ${[...new Set(own4Asks.map((a) => `${a.method} ${a.path.replace(/\/[A-Za-z0-9_-]+$/, (m) => (a.path.startsWith("/api/dm/messages/") ? "/<id>" : m))}`))].join(", ")}; ${bad4.length} off the shape, ${badQuery4.length} bad poll quer${badQuery4.length === 1 ? "y" : "ies"}; ${corsLines4.length} CORS line(s)`);
+    const paired4 = asks4.filter((a) => a.pair);
+    ok(`chat (road 2, round 31): none of the page's ${asks4.length} asks of the fake (its fetches and the frame's document) carried the tab's pairing header x-world-pair: the bearer stays with the host`, asks4.length >= 3 && paired4.length === 0, paired4.map((a) => `${a.type} ${a.method} ${a.path}`).join(" "));
     problems.push(...own4.filter((x) => !(x.kind === "external" && x.url === `${fake4.url}/`) && !(x.kind === "console" && /status of 404/.test(x.text))));
   } finally {
     await ctx4.close().catch(() => {});

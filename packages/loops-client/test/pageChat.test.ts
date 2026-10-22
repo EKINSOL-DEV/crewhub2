@@ -35,6 +35,8 @@ import {
   type FetchLike,
 } from "../src/pageChat.ts";
 
+import { PAIRING_KEY, bearerHeaders } from "../src/pairingBearer.ts";
+
 const ORIGIN = "http://127.0.0.1:8293";
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
@@ -47,6 +49,24 @@ function recorder(answer: (url: string, init: RequestInit | undefined) => Respon
   };
   return { calls, fetchFn };
 }
+
+test("round 31: a paired tab's bearer (x-world-pair, for the host) never rides on road 2's asks of loops, probe or poll", async () => {
+  const kept = new Map<string, string>([[PAIRING_KEY, "tabid.bearermac"]]);
+  (globalThis as { sessionStorage?: unknown }).sessionStorage = { getItem: (k: string) => kept.get(k) ?? null, setItem: (k: string, v: string) => void kept.set(k, v), removeItem: (k: string) => void kept.delete(k) };
+  try {
+    assert.deepEqual(bearerHeaders(), { "x-world-pair": "tabid.bearermac" }, "the host's requests would carry it");
+    const { calls, fetchFn } = recorder((url) => (url.endsWith("/api/dm/threads") ? json(200, { threads: [{ agentId: "cr-1" }] }) : json(200, { events: [], cursor: "c1" })));
+    await probePageChat(ORIGIN, fetchFn);
+    await pollPageChat(ORIGIN, { fromTail: true }, fetchFn);
+    assert.ok(calls.length >= 2, `the probe and the poll asked: ${calls.length}`);
+    for (const call of calls) {
+      assert.equal(call.init?.headers, undefined, `${call.url}: no header of our own, the bearer included`);
+      assert.ok(!JSON.stringify(call.init).includes("tabid.bearermac"), `${call.url}: the bearer is not in the request`);
+    }
+  } finally {
+    delete (globalThis as { sessionStorage?: unknown }).sessionStorage;
+  }
+});
 
 test("the request shape: a GET with credentials included and nothing else; no headers key at all", async () => {
   assert.deepEqual({ ...PAGE_CHAT_INIT }, { method: "GET", credentials: "include" });
