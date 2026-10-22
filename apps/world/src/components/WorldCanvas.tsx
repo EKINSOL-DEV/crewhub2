@@ -657,8 +657,12 @@ const same = (a: Pick | null, b: Pick | null) => !!a && !!b && JSON.stringify(a)
 function Interior({ building: b, model, props, compact }: { building: Building; model: WorldModel; props: Props; compact: boolean }) {
   // The viewer's plan picks the template and the words for the signs: a room's own name, or its hall's.
   const rooms = useBuildingPlan();
-  const template = buildingTemplate(b, rooms);
-  const layout = placeObjects(b, template, assignDesks(b, template));
+  // The template is cached by the model; the desks and the objects' placements are worked out per building and plan
+  // (round 25: once per model, not on every hover or selection: 2 ms at 4x of the enter's render).
+  const { template, layout } = useMemo(() => {
+    const template = buildingTemplate(b, rooms);
+    return { template, layout: placeObjects(b, template, assignDesks(b, template)) };
+  }, [b, rooms]);
   const nameOf = (slug: string | null) => model.buildings.find((x) => x.slug === slug)?.name ?? slug ?? "another building";
   // A hovered room reveals its labels; a nameplate is for the agent or object under the pointer, else the selected one.
   const hovered = props.selection.hover?.kind === "room" ? null : props.selection.hover;
@@ -832,7 +836,9 @@ const RULE_WORDS: Record<string, string> = { banner: "milestone banner", crate: 
 /** Error crates and rule props of the town document, labelled in words: errors in build mode or with Details, a rule chip
     where its room shows. */
 function TownLabels({ building: b, town, errors, shows }: { building: Building; town: TownLayer; errors: boolean; shows: (rule: RuleProp) => boolean }) {
-  const resolved = resolveBuildingPlacements(town.doc, b.slug, buildingTemplate(b, useBuildingPlan()), town.definitions);
+  const rooms = useBuildingPlan();
+  // Resolved once per town document and building (round 25), not on every render of the labels.
+  const resolved = useMemo(() => resolveBuildingPlacements(town.doc, b.slug, buildingTemplate(b, rooms), town.definitions), [town.doc, b, rooms, town.definitions]);
   const name = (propId: string) => town.catalogue.get(propId)?.name ?? propId;
   return (
     <>
