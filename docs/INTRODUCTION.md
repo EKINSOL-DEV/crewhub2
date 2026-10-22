@@ -339,6 +339,14 @@ the second person is kept for an agent asking about itself, which nothing does t
 list (`/`) names every building; Details (D) shows every label; W begins walk mode;
 Escape backs out of anything.
 
+**The introduction inside the world** (round 20): the first time a browser opens the world (demo or live) a tour of six
+short steps stands over the real UI, one sentence each, in this document's words: the town, a building and its three
+rooms, a figure's card, the chat, the text view, the connection (the Demo chip in the demo). Next, Back, Skip; Escape
+skips; the focus moves into the card and back; the ringed element is named to a screen reader; the card never covers what
+it describes, on a phone either; nothing moves the camera. After Skip or Done it stays away in that browser (a private
+window shows it again); Settings › Show the introduction and the "?" in the toolbar bring it back, and the "?" also opens
+this document on GitHub. A browser driven by a tool never gets it unless asked (`?tour=on`).
+
 What a screen reader is given was checked in round 8 and again after each chat round (`tools/a11y.mjs`, 163 checks in
 round 17): one live region per Connect screen that says
 the screen once and nothing that ticks; a connection change over the town said once; the Connection panel's facts as a
