@@ -28,7 +28,7 @@ import { DEFAULT_LOOPS_URL, type KeySource } from "./config.ts";
 import { type Discovery, type DiscoveryInput, type Found, createDiscovery, loopsAnswers, targetText } from "./discovery.ts";
 import { checkKey } from "./keyCheck.ts";
 import type { KeyStore } from "./keyStore.ts";
-import { BACKUP_NAME, TOWN_BODY_LIMIT, TOWN_FORMAT, installationKey, listBackups, readBackupTown, type TownOp, type WorldDb } from "./worldDb.ts";
+import { BACKUP_NAME, TOWN_BODY_LIMIT, TOWN_FORMAT, installationKey, listBackups, readBackupTown, type TownOp, type WorldDb, validateTownForHost } from "./worldDb.ts";
 import { type LoopsClient, createLoopsClient, isUnauthorized } from "./loops.ts";
 import { PAIR_PATH_PREFIX, PAIR_REFUSED_HTML, type Pairing, createPairing, pairCookieHeader } from "./pairing.ts";
 import { type ArchiveReport, type AssembledSnapshot, SnapshotError, type SnapshotStats, assembleSnapshot } from "./snapshot.ts";
@@ -1061,6 +1061,13 @@ export async function createHost(options: HostOptions): Promise<Host> {
     }
     let current: unknown = null;
     try {
+    if (withDocument) {
+      const verdict = validateTownForHost(document);
+      if (!verdict.ok) {
+        sendJson(res, 400, { error: "validation_error", message: `The document does not validate: ${verdict.reason}` });
+        return;
+      }
+    }
       current = outcome.document === null ? null : JSON.parse(outcome.document);
     } catch {
       current = null;

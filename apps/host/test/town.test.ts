@@ -1,6 +1,7 @@
 /* `GET` and `PUT /world-api/town` and `/town/export` (round 20): the gate (pairing, origin, method), no loops means no
    installation, no town is 404, a create, a conflict, the export, and the `town` message on every tab's stream. */
 import assert from "node:assert/strict";
+import { emptyTownDocument } from "@crewhub/world-model";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -11,7 +12,8 @@ import { createLoopsStub, installation, type LoopsStub } from "./loopsStub.ts";
 import { openSse } from "./sse.ts";
 import { waitFor } from "./wait.ts";
 
-const DOC = (n: number) => ({ format: "crewhub-town/1", revision: n, styleId: "greenhouse", plots: [], placements: [], userProps: [], rules: {} });
+/** A whole, valid document at revision `n` (review F7: the host now validates what it keeps, as the browsers do). */
+const DOC = (n: number) => ({ ...emptyTownDocument("greenhouse"), revision: n });
 
 describe("the town routes", () => {
   let stub: LoopsStub | null = null;
@@ -103,6 +105,24 @@ describe("the town routes", () => {
     host = await createHost({ loopsUrl: stub!.url, key: stub!.key, keyName: "crewhub-world", keySource: "env", pairing: "on", retryMs: { min: 20, max: 100 }, worldDb: db! });
     assert.equal((await get("/town")).status, 401);
     assert.equal((await put({ document: DOC(0), baseRev: 0 })).status, 401);
+  });
+
+  it("a document the browsers would refuse is refused by the host with a plain reason (review F7): unknown keys, too many plots, a bad cell", async () => {
+    await start();
+    const refused = async (document: unknown, baseRev = 0) => {
+      const r = await put({ document, baseRev });
+      const body = (await r.json()) as { error: string; message: string };
+      assert.equal(r.status, 400, JSON.stringify(body));
+      assert.equal(body.error, "validation_error");
+      return body.message;
+    };
+    assert.match(await refused({ ...DOC(0), pad: "x".repeat(1000) }), /^The document does not validate: pad: unknown key/);
+    assert.match(await refused({ ...DOC(0), plots: Array.from({ length: 257 }, (_, i) => ({ slug: `p${i}`, cell: { x: i % 100, z: Math.floor(i / 100) } })) }), /plots: must have at most 256/);
+    assert.match(await refused({ ...DOC(0), plots: [{ slug: "p", cell: { x: -1, z: 0 } }] }), /plots\[0\]\.cell\.x/);
+    assert.match(await refused({ format: "crewhub-town/1" }), /^The document does not validate: /, "the format alone is not a document");
+    assert.equal(db!.getTown("127.0.0.1-1")?.rev, undefined, "nothing was kept");
+    assert.equal((await put({ document: DOC(0), baseRev: 0 })).status, 200, "a valid one is kept");
+    assert.equal((await put({ document: { ...DOC(1), styleId: "another-style" }, baseRev: 1 })).status, 200, "the style registry is the browser's: the host takes the document's own style id");
   });
 
   it("without a world database the route says so; without a loops found the town has no installation yet", async () => {
