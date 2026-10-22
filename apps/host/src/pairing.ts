@@ -1,20 +1,29 @@
 /**
- * Pairing (plan 3.5): a one-time link `/pair/<token>` is exchanged for an HttpOnly cookie, and from then on the host
- * answers `/world-api/*` (health excepted) only to requests that carry it. Pure state here, no HTTP: `host.ts` wires it.
+ * Pairing, per tab (round 27, the alternative to the cookie): a one-time link `/#pair=<token>` carries the token in the
+ * URL fragment (a fragment is never sent to a server and never in a log); the page exchanges it once for a bearer
+ * (`POST /world-api/pair`, the token in the `x-world-pair` header), keeps the bearer in its tab's sessionStorage and
+ * sends it in the same header on every host request, the stream included (the source streams with fetch). Its own
+ * header, not `Authorization`: the bundle guard proves by that word that the loops key never reaches the browser. No cookie: nothing is attached by the browser on its own, so another loopback port never receives the
+ * pairing and no cross-site request can carry it (CSRF goes with the cookie; the Origin guard stays as a second line).
+ * Pure state here, no HTTP: `host.ts` wires it.
  *
  * - A token is 32 random bytes, base64url. Only its SHA-256 is kept, with its expiry (10 minutes); redeeming deletes it.
- * - The cookie is `<id>.<mac>`: 16 random bytes and their HMAC-SHA256 under the pairing secret, checked with a
- *   constant-time compare. Nothing about a cookie is stored, so the secret alone decides: a per-run secret makes a
- *   restart invalidate every pairing; a secret kept in `CREWHUB_WORLD_PAIRING_FILE` (mode 0600) keeps them.
- * - Neither the token, nor the cookie value, nor the secret is ever logged or put in a response body.
+ * - The bearer is `<id>.<mac>`: 16 random bytes and their HMAC-SHA256 under the pairing secret, checked with a
+ *   constant-time compare. The secret alone decides: a per-run secret makes a restart invalidate every pairing; a secret
+ *   kept in `CREWHUB_WORLD_PAIRING_FILE` (mode 0600) keeps them.
+ * - Expiry: a bearer not used for `idleMs` (default 30 days; 0 never) is refused; its last use is kept in memory per id,
+ *   so after a host restart the first use counts as now (the window starts again, never shorter).
+ * - Neither the token, nor the bearer, nor the secret is ever logged or put in a log line.
  */
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { chmodSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-export const PAIR_COOKIE = "crewhub_world_pair";
 export const PAIR_TTL_MS = 10 * 60_000;
-export const PAIR_PATH_PREFIX = "/pair/";
+/** The fragment key of a pairing link: `http://127.0.0.1:5180/#pair=<token>`. */
+export const PAIR_FRAGMENT = "pair";
+/** How long a pairing may go unused before it is refused, by default: 30 days. `0` is never. */
+export const DEFAULT_PAIRING_IDLE_MS = 30 * 24 * 60 * 60_000;
 const SECRET_BYTES = 32;
 const TOKEN_BYTES = 32;
 const COOKIE_ID_BYTES = 16;
@@ -26,17 +35,21 @@ export interface PairingOptions {
   /** The clock, for tests. */
   now?: () => number;
   ttlMs?: number;
+  /** A bearer unused this long is refused; 0 never. Default DEFAULT_PAIRING_IDLE_MS. */
+  idleMs?: number;
 }
 
 export interface Pairing {
   /** A fresh single-use token, valid `ttlMs`. The caller turns it into a link; it is never logged here. */
   mintToken(): string;
-  /** Exchanges a token once: the cookie value to set, or null for an unknown, used or expired token. */
+  /** Exchanges a token once: the bearer the tab keeps, or null for an unknown, used or expired token. */
   redeem(token: string): string | null;
-  /** Whether a Cookie header carries a valid pairing cookie. */
-  isPaired(cookieHeader: string | undefined): boolean;
+  /** Whether the `x-world-pair` header carries a valid, unexpired bearer; a valid one counts as used now. */
+  isPaired(header: string | undefined): boolean;
   /** How many unredeemed, unexpired tokens are out (tests). */
   pending(): number;
+  /** The idle window, for health and the Pair screen. */
+  idleMs: number;
 }
 
 const b64url = (bytes: Buffer) => bytes.toString("base64url");
@@ -46,8 +59,12 @@ export function createPairing(options: PairingOptions = {}): Pairing {
   const secret = options.secret ?? randomBytes(SECRET_BYTES);
   const now = options.now ?? Date.now;
   const ttlMs = options.ttlMs ?? PAIR_TTL_MS;
+  const idleMs = options.idleMs ?? DEFAULT_PAIRING_IDLE_MS;
   /** token hash → expiry (ms). */
   const tokens = new Map<string, number>();
+  /** bearer id → last use (ms); bounded by use (a bearer id is 16 random bytes, never a caller's choice). */
+  const lastSeen = new Map<string, number>();
+  const LAST_SEEN_MAX = 1024;
 
   const mac = (id: string) => createHmac("sha256", secret).update(`cookie:${id}`).digest("base64url");
 
@@ -73,50 +90,45 @@ export function createPairing(options: PairingOptions = {}): Pairing {
       const id = b64url(randomBytes(COOKIE_ID_BYTES));
       return `${id}.${mac(id)}`;
     },
-    isPaired(cookieHeader) {
-      // Every cookie of that name is tried (review F2): a loopback server the browser visits can set a second
-      // `crewhub_world_pair` on another path, and browsers send the longer path first; any one that verifies pairs.
-      for (const value of readCookies(cookieHeader, PAIR_COOKIE)) {
-        const dot = value.indexOf(".");
-        if (dot <= 0) continue;
-        const id = value.slice(0, dot);
-        const given = value.slice(dot + 1);
-        if (!BASE64URL.test(id) || !BASE64URL.test(given)) continue;
-        const expected = mac(id);
-        if (Buffer.byteLength(given) !== Buffer.byteLength(expected)) continue;
-        if (timingSafeEqual(Buffer.from(given), Buffer.from(expected))) return true;
-      }
-      return false;
+    isPaired(header) {
+      const value = readPairHeader(header);
+      if (value === null) return false;
+      const dot = value.indexOf(".");
+      if (dot <= 0) return false;
+      const id = value.slice(0, dot);
+      const given = value.slice(dot + 1);
+      if (!BASE64URL.test(id) || !BASE64URL.test(given)) return false;
+      const expected = mac(id);
+      if (Buffer.byteLength(given) !== Buffer.byteLength(expected)) return false;
+      if (!timingSafeEqual(Buffer.from(given), Buffer.from(expected))) return false;
+      const t = now();
+      const seen = lastSeen.get(id);
+      if (idleMs > 0 && seen !== undefined && t - seen > idleMs) return false;
+      if (seen === undefined && lastSeen.size >= LAST_SEEN_MAX) lastSeen.delete(lastSeen.keys().next().value as string);
+      lastSeen.delete(id);
+      lastSeen.set(id, t);
+      return true;
     },
     pending() {
       prune();
       return tokens.size;
     },
+    idleMs,
   };
 }
 
-/** Every value of the cookies named `name` in a Cookie header, in the header's order (a browser may send several). */
-export function readCookies(header: string | undefined, name: string): string[] {
-  if (header === undefined || header === "") return [];
-  const out: string[] = [];
-  for (const part of header.split(";")) {
-    const eq = part.indexOf("=");
-    if (eq < 0) continue;
-    if (part.slice(0, eq).trim() !== name) continue;
-    out.push(part.slice(eq + 1).trim());
-  }
-  return out;
+/** The header the pairing rides in: the token at `POST /world-api/pair`, the bearer everywhere else. */
+export const PAIR_HEADER = "x-world-pair";
+
+/** The value of the pairing header (`<id>.<mac>`, or a token), or null when absent or not of that shape. */
+export function readPairHeader(header: string | undefined): string | null {
+  if (header === undefined) return null;
+  const m = /^([A-Za-z0-9_.-]{1,200})$/.exec(header.trim());
+  return m === null ? null : (m[1] as string);
 }
 
-/** The value of the first cookie named `name` in a Cookie header, or null. */
-export function readCookie(header: string | undefined, name: string): string | null {
-  return readCookies(header, name)[0] ?? null;
-}
-
-/** The Set-Cookie header for a cookie value. `secure` when the host is reached over https (CREWHUB_WORLD_PUBLIC_URL). */
-export function pairCookieHeader(value: string, secure: boolean): string {
-  return `${PAIR_COOKIE}=${value}; HttpOnly; SameSite=Strict; Path=/${secure ? "; Secure" : ""}`;
-}
+/** The pairing link for `origin`: the token in the fragment, which a browser never sends to a server. */
+export const pairLink = (origin: string, token: string): string => `${origin.replace(/\/$/, "")}/#${PAIR_FRAGMENT}=${token}`;
 
 /** A plain HTML page: the link is used up, expired or unknown. */
 export const PAIR_REFUSED_HTML = `<!doctype html>

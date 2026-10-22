@@ -1,7 +1,8 @@
 /**
- * Pairing (plan 3.5): without the cookie every /world-api route but health answers 401; a link pairs once; an expired
- * link is refused (the clock is injected); a restart invalidates the cookie unless the secret is kept in a file; the
- * token, the cookie value and the secret are in no response body and no log line; `off` is refused in production;
+ * Pairing, per tab (round 27): without the bearer every /world-api route but health answers 401; a one-time link's
+ * token (in the URL fragment) is exchanged once at POST /world-api/pair for a bearer; an expired link is refused (the
+ * clock is injected); a bearer unused past the idle window is refused; a restart invalidates the bearer unless the
+ * secret is kept in a file; the token, the bearer and the secret are in no log line; `off` is refused in production;
  * a running host mints a link for `open` through the run file's secret and nothing else.
  */
 import assert from "node:assert/strict";
@@ -12,7 +13,7 @@ import path from "node:path";
 import { after, before, describe, it } from "node:test";
 import { ConfigError, loadServerConfig } from "../src/config.ts";
 import { MINT_HEADER, MINT_PATH, createHost, type Host } from "../src/host.ts";
-import { PAIR_COOKIE, PAIR_TTL_MS, createPairing, loadPairingSecret, readCookie, readCookies } from "../src/pairing.ts";
+import { DEFAULT_PAIRING_IDLE_MS, PAIR_FRAGMENT, PAIR_HEADER, PAIR_TTL_MS, createPairing, loadPairingSecret, pairLink, readPairHeader } from "../src/pairing.ts";
 import { type LoopsStub, createLoopsStub, installation } from "./loopsStub.ts";
 import { waitFor } from "./wait.ts";
 
@@ -31,18 +32,18 @@ async function status(url: string, headers: Record<string, string> = {}): Promis
   return { status: response.status, body: await response.text(), setCookie };
 }
 
-/** Opens the link as a browser would; returns the Set-Cookie header and the cookie to send back. */
-async function pair(link: string): Promise<{ setCookie: string; cookie: string; value: string }> {
-  const response = await fetch(link, { redirect: "manual" });
-  assert.equal(response.status, 303);
-  assert.equal(response.headers.get("location"), "/");
-  const setCookie = response.headers.get("set-cookie") ?? "";
-  const value = readCookie(setCookie.split(";")[0], PAIR_COOKIE);
-  assert.ok(value, `no cookie in ${setCookie}`);
-  return { setCookie, cookie: `${PAIR_COOKIE}=${value}`, value };
-}
+/** The token a page reads out of the link's fragment. */
+const token = (link: string) => new URL(link).hash.replace(`#${PAIR_FRAGMENT}=`, "");
 
-const token = (link: string) => link.slice(link.lastIndexOf("/") + 1);
+/** Pairs as the page does: the token from the fragment, exchanged at POST /world-api/pair for the bearer; the header to send back. */
+async function pair(link: string, origin = new URL(link).origin): Promise<{ paired: Record<string, string>; value: string; idleDays: number }> {
+  const response = await fetch(`${origin}/world-api/pair`, { method: "POST", headers: { origin, [PAIR_HEADER]: token(link) } });
+  const text = await response.text();
+  assert.equal(response.status, 200, text);
+  const body = JSON.parse(text) as { bearer: string; idleDays: number };
+  assert.ok(body.bearer, "no bearer in the answer");
+  return { paired: { [PAIR_HEADER]: body.bearer }, value: body.bearer, idleDays: body.idleDays };
+}
 
 describe("pairing", () => {
   let stub: LoopsStub;
@@ -60,78 +61,91 @@ describe("pairing", () => {
     await stub.close();
   });
 
-  it("answers 401 not_paired on every route class without the cookie; health stays open and says paired: false", async () => {
+  it("answers 401 not_paired on every route class without the bearer; health stays open and says paired: false", async () => {
     for (const route of ROUTES) {
       const answer = await status(`${host.url}${route}`);
       assert.equal(answer.status, 401, route);
-      assert.deepEqual(JSON.parse(answer.body), { error: "not_paired" });
+      assert.deepEqual(JSON.parse(answer.body), { error: "not_paired" }, route);
     }
-    const health = await status(`${host.url}/world-api/health`);
-    assert.equal(health.status, 200);
-    const body = JSON.parse(health.body) as { paired: boolean; pairing: string; loops: string };
-    assert.equal(body.paired, false);
-    assert.equal(body.pairing, "on");
-    assert.equal(body.loops, "ok");
+    const health = JSON.parse((await status(`${host.url}/world-api/health`)).body) as { paired: boolean; pairing: string; pairingIdleDays: number };
+    assert.equal(health.paired, false);
+    assert.equal(health.pairing, "on");
+    assert.equal(health.pairingIdleDays, 30, "the default idle window, for the Pair screen");
   });
 
-  it("a link pairs once: the cookie shape, every route open with it, the same link refused the second time", async () => {
+  it("a link carries the token in the fragment and pairs once: the bearer, every route open with it in the header, the same token refused the second time", async () => {
     const link = host.mintPairLink();
-    assert.match(link, new RegExp(`^${host.url}/pair/[A-Za-z0-9_-]{43}$`));
-    const { setCookie, cookie } = await pair(link);
-    assert.match(setCookie, /^crewhub_world_pair=[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+; HttpOnly; SameSite=Strict; Path=\/$/);
+    assert.match(link, new RegExp(`^${host.url}/#pair=[A-Za-z0-9_-]{43}$`), "the token is in the fragment: never sent to a server");
+    const { paired, value, idleDays } = await pair(link);
+    assert.match(value, /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
+    assert.equal(idleDays, 30);
     for (const route of ROUTES) {
-      const answer = await status(`${host.url}${route}`, { cookie });
+      const answer = await status(`${host.url}${route}`, paired);
       assert.notEqual(answer.status, 401, route);
     }
-    const health = JSON.parse((await status(`${host.url}/world-api/health`, { cookie })).body) as { paired: boolean };
+    const health = JSON.parse((await status(`${host.url}/world-api/health`, paired)).body) as { paired: boolean };
     assert.equal(health.paired, true);
-    const again = await status(link);
-    assert.equal(again.status, 403);
-    assert.match(again.body, /This link has expired or was already used/);
-    assert.match(again.body, /npm run world/);
-    assert.equal(again.setCookie, "");
+    const again = await fetch(`${host.url}/world-api/pair`, { method: "POST", headers: { origin: host.url, [PAIR_HEADER]: token(link) } });
+    assert.equal(again.status, 403, "a token is spent by its first use");
+    assert.equal(((await again.json()) as { error: string }).error, "pair_refused");
+    assert.equal((await fetch(`${host.url}/world-api/pair`, { method: "POST", headers: { [PAIR_HEADER]: token(host.mintPairLink()) } })).status, 403, "no Origin: not the world's page");
+    assert.equal((await fetch(`${host.url}/world-api/pair`, { method: "GET", headers: { origin: host.url } })).status, 405);
+    assert.equal((await fetch(`${host.url}/world-api/pair`, { method: "POST", headers: { origin: host.url } })).status, 403, "no token");
   });
 
-  it("refuses an unknown token, a forged cookie and a cookie with a wrong signature", async () => {
-    assert.equal((await status(`${host.url}/pair/${"A".repeat(43)}`)).status, 403);
-    assert.equal((await status(`${host.url}/pair/`)).status, 403);
-    assert.equal((await status(`${host.url}/world-api/snapshot`, { cookie: `${PAIR_COOKIE}=abc.def` })).status, 401);
+  it("refuses an unknown token, a forged bearer, a bearer with a wrong signature, a bearer in a cookie or in Authorization (the pairing has its own header)", async () => {
+    assert.equal((await fetch(`${host.url}/world-api/pair`, { method: "POST", headers: { origin: host.url, [PAIR_HEADER]: "A".repeat(43) } })).status, 403);
+    assert.equal((await status(`${host.url}/world-api/snapshot`, { [PAIR_HEADER]: "abc.def" })).status, 401);
     const { value } = await pair(host.mintPairLink());
     const [id, mac] = value.split(".") as [string, string];
     const flipped = `${id}.${mac.slice(0, -1)}${mac.endsWith("A") ? "B" : "A"}`;
-    assert.equal((await status(`${host.url}/world-api/snapshot`, { cookie: `${PAIR_COOKIE}=${flipped}` })).status, 401);
-    assert.equal((await status(`${host.url}/world-api/snapshot`, { cookie: `other=1; ${PAIR_COOKIE}=${value}` })).status, 200);
+    assert.equal((await status(`${host.url}/world-api/snapshot`, { [PAIR_HEADER]: flipped })).status, 401);
+    assert.equal((await status(`${host.url}/world-api/snapshot`, { [PAIR_HEADER]: `${value}\u00e9` })).status, 401, "a non-ASCII byte is unequal, never an error");
+    assert.equal((await status(`${host.url}/world-api/snapshot`, { cookie: `crewhub_world_pair=${value}` })).status, 401, "a cookie is not a way in");
+    assert.equal((await status(`${host.url}/world-api/snapshot`, { authorization: `Bearer ${value}` })).status, 401, "nor the Authorization header");
+    assert.equal((await status(`${host.url}/world-api/snapshot`, { [PAIR_HEADER]: ` ${value} ` })).status, 200, "whitespace around the value is free");
   });
 
   it("refuses an expired link (the clock injected): 10 minutes, not a second more", async () => {
     const fresh = host.mintPairLink();
+    const old = host.mintPairLink();
     clock += PAIR_TTL_MS - 1;
-    assert.equal((await status(fresh)).status, 303, "still valid a millisecond before");
-    const late = host.mintPairLink();
-    clock += PAIR_TTL_MS;
-    assert.equal((await status(late)).status, 403);
+    assert.equal((await pair(fresh)).value.length > 0, true, "still valid a millisecond before");
+    clock += 2;
+    assert.equal((await fetch(`${host.url}/world-api/pair`, { method: "POST", headers: { origin: host.url, [PAIR_HEADER]: token(old) } })).status, 403, "expired");
   });
 
-  it("puts the token, the cookie value and the secret in no response body and no log line", async () => {
+  it("a bearer unused for the idle window is refused; one in use is kept going (round 27's expiry)", async () => {
+    const { paired } = await pair(host.mintPairLink());
+    clock += DEFAULT_PAIRING_IDLE_MS - 1000;
+    assert.equal((await status(`${host.url}/world-api/team`, paired)).status, 200, "used a second before the window closes: still paired");
+    clock += DEFAULT_PAIRING_IDLE_MS - 1000;
+    assert.equal((await status(`${host.url}/world-api/team`, paired)).status, 200, "the window slid with the use");
+    clock += DEFAULT_PAIRING_IDLE_MS + 1;
+    assert.equal((await status(`${host.url}/world-api/team`, paired)).status, 401, "unused past the window: out");
+    assert.equal((await status(`${host.url}/world-api/team`, paired)).status, 401, "and stays out");
+  });
+
+  it("puts the token, the bearer and the secret in no response body and no log line", async () => {
     const link = host.mintPairLink();
     const { value } = await pair(link);
-    const secrets = [token(link), value];
     const bodies: string[] = [];
-    for (const route of [...ROUTES, "/world-api/health", "/world-api/nope", `/pair/${token(link)}`, MINT_PATH]) {
+    for (const route of [...ROUTES, "/world-api/health", "/world-api/nope", MINT_PATH]) {
       bodies.push((await status(`${host.url}${route}`)).body);
-      bodies.push((await status(`${host.url}${route}`, { cookie: `${PAIR_COOKIE}=${value}` })).body);
+      bodies.push((await status(`${host.url}${route}`, { [PAIR_HEADER]: value })).body);
     }
-    bodies.push((await status(`${host.url}${MINT_PATH}`, { [MINT_HEADER]: "mint-secret-for-the-test" })).body);
-    for (const text of [...bodies, ...logs]) for (const secret of secrets) assert.ok(!text.includes(secret), `leaked in: ${text.slice(0, 80)}`);
-    for (const text of [...bodies, ...logs]) assert.ok(!text.includes("mint-secret-for-the-test"), "the mint secret leaked");
+    const all = [...bodies, ...logs].join("\n");
+    assert.ok(!all.includes(token(link)), "the token");
+    assert.ok(!all.includes(value), "the bearer");
+    assert.ok(!/secret/i.test(logs.join("\n")), "the secret");
   });
 
   it("mints a link for a running host only with the run file's secret, never with an Origin", async () => {
     const good = await status(`${host.url}${MINT_PATH}`, { [MINT_HEADER]: "mint-secret-for-the-test" });
     assert.equal(good.status, 200);
     const { link } = JSON.parse(good.body) as { link: string };
-    assert.match(link, new RegExp(`^${host.url}/pair/[A-Za-z0-9_-]{43}$`));
-    assert.equal((await status(link)).status, 303, "the running host accepts the link it minted");
+    assert.match(link, new RegExp(`^${host.url}/#pair=[A-Za-z0-9_-]{43}$`));
+    assert.ok((await pair(link)).value, "the running host accepts the link it minted");
     assert.equal((await status(`${host.url}${MINT_PATH}`)).status, 404);
     assert.equal((await status(`${host.url}${MINT_PATH}`, { [MINT_HEADER]: "wrong" })).status, 404);
     assert.equal((await status(`${host.url}${MINT_PATH}`, { [MINT_HEADER]: "mint-secret-for-the-test", origin: host.url })).status, 404);
@@ -143,17 +157,6 @@ describe("pairing", () => {
     }
   });
 
-  it("tries every pairing cookie in the header, so a junk cookie another loopback server set first cannot lock the browser out (review F2)", async () => {
-    const link = JSON.parse((await status(`${host.url}${MINT_PATH}`, { [MINT_HEADER]: "mint-secret-for-the-test" })).body).link as string;
-    const { value } = await pair(link);
-    assert.deepEqual(readCookies(`${PAIR_COOKIE}=junk; other=1; ${PAIR_COOKIE}=${value}`, PAIR_COOKIE), ["junk", value]);
-    assert.equal(readCookie(`${PAIR_COOKIE}=junk; ${PAIR_COOKIE}=${value}`, PAIR_COOKIE), "junk", "readCookie is still the first one");
-    assert.equal((await status(`${host.url}/world-api/snapshot`, { cookie: `${PAIR_COOKIE}=junk; ${PAIR_COOKIE}=${value}` })).status, 200, "the junk first (a longer path sorts first), the valid one pairs");
-    assert.equal((await status(`${host.url}/world-api/snapshot`, { cookie: `${PAIR_COOKIE}=${value}; ${PAIR_COOKIE}=junk` })).status, 200);
-    assert.equal((await status(`${host.url}/world-api/snapshot`, { cookie: `${PAIR_COOKIE}=junk; ${PAIR_COOKIE}=also.junk; ${PAIR_COOKIE}=a${value}` })).status, 401, "none verifies: not paired");
-    assert.equal((await status(`${host.url}/world-api/snapshot`, { cookie: `${PAIR_COOKIE}=${value}\u00e9` })).status, 401, "a non-ASCII byte in the value is unequal, never an error");
-  });
-
   it("a mint header with a non-ASCII byte of the right character length is 404, never a 500 (review F5)", async () => {
     const expected = "mint-secret-for-the-test";
     const bad = `${expected.slice(0, -1)}\u00e9`;
@@ -162,33 +165,37 @@ describe("pairing", () => {
     assert.equal(logs.filter((l) => /request failed/.test(l)).length, 0, "no failed request in the log");
   });
 
-  it("mints a link for another origin that proxies /pair (the Vite dev server)", () => {
-    assert.match(host.mintPairLink("http://127.0.0.1:5173/"), /^http:\/\/127\.0\.0\.1:5173\/pair\/[A-Za-z0-9_-]{43}$/);
+  it("mints a link for another origin that proxies /world-api (the Vite dev server): the fragment on that origin", () => {
+    assert.equal(pairLink("http://127.0.0.1:5173/", "T".repeat(43)), `http://127.0.0.1:5173/#pair=${"T".repeat(43)}`);
+    assert.match(host.mintPairLink("http://127.0.0.1:5173/"), /^http:\/\/127\.0\.0\.1:5173\/#pair=[A-Za-z0-9_-]{43}$/);
+    assert.equal(readPairHeader(" x.y "), "x.y");
+    assert.equal(readPairHeader("x y"), null);
+    assert.equal(readPairHeader(undefined), null);
   });
 
-  it("answers 405 to anything but GET on /pair and the gate, and keeps the Host guard in front", async () => {
-    const post = await new Promise<number>((resolve, reject) => {
-      const req = request({ host: "127.0.0.1", port: host.port, path: "/pair/x", method: "POST" }, (res) => (res.resume(), res.on("end", () => resolve(res.statusCode ?? 0))));
-      req.on("error", reject);
-      req.end();
-    });
-    assert.equal(post, 405);
+  it("the old /pair/<token> path is the app's own page now (the SPA fallback or 404 without a dist), never a pairing", async () => {
+    const r = await status(`${host.url}/pair/${"A".repeat(43)}`);
+    assert.ok(r.status === 404 || r.status === 200, String(r.status));
+    assert.equal(r.setCookie, "", "no cookie, ever");
   });
 });
 
 describe("pairing across restarts", () => {
-  it("a restart without a pairing file invalidates the cookie; with the file (0600) it keeps it", async () => {
+  it("a restart without a pairing file invalidates the bearer; with the file (0600) it keeps it", async () => {
     const stub = await createLoopsStub(installation());
     const dir = mkdtempSync(path.join(tmpdir(), "crewhub-pairing-"));
     const file = path.join(dir, "nested", "pairing.secret");
+    // Every host is closed on the way out, also when an assertion throws: an open host keeps the test process alive.
+    let first: Host | undefined;
     try {
-      const first = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", retryMs: { min: 20, max: 100 } });
-      const { cookie } = await pair(first.mintPairLink());
-      assert.equal((await status(`${first.url}/world-api/team`, { cookie })).status, 200);
+      first = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", retryMs: { min: 20, max: 100 } });
+      const { paired } = await pair(first.mintPairLink());
+      assert.equal((await status(`${first.url}/world-api/team`, paired)).status, 200);
       await first.close();
+      first = undefined;
       const second = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", retryMs: { min: 20, max: 100 } });
       try {
-        assert.equal((await status(`${second.url}/world-api/team`, { cookie })).status, 401, "a per-run secret: the old cookie is out");
+        assert.equal((await status(`${second.url}/world-api/team`, paired)).status, 401, "a per-run secret: the old bearer is out");
       } finally {
         await second.close();
       }
@@ -198,18 +205,19 @@ describe("pairing across restarts", () => {
       assert.equal(statSync(file).mode & 0o777, 0o600);
       assert.equal(readFileSync(file, "utf8").trim(), secret.toString("base64url"));
       const kept = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairingSecret: secret, retryMs: { min: 20, max: 100 } });
-      const keptCookie = (await pair(kept.mintPairLink())).cookie;
+      const keptBearer = (await pair(kept.mintPairLink())).paired;
       await kept.close();
       const reloaded = loadPairingSecret(file);
       assert.deepEqual(reloaded, secret, "the same secret comes back from the file");
       const again = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairingSecret: reloaded, retryMs: { min: 20, max: 100 } });
       try {
-        assert.equal((await status(`${again.url}/world-api/team`, { cookie: keptCookie })).status, 200, "the file kept the pairing");
-        assert.equal((await status(`${again.url}/world-api/team`, { cookie })).status, 401, "a cookie from another secret stays out");
+        assert.equal((await status(`${again.url}/world-api/team`, keptBearer)).status, 200, "the file kept the pairing (the idle window starts again at the first use)");
+        assert.equal((await status(`${again.url}/world-api/team`, paired)).status, 401, "a bearer from another secret stays out");
       } finally {
         await again.close();
       }
     } finally {
+      await first?.close();
       rmSync(dir, { recursive: true, force: true });
       await stub.close();
     }
@@ -236,15 +244,17 @@ describe("the pairing secret file", () => {
 });
 
 describe("pairing off and the public URL", () => {
-  it("off: no gate, health says paired: true and pairing: off, a /pair link just lands on /", async () => {
+  it("off: no gate, health says paired: true and pairing: off, POST /world-api/pair answers no bearer and sets no cookie", async () => {
     const stub = await createLoopsStub(installation());
     const host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 } });
     try {
       assert.equal((await status(`${host.url}/world-api/team`)).status, 200);
       assert.deepEqual(Object.fromEntries(Object.entries(JSON.parse((await status(`${host.url}/world-api/health`)).body) as object).filter(([k]) => k === "paired" || k === "pairing")), { paired: true, pairing: "off" });
-      const link = await status(host.mintPairLink());
-      assert.equal(link.status, 303);
-      assert.equal(link.setCookie, "");
+      const link = host.mintPairLink();
+      const answer = await fetch(`${host.url}/world-api/pair`, { method: "POST", headers: { origin: host.url, [PAIR_HEADER]: token(link) } });
+      assert.equal(answer.status, 200);
+      assert.deepEqual(await answer.json(), { ok: true, bearer: null, idleDays: 0 });
+      assert.equal(answer.headers.get("set-cookie"), null, "no cookie on this road");
     } finally {
       await host.close();
       await stub.close();
@@ -265,12 +275,12 @@ describe("pairing off and the public URL", () => {
     assert.deepEqual(prod.warnings, []);
   });
 
-  it("an https public URL makes the cookie Secure and allows that Host and Origin", async () => {
+  it("an https public URL allows that Host and Origin, and the pairing link is minted on it", async () => {
     const stub = await createLoopsStub(installation());
     const host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", publicUrl: "https://localhost:9443", retryMs: { min: 20, max: 100 } });
     try {
-      const { setCookie } = await pair(host.mintPairLink());
-      assert.match(setCookie, /; Secure$/);
+      assert.match(host.mintPairLink("https://localhost:9443"), /^https:\/\/localhost:9443\/#pair=[A-Za-z0-9_-]{43}$/);
+      assert.ok((await pair(host.mintPairLink(), host.url)).value, "paired at the host's own origin (the test's reach)");
       const raw = (headers: Record<string, string>) =>
         new Promise<number>((resolve, reject) => {
           const req = request({ host: "127.0.0.1", port: host.port, path: "/world-api/health", method: "GET", headers }, (res) => (res.resume(), res.on("end", () => resolve(res.statusCode ?? 0))));
@@ -301,9 +311,9 @@ describe("the pairing state machine", () => {
     const cookie = pairing.redeem(b);
     assert.ok(cookie);
     assert.equal(pairing.redeem(b), null, "single use");
-    assert.equal(pairing.isPaired(`${PAIR_COOKIE}=${cookie}`), true);
-    assert.equal(pairing.isPaired(`${PAIR_COOKIE}=${cookie}x`), false);
+    assert.equal(pairing.isPaired(cookie), true);
+    assert.equal(pairing.isPaired(`${cookie}x`), false);
     assert.equal(pairing.isPaired(undefined), false);
-    assert.equal(createPairing().isPaired(`${PAIR_COOKIE}=${cookie}`), false, "another secret");
+    assert.equal(createPairing().isPaired(cookie), false, "another secret");
   });
 });

@@ -64,6 +64,8 @@ export const WORLD_ROUTES: readonly WorldRoute[] = [
   { pattern: "/connect", kind: "local", query: [], methods: ["POST", "DELETE"] },
   // The dev server of this checkout tells the host its loopback origin (devOrigin.ts); a program's request, never a page's.
   { pattern: "/dev-origin", kind: "local", query: [], methods: ["POST"] },
+  // The page exchanges a one-time token for this tab's bearer (round 27, pairing.ts); before the pairing gate.
+  { pattern: "/pair", kind: "local", query: [], methods: ["POST"] },
   { pattern: "/session", kind: "local", query: [], methods: ["POST", "DELETE"] },
   { pattern: "/town", kind: "local", query: [], methods: ["GET", "PUT"] },
   { pattern: "/town/export", kind: "local", query: [] },

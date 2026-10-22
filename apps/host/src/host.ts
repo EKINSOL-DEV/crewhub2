@@ -30,7 +30,7 @@ import { checkKey } from "./keyCheck.ts";
 import type { KeyStore } from "./keyStore.ts";
 import { BACKUP_NAME, TOWN_BODY_LIMIT, TOWN_FORMAT, installationKey, listBackups, readBackupTown, type TownOp, type WorldDb, validateTownForHost } from "./worldDb.ts";
 import { type LoopsClient, createLoopsClient, isUnauthorized } from "./loops.ts";
-import { PAIR_PATH_PREFIX, PAIR_REFUSED_HTML, type Pairing, createPairing, pairCookieHeader } from "./pairing.ts";
+import { PAIR_HEADER, type Pairing, createPairing, pairLink } from "./pairing.ts";
 import { type ArchiveReport, type AssembledSnapshot, SnapshotError, type SnapshotStats, assembleSnapshot } from "./snapshot.ts";
 import { type ChatLine, type Session, type SessionStore, createSession, firstLine } from "./session.ts";
 import { type HostMessage, type LoopsState, type Upstream, createUpstream } from "./stream.ts";
@@ -91,6 +91,8 @@ export interface HostOptions {
   pairing?: "on" | "off";
   /** The secret cookies are signed with (from CREWHUB_WORLD_PAIRING_FILE); a per-run random one when absent. */
   pairingSecret?: Buffer;
+  /** A pairing unused this long is refused (round 27); 0 never. Default 30 days. */
+  pairingIdleMs?: number;
   /** Where the browser reaches the host when a TLS proxy stands in front (CREWHUB_WORLD_PUBLIC_URL): https → `Secure` cookie; its origin is allowed. */
   publicUrl?: string;
   /**
@@ -179,9 +181,11 @@ export interface HostHealth {
   loopsWebUrl: string;
   /** How the host reaches loops: over TCP (the URL) or over its Unix socket. Absent while nothing is found. */
   transport?: "tcp" | "unix";
-  /** Whether THIS request carries a valid pairing cookie (always true with pairing off). */
+  /** Whether THIS request carries a valid pairing bearer in x-world-pair (always true with pairing off). */
   paired: boolean;
   pairing: "on" | "off";
+  /** How many days a pairing may go unused before it is refused (round 27); 0 never. */
+  pairingIdleDays?: number;
   /** Discovery, key and stream: the states always, the details (paths, names, cursor) for a paired browser only. */
   connection: HostConnection;
   /** The checkout id this host runs from (`checkout.ts`), when it was given one: a dev server of another checkout refuses this host. */
@@ -217,6 +221,12 @@ export function sameSecret(given: string, expected: string): boolean {
   const a = Buffer.from(given);
   const b = Buffer.from(expected);
   return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/** One request header as a string (the first when repeated), or undefined. */
+function header(req: IncomingMessage, name: string): string | undefined {
+  const value = req.headers[name];
+  return Array.isArray(value) ? value[0] : value;
 }
 
 function sendJson(res: ServerResponse, status: number, body: unknown, headers: Record<string, string> = {}): void {
@@ -284,10 +294,10 @@ export async function createHost(options: HostOptions): Promise<Host> {
   const pairingMode = options.pairing ?? "on";
   const pairingOptions: Parameters<typeof createPairing>[0] = {};
   if (options.pairingSecret !== undefined) pairingOptions.secret = options.pairingSecret;
+  if (options.pairingIdleMs !== undefined) pairingOptions.idleMs = options.pairingIdleMs;
   if (options.now !== undefined) pairingOptions.now = options.now;
   const pairing: Pairing = createPairing(pairingOptions);
   const publicUrl = options.publicUrl === undefined ? null : new URL(options.publicUrl);
-  const secureCookie = publicUrl?.protocol === "https:";
   const heartbeatMs = options.heartbeatMs ?? 15_000;
   let port = 0;
   let closed = false;
@@ -670,8 +680,10 @@ export async function createHost(options: HostOptions): Promise<Host> {
   const devOrigins = new Set<string>();
   const allowedOrigins = () =>
     new Set([`http://127.0.0.1:${port}`, `http://localhost:${port}`, ...(publicUrl === null ? [] : [publicUrl.origin]), ...(options.allowedOrigins ?? []), ...devOrigins]);
-  const paired = (req: IncomingMessage) => pairingMode === "off" || pairing.isPaired(req.headers.cookie);
-  const mintPairLink = (origin?: string) => `${origin === undefined ? `http://127.0.0.1:${port}` : origin.replace(/\/$/, "")}${PAIR_PATH_PREFIX}${pairing.mintToken()}`;
+  // Per-tab pairing (round 27): the bearer rides in the x-world-pair header of every request; no cookie.
+  const paired = (req: IncomingMessage) => pairingMode === "off" || pairing.isPaired(header(req, PAIR_HEADER));
+  const mintPairLink = (origin?: string) => pairLink(origin ?? `http://127.0.0.1:${port}`, pairing.mintToken());
+  const idleDays = Math.round(pairing.idleMs / 86_400_000);
 
   /** The connection as health reports it: the states always, the details only when `detailed` (a paired browser). */
   function connection(detailed: boolean): HostConnection {
@@ -710,20 +722,28 @@ export async function createHost(options: HostOptions): Promise<Host> {
   }
 
   /** `GET /pair/<token>`: the cookie and a 303 to `/`, or the refused page. With pairing off the link is not needed: straight to `/`. */
-  function pair(res: ServerResponse, token: string): void {
+  /**
+   * `POST /world-api/pair` (round 27): the page exchanges the one-time token from the link's fragment (sent in the
+   * `x-world-pair` header) for the bearer this tab keeps. A page's request (the Origin header), before the
+   * pairing gate. With pairing off the page needs no bearer and is told so.
+   */
+  function pairRoute(req: IncomingMessage, res: ServerResponse): void {
+    req.resume();
+    if (req.headers.origin === undefined) {
+      sendJson(res, 403, { error: "origin_required", message: "Pairing is for the world's own page: send the Origin header" });
+      return;
+    }
     if (pairingMode === "off") {
-      res.writeHead(303, { location: "/", "cache-control": "no-store" });
-      res.end();
+      sendJson(res, 200, { ok: true, bearer: null, idleDays: 0 });
       return;
     }
-    const value = pairing.redeem(token);
+    const given = header(req, PAIR_HEADER);
+    const value = given !== undefined && /^[A-Za-z0-9_-]{43}$/.test(given) ? pairing.redeem(given) : null;
     if (value === null) {
-      res.writeHead(403, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", ...HTML_HEADERS });
-      res.end(PAIR_REFUSED_HTML);
+      sendJson(res, 403, { error: "pair_refused", message: "This link has expired or was already used. Run npm run world for a new one." });
       return;
     }
-    res.writeHead(303, { location: "/", "set-cookie": pairCookieHeader(value, secureCookie), "cache-control": "no-store" });
-    res.end();
+    sendJson(res, 200, { ok: true, bearer: value, idleDays });
   }
 
   /** `GET /pair-mint` from a loopback tool that knows the run file's secret: a fresh link. No Origin (never a browser page). */
@@ -1210,10 +1230,6 @@ export async function createHost(options: HostOptions): Promise<Host> {
       sendJson(res, 405, { error: "method_not_allowed", message: methods.length === 1 ? "The host answers GET only" : `This route answers ${methods.join(" and ")}` }, { allow: methods.join(", ") });
       return;
     }
-    if (url.pathname.startsWith(PAIR_PATH_PREFIX)) {
-      pair(res, url.pathname.slice(PAIR_PATH_PREFIX.length));
-      return;
-    }
     if (url.pathname === MINT_PATH) {
       mint(req, res);
       return;
@@ -1230,6 +1246,10 @@ export async function createHost(options: HostOptions): Promise<Host> {
     // The pairing gate: everything under /world-api but health needs the cookie (the browser sends it same-origin).
     if (route.pattern === "/dev-origin") {
       await devOrigin(req, res);
+      return;
+    }
+    if (route.pattern === "/pair") {
+      pairRoute(req, res);
       return;
     }
     if (route.pattern !== "/health" && !paired(req)) {
@@ -1254,6 +1274,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
           loopsWebUrl: loopsWebUrl(),
           paired: isPaired,
           pairing: pairingMode,
+          pairingIdleDays: idleDays,
           connection: connection(isPaired),
         };
         if (options.checkout !== undefined) health.checkout = options.checkout;

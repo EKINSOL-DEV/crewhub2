@@ -3,7 +3,8 @@
  * move in the fake reaches the building's counts over the stream (no new snapshot); a fake restart on the same port
  * recovers without a new source; the key appears in no host response or stream bytes; two sources share one upstream
  * stream.
- * The test pairs first (`mintPairLink()` → the cookie), as a browser would, and hands the cookie to every read.
+ * The test pairs first (the link's fragment token exchanged at POST /world-api/pair for the bearer), as the page does,
+ * and hands the bearer header to every read.
  * Every server is started by the test on 127.0.0.1 port 0 (the restart reuses the fake's own port).
  */
 import assert from "node:assert/strict";
@@ -13,28 +14,30 @@ import type { ConnectionState, StatusCounts } from "@crewhub/loops-client";
 import { createLoopsFake } from "@crewhub/loops-fake";
 import { Projection } from "@crewhub/world-model";
 import { createHost, type HostStep } from "../src/host.ts";
+import { PAIR_FRAGMENT, PAIR_HEADER } from "../src/pairing.ts";
 import { waitFor } from "./wait.ts";
 
 const SLUG = "crewhub";
 const TIMINGS = { staleMs: 1500, teamPollMs: 60_000, retryMinMs: 50, retryMaxMs: 200 };
 
-/** Opens a one-time link as a browser would and returns the Cookie header to send from then on. */
-async function pair(link: string): Promise<string> {
-  const response = await fetch(link, { redirect: "manual" });
-  assert.equal(response.status, 303);
-  const setCookie = response.headers.get("set-cookie") ?? "";
-  const match = /^(crewhub_world_pair=[^;]+)/.exec(setCookie);
-  assert.ok(match, `no pairing cookie in ${setCookie}`);
-  return match[1] as string;
+/** Pairs as the page does: the token out of the link's fragment, exchanged once for the bearer; the headers to send from then on. */
+async function pair(link: string): Promise<Record<string, string>> {
+  const url = new URL(link);
+  const response = await fetch(`${url.origin}/world-api/pair`, { method: "POST", headers: { origin: url.origin, [PAIR_HEADER]: url.hash.replace(`#${PAIR_FRAGMENT}=`, "") } });
+  const text = await response.text();
+  assert.equal(response.status, 200, text);
+  const body = JSON.parse(text) as { bearer: string };
+  assert.ok(body.bearer, "no bearer in the answer");
+  return { [PAIR_HEADER]: body.bearer };
 }
 
 /** Reads the host's stream until it has sent `messages` whole SSE messages (or the ceiling) and returns the raw bytes. */
-async function streamBytes(url: string, cookie: string, messages: number): Promise<string> {
+async function streamBytes(url: string, paired: Record<string, string>, messages: number): Promise<string> {
   const controller = new AbortController();
   let text = "";
   const reading = (async () => {
     try {
-      const response = await fetch(url, { signal: controller.signal, headers: { cookie } });
+      const response = await fetch(url, { signal: controller.signal, headers: paired });
       const reader = response.body!.getReader();
       const decoder = new TextDecoder();
       for (;;) {
@@ -70,8 +73,8 @@ test("fake → host → HostSource → projection: a move, a fake restart, no ke
   });
   const snapshots = () => steps.filter((step) => step.step === "snapshot").length;
   assert.equal((await fetch(`${host.url}/world-api/snapshot`)).status, 401, "unpaired: no data");
-  const cookie = await pair(host.mintPairLink());
-  const source = createHostSource({ baseUrl: host.url, timings: TIMINGS, headers: { cookie } });
+  const paired = await pair(host.mintPairLink());
+  const source = createHostSource({ baseUrl: host.url, timings: TIMINGS, headers: paired });
   const projection = new Projection(source, { coalesceMs: 0 });
   const states: ConnectionState[] = [];
   const connection = source.connection!;
@@ -95,15 +98,15 @@ test("fake → host → HostSource → projection: a move, a fake restart, no ke
 
     // 2. The key is in no host response and in no stream bytes.
     for (const path of ["/world-api/health", "/world-api/snapshot", `/world-api/board/${SLUG}`, "/world-api/tickets/CR-19", "/world-api/nope"]) {
-      const text = await (await fetch(`${host.url}${path}`, { headers: { cookie } })).text();
+      const text = await (await fetch(`${host.url}${path}`, { headers: paired })).text();
       assert.ok(!text.includes(key), `${path} leaks the key`);
     }
-    const bytes = await streamBytes(`${host.url}/world-api/stream?cursor=0`, cookie, 1);
+    const bytes = await streamBytes(`${host.url}/world-api/stream?cursor=0`, paired, 1);
     assert.ok(bytes.length > 0, "the stream sent something");
     assert.ok(!bytes.includes(key), "the stream leaks the key");
 
     // 3. Two sources share one upstream loops stream.
-    const second = createHostSource({ baseUrl: host.url, timings: TIMINGS, headers: { cookie } });
+    const second = createHostSource({ baseUrl: host.url, timings: TIMINGS, headers: paired });
     const secondProjection = new Projection(second, { coalesceMs: 0 });
     const stopSecond = second.start((message) => secondProjection.apply(message));
     try {

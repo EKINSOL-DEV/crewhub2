@@ -221,22 +221,24 @@ describe("the smooth connection", () => {
     const unpaired = await connect({ key: stub.key });
     assert.equal(unpaired.status, 401);
     assert.deepEqual(await unpaired.json(), { error: "not_paired" });
-    const cookie = await (async () => {
-      const response = await fetch(host.mintPairLink(), { redirect: "manual" });
-      return (/^(crewhub_world_pair=[^;]+)/.exec(response.headers.get("set-cookie") ?? "") as RegExpExecArray)[1] as string;
+    // Paired as the page does (round 27): the token from the link's fragment, exchanged for the tab's bearer.
+    const pairHeader = await (async () => {
+      const token = new URL(host.mintPairLink()).hash.replace("#pair=", "");
+      const response = await fetch(`${host.url}/world-api/pair`, { method: "POST", headers: { origin: host.url, "x-world-pair": token } });
+      return ((await response.json()) as { bearer: string }).bearer;
     })();
-    const paired = (body: unknown, headers: Record<string, string>) => fetch(`${host.url}/world-api/connect`, { method: "POST", headers: { cookie, ...headers }, body: typeof body === "string" ? body : JSON.stringify(body) });
+    const paired = (body: unknown, headers: Record<string, string>) => fetch(`${host.url}/world-api/connect`, { method: "POST", headers: { "x-world-pair": pairHeader, ...headers }, body: typeof body === "string" ? body : JSON.stringify(body) });
     assert.equal((await paired({ key: stub.key }, { "content-type": "application/json" })).status, 403, "no Origin: not the world's page");
     assert.equal((await paired({ key: stub.key }, { origin: "http://127.0.0.1:1", "content-type": "application/json" })).status, 403, "another origin on this machine: the guard");
     assert.equal((await paired({ key: stub.key }, { origin: host.url, "content-type": "text/plain" })).status, 415);
     assert.equal((await paired("{not json", { origin: host.url, "content-type": "application/json" })).status, 400);
     assert.equal((await paired({ key: "not a key" }, { origin: host.url, "content-type": "application/json" })).status, 400);
     assert.equal((await paired({ key: `chl_${"x".repeat(5000)}` }, { origin: host.url, "content-type": "application/json" })).status, 400, "too large");
-    assert.equal((await fetch(`${host.url}/world-api/connect`, { headers: { cookie } })).status, 405, "GET is not a connect");
+    assert.equal((await fetch(`${host.url}/world-api/connect`, { headers: { "x-world-pair": pairHeader } })).status, 405, "GET is not a connect");
     assert.equal((await fetch(`${host.url}/world-api/health`, { method: "POST", headers: { origin: host.url } })).status, 405, "only connect takes a write");
     const ok = await paired({ key: stub.key }, { origin: host.url, "content-type": "application/json" });
     assert.equal(ok.status, 200);
-    const detailed = (await (await fetch(`${host.url}/world-api/health`, { headers: { cookie } })).json()) as Record<string, any>;
+    const detailed = (await (await fetch(`${host.url}/world-api/health`, { headers: { "x-world-pair": pairHeader } })).json()) as Record<string, any>;
     assert.equal(detailed.connection.key.name, "crewhub-world", "a paired request sees the details");
     assert.equal(detailed.connection.discovery.target, stub.url);
     const bare = (await (await fetch(`${host.url}/world-api/health`)).json()) as Record<string, any>;

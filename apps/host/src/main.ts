@@ -13,6 +13,7 @@
  *   CREWHUB_WORLD_ALLOWED_ORIGINS  comma list of extra origins (the Vite dev server), default none
  *   CREWHUB_WORLD_PAIRING          on (default) or off (development only; refused in production, logged loudly)
  *   CREWHUB_WORLD_PAIRING_FILE     keeps the pairing secret across restarts (mode 0600); default: a per-run secret
+ *   CREWHUB_WORLD_PAIRING_IDLE_DAYS a pairing unused this long is refused (0 never); default 30
  *   CREWHUB_WORLD_PUBLIC_URL       the URL a browser reaches the host at behind a TLS proxy (https → Secure cookie)
  *   NODE_ENV=production            serve apps/world/dist with an SPA fallback
  * The key is read once and kept in memory. It is never printed.
@@ -231,6 +232,7 @@ const host = await createHost({
   ...(world ? { onStep: printStep } : {}),
   ...(staticDir === undefined ? {} : { staticDir }),
   ...(pairingSecret === undefined ? {} : { pairingSecret }),
+  pairingIdleMs: config.pairingIdleDays * 86_400_000,
   ...(config.publicUrl === null ? {} : { publicUrl: config.publicUrl }),
 });
 if (build !== null && !build.fresh) host.setBuilding(true);
