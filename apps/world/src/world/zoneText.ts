@@ -25,20 +25,38 @@ export const ZONES_BY_HAND = "made by hand in this browser; crewhub-loops has no
  * and how many buildings they put in one, and where that lives. With none, a plain "none yet" that still says what
  * is true: every building stands in the one district until someone makes a zone in build mode.
  */
-export function zonesOriginWords(facts: { zones: readonly Pick<Zone, "source">[]; assignments: Readonly<Record<string, string>> | undefined }): string {
+export function zonesOriginWords(facts: { zones: readonly Pick<Zone, "source">[]; assignments: Readonly<Record<string, string>> | undefined; kept?: TownKeeping }): string {
   const made = facts.zones.filter((z) => z.source === "town").length;
   const assigned = Object.keys(facts.assignments ?? {}).length;
+  const kept = facts.kept ?? "browser";
+  const where = kept === "host" ? "kept by the world's host for this crewhub-loops and shared by every paired browser" : kept === "offline" ? "kept in this browser until the host is back" : "kept in this browser, not shared with other browsers";
   if (made === 0 && assigned === 0) {
-    return "none yet: every building stands in the one district. crewhub-loops has no project groups; districts are made by hand in build mode and kept in this browser, not shared with other browsers.";
+    return `none yet: every building stands in the one district. crewhub-loops has no project groups; districts are made by hand in build mode and ${where}.`;
   }
   const zones = made === 1 ? "1 zone" : `${made} zones`;
   const buildings = assigned === 1 ? "1 building assigned" : `${assigned} buildings assigned`;
-  return `${zones} ${ZONES_BY_HAND} (${buildings}).`;
+  if (kept === "browser") return `${zones} ${ZONES_BY_HAND} (${buildings}).`;
+  return `${zones} made by hand, ${where}; crewhub-loops has no project groups (${buildings}).`;
+}
+
+/** Where a live town is kept right now: by the host (round 20), in this browser until the host is back, or in this browser only. */
+export type TownKeeping = "host" | "offline" | "browser";
+
+/** The keeping words of a live town, from the store's storage: the Settings card, the Connection panel and the text view say the same. */
+export function townKeepingWords(kept: TownKeeping): string {
+  return kept === "host" ? "Kept by the world's host for this crewhub-loops, shared by every paired browser." : kept === "offline" ? "Kept in this browser until the host is back." : "Kept in this browser (IndexedDB).";
+}
+
+/** The text view's zone line of a live town's hand-made zone: `ZONES_BY_HAND` while the browser keeps it, the host's words once the host does. */
+export function zonesByHandWords(kept: TownKeeping): string {
+  return kept === "host" ? "made by hand, kept by the world's host for this crewhub-loops and shared by every paired browser; crewhub-loops has no project groups" : ZONES_BY_HAND;
 }
 
 export interface ZoneFacts {
   /** The source behind the town: a live town's hand-made zones are said with the whole truth (`ZONES_BY_HAND`). */
   mode?: "demo" | "live";
+  /** Where a live town is kept (round 20): the host's words when the host keeps it. */
+  kept?: TownKeeping;
   zones: readonly Zone[];
   buildings: readonly { slug: string; name: string; zoneId: string }[];
   /** The town document's plots (the district a building stands in) and manual assignments. */
@@ -61,7 +79,7 @@ export function describeZones(facts: ZoneFacts): TextLine[] {
     const inside = buildings.filter((b) => b.zoneId === zone.id);
     const mark = [zone.color && `colour ${ZONE_COLOR_NAMES[zone.color]?.toLowerCase() ?? zone.color}`, zone.emblem && `emblem ${ZONE_EMBLEM_NAMES[zone.emblem]?.toLowerCase() ?? zone.emblem}`].filter(Boolean).join(", ");
     const look = facts.lookOf(zone);
-    const from = zone.source === "group" ? "a group in crewhub-loops" : zone.source === "town" ? (facts.mode === "live" ? ZONES_BY_HAND : "made in this town") : "buildings without a zone";
+    const from = zone.source === "group" ? "a group in crewhub-loops" : zone.source === "town" ? (facts.mode === "live" ? zonesByHandWords(facts.kept ?? "browser") : "made in this town") : "buildings without a zone";
     lines.push({
       section: "Zones",
       text: `${zoneLabel(zone)} (${from}): ${inside.length ? inside.map((b) => b.name).join(", ") : "no buildings"}.${mark ? ` Mark: ${mark}.` : ""}${look ? ` Look: ${look}.` : ""}`,
@@ -83,4 +101,10 @@ export function describeZones(facts: ZoneFacts): TextLine[] {
     });
   }
   return lines;
+}
+
+/** The keeping of a town from its store's storage and the source: a demo town is the browser's; a live one is the host's while the host keeps it. */
+export function townKeeping(storage: "host" | "indexeddb" | "memory", mode: "demo" | "live"): TownKeeping {
+  if (mode !== "live") return "browser";
+  return storage === "host" ? "host" : "offline";
 }

@@ -82,9 +82,9 @@ they are not built.
 | --- | --- | --- |
 | 1. First light | `packages/loops-client`, `WorldSource`, the demo source, one building per project, navigation, hidden text view | Built in demo mode (2026-10-01); live since 2026-10-07 (against the fake) and against crewhub-loops `4cdcd383` since 2026-10-21 |
 | 2. Chat bubbles | The loops chat mirrored verbatim, backed by an in-browser demo chat API | Built in demo mode (2026-10-01). Live since round 12 (2026-10-21): the Chat panel frames loops' own web app (the chip, and "Chat with <name>" on a lead's card, since loops chats with leads only, round 13), and an agent's answer shows as a speech bubble over its figure, with a chat mark over its building from the town (round 14) and a Recent answers list (round 16; the panel in one glance, rounds 17 and 18). The bubbles come through the host: on the key road without a sign-in where loops lets the world's key read the chat (the viewer key, proven on 8292), on today's Mac app after a sign-in in the Connection panel (the session road, which `task/r19-viewer-switch` removes once loops merges the viewer key). The demo's dock feeds the same bubbles, mark and list |
-| 3. Buildings | Rooms by role, tickets as objects in rooms, the ticket drone, postures and captions, the `WorldStyle` seam | Built in demo mode (2026-10-01); live from the same model, with the real lane facts on the card, a person carrying work into Done and closed buildings (2026-10-21); since round 7 a quiet ticket gathers dust and a clock tag, and an automation's run pins a card on the building's board, in the demo and live alike. The world database: in progress (round 20) |
+| 3. Buildings | Rooms by role, tickets as objects in rooms, the ticket drone, postures and captions, the `WorldStyle` seam | Built in demo mode (2026-10-01); live from the same model, with the real lane facts on the card, a person carrying work into Done and closed buildings (2026-10-21); since round 7 a quiet ticket gathers dust and a clock tag, and an automation's run pins a card on the building's board, in the demo and live alike. The world database's first slice (round 20) keeps the live town in the host |
 | 4. Town and dynamic pathfinding | Doors, town paths, heap A*, wait budget, detail levels, stress fixture | Built in demo mode (2026-10-01); live from the same model |
-| 5. Build mode: layout and props | Local town document with undo and export/import, prop catalogue, the `crewhub-prop/1` format and the `prop-builder` skill | Built in demo mode (2026-10-01); live mode keeps its own town document in the browser, per crewhub-loops installation (round 11). The world database, which keeps it in the host for every paired browser: in progress (round 20) |
+| 5. Build mode: layout and props | Local town document with undo and export/import, prop catalogue, the `crewhub-prop/1` format and the `prop-builder` skill | Built in demo mode (2026-10-01); live mode keeps its own town document in the browser, per crewhub-loops installation (round 11). Since round 20 the world database keeps it in the host for every paired browser |
 | 6. Director and awareness | A scripted intent feed through the validated intent list, `where`, the settings block, the no-model-call guard | Built in demo mode (2026-10-01); `where` works live; the scripted feed in live mode built 2026-10-21 (round 11): its own opt-in, off by default, plans from the live facts, "scripted" on every intent and in the text view. Not built: the real director |
 
 Walk mode (2026-10-07, built in demo mode): the person walks a visitor figure through the town and into buildings over
@@ -210,9 +210,10 @@ tells each round.
 Everything below is planned and not built, in progress, or waits on crewhub-loops. Each item needs crewhub-loops
 running.
 
-- **World database.** SQLite with migrations and a backup in the host's own folder replaces the browser's
-  IndexedDB town document (phase 3 and 5 of the plan in live form), so every paired browser sees one town. **In
-  progress (round 20)**; the details are that track's.
+- **World database.** First slice built on 2026-10-22 (round 20, spec addendum "the world database, first
+  slice"): the host keeps the live town document per crewhub-loops installation in `world.db` (Node 24's
+  `node:sqlite`, migrations with a backup copy, an export), every paired browser shares it, the browser's
+  IndexedDB is the demo's store and the live fallback. Open: merging concurrent edits, more than the town in it.
 - **The viewer-key switch.** The chat is built (rounds 12 to 18; phase 2 above); what remains is the key. The loops
   branch `world/viewer-key` is on origin (crewhub-loops), 15 commits on `4cdcd383` under `cl-lead`'s review: the
   **viewer key** (L1: an external bot flag that may read exactly the host's read list, the stream and the chat the
@@ -237,7 +238,8 @@ running.
   The per-browser road is built (2026-10-21, round 11): a live town's zones are made by hand in build
   mode as in the demo, the live town document is kept per crewhub-loops installation, and the text
   view, the Connection panel and build mode say so. The second road, the host's world database keeping
-  the zones per installation, is in progress (round 20).
+  the zones per installation so every paired browser shares them, is built too (2026-10-22, round 20,
+  the world database's first slice).
 
 Nicky's ten decisions of the night document were answered and built in round 15 (2026-10-22): `--test-timeout=120000`
 in `npm test`, so a hung test fails by name, is merged (`77e4dff`, after the Node 24 preflight); "Where is …?" answers

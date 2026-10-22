@@ -1142,3 +1142,63 @@ agent's figure with its first line; a tap opens the Chat panel. A message the pe
 person. Nothing of the conversation is kept by the world beyond the bubble's few seconds, except (round 16) the last
 10 first lines in the Recent answers list, for the page's life.
 
+
+## Addendum: the world database, first slice (2026-10-22, round 20)
+
+The host keeps the live town document; every paired browser sees the same town. This closes the second road of the
+project-groups addendum (round 7, L22): zones are shared per crewhub-loops installation, by the host, until loops has
+groups of its own. **Status: built in round 20 (the first slice below); the browser's IndexedDB stays for demo mode and
+as the offline fallback.**
+
+**What the town document holds today** (`crewhub-town/1`, `packages/world-model/src/townDocument.ts`): the town's
+style id, cast and style options; a plot per project (its lot, and a style, options or cast of its own); the zones a
+person made and their looks, the manual assignments and where each zone's district stands; the placements of props
+(a stable id, the catalogue id, site, cell, rotation, attachment); the user props imported from prop tickets, with
+their provenance; the rule switches. Every build-mode edit is a new revision of the whole document; undo and redo move
+over the last 50 revisions (`HISTORY_LIMIT`), kept in the browser. Size: an empty town is 282 bytes, twenty plots in
+four zones 3.9 kB, a user prop a few kB each; the document's own limits (`TOWN_LIMITS`: 256 plots, 2000 placements,
+200 user props, 32 zones) keep the worst case under a few MB. The browser's key since round 11:
+`crewhub-world.live.<host>-<port>` of the installation's web app, from the host's health (`loopsWebUrl`).
+
+**The store.** `node:sqlite`'s `DatabaseSync`, built into Node 24 (no dependency; SQLite 3.53 on 24.21). On the Node
+the host requires (24.21) it prints no warning; an older 24.x printed one `ExperimentalWarning: SQLite is an
+experimental feature` at the first open. The host hides nothing: it runs without `--no-warnings`, so every other
+warning prints as Node prints it; its own log says once, at start, that the line is expected when that Node is in use
+(`worldDb.ts` listens for that one warning and names it). The file is `<CREWHUB_WORLD_CONFIG_DIR>/world.db`, mode
+0600 in the 0700 folder (beside the stored key, the pairing secret and `archived.json`), rollback journal, so nothing
+but `world.db` stays on disk between writes. Tables: `schema_version(version)` with one row, and `towns(installation
+PRIMARY KEY, rev, document, updated_at, updated_by)`: one row per installation, keyed like the browser's key
+(`<host>-<port>` of the loops web app the host reads, `installationKey`). Migrations are a list in the code, applied
+in a transaction on open; before a schema change on a file that has one, the host copies the file to
+`world.db.bak-v<current version>` beside it (never overwritten: a second change in the same version keeps the first
+copy). A document is kept as the browser sent it, text, so an export is the same bytes.
+
+**The API** (`apps/host/src/allowList.ts`, local routes, paired and same-origin like `/connect`; the `Origin` header is
+required on the write):
+- `GET /world-api/town` → `200 {installation, rev, updatedAt, document}`; `rev` 0 and `document` null when the host has
+  none for this installation yet (a first contact is no error in a browser's console); `rev` null with a `reason`
+  (`no_loops` while the host has found no loops, since a town belongs to an installation; `no_world_db` on a host that
+  could not open its database) and the browser keeps its town; a write in those states is 503 with the reason.
+- `PUT /world-api/town {document, baseRev}` (`application/json`, 4 MB at most): the document must be an object of
+  format `crewhub-town/1` (the browser validates the rest; the host keeps the text); `baseRev` must equal the host's
+  current `rev` (0 to create) or the answer is `409 town_conflict {rev, document}` with the town as the host has it.
+  Success: `200 {rev}`, the row written, and a `{type: "town", rev}` message on every paired browser's stream.
+  **Last write wins with a revision check, no merge:** an edit is a whole revision with undo in the browser, so the
+  browser that loses the race reloads the host's town and says so in plain words ("Another browser changed the town; your
+  last change was not kept"); merging plots and placements is a later slice.
+- `GET /world-api/town/export` → the document text as a file (`crewhub-town-r<rev>.json`), the same format as build
+  mode's export; 404 while there is none.
+
+**The browser.** In live mode the town runtime wraps its IndexedDB store (the per-installation key of round 11, with
+round 11's one-time copy from the plain key) in a host-backed store: on load it reads the host's town; when the host
+has none, the browser's own town is imported **once** (`PUT` with `baseRev` 0), never over a town the host has; when the
+host has one, the host's wins and the browser's copy becomes its mirror. Every commit, undo, redo and amend goes to the
+host with the revision it is based on; the IndexedDB copy follows, so a browser that loses the host keeps editing
+("kept in this browser until the host is back") and offers its town again when the host answers. A `town` message with a
+newer revision makes the browser refetch and take the host's document without an undo step. The text view, the
+Connection panel ("Town" and "Zones") and build mode say where the town is kept: "kept by the world's host for this
+crewhub-loops, shared by every paired browser", or offline "kept in this browser until the host is back". Demo mode is
+unchanged: every scenario keeps its town in IndexedDB under its own key.
+
+**Out of this slice:** merging concurrent edits, a town per person, more than the town document in the database (the
+host's archive memory and session stay files), a UI to delete the host's town.

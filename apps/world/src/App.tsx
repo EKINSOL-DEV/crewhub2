@@ -30,7 +30,7 @@ import { useAmbient } from "./state/ambient";
 import { useCast } from "./state/cast";
 import { castRegistry } from "./world/cast";
 import { describeCasts } from "./world/castText";
-import { describeZones } from "./world/zoneText";
+import { describeZones, townKeeping, townKeepingWords } from "./world/zoneText";
 import { styleRegistry } from "./world/style";
 import { crumbs, districtsOf, homeName, isRegion, jumpEntries, needsOf, needsWords, stepOut, summarise, summaryWords, type Crumb, type DistrictPlace, type JumpEntry, type Place } from "./world/wayfinding";
 import { toggleDetails, useDetails } from "./state/details";
@@ -211,6 +211,7 @@ function World() {
       }),
       ...describeZones({
         mode: model.mode,
+        kept: townKeeping(town.storage, model.mode),
         zones: model.zones,
         buildings: model.buildings,
         plots: town.doc.plots,
@@ -219,6 +220,7 @@ function World() {
       }),
       ...describePlan(plan, (slug) => model.buildings.find((b) => b.slug === slug)?.name ?? slug),
       ...describeTownDocument(town.doc, town.catalogue, { ruleProps: rules, invalidRequests: town.invalid, rooms }),
+      ...(model.mode === "live" ? [{ section: "Town document", text: `The town document is ${townKeepingWords(townKeeping(town.storage, model.mode)).charAt(0).toLowerCase()}${townKeepingWords(townKeeping(town.storage, model.mode)).slice(1)}`, kind: "fact" as const }] : []),
       ...(town.storageNote ? [{ section: "Town document", text: town.storageNote, kind: "fact" as const }] : []),
     ],
     [textShown, text, civic, rooms, cast, town.doc, town.catalogue, rules, town.invalid, model.zones, model.buildings, plan, said],

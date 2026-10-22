@@ -166,7 +166,7 @@ The host reads these; every one has a default that matches the app.
 | `CREWHUB_WORLD_LOOPS_SOCKET` | none | The path of the app's Unix socket (`~/Library/Application Support/be.ekinsol.crewhub/run/api.sock`; `~/` is the home folder): the host then reads loops over the socket instead of TCP (`node:http` with `socketPath`, Host `127.0.0.1`), same allow-list, same stream, same timeouts. Explicit only; the path must exist and be a socket when the host starts (so open the app first), else a clear error; set together with `CREWHUB_WORLD_LOOPS_URL` it is a configuration error. `--loops-socket <path>` on the command line is the same. The health read says `transport: "unix"` or `"tcp"`. |
 | `CREWHUB_WORLD_LOOPS_WEB_URL` | the URL's origin, or the port found | Where the Chat panel's frame and its "Open in the crewhub-loops app" link, and the card's ticket links, go (`loopsWebUrl`). A socket has no origin: with `CREWHUB_WORLD_LOOPS_SOCKET` the default is `http://127.0.0.1:8091`; the development instance names `http://127.0.0.1:8291`. |
 | `CREWHUB_WORLD_KEY_FILE` | none | The key the host sends as `Authorization: Bearer`, read once, never logged, never in a response or the bundle (a test checks). Unset, the host reads its own stored key `~/.config/crewhub-world/loops-key` (what the Connect screen saved), then the old default `~/.config/crewhub-loops/secrets/agent-crewhub-world.key`; none of them: the host starts without a key and the world shows Connect. A configured file that cannot be read is an error, never a fallback. There is no builder-key fallback any more. |
-| `CREWHUB_WORLD_CONFIG_DIR` | `~/.config/crewhub-world` | The host's own folder: the stored key lives here (folder 0700, file 0600). Tests and developers point it elsewhere. |
+| `CREWHUB_WORLD_CONFIG_DIR` | `~/.config/crewhub-world` | The host's own folder: the stored key, `archived.json`, the session and the world database `world.db` live here (folder 0700, files 0600). Tests and developers point it elsewhere. |
 | `CREWHUB_WORLD_PORT` | `5180` | The host's own port, bound to `127.0.0.1` only. |
 | `CREWHUB_WORLD_ALLOWED_ORIGINS` | none | A comma list of extra browser origins the host accepts besides `http://127.0.0.1:<port>` and `http://localhost:<port>`; in development the Vite dev server's origin, for example `http://127.0.0.1:5173`. |
 | `CREWHUB_WORLD_PAIRING` | `on` | `off` drops the pairing cookie gate: development only, logged loudly at start, refused with `NODE_ENV=production`. |
@@ -239,9 +239,10 @@ or later; an older loops ignores it, so the panel also says which chat head to o
 fallback for a frame that never loads. The connection chip sits where the Demo chip was. The text view says where chat lives.
 
 Zones: every live project sits in the default zone until crewhub-loops has project groups (L22); zones drawn by
-hand in build mode are kept in the live town document of this installation (one per crewhub-loops web app the host
-names, in this browser's IndexedDB), separate from the demo scenarios' documents and never shared with another browser.
-The Connection panel's "Zones" line and the text view say so. A live town made before the key carried the
+hand in build mode are part of the live town document of this installation, which the world's host keeps since round
+20 in `~/.config/crewhub-world/world.db` (one row per crewhub-loops web app the host names) and every paired browser
+shares; the browser keeps a copy under its own key (IndexedDB) and edits on it while the host is away, then offers it
+again. The Connection panel's "Town" and "Zones" lines and the text view say where the town is kept. A live town made before the key carried the
 installation (under the plain `crewhub-world.live`) is copied once into the installation's key the first time that
 key holds nothing; the earlier copy is kept as it was, a town already under the new key is never overwritten, a demo
 page never copies, and Settings > Town and the text view say "Copied once from the town kept under the earlier key" that
@@ -342,13 +343,14 @@ again; a connection change over the town (Live to Loops down, Stream busy, Catch
 
 ## 6. Taking it away
 
-The world keeps nothing in crewhub-loops. Stop the host; the live town document stays in the browser's storage
-under its own key. In the app, Settings > Agents > `crewhub-world` > **Access keys** > revoke, and delete the stored
+The world keeps nothing in crewhub-loops. Stop the host; the live town document stays in the host's `world.db` and a
+copy in the browser's storage under its own key. In the app, Settings > Agents > `crewhub-world` > **Access keys** > revoke, and delete the stored
 key `~/.config/crewhub-world/loops-key` (or `DELETE /world-api/connect` from the world's page does it), the pairing
 secret `~/.config/crewhub-world/pairing-secret` and, if you made one,
 `~/.config/crewhub-loops/secrets/agent-crewhub-world.key`. **Forget** in the world's Connection panel removes only the
-key: the host's folder `~/.config/crewhub-world` also keeps the pairing secret and `archived.json` (the slugs of the
-closed buildings it learnt), so delete the whole folder to remove everything. The app itself is untouched by any of this.
+key: the host's folder `~/.config/crewhub-world` also keeps the pairing secret, `archived.json` (the slugs of the
+closed buildings it learnt) and `world.db` (the live town per installation, with `world.db.bak-v<n>` copies from
+schema changes), so delete the whole folder to remove everything. The app itself is untouched by any of this.
 
 ## 7. For developers: the private crewhub-loops next to the app
 

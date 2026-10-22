@@ -20,8 +20,11 @@ import { placementDefinitions } from "../world/placements";
 import { importPropRequest, type InvalidRequest } from "../world/propImport";
 import { allocationEdit, carryAllocations } from "../world/settlement";
 import { styleRegistry } from "../world/style";
+import { readHostTown, writeHostTown } from "@crewhub/loops-client";
+import { createHostTownStore } from "./hostTown";
+import { onHostTown } from "./townBus";
 import { createTownStore, seededTown, type TownStore } from "./townStore";
-import { SCENARIO, STRESS, TOWN_COPY_FROM, TOWN_KEY, worldRuntime } from "./world";
+import { LIVE, SCENARIO, STRESS, TOWN_COPY_FROM, TOWN_KEY, worldRuntime } from "./world";
 
 export interface TownState {
   doc: TownDocument;
@@ -30,7 +33,7 @@ export interface TownState {
   definitions: ReturnType<typeof placementDefinitions>;
   canUndo: boolean;
   canRedo: boolean;
-  storage: "indexeddb" | "memory";
+  storage: "host" | "indexeddb" | "memory";
   storageNote: string | null;
   loaded: boolean;
   /** Done prop tickets whose prop is invalid, while they are still done and not imported. */
@@ -55,7 +58,11 @@ class TownRuntime {
     // A scenario's town starts with its zones' looks (Studio's four districts); the stress fixtures start empty.
     const initial = STRESS ? undefined : seededTown(SCENARIO.townZones, this.context);
     // Lots are facts of the town, not edits: an undo or redo carries them into the revision it restores.
-    this.store = createTownStore({ context: this.context, name: TOWN_KEY, carry: carryAllocations, ...(initial ? { initial } : {}), ...(TOWN_COPY_FROM ? { copyFrom: TOWN_COPY_FROM } : {}) });
+    const local = createTownStore({ context: this.context, name: TOWN_KEY, carry: carryAllocations, ...(initial ? { initial } : {}), ...(TOWN_COPY_FROM ? { copyFrom: TOWN_COPY_FROM } : {}) });
+    // Live: the world's host keeps the town for this installation (round 20); the browser's store is the fallback.
+    this.store = LIVE
+      ? createHostTownStore({ local, context: this.context, onTown: onHostTown, transport: { read: () => readHostTown(), write: (document, baseRev) => writeHostTown(document, baseRev) }, log: (line) => console.info(`[town] ${line}`) })
+      : local;
     this.#state = this.#derive();
     this.store.subscribe(() => {
       this.#refresh();

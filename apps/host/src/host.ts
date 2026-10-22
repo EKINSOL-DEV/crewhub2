@@ -27,6 +27,7 @@ import { DEFAULT_LOOPS_URL, type KeySource } from "./config.ts";
 import { type Discovery, type DiscoveryInput, type Found, createDiscovery, loopsAnswers, targetText } from "./discovery.ts";
 import { checkKey } from "./keyCheck.ts";
 import type { KeyStore } from "./keyStore.ts";
+import { TOWN_BODY_LIMIT, TOWN_FORMAT, installationKey, type WorldDb } from "./worldDb.ts";
 import { type LoopsClient, createLoopsClient, isUnauthorized } from "./loops.ts";
 import { PAIR_PATH_PREFIX, PAIR_REFUSED_HTML, type Pairing, createPairing, pairCookieHeader } from "./pairing.ts";
 import { type ArchiveReport, type AssembledSnapshot, SnapshotError, type SnapshotStats, assembleSnapshot } from "./snapshot.ts";
@@ -52,6 +53,8 @@ export interface HostOptions {
   keyStore?: KeyStore;
   /** The memory of the closed buildings (`archived.json` beside the key). Absent: remembered for this run only. */
   archiveStore?: ArchiveStore;
+  /** The world database (round 20, `world.db` beside the key): the live town per installation. Absent: `/world-api/town` answers 503 and the browsers keep their towns. */
+  worldDb?: WorldDb;
   /**
    * Where the person's chat session is kept (round 12): without a store the host takes no sign-in (`POST /session`
    * answers 503) and shows no bubbles. The cookie never leaves the host; the password never reaches a file or a log.
@@ -845,6 +848,94 @@ export async function createHost(options: HostOptions): Promise<Host> {
   }
 
   /**
+   * `GET` and `PUT /world-api/town` (round 20, the world database): the installation's town document. A town belongs to
+   * an installation, so without a loops found there is none to name (503); a host that has none yet answers revision 0
+   * and no document. `PUT {document, baseRev}` from a paired
+   * browser on an allowed origin writes a revision over `baseRev` (0 creates); another browser's revision in between is
+   * a 409 with the town as the host has it, never an overwrite. A written revision goes to every tab on the stream as
+   * `{type: "town", rev}`. `GET /world-api/town/export` is the document as a file, build mode's format.
+   */
+  async function town(req: IncomingMessage, res: ServerResponse, exportFile: boolean): Promise<void> {
+    const db = options.worldDb;
+    // A read that cannot be answered yet is no error in a browser's console: 200 with no revision and the reason; a
+    // write in that state is refused with the same reason.
+    if (db === undefined) {
+      req.resume();
+      if (req.method === "GET" && !exportFile) sendJson(res, 200, { installation: null, rev: null, document: null, reason: "no_world_db" });
+      else sendJson(res, 503, { error: "no_world_db", message: "This host keeps no world database; the town stays in the browser." });
+      return;
+    }
+    const found = discovery.current();
+    if (found === null) {
+      req.resume();
+      if (req.method === "GET" && !exportFile) sendJson(res, 200, { installation: null, rev: null, document: null, reason: "no_loops" });
+      else sendJson(res, 503, { error: "no_loops", message: "crewhub-loops is not found yet, so the town has no installation to belong to." });
+      return;
+    }
+    const installation = installationKey(loopsWebUrl());
+    if (req.method === "GET") {
+      req.resume();
+      const held = db.getTown(installation);
+      if (held === null) {
+        // No town yet is a normal first contact, not an error: 200 with revision 0 and no document (a 404 would be a
+        // console error in every browser that meets a fresh host); the export of nothing stays a 404.
+        if (exportFile) sendJson(res, 404, { error: "no_town", installation });
+        else sendJson(res, 200, { installation, rev: 0, updatedAt: null, document: null });
+        return;
+      }
+      if (exportFile) {
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "content-disposition": `attachment; filename="crewhub-town-r${held.rev}.json"` });
+        res.end(held.document);
+        return;
+      }
+      let document: unknown;
+      try {
+        document = JSON.parse(held.document);
+      } catch {
+        sendJson(res, 500, { error: "town_unreadable", message: `the stored town of ${installation} is not JSON` });
+        return;
+      }
+      sendJson(res, 200, { installation, rev: held.rev, updatedAt: held.updatedAt, document });
+      return;
+    }
+    if (req.headers.origin === undefined) {
+      req.resume();
+      sendJson(res, 403, { error: "origin_required", message: "The town is written from the world's own page: send the Origin header" });
+      return;
+    }
+    if (!/^application\/json\b/i.test(req.headers["content-type"] ?? "")) {
+      req.resume();
+      sendJson(res, 415, { error: "unsupported_media_type", message: "Send application/json: {\"document\": {…}, \"baseRev\": n}" });
+      return;
+    }
+    const body = await readJsonBody(req, TOWN_BODY_LIMIT);
+    const document = body?.document;
+    const baseRev = body?.baseRev;
+    if (body === null || typeof document !== "object" || document === null || Array.isArray(document) || (document as { format?: unknown }).format !== TOWN_FORMAT) {
+      sendJson(res, 400, { error: "validation_error", message: `The body must be JSON under ${TOWN_BODY_LIMIT} bytes with a document of format ${TOWN_FORMAT} and a baseRev` });
+      return;
+    }
+    if (typeof baseRev !== "number" || !Number.isInteger(baseRev) || baseRev < 0) {
+      sendJson(res, 400, { error: "validation_error", message: "baseRev must be the revision the document is based on (0 to create)" });
+      return;
+    }
+    const outcome = db.putTown(installation, JSON.stringify(document), baseRev);
+    if (!outcome.ok) {
+      let held: unknown = null;
+      try {
+        held = outcome.conflict.document === null ? null : JSON.parse(outcome.conflict.document);
+      } catch {
+        held = null;
+      }
+      sendJson(res, 409, { error: "town_conflict", message: "Another browser changed the town since this one read it; here is the town as the host has it", rev: outcome.conflict.rev, document: held });
+      return;
+    }
+    log(`town of ${installation} written: revision ${outcome.rev}`);
+    for (const tab of tabs.values()) tab.send({ type: "town", rev: outcome.rev });
+    sendJson(res, 200, { ok: true, rev: outcome.rev });
+  }
+
+  /**
    * `POST /world-api/session {id, password}` (round 12): a paired browser on an allowed origin signs the host in to
    * crewhub-loops as the person, for the chat's bubbles. The password is read once, handed to loops over loopback and
    * dropped: never stored, logged, echoed or returned; only the session cookie is kept (session.ts). `DELETE` signs
@@ -1021,6 +1112,12 @@ export async function createHost(options: HostOptions): Promise<Host> {
         return;
       case "/session":
         await sessionRoute(req, res);
+        return;
+      case "/town":
+        await town(req, res, false);
+        return;
+      case "/town/export":
+        await town(req, res, true);
         return;
       default:
         sendJson(res, 404, { error: "not_found" });

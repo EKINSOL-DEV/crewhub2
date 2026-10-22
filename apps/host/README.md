@@ -49,6 +49,21 @@ smooth connection" below):
   stream and a sign-in is refused as not needed (409). Planned (decision 9) and written on `task/r19-viewer-switch` (round 19): once crewhub-loops main carries
   `world/viewer-key` (on origin under `cl-lead`'s review) that branch merges and the session road goes with it (`src/session.ts`, its file, the `/world-api/session` routes, the panel's
   form, the `signed-out`/`signed-in`/`expired` states, the regress chat group's session half); the plan is in `session.ts`'s header.
+- **Town** (round 20, the world database, spec addendum "the world database, first slice"): `GET /world-api/town`
+  answers the installation's town document `{installation, rev, updatedAt, document}` (`rev` 0 and `document` null when
+  the host has none yet: a first contact is no error; `rev` null with `reason` `no_loops` until a loops is found, since a
+  town belongs to an installation, or `no_world_db` on a host that could not open its database; a write in those states
+  is 503 with the same reason). `PUT /world-api/town {document, baseRev}` (a paired browser on an allowed origin,
+  `application/json`, 4 MB at most, the document of format `crewhub-town/1`) writes a revision over `baseRev` (0
+  creates) and answers `{rev}`; another browser's revision in between is `409 town_conflict {rev, document}` with the
+  town as the host has it, never an overwrite; every tab hears `{type: "town", rev}` on the stream and refetches.
+  `GET /world-api/town/export` is the document as a file (`crewhub-town-r<rev>.json`, build mode's format). The
+  store is `<CREWHUB_WORLD_CONFIG_DIR>/world.db`, Node 24's `node:sqlite` (0600 in the 0700 folder; `src/worldDb.ts`):
+  a `schema_version` row and a `towns` table with one row per installation, keyed by the loops web app's host and
+  port like the browser's own town key; migrations run in a transaction on open after a copy of the file to
+  `world.db.bak-v<n>`; a file newer than the host knows is refused. Node 24.21 prints no warning for `node:sqlite`;
+  an older 24.x printed one `ExperimentalWarning` at the first open, which the host explains once in its log and
+  never hides (it runs without `--no-warnings`).
 - **Health** `GET /world-api/health`: `{ loops, keyName, sharedKey, loopsWebUrl, transport, paired, pairing, checkout?, loopsCommit?, loopsCommitBefore?, cursor?, connection }`
   (`checkout` is the id of the checkout the host runs from, `src/checkout.ts`: the first 12 hex characters of SHA-256 over the
   repository root's real path, never the path itself, since health answers before the pairing gate; `npm run dev` of another
@@ -94,7 +109,7 @@ smooth connection" below):
 | `CREWHUB_WORLD_LOOPS_SOCKET` | none | Read loops over its Unix socket instead of TCP (the same allow-list, headers, stream and timeouts; `Host: 127.0.0.1`). The path must exist and be a socket when the host starts, else a clear error; `~/` is the home folder. **Explicit only: the host never guesses a socket outside the app's data folder.** `--loops-socket <path>` on the command line is the same and wins. Setting both the URL and the socket is a configuration error. See "The socket" below. |
 | `CREWHUB_WORLD_LOOPS_WEB_URL` | the URL's origin, or the port found | Where the chat chip and the card's ticket links go (`health.loopsWebUrl`), as an origin. With a socket from the env the default is the app's `http://127.0.0.1:8091`; set it when the web app is elsewhere, e.g. `http://127.0.0.1:8291` for the development instance. |
 | `CREWHUB_WORLD_KEY_FILE` | none | The agent key file, first in line. Unset: the stored key `<CREWHUB_WORLD_CONFIG_DIR>/loops-key` (what `POST /world-api/connect` saved), then the old default `~/.config/crewhub-loops/secrets/agent-crewhub-world.key`; none: the host starts without a key (`connection.key.state: "none"`) and waits for a paste. A configured file that cannot be read is an error. The builder-key fallback is gone. A viewer key (loops' `world/viewer-key`, when merged) is the same file or paste; the host sees `viewer: true` on its own entry at the key check and says `session: key`. |
-| `CREWHUB_WORLD_CONFIG_DIR` | `~/.config/crewhub-world` | The host's own folder for the stored key and the archive memory `archived.json` (0700; the files 0600). Tests and developers' runs point it elsewhere. |
+| `CREWHUB_WORLD_CONFIG_DIR` | `~/.config/crewhub-world` | The host's own folder for the stored key, the archive memory `archived.json` and the world database `world.db` with its `world.db.bak-v<n>` copies (0700; the files 0600). Tests and developers' runs point it elsewhere. |
 | `CREWHUB_WORLD_PORT` | `5180` | The port on `127.0.0.1`. |
 | `CREWHUB_WORLD_ALLOWED_ORIGINS` | none | Comma list of extra origins, e.g. the Vite dev server `http://localhost:5173`. |
 | `CREWHUB_WORLD_PAIRING` | `on` | `off` removes the cookie gate: development only (the Vite proxy), logged loudly at start, refused with `NODE_ENV=production`. |

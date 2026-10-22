@@ -32,8 +32,11 @@ export interface TownStoreState {
   doc: TownDocument;
   canUndo: boolean;
   canRedo: boolean;
-  /** "memory" when IndexedDB is missing or failed: changes are lost on reload. */
-  storage: "indexeddb" | "memory";
+  /**
+   * Where the town is kept: "host" when the world's host keeps it for this installation (round 20, hostTown.ts);
+   * "indexeddb" in this browser; "memory" when IndexedDB is missing or failed (changes are lost on reload).
+   */
+  storage: "host" | "indexeddb" | "memory";
   /** Why storage fell back to memory, or why stored revisions were skipped; null when all is well. */
   storageNote: string | null;
   loaded: boolean;

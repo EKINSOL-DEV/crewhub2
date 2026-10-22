@@ -16,7 +16,7 @@ components.
 and people writing to crewhub-loops (loops' own), the host reading crewhub-loops (and,
 where the key may read the chat, the agents' answers for the bubbles), the browser
 reading the host, and the browser framing loops' own web app in the Chat panel. The
-world database is in progress (round 20); not built: the director lane.
+world database's first slice is built (round 20: the host keeps the live town per installation in SQLite); not built: the director lane.
 
 ```mermaid
 flowchart LR
@@ -25,7 +25,7 @@ flowchart LR
   Postman["postman lane"] -- "deliver next" --> Loops
   People["Nicky, loops web app"] --> Loops
   Host["CrewHub host (apps/host)"] -- "Unix socket or loopback TCP, external bot key, GET only: REST + NDJSON" --> Loops
-  Host --- DB[("World database (SQLite), in progress (round 20)")]
+  Host --- DB[("World database (SQLite): the town, round 20")]
   Browser["CrewHub World (browser)"] -- "loopback HTTP: snapshot + SSE, pairing cookie" --> Host
   Browser -. "the Chat panel: loops' own web app, framed, on the person's session" .-> Loops
   Director["world-director lane (Haiku), not built"] -. "crewhub-world CLI, host socket" .-> Host
@@ -65,7 +65,7 @@ Phase status (plan section 10; the dates and details are in [the roadmap](ROADMA
 
 - Phase 1 (town, loops-client, demo source): built in demo mode; live since 2026-10-07, against the real crewhub-loops since 2026-10-21
 - Phase 2 (the chat, backed by the demo chat API in demo mode): built in demo mode; live since round 12 as loops' own chat framed in the Chat panel, with the agents' answers as bubbles, a chat mark from the town and Recent answers where the key may read the chat (rounds 14 to 18; the session road stands in until the viewer key lands)
-- Phase 3 (interiors, three rooms, the ticket drone, a person carrying work into Done, closed buildings): built in demo mode and live; the world database is in progress (round 20)
+- Phase 3 (interiors, three rooms, the ticket drone, a person carrying work into Done, closed buildings): built in demo mode and live; the world database keeps the live town in the host since round 20
 - Phase 4 (town paths and dynamic pathfinding): built in demo mode and live
 - Phase 5 (town document and build mode): built in demo mode; live mode keeps its own town document in the browser, per installation; the host's world database (in progress, round 20) will keep it for every paired browser
 - Phase 6 (scripted director and `where`): built in demo mode; `where` works live; the scripted director also runs in live mode as its own opt-in, off by default and labelled "scripted" on every line (round 11); the real director is not built

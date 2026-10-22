@@ -4,6 +4,7 @@
 import { useState, type ChangeEvent } from "react";
 import { Download } from "lucide-react";
 import { exportTownDocument, RULE_IDS, type RuleId } from "@crewhub/world-model";
+import { townKeepingWords } from "../world/zoneText";
 import type { GraphicsQuality } from "@crewhub/world-style";
 import { QUALITY_CHOICES, setQuality, useQuality } from "../state/quality";
 import { setCast, useCast } from "../state/cast";
@@ -153,7 +154,7 @@ export function TownSettings({ town }: { town: TownState }) {
         />
         <p className="hint">
           Layout revision {town.doc.revision}.{" "}
-          {town.storage === "indexeddb" ? "Kept in this browser (IndexedDB)." : "Kept in memory only: it is lost on reload."}
+          {town.storage === "host" ? townKeepingWords("host") : town.storage === "indexeddb" ? (model.mode === "live" ? townKeepingWords("offline") : "Kept in this browser (IndexedDB).") : "Kept in memory only: it is lost on reload."}
           {town.storageNote && ` ${town.storageNote}`}
         </p>
         <div className="town-file">
