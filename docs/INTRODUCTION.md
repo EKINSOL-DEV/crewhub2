@@ -364,7 +364,9 @@ signed in as the person and kept loops' session cookie for chat reads) was built
 `task/r19-viewer-switch` in round 19 and gone from this branch since round 28 (cl-lead's review finding F8).
 A missed bubble is not lost (round 16): the Chat panel and the text view carry a "Recent answers" list, the last ten
 first lines this page saw with their times, newest first, each a button that opens that agent's chat; nothing of it is
-written anywhere, and a reload starts empty. The panel itself reads in one glance (round 17): "crewhub-loops' own chat,
+written anywhere, and a reload starts empty. Both roads read nothing from before the page opened, so the block says so
+itself since round 31: its heading reads "Recent answers (2) since this page opened" and its empty line "No answers
+since this page opened: …" (an answer that landed while no world page was open is not in it, and that is not a bug). The panel itself reads in one glance (round 17): "crewhub-loops' own chat,
 framed here" and the one thing to do on this road, two short lines above Recent answers, with the whole story (and, since
 round 18, what the list is) behind "About this chat", so the list starts with its rows; in the demo the dock's scripted
 replies feed the same list, bubbles and mark. The honest road is on the loops side (section 8), and this branch is the

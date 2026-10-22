@@ -4,9 +4,10 @@
    same rows in both: the time loops wrote it, the agent, the first line (one line, the full text in the title), and
    under a row whose chat is not the agent's own (round 13) the words that say whose chat opens instead. What the list
    is (RECENT_NOTE) opens the text view's section; in the Chat panel it sits behind "About this chat" with the rest of
-   the story (round 18), so the block starts with its rows. */
+   the story (round 18), so the block starts with its rows. The heading says "since this page opened" after the count
+   (round 31, question 11), so an answer that landed while no world page was open does not read as a lost one. */
 import { MessageCircle } from "lucide-react";
-import { answerLabel, answerName, answerTime, RECENT_NOTE, type AnswerTarget } from "../state/recentAnswers";
+import { answerLabel, answerName, answerTime, RECENT_NOTE, RECENT_SINCE, recentHead, type AnswerTarget } from "../state/recentAnswers";
 import type { Answer } from "../state/said";
 
 interface Props {
@@ -21,7 +22,11 @@ interface Props {
 }
 
 export function RecentAnswers({ answers, empty, targetOf, onOpen, as }: Props) {
-  const title = `Recent answers${answers.length > 0 ? ` (${answers.length})` : ""}`;
+  const title = (
+    <>
+      {recentHead(answers.length)} <span className="recent-since">{RECENT_SINCE}</span>
+    </>
+  );
   const body = (
     <>
       {as === "section" && <p className="sign-muted recent-note">{RECENT_NOTE}</p>}

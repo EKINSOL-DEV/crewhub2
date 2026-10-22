@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { answerLabel, answerName, answerTarget, answerTime, RECENT_NOTE } from "../src/state/recentAnswers.ts";
+import { answerLabel, answerName, answerTarget, answerTime, RECENT_NOTE, RECENT_SINCE, recentHead, recentTitle } from "../src/state/recentAnswers.ts";
 import { clearSaid, getRecentAnswers, RECENT_ANSWERS, rememberSaid, SAID_MS, saidBy } from "../src/state/said.ts";
 
 const line = (agentId: string, text: string, n: number) => ({ agentId, agentName: agentId.toUpperCase(), text, at: new Date(Date.UTC(2026, 9, 22, 1, 2, n)).toISOString(), messageId: `dm_${n}`, threadId: `dmt_${agentId}` });
@@ -32,6 +32,14 @@ test("recent answers: the last 10 lines stay newest first for the page's life, p
 
 test("recent answers: what the list is", () => {
   assert.match(RECENT_NOTE, /^The last 10 answers this page saw, newest first/);
+  assert.match(RECENT_NOTE, /while the page is open and nothing longer, so an answer that came while no world page was open is not here\.$/, "round 31: the note says what is missing and why");
+});
+test("recent answers: the block's heading says since this page opened, after the count (round 31, question 11)", () => {
+  assert.equal(RECENT_SINCE, "since this page opened");
+  assert.equal(recentHead(0), "Recent answers");
+  assert.equal(recentHead(2), "Recent answers (2)");
+  assert.equal(recentTitle(0), "Recent answers since this page opened");
+  assert.equal(recentTitle(2), "Recent answers (2) since this page opened", "the count stays first: the regress reads /^Recent answers \\(2\\)/");
 });
 test("recent answers: the row's time, name, target and accessible name", () => {
   const a = { agentId: "cr-lead", agentName: "CR Lead", text: "(demo reply) The nook is done.", at: "2026-10-22T01:02:03.000Z", shownAt: 5, messageId: "dm_1", threadId: "dmt", until: 6 };

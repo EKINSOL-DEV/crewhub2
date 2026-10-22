@@ -2387,6 +2387,11 @@ a.agent-ticket-link:focus-visible {
   box-shadow: var(--focus-ring);
   border-radius: var(--radius-sm);
 }
+/* "since this page opened" after the heading's count (round 31): the same line, muted and plain. */
+.recent-since {
+  color: var(--text-muted);
+  font-weight: var(--weight-normal);
+}
 .chat-recent .recent-list {
   max-height: 9.5rem;
   overflow: auto;

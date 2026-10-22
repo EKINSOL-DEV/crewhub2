@@ -168,9 +168,10 @@ export function chatGlance(view: ChatRoadView): string {
  * (round 17); on a live page whether answers can arrive at all, whose, and the way when none can.
  */
 export function recentEmptyWords(mode: "demo" | "live", view: ChatRoadView | null | undefined): string {
-  if (mode === "demo") return "No answers yet: write to an agent in the demo's chat dock (bottom right) and its scripted reply shows as a bubble and stays here.";
-  if (view?.road === "key") return "No answers yet: this crewhub-loops lets the world's key read the chat of the person who made the key, so an agent's answer to them shows as a bubble and stays here.";
-  if (view?.road === "page") return "No answers yet: this page reads your own chat from crewhub-loops, so an agent's answer to you shows as a bubble and stays here.";
+  // "since this page opened" on the empty line too (round 31, question 11): nothing from before the page is read.
+  if (mode === "demo") return "No answers since this page opened: write to an agent in the demo's chat dock (bottom right) and its scripted reply shows as a bubble and stays here.";
+  if (view?.road === "key") return "No answers since this page opened: this crewhub-loops lets the world's key read the chat of the person who made the key, so an agent's answer to them shows as a bubble and stays here.";
+  if (view?.road === "page") return "No answers since this page opened: this page reads your own chat from crewhub-loops, so an agent's answer to you shows as a bubble and stays here.";
   const none = noneWords(view ?? { pageProbe: "unknown", pageOrigin: "" });
   return `No answers can arrive: ${none.reason}. For bubbles, ${none.way}.`;
 }
