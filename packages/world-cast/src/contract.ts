@@ -22,9 +22,10 @@ function shown(object: THREE.Object3D, root: THREE.Object3D): boolean {
   return true;
 }
 
-/** What a figure draws as it stands now: its shown meshes, their triangles, and those the crowd would not batch. */
+/** What a figure draws as it stands now: its shown meshes, their triangles, and those the crowd would not batch (a reader of meshes: the figure gets them first). */
 export function measureFigure(handle: FigureHandle): FigureMeasure {
   const measure: FigureMeasure = { triangles: 0, meshes: 0, unbatched: 0 };
+  handle.materialise();
   handle.object.traverse((o) => {
     if (!(o instanceof THREE.Mesh) || !shown(o, handle.object)) return;
     // The contact shadow and the halo are the kit's, on the ground: they are not the cast's to budget.

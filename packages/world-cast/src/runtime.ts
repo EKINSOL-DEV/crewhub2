@@ -1,9 +1,18 @@
 /* The figure runtime: turns a cast's data (a `FigureSpec`) into `FigureHandle`s, drawing only through the style's
-   `FigureKit`. It knows no style and no cast: joints are groups, parts are the kit's meshes, a state picks parts,
+   `FigureKit`. It knows no style and no cast: joints are groups, parts are the kit's shapes, a state picks parts,
    a still pose, a set of motions and the looks. A figure only re-poses and re-skins when its state changes, and its
-   `update` allocates nothing. */
+   `update` allocates nothing.
+
+   The parts are data (round 23): each joint holds its parts as `FigurePiece`s (@crewhub/world-style), the geometry,
+   material, transform and composed matrix the kit's mesh would have, and whether the state shows the part. A figure
+   seen from the town is drawn by the renderer's far crowd, which reads that data with the joint's world matrix; so
+   the meshes are made (`materialise`) only when the figure is told `near`, draws on its own (a see-through proxy, a
+   stale figure: materials the crowd cannot batch) or is asked for them, and they are the meshes the kit made before,
+   in the same order (after a joint's child joints), with the joint's `userData` (whoever tagged the joints tagged
+   the meshes too). The joints, the contact shadow, the halo and the steps stay objects: they move, or are shaders. */
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+import type { FigurePiece, FigurePiecesHolder, StaticPart } from "@crewhub/world-style";
 import { figureColor, hashKey, perchPlacement, wave, type PerchPlacement } from "./figure.ts";
 import type {
   Cast,
@@ -50,12 +59,24 @@ interface Joint {
 }
 
 interface Part {
-  mesh: THREE.Mesh;
+  /** The part as data, on its joint; `piece.mesh` once the figure has its meshes. */
+  piece: FigurePiece;
   spec: FigurePartSpec;
   color: string;
   glow: number | string | undefined;
-  /** The shared material of its look now; a proxy or a stale figure draws its own copy of it. */
+  /** The shared material of its look now; a proxy or a stale figure draws its own copy of it (then `piece.material`). */
   material: THREE.Material;
+}
+
+/** A joint (and the body): a group that holds its parts as data. */
+class FigureJoint extends THREE.Group implements FigurePiecesHolder {
+  readonly figurePieces: FigurePiece[] = [];
+}
+
+/** A part as data read off the mesh a kit without `piece` makes: the same geometry, material and transform; the mesh is dropped. */
+function pieceOfMesh(mesh: THREE.Mesh): StaticPart {
+  mesh.updateMatrix();
+  return { geometry: mesh.geometry, material: mesh.material as THREE.Material, position: mesh.position.clone(), rotation: mesh.rotation.clone(), scale: mesh.scale.clone(), matrix: mesh.matrix.clone(), castShadow: mesh.castShadow, receiveShadow: mesh.receiveShadow };
 }
 
 interface Wave {
@@ -129,33 +150,63 @@ function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend
   const root = new THREE.Group();
   // The figure itself rides in `body`, so a perch can lift, move and turn it while the renderer keeps `root` on the
   // floor; its step stands beside it in `root`.
-  const body = new THREE.Group();
+  const body = new FigureJoint();
   const shadow = kit.contactShadow(spec.anchors.ground);
   const halo = kit.halo(spec.anchors.ground);
   body.add(shadow, halo.object);
   root.add(body);
 
   const joints = new Map<string, Joint>();
-  const objects = new Map<string, THREE.Object3D>([["root", body]]);
+  const objects = new Map<string, FigureJoint>([["root", body]]);
+  const nodes: FigureJoint[] = [body];
   for (const j of spec.joints) {
-    const object = new THREE.Group();
+    const object = new FigureJoint();
     object.position.set(...j.position);
     (objects.get(j.parent ?? "root") ?? body).add(object);
     objects.set(j.id, object);
+    nodes.push(object);
     joints.set(j.id, { object, rest: j.position, base: new Float32Array(9), now: new Float32Array(9), moves: 0 });
   }
 
   const seed = { key: options.key, role: options.role, accent: options.accent };
   const parts: Part[] = [];
-  const named = new Map<string, THREE.Mesh>();
+  const named = new Map<string, FigurePiece>();
   for (const part of spec.parts) {
     if (part.roles && !part.roles.includes(options.role)) continue;
     const color = figureColor(spec, part.color, seed);
-    const mesh = kit.part(part, color);
-    (objects.get(part.joint ?? "root") ?? body).add(mesh);
-    parts.push({ mesh, spec: part, color, glow: typeof part.glow === "string" ? figureColor(spec, part.glow, seed) : part.glow, material: mesh.material as THREE.Material });
-    if (part.id) named.set(part.id, mesh);
+    // The part as data, on its joint: the kit's own (`piece`), else read off the mesh the kit makes.
+    const data = kit.piece ? kit.piece(part, color) : pieceOfMesh(kit.part(part, color));
+    const piece: FigurePiece = { ...data, visible: true, mesh: null };
+    (objects.get(part.joint ?? "root") ?? body).figurePieces.push(piece);
+    parts.push({ piece, spec: part, color, glow: typeof part.glow === "string" ? figureColor(spec, part.glow, seed) : part.glow, material: data.material });
+    if (part.id) named.set(part.id, piece);
   }
+  /** The meshes, once: the mesh each part's data describes, after the joint's child joints, with the joint's `userData`. */
+  let materialised = false;
+  const materialise = () => {
+    if (materialised) return;
+    materialised = true;
+    for (const node of nodes)
+      for (const piece of node.figurePieces) {
+        const mesh = new THREE.Mesh(piece.geometry, piece.material);
+        mesh.castShadow = piece.castShadow;
+        mesh.receiveShadow = piece.receiveShadow;
+        mesh.position.copy(piece.position);
+        mesh.rotation.copy(piece.rotation);
+        mesh.scale.copy(piece.scale);
+        mesh.visible = piece.visible;
+        Object.assign(mesh.userData, node.userData);
+        piece.mesh = mesh;
+        node.add(mesh);
+        // Right where it stands until the next matrix pass, as a matrix update would leave it.
+        mesh.updateMatrix();
+        mesh.matrixWorld.multiplyMatrices(node.matrixWorld, mesh.matrix);
+      }
+  };
+  const namedMeshes = (): ReadonlyMap<string, THREE.Mesh> => {
+    materialise();
+    return new Map([...named].map(([id, piece]) => [id, piece.mesh!]));
+  };
 
   const clock = hashKey(options.key) % 1000;
   const side = hashKey(`${options.key}:side`) % 2 ? 1 : -1;
@@ -277,7 +328,11 @@ function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend
   };
   const look = { color: "", glow: undefined as number | string | undefined };
 
-  /** Which parts show, and in which material: the looks of the state, then the proxy's or the stale figure's own copy. */
+  /**
+   * Which parts show, and in which material: the looks of the state, then the proxy's or the stale figure's own copy.
+   * Written to the parts' data, and to their meshes when the figure has them; a faded figure draws on its own (the
+   * crowd cannot batch a see-through material), so it gets its meshes here.
+   */
   const skin = () => {
     const faded = state.proxy || state.activity === "stale";
     for (const m of owned.values()) m.dispose();
@@ -285,7 +340,8 @@ function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend
     if (faded) stale.set(kit.hex("stale"));
     for (const part of parts) {
       const s = part.spec;
-      part.mesh.visible =
+      const piece = part.piece;
+      piece.visible =
         (detail === "near" || s.detail !== "near") &&
         (!s.activities || s.activities.includes(state.activity)) &&
         (s.waiting === undefined || s.waiting === state.waiting) &&
@@ -298,27 +354,43 @@ function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend
       if (state.alert) lookOf(part, looks.alert, look);
       if (highlight !== "none") lookOf(part, looks[highlight], look);
       part.material = kit.material(look.color, look.glow ? { glow: look.glow } : undefined);
-      part.mesh.castShadow = !state.proxy && detail === "near";
-      if (!faded) {
-        part.mesh.material = part.material;
-        continue;
+      piece.castShadow = !state.proxy && detail === "near";
+      let drawn = part.material;
+      if (faded) {
+        let copy = owned.get(part.material);
+        if (!copy) {
+          const c = (part.material as THREE.MeshStandardMaterial).clone();
+          if (state.activity === "stale") c.color.lerp(stale, STALE_FADE);
+          c.transparent = true;
+          c.opacity = state.proxy ? PROXY_OPACITY : STALE_OPACITY;
+          c.depthWrite = !state.proxy;
+          owned.set(part.material, c);
+          copy = c;
+        }
+        drawn = copy;
       }
-      let copy = owned.get(part.material);
-      if (!copy) {
-        const c = (part.material as THREE.MeshStandardMaterial).clone();
-        if (state.activity === "stale") c.color.lerp(stale, STALE_FADE);
-        c.transparent = true;
-        c.opacity = state.proxy ? PROXY_OPACITY : STALE_OPACITY;
-        c.depthWrite = !state.proxy;
-        owned.set(part.material, c);
-        copy = c;
+      piece.material = drawn;
+      const mesh = piece.mesh;
+      if (mesh) {
+        mesh.visible = piece.visible;
+        mesh.castShadow = piece.castShadow;
+        mesh.material = drawn;
       }
-      part.mesh.material = copy;
     }
+    if (faded) materialise();
   };
 
   const extension =
-    extend?.({ options, kit, joints: objects, parts: named, state: () => state, detail: () => detail }) ?? null;
+    extend?.({
+      options,
+      kit,
+      joints: objects,
+      get parts() {
+        return namedMeshes();
+      },
+      state: () => state,
+      detail: () => detail,
+    }) ?? null;
 
   pose();
   skin();
@@ -365,9 +437,18 @@ function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend
       extension?.setState?.(state);
     },
     setDetail(next) {
+      // Told near, the figure is drawn by the renderer itself: its meshes, the first time.
+      if (next === "near") materialise();
       if (next === detail) return;
       detail = next;
       skin();
+    },
+    materialise,
+    setCastShadow(on) {
+      for (const part of parts) part.piece.castShadow = on;
+      root.traverse((o) => {
+        o.castShadow = on;
+      });
     },
     setHighlight(next) {
       if (next === highlight) return;
@@ -377,6 +458,8 @@ function figure(spec: FigureSpec, kit: FigureKit, options: FigureOptions, extend
       if (lifted) skin();
     },
     update(seconds) {
+      // A figure never told its detail is near (the default): drawn by the renderer, it needs its meshes.
+      if (!materialised && detail === "near") materialise();
       if (hop.t < 1) settle((hop.t = Math.min(1, hop.t + seconds / hop.seconds)));
       // An echo and a stale figure stand still.
       if (state.proxy || state.activity === "stale") return;

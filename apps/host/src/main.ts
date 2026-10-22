@@ -246,6 +246,12 @@ const loopsText = config.loopsSocket !== null ? `unix socket ${config.loopsSocke
 const keyText = key === null ? "no key yet: the world shows the Connect screen" : key.source === "stored" ? `the stored key from ${key.file}` : `the key file ${key.file}`;
 if (world) stepLine(true, `host listening on ${host.url} (loops ${loopsText}, ${keyText}, pairing ${config.pairing})`, performance.now() - listenStarted);
 else log(`listening on ${host.url} (loops ${loopsText}, ${keyText}${config.production ? ", serving apps/world/dist" : ""}, pairing ${config.pairing}${config.pairingFile === null ? "" : ", secret kept in " + config.pairingFile})`);
+// The origins the page may write from (round 23): the host's own, CREWHUB_WORLD_ALLOWED_ORIGINS, and what this checkout's
+// dev server tells it (devOrigin.ts; one line when it does). Quiet in world mode, where no dev server is expected.
+if (!world) {
+  const extra = config.allowedOrigins.length === 0 ? "" : `, and from CREWHUB_WORLD_ALLOWED_ORIGINS ${config.allowedOrigins.join(", ")}`;
+  log(`origins: the page may write from the host's own (http://127.0.0.1:${host.port}, http://localhost:${host.port})${extra}; this checkout's npm run dev tells the host its loopback origin itself (one line when it does)`);
+}
 if (args.command === "open" || world) {
   if (config.pairing === "off") log("pairing is off: no link needed, open the world directly");
   else {

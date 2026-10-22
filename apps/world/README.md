@@ -42,10 +42,15 @@ health (`checkout`, a short hash of its repository root, never the path; `apps/h
 **another checkout** (another worktree or copy on the same machine) is refused with a line naming the port, both
 checkouts (this one by its path, the other by its id and key name) and the way out: your own host on a port of yours,
 `CREWHUB_WORLD_PORT=<port> npm run host` and the same variable on `npm run dev`. Nothing listening, something that is
-not a host, this checkout's host, or a host from before the id (it cannot tell, and says so) all go on as today. `npm run
+not a host, this checkout's host, or a host from before the id (it cannot tell, and says so) all go on as today. Once it
+listens, the dev server **tells the host its origin** (`POST /world-api/dev-origin`, loopback only, this checkout only,
+never a wildcard; `apps/host/src/devOrigin.ts`), so the page's writes (connect, sign-in, the town) pass the host's
+origin guard without `CREWHUB_WORLD_ALLOWED_ORIGINS`; a second line says so, or why not (an older host without the
+route, a refusal, no host yet: then it is told when one answers, since the proxy reads `x-world-dev-origins` on every
+health answer). `npm run
 preview` (the built world on 4173) proxies **only** to a port named in `CREWHUB_WORLD_PORT`: without it the preview
 says so once, answers `/world-api` as "no host" and the page runs the demo, so a preview never reaches a host that
-happens to listen on 5180. Both decisions are pure functions in `hostPort.ts` (`hostPortPlan`, `devHostVerdict`),
+happens to listen on 5180. The decisions are pure functions in `hostPort.ts` (`hostPortPlan`, `devHostVerdict`, `devOriginsOf`, `devOriginLine`),
 tested. A value that is not a port stops either server.
 
 Dev flags: `?perf` logs frame work every two seconds; `?stress=1` (dev builds only)
