@@ -4,7 +4,7 @@
 import * as THREE from "three";
 import type { CastManifest, FigureHalo, FigureKit } from "@crewhub/world-cast";
 import type { Kit } from "./kit.ts";
-import { partMesh } from "./parts.ts";
+import { partMesh, staticPart } from "./parts.ts";
 import { haloMaterial } from "./shaders.ts";
 
 /** The reserved names every kit resolves, as Greenhouse swatches; a cast's own colour of that name wins. */
@@ -27,6 +27,8 @@ export function figureKit(kit: Kit, cast: Pick<CastManifest, "id" | "colors">): 
       return kit.theme;
     },
     part: (part, color) => partMesh(kit, part, swatch(color)),
+    // The same part as data (parts.ts): what a figure holds until it is drawn near, what the far crowd reads.
+    piece: (part, color) => staticPart(kit, part, swatch(color)),
     material: (color, options) => kit.material(swatch(color), options?.glow === undefined ? {} : { glow: typeof options.glow === "string" ? swatch(options.glow) : options.glow }),
     hex: (color) => kit.hex(swatch(color)),
     contactShadow(radius) {

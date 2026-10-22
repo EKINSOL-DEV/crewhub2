@@ -54,8 +54,7 @@ test("every shipped cast draws a person of its own: no project colour, no role, 
     assert.notEqual(person, castRegistry.figureOf(id), `${id}: the person is not the agent figure`);
     // The same person dresses the same on every load, and two people may dress differently.
     const dress = (key: string) =>
-      cast
-        .person({ key })
+      ((h) => (h.materialise(), h))(cast.person({ key }))
         .object.getObjectsByProperty("type", "Mesh")
         .map((m) => (m as import("three").Mesh).material as import("three").Material)
         // The kit's shared materials; the shadow and the halo are the kit's own, fresh per figure.

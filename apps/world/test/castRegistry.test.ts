@@ -70,7 +70,7 @@ test("extends resolves through the registry: the base's figure with the patch ap
   assert.deepEqual(spec.colorways.coat!.others, ["moss"]);
   const cast = r.castFor(style, "mossy-pegs");
   assert.equal(cast.manifest.id, "mossy-pegs");
-  assert.equal(cast.figure({ key: "a", role: "worker", accent: null }).object.getObjectsByProperty("type", "Mesh").length, 4, "peg, tuft, the shadow and the halo");
+  assert.equal(meshes(cast.figure({ key: "a", role: "worker", accent: null })), 4, "peg, tuft, the shadow and the halo");
 });
 
 test("one cast instance per style; an unknown id draws the fallback with one warning", () => {
@@ -100,7 +100,8 @@ const person: FigureSpec = {
   colorways: { coat: { others: ["wood"] } },
   anchors: { label: [0, 1, 0], carry: [0, 0.4, 0.2], ground: 0.2, height: 0.9 },
 };
-const meshes = (handle: { object: { getObjectsByProperty(name: string, value: string): unknown[] } }) => handle.object.getObjectsByProperty("type", "Mesh").length;
+/** The figure's meshes: data until it is drawn near (round 23), so a reader of meshes asks for them first. */
+const meshes = (handle: { materialise(): void; object: { getObjectsByProperty(name: string, value: string): unknown[] } }) => (handle.materialise(), handle.object.getObjectsByProperty("type", "Mesh").length);
 
 test("a cast without a person draws its plain worker for one; a cast with person.json draws that", () => {
   const { r } = registry();

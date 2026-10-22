@@ -1180,6 +1180,8 @@ export class TownScene {
       handle.object.traverse((o) => {
         o.userData.agentId = agent.key;
       });
+      // Drawn by the renderer itself, never by the crowd: near, with its meshes (which take the tag above).
+      handle.setDetail("near");
       this.#civic.add(handle.object);
       this.#civicRobots.push({ handle, agent });
     };
@@ -1244,7 +1246,7 @@ export class TownScene {
 
   /** The postman walks the whole town: its soft blob shadow goes along, a sun shadow would hold the town's map on every step. */
   #unshadowPostman() {
-    this.#postman?.handle.object.traverse((o) => (o.castShadow = false));
+    this.#postman?.handle.setCastShadow(false);
   }
 
   /** Picks up the label elements React rendered; call after every render that can change them. */
@@ -2154,8 +2156,10 @@ export class TownScene {
     const handle = cast.person({ key: "visitor" });
     handle.object.scale.setScalar(ROBOT_SCALE * 1.15);
     handle.setState(IDLE_STATE);
+    // Drawn by the renderer itself: near, with its meshes.
+    handle.setDetail("near");
     // As the postman: it walks the whole town, and a sun shadow would hold the town's shadow map on every step.
-    handle.object.traverse((o) => (o.castShadow = false));
+    handle.setCastShadow(false);
     this.scene.add(handle.object);
     return handle;
   }

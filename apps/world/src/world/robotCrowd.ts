@@ -7,9 +7,15 @@
    A robot the crowd draws keeps its own meshes, on a layer the camera does not render: they still pose, walk and
    animate as before, and come back as they are when the robot is near again (the entered building). Parts the crowd
    cannot batch (a translucent proxy's own materials, a halo's shader) stay on the default layer and draw as before.
-   Robots in buildings the camera cannot see are not copied at all. */
+   Robots in buildings the camera cannot see are not copied at all.
+
+   A figure's parts are data on its joints until it is drawn near (world-style's `FigurePiece`, @crewhub/world-cast,
+   round 23): the crowd reads them so, in the order a traverse of the meshes would give (a joint's child joints, then
+   its parts), with the joint's world matrix times the part's own, which is the matrix its mesh has or would have; a
+   part that has a mesh keeps it on the hidden layer as before. */
 import * as THREE from "three";
-import { instancedMaterial } from "./instancedMaterial";
+import { figurePiecesOf, type FigurePiece } from "@crewhub/world-style";
+import { instancedMaterial } from "./instancedMaterial.ts";
 
 /** The layer for a far robot's own meshes: neither the camera nor the shadow cameras draw it. */
 const HIDDEN = 31;
@@ -31,19 +37,33 @@ interface Batch {
   count: number;
 }
 
+/** What the crowd copies: a mesh of the robot's own (its contact shadow, a halo, a step), or a part held as data on its joint. */
+interface Piece {
+  mesh: THREE.Mesh | null;
+  part: FigurePiece | null;
+  holder: THREE.Object3D | null;
+}
+const meshOf = (piece: Piece): THREE.Mesh | null => (piece.part ? piece.part.mesh : piece.mesh);
+const materialOf = (piece: Piece): THREE.Material | THREE.Material[] => (piece.part ? piece.part.material : piece.mesh!.material);
+const geometryOf = (piece: Piece): THREE.BufferGeometry => (piece.part ? piece.part.geometry : piece.mesh!.geometry);
+const scratch = new THREE.Matrix4();
+/** The piece's world matrix now: a mesh's own, or the joint's times the part's (what a matrix update gives the mesh). */
+const matrixOf = (piece: Piece): THREE.Matrix4 => (piece.part ? scratch.multiplyMatrices(piece.holder!.matrixWorld, piece.part.matrix) : piece.mesh!.matrixWorld);
+
 export class RobotCrowd {
   readonly group = new THREE.Group();
   #batches = new Map<string, Batch>();
-  #parts = new WeakMap<THREE.Object3D, THREE.Mesh[]>();
+  #pieces = new WeakMap<THREE.Object3D, Piece[]>();
   /** Each part's batch key, kept while its material, emissive colour and strength stay the same (a theme change
       recolours the emissive and so gets a new key): building the key string per part per frame was most of the copy. */
-  #keys = new WeakMap<THREE.Mesh, { material: THREE.Material | THREE.Material[]; r: number; g: number; b: number; i: number; key: string | null }>();
+  #keys = new WeakMap<object, { material: THREE.Material | THREE.Material[]; r: number; g: number; b: number; i: number; key: string | null }>();
   /** Robots the crowd draws this frame and the last, by root object. */
   #claimed = new Set<THREE.Object3D>();
   #next = new Set<THREE.Object3D>();
-  /** Robots at rest (far and still): the parts the crowd draws for each, worked out once; `hidden` when the robot's
-      own objects are out of the render walk altogether (every part is in a batch). */
-  #resting = new Map<THREE.Object3D, { parts: { key: string; mesh: THREE.Mesh }[]; hidden: boolean }>();
+  /** Robots at rest (far and still): the parts the crowd draws for each, worked out once, each with its world matrix
+      then (a resting robot is not walked by the matrix pass, so it cannot move); `hidden` when the robot's own objects
+      are out of the render walk altogether (every part is in a batch). */
+  #resting = new Map<THREE.Object3D, { parts: { key: string; piece: Piece; matrix: THREE.Matrix4 }[]; hidden: boolean }>();
 
   constructor() {
     this.group.name = "robot-crowd";
@@ -61,7 +81,7 @@ export class RobotCrowd {
    */
   add(robot: THREE.Object3D, seen: boolean, resting = false) {
     this.#next.add(robot);
-    const parts = this.#partsOf(robot);
+    const pieces = this.#piecesOf(robot);
     const fresh = !this.#claimed.has(robot);
     let rest = this.#resting.get(robot);
     if (rest && (!resting || !seen)) {
@@ -69,37 +89,38 @@ export class RobotCrowd {
       rest = undefined;
     }
     if (rest) {
-      for (const { key, mesh } of rest.parts) {
-        const batch = this.#batch(key, mesh);
-        batch.mesh.setMatrixAt(batch.count, mesh.matrixWorld);
-        if (batch.tinted) batch.mesh.setColorAt(batch.count, (mesh.material as THREE.MeshStandardMaterial).color);
+      for (const { key, piece, matrix } of rest.parts) {
+        const batch = this.#batch(key, piece);
+        batch.mesh.setMatrixAt(batch.count, matrix);
+        if (batch.tinted) batch.mesh.setColorAt(batch.count, (materialOf(piece) as THREE.MeshStandardMaterial).color);
         batch.count++;
       }
       return;
     }
     if (!seen) {
       // Off screen: hide what the crowd would draw, so the robot costs nothing until it is seen again.
-      if (fresh) for (const mesh of parts) if (this.#key(mesh)) mesh.layers.set(HIDDEN);
+      if (fresh) for (const piece of pieces) if (this.#key(piece)) meshOf(piece)?.layers.set(HIDDEN);
       return;
     }
     // The robot's world matrices are current: TownScene's matrix pass (matrixPass.ts) runs just before the crowd.
-    const drawn: { key: string; mesh: THREE.Mesh }[] | null = resting ? [] : null;
+    const drawn: { key: string; piece: Piece; matrix: THREE.Matrix4 }[] | null = resting ? [] : null;
     let own = false;
-    for (const mesh of parts) {
-      const visible = shown(mesh, robot);
-      const key = visible ? this.#key(mesh) : null;
+    for (const piece of pieces) {
+      const visible = piece.part ? piece.part.visible && shown(piece.holder!, robot) : shown(piece.mesh!, robot);
+      const key = visible ? this.#key(piece) : null;
       if (!key) {
         // A part the crowd cannot batch (or a hidden one) draws, or hides, as the robot says.
-        mesh.layers.set(0);
+        meshOf(piece)?.layers.set(0);
         if (visible) own = true;
         continue;
       }
-      mesh.layers.set(HIDDEN);
-      const batch = this.#batch(key, mesh);
-      batch.mesh.setMatrixAt(batch.count, mesh.matrixWorld);
-      if (batch.tinted) batch.mesh.setColorAt(batch.count, (mesh.material as THREE.MeshStandardMaterial).color);
+      meshOf(piece)?.layers.set(HIDDEN);
+      const batch = this.#batch(key, piece);
+      const matrix = matrixOf(piece);
+      batch.mesh.setMatrixAt(batch.count, matrix);
+      if (batch.tinted) batch.mesh.setColorAt(batch.count, (materialOf(piece) as THREE.MeshStandardMaterial).color);
       batch.count++;
-      drawn?.push({ key, mesh });
+      drawn?.push({ key, piece, matrix: matrix.clone() });
     }
     if (drawn && robot.visible) {
       // Nothing of its own left to draw (no translucent proxy, no halo): the renderer need not walk it.
@@ -132,19 +153,28 @@ export class RobotCrowd {
 
   #release(robot: THREE.Object3D) {
     this.#wake(robot);
-    for (const mesh of this.#partsOf(robot)) mesh.layers.set(0);
+    for (const piece of this.#piecesOf(robot)) meshOf(piece)?.layers.set(0);
   }
 
-  #partsOf(robot: THREE.Object3D): THREE.Mesh[] {
-    let parts = this.#parts.get(robot);
-    if (!parts) {
-      parts = [];
-      robot.traverse((o) => {
-        if (o instanceof THREE.Mesh && !(o instanceof THREE.InstancedMesh)) parts!.push(o);
-      });
-      this.#parts.set(robot, parts);
+  /**
+   * The robot's pieces, once, in the order a traverse of its meshes gives: a node, its children in order, and the
+   * parts a joint holds as data after its child joints (where the meshes it makes of them go). A part's mesh, made
+   * later, is the part's: it is read through the piece, never counted twice.
+   */
+  #piecesOf(robot: THREE.Object3D): Piece[] {
+    let pieces = this.#pieces.get(robot);
+    if (!pieces) {
+      const out: Piece[] = [];
+      const visit = (o: THREE.Object3D) => {
+        if (o instanceof THREE.Mesh && !(o instanceof THREE.InstancedMesh)) out.push({ mesh: o, part: null, holder: null });
+        const holder = figurePiecesOf(o);
+        for (const child of o.children) if (!holder || !holder.figurePieces.some((p) => p.mesh === child)) visit(child);
+        if (holder) for (const part of holder.figurePieces) out.push({ mesh: null, part, holder });
+      };
+      visit(robot);
+      this.#pieces.set(robot, (pieces = out));
     }
-    return parts;
+    return pieces;
   }
 
   /**
@@ -152,38 +182,39 @@ export class RobotCrowd {
    * look without the colour (the colour rides each instance); a style's ground decal (`userData.decal`, whose shader
    * reads the instance matrix) batches by its own material. Anything else draws on its own.
    */
-  #key(mesh: THREE.Mesh): string | null {
-    const material = mesh.material;
-    const cached = this.#keys.get(mesh);
+  #key(piece: Piece): string | null {
+    const material = materialOf(piece);
+    const cached = this.#keys.get(piece.part ?? piece.mesh!);
     const e = (material as THREE.MeshStandardMaterial).emissive,
       i = (material as THREE.MeshStandardMaterial).emissiveIntensity ?? 0;
     const r = e?.r ?? 0,
       g = e?.g ?? 0,
       b = e?.b ?? 0;
     if (cached && cached.material === material && cached.r === r && cached.g === g && cached.b === b && cached.i === i) return cached.key;
-    const key = this.#makeKey(mesh);
-    this.#keys.set(mesh, { material, r, g, b, i, key });
+    const key = this.#makeKey(piece);
+    this.#keys.set(piece.part ?? piece.mesh!, { material, r, g, b, i, key });
     return key;
   }
 
-  #makeKey(mesh: THREE.Mesh): string | null {
-    const material = mesh.material;
+  #makeKey(piece: Piece): string | null {
+    const material = materialOf(piece);
     if (Array.isArray(material)) return null;
-    if (mesh.userData.decal) return `${mesh.geometry.uuid}|${material.uuid}`;
+    const geometry = geometryOf(piece);
+    if (piece.mesh?.userData.decal) return `${geometry.uuid}|${material.uuid}`;
     if (!(material instanceof THREE.MeshStandardMaterial) || material.type !== "MeshStandardMaterial") return null;
     // A shader hook that only changes the lighting (the style names it in `userData.lightHook`) batches; any other
     // hook (a pattern) draws on its own.
     const hook = material.onBeforeCompile;
     if (material.transparent || material.map || (hook !== THREE.Material.prototype.onBeforeCompile && hook !== material.userData.lightHook)) return null;
-    return `${mesh.geometry.uuid}|${material.roughness}|${material.metalness}|${material.emissive.getHexString()}|${material.emissiveIntensity}|${material.side}`;
+    return `${geometry.uuid}|${material.roughness}|${material.metalness}|${material.emissive.getHexString()}|${material.emissiveIntensity}|${material.side}`;
   }
 
-  #batch(key: string, mesh: THREE.Mesh): Batch {
+  #batch(key: string, piece: Piece): Batch {
     let batch = this.#batches.get(key);
     if (batch && batch.count < batch.mesh.instanceMatrix.count) return batch;
     const capacity = batch ? batch.mesh.instanceMatrix.count * 2 : 16;
-    const source = mesh.material as THREE.Material;
-    const tinted = !mesh.userData.decal;
+    const source = materialOf(piece) as THREE.Material;
+    const tinted = !piece.mesh?.userData.decal;
     let material = batch?.mesh.material as THREE.Material | undefined;
     if (!material) {
       if (tinted) {
@@ -194,11 +225,11 @@ export class RobotCrowd {
         material = white;
       } else material = instancedMaterial(source); // the decal's twin: the near robots draw the source itself
     }
-    const instanced = new THREE.InstancedMesh(mesh.geometry, material, capacity);
+    const instanced = new THREE.InstancedMesh(geometryOf(piece), material, capacity);
     instanced.frustumCulled = false;
     instanced.castShadow = false;
-    instanced.receiveShadow = mesh.receiveShadow;
-    instanced.renderOrder = mesh.renderOrder;
+    instanced.receiveShadow = piece.part ? piece.part.receiveShadow : piece.mesh!.receiveShadow;
+    instanced.renderOrder = piece.mesh?.renderOrder ?? 0;
     instanced.matrixAutoUpdate = false;
     instanced.count = 0;
     if (batch) {

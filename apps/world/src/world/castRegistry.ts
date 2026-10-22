@@ -51,10 +51,30 @@ export interface CastRegistry {
    * re-dresses a person its base does not have, or when the result is no person (`validatePerson`).
    */
   personOf(id: string): FigureSpec | null;
+  /**
+   * The code a cast brings (its `extend`), with its chain's hooks folded into one, or undefined for a cast of data
+   * alone: what `castFor` hands the runtime, for a figure built by hand on the registry's data (a parity test).
+   */
+  extendOf(id: string): FigureExtension | undefined;
   /** The cast id a choice resolves to, and the ids that were asked for but are not registered. */
   resolve(choice: CastChoice): { id: string; unknown: string[] };
   /** The cast as drawn in a style; one instance per style and cast. An unknown id draws the fallback. */
   castFor(style: CastStyle, id: string): Cast;
+}
+
+/** The hooks of a chain (the base's first, so the re-dress's runs after) folded into one extension, or undefined for none. */
+function foldExtensions(links: readonly CastFactory[]): FigureExtension | undefined {
+  const hooks = links.flatMap((f) => (f.extend ? [f.extend] : [])).reverse();
+  if (!hooks.length) return undefined;
+  if (hooks.length === 1) return hooks[0];
+  return (figure) => {
+    const parts = hooks.flatMap((hook) => hook(figure) ?? []);
+    return {
+      update: (seconds) => parts.forEach((p) => p.update?.(seconds)),
+      setState: (state) => parts.forEach((p) => p.setState?.(state)),
+      dispose: () => parts.forEach((p) => p.dispose?.()),
+    };
+  };
 }
 
 export function createCastRegistry(fallbackId: string, warn: (message: string) => void = (m) => console.warn(m)): CastRegistry {
@@ -164,6 +184,10 @@ export function createCastRegistry(fallbackId: string, warn: (message: string) =
       }
       return { id: fallbackId, unknown };
     },
+    extendOf(id) {
+      const links = chain(id);
+      return links ? foldExtensions(links) : undefined;
+    },
     castFor(style, id) {
       let known = factories.has(id) ? id : fallbackId;
       if (known !== id) once(`No cast is registered as "${id}"; drawing "${fallbackId}".`);
@@ -185,20 +209,7 @@ export function createCastRegistry(fallbackId: string, warn: (message: string) =
       else {
         const spec = registry.figureOf(known);
         if (!spec) throw new Error(`Cast "${known}" has no figure.`);
-        const hooks = links.flatMap((f) => (f.extend ? [f.extend] : [])).reverse();
-        const extend: FigureExtension | undefined = !hooks.length
-          ? undefined
-          : hooks.length === 1
-            ? hooks[0]
-            : (figure) => {
-                const parts = hooks.flatMap((hook) => hook(figure) ?? []);
-                return {
-                  update: (seconds) => parts.forEach((p) => p.update?.(seconds)),
-                  setState: (state) => parts.forEach((p) => p.setState?.(state)),
-                  dispose: () => parts.forEach((p) => p.dispose?.()),
-                };
-              };
-        cast = createCast(factory.manifest, spec, kit, extend, registry.personOf(known));
+        cast = createCast(factory.manifest, spec, kit, foldExtensions(links), registry.personOf(known));
       }
       casts.set(known, cast);
       return cast;

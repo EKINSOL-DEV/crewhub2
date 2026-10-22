@@ -374,3 +374,26 @@ export function staticPartsOf(object: THREE.Object3D): StaticPartsHolder | null 
   const o = object as Partial<StaticPartsHolder>;
   return Array.isArray(o.staticParts) && typeof o.takeParts === "function" ? (object as StaticPartsHolder) : null;
 }
+
+/**
+ * A figure's part as data (the casts' figures, @crewhub/world-cast; round 23): a static part the figure's state can hide,
+ * on the joint it rides. It is a mesh (`mesh`) only once the figure was told `near`, drew on its own (a see-through
+ * proxy, a stale figure) or was asked for meshes; until then the renderer sees nothing of it and the far crowd draws
+ * it from the data, with the joint's world matrix times `matrix`, as a matrix update gives the mesh. `material` is
+ * the material drawn now (the look's, or the figure's own see-through copy); `castShadow` the flag the mesh has or
+ * would have.
+ */
+export interface FigurePiece extends StaticPart {
+  visible: boolean;
+  mesh: THREE.Mesh | null;
+}
+
+/** A figure's joint: a node whose parts are data (`figurePieces`), in the order they were added (the meshes it makes keep it). */
+export interface FigurePiecesHolder extends THREE.Object3D {
+  figurePieces: FigurePiece[];
+}
+
+/** The node as a holder of figure pieces, or null. A plain node (a static model's `StaticPartsHolder` too) is not one. */
+export function figurePiecesOf(object: THREE.Object3D): FigurePiecesHolder | null {
+  return Array.isArray((object as Partial<FigurePiecesHolder>).figurePieces) ? (object as FigurePiecesHolder) : null;
+}
