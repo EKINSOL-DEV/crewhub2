@@ -8,12 +8,20 @@ import { agoWords, stampOf } from "../words.ts";
 
 export const ANSWERS_ON_CARD = 3;
 
-/** "last message 2 h ago, 1 unread" / "last message just now, nothing unread": the thread's own facts, in words. */
+/**
+ * "last message 2 h ago, 7 unread in the owner's view" / "last message just now, nothing unread in the owner's view":
+ * the thread's own facts, in words. Whose unread (round 25): loops counts `unreadCount` against the caller's own read
+ * cursor (`domain/dm.py` `list_threads`), and for a VIEWER key against the installation OWNER's (world/viewer-key
+ * 79cb36a8: "the owner's unread count", "the chat exactly as the owner sees it in the dock"). The host passes the
+ * list on only where the key reads the chat, which is the viewer road, so the number is always the owner's: what
+ * loops' own chat head shows the owner ("Chat with <name>, <count> unread"). A plain key's own count (a cursor an agent
+ * never sets) never reaches the card. Loops names the owner to nobody but the owner, so the card says "the owner".
+ */
 export function threadWords(thread: { lastMessageAt: string; unreadCount: number }, now: number): string {
   const at = stampOf(thread.lastMessageAt);
   const when = at === null ? "at an unknown time" : agoWords(at, now);
   const unread = thread.unreadCount === 0 ? "nothing unread" : `${thread.unreadCount} unread`;
-  return `last message ${when}, ${unread}`;
+  return `last message ${when}, ${unread} in the owner's view`;
 }
 
 export const answersSection: AgentCardSection = {

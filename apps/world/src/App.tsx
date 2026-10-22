@@ -67,14 +67,16 @@ const NEXT_THEME = { system: "light", light: "dark", dark: "system" } as const;
 
 /* Below this width the chat is loops' narrow mode: a "Agent chats" menu in the corner and the chat as a full-screen dialog. */
 const NARROW = "(max-width: 899px)";
+// One media query list for the page: `matchMedia` on every render cost about 1 ms at 4x of the enter's render (round 25).
+let narrowMedia: MediaQueryList | null = null;
+const narrow = () => (narrowMedia ??= window.matchMedia(NARROW));
 const useNarrow = () =>
   useSyncExternalStore(
     (listener) => {
-      const media = window.matchMedia(NARROW);
-      media.addEventListener("change", listener);
-      return () => media.removeEventListener("change", listener);
+      narrow().addEventListener("change", listener);
+      return () => narrow().removeEventListener("change", listener);
     },
-    () => window.matchMedia(NARROW).matches,
+    () => narrow().matches,
   );
 
 const prefersReducedMotion = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;

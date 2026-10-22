@@ -101,7 +101,10 @@ export interface ChatThreadFact {
   agentId: string;
   /** When the last message of the thread was written (ISO), by either side. */
   lastMessageAt: string;
-  /** Messages the owner has not read, as loops counts them for the key's view. */
+  /**
+   * Messages not yet read in the installation owner's view, as loops counts them for a viewer key (world/viewer-key:
+   * the owner's read cursor, what loops' own chat head shows the owner). The host sends the list only on that road.
+   */
   unreadCount: number;
 }
 

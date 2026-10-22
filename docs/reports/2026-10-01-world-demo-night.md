@@ -1283,6 +1283,102 @@ Two developers.
 
 `99e26e1`, 846 tests, the browser pass at 169 of 169.
 
+## Round 19: the viewer-key switch, written before loops merges (2026-10-22, night)
+
+One developer and a docs commit by the Lead.
+- **The switch, on its own branch.** `task/r19-viewer-switch` removes the host's session road (the sign-in, the kept
+  cookie, the `/world-api/session` routes, the `signed-out`/`signed-in`/`expired` states) and says plainly, on a loops
+  whose key cannot read the chat, why there are no bubbles and where the viewer key comes from. It merged once
+  crewhub-loops main carried `world/viewer-key`; until then every round merged `feat/world-demo` into it so it stayed
+  one clean merge.
+- **Proven on both real loops.** On 8292 (the viewer branch) health says `session: key` and the panel says "a viewer
+  key"; on 8291 (a plain external bot's key) the words show in all five places, with no bubbles.
+- **The runbook** gained its one-line example for a crewhub-loops that is not the Mac app.
+
+`381eb4e` (docs only on `60e9e2a`), 846 tests; the switch at 840 tests, with the regress groups green on it.
+
+## Round 20: the next real features (2026-10-22, morning)
+
+Three developers at a time, and a fourth for the switch.
+- **The world database, first slice.** The host keeps the live town document per crewhub-loops installation in
+  SQLite through Node 24's `node:sqlite` (`<config>/world.db`, 0600; migrations in a transaction, a `world.db.bak-v<n>`
+  copy before each schema change, an export). The browser reads and writes it through `GET`/`PUT /world-api/town`,
+  paired and same-origin, last write wins with a revision check; a browser's own town is imported once into a host that
+  has none; every write goes to every tab. Settings > Town, the Connection panel's Town row, build mode and the text
+  view say where the town is kept. Two paired browsers see one town, and a host restart keeps it. L22's second road
+  is closed: zones are shared per installation.
+- **The introduction inside the world.** A six-step first-run tour over the real UI, demo and live, each step one
+  sentence in the introduction's words (a test holds a phrase of each against `docs/INTRODUCTION.md`): Skip, Back,
+  Next, Escape, the focus into the card and back, reduced motion, never again after Skip or Done, reopenable from
+  Settings and a "?" in the toolbar that also opens the introduction.
+- **ROADMAP truth.** Phase 2 says the chat as built, the timeout and the ten decisions are answered, "Real chat needs
+  CORS" is gone; the same lines fixed wherever a first reader meets them.
+
+`f2c3000`, 863 tests, the browser pass at 186 of 186 (two new groups, `tour` and `town`).
+
+## Round 21: deepen what round 20 opened (2026-10-22, morning)
+
+Three developers at a time.
+- **The world database, second slice.** The build-mode undo history is the host's too (schema 2): an undo works
+  across browsers and after a restart, and one sent after another browser's write is a plain conflict. Restore is
+  never silent: Settings > Town's import and "Restore from a backup" open a preview of what changes, offer to download
+  the current town first, and a confirmed restore is one more revision, so Undo takes it back.
+- **A phone pass under a 4x CPU throttle.** The two worst first-paint costs cut without a look change (room dressing
+  82 to 60 ms, the landmarks' bake 74 to 61 ms), pixel-identical over 98 pairs; the dressed first paint on a phone
+  1,353 to 1,292 ms.
+- **A keyboard-only pass over the whole world.** Seven faults fixed, each with a check: the focus after a jump goes
+  to the scene, closing a card or leaving build mode never loses it, a menu row's focus ring, Tab cycling in the
+  tour's card, the restore dialog's count said once, Escape from any Settings control closing the sheet.
+
+`feb327b`, 872 tests, the browser pass at 190 of 190; the accessibility pass at 186 of 186.
+
+## Round 22: a flake that was a bug, two paint cuts, the live card (2026-10-22, late morning)
+
+Three developers at a time.
+- **The `town` flake was a product bug.** A fresh browser allocated lots on its still-empty town while the host's was
+  being read, and sent that up as an amend on the host's revision, which wiped the zones for every browser (one run
+  in three to ten). The store now adopts the document before the revision, derives an amend at send time, names the
+  revision a commit was made on, reads one at a time and reads again when the stream comes back; the page shows its
+  revision. Ten runs in a row green on both branches.
+- **Two first-paint costs, pixel-identical.** The theme-colour sync moved to idle time, and `validateLayout` checks
+  rooms over a byte grid (the walkers' graph 70 to 43 ms at 4x). 98 pairs, 0 differing pixels.
+- **The agent card, live.** Read against what crewhub-loops offers for one agent, with no new loops read: Lead, Holds
+  (the open tickets and whom they wait on), Waited on by, the last progress line (read once from the source when the
+  page saw none), Answers from Recent answers; Lane, Projects and Recent behind More. An absent fact is said in words.
+
+`134818a`, 887 tests, the browser pass at 193 of 193.
+
+## Round 23: the dev origin, the figures as data, the shader findings (2026-10-22, midday)
+
+Three developers at a time.
+- **`npm run dev` beside `npm run host` out of the box.** Once Vite listens it tells the host its loopback origin
+  (`POST /world-api/dev-origin`: a program on this machine, loopback only, the same checkout, at most eight), so the
+  page's connect and town writes pass the origin guard without `CREWHUB_WORLD_ALLOWED_ORIGINS`; any start order works.
+- **The figures as data.** A figure's joints hold their parts as data until it is drawn near, and the far crowd reads
+  them straight; the root, the body and the joints stay objects because the motions move them. Pixel-identical over
+  the 98 pairs and 320 cast pairs; 207 fewer objects in the demo, a far figure 13 objects instead of 20 to 79.
+- **The shader programs, findings kept and code not merged.** 31 programs for 177 materials, none duplicated, and
+  all but one drawn by the first frame, so nothing of their ~86 ms leaves the first frame without a material change;
+  the enter's hitch is the inside layers built at the enter, not shaders.
+
+`6ca81fd`, 902 tests, the browser pass at 193 of 193.
+
+## Round 24: the enter built ahead, the card's chat facts, pixcheck (2026-10-22, afternoon)
+
+Three developers at a time.
+- **The building-enter hitch.** The inside layers of the likely next building (the jump list's row, the building
+  under the pointer, the keyboard's focused one; at most two) are built in idle slices and their programs warmed:
+  the worst enter frame on a phone at 4x 90 to 57 ms, and 92 to 33 ms in the best pair.
+- **The card's chat facts.** Where the key reads the chat, the card's Answers open with the thread's last message
+  time and unread count, from the threads list the host already reads, passed to every tab and refreshed on `dm.*`
+  events, never polled. "Waited on by" was seen in a browser for the first time.
+- **`tools/pixcheck.mjs`.** The pixel-identical proof as a repository tool: two commits or dist folders, built from
+  `git archive` and served with `vite preview`, 74 label-free demo pairs and 324 cast pairs, a diff image per pair,
+  exit 0 only when every pair is 0. It found that the scratch rig's "label-free twins" of rounds 15 to 23 had hidden
+  nothing (the claims stand, since every labelled pair was 0).
+
+`bd6a5b1`, 919 tests, the browser pass at 194 of 194.
+
 ## Challenges with docs/integrators
 
 Read at crewhub-loops `a1bed0f`. Each item names the document, what was unclear, contradictory, missing or marked

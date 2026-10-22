@@ -46,7 +46,8 @@ file the Connect screen asks for the key as above. Section 2 has the whole table
 
 **The shape.** The browser never talks to crewhub-loops. It talks to the world's own relay, `apps/host`, which holds
 one agent key, keeps one event stream open and serves `/world-api` on loopback. The host never writes to crewhub-loops;
-its only writes are the stored key in its own folder.
+its only writes are in its own folder: the stored key, the pairing secret, the archive memory and the live town's
+database `world.db` (section 2).
 
 ```text
 Crewhub.app :8091  --bearer key-->  apps/host :5180 (127.0.0.1)  --/world-api-->  browser
