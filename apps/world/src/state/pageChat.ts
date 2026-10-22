@@ -7,13 +7,14 @@
    is on).
 
    The runner is pure in its inputs (the fetch, the clock, hidden and online, the stores' two writers), so a test drives
-   it in milliseconds; the page's wiring (`startPageChat`) hands it the browser's. The store keeps what the panel and
-   the tools read: the probe's verdict, the loops origin asked, whether the poll runs, how many polls, the last failure. */
+   it in milliseconds; the page's wiring (state/pageChatPage.ts `startPageChat`) hands it the browser's. The store keeps what the panel and
+   the tools read: the probe's verdict, the loops origin asked, whether the poll runs, how many polls, the last failure.
+   The page's wiring is state/pageChatPage.ts (the browser's fetch, hidden and online, the stores, the chat road store),
+   kept apart so this module and its test load under node without the world. */
 import { useSyncExternalStore } from "react";
 import {
   POLL_MS,
   REPROBE_MS,
-  originSetting,
   pollDelay,
   pollPageChat,
   probePageChat,
@@ -24,9 +25,7 @@ import {
   type PageProbe,
 } from "@crewhub/loops-client";
 import { decideChatRoad, type ChatRoad } from "./chatRoad.ts";
-import { rememberSaid } from "./said.ts";
 import { loopsWebUrl } from "./source.ts";
-import { rememberThreads } from "./threads.ts";
 
 export interface PageChatState {
   /** The probe's last verdict; `unknown` before it ran (and on the key road, where it never runs). */
@@ -50,7 +49,8 @@ const INITIAL: PageChatState = { probe: "unknown", origin: null, road: "none", p
 
 let current: PageChatState = INITIAL;
 const listeners = new Set<() => void>();
-function publish(next: Partial<PageChatState>): void {
+/** The page's wiring (state/pageChatPage.ts) publishes the runner's state here. */
+export function publishPageChat(next: Partial<PageChatState>): void {
   current = { ...current, ...next };
   for (const listener of listeners) listener();
 }
@@ -71,35 +71,14 @@ export function resetPageChat(): void {
   for (const listener of listeners) listener();
 }
 
-/** The host's word on its key: true where health says the key reads the chat, false where it says another state, null where it says nothing. */
+/** The host's word on its key, as state/chatRoadStore reads it: true where health says the key reads the chat, false where its connection says otherwise, null while no health is known. */
 export function hostKeyReadsChat(health: Pick<HostHealth, "connection"> | null | undefined): boolean | null {
-  const state = health?.connection?.session?.state;
-  if (state === undefined) return null;
-  return state === "key";
+  return health?.connection ? health.connection.session?.state === "key" : null;
 }
 
 /** The origin the page asks: the loops web origin the host names (the API is on the same origin), never anything else. */
 export function loopsOriginOf(health: Pick<HostHealth, "loopsWebUrl"> | null | undefined): string {
   return new URL(loopsWebUrl(health as HostHealth | null | undefined)).origin;
-}
-
-/**
- * The page's own words for the probe's verdict, with the exact setting value where it applies (round 28, r28-road2's
- * supply to the contract's words: r28-session owns the final text per road; these say what the probe can tell).
- */
-export function pageProbeWords(probe: PageProbe, loopsOrigin: string | null, pageOrigin: string): string {
-  switch (probe) {
-    case "on":
-      return "This page reads the chat itself: you are signed in to crewhub-loops in this browser and the world's origin is set there, so the agents' answers show as bubbles and the world keeps nothing.";
-    case "signed-out":
-      return "crewhub-loops answers this page but you are not signed in to crewhub-loops in this browser: sign in there (the Chat panel's frame, or the app) and the answers show as bubbles here.";
-    case "origin-not-set":
-      return `crewhub-loops${loopsOrigin ? ` at ${loopsOrigin}` : ""} does not answer this page's origin: set ${originSetting(pageOrigin)} on crewhub-loops and restart it (a crewhub-loops from before that setting cannot).`;
-    case "unreachable":
-      return `crewhub-loops${loopsOrigin ? ` at ${loopsOrigin}` : ""} did not answer this page.`;
-    default:
-      return "";
-  }
 }
 
 export interface PageChatRunnerOptions {
@@ -238,46 +217,6 @@ export function createPageChatRunner(options: PageChatRunnerOptions): PageChatRu
     },
     state: () => state,
   };
-}
-
-let running: PageChatRunner | null = null;
-let unlisten: (() => void) | null = null;
-
-/**
- * The page's wiring: one runner for the live page, restarted when the host's word (its key reads the chat, the loops
- * origin) changes; the lines go to the said store, the threads to the threads store; visibility and the online event
- * wake it. Returns the stop.
- */
-export function startPageChat(input: { loopsOrigin: string; hostKeyReadsChat: boolean | null }): () => void {
-  stopPageChat();
-  const runner = createPageChatRunner({
-    ...input,
-    hidden: () => document.hidden,
-    online: () => navigator.onLine,
-    onLine: (line) => rememberSaid(line),
-    onThreads: (threads) => rememberThreads(threads),
-    onState: (state) => publish(state),
-  });
-  running = runner;
-  const visible = () => {
-    if (!document.hidden) runner.wake();
-  };
-  const online = () => runner.wake();
-  document.addEventListener("visibilitychange", visible);
-  window.addEventListener("online", online);
-  unlisten = () => {
-    document.removeEventListener("visibilitychange", visible);
-    window.removeEventListener("online", online);
-  };
-  runner.start();
-  return stopPageChat;
-}
-
-export function stopPageChat(): void {
-  unlisten?.();
-  unlisten = null;
-  running?.stop();
-  running = null;
 }
 
 /** The pace the panel may say: the poll every POLL_MS while the page shows. */

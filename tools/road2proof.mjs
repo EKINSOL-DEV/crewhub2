@@ -144,9 +144,9 @@ const waitProbe = (p, verdict, timeout = 30000) => p.waitForFunction((v) => wind
 const live = (p, timeout = 60000) => p.waitForSelector('.connection-chip[data-connection="live"]', { timeout }).then(() => true).catch(() => false);
 async function panelWords(p) {
   await p.locator(".connection-chip").first().click();
-  await p.waitForSelector(".connection-page-chat", { timeout: 10000 }).catch(() => {});
-  const el = p.locator(".connection-page-chat");
-  const out = { text: (await el.innerText().catch(() => "")).replace(/\s+/g, " ").trim(), probe: await el.getAttribute("data-page-chat").catch(() => null), road: await el.getAttribute("data-chat-road").catch(() => null) };
+  await p.waitForSelector(".connection-chat", { timeout: 10000 }).catch(() => {});
+  const el = p.locator(".connection-chat");
+  const out = { text: (await el.innerText().catch(() => "")).replace(/\s+/g, " ").trim(), probe: await el.getAttribute("data-probe").catch(() => null), road: await el.getAttribute("data-road").catch(() => null) };
   return out;
 }
 const closePanel = async (p) => {
@@ -174,15 +174,16 @@ try {
   ok("the proof page is Live and the page's probe says on: this origin may read the person's chat", isLive && on && s1?.pageChat?.road === "page" && s1?.pageChat?.polling === true, JSON.stringify(s1?.pageChat));
   await shot(pg, "01-town-on");
   const words1 = await panelWords(pg);
-  ok("the Connection panel says the page reads the chat itself", words1.probe === "on" && words1.road === "page" && /reads the chat itself/.test(words1.text), words1.text.slice(0, 120));
+  ok("the Connection panel's Chat section says the bubbles come from your own chat, read by this page as you (the contract's words, state/chatRoad)", words1.probe === "on" && words1.road === "page" && /lets this page read the chat as you/.test(words1.text), words1.text.slice(0, 120));
   await shot(pg, "02-panel-on");
   await closePanel(pg);
   await pg.locator(".chat-open").click();
   await pg.waitForSelector(".chat-sheet", { timeout: 5000 }).catch(() => {});
   await pg.locator(".chat-about > summary").click().catch(() => {});
   await pg.waitForTimeout(200);
-  const about = (await pg.locator(".chat-sheet-page").innerText().catch(() => "")).replace(/\s+/g, " ");
-  ok("the Chat panel's About this chat says it too", /reads the chat itself/.test(about), about.slice(0, 100));
+  const about = (await pg.locator(".chat-sheet-needs").innerText().catch(() => "")).replace(/\s+/g, " ");
+  const glance = (await pg.locator(".chat-sheet-todo").innerText().catch(() => "")).replace(/\s+/g, " ");
+  ok("the Chat panel's glance and About this chat say it too", /lets this page read the chat as you/.test(about) && !/shows no bubbles/.test(glance), `"${glance}"; ${about.slice(0, 80)}`);
   await shot(pg, "03-chat-about-on");
   await pg.keyboard.press("Escape");
   await pg.waitForSelector(".chat-sheet", { state: "detached", timeout: 5000 }).catch(() => {});
@@ -240,7 +241,7 @@ try {
   const liveOut = await live(po);
   const off = await waitProbe(po, "signed-out");
   const wordsOut = await panelWords(po);
-  ok("signed out (a fresh browser context): Live, the probe says signed out and the words say to sign in to crewhub-loops in this browser", liveOut && off && wordsOut.probe === "signed-out" && wordsOut.road === "none" && /not signed in to crewhub-loops in this browser/.test(wordsOut.text), wordsOut.text.slice(0, 140));
+  ok("signed out (a fresh browser context): Live, the probe says signed out and the words say to sign in to crewhub-loops in this browser", liveOut && off && wordsOut.probe === "signed-out" && wordsOut.road === "none" && /signed in to crewhub-loops in this browser/.test(wordsOut.text), wordsOut.text.slice(0, 140));
   await shot(po, "06-signed-out");
   await closePanel(po);
   await out.close();

@@ -18,7 +18,6 @@ import {
   eventsUrl,
   firstLine,
   messageUrl,
-  originSetting,
   pageGet,
   pollDelay,
   pollPageChat,
@@ -177,14 +176,13 @@ test("one poll: the events, each agent message by id, the threads again when a d
   assert.equal((await pollPageChat(ORIGIN, { cursor: "c" }, async () => json(503, {}))).kind, "failed");
 });
 
-test("the back-off: 5 s shown, a minute hidden, doubling to a minute after failures; the setting line", () => {
+test("the back-off: 5 s shown, a minute hidden, doubling to a minute after failures", () => {
   assert.equal(pollDelay({ hidden: false, failures: 0 }), POLL_MS);
   assert.equal(POLL_MS, 5000);
   assert.equal(pollDelay({ hidden: true, failures: 0 }), POLL_HIDDEN_MS);
   assert.equal(pollDelay({ hidden: false, failures: 1 }), 10_000);
   assert.equal(pollDelay({ hidden: false, failures: 2 }), 20_000);
   assert.equal(pollDelay({ hidden: false, failures: 9 }), POLL_MAX_MS);
-  assert.equal(originSetting("http://127.0.0.1:5283"), "CHL_WORLD_ORIGIN=http://127.0.0.1:5283");
 });
 
 test("against a server on 127.0.0.1: a real GET carries no header of ours (no content type, no x- header, no key), and the answer is read", async () => {

@@ -70,4 +70,4 @@ export function devOriginVerdict(input: {
 }
 
 /** The host's one line when it accepts a dev origin. */
-export const devOriginAcceptedLine = (origin: string): string => `dev origin ${origin} accepted: this checkout's dev server (npm run dev) proxies the world's page from there, so connect, sign-in and town writes from that origin are the page's own`;
+export const devOriginAcceptedLine = (origin: string): string => `dev origin ${origin} accepted: this checkout's dev server (npm run dev) proxies the world's page from there, so connect and town writes from that origin are the page's own`;

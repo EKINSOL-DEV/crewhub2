@@ -67,18 +67,14 @@ export interface HostKeyState {
 }
 
 /**
- * The person's session the host may hold for the chat's bubbles (round 12, road B option 2): off until a person signs
- * in through the host; `signed-in` names the person (paired browsers); `expired` means loops refused the kept cookie
- * (sign in again); `signed-out` means no session. Never the cookie, never a password.
+ * The chat's road (round 12; one road since round 19): present as `key` when this crewhub-loops lets the world's own key
+ * read the chat (a viewer key, `world/viewer-key`), so the agents' answers come as bubbles over the key's own stream;
+ * absent when it does not (an older loops, a plain external bot's key): no bubbles, and the world says how to make a
+ * viewer key. The sign-in road (`signed-out`, `signed-in`, `expired`, a person's session kept by the host) went with
+ * the switch to the viewer key (decision 9).
  */
 export interface HostSessionState {
-  /** `key`: this loops lets the world's own key read the chat (a viewer key), so no sign-in is needed and none is used. */
-  state: "signed-out" | "signed-in" | "expired" | "key";
-  /** The person's display name and account id; paired browsers only. */
-  name?: string;
-  id?: string;
-  /** When the session was made (ISO); paired only. */
-  at?: string;
+  state: "key";
 }
 
 /** The host's one upstream stream. */
@@ -135,7 +131,7 @@ export interface HostConnection {
   archived?: HostArchiveState;
   /** Absent on a host from before the step list. */
   snapshot?: HostSnapshotState;
-  /** The person's chat session the host holds, if any (round 12); absent on a host from before. */
+  /** The chat's road: `key` when the world's key reads the chat on this loops (bubbles); absent when it does not. */
   session?: HostSessionState;
 }
 
@@ -257,16 +253,11 @@ export function readConnection(value: unknown): HostConnection | null {
 }
 
 /** The `snapshot` of a connection, or null when it is missing or malformed. */
-/** The host's `connection.session`, strictly: a known state, the name, id and time when strings; anything else dropped. */
+/** The host's `connection.session`, strictly: `key` only; anything else (a host from before with a sign-in state) is dropped. */
 export function readSessionState(value: unknown): HostSessionState | null {
-  const raw = value as { state?: unknown; name?: unknown; id?: unknown; at?: unknown } | null | undefined;
-  const state = oneOf(raw?.state, ["signed-out", "signed-in", "expired", "key"]);
-  if (state === undefined) return null;
-  const out: HostSessionState = { state };
-  if (typeof raw?.name === "string") out.name = raw.name;
-  if (typeof raw?.id === "string") out.id = raw.id;
-  if (typeof raw?.at === "string") out.at = raw.at;
-  return out;
+  const raw = value as { state?: unknown } | null | undefined;
+  const state = oneOf(raw?.state, ["key"]);
+  return state === undefined ? null : { state };
 }
 
 export function readSnapshotState(value: unknown): HostSnapshotState | null {
@@ -802,20 +793,6 @@ export async function connectHost(key: string, baseUrl = "", timeoutMs = 10_000)
 /** `DELETE /world-api/connect`: the host forgets its stored key (the world then asks for one again). Never throws. */
 export async function forgetHostKey(baseUrl = "", timeoutMs = 10_000): Promise<HostAnswer> {
   return hostRequest("DELETE", `${baseUrl}${PREFIX}/connect`, null, timeoutMs);
-}
-
-/**
- * `POST /world-api/session {id, password}` (round 12): the host signs in to crewhub-loops as the person for the chat's
- * bubbles and keeps only the session cookie. The password goes to the host on this computer and nowhere else; the page
- * keeps nothing. Never throws.
- */
-export async function signInHost(id: string, password: string, baseUrl = "", timeoutMs = 15_000): Promise<HostAnswer> {
-  return hostRequest("POST", `${baseUrl}${PREFIX}/session`, JSON.stringify({ id, password }), timeoutMs);
-}
-
-/** `DELETE /world-api/session`: the host signs out at loops and deletes the kept session. Never throws. */
-export async function forgetHostSession(baseUrl = "", timeoutMs = 10_000): Promise<HostAnswer> {
-  return hostRequest("DELETE", `${baseUrl}${PREFIX}/session`, null, timeoutMs);
 }
 
 /**

@@ -32,7 +32,7 @@ import { BACKUP_NAME, TOWN_BODY_LIMIT, TOWN_FORMAT, installationKey, listBackups
 import { type LoopsClient, createLoopsClient, isUnauthorized } from "./loops.ts";
 import { PAIR_PATH_PREFIX, PAIR_REFUSED_HTML, type Pairing, createPairing, pairCookieHeader } from "./pairing.ts";
 import { type ArchiveReport, type AssembledSnapshot, SnapshotError, type SnapshotStats, assembleSnapshot } from "./snapshot.ts";
-import { type ChatLine, type Session, type SessionStore, createSession, firstLine } from "./session.ts";
+import { type ChatLine, firstLine } from "./chatLine.ts";
 import { type HostMessage, type LoopsState, type Upstream, createUpstream } from "./stream.ts";
 
 export interface HostOptions {
@@ -56,11 +56,6 @@ export interface HostOptions {
   archiveStore?: ArchiveStore;
   /** The world database (round 20, `world.db` beside the key): the live town per installation. Absent: `/world-api/town` answers 503 and the browsers keep their towns. */
   worldDb?: WorldDb;
-  /**
-   * Where the person's chat session is kept (round 12): without a store the host takes no sign-in (`POST /session`
-   * answers 503) and shows no bubbles. The cookie never leaves the host; the password never reaches a file or a log.
-   */
-  sessionStore?: SessionStore;
   /** How long one read of loops may take before it counts as not answering. Default 10 s; tests shorten it. */
   readTimeoutMs?: number;
   /** 0 (the default) picks a free port. */
@@ -356,20 +351,6 @@ export async function createHost(options: HostOptions): Promise<Host> {
     versions.last = version;
   };
 
-  // --- The person's chat session (round 12, session.ts): off until a person signs in; follows the discovery's road.
-  const session: Session | null =
-    options.sessionStore === undefined
-      ? null
-      : createSession({
-          store: options.sessionStore,
-          log,
-          onChat: (line) => {
-            for (const tab of tabs.values()) tab.send({ type: "chat", chat: line });
-          },
-          ...(options.readTimeoutMs === undefined ? {} : { readTimeoutMs: options.readTimeoutMs }),
-          ...(options.reconnectMs === undefined ? {} : { reconnectMs: options.reconnectMs }),
-        });
-
   /**
    * Whether the current loops lets the key read the chat: a VIEWER key (`world/viewer-key`, L1: the key's own entry in
    * `GET /api/agents` says `viewer: true`; a loops from before has no such field) whose `GET /api/dm/threads` answers
@@ -380,9 +361,9 @@ export async function createHost(options: HostOptions): Promise<Host> {
    * The chat threads' facts (round 24) where the key reads the chat: per agent, `lastMessageAt` and `unreadCount` from
    * `GET /api/dm/threads` (the probe's own answer at the key check, read again after a `dm.*` event the key's stream
    * sees, at most once a second), sent whole to every tab; null where the key does not read the chat. Whose unread
-   * (round 25): loops counts it against the caller's read cursor, and for a viewer key against the installation
-   * owner's (world/viewer-key 79cb36a8); `keyReadsChat` is true only for a viewer, so the count that travels is always
-   * the owner's, as loops' own chat head shows it. A plain key's count (its own cursor, never set) is never read.
+   * (round 25; loops main #964 in round 28): loops counts it against the caller's read cursor, and for a viewer key
+   * against its maker's, the one person whose chat the key reads; `keyReadsChat` is true only for a viewer, so the
+   * count that travels is always the maker's, as loops' own chat head shows it. A plain key's count is never read.
    */
   let threadFacts: ChatThreadFact[] | null = null;
   const THREADS_REFRESH_MS = 1000;
@@ -541,10 +522,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
         clearTimeout(threadsTimer);
         threadsTimer = null;
       }
-      // The chat session rides the same road as the key: the discovery's target, or none. With a key it waits for the
-      // key check below: on a loops whose key reads the chat (the key road) a kept session is never used.
       if (found === null || holder === null) {
-        session?.follow(found === null ? null : found.target);
         for (const tab of tabs.values()) attach(tab);
         return;
       }
@@ -564,7 +542,6 @@ export async function createHost(options: HostOptions): Promise<Host> {
         step("key", false, `key ${mine.name} (${mine.source}) rejected by loops at ${targetText(found.target)}: ${scrub(verdict.reason)} (the key is kept; paste a new one or forget it)`, performance.now() - keyStarted);
         for (const tab of tabs.values()) attach(tab);
         scheduleRecheck(mine);
-        session?.follow(found.target);
         return;
       }
       if (verdict.state === "ok") {
@@ -573,18 +550,18 @@ export async function createHost(options: HostOptions): Promise<Host> {
         mine.name = verdict.name;
         step("key", true, `key ${mine.name} (${mine.source}) accepted by loops at ${targetText(found.target)}`, performance.now() - keyStarted);
         // Does this loops let the key read the chat (a viewer key, round 12)? Then the bubbles come over the key's own
-        // stream and no person's session is needed or used; a loops that answers anything else keeps the session road.
+        // stream; a loops that answers anything else (an older loops, a plain external bot's key) shows no bubbles, and
+        // health says so by leaving `connection.session` out (round 19: the sign-in road is gone).
         const chat = await readsChat(client, mine.name);
         if (closed || holder !== mine || discovery.current() !== found) return;
         keyReadsChat = chat.reads;
         threadFacts = chat.reads ? chat.threads : null;
-        if (keyReadsChat) log(`the key reads the chat on this crewhub-loops: the agents' answers come over its stream, no sign-in needed; ${chat.threads.length} chat thread(s)`);
-        session?.follow(keyReadsChat ? null : found.target);
+        if (keyReadsChat) log(`the key reads the chat on this crewhub-loops: only the chat of the person who made the key; their agents' answers come over its stream, no sign-in needed; ${chat.threads.length} chat thread(s)${chat.threads.length === 0 ? " (none yet is no error: the maker has not written to an agent)" : ""}`);
+        else log(`the key does not read the chat on this crewhub-loops (no viewer key): no bubbles over the key; make a viewer key in Settings > Agents > Connect CrewHub World (it reads only its maker's chat), or set CHL_WORLD_ORIGIN to the world page's origin on that crewhub-loops so the page reads your own chat`);
       } else {
         // Nothing is known about the key: it keeps the state it had (a fresh key stays unchecked), never rejected.
         mine.state = before === "checking" ? "unchecked" : before;
         log(`key ${mine.name} (${mine.source}) ${mine.state}: ${scrub(verdict.reason)}; the stream keeps trying`);
-        session?.follow(found.target);
       }
       const upstreamOptions: Parameters<typeof createUpstream>[1] = { log: (line) => log(scrub(line)), healthy, onVersion: sawVersion };
       if (options.bufferSize !== undefined) upstreamOptions.bufferSize = options.bufferSize;
@@ -683,11 +660,9 @@ export async function createHost(options: HostOptions): Promise<Host> {
       archived: { source: archive.source, count: archive.slugs.size, ...(archive.at === undefined ? {} : { at: archive.at }) },
     };
     out.snapshot = snapshotState;
+    // The chat's one road (round 19): `session: { state: "key" }` when this loops lets the world's key read the chat, so
+    // the bubbles come; absent otherwise (no bubbles: an older loops, a plain external bot's key).
     if (keyReadsChat && link !== null) out.session = { state: "key" };
-    else if (session !== null) {
-      const who = session.state();
-      out.session = detailed ? who : { state: who.state };
-    }
     if (recheckAt !== undefined && holder?.state === "rejected") out.key.recheckAt = recheckAt;
     if (found !== null) out.discovery.via = found.via;
     const busy = link?.upstream.busy() ?? null;
@@ -1098,64 +1073,6 @@ export async function createHost(options: HostOptions): Promise<Host> {
     sendJson(res, 200, { ok: true, rev: outcome.rev, document: current, canUndo: outcome.canUndo, canRedo: outcome.canRedo, changed: outcome.changed });
   }
 
-  /**
-   * `POST /world-api/session {id, password}` (round 12): a paired browser on an allowed origin signs the host in to
-   * crewhub-loops as the person, for the chat's bubbles. The password is read once, handed to loops over loopback and
-   * dropped: never stored, logged, echoed or returned; only the session cookie is kept (session.ts). `DELETE` signs
-   * out and forgets it. The answers carry the states, never the cookie.
-   */
-  async function sessionRoute(req: IncomingMessage, res: ServerResponse): Promise<void> {
-    if (req.headers.origin === undefined) {
-      sendJson(res, 403, { error: "origin_required", message: "Sign-in is for the world's own page: send the Origin header" });
-      return;
-    }
-    if (session === null) {
-      req.resume();
-      sendJson(res, 503, { error: "no_session_store", message: "This host keeps no chat session (no config folder)" });
-      return;
-    }
-    if (req.method === "POST" && keyReadsChat && link !== null) {
-      req.resume();
-      sendJson(res, 409, { error: "not_needed", message: "This crewhub-loops lets the world's key read the chat: no sign-in is needed, the bubbles come by themselves." });
-      return;
-    }
-    if (req.method === "DELETE") {
-      req.resume();
-      await session.forget();
-      sendJson(res, 200, { ok: true, connection: connection(true) });
-      return;
-    }
-    if (!/^application\/json\b/i.test(req.headers["content-type"] ?? "")) {
-      req.resume();
-      sendJson(res, 415, { error: "unsupported_media_type", message: 'Send application/json: {"id": "…", "password": "…"}' });
-      return;
-    }
-    const body = await readJsonBody(req, CONNECT_BODY_LIMIT);
-    const id = typeof body?.id === "string" ? body.id.trim() : "";
-    const password = typeof body?.password === "string" ? body.password : "";
-    if (id === "" || id.length > 64 || password === "" || password.length > 256) {
-      sendJson(res, 400, { error: "validation_error", message: "Give the account id and the password you sign in to crewhub-loops with." });
-      return;
-    }
-    await relinking;
-    const found = discovery.current();
-    if (found === null) {
-      sendJson(res, 503, { error: "no_loops", message: "crewhub-loops is not found yet: open Crewhub.app, then sign in again." });
-      return;
-    }
-    const outcome = await session.signIn(found.target, id, password);
-    if (outcome.kind === "unreachable") {
-      sendJson(res, 503, { error: "loops_down", message: `crewhub-loops did not answer the sign-in (${outcome.reason}). Is Crewhub.app open? Then sign in again.` });
-      return;
-    }
-    if (outcome.kind === "refused") {
-      log(`a sign-in for the chat was refused by crewhub-loops: ${outcome.code}`);
-      sendJson(res, outcome.status === 429 ? 429 : 401, { error: outcome.code, reason: outcome.message });
-      return;
-    }
-    sendJson(res, 200, { ok: true, connection: connection(true) });
-  }
-
   async function serveStatic(pathname: string, res: ServerResponse): Promise<void> {
     if (building) {
       res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", [BUILDING_HEADER]: "1", ...HTML_HEADERS });
@@ -1281,9 +1198,6 @@ export async function createHost(options: HostOptions): Promise<Host> {
       case "/connect":
         await connect(req, res);
         return;
-      case "/session":
-        await sessionRoute(req, res);
-        return;
       case "/town":
         await town(req, res, false);
         return;
@@ -1330,7 +1244,6 @@ export async function createHost(options: HostOptions): Promise<Host> {
       closed = true;
       clearInterval(idleBeat);
       clearRecheck();
-      await session?.stop();
       discovery.stop();
       await relinking;
       if (link !== null) await link.upstream.stop();

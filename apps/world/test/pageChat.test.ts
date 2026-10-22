@@ -5,9 +5,9 @@
    injected, so a run takes milliseconds. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { ChatLine, ChatThreadFact, FetchLike, HostHealth } from "@crewhub/loops-client";
+import type { ChatLine, ChatThreadFact, FetchLike, HostHealth, HostSessionState } from "@crewhub/loops-client";
 import { POLL_HIDDEN_MS, POLL_MS, REPROBE_MS } from "@crewhub/loops-client";
-import { createPageChatRunner, hostKeyReadsChat, loopsOriginOf, pageProbeWords, type PageChatState } from "../src/state/pageChat.ts";
+import { createPageChatRunner, hostKeyReadsChat, loopsOriginOf, type PageChatState } from "../src/state/pageChat.ts";
 
 const ORIGIN = "http://127.0.0.1:8293";
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -212,20 +212,13 @@ test("a failure backs off (10 s, 20 s, …) and the state says why; the next ans
   r.stop();
 });
 
-test("the host's word and the origin: the key's state in health, the loops web origin (the API is on it); the probe's words carry the exact setting", () => {
-  const health = (session: HostHealth["connection"] extends infer C ? (C extends { session?: infer S } ? S : never) : never, loopsWebUrl?: string): HostHealth =>
+test("the host's word and the origin: the key's state in health, the loops web origin (the API is on it)", () => {
+  const health = (session: HostSessionState | undefined, loopsWebUrl?: string): HostHealth =>
     ({ loops: "ok", keyName: "k", sharedKey: false, ...(loopsWebUrl ? { loopsWebUrl } : {}), connection: { discovery: { state: "found" }, key: { state: "ok" }, stream: { state: "ok", reconnects: 0 }, ...(session ? { session } : {}) } }) as HostHealth;
   assert.equal(hostKeyReadsChat(health({ state: "key" })), true);
-  assert.equal(hostKeyReadsChat(health({ state: "signed-out" })), false);
-  assert.equal(hostKeyReadsChat(health(undefined)), null, "a host that keeps no session store and whose key does not read the chat says nothing");
+  assert.equal(hostKeyReadsChat(health(undefined)), false, "a host whose connection names no session: its key does not read the chat (as state/chatRoadStore reads it)");
   assert.equal(hostKeyReadsChat(null), null);
   assert.equal(loopsOriginOf(health(undefined, "http://127.0.0.1:8293/")), "http://127.0.0.1:8293");
   assert.equal(loopsOriginOf(health(undefined, "http://127.0.0.1:8293/some/path")), "http://127.0.0.1:8293", "the origin only");
   assert.equal(loopsOriginOf(null), "http://127.0.0.1:8091", "the app's own, as the chat panel's link");
-  assert.match(pageProbeWords("origin-not-set", ORIGIN, "http://127.0.0.1:5283"), /CHL_WORLD_ORIGIN=http:\/\/127\.0\.0\.1:5283/);
-  assert.match(pageProbeWords("origin-not-set", ORIGIN, "http://127.0.0.1:5283"), /from before that setting/);
-  assert.match(pageProbeWords("signed-out", ORIGIN, "http://127.0.0.1:5283"), /not signed in to crewhub-loops in this browser/);
-  assert.match(pageProbeWords("unreachable", ORIGIN, "http://127.0.0.1:5283"), /did not answer/);
-  assert.match(pageProbeWords("on", ORIGIN, "http://127.0.0.1:5283"), /reads the chat itself/);
-  assert.equal(pageProbeWords("unknown", ORIGIN, "http://127.0.0.1:5283"), "");
 });

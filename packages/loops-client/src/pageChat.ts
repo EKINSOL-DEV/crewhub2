@@ -29,8 +29,6 @@ import type { ChatLine, ChatThreadFact } from "./source.ts";
 export const PAGE_CHAT_EVENT_TYPES = "dm.created,dm.answered";
 /** The largest page loops gives through the origin; a larger `limit` is clamped there, so none is asked. */
 export const PAGE_CHAT_EVENTS_LIMIT = 50;
-/** The setting's name on crewhub-loops, for the words that tell the person the exact value. */
-export const WORLD_ORIGIN_SETTING = "CHL_WORLD_ORIGIN";
 /** The first line of a message, at most this many characters (the host's rule for a bubble's line). */
 export const PAGE_CHAT_LINE_MAX = 140;
 
@@ -199,11 +197,6 @@ export function pollDelay(input: { hidden: boolean; failures: number }): number 
 
 /** How long a verdict other than "on" stands before the page asks again (a sign-in in another tab brings the road on by itself). */
 export const REPROBE_MS = 30_000;
-
-/** The exact line for the owner: the setting with this page's origin as its value. */
-export function originSetting(pageOrigin: string): string {
-  return `${WORLD_ORIGIN_SETTING}=${pageOrigin}`;
-}
 
 /** What one poll did, for the runner and the log. */
 export type PollOutcome =

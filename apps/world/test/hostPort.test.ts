@@ -71,7 +71,7 @@ describe("the dev server tells the host its origin", () => {
 
   it("one line per outcome: accepted, an older host, refused, nothing there yet", () => {
     const origins = ["http://127.0.0.1:5294", "http://localhost:5294"];
-    assert.equal(devOriginLine(5194, origins, { kind: "accepted", origins }), "dev: the page's writes come from http://127.0.0.1:5294, http://localhost:5294: told to the host on 127.0.0.1:5194, which accepts them for this run (this checkout's dev server and host; connect, sign-in and town writes work).");
+    assert.equal(devOriginLine(5194, origins, { kind: "accepted", origins }), "dev: the page's writes come from http://127.0.0.1:5294, http://localhost:5294: told to the host on 127.0.0.1:5194, which accepts them for this run (this checkout's dev server and host; connect and town writes work).");
     assert.match(devOriginLine(5194, origins, { kind: "no-route" }), /is from before the dev origin and cannot be told; the page's writes will be refused \(403\) unless that host runs with CREWHUB_WORLD_ALLOWED_ORIGINS=http:\/\/127\.0\.0\.1:5294, http:\/\/localhost:5294\.$/);
     assert.match(devOriginLine(5194, origins, { kind: "refused", status: 403, message: "This host runs from checkout x" }), /refused them \(This host runs from checkout x\); the page reads, its writes are refused \(403\)\.$/);
     assert.match(devOriginLine(5194, origins, { kind: "silent" }), /no host on 127\.0\.0\.1:5194 to tell yet; it is told when one answers/);
