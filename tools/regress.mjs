@@ -7,11 +7,11 @@
      connect the connect flow (spec addendum "a smooth connection"), 23 checks in two halves, both behind your Vite
            (started with CREWHUB_WORLD_PORT=<host-port>; apps/world/dist is never looked at here, whatever the live
            group does with it). Against the stub host of lib/connectStub.mjs, on --host-port, always: one page meets
-           every screen in order (No crewhub-loops found, Pair this browser naming `npm run world`, Connect with a
+           every screen in order (No crewhub-loops found, Pair this tab naming `npm run world`, Connect with a
            masked field, a key typed and Enter: the field empty again and the host checking, rejected with loops'
            reason and Forget this key, which brings Connect back, crewhub-loops not answering, then the town with the
            Live chip and no reload), the key in no DOM, storage or URL, the Connection panel's facts and Escape, the
-           stub's `unpaired` state (a host that no longer knows the browser: Pair this browser over the live tab,
+           stub's `unpaired` state (a host that no longer knows the browser: Pair this tab over the live tab,
            and the town back by itself once paired again) and, on a second page, the Stream busy chip over the town
            (loops' 429). Against the REAL development loops (the env file and the skip rules of `real`, plus
            --loops-app-data, default ~/crewhub-loops-dev, which must hold a settings.json): a keyless host the tool
@@ -863,8 +863,8 @@ await group("live", async () => {
       await bare.waitForTimeout(3000);
       const page = await bare.locator(".pair-page").count();
       const body = (await bare.locator("body").innerText().catch(() => "")).replace(/\s+/g, " ");
-      ok("pairing: /world-api answers 401 without a cookie", status === 401, String(status));
-      ok("pairing: the world asks to pair this browser", page > 0 && /Pair this browser/i.test(body) && /npm run world/.test(body) && !/\/pair\//.test(body), body.slice(0, 160));
+      ok("pairing: /world-api answers 401 without the bearer", status === 401, String(status));
+      ok("pairing: the world asks to pair this tab", page > 0 && /Pair this tab/i.test(body) && /npm run world/.test(body) && !/\/pair\//.test(body), body.slice(0, 160));
       await shot(bare, "22-pair-page");
       await bare.context().close();
       problems.push(...own.filter((x) => !/401/.test(x.text)));
@@ -1883,7 +1883,7 @@ await group("connect", async () => {
       await stub.setState("pair");
       const pair = await screen(pg, "pair");
       const pairBody = (await pg.locator(".connect-page").innerText().catch(() => "")).replace(/\s+/g, " ");
-      ok("connect: Pair this browser names npm run world and never a link", pair && /Pair this browser/.test(pairBody) && /npm run world/.test(pairBody) && !/\/pair\//.test(pairBody), pairBody.slice(0, 120));
+      ok("connect: Pair this tab names npm run world and never a link", pair && /Pair this tab/.test(pairBody) && /npm run world/.test(pairBody) && !/\/pair\//.test(pairBody), pairBody.slice(0, 120));
       await stub.setState("connect");
       const connect = await screen(pg, "connect");
       ok("connect: the Connect screen offers a masked key field", connect && (await keyField(pg).getAttribute("type").catch(() => null)) === "password");
@@ -1947,7 +1947,7 @@ await group("connect", async () => {
       // Stale, and comes back by itself once it is paired again.
       await stub.setState("unpaired");
       const pairAgain = await screen(pg, "pair", 20000);
-      ok("connect: a live tab the host no longer knows shows Pair this browser", pairAgain, pairAgain ? "" : `chip ${await chipState(pg)}`);
+      ok("connect: a live tab the host no longer knows shows Pair this tab", pairAgain, pairAgain ? "" : `chip ${await chipState(pg)}`);
       await shot(pg, "40-connect-pair-again");
       await stub.setState("connected");
       const again = await until(pg, "live", 20000);

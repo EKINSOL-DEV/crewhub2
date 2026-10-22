@@ -46,7 +46,7 @@ const COMBOS = [
   ["dark", 375],
 ];
 const viewport = (width) => (width <= 480 ? { viewport: { width, height: 812 }, isMobile: true, hasTouch: true } : { viewport: { width, height: 900 } });
-const SCREENS = { "no-loops": "No crewhub-loops found", pair: "Pair this browser", connect: "Connect to crewhub-loops", checking: "Checking the key…", rejected: "crewhub-loops rejected the key", "loops-down": "crewhub-loops is not answering" };
+const SCREENS = { "no-loops": "No crewhub-loops found", pair: "Pair this tab", connect: "Connect to crewhub-loops", checking: "Checking the key…", rejected: "crewhub-loops rejected the key", "loops-down": "crewhub-loops is not answering" };
 
 async function open(theme, width, { reducedMotion = "no-preference", url = opts.base } = {}) {
   const ctx = await browser.newContext({ ...viewport(width), deviceScaleFactor: 1, colorScheme: theme, reducedMotion });
