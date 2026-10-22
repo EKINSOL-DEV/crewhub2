@@ -366,7 +366,10 @@ Recent answers and the card are the same whichever road brought the line. The ro
 `key`, `page` or `none` (the host's key first, then the page's probe, else the honest line), and the panels say what
 the probe could tell: signed out (sign in to loops in this browser), the origin not set (with the exact value to set:
 the browser shows a refused origin as the same opaque failure as a server that is not there, so a second ask in
-`no-cors` mode tells the two apart), or unreachable. Nothing of road 2 goes through the host.
+`no-cors` mode tells the two apart), unreachable, loops' chat bubbles switched off (a 409 through the origin), or a
+loops elsewhere than this computer (not asked: the viewer key is the road); and while the host has not yet said whether
+its key reads the chat (`session: unknown` in health, round 29), the page asks nothing and says the host is still
+connecting. Nothing of road 2 goes through the host.
 
 ![The live town over the fake crewhub-loops a second after CR Lead answered inside its building: a chat mark "CR Lead" beside the CrewHub World building's waiting pin, since the figure inside is not drawn from the town; a tap on the mark enters the building.](images/chat-mark.jpg)
 

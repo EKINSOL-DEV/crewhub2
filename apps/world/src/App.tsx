@@ -19,7 +19,7 @@ import { liveScreen, withStreamKey } from "./state/connect";
 import { useRecentAnswers, useSaid, type Answer } from "./state/said";
 import { answerTarget, type AnswerTarget } from "./state/recentAnswers";
 import { rememberHealth, useHostHealth } from "./state/health";
-import { hostKeyReadsChat, loopsOriginOf } from "./state/pageChat";
+import { healthRereadKey, hostKeyReadsChat, loopsOriginOf } from "./state/pageChat";
 import { startPageChat } from "./state/pageChatPage";
 import { installSoakProbe } from "./state/soak";
 import { pageReads } from "./state/soakPage";
@@ -790,6 +790,20 @@ function World() {
   // over the health read; a host from before says nothing, so while the source says so and no screen shows yet, the health
   // is read again every few seconds (the Connect page reads it itself once it shows).
   const streamKey = useConnectionKey();
+  // The host's word can change after the page's first read (round 29, Medium 2): the stream going live, or the host's
+  // key word on its status (a key checked late, accepted on the stream, forgotten in another tab). Health is read
+  // again then, so the road follows the host's real word and the road-2 runner restarts on it.
+  const rereadOn = healthRereadKey(connection, streamKey);
+  useEffect(() => {
+    if (demo || rereadOn === null) return;
+    let live = true;
+    void probeHost("", 1500).then((fresh) => {
+      if (live && fresh !== null) rememberHealth(fresh);
+    });
+    return () => {
+      live = false;
+    };
+  }, [demo, rereadOn]);
   const screen = demo ? null : liveScreen(connection, withStreamKey(health, streamKey));
   const degraded = !demo && streamKey === null && (connection === "unauthorized" || connection === "loops-down") && screen === null;
   useEffect(() => {

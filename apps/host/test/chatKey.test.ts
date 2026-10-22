@@ -11,7 +11,18 @@ import { afterEach, describe, it } from "node:test";
 import { createHost } from "../src/host.ts";
 import { createLoopsStub, installation } from "./loopsStub.ts";
 import { openSse } from "./sse.ts";
+import { createServer } from "node:net";
+import type { AddressInfo } from "node:net";
 import { waitFor } from "./wait.ts";
+
+/** A port nothing listens on right now (a stub takes it a moment later, as a loops that starts after the host). */
+async function freePort(): Promise<number> {
+  const server = createServer();
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const port = (server.address() as AddressInfo).port;
+  await new Promise<void>((resolve) => server.close(() => resolve()));
+  return port;
+}
 
 const AGENT_MESSAGE = { id: "dm_k1", threadId: "dmt_boing", agentId: "boing", author: { id: "boing", kind: "agent", displayName: "Boing" }, bodyText: "Done with the lamp.\nNext: the rug.", bodyMarkdown: "Done with the lamp.", createdAt: "2026-10-21T20:00:00.000Z" };
 
@@ -102,5 +113,55 @@ describe("the chat over the key, where loops allows it", () => {
     await tab.next((m) => m.type === "status" && m.loops === "ok");
     await new Promise((r) => setTimeout(r, 300));
     assert.ok(!tab.messages.some((m) => m.type === "threads"), "no thread facts where the key cannot read the chat");
+  });
+
+  it("round 29 (High 1): loops not up at the host's start (the env URL road), the key accepted on the stream later: the host asks then whether the key reads the chat, health gains session key, the threads reach the tab and the dm gate opens", async () => {
+    const port = await freePort();
+    const lines: string[] = [];
+    const host = await createHost({ loopsUrl: `http://127.0.0.1:${port}`, key: "k-late", keyName: "crewhub-world", keySource: "env", pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 10, max: 20 }, log: (line) => lines.push(line) });
+    cleanup.push(() => host.close());
+    const health = async () => (await (await fetch(`${host.url}/world-api/health`)).json()) as Record<string, any>;
+    const before = await health();
+    assert.deepEqual(before.connection.session, { state: "unknown" }, "loops not up: the host cannot say yet, and says so (Medium 2)");
+    const THREAD = { id: "dmt_boing", agentId: "boing", createdAt: "2026-10-21T18:00:00.000Z", lastMessageAt: "2026-10-22T07:05:00.174Z", unreadCount: 1 };
+    const stub = await createLoopsStub({ ...installation(), keyReadsChat: true, port, key: "k-late", dm: { threads: [THREAD], messages: { [AGENT_MESSAGE.id]: AGENT_MESSAGE } } });
+    cleanup.push(() => stub.close());
+    await waitFor("the key accepted on the stream", async () => (await health()).connection.key.state === "ok" && (await health()).connection.stream.state === "ok");
+    await waitFor("the host asked whether the key reads the chat", async () => (await health()).connection.session?.state === "key");
+    assert.ok(lines.some((l) => /accepted on the stream/.test(l)) && lines.some((l) => /the key reads the chat on this crewhub-loops/.test(l)), lines.join("\n"));
+    assert.ok(stub.requests.some((r) => r.path === "/api/agents" && r.authorization !== undefined) && stub.requests.some((r) => r.path === "/api/dm/threads" && r.authorization !== undefined), "the check's tail ran with the key after loops came up");
+    const tab = await openSse(`${host.url}/world-api/stream?cursor=0`);
+    cleanup.push(() => tab.close());
+    await waitFor("the threads at attach", async () => tab.messages.some((m) => m.type === "threads"));
+    stub.emit({ type: "dm.created", project: null, ticket: null, actor: { id: "boing", kind: "agent" }, recipientIds: ["nicky"], payload: { threadId: "dmt_boing", messageId: AGENT_MESSAGE.id, agentId: "boing" } });
+    const chat = await tab.next((m) => m.type === "chat");
+    assert.equal((chat as { chat: { messageId: string } }).chat.messageId, AGENT_MESSAGE.id, "the dm gate is open: the agent's line reaches the tab");
+  });
+
+  it("round 29 (Medium 2): health says session unknown while the host has no link, absent once it knows the key does not read the chat, key once it knows it does", async () => {
+    const port = await freePort();
+    const lines: string[] = [];
+    const host = await createHost({ loopsUrl: `http://127.0.0.1:${port}`, key: "k-plain", keyName: "crewhub-world", keySource: "env", pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 10, max: 20 }, log: (line) => lines.push(line) });
+    cleanup.push(() => host.close());
+    const health = async () => (await (await fetch(`${host.url}/world-api/health`)).json()) as Record<string, any>;
+    assert.deepEqual((await health()).connection.session, { state: "unknown" });
+    const stub = await createLoopsStub({ ...installation(), port, key: "k-plain" });
+    cleanup.push(() => stub.close());
+    await waitFor("the stream", async () => (await health()).connection.stream.state === "ok");
+    await waitFor("the host's word", async () => (await health()).connection.session === undefined);
+    assert.ok(lines.some((l) => /the key does not read the chat on this crewhub-loops \(no viewer key\)/.test(l)), lines.join("\n"));
+    const paired = await createLoopsStub({ ...installation(), keyReadsChat: true });
+    cleanup.push(() => paired.close());
+    const { health: health2 } = await startHost(paired.url, paired.key);
+    assert.deepEqual((await health2()).connection.session, { state: "key" });
+  });
+
+  it("round 29 (Medium 3, the host's side): a viewer key on a loops whose chat bubbles feature is off (409 feature_off on the threads) reads no chat for now, and the log says the feature is off, not that there is no viewer key", async () => {
+    const stub = await createLoopsStub({ ...installation(), keyReadsChat: true, routes: { "/api/dm/threads": () => ({ status: 409, body: { error: { code: "feature_off", message: "The chat bubbles feature is off", detail: { feature: "bubbles" } } } }) } });
+    cleanup.push(() => stub.close());
+    const { lines, health } = await startHost(stub.url, stub.key);
+    await waitFor("the host's word", async () => (await health()).connection.session === undefined);
+    assert.ok(lines.some((l) => /chat bubbles feature is switched off there \(Settings > Features\)/.test(l)), lines.join("\n"));
+    assert.ok(!lines.some((l) => /no viewer key/.test(l)), "not the no-viewer-key words");
   });
 });

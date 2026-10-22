@@ -3,7 +3,7 @@
    `ChatRoadView` for every place that speaks of the chat. The probe (state/pageChat, road 2) tells its verdict with
    `rememberPageProbe`; until it has, the probe is `unknown`, so the road is `key` or `none`. */
 import { useSyncExternalStore } from "react";
-import { chatRoadView, type ChatRoadView, type PageProbe } from "./chatRoad.ts";
+import { chatRoadView, hostKeyReadsChatOf, type ChatRoadView, type PageProbe } from "./chatRoad.ts";
 import { getHealth, subscribeHealth } from "./health.ts";
 
 let probe: PageProbe = "unknown";
@@ -33,7 +33,7 @@ export function pageOrigin(): string {
 /** The road from the last health read and the probe's verdict, as one value with what its words need. */
 export function currentChatRoad(): ChatRoadView {
   const health = getHealth();
-  return chatRoadView({ hostKeyReadsChat: health?.connection ? health.connection.session?.state === "key" : null, pageProbe: probe, pageOrigin: pageOrigin() });
+  return chatRoadView({ hostKeyReadsChat: hostKeyReadsChatOf(health), pageProbe: probe, pageOrigin: pageOrigin() });
 }
 
 const subscribe = (listener: () => void) => {

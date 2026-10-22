@@ -12,6 +12,7 @@ import {
   chatRoadView,
   chatWords,
   chatWordsLine,
+  hostKeyReadsChatOf,
   decideChatRoad,
   noneWords,
   pageRoadBubbles,
@@ -30,7 +31,7 @@ const NONE = (probe: PageProbe) => view(false, probe);
 const NONE_PROBES: readonly PageProbe[] = ["unknown", "signed-out", "origin-not-set", "unreachable"];
 
 test("decideChatRoad: the default and the fallback: the host's key first, the page's own read second, else none", () => {
-  assert.deepEqual(PAGE_PROBES, ["on", "signed-out", "origin-not-set", "unreachable", "unknown"]);
+  assert.deepEqual(PAGE_PROBES, ["on", "signed-out", "origin-not-set", "unreachable", "chat-off", "remote", "unknown"]);
   for (const probe of PAGE_PROBES) assert.equal(decideChatRoad({ hostKeyReadsChat: true, pageProbe: probe }), "key", `the key reads the chat: road 1 whatever the probe says (${probe})`);
   assert.equal(decideChatRoad({ hostKeyReadsChat: false, pageProbe: "on" }), "page", "the key does not read the chat and the page's probe answered: road 2");
   assert.equal(decideChatRoad({ hostKeyReadsChat: null, pageProbe: "on" }), "page", "no host health known yet, the probe answered: road 2");
@@ -73,7 +74,9 @@ test("chatWords: one story per road, the same words for the Connection panel, th
   assert.equal(none["origin-not-set"], `No bubbles: this crewhub-loops does not let the world's key read the chat, nor this page: the world's origin is not set there. For the agents' answers as bubbles, set CHL_WORLD_ORIGIN=http://127.0.0.1:5180 on that crewhub-loops and restart it, or ${VIEWER_KEY_WORDS}.`);
   assert.equal(none.unreachable, `No bubbles: this crewhub-loops does not let the world's key read the chat, and this page cannot reach crewhub-loops from this browser. For the agents' answers as bubbles, ${VIEWER_KEY_WORDS}, or run crewhub-loops on this computer with CHL_WORLD_ORIGIN=http://127.0.0.1:5180 set.`);
   assert.deepEqual(noneWords({ pageProbe: "on", pageOrigin: ORIGIN }), noneWords({ pageProbe: "unknown", pageOrigin: ORIGIN }), "a probe 'on' with the road none cannot happen; it reads as unknown");
-  assert.equal(chatWords(view(null, "unknown")).bubbles, none.unknown, "no host health yet reads as the key not reading the chat");
+  assert.equal(chatWords(view(null, "unknown")).bubbles, "No bubbles: the host has not said yet whether its key reads the chat (it is still connecting to crewhub-loops). For the agents' answers as bubbles, wait a moment: the road is decided once the host has connected.", "the host has not said yet (round 29): no guess, the honest wait");
+  assert.equal(chatGlance(view(null, "unknown")), "Sign in to crewhub-loops below to type; no bubbles yet: the host is still connecting to crewhub-loops.");
+  assert.equal(chatWords(view(false, "unknown")).bubbles, none.unknown, "the host said: its key does not read the chat; the probe has not run");
 });
 
 test("chatGlance: the Chat panel's one line to act on, per road and per none case, short, one story with chatWords", () => {
@@ -123,4 +126,20 @@ test("the Connect screen's viewer hint says whose chat the key reads and names r
   assert.match(en["world.connect.connect.viewer"] ?? "", /no bubbles with it, unless crewhub-loops on this computer lets this page read your own chat: CHL_WORLD_ORIGIN=\{origin\} set there/);
   assert.match(en["world.connection.panel.key.viewer"] ?? "", /reads only the chat of the person who made it/);
   for (const key of Object.keys(en)) assert.ok(!/signed-out|signed-in|Forget the session/.test(en[key] ?? ""), `${key}: nothing of the sign-in road`);
+});
+
+test("round 29: the probe's two new verdicts have their own words: chat off (loops' bubbles feature off, switch it on) and remote (a loops elsewhere: the viewer key is the road); the host's word read from health", () => {
+  const off = noneWords({ pageProbe: "chat-off", pageOrigin: ORIGIN });
+  assert.match(off.reason, /crewhub-loops' chat bubbles are switched off there \(Settings > Features\)/);
+  assert.match(off.way, /^switch the chat bubbles on in crewhub-loops \(Settings > Features\) and this page reads your own chat, or make a viewer key/);
+  assert.equal(chatGlance(view(false, "chat-off")), "Sign in to crewhub-loops below to type; no bubbles: crewhub-loops' chat bubbles are switched off there (see About).");
+  const remote = noneWords({ pageProbe: "remote", pageOrigin: ORIGIN });
+  assert.match(remote.reason, /only from a crewhub-loops on this computer/);
+  assert.equal(remote.way, VIEWER_KEY_WORDS, "the viewer key is the road to a loops elsewhere");
+  assert.equal(chatGlance(view(false, "remote")), "Sign in to crewhub-loops below to type; no bubbles: a viewer key is the road to a crewhub-loops elsewhere (see About).");
+  assert.equal(hostKeyReadsChatOf({ connection: { session: { state: "key" } } }), true);
+  assert.equal(hostKeyReadsChatOf({ connection: { session: { state: "unknown" } } }), null, "the host has not said");
+  assert.equal(hostKeyReadsChatOf({ connection: {} }), false, "no session: the host knows the key does not read the chat");
+  assert.equal(hostKeyReadsChatOf({}), null);
+  assert.equal(hostKeyReadsChatOf(null), null);
 });

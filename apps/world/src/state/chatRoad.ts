@@ -23,8 +23,20 @@ export type ChatRoad = "key" | "page" | "none";
  * `origin-not-set`, loops is there but refuses the page's origin (a CORS failure: the world's origin is not set there);
  * `unreachable`, nothing answered at all; `unknown`, the probe has not run or could not tell.
  */
-export type PageProbe = "on" | "signed-out" | "origin-not-set" | "unreachable" | "unknown";
-export const PAGE_PROBES: readonly PageProbe[] = ["on", "signed-out", "origin-not-set", "unreachable", "unknown"];
+export type PageProbe = "on" | "signed-out" | "origin-not-set" | "unreachable" | "chat-off" | "remote" | "unknown";
+export const PAGE_PROBES: readonly PageProbe[] = ["on", "signed-out", "origin-not-set", "unreachable", "chat-off", "remote", "unknown"];
+
+/**
+ * The host's word on its key, from health (round 29): `true` where `connection.session.state` is `key`; `null` where
+ * the host has not said (`unknown`: no link yet, the key unchecked or being checked; or no connection at all); `false`
+ * where its connection names no session (it knows the key does not read the chat).
+ */
+export function hostKeyReadsChatOf(health: { connection?: { session?: { state: string } } } | null | undefined): boolean | null {
+  const connection = health?.connection;
+  if (!connection) return null;
+  if (connection.session === undefined) return false;
+  return connection.session.state === "key" ? true : null;
+}
 
 export interface ChatRoadInput {
   /** Whether the host's key reads the chat (health `connection.session.state === "key"`); null while no host health is known. */
@@ -87,8 +99,10 @@ export const pageRoadBubbles = (pageOrigin: string): string => `The bubbles come
  * The `none` road's reason and way out, by what the probe could tell. The reason finishes a sentence that starts with
  * "No bubbles:" or "No answers can arrive:"; the way finishes "For bubbles, ...".
  */
-export function noneWords(view: Pick<ChatRoadView, "pageProbe" | "pageOrigin">): { reason: string; way: string } {
+export function noneWords(view: Pick<ChatRoadView, "pageProbe" | "pageOrigin"> & Partial<Pick<ChatRoadView, "hostKeyReadsChat">>): { reason: string; way: string } {
   const key = "this crewhub-loops does not let the world's key read the chat";
+  // The host has not said yet (round 29, Medium 2): no road is decided on that, and nothing is asked of loops.
+  if (view.hostKeyReadsChat === null && view.pageProbe === "unknown") return { reason: "the host has not said yet whether its key reads the chat (it is still connecting to crewhub-loops)", way: "wait a moment: the road is decided once the host has connected" };
   switch (view.pageProbe) {
     case "signed-out":
       return { reason: `${key}, and this page may read your own chat only once you are signed in to crewhub-loops in this browser`, way: `sign in to crewhub-loops in this browser (the framed chat, or the app), or ${VIEWER_KEY_WORDS}` };
@@ -96,6 +110,10 @@ export function noneWords(view: Pick<ChatRoadView, "pageProbe" | "pageOrigin">):
       return { reason: `${key}, nor this page: the world's origin is not set there`, way: `set ${worldOriginSetting(view.pageOrigin)} on that crewhub-loops and restart it, or ${VIEWER_KEY_WORDS}` };
     case "unreachable":
       return { reason: `${key}, and this page cannot reach crewhub-loops from this browser`, way: `${VIEWER_KEY_WORDS}, or run crewhub-loops on this computer with ${worldOriginSetting(view.pageOrigin)} set` };
+    case "chat-off":
+      return { reason: `${key}, and crewhub-loops' chat bubbles are switched off there (Settings > Features), so this page cannot read your chat either`, way: `switch the chat bubbles on in crewhub-loops (Settings > Features) and this page reads your own chat, or ${VIEWER_KEY_WORDS}` };
+    case "remote":
+      return { reason: `${key}, and this page reads the chat from the browser only from a crewhub-loops on this computer (yours is at another address, so your sign-in there never travels with the page's asks)`, way: VIEWER_KEY_WORDS };
     case "on":
     case "unknown":
     default:
@@ -134,7 +152,12 @@ export function chatGlance(view: ChatRoadView): string {
       return `${head} no bubbles: the world's origin is not set on crewhub-loops (see About).`;
     case "unreachable":
       return `${head} no bubbles: this page cannot reach crewhub-loops (see About).`;
+    case "chat-off":
+      return `${head} no bubbles: crewhub-loops' chat bubbles are switched off there (see About).`;
+    case "remote":
+      return `${head} no bubbles: a viewer key is the road to a crewhub-loops elsewhere (see About).`;
     default:
+      if (view.hostKeyReadsChat === null) return `${head} no bubbles yet: the host is still connecting to crewhub-loops.`;
       return `${head} no bubbles: a viewer key or the world's origin would read the chat.`;
   }
 }

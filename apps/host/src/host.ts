@@ -358,6 +358,13 @@ export async function createHost(options: HostOptions): Promise<Host> {
    */
   let keyReadsChat = false;
   /**
+   * Whether the host has asked this loops, on this link, whether the key reads the chat (round 29, Medium 2): until it
+   * has (no link yet, loops not up at the start, the key still unchecked) health says `session: { state: "unknown" }`,
+   * so the page does not read "no session" as "the key does not read the chat" and take road 2 while the host is
+   * still connecting.
+   */
+  let chatKnown = false;
+  /**
    * The chat threads' facts (round 24) where the key reads the chat: per agent, `lastMessageAt` and `unreadCount` from
    * `GET /api/dm/threads` (the probe's own answer at the key check, read again after a `dm.*` event the key's stream
    * sees, at most once a second), sent whole to every tab; null where the key does not read the chat. Whose unread
@@ -392,6 +399,15 @@ export async function createHost(options: HostOptions): Promise<Host> {
     } catch {
       return { reads: false, threads: [], viewer: false, status: null };
     }
+  }
+  /** The host's one line on the key's chat road, after the question was asked (at the check, or on the stream's accept). */
+  function tellChat(chat: { reads: boolean; threads: ChatThreadFact[]; viewer: boolean; status: number | null }): void {
+    if (chat.reads) log(`the key reads the chat on this crewhub-loops: only the chat of the person who made the key; their agents' answers come over its stream, no sign-in needed; ${chat.threads.length} chat thread(s)${chat.threads.length === 0 ? " (none yet is no error: the maker has not written to an agent)" : ""}`);
+    // Loops' chat bubbles feature switched off (Settings > Features) answers 409 feature_off to every chat read (round
+    // 29, Medium 3): a viewer key that reads nothing until it is switched on, said as that and not as "no viewer key".
+    else if (chat.viewer && chat.status === 409) log(`the key is a viewer but crewhub-loops' chat bubbles feature is switched off there (Settings > Features): no bubbles over the key until it is switched on (the host asks again at the next link)`);
+    else if (chat.viewer) log(`the viewer key reads no chat on this crewhub-loops (GET /api/dm/threads answered ${chat.status}): no bubbles over the key; a viewer key reads only the chat of the person who made it, so a key with no maker, or whose maker is no longer an enabled admin, reads none (make a new one in Settings > Agents > Connect CrewHub World), and chat bubbles switched off in crewhub-loops (Settings > Features) close the chat for everyone`);
+    else log(`the key does not read the chat on this crewhub-loops (no viewer key): no bubbles over the key; make a viewer key in Settings > Agents > Connect CrewHub World (it reads only its maker's chat), or set CHL_WORLD_ORIGIN to the world page's origin on that crewhub-loops so the page reads your own chat`);
   }
   /** After a `dm.*` event: the threads read again once (coalesced within THREADS_REFRESH_MS) and sent when the read answers. */
   function refreshThreads(client: LoopsClient, upstream: Upstream): void {
@@ -517,6 +533,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
         await old.upstream.stop();
       }
       keyReadsChat = false;
+      chatKnown = false;
       threadFacts = null;
       if (threadsTimer !== null) {
         clearTimeout(threadsTimer);
@@ -555,10 +572,9 @@ export async function createHost(options: HostOptions): Promise<Host> {
         const chat = await readsChat(client, mine.name);
         if (closed || holder !== mine || discovery.current() !== found) return;
         keyReadsChat = chat.reads;
+        chatKnown = true;
         threadFacts = chat.reads ? chat.threads : null;
-        if (keyReadsChat) log(`the key reads the chat on this crewhub-loops: only the chat of the person who made the key; their agents' answers come over its stream, no sign-in needed; ${chat.threads.length} chat thread(s)${chat.threads.length === 0 ? " (none yet is no error: the maker has not written to an agent)" : ""}`);
-        else if (chat.viewer) log(`the viewer key reads no chat on this crewhub-loops (GET /api/dm/threads answered ${chat.status}): no bubbles over the key; a viewer key reads only the chat of the person who made it, so a key with no maker, or whose maker is no longer an enabled admin, reads none (make a new one in Settings > Agents > Connect CrewHub World), and chat bubbles switched off in crewhub-loops (Settings > Features) close the chat for everyone`);
-        else log(`the key does not read the chat on this crewhub-loops (no viewer key): no bubbles over the key; make a viewer key in Settings > Agents > Connect CrewHub World (it reads only its maker's chat), or set CHL_WORLD_ORIGIN to the world page's origin on that crewhub-loops so the page reads your own chat`);
+        tellChat(chat);
       } else {
         // Nothing is known about the key: it keeps the state it had (a fresh key stays unchecked), never rejected.
         mine.state = before === "checking" ? "unchecked" : before;
@@ -607,6 +623,18 @@ export async function createHost(options: HostOptions): Promise<Host> {
               mine.state = "ok";
               delete mine.reason;
               log(`key ${mine.name} (${mine.source}) accepted on the stream`);
+              // The key was never checked with a 200 (loops was not up at the host's start, round 29 High 1): the
+              // check's own tail runs now, so health says whether the key reads the chat and the dm gate opens.
+              if (!chatKnown) {
+                void readsChat(client, mine.name).then((chat) => {
+                  if (closed || holder !== mine || link?.upstream !== upstream) return;
+                  keyReadsChat = chat.reads;
+                  chatKnown = true;
+                  threadFacts = chat.reads ? chat.threads : null;
+                  tellChat(chat);
+                  if (chat.reads) sendThreads();
+                });
+              }
             }
           } else if (message.stream !== "busy" && appRoads) void discovery.refresh();
           return;
@@ -661,9 +689,12 @@ export async function createHost(options: HostOptions): Promise<Host> {
       archived: { source: archive.source, count: archive.slugs.size, ...(archive.at === undefined ? {} : { at: archive.at }) },
     };
     out.snapshot = snapshotState;
-    // The chat's one road (round 19): `session: { state: "key" }` when this loops lets the world's key read the chat, so
-    // the bubbles come; absent otherwise (no bubbles: an older loops, a plain external bot's key).
+    // The chat's road (round 19; round 29): `session: { state: "key" }` when this loops lets the world's key read the
+    // chat, so the bubbles come; `{ state: "unknown" }` while the host cannot say yet (no link, the key unchecked or
+    // being checked, the question not yet answered on this link); absent when it knows the key does not read it (an
+    // older loops, a plain external bot's key, the chat bubbles feature off). A rejected key or none: absent (no road).
     if (keyReadsChat && link !== null) out.session = { state: "key" };
+    else if (!chatKnown && holder !== null && holder.state !== "rejected") out.session = { state: "unknown" };
     if (recheckAt !== undefined && holder?.state === "rejected") out.key.recheckAt = recheckAt;
     if (found !== null) out.discovery.via = found.via;
     const busy = link?.upstream.busy() ?? null;
