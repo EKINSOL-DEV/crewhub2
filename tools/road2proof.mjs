@@ -108,14 +108,16 @@ const problems = [];
 const requests = { on: [], other: [] };
 
 /** The browser's own network log for one page: every request to loops, pre-flights included, with the header NAMES. */
-async function recordLoops(page, into) {
+/** The page's own asks: the framed loops app (the Chat panel's iframe, loops' own shell) asks loops too, from its own document. */
+const ownAsk = (r) => r.document === "page";
+async function recordLoops(page, into, pageOrigin) {
   const cdp = await page.context().newCDPSession(page);
   await cdp.send("Network.enable");
   const byId = new Map();
   cdp.on("Network.requestWillBeSent", (e) => {
     if (!e.request.url.startsWith(loopsUrl)) return;
     const url = new URL(e.request.url);
-    const row = { method: e.request.method, path: url.pathname, query: url.search, initiator: e.initiator?.type ?? "", headerNames: Object.keys(e.request.headers ?? {}).map((h) => h.toLowerCase()) };
+    const row = { method: e.request.method, path: url.pathname, query: url.search, initiator: e.initiator?.type ?? "", document: (e.documentURL ?? "").startsWith(pageOrigin) ? "page" : "frame", headerNames: Object.keys(e.request.headers ?? {}).map((h) => h.toLowerCase()) };
     byId.set(e.requestId, row);
     into.push(row);
   });
@@ -164,7 +166,7 @@ try {
   await pg.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 15000 }).catch(() => {});
   const signedIn = !new URL(pg.url()).pathname.startsWith("/login");
   ok("signed in to crewhub-loops through its own login page (the world never sees the password)", signedIn, new URL(pg.url()).pathname);
-  await recordLoops(pg, requests.on);
+  await recordLoops(pg, requests.on, host.url);
   await pg.goto(`${host.url}/?source=live`, { waitUntil: "load" });
   const isLive = await live(pg);
   const on = await waitProbe(pg, "on");
@@ -185,11 +187,20 @@ try {
   await pg.keyboard.press("Escape");
   await pg.waitForSelector(".chat-sheet", { state: "detached", timeout: 5000 }).catch(() => {});
   info(`waiting up to ${Math.round(bubbleTimeoutMs / 1000)} s for ${agent}'s reply as a bubble (the page polls every 5 s)`);
+  // The line shows as a bubble over the figure in view, or, for an agent inside a building seen from the town, as the
+  // chat mark over that building (round 14): then the mark is tapped, which enters the building, and the bubble is there.
   const bubble = pg.locator(`.bubble.said[data-said-agent="${agent}"]`);
-  await bubble.waitFor({ timeout: bubbleTimeoutMs }).catch(() => {});
-  const said = (await bubble.innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+  const mark = pg.locator(`.chat-mark[data-said-mark="${agent}"]`);
+  await bubble.or(mark).first().waitFor({ timeout: bubbleTimeoutMs }).catch(() => {});
+  const markText = (await mark.getAttribute("title").catch(() => null)) ?? "";
+  if (markText !== "") {
+    await shot(pg, "04a-mark");
+    await mark.click().catch(() => {});
+    await bubble.waitFor({ timeout: 10000 }).catch(() => {});
+  }
+  const said = (await bubble.innerText().catch(() => "")).replace(/\s+/g, " ").trim() || markText.replace(/\s+/g, " ").trim();
   const s2 = await stores(pg);
-  ok("the agent's reply shows as a speech bubble over its figure, read by the page itself (no host in it)", said !== "" && (s2?.pageChat?.lines ?? 0) >= 1, said ? `"${said.slice(0, 100)}"; ${JSON.stringify(s2?.pageChat)}` : `no bubble; ${JSON.stringify(s2?.pageChat)}; host: ${hostLines.slice(-3).join(" | ").slice(0, 300)}`);
+  ok("the agent's reply shows as a speech bubble over its figure (the chat mark over its building first, when it is inside), read by the page itself (no host in it)", said !== "" && (s2?.pageChat?.lines ?? 0) >= 1, said ? `"${said.slice(0, 100)}"${markText ? " (via the mark)" : ""}; ${JSON.stringify(s2?.pageChat)}` : `no bubble; ${JSON.stringify(s2?.pageChat)}; host: ${hostLines.slice(-3).join(" | ").slice(0, 300)}`);
   await shot(pg, "04-bubble");
   await pg.locator(".chat-open").click();
   await pg.waitForSelector(".chat-recent", { timeout: 5000 }).catch(() => {});
@@ -201,7 +212,8 @@ try {
   await pg.keyboard.press("Escape");
   await pg.waitForSelector(".chat-sheet", { state: "detached", timeout: 5000 }).catch(() => {});
   // The request log of the signed-in page.
-  const fromPage = requests.on.filter((r) => r.path.startsWith("/api/"));
+  const fromPage = requests.on.filter((r) => r.path.startsWith("/api/") && ownAsk(r));
+  const fromFrame = requests.on.filter((r) => r.path.startsWith("/api/") && !ownAsk(r));
   const options = fromPage.filter((r) => r.method === "OPTIONS");
   const withAuth = fromPage.filter((r) => r.headerNames.includes("authorization"));
   const notGet = fromPage.filter((r) => r.method !== "GET");
@@ -214,7 +226,8 @@ try {
   });
   const sample = fromPage.find((r) => r.path === "/api/dm/threads");
   const ours = (sample?.headerNames ?? []).filter((h) => !["accept", "accept-encoding", "accept-language", "connection", "cookie", "host", "origin", "referer", "sec-ch-ua", "sec-ch-ua-mobile", "sec-ch-ua-platform", "sec-fetch-dest", "sec-fetch-mode", "sec-fetch-site", "user-agent", "pragma", "cache-control", "priority"].includes(h));
-  ok(`the page's ${fromPage.length} requests to loops: GET only, no OPTIONS (the browser's own network log lists pre-flights), no authorization header, the four routes only, the events poll with the two types and limit 50`, fromPage.length > 0 && options.length === 0 && withAuth.length === 0 && notGet.length === 0 && offRoute.length === 0 && badQuery.length === 0, `${options.length} OPTIONS, ${withAuth.length} with authorization, ${notGet.length} not GET, ${offRoute.length} off the four routes, ${events.length} events polls (${badQuery.length} with a bad query)`);
+  info(`the framed loops app (the Chat panel's iframe) asked loops ${fromFrame.length} time(s) from its own document; not the page's asks, not counted`);
+  ok(`the page's own ${fromPage.length} requests to loops: GET only, no OPTIONS (the browser's own network log lists pre-flights), no authorization header, the four routes only, the events poll with the two types and limit 50`, fromPage.length > 0 && options.length === 0 && withAuth.length === 0 && notGet.length === 0 && offRoute.length === 0 && badQuery.length === 0, `${options.length} OPTIONS, ${withAuth.length} with authorization, ${notGet.length} not GET, ${offRoute.length} off the four routes, ${events.length} events polls (${badQuery.length} with a bad query)`);
   ok("one GET's header names are the browser's own and the cookie: nothing of ours", sample !== undefined && ours.length === 0 && sample.headerNames.includes("cookie"), sample ? sample.headerNames.join(",") : "no threads request seen");
   const statuses = [...new Set(fromPage.map((r) => r.status ?? (r.failed ? `failed:${r.failed}` : "?")))];
   info(`signed in: statuses seen ${statuses.join(", ")}; routes ${[...new Set(fromPage.map((r) => r.path.replace(/\/dm_[A-Za-z0-9_-]+$/, "/<id>")))].join(", ")}`);
@@ -235,7 +248,7 @@ try {
   // --- 3. Another origin, signed in.
   const px = await ctx.newPage();
   listen(px, "other-origin");
-  await recordLoops(px, requests.other);
+  await recordLoops(px, requests.other, other.url);
   await px.goto(`${other.url}/?source=live`, { waitUntil: "load" });
   const liveOther = await live(px);
   const notSet = await waitProbe(px, "origin-not-set");
@@ -243,7 +256,7 @@ try {
   const wanted = `CHL_WORLD_ORIGIN=${other.url}`;
   ok(`a page on another origin (${other.url}), signed in: Live, the probe says the origin is not set and the words carry the exact value ${wanted}`, liveOther && notSet && wordsOther.probe === "origin-not-set" && wordsOther.road === "none" && wordsOther.text.includes(wanted), wordsOther.text.slice(0, 160));
   await shot(px, "07-other-origin");
-  const otherReqs = requests.other.filter((r) => r.path.startsWith("/api/"));
+  const otherReqs = requests.other.filter((r) => r.path.startsWith("/api/") && ownAsk(r));
   ok("that page's asks: GETs of the threads only (the credentialed one failed in the browser, the no-cors one answered opaque), no OPTIONS", otherReqs.length >= 2 && otherReqs.every((r) => r.method === "GET" && r.path === "/api/dm/threads"), otherReqs.map((r) => `${r.method} ${r.path} ${r.status ?? r.failed ?? "?"}`).join("; "));
   await closePanel(px);
   await ctx.close();
