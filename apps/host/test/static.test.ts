@@ -41,6 +41,29 @@ describe("static files and the host's own heartbeat", () => {
     assert.equal((await fetch(`${host.url}/world-api/nothing`)).status, 404, "the API prefix never falls back to the app");
   });
 
+  it("the served world may be framed by its own origin only, and nothing the host answers is to be sniffed (review F6)", async () => {
+    const index = await fetch(`${host.url}/`);
+    assert.equal(index.headers.get("content-security-policy"), "frame-ancestors 'self'");
+    assert.equal(index.headers.get("x-frame-options"), "SAMEORIGIN");
+    assert.equal(index.headers.get("x-content-type-options"), "nosniff");
+    const deep = await fetch(`${host.url}/building/atlas`);
+    assert.equal(deep.headers.get("content-security-policy"), "frame-ancestors 'self'", "the SPA fallback is HTML too");
+    const asset = await fetch(`${host.url}/assets/index-a1b2c3d4e5.js`);
+    assert.equal(asset.headers.get("x-content-type-options"), "nosniff");
+    assert.equal(asset.headers.get("content-security-policy"), null, "framing headers are for pages, not scripts");
+    assert.equal(asset.headers.get("x-frame-options"), null);
+    const json = await fetch(`${host.url}/world-api/health`);
+    assert.equal(json.headers.get("x-content-type-options"), "nosniff");
+    assert.equal((await fetch(`${host.url}/world-api/nothing`)).headers.get("x-content-type-options"), "nosniff", "a 404 as well");
+    host.setBuilding(true);
+    try {
+      const building = await fetch(`${host.url}/`);
+      assert.equal(building.headers.get("content-security-policy"), "frame-ancestors 'self'", "the Building page as well");
+    } finally {
+      host.setBuilding(false);
+    }
+  });
+
   it("while the world is being built, every page is the Building page with its header; after, the world", async () => {
     host.setBuilding(true);
     try {

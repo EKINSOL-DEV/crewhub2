@@ -104,6 +104,19 @@ export interface HostOptions {
 
 export const MINT_PATH = "/pair-mint";
 export const MINT_HEADER = "x-crewhub-world-mint";
+
+/**
+ * On every HTML page the host serves (review F6): the world may be framed by its own origin only, so a page on another
+ * loopback port cannot frame the paired world (a same-site frame would carry the cookie: clickjacking on build mode,
+ * Import, Restore, Forget). `frame-ancestors` is the CSP directive for it; `X-Frame-Options` is the same word for older
+ * engines. No `default-src` this round: the world loads blob workers, data images and the chat's frame from loops'
+ * origin, so a source list needs `'self' blob: data:` plus `frame-src <loops origin>` read from health, and a look at
+ * every inline style; that is a change to the page's behaviour, not to its headers.
+ */
+export const HTML_HEADERS: Readonly<Record<string, string>> = { "content-security-policy": "frame-ancestors 'self'", "x-frame-options": "SAMEORIGIN" };
+
+/** How many tabs may hold the stream at once (review N3); the next one is answered 503 with a reason. */
+export const MAX_TABS = 64;
 export const CONNECT_PATH = `${WORLD_API_PREFIX}/connect`;
 /** The reason on a key the stream refused after it was accepted (revoked meanwhile, or disabled). */
 export const STREAM_REFUSED_REASON = "crewhub-loops refused the key on the event stream (401 or 403): it was revoked or its bot disabled meanwhile. Paste a new access key, or forget this one.";
@@ -705,7 +718,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
     }
     const value = pairing.redeem(token);
     if (value === null) {
-      res.writeHead(403, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+      res.writeHead(403, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", ...HTML_HEADERS });
       res.end(PAIR_REFUSED_HTML);
       return;
     }
@@ -1119,7 +1132,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
 
   async function serveStatic(pathname: string, res: ServerResponse): Promise<void> {
     if (building) {
-      res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", [BUILDING_HEADER]: "1" });
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", [BUILDING_HEADER]: "1", ...HTML_HEADERS });
       res.end(BUILDING_HTML);
       return;
     }
@@ -1178,11 +1191,14 @@ export async function createHost(options: HostOptions): Promise<Host> {
     }
     if (!isApi) {
       await serveStatic(url.pathname, res);
+      ...(type.startsWith("text/html") ? HTML_HEADERS : {}),
       return;
     }
     if (match === null) {
       sendJson(res, 404, { error: "not_found" });
       return;
+    // On every answer (review F6): nothing the host sends is to be sniffed into another type.
+    res.setHeader("x-content-type-options", "nosniff");
     }
     const { route, params, query } = match;
     // The pairing gate: everything under /world-api but health needs the cookie (the browser sends it same-origin).
