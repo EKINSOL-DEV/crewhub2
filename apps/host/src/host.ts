@@ -361,9 +361,9 @@ export async function createHost(options: HostOptions): Promise<Host> {
    * The chat threads' facts (round 24) where the key reads the chat: per agent, `lastMessageAt` and `unreadCount` from
    * `GET /api/dm/threads` (the probe's own answer at the key check, read again after a `dm.*` event the key's stream
    * sees, at most once a second), sent whole to every tab; null where the key does not read the chat. Whose unread
-   * (round 25): loops counts it against the caller's read cursor, and for a viewer key against the installation
-   * owner's (world/viewer-key 79cb36a8); `keyReadsChat` is true only for a viewer, so the count that travels is always
-   * the owner's, as loops' own chat head shows it. A plain key's count (its own cursor, never set) is never read.
+   * (round 25; loops main #964 in round 28): loops counts it against the caller's read cursor, and for a viewer key
+   * against its maker's, the one person whose chat the key reads; `keyReadsChat` is true only for a viewer, so the
+   * count that travels is always the maker's, as loops' own chat head shows it. A plain key's count is never read.
    */
   let threadFacts: ChatThreadFact[] | null = null;
   const THREADS_REFRESH_MS = 1000;

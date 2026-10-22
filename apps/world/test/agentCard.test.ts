@@ -162,8 +162,8 @@ test("Answers (round 22): this agent's lines only, newest first, at most three, 
   assert.equal(renderAgentCard(bare(), ctx()).find((s) => s.id === "answers"), undefined, "a context without the page's answers draws no Answers section");
   // Round 24: the thread's own facts from the host, where the key reads the chat, said first; none for this agent is said so; nothing without the host's list.
   const empty = "No answer from it since this page opened; this crewhub-loops lets the world's key read the chat, so one would show here.";
-  assert.deepEqual(texts(renderAgentCard(bare(), ctx({ answers: [], answersEmpty: empty, thread: { lastMessageAt: new Date(NOW - 2 * 3_600_000).toISOString(), unreadCount: 1 } })).find((s) => s.id === "answers")!.rows), ["Chat|last message 2 h ago, 1 unread in the owner's view", `|${empty}`]);
-  assert.deepEqual(texts(renderAgentCard(bare(), ctx({ answers, answersEmpty: empty, thread: { lastMessageAt: new Date(NOW - 30_000).toISOString(), unreadCount: 0 } })).find((s) => s.id === "answers")!.rows), ["Chat|last message just now, nothing unread in the owner's view", "Done with the card.", "Second.", "Third."]);
+  assert.deepEqual(texts(renderAgentCard(bare(), ctx({ answers: [], answersEmpty: empty, thread: { lastMessageAt: new Date(NOW - 2 * 3_600_000).toISOString(), unreadCount: 1 } })).find((s) => s.id === "answers")!.rows), ["Chat|last message 2 h ago, 1 unread in the key maker's view", `|${empty}`]);
+  assert.deepEqual(texts(renderAgentCard(bare(), ctx({ answers, answersEmpty: empty, thread: { lastMessageAt: new Date(NOW - 30_000).toISOString(), unreadCount: 0 } })).find((s) => s.id === "answers")!.rows), ["Chat|last message just now, nothing unread in the key maker's view", "Done with the card.", "Second.", "Third."]);
   assert.deepEqual(texts(renderAgentCard(bare(), ctx({ answers: [], answersEmpty: empty, thread: null })).find((s) => s.id === "answers")!.rows), ["Chat|no thread with it yet", `|${empty}`]);
 });
 

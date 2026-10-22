@@ -1257,7 +1257,7 @@ await group("chat", async () => {
     await pg2.locator(".agent-card").waitFor({ timeout: 3000 }).catch(() => {});
     await pg2.waitForFunction(() => /Chat\s*last message/.test(document.querySelector(".agent-card")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
     const gmanCard = (await pg2.locator(".agent-card").innerText().catch(() => "")).replace(/\s+/g, " ");
-    ok("chat (key road, rounds 24 and 25): G-Man's card says the thread's own facts from the host (last message just now, 1 unread in the owner's view) above its answer", /Chat\s*last message (just now|\d+ min ago), 1 unread in the owner's view/.test(gmanCard) && /Busy and calm/.test(gmanCard), gmanCard.replace(/^.*?ANSWERS/, "ANSWERS").slice(0, 240));
+    ok("chat (key road, rounds 24 and 25): G-Man's card says the thread's own facts from the host (last message just now, 1 unread in the key maker's view) above its answer", /Chat\s*last message (just now|\d+ min ago), 1 unread in the key maker's view/.test(gmanCard) && /Busy and calm/.test(gmanCard), gmanCard.replace(/^.*?ANSWERS/, "ANSWERS").slice(0, 240));
     await shot(pg2, "58b-chat-key-card-thread");
     for (let i = 0; i < 3; i++) {
       await pg2.keyboard.press("Escape");

@@ -5,12 +5,12 @@
 
    The roads, both narrower than a person's session (crewhub-loops main 88760279, CL-494 steps 2 and 4):
    - `key`: the host reads the chat with the viewer key (`connection.session.state === "key"` in health). A viewer key
-     reads ONLY the chat of the admin who made it (`agent_keys.made_by`, loops #964): that person's messages and the
+     reads ONLY the chat of the admin who made it (`agent_keys.made_by`, loops pull request 964): that person's messages and the
      agents' answers to them; a key with no maker reads no chat. Loops does not name the maker to the key (not on
      `GET /api/auth/me`, not on the key's agent entry, not on the threads list; a message carries its author, which is
      the maker only once they have written), so the words say "the person who made the key".
    - `page`: the page reads loops itself, as the signed-in person, with the person's cookie (`credentials: "include"`),
-     where the owner set `CHL_WORLD_ORIGIN` to this page's exact origin (loops #968); decided by the page's own probe.
+     where the owner set `CHL_WORLD_ORIGIN` to this page's exact origin (loops pull request 968); decided by the page's own probe.
    - `none`: neither; the honest line, per what the probe could tell.
    The default: `key` when the host's key reads the chat; else `page` when the page's probe answers; else `none`.
    Road A, the framed loops chat in the Chat panel, is not a read by the world and stays on every road (`chatPanel.ts`). */

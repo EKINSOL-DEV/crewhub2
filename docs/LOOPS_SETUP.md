@@ -138,16 +138,21 @@ key that cannot write is proposal L1 for crewhub-loops ([gap analysis](LOOPS_GAP
 out on the loops branch `world/viewer-key` and packaged for `cl-lead` in `docs/proposals/crewhub-world-viewer.md`
 there (round 7); until it lands this is the credential.
 
-**The viewer key** (decision 1 of 21 October; built on the branch `task/r19-viewer-switch`, round 19, which merges when
-crewhub-loops main carries `world/viewer-key`). The switch is a new key file or a new paste, nothing else:
+**The viewer key** (decision 1 of 21 October; built on `task/r19-viewer-switch` in round 19 and on this branch since
+round 28; crewhub-loops main carries the viewer key since #959). The switch is a new key file or a new paste, nothing else:
 `CREWHUB_WORLD_KEY_FILE` names the viewer bot's key, or its key is pasted in the Connect screen (the loops card "Connect
 CrewHub World" makes the bot and shows the key once); the bot's name stays `crewhub-world` (decision 6). That key reads
 what the world needs and writes nothing (loops refuses the rest before the route runs), the Connection panel's Key row
 says so (the host sees `viewer: true` on its own entry in `GET /api/agents` at the key check; no extra call), and the
-chat's bubbles need no sign-in (`connection.session` says `key`). On a crewhub-loops without the viewer key (an older
-loops, today's Mac app) the world reads the same with a plain external bot's key and shows no bubbles: the Connection
-panel's Chat section, the Chat panel and the text view say "this crewhub-loops does not let the world read the chat" and
-point to the card. The sign-in road that stood in for the viewer key (rounds 12 to 18) was removed in that same round.
+chat's bubbles need no sign-in (`connection.session` says `key`). The key reads only the chat of the person who made it
+(`agent_keys.made_by`, #964): that person's messages and the agents' answers to them, so the bubbles are theirs; a key
+with no maker reads no chat, and an empty thread list is no error. On a crewhub-loops without the viewer key (an older
+loops, today's Mac app) the world reads the same with a plain external bot's key and shows no bubbles over the key; the
+page may still read your own chat itself where that crewhub-loops has the world's origin set (round 28, road 2:
+`CHL_WORLD_ORIGIN=<the page's origin>`, e.g. `http://127.0.0.1:5180`, and you signed in to loops in this browser), else
+the Connection panel's Chat section, the Chat panel and the text view say "this crewhub-loops does not let the world's
+key read the chat" and name both ways, the origin's exact value included. The sign-in road that stood in for the viewer
+key (rounds 12 to 18) is gone since round 28.
 
 **The bot is the observer, not a worker.** Loops lists `crewhub-world` among the agents (an external bot in no
 project), but the world never shows the host's own principal as a figure: the host names it on the snapshot
@@ -292,14 +297,17 @@ Connection panel). `archived` says where the closed buildings came from: `list` 
 `log` (loops' event log, read in this run), `remembered` (the host's own file `~/.config/crewhub-world/archived.json`
 from an earlier run, for a loops that will not read its log from the start; each slug confirmed with loops before it
 counts) or `none`. An unpaired browser gets the states only: no target, no name, no cursor, no slugs.
-`npm run host -- doctor` prints the same in the terminal. `connection.session` says the chat's road: `{ "state": "key" }`
-when this crewhub-loops lets the world's key read the chat (a viewer key, `world/viewer-key`), so the agents' answers
-come as speech bubbles over the key's own stream with no session anywhere; absent when it does not (an older loops, a
-plain external bot's key): no bubbles, and the Connection panel's Chat section says how to make a viewer key (Settings >
-Agents > Connect CrewHub World). The sign-in road of rounds 12 to 18 (the host signed in as you and kept your session in
-`<config>/loops-session` for chat reads; the states `signed-out`, `signed-in` and `expired`; the Connection panel's form
-and "Forget the session") was removed in round 19 on the branch `task/r19-viewer-switch` (decision 9): a leftover
-`loops-session` file is deleted on start with one log line, and `/world-api/session` is gone.
+`npm run host -- doctor` prints the same in the terminal. `connection.session` says the host's half of the chat's road:
+`{ "state": "key" }` when this crewhub-loops lets the world's key read the chat (a viewer key, which reads only the chat
+of the person who made it), so that person's agents' answers come as speech bubbles over the key's own stream with no
+session anywhere; absent when it does not (an older loops, a plain external bot's key): no bubbles over the key. The
+page's own road (round 28, road 2) is not in health: the page probes it itself where that crewhub-loops has
+`CHL_WORLD_ORIGIN` set to the page's origin, and the Connection panel's Chat section says which road is on or, with
+neither, how to make a viewer key (Settings > Agents > Connect CrewHub World) and the exact origin setting. The sign-in
+road of rounds 12 to 18 (the host signed in as you and kept your session in `<config>/loops-session` for chat reads; the
+states `signed-out`, `signed-in` and `expired`; the Connection panel's form and "Forget the session") was removed in
+round 19 on `task/r19-viewer-switch` and is gone from this branch since round 28 (decision 9; cl-lead's review finding
+F8): a leftover `loops-session` file is deleted on start with one log line, and `/world-api/session` is gone.
 
 `loops` is `ok`, `down` or `unauthorized` (a loops 401 or 403; also no key yet, for the world from before);
 `transport` is `tcp` or `unix`; `keyName` is the key's agent name (from the file name `agent-<name>.key`, or the
@@ -361,7 +369,7 @@ schema changes), so delete the whole folder to remove everything. The app itself
 **`npm run dev` beside `npm run host`** (round 23): the page runs on Vite's origin and Vite proxies `/world-api` to the
 host (`CREWHUB_WORLD_PORT`, default 5180). Once Vite listens it tells the host that origin (`POST /world-api/dev-origin`:
 accepted only from a program on this machine, only for a loopback http origin, only from the same checkout, never a
-wildcard), and the host accepts it for the run, so connect and town writes (the sign-in road went in round 19) from the page work without
+wildcard), and the host accepts it for the run, so connect and town writes (the sign-in road is gone since round 28) from the page work without
 `CREWHUB_WORLD_ALLOWED_ORIGINS`. Both sides say so in one line at start (`dev: the page's writes come from … told to
 the host on …` and `dev origin … accepted`); the dev server also says when the host is older and cannot be told, or
 not there yet (it is told when one answers). Pairing is as before: the page still pairs through the one-time link
@@ -450,21 +458,21 @@ development instance that another developer tests against.
 
 ## What is not there yet
 
-- **A viewer role in crewhub-loops main** (L1). On an older loops the key is a lead-grade external bot; the host's
-  allow-list and a test keep every unsafe method out. The viewer key that may read the board, the team, agents, the
-  stream and the chat lives on the branch `world/viewer-key` of the loops checkout (its review runs; packaged for
-  `cl-lead` in `docs/proposals/crewhub-world-viewer.md` there, round 7), and the world's side of the switch is built on
-  `task/r19-viewer-switch` (section 3, "The viewer key"), merged when loops main carries the branch.
+- **A viewer role in today's Mac app** (L1). crewhub-loops main carries the viewer key since #959 (the chat read
+  narrowed to the key's maker, #964) and the world switched to it in round 28 (section 3, "The viewer key"); today's Mac
+  app (`4cdcd383`) is older, so there the key is a lead-grade external bot, the host's allow-list and a test keep every
+  unsafe method out, and there are no bubbles over the key until the app carries loops main.
 - **The "Connect CrewHub World" card in the loops web** (Settings > Agents), which makes the viewer bot and shows its
-  key once next to the world's address and a button that opens the world, so steps 2 and 3 above are one dialog: on the
-  same loops branch (web only, on top of the viewer flag). The key is still pasted in the world's Connect screen;
+  key once next to the world's address and a button that opens the world, so steps 2 and 3 above are one dialog: on
+  loops main with the viewer key, not yet in today's Mac app. The key is still pasted in the world's Connect screen;
   nothing hands it to the host behind the person's back.
 - **The chat** is loops' own, framed in the Chat panel (round 12, road A of the spec addendum "chat with the
   agents"): the person's session cookie (`SameSite=Lax`, one site on 127.0.0.1 whatever the port) travels into the
   frame, and nothing in loops sets `frame-ancestors` or `X-Frame-Options`. **Bubbles over the figures when an agent
-  answers** (road B) come over the viewer key's own stream where loops lets it read the chat (`world/viewer-key`); on
-  an older loops there are none (the world's bot key never sees the person's DM threads), and nothing else stands in
-  for them since round 19.
+  answers** (road B) come over the viewer key's own stream where loops lets it read the chat (road 1: only the chat of
+  the person who made the key), or by the page's own read where that loops has the world's origin set (road 2, round 28:
+  `CHL_WORLD_ORIGIN=<the page's origin>`, the person's cookie, GET only, never through the host); on an older loops there
+  are none (the world's bot key never sees the person's DM threads), and nothing else stands in for them since round 28.
 - **Pending delegations** need the owner's session, not a key: out.
 - **Project groups** (L22): zones live in the browser until crewhub-loops offers them, or until the host's world
   database keeps them per installation (the roads are in the spec addendum of round 7; the per-browser road is what
