@@ -208,6 +208,16 @@ load, on a production build served by the host against the fake's small team (th
 `world:town-dressed` mark since navigation), with the town picture the same to the pixel (at most 51 of 1.3 million
 pixels differ, the walking figures' bands aside) and the regress pass at full marks; the profile is `tools/profile.mjs`.
 
+**How a cut is proven (round 24).** Pixel-identical means `tools/pixcheck.mjs` says so: the build before and the
+build after (two commits, which it builds itself, or two dist folders), each served by `vite preview` on a port of
+its own, the same pictures of each (the demo under reduced motion, sought to 120 s and paused, light and dark, 1440
+and 375: the town, the town hall, a building and its rooms with the HTML label layer out of the layout (the labels' text jitters between captures; `--labels` adds the labelled pictures), the three preview pages as tiles;
+with `--casts` every cast in every state near and far, the casting room's note pills hidden), every pair diffed on
+every channel at any delta, a diff image per pair, `pixcheck: <identical>/<pairs>` last and exit 0 only at full marks.
+Two runs of one build give 0 on every pair, so a differing pixel is the change's. Rounds 15, 21, 22 and 23 were proven
+with the scratch rig this tool grew from (98 pairs, and round 23's 320); since round 24 the tool is the proof, and a
+report names its run.
+
 | Cut | What moved | Bench, before → after |
 | --- | --- | --- |
 | Round 4, `r4-bundle`: no Suspense on the road to the town, the snapshot read ahead, `modulepreload`, three.js in its own chunk | the page's part of a warm start 0.93 → 0.70 s; the Live chip about 0.5 s sooner | measured with `timeworld.mjs`, before the bench existed |
