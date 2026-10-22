@@ -5,7 +5,7 @@ import path from "node:path";
 import { afterEach, describe, it } from "node:test";
 import { SESSION_FILE_NAME, removeLeftoverSession } from "../src/leftovers.ts";
 
-describe("a leftover loops-session file (the session road, removed in round 19)", () => {
+describe("a leftover loops-session file (the session road, removed in round 19, gone here since round 28)", () => {
   const dirs: string[] = [];
   afterEach(() => {
     for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
@@ -27,7 +27,7 @@ describe("a leftover loops-session file (the session road, removed in round 19)"
     assert.equal(existsSync(file), false, "the session file is gone");
     assert.equal(existsSync(path.join(dir, "loops-key")), true, "the key file stays");
     assert.equal(lines.length, 1);
-    assert.match(lines[0]!, /^removed the leftover chat session file .*loops-session: the sign-in road went with the switch to the viewer key \(round 19\)/);
+    assert.match(lines[0]!, /^removed the leftover chat session file .*loops-session: the sign-in road went with the switch to the viewer key \(round 19, on this branch since round 28\)/);
     assert.ok(!lines[0]!.includes("sess_old"), "never the cookie");
   });
 
