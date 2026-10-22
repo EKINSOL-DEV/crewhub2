@@ -1202,3 +1202,24 @@ unchanged: every scenario keeps its town in IndexedDB under its own key.
 
 **Out of this slice:** merging concurrent edits, a town per person, more than the town document in the database (the
 host's archive memory and session stay files), a UI to delete the host's town.
+
+**Second slice (2026-10-22, round 21).** Built:
+- **The undo history is the host's.** Schema version 2 adds `history` to `towns`: the same pure history as the browser's
+  (`packages/world-model/src/history.ts`: the last 50 revisions and a cursor), kept by the host and moved by every
+  paired browser through `PUT /world-api/town {op, document?, baseRev}` with `op` `commit` (a person's edit), `amend`
+  (the world's own record, no undo step), `undo` or `redo`. The host answers `{rev, document, canUndo, canRedo}` and
+  tells every tab, so an undo in one browser shows in the other and survives a host restart. **How a second browser's
+  undo and the revision check meet:** every op names the revision it saw (`baseRev`); an undo sent while another
+  browser wrote first is a 409 like any write, the browser loads the host's town and says so, and the person undoes
+  again on what they now see. The migration from version 1 makes the first copy `world.db.bak-v1`. Offline, a browser
+  undoes in its own history as before and offers its town again when the host answers.
+- **Restore, never silent.** Settings > Town keeps Export and Import and gains "Restore from a backup": the host lists
+  its `world.db.bak-v<n>` files (`GET /world-api/town/backups`) and reads this installation's town out of one
+  (`GET /world-api/town/backups/{name}`, read-only). An import and a restore both open a **preview** first: what would
+  change, in plain words (`townChanges`: zones added, removed, renamed or re-marked, assignments, plots added, removed
+  or moved, props placed or taken away or moved, user props, rules, the style and cast), with "Nothing would change"
+  when so; then an explicit **Restore**, or Cancel/Escape, which changes nothing. A restore is a new revision, so Undo
+  goes back to the town before it, and the preview offers "Download the current town first". The dialog is a modal with
+  the focus inside, Tab kept within, Escape to cancel, and says itself once to a reader.
+- **The demo's town is never the host's:** a demo page's runtime uses the browser's store only; tested.
+Still out: merging concurrent edits, a town per person, deleting the host's town.
