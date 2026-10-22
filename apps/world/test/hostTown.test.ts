@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { amendHistory, applyEdit, canRedo, canUndo, commitHistory, createHistory, currentDocument, redoHistory, undoHistory, type TownContext, type TownDocument, type TownHistory } from "@crewhub/world-model";
 import type { HostAnswer, HostTownOp } from "@crewhub/loops-client";
-import { CONFLICT_NOTE, IMPORTED_NOTE, createHostTownStore, townStoreFor, type HostTownTransport } from "../src/state/hostTown.ts";
+import { CONFLICT_NOTE, IMPORTED_NOTE, UNREADABLE_NOTE, createHostTownStore, townStoreFor, type HostTownTransport } from "../src/state/hostTown.ts";
 import { createTownStore } from "../src/state/townStore.ts";
 
 const CONTEXT: TownContext = { knownStyles: ["greenhouse"], builtinIds: [] };
@@ -16,6 +16,12 @@ const plot = (doc: TownDocument, slug: string, x: number): TownDocument => {
   return result.doc;
 };
 const flush = () => new Promise((resolve) => setTimeout(resolve, 10));
+/** A gate a test opens: while a host holds it, every read waits for it (a slow host, or just a read on its way). */
+const deferred = () => {
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  return { gate, release };
+};
 
 /** A host in memory with the host's own history (round 21), its revision, and the calls it saw. Can be made silent (away). */
 function fakeHost(initial: { rev: number; document: TownDocument } | null = null) {
@@ -24,12 +30,15 @@ function fakeHost(initial: { rev: number; document: TownDocument } | null = null
   const host = {
     town: initial,
     away: false,
+    /** While set, every read waits for it. */
+    hold: null as null | Promise<void>,
     writes: [] as { op: HostTownOp; baseRev: number; document: TownDocument | null }[],
     reads: 0,
     listeners: new Set<(rev: number) => void>(),
     transport: {
       async read(): Promise<HostAnswer> {
         host.reads += 1;
+        if (host.hold) await host.hold;
         if (host.away) return { status: 0, body: null };
         return host.town === null
           ? { status: 200, body: { installation: "i", rev: 0, updatedAt: null, document: null } }
@@ -360,4 +369,177 @@ test("round 22: an amend derived while the host's town arrives is derived again 
   assert.deepEqual(store.state.doc.zones?.map((z) => z.id), ["east"]);
   assert.ok(store.state.doc.plots.some((p) => p.slug === "web"));
   assert.deepEqual(host.town?.document.zones?.map((z) => z.id), ["east"], "the host's town still has its zone");
+});
+
+test("round 27 (review F1): an edit made while the first read is on its way is kept out when the host's town differs from the picture it was made on; the host's town stands and it is said", async () => {
+  const empty = createTownStore({ context: CONTEXT, indexedDB: null }).state.doc;
+  const host = fakeHost({ rev: 5, document: plot(plot(empty, "a", 1), "b", 2) });
+  const { store } = make(host);
+  const held = deferred();
+  host.hold = held.gate;
+  const loading = store.load();
+  await flush();
+  // The person edits before the host's town arrived (a fresh browser: its own town is empty).
+  const edit = store.commit(plot(store.state.doc, "mine", 9));
+  await flush();
+  held.release();
+  host.hold = null;
+  await loading;
+  await edit;
+  await flush();
+  assert.equal(host.writes.length, 0, "the stale town never goes up over the host's");
+  assert.deepEqual(host.town?.document.plots.map((p) => p.slug), ["a", "b"], "the host's plots survive");
+  assert.deepEqual(store.state.doc.plots.map((p) => p.slug), ["a", "b"], "the browser shows what the host holds");
+  assert.equal(store.rev, 5);
+  assert.equal(store.state.storageNote, CONFLICT_NOTE, "the edit was made on a town the host had replaced: said");
+  // The same picture on the host as here (an empty town on revision 5): an edit during the read is no loss and goes up.
+  const alike = fakeHost({ rev: 5, document: empty });
+  const same = make(alike);
+  const gate = deferred();
+  alike.hold = gate.gate;
+  const load2 = same.store.load();
+  await flush();
+  const edit2 = same.store.commit(plot(same.store.state.doc, "mine", 9));
+  await flush();
+  gate.release();
+  alike.hold = null;
+  await load2;
+  await edit2;
+  assert.deepEqual(alike.writes.map((w) => [w.op, w.baseRev, w.document?.plots.map((p) => p.slug)]), [["commit", 5, ["mine"]]]);
+  assert.equal(same.store.state.storageNote, null);
+  // Offline, the browser's own undo while the retry read brings another browser's town: kept out the same way.
+  const other = fakeHost({ rev: 1, document: empty });
+  const o = make(other, 20);
+  await o.store.load();
+  other.away = true;
+  await o.store.commit(plot(o.store.state.doc, "offline", 2));
+  other.away = false;
+  other.set(2, plot(empty, "elsewhere", 6));
+  const slow = deferred();
+  other.hold = slow.gate;
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  assert.equal(other.reads, 2, "the retry read is on its way");
+  const undone = o.store.undo();
+  await flush();
+  slow.release();
+  other.hold = null;
+  await undone;
+  await flush();
+  assert.equal(other.writes.filter((w) => w.baseRev === 2).length, 0, "the offline undo's town never goes up over the other browser's");
+  assert.deepEqual(o.store.state.doc.plots.map((p) => p.slug), ["elsewhere"]);
+  assert.equal(o.store.state.storageNote, CONFLICT_NOTE);
+});
+
+test("round 27 (review F2): back from offline, an edit made while the retry read is on its way goes up first and carries the offline edit; nothing is said of another browser", async () => {
+  const empty = createTownStore({ context: CONTEXT, indexedDB: null }).state.doc;
+  const host = fakeHost({ rev: 5, document: plot(empty, "a", 1) });
+  const { store } = make(host, 30);
+  const doc = await store.load();
+  host.away = true;
+  await store.commit(plot(doc, "offline-edit", 2));
+  assert.equal(store.rev, null, "offline");
+  // The host is back; its read is slow; the person edits meanwhile.
+  host.away = false;
+  const held = deferred();
+  host.hold = held.gate;
+  await new Promise((resolve) => setTimeout(resolve, 45));
+  assert.equal(host.reads, 2, "the retry read is on its way");
+  const edit = store.commit(plot(store.state.doc, "second-edit", 3));
+  await flush();
+  held.release();
+  host.hold = null;
+  await edit;
+  await flush();
+  await flush();
+  assert.deepEqual(host.writes.map((w) => [w.op, w.baseRev, w.document?.plots.map((p) => p.slug)]), [["commit", 5, ["a", "offline-edit"]], ["commit", 5, ["a", "offline-edit", "second-edit"]]], "the offline write that failed, then the one edit that carries everything; no offer after it");
+  assert.deepEqual(host.town?.document.plots.map((p) => p.slug), ["a", "offline-edit", "second-edit"], "nothing is lost");
+  assert.equal(store.rev, 6);
+  assert.equal(store.state.storageNote, null, "nobody else wrote, so nothing is said");
+});
+
+test("round 27 (review F7): the world's own record pending through an offline spell goes up as an amend, a person's as a commit", async () => {
+  const empty = createTownStore({ context: CONTEXT, indexedDB: null }).state.doc;
+  const host = fakeHost({ rev: 1, document: plot(empty, "web", 1) });
+  const { store } = make(host, 15);
+  await store.load();
+  host.away = true;
+  await store.amend((d) => plot(d, "api", 2));
+  assert.equal(store.rev, null);
+  host.away = false;
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  assert.deepEqual(host.writes.filter((w) => w.baseRev === 1).map((w) => w.op), ["amend", "amend"], "the failed try, then the offer: both the world's own record");
+  assert.equal(store.rev, 2);
+  assert.deepEqual([store.state.canUndo, store.state.canRedo], [false, false], "no undo step on the host for a lot the world gave");
+  // A person's edit in the same spell makes the offer a commit: the host's history has its step.
+  host.away = true;
+  await store.amend((d) => plot(d, "db", 3));
+  await store.commit(plot(store.state.doc, "mine", 4));
+  host.away = false;
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  assert.equal(host.writes.at(-1)?.op, "commit");
+  assert.equal(store.rev, 3);
+  assert.equal(store.state.canUndo, true);
+});
+
+test("round 27 (review F4): a host town this browser cannot read is offline with a note of its own and the retry; a readable one is taken when it comes", async () => {
+  const empty = createTownStore({ context: CONTEXT, indexedDB: null }).state.doc;
+  const host = fakeHost({ rev: 3, document: { ...empty, format: "crewhub-town/99" } as unknown as TownDocument });
+  const { store } = make(host, 20);
+  await store.load();
+  assert.equal(store.rev, null, "on no revision");
+  assert.equal(store.state.storage, "memory");
+  assert.equal(store.state.storageNote, UNREADABLE_NOTE);
+  // Edits stay here meanwhile, nothing sent.
+  await store.commit(plot(store.state.doc, "mine", 1));
+  assert.equal(host.writes.length, 0);
+  // The host's town is readable again (a host update): the retry takes it.
+  host.set(4, plot(empty, "theirs", 2));
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.ok(host.reads >= 2, "asked again");
+  assert.equal(store.rev, 4);
+  assert.deepEqual(store.state.doc.plots.map((p) => p.slug), ["theirs"]);
+  assert.equal(store.state.storage, "host");
+});
+
+test("round 27 (r27-townback): a host back at the revision this browser left it, with the town as it is here, gets no commit (an identical revision would eat the next undo)", async () => {
+  const empty = createTownStore({ context: CONTEXT, indexedDB: null }).state.doc;
+  const hosted = { ...plot(empty, "web", 1), zones: [{ id: "zone-1", name: "Zone 1", order: 0 }] } as TownDocument;
+  const host = fakeHost({ rev: 1, document: hosted });
+  const lines: string[] = [];
+  const local = createTownStore({ context: CONTEXT, indexedDB: null });
+  const store = createHostTownStore({ local, transport: host.transport, context: CONTEXT, onTown: host.onTown, retryMs: 15, log: (line) => lines.push(line) });
+  await store.load();
+  await store.commit({ ...store.state.doc, zones: [...(store.state.doc.zones ?? []), { id: "zone-2", name: "Zone 2", order: 1 }] } as TownDocument);
+  assert.equal(store.rev, 2);
+  const writesAfterEdit = host.writes.length;
+  // The host goes away; a person adds a zone and undoes it here (the browser's own steps while the host is away).
+  host.away = true;
+  await store.commit({ ...store.state.doc, zones: [...(store.state.doc.zones ?? []), { id: "zone-3", name: "Zone 3", order: 2 }] } as TownDocument);
+  assert.equal(store.rev, null);
+  await store.undo();
+  assert.deepEqual(store.state.doc.zones?.map((z) => z.id), ["zone-1", "zone-2"], "undone here: the town is the host's revision 2 again");
+  // The host answers again at revision 2, as this browser left it: nothing of ours is new, so nothing goes up.
+  host.away = false;
+  await new Promise((resolve) => setTimeout(resolve, 80));
+  assert.equal(store.rev, 2);
+  assert.deepEqual(host.writes.slice(writesAfterEdit).map((w) => [w.op, w.baseRev, w.document === null ? null : w.document.zones?.map((z) => z.id)]), [["commit", 2, ["zone-1", "zone-2", "zone-3"]]], `only the failed write of the away spell; the log: ${lines.join(" | ")}`);
+  assert.equal(host.town?.rev, 2, "the host's revision stands: an undo now takes Zone 2 away, not an identical copy");
+  assert.equal(store.state.storageNote, null);
+  assert.ok(lines.some((l) => /with the town as it is here: nothing to send/.test(l)), `the log says why: ${lines.join(" | ")}`);
+  // The world's own record of nothing new (an allocation kept before the load, as the regress town group met it) sends nothing either.
+  const fresh = fakeHost({ rev: 1, document: hosted });
+  const f = make(fresh, 15);
+  void f.store.amend((doc) => (doc.plots.some((p) => p.slug === "web") ? null : plot(doc, "web", 1)));
+  await f.store.load();
+  await flush();
+  fresh.away = true;
+  await f.store.amend((doc) => (doc.plots.some((p) => p.slug === "web") ? null : plot(doc, "web", 1)));
+  assert.equal(f.store.rev, 1, "an amend of nothing new goes nowhere, even with the host away");
+  // An amend that records something new while away: offered on the come-back, as an amend, once.
+  await f.store.amend((doc) => plot(doc, "api", 2));
+  assert.equal(f.store.rev, null);
+  fresh.away = false;
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  assert.deepEqual(fresh.writes.map((w) => [w.op, w.baseRev]), [["amend", 1], ["amend", 1]], "the failed try, then the one offer");
+  assert.equal(fresh.town?.rev, 2);
 });

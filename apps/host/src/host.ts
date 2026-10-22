@@ -361,9 +361,9 @@ export async function createHost(options: HostOptions): Promise<Host> {
    * The chat threads' facts (round 24) where the key reads the chat: per agent, `lastMessageAt` and `unreadCount` from
    * `GET /api/dm/threads` (the probe's own answer at the key check, read again after a `dm.*` event the key's stream
    * sees, at most once a second), sent whole to every tab; null where the key does not read the chat. Whose unread
-   * (round 25): loops counts it against the caller's read cursor, and for a viewer key against the installation
-   * owner's (world/viewer-key 79cb36a8); `keyReadsChat` is true only for a viewer, so the count that travels is always
-   * the owner's, as loops' own chat head shows it. A plain key's count (its own cursor, never set) is never read.
+   * (round 25; loops main #964 in round 28): loops counts it against the caller's read cursor, and for a viewer key
+   * against its maker's, the one person whose chat the key reads; `keyReadsChat` is true only for a viewer, so the
+   * count that travels is always the maker's, as loops' own chat head shows it. A plain key's count is never read.
    */
   let threadFacts: ChatThreadFact[] | null = null;
   const THREADS_REFRESH_MS = 1000;
@@ -556,8 +556,8 @@ export async function createHost(options: HostOptions): Promise<Host> {
         if (closed || holder !== mine || discovery.current() !== found) return;
         keyReadsChat = chat.reads;
         threadFacts = chat.reads ? chat.threads : null;
-        if (keyReadsChat) log(`the key reads the chat on this crewhub-loops: the agents' answers come over its stream, no sign-in needed; ${chat.threads.length} chat thread(s)`);
-        else log(`the key does not read the chat on this crewhub-loops (no viewer key): no bubbles; make a viewer key in Settings > Agents > Connect CrewHub World on a crewhub-loops with world/viewer-key`);
+        if (keyReadsChat) log(`the key reads the chat on this crewhub-loops: only the chat of the person who made the key; their agents' answers come over its stream, no sign-in needed; ${chat.threads.length} chat thread(s)${chat.threads.length === 0 ? " (none yet is no error: the maker has not written to an agent)" : ""}`);
+        else log(`the key does not read the chat on this crewhub-loops (no viewer key): no bubbles over the key; make a viewer key in Settings > Agents > Connect CrewHub World (it reads only its maker's chat), or set CHL_WORLD_ORIGIN to the world page's origin on that crewhub-loops so the page reads your own chat`);
       } else {
         // Nothing is known about the key: it keeps the state it had (a fresh key stays unchecked), never rejected.
         mine.state = before === "checking" ? "unchecked" : before;

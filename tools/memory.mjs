@@ -25,6 +25,11 @@
    constructor (lib/heap.mjs) and prints the 25 largest kinds of object; from the second snapshot on it also prints
    what grew most since the one before, by self size. The snapshot itself is parsed and dropped; the totals land in
    --json. A snapshot pauses the page for a few seconds, so its sample is not a frame measurement.
+   Every sample also carries the frame time over the overlay's window (mean and p95, the work per frame); a live run
+   (round 27, the soak) adds the host's upstream stream (its state and how often it reconnected, from the host the
+   tool started), the page's own stores (`window.__worldStores`, state/soak.ts: the bubbles alive, the Recent answers,
+   the chat threads) and the town document's revision with the host's revision the page is on. The growth line also
+   says the heap's growth an hour after warm-up.
    Same browser set-up as perf.mjs: GPU-backed headless Chromium, 1440 x 900, DPR 1, Pretty, light. --json writes the
    points, the growth and the snapshot totals (a bare file name lands in --out). */
 import { writeFileSync } from "node:fs";
@@ -104,13 +109,31 @@ for (let t = 0; t <= minutes * 60; t += every) {
   const dom = await cdp.send("Memory.getDOMCounters");
   const perf = await page.evaluate(() => {
     const p = window.__worldPerf;
-    return p ? { geometries: p.geometries, textures: p.textures, calls: p.calls, workMean: p.workMean } : null;
+    return p ? { geometries: p.geometries, textures: p.textures, calls: p.calls, workMean: p.workMean, frameMean: p.frameMean, frameP95: p.frameP95, fps: p.fps } : null;
   });
   const chip = live ? await page.locator(".connection-chip").first().getAttribute("data-connection").catch(() => null) : null;
-  const point = { t, heap: heap.usedSize, geometries: perf?.geometries ?? -1, textures: perf?.textures ?? -1, calls: perf?.calls ?? -1, nodes: dom.nodes, listeners: dom.jsEventListeners, ...(live ? { connection: chip } : {}) };
+  // Live (round 27, the soak): the page's own stores and the town's revision (`window.__worldStores`, state/soak.ts),
+  // and the host's upstream stream straight from the host the tool started (its state and reconnect count).
+  const stores = live ? await page.evaluate(() => (typeof window.__worldStores === "function" ? window.__worldStores() : null)).catch(() => null) : null;
+  const upstream = live ? live.host.connection().stream : null;
+  const point = {
+    t,
+    heap: heap.usedSize,
+    geometries: perf?.geometries ?? -1,
+    textures: perf?.textures ?? -1,
+    calls: perf?.calls ?? -1,
+    nodes: dom.nodes,
+    listeners: dom.jsEventListeners,
+    frameMean: perf?.frameMean ?? null,
+    frameP95: perf?.frameP95 ?? null,
+    workMean: perf?.workMean ?? null,
+    ...(live ? { connection: chip, upstream: upstream ? { state: upstream.state, reconnects: upstream.reconnects } : null, stores } : {}),
+  };
   points.push(point);
+  const frame = perf ? `  frame ${perf.frameMean.toFixed(1)}/${perf.frameP95.toFixed(1)} ms work ${perf.workMean.toFixed(1)}` : "";
+  const soak = live ? `  ${chip ?? "no chip"}  upstream ${upstream ? `${upstream.state} r${upstream.reconnects}` : "?"}${stores ? `  said ${stores.said} answers ${stores.answers} threads ${stores.threads ?? "-"} rev ${stores.docRevision}/${stores.hostRev ?? "-"}` : ""}` : "";
   console.log(
-    `${scenario} ${String(t).padStart(4)} s  heap ${mb(point.heap).padStart(6)} MB  geo ${String(point.geometries).padStart(4)}  tex ${String(point.textures).padStart(3)}  calls ${String(point.calls).padStart(4)}  dom ${point.nodes}  listeners ${point.listeners}${live ? `  ${chip ?? "no chip"}` : ""}`,
+    `${scenario} ${String(t).padStart(4)} s  heap ${mb(point.heap).padStart(6)} MB  geo ${String(point.geometries).padStart(4)}  tex ${String(point.textures).padStart(3)}  calls ${String(point.calls).padStart(4)}  dom ${point.nodes}  listeners ${point.listeners}${frame}${soak}`,
   );
   while (nextSnapshot < snapshotMinutes.length && t >= snapshotMinutes[nextSnapshot] * 60) {
     await snapshotAt(snapshotMinutes[nextSnapshot]);
@@ -120,8 +143,10 @@ for (let t = 0; t <= minutes * 60; t += every) {
 const warm = points.filter((p) => p.t >= 60);
 const baseOf = (key) => warm.slice(0, 3).map((p) => p[key]).sort((a, b) => a - b)[1] ?? warm[0]?.[key] ?? 0;
 const last = points[points.length - 1];
-const growth = { heapMB: +mb(last.heap - baseOf("heap")), geometries: last.geometries - baseOf("geometries"), textures: last.textures - baseOf("textures"), domNodes: last.nodes - baseOf("nodes"), listeners: last.listeners - baseOf("listeners") };
-console.log(`${scenario} growth after warm-up: heap ${growth.heapMB} MB, geo ${growth.geometries}, tex ${growth.textures}, dom ${growth.domNodes}, listeners ${growth.listeners}`);
+// Per hour (round 27, the soak): the growth after warm-up over the hours between the warm-up's base and the last sample.
+const hours = warm.length > 3 ? (last.t - warm[1].t) / 3600 : 0;
+const growth = { heapMB: +mb(last.heap - baseOf("heap")), geometries: last.geometries - baseOf("geometries"), textures: last.textures - baseOf("textures"), domNodes: last.nodes - baseOf("nodes"), listeners: last.listeners - baseOf("listeners"), hours: +hours.toFixed(2), heapMBPerHour: hours > 0 ? +(mb(last.heap - baseOf("heap")) / hours).toFixed(2) : null };
+console.log(`${scenario} growth after warm-up: heap ${growth.heapMB} MB, geo ${growth.geometries}, tex ${growth.textures}, dom ${growth.domNodes}, listeners ${growth.listeners}${growth.heapMBPerHour !== null ? ` (${growth.heapMBPerHour} MB an hour over ${growth.hours} h)` : ""}`);
 if (jsonOut)
   writeFileSync(
     jsonOut,

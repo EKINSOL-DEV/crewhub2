@@ -48,6 +48,8 @@ interface FakeHost {
   streamStatus: number;
   /** False: the host no longer knows this browser's cookie; the snapshot and the stream answer 401 not_paired. */
   paired: boolean;
+  /** True: a stream request is taken and never answered (a leg that hangs on open). */
+  hang: boolean;
   /** Called at every snapshot ask (a test times the retries). */
   onSnapshot?: () => void;
   /** Sends one message on every open stream. */
@@ -89,6 +91,7 @@ async function startHost(): Promise<FakeHost> {
     snapshotStatus: 200,
     streamStatus: 200,
     paired: true,
+    hang: false,
     push(message) {
       const text = JSON.stringify(message);
       for (const stream of streams) stream.write(`data: ${text}\n\n`);
@@ -124,6 +127,7 @@ async function startHost(): Promise<FakeHost> {
     }
     if (url.pathname === "/world-api/stream") {
       host.cursors.push(url.searchParams.get("cursor"));
+      if (host.hang) return; // never answered; closed with the server
       if (!host.paired) return json(res, 401, { error: "not_paired" });
       if (host.streamStatus !== 200) return json(res, host.streamStatus, { error: "loops_down" });
       res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });
@@ -263,7 +267,7 @@ test("by default a seq gap is normal (loops filters the stream per key): the eve
   await host.close();
 });
 
-test("heartbeats keep it live; silence past staleMs → stale; the next message → live", async () => {
+test("heartbeats keep it live; silence past staleMs → stale, and the stream is healed: the silent read ended, the stream reopened at the cursor, live again (review F3)", async () => {
   const host = await startHost();
   const run = observe(host.url);
   await run.until(() => host.cursors.length === 1, "the stream");
@@ -273,11 +277,48 @@ test("heartbeats keep it live; silence past staleMs → stale; the next message 
   }
   assert.equal(run.state(), "live");
   assert.ok(count(run.messages, "heartbeat") >= 5);
+  host.push({ type: "event", envelope: envelope(101) });
+  await run.until(() => count(run.messages, "event") === 1, "the event");
+  // The stream stays open and goes silent (a dead leg): the source does not wait on it for ever.
   await run.until(() => run.state() === "stale", "stale", 1000);
-  host.push({ type: "heartbeat", seq: 100, ts: "2026-10-07T12:00:30Z" });
-  await run.until(() => run.state() === "live", "live again");
+  await run.until(() => host.cursors.length === 2, "the stream reopened after stale", 1000);
+  assert.equal(host.cursors[1], "101", "reopened at the last seq, no snapshot asked again");
+  await run.until(() => run.state() === "live", "live again on the new stream");
+  assert.equal(host.snapshots, 1, "the cursor was kept: the host replays, no new snapshot");
+  assert.ok(run.states.includes("stale"), "the chip said Stale meanwhile");
   run.stop();
   await host.close();
+});
+
+test("the page coming back into view while stale heals at once: the hanging read is ended and the stream asked again, not after the back-off (review F3)", async () => {
+  // Node has no document: a stand-in with the page's visibility and its event, in place for this test only.
+  const page = new EventTarget() as EventTarget & { visibilityState: string };
+  page.visibilityState = "hidden";
+  const g = globalThis as { document?: unknown };
+  g.document = page;
+  try {
+    const host = await startHost();
+    // A long back-off, so that only a heal explains a quick second ask.
+    const run = observe(host.url, { timings: { ...TIMINGS, staleMs: 60_000, retryMinMs: 10, retryMaxMs: 10 } });
+    await run.until(() => host.cursors.length === 1, "the stream");
+    // The host ends the stream and the next open hangs (the laptop's lid closed under it): stale, one ask on its way for ever.
+    host.hang = true;
+    host.endStreams();
+    await run.until(() => run.state() === "stale" && host.cursors.length === 2, "stale with a hanging ask");
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    assert.equal(host.cursors.length, 2, "nothing moves while the page is hidden");
+    // The lid opens: visible while stale → the hanging ask is ended and a new one made at once.
+    host.hang = false;
+    page.visibilityState = "visible";
+    page.dispatchEvent(new Event("visibilitychange"));
+    await run.until(() => host.cursors.length === 3, "a new ask right after the page came into view", 500);
+    await run.until(() => run.state() === "live", "live again");
+    assert.equal(host.cursors[2], "100", "at the cursor");
+    run.stop();
+    await host.close();
+  } finally {
+    delete g.document;
+  }
 });
 
 test("status messages → loops-down / unauthorized; ok again re-snapshots", async () => {

@@ -95,6 +95,7 @@ describe("the dev origin at the host", () => {
       await host.close();
     }
     assert.deepEqual(await tellDevOrigin(host.port, "http://127.0.0.1:5294", "9f2c1a7b3d4e", 500, "the-run-file-secret"), { kind: "silent" }, "closed: nothing answers");
+    assert.deepEqual(await tellDevOrigin(host.port, "http://127.0.0.1:5294", "9f2c1a7b3d4e", 500, null), { kind: "silent" }, "closed and no run file: still silence, not a run-file complaint");
     // A host without a run file secret (a tool's in-process host) cannot be told at all.
     const bare = await createHost({ loopsUrl: "http://127.0.0.1:1", checkout: "9f2c1a7b3d4e", pairing: "off", retryMs: { min: 20, max: 100 }, log: () => undefined });
     try {

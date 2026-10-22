@@ -900,7 +900,7 @@ await group("live", async () => {
     const panelText = (await pg.locator(".chat-sheet").innerText().catch(() => "")).replace(/\s+/g, " ");
     const aboutOpen = await pg.locator(".chat-about").evaluate((el) => el.open).catch(() => null);
     const appHref = await pg.locator(".chat-sheet .chat-open-app").getAttribute("href").catch(() => null);
-    ok("live (round 17): the panel reads in one glance: crewhub-loops' own chat and the one thing to do on this road (no viewer key: no bubbles here), two short lines above Recent answers; the whole story (what typing needs, no password, and since round 18 what the Recent answers list is) behind About this chat, which Enter on its summary opens; the link to the app", g !== null && /^crewhub-loops' own chat, framed here\.$/.test(g.what) && /^Sign in to crewhub-loops below to type; no bubbles here: a viewer key would read the chat\.$/.test(g.todo) && g.whatLines === 1 && g.todoLines <= 2 && g.aboutOpen === false && !/signed in to crewhub-loops as a person/.test(closedText) && !/The last 10 answers this page saw/.test(closedText) && aboutOpen === true && /signed in to crewhub-loops as a person/.test(panelText) && /no password/.test(panelText) && /chat head in loops' dock/.test(panelText) && /The last 10 answers this page saw, newest first/.test(panelText) && appHref === web.url, g ? `"${g.what}" / "${g.todo}" (${g.whatLines}+${g.todoLines} lines, the list ${g.aboveList} px below); about open before ${g.aboutOpen}, after Enter ${aboutOpen}; ${appHref}` : "no lead");
+    ok("live (round 17): the panel reads in one glance: crewhub-loops' own chat and the one thing to do on this road (no viewer key: no bubbles here), two short lines above Recent answers; the whole story (what typing needs, no password, and since round 18 what the Recent answers list is) behind About this chat, which Enter on its summary opens; the link to the app", g !== null && /^crewhub-loops' own chat, framed here\.$/.test(g.what) && /^Sign in to crewhub-loops below to type; no bubbles: a viewer key or the world's origin would read the chat\.$/.test(g.todo) && g.whatLines === 1 && g.todoLines <= 2 && g.aboutOpen === false && !/signed in to crewhub-loops as a person/.test(closedText) && !/The last 10 answers this page saw/.test(closedText) && aboutOpen === true && /signed in to crewhub-loops as a person/.test(panelText) && /no password/.test(panelText) && /chat head in loops' dock/.test(panelText) && /The last 10 answers this page saw, newest first/.test(panelText) && appHref === web.url, g ? `"${g.what}" / "${g.todo}" (${g.whatLines}+${g.todoLines} lines, the list ${g.aboveList} px below); about open before ${g.aboutOpen}, after Enter ${aboutOpen}; ${appHref}` : "no lead");
     const sandbox = await frame.getAttribute("sandbox").catch(() => null);
     const allow = await frame.getAttribute("allow").catch(() => null);
     ok("live: the frame's sandbox is no wider than the chat needs", sandbox === "allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads" && allow === "clipboard-write", `sandbox "${sandbox}", allow "${allow}"`);
@@ -934,7 +934,7 @@ await group("live", async () => {
     // Round 24: the fake's CL-40 (the analyst's, in progress) waits on cl-lead, so the card says who waits on it and who holds it.
     const waited = /Waited on by\s*1 open ticket of others\s*CL-40 .*in progress, Analyst holds it/.test(leadCard);
     // The headings read uppercased (the eyebrow's text-transform), so the section names match case-insensitively.
-    const answers = /Answers\s*(No answers can arrive here: this crewhub-loops does not let the world read the chat|No answer from it since this page opened)/i.test(leadCard);
+    const answers = /Answers\s*(No answers can arrive here: this crewhub-loops does not let the world's key read the chat|No answer from it since this page opened)/i.test(leadCard);
     // The line is the agent's own from the fake's events (CL-81), else CL-45's read from the source, else the honest words.
     const progressSaid = /\b(start|update|done|question) on CL-\d+, (just now|\d+ (min|h) ago)|No progress line: none seen since this page opened, and CL-45 has none\./.test(leadCard);
     const moreClosed = (await pg.locator("details.agent-card-more:not([open])").count()) === 1 && !(await pg.locator(".agent-card h3", { hasText: /^Lane$/ }).isVisible().catch(() => true));
@@ -1136,8 +1136,8 @@ await group("chat", async () => {
     await pg2.waitForSelector('.connection-chip[data-connection="live"]', { timeout: 20000 }).catch(() => {});
     const health2 = await pg2.request.get(`${keyOrigin}/world-api/health`).then((r) => r.json());
     await pg2.locator(".connection-chip").first().click();
-    await pg2.waitForSelector(".connection-session", { timeout: 5000 }).catch(() => {});
-    const words = (await pg2.locator(".connection-session").innerText().catch(() => "")).replace(/\s+/g, " ");
+    await pg2.waitForSelector(".connection-chat", { timeout: 5000 }).catch(() => {});
+    const words = (await pg2.locator(".connection-chat").innerText().catch(() => "")).replace(/\s+/g, " ");
     ok("chat (key road): health says session key, the panel's Chat section says a sign-in is not needed for the bubbles and shows no sign-in form, the host's log says the key reads the chat", health2.connection?.session?.state === "key" && /A sign-in is not needed for the bubbles: this crewhub-loops lets the world's key read the chat/.test(words) && (await pg2.getByLabel("Password").count()) === 0 && lines2.some((l) => /the key reads the chat on this crewhub-loops/.test(l)), `${health2.connection?.session?.state}; ${words.slice(0, 100)}`);
     await shot(pg2, "57-chat-key-not-needed");
     await pg2.keyboard.press("Escape");
@@ -1257,7 +1257,7 @@ await group("chat", async () => {
     await pg2.locator(".agent-card").waitFor({ timeout: 3000 }).catch(() => {});
     await pg2.waitForFunction(() => /Chat\s*last message/.test(document.querySelector(".agent-card")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
     const gmanCard = (await pg2.locator(".agent-card").innerText().catch(() => "")).replace(/\s+/g, " ");
-    ok("chat (key road, rounds 24 and 25): G-Man's card says the thread's own facts from the host (last message just now, 1 unread in the owner's view) above its answer", /Chat\s*last message (just now|\d+ min ago), 1 unread in the owner's view/.test(gmanCard) && /Busy and calm/.test(gmanCard), gmanCard.replace(/^.*?ANSWERS/, "ANSWERS").slice(0, 240));
+    ok("chat (key road, rounds 24 and 25): G-Man's card says the thread's own facts from the host (last message just now, 1 unread in the key maker's view) above its answer", /Chat\s*last message (just now|\d+ min ago), 1 unread in the key maker's view/.test(gmanCard) && /Busy and calm/.test(gmanCard), gmanCard.replace(/^.*?ANSWERS/, "ANSWERS").slice(0, 240));
     await shot(pg2, "58b-chat-key-card-thread");
     for (let i = 0; i < 3; i++) {
       await pg2.keyboard.press("Escape");
@@ -1324,11 +1324,12 @@ await group("chat", async () => {
     const goneWrite = await pg3.request.post(`${noneOrigin}/world-api/session`, { headers: { origin: noneOrigin, "content-type": "application/json" }, data: { id: "nicky", password: "x" } }).then((r) => r.status()).catch(() => -1);
     const goneRead = await pg3.request.get(`${noneOrigin}/world-api/session`).then((r) => r.status()).catch(() => -1);
     await pg3.locator(".connection-chip").first().click();
-    await pg3.waitForSelector(".connection-session", { timeout: 5000 }).catch(() => {});
-    const words3 = (await pg3.locator(".connection-session").innerText().catch(() => "")).replace(/\s+/g, " ");
-    const road3 = await pg3.locator(".connection-session").getAttribute("data-session").catch(() => null);
+    await pg3.waitForSelector(".connection-chat", { timeout: 5000 }).catch(() => {});
+    const words3 = (await pg3.locator(".connection-chat").innerText().catch(() => "")).replace(/\s+/g, " ");
+    const road3 = await pg3.locator(".connection-chat").getAttribute("data-road").catch(() => null);
+    const probe3 = await pg3.locator(".connection-chat").getAttribute("data-probe").catch(() => null);
     await shot(pg3, "68-chat-none-panel");
-    ok("chat (no chat road, round 19): health has no session, /world-api/session is gone (a write refused 405, a read 404), the panel's Chat section says this crewhub-loops does not let the world read the chat and points to a viewer key, with no sign-in form; the host's log says the same", health3.connection?.session === undefined && goneWrite === 405 && goneRead === 404 && road3 === "none" && /^No bubbles: this crewhub-loops does not let the world read the chat\. For the agents' answers as bubbles, make a viewer key in Settings > Agents > Connect CrewHub World/.test(words3.replace(/^Chat /, "")) && (await pg3.getByLabel("Password").count()) === 0 && (await pg3.getByRole("button", { name: /Sign in|Forget the session/ }).count()) === 0 && lines3.some((l) => /the key does not read the chat on this crewhub-loops \(no viewer key\): no bubbles; make a viewer key/.test(l)), `session ${JSON.stringify(health3.connection?.session)}; /session write ${goneWrite}, read ${goneRead}; data-session ${road3}; ${words3.slice(0, 120)}`);
+    ok("chat (no chat road, round 19; round 28's words): health has no session, /world-api/session is gone (a write refused 405, a read 404), the panel's Chat section says this crewhub-loops does not let the world's key read the chat and points to a viewer key and to the world's origin setting with this page's origin (the probe unknown), with no sign-in form; the host's log says the same", health3.connection?.session === undefined && goneWrite === 405 && goneRead === 404 && road3 === "none" && /^No bubbles: this crewhub-loops does not let the world's key read the chat\. For the agents' answers as bubbles, make a viewer key in Settings > Agents > Connect CrewHub World \(it reads only the chat of the person who makes it\) and paste it in the world's Connect screen, or let this page read your own chat: set CHL_WORLD_ORIGIN=http:\/\/127\.0\.0\.1:\d+ on that crewhub-loops/.test(words3.replace(/^Chat /, "")) && probe3 === "unknown" && (await pg3.getByLabel("Password").count()) === 0 && (await pg3.getByRole("button", { name: /Sign in|Forget the session/ }).count()) === 0 && lines3.some((l) => /the key does not read the chat on this crewhub-loops \(no viewer key\): no bubbles over the key; make a viewer key .*, or set CHL_WORLD_ORIGIN/.test(l)), `session ${JSON.stringify(health3.connection?.session)}; /session write ${goneWrite}, read ${goneRead}; data-road ${road3}, data-probe ${probe3}; ${words3.slice(0, 120)}`);
     await pg3.keyboard.press("Escape");
     await pg3.waitForTimeout(200);
     await pg3.locator(".chat-open").click();
@@ -1341,7 +1342,7 @@ await group("chat", async () => {
     await pg3.waitForTimeout(200);
     const empty3 = (await pg3.locator('.chat-recent [data-recent="empty"]').innerText().catch(() => "")).replace(/\s+/g, " ");
     await shot(pg3, "69-chat-none-chat-panel");
-    ok("chat (no chat road, round 19): the Chat panel's glance says no bubbles here (a viewer key would), About this chat holds the same story as the Connection panel, and Recent answers' empty state says no answer can arrive and how to make a viewer key", glance3 !== null && glance3.what === "crewhub-loops' own chat, framed here." && glance3.todo === "Sign in to crewhub-loops below to type; no bubbles here: a viewer key would read the chat." && glance3.aboutOpen === false && /No bubbles: this crewhub-loops does not let the world read the chat/.test(about3) && /Typing in the framed chat is crewhub-loops' own/.test(about3) && /^No answers can arrive: this crewhub-loops does not let the world read the chat\. For bubbles, make a viewer key in Settings > Agents > Connect CrewHub World/.test(empty3), glance3 ? `"${glance3.todo}"; about: ${about3.slice(0, 100)}; empty: ${empty3.slice(0, 100)}` : "no lead");
+    ok("chat (no chat road, round 19; round 28's words): the Chat panel's glance says no bubbles here (a viewer key, or the world's origin, would), About this chat holds the same story as the Connection panel, and Recent answers' empty state says no answer can arrive, how to make a viewer key and the exact CHL_WORLD_ORIGIN value", glance3 !== null && glance3.what === "crewhub-loops' own chat, framed here." && glance3.todo === "Sign in to crewhub-loops below to type; no bubbles: a viewer key or the world's origin would read the chat." && glance3.aboutOpen === false && /No bubbles: this crewhub-loops does not let the world's key read the chat/.test(about3) && /Typing in the framed chat is crewhub-loops' own/.test(about3) && /^No answers can arrive: this crewhub-loops does not let the world's key read the chat\. For bubbles, make a viewer key in Settings > Agents > Connect CrewHub World/.test(empty3) && /CHL_WORLD_ORIGIN=http:\/\/127\.0\.0\.1:\d+/.test(empty3), glance3 ? `"${glance3.todo}"; about: ${about3.slice(0, 100)}; empty: ${empty3.slice(0, 100)}` : "no lead");
     await pg3.keyboard.press("Escape");
     await pg3.waitForSelector(".chat-sheet", { state: "detached", timeout: 5000 }).catch(() => {});
     // An agent answers on loops: the key's stream never carries it, so no mark and no bubble; the text view says why.
@@ -1354,7 +1355,7 @@ await group("chat", async () => {
     const tv3 = (await sheet(pg3).innerText().catch(() => "")).replace(/\s+/g, " ");
     await shot(pg3, "70-chat-none-text-view");
     await pg3.keyboard.press("Escape");
-    ok("chat (no chat road, round 19): an agent's answer on loops shows no mark and no bubble (the key's stream never carries it), and the text view's Chat line and Recent answers say why", marks3 === 0 && bubbles3 === 0 && /Chat: crewhub-loops' own chat.*No bubbles: this crewhub-loops does not let the world read the chat/.test(tv3) && /No answers can arrive: this crewhub-loops does not let the world read the chat/.test(tv3), `marks ${marks3}, bubbles ${bubbles3}; ${tv3.slice(0, 160)}`);
+    ok("chat (no chat road, round 19): an agent's answer on loops shows no mark and no bubble (the key's stream never carries it), and the text view's Chat line and Recent answers say why", marks3 === 0 && bubbles3 === 0 && /Chat: crewhub-loops' own chat.*No bubbles: this crewhub-loops does not let the world's key read the chat/.test(tv3) && /No answers can arrive: this crewhub-loops does not let the world's key read the chat/.test(tv3), `marks ${marks3}, bubbles ${bubbles3}; ${tv3.slice(0, 160)}`);
     problems.push(...own3.filter((x) => !(x.kind === "external" && x.text.includes(web3.url))));
   } finally {
     await ctx3.close().catch(() => {});
@@ -1475,8 +1476,8 @@ await group("town", async () => {
     const pair = seenBySecond.some((l) => l.startsWith("Zone 1 (")) && seenByFirst.some((l) => l.startsWith("Zone 2 (")) && /kept by the world's host/.test(seenByFirst.join(" ")) && again.rev >= 2;
     ok("town: two browsers on one host see one town; a zone made in one appears in the other", pair, `second saw ${seenBySecond.length} zone line(s); first now ${seenByFirst.map((l) => l.slice(0, 7)).join(", ")}; host rev ${again.rev}`);
     if (!pair) {
-      info(`town: the second browser's town log: ${second.townLog.join(" | ") || "(nothing)"}`);
-      info(`town: the first browser's town log: ${first.townLog.join(" | ") || "(nothing)"}`);
+      info(`town: the second browser's town log: ${second.townLog.slice(-20).join(" | ") || "(nothing)"}`);
+      info(`town: the first browser's town log: ${first.townLog.slice(-20).join(" | ") || "(nothing)"}`);
       info(`town: the second browser's page revision ${await second.evaluate(() => document.documentElement.dataset.townRev ?? "none")}, storage words: ${(await second.locator(".connection-town").innerText().catch(() => "")).slice(0, 120)}`);
       info(`town: the host's log: ${hostLog.filter((l) => /town of/.test(l)).join(" | ")}`);
       const { DatabaseSync } = await import("node:sqlite");
@@ -1537,6 +1538,21 @@ await group("town", async () => {
       !afterUndo.some((l) => l.startsWith("Zone 2 (")) && afterUndo.some((l) => l.startsWith("Zone 1 (")) && redoEnabled && afterRedo.some((l) => l.startsWith("Zone 2 (")),
       `after undo: ${afterUndo.map((l) => l.slice(0, 7)).join(", ") || "none"}; redo offered after the restart: ${redoEnabled}; after redo the second sees ${afterRedo.map((l) => l.slice(0, 7)).join(", ")}`,
     );
+    if (afterUndo.some((l) => l.startsWith("Zone 2 (")) || !redoEnabled || !afterRedo.some((l) => l.startsWith("Zone 2 ("))) {
+      // The undo check failed: the host's revision and its last history entries, and both browsers' town logs, as the
+      // two-browser check prints them (r27-townback: an identical revision sent on a come-back was found this way).
+      info(`town: undo detail: rev before the undo ${revBeforeUndo}, the host now ${JSON.stringify(await hostTown(second))}; the second's town log: ${second.townLog.slice(-20).join(" | ") || "(nothing)"}; the first's: ${first.townLog.slice(-20).join(" | ") || "(nothing)"}`);
+      info(`town: the host's log: ${hostLog.slice(-12).join(" | ")}`);
+      const { DatabaseSync } = await import("node:sqlite");
+      const peek = new DatabaseSync(dbs[1].file, { readOnly: true });
+      const rows = peek.prepare("SELECT installation, rev, updated_by, history FROM towns").all();
+      peek.close();
+      for (const row of rows) {
+        const h = JSON.parse(row.history ?? "null");
+        for (const e of (h?.entries ?? []).slice(-2)) info(`town: entry r${e.revision}: ${JSON.stringify(e).slice(0, 1600)}`);
+        info(`town: the host's history of ${row.installation} at rev ${row.rev} (by ${row.updated_by}): index ${h?.index}, entries ${(h?.entries ?? []).map((e) => `r${e.revision}[zones ${(e.zones ?? []).map((z) => z.id).join(",")}; placements ${(e.placements ?? []).length}; plots ${(e.plots ?? []).length}]`).join(" ")}`);
+      }
+    }
     await shot(first, "34-town-redo");
 
     // 6. A restore is previewed and confirmed, never silent: a town file with Zone 1 renamed is imported in Settings >

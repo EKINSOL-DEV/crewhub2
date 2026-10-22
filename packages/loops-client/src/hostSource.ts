@@ -340,6 +340,8 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
   let staleTimer: ReturnType<typeof setTimeout> | null = null;
   let teamTimer: ReturnType<typeof setInterval> | null = null;
   let wake: (() => void) | null = null;
+  /** The open stream read's own abort (review F3, round 27): a heal ends the read alone; `abort` is the run's. */
+  let streamAbort: AbortController | null = null;
 
   const changed = () => {
     for (const listener of [...changeListeners]) {
@@ -374,15 +376,37 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
   const get = (path: string, signal?: AbortSignal) =>
     fetch(url(path), { signal: signal ?? null, headers: { ...extraHeaders, accept: "application/json" } });
 
-  /** Any message from the host: the stream is alive. Silence past `staleMs` is not. */
+  /** Any message from the host: the stream is alive. Silence past `staleMs` is not: the stream is stale and healed. */
   function touched(): void {
     if (staleTimer !== null) clearTimeout(staleTimer);
     staleTimer = setTimeout(() => {
       staleTimer = null;
-      if (running && state === "live") setState("stale");
+      if (running && state === "live") {
+        setState("stale");
+        heal();
+      }
     }, timings.staleMs);
     if (state === "stale") setState("live");
   }
+
+  /**
+   * A stale stream is a dead leg, never a quiet host (the host heartbeats every 15 s, well inside `staleMs`): a socket
+   * left open but dead after a laptop's sleep, a proxy that stopped forwarding. The read is ended, and the run reopens
+   * the stream at its cursor with the normal back-off (the host replays its buffer or sends `reset`); a run already in
+   * its back-off asks now. Called at stale, and when the page comes back into view while stale (a wake is the moment).
+   */
+  function heal(): void {
+    if (!running) return;
+    streamAbort?.abort();
+    wake?.();
+  }
+
+  /** The page's visibility (a browser; nothing in Node): the hook for a heal on a wake. */
+  const page = (): { visibilityState?: string; addEventListener(type: string, listener: () => void): void; removeEventListener(type: string, listener: () => void): void } | undefined =>
+    (globalThis as { document?: { visibilityState?: string; addEventListener(type: string, listener: () => void): void; removeEventListener(type: string, listener: () => void): void } }).document;
+  const onVisibility = () => {
+    if (page()?.visibilityState === "visible" && state === "stale") heal();
+  };
 
   function sleep(ms: number, signal: AbortSignal): Promise<void> {
     return new Promise((resolve) => {
@@ -451,8 +475,24 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
     return true;
   }
 
-  /** Reads the stream until it ends. Returns "resnapshot" when a reset or a gap asks for one, "ended" otherwise. */
+  /**
+   * Reads the stream until it ends. Returns "resnapshot" when a reset or a gap asks for one, "ended" otherwise. The
+   * read has an abort of its own, so a heal ends this read and nothing else; the run's abort ends it too.
+   */
   async function readStream(signal: AbortSignal): Promise<"resnapshot" | "ended"> {
+    const own = new AbortController();
+    const forward = () => own.abort();
+    signal.addEventListener("abort", forward, { once: true });
+    streamAbort = own;
+    try {
+      return await readStreamWith(own.signal);
+    } finally {
+      streamAbort = null;
+      signal.removeEventListener("abort", forward);
+    }
+  }
+
+  async function readStreamWith(signal: AbortSignal): Promise<"resnapshot" | "ended"> {
     let response: Response;
     try {
       response = await fetch(url(`/stream?cursor=${cursor}`), { signal, headers: { ...extraHeaders, accept: "text/event-stream" } });
@@ -638,6 +678,7 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
     running = false;
     abort?.abort();
     abort = null;
+    page()?.removeEventListener("visibilitychange", onVisibility);
     if (staleTimer !== null) clearTimeout(staleTimer);
     staleTimer = null;
     if (teamTimer !== null) clearInterval(teamTimer);
@@ -698,6 +739,7 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
         }
         void run(abort.signal, needSnapshot, first && "response" in first ? first.response : null);
         teamTimer = setInterval(() => void readTeam(), timings.teamPollMs);
+        page()?.addEventListener("visibilitychange", onVisibility);
       }
       return () => {
         listeners.delete(listener);

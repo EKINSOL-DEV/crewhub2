@@ -201,7 +201,7 @@ if (args.command === "world") {
     // The pairing secret's own write says what is wrong.
   }
 }
-// The sign-in road is gone (round 19): a session file an older host kept is deleted, said once.
+// The sign-in road is gone (round 19; round 28 on feat/world-demo): a session file an older host kept is deleted, said once.
 removeLeftoverSession(config.configDir, log);
 const pairingSecret = config.pairingFile === null ? undefined : loadPairingSecret(config.pairingFile);
 // The world database (round 20): the live town per installation, in the host's own folder. A folder or file that cannot

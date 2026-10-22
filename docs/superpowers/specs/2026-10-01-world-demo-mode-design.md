@@ -949,7 +949,7 @@ Built that way in round 11 (see the status line above); the real director stays 
 Nicky chatted with his agent `boing` in the crewhub-loops app while the world was open against his own Crewhub.app,
 and the world showed no bubble over boing. He asked for chat with the agents as the first requirement, and said the
 UI may be exactly crewhub-loops' own. This addendum records what loops offers (read in loops `4cdcd383`) and the two
-roads. **Status: road A built in round 12 (r12-chatpanel); road B option 2 built in round 12 (r12-chatsession, below, off by default behind its Sign-in step); option 1 written for loops (`docs/proposals/crewhub-world-viewer-3.md` on `world/viewer-key`).**
+roads. **Status: road A built in round 12 (r12-chatpanel); road B option 2 built in round 12 (r12-chatsession) and removed in round 28 (below); option 1, the viewer key, is the key road since round 12 and on crewhub-loops main since #959/#964; the page's own read where loops has the world's origin set (#968) is road 2 since round 28. The default and the honest line: "Round 28" below.**
 
 ### What loops has
 
@@ -1079,7 +1079,7 @@ joined the key's read allow-list) and shown as the same bubble. A loops that ref
 session road.
 
 **Removal of the session road (decision 9, 21 October; round 15 wrote the plan; removed in round 19 on the branch
-`task/r19-viewer-switch`, which merges when crewhub-loops main carries `world/viewer-key`).** The plan as written: the
+`task/r19-viewer-switch`; on `feat/world-demo` since round 28, once crewhub-loops main carried the viewer key).** The plan as written: the
 road stays as built until `world/viewer-key` is merged in loops and the world has switched to the viewer key (decision 1:
 a new key file or a paste, the bot still `crewhub-world`). In that same track it goes: `apps/host/src/session.ts` (the
 store, the sign-in and sign-out, `SESSION_ROUTES`, the dm stream over the cookie) and its tests; the file
@@ -1090,7 +1090,7 @@ one road left); the Connection panel's Chat section with its form and Forget the
 group's session half (its key-road half stays); and the session paragraphs in LOOPS_SETUP.md, the host README and the
 introduction. Condition first, removal second: nothing goes before a loops with the viewer key is what the world reads.
 
-**Round 19 (as built on `task/r19-viewer-switch`, unmerged until loops main carries the viewer key).** Removed exactly as
+**Round 19 (as built on `task/r19-viewer-switch`; on `feat/world-demo` since round 28, ported as one patch without a conflict).** Removed exactly as
 planned: `apps/host/src/session.ts` and its test (the store, the sign-in and sign-out, `SESSION_ROUTES`, the dm stream
 over the cookie); `POST`/`DELETE /world-api/session` (the allow-list knows `/connect` as its only write; a write to
 `/session` is refused 405, a read 404); the `sessionStore` option of `createHost`; the health states `signed-out`,
@@ -1110,6 +1110,47 @@ the New external bot steps for an older loops; LOOPS_SETUP, the host README, the
 the same. What a user of today's Mac app loses: the bubbles (and the chat marks and Recent answers rows that come with
 them) until loops ships the card; what stays: the framed chat (road A) on every loops, the world read with a plain
 external bot's key, and the key road's bubbles on a loops with the viewer key.
+
+**Round 28 (on `feat/world-demo`: the two narrow roads, the default, the honest line; cl-lead's review finding F8).**
+crewhub-loops main (88760279; #959, #964, #965, #967, #968 on `4cdcd383`) carries the viewer key and the world's
+origin, and cl-lead asks the world to read the chat through those two roads and nothing else. The session road's
+removal of round 19 landed here as one patch (`039defd`, no conflict): `session.ts`, `/world-api/session`, the
+`chl_session` cookie, the Connection panel's form, the states `signed-out`/`signed-in`/`expired`, their tests and the
+regress half are gone; a leftover `<config>/loops-session` is deleted on start with one log line and never a failure
+(`leftovers.ts`). **Road 1 (the host, the viewer key)**: as built since round 12, with loops main's rule in its words: a
+viewer key reads ONLY the chat of the admin who made it (`agent_keys.made_by`, #964: that person's messages and the
+agents' answers to them; a key with no maker reads no chat; registering a key needs `expectViewer`). Loops names the
+maker to nobody (not on `GET /api/auth/me`, not on the key's agent entry, not on the threads list; a message carries
+its author, which is the maker only once they have written), so the words say "the chat of the person who made the
+key"; `GET /api/dm/threads` 200 and empty is no error, and the host's log says so. The card's thread facts say "unread
+in the key maker's view" (the count is the maker's, `domain/dm.py`). **Road 2 (the page, the world's origin;
+r28-road2)**: where the owner sets `CHL_WORLD_ORIGIN` to the page's exact loopback origin (#968), the page itself reads
+`/api/dm/threads`, `/api/dm/threads/{agent}/messages`, `/api/dm/messages/{id}` and a poll of `/api/events`
+(`dm.created`/`dm.answered`, `limit` at most 50) with the person's cookie (`credentials: "include"`), GET only, no
+custom header, never an Authorization header, nothing through the host; the reads are the signed-in person's own
+conversation (the same filter as the viewer key). **The road is one value** (`apps/world/src/state/chatRoad.ts`, the
+contract both tracks build against): `ChatRoad = "key" | "page" | "none"`, `decideChatRoad({ hostKeyReadsChat,
+pageProbe })`: `key` when the host's key reads the chat (health `connection.session.state === "key"`), else `page` when
+the page's probe of road 2 answered (`on`), else `none`; the probe's other verdicts (`signed-out`, `origin-not-set`,
+`unreachable`, `unknown`) only shape the words. `state/chatRoadStore.ts` combines the health store and the probe's
+verdict (`rememberPageProbe`) into `useChatRoad()`. Chat lines from either road go into the same `said` store, so the
+bubbles, the chat mark, Recent answers and the card work the same on both. **The words** (`chatWords`, `chatGlance`,
+`recentEmptyWords`, `cardAnswersEmpty`, `chatPlaceLine`, all in `chatRoad.ts`, tested per road and per `none` case)
+are one story in the Connection panel's Chat section (`.connection-chat`, `data-road`, `data-probe`), the Chat panel's
+glance and "About this chat", Recent answers' empty state, the card's Answers and the text view's Chat line: on `key`
+"A sign-in is not needed for the bubbles: this crewhub-loops lets the world's key read the chat of the person who made
+the key (only theirs), so the agents' answers to that person show as bubbles, and the world keeps no session."; on
+`page` "The bubbles come from your own chat: this crewhub-loops lets this page read the chat as you, signed in there in
+this browser (the world's origin is set there, CHL_WORLD_ORIGIN=<this page's origin>), so the agents' answers to you
+show as bubbles; nothing of it goes through the host, and the world keeps nothing."; on `none` "No bubbles: this
+crewhub-loops does not let the world's key read the chat" and then, by the probe, the way out with the exact value
+`CHL_WORLD_ORIGIN=<this page's origin>`: unknown, both ways (the viewer key by loops' card, or the setting with a
+restart and a sign-in); signed-out, "sign in to crewhub-loops in this browser (the framed chat, or the app)";
+origin-not-set, "set CHL_WORLD_ORIGIN=… on that crewhub-loops and restart it"; unreachable, "this page cannot reach
+crewhub-loops from this browser". The Connect screen's viewer hint and the Key row say whose chat the key reads and
+name road 2 with the setting; the host's two log lines say the same. **Road A** (the framed loops chat in the Chat
+panel) is not a read by the world: it stays on every road, and typing there needs loops' own sign-in in the frame as
+before. The PR says which road is the default and what shows when neither reads the chat (the night report, round 28).
 
 **Round 14 (after the real proof on 8292: the bubble and its words).** One story per road: `chatWords` in
 `apps/world/src/state/chatPanel.ts` gives the Connection panel's Chat section, the Chat panel's small print and the text
@@ -1216,8 +1257,13 @@ round 11's one-time copy from the plain key) in a host-backed store: on load it 
 has none, the browser's own town is imported **once** (`PUT` with `baseRev` 0), never over a town the host has; when the
 host has one, the host's wins and the browser's copy becomes its mirror. Every commit, undo, redo and amend goes to the
 host with the revision it is based on; the IndexedDB copy follows, so a browser that loses the host keeps editing
-("kept in this browser until the host is back") and offers its town again when the host answers. A `town` message with a
-newer revision makes the browser refetch and take the host's document without an undo step. The text view, the
+("kept in this browser until the host is back") and offers its town again when the host answers (as the world's own
+amend when only the world's record changed, as a person's commit otherwise; an edit made while that answer is on its
+way goes first and carries the offline change, nothing of another browser is said). A `town` message with a newer
+revision makes the browser refetch and take the host's document without an undo step. A person's edit remembers the
+picture it was made on: when the host's town replaced that picture before the edit is sent (another browser's town
+taken during the first read or after an offline spell), the edit is kept out and said, never sent over the host's town
+(round 27, review F1); a host town the browser cannot read is offline with a note of its own and the retry. The text view, the
 Connection panel ("Town" and "Zones") and build mode say where the town is kept: "kept by the world's host for this
 crewhub-loops, shared by every paired browser", or offline "kept in this browser until the host is back". Demo mode is
 unchanged: every scenario keeps its town in IndexedDB under its own key.
@@ -1265,7 +1311,7 @@ already forwards (`/world-api/tickets/{ref}/progress`), or in the page's own Rec
 | **The tickets it holds** | `GET /api/board/{slug}` of every project: cards whose `assignee` is the agent (loops assigns tickets to registered agents only) | one: the ticket on its desk, else the first in-progress one | **Holds**: a count by status ("3 open tickets: 2 in progress, 1 in review"), then the open tickets (not done), key and title linked into loops, the status and whom each waits on, in progress first, at most 5 with "and n more" | registered: "No ticket held: crewhub-loops assigns it none right now"; a worker: "No ticket of its own: crewhub-loops assigns tickets to its lead, <lead>; the one on its desk is inferred from its status line" |
 | **The tickets it waits on, and that wait on it** | the board cards' `waitingOn` (a person or an agent) and `waitingOnHuman` | the "waiting on <person>" chip of the one ticket | each held ticket says "waits on <name>" (a person or an agent); **Waited on by**: open tickets of others whose `waitingOn` is this agent, with who holds them | "Waits on nobody" is said in the Holds summary when it holds tickets and none waits; "nobody waits on it" likewise |
 | Its last progress line | `ticket.progress` events (the stream, from the tail: nothing from before the page opened); `GET /api/tickets/{ref}/progress` (the host forwards it, `WORLD_ROUTES`) | yes, from the events only: empty at open against a real loops | the newest line the page saw, else the **last line of the ticket on its desk read once from the source** (`getProgress`: the host's forwarded `/world-api/tickets/{ref}/progress` in live mode, the demo's data in the demo; read-only, one GET while the card is open, never retried by itself) | "No progress line: none seen since this page opened, and CL-9 has none" / "... and no ticket on its desk to read one from" / a read that fails: "... and the lines of CL-9 could not be read from the source" (never "none" for a refused read) |
-| **Its recent answers in the chat** | `dm.created` on the key's stream where loops lets the world's key read the chat (a viewer key, 8292; the person's session of round 12 went in round 19); `GET /api/dm/messages/{id}` | no (the Chat panel and the text view list the last 10 of every agent) | **Answers**: this agent's lines from the Recent answers store (the page's life, newest first, at most 3), each with its time; the Chat button opens its chat | per road (`cardAnswersEmpty`, two roads since round 19): key: "No answer from it since this page opened; this crewhub-loops lets the world's key read the chat"; none: "No answers can arrive here: this crewhub-loops does not let the world read the chat. For the agents' answers, make a viewer key in Settings > Agents > Connect CrewHub World …"; the demo: "No answer yet: write to it in the demo's chat dock" |
+| **Its recent answers in the chat** | `dm.created` on the key's stream where loops lets the world's key read the chat (a viewer key, 8292; the person's session of round 12 went in round 19); `GET /api/dm/messages/{id}` | no (the Chat panel and the text view list the last 10 of every agent) | **Answers**: this agent's lines from the Recent answers store (the page's life, newest first, at most 3), each with its time; the Chat button opens its chat | per road (`cardAnswersEmpty` in `state/chatRoad.ts`, three roads since round 28): key: "No answer from it since this page opened; this crewhub-loops lets the world's key read the chat of the person who made the key, so one to them would show here."; page: "No answer from it since this page opened; this page reads your own chat from crewhub-loops, so one to you would show here."; none: "No answers can arrive here: this crewhub-loops does not let the world's key read the chat[, and why the page cannot either]. For the agents' answers, make a viewer key in Settings > Agents > Connect CrewHub World …, or let this page read your own chat: set CHL_WORLD_ORIGIN=<this page's origin> …"; the demo: "No answer yet: write to it in the demo's chat dock" |
 | Its comments, moves, deliveries | the events | yes (Recent, the last 5 facts) | unchanged, behind More | nothing (no fact, no section) |
 | Projects it leads or belongs to | `GET /api/agents` `projects`; the buildings | yes (Projects) | unchanged, behind More | — |
 | Its keys, rights, the reader log (`/api/agents/{name}/keys`, `/reads`), its audit changes (`/changes`), lane-watch alerts (`/api/lane-watch/alerts`) | loops, for admins or the owner only | no | no: the world's key may not read them, and the card says nothing about what it cannot know | — |

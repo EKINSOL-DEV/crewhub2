@@ -3,36 +3,14 @@
    the Chat panel (above the frame, collapsible) and in the text view ("Recent answers"), each answer a button that
    opens that agent's chat: the Chat panel on `?chat=<id>` when loops' dock has a head for it, else its lead's chat by
    the card's rule of round 13 (`chatTargetOf`), the card in the demo (whose dock's scripted replies feed the same store
-   since round 17, state/demoSaid.ts). The pure parts: the empty state per road, the
-   time, the row's words and accessible name. English here, as `chatWords`. */
-import type { HostSessionState } from "@crewhub/loops-client";
+   since round 17, state/demoSaid.ts). The pure parts: the time, the row's words and accessible name; the empty state per
+   road is the chat road's (`recentEmptyWords` in state/chatRoad, round 28). English here, as `chatWords`. */
 import type { AgentCardFacts } from "@crewhub/world-model";
-import { chatCardNote, chatTargetOf, VIEWER_KEY_WORDS } from "./chatPanel.ts";
+import { chatCardNote, chatTargetOf } from "./chatPanel.ts";
 import { joinSentences, RECENT_ANSWERS, type Answer } from "./said.ts";
 
 /** What the list is: the text view's section opens with it; the Chat panel keeps it behind "About this chat" (round 18). */
 export const RECENT_NOTE = `The last ${RECENT_ANSWERS} answers this page saw, newest first; a bubble shows each for a moment, this list keeps them while the page is open and nothing longer.`;
-
-/**
- * The empty list in plain words, per road: in the demo an answer comes from its own dock (round 17); on a live page
- * whether answers can arrive at all (`connection.session`: `key`, yes, as bubbles; absent, no: this loops does not let
- * the world read the chat, and the way to a viewer key).
- */
-export function recentEmptyWords(mode: "demo" | "live", session: Pick<HostSessionState, "state"> | null | undefined): string {
-  if (mode === "demo") return "No answers yet: write to an agent in the demo's chat dock (bottom right) and its scripted reply shows as a bubble and stays here.";
-  if (session?.state === "key") return "No answers yet: this crewhub-loops lets the world's key read the chat, so an agent's answer shows as a bubble and stays here.";
-  return `No answers can arrive: this crewhub-loops does not let the world read the chat. For bubbles, ${VIEWER_KEY_WORDS}.`;
-}
-
-/**
- * The card's Answers section when the agent has no answer in the list (round 22): why none can be known, per road, in
- * one sentence; the same facts as `recentEmptyWords`, said for one agent.
- */
-export function cardAnswersEmpty(mode: "demo" | "live", session: Pick<HostSessionState, "state"> | null | undefined): string {
-  if (mode === "demo") return "No answer yet: write to it in the demo's chat dock (bottom right) and its scripted reply shows here.";
-  if (session?.state === "key") return "No answer from it since this page opened; this crewhub-loops lets the world's key read the chat, so one would show here.";
-  return `No answers can arrive here: this crewhub-loops does not let the world read the chat. For the agents' answers, ${VIEWER_KEY_WORDS}.`;
-}
 
 /** The answer's time as loops wrote it, local, HH:MM:SS (24 h); the page's own clock when `at` does not parse. */
 export function answerTime(answer: Pick<Answer, "at" | "shownAt">): string {

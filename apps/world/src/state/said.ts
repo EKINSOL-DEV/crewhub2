@@ -121,6 +121,8 @@ export function useSaid(): SaidMap {
 
 /** The Recent answers list: the last RECENT_ANSWERS lines the page saw, newest first; the same array until one arrives. */
 export const getRecentAnswers = () => recent;
+/** How many bubbles are alive right now (the long-session probe, state/soak.ts). */
+export const saidCount = () => lines.size;
 export function useRecentAnswers(): readonly Answer[] {
   return useSyncExternalStore(subscribeSaid, getRecentAnswers, getRecentAnswers);
 }
