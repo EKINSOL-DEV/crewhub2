@@ -79,6 +79,10 @@ const useNarrow = () =>
 
 const prefersReducedMotion = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const typing = (target: EventTarget | null) => target instanceof HTMLElement && (target.matches("input, select, textarea") || target.isContentEditable);
+/** A control that uses Escape itself (text goes in): the world's Escape chain stays out. A select, a checkbox, a range or
+    a file input does not, so Escape with the focus on one still closes the sheet it stands in (round 21). */
+const swallowsEscape = (target: EventTarget | null) =>
+  target instanceof HTMLElement && (target.isContentEditable || target.matches("textarea") || (target.matches("input") && !target.matches('[type="checkbox"], [type="radio"], [type="range"], [type="file"]')));
 
 /** A callback whose identity never changes but which always calls the latest `fn`, so memoised chrome skips renders. */
 function useStable<A extends unknown[], R>(fn: (...args: A) => R): (...args: A) => R {
@@ -551,7 +555,7 @@ function World() {
         else openJump();
         return;
       }
-      if (typing(e.target)) return;
+      if (typing(e.target) && (e.key !== "Escape" || swallowsEscape(e.target))) return;
       // Undo and redo of layout edits while build mode is on.
       if (build.state.on && (e.ctrlKey || e.metaKey) && !e.altKey && (e.key.toLowerCase() === "z" || e.key.toLowerCase() === "y")) {
         e.preventDefault();
