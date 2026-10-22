@@ -18,8 +18,9 @@ test("worldStores: every size read fresh through the reads, threads null before 
     town: () => ({ docRevision: 7, hostRev: 7 }),
     stream: () => ({ state: "open", reconnects: 3 }),
     connection: () => ({ state: "live" }),
+    pageChat: () => ({ probe: "on", road: "page", polling: true, polls: 5, lines: 1 }),
   };
-  assert.deepEqual(worldStores(reads), { said: 1, answers: 2, threads: 1, docRevision: 7, hostRev: 7, stream: { state: "open", reconnects: 3 }, connection: { state: "live" } });
+  assert.deepEqual(worldStores(reads), { said: 1, answers: 2, threads: 1, docRevision: 7, hostRev: 7, stream: { state: "open", reconnects: 3 }, connection: { state: "live" }, pageChat: { probe: "on", road: "page", polling: true, polls: 5, lines: 1 } });
   said = 4;
   threads.set("t2", {});
   assert.equal(worldStores(reads).said, 4, "read again, not remembered");

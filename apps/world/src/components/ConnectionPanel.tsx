@@ -16,6 +16,7 @@ import { useT } from "../i18n";
 import { chatWords } from "../state/chatPanel";
 import { connectOutcome, loopsVersion, relativeTime, sessionWords, untilTime } from "../state/connect";
 import { rememberHealth } from "../state/health";
+import { pageProbeWords, usePageChat } from "../state/pageChat";
 import { useTown } from "../state/town";
 import { useWorld } from "../state/world";
 import { townKeeping, townKeepingWords, zonesOriginWords } from "../world/zoneText";
@@ -34,6 +35,8 @@ interface ConnectionPanelProps {
 
 export function ConnectionPanel({ state, initial, onClose, pollMs = PANEL_POLL_MS }: ConnectionPanelProps) {
   const { t } = useT();
+  // Road 2 of the chat (round 28): what the page's own probe found, said under the Chat section.
+  const pageChat = usePageChat();
   const { model } = useWorld();
   const town = useTown();
   const kept = townKeeping(town.storage, model.mode);
@@ -213,6 +216,11 @@ export function ConnectionPanel({ state, initial, onClose, pollMs = PANEL_POLL_M
           <dd className="connection-zones">{zoneWords}</dd>
         </dl>
         {connection?.session && <ChatSession session={connection.session} paired={paired} onHealth={setHealth} />}
+        {pageChat.probe !== "unknown" && (
+          <p className="hint connection-note connection-page-chat" data-page-chat={pageChat.probe} data-chat-road={pageChat.road}>
+            {pageProbeWords(pageChat.probe, pageChat.origin, window.location.origin)}
+          </p>
+        )}
         {health && !connection && <p className="hint connection-note">{t("world.connection.panel.older")}</p>}
         {connection && !paired && <p className="hint connection-note">{t("world.connection.panel.unpaired")}</p>}
         <p className="hint connection-note">{silent ? t("world.connection.panel.silent") : askedAt === null ? "" : t("world.connection.panel.updated", { ago: relativeTime(new Date(askedAt).toISOString(), now) ?? "" })}</p>

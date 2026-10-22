@@ -17,6 +17,7 @@ import { useEffect, useId, useRef } from "react";
 import type { HostHealth } from "@crewhub/loops-client";
 import { useT } from "../i18n";
 import { CHAT_FRAME_ALLOW, CHAT_FRAME_SANDBOX, chatFrameUrl, chatGlance, chatWordsLine } from "../state/chatPanel";
+import { pageProbeWords, usePageChat } from "../state/pageChat";
 import { RECENT_NOTE, type AnswerTarget } from "../state/recentAnswers";
 import type { Answer } from "../state/said";
 import { loopsWebUrl } from "../state/source";
@@ -49,6 +50,8 @@ export function ChatPanel({ agent, health, full, answers, recentEmpty, targetOf,
   }, []);
   const src = chatFrameUrl(health, agent?.key ?? null);
   const app = loopsWebUrl(health);
+  // Road 2 of the chat (round 28): the page's own probe, said behind About this chat.
+  const pageChat = usePageChat();
   return (
     <Card className={`world-sheet chat-sheet${full ? " chat-sheet-full" : ""}`} role="dialog" aria-modal="false" aria-labelledby={`${id}-title`} aria-describedby={`${id}-lead`} data-agent={agent?.key}>
       <Card.Header
@@ -65,6 +68,11 @@ export function ChatPanel({ agent, health, full, answers, recentEmpty, targetOf,
           <summary>{t("world.chat.panel.about")}</summary>
           <p className="chat-sheet-dock">{agent ? t("world.chat.panel.leadWith", { name: agent.name }) : t("world.chat.panel.lead")}</p>
           <p className="sign-muted chat-sheet-needs">{chatWordsLine(health?.connection?.session)}</p>
+          {pageChat.probe !== "unknown" && (
+            <p className="sign-muted chat-sheet-page" data-page-chat={pageChat.probe} data-chat-road={pageChat.road}>
+              {pageProbeWords(pageChat.probe, pageChat.origin, window.location.origin)}
+            </p>
+          )}
           <p className="sign-muted recent-note">{RECENT_NOTE}</p>
         </details>
         <RecentAnswers as="details" answers={answers} empty={recentEmpty} targetOf={targetOf} onOpen={onAnswer} />

@@ -2,6 +2,7 @@
    the host's health as the page last read it; the page's own connection comes from the caller (App.tsx has the world
    runtime). Kept apart from soak.ts so the probe itself imports nothing of the page and tests under node. */
 import { getHealth } from "./health";
+import { getPageChat } from "./pageChat";
 import { getRecentAnswers, saidCount } from "./said";
 import type { StoreReads } from "./soak";
 import { getThreads } from "./threads";
@@ -21,5 +22,9 @@ export function pageReads(connection: () => unknown): StoreReads {
       return stream ? { state: stream.state, reconnects: stream.reconnects } : null;
     },
     connection,
+    pageChat: () => {
+      const { probe, road, polling, polls, lines } = getPageChat();
+      return { probe, road, polling, polls, lines };
+    },
   };
 }
