@@ -17,6 +17,8 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".
 
 export const STUB_STATES = ["no-loops", "pair", "connect", "checking", "rejected", "loops-down", "connected", "busy", "older", "unpaired"];
 const BUSY_REASON = "stream budget exhausted (429): another host or tab uses this key; crewhub-loops admits four streams per key";
+// The discovery target the states quote (the Mac app's port, as text only): the loops web origin every state names is the
+// stub's own web (round 29): a live page probes the loops web origin the host names (road 2), and must never ask 8091.
 const APP_PORT_TARGET = "http://127.0.0.1:8091";
 const APP_SOCKET_TARGET = "~/Library/Application Support/be.ekinsol.crewhub/run/api.sock";
 const REJECT_REASON = "crewhub-loops answered 403 for GET /api/team: a Read only key cannot read the team. Make an external bot with Read only off.";
@@ -69,6 +71,9 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
     });
   }
 
+  /** The loops web origin the states name (round 29): the inner web once it runs, else this stub's own origin; never 8091. */
+  const webOrigin = () => inner?.web.url ?? `http://127.0.0.1:${server.address()?.port ?? port}`;
+
   async function health() {
     const base = { keyName: "", sharedKey: false, pairing: "on", transport: "tcp" };
     switch (current) {
@@ -82,15 +87,15 @@ export async function createConnectStub({ port = 0, state = "no-loops", origin, 
       case "pair":
         return { ...base, loops: "down", paired: false, connection: { discovery: { state: "found" }, key: { state: "none" }, stream: { state: "idle", reconnects: 0 } } };
       case "unpaired":
-        return { ...base, loops: "ok", paired: false, transport: "unix", loopsWebUrl: APP_PORT_TARGET, connection: { discovery: { state: "found" }, key: { state: "ok" }, stream: { state: "ok", reconnects: 0 } } };
+        return { ...base, loops: "ok", paired: false, transport: "unix", loopsWebUrl: webOrigin(), connection: { discovery: { state: "found" }, key: { state: "ok" }, stream: { state: "ok", reconnects: 0 } } };
       case "connect":
-        return { ...base, loops: "unauthorized", paired: true, loopsWebUrl: APP_PORT_TARGET, connection: { discovery: { state: "found", via: "app-port", target: APP_PORT_TARGET }, key: { state: "none" }, stream: { state: "idle", reconnects: 0 } } };
+        return { ...base, loops: "unauthorized", paired: true, loopsWebUrl: webOrigin(), connection: { discovery: { state: "found", via: "app-port", target: APP_PORT_TARGET }, key: { state: "none" }, stream: { state: "idle", reconnects: 0 } } };
       case "checking":
-        return { ...base, loops: "unauthorized", keyName: "crewhub-world", paired: true, loopsWebUrl: APP_PORT_TARGET, connection: { discovery: { state: "found", via: "app-port", target: APP_PORT_TARGET }, key: { state: "checking", name: "crewhub-world", source: "stored" }, stream: { state: "idle", reconnects: 0 } } };
+        return { ...base, loops: "unauthorized", keyName: "crewhub-world", paired: true, loopsWebUrl: webOrigin(), connection: { discovery: { state: "found", via: "app-port", target: APP_PORT_TARGET }, key: { state: "checking", name: "crewhub-world", source: "stored" }, stream: { state: "idle", reconnects: 0 } } };
       case "loops-down":
-        return { ...base, loops: "down", keyName: "crewhub-world", paired: true, loopsWebUrl: APP_PORT_TARGET, cursor: 41, connection: { discovery: { state: "found", via: "app-port", target: APP_PORT_TARGET }, key: { state: "ok", name: "crewhub-world", source: "stored" }, stream: { state: "down", cursor: 41, lastEventAt: new Date(Date.now() - 400_000).toISOString(), reconnects: 3 } } };
+        return { ...base, loops: "down", keyName: "crewhub-world", paired: true, loopsWebUrl: webOrigin(), cursor: 41, connection: { discovery: { state: "found", via: "app-port", target: APP_PORT_TARGET }, key: { state: "ok", name: "crewhub-world", source: "stored" }, stream: { state: "down", cursor: 41, lastEventAt: new Date(Date.now() - 400_000).toISOString(), reconnects: 3 } } };
       case "rejected":
-        return { ...base, loops: "unauthorized", keyName: "crewhub-world", paired: true, loopsWebUrl: APP_PORT_TARGET, connection: { discovery: { state: "found", via: "app-port", target: APP_PORT_TARGET }, key: { state: "rejected", name: "crewhub-world", source: "stored", reason: REJECT_REASON }, stream: { state: "unauthorized", reconnects: 0 } } };
+        return { ...base, loops: "unauthorized", keyName: "crewhub-world", paired: true, loopsWebUrl: webOrigin(), connection: { discovery: { state: "found", via: "app-port", target: APP_PORT_TARGET }, key: { state: "rejected", name: "crewhub-world", source: "stored", reason: REJECT_REASON }, stream: { state: "unauthorized", reconnects: 0 } } };
       case "busy":
       case "connected": {
         const { fake, host, web } = await ensureInner();
