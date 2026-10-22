@@ -18,6 +18,8 @@ import { liveScreen, withStreamKey } from "./state/connect";
 import { useRecentAnswers, useSaid, type Answer } from "./state/said";
 import { answerTarget, recentEmptyWords, type AnswerTarget } from "./state/recentAnswers";
 import { rememberHealth, useHostHealth } from "./state/health";
+import { installSoakProbe } from "./state/soak";
+import { pageReads } from "./state/soakPage";
 import { markWords, saidLines, saidMarks, type SaidMark } from "./world/saidText";
 import { JumpList } from "./components/JumpList";
 import { RecentAnswers } from "./components/RecentAnswers";
@@ -104,6 +106,8 @@ export function App() {
 
 function World() {
   const { model, text, playback } = useWorld();
+  // The long-session probe (state/soak.ts): the stores' sizes on `window.__worldStores` for tools/memory.mjs. Reads only.
+  useEffect(() => installSoakProbe(pageReads(() => worldRuntime().connection?.state() ?? null)), []);
   const narrow = useNarrow();
   const dockHeight = useDockHeight();
   const { theme, cycle } = useTheme();
