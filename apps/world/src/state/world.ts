@@ -33,6 +33,7 @@ import {
   type WorldModel,
 } from "@crewhub/world-model";
 import { sourceDecision, takeFirstSnapshot, townCopySource, townKeyFor, type SourceDecision } from "./source";
+import { hostTownChanged } from "./townBus";
 
 export interface WorldState {
   model: WorldModel;
@@ -153,7 +154,7 @@ class WorldRuntime {
       this.chat = null;
       // The first snapshot main.tsx read ahead, if it did: the first model has the town.
       const firstSnapshot = takeFirstSnapshot();
-      this.source = createHostSource(firstSnapshot ? { firstSnapshot } : {});
+      this.source = createHostSource({ ...(firstSnapshot ? { firstSnapshot } : {}), onTown: hostTownChanged });
     } else {
       const demo = createDemoSource({ scheduler: browserScheduler(), epochMs, scenario: SCENARIO.id });
       this.chat = demo;

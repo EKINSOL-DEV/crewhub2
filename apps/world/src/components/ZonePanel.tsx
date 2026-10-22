@@ -13,7 +13,7 @@ import { castRegistry } from "../world/cast";
 import { resolveLook } from "../world/look";
 import { styleRegistry } from "../world/style";
 import { buildingLook, lookRegistries, zoneLook, type LookContext } from "../world/worldLook";
-import { ZONE_COLOR_NAMES, ZONE_EMBLEM_NAMES, zoneLabel, zoneReason, zonesOriginWords } from "../world/zoneText";
+import { ZONE_COLOR_NAMES, ZONE_EMBLEM_NAMES, townKeeping, zoneLabel, zoneReason, zonesOriginWords } from "../world/zoneText";
 import { Button, Chip, Field } from "./primitives";
 
 /** A style option as the settings show it; the style's manifest declares them (`options`), or none. */
@@ -295,7 +295,7 @@ export function BuildZones({ model, town, inside }: { model: WorldModel; town: T
         </Button>
       </div>
       <p className="hint">Names, colours and emblems of zones are in Settings.</p>
-      {model.mode === "live" && <p className="hint build-zones-origin">Zones here: {zonesOriginWords({ zones: model.zones, assignments: town.doc.assignments })}</p>}
+      {model.mode === "live" && <p className="hint build-zones-origin">Zones here: {zonesOriginWords({ zones: model.zones, assignments: town.doc.assignments, kept: townKeeping(town.storage, model.mode) })}</p>}
       {edits.error && (
         <p className="hint zone-error" role="alert">
           {edits.error}

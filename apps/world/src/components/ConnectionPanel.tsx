@@ -18,7 +18,7 @@ import { connectOutcome, loopsVersion, relativeTime, sessionWords, untilTime } f
 import { rememberHealth } from "../state/health";
 import { useTown } from "../state/town";
 import { useWorld } from "../state/world";
-import { zonesOriginWords } from "../world/zoneText";
+import { townKeeping, townKeepingWords, zonesOriginWords } from "../world/zoneText";
 import { connectionWord } from "./ConnectionChip";
 import { Button, Card } from "./primitives";
 
@@ -36,7 +36,9 @@ export function ConnectionPanel({ state, initial, onClose, pollMs = PANEL_POLL_M
   const { t } = useT();
   const { model } = useWorld();
   const town = useTown();
-  const zoneWords = zonesOriginWords({ zones: model.zones, assignments: town.doc.assignments });
+  const kept = townKeeping(town.storage, model.mode);
+  const zoneWords = zonesOriginWords({ zones: model.zones, assignments: town.doc.assignments, kept });
+  const townWords = `${townKeepingWords(kept)}${town.storageNote ? ` ${town.storageNote}` : ""}`;
   const [health, setOwnHealth] = useState<HostHealth | null>(initial);
   // Every read the panel makes is kept for the Chat panel and the text view too (state/health.ts).
   const setHealth = (fresh: HostHealth) => {
@@ -205,6 +207,8 @@ export function ConnectionPanel({ state, initial, onClose, pollMs = PANEL_POLL_M
               <dd>{t(`world.connection.panel.transport.${health.transport}`)}</dd>
             </>
           )}
+          <dt>{t("world.connection.panel.town")}</dt>
+          <dd className="connection-town">{townWords}</dd>
           <dt>{t("world.connection.panel.zones")}</dt>
           <dd className="connection-zones">{zoneWords}</dd>
         </dl>
