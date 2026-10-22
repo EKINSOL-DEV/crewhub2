@@ -1494,7 +1494,7 @@ await group("chat", async () => {
     const rowAgent4 = await pg4.locator(".recent-row").first().getAttribute("data-answer-agent").catch(() => null);
     const glance4 = (await pg4.locator(".chat-sheet-todo").innerText().catch(() => "")).replace(/\s+/g, " ");
     await shot(pg4, "74-chat-road2-recent");
-    ok("chat (road 2): Recent answers lists the answer with the agent, and the panel's glance says the answers come as bubbles because this page reads your own chat", rows4 >= 1 && rowAgent4 === "cr-lead" && glance4 === "Sign in to crewhub-loops below to type; the answers come as bubbles: this page reads your own chat.", `${rows4} row(s), first ${rowAgent4}; "${glance4}"`);
+    ok("chat (road 2): Recent answers lists the answer with the agent, and the panel's glance says type below, you are signed in there, and the answers come as bubbles because this page reads your own chat", rows4 >= 1 && rowAgent4 === "cr-lead" && glance4 === "Type to an agent below (you are signed in there); the answers come as bubbles: this page reads your own chat.", `${rows4} row(s), first ${rowAgent4}; "${glance4}"`);
     await pg4.keyboard.press("Escape");
     await pg4.waitForSelector(".chat-sheet", { state: "detached", timeout: 5000 }).catch(() => {});
     // The page's every ask of the fake (the Chat panel's frame asks the fake's root too: a document, not the page's own

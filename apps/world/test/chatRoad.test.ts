@@ -81,7 +81,7 @@ test("chatWords: one story per road, the same words for the Connection panel, th
 
 test("chatGlance: the Chat panel's one line to act on, per road and per none case, short, one story with chatWords", () => {
   assert.equal(chatGlance(KEY), "Sign in to crewhub-loops below to type; the answers come as bubbles without it.");
-  assert.equal(chatGlance(PAGE), "Sign in to crewhub-loops below to type; the answers come as bubbles: this page reads your own chat.");
+  assert.equal(chatGlance(PAGE), "Type to an agent below (you are signed in there); the answers come as bubbles: this page reads your own chat.", "the page road means signed in: nothing to sign in to (round 29)");
   assert.equal(chatGlance(NONE("unknown")), "Sign in to crewhub-loops below to type; no bubbles: a viewer key or the world's origin would read the chat.");
   assert.equal(chatGlance(NONE("signed-out")), "Sign in to crewhub-loops below to type; signed in, the answers come as bubbles: this page reads your chat.");
   assert.equal(chatGlance(NONE("origin-not-set")), "Sign in to crewhub-loops below to type; no bubbles: the world's origin is not set on crewhub-loops (see About).");
@@ -89,7 +89,8 @@ test("chatGlance: the Chat panel's one line to act on, per road and per none cas
   for (const v of [KEY, PAGE, ...NONE_PROBES.map(NONE), view(false, "origin-not-set", "http://localhost:51234")]) {
     const line = chatGlance(v);
     assert.ok(line.length <= 112, `two lines of the panel (${v.road}/${v.pageProbe}): ${line.length} characters`);
-    assert.match(line, /^Sign in to crewhub-loops below to type;/, "typing always needs loops' own sign-in in the frame");
+    if (v.road === "page") assert.match(line, /^Type to an agent below \(you are signed in there\);/, "on the page road the person is signed in already");
+    else assert.match(line, /^Sign in to crewhub-loops below to type;/, "typing needs loops' own sign-in in the frame on every other road");
     const bubbles = v.road !== "none" || v.pageProbe === "signed-out";
     assert.equal(/come as bubbles/.test(line), bubbles, `bubbles where a road is open or one sign-in away (${v.road}/${v.pageProbe})`);
     assert.equal(/no bubbles/.test(line), !bubbles, `one story with chatWords: ${chatWords(v).bubbles.slice(0, 40)}`);
@@ -123,6 +124,9 @@ test("the text view says where chat lives: the panel in live mode with the road'
 
 test("the Connect screen's viewer hint says whose chat the key reads and names road 2 with the exact setting", () => {
   assert.match(en["world.connect.connect.step2"] ?? "", /reads only your own chat \(the chat of the person who makes the key\)/);
+  // Round 29: the steps name loops main's real buttons (the walk quoted the card and the key window).
+  assert.match(en["world.connect.connect.step1"] ?? "", /press \*\*Connect CrewHub World\*\*\. Once the bot exists the card is titled \*\*CrewHub World\*\*: press \*\*New access key\*\*, then \*\*Make a new access key\*\*\./);
+  assert.match(en["world.connect.connect.step3"] ?? "", /^In the window "The access key of CrewHub World" press \*\*Copy the access key\*\*, then \*\*I have saved the access key, close\*\*: the key is shown once\.$/);
   assert.match(en["world.connect.connect.viewer"] ?? "", /no bubbles with it, unless crewhub-loops on this computer lets this page read your own chat: CHL_WORLD_ORIGIN=\{origin\} set there/);
   assert.match(en["world.connection.panel.key.viewer"] ?? "", /reads only the chat of the person who made it/);
   for (const key of Object.keys(en)) assert.ok(!/signed-out|signed-in|Forget the session/.test(en[key] ?? ""), `${key}: nothing of the sign-in road`);
