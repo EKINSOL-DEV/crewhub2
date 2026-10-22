@@ -63,6 +63,8 @@ export async function startLive(opts, { preview = false } = {}) {
     base: `${origin}/`,
     origin,
     describe,
+    /** The host the tool started: its `connection()` tells the upstream stream's state and reconnects (round 27). */
+    host,
     /** Pairs the page's context: the one-time link, which lands on `/`. */
     async pair(page) {
       await page.goto(host.mintPairLink(preview ? undefined : origin));
