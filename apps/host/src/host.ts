@@ -30,7 +30,7 @@ import { checkKey } from "./keyCheck.ts";
 import type { KeyStore } from "./keyStore.ts";
 import { BACKUP_NAME, TOWN_BODY_LIMIT, TOWN_FORMAT, installationKey, listBackups, readBackupTown, type TownOp, type WorldDb, validateTownForHost } from "./worldDb.ts";
 import { type LoopsClient, createLoopsClient, isUnauthorized } from "./loops.ts";
-import { PAIR_PATH_PREFIX, PAIR_REFUSED_HTML, type Pairing, createPairing, pairCookieHeader } from "./pairing.ts";
+import { PAIR_PATH_PREFIX, PAIR_REFUSED_HTML, type PairVerdict, type Pairing, createPairing, pairCookieHeader } from "./pairing.ts";
 import { type ArchiveReport, type AssembledSnapshot, SnapshotError, type SnapshotStats, assembleSnapshot } from "./snapshot.ts";
 import { type ChatLine, firstLine } from "./chatLine.ts";
 import { type HostMessage, type LoopsState, type Upstream, createUpstream } from "./stream.ts";
@@ -86,6 +86,8 @@ export interface HostOptions {
   pairing?: "on" | "off";
   /** The secret cookies are signed with (from CREWHUB_WORLD_PAIRING_FILE); a per-run random one when absent. */
   pairingSecret?: Buffer;
+  /** A pairing unused this long is refused (round 31, question 2); 0 never. Default 30 days. */
+  pairingIdleMs?: number;
   /** Where the browser reaches the host when a TLS proxy stands in front (CREWHUB_WORLD_PUBLIC_URL): https → `Secure` cookie; its origin is allowed. */
   publicUrl?: string;
   /**
@@ -177,6 +179,8 @@ export interface HostHealth {
   /** Whether THIS request carries a valid pairing cookie (always true with pairing off). */
   paired: boolean;
   pairing: "on" | "off";
+  /** How many days a pairing may go unused before it is refused (round 31); 0 never. */
+  pairingIdleDays: number;
   /** Discovery, key and stream: the states always, the details (paths, names, cursor) for a paired browser only. */
   connection: HostConnection;
   /** The checkout id this host runs from (`checkout.ts`), when it was given one: a dev server of another checkout refuses this host. */
@@ -280,7 +284,9 @@ export async function createHost(options: HostOptions): Promise<Host> {
   const pairingOptions: Parameters<typeof createPairing>[0] = {};
   if (options.pairingSecret !== undefined) pairingOptions.secret = options.pairingSecret;
   if (options.now !== undefined) pairingOptions.now = options.now;
+  if (options.pairingIdleMs !== undefined) pairingOptions.idleMs = options.pairingIdleMs;
   const pairing: Pairing = createPairing(pairingOptions);
+  const idleDays = Math.round(pairing.idleMs / 86_400_000);
   const publicUrl = options.publicUrl === undefined ? null : new URL(options.publicUrl);
   const secureCookie = publicUrl?.protocol === "https:";
   const heartbeatMs = options.heartbeatMs ?? 15_000;
@@ -676,7 +682,8 @@ export async function createHost(options: HostOptions): Promise<Host> {
   const devOrigins = new Set<string>();
   const allowedOrigins = () =>
     new Set([`http://127.0.0.1:${port}`, `http://localhost:${port}`, ...(publicUrl === null ? [] : [publicUrl.origin]), ...(options.allowedOrigins ?? []), ...devOrigins]);
-  const paired = (req: IncomingMessage) => pairingMode === "off" || pairing.isPaired(req.headers.cookie);
+  /** The pairing gate's verdict for a request; with pairing off every request counts as paired. */
+  const pairingOf = (req: IncomingMessage): PairVerdict => (pairingMode === "off" ? { state: "paired", renew: null } : pairing.check(req.headers.cookie));
   const mintPairLink = (origin?: string) => `${origin === undefined ? `http://127.0.0.1:${port}` : origin.replace(/\/$/, "")}${PAIR_PATH_PREFIX}${pairing.mintToken()}`;
 
   /** The connection as health reports it: the states always, the details only when `detailed` (a paired browser). */
@@ -1181,11 +1188,17 @@ export async function createHost(options: HostOptions): Promise<Host> {
       await devOrigin(req, res);
       return;
     }
-    if (route.pattern !== "/health" && !paired(req)) {
+    const verdict = pairingOf(req);
+    if (route.pattern !== "/health" && verdict.state !== "paired") {
       req.resume();
-      sendJson(res, 401, { error: "not_paired" });
+      // An expired pairing says so (the page's words stay "not paired"; a tool or a log reader sees why).
+      sendJson(res, 401, verdict.state === "expired" ? { error: "not_paired", reason: "expired" } : { error: "not_paired" });
       return;
     }
+    // The window slides with every use (round 31, question 2): a cookie in use whose stamp is older than an hour is
+    // set again with a fresh stamp, on any route health included (a page that only watches keeps its pairing).
+    if (verdict.state === "paired" && verdict.renew !== null) res.setHeader("set-cookie", pairCookieHeader(verdict.renew, secureCookie));
+    const isPaired = verdict.state === "paired";
     if (route.kind === "loops") {
       await passthrough(res, fillPattern(route.loopsPattern as string, params), query);
       return;
@@ -1195,7 +1208,6 @@ export async function createHost(options: HostOptions): Promise<Host> {
         // The states as they are, after a bounded wait for a link in the making: the page's probe gives the host
         // 1.5 s before it takes the host for silent, and a slow loops must never send the world into demo mode.
         await Promise.race([relinking.then(() => link?.upstream.start()), new Promise<void>((resolve) => setTimeout(resolve, HEALTH_WAIT_MS).unref())]);
-        const isPaired = paired(req);
         const health: HostHealth = {
           loops: legacyState(),
           keyName: holder === null ? "" : holder.name,
@@ -1203,6 +1215,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
           loopsWebUrl: loopsWebUrl(),
           paired: isPaired,
           pairing: pairingMode,
+          pairingIdleDays: idleDays,
           connection: connection(isPaired),
         };
         if (options.checkout !== undefined) health.checkout = options.checkout;

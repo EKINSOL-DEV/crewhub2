@@ -3,9 +3,16 @@
  * answers `/world-api/*` (health excepted) only to requests that carry it. Pure state here, no HTTP: `host.ts` wires it.
  *
  * - A token is 32 random bytes, base64url. Only its SHA-256 is kept, with its expiry (10 minutes); redeeming deletes it.
- * - The cookie is `<id>.<mac>`: 16 random bytes and their HMAC-SHA256 under the pairing secret, checked with a
- *   constant-time compare. Nothing about a cookie is stored, so the secret alone decides: a per-run secret makes a
- *   restart invalidate every pairing; a secret kept in `CREWHUB_WORLD_PAIRING_FILE` (mode 0600) keeps them.
+ * - The cookie is `<id>.<stamp>.<mac>`: 16 random bytes, the time of its last use (seconds since the epoch) and their
+ *   HMAC-SHA256 under the pairing secret, checked with a constant-time compare. Nothing about a cookie is stored, so
+ *   the secret alone decides: a per-run secret makes a restart invalidate every pairing; a secret kept in
+ *   `CREWHUB_WORLD_PAIRING_FILE` (mode 0600) keeps them.
+ * - The idle expiry (round 31, question 2): a cookie whose stamp is older than `idleMs` (default 30 days; 0 never) is
+ *   refused, and the window slides with every use: a cookie in use whose stamp is older than an hour is issued again
+ *   with a fresh stamp (`check` hands the value back, `host.ts` sets it). The stamp sits inside the signed value, so
+ *   the host keeps no last-use map and a restart with the kept secret keeps the window exactly; a stamp edited by the
+ *   cookie's holder breaks the signature. The cookie stays a session cookie (no `Max-Age`): the host decides, as a
+ *   browser's own expiry would not end a copied cookie.
  * - Neither the token, nor the cookie value, nor the secret is ever logged or put in a response body.
  */
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
@@ -15,10 +22,16 @@ import path from "node:path";
 export const PAIR_COOKIE = "crewhub_world_pair";
 export const PAIR_TTL_MS = 10 * 60_000;
 export const PAIR_PATH_PREFIX = "/pair/";
+/** How long a pairing may go unused before it is refused, by default: 30 days (question 2's default). `0` is never. */
+export const DEFAULT_PAIRING_IDLE_MS = 30 * 24 * 60 * 60_000;
+/** A cookie in use whose stamp is older than this is issued again with a fresh stamp: the window slides, to the hour. */
+export const PAIR_RENEW_MS = 60 * 60_000;
 const SECRET_BYTES = 32;
 const TOKEN_BYTES = 32;
 const COOKIE_ID_BYTES = 16;
 const BASE64URL = /^[A-Za-z0-9_-]+$/;
+/** The cookie's stamp: seconds since the epoch, decimal. */
+const STAMP = /^\d{1,12}$/;
 
 export interface PairingOptions {
   /** The secret the cookies are signed with; a fresh random one when absent (per run). */
@@ -26,17 +39,30 @@ export interface PairingOptions {
   /** The clock, for tests. */
   now?: () => number;
   ttlMs?: number;
+  /** A cookie unused this long is refused; 0 never. Default DEFAULT_PAIRING_IDLE_MS. */
+  idleMs?: number;
 }
+
+/** What a Cookie header says: paired (with a fresh value to set when the stamp is older than PAIR_RENEW_MS), expired, or none. */
+export type PairVerdict = { state: "paired"; renew: string | null } | { state: "expired" } | { state: "none" };
 
 export interface Pairing {
   /** A fresh single-use token, valid `ttlMs`. The caller turns it into a link; it is never logged here. */
   mintToken(): string;
   /** Exchanges a token once: the cookie value to set, or null for an unknown, used or expired token. */
   redeem(token: string): string | null;
-  /** Whether a Cookie header carries a valid pairing cookie. */
+  /**
+   * The Cookie header's verdict: `paired` when a cookie verifies and its stamp is within the idle window (with `renew`,
+   * a re-stamped value to set, when the stamp is older than PAIR_RENEW_MS); `expired` when every cookie that verifies
+   * is past the window; `none` otherwise.
+   */
+  check(cookieHeader: string | undefined): PairVerdict;
+  /** Whether a Cookie header carries a valid, unexpired pairing cookie (`check(...).state === "paired"`). */
   isPaired(cookieHeader: string | undefined): boolean;
   /** How many unredeemed, unexpired tokens are out (tests). */
   pending(): number;
+  /** The idle window, for health and the Pair screen. */
+  idleMs: number;
 }
 
 const b64url = (bytes: Buffer) => bytes.toString("base64url");
@@ -46,15 +72,43 @@ export function createPairing(options: PairingOptions = {}): Pairing {
   const secret = options.secret ?? randomBytes(SECRET_BYTES);
   const now = options.now ?? Date.now;
   const ttlMs = options.ttlMs ?? PAIR_TTL_MS;
+  const idleMs = options.idleMs ?? DEFAULT_PAIRING_IDLE_MS;
   /** token hash → expiry (ms). */
   const tokens = new Map<string, number>();
 
-  const mac = (id: string) => createHmac("sha256", secret).update(`cookie:${id}`).digest("base64url");
+  const mac = (id: string, stamp: string) => createHmac("sha256", secret).update(`cookie:${id}:${stamp}`).digest("base64url");
+  /** The cookie value for `id`, stamped now. */
+  const issue = (id: string) => {
+    const stamp = String(Math.floor(now() / 1000));
+    return `${id}.${stamp}.${mac(id, stamp)}`;
+  };
 
   function prune(): void {
     const t = now();
     for (const [hash, expiry] of tokens) if (expiry <= t) tokens.delete(hash);
   }
+
+  const check = (cookieHeader: string | undefined): PairVerdict => {
+    // Every cookie of that name is tried (review F2): a loopback server the browser visits can set a second
+    // `crewhub_world_pair` on another path, and browsers send the longer path first; any one that verifies pairs.
+    let expired = false;
+    for (const value of readCookies(cookieHeader, PAIR_COOKIE)) {
+      const parts = value.split(".");
+      if (parts.length !== 3) continue;
+      const [id, stamp, given] = parts as [string, string, string];
+      if (!BASE64URL.test(id) || !STAMP.test(stamp) || !BASE64URL.test(given)) continue;
+      const expected = mac(id, stamp);
+      if (Buffer.byteLength(given) !== Buffer.byteLength(expected)) continue;
+      if (!timingSafeEqual(Buffer.from(given), Buffer.from(expected))) continue;
+      const age = now() - Number(stamp) * 1000;
+      if (idleMs > 0 && age > idleMs) {
+        expired = true;
+        continue;
+      }
+      return { state: "paired", renew: idleMs > 0 && age > PAIR_RENEW_MS ? issue(id) : null };
+    }
+    return expired ? { state: "expired" } : { state: "none" };
+  };
 
   return {
     mintToken() {
@@ -70,28 +124,15 @@ export function createPairing(options: PairingOptions = {}): Pairing {
       if (expiry === undefined) return null;
       tokens.delete(hash);
       if (expiry <= now()) return null;
-      const id = b64url(randomBytes(COOKIE_ID_BYTES));
-      return `${id}.${mac(id)}`;
+      return issue(b64url(randomBytes(COOKIE_ID_BYTES)));
     },
-    isPaired(cookieHeader) {
-      // Every cookie of that name is tried (review F2): a loopback server the browser visits can set a second
-      // `crewhub_world_pair` on another path, and browsers send the longer path first; any one that verifies pairs.
-      for (const value of readCookies(cookieHeader, PAIR_COOKIE)) {
-        const dot = value.indexOf(".");
-        if (dot <= 0) continue;
-        const id = value.slice(0, dot);
-        const given = value.slice(dot + 1);
-        if (!BASE64URL.test(id) || !BASE64URL.test(given)) continue;
-        const expected = mac(id);
-        if (Buffer.byteLength(given) !== Buffer.byteLength(expected)) continue;
-        if (timingSafeEqual(Buffer.from(given), Buffer.from(expected))) return true;
-      }
-      return false;
-    },
+    check,
+    isPaired: (cookieHeader) => check(cookieHeader).state === "paired",
     pending() {
       prune();
       return tokens.size;
     },
+    idleMs,
   };
 }
 

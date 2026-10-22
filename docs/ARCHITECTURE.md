@@ -106,7 +106,11 @@ One Node process, no dependency beyond Node, loopback only. Its parts, each a fi
   admits 64 tabs, then 503); `npm run world` keeps that secret
   in `<config dir>/pairing-secret` (0600), so a restart keeps every paired browser; the
   plain `npm run host` uses a per-run secret. Every data route answers 401 `not_paired`
-  without the cookie; health stays open and shows only states until paired.
+  without the cookie; health stays open and shows only states until paired. A pairing unused
+  for 30 days expires (round 31, question 2, `CREWHUB_WORLD_PAIRING_IDLE_DAYS`, 0 never): the
+  last use is a signed stamp inside the cookie, set again on use once an hour old, so the window
+  slides with every use, no last-use map exists and a restart with the kept secret keeps the
+  window exactly.
 - **The snapshot** (`snapshot.ts`): assembled as `read-model.md` says (the stream's position
   first, then projects, boards, principals, agents, team, watchdog, milestones and
   releases, the archived projects from the event log), paged lists followed to the end,
@@ -357,7 +361,8 @@ security review of the host (round 26) found nothing a page on another site can 
 other programs on the same loopback could; whether those programs are in the threat model, whether a
 pairing should expire, and what an unpaired health read may say are questions for Nicky
 ([proposals/open-questions.md](proposals/open-questions.md)); a per-tab pairing without a cookie is
-prepared on a branch (round 27, `task/r27-tab-pairing`) for that decision.
+prepared on a branch (round 27, `task/r27-tab-pairing`) for that decision, and this branch
+(`task/q1-cookie-expiry`, round 31) is the other answer: the cookie kept, an idle expiry added.
 Tailscale or another TLS proxy is only an option (`CREWHUB_WORLD_PUBLIC_URL` makes the
 cookie `Secure`); nothing hands a link to a remote person yet. Demo mode needs none of
 it, and no credential is ever bundled (a test greps the browser code and the built bundle).

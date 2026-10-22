@@ -156,6 +156,8 @@ export interface ServerConfig {
   pairing: "on" | "off";
   /** The file that keeps the pairing secret across restarts; none means a per-run secret. */
   pairingFile: string | null;
+  /** `CREWHUB_WORLD_PAIRING_IDLE_DAYS` (round 31, question 2): a pairing unused this long is refused; 0 never; default 30. */
+  pairingIdleDays: number;
   /** Where a browser reaches the host behind a TLS proxy; https means a `Secure` cookie. */
   publicUrl: string | null;
   /** Lines for the log at start. Never a secret. */
@@ -192,6 +194,10 @@ export function loadServerConfig(env: Record<string, string | undefined>, probe:
     warnings.push("WARNING: CREWHUB_WORLD_PAIRING=off: any page or process on this machine can read the world's data through /world-api.");
     warnings.push("WARNING: this is for development only (the Vite proxy); production refuses it.");
   }
+  const idleGiven = (env.CREWHUB_WORLD_PAIRING_IDLE_DAYS ?? "").trim();
+  const idleText = idleGiven === "" ? "30" : idleGiven;
+  if (!/^\d{1,4}$/.test(idleText)) throw new ConfigError(`CREWHUB_WORLD_PAIRING_IDLE_DAYS must be a whole number of days (0 never), got ${idleText}`);
+  const pairingIdleDays = Number(idleText);
   const pairingFileText = (env.CREWHUB_WORLD_PAIRING_FILE ?? "").trim();
   const pairingFile = pairingFileText === "" ? null : path.resolve(pairingFileText);
   const publicUrlText = (env.CREWHUB_WORLD_PUBLIC_URL ?? "").trim();
@@ -206,5 +212,5 @@ export function loadServerConfig(env: Record<string, string | undefined>, probe:
     if (parsed.protocol !== "https:" && parsed.protocol !== "http:") throw new ConfigError("CREWHUB_WORLD_PUBLIC_URL must be an http(s) URL");
     publicUrl = parsed.origin;
   }
-  return { loopsUrl, loopsSocket, loopsWebUrl, appData, configDir, port, allowedOrigins, production, pairing: pairingText, pairingFile, publicUrl, warnings };
+  return { loopsUrl, loopsSocket, loopsWebUrl, appData, configDir, port, allowedOrigins, production, pairing: pairingText, pairingFile, pairingIdleDays, publicUrl, warnings };
 }

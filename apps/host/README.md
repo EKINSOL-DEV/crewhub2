@@ -92,10 +92,12 @@ smooth connection" below):
   refuses that route to a viewer key, 403, as to every limited key; discovery probes it keyless too).
   `loopsWebUrl` is the origin of the loops URL, for the world's Chat panel (which frames that web app) and the card's ticket links; `transport` is `tcp`
   (the URL) or `unix` (the socket); `paired` is whether this request carries a valid pairing cookie; `pairing` is `on`
-  or `off`. Health carries no data and needs no cookie.
+  or `off`; `pairingIdleDays` is how many days a pairing may go unused before the host refuses it (round 31; 0 never).
+  Health carries no data and needs no cookie.
 - **Pairing** (plan 3.5, `src/pairing.ts`): every other `/world-api` route answers `401 {"error":"not_paired"}`
   unless the request carries the cookie `crewhub_world_pair` (`HttpOnly; SameSite=Strict; Path=/`, plus `Secure`
-  when `CREWHUB_WORLD_PUBLIC_URL` is https). `GET /pair/<token>` sets it and answers `303 Location: /`; a used,
+  when `CREWHUB_WORLD_PUBLIC_URL` is https); a cookie unused for `CREWHUB_WORLD_PAIRING_IDLE_DAYS` (30) gets
+  `401 {"error":"not_paired","reason":"expired"}`. `GET /pair/<token>` sets it and answers `303 Location: /`; a used,
   expired or unknown token gets a plain HTML 403 page. See "Pairing" below.
 - **Allow-list** in `src/allowList.ts`: the loops routes the host may read and the browser routes it answers,
   in one file. Every other path is 404, every method but GET is 405, and nothing reaches loops for either.
@@ -140,6 +142,7 @@ smooth connection" below):
 | `CREWHUB_WORLD_ALLOWED_ORIGINS` | none | Comma list of extra origins. Not needed for `npm run dev` of this checkout (it tells the host its origin itself); for an older dev server or another tool's page, e.g. `http://localhost:5173`. |
 | `CREWHUB_WORLD_PAIRING` | `on` | `off` removes the cookie gate: development only (the Vite proxy), logged loudly at start, refused with `NODE_ENV=production`. |
 | `CREWHUB_WORLD_PAIRING_FILE` | none; `npm run world`: `<CREWHUB_WORLD_CONFIG_DIR>/pairing-secret` | Keeps the pairing secret across restarts (created with mode 0600). Without it the secret is per run and a restart invalidates every pairing (an open tab is left on Stale). `npm run world` keeps it in the host's own folder unless this names another file (`worldEnv` in `src/config.ts`). |
+| `CREWHUB_WORLD_PAIRING_IDLE_DAYS` | `30` | A pairing unused this many days is refused and the browser pairs again (round 31, question 2); every use starts the count again. `0`: a pairing never expires. Whole days, up to 9999. |
 | `CREWHUB_WORLD_PUBLIC_URL` | none | The URL a browser reaches the host at behind a TLS proxy: `https` makes the cookie `Secure`; its host and origin pass the guard. |
 | `NODE_ENV` | | `production` serves `apps/world/dist`. |
 
@@ -288,21 +291,31 @@ The host answers `/world-api` data routes only to a browser it has paired. The f
 3. A used or expired link gets "This link has expired or was already used. Run `npm run world` for a new one."
 4. Until then the world (live mode) shows its "Pair this browser" page with the command (`npm run world`) and a "Use
    the demo" button; `health.paired` is what it checks. A tab that was live and gets 401 `not_paired` later (a host
-   restarted without its secret) shows the same page with the chip word "Pair again" and comes back by itself once a
-   new link is opened in that browser.
+   restarted without its secret, or a pairing unused past its window) shows the same page with the chip word "Pair
+   again" and comes back by itself once a new link is opened in that browser.
+5. A pairing unused for 30 days expires (round 31, question 2; `CREWHUB_WORLD_PAIRING_IDLE_DAYS`, `0` never), and
+   every use starts the 30 days again. The Pair page says it in a sentence and the Connection panel's Pairing row
+   says the window; health says the days (`pairingIdleDays`).
 
 How it holds: the token is 32 random bytes (base64url); only its hash is kept, with its expiry, and redeeming
-deletes it. The cookie is `<id>.<HMAC-SHA256(secret, id)>`, verified with a constant-time compare, so nothing about a
-cookie is stored: the secret alone decides. `npm run host` and `npm run host:start` use a per-run secret, so a
-restart asks for pairing again; `npm run world` keeps it in `<config dir>/pairing-secret` (0600), and
-`CREWHUB_WORLD_PAIRING_FILE` names another file for any mode. The Host/Origin guard stays in front of everything,
-pairing included.
+deletes it. The cookie is `<id>.<stamp>.<HMAC-SHA256(secret, id:stamp)>`, the stamp the time of its last use in
+seconds, verified with a constant-time compare, so nothing about a cookie is stored: the secret alone decides.
+The idle window rides inside the signed value: a cookie whose stamp is older than the window is refused (the 401
+says `reason: "expired"`), and a cookie in use whose stamp is older than an hour is set again with a fresh stamp on
+any route, health included (the window slides with every use, to the hour); a stamp edited by the cookie's holder
+breaks the signature. The host keeps no last-use map, so a restart with the kept secret keeps the window exactly
+(a browser unused for 29 days before the restart has one day left after it), and the cookie stays a session cookie
+(no `Max-Age`): the host decides, since a browser's own expiry would not end a copied cookie. A cookie from a host
+before round 31 (two parts, no stamp) is refused once: a new link. `npm run host` and `npm run host:start` use a
+per-run secret, so a restart asks for pairing again; `npm run world` keeps it in `<config dir>/pairing-secret`
+(0600), and `CREWHUB_WORLD_PAIRING_FILE` names another file for any mode. The Host/Origin guard stays in front of
+everything, pairing included.
 
 Development: `CREWHUB_WORLD_PAIRING=off` drops the gate (loud warning at start; refused with `NODE_ENV=production`),
 or pair through the Vite origin, which proxies `/pair`: `npm run host -- open --origin http://127.0.0.1:5173`.
 Cookies ignore ports, so a browser paired on `127.0.0.1:5180` is paired on `127.0.0.1:5173` as well.
 
-Programmatic: `createHost` takes `pairing?: "on" | "off"`, `pairingSecret?`, `publicUrl?`, `mintSecret?`, `now?`, `recheckMs?` (the rejected key's re-check, 5 min),
+Programmatic: `createHost` takes `pairing?: "on" | "off"`, `pairingSecret?`, `pairingIdleMs?` (the idle window, 0 never), `publicUrl?`, `mintSecret?`, `now?`, `recheckMs?` (the rejected key's re-check, 5 min),
 `retryMs?` (the error backoff) and `reconnectMs?` (the pause after a normal stream end; tests make both short),
 and returns `mintPairLink(origin?)`. `createHostSource` (loops-client) takes `headers` for a Node caller's cookie;
 the browser sends it same-origin. Tests: `test/pairing.test.ts`.

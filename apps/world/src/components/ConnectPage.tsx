@@ -154,7 +154,7 @@ export function ConnectPage({ screen, health, onHealth, pollMs = CONNECT_POLL_MS
           }
           titleId="connect-title"
         />
-        {screen === "pair" && <PairContent onRetry={() => void ask()} />}
+        {screen === "pair" && <PairContent onRetry={() => void ask()} idleDays={health.pairingIdleDays} />}
         {screen === "no-loops" && (
           <>
             <Card.Body>

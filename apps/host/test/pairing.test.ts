@@ -1,8 +1,9 @@
 /**
  * Pairing (plan 3.5): without the cookie every /world-api route but health answers 401; a link pairs once; an expired
- * link is refused (the clock is injected); a restart invalidates the cookie unless the secret is kept in a file; the
- * token, the cookie value and the secret are in no response body and no log line; `off` is refused in production;
- * a running host mints a link for `open` through the run file's secret and nothing else.
+ * link is refused (the clock is injected); a cookie unused past the idle window is refused and one in use is stamped
+ * again (round 31, question 2); a restart invalidates the cookie unless the secret is kept in a file, and the kept
+ * secret keeps the window too; the token, the cookie value and the secret are in no response body and no log line;
+ * `off` is refused in production; a running host mints a link for `open` through the run file's secret and nothing else.
  */
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -12,7 +13,7 @@ import path from "node:path";
 import { after, before, describe, it } from "node:test";
 import { ConfigError, loadServerConfig } from "../src/config.ts";
 import { MINT_HEADER, MINT_PATH, createHost, type Host } from "../src/host.ts";
-import { PAIR_COOKIE, PAIR_TTL_MS, createPairing, loadPairingSecret, readCookie, readCookies } from "../src/pairing.ts";
+import { DEFAULT_PAIRING_IDLE_MS, PAIR_COOKIE, PAIR_RENEW_MS, PAIR_TTL_MS, createPairing, loadPairingSecret, readCookie, readCookies } from "../src/pairing.ts";
 import { type LoopsStub, createLoopsStub, installation } from "./loopsStub.ts";
 import { waitFor } from "./wait.ts";
 
@@ -78,13 +79,15 @@ describe("pairing", () => {
     const link = host.mintPairLink();
     assert.match(link, new RegExp(`^${host.url}/pair/[A-Za-z0-9_-]{43}$`));
     const { setCookie, cookie } = await pair(link);
-    assert.match(setCookie, /^crewhub_world_pair=[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+; HttpOnly; SameSite=Strict; Path=\/$/);
+    // `<id>.<stamp>.<mac>`: the stamp is the last use in seconds (round 31); no Max-Age: a session cookie, the host decides.
+    assert.match(setCookie, /^crewhub_world_pair=[A-Za-z0-9_-]+\.\d+\.[A-Za-z0-9_-]+; HttpOnly; SameSite=Strict; Path=\/$/);
     for (const route of ROUTES) {
       const answer = await status(`${host.url}${route}`, { cookie });
       assert.notEqual(answer.status, 401, route);
     }
-    const health = JSON.parse((await status(`${host.url}/world-api/health`, { cookie })).body) as { paired: boolean };
+    const health = JSON.parse((await status(`${host.url}/world-api/health`, { cookie })).body) as { paired: boolean; pairingIdleDays: number };
     assert.equal(health.paired, true);
+    assert.equal(health.pairingIdleDays, 30, "the default idle window, for the Pair screen and the panel");
     const again = await status(link);
     assert.equal(again.status, 403);
     assert.match(again.body, /This link has expired or was already used/);
@@ -97,9 +100,12 @@ describe("pairing", () => {
     assert.equal((await status(`${host.url}/pair/`)).status, 403);
     assert.equal((await status(`${host.url}/world-api/snapshot`, { cookie: `${PAIR_COOKIE}=abc.def` })).status, 401);
     const { value } = await pair(host.mintPairLink());
-    const [id, mac] = value.split(".") as [string, string];
-    const flipped = `${id}.${mac.slice(0, -1)}${mac.endsWith("A") ? "B" : "A"}`;
+    const [id, stamp, mac] = value.split(".") as [string, string, string];
+    const flipped = `${id}.${stamp}.${mac.slice(0, -1)}${mac.endsWith("A") ? "B" : "A"}`;
     assert.equal((await status(`${host.url}/world-api/snapshot`, { cookie: `${PAIR_COOKIE}=${flipped}` })).status, 401);
+    // The stamp is signed: a holder who moves it forward (to stretch the window) breaks the signature (round 31).
+    assert.equal((await status(`${host.url}/world-api/snapshot`, { cookie: `${PAIR_COOKIE}=${id}.${Number(stamp) + 1}.${mac}` })).status, 401, "an edited stamp");
+    assert.equal((await status(`${host.url}/world-api/snapshot`, { cookie: `${PAIR_COOKIE}=${id}.${mac}` })).status, 401, "the shape of a cookie from before the stamp");
     assert.equal((await status(`${host.url}/world-api/snapshot`, { cookie: `other=1; ${PAIR_COOKIE}=${value}` })).status, 200);
   });
 
@@ -110,6 +116,54 @@ describe("pairing", () => {
     const late = host.mintPairLink();
     clock += PAIR_TTL_MS;
     assert.equal((await status(late)).status, 403);
+  });
+
+  it("a cookie unused for the idle window is refused as expired; one in use is stamped again, the window sliding (round 31, question 2)", async () => {
+    const { cookie, value } = await pair(host.mintPairLink());
+    const [id] = value.split(".") as [string];
+    clock += PAIR_RENEW_MS - 1000;
+    assert.equal((await status(`${host.url}/world-api/team`, { cookie })).setCookie, "", "a stamp under an hour old is not re-issued yet");
+    clock += DEFAULT_PAIRING_IDLE_MS - PAIR_RENEW_MS;
+    // Used a second before the window closes: still paired, and every route (the stream too) sets the cookie again with a fresh stamp.
+    let renewed = "";
+    for (const route of ROUTES) {
+      const answer = await status(`${host.url}${route}`, { cookie });
+      assert.notEqual(answer.status, 401, route);
+      assert.match(answer.setCookie, new RegExp(`^crewhub_world_pair=${id}\\.${Math.floor(clock / 1000)}\\.[A-Za-z0-9_-]+; HttpOnly; SameSite=Strict; Path=/$`), `${route}: re-issued with the same id and the stamp of now`);
+      renewed = `${PAIR_COOKIE}=${readCookie(answer.setCookie.split(";")[0], PAIR_COOKIE)}`;
+    }
+    const health = await status(`${host.url}/world-api/health`, { cookie });
+    assert.match(health.setCookie, /^crewhub_world_pair=/, "health re-issues too: a page that only watches keeps its pairing");
+    assert.equal((await status(`${host.url}/world-api/team`, { cookie: renewed })).setCookie, "", "the fresh stamp is not re-issued");
+    clock += DEFAULT_PAIRING_IDLE_MS - 1000;
+    assert.equal((await status(`${host.url}/world-api/team`, { cookie: renewed })).status, 200, "the window slid with the use");
+    const stale = await status(`${host.url}/world-api/team`, { cookie });
+    assert.equal(stale.status, 401, "the cookie with the first stamp is past the window");
+    assert.deepEqual(JSON.parse(stale.body), { error: "not_paired", reason: "expired" });
+    assert.equal(stale.setCookie, "");
+    clock += DEFAULT_PAIRING_IDLE_MS + 1;
+    const out = await status(`${host.url}/world-api/team`, { cookie: renewed });
+    assert.equal(out.status, 401, "unused past the window: out");
+    assert.deepEqual(JSON.parse(out.body), { error: "not_paired", reason: "expired" });
+    assert.equal(JSON.parse((await status(`${host.url}/world-api/health`, { cookie: renewed })).body).paired, false, "health says the browser is not paired: the Pair screen");
+    assert.equal((await status(`${host.url}/world-api/team`, { cookie: renewed })).status, 401, "and stays out");
+  });
+
+  it("CREWHUB_WORLD_PAIRING_IDLE_DAYS=0: a pairing never expires and is never stamped again; health says 0", async () => {
+    const stub2 = await createLoopsStub(installation());
+    let t = 5_000_000;
+    const never = await createHost({ loopsUrl: stub2.url, key: stub2.key, keyName: "crewhub-world", pairingIdleMs: 0, now: () => t, retryMs: { min: 20, max: 100 } });
+    try {
+      const { cookie } = await pair(never.mintPairLink());
+      t += 10 * 365 * 86_400_000;
+      const answer = await status(`${never.url}/world-api/team`, { cookie });
+      assert.equal(answer.status, 200, "ten years unused: still paired");
+      assert.equal(answer.setCookie, "");
+      assert.equal(JSON.parse((await status(`${never.url}/world-api/health`, { cookie })).body).pairingIdleDays, 0);
+    } finally {
+      await never.close();
+      await stub2.close();
+    }
   });
 
   it("puts the token, the cookie value and the secret in no response body and no log line", async () => {
@@ -197,15 +251,25 @@ describe("pairing across restarts", () => {
       assert.equal(secret.length, 32);
       assert.equal(statSync(file).mode & 0o777, 0o600);
       assert.equal(readFileSync(file, "utf8").trim(), secret.toString("base64url"));
-      const kept = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairingSecret: secret, retryMs: { min: 20, max: 100 } });
+      let clock = 2_000_000_000;
+      const kept = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairingSecret: secret, now: () => clock, retryMs: { min: 20, max: 100 } });
       const keptCookie = (await pair(kept.mintPairLink())).cookie;
       await kept.close();
       const reloaded = loadPairingSecret(file);
       assert.deepEqual(reloaded, secret, "the same secret comes back from the file");
-      const again = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairingSecret: reloaded, retryMs: { min: 20, max: 100 } });
+      // The idle window rides inside the cookie, so a restart with the kept secret keeps it exactly (round 31): the
+      // host holds no last-use map that a restart would empty.
+      clock += DEFAULT_PAIRING_IDLE_MS - 1000;
+      const again = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairingSecret: reloaded, now: () => clock, retryMs: { min: 20, max: 100 } });
       try {
-        assert.equal((await status(`${again.url}/world-api/team`, { cookie: keptCookie })).status, 200, "the file kept the pairing");
+        const answer = await status(`${again.url}/world-api/team`, { cookie: keptCookie });
+        assert.equal(answer.status, 200, "the file kept the pairing, a second before its window closes");
+        assert.match(answer.setCookie, /^crewhub_world_pair=/, "and stamps it again");
         assert.equal((await status(`${again.url}/world-api/team`, { cookie })).status, 401, "a cookie from another secret stays out");
+        clock += 2000;
+        const late = await status(`${again.url}/world-api/team`, { cookie: keptCookie });
+        assert.equal(late.status, 401, "the stamp from before the restart counts: unused past the window, out");
+        assert.deepEqual(JSON.parse(late.body), { error: "not_paired", reason: "expired" });
       } finally {
         await again.close();
       }
@@ -305,5 +369,19 @@ describe("the pairing state machine", () => {
     assert.equal(pairing.isPaired(`${PAIR_COOKIE}=${cookie}x`), false);
     assert.equal(pairing.isPaired(undefined), false);
     assert.equal(createPairing().isPaired(`${PAIR_COOKIE}=${cookie}`), false, "another secret");
+    // The verdict (round 31): paired without a re-issue while fresh, re-issued once the stamp is an hour old, expired past the window, none for junk.
+    assert.deepEqual(pairing.check(`${PAIR_COOKIE}=${cookie}`), { state: "paired", renew: null });
+    t += PAIR_RENEW_MS + 1000;
+    const verdict = pairing.check(`${PAIR_COOKIE}=${cookie}`);
+    assert.equal(verdict.state, "paired");
+    const renew = (verdict as { renew: string | null }).renew;
+    assert.ok(renew !== null && renew.startsWith(`${cookie.split(".")[0]}.${Math.floor(t / 1000)}.`), "the same id, stamped now");
+    t += DEFAULT_PAIRING_IDLE_MS - 1000;
+    assert.deepEqual(pairing.check(`${PAIR_COOKIE}=${cookie}`), { state: "expired" });
+    assert.equal(pairing.check(`${PAIR_COOKIE}=${cookie}; ${PAIR_COOKIE}=${renew}`).state, "paired", "a fresh cookie beside an expired one pairs (F2: every one is tried)");
+    t += 2000;
+    assert.deepEqual(pairing.check(`${PAIR_COOKIE}=${cookie}; ${PAIR_COOKIE}=${renew}`), { state: "expired" }, "both past the window");
+    assert.deepEqual(pairing.check(`${PAIR_COOKIE}=abc.1.def`), { state: "none" });
+    assert.deepEqual(createPairing({ now: () => t, idleMs: 0 }).check(undefined), { state: "none" });
   });
 });

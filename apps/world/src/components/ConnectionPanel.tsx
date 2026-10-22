@@ -17,6 +17,7 @@ import { chatWords } from "../state/chatRoad";
 import { useChatRoad } from "../state/chatRoadStore";
 import { connectOutcome, loopsVersion, relativeTime, untilTime } from "../state/connect";
 import { rememberHealth } from "../state/health";
+import { pairingRowWords } from "../state/pairing";
 import { useTown } from "../state/town";
 import { useWorld } from "../state/world";
 import { townKeeping, townKeepingWords, zonesOriginWords } from "../world/zoneText";
@@ -208,6 +209,8 @@ export function ConnectionPanel({ state, initial, onClose, pollMs = PANEL_POLL_M
               <dd>{t(`world.connection.panel.transport.${health.transport}`)}</dd>
             </>
           )}
+          <dt>{t("world.connection.panel.pairing")}</dt>
+          <dd className="connection-pairing">{pairingRowWords(health, (key, vars) => t(key, vars))}</dd>
           <dt>{t("world.connection.panel.town")}</dt>
           <dd className="connection-town">{townWords}</dd>
           <dt>{t("world.connection.panel.zones")}</dt>

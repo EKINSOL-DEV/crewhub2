@@ -2,11 +2,12 @@
    is on and this browser carries no pairing cookie (state/connect.ts `connectScreen` → "pair"). It names the command to run
    where the host runs, in a code chip with a copy button; it never shows a link itself (the host prints the one-time link
    on the terminal, and it is single use). "Use the demo" keeps the demo as this browser's source and reloads; "I opened the
-   link" asks the host again. Copy from the i18n file; the kit's Card and Button. `PairContent` is the body and footer the
+   link" asks the host again. The note says the idle window (round 31: a pairing unused for N days expires). Copy from the i18n file; the kit's Card and Button. `PairContent` is the body and footer the
    Connect page (ConnectPage.tsx) shows for this state (a host from before the smooth connection lands there too). */
 import { Check, Copy, Link2 } from "lucide-react";
 import { useState } from "react";
 import { useT } from "../i18n";
+import { expiryWords } from "../state/pairing";
 import { hrefWithoutOverride, writeSourceSetting } from "../state/source";
 import { Button, Card } from "./primitives";
 
@@ -16,8 +17,10 @@ export function switchToDemo(): void {
   globalThis.location.assign(hrefWithoutOverride(globalThis.location));
 }
 
-export function PairContent({ onRetry }: { onRetry: () => void }) {
+export function PairContent({ onRetry, idleDays }: { onRetry: () => void; idleDays?: number | undefined }) {
   const { t } = useT();
+  // The idle window (round 31, question 2), said where a person pairs: nothing on a host that never expires a pairing.
+  const expiry = expiryWords(idleDays, (key, vars) => t(key, vars));
   const [copied, setCopied] = useState(false);
   const command = t("world.pair.command");
   const copy = () => {
@@ -41,7 +44,10 @@ export function PairContent({ onRetry }: { onRetry: () => void }) {
             {copied ? t("world.pair.copied") : t("world.pair.copy")}
           </Button>
         </div>
-        <p className="hint pair-note">{t("world.pair.note")}</p>
+        <p className="hint pair-note">
+          {t("world.pair.note")}
+          {expiry === "" ? "" : ` ${expiry}`}
+        </p>
       </Card.Body>
       <Card.Footer>
         <Button variant="primary" onClick={onRetry} icon={<Link2 className="icon icon-sm" aria-hidden="true" />}>

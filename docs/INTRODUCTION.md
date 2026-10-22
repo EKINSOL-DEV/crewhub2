@@ -293,7 +293,7 @@ shared Mac never reaches somebody else's host.
   a cap, names its own principal as the observer, and keeps **one upstream stream** `GET /api/events/stream` for every tab, opened
   from `from=tail` with loops' sealed cursor, reconnected after loops' 300 s end with jitter, with a ring buffer of 2000
   envelopes to catch a tab up. The tabs get Server-Sent Events. It pairs each browser once with a one-time link and an
-  `HttpOnly` cookie, and checks the `Host` and `Origin` headers of every request.
+  `HttpOnly` cookie that expires after 30 days unused (round 31), and checks the `Host` and `Origin` headers of every request.
 - **What the host never does.** It never writes to loops (its only writes are the stored key, the pairing secret,
   the archive memory and the town database `world.db` with its backups, all in its own folder), never logs or echoes
   the key, never holds a provider secret, never opens a second upstream stream, and never guesses a socket outside the

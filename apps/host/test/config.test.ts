@@ -58,15 +58,22 @@ describe("the server config", () => {
   const own = { appData: DEFAULT_APP_DATA, configDir: path.join(homedir(), ".config", "crewhub-world") };
 
   it("has the plan's defaults: no URL means the discovery of the Mac app", () => {
-    assert.deepEqual(loadServerConfig({}), { loopsUrl: null, loopsSocket: null, loopsWebUrl: null, ...own, port: 5180, allowedOrigins: [], production: false, pairing: "on", pairingFile: null, publicUrl: null, warnings: [] });
+    assert.deepEqual(loadServerConfig({}), { loopsUrl: null, loopsSocket: null, loopsWebUrl: null, ...own, port: 5180, allowedOrigins: [], production: false, pairing: "on", pairingFile: null, pairingIdleDays: 30, publicUrl: null, warnings: [] });
     assert.equal(loadServerConfig({ CREWHUB_WORLD_LOOPS_APP_DATA: "~/crewhub-loops-dev" }).appData, path.join(homedir(), "crewhub-loops-dev"));
   });
 
   it("reads the environment and rejects a bad port or URL", () => {
     const config = loadServerConfig({ CREWHUB_WORLD_PORT: "5190", CREWHUB_WORLD_LOOPS_URL: "http://localhost:8091/", CREWHUB_WORLD_ALLOWED_ORIGINS: "http://localhost:5173, http://127.0.0.1:5173", NODE_ENV: "production" });
-    assert.deepEqual(config, { loopsUrl: "http://localhost:8091/", loopsSocket: null, loopsWebUrl: "http://localhost:8091", ...own, port: 5190, allowedOrigins: ["http://localhost:5173", "http://127.0.0.1:5173"], production: true, pairing: "on", pairingFile: null, publicUrl: null, warnings: [] });
+    assert.deepEqual(config, { loopsUrl: "http://localhost:8091/", loopsSocket: null, loopsWebUrl: "http://localhost:8091", ...own, port: 5190, allowedOrigins: ["http://localhost:5173", "http://127.0.0.1:5173"], production: true, pairing: "on", pairingFile: null, pairingIdleDays: 30, publicUrl: null, warnings: [] });
     assert.throws(() => loadServerConfig({ CREWHUB_WORLD_PORT: "world" }), ConfigError);
     assert.throws(() => loadServerConfig({ CREWHUB_WORLD_LOOPS_URL: "ftp://x" }), ConfigError);
+  });
+
+  it("CREWHUB_WORLD_PAIRING_IDLE_DAYS (round 31, question 2): whole days, 0 never, default 30, anything else refused", () => {
+    assert.equal(loadServerConfig({ CREWHUB_WORLD_PAIRING_IDLE_DAYS: "0" }).pairingIdleDays, 0);
+    assert.equal(loadServerConfig({ CREWHUB_WORLD_PAIRING_IDLE_DAYS: " 45 " }).pairingIdleDays, 45);
+    assert.equal(loadServerConfig({ CREWHUB_WORLD_PAIRING_IDLE_DAYS: "" }).pairingIdleDays, 30);
+    for (const bad of ["never", "-1", "1.5", "30d", "99999"]) assert.throws(() => loadServerConfig({ CREWHUB_WORLD_PAIRING_IDLE_DAYS: bad }), ConfigError, bad);
   });
 });
 
