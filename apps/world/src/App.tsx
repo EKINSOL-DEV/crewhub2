@@ -126,6 +126,9 @@ function World() {
   // The district the view is in (a region only): the level between the home view and a building.
   const [district, setDistrict] = useState<string | null>(null);
   const [jumpOpen, setJumpOpen] = useState(false);
+  /** The jump list's active row's building (null when none or the list is closed): the scene builds it ahead. */
+  const [likely, setLikely] = useState<string | null>(null);
+  const jumpActive = useCallback((entry: JumpEntry | null) => setLikely(entry?.place.building ?? null), []);
   const [flight, setFlight] = useState<{ id: number; anchor: string; reach?: number }>({ id: 0, anchor: "" });
   const [selection, setSelection] = useState<Selection>({ hover: null, selected: null });
   // Walk mode: the person walks a visitor through the world. The level it began on is kept for the way back.
@@ -823,6 +826,7 @@ function World() {
               plan={plan}
               entered={entered}
               focused={focused}
+              likely={likely}
               ringVisible={ringVisible}
               room={room}
               zoomed={zoomed}
@@ -863,7 +867,7 @@ function World() {
 
       {chat && !demo && <ChatPanel agent={chat.agent} health={hostHealth} full={narrow} answers={answers} recentEmpty={recentEmptyWords("live", hostHealth?.connection?.session)} targetOf={answerTargetOf} onAnswer={openAnswer} onClose={closeChat} />}
 
-      {jumpOpen && <JumpList entries={jumps} onJump={jump} onClose={closeJump} />}
+      {jumpOpen && <JumpList entries={jumps} onJump={jump} onClose={closeJump} onActive={jumpActive} />}
 
       <CornerTools theme={theme} cycle={cycle} details={details} buildOn={build.state.on} toggleBuild={build.toggle} settingsOpen={settingsOpen} openSettings={openSettings} closeSettings={closeSettings} graphicsFailed={graphicsFailed} openTour={openTour} />
 

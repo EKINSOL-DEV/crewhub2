@@ -60,6 +60,8 @@ interface Props {
   plan: TownPlan;
   entered: string | null;
   focused: number;
+  /** The jump list's active row's building while the list is open: built ahead, likeliest of all (prepareAhead.ts). */
+  likely: string | null;
   ringVisible: boolean;
   room: RoomKind | null;
   zoomed: RoomKind | null;
@@ -217,6 +219,7 @@ export default function WorldCanvas(props: Props) {
     lotAnchors,
     entered: props.entered,
     focused: props.focused,
+    likely: props.likely,
     ringVisible: props.ringVisible,
     room: props.room,
     zoomed: props.zoomed,
