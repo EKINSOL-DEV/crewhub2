@@ -1,8 +1,8 @@
 /* The Chat panel (spec addendum "chat with the agents", road A): the chat with the agents is crewhub-loops' own web
    app, framed here, so the UI is exactly loops'. The frame carries the person's own loops session (the cookie is
    SameSite=Lax; the world and loops on 127.0.0.1 are one site); signed out, loops' own sign-in shows in the frame. The
-   world handles no password; what the bubbles need is the road's story (`chatWords`, the same words as the Connection
-   panel and the text view). Opened for an agent, the frame asks loops for that agent's chat
+   world handles no password; what the bubbles need is the chat road's story (state/chatRoad `chatWords`, round 28: the
+   viewer key on the host, the page's own read, or neither; the same words as the Connection panel and the text view). Opened for an agent, the frame asks loops for that agent's chat
    (`?chat=<id>`, a loops of world/viewer-key cb163004 or later); an older loops ignores it, so the panel also says which
    chat head to open in loops' dock. The link to the app is always
    there, the fallback for a frame that never loads (the day loops refuses framing). A sheet at the right of the world;
@@ -16,7 +16,8 @@ import { ExternalLink, X } from "lucide-react";
 import { useEffect, useId, useRef } from "react";
 import type { HostHealth } from "@crewhub/loops-client";
 import { useT } from "../i18n";
-import { CHAT_FRAME_ALLOW, CHAT_FRAME_SANDBOX, chatFrameUrl, chatGlance, chatWordsLine } from "../state/chatPanel";
+import { CHAT_FRAME_ALLOW, CHAT_FRAME_SANDBOX, chatFrameUrl } from "../state/chatPanel";
+import { chatGlance, chatWordsLine, type ChatRoadView } from "../state/chatRoad";
 import { RECENT_NOTE, type AnswerTarget } from "../state/recentAnswers";
 import type { Answer } from "../state/said";
 import { loopsWebUrl } from "../state/source";
@@ -26,8 +27,10 @@ import { RecentAnswers } from "./RecentAnswers";
 interface Props {
   /** The agent whose chat the person asked for (from its card), or null from the chip. The frame cannot preselect it. */
   agent: { key: string; name: string } | null;
-  /** The host's health, which names the loops web app (`loopsWebUrl`) and says the chat session's state (`connection.session`). */
+  /** The host's health, which names the loops web app (`loopsWebUrl`) the frame points at. */
   health: HostHealth | null;
+  /** The chat road (round 28): which road the bubbles come by, for the glance and "About this chat". */
+  road: ChatRoadView;
   /** The whole screen (a phone) instead of a sheet at the right. */
   full: boolean;
   /** The Recent answers list (round 16): the answers, the empty state's words for this road, and where a row goes. */
@@ -38,7 +41,7 @@ interface Props {
   onClose: () => void;
 }
 
-export function ChatPanel({ agent, health, full, answers, recentEmpty, targetOf, onAnswer, onClose }: Props) {
+export function ChatPanel({ agent, health, road, full, answers, recentEmpty, targetOf, onAnswer, onClose }: Props) {
   const { t } = useT();
   const id = useId();
   const close = useRef<HTMLButtonElement>(null);
@@ -59,12 +62,12 @@ export function ChatPanel({ agent, health, full, answers, recentEmpty, targetOf,
       <Card.Body className="chat-sheet-body">
         <p className="chat-sheet-lead" id={`${id}-lead`}>
           <span className="chat-sheet-what">{agent ? t("world.chat.panel.whatWith", { name: agent.name }) : t("world.chat.panel.what")}</span>
-          <span className="chat-sheet-todo">{chatGlance(health?.connection?.session)}</span>
+          <span className="chat-sheet-todo">{chatGlance(road)}</span>
         </p>
         <details className="chat-about">
           <summary>{t("world.chat.panel.about")}</summary>
           <p className="chat-sheet-dock">{agent ? t("world.chat.panel.leadWith", { name: agent.name }) : t("world.chat.panel.lead")}</p>
-          <p className="sign-muted chat-sheet-needs">{chatWordsLine(health?.connection?.session)}</p>
+          <p className="sign-muted chat-sheet-needs">{chatWordsLine(road)}</p>
           <p className="sign-muted recent-note">{RECENT_NOTE}</p>
         </details>
         <RecentAnswers as="details" answers={answers} empty={recentEmpty} targetOf={targetOf} onOpen={onAnswer} />

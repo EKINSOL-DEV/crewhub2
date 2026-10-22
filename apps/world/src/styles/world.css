@@ -2700,7 +2700,7 @@ a.agent-ticket-link:focus-visible {
 }
 
 /* The Connection panel's Chat section (round 12; one road since round 19): the chat's road in words, the typing note. */
-.connection-session {
+.connection-chat {
   margin-top: var(--space-3);
   padding-top: var(--space-3);
   border-top: 1px solid var(--border);
@@ -2708,12 +2708,12 @@ a.agent-ticket-link:focus-visible {
   flex-direction: column;
   gap: var(--space-2);
 }
-.connection-session-title {
+.connection-chat-title {
   margin: 0;
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
 }
-.connection-session-state {
+.connection-chat-state {
   margin: 0;
 }
 

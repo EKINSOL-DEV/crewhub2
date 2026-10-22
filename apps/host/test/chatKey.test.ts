@@ -81,7 +81,7 @@ describe("the chat over the key, where loops allows it", () => {
     assert.ok(stub.requests.some((r) => r.path === "/api/agents" && r.authorization !== undefined), "the agents list read with the key");
     assert.ok(!stub.requests.some((r) => r.path === "/api/dm/threads"), "a plain key is not a viewer: the chat is not asked for");
     assert.ok(!lines.some((l) => /the key reads the chat on/.test(l)));
-    assert.ok(lines.some((l) => /the key does not read the chat on this crewhub-loops \(no viewer key\): no bubbles; make a viewer key in Settings > Agents > Connect CrewHub World/.test(l)), lines.join("\n"));
+    assert.ok(lines.some((l) => /the key does not read the chat on this crewhub-loops \(no viewer key\): no bubbles over the key; make a viewer key in Settings > Agents > Connect CrewHub World .*, or set CHL_WORLD_ORIGIN to the world page's origin/.test(l)), lines.join("\n"));
     assert.equal((await fetch(`${host.url}/world-api/session`, { method: "POST", headers: { origin: host.url, "content-type": "application/json" }, body: "{}" })).status, 405, "no sign-in road: the write gate knows /connect only");
     assert.equal((await fetch(`${host.url}/world-api/session`)).status, 404, "an unknown route");
     // No threads message either (round 24): the card keeps its honest words.

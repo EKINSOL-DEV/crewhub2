@@ -54,7 +54,7 @@ export function tourSteps(mode: "demo" | "live"): TourStep[] {
       : {
           id: "chat",
           title: "The chat",
-          text: "The Chat chip frames crewhub-loops' own chat. Where crewhub-loops lets the world's key read the chat (a viewer key), an agent's answer shows as a speech bubble over its figure for a few seconds; else the Connection panel's Chat section says how to make one.",
+          text: "The Chat chip frames crewhub-loops' own chat. Where crewhub-loops lets the world's key read the chat (a viewer key, which reads only its maker's chat) or lets this page read your own chat (the world's origin set there), an agent's answer shows as a speech bubble over its figure for a few seconds; else the Connection panel's Chat section says how.",
           target: ".chat-open",
           targetName: "the Chat chip",
         },

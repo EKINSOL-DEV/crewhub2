@@ -13,7 +13,8 @@ import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { forgetHostKey, probeHost, type ConnectionState, type HostHealth } from "@crewhub/loops-client";
 import { useT } from "../i18n";
-import { chatWords } from "../state/chatPanel";
+import { chatWords } from "../state/chatRoad";
+import { useChatRoad } from "../state/chatRoadStore";
 import { connectOutcome, loopsVersion, relativeTime, untilTime } from "../state/connect";
 import { rememberHealth } from "../state/health";
 import { useTown } from "../state/town";
@@ -212,7 +213,7 @@ export function ConnectionPanel({ state, initial, onClose, pollMs = PANEL_POLL_M
           <dt>{t("world.connection.panel.zones")}</dt>
           <dd className="connection-zones">{zoneWords}</dd>
         </dl>
-        {connection && <ChatRoad reads={connection.session?.state === "key"} />}
+        {connection && <ChatRoad />}
         {health && !connection && <p className="hint connection-note">{t("world.connection.panel.older")}</p>}
         {connection && !paired && <p className="hint connection-note">{t("world.connection.panel.unpaired")}</p>}
         <p className="hint connection-note">{silent ? t("world.connection.panel.silent") : askedAt === null ? "" : t("world.connection.panel.updated", { ago: relativeTime(new Date(askedAt).toISOString(), now) ?? "" })}</p>
@@ -248,20 +249,22 @@ export function ConnectionPanel({ state, initial, onClose, pollMs = PANEL_POLL_M
 
 
 /**
- * The Chat section (round 12; one road since round 19, the sign-in road gone with the switch to the viewer key): whether
- * this crewhub-loops lets the world's key read the chat, in one story with the Chat panel and the text view
- * (`chatWords`): bubbles with no sign-in on the key road, else no bubbles and the way to a viewer key; then what typing
- * in the framed chat needs. Nothing to fill in here any more; the key is pasted in the Connect screen.
+ * The Chat section (round 12; the sign-in road went in round 28, with the switch to the viewer key): which road the
+ * bubbles come by (state/chatRoad: the host's viewer key, which reads only its maker's chat; the page's own read where
+ * loops has the world's origin set; or neither, with the way out per what the probe could tell), in one story with the
+ * Chat panel and the text view (`chatWords`); then what typing in the framed chat needs. Nothing to fill in here any
+ * more; the key is pasted in the Connect screen, and the world asks for no password.
  */
-function ChatRoad({ reads }: { reads: boolean }) {
+function ChatRoad() {
   const { t } = useT();
-  const story = chatWords(reads ? { state: "key" } : null);
+  const view = useChatRoad();
+  const story = chatWords(view);
   return (
-    <section className="connection-session" aria-labelledby="connection-session-title" data-session={reads ? "key" : "none"}>
-      <h3 id="connection-session-title" className="connection-session-title">
+    <section className="connection-chat" aria-labelledby="connection-chat-title" data-road={view.road} data-probe={view.pageProbe}>
+      <h3 id="connection-chat-title" className="connection-chat-title">
         {t("world.connection.panel.session")}
       </h3>
-      <p className="connection-session-state" role="status">
+      <p className="connection-chat-state" role="status">
         {story.bubbles}
       </p>
       <p className="hint connection-note connection-typing">{story.typing}</p>
