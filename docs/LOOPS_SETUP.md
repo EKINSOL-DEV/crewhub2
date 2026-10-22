@@ -20,10 +20,16 @@ itself, read only) and a terminal in this repository:
    done). The terminal shows the steps as they complete, with ticks and times: loops found, the key, the stream, the
    first snapshot, "the world is up". Run it again later: it finds the running host and only opens a new link.
 2. The world shows **Connect**: it has found crewhub-loops and has no key yet. In the app, signed in as the owner:
-   **Settings > Agents > Connect CrewHub World** (a crewhub-loops with `world/viewer-key`). The card makes the bot
-   `crewhub-world` as a viewer and shows its **Access key** once: press the copy button beside it, then close. (The
-   browser asks you to sign in as the owner first when it has no session; the app's own window is signed in already and
-   works as well.) On an older crewhub-loops without that card: **Settings > Agents > New external bot**, **Name**
+   **Settings > Agents > Connect CrewHub World** (crewhub-loops main since #959, or `world/viewer-key`). The card makes
+   the bot `crewhub-world` as a viewer and shows its **Access key** once in the window "The access key of CrewHub World":
+   press **Copy the access key** beside it, then **I have saved the access key, close**. (The window also names the
+   world's address, `http://127.0.0.1:5180/` unless the web was built with another, with an **Open CrewHub World**
+   button.) Once the bot exists the card is titled **CrewHub World** and says so ("The external bot crewhub-world
+   exists. A new access key is made for it and shown once … a second bot is never made"): its **New access key**
+   button asks once more ("New access key for CrewHub World", **Make a new access key**) and then shows the new key the
+   same way; the old keys keep working until revoked under **Access keys**. (The browser asks you to sign in as the
+   owner first when it has no session; the app's own window is signed in already and works as well.) On an older
+   crewhub-loops without that card: **Settings > Agents > New external bot**, **Name**
    `crewhub-world`, **Read only** unticked, no project ticked under **Member of these projects**, **Make the bot and its
    access key**, copy the key from "The access key of crewhub-world" before closing; that key reads the same, and the
    world shows no chat bubbles with it (section 3).
@@ -127,7 +133,8 @@ In the app, signed in as the owner:
    `~/.config/crewhub-world` and `~/.config/crewhub-loops/secrets` are the world's, not the app's: the app keeps its
    own keys in its data folder and never reads or writes them (`loops:apps/desktop/README.md`, "secrets").
 
-   Lost the key? The agent's page has **New key**; the old one keeps working until it is revoked under **API keys**.
+   Lost the key? The agent's page (and the CrewHub World card on loops main) has **New access key**; the old one keeps
+   working until it is revoked under **Access keys**.
 
 **Say it plainly: this key can write.** An external bot that is not read-only is an ordinary `lead` agent key: it
 could create and move tickets, comment and write progress in any project (not move to Done, not create projects).
