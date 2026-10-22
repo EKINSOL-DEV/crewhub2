@@ -3,7 +3,7 @@
    goes back); Cancel or Escape changes nothing; "Download the current town first" exports what stands now. The focus
    goes inside on open and stays within (Tab cycles its controls), and comes back to the control that opened it on close.
    A reader hears the title and the count once. */
-import { useEffect, useId, useRef, type KeyboardEvent } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { Download, X } from "lucide-react";
 import { Button, Card } from "./primitives";
 
@@ -26,12 +26,21 @@ export function RestoreDialog({ preview, onConfirm, onCancel, onExportCurrent }:
   const cancel = useRef<HTMLButtonElement>(null);
   const opener = useRef<Element | null>(null);
   const none = preview.changes.length === 0;
+  const count = none ? "Nothing would change." : `${preview.changes.length} ${preview.changes.length === 1 ? "change" : "changes"}.`;
+  // The polite count is set after the mount (a live region inserted with its text is not reliably read); the dialog's
+  // name and description are read when the focus lands on Cancel, so the count is said once more and the title not.
+  const [spoken, setSpoken] = useState("");
   useEffect(() => {
     opener.current = document.activeElement;
     cancel.current?.focus();
+    const timer = setTimeout(() => setSpoken(`Restore preview: ${count}`), 50);
     return () => {
-      (opener.current as HTMLElement | null)?.focus?.();
+      clearTimeout(timer);
+      const back = opener.current as HTMLElement | null;
+      if (back?.isConnected) back.focus?.();
     };
+    // Once, at mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "Escape") {
@@ -53,7 +62,6 @@ export function RestoreDialog({ preview, onConfirm, onCancel, onExportCurrent }:
       first.focus();
     }
   };
-  const count = none ? "Nothing would change." : `${preview.changes.length} ${preview.changes.length === 1 ? "change" : "changes"}.`;
   return (
     <>
       <div className="jump-scrim" onPointerDown={onCancel} />
@@ -72,7 +80,7 @@ export function RestoreDialog({ preview, onConfirm, onCancel, onExportCurrent }:
           )}
           <p className="hint">{none ? "The town stays as it is either way." : "The town as it is now stays a revision: Undo goes back to it."}</p>
           <p className="sr-only" role="status" aria-live="polite">
-            Restore preview: {count}
+            {spoken}
           </p>
         </Card.Body>
         <Card.Footer className="restore-footer">
