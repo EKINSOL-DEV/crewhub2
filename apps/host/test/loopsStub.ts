@@ -63,6 +63,11 @@ export interface StubOptions {
   socketPath?: string;
   /** `GET /api/events` (the page read, not the tail) with `after` below this answers 410 `cursor_expired`: the fake after a restart. */
   logMinAfter?: number;
+  /**
+   * `ticket=` on `GET /api/events` (crewhub-loops main, CL-494 step 3): that ticket's events only (by id or key), 404 for
+   * a ref that names no ticket. Default on; off (and on an `older` stub) the parameter is ignored, as loops 4cdcd383 does.
+   */
+  ticketFilter?: boolean;
   /** The chat the key reads where loops lets it (`keyReadsChat`): the threads list, `GET /api/dm/messages/{id}` by id. */
   dm?: { threads?: unknown[]; messages?: Record<string, Record<string, unknown>> };
   /** A loops whose key may read the chat (a viewer key): `GET /api/dm/threads` and a message by id answer the key. Default: 403 for the key. */
@@ -214,7 +219,11 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
       if (options.logMinAfter !== undefined && token === null && after < options.logMinAfter) return send(res, 410, error("cursor_expired", `after=${after} is below the log's floor${detail}`));
       const types = url.searchParams.getAll("types").flatMap((v) => v.split(",")).map((v) => v.trim()).filter((v) => v !== "");
       const limit = Math.min(500, Math.max(1, Number(url.searchParams.get("limit") ?? "500") || 500));
-      const page = events.filter((e) => e.seq > after && (types.length === 0 || types.includes(e.type))).slice(0, limit);
+      // `ticket=` (loops main): only that ticket's events; a ref no event and no board names is the ticket routes' 404.
+      const ticketRef = url.searchParams.get("ticket");
+      const filterByTicket = ticketRef !== null && options.ticketFilter !== false && !older;
+      if (filterByTicket && !events.some((e) => e.ticket?.id === ticketRef || e.ticket?.key === ticketRef)) return send(res, 404, error("not_found", `No ticket ${ticketRef}${detail}`));
+      const page = events.filter((e) => e.seq > after && (types.length === 0 || types.includes(e.type)) && (!filterByTicket || e.ticket?.id === ticketRef || e.ticket?.key === ticketRef)).slice(0, limit);
       const seen = page.length === 0 ? after : (page[page.length - 1] as Envelope).seq;
       return send(res, 200, withCursor({ events: page, lastSeq: seen }, seen, lastSeq()));
     }

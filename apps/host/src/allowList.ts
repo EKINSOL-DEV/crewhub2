@@ -24,7 +24,7 @@ export interface LoopsRead {
 export const LOOPS_READS: readonly LoopsRead[] = [
   { pattern: "/api/health", query: [] },
   { pattern: "/api/auth/me", query: [] },
-  { pattern: "/api/events", query: ["after", "cursor", "from", "limit", "types"] },
+  { pattern: "/api/events", query: ["after", "cursor", "from", "limit", "ticket", "types"] },
   { pattern: "/api/events/stream", query: ["after", "cursor"] },
   { pattern: "/api/projects", query: ["includeArchived"] },
   { pattern: "/api/projects/{slug}", query: [] },
