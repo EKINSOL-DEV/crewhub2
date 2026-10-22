@@ -4,6 +4,10 @@ import { archivedWords, agentCardFacts, doneWord, pinnedCard, quietWords, roleWo
 import { SOURCE, STRESS, worldRuntime } from "../state/world";
 import { loopsWebUrl } from "../state/source";
 import { AgentCard } from "./AgentCard";
+import { useHostHealth } from "../state/health";
+import { cardAnswersEmpty } from "../state/recentAnswers";
+import { useRecentAnswers } from "../state/said";
+import type { FetchedProgress } from "../world/agentCard/types";
 import { renderAgentCard } from "../world/agentCard/registry";
 import { useDark } from "../state/theme";
 import { useQuality } from "../state/quality";
@@ -388,7 +392,16 @@ function useAgentCard(props: Props, inside: Building | null, compact: boolean, p
   const demo = model.mode === "demo";
   const facts = useMemo(() => (key ? agentCardFacts(model, worldRuntime().projection.facts, key) : null), [key, model]);
   const rooms = useBuildingPlan();
-  const sections = useMemo(() => (facts ? renderAgentCard(facts, { now: model.now, freshness: model.freshness, loopsUrl: demo ? null : loopsWebUrl(SOURCE.health), rooms }) : []), [facts, model.now, model.freshness, demo, rooms]);
+  // Round 22: the page's Recent answers for the Answers section (with why none can be known), and the desk ticket's
+  // last progress line read once when the page saw none.
+  const answers = useRecentAnswers();
+  const health = useHostHealth();
+  const answersEmpty = cardAnswersEmpty(demo ? "demo" : "live", health?.connection?.session);
+  const fetchedProgress = useDeskProgress(facts && facts.progress === null ? (facts.work?.key ?? null) : null);
+  const sections = useMemo(
+    () => (facts ? renderAgentCard(facts, { now: model.now, freshness: model.freshness, loopsUrl: demo ? null : loopsWebUrl(SOURCE.health), rooms, answers, answersEmpty, ...(fetchedProgress ? { fetchedProgress } : {}) }) : []),
+    [facts, model.now, model.freshness, demo, rooms, answers, answersEmpty, fetchedProgress],
+  );
   const here = inside ? inside.agents.some((a) => a.key === key) : [...model.townHall, ...model.postOffice].some((a) => a.key === key);
   if (!key || !facts || !here) return null;
   return {
@@ -408,6 +421,32 @@ function useAgentCard(props: Props, inside: Building | null, compact: boolean, p
       />
     ),
   };
+}
+
+/** The desk ticket's progress read once from the source (`getProgress`, the host's forwarded `/tickets/{ref}/progress`
+    or the demo's data) while the card is open and the page saw no line of the agent's; the newest line, or none. A
+    read that fails (refused, broken) is "failed", said so on the card and never retried by itself. */
+function useDeskProgress(ticketKey: string | null): FetchedProgress | undefined {
+  const [state, setState] = useState<{ key: string; value: FetchedProgress } | null>(null);
+  useEffect(() => {
+    if (!ticketKey) return;
+    let live = true;
+    setState({ key: ticketKey, value: { state: "loading" } });
+    worldRuntime()
+      .source.getProgress(ticketKey)
+      .then((items) => {
+        if (!live) return;
+        const newest = items.reduce<(typeof items)[number] | null>((best, item) => (best === null || Date.parse(item.createdAt) > Date.parse(best.createdAt) ? item : best), null);
+        const ts = newest ? Date.parse(newest.createdAt) : Number.NaN;
+        setState({ key: ticketKey, value: newest && !Number.isNaN(ts) ? { state: "line", line: { ts, kind: newest.kind, ticketKey, text: newest.worker ? `${newest.worker}: ${newest.text}` : newest.text } } : { state: "none" } });
+      })
+      .catch(() => live && setState({ key: ticketKey, value: { state: "failed" } }));
+    return () => {
+      live = false;
+    };
+  }, [ticketKey]);
+  if (!ticketKey) return undefined;
+  return state?.key === ticketKey ? state.value : { state: "loading" };
 }
 
 /** The town's own figures (the postman, the town hall's agents) carry a name pill while hovered or selected; with the

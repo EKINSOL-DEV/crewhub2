@@ -28,6 +28,8 @@ export const nowSection: AgentCardSection = {
     const rows: CardRow[] = [];
     const where = whereWords(agent, facts.building, ctx.rooms ?? "classic", facts.civic);
     rows.push({ kind: "text", label: "Where", text: `${where}${agent.locationInferred ? " (inferred from recent events)" : ""}` });
+    // Its lead (round 22): a worker's from the team snapshot, else the lead of the building it is in; the lead itself has no row.
+    if (facts.lead) rows.push({ kind: "text", label: "Lead", text: `${facts.lead.displayName}${facts.lead.how === "team" ? " (its lead in the team snapshot)" : facts.building ? ` (the lead of ${facts.building.name})` : ""}` });
     if (agent.presence === "proxy") rows.push({ kind: "text", label: "", text: "A translucent proxy here: the real figure works in another building.", muted: true });
     else rows.push({ kind: "chips", chips: [{ kind: "lane", status: agent.laneStatus }, { kind: "plain", text: `posture ${agent.posture === "raised-hand" ? "hand raised" : agent.posture}` }] });
     const stale = ctx.freshness.stale;
