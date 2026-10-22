@@ -332,7 +332,16 @@ the console, which the page cannot silence)
 (the browser hides a refused origin as one opaque failure, the same as a server that is not there, so the page asks the
 same route once more in `no-cors` mode: an opaque answer proves something answers, and the words then carry the exact
 value to set, `CHL_WORLD_ORIGIN=<this page's origin>`; a loops from before the setting lands here too); *unreachable*
-(nothing answered). Nothing of this road goes through the host, and the page keeps nothing. The proof against the
+(nothing answered: asked again after 5 s, doubling to 5 minutes, since a loops restarting is the common case and no
+console line is at stake); *chat off* (round 29: loops answered 409 `feature_off`, its chat bubbles feature is switched
+off in Settings > Features; asked again every 30 s, and a 409 while polling turns the road off the same way); *remote*
+(the loops origin the host names is not on this computer: nothing is asked, the person's cookie never travels
+cross-site, and the words say the viewer key is the road). The page asks nothing while the host has not said whether
+its key reads the chat (health `connection.session` is `{ state: "unknown" }` until the host has linked and asked:
+the words say the host is still connecting), nor when the host names no `loopsWebUrl`, nor while the browser is
+offline; it reads health again when the host's stream goes live or its key word changes, so the road follows the
+host's real word. One ask is in flight at a time, a message read that fails is asked again on the next poll, and a
+message the page has shown is never shown twice. Nothing of this road goes through the host, and the page keeps nothing. The proof against the
 development loops 8293: `node tools/road2proof.mjs` (tools/README.md).
 
 `loops` is `ok`, `down` or `unauthorized` (a loops 401 or 403; also no key yet, for the world from before);
