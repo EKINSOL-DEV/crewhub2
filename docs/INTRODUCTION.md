@@ -310,7 +310,7 @@ shared Mac never reaches somebody else's host.
   Catching up, Stale, Loops down, Stream busy, Pair again) that opens the **Connection panel** (with, since round 20,
   a Town row: where the town is kept and its revision).
 
-![The Connection panel over the live town against the development crewhub-loops (round 29): Live, loops found through the Mac app's socket, the key from the stored key, streaming with its cursor, one archived project from loops' event log, crewhub-loops version 0.1.0, the host over the Unix socket, the Town row (kept by the host, revision 2), the Zones row, and the Chat section, which on this older loops says no bubbles and names both ways out.](images/connection-panel.jpg)
+![The Connection panel over the live town against the development crewhub-loops (round 29): Live, loops found through the Mac app's socket, the key from the stored key, streaming with its cursor, one archived project from loops' event log, crewhub-loops version 0.1.0, the host over the Unix socket, the Town row (kept by the host, revision 2) and the Zones row; the Chat section, which on this older loops says no bubbles and names both ways out, follows below the panel's fold.](images/connection-panel.jpg)
 
 Operations have been rehearsed under a running host: loops stopped and started (Loops down, then Live again without a
 reload), the key revoked while Live (the Key rejected screen over the live tab; a new key pasted brings the town back),
