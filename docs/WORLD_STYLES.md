@@ -452,8 +452,21 @@ sample room, in every role and state.
 ### What the world asks of a figure
 
 Renderers talk only to a `FigureHandle`: `setState`, `setDetail("near" | "far")`, `setHighlight`, `update(seconds)`
-(never called under reduced motion), `setPerch` with `body` (see "Perches" below), `anchors` and `dispose`. One pure function (`figureState.ts`) derives the state
+(never called under reduced motion), `setPerch` with `body` (see "Perches" below), `anchors`, `materialise`,
+`setCastShadow` and `dispose`. One pure function (`figureState.ts`) derives the state
 from what the world model already says; the reducer and the projection know nothing of casts.
+
+**Parts as data (round 23, 2026-10-22).** A figure's joints are groups that hold their parts as data (world-style's
+`FigurePiece`: the geometry, material, transform and composed matrix the kit's mesh would have, whether the state
+shows the part, and the mesh once there is one), the kit's `piece(part, color)` (its `part` read off a mesh for a kit
+without one). The meshes are made once, when the figure is first told `near` (a figure never told anything is near
+and makes them on its first `update`), when it draws on its own (a see-through proxy, a stale figure: materials the
+crowd cannot batch) or when a reader of meshes asks (`materialise`; the contract's measure does), and they are the
+meshes the kit made before, in the same order, with the joint's `userData` (what tagged the joints tagged them). The
+far crowd (`robotCrowd.ts`) draws a far figure from the data, the joint's world matrix times the part's, which is the
+matrix its mesh has or would have; so a town's buildings' agents, seen far, are joints, a shadow blob and a halo each,
+not a mesh per part. The joints, the blob, the halo and a perch's steps stay objects: they move, or are shaders. The
+runtime's `setCastShadow` writes the parts' flags as a traverse over the meshes did (the next state writes them again).
 
 - **Role**: `lead`, `worker`, `design`, `analyst`, `postman` (the post office), `operator` (a town-hall agent without
   a role of its own), `unknown` (no fact produces it yet; the casting room shows it).
