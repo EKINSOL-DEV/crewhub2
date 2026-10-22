@@ -27,6 +27,7 @@ import { markWords, saidLines, saidMarks, type SaidMark } from "./world/saidText
 import { JumpList } from "./components/JumpList";
 import { RecentAnswers } from "./components/RecentAnswers";
 import { IconSprite } from "./components/Icon";
+import { useMedia } from "./state/media";
 import { Button, Card, Chip, Field, Menu } from "./components/primitives";
 import { SceneBoundary } from "./components/SceneBoundary";
 import WorldCanvas, { type Selection } from "./components/WorldCanvas";
@@ -72,17 +73,9 @@ const NEXT_THEME = { system: "light", light: "dark", dark: "system" } as const;
 
 /* Below this width the chat is loops' narrow mode: a "Agent chats" menu in the corner and the chat as a full-screen dialog. */
 const NARROW = "(max-width: 899px)";
-// One media query list for the page: `matchMedia` on every render cost about 1 ms at 4x of the enter's render (round 25).
-let narrowMedia: MediaQueryList | null = null;
-const narrow = () => (narrowMedia ??= window.matchMedia(NARROW));
-const useNarrow = () =>
-  useSyncExternalStore(
-    (listener) => {
-      narrow().addEventListener("change", listener);
-      return () => narrow().removeEventListener("change", listener);
-    },
-    () => narrow().matches,
-  );
+// One media query list and one subscription for the page (state/media.ts): `matchMedia` on every render cost about
+// 1 ms at 4x of the enter's render (round 25), and an inline subscribe re-subscribed on every render (round 30).
+const useNarrow = () => useMedia(NARROW);
 
 const prefersReducedMotion = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const typing = (target: EventTarget | null) => target instanceof HTMLElement && (target.matches("input, select, textarea") || target.isContentEditable);

@@ -1,4 +1,5 @@
-import { memo, useCallback, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
+import { memo, useCallback, type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
+import { useMedia } from "../state/media";
 import { Archive, Check, CircleHelp, Clock, Flag, Hand, MessageCircle, MessageSquare, Play, RefreshCw, Sprout, TriangleAlert, Trophy, User, Zap } from "lucide-react";
 import { archivedWords, agentCardFacts, doneWord, pinnedCard, quietWords, roleWords, runWords, type AgentPlacement, type Building, type PersonVisit, type ProgressKind, type RoomWording, type WorkObject, type WorldModel } from "@crewhub/world-model";
 import { SOURCE, STRESS, worldRuntime } from "../state/world";
@@ -640,16 +641,7 @@ function Wayfinding({ districts, district, marks, onDistrict, onEnter }: { distr
    selected, and everywhere with Details on. Below 600 px only the focused or zoomed room reveals, there is one room sign
    (in one word), and name pills show only in a revealed room. Everything hidden here stays in the text view. */
 const COMPACT = "(max-width: 599px)";
-function useCompact(): boolean {
-  return useSyncExternalStore(
-    (listener) => {
-      const media = window.matchMedia(COMPACT);
-      media.addEventListener("change", listener);
-      return () => media.removeEventListener("change", listener);
-    },
-    () => window.matchMedia(COMPACT).matches,
-  );
-}
+const useCompact = (): boolean => useMedia(COMPACT);
 
 const same = (a: Pick | null, b: Pick | null) => !!a && !!b && JSON.stringify(a) === JSON.stringify(b);
 
