@@ -65,7 +65,7 @@ description read only that model.
 Phase status (plan section 10; the dates and details are in [the roadmap](ROADMAP.md)):
 
 - Phase 1 (town, loops-client, demo source): built in demo mode; live since 2026-10-07, against the real crewhub-loops since 2026-10-21
-- Phase 2 (the chat, backed by the demo chat API in demo mode): built in demo mode; live since round 12 as loops' own chat framed in the Chat panel, with the agents' answers as bubbles, a chat mark from the town and Recent answers where the key may read the chat (rounds 14 to 18; the session road stands in until the viewer key lands)
+- Phase 2 (the chat, backed by the demo chat API in demo mode): built in demo mode; live since round 12 as loops' own chat framed in the Chat panel, with the agents' answers as bubbles, a chat mark from the town and Recent answers where the key may read the chat (rounds 14 to 18; the session road that stood in until the viewer key landed is gone since round 28, and the page's own read of the person's chat where loops has the world's origin set came in its place, road 2)
 - Phase 3 (interiors, three rooms, the ticket drone, a person carrying work into Done, closed buildings): built in demo mode and live; the world database keeps the live town in the host since round 20
 - Phase 4 (town paths and dynamic pathfinding): built in demo mode and live
 - Phase 5 (town document and build mode): built in demo mode; in live mode the host keeps the town document and its undo history per installation for every paired browser (rounds 20 and 21), the browser keeping it only while the host is away
@@ -286,9 +286,10 @@ Identity is the loops principal id; a worker's identity is its session and name.
 host sends no commands. The chat bubbles send DMs as the person through loops' own
 routes (in demo mode, an in-browser fake answers them and the reply is scripted; in live
 mode the Chat panel frames loops' own web app, so the chat is exactly loops' and runs on the
-person's own session, which never reaches the world). Everything else a person does opens
-the loops web app. The host's own principal, the external bot `crewhub-world`, is the
-observer and is never drawn as a figure.
+person's own session, which never reaches the world; an agent's answer shows as a bubble where
+loops lets the world's viewer key read the chat). Everything else a person does opens
+the loops web app. The host's own principal, the viewer bot `crewhub-world` (an external bot
+on an older loops), is the observer and is never drawn as a figure.
 
 Unknown, idle, blocked and done are different lane statuses, and a lane status never
 proves that a task succeeded. A team snapshot older than 5 minutes is shown as

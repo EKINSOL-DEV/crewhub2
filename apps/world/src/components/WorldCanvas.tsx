@@ -4,8 +4,8 @@ import { archivedWords, agentCardFacts, doneWord, pinnedCard, quietWords, roleWo
 import { SOURCE, STRESS, worldRuntime } from "../state/world";
 import { loopsWebUrl } from "../state/source";
 import { AgentCard } from "./AgentCard";
-import { useHostHealth } from "../state/health";
-import { cardAnswersEmpty } from "../state/recentAnswers";
+import { cardAnswersEmpty } from "../state/chatRoad";
+import { useChatRoad } from "../state/chatRoadStore";
 import { useRecentAnswers } from "../state/said";
 import { useChatThreads } from "../state/threads";
 import type { FetchedProgress } from "../world/agentCard/types";
@@ -399,8 +399,8 @@ function useAgentCard(props: Props, inside: Building | null, compact: boolean, p
   // Round 22: the page's Recent answers for the Answers section (with why none can be known), and the desk ticket's
   // last progress line read once when the page saw none.
   const answers = useRecentAnswers();
-  const health = useHostHealth();
-  const answersEmpty = cardAnswersEmpty(demo ? "demo" : "live", health?.connection?.session);
+  const road = useChatRoad();
+  const answersEmpty = cardAnswersEmpty(demo ? "demo" : "live", road);
   const fetchedProgress = useDeskProgress(facts && facts.progress === null ? (facts.work?.key ?? null) : null);
   // The chat threads' facts (round 24), where the key reads the chat: this agent's, or null for none, or nothing known.
   const threads = useChatThreads();

@@ -2699,8 +2699,8 @@ a.agent-ticket-link:focus-visible {
   }
 }
 
-/* The Connection panel's Chat section (round 12): the session's state, the sign-in form, Forget the session. */
-.connection-session {
+/* The Connection panel's Chat section (round 12; one road since round 19): the chat's road in words, the typing note. */
+.connection-chat {
   margin-top: var(--space-3);
   padding-top: var(--space-3);
   border-top: 1px solid var(--border);
@@ -2708,33 +2708,15 @@ a.agent-ticket-link:focus-visible {
   flex-direction: column;
   gap: var(--space-2);
 }
-.connection-session-title {
+.connection-chat-title {
   margin: 0;
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
 }
-.connection-session-state {
+.connection-chat-state {
   margin: 0;
 }
-.connection-session-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-.connection-session-form label {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  font-size: var(--text-xs);
-}
-.connection-session-form input {
-  font: inherit;
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm, 6px);
-  background: var(--surface);
-  color: var(--text);
-}
+
 
 /* ── The introduction inside the world (round 20): a ring around the step's element and a small card beside it ─────────
    Nothing is dimmed and nothing moves the camera; the card is placed by state/tour.ts placeStep so it never covers what

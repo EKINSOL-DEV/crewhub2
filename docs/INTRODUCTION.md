@@ -266,13 +266,14 @@ shared Mac never reaches somebody else's host.
 - **Discovery.** The env's URL or socket is taken as given; else the host reads the Mac app's data folder (never
   writes it): the Unix socket `run/api.sock`, then the port in `settings.json`, each probed with the public
   `GET /api/health`; nothing found, it looks again every 5 s, so opening the app later needs no restart.
-- **The key is an external bot's.** At `4cdcd383` the only key that may read projects, boards, the team, agents,
+- **The key is the viewer bot's, by loops' card** (crewhub-loops main since #959; an external bot's on an older loops). At `4cdcd383` the only key that may read projects, boards, the team, agents,
   tickets and the event stream without a lane is an external bot (CL-314); the Read-only bot (CL-313) reads tickets of
   its member projects only, and a probe key reads nothing since CL-295. Said plainly: this key could write. What keeps
   the world read-only is the host's `GET`-only allow-list, and that is why a **viewer key** is proposed (section 8).
-  When it lands, the switch is a new key file or a paste in the Connect screen, nothing else (the bot stays
-  `crewhub-world`): that key reads what the world needs and writes nothing, the Connection panel's Key row says so (the
-  host sees `viewer: true` on its own entry at the key check), and the chat's bubbles need no sign-in.
+  On loops main (#959, #964) the switch is a new key file or a paste in the Connect screen, nothing else (the bot stays
+  `crewhub-world`): that key reads what the world needs, writes nothing and reads only the chat of the person who made
+  it; the Connection panel's Key row says so (the host sees `viewer: true` on its own entry at the key check), and the
+  chat's bubbles need no sign-in.
   Every key is checked with `GET /api/auth/me` and one board read; a wrong kind of key is rejected with the loops web's
   own words. A rejected key is never confused with loops being down: only a definite 401 or 403 from a loops whose
   health answers rejects, and a rejected key then waits (no retries) and is asked about again every five minutes, so a
@@ -326,28 +327,33 @@ enabled agents of loops role `lead` only, so only a lead's card has "Chat with <
 postman has no Chat button of its own and says why ("crewhub-loops chats with leads only: <name> is a worker ...; chat
 with its lead <lead>"), with a button for the lead's chat when loops lists one.
 
-**Road B**, speech bubbles over the figures when an agent answers, needs a view of the person's conversation (a plain
-external bot's key is not a participant of the person's thread, so it never sees `dm.*` for it). It is built (rounds 12
-to 18) on two roads. The key road: where loops lets the world's own key read the chat (the viewer key of
-`world/viewer-key`, on origin under review and running on 8292), the host reads an agent's answer on its own stream
-and no sign-in is needed. The session road, for today's Mac app: the Connection panel's Chat section takes a sign-in
-once and the host keeps only loops' session cookie, for chat reads alone, off by default. An agent's answer then shows
-for a few seconds as a speech bubble over its figure (at most three lines; the whole line in its title and accessible name), and a
-tap on the bubble opens the Chat panel on that agent. The real proof came on 8292 on the key road (round 14): since then
-the text view carries "<name> says: <first line>" with the place while the bubble lives, a small chat mark stands over
-the building from the town (the figure inside is not drawn there; a tap enters the building; the text view's building
-row says "<name> answered"), and the three places that speak of the sign-in tell one story per road: on the key road
-the bubbles need no sign-in and the world keeps no session; on the session road the host keeps the person's session for
-chat reads only; typing in the framed chat is loops' own and always needs the person signed in to loops in this browser.
+**Road B**, speech bubbles over the figures when an agent answers, needs a key that may read the person's conversation
+(a plain external bot's key is not a participant of the person's thread, so it never sees `dm.*` for it). That key is
+the **viewer key** (crewhub-loops main since #959; it reads only the chat of the person who made it, #964): where loops
+lets the world's own key read the chat, the host
+reads an agent's answer on its own stream and the world shows it for a few seconds as a speech bubble over the agent's
+figure (at most three lines; the whole line in its title and accessible name); a tap on the bubble opens the Chat panel
+on that agent. The real proof came on 8292 (round 14): since then the text view carries "<name> says: <first line>" with
+the place while the bubble lives, a small chat mark stands over the building from the town (the figure inside is not
+drawn there; a tap enters the building; the text view's building row says "<name> answered"), and the three places that
+speak of the chat tell one story per road (round 28, `state/chatRoad.ts`): on the key road (road 1) the bubbles need no
+sign-in, come from the chat of the person who made the key, and the world keeps no session; on the page road (road 2,
+where crewhub-loops on this computer has `CHL_WORLD_ORIGIN` set to the page's exact origin) the page reads your own chat
+itself, as you, signed in to loops in this browser, and nothing of it goes through the host; where neither reads the
+chat (an older loops, today's Mac app) there are no bubbles, and the Connection panel, the Chat panel and the text view
+say so and name both ways out, with the exact `CHL_WORLD_ORIGIN=<this page's origin>`; typing in the framed chat is
+loops' own and always needs the person signed in to loops in this browser. The default is road 1 when the host's key
+reads the chat, else road 2 when the page's own probe answers, else the honest line; the framed chat (road A) is not a
+read by the world and stays on every road. The sign-in road that stood in for the viewer key until then (the host
+signed in as the person and kept loops' session cookie for chat reads) was built in round 12, removed on
+`task/r19-viewer-switch` in round 19 and gone from this branch since round 28 (cl-lead's review finding F8).
 A missed bubble is not lost (round 16): the Chat panel and the text view carry a "Recent answers" list, the last ten
 first lines this page saw with their times, newest first, each a button that opens that agent's chat; nothing of it is
 written anywhere, and a reload starts empty. The panel itself reads in one glance (round 17): "crewhub-loops' own chat,
 framed here" and the one thing to do on this road, two short lines above Recent answers, with the whole story (and, since
 round 18, what the list is) behind "About this chat", so the list starts with its rows; in the demo the dock's scripted
-replies feed the same list, bubbles and mark. The honest road is on the loops side (section 8): the switch to the
-viewer key, which removes the session road (the spec addendum "chat with the agents", planned removal), is written on
-`task/r19-viewer-switch` (round 19) and merges when crewhub-loops main carries `world/viewer-key`; until then
-`feat/world-demo` keeps the session road.
+replies feed the same list, bubbles and mark. The honest road is on the loops side (section 8), and this branch is the
+world's half of it.
 
 ![The live town over the fake crewhub-loops a second after CR Lead answered inside its building: a chat mark "CR Lead" beside the CrewHub World building's waiting pin, since the figure inside is not drawn from the town; a tap on the mark enters the building.](images/chat-mark.jpg)
 
@@ -401,8 +407,8 @@ it; each item would make it more honest or more direct.
 - **The "Connect CrewHub World" card** (the same page). One button in Settings > Agents makes the bot `crewhub-world`
   as a viewer, with no project, and shows its key once with where to paste it, so steps 2 and 3 of the morning become
   one dialog. The key is still pasted in the world's Connect screen; nothing hands it to the host behind the person's
-  back. The world's side of the switch is prepared (round 15): a new key file or a paste, and the Connect screen and the
-  setup guide already say what changes with a viewer key.
+  back. The world's side of the switch is built (round 15 prepared it, round 28 landed it): a new key file or a paste,
+  and the Connect screen and the setup guide say what changes with a viewer key, whose chat it reads included.
 - **Page two** (`crewhub-world-viewer-2.md`): a `ticket=` filter on `GET /api/events` (and the stream), so a fresh
   tab's quiet stretches are decided by one tiny read per ticket instead of a capped scan of everyone's activity; and
   `includeArchived=true` for a viewer key, so closed buildings come from the list, not from the whole log and a memory
@@ -414,8 +420,10 @@ it; each item would make it more honest or more direct.
   not need, and the person's chat is the clearest case. **These asks are code on `world/viewer-key` now**: the deep link
   `?chat=<agent id>` (cb163004), the framing allowance for loopback origins (`frame-ancestors`, 41c8d102), and the
   viewer key's read of the chat the owner sees, never a send (79cb36a8), each small, tested and reversible, with a review
-  page for cl-lead (`crewhub-world-viewer-cl-lead.md`); the branch is on origin since round 19. The real bubble was
-  proven on that loops in rounds 14, 16 and 18.
+  page for cl-lead (`crewhub-world-viewer-cl-lead.md`); the branch is on origin since round 19, and crewhub-loops main
+  carries the viewer key since #959, with the chat read narrowed to the key's maker (#964) and, as page three's road
+  (3), the world's own origin for the page's read of the person's chat (#968, `CHL_WORLD_ORIGIN`; round 28, road 2).
+  The real bubble was proven on that loops in rounds 14, 16 and 18, and road 1 on loops main's 8293 in round 28.
 - **The older proposals** of the plan (L2 to L8, L22: project groups) stand as written in
   [LOOPS_GAP_ANALYSIS.md](LOOPS_GAP_ANALYSIS.md), section 6.
 

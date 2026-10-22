@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { cardAnswersEmpty, answerLabel, answerName, answerTarget, answerTime, RECENT_NOTE, recentEmptyWords } from "../src/state/recentAnswers.ts";
+import { answerLabel, answerName, answerTarget, answerTime, RECENT_NOTE } from "../src/state/recentAnswers.ts";
 import { clearSaid, getRecentAnswers, RECENT_ANSWERS, rememberSaid, SAID_MS, saidBy } from "../src/state/said.ts";
 
 const line = (agentId: string, text: string, n: number) => ({ agentId, agentName: agentId.toUpperCase(), text, at: new Date(Date.UTC(2026, 9, 22, 1, 2, n)).toISOString(), messageId: `dm_${n}`, threadId: `dmt_${agentId}` });
@@ -30,17 +30,9 @@ test("recent answers: the last 10 lines stay newest first for the page's life, p
   assert.deepEqual(getRecentAnswers(), []);
 });
 
-test("recent answers: the empty state says per road whether an answer can arrive, and the demo's own dock since round 17", () => {
-  assert.match(recentEmptyWords("demo", null), /^No answers yet: write to an agent in the demo's chat dock .* its scripted reply shows as a bubble and stays here/);
-  assert.match(recentEmptyWords("live", null), /^No answers can arrive: this host keeps no session/);
-  assert.match(recentEmptyWords("live", { state: "key" }), /^No answers yet: this crewhub-loops lets the world's key read the chat/);
-  assert.match(recentEmptyWords("live", { state: "signed-in", name: "Nicky" }), /^No answers yet: signed in as Nicky/);
-  assert.match(recentEmptyWords("live", { state: "signed-in" }), /^No answers yet: signed in, an agent's answer/);
-  assert.match(recentEmptyWords("live", { state: "expired", name: "Nicky" }), /^No answers can arrive: the session is no longer accepted.*Sign in again/);
-  assert.match(recentEmptyWords("live", { state: "signed-out" }), /^No answers can arrive: not signed in\. Sign in in the Connection panel/);
+test("recent answers: what the list is", () => {
   assert.match(RECENT_NOTE, /^The last 10 answers this page saw, newest first/);
 });
-
 test("recent answers: the row's time, name, target and accessible name", () => {
   const a = { agentId: "cr-lead", agentName: "CR Lead", text: "(demo reply) The nook is done.", at: "2026-10-22T01:02:03.000Z", shownAt: 5, messageId: "dm_1", threadId: "dmt", until: 6 };
   const local = new Date("2026-10-22T01:02:03.000Z");
@@ -60,13 +52,4 @@ test("recent answers: the row's time, name, target and accessible name", () => {
   const nobody = answerTarget({ agentId: "postman", agentName: "Postman" }, { key: "postman", displayName: "Postman", chat: { self: false, why: "the postman (loops role router)", lead: null } });
   assert.deepEqual(nobody, { agent: null, action: "Open the chat", note: "crewhub-loops chats with leads only: Postman is the postman (loops role router)." });
   assert.deepEqual(answerTarget({ agentId: "gone", agentName: null }, null), { agent: { key: "gone", name: "gone" }, action: "Chat with gone", note: null }, "an agent no longer in the model: the panel for its id, loops decides");
-});
-
-test("recent answers (round 22): the card's words for an agent without an answer, per road", () => {
-  assert.match(cardAnswersEmpty("demo", null), /^No answer yet: write to it in the demo's chat dock/);
-  assert.equal(cardAnswersEmpty("live", null), "No answers can arrive: this host keeps no session and reads no chat.");
-  assert.match(cardAnswersEmpty("live", { state: "key" }), /^No answer from it since this page opened; this crewhub-loops lets the world's key read the chat/);
-  assert.equal(cardAnswersEmpty("live", { state: "signed-in", name: "Nicky" }), "No answer from it since this page opened (signed in as Nicky; an answer would show here).");
-  assert.match(cardAnswersEmpty("live", { state: "expired", name: "Nicky" }), /no longer accepted/);
-  assert.equal(cardAnswersEmpty("live", { state: "signed-out" }), "This key cannot read the chat and nobody is signed in: no answers can arrive here. Sign in in the Connection panel's Chat section.");
 });
