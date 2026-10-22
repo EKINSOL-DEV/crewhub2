@@ -88,7 +88,22 @@ export type SourceMessage =
    * An agent's message to the person (round 12, the host's chat session): a speech bubble over that agent's figure with
    * the first line. Only the live host sends it; the demo's chat is its own (the copied dock).
    */
-  | { type: "chat"; chat: ChatLine };
+  | { type: "chat"; chat: ChatLine }
+  /**
+   * The chat threads' own facts (round 24), where loops lets the world's key read the chat: per agent, when the last
+   * message was written and how many are unread; the whole list each time, read by the host at the key check and
+   * again after a `dm.*` event it sees. Only the live host sends it.
+   */
+  | { type: "threads"; threads: ChatThreadFact[] };
+
+/** One agent's chat thread as the host passes it on (`GET /api/dm/threads`: `lastMessageAt`, `unreadCount`); nothing of the messages. */
+export interface ChatThreadFact {
+  agentId: string;
+  /** When the last message of the thread was written (ISO), by either side. */
+  lastMessageAt: string;
+  /** Messages the owner has not read, as loops counts them for the key's view. */
+  unreadCount: number;
+}
 
 /** One line an agent said to the person, as the world shows it. Nothing more of the conversation reaches the page. */
 export interface ChatLine {

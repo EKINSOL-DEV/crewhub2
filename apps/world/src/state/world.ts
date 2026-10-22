@@ -4,6 +4,7 @@
 import { useSyncExternalStore } from "react";
 import { createHostSource, type ConnectionState, type ConnectionStatus, type WorldSource } from "@crewhub/loops-client";
 import { rememberSaid } from "./said";
+import { rememberThreads } from "./threads";
 import { demoChatLine, isAgentDm } from "./demoSaid";
 import {
   browserScheduler,
@@ -183,6 +184,11 @@ class WorldRuntime {
       // An agent's line to the person (round 12): a bubble over its figure, kept beside the model, not in it.
       if (message.type === "chat") {
         rememberSaid(message.chat);
+        return;
+      }
+      // The chat threads' facts (round 24): kept for the card, never in the model.
+      if (message.type === "threads") {
+        rememberThreads(message.threads);
         return;
       }
       // The demo's own dock answers (round 17, state/demoSaid.ts): the scripted reply's dm.created, read back from the

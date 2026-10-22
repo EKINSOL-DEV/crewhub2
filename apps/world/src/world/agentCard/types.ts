@@ -19,6 +19,12 @@ export interface CardContext {
   answersNote?: string;
   /** The desk ticket's last progress line read once from the source when the page saw none (round 22). */
   fetchedProgress?: FetchedProgress;
+  /**
+   * This agent's chat thread as the host passes it on (round 24, where the key reads the chat): when the last message
+   * was written and how many are unread; null when the host's list has no thread with this agent; absent when the
+   * host sent no list (a key that cannot read the chat, a demo page): then nothing is said about the thread.
+   */
+  thread?: { lastMessageAt: string; unreadCount: number } | null;
 }
 
 /** One answer as the card lists it: the line, who said it, when loops wrote it (ISO). */

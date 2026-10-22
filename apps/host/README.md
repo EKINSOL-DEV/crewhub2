@@ -44,7 +44,10 @@ smooth connection" below):
   in to crewhub-loops as the person for the chat's bubbles and keeps only the session cookie in `<CREWHUB_WORLD_CONFIG_DIR>/loops-session`
   (0600); the password is never stored, logged or returned. With it the host reads the chat only (`src/session.ts` `SESSION_ROUTES`: the
   threads, a thread's messages, a message by id, the events with `types=dm.*`) and sends nothing; an agent's answer reaches the tabs as a
-  `chat` stream message. `connection.session` says `signed-out`, `signed-in` (with the name for paired browsers), `expired`, or `key`: this
+  `chat` stream message. Where the key reads the chat (below), the threads' own facts reach the tabs too (round 24): a `threads` stream
+  message with, per agent, `lastMessageAt` and `unreadCount` from `GET /api/dm/threads`, sent whole when a tab attaches and again after a
+  `dm.*` event the key's stream sees (read once more, at most once a second; never polled otherwise), for the agent card's
+  "last message in the chat 2 h ago, 1 unread". `connection.session` says `signed-out`, `signed-in` (with the name for paired browsers), `expired`, or `key`: this
   loops lets the world's key read the chat (a viewer key, L1: its own entry in `GET /api/agents` says `viewer: true` and `GET /api/dm/threads` answers 200), so the bubbles come over the key's own
   stream and a sign-in is refused as not needed (409). Planned (decision 9) and written on `task/r19-viewer-switch` (round 19): once crewhub-loops main carries
   `world/viewer-key` (on origin under `cl-lead`'s review) that branch merges and the session road goes with it (`src/session.ts`, its file, the `/world-api/session` routes, the panel's
