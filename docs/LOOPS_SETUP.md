@@ -168,7 +168,7 @@ The host reads these; every one has a default that matches the app.
 | `CREWHUB_WORLD_KEY_FILE` | none | The key the host sends as `Authorization: Bearer`, read once, never logged, never in a response or the bundle (a test checks). Unset, the host reads its own stored key `~/.config/crewhub-world/loops-key` (what the Connect screen saved), then the old default `~/.config/crewhub-loops/secrets/agent-crewhub-world.key`; none of them: the host starts without a key and the world shows Connect. A configured file that cannot be read is an error, never a fallback. There is no builder-key fallback any more. |
 | `CREWHUB_WORLD_CONFIG_DIR` | `~/.config/crewhub-world` | The host's own folder: the stored key, `archived.json`, the session and the world database `world.db` live here (folder 0700, files 0600). Tests and developers point it elsewhere. |
 | `CREWHUB_WORLD_PORT` | `5180` | The host's own port, bound to `127.0.0.1` only. |
-| `CREWHUB_WORLD_ALLOWED_ORIGINS` | none | A comma list of extra browser origins the host accepts besides `http://127.0.0.1:<port>` and `http://localhost:<port>`; in development the Vite dev server's origin, for example `http://127.0.0.1:5173`. |
+| `CREWHUB_WORLD_ALLOWED_ORIGINS` | none | A comma list of extra browser origins the host accepts besides `http://127.0.0.1:<port>` and `http://localhost:<port>`. Not needed for `npm run dev` of the same checkout: the dev server tells the host its origin itself (section 7); for an older dev server or another tool's page, for example `http://127.0.0.1:5173`. |
 | `CREWHUB_WORLD_PAIRING` | `on` | `off` drops the pairing cookie gate: development only, logged loudly at start, refused with `NODE_ENV=production`. |
 | `CREWHUB_WORLD_PAIRING_FILE` | none; `npm run world`: `~/.config/crewhub-world/pairing-secret` | A file (created, mode 0600) that keeps the pairing secret across host restarts, so paired browsers stay paired. Without it the secret is per run: a restart means pairing again (an open tab is left on Stale). `npm run world` keeps it in the host's own folder unless this names another file. |
 | `CREWHUB_WORLD_PUBLIC_URL` | none | The URL a browser reaches the host at when a TLS proxy stands in front; `https` makes the cookie `Secure`, and that origin passes the Host/Origin guard. |
@@ -356,6 +356,15 @@ closed buildings it learnt) and `world.db` (the live town per installation, with
 schema changes), so delete the whole folder to remove everything. The app itself is untouched by any of this.
 
 ## 7. For developers: the private crewhub-loops next to the app
+
+**`npm run dev` beside `npm run host`** (round 23): the page runs on Vite's origin and Vite proxies `/world-api` to the
+host (`CREWHUB_WORLD_PORT`, default 5180). Once Vite listens it tells the host that origin (`POST /world-api/dev-origin`:
+accepted only from a program on this machine, only for a loopback http origin, only from the same checkout, never a
+wildcard), and the host accepts it for the run, so connect, sign-in and town writes from the page work without
+`CREWHUB_WORLD_ALLOWED_ORIGINS`. Both sides say so in one line at start (`dev: the page's writes come from … told to
+the host on …` and `dev origin … accepted`); the dev server also says when the host is older and cannot be told, or
+not there yet (it is told when one answers). Pairing is as before: the page still pairs through the one-time link
+(`npm run host -- open --origin http://127.0.0.1:5173`).
 
 Development never runs against the app. `tools/loops-dev.sh` runs a second crewhub-loops from a checkout, with its
 own port, data folder and socket; the app, its data folder and its port are never touched.

@@ -2,7 +2,7 @@
  * The one list of crewhub-loops routes the host may call, and of the browser routes it answers under `/world-api`.
  * Every loops call the host makes goes through `allowedLoopsPath`; every browser request through `matchWorldRoute`.
  * Anything else is 404, every method a route does not name is 405 (GET unless `methods` says otherwise; only the
- * local `/connect` takes POST and DELETE). Safe methods only towards loops: the host never writes to crewhub-loops.
+ * local `/connect` takes POST and DELETE, `/dev-origin` POST). Safe methods only towards loops: the host never writes to crewhub-loops.
  */
 
 /** A path segment of a loops ref or slug: a ticket key (`CL-85`, `CL-111.2`), an id (`tk_…`), a slug. */
@@ -60,6 +60,8 @@ export const WORLD_ROUTES: readonly WorldRoute[] = [
   { pattern: "/stream", kind: "local", query: ["cursor"] },
   { pattern: "/project-groups", kind: "local", query: [] },
   { pattern: "/connect", kind: "local", query: [], methods: ["POST", "DELETE"] },
+  // The dev server of this checkout tells the host its loopback origin (devOrigin.ts); a program's request, never a page's.
+  { pattern: "/dev-origin", kind: "local", query: [], methods: ["POST"] },
   { pattern: "/session", kind: "local", query: [], methods: ["POST", "DELETE"] },
   { pattern: "/town", kind: "local", query: [], methods: ["GET", "PUT"] },
   { pattern: "/town/export", kind: "local", query: [] },
