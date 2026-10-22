@@ -25,7 +25,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { cli, launch } from "./lib/world.mjs";
+import { cli, hostGet, launch } from "./lib/world.mjs";
 
 const USAGE =
   "node tools/timeworld.mjs --port <port> [--cold] [--runs 1] [--fake <port> [--scenario studio]] [--loops-env <file>] [--app-data <dir>] [--config-dir <dir>] [--out <dir>] [--tag time] [--json <file>] [--swiftshader]";
@@ -154,9 +154,9 @@ async function run(env, browser, index) {
     if (now.dressed && now.chip === "live") break;
     await page.waitForTimeout(50);
   }
-  // The text view names every project the host's snapshot has (the page's request carries the pairing cookie).
+  // The text view names every project the host's snapshot has (the read carries the tab's bearer, as the page's do).
   const origin = new URL(link).origin;
-  const snapshot = await page.request.get(`${origin}/world-api/snapshot`).then((r) => (r.ok() ? r.json() : null)).catch(() => null);
+  const snapshot = await hostGet(page, `${origin}/world-api/snapshot`).then((r) => (r.ok() ? r.json() : null)).catch(() => null);
   const names = (snapshot?.projects ?? []).map((p) => `${p.name} (${p.key})`);
   await page.keyboard.press("t");
   await page.waitForTimeout(300);

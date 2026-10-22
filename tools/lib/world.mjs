@@ -132,3 +132,11 @@ export const worldUrl = (base, stress, scenario, rooms = null, source = null) =>
 export async function pairedTab(page, timeout = 10000) {
   await page.waitForFunction(() => window.location.hash === "" && window.sessionStorage.getItem("crewhub-world.pair") !== null, null, { timeout });
 }
+
+/** A GET at the host from a tool, as the page's own requests go (round 27): with the tab's bearer from sessionStorage in
+    `x-world-pair`, so a paired tab's API reads are the paired tab's; a tab without one asks bare and meets the 401. */
+export async function hostGet(page, url, options = {}) {
+  const bearer = await page.evaluate(() => window.sessionStorage.getItem("crewhub-world.pair")).catch(() => null);
+  const headers = { ...(options.headers ?? {}), ...(bearer === null ? {} : { "x-world-pair": bearer }) };
+  return page.request.get(url, { ...options, headers });
+}

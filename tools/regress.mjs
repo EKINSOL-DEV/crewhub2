@@ -116,7 +116,7 @@ import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { cli, dressed, launch, list, pairedTab, problemLines, seek, speed, watch } from "./lib/world.mjs";
+import { cli, dressed, hostGet, launch, list, pairedTab, problemLines, seek, speed, watch } from "./lib/world.mjs";
 import { createConnectStub } from "./lib/connectStub.mjs";
 import { createLoopsWebStub } from "./lib/loopsWebStub.mjs";
 
@@ -1516,7 +1516,7 @@ await group("town", async () => {
     await pg.waitForTimeout(400);
   };
   const hostTown = async (pg) => {
-    const r = await pg.request.get(`${liveOrigin}/world-api/town`).catch(() => null);
+    const r = await hostGet(pg, `${liveOrigin}/world-api/town`).catch(() => null);
     const body = r ? await r.json().catch(() => null) : null;
     return { status: r ? r.status() : 0, rev: body?.rev ?? null, zones: (body?.document?.zones ?? []).map((z) => z.id) };
   };
@@ -1628,7 +1628,7 @@ await group("town", async () => {
 
     // 6. A restore is previewed and confirmed, never silent: a town file with Zone 1 renamed is imported in Settings >
     // Town; the preview names the rename; Cancel changes nothing; the same import confirmed renames it on the host.
-    const current = await first.request.get(`${liveOrigin}/world-api/town`).then((r) => r.json()).catch(() => null);
+    const current = await hostGet(first, `${liveOrigin}/world-api/town`).then((r) => r.json()).catch(() => null);
     const renamed = JSON.parse(JSON.stringify(current.document));
     for (const z of renamed.zones ?? []) if (z.id === "zone-1") z.name = "Harbour";
     const file = { name: "harbour.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(renamed)) };
@@ -1644,7 +1644,7 @@ await group("town", async () => {
     await first.keyboard.press("Escape");
     await first.waitForTimeout(500);
     const dialogGone = (await first.locator(".restore-sheet").count()) === 0;
-    const revAfterCancel = (await first.request.get(`${liveOrigin}/world-api/town`).then((r) => r.json()).catch(() => null))?.rev;
+    const revAfterCancel = (await hostGet(first, `${liveOrigin}/world-api/town`).then((r) => r.json()).catch(() => null))?.rev;
     ok(
       "town: an import opens a preview that names the change, with the focus inside; Escape cancels and nothing changes",
       /renamed "Harbour"/.test(previewText) && /1 change\./.test(previewText) && focused === "Cancel" && dialogGone && revAfterCancel === current.rev,
@@ -1655,7 +1655,7 @@ await group("town", async () => {
     await shot(first, "35-town-restore-preview");
     await first.locator(".restore-sheet").getByRole("button", { name: "Restore", exact: true }).click();
     await atRev(first, current.rev + 1);
-    const afterRestore = await first.request.get(`${liveOrigin}/world-api/town`).then((r) => r.json()).catch(() => null);
+    const afterRestore = await hostGet(first, `${liveOrigin}/world-api/town`).then((r) => r.json()).catch(() => null);
     const restoreNote = (await first.locator(".settings-sheet").innerText().catch(() => "")).replace(/\s+/g, " ");
     await first.keyboard.press("Escape");
     await atRev(second, current.rev + 1);
@@ -2047,7 +2047,7 @@ await group("connect", async () => {
     });
     let host = await createHost(hostOptions());
     info(`connect: loops on 127.0.0.1:${parsed.port} (version ${health.version}); a keyless host on 127.0.0.1:${host.port} looking in ${appData}, its folder ${configDir}, pairing on, behind the Vite proxy on ${origin}`);
-    const hostApi = (p) => pg.request.get(`${origin}/world-api${p}`).then((r) => r.json());
+    const hostApi = (p) => hostGet(pg, `${origin}/world-api${p}`).then((r) => r.json());
     try {
       await pg.goto(host.mintPairLink(origin));
       await pairedTab(pg).catch(() => {});
