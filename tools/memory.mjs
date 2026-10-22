@@ -30,10 +30,16 @@
    tool started), the page's own stores (`window.__worldStores`, state/soak.ts: the bubbles alive, the Recent answers,
    the chat threads) and the town document's revision with the host's revision the page is on. The growth line also
    says the heap's growth an hour after warm-up.
+   When the DOM node count moved since the last sample (round 29), the sample is followed by one line naming what
+   changed in the document tree: the nodes added and removed (an element by tag, classes, label and the nearest named
+   landmark; a text node by its parent), grouped with counts, at most six entries (lib/domdiff.ts; the point's
+   `domDiff` field in --json holds the same entries). A count that moves while the line says nothing changed is nodes
+   outside the document tree: another document or a detached tree JS holds.
    Same browser set-up as perf.mjs: GPU-backed headless Chromium, 1440 x 900, DPR 1, Pretty, light. --json writes the
    points, the growth and the snapshot totals (a bare file name lands in --out). */
 import { writeFileSync } from "node:fs";
 import path from "node:path";
+import { capDomDiff, domDiff, domInventory, formatDomDiff } from "./lib/domdiff.ts";
 import { formatRows, growth as heapGrowth, heapTotals, mb as heapMb, topBySize } from "./lib/heap.mjs";
 import { LIVE_OPTIONS, LIVE_USAGE, startLive } from "./lib/live.mjs";
 import { castChoice, cli, launch, speed, store, worldUrl } from "./lib/world.mjs";
@@ -97,6 +103,8 @@ async function snapshotAt(minute) {
   snapshots.push(record);
 }
 let nextSnapshot = 0;
+// The last sample's DOM (round 29): the node count and the inventory the diff reads when the count moves.
+let lastDom = null;
 for (let t = 0; t <= minutes * 60; t += every) {
   const wait = started + t * 1000 - Date.now();
   if (wait > 0) await page.waitForTimeout(wait);
@@ -107,6 +115,7 @@ for (let t = 0; t <= minutes * 60; t += every) {
   await cdp.send("HeapProfiler.collectGarbage");
   const heap = await cdp.send("Runtime.getHeapUsage");
   const dom = await cdp.send("Memory.getDOMCounters");
+  const inventory = await page.evaluate(domInventory).catch(() => null);
   const perf = await page.evaluate(() => {
     const p = window.__worldPerf;
     return p ? { geometries: p.geometries, textures: p.textures, calls: p.calls, workMean: p.workMean, frameMean: p.frameMean, frameP95: p.frameP95, fps: p.fps } : null;
@@ -129,11 +138,19 @@ for (let t = 0; t <= minutes * 60; t += every) {
     workMean: perf?.workMean ?? null,
     ...(live ? { connection: chip, upstream: upstream ? { state: upstream.state, reconnects: upstream.reconnects } : null, stores } : {}),
   };
+  // The DOM diff (round 29): when the node count moved since the last sample, what was added and removed, by element.
+  let domLine = "";
+  if (lastDom !== null && inventory !== null && lastDom.inventory !== null && dom.nodes !== lastDom.nodes) {
+    const diff = capDomDiff(domDiff(lastDom.inventory, inventory), 6);
+    point.domDiff = diff;
+    domLine = `\n  dom ${lastDom.nodes} -> ${dom.nodes}: ${formatDomDiff(diff)}`;
+  }
+  lastDom = { nodes: dom.nodes, inventory };
   points.push(point);
   const frame = perf ? `  frame ${perf.frameMean.toFixed(1)}/${perf.frameP95.toFixed(1)} ms work ${perf.workMean.toFixed(1)}` : "";
   const soak = live ? `  ${chip ?? "no chip"}  upstream ${upstream ? `${upstream.state} r${upstream.reconnects}` : "?"}${stores ? `  said ${stores.said} answers ${stores.answers} threads ${stores.threads ?? "-"} rev ${stores.docRevision}/${stores.hostRev ?? "-"}` : ""}` : "";
   console.log(
-    `${scenario} ${String(t).padStart(4)} s  heap ${mb(point.heap).padStart(6)} MB  geo ${String(point.geometries).padStart(4)}  tex ${String(point.textures).padStart(3)}  calls ${String(point.calls).padStart(4)}  dom ${point.nodes}  listeners ${point.listeners}${frame}${soak}`,
+    `${scenario} ${String(t).padStart(4)} s  heap ${mb(point.heap).padStart(6)} MB  geo ${String(point.geometries).padStart(4)}  tex ${String(point.textures).padStart(3)}  calls ${String(point.calls).padStart(4)}  dom ${point.nodes}  listeners ${point.listeners}${frame}${soak}${domLine}`,
   );
   while (nextSnapshot < snapshotMinutes.length && t >= snapshotMinutes[nextSnapshot] * 60) {
     await snapshotAt(snapshotMinutes[nextSnapshot]);
