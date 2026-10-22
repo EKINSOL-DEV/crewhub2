@@ -385,6 +385,71 @@ if (opts.demo) {
     await r.waitForTimeout(200);
     ok("tour: Escape closes it and the focus lands on a control (the ? button when nothing else)", (await r.locator(".tour-card").count()) === 0 && (await r.evaluate(() => document.activeElement !== document.body && document.activeElement !== null)));
     ok("tour: Skip or Escape is remembered in this browser", (await r.evaluate(() => localStorage.getItem("crewhub-world.tour"))) === "done");
+    // The keyboard-only road (round 21): the tour's Tab loop, the focus after a jump, a figure's card by keyboard, the focus
+    // after leaving build mode, a menu row's focus ring.
+    await r.goto(`${opts.base}?tour=on`, { waitUntil: "load" });
+    await r.waitForSelector(".tour-card", { timeout: 20000 });
+    await r.waitForTimeout(300);
+    await r.keyboard.press("Tab");
+    const afterNext = await r.evaluate(() => document.activeElement?.textContent?.trim());
+    await r.keyboard.press("Shift+Tab");
+    const backToNext = await r.evaluate(() => document.activeElement?.textContent?.trim());
+    ok("keyboard: in the tour's card Tab cycles (Next → Skip, Shift+Tab back), Escape leaves", afterNext === "Skip" && backToNext === "Next", `${afterNext}, ${backToNext}`);
+    await r.keyboard.press("Escape");
+    await r.waitForTimeout(200);
+    const activeIs = () => r.evaluate(() => { const el = document.activeElement; return el ? `${el.tagName.toLowerCase()}${el.className ? "." + String(el.className).split(" ")[0] : ""}:${el.getAttribute("aria-label") ?? el.textContent?.trim().slice(0, 30) ?? ""}` : "none"; });
+    await r.keyboard.press("/");
+    await r.waitForSelector('[role="dialog"] input', { timeout: 5000 });
+    await r.keyboard.type("crewhub-loops");
+    await r.keyboard.press("Enter");
+    await r.waitForFunction(() => globalThis.__town?.view?.entered != null, null, { timeout: 8000 }).catch(() => undefined);
+    await r.waitForTimeout(600);
+    ok("keyboard: after a jump the scene has the focus (the arrow keys and Enter work at once)", (await r.evaluate(() => document.activeElement?.tagName === "CANVAS")), await activeIs());
+    await r.keyboard.press("Escape");
+    await r.waitForTimeout(800);
+    await r.keyboard.press("/");
+    await r.waitForSelector('[role="dialog"] input', { timeout: 5000 });
+    await r.keyboard.type("G-Man");
+    await r.keyboard.press("Enter");
+    await r.waitForTimeout(1500);
+    await r.keyboard.press("Enter");
+    await r.waitForSelector(".agent-card", { timeout: 5000 }).catch(() => undefined);
+    ok("keyboard: a figure jumped to, Enter opens its card", (await r.locator(".agent-card").count()) === 1, await activeIs());
+    let reached = false;
+    for (let i = 0; i < 40 && !reached; i++) {
+      await r.keyboard.press("Tab");
+      reached = await r.evaluate(() => /^Close the card of/.test(document.activeElement?.getAttribute("aria-label") ?? ""));
+    }
+    ok("keyboard: the card's close button is reachable by Tab", reached);
+    await r.keyboard.press("Escape");
+    await r.waitForTimeout(300);
+    ok("keyboard: Escape closes the card", (await r.locator(".agent-card").count()) === 0);
+    // Build mode: in, a prop chosen in the palette by keyboard, out: the focus lands on the Build button, not the body.
+    await r.keyboard.press("/");
+    await r.waitForSelector('[role="dialog"] input', { timeout: 5000 });
+    await r.keyboard.type("crewhub-loops");
+    await r.keyboard.press("Enter");
+    await r.waitForFunction(() => globalThis.__town?.view?.entered != null, null, { timeout: 8000 }).catch(() => undefined);
+    await r.waitForTimeout(600);
+    await r.keyboard.press("b");
+    await r.waitForSelector(".build-sheet", { timeout: 5000 });
+    let inPalette = false;
+    for (let i = 0; i < 40 && !inPalette; i++) {
+      await r.keyboard.press("Tab");
+      inPalette = await r.evaluate(() => document.activeElement?.closest(".build-palette") !== null);
+    }
+    ok("keyboard: a palette row is reachable by Tab", inPalette, await activeIs());
+    await r.keyboard.press("Escape");
+    await r.keyboard.press("Escape");
+    await r.waitForTimeout(400);
+    ok("keyboard: leaving build mode from the palette puts the focus on the Build button", (await r.locator(".build-sheet").count()) === 0 && /Build mode/.test(await activeIs()), await activeIs());
+    // A menu row: the focus ring shows (the kit marks it by a sunken surface alone).
+    await r.getByRole("button", { name: "Help" }).focus();
+    await r.keyboard.press("Enter");
+    await r.waitForTimeout(300);
+    const rowRing = await r.evaluate(() => { const el = document.activeElement; const st = el ? getComputedStyle(el) : null; return !!el && el.classList.contains("menu-item") && !!st && st.boxShadow !== "none" && st.boxShadow !== ""; });
+    ok("keyboard: a menu row with the focus wears a ring", rowRing, await activeIs());
+    await r.keyboard.press("Escape");
   } catch (error) {
     ok("tour: the card came", false, error.message.split("\n")[0]);
   }

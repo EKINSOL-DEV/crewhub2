@@ -1,7 +1,8 @@
 /* The introduction inside the world (round 20): one small card per step over the real UI, a ring around the element
    the step is about, Next / Back / Skip, Escape skips. The focus moves into the card when it opens and goes back to
    where it was when it closes; the ring's element is named to a screen reader in the card's description; nothing is
-   dimmed and the camera never moves (reduced motion or not). The steps, the placement and the flag are state/tour.ts. */
+   dimmed and the camera never moves (reduced motion or not). Tab cycles among the card's buttons (Escape leaves). The
+   steps, the placement and the flag are state/tour.ts. */
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { placeStep, tourSteps, type Placement, type Rect, type TourStep } from "../state/tour";
 import { Button } from "./primitives";
@@ -85,6 +86,21 @@ export function Tour({ mode, onClose, reducedMotion, returnTo = null, fallback =
       e.preventDefault();
       e.stopPropagation();
       close("skip");
+      return;
+    }
+    // Tab cycles among the card's buttons (a dialog's way): the page round the card is long, and Escape is the way out.
+    if (e.key === "Tab" && card.current) {
+      const buttons = [...card.current.querySelectorAll<HTMLButtonElement>("button:not([disabled])")];
+      const first = buttons[0];
+      const last = buttons[buttons.length - 1];
+      if (!first || !last) return;
+      if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      } else if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      }
     }
   };
   const highlighted = step.target ? `Highlighted on the screen: ${target.name ?? step.targetName}.` : `Nothing is highlighted: ${step.targetName}.`;
