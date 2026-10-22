@@ -1244,6 +1244,45 @@ the Lead.
 The merge order kept the Object3D cut's pixel proof apart from the tint. One merge failed the full check on a test the
 track had not run; it was undone, fixed and merged again. `92f4a91`, 829 tests, the browser pass at 162 of 162.
 
+## Round 16: a missed answer is not lost (2026-10-22, past midnight)
+
+Two developers.
+- **Recent answers.** The Chat panel and the text view list the last ten agent answers, and a row opens that agent's
+  chat. They come from the bubbles' own store: nothing on disk, nothing beyond what a bubble holds.
+- **Round 14 re-proven on the second development loops (8292).** With the viewer key and crewy replying as
+  crewhub-lead on cue, the chat mark stood over Inbox from the town 1.2 s after the reply. The bubble inside wrapped
+  to three lines, and both answers stayed in the list after the bubbles expired.
+- **Two tooling traps closed.** The regress refuses a world build older than its sources, and `vite preview` no longer
+  talks to a host on 5180 unless told to.
+
+`b9e8506`, 836 tests, the browser pass at 166 of 166.
+
+## Round 17: the chat panel in one glance (2026-10-22, night)
+
+Two developers.
+- **The panel's words.** The Chat panel opens with two short lines: what it is, and the one thing to do on this road.
+  The rest sits behind "About this chat"; the words before the list went from 221 px to 111 px.
+- **The demo like live.** The demo's scripted replies feed the same bubbles, mark and list as live.
+- **`npm run dev` guarded.** It names the host port it talks to and refuses a host from another checkout. Host health
+  carries a short hash of the checkout, never its path, because health is readable before pairing.
+
+`ee308ba`, 846 tests, the browser pass at 169 of 169.
+
+## Round 18: the eighth rehearsal (2026-10-22, night)
+
+Two developers.
+- **Road 1, a fresh clone against the development loops on 8291.** `npm ci` printed no warning at all (four in round 10).
+  `npm run world` found loops in 0.34 s, and a pasted key went to Live in 502 ms. The doctor passed 12 checks.
+- **Road 2, the chat on 8292 with the viewer key.** The world was pointed at that loops by the runbook's environment
+  table, and was Live 396 ms after the pairing link, with no Connect screen. The Connection panel said "a viewer key"
+  and "a sign-in is not needed". crewy replied as crewhub-lead on cue: the mark stood over Inbox 1.15 s after loops'
+  200, and the bubble came 322 ms after a click on it. The answer stayed in Recent answers, and its row opened the chat.
+- **Fixes.** The README still described the chat as planned; it now says what is built. The host's start line had
+  guessed a bot name from the key file's name. The introduction was brought current after rounds 13 to 17, with three
+  new pictures. The Recent answers note moved behind the disclosure, so the list starts with its rows.
+
+`99e26e1`, 846 tests, the browser pass at 169 of 169.
+
 ## Challenges with docs/integrators
 
 Read at crewhub-loops `a1bed0f`. Each item names the document, what was unclear, contradictory, missing or marked
