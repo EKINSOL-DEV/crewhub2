@@ -48,7 +48,9 @@ smooth connection" below):
   and a thread list that answers 200 and empty is no error (the host's log says so). On a loops that does not let the key read the chat (an
   older loops, a plain external bot's key) `connection.session` is absent, the host logs once how to make a viewer key and that
   `CHL_WORLD_ORIGIN` set to the page's origin lets the page read its own chat (road 2, the page's own read, never through the host), and the
-  world shows no bubbles over the key. The sign-in road of rounds 12 to 18 (`POST`/`DELETE /world-api/session`, the person's session kept in
+  world shows no bubbles over the key. A viewer key whose `GET /api/dm/threads` loops refuses (a key with no maker, or whose maker is no
+  longer an enabled admin, reads no chat, #964; chat bubbles switched off in loops close the chat for everyone) gets its own log line with
+  the status and why, never "no viewer key" (round 29). The sign-in road of rounds 12 to 18 (`POST`/`DELETE /world-api/session`, the person's session kept in
   `<config>/loops-session`, the states `signed-out`/`signed-in`/`expired`) was removed in round 19 on `task/r19-viewer-switch` and is gone here
   since round 28 (decision 9; cl-lead's review finding F8): a write to `/world-api/session` is refused by the write gate (405), a read is an
   unknown route (404), and a leftover `loops-session` file is deleted on start with one log line (`src/leftovers.ts`). Where the key reads the chat, the threads' own facts reach the tabs too (round 24): a `threads` stream
@@ -86,6 +88,8 @@ smooth connection" below):
   itself; at most one probe a minute); `loopsCommitBefore` is the version the host read first this
   run, present only when loops has answered another since: loops was updated under the running host, which logs the
   change once and reads everything again after the restart that came with it);
+  Loops' version (`loopsCommit`, `loopsCommitBefore`) is read keyless from the public `GET /api/health` (round 29: crewhub-loops main
+  refuses that route to a viewer key, 403, as to every limited key; discovery probes it keyless too).
   `loopsWebUrl` is the origin of the loops URL, for the world's Chat panel (which frames that web app) and the card's ticket links; `transport` is `tcp`
   (the URL) or `unix` (the socket); `paired` is whether this request carries a valid pairing cookie; `pairing` is `on`
   or `off`. Health carries no data and needs no cookie.
@@ -170,9 +174,14 @@ The host starts with neither loops nor a key and reports the honest states; the 
   carries a quiet stretch (`ticket.quiet`, CL-312) or an automation's run (`automation.ran`), so a tab opened after the
   quiet job spoke would show no dust and no card. The host reads `GET /api/events?types=ticket.quiet,automation.ran`
   from 20 000 seqs before the cursor, paged (at most 20 pages), bounded to the open tickets of the boards (planned, in
-  progress, review); then the ticket and comment events from the oldest candidate quiet on, and drops a stretch a
+  progress, review); then, per candidate ticket, one small read of that ticket's own activity after the stretch
+  (`GET /api/events?ticket=<id>&after=<seq>&types=…&limit=50`, crewhub-loops main's `ticket=` filter, CL-494 step 3,
+  round 29; an older loops ignores `ticket=` and answers everyone's events, which the host sees as another ticket's event
+  and then reads the ticket and comment events from the oldest candidate on, paged, as before; a full page or any
+  other answer than 200 or 404 falls back the same way; a 404, the ticket gone, keeps the stretch), and drops a stretch a
   person or an agent touched since (a `system` row, an automation's own answer, does not count: loops'
-  `people_activity` says the same, which is why the ticket's `updatedAt` cannot decide it). The facts go with the
+  `people_activity` says the same, which is why the ticket's `updatedAt` cannot decide it). The step line says which road
+  judged ("the quiet judged per ticket" on loops main). The facts go with the
   snapshot as the envelopes they are (`quiet`, `automationRuns`); the step line says "from the log 2 quiet, 3 runs";
   past the page cap no quiet is handed over (undecided is never shown), the runs read so far are.
 - **The closed buildings are remembered** (`src/archiveStore.ts`): the slugs the event log or the stream taught go

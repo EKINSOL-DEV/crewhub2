@@ -111,18 +111,28 @@ to pair the page that opens it). The real half reads the same `--loops-env` file
 file's name with `-ro` before `.key`, and without a file it skips that one check with an INFO line), skips the half
 with one INFO line when that loops does not answer, and gives its host what `npm run world` gives it: the discovery
 through `--loops-app-data` (default `~/crewhub-loops-dev`, `tools/loops-dev.sh`'s folder, which must hold a
-`settings.json`), a fresh config folder `<out>/<tag>-connect-config` for the stored key and the pairing secret
+`settings.json`; `~/crewhub-loops-dev-main` with `--loops main`), a fresh config folder `<out>/<tag>-connect-config` for the stored key and the pairing secret
 (`pairing-secret`, read again by the restarted host: that is what keeps the tab paired), removed at the end of the
 group. The keys are read from their files, typed into the field and never printed, logged or kept in the results. The
 browser's own console lines for the refused keys' 403 and the unpaired tab's 401 are expected and kept apart from the
 closing checks. One host at a time against that loops (4 streams per key).
 
 **The real group of `regress.mjs`.** It talks to the real development crewhub-loops (`tools/loops-dev.sh`, port
-8291; never the Mac app on 8091). It reads `--loops-env` (default: the first `tools/out/loops-dev.env` that exists
+8291; never the Mac app on 8091). **Which instance** (round 29): `--loops dev` (the default; `CREWHUB_REGRESS_LOOPS`
+sets it too) is 8291, loops `4cdcd383`, with its env file `tools/out/loops-dev.env`, its folder `~/crewhub-loops-dev`
+and its socket there; `--loops main` is the instance from crewhub-loops main (8293: a viewer key, `ticket=` on the
+events, `includeArchived` for a viewer, the world's origin), with `tools/out/loops-dev-main.env`,
+`~/crewhub-loops-dev-main` and its socket; any other name works the same way with that suffix. The main env file holds
+three lines, `LOOPS_DEV_URL=http://127.0.0.1:8293`, `LOOPS_DEV_KEY_FILE=<the viewer key's file>` and
+`LOOPS_DEV_READONLY_KEY_FILE=<a Read only bot's key file>` (paths only, never a key); write it in your worktree's
+`tools/out/` (ignored by git). The connect group's real half follows the same choice. The group reads `--loops-env`
+(default: the first `tools/out/loops-dev<-name>.env` that exists
 in this worktree, in the main checkout found through `git rev-parse --git-common-dir`, or in
 `~/Documents/GitHub/crewhub2-world-demo`), takes only `LOOPS_DEV_URL` (loopback) and `LOOPS_DEV_KEY_FILE` from
 it (the admin lines are never read or printed), and when that loops does not answer `/api/health` it prints
-`INFO real: skipped, 8291 is down` and counts nothing. Otherwise it starts its own host on `--host-port` with that
+`INFO real: skipped, 8291 is down` and counts nothing. With a viewer key (loops main) it also checks the chat road
+and the archive source against the key: health `session: key`, the Connection panel's Chat section on the key road
+and the archived projects from loops' list; with a plain external bot's key no session, no road and the log. Otherwise it starts its own host on `--host-port` with that
 key (the key never reaches a log, a screenshot or the results), so start Vite with `CREWHUB_WORLD_PORT=<host-port>`,
 and the browser opens your Vite. The count check needs a `ticket.moved` during its 15 s window: run
 `tools/loops-seed.mjs` alongside, or move a ticket in the loops web; without one it prints an INFO line. Loops admits
@@ -141,6 +151,7 @@ node tools/regress.mjs --port 5300 --groups connect,live,real --host-port 5200 -
 node tools/regress.mjs --port 5281 --groups real --host-port 5181        # the real dev loops; Vite started with CREWHUB_WORLD_PORT=5181
 node tools/regress.mjs --port 5281 --groups real --host-port 5181 --loops-env ~/my-loops.env
 node tools/regress.mjs --port 5281 --groups real --host-port 5181 --loops-socket ~/crewhub-loops-dev/run/api.sock
+node tools/regress.mjs --port 5281 --groups connect,real --host-port 5181 --loops main   # the instance from crewhub-loops main (8293): tools/out/loops-dev-main.env, ~/crewhub-loops-dev-main
 node tools/regress.mjs --port 5180 --groups rooms                        # the three-room building, ?rooms=three
 node tools/regress.mjs --port 5180 --groups ops --host-port 5181         # the operations road over the fake; Vite started with CREWHUB_WORLD_PORT=5181
 node tools/a11y.mjs --port 5180 --stub-port 5181 --demo                  # what a screen reader is given; Vite started with CREWHUB_WORLD_PORT=5181
