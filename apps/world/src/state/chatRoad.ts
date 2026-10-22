@@ -144,7 +144,8 @@ export function chatWordsLine(view: ChatRoadView): string {
 export function chatGlance(view: ChatRoadView): string {
   const head = "Sign in to crewhub-loops below to type;";
   if (view.road === "key") return `${head} the answers come as bubbles without it.`;
-  if (view.road === "page") return `${head} the answers come as bubbles: this page reads your own chat.`;
+  // The page road means signed in (the probe answered 200 with the person's own session): nothing to sign in to.
+  if (view.road === "page") return "Type to an agent below (you are signed in there); the answers come as bubbles: this page reads your own chat.";
   switch (view.pageProbe) {
     case "signed-out":
       return `${head} signed in, the answers come as bubbles: this page reads your chat.`;
