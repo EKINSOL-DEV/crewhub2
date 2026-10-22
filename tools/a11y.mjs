@@ -421,6 +421,22 @@ if (opts.demo) {
       reached = await r.evaluate(() => /^Close the card of/.test(document.activeElement?.getAttribute("aria-label") ?? ""));
     }
     ok("keyboard: the card's close button is reachable by Tab", reached);
+    // Round 22: the card's sections say in words what is held, what was answered and why nothing can be known; the
+    // More disclosure (Lane, Projects, Recent) is a summary the Tab order reaches and Space opens.
+    const cardText = (await r.locator(".agent-card").innerText().catch(() => "")).replace(/\s+/g, " ");
+    const headings = await r.locator(".agent-card h3").allInnerTexts().catch(() => []);
+    ok("card: Now, Work and Answers are headed sections, with Holds and the honest words for no answer", headings.slice(0, 3).join(",") === "Now,Work,Answers" && /Holds/.test(cardText) && /(No answer|no answers can arrive|reads no chat)/i.test(cardText), `${headings.join(",")}; ${cardText.slice(0, 160)}`);
+    let onSummary = false;
+    for (let i = 0; i < 40 && !onSummary; i++) {
+      await r.keyboard.press("Tab");
+      onSummary = await r.evaluate(() => document.activeElement?.classList.contains("agent-card-more-summary") ?? false);
+    }
+    const closedBefore = (await r.locator("details.agent-card-more:not([open])").count()) === 1;
+    if (onSummary) await r.keyboard.press("Space");
+    await r.waitForTimeout(200);
+    const openAfter = (await r.locator("details.agent-card-more[open]").count()) === 1;
+    const laneShown = await r.locator(".agent-card h3", { hasText: /^Lane$/ }).isVisible().catch(() => false);
+    ok("keyboard: the card's More disclosure is reached by Tab, closed at first, and Space opens Lane, Projects and Recent", onSummary && closedBefore && openAfter && laneShown, `summary reached ${onSummary}, closed before ${closedBefore}, open after ${openAfter}, Lane shown ${laneShown}`);
     await r.keyboard.press("Escape");
     await r.waitForTimeout(300);
     ok("keyboard: Escape closes the card", (await r.locator(".agent-card").count()) === 0);

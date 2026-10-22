@@ -96,9 +96,12 @@ The figures are a **cast**, a seam of their own: four casts ship (Classic bots, 
 too small for a desk brings its own perch. Only `apps/world/src/world/cast.ts` imports a cast package; a test enforces
 it ([WORLD_STYLES.md](WORLD_STYLES.md), "Casts").
 
-A click on a figure opens the **agent card**: where it is, when loops last saw it, its work ticket with the lane facts,
-its latest progress line, and in live mode, on a lead's card, a Chat button: crewhub-loops chats with leads only, so a
-worker's or the postman's card names its lead's chat instead (section 6; [AGENT_CARD.md](AGENT_CARD.md)).
+A click on a figure opens the **agent card**: where it is and its lead, when loops last saw it, the ticket on its desk
+and every open ticket loops assigns to it with whom each waits on (and the tickets of others that wait on it), its
+latest progress line (read once from loops when the page saw none), its last answers in the chat where the key or a
+session reads it, the lane facts behind a More disclosure, and in live mode, on a lead's card, a Chat button:
+crewhub-loops chats with leads only, so a worker's or the postman's card names its lead's chat instead. A fact loops
+does not give is said to be absent, in words (section 6; [AGENT_CARD.md](AGENT_CARD.md)).
 
 ![The agent card of CR Lead over the building: where it is, seen by loops two minutes ago, its work ticket in progress, its latest progress line.](images/agent-card.jpg)
 

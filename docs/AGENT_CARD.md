@@ -33,6 +33,16 @@ it:
 | `lane` | `AgentDetailOut.lane` (`contracts/agents.py`, `AgentLane`), typed on the client and still read defensively (`laneFacts`): kind, session and pane, the desired model, effort, account and permission mode, lifecycle and restarting, what was observed (and by what: the probe, or how loops started it), when, and the drift as loops names it. Null for an external bot and for every agent on the development instance tonight. |
 | `homes` | The buildings it belongs to (where it stands, a proxy's home, loops' project membership). |
 | `recent` | The last `RECENT_LIMIT` (5) facts that name it, newest first: its progress lines, moves and comments it made, deliveries for it. |
+| `tickets` | Round 22: `held`, the open tickets (not done) loops assigns to it from every board the host read (`GET /api/board/{slug}`), in progress first, then review, planned, backlog, the newest change first within a status, each with its project and whom it waits on (`waitingOn`, a person or an agent; `waitingOnHuman`); `waitedOnBy`, the open tickets of others whose `waitingOn` is this agent, with who holds them. Loops assigns tickets to registered agents only, so a worker holds none here. |
+| `lead` | Round 22: its lead, a worker's from the team snapshot (by loops' display name), else the lead of the building it is in; null for the lead itself and for a figure in no building. |
+| `chat` | Round 13: whom loops' chat reaches from the card (below). |
+
+Two more things reach the sections through the `CardContext` the page builds (`components/WorldCanvas.tsx`), not the
+facts: the page's **Recent answers** (`state/said.ts`, round 16: the lines the bubbles showed, kept for the page's life)
+with the words for an agent that has none (`cardAnswersEmpty`, per road), and the desk ticket's **last progress line
+read once** from the source (`getProgress`, the host's forwarded `/world-api/tickets/{ref}/progress`, or the demo's
+data) when the page saw no line of the agent's: the stream starts at the tail, so against a real loops the page knows
+no line at open. The read is one GET while the card is open; a failed read is "none", never retried by itself.
 
 ## The registry: a section is one file
 
@@ -59,13 +69,20 @@ The sections shipped:
 | Section | When | Shows |
 | --- | --- | --- |
 | Now | always | Where it is (building, room, or in a three-room building the hall and the desk: "on the floor at a worker desk"; "inferred" when it is), the lane chip and posture, a proxy note, the stale note ("No team snapshot: no team probe has reported to this crewhub-loops" when none ever came, as on the development instance); **Team says** the team's own status word (an old snapshot's word is "Team said ..., in a snapshot that is old now"; "nothing: not in the team snapshot" when the team does not know the agent, and for an external bot "nothing: an external bot has no pane for the team to watch"), the status line; **Seen by loops** from `lastSeenAt` ("3 min ago", "never", or "Not seen by loops: for 2 h"), with "not known to be working" whenever nothing fresher than 5 minutes says so; the lit alerts. Text, never colour alone. |
-| Work | a ticket or a line | The ticket (linked), its status and chips (priority, blocked, held, waiting on, stall), the project, the last progress line with its age. |
-| Lane | loops gave a lane or a flag, the team named a computer, or it is a worker | **Set up as** (kind, model, effort) and **Permission mode**: the desired lane. **Seen running**: what was observed, by the probe or from its start, how long ago; then either "No drift: it runs as set up", or a `drift in model, permission mode` chip with one row per field ("model drift: set up as claude-fable-5-1, seen claude-opus-5-5"), in loops' own drift words. "Never seen running" when there is no observation. **Lifecycle** (fixed or closed, "restarting now"), **Session** and pane, **Computer** ("This computer, where loops runs" or "buildbox, remote"). An external bot has no lane and says so: "External bot: no lane, it runs elsewhere" ("; reads only" for a reader); a laneless agent: "No lane: loops has not tied this agent to a pane". **In loops**: the role and flags (CrewHub lead, coordinator, operator, external bot, disabled); attention chips for "needs login, since 40 min ago" and "3 deliveries not picked up for over a day". For a worker, whose it is. |
-| Projects | any building or project | Each building with the agent's part in it (leads it, member, works here), and projects loops names that have no building here. |
-| Recent | any fact | The last five facts about it, newest first, with their age in source time. |
+| Work | always (round 22) | The ticket on its desk (linked), its status and chips (priority, blocked, held, waiting on, stall), the project; **Holds**: a count of the open tickets loops assigns to it by status and whom they wait on ("3 open tickets: 1 in progress, 2 review; 1 waits on Nicky"), then the ones beyond the desk as a compact list (key linked, title, "review, waits on Nicky"), at most 5 with "and n more"; **Waited on by**: the open tickets of others that wait on it, with who holds them (at most 3), else "Nobody waits on it"; the last progress line with its age, or the desk ticket's last line read once from the source ("read from the source"), or the honest words: "No progress line: none seen since this page opened, and CL-9 has none". With nothing held: "Holds: no ticket: crewhub-loops assigns it none right now"; a worker: "no ticket of its own: crewhub-loops assigns tickets to its lead, CL Lead; the one on its desk is inferred from its status line". |
+| Answers | the page gives its answers (round 22) | This agent's last three answers from the Recent answers list, newest first, each with who said it and when; with none, why none can be known, per road: "This key cannot read the chat and nobody is signed in: no answers can arrive here", "No answer from it since this page opened; this crewhub-loops lets the world's key read the chat", "No answer from it since this page opened (signed in as Nicky)", the demo's dock. |
+| Lane (behind More) | loops gave a lane or a flag, the team named a computer, or it is a worker | **Set up as** (kind, model, effort) and **Permission mode**: the desired lane. **Seen running**: what was observed, by the probe or from its start, how long ago; then either "No drift: it runs as set up", or a `drift in model, permission mode` chip with one row per field ("model drift: set up as claude-fable-5-1, seen claude-opus-5-5"), in loops' own drift words. "Never seen running" when there is no observation. **Lifecycle** (fixed or closed, "restarting now"), **Session** and pane, **Computer** ("This computer, where loops runs" or "buildbox, remote"). An external bot has no lane and says so: "External bot: no lane, it runs elsewhere" ("; reads only" for a reader); a laneless agent: "No lane: loops has not tied this agent to a pane". **In loops**: the role and flags (CrewHub lead, coordinator, operator, external bot, disabled); attention chips for "needs login, since 40 min ago" and "3 deliveries not picked up for over a day". For a worker, whose it is. |
+| Projects (behind More) | any building or project | Each building with the agent's part in it (leads it, member, works here), and projects loops names that have no building here. |
+| Recent (behind More) | any fact | The last five facts about it, newest first, with their age in source time. |
 
-To add a section: one file under `sections/`, one line in `AGENT_CARD_SECTIONS`, a case in
-`apps/world/test/agentCard.test.ts`. A row vocabulary a section needs and does not have is added to `types.ts` and
+Since round 22 the Now section also names the agent's **Lead** (a worker's from the team snapshot, else the building's),
+and the card stays compact: Now, Work and Answers are in the open; Lane, Projects and Recent sit behind a **More**
+disclosure (`details`/`summary`, closed at first and kept open for the page once opened; `more: true` on the section),
+which the Tab order reaches and Space opens, so the card stays keyboard-complete (round 21's checks hold). The card
+body still scrolls.
+
+To add a section: one file under `sections/`, one line in `AGENT_CARD_SECTIONS` (with `more: true` to put it behind
+the disclosure), a case in `apps/world/test/agentCard.test.ts`. A row vocabulary a section needs and does not have is added to `types.ts` and
 drawn once in `AgentCard.tsx`.
 
 ## The portrait

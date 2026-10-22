@@ -931,6 +931,26 @@ await group("live", async () => {
     await canvas(pg).focus();
     await pg.keyboard.press("Enter");
     await pg.locator(".agent-card").waitFor({ timeout: 3000 }).catch(() => {});
+    // Round 22: the card's Work says what cl-lead holds (the fake's board: six open tickets, CL-45 on its desk, CL-80
+    // in review waiting on Nicky), the Answers section says why no answer can be known on this road (the host keeps no
+    // session here, or a plain key with nobody signed in), and Lane, Projects and Recent sit behind a closed More
+    // disclosure that opens on a click.
+    await pg.waitForFunction(() => !/Reading the last progress line/.test(document.querySelector(".agent-card")?.textContent ?? ""), null, { timeout: 5000 }).catch(() => {});
+    const leadCard = (await pg.locator(".agent-card").innerText().catch(() => "")).replace(/\s+/g, " ");
+    const holds = /Holds\s*6 open tickets: 3 in progress, 2 review, 1 planned; 1 waits on Nicky/.test(leadCard);
+    const listed = /CL-80 .*review, waits on Nicky/.test(leadCard) && /CL-81/.test(leadCard) && !/CL-45 .*in progress\b.*CL-45/.test(leadCard);
+    // The headings read uppercased (the eyebrow's text-transform), so the section names match case-insensitively.
+    const answers = /Answers\s*(This key cannot read the chat and nobody is signed in: no answers can arrive here|No answers can arrive: this host keeps no session and reads no chat|No answer from it since this page opened)/i.test(leadCard);
+    // The line is the agent's own from the fake's events (CL-81), else CL-45's read from the source, else the honest words.
+    const progressSaid = /\b(start|update|done|question) on CL-\d+, (just now|\d+ (min|h) ago)|No progress line: none seen since this page opened, and CL-45 has none\./.test(leadCard);
+    const moreClosed = (await pg.locator("details.agent-card-more:not([open])").count()) === 1 && !(await pg.locator(".agent-card h3", { hasText: /^Lane$/ }).isVisible().catch(() => true));
+    ok("live (round 22): the card says what cl-lead holds and whom it waits on, why no answer can be known with a plain key, and the progress line or its absence", holds && listed && answers && progressSaid, `holds ${holds}, listed ${listed}, answers ${answers}, progress ${progressSaid}: ${leadCard.slice(0, 1200)}`);
+    await pg.locator("details.agent-card-more > summary").click().catch(() => {});
+    await pg.waitForTimeout(200);
+    const laneAfter = await pg.locator(".agent-card h3", { hasText: /^Lane$/ }).isVisible().catch(() => false);
+    const moreText = (await pg.locator("details.agent-card-more").innerText().catch(() => "")).replace(/\s+/g, " ");
+    ok("live (round 22): Lane, Projects and Recent sit behind More, closed at first and open on a click", moreClosed && laneAfter && /Lane/.test(moreText) && /Projects/.test(moreText), `closed before ${moreClosed}, Lane shown after ${laneAfter}; ${moreText.slice(0, 120)}`);
+    await shot(pg, "23c0-card-round22");
     await pg.locator(".agent-card .agent-chat").click().catch(() => {});
     await pg.waitForSelector(".chat-sheet", { timeout: 5000 }).catch(() => {});
     const title = (await pg.locator(".chat-sheet .card-title").first().innerText().catch(() => "")).trim();
@@ -965,6 +985,7 @@ await group("live", async () => {
     const postmanNote = (await pg.locator(".agent-card .agent-chat-note").innerText().catch(() => "")).replace(/\s+/g, " ");
     const askedForPostman = web.requests.filter((r) => /chat=postman/.test(r.path)).length;
     ok("live: the postman's card has no Chat button (loops chats with leads only) and says why; nothing asked loops for its chat", /Postman/.test(postmanCard) && postmanChat === 0 && /crewhub-loops chats with leads only: Postman is the postman \(loops role router\)\.$/.test(postmanNote) && askedForPostman === 0, `${postmanChat} Chat button(s); "${postmanNote}"; ${askedForPostman} request(s) with chat=postman`);
+    ok("live (round 22): the postman's card says in words that it holds no ticket and that no line and no answer were seen", /Holds\s*no ticket: crewhub-loops assigns it none right now/.test(postmanCard) && /No progress line: none seen since this page opened and no ticket on its desk/.test(postmanCard) && /(no answers can arrive|No answer from it since this page opened)/i.test(postmanCard), postmanCard.slice(0, 500));
     await shot(pg, "23e-card-leads-only");
     for (let i = 0; i < 3; i++) {
       await pg.keyboard.press("Escape");
