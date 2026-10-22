@@ -85,3 +85,41 @@ export function devHostVerdict(input: { port: number; explicit: boolean; local: 
     }
   }
 }
+
+/**
+ * The third thing the dev server does (round 23): once it listens it tells the host its origin, so the page's writes
+ * (connect, sign-in, the town) pass the host's origin guard without CREWHUB_WORLD_ALLOWED_ORIGINS. The host side is
+ * `apps/host/src/devOrigin.ts` (loopback only, this checkout only, never a wildcard); the call is `tellDevOrigin` in
+ * the host package. Pure here: which of Vite's URLs are origins worth telling, and the one line about the outcome.
+ */
+import type { TellOutcome } from "../host/src/checkout.ts";
+
+/** The loopback origins among Vite's local URLs (`http://127.0.0.1:5294/` → `http://127.0.0.1:5294`), in order, once each. */
+export function devOriginsOf(localUrls: readonly string[]): string[] {
+  const out: string[] = [];
+  for (const url of localUrls) {
+    const m = /^http:\/\/(127\.0\.0\.1|localhost):(\d{1,5})\/?$/i.exec(url.trim());
+    if (m === null) continue;
+    const origin = (m[1] as string).toLowerCase() === "localhost" ? `http://localhost:${Number(m[2])}` : `http://127.0.0.1:${Number(m[2])}`;
+    if (!out.includes(origin)) out.push(origin);
+  }
+  return out;
+}
+
+/** The dev server's line after telling the host on `port` its origins: one outcome covers them all (the first that is not accepted). */
+export function devOriginLine(port: number, origins: readonly string[], outcome: TellOutcome): string {
+  const list = origins.join(", ");
+  const head = `dev: the page's writes come from ${list}`;
+  switch (outcome.kind) {
+    case "accepted":
+      return `${head}: told to the host on 127.0.0.1:${port}, which accepts them for this run (this checkout's dev server and host; connect, sign-in and town writes work).`;
+    case "no-route":
+      return `${head}: the host on 127.0.0.1:${port} is from before the dev origin and cannot be told; the page's writes will be refused (403) unless that host runs with ${ALLOWED_ORIGINS_VAR}=${list}.`;
+    case "refused":
+      return `${head}: the host on 127.0.0.1:${port} refused them (${outcome.message}); the page reads, its writes are refused (403).`;
+    case "silent":
+      return `${head}: no host on 127.0.0.1:${port} to tell yet; it is told when one answers (the proxy watches health).`;
+  }
+}
+
+export const ALLOWED_ORIGINS_VAR = "CREWHUB_WORLD_ALLOWED_ORIGINS";
