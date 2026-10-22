@@ -247,7 +247,10 @@ scripts are denied and vite is 8.3.4; the bot name stays `crewhub-world`; dispat
 not Nicky's: `cl-lead`'s review of `world/viewer-key` in crewhub-loops, then the switch's merge. The Greenhouse models'
 Object3D count, the last first-paint cut, is built (round 15, Nicky's decision 7): a data model is one node holding its
 parts as data, pixel-identical by construction (`docs/WORLD_STYLES.md`, "parts as data"; the numbers in
-`COST_POLICY.md`).
+`COST_POLICY.md`). Round 21 (2026-10-22) measured the phone under a 4x CPU throttle (first paint, Live, the tour, the
+Chat panel, walk mode) and cut the two worst own-code costs on the road to the first frame, the room dresser's
+placement search and the landmarks' bake, pixel-identical (98 pairs, 0 differing pixels); the town is dressed 1,353 →
+1,292 ms at 4x, the Chat panel opens in 30 ms and walk mode runs at 8 ms a frame there (`COST_POLICY.md`, the table).
 
 ## Later scope
 

@@ -10,6 +10,7 @@ import {
   createCatalogue,
   importTownDocument,
   propRequestsFromFacts,
+  townChanges,
   type Catalogue,
   type TownContext,
   type TownDocument,
@@ -21,7 +22,7 @@ import { importPropRequest, type InvalidRequest } from "../world/propImport";
 import { allocationEdit, carryAllocations } from "../world/settlement";
 import { styleRegistry } from "../world/style";
 import { readHostTown, writeHostTown } from "@crewhub/loops-client";
-import { createHostTownStore } from "./hostTown";
+import { createHostTownStore, townStoreFor } from "./hostTown";
 import { onHostTown } from "./townBus";
 import { createTownStore, seededTown, type TownStore } from "./townStore";
 import { LIVE, SCENARIO, STRESS, TOWN_COPY_FROM, TOWN_KEY, worldRuntime } from "./world";
@@ -60,9 +61,11 @@ class TownRuntime {
     // Lots are facts of the town, not edits: an undo or redo carries them into the revision it restores.
     const local = createTownStore({ context: this.context, name: TOWN_KEY, carry: carryAllocations, ...(initial ? { initial } : {}), ...(TOWN_COPY_FROM ? { copyFrom: TOWN_COPY_FROM } : {}) });
     // Live: the world's host keeps the town for this installation (round 20); the browser's store is the fallback.
-    this.store = LIVE
-      ? createHostTownStore({ local, context: this.context, onTown: onHostTown, transport: { read: () => readHostTown(), write: (document, baseRev) => writeHostTown(document, baseRev) }, log: (line) => console.info(`[town] ${line}`) })
-      : local;
+    this.store = townStoreFor({
+      live: LIVE,
+      local,
+      make: (own) => createHostTownStore({ local: own, context: this.context, onTown: onHostTown, transport: { read: () => readHostTown(), write: (op, document, baseRev) => writeHostTown(document, baseRev, "", 15_000, op) }, log: (line) => console.info(`[town] ${line}`) }),
+    });
     this.#state = this.#derive();
     this.store.subscribe(() => {
       this.#refresh();
@@ -129,6 +132,22 @@ class TownRuntime {
     if (!result.ok) return { ok: false, error: result.error };
     void this.store.commit(result.doc);
     return { ok: true };
+  }
+
+  /**
+   * What a town file or a backup's document would change (round 21): the candidate as the next revision, and the
+   * changes in plain words, without touching the town. `text` is a file's JSON; `document` a backup's parsed town.
+   */
+  previewRestore(source: { text: string } | { document: unknown }): { ok: true; doc: TownDocument; changes: string[] } | { ok: false; error: string } {
+    const json = "text" in source ? source.text : JSON.stringify(source.document);
+    const result = importTownDocument(json, this.store.state.doc, this.context);
+    if (!result.ok) return { ok: false, error: result.error };
+    return { ok: true, doc: result.doc, changes: townChanges(this.store.state.doc, result.doc) };
+  }
+
+  /** Makes a previewed candidate the next revision: never silent, always undoable (Undo goes back to the town before it). */
+  applyRestore(doc: TownDocument): void {
+    void this.store.commit(doc);
   }
 
   /**

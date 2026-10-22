@@ -27,7 +27,7 @@ import { DEFAULT_LOOPS_URL, type KeySource } from "./config.ts";
 import { type Discovery, type DiscoveryInput, type Found, createDiscovery, loopsAnswers, targetText } from "./discovery.ts";
 import { checkKey } from "./keyCheck.ts";
 import type { KeyStore } from "./keyStore.ts";
-import { TOWN_BODY_LIMIT, TOWN_FORMAT, installationKey, type WorldDb } from "./worldDb.ts";
+import { BACKUP_NAME, TOWN_BODY_LIMIT, TOWN_FORMAT, installationKey, listBackups, readBackupTown, type TownOp, type WorldDb } from "./worldDb.ts";
 import { type LoopsClient, createLoopsClient, isUnauthorized } from "./loops.ts";
 import { PAIR_PATH_PREFIX, PAIR_REFUSED_HTML, type Pairing, createPairing, pairCookieHeader } from "./pairing.ts";
 import { type ArchiveReport, type AssembledSnapshot, SnapshotError, type SnapshotStats, assembleSnapshot } from "./snapshot.ts";
@@ -830,7 +830,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
    * a 409 with the town as the host has it, never an overwrite. A written revision goes to every tab on the stream as
    * `{type: "town", rev}`. `GET /world-api/town/export` is the document as a file, build mode's format.
    */
-  async function town(req: IncomingMessage, res: ServerResponse, exportFile: boolean): Promise<void> {
+  async function town(req: IncomingMessage, res: ServerResponse, exportFile: boolean, backup?: { list: true } | { name: string }): Promise<void> {
     const db = options.worldDb;
     // A read that cannot be answered yet is no error in a browser's console: 200 with no revision and the reason; a
     // write in that state is refused with the same reason.
@@ -848,6 +848,33 @@ export async function createHost(options: HostOptions): Promise<Host> {
       return;
     }
     const installation = installationKey(loopsWebUrl());
+    if (backup !== undefined) {
+      // Round 21: the backup copies beside the database, and this installation's town inside one, for a restore.
+      req.resume();
+      const dir = path.dirname(db.file);
+      if ("list" in backup) {
+        sendJson(res, 200, { installation, backups: listBackups(dir) });
+        return;
+      }
+      if (!BACKUP_NAME.test(backup.name)) {
+        sendJson(res, 404, { error: "not_found" });
+        return;
+      }
+      const held = readBackupTown(dir, backup.name, installation);
+      if (held === null) {
+        sendJson(res, 404, { error: "no_town", message: `${backup.name} holds no town for ${installation}` });
+        return;
+      }
+      let document: unknown;
+      try {
+        document = JSON.parse(held.document);
+      } catch {
+        sendJson(res, 500, { error: "town_unreadable", message: `the town of ${installation} in ${backup.name} is not JSON` });
+        return;
+      }
+      sendJson(res, 200, { installation, name: backup.name, rev: held.rev, document });
+      return;
+    }
     if (req.method === "GET") {
       req.resume();
       const held = db.getTown(installation);
@@ -855,7 +882,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
         // No town yet is a normal first contact, not an error: 200 with revision 0 and no document (a 404 would be a
         // console error in every browser that meets a fresh host); the export of nothing stays a 404.
         if (exportFile) sendJson(res, 404, { error: "no_town", installation });
-        else sendJson(res, 200, { installation, rev: 0, updatedAt: null, document: null });
+        else sendJson(res, 200, { installation, rev: 0, updatedAt: null, document: null, canUndo: false, canRedo: false });
         return;
       }
       if (exportFile) {
@@ -870,7 +897,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
         sendJson(res, 500, { error: "town_unreadable", message: `the stored town of ${installation} is not JSON` });
         return;
       }
-      sendJson(res, 200, { installation, rev: held.rev, updatedAt: held.updatedAt, document });
+      sendJson(res, 200, { installation, rev: held.rev, updatedAt: held.updatedAt, document, canUndo: held.canUndo, canRedo: held.canRedo });
       return;
     }
     if (req.headers.origin === undefined) {
@@ -886,15 +913,22 @@ export async function createHost(options: HostOptions): Promise<Host> {
     const body = await readJsonBody(req, TOWN_BODY_LIMIT);
     const document = body?.document;
     const baseRev = body?.baseRev;
-    if (body === null || typeof document !== "object" || document === null || Array.isArray(document) || (document as { format?: unknown }).format !== TOWN_FORMAT) {
-      sendJson(res, 400, { error: "validation_error", message: `The body must be JSON under ${TOWN_BODY_LIMIT} bytes with a document of format ${TOWN_FORMAT} and a baseRev` });
+    const kind = body?.op === undefined ? "commit" : body.op;
+    if (body === null || (kind !== "commit" && kind !== "amend" && kind !== "undo" && kind !== "redo")) {
+      sendJson(res, 400, { error: "validation_error", message: `The body must be JSON under ${TOWN_BODY_LIMIT} bytes: {op?: commit | amend | undo | redo, document?, baseRev}` });
+      return;
+    }
+    const withDocument = kind === "commit" || kind === "amend";
+    if (withDocument && (typeof document !== "object" || document === null || Array.isArray(document) || (document as { format?: unknown }).format !== TOWN_FORMAT)) {
+      sendJson(res, 400, { error: "validation_error", message: `A ${kind} needs a document of format ${TOWN_FORMAT} under ${TOWN_BODY_LIMIT} bytes` });
       return;
     }
     if (typeof baseRev !== "number" || !Number.isInteger(baseRev) || baseRev < 0) {
       sendJson(res, 400, { error: "validation_error", message: "baseRev must be the revision the document is based on (0 to create)" });
       return;
     }
-    const outcome = db.putTown(installation, JSON.stringify(document), baseRev);
+    const op: TownOp = withDocument ? { kind, document: JSON.stringify(document) } : { kind };
+    const outcome = db.applyTown(installation, op, baseRev);
     if (!outcome.ok) {
       let held: unknown = null;
       try {
@@ -902,12 +936,21 @@ export async function createHost(options: HostOptions): Promise<Host> {
       } catch {
         held = null;
       }
-      sendJson(res, 409, { error: "town_conflict", message: "Another browser changed the town since this one read it; here is the town as the host has it", rev: outcome.conflict.rev, document: held });
+      const now = db.getTown(installation);
+      sendJson(res, 409, { error: "town_conflict", message: "Another browser changed the town since this one read it; here is the town as the host has it", rev: outcome.conflict.rev, document: held, canUndo: now?.canUndo ?? false, canRedo: now?.canRedo ?? false });
       return;
     }
-    log(`town of ${installation} written: revision ${outcome.rev}`);
-    for (const tab of tabs.values()) tab.send({ type: "town", rev: outcome.rev });
-    sendJson(res, 200, { ok: true, rev: outcome.rev });
+    let current: unknown = null;
+    try {
+      current = outcome.document === null ? null : JSON.parse(outcome.document);
+    } catch {
+      current = null;
+    }
+    if (outcome.changed) {
+      log(`town of ${installation}: ${kind}, revision ${outcome.rev}`);
+      for (const tab of tabs.values()) tab.send({ type: "town", rev: outcome.rev });
+    }
+    sendJson(res, 200, { ok: true, rev: outcome.rev, document: current, canUndo: outcome.canUndo, canRedo: outcome.canRedo, changed: outcome.changed });
   }
 
   async function serveStatic(pathname: string, res: ServerResponse): Promise<void> {
@@ -1032,6 +1075,12 @@ export async function createHost(options: HostOptions): Promise<Host> {
         return;
       case "/town/export":
         await town(req, res, true);
+        return;
+      case "/town/backups":
+        await town(req, res, false, { list: true });
+        return;
+      case "/town/backups/{name}":
+        await town(req, res, false, { name: params["name"] as string });
         return;
       default:
         sendJson(res, 404, { error: "not_found" });

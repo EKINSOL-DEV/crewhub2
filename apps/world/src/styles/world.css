@@ -2633,7 +2633,7 @@ a.agent-ticket-link:focus-visible {
   }
 }
 
-/* The Connection panel's Chat section (round 12): the session's state, the sign-in form, Forget the session. */
+/* The Connection panel's Chat section (round 12; one road since round 19): the chat's road in words, the typing note. */
 .connection-session {
   margin-top: var(--space-3);
   padding-top: var(--space-3);
@@ -2650,25 +2650,7 @@ a.agent-ticket-link:focus-visible {
 .connection-session-state {
   margin: 0;
 }
-.connection-session-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-.connection-session-form label {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  font-size: var(--text-xs);
-}
-.connection-session-form input {
-  font: inherit;
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm, 6px);
-  background: var(--surface);
-  color: var(--text);
-}
+
 
 /* ── The introduction inside the world (round 20): a ring around the step's element and a small card beside it ─────────
    Nothing is dimmed and nothing moves the camera; the card is placed by state/tour.ts placeStep so it never covers what
@@ -2744,4 +2726,44 @@ a.agent-ticket-link:focus-visible {
   gap: var(--space-3);
   flex-wrap: wrap;
   margin-bottom: var(--space-3);
+}
+
+/* A menu row with the keyboard focus wears the focus ring inside its edge (round 21): the kit marks it with the sunken
+   surface alone, which is faint over the raised menu. The Demo scenario menu and the "?" menu both. */
+.menu-item:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--focus);
+}
+
+/* The restore preview (round 21): a modal over Settings with the changes as a list and the two choices apart. */
+.restore-sheet {
+  max-width: 34rem;
+}
+.restore-count {
+  margin: 0 0 var(--space-2);
+  font-weight: var(--weight-semibold);
+}
+.restore-changes {
+  margin: 0 0 var(--space-3);
+  padding-left: 1.2em;
+  display: grid;
+  gap: 4px;
+  font-size: var(--text-sm);
+}
+.restore-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: space-between;
+  align-items: center;
+}
+.restore-actions {
+  display: inline-flex;
+  gap: var(--space-2);
+}
+.town-restore {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: flex-end;
+  margin-top: var(--space-2);
 }

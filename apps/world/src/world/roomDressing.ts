@@ -200,7 +200,8 @@ class Planner {
   readonly props: WorldProp[];
   readonly #defs: Definitions;
   readonly #facts: RoomFacts;
-  readonly #keep = new Set<string>();
+  /** The cells that stay free (doors, seats, where figures stand), 1 per room cell; in-bounds cells only. */
+  readonly #keep: Uint8Array;
   #reach: Cell[] = [];
   readonly #rand: () => number;
   #n = 0;
@@ -211,8 +212,9 @@ class Planner {
     this.#rand = random(seed);
     this.props = [...facts.room.layout.props];
     const { width, depth } = facts;
+    this.#keep = new Uint8Array(width * depth);
     const keep = (x: number, z: number) => {
-      if (x >= 0 && z >= 0 && x < width && z < depth) this.#keep.add(`${x},${z}`);
+      if (x >= 0 && z >= 0 && x < width && z < depth) this.#keep[z * width + x] = 1;
     };
     // Doors and the cell just inside them.
     for (const d of facts.doors) {
@@ -272,9 +274,11 @@ class Planner {
       });
     else for (let z = 0; z < depth; z++) for (let x = 0; x < width; x++) add({ x, z }, 0, 0);
     candidates.sort((a, b) => a.score - b.score);
+    // The room as it stands, once: every candidate is tried against the same props (none joins until one fits).
+    const blocked = this.#occupancy(this.props);
     for (const { prop } of candidates) {
       const placed = { ...prop, id: `${DRESS_PREFIX}${want.tag ? `${want.tag}-` : ""}${want.def}-${this.#n}` };
-      if (this.#fits(placed) && this.#keepsPaths(placed)) {
+      if (this.#fits(placed, blocked) && this.#keepsPaths(placed, blocked)) {
         this.#n++;
         this.props.push(placed);
         return placed;
@@ -290,7 +294,7 @@ class Planner {
   bareStretch(size: number): { x: number; z: number } | null {
     const { width, depth } = this.#facts;
     const blocked = occupancy({ version: 1, grid: this.#grid(), props: this.props, entrance: this.#facts.room.layout.entrance }, this.#defs);
-    const open = (x: number, z: number) => x >= 0 && z >= 0 && x < width && z < depth && blocked[z * width + x] === -1 && !this.#keep.has(`${x},${z}`);
+    const open = (x: number, z: number) => x >= 0 && z >= 0 && x < width && z < depth && blocked[z * width + x] === -1 && this.#keep[z * width + x] === 0;
     let best: { x: number; z: number; score: number } | null = null;
     for (let z = 0; z + size <= depth; z++)
       for (let x = 0; x + size <= width; x++) {
@@ -304,43 +308,59 @@ class Planner {
     return best && { x: best.x, z: best.z };
   }
 
-  #fits(prop: WorldProp): boolean {
-    const blocked = occupancy({ version: 1, grid: this.#grid(), props: this.props, entrance: this.#facts.room.layout.entrance }, this.#defs);
+  /** The piece fits over open floor (`blocked`: the room's occupancy as it stands) that is not kept free. */
+  #fits(prop: WorldProp, blocked: Int32Array): boolean {
     const { width, depth } = this.#facts;
-    return propCells(prop, this.#defs).every((c) => c.x >= 0 && c.z >= 0 && c.x < width && c.z < depth && blocked[c.z * width + c.x] === -1 && !this.#keep.has(cellKey(c)));
+    return propCells(prop, this.#defs).every((c) => c.x >= 0 && c.z >= 0 && c.x < width && c.z < depth && blocked[c.z * width + c.x] === -1 && this.#keep[c.z * width + c.x] === 0);
   }
 
-  /** Every door, seat, approach and waiting spot stays reachable from the room's entrance. */
-  #keepsPaths(prop: WorldProp): boolean {
-    const seen = this.#reachable([...this.props, prop]);
+  /** Every door, seat, approach and waiting spot stays reachable from the room's entrance, with the piece in place. */
+  #keepsPaths(prop: WorldProp, blocked: Int32Array): boolean {
+    const seen = this.#flood(this.#withProp(blocked, prop));
     return this.#reach.every((c) => seen[c.z * this.#facts.width + c.x] === 1);
+  }
+
+  /** The room's occupancy (world-engine's `occupancy`) with these props. */
+  #occupancy(props: WorldProp[]): Int32Array {
+    return occupancy({ version: 1, grid: this.#grid(), props, entrance: this.#facts.room.layout.entrance }, this.#defs);
+  }
+
+  /**
+   * The occupancy `blocked` with `prop` added as the last prop: what `occupancy` gives for the props plus this one (a
+   * blocking piece's cells inside the room take its index; a piece that blocks nothing changes nothing).
+   */
+  #withProp(blocked: Int32Array, prop: WorldProp): Int32Array {
+    const cells = blocked.slice();
+    if (!this.#defs[prop.definitionId]?.blocksMovement) return cells;
+    const { width, depth } = this.#facts;
+    for (const c of propCells(prop, this.#defs)) if (c.x >= 0 && c.z >= 0 && c.x < width && c.z < depth) cells[c.z * width + c.x] = this.props.length;
+    return cells;
   }
 
   /** Flood fill from the room's entrance: 1 for every open cell a walker can reach. */
   #reachable(props: WorldProp[]): Uint8Array {
+    return this.#flood(this.#occupancy(props));
+  }
+
+  /** The flood fill over an occupancy: four neighbours, open is -1, as a walker's grid reads it. */
+  #flood(blocked: Int32Array): Uint8Array {
     const { width, depth } = this.#facts;
-    const blocked = occupancy({ version: 1, grid: this.#grid(), props, entrance: this.#facts.room.layout.entrance }, this.#defs);
     const seen = new Uint8Array(width * depth);
     const start = this.#facts.room.layout.entrance;
-    const queue = [start.z * width + start.x];
-    if (blocked[queue[0]!] !== -1) return seen;
-    seen[queue[0]!] = 1;
-    while (queue.length) {
-      const id = queue.pop()!;
-      const x = id % width,
-        z = Math.floor(id / width);
-      for (const [nx, nz] of [
-        [x - 1, z],
-        [x + 1, z],
-        [x, z - 1],
-        [x, z + 1],
-      ] as const) {
-        if (nx < 0 || nz < 0 || nx >= width || nz >= depth) continue;
-        const n = nz * width + nx;
-        if (seen[n] || blocked[n] !== -1) continue;
-        seen[n] = 1;
-        queue.push(n);
-      }
+    const first = start.z * width + start.x;
+    if (blocked[first] !== -1) return seen;
+    seen[first] = 1;
+    const queue = new Int32Array(width * depth);
+    queue[0] = first;
+    let top = 1;
+    while (top > 0) {
+      const id = queue[--top]!;
+      const x = id - Math.floor(id / width) * width;
+      // West, east, north, south: the order the old walk took, so the fill reads the same (it is a set anyway).
+      if (x > 0 && !seen[id - 1] && blocked[id - 1] === -1) { seen[id - 1] = 1; queue[top++] = id - 1; }
+      if (x < width - 1 && !seen[id + 1] && blocked[id + 1] === -1) { seen[id + 1] = 1; queue[top++] = id + 1; }
+      if (id >= width && !seen[id - width] && blocked[id - width] === -1) { seen[id - width] = 1; queue[top++] = id - width; }
+      if (id + width < width * depth && !seen[id + width] && blocked[id + width] === -1) { seen[id + width] = 1; queue[top++] = id + width; }
     }
     return seen;
   }

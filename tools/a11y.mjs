@@ -385,6 +385,110 @@ if (opts.demo) {
     await r.waitForTimeout(200);
     ok("tour: Escape closes it and the focus lands on a control (the ? button when nothing else)", (await r.locator(".tour-card").count()) === 0 && (await r.evaluate(() => document.activeElement !== document.body && document.activeElement !== null)));
     ok("tour: Skip or Escape is remembered in this browser", (await r.evaluate(() => localStorage.getItem("crewhub-world.tour"))) === "done");
+    // The keyboard-only road (round 21): the tour's Tab loop, the focus after a jump, a figure's card by keyboard, the focus
+    // after leaving build mode, a menu row's focus ring.
+    await r.goto(`${opts.base}?tour=on`, { waitUntil: "load" });
+    await r.waitForSelector(".tour-card", { timeout: 20000 });
+    await r.waitForTimeout(300);
+    await r.keyboard.press("Tab");
+    const afterNext = await r.evaluate(() => document.activeElement?.textContent?.trim());
+    await r.keyboard.press("Shift+Tab");
+    const backToNext = await r.evaluate(() => document.activeElement?.textContent?.trim());
+    ok("keyboard: in the tour's card Tab cycles (Next → Skip, Shift+Tab back), Escape leaves", afterNext === "Skip" && backToNext === "Next", `${afterNext}, ${backToNext}`);
+    await r.keyboard.press("Escape");
+    await r.waitForTimeout(200);
+    const activeIs = () => r.evaluate(() => { const el = document.activeElement; return el ? `${el.tagName.toLowerCase()}${el.className ? "." + String(el.className).split(" ")[0] : ""}:${el.getAttribute("aria-label") ?? el.textContent?.trim().slice(0, 30) ?? ""}` : "none"; });
+    await r.keyboard.press("/");
+    await r.waitForSelector('[role="dialog"] input', { timeout: 5000 });
+    await r.keyboard.type("crewhub-loops");
+    await r.keyboard.press("Enter");
+    await r.waitForFunction(() => globalThis.__town?.view?.entered != null, null, { timeout: 8000 }).catch(() => undefined);
+    await r.waitForTimeout(600);
+    ok("keyboard: after a jump the scene has the focus (the arrow keys and Enter work at once)", (await r.evaluate(() => document.activeElement?.tagName === "CANVAS")), await activeIs());
+    await r.keyboard.press("Escape");
+    await r.waitForTimeout(800);
+    await r.keyboard.press("/");
+    await r.waitForSelector('[role="dialog"] input', { timeout: 5000 });
+    await r.keyboard.type("G-Man");
+    await r.keyboard.press("Enter");
+    await r.waitForTimeout(1500);
+    await r.keyboard.press("Enter");
+    await r.waitForSelector(".agent-card", { timeout: 5000 }).catch(() => undefined);
+    ok("keyboard: a figure jumped to, Enter opens its card", (await r.locator(".agent-card").count()) === 1, await activeIs());
+    let reached = false;
+    for (let i = 0; i < 40 && !reached; i++) {
+      await r.keyboard.press("Tab");
+      reached = await r.evaluate(() => /^Close the card of/.test(document.activeElement?.getAttribute("aria-label") ?? ""));
+    }
+    ok("keyboard: the card's close button is reachable by Tab", reached);
+    await r.keyboard.press("Escape");
+    await r.waitForTimeout(300);
+    ok("keyboard: Escape closes the card", (await r.locator(".agent-card").count()) === 0);
+    // Build mode: in, a prop chosen in the palette by keyboard, out: the focus lands on the Build button, not the body.
+    await r.keyboard.press("/");
+    await r.waitForSelector('[role="dialog"] input', { timeout: 5000 });
+    await r.keyboard.type("crewhub-loops");
+    await r.keyboard.press("Enter");
+    await r.waitForFunction(() => globalThis.__town?.view?.entered != null, null, { timeout: 8000 }).catch(() => undefined);
+    await r.waitForTimeout(600);
+    await r.keyboard.press("b");
+    await r.waitForSelector(".build-sheet", { timeout: 5000 });
+    let inPalette = false;
+    for (let i = 0; i < 40 && !inPalette; i++) {
+      await r.keyboard.press("Tab");
+      inPalette = await r.evaluate(() => document.activeElement?.closest(".build-palette") !== null);
+    }
+    ok("keyboard: a palette row is reachable by Tab", inPalette, await activeIs());
+    await r.keyboard.press("Escape");
+    await r.keyboard.press("Escape");
+    await r.waitForTimeout(400);
+    ok("keyboard: leaving build mode from the palette puts the focus on the Build button", (await r.locator(".build-sheet").count()) === 0 && /Build mode/.test(await activeIs()), await activeIs());
+    // A menu row: the focus ring shows (the kit marks it by a sunken surface alone).
+    await r.getByRole("button", { name: "Help" }).focus();
+    await r.keyboard.press("Enter");
+    await r.waitForTimeout(300);
+    const rowRing = await r.evaluate(() => { const el = document.activeElement; const st = el ? getComputedStyle(el) : null; return !!el && el.classList.contains("menu-item") && !!st && st.boxShadow !== "none" && st.boxShadow !== ""; });
+    ok("keyboard: a menu row with the focus wears a ring", rowRing, await activeIs());
+    await r.keyboard.press("Escape");
+    // The restore dialog (round 21, the world database's second slice): Settings › Town › Import a town previews a file
+    // before it replaces the town. A modal: the focus on Cancel, Tab kept within, Escape cancels and the opener has the
+    // focus again, named by its title and described by the count, the count said once politely. The file comes from the
+    // page's own Export (one rule toggled); the OS file chooser cannot be driven by keys headless, so setInputFiles stands
+    // in for it with the focus on the input.
+    await r.getByRole("button", { name: "Settings", exact: true }).focus();
+    await r.keyboard.press("Enter");
+    await r.waitForSelector(".settings-sheet", { timeout: 5000 });
+    const [download] = await Promise.all([r.waitForEvent("download", { timeout: 10000 }), r.getByRole("button", { name: "Export the town" }).focus().then(() => r.keyboard.press("Enter"))]);
+    const exported = JSON.parse(await (await import("node:fs/promises")).readFile(await download.path(), "utf8"));
+    exported.rules = { ...(exported.rules ?? {}), "bug-jar": !(exported.rules?.["bug-jar"] ?? true) };
+    await r.getByLabel("Import a town").focus();
+    const openerName = await activeIs();
+    await r.locator('.settings-sheet input[type="file"]').setInputFiles({ name: "one-change.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(exported)) });
+    await r.waitForSelector(".restore-sheet", { timeout: 5000 });
+    await r.waitForTimeout(200);
+    writeFileSync(`${outDir}restore-light-1440.txt`, await r.locator(".restore-sheet").ariaSnapshot());
+    ok("restore: the focus is on Cancel when the dialog opens", /:Cancel$/.test(await activeIs()), await activeIs());
+    const restoreNamed = await r.evaluate(() => { const d = document.querySelector(".restore-sheet"); return { modal: d?.getAttribute("aria-modal"), title: document.getElementById(d?.getAttribute("aria-labelledby") ?? "")?.textContent?.trim() ?? "", desc: document.getElementById(d?.getAttribute("aria-describedby") ?? "")?.textContent?.replace(/\s+/g, " ").trim() ?? "", status: d?.querySelector('[role="status"]')?.textContent?.trim() ?? "" }; });
+    ok("restore: a modal dialog named by its title and described by the count", restoreNamed.modal === "true" && restoreNamed.title === "Restore this town?" && /one-change\.json: 1 change\./.test(restoreNamed.desc), JSON.stringify(restoreNamed).slice(0, 160));
+    ok("restore: the count is said once, politely, after the dialog stands", restoreNamed.status === "Restore preview: 1 change.", restoreNamed.status);
+    await r.keyboard.press("Tab");
+    const second = await activeIs();
+    await r.keyboard.press("Tab");
+    const third = await activeIs();
+    await r.keyboard.press("Shift+Tab");
+    const backAgain = await activeIs();
+    ok("restore: Tab is kept within (Cancel → Restore → Cancel the restore, and Shift+Tab back)", /:Restore$/.test(second) && /Cancel the restore$/.test(third) && /:Restore$/.test(backAgain), `${second} → ${third} → ${backAgain}`);
+    const stops2 = await tabOrder(r, 4);
+    ok("restore: every control in the dialog shows a focus style (Download the current town first among them)", stops2.every((st) => st.focusStyle) && stops2.some((st) => /Download the current town first/.test(st.name)), stops2.map((st) => st.name).join(" → "));
+    const low3 = (await contrast(r, [".restore-count", ".restore-changes li", ".restore-sheet .hint", ".restore-sheet .btn"])).filter((c) => !enough(c));
+    ok("restore: the dialog's text contrast", low3.length === 0, low3.map((c) => `${c.selector} ${c.ratio}:1`).join("; "));
+    await r.keyboard.press("Escape");
+    await r.waitForTimeout(300);
+    ok("restore: Escape cancels and the opener (the file input) has the focus again", (await r.locator(".restore-sheet").count()) === 0 && (await activeIs()) === openerName, `${await activeIs()} (opener ${openerName})`);
+    // Escape with the focus on a form control that does not use it (the file input here, a select) still closes Settings.
+    await r.keyboard.press("Escape");
+    await r.waitForTimeout(300);
+    ok("keyboard: Escape from a select or a file input in Settings closes the sheet, the focus on the Settings button", (await r.locator(".settings-sheet").count()) === 0 && /:Settings$/.test(await activeIs()), await activeIs());
   } catch (error) {
     ok("tour: the card came", false, error.message.split("\n")[0]);
   }

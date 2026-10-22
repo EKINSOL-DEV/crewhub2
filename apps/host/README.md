@@ -57,8 +57,15 @@ smooth connection" below):
   `application/json`, 4 MB at most, the document of format `crewhub-town/1`) writes a revision over `baseRev` (0
   creates) and answers `{rev}`; another browser's revision in between is `409 town_conflict {rev, document}` with the
   town as the host has it, never an overwrite; every tab hears `{type: "town", rev}` on the stream and refetches.
-  `GET /world-api/town/export` is the document as a file (`crewhub-town-r<rev>.json`, build mode's format). The
-  store is `<CREWHUB_WORLD_CONFIG_DIR>/world.db`, Node 24's `node:sqlite` (0600 in the 0700 folder; `src/worldDb.ts`):
+  `GET /world-api/town/export` is the document as a file (`crewhub-town-r<rev>.json`, build mode's format). Round 21:
+  the **undo history is the host's** (schema 2, `towns.history`: the same pure history as the browser's, the last 50
+  revisions and a cursor): `PUT` takes `op` `commit` (the default, a person's edit), `amend` (the world's own record,
+  no undo step), `undo` or `redo` (no document), each over `baseRev`, and answers `{rev, document, canUndo, canRedo,
+  changed}` (a step that cannot be taken changes nothing); `GET` carries `canUndo`/`canRedo` too. A stale undo is a 409
+  like any write. **Backups:** `GET /world-api/town/backups` lists the `world.db.bak-v<n>` copies beside the database
+  (`{name, version, bytes, at}`) and `GET /world-api/town/backups/{name}` reads this installation's town out of one,
+  read-only, for Settings > Town's "Restore from a backup" (a preview and a confirm in the browser; the restore is a
+  new revision, undoable). The store is `<CREWHUB_WORLD_CONFIG_DIR>/world.db`, Node 24's `node:sqlite` (0600 in the 0700 folder; `src/worldDb.ts`):
   a `schema_version` row and a `towns` table with one row per installation, keyed by the loops web app's host and
   port like the browser's own town key; migrations run in a transaction on open after a copy of the file to
   `world.db.bak-v<n>`; a file newer than the host knows is refused. Node 24.21 prints no warning for `node:sqlite`;
