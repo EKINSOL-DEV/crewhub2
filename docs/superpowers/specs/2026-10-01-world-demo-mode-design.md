@@ -1067,6 +1067,24 @@ signed out (no bubbles), signed in as <name>, expired (loops refused the kept co
 a new sign-in). Forget the session signs out at loops and deletes the file. A host without a config folder keeps no
 session and answers 503 to a sign-in.
 
+**As built (round 28, road 2: option 1's second form, the page's own origin).** crewhub-loops main (#968, CL-494 step 4,
+`docs/proposals/crewhub-world-viewer-4-origin.md` there) answers `GET` on `/api/dm/threads`,
+`/api/dm/threads/{agent}/messages`, `/api/dm/messages/{id}` and `/api/events` (types forced to `dm.created,dm.answered`,
+`limit` at most 50, a poll, no stream) from the one loopback origin named in `CHL_WORLD_ORIGIN`, with the person's own
+session cookie, filtered to the signed-in person's own conversation; any other route, method, origin, a pre-flight or a
+key from the page is the usual 403 without a CORS header. The world's page reads exactly that
+(`packages/loops-client/src/pageChat.ts`, `apps/world/src/state/pageChat.ts`): `fetch(url, { method: "GET", credentials:
+"include" })` with no header of its own (a simple request: no `OPTIONS`; a test pins the shape and a browser proof reads the
+browser's own network log), at the loops web origin the host names, `from=tail` first and then the sealed cursor, each agent
+message by id into the said store, the threads again after a `dm.*` event. The road: `key` when the host's key reads the
+chat, else `page` when the page's probe (`GET /api/dm/threads`) answers, else `none` (`state/chatRoad.ts`,
+`decideChatRoad`). The poll: 5 s shown, a minute hidden, doubling after a failure to a minute, nothing offline. What the
+browser lets the page tell: a 401 through the origin is "signed out"; a refused origin is one opaque failure, told from
+"unreachable" by a second ask of the same route in `no-cors` mode; the words carry `CHL_WORLD_ORIGIN=<this page's origin>`.
+Nothing of the road goes through the host; the page keeps nothing. Tests: the request shape, the routes, the query, the
+verdicts, the readers, the back-off, the runner (`packages/loops-client/test/pageChat.test.ts`,
+`apps/world/test/pageChat.test.ts`); the browser proof `tools/road2proof.mjs` against the development loops 8293.
+
 **The key road (the same round, after `world/viewer-key`).** Where crewhub-loops lets the world's own key read the
 chat (a viewer key, L1: the key's own entry in `GET /api/agents` says `viewer: true` and `GET /api/dm/threads` answers
 200 to it, as on the second dev instance on 8292; a plain external bot gets that 200 too, with its own empty threads,
