@@ -1,7 +1,7 @@
 # An introduction to CrewHub World
 
-For a reader who knows crewhub-loops and has never seen the world. Everything here is as built on 2026-10-22 (round
-24 of the night and the day after); where a claim rests on a file, the file is named. The pictures are light-theme
+For a reader who knows crewhub-loops and has never seen the world. Everything here is as built on 2026-10-23 (round
+29 of the night and the two days after); where a claim rests on a file, the file is named. The pictures are light-theme
 screenshots, most of them live against the development crewhub-loops, the newer ones over the fake crewhub-loops or the
 demo; each caption says which.
 
@@ -27,8 +27,10 @@ What it is not:
   them. The key is never in a response, a log or the bundle (tests grep every response and log line).
 - **No model call, anywhere.** `scripts/scan-model-calls.ts` runs in `npm test` and fails on an AI SDK import or a model
   endpoint. Rendering, motion and status need none ([COST_POLICY.md](COST_POLICY.md)).
-- **Nothing of loops changes.** The world runs against crewhub-loops `4cdcd383` as the Mac app ships it. What would
-  make it better on the loops side is written as proposals (section 8), not merged.
+- **Nothing of loops changes from the world's side.** The world runs against crewhub-loops `4cdcd383` as the Mac app
+  ships it, and against crewhub-loops main (`88760279`, the third development instance), where the viewer key, the
+  `ticket=` filter and the world's origin setting have landed since (section 8); it edits nothing there. What would make
+  it better on the loops side is written as proposals; those that landed are named as such.
 
 ## 2. The town, in order of what you meet
 
@@ -249,9 +251,11 @@ the chat corner, the card's footer) or are the data's (lanes and a team snapshot
 3. Paste it in the Connect screen. The host checks it with loops, stores it (0600, in its own folder), and the chip says
    **Live**. `npm run host -- doctor` says which step was missed, one line per check.
 
-![The Connect screen: "found crewhub-loops through its socket (the Mac app's)", the three steps of the loops dialog, and a key field.](images/connect.png)
+![The Connect screen as it reads since round 29: "found crewhub-loops through its socket (the Mac app's)", the three steps naming loops main's card (Connect CrewHub World, or New access key once the bot exists) and its buttons, the older loops' road under them, and a key field.](images/connect.png)
 
-Rehearsed from a fresh clone eight times during the night and the morning after; on 2026-10-21 at 18:50 Nicky ran it
+Rehearsed from a fresh clone eight times during the night and the morning after, and a ninth time in round 29 as a
+fresh person's walk of both chat roads against crewhub-loops main (the viewer key made through loops' own Settings >
+Agents card, and the page's own read at the world's origin); on 2026-10-21 at 18:50 Nicky ran it
 against his own Crewhub.app: loops found through the app's socket, the key ok, the stream ok, three projects in fifteen
 reads ([the night report](reports/2026-10-01-world-demo-night.md), round 11). For development there is `npm run dev`
 (Vite on `127.0.0.1:5173`) beside `npm run host`, with no setup: Vite proxies `/world-api` and `/pair` to the host on
@@ -277,27 +281,36 @@ shared Mac never reaches somebody else's host.
   it; the Connection panel's Key row says so (the host sees `viewer: true` on its own entry at the key check), and the
   chat's bubbles need no sign-in.
   Every key is checked with `GET /api/auth/me` and one board read; a wrong kind of key is rejected with the loops web's
-  own words. A rejected key is never confused with loops being down: only a definite 401 or 403 from a loops whose
+  own words; loops' own version is read keyless, since loops main refuses the public health read to a viewer key (round
+  29), and a key the host could not check at its start is asked whether it reads the chat the moment the stream first
+  accepts it. A rejected key is never confused with loops being down: only a definite 401 or 403 from a loops whose
   health answers rejects, and a rejected key then waits (no retries) and is asked about again every five minutes, so a
   bot re-enabled in loops comes back by itself.
 - **What the host does.** It assembles the snapshot the way `read-model.md` says (the stream's position first, then
   projects, boards, principals, agents, team, watchdog, milestones and releases; the archived projects and, since round
-  9, the open quiet stretches and the latest automation runs from the event log), reads in parallel under a cap, names
-  its own principal as the observer, and keeps **one upstream stream** `GET /api/events/stream` for every tab, opened
+  9, the open quiet stretches and the latest automation runs from the event log; on loops main one small `ticket=` read
+  per candidate decides a quiet stretch and the closed buildings come from the list, round 29), reads in parallel under
+  a cap, names its own principal as the observer, and keeps **one upstream stream** `GET /api/events/stream` for every tab, opened
   from `from=tail` with loops' sealed cursor, reconnected after loops' 300 s end with jitter, with a ring buffer of 2000
   envelopes to catch a tab up. The tabs get Server-Sent Events. It pairs each browser once with a one-time link and an
   `HttpOnly` cookie, and checks the `Host` and `Origin` headers of every request.
 - **What the host never does.** It never writes to loops (its only writes are the stored key, the pairing secret,
   the archive memory and the town database `world.db` with its backups, all in its own folder), never logs or echoes
   the key, never holds a provider secret, never opens a second upstream stream, and never guesses a socket outside the
-  app's data folder.
+  app's data folder. An outside security review (round 26) found nothing a web page on another site can do: DNS
+  rebinding meets the Host guard, cross-site reads the cookie's `SameSite=Strict` and the origin guard, CSRF the
+  required `Origin` and the JSON content type, and the allow-list refuses traversal; what it found on the same
+  machine's loopback was fixed (every cookie of the name is tried, the dev-origin route proves the same user with the
+  host's own run-file secret, the served world sends `frame-ancestors 'self'` and `nosniff`, a town is validated
+  before it is kept), and what remains is a question for Nicky (whether other local programs the browser visits are
+  in the threat model; `proposals/open-questions.md`).
 - **The states are honest.** Health says where loops was found, what the key's state is (none, unchecked, checking,
   rejected, ok), how the stream is, how far the first snapshot is; the world shows one screen per state (No loops
   found, Pair this browser, Connect, Checking, Key rejected, Loops down) and, once the town runs, a chip (Live,
   Catching up, Stale, Loops down, Stream busy, Pair again) that opens the **Connection panel** (with, since round 20,
   a Town row: where the town is kept and its revision).
 
-![The Connection panel over the live town (before round 20, so without its Town row): Live, loops found through the Mac app's socket, the key from the stored key, streaming with its cursor, one archived project from loops' event log, crewhub-loops version 0.1.0, the host over the Unix socket, and the Forget this key button.](images/connection-panel.jpg)
+![The Connection panel over the live town against the development crewhub-loops (round 29): Live, loops found through the Mac app's socket, the key from the stored key, streaming with its cursor, one archived project from loops' event log, crewhub-loops version 0.1.0, the host over the Unix socket, the Town row (kept by the host, revision 2), the Zones row, and the Chat section, which on this older loops says no bubbles and names both ways out.](images/connection-panel.jpg)
 
 Operations have been rehearsed under a running host: loops stopped and started (Loops down, then Live again without a
 reload), the key revoked while Live (the Key rejected screen over the live tab; a new key pasted brings the town back),
@@ -371,7 +384,13 @@ the browser shows a refused origin as the same opaque failure as a server that i
 `no-cors` mode tells the two apart), unreachable, loops' chat bubbles switched off (a 409 through the origin), or a
 loops elsewhere than this computer (not asked: the viewer key is the road); and while the host has not yet said whether
 its key reads the chat (`session: unknown` in health, round 29), the page asks nothing and says the host is still
-connecting. Nothing of road 2 goes through the host.
+connecting. Nothing of road 2 goes through the host. An outside review of the road (round 29) verified that no
+request ever carries a header of the page's own or an Authorization, that nothing of it goes through the host, and
+that another origin and a signed-out browser get the honest words; its findings (a key accepted on the stream after
+the start, the road picked from one early health read, the 409 of loops' feature switch, a message read that failed
+moving the cursor, two polls in flight after a wake, a bubble shown twice) are fixed with a test each. The same day a
+fresh person walked both roads from a cold clone against loops main: road 1's mark stood 132 ms after loops wrote the
+reply, road 2's 2.7 s after (the page's 5 s poll).
 
 ![The live town over the fake crewhub-loops a second after CR Lead answered inside its building: a chat mark "CR Lead" beside the CrewHub World building's waiting pin, since the figure inside is not drawn from the town; a tap on the mark enters the building.](images/chat-mark.jpg)
 
@@ -412,25 +431,30 @@ and the person land at once, the checking icon stops, the dust shows no motes). 
 
 ## 8. What is proposed on the loops side, and why
 
-Nothing of this is merged in crewhub-loops. It lives on crewhub-loops' branch `world/viewer-key`, on origin under
-`cl-lead`'s review (fifteen commits on `4cdcd383`), with tests, three proposal pages and a review page for `cl-lead`
-under `docs/proposals/` there. The second development loops (8292) runs that branch. The world runs without any of
-it; each item would make it more honest or more direct.
+Most of this has landed in crewhub-loops main since round 28 (`88760279` runs as the third development instance, 8293):
+the viewer key (#959) with its chat read narrowed to the key's maker (#964), the `ticket=` filter on the events and
+`includeArchived` for a viewer (#965), and the world's origin setting for the page's own read of the person's chat
+(#968, `CHL_WORLD_ORIGIN`). The proposal pages that asked for them live on crewhub-loops' branch `world/viewer-key`
+(on origin, under `cl-lead`'s review, with tests; the second development loops, 8292, still runs that branch), as the
+record of why. The world runs against the Mac app's `4cdcd383` without any of it, and against main with all of it; the
+round-29 table of every difference main made and what the world does with it is in the night report.
 
-- **The viewer key** (gap L1; `crewhub-world-viewer.md`). A third kind of external bot, `agents.viewer`: its key opens
-  exactly the table of `GET` routes the world's host reads, for the whole installation, and nothing else; every other
-  route and method is 403 before the route runs; paced and logged like the reader. Why: today the world holds a plain
-  lead's key that could write tickets and comments in any project, and only the host's allow-list stands between that
-  key and a write. A page that only looks should hold a credential that cannot do more.
+- **The viewer key** (gap L1; `crewhub-world-viewer.md`; **in loops main since #959**). A third kind of external bot,
+  `agents.viewer`: its key opens exactly the table of `GET` routes the world's host reads, for the whole installation,
+  and nothing else; every other route and method is 403 before the route runs; paced and logged like the reader (600
+  requests a minute). Why: on the Mac app's loops the world holds a plain lead's key that could write tickets and
+  comments in any project, and only the host's allow-list stands between that key and a write. A page that only looks
+  should hold a credential that cannot do more.
 - **The "Connect CrewHub World" card** (the same page). One button in Settings > Agents makes the bot `crewhub-world`
   as a viewer, with no project, and shows its key once with where to paste it, so steps 2 and 3 of the morning become
   one dialog. The key is still pasted in the world's Connect screen; nothing hands it to the host behind the person's
   back. The world's side of the switch is built (round 15 prepared it, round 28 landed it): a new key file or a paste,
   and the Connect screen and the setup guide say what changes with a viewer key, whose chat it reads included.
-- **Page two** (`crewhub-world-viewer-2.md`): a `ticket=` filter on `GET /api/events` (and the stream), so a fresh
-  tab's quiet stretches are decided by one tiny read per ticket instead of a capped scan of everyone's activity; and
-  `includeArchived=true` for a viewer key, so closed buildings come from the list, not from the whole log and a memory
-  file.
+- **Page two** (`crewhub-world-viewer-2.md`; **in loops main since #965**): a `ticket=` filter on `GET /api/events`
+  (and the stream), so a fresh tab's quiet stretches are decided by one tiny read per ticket instead of a capped scan
+  of everyone's activity; and `includeArchived=true` for a viewer key, so closed buildings come from the list, not from
+  the whole log and a memory file. The host uses both on loops main since round 29 and keeps the paged road for an
+  older loops.
 - **Page three** (`crewhub-world-viewer-3.md`): chat with the agents, three asks. (1) `?chat=<agent>` on the web app,
   about ten lines, so the Chat panel can open the right head; (2) the person's DM threads for the viewer key, read only;
   (3) CORS for the world's loopback origin on the DM read routes only, with the writes still refused by loops' Origin
@@ -441,12 +465,15 @@ it; each item would make it more honest or more direct.
   page for cl-lead (`crewhub-world-viewer-cl-lead.md`); the branch is on origin since round 19, and crewhub-loops main
   carries the viewer key since #959, with the chat read narrowed to the key's maker (#964) and, as page three's road
   (3), the world's own origin for the page's read of the person's chat (#968, `CHL_WORLD_ORIGIN`; round 28, road 2).
-  The real bubble was proven on that loops in rounds 14, 16 and 18, and road 1 on loops main's 8293 in round 28.
+  The real bubble was proven on that loops in rounds 14, 16 and 18, road 1 on loops main's 8293 in round 28, and both
+  roads there from a cold clone in round 29.
 - **The older proposals** of the plan (L2 to L8, L22: project groups) stand as written in
   [LOOPS_GAP_ANALYSIS.md](LOOPS_GAP_ANALYSIS.md), section 6.
 
 ## 9. Where to read next
 
+- [The open questions for Nicky](proposals/open-questions.md): every question still open, with the options, the team's
+  recommendation and what the world keeps if nothing is said.
 - [ARCHITECTURE.md](ARCHITECTURE.md): the packages, the host's parts, the world's gate and screens, the first frame in
   order, the events.
 - [LOOPS_SETUP.md](LOOPS_SETUP.md): the runbook for the Mac app; the morning in three steps, then the reference (the

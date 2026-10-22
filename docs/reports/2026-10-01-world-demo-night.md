@@ -1379,6 +1379,117 @@ Three developers at a time.
 
 `bd6a5b1`, 919 tests, the browser pass at 194 of 194.
 
+## Round 25: what remains of the enter, whose unread count, the documents a reader meets first (2026-10-22, afternoon)
+
+Three developers at a time.
+- **The enter, named to the function** (`tools/profile.mjs --enter`): at 4x it is two tasks, React's commit of the
+  inside UI (33 ms, half of it the scene's `setView`) and the first frame inside (32 to 34 ms, most of it three's first
+  draw). Kept, pixel-identical: the inside labels' template, desks and placements memoised per model, one media-query
+  list for the narrow hook. Moving every layout read out of React's commit moved the cost to the next reader and was
+  dropped.
+- **Whose unread count.** On `4cdcd383` an agent key's unread count is every message people ever wrote to it, since
+  agents cannot mark read; on `world/viewer-key` a viewer's count is taken against the installation owner's cursor. The
+  card says "7 unread in the owner's view", never a name, since loops names the owner to nobody but the owner.
+- **The documents a reader meets first.** The night report had stopped at round 18 and the introduction at round 17;
+  both were brought to round 24, with README, ARCHITECTURE and the runbook's top corrected and two pictures renewed.
+
+`359b638`, 919 tests, the browser pass at 194 of 194.
+
+## Round 26: a security review of the host, and a merge-day rehearsal (2026-10-22, late afternoon)
+
+Three developers at a time.
+- **The review, by a developer who had not built the host,** with a curl reproduction per finding against a host of
+  its own. What holds against a page on another site: DNS rebinding (the Host guard's 421), cross-site reads
+  (`SameSite=Strict` and the origin guard), CSRF (the required `Origin` and the JSON content type, whose pre-flight is
+  405), the allow-list (no traversal, no query smuggling), secrets (none in logs, bodies or the DOM), the chat frame's
+  sandbox. The soft spot is other programs on the same machine's loopback. Fixed: every cookie of the name is tried
+  (a longer-`Path` cookie from another port cannot lock the browser out); the dev-origin route proves the same user
+  with the host's 0600 run-file secret; a non-ASCII byte in a mint header no longer crashes the compare; the served
+  world sends `frame-ancestors 'self'`, `X-Frame-Options` and `nosniff`; a town is validated by the world-model's
+  validator before it is kept and the history is capped at 8 MB; a malformed slug in `archived.json` is dropped
+  instead of making every snapshot "loops down"; a short pairing secret file is replaced; the stream admits 64 tabs
+  then 503. Kept as questions for Nicky: whether other local programs the browser visits are in the threat model
+  (the pairing cookie goes to every loopback port), whether a pairing should expire, whether unpaired health should
+  say less, and whether the dev-origin route is still wanted after the viewer-key switch.
+- **The merge-day rehearsal.** On a throwaway branch from `origin/main`, `feat/world-demo` merged `--no-ff` with no
+  conflict (`main` is the merge base); CI's two steps green (`npm ci` with 0 warnings, `npm run check` 919 tests in
+  49 s), the full regress 212 of 212 in ten groups; the PR 806 files, 409 without the model JSON and the tests. One link
+  to change in the merge PR itself: the tour's "Read the introduction" names the branch. The PR body's first screen
+  still tells the first night only; a paragraph for the top was proposed.
+
+`4d635b6`, 929 tests, the browser pass at 194 of 194.
+
+## Round 27: a correctness review of the world's state code, per-tab pairing prepared, a two-hour soak (2026-10-22, evening)
+
+Three developers at a time.
+- **The review, by a developer who had not built the code,** with three proofs as failing tests. What holds: every
+  effect cleans up, every store is bounded, the host's town is read single file, the cursor and re-snapshot order are
+  right, reconnects never double a subscription, no leak. Fixed: an edit made while a read was on its way went up with
+  the browser's old town and overwrote another browser's work (now a conflict said plainly, never the stale town over
+  the host's); an edit during the retry read after coming back online was blamed on another browser; a stream that
+  stays open but silent after a sleep stayed Stale until a reload (now aborted and reopened at the cursor, at once
+  when the tab comes back); a host town the browser cannot read was silent; the world's own lot assignment became a
+  person's undo step (now `amend`). A second town-store bug found on the tab-pairing branch: a browser sent the host's
+  own town back as a new revision when the host came back at the revision it had left; one canonical sameness fixed it.
+  Kept as questions: should build mode wait for the host's town, should Connect stand over the scene, is offline
+  editing in two tabs of one browser a case to support.
+- **Per-tab pairing, prepared and unmerged** (`task/r27-tab-pairing`): the link's token in the URL fragment, a per-tab
+  bearer in `sessionStorage` sent in a header, no cookie and so no CSRF road, a new tab asking the open tabs over a
+  BroadcastChannel, an optional idle expiry of 30 days. A second tab goes Live by itself in about 330 ms. The
+  recommendation is in `docs/proposals/pairing-per-tab.md`; the decision is Nicky's.
+- **A two-hour soak** of one production page against the development loops with the seed as the only writer: the
+  heap after GC 24.2 to 25.0 MB throughout (about 0.24 MB an hour by a fitted line, most of it the inspector's own
+  records), geometries and textures flat, 23 upstream reconnects at loops' 300 s, nothing growing without bound; one
+  DOM excursion of 25 nodes that came back, named in round 29.
+
+`363dfac`, 937 tests, the browser pass at 194 of 194.
+
+## Round 28: the chat read only through two narrow roads (2026-10-22, late evening)
+
+crewhub-loops' review finding F8, two developers.
+- **The session road is gone**: no `POST`/`DELETE /world-api/session`, no stored cookie, no sign-in form in the
+  Connection panel; a leftover `loops-session` file is deleted once at start with one log line.
+- **Road 1, the host's viewer key,** reads only the chat of the person who made the key (loops main's `made_by`);
+  since loops names the maker to nobody, every word says "the person who made the key". Proven on loops main (8293):
+  crewy's reply reached the host's stream 22 ms after loops wrote it.
+- **Road 2, the page itself,** where loops has `CHL_WORLD_ORIGIN` set to the page's exact origin: `GET` on four routes
+  with the person's own cookie and no header of the page's own, a poll every 5 s shown and once a minute hidden,
+  nothing through the host, nothing kept. Proven on 8293 at `http://127.0.0.1:5283`, three runs: 0 OPTIONS, 0
+  Authorization, 0 off the four routes; signed out and from another origin, the honest words.
+- **The default**: road 1 when the host's key reads the chat, else road 2 when the page's probe answers, else the
+  honest line naming both ways out. On a loops without the origin set the browser prints one CORS line per probe,
+  every five minutes; the page cannot silence it.
+- `task/r19-viewer-switch` turned out tree-identical to `feat/world-demo` and is ready to retire.
+
+`bbefd43`, 953 tests, the browser pass at 193 of 193.
+
+## Round 29: loops main, road 2 reviewed, a fresh walk (2026-10-22 to 2026-10-23, past midnight)
+
+Three developers at a time.
+- **The `real` and `connect` groups against crewhub-loops main** (`--loops main`, 8293). Every difference main made
+  and what the world does with it: the viewer key and its routes; the public health read refused to a viewer key
+  (loops' version is now read keyless, the one real break); `expectViewer` on key registration (the world registers
+  none); `made_by`; `ticket=` on the events and the stream (a quiet stretch judged with one small read per candidate,
+  the paged read kept for an older loops); `includeArchived` for a viewer (the closed buildings from the list); the
+  sealed cursor's new shape; the viewer's stream and its pace of 600 requests a minute. 34 of 34 on main.
+- **An outside review of road 2** verified that no request ever carries a header of the page's own or an
+  Authorization, that nothing goes through the host, and that another origin and a signed-out browser get the honest
+  words. Fixed with a test each: a key accepted on the stream after a keyless start is asked whether it reads the chat;
+  the page picks no road from one early health read (`session: unknown` until the host knows, and health read again
+  when the stream goes live); loops' bubbles feature switched off (409) has its own words; a failed message read no
+  longer moves the cursor; one poll in flight; a message id seen twice shows once; no probe of the Mac app's 8091
+  without a named web origin; a remote loops is not probed. Kept as questions: one poller per tab or a shared lock,
+  the session word on the stream itself, "since this page opened" in Recent answers.
+- **A fresh person's walk of both roads** from a cold clone against loops main: road 2 Live 275 ms after the pairing
+  link and the mark 2.7 s after the reply (the 5 s poll); road 1 through loops' own Settings > Agents card, the key to
+  a 0600 file, Live 795 ms after the paste, the mark 132 ms after the reply. Three places where the docs and loops'
+  dialogs disagreed were fixed (the card's real buttons and key window, the existing-bot case, "New access key" and
+  "Access keys"), and the world's own Connect screen names those buttons.
+- **The soak's DOM excursion, named**: render churn, not a leak (the icon sprite's markup rewritten per render, three
+  media-query hooks re-subscribing); `tools/memory.mjs` now diffs the DOM when the count moves.
+
+`3d0c242`, 974 tests, the browser pass at 194 of 194.
+
 ## Challenges with docs/integrators
 
 Read at crewhub-loops `a1bed0f`. Each item names the document, what was unclear, contradictory, missing or marked
