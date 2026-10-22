@@ -1,4 +1,4 @@
-/* regress.mjs: the browser regression pass of the integrated world, in eight groups.
+/* regress.mjs: the browser regression pass of the integrated world, in ten groups.
 
    Usage:
      node tools/regress.mjs --port <port> [--groups connect,walk,demo,live,ops,rooms,real] [--host-port 5180] [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--cpu-throttle <rate>] [--tag pass] [--out <dir>] [--swiftshader]
