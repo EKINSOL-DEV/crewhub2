@@ -361,3 +361,29 @@ test("round 22: an amend derived while the host's town arrives is derived again 
   assert.ok(store.state.doc.plots.some((p) => p.slug === "web"));
   assert.deepEqual(host.town?.document.zones?.map((z) => z.id), ["east"], "the host's town still has its zone");
 });
+
+test("round 27: a host back at the revision this browser left it, with the town as it is here, gets no commit (an identical revision would eat the next undo)", async () => {
+  const empty = createTownStore({ context: CONTEXT, indexedDB: null }).state.doc;
+  const hosted = { ...plot(empty, "web", 1), zones: [{ id: "zone-1", name: "Zone 1", order: 0 }] } as TownDocument;
+  const host = fakeHost({ rev: 1, document: hosted });
+  const lines: string[] = [];
+  const local = createTownStore({ context: CONTEXT, indexedDB: null });
+  const store = createHostTownStore({ local, transport: host.transport, context: CONTEXT, onTown: host.onTown, retryMs: 15, log: (line) => lines.push(line) });
+  await store.load();
+  await store.commit({ ...store.state.doc, zones: [...(store.state.doc.zones ?? []), { id: "zone-2", name: "Zone 2", order: 1 }] } as TownDocument);
+  assert.equal(store.rev, 2);
+  const writesAfterEdit = host.writes.length;
+  // The host goes away; a person adds a zone and undoes it here (the browser's own steps while the host is away).
+  host.away = true;
+  await store.commit({ ...store.state.doc, zones: [...(store.state.doc.zones ?? []), { id: "zone-3", name: "Zone 3", order: 2 }] } as TownDocument);
+  assert.equal(store.rev, null);
+  await store.undo();
+  assert.deepEqual(store.state.doc.zones?.map((z) => z.id), ["zone-1", "zone-2"], "undone here: the town is the host's revision 2 again");
+  // The host answers again at revision 2, as this browser left it: nothing of ours is new, so nothing goes up.
+  host.away = false;
+  await new Promise((resolve) => setTimeout(resolve, 80));
+  assert.equal(store.rev, 2);
+  assert.deepEqual(host.writes.slice(writesAfterEdit).map((w) => [w.op, w.baseRev, w.document === null ? null : w.document.zones?.map((z) => z.id)]), [["commit", 2, ["zone-1", "zone-2", "zone-3"]]], `only the failed write of the away spell; the log: ${lines.join(" | ")}`);
+  assert.equal(host.town?.rev, 2, "the host's revision stands: an undo now takes Zone 2 away, not an identical copy");
+  assert.equal(store.state.storageNote, null);
+});

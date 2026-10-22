@@ -78,7 +78,14 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
   };
   local.subscribe(publish);
 
-  const same = (a: TownDocument, b: TownDocument) => JSON.stringify(a) === JSON.stringify(b);
+  /** The same town: the revision stamp aside (the browser's own count and the host's differ) and whatever the key order. */
+  const canonical = (value: unknown): string =>
+    Array.isArray(value)
+      ? `[${value.map(canonical).join(",")}]`
+      : value !== null && typeof value === "object"
+        ? `{${Object.keys(value as Record<string, unknown>).sort().map((k) => `${JSON.stringify(k)}:${canonical((value as Record<string, unknown>)[k])}`).join(",")}}`
+        : JSON.stringify(value) ?? "undefined";
+  const same = (a: TownDocument, b: TownDocument) => canonical({ ...a, revision: 0 }) === canonical({ ...b, revision: 0 });
 
   /** The host's `canUndo`/`canRedo` from an answer, when it carries them. */
   const readCan = (body: unknown) => {
@@ -164,7 +171,20 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
       if (typeof body?.rev === "number") {
         readCan(body);
         if (pending && knownRev !== null && body.rev === knownRev) {
-          // The host is back and nobody else wrote meanwhile: this browser's edits go up as the next revision.
+          // The host is back and nobody else wrote meanwhile: this browser's edits go up as the next revision. Unless the
+          // town here is the host's own (the change was undone, or recorded nothing new): an identical revision would
+          // be a step for nothing, and the next undo would take it instead of the person's last edit (round 27).
+          const theirs = validateTownDocument(body.document, context);
+          if (theirs.ok && same(theirs.value, local.state.doc)) {
+            log(`the host is back at revision ${knownRev}, where this browser left it, with the town as it is here: nothing to send`);
+            rev = knownRev;
+            pending = false;
+            pendingPerson = false;
+            note = null;
+            publish();
+            return;
+          }
+          log(`the host is back at revision ${knownRev}, where this browser left it: the change kept here goes up`);
           rev = knownRev;
           pending = false;
           pendingPerson = false;
@@ -266,6 +286,7 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
         }
       } else if (move !== null) doc = move.doc;
       if (rev === null) {
+        log(`${op} kept here: the host is away`);
         pending = true;
         if (byPerson) pendingPerson = true;
         return;
