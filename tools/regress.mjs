@@ -38,7 +38,7 @@
            director section tagged "scripted" on every line, off and on; a quick plan over the fake's events whose
            intents read "scripted director:"; the kill switch; no non-GET request from the page while it ran),
            Loops down after the fake closes, Live again
-           after a new fake on the same port, and, when the host has pairing, the pairing page without a cookie and
+           after a new fake on the same port, and, when the host has pairing, the pairing page without the bearer and
            the world after the one-time link. When `apps/world/dist` exists (after `npm run build`) the host serves
            it on a free port and the browser opens the host directly; otherwise the host listens on --host-port
            (default 5180, Vite's default proxy target) and the browser opens your Vite, which must have been started
@@ -116,7 +116,7 @@ import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { cli, dressed, launch, list, problemLines, seek, speed, watch } from "./lib/world.mjs";
+import { cli, dressed, launch, list, pairedTab, problemLines, seek, speed, watch } from "./lib/world.mjs";
 import { createConnectStub } from "./lib/connectStub.mjs";
 import { createLoopsWebStub } from "./lib/loopsWebStub.mjs";
 
@@ -854,7 +854,7 @@ await group("live", async () => {
   };
   try {
     if (pairing) {
-      // Without the cookie: the API refuses and the world asks to pair, naming the command and never the link. The
+      // Without the bearer: the API refuses and the world asks to pair, naming the command and never the link. The
       // refused request is a console error in the browser (it is what it is meant to be), so it is kept apart.
       const own = [];
       const bare = await openLive(own);
@@ -872,11 +872,12 @@ await group("live", async () => {
 
     const pg = await openLive();
     if (pairing) {
-      // Behind the Vite proxy the link must open on Vite's origin (it proxies /pair); on the host's own when it serves dist.
+      // Behind the Vite proxy the link must open on Vite's origin (the page exchanges the fragment's token at the proxied
+      // POST /world-api/pair); on the host's own when it serves dist. The tab keeps the bearer, the URL loses the token.
       const link = host.mintPairLink(served ? undefined : origin);
       await pg.goto(link);
-      await pg.waitForTimeout(500);
-      ok("pairing: the one-time link lands on /", new URL(pg.url()).pathname === "/" && new URL(pg.url()).origin === liveOrigin, new URL(pg.url()).pathname);
+      const stored = await pairedTab(pg).then(() => true, () => false);
+      ok("pairing: the one-time link lands on /, the token gone from the URL and the bearer in this tab's sessionStorage", stored && new URL(pg.url()).pathname === "/" && new URL(pg.url()).hash === "" && new URL(pg.url()).origin === liveOrigin, `${pg.url()}, stored ${stored}`);
     }
     await pg.goto(liveBase);
     await pg.waitForSelector("canvas", { timeout: 60000 }).catch(() => {});
@@ -996,8 +997,11 @@ await group("live", async () => {
     const phone = await browser.newContext({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true, colorScheme: "light" });
     const ph = await phone.newPage();
     watch(ph, liveOrigin, problems, "live phone");
-    // A new context has no pairing cookie: the phone pairs first, as the desktop page did.
-    if (pairing) await ph.goto(host.mintPairLink(served ? undefined : origin));
+    // A new context has no paired tab: the phone pairs first, as the desktop page did.
+    if (pairing) {
+      await ph.goto(host.mintPairLink(served ? undefined : origin));
+      await pairedTab(ph).catch(() => {});
+    }
     await ph.goto(liveBase);
     await ph.waitForSelector("canvas", { timeout: 60000 }).catch(() => {});
     await until(ph, "live", 20000);
@@ -1486,7 +1490,7 @@ await group("town", async () => {
     });
     if (typeof host.mintPairLink === "function") {
       await pg.goto(host.mintPairLink(served ? undefined : origin));
-      await pg.waitForTimeout(300);
+      await pairedTab(pg).catch(() => {});
     }
     await pg.goto(liveBase);
     await pg.waitForSelector(".connection-chip[data-connection=\"live\"]", { timeout: 30000 }).catch(() => {});
@@ -2046,12 +2050,13 @@ await group("connect", async () => {
     const hostApi = (p) => pg.request.get(`${origin}/world-api${p}`).then((r) => r.json());
     try {
       await pg.goto(host.mintPairLink(origin));
+      await pairedTab(pg).catch(() => {});
       const landed = new URL(pg.url());
       const connect = await screen(pg, "connect", 20000);
       const first = await hostApi("/health").catch(() => null);
       ok(
         "connect (8291): the one-time link lands on the Connect screen of a keyless host that found loops",
-        landed.pathname === "/" && landed.origin === origin && connect && first?.paired === true && first?.connection?.discovery?.state === "found" && first?.connection?.key?.state === "none",
+        landed.pathname === "/" && landed.hash === "" && landed.origin === origin && connect && first?.paired === true && first?.connection?.discovery?.state === "found" && first?.connection?.key?.state === "none",
         `${landed.pathname}; loops ${first?.connection?.discovery?.state} via ${first?.connection?.discovery?.via}, key ${first?.connection?.key?.state}`,
       );
       await shot(pg, "42-connect-real-connect");

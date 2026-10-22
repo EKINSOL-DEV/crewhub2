@@ -12,14 +12,14 @@
      429: the Stream busy chip, and the panel with the reason), older (a host from before the smooth connection).
      rejected-readonly exists only with --real (the stub knows no Read only bot); asking the stub for it is refused up front.
    --real: no stub; the host behind the Vite proxy is a real one (apps/host against crewhub-loops). Then --pair-link <url>
-     (one one-time link from `npm run host -- open --origin <vite origin> --no-open`; visited once, its cookie copied to
+     (one one-time link from `npm run host -- open --origin <vite origin> --no-open`; visited once, its bearer copied to
      every context) and --key-file <path> (the key pasted for the connected step; read here, typed into the field, never
      printed) are needed, and the states run in order on one page per theme and width: connect, pasted, invalid, rejected
      (a shaped key loops does not know), rejected-readonly (a real Read only bot's key from --readonly-key-file: the refusal
      must say to make a new bot with Read only off), connected, panel, forget (which hands the Connect screen back). With --states
      no-loops or pair (no pair link) the host must be in that state itself.
    Output in --out: <tag><state>-<theme>-<width>.png. Prints connectshots: <passed>/<total> last; exit 0 at full marks. */
-import { cli, launch, list, problemLines, watch } from "./lib/world.mjs";
+import { cli, launch, list, pairedTab, problemLines, watch } from "./lib/world.mjs";
 import { createConnectStub } from "./lib/connectStub.mjs";
 
 const STATES = ["no-loops", "pair", "connect", "pasted", "invalid", "checking", "rejected", "rejected-readonly", "loops-down", "connected", "panel", "forget", "busy", "busy-panel", "older"];
@@ -74,7 +74,8 @@ async function realRun() {
   const { readFileSync } = await import("node:fs");
   const realKey = opts["key-file"] ? readFileSync(opts["key-file"], "utf8").trim() : null;
   const readonlyKey = opts["readonly-key-file"] ? readFileSync(opts["readonly-key-file"], "utf8").trim() : null;
-  let cookies = null;
+  // Per-tab pairing (round 27): the first page opens the link and keeps the bearer; the later contexts start with it.
+  let bearer = null;
   const REAL_ORDER = ["no-loops", "pair", "connect", "pasted", "invalid", "rejected", "rejected-readonly", "connected", "panel", "forget"];
   const wanted = REAL_ORDER.filter((s) => states.includes(s));
   for (const theme of themes)
@@ -82,11 +83,12 @@ async function realRun() {
       const ctx = await browser.newContext({ ...viewport(width), deviceScaleFactor: 1, colorScheme: theme });
       const p = await ctx.newPage();
       watch(p, opts.origin, problems, `${theme} ${width}`);
-      if (opts["pair-link"] && cookies === null) {
+      if (opts["pair-link"] && bearer === null) {
         await p.goto(opts["pair-link"], { waitUntil: "load" });
-        cookies = await ctx.cookies();
-        ok("real: the one-time link paired this browser", cookies.length > 0, `${cookies.length} cookie(s)`);
-      } else if (cookies) await ctx.addCookies(cookies);
+        await pairedTab(p).catch(() => {});
+        bearer = await p.evaluate(() => sessionStorage.getItem("crewhub-world.pair"));
+        ok("real: the one-time link paired this tab", bearer !== null, bearer === null ? "no bearer in sessionStorage" : "the bearer is in sessionStorage");
+      } else if (bearer) await ctx.addInitScript((value) => sessionStorage.setItem("crewhub-world.pair", value), bearer);
       await p.goto(opts.base, { waitUntil: "load" });
       const tag = `${theme} ${width}`;
       for (const state of wanted) {

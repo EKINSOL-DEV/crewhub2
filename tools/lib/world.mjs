@@ -126,3 +126,9 @@ export const worldUrl = (base, stress, scenario, rooms = null, source = null) =>
   const query = params.toString();
   return `${base}${query ? `?${query}` : ""}`;
 };
+
+/** Waits until the page that opened a one-time pairing link (round 27: `/#pair=<token>`) has taken the token out of the
+    URL and keeps this tab's bearer in sessionStorage: from then on it is safe to navigate the tab elsewhere. */
+export async function pairedTab(page, timeout = 10000) {
+  await page.waitForFunction(() => window.location.hash === "" && window.sessionStorage.getItem("crewhub-world.pair") !== null, null, { timeout });
+}
