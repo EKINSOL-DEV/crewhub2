@@ -1175,8 +1175,9 @@ copy). A document is kept as the browser sent it, text, so an export is the same
 
 **The API** (`apps/host/src/allowList.ts`, local routes, paired and same-origin like `/connect`; the `Origin` header is
 required on the write):
-- `GET /world-api/town` → `200 {installation, rev, updatedAt, document}`; `404 no_town` when the host has none for this
-  installation; `503 no_loops` while the host has found no loops (a town belongs to an installation).
+- `GET /world-api/town` → `200 {installation, rev, updatedAt, document}`; `rev` 0 and `document` null when the host has
+  none for this installation yet (a first contact is no error in a browser's console); `503 no_loops` while the host has
+  found no loops (a town belongs to an installation).
 - `PUT /world-api/town {document, baseRev}` (`application/json`, 4 MB at most): the document must be an object of
   format `crewhub-town/1` (the browser validates the rest; the host keeps the text); `baseRev` must equal the host's
   current `rev` (0 to create) or the answer is `409 town_conflict {rev, document}` with the town as the host has it.
@@ -1185,7 +1186,7 @@ required on the write):
   browser that loses the race reloads the host's town and says so in plain words ("Another browser changed the town; your
   last change was not kept"); merging plots and placements is a later slice.
 - `GET /world-api/town/export` → the document text as a file (`crewhub-town-r<rev>.json`), the same format as build
-  mode's export.
+  mode's export; 404 while there is none.
 
 **The browser.** In live mode the town runtime wraps its IndexedDB store (the per-installation key of round 11, with
 round 11's one-time copy from the plain key) in a host-backed store: on load it reads the host's town; when the host

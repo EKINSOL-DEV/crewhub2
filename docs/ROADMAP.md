@@ -194,8 +194,10 @@ stays Nicky's eye (two mocks on a branch that is never merged).
 
 Everything below is planned and not built. Each item needs crewhub-loops running.
 
-- **World database.** SQLite with migrations and backup replaces the browser's
-  IndexedDB town document (phase 3 and 5 of the plan in live form).
+- **World database.** First slice built on 2026-10-22 (round 20, spec addendum "the world database, first
+  slice"): the host keeps the live town document per crewhub-loops installation in `world.db` (Node 24's
+  `node:sqlite`, migrations with a backup copy, an export), every paired browser shares it, the browser's
+  IndexedDB is the demo's store and the live fallback. Open: merging concurrent edits, more than the town in it.
 - **Real chat.** The bubbles talk to crewhub-loops as the person; this needs CORS
   for the CrewHub origin (proposal L8).
 - **Real director.** The `crewhub-world` CLI, the watcher and the `world-director`

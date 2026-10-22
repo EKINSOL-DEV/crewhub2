@@ -50,6 +50,10 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
   let retry: ReturnType<typeof setTimeout> | null = null;
   /** Writes go one after another, each on the revision the one before left. */
   let queue: Promise<unknown> = Promise.resolve();
+  /** A write is on its way: the host's `town` message for it must not start a refetch that races the answer. */
+  let writing = 0;
+  /** The newest revision the host announced while a write was on its way; looked at when the write is answered. */
+  let announced: number | null = null;
   const listeners = new Set<() => void>();
   const publish = () => {
     for (const listener of listeners) listener();
@@ -91,6 +95,7 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
     const answer = await transport.read();
     if (answer.status === 200) {
       const body = answer.body as { rev?: unknown; document?: unknown } | null;
+      if (body?.rev === 0 && (body.document === null || body.document === undefined)) return importOnce();
       if (typeof body?.rev === "number") {
         if (pending && knownRev !== null && body.rev === knownRev) {
           // The host is back and nobody else wrote meanwhile: this browser's edits go up as the next revision.
@@ -106,14 +111,21 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
         const taken = await adopt(body.document, body.rev, "read");
         if (!taken) return;
         // Edits made while the host was away meet a town another browser changed: the host's town wins, and it is said.
-        note = lost ? CONFLICT_NOTE : null;
+        // The imported note stays until the person's next edit; a refetch is no edit.
+        note = lost ? CONFLICT_NOTE : note === IMPORTED_NOTE ? note : null;
         publish();
         return;
       }
     }
-    if (answer.status === 404) {
-      // The host has no town for this installation: this browser's goes up once (baseRev 0). Another browser's import
-      // in between is a conflict, and the host's town wins, as the rule says.
+    if (answer.status === 404) return importOnce();
+    offline(`read answered ${answer.status}`);
+    note = null;
+    publish();
+  }
+
+  /** The host has no town for this installation: this browser's goes up once (baseRev 0). Another browser's import in between is a conflict, and the host's town wins, as the rule says. */
+  async function importOnce(): Promise<void> {
+    {
       const written = await transport.write(local.state.doc, 0);
       if (written.status === 200 && typeof (written.body as { rev?: unknown } | null)?.rev === "number") {
         rev = (written.body as { rev: number }).rev;
@@ -132,9 +144,6 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
       publish();
       return;
     }
-    offline(`read answered ${answer.status}`);
-    note = null;
-    publish();
   }
 
   async function conflict(answer: HostAnswer): Promise<void> {
@@ -147,23 +156,31 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
     publish();
   }
 
-  /** Sends `doc` as the next revision; a conflict takes the host's town; no answer goes offline and keeps the change here. */
-  function push(doc: TownDocument): Promise<void> {
+  /** Sends `doc` as the next revision; a conflict takes the host's town; no answer goes offline and keeps the change here. `byPerson` (a commit, an undo, a redo) also clears an old note. */
+  function push(doc: TownDocument, byPerson = false): Promise<void> {
     const run = async () => {
       if (rev === null) {
         pending = true;
         return;
       }
-      const answer = await transport.write(doc, rev);
+      writing += 1;
+      let answer: HostAnswer;
+      try {
+        answer = await transport.write(doc, rev);
+      } finally {
+        writing -= 1;
+      }
       if (answer.status === 200 && typeof (answer.body as { rev?: unknown } | null)?.rev === "number") {
         rev = (answer.body as { rev: number }).rev;
         knownRev = rev;
-        if (note === CONFLICT_NOTE || note === IMPORTED_NOTE) note = null;
+        if (byPerson && (note === CONFLICT_NOTE || note === IMPORTED_NOTE)) note = null;
         publish();
+        settle();
         return;
       }
       if (answer.status === 409) {
         await conflict(answer);
+        settle();
         return;
       }
       pending = true;
@@ -174,10 +191,22 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
     return queue as Promise<void>;
   }
 
-  const stopTown = options.onTown?.((hostRev) => {
+  /** The host's word that the town changed: refetched unless it is a revision this browser already has or is writing. */
+  const heard = (hostRev: number) => {
     if (rev !== null && hostRev <= rev) return;
+    if (writing > 0) {
+      announced = Math.max(announced ?? 0, hostRev);
+      return;
+    }
     void sync();
-  });
+  };
+  const stopTown = options.onTown?.(heard);
+  /** After a write: a revision announced meanwhile that is newer than ours is fetched now. */
+  const settle = () => {
+    const seen = announced;
+    announced = null;
+    if (seen !== null && writing === 0) heard(seen);
+  };
 
   const store = {
     get rev() {
@@ -199,7 +228,7 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
     sync,
     async commit(doc) {
       const current = await local.commit(doc);
-      await push(current);
+      await push(current, true);
       return local.state.doc;
     },
     async amend(update) {
@@ -210,12 +239,12 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
     },
     async undo() {
       const current = await local.undo();
-      await push(current);
+      await push(current, true);
       return local.state.doc;
     },
     async redo() {
       const current = await local.redo();
-      await push(current);
+      await push(current, true);
       return local.state.doc;
     },
     subscribe(listener) {

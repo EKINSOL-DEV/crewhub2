@@ -849,7 +849,8 @@ export async function createHost(options: HostOptions): Promise<Host> {
 
   /**
    * `GET` and `PUT /world-api/town` (round 20, the world database): the installation's town document. A town belongs to
-   * an installation, so without a loops found there is none to name (503). `PUT {document, baseRev}` from a paired
+   * an installation, so without a loops found there is none to name (503); a host that has none yet answers revision 0
+   * and no document. `PUT {document, baseRev}` from a paired
    * browser on an allowed origin writes a revision over `baseRev` (0 creates); another browser's revision in between is
    * a 409 with the town as the host has it, never an overwrite. A written revision goes to every tab on the stream as
    * `{type: "town", rev}`. `GET /world-api/town/export` is the document as a file, build mode's format.
@@ -872,7 +873,10 @@ export async function createHost(options: HostOptions): Promise<Host> {
       req.resume();
       const held = db.getTown(installation);
       if (held === null) {
-        sendJson(res, 404, { error: "no_town", installation });
+        // No town yet is a normal first contact, not an error: 200 with revision 0 and no document (a 404 would be a
+        // console error in every browser that meets a fresh host); the export of nothing stays a 404.
+        if (exportFile) sendJson(res, 404, { error: "no_town", installation });
+        else sendJson(res, 200, { installation, rev: 0, updatedAt: null, document: null });
         return;
       }
       if (exportFile) {

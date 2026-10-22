@@ -39,12 +39,15 @@ describe("the town routes", () => {
   const put = (body: unknown, headers: Record<string, string> = {}) =>
     fetch(`${host!.url}/world-api/town`, { method: "PUT", headers: { origin: host!.url, "content-type": "application/json", ...headers }, body: typeof body === "string" ? body : JSON.stringify(body) });
 
-  it("no town is 404 with the installation; a create, a read, an export and the revision check", async () => {
+  it("no town yet is revision 0 with the installation (no error); a create, a read, an export and the revision check", async () => {
     await start();
     const none = await get("/town");
-    assert.equal(none.status, 404);
-    const key = ((await none.json()) as { installation: string }).installation;
+    assert.equal(none.status, 200);
+    const empty = (await none.json()) as { installation: string; rev: number; document: unknown; updatedAt: unknown };
+    assert.deepEqual([empty.rev, empty.document, empty.updatedAt], [0, null, null]);
+    const key = empty.installation;
     assert.match(key, /^127\.0\.0\.1-\d+$/, "the installation is the loops web app's host and port");
+    assert.equal((await get("/town/export")).status, 404, "the export of nothing is a 404");
     const created = await put({ document: DOC(0), baseRev: 0 });
     assert.deepEqual([created.status, await created.json()], [200, { ok: true, rev: 1 }]);
     const read = await get("/town");

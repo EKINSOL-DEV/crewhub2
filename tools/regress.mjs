@@ -121,7 +121,7 @@ import { createConnectStub } from "./lib/connectStub.mjs";
 import { createLoopsWebStub } from "./lib/loopsWebStub.mjs";
 
 // The connect group first: the connection is the first priority, so a default pass fails on it first.
-const GROUPS = ["connect", "walk", "demo", "live", "ops", "chat", "rooms", "real"];
+const GROUPS = ["connect", "walk", "demo", "live", "town", "ops", "chat", "rooms", "real"];
 const USAGE = "node tools/regress.mjs --port <port> [--groups walk,demo,live,ops,chat,connect,rooms,real] [--host-port 5180] [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--cpu-throttle <rate>] [--tag pass] [--out <dir>] [--swiftshader]";
 const opts = cli(USAGE, { options: { tag: "pass", groups: GROUPS.join(","), "host-port": "5180", "loops-env": "", "loops-socket": "", "loops-app-data": "", "cpu-throttle": "1" } });
 const cpuThrottle = Number(opts["cpu-throttle"]);
@@ -135,7 +135,7 @@ const { tag, out: OUT, base: BASE, origin } = opts;
 // old world, and a build is yours to make, not this tool's (it would change your tree while a host of yours may be
 // serving the dist). `distFresh` is the one-line verdict for the groups' INFO line.
 const DIST = path.join(REPO, "apps", "world", "dist");
-const DIST_SERVED = ["live", "chat", "ops"].some((name) => groups.includes(name)) && existsSync(path.join(DIST, "index.html"));
+const DIST_SERVED = ["live", "chat", "ops", "town"].some((name) => groups.includes(name)) && existsSync(path.join(DIST, "index.html"));
 let distFresh = "";
 if (DIST_SERVED) {
   const { checkBuild, clock, describeStale } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "build.ts")).href);
@@ -1315,6 +1315,117 @@ await group("chat", async () => {
     await fake2.close().catch(() => {});
     await web2.close().catch(() => {});
     rmSync(keyDir, { recursive: true, force: true });
+  }
+});
+
+await group("town", async () => {
+  // The world database (round 20): the host keeps the live town per installation in world.db. Two paired browsers on one
+  // host see one town (a zone made in one appears in the other through the stream's `town` message); a host restart on
+  // the same database keeps it; a browser with an older town of its own imports it once into a host that has none.
+  const { createLoopsFake } = await import(pathToFileURL(path.join(REPO, "packages", "loops-fake", "src", "index.ts")).href);
+  const { createHost } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "host.ts")).href);
+  const { openWorldDb } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "worldDb.ts")).href);
+  const { mkdtempSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const dist = DIST;
+  const served = DIST_SERVED;
+  const hostPort = Number(opts["host-port"]);
+  if (!served && (!Number.isInteger(hostPort) || hostPort <= 0)) opts.fail("--host-port <port> must be a port number");
+  const fake = await createLoopsFake({ heartbeatMs: 1000 });
+  // One pairing secret for every host of this group, so a restart keeps the browsers paired; two databases: the first
+  // host's, left behind, and the one the rest of the group runs on.
+  const pairingSecret = randomBytes(32);
+  const dbs = [openWorldDb(mkdtempSync(path.join(tmpdir(), "chw-town-a-"))), openWorldDb(mkdtempSync(path.join(tmpdir(), "chw-town-b-")))];
+  const base = { loopsUrl: fake.url, key: fake.key, keyName: fake.keyName, retryMs: { min: 100, max: 500 }, reconnectMs: { min: 100, max: 300 }, heartbeatMs: 1000, log: () => undefined, pairingSecret };
+  const start = (worldDb, port) => createHost(served ? { ...base, worldDb, staticDir: dist, ...(port ? { port } : {}) } : { ...base, worldDb, port: hostPort, allowedOrigins: [origin] });
+  let host = await start(dbs[0]);
+  const port = host.port;
+  const liveOrigin = served ? host.url : origin;
+  const liveBase = `${liveOrigin}/`;
+  info(`town: fake on 127.0.0.1:${fake.port}, host on 127.0.0.1:${port} ${served ? "serving apps/world/dist" : `behind the Vite proxy on ${origin}`}; databases ${dbs.map((d) => d.file).join(" and ")}`);
+  const contexts = [];
+  const openPaired = async () => {
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
+    contexts.push(ctx);
+    const pg = await ctx.newPage();
+    watch(pg, liveOrigin, problems, "town");
+    if (typeof host.mintPairLink === "function") {
+      await pg.goto(host.mintPairLink(served ? undefined : origin));
+      await pg.waitForTimeout(300);
+    }
+    await pg.goto(liveBase);
+    await pg.waitForSelector(".connection-chip[data-connection=\"live\"]", { timeout: 30000 }).catch(() => {});
+    await pg.waitForTimeout(1500);
+    return pg;
+  };
+  const zoneLines = async (pg) => (await text(pg)).split("\n").filter((l) => /^Zone \d+ \(/.test(l));
+  const townRow = async (pg) => {
+    await pg.locator(".connection-chip").first().click().catch(() => {});
+    await pg.waitForSelector(".connection-sheet", { timeout: 5000 }).catch(() => {});
+    const row = (await pg.locator(".connection-town").innerText().catch(() => "")).replace(/\s+/g, " ").trim();
+    await pg.keyboard.press("Escape");
+    await pg.waitForTimeout(200);
+    return row;
+  };
+  const addZone = async (pg) => {
+    await canvas(pg).focus();
+    await pg.keyboard.press("b");
+    await pg.waitForTimeout(800);
+    await pg.locator(".build-sheet").getByRole("button", { name: "Add a zone" }).click();
+    await pg.waitForTimeout(800);
+    await pg.keyboard.press("Escape");
+    await pg.waitForTimeout(400);
+  };
+  const hostTown = async (pg) => {
+    const r = await pg.request.get(`${liveOrigin}/world-api/town`).catch(() => null);
+    const body = r ? await r.json().catch(() => null) : null;
+    return { status: r ? r.status() : 0, rev: body?.rev ?? null, zones: (body?.document?.zones ?? []).map((z) => z.id) };
+  };
+  try {
+    // 1. A first browser on a host whose database is empty: its empty town goes up once, a zone made here is the host's.
+    const first = await openPaired();
+    const before = await townRow(first);
+    await addZone(first);
+    const made = await hostTown(first);
+    ok("town: the Connection panel says the host keeps the town, and a zone made here is on the host", /^Kept by the world's host for this crewhub-loops, shared by every paired browser\./.test(before) && made.status === 200 && made.zones.includes("zone-1"), `${before.slice(0, 90)} | host: ${made.status} rev ${made.rev} zones ${made.zones.join(",")}`);
+    await shot(first, "31-town-host");
+
+    // 2. The host goes away and comes back on the same port with a database that has no town: the browser's own town
+    // (kept in IndexedDB under the installation's key) is imported once, and the host now has the zone.
+    await host.close();
+    host = await start(dbs[1], port);
+    await first.reload();
+    await first.waitForSelector(".connection-chip[data-connection=\"live\"]", { timeout: 30000 }).catch(() => {});
+    await first.waitForTimeout(2500);
+    const imported = await hostTown(first);
+    const note = await townRow(first);
+    ok("town: a browser with an older town of its own imports it once into a host that has none", imported.status === 200 && imported.rev === 1 && imported.zones.includes("zone-1") && /sent to the world's host once/.test(note), `host: ${imported.status} rev ${imported.rev} zones ${imported.zones.join(",")} | ${note.slice(0, 120)}`);
+
+    // 3. A second paired browser sees the same town; a zone made there reaches the first through the stream.
+    const second = await openPaired();
+    const seenBySecond = await zoneLines(second);
+    await addZone(second);
+    await first.waitForTimeout(2500);
+    const seenByFirst = await zoneLines(first);
+    const again = await hostTown(second);
+    ok("town: two browsers on one host see one town; a zone made in one appears in the other", seenBySecond.some((l) => l.startsWith("Zone 1 (")) && seenByFirst.some((l) => l.startsWith("Zone 2 (")) && /kept by the world's host/.test(seenByFirst.join(" ")) && again.rev >= 2, `second saw ${seenBySecond.length} zone line(s); first now ${seenByFirst.map((l) => l.slice(0, 7)).join(", ")}; host rev ${again.rev}`);
+    await shot(second, "32-town-second");
+
+    // 4. A host restart on the same database keeps the town.
+    await host.close();
+    host = await start(dbs[1], port);
+    await first.reload();
+    await first.waitForSelector(".connection-chip[data-connection=\"live\"]", { timeout: 30000 }).catch(() => {});
+    await first.waitForTimeout(2500);
+    const kept = await zoneLines(first);
+    const row = await townRow(first);
+    ok("town: a host restart keeps the town", kept.some((l) => l.startsWith("Zone 1 (")) && kept.some((l) => l.startsWith("Zone 2 (")) && /^Kept by the world's host/.test(row), `${kept.map((l) => l.slice(0, 7)).join(", ")} | ${row.slice(0, 80)}`);
+    await shot(first, "33-town-restart");
+  } finally {
+    for (const ctx of contexts) await ctx.close().catch(() => {});
+    await host.close().catch(() => {});
+    await fake.close().catch(() => {});
+    for (const db of dbs) db.close();
   }
 });
 

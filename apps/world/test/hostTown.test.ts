@@ -29,7 +29,7 @@ function fakeHost(initial: { rev: number; document: TownDocument } | null = null
       async read(): Promise<HostAnswer> {
         host.reads += 1;
         if (host.away) return { status: 0, body: null };
-        return host.town === null ? { status: 404, body: { error: "no_town" } } : { status: 200, body: { installation: "i", rev: host.town.rev, updatedAt: "t", document: host.town.document } };
+        return host.town === null ? { status: 200, body: { installation: "i", rev: 0, updatedAt: null, document: null } } : { status: 200, body: { installation: "i", rev: host.town.rev, updatedAt: "t", document: host.town.document } };
       },
       async write(document: TownDocument, baseRev: number): Promise<HostAnswer> {
         host.writes.push({ baseRev, document });
@@ -87,13 +87,18 @@ test("a host without a town takes this browser's once; a host with one is never 
   assert.deepEqual(host.writes.map((w) => [w.baseRev, w.document.plots[0]?.slug]), [[0, "mine"]], "imported once with baseRev 0");
   assert.equal(store.rev, 1);
   assert.equal(store.state.storageNote, IMPORTED_NOTE);
+  // The world's own amends (a lot for a new building) keep the note; the person's next edit clears it.
+  await store.amend((d) => plot(d, "allocated", 6));
+  assert.equal(store.state.storageNote, IMPORTED_NOTE);
+  await store.commit(plot(store.state.doc, "edited", 7));
+  assert.equal(store.state.storageNote, null);
   // A second browser with an older local town meets a host that has one: the host's wins, nothing is imported.
   const other = fakeHost({ rev: 1, document: host.town!.document });
   const second = make(other);
   await second.local.load();
   await second.local.commit(plot(second.local.state.doc, "theirs", 9));
   const doc = await second.store.load();
-  assert.deepEqual(doc.plots.map((p) => p.slug), ["mine"]);
+  assert.deepEqual(doc.plots.map((p) => p.slug), ["mine", "allocated", "edited"]);
   assert.deepEqual(other.writes, [], "no import over a town the host has");
   assert.equal(second.store.rev, 1);
   // Two browsers racing to import: the second one's baseRev 0 is a conflict, and it takes the host's town.
@@ -101,7 +106,7 @@ test("a host without a town takes this browser's once; a host with one is never 
   const r = make(race);
   await r.local.load();
   await r.local.commit(plot(r.local.state.doc, "late", 5));
-  race.transport.read = async () => ({ status: 404, body: { error: "no_town" } });
+  race.transport.read = async () => ({ status: 200, body: { installation: "i", rev: 0, updatedAt: null, document: null } });
   race.town = { rev: 1, document: plot(createTownStore({ context: CONTEXT, indexedDB: null }).state.doc, "first", 1) };
   const taken = await r.store.load();
   assert.deepEqual(taken.plots.map((p) => p.slug), ["first"]);
