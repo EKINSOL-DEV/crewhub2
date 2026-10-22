@@ -33,13 +33,15 @@
    When the DOM node count moved since the last sample (round 29), the sample is followed by one line naming what
    changed in the document tree: the nodes added and removed (an element by tag, classes, label and the nearest named
    landmark; a text node by its parent), grouped with counts, at most six entries (lib/domdiff.ts; the point's
-   `domDiff` field in --json holds the same entries). A count that moves while the line says nothing changed is nodes
-   outside the document tree: another document or a detached tree JS holds.
+   `domDiff` field in --json holds the same entries). A count that moves while the tree is unchanged is nodes outside
+   the document tree, so the line also says the documents count when it moved (an SVG image or a parsed string is a
+   document of its own) and the detached trees the inspector lists (DOM.getDetachedDomNodes: each by its root and
+   its node count).
    Same browser set-up as perf.mjs: GPU-backed headless Chromium, 1440 x 900, DPR 1, Pretty, light. --json writes the
    points, the growth and the snapshot totals (a bare file name lands in --out). */
 import { writeFileSync } from "node:fs";
 import path from "node:path";
-import { capDomDiff, domDiff, domInventory, formatDomDiff } from "./lib/domdiff.ts";
+import { capDomDiff, describeDetached, domDiff, domInventory, formatDomDiff } from "./lib/domdiff.ts";
 import { formatRows, growth as heapGrowth, heapTotals, mb as heapMb, topBySize } from "./lib/heap.mjs";
 import { LIVE_OPTIONS, LIVE_USAGE, startLive } from "./lib/live.mjs";
 import { castChoice, cli, launch, speed, store, worldUrl } from "./lib/world.mjs";
@@ -142,10 +144,14 @@ for (let t = 0; t <= minutes * 60; t += every) {
   let domLine = "";
   if (lastDom !== null && inventory !== null && lastDom.inventory !== null && dom.nodes !== lastDom.nodes) {
     const diff = capDomDiff(domDiff(lastDom.inventory, inventory), 6);
-    point.domDiff = diff;
-    domLine = `\n  dom ${lastDom.nodes} -> ${dom.nodes}: ${formatDomDiff(diff)}`;
+    // Nodes alive outside the document tree: the detached trees the inspector can list, and the documents count
+    // (an SVG image or a parsed string is a document of its own).
+    const detached = await cdp.send("DOM.getDetachedDomNodes").then((r) => describeDetached(r.detachedNodes, 4)).catch(() => []);
+    point.domDiff = { ...diff, documents: dom.documents, detached };
+    const documents = dom.documents !== lastDom.documents ? ` (documents ${lastDom.documents} -> ${dom.documents})` : "";
+    domLine = `\n  dom ${lastDom.nodes} -> ${dom.nodes}${documents}: ${formatDomDiff(diff)}${detached.length > 0 ? `; detached: ${detached.join(", ")}` : ""}`;
   }
-  lastDom = { nodes: dom.nodes, inventory };
+  lastDom = { nodes: dom.nodes, documents: dom.documents, inventory };
   points.push(point);
   const frame = perf ? `  frame ${perf.frameMean.toFixed(1)}/${perf.frameP95.toFixed(1)} ms work ${perf.workMean.toFixed(1)}` : "";
   const soak = live ? `  ${chip ?? "no chip"}  upstream ${upstream ? `${upstream.state} r${upstream.reconnects}` : "?"}${stores ? `  said ${stores.said} answers ${stores.answers} threads ${stores.threads ?? "-"} rev ${stores.docRevision}/${stores.hostRev ?? "-"}` : ""}` : "";

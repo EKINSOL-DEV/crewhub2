@@ -4,7 +4,7 @@
    that answers only what the function asks of the DOM (no browser here). */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { capDomDiff, domDiff, domInventory, formatDomDiff } from "../../tools/lib/domdiff.ts";
+import { capDomDiff, describeDetached, domDiff, domInventory, formatDomDiff, type DetachedNode } from "../../tools/lib/domdiff.ts";
 
 interface Fake {
   nodeType: number;
@@ -102,4 +102,16 @@ test("capDomDiff and formatDomDiff: a few entries, the added ones first, the res
   assert.deepEqual(tight.removed, []);
   assert.equal(tight.more, 5);
   assert.equal(formatDomDiff(domDiff(["a in x"], ["a in x"])), "nodes 0, nothing in the document tree added or removed");
+});
+
+test("describeDetached: each detached tree by its root and its node count, capped", () => {
+  const node = (nodeName: string, attributes: string[] = [], children: DetachedNode[] = [], nodeType = 1): DetachedNode => ({ nodeName, nodeType, attributes, children });
+  const toast = node("DIV", ["class", "toast warn big wide", "aria-label", "Catching up"], [
+    node("SPAN", ["class", "t"], [node("#text", [], [], 3)]),
+    node("svg", ["class", "icon"], [node("path", ["d", "M0 0"])]),
+  ]);
+  const img = node("IMG", ["src", "data:image/svg+xml,..."]);
+  assert.deepEqual(describeDetached([{ treeNode: toast }, { treeNode: img }]), ["div.toast.warn.big[Catching up] (5 nodes)", "img (1 nodes)"]);
+  assert.deepEqual(describeDetached([{ treeNode: img }, { treeNode: img }, { treeNode: img }], 2), ["img (1 nodes)", "img (1 nodes)", "and 1 more trees"]);
+  assert.deepEqual(describeDetached([]), []);
 });

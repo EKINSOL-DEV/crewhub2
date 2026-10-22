@@ -94,6 +94,43 @@ export function capDomDiff(diff: DomDiff, cap = 6): DomDiff {
   return { nodes: diff.nodes, added, removed, more: diff.more + diff.added.length - added.length + diff.removed.length - removed.length };
 }
 
+/** A node as CDP's `DOM.getDetachedDomNodes` describes it (the fields read here). */
+export interface DetachedNode {
+  nodeName: string;
+  nodeType: number;
+  attributes?: string[];
+  children?: DetachedNode[];
+}
+
+/** One line per detached tree the inspector holds: its root by tag, classes and label, and how many nodes hang
+    from it. Nodes outside the document tree that still live are these (a toast a timer holds, an image a loader
+    holds) or another document (an SVG image, a parsed string), which the counters' `documents` tells apart. */
+export function describeDetached(trees: { treeNode: DetachedNode }[], cap = 4): string[] {
+  const attribute = (node: DetachedNode, name: string): string | null => {
+    const list = node.attributes ?? [];
+    for (let i = 0; i + 1 < list.length; i += 2) if (list[i] === name) return list[i + 1] ?? null;
+    return null;
+  };
+  const describe = (node: DetachedNode): string => {
+    if (node.nodeType !== 1) return node.nodeName.toLowerCase();
+    const classes = (attribute(node, "class") ?? "")
+      .split(/\s+/)
+      .filter((c) => c !== "")
+      .slice(0, 3)
+      .map((c) => `.${c}`)
+      .join("");
+    const id = attribute(node, "id");
+    const label = attribute(node, "aria-label") ?? attribute(node, "data-anchor") ?? attribute(node, "role") ?? attribute(node, "title");
+    const short = label === null ? "" : `[${label.length > 40 ? `${label.slice(0, 39)}…` : label}]`;
+    return `${node.nodeName.toLowerCase()}${id === null || id === "" ? "" : `#${id}`}${classes}${short}`;
+  };
+  const size = (node: DetachedNode): number => 1 + (node.children ?? []).reduce((sum, child) => sum + size(child), 0);
+  const lines = trees.map(({ treeNode }) => `${describe(treeNode)} (${size(treeNode)} nodes)`);
+  const kept = lines.slice(0, cap);
+  if (lines.length > cap) kept.push(`and ${lines.length - cap} more trees`);
+  return kept;
+}
+
 /** One line: the node delta, then each entry as `+3 span.rule-tag in div.anchor[...]`, and how many were left out. */
 export function formatDomDiff(diff: DomDiff): string {
   const sign = (n: number): string => (n > 0 ? `+${n}` : String(n));
