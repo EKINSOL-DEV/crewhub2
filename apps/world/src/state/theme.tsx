@@ -1,5 +1,6 @@
 /* Theme: system | light | dark on <html data-theme>, stored in this browser's localStorage. */
 import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
+import { whenIdle } from "./idle";
 
 export type Theme = "system" | "light" | "dark";
 const STORAGE_KEY = "crewhub-theme";
@@ -48,14 +49,15 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useLayoutEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
-    // The browser chrome follows a frame later: a 2D canvas and a computed style are not for the first render's path.
-    const frame = requestAnimationFrame(syncThemeColor);
-    if (theme !== "system") return () => cancelAnimationFrame(frame);
+    // The browser chrome follows when the page is idle (within two seconds): a 2D canvas and a computed style are
+    // not for the road to the first frame, where a frame callback put them (round 22: 18 ms of it at a phone's 4x).
+    const cancel = whenIdle(syncThemeColor);
+    if (theme !== "system") return cancel;
     /* With `system` the resolved colour follows the OS scheme. */
     const query = window.matchMedia("(prefers-color-scheme: dark)");
     query.addEventListener("change", syncThemeColor);
     return () => {
-      cancelAnimationFrame(frame);
+      cancel();
       query.removeEventListener("change", syncThemeColor);
     };
   }, [theme]);
