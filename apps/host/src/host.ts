@@ -857,15 +857,19 @@ export async function createHost(options: HostOptions): Promise<Host> {
    */
   async function town(req: IncomingMessage, res: ServerResponse, exportFile: boolean): Promise<void> {
     const db = options.worldDb;
+    // A read that cannot be answered yet is no error in a browser's console: 200 with no revision and the reason; a
+    // write in that state is refused with the same reason.
     if (db === undefined) {
       req.resume();
-      sendJson(res, 503, { error: "no_world_db", message: "This host keeps no world database; the town stays in the browser." });
+      if (req.method === "GET" && !exportFile) sendJson(res, 200, { installation: null, rev: null, document: null, reason: "no_world_db" });
+      else sendJson(res, 503, { error: "no_world_db", message: "This host keeps no world database; the town stays in the browser." });
       return;
     }
     const found = discovery.current();
     if (found === null) {
       req.resume();
-      sendJson(res, 503, { error: "no_loops", message: "crewhub-loops is not found yet, so the town has no installation to belong to." });
+      if (req.method === "GET" && !exportFile) sendJson(res, 200, { installation: null, rev: null, document: null, reason: "no_loops" });
+      else sendJson(res, 503, { error: "no_loops", message: "crewhub-loops is not found yet, so the town has no installation to belong to." });
       return;
     }
     const installation = installationKey(loopsWebUrl());

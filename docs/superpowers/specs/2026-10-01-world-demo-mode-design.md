@@ -1176,8 +1176,9 @@ copy). A document is kept as the browser sent it, text, so an export is the same
 **The API** (`apps/host/src/allowList.ts`, local routes, paired and same-origin like `/connect`; the `Origin` header is
 required on the write):
 - `GET /world-api/town` → `200 {installation, rev, updatedAt, document}`; `rev` 0 and `document` null when the host has
-  none for this installation yet (a first contact is no error in a browser's console); `503 no_loops` while the host has
-  found no loops (a town belongs to an installation).
+  none for this installation yet (a first contact is no error in a browser's console); `rev` null with a `reason`
+  (`no_loops` while the host has found no loops, since a town belongs to an installation; `no_world_db` on a host that
+  could not open its database) and the browser keeps its town; a write in those states is 503 with the reason.
 - `PUT /world-api/town {document, baseRev}` (`application/json`, 4 MB at most): the document must be an object of
   format `crewhub-town/1` (the browser validates the rest; the host keeps the text); `baseRev` must equal the host's
   current `rev` (0 to create) or the answer is `409 town_conflict {rev, document}` with the town as the host has it.

@@ -90,7 +90,7 @@ describe("the world database", () => {
 
   it("keys an installation like the browser does, and this Node prints no warning for node:sqlite", () => {
     assert.equal(installationKey("http://127.0.0.1:8091"), "127.0.0.1-8091");
-    assert.equal(installationKey("https://Loops.Example.org/"), "loops.example.org");
+    assert.equal(installationKey("http://localhost:8291/"), "localhost-8291");
     assert.throws(() => installationKey("http://"), /no host|Invalid URL/);
     const said: string[] = [];
     const stop = explainSqliteWarning((l) => said.push(l));

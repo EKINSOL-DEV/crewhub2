@@ -51,8 +51,9 @@ smooth connection" below):
   form, the `signed-out`/`signed-in`/`expired` states, the regress chat group's session half); the plan is in `session.ts`'s header.
 - **Town** (round 20, the world database, spec addendum "the world database, first slice"): `GET /world-api/town`
   answers the installation's town document `{installation, rev, updatedAt, document}` (`rev` 0 and `document` null when
-  the host has none yet: a first contact is no error; 503 `no_loops` until a loops is found, since a town belongs to an
-  installation; 503 `no_world_db` on a host that could not open its database). `PUT /world-api/town {document, baseRev}` (a paired browser on an allowed origin,
+  the host has none yet: a first contact is no error; `rev` null with `reason` `no_loops` until a loops is found, since a
+  town belongs to an installation, or `no_world_db` on a host that could not open its database; a write in those states
+  is 503 with the same reason). `PUT /world-api/town {document, baseRev}` (a paired browser on an allowed origin,
   `application/json`, 4 MB at most, the document of format `crewhub-town/1`) writes a revision over `baseRev` (0
   creates) and answers `{rev}`; another browser's revision in between is `409 town_conflict {rev, document}` with the
   town as the host has it, never an overwrite; every tab hears `{type: "town", rev}` on the stream and refetches.

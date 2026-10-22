@@ -34,6 +34,7 @@ export const KEPT_BY_HOST = "kept by the world's host for this crewhub-loops, sh
 export const KEPT_UNTIL_BACK = "kept in this browser until the host is back";
 export const CONFLICT_NOTE = "Another browser changed the town; your last change was not kept and the host's town was loaded.";
 export const IMPORTED_NOTE = "This browser's town was sent to the world's host once; from now on the host keeps it.";
+export const NO_DB_NOTE = "This host keeps no world database (it could not open world.db), so the town stays in this browser.";
 
 export function createHostTownStore(options: HostTownOptions): TownStore & { readonly rev: number | null; sync(): Promise<void> } {
   const { local, transport, context } = options;
@@ -94,7 +95,14 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
     await local.load();
     const answer = await transport.read();
     if (answer.status === 200) {
-      const body = answer.body as { rev?: unknown; document?: unknown } | null;
+      const body = answer.body as { rev?: unknown; document?: unknown; reason?: unknown } | null;
+      if (body?.rev === null) {
+        // The host answers but keeps no town yet: no database, or no loops found (a town belongs to an installation).
+        offline(typeof body.reason === "string" ? body.reason : "no revision");
+        note = body.reason === "no_world_db" ? NO_DB_NOTE : null;
+        publish();
+        return;
+      }
       if (body?.rev === 0 && (body.document === null || body.document === undefined)) return importOnce();
       if (typeof body?.rev === "number") {
         if (pending && knownRev !== null && body.rev === knownRev) {
