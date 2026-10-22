@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { AgentLane, Envelope } from "@crewhub/loops-client";
-import { agentCardFacts, chatFacts, computerFacts, laneFacts, RECENT_LIMIT } from "../src/agentCard.ts";
+import { agentCardFacts, chatFacts, computerFacts, laneFacts, leadFacts, RECENT_LIMIT, ticketFacts } from "../src/agentCard.ts";
 import { emptyMemory } from "../src/memory.ts";
 import type { WorldModel } from "../src/model.ts";
 import { Projection } from "../src/projection.ts";
@@ -163,4 +163,41 @@ test("chat facts: loops' dock lists enabled agents of loops role lead only, so t
   assert.deepEqual(chatFacts(agents, { key: "b-lead", registered: true, lead: null }, { lead: { id: "b-lead", displayName: "B" } }), { self: true, why: null, lead: null });
   assert.deepEqual(chatFacts(agents, { key: "x-lead", registered: true, lead: null }, { lead: { id: "x-lead", displayName: "X" } }), { self: false, why: "a registered agent crewhub-loops does not list", lead: null }, "the building's lead is never the agent itself");
   assert.deepEqual(chatFacts(agents, { key: "ekinsol/w", registered: false, lead: null }, null), { self: false, why: "a worker, not an agent registered in crewhub-loops", lead: null });
+});
+
+test("tickets (round 22): the open tickets loops assigns to the agent, in progress first, with whom each waits on; the open tickets of others that wait on it; a worker holds none; done tickets are left out", () => {
+  const w = world({
+    projects: [CL, CR],
+    boards: {
+      "crewhub-loops": board([
+        card("t1", "CL-7", "review", { title: "Agent card", assignee: agentRef("cl-lead"), waitingOn: userRef("nicky", "Nicky"), waitingOnHuman: true, updatedAt: iso(T0 - 60_000) }),
+        card("t2", "CL-8", "in_progress", { title: "Tickets held", assignee: agentRef("cl-lead"), updatedAt: iso(T0 - 120_000) }),
+        card("t3", "CL-9", "in_progress", { title: "Newer", assignee: agentRef("cl-lead"), updatedAt: iso(T0 - 30_000) }),
+        card("t4", "CL-5", "done", { title: "Done already", assignee: agentRef("cl-lead") }),
+        card("t5", "CL-10", "planned", { title: "Analyst's, waits on the lead", assignee: agentRef("analyst"), waitingOn: agentRef("cl-lead") }),
+        card("t6", "CL-11", "backlog", { title: "Nobody's" }),
+      ]),
+      crewhub: board([card("t7", "CR-3", "planned", { title: "Across the road", assignee: agentRef("cl-lead") })]),
+    },
+    team: team(T0, [lane("cl-lead", "working"), lane("cl-dev-1", "working", { lead: "cl-lead" })]),
+    agents: [registered("cl-lead", "lead", { displayName: "CL Lead" }), registered("analyst", "lead", { projects: { lead: [], member: [{ slug: "crewhub-loops", key: "CL" }] } })],
+  });
+  const facts = w.projection.facts;
+  const lead = ticketFacts(facts, "cl-lead");
+  assert.deepEqual(lead.held.map((t) => `${t.key} ${t.status}`), ["CL-9 in_progress", "CL-8 in_progress", "CL-7 review", "CR-3 planned"], "in progress first, the newest change first within a status; done left out");
+  assert.deepEqual(lead.held[2]?.waitsOn, { id: "nicky", displayName: "Nicky", kind: "user" });
+  assert.equal(lead.held[2]?.waitingOnHuman, true);
+  assert.equal(lead.held[0]?.waitsOn, null);
+  assert.deepEqual(lead.held[3]?.project, { slug: "crewhub", key: "CR", name: "CR project" });
+  assert.deepEqual(lead.waitedOnBy.map((t) => [t.key, t.holder?.id]), [["CL-10", "analyst"]], "the analyst's ticket waits on the lead");
+  assert.deepEqual(ticketFacts(facts, "ekinsol/cl-dev-1"), { held: [], waitedOnBy: [] }, "loops assigns tickets to registered agents only");
+  assert.deepEqual(ticketFacts(facts, "analyst").held.map((t) => t.key), ["CL-10"]);
+  const model = w.reduce();
+  assert.equal(agentCardFacts(model, facts, "cl-lead")?.tickets.held.length, 4);
+  // The lead: a worker's from the team snapshot (by loops' display name), a registered non-lead's the building's; the lead itself has none.
+  assert.deepEqual(agentCardFacts(model, facts, "ekinsol/cl-dev-1")?.lead, { key: "cl-lead", displayName: "CL Lead", how: "team" });
+  assert.deepEqual(agentCardFacts(model, facts, "analyst")?.lead, { key: "cl-lead", displayName: "cl-lead", how: "building" });
+  assert.equal(agentCardFacts(model, facts, "cl-lead")?.lead, null);
+  assert.equal(leadFacts(facts, { key: "x", lead: "x" }, null), null, "never itself");
+  assert.deepEqual(leadFacts(facts, { key: "ekinsol/w", lead: "gone-lead" }, null), { key: "gone-lead", displayName: "gone-lead", how: "team" }, "a lead loops does not list keeps its id as the name");
 });

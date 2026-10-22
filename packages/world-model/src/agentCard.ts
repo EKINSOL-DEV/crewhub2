@@ -6,8 +6,8 @@
 import type { AgentOut, ProjectRef, TeamAgent } from "@crewhub/loops-client";
 import { linesOf, listAgents, projectByTicketKey, type AgentEntity } from "./agents.ts";
 import { agentStateWords } from "./describe.ts";
-import type { Facts } from "./facts.ts";
-import type { AgentPlacement, Building, ProgressKind, WorkObject, WorldModel } from "./model.ts";
+import type { CardFact, Facts } from "./facts.ts";
+import type { AgentPlacement, Building, ProgressKind, TicketStatus, WorkObject, WorldModel } from "./model.ts";
 
 /** The latest progress line the agent wrote (a worker's line without its "<worker>: " prefix). */
 export interface AgentProgress {
@@ -99,6 +99,40 @@ export interface AgentChatFacts {
   lead: { key: string; displayName: string } | null;
 }
 
+/** One ticket as the card lists it (round 22): from the board cards the host read, never more than the card carries. */
+export interface TicketBrief {
+  key: string;
+  title: string;
+  status: TicketStatus;
+  project: { slug: string; key: string; name: string } | null;
+  /** Whom it waits on (`waitingOn`: a person or an agent), by name; null when nobody. */
+  waitsOn: { id: string; displayName: string; kind: string } | null;
+  /** `waitingOnHuman` without a named person. */
+  waitingOnHuman: boolean;
+  /** Who holds it (`assignee`), for a ticket of someone else that waits on this agent; null when unassigned. */
+  holder: { id: string; displayName: string } | null;
+  /** `updatedAt` as a stamp (ms), or null when it does not parse. */
+  updatedAt: number | null;
+}
+
+/**
+ * The tickets of one agent (round 22), from every board the host read (`GET /api/board/{slug}`): `held` is the open
+ * tickets (not done) loops assigns to it, in progress first, then review, planned, backlog, newest change first within
+ * a status; `waitedOnBy` is the open tickets of others whose `waitingOn` is this agent. Loops assigns tickets to
+ * registered agents only, so a worker holds none here (the one on its desk is an inference from its status line).
+ */
+export interface AgentTicketFacts {
+  held: TicketBrief[];
+  waitedOnBy: TicketBrief[];
+}
+
+/** The agent's lead (round 22): a worker's from the team snapshot, else the lead of the building it is in; null for the lead itself and for a figure in no building. */
+export interface AgentLeadFacts {
+  key: string;
+  displayName: string;
+  how: "team" | "building";
+}
+
 export interface AgentCardFacts {
   key: string;
   name: string;
@@ -128,6 +162,10 @@ export interface AgentCardFacts {
   recent: RecentFact[];
   /** Whom loops' chat reaches from here: this agent, or its lead, or nobody (with why). */
   chat: AgentChatFacts;
+  /** The open tickets it holds and the ones of others that wait on it (round 22). */
+  tickets: AgentTicketFacts;
+  /** Its lead, when it has one that is not itself (round 22). */
+  lead: AgentLeadFacts | null;
 }
 
 export const RECENT_LIMIT = 5;
@@ -223,6 +261,49 @@ export function chatFacts(agents: readonly AgentOut[], entity: Pick<AgentEntity,
   return { self: false, why, lead: null };
 }
 
+const STATUS_ORDER: Record<TicketStatus, number> = { in_progress: 0, review: 1, planned: 2, backlog: 3, done: 4 };
+
+function ticketBrief(fact: CardFact, facts: Readonly<Facts>): TicketBrief {
+  const { card } = fact;
+  const project = facts.projects[fact.slug];
+  const at = Date.parse(card.updatedAt);
+  return {
+    key: card.key,
+    title: card.title,
+    status: card.status,
+    project: project ? { slug: project.slug, key: project.key, name: project.name } : null,
+    waitsOn: card.waitingOn ? { id: card.waitingOn.id, displayName: card.waitingOn.displayName, kind: card.waitingOn.kind } : null,
+    waitingOnHuman: card.waitingOnHuman === true,
+    holder: card.assignee ? { id: card.assignee.id, displayName: card.assignee.displayName } : null,
+    updatedAt: Number.isNaN(at) ? null : at,
+  };
+}
+
+const byStatusThenNewest = (a: TicketBrief, b: TicketBrief) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || (b.updatedAt ?? 0) - (a.updatedAt ?? 0) || a.key.localeCompare(b.key);
+
+/** The agent's tickets from the board cards the host read (see `AgentTicketFacts`); pure, tested. */
+export function ticketFacts(facts: Readonly<Facts>, key: string): AgentTicketFacts {
+  const held: TicketBrief[] = [];
+  const waitedOnBy: TicketBrief[] = [];
+  for (const fact of Object.values(facts.cards)) {
+    const { card } = fact;
+    if (card.status === "done") continue;
+    if (card.assignee?.kind === "agent" && card.assignee.id === key) held.push(ticketBrief(fact, facts));
+    else if (card.waitingOn?.id === key) waitedOnBy.push(ticketBrief(fact, facts));
+  }
+  return { held: held.sort(byStatusThenNewest), waitedOnBy: waitedOnBy.sort(byStatusThenNewest) };
+}
+
+/** The agent's lead (see `AgentLeadFacts`): the team snapshot's word for a worker, else the building's lead, never itself. */
+export function leadFacts(facts: Readonly<Facts>, entity: Pick<AgentEntity, "key" | "lead">, building: Pick<Building, "lead"> | null): AgentLeadFacts | null {
+  if (entity.lead && entity.lead !== entity.key) {
+    const known = facts.agents.find((a) => a.id === entity.lead);
+    return { key: entity.lead, displayName: known?.displayName ?? entity.lead, how: "team" };
+  }
+  if (building && building.lead.id !== entity.key) return { key: building.lead.id, displayName: building.lead.displayName, how: "building" };
+  return null;
+}
+
 /** The team session that holds the agent's lane (by its name), with its computer. */
 function teamSessionOf(facts: Readonly<Facts>, name: string): AgentTeamSession | null {
   for (const session of facts.team?.sessions ?? []) {
@@ -311,5 +392,7 @@ export function agentCardFacts(model: WorldModel, facts: Readonly<Facts>, key: s
     lane: laneFacts(loops?.lane),
     recent: recentFacts(entity, facts),
     chat: chatFacts(facts.agents, entity, real.building),
+    tickets: ticketFacts(facts, key),
+    lead: leadFacts(facts, entity, real.building),
   };
 }

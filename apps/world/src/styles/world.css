@@ -2170,6 +2170,66 @@ a.agent-ticket-link:focus-visible {
 .agent-quote footer {
   margin-top: 2px;
 }
+/* Round 22: the compact ticket lists (Holds, Waited on by) and the More disclosure. */
+.agent-tickets {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+}
+.agent-tickets li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-2);
+}
+.agent-ticket-small {
+  display: inline-flex;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.agent-ticket-small .agent-ticket-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 16rem;
+}
+.agent-ticket-meta {
+  font-size: var(--text-2xs);
+}
+.agent-card-more {
+  border-top: 1px solid var(--border);
+  padding-top: var(--space-2);
+}
+.agent-card-more-summary {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  list-style: none;
+  border-radius: var(--radius-sm);
+}
+.agent-card-more-summary::-webkit-details-marker {
+  display: none;
+}
+.agent-card-more-summary:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 2px;
+}
+.agent-card-more-mark {
+  transition: transform 150ms;
+}
+.agent-card-more[open] .agent-card-more-mark {
+  transform: rotate(90deg);
+}
+.agent-card-more .agent-card-section {
+  margin-top: var(--space-3);
+}
 .agent-list {
   list-style: none;
   margin: 0;

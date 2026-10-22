@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { AgentCardFacts, AgentLaneFacts, AgentLoopsFacts, AgentPlacement, Building, WorkObject } from "@crewhub/world-model";
+import type { AgentCardFacts, AgentLaneFacts, AgentLoopsFacts, AgentPlacement, Building, TicketBrief, WorkObject } from "@crewhub/world-model";
 import { AGENT_CARD_SECTIONS, renderAgentCard } from "../src/world/agentCard/registry.ts";
 import type { AgentCardSection, CardContext, CardRow } from "../src/world/agentCard/types.ts";
 import { agoWords, spanWords, ticketHref } from "../src/world/agentCard/words.ts";
@@ -56,41 +56,115 @@ const bare = (over: Partial<AgentCardFacts> = {}): AgentCardFacts => ({
   lane: null,
   recent: [],
   chat: { self: true, why: null, lead: null },
+  tickets: { held: [], waitedOnBy: [] },
+  lead: null,
   ...over,
 });
 
-const texts = (rows: CardRow[]) => rows.flatMap((r) => (r.kind === "text" ? [`${r.label}|${r.text}`] : r.kind === "chips" ? r.chips.map((c) => ("text" in c ? c.text : c.kind === "lane" ? `lane ${c.status}` : c.label)) : r.kind === "quote" ? [`"${r.text}"`] : r.kind === "ticket" ? [r.ticketKey] : r.items.map((i) => i.text)));
+const texts = (rows: CardRow[]) => rows.flatMap((r) => (r.kind === "text" ? [`${r.label}|${r.text}`] : r.kind === "chips" ? r.chips.map((c) => ("text" in c ? c.text : c.kind === "lane" ? `lane ${c.status}` : c.label)) : r.kind === "quote" ? [`"${r.text}"`] : r.kind === "ticket" ? [r.ticketKey] : r.kind === "tickets" ? [...r.items.map((i) => `${i.key} ${i.meta}`), ...(r.more ? [`and ${r.more} more`] : [])] : r.items.map((i) => i.text)));
 
-test("with the least facts only Now shows: where it is and its state; nothing is invented for the rest", () => {
+test("with the least facts Now shows where it is and its state, and Work says in words that nothing is held and no line was seen (round 22); nothing is invented for the rest", () => {
   const out = renderAgentCard(bare(), ctx());
   assert.deepEqual(
     out.map((s) => s.id),
-    ["now"],
+    ["now", "work"],
   );
   assert.deepEqual(texts(out[0]!.rows), ["Where|crewhub-loops, Lead's office", "lane working", "posture focused"]);
+  assert.deepEqual(texts(out[1]!.rows), ["Holds|no ticket: crewhub-loops assigns it none right now", "|No progress line: none seen since this page opened and no ticket on its desk to read one from."]);
+  assert.deepEqual(out.map((s) => s.more), [false, false]);
 });
 
 test("the registry is ordered and every section has a distinct id", () => {
   assert.deepEqual(
     AGENT_CARD_SECTIONS.map((s) => s.id),
-    ["now", "work", "lane", "projects", "recent"],
+    ["now", "work", "answers", "lane", "projects", "recent"],
+  );
+  assert.deepEqual(
+    AGENT_CARD_SECTIONS.map((s) => s.more === true),
+    [false, false, false, true, true, true],
+    "Lane, Projects and Recent sit behind More (round 22)",
   );
   assert.equal(new Set(AGENT_CARD_SECTIONS.map((s) => s.id)).size, AGENT_CARD_SECTIONS.length);
 });
 
 test("Work: the ticket with its link into loops, its chips, the project and the last line; no link in the demo", () => {
   const work = { ticketId: "t1", key: "CL-7", title: "Agent card", kind: "task", look: "folder", status: "in_progress", room: "lead-office", deskOf: "cl-lead", deskInferred: false, position: 1, priorityTag: "high", blocked: false, sealed: false, stall: { state: "stalled", quietSince: "", quietMinutes: 12, nudges: 1 }, quiet: null, nameTag: "Nicky", waitingOnHuman: true, milestone: null, labels: [], speechMarkUntil: null, celebrateUntil: null, rejected: null, turnedDownUntil: null, transit: null } satisfies WorkObject;
-  const facts = bare({ work: { ...work }, workProject: { slug: "crewhub-loops", key: "CL", name: "crewhub-loops" }, progress: { ts: NOW - 3 * 60_000, kind: "update", ticketKey: "CL-7", text: "sections from a registry" } });
+  const held = [brief("CL-7", "in_progress", { title: "Agent card", waitsOn: { id: "nicky", displayName: "Nicky", kind: "user" }, waitingOnHuman: true })];
+  const facts = bare({ work: { ...work }, workProject: { slug: "crewhub-loops", key: "CL", name: "crewhub-loops" }, progress: { ts: NOW - 3 * 60_000, kind: "update", ticketKey: "CL-7", text: "sections from a registry" }, tickets: { held, waitedOnBy: [] } });
   const section = renderAgentCard(facts, ctx()).find((s) => s.id === "work");
   assert.ok(section);
   const ticket = section.rows[0];
   assert.equal(ticket?.kind, "ticket");
   assert.equal(ticket?.kind === "ticket" && ticket.href, "http://127.0.0.1:8091/t/CL-7");
-  assert.deepEqual(texts(section.rows), ["CL-7", "in progress", "high priority", "waiting on Nicky", "stalled, quiet 12 min, nudged 1×", "Project|crewhub-loops (CL)", '"sections from a registry"']);
+  assert.deepEqual(texts(section.rows), ["CL-7", "in progress", "high priority", "waiting on Nicky", "stalled, quiet 12 min, nudged 1×", "Project|crewhub-loops (CL)", "Holds|1 open ticket: 1 in progress; 1 waits on Nicky", "|Nobody waits on it.", '"sections from a registry"']);
   const quote = section.rows.find((r) => r.kind === "quote");
   assert.equal(quote?.kind === "quote" && quote.by, "update on CL-7, 3 min ago");
   const demo = renderAgentCard(facts, ctx({ loopsUrl: null })).find((s) => s.id === "work")!.rows[0];
   assert.equal(demo?.kind === "ticket" && demo.href, null);
+});
+
+const brief = (key: string, status: TicketBrief["status"], over: Partial<TicketBrief> = {}): TicketBrief => ({ key, title: `Ticket ${key}`, status, project: { slug: "crewhub-loops", key: "CL", name: "crewhub-loops" }, waitsOn: null, waitingOnHuman: false, holder: { id: "cl-lead", displayName: "CL Lead" }, updatedAt: NOW - 60_000, ...over });
+
+test("Work (round 22): Holds counts the open tickets by status and whom they wait on, lists the ones beyond the desk with a cap, Waited on by names the holders; the honest words for none, for a worker, and for the progress line read once", () => {
+  const held = [brief("CL-9", "in_progress"), brief("CL-8", "in_progress", { waitsOn: { id: "nicky", displayName: "Nicky", kind: "user" } }), brief("CL-7", "review", { waitsOn: { id: "nicky", displayName: "Nicky", kind: "user" } }), brief("CL-6", "review", { waitingOnHuman: true }), brief("CL-5", "planned"), brief("CL-4", "planned"), brief("CR-3", "backlog", { project: { slug: "crewhub", key: "CR", name: "CrewHub product" } })];
+  const waitedOnBy = [brief("CL-10", "planned", { holder: { id: "analyst", displayName: "Analyst" } }), brief("CL-11", "backlog", { holder: null })];
+  const work = { ticketId: "t9", key: "CL-9", title: "Ticket CL-9", kind: "task", look: "folder", status: "in_progress", room: "lead-office", deskOf: "cl-lead", deskInferred: false, position: 1, priorityTag: null, blocked: false, sealed: false, stall: null, quiet: null, nameTag: null, waitingOnHuman: false, milestone: null, labels: [], speechMarkUntil: null, celebrateUntil: null, rejected: null, turnedDownUntil: null } as unknown as WorkObject;
+  const out = renderAgentCard(bare({ work, tickets: { held, waitedOnBy } }), ctx()).find((s) => s.id === "work")!;
+  assert.deepEqual(texts(out.rows), [
+    "CL-9",
+    "in progress",
+    "Holds|7 open tickets: 2 in progress, 2 review, 2 planned, 1 backlog; 2 wait on Nicky, 1 waits on a person",
+    "CL-8 in progress, waits on Nicky",
+    "CL-7 review, waits on Nicky",
+    "CL-6 review, waits on a person",
+    "CL-5 planned",
+    "CL-4 planned",
+    "and 1 more",
+    "Waited on by|2 open tickets of others",
+    "CL-10 planned, Analyst holds it",
+    "CL-11 backlog, unassigned",
+    "|No progress line: none seen since this page opened, and CL-9 has none.",
+  ]);
+  const list = out.rows.find((r) => r.kind === "tickets");
+  assert.equal(list?.kind === "tickets" && list.items[0]?.href, "http://127.0.0.1:8091/t/CL-8", "each listed ticket links into loops");
+  const demoList = renderAgentCard(bare({ work, tickets: { held, waitedOnBy } }), ctx({ loopsUrl: null })).find((s) => s.id === "work")!.rows.find((r) => r.kind === "tickets");
+  assert.equal(demoList?.kind === "tickets" && demoList.items[0]?.href, null, "no link in the demo");
+  // A worker: loops assigns it nothing; the desk ticket is an inference from its status line.
+  const worker = renderAgentCard(bare({ registered: false, work: { ...work, deskInferred: true } as WorkObject, lead: { key: "cl-lead", displayName: "CL Lead", how: "team" } }), ctx()).find((s) => s.id === "work")!;
+  assert.deepEqual(texts(worker.rows).slice(2, 4), ["|On this desk because the status line names it: an inference.", "Holds|no ticket of its own: crewhub-loops assigns tickets to its lead, CL Lead; the one on its desk is inferred from its status line"]);
+  // The progress line read once from the source when the page saw none: on its way, found, or not there.
+  const quote = (fetched: CardContext["fetchedProgress"]) => texts(renderAgentCard(bare({ work }), ctx(fetched ? { fetchedProgress: fetched } : {})).find((s) => s.id === "work")!.rows).at(-1);
+  assert.equal(quote({ state: "loading" }), "|Reading the last progress line of CL-9…");
+  assert.equal(quote({ state: "line", line: { ts: NOW - 120_000, kind: "update", ticketKey: "CL-9", text: "cl-dev-1: tests green" } }), '"cl-dev-1: tests green"');
+  const by = renderAgentCard(bare({ work }), ctx({ fetchedProgress: { state: "line", line: { ts: NOW - 120_000, kind: "update", ticketKey: "CL-9", text: "x" } } })).find((s) => s.id === "work")!.rows.at(-1);
+  assert.equal(by?.kind === "quote" && by.by, "update on CL-9, 2 min ago, read from the source");
+  assert.equal(quote({ state: "none" }), "|No progress line: none seen since this page opened, and CL-9 has none.");
+});
+
+test("Answers (round 22): this agent's lines only, newest first, at most three, each with who said it and when; the page's words when it has none; no section without the page's answers", () => {
+  const answers = [
+    { agentId: "cl-lead", agentName: "CL Lead", text: "Done with the card.", at: new Date(NOW - 30_000).toISOString() },
+    { agentId: "cr-lead", agentName: "CR Lead", text: "Not mine.", at: new Date(NOW - 40_000).toISOString() },
+    { agentId: "cl-lead", agentName: null, text: "Second.", at: new Date(NOW - 3_600_000).toISOString() },
+    { agentId: "cl-lead", agentName: "CL Lead", text: "Third.", at: null },
+    { agentId: "cl-lead", agentName: "CL Lead", text: "Fourth, beyond the cap.", at: new Date(NOW - 7_200_000).toISOString() },
+  ];
+  const out = renderAgentCard(bare(), ctx({ answers, answersEmpty: "n/a" })).find((s) => s.id === "answers")!;
+  const list = out.rows[0];
+  assert.equal(list?.kind, "list");
+  assert.deepEqual(list?.kind === "list" && list.items, [
+    { text: "Done with the card.", meta: "CL Lead said, just now" },
+    { text: "Second.", meta: "CL Lead said, 1 h ago" },
+    { text: "Third.", meta: "CL Lead said, just now" },
+  ]);
+  assert.deepEqual(texts(renderAgentCard(bare(), ctx({ answers: [], answersEmpty: "This key cannot read the chat and nobody is signed in: no answers can arrive here." })).find((s) => s.id === "answers")!.rows), ["|This key cannot read the chat and nobody is signed in: no answers can arrive here."]);
+  assert.equal(renderAgentCard(bare(), ctx()).find((s) => s.id === "answers"), undefined, "a context without the page's answers draws no Answers section");
+});
+
+test("Now (round 22): the Lead row names a worker's lead from the team snapshot or the building's lead; the lead itself has none", () => {
+  assert.deepEqual(texts(renderAgentCard(bare({ lead: { key: "cl-lead", displayName: "CL Lead", how: "team" } }), ctx())[0]!.rows)[1], "Lead|CL Lead (its lead in the team snapshot)");
+  assert.deepEqual(texts(renderAgentCard(bare({ lead: { key: "cl-lead", displayName: "CL Lead", how: "building" } }), ctx())[0]!.rows)[1], "Lead|CL Lead (the lead of crewhub-loops)");
+  assert.doesNotMatch(texts(renderAgentCard(bare(), ctx())[0]!.rows).join("\n"), /^Lead\|/m);
 });
 
 const loopsOf = (over: Partial<AgentLoopsFacts> = {}): AgentLoopsFacts => ({ role: "lead", isCrewhubLead: false, isCoordinator: false, isOperator: false, disabled: false, external: false, reader: false, notPickedUp: 0, needsLoginSince: null, lastSeenAt: null, herdrSession: "ekinsol", computer: null, projects: { lead: [], member: [] }, ...over });
