@@ -115,6 +115,11 @@ export const EN: Record<string, string> = {
   "world.pair.retry": "I opened the link",
   "world.pair.label": "Pairing with the world's host",
   "world.chat.signInHint": "The agents' chats are in the crewhub-loops web app; this opens it in a new tab. For the agents' answers as speech bubbles over their figures, sign in to crewhub-loops as yourself in the Connection panel (the chip).",
+  "world.tour.help": "Help",
+  "world.tour.show": "Show the introduction",
+  "world.tour.showHint": "Six short steps over the world: the town, a building, a figure's card, the chat, the text view, the connection.",
+  "world.tour.read": "Read the introduction",
+  "world.tour.readHint": "docs/INTRODUCTION.md on GitHub, in a new tab.",
   "world.settings.agentsDemo": "Agent settings live in the crewhub-loops web app; the demo has none.",
   "world.settings.agentsLive": "Agent settings live in the crewhub-loops web app.",
 
