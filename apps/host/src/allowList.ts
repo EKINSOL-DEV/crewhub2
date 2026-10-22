@@ -63,6 +63,8 @@ export const WORLD_ROUTES: readonly WorldRoute[] = [
   { pattern: "/session", kind: "local", query: [], methods: ["POST", "DELETE"] },
   { pattern: "/town", kind: "local", query: [], methods: ["GET", "PUT"] },
   { pattern: "/town/export", kind: "local", query: [] },
+  { pattern: "/town/backups", kind: "local", query: [] },
+  { pattern: "/town/backups/{name}", kind: "local", query: [] },
   { pattern: "/tickets/{ref}", kind: "loops", loopsPattern: "/api/tickets/{ref}", query: [] },
   { pattern: "/tickets/{ref}/comments", kind: "loops", loopsPattern: "/api/tickets/{ref}/comments", query: PAGE_QUERY },
   { pattern: "/tickets/{ref}/progress", kind: "loops", loopsPattern: "/api/tickets/{ref}/progress", query: PAGE_QUERY },

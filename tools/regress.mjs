@@ -1505,6 +1505,83 @@ await group("town", async () => {
     const row = await townRow(first);
     ok("town: a host restart keeps the town", kept.some((l) => l.startsWith("Zone 1 (")) && kept.some((l) => l.startsWith("Zone 2 (")) && /^Kept by the world's host/.test(row), `${kept.map((l) => l.slice(0, 7)).join(", ")} | ${row.slice(0, 80)}`);
     await shot(first, "33-town-restart");
+
+    // 5. Round 21: the undo history is the host's. An undo in the second browser (build mode, Ctrl+Z) takes Zone 2 away
+    // in the first too; after a host restart the first browser redoes it (the history came back with the database) and
+    // the second sees Zone 2 again.
+    await second.reload();
+    await second.waitForSelector(".connection-chip[data-connection=\"live\"]", { timeout: 30000 }).catch(() => {});
+    await second.waitForTimeout(2000);
+    await canvas(second).focus();
+    await second.keyboard.press("b");
+    await second.waitForTimeout(800);
+    await second.locator(".build-sheet").getByRole("button", { name: "Undo", exact: true }).click();
+    await second.waitForTimeout(1500);
+    await second.keyboard.press("Escape");
+    await first.waitForTimeout(2000);
+    const afterUndo = await zoneLines(first);
+    await host.close();
+    host = await start(dbs[1], port);
+    await first.reload();
+    await first.waitForSelector(".connection-chip[data-connection=\"live\"]", { timeout: 30000 }).catch(() => {});
+    await first.waitForTimeout(2500);
+    await canvas(first).focus();
+    await first.keyboard.press("b");
+    await first.waitForTimeout(800);
+    const redoButton = first.locator(".build-sheet").getByRole("button", { name: "Redo", exact: true });
+    const redoEnabled = await redoButton.isEnabled().catch(() => false);
+    if (redoEnabled) await redoButton.click();
+    await first.waitForTimeout(1500);
+    await first.keyboard.press("Escape");
+    await second.waitForTimeout(2500);
+    const afterRedo = await zoneLines(second);
+    ok(
+      "town: an undo in one browser is seen in the other, and a redo after a host restart brings it back for both",
+      !afterUndo.some((l) => l.startsWith("Zone 2 (")) && afterUndo.some((l) => l.startsWith("Zone 1 (")) && redoEnabled && afterRedo.some((l) => l.startsWith("Zone 2 (")),
+      `after undo: ${afterUndo.map((l) => l.slice(0, 7)).join(", ") || "none"}; redo offered after the restart: ${redoEnabled}; after redo the second sees ${afterRedo.map((l) => l.slice(0, 7)).join(", ")}`,
+    );
+    await shot(first, "34-town-redo");
+
+    // 6. A restore is previewed and confirmed, never silent: a town file with Zone 1 renamed is imported in Settings >
+    // Town; the preview names the rename; Cancel changes nothing; the same import confirmed renames it on the host.
+    const current = await first.request.get(`${liveOrigin}/world-api/town`).then((r) => r.json()).catch(() => null);
+    const renamed = JSON.parse(JSON.stringify(current.document));
+    for (const z of renamed.zones ?? []) if (z.id === "zone-1") z.name = "Harbour";
+    const file = { name: "harbour.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(renamed)) };
+    const openSettings = async (pg) => {
+      await pg.getByRole("button", { name: "Settings", exact: true }).click();
+      await pg.waitForSelector(".settings-sheet", { timeout: 5000 });
+    };
+    await openSettings(first);
+    await first.locator('.settings-sheet input[type="file"]').setInputFiles(file);
+    await first.waitForSelector(".restore-sheet", { timeout: 5000 }).catch(() => {});
+    const previewText = (await first.locator(".restore-sheet").innerText().catch(() => "")).replace(/\s+/g, " ");
+    const focused = await first.evaluate(() => document.activeElement?.textContent?.trim() ?? "");
+    await first.keyboard.press("Escape");
+    await first.waitForTimeout(500);
+    const dialogGone = (await first.locator(".restore-sheet").count()) === 0;
+    const revAfterCancel = (await first.request.get(`${liveOrigin}/world-api/town`).then((r) => r.json()).catch(() => null))?.rev;
+    ok(
+      "town: an import opens a preview that names the change, with the focus inside; Escape cancels and nothing changes",
+      /renamed "Harbour"/.test(previewText) && /1 change\./.test(previewText) && focused === "Cancel" && dialogGone && revAfterCancel === current.rev,
+      `${previewText.slice(0, 120)} | focus on "${focused}" | rev ${current.rev} → ${revAfterCancel}`,
+    );
+    await first.locator('.settings-sheet input[type="file"]').setInputFiles(file);
+    await first.waitForSelector(".restore-sheet", { timeout: 5000 }).catch(() => {});
+    await shot(first, "35-town-restore-preview");
+    await first.locator(".restore-sheet").getByRole("button", { name: "Restore", exact: true }).click();
+    await first.waitForTimeout(1500);
+    const afterRestore = await first.request.get(`${liveOrigin}/world-api/town`).then((r) => r.json()).catch(() => null);
+    const restoreNote = (await first.locator(".settings-sheet").innerText().catch(() => "")).replace(/\s+/g, " ");
+    await first.keyboard.press("Escape");
+    await second.waitForTimeout(2000);
+    // The renamed zone no longer matches the "Zone n" filter: every hand-made zone line of the second browser is read.
+    const secondSees = (await text(second)).split("\n").filter((l) => /\(made by hand/.test(l));
+    ok(
+      "town: the confirmed restore is the next revision on the host, named Harbour in the other browser too, and Undo is offered",
+      afterRestore?.rev === current.rev + 1 && (afterRestore?.document?.zones ?? []).some((z) => z.name === "Harbour") && afterRestore?.canUndo === true && /Restored from harbour\.json/.test(restoreNote) && secondSees.some((l) => l.startsWith("Harbour (")),
+      `rev ${current.rev} → ${afterRestore?.rev}; canUndo ${afterRestore?.canUndo}; second sees ${secondSees.map((l) => l.slice(0, 9)).join(", ")}`,
+    );
   } finally {
     for (const ctx of contexts) await ctx.close().catch(() => {});
     await host.close().catch(() => {});

@@ -6,14 +6,22 @@
    the host keeps editing ("kept in this browser until the host is back") and offers its town again when the host
    answers. Pure of React and the DOM: the transport is injected, so a test drives it with a fake. */
 import { validateTownDocument, type TownContext, type TownDocument } from "@crewhub/world-model";
-import type { HostAnswer } from "@crewhub/loops-client";
+import type { HostAnswer, HostTownOp } from "@crewhub/loops-client";
 import type { TownStore, TownStoreState } from "./townStore.ts";
 
 export interface HostTownTransport {
   /** `GET /world-api/town`. */
   read(): Promise<HostAnswer>;
-  /** `PUT /world-api/town {document, baseRev}`. */
-  write(document: TownDocument, baseRev: number): Promise<HostAnswer>;
+  /** `PUT /world-api/town {op, document?, baseRev}` (round 21: the host moves its own history; an undo or a redo sends no document). */
+  write(op: HostTownOp, document: TownDocument | null, baseRev: number): Promise<HostAnswer>;
+}
+
+/**
+ * The store a page runs on: the host-backed one for a live page, the browser's own for a demo page. A demo page's town
+ * is never the host's: no transport is asked, whatever it would answer (tested).
+ */
+export function townStoreFor(input: { live: boolean; local: TownStore; make: (local: TownStore) => TownStore }): TownStore {
+  return input.live ? input.make(input.local) : input.local;
 }
 
 export interface HostTownOptions {
@@ -55,6 +63,8 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
   let writing = 0;
   /** The newest revision the host announced while a write was on its way; looked at when the write is answered. */
   let announced: number | null = null;
+  /** The host's word on its history: whether it has a step back or forward from the current revision. */
+  let hostCan: { undo: boolean; redo: boolean } = { undo: false, redo: false };
   const listeners = new Set<() => void>();
   const publish = () => {
     for (const listener of listeners) listener();
@@ -62,6 +72,12 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
   local.subscribe(publish);
 
   const same = (a: TownDocument, b: TownDocument) => JSON.stringify(a) === JSON.stringify(b);
+
+  /** The host's `canUndo`/`canRedo` from an answer, when it carries them. */
+  const readCan = (body: unknown) => {
+    const b = body as { canUndo?: unknown; canRedo?: unknown } | null;
+    if (typeof b?.canUndo === "boolean" && typeof b?.canRedo === "boolean") hostCan = { undo: b.canUndo, redo: b.canRedo };
+  };
 
   /** Takes the host's document as the current one, without an undo step; nothing when it is already the one shown. */
   async function adopt(document: unknown, hostRev: number, what: string): Promise<boolean> {
@@ -105,6 +121,7 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
       }
       if (body?.rev === 0 && (body.document === null || body.document === undefined)) return importOnce();
       if (typeof body?.rev === "number") {
+        readCan(body);
         if (pending && knownRev !== null && body.rev === knownRev) {
           // The host is back and nobody else wrote meanwhile: this browser's edits go up as the next revision.
           rev = knownRev;
@@ -134,10 +151,11 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
   /** The host has no town for this installation: this browser's goes up once (baseRev 0). Another browser's import in between is a conflict, and the host's town wins, as the rule says. */
   async function importOnce(): Promise<void> {
     {
-      const written = await transport.write(local.state.doc, 0);
+      const written = await transport.write("commit", local.state.doc, 0);
       if (written.status === 200 && typeof (written.body as { rev?: unknown } | null)?.rev === "number") {
         rev = (written.body as { rev: number }).rev;
         knownRev = rev;
+        readCan(written.body);
         pending = false;
         note = IMPORTED_NOTE;
         log(`this browser's town was imported into the host as revision ${rev}`);
@@ -158,14 +176,20 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
     const body = answer.body as { rev?: unknown; document?: unknown } | null;
     if (typeof body?.rev === "number" && body.document !== null && body.document !== undefined) {
       await adopt(body.document, body.rev, "conflict");
+      // The host's history after the other browser's move comes with the conflict.
+      readCan(body);
       note = CONFLICT_NOTE;
       pending = false;
     }
     publish();
   }
 
-  /** Sends `doc` as the next revision; a conflict takes the host's town; no answer goes offline and keeps the change here. `byPerson` (a commit, an undo, a redo) also clears an old note. */
-  function push(doc: TownDocument, byPerson = false): Promise<void> {
+  /**
+   * One move of the host's history: a commit or an amend with `doc` as the next revision, or an undo or a redo (the host
+   * answers the document it restored, which the browser's store then shows). A conflict takes the host's town; no
+   * answer goes offline and keeps the change here. `byPerson` (a commit, an undo, a redo) also clears an old note.
+   */
+  function push(doc: TownDocument | null, op: HostTownOp = "commit", byPerson = false): Promise<void> {
     const run = async () => {
       if (rev === null) {
         pending = true;
@@ -174,13 +198,20 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
       writing += 1;
       let answer: HostAnswer;
       try {
-        answer = await transport.write(doc, rev);
+        answer = await transport.write(op, doc, rev);
       } finally {
         writing -= 1;
       }
       if (answer.status === 200 && typeof (answer.body as { rev?: unknown } | null)?.rev === "number") {
-        rev = (answer.body as { rev: number }).rev;
+        const body = answer.body as { rev: number; document?: unknown };
+        rev = body.rev;
         knownRev = rev;
+        readCan(body);
+        // An undo or a redo restores a document the host holds: taken here without a local undo step.
+        if ((op === "undo" || op === "redo") && body.document !== null && body.document !== undefined) {
+          const result = validateTownDocument(body.document, context);
+          if (result.ok && !same(result.value, local.state.doc)) await local.amend(() => result.value);
+        }
         if (byPerson && (note === CONFLICT_NOTE || note === IMPORTED_NOTE)) note = null;
         publish();
         settle();
@@ -222,8 +253,10 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
     },
     get state(): TownStoreState {
       const s = local.state;
-      // While the host keeps the town, the browser store's own notes (memory only, a skipped revision) are about the fallback and stay quiet.
-      return { ...s, storage: rev === null ? s.storage : "host", storageNote: note ?? (rev === null ? s.storageNote : null) };
+      if (rev === null) return { ...s, storageNote: note ?? s.storageNote };
+      // While the host keeps the town, the undo steps are the host's, and the browser store's own notes (memory only, a
+      // skipped revision) are about the fallback and stay quiet.
+      return { ...s, storage: "host", canUndo: hostCan.undo, canRedo: hostCan.redo, storageNote: note };
     },
     load() {
       loading ??= (async () => {
@@ -236,23 +269,32 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
     sync,
     async commit(doc) {
       const current = await local.commit(doc);
-      await push(current, true);
+      await push(current, "commit", true);
       return local.state.doc;
     },
     async amend(update) {
       const before = local.state.doc;
       const current = await local.amend(update);
-      if (current !== before) await push(current);
+      if (current !== before) await push(current, "amend");
       return local.state.doc;
     },
     async undo() {
+      // With the host: its history steps back and every browser sees it. Away from it: this browser's own steps.
+      if (rev !== null) {
+        await push(null, "undo", true);
+        return local.state.doc;
+      }
       const current = await local.undo();
-      await push(current, true);
+      await push(current, "commit", true);
       return local.state.doc;
     },
     async redo() {
+      if (rev !== null) {
+        await push(null, "redo", true);
+        return local.state.doc;
+      }
       const current = await local.redo();
-      await push(current, true);
+      await push(current, "commit", true);
       return local.state.doc;
     },
     subscribe(listener) {

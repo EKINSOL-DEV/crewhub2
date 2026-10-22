@@ -242,7 +242,10 @@ Zones: every live project sits in the default zone until crewhub-loops has proje
 hand in build mode are part of the live town document of this installation, which the world's host keeps since round
 20 in `~/.config/crewhub-world/world.db` (one row per crewhub-loops web app the host names) and every paired browser
 shares; the browser keeps a copy under its own key (IndexedDB) and edits on it while the host is away, then offers it
-again. The Connection panel's "Town" and "Zones" lines and the text view say where the town is kept. A live town made before the key carried the
+again. The Connection panel's "Town" and "Zones" lines and the text view say where the town is kept. Since round 21 the
+undo history is the host's too (an undo in one browser shows in every other and survives a restart), and Settings > Town
+restores a town from a file or from a `world.db.bak-v<n>` copy only after a preview of what changes and a confirm; the
+restore is a new revision, so Undo goes back. A live town made before the key carried the
 installation (under the plain `crewhub-world.live`) is copied once into the installation's key the first time that
 key holds nothing; the earlier copy is kept as it was, a town already under the new key is never overwritten, a demo
 page never copies, and Settings > Town and the text view say "Copied once from the town kept under the earlier key" that
