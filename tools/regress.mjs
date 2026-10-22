@@ -1562,8 +1562,8 @@ await group("town", async () => {
     const pair = seenBySecond.some((l) => l.startsWith("Zone 1 (")) && seenByFirst.some((l) => l.startsWith("Zone 2 (")) && /kept by the world's host/.test(seenByFirst.join(" ")) && again.rev >= 2;
     ok("town: two browsers on one host see one town; a zone made in one appears in the other", pair, `second saw ${seenBySecond.length} zone line(s); first now ${seenByFirst.map((l) => l.slice(0, 7)).join(", ")}; host rev ${again.rev}`);
     if (!pair) {
-      info(`town: the second browser's town log: ${second.townLog.join(" | ") || "(nothing)"}`);
-      info(`town: the first browser's town log: ${first.townLog.join(" | ") || "(nothing)"}`);
+      info(`town: the second browser's town log: ${second.townLog.slice(-20).join(" | ") || "(nothing)"}`);
+      info(`town: the first browser's town log: ${first.townLog.slice(-20).join(" | ") || "(nothing)"}`);
       info(`town: the second browser's page revision ${await second.evaluate(() => document.documentElement.dataset.townRev ?? "none")}, storage words: ${(await second.locator(".connection-town").innerText().catch(() => "")).slice(0, 120)}`);
       info(`town: the host's log: ${hostLog.filter((l) => /town of/.test(l)).join(" | ")}`);
       const { DatabaseSync } = await import("node:sqlite");
@@ -1624,6 +1624,19 @@ await group("town", async () => {
       !afterUndo.some((l) => l.startsWith("Zone 2 (")) && afterUndo.some((l) => l.startsWith("Zone 1 (")) && redoEnabled && afterRedo.some((l) => l.startsWith("Zone 2 (")),
       `after undo: ${afterUndo.map((l) => l.slice(0, 7)).join(", ") || "none"}; redo offered after the restart: ${redoEnabled}; after redo the second sees ${afterRedo.map((l) => l.slice(0, 7)).join(", ")}`,
     );
+    if (afterUndo.some((l) => l.startsWith("Zone 2 (")) || !redoEnabled || !afterRedo.some((l) => l.startsWith("Zone 2 ("))) {
+      info(`town: undo detail: rev before the undo ${revBeforeUndo}, the host now ${JSON.stringify(await hostTown(second))}; the second's town log: ${second.townLog.slice(-20).join(" | ") || "(nothing)"}; the first's: ${first.townLog.slice(-20).join(" | ") || "(nothing)"}`);
+      info(`town: the host's log: ${hostLog.slice(-12).join(" | ")}`);
+      const { DatabaseSync } = await import("node:sqlite");
+      const peek = new DatabaseSync(dbs[1].file, { readOnly: true });
+      const rows = peek.prepare("SELECT installation, rev, updated_by, history FROM towns").all();
+      peek.close();
+      for (const row of rows) {
+        const h = JSON.parse(row.history ?? "null");
+        for (const e of (h?.entries ?? []).slice(-2)) info(`town: entry r${e.revision}: ${JSON.stringify(e).slice(0, 1600)}`);
+        info(`town: the host's history of ${row.installation} at rev ${row.rev} (by ${row.updated_by}): index ${h?.index}, entries ${(h?.entries ?? []).map((e) => `r${e.revision}[zones ${(e.zones ?? []).map((z) => z.id).join(",")}; placements ${(e.placements ?? []).length}; plots ${(e.plots ?? []).length}]`).join(" ")}`);
+      }
+    }
     await shot(first, "34-town-redo");
 
     // 6. A restore is previewed and confirmed, never silent: a town file with Zone 1 renamed is imported in Settings >
