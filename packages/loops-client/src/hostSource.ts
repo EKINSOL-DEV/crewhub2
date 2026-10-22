@@ -20,7 +20,7 @@ import type {
   Ticket,
   WatchdogResponse,
 } from "./types.ts";
-import type { ChatLine, ConnectionState, ConnectionStatus, HostSourceOptions, LoopsSnapshot, SourceMessage, WorldSource } from "./source.ts";
+import type { ChatLine, ConnectionState, ConnectionStatus, HostSourceOptions, LoopsSnapshot, SourceMessage, WorldSource, ChatThreadFact } from "./source.ts";
 import {
   type Result,
   validateBoardResponse,
@@ -189,6 +189,8 @@ type StreamMessage =
   | { type: "reset"; reason: string }
   /** An agent's message to the person (round 12), read by the host as the signed-in person. */
   | { type: "chat"; chat: unknown }
+  /** The chat threads' facts (round 24), where the key reads the chat. */
+  | { type: "threads"; threads: unknown }
   /** The installation's town document changed on the host (round 20): the town runtime refetches it. */
   | { type: "town"; rev: unknown };
 
@@ -201,6 +203,17 @@ export function readChatLine(value: unknown): ChatLine | null {
   if (!raw || typeof raw.agentId !== "string" || raw.agentId === "" || typeof raw.text !== "string" || raw.text === "" || typeof raw.at !== "string" || typeof raw.messageId !== "string" || typeof raw.threadId !== "string") return null;
   const out: ChatLine = { agentId: raw.agentId, text: raw.text, at: raw.at, messageId: raw.messageId, threadId: raw.threadId };
   if (typeof raw.agentName === "string" && raw.agentName !== "") out.agentName = raw.agentName;
+  return out;
+}
+
+/** The thread facts from the host, strictly: a list; each row with its agent id, a stamp and a count, or it is dropped. */
+export function readThreadFacts(value: unknown): ChatThreadFact[] | null {
+  if (!Array.isArray(value)) return null;
+  const out: ChatThreadFact[] = [];
+  for (const row of value as Partial<Record<keyof ChatThreadFact, unknown>>[]) {
+    if (!row || typeof row.agentId !== "string" || row.agentId === "" || typeof row.lastMessageAt !== "string" || typeof row.unreadCount !== "number" || !Number.isInteger(row.unreadCount) || row.unreadCount < 0) continue;
+    out.push({ agentId: row.agentId, lastMessageAt: row.lastMessageAt, unreadCount: row.unreadCount });
+  }
   return out;
 }
 
@@ -548,6 +561,11 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
       case "chat": {
         const chat = readChatLine(message.chat);
         if (chat !== null) send({ type: "chat", chat });
+        return "ok";
+      }
+      case "threads": {
+        const threads = readThreadFacts(message.threads);
+        if (threads !== null) send({ type: "threads", threads });
         return "ok";
       }
       case "town": {

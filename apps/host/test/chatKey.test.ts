@@ -38,8 +38,9 @@ describe("the chat over the key, where loops allows it", () => {
     return { host, lines, health };
   }
 
-  it("a loops whose key reads the chat: health says key, a sign-in is not needed, an agent's message on the key's stream is a bubble line", async () => {
-    const stub = await createLoopsStub({ ...installation(), keyReadsChat: true, dm: { threads: [{ id: "dmt_boing", agentId: "boing" }], messages: { [AGENT_MESSAGE.id]: AGENT_MESSAGE } } });
+  it("a loops whose key reads the chat: health says key, a sign-in is not needed, an agent's message on the key's stream is a bubble line, and the threads' facts reach the tab (round 24)", async () => {
+    const THREAD = { id: "dmt_boing", agentId: "boing", createdAt: "2026-10-21T18:00:00.000Z", lastMessageAt: "2026-10-22T07:05:00.174Z", unreadCount: 1 };
+    const stub = await createLoopsStub({ ...installation(), keyReadsChat: true, dm: { threads: [THREAD, { id: "dmt_bad" }], messages: { [AGENT_MESSAGE.id]: AGENT_MESSAGE } } });
     cleanup.push(() => stub.close());
     const dir = folder();
     // A session kept from a run against another loops stays on disk and is not used here.
@@ -56,6 +57,12 @@ describe("the chat over the key, where loops allows it", () => {
     const tab = await openSse(`${host.url}/world-api/stream?cursor=0`);
     cleanup.push(() => tab.close());
     await tab.next((m) => m.type === "status" && m.loops === "ok");
+    // The threads' facts (round 24): the probe's own answer, sent to the tab as it attached; only the three fields, a row without them dropped.
+    await waitFor("the threads at attach", async () => tab.messages.some((m) => m.type === "threads"));
+    const threadsAtAttach = tab.messages.filter((m) => m.type === "threads");
+    assert.deepEqual(threadsAtAttach[0], { type: "threads", threads: [{ agentId: "boing", lastMessageAt: THREAD.lastMessageAt, unreadCount: 1 }] });
+    const threadReadsBefore = stub.requests.filter((r) => r.path === "/api/dm/threads").length;
+    assert.equal(threadReadsBefore, 1, "the probe's one read, nothing polled");
     stub.emit({ type: "dm.created", project: null, ticket: null, actor: { id: "nicky", kind: "user" }, recipientIds: ["boing"], payload: { threadId: "dmt_boing", messageId: "dm_p9", agentId: "boing" } });
     stub.emit({ type: "dm.created", project: null, ticket: null, actor: { id: "boing", kind: "agent" }, recipientIds: ["nicky"], payload: { threadId: "dmt_boing", messageId: AGENT_MESSAGE.id, agentId: "boing" } });
     const chat = await tab.next((m) => m.type === "chat");
@@ -64,16 +71,28 @@ describe("the chat over the key, where loops allows it", () => {
     const read = stub.requests.find((r) => r.path === `/api/dm/messages/${AGENT_MESSAGE.id}`);
     assert.ok(read && read.authorization !== undefined && read.cookie === undefined, "read by id with the key");
     assert.ok(!stub.requests.some((r) => r.path === "/api/dm/messages/dm_p9"), "the person's message never read");
+    // After the dm.* events the threads are read once more (the two events coalesced) and sent again, whole.
+    await waitFor("the threads after the events", async () => tab.messages.filter((m) => m.type === "threads").length > threadsAtAttach.length);
+    const again = tab.messages.filter((m) => m.type === "threads").at(-1);
+    assert.deepEqual(again, { type: "threads", threads: [{ agentId: "boing", lastMessageAt: THREAD.lastMessageAt, unreadCount: 1 }] });
+    assert.equal(stub.requests.filter((r) => r.path === "/api/dm/threads").length, 2, "one re-read for the two events, with the key");
+    assert.ok(stub.requests.filter((r) => r.path === "/api/dm/threads").every((r) => r.authorization !== undefined && r.cookie === undefined));
   });
 
   it("a loops that refuses the key the chat keeps the session road: signed-out, the sign-in form stands", async () => {
     const stub = await createLoopsStub({ ...installation() });
     cleanup.push(() => stub.close());
-    const { health, lines } = await startHost(stub.url, stub.key, folder());
+    const { host, health, lines } = await startHost(stub.url, stub.key, folder());
     assert.deepEqual((await health()).connection.session, { state: "signed-out" });
     // The probe: the key's own entry in the agents list (no `viewer` on this loops), so the threads are not even asked.
     assert.ok(stub.requests.some((r) => r.path === "/api/agents" && r.authorization !== undefined), "the agents list read with the key");
     assert.ok(!stub.requests.some((r) => r.path === "/api/dm/threads"), "a plain key is not a viewer: the chat is not asked for");
     assert.ok(!lines.some((l) => /the key reads the chat/.test(l)));
+    // No threads message either (round 24): the card keeps its honest words.
+    const tab = await openSse(`${host.url}/world-api/stream?cursor=0`);
+    cleanup.push(() => tab.close());
+    await tab.next((m) => m.type === "status" && m.loops === "ok");
+    await new Promise((r) => setTimeout(r, 300));
+    assert.ok(!tab.messages.some((m) => m.type === "threads"), "no thread facts where the key cannot read the chat");
   });
 });

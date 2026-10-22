@@ -7,6 +7,7 @@ import { AgentCard } from "./AgentCard";
 import { useHostHealth } from "../state/health";
 import { cardAnswersEmpty } from "../state/recentAnswers";
 import { useRecentAnswers } from "../state/said";
+import { useChatThreads } from "../state/threads";
 import type { FetchedProgress } from "../world/agentCard/types";
 import { renderAgentCard } from "../world/agentCard/registry";
 import { useDark } from "../state/theme";
@@ -398,9 +399,12 @@ function useAgentCard(props: Props, inside: Building | null, compact: boolean, p
   const health = useHostHealth();
   const answersEmpty = cardAnswersEmpty(demo ? "demo" : "live", health?.connection?.session);
   const fetchedProgress = useDeskProgress(facts && facts.progress === null ? (facts.work?.key ?? null) : null);
+  // The chat threads' facts (round 24), where the key reads the chat: this agent's, or null for none, or nothing known.
+  const threads = useChatThreads();
+  const thread = threads === null || !key ? undefined : (threads.get(key) ?? null);
   const sections = useMemo(
-    () => (facts ? renderAgentCard(facts, { now: model.now, freshness: model.freshness, loopsUrl: demo ? null : loopsWebUrl(SOURCE.health), rooms, answers, answersEmpty, ...(fetchedProgress ? { fetchedProgress } : {}) }) : []),
-    [facts, model.now, model.freshness, demo, rooms, answers, answersEmpty, fetchedProgress],
+    () => (facts ? renderAgentCard(facts, { now: model.now, freshness: model.freshness, loopsUrl: demo ? null : loopsWebUrl(SOURCE.health), rooms, answers, answersEmpty, ...(fetchedProgress ? { fetchedProgress } : {}), ...(thread === undefined ? {} : { thread }) }) : []),
+    [facts, model.now, model.freshness, demo, rooms, answers, answersEmpty, fetchedProgress, thread],
   );
   const here = inside ? inside.agents.some((a) => a.key === key) : [...model.townHall, ...model.postOffice].some((a) => a.key === key);
   if (!key || !facts || !here) return null;
