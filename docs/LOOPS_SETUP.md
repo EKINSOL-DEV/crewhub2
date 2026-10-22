@@ -174,7 +174,7 @@ The host reads these; every one has a default that matches the app.
 | `CREWHUB_WORLD_PAIRING_FILE` | none; `npm run world`: `~/.config/crewhub-world/pairing-secret` | A file (created, mode 0600) that keeps the pairing secret across host restarts, so paired browsers stay paired. Without it the secret is per run: a restart means pairing again (an open tab is left on Stale). `npm run world` keeps it in the host's own folder unless this names another file. |
 | `CREWHUB_WORLD_PUBLIC_URL` | none | The URL a browser reaches the host at when a TLS proxy stands in front; `https` makes the cookie `Secure`, and that origin passes the Host/Origin guard. |
 
-The Vite dev server proxies `/world-api` and `/pair` to `http://127.0.0.1:${CREWHUB_WORLD_PORT ?? 5180}` with
+The Vite dev server proxies `/world-api` to `http://127.0.0.1:${CREWHUB_WORLD_PORT ?? 5180}` with
 `changeOrigin`, so the Host header the host checks is its own.
 
 ## 3. Run the world in live mode

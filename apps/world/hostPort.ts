@@ -1,6 +1,6 @@
 /*
  * The world's host port as Vite sees it: `CREWHUB_WORLD_PORT`, which `vite.config.ts` reads for the `/world-api` and
- * `/pair` proxy. The dev server (`npm run dev`) defaults to 5180, the host's own default, so `npm run dev` beside
+ * proxy. The dev server (`npm run dev`) defaults to 5180, the host's own default, so `npm run dev` beside
  * `npm run host` meet without a word, as they always have. The preview server (`npm run preview`) never defaults: a
  * preview is somebody looking at a build, and a proxy to 5180 would reach whatever host runs there (on a shared machine,
  * another person's). Without the variable the preview proxies nothing: `/world-api` is answered as "no host" (204, what
@@ -15,9 +15,9 @@ export const DEFAULT_HOST_PORT = 5180;
 export type ViteServer = "dev" | "preview";
 
 export type HostPortPlan =
-  /** Proxy `/world-api` and `/pair` to this port on 127.0.0.1. */
+  /** Proxy `/world-api` to this port on 127.0.0.1 (round 27: the pairing link's token rides in the URL fragment and reaches no server; `/pair` is no route). */
   | { proxy: true; port: number }
-  /** No proxy; `note` is what the server prints once, and what `/pair` answers. */
+  /** No proxy; `note` is what the server prints once. */
   | { proxy: false; port: null; note: string };
 
 /** A port as the variable may name it: an integer from 1 to 65535, with whitespace around it allowed; else null. */
@@ -64,7 +64,7 @@ export type DevHostVerdict = { ok: true; line: string } | { ok: false; line: str
 export function devHostVerdict(input: { port: number; explicit: boolean; local: { root: string; id: string }; answer: HostAnswer }): DevHostVerdict {
   const where = `127.0.0.1:${input.port}`;
   const named = input.explicit ? `${HOST_PORT_VAR}=${input.port}` : `the default, ${HOST_PORT_VAR}=<port> names another`;
-  const head = `dev: /world-api and /pair go to the host on ${where} (${named})`;
+  const head = `dev: /world-api goes to the host on ${where} (${named})`;
   const key = (name: string) => (name === "" ? "no key yet" : `key ${name}`);
   switch (input.answer.kind) {
     case "silent":

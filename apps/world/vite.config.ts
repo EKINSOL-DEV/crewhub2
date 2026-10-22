@@ -125,8 +125,8 @@ function preloadWorld(): Plugin {
 
 /**
  * The preview without CREWHUB_WORLD_PORT (hostPort.ts): no proxy, and these answers in its place so the page meets what
- * it meets behind the dev proxy with nothing listening: `/world-api` a 204 ("no host": the probe runs the demo),
- * `/pair` the note as text. The note is printed once when the preview listens.
+ * it meets behind the dev proxy with nothing listening: `/world-api` a 204 ("no host": the probe runs the demo). The
+ * note is printed once when the preview listens.
  */
 function previewWithoutHost(note: string): Plugin {
   return {
@@ -137,9 +137,6 @@ function previewWithoutHost(note: string): Plugin {
         if (url === "/world-api" || url.startsWith("/world-api/")) {
           res.writeHead(204, { "x-world-host": "unset" });
           res.end();
-        } else if (url === "/pair" || url.startsWith("/pair/")) {
-          res.writeHead(503, { "content-type": "text/plain; charset=utf-8" });
-          res.end(`${note}\n`);
         } else next();
       });
       server.httpServer?.once("listening", () => server.config.logger.info(`  ${note}`));
@@ -184,7 +181,7 @@ export default defineConfig(({ isPreview }) => {
   // The dev server tells the host its origin (round 23); the preview never does (it proxies only to a port named, and
   // its page is a build to look at, not to write the town from).
   const teller = plan.proxy && !isPreview ? devOriginTeller(plan.port, checkoutId(realpathSync(fileURLToPath(new URL("../..", import.meta.url)))), { info: (text) => console.log(text) }) : null;
-  const proxy = plan.proxy ? { "/world-api": worldApiProxy(plan.port, teller), "/pair": worldApiProxy(plan.port) } : {};
+  const proxy = plan.proxy ? { "/world-api": worldApiProxy(plan.port, teller) } : {};
   return {
   plugins: [react(), preloadWorld(), ...(plan.proxy ? (teller === null ? [] : [devHost(plan.port, explicit, teller)]) : [previewWithoutHost(plan.note)])],
   resolve: {
@@ -200,7 +197,8 @@ export default defineConfig(({ isPreview }) => {
     // The world's host (apps/host) answers /world-api; in dev Vite forwards it there, the SSE stream included. The host
     // checks the Host header against its own port, so the origin is changed. Without a host the proxy answers an error
     // the app treats as "no host" (the source decision falls back to the demo).
-    // `/pair/<token>` too, so a link minted for this origin (`npm run host -- open --origin http://127.0.0.1:5173`) pairs here.
+    // A pairing link minted for this origin (`npm run host -- open --origin http://127.0.0.1:5173`) carries its token in the
+    // URL fragment (round 27): nothing to proxy; the page exchanges it at the proxied POST /world-api/pair.
     proxy,
   },
   // The preview inherits `server.proxy` unless told otherwise; it is told: the same proxy, or none without the variable.

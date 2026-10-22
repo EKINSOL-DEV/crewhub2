@@ -38,7 +38,7 @@ describe("whose host is on the dev proxy's port", () => {
   it("goes on when nothing answers, when it is not a host, when it is this checkout's host, or when the host cannot say", () => {
     const silent = devHostVerdict({ port: 5180, explicit: false, local, answer: { kind: "silent" } });
     assert.equal(silent.ok, true);
-    assert.match(silent.line, /^dev: \/world-api and \/pair go to the host on 127\.0\.0\.1:5180 \(the default, CREWHUB_WORLD_PORT=<port> names another\): nothing answers there now, the page runs the demo/);
+    assert.match(silent.line, /^dev: \/world-api goes to the host on 127\.0\.0\.1:5180 \(the default, CREWHUB_WORLD_PORT=<port> names another\): nothing answers there now, the page runs the demo/);
     const other = devHostVerdict({ port: 5194, explicit: true, local, answer: { kind: "not-a-host" } });
     assert.equal(other.ok, true);
     assert.match(other.line, /127\.0\.0\.1:5194 \(CREWHUB_WORLD_PORT=5194\): what answers there is not the world's host/);
