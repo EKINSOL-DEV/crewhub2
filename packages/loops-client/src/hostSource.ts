@@ -69,12 +69,14 @@ export interface HostKeyState {
 /**
  * The chat's road (round 12; one road since round 19): present as `key` when this crewhub-loops lets the world's own key
  * read the chat (a viewer key, `world/viewer-key`), so the agents' answers come as bubbles over the key's own stream;
- * absent when it does not (an older loops, a plain external bot's key): no bubbles, and the world says how to make a
- * viewer key. The sign-in road (`signed-out`, `signed-in`, `expired`, a person's session kept by the host) went with
- * the switch to the viewer key (decision 9).
+ * `unknown` (round 29) while the host cannot say yet (no link to loops, the key unchecked or being checked), so the
+ * page decides no road on it; absent when the host knows the key does not read the chat (an older loops, a plain
+ * external bot's key, loops' chat bubbles feature off): no bubbles over the key, and the world says the ways. The
+ * sign-in road (`signed-out`, `signed-in`, `expired`, a person's session kept by the host) went with the switch to the
+ * viewer key (decision 9).
  */
 export interface HostSessionState {
-  state: "key";
+  state: "key" | "unknown";
 }
 
 /** The host's one upstream stream. */
@@ -256,7 +258,7 @@ export function readConnection(value: unknown): HostConnection | null {
 /** The host's `connection.session`, strictly: `key` only; anything else (a host from before with a sign-in state) is dropped. */
 export function readSessionState(value: unknown): HostSessionState | null {
   const raw = value as { state?: unknown } | null | undefined;
-  const state = oneOf(raw?.state, ["key"]);
+  const state = oneOf(raw?.state, ["key", "unknown"]);
   return state === undefined ? null : { state };
 }
 
