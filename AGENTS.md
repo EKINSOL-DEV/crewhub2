@@ -15,8 +15,10 @@ call, no account and no model call. Live mode is built: `apps/host` finds the Ma
 app's crewhub-loops by itself, reads it with an external bot key (over the app's Unix
 socket or loopback TCP) and never writes to it; `npm run world` starts it, pairs the
 browser and asks for the key once on a Connect screen; the runbook is
-[docs/LOOPS_SETUP.md](docs/LOOPS_SETUP.md). Still planned, not built: the host's world
-database, the chat and the director in live form. Implement the scope the user
+[docs/LOOPS_SETUP.md](docs/LOOPS_SETUP.md). The chat is crewhub-loops' own, framed in the
+world's Chat panel, with the agents' answers as bubbles where the key may read the chat.
+Still planned, not built: the host's world database (in progress, round 20) and the real
+director. Implement the scope the user
 actually assigns; do not describe planned parts as implemented.
 
 Start with [docs/README.md](docs/README.md) for the document index and
@@ -60,7 +62,7 @@ proposals, and implemented behavior.
   assembles the snapshot under a read cap, keeps one upstream stream for every tab,
   serves and pairs the browser (the pairing secret kept across restarts by
   `npm run world`), reports its states in health, and never writes to crewhub-loops.
-  The world database is planned, not built. It never controls agents or holds
+  The world database is in progress (round 20). It never controls agents or holds
   provider secrets.
 - `packages/loops-fake` is a fake crewhub-loops over HTTP for the host's tests and the
   live browser checks: it serves the demo storyline the way crewhub-loops `4cdcd383`

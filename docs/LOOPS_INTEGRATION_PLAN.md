@@ -912,7 +912,9 @@ install changes only a URL and a key file. The runbook is [LOOPS_SETUP.md](LOOPS
 - **Pairing** (the one-time link exchanged for an HttpOnly cookie, 3.5): the host trusts loopback and checks Host
   and Origin only. A written known gap in the host's README. *Built on 2026-10-21 (readiness hardening and the
   rounds below): the link, the cookie, the secret kept across restarts by `npm run world`.*
-- **The chat** (phase 2): needs L8, which crewhub-loops has not built.
+- **The chat** (phase 2) as planned here, in the world's page on the person's session: needs L8, which crewhub-loops
+  has not built. *Built another way (2026-10-21 to 22, rounds 12 to 18): the Chat panel frames loops' own web app, and
+  the host reads the agents' answers for the bubbles where the key may read the chat.*
 - **The "socket client"**: on a Mac the API is reached on `127.0.0.1:8091` over loopback TCP; the Unix socket does
   not cross Docker Desktop (`loops:docs/porting/MAC-QUICKSTART.md`). The host is a TCP client *(as built on
   2026-10-07; since 2026-10-21 TCP by default, the Unix socket with `CREWHUB_WORLD_LOOPS_SOCKET`)*; a socket transport
@@ -1011,15 +1013,18 @@ including the `real` group over TCP and the socket; round 3's tracks merged afte
   tab shows "Pair this browser", the doctor never asks for a needless restart, the Connect and Pair screens and the
   runbook match the real road; about 90 s hands on from the clone to the real buildings. (r3-coldclone then found
   the "50 s first run" was the rehearsal's own latency, not the command's, and cut the nested npm start of the build.)
-- **Not built, proposed on the loops branch `world/viewer-key`** (r3-loopsbutton): a "Connect CrewHub World" card in
+- **Proposed and written on the loops branch `world/viewer-key`** (r3-loopsbutton; on origin since round 19, under
+  `cl-lead`'s review): a "Connect CrewHub World" card in
   Settings > Agents that makes the viewer bot and shows its key once with the world's address.
 
 **What remains.**
 
 - **L1, the viewer key**, in crewhub-loops: until it lands the world runs on a key that could write, behind the
-  host's allow-list. The proposal, and the "Connect CrewHub World" card on top of it, exist on the unpushed loops
-  branch `world/viewer-key`; the decision is `cl-lead`'s and Nicky's.
-- **L8, CORS**, for the chat (phase 2): nothing changed at `4cdcd383`; the dock shows the sign-in link only.
+  host's allow-list. The proposal, and the "Connect CrewHub World" card on top of it, exist on the loops branch
+  `world/viewer-key`, on origin with 15 commits under `cl-lead`'s review; the world's switch is written on
+  `task/r19-viewer-switch` and merges when loops main carries the branch.
+- **L8, CORS**: nothing changed at `4cdcd383`, and the chat no longer needs it: the Chat panel frames loops' own web
+  app (rounds 12 to 18) and the bubbles come through the host.
   Pending delegations need the owner's session, not a key, and stay out with it.
 - **L22, project groups**: zones stay in the browser's town document.
 - **The world database** (phases 3 and 5 in live form), the real director (phase 6): not started.

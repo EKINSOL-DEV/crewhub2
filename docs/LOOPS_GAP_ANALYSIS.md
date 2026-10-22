@@ -26,9 +26,16 @@ so at `4cdcd383`; L23 is refreshed.
 Update, 2026-10-21 (later the same night): the world's side of the live connection is merged and rehearsed (the host
 finds the Mac app by itself, starts without a key, takes one pasted in the browser, pairs and keeps the pairing; the
 archive read of L16 is built). On the loops side nothing is accepted yet: the viewer key (L1) and, on top of it, a
-"Connect CrewHub World" card for Settings > Agents are worked proposals with tests on the unpushed branch
+"Connect CrewHub World" card for Settings > Agents are worked proposals with tests on the branch
 `world/viewer-key` of the world's loops checkout. Sections 3 and 6.1 name them; the rest of this document is as it
 was.
+
+Update, 2026-10-22: `world/viewer-key` is on origin (15 commits on `4cdcd383`, under `cl-lead`'s review) and carries,
+besides the viewer key and the card, a deep link to one agent's chat, a framing allowance for loopback origins and the
+viewer key's read of the chat the owner sees; the world's switch to it is written on `task/r19-viewer-switch`. Phase 2
+was built without CORS (rounds 12 to 18): the Chat panel frames loops' own web app, and the host reads the agents'
+answers for the bubbles (the viewer key where loops has it, the person's session until then), the relay road that
+section 8, question 1 names. The verdict below is as it was on 2026-10-21.
 
 Two readers: the owner (Nicky), who decides what to ask of crewhub-loops, and the crewhub-loops lead agent
 (`cl-lead`), who receives section 6 as work. Each section can be read on its own.
@@ -67,7 +74,7 @@ every ticket or chat message with a body, and on one common `ticket.moved` paylo
 | Phase (plan section 10) | Status today | The one reason |
 | --- | --- | --- |
 | 1. First light (host, projects, counts, leads) | Ready with a workaround | No read-only key exists (L1). The host used a `probe` key until CL-295 locked every other probe out of every read; since 2026-10-21 it uses a lead-grade external bot key (CL-314), which could write tickets, and the host's `GET`-only allow-list is what keeps it read-only (section 2c). |
-| 2. Chat bubbles | **Blocked** | No CORS (L8). The only way around it is a relay in the host that forwards the person's session, which changes a decision in ADR 0005 (section 8, question 1). |
+| 2. Chat bubbles | **Blocked** as a page of the world's own; built through the host since 2026-10-21 (the update above) | No CORS (L8). The only way around it is a relay in the host that forwards the person's session, which changes a decision in ADR 0005 (section 8, question 1). |
 | 3. Buildings (rooms, objects, postures, stalls) | Ready with a workaround | Roles, a worker's ticket and snapshot freshness are still inferred by the world (L6, L3, L10); every event still needs a refetch (L4). |
 | 4. Town and pathfinding | Ready | It adds no need beyond phase 3; delivery events reach an agent key (`loops:.../api/stream.py`, `event_visibility_sql`). |
 | 5. Build mode and props | Ready with a workaround | Layout and props live in the world's own database. The prop-as-ticket flow works through comments and `ticket.moved`, once an admin creates the CrewHub project and a `prop` label in crewhub-loops. |
