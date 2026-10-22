@@ -1,9 +1,11 @@
 /* The town document's part of Settings: the style (from the document; one option tonight), the viewer's graphics
    and day-and-night settings, where the town is kept, export and import of the whole town as JSON, and the rules table that switches
    rule props. An invalid import shows its precise error and changes nothing. */
-import { useState, type ChangeEvent } from "react";
+import { useEffect, useState, type ChangeEvent } from "react";
 import { Download } from "lucide-react";
-import { exportTownDocument, RULE_IDS, type RuleId } from "@crewhub/world-model";
+import { readHostTownBackup, readHostTownBackups } from "@crewhub/loops-client";
+import { exportTownDocument, RULE_IDS, type RuleId, type TownDocument } from "@crewhub/world-model";
+import { RestoreDialog, type RestorePreview } from "./RestoreDialog";
 import { townKeepingWords } from "../world/zoneText";
 import type { GraphicsQuality } from "@crewhub/world-style";
 import { QUALITY_CHOICES, setQuality, useQuality } from "../state/quality";
@@ -40,6 +42,22 @@ export function TownSettings({ town }: { town: TownState }) {
   const oldQuarter = useOldQuarter();
   const buildingPlan = useBuildingPlan();
   const [importNote, setImportNote] = useState<{ ok: boolean; text: string } | null>(null);
+  // Round 21: a restore (a file or a backup) is previewed and confirmed, never silent.
+  const [pending, setPending] = useState<(RestorePreview & { doc: TownDocument }) | null>(null);
+  const [backups, setBackups] = useState<{ name: string; version: number; at: string }[]>([]);
+  const [backup, setBackup] = useState("");
+  const hosted = town.storage === "host";
+  useEffect(() => {
+    if (!hosted) return;
+    let live = true;
+    void readHostTownBackups().then((answer) => {
+      const list = (answer.body as { backups?: { name: string; version: number; at: string }[] } | null)?.backups;
+      if (live && Array.isArray(list)) setBackups(list);
+    });
+    return () => {
+      live = false;
+    };
+  }, [hosted]);
   const style = styleRegistry.getStyle(town.doc.styleId).manifest;
   const cast = useCast();
   const casts = castRegistry.listCasts();
@@ -51,8 +69,35 @@ export function TownSettings({ town }: { town: TownState }) {
     const file = e.currentTarget.files?.[0];
     e.currentTarget.value = "";
     if (!file) return;
-    const result = townRuntime().importText(await file.text());
-    setImportNote(result.ok ? { ok: true, text: `Imported ${file.name}. Undo goes back to the town before it.` } : { ok: false, text: `${file.name} was not imported, nothing changed: ${result.error}` });
+    const result = townRuntime().previewRestore({ text: await file.text() });
+    if (!result.ok) {
+      setImportNote({ ok: false, text: `${file.name} was not imported, nothing changed: ${result.error}` });
+      return;
+    }
+    setImportNote(null);
+    setPending({ source: file.name, changes: result.changes, doc: result.doc });
+  };
+  const previewBackup = async () => {
+    if (!backup) return;
+    const answer = await readHostTownBackup(backup);
+    const document = (answer.body as { document?: unknown } | null)?.document;
+    if (answer.status !== 200 || document === undefined || document === null) {
+      setImportNote({ ok: false, text: answer.status === 404 ? `${backup} holds no town for this crewhub-loops; nothing changed.` : `The host did not answer with ${backup}; nothing changed.` });
+      return;
+    }
+    const result = townRuntime().previewRestore({ document });
+    if (!result.ok) {
+      setImportNote({ ok: false, text: `${backup} was not restored, nothing changed: ${result.error}` });
+      return;
+    }
+    setImportNote(null);
+    setPending({ source: backup, changes: result.changes, doc: result.doc });
+  };
+  const confirmRestore = () => {
+    if (!pending) return;
+    townRuntime().applyRestore(pending.doc);
+    setImportNote({ ok: true, text: `Restored from ${pending.source}. Undo goes back to the town before it.` });
+    setPending(null);
   };
 
   return (
@@ -170,6 +215,22 @@ export function TownSettings({ town }: { town: TownState }) {
             {...(importNote && !importNote.ok ? { error: importNote.text } : importNote ? { hint: importNote.text } : {})}
           />
         </div>
+        {hosted && (
+          <div className="town-restore">
+            <Field control="select" size="sm" label="Restore from a backup" hint={backups.length ? "A copy the host made before a schema change; the preview says what would change." : "The host has made no backup copy yet (one comes with each schema change)."} value={backup} onChange={(e) => setBackup(e.currentTarget.value)} disabled={backups.length === 0}>
+              <option value="">{backups.length ? "Choose a copy" : "None yet"}</option>
+              {backups.map((b) => (
+                <option key={b.name} value={b.name}>
+                  {b.name} (schema {b.version}, {b.at.slice(0, 16).replace("T", " ")})
+                </option>
+              ))}
+            </Field>
+            <Button size="sm" disabled={!backup} onClick={() => void previewBackup()}>
+              Preview the restore
+            </Button>
+          </div>
+        )}
+        {pending && <RestoreDialog preview={pending} onConfirm={confirmRestore} onCancel={() => setPending(null)} onExportCurrent={() => downloadText(`crewhub-town-r${town.doc.revision}.json`, exportTownDocument(town.doc))} />}
       </fieldset>
       <ZoneSettings model={model} town={town} />
       <fieldset className="rule-settings">

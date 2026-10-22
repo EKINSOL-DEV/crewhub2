@@ -961,7 +961,8 @@ export async function createHost(options: HostOptions): Promise<Host> {
       } catch {
         held = null;
       }
-      sendJson(res, 409, { error: "town_conflict", message: "Another browser changed the town since this one read it; here is the town as the host has it", rev: outcome.conflict.rev, document: held });
+      const now = db.getTown(installation);
+      sendJson(res, 409, { error: "town_conflict", message: "Another browser changed the town since this one read it; here is the town as the host has it", rev: outcome.conflict.rev, document: held, canUndo: now?.canUndo ?? false, canRedo: now?.canRedo ?? false });
       return;
     }
     let current: unknown = null;

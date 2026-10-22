@@ -84,6 +84,7 @@ export {
 } from "./propRequests.ts";
 export { AWAITING_DEPLOY_LABEL, ruleProps } from "./ruleProps.ts";
 export { describeTownDocument } from "./describeTown.ts";
+export { townChanges } from "./townChanges.ts";
 export type {
   Gather,
   GoToProp,

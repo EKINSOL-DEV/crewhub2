@@ -772,8 +772,21 @@ export async function readHostTown(baseUrl = "", timeoutMs = 10_000): Promise<Ho
  * `{rev}`; 409 `town_conflict {rev, document}` when another browser wrote first (the host's town comes back with it,
  * never overwritten). Same origin; the browser sends the Origin header on a PUT by itself. Never throws.
  */
-export async function writeHostTown(document: unknown, baseRev: number, baseUrl = "", timeoutMs = 15_000): Promise<HostAnswer> {
-  return hostRequest("PUT", `${baseUrl}${PREFIX}/town`, JSON.stringify({ document, baseRev }), timeoutMs);
+export async function writeHostTown(document: unknown, baseRev: number, baseUrl = "", timeoutMs = 15_000, op: HostTownOp = "commit"): Promise<HostAnswer> {
+  return hostRequest("PUT", `${baseUrl}${PREFIX}/town`, JSON.stringify(document === null ? { op, baseRev } : { op, document, baseRev }), timeoutMs);
+}
+
+/** One move of the host's town history (round 21): a person's edit, the world's own record, a step back or forward. */
+export type HostTownOp = "commit" | "amend" | "undo" | "redo";
+
+/** `GET /world-api/town/backups`: the host's backup copies (`world.db.bak-v<n>`) for a restore. Never throws. */
+export async function readHostTownBackups(baseUrl = "", timeoutMs = 10_000): Promise<HostAnswer> {
+  return hostRequest("GET", `${baseUrl}${PREFIX}/town/backups`, null, timeoutMs);
+}
+
+/** `GET /world-api/town/backups/{name}`: this installation's town inside one backup copy. Never throws. */
+export async function readHostTownBackup(name: string, baseUrl = "", timeoutMs = 10_000): Promise<HostAnswer> {
+  return hostRequest("GET", `${baseUrl}${PREFIX}/town/backups/${encodeURIComponent(name)}`, null, timeoutMs);
 }
 
 async function hostRequest(method: "GET" | "POST" | "PUT" | "DELETE", url: string, body: string | null, timeoutMs: number): Promise<HostAnswer> {
