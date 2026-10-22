@@ -5,6 +5,7 @@ These are the active documents for the browser-world rebuild. All are in English
 | Document | Purpose |
 | --- | --- |
 | [INTRODUCTION.md](INTRODUCTION.md) | Start here: an extensive introduction for a reader who knows crewhub-loops and has never seen the world; the town and its parts, one table of loops object or event to world thing, demo and live mode, how it connects, the chat as built, the loops-side proposals, where to read next (with pictures) |
+| [proposals/open-questions.md](proposals/open-questions.md) | The open questions for Nicky after rounds 26 to 29 (pairing, health before pairing, the dev-origin route, the tour's beat, build mode and the host's town, the screens over the scene, offline in two tabs, the chat's second road, the Connection panel's Chat section, the switch branch): each with its options, the team's recommendation, the default and a one-word answer form |
 | [VISION.md](VISION.md) | User goals, product principles, and success criteria |
 | [VISUAL_DIRECTION.md](VISUAL_DIRECTION.md) | Art direction, interactions, and visual quality bar |
 | [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) | The crewhub-loops design system: tokens, primitives, theme, status mapping and checks |
