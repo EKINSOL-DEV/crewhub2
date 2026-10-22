@@ -1,7 +1,8 @@
-/* profile.mjs: a CPU profile of the world's first paint, resolved to source files, so the next cut can be found.
+/* profile.mjs: a CPU profile of the world's first paint, or of the first entry into a building (--enter), resolved to
+   source files, so the next cut can be found.
 
    Usage:
-     node tools/profile.mjs --port <port> [--runs 1] [--stacks <ms>] [--tag profile] [--out <dir>]
+     node tools/profile.mjs --port <port> [--runs 1] [--stacks <ms>] [--enter] [--throttle 1] [--viewport 1440x900] [--tag profile] [--out <dir>]
                             [--fake-scenario <id>] [--loops-url <url> --key-file <file>] [--host-port <port>] [--swiftshader]
 
    What it does: a production run of live mode (lib/live.mjs with --preview: the host serves apps/world/dist on a free
@@ -25,6 +26,12 @@
      and the call behind work done at import (`--stacks 120` found the director's navigation world at module
      evaluation in round 6).
    The raw trace goes to --out as <tag>-<run>.trace.json (open it in DevTools' Performance panel for the picture).
+   With --enter (round 25): the run goes on past the dressed town for 2.5 s of idle time (the likely building's inside
+   is built ahead, round 24), then the canvas is focused and Enter pressed: the first entry into building 0. The
+   report is then of the 500 ms after the key (`profile:enter`, a mark the tool sets): the page's own CPU in them, the
+   self and inclusive tables, every task over 10 ms in them, and with --stacks (any number: the window is the filter
+   then) their whole stacks. --throttle <rate> slows the page's CPU (4: round 21's phone) and --viewport <w>x<h> sizes
+   it (375x812 is mobile, with touch); both apply to the first paint too.
 
    Reading it: the page's own CPU until dressed is the budget; the inclusive-by-file table says where it goes; the
    tasks say what blocks the main thread and for how long; a task before the scene exists is import-time work, and
@@ -40,8 +47,15 @@ import { SourceMap } from "./lib/sourcemap.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DIST = path.join(REPO, "apps", "world", "dist");
-const USAGE = "node tools/profile.mjs --port <port> [--runs 1] [--stacks <ms>] [--tag profile] [--out <dir>] [--fake-scenario <id>] [--loops-url <url> --key-file <file>] [--host-port <port>] [--swiftshader]";
-const opts = cli(USAGE, { options: { runs: "1", tag: "profile", stacks: "0", ...LIVE_OPTIONS, source: "live", "fake-speed": "0", "host-port": "0" } });
+const USAGE = "node tools/profile.mjs --port <port> [--runs 1] [--stacks <ms>] [--enter] [--throttle 1] [--viewport 1440x900] [--tag profile] [--out <dir>] [--fake-scenario <id>] [--loops-url <url> --key-file <file>] [--host-port <port>] [--swiftshader]";
+const opts = cli(USAGE, { options: { runs: "1", tag: "profile", stacks: "0", throttle: "1", viewport: "1440x900", ...LIVE_OPTIONS, source: "live", "fake-speed": "0", "host-port": "0" }, flags: ["enter"] });
+const throttle = Number(opts.throttle);
+if (!(throttle >= 1)) opts.fail("--throttle <rate> must be 1 or more");
+const [viewWidth, viewHeight] = opts.viewport.split("x").map(Number);
+if (!(viewWidth > 0 && viewHeight > 0)) opts.fail("--viewport takes <width>x<height>");
+const phone = viewWidth <= 500;
+/** The enter's window: this long after the key. */
+const ENTER_WINDOW_MS = 500;
 if (!existsSync(path.join(DIST, "index.html"))) opts.fail("no build in apps/world/dist: run (cd apps/world && npx vite build --sourcemap) first");
 const stacksUntil = Number(opts.stacks);
 if (!(stacksUntil >= 0)) opts.fail("--stacks <ms> must be a number of milliseconds after navigation (0: off)");
@@ -73,14 +87,22 @@ const CATEGORIES = ["devtools.timeline", "disabled-by-default-devtools.timeline"
 const ENGINE = /^\((idle|program|garbage|root)/;
 try {
   for (let run = 1; run <= runs; run++) {
-    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const context = await browser.newContext({ viewport: { width: viewWidth, height: viewHeight }, isMobile: phone, hasTouch: phone, deviceScaleFactor: 1 });
     const page = await context.newPage();
+    if (throttle > 1) await (await context.newCDPSession(page)).send("Emulation.setCPUThrottlingRate", { rate: throttle });
     await live.pair(page);
     await page.goto("about:blank");
     await browser.startTracing(page, { categories: CATEGORIES, screenshots: false });
     await page.goto(live.base);
     await page.waitForFunction(() => performance.getEntriesByName("world:town-dressed").length > 0, null, { timeout: 60000 });
     await page.waitForTimeout(200);
+    if (opts.enter) {
+      await page.waitForTimeout(2300);
+      await page.locator("canvas").first().focus();
+      await page.evaluate(() => performance.mark("profile:enter"));
+      await page.keyboard.press("Enter");
+      await page.waitForTimeout(ENTER_WINDOW_MS + 1000);
+    }
     const trace = await browser.stopTracing();
     const marks = await page.evaluate(() => performance.getEntriesByType("mark").map((m) => ({ name: m.name, ms: Math.round(m.startTime) })));
     await context.close();
@@ -100,8 +122,16 @@ function report(run, events, marks) {
   }
   const ms = (ts) => (ts - navigation.ts) / 1000;
   const dressedMs = marks.find((m) => m.name === "world:town-dressed")?.ms ?? Infinity;
-  console.log(`\n=== run ${run}: marks ${marks.map((m) => `${m.name}@${m.ms}`).join(" ")}`);
-  const tasks = events.filter((e) => e.ph === "X" && e.name === "RunTask" && e.dur > 10000 && ms(e.ts) < dressedMs + 50).sort((a, b) => a.ts - b.ts);
+  const enterMs = marks.find((m) => m.name === "profile:enter")?.ms;
+  if (opts.enter && enterMs === undefined) {
+    console.log(`=== run ${run}: no profile:enter mark (the page did not take the key)`);
+    return;
+  }
+  // The window reported: the first paint (navigation to the dressed town), or the enter's 500 ms after the key.
+  const from = opts.enter ? enterMs : 0;
+  const until = opts.enter ? enterMs + ENTER_WINDOW_MS : dressedMs;
+  console.log(`\n=== run ${run}: marks ${marks.map((m) => `${m.name}@${m.ms}`).join(" ")}${opts.enter ? ` (the enter's window: ${from} to ${until} ms)` : ""}`);
+  const tasks = events.filter((e) => e.ph === "X" && e.name === "RunTask" && e.dur > 10000 && ms(e.ts) >= from - 1 && ms(e.ts) < until + (opts.enter ? 0 : 50)).sort((a, b) => a.ts - b.ts);
   // The CPU profile: nodes (call frames with their parent) and timed samples.
   const nodes = new Map();
   const samples = [];
@@ -137,7 +167,7 @@ function report(run, events, marks) {
   let own = 0;
   for (const s of samples) {
     const t = ms(s.ts);
-    if (t < 0 || t > dressedMs || !nodes.get(s.id)) continue;
+    if (t < from || t > until || !nodes.get(s.id)) continue;
     const key = keyOf(s.id);
     self.set(key, (self.get(key) ?? 0) + s.dt);
     if (ENGINE.test(nodes.get(s.id).frame.functionName)) continue;
@@ -146,7 +176,7 @@ function report(run, events, marks) {
     for (const f of files) byFile.set(f, (byFile.get(f) ?? 0) + s.dt);
   }
   const top = (map, n) => [...map].sort((a, b) => b[1] - a[1]).slice(0, n);
-  console.log(`--- CPU in the page's own code until dressed: ${own.toFixed(0)} ms of ${dressedMs} ms`);
+  console.log(opts.enter ? `--- CPU in the page's own code in the ${ENTER_WINDOW_MS} ms after the key: ${own.toFixed(0)} ms` : `--- CPU in the page's own code until dressed: ${own.toFixed(0)} ms of ${dressedMs} ms`);
   console.log("--- self time per function, top 40");
   for (const [k, v] of top(self, 40)) console.log(`  ${v.toFixed(1).padStart(7)} ms  ${k}`);
   console.log("--- inclusive per source file (a sample counts once per file on its stack), top 30");
@@ -163,8 +193,8 @@ function report(run, events, marks) {
     for (const [k, v] of top(deepest, 5)) console.log(`           ${v.toFixed(1).padStart(6)} ms  ${k}`);
   }
   if (!stacksUntil) return;
-  console.log(`--- whole stacks of the tasks over 10 ms that start before ${stacksUntil} ms (per task: inclusive per frame, then the 12 heaviest stacks)`);
-  for (const t of tasks.filter((t) => ms(t.ts) < stacksUntil)) {
+  console.log(opts.enter ? "--- whole stacks of the tasks over 10 ms in the enter's window (per task: inclusive per frame, the page's own frames, then the 12 heaviest stacks)" : `--- whole stacks of the tasks over 10 ms that start before ${stacksUntil} ms (per task: inclusive per frame, then the 12 heaviest stacks)`);
+  for (const t of tasks.filter((t) => opts.enter || ms(t.ts) < stacksUntil)) {
     const inTask = within(t);
     const byStack = new Map();
     const byFrame = new Map();
@@ -177,6 +207,10 @@ function report(run, events, marks) {
     console.log(`  task at ${ms(t.ts).toFixed(0)} ms, ${(t.dur / 1000).toFixed(0)} ms, ${inTask.length} samples, ${byStack.size} distinct stacks`);
     console.log("    inclusive per frame, top 14:");
     for (const [k, v] of top(byFrame, 14)) console.log(`      ${v.toFixed(1).padStart(6)} ms  ${k}`);
+    // The page's own frames (apps/ and packages/) on their own: React's and three's internals carry them.
+    const own = [...byFrame].filter(([k]) => !/node_modules|^\(/.test(k));
+    console.log("    inclusive per frame of the page's own code, top 24:");
+    for (const [k, v] of top(new Map(own), 24)) console.log(`      ${v.toFixed(1).padStart(6)} ms  ${k}`);
     for (const [stack, v] of top(byStack, 12)) {
       console.log(`    ${v.toFixed(1)} ms:`);
       for (const f of stack.split("\n")) console.log(`        ${f}`);
