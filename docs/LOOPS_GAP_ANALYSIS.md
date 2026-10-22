@@ -32,9 +32,9 @@ was.
 
 Update, 2026-10-22: `world/viewer-key` is on origin (15 commits on `4cdcd383`, under `cl-lead`'s review) and carries,
 besides the viewer key and the card, a deep link to one agent's chat, a framing allowance for loopback origins and the
-viewer key's read of the chat the owner sees; the world's switch to it is written on `task/r19-viewer-switch`. Phase 2
+viewer key's read of the chat the owner sees; the world's switch to it, `task/r19-viewer-switch`, is merged. Phase 2
 was built without CORS (rounds 12 to 18): the Chat panel frames loops' own web app, and the host reads the agents'
-answers for the bubbles (the viewer key where loops has it, the person's session until then), the relay road that
+answers for the bubbles (the viewer key where loops has it; the person's session stood in until round 19 and is gone), the relay road that
 section 8, question 1 names. The verdict below is as it was on 2026-10-21.
 
 Two readers: the owner (Nicky), who decides what to ask of crewhub-loops, and the crewhub-loops lead agent

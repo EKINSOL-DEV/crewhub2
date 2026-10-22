@@ -23,8 +23,9 @@ loops stops, when the key is revoked while the town is open and when loops is up
 each with an honest screen. The chat is crewhub-loops' own, framed in the world's Chat panel, and an
 agent's answer shows as a speech bubble over its figure where the key may read the chat. The host keeps the live
 town (zones, layout, props, the undo history) in SQLite in its own folder, shared by every paired browser, with
-backups and a previewed restore. Planned, **not built**: the real director; the switch to crewhub-loops' viewer key
-is written and waits on that branch's merge in loops. See the [architecture](docs/ARCHITECTURE.md) and the
+backups and a previewed restore. Planned, **not built**: the real director. The switch to crewhub-loops' viewer key is
+merged (round 19): the chat's sign-in road is gone, and on a loops without the viewer key the world says so and shows no
+bubbles. See the [architecture](docs/ARCHITECTURE.md) and the
 [roadmap](docs/ROADMAP.md).
 
 Built in demo mode and shown live from the same model:

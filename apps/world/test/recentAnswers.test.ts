@@ -30,17 +30,13 @@ test("recent answers: the last 10 lines stay newest first for the page's life, p
   assert.deepEqual(getRecentAnswers(), []);
 });
 
-test("recent answers: the empty state says per road whether an answer can arrive, and the demo's own dock since round 17", () => {
+test("recent answers: the empty state says per road whether an answer can arrive (the key road, or none), and the demo's own dock", () => {
   assert.match(recentEmptyWords("demo", null), /^No answers yet: write to an agent in the demo's chat dock .* its scripted reply shows as a bubble and stays here/);
-  assert.match(recentEmptyWords("live", null), /^No answers can arrive: this host keeps no session/);
   assert.match(recentEmptyWords("live", { state: "key" }), /^No answers yet: this crewhub-loops lets the world's key read the chat/);
-  assert.match(recentEmptyWords("live", { state: "signed-in", name: "Nicky" }), /^No answers yet: signed in as Nicky/);
-  assert.match(recentEmptyWords("live", { state: "signed-in" }), /^No answers yet: signed in, an agent's answer/);
-  assert.match(recentEmptyWords("live", { state: "expired", name: "Nicky" }), /^No answers can arrive: the session is no longer accepted.*Sign in again/);
-  assert.match(recentEmptyWords("live", { state: "signed-out" }), /^No answers can arrive: not signed in\. Sign in in the Connection panel/);
+  assert.match(recentEmptyWords("live", null), /^No answers can arrive: this crewhub-loops does not let the world read the chat\. For bubbles, make a viewer key in Settings > Agents > Connect CrewHub World/);
+  assert.equal(recentEmptyWords("live", undefined), recentEmptyWords("live", null));
   assert.match(RECENT_NOTE, /^The last 10 answers this page saw, newest first/);
 });
-
 test("recent answers: the row's time, name, target and accessible name", () => {
   const a = { agentId: "cr-lead", agentName: "CR Lead", text: "(demo reply) The nook is done.", at: "2026-10-22T01:02:03.000Z", shownAt: 5, messageId: "dm_1", threadId: "dmt", until: 6 };
   const local = new Date("2026-10-22T01:02:03.000Z");
@@ -64,9 +60,7 @@ test("recent answers: the row's time, name, target and accessible name", () => {
 
 test("recent answers (round 22): the card's words for an agent without an answer, per road", () => {
   assert.match(cardAnswersEmpty("demo", null), /^No answer yet: write to it in the demo's chat dock/);
-  assert.equal(cardAnswersEmpty("live", null), "No answers can arrive: this host keeps no session and reads no chat.");
   assert.match(cardAnswersEmpty("live", { state: "key" }), /^No answer from it since this page opened; this crewhub-loops lets the world's key read the chat/);
-  assert.equal(cardAnswersEmpty("live", { state: "signed-in", name: "Nicky" }), "No answer from it since this page opened (signed in as Nicky; an answer would show here).");
-  assert.match(cardAnswersEmpty("live", { state: "expired", name: "Nicky" }), /no longer accepted/);
-  assert.equal(cardAnswersEmpty("live", { state: "signed-out" }), "This key cannot read the chat and nobody is signed in: no answers can arrive here. Sign in in the Connection panel's Chat section.");
+  assert.match(cardAnswersEmpty("live", null), /^No answers can arrive here: this crewhub-loops does not let the world read the chat\. For the agents' answers, make a viewer key in Settings > Agents > Connect CrewHub World/);
+  assert.equal(cardAnswersEmpty("live", undefined), cardAnswersEmpty("live", null));
 });

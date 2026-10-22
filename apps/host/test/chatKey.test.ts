@@ -1,17 +1,14 @@
 /**
- * The key road of the chat (round 12 follow-up): a crewhub-loops whose viewer key may read the chat (the key's own entry in `GET /api/agents`
- * says `viewer: true`, and `GET /api/dm/threads` answers 200 to it) needs no person's session. The host notices at the key check, says `session: key` in health,
- * refuses a sign-in as not needed, leaves a stored session unused, and turns an agent's `dm.created` on the key's own
- * stream into a chat line (the message read by id with the key). A loops that refuses the key the chat keeps the
- * session road. Against the stub.
+ * The chat over the key, the one road since round 19: a crewhub-loops whose viewer key may read the chat (the key's own
+ * entry in `GET /api/agents` says `viewer: true`, and `GET /api/dm/threads` answers 200 to it). The host notices at the
+ * key check, says `session: key` in health, and turns an agent's `dm.created` on the key's own stream into a chat line
+ * (the message read by id with the key, chatLine.ts). A loops that does not let the key read the chat gets no
+ * `connection.session` at all and a log line that says how to make a viewer key; `/world-api/session`, the sign-in road
+ * of rounds 12 to 18, is gone (404). Against the stub.
  */
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import path from "node:path";
 import { afterEach, describe, it } from "node:test";
 import { createHost } from "../src/host.ts";
-import { createSessionStore } from "../src/session.ts";
 import { createLoopsStub, installation } from "./loopsStub.ts";
 import { openSse } from "./sse.ts";
 import { waitFor } from "./wait.ts";
@@ -24,36 +21,31 @@ describe("the chat over the key, where loops allows it", () => {
     for (const fn of cleanup.reverse()) await fn();
     cleanup.length = 0;
   });
-  function folder(): string {
-    const dir = mkdtempSync(path.join(tmpdir(), "chw-chatkey-"));
-    cleanup.push(() => rmSync(dir, { recursive: true, force: true }));
-    return path.join(dir, "crewhub-world");
-  }
-  async function startHost(stubUrl: string, key: string, configDir: string) {
+  async function startHost(stubUrl: string, key: string) {
     const lines: string[] = [];
-    const host = await createHost({ loopsUrl: stubUrl, key, keyName: "crewhub-world", keySource: "env", sessionStore: createSessionStore(configDir), pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 10, max: 20 }, log: (line) => lines.push(line) });
+    const host = await createHost({ loopsUrl: stubUrl, key, keyName: "crewhub-world", keySource: "env", pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 10, max: 20 }, log: (line) => lines.push(line) });
     cleanup.push(() => host.close());
     const health = async () => (await (await fetch(`${host.url}/world-api/health`)).json()) as Record<string, any>;
     await waitFor("the stream", async () => (await health()).connection.stream.state === "ok");
     return { host, lines, health };
   }
 
-  it("a loops whose key reads the chat: health says key, a sign-in is not needed, an agent's message on the key's stream is a bubble line, and the threads' facts reach the tab (round 24)", async () => {
+  it("a loops whose key reads the chat: health says key, an agent's message on the key's stream is a bubble line, the threads' facts reach the tab (round 24), and the sign-in road is gone", async () => {
     const THREAD = { id: "dmt_boing", agentId: "boing", createdAt: "2026-10-21T18:00:00.000Z", lastMessageAt: "2026-10-22T07:05:00.174Z", unreadCount: 1 };
     const stub = await createLoopsStub({ ...installation(), keyReadsChat: true, dm: { threads: [THREAD, { id: "dmt_bad" }], messages: { [AGENT_MESSAGE.id]: AGENT_MESSAGE } } });
     cleanup.push(() => stub.close());
-    const dir = folder();
-    // A session kept from a run against another loops stays on disk and is not used here.
-    createSessionStore(dir).save({ v: 1, cookie: "sess_old", user: { id: "nicky", displayName: "Nicky" }, at: "2026-10-21T19:00:00.000Z" });
-    const { host, lines, health } = await startHost(stub.url, stub.key, dir);
+    const { host, lines, health } = await startHost(stub.url, stub.key);
     assert.deepEqual((await health()).connection.session, { state: "key" });
     assert.ok(lines.some((l) => /the key reads the chat on this crewhub-loops/.test(l)), lines.join("\n"));
     assert.ok(stub.requests.some((r) => r.path === "/api/dm/threads" && r.authorization !== undefined && r.cookie === undefined), "the probe with the key");
-    assert.ok(stub.requests.every((r) => r.cookie === undefined), "the stored session is not used");
-    const refused = await fetch(`${host.url}/world-api/session`, { method: "POST", headers: { origin: host.url, "content-type": "application/json" }, body: JSON.stringify({ id: "nicky", password: "x" }) });
-    assert.equal(refused.status, 409);
-    assert.equal(((await refused.json()) as { error: string }).error, "not_needed");
-    assert.equal(stub.requests.filter((r) => r.path === "/api/auth/login").length, 0, "no sign-in sent to loops");
+    assert.ok(stub.requests.every((r) => r.cookie === undefined), "never a cookie: the host holds no person's session");
+    // The route is gone: a read of it is an unknown route (404), a write to it is refused by the write gate, which knows
+    // `/connect` only (405); nothing of a sign-in is read or forwarded.
+    for (const [method, status] of [["POST", 405], ["DELETE", 405], ["GET", 404]] as const) {
+      const gone = await fetch(`${host.url}/world-api/session`, { method, headers: { origin: host.url, "content-type": "application/json" }, ...(method === "POST" ? { body: JSON.stringify({ id: "nicky", password: "x" }) } : {}) });
+      assert.equal(gone.status, status, `${method} /world-api/session is gone`);
+    }
+    assert.equal(stub.requests.filter((r) => r.path === "/api/auth/login").length, 0, "no sign-in ever sent to loops");
     const tab = await openSse(`${host.url}/world-api/stream?cursor=0`);
     cleanup.push(() => tab.close());
     await tab.next((m) => m.type === "status" && m.loops === "ok");
@@ -79,15 +71,19 @@ describe("the chat over the key, where loops allows it", () => {
     assert.ok(stub.requests.filter((r) => r.path === "/api/dm/threads").every((r) => r.authorization !== undefined && r.cookie === undefined));
   });
 
-  it("a loops that refuses the key the chat keeps the session road: signed-out, the sign-in form stands", async () => {
+  it("a loops that does not let the key read the chat: no session in health (no bubbles), a log line that says how to make a viewer key, and no sign-in road", async () => {
     const stub = await createLoopsStub({ ...installation() });
     cleanup.push(() => stub.close());
-    const { host, health, lines } = await startHost(stub.url, stub.key, folder());
-    assert.deepEqual((await health()).connection.session, { state: "signed-out" });
+    const { host, health, lines } = await startHost(stub.url, stub.key);
+    const h = await health();
+    assert.equal(h.connection.session, undefined, "no chat road: the field is absent");
     // The probe: the key's own entry in the agents list (no `viewer` on this loops), so the threads are not even asked.
     assert.ok(stub.requests.some((r) => r.path === "/api/agents" && r.authorization !== undefined), "the agents list read with the key");
     assert.ok(!stub.requests.some((r) => r.path === "/api/dm/threads"), "a plain key is not a viewer: the chat is not asked for");
-    assert.ok(!lines.some((l) => /the key reads the chat/.test(l)));
+    assert.ok(!lines.some((l) => /the key reads the chat on/.test(l)));
+    assert.ok(lines.some((l) => /the key does not read the chat on this crewhub-loops \(no viewer key\): no bubbles; make a viewer key in Settings > Agents > Connect CrewHub World/.test(l)), lines.join("\n"));
+    assert.equal((await fetch(`${host.url}/world-api/session`, { method: "POST", headers: { origin: host.url, "content-type": "application/json" }, body: "{}" })).status, 405, "no sign-in road: the write gate knows /connect only");
+    assert.equal((await fetch(`${host.url}/world-api/session`)).status, 404, "an unknown route");
     // No threads message either (round 24): the card keeps its honest words.
     const tab = await openSse(`${host.url}/world-api/stream?cursor=0`);
     cleanup.push(() => tab.close());

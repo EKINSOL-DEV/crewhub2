@@ -201,9 +201,8 @@ third person in "Where is …?", the viewer-key switch prepared, fsevents' insta
 Greenhouse models' Object3D cut pixel-identical, the soft wall tint, the bot name kept, dispatch opened on 8292); the
 tooling made safe on a shared Mac (round 16: a stale `apps/world/dist` refused by the regress pass, `vite preview` never
 proxying to 5180 by default; round 17: `npm run dev` naming its host port and refusing another checkout's host); the
-introduction `docs/INTRODUCTION.md` (round 12, current in round 18); and the switch to the viewer key written on
-`task/r19-viewer-switch` (round 19), never merged until crewhub-loops main carries `world/viewer-key`. The night report
-tells each round.
+introduction `docs/INTRODUCTION.md` (round 12, current in round 18); and the switch to the viewer key (round 19, `task/r19-viewer-switch`, merged once crewhub-loops main carried
+`world/viewer-key`: the session road is gone, the key road is the one road). The night report tells each round.
 
 ## Open
 
@@ -221,9 +220,9 @@ running.
   allow-list), the **"Connect CrewHub World" card** in Settings > Agents that makes the viewer bot and shows its key
   once with the world's address, the deep link `?chat=<agent id>` and the framing allowance for loopback origins, with
   three proposal pages and a review page under `docs/proposals/` there. The world's side is written: the Connect screen
-  and the Key row say what a viewer key changes (round 15), and `task/r19-viewer-switch` (round 19, never merged) drops
-  the session road and says plainly, on a loops whose key cannot read the chat, why there are no bubbles. It merges when
-  crewhub-loops main carries the branch. A chat of the world's own in the world's page (phase 2 as first planned, which
+  and the Key row say what a viewer key changes (round 15), and `task/r19-viewer-switch` (round 19, merged once crewhub-loops main
+  carried the branch) dropped the session road and says plainly, on a loops whose key cannot read the chat, why there
+  are no bubbles (a viewer key, by the card). What remains open here is loops' side only: the branch in loops main. A chat of the world's own in the world's page (phase 2 as first planned, which
   needed CORS, L8) is not pursued: the Chat panel frames loops' own chat instead. The other proposals of plan section 9
   (L2 to L8) stand as written.
 - **Real director.** The `crewhub-world` CLI, the watcher and the `world-director`

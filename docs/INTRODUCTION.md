@@ -266,7 +266,7 @@ shared Mac never reaches somebody else's host.
 - **Discovery.** The env's URL or socket is taken as given; else the host reads the Mac app's data folder (never
   writes it): the Unix socket `run/api.sock`, then the port in `settings.json`, each probed with the public
   `GET /api/health`; nothing found, it looks again every 5 s, so opening the app later needs no restart.
-- **The key is an external bot's.** At `4cdcd383` the only key that may read projects, boards, the team, agents,
+- **The key is the viewer bot's, by loops' card** (`task/r19-viewer-switch`; an external bot's on an older loops). At `4cdcd383` the only key that may read projects, boards, the team, agents,
   tickets and the event stream without a lane is an external bot (CL-314); the Read-only bot (CL-313) reads tickets of
   its member projects only, and a probe key reads nothing since CL-295. Said plainly: this key could write. What keeps
   the world read-only is the host's `GET`-only allow-list, and that is why a **viewer key** is proposed (section 8).
@@ -326,28 +326,28 @@ enabled agents of loops role `lead` only, so only a lead's card has "Chat with <
 postman has no Chat button of its own and says why ("crewhub-loops chats with leads only: <name> is a worker ...; chat
 with its lead <lead>"), with a button for the lead's chat when loops lists one.
 
-**Road B**, speech bubbles over the figures when an agent answers, needs a view of the person's conversation (a plain
-external bot's key is not a participant of the person's thread, so it never sees `dm.*` for it). It is built (rounds 12
-to 18) on two roads. The key road: where loops lets the world's own key read the chat (the viewer key of
-`world/viewer-key`, on origin under review and running on 8292), the host reads an agent's answer on its own stream
-and no sign-in is needed. The session road, for today's Mac app: the Connection panel's Chat section takes a sign-in
-once and the host keeps only loops' session cookie, for chat reads alone, off by default. An agent's answer then shows
-for a few seconds as a speech bubble over its figure (at most three lines; the whole line in its title and accessible name), and a
-tap on the bubble opens the Chat panel on that agent. The real proof came on 8292 on the key road (round 14): since then
-the text view carries "<name> says: <first line>" with the place while the bubble lives, a small chat mark stands over
-the building from the town (the figure inside is not drawn there; a tap enters the building; the text view's building
-row says "<name> answered"), and the three places that speak of the sign-in tell one story per road: on the key road
-the bubbles need no sign-in and the world keeps no session; on the session road the host keeps the person's session for
-chat reads only; typing in the framed chat is loops' own and always needs the person signed in to loops in this browser.
+**Road B**, speech bubbles over the figures when an agent answers, needs a key that may read the person's conversation
+(a plain external bot's key is not a participant of the person's thread, so it never sees `dm.*` for it). That key is
+the **viewer key** of loops' `world/viewer-key` branch: where loops lets the world's own key read the chat, the host
+reads an agent's answer on its own stream and the world shows it for a few seconds as a speech bubble over the agent's
+figure (at most three lines; the whole line in its title and accessible name); a tap on the bubble opens the Chat panel
+on that agent. The real proof came on 8292 (round 14): since then the text view carries "<name> says: <first line>" with
+the place while the bubble lives, a small chat mark stands over the building from the town (the figure inside is not
+drawn there; a tap enters the building; the text view's building row says "<name> answered"), and the three places that
+speak of the chat tell one story per road: on the key road the bubbles need no sign-in and the world keeps no session;
+on a loops that does not let the key read the chat (an older loops, today's Mac app) there are no bubbles, and the
+Connection panel, the Chat panel and the text view say so and point to Settings > Agents > Connect CrewHub World; typing
+in the framed chat is loops' own and always needs the person signed in to loops in this browser. The sign-in road that
+stood in for the viewer key until then (the host signed in as the person and kept loops' session cookie for chat reads)
+was removed in round 19 on the branch `task/r19-viewer-switch`, which merges when crewhub-loops main carries
+`world/viewer-key`.
 A missed bubble is not lost (round 16): the Chat panel and the text view carry a "Recent answers" list, the last ten
 first lines this page saw with their times, newest first, each a button that opens that agent's chat; nothing of it is
 written anywhere, and a reload starts empty. The panel itself reads in one glance (round 17): "crewhub-loops' own chat,
 framed here" and the one thing to do on this road, two short lines above Recent answers, with the whole story (and, since
 round 18, what the list is) behind "About this chat", so the list starts with its rows; in the demo the dock's scripted
-replies feed the same list, bubbles and mark. The honest road is on the loops side (section 8): the switch to the
-viewer key, which removes the session road (the spec addendum "chat with the agents", planned removal), is written on
-`task/r19-viewer-switch` (round 19) and merges when crewhub-loops main carries `world/viewer-key`; until then
-`feat/world-demo` keeps the session road.
+replies feed the same list, bubbles and mark. The honest road is on the loops side (section 8), and this branch is the
+world's half of it.
 
 ![The live town over the fake crewhub-loops a second after CR Lead answered inside its building: a chat mark "CR Lead" beside the CrewHub World building's waiting pin, since the figure inside is not drawn from the town; a tap on the mark enters the building.](images/chat-mark.jpg)
 

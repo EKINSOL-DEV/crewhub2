@@ -1288,9 +1288,9 @@ Two developers.
 One developer and a docs commit by the Lead.
 - **The switch, on its own branch.** `task/r19-viewer-switch` removes the host's session road (the sign-in, the kept
   cookie, the `/world-api/session` routes, the `signed-out`/`signed-in`/`expired` states) and says plainly, on a loops
-  whose key cannot read the chat, why there are no bubbles and where the viewer key comes from. It is never merged
-  until crewhub-loops main carries `world/viewer-key`; since then every round merges `feat/world-demo` into it so it
-  stays one clean merge.
+  whose key cannot read the chat, why there are no bubbles and where the viewer key comes from. It merged once
+  crewhub-loops main carried `world/viewer-key`; until then every round merged `feat/world-demo` into it so it stayed
+  one clean merge.
 - **Proven on both real loops.** On 8292 (the viewer branch) health says `session: key` and the panel says "a viewer
   key"; on 8291 (a plain external bot's key) the words show in all five places, with no bubbles.
 - **The runbook** gained its one-line example for a crewhub-loops that is not the Mac app.
