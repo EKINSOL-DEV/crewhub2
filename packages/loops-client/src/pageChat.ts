@@ -195,8 +195,17 @@ export function pollDelay(input: { hidden: boolean; failures: number }): number 
   return Math.min(POLL_MAX_MS, POLL_MS * 2 ** input.failures);
 }
 
-/** How long a verdict other than "on" stands before the page asks again (a sign-in in another tab brings the road on by itself). */
+/**
+ * How long a verdict other than "on" stands before the page asks again: "signed out" every REPROBE_MS (a sign-in in
+ * another tab, or in the Chat panel's frame, brings the road on by itself); "the origin is not set" and "unreachable"
+ * every REPROBE_SLOW_MS, since each such ask is one CORS refusal the browser prints in the console (the page cannot
+ * stop that line) and the setting only changes with a loops restart; the page coming back into view asks at once.
+ */
 export const REPROBE_MS = 30_000;
+export const REPROBE_SLOW_MS = 300_000;
+export function reprobeDelay(probe: PageProbe): number {
+  return probe === "origin-not-set" || probe === "unreachable" ? REPROBE_SLOW_MS : REPROBE_MS;
+}
 
 /** What one poll did, for the runner and the log. */
 export type PollOutcome =

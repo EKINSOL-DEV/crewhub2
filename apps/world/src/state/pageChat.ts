@@ -14,10 +14,10 @@
 import { useSyncExternalStore } from "react";
 import {
   POLL_MS,
-  REPROBE_MS,
   pollDelay,
   pollPageChat,
   probePageChat,
+  reprobeDelay,
   type ChatLine,
   type ChatThreadFact,
   type FetchLike,
@@ -106,8 +106,8 @@ export interface PageChatRunner {
 
 /**
  * The runner: the probe first (unless the host's key reads the chat: then nothing is asked, ever), then, where the
- * contract says `page`, the poll loop at `pollDelay`'s pace; a verdict other than `on` is asked again every REPROBE_MS
- * while the page is visible. A 401 while polling ends the loop and the probe takes over. Every step is cancelled by
+ * contract says `page`, the poll loop at `pollDelay`'s pace; a verdict other than `on` is asked again after
+ * `reprobeDelay` (30 s signed out; 5 min for a refused origin or nothing answering: each ask is a CORS line in the console). A 401 while polling ends the loop and the probe takes over. Every step is cancelled by
  * `stop()` (a generation count: a late answer of a stopped runner changes nothing).
  */
 export function createPageChatRunner(options: PageChatRunnerOptions): PageChatRunner {
@@ -149,7 +149,7 @@ export function createPageChatRunner(options: PageChatRunnerOptions): PageChatRu
       cursor = null;
       failures = 0;
       void poll();
-    } else later(() => void probe(), REPROBE_MS);
+    } else later(() => void probe(), reprobeDelay(outcome.verdict));
   }
 
   async function poll(): Promise<void> {
@@ -179,7 +179,7 @@ export function createPageChatRunner(options: PageChatRunnerOptions): PageChatRu
       case "signed-out":
         cursor = null;
         set({ probe: "signed-out", road: road("signed-out"), polling: false, failure: null });
-        later(() => void probe(), REPROBE_MS);
+        later(() => void probe(), reprobeDelay("signed-out"));
         return;
       case "failed":
         failures += 1;
