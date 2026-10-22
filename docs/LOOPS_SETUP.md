@@ -309,6 +309,30 @@ states `signed-out`, `signed-in` and `expired`; the Connection panel's form and 
 round 19 on `task/r19-viewer-switch` and is gone from this branch since round 28 (decision 9; cl-lead's review finding
 F8): a leftover `loops-session` file is deleted on start with one log line, and `/world-api/session` is gone.
 
+**Road 2 (round 28): the page reads the chat itself.** crewhub-loops main (#968, CL-494 step 4) lets ONE loopback
+origin read the signed-in person's own conversation from the browser: the owner sets `CHL_WORLD_ORIGIN` on loops to
+the world page's exact origin (`http://127.0.0.1:<the world's port>`; empty by default, so nothing changes until it
+is set), and loops then answers `GET` on four routes from that origin with the person's own session cookie:
+`/api/dm/threads`, `/api/dm/threads/{agent}/messages`, `/api/dm/messages/{id}` and `/api/events` (a poll; the
+types forced to `dm.created,dm.answered`, `limit` at most 50; no stream). The page (`apps/world/src/state/pageChat.ts`,
+`packages/loops-client/src/pageChat.ts`) asks exactly that: `fetch(url, { method: "GET", credentials: "include" })`
+and nothing else in the request (no header of its own, not even a content type, so every call is a simple request and
+the browser sends no pre-flight; loops offers none), never a key, at the loops web origin the host names in its health
+(`loopsWebUrl`: the API is on that same origin). The first events ask is `from=tail` (nothing from before the page
+opened), then the sealed cursor loops hands back; every agent message named by a `dm.created` is read by id and shown as
+the same bubble, chat mark, Recent answers row and card line as on the host's road; the threads are read again after a
+`dm.*` event for the card. The poll runs every 5 s while the page shows, once a minute hidden, doubling to a minute
+after a failure, not at all offline (the `online` event asks again). **Which road**: `key` when the host's key reads the
+chat (health `connection.session.state === "key"`), else `page` when the page's own probe (one `GET /api/dm/threads`
+with credentials) answers 200, else `none`. The probe's verdict stands in the Connection panel under Chat and behind
+the Chat panel's "About this chat": *on*; *signed out* (loops answered through the origin with a 401: sign in to loops
+in this browser, the Chat panel's frame will do, and the road comes on by itself within 30 s); *the origin is not set*
+(the browser hides a refused origin as one opaque failure, the same as a server that is not there, so the page asks the
+same route once more in `no-cors` mode: an opaque answer proves something answers, and the words then carry the exact
+value to set, `CHL_WORLD_ORIGIN=<this page's origin>`; a loops from before the setting lands here too); *unreachable*
+(nothing answered). Nothing of this road goes through the host, and the page keeps nothing. The proof against the
+development loops 8293: `node tools/road2proof.mjs` (tools/README.md).
+
 `loops` is `ok`, `down` or `unauthorized` (a loops 401 or 403; also no key yet, for the world from before);
 `transport` is `tcp` or `unix`; `keyName` is the key's agent name (from the file name `agent-<name>.key`, or the
 principal loops answered; empty without a key); `sharedKey` is always `false` now; `loopsCommit` is what

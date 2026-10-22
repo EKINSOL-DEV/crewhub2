@@ -34,6 +34,8 @@ import { fileURLToPath } from "node:url";
 /** Files allowed to use the network, with the reason. The demo has no network at all. */
 export const NETWORK_ALLOWLIST: Readonly<Record<string, string>> = {
   "packages/loops-client/src/hostSource.ts": "the live source: reads its own host's /world-api (same origin by default), nothing else",
+  "packages/loops-client/src/pageChat.ts": "road 2 of the chat (round 28): the page reads the signed-in person's own conversation at the loops web origin the host names, GET only, four routes, with the person's cookie and no header of its own; nothing else",
+  "tools/road2proof.mjs": "the road-2 proof (round 28): signs in to the development crewhub-loops on this machine as the admin named in the env file and seeds one chat message so a timed reply has something to answer; the tooling-address rule still applies",
   "tools/loops-seed.mjs": "the seed: writes the demo storyline into the development crewhub-loops on this machine (spec addendum, live on the Mac); the tooling-address rule still applies",
 };
 

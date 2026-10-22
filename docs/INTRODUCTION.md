@@ -355,6 +355,19 @@ round 18, what the list is) behind "About this chat", so the list starts with it
 replies feed the same list, bubbles and mark. The honest road is on the loops side (section 8), and this branch is the
 world's half of it.
 
+**Road 2 (round 28)**, the third way to the same bubbles, needs no key and no session on the host: crewhub-loops main
+(#968) lets one loopback origin, named by the owner in `CHL_WORLD_ORIGIN`, read the signed-in person's own conversation
+from the browser, on four `GET` routes with the person's own cookie and no header of the page's own (so no pre-flight;
+the events as a poll with the two chat types and a page of 50 at most; never a key from a page). The page itself
+(`state/pageChat.ts`) probes that road with one `GET /api/dm/threads`, and where the host's key does not read the chat
+and the probe answers, polls the events every 5 s while the page shows (a minute hidden, longer after a failure, not
+offline), reads each agent's message by id and hands it to the same store as the host's road, so the bubble, the mark,
+Recent answers and the card are the same whichever road brought the line. The road the page is on is one value,
+`key`, `page` or `none` (the host's key first, then the page's probe, else the honest line), and the panels say what
+the probe could tell: signed out (sign in to loops in this browser), the origin not set (with the exact value to set:
+the browser shows a refused origin as the same opaque failure as a server that is not there, so a second ask in
+`no-cors` mode tells the two apart), or unreachable. Nothing of road 2 goes through the host.
+
 ![The live town over the fake crewhub-loops a second after CR Lead answered inside its building: a chat mark "CR Lead" beside the CrewHub World building's waiting pin, since the figure inside is not drawn from the town; a tap on the mark enters the building.](images/chat-mark.jpg)
 
 ![The live town over the fake crewhub-loops with a speech bubble over G-Man's figure at the lodge, "Busy and calm. CR finished the reading no...": the first line of the agent's answer as the bubble, which a tap turns into the Chat panel on G-Man; the Chat chip at the top right.](images/chat-bubble.jpg)

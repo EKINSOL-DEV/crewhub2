@@ -64,3 +64,27 @@ export type { HostAnswer, HostArchiveState, HostChatLine, HostConnection, HostDi
 export { readConnection } from "./hostSource.ts";
 export { ACTIVITY_TYPES, ACTIVITY_TYPES_QUERY, LOG_FACT_STATUSES, LOG_FACT_TYPES, LOG_RUNS_KEPT, openTicketsOf, quietCandidates, selectLogFacts } from "./logFacts.ts";
 export type { LogFacts, OpenTicket } from "./logFacts.ts";
+export {
+  PAGE_CHAT_EVENT_TYPES,
+  PAGE_CHAT_EVENTS_LIMIT,
+  PAGE_CHAT_INIT,
+  PAGE_CHAT_LINE_MAX,
+  POLL_HIDDEN_MS,
+  POLL_MAX_MS,
+  POLL_MS,
+  REPROBE_MS,
+  eventsUrl,
+  firstLine,
+  messageUrl,
+  pageGet,
+  pollDelay,
+  pollPageChat,
+  probePageChat,
+  probeVerdict,
+  readPageChatLine,
+  readEvents,
+  readThreads,
+  threadMessagesUrl,
+  threadsUrl,
+} from "./pageChat.ts";
+export type { AgentDm, EventsPage, FetchLike, PageAnswer, PageProbe, PollOutcome } from "./pageChat.ts";

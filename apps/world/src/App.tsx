@@ -19,6 +19,8 @@ import { liveScreen, withStreamKey } from "./state/connect";
 import { useRecentAnswers, useSaid, type Answer } from "./state/said";
 import { answerTarget, type AnswerTarget } from "./state/recentAnswers";
 import { rememberHealth, useHostHealth } from "./state/health";
+import { hostKeyReadsChat, loopsOriginOf } from "./state/pageChat";
+import { startPageChat } from "./state/pageChatPage";
 import { installSoakProbe } from "./state/soak";
 import { pageReads } from "./state/soakPage";
 import { markWords, saidLines, saidMarks, type SaidMark } from "./world/saidText";
@@ -763,6 +765,15 @@ function World() {
       live = false;
     };
   }, [demo, textOpen, chatOpen]);
+  // Road 2 of the chat (round 28, state/pageChat.ts): on a live page whose host's key does not read the chat, the page
+  // asks crewhub-loops itself at the origin the host names, and polls the person's own conversation when loops lets this
+  // origin read it; the lines go to the said store like the host's. Restarted when the host's word changes.
+  const pageChatOrigin = demo ? null : loopsOriginOf(hostHealth);
+  const keyReadsChat = hostKeyReadsChat(hostHealth);
+  useEffect(() => {
+    if (pageChatOrigin === null) return;
+    return startPageChat({ loopsOrigin: pageChatOrigin, hostKeyReadsChat: keyReadsChat });
+  }, [pageChatOrigin, keyReadsChat]);
   const onGo = useStable(go);
   const trailNames = { home: homeName(districts), district: here?.name ?? null, building: inside?.name ?? null, room: inside && zoomed ? roomName(inside, zoomed, rooms) : null };
   const trail = useMemo(

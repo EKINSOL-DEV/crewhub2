@@ -18,6 +18,8 @@ export interface WorldStores {
   stream: { state: string; reconnects: number } | null;
   /** The page's own connection to the host (`loops-client`), whatever its state object holds, for the record. */
   connection: unknown;
+  /** Road 2 of the chat (round 28, state/pageChat.ts): the probe's verdict, the road, whether the page polls, how many polls and lines. */
+  pageChat: { probe: string; road: string; polling: boolean; polls: number; lines: number };
 }
 
 /** The getters the probe reads through: the stores' own, and the page's connection where the world has one. */
@@ -28,13 +30,14 @@ export interface StoreReads {
   town: () => { docRevision: number; hostRev: number | null };
   stream: () => { state: string; reconnects: number } | null;
   connection: () => unknown;
+  pageChat: () => { probe: string; road: string; polling: boolean; polls: number; lines: number };
 }
 
 /** What the probe answers for `reads`: every size read fresh, nothing kept. */
 export function worldStores(reads: StoreReads): WorldStores {
   const threads = reads.threads();
   const town = reads.town();
-  return { said: reads.said(), answers: reads.answers(), threads: threads ? threads.size : null, docRevision: town.docRevision, hostRev: town.hostRev, stream: reads.stream(), connection: reads.connection() };
+  return { said: reads.said(), answers: reads.answers(), threads: threads ? threads.size : null, docRevision: town.docRevision, hostRev: town.hostRev, stream: reads.stream(), connection: reads.connection(), pageChat: reads.pageChat() };
 }
 
 /** Where the probe goes: the window, or a stand-in in a test. */
