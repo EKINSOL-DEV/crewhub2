@@ -2,11 +2,69 @@ import { fileURLToPath } from "node:url";
 import { defineConfig, type HtmlTagDescriptor, type Plugin, type ProxyOptions, type Rollup } from "vite";
 import react from "@vitejs/plugin-react";
 import { realpathSync } from "node:fs";
-import { checkoutId, probeCheckout } from "../host/src/checkout.ts";
-import { devHostVerdict, hostPortPlan } from "./hostPort.ts";
+import { checkoutId, probeCheckout, tellDevOrigin } from "../host/src/checkout.ts";
+import { devHostVerdict, devOriginLine, devOriginsOf, hostPortPlan } from "./hostPort.ts";
+
+/**
+ * The dev server's origin, told to the host (round 23; apps/host devOrigin.ts): once Vite listens, and again whenever
+ * the proxied health shows the host no longer lists it (a host restarted after Vite, or started later). One line per
+ * outcome that changes (a lost acceptance is said again when it is back). `tell` is bounded: at most once every 5 s,
+ * one in flight.
+ */
+function devOriginTeller(port: number, checkout: string, logger: { info: (text: string) => void }) {
+  let origins: string[] = [];
+  let lastLine = "";
+  let accepted = false;
+  let busy = false;
+  let lastAt = 0;
+  const say = (line: string) => {
+    if (line === lastLine) return;
+    lastLine = line;
+    logger.info(`  ${line}`);
+  };
+  const tell = async () => {
+    if (origins.length === 0 || busy || Date.now() - lastAt < 5000) return;
+    busy = true;
+    lastAt = Date.now();
+    try {
+      for (const origin of origins) {
+        const outcome = await tellDevOrigin(port, origin, checkout);
+        if (outcome.kind !== "accepted") {
+          accepted = false;
+          say(devOriginLine(port, origins, outcome));
+          return;
+        }
+      }
+      accepted = true;
+      say(devOriginLine(port, origins, { kind: "accepted", origins }));
+    } finally {
+      busy = false;
+    }
+  };
+  return {
+    /** Vite's local URLs are known: tell now. */
+    listening(localUrls: readonly string[]) {
+      origins = devOriginsOf(localUrls);
+      lastAt = 0;
+      void tell();
+    },
+    /** A proxied health answer: `x-world-dev-origins` names what the host accepts; missing ours, tell again. */
+    sawHealth(header: string | string[] | undefined) {
+      const listed = (Array.isArray(header) ? header.join(",") : (header ?? "")).split(",").map((o) => o.trim());
+      if (origins.length > 0 && origins.some((o) => !listed.includes(o))) {
+        // A host that forgot us (restarted, or started after Vite): tell again, and say so again when it accepts. A
+        // host that keeps refusing (a stub, another checkout's) is told again as well, quietly: its line was printed.
+        if (accepted) lastLine = "";
+        lastAt = Math.min(lastAt, Date.now() - 5000);
+        void tell();
+      }
+    },
+  };
+}
+type DevOriginTeller = ReturnType<typeof devOriginTeller>;
 
 /** The proxy to the world's host on `port` (hostPort.ts decides the port: CREWHUB_WORLD_PORT, or the dev default 5180). */
-function worldApiProxy(port: number): ProxyOptions {
+function worldApiProxy(port: number, teller: DevOriginTeller | null = null): ProxyOptions {
   return {
     target: `http://127.0.0.1:${port}`,
     changeOrigin: true,
@@ -22,6 +80,12 @@ function worldApiProxy(port: number): ProxyOptions {
       });
       // The stream must not be compressed or buffered on its way through: ask the host for plain bytes.
       proxy.on("proxyReq", (proxyReq) => proxyReq.setHeader("accept-encoding", "identity"));
+      // Every proxied health answer says which dev origins the host accepts; the teller tells again when ours is missing.
+      if (teller !== null) {
+        proxy.on("proxyRes", (proxyRes, req) => {
+          if (proxyRes.statusCode === 200 && (req.url ?? "").startsWith("/world-api/health")) teller.sawHealth(proxyRes.headers["x-world-dev-origins"]);
+        });
+      }
     },
   };
 }
@@ -89,7 +153,7 @@ function previewWithoutHost(note: string): Plugin {
  * `checkout.ts`, the same hash of the repository root the host puts in health). Another checkout's host: the line, and
  * the dev server does not start (exit 1).
  */
-function devHost(port: number, explicit: boolean): Plugin {
+function devHost(port: number, explicit: boolean, teller: DevOriginTeller): Plugin {
   return {
     name: "crewhub:dev-host",
     async configureServer(server) {
@@ -101,6 +165,8 @@ function devHost(port: number, explicit: boolean): Plugin {
         process.exit(1);
       }
       server.config.logger.info(`  ${verdict.line}`);
+      // Once the URLs are known, tell the host the page's origin (round 23).
+      server.httpServer?.once("listening", () => setTimeout(() => teller.listening(server.resolvedUrls?.local ?? []), 0));
     },
   };
 }
@@ -108,9 +174,13 @@ function devHost(port: number, explicit: boolean): Plugin {
 export default defineConfig(({ isPreview }) => {
   // The dev server defaults to the host's 5180; the preview proxies only to a port named in the environment.
   const plan = hostPortPlan(process.env, isPreview ? "preview" : "dev");
-  const proxy = plan.proxy ? { "/world-api": worldApiProxy(plan.port), "/pair": worldApiProxy(plan.port) } : {};
+  const explicit = process.env["CREWHUB_WORLD_PORT"] !== undefined && process.env["CREWHUB_WORLD_PORT"].trim() !== "";
+  // The dev server tells the host its origin (round 23); the preview never does (it proxies only to a port named, and
+  // its page is a build to look at, not to write the town from).
+  const teller = plan.proxy && !isPreview ? devOriginTeller(plan.port, checkoutId(realpathSync(fileURLToPath(new URL("../..", import.meta.url)))), { info: (text) => console.log(text) }) : null;
+  const proxy = plan.proxy ? { "/world-api": worldApiProxy(plan.port, teller), "/pair": worldApiProxy(plan.port) } : {};
   return {
-  plugins: [react(), preloadWorld(), ...(plan.proxy ? [devHost(plan.port, process.env["CREWHUB_WORLD_PORT"] !== undefined && process.env["CREWHUB_WORLD_PORT"].trim() !== "")] : [previewWithoutHost(plan.note)])],
+  plugins: [react(), preloadWorld(), ...(plan.proxy ? (teller === null ? [] : [devHost(plan.port, explicit, teller)]) : [previewWithoutHost(plan.note)])],
   resolve: {
     alias: {
       // The copied loops chat imports `useNavigate`; the world has no router (see src/shims/react-router-dom.ts).

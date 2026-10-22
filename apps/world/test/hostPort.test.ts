@@ -60,3 +60,20 @@ describe("whose host is on the dev proxy's port", () => {
     assert.match(devHostVerdict({ port: 5195, explicit: true, local, answer: { kind: "host", checkout: "9f2c1a7b3d4e", keyName: "" } }).line, /^The host on 127\.0\.0\.1:5195 \(CREWHUB_WORLD_PORT=5195\) belongs to another checkout: checkout id 9f2c1a7b3d4e, no key yet\./);
   });
 });
+
+import { devOriginLine, devOriginsOf } from "../hostPort.ts";
+
+describe("the dev server tells the host its origin", () => {
+  it("takes the loopback origins among Vite's URLs, once each, and no other", () => {
+    assert.deepEqual(devOriginsOf(["http://127.0.0.1:5294/", "http://localhost:5294/", "http://127.0.0.1:5294", "http://192.168.1.20:5294/", "https://127.0.0.1:5294/", "http://[::1]:5294/"]), ["http://127.0.0.1:5294", "http://localhost:5294"], "the two names the host answers to, once each");
+    assert.deepEqual(devOriginsOf([]), []);
+  });
+
+  it("one line per outcome: accepted, an older host, refused, nothing there yet", () => {
+    const origins = ["http://127.0.0.1:5294", "http://localhost:5294"];
+    assert.equal(devOriginLine(5194, origins, { kind: "accepted", origins }), "dev: the page's writes come from http://127.0.0.1:5294, http://localhost:5294: told to the host on 127.0.0.1:5194, which accepts them for this run (this checkout's dev server and host; connect, sign-in and town writes work).");
+    assert.match(devOriginLine(5194, origins, { kind: "no-route" }), /is from before the dev origin and cannot be told; the page's writes will be refused \(403\) unless that host runs with CREWHUB_WORLD_ALLOWED_ORIGINS=http:\/\/127\.0\.0\.1:5294, http:\/\/localhost:5294\.$/);
+    assert.match(devOriginLine(5194, origins, { kind: "refused", status: 403, message: "This host runs from checkout x" }), /refused them \(This host runs from checkout x\); the page reads, its writes are refused \(403\)\.$/);
+    assert.match(devOriginLine(5194, origins, { kind: "silent" }), /no host on 127\.0\.0\.1:5194 to tell yet; it is told when one answers/);
+  });
+});

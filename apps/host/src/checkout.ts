@@ -49,3 +49,35 @@ export async function probeCheckout(port: number, timeoutMs = 1500): Promise<Hos
     return { kind: "silent" };
   }
 }
+
+/** What the host said when the dev server told it an origin (`POST /world-api/dev-origin`, devOrigin.ts). */
+export type TellOutcome = { kind: "accepted"; origins: string[] } | { kind: "refused"; status: number; message: string } | { kind: "no-route" } | { kind: "silent" };
+
+/** The outcome from a status and body: 200 accepted, 404 or 405 an older host without the route, else refused with its words. */
+export function tellOutcome(status: number, body: unknown): TellOutcome {
+  const record = body !== null && typeof body === "object" ? (body as Record<string, unknown>) : {};
+  if (status === 200) return { kind: "accepted", origins: Array.isArray(record["origins"]) ? (record["origins"] as string[]).filter((o) => typeof o === "string") : [] };
+  if (status === 404 || status === 405) return { kind: "no-route" };
+  return { kind: "refused", status, message: typeof record["message"] === "string" ? record["message"] : `status ${status}` };
+}
+
+/** Tells the host on `port` the dev server's origin, as this checkout (loopback only, no Origin header: a program's request). */
+export async function tellDevOrigin(port: number, origin: string, checkout: string, timeoutMs = 1500): Promise<TellOutcome> {
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/world-api/dev-origin`, {
+      method: "POST",
+      signal: AbortSignal.timeout(timeoutMs),
+      headers: { "content-type": "application/json", accept: "application/json" },
+      body: JSON.stringify({ origin, checkout }),
+    });
+    let body: unknown = null;
+    try {
+      body = await response.json();
+    } catch {
+      body = null;
+    }
+    return tellOutcome(response.status, body);
+  } catch {
+    return { kind: "silent" };
+  }
+}

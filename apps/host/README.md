@@ -71,7 +71,7 @@ smooth connection" below):
   `world.db.bak-v<n>`; a file newer than the host knows is refused. Node 24.21 prints no warning for `node:sqlite`;
   an older 24.x printed one `ExperimentalWarning` at the first open, which the host explains once in its log and
   never hides (it runs without `--no-warnings`).
-- **Health** `GET /world-api/health`: `{ loops, keyName, sharedKey, loopsWebUrl, transport, paired, pairing, checkout?, loopsCommit?, loopsCommitBefore?, cursor?, connection }`
+- **Health** `GET /world-api/health`: `{ loops, keyName, sharedKey, loopsWebUrl, transport, paired, pairing, checkout?, devOrigins?, loopsCommit?, loopsCommitBefore?, cursor?, connection }`
   (`checkout` is the id of the checkout the host runs from, `src/checkout.ts`: the first 12 hex characters of SHA-256 over the
   repository root's real path, never the path itself, since health answers before the pairing gate; `npm run dev` of another
   checkout reads it and refuses to proxy to this host; `connection` is under "The smooth connection" below; `connection.key.recheckAt` says when a rejected key is re-checked (round 8: the host
@@ -90,7 +90,16 @@ smooth connection" below):
 - **Allow-list** in `src/allowList.ts`: the loops routes the host may read and the browser routes it answers,
   in one file. Every other path is 404, every method but GET is 405, and nothing reaches loops for either.
 - **Host and Origin guard**: the `Host` header must be `127.0.0.1:<port>` or `localhost:<port>` (else 421), an
-  `Origin` header when present must be the host's own or one from `CREWHUB_WORLD_ALLOWED_ORIGINS` (else 403).
+  `Origin` header when present must be the host's own, one from `CREWHUB_WORLD_ALLOWED_ORIGINS`, or one this
+  checkout's dev server told the host (else 403).
+- **The dev origin** `POST /world-api/dev-origin {origin, checkout}` (round 23, `src/devOrigin.ts`): `npm run dev`
+  tells the host the loopback origin it serves the page from, so `npm run dev` beside `npm run host` works without
+  `CREWHUB_WORLD_ALLOWED_ORIGINS`. Accepted only from a program on this machine (loopback, no `Origin` header, JSON:
+  a page cannot send it), only for `http://127.0.0.1:<port>` or `http://localhost:<port>` (never another
+  host, https or a wildcard), and only from this checkout (the body's `checkout` must be the host's
+  own id, `src/checkout.ts`); at most 8 a run. The host logs one line per accepted origin; health lists them
+  (`devOrigins`, and the `x-world-dev-origins` header the dev proxy reads, to tell again after a host restart).
+  Pairing is untouched: the page still needs its cookie. The preview and a build never tell.
 - **Reconnect**: loops ends every stream after 300 s (and at a credential re-check or a stop); the host waits 1.5 to
   3 s with jitter and reconnects from its cursor, so nothing is lost and no tab hears of it. When loops goes away
   (a network error, a 5xx, a 200 that closed without a line) the host retries with backoff (1 s doubling to 30 s)
@@ -118,7 +127,7 @@ smooth connection" below):
 | `CREWHUB_WORLD_KEY_FILE` | none | The agent key file, first in line. Unset: the stored key `<CREWHUB_WORLD_CONFIG_DIR>/loops-key` (what `POST /world-api/connect` saved), then the old default `~/.config/crewhub-loops/secrets/agent-crewhub-world.key`; none: the host starts without a key (`connection.key.state: "none"`) and waits for a paste. A configured file that cannot be read is an error. The builder-key fallback is gone. A viewer key (loops' `world/viewer-key`, when merged) is the same file or paste; the host sees `viewer: true` on its own entry at the key check and says `session: key`. |
 | `CREWHUB_WORLD_CONFIG_DIR` | `~/.config/crewhub-world` | The host's own folder for the stored key, the archive memory `archived.json` and the world database `world.db` with its `world.db.bak-v<n>` copies (0700; the files 0600). Tests and developers' runs point it elsewhere. |
 | `CREWHUB_WORLD_PORT` | `5180` | The port on `127.0.0.1`. |
-| `CREWHUB_WORLD_ALLOWED_ORIGINS` | none | Comma list of extra origins, e.g. the Vite dev server `http://localhost:5173`. |
+| `CREWHUB_WORLD_ALLOWED_ORIGINS` | none | Comma list of extra origins. Not needed for `npm run dev` of this checkout (it tells the host its origin itself); for an older dev server or another tool's page, e.g. `http://localhost:5173`. |
 | `CREWHUB_WORLD_PAIRING` | `on` | `off` removes the cookie gate: development only (the Vite proxy), logged loudly at start, refused with `NODE_ENV=production`. |
 | `CREWHUB_WORLD_PAIRING_FILE` | none; `npm run world`: `<CREWHUB_WORLD_CONFIG_DIR>/pairing-secret` | Keeps the pairing secret across restarts (created with mode 0600). Without it the secret is per run and a restart invalidates every pairing (an open tab is left on Stale). `npm run world` keeps it in the host's own folder unless this names another file (`worldEnv` in `src/config.ts`). |
 | `CREWHUB_WORLD_PUBLIC_URL` | none | The URL a browser reaches the host at behind a TLS proxy: `https` makes the cookie `Secure`; its host and origin pass the guard. |

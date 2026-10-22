@@ -22,6 +22,7 @@ import type { AddressInfo } from "node:net";
 import path from "node:path";
 import type { HostArchiveState, HostConnection, HostKeyState, HostSnapshotState } from "@crewhub/loops-client";
 import { WORLD_API_PREFIX, fillPattern, matchWorldRoute } from "./allowList.ts";
+import { DEV_ORIGINS_HEADER, devOriginAcceptedLine, devOriginVerdict } from "./devOrigin.ts";
 import { type ArchiveStore, normaliseSlugs, plainTime } from "./archiveStore.ts";
 import { DEFAULT_LOOPS_URL, type KeySource } from "./config.ts";
 import { type Discovery, type DiscoveryInput, type Found, createDiscovery, loopsAnswers, targetText } from "./discovery.ts";
@@ -172,6 +173,8 @@ export interface HostHealth {
   connection: HostConnection;
   /** The checkout id this host runs from (`checkout.ts`), when it was given one: a dev server of another checkout refuses this host. */
   checkout?: string;
+  /** The loopback origins this checkout's dev server told the host this run (`devOrigin.ts`); absent when none. */
+  devOrigins?: string[];
 }
 
 const MIME: Record<string, string> = {
@@ -588,8 +591,10 @@ export async function createHost(options: HostOptions): Promise<Host> {
   }, heartbeatMs);
 
   const allowedHosts = () => new Set([`127.0.0.1:${port}`, `localhost:${port}`, ...(publicUrl === null ? [] : [publicUrl.host])]);
+  // The origins the dev server of this checkout told the host this run (devOrigin.ts), beside the configured ones.
+  const devOrigins = new Set<string>();
   const allowedOrigins = () =>
-    new Set([`http://127.0.0.1:${port}`, `http://localhost:${port}`, ...(publicUrl === null ? [] : [publicUrl.origin]), ...(options.allowedOrigins ?? [])]);
+    new Set([`http://127.0.0.1:${port}`, `http://localhost:${port}`, ...(publicUrl === null ? [] : [publicUrl.origin]), ...(options.allowedOrigins ?? []), ...devOrigins]);
   const paired = (req: IncomingMessage) => pairingMode === "off" || pairing.isPaired(req.headers.cookie);
   const mintPairLink = (origin?: string) => `${origin === undefined ? `http://127.0.0.1:${port}` : origin.replace(/\/$/, "")}${PAIR_PATH_PREFIX}${pairing.mintToken()}`;
 
@@ -784,6 +789,25 @@ export async function createHost(options: HostOptions): Promise<Host> {
     } catch {
       sendJson(res, 503, { error: "loops_down" });
     }
+  }
+
+  /**
+   * `POST /world-api/dev-origin {origin, checkout}` (round 23, devOrigin.ts): this checkout's dev server tells the host
+   * the loopback origin it serves the page from, before the pairing gate (a program has no cookie). Accepted once
+   * per origin, with one log line; told again, silent.
+   */
+  async function devOrigin(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const body = await readJsonBody(req, CONNECT_BODY_LIMIT);
+    const verdict = devOriginVerdict({ body, originHeader: req.headers.origin, contentType: req.headers["content-type"], remoteAddress: req.socket.remoteAddress, hostCheckout: options.checkout, known: devOrigins });
+    if (!verdict.ok) {
+      sendJson(res, verdict.status, { error: verdict.error, message: verdict.message });
+      return;
+    }
+    if (!devOrigins.has(verdict.origin)) {
+      devOrigins.add(verdict.origin);
+      log(devOriginAcceptedLine(verdict.origin));
+    }
+    sendJson(res, 200, { ok: true, origin: verdict.origin, origins: [...devOrigins] });
   }
 
   /**
@@ -1105,6 +1129,10 @@ export async function createHost(options: HostOptions): Promise<Host> {
     }
     const { route, params, query } = match;
     // The pairing gate: everything under /world-api but health needs the cookie (the browser sends it same-origin).
+    if (route.pattern === "/dev-origin") {
+      await devOrigin(req, res);
+      return;
+    }
     if (route.pattern !== "/health" && !paired(req)) {
       req.resume();
       sendJson(res, 401, { error: "not_paired" });
@@ -1130,6 +1158,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
           connection: connection(isPaired),
         };
         if (options.checkout !== undefined) health.checkout = options.checkout;
+        if (devOrigins.size > 0) health.devOrigins = [...devOrigins];
         const found = discovery.current();
         if (found !== null) health.transport = found.target.transport;
         const version = link?.upstream.loopsVersion();
@@ -1138,7 +1167,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
           if (versions.first !== undefined && versions.first !== version) health.loopsCommitBefore = versions.first;
         }
         if (link !== null && link.upstream.cursor() >= 0) health.cursor = link.upstream.cursor();
-        sendJson(res, 200, health);
+        sendJson(res, 200, health, devOrigins.size > 0 ? { [DEV_ORIGINS_HEADER]: [...devOrigins].join(",") } : {});
         return;
       }
       case "/snapshot":
