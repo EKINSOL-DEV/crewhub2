@@ -1420,7 +1420,8 @@ await group("town", async () => {
   // host's, left behind, and the one the rest of the group runs on.
   const pairingSecret = randomBytes(32);
   const dbs = [openWorldDb(mkdtempSync(path.join(tmpdir(), "chw-town-a-"))), openWorldDb(mkdtempSync(path.join(tmpdir(), "chw-town-b-")))];
-  const base = { loopsUrl: fake.url, key: fake.key, keyName: fake.keyName, retryMs: { min: 100, max: 500 }, reconnectMs: { min: 100, max: 300 }, heartbeatMs: 1000, log: () => undefined, pairingSecret };
+  const hostLog = [];
+  const base = { loopsUrl: fake.url, key: fake.key, keyName: fake.keyName, retryMs: { min: 100, max: 500 }, reconnectMs: { min: 100, max: 300 }, heartbeatMs: 1000, log: (line) => hostLog.push(line), pairingSecret };
   const start = (worldDb, port) => createHost(served ? { ...base, worldDb, staticDir: dist, ...(port ? { port } : {}) } : { ...base, worldDb, port: hostPort, allowedOrigins: [origin] });
   let host = await start(dbs[0]);
   const port = host.port;
@@ -1433,6 +1434,11 @@ await group("town", async () => {
     contexts.push(ctx);
     const pg = await ctx.newPage();
     watch(pg, liveOrigin, problems, "town");
+    // The town store's own log lines (`[town] …`), for the detail of a failed check.
+    pg.townLog = [];
+    pg.on("console", (m) => {
+      if (/\[town\]/.test(m.text())) pg.townLog.push(m.text().replace("[town] ", ""));
+    });
     if (typeof host.mintPairLink === "function") {
       await pg.goto(host.mintPairLink(served ? undefined : origin));
       await pg.waitForTimeout(300);
@@ -1465,11 +1471,21 @@ await group("town", async () => {
     const body = r ? await r.json().catch(() => null) : null;
     return { status: r ? r.status() : 0, rev: body?.rev ?? null, zones: (body?.document?.zones ?? []).map((z) => z.id) };
   };
+  /**
+   * Waits for a browser to show the host's revision (round 22: state, never time): the page keeps the revision it is on
+   * in `<html data-town-rev>`; `min` left out means the revision the host has now. Answers the revision the page shows.
+   */
+  const atRev = async (pg, min = null, timeout = 15000) => {
+    const wanted = min ?? (await hostTown(pg)).rev ?? 0;
+    await pg.waitForFunction((w) => Number(document.documentElement.dataset.townRev ?? -1) >= w, wanted, { timeout }).catch(() => {});
+    return Number(await pg.evaluate(() => document.documentElement.dataset.townRev ?? "-1"));
+  };
   try {
     // 1. A first browser on a host whose database is empty: its empty town goes up once, a zone made here is the host's.
     const first = await openPaired();
     const before = await townRow(first);
     await addZone(first);
+    await atRev(first);
     const made = await hostTown(first);
     ok("town: the Connection panel says the host keeps the town, and a zone made here is on the host", /^Kept by the world's host for this crewhub-loops, shared by every paired browser\./.test(before) && made.status === 200 && made.zones.includes("zone-1"), `${before.slice(0, 90)} | host: ${made.status} rev ${made.rev} zones ${made.zones.join(",")}`);
     await shot(first, "31-town-host");
@@ -1480,19 +1496,36 @@ await group("town", async () => {
     host = await start(dbs[1], port);
     await first.reload();
     await first.waitForSelector(".connection-chip[data-connection=\"live\"]", { timeout: 30000 }).catch(() => {});
-    await first.waitForTimeout(2500);
+    await atRev(first, 1);
     const imported = await hostTown(first);
     const note = await townRow(first);
     ok("town: a browser with an older town of its own imports it once into a host that has none", imported.status === 200 && imported.rev === 1 && imported.zones.includes("zone-1") && /sent to the world's host once/.test(note), `host: ${imported.status} rev ${imported.rev} zones ${imported.zones.join(",")} | ${note.slice(0, 120)}`);
 
     // 3. A second paired browser sees the same town; a zone made there reaches the first through the stream.
     const second = await openPaired();
+    await atRev(second);
     const seenBySecond = await zoneLines(second);
     await addZone(second);
-    await first.waitForTimeout(2500);
-    const seenByFirst = await zoneLines(first);
+    await atRev(second);
     const again = await hostTown(second);
-    ok("town: two browsers on one host see one town; a zone made in one appears in the other", seenBySecond.some((l) => l.startsWith("Zone 1 (")) && seenByFirst.some((l) => l.startsWith("Zone 2 (")) && /kept by the world's host/.test(seenByFirst.join(" ")) && again.rev >= 2, `second saw ${seenBySecond.length} zone line(s); first now ${seenByFirst.map((l) => l.slice(0, 7)).join(", ")}; host rev ${again.rev}`);
+    await atRev(first, again.rev);
+    const seenByFirst = await zoneLines(first);
+    const pair = seenBySecond.some((l) => l.startsWith("Zone 1 (")) && seenByFirst.some((l) => l.startsWith("Zone 2 (")) && /kept by the world's host/.test(seenByFirst.join(" ")) && again.rev >= 2;
+    ok("town: two browsers on one host see one town; a zone made in one appears in the other", pair, `second saw ${seenBySecond.length} zone line(s); first now ${seenByFirst.map((l) => l.slice(0, 7)).join(", ")}; host rev ${again.rev}`);
+    if (!pair) {
+      info(`town: the second browser's town log: ${second.townLog.join(" | ") || "(nothing)"}`);
+      info(`town: the first browser's town log: ${first.townLog.join(" | ") || "(nothing)"}`);
+      info(`town: the second browser's page revision ${await second.evaluate(() => document.documentElement.dataset.townRev ?? "none")}, storage words: ${(await second.locator(".connection-town").innerText().catch(() => "")).slice(0, 120)}`);
+      info(`town: the host's log: ${hostLog.filter((l) => /town of/.test(l)).join(" | ")}`);
+      const { DatabaseSync } = await import("node:sqlite");
+      const peek = new DatabaseSync(dbs[1].file, { readOnly: true });
+      const rows = peek.prepare("SELECT installation, rev, history FROM towns").all();
+      peek.close();
+      for (const row of rows) {
+        const h = JSON.parse(row.history ?? "null");
+        info(`town: the host's history of ${row.installation} at rev ${row.rev}: index ${h?.index}, entries ${(h?.entries ?? []).map((e) => `r${e.revision}[${(e.zones ?? []).map((z) => z.id).join(",")}|plots ${e.plots.length}]`).join(" ")}`);
+      }
+    }
     await shot(second, "32-town-second");
 
     // 4. A host restart on the same database keeps the town.
@@ -1500,7 +1533,7 @@ await group("town", async () => {
     host = await start(dbs[1], port);
     await first.reload();
     await first.waitForSelector(".connection-chip[data-connection=\"live\"]", { timeout: 30000 }).catch(() => {});
-    await first.waitForTimeout(2500);
+    await atRev(first);
     const kept = await zoneLines(first);
     const row = await townRow(first);
     ok("town: a host restart keeps the town", kept.some((l) => l.startsWith("Zone 1 (")) && kept.some((l) => l.startsWith("Zone 2 (")) && /^Kept by the world's host/.test(row), `${kept.map((l) => l.slice(0, 7)).join(", ")} | ${row.slice(0, 80)}`);
@@ -1511,29 +1544,31 @@ await group("town", async () => {
     // the second sees Zone 2 again.
     await second.reload();
     await second.waitForSelector(".connection-chip[data-connection=\"live\"]", { timeout: 30000 }).catch(() => {});
-    await second.waitForTimeout(2000);
+    await atRev(second);
     await canvas(second).focus();
     await second.keyboard.press("b");
     await second.waitForTimeout(800);
+    const revBeforeUndo = (await hostTown(second)).rev;
     await second.locator(".build-sheet").getByRole("button", { name: "Undo", exact: true }).click();
-    await second.waitForTimeout(1500);
+    await atRev(second, revBeforeUndo + 1);
     await second.keyboard.press("Escape");
-    await first.waitForTimeout(2000);
+    await atRev(first, revBeforeUndo + 1);
     const afterUndo = await zoneLines(first);
     await host.close();
     host = await start(dbs[1], port);
     await first.reload();
     await first.waitForSelector(".connection-chip[data-connection=\"live\"]", { timeout: 30000 }).catch(() => {});
-    await first.waitForTimeout(2500);
+    await atRev(first);
     await canvas(first).focus();
     await first.keyboard.press("b");
     await first.waitForTimeout(800);
     const redoButton = first.locator(".build-sheet").getByRole("button", { name: "Redo", exact: true });
     const redoEnabled = await redoButton.isEnabled().catch(() => false);
+    const revBeforeRedo = (await hostTown(first)).rev;
     if (redoEnabled) await redoButton.click();
-    await first.waitForTimeout(1500);
+    await atRev(first, revBeforeRedo + 1);
     await first.keyboard.press("Escape");
-    await second.waitForTimeout(2500);
+    await atRev(second, revBeforeRedo + 1);
     const afterRedo = await zoneLines(second);
     ok(
       "town: an undo in one browser is seen in the other, and a redo after a host restart brings it back for both",
@@ -1570,11 +1605,11 @@ await group("town", async () => {
     await first.waitForSelector(".restore-sheet", { timeout: 5000 }).catch(() => {});
     await shot(first, "35-town-restore-preview");
     await first.locator(".restore-sheet").getByRole("button", { name: "Restore", exact: true }).click();
-    await first.waitForTimeout(1500);
+    await atRev(first, current.rev + 1);
     const afterRestore = await first.request.get(`${liveOrigin}/world-api/town`).then((r) => r.json()).catch(() => null);
     const restoreNote = (await first.locator(".settings-sheet").innerText().catch(() => "")).replace(/\s+/g, " ");
     await first.keyboard.press("Escape");
-    await second.waitForTimeout(2000);
+    await atRev(second, current.rev + 1);
     // The renamed zone no longer matches the "Zone n" filter: every hand-made zone line of the second browser is read.
     const secondSees = (await text(second)).split("\n").filter((l) => /\(made by hand/.test(l));
     ok(

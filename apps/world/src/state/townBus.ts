@@ -16,3 +16,18 @@ export function onHostTown(listener: TownListener): () => void {
 export function hostTownChanged(rev: number): void {
   for (const listener of [...listeners]) listener(rev);
 }
+
+const connected = new Set<() => void>();
+
+/** Listens for the stream coming (back) up: a `town` message sent while a tab was away is lost, so the town is read again then. */
+export function onHostConnected(listener: () => void): () => void {
+  connected.add(listener);
+  return () => {
+    connected.delete(listener);
+  };
+}
+
+/** The source's call: the connection is live (again). */
+export function hostConnected(): void {
+  for (const listener of [...connected]) listener();
+}

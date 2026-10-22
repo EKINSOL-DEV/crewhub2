@@ -38,7 +38,7 @@ export function ConnectionPanel({ state, initial, onClose, pollMs = PANEL_POLL_M
   const town = useTown();
   const kept = townKeeping(town.storage, model.mode);
   const zoneWords = zonesOriginWords({ zones: model.zones, assignments: town.doc.assignments, kept });
-  const townWords = `${townKeepingWords(kept)}${town.storageNote ? ` ${town.storageNote}` : ""}`;
+  const townWords = `${townKeepingWords(kept)}${town.hostRev !== null ? ` Revision ${town.hostRev}.` : ""}${town.storageNote ? ` ${town.storageNote}` : ""}`;
   const [health, setOwnHealth] = useState<HostHealth | null>(initial);
   // Every read the panel makes is kept for the Chat panel and the text view too (state/health.ts).
   const setHealth = (fresh: HostHealth) => {
