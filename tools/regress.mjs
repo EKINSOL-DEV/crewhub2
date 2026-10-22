@@ -72,7 +72,12 @@
            without a session, /world-api/session gone, the Connection panel's Chat section, the Chat panel's glance and
            About this chat, Recent answers' empty state and the text view's Chat line saying this crewhub-loops does not
            let the world read the chat and how to make a viewer key, no form, and an agent's answer showing no mark and
-           no bubble. Needs nobody. About two and a half minutes.
+           no bubble (the page's probe of road 2 over that fake says the world's origin is not set, so the words are that
+           verdict's). Then road 2 (round 28) over a fake that names the page's origin as its CHL_WORLD_ORIGIN: signed in
+           at the fake's own login (the cookie in the browser context), the probe on, the road page while the host's key
+           reads no chat, the Chat section's words with this page's exact origin, an agent's answer through the page's
+           own poll (the mark, the bubble inside, the Recent answers row), every fetch to the fake a GET on the four
+           routes with the query loops forces, no CORS line. Needs nobody. About three minutes.
      rooms the three-room building (`?rooms=three`, whatever the viewer's Buildings setting): three room signs
            (Administration, The floor, Lead's office) and a rack sign with its count, the arrow keys between the three halls, the text view naming the
            racks and the desks with a package on each, the lead's office beacon, the agent card on a figure at a desk,
