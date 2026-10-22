@@ -229,7 +229,8 @@ try {
 }
 const loopsText = config.loopsSocket !== null ? `unix socket ${config.loopsSocket}` : config.loopsUrl !== null ? config.loopsUrl : `looking in ${config.appData}`;
 // The stored key's agent name is loops' to tell (the check logs it); the file names the others.
-const keyText = key === null ? "no key yet: the world shows the Connect screen" : key.source === "stored" ? `the stored key from ${key.file}` : `key ${key.keyName} from ${key.file}`;
+// The bot's name is loops' to say (the "accepted" line names it); the file's name is only a guess at it.
+const keyText = key === null ? "no key yet: the world shows the Connect screen" : key.source === "stored" ? `the stored key from ${key.file}` : `the key file ${key.file}`;
 if (world) stepLine(true, `host listening on ${host.url} (loops ${loopsText}, ${keyText}, pairing ${config.pairing})`, performance.now() - listenStarted);
 else log(`listening on ${host.url} (loops ${loopsText}, ${keyText}${config.production ? ", serving apps/world/dist" : ""}, pairing ${config.pairing}${config.pairingFile === null ? "" : ", secret kept in " + config.pairingFile})`);
 if (args.command === "open" || world) {
