@@ -5,7 +5,7 @@ import { copyFileSync, existsSync, mkdtempSync, readdirSync, rmSync, statSync } 
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
-import { MIGRATIONS, WORLD_DB_NAME, explainSqliteWarning, installationKey, openWorldDb, type Migration } from "../src/worldDb.ts";
+import { MIGRATIONS, WORLD_DB_NAME, explainSqliteWarning, installationKey, listBackups, openWorldDb, readBackupTown, type Migration } from "../src/worldDb.ts";
 
 const temp = () => mkdtempSync(path.join(tmpdir(), "chw-worlddb-"));
 const DOC = (n: number) => JSON.stringify({ format: "crewhub-town/1", revision: n, styleId: "greenhouse", plots: [], placements: [], userProps: [], rules: {} });
@@ -23,10 +23,10 @@ describe("the world database", () => {
       assert.equal(db.getTown("127.0.0.1-8091"), null);
       const made = db.putTown("127.0.0.1-8091", DOC(0), 0, null, () => "2026-10-22T07:00:00.000Z");
       assert.deepEqual(made, { ok: true, rev: 1 });
-      assert.deepEqual(db.getTown("127.0.0.1-8091"), { installation: "127.0.0.1-8091", rev: 1, document: DOC(0), updatedAt: "2026-10-22T07:00:00.000Z", updatedBy: null });
+      assert.deepEqual(db.getTown("127.0.0.1-8091"), { installation: "127.0.0.1-8091", rev: 1, document: DOC(0), updatedAt: "2026-10-22T07:00:00.000Z", updatedBy: null, canUndo: false, canRedo: false });
       assert.equal(db.getTown("127.0.0.1-8291"), null, "another installation has its own row");
       assert.deepEqual(db.putTown("127.0.0.1-8291", DOC(0), 0), { ok: true, rev: 1 });
-      assert.ok(lines.some((l) => /created .*world\.db at schema 1/.test(l)), lines.join("\n"));
+      assert.ok(lines.some((l) => /created .*world\.db at schema \d+/.test(l)), lines.join("\n"));
     } finally {
       db.close();
       rmSync(path.dirname(dir), { recursive: true, force: true });
@@ -99,5 +99,64 @@ describe("the world database", () => {
     rmSync(dir, { recursive: true, force: true });
     stop();
     assert.deepEqual(said, [], "Node 24.21 prints no SQLite warning, so the host says nothing either");
+  });
+});
+
+describe("the world database's history (round 21)", () => {
+  it("keeps the undo history: a commit, an undo, a redo, an amend, each over its base revision; a step that cannot be taken changes nothing", () => {
+    const dir = temp();
+    const db = openWorldDb(dir);
+    try {
+      const a = db.applyTown("i", { kind: "commit", document: DOC(0) }, 0);
+      assert.deepEqual(a, { ok: true, rev: 1, document: DOC(0), canUndo: false, canRedo: false, changed: true });
+      const b = db.applyTown("i", { kind: "commit", document: DOC(1) }, 1);
+      assert.deepEqual([b.ok && b.rev, b.ok && b.canUndo, b.ok && b.canRedo], [2, true, false]);
+      const undone = db.applyTown("i", { kind: "undo" }, 2);
+      assert.deepEqual([undone.ok && undone.rev, undone.ok && undone.document, undone.ok && undone.canUndo, undone.ok && undone.canRedo], [3, DOC(0), false, true]);
+      assert.deepEqual([db.getTown("i")?.document, db.getTown("i")?.canUndo, db.getTown("i")?.canRedo], [DOC(0), false, true], "the read says the same");
+      const nothing = db.applyTown("i", { kind: "undo" }, 3);
+      assert.deepEqual([nothing.ok && nothing.rev, nothing.ok && nothing.changed], [3, false], "nothing to undo: no new revision");
+      const redone = db.applyTown("i", { kind: "redo" }, 3);
+      assert.deepEqual([redone.ok && redone.rev, redone.ok && redone.document, redone.ok && redone.canRedo], [4, DOC(1), false]);
+      // An amend replaces the current revision in place: no undo step added, the undo still goes to DOC(0).
+      const amended = db.applyTown("i", { kind: "amend", document: DOC(7) }, 4);
+      // An amend keeps the current revision number (the history's rule), so the stored document is DOC(7) stamped 1.
+      assert.deepEqual([amended.ok && amended.rev, amended.ok && JSON.parse(amended.document as string), amended.ok && amended.canUndo], [5, { ...JSON.parse(DOC(7)), revision: 1 }, true]);
+      const back = db.applyTown("i", { kind: "undo" }, 5);
+      assert.equal(back.ok && back.document, DOC(0));
+      // A second browser's undo meets the revision check like any write.
+      assert.deepEqual(db.applyTown("i", { kind: "undo" }, 5), { ok: false, conflict: { rev: 6, document: DOC(0) } });
+      // Undo on an installation without a town: nothing, revision 0.
+      assert.deepEqual(db.applyTown("new", { kind: "undo" }, 0), { ok: true, rev: 0, document: null, canUndo: false, canRedo: false, changed: false });
+    } finally {
+      db.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("a database from schema 1 is copied to world.db.bak-v1 and its towns get a history on the first move; the backup lists and reads", () => {
+    const dir = temp();
+    const one = openWorldDb(dir, { migrations: [MIGRATIONS[0] as Migration] });
+    one.putTown("i", DOC(0), 0);
+    one.putTown("i", DOC(1), 1);
+    one.close();
+    const two = openWorldDb(dir);
+    try {
+      assert.equal(two.version, 2);
+      assert.deepEqual(two.backups, [path.join(dir, "world.db.bak-v1")]);
+      assert.deepEqual([two.getTown("i")?.rev, two.getTown("i")?.canUndo], [2, false], "a row from before has one entry: the document as it was");
+      const moved = two.applyTown("i", { kind: "commit", document: DOC(2) }, 2);
+      assert.deepEqual([moved.ok && moved.rev, moved.ok && moved.canUndo], [3, true]);
+      assert.equal(two.applyTown("i", { kind: "undo" }, 3).ok && two.getTown("i")?.document, DOC(1));
+      const backups = listBackups(dir);
+      assert.deepEqual(backups.map((b) => [b.name, b.version, b.bytes > 0, /^\d{4}-/.test(b.at)]), [["world.db.bak-v1", 1, true, true]]);
+      assert.deepEqual(readBackupTown(dir, "world.db.bak-v1", "i"), { rev: 2, document: DOC(1) }, "the copy holds the town as it was before the migration");
+      assert.equal(readBackupTown(dir, "world.db.bak-v1", "other"), null);
+      assert.equal(readBackupTown(dir, "../world.db", "i"), null, "only a backup's own name is read");
+      assert.deepEqual(listBackups(path.join(dir, "nowhere")), []);
+    } finally {
+      two.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
