@@ -167,6 +167,8 @@ test("a motion with `carrying` runs only while the figure carries, or only while
 test("looks swap shared materials; a proxy and a stale figure draw their own see-through copies", () => {
   const kit = referenceKit(manifest.colors);
   const handle = createCast(manifest, figure(), kit).figure({ key: "a:1", role: "worker", accent: null });
+  // The parts are data until the figure is drawn near (round 23): a reader of meshes asks for them.
+  handle.materialise();
   const knob = handle.object.getObjectsByProperty("type", "Mesh").find((m) => (m as import("three").Mesh).material === kit.material("pale")) as import("three").Mesh;
   handle.setState(state({ activity: "working" }));
   assert.equal(knob.material, kit.material("pale", { glow: 0.5 }));
@@ -282,6 +284,7 @@ test("a step: seeded per figure, drawn up to the top, the figure on it turned to
   const colour = (h: typeof handle) => {
     h.setPerch(desk(), true);
     let found = "";
+    h.materialise();
     h.object.children.forEach((child) => child !== h.body && child.traverse((o) => "material" in o && (found = (o.material as { color: { getHexString(): string } }).color.getHexString())));
     return found;
   };
@@ -411,7 +414,7 @@ test("a cast without a person draws its plain worker for one; with person data i
   assert.deepEqual(handle.anchors, person().anchors);
   // The coat's colour is seeded by the key, the same on every load, and never the project colour.
   const coat = (key: string) =>
-    (own.person({ key }).object.getObjectsByProperty("type", "Mesh") as import("three").Mesh[]).find((m) => (m.material as import("three").Material).type === "MeshStandardMaterial")!.material;
+    (((h) => (h.materialise(), h))(own.person({ key })).object.getObjectsByProperty("type", "Mesh") as import("three").Mesh[]).find((m) => (m.material as import("three").Material).type === "MeshStandardMaterial")!.material;
   assert.equal(coat("person:nicky"), coat("person:nicky"));
   assert.ok([kit.material("wood"), kit.material("pale")].includes(coat("person:sam") as import("three").MeshStandardMaterial));
   // The person figure poses and moves like any figure: the carrying pose and the walk.

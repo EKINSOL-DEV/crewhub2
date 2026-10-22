@@ -259,6 +259,7 @@ already, all but one drawn by the first frame; the first entry into a building p
 about 7 ms of GPU link), the rest of that hitch being the inside layers built at the enter (about 90 ms at 4x); an idle
 warm of the interior's programs and early location reads were tried and moved nothing or cost more; the next lead is the
 objects layer's instanced meshes made ahead of the enter (`COST_POLICY.md`, the table).
+Round 23 (2026-10-22) made the figures parts as data too (every cast and the persons, the far crowd reading the data, meshes only when a figure is drawn near), pixel-identical over the 98 pairs and 320 more of every cast in every state; the town's far agents are 13 objects each instead of 20 to 79 meshes.
 
 ## Later scope
 

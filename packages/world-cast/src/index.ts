@@ -14,7 +14,7 @@
  */
 import type * as THREE from "three";
 import type { PropShape, Vec3 } from "@crewhub/world-engine";
-import type { PaletteName, StyleTheme } from "@crewhub/world-style";
+import type { PaletteName, StaticPart, StyleTheme } from "@crewhub/world-style";
 import { CAST_ROLES, FIGURE_ACTIVITIES, WORK_POSES } from "./names.ts";
 
 export { CAST_ROLES, FIGURE_ACTIVITIES, WORK_POSES };
@@ -141,8 +141,21 @@ export interface FigureHandle {
   readonly anchors: FigureAnchors;
   /** Cheap to call every frame with the same state: a figure only re-poses and re-skins on a change. */
   setState(state: FigureState): void;
+  /**
+   * Near or far. A figure's parts are data on its joints (world-style's `FigurePiece`) until it is told `near` the
+   * first time (even if it was never told anything else: a figure is near until told far), drawn on its own (a
+   * see-through proxy, a stale figure) or asked (`materialise`); the renderer sees no part of it until then, and the
+   * far crowd draws it from the data. Cheap to call every frame with the same detail.
+   */
   setDetail(detail: FigureDetail): void;
   setHighlight(highlight: FigureHighlight): void;
+  /** Every part a mesh now, for a reader of meshes (the contract's measure, a raycast against the figure). Once. */
+  materialise(): void;
+  /**
+   * Whether the figure's parts and its own meshes cast a shadow, written now, as a traverse over its meshes setting
+   * `castShadow` did; the next state or detail change writes the parts' flags again, as it always did.
+   */
+  setCastShadow(on: boolean): void;
   /**
    * The idle, work and walk motion; `seconds` since the last call. The renderer never calls it under reduced motion: the
    * figure then shows its still pose for the activity, which must read on its own.
@@ -215,8 +228,8 @@ export type FigureExtension = (figure: {
   options: FigureOptions;
   kit: FigureKit;
   joints: ReadonlyMap<string, THREE.Object3D>;
-  /** The built parts that have an id, to re-skin or reshape. */
-  parts: ReadonlyMap<string, THREE.Mesh>;
+  /** The built parts that have an id, to re-skin or reshape: reading it makes every part of the figure a mesh (`materialise`). */
+  readonly parts: ReadonlyMap<string, THREE.Mesh>;
   state: () => FigureState;
   detail: () => FigureDetail;
 }) => { update?(seconds: number): void; setState?(state: FigureState): void; dispose?(): void } | void;
@@ -235,6 +248,12 @@ export interface FigureKit {
   readonly theme: StyleTheme;
   /** A mesh for one part, geometry and material shared; the part's own position and rotation applied. */
   part(part: FigurePart, color: string): THREE.Mesh;
+  /**
+   * The same part as data (`StaticPart`, @crewhub/world-style): the geometry, material, position, rotation, scale and
+   * composed matrix the mesh of `part` has. A figure holds its parts so until it is drawn near (round 23). Optional: a
+   * kit without it has them read off the mesh `part` makes.
+   */
+  piece?(part: FigurePart, color: string): StaticPart;
   /** A shared material; `glow` makes it emissive (a number is the strength in its own colour, a name a glow colour). */
   material(color: string, options?: { glow?: number | string }): THREE.MeshStandardMaterial;
   /** The colour string of a colour name in the current theme. */
@@ -440,4 +459,4 @@ export { applyFigurePatch, figureColor, figureEyes, hashKey, perchFor, perchPlac
 export { validateCastManifest, validateFigure, validateFigurePatch, validatePerson, type CastValidation } from "./validate.ts";
 export { createCast } from "./runtime.ts";
 export { referenceKit } from "./referenceKit.ts";
-export { castProblems, measureFigure, sightProblems } from "./contract.ts";
+export { castProblems, everyState, measureFigure, sightProblems } from "./contract.ts";
