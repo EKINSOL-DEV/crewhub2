@@ -261,7 +261,10 @@ warm of the interior's programs and early location reads were tried and moved no
 objects layer's instanced meshes made ahead of the enter (`COST_POLICY.md`, the table). Round 24 took that lead: the inside
 layers of the two likeliest buildings (the jump list's row, the pointer's, the keyboard's) are built ahead of the enter in
 idle time, bounded as the interior's build is, their programs warmed; the enter's worst frame 90 → 57 ms at 4x, 17 → 10
-unthrottled, pixel-identical (98 pairs, 0 differing pixels).
+unthrottled, pixel-identical (98 pairs, 0 differing pixels). Round 25 named what remains of the enter to the function
+(`tools/profile.mjs --enter`): the inside UI's first layout and React's commit, and the first draw inside; it memoised the
+inside labels' placements and the narrow media query, found that moving the layout reads out of React's commit moves the
+layout and not the cost, and left the figures' near meshes alone (the crowd's resting path).
 Round 23 (2026-10-22) made the figures parts as data too (every cast and the persons, the far crowd reading the data, meshes only when a figure is drawn near), pixel-identical over the 98 pairs and 320 more of every cast in every state; the town's far agents are 13 objects each instead of 20 to 79 meshes.
 
 ## Later scope
