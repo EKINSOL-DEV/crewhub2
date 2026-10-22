@@ -184,26 +184,42 @@ const shot = (p, name) => p.screenshot({ path: `${OUT}${tag}-${name}.png` });
  * 2's own ask, and the browser's CORS line for the probe at one of them as the expected refusal; nothing else.
  */
 const loopsOrigins = new Set();
+/** Origins known only later (the connect stub's web starts with its connected state): read when a check asks. */
+const loopsOriginGetters = [];
+const allLoopsOrigins = () => new Set([...loopsOrigins, ...loopsOriginGetters.map((get) => get()).filter((o) => typeof o === "string" && o !== "")]);
 const noteLoops = (made) => {
   loopsOrigins.add(made.url);
   return made;
+};
+/** The real development loops of a run (the connect group's 8291 half, the real group): the page's probe asks it too. */
+const noteLoopsUrl = (url) => {
+  try {
+    loopsOrigins.add(new URL(url).origin);
+  } catch {
+    // not a URL: nothing to expect
+  }
 };
 const ROAD2_ROUTES = [/^\/api\/dm\/threads$/, /^\/api\/dm\/threads\/[a-z0-9][a-z0-9-]{0,31}\/messages$/, /^\/api\/dm\/messages\/[A-Za-z0-9_-]{1,64}$/, /^\/api\/events$/];
 const road2Ask = (x) => {
   try {
     const url = new URL(x.url);
-    return x.method === "GET" && loopsOrigins.has(url.origin) && ROAD2_ROUTES.some((route) => route.test(url.pathname));
+    return x.method === "GET" && allLoopsOrigins().has(url.origin) && ROAD2_ROUTES.some((route) => route.test(url.pathname));
   } catch {
     return false;
   }
 };
-/** The probe's refusal as the browser prints it (the verdict origin-not-set or unreachable): exactly these two lines, for the threads route at a loops origin of this run. */
+/**
+ * The probe's refusal as the browser prints it (the verdict origin-not-set or unreachable): exactly the CORS line for
+ * the threads route at a loops origin of this run from the page's own origin, and the browser's "Failed to load
+ * resource" line for that same URL (`net::ERR_FAILED` when nothing readable came back, "the server responded with a
+ * status of 401 (Unauthorized)" when loops answered the cookie-less ask and the browser then withheld it). Nothing else.
+ */
 const probeRefusal = (x) => {
   if (x.kind !== "console") return false;
   const text = x.text.replace(/^\[[^\]]*\] /, "");
-  for (const origin of loopsOrigins) {
+  for (const origin of allLoopsOrigins()) {
     if (text === `Access to fetch at '${origin}/api/dm/threads' from origin '${x.pageOrigin}' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.`) return true;
-    if (text === "Failed to load resource: net::ERR_FAILED" && x.url === `${origin}/api/dm/threads`) return true;
+    if (x.url === `${origin}/api/dm/threads` && (text === "Failed to load resource: net::ERR_FAILED" || /^Failed to load resource: the server responded with a status of \d{3} \([A-Za-z ]+\)$/.test(text))) return true;
   }
   return false;
 };
@@ -1936,7 +1952,7 @@ await group("connect", async () => {
   async function stubHalf() {
     // "checking" holds until the tool moves the stub on (a real host would connect or refuse in a second).
     const stub = await createConnectStub({ port: hostPort, state: "no-loops", origin, checkMs: 60_000, log: () => undefined });
-    loopsOrigins.add(stub.webUrl);
+    loopsOriginGetters.push(() => stub.webUrl());
     info(`connect: stub host on 127.0.0.1:${stub.port} behind the Vite proxy on ${origin} (Vite started with CREWHUB_WORLD_PORT=${hostPort})`);
     try {
       const pg = await openConnect("connect stub");
@@ -2038,6 +2054,7 @@ await group("connect", async () => {
     const envFile = loopsEnvFile();
     const env = readEnvFile(envFile);
     const loopsUrl = (env.LOOPS_DEV_URL ?? "").replace(/\/+$/, "");
+    noteLoopsUrl(loopsUrl);
     const keyFile = env.LOOPS_DEV_KEY_FILE ?? "";
     const parsed = (() => {
       try {
@@ -2383,6 +2400,7 @@ await group("real", async () => {
   const envFile = loopsEnvFile();
   const env = readEnvFile(envFile);
   const loopsUrl = (env.LOOPS_DEV_URL ?? "").replace(/\/+$/, "");
+    noteLoopsUrl(loopsUrl);
   const keyFile = env.LOOPS_DEV_KEY_FILE ?? "";
   const parsed = (() => {
     try {
