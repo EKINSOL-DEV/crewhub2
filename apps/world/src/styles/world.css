@@ -2745,3 +2745,9 @@ a.agent-ticket-link:focus-visible {
   flex-wrap: wrap;
   margin-bottom: var(--space-3);
 }
+
+/* A menu row with the keyboard focus wears the focus ring inside its edge (round 21): the kit marks it with the sunken
+   surface alone, which is faint over the raised menu. The Demo scenario menu and the "?" menu both. */
+.menu-item:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--focus);
+}

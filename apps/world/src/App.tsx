@@ -347,6 +347,9 @@ function World() {
   const jump = useCallback(
     (entry: JumpEntry) => {
       setJumpOpen(false);
+      // The list closes on the chosen entry (not through closeJump): the scene takes the focus, so the arrow keys and
+      // Enter work at once (Enter opens the card of a figure jumped to); the body would have had it (round 21).
+      requestAnimationFrame(focusScene);
       go(entry.place, entry.agent);
       if (entry.agent && !entry.place.building) {
         // A figure outside the buildings: the camera lands close beside it, selected; Enter opens its card.
@@ -488,6 +491,24 @@ function World() {
     writeTourDone();
     setTourOpen(false);
   }, []);
+  /** The agent card closes (Escape, its close button): a focus that was in the card goes to the scene, not to the body (round 21). */
+  const closeCard = useCallback(() => {
+    setCard(false);
+    requestAnimationFrame(() => {
+      if (document.activeElement === null || document.activeElement === document.body) focusScene();
+    });
+  }, []);
+  // Leaving build mode unmounts its sheet; a focus that was in the sheet (the palette, by keyboard) would fall to the
+  // body. It goes to the Build button in the toolbar instead (round 21).
+  const buildWasOn = useRef(false);
+  useEffect(() => {
+    if (buildWasOn.current && !build.state.on) {
+      requestAnimationFrame(() => {
+        if (document.activeElement === null || document.activeElement === document.body) document.querySelector<HTMLElement>(".build-toggle")?.focus();
+      });
+    }
+    buildWasOn.current = build.state.on;
+  }, [build.state.on]);
   // The Connection panel (live mode): the chip opens it; Escape and its close button return the focus to the chip.
   const openConnection = useCallback(() => {
     returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -607,7 +628,7 @@ function World() {
       if (e.key === "Escape") {
         if (textOpen) closeText();
         else if (following) follow(null);
-        else if (card) setCard(false);
+        else if (card) closeCard();
         else if (selection.selected) setSelection((s) => ({ ...s, selected: null }));
         else if (zoomed) {
           setZoomed(null);
@@ -649,7 +670,7 @@ function World() {
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [back, build, camera, card, chat, closeChat, closeConnection, closeJump, closeSettings, closeText, closeTour, connectionOpen, editing, entered, follow, following, go, graphicsFailed, here, inside, jumpOpen, openJump, openText, redo, rooms, selectedAgent, selection.selected, settingsOpen, startWalk, stopWalk, textOpen, tourOpen, undo, walking, zoomed]);
+  }, [back, build, camera, card, chat, closeCard, closeChat, closeConnection, closeJump, closeSettings, closeText, closeTour, connectionOpen, editing, entered, follow, following, go, graphicsFailed, here, inside, jumpOpen, openJump, openText, redo, rooms, selectedAgent, selection.selected, settingsOpen, startWalk, stopWalk, textOpen, tourOpen, undo, walking, zoomed]);
 
   // Arrow keys and Enter move the focus ring between plots while the scene has keyboard focus.
   const sceneKey = (e: ReactKeyboardEvent) => {
@@ -815,7 +836,7 @@ function World() {
               walking={walking}
               onWalkPlace={(slug) => (slug ? enter(slug) : back())}
               card={card}
-              onCloseCard={() => setCard(false)}
+              onCloseCard={closeCard}
               onChat={demo ? null : openChat}
               following={following}
               onFollow={follow}
@@ -1090,6 +1111,9 @@ const Corner = memo(function Corner({
   );
 });
 
+/** The scene's canvas takes the focus: the arrow keys, Enter and Escape then work on the world (after a jump, after a sheet). */
+const focusScene = () => document.querySelector<HTMLElement>("main.world-stage canvas")?.focus();
+
 const CornerTools = memo(function CornerTools(props: {
   theme: keyof typeof THEME_ICON;
   cycle: () => void;
@@ -1122,6 +1146,7 @@ const CornerTools = memo(function CornerTools(props: {
         <Button
           variant="ghost"
           iconOnly
+          className="build-toggle"
           aria-label={buildOn ? "Leave build mode (B)" : "Build mode (B)"}
           title={buildOn ? "Leave build mode (B)" : "Build mode (B)"}
           pressed={buildOn}
