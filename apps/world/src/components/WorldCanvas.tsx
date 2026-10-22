@@ -425,7 +425,7 @@ function useAgentCard(props: Props, inside: Building | null, compact: boolean, p
 
 /** The desk ticket's progress read once from the source (`getProgress`, the host's forwarded `/tickets/{ref}/progress`
     or the demo's data) while the card is open and the page saw no line of the agent's; the newest line, or none. A
-    read that fails is "none": the card says so, and never retries by itself. */
+    read that fails (refused, broken) is "failed", said so on the card and never retried by itself. */
 function useDeskProgress(ticketKey: string | null): FetchedProgress | undefined {
   const [state, setState] = useState<{ key: string; value: FetchedProgress } | null>(null);
   useEffect(() => {
@@ -440,7 +440,7 @@ function useDeskProgress(ticketKey: string | null): FetchedProgress | undefined 
         const ts = newest ? Date.parse(newest.createdAt) : Number.NaN;
         setState({ key: ticketKey, value: newest && !Number.isNaN(ts) ? { state: "line", line: { ts, kind: newest.kind, ticketKey, text: newest.worker ? `${newest.worker}: ${newest.text}` : newest.text } } : { state: "none" } });
       })
-      .catch(() => live && setState({ key: ticketKey, value: { state: "none" } }));
+      .catch(() => live && setState({ key: ticketKey, value: { state: "failed" } }));
     return () => {
       live = false;
     };

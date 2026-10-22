@@ -42,7 +42,8 @@ facts: the page's **Recent answers** (`state/said.ts`, round 16: the lines the b
 with the words for an agent that has none (`cardAnswersEmpty`, per road), and the desk ticket's **last progress line
 read once** from the source (`getProgress`, the host's forwarded `/world-api/tickets/{ref}/progress`, or the demo's
 data) when the page saw no line of the agent's: the stream starts at the tail, so against a real loops the page knows
-no line at open. The read is one GET while the card is open; a failed read is "none", never retried by itself.
+no line at open. The read is one GET while the card is open; a read that fails (refused, broken) is said so ("the lines of CL-9 could
+not be read from the source"), never read as "none", and never retried by itself.
 
 ## The registry: a section is one file
 

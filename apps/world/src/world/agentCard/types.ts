@@ -29,8 +29,8 @@ export interface CardAnswer {
   at: string | null;
 }
 
-/** The read of the desk ticket's progress: on its way, nothing there, or the newest line. */
-export type FetchedProgress = { state: "loading" } | { state: "none" } | { state: "line"; line: { ts: number; kind: string; ticketKey: string; text: string } };
+/** The read of the desk ticket's progress: on its way, nothing there, the newest line, or a read that failed (refused or broken: the card says so, never "none"). */
+export type FetchedProgress = { state: "loading" } | { state: "none" } | { state: "failed" } | { state: "line"; line: { ts: number; kind: string; ticketKey: string; text: string } };
 
 /** One ticket in a compact list: the key linked into loops when there is a web app, the title, a short meta ("review, waits on Nicky"). */
 export interface TicketItem {

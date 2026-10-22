@@ -139,6 +139,7 @@ test("Work (round 22): Holds counts the open tickets by status and whom they wai
   const by = renderAgentCard(bare({ work }), ctx({ fetchedProgress: { state: "line", line: { ts: NOW - 120_000, kind: "update", ticketKey: "CL-9", text: "x" } } })).find((s) => s.id === "work")!.rows.at(-1);
   assert.equal(by?.kind === "quote" && by.by, "update on CL-9, 2 min ago, read from the source");
   assert.equal(quote({ state: "none" }), "|No progress line: none seen since this page opened, and CL-9 has none.");
+  assert.equal(quote({ state: "failed" }), "|No progress line: none seen since this page opened, and the lines of CL-9 could not be read from the source.", "a refused or broken read is never read as none");
 });
 
 test("Answers (round 22): this agent's lines only, newest first, at most three, each with who said it and when; the page's words when it has none; no section without the page's answers", () => {

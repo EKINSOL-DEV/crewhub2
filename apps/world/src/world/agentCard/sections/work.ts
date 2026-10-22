@@ -72,6 +72,7 @@ export const workSection: AgentCardSection = {
       const fetched = ctx.fetchedProgress;
       if (fetched?.state === "line") rows.push({ kind: "quote", text: fetched.line.text, by: `${fetched.line.kind} on ${fetched.line.ticketKey}, ${agoWords(fetched.line.ts, ctx.now)}, read from the source` });
       else if (fetched?.state === "loading" && work) rows.push({ kind: "text", label: "", text: `Reading the last progress line of ${work.key}…`, muted: true });
+      else if (fetched?.state === "failed" && work) rows.push({ kind: "text", label: "", text: `No progress line: none seen since this page opened, and the lines of ${work.key} could not be read from the source.`, muted: true });
       else if (work) rows.push({ kind: "text", label: "", text: `No progress line: none seen since this page opened, and ${work.key} has none.`, muted: true });
       else rows.push({ kind: "text", label: "", text: "No progress line: none seen since this page opened and no ticket on its desk to read one from.", muted: true });
     }
