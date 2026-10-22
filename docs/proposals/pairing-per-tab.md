@@ -31,8 +31,11 @@ Steps counted as "a command or a click a person makes"; the page's own work is n
 | Another browser or a phone | 1: a new link | 1: a new link |
 | The Vite dev road (`npm run dev` + `npm run host`) | the cookie works across ports (5173 and 5180) | the link is minted on the Vite origin (`npm run host -- open --origin http://127.0.0.1:5173`, as today); the header rides through the proxy; a tab is paired per origin |
 
-Pictures (light, 1440): the Pair page and the Connection panel's Pairing row are in the round's report folder
-(`r27/shots/pair-page-light-1440.png`, `r27/shots/connection-panel-pairing-light-1440.png`).
+Pictures (light, 1440), as the branch draws them:
+
+![The Pair screen on the per-tab branch: "Pair this tab", the command to run, what the link does and the idle expiry](../images/pairing-per-tab-pair-page.png)
+
+![The Connection panel's Pairing row: "this tab; another tab of this browser picks it up while this one is open; expires after 30 days unused"](../images/pairing-per-tab-connection-panel.jpg)
 
 ## Code size
 
