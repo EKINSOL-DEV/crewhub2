@@ -21,9 +21,10 @@ writes to it, and serves the same world with the real projects: `npm run world` 
 morning ([the runbook](docs/LOOPS_SETUP.md)), rehearsed from a fresh clone eight times. It holds when
 loops stops, when the key is revoked while the town is open and when loops is upgraded under it,
 each with an honest screen. The chat is crewhub-loops' own, framed in the world's Chat panel, and an
-agent's answer shows as a speech bubble over its figure where the key may read the chat. Planned, **not built**:
-the host's world database (in progress, round 20) and the real director; the switch to crewhub-loops' viewer key is
-written and waits on that branch's merge in loops. See the [architecture](docs/ARCHITECTURE.md) and the
+agent's answer shows as a speech bubble over its figure where the key may read the chat. The host keeps the live
+town (zones, layout, props, the undo history) in SQLite in its own folder, shared by every paired browser, with
+backups and a previewed restore. Planned, **not built**: the real director; the switch to crewhub-loops' viewer key
+is written and waits on that branch's merge in loops. See the [architecture](docs/ARCHITECTURE.md) and the
 [roadmap](docs/ROADMAP.md).
 
 Built in demo mode and shown live from the same model:
@@ -32,8 +33,9 @@ Built in demo mode and shown live from the same model:
 - A person who carries finished work into Done; closed buildings for archived projects.
 - Dust and a clock tag on a ticket that has gone quiet; a card on the building's board when an automation runs.
 - A grid engine with doors, town paths and pathfinding; walk mode; four swappable casts.
-- Build mode with a local town document, and props made with the `prop-builder` skill.
-- A "Where is ...?" lookup, the agent card, and a hidden text view of every fact.
+- Build mode on a town document (the host's in live mode, the browser's in the demo), and props made with the `prop-builder` skill.
+- A "Where is ...?" lookup, the agent card with what crewhub-loops offers for one agent, and a hidden text view of every fact.
+- A six-step introduction inside the world the first time a browser opens it, reopenable from Settings and the "?" in the toolbar.
 - The chat: crewhub-loops' own chat framed in the Chat panel (from the Chat chip or a lead's card), an agent's answer as a speech bubble over its figure, a chat mark over its building from the town, and a Recent answers list; in the demo a scripted dock feeds the same.
 - A scripted director, no model: in the demo, and in live mode as an opt-in that is off by default and says "scripted" on every line.
 
@@ -78,7 +80,7 @@ keep the Greenhouse style.
 | Path | Responsibility | Status |
 | --- | --- | --- |
 | [apps/world](apps/world/README.md) | The browser world: town, buildings, UI, the Connect screens | Demo and live mode |
-| [apps/host](apps/host/README.md) | The relay: finds and reads crewhub-loops, serves and pairs the browser | Built and tested; the world database is not |
+| [apps/host](apps/host/README.md) | The relay: finds and reads crewhub-loops, serves and pairs the browser, keeps the live town in SQLite | Built and tested |
 | [packages/loops-client](packages/loops-client/README.md) | crewhub-loops types, validators, the `WorldSource` seam, the live source | Implemented and tested |
 | [packages/demo](packages/demo/README.md) | The scripted in-memory crewhub-loops | Implemented and tested |
 | [packages/loops-fake](packages/loops-fake/README.md) | A fake crewhub-loops over HTTP for the host's tests and the live checks | Implemented and tested |
@@ -87,14 +89,14 @@ keep the Greenhouse style.
 | `packages/world-style`, `packages/style-greenhouse` | The style seam and the Greenhouse style ([WORLD_STYLES.md](docs/WORLD_STYLES.md)) | Implemented and tested |
 | `packages/world-cast`, `packages/cast-*` | The cast seam and the four casts | Implemented and tested |
 | [skills/prop-builder](skills/prop-builder/SKILL.md) | Skill: a prop request becomes a valid prop | Implemented and evaluated |
-| [tools](tools/README.md) | Browser checks, measurements, the first-paint profiler, screenshots, the seed and the development crewhub-loops | Tooling, not shipped |
+| [tools](tools/README.md) | Browser checks, the pixel-identical proof, measurements, the first-paint profiler, screenshots, the seed and the development crewhub-loops | Tooling, not shipped |
 | [docs](docs/README.md) | Decisions, plan, runbook and handoff | Authoritative for this rebuild |
 
 ## Start the next build
 
 Read [AGENTS.md](AGENTS.md), then [the handoff](docs/ASTRA_HANDOFF.md). The open work
-is listed in the [roadmap](docs/ROADMAP.md): the world database, the chat and the
-director in live form, and the proposals waiting on crewhub-loops.
+is listed in the [roadmap](docs/ROADMAP.md): the real director, and the viewer key and the
+other proposals waiting on crewhub-loops.
 
 ## Previous version
 

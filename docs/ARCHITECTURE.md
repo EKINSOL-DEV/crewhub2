@@ -16,7 +16,8 @@ components.
 and people writing to crewhub-loops (loops' own), the host reading crewhub-loops (and,
 where the key may read the chat, the agents' answers for the bubbles), the browser
 reading the host, and the browser framing loops' own web app in the Chat panel. The
-world database's first slice is built (round 20: the host keeps the live town per installation in SQLite); not built: the director lane.
+world database is built for the town (rounds 20 and 21: the host keeps the live town document and its undo history
+per installation in SQLite, with backups and a previewed restore); not built: the director lane.
 
 ```mermaid
 flowchart LR
@@ -25,7 +26,7 @@ flowchart LR
   Postman["postman lane"] -- "deliver next" --> Loops
   People["Nicky, loops web app"] --> Loops
   Host["CrewHub host (apps/host)"] -- "Unix socket or loopback TCP, external bot key, GET only: REST + NDJSON" --> Loops
-  Host --- DB[("World database (SQLite): the town, round 20")]
+  Host --- DB[("World database (SQLite): the town and its history, rounds 20 and 21")]
   Browser["CrewHub World (browser)"] -- "loopback HTTP: snapshot + SSE, pairing cookie" --> Host
   Browser -. "the Chat panel: loops' own web app, framed, on the person's session" .-> Loops
   Director["world-director lane (Haiku), not built"] -. "crewhub-world CLI, host socket" .-> Host
@@ -67,7 +68,7 @@ Phase status (plan section 10; the dates and details are in [the roadmap](ROADMA
 - Phase 2 (the chat, backed by the demo chat API in demo mode): built in demo mode; live since round 12 as loops' own chat framed in the Chat panel, with the agents' answers as bubbles, a chat mark from the town and Recent answers where the key may read the chat (rounds 14 to 18; the session road stands in until the viewer key lands)
 - Phase 3 (interiors, three rooms, the ticket drone, a person carrying work into Done, closed buildings): built in demo mode and live; the world database keeps the live town in the host since round 20
 - Phase 4 (town paths and dynamic pathfinding): built in demo mode and live
-- Phase 5 (town document and build mode): built in demo mode; live mode keeps its own town document in the browser, per installation; the host's world database (in progress, round 20) will keep it for every paired browser
+- Phase 5 (town document and build mode): built in demo mode; in live mode the host keeps the town document and its undo history per installation for every paired browser (rounds 20 and 21), the browser keeping it only while the host is away
 - Phase 6 (scripted director and `where`): built in demo mode; `where` works live; the scripted director also runs in live mode as its own opt-in, off by default and labelled "scripted" on every line (round 11); the real director is not built
 
 ## The host (`apps/host`)
@@ -141,6 +142,16 @@ One Node process, no dependency beyond Node, loopback only. Its parts, each a fi
   sources, builds the world beside it behind a "Building the world…" page; prints a step
   list with times; a second run finds the running host and only mints a new link.
   **`npm run host -- doctor`** (`doctor.ts`) prints the same states, one line per check.
+- **The world database** (`worldDb.ts`, round 20 and 21): the live town document per crewhub-loops installation in
+  `<config dir>/world.db` through Node 24's `node:sqlite` (0600; a `schema_version` table, migrations in a
+  transaction, a `world.db.bak-v<n>` copy before each, a newer file refused), read and written by paired browsers on an
+  allowed origin through `GET`/`PUT /world-api/town` (`crewhub-town/1`, at most 4 MB, last write wins with a revision
+  check and `409 town_conflict`, the undo history as `commit`/`amend`/`undo`/`redo` ops on a base revision), exported
+  with `GET /world-api/town/export`, the backups listed for a previewed restore; every write goes to every tab as a
+  `town` message. The browser side is `apps/world/src/state/hostTown.ts`.
+- **The dev origin** (`devOrigin.ts`, round 23): `POST /world-api/dev-origin {origin, checkout}` from a program on this
+  machine (a loopback socket, no browser `Origin`, JSON), a loopback origin only, the same checkout id, at most eight
+  per run, lets `npm run dev`'s page pass the origin guard without `CREWHUB_WORLD_ALLOWED_ORIGINS`; pairing is unchanged.
 
 Details, the env table and the command list are in [apps/host/README.md](../apps/host/README.md).
 
@@ -238,11 +249,14 @@ No React Three Fiber or physics engine is needed for this slice.
 ## Tools: looking at and measuring the running world
 
 [`tools/`](../tools/README.md) holds the scripts that open the running world in a headless browser: the browser
-regression pass (`regress.mjs`, seven groups: the connect flow against a stub host, the demo walk, the demo's
-wayfinding, picker and the new loops events, live mode against the fake with pairing (with the Zones line and the scripted director in live mode), the operations road over the
-fake (loops stopped, the key revoked, loops upgraded under the host), the three-room building, 123 checks offline,
+regression pass (`regress.mjs`, ten groups: the connect flow against a stub host, the demo walk, the demo's
+wayfinding, picker and the new loops events, the first-run tour, live mode against the fake with pairing (with the Zones line, the scripted director in live mode, the Chat panel and the live card), the chat's roads, the town kept by the host
+(two browsers, one town; a restart), the operations road over the
+fake (loops stopped, the key revoked, loops upgraded under the host), the three-room building, 176 checks offline,
 plus up to 18 against the real development crewhub-loops: the connect flow through a keyless host, and live mode
-over TCP and the socket with loops' version and the log's quiet facts in a fresh tab), the accessibility pass
+over TCP and the socket with loops' version and the log's quiet facts in a fresh tab; 194 in all), the pixel-identical
+proof of a change (`pixcheck.mjs`: two commits or dist folders built and served apart, 74 label-free demo pairs and
+324 cast pairs, a diff image per pair, exit 0 only at all zeros), the accessibility pass
 (`a11y.mjs`: what a screen reader is given on every Connect screen, the panel and the town's labels, the keyboard,
 contrast, a phone, reduced motion), the frame and memory measurements (`perf.mjs`, `memory.mjs`, in demo
 and live mode), the first paint's CPU profile resolved to source files (`profile.mjs`), the time from `npm run

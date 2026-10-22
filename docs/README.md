@@ -33,9 +33,11 @@ These are the active documents for the browser-world rebuild. All are in English
 
 The night report is [reports/2026-10-01-world-demo-night.md](reports/2026-10-01-world-demo-night.md): what was
 built per phase and per round since (the demo build, the art and performance rounds, casts, scale, loops readiness,
-three rooms, live on the Mac crewhub-loops, a smooth connection, and rounds 3 to 9 of 2026-10-21: the morning rehearsed,
-regressions, the first paint, the new loops events, the operations road, a rejected key that waits, accessibility,
-the log's quiet facts in the snapshot and dust you can see), its verification, and the challenges met in the
+three rooms, live on the Mac crewhub-loops, a smooth connection, and rounds 3 to 24 of 2026-10-21 and 22: the morning
+rehearsed, regressions, the first paint, the new loops events, the operations road, a rejected key that waits,
+accessibility, the log's quiet facts in the snapshot and dust you can see, the chat with the agents, Nicky's decisions,
+the viewer-key switch, the town kept by the host, the tour, the keyboard and phone passes, the live card, the figures
+as data and the pixel proof), its verification, and the challenges met in the
 crewhub-loops integrator docs.
 
 Outside this folder, each workspace has its own README: [apps/host](../apps/host/README.md) (the relay: routes,
