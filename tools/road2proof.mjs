@@ -15,6 +15,7 @@
      2. signed out: a fresh context: the probe says signed out, the words.
      3. another origin: the signed-in context on `--other-port`: the probe says the origin is not set, the words with
         the exact `CHL_WORLD_ORIGIN=` value for that page.
+   `--words-only` skips the reply (the bubble and Recent answers checks): the words and the request log alone, no reply needed.
    `--seed` first sends one message from the person to `--agent` when the thread has none (loops' own send route with
    the admin session; a reply needs a message to reply to); nothing else is written anywhere.
 
@@ -30,9 +31,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { cli, launch } from "./lib/world.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const opts = cli("node tools/road2proof.mjs --port <CHL_WORLD_ORIGIN port> --other-port <port> --loops-url <url> --key-file <file> --loops-env <file> [--agent crewhub-lead] [--bubble-timeout-s 900] [--seed] [--tag road2] [--out <dir>] [--swiftshader]", {
+const opts = cli("node tools/road2proof.mjs --port <CHL_WORLD_ORIGIN port> --other-port <port> --loops-url <url> --key-file <file> --loops-env <file> [--agent crewhub-lead] [--bubble-timeout-s 900] [--seed] [--words-only] [--tag road2] [--out <dir>] [--swiftshader]", {
   options: { "other-port": null, "loops-url": "", "key-file": "", "loops-env": "", agent: "crewhub-lead", "bubble-timeout-s": "900", tag: "road2" },
-  flags: ["seed"],
+  flags: ["seed", "words-only"],
 });
 const otherPort = Number(opts["other-port"]);
 if (!Number.isInteger(otherPort) || otherPort <= 0 || otherPort === opts.port) opts.fail("--other-port <port> must be another port than --port");
@@ -146,6 +147,8 @@ async function panelWords(p) {
   await p.locator(".connection-chip").first().click();
   await p.waitForSelector(".connection-chat", { timeout: 10000 }).catch(() => {});
   const el = p.locator(".connection-chat");
+  await el.scrollIntoViewIfNeeded().catch(() => {});
+  await p.waitForTimeout(150);
   const out = { text: (await el.innerText().catch(() => "")).replace(/\s+/g, " ").trim(), probe: await el.getAttribute("data-probe").catch(() => null), road: await el.getAttribute("data-road").catch(() => null) };
   return out;
 }
@@ -187,7 +190,9 @@ try {
   await shot(pg, "03-chat-about-on");
   await pg.keyboard.press("Escape");
   await pg.waitForSelector(".chat-sheet", { state: "detached", timeout: 5000 }).catch(() => {});
-  info(`waiting up to ${Math.round(bubbleTimeoutMs / 1000)} s for ${agent}'s reply as a bubble (the page polls every 5 s)`);
+  if (opts["words-only"]) info("--words-only: no reply awaited; the bubble and Recent answers checks are skipped");
+  else info(`waiting up to ${Math.round(bubbleTimeoutMs / 1000)} s for ${agent}'s reply as a bubble (the page polls every 5 s)`);
+  if (!opts["words-only"]) {
   // The line shows as a bubble over the figure in view, or, for an agent inside a building seen from the town, as the
   // chat mark over that building (round 14): then the mark is tapped, which enters the building, and the bubble is there.
   const bubble = pg.locator(`.bubble.said[data-said-agent="${agent}"]`);
@@ -212,6 +217,7 @@ try {
   await shot(pg, "05-recent-answers");
   await pg.keyboard.press("Escape");
   await pg.waitForSelector(".chat-sheet", { state: "detached", timeout: 5000 }).catch(() => {});
+  } else await pg.waitForTimeout(12000); // two polls, so the log holds the poll's shape
   // The request log of the signed-in page.
   const fromPage = requests.on.filter((r) => r.path.startsWith("/api/") && ownAsk(r));
   const fromFrame = requests.on.filter((r) => r.path.startsWith("/api/") && !ownAsk(r));
