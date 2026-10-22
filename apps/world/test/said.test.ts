@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { SAID_FADE_MS, SAID_MS, clearSaid, getSaid, joinSentences, rememberSaid, saidBy, saidLabel, saidWords, subscribeSaid } from "../src/state/said.ts";
+import { SAID_FADE_MS, SAID_MS, clearSaid, getSaid, joinSentences, rememberSaid, saidBy, saidLabel, saidWords, subscribeSaid, getRecentAnswers } from "../src/state/said.ts";
 
-const line = (agentId: string, text: string) => ({ agentId, agentName: agentId.toUpperCase(), text, at: "2026-10-21T19:00:00.000Z", messageId: `dm_${agentId}`, threadId: `dmt_${agentId}` });
+const line = (agentId: string, text: string, n = 1) => ({ agentId, agentName: agentId.toUpperCase(), text, at: "2026-10-21T19:00:00.000Z", messageId: `dm_${agentId}${n === 1 ? "" : n}`, threadId: `dmt_${agentId}` });
 
 test("said: an agent's line shows over that agent for SAID_MS, fades at the end, and the newest replaces the older", () => {
   clearSaid();
@@ -15,7 +15,7 @@ test("said: an agent's line shows over that agent for SAID_MS, fades at the end,
   assert.equal(saidBy("other", t0), null);
   assert.equal(saidBy("boing", t0 + SAID_MS - SAID_FADE_MS)?.fading, true, "fading in the last seconds");
   assert.equal(saidBy("boing", t0 + SAID_MS), null, "gone when its time is up");
-  rememberSaid(line("boing", "And the lamp."), t0 + 1000);
+  rememberSaid(line("boing", "And the lamp.", 2), t0 + 1000);
   assert.equal(saidBy("boing", t0 + 1000)?.text, "And the lamp.");
   assert.equal(getSaid().size, 1, "one line per agent");
   rememberSaid(line("g-man", "Busy and calm."), t0 + 1000);
@@ -37,4 +37,18 @@ test("saidLabel: the bubble's accessible name joins the line and the action with
   assert.equal(joinSentences("trailing space. ", "Open g-man"), "trailing space. Open g-man");
   assert.equal(joinSentences("", "Open g-man"), "Open g-man");
   assert.equal(joinSentences("a colon:", "Open g-man"), "a colon:. Open g-man", "only terminal punctuation counts");
+});
+
+test("said (round 29, Low 6): a message the page has shown already is neither listed nor shown again: the bubble's time stands, the list keeps one row", () => {
+  clearSaid();
+  const t0 = 2_000_000;
+  rememberSaid(line("boing", "Once."), t0);
+  const first = saidBy("boing", t0);
+  rememberSaid(line("boing", "Once."), t0 + 5000);
+  assert.deepEqual(saidBy("boing", t0 + 5000), { ...first!, fading: false }, "the same message id again: the bubble is not restarted");
+  assert.equal(getRecentAnswers().length, 1);
+  rememberSaid(line("boing", "Twice.", 2), t0 + 6000);
+  assert.equal(saidBy("boing", t0 + 6000)?.text, "Twice.", "a new message id: a new bubble");
+  assert.equal(getRecentAnswers().length, 2);
+  clearSaid();
 });

@@ -16,7 +16,10 @@ import {
   POLL_MAX_MS,
   POLL_MS,
   eventsUrl,
+  REPROBE_MS,
+  REPROBE_SLOW_MS,
   firstLine,
+  isLoopbackOrigin,
   messageUrl,
   pageGet,
   pollDelay,
@@ -26,6 +29,7 @@ import {
   readEvents,
   readPageChatLine,
   readThreads,
+  reprobeDelay,
   threadMessagesUrl,
   threadsUrl,
   type FetchLike,
@@ -206,4 +210,49 @@ test("against a server on 127.0.0.1: a real GET carries no header of ours (no co
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
+});
+
+test("round 29 (Medium 3, the reviewer's proof 2): loops' chat bubbles feature off answers 409 feature_off through the origin: the verdict is chat-off, and a 409 while polling is chat-off, never a silent ok", async () => {
+  const feature = { error: { code: "feature_off", message: "The chat bubbles feature is off", detail: { feature: "bubbles" } } };
+  assert.equal(probeVerdict({ kind: "answer", status: 409, body: feature }, null), "chat-off");
+  const fetchFn: FetchLike = async (url) => (url.includes("/api/events") ? json(200, { events: [{ seq: 7, type: "dm.created", actor: { id: "crewhub-lead", kind: "agent" }, payload: { threadId: "t1", messageId: "m1", agentId: "crewhub-lead" } }], lastSeq: 7, cursor: "c.2" }) : json(409, feature));
+  assert.deepEqual(await pollPageChat(ORIGIN, { cursor: "c.1" }, fetchFn), { kind: "chat-off" });
+  const threadsOff: FetchLike = async (url) => (url.includes("/api/events") ? json(200, { events: [{ seq: 7, type: "dm.answered", actor: { id: "crewhub-lead", kind: "agent" }, payload: {} }], lastSeq: 7, cursor: "c.2" }) : json(409, feature));
+  assert.deepEqual(await pollPageChat(ORIGIN, { cursor: "c.1" }, threadsOff), { kind: "chat-off" }, "the threads read after a dm event answers 409 too");
+});
+
+test("round 29 (Low 4, the reviewer's proof 4): a message read that fails fails the poll without a cursor, so the next poll asks the same page again; a 404 is skipped; a 5xx fails", async () => {
+  const events = { events: [{ seq: 7, type: "dm.created", actor: { id: "crewhub-lead", kind: "agent" }, payload: { threadId: "t1", messageId: "m1", agentId: "crewhub-lead" } }], lastSeq: 7, cursor: "c.2" };
+  let asks = 0;
+  const failing: FetchLike = async (url) => {
+    if (url.includes("/api/events")) return json(200, events);
+    if (url.includes("/api/dm/messages/")) {
+      asks += 1;
+      throw new TypeError("Failed to fetch");
+    }
+    return json(200, { threads: [] });
+  };
+  const failed = await pollPageChat(ORIGIN, { cursor: "c.1" }, failing);
+  assert.equal(asks, 1);
+  assert.equal(failed.kind, "failed", "the cursor stays at c.1: the next poll reads m1 again");
+  assert.match(failed.kind === "failed" ? failed.reason : "", /the message m1: Failed to fetch/);
+  const gone: FetchLike = async (url) => (url.includes("/api/events") ? json(200, events) : url.includes("/api/dm/messages/") ? json(404, { error: { code: "not_found" } }) : json(200, { threads: [] }));
+  assert.deepEqual(await pollPageChat(ORIGIN, { cursor: "c.1" }, gone), { kind: "ok", lines: [], threads: [], cursor: "c.2" }, "a message the person may not see: skipped, the page is done");
+  const broken: FetchLike = async (url) => (url.includes("/api/events") ? json(200, events) : json(503, {}));
+  assert.equal((await pollPageChat(ORIGIN, { cursor: "c.1" }, broken)).kind, "failed");
+});
+
+test("round 29 (Low 8, Low 9): only a loopback origin is asked; nothing answering backs off from the poll's pace to five minutes, a refused origin keeps the flat five minutes, signed out and chat off keep 30 s", () => {
+  assert.equal(isLoopbackOrigin("http://127.0.0.1:8293"), true);
+  assert.equal(isLoopbackOrigin("http://localhost:8293"), true);
+  assert.equal(isLoopbackOrigin("http://[::1]:8293"), true);
+  assert.equal(isLoopbackOrigin("https://crewhub.example"), false);
+  assert.equal(isLoopbackOrigin("not a url"), false);
+  assert.equal(reprobeDelay("unreachable", 1), POLL_MS);
+  assert.equal(reprobeDelay("unreachable", 2), 2 * POLL_MS);
+  assert.equal(reprobeDelay("unreachable", 5), 16 * POLL_MS);
+  assert.equal(reprobeDelay("unreachable", 12), REPROBE_SLOW_MS);
+  assert.equal(reprobeDelay("origin-not-set", 12), REPROBE_SLOW_MS);
+  assert.equal(reprobeDelay("signed-out", 12), REPROBE_MS);
+  assert.equal(reprobeDelay("chat-off", 12), REPROBE_MS);
 });

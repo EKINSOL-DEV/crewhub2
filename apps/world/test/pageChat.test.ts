@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { ChatLine, ChatThreadFact, FetchLike, HostHealth, HostSessionState } from "@crewhub/loops-client";
 import { POLL_HIDDEN_MS, POLL_MS, REPROBE_MS, REPROBE_SLOW_MS } from "@crewhub/loops-client";
-import { createPageChatRunner, hostKeyReadsChat, loopsOriginOf, type PageChatState } from "../src/state/pageChat.ts";
+import { createPageChatRunner, healthRereadKey, hostKeyReadsChat, loopsOriginOf, type PageChatState } from "../src/state/pageChat.ts";
 
 const ORIGIN = "http://127.0.0.1:8293";
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -121,7 +121,7 @@ test("the page road: the probe (the threads, to the card's store), then the poll
 
 test("a 401 while polling: the road is off, the poll stops, the probe asks again after REPROBE_MS; a sign-in brings it back by itself", async () => {
   const l = loops();
-  const { r, c } = runner({ hostKeyReadsChat: null, fetchFn: l.fetchFn });
+  const { r, c } = runner({ hostKeyReadsChat: false, fetchFn: l.fetchFn });
   r.start();
   await settle();
   assert.equal(r.state().road, "page");
@@ -143,7 +143,7 @@ test("a 401 while polling: the road is off, the poll stops, the probe asks again
   r.stop();
 });
 
-test("a verdict other than on is asked again: signed out every REPROBE_MS, a refused origin or nothing answering every REPROBE_SLOW_MS (each ask is a CORS line in the console); wake() asks at once", async () => {
+test("a verdict other than on is asked again: signed out every REPROBE_MS, a refused origin every REPROBE_SLOW_MS (each ask is a CORS line in the console), nothing answering with a back-off from the poll's pace to REPROBE_SLOW_MS (round 29, Low 9); wake() asks at once", async () => {
   const l = loops({ signedIn: false });
   const { r, c } = runner({ hostKeyReadsChat: false, fetchFn: l.fetchFn });
   r.start();
@@ -165,7 +165,13 @@ test("a verdict other than on is asked again: signed out every REPROBE_MS, a ref
   gone.r.start();
   await settle();
   assert.equal(gone.r.state().probe, "unreachable");
-  assert.equal(gone.c.pending(), REPROBE_SLOW_MS);
+  assert.equal(gone.c.pending(), POLL_MS, "nothing answered once: asked again in 5 s, not 5 min (a loops restarting is the common case)");
+  await gone.c.tick();
+  assert.equal(gone.c.pending(), 2 * POLL_MS);
+  await gone.c.tick();
+  assert.equal(gone.c.pending(), 4 * POLL_MS);
+  for (let i = 0; i < 8; i++) await gone.c.tick();
+  assert.equal(gone.c.pending(), REPROBE_SLOW_MS, "capped at five minutes");
   gone.r.stop();
 });
 
@@ -233,5 +239,124 @@ test("the host's word and the origin: the key's state in health, the loops web o
   assert.equal(hostKeyReadsChat(null), null);
   assert.equal(loopsOriginOf(health(undefined, "http://127.0.0.1:8293/")), "http://127.0.0.1:8293");
   assert.equal(loopsOriginOf(health(undefined, "http://127.0.0.1:8293/some/path")), "http://127.0.0.1:8293", "the origin only");
-  assert.equal(loopsOriginOf(null), "http://127.0.0.1:8091", "the app's own, as the chat panel's link");
+  assert.equal(loopsOriginOf(null), null, "no loops web origin named: no runner (round 29, Low 7); the Chat panel's link alone falls back to the app's own");
+  assert.equal(loopsOriginOf(health(undefined)), null);
+  assert.equal(hostKeyReadsChat(health({ state: "unknown" })), null, "the host has not said yet (round 29)");
+});
+
+test("round 29 (Medium 2, the page's half): while the host has not said whether its key reads the chat, the runner asks loops nothing and the road is none; a health re-read is due when the stream goes live or the key word changes", async () => {
+  const l = loops();
+  const { r, c } = runner({ hostKeyReadsChat: null, fetchFn: l.fetchFn });
+  r.start();
+  await settle();
+  assert.deepEqual(l.calls, [], "no probe on a guess");
+  assert.equal(c.pending(), null);
+  assert.equal(r.state().road, "none");
+  assert.equal(r.state().probe, "unknown");
+  r.wake();
+  await settle();
+  assert.deepEqual(l.calls, []);
+  r.stop();
+  assert.equal(healthRereadKey(null, null), null, "nothing known: the gate's read stands");
+  assert.equal(healthRereadKey("loops-down", null), null);
+  assert.notEqual(healthRereadKey("live", null), null, "the stream live: read again");
+  assert.notEqual(healthRereadKey("live", "ok"), healthRereadKey("live", null), "the key word: read again");
+  assert.notEqual(healthRereadKey("live", "ok"), healthRereadKey("stale", "ok"), "live again after stale: read again");
+});
+
+test("round 29 (Low 8): a loops elsewhere than this computer is not asked: the verdict is remote, the road none", async () => {
+  const l = loops();
+  const c = clock();
+  const r = createPageChatRunner({ loopsOrigin: "https://crewhub.example", hostKeyReadsChat: false, fetch: l.fetchFn, now: c.now, schedule: c.schedule });
+  r.start();
+  await settle();
+  assert.deepEqual(l.calls, []);
+  assert.equal(r.state().probe, "remote");
+  assert.equal(r.state().road, "none");
+  assert.equal(c.pending(), null);
+  r.wake();
+  await settle();
+  assert.deepEqual(l.calls, []);
+  r.stop();
+});
+
+test("round 29 (Low 5, the reviewer's proof 3): wake() while a poll's timer pends and loops answers slowly: one poll in flight, the line handed over once", async () => {
+  const c = clock();
+  const calls: string[] = [];
+  const lines: ChatLine[] = [];
+  const gate: (() => void)[] = [];
+  let events: unknown[] = [];
+  const fetchFn: FetchLike = async (url) => {
+    const path = url.replace(ORIGIN, "");
+    calls.push(path);
+    if (path.startsWith("/api/dm/threads")) return json(200, { threads: [] });
+    if (path.startsWith("/api/events")) {
+      await new Promise<void>((resolve) => gate.push(resolve));
+      return json(200, { events, lastSeq: 2, cursor: `c.${calls.filter((p) => p.startsWith("/api/events")).length}` });
+    }
+    if (path.startsWith("/api/dm/messages/")) return json(200, { message: { bodyText: "Answer m1", createdAt: "2026-10-22T21:05:00Z", author: { kind: "agent", displayName: "crewhub-lead" } } });
+    return json(404, {});
+  };
+  const r = createPageChatRunner({ loopsOrigin: ORIGIN, hostKeyReadsChat: false, fetch: fetchFn, now: c.now, schedule: c.schedule, onLine: (l) => lines.push(l) });
+  r.start();
+  await settle();
+  gate.shift()!();
+  await settle();
+  assert.equal(r.state().road, "page");
+  assert.equal(c.pending(), POLL_MS);
+  events = [agentDm("m1")];
+  r.wake();
+  await settle();
+  assert.equal(c.pending(), null, "wake dropped the pending timer");
+  await c.tick();
+  await settle();
+  assert.equal(gate.length, 1, "one events poll in flight");
+  while (gate.length > 0) gate.shift()!();
+  await settle();
+  await settle();
+  assert.equal(lines.length, 1, "the line once");
+  assert.equal(c.pending(), POLL_MS, "the next poll set after the one in flight");
+  r.stop();
+});
+
+test("round 29 (Medium 3): loops' chat bubbles switched off while polling (a 409 on a message read) turns the road off and the probe asks again after REPROBE_MS; switched on again, the road comes back", async () => {
+  let off = true;
+  const calls: string[] = [];
+  const fetchFn: FetchLike = async (url) => {
+    const path = url.replace(ORIGIN, "");
+    calls.push(path);
+    if (path.startsWith("/api/dm/threads")) return off && calls.length > 1 ? json(409, { error: { code: "feature_off" } }) : json(200, { threads: [] });
+    if (path.startsWith("/api/events")) return json(200, { events: [agentDm("m1")], lastSeq: 2, cursor: "c.2" });
+    if (path.startsWith("/api/dm/messages/")) return off ? json(409, { error: { code: "feature_off", message: "The chat bubbles feature is off" } }) : json(200, { message: { bodyText: "Answer", createdAt: "2026-10-22T21:05:00Z", author: { kind: "agent" } } });
+    return json(404, {});
+  };
+  const { r, c, lines } = runner({ hostKeyReadsChat: false, fetchFn });
+  r.start();
+  await settle();
+  assert.equal(r.state().probe, "chat-off");
+  assert.equal(r.state().road, "none");
+  assert.equal(r.state().polling, false);
+  assert.equal(lines.length, 0);
+  assert.equal(c.pending(), REPROBE_MS, "readable, no console line: asked again in 30 s");
+  off = false;
+  await c.tick();
+  assert.equal(r.state().road, "page", "switched on: the road is back");
+  r.stop();
+});
+
+test("round 29 (Low 9): the probe is not made while offline; once online, a start asks", async () => {
+  let online = false;
+  const l = loops();
+  const { r, c } = runner({ hostKeyReadsChat: false, fetchFn: l.fetchFn, online: () => online });
+  r.start();
+  await settle();
+  assert.deepEqual(l.calls, [], "offline: nothing asked");
+  assert.equal(c.pending(), null);
+  r.stop();
+  online = true;
+  const again = runner({ hostKeyReadsChat: false, fetchFn: l.fetchFn, online: () => online });
+  again.r.start();
+  await settle();
+  assert.equal(again.r.state().road, "page");
+  again.r.stop();
 });

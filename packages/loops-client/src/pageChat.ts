@@ -66,8 +66,23 @@ export function eventsUrl(origin: string, resume: { cursor: string } | { fromTai
   return `${origin}/api/events?${query.toString()}`;
 }
 
-/** What the page can tell about the road from one `GET /api/dm/threads`: the contract's `pageProbe` values. */
-export type PageProbe = "on" | "signed-out" | "origin-not-set" | "unreachable" | "unknown";
+/**
+ * What the page can tell about the road from one `GET /api/dm/threads`: the contract's `pageProbe` values. `chat-off`
+ * (round 29): loops answered 409 `feature_off` through the origin, its chat bubbles feature is switched off there;
+ * `remote`: the loops origin is not on this computer, so the page does not ask at all (the person's cookie never
+ * travels cross-site; the viewer key is the road there).
+ */
+export type PageProbe = "on" | "signed-out" | "origin-not-set" | "unreachable" | "chat-off" | "remote" | "unknown";
+
+/** Whether `origin` is this computer's (`127.0.0.1`, `localhost`, `[::1]`): the only kind the page probes. */
+export function isLoopbackOrigin(origin: string): boolean {
+  try {
+    const host = new URL(origin).hostname.toLowerCase();
+    return host === "127.0.0.1" || host === "localhost" || host === "[::1]" || host === "::1";
+  } catch {
+    return false;
+  }
+}
 
 /** One ask through the origin, as the page sees it: an answer (any status the page may read) or one opaque failure. */
 export type PageAnswer = { kind: "answer"; status: number; body: unknown } | { kind: "failed"; reason: string };
@@ -96,6 +111,8 @@ export function probeVerdict(answer: PageAnswer, somethingAnswered: boolean | nu
   if (answer.kind === "answer") {
     if (answer.status === 200) return "on";
     if (answer.status === 401 || answer.status === 403) return "signed-out";
+    // Loops' chat bubbles feature off (Settings > Features): every chat read answers 409 feature_off through the origin.
+    if (answer.status === 409) return "chat-off";
     return "unreachable";
   }
   return somethingAnswered === true ? "origin-not-set" : "unreachable";
@@ -196,15 +213,20 @@ export function pollDelay(input: { hidden: boolean; failures: number }): number 
 }
 
 /**
- * How long a verdict other than "on" stands before the page asks again: "signed out" every REPROBE_MS (a sign-in in
- * another tab, or in the Chat panel's frame, brings the road on by itself); "the origin is not set" and "unreachable"
- * every REPROBE_SLOW_MS, since each such ask is one CORS refusal the browser prints in the console (the page cannot
- * stop that line) and the setting only changes with a loops restart; the page coming back into view asks at once.
+ * How long a verdict other than "on" stands before the page asks again: "signed out" and "chat off" every REPROBE_MS
+ * (readable answers, no console line; a sign-in in another tab or in the Chat panel's frame, or the feature switched
+ * on, brings the road on by itself); "the origin is not set" every REPROBE_SLOW_MS, since each such ask is one CORS
+ * refusal the browser prints in the console (the page cannot stop that line) and the setting only changes with a
+ * loops restart; "unreachable" backs off from the poll's pace, doubling with each failed probe up to REPROBE_SLOW_MS
+ * (no console line is at stake, and a loops restarting is the common case: `attempts` counts the failed probes in a
+ * row). The page coming back into view asks at once.
  */
 export const REPROBE_MS = 30_000;
 export const REPROBE_SLOW_MS = 300_000;
-export function reprobeDelay(probe: PageProbe): number {
-  return probe === "origin-not-set" || probe === "unreachable" ? REPROBE_SLOW_MS : REPROBE_MS;
+export function reprobeDelay(probe: PageProbe, attempts = 1): number {
+  if (probe === "origin-not-set") return REPROBE_SLOW_MS;
+  if (probe === "unreachable") return Math.min(REPROBE_SLOW_MS, POLL_MS * 2 ** Math.max(0, attempts - 1));
+  return REPROBE_MS;
 }
 
 /** What one poll did, for the runner and the log. */
@@ -212,6 +234,8 @@ export type PollOutcome =
   | { kind: "ok"; lines: ChatLine[]; threads: ChatThreadFact[] | null; cursor: string | null }
   /** Loops no longer accepts the session (a 401, or a readable 403): the road is off until a probe says otherwise. */
   | { kind: "signed-out" }
+  /** Loops' chat bubbles feature was switched off (409 feature_off on a chat read): the road is off until a probe says otherwise. */
+  | { kind: "chat-off" }
   /** The cursor is no longer good (410): the next poll starts at the tail. */
   | { kind: "cursor-expired" }
   | { kind: "failed"; reason: string };
@@ -219,6 +243,9 @@ export type PollOutcome =
 /**
  * One poll: the events since `cursor` (or from the tail), each agent message read by id as one line, and the threads
  * read again when any `dm.*` event came (the card's facts). Never more than the four routes, never another method.
+ * A message read that fails (no answer, a 5xx) fails the poll without a cursor, so the next poll asks the same page
+ * again and the line is not lost (round 29, Low 4); a 404 is a message the person may not see, skipped; a 409 is the
+ * chat bubbles feature switched off meanwhile (chat-off).
  */
 export async function pollPageChat(origin: string, resume: { cursor: string } | { fromTail: true }, fetchFn: FetchLike = defaultFetch, timeoutMs = 10_000): Promise<PollOutcome> {
   const answer = await pageGet(eventsUrl(origin, resume), fetchFn, timeoutMs);
@@ -230,14 +257,18 @@ export async function pollPageChat(origin: string, resume: { cursor: string } | 
   const lines: ChatLine[] = [];
   for (const ids of page.agentDms) {
     const read = await pageGet(messageUrl(origin, ids.messageId), fetchFn, timeoutMs);
-    if (read.kind === "answer" && (read.status === 401 || read.status === 403)) return { kind: "signed-out" };
-    if (read.kind !== "answer" || read.status !== 200) continue;
+    if (read.kind === "failed") return { kind: "failed", reason: `the message ${ids.messageId}: ${read.reason}` };
+    if (read.status === 401 || read.status === 403) return { kind: "signed-out" };
+    if (read.status === 409) return { kind: "chat-off" };
+    if (read.status === 404) continue;
+    if (read.status !== 200) return { kind: "failed", reason: `the message ${ids.messageId} answered ${read.status}` };
     const line = readPageChatLine(ids, read.body);
     if (line !== null) lines.push(line);
   }
   let threads: ChatThreadFact[] | null = null;
   if (page.dmEvents > 0) {
     const read = await pageGet(threadsUrl(origin), fetchFn, timeoutMs);
+    if (read.kind === "answer" && read.status === 409) return { kind: "chat-off" };
     if (read.kind === "answer" && read.status === 200) threads = readThreads(read.body);
   }
   return { kind: "ok", lines, threads, cursor: page.cursor };

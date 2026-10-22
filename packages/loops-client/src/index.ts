@@ -76,6 +76,7 @@ export {
   REPROBE_SLOW_MS,
   eventsUrl,
   firstLine,
+  isLoopbackOrigin,
   messageUrl,
   pageGet,
   pollDelay,
