@@ -33,7 +33,7 @@ import {
   type WorldModel,
 } from "@crewhub/world-model";
 import { sourceDecision, takeFirstSnapshot, townCopySource, townKeyFor, type SourceDecision } from "./source";
-import { hostTownChanged } from "./townBus";
+import { hostConnected, hostTownChanged } from "./townBus";
 
 export interface WorldState {
   model: WorldModel;
@@ -162,6 +162,16 @@ class WorldRuntime {
       this.source = demoLike;
     }
     this.connection = this.source.connection ?? null;
+    // Every time the stream comes (back) up the town is read again (round 22): the host tells open tabs only, so a
+    // `town` message sent while this tab reconnected (loops' 300 s end, a host restart) would otherwise be missed.
+    if (this.connection) {
+      let was = this.connection.state();
+      this.connection.onChange(() => {
+        const now = this.connection!.state();
+        if (now === "live" && was !== "live") hostConnected();
+        was = now;
+      });
+    }
     this.projection = new Projection(this.source);
     let firstSnapshot = true;
     this.source.start((message) => {

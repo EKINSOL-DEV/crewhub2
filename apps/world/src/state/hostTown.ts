@@ -31,6 +31,8 @@ export interface HostTownOptions {
   context: TownContext;
   /** The host's word that the town changed (townBus.ts); returns the way to stop listening. */
   onTown?: (listener: (rev: number) => void) => () => void;
+  /** The stream coming (back) up (townBus.ts): a `town` message sent meanwhile was lost, so the town is read again. */
+  onConnected?: (listener: () => void) => () => void;
   /** How long an offline browser waits before it asks the host again. Default 30 s. */
   retryMs?: number;
   /** Something to say in the log (never a document). */
@@ -65,6 +67,9 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
   let announced: number | null = null;
   /** The host's word on its history: whether it has a step back or forward from the current revision. */
   let hostCan: { undo: boolean; redo: boolean } = { undo: false, redo: false };
+  /** One read of the host at a time: a second ask while one is on its way runs once more when it is done, never beside it. */
+  let syncing: Promise<void> | null = null;
+  let again = false;
   const listeners = new Set<() => void>();
   const publish = () => {
     for (const listener of listeners) listener();
@@ -106,12 +111,39 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
     }
   };
 
-  /** Reads the host's town: takes it, or imports this browser's once, or goes offline until the host answers. */
-  async function sync(): Promise<void> {
+  /**
+   * Reads the host's town: takes it, or imports this browser's once, or goes offline until the host answers. Reads are
+   * single file: two asks close together (a town message during the load, two messages in a row) make one read, then
+   * one more, never two side by side whose answers could land out of order.
+   */
+  function sync(): Promise<void> {
+    if (syncing) {
+      again = true;
+      return syncing;
+    }
+    syncing = (async () => {
+      try {
+        do {
+          again = false;
+          await syncOnce();
+        } while (again);
+      } finally {
+        syncing = null;
+      }
+    })();
+    return syncing;
+  }
+
+  async function syncOnce(): Promise<void> {
     await local.load();
     const answer = await transport.read();
     if (answer.status === 200) {
       const body = answer.body as { rev?: unknown; document?: unknown; reason?: unknown } | null;
+      if (typeof body?.rev === "number" && rev !== null && body.rev < rev) {
+        // An answer older than what this browser already has (a slow read overtaken by a write's answer): nothing to take.
+        log(`a read of revision ${body.rev} arrived after revision ${rev}; ignored`);
+        return;
+      }
       if (body?.rev === null) {
         // The host answers but keeps no town yet: no database, or no loops found (a town belongs to an installation).
         offline(typeof body.reason === "string" ? body.reason : "no revision");
@@ -151,7 +183,15 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
   /** The host has no town for this installation: this browser's goes up once (baseRev 0). Another browser's import in between is a conflict, and the host's town wins, as the rule says. */
   async function importOnce(): Promise<void> {
     {
-      const written = await transport.write("commit", local.state.doc, 0);
+      // The import is a write like any other: the host's `town` message for it waits for the answer (settle), so it never
+      // starts a second read that would import once more.
+      writing += 1;
+      let written: HostAnswer;
+      try {
+        written = await transport.write("commit", local.state.doc, 0);
+      } finally {
+        writing -= 1;
+      }
       if (written.status === 200 && typeof (written.body as { rev?: unknown } | null)?.rev === "number") {
         rev = (written.body as { rev: number }).rev;
         knownRev = rev;
@@ -160,10 +200,12 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
         note = IMPORTED_NOTE;
         log(`this browser's town was imported into the host as revision ${rev}`);
         publish();
+        settle();
         return;
       }
       if (written.status === 409) {
         await conflict(written);
+        settle();
         return;
       }
       offline(`import answered ${written.status}`);
@@ -240,6 +282,10 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
     void sync();
   };
   const stopTown = options.onTown?.(heard);
+  /** The stream came (back) up: whatever the host said meanwhile was not heard, so the town is read again. */
+  const stopConnected = options.onConnected?.(() => {
+    if (loading !== null) void sync();
+  });
   /** After a write: a revision announced meanwhile that is newer than ours is fetched now. */
   const settle = () => {
     const seen = announced;
@@ -301,7 +347,10 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
       listeners.add(listener);
       return () => {
         listeners.delete(listener);
-        if (listeners.size === 0) stopTown?.();
+        if (listeners.size === 0) {
+          stopTown?.();
+          stopConnected?.();
+        }
       };
     },
   } satisfies TownStore & { rev: number | null; sync(): Promise<void> };
