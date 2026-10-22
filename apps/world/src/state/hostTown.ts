@@ -4,7 +4,11 @@
    redo and amend to the host with the revision it is based on, and takes the host's town when another browser wrote
    first or when the stream says the town changed. The browser's store follows every document, so a browser that loses
    the host keeps editing ("kept in this browser until the host is back") and offers its town again when the host
-   answers. Pure of React and the DOM: the transport is injected, so a test drives it with a fake. */
+   answers. Round 27 (the outside review of the state code): a person's edit remembers the picture it was made on and is
+   kept out when the host's town replaced that picture before it was sent (F1); the offer after an offline spell is the
+   document as it then is, as an amend when only the world's record changed (F2, F7); a host town this browser cannot
+   read is offline with a note of its own (F4). Pure of React and the DOM: the transport is injected, so a test drives
+   it with a fake. */
 import { validateTownDocument, type TownContext, type TownDocument } from "@crewhub/world-model";
 import type { HostAnswer, HostTownOp } from "@crewhub/loops-client";
 import type { TownStore, TownStoreState } from "./townStore.ts";
@@ -45,6 +49,8 @@ export const KEPT_UNTIL_BACK = "kept in this browser until the host is back";
 export const CONFLICT_NOTE = "Another browser changed the town; your last change was not kept and the host's town was loaded.";
 export const IMPORTED_NOTE = "This browser's town was sent to the world's host once; from now on the host keeps it.";
 export const NO_DB_NOTE = "This host keeps no world database (it could not open world.db), so the town stays in this browser.";
+/** Review F4 (round 27): the host answers a town this browser cannot read (an unknown shape or format): offline with the retry, and said. */
+export const UNREADABLE_NOTE = "The host's town could not be read by this browser (an unknown shape or format); kept in this browser until it can be.";
 
 export function createHostTownStore(options: HostTownOptions): TownStore & { readonly rev: number | null; sync(): Promise<void> } {
   const { local, transport, context } = options;
@@ -58,6 +64,19 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
   let pending = false;
   /** Part of that change is a person's (a commit, an undo): if the host's town wins over it, that is said; the world's own record is not a person's loss. */
   let pendingPerson = false;
+  /**
+   * The host is back on the revision this browser left it (nobody else wrote): the local document is offered as the next
+   * revision, as a person's commit or the world's own amend (review F7). Open until a write carries the local document
+   * up (the person's next edit may do so first, review F2), or until the host is away again (pending covers it then).
+   */
+  let offer: { person: boolean; since: number } | null = null;
+  /**
+   * How many times the host's document replaced the one shown here (a read, a conflict, an undo or a redo answered).
+   * A person's edit remembers the count it was made at: if it moved before the edit is sent, the edit was made on a
+   * picture the host has since replaced and is kept out (review F1, also for an edit made on no revision while a read
+   * was on its way). The browser's own writes do not move it, so two quick edits in a row both go up.
+   */
+  let adopted = 0;
   let note: string | null = null;
   let loading: Promise<TownDocument> | null = null;
   let retry: ReturnType<typeof setTimeout> | null = null;
@@ -79,6 +98,8 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
   local.subscribe(publish);
 
   const same = (a: TownDocument, b: TownDocument) => JSON.stringify(a) === JSON.stringify(b);
+  /** The same town, whatever revision number each copy carries (the browser's store stamps its own). */
+  const samePicture = (a: TownDocument, b: TownDocument) => JSON.stringify({ ...a, revision: 0 }) === JSON.stringify({ ...b, revision: 0 });
 
   /** The host's `canUndo`/`canRedo` from an answer, when it carries them. */
   const readCan = (body: unknown) => {
@@ -97,6 +118,7 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
     // never the new revision over the old document.
     if (!same(result.value, local.state.doc)) {
       await local.amend(() => result.value);
+      adopted += 1;
       log(`town revision ${hostRev} taken from the host (${what}: ${result.value.zones?.length ?? 0} zones, ${result.value.plots.length} plots)`);
     }
     rev = hostRev;
@@ -164,12 +186,14 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
       if (typeof body?.rev === "number") {
         readCan(body);
         if (pending && knownRev !== null && body.rev === knownRev) {
-          // The host is back and nobody else wrote meanwhile: this browser's edits go up as the next revision.
+          // The host is back and nobody else wrote meanwhile: this browser's edits go up as the next revision, the
+          // document as it is when its turn comes (a person's edit made during this read goes first and carries it).
           rev = knownRev;
+          offer = { person: pendingPerson, since: adopted };
           pending = false;
           pendingPerson = false;
           note = null;
-          void push({ doc: local.state.doc, base: rev });
+          void push({ offer: true });
           publish();
           return;
         }
@@ -177,7 +201,13 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
         pending = false;
         pendingPerson = false;
         const taken = await adopt(body.document, body.rev, "read");
-        if (!taken) return;
+        if (!taken) {
+          // The host's town cannot be shown here: offline, with the retry and a note of its own (review F4).
+          offline("the host's town does not validate");
+          note = UNREADABLE_NOTE;
+          publish();
+          return;
+        }
         // Edits made while the host was away meet a town another browser changed: the host's town wins, and it is said.
         // The imported note stays until the person's next edit; a refetch is no edit.
         note = lost ? CONFLICT_NOTE : note === IMPORTED_NOTE ? note : null;
@@ -229,31 +259,59 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
   async function conflict(answer: HostAnswer): Promise<void> {
     const body = answer.body as { rev?: unknown; document?: unknown } | null;
     if (typeof body?.rev === "number" && body.document !== null && body.document !== undefined) {
-      await adopt(body.document, body.rev, "conflict");
+      pending = false;
+      pendingPerson = false;
+      offer = null;
+      if (!(await adopt(body.document, body.rev, "conflict"))) {
+        offline("the host's town does not validate");
+        note = UNREADABLE_NOTE;
+        publish();
+        return;
+      }
       // The host's history after the other browser's move comes with the conflict.
       readCan(body);
       note = CONFLICT_NOTE;
-      pending = false;
-      pendingPerson = false;
     }
     publish();
   }
 
-  /** What a move is made of: a person's document with the revision it was made on, the world's own update, or nothing (undo, redo). */
-  type Move = { doc: TownDocument; base: number | null } | { update: (doc: TownDocument) => TownDocument | null } | null;
+  /**
+   * What a move is made of: a person's document with the picture it was made on (the document before it and the
+   * adoption count then), the world's own update, the offer of the local document after an offline spell, or nothing
+   * (undo, redo).
+   */
+  type Move = { doc: TownDocument; before: TownDocument; since: number } | { update: (doc: TownDocument) => TownDocument | null } | { offer: true } | null;
 
   /**
-   * One move of the host's history: a commit with the document and the revision it was made on, an amend derived at
+   * One move of the host's history: a commit with the document and the picture it was made on, an amend derived at
    * send time from the document as it then is (the world's own record never carries a stale picture over the host's),
-   * or an undo or a redo (the host answers the document it restored, which the browser's store then shows). A move
-   * waits for a read on its way, so it is never based on a town about to be replaced. A commit made on a revision the
-   * host has since left is a conflict like a 409: the host's town is loaded and said. No answer goes offline and keeps
-   * the change here. `byPerson` (a commit, an undo, a redo) also clears an old note.
+   * the offer of the local document when the host is back, or an undo or a redo (the host answers the document it
+   * restored, which the browser's store then shows). A move waits for a read on its way, so it is never based on a
+   * town about to be replaced. A commit made on a picture the host has since replaced (another browser's town taken
+   * meanwhile, on the first load or after an offline spell too) is a conflict like a 409: the host's town stands and
+   * it is said. No answer goes offline and keeps the change here. `byPerson` (a commit, an undo, a redo) also clears
+   * an old note.
    */
   function push(move: Move, op: HostTownOp = "commit", byPerson = false): Promise<void> {
     const run = async () => {
       if (syncing) await syncing;
       let doc: TownDocument | null = null;
+      if (move !== null && "offer" in move) {
+        if (offer === null) return; // a write since carried the local document up (the person's edit during the read)
+        const { person, since } = offer;
+        if (adopted !== since) {
+          // Another browser's town was taken between the host's answer and this turn: it stands, and a person's loss is said.
+          offer = null;
+          if (person) {
+            note = CONFLICT_NOTE;
+            publish();
+          }
+          return;
+        }
+        doc = local.state.doc;
+        op = person ? "commit" : "amend";
+        byPerson = person;
+      }
       if (move !== null && "update" in move) {
         // Derived on the document as it is now; if the host's town arrived while deriving, derived again on that one.
         for (let attempt = 0; ; attempt += 1) {
@@ -264,21 +322,34 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
           if (rev === seen || attempt >= 3) break;
           if (syncing) await syncing;
         }
-      } else if (move !== null) doc = move.doc;
+        if (offer !== null && offer.person) {
+          // The document carries a person's offline edit up with it: a commit, so the host's history has its undo step.
+          op = "commit";
+          byPerson = true;
+        }
+      } else if (move !== null && "doc" in move) {
+        if (move.since !== adopted) {
+          if (!samePicture(move.before, local.state.doc)) {
+            // The person's edit was made on a picture the host has since replaced (another browser's town taken while
+            // the edit waited, on no revision or on an old one): the host's town stands, as after a 409, and it is said.
+            log(`an edit made before the host's town${rev === null ? "" : ` (revision ${rev})`} was taken is kept out; the host's town stands`);
+            pending = false;
+            pendingPerson = false;
+            offer = null;
+            note = CONFLICT_NOTE;
+            publish();
+            return;
+          }
+          // The host's town that arrived meanwhile is the very picture the edit was made on (a returning browser's
+          // mirror, an empty town on both sides): the edit holds, shown here again over it.
+          await local.commit(move.doc);
+        }
+        doc = move.doc;
+      }
       if (rev === null) {
         pending = true;
         if (byPerson) pendingPerson = true;
-        return;
-      }
-      if (move !== null && "base" in move && move.base !== null && move.base !== rev) {
-        // The person's edit was made on a town the host has since replaced (another browser wrote while the picture
-        // changed here): the host's town stands, as after a 409, and it is said.
-        log(`an edit made on revision ${move.base} meets revision ${rev}; the host's town is kept`);
-        pending = false;
-        pendingPerson = false;
-        await sync();
-        note = CONFLICT_NOTE;
-        publish();
+        offer = null;
         return;
       }
       writing += 1;
@@ -294,10 +365,14 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
         rev = body.rev;
         knownRev = rev;
         readCan(body);
+        if (doc !== null) offer = null; // the local document went up, offline edits included
         // An undo or a redo restores a document the host holds: taken here without a local undo step.
         if ((op === "undo" || op === "redo") && body.document !== null && body.document !== undefined) {
           const result = validateTownDocument(body.document, context);
-          if (result.ok && !same(result.value, local.state.doc)) await local.amend(() => result.value);
+          if (result.ok && !same(result.value, local.state.doc)) {
+            await local.amend(() => result.value);
+            adopted += 1;
+          }
         }
         if (byPerson && (note === CONFLICT_NOTE || note === IMPORTED_NOTE)) note = null;
         publish();
@@ -311,6 +386,7 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
       }
       pending = true;
       if (byPerson) pendingPerson = true;
+      offer = null;
       offline(`write answered ${answer.status}`);
       publish();
     };
@@ -360,10 +436,11 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
     },
     sync,
     async commit(doc) {
-      // The revision this edit was made on, before anything else moves.
-      const base = rev;
+      // The picture this edit was made on, before anything else moves.
+      const since = adopted;
+      const before = local.state.doc;
       const current = await local.commit(doc);
-      await push({ doc: current, base }, "commit", true);
+      await push({ doc: current, before, since }, "commit", true);
       return local.state.doc;
     },
     async amend(update) {
@@ -377,9 +454,10 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
         await push(null, "undo", true);
         return local.state.doc;
       }
-      const base = rev;
+      const since = adopted;
+      const before = local.state.doc;
       const current = await local.undo();
-      await push({ doc: current, base }, "commit", true);
+      await push({ doc: current, before, since }, "commit", true);
       return local.state.doc;
     },
     async redo() {
@@ -387,9 +465,10 @@ export function createHostTownStore(options: HostTownOptions): TownStore & { rea
         await push(null, "redo", true);
         return local.state.doc;
       }
-      const base = rev;
+      const since = adopted;
+      const before = local.state.doc;
       const current = await local.redo();
-      await push({ doc: current, base }, "commit", true);
+      await push({ doc: current, before, since }, "commit", true);
       return local.state.doc;
     },
     subscribe(listener) {

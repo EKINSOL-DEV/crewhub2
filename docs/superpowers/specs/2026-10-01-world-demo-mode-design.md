@@ -1194,8 +1194,13 @@ round 11's one-time copy from the plain key) in a host-backed store: on load it 
 has none, the browser's own town is imported **once** (`PUT` with `baseRev` 0), never over a town the host has; when the
 host has one, the host's wins and the browser's copy becomes its mirror. Every commit, undo, redo and amend goes to the
 host with the revision it is based on; the IndexedDB copy follows, so a browser that loses the host keeps editing
-("kept in this browser until the host is back") and offers its town again when the host answers. A `town` message with a
-newer revision makes the browser refetch and take the host's document without an undo step. The text view, the
+("kept in this browser until the host is back") and offers its town again when the host answers (as the world's own
+amend when only the world's record changed, as a person's commit otherwise; an edit made while that answer is on its
+way goes first and carries the offline change, nothing of another browser is said). A `town` message with a newer
+revision makes the browser refetch and take the host's document without an undo step. A person's edit remembers the
+picture it was made on: when the host's town replaced that picture before the edit is sent (another browser's town
+taken during the first read or after an offline spell), the edit is kept out and said, never sent over the host's town
+(round 27, review F1); a host town the browser cannot read is offline with a note of its own and the retry. The text view, the
 Connection panel ("Town" and "Zones") and build mode say where the town is kept: "kept by the world's host for this
 crewhub-loops, shared by every paired browser", or offline "kept in this browser until the host is back". Demo mode is
 unchanged: every scenario keeps its town in IndexedDB under its own key.
