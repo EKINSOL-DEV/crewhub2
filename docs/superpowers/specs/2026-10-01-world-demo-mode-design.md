@@ -1078,7 +1078,8 @@ form, a sign-in answers 409 `not_needed`, a session kept from another loops stay
 joined the key's read allow-list) and shown as the same bubble. A loops that refuses the key the chat keeps the
 session road.
 
-**Planned removal of the session road (decision 9, 21 October; round 15 wrote the plan, nothing is removed yet).** The
+**Removal of the session road (decision 9, 21 October; round 15 wrote the plan; removed in round 19 on the branch
+`task/r19-viewer-switch`, which merges when crewhub-loops main carries `world/viewer-key`).** The plan as written: the
 road stays as built until `world/viewer-key` is merged in loops and the world has switched to the viewer key (decision 1:
 a new key file or a paste, the bot still `crewhub-world`). In that same track it goes: `apps/host/src/session.ts` (the
 store, the sign-in and sign-out, `SESSION_ROUTES`, the dm stream over the cookie) and its tests; the file
@@ -1088,6 +1089,27 @@ one road left); the Connection panel's Chat section with its form and Forget the
 `ChatSession`, the `world.connection.panel.session.*` words); the per-road story in `chatWords`; the regress `chat`
 group's session half (its key-road half stays); and the session paragraphs in LOOPS_SETUP.md, the host README and the
 introduction. Condition first, removal second: nothing goes before a loops with the viewer key is what the world reads.
+
+**Round 19 (as built on `task/r19-viewer-switch`, unmerged until loops main carries the viewer key).** Removed exactly as
+planned: `apps/host/src/session.ts` and its test (the store, the sign-in and sign-out, `SESSION_ROUTES`, the dm stream
+over the cookie); `POST`/`DELETE /world-api/session` (the allow-list knows `/connect` as its only write; a write to
+`/session` is refused 405, a read 404); the `sessionStore` option of `createHost`; the health states `signed-out`,
+`signed-in` and `expired` (`connection.session` is `{ "state": "key" }` where the key reads the chat and absent where it
+does not; `HostSessionState` is `key` only and `readSessionState` drops anything else); `signInHost` and
+`forgetHostSession` in loops-client; the Connection panel's form and Forget the session (`ChatSession` is `ChatRoad`:
+the road's words and the typing note, `data-session` `key` or `none`); the `world.connection.panel.session.*` words but
+the section's title; `sessionWords`; the per-road branches of `chatWords`, `chatGlance` and `recentEmptyWords` (two
+roads now: key, or none, with the way to a viewer key: "make a viewer key in Settings > Agents > Connect CrewHub World
+(a crewhub-loops with world/viewer-key) and paste it in the world's Connect screen", `VIEWER_KEY_WORDS`); the regress
+`chat` group's session half (a no-chat road came in its place: the plain words in the four places, the gone route, no
+mark and no bubble after an answer), the stub's sign-in parts. `ChatLine` and `firstLine` moved to
+`apps/host/src/chatLine.ts` (the key road reads a message by id with the key). A leftover `<config>/loops-session` is
+deleted on start with one log line (`leftovers.ts`, tested). The host logs once on a loops that does not let the key
+read the chat, with the way to a viewer key. The Connect screen names the "Connect CrewHub World" card first and keeps
+the New external bot steps for an older loops; LOOPS_SETUP, the host README, the introduction and the architecture say
+the same. What a user of today's Mac app loses: the bubbles (and the chat marks and Recent answers rows that come with
+them) until loops ships the card; what stays: the framed chat (road A) on every loops, the world read with a plain
+external bot's key, and the key road's bubbles on a loops with the viewer key.
 
 **Round 14 (after the real proof on 8292: the bubble and its words).** One story per road: `chatWords` in
 `apps/world/src/state/chatPanel.ts` gives the Connection panel's Chat section, the Chat panel's small print and the text

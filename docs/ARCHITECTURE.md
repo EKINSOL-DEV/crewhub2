@@ -271,9 +271,10 @@ Identity is the loops principal id; a worker's identity is its session and name.
 host sends no commands. The chat bubbles send DMs as the person through loops' own
 routes (in demo mode, an in-browser fake answers them and the reply is scripted; in live
 mode the Chat panel frames loops' own web app, so the chat is exactly loops' and runs on the
-person's own session, which never reaches the world). Everything else a person does opens
-the loops web app. The host's own principal, the external bot `crewhub-world`, is the
-observer and is never drawn as a figure.
+person's own session, which never reaches the world; an agent's answer shows as a bubble where
+loops lets the world's viewer key read the chat). Everything else a person does opens
+the loops web app. The host's own principal, the viewer bot `crewhub-world` (an external bot
+on an older loops), is the observer and is never drawn as a figure.
 
 Unknown, idle, blocked and done are different lane statuses, and a lane status never
 proves that a task succeeded. A team snapshot older than 5 minutes is shown as

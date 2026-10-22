@@ -17,8 +17,8 @@ export interface RequestOptions {
   /** The `Accept` header: `application/json` for a read, `application/x-ndjson` for the stream. */
   accept: string;
   /**
-   * GET unless said otherwise. A POST is only for the session's sign-in and sign-out (round 12), and only a transport
-   * made with its own `allow` (the session's list) accepts one: the key's transport is GET-only, always.
+   * GET unless said otherwise. Only a transport made with its own `allow` accepts a POST (none in the host since the
+   * sign-in road went, round 19): the key's transport is GET-only, always.
    */
   method?: "GET" | "POST";
   /** The JSON body of a POST. */
@@ -49,7 +49,7 @@ export interface LoopsTransport {
 
 /**
  * The host sends the key as a bearer and never an Origin: loops treats the request as an agent's, not a browser's.
- * `allow` is the gate (default: the read allow-list, GET only); the session's transport brings its own.
+ * `allow` is the gate (default: the read allow-list, GET only).
  */
 export function createTransport(target: LoopsTarget, headers: Record<string, string>, allow: Allow = readsOnly): LoopsTransport {
   return target.transport === "tcp" ? createTcpTransport(target.url, headers, allow) : createUnixTransport(target.socketPath, headers, allow);

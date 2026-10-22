@@ -40,15 +40,15 @@ smooth connection" below):
   `/tickets/{ref}/comments|progress`, `/projects/{slug}`, `/projects/{slug}/milestones|releases`, `/board/{slug}`,
   `/watchdog`, `/team`. Only `limit` and `cursor` of a query string are passed. `/world-api/project-groups`
   answers `{ "groups": [] }` locally.
-- **Session** `POST /world-api/session {id, password}` and `DELETE /world-api/session` (round 12, a paired browser on an allowed origin): the host signs
-  in to crewhub-loops as the person for the chat's bubbles and keeps only the session cookie in `<CREWHUB_WORLD_CONFIG_DIR>/loops-session`
-  (0600); the password is never stored, logged or returned. With it the host reads the chat only (`src/session.ts` `SESSION_ROUTES`: the
-  threads, a thread's messages, a message by id, the events with `types=dm.*`) and sends nothing; an agent's answer reaches the tabs as a
-  `chat` stream message. `connection.session` says `signed-out`, `signed-in` (with the name for paired browsers), `expired`, or `key`: this
-  loops lets the world's key read the chat (a viewer key, L1: its own entry in `GET /api/agents` says `viewer: true` and `GET /api/dm/threads` answers 200), so the bubbles come over the key's own
-  stream and a sign-in is refused as not needed (409). Planned (decision 9): once the viewer key is merged in loops and the world has
-  switched to it, the session road goes in that same track (`src/session.ts`, its file, the `/world-api/session` routes, the panel's
-  form, the `signed-out`/`signed-in`/`expired` states, the regress chat group's session half); the plan is in `session.ts`'s header.
+- **The chat over the key** (round 12; the one road since round 19): on a crewhub-loops whose viewer key may read the chat (L1, `world/viewer-key`:
+  the key's own entry in `GET /api/agents` says `viewer: true` and `GET /api/dm/threads` answers 200), the host reads an agent's `dm.created` on
+  its own stream by id with the key (`src/chatLine.ts`: the first line, at most 140 characters) and hands the tabs a `chat` stream message, the
+  speech bubble; `connection.session` says `{ "state": "key" }`. On a loops that does not let the key read the chat (an older loops, a plain
+  external bot's key) `connection.session` is absent, the host logs once how to make a viewer key, and the world shows no bubbles. The sign-in
+  road of rounds 12 to 18 (`POST`/`DELETE /world-api/session`, the person's session kept in `<config>/loops-session`, the states
+  `signed-out`/`signed-in`/`expired`) was removed in round 19 (decision 9, on the branch `task/r19-viewer-switch`): a write to `/world-api/session`
+  is refused by the write gate (405), a read is an unknown route (404), and a leftover `loops-session` file is deleted on start with one log
+  line (`src/leftovers.ts`).
 - **Health** `GET /world-api/health`: `{ loops, keyName, sharedKey, loopsWebUrl, transport, paired, pairing, checkout?, loopsCommit?, loopsCommitBefore?, cursor?, connection }`
   (`checkout` is the id of the checkout the host runs from, `src/checkout.ts`: the first 12 hex characters of SHA-256 over the
   repository root's real path, never the path itself, since health answers before the pairing gate; `npm run dev` of another
@@ -102,10 +102,14 @@ smooth connection" below):
 | `CREWHUB_WORLD_PUBLIC_URL` | none | The URL a browser reaches the host at behind a TLS proxy: `https` makes the cookie `Secure`; its host and origin pass the guard. |
 | `NODE_ENV` | | `production` serves `apps/world/dist`. |
 
-**The key is an external bot's.** The working setup at crewhub-loops `4cdcd383` is an **external bot** `crewhub-world`,
-made by the owner in Settings > Agents, **not** read-only (the CL-313 reader key is tickets-only, a `probe` agent reads
-nothing since CL-295, and the shared builder key reads tickets of its member projects only; the host refuses all three
-with the reason, `src/keyCheck.ts`); the runbook is [docs/LOOPS_SETUP.md](../../docs/LOOPS_SETUP.md).
+**The key is the viewer bot's, made by loops' card.** On a crewhub-loops that carries `world/viewer-key` the owner presses
+**Settings > Agents > Connect CrewHub World**: it makes the external bot `crewhub-world` as a **viewer** (reads what the world
+needs, writes nothing, and may read the chat for the bubbles) and shows its key once, to paste in the world's Connect screen
+or to keep in a key file. On an older crewhub-loops (`4cdcd383`, today's Mac app) the credential is an **external bot**
+`crewhub-world` made by the owner in Settings > Agents > New external bot, **not** read-only: it reads the same and shows no
+bubbles (the CL-313 reader key is tickets-only, a `probe` agent reads nothing since CL-295, and the shared builder key reads
+tickets of its member projects only; the host refuses all three with the reason, `src/keyCheck.ts`). The runbook is
+[docs/LOOPS_SETUP.md](../../docs/LOOPS_SETUP.md).
 
 ## The smooth connection
 

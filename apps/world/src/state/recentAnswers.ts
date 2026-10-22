@@ -7,7 +7,7 @@
    time, the row's words and accessible name. English here, as `chatWords`. */
 import type { HostSessionState } from "@crewhub/loops-client";
 import type { AgentCardFacts } from "@crewhub/world-model";
-import { chatCardNote, chatTargetOf } from "./chatPanel.ts";
+import { chatCardNote, chatTargetOf, VIEWER_KEY_WORDS } from "./chatPanel.ts";
 import { joinSentences, RECENT_ANSWERS, type Answer } from "./said.ts";
 
 /** What the list is: the text view's section opens with it; the Chat panel keeps it behind "About this chat" (round 18). */
@@ -15,22 +15,13 @@ export const RECENT_NOTE = `The last ${RECENT_ANSWERS} answers this page saw, ne
 
 /**
  * The empty list in plain words, per road: in the demo an answer comes from its own dock (round 17); on a live page
- * whether answers can arrive at all (`connection.session.state`: key and signed-in yes; signed-out and expired no, with
- * the way to the sign-in; a host from before keeps no session and reads no chat).
+ * whether answers can arrive at all (`connection.session`: `key`, yes, as bubbles; absent, no: this loops does not let
+ * the world read the chat, and the way to a viewer key).
  */
-export function recentEmptyWords(mode: "demo" | "live", session: Pick<HostSessionState, "state" | "name"> | null | undefined): string {
+export function recentEmptyWords(mode: "demo" | "live", session: Pick<HostSessionState, "state"> | null | undefined): string {
   if (mode === "demo") return "No answers yet: write to an agent in the demo's chat dock (bottom right) and its scripted reply shows as a bubble and stays here.";
-  if (!session) return "No answers can arrive: this host keeps no session and reads no chat.";
-  switch (session.state) {
-    case "key":
-      return "No answers yet: this crewhub-loops lets the world's key read the chat, so an agent's answer shows as a bubble and stays here.";
-    case "signed-in":
-      return `No answers yet: signed in${session.name ? ` as ${session.name}` : ""}, an agent's answer shows as a bubble and stays here.`;
-    case "expired":
-      return "No answers can arrive: the session is no longer accepted by crewhub-loops. Sign in again in the Connection panel's Chat section.";
-    default:
-      return "No answers can arrive: not signed in. Sign in in the Connection panel's Chat section, and an agent's answer shows as a bubble and stays here.";
-  }
+  if (session?.state === "key") return "No answers yet: this crewhub-loops lets the world's key read the chat, so an agent's answer shows as a bubble and stays here.";
+  return `No answers can arrive: this crewhub-loops does not let the world read the chat. For bubbles, ${VIEWER_KEY_WORDS}.`;
 }
 
 /** The answer's time as loops wrote it, local, HH:MM:SS (24 h); the page's own clock when `at` does not parse. */

@@ -30,17 +30,13 @@ test("recent answers: the last 10 lines stay newest first for the page's life, p
   assert.deepEqual(getRecentAnswers(), []);
 });
 
-test("recent answers: the empty state says per road whether an answer can arrive, and the demo's own dock since round 17", () => {
+test("recent answers: the empty state says per road whether an answer can arrive (the key road, or none), and the demo's own dock", () => {
   assert.match(recentEmptyWords("demo", null), /^No answers yet: write to an agent in the demo's chat dock .* its scripted reply shows as a bubble and stays here/);
-  assert.match(recentEmptyWords("live", null), /^No answers can arrive: this host keeps no session/);
   assert.match(recentEmptyWords("live", { state: "key" }), /^No answers yet: this crewhub-loops lets the world's key read the chat/);
-  assert.match(recentEmptyWords("live", { state: "signed-in", name: "Nicky" }), /^No answers yet: signed in as Nicky/);
-  assert.match(recentEmptyWords("live", { state: "signed-in" }), /^No answers yet: signed in, an agent's answer/);
-  assert.match(recentEmptyWords("live", { state: "expired", name: "Nicky" }), /^No answers can arrive: the session is no longer accepted.*Sign in again/);
-  assert.match(recentEmptyWords("live", { state: "signed-out" }), /^No answers can arrive: not signed in\. Sign in in the Connection panel/);
+  assert.match(recentEmptyWords("live", null), /^No answers can arrive: this crewhub-loops does not let the world read the chat\. For bubbles, make a viewer key in Settings > Agents > Connect CrewHub World/);
+  assert.equal(recentEmptyWords("live", undefined), recentEmptyWords("live", null));
   assert.match(RECENT_NOTE, /^The last 10 answers this page saw, newest first/);
 });
-
 test("recent answers: the row's time, name, target and accessible name", () => {
   const a = { agentId: "cr-lead", agentName: "CR Lead", text: "(demo reply) The nook is done.", at: "2026-10-22T01:02:03.000Z", shownAt: 5, messageId: "dm_1", threadId: "dmt", until: 6 };
   const local = new Date("2026-10-22T01:02:03.000Z");

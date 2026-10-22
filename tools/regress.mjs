@@ -57,29 +57,22 @@
            reopened with another `/api/health` version (loops upgraded): Live, health's `loopsCommit` and
            `loopsCommitBefore`, the panel saying crewhub-loops was updated under the host. Needs nobody and never
            touches the development loops. About a minute.
-     chat  the chat session (round 12, road B option 2) over the fake, which has a person who can sign in: Live, the
-           Connection panel's Chat section says not signed in, the person's id and password typed there and Sign in
-           (the host signs in at the fake's login and keeps only the cookie: the file 0600 with no password, no
-           password in the host's log, the page or the host's answers), "Signed in as Nicky"; an agent's scripted
-           answer (g-man at 4:21 of the story, the fake started just before it) shows as a speech bubble over its
-           figure with the first line; a tap on it opens the Chat panel on that agent; Forget the session signs out
-           (the fake's session count 0, the file gone, "Not signed in"). Then the key road, over a second fake whose
-           viewer key may read the chat (`keyReadsChat`): no sign-in, the panel's Chat section says a sign-in is not
-           needed for the bubbles with no form, g-man's answer as a bubble over the key's own stream, a tap to the Chat
-           panel; then (round 14) an agent inside a building answering (the fake's sendDm to cr-lead): the chat mark
-           over its building from the town (named, beside the pin), the text view's says line with the place and the
-           "answered" chip, the mark entering the building, the bubble there wrapped to at most three lines and clear
-           of the name label, its accessible name without a double full stop, the mark gone with the bubble, and the
-           same on a phone in the dark theme; and (round 16) the Recent answers list (components/RecentAnswers,
-           the bubbles' own store kept for the page's life): the Chat panel's block empty and signed out saying no
-           answer can arrive, g-man's answer still listed with its time after the bubble expired and the session was
-           forgotten with the row opening the Chat panel on g-man, the text view's section listing both answers
-           newest first and opening the panel from a row, and the block on the phone; and (round 17) the panel in one
-           glance: two short lines (crewhub-loops' own chat; the one thing to do on this road) above Recent answers, the
-           whole story behind About this chat, signed out and on the key road; (round 18) the list's own explanation
-           ("The last 10 answers this page saw …") behind that same disclosure, so the block starts with its rows, while
-           the text view's section keeps it. Needs nobody.
-           About three minutes.
+     chat  the chat over the key (round 12; the one road since round 19, the sign-in road gone with the switch to the
+           viewer key), over a fake whose viewer key reads the chat (`keyReadsChat`): no sign-in, the Connection panel's
+           Chat section says a sign-in is not needed for the bubbles with no form, g-man's scripted answer (4:21 of the
+           story, the fake started just before it) as a speech bubble over its figure with the first line, over the key's
+           own stream, a tap to the Chat panel; the glance on the key road (round 17); then (round 14) an agent inside a
+           building answering (the fake's sendDm to cr-lead): the chat mark over its building from the town (named,
+           beside the pin), the text view's says line with the place and the "answered" chip, the mark entering the
+           building, the bubble there wrapped to at most three lines and clear of the name label, its accessible name
+           without a double full stop, the mark gone with the bubble, and the same on a phone in the dark theme; (round
+           16) the Recent answers list: the text view's section listing both answers newest first after the bubbles
+           went and opening the panel from a row, and the block on the phone; (round 18) the list's own explanation
+           behind About this chat. Then the no chat road (round 19), over a fake whose key does not read the chat: health
+           without a session, /world-api/session gone, the Connection panel's Chat section, the Chat panel's glance and
+           About this chat, Recent answers' empty state and the text view's Chat line saying this crewhub-loops does not
+           let the world read the chat and how to make a viewer key, no form, and an agent's answer showing no mark and
+           no bubble. Needs nobody. About two and a half minutes.
      rooms the three-room building (`?rooms=three`, whatever the viewer's Buildings setting): three room signs
            (Administration, The floor, Lead's office) and a rack sign with its count, the arrow keys between the three halls, the text view naming the
            racks and the desks with a package on each, the lead's office beacon, the agent card on a figure at a desk,
@@ -813,8 +806,7 @@ await group("live", async () => {
     ok("live: the Chat chip opens the Chat panel, which frames the loops web the host names", src === `${web.url}/` && framed.length > 0, `src ${src}; ${web.requests.length} requests to the stub, ${framed.length} as a frame (Sec-Fetch-Site ${framed[0]?.site ?? "none"})`);
     // Round 17: in one glance, two short lines (what this is, the one thing to do on this road) above Recent answers; the
     // whole story behind "About this chat", a details element the keyboard opens (Tab to its summary, Enter). This group's
-    // host keeps no session store, so its health carries no session and the road's line is a host from before's: "this
-    // host shows no bubbles" (the chat group checks the signed-out and key roads).
+    // fake does not let the key read the chat, so the road's line says no bubbles here (the chat group checks the key road).
     const glance = async (p) => p.locator(".chat-sheet-lead").evaluate((el) => { const lh = parseFloat(getComputedStyle(el).lineHeight) || 20; const lines = (sel) => Math.round(el.querySelector(sel).getBoundingClientRect().height / lh); return { what: el.querySelector(".chat-sheet-what")?.textContent ?? "", todo: el.querySelector(".chat-sheet-todo")?.textContent ?? "", whatLines: lines(".chat-sheet-what"), todoLines: lines(".chat-sheet-todo"), aboveList: Math.round(el.closest(".card-body").querySelector(".chat-recent").getBoundingClientRect().top - el.getBoundingClientRect().top), aboutOpen: el.closest(".card-body").querySelector(".chat-about")?.open ?? null }; }).catch(() => null);
     const g = await glance(pg);
     const closedText = (await pg.locator(".chat-sheet").innerText().catch(() => "")).replace(/\s+/g, " ");
@@ -824,7 +816,7 @@ await group("live", async () => {
     const panelText = (await pg.locator(".chat-sheet").innerText().catch(() => "")).replace(/\s+/g, " ");
     const aboutOpen = await pg.locator(".chat-about").evaluate((el) => el.open).catch(() => null);
     const appHref = await pg.locator(".chat-sheet .chat-open-app").getAttribute("href").catch(() => null);
-    ok("live (round 17): the panel reads in one glance: crewhub-loops' own chat and the one thing to do on this road (a host without a session store: this host shows no bubbles), two short lines above Recent answers; the whole story (what typing needs, no password, and since round 18 what the Recent answers list is) behind About this chat, which Enter on its summary opens; the link to the app", g !== null && /^crewhub-loops' own chat, framed here\.$/.test(g.what) && /^Sign in to crewhub-loops below to type; this host shows no bubbles\.$/.test(g.todo) && g.whatLines === 1 && g.todoLines <= 2 && g.aboutOpen === false && !/signed in to crewhub-loops as a person/.test(closedText) && !/The last 10 answers this page saw/.test(closedText) && aboutOpen === true && /signed in to crewhub-loops as a person/.test(panelText) && /no password/.test(panelText) && /chat head in loops' dock/.test(panelText) && /The last 10 answers this page saw, newest first/.test(panelText) && appHref === web.url, g ? `"${g.what}" / "${g.todo}" (${g.whatLines}+${g.todoLines} lines, the list ${g.aboveList} px below); about open before ${g.aboutOpen}, after Enter ${aboutOpen}; ${appHref}` : "no lead");
+    ok("live (round 17): the panel reads in one glance: crewhub-loops' own chat and the one thing to do on this road (no viewer key: no bubbles here), two short lines above Recent answers; the whole story (what typing needs, no password, and since round 18 what the Recent answers list is) behind About this chat, which Enter on its summary opens; the link to the app", g !== null && /^crewhub-loops' own chat, framed here\.$/.test(g.what) && /^Sign in to crewhub-loops below to type; no bubbles here: a viewer key would read the chat\.$/.test(g.todo) && g.whatLines === 1 && g.todoLines <= 2 && g.aboutOpen === false && !/signed in to crewhub-loops as a person/.test(closedText) && !/The last 10 answers this page saw/.test(closedText) && aboutOpen === true && /signed in to crewhub-loops as a person/.test(panelText) && /no password/.test(panelText) && /chat head in loops' dock/.test(panelText) && /The last 10 answers this page saw, newest first/.test(panelText) && appHref === web.url, g ? `"${g.what}" / "${g.todo}" (${g.whatLines}+${g.todoLines} lines, the list ${g.aboveList} px below); about open before ${g.aboutOpen}, after Enter ${aboutOpen}; ${appHref}` : "no lead");
     const sandbox = await frame.getAttribute("sandbox").catch(() => null);
     const allow = await frame.getAttribute("allow").catch(() => null);
     ok("live: the frame's sandbox is no wider than the chat needs", sandbox === "allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads" && allow === "clipboard-write", `sandbox "${sandbox}", allow "${allow}"`);
@@ -1009,158 +1001,21 @@ await group("live", async () => {
 });
 
 await group("chat", async () => {
-  // 17. The chat session (round 12, road B option 2) over the fake: sign in from the Connection panel, an agent's
-  // answer as a bubble, a tap to the Chat panel, Forget the session. The host serves the built world on a free port
-  // (or listens on --host-port behind your Vite, as the live and ops groups do).
+  // 17. The chat over the key (round 12; the one road since round 19, the sign-in road gone with the switch to the viewer
+  // key): over a fake whose viewer key reads the chat (the key road), then over a fake whose key does not (no bubbles,
+  // the plain words). The host serves the built world on a free port (or listens on --host-port behind your Vite, as the
+  // live and ops groups do).
   const { createLoopsFake } = await import(pathToFileURL(path.join(REPO, "packages", "loops-fake", "src", "index.ts")).href);
   const { createHost } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "host.ts")).href);
-  const { createSessionStore } = await import(pathToFileURL(path.join(REPO, "apps", "host", "src", "session.ts")).href);
-  const dist = DIST;
-  const served = DIST_SERVED;
+  const dist = path.join(REPO, "apps", "world", "dist");
+  const served = existsSync(path.join(dist, "index.html"));
   const hostPort = Number(opts["host-port"]);
   if (!served && (!Number.isInteger(hostPort) || hostPort <= 0)) opts.fail("--host-port <port> must be a port number");
-  if (served) info(`chat: ${distFresh}`);
-  const configDir = path.join(OUT, `${tag}-chat-config`);
-  rmSync(configDir, { recursive: true, force: true });
-  mkdirSync(configDir, { recursive: true, mode: 0o700 });
-  const sessionStore = createSessionStore(configDir);
-  // 4:21 of the story is g-man's answer to the morning's message (packages/demo script.ts); the fake starts 61 s before it.
-  // 61 s before it, so the sign-in (a page load, Live, the panel) always lands before the answer: the host reads the
-  // chat live from the sign-in on, nothing from before.
-  const fake = await createLoopsFake({ heartbeatMs: 1000, speed: 1, startAt: 200_000 });
-  const fakeStartedAt = Date.now();
-  const web = await createLoopsWebStub();
-  const lines = [];
-  const hostOptions = { loopsUrl: fake.url, loopsWebUrl: web.url, key: fake.key, keyName: fake.keyName, sessionStore, pairing: "off", retryMs: { min: 100, max: 500 }, reconnectMs: { min: 100, max: 300 }, heartbeatMs: 1000, log: (line) => lines.push(line) };
-  const host = await createHost(served ? { ...hostOptions, staticDir: dist } : { ...hostOptions, port: hostPort, allowedOrigins: [origin] });
-  const chatOrigin = served ? host.url : origin;
-  info(`chat: fake on 127.0.0.1:${fake.port} (a person who can sign in: ${fake.person.id}), host on 127.0.0.1:${host.port} ${served ? "serving apps/world/dist" : `behind the Vite proxy on ${origin}`}, the session store under ${configDir}`);
-  const own = [];
-  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
-  const pg = await ctx.newPage();
-  watch(pg, chatOrigin, own, "chat");
-  const chip = pg.locator(".connection-chip").first();
-  const hostApi = (p) => pg.request.get(`${chatOrigin}/world-api${p}`).then((r) => r.json());
-  const openPanel = async () => {
-    await chip.click();
-    await pg.waitForSelector(".connection-session", { timeout: 5000 }).catch(() => {});
-  };
-  const sessionText = async () => (await pg.locator(".connection-session").innerText().catch(() => "")).replace(/\s+/g, " ");
-  const closePanel = async () => {
-    await pg.keyboard.press("Escape");
-    await pg.waitForTimeout(200);
-  };
-  const leaked = async (secret) => {
-    const html = await pg.content();
-    const stored = await pg.evaluate(() => JSON.stringify(Object.entries(localStorage)) + JSON.stringify(Object.entries(sessionStorage))).catch(() => "");
-    return html.includes(secret) || stored.includes(secret) || pg.url().includes(secret);
-  };
-  try {
-    await pg.goto(`${chatOrigin}/`);
-    await pg.waitForSelector("canvas", { timeout: 60000 }).catch(() => {});
-    await pg.waitForSelector('.connection-chip[data-connection="live"]', { timeout: 20000 }).catch(() => {});
-    const before = await hostApi("/health");
-    await openPanel();
-    const off = await sessionText();
-    ok("chat: Live with no session: the panel's Chat section says not signed in and offers the sign-in", before.connection?.session?.state === "signed-out" && /Not signed in/.test(off) && (await pg.getByLabel("Account id").count()) === 1 && (await pg.getByLabel("Password").getAttribute("type").catch(() => null)) === "password", `${before.connection?.session?.state}; ${off.slice(0, 120)}`);
-    await shot(pg, "52-chat-signed-out");
-    // Round 16: the Chat panel's Recent answers list (components/RecentAnswers) before any answer, signed out: the empty
-    // state says no answer can arrive and where the sign-in is. The block is collapsed while empty; its summary opens it.
-    const recentOpen = async (p) => {
-      await p.locator(".chat-open").click();
-      await p.waitForSelector(".chat-recent", { timeout: 5000 }).catch(() => {});
-      if (!(await p.locator(".chat-recent").evaluate((el) => el.open).catch(() => false))) await p.locator(".chat-recent > summary").click().catch(() => {});
-      return (await p.locator(".chat-recent").innerText().catch(() => "")).replace(/\s+/g, " ");
-    };
-    await closePanel();
-    const emptyWords = await recentOpen(pg);
-    ok("chat (round 16): the Chat panel's Recent answers block, empty and signed out, starts with its words (no explanation first, round 18), says no answer can arrive and points to the sign-in", /^Recent answers No answers can arrive/.test(emptyWords) && !/The last 10 answers/.test(emptyWords) && /No answers can arrive: not signed in\. Sign in in the Connection panel's Chat section/.test(emptyWords) && (await pg.locator(".recent-row").count()) === 0, emptyWords.slice(0, 160));
-    await shot(pg, "64-chat-recent-empty");
-    // Round 17: the glance on the session road, signed out, and the words behind About this chat (the same story as the
-    // Connection panel's Chat section).
-    const glanceOff = await pg.locator(".chat-sheet-lead").evaluate((el) => ({ what: el.querySelector(".chat-sheet-what")?.textContent ?? "", todo: el.querySelector(".chat-sheet-todo")?.textContent ?? "", aboutOpen: el.closest(".card-body").querySelector(".chat-about")?.open ?? null })).catch(() => null);
-    await pg.locator(".chat-about > summary").click().catch(() => {});
-    await pg.waitForTimeout(200);
-    const aboutOff = (await pg.locator(".chat-about").innerText().catch(() => "")).replace(/\s+/g, " ");
-    ok("chat (round 17): signed out, the panel's glance says sign in below to type and, for bubbles, the Connection panel's Chat section; About this chat (closed at first) holds the road's whole story and, since round 18, what the Recent answers list is", glanceOff !== null && glanceOff.what === "crewhub-loops' own chat, framed here." && glanceOff.todo === "Sign in to crewhub-loops below to type; for bubbles, sign in in the Connection panel's Chat section." && glanceOff.aboutOpen === false && /Not signed in: no bubbles\. Sign in in the Connection panel's Chat section/.test(aboutOff) && /Typing in the framed chat is crewhub-loops' own/.test(aboutOff) && /The last 10 answers this page saw, newest first; a bubble shows each for a moment/.test(aboutOff), glanceOff ? `"${glanceOff.todo}"; about: ${aboutOff.slice(0, 120)}` : "no lead");
-    await shot(pg, "64b-chat-glance-about");
-    await pg.keyboard.press("Escape");
-    await pg.waitForSelector(".chat-sheet", { state: "detached", timeout: 5000 }).catch(() => {});
-    await openPanel();
-    await pg.getByLabel("Account id").fill(fake.person.id);
-    await pg.getByLabel("Password").fill(fake.person.password);
-    await pg.getByRole("button", { name: "Sign in" }).click();
-    await pg.waitForFunction(() => /Signed in as/.test(document.querySelector(".connection-session")?.textContent ?? ""), null, { timeout: 15000 }).catch(() => {});
-    const on = await sessionText();
-    const signedInAfter = Math.round((Date.now() - fakeStartedAt) / 1000);
-    const signedIn = await hostApi("/health");
-    const file = path.join(configDir, "loops-session");
-    let mode = -1;
-    let fileText = "";
-    try {
-      mode = statSync(file).mode & 0o777;
-      fileText = readFileSync(file, "utf8");
-    } catch {}
-    const everything = [...lines, JSON.stringify(signedIn)].join("\n");
-    ok("chat: Sign in: the panel says Signed in as Nicky, health says signed-in with the name, the host keeps the cookie in a 0600 file, and the password is in no file, log line, answer, page or storage", /Signed in as Nicky/.test(on) && signedIn.connection?.session?.state === "signed-in" && signedIn.connection?.session?.name === "Nicky" && mode === 0o600 && fileText.includes("\"cookie\":\"sess_") && !fileText.includes(fake.person.password) && !everything.includes(fake.person.password) && !(await leaked(fake.person.password)) && (await pg.getByLabel("Password").count()) === 0, `${on.slice(0, 80)}; session ${signedIn.connection?.session?.state}; file mode ${mode.toString(8)}`);
-    await shot(pg, "53-chat-signed-in");
-    await closePanel();
-    // g-man's scripted answer arrives on the person's dm stream: a bubble over its figure with the first line.
-    const bubble = pg.locator('.bubble.said[data-said-agent="g-man"]');
-    await bubble.waitFor({ timeout: 90000 }).catch(() => {});
-    const said = (await bubble.innerText().catch(() => "")).replace(/\s+/g, " ").trim();
-    ok("chat: an agent's answer shows as a speech bubble over its figure, with the message's first line", /Busy and calm/.test(said), said.slice(0, 120) || `no bubble ${Math.round((Date.now() - fakeStartedAt) / 1000)} s after the fake started (signed in at +${signedInAfter} s); session ${(await hostApi("/health")).connection?.session?.state}; host: ${lines.slice(-6).join(" | ").slice(0, 400)}`);
-    await shot(pg, "54-chat-bubble");
-    await bubble.click().catch(() => {});
-    await pg.waitForSelector(".chat-sheet", { timeout: 5000 }).catch(() => {});
-    const sheetAgent = await pg.locator(".chat-sheet").getAttribute("data-agent").catch(() => null);
-    ok("chat: a tap on the bubble opens the Chat panel on that agent", sheetAgent !== null && /g-man/.test(sheetAgent), `data-agent ${sheetAgent}`);
-    await shot(pg, "55-chat-panel-from-bubble");
-    await pg.keyboard.press("Escape");
-    await pg.waitForTimeout(300);
-    // Forget the session: signed out at the fake, the file gone, the panel says so.
-    await openPanel();
-    await pg.getByRole("button", { name: "Forget the session" }).click();
-    await pg.waitForFunction(() => /Not signed in/.test(document.querySelector(".connection-session")?.textContent ?? ""), null, { timeout: 10000 }).catch(() => {});
-    const after = await hostApi("/health");
-    ok("chat: Forget the session: the host signed out at loops (no session open there), the file is gone, the panel and health say signed out", after.connection?.session?.state === "signed-out" && fake.sessionsOpen() === 0 && !existsSync(file) && /Not signed in/.test(await sessionText()), `session ${after.connection?.session?.state}; open at the fake ${fake.sessionsOpen()}; file ${existsSync(file) ? "still there" : "gone"}`);
-    await shot(pg, "56-chat-forgotten");
-    await closePanel();
-    // Round 16: the bubble is gone (12 s) and the session forgotten, but the answer is not lost: the Recent answers block
-    // lists it with its time and name, newest first, and the row opens the Chat panel on that agent.
-    await pg.waitForSelector('.bubble.said[data-said-agent="g-man"]', { state: "detached", timeout: 20000 }).catch(() => {});
-    const bubbleExpired = (await pg.locator('.bubble.said[data-said-agent="g-man"]').count()) === 0;
-    const recentWords = await recentOpen(pg);
-    const row = pg.locator(".recent-row").first();
-    const rowAgent = await row.getAttribute("data-answer-agent").catch(() => null);
-    const rowName = (await row.locator(".recent-name").innerText().catch(() => "")).trim();
-    const rowTime = (await row.locator(".recent-time").innerText().catch(() => "")).trim();
-    const rowLabel = (await row.getAttribute("aria-label").catch(() => null)) ?? "";
-    await shot(pg, "65-chat-recent-after-bubble");
-    await row.click().catch(() => {});
-    await pg.waitForFunction(() => /g-man/.test(document.querySelector(".chat-sheet")?.getAttribute("data-agent") ?? ""), null, { timeout: 5000 }).catch(() => {});
-    const rowOpened = await pg.locator(".chat-sheet").getAttribute("data-agent").catch(() => null);
-    ok("chat (round 16): after the bubble expired (and the session was forgotten) the Recent answers block still lists g-man's answer with its time, and the row opens the Chat panel on g-man", bubbleExpired && /^Recent answers \(1\)/.test(recentWords) && (await pg.locator(".recent-row").count()) === 1 && rowAgent === "g-man" && rowName !== "" && /^\d\d:\d\d:\d\d$/.test(rowTime) && new RegExp(`^${rowName} at ${rowTime}: Busy and calm.*\\. Chat with ${rowName}$`).test(rowLabel) && !/\.\./.test(rowLabel) && rowOpened !== null && /g-man/.test(rowOpened), `bubble gone ${bubbleExpired}; ${recentWords.slice(0, 120)}; row ${rowAgent} "${rowName}" ${rowTime}; label ${rowLabel.slice(0, 100)}; opened ${rowOpened}`);
-    await pg.keyboard.press("Escape");
-    await pg.waitForSelector(".chat-sheet", { state: "detached", timeout: 5000 }).catch(() => {});
-    // The Chat panel's frame is the one request that leaves the page's origin, by design (the loops web stub).
-    problems.push(...own.filter((x) => !(x.kind === "external" && x.text.includes(web.url)) && !(x.kind === "console" && /status of (401|403)/.test(x.text))));
-  } finally {
-    await ctx.close().catch(() => {});
-    await host.close().catch(() => {});
-    await fake.close().catch(() => {});
-    await web.close().catch(() => {});
-    rmSync(configDir, { recursive: true, force: true });
-  }
-
   // The key road: a loops whose viewer key may read the chat (world/viewer-key, 8292): no sign-in at all.
-  const keyDir = path.join(OUT, `${tag}-chatkey-config`);
-  rmSync(keyDir, { recursive: true, force: true });
-  mkdirSync(keyDir, { recursive: true, mode: 0o700 });
   const fake2 = await createLoopsFake({ heartbeatMs: 1000, speed: 1, startAt: 200_000, keyReadsChat: true });
   const web2 = await createLoopsWebStub();
   const lines2 = [];
-  const hostOptions2 = { loopsUrl: fake2.url, loopsWebUrl: web2.url, key: fake2.key, keyName: fake2.keyName, sessionStore: createSessionStore(keyDir), pairing: "off", retryMs: { min: 100, max: 500 }, reconnectMs: { min: 100, max: 300 }, heartbeatMs: 1000, log: (line) => lines2.push(line) };
+  const hostOptions2 = { loopsUrl: fake2.url, loopsWebUrl: web2.url, key: fake2.key, keyName: fake2.keyName, pairing: "off", retryMs: { min: 100, max: 500 }, reconnectMs: { min: 100, max: 300 }, heartbeatMs: 1000, log: (line) => lines2.push(line) };
   const host2 = await createHost(served ? { ...hostOptions2, staticDir: dist } : { ...hostOptions2, port: hostPort, allowedOrigins: [origin] });
   const keyOrigin = served ? host2.url : origin;
   info(`chat (key road): fake on 127.0.0.1:${fake2.port} whose key reads the chat, host on 127.0.0.1:${host2.port}`);
@@ -1190,7 +1045,7 @@ await group("chat", async () => {
     const bubble2 = pg2.locator('.bubble.said[data-said-agent="g-man"]');
     await bubble2.waitFor({ timeout: 90000 }).catch(() => {});
     const said2 = (await bubble2.innerText().catch(() => "")).replace(/\s+/g, " ").trim();
-    ok("chat (key road): an agent's answer comes over the key's own stream and shows as a bubble, with no session anywhere", /Busy and calm/.test(said2) && fake2.sessionsOpen() === 0 && !existsSync(path.join(keyDir, "loops-session")), said2.slice(0, 100) || `no bubble; host: ${lines2.slice(-4).join(" | ").slice(0, 200)}`);
+    ok("chat (key road): an agent's answer comes over the key's own stream and shows as a bubble, with no session anywhere", /Busy and calm/.test(said2) && fake2.sessionsOpen() === 0, said2.slice(0, 100) || `no bubble; host: ${lines2.slice(-4).join(" | ").slice(0, 200)}`);
     await shot(pg2, "58-chat-key-bubble");
     await bubble2.click().catch(() => {});
     await pg2.waitForSelector(".chat-sheet", { timeout: 5000 }).catch(() => {});
@@ -1314,7 +1169,69 @@ await group("chat", async () => {
     await host2.close().catch(() => {});
     await fake2.close().catch(() => {});
     await web2.close().catch(() => {});
-    rmSync(keyDir, { recursive: true, force: true });
+  }
+
+  // No chat road (round 19): a loops that does not let the key read the chat (a plain external bot's key, an older
+  // loops, 8291 today): health has no session, the Connection panel's Chat section, the Chat panel's glance and About
+  // this chat, Recent answers' empty state and the text view's Chat line all say so and point to a viewer key; the
+  // sign-in road is gone (a write to /world-api/session is refused by the write gate, 405; a read is 404); an agent's
+  // answer on loops shows no mark and no bubble.
+  const fake3 = await createLoopsFake({ heartbeatMs: 1000, speed: 1, startAt: 200_000 });
+  const web3 = await createLoopsWebStub();
+  const lines3 = [];
+  const hostOptions3 = { loopsUrl: fake3.url, loopsWebUrl: web3.url, key: fake3.key, keyName: fake3.keyName, pairing: "off", retryMs: { min: 100, max: 500 }, reconnectMs: { min: 100, max: 300 }, heartbeatMs: 1000, log: (line) => lines3.push(line) };
+  const host3 = await createHost(served ? { ...hostOptions3, staticDir: dist } : { ...hostOptions3, port: hostPort, allowedOrigins: [origin] });
+  const noneOrigin = served ? host3.url : origin;
+  info(`chat (no chat road): fake on 127.0.0.1:${fake3.port} whose key does not read the chat, host on 127.0.0.1:${host3.port}`);
+  const own3 = [];
+  const ctx3 = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
+  const pg3 = await ctx3.newPage();
+  watch(pg3, noneOrigin, own3, "chat none");
+  try {
+    await pg3.goto(`${noneOrigin}/`);
+    await pg3.waitForSelector("canvas", { timeout: 60000 }).catch(() => {});
+    await pg3.waitForSelector('.connection-chip[data-connection="live"]', { timeout: 20000 }).catch(() => {});
+    const health3 = await pg3.request.get(`${noneOrigin}/world-api/health`).then((r) => r.json());
+    const goneWrite = await pg3.request.post(`${noneOrigin}/world-api/session`, { headers: { origin: noneOrigin, "content-type": "application/json" }, data: { id: "nicky", password: "x" } }).then((r) => r.status()).catch(() => -1);
+    const goneRead = await pg3.request.get(`${noneOrigin}/world-api/session`).then((r) => r.status()).catch(() => -1);
+    await pg3.locator(".connection-chip").first().click();
+    await pg3.waitForSelector(".connection-session", { timeout: 5000 }).catch(() => {});
+    const words3 = (await pg3.locator(".connection-session").innerText().catch(() => "")).replace(/\s+/g, " ");
+    const road3 = await pg3.locator(".connection-session").getAttribute("data-session").catch(() => null);
+    await shot(pg3, "68-chat-none-panel");
+    ok("chat (no chat road, round 19): health has no session, /world-api/session is gone (a write refused 405, a read 404), the panel's Chat section says this crewhub-loops does not let the world read the chat and points to a viewer key, with no sign-in form; the host's log says the same", health3.connection?.session === undefined && goneWrite === 405 && goneRead === 404 && road3 === "none" && /^No bubbles: this crewhub-loops does not let the world read the chat\. For the agents' answers as bubbles, make a viewer key in Settings > Agents > Connect CrewHub World/.test(words3.replace(/^Chat /, "")) && (await pg3.getByLabel("Password").count()) === 0 && (await pg3.getByRole("button", { name: /Sign in|Forget the session/ }).count()) === 0 && lines3.some((l) => /the key does not read the chat on this crewhub-loops \(no viewer key\): no bubbles; make a viewer key/.test(l)), `session ${JSON.stringify(health3.connection?.session)}; /session write ${goneWrite}, read ${goneRead}; data-session ${road3}; ${words3.slice(0, 120)}`);
+    await pg3.keyboard.press("Escape");
+    await pg3.waitForTimeout(200);
+    await pg3.locator(".chat-open").click();
+    await pg3.waitForSelector(".chat-sheet-lead", { timeout: 5000 }).catch(() => {});
+    const glance3 = await pg3.locator(".chat-sheet-lead").evaluate((el) => ({ what: el.querySelector(".chat-sheet-what")?.textContent ?? "", todo: el.querySelector(".chat-sheet-todo")?.textContent ?? "", aboutOpen: el.closest(".card-body").querySelector(".chat-about")?.open ?? null })).catch(() => null);
+    await pg3.locator(".chat-about > summary").click().catch(() => {});
+    await pg3.waitForTimeout(200);
+    const about3 = (await pg3.locator(".chat-about").innerText().catch(() => "")).replace(/\s+/g, " ");
+    if (!(await pg3.locator(".chat-recent").evaluate((el) => el.open).catch(() => false))) await pg3.locator(".chat-recent > summary").click().catch(() => {});
+    await pg3.waitForTimeout(200);
+    const empty3 = (await pg3.locator('.chat-recent [data-recent="empty"]').innerText().catch(() => "")).replace(/\s+/g, " ");
+    await shot(pg3, "69-chat-none-chat-panel");
+    ok("chat (no chat road, round 19): the Chat panel's glance says no bubbles here (a viewer key would), About this chat holds the same story as the Connection panel, and Recent answers' empty state says no answer can arrive and how to make a viewer key", glance3 !== null && glance3.what === "crewhub-loops' own chat, framed here." && glance3.todo === "Sign in to crewhub-loops below to type; no bubbles here: a viewer key would read the chat." && glance3.aboutOpen === false && /No bubbles: this crewhub-loops does not let the world read the chat/.test(about3) && /Typing in the framed chat is crewhub-loops' own/.test(about3) && /^No answers can arrive: this crewhub-loops does not let the world read the chat\. For bubbles, make a viewer key in Settings > Agents > Connect CrewHub World/.test(empty3), glance3 ? `"${glance3.todo}"; about: ${about3.slice(0, 100)}; empty: ${empty3.slice(0, 100)}` : "no lead");
+    await pg3.keyboard.press("Escape");
+    await pg3.waitForSelector(".chat-sheet", { state: "detached", timeout: 5000 }).catch(() => {});
+    // An agent answers on loops: the key's stream never carries it, so no mark and no bubble; the text view says why.
+    fake3.sendDm("cr-lead", "Is the reading nook done? (no chat road)");
+    await pg3.waitForSelector('.chat-mark[data-said-mark="cr-lead"], .bubble.said', { timeout: 15000 }).catch(() => {});
+    const marks3 = await pg3.locator(".chat-mark").count();
+    const bubbles3 = await pg3.locator(".bubble.said").count();
+    await pg3.keyboard.press("t");
+    await pg3.waitForSelector("#text-view", { timeout: 5000 }).catch(() => {});
+    const tv3 = (await sheet(pg3).innerText().catch(() => "")).replace(/\s+/g, " ");
+    await shot(pg3, "70-chat-none-text-view");
+    await pg3.keyboard.press("Escape");
+    ok("chat (no chat road, round 19): an agent's answer on loops shows no mark and no bubble (the key's stream never carries it), and the text view's Chat line and Recent answers say why", marks3 === 0 && bubbles3 === 0 && /Chat: crewhub-loops' own chat.*No bubbles: this crewhub-loops does not let the world read the chat/.test(tv3) && /No answers can arrive: this crewhub-loops does not let the world read the chat/.test(tv3), `marks ${marks3}, bubbles ${bubbles3}; ${tv3.slice(0, 160)}`);
+    problems.push(...own3.filter((x) => !(x.kind === "external" && x.text.includes(web3.url))));
+  } finally {
+    await ctx3.close().catch(() => {});
+    await host3.close().catch(() => {});
+    await fake3.close().catch(() => {});
+    await web3.close().catch(() => {});
   }
 });
 
