@@ -209,6 +209,16 @@ function readJsonBody(req: IncomingMessage, limit: number): Promise<Record<strin
     const chunks: Buffer[] = [];
     let over = false;
     req.on("data", (chunk: Buffer) => {
+/**
+ * A constant-time comparison of two secrets as bytes (review F5): the byte lengths first, so a header with a non-ASCII
+ * character (one UTF-16 unit, two bytes) is simply unequal, never a thrown RangeError from `timingSafeEqual`.
+ */
+export function sameSecret(given: string, expected: string): boolean {
+  const a = Buffer.from(given);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
       size += chunk.length;
       if (size > limit) {
         over = true;
@@ -707,12 +717,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
   function mint(req: IncomingMessage, res: ServerResponse): void {
     const given = req.headers[MINT_HEADER];
     const expected = options.mintSecret;
-    const ok =
-      expected !== undefined &&
-      typeof given === "string" &&
-      req.headers.origin === undefined &&
-      given.length === expected.length &&
-      timingSafeEqual(Buffer.from(given), Buffer.from(expected));
+    const ok = expected !== undefined && typeof given === "string" && req.headers.origin === undefined && sameSecret(given, expected);
     if (!ok) {
       sendJson(res, 404, { error: "not_found" });
       return;

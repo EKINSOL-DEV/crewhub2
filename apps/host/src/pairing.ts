@@ -74,16 +74,19 @@ export function createPairing(options: PairingOptions = {}): Pairing {
       return `${id}.${mac(id)}`;
     },
     isPaired(cookieHeader) {
-      const value = readCookie(cookieHeader, PAIR_COOKIE);
-      if (value === null) return false;
-      const dot = value.indexOf(".");
-      if (dot <= 0) return false;
-      const id = value.slice(0, dot);
-      const given = value.slice(dot + 1);
-      if (!BASE64URL.test(id) || !BASE64URL.test(given)) return false;
-      const expected = mac(id);
-      if (given.length !== expected.length) return false;
-      return timingSafeEqual(Buffer.from(given), Buffer.from(expected));
+      // Every cookie of that name is tried (review F2): a loopback server the browser visits can set a second
+      // `crewhub_world_pair` on another path, and browsers send the longer path first; any one that verifies pairs.
+      for (const value of readCookies(cookieHeader, PAIR_COOKIE)) {
+        const dot = value.indexOf(".");
+        if (dot <= 0) continue;
+        const id = value.slice(0, dot);
+        const given = value.slice(dot + 1);
+        if (!BASE64URL.test(id) || !BASE64URL.test(given)) continue;
+        const expected = mac(id);
+        if (Buffer.byteLength(given) !== Buffer.byteLength(expected)) continue;
+        if (timingSafeEqual(Buffer.from(given), Buffer.from(expected))) return true;
+      }
+      return false;
     },
     pending() {
       prune();
@@ -92,16 +95,22 @@ export function createPairing(options: PairingOptions = {}): Pairing {
   };
 }
 
-/** The value of one cookie in a Cookie header, or null. */
-export function readCookie(header: string | undefined, name: string): string | null {
-  if (header === undefined || header === "") return null;
+/** Every value of the cookies named `name` in a Cookie header, in the header's order (a browser may send several). */
+export function readCookies(header: string | undefined, name: string): string[] {
+  if (header === undefined || header === "") return [];
+  const out: string[] = [];
   for (const part of header.split(";")) {
     const eq = part.indexOf("=");
     if (eq < 0) continue;
     if (part.slice(0, eq).trim() !== name) continue;
-    return part.slice(eq + 1).trim();
+    out.push(part.slice(eq + 1).trim());
   }
-  return null;
+  return out;
+}
+
+/** The value of the first cookie named `name` in a Cookie header, or null. */
+export function readCookie(header: string | undefined, name: string): string | null {
+  return readCookies(header, name)[0] ?? null;
 }
 
 /** The Set-Cookie header for a cookie value. `secure` when the host is reached over https (CREWHUB_WORLD_PUBLIC_URL). */
@@ -118,7 +127,8 @@ export const PAIR_REFUSED_HTML = `<!doctype html>
 
 /**
  * The pairing secret from a file, created when missing: 32 random bytes, base64url, mode 0600. A readable file with
- * loose permissions is tightened. The caller keeps the Buffer in memory and nowhere else.
+ * loose permissions is tightened; one whose text decodes to fewer than 32 bytes is replaced. The caller keeps the
+ * Buffer in memory and nowhere else.
  */
 export function loadPairingSecret(file: string): Buffer {
   let text: string | null = null;
@@ -130,7 +140,10 @@ export function loadPairingSecret(file: string): Buffer {
   if (text !== null && text !== "") {
     const stats = statSync(file);
     if ((stats.mode & 0o077) !== 0) chmodSync(file, 0o600);
-    return Buffer.from(text, "base64url");
+    const decoded = Buffer.from(text, "base64url");
+    // A file that does not decode to a whole secret (truncated, edited) would make a short HMAC key (review N1):
+    // it is replaced by a fresh one, which only unpairs the browsers paired under it.
+    if (decoded.length >= SECRET_BYTES) return decoded;
   }
   const secret = randomBytes(SECRET_BYTES);
   mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
