@@ -242,8 +242,10 @@ the chat corner, the card's footer) or are the data's (lanes and a team snapshot
    on), `npm ci` once (quiet since round 15: no install script runs, `npm audit` is clean), then `npm run world`. It
    starts the host on `127.0.0.1:5180`, opens your browser on a one-time pairing link, and builds the world beside it
    when the build is missing or stale.
-2. The world shows **Connect**: it has found crewhub-loops and has no key. In the app, Settings > Agents > New external
-   bot, name `crewhub-world`, Read only unticked, member of no project; copy the key it shows once.
+2. The world shows **Connect**: it has found crewhub-loops and has no key. In the app, Settings > Agents > **Connect
+   CrewHub World** (crewhub-loops main): the card makes the viewer bot `crewhub-world` and shows its key once; on an
+   older loops, New external bot, name `crewhub-world`, Read only unticked, member of no project; copy the key it shows
+   once.
 3. Paste it in the Connect screen. The host checks it with loops, stores it (0600, in its own folder), and the chip says
    **Live**. `npm run host -- doctor` says which step was missed, one line per check.
 
