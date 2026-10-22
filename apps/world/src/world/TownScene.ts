@@ -1132,20 +1132,22 @@ export class TownScene {
   /**
    * The shader programs of what was built ahead (the interior's batches, the objects layer's instanced meshes), compiled
    * and their locations read in idle time (warmPrograms.ts), once per build, so the frame of the enter neither
-   * compiles nor waits for a link. Nothing about a material changes.
+   * compiles nor waits for a link. One inside group per idle callback: a warm is mostly three's parameters per
+   * material, and a building's at once ran 30 ms at 4x, a frame's worth. Nothing about a material changes.
    */
   #warmInterior(slug: string, view: BuildingView) {
     const key = `${view.interior?.id ?? 0}:${view.insideRevision}`;
     if (this.#warmed.get(slug) === key) return;
     this.#warmed.set(slug, key);
-    whenIdle(() => {
-      const alive = () => !this.#disposed && this.#buildings.get(slug) === view && this.#warmed.get(slug) === key;
-      if (!alive()) return;
-      const started = performance.now();
-      void warmPrograms(this.renderer, view.group, this.camera, this.scene, alive).then((programs) => {
-        if (alive()) performance.measure("world:interior-warmed", { start: started, detail: { slug, programs } });
+    const alive = () => !this.#disposed && this.#buildings.get(slug) === view && this.#warmed.get(slug) === key;
+    for (const group of view.insideGroups)
+      whenIdle(() => {
+        if (!alive()) return;
+        const started = performance.now();
+        void warmPrograms(this.renderer, group, this.camera, this.scene, alive).then((programs) => {
+          if (alive()) performance.measure("world:interior-warmed", { start: started, detail: { slug, programs, group: group.name } });
+        });
       });
-    });
   }
 
   /** The blob shadow under a building's slab follows its footprint (role rooms grow east). */

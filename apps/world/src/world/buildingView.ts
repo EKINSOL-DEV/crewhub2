@@ -950,6 +950,12 @@ export class BuildingView {
     return this.#furniture;
   }
 
+  /** The groups only the entered building shows, built ahead by `prepareInterior` and `prepareInside`: the town warms their programs one by one. */
+  get insideGroups(): THREE.Object3D[] {
+    const groups: (THREE.Group | null)[] = [this.#furniture, this.#cords, this.#signals, this.#personal, this.#props.group, this.#objects.group];
+    return groups.filter((g): g is THREE.Group => g !== null);
+  }
+
   /** Gives up an interior build in progress (the visitor moved on, or the layout changed). */
   cancelPrepare() {
     this.#pending?.steps.return();
