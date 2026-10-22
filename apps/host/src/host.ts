@@ -209,6 +209,16 @@ const MIME: Record<string, string> = {
   ".glb": "model/gltf-binary",
 };
 
+/**
+ * A constant-time comparison of two secrets as bytes (review F5): the byte lengths first, so a header with a non-ASCII
+ * character (one UTF-16 unit, two bytes) is simply unequal, never a thrown RangeError from `timingSafeEqual`.
+ */
+export function sameSecret(given: string, expected: string): boolean {
+  const a = Buffer.from(given);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 function sendJson(res: ServerResponse, status: number, body: unknown, headers: Record<string, string> = {}): void {
   const text = JSON.stringify(body);
   res.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...headers });
@@ -222,16 +232,6 @@ function readJsonBody(req: IncomingMessage, limit: number): Promise<Record<strin
     const chunks: Buffer[] = [];
     let over = false;
     req.on("data", (chunk: Buffer) => {
-/**
- * A constant-time comparison of two secrets as bytes (review F5): the byte lengths first, so a header with a non-ASCII
- * character (one UTF-16 unit, two bytes) is simply unequal, never a thrown RangeError from `timingSafeEqual`.
- */
-export function sameSecret(given: string, expected: string): boolean {
-  const a = Buffer.from(given);
-  const b = Buffer.from(expected);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
-
       size += chunk.length;
       if (size > limit) {
         over = true;
@@ -1061,6 +1061,13 @@ export async function createHost(options: HostOptions): Promise<Host> {
       sendJson(res, 400, { error: "validation_error", message: `A ${kind} needs a document of format ${TOWN_FORMAT} under ${TOWN_BODY_LIMIT} bytes` });
       return;
     }
+    if (withDocument) {
+      const verdict = validateTownForHost(document);
+      if (!verdict.ok) {
+        sendJson(res, 400, { error: "validation_error", message: `The document does not validate: ${verdict.reason}` });
+        return;
+      }
+    }
     if (typeof baseRev !== "number" || !Number.isInteger(baseRev) || baseRev < 0) {
       sendJson(res, 400, { error: "validation_error", message: "baseRev must be the revision the document is based on (0 to create)" });
       return;
@@ -1080,13 +1087,6 @@ export async function createHost(options: HostOptions): Promise<Host> {
     }
     let current: unknown = null;
     try {
-    if (withDocument) {
-      const verdict = validateTownForHost(document);
-      if (!verdict.ok) {
-        sendJson(res, 400, { error: "validation_error", message: `The document does not validate: ${verdict.reason}` });
-        return;
-      }
-    }
       current = outcome.document === null ? null : JSON.parse(outcome.document);
     } catch {
       current = null;
@@ -1191,11 +1191,14 @@ export async function createHost(options: HostOptions): Promise<Host> {
       "content-type": type,
       "content-length": String(info.size),
       "cache-control": immutable ? "public, max-age=31536000, immutable" : "no-cache",
+      ...(type.startsWith("text/html") ? HTML_HEADERS : {}),
     });
     createReadStream(file).pipe(res);
   }
 
   async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    // On every answer (review F6): nothing the host sends is to be sniffed into another type.
+    res.setHeader("x-content-type-options", "nosniff");
     if (!guard(req, res)) return;
     // The Host header passed the guard; the base only serves to parse the path and query.
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
@@ -1217,14 +1220,11 @@ export async function createHost(options: HostOptions): Promise<Host> {
     }
     if (!isApi) {
       await serveStatic(url.pathname, res);
-      ...(type.startsWith("text/html") ? HTML_HEADERS : {}),
       return;
     }
     if (match === null) {
       sendJson(res, 404, { error: "not_found" });
       return;
-    // On every answer (review F6): nothing the host sends is to be sniffed into another type.
-    res.setHeader("x-content-type-options", "nosniff");
     }
     const { route, params, query } = match;
     // The pairing gate: everything under /world-api but health needs the cookie (the browser sends it same-origin).
