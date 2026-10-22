@@ -14,7 +14,7 @@ These are the active documents for the browser-world rebuild. All are in English
 | [AGENT_CARD.md](AGENT_CARD.md) | The agent card (what an agent does now, sections from a registry, the lane facts, the portrait) and the follow camera |
 | [ROOM_REVIEW.md](ROOM_REVIEW.md) | Historical: the first room's design and verification notes |
 | [COST_POLICY.md](COST_POLICY.md) | Zero-model-cost presentation and optional AI controls; the measured heap and frame numbers of demo and live mode, and the first paint's numbers across the cuts of rounds 4 to 6 |
-| [ROADMAP.md](ROADMAP.md) | Milestones, the loops phases and their status in demo and live mode, the host as built through round 9, what is open and which decisions wait for Nicky |
+| [ROADMAP.md](ROADMAP.md) | Milestones, the loops phases and their status in demo and live mode, the host as built round by round through round 19, what is open and what waits on crewhub-loops |
 | [TOWN_PLAN.md](TOWN_PLAN.md) | Town model and room growth; runtime-binding parts superseded |
 | [ASTRA_HANDOFF.md](ASTRA_HANDOFF.md) | Current handoff: where to start, the packages, how to run and verify |
 | [ARCHIVE.md](ARCHIVE.md) | Preserved desktop version and recovery procedure |

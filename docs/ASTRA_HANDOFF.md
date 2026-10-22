@@ -54,8 +54,10 @@ the Greenhouse style for 3D items ([VISUAL_DIRECTION.md](VISUAL_DIRECTION.md)).
 
 ## Not built
 
-The host's world database (the town document still lives in the browser), the real chat
-(needs CORS in crewhub-loops, L8), the real director, and every change to crewhub-loops:
-the viewer key (L1) and the "Connect CrewHub World" button are worked proposals on the
-unpushed loops branch `world/viewer-key`, project groups (L22) are asked for. See "Open"
-in the roadmap.
+The host's world database (in progress, round 20: the town document moves from the browser
+to the host), the real director, and every change to crewhub-loops: the viewer key (L1), the
+"Connect CrewHub World" button, the chat deep link and the framing allowance are written on
+the loops branch `world/viewer-key` (on origin, under `cl-lead`'s review), the world's switch
+to it on `task/r19-viewer-switch`, and project groups (L22) are asked for. The chat itself is
+built: loops' own, framed in the Chat panel, with bubbles where the key may read the chat. See
+"Open" in the roadmap.

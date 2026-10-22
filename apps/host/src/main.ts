@@ -51,6 +51,7 @@ import { nodeWarningLine, runningNodeVersion } from "./nodeVersion.ts";
 import { type HostStep, MINT_HEADER, MINT_PATH, createHost } from "./host.ts";
 import { createStepPrinter, instructionLine, seconds, stepLine as formatStep } from "./steps.ts";
 import { createKeyStore } from "./keyStore.ts";
+import { explainSqliteWarning, openWorldDb, type WorldDb } from "./worldDb.ts";
 import { loadPairingSecret } from "./pairing.ts";
 
 const world = process.argv.includes("world");
@@ -202,6 +203,15 @@ if (args.command === "world") {
 // The sign-in road is gone (round 19): a session file an older host kept is deleted, said once.
 removeLeftoverSession(config.configDir, log);
 const pairingSecret = config.pairingFile === null ? undefined : loadPairingSecret(config.pairingFile);
+// The world database (round 20): the live town per installation, in the host's own folder. A folder or file that cannot
+// be opened is said once; the host then runs without it and every browser keeps its own town, as before.
+let worldDb: WorldDb | undefined;
+explainSqliteWarning(log);
+try {
+  worldDb = openWorldDb(config.configDir, { log });
+} catch (error) {
+  log(`world database: cannot open ${config.configDir}/world.db (${error instanceof Error ? error.message : "unknown error"}); the towns stay in the browsers`);
+}
 const mintSecret = randomBytes(32).toString("base64url");
 const listenStarted = performance.now();
 const host = await createHost({
@@ -212,6 +222,7 @@ const host = await createHost({
   ...(key === null ? {} : { key: key.key, keyName: key.keyName, keySource: key.source }),
   keyStore: createKeyStore(config.configDir),
   archiveStore: createArchiveStore(config.configDir),
+  ...(worldDb === undefined ? {} : { worldDb }),
   port: config.port,
   allowedOrigins: config.allowedOrigins,
   pairing: config.pairing,
@@ -268,7 +279,10 @@ const shutdown = () => {
   } catch {
     // Already gone.
   }
-  void host.close().then(() => process.exit(0));
+  void host.close().then(() => {
+    worldDb?.close();
+    process.exit(0);
+  });
 };
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);

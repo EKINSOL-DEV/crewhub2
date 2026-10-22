@@ -179,4 +179,9 @@ export interface HostSourceOptions {
    * its first read instead of asking the host again. Used once; the source reads its own snapshot after that.
    */
   firstSnapshot?: { body: unknown } | { response: Promise<Response> };
+  /**
+   * The host's town document changed (round 20, `{type: "town", rev}` on the stream): the town runtime refetches
+   * `/world-api/town`. Called with the host's revision; nothing else is read here.
+   */
+  onTown?: (rev: number) => void;
 }

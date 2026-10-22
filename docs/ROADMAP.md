@@ -81,10 +81,10 @@ they are not built.
 | Phase | Deliverable | Status |
 | --- | --- | --- |
 | 1. First light | `packages/loops-client`, `WorldSource`, the demo source, one building per project, navigation, hidden text view | Built in demo mode (2026-10-01); live since 2026-10-07 (against the fake) and against crewhub-loops `4cdcd383` since 2026-10-21 |
-| 2. Chat bubbles | The loops chat mirrored verbatim, backed by an in-browser demo chat API | Built in demo mode (2026-10-01). Live (2026-10-21, round 12): the Chat panel frames loops' own web app (the chip, and "Chat with <name>" on a card), on the person's own session; bubbles over the figures when an agent answers still need the person's view of DM events (road B of the spec addendum "chat with the agents") |
-| 3. Buildings | Rooms by role, tickets as objects in rooms, the ticket drone, postures and captions, the `WorldStyle` seam | Built in demo mode (2026-10-01); live from the same model, with the real lane facts on the card, a person carrying work into Done and closed buildings (2026-10-21); since round 7 a quiet ticket gathers dust and a clock tag, and an automation's run pins a card on the building's board, in the demo and live alike. Not built: the world database |
+| 2. Chat bubbles | The loops chat mirrored verbatim, backed by an in-browser demo chat API | Built in demo mode (2026-10-01). Live since round 12 (2026-10-21): the Chat panel frames loops' own web app (the chip, and "Chat with <name>" on a lead's card, since loops chats with leads only, round 13), and an agent's answer shows as a speech bubble over its figure, with a chat mark over its building from the town (round 14) and a Recent answers list (round 16; the panel in one glance, rounds 17 and 18). The bubbles come through the host: on the key road without a sign-in where loops lets the world's key read the chat (the viewer key, proven on 8292), on today's Mac app after a sign-in in the Connection panel (the session road, which `task/r19-viewer-switch` removes once loops merges the viewer key). The demo's dock feeds the same bubbles, mark and list |
+| 3. Buildings | Rooms by role, tickets as objects in rooms, the ticket drone, postures and captions, the `WorldStyle` seam | Built in demo mode (2026-10-01); live from the same model, with the real lane facts on the card, a person carrying work into Done and closed buildings (2026-10-21); since round 7 a quiet ticket gathers dust and a clock tag, and an automation's run pins a card on the building's board, in the demo and live alike. The world database's first slice (round 20) keeps the live town in the host |
 | 4. Town and dynamic pathfinding | Doors, town paths, heap A*, wait budget, detail levels, stress fixture | Built in demo mode (2026-10-01); live from the same model |
-| 5. Build mode: layout and props | Local town document with undo and export/import, prop catalogue, the `crewhub-prop/1` format and the `prop-builder` skill | Built in demo mode (2026-10-01); live mode keeps its own town document in the browser. Not built: the world database |
+| 5. Build mode: layout and props | Local town document with undo and export/import, prop catalogue, the `crewhub-prop/1` format and the `prop-builder` skill | Built in demo mode (2026-10-01); live mode keeps its own town document in the browser, per crewhub-loops installation (round 11). Since round 20 the world database keeps it in the host for every paired browser |
 | 6. Director and awareness | A scripted intent feed through the validated intent list, `where`, the settings block, the no-model-call guard | Built in demo mode (2026-10-01); `where` works live; the scripted feed in live mode built 2026-10-21 (round 11): its own opt-in, off by default, plans from the live facts, "scripted" on every intent and in the text view. Not built: the real director |
 
 Walk mode (2026-10-07, built in demo mode): the person walks a visitor figure through the town and into buildings over
@@ -136,7 +136,8 @@ host's own principal is hidden as the observer; the demo scripts its own lanes a
 figure, in the town hall and at the post office too. Measured with `tools/timeworld.mjs` against the development
 loops: the dressed town about 1.1 s after `npm run world` warm and about 2.4 s cold. Rehearsed from a fresh clone by
 a developer following the runbook: about 90 s hands on, including the loops dialog; the measure was two minutes.
-Nicky's first run against the app itself is still to come.
+Nicky's first run against the app itself came in round 11 (2026-10-21, 18:50): loops found through the app's socket,
+the key ok, the stream ok, three projects in fifteen reads.
 
 Rounds 4 to 6 (2026-10-21, until late morning): the morning was rehearsed from a fresh clone three more times, the
 sixth holding every timing (the Connect screen's first paint in about 70 ms, the paste to the Live chip in 0.83 s, a
@@ -188,16 +189,42 @@ closed building that opens and closes again. The snapshot carries what only loop
 stretches and the latest automation runs, bounded to open tickets; a `system` row never ends a stretch), so a fresh
 tab, a seek and a reconnect show the dust and the cards; and the dust is a grey veil in the style's colours with a
 few motes before the package, so a quiet package reads as quiet at the hall's zoom. The facade colour at town level
-stays Nicky's eye (two mocks on a branch that is never merged).
+was Nicky's to decide (two mocks on a branch that is never merged); he chose the soft wall tint, built fresh in round 15.
+
+Rounds 10 to 19 (2026-10-21 afternoon to 2026-10-22 morning): a seventh and an eighth fresh-clone rehearsal (rounds 10
+and 18, every timing held; the key pasted to Live in about half a second); Nicky's own run against his Crewhub.app
+(round 11), the same round making zones live (the town document per installation, by hand in build mode) and the
+scripted director live behind its own opt-in; the chat (rounds 12 to 18: the Chat panel framing loops' own web app, the
+leads-only Chat button, the bubbles proven on the real loops with a chat mark from the town, one story per road, Recent
+answers, the panel in one glance); Nicky's ten decisions answered and built (round 15: the test timeout merged, the
+third person in "Where is …?", the viewer-key switch prepared, fsevents' install scripts denied and vite 8.3.4, the
+Greenhouse models' Object3D cut pixel-identical, the soft wall tint, the bot name kept, dispatch opened on 8292); the
+tooling made safe on a shared Mac (round 16: a stale `apps/world/dist` refused by the regress pass, `vite preview` never
+proxying to 5180 by default; round 17: `npm run dev` naming its host port and refusing another checkout's host); the
+introduction `docs/INTRODUCTION.md` (round 12, current in round 18); and the switch to the viewer key (round 19, `task/r19-viewer-switch`, merged once crewhub-loops main carried
+`world/viewer-key`: the session road is gone, the key road is the one road). The night report tells each round.
 
 ## Open
 
-Everything below is planned and not built. Each item needs crewhub-loops running.
+Everything below is planned and not built, in progress, or waits on crewhub-loops. Each item needs crewhub-loops
+running.
 
-- **World database.** SQLite with migrations and backup replaces the browser's
-  IndexedDB town document (phase 3 and 5 of the plan in live form).
-- **Real chat.** The bubbles talk to crewhub-loops as the person; this needs CORS
-  for the CrewHub origin (proposal L8).
+- **World database.** First slice built on 2026-10-22 (round 20, spec addendum "the world database, first
+  slice"): the host keeps the live town document per crewhub-loops installation in `world.db` (Node 24's
+  `node:sqlite`, migrations with a backup copy, an export), every paired browser shares it, the browser's
+  IndexedDB is the demo's store and the live fallback. Open: merging concurrent edits, more than the town in it.
+- **The viewer-key switch.** The chat is built (rounds 12 to 18; phase 2 above); what remains is the key. The loops
+  branch `world/viewer-key` is on origin (crewhub-loops), 15 commits on `4cdcd383` under `cl-lead`'s review: the
+  **viewer key** (L1: an external bot flag that may read exactly the host's read list, the stream and the chat the
+  owner sees, and write nothing; until it lands the world runs on a lead-grade key behind the host's `GET`-only
+  allow-list), the **"Connect CrewHub World" card** in Settings > Agents that makes the viewer bot and shows its key
+  once with the world's address, the deep link `?chat=<agent id>` and the framing allowance for loopback origins, with
+  three proposal pages and a review page under `docs/proposals/` there. The world's side is written: the Connect screen
+  and the Key row say what a viewer key changes (round 15), and `task/r19-viewer-switch` (round 19, merged once crewhub-loops main
+  carried the branch) dropped the session road and says plainly, on a loops whose key cannot read the chat, why there
+  are no bubbles (a viewer key, by the card). What remains open here is loops' side only: the branch in loops main. A chat of the world's own in the world's page (phase 2 as first planned, which
+  needed CORS, L8) is not pursued: the Chat panel frames loops' own chat instead. The other proposals of plan section 9
+  (L2 to L8) stand as written.
 - **Real director.** The `crewhub-world` CLI, the watcher and the `world-director`
   lane, off by default, capped and measured. No model call exists today. The middle road without a
   model, the demo's scripted feed in live mode, off by default and labelled scripted on every intent
@@ -209,21 +236,18 @@ Everything below is planned and not built. Each item needs crewhub-loops running
   zones per installation so every paired browser shares them; per browser until one of the two exists.
   The per-browser road is built (2026-10-21, round 11): a live town's zones are made by hand in build
   mode as in the demo, the live town document is kept per crewhub-loops installation, and the text
-  view, the Connection panel and build mode say so.
-- **Proposals on the loops side**, worked out with tests on the unpushed branch
-  `world/viewer-key` of the world's loops checkout (nine commits on `4cdcd383`, 2026-10-21),
-  packaged for `cl-lead` in `docs/proposals/crewhub-world-viewer.md` on that branch (round 7:
-  the routes, the migration, the tests and how to try it on a dev instance) and accepted by nobody
-  yet: the **viewer key** (L1: an external bot flag that may read exactly the host's read
-  list and the stream and write nothing; until it lands the world runs on a lead-grade
-  key behind the host's `GET`-only allow-list) and, on top of it, a **"Connect CrewHub
-  World" card** in Settings > Agents that makes the viewer bot and shows its key once with
-  the world's address. The other proposals of plan section 9 (L2 to L8) stand as written.
+  view, the Connection panel and build mode say so. The second road, the host's world database keeping
+  the zones per installation so every paired browser shares them, is built too (2026-10-22, round 20,
+  the world database's first slice).
 
-Two things wait for Nicky, not for code: `--test-timeout=120000` in `npm test`, so a hung test fails by name
-(branch `task/r5-testtimeout`, unmerged); and the viewer key's merge in crewhub-loops. The Greenhouse models' Object3D
-count, the last first-paint cut, is built (round 15, Nicky's decision 7): a data model is one node holding its parts
-as data, pixel-identical by construction (`docs/WORLD_STYLES.md`, "parts as data"; the numbers in `COST_POLICY.md`).
+Nicky's ten decisions of the night document were answered and built in round 15 (2026-10-22): `--test-timeout=120000`
+in `npm test`, so a hung test fails by name, is merged (`77e4dff`, after the Node 24 preflight); "Where is …?" answers
+in the third person; the viewer-key switch is prepared and the end of the chat sign-in written; fsevents' install
+scripts are denied and vite is 8.3.4; the bot name stays `crewhub-world`; dispatch is open on 8292. What waits now is
+not Nicky's: `cl-lead`'s review of `world/viewer-key` in crewhub-loops, then the switch's merge. The Greenhouse models'
+Object3D count, the last first-paint cut, is built (round 15, Nicky's decision 7): a data model is one node holding its
+parts as data, pixel-identical by construction (`docs/WORLD_STYLES.md`, "parts as data"; the numbers in
+`COST_POLICY.md`).
 
 ## Later scope
 

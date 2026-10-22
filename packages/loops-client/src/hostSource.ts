@@ -184,7 +184,9 @@ type StreamMessage =
   | { type: "heartbeat"; seq: number; ts: string }
   | { type: "reset"; reason: string }
   /** An agent's message to the person (round 12), read by the host as the signed-in person. */
-  | { type: "chat"; chat: unknown };
+  | { type: "chat"; chat: unknown }
+  /** The installation's town document changed on the host (round 20): the town runtime refetches it. */
+  | { type: "town"; rev: unknown };
 
 /** An agent's line as the host sends it (`ChatLine` of the source, the same shape). */
 export type HostChatLine = ChatLine;
@@ -539,6 +541,10 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
         if (chat !== null) send({ type: "chat", chat });
         return "ok";
       }
+      case "town": {
+        if (typeof message.rev === "number" && Number.isInteger(message.rev) && message.rev >= 0) options.onTown?.(message.rev);
+        return "ok";
+      }
       case "event": {
         const result: Result<Envelope> = validateEnvelope(message.envelope);
         if (!result.ok) {
@@ -729,7 +735,25 @@ export async function forgetHostKey(baseUrl = "", timeoutMs = 10_000): Promise<H
   return hostRequest("DELETE", `${baseUrl}${PREFIX}/connect`, null, timeoutMs);
 }
 
-async function hostRequest(method: "POST" | "DELETE", url: string, body: string | null, timeoutMs: number): Promise<HostAnswer> {
+/**
+ * `GET /world-api/town` (round 20, the world database): the installation's town as the host has it,
+ * `{installation, rev, updatedAt, document}`; 404 `no_town` when the host has none; 503 while the host has no loops or
+ * no database. Never throws.
+ */
+export async function readHostTown(baseUrl = "", timeoutMs = 10_000): Promise<HostAnswer> {
+  return hostRequest("GET", `${baseUrl}${PREFIX}/town`, null, timeoutMs);
+}
+
+/**
+ * `PUT /world-api/town {document, baseRev}`: a revision over the one the browser read (`baseRev` 0 creates). 200
+ * `{rev}`; 409 `town_conflict {rev, document}` when another browser wrote first (the host's town comes back with it,
+ * never overwritten). Same origin; the browser sends the Origin header on a PUT by itself. Never throws.
+ */
+export async function writeHostTown(document: unknown, baseRev: number, baseUrl = "", timeoutMs = 15_000): Promise<HostAnswer> {
+  return hostRequest("PUT", `${baseUrl}${PREFIX}/town`, JSON.stringify({ document, baseRev }), timeoutMs);
+}
+
+async function hostRequest(method: "GET" | "POST" | "PUT" | "DELETE", url: string, body: string | null, timeoutMs: number): Promise<HostAnswer> {
   try {
     const response = await fetch(url, {
       method,

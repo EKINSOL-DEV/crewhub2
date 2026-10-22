@@ -29,6 +29,8 @@ export type HostMessage =
   | { type: "heartbeat"; seq: number; ts: string }
   /** An agent's message to the person, read by the host with its own key where loops lets it (chatLine.ts): a bubble. */
   | { type: "chat"; chat: ChatLine }
+  /** The installation's town document changed on the host (round 20, worldDb.ts): the browsers refetch `/world-api/town`. */
+  | { type: "town"; rev: number }
   | { type: "reset"; reason: "gone" | "reconnected" | "cursor" };
 
 export interface UpstreamOptions {

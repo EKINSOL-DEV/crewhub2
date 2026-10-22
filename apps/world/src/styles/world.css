@@ -887,10 +887,11 @@
   .world-corner {
     top: var(--space-3);
   }
-  /* The right corner is four 40 px buttons with no gap (10.25rem with its border); the left corner keeps clear of it. */
+  /* The right corner is five 40 px buttons with no gap (12.75rem with its border; the "?" menu came in round 20); the left
+     corner keeps clear of it. */
   .world-corner-left {
     left: var(--space-3);
-    max-width: calc(100% - 2 * var(--space-3) - 10.25rem - var(--space-2));
+    max-width: calc(100% - 2 * var(--space-3) - 12.75rem - var(--space-2));
   }
   .world-corner-right {
     right: var(--space-3);
@@ -2667,4 +2668,80 @@ a.agent-ticket-link:focus-visible {
   border-radius: var(--radius-sm, 6px);
   background: var(--surface);
   color: var(--text);
+}
+
+/* ── The introduction inside the world (round 20): a ring around the step's element and a small card beside it ─────────
+   Nothing is dimmed and nothing moves the camera; the card is placed by state/tour.ts placeStep so it never covers what
+   it describes. The ring and the card are fixed to the viewport, above every sheet and under a menu. */
+.tour {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-drawer);
+  pointer-events: none;
+}
+.tour-spot {
+  position: fixed;
+  border: 2px solid var(--focus);
+  border-radius: var(--radius-md);
+  box-shadow: 0 0 0 2px var(--surface);
+  pointer-events: none;
+  transition: left 200ms var(--ease), top 200ms var(--ease), width 200ms var(--ease), height 200ms var(--ease);
+}
+.tour-card {
+  position: fixed;
+  pointer-events: auto;
+  width: min(22rem, calc(100vw - 2rem));
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  background: var(--surface-raised);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  transition: left 200ms var(--ease), top 200ms var(--ease);
+}
+.tour-count {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+.tour-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+.tour-text {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal, 1.45);
+}
+.tour-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.tour-actions-main {
+  display: inline-flex;
+  gap: var(--space-2);
+}
+.tour[data-reduced-motion] .tour-spot,
+.tour[data-reduced-motion] .tour-card {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tour-spot,
+  .tour-card {
+    transition: none;
+  }
+}
+@media (max-width: 600px) {
+  .tour-card {
+    width: calc(100vw - 2rem);
+  }
+}
+.settings-tour {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
 }

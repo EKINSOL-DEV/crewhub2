@@ -355,6 +355,40 @@ if (opts.demo) {
     ok("demo: the labels came", false, error.message.split("\n")[0]);
   }
   await p.context().close();
+  // The introduction inside the world (round 20), asked for with ?tour=on (a tool's browser never gets it by itself).
+  const r = await open("light", 1440, { url: `${opts.base}?tour=on` });
+  try {
+    await r.waitForSelector(".tour-card", { timeout: 20000 });
+    await r.waitForTimeout(300);
+    writeFileSync(`${outDir}tour-light-1440.txt`, await r.locator(".tour-card").ariaSnapshot());
+    const named = await r.evaluate(() => {
+      const d = document.querySelector(".tour-card");
+      const title = document.getElementById(d?.getAttribute("aria-labelledby") ?? "")?.textContent ?? "";
+      const text = document.getElementById(d?.getAttribute("aria-describedby") ?? "")?.textContent ?? "";
+      return { role: d?.getAttribute("role"), title, text, focusIn: d?.contains(document.activeElement) === true };
+    });
+    ok("tour: the card is a dialog named by the step's title and described by its sentence, the highlighted element named", named.role === "dialog" && named.title === "The town" && /Highlighted on the screen: CrewHub World\./.test(named.text), named.text.slice(-60));
+    ok("tour: the focus is in the card when it opens", named.focusIn);
+    // The focus opens on Next, the card's last control; from Skip, Tab goes straight to Next (Back is disabled on step 1).
+    await r.getByRole("button", { name: "Skip" }).focus();
+    const skipStyle = await r.evaluate(() => { const el = document.activeElement; const st = el ? getComputedStyle(el) : null; return !!st && ((st.outlineStyle !== "none" && parseFloat(st.outlineWidth) > 0) || (st.boxShadow !== "none" && st.boxShadow !== "")); });
+    const stops = await tabOrder(r, 1);
+    ok("tour: Tab goes from Skip to Next (Back is disabled on step 1), both with a focus style", skipStyle && stops[0]?.name === "Next" && stops[0].focusStyle === true, `skip style ${skipStyle}; then ${stops.map((s) => `${s.role}:${s.name}`).join(" → ")}`);
+    const low = (await contrast(r, [".tour-count", ".tour-title", ".tour-text", ".tour-card .btn", ".tour-card .btn-primary"])).filter((c) => !enough(c));
+    ok("tour: the card's text contrast", low.length === 0, low.map((c) => `${c.selector} ${c.ratio}:1`).join("; "));
+    await r.getByRole("button", { name: "Next" }).click();
+    await r.waitForTimeout(300);
+    const spot = await r.locator(".tour-spot").boundingBox();
+    const jump = await r.locator(".jump-button").boundingBox();
+    ok("tour: step 2 rings the jump list button", !!spot && !!jump && spot.x <= jump.x && spot.x + spot.width >= jump.x + jump.width);
+    await r.keyboard.press("Escape");
+    await r.waitForTimeout(200);
+    ok("tour: Escape closes it and the focus lands on a control (the ? button when nothing else)", (await r.locator(".tour-card").count()) === 0 && (await r.evaluate(() => document.activeElement !== document.body && document.activeElement !== null)));
+    ok("tour: Skip or Escape is remembered in this browser", (await r.evaluate(() => localStorage.getItem("crewhub-world.tour"))) === "done");
+  } catch (error) {
+    ok("tour: the card came", false, error.message.split("\n")[0]);
+  }
+  await r.context().close();
   // Dark theme and reduced motion over the same building: the labels' contrast and the pinned card still.
   const q = await open("dark", 1440, { reducedMotion: "reduce", url: `${opts.base}?rooms=three` });
   try {

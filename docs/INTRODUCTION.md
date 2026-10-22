@@ -279,9 +279,9 @@ and loops upgraded (the panel names the old and the new version). A regress grou
 
 ## 6. The chat, as built
 
-The world's own chat is phase 2 of the plan and needs CORS in loops (L8), which does not exist at `4cdcd383`; the demo
-keeps a scripted dock whose replies feed the same bubbles, chat mark and Recent answers as live (round 17). For live
-mode, round 12 built **road A**: a **Chat panel** that frames
+A chat of the world's own in the world's page, phase 2 as first planned, would need CORS in loops (L8), which does not
+exist at `4cdcd383`, so the chat was built another way; the demo keeps a scripted dock whose replies feed the same
+bubbles, chat mark and Recent answers as live (round 17). For live mode, round 12 built **road A**: a **Chat panel** that frames
 crewhub-loops' own web app in the world (`apps/world/src/components/ChatPanel.tsx`, `state/chatPanel.ts`). It opens from
 the Chat chip at the top right of a live town and from an agent's card ("Chat with <name>"). Inside the frame is loops'
 own app shell with its chat dock, so the chat is exactly loops' because it is loops: the person is signed in to loops in
@@ -341,6 +341,14 @@ the second person is kept for an agent asking about itself, which nothing does t
 list (`/`) names every building; Details (D) shows every label; W begins walk mode;
 Escape backs out of anything.
 
+**The introduction inside the world** (round 20): the first time a browser opens the world (demo or live) a tour of six
+short steps stands over the real UI, one sentence each, in this document's words: the town, a building and its three
+rooms, a figure's card, the chat, the text view, the connection (the Demo chip in the demo). Next, Back, Skip; Escape
+skips; the focus moves into the card and back; the ringed element is named to a screen reader; the card never covers what
+it describes, on a phone either; nothing moves the camera. After Skip or Done it stays away in that browser (a private
+window shows it again); Settings › Show the introduction and the "?" in the toolbar bring it back, and the "?" also opens
+this document on GitHub. A browser driven by a tool never gets it unless asked (`?tour=on`).
+
 What a screen reader is given was checked in round 8 and again after each chat round (`tools/a11y.mjs`, 163 checks in
 round 17): one live region per Connect screen that says
 the screen once and nothing that ticks; a connection change over the town said once; the Connection panel's facts as a
@@ -352,10 +360,10 @@ and the person land at once, the checking icon stops, the dust shows no motes). 
 
 ## 8. What is proposed on the loops side, and why
 
-Nothing of this is merged in crewhub-loops. It lives on the branch `world/viewer-key` of a loops checkout (fifteen
-commits on `4cdcd383` when this was written), with tests, three proposal pages and a review page for `cl-lead` under
-`docs/proposals/` there. The second development loops (8292) runs that branch. The world runs without any of it; each
-item would make it more honest or more direct.
+Nothing of this is merged in crewhub-loops. It lives on crewhub-loops' branch `world/viewer-key`, on origin under
+`cl-lead`'s review (fifteen commits on `4cdcd383`), with tests, three proposal pages and a review page for `cl-lead`
+under `docs/proposals/` there. The second development loops (8292) runs that branch. The world runs without any of
+it; each item would make it more honest or more direct.
 
 - **The viewer key** (gap L1; `crewhub-world-viewer.md`). A third kind of external bot, `agents.viewer`: its key opens
   exactly the table of `GET` routes the world's host reads, for the whole installation, and nothing else; every other
@@ -378,8 +386,8 @@ item would make it more honest or more direct.
   not need, and the person's chat is the clearest case. **These asks are code on `world/viewer-key` now**: the deep link
   `?chat=<agent id>` (cb163004), the framing allowance for loopback origins (`frame-ancestors`, 41c8d102), and the
   viewer key's read of the chat the owner sees, never a send (79cb36a8), each small, tested and reversible, with a review
-  page for cl-lead (`crewhub-world-viewer-cl-lead.md`); crewy pushes the branch when Nicky says. The real bubble was
-  proven on that loops in round 14 and again in round 16.
+  page for cl-lead (`crewhub-world-viewer-cl-lead.md`); the branch is on origin since round 19. The real bubble was
+  proven on that loops in rounds 14, 16 and 18.
 - **The older proposals** of the plan (L2 to L8, L22: project groups) stand as written in
   [LOOPS_GAP_ANALYSIS.md](LOOPS_GAP_ANALYSIS.md), section 6.
 
@@ -389,7 +397,8 @@ item would make it more honest or more direct.
   order, the events.
 - [LOOPS_SETUP.md](LOOPS_SETUP.md): the runbook for the Mac app; the morning in three steps, then the reference (the
   env, the commands, the health read, what each chip and screen means, the developers' private loops).
-- [ROADMAP.md](ROADMAP.md): what is built, in demo and live mode, round by round; what is open; what waits for Nicky.
+- [ROADMAP.md](ROADMAP.md): what is built, in demo and live mode, round by round; what is open; what waits on
+  crewhub-loops.
 - [The night report](reports/2026-10-01-world-demo-night.md): what was built per round, how it was verified, and the
   challenges met in loops' integrator docs.
 - [The demo-mode spec and its addenda](superpowers/specs/2026-10-01-world-demo-mode-design.md): the design of every

@@ -1,5 +1,5 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type Ref } from "react";
-import { ArrowLeft, ChevronRight, Eye, FlaskConical, Hammer, MessageCircle, Minus, Monitor, Moon, Pause, Plus, RotateCcw, RotateCw, Footprints, Scan, Search, Settings, Sun, Tags, X } from "lucide-react";
+import { ArrowLeft, BookOpen, ChevronRight, CircleHelp, Eye, FlaskConical, Hammer, MessageCircle, Minus, Monitor, Moon, Pause, Plus, RotateCcw, RotateCw, Footprints, Scan, Search, Settings, Sun, Tags, X } from "lucide-react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { agentCardFacts, archivedWords, CIVIC_WORDS, describeTownDocument, describeWorld, roleWords, ruleProps, zoningOf, type AgentPlacement, type CivicWords, type PlaybackControls, type PlaybackSpeed, type RoleId, type RoomKind, type RoomWording, type TextLine, type WorldModel } from "@crewhub/world-model";
 import type { PropModel } from "@crewhub/world-engine";
@@ -9,6 +9,8 @@ import { SourceSettings } from "./components/SourceSettings";
 import { ConnectionChip, connectionLine, connectionWord } from "./components/ConnectionChip";
 import { ConnectionPanel } from "./components/ConnectionPanel";
 import { ChatPanel } from "./components/ChatPanel";
+import { Tour } from "./components/Tour";
+import { INTRODUCTION_URL, readTourDone, tourShouldStart, writeTourDone } from "./state/tour";
 import { chatPlaceLine } from "./state/chatPanel";
 import { FirstSnapshot } from "./components/FirstSnapshot";
 import { CONNECT_POLL_MS, ConnectPage } from "./components/ConnectPage";
@@ -28,7 +30,7 @@ import { useAmbient } from "./state/ambient";
 import { useCast } from "./state/cast";
 import { castRegistry } from "./world/cast";
 import { describeCasts } from "./world/castText";
-import { describeZones } from "./world/zoneText";
+import { describeZones, townKeeping, townKeepingWords } from "./world/zoneText";
 import { styleRegistry } from "./world/style";
 import { crumbs, districtsOf, homeName, isRegion, jumpEntries, needsOf, needsWords, stepOut, summarise, summaryWords, type Crumb, type DistrictPlace, type JumpEntry, type Place } from "./world/wayfinding";
 import { toggleDetails, useDetails } from "./state/details";
@@ -108,6 +110,11 @@ function World() {
   const [textOpen, setTextOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [connectionOpen, setConnectionOpen] = useState(false);
+  // The introduction inside the world (round 20): open by itself once per browser, or from Settings and the "?" menu.
+  const [tourOpen, setTourOpen] = useState(false);
+  const tourAsked = useRef(false);
+  /** Where the focus goes when the tour closes: the Settings button when Settings opened it (its own button is gone with the sheet). */
+  const tourReturn = useRef<HTMLElement | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const [action, setAction] = useState<{ id: number; type: CameraAction }>({ id: 0, type: "home" });
   const [room, setRoom] = useState<RoomKind | null>(null);
@@ -204,6 +211,7 @@ function World() {
       }),
       ...describeZones({
         mode: model.mode,
+        kept: townKeeping(town.storage, model.mode),
         zones: model.zones,
         buildings: model.buildings,
         plots: town.doc.plots,
@@ -212,6 +220,7 @@ function World() {
       }),
       ...describePlan(plan, (slug) => model.buildings.find((b) => b.slug === slug)?.name ?? slug),
       ...describeTownDocument(town.doc, town.catalogue, { ruleProps: rules, invalidRequests: town.invalid, rooms }),
+      ...(model.mode === "live" ? [{ section: "Town document", text: `The town document is ${townKeepingWords(townKeeping(town.storage, model.mode)).charAt(0).toLowerCase()}${townKeepingWords(townKeeping(town.storage, model.mode)).slice(1)}`, kind: "fact" as const }] : []),
       ...(town.storageNote ? [{ section: "Town document", text: town.storageNote, kind: "fact" as const }] : []),
     ],
     [textShown, text, civic, rooms, cast, town.doc, town.catalogue, rules, town.invalid, model.zones, model.buildings, plan, said],
@@ -469,6 +478,16 @@ function World() {
     setSettingsOpen(false);
     returnFocus.current?.focus();
   }, []);
+  /** "Show the introduction": from Settings (which closes first, so the tour's card stands over the town) or the "?" menu. */
+  const openTour = useCallback(() => {
+    tourReturn.current = settingsOpen ? returnFocus.current : null;
+    setSettingsOpen(false);
+    setTourOpen(true);
+  }, [settingsOpen]);
+  const closeTour = useCallback(() => {
+    writeTourDone();
+    setTourOpen(false);
+  }, []);
   // The Connection panel (live mode): the chip opens it; Escape and its close button return the focus to the chip.
   const openConnection = useCallback(() => {
     returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -498,6 +517,12 @@ function World() {
   // Keys that work anywhere outside a text field: T, Escape and Backspace, and the camera keys.
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
+      // The introduction: Escape skips it wherever the focus is (the card handles it itself while the focus is inside).
+      if (tourOpen && e.key === "Escape" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        closeTour();
+        return;
+      }
       // The jump list opens from anywhere, a text field included (Cmd or Ctrl+K types nothing).
       if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "k" && !editing) {
         e.preventDefault();
@@ -624,7 +649,7 @@ function World() {
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [back, build, camera, card, chat, closeChat, closeConnection, closeJump, closeSettings, closeText, connectionOpen, editing, entered, follow, following, go, graphicsFailed, here, inside, jumpOpen, openJump, openText, redo, rooms, selectedAgent, selection.selected, settingsOpen, startWalk, stopWalk, textOpen, undo, walking, zoomed]);
+  }, [back, build, camera, card, chat, closeChat, closeConnection, closeJump, closeSettings, closeText, closeTour, connectionOpen, editing, entered, follow, following, go, graphicsFailed, here, inside, jumpOpen, openJump, openText, redo, rooms, selectedAgent, selection.selected, settingsOpen, startWalk, stopWalk, textOpen, tourOpen, undo, walking, zoomed]);
 
   // Arrow keys and Enter move the focus ring between plots while the scene has keyboard focus.
   const sceneKey = (e: ReactKeyboardEvent) => {
@@ -728,6 +753,19 @@ function World() {
       clearInterval(timer);
     };
   }, [degraded]);
+  // The tour starts by itself once the town stands (a short beat after the model has buildings, or at once in the demo),
+  // never over a Connect screen, a dialog or a failed scene, never for a tool's browser, never again after Skip or Done.
+  const dialogOpen = settingsOpen || jumpOpen || connectionOpen || chat !== null || card || textOpen || build.state.on || editing !== null;
+  const townStands = demo || model.buildings.length > 0;
+  useEffect(() => {
+    if (tourAsked.current || !townStands || screen !== null) return;
+    const timer = setTimeout(() => {
+      if (tourAsked.current) return;
+      tourAsked.current = true;
+      if (tourShouldStart({ done: readTourDone(), webdriver: navigator.webdriver === true, search: location.search, screenShown: screen !== null, dialogOpen, graphicsFailed })) setTourOpen(true);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [townStands, screen, dialogOpen, graphicsFailed]);
   if (screen !== null) return <ConnectPage screen={screen} health={health} onHealth={setHealth} />;
 
   return (
@@ -797,7 +835,9 @@ function World() {
 
       {jumpOpen && <JumpList entries={jumps} onJump={jump} onClose={closeJump} />}
 
-      <CornerTools theme={theme} cycle={cycle} details={details} buildOn={build.state.on} toggleBuild={build.toggle} settingsOpen={settingsOpen} openSettings={openSettings} closeSettings={closeSettings} graphicsFailed={graphicsFailed} />
+      <CornerTools theme={theme} cycle={cycle} details={details} buildOn={build.state.on} toggleBuild={build.toggle} settingsOpen={settingsOpen} openSettings={openSettings} closeSettings={closeSettings} graphicsFailed={graphicsFailed} openTour={openTour} />
+
+      {tourOpen && <Tour mode={demo ? "demo" : "live"} reducedMotion={reducedMotion} returnTo={tourReturn.current} onClose={closeTour} />}
 
       {settingsOpen && (
         <Card ref={settingsCard} className="world-sheet settings-sheet" role="dialog" aria-labelledby="settings-title">
@@ -807,6 +847,12 @@ function World() {
             action={<Button variant="ghost" size="sm" iconOnly aria-label="Close settings" icon={<X className="icon" aria-hidden="true" />} onClick={closeSettings} />}
           />
           <Card.Body>
+            <div className="settings-tour">
+              <Button size="sm" icon={<BookOpen className="icon icon-sm" aria-hidden="true" />} onClick={openTour}>
+                {translate("world.tour.show")}
+              </Button>
+              <span className="hint">{translate("world.tour.showHint")}</span>
+            </div>
             <SourceSettings />
             <RoleSettings model={model} overrides={overrides} onChange={setOverrides} />
             <TownSettings town={town} />
@@ -1054,8 +1100,9 @@ const CornerTools = memo(function CornerTools(props: {
   openSettings: () => void;
   closeSettings: () => void;
   graphicsFailed: boolean;
+  openTour: () => void;
 }) {
-  const { theme, cycle, details, buildOn, toggleBuild, settingsOpen, openSettings, closeSettings, graphicsFailed } = props;
+  const { theme, cycle, details, buildOn, toggleBuild, settingsOpen, openSettings, closeSettings, graphicsFailed, openTour } = props;
   const ThemeIcon = THEME_ICON[theme];
   return (
     <div className="world-corner world-corner-right" data-chrome="">
@@ -1082,6 +1129,16 @@ const CornerTools = memo(function CornerTools(props: {
           onClick={toggleBuild}
         />
       )}
+      <Menu
+        name={translate("world.tour.help")}
+        className="help-menu"
+        align="end"
+        trigger={{ variant: "ghost", iconOnly: true, ariaLabel: translate("world.tour.help"), label: translate("world.tour.help"), icon: <CircleHelp className="icon" aria-hidden="true" /> }}
+        items={[
+          { label: translate("world.tour.show"), hint: translate("world.tour.showHint"), onSelect: openTour },
+          { label: translate("world.tour.read"), hint: translate("world.tour.readHint"), onSelect: () => void window.open(INTRODUCTION_URL, "_blank", "noopener,noreferrer") },
+        ]}
+      />
       <Button variant="ghost" iconOnly aria-label="Settings" title="Settings" expanded={settingsOpen} icon={<Settings className="icon" aria-hidden="true" />} onClick={settingsOpen ? closeSettings : openSettings} />
     </div>
   );
