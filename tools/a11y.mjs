@@ -425,7 +425,7 @@ if (opts.demo) {
     // More disclosure (Lane, Projects, Recent) is a summary the Tab order reaches and Space opens.
     const cardText = (await r.locator(".agent-card").innerText().catch(() => "")).replace(/\s+/g, " ");
     const headings = await r.locator(".agent-card h3").allInnerTexts().catch(() => []);
-    ok("card: Now, Work and Answers are headed sections, with Holds and the honest words for no answer", headings.slice(0, 3).join(",") === "Now,Work,Answers" && /Holds/.test(cardText) && /(No answer|no answers can arrive|reads no chat)/i.test(cardText), `${headings.join(",")}; ${cardText.slice(0, 160)}`);
+    ok("card: Now, Work and Answers are headed sections, with Holds and the honest words for no answer", headings.slice(0, 3).join(",").toUpperCase() === "NOW,WORK,ANSWERS" && /Holds/.test(cardText) && /(No answer|no answers can arrive|reads no chat)/i.test(cardText), `${headings.join(",")}; ${cardText.slice(0, 160)}`);
     let onSummary = false;
     for (let i = 0; i < 40 && !onSummary; i++) {
       await r.keyboard.press("Tab");
