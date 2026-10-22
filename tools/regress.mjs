@@ -85,8 +85,11 @@
            3 checks on pages of their own), and walk mode in through the front door into Administration and on to the
            floor, steered stop by stop (`walkTo`: the keys push on screen, so the wanted direction is turned through
            the camera's yaw and held in bounded bursts; --cpu-throttle 16 is the slow machine it must hold on). About 45 s.
-     real  live mode against the REAL development crewhub-loops (tools/loops-dev.sh, 127.0.0.1:8291): it reads
-           --loops-env (default: the first tools/out/loops-dev.env of this worktree, the main checkout or
+     real  live mode against the REAL development crewhub-loops (tools/loops-dev.sh, 127.0.0.1:8291 by default; --loops main
+           or CREWHUB_REGRESS_LOOPS=main picks the instance from crewhub-loops main, 8293: its env file is
+           tools/out/loops-dev-main.env, its folder ~/crewhub-loops-dev-main, its socket there; any other name the same
+           way with that suffix; the connect group's real half follows the same choice): it reads
+           --loops-env (default: the first tools/out/loops-dev<-name>.env of this worktree, the main checkout or
            ~/Documents/GitHub/crewhub2-world-demo; LOOPS_DEV_URL and LOOPS_DEV_KEY_FILE, the admin lines are never
            read), skips cleanly with one INFO line when that loops does not answer (counted as neither pass nor fail),
            else starts its own host on --host-port against it with that key (so Vite must have been started with
@@ -99,7 +102,9 @@
            snapshot has the same projects as over TCP; skipped with an INFO line when there is no socket at that path.
            Round 7: the host's `loopsCommit` is what that loops' own health says as `version`, and the panel names it
            (what 8291 can show without being stopped; the stop/start, revoke and upgrade roads are the ops group's).
-           Under a minute. Run it while no other host of yours is open against that loops (4 streams per key).
+           Round 29: the chat road matches the key: a viewer key (loops main, --loops main) gives session key, the
+           Connection panel's Chat section on the key road and the archived projects from loops' list; a plain external
+           bot's key gives no session, the no-chat road and the archived projects from the log. Under a minute. Run it while no other host of yours is open against that loops (4 streams per key).
    --cpu-throttle <rate> slows every page's CPU that many times (the browser's own throttle): the timed checks must
    hold at 16. Besides the checks it fails on any page error, console error or request that leaves the page's own
    origin, and on a group that stops before its end.
@@ -120,8 +125,8 @@ import { createLoopsWebStub } from "./lib/loopsWebStub.mjs";
 
 // The connect group first: the connection is the first priority, so a default pass fails on it first.
 const GROUPS = ["connect", "walk", "demo", "tour", "live", "town", "ops", "chat", "rooms", "real"];
-const USAGE = "node tools/regress.mjs --port <port> [--groups walk,demo,tour,live,town,ops,chat,connect,rooms,real] [--host-port 5180] [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--cpu-throttle <rate>] [--tag pass] [--out <dir>] [--swiftshader]";
-const opts = cli(USAGE, { options: { tag: "pass", groups: GROUPS.join(","), "host-port": "5180", "loops-env": "", "loops-socket": "", "loops-app-data": "", "cpu-throttle": "1" } });
+const USAGE = "node tools/regress.mjs --port <port> [--groups walk,demo,tour,live,town,ops,chat,connect,rooms,real] [--host-port 5180] [--loops dev|main] [--loops-env <file>] [--loops-socket <path>] [--loops-app-data <dir>] [--cpu-throttle <rate>] [--tag pass] [--out <dir>] [--swiftshader]";
+const opts = cli(USAGE, { options: { tag: "pass", groups: GROUPS.join(","), "host-port": "5180", loops: "", "loops-env": "", "loops-socket": "", "loops-app-data": "", "cpu-throttle": "1" } });
 const cpuThrottle = Number(opts["cpu-throttle"]);
 if (!(cpuThrottle >= 1)) opts.fail("--cpu-throttle <rate> must be 1 (none) or more");
 const groups = list(opts.groups, GROUPS, opts.fail, "group");
@@ -191,7 +196,7 @@ const noteLoops = (made) => {
   loopsOrigins.add(made.url);
   return made;
 };
-/** The real development loops of a run (the connect group's 8291 half, the real group): the page's probe asks it too. */
+/** The real development loops of a run (the connect group's real half, the real group): the page's probe asks it too. */
 const noteLoopsUrl = (url) => {
   try {
     loopsOrigins.add(new URL(url).origin);
@@ -2065,20 +2070,21 @@ await group("connect", async () => {
     })();
     const loopback = parsed !== null && parsed.protocol === "http:" && ["127.0.0.1", "localhost"].includes(parsed.hostname) && parsed.port !== "";
     if (!loopback || keyFile === "") {
-      info(`connect: the 8291 half skipped, no loopback LOOPS_DEV_URL and LOOPS_DEV_KEY_FILE in ${envFile}`);
+      info(`connect: the real half skipped, no loopback LOOPS_DEV_URL and LOOPS_DEV_KEY_FILE in ${envFile}`);
       return;
     }
     const appData = loopsAppData();
     if (!existsSync(path.join(appData, "settings.json"))) {
-      info(`connect: the 8291 half skipped, no settings.json in ${appData} (--loops-app-data names the development loops' data folder)`);
+      info(`connect: the real half skipped, no settings.json in ${appData} (--loops-app-data names the development loops' data folder)`);
       return;
     }
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
     const pg = await ctx.newPage();
-    watch(pg, origin, own, "connect 8291");
+    const half = (words) => `connect (${parsed.port}): ${words}`;
+    watch(pg, origin, own, `connect ${parsed.port}`);
     const health = await pg.request.get(`${loopsUrl}/api/health`, { timeout: 2000 }).then((r) => (r.ok() ? r.json() : null)).catch(() => null);
     if (!health?.ok) {
-      info(`connect: the 8291 half skipped, ${parsed.port} is down`);
+      info(`connect: the real half skipped, ${parsed.port} is down`);
       await ctx.close();
       return;
     }
@@ -2091,7 +2097,7 @@ await group("connect", async () => {
     };
     let key = readKey(keyFile);
     if (key === "") {
-      info(`connect: the 8291 half skipped, cannot read the key file named by ${envFile}`);
+      info(`connect: the real half skipped, cannot read the key file named by ${envFile}`);
       await ctx.close();
       return;
     }
@@ -2130,8 +2136,7 @@ await group("connect", async () => {
       const landed = new URL(pg.url());
       const connect = await screen(pg, "connect", 20000);
       const first = await hostApi("/health").catch(() => null);
-      ok(
-        "connect (8291): the one-time link lands on the Connect screen of a keyless host that found loops",
+      ok(half("the one-time link lands on the Connect screen of a keyless host that found loops"),
         landed.pathname === "/" && landed.origin === origin && connect && first?.paired === true && first?.connection?.discovery?.state === "found" && first?.connection?.key?.state === "none",
         `${landed.pathname}; loops ${first?.connection?.discovery?.state} via ${first?.connection?.discovery?.via}, key ${first?.connection?.key?.state}`,
       );
@@ -2142,7 +2147,7 @@ await group("connect", async () => {
         await paste(pg, readonlyKey);
         await pg.waitForFunction(() => /Read only/.test(document.querySelector(".connect-rejected")?.textContent ?? ""), null, { timeout: 20000 }).catch(() => {});
         const roReason = await reasonText(pg);
-        ok("connect (8291): a Read only bot's key is refused with the words to make one with Read only off", /Read only/.test(roReason) && /"Read only" off/.test(roReason) && !(await leaked(pg, readonlyKey)), roReason.slice(0, 140));
+        ok(half("a Read only bot's key is refused with the words to make one with Read only off"), /Read only/.test(roReason) && /"Read only" off/.test(roReason) && !(await leaked(pg, readonlyKey)), roReason.slice(0, 140));
         readonlyKey = "";
       }
       const bogus = "chl_" + randomBytes(33).toString("base64url").slice(0, 43);
@@ -2150,21 +2155,21 @@ await group("connect", async () => {
       await pg.waitForFunction(() => /does not know/.test(document.querySelector(".connect-rejected")?.textContent ?? ""), null, { timeout: 20000 }).catch(() => {});
       const bogusReason = await reasonText(pg);
       const usable = (await screen(pg, "connect", 2000)) && (await keyField(pg).count()) === 1 && (await keyField(pg).isEnabled().catch(() => false));
-      ok("connect (8291): a key loops does not know is refused and the screen stays usable", /does not know this key/.test(bogusReason) && usable, bogusReason.slice(0, 100));
+      ok(half("a key loops does not know is refused and the screen stays usable"), /does not know this key/.test(bogusReason) && usable, bogusReason.slice(0, 100));
       await shot(pg, "43-connect-real-refused");
       await paste(pg, key);
       await pg.waitForSelector("canvas", { timeout: 60000 }).catch(() => {});
       const live = await until(pg, "live", 30000);
       const marker = await marked(pg);
       const stored = existsSync(keyPath);
-      ok("connect (8291): the pasted key connects: the Live chip without a reload, the key stored by the host", live === "live" && marker === "set" && stored, `${live}, marker ${marker}, stored ${stored}`);
+      ok(half("the pasted key connects: the Live chip without a reload, the key stored by the host"), live === "live" && marker === "set" && stored, `${live}, marker ${marker}, stored ${stored}`);
       await dressed(pg, 30000).catch(() => {});
       await shot(pg, "44-connect-real-live");
       const snapshot = await hostApi("/snapshot").catch(() => null);
       const names = (snapshot?.projects ?? []).map((p) => `${p.name} (${p.key})`);
       const tv = await text(pg);
-      ok("connect (8291): the town shows the real projects by name", names.length > 0 && names.every((n) => tv.includes(n)) && !/Demo mode/.test(tv), names.join(", ") || tv.slice(0, 120).replace(/\n/g, " | "));
-      ok("connect (8291): the key is in no DOM, storage or URL", !(await leaked(pg, key)));
+      ok(half("the town shows the real projects by name"), names.length > 0 && names.every((n) => tv.includes(n)) && !/Demo mode/.test(tv), names.join(", ") || tv.slice(0, 120).replace(/\n/g, " | "));
+      ok(half("the key is in no DOM, storage or URL"), !(await leaked(pg, key)));
       // The host stopped and started again, as the morning after: the stored key and the same secret file, so the tab
       // is Live again without a new link.
       await host.close();
@@ -2176,8 +2181,7 @@ await group("connect", async () => {
       const again = await until(pg, "live", 30000);
       const marker2 = await marked(pg);
       const after = await hostApi("/health").catch(() => null);
-      ok(
-        "connect (8291): a restarted host with the kept pairing secret is Live again without a re-pair",
+      ok(half("a restarted host with the kept pairing secret is Live again without a re-pair"),
         again === "live" && marker2 === "set" && after?.paired === true && after?.connection?.key?.state === "ok" && after?.connection?.key?.source === "stored",
         `${atStop} at the stop, ${again} ${((Date.now() - restarted) / 1000).toFixed(1)} s after the new host; key ${after?.connection?.key?.state} (${after?.connection?.key?.source}), marker ${marker2}`,
       );
@@ -2188,7 +2192,7 @@ await group("connect", async () => {
       await pg.getByRole("button", { name: "Forget", exact: true }).click();
       const forgot = await screen(pg, "connect", 20000);
       const fileGone = !existsSync(keyPath);
-      ok("connect (8291): Forget this key hands the Connect screen back and the stored key is gone", forgot && fileGone, `screen ${forgot ? "connect" : "not connect"}, file gone ${fileGone}`);
+      ok(half("Forget this key hands the Connect screen back and the stored key is gone"), forgot && fileGone, `screen ${forgot ? "connect" : "not connect"}, file gone ${fileGone}`);
       await shot(pg, "46-connect-real-forgotten");
     } finally {
       key = "";
@@ -2519,8 +2523,19 @@ await group("real", async () => {
     await chip.click();
     await pg.waitForSelector(".connection-sheet", { timeout: 5000 }).catch(() => {});
     const facts = (await pg.locator(".connection-facts").innerText().catch(() => "")).replace(/\s+/g, " ");
+    const road = await pg.locator(".connection-chat").getAttribute("data-road").catch(() => null);
     await pg.keyboard.press("Escape");
     await pg.waitForTimeout(200);
+    // Round 29: the chat road and the archive source match the key: a viewer key (crewhub-loops main, --loops main)
+    // reads the chat (session key, the Chat section on the key road) and lists the archived projects (includeArchived
+    // answers 200 for a viewer, #965); a plain external bot's key reads no chat and the archive comes from the log.
+    const viewer = after.connection?.session?.state === "key";
+    const archivedSource = after.connection?.archived?.source;
+    ok(
+      `real: the chat road and the archive source match the key: ${viewer ? "a viewer key reads the chat (session key, the Chat section on the key road) and lists the archived projects" : "a plain external bot's key reads no chat (no session, the Chat section on no road) and the archived projects come from the log"}`,
+      viewer ? road === "key" && archivedSource === "list" : after.connection?.session === undefined && road === "none" && ["log", "remembered", "none"].includes(archivedSource),
+      `key ${keyName}: session ${JSON.stringify(after.connection?.session)}, data-road ${road}, archived from ${archivedSource} (${after.connection?.archived?.count})`,
+    );
     ok("real: the host reports loops' version as its health says it, with no earlier version, and the panel names it", after.loopsCommit === health.version && after.loopsCommitBefore === undefined && facts.includes(`crewhub-loops version ${health.version}`), `${after.loopsCommit} (loops says ${health.version}); panel: ${facts.replace(/.*crewhub-loops version/, "crewhub-loops version").slice(0, 80)}`);
   } finally {
     await host.close().catch(() => {});
@@ -2558,6 +2573,16 @@ await group("real", async () => {
  * worktree, in the main checkout (through the common git dir) or in ~/Documents/GitHub/crewhub2-world-demo (where
  * the night's phase 0 wrote it); when none exists, this worktree's path, so the skip line names a real place.
  */
+/** Which real development loops: --loops, else CREWHUB_REGRESS_LOOPS, else `dev` (8291, tools/loops-dev.sh's folder); `main` is the instance from crewhub-loops main (8293). */
+function loopsName() {
+  const name = (opts.loops || process.env.CREWHUB_REGRESS_LOOPS || "dev").trim();
+  if (!/^[a-z0-9-]+$/.test(name)) opts.fail(`--loops <name> is a short lower-case name (dev, main), not ${JSON.stringify(name)}`);
+  return name;
+}
+/** The suffix of that instance's files: none for `dev`, `-<name>` otherwise (loops-dev-main.env, ~/crewhub-loops-dev-main). */
+function loopsSuffix() {
+  return loopsName() === "dev" ? "" : `-${loopsName()}`;
+}
 function loopsEnvFile() {
   if (opts["loops-env"]) return path.resolve(opts["loops-env"]);
   const candidates = [REPO];
@@ -2566,18 +2591,18 @@ function loopsEnvFile() {
     candidates.push(path.dirname(path.resolve(REPO, common)));
   } catch {}
   candidates.push(path.join(process.env.HOME ?? "~", "Documents", "GitHub", "crewhub2-world-demo"));
-  const files = candidates.map((dir) => path.join(dir, "tools", "out", "loops-dev.env"));
+  const files = candidates.map((dir) => path.join(dir, "tools", "out", `loops-dev${loopsSuffix()}.env`));
   return files.find((file) => existsSync(file)) ?? files[0];
 }
 /** The development loops' Unix socket: --loops-socket, else `tools/loops-dev.sh`'s `~/crewhub-loops-dev/run/api.sock`. */
 function loopsSocketPath() {
   const given = opts["loops-socket"];
-  const text = given || "~/crewhub-loops-dev/run/api.sock";
+  const text = given || `~/crewhub-loops-dev${loopsSuffix()}/run/api.sock`;
   return path.resolve(text.replace(/^~(?=\/|$)/, process.env.HOME ?? "~"));
 }
 /** The development loops' data folder the connect group's host looks in: --loops-app-data, else `tools/loops-dev.sh`'s `~/crewhub-loops-dev`. */
 function loopsAppData() {
-  const text = opts["loops-app-data"] || "~/crewhub-loops-dev";
+  const text = opts["loops-app-data"] || `~/crewhub-loops-dev${loopsSuffix()}`;
   return path.resolve(text.replace(/^~(?=\/|$)/, process.env.HOME ?? "~"));
 }
 function isUnixSocket(file) {

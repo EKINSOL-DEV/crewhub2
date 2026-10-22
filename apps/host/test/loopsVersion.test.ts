@@ -26,6 +26,20 @@ describe("loops' version under a running host", () => {
     cleanup.length = 0;
   });
 
+  it("reads the version keyless (round 29): crewhub-loops main refuses the public health route to a viewer key, and the host still names the version", async () => {
+    const stub = await createLoopsStub({ ...installation(), version: "0.3.1", healthRefusesKey: true, keyReadsChat: true });
+    cleanup.push(() => stub.close());
+    const host = await createHost({ loopsUrl: stub.url, key: stub.key, keyName: "crewhub-world", pairing: "off", retryMs: { min: 20, max: 100 }, reconnectMs: { min: 10, max: 20 } });
+    cleanup.push(() => host.close());
+    const health = async () => (await (await fetch(`${host.url}/world-api/health`)).json()) as Record<string, any>;
+    await waitFor("the version", async () => (await health()).loopsCommit === "0.3.1");
+    const h = await health();
+    assert.equal(h.loops, "ok");
+    assert.equal(h.connection.session?.state, "key", "the viewer key is still the key road");
+    const healthReads = stub.requests.filter((r) => r.path === "/api/health");
+    assert.ok(healthReads.length > 0 && healthReads.every((r) => r.authorization === undefined), `every health read is keyless: ${healthReads.map((r) => r.authorization === undefined ? "keyless" : "with the key").join(", ")}`);
+  });
+
   it("says the new version and the one it saw first after loops came back upgraded, and logs the change once", async () => {
     const port = await freePort();
     const lines: string[] = [];

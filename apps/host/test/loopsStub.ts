@@ -72,6 +72,10 @@ export interface StubOptions {
   dm?: { threads?: unknown[]; messages?: Record<string, Record<string, unknown>> };
   /** A loops whose key may read the chat (a viewer key): `GET /api/dm/threads` and a message by id answer the key. Default: 403 for the key. */
   keyReadsChat?: boolean;
+  /** crewhub-loops main (#959): the public `GET /api/health` refuses a limited key (403 with an Authorization header); keyless it answers as ever. */
+  healthRefusesKey?: boolean;
+  /** With `keyReadsChat`, what `GET /api/dm/threads` answers the key instead of 200 (a viewer with no maker, 403; the chat switched off, 409). */
+  threadsStatus?: number;
 }
 
 /** A stub-wide outage: every request answers `status` (health too unless `healthOk`), or never answers (`hang`). */
@@ -185,6 +189,7 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
     if (req.method !== "GET") return send(res, 405, error("method_not_allowed", "GET only"));
     const p = url.pathname;
     const given = options.routes?.[p];
+    if (p === "/api/health" && given === undefined && options.healthRefusesKey === true && auth !== undefined) return send(res, 403, error("forbidden", `A public route refuses a limited key${detail}`));
     if (p === "/api/health" && given === undefined) return send(res, 200, { ok: true, version: options.version ?? "053b5f47", checks: {}, principal: { id: "crewhub-world", kind: "agent", displayName: "World" } });
     // An external bot's key: role lead (a `routes` entry for the path overrides it, e.g. a probe or a reader).
     if (p === "/api/auth/me" && given === undefined) return send(res, 200, { principal: { id: "crewhub-world", kind: "agent", displayName: "World", role: "lead" } });
@@ -193,6 +198,7 @@ export async function createLoopsStub(options: StubOptions = {}): Promise<LoopsS
       const listed = ((given as { agents?: Record<string, unknown>[] } | undefined)?.agents ?? []).filter((a) => a["id"] !== "crewhub-world");
       return send(res, 200, { agents: [...listed, { id: "crewhub-world", displayName: "World", role: "lead", external: true, viewer: true, herdrSession: null, disabled: false, lastSeenAt: null, keys: null, isCrewhubLead: false, projects: { lead: [], member: [] } }] });
     }
+    if (p === "/api/dm/threads" && given === undefined && options.keyReadsChat && options.threadsStatus !== undefined) return send(res, options.threadsStatus, error("forbidden", `No chat for this key${detail}`));
     if (p === "/api/dm/threads" && given === undefined) return options.keyReadsChat ? send(res, 200, { threads: options.dm?.threads ?? [] }) : send(res, 403, error("forbidden", `Not a participant${detail}`));
     const keyMessage = /^\/api\/dm\/messages\/([^/]+)$/.exec(p);
     if (keyMessage !== null && given === undefined) {

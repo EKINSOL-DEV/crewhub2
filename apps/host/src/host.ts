@@ -382,15 +382,15 @@ export async function createHost(options: HostOptions): Promise<Host> {
     if (threadFacts === null) return;
     for (const tab of tabs.values()) tab.send({ type: "threads", threads: threadFacts });
   }
-  async function readsChat(client: LoopsClient, name: string): Promise<{ reads: boolean; threads: ChatThreadFact[] }> {
+  async function readsChat(client: LoopsClient, name: string): Promise<{ reads: boolean; threads: ChatThreadFact[]; viewer: boolean; status: number | null }> {
     try {
       const agents = await client.getJson<{ agents?: { id?: unknown; viewer?: unknown }[] }>("/api/agents");
       const mine = agents.status === 200 ? agents.body?.agents?.find((a) => a.id === name) : undefined;
-      if (mine?.viewer !== true) return { reads: false, threads: [] };
+      if (mine?.viewer !== true) return { reads: false, threads: [], viewer: false, status: null };
       const threads = await client.getJson("/api/dm/threads");
-      return { reads: threads.status === 200, threads: threads.status === 200 ? threadFactsOf(threads.body) : [] };
+      return { reads: threads.status === 200, threads: threads.status === 200 ? threadFactsOf(threads.body) : [], viewer: true, status: threads.status };
     } catch {
-      return { reads: false, threads: [] };
+      return { reads: false, threads: [], viewer: false, status: null };
     }
   }
   /** After a `dm.*` event: the threads read again once (coalesced within THREADS_REFRESH_MS) and sent when the read answers. */
@@ -557,6 +557,7 @@ export async function createHost(options: HostOptions): Promise<Host> {
         keyReadsChat = chat.reads;
         threadFacts = chat.reads ? chat.threads : null;
         if (keyReadsChat) log(`the key reads the chat on this crewhub-loops: only the chat of the person who made the key; their agents' answers come over its stream, no sign-in needed; ${chat.threads.length} chat thread(s)${chat.threads.length === 0 ? " (none yet is no error: the maker has not written to an agent)" : ""}`);
+        else if (chat.viewer) log(`the viewer key reads no chat on this crewhub-loops (GET /api/dm/threads answered ${chat.status}): no bubbles over the key; a viewer key reads only the chat of the person who made it, so a key with no maker, or whose maker is no longer an enabled admin, reads none (make a new one in Settings > Agents > Connect CrewHub World), and chat bubbles switched off in crewhub-loops (Settings > Features) close the chat for everyone`);
         else log(`the key does not read the chat on this crewhub-loops (no viewer key): no bubbles over the key; make a viewer key in Settings > Agents > Connect CrewHub World (it reads only its maker's chat), or set CHL_WORLD_ORIGIN to the world page's origin on that crewhub-loops so the page reads your own chat`);
       } else {
         // Nothing is known about the key: it keeps the state it had (a fresh key stays unchecked), never rejected.

@@ -435,6 +435,12 @@ data folder). Every write with the admin session needs `-H "Origin: http://127.0
 there is no CSRF token). The admin password and the cookie jar live in `tools/out/loops-dev.env` and
 `tools/out/loops-dev.cookies` (0600, git-ignored); developers' panes use bearer keys only.
 
+**A second private loops from crewhub-loops main** (round 29): the same script with `LOOPS_DEV_DATA=~/crewhub-loops-dev-main`
+and `LOOPS_DEV_PORT=8293` runs the checkout of loops main (the viewer key, `ticket=` on the events, `includeArchived`
+for a viewer, `CHL_WORLD_ORIGIN` for road 2) beside the `4cdcd383` one; the regress tool's `real` and `connect` groups
+run against it with `--loops main` (`tools/README.md`: its env file `tools/out/loops-dev-main.env` names the URL, the
+viewer key's file and a Read only bot's key file, paths only).
+
 ```sh
 TOKEN=$(tools/loops-dev.sh setup-token)
 curl -s -c tools/out/loops-dev.cookies -H "Origin: http://127.0.0.1:8291" -H "content-type: application/json" \
