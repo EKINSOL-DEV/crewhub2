@@ -140,15 +140,17 @@ export interface HostConnection {
 /** `GET /world-api/health`. Never the key. */
 export interface HostHealth {
   loops: "ok" | "down" | "unauthorized";
-  /** The key's agent name; `""` while the host has no key (then `connection.key.state` is `none`). */
+  /** The key's agent name; `""` while the host has no key (then `connection.key.state` is `none`), and `""` before pairing (round 31). */
   keyName: string;
   /** Always false since the builder-key fallback went; kept for hosts from before. */
   sharedKey: boolean;
   /** Discovery, key and stream states; absent on a host from before the smooth connection. */
   connection?: HostConnection;
+  /** loops' version; a paired browser's (before pairing health says the states and nothing else). */
   loopsCommit?: string;
   /** The version the host read first in this run, when loops answered another since (loops updated under the host). */
   loopsCommitBefore?: string;
+  /** The stream's cursor; a paired browser's. */
   cursor?: number;
   /** The origin of crewhub-loops' web app (the API's URL; on the Mac both share 8091), for the sign-in link. */
   loopsWebUrl?: string;

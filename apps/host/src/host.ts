@@ -161,14 +161,24 @@ export interface Host {
   close(): Promise<void>;
 }
 
+/**
+ * Health before pairing says the states and nothing else (the spec of the smooth connection; question 3, round 31):
+ * `loops`, `pairing`, `paired`, `checkout`, the connection's states, and a blank `keyName` (the dev server's probe
+ * needs a string there). The bot's name, loops' version, the cursor and the chat word come to a paired browser only,
+ * and the dev origins to a paired browser or to a program (a request without an Origin: the dev server's proxy and
+ * teller, the doctor), never to an unpaired page. Any local process can read health; it learns the states.
+ */
 export interface HostHealth {
   loops: LoopsState;
+  /** The key's agent name for a paired browser; `""` without a key, and `""` before pairing. */
   keyName: string;
   /** Always false: the builder-key fallback is gone. Kept for the world from before. */
   sharedKey: boolean;
+  /** loops' version, for a paired browser. */
   loopsCommit?: string;
   /** The version the host read first this run, only when loops has answered another since: loops updated under the host. */
   loopsCommitBefore?: string;
+  /** The stream's cursor, for a paired browser. */
   cursor?: number;
   /** The origin of the loops web app for the sign-in link (on the Mac the web app and the API share 8091). */
   loopsWebUrl: string;
@@ -181,7 +191,7 @@ export interface HostHealth {
   connection: HostConnection;
   /** The checkout id this host runs from (`checkout.ts`), when it was given one: a dev server of another checkout refuses this host. */
   checkout?: string;
-  /** The loopback origins this checkout's dev server told the host this run (`devOrigin.ts`); absent when none. */
+  /** The loopback origins this checkout's dev server told the host this run (`devOrigin.ts`); absent when none, and absent to an unpaired page. */
   devOrigins?: string[];
 }
 
@@ -689,17 +699,18 @@ export async function createHost(options: HostOptions): Promise<Host> {
       archived: { source: archive.source, count: archive.slugs.size, ...(archive.at === undefined ? {} : { at: archive.at }) },
     };
     out.snapshot = snapshotState;
-    // The chat's road (round 19; round 29): `session: { state: "key" }` when this loops lets the world's key read the
-    // chat, so the bubbles come; `{ state: "unknown" }` while the host cannot say yet (no link, the key unchecked or
-    // being checked, the question not yet answered on this link); absent when it knows the key does not read it (an
-    // older loops, a plain external bot's key, the chat bubbles feature off). A rejected key or none: absent (no road).
-    if (keyReadsChat && link !== null) out.session = { state: "key" };
-    else if (!chatKnown && holder !== null && holder.state !== "rejected") out.session = { state: "unknown" };
     if (recheckAt !== undefined && holder?.state === "rejected") out.key.recheckAt = recheckAt;
     if (found !== null) out.discovery.via = found.via;
     const busy = link?.upstream.busy() ?? null;
     if (busy !== null) out.stream.reason = busy;
     if (!detailed) return out;
+    // The chat's road (round 19; round 29): `session: { state: "key" }` when this loops lets the world's key read the
+    // chat, so the bubbles come; `{ state: "unknown" }` while the host cannot say yet (no link, the key unchecked or
+    // being checked, the question not yet answered on this link); absent when it knows the key does not read it (an
+    // older loops, a plain external bot's key, the chat bubbles feature off). A rejected key or none: absent (no road).
+    // A paired browser only (round 31, question 3): before pairing the page shows the pairing screen and reads no road.
+    if (keyReadsChat && link !== null) out.session = { state: "key" };
+    else if (!chatKnown && holder !== null && holder.state !== "rejected") out.session = { state: "unknown" };
     if (found !== null) out.discovery.target = targetText(found.target);
     (out.archived as HostArchiveState).slugs = normaliseSlugs(archive.slugs);
     if (holder !== null) {
@@ -1195,10 +1206,12 @@ export async function createHost(options: HostOptions): Promise<Host> {
         // The states as they are, after a bounded wait for a link in the making: the page's probe gives the host
         // 1.5 s before it takes the host for silent, and a slow loops must never send the world into demo mode.
         await Promise.race([relinking.then(() => link?.upstream.start()), new Promise<void>((resolve) => setTimeout(resolve, HEALTH_WAIT_MS).unref())]);
+        // Before pairing: the states and nothing else (question 3, round 31). The bot's name, loops' version, the
+        // cursor and the chat word are a paired browser's; `keyName` stays a string (blank) for the dev server's probe.
         const isPaired = paired(req);
         const health: HostHealth = {
           loops: legacyState(),
-          keyName: holder === null ? "" : holder.name,
+          keyName: isPaired && holder !== null ? holder.name : "",
           sharedKey: false,
           loopsWebUrl: loopsWebUrl(),
           paired: isPaired,
@@ -1206,16 +1219,21 @@ export async function createHost(options: HostOptions): Promise<Host> {
           connection: connection(isPaired),
         };
         if (options.checkout !== undefined) health.checkout = options.checkout;
-        if (devOrigins.size > 0) health.devOrigins = [...devOrigins];
+        // The dev origins go to a paired browser or to a program (no Origin header: the dev server's proxy reads the
+        // header on the page's same-origin reads, its teller and the doctor ask directly), never to an unpaired page.
+        const tellOrigins = devOrigins.size > 0 && (isPaired || req.headers.origin === undefined);
+        if (tellOrigins) health.devOrigins = [...devOrigins];
         const found = discovery.current();
         if (found !== null) health.transport = found.target.transport;
-        const version = link?.upstream.loopsVersion();
-        if (version !== undefined) {
-          health.loopsCommit = version;
-          if (versions.first !== undefined && versions.first !== version) health.loopsCommitBefore = versions.first;
+        if (isPaired) {
+          const version = link?.upstream.loopsVersion();
+          if (version !== undefined) {
+            health.loopsCommit = version;
+            if (versions.first !== undefined && versions.first !== version) health.loopsCommitBefore = versions.first;
+          }
+          if (link !== null && link.upstream.cursor() >= 0) health.cursor = link.upstream.cursor();
         }
-        if (link !== null && link.upstream.cursor() >= 0) health.cursor = link.upstream.cursor();
-        sendJson(res, 200, health, devOrigins.size > 0 ? { [DEV_ORIGINS_HEADER]: [...devOrigins].join(",") } : {});
+        sendJson(res, 200, health, tellOrigins ? { [DEV_ORIGINS_HEADER]: [...devOrigins].join(",") } : {});
         return;
       }
       case "/snapshot":

@@ -10,6 +10,7 @@ import { request } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, describe, it } from "node:test";
+import { tellDevOrigin } from "../src/checkout.ts";
 import { ConfigError, loadServerConfig } from "../src/config.ts";
 import { MINT_HEADER, MINT_PATH, createHost, type Host } from "../src/host.ts";
 import { PAIR_COOKIE, PAIR_TTL_MS, createPairing, loadPairingSecret, readCookie, readCookies } from "../src/pairing.ts";
@@ -72,6 +73,41 @@ describe("pairing", () => {
     assert.equal(body.paired, false);
     assert.equal(body.pairing, "on");
     assert.equal(body.loops, "ok");
+  });
+
+  it("before pairing health says the states and nothing else (round 31, question 3): no key name, no cursor, no loops version, no chat word; the dev origins to a program or a paired browser, never to an unpaired page", async () => {
+    const bare = JSON.parse((await status(`${host.url}/world-api/health`)).body) as Record<string, unknown>;
+    assert.equal(bare.paired, false);
+    assert.equal(bare.keyName, "", "a string, blank: the dev server's probe needs the field");
+    assert.equal(bare.loops, "ok", "the states are there");
+    assert.deepEqual(Object.keys(bare).sort(), ["connection", "keyName", "loops", "loopsWebUrl", "paired", "pairing", "sharedKey", "transport"], "no cursor, no loopsCommit, no devOrigins before pairing");
+    assert.deepEqual(Object.keys(bare.connection as object).sort(), ["archived", "discovery", "key", "snapshot", "stream"], "no session word before pairing");
+    assert.deepEqual(bare.connection, { discovery: { state: "found", via: "env-url" }, key: { state: "ok" }, stream: { state: "ok", reconnects: 0 }, archived: { source: "none", count: 0 }, snapshot: { state: "idle" } });
+    const { cookie } = await pair(host.mintPairLink());
+    const paired = JSON.parse((await status(`${host.url}/world-api/health`, { cookie })).body) as Record<string, unknown>;
+    assert.equal(paired.paired, true);
+    assert.equal(paired.keyName, "crewhub-world", "paired: the name");
+    assert.equal(paired.cursor, 0, "paired: the cursor");
+    assert.equal((paired.connection as { key: { name?: string } }).key.name, "crewhub-world");
+    await waitFor("loops' version", async () => JSON.parse((await status(`${host.url}/world-api/health`, { cookie })).body).loopsCommit !== undefined);
+    assert.equal(JSON.parse((await status(`${host.url}/world-api/health`)).body).loopsCommit, undefined, "unpaired: still no version");
+  });
+
+  it("the dev origins: in health and its header to a program (no Origin) and to a paired page; neither to an unpaired page (round 31, question 3)", async () => {
+    const dev = "http://127.0.0.1:5294";
+    assert.deepEqual(await tellDevOrigin(host.port, dev, "9f2c1a7b3d4e", 1500, "mint-secret-for-the-test"), { kind: "accepted", origins: [dev] });
+    const read = (headers: Record<string, string>) => fetch(`${host.url}/world-api/health`, { headers });
+    const program = await read({});
+    assert.equal(program.headers.get("x-world-dev-origins"), dev, "a program: the header (the dev proxy reads it on the page's same-origin reads, which carry no Origin)");
+    assert.deepEqual(((await program.json()) as { devOrigins?: string[] }).devOrigins, [dev]);
+    const page = await read({ origin: host.url });
+    assert.equal(page.status, 200);
+    assert.equal(page.headers.get("x-world-dev-origins"), null, "an unpaired page with an Origin: no header");
+    assert.equal(((await page.json()) as { devOrigins?: string[] }).devOrigins, undefined, "and no list");
+    const { cookie } = await pair(host.mintPairLink());
+    const pairedPage = await read({ origin: host.url, cookie });
+    assert.equal(pairedPage.headers.get("x-world-dev-origins"), dev, "a paired page: the header");
+    assert.deepEqual(((await pairedPage.json()) as { devOrigins?: string[] }).devOrigins, [dev]);
   });
 
   it("a link pairs once: the cookie shape, every route open with it, the same link refused the second time", async () => {

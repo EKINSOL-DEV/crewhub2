@@ -252,7 +252,9 @@ export async function runDoctor(io: DoctorIo): Promise<DoctorReport> {
     const runs = `a host already runs on 127.0.0.1:${config.port}`;
     // The host follows every change by itself (it looks for loops every 5 s, takes a pasted key, retries the stream),
     // so no state below asks for a restart: the fix is the act the person must do, and the host picks it up.
-    if (state === "ok") ok("port", `${runs} (loops ok, key ${String(h.keyName ?? "?")}); npm run world or npm run host -- open asks it for a link`);
+    // The key's name is a paired browser's (round 31, question 3); the doctor is a program and reads the states.
+    const keyName = typeof h.keyName === "string" && h.keyName !== "" ? `, key ${h.keyName}` : "";
+    if (state === "ok") ok("port", `${runs} (loops ok${keyName}); npm run world or npm run host -- open asks it for a link`);
     else if (connection?.discovery?.state === "searching") fix("port", `${runs} and has not found crewhub-loops: open Crewhub.app; the host looks again every 5 s, no restart needed`);
     else if (connection?.key?.state === "none") ok("port", `${runs} and waits for a key: paste it in the world's Connect screen (npm run world opens the browser on it); no restart needed`);
     else if (connection?.key?.state === "rejected")

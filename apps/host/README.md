@@ -79,7 +79,11 @@ smooth connection" below):
   `world.db.bak-v<n>`; a file newer than the host knows is refused. Node 24.21 prints no warning for `node:sqlite`;
   an older 24.x printed one `ExperimentalWarning` at the first open, which the host explains once in its log and
   never hides (it runs without `--no-warnings`).
-- **Health** `GET /world-api/health`: `{ loops, keyName, sharedKey, loopsWebUrl, transport, paired, pairing, checkout?, devOrigins?, loopsCommit?, loopsCommitBefore?, cursor?, connection }`
+- **Health** `GET /world-api/health`: `{ loops, keyName, sharedKey, loopsWebUrl, transport, paired, pairing, checkout?, devOrigins?, loopsCommit?, loopsCommitBefore?, cursor?, connection }`.
+  Before pairing it says the states and nothing else (question 3, round 31): `loops`, `pairing`, `paired`, `checkout`,
+  `connection`'s states and a blank `keyName` (a string: the dev server's probe needs it); the bot's name, loops' version,
+  the cursor and the chat word (`connection.session`) come to a paired browser only, the dev origins to a paired browser
+  or to a program (a request without an Origin), never to an unpaired page.
   (`checkout` is the id of the checkout the host runs from, `src/checkout.ts`: the first 12 hex characters of SHA-256 over the
   repository root's real path, never the path itself, since health answers before the pairing gate; `npm run dev` of another
   checkout reads it and refuses to proxy to this host; `connection` is under "The smooth connection" below; `connection.key.recheckAt` says when a rejected key is re-checked (round 8: the host
@@ -108,8 +112,10 @@ smooth connection" below):
   a page cannot send it), only for `http://127.0.0.1:<port>` or `http://localhost:<port>` (never another
   host, https or a wildcard), and only from this checkout (the body's `checkout` must be the host's
   own id, `src/checkout.ts`); at most 8 a run. The host logs one line per accepted origin; health lists them
-  (`devOrigins`, and the `x-world-dev-origins` header the dev proxy reads, to tell again after a host restart).
-  Pairing is untouched: the page still needs its cookie. The preview and a build never tell.
+  (`devOrigins`, and the `x-world-dev-origins` header the dev proxy reads, to tell again after a host restart), to a
+  program (no Origin: the proxied same-origin reads of the page, the teller, the doctor) and to a paired browser, never to
+  an unpaired page with an Origin (round 31). Pairing is untouched: the page still needs its cookie. The preview and a
+  build never tell.
 - **Reconnect**: loops ends every stream after 300 s (and at a credential re-check or a stop); the host waits 1.5 to
   3 s with jitter and reconnects from its cursor, so nothing is lost and no tab hears of it. When loops goes away
   (a network error, a 5xx, a 200 that closed without a line) the host retries with backoff (1 s doubling to 30 s)
@@ -205,8 +211,10 @@ The host starts with neither loops nor a key and reports the honest states; the 
   loops refuses the stream with 429 `too_many_streams` (four per key; the host retries after `Retry-After`); the
   status message on `/world-api/stream` carries `stream: "busy"` and the reason too, next to the old `loops: "down"`, and
   always `key` (the host's word on its key, as above).
-  Before pairing only the states are there (no target paths, no names). `loops` keeps the old tri-state for the world
-  from before: `down` while searching, `unauthorized` without a key or with a rejected one.
+  Before pairing only the states are there (no target paths, no names, no cursor, no chat word; since round 31 health's
+  own `keyName`, `loopsCommit` and `cursor` are a paired browser's too, and the doctor's port line and the dev server's
+  probe read the states instead). `loops` keeps the old tri-state for the world from before: `down` while searching,
+  `unauthorized` without a key or with a rejected one.
 - **`npm run world`** (`main.ts world`): starts the host at once (production mode, pairing on), mints a link and opens
   the default browser on it (`--no-open` prints it), and builds the world meanwhile when `apps/world/dist` is missing
   or older than the sources: the browser shows "Building the world…" (a one-line page that asks the host every quarter

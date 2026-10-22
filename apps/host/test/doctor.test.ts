@@ -38,6 +38,23 @@ describe("the doctor", () => {
   }
   const free: DoctorIo["probePort"] = () => Promise.resolve({ kind: "free" });
 
+  it("the port line reads unpaired health: the key's name when the host says it, the states alone when it does not (round 31, question 3)", async () => {
+    const stub = await createLoopsStub({ ...installation() });
+    cleanup.push(() => stub.close());
+    const dir = folder();
+    const keyFile = path.join(dir, "agent-crewhub-world.key");
+    writeFileSync(keyFile, `${stub.key}\n`, { mode: 0o600 });
+    const env = { CREWHUB_WORLD_LOOPS_URL: stub.url, CREWHUB_WORLD_KEY_FILE: keyFile, CREWHUB_WORLD_PORT: "5187", CREWHUB_WORLD_CONFIG_DIR: dir };
+    const running = (keyName: string, key: string, stream = "ok"): NonNullable<DoctorIo["probePort"]> => () => Promise.resolve({ kind: "host", health: { loops: stream === "ok" ? "ok" : "unauthorized", keyName, pairing: "on", paired: false, connection: { discovery: { state: "found" }, key: { state: key }, stream: { state: stream, reconnects: 0 } } } });
+    const named = byId(await runDoctor({ env, probePort: running("crewhub-world", "ok") }));
+    assert.equal(named.port!.text, "a host already runs on 127.0.0.1:5187 (loops ok, key crewhub-world); npm run world or npm run host -- open asks it for a link");
+    const unpaired = byId(await runDoctor({ env, probePort: running("", "ok") }));
+    assert.equal(unpaired.port!.status, "ok");
+    assert.equal(unpaired.port!.text, "a host already runs on 127.0.0.1:5187 (loops ok); npm run world or npm run host -- open asks it for a link", "a blank name before pairing: no 'key ' with nothing after it");
+    const none = byId(await runDoctor({ env, probePort: running("", "none", "idle") }));
+    assert.match(none.port!.text, /waits for a key/);
+  });
+
   it("passes with a good key file, a reachable loops and a free port, and names what it read", async () => {
     const stub = await createLoopsStub({ ...installation() });
     cleanup.push(() => stub.close());

@@ -38,9 +38,11 @@ describe("health's checkout", () => {
 
 describe("what a port answers a dev server", () => {
   it("reads health as the page's probe does: a host needs loops and keyName; the id only when it looks like one", () => {
-    assert.deepEqual(answerFromHealth({ loops: "ok", keyName: "crewhub-world", checkout: "9f2c1a7b3d4e" }), { kind: "host", checkout: "9f2c1a7b3d4e", keyName: "crewhub-world" });
-    assert.deepEqual(answerFromHealth({ loops: "down", keyName: "" }), { kind: "host", checkout: null, keyName: "" });
-    assert.deepEqual(answerFromHealth({ loops: "ok", keyName: "x", checkout: "/Users/me/repo" }), { kind: "host", checkout: null, keyName: "x" }, "a path is not an id");
+    assert.deepEqual(answerFromHealth({ loops: "ok", keyName: "crewhub-world", checkout: "9f2c1a7b3d4e" }), { kind: "host", checkout: "9f2c1a7b3d4e", keyName: "crewhub-world", keyState: null });
+    assert.deepEqual(answerFromHealth({ loops: "down", keyName: "" }), { kind: "host", checkout: null, keyName: "", keyState: null });
+    assert.deepEqual(answerFromHealth({ loops: "ok", keyName: "x", checkout: "/Users/me/repo" }), { kind: "host", checkout: null, keyName: "x", keyState: null }, "a path is not an id");
+    // Before pairing the name is blank and the key's state says there is a key (round 31, question 3).
+    assert.deepEqual(answerFromHealth({ loops: "ok", keyName: "", checkout: "9f2c1a7b3d4e", paired: false, connection: { key: { state: "ok" } } }), { kind: "host", checkout: "9f2c1a7b3d4e", keyName: "", keyState: "ok" });
     assert.deepEqual(answerFromHealth({ status: "ok" }), { kind: "not-a-host" });
     assert.deepEqual(answerFromHealth("<html>"), { kind: "not-a-host" });
     assert.deepEqual(answerFromHealth(null), { kind: "not-a-host" });
@@ -50,7 +52,7 @@ describe("what a port answers a dev server", () => {
     const { createHost } = await import("../src/host.ts");
     const host = await createHost({ loopsUrl: "http://127.0.0.1:1", checkout: "9f2c1a7b3d4e", retryMs: { min: 20, max: 100 }, log: () => undefined });
     try {
-      assert.deepEqual(await probeCheckout(host.port), { kind: "host", checkout: "9f2c1a7b3d4e", keyName: "" });
+      assert.deepEqual(await probeCheckout(host.port), { kind: "host", checkout: "9f2c1a7b3d4e", keyName: "", keyState: "none" });
     } finally {
       await host.close();
     }
