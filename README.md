@@ -18,14 +18,17 @@ everywhere. There is no network call, no account and no model call.
 **Live mode is built.** `apps/host`, the world's relay, finds the Mac app (`Crewhub.app`) by
 itself, reads it with one external bot key over loopback TCP or the app's Unix socket, never
 writes to it, and serves the same world with the real projects: `npm run world` is the whole
-morning ([the runbook](docs/LOOPS_SETUP.md)), rehearsed from a fresh clone eight times. It holds when
+morning ([the runbook](docs/LOOPS_SETUP.md)), rehearsed from a fresh clone nine times, the last against crewhub-loops
+main as well as the Mac app's loops. It holds when
 loops stops, when the key is revoked while the town is open and when loops is upgraded under it,
 each with an honest screen. The chat is crewhub-loops' own, framed in the world's Chat panel, and an
 agent's answer shows as a speech bubble over its figure where the key may read the chat. The host keeps the live
 town (zones, layout, props, the undo history) in SQLite in its own folder, shared by every paired browser, with
-backups and a previewed restore. Planned, **not built**: the real director; the switch to crewhub-loops' viewer key
-is written and waits on that branch's merge in loops. See the [architecture](docs/ARCHITECTURE.md) and the
-[roadmap](docs/ROADMAP.md).
+backups and a previewed restore. Planned, **not built**: the real director. The chat is read through two narrow roads only
+(round 28): the host's viewer key, which reads only the chat of the person who made it, or the page itself where
+crewhub-loops on this computer has the world's origin set; the sign-in road is gone, and where neither reads the chat
+the world says so, names both ways, and shows no bubbles. Both roads were reviewed and walked from a cold clone against
+crewhub-loops main in round 29. See the [architecture](docs/ARCHITECTURE.md) and the [roadmap](docs/ROADMAP.md).
 
 Built in demo mode and shown live from the same model:
 
@@ -95,8 +98,9 @@ keep the Greenhouse style.
 ## Start the next build
 
 Read [AGENTS.md](AGENTS.md), then [the handoff](docs/ASTRA_HANDOFF.md). The open work
-is listed in the [roadmap](docs/ROADMAP.md): the real director, and the viewer key and the
-other proposals waiting on crewhub-loops.
+is listed in the [roadmap](docs/ROADMAP.md): the real director, and the proposals still waiting on crewhub-loops
+(the viewer key and the world's origin setting landed in loops main). The questions that wait on Nicky are one page:
+[docs/proposals/open-questions.md](docs/proposals/open-questions.md).
 
 ## Previous version
 

@@ -11,17 +11,23 @@ import { ConnectionPanel } from "./components/ConnectionPanel";
 import { ChatPanel } from "./components/ChatPanel";
 import { Tour } from "./components/Tour";
 import { INTRODUCTION_URL, readTourDone, tourShouldStart, writeTourDone } from "./state/tour";
-import { chatPlaceLine } from "./state/chatPanel";
+import { chatPlaceLine, recentEmptyWords } from "./state/chatRoad";
+import { useChatRoad } from "./state/chatRoadStore";
 import { FirstSnapshot } from "./components/FirstSnapshot";
 import { CONNECT_POLL_MS, ConnectPage } from "./components/ConnectPage";
 import { liveScreen, withStreamKey } from "./state/connect";
 import { useRecentAnswers, useSaid, type Answer } from "./state/said";
-import { answerTarget, recentEmptyWords, type AnswerTarget } from "./state/recentAnswers";
+import { answerTarget, type AnswerTarget } from "./state/recentAnswers";
 import { rememberHealth, useHostHealth } from "./state/health";
+import { healthRereadKey, hostKeyReadsChat, loopsOriginOf } from "./state/pageChat";
+import { startPageChat } from "./state/pageChatPage";
+import { installSoakProbe } from "./state/soak";
+import { pageReads } from "./state/soakPage";
 import { markWords, saidLines, saidMarks, type SaidMark } from "./world/saidText";
 import { JumpList } from "./components/JumpList";
 import { RecentAnswers } from "./components/RecentAnswers";
 import { IconSprite } from "./components/Icon";
+import { useMedia } from "./state/media";
 import { Button, Card, Chip, Field, Menu } from "./components/primitives";
 import { SceneBoundary } from "./components/SceneBoundary";
 import WorldCanvas, { type Selection } from "./components/WorldCanvas";
@@ -67,17 +73,9 @@ const NEXT_THEME = { system: "light", light: "dark", dark: "system" } as const;
 
 /* Below this width the chat is loops' narrow mode: a "Agent chats" menu in the corner and the chat as a full-screen dialog. */
 const NARROW = "(max-width: 899px)";
-// One media query list for the page: `matchMedia` on every render cost about 1 ms at 4x of the enter's render (round 25).
-let narrowMedia: MediaQueryList | null = null;
-const narrow = () => (narrowMedia ??= window.matchMedia(NARROW));
-const useNarrow = () =>
-  useSyncExternalStore(
-    (listener) => {
-      narrow().addEventListener("change", listener);
-      return () => narrow().removeEventListener("change", listener);
-    },
-    () => narrow().matches,
-  );
+// One media query list and one subscription for the page (state/media.ts): `matchMedia` on every render cost about
+// 1 ms at 4x of the enter's render (round 25), and an inline subscribe re-subscribed on every render (round 30).
+const useNarrow = () => useMedia(NARROW);
 
 const prefersReducedMotion = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const typing = (target: EventTarget | null) => target instanceof HTMLElement && (target.matches("input, select, textarea") || target.isContentEditable);
@@ -104,6 +102,8 @@ export function App() {
 
 function World() {
   const { model, text, playback } = useWorld();
+  // The long-session probe (state/soak.ts): the stores' sizes on `window.__worldStores` for tools/memory.mjs. Reads only.
+  useEffect(() => installSoakProbe(pageReads(() => worldRuntime().connection?.state() ?? null)), []);
   const narrow = useNarrow();
   const dockHeight = useDockHeight();
   const { theme, cycle } = useTheme();
@@ -209,6 +209,8 @@ function World() {
   const answers = useRecentAnswers();
   // The host's health as last read (the chat session's state for the Chat panel and the text view's Chat line); null in demo mode.
   const hostHealth = useHostHealth();
+  // The chat road (round 28): the host's key, the page's own read, or neither; the words of every place that speaks of the chat.
+  const chatRoad = useChatRoad();
   // Only while the text view shows: describing a region on every model update is felt on a phone.
   const textShown = textOpen || graphicsFailed;
   const textLines = useMemo(
@@ -756,6 +758,15 @@ function World() {
       live = false;
     };
   }, [demo, textOpen, chatOpen]);
+  // Road 2 of the chat (round 28, state/pageChat.ts): on a live page whose host's key does not read the chat, the page
+  // asks crewhub-loops itself at the origin the host names, and polls the person's own conversation when loops lets this
+  // origin read it; the lines go to the said store like the host's. Restarted when the host's word changes.
+  const pageChatOrigin = demo ? null : loopsOriginOf(hostHealth);
+  const keyReadsChat = hostKeyReadsChat(hostHealth);
+  useEffect(() => {
+    if (pageChatOrigin === null) return;
+    return startPageChat({ loopsOrigin: pageChatOrigin, hostKeyReadsChat: keyReadsChat });
+  }, [pageChatOrigin, keyReadsChat]);
   const onGo = useStable(go);
   const trailNames = { home: homeName(districts), district: here?.name ?? null, building: inside?.name ?? null, room: inside && zoomed ? roomName(inside, zoomed, rooms) : null };
   const trail = useMemo(
@@ -772,6 +783,20 @@ function World() {
   // over the health read; a host from before says nothing, so while the source says so and no screen shows yet, the health
   // is read again every few seconds (the Connect page reads it itself once it shows).
   const streamKey = useConnectionKey();
+  // The host's word can change after the page's first read (round 29, Medium 2): the stream going live, or the host's
+  // key word on its status (a key checked late, accepted on the stream, forgotten in another tab). Health is read
+  // again then, so the road follows the host's real word and the road-2 runner restarts on it.
+  const rereadOn = healthRereadKey(connection, streamKey);
+  useEffect(() => {
+    if (demo || rereadOn === null) return;
+    let live = true;
+    void probeHost("", 1500).then((fresh) => {
+      if (live && fresh !== null) rememberHealth(fresh);
+    });
+    return () => {
+      live = false;
+    };
+  }, [demo, rereadOn]);
   const screen = demo ? null : liveScreen(connection, withStreamKey(health, streamKey));
   const degraded = !demo && streamKey === null && (connection === "unauthorized" || connection === "loops-down") && screen === null;
   useEffect(() => {
@@ -867,7 +892,7 @@ function World() {
 
       {connectionOpen && connection && <ConnectionPanel state={connection} initial={SOURCE.health} onClose={closeConnection} />}
 
-      {chat && !demo && <ChatPanel agent={chat.agent} health={hostHealth} full={narrow} answers={answers} recentEmpty={recentEmptyWords("live", hostHealth?.connection?.session)} targetOf={answerTargetOf} onAnswer={openAnswer} onClose={closeChat} />}
+      {chat && !demo && <ChatPanel agent={chat.agent} health={hostHealth} road={chatRoad} full={narrow} answers={answers} recentEmpty={recentEmptyWords("live", chatRoad)} targetOf={answerTargetOf} onAnswer={openAnswer} onClose={closeChat} />}
 
       {jumpOpen && <JumpList entries={jumps} onJump={jump} onClose={closeJump} onActive={jumpActive} />}
 
@@ -932,7 +957,7 @@ function World() {
 
       {playback && <PlaybackBar playback={playback} />}
 
-      {(textOpen || graphicsFailed) && <TextView civic={civic} rooms={rooms} ref={textRegion} lines={textLines} connection={connection} chat={chatPlaceLine(demo ? "demo" : "live", hostHealth?.connection?.session)} marks={marks} answers={answers} recentEmpty={recentEmptyWords(demo ? "demo" : "live", hostHealth?.connection?.session)} targetOf={answerTargetOf} onAnswer={openAnswer} fallback={graphicsFailed} onClose={graphicsFailed ? null : closeText} districts={districts} onGo={graphicsFailed ? null : onGo} />}
+      {(textOpen || graphicsFailed) && <TextView civic={civic} rooms={rooms} ref={textRegion} lines={textLines} connection={connection} chat={chatPlaceLine(demo ? "demo" : "live", chatRoad)} marks={marks} answers={answers} recentEmpty={recentEmptyWords(demo ? "demo" : "live", chatRoad)} targetOf={answerTargetOf} onAnswer={openAnswer} fallback={graphicsFailed} onClose={graphicsFailed ? null : closeText} districts={districts} onGo={graphicsFailed ? null : onGo} />}
     </div>
   );
 }

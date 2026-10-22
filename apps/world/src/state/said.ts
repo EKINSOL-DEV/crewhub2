@@ -61,12 +61,15 @@ function sweep(nowMs: number): void {
 /**
  * Remembers an agent's line: the bubble (the newest replaces an older one of the same agent) for SAID_MS, and the
  * Recent answers list (newest first, RECENT_ANSWERS at most, for the page's life). A line the page saw already (the same
- * message id: a stream that replayed) is not listed twice.
+ * message id: a stream that replayed, two roads at once) is neither listed nor shown twice.
  */
 export function rememberSaid(line: ChatLine, nowMs = Date.now()): void {
+  // A message the page has shown already (a stream replay, two roads at once, a poll that overlapped): nothing again,
+  // neither the list nor a fresh bubble (round 29, Low 6).
+  if (recent.some((a) => a.messageId === line.messageId)) return;
   const said: Said = { text: line.text, agentName: line.agentName ?? null, messageId: line.messageId, threadId: line.threadId, shownAt: nowMs, until: nowMs + SAID_MS };
   lines.set(line.agentId, said);
-  if (!recent.some((a) => a.messageId === line.messageId)) recent = [{ ...said, agentId: line.agentId, at: line.at }, ...recent].slice(0, RECENT_ANSWERS);
+  recent = [{ ...said, agentId: line.agentId, at: line.at }, ...recent].slice(0, RECENT_ANSWERS);
   sweep(nowMs);
   publish();
 }
@@ -121,6 +124,8 @@ export function useSaid(): SaidMap {
 
 /** The Recent answers list: the last RECENT_ANSWERS lines the page saw, newest first; the same array until one arrives. */
 export const getRecentAnswers = () => recent;
+/** How many bubbles are alive right now (the long-session probe, state/soak.ts). */
+export const saidCount = () => lines.size;
 export function useRecentAnswers(): readonly Answer[] {
   return useSyncExternalStore(subscribeSaid, getRecentAnswers, getRecentAnswers);
 }

@@ -25,10 +25,23 @@
    constructor (lib/heap.mjs) and prints the 25 largest kinds of object; from the second snapshot on it also prints
    what grew most since the one before, by self size. The snapshot itself is parsed and dropped; the totals land in
    --json. A snapshot pauses the page for a few seconds, so its sample is not a frame measurement.
+   Every sample also carries the frame time over the overlay's window (mean and p95, the work per frame); a live run
+   (round 27, the soak) adds the host's upstream stream (its state and how often it reconnected, from the host the
+   tool started), the page's own stores (`window.__worldStores`, state/soak.ts: the bubbles alive, the Recent answers,
+   the chat threads) and the town document's revision with the host's revision the page is on. The growth line also
+   says the heap's growth an hour after warm-up.
+   When the DOM node count moved since the last sample (round 29), the sample is followed by one line naming what
+   changed in the document tree: the nodes added and removed (an element by tag, classes, label and the nearest named
+   landmark; a text node by its parent), grouped with counts, at most six entries (lib/domdiff.ts; the point's
+   `domDiff` field in --json holds the same entries). A count that moves while the tree is unchanged is nodes outside
+   the document tree, so the line also says the documents count when it moved (an SVG image or a parsed string is a
+   document of its own) and the detached trees the inspector lists (DOM.getDetachedDomNodes: each by its root and
+   its node count).
    Same browser set-up as perf.mjs: GPU-backed headless Chromium, 1440 x 900, DPR 1, Pretty, light. --json writes the
    points, the growth and the snapshot totals (a bare file name lands in --out). */
 import { writeFileSync } from "node:fs";
 import path from "node:path";
+import { capDomDiff, describeDetached, domDiff, domInventory, formatDomDiff } from "./lib/domdiff.ts";
 import { formatRows, growth as heapGrowth, heapTotals, mb as heapMb, topBySize } from "./lib/heap.mjs";
 import { LIVE_OPTIONS, LIVE_USAGE, startLive } from "./lib/live.mjs";
 import { castChoice, cli, launch, speed, store, worldUrl } from "./lib/world.mjs";
@@ -92,6 +105,8 @@ async function snapshotAt(minute) {
   snapshots.push(record);
 }
 let nextSnapshot = 0;
+// The last sample's DOM (round 29): the node count and the inventory the diff reads when the count moves.
+let lastDom = null;
 for (let t = 0; t <= minutes * 60; t += every) {
   const wait = started + t * 1000 - Date.now();
   if (wait > 0) await page.waitForTimeout(wait);
@@ -102,15 +117,46 @@ for (let t = 0; t <= minutes * 60; t += every) {
   await cdp.send("HeapProfiler.collectGarbage");
   const heap = await cdp.send("Runtime.getHeapUsage");
   const dom = await cdp.send("Memory.getDOMCounters");
+  const inventory = await page.evaluate(domInventory).catch(() => null);
   const perf = await page.evaluate(() => {
     const p = window.__worldPerf;
-    return p ? { geometries: p.geometries, textures: p.textures, calls: p.calls, workMean: p.workMean } : null;
+    return p ? { geometries: p.geometries, textures: p.textures, calls: p.calls, workMean: p.workMean, frameMean: p.frameMean, frameP95: p.frameP95, fps: p.fps } : null;
   });
   const chip = live ? await page.locator(".connection-chip").first().getAttribute("data-connection").catch(() => null) : null;
-  const point = { t, heap: heap.usedSize, geometries: perf?.geometries ?? -1, textures: perf?.textures ?? -1, calls: perf?.calls ?? -1, nodes: dom.nodes, listeners: dom.jsEventListeners, ...(live ? { connection: chip } : {}) };
+  // Live (round 27, the soak): the page's own stores and the town's revision (`window.__worldStores`, state/soak.ts),
+  // and the host's upstream stream straight from the host the tool started (its state and reconnect count).
+  const stores = live ? await page.evaluate(() => (typeof window.__worldStores === "function" ? window.__worldStores() : null)).catch(() => null) : null;
+  const upstream = live ? live.host.connection().stream : null;
+  const point = {
+    t,
+    heap: heap.usedSize,
+    geometries: perf?.geometries ?? -1,
+    textures: perf?.textures ?? -1,
+    calls: perf?.calls ?? -1,
+    nodes: dom.nodes,
+    listeners: dom.jsEventListeners,
+    frameMean: perf?.frameMean ?? null,
+    frameP95: perf?.frameP95 ?? null,
+    workMean: perf?.workMean ?? null,
+    ...(live ? { connection: chip, upstream: upstream ? { state: upstream.state, reconnects: upstream.reconnects } : null, stores } : {}),
+  };
+  // The DOM diff (round 29): when the node count moved since the last sample, what was added and removed, by element.
+  let domLine = "";
+  if (lastDom !== null && inventory !== null && lastDom.inventory !== null && dom.nodes !== lastDom.nodes) {
+    const diff = capDomDiff(domDiff(lastDom.inventory, inventory), 6);
+    // Nodes alive outside the document tree: the detached trees the inspector can list, and the documents count
+    // (an SVG image or a parsed string is a document of its own).
+    const detached = await cdp.send("DOM.getDetachedDomNodes").then((r) => describeDetached(r.detachedNodes, 4)).catch(() => []);
+    point.domDiff = { ...diff, documents: dom.documents, detached };
+    const documents = dom.documents !== lastDom.documents ? ` (documents ${lastDom.documents} -> ${dom.documents})` : "";
+    domLine = `\n  dom ${lastDom.nodes} -> ${dom.nodes}${documents}: ${formatDomDiff(diff)}${detached.length > 0 ? `; detached: ${detached.join(", ")}` : ""}`;
+  }
+  lastDom = { nodes: dom.nodes, documents: dom.documents, inventory };
   points.push(point);
+  const frame = perf ? `  frame ${perf.frameMean.toFixed(1)}/${perf.frameP95.toFixed(1)} ms work ${perf.workMean.toFixed(1)}` : "";
+  const soak = live ? `  ${chip ?? "no chip"}  upstream ${upstream ? `${upstream.state} r${upstream.reconnects}` : "?"}${stores ? `  said ${stores.said} answers ${stores.answers} threads ${stores.threads ?? "-"} rev ${stores.docRevision}/${stores.hostRev ?? "-"}` : ""}` : "";
   console.log(
-    `${scenario} ${String(t).padStart(4)} s  heap ${mb(point.heap).padStart(6)} MB  geo ${String(point.geometries).padStart(4)}  tex ${String(point.textures).padStart(3)}  calls ${String(point.calls).padStart(4)}  dom ${point.nodes}  listeners ${point.listeners}${live ? `  ${chip ?? "no chip"}` : ""}`,
+    `${scenario} ${String(t).padStart(4)} s  heap ${mb(point.heap).padStart(6)} MB  geo ${String(point.geometries).padStart(4)}  tex ${String(point.textures).padStart(3)}  calls ${String(point.calls).padStart(4)}  dom ${point.nodes}  listeners ${point.listeners}${frame}${soak}${domLine}`,
   );
   while (nextSnapshot < snapshotMinutes.length && t >= snapshotMinutes[nextSnapshot] * 60) {
     await snapshotAt(snapshotMinutes[nextSnapshot]);
@@ -120,8 +166,10 @@ for (let t = 0; t <= minutes * 60; t += every) {
 const warm = points.filter((p) => p.t >= 60);
 const baseOf = (key) => warm.slice(0, 3).map((p) => p[key]).sort((a, b) => a - b)[1] ?? warm[0]?.[key] ?? 0;
 const last = points[points.length - 1];
-const growth = { heapMB: +mb(last.heap - baseOf("heap")), geometries: last.geometries - baseOf("geometries"), textures: last.textures - baseOf("textures"), domNodes: last.nodes - baseOf("nodes"), listeners: last.listeners - baseOf("listeners") };
-console.log(`${scenario} growth after warm-up: heap ${growth.heapMB} MB, geo ${growth.geometries}, tex ${growth.textures}, dom ${growth.domNodes}, listeners ${growth.listeners}`);
+// Per hour (round 27, the soak): the growth after warm-up over the hours between the warm-up's base and the last sample.
+const hours = warm.length > 3 ? (last.t - warm[1].t) / 3600 : 0;
+const growth = { heapMB: +mb(last.heap - baseOf("heap")), geometries: last.geometries - baseOf("geometries"), textures: last.textures - baseOf("textures"), domNodes: last.nodes - baseOf("nodes"), listeners: last.listeners - baseOf("listeners"), hours: +hours.toFixed(2), heapMBPerHour: hours > 0 ? +(mb(last.heap - baseOf("heap")) / hours).toFixed(2) : null };
+console.log(`${scenario} growth after warm-up: heap ${growth.heapMB} MB, geo ${growth.geometries}, tex ${growth.textures}, dom ${growth.domNodes}, listeners ${growth.listeners}${growth.heapMBPerHour !== null ? ` (${growth.heapMBPerHour} MB an hour over ${growth.hours} h)` : ""}`);
 if (jsonOut)
   writeFileSync(
     jsonOut,

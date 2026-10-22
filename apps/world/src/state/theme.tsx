@@ -1,5 +1,6 @@
 /* Theme: system | light | dark on <html data-theme>, stored in this browser's localStorage. */
-import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
+import { useMedia } from "./media";
 import { whenIdle } from "./idle";
 
 export type Theme = "system" | "light" | "dark";
@@ -77,17 +78,10 @@ export function useTheme(): ThemeState {
   return s;
 }
 
-const darkQuery = () => window.matchMedia("(prefers-color-scheme: dark)");
-/** The resolved theme: an explicit choice, else the OS scheme. */
+const DARK = "(prefers-color-scheme: dark)";
+/** The resolved theme: an explicit choice, else the OS scheme (one subscription for the page, state/media.ts). */
 export function useDark(): boolean {
   const { theme } = useTheme();
-  const system = useSyncExternalStore(
-    (listener) => {
-      const q = darkQuery();
-      q.addEventListener("change", listener);
-      return () => q.removeEventListener("change", listener);
-    },
-    () => darkQuery().matches,
-  );
+  const system = useMedia(DARK);
   return theme === "dark" || (theme === "system" && system);
 }

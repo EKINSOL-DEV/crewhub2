@@ -24,7 +24,7 @@ export interface LoopsRead {
 export const LOOPS_READS: readonly LoopsRead[] = [
   { pattern: "/api/health", query: [] },
   { pattern: "/api/auth/me", query: [] },
-  { pattern: "/api/events", query: ["after", "cursor", "from", "limit", "types"] },
+  { pattern: "/api/events", query: ["after", "cursor", "from", "limit", "ticket", "types"] },
   { pattern: "/api/events/stream", query: ["after", "cursor"] },
   { pattern: "/api/projects", query: ["includeArchived"] },
   { pattern: "/api/projects/{slug}", query: [] },
@@ -51,7 +51,7 @@ export interface WorldRoute {
   kind: "local" | "loops";
   loopsPattern?: string;
   query: readonly string[];
-  /** The methods the route answers; GET when absent. Only `/connect`, `/session` and `/town` take a write, all local; the key never writes to loops, the session only signs itself in and out (session.ts), the town is the host's own database (worldDb.ts). */
+  /** The methods the route answers; GET when absent. Only `/connect` and `/town` take a write, both local; the key never writes to loops, the town is the host's own database (worldDb.ts). The sign-in road's `/session` went in round 19. */
   methods?: readonly string[];
 }
 
@@ -66,7 +66,6 @@ export const WORLD_ROUTES: readonly WorldRoute[] = [
   { pattern: "/dev-origin", kind: "local", query: [], methods: ["POST"] },
   // The page exchanges a one-time token for this tab's bearer (round 27, pairing.ts); before the pairing gate.
   { pattern: "/pair", kind: "local", query: [], methods: ["POST"] },
-  { pattern: "/session", kind: "local", query: [], methods: ["POST", "DELETE"] },
   { pattern: "/town", kind: "local", query: [], methods: ["GET", "PUT"] },
   { pattern: "/town/export", kind: "local", query: [] },
   { pattern: "/town/backups", kind: "local", query: [] },

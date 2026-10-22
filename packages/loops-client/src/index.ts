@@ -58,7 +58,7 @@ export {
   validateWatchdogResponse,
   warnOnce,
 } from "./validate.ts";
-export { connectHost, createHostSource, forgetHostKey, forgetHostSession, prefetchSnapshot, probeHost, readHostTown, readHostTownBackup, readHostTownBackups, signInHost, writeHostTown } from "./hostSource.ts";
+export { connectHost, createHostSource, forgetHostKey, prefetchSnapshot, probeHost, readHostTown, readHostTownBackup, readHostTownBackups, writeHostTown } from "./hostSource.ts";
 export type { HostTownOp } from "./hostSource.ts";
 export type { HostAnswer, HostArchiveState, HostChatLine, HostConnection, HostDiscovery, HostHealth, HostKeyState, HostSessionState, HostSnapshotState, HostSourceTimings, HostStreamState } from "./hostSource.ts";
 export { readConnection } from "./hostSource.ts";
@@ -66,3 +66,30 @@ export { ACTIVITY_TYPES, ACTIVITY_TYPES_QUERY, LOG_FACT_STATUSES, LOG_FACT_TYPES
 export type { LogFacts, OpenTicket } from "./logFacts.ts";
 export { PAIRING_KEY, PAIR_FRAGMENT, PAIR_HEADER, answerTabs, askTabsForPairing, bearerHeaders, clearPairing, readPairing, redeemPairToken, storePairing, takeFragmentToken, tokenFromHash } from "./pairingBearer.ts";
 export type { PairOutcome } from "./pairingBearer.ts";
+export {
+  PAGE_CHAT_EVENT_TYPES,
+  PAGE_CHAT_EVENTS_LIMIT,
+  PAGE_CHAT_INIT,
+  PAGE_CHAT_LINE_MAX,
+  POLL_HIDDEN_MS,
+  POLL_MAX_MS,
+  POLL_MS,
+  REPROBE_MS,
+  REPROBE_SLOW_MS,
+  eventsUrl,
+  firstLine,
+  isLoopbackOrigin,
+  messageUrl,
+  pageGet,
+  pollDelay,
+  pollPageChat,
+  probePageChat,
+  probeVerdict,
+  readPageChatLine,
+  readEvents,
+  readThreads,
+  reprobeDelay,
+  threadMessagesUrl,
+  threadsUrl,
+} from "./pageChat.ts";
+export type { AgentDm, EventsPage, FetchLike, PageAnswer, PageProbe, PollOutcome } from "./pageChat.ts";

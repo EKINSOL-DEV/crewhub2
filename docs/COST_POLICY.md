@@ -289,6 +289,34 @@ without a GC): after a forced GC it is 55 MB, and 62 MB on the stress-20 fixture
 copies (the studio town's geometry arrays 26.2 to 23.0 MB; the look is the same, nothing read them). The rest of the
 hidden copies would need those variants built on first sight, which is a later round.
 
+A light two-hour soak against the development crewhub-loops on 8291, the evening of 2026-10-22 (`299c2ce`;
+`memory.mjs live --preview`, a production build behind a host of the tool's own, the page in `live`, a sample a minute
+with a forced GC, heap snapshots at minutes 10 and 120; `loops-seed.mjs --speed 4` the one writer, about 20 writes a
+minute, 2 550 applied over the two hours; the page's stores read through `window.__worldStores`):
+
+| Minute | Heap after GC | Geometries, textures | DOM nodes, listeners | Frame mean / p95 | Upstream reconnects |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 22.4 MB | 0, 0 | 285, 219 | (first frame) | 0 |
+| 10 | 24.2 MB | 233, 9 | 285, 219 | 16.7 / 17.5 ms | 1 |
+| 60 | 24.9 MB | 233, 9 | 310, 231 | 16.6 / 18.0 ms | 11 |
+| 120 | 24.7 MB | 233, 9 | 285, 219 | 16.7 / 17.5 ms | 23 |
+
+After the ten-minute warm-up the heap moved between 24.2 and 25.0 MB: 0.5 MB from minute 10 to minute 120 by the
+endpoints, 0.24 MB an hour by a line through the 111 samples (the tool's growth line, whose base is the second
+minute, says 1.2 MB and 0.61 MB an hour: most of it is the warm-up's). The snapshot diff names what grew (0.9 MB in all): the
+inspector's record per network request again (0.4 MB, the CDP session's, not the page's), re-tiered JIT code (0.4 MB)
+and the performance timing buffer; the world's own objects, arrays and strings grew by 60 KB together. Geometries
+232 to 233 in the first five minutes (one lazily built piece), then flat; textures flat; the DOM 285 nodes and 219
+listeners at the start and the end, with a bounded excursion of +25 nodes and +12 listeners in 22 of the 121 samples
+between minutes 31 and 72 (two values only, never a third). The frame time sat on the 60 Hz vsync (16.6 to 16.7 ms
+mean, p95 17.3 to 18.3 ms) with 1.7 to 2.3 ms of work a frame, the same at minute 120 as at minute 10. The host's
+upstream stream reconnected 23 times, once every five minutes: loops ends every stream after 300 s by design and the
+host resumes from its cursor after a 1.5 to 3 s pause, without a reset to the tab; the page's connection read `live`
+on every sample and its bubbles, Recent answers and chat threads stores stayed at zero (bubbles are the fake's, round
+12; nobody opened the chat), the town document at revision 0 (nothing edited it; the tool's host had no saved town, so
+it never named a revision). Nothing grows without bound at this write rate over two hours; the next soak can be
+longer or at a faster seed.
+
 ## Acceptance
 
 The world, in demo mode and when it later reads crewhub-loops through the host,

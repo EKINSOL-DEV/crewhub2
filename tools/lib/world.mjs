@@ -75,15 +75,17 @@ export const castChoice = (cast) => ({ "crewhub-world.cast": cast });
 
 /**
  * Listens to a page for what must never happen: a page error, a console error, a request that leaves the page's own
- * origin. Every one lands in `problems` as { kind: "pageerror" | "console" | "external", text }.
+ * origin. Every one lands in `problems` as { kind: "pageerror" | "console" | "external", text, pageOrigin }, an
+ * external one with its `url` and `method`, a console one with the `url` the browser blames (its location), so a
+ * closing check can tell an expected ask (road 2's probe at the loops web origin) from a stray one.
  */
 export function watch(page, origin, problems, tag = "") {
-  const push = (kind, text) => problems.push({ kind, text: tag ? `[${tag}] ${text}` : text });
+  const push = (kind, text, more = {}) => problems.push({ kind, text: tag ? `[${tag}] ${text}` : text, pageOrigin: origin, ...more });
   page.on("pageerror", (e) => push("pageerror", e.message));
-  page.on("console", (m) => m.type() === "error" && push("console", m.text()));
+  page.on("console", (m) => m.type() === "error" && push("console", m.text(), { url: m.location()?.url ?? "" }));
   page.on("request", (r) => {
     const url = r.url();
-    if (!url.startsWith(origin) && !url.startsWith("data:") && !url.startsWith("blob:")) push("external", url);
+    if (!url.startsWith(origin) && !url.startsWith("data:") && !url.startsWith("blob:")) push("external", url, { url, method: r.method() });
   });
 }
 

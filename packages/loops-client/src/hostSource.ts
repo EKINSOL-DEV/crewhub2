@@ -68,18 +68,16 @@ export interface HostKeyState {
 }
 
 /**
- * The person's session the host may hold for the chat's bubbles (round 12, road B option 2): off until a person signs
- * in through the host; `signed-in` names the person (paired browsers); `expired` means loops refused the kept cookie
- * (sign in again); `signed-out` means no session. Never the cookie, never a password.
+ * The chat's road (round 12; one road since round 19): present as `key` when this crewhub-loops lets the world's own key
+ * read the chat (a viewer key, `world/viewer-key`), so the agents' answers come as bubbles over the key's own stream;
+ * `unknown` (round 29) while the host cannot say yet (no link to loops, the key unchecked or being checked), so the
+ * page decides no road on it; absent when the host knows the key does not read the chat (an older loops, a plain
+ * external bot's key, loops' chat bubbles feature off): no bubbles over the key, and the world says the ways. The
+ * sign-in road (`signed-out`, `signed-in`, `expired`, a person's session kept by the host) went with the switch to the
+ * viewer key (decision 9).
  */
 export interface HostSessionState {
-  /** `key`: this loops lets the world's own key read the chat (a viewer key), so no sign-in is needed and none is used. */
-  state: "signed-out" | "signed-in" | "expired" | "key";
-  /** The person's display name and account id; paired browsers only. */
-  name?: string;
-  id?: string;
-  /** When the session was made (ISO); paired only. */
-  at?: string;
+  state: "key" | "unknown";
 }
 
 /** The host's one upstream stream. */
@@ -136,7 +134,7 @@ export interface HostConnection {
   archived?: HostArchiveState;
   /** Absent on a host from before the step list. */
   snapshot?: HostSnapshotState;
-  /** The person's chat session the host holds, if any (round 12); absent on a host from before. */
+  /** The chat's road: `key` when the world's key reads the chat on this loops (bubbles); absent when it does not. */
   session?: HostSessionState;
 }
 
@@ -260,16 +258,11 @@ export function readConnection(value: unknown): HostConnection | null {
 }
 
 /** The `snapshot` of a connection, or null when it is missing or malformed. */
-/** The host's `connection.session`, strictly: a known state, the name, id and time when strings; anything else dropped. */
+/** The host's `connection.session`, strictly: `key` only; anything else (a host from before with a sign-in state) is dropped. */
 export function readSessionState(value: unknown): HostSessionState | null {
-  const raw = value as { state?: unknown; name?: unknown; id?: unknown; at?: unknown } | null | undefined;
-  const state = oneOf(raw?.state, ["signed-out", "signed-in", "expired", "key"]);
-  if (state === undefined) return null;
-  const out: HostSessionState = { state };
-  if (typeof raw?.name === "string") out.name = raw.name;
-  if (typeof raw?.id === "string") out.id = raw.id;
-  if (typeof raw?.at === "string") out.at = raw.at;
-  return out;
+  const raw = value as { state?: unknown } | null | undefined;
+  const state = oneOf(raw?.state, ["key", "unknown"]);
+  return state === undefined ? null : { state };
 }
 
 export function readSnapshotState(value: unknown): HostSnapshotState | null {
@@ -353,6 +346,8 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
   let staleTimer: ReturnType<typeof setTimeout> | null = null;
   let teamTimer: ReturnType<typeof setInterval> | null = null;
   let wake: (() => void) | null = null;
+  /** The open stream read's own abort (review F3, round 27): a heal ends the read alone; `abort` is the run's. */
+  let streamAbort: AbortController | null = null;
 
   const changed = () => {
     for (const listener of [...changeListeners]) {
@@ -387,15 +382,37 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
   const get = (path: string, signal?: AbortSignal) =>
     fetch(url(path), { signal: signal ?? null, headers: { ...bearerHeaders(), ...extraHeaders, accept: "application/json" } });
 
-  /** Any message from the host: the stream is alive. Silence past `staleMs` is not. */
+  /** Any message from the host: the stream is alive. Silence past `staleMs` is not: the stream is stale and healed. */
   function touched(): void {
     if (staleTimer !== null) clearTimeout(staleTimer);
     staleTimer = setTimeout(() => {
       staleTimer = null;
-      if (running && state === "live") setState("stale");
+      if (running && state === "live") {
+        setState("stale");
+        heal();
+      }
     }, timings.staleMs);
     if (state === "stale") setState("live");
   }
+
+  /**
+   * A stale stream is a dead leg, never a quiet host (the host heartbeats every 15 s, well inside `staleMs`): a socket
+   * left open but dead after a laptop's sleep, a proxy that stopped forwarding. The read is ended, and the run reopens
+   * the stream at its cursor with the normal back-off (the host replays its buffer or sends `reset`); a run already in
+   * its back-off asks now. Called at stale, and when the page comes back into view while stale (a wake is the moment).
+   */
+  function heal(): void {
+    if (!running) return;
+    streamAbort?.abort();
+    wake?.();
+  }
+
+  /** The page's visibility (a browser; nothing in Node): the hook for a heal on a wake. */
+  const page = (): { visibilityState?: string; addEventListener(type: string, listener: () => void): void; removeEventListener(type: string, listener: () => void): void } | undefined =>
+    (globalThis as { document?: { visibilityState?: string; addEventListener(type: string, listener: () => void): void; removeEventListener(type: string, listener: () => void): void } }).document;
+  const onVisibility = () => {
+    if (page()?.visibilityState === "visible" && state === "stale") heal();
+  };
 
   function sleep(ms: number, signal: AbortSignal): Promise<void> {
     return new Promise((resolve) => {
@@ -464,8 +481,24 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
     return true;
   }
 
-  /** Reads the stream until it ends. Returns "resnapshot" when a reset or a gap asks for one, "ended" otherwise. */
+  /**
+   * Reads the stream until it ends. Returns "resnapshot" when a reset or a gap asks for one, "ended" otherwise. The
+   * read has an abort of its own, so a heal ends this read and nothing else; the run's abort ends it too.
+   */
   async function readStream(signal: AbortSignal): Promise<"resnapshot" | "ended"> {
+    const own = new AbortController();
+    const forward = () => own.abort();
+    signal.addEventListener("abort", forward, { once: true });
+    streamAbort = own;
+    try {
+      return await readStreamWith(own.signal);
+    } finally {
+      streamAbort = null;
+      signal.removeEventListener("abort", forward);
+    }
+  }
+
+  async function readStreamWith(signal: AbortSignal): Promise<"resnapshot" | "ended"> {
     let response: Response;
     try {
       response = await fetch(url(`/stream?cursor=${cursor}`), { signal, headers: { ...bearerHeaders(), ...extraHeaders, accept: "text/event-stream" } });
@@ -651,6 +684,7 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
     running = false;
     abort?.abort();
     abort = null;
+    page()?.removeEventListener("visibilitychange", onVisibility);
     if (staleTimer !== null) clearTimeout(staleTimer);
     staleTimer = null;
     if (teamTimer !== null) clearInterval(teamTimer);
@@ -711,6 +745,7 @@ export function createHostSource(options: HostSourceOptions = {}): WorldSource {
         }
         void run(abort.signal, needSnapshot, first && "response" in first ? first.response : null);
         teamTimer = setInterval(() => void readTeam(), timings.teamPollMs);
+        page()?.addEventListener("visibilitychange", onVisibility);
       }
       return () => {
         listeners.delete(listener);
@@ -764,20 +799,6 @@ export async function connectHost(key: string, baseUrl = "", timeoutMs = 10_000)
 /** `DELETE /world-api/connect`: the host forgets its stored key (the world then asks for one again). Never throws. */
 export async function forgetHostKey(baseUrl = "", timeoutMs = 10_000): Promise<HostAnswer> {
   return hostRequest("DELETE", `${baseUrl}${PREFIX}/connect`, null, timeoutMs);
-}
-
-/**
- * `POST /world-api/session {id, password}` (round 12): the host signs in to crewhub-loops as the person for the chat's
- * bubbles and keeps only the session cookie. The password goes to the host on this computer and nowhere else; the page
- * keeps nothing. Never throws.
- */
-export async function signInHost(id: string, password: string, baseUrl = "", timeoutMs = 15_000): Promise<HostAnswer> {
-  return hostRequest("POST", `${baseUrl}${PREFIX}/session`, JSON.stringify({ id, password }), timeoutMs);
-}
-
-/** `DELETE /world-api/session`: the host signs out at loops and deletes the kept session. Never throws. */
-export async function forgetHostSession(baseUrl = "", timeoutMs = 10_000): Promise<HostAnswer> {
-  return hostRequest("DELETE", `${baseUrl}${PREFIX}/session`, null, timeoutMs);
 }
 
 /**

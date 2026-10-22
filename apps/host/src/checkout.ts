@@ -68,7 +68,9 @@ export function tellOutcome(status: number, body: unknown): TellOutcome {
  * be told: `{ kind: "no-run-file" }`, and the dev server says so.
  */
 export async function tellDevOrigin(port: number, origin: string, checkout: string, timeoutMs = 1500, secret: string | null = readRunFile(port)?.mintSecret ?? null): Promise<TellOutcome> {
-  if (secret === null) return { kind: "no-run-file" };
+  // No run file to read: nothing to say when nothing listens there yet (the usual start order); only a host that
+  // answers without a readable run file is "cannot be told".
+  if (secret === null) return (await probeCheckout(port, timeoutMs)).kind === "silent" ? { kind: "silent" } : { kind: "no-run-file" };
   try {
     const response = await fetch(`http://127.0.0.1:${port}/world-api/dev-origin`, {
       method: "POST",

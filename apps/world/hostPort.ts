@@ -112,7 +112,7 @@ export function devOriginLine(port: number, origins: readonly string[], outcome:
   const head = `dev: the page's writes come from ${list}`;
   switch (outcome.kind) {
     case "accepted":
-      return `${head}: told to the host on 127.0.0.1:${port}, which accepts them for this run (this checkout's dev server and host; connect, sign-in and town writes work).`;
+      return `${head}: told to the host on 127.0.0.1:${port}, which accepts them for this run (this checkout's dev server and host; connect and town writes work).`;
     case "no-route":
       return `${head}: the host on 127.0.0.1:${port} is from before the dev origin and cannot be told; the page's writes will be refused (403) unless that host runs with ${ALLOWED_ORIGINS_VAR}=${list}.`;
     case "no-run-file":

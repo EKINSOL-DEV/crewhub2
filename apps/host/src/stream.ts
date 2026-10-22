@@ -8,7 +8,7 @@
  */
 import type { Envelope, HostKeyState, ChatThreadFact } from "@crewhub/loops-client";
 import { type LoopsClient, type StreamResume, isUnauthorized } from "./loops.ts";
-import type { ChatLine } from "./session.ts";
+import type { ChatLine } from "./chatLine.ts";
 import { SnapshotError, readTail } from "./snapshot.ts";
 
 export type LoopsState = "ok" | "down" | "unauthorized";
@@ -27,7 +27,7 @@ export type HostMessage =
   | { type: "status"; loops: LoopsState; stream?: "busy"; reason?: string; key?: HostKeyState["state"] }
   | { type: "event"; envelope: Envelope }
   | { type: "heartbeat"; seq: number; ts: string }
-  /** An agent's message to the person, read by the host as the signed-in person (round 12, session.ts): a bubble. */
+  /** An agent's message to the person, read by the host with its own key where loops lets it (chatLine.ts): a bubble. */
   | { type: "chat"; chat: ChatLine }
   /** The installation's town document changed on the host (round 20, worldDb.ts): the browsers refetch `/world-api/town`. */
   | { type: "town"; rev: number }
@@ -242,7 +242,8 @@ export function createUpstream(client: LoopsClient, options: UpstreamOptions = {
 
   async function readVersion(): Promise<void> {
     try {
-      const { status, body } = await client.getJson<{ version?: unknown }>("/api/health");
+      // Keyless (round 29): `GET /api/health` is public, and crewhub-loops main answers 403 to a viewer key on it.
+      const { status, body } = await client.getPublicJson<{ version?: unknown }>("/api/health");
       if (status === 200 && typeof body?.version === "string") {
         version = body.version;
         options.onVersion?.(version);

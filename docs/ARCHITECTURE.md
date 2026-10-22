@@ -15,7 +15,9 @@ components.
 **The diagram below is the target.** Four of its arrows run today: the agents, probes
 and people writing to crewhub-loops (loops' own), the host reading crewhub-loops (and,
 where the key may read the chat, the agents' answers for the bubbles), the browser
-reading the host, and the browser framing loops' own web app in the Chat panel. The
+reading the host, the browser framing loops' own web app in the Chat panel and, where
+crewhub-loops names the page's origin (`CHL_WORLD_ORIGIN`, loops main), the browser reading
+the person's own chat from loops directly with the person's cookie (road 2, round 28). The
 world database is built for the town (rounds 20 and 21: the host keeps the live town document and its undo history
 per installation in SQLite, with backups and a previewed restore); not built: the director lane.
 
@@ -29,6 +31,7 @@ flowchart LR
   Host --- DB[("World database (SQLite): the town and its history, rounds 20 and 21")]
   Browser["CrewHub World (browser)"] -- "loopback HTTP: snapshot + SSE, pairing cookie" --> Host
   Browser -. "the Chat panel: loops' own web app, framed, on the person's session" .-> Loops
+  Browser -. "road 2: GET the person's own chat, the person's cookie, where CHL_WORLD_ORIGIN names the page" .-> Loops
   Director["world-director lane (Haiku), not built"] -. "crewhub-world CLI, host socket" .-> Host
 ```
 
@@ -42,13 +45,13 @@ within 1.5 s, else demo; `?source=live|demo` overrides).
 
 | Package | Role |
 | --- | --- |
-| `packages/loops-client` | crewhub-loops types, hand-written runtime validators, the event allowlist (`ticket.quiet` and `automation.ran` with typed payloads since round 7; `owner-request.updated` known and skipped), the `WorldSource` seam, and the live source `createHostSource` (snapshot, then SSE events by `seq`; `ConnectionState` for the chip; `probeHost`, `connectHost`, `forgetHostKey`) |
+| `packages/loops-client` | crewhub-loops types, hand-written runtime validators, the event allowlist (`ticket.quiet` and `automation.ran` with typed payloads since round 7; `owner-request.updated` known and skipped), the `WorldSource` seam, and the live source `createHostSource` (snapshot, then SSE events by `seq`; `ConnectionState` for the chip; `probeHost`, `connectHost`, `forgetHostKey`), and road 2's reads of the person's own chat from the page (`pageChat.ts`: four `GET` routes, the person's cookie, no header of the page's own, never through the host) |
 | `packages/demo` | `DemoSource`: a deterministic, in-memory crewhub-loops with a 16-minute storyline, four scenarios, its own lanes, the world's key as its observer and a CI bot (as loops answers external bots), the quiet and automation events in the storyline, playback controls and the chat API the bubbles call |
 | `packages/loops-fake` | The same storyline served over HTTP the way crewhub-loops `4cdcd383` serves it (bearer keys, `from=tail`, sealed cursors, per-key visibility, 429, archived projects): the host's end-to-end test and the live browser checks run against it ([LOOPS_REAL_VS_FAKE.md](LOOPS_REAL_VS_FAKE.md)) |
 | `packages/world-model` | Projection, `reduceWorld`, `describeWorld` (text view), town document, catalogue, director intents, `where`, the agent card's facts, the quiet facts and the board cards (`board.ts`); it never knows which source feeds it |
 | `packages/world-engine` | Grid, footprints, placement, pathfinding, the prop format (`crewhub-prop/1`) and its validator |
 | `packages/world-style`, `packages/style-greenhouse`, `packages/world-cast`, `packages/cast-*` | The style and cast seams and their data ("World styles" below) |
-| `apps/world` | The browser app: Three.js town and building scenes, the minimal UI, the chat bubbles mirrored from crewhub-loops, the `useWorld` seam, the Connect screens and the Connection panel, the dust on a quiet package (`dust.ts`, the object layer) |
+| `apps/world` | The browser app: Three.js town and building scenes, the minimal UI, the chat bubbles mirrored from crewhub-loops, the `useWorld` seam, the Connect screens and the Connection panel, the dust on a quiet package (`dust.ts`, the object layer), the chat's road (`state/chatRoad.ts`: the host's key, else the page's probe, else the honest words) and the page's own poll (`state/pageChat.ts`) |
 | `apps/host` | The relay to crewhub-loops ("The host" below) |
 
 Data flow, the same in both modes:
@@ -65,7 +68,7 @@ description read only that model.
 Phase status (plan section 10; the dates and details are in [the roadmap](ROADMAP.md)):
 
 - Phase 1 (town, loops-client, demo source): built in demo mode; live since 2026-10-07, against the real crewhub-loops since 2026-10-21
-- Phase 2 (the chat, backed by the demo chat API in demo mode): built in demo mode; live since round 12 as loops' own chat framed in the Chat panel, with the agents' answers as bubbles, a chat mark from the town and Recent answers where the key may read the chat (rounds 14 to 18; the session road stands in until the viewer key lands)
+- Phase 2 (the chat, backed by the demo chat API in demo mode): built in demo mode; live since round 12 as loops' own chat framed in the Chat panel, with the agents' answers as bubbles, a chat mark from the town and Recent answers where the key may read the chat (rounds 14 to 18; the session road that stood in until the viewer key landed is gone since round 28, and the page's own read of the person's chat where loops has the world's origin set came in its place, road 2)
 - Phase 3 (interiors, three rooms, the ticket drone, a person carrying work into Done, closed buildings): built in demo mode and live; the world database keeps the live town in the host since round 20
 - Phase 4 (town paths and dynamic pathfinding): built in demo mode and live
 - Phase 5 (town document and build mode): built in demo mode; in live mode the host keeps the town document and its undo history per installation for every paired browser (rounds 20 and 21), the browser keeping it only while the host is away
@@ -97,7 +100,10 @@ One Node process, no dependency beyond Node, loopback only. Its parts, each a fi
   restart (the old upstream stream stopped first, every tab reset); `DELETE` forgets it.
   These are the host's only writes, to its own folder.
 - **Pairing** (`pairing.ts`): a one-time link (`/pair/<token>`, 10 minutes) exchanged for an
-  `HttpOnly; SameSite=Strict` cookie signed with a secret; `npm run world` keeps that secret
+  `HttpOnly; SameSite=Strict` cookie signed with a secret (since round 26 every cookie of the name is
+  tried, so another loopback server cannot shadow it; a short secret file is replaced; the served
+  world sends `frame-ancestors 'self'`, `X-Frame-Options: SAMEORIGIN` and `nosniff`; the stream
+  admits 64 tabs, then 503); `npm run world` keeps that secret
   in `<config dir>/pairing-secret` (0600), so a restart keeps every paired browser; the
   plain `npm run host` uses a per-run secret. Every data route answers 401 `not_paired`
   without the cookie; health stays open and shows only states until paired.
@@ -105,7 +111,9 @@ One Node process, no dependency beyond Node, loopback only. Its parts, each a fi
   first, then projects, boards, principals, agents, team, watchdog, milestones and
   releases, the archived projects from the event log), paged lists followed to the end,
   the reads in parallel under a cap of 6 in the projects' order, timed and counted; the
-  host's own principal is named as the `observer` so the world does not draw it. Since round
+  host's own principal is named as the `observer` so the world does not draw it. On loops main (round 29) the
+  closed buildings come from the list (`includeArchived` for a viewer, source `list`) and each quiet candidate is
+  judged with one small `?ticket=` read; an older loops, which ignores `ticket=`, gets the paged read below. Since round
   9 the snapshot also carries what only the log holds (`readLogFacts`, the picking shared with
   the demo in `loops-client/src/logFacts.ts`): the open quiet stretches and the latest
   automation runs, read from `GET /api/events?types=ticket.quiet,automation.ran` in a window
@@ -121,7 +129,9 @@ One Node process, no dependency beyond Node, loopback only. Its parts, each a fi
 - **The stream** (`stream.ts`, `loops.ts`, `transport.ts`): one upstream `GET /api/events/stream`
   per host process, whatever the tabs do, opened from `from=tail` with the sealed cursor or
   `after=`, reconnected after the 300 s end with 1.5 to 3 s of jitter, backoff on errors,
-  `Retry-After` on 429, a reset on 410 or a restored log; a ring buffer of 2000 envelopes
+  `Retry-After` on 429, a reset on 410 or a restored log; a stream that stays open but silent past two
+  heartbeats (a half-dead socket after a sleep) is aborted and reopened at the cursor, at once when the tab
+  comes back into view (round 27); a ring buffer of 2000 envelopes
   catches a tab up; the tabs get Server-Sent Events (`status`, `event`, `heartbeat`,
   `reset`). The transport seam makes TCP (`fetch`) and the Unix socket (`node:http` with
   `socketPath`) indistinguishable above it.
@@ -135,7 +145,10 @@ One Node process, no dependency beyond Node, loopback only. Its parts, each a fi
   while the key check is under way. `loopsCommit` is loops' own `version`, read on every stream
   open; `loopsCommitBefore` is the first one of this run, present only when loops has answered
   another since (loops upgraded under the host, logged once; the restart that came with it
-  re-snapshots the world as any Loops down does). A 401 on the stream from a loops whose health
+  re-snapshots the world as any Loops down does); since round 29 that version is read keyless, because loops main
+  refuses the public health read to a viewer key. `connection.session` says whether the host's key reads the chat
+  (`key`), is known not to (absent), or is not yet known (`unknown`, until the host has linked and asked; a key
+  accepted on the stream after a keyless start is asked then). A 401 on the stream from a loops whose health
   answers (the key revoked while Live, its bot disabled) makes the key `rejected` with that reason.
 - **`npm run world`** (`main.ts`, `build.ts`): starts the host with pairing on, opens the
   browser on a pairing link and, when `apps/world/dist` is missing or older than the
@@ -146,12 +159,16 @@ One Node process, no dependency beyond Node, loopback only. Its parts, each a fi
   `<config dir>/world.db` through Node 24's `node:sqlite` (0600; a `schema_version` table, migrations in a
   transaction, a `world.db.bak-v<n>` copy before each, a newer file refused), read and written by paired browsers on an
   allowed origin through `GET`/`PUT /world-api/town` (`crewhub-town/1`, at most 4 MB, last write wins with a revision
-  check and `409 town_conflict`, the undo history as `commit`/`amend`/`undo`/`redo` ops on a base revision), exported
+  check and `409 town_conflict`, the undo history as `commit`/`amend`/`undo`/`redo` ops on a base revision; since round
+  26 every town is validated by the world-model's own validator before it is kept and the history is capped at 8 MB;
+  since round 27 an edit made on a town the host has since replaced is a conflict said plainly, never the stale town
+  over the host's, and the world's own lot assignment goes up as `amend`), exported
   with `GET /world-api/town/export`, the backups listed for a previewed restore; every write goes to every tab as a
   `town` message. The browser side is `apps/world/src/state/hostTown.ts`.
 - **The dev origin** (`devOrigin.ts`, round 23): `POST /world-api/dev-origin {origin, checkout}` from a program on this
-  machine (a loopback socket, no browser `Origin`, JSON), a loopback origin only, the same checkout id, at most eight
-  per run, lets `npm run dev`'s page pass the origin guard without `CREWHUB_WORLD_ALLOWED_ORIGINS`; pairing is unchanged.
+  machine (a loopback socket, no browser `Origin`, JSON), a loopback origin only, the same checkout id and, since round
+  26, the host's own run-file secret (0600, so the caller is the same user), at most eight per run, lets `npm run dev`'s
+  page pass the origin guard without `CREWHUB_WORLD_ALLOWED_ORIGINS`; pairing is unchanged.
 
 Details, the env table and the command list are in [apps/host/README.md](../apps/host/README.md).
 
@@ -160,7 +177,8 @@ Details, the env table and the command list are in [apps/host/README.md](../apps
 In live mode the page shows one screen instead of the town until the connection is whole
 (`apps/world/src/state/connect.ts`, pure and tested; `components/ConnectPage.tsx`): **No loops
 found** (what the host looked for; it keeps looking), **Pair this browser** (the command
-and a "Use the demo" button), **Connect** (the loops dialog's steps word for word and a key
+and a "Use the demo" button), **Connect** (the steps of loops main's Settings > Agents card, Connect CrewHub
+World or New access key once the bot exists, with its buttons' names, the older loops' road under them, and a key
 field that keeps nothing; the key goes to `POST /world-api/connect` and nowhere else),
 **Checking**, **Key rejected** (loops' reason, paste again or "Forget this key") and
 **Loops down** (which says when the key is not checked yet). The gate
@@ -170,6 +188,7 @@ the chip tells the stream's story (Connecting, Live, Catching up, Stale, Loops d
 Stream busy) and opens a Connection panel (now, where loops was found, the key, the stream,
 cursor, last event, reconnects, the closed buildings and where their list came from,
 crewhub-loops' version and the one the host started with after an upgrade, the transport,
+the Town and Zones rows, the Chat section that says which road reads the chat or names both ways out,
 "Forget this key"); the panel asks the host the moment the connection's state changes and
 every 5 s otherwise. Two states send the person back to a screen over the live tab
 (`liveScreen`): a 401 `not_paired` from the snapshot or the stream brings the Pair screen
@@ -207,9 +226,9 @@ external loading, an editor.
 
 | Layer | Owns | Must stay independent of |
 | --- | --- | --- |
-| World | Scene, characters, input, view state, accessible alternatives, the Connect screens | Process control, credentials (the pasted key passes through to the host and is kept nowhere), runtime details |
+| World | Scene, characters, input, view state, accessible alternatives, the Connect screens; road 2's read of the person's own chat (the person's cookie, `GET` only, never through the host) | Process control, credentials (the pasted key passes through to the host and is kept nowhere), runtime details |
 | World engine | Grid, footprints, placement, pathfinding, movement, semantics | React, Three.js, host and runtime details |
-| Host (built; the world database is planned) | Finding and reading crewhub-loops with an external bot key, `GET` only, never a write; the stored key and the pairing secret in its own folder; serving and pairing the browser; later the world database | Rendering, movement, agent control, provider secrets |
+| Host (built, the world database with it) | Finding and reading crewhub-loops with the viewer bot's key (an external bot's on an older loops), `GET` only, never a write; the stored key, the pairing secret, the archive memory and the world database in its own folder; serving and pairing the browser | Rendering, movement, agent control, provider secrets |
 | loops client | crewhub-loops types, runtime validation of every response and event, the `WorldSource` seam, the live source | React, Three.js, the DOM |
 | crewhub-loops (external) | Every fact: projects, tickets, agents, deliveries, messages, team presence | CrewHub's code; it is read, never edited |
 
@@ -249,17 +268,22 @@ No React Three Fiber or physics engine is needed for this slice.
 ## Tools: looking at and measuring the running world
 
 [`tools/`](../tools/README.md) holds the scripts that open the running world in a headless browser: the browser
-regression pass (`regress.mjs`, ten groups: the connect flow against a stub host, the demo walk, the demo's
+regression pass (`regress.mjs`, ten groups, against the development loops of `4cdcd383` by default or loops main
+with `--loops main` (round 29): the connect flow against a stub host, the demo walk, the demo's
 wayfinding, picker and the new loops events, the first-run tour, live mode against the fake with pairing (with the Zones line, the scripted director in live mode, the Chat panel and the live card), the chat's roads, the town kept by the host
 (two browsers, one town; a restart), the operations road over the
-fake (loops stopped, the key revoked, loops upgraded under the host), the three-room building, 176 checks offline,
-plus up to 18 against the real development crewhub-loops: the connect flow through a keyless host, and live mode
-over TCP and the socket with loops' version and the log's quiet facts in a fresh tab; 194 in all), the pixel-identical
+fake (loops stopped, the key revoked, loops upgraded under the host), the three-room building, about 180 checks
+offline, plus the ones against the real development crewhub-loops: the connect flow through a keyless host, and live
+mode over TCP and the socket with loops' version, the log's quiet facts in a fresh tab and the chat's road; 194 in
+all on 8291, 34 of them on loops main), road 2's proof against loops main (`road2proof.mjs`: the page's every
+request, header names only), the pixel-identical
 proof of a change (`pixcheck.mjs`: two commits or dist folders built and served apart, 74 label-free demo pairs and
 324 cast pairs, a diff image per pair, exit 0 only at all zeros), the accessibility pass
 (`a11y.mjs`: what a screen reader is given on every Connect screen, the panel and the town's labels, the keyboard,
 contrast, a phone, reduced motion), the frame and memory measurements (`perf.mjs`, `memory.mjs`, in demo
-and live mode), the first paint's CPU profile resolved to source files (`profile.mjs`), the time from `npm run
+and live mode; `memory.mjs` also runs a timed soak with a load gate and, since round 29, diffs the DOM when its node
+count moves), the first paint's CPU profile resolved to source files (`profile.mjs`, and `--enter` for a building's
+enter), the time from `npm run
 world` to the dressed town (`timeworld.mjs`), and the screenshot helpers (`shots.mjs`, `castshots.mjs`, `castworld.mjs`,
 `connectshots.mjs`, `liveshots.mjs`). Two are not browser checks: `loops-seed.mjs` replays the demo storyline into
 the development crewhub-loops, and `loops-dev.sh` runs that instance next to the Mac app. They are plain `.mjs`
@@ -273,7 +297,8 @@ nothing outside `tools/` import it and no workspace depend on it, and holds the 
 ## Integration order
 
 The phases of plan section 10 are listed in [the roadmap](ROADMAP.md). The demo phases
-came first; the host is built (live mode); the world database, chat and director stay open.
+came first; the host is built (live mode), the world database with it (rounds 20 and 21) and the chat on its
+two roads (rounds 12 to 29); the real director stays open.
 
 The host reaches crewhub-loops over the Mac app's Unix socket when it finds one in the
 app's data folder, else over loopback TCP (`127.0.0.1:8091` by default); `CREWHUB_WORLD_LOOPS_URL`
@@ -286,9 +311,11 @@ Identity is the loops principal id; a worker's identity is its session and name.
 host sends no commands. The chat bubbles send DMs as the person through loops' own
 routes (in demo mode, an in-browser fake answers them and the reply is scripted; in live
 mode the Chat panel frames loops' own web app, so the chat is exactly loops' and runs on the
-person's own session, which never reaches the world). Everything else a person does opens
-the loops web app. The host's own principal, the external bot `crewhub-world`, is the
-observer and is never drawn as a figure.
+person's own session, which never reaches the world; an agent's answer shows as a bubble where
+loops lets the world's viewer key read the chat, or where loops names the page's origin and the page
+reads the person's own chat itself, road 2). Everything else a person does opens
+the loops web app. The host's own principal, the viewer bot `crewhub-world` (an external bot
+on an older loops), is the observer and is never drawn as a figure.
 
 Unknown, idle, blocked and done are different lane statuses, and a lane status never
 proves that a task succeeded. A team snapshot older than 5 minutes is shown as
@@ -303,7 +330,11 @@ server ends a stream after 300 s and re-checks the credential every 60 s, four s
 key (429 with `Retry-After`), no buffer (the only 410 is `cursor_expired`), gaps in `seq`
 per key are normal. The host follows it; the fake emits the same. Validate every
 response and event at runtime, bound buffers, and keep rendering independent of event
-frequency. The differences found on the wire are in [LOOPS_REAL_VS_FAKE.md](LOOPS_REAL_VS_FAKE.md).
+frequency. The differences found on the wire are in [LOOPS_REAL_VS_FAKE.md](LOOPS_REAL_VS_FAKE.md). crewhub-loops
+main (`88760279`, round 29) adds to that contract: a viewer key sees a lead's events minus lane-watch plus its maker's
+`dm.*`; `ticket=` filters the log and the stream; the sealed cursor's shape changed and the host resumes on it; the
+public health read is refused to a viewer key; a viewer is paced at 600 requests a minute; the world handles each
+(the night report's round 29 table names every difference).
 
 Three event types loops added since `053b5f47` are shown since round 7, each as a small presence that moves no
 ticket and no agent: `ticket.quiet` lays dust on the package and a clock tag ("quiet 30 min") until a person or an
@@ -321,7 +352,12 @@ the loops way (actor `system`), and 23 regress checks cover them (the three of r
 ## Local access (built)
 
 Both apps on one machine: loopback only, a one-time pairing link, an HttpOnly cookie,
-Host and Origin checks, the pairing secret kept across restarts by `npm run world`.
+Host and Origin checks, the pairing secret kept across restarts by `npm run world`. An outside
+security review of the host (round 26) found nothing a page on another site can do and fixed what
+other programs on the same loopback could; whether those programs are in the threat model, whether a
+pairing should expire, and what an unpaired health read may say are questions for Nicky
+([proposals/open-questions.md](proposals/open-questions.md)); a per-tab pairing without a cookie is
+prepared on a branch (round 27, `task/r27-tab-pairing`) for that decision.
 Tailscale or another TLS proxy is only an option (`CREWHUB_WORLD_PUBLIC_URL` makes the
 cookie `Secure`); nothing hands a link to a remote person yet. Demo mode needs none of
 it, and no credential is ever bundled (a test greps the browser code and the built bundle).
