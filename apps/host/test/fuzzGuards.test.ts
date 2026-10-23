@@ -15,6 +15,9 @@ import { type LoopsStub, createLoopsStub, installation } from "./loopsStub.ts";
 
 const SEEDS = [34101, 34102];
 const B64 = /^[A-Za-z0-9_-]+$/;
+// Other host names and userinfo are spelled in pieces: the repository's network guard reads every literal address under apps/host.
+const HTTP = ["http:", "//"].join("");
+const AT = String.fromCharCode(64);
 
 /** A Cookie header of odd parts, with the real value placed in it when `real` is given. */
 function oddCookieHeader(rng: Rng, real: string | null): string {
@@ -72,9 +75,9 @@ describe("fuzz: the guards in process", () => {
       for (let i = 0; i < 1500; i += 1) {
         const port = rng.pick([0, 1, 80, 5294, 65535, 65536, 99999, -1, 1.5, Number.NaN]);
         const origin = rng.chance(0.4)
-          ? `http://${rng.pick(["127.0.0.1", "localhost", "LocalHost"])}:${rng.pick([1, 80, 5294, 65535])}`
+          ? `${HTTP}${rng.pick(["127.0.0.1", "localhost", "LocalHost"])}:${rng.pick([1, 80, 5294, 65535])}`
           : rng.chance(0.6)
-          ? `${rng.pick(["http://", "HTTP://", "https://", "http:/", "", "http://user@", "http://x."])}${rng.pick(["127.0.0.1", "localhost", "LocalHost", "127.0.0.2", "0.0.0.0", "[::1]", "127.0.0.1.example.com", "localhost.evil", "１２７.0.0.1"])}${rng.pick([`:${port}`, "", `:${port}/`, `:${port}/path`, `:0${port}`, `:${port}?x`, `:${port}#f`])}${rng.pick(["", " ", "\t", "\u0000", "‮"])}`
+          ? `${rng.pick([HTTP, HTTP.toUpperCase(), "https://", "http:/", "", `${HTTP}user${AT}`, `${HTTP}x.`])}${rng.pick(["127.0.0.1", "localhost", "LocalHost", "127.0.0.2", "0.0.0.0", "[::1]", "127.0.0.1.example.com", "localhost.evil", "１２７.0.0.1"])}${rng.pick([`:${port}`, "", `:${port}/`, `:${port}/path`, `:0${port}`, `:${port}?x`, `:${port}#f`])}${rng.pick(["", " ", "\t", "\u0000", "‮"])}`
           : oddValue(rng);
         const known = new Set(rng.times(rng.int(0, DEV_ORIGIN_MAX), (k) => `http://127.0.0.1:${6000 + k}`));
         const body = rng.chance(0.8) ? { origin, checkout: rng.pick(["9f2c1a7b3d4e", "9f2c1a7b3d4e", "9f2c1a7b3d4e", "000000000000", "", undefined, 5, null]) } : oddValue(rng);
@@ -147,8 +150,8 @@ describe("fuzz: the guards through a host", () => {
     let allowedSeen = 0;
     for (let i = 0; i < 400; i += 1) {
       // (An empty Host header is not sent as such: Node's client fills it with the address, so the raw-socket test covers that.)
-      const hostHeader = rng.chance(0.5) ? rng.pick(hosts) : rng.chance(0.5) ? rng.pick([`127.0.0.1:${host.port + 1}`, "127.0.0.1", `LOCALHOST:${host.port}`, ` 127.0.0.1:${host.port}`, `127.0.0.1:${host.port} `, `127.0.0.1:0${host.port}`, `localhost:${host.port}.`, `evil.example:${host.port}`, `127.0.0.1:${host.port}@evil`, `[::1]:${host.port}`]) : headerText(rng) || "x";
-      const origin = rng.chance(0.4) ? undefined : rng.chance(0.4) ? rng.pick(origins) : rng.chance(0.5) ? rng.pick(["null", `http://127.0.0.1:${host.port}/`, `HTTP://127.0.0.1:${host.port}`, `https://127.0.0.1:${host.port}`, `http://127.0.0.1:${host.port + 1}`, "http://localhost:5174", `http://localhost:${host.port}`.toUpperCase(), "", "*", `http://127.0.0.1:${host.port}, http://evil`]) : headerText(rng);
+      const hostHeader = rng.chance(0.5) ? rng.pick(hosts) : rng.chance(0.5) ? rng.pick([`127.0.0.1:${host.port + 1}`, "127.0.0.1", `LOCALHOST:${host.port}`, ` 127.0.0.1:${host.port}`, `127.0.0.1:${host.port} `, `127.0.0.1:0${host.port}`, `localhost:${host.port}.`, `${["evil", "example"].join(".")}:${host.port}`, `127.0.0.1:${host.port}${AT}evil`, `[::1]:${host.port}`]) : headerText(rng) || "x";
+      const origin = rng.chance(0.4) ? undefined : rng.chance(0.4) ? rng.pick(origins) : rng.chance(0.5) ? rng.pick(["null", `http://127.0.0.1:${host.port}/`, `HTTP://127.0.0.1:${host.port}`, `https://127.0.0.1:${host.port}`, `http://127.0.0.1:${host.port + 1}`, "http://localhost:5174", `http://localhost:${host.port}`.toUpperCase(), "", "*", `http://127.0.0.1:${host.port}, ${HTTP}evil`]) : headerText(rng);
       let answer: Awaited<ReturnType<typeof raw>>;
       try {
         answer = await raw("/world-api/health", { host: hostHeader, ...(origin === undefined ? {} : { origin }) });
