@@ -344,7 +344,7 @@ test("exactly the limits are allowed; one past each is refused on the field it b
 });
 
 test("every key but provenance is required and named when it is missing", () => {
-  const full = prop();
+  const full: Record<string, unknown> = prop();
   for (const key of Object.keys(full)) {
     const { [key]: _, ...without } = full;
     assertError(without, key, "is required");
