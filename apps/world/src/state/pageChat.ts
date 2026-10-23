@@ -84,7 +84,12 @@ export function hostKeyReadsChat(health: Pick<HostHealth, "connection"> | null |
  */
 export function loopsOriginOf(health: Pick<HostHealth, "loopsWebUrl"> | null | undefined): string | null {
   if (typeof health?.loopsWebUrl !== "string" || !/^https?:\/\//.test(health.loopsWebUrl)) return null;
-  return new URL(loopsWebUrl(health as HostHealth | null | undefined)).origin;
+  // A url the browser cannot parse (round 34, found by the fuzz: `http://[`) names no origin: null, never a throw.
+  try {
+    return new URL(loopsWebUrl(health as HostHealth | null | undefined)).origin;
+  } catch {
+    return null;
+  }
 }
 
 export interface PageChatRunnerOptions {
