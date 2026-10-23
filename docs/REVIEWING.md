@@ -209,29 +209,47 @@ that order; `apps/host/README.md` beside the host. The rest is reference: the sp
 
 ## 3. How to run it yourself in 5 minutes
 
+Timed by a stranger on 2026-10-23 (round 34) from a fresh worktree with no `node_modules` and no `dist`, with npm's
+cache warm: `npm ci` 1 s, `npm run check` 49 s, the demo open and clicked through in the next minute, and the live
+town on the screen 3 min 36 s after `npm ci` began; a cold npm cache adds the download. Where the stranger stumbled,
+the words below now say what to do.
+
 The demo, two minutes, nothing but Node 24 and npm 11 (`.nvmrc`; an older Node stops at once with the reason):
 
 ```sh
 npm ci
 npm run dev                      # http://127.0.0.1:5173, the demo; or: npm run build && npm run preview (4173)
-npm run check                    # typecheck, 977 tests, doc links, the design and copy guards, the build: under a minute
+npm run check                    # typecheck, 996 tests, doc links, the design and copy guards, the build: under a minute
 ```
 
-Click a building, press T for the text view, B for build mode, "?" in the toolbar for the tour.
+On a shared machine, prefix `npm run dev` with `CREWHUB_WORLD_PORT=<a free port>`: the dev server proxies `/world-api`
+to the host on 5180 by default, which may be somebody else's (it refuses a host from another checkout and says so;
+with nothing on the port the page runs the demo). `npm run dev` takes no port of its own: it is Vite's 5173, or the
+next free one.
+
+Click a building, press T for the text view, B for build mode, and the "?" button in the toolbar (Help > Show the
+introduction) for the tour.
 
 Live mode, three minutes more. With `Crewhub.app` open on this Mac, `npm run world` alone is the road (the first
 section of [LOOPS_SETUP.md](LOOPS_SETUP.md)). Against a development crewhub-loops you already run (its section 7
-starts one from a checkout on 8291 with `tools/loops-dev.sh`):
+starts one from a checkout on 8291 with `tools/loops-dev.sh`), with a key file on disk or without one:
 
 ```sh
-CREWHUB_WORLD_LOOPS_URL=http://127.0.0.1:8291 CREWHUB_WORLD_PORT=5181 npm run world
+CREWHUB_WORLD_LOOPS_URL=http://127.0.0.1:8291 CREWHUB_WORLD_PORT=5181 CREWHUB_WORLD_KEY_FILE=~/path/to/the.key npm run world
+CREWHUB_WORLD_LOOPS_URL=http://127.0.0.1:8291 CREWHUB_WORLD_PORT=5181 npm run world          # no key file: paste one
 ```
 
-The browser opens on a one-time pairing link and shows Connect; make the viewer key in that loops (Settings > Agents >
-Connect CrewHub World) and paste it once. `npm run host -- doctor` says which step failed, one line each. With no
-loops at hand, section 0 of the same document runs the fake in three commands (`npm run loops:fake -- --port 8391`,
-the host with its two env lines, `npm run dev`, then `?source=live`). A regress group of your own:
-`node tools/regress.mjs --port <your Vite port> --groups demo` ([tools/README.md](../tools/README.md)).
+`npm run world` opens your browser on a one-time pairing link (`-- --no-open` prints the link instead, for a browser
+of your choice; `npm run host -- open --no-open` prints a fresh one for a host that already runs). With a key file the
+town stands at once (the stranger's clock: the world up 731 ms after the host started); without one the page shows
+Connect: make the viewer key in that loops (Settings > Agents > Connect CrewHub World) and paste it once. `npm run
+host -- doctor`, with the same environment in front of it, says which step failed, one line each (12 checks). Road 2,
+the page reading your own chat where that loops has `CHL_WORLD_ORIGIN` set: start the host on the port that origin
+names (`CREWHUB_WORLD_PORT=<that port>`) and sign in to loops in the same browser; signed out, the Connection panel's
+Chat section says so and names both ways. With no loops at hand, section 0 of the same document runs the fake in
+three commands (`npm run loops:fake -- --port 8391`, the host with its two env lines, `npm run dev`, then
+`?source=live`). A regress group of your own: `node tools/regress.mjs --port <your Vite port> --groups demo`
+([tools/README.md](../tools/README.md)).
 
 ## 4. What is deliberately not here
 
