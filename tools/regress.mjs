@@ -122,6 +122,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { cli, dressed, launch, list, problemLines, seek, speed, watch } from "./lib/world.mjs";
 import { createConnectStub } from "./lib/connectStub.mjs";
 import { createLoopsWebStub } from "./lib/loopsWebStub.mjs";
+import { isProbeRefusal } from "./lib/probeRefusal.ts";
 
 // The connect group first: the connection is the first priority, so a default pass fails on it first.
 const GROUPS = ["connect", "walk", "demo", "tour", "live", "town", "ops", "chat", "rooms", "real"];
@@ -216,18 +217,9 @@ const road2Ask = (x) => {
 /**
  * The probe's refusal as the browser prints it (the verdict origin-not-set or unreachable): exactly the CORS line for
  * the threads route at a loops origin of this run from the page's own origin, and the browser's "Failed to load
- * resource" line for that same URL (`net::ERR_FAILED` when nothing readable came back, "the server responded with a
- * status of 401 (Unauthorized)" when loops answered the cookie-less ask and the browser then withheld it). Nothing else.
+ * resource" line for that same URL. Nothing else (lib/probeRefusal.ts, the rule a11y.mjs shares since round 32).
  */
-const probeRefusal = (x) => {
-  if (x.kind !== "console") return false;
-  const text = x.text.replace(/^\[[^\]]*\] /, "");
-  for (const origin of allLoopsOrigins()) {
-    if (text === `Access to fetch at '${origin}/api/dm/threads' from origin '${x.pageOrigin}' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.`) return true;
-    if (x.url === `${origin}/api/dm/threads` && (text === "Failed to load resource: net::ERR_FAILED" || /^Failed to load resource: the server responded with a status of \d{3} \([A-Za-z ]+\)$/.test(text))) return true;
-  }
-  return false;
-};
+const probeRefusal = (x) => isProbeRefusal(x, allLoopsOrigins());
 const sheet = (p) => p.locator("#text-view");
 /** Opens the text view (T), reads it and closes it again. */
 const text = async (p) => {
