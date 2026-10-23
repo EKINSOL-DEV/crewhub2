@@ -288,8 +288,10 @@ that would show the mutation: a redirect, a resent seq, a tab at the buffer's ed
 at exactly a limit. The scene's teardown had no observer at all before this round; three `rooms` checks now read
 the browser's own listener table, its timers and the geometries.
 
-Line numbers are at `9a765f0`. "Killed by" names the test file (under the package's `test/`) or the regress group.
-**New** marks a test written for a mutation that got past the tests.
+Line numbers are at `9a765f0`. "Killed by" names the test file (under the package's `test/`) or the regress group,
+and for a **New** test (one written for a mutation that got past the tests) its title or the regress check's words,
+close enough to find it with grep. Read again on 2026-10-23 (round 34) by a developer who did not make the table:
+all 64 `file:line` point to the mutated line at `9a765f0`, and every New test stands where the row says.
 
 | Area | Mutation (before → after) | file:line | Killed by |
 | --- | --- | --- | --- |
@@ -313,7 +315,7 @@ Line numbers are at `9a765f0`. "Killed by" names the test file (under the packag
 | 2 allow-list | the upstream gate passes any path | `allowList.ts:151` | `allowList.test.ts`, `unixsock.test.ts`, `stream.test.ts` |
 | 2 stream | the stream's 401 rule inverted | `apps/host/src/stream.ts:142` | `keyStates.test.ts` |
 | 2 stream | an event no longer clears the sealed cursor | `stream.ts:190` | equivalent: line 309's `sealedAt === cursor` already refuses an old token |
-| 2 stream | a resent seq `<=` → `<` | `stream.ts:187` | **New:** `stream.test.ts`, a resent seq reaches no tab twice |
+| 2 stream | a resent seq `<=` → `<` | `stream.ts:187` | **New:** `stream.test.ts`, an envelope loops sends again with a seq the host already applied reaches no tab a second time |
 | 2 stream | the ring buffer one short | `stream.ts:192` | **New:** `stream.test.ts`, a tab at the oldest kept seq is caught up |
 | 2 stream | the cursor resets whenever the tail moved | `stream.ts:304` | `stream.test.ts` |
 | 2 stream | a tab ahead of the host gets no reset | `stream.ts:400` | `stream.test.ts` |
@@ -348,7 +350,7 @@ Line numbers are at `9a765f0`. "Killed by" names the test file (under the packag
 | 5 prop document | the ceiling checked on the floor edge | `props.ts:460` | `props.test.ts` |
 | 5 prop document | a blank name passes (no trim) | `props.ts:296` | `props.test.ts` |
 | 5 prop import | the placement order changed | `apps/world/src/world/propImport.ts:75` | `propFlow.test.ts` |
-| 5 prop import | a second ticket's prop with the same id overwrites | `propImport.ts:52` | **New:** `propFlow.test.ts`, both props kept |
+| 5 prop import | a second ticket's prop with the same id overwrites | `propImport.ts:52` | **New:** `propFlow.test.ts`, a second ticket whose prop carries an id already in the catalogue keeps both props |
 | 5 teardown | `visibilitychange` listener left | `apps/world/src/world/TownScene.ts:2684` | **New:** regress `rooms`, (a) no scene listener twice |
 | 5 teardown | the orbit controls not disposed | `TownScene.ts:2688` | **New:** `rooms` (a) and (b) |
 | 5 teardown | the renderer not disposed | `TownScene.ts:2708` | **New:** `rooms` (b), the canvas keeps no listener |
