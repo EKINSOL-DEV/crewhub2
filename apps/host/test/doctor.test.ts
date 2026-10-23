@@ -38,6 +38,41 @@ describe("the doctor", () => {
   }
   const free: DoctorIo["probePort"] = () => Promise.resolve({ kind: "free" });
 
+  it("says the key is a viewer, reading only, when loops lists it so; else that the external bot could write", async () => {
+    for (const viewer of [true, false]) {
+      const stub = await createLoopsStub({ ...installation(), keyReadsChat: viewer });
+      cleanup.push(() => stub.close());
+      const dir = folder();
+      const keyFile = path.join(dir, "agent-crewhub-world.key");
+      writeFileSync(keyFile, `${stub.key}\n`, { mode: 0o600 });
+      const report = await runDoctor({ env: { CREWHUB_WORLD_LOOPS_URL: stub.url, CREWHUB_WORLD_KEY_FILE: keyFile, CREWHUB_WORLD_PORT: "5187", CREWHUB_WORLD_CONFIG_DIR: dir }, probePort: free });
+      const lines = byId(report);
+      assert.equal(report.ok, true, formatDoctor(report).join("\n"));
+      assert.doesNotMatch(lines.auth!.text, /could write/, "the auth line judges nothing it cannot know yet");
+      if (viewer) assert.match(lines.agents!.text, /crewhub-world is a viewer: it reads what the world needs and writes nothing/);
+      else assert.doesNotMatch(lines.agents!.text, /viewer/);
+    }
+  });
+
+  it("warns when archived.json remembers another loops, and says the host ignores and keeps it", async () => {
+    const stub = await createLoopsStub({ ...installation() });
+    cleanup.push(() => stub.close());
+    const dir = folder();
+    const keyFile = path.join(dir, "agent-crewhub-world.key");
+    writeFileSync(keyFile, `${stub.key}\n`, { mode: 0o600 });
+    writeFileSync(path.join(dir, "archived.json"), `${JSON.stringify({ v: 1, slugs: ["old"], at: "2026-10-21T00:00:00.000Z", target: "http://127.0.0.1:1" })}\n`, { mode: 0o600 });
+    const report = await runDoctor({ env: { CREWHUB_WORLD_LOOPS_URL: stub.url, CREWHUB_WORLD_KEY_FILE: keyFile, CREWHUB_WORLD_PORT: "5187", CREWHUB_WORLD_CONFIG_DIR: dir }, probePort: free });
+    const lines = byId(report);
+    assert.equal(lines.archive!.status, "warn");
+    assert.match(lines.archive!.text, /remembers 1 archived project \(old\) from http:\/\/127\.0\.0\.1:1, learnt 2026-10-21 00:00:00 UTC, not from http:\/\/127\.0\.0\.1:\d+: the host ignores it and keeps it/);
+    assert.match(lines.archive!.text, /CREWHUB_WORLD_CONFIG_DIR/);
+    // The same file, for this loops: plain ok.
+    writeFileSync(path.join(dir, "archived.json"), `${JSON.stringify({ v: 1, slugs: ["old"], at: "2026-10-21T00:00:00.000Z", target: stub.url })}\n`, { mode: 0o600 });
+    const again = byId(await runDoctor({ env: { CREWHUB_WORLD_LOOPS_URL: stub.url, CREWHUB_WORLD_KEY_FILE: keyFile, CREWHUB_WORLD_PORT: "5187", CREWHUB_WORLD_CONFIG_DIR: dir }, probePort: free }));
+    assert.equal(again.archive!.status, "ok");
+    assert.match(again.archive!.text, /remembers 1 archived project \(old\) from http:\/\/127\.0\.0\.1:\d+, learnt/);
+  });
+
   it("the port line reads unpaired health: the key's name when the host says it, the states alone when it does not (round 31, question 3)", async () => {
     const stub = await createLoopsStub({ ...installation() });
     cleanup.push(() => stub.close());
@@ -65,7 +100,8 @@ describe("the doctor", () => {
     const report = await runDoctor({ env: { CREWHUB_WORLD_LOOPS_URL: stub.url, CREWHUB_WORLD_KEY_FILE: keyFile, CREWHUB_WORLD_PORT: "5187", CREWHUB_WORLD_CONFIG_DIR: dir }, probePort: free });
     const lines = byId(report);
     assert.equal(report.ok, true, formatDoctor(report).join("\n"));
-    assert.deepEqual(report.lines.map((l) => l.id), ["node", "loops", "health", "key", "auth", "projects", "agents", "team", "events", "archive", "port", "pairing"]);
+    assert.deepEqual(report.lines.map((l) => l.id), ["node", "folder", "loops", "health", "key", "auth", "projects", "agents", "team", "events", "archive", "port", "pairing"]);
+    assert.equal(lines.folder!.text, `config folder ${dir} (from CREWHUB_WORLD_CONFIG_DIR)`);
     assert.match(lines.loops!.text, /found via env-url/);
     assert.match(lines.health!.text, /version 053b5f47/);
     assert.match(lines.key!.text, /mode 0600, yours, looks like an access key/);
@@ -81,7 +117,7 @@ describe("the doctor", () => {
     assert.ok(stub.requests.every((r) => r.method === "GET"), "the doctor never writes");
     const text = formatDoctor(report).join("\n");
     assert.ok(!text.includes(stub.key), "never the key");
-    assert.match(text, /doctor: all 12 checks ok/);
+    assert.match(text, /doctor: all 13 checks ok/);
   });
 
   it("names the remembered archive: its count and the loops it was learnt from; a broken memory is a fix", async () => {

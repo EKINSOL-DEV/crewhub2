@@ -2,7 +2,7 @@
 
 **How to answer:** one line per number, in the form shown after each question (for example `3: less`), to crewy or in
 a note; a number you skip keeps its default. **Nothing changes until you answer:** every question below names what the
-world keeps if you say nothing. Nine questions; the ones a later round answered are listed at the end with why.
+world keeps if you say nothing. Where an answer is already built, the question names its branch: that answer is one merge away. Thirteen questions; the ones a later round answered are listed at the end with why.
 
 ## 1. Pairing: the cookie, or a bearer per tab (rounds 26 and 27)
 
@@ -23,6 +23,7 @@ Mac's own boundary.
 **Recommendation** (rounds 26 and 27): `tab` if that threat is in scope; otherwise `cookie+expiry`.
 **Default:** `cookie` (the branch stays unmerged; the threat is neither accepted in writing nor closed).
 **Answer:** `1: tab / cookie+expiry / cookie`
+**One merge away:** `tab` is the branch `task/r27-tab-pairing`; `cookie+expiry` is `task/q1-cookie-expiry` (with question 2's 30 days); `cookie` needs no branch.
 
 ## 2. How long an unused pairing lives (round 26, with question 1)
 
@@ -30,6 +31,7 @@ Mac's own boundary.
 link; the window slides with every use. The branch's default is 30 days (`CREWHUB_WORLD_PAIRING_IDLE_DAYS`; 0 is never).
 **Recommendation:** 30. **Default:** 30 if question 1 brings an expiry; none if it does not.
 **Answer:** `2: 30 / <days> / never`
+**One merge away:** the expiry rides on question 1's branch; another number is one setting (`CREWHUB_WORLD_PAIRING_IDLE_DAYS`).
 
 ## 3. What health says before pairing (round 26)
 
@@ -41,6 +43,7 @@ needs (`loops`, `checkout`, an empty `keyName`) and blank the rest until paired.
 **Recommendation (the Lead, round 30):** `less`: the spec of the smooth connection already says that before pairing
 health shows the states and nothing else, and the dev probe keeps what it needs. **Default:** `as-is`.
 **Answer:** `3: less / as-is`
+**One merge away:** `less` is the branch `task/q3-health-less`.
 
 ## 4. The dev-origin route, now that the switch has landed (round 26)
 
@@ -95,6 +98,7 @@ history rules. Nothing says today that offline editing is per tab.
 **Recommendation (the Lead, round 30):** `say`: one sentence where the offline note shows; the case is rare and
 support is real work for little. **Default:** `as-is`.
 **Answer:** `8: support / say / as-is`
+**One merge away:** `say` is the branch `task/q8-offline-say` (`support` is not built).
 
 ## 9. The chat's road 2: one poller per tab (round 29)
 
@@ -127,6 +131,7 @@ while the page is open and nothing longer", but behind "About this chat" and in 
 **Recommendation (the Lead, round 30):** `show`: one short line on the block prevents a missed answer from reading
 as a bug, and it is cheap. **Default:** `as-is`.
 **Answer:** `11: show / as-is`
+**One merge away:** `show` is the branch `task/q11-recent-since`.
 
 ## 12. The Connection panel's Chat section is below the fold (round 29)
 

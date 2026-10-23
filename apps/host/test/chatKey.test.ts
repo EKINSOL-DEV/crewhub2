@@ -115,6 +115,19 @@ describe("the chat over the key, where loops allows it", () => {
     assert.ok(!tab.messages.some((m) => m.type === "threads"), "no thread facts where the key cannot read the chat");
   });
 
+  it("a plain external bot's key listed in the agents without the viewer flag reads no chat, even where its threads would answer 200: the flag decides, the threads are not asked", async () => {
+    // loops answers a plain bot's own (empty) threads with 200 (its own DMs); only a viewer key reads the maker's chat.
+    const agents = { agents: [...(installation().routes["/api/agents"] as { agents: unknown[] }).agents, { id: "crewhub-world", displayName: "World", role: "lead", external: true, herdrSession: null, disabled: false, lastSeenAt: null, keys: null, isCrewhubLead: false, projects: { lead: [], member: [] } }] };
+    const stub = await createLoopsStub({ ...installation(), routes: { ...installation().routes, "/api/agents": agents, "/api/dm/threads": { threads: [] } } });
+    cleanup.push(() => stub.close());
+    const { health, lines } = await startHost(stub.url, stub.key);
+    await waitFor("the host's word", async () => lines.some((l) => /read the chat|reads no chat|reads the chat/.test(l)));
+    assert.equal((await health()).connection.session, undefined, "no chat road for a plain key");
+    assert.ok(stub.requests.some((r) => r.path === "/api/agents" && r.authorization !== undefined), "the key's own entry was looked up");
+    assert.ok(!stub.requests.some((r) => r.path === "/api/dm/threads"), "a key without the viewer flag never asks for the threads");
+    assert.ok(lines.some((l) => /the key does not read the chat on this crewhub-loops \(no viewer key\)/.test(l)), lines.join("\n"));
+  });
+
   it("round 29 (High 1): loops not up at the host's start (the env URL road), the key accepted on the stream later: the host asks then whether the key reads the chat, health gains session key, the threads reach the tab and the dm gate opens", async () => {
     const port = await freePort();
     const lines: string[] = [];
@@ -163,5 +176,20 @@ describe("the chat over the key, where loops allows it", () => {
     await waitFor("the host's word", async () => (await health()).connection.session === undefined);
     assert.ok(lines.some((l) => /chat bubbles feature is switched off there \(Settings > Features\)/.test(l)), lines.join("\n"));
     assert.ok(!lines.some((l) => /no viewer key/.test(l)), "not the no-viewer-key words");
+  });
+
+  it("round 33: a plain key whose agent loops lists without `viewer` (every key's agent is listed) is no viewer: the chat is not asked for, and the log says no viewer key", async () => {
+    // The stub above lists no agent of the key's name at all; a real loops lists every agent, the key's own included, and
+    // a plain external bot's entry carries no `viewer: true`. The host must read that entry, not the threads.
+    const base = installation();
+    const plain = { id: "crewhub-world", displayName: "World", role: "lead", external: true, herdrSession: null, disabled: false, lastSeenAt: null, keys: null, isCrewhubLead: false, projects: { lead: [], member: [] } };
+    const stub = await createLoopsStub({ ...base, routes: { ...base.routes, "/api/agents": { agents: [...(base.routes["/api/agents"] as { agents: unknown[] }).agents, plain] } } });
+    cleanup.push(() => stub.close());
+    const { health, lines } = await startHost(stub.url, stub.key);
+    assert.equal((await health()).connection.session, undefined, "no chat road");
+    assert.ok(stub.requests.some((r) => r.path === "/api/agents" && r.authorization !== undefined), "the agents list read with the key");
+    assert.ok(!stub.requests.some((r) => r.path === "/api/dm/threads"), "the key's entry says it is no viewer: the threads are never asked for");
+    assert.ok(lines.some((l) => /the key does not read the chat on this crewhub-loops \(no viewer key\)/.test(l)), lines.join("\n"));
+    assert.ok(!lines.some((l) => /the viewer key reads no chat|the key reads the chat on/.test(l)), "not a viewer's words");
   });
 });

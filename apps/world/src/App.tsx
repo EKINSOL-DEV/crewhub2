@@ -28,6 +28,7 @@ import { JumpList } from "./components/JumpList";
 import { RecentAnswers } from "./components/RecentAnswers";
 import { IconSprite } from "./components/Icon";
 import { useMedia } from "./state/media";
+import { useWindowKeydown } from "./state/windowKeys";
 import { Button, Card, Chip, Field, Menu } from "./components/primitives";
 import { SceneBoundary } from "./components/SceneBoundary";
 import WorldCanvas, { type Selection } from "./components/WorldCanvas";
@@ -551,142 +552,139 @@ function World() {
     return () => media.removeEventListener("change", changed);
   }, []);
 
-  // Keys that work anywhere outside a text field: T, Escape and Backspace, and the camera keys.
-  useEffect(() => {
-    const key = (e: KeyboardEvent) => {
-      // The introduction: Escape skips it wherever the focus is (the card handles it itself while the focus is inside).
-      if (tourOpen && e.key === "Escape" && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        e.preventDefault();
-        closeTour();
-        return;
-      }
-      // The jump list opens from anywhere, a text field included (Cmd or Ctrl+K types nothing).
-      if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "k" && !editing) {
-        e.preventDefault();
-        if (jumpOpen) closeJump();
-        else openJump();
-        return;
-      }
-      if (typing(e.target) && (e.key !== "Escape" || swallowsEscape(e.target))) return;
-      // Undo and redo of layout edits while build mode is on.
-      if (build.state.on && (e.ctrlKey || e.metaKey) && !e.altKey && (e.key.toLowerCase() === "z" || e.key.toLowerCase() === "y")) {
-        e.preventDefault();
-        if (e.key.toLowerCase() === "y" || e.shiftKey) redo();
-        else undo();
-        return;
-      }
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
-      if (editing) {
-        if (e.key === "Escape") setEditing(null);
-        return;
-      }
-      // While walking, the movement keys are the walk's (WorldCanvas), and the mode keys that share them wait.
-      if (walking && /^(w|a|s|d|b|shift|arrow(up|down|left|right)|enter)$/i.test(e.key)) return;
-      if (e.key.toLowerCase() === "b" && !graphicsFailed) {
-        e.preventDefault();
-        build.toggle();
-        return;
-      }
-      // Escape closes the innermost thing first: Settings, then build mode (its drag, selection, chosen prop, then the
-      // mode itself), then the text view, the selection, the zoomed room and the building.
-      if (jumpOpen) {
-        if (e.key === "Escape") {
-          e.preventDefault();
-          closeJump();
-        }
-        return;
-      }
-      if (e.key === "/") {
-        e.preventDefault();
-        openJump();
-        return;
-      }
-      if (e.key === "Escape" && chat) {
-        e.preventDefault();
-        closeChat();
-        return;
-      }
-      if (e.key === "Escape" && connectionOpen) {
-        e.preventDefault();
-        closeConnection();
-        return;
-      }
-      if (e.key === "Escape" && settingsOpen) {
-        e.preventDefault();
-        closeSettings();
-        return;
-      }
-      if (build.key(e)) {
-        e.preventDefault();
-        return;
-      }
-      if (e.key === "Escape" && walking) {
-        e.preventDefault();
-        stopWalk();
-        return;
-      }
-      if (e.key.toLowerCase() === "w" && !graphicsFailed && !build.state.on && !textOpen && !settingsOpen && !selection.selected) {
-        e.preventDefault();
-        startWalk();
-        return;
-      }
-      if (e.key === "Escape" && build.state.on) {
-        e.preventDefault();
-        build.toggle();
-        return;
-      }
-      // Shift+F follows the selected agent (F alone is the frame rate overlay).
-      if (e.key.toLowerCase() === "f" && e.shiftKey && !graphicsFailed && (selectedAgent || following)) {
-        e.preventDefault();
-        follow(following ? null : selectedAgent);
-        return;
-      }
+  // Keys that work anywhere outside a text field: T, Escape and Backspace, and the camera keys. The handler is this
+  // render's; the window listener is added once and calls the latest one (state/windowKeys.ts, round 32).
+  useWindowKeydown((e: KeyboardEvent) => {
+    // The introduction: Escape skips it wherever the focus is (the card handles it itself while the focus is inside).
+    if (tourOpen && e.key === "Escape" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      closeTour();
+      return;
+    }
+    // The jump list opens from anywhere, a text field included (Cmd or Ctrl+K types nothing).
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "k" && !editing) {
+      e.preventDefault();
+      if (jumpOpen) closeJump();
+      else openJump();
+      return;
+    }
+    if (typing(e.target) && (e.key !== "Escape" || swallowsEscape(e.target))) return;
+    // Undo and redo of layout edits while build mode is on.
+    if (build.state.on && (e.ctrlKey || e.metaKey) && !e.altKey && (e.key.toLowerCase() === "z" || e.key.toLowerCase() === "y")) {
+      e.preventDefault();
+      if (e.key.toLowerCase() === "y" || e.shiftKey) redo();
+      else undo();
+      return;
+    }
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (editing) {
+      if (e.key === "Escape") setEditing(null);
+      return;
+    }
+    // While walking, the movement keys are the walk's (WorldCanvas), and the mode keys that share them wait.
+    if (walking && /^(w|a|s|d|b|shift|arrow(up|down|left|right)|enter)$/i.test(e.key)) return;
+    if (e.key.toLowerCase() === "b" && !graphicsFailed) {
+      e.preventDefault();
+      build.toggle();
+      return;
+    }
+    // Escape closes the innermost thing first: Settings, then build mode (its drag, selection, chosen prop, then the
+    // mode itself), then the text view, the selection, the zoomed room and the building.
+    if (jumpOpen) {
       if (e.key === "Escape") {
-        if (textOpen) closeText();
-        else if (following) follow(null);
-        else if (card) closeCard();
-        else if (selection.selected) setSelection((s) => ({ ...s, selected: null }));
-        else if (zoomed) {
-          setZoomed(null);
-          setAnnouncement(`Inside ${inside?.name ?? "the building"}. Arrow keys move between ${rooms === "classic" ? "rooms" : "the halls"}.`);
-        } else if (entered) back();
-        else if (here) go(stepOut({ district: here.id, building: null, room: null })!);
-        else return;
         e.preventDefault();
-        return;
+        closeJump();
       }
-      if (e.key === "Backspace" && entered && !walking) {
-        e.preventDefault();
-        back();
-        return;
-      }
-      if (e.key.toLowerCase() === "d" && !graphicsFailed) {
-        e.preventDefault();
-        setAnnouncement(toggleDetails() ? "Details on: every label shows." : "Details off: names and one bubble per robot.");
-        return;
-      }
-      if (e.key.toLowerCase() === "f" && !e.shiftKey && !graphicsFailed) {
-        e.preventDefault();
-        setAnnouncement(toggleFps() ? "Frame rate overlay on." : "Frame rate overlay off.");
-        return;
-      }
-      if (e.key.toLowerCase() === "t") {
-        e.preventDefault();
-        if (textOpen) closeText();
-        else openText();
-        return;
-      }
-      if (graphicsFailed || textOpen) return;
-      const cameraKeys: Record<string, CameraAction> = { "+": "zoom-in", "=": "zoom-in", "-": "zoom-out", "[": "rotate-left", "]": "rotate-right", h: "home", H: "home" };
-      const cameraAction = cameraKeys[e.key];
-      if (cameraAction) {
-        e.preventDefault();
-        camera(cameraAction);
-      }
-    };
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
-  }, [back, build, camera, card, chat, closeCard, closeChat, closeConnection, closeJump, closeSettings, closeText, closeTour, connectionOpen, editing, entered, follow, following, go, graphicsFailed, here, inside, jumpOpen, openJump, openText, redo, rooms, selectedAgent, selection.selected, settingsOpen, startWalk, stopWalk, textOpen, tourOpen, undo, walking, zoomed]);
+      return;
+    }
+    if (e.key === "/") {
+      e.preventDefault();
+      openJump();
+      return;
+    }
+    if (e.key === "Escape" && chat) {
+      e.preventDefault();
+      closeChat();
+      return;
+    }
+    if (e.key === "Escape" && connectionOpen) {
+      e.preventDefault();
+      closeConnection();
+      return;
+    }
+    if (e.key === "Escape" && settingsOpen) {
+      e.preventDefault();
+      closeSettings();
+      return;
+    }
+    if (build.key(e)) {
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "Escape" && walking) {
+      e.preventDefault();
+      stopWalk();
+      return;
+    }
+    if (e.key.toLowerCase() === "w" && !graphicsFailed && !build.state.on && !textOpen && !settingsOpen && !selection.selected) {
+      e.preventDefault();
+      startWalk();
+      return;
+    }
+    if (e.key === "Escape" && build.state.on) {
+      e.preventDefault();
+      build.toggle();
+      return;
+    }
+    // Shift+F follows the selected agent (F alone is the frame rate overlay).
+    if (e.key.toLowerCase() === "f" && e.shiftKey && !graphicsFailed && (selectedAgent || following)) {
+      e.preventDefault();
+      follow(following ? null : selectedAgent);
+      return;
+    }
+    if (e.key === "Escape") {
+      if (textOpen) closeText();
+      else if (following) follow(null);
+      else if (card) closeCard();
+      else if (selection.selected) setSelection((s) => ({ ...s, selected: null }));
+      else if (zoomed) {
+        setZoomed(null);
+        setAnnouncement(`Inside ${inside?.name ?? "the building"}. Arrow keys move between ${rooms === "classic" ? "rooms" : "the halls"}.`);
+      } else if (entered) back();
+      else if (here) go(stepOut({ district: here.id, building: null, room: null })!);
+      else return;
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "Backspace" && entered && !walking) {
+      e.preventDefault();
+      back();
+      return;
+    }
+    if (e.key.toLowerCase() === "d" && !graphicsFailed) {
+      e.preventDefault();
+      setAnnouncement(toggleDetails() ? "Details on: every label shows." : "Details off: names and one bubble per robot.");
+      return;
+    }
+    if (e.key.toLowerCase() === "f" && !e.shiftKey && !graphicsFailed) {
+      e.preventDefault();
+      setAnnouncement(toggleFps() ? "Frame rate overlay on." : "Frame rate overlay off.");
+      return;
+    }
+    if (e.key.toLowerCase() === "t") {
+      e.preventDefault();
+      if (textOpen) closeText();
+      else openText();
+      return;
+    }
+    if (graphicsFailed || textOpen) return;
+    const cameraKeys: Record<string, CameraAction> = { "+": "zoom-in", "=": "zoom-in", "-": "zoom-out", "[": "rotate-left", "]": "rotate-right", h: "home", H: "home" };
+    const cameraAction = cameraKeys[e.key];
+    if (cameraAction) {
+      e.preventDefault();
+      camera(cameraAction);
+    }
+  });
 
   // Arrow keys and Enter move the focus ring between plots while the scene has keyboard focus.
   const sceneKey = (e: ReactKeyboardEvent) => {

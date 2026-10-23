@@ -55,6 +55,18 @@ export function configDirOf(env: Record<string, string | undefined>): string {
   return text === "" ? DEFAULT_CONFIG_DIR : path.resolve(expandHome(text));
 }
 
+/**
+ * The one line that says which folder is in use and why (round 34: a stranger's run in the real host's folder
+ * overwrote its archive memory): "config folder <path> (the default ~/.config/crewhub-world)" or
+ * "config folder <path> (from CREWHUB_WORLD_CONFIG_DIR)". The host's start log and the doctor print it.
+ */
+export function configFolderLine(env: Record<string, string | undefined>, home: string = homedir()): string {
+  const dir = configDirOf(env);
+  const shown = dir === home || dir.startsWith(`${home}${path.sep}`) ? `~${dir.slice(home.length)}` : dir;
+  const named = (env.CREWHUB_WORLD_CONFIG_DIR ?? "").trim() !== "";
+  return `config folder ${shown} (${named ? "from CREWHUB_WORLD_CONFIG_DIR" : "the default ~/.config/crewhub-world"})`;
+}
+
 export const storedKeyFile = (configDir: string) => path.join(configDir, STORED_KEY_NAME);
 
 /**

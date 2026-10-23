@@ -317,6 +317,36 @@ on every sample and its bubbles, Recent answers and chat threads stores stayed a
 it never named a revision). Nothing grows without bound at this write rate over two hours; the next soak can be
 longer or at a faster seed.
 
+**The budget check after 31 rounds (round 32, 2026-10-23).** Everything above measured again on `a3e5a22`, the
+production build, against the last numbers here (the frame tables of `c89f582`, the live table of 21 October, the
+soak of `299c2ce`) and the passes of rounds 21 to 23 (`134818a`, `6ca81fd`). The method is the tools' (`perf.mjs
+--preview`, `memory.mjs --preview`, round 21's phone pass rig: five runs, medians; `tools/pixcheck.mjs` for any fix,
+none was needed). Where a number sat more than 10 % over its last value, a back-to-back pair against the kept
+`6ca81fd` build dated it: the head and `6ca81fd` read the same within noise on every pair (demo inside 1.7 to 1.9 ms
+of work against 1.7 to 1.8; the phone's Fast town 3.7 against 3.7 to 3.8; the live small team's town p95 2.6 to 3.3
+against 3.1), so what grew did so between 2 October and round 23 (the three-room buildings, the racks and decor, the
+persons, the chat marks: 0.62M to 0.78M triangles in the small team's town), was measured then and sits inside the
+budget. Nothing regressed over rounds 24 to 31.
+
+| What | Last number here | `a3e5a22` |
+| --- | --- | --- |
+| Bundle, `vite build`, bytes (gzip) | 2,374,398 (703,713), 30 files, round 15; 2,420,496 (714,023), round 23 | 2,432,889 (718,967), 22 files: JS 2,234,036 (616,928) in 16 chunks, CSS 116,648 (20,477), three fonts and the page 82,205; +2.5 % since round 15, +0.5 % since round 23; the 171 model files ride in the style chunk (390,799 / 84,604) |
+| The town road, cold | 18 `modulepreload` links (round 4) | 15 requests, 2,273,600 bytes (11 scripts, 2 stylesheets, 1 font, the page), dressed at 478 ms in that context |
+| Demo, town / inside: frame p95, work mean / p95, calls | 18.2 ms, 1.4 / 2.2, 279; 18.1 ms, 1.6 / 2.3, 430 | 18.0 ms, 1.5 / 1.7, 230; 18.1 ms, 1.8 / 2.0, 411 (steady 60, 0 slow; dark town 18.1 ms, 1.5 / 1.8, 265) |
+| Phone, Fast, town, 4x | 18.1 ms, 3.6 / 5.6, 240 | 18.3 ms, 4.1 / 5.5 (3.7 in three later runs), 221 |
+| Live, small team, town / inside | 18.2 ms, 1.6 / 1.8, 206, 0.62M; 18.2 / 100 ms, 2.2 / 2.6, 591, 0.97M | 18.1 ms, 1.5 / 3.3, 239, 0.78M; 18.1 / 18.7 ms, 1.9 / 2.3, 564, 1.00M (0 slow) |
+| Live, studio, town / inside | 18.2 ms, 4.2 / 4.8, 674, 2.83M; 18.1 ms, 2.9 / 3.7, 520, 1.50M | 18.0 ms, 3.5 / 4.2, 692, 2.89M; 18.2 ms, 2.6 / 3.2, 487, 1.52M |
+| Heap after GC, ten minutes: demo at 16x; the studio live at 16x | 22 to 25 MB; 33 MB | 22.8 to 26.2 MB (1 MB after the warm-up); 31.6 to 33.9 MB (0.8 MB); geometries, textures, DOM nodes and listeners flat but for the known bounded excursions of the need pins' words |
+| Cold start to "town stands", desktop 1440 unthrottled | first frame 0.79 s (2 Oct); dressed 404 ms (round 23) | dressed 381 ms (own CPU 279 ms); `perf.mjs startup` 372 ms; Live 379 ms, the chip at 67 ms |
+| The phone profile, 375 at 4x | dressed 1,409 ms, own CPU 1,170 (round 23 base) | 1,273 ms, own CPU 1,047; Live 1,267; the first-paint functions each at or under their round-21-to-23 values |
+| Walk mode, a frame, desktop / phone 4x | 8 / 9 ms median / p95 | 8 / 10, worst 10; 8 / 10, worst 26 |
+
+Where a frame's work goes now (ten seconds inside a building on the desktop, the CPU profile's self time): three's
+render submission is three quarters of it (`renderBufferDirect` 78 ms, `projectObject` 75, the binding states 47,
+the uniforms' `setValue` and `upload` 77 together over the ten seconds) and the matrix pass 50 ms; the page's own
+code beside it is a few milliseconds a second. The same on the phone's Fast town at 4x: `renderBufferDirect` 182 ms,
+`projectObject` 150, the matrix pass 139 over ten seconds, 1.6 s of CPU in all, no task over 50 ms.
+
 ## Acceptance
 
 The world, in demo mode and when it later reads crewhub-loops through the host,

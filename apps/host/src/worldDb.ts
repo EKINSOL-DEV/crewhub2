@@ -34,7 +34,8 @@ export const HISTORY_MAX_BYTES = 8 * 1024 * 1024;
  * Returns the first problem as a plain reason.
  */
 export function validateTownForHost(document: unknown): { ok: true } | { ok: false; reason: string } {
-  const record = document as { styleId?: unknown; style?: unknown };
+  // Not an object at all: the validator says so (round 34: the function itself never throws on null or undefined).
+  const record = (typeof document === "object" && document !== null ? document : {}) as { styleId?: unknown; style?: unknown };
   const styles = [record.styleId, record.style].filter((v): v is string => typeof v === "string");
   const builtin = new Set<string>();
   const walk = (value: unknown, depth: number): void => {
@@ -249,18 +250,27 @@ export function openWorldDb(configDir: string, options: WorldDbOptions = {}): Wo
   const updateRow = (document: string, history: string, at: string, updatedBy: string | null, installation: string, baseRev: number) =>
     hasHistory ? update.run(document, history, at, updatedBy, installation, baseRev) : update.run(document, at, updatedBy, installation, baseRev);
   type Row = { installation: string; rev: number; document: string; history: string | null; updatedAt: string; updatedBy: string | null };
-  /** The history of a row: the stored one, else one made of the document (a row from before schema 2). */
+  /** A stored entry the history code can move over: an object with a numeric revision (what the host itself writes). */
+  const isEntry = (v: unknown): v is TownHistory["entries"][number] => typeof v === "object" && v !== null && !Array.isArray(v) && typeof (v as { revision?: unknown }).revision === "number";
+  /**
+   * The history of a row: the stored one when it is sound (entries that are documents, a cursor inside them), else
+   * one made of the document (a row from before schema 2), else null (round 34: a file edited or damaged by hand holds
+   * a cursor past its entries, an entry that is no document, or a document that is not JSON; none of it may throw out
+   * of a move, and an undo may not restore a non-document).
+   */
   const historyOf = (row: Row): TownHistory | null => {
     if (row.history !== null) {
       try {
-        const parsed = JSON.parse(row.history) as TownHistory;
-        if (Array.isArray(parsed.entries) && parsed.entries.length > 0 && Number.isInteger(parsed.index)) return parsed;
+        const parsed = JSON.parse(row.history) as { entries?: unknown; index?: unknown };
+        if (typeof parsed === "object" && parsed !== null && Array.isArray(parsed.entries) && parsed.entries.length > 0 && parsed.entries.every(isEntry) && Number.isInteger(parsed.index) && (parsed.index as number) >= 0 && (parsed.index as number) < parsed.entries.length)
+          return parsed as TownHistory;
       } catch {
         // rebuilt below
       }
     }
     try {
-      return createHistory(JSON.parse(row.document) as TownHistory["entries"][number]);
+      const doc: unknown = JSON.parse(row.document);
+      return isEntry(doc) ? createHistory(doc) : null;
     } catch {
       return null;
     }
@@ -299,7 +309,19 @@ export function openWorldDb(configDir: string, options: WorldDbOptions = {}): Wo
           db.exec("COMMIT");
           return { ok: true, rev: 1, document: op.document, canUndo: false, canRedo: false, changed: true };
         }
-        const history = historyOf(row) ?? createHistory(JSON.parse(row.document) as TownHistory["entries"][number]);
+        const history = historyOf(row);
+        if (history === null) {
+          // Nothing readable in the row (round 34): a step back or forward has nothing to move; a document written over
+          // the right revision starts the history again (the person's town heals the damaged row).
+          if (!("document" in op)) {
+            db.exec("ROLLBACK");
+            return { ok: true, rev: current, document: row.document, canUndo: false, canRedo: false, changed: false };
+          }
+          const fresh = createHistory(JSON.parse(op.document) as TownHistory["entries"][number]);
+          updateRow(op.document, JSON.stringify(fresh), at, updatedBy, installation, baseRev);
+          db.exec("COMMIT");
+          return { ok: true, rev: current + 1, document: op.document, canUndo: false, canRedo: false, changed: true };
+        }
         const moved =
           op.kind === "commit"
             ? commitHistory(history, JSON.parse(op.document) as TownHistory["entries"][number])

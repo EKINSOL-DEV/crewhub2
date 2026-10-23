@@ -18,6 +18,7 @@ import type {
   WatchdogResponse,
 } from "@crewhub/loops-client";
 import { ACTIVITY_TYPES_QUERY, LOG_FACT_TYPES, openTicketsOf, quietCandidates, selectLogFacts, type Envelope, type LogFacts, type OpenTicket } from "@crewhub/loops-client";
+import { isSegment } from "./allowList.ts";
 import { type LoopsClient, isUnauthorized } from "./loops.ts";
 
 export class SnapshotError extends Error {
@@ -161,10 +162,11 @@ export async function readArchivedSlugsFromEvents(client: Reader): Promise<Archi
     const events = Array.isArray(page.events) ? (page.events as { type?: unknown; project?: { slug?: unknown } | null }[]) : [];
     for (const event of events) {
       const slug = event.project?.slug;
-      if (typeof slug !== "string" || typeof event.type !== "string") continue;
+      // A slug that is no path segment is no project the host can read (round 34): it is not kept, so no read is refused.
+      if (!isSegment(slug) || typeof event.type !== "string") continue;
       last.set(slug, event.type);
     }
-    const lastSeq = typeof page.lastSeq === "number" ? page.lastSeq : after;
+    const lastSeq = isSeq(page.lastSeq) ? page.lastSeq : after;
     if (events.length < EVENTS_PAGE || lastSeq <= after) {
       complete = true;
       break;
@@ -341,7 +343,8 @@ export async function assembleSnapshot(client: LoopsClient, options: SnapshotOpt
   // cap, in order, counted and timed like every other read.
   const fromLog: ArchiveLogRead = complete ? { slugs: [], complete: true } : await readArchivedSlugsFromEvents(reader);
   const remembered = [...(options.rememberedSlugs ?? [])];
-  const unseen = [...new Set([...fromLog.slugs, ...(options.knownArchivedSlugs ?? []), ...remembered])].filter((slug) => !seen.has(slug));
+  // One gate for the three sources (round 34): only a slug that is a path segment is read, whatever road it came by.
+  const unseen = [...new Set([...fromLog.slugs, ...(options.knownArchivedSlugs ?? []), ...remembered])].filter((slug) => isSegment(slug) && !seen.has(slug));
   const ones = await mapLimit(unseen, limit, (slug) => reader.getJson<{ project: ProjectOut }>("/api/projects/{slug}".replace("{slug}", encodeURIComponent(slug))));
   for (const one of ones) {
     if (one.status === 200 && one.body?.project !== undefined && typeof one.body.project.archivedAt === "string") archivedProjects.push(one.body.project);
@@ -409,6 +412,10 @@ export async function assembleSnapshot(client: LoopsClient, options: SnapshotOpt
   return { snapshot, stats: { projects: projects.length, reads: progress.reads, ms: performance.now() - started, slowest, log: log.report } };
 }
 
+/** A seq as loops numbers its events: a non-negative integer a JSON number can carry exactly (round 34: a float, a
+ * `1e999` or a number past 2^53 in a line or a tail is no position; taken for one it would freeze or poison the cursor). */
+export const isSeq = (value: unknown): value is number => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+
 /** Where the event log stands for this key: `lastSeq` (the newest event it may see) and, since CL-406, a sealed cursor for "now". */
 export interface LogTail {
   lastSeq: number;
@@ -423,10 +430,10 @@ export interface LogTail {
  */
 export async function readTail(client: LoopsClient): Promise<LogTail> {
   const tail = await must<{ events?: unknown; lastSeq?: unknown; cursor?: unknown }>(client, "/api/events", { from: "tail" });
-  if (Array.isArray(tail.events) && tail.events.length === 0 && typeof tail.lastSeq === "number") {
+  if (Array.isArray(tail.events) && tail.events.length === 0 && isSeq(tail.lastSeq)) {
     return { lastSeq: tail.lastSeq, cursor: typeof tail.cursor === "string" && tail.cursor !== "" ? tail.cursor : null };
   }
   const older = await must<{ lastSeq?: unknown }>(client, "/api/events", { types: "attachment.added", limit: "1" });
-  if (typeof older.lastSeq !== "number") throw new SnapshotError("loops_down", "/api/events answered without lastSeq");
+  if (!isSeq(older.lastSeq)) throw new SnapshotError("loops_down", "/api/events answered without a lastSeq that is a seq");
   return { lastSeq: older.lastSeq, cursor: null };
 }
