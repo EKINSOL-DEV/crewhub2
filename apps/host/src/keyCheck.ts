@@ -55,7 +55,9 @@ export async function checkKey(client: LoopsClient, healthy: HealthProbe = async
   if (me.status === 403) return refused(refusalReason(messageOf(me.body)), 403, "GET /api/auth/me");
   if (me.status !== 200) return { state: "unreachable", reason: `crewhub-loops answered ${me.status} to GET /api/auth/me (${me.status >= 500 ? "restarting or in trouble" : "is that crewhub-loops?"})` };
   const principal = (me.body as { principal?: { id?: unknown; kind?: unknown; role?: unknown; displayName?: unknown } } | null)?.principal;
-  if (principal === undefined || typeof principal.id !== "string") return { state: "unreachable", reason: "GET /api/auth/me answered without a principal: is that crewhub-loops?" };
+  // `principal` may be null or anything on the wire (round 34: a 200 with `"principal": null` threw here, and the
+  // throw would have rejected the host's relink chain): no object with an id is no principal.
+  if (principal === undefined || principal === null || typeof principal !== "object" || typeof principal.id !== "string") return { state: "unreachable", reason: "GET /api/auth/me answered without a principal: is that crewhub-loops?" };
   if (principal.kind !== "agent") return { state: "rejected", reason: PERSON_REASON };
   if (principal.role === "probe") return { state: "rejected", reason: PROBE_REASON };
   let projects: { status: number; body: unknown };
