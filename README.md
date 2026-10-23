@@ -100,7 +100,9 @@ keep the Greenhouse style.
 Read [AGENTS.md](AGENTS.md), then [the handoff](docs/ASTRA_HANDOFF.md). The open work
 is listed in the [roadmap](docs/ROADMAP.md): the real director, and the proposals still waiting on crewhub-loops
 (the viewer key and the world's origin setting landed in loops main). The questions that wait on Nicky are one page:
-[docs/proposals/open-questions.md](docs/proposals/open-questions.md).
+[docs/proposals/open-questions.md](docs/proposals/open-questions.md). Reviewing the pull request that brings this
+branch to `main`: [docs/REVIEWING.md](docs/REVIEWING.md) says what to skip, the reading order by area with the risky
+parts and what pins them, how to run it in five minutes, and what is deliberately not in it.
 
 ## Previous version
 
