@@ -211,7 +211,7 @@ that order; `apps/host/README.md` beside the host. The rest is reference: the sp
 
 Timed by a stranger on 2026-10-23 (round 34) from a fresh worktree with no `node_modules` and no `dist`, with npm's
 cache warm: `npm ci` 1 s, `npm run check` 49 s, the demo open and clicked through in the next minute, and the live
-town on the screen 3 min 36 s after `npm ci` began; a cold npm cache adds the download. Where the stranger stumbled,
+town on the screen 3 min 35 s after `npm ci` began; a cold npm cache adds the download. Where the stranger stumbled,
 the words below now say what to do.
 
 The demo, two minutes, nothing but Node 24 and npm 11 (`.nvmrc`; an older Node stops at once with the reason):
