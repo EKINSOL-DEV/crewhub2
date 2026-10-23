@@ -409,6 +409,10 @@ export async function assembleSnapshot(client: LoopsClient, options: SnapshotOpt
   return { snapshot, stats: { projects: projects.length, reads: progress.reads, ms: performance.now() - started, slowest, log: log.report } };
 }
 
+/** A seq as loops numbers its events: a non-negative integer a JSON number can carry exactly (round 34: a float, a
+ * `1e999` or a number past 2^53 in a line or a tail is no position; taken for one it would freeze or poison the cursor). */
+export const isSeq = (value: unknown): value is number => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+
 /** Where the event log stands for this key: `lastSeq` (the newest event it may see) and, since CL-406, a sealed cursor for "now". */
 export interface LogTail {
   lastSeq: number;
@@ -423,10 +427,10 @@ export interface LogTail {
  */
 export async function readTail(client: LoopsClient): Promise<LogTail> {
   const tail = await must<{ events?: unknown; lastSeq?: unknown; cursor?: unknown }>(client, "/api/events", { from: "tail" });
-  if (Array.isArray(tail.events) && tail.events.length === 0 && typeof tail.lastSeq === "number") {
+  if (Array.isArray(tail.events) && tail.events.length === 0 && isSeq(tail.lastSeq)) {
     return { lastSeq: tail.lastSeq, cursor: typeof tail.cursor === "string" && tail.cursor !== "" ? tail.cursor : null };
   }
   const older = await must<{ lastSeq?: unknown }>(client, "/api/events", { types: "attachment.added", limit: "1" });
-  if (typeof older.lastSeq !== "number") throw new SnapshotError("loops_down", "/api/events answered without lastSeq");
+  if (!isSeq(older.lastSeq)) throw new SnapshotError("loops_down", "/api/events answered without a lastSeq that is a seq");
   return { lastSeq: older.lastSeq, cursor: null };
 }

@@ -9,7 +9,8 @@
 import type { Envelope, HostKeyState, ChatThreadFact } from "@crewhub/loops-client";
 import { type LoopsClient, type StreamResume, isUnauthorized } from "./loops.ts";
 import type { ChatLine } from "./chatLine.ts";
-import { SnapshotError, readTail } from "./snapshot.ts";
+import { isSegment } from "./allowList.ts";
+import { SnapshotError, isSeq, readTail } from "./snapshot.ts";
 
 export type LoopsState = "ok" | "down" | "unauthorized";
 
@@ -175,14 +176,16 @@ export function createUpstream(client: LoopsClient, options: UpstreamOptions = {
 
   function apply(line: Record<string, unknown>): void {
     if (line.type === "heartbeat") {
-      const seq = typeof line.seq === "number" ? line.seq : cursor;
+      const seq = isSeq(line.seq) ? line.seq : cursor;
       if (seq > cursor) cursor = seq;
       // CL-406: the heartbeat's cursor is "everything up to now is judged" for this position; an event voids it.
       if (typeof line.cursor === "string") seal(line.cursor, cursor);
       broadcast({ type: "heartbeat", seq: cursor, ts: typeof line.ts === "string" ? line.ts : new Date().toISOString() });
       return;
     }
-    if (typeof line.seq !== "number" || typeof line.type !== "string") return;
+    // A seq that is no seq (a float, 1e999, a string, past 2^53) is no event: taken as one it would move the cursor to a
+    // place no `after=` can name (round 34, the fuzz).
+    if (!isSeq(line.seq) || typeof line.type !== "string") return;
     const envelope = line as unknown as Envelope;
     if (envelope.seq <= cursor) return;
     cursor = envelope.seq;
@@ -193,8 +196,11 @@ export function createUpstream(client: LoopsClient, options: UpstreamOptions = {
       const dropped = buffer.shift() as Envelope;
       bufferFrom = dropped.seq;
     }
-    if (envelope.type === "project.archived" && envelope.project !== null) archived.add(envelope.project.slug);
-    if (envelope.type === "project.restored" && envelope.project !== null) archived.delete(envelope.project.slug);
+    // The slug is kept only when it is one (round 34): a slug that is no segment would make every snapshot fail on
+    // its read (`/api/projects/{slug}` refused by the allow-list, review F8), and `project` may be anything on the wire.
+    const slug = (envelope.project as { slug?: unknown } | null | undefined)?.slug;
+    if (envelope.type === "project.archived" && isSegment(slug)) archived.add(slug);
+    if (envelope.type === "project.restored" && isSegment(slug)) archived.delete(slug);
     // Every type passes, the ones events.md at 053b5f47 did not list too: the browser's validators judge the payload.
     broadcast({ type: "event", envelope });
   }
