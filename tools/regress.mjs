@@ -2216,7 +2216,8 @@ await group("rooms", async () => {
   // WorldCanvas.tsx, three's OrbitControls) stands twice on window or document. (b) A scene made beside the live one
   // from the same view and disposed once laid out: its canvas keeps no listener (the scene's own, the controls' and
   // the renderer's), the interval it made is cleared, it draws no frame, its host no longer sizes its canvas, the
-  // canvas is out of the host, and every geometry the scene alone held is disposed.
+  // canvas is out of the host (and, put back, is not sized by the host again), and every geometry the scene alone
+  // held is disposed.
   // The browser's own listener table for an object (CDP), each listener with the file and line of its handler.
   const inspector = async (page) => {
     const cdp = await page.context().newCDPSession(page);
@@ -2320,11 +2321,15 @@ await group("rooms", async () => {
     restore();
     let drawn = 0;
     scene.renderer.render = () => drawn++;
+    const inHost = host.querySelector("canvas") !== null;
+    // Its canvas put back in the host: a host that changes size must not reach the scene any more (its resize
+    // handler sizes the canvas whenever the canvas has a parent).
+    host.append(canvas);
     host.style.width = "480px";
     await pause(300);
     await frame();
     const left = own.filter((g) => !disposed.has(g)).map((g) => `${g.type}${g.name ? ` ${g.name}` : ""}`);
-    return { intervalsLeft: intervals.filter((id) => !cleared.has(id)).length, drawn, sizedAfter: canvas.width, inHost: host.querySelector("canvas") !== null, left: left.length, leftNames: [...new Set(left)].slice(0, 6).join(", ") };
+    return { intervalsLeft: intervals.filter((id) => !cleared.has(id)).length, drawn, sizedAfter: canvas.width, inHost, left: left.length, leftNames: [...new Set(left)].slice(0, 6).join(", ") };
   });
   const canvasListenersAfter = (await listenersOf("globalThis.__probe.canvas")).length;
   await p.evaluate(() => {
@@ -2333,7 +2338,7 @@ await group("rooms", async () => {
     delete globalThis.__probe;
   });
   await closeInspector();
-  ok("rooms (round 33, teardown b): a scene made beside the live one and disposed once laid out keeps no listener on its canvas, clears its interval, draws no frame, is no longer sized by its host, leaves the host and disposes every geometry it alone held", made.ready && made.intervals > 0 && made.own > 0 && canvasListenersAlive > 0 && canvasListenersAfter === 0 && gone.intervalsLeft === 0 && gone.drawn === 0 && made.sizedAlive === 400 && gone.sizedAfter === 400 && !gone.inHost && gone.left === 0, `laid out ${made.ready}; canvas listeners ${canvasListenersAlive} alive, ${canvasListenersAfter} after; intervals ${made.intervals} made, ${gone.intervalsLeft} left; frames drawn after ${gone.drawn}; canvas width ${made.sizedAlive} alive (host 400), ${gone.sizedAfter} after (host 480); in host after: ${gone.inHost}; own geometries ${made.own}, undisposed ${gone.left}${gone.left ? ` (${gone.leftNames})` : ""}`);
+  ok("rooms (round 33, teardown b): a scene made beside the live one and disposed once laid out keeps no listener on its canvas, clears its interval, draws no frame, leaves the host and is not sized by it again, and disposes every geometry it alone held", made.ready && made.intervals > 0 && made.own > 0 && canvasListenersAlive > 0 && canvasListenersAfter === 0 && gone.intervalsLeft === 0 && gone.drawn === 0 && made.sizedAlive === 400 && gone.sizedAfter === 400 && !gone.inHost && gone.left === 0, `laid out ${made.ready}; canvas listeners ${canvasListenersAlive} alive, ${canvasListenersAfter} after; intervals ${made.intervals} made, ${gone.intervalsLeft} left; frames drawn after ${gone.drawn}; canvas width ${made.sizedAlive} alive (host 400), ${gone.sizedAfter} after (host 480); in host after: ${gone.inHost}; own geometries ${made.own}, undisposed ${gone.left}${gone.left ? ` (${gone.leftNames})` : ""}`);
   await canvas(p).focus();
   await p.keyboard.press("ArrowRight");
   await p.keyboard.press("Enter");
