@@ -239,8 +239,12 @@ CREWHUB_WORLD_LOOPS_URL=http://127.0.0.1:8291 CREWHUB_WORLD_PORT=5181 CREWHUB_WO
 CREWHUB_WORLD_LOOPS_URL=http://127.0.0.1:8291 CREWHUB_WORLD_PORT=5181 npm run world          # no key file: paste one
 ```
 
-`npm run world` opens your browser on a one-time pairing link (`-- --no-open` prints the link instead, for a browser
-of your choice; `npm run host -- open --no-open` prints a fresh one for a host that already runs). With a key file the
+On a machine that already has a world host, or when you only try it out, give the host a folder of its own with
+`CREWHUB_WORLD_CONFIG_DIR=<a folder of its own>` in front of the command: `archived.json` there remembers one loops
+at a time (a run against another loops overwrites the real host's memory), and the pairing secret and `world.db`
+live there too (section 2 of LOOPS_SETUP.md). `npm run world` opens your browser on a one-time pairing link
+(`-- --no-open` prints the link instead, for a browser of your choice; `npm run host -- open --no-open` prints a
+fresh one for a host that already runs). With a key file the
 town stands at once (the stranger's clock: the world up 731 ms after the host started); without one the page shows
 Connect: make the viewer key in that loops (Settings > Agents > Connect CrewHub World) and paste it once. `npm run
 host -- doctor`, with the same environment in front of it, says which step failed, one line each (12 checks). Road 2,
