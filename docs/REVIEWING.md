@@ -68,6 +68,9 @@ Areas 1 to 4 are where a mistake costs something (a key, a cookie, a town); 5 to
   `runFile.test.ts`, `static.test.ts`, `keyStates.test.ts`, `connect.test.ts`, `e2e.test.ts`, `key.test.ts` (every
   response grepped for the key); the regress groups `connect` (25 checks, every Connect screen in order) and `ops`
   (8, loops stopped, the key revoked, loops upgraded under the host).
+- **Fuzzed (round 34).** The Host and Origin guards, the pairing cookie and link token, the dev-origin decision,
+  raw request lines (`fuzzGuards.test.ts`), the key check's reading of `/api/auth/me` (`fuzzTransport.test.ts`); a
+  null principal no longer throws out of the key check.
 
 ### 2.2 The relay and the allow-list: what reaches crewhub-loops, and what the browser gets back
 
@@ -90,6 +93,11 @@ Areas 1 to 4 are where a mistake costs something (a key, a cookie, a town); 5 to
   `loopsVersion.test.ts`; `packages/loops-client/test/hostSource.test.ts`, `validate.test.ts` (against the 15
   recorded answers), `hostConnect.test.ts`, `hostConnection.test.ts`; the fake's own tests; the regress groups `live`
   (26, over the fake and a host the tool starts), `real` (13, against a real development crewhub-loops), `ops` (8).
+- **Fuzzed (round 34).** The allow-list's path and query matching in process and through the host
+  (`fuzzAllowList.test.ts`), the stream's lines, seq, heartbeat and sealed cursor (`fuzzStream.test.ts`), the
+  transport over any answer, the tail and a passthrough (`fuzzTransport.test.ts`). Fixed: a seq that is no seq (a
+  float, `1e999`, past 2^53) froze or poisoned the cursor; an archived slug that is no segment failed every snapshot;
+  the path sent to loops is now the normalised one the list matched.
 
 ### 2.3 The chat roads
 
@@ -115,6 +123,11 @@ Areas 1 to 4 are where a mistake costs something (a key, a cookie, a town); 5 to
   against a real loopback server); `apps/host/test/chatKey.test.ts`; `scripts/scan-model-calls.ts` (fetch is allowed
   in two browser files and nowhere else); the regress groups `chat` (22, both roads over the fakes) and `live` (26);
   `tools/road2proof.mjs` records a browser's requests on road 2.
+- **Fuzzed (round 34).** Road 2's readers, verdict, probe and poll over any answer (`pageChat.fuzz.test.ts`), the
+  page's reading of health and the roads' words (`chatRoad.fuzz.test.ts`), road 1's dm payloads and the message and
+  threads answers through the host (`chatFuzz.test.ts`). Fixed: two throws on odd health values, one on a null dm
+  payload. Not capped, a design choice: the host reads every agent message on its own connection, so a burst of
+  hundreds in one instant loses the surplus bubbles.
 
 ### 2.4 The world state and the town store
 
@@ -143,6 +156,9 @@ Areas 1 to 4 are where a mistake costs something (a key, a cookie, a town); 5 to
   `history.test.ts`, `projection.test.ts`, `reducer.test.ts`, `loopsDrift.test.ts`, `noModelCalls.test.ts`;
   `packages/demo/test/loops-shapes.test.ts` (the demo speaks loops' shapes); the regress groups `town` (9: two
   browsers see one town, a host restart keeps it, a restore is previewed) and `demo` (38).
+- **Fuzzed (round 34).** The town document's validator, import and stored history (`townDocument.fuzz.test.ts`),
+  the host's PUT body, validator and `world.db`'s rows (`townFuzz.test.ts`). Fixed: a damaged `world.db` row made a
+  move answer 500; it now heals on the next write.
 
 ### 2.5 The scene
 
@@ -162,6 +178,8 @@ Areas 1 to 4 are where a mistake costs something (a key, a cookie, a town); 5 to
   `validateLayoutParity`), the seam tests (`castContract`, `castBoundary`, `styleBoundary`), `navigation`, `walks`,
   `wayfinding`; the engine's `nav`, `pathfinding`, `props`, `propFormat`; the style's `civicBake`, `figurePieces`; the
   regress groups `walk` (38), `rooms` (20, three of them the scene's teardown, §5), `demo` (38); the measurements `tools/perf.mjs`, `memory.mjs`.
+- **Fuzzed (round 34).** The prop document and the ticket's json block to the town (`props.fuzz.test.ts`,
+  `propImport.fuzz.test.ts`): nothing found.
 - **The short road, 2 h:** `WorldCanvas.tsx`, the header and `dispose` of `TownScene.ts`, `propImport.ts` with the
   engine's `props.ts`; trust the parity tests and the pictures for the rest.
 
