@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { homedir } from "node:os";
 import path from "node:path";
-import { ConfigError, worldEnv, DEFAULT_APP_DATA, keyFilesOf, keyNameOf, loadKey, loadServerConfig, resolveLoopsWebUrl, validateSocketPath } from "../src/config.ts";
+import { ConfigError, worldEnv, DEFAULT_APP_DATA, keyFilesOf, keyNameOf, loadKey, loadServerConfig, resolveLoopsWebUrl, validateSocketPath, configFolderLine } from "../src/config.ts";
 
 const files = { storedKey: "/me/.config/crewhub-world/loops-key", defaultKey: "/secrets/agent-crewhub-world.key" };
 const disk = (contents: Record<string, string>) => (file: string) => contents[file] ?? null;
@@ -115,5 +115,14 @@ describe("the loops web URL", () => {
     assert.throws(() => resolveLoopsWebUrl("ftp://x", "http://127.0.0.1:8091"), ConfigError);
     assert.equal(loadServerConfig({ CREWHUB_WORLD_LOOPS_URL: "http://127.0.0.1:8291", CREWHUB_WORLD_LOOPS_WEB_URL: "http://localhost:8291" }).loopsWebUrl, "http://localhost:8291");
     assert.throws(() => loadServerConfig({ CREWHUB_WORLD_LOOPS_WEB_URL: "nope" }), ConfigError);
+  });
+});
+
+describe("the config folder line (round 34)", () => {
+  it("names the default folder, and the variable when it is set, with the home folder as ~", () => {
+    assert.equal(configFolderLine({}, homedir()), "config folder ~/.config/crewhub-world (the default ~/.config/crewhub-world)");
+    assert.equal(configFolderLine({ CREWHUB_WORLD_CONFIG_DIR: "/tmp/my-world" }, "/Users/me"), "config folder /tmp/my-world (from CREWHUB_WORLD_CONFIG_DIR)");
+    assert.equal(configFolderLine({ CREWHUB_WORLD_CONFIG_DIR: "/Users/me/world-trial" }, "/Users/me"), "config folder ~/world-trial (from CREWHUB_WORLD_CONFIG_DIR)");
+    assert.equal(configFolderLine({ CREWHUB_WORLD_CONFIG_DIR: "   " }, "/Users/me").endsWith("(the default ~/.config/crewhub-world)"), true, "blank is unset");
   });
 });
